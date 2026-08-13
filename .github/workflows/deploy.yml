@@ -30,11 +30,11 @@ jobs:
         run: npm install
         working-directory: functions
 
-      - name: Deploy to Firebase
+- name: Deploy to Firebase
         run: |
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_DATABASERPG_5595B }}' > "$RUNNER_TEMP/sa.json"
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/sa.json"
           export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx firebase-tools deploy --only database,functions,hosting --project databaserpg-5595b
+          npx firebase-tools deploy --only database,functions,hosting --project rpg-referencias
           EXIT_CODE=$?
           rm -f "$RUNNER_TEMP/sa.json"
           exit $EXIT_CODE
