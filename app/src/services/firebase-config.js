@@ -6,13 +6,14 @@ import { getFunctions } from 'firebase/functions';
 
 // ⚠️ COLE AS SUAS CHAVES REAIS AQUI DENTRO:
 const firebaseConfig = {
- apiKey: "AIzaSyDJnV8y4fLq3QhuWcPiJsVOszDR3MRNz0Q",
-  authDomain: "databaserpg-5595b.firebaseapp.com",
-  databaseURL: "https://databaserpg-5595b-default-rtdb.firebaseio.com",
-  projectId: "databaserpg-5595b",
-  storageBucket: "databaserpg-5595b.firebasestorage.app",
-  messagingSenderId: "1027188876320",
-  appId: "1:1027188876320:web:a5b588228ddbc1749cc845"
+  apiKey: "AIzaSyCIe8afbrSIioGN0DA7F5ZCGcmCbNNqRos",
+  authDomain: "rpg-referencias.firebaseapp.com",
+  databaseURL: "https://rpg-referencias-default-rtdb.firebaseio.com",
+  projectId: "rpg-referencias",
+  storageBucket: "rpg-referencias.firebasestorage.app",
+  messagingSenderId: "966175643115",
+  appId: "1:966175643115:web:da9165e220551d6aa6b5ae",
+  measurementId: "G-XNM1YDV83P"
 };
 
 // Inicializa o Firebase
