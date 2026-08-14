@@ -1,90 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ref, set, get } from 'firebase/database';
 import { db } from '../../services/firebase-config';
 import useStore, { sanitizarNome } from '../../stores/useStore';
 import { verificarMesaExistente, registrarNovaMesa, sairConta } from '../../services/firebase-sync';
 import Swal from 'sweetalert2';
-
-// ==========================================
-// 🌌 MOTOR GRÁFICO EXTRAVAGANTE (Puro CSS & JS)
-// ==========================================
-const FundoAnimado = ({ tema, modoDesempenho }) => {
-    const qtdParticulas = modoDesempenho ? 10 : 45;
-    
-    const particulas = useMemo(() => Array.from({ length: qtdParticulas }).map((_, i) => ({
-        id: i,
-        left: Math.random() * 100,
-        top: Math.random() * 100,
-        size: Math.random() * 5 + 2,
-        delay: Math.random() * -20,
-        duracao: Math.random() * 10 + 5
-    })), [qtdParticulas]);
-
-    return (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: -2, overflow: 'hidden', background: '#020202' }}>
-            
-            <div style={{ display: tema === 'theme-cyber' ? 'block' : 'none', width: '100%', height: '100%', position: 'absolute' }}>
-                <div className="anim-cyber-grid" />
-                {!modoDesempenho && particulas.map(p => (
-                    <div key={`cyber-${p.id}`} className="anim-cyber-rain" style={{ left: `${p.left}%`, width: '2px', height: `${p.size * 10}px`, animationDuration: `${p.duracao / 2}s`, animationDelay: `${p.delay}s` }} />
-                ))}
-            </div>
-
-            <div style={{ display: tema === 'theme-blood' ? 'block' : 'none', width: '100%', height: '100%', position: 'absolute' }}>
-                <div className="anim-blood-abyss" />
-                <div className="anim-blood-pulse" />
-                {!modoDesempenho && particulas.map(p => (
-                    <div key={`blood-${p.id}`} className="anim-blood-ember" style={{ left: `${p.left}%`, bottom: `-10%`, width: `${p.size}px`, height: `${p.size}px`, animationDuration: `${p.duracao}s`, animationDelay: `${p.delay}s` }} />
-                ))}
-            </div>
-
-            <div style={{ display: tema === 'theme-glass' ? 'block' : 'none', width: '100%', height: '100%', position: 'absolute', background: 'linear-gradient(135deg, #05070a 0%, #000 100%)' }}>
-                <div className="anim-glass-beams" />
-                {!modoDesempenho && particulas.slice(0, 20).map(p => (
-                    <div key={`glass-${p.id}`} className="anim-glass-shard" style={{ left: `${p.left}%`, top: `${p.top}%`, width: `${p.size * 3}px`, height: `${p.size * 3}px`, animationDuration: `${p.duracao * 1.5}s`, animationDelay: `${p.delay}s` }} />
-                ))}
-            </div>
-
-            <div style={{ display: tema === 'theme-arcane' ? 'block' : 'none', width: '100%', height: '100%', position: 'absolute', background: '#0a001a' }}>
-                <div className="anim-arcane-nebula" />
-                <div className="anim-arcane-portal" />
-                {!modoDesempenho && particulas.map(p => (
-                    <div key={`arcane-${p.id}`} className="anim-arcane-star" style={{ left: `${p.left}%`, top: `${p.top}%`, width: `${p.size}px`, height: `${p.size}px`, animationDuration: `${p.duracao}s`, animationDelay: `${p.delay}s` }} />
-                ))}
-            </div>
-
-            <style>{`
-                /* 🟢 Cyber */
-                .anim-cyber-grid { position: absolute; width: 100%; height: 200%; top: -50%; background-image: linear-gradient(rgba(0, 255, 204, 0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 204, 0.2) 1px, transparent 1px); background-size: 60px 60px; transform: perspective(800px) rotateX(60deg); animation: cyberMove 8s linear infinite; }
-                @keyframes cyberMove { 0% { transform: perspective(800px) rotateX(60deg) translateY(0); } 100% { transform: perspective(800px) rotateX(60deg) translateY(60px); } }
-                .anim-cyber-rain { position: absolute; background: linear-gradient(to bottom, transparent, #00ffcc, #fff); top: -100px; opacity: 0; animation: cyberRain linear infinite; }
-                @keyframes cyberRain { 0% { transform: translateY(0); opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translateY(120vh); opacity: 0; } }
-
-                /* 🩸 Blood */
-                .anim-blood-abyss { position: absolute; width: 100vw; height: 100vh; background: repeating-radial-gradient(circle at center, #2a0000 0, #000 40px); opacity: 0.3; animation: abyssSpin 60s linear infinite; }
-                @keyframes abyssSpin { 0% { transform: rotate(0deg) scale(2); } 100% { transform: rotate(360deg) scale(2); } }
-                .anim-blood-pulse { position: absolute; width: 100%; height: 100%; background: radial-gradient(circle at center, rgba(255,0,60,0.15) 0%, transparent 70%); animation: bloodPulse 3s ease-in-out infinite alternate; }
-                @keyframes bloodPulse { 0% { transform: scale(0.8); opacity: 0.5; } 100% { transform: scale(1.5); opacity: 1; } }
-                .anim-blood-ember { position: absolute; background: #ff003c; border-radius: 50%; box-shadow: 0 0 15px #ff003c, 0 0 30px #ffaa00; animation: bloodRise linear infinite; opacity: 0; filter: blur(1px); }
-                @keyframes bloodRise { 0% { transform: translateY(0) scale(0.5); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateY(-120vh) scale(1.5) rotate(180deg); opacity: 0; } }
-
-                /* ⚔️ Glass */
-                .anim-glass-beams { position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: repeating-linear-gradient(45deg, transparent, transparent 100px, rgba(255,255,255,0.03) 100px, rgba(255,255,255,0.03) 102px); animation: glassSweep 20s linear infinite; }
-                @keyframes glassSweep { 0% { transform: translateX(-10%); } 100% { transform: translateX(10%); } }
-                .anim-glass-shard { position: absolute; background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent); border-top: 1px solid rgba(255,255,255,0.4); border-left: 1px solid rgba(255,255,255,0.2); clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); animation: floatShard ease-in-out infinite alternate; backdrop-filter: blur(2px); }
-                @keyframes floatShard { 0% { transform: translateY(0) rotate(0deg); opacity: 0; } 50% { opacity: 0.8; } 100% { transform: translateY(-60px) rotate(90deg); opacity: 0; } }
-
-                /* 💜 Arcane */
-                .anim-arcane-nebula { position: absolute; width: 200vw; height: 200vh; top: -50vh; left: -50vw; background: radial-gradient(circle, rgba(148,0,211,0.15) 0%, rgba(26,0,51,0.8) 50%, #000 100%); animation: abyssSpin 40s linear infinite reverse; }
-                .anim-arcane-portal { position: absolute; width: 100vw; height: 100vh; background: conic-gradient(from 0deg at 50% 50%, transparent, rgba(224,64,251,0.1), rgba(170,0,255,0.3), transparent); animation: portalSpin 15s linear infinite; mix-blend-mode: screen; }
-                @keyframes portalSpin { 0% { transform: rotate(0deg) scale(1.5); } 100% { transform: rotate(360deg) scale(1.5); } }
-                .anim-arcane-star { position: absolute; background: #fff; border-radius: 50%; box-shadow: 0 0 10px #e040fb, 0 0 20px #aa00ff; animation: starTwinkle ease-in-out infinite alternate; }
-                @keyframes starTwinkle { 0% { transform: scale(0.2); opacity: 0.2; } 100% { transform: scale(1.2); opacity: 1; } }
-            `}</style>
-        </div>
-    );
-};
-// ==========================================
 
 export default function LobbyNeon() {
     const setMesaId = useStore(s => s.setMesaId);
@@ -261,9 +180,12 @@ export default function LobbyNeon() {
     const mesasJogador = minhasMesas.filter(m => !m.isMestre);
 
     return (
-        <div style={{ minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', padding: '20px 0' }}>
-            
-            <FundoAnimado tema={temaAtivo} modoDesempenho={modoDesempenho} />
+        <div style={{
+            minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
+            position: 'relative', overflow: 'hidden', padding: '20px 0 20px 5vw',
+            backgroundImage: "url('/MenuFundo.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat'
+        }}>
+
             <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 99999, pointerEvents: 'none', background: 'rgba(0,0,0,1)', opacity: 1 - (brilho / 100), transition: 'opacity 0.3s' }} />
             
             <style>{`
@@ -272,7 +194,7 @@ export default function LobbyNeon() {
                 ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); } ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
             `}</style>
 
-            <div className="def-box fade-in" style={{ padding: '0', maxWidth: '750px', width: '95%', background: 'rgba(10, 10, 15, 0.85)', backdropFilter: modoDesempenho ? 'none' : 'blur(15px)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 20px 50px rgba(0,0,0,0.8), inset 0 0 40px rgba(0,0,0,0.5)', borderRadius: '15px', overflow: 'hidden', position: 'relative', zIndex: 1 }}>
+            <div className="fade-in" style={{ padding: '0', maxWidth: '750px', width: '95%', textAlign: 'left', position: 'relative', zIndex: 1 }}>
                 
                 {/* 🛡️ CABEÇALHO */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(90deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.8) 100%)', padding: '15px 25px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -340,8 +262,8 @@ export default function LobbyNeon() {
                 ) : (
                     /* 🌌 PAINEL PRINCIPAL */
                     <div className="fade-in" style={{ padding: '30px 25px' }}>
-                        <div style={{ textAlign: 'center', marginBottom: '30px', position: 'relative' }}>
-                            <div style={{ position: 'absolute', top: '-10px', left: '50%', transform: 'translateX(-50%)', background: '#00ffcc', color: '#000', fontSize: '0.6em', fontWeight: 'bold', padding: '2px 8px', borderRadius: '10px', letterSpacing: '2px' }}>V.2.1.0 - MULTIVERSE ENGINE</div>
+                        <div style={{ textAlign: 'left', marginBottom: '30px', position: 'relative' }}>
+                            <div style={{ position: 'absolute', top: '-10px', left: '0', background: '#00ffcc', color: '#000', fontSize: '0.6em', fontWeight: 'bold', padding: '2px 8px', borderRadius: '10px', letterSpacing: '2px' }}>V.2.1.0 - MULTIVERSE ENGINE</div>
                             <h1 style={{ color: 'inherit', margin: '15px 0 15px 0', textTransform: 'uppercase', letterSpacing: '5px', fontSize: '2.2em', fontWeight: '900', opacity: 0.9 }}>REFERÊNCIAS RPG</h1>
                             <div style={{ width: '100%', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.1)', background: '#000', position: 'relative', boxShadow: '0 10px 20px rgba(0,0,0,0.5)' }}>
                                 <img src="/capa-lobby.png" alt="Capa" style={{ width: '100%', height: '140px', objectFit: 'cover', opacity: 0.8 }} onError={(e) => e.target.style.display = 'none'} />
