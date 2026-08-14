@@ -65,7 +65,8 @@ const flatPredefs = {};
 Object.keys(PREDEFINICOES).forEach(key => { flatPredefs[key] = Object.values(PREDEFINICOES[key]).flat(); });
 
 export default function AbaDominios() {
-    const { minhaFicha, updateFicha } = useStore();
+    const minhaFicha = useStore(s => s.minhaFicha);
+    const updateFicha = useStore(s => s.updateFicha);
     const [selecionados, setSelecionados] = useState({});
     const [salvando, setSalvando] = useState(false);
 

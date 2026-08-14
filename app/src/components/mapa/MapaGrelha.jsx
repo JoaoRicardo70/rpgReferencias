@@ -95,10 +95,10 @@ export function MapaControlesSuperiores() {
 export function MapaVisao() {
     const ctx = useMapaForm();
     if (!ctx) return FALLBACK;
-    const { 
-        modo3D, tamanhoCelula, cenaAtual, cells, tokenMap, dummies, 
-        cenaRenderId, tokens3D, handleCellClick, getAvatarInfo, 
-        meuNome, corDoJogador, overridesCompendio, cenario, isMestre 
+    const {
+        modo3D, tamanhoCelula, cenaAtual, cells, tokenMap, dummyMap,
+        cenaRenderId, tokens3D, handleCellClick, getAvatarInfo,
+        meuNome, corDoJogador, overridesCompendio, cenario, isMestre
     } = ctx;
 
     const zonasCena = (cenario?.zonas || []).filter(z => (z.cenaId || 'default') === cenaRenderId);
@@ -145,11 +145,9 @@ export function MapaVisao() {
                 const tokensNestaCelula = tokenMap[key] || [];
                 const visivelTokens = tokensNestaCelula.filter(tk => isMestre || !(cenario?.tokensOcultos?.includes(tk.nome)));
 
-                const cellDummies = Object.entries(dummies || {}).filter(([id, d]) => {
+                const cellDummies = (dummyMap[key] || []).filter(([id]) => {
                     const isOculto = cenario?.tokensOcultos?.includes(id);
-                    if (!isMestre && isOculto) return false; 
-                    const dCena = d.cenaId || 'default';
-                    return d.posicao?.x === cell.x && d.posicao?.y === cell.y && dCena === cenaRenderId;
+                    return isMestre || !isOculto;
                 });
 
                 return (

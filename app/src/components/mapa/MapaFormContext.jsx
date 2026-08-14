@@ -58,7 +58,16 @@ export function useMapaForm() {
 }
 
 export function MapaFormProvider({ children }) {
-    const { minhaFicha, meuNome, personagens, updateFicha, feedCombate = [], isMestre, dummies, alvoSelecionado, cenario, abaAtiva } = useStore();
+    const minhaFicha = useStore(s => s.minhaFicha);
+    const meuNome = useStore(s => s.meuNome);
+    const personagens = useStore(s => s.personagens);
+    const updateFicha = useStore(s => s.updateFicha);
+    const feedCombate = useStore(s => s.feedCombate) || [];
+    const isMestre = useStore(s => s.isMestre);
+    const dummies = useStore(s => s.dummies);
+    const alvoSelecionado = useStore(s => s.alvoSelecionado);
+    const cenario = useStore(s => s.cenario);
+    const abaAtiva = useStore(s => s.abaAtiva);
     
     const fichaSegura = minhaFicha || {};
 
@@ -362,6 +371,24 @@ export function MapaFormProvider({ children }) {
         }
         return map;
     }, [jogadores, cenaRenderId]);
+
+    // 🔥 MAPA DE DUMMIES POR CÉLULA (evita varrer todos os dummies em cada uma das células do grid)
+    const dummyMap = useMemo(() => {
+        const map = {};
+        if (dummies) {
+            const dIds = Object.keys(dummies);
+            for (let i = 0; i < dIds.length; i++) {
+                const id = dIds[i];
+                const d = dummies[id];
+                const dCena = d.cenaId || 'default';
+                if (d.posicao?.x === undefined || dCena !== cenaRenderId) continue;
+                const key = `${d.posicao.x},${d.posicao.y}`;
+                if (!map[key]) map[key] = [];
+                map[key].push([id, d]);
+            }
+        }
+        return map;
+    }, [dummies, cenaRenderId]);
 
     const tokens3D = useMemo(() => {
         return Object.entries(jogadores)
@@ -749,7 +776,7 @@ export function MapaFormProvider({ children }) {
         handleUploadNovaCena, ativarCena, deletarCena, corDoJogador, getAvatarInfo,
         cells, jogadores, playersNaTaverna, ordemIniciativa, handleCellClick,
         alterarZoom, setMinhaIniciativa, avancarTurno, sairDoCombate, encerrarCombate,
-        rolarAcertoRapido, tokenMap, tokens3D, jogadorDaVez, infoDaVez, fmt, deletarZona, toggleActionDot
+        rolarAcertoRapido, tokenMap, dummyMap, tokens3D, jogadorDaVez, infoDaVez, fmt, deletarZona, toggleActionDot
     }), [
         minhaFicha, meuNome, personagens, feedCombate, isMestre, dummies, alvoSelecionado, cenario, abaAtiva,
         fichaSegura, modo3D, tamanhoCelula, iniciativaInput, altitudeInput,
@@ -758,7 +785,7 @@ export function MapaFormProvider({ children }) {
         novaCenaNome, novaCenaEscala, novaCenaUnidade, uploadingMap, dadoAnim,
         cenaVisualizadaId, cenaAtivaIdGlobal, cenaRenderId, cenaAtual, isModoRP,
         mestreVendoRP, tavernaAtivos, isPresenteNaTaverna, overridesCompendio,
-        cells, jogadores, playersNaTaverna, ordemIniciativa, tokenMap, tokens3D,
+        cells, jogadores, playersNaTaverna, ordemIniciativa, tokenMap, dummyMap, tokens3D,
         jogadorDaVez, infoDaVez, fmt, toggleModoRP, togglePresencaTaverna, changeVantagem,
         changeDesvantagem, handleUploadNovaCena, ativarCena, deletarCena, corDoJogador,
         getAvatarInfo, handleCellClick, alterarZoom, setMinhaIniciativa, avancarTurno,

@@ -87,7 +87,9 @@ const FundoAnimado = ({ tema, modoDesempenho }) => {
 // ==========================================
 
 export default function LobbyNeon() {
-    const { setMesaId, userLogado, setMeuNome } = useStore();
+    const setMesaId = useStore(s => s.setMesaId);
+    const userLogado = useStore(s => s.userLogado);
+    const setMeuNome = useStore(s => s.setMeuNome);
     
     const [codigoSala, setCodigoSala] = useState('');
     const [abaMesas, setAbaMesas] = useState('jogador');

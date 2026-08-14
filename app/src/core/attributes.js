@@ -307,16 +307,16 @@ export function getRawBase(ficha, statKey) {
     return (s && s.base) ? parseFloat(s.base) : 0;
 }
 
-export function getEfetivoBase(ficha, statKey, avoidLoop = false) {
+export function getEfetivoBase(ficha, statKey, avoidLoop = false, buffsCache = null) {
     let rawBase = getRawBase(ficha, statKey);
     if (isNaN(rawBase)) rawBase = 0;
-    return rawBase + getBuffs(ficha, statKey, false, avoidLoop).base;
+    return rawBase + (buffsCache || getBuffs(ficha, statKey, false, avoidLoop)).base;
 }
 
-export function getMultiplicadorTotal(ficha, k, avoidLoop = false) {
+export function getMultiplicadorTotal(ficha, k, avoidLoop = false, buffsCache = null) {
     if (!ficha || !k) return 1.0;
     let s = ficha[k] || {};
-    let b = getBuffs(ficha, k, false, avoidLoop);
+    let b = buffsCache || getBuffs(ficha, k, false, avoidLoop);
 
     const calcAdd = (fichaVal, buffSum, hasBuffFlag) => {
         let v = parseFloat(fichaVal) || 1.0;
@@ -339,9 +339,10 @@ export function getMultiplicadorTotal(ficha, k, avoidLoop = false) {
     return mB * mG * mF * mA * uniFicha * mU;
 }
 
-export function getMaximo(ficha, k, avoidLoop = false) {
-    let b = getEfetivoBase(ficha, k, avoidLoop);
-    let mult = getMultiplicadorTotal(ficha, k, avoidLoop);
+export function getMaximo(ficha, k, avoidLoop = false, buffsCache = null) {
+    let buffs = buffsCache || getBuffs(ficha, k, false, avoidLoop);
+    let b = getEfetivoBase(ficha, k, avoidLoop, buffs);
+    let mult = getMultiplicadorTotal(ficha, k, avoidLoop, buffs);
     let mx = Math.floor(b * mult);
     return isNaN(mx) ? 0 : mx;
 }

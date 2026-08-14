@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import useStore, { sanitizarNome } from '../../stores/useStore';
-import { carregarFichaDoFirebase, salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem, iniciarListenerPersonagens } from '../../services/firebase-sync';
+import { carregarFichaDoFirebase, salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync';
 import { auth } from '../../services/firebase-config';
 
 const PerfilFormContext = createContext(null);
@@ -23,6 +23,7 @@ export function PerfilFormProvider({ children }) {
     const setPersonagemParaDeletar = useStore(s => s.setPersonagemParaDeletar);
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
     const mesaId = useStore(s => s.mesaId);
+    const personagensDB = useStore(s => s.personagens);
 
     const [nomeInput, setNomeInput] = useState(meuNome || '');
     const [uploadingImg, setUploadingImg] = useState(false);
@@ -41,15 +42,8 @@ export function PerfilFormProvider({ children }) {
 
     // ==========================================
     // 📡 LEITURA DIRETA E ABSOLUTA DO BANCO DE DADOS
+    // 🔥 Reaproveita o listener único já mantido pelo useFirebase (evita assinatura duplicada no Firebase)
     // ==========================================
-    const [personagensDB, setPersonagensDB] = useState({});
-    useEffect(() => {
-        if (!mesaId) return;
-        const unsub = iniciarListenerPersonagens((dados) => {
-            setPersonagensDB(dados || {});
-        });
-        return () => unsub();
-    }, [mesaId]);
 
     // ==========================================
     // 🧠 A LISTA INTELIGENTE (Cruza a Tabela com a sua Identidade)

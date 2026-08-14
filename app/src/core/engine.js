@@ -217,10 +217,10 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         if (custoPerc <= 0) return { dreno: 0, combustao: 0 };
         let eng = minhaFicha[energiaKey];
         if (!eng) return { dreno: 0, combustao: 0 };
-        let mx = getMaximo(minhaFicha, energiaKey);
+        let bEnergia = getBuffs(minhaFicha, energiaKey);
+        let mx = getMaximo(minhaFicha, energiaKey, false, bEnergia);
         let combustao = Math.floor(mx * (custoPerc / 100));
         let redBase = eng.reducaoCusto ? parseFloat(eng.reducaoCusto) : 0;
-        let bEnergia = getBuffs(minhaFicha, energiaKey);
         let red = Math.min(100, redBase + bEnergia.reducaoCusto);
         let dreno = Math.floor(combustao * (1 - (red / 100)));
         return { dreno, combustao };
@@ -601,10 +601,10 @@ export function calcularReducao({ energiaKey, perc, multBase, minhaFicha, itensE
 
     for (let i = 0; i < keys.length; i++) {
         let e = keys[i];
-        let mMax = getMaximo(minhaFicha, e);
+        let bEnergia = getBuffs(minhaFicha, e);
+        let mMax = getMaximo(minhaFicha, e, false, bEnergia);
         let gt = Math.floor(mMax * (perc / 100));
         let redBase = (minhaFicha[e] && minhaFicha[e].reducaoCusto) ? parseFloat(minhaFicha[e].reducaoCusto) : 0;
-        let bEnergia = getBuffs(minhaFicha, e);
         let red = Math.min(100, redBase + bEnergia.reducaoCusto);
         let cr = Math.floor(gt * (1 - (red / 100)));
         if ((minhaFicha[e].atual || 0) < cr) return { erro: 'Sem energia!' };
