@@ -181,7 +181,7 @@ export default function LobbyNeon() {
 
     return (
         <div style={{
-            minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
+            minHeight: '100vh', width: '100vw',
             position: 'relative', overflow: 'hidden',
             backgroundImage: "url('/MenuFundo.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat'
         }}>
@@ -194,7 +194,7 @@ export default function LobbyNeon() {
                 ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); } ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
             `}</style>
 
-            <div className="fade-in lobby-sidebar" style={{ maxWidth: mostrarConfig ? '750px' : '480px' }}>
+            <div className="fade-in lobby-sidebar">
 
                 {/* 🛡️ CABEÇALHO */}
                 <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(90deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.8) 100%)', padding: '15px 25px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -210,7 +210,7 @@ export default function LobbyNeon() {
 
                 {/* ⚙️ PAINEL DE CONFIGURAÇÕES */}
                 {mostrarConfig ? (
-                    <div className="fade-in" style={{ width: '100%', padding: '30px 25px', maxHeight: '75vh', overflowY: 'auto' }}>
+                    <div className="fade-in" style={{ width: '100%' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid #333', paddingBottom: '15px' }}>
                             <h2 style={{ color: '#fff', margin: 0 }}>⚙️ CALIBRAÇÃO DO SISTEMA</h2>
                             <button onClick={() => setMostrarConfig(false)} className="btn-neon btn-red" style={{ padding: '8px 15px', borderRadius: '8px' }}>FECHAR</button>
@@ -261,7 +261,7 @@ export default function LobbyNeon() {
                     </div>
                 ) : (
                     /* 🌌 PAINEL PRINCIPAL */
-                    <div className="fade-in" style={{ width: '100%', padding: '30px 25px' }}>
+                    <div className="fade-in" style={{ width: '100%' }}>
                         <div style={{ textAlign: 'left', marginBottom: '30px', position: 'relative' }}>
                             <div style={{ position: 'absolute', top: '-10px', left: '0', background: '#00ffcc', color: '#000', fontSize: '0.6em', fontWeight: 'bold', padding: '2px 8px', borderRadius: '10px', letterSpacing: '2px' }}>V.2.1.0 - MULTIVERSE ENGINE</div>
                             <h1 style={{ color: 'inherit', margin: '15px 0 15px 0', textTransform: 'uppercase', letterSpacing: '5px', fontSize: '2.2em', fontWeight: '900', opacity: 0.9 }}>REFERÊNCIAS RPG</h1>

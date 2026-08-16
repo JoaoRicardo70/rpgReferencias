@@ -1,16 +1,21 @@
 /**
  * Tests for LobbyNeon component
  *
- * Context: LobbyNeon.jsx was refactored from a centered card layout into a
- * left-aligned sidebar menu (flexbox). Only outer container styling / JSX
- * structure changed (new `.lobby-sidebar` class, removal of the padding
- * previously set on the root div, `maxWidth` moved onto the sidebar div).
- * No business logic was touched.
+ * Context: LobbyNeon.jsx was reworked from a squeezed/overflowing sidebar
+ * into a fixed-position glassmorphism panel. The `.lobby-sidebar` CSS class
+ * now owns the layout (position: fixed, width: 35vw, min-width: 420px,
+ * height: 100vh, overflow-y: auto, blurred translucent background, hidden
+ * scrollbar, `width: 100%` forced on direct children). The dynamic inline
+ * `maxWidth` previously toggled between the main/config panels, the nested
+ * `maxHeight`/`overflowY` scroll region, and the vestigial flex-alignment
+ * props on the outer wrapper were all removed as redundant now that
+ * positioning is handled purely by CSS. No business logic was touched.
  *
  * Covers:
  *   1. Smoke test — renders without crashing
- *   2. Structural integrity — `.lobby-sidebar` wrapper present with expected
- *      dynamic maxWidth (480px main panel / 750px config panel)
+ *   2. Structural integrity — `.lobby-sidebar` wrapper present, no leftover
+ *      inline maxWidth/flex-alignment styles, class stable regardless of
+ *      settings-panel state
  *   3. Header — shows user initial/name, ping indicator, logout button
  *   4. Settings panel toggle (mostrarConfig) — opening/closing via buttons
  *   5. Settings controls — tema, fonte, brilho, volume, modoDesempenho,
@@ -126,16 +131,26 @@ describe('LobbyNeon — smoke test', () => {
         expect(container.firstChild).not.toBeNull();
     });
 
-    it('root div fills the viewport and uses flex left alignment', () => {
+    it('root wrapper fills the viewport (relative positioning host for the fixed sidebar)', () => {
         const { container } = renderLobby();
         const root = container.firstChild;
-        expect(root.style.display).toBe('flex');
-        expect(root.style.justifyContent).toBe('flex-start');
+        expect(root.style.minHeight).toBe('100vh');
+        expect(root.style.width).toBe('100vw');
+        expect(root.style.position).toBe('relative');
+        expect(root.style.overflow).toBe('hidden');
+    });
+
+    it('root wrapper no longer carries the vestigial flex-alignment props', () => {
+        // These were removed as redundant once the sidebar became `position: fixed`.
+        const { container } = renderLobby();
+        const root = container.firstChild;
+        expect(root.style.display).toBe('');
+        expect(root.style.justifyContent).toBe('');
     });
 });
 
 // ===========================================================================
-// SECTION 2 — Structural integrity of the new sidebar layout
+// SECTION 2 — Structural integrity of the new fixed sidebar layout
 // ===========================================================================
 describe('LobbyNeon — sidebar structure', () => {
     it('renders the .lobby-sidebar wrapper with fade-in class', async () => {
@@ -147,19 +162,25 @@ describe('LobbyNeon — sidebar structure', () => {
         });
     });
 
-    it('main panel (config closed) uses 480px maxWidth', async () => {
+    it('sidebar has no leftover inline maxWidth (layout now owned by the .lobby-sidebar CSS class)', async () => {
         const { container } = renderLobby();
         await waitFor(() => {
             const sidebar = container.querySelector('.lobby-sidebar');
-            expect(sidebar.style.maxWidth).toBe('480px');
+            expect(sidebar.style.maxWidth).toBe('');
+            expect(sidebar.getAttribute('style')).toBeNull();
         });
     });
 
-    it('config panel (config open) uses 750px maxWidth', async () => {
+    it('sidebar keeps the same class (no dynamic maxWidth) whether the config panel is open or closed', async () => {
         renderLobby();
+        const sidebarClosed = document.querySelector('.lobby-sidebar');
+        const classesClosed = sidebarClosed.className;
+
         fireEvent.click(await screen.findByText(/CONFIGURA/i));
-        const container = document.querySelector('.lobby-sidebar');
-        expect(container.style.maxWidth).toBe('750px');
+
+        const sidebarOpen = document.querySelector('.lobby-sidebar');
+        expect(sidebarOpen.className).toBe(classesClosed);
+        expect(sidebarOpen.style.maxWidth).toBe('');
     });
 });
 
