@@ -182,7 +182,7 @@ export default function LobbyNeon() {
     return (
         <div style={{
             minHeight: '100vh', width: '100vw', display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
-            position: 'relative', overflow: 'hidden', padding: '20px 0 20px 5vw',
+            position: 'relative', overflow: 'hidden',
             backgroundImage: "url('/MenuFundo.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat'
         }}>
 
@@ -194,10 +194,10 @@ export default function LobbyNeon() {
                 ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); } ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
             `}</style>
 
-            <div className="fade-in" style={{ padding: '0', maxWidth: '750px', width: '95%', textAlign: 'left', position: 'relative', zIndex: 1 }}>
-                
+            <div className="fade-in lobby-sidebar" style={{ maxWidth: mostrarConfig ? '750px' : '480px' }}>
+
                 {/* 🛡️ CABEÇALHO */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(90deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.8) 100%)', padding: '15px 25px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(90deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.8) 100%)', padding: '15px 25px', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                         <div style={{ background: 'linear-gradient(135deg, #444, #111)', color: '#fff', width: '45px', height: '45px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '1.4em', border: '1px solid rgba(255,255,255,0.2)' }}>{userLogado.charAt(0).toUpperCase()}</div>
                         <div style={{ display: 'flex', flexDirection: 'column' }}><span style={{ color: '#888', fontSize: '0.65em', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 'bold' }}>Agente</span><strong style={{ color: '#fff', fontSize: '1.2em', letterSpacing: '1px' }}>{userLogado}</strong></div>
@@ -210,7 +210,7 @@ export default function LobbyNeon() {
 
                 {/* ⚙️ PAINEL DE CONFIGURAÇÕES */}
                 {mostrarConfig ? (
-                    <div className="fade-in" style={{ padding: '30px 25px', maxHeight: '75vh', overflowY: 'auto' }}>
+                    <div className="fade-in" style={{ width: '100%', padding: '30px 25px', maxHeight: '75vh', overflowY: 'auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '1px solid #333', paddingBottom: '15px' }}>
                             <h2 style={{ color: '#fff', margin: 0 }}>⚙️ CALIBRAÇÃO DO SISTEMA</h2>
                             <button onClick={() => setMostrarConfig(false)} className="btn-neon btn-red" style={{ padding: '8px 15px', borderRadius: '8px' }}>FECHAR</button>
@@ -261,7 +261,7 @@ export default function LobbyNeon() {
                     </div>
                 ) : (
                     /* 🌌 PAINEL PRINCIPAL */
-                    <div className="fade-in" style={{ padding: '30px 25px' }}>
+                    <div className="fade-in" style={{ width: '100%', padding: '30px 25px' }}>
                         <div style={{ textAlign: 'left', marginBottom: '30px', position: 'relative' }}>
                             <div style={{ position: 'absolute', top: '-10px', left: '0', background: '#00ffcc', color: '#000', fontSize: '0.6em', fontWeight: 'bold', padding: '2px 8px', borderRadius: '10px', letterSpacing: '2px' }}>V.2.1.0 - MULTIVERSE ENGINE</div>
                             <h1 style={{ color: 'inherit', margin: '15px 0 15px 0', textTransform: 'uppercase', letterSpacing: '5px', fontSize: '2.2em', fontWeight: '900', opacity: 0.9 }}>REFERÊNCIAS RPG</h1>
@@ -271,7 +271,7 @@ export default function LobbyNeon() {
                             </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '15px', marginBottom: '25px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px' }}>
                             <div style={{ background: 'rgba(0, 255, 204, 0.05)', border: '1px solid rgba(0, 255, 204, 0.2)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }} className="hover-lift">
                                 <div style={{ marginBottom: '15px' }}><span style={{ fontSize: '2.5em', display: 'block', marginBottom: '5px', filter: 'drop-shadow(0 0 10px rgba(0,255,204,0.5))' }}>🌌</span><strong style={{ color: '#fff', fontSize: '1.1em', display: 'block' }}>FORJAR REALIDADE</strong><span style={{ color: '#888', fontSize: '0.8em' }}>Inicie uma nova campanha (Mestre).</span></div>
                                 <button className="btn-neon btn-green" onClick={criarMesa} style={{ width: '100%', padding: '12px', fontSize: '1em', fontWeight: 'bold', borderRadius: '8px' }}>CRIAR SESSÃO</button>
@@ -285,7 +285,7 @@ export default function LobbyNeon() {
                             </div>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '25px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '25px' }}>
                             <a href="https://discord.gg/SEU-LINK-AQUI" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', background: 'rgba(88, 101, 242, 0.1)', border: '1px solid rgba(88, 101, 242, 0.5)', color: '#5865F2', padding: '12px', borderRadius: '8px', textDecoration: 'none', fontWeight: 'bold' }} className="hover-lift">
                                 <span style={{ fontSize: '1.3em' }}>👾</span> DISCORD DA GUILDA
                             </a>
