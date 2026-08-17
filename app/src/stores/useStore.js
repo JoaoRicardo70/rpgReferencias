@@ -70,7 +70,7 @@ const useStore = create(
             else localStorage.removeItem('rpg_mesaId');
         }),
         minhaFicha: deepClone(fichaPadrao),
-        meuNome: '', isMestre: false, abaAtiva: 'aba-status', personagens: {}, feedCombate: [],
+        meuNome: '', isMestre: false, abaAtiva: 'aba-ficha', personagens: {}, feedCombate: [],
         efeitosTemp: [], efeitosTempPassivos: [], efeitosTempArsenal: [], efeitosTempPassivosArsenal: [], efeitosTempForma: [], efeitosTempPassivosForma: [],
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
         dummies: {}, alvoSelecionado: null,

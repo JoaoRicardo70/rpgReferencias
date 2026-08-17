@@ -10,7 +10,6 @@ import { useVoiceChat } from './hooks/useVoiceChat';
 // 📂 Import de Layout e Componentes
 import Sidebar from './components/layout/Sidebar';
 import TabPanel from './components/layout/TabPanel';
-import StatusPanel from './components/status/StatusPanel';
 import PerfilPanel from './components/perfil/PerfilPanel';
 import ModalConfirm from './components/perfil/ModalConfirm';
 import FichaPanel from './components/ficha/FichaPanel';
@@ -340,8 +339,7 @@ export default function App() {
                 <div className={`main-content${isMapMode ? ' modo-mapa' : ''}`}>
                     {!isMapMode && <h1 className="title">RPG Anime System</h1>}
                     <TabPanel id="aba-perfil"><PerfilPanel /></TabPanel>
-                    <TabPanel id="aba-mestre"><MestrePanel /></TabPanel> 
-                    <TabPanel id="aba-status"><StatusPanel /></TabPanel>
+                    <TabPanel id="aba-mestre"><MestrePanel /></TabPanel>
                     <TabPanel id="aba-testes"><TestesPanel /></TabPanel>
                     <TabPanel id="aba-ataque"><AtaquePanel /></TabPanel>
                     <TabPanel id="aba-acerto"><AcertoPanel /></TabPanel>

@@ -13,7 +13,6 @@ export default function Sidebar({ onResetClick }) {
         {
             id: 'entidade', icone: '👤', nome: 'Entidade', cor: '#00ffcc', bg: 'rgba(0,255,204,0.15)',
             abas: [
-                { id: 'aba-status', icone: '❤️', nome: 'Status' },
                 { id: 'aba-ficha', icone: '📋', nome: 'Ficha' },
                 { id: 'aba-perfil', icone: '🆔', nome: 'Perfil' },
             ]

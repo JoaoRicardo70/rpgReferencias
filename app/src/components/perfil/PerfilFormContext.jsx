@@ -123,7 +123,7 @@ export function PerfilFormProvider({ children }) {
             }, 500);
         }
         
-        setAbaAtiva('aba-status');
+        setAbaAtiva('aba-ficha');
     }, [setMeuNome, resetFicha, carregarDadosFicha, setAbaAtiva, contaId, updateFicha]);
 
     const trocarPersonagem = useCallback(() => processarCarregamento(nomeInput), [nomeInput, processarCarregamento]);
