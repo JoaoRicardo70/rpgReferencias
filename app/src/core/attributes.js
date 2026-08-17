@@ -301,10 +301,20 @@ export function isStatBuffed(ficha, statKey) {
     }
 }
 
+// 🔥 Sanitização de segurança: strings vindas de campos formatados (ex: "260.000.000",
+// com pontos como separador de milhar) truncam no parseFloat no primeiro ponto extra.
+// Números já limpos (type number) passam direto, sem qualquer conversão.
+function sanitizarBaseNumerica(valor) {
+    if (typeof valor === 'number') return valor;
+    if (valor === null || valor === undefined || valor === '') return 0;
+    const limpo = parseInt(String(valor).replace(/\./g, ''), 10);
+    return isNaN(limpo) ? 0 : limpo;
+}
+
 export function getRawBase(ficha, statKey) {
     if (!ficha || !statKey) return 0;
     let s = ficha[statKey];
-    return (s && s.base) ? parseFloat(s.base) : 0;
+    return (s && s.base) ? sanitizarBaseNumerica(s.base) : 0;
 }
 
 export function getEfetivoBase(ficha, statKey, avoidLoop = false, buffsCache = null) {

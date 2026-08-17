@@ -343,6 +343,31 @@ describe('getRawBase', () => {
         const ficha = fichaBase({ forca: { base: '2500' } });
         expect(getRawBase(ficha, 'forca')).toBe(2500);
     });
+
+    it('remove pontos de milhar de strings formatadas em pt-BR sem truncar', () => {
+        const ficha = fichaBase({ forca: { base: '260.000.000' } });
+        expect(getRawBase(ficha, 'forca')).toBe(260000000);
+    });
+
+    it('nao altera valores numericos ja limpos (mesmo com muitos digitos)', () => {
+        const ficha = fichaBase({ forca: { base: 260000000 } });
+        expect(getRawBase(ficha, 'forca')).toBe(260000000);
+    });
+
+    it('trata string numerica com um unico ponto de milhar', () => {
+        const ficha = fichaBase({ forca: { base: '1.500' } });
+        expect(getRawBase(ficha, 'forca')).toBe(1500);
+    });
+
+    it('retorna 0 para string invalida (nao numerica)', () => {
+        const ficha = fichaBase({ forca: { base: 'abc' } });
+        expect(getRawBase(ficha, 'forca')).toBe(0);
+    });
+
+    it('retorna 0 quando base e string vazia', () => {
+        const ficha = fichaBase({ forca: { base: '' } });
+        expect(getRawBase(ficha, 'forca')).toBe(0);
+    });
 });
 
 // ---------------------------------------------------------------------------
