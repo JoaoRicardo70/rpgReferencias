@@ -858,12 +858,12 @@ export default function MarcadosPanel() {
     };
 
     return (
-        <div style={{ 
-            width: '100%', minHeight: '85vh', 
-            backgroundColor: localCorFundo, color: localCorTexto, fontFamily: fonteDiario, 
+        <div style={{
+            width: '100%', minHeight: '85vh', height: 'auto',
+            backgroundColor: localCorFundo, color: localCorTexto, fontFamily: fonteDiario,
             padding: '40px 40px 80px 40px', borderRadius: '12px', position: 'relative', transition: 'background 0.3s ease, color 0.3s ease',
             boxShadow: 'inset 0 0 40px rgba(0,0,0,0.1), 0 10px 30px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column',
-            overflow: 'visible' 
+            overflow: 'visible'
         }}>
             
             {/* 🔥 FUNDO ALQUÍMICO 🔥 */}

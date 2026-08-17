@@ -182,6 +182,15 @@ body::before {
     overflow-y: auto;
 }
 
+/* Ficha Definitiva (folha com paginação "Página X de 5"): a folha cresce livremente
+   com o conteúdo (min-height: 85vh; height: auto) e o contêiner pai ganha rolagem
+   vertical própria, para que cada página role até revelar o rodapé de paginação */
+[id="aba-Ficha Def"] {
+    height: auto !important;
+    max-height: 100%;
+    overflow-y: auto;
+}
+
 .lobby-sidebar {
     position: fixed;
     top: 0;
