@@ -762,13 +762,23 @@ export default function MarcadosPanel() {
         
         const ascensao = parseInt(minhaFicha.ascensaoBase) || 1;
         const bonusAscensao = (ascensao - 1) * 100;
-        
-        const pvCalculado = Math.floor(((pVida + pChakra + pCorpo) / 3) * mPV) + bonusAscensao;
-        const pmCalculado = Math.floor(((pMana + pAura + pStatus) / 3) * mPM) + bonusAscensao;
 
-        return { pvMax: isNaN(pvCalculado) ? 1 : pvCalculado, pmMax: isNaN(pmCalculado) ? 1 : pmCalculado };
+        // 🔥 CORREÇÃO: o bônus de Ascensão entra ANTES da multiplicação, para que o
+        // multiplicador escale o valor TOTAL — (Valor_Base + Valor_Ascensao) * Multiplicador
+        const pvCalculado = Math.floor((((pVida + pChakra + pCorpo) / 3) + bonusAscensao) * mPV);
+        const pmCalculado = Math.floor((((pMana + pAura + pStatus) / 3) + bonusAscensao) * mPM);
+
+        // 🔥 NOVO: Força é a média das bases das outras quatro energias — 100% derivada,
+        // nunca armazenada como valor independente
+        const forcaCalculado = Math.floor((pMana + pAura + pChakra + pCorpo) / 4);
+
+        return {
+            pvMax: isNaN(pvCalculado) ? 1 : pvCalculado,
+            pmMax: isNaN(pmCalculado) ? 1 : pmCalculado,
+            forcaMax: isNaN(forcaCalculado) ? 1 : forcaCalculado
+        };
     };
-    const { pvMax, pmMax } = getSupremas();
+    const { pvMax, pmMax, forcaMax } = getSupremas();
 
     const handleRegenerarTudo = () => {
         if (!window.confirm('Recuperar toda a Vida, Energias, Pontos e Ações de Turno?')) return;
@@ -781,7 +791,8 @@ export default function MarcadosPanel() {
             });
             if (!f.pv) f.pv = {}; f.pv.atual = isNaN(pvMax) ? 0 : pvMax;
             if (!f.pm) f.pm = {}; f.pm.atual = isNaN(pmMax) ? 0 : pmMax;
-            
+            if (!f.energiaForca) f.energiaForca = {}; f.energiaForca.atual = isNaN(forcaMax) ? 0 : forcaMax;
+
             ['padrao', 'bonus', 'reacao'].forEach(tipo => {
                 if (!f.acoes) f.acoes = {};
                 if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 };
@@ -1107,6 +1118,12 @@ export default function MarcadosPanel() {
                                 <LinhaVital labelKey="lblAura" fallbackLabel="Aura" vitalKey="aura" corBarra="#aa00ff" subItens={[ { labelKey: 'lblEsp', fallbackLabel: 'Energia Espiritual', key: 'energiaEsp' }, { labelKey: 'lblCar', fallbackLabel: 'Carisma', key: 'carisma' } ]} />
                                 <LinhaVital labelKey="lblChakra" fallbackLabel="Chakra" vitalKey="chakra" corBarra="#00cc00" subItens={[ { labelKey: 'lblSta', fallbackLabel: 'Stamina', key: 'stamina' }, { labelKey: 'lblCon', fallbackLabel: 'Constituição', key: 'constituicao' } ]} />
                                 <LinhaVital labelKey="lblCorpo" fallbackLabel="Corpo" vitalKey="corpo" corBarra="#000000" corTextoBarra="#fff" subItens={[ { labelKey: 'lblDes', fallbackLabel: 'Destreza', key: 'destreza' }, { labelKey: 'lblFor', fallbackLabel: 'Força', key: 'forca' } ]} />
+                                <div style={{ marginBottom: '15px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
+                                        <LabelMagico valor={getLabel('lblEnergiaForca', 'Força')} onChange={(v) => setLabel('lblEnergiaForca', v)} />
+                                    </div>
+                                    <BarraVital atual={minhaFicha.energiaForca?.atual !== undefined && minhaFicha.energiaForca?.atual !== '' ? Number(minhaFicha.energiaForca.atual) : forcaMax} maximo={forcaMax} pVit={0} cor="#FFD700" corTexto="#000" onChangeAtual={(v) => salvar('energiaForca.atual', v)} />
+                                </div>
                             </div>
 
                             <h2 style={{ fontSize: '1.6em', fontStyle: 'italic', fontWeight: 'bold', margin: '20px 0 10px 5px', display: 'flex' }}>

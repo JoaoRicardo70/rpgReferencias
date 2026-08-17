@@ -40,7 +40,12 @@ export const fichaPadrao = {
     dominios: { elementais: {}, elementos: {}, mana: {}, chakra: {}, aura: {}, astral: {}, primordiais: {}, marciais: {}, armas: {}, cura: {}, summons: {} },
     
     // 🔥 NOVOS CAMPOS DA NOVA FICHA (Evita Amnésia no F5) 🔥
-    estetica: {}, labels: {}, pv: { atual: 0 }, pm: { atual: 0 }, multiplicadorVida: 1, multiplicadorMorte: 1
+    estetica: {}, labels: {}, pv: { atual: 0 }, pm: { atual: 0 }, multiplicadorVida: 1, multiplicadorMorte: 1,
+
+    // 🔥 NOVO: 5ª barra de energia — "Força". O valor atual é independente das outras
+    // energias; o máximo é sempre derivado (média de mana/aura/chakra/corpo), nunca
+    // armazenado aqui — ver getSupremas() em Marcados.jsx
+    energiaForca: { atual: 0 }
 };
 
 export function sanitizarNome(n) { return !n ? '' : n.replace(/[.#$\[\]\/]/g, '_').trim(); }

@@ -31,6 +31,10 @@
         "corpo": {
           "atual": { ".validate": "!newData.exists() || newData.isNumber()" },
           "base": { ".validate": "!newData.exists() || newData.isNumber()" }
+        },
+        "energiaForca": {
+          "atual": { ".validate": "!newData.exists() || newData.isNumber()" },
+          "base": { ".validate": "!newData.exists() || newData.isNumber()" }
         }
       }
     },
