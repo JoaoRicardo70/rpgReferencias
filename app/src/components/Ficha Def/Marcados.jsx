@@ -859,7 +859,7 @@ export default function MarcadosPanel() {
 
     return (
         <div style={{
-            width: '100%', minHeight: '85vh', height: 'auto',
+            width: '95%', maxWidth: '1200px', margin: '0 auto', minHeight: '100%', height: 'auto',
             backgroundColor: localCorFundo, color: localCorTexto, fontFamily: fonteDiario,
             padding: '40px 40px 80px 40px', borderRadius: '12px', position: 'relative', transition: 'background 0.3s ease, color 0.3s ease',
             boxShadow: 'inset 0 0 40px rgba(0,0,0,0.1), 0 10px 30px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column',

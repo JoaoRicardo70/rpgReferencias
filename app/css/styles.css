@@ -182,12 +182,12 @@ body::before {
     overflow-y: auto;
 }
 
-/* Ficha Definitiva (folha com paginação "Página X de 5"): a folha cresce livremente
-   com o conteúdo (min-height: 85vh; height: auto) e o contêiner pai ganha rolagem
-   vertical própria, para que cada página role até revelar o rodapé de paginação */
+/* Ficha Definitiva (folha com paginação "Página X de 5"): o contêiner pai (fundo
+   escuro) mantém a altura fixa da área útil (herdada do TabPanel) e ganha rolagem
+   vertical própria; a folha azul (largura limitada e centralizada, ver Marcados.jsx)
+   cresce em altura livremente até ser revelada pelo scroll, terminando no rodapé
+   de paginação */
 [id="aba-Ficha Def"] {
-    height: auto !important;
-    max-height: 100%;
     overflow-y: auto;
 }
 
