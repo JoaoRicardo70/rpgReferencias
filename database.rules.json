@@ -35,6 +35,9 @@
         "energiaForca": {
           "atual": { ".validate": "!newData.exists() || newData.isNumber()" },
           "base": { ".validate": "!newData.exists() || newData.isNumber()" }
+        },
+        "multiplicadorForca": {
+          ".validate": "!newData.exists() || newData.isNumber()"
         }
       }
     },

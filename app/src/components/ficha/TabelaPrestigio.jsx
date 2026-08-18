@@ -44,6 +44,17 @@ function calcularPrestAtual(ficha, attrKey, baseP) {
     return Math.floor(baseP * multForma);
 }
 
+// 🔥 NOVO: Multiplicador de Força — escala Prestígio e Ascensão atuais e reusa o próprio
+// getRank() (já testado) para o transbordo: todo bloco de 100 de Prestígio vira +1 de
+// Ascensão, com o mesmo tratamento de limites (EX exato, valores negativos) usado no
+// resto do sistema de Prestígio/Ascensão — assim o Rank exibido nunca destoa do número.
+function aplicarMultiplicadorForca(prestigioAtual, ascensaoAtual, multiplicador) {
+    const mult = parseFloat(multiplicador) || 1;
+    const prestigioMultiplicado = (prestigioAtual || 0) * mult;
+    const ascensaoMultiplicada = (ascensaoAtual || 1) * mult;
+    return safeGetRank(prestigioMultiplicado, ascensaoMultiplicada);
+}
+
 const getBasePFor = (ficha, k) => {
     if (k === 'status') {
         let m = 0;
@@ -58,15 +69,17 @@ export default function TabelaPrestigio({ className }) {
     const updateFicha = useStore((s) => s.updateFicha);
     const [statusBotao, setStatusBotao] = useState('idle');
 
-    // CÁLCULO DA MÉDIA DA ASCENSÃO EFETIVA
+    // CÁLCULO DA MÉDIA DA ASCENSÃO EFETIVA (já com o transbordo do Multiplicador de Força)
     const mediaAscensaoEfetiva = useMemo(() => {
         if (!ficha) return 1;
+        const ascensaoBase = ficha.ascensaoBase || 1;
+        const multiplicadorForca = ficha.multiplicadorForca ?? 1;
         let sumAscensao = 0;
         VITALS_KEYS.forEach(k => {
             const baseP = getBasePFor(ficha, k);
             const pAtual = calcularPrestAtual(ficha, k, baseP);
-            const rankInfo = safeGetRank(pAtual, ficha.ascensaoBase || 1);
-            sumAscensao += (rankInfo.a || 1);
+            const rankFinal = aplicarMultiplicadorForca(pAtual, ascensaoBase, multiplicadorForca);
+            sumAscensao += (rankFinal.a || 1);
         });
         return Math.floor(sumAscensao / VITALS_KEYS.length);
     }, [ficha]);
@@ -96,10 +109,18 @@ export default function TabelaPrestigio({ className }) {
                     <h4 className="prestige-title-base">PRESTÍGIO BASE</h4>
                     <div className="prestige-ascension-box">
                         <label className="text-white-md" style={{ display: 'block', marginBottom: '5px' }}>Ascensão Base (Nível):</label>
-                        <input 
-                            type="number" className="prestige-input-base" 
-                            value={ficha.ascensaoBase || 1} 
-                            onChange={(e) => { updateFicha(f => { f.ascensaoBase = Number(e.target.value) }); }} 
+                        <input
+                            type="number" className="prestige-input-base"
+                            value={ficha.ascensaoBase || 1}
+                            onChange={(e) => { updateFicha(f => { f.ascensaoBase = Number(e.target.value) }); }}
+                        />
+                    </div>
+                    <div className="prestige-ascension-box" style={{ marginTop: '15px' }}>
+                        <label className="text-white-md" style={{ display: 'block', marginBottom: '5px' }}>Multiplicador de Força:</label>
+                        <input
+                            type="number" step="0.1" className="prestige-input-base"
+                            value={ficha.multiplicadorForca ?? 1}
+                            onChange={(e) => { updateFicha(f => { f.multiplicadorForca = Number(e.target.value) || 1 }); }}
                         />
                     </div>
                     <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -151,7 +172,13 @@ export default function TabelaPrestigio({ className }) {
                         {VITALS_KEYS.map((attrKey, i) => {
                             const calcBaseP = getBasePFor(ficha, attrKey);
                             const pAtualValor = calcularPrestAtual(ficha, attrKey, calcBaseP);
-                            const rankInfo = safeGetRank(pAtualValor, ficha.ascensaoBase || 1);
+
+                            // 🔥 Multiplicador de Força: escala Prestígio/Ascensão atuais e usa
+                            // getRank() para o transbordo — Rank, cor e Ascensão exibidos vêm
+                            // todos do mesmo valor final, sem divergência entre badge e número
+                            const rankInfo = aplicarMultiplicadorForca(
+                                pAtualValor, ficha.ascensaoBase || 1, ficha.multiplicadorForca ?? 1
+                            );
 
                             return (
                                 <div key={attrKey}>
@@ -160,7 +187,7 @@ export default function TabelaPrestigio({ className }) {
                                         <span style={{ color: rankInfo.c || '#fff', fontWeight: 'bold' }}>Rank {rankInfo.l || 'F'} [A{rankInfo.a || 1}]</span>
                                     </div>
                                     <div className="prestige-display-atual">
-                                        {Math.floor(pAtualValor || 0).toLocaleString('pt-BR')}
+                                        {Math.floor(rankInfo.r || 0).toLocaleString('pt-BR')}
                                     </div>
                                 </div>
                             );

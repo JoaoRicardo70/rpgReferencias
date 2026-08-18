@@ -40,7 +40,7 @@ export const fichaPadrao = {
     dominios: { elementais: {}, elementos: {}, mana: {}, chakra: {}, aura: {}, astral: {}, primordiais: {}, marciais: {}, armas: {}, cura: {}, summons: {} },
     
     // 🔥 NOVOS CAMPOS DA NOVA FICHA (Evita Amnésia no F5) 🔥
-    estetica: {}, labels: {}, pv: { atual: 0 }, pm: { atual: 0 }, multiplicadorVida: 1, multiplicadorMorte: 1,
+    estetica: {}, labels: {}, pv: { atual: 0 }, pm: { atual: 0 }, multiplicadorVida: 1, multiplicadorMorte: 1, multiplicadorForca: 1,
 
     // 🔥 NOVO: 5ª barra de energia — "Força". O valor atual é independente das outras
     // energias; o máximo é sempre derivado (média de mana/aura/chakra/corpo), nunca
@@ -132,6 +132,7 @@ const useStore = create(
             if (dados.pm) state.minhaFicha.pm = Object.assign({}, fichaPadrao.pm, dados.pm);
             if (dados.multiplicadorVida !== undefined) state.minhaFicha.multiplicadorVida = parseFloat(dados.multiplicadorVida) || 1;
             if (dados.multiplicadorMorte !== undefined) state.minhaFicha.multiplicadorMorte = parseFloat(dados.multiplicadorMorte) || 1;
+            if (dados.multiplicadorForca !== undefined) state.minhaFicha.multiplicadorForca = parseFloat(dados.multiplicadorForca) || 1;
 
             // 🔥 NOVO: Carregar Estilo do Grimório e Listas Novas
             if (dados.esteticaGrimorio) state.minhaFicha.esteticaGrimorio = Object.assign({}, fichaPadrao.esteticaGrimorio, dados.esteticaGrimorio);
@@ -166,7 +167,7 @@ const useStore = create(
             for (let i = 0; i < chaves.length; i++) {
                 const ch = chaves[i];
                 // 🔥 NOVO: Ignorar as novas chaves no loop genérico para evitar sobreposição
-                if (dados[ch] !== undefined && ch !== 'esteticaGrimorio' && ch !== 'habilidades' && ch !== 'formas' && ch !== 'donoDaFicha' && ch !== 'ascensaoBase' && ch !== 'poderes' && ch !== 'divisores' && ch !== 'inventario' && ch !== 'ataquesElementais' && ch !== 'ataqueConfig' && ch !== 'avatar' && ch !== 'bio' && ch !== 'afinidades' && ch !== 'condicoes' && ch !== 'notas' && ch !== 'passivas' && ch !== 'seresSelados' && ch !== 'posicao' && ch !== 'iniciativa' && ch !== 'acoes' && ch !== 'proficienciaBase' && ch !== 'proficiencias' && ch !== 'cores' && ch !== 'hierarquia' && ch !== 'dominios' && ch !== 'estetica' && ch !== 'labels' && ch !== 'pv' && ch !== 'pm' && ch !== 'multiplicadorVida' && ch !== 'multiplicadorMorte') {
+                if (dados[ch] !== undefined && ch !== 'esteticaGrimorio' && ch !== 'habilidades' && ch !== 'formas' && ch !== 'donoDaFicha' && ch !== 'ascensaoBase' && ch !== 'poderes' && ch !== 'divisores' && ch !== 'inventario' && ch !== 'ataquesElementais' && ch !== 'ataqueConfig' && ch !== 'avatar' && ch !== 'bio' && ch !== 'afinidades' && ch !== 'condicoes' && ch !== 'notas' && ch !== 'passivas' && ch !== 'seresSelados' && ch !== 'posicao' && ch !== 'iniciativa' && ch !== 'acoes' && ch !== 'proficienciaBase' && ch !== 'proficiencias' && ch !== 'cores' && ch !== 'hierarquia' && ch !== 'dominios' && ch !== 'estetica' && ch !== 'labels' && ch !== 'pv' && ch !== 'pm' && ch !== 'multiplicadorVida' && ch !== 'multiplicadorMorte' && ch !== 'multiplicadorForca') {
                     if (typeof fichaPadrao[ch] === 'object' && !Array.isArray(fichaPadrao[ch])) {
                         state.minhaFicha[ch] = Object.assign({}, fichaPadrao[ch], dados[ch]);
                         const numF = ['base', 'mBase', 'mGeral', 'mFormas', 'mAbsoluto', 'reducaoCusto', 'regeneracao', 'atual'];
