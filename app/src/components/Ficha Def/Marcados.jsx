@@ -199,6 +199,16 @@ const calcularPrestAtual = (ficha, attrKey, baseP) => {
     return Math.floor((baseP || 0) * multForma) || 0;
 };
 
+// 🔥 Multiplicador de Força — escala Prestígio e Ascensão atuais e reusa o próprio
+// getRank() para o transbordo: todo bloco de 100 de Prestígio vira +1 de Ascensão,
+// com o mesmo tratamento de limites (EX exato, valores negativos) do resto do sistema.
+const aplicarMultiplicadorForca = (prestigioAtual, ascensaoAtual, multiplicador) => {
+    const mult = parseFloat(multiplicador) || 1;
+    const prestigioMultiplicado = (prestigioAtual || 0) * mult;
+    const ascensaoMultiplicada = (ascensaoAtual || 1) * mult;
+    return safeGetRank(prestigioMultiplicado, ascensaoMultiplicada);
+};
+
 // ==========================================
 // 🖋️ INPUTS E BARRAS MÁGICAS
 // ==========================================
@@ -1230,10 +1240,14 @@ export default function MarcadosPanel() {
                         <div style={{ width: '100%', marginTop: '30px', background: 'rgba(0,0,0,0.03)', padding: '20px', borderRadius: '15px', border: '1px dashed currentColor' }}>
                             <h2 style={{ fontSize: '1.8em', fontStyle: 'italic', fontWeight: 'bold', margin: '0 0 20px 0', textAlign: 'center', color: 'inherit' }}>Mecânicas de Ascensão e Divisores</h2>
 
-                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
                                 <div style={{ background: 'rgba(0,0,0,0.8)', color: '#fff', padding: '10px 20px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
                                     <span style={{ fontWeight: 'bold', fontSize: '1.1em' }}>Ascensão Base (Nível):</span>
                                     <CampoMagico valor={minhaFicha.ascensaoBase || 1} onChange={(v) => salvar('ascensaoBase', v)} type="number" isNumber={true} styleExtra={{ width: '60px', textAlign: 'center', color: '#fff', borderBottom: '1px dashed #fff', fontSize: '1.2em' }} />
+                                </div>
+                                <div style={{ background: 'rgba(0,0,0,0.8)', color: '#fff', padding: '10px 20px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
+                                    <span style={{ fontWeight: 'bold', fontSize: '1.1em' }}>Multiplicador de Força:</span>
+                                    <CampoMagico valor={minhaFicha.multiplicadorForca ?? 1} onChange={(v) => salvar('multiplicadorForca', v)} type="number" isNumber={true} styleExtra={{ width: '60px', textAlign: 'center', color: '#fff', borderBottom: '1px dashed #fff', fontSize: '1.2em' }} />
                                 </div>
                             </div>
 
@@ -1241,6 +1255,9 @@ export default function MarcadosPanel() {
                                 {['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
                                     const displayP = getBasePFor(minhaFicha, k);
                                     const divisor = minhaFicha.divisores?.[k] || 1;
+
+                                    const pAtualValor = calcularPrestAtual(minhaFicha, k, displayP);
+                                    const rankInfo = aplicarMultiplicadorForca(pAtualValor, minhaFicha.ascensaoBase || 1, minhaFicha.multiplicadorForca ?? 1);
 
                                     return (
                                         <div key={k} style={{ background: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.2)', borderRadius: '8px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: 'inset 0 0 10px rgba(0,0,0,0.05)' }}>
@@ -1252,13 +1269,17 @@ export default function MarcadosPanel() {
                                                 </div>
                                             </div>
                                             <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
-                                                <CampoMagico 
-                                                    valor={displayP} 
-                                                    onChange={v => handleTabelaChange(k, 'prestigio', v)} 
-                                                    type="number" 
-                                                    isNumber={true} 
-                                                    styleExtra={{ width: '100%', textAlign: 'center', color: '#fff', borderBottom: 'none', fontSize: '1.4em', fontWeight: 'bold' }} 
+                                                <CampoMagico
+                                                    valor={displayP}
+                                                    onChange={v => handleTabelaChange(k, 'prestigio', v)}
+                                                    type="number"
+                                                    isNumber={true}
+                                                    styleExtra={{ width: '100%', textAlign: 'center', color: '#fff', borderBottom: 'none', fontSize: '1.4em', fontWeight: 'bold' }}
                                                 />
+                                            </div>
+                                            <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
+                                                <span style={{ color: rankInfo.c || '#fff', fontWeight: 'bold', fontSize: '0.9em' }}>Rank {rankInfo.l || 'F'} [A{rankInfo.a || 1}]</span>
+                                                <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1em' }}>{Math.floor(rankInfo.r || 0).toLocaleString('pt-BR')}</span>
                                             </div>
                                         </div>
                                     );
