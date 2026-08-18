@@ -768,9 +768,17 @@ export default function MarcadosPanel() {
         const pvCalculado = Math.floor((((pVida + pChakra + pCorpo) / 3) + bonusAscensao) * mPV);
         const pmCalculado = Math.floor((((pMana + pAura + pStatus) / 3) + bonusAscensao) * mPM);
 
-        // 🔥 NOVO: Força é a média das bases das outras quatro energias — 100% derivada,
-        // nunca armazenada como valor independente
-        const forcaCalculado = Math.floor((pMana + pAura + pChakra + pCorpo) / 4);
+        // 🔥 Força é a média aritmética das bases BRUTAS de mana/aura/chakra/corpo — 100%
+        // derivada, nunca armazenada como valor independente. Lê direto de ficha.<attr>.base
+        // (já numérico no Firebase) em vez de reusar getBasePFor, que divide pelos
+        // multiplicadores de prestígio (10.000.000) e produzia um valor errado (ex: 26 em vez de 260.000.000).
+        const valMana = Number(minhaFicha?.mana?.base) || 0;
+        const valAura = Number(minhaFicha?.aura?.base) || 0;
+        const valChakra = Number(minhaFicha?.chakra?.base) || 0;
+        const valCorpo = Number(minhaFicha?.corpo?.base) || 0;
+        const forcaCalculado = Math.floor((valMana + valAura + valChakra + valCorpo) / 4);
+
+        console.log('Debug Forca:', { valMana, valAura, valChakra, valCorpo, forcaBase: forcaCalculado });
 
         return {
             pvMax: isNaN(pvCalculado) ? 1 : pvCalculado,
