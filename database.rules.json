@@ -36,7 +36,10 @@
           "atual": { ".validate": "!newData.exists() || newData.isNumber()" },
           "base": { ".validate": "!newData.exists() || newData.isNumber()" }
         },
-        "multiplicadorForca": {
+        "multiplicadorForcaPrestigio": {
+          ".validate": "!newData.exists() || newData.isNumber()"
+        },
+        "multiplicadorForcaAscensao": {
           ".validate": "!newData.exists() || newData.isNumber()"
         }
       }

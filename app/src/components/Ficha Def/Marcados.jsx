@@ -199,14 +199,21 @@ const calcularPrestAtual = (ficha, attrKey, baseP) => {
     return Math.floor((baseP || 0) * multForma) || 0;
 };
 
-// 🔥 Multiplicador de Força — escala Prestígio e Ascensão atuais e reusa o próprio
-// getRank() para o transbordo: todo bloco de 100 de Prestígio vira +1 de Ascensão,
-// com o mesmo tratamento de limites (EX exato, valores negativos) do resto do sistema.
-const aplicarMultiplicadorForca = (prestigioAtual, ascensaoAtual, multiplicador) => {
-    const mult = parseFloat(multiplicador) || 1;
-    const prestigioMultiplicado = (prestigioAtual || 0) * mult;
-    const ascensaoMultiplicada = (ascensaoAtual || 1) * mult;
-    return safeGetRank(prestigioMultiplicado, ascensaoMultiplicada);
+// 🔥 Multiplicador de Força — agora separado em Prestígio e Ascensão. O Prestígio Base
+// é escalado pelo seu próprio multiplicador e o excesso acima de 100 vira Ascensão extra
+// (overflow), somada à Ascensão Base já escalada pelo multiplicador dela. getRank() é
+// reusado só para o rótulo/cor do badge (Rank), com o mesmo tratamento de limites
+// (EX exato, valores negativos) do resto do sistema de Prestígio/Ascensão.
+const aplicarMultiplicadorForca = (prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) => {
+    const multP = parseFloat(multiplicadorForcaPrestigio) || 1;
+    const multA = parseFloat(multiplicadorForcaAscensao) || 1;
+    const ascensaoBaseEfetiva = (parseInt(ascensaoBase) || 1) * multA;
+    const prestigioTotal = (prestigioBase || 0) * multP;
+    const bonusAscensao = Math.floor(prestigioTotal / 100);
+    const prestigioFinal = prestigioTotal % 100;
+    const ascensaoFinal = ascensaoBaseEfetiva + bonusAscensao;
+    const rankInfo = safeGetRank(prestigioFinal, ascensaoFinal);
+    return { ...rankInfo, prestigioFinal, ascensaoFinal };
 };
 
 // ==========================================
@@ -859,10 +866,26 @@ export default function MarcadosPanel() {
         const baseVal = minhaFicha[attrKey]?.base || '';
         let maxVal = safeGetMaximo(minhaFicha, attrKey);
 
+        // 🔥 Reatividade dos Status: a Ascensão/Prestígio do grupo STATUS (mesma
+        // fórmula de overflow das Mecânicas de Ascensão) escala os atributos físicos
+        // crus — cada nível de Ascensão multiplica o atributo, e o Prestígio dentro
+        // do nível atual soma um bônus fracionário de até quase +100%.
+        let valorAtual = maxVal;
+        if (isAtual) {
+            const statusBaseP = getBasePFor(minhaFicha, 'status');
+            const statusPAtual = calcularPrestAtual(minhaFicha, 'status', statusBaseP);
+            const { ascensaoFinal, prestigioFinal } = aplicarMultiplicadorForca(
+                statusPAtual, minhaFicha.ascensaoBase || 1,
+                minhaFicha.multiplicadorForcaPrestigio ?? 1, minhaFicha.multiplicadorForcaAscensao ?? 1
+            );
+            valorAtual = Math.floor(maxVal * (ascensaoFinal || 1) * (1 + (prestigioFinal || 0) / 100));
+            if (isNaN(valorAtual)) valorAtual = maxVal;
+        }
+
         return (
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em' }}>
                 <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
-                {isAtual ? <span style={{ fontWeight: 'bold' }}>{Number(maxVal).toLocaleString('pt-BR')}</span> : <CampoMagico valor={baseVal} onChange={(v) => salvar(`${attrKey}.base`, v)} styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true} />}
+                {isAtual ? <span style={{ fontWeight: 'bold' }}>{Number(valorAtual).toLocaleString('pt-BR')}</span> : <CampoMagico valor={baseVal} onChange={(v) => salvar(`${attrKey}.base`, v)} styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true} />}
             </div>
         );
     };
@@ -1246,8 +1269,12 @@ export default function MarcadosPanel() {
                                     <CampoMagico valor={minhaFicha.ascensaoBase || 1} onChange={(v) => salvar('ascensaoBase', v)} type="number" isNumber={true} styleExtra={{ width: '60px', textAlign: 'center', color: '#fff', borderBottom: '1px dashed #fff', fontSize: '1.2em' }} />
                                 </div>
                                 <div style={{ background: 'rgba(0,0,0,0.8)', color: '#fff', padding: '10px 20px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
-                                    <span style={{ fontWeight: 'bold', fontSize: '1.1em' }}>Multiplicador de Força:</span>
-                                    <CampoMagico valor={minhaFicha.multiplicadorForca ?? 1} onChange={(v) => salvar('multiplicadorForca', v)} type="number" isNumber={true} styleExtra={{ width: '60px', textAlign: 'center', color: '#fff', borderBottom: '1px dashed #fff', fontSize: '1.2em' }} />
+                                    <span style={{ fontWeight: 'bold', fontSize: '1.1em' }}>Mult. Força (Prestígio):</span>
+                                    <CampoMagico valor={minhaFicha.multiplicadorForcaPrestigio ?? 1} onChange={(v) => salvar('multiplicadorForcaPrestigio', v)} type="number" isNumber={true} styleExtra={{ width: '60px', textAlign: 'center', color: '#fff', borderBottom: '1px dashed #fff', fontSize: '1.2em' }} />
+                                </div>
+                                <div style={{ background: 'rgba(0,0,0,0.8)', color: '#fff', padding: '10px 20px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
+                                    <span style={{ fontWeight: 'bold', fontSize: '1.1em' }}>Mult. Força (Ascensão):</span>
+                                    <CampoMagico valor={minhaFicha.multiplicadorForcaAscensao ?? 1} onChange={(v) => salvar('multiplicadorForcaAscensao', v)} type="number" isNumber={true} styleExtra={{ width: '60px', textAlign: 'center', color: '#fff', borderBottom: '1px dashed #fff', fontSize: '1.2em' }} />
                                 </div>
                             </div>
 
@@ -1257,7 +1284,10 @@ export default function MarcadosPanel() {
                                     const divisor = minhaFicha.divisores?.[k] || 1;
 
                                     const pAtualValor = calcularPrestAtual(minhaFicha, k, displayP);
-                                    const rankInfo = aplicarMultiplicadorForca(pAtualValor, minhaFicha.ascensaoBase || 1, minhaFicha.multiplicadorForca ?? 1);
+                                    const rankInfo = aplicarMultiplicadorForca(
+                                        pAtualValor, minhaFicha.ascensaoBase || 1,
+                                        minhaFicha.multiplicadorForcaPrestigio ?? 1, minhaFicha.multiplicadorForcaAscensao ?? 1
+                                    );
 
                                     return (
                                         <div key={k} style={{ background: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.2)', borderRadius: '8px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: 'inset 0 0 10px rgba(0,0,0,0.05)' }}>
@@ -1278,8 +1308,8 @@ export default function MarcadosPanel() {
                                                 />
                                             </div>
                                             <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
-                                                <span style={{ color: rankInfo.c || '#fff', fontWeight: 'bold', fontSize: '0.9em' }}>Rank {rankInfo.l || 'F'} [A{rankInfo.a || 1}]</span>
-                                                <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1em' }}>{Math.floor(rankInfo.r || 0).toLocaleString('pt-BR')}</span>
+                                                <span style={{ color: rankInfo.c || '#fff', fontWeight: 'bold', fontSize: '0.9em' }}>Rank {rankInfo.l || 'F'} [A{Math.floor(rankInfo.ascensaoFinal || 1)}]</span>
+                                                <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1em' }}>{Math.floor(rankInfo.prestigioFinal || 0).toLocaleString('pt-BR')}</span>
                                             </div>
                                         </div>
                                     );

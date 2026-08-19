@@ -7,12 +7,16 @@ import { getRank } from '../../core/prestige.js';
 // ---------------------------------------------------------------------------
 // QA — Multiplicador de Força (aplicarMultiplicadorForca) em TabelaPrestigio
 //
-// aplicarMultiplicadorForca(prestigioAtual, ascensaoAtual, multiplicador) é uma
-// função local, não exportada, que apenas multiplica os dois valores de entrada
-// e delega inteiramente ao getRank() já testado (core/prestige.js) para o
-// transbordo. Como não é exportada, validamos renderizando o componente real
-// (mesmo padrão de Marcados.forca.test.jsx) e lendo o Rank/Prestígio exibidos
-// no bloco "PRESTÍGIO ATUAL", comparando com chamadas diretas a getRank().
+// aplicarMultiplicadorForca(prestigioBase, ascensaoBase, multiplicadorForcaPrestigio,
+// multiplicadorForcaAscensao) é uma função local, não exportada, que escala o
+// Prestígio Base pelo seu próprio multiplicador e a Ascensão Base pelo dela — o
+// excesso de Prestígio acima de 100 (após escalado) vira Ascensão extra (overflow),
+// somada à Ascensão Base já escalada. getRank() é reusado só para o rótulo/cor
+// (l, c) do badge; os números exibidos (Ascensão e Prestígio) vêm sempre de
+// prestigioFinal/ascensaoFinal, não de getRank().r/.a diretamente. Como não é
+// exportada, validamos renderizando o componente real (mesmo padrão de
+// Marcados.multiplicadorForca.test.jsx) e lendo o Rank/Prestígio exibidos no
+// bloco "PRESTÍGIO ATUAL", comparando com chamadas diretas a getRank().
 // ---------------------------------------------------------------------------
 
 vi.mock('../../stores/useStore');
@@ -31,13 +35,14 @@ const HEX_TO_RGB = {
     '#f0f': 'rgb(255, 0, 255)',     // EX
 };
 
-function fichaComVida({ vidaBase = 0, ascensaoBase = 1, multiplicadorForca } = {}) {
+function fichaComVida({ vidaBase = 0, ascensaoBase = 1, multiplicadorForcaPrestigio, multiplicadorForcaAscensao } = {}) {
     const ficha = {
         vida: { base: vidaBase },
         ascensaoBase,
         divisores: {},
     };
-    if (multiplicadorForca !== undefined) ficha.multiplicadorForca = multiplicadorForca;
+    if (multiplicadorForcaPrestigio !== undefined) ficha.multiplicadorForcaPrestigio = multiplicadorForcaPrestigio;
+    if (multiplicadorForcaAscensao !== undefined) ficha.multiplicadorForcaAscensao = multiplicadorForcaAscensao;
     return ficha;
 }
 
@@ -63,7 +68,7 @@ function lerVital(container, index) {
     };
 }
 
-describe('TabelaPrestigio — Multiplicador de Força (aplicarMultiplicadorForca)', () => {
+describe('TabelaPrestigio — Multiplicador de Força (aplicarMultiplicadorForca, dois parâmetros)', () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
@@ -72,8 +77,9 @@ describe('TabelaPrestigio — Multiplicador de Força (aplicarMultiplicadorForca
         cleanup();
     });
 
-    it('multiplicador=1 (padrão/ausente) reproduz exatamente getRank(prestigio, ascensao) sem multiplicador', () => {
+    it('multiplicadores ausentes (default=1 para ambos) reproduz exatamente getRank(prestigio, ascensao) sem multiplicador', () => {
         // vida.base = 63.000.000 -> prestígio real = 63 (regra de VIDA: /1.000.000)
+        // multP=1, multA=1 -> prestigioTotal=63, prestigioFinal=63, ascensaoFinal=4
         const ficha = fichaComVida({ vidaBase: 63000000, ascensaoBase: 4 });
         montarMockUseStore(ficha);
 
@@ -90,55 +96,123 @@ describe('TabelaPrestigio — Multiplicador de Força (aplicarMultiplicadorForca
         expect(esperado.a).toBe(4);
     });
 
-    it('multiplicador > 1 empurra o prestígio além de 100, convertendo o excesso em Ascensão extra', () => {
-        // prestígio=45, ascensãoBase=2, multiplicador=3 -> multiplicado=135
-        // ascExtra=1, resto=35, ascensão final = (2*3) + 1 = 7
-        const ficha = fichaComVida({ vidaBase: 45000000, ascensaoBase: 2, multiplicadorForca: 3 });
+    it('só multiplicadorForcaPrestigio > 1: escala apenas o Prestígio, overflow vira Ascensão extra, Ascensão Base não é tocada', () => {
+        // prestígio=45, ascensãoBase=2, multP=3, multA=1(ausente)
+        // prestigioTotal=135, bonusAscensao=1, prestigioFinal=35
+        // ascensaoBaseEfetiva=2*1=2, ascensaoFinal=2+1=3
+        const ficha = fichaComVida({ vidaBase: 45000000, ascensaoBase: 2, multiplicadorForcaPrestigio: 3 });
         montarMockUseStore(ficha);
 
         const { container } = render(<TabelaPrestigio />);
         const { rankTexto, rankCor, numero } = lerVital(container, 0);
 
         expect(numero).toBe('35');
-        expect(rankTexto).toBe('Rank C [A7]');
+        expect(rankTexto).toBe('Rank C [A3]');
         expect(rankCor).toBe(HEX_TO_RGB['#ccc']);
         // Não pode divergir: o número exibido não é o prestígio bruto (45) pré-multiplicador.
         expect(numero).not.toBe('45');
     });
 
-    it('boundary exato em 100 após o multiplicador mantém o rank EX (resto=100), sem rolar para o próximo bloco', () => {
-        // prestígio=50, ascensãoBase=1, multiplicador=2 -> multiplicado=100 exatamente
-        // ascExtra bruto seria 1, mas o caso especial reduz para 0 e fixa resto=100 (EX)
-        const ficha = fichaComVida({ vidaBase: 50000000, ascensaoBase: 1, multiplicadorForca: 2 });
+    it('só multiplicadorForcaAscensao > 1: escala apenas a Ascensão Base, Prestígio não é tocado', () => {
+        // prestígio=25, ascensãoBase=3, multP=1(ausente), multA=4
+        // prestigioTotal=25, bonusAscensao=0, prestigioFinal=25
+        // ascensaoBaseEfetiva=3*4=12, ascensaoFinal=12+0=12
+        const ficha = fichaComVida({ vidaBase: 25000000, ascensaoBase: 3, multiplicadorForcaAscensao: 4 });
+        montarMockUseStore(ficha);
+
+        const { container } = render(<TabelaPrestigio />);
+        const { rankTexto, numero } = lerVital(container, 0);
+
+        expect(numero).toBe('25');
+        expect(rankTexto).toBe('Rank C [A12]');
+    });
+
+    it('multiplicadorForcaPrestigio e multiplicadorForcaAscensao combinados', () => {
+        // prestígio=45, ascensãoBase=2, multP=3, multA=2
+        // prestigioTotal=135, bonusAscensao=1, prestigioFinal=35
+        // ascensaoBaseEfetiva=2*2=4, ascensaoFinal=4+1=5
+        const ficha = fichaComVida({ vidaBase: 45000000, ascensaoBase: 2, multiplicadorForcaPrestigio: 3, multiplicadorForcaAscensao: 2 });
         montarMockUseStore(ficha);
 
         const { container } = render(<TabelaPrestigio />);
         const { rankTexto, rankCor, numero } = lerVital(container, 0);
 
-        expect(numero).toBe('100');
-        expect(rankTexto).toBe('Rank EX [A2]');
-        expect(rankCor).toBe(HEX_TO_RGB['#f0f']);
+        expect(numero).toBe('35');
+        expect(rankTexto).toBe('Rank C [A5]');
+        expect(rankCor).toBe(HEX_TO_RGB['#ccc']);
     });
 
-    it('prestígio negativo com multiplicador mantém resto travado em 0 e não altera a ascensão', () => {
-        // vida.base negativo -> prestígio real = -5; multiplicador=4 -> multiplicado=-20
-        // resto clampado a 0; ascensão = (3*4) + 0 = 12, não afetada pelo valor negativo
-        const ficha = fichaComVida({ vidaBase: -5000000, ascensaoBase: 3, multiplicadorForca: 4 });
+    it('overflow que ultrapassa 100 em mais de um bloco gera Ascensão extra proporcional', () => {
+        // prestígio=90, ascensãoBase=1, multP=3, multA=1
+        // prestigioTotal=270, bonusAscensao=2, prestigioFinal=70
+        // ascensaoBaseEfetiva=1*1=1, ascensaoFinal=1+2=3 -> resto=70 cai no Rank A [60,80)
+        const ficha = fichaComVida({ vidaBase: 90000000, ascensaoBase: 1, multiplicadorForcaPrestigio: 3 });
+        montarMockUseStore(ficha);
+
+        const { container } = render(<TabelaPrestigio />);
+        const { rankTexto, rankCor, numero } = lerVital(container, 0);
+
+        expect(numero).toBe('70');
+        expect(rankTexto).toBe('Rank A [A3]');
+        expect(rankCor).toBe(HEX_TO_RGB['#00ff88']);
+    });
+
+    it('overflow exato em múltiplo de 100 (fórmula literal): prestigioFinal=0 vira Rank D, NÃO MAIS o antigo Rank EX', () => {
+        // prestígio=50, ascensãoBase=1, multP=2, multA=1 -> prestigioTotal=100 exatamente
+        // bonusAscensao=floor(100/100)=1, prestigioFinal = 100 % 100 = 0 (JS puro, sem caso especial)
+        // ascensaoBaseEfetiva=1*1=1, ascensaoFinal=1+1=2
+        // Nota: este é o comportamento aceito da fórmula literal — diferente do getRank()
+        // "cru", que trataria resto=0 pós-overflow como caso especial (EX). Aqui o
+        // prestigioFinal já chega em 0 ANTES de entrar no getRank(), então vira Rank D.
+        const ficha = fichaComVida({ vidaBase: 50000000, ascensaoBase: 1, multiplicadorForcaPrestigio: 2 });
         montarMockUseStore(ficha);
 
         const { container } = render(<TabelaPrestigio />);
         const { rankTexto, rankCor, numero } = lerVital(container, 0);
 
         expect(numero).toBe('0');
-        expect(rankTexto).toBe('Rank D [A12]');
+        expect(rankTexto).toBe('Rank D [A2]');
         expect(rankCor).toBe(HEX_TO_RGB['#ff003c']);
     });
 
-    it('badge de Rank (l, c) e número exibido (r, a) nunca divergem — vêm da mesma chamada multiplicada', () => {
-        // Mesmo cenário de transbordo do teste 2: se o número exibido usasse o prestígio
-        // bruto (pAtualValor=45, faixa B) enquanto o badge usasse o rank multiplicado
+    it('multiplicadores inválidos (NaN/string e 0) caem no fallback parseFloat(x)||1 = 1 para cada um independentemente', () => {
+        // prestígio=25, ascensãoBase=3; multP='abc' -> NaN -> fallback 1; multA=0 -> falsy -> fallback 1
+        const ficha = fichaComVida({ vidaBase: 25000000, ascensaoBase: 3, multiplicadorForcaPrestigio: 'abc', multiplicadorForcaAscensao: 0 });
+        montarMockUseStore(ficha);
+
+        const { container } = render(<TabelaPrestigio />);
+        const esperado = getRank(25, 3);
+        const { rankTexto, numero } = lerVital(container, 0);
+
+        expect(numero).toBe(esperado.r.toLocaleString('pt-BR'));
+        expect(rankTexto).toBe(`Rank ${esperado.l} [A${esperado.a}]`);
+        expect(rankTexto).toBe('Rank C [A3]');
+        expect(numero).toBe('25');
+    });
+
+    it('prestígio negativo com multiplicadores: resto do JS puro pode ficar negativo (não clampado) e ainda assim escora Rank D', () => {
+        // vida.base negativo -> prestígio real = -5; multP=4, multA=1
+        // prestigioTotal=-20, bonusAscensao=floor(-20/100)=-1, prestigioFinal = -20 % 100 = -20 (JS puro)
+        // ascensaoBaseEfetiva=3*1=3, ascensaoFinal=3+(-1)=2
+        // getRank(-20, 2): v<0 -> resto=0 -> Rank D; ascTotal=2 (bate com nosso ascensaoFinal)
+        const ficha = fichaComVida({ vidaBase: -5000000, ascensaoBase: 3, multiplicadorForcaPrestigio: 4 });
+        montarMockUseStore(ficha);
+
+        const { container } = render(<TabelaPrestigio />);
+        const { rankTexto, rankCor, numero } = lerVital(container, 0);
+
+        // O número exibido é o prestigioFinal bruto (variável própria da função), não o
+        // "resto" clampado internamente pelo getRank() — por isso pode aparecer negativo.
+        expect(numero).toBe('-20');
+        expect(rankTexto).toBe('Rank D [A2]');
+        expect(rankCor).toBe(HEX_TO_RGB['#ff003c']);
+    });
+
+    it('badge de Rank (l, c) e número exibido (prestigioFinal, ascensaoFinal) nunca divergem — vêm da mesma chamada multiplicada', () => {
+        // Mesmo cenário de transbordo do teste de combinação: se o número exibido usasse o
+        // prestígio bruto (pAtualValor=45, faixa B) enquanto o badge usasse o rank multiplicado
         // (resto=35, faixa C), o teste abaixo pegaria a divergência.
-        const ficha = fichaComVida({ vidaBase: 45000000, ascensaoBase: 2, multiplicadorForca: 3 });
+        const ficha = fichaComVida({ vidaBase: 45000000, ascensaoBase: 2, multiplicadorForcaPrestigio: 3, multiplicadorForcaAscensao: 2 });
         montarMockUseStore(ficha);
 
         const { container } = render(<TabelaPrestigio />);
@@ -148,6 +222,7 @@ describe('TabelaPrestigio — Multiplicador de Força (aplicarMultiplicadorForca
         // resto=35 está na faixa de Rank C (20-39); se número e badge divergissem,
         // o número exibido (ex: 45, faixa B) não bateria com a faixa do rank exibido (C).
         expect(rankTexto).toContain('Rank C');
+        expect(rankTexto).toContain('[A5]');
         expect(numeroExibido).toBeGreaterThanOrEqual(20);
         expect(numeroExibido).toBeLessThan(40);
         expect(numeroExibido).toBe(35);
