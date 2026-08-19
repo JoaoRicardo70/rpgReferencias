@@ -866,21 +866,12 @@ export default function MarcadosPanel() {
         const baseVal = minhaFicha[attrKey]?.base || '';
         let maxVal = safeGetMaximo(minhaFicha, attrKey);
 
-        // 🔥 Reatividade dos Status: a Ascensão/Prestígio do grupo STATUS (mesma
-        // fórmula de overflow das Mecânicas de Ascensão) escala os atributos físicos
-        // crus — cada nível de Ascensão multiplica o atributo, e o Prestígio dentro
-        // do nível atual soma um bônus fracionário de até quase +100%.
-        let valorAtual = maxVal;
-        if (isAtual) {
-            const statusBaseP = getBasePFor(minhaFicha, 'status');
-            const statusPAtual = calcularPrestAtual(minhaFicha, 'status', statusBaseP);
-            const { ascensaoFinal, prestigioFinal } = aplicarMultiplicadorForca(
-                statusPAtual, minhaFicha.ascensaoBase || 1,
-                minhaFicha.multiplicadorForcaPrestigio ?? 1, minhaFicha.multiplicadorForcaAscensao ?? 1
-            );
-            valorAtual = Math.floor(maxVal * (ascensaoFinal || 1) * (1 + (prestigioFinal || 0) / 100));
-            if (isNaN(valorAtual)) valorAtual = maxVal;
-        }
+        // Poder Atual (c/ Formas) = Poder Base + buffs de Formas/Passivas do próprio
+        // atributo, já calculados por getMaximo()/getBuffs(). O Prestígio/Ascensão do
+        // grupo STATUS é uma variável de referência (cultivação) e NÃO deve inflar o
+        // atributo sozinho — sem isso, Poder_Atual === Poder_Base quando não há
+        // formas/passivas ativas e os Multiplicadores de Força estão em 1.
+        let valorAtual = isNaN(maxVal) ? 0 : maxVal;
 
         return (
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em' }}>

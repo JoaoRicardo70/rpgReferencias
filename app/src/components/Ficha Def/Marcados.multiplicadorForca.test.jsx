@@ -288,17 +288,22 @@ describe('Marcados — Multiplicador de Força (aplicarMultiplicadorForca, dois 
 });
 
 // ---------------------------------------------------------------------------
-// QA — Reatividade de LinhaAtributoCru (bugfix)
+// QA — Reatividade de LinhaAtributoCru (fix de fórmula)
 //
-// Antes desta mudança, os atributos físicos crus (Força, Destreza, etc.) no
-// card "Poder Atual (c/ Formas)" (isAtual=true) eram estáticos: mostravam
-// apenas safeGetMaximo(ficha, attrKey), sem nenhuma influência de
-// Ascensão/Prestígio. Agora, o valor exibido nesse card escala com o grupo
-// 'status' (mesma fórmula de aplicarMultiplicadorForca):
-//   valorAtual = floor(maxVal * ascensaoFinal * (1 + prestigioFinal/100))
-// O card "Status (Rank Base)" (isAtual=false) deve continuar mostrando o
-// valor bruto (safeGetMaximo), sem essa escala — regressão do comportamento
-// antigo que precisa ser preservada.
+// Bug corrigido: o card "Poder Atual (c/ Formas)" (isAtual=true) estava
+// aplicando um bônus passivo indevido, usando o Prestígio/Ascensão do grupo
+// 'status' (derivado da soma de TODOS os atributos físicos crus) como um
+// multiplicador percentual automático sobre cada atributo — mesmo sem
+// nenhuma Forma/Passiva ativa e com os Multiplicadores de Força em 1.
+//
+// Regra correta: Prestígio/Ascensão são variáveis de referência (cultivação)
+// e não inflam o atributo sozinhas. O card "Poder Atual (c/ Formas)" deve
+// mostrar exatamente safeGetMaximo(ficha, attrKey) — que já inclui os buffs
+// de Formas/Passivas do próprio atributo via getBuffs()/getMaximo(). Ou
+// seja: sem formas/passivas ativas, Poder_Atual === Poder_Base sempre,
+// independente do valor de ascensaoBase ou dos Multiplicadores de Força.
+// O card "Status (Rank Base)" (isAtual=false) continua mostrando o valor
+// bruto (safeGetMaximo), sem nenhuma escala — inalterado.
 // ---------------------------------------------------------------------------
 
 function fichaComAtributoFisico({ forcaBase, destrezaBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao }) {
@@ -337,7 +342,7 @@ function montarMockUseStoreAtributo(minhaFicha) {
     useStore.mockImplementation((selector) => (selector ? selector(mockState) : mockState));
 }
 
-describe('Marcados — Reatividade de LinhaAtributoCru (Força escalada por Ascensão/Prestígio do grupo status)', () => {
+describe('Marcados — LinhaAtributoCru NÃO deve escalar por Ascensão/Prestígio do grupo status (bugfix)', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true);
@@ -348,15 +353,11 @@ describe('Marcados — Reatividade de LinhaAtributoCru (Força escalada por Asce
         cleanup();
     });
 
-    it('card "Poder Atual (c/ Formas)" escala Força por maxVal * ascensaoFinal * (1 + prestigioFinal/100); card "Status (Rank Base)" mostra o valor bruto', () => {
-        // forca.base=40 -> maxVal (safeGetMaximo) = 40 (sem buffs/mFormas)
-        // status: soma dos 8 atributos físicos crus = forca(40) + destreza(503960) = 504000
-        //   statusBaseP = floor((504000/8)/1000) = floor(63000/1000) = 63
-        //   statusPAtual = calcularPrestAtual(..., 63) = 63 (sem mFormas configurado, multForma=1)
-        // aplicarMultiplicadorForca(63, ascensaoBase=2, multP=2, multA=1):
-        //   prestigioTotal=126, bonusAscensao=1, prestigioFinal=26
-        //   ascensaoBaseEfetiva=2*1=2, ascensaoFinal=2+1=3
-        // valorAtual = floor(40 * 3 * (1 + 26/100)) = floor(120 * 1.26) = floor(151.2) = 151
+    it('card "Poder Atual (c/ Formas)" reflete exatamente o Poder Base (maxVal) quando não há formas/passivas e os Multiplicadores de Força estão além de 1 — Prestígio/Ascensão de STATUS não devem inflar o atributo', () => {
+        // forca.base=40 -> maxVal (safeGetMaximo) = 40 (sem buffs/mFormas).
+        // ascensaoBase=2, multP=2, multA=1 são variáveis de referência (cultivação);
+        // como não há nenhuma Forma/Passiva ativa em 'forca', elas NÃO devem alterar
+        // o Poder Atual. Estaca zero: Poder_Atual === Poder_Base.
         const ficha = fichaComAtributoFisico({
             forcaBase: 40,
             destrezaBase: 503960,
@@ -383,21 +384,35 @@ describe('Marcados — Reatividade de LinhaAtributoCru (Força escalada por Asce
         expect(inputValorBase.tagName).toBe('INPUT');
         expect(inputValorBase.value).toBe('40');
 
-        // Card "Poder Atual (c/ Formas)" (isAtual=true): valor escalado pela reatividade.
+        // Card "Poder Atual (c/ Formas)" (isAtual=true): sem formas/passivas ativas,
+        // deve ser idêntico ao Poder Base — sem bônus automático de Prestígio/Ascensão.
         const spanValorAtual = linhaAtual.children[1];
         expect(spanValorAtual.tagName).toBe('SPAN');
-        expect(spanValorAtual.textContent).toBe((151).toLocaleString('pt-BR'));
-
-        // Regressão explícita: o card base NUNCA deve refletir o valor escalado.
-        expect(inputValorBase.value).not.toBe(spanValorAtual.textContent);
+        expect(spanValorAtual.textContent).toBe((40).toLocaleString('pt-BR'));
+        expect(inputValorBase.value).toBe(spanValorAtual.textContent);
     });
 
-    it('sem multiplicadores/ascensão customizados (defaults=1), o card "Poder Atual" ainda escala pelo grupo status (não fica estático em maxVal)', () => {
-        // forca.base=10, destreza.base=0 -> soma=10 -> statusBaseP = floor((10/8)/1000) = floor(0.00125) = 0
-        // Com statusPAtual=0: prestigioTotal=0, prestigioFinal=0, ascensaoBaseEfetiva=1*1=1, ascensaoFinal=1
-        // valorAtual = floor(10 * 1 * (1 + 0/100)) = floor(10) = 10 (mesmo valor de maxVal aqui,
-        // pois o grupo status está zerado — não é um caso de escala visível, mas confirma que a
-        // fórmula nova roda sem erro/NaN mesmo em ascensaoBase/multiplicadores ausentes).
+    it('teste mental da UI: Base=30.000, Mult. Força (Prestígio)=1, Mult. Força (Ascensão)=1 -> Poder Atual DEVE retornar 30.000', () => {
+        const ficha = fichaComAtributoFisico({
+            forcaBase: 30000,
+            destrezaBase: 0,
+            ascensaoBase: 1,
+            multiplicadorForcaPrestigio: 1,
+            multiplicadorForcaAscensao: 1,
+        });
+        montarMockUseStoreAtributo(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        const inputsForca = screen.getAllByDisplayValue('Força');
+        const linhaAtual = inputsForca[1].parentElement;
+        const spanValorAtual = linhaAtual.children[1];
+
+        expect(spanValorAtual.textContent).toBe((30000).toLocaleString('pt-BR'));
+    });
+
+    it('sem multiplicadores/ascensão customizados (defaults=1), o card "Poder Atual" permanece igual ao Poder Base', () => {
         const ficha = fichaComAtributoFisico({
             forcaBase: 10,
             destrezaBase: 0,
@@ -415,5 +430,47 @@ describe('Marcados — Reatividade de LinhaAtributoCru (Força escalada por Asce
         const spanValorAtual = linhaAtual.children[1];
 
         expect(spanValorAtual.textContent).toBe('10');
+    });
+
+    it('atributo com Forma/Passiva ativa (buff real via getBuffs/getMaximo) continua refletido no Poder Atual — não é zerado para o base cru, e o teste usa um attrKey diferente de força/destreza (constituição) para provar que o fix não é específico de atributo', () => {
+        // constituicao.base=100; poder ativo concede +50 de "base" a 'constituicao'
+        // via efeitos (prop='base', atributo='constituicao'). safeGetMaximo deve
+        // retornar (100 + 50) * 1 = 150 — o buff real deve aparecer, provando que o
+        // fix não força valorAtual para o base bruto (o que zeraria o buff).
+        // ascensaoBase e os Multiplicadores de Força ficam em valores "tentadores"
+        // para garantir que, mesmo com eles != 1, não há inflação indevida por cima
+        // do buff real de Forma.
+        const ficha = fichaComAtributoFisico({
+            forcaBase: 0,
+            destrezaBase: 0,
+            ascensaoBase: 3,
+            multiplicadorForcaPrestigio: 5,
+            multiplicadorForcaAscensao: 2,
+        });
+        ficha.constituicao = { base: 100 };
+        ficha.poderes = [{
+            nome: 'Couraça Ancestral',
+            ativa: true,
+            efeitos: [{ atributo: 'constituicao', propriedade: 'base', valor: 50 }],
+        }];
+        montarMockUseStoreAtributo(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        const inputsConstituicao = screen.getAllByDisplayValue('Constituição');
+        expect(inputsConstituicao).toHaveLength(2);
+
+        const linhaBase = inputsConstituicao[0].parentElement;
+        const linhaAtual = inputsConstituicao[1].parentElement;
+
+        // Card "Status (Rank Base)" (isAtual=false): valor bruto do campo base, sem buffs.
+        const inputValorBase = linhaBase.children[1];
+        expect(inputValorBase.value).toBe('100');
+
+        // Card "Poder Atual (c/ Formas)" (isAtual=true): base + buff real da Forma ativa.
+        const spanValorAtual = linhaAtual.children[1];
+        expect(spanValorAtual.textContent).toBe((150).toLocaleString('pt-BR'));
+        expect(spanValorAtual.textContent).not.toBe('100');
     });
 });
