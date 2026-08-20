@@ -288,22 +288,26 @@ describe('Marcados — Multiplicador de Força (aplicarMultiplicadorForca, dois 
 });
 
 // ---------------------------------------------------------------------------
-// QA — Reatividade de LinhaAtributoCru (fix de fórmula)
+// QA — Reatividade de LinhaAtributoCru (Multiplicador de Força como Energia)
 //
-// Bug corrigido: o card "Poder Atual (c/ Formas)" (isAtual=true) estava
-// aplicando um bônus passivo indevido, usando o Prestígio/Ascensão do grupo
-// 'status' (derivado da soma de TODOS os atributos físicos crus) como um
-// multiplicador percentual automático sobre cada atributo — mesmo sem
-// nenhuma Forma/Passiva ativa e com os Multiplicadores de Força em 1.
+// Regra de negócio (Game Designer): a "Força Mística" é uma Energia, não uma
+// Forma — seus dois multiplicadores (multiplicadorForcaPrestigio e
+// multiplicadorForcaAscensao) devem escalar IGUALMENTE as duas colunas do
+// atributo: a Base (esquerda, editável) e o Poder Atual c/ Formas (direita).
+// multiplicadorForcaTotal = multiplicadorForcaPrestigio * multiplicadorForcaAscensao.
 //
-// Regra correta: Prestígio/Ascensão são variáveis de referência (cultivação)
-// e não inflam o atributo sozinhas. O card "Poder Atual (c/ Formas)" deve
-// mostrar exatamente safeGetMaximo(ficha, attrKey) — que já inclui os buffs
-// de Formas/Passivas do próprio atributo via getBuffs()/getMaximo(). Ou
-// seja: sem formas/passivas ativas, Poder_Atual === Poder_Base sempre,
-// independente do valor de ascensaoBase ou dos Multiplicadores de Força.
-// O card "Status (Rank Base)" (isAtual=false) continua mostrando o valor
-// bruto (safeGetMaximo), sem nenhuma escala — inalterado.
+// Estaca Zero Absoluta: com os dois multiplicadores no padrão (1), o total é 1
+// e a tela mostra o valor puro do banco em ambas as colunas, sem nenhuma soma
+// ou bônus extra — inclusive ignorando ascensaoBase e o Prestígio/Ascensão do
+// grupo STATUS (a via que causou o bug anterior, pois nunca fica realmente
+// neutra em multP=multA=1). Quando os multiplicadores sobem, as duas colunas
+// escalam proporcionalmente pelo mesmo fator.
+//
+// A coluna Base continua editável: enquanto desfocada, mostra o preview escalado
+// (rawBase * multiplicadorForcaTotal); ao ganhar foco, revela e edita o valor
+// PURO do banco (sem escala), e grava exatamente o que foi digitado. Isso evita
+// qualquer arredondamento/divisão no save — que perderia dígitos sempre que o
+// multiplicador não fosse um divisor exato do valor digitado.
 // ---------------------------------------------------------------------------
 
 function fichaComAtributoFisico({ forcaBase, destrezaBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao }) {
@@ -342,7 +346,7 @@ function montarMockUseStoreAtributo(minhaFicha) {
     useStore.mockImplementation((selector) => (selector ? selector(mockState) : mockState));
 }
 
-describe('Marcados — LinhaAtributoCru NÃO deve escalar por Ascensão/Prestígio do grupo status (bugfix)', () => {
+describe('Marcados — LinhaAtributoCru escala Base e Atual pelo Multiplicador de Força (Energia)', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true);
@@ -353,11 +357,10 @@ describe('Marcados — LinhaAtributoCru NÃO deve escalar por Ascensão/Prestíg
         cleanup();
     });
 
-    it('card "Poder Atual (c/ Formas)" reflete exatamente o Poder Base (maxVal) quando não há formas/passivas e os Multiplicadores de Força estão além de 1 — Prestígio/Ascensão de STATUS não devem inflar o atributo', () => {
+    it('Multiplicadores de Força além de 1 escalam AMBAS as colunas (Base e Poder Atual) pelo mesmo fator, ignorando ascensaoBase', () => {
         // forca.base=40 -> maxVal (safeGetMaximo) = 40 (sem buffs/mFormas).
-        // ascensaoBase=2, multP=2, multA=1 são variáveis de referência (cultivação);
-        // como não há nenhuma Forma/Passiva ativa em 'forca', elas NÃO devem alterar
-        // o Poder Atual. Estaca zero: Poder_Atual === Poder_Base.
+        // multP=2, multA=1 -> multiplicadorForcaTotal=2. ascensaoBase=2 é um "isca"
+        // para provar que NÃO participa dessa fórmula (só multP*multA importam).
         const ficha = fichaComAtributoFisico({
             forcaBase: 40,
             destrezaBase: 503960,
@@ -379,20 +382,19 @@ describe('Marcados — LinhaAtributoCru NÃO deve escalar por Ascensão/Prestíg
         const linhaBase = inputsForca[0].parentElement;
         const linhaAtual = inputsForca[1].parentElement;
 
-        // Card "Status (Rank Base)" (isAtual=false): valor bruto, sem escala.
+        // Card "Status (Rank Base)" (isAtual=false): 40 * multiplicadorForcaTotal(2) = 80.
         const inputValorBase = linhaBase.children[1];
         expect(inputValorBase.tagName).toBe('INPUT');
-        expect(inputValorBase.value).toBe('40');
+        expect(inputValorBase.value).toBe('80');
 
-        // Card "Poder Atual (c/ Formas)" (isAtual=true): sem formas/passivas ativas,
-        // deve ser idêntico ao Poder Base — sem bônus automático de Prestígio/Ascensão.
+        // Card "Poder Atual (c/ Formas)" (isAtual=true): maxVal(40) * 2 = 80 — escala igual à Base.
         const spanValorAtual = linhaAtual.children[1];
         expect(spanValorAtual.tagName).toBe('SPAN');
-        expect(spanValorAtual.textContent).toBe((40).toLocaleString('pt-BR'));
+        expect(spanValorAtual.textContent).toBe((80).toLocaleString('pt-BR'));
         expect(inputValorBase.value).toBe(spanValorAtual.textContent);
     });
 
-    it('teste mental da UI: Base=30.000, Mult. Força (Prestígio)=1, Mult. Força (Ascensão)=1 -> Poder Atual DEVE retornar 30.000', () => {
+    it('teste mental da UI: Base=30.000, Mult. Força (Prestígio)=1, Mult. Força (Ascensão)=1 -> DEVE retornar 30.000 em ambas as colunas (Estaca Zero Absoluta)', () => {
         const ficha = fichaComAtributoFisico({
             forcaBase: 30000,
             destrezaBase: 0,
@@ -406,13 +408,14 @@ describe('Marcados — LinhaAtributoCru NÃO deve escalar por Ascensão/Prestíg
         irParaPaginaAnalise();
 
         const inputsForca = screen.getAllByDisplayValue('Força');
+        const linhaBase = inputsForca[0].parentElement;
         const linhaAtual = inputsForca[1].parentElement;
-        const spanValorAtual = linhaAtual.children[1];
 
-        expect(spanValorAtual.textContent).toBe((30000).toLocaleString('pt-BR'));
+        expect(linhaBase.children[1].value).toBe((30000).toLocaleString('pt-BR'));
+        expect(linhaAtual.children[1].textContent).toBe((30000).toLocaleString('pt-BR'));
     });
 
-    it('sem multiplicadores/ascensão customizados (defaults=1), o card "Poder Atual" permanece igual ao Poder Base', () => {
+    it('sem multiplicadores/ascensão customizados (defaults=1), Base e Poder Atual permanecem no valor puro do banco', () => {
         const ficha = fichaComAtributoFisico({
             forcaBase: 10,
             destrezaBase: 0,
@@ -426,20 +429,17 @@ describe('Marcados — LinhaAtributoCru NÃO deve escalar por Ascensão/Prestíg
         irParaPaginaAnalise();
 
         const inputsForca = screen.getAllByDisplayValue('Força');
+        const linhaBase = inputsForca[0].parentElement;
         const linhaAtual = inputsForca[1].parentElement;
-        const spanValorAtual = linhaAtual.children[1];
 
-        expect(spanValorAtual.textContent).toBe('10');
+        expect(linhaBase.children[1].value).toBe('10');
+        expect(linhaAtual.children[1].textContent).toBe('10');
     });
 
-    it('atributo com Forma/Passiva ativa (buff real via getBuffs/getMaximo) continua refletido no Poder Atual — não é zerado para o base cru, e o teste usa um attrKey diferente de força/destreza (constituição) para provar que o fix não é específico de atributo', () => {
-        // constituicao.base=100; poder ativo concede +50 de "base" a 'constituicao'
-        // via efeitos (prop='base', atributo='constituicao'). safeGetMaximo deve
-        // retornar (100 + 50) * 1 = 150 — o buff real deve aparecer, provando que o
-        // fix não força valorAtual para o base bruto (o que zeraria o buff).
-        // ascensaoBase e os Multiplicadores de Força ficam em valores "tentadores"
-        // para garantir que, mesmo com eles != 1, não há inflação indevida por cima
-        // do buff real de Forma.
+    it('atributo com Forma/Passiva ativa (buff real via getBuffs/getMaximo) tem o buff escalado junto pelo Multiplicador de Força — usa attrKey diferente de força/destreza (constituição) para provar que não é específico de atributo', () => {
+        // constituicao.base=100; poder ativo concede +50 de "base" -> safeGetMaximo = 150.
+        // multP=5, multA=2 -> multiplicadorForcaTotal=10.
+        // Base exibida: 100 * 10 = 1000. Poder Atual: 150 * 10 = 1500.
         const ficha = fichaComAtributoFisico({
             forcaBase: 0,
             destrezaBase: 0,
@@ -464,13 +464,124 @@ describe('Marcados — LinhaAtributoCru NÃO deve escalar por Ascensão/Prestíg
         const linhaBase = inputsConstituicao[0].parentElement;
         const linhaAtual = inputsConstituicao[1].parentElement;
 
-        // Card "Status (Rank Base)" (isAtual=false): valor bruto do campo base, sem buffs.
+        // Card "Status (Rank Base)" (isAtual=false): 100 * 10 = 1000 (valor bruto, escalado).
         const inputValorBase = linhaBase.children[1];
-        expect(inputValorBase.value).toBe('100');
+        expect(inputValorBase.value).toBe((1000).toLocaleString('pt-BR'));
 
-        // Card "Poder Atual (c/ Formas)" (isAtual=true): base + buff real da Forma ativa.
+        // Card "Poder Atual (c/ Formas)" (isAtual=true): (100+50) * 10 = 1500.
         const spanValorAtual = linhaAtual.children[1];
-        expect(spanValorAtual.textContent).toBe((150).toLocaleString('pt-BR'));
-        expect(spanValorAtual.textContent).not.toBe('100');
+        expect(spanValorAtual.textContent).toBe((1500).toLocaleString('pt-BR'));
+    });
+
+    it('campo Base revela o valor puro do banco ao ganhar foco (não o preview escalado) e grava exatamente o que o jogador digitar, sem nenhuma divisão pelo multiplicador', () => {
+        // multP=3, multA=1 -> multiplicadorForcaTotal=3 (não é divisor exato de valores
+        // arbitrários — se houvesse arredondamento no save, dígitos digitados seriam
+        // perdidos). Exibido enquanto desfocado: 40*3=120.
+        const ficha = fichaComAtributoFisico({
+            forcaBase: 40,
+            destrezaBase: 0,
+            ascensaoBase: 1,
+            multiplicadorForcaPrestigio: 3,
+            multiplicadorForcaAscensao: 1,
+        });
+        montarMockUseStoreAtributo(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        const inputsForca = screen.getAllByDisplayValue('Força');
+        const inputValorBase = inputsForca[0].parentElement.children[1];
+        expect(inputValorBase.value).toBe('120');
+
+        // Ao focar, o campo passa a mostrar o valor PURO (40), não o preview (120) —
+        // edição sempre em cima do dado real, nunca do valor escalado.
+        fireEvent.focus(inputValorBase);
+        expect(inputValorBase.value).toBe('40');
+
+        fireEvent.change(inputValorBase, { target: { value: '101' } });
+
+        // O banco grava exatamente o que foi digitado — sem dividir pelo multiplicador
+        // (101 não é múltiplo de 3; qualquer divisão arredondada perderia precisão).
+        expect(ficha.forca.base).toBe(101);
+    });
+
+    it('ao perder o foco após editar, o campo Base volta a mostrar o preview escalado recalculado com o novo valor puro — não fica travado exibindo o valor cru', () => {
+        // multP=3, multA=1 -> multiplicadorForcaTotal=3. Base inicial 40 -> preview 120.
+        const ficha = fichaComAtributoFisico({
+            forcaBase: 40,
+            destrezaBase: 0,
+            ascensaoBase: 1,
+            multiplicadorForcaPrestigio: 3,
+            multiplicadorForcaAscensao: 1,
+        });
+        montarMockUseStoreAtributo(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        const inputsForca = screen.getAllByDisplayValue('Força');
+        const inputValorBase = inputsForca[0].parentElement.children[1];
+        expect(inputValorBase.value).toBe('120');
+
+        fireEvent.focus(inputValorBase);
+        expect(inputValorBase.value).toBe('40');
+
+        fireEvent.change(inputValorBase, { target: { value: '50' } });
+        expect(ficha.forca.base).toBe(50);
+
+        // Ao desfocar, attrBaseFocado volta a null e a linha volta a exibir o preview
+        // escalado — recalculado sobre o NOVO valor puro (50), não o antigo (40).
+        fireEvent.blur(inputValorBase);
+        expect(inputValorBase.value).toBe('150');
+    });
+
+    it('attrBaseFocado é um estado global (uma única variável para todas as linhas): focar a Base de Força não deve exibir o valor cru na Base de Destreza, nem afetar a coluna Poder Atual de nenhuma das duas', () => {
+        // multP=2, multA=1 -> multiplicadorForcaTotal=2.
+        // forca.base=40 -> preview Base=80, Atual(maxVal=40)*2=80.
+        // destreza.base=25 -> preview Base=50, Atual(maxVal=25)*2=50.
+        const ficha = fichaComAtributoFisico({
+            forcaBase: 40,
+            destrezaBase: 25,
+            ascensaoBase: 1,
+            multiplicadorForcaPrestigio: 2,
+            multiplicadorForcaAscensao: 1,
+        });
+        montarMockUseStoreAtributo(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        const inputsForca = screen.getAllByDisplayValue('Força');
+        const inputsDestreza = screen.getAllByDisplayValue('Destreza');
+        const forcaBaseInput = inputsForca[0].parentElement.children[1];
+        const forcaAtualSpan = inputsForca[1].parentElement.children[1];
+        const destrezaBaseInput = inputsDestreza[0].parentElement.children[1];
+        const destrezaAtualSpan = inputsDestreza[1].parentElement.children[1];
+
+        expect(forcaBaseInput.value).toBe('80');
+        expect(destrezaBaseInput.value).toBe('50');
+
+        // Foca apenas a linha de Força.
+        fireEvent.focus(forcaBaseInput);
+
+        // Força revela o valor cru (40); Destreza permanece no preview escalado (50) —
+        // attrBaseFocado só casa com attrKey='forca', não com 'destreza'.
+        expect(forcaBaseInput.value).toBe('40');
+        expect(destrezaBaseInput.value).toBe('50');
+
+        // A coluna "Poder Atual" (span, sem noção de foco) nunca é afetada pelo foco
+        // do campo Base — nem a da própria Força, nem a de Destreza.
+        expect(forcaAtualSpan.textContent).toBe('80');
+        expect(destrezaAtualSpan.textContent).toBe('50');
+
+        // Desfoca Força e foca Destreza: Força deve voltar ao preview escalado (não
+        // ficar presa exibindo o valor cru), e agora Destreza revela seu valor cru.
+        fireEvent.blur(forcaBaseInput);
+        fireEvent.focus(destrezaBaseInput);
+
+        expect(forcaBaseInput.value).toBe('80');
+        expect(destrezaBaseInput.value).toBe('25');
+        expect(forcaAtualSpan.textContent).toBe('80');
+        expect(destrezaAtualSpan.textContent).toBe('50');
     });
 });
