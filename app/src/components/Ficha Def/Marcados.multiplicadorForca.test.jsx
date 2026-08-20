@@ -288,16 +288,20 @@ describe('Marcados — Multiplicador de Força (aplicarMultiplicadorForca, dois 
 });
 
 // ---------------------------------------------------------------------------
-// QA — Correção de hierarquia matemática ("sem double-dipping")
+// QA — Amarração final: lista de atributos reage ao MESMO fator que os Radares
 //
-// Regra de negócio (Game Designer): 100 Prestígios = 1 Ascensão de Categoria;
-// os Multiplicadores de Força só atuam NESSA cascata (Prestígio de cada uma das
-// 6 categorias — vida/mana/aura/chakra/corpo/status — ANTES do overflow, e a
-// Ascensão Base geral do personagem), nunca multiplicando o valor bruto dos
-// atributos físicos individuais (Força, Destreza, etc.) uma segunda vez por
-// cima. LinhaAtributoCru volta a exibir só Base (banco) e Atual (base + buffs
-// reais de Formas/Passivas via safeGetMaximo) — sem nenhuma multiplicação dos
-// inputs de Força Mística.
+// Regra de negócio (Game Designer): a lista de atributos (Força, Destreza, etc.)
+// deve receber a mesma reatividade dos gráficos de radar — a cada 1 Ascensão
+// COMPLETA nas 6 categorias (vida/mana/aura/chakra/corpo/status), o personagem
+// ganha +1 de Ascensão Geral invisível somada à Base. "Completa" = o MENOR
+// overflow de Ascensão (bônus além da Ascensão Base já escalada por
+// multiplicadorForcaAscensao) entre as 6 categorias — a categoria mais fraca
+// limita o nível geral. `fatorCrescimentoAtributos` (calculado uma vez em
+// MarcadosPanel) = ascensaoGeralEfetiva / ascensaoBase do banco, e escala Base e
+// Poder Atual da lista de atributos na mesma proporção — SEM multiplicar
+// multiplicadorForcaPrestigio/Ascensao diretamente sobre o atributo (isso seria
+// double-dipping; eles só entram via a cascata de Prestígio/Ascensão das 6
+// categorias, exatamente como no Radar).
 // ---------------------------------------------------------------------------
 
 function fichaComAtributoFisico({ forcaBase, destrezaBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao }) {
@@ -336,7 +340,7 @@ function montarMockUseStoreAtributo(minhaFicha) {
     useStore.mockImplementation((selector) => (selector ? selector(mockState) : mockState));
 }
 
-describe('Marcados — LinhaAtributoCru NÃO multiplica atributos crus pelos Multiplicadores de Força (sem double-dipping)', () => {
+describe('Marcados — LinhaAtributoCru escala pelo fatorCrescimentoAtributos (mesma cascata dos Radares, sem double-dipping)', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true);
@@ -347,36 +351,7 @@ describe('Marcados — LinhaAtributoCru NÃO multiplica atributos crus pelos Mul
         cleanup();
     });
 
-    it('Multiplicadores de Força > 1 NÃO alteram Base nem Poder Atual do atributo cru — a cascata deles fica restrita ao Prestígio/Ascensão das 6 categorias', () => {
-        // forca.base=40 -> maxVal (safeGetMaximo) = 40 (sem buffs/mFormas). Com o bug de
-        // double-dipping, isso viraria 40*multP(2)*multA(2)=160; a regra correta é 40.
-        const ficha = fichaComAtributoFisico({
-            forcaBase: 40,
-            destrezaBase: 503960,
-            ascensaoBase: 2,
-            multiplicadorForcaPrestigio: 2,
-            multiplicadorForcaAscensao: 2,
-        });
-        montarMockUseStoreAtributo(ficha);
-
-        render(<MarcadosPanel />);
-        irParaPaginaAnalise();
-
-        // Há duas linhas "Força" na Página 2: a primeira pertence ao card "Status (Rank
-        // Base)" (isAtual=false), a segunda ao card "Poder Atual (c/ Formas)" (isAtual=true).
-        const inputsForca = screen.getAllByDisplayValue('Força');
-        expect(inputsForca).toHaveLength(2);
-
-        const inputValorBase = inputsForca[0].parentElement.children[1];
-        const spanValorAtual = inputsForca[1].parentElement.children[1];
-
-        expect(inputValorBase.tagName).toBe('INPUT');
-        expect(inputValorBase.value).toBe('40');
-        expect(spanValorAtual.tagName).toBe('SPAN');
-        expect(spanValorAtual.textContent).toBe((40).toLocaleString('pt-BR'));
-    });
-
-    it('teste mental da UI: Base=30.000, Mult. Força (Prestígio)=1, Mult. Força (Ascensão)=1 -> DEVE retornar 30.000 em ambas as colunas (Estaca Zero)', () => {
+    it('teste mental da UI: Base=30.000, Mult. Força (Prestígio)=1, Mult. Força (Ascensão)=1, sem overflow -> DEVE retornar 30.000 em ambas as colunas (Estaca Zero)', () => {
         const ficha = fichaComAtributoFisico({
             forcaBase: 30000,
             destrezaBase: 0,
@@ -394,14 +369,90 @@ describe('Marcados — LinhaAtributoCru NÃO multiplica atributos crus pelos Mul
         expect(inputsForca[1].parentElement.children[1].textContent).toBe((30000).toLocaleString('pt-BR'));
     });
 
-    it('atributo com Forma/Passiva ativa (buff real via getBuffs/getMaximo) aparece no Poder Atual sem qualquer multiplicação extra dos Multiplicadores de Força', () => {
+    it('multiplicadorForcaAscensao > 1 sem overflow escala a lista de atributos exatamente pelo próprio multA (fator = ascensaoBase*multA/ascensaoBase = multA)', () => {
+        // ascensaoBase=2, multA=3, forcaBase=40 pequeno o bastante para não gerar overflow
+        // em nenhuma das 6 categorias -> nivelCompletos=0 -> geral=(2+0)*3=6 -> fator=6/2=3.
+        const ficha = fichaComAtributoFisico({
+            forcaBase: 40,
+            destrezaBase: 0,
+            ascensaoBase: 2,
+            multiplicadorForcaPrestigio: 1,
+            multiplicadorForcaAscensao: 3,
+        });
+        montarMockUseStoreAtributo(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        const inputsForca = screen.getAllByDisplayValue('Força');
+        expect(inputsForca[0].parentElement.children[1].value).toBe((120).toLocaleString('pt-BR'));
+        expect(inputsForca[1].parentElement.children[1].textContent).toBe((120).toLocaleString('pt-BR'));
+    });
+
+    it('multiplicadorForcaPrestigio alto SEM causar overflow em nenhuma categoria NÃO altera a lista de atributos (sem double-dipping: só overflow real conta)', () => {
+        // forcaBase=40 é pequeno demais para o Prestígio de STATUS estourar 100 mesmo
+        // com multP=5 -> nivelCompletos continua 0 -> fator continua 1, mesmo com multP alto.
+        const ficha = fichaComAtributoFisico({
+            forcaBase: 40,
+            destrezaBase: 0,
+            ascensaoBase: 1,
+            multiplicadorForcaPrestigio: 5,
+            multiplicadorForcaAscensao: 1,
+        });
+        montarMockUseStoreAtributo(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        const inputsForca = screen.getAllByDisplayValue('Força');
+        expect(inputsForca[0].parentElement.children[1].value).toBe('40');
+        expect(inputsForca[1].parentElement.children[1].textContent).toBe('40');
+    });
+
+    it('overflow uniforme nas 6 categorias (100 Prestígios = 1 Ascensão) eleva nivelCompletos e escala a lista de atributos proporcionalmente', () => {
+        // Prestígio=150 em TODAS as 6 categorias (vida/mana/aura/chakra/corpo/status),
+        // ascensaoBase=1, multP=2 -> prestigioTotal=300, bonusAscensao=3 em cada uma ->
+        // nivelCompletos=3 -> geral=(1+3)*1=4 -> fator=4/1=4.
+        const ficha = {
+            vida: { base: 150000000 },       // floor(150000000/1e6) = 150
+            mana: { base: 1500000000 },      // floor(1500000000/1e7) = 150
+            aura: { base: 1500000000 },
+            chakra: { base: 1500000000 },
+            corpo: { base: 1500000000 },
+            forca: { base: 1200000 },        // soma dos 8 físicos = 1.200.000 -> média/1000 = 150
+            destreza: { base: 0 },
+            inteligencia: { base: 0 },
+            sabedoria: { base: 0 },
+            energiaEsp: { base: 0 },
+            carisma: { base: 0 },
+            stamina: { base: 0 },
+            constituicao: { base: 0 },
+            ascensaoBase: 1,
+            multiplicadorForcaPrestigio: 2,
+            multiplicadorForcaAscensao: 1,
+            divisores: {},
+            bio: {},
+            estetica: {},
+            labels: {},
+        };
+        montarMockUseStoreAtributo(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        const inputsForca = screen.getAllByDisplayValue('Força');
+        expect(inputsForca[0].parentElement.children[1].value).toBe((4800000).toLocaleString('pt-BR'));
+        expect(inputsForca[1].parentElement.children[1].textContent).toBe((4800000).toLocaleString('pt-BR'));
+    });
+
+    it('atributo com Forma/Passiva ativa (buff real via getBuffs/getMaximo) é escalado pelo fatorCrescimentoAtributos junto com a Base', () => {
         // constituicao.base=100; poder ativo concede +50 de "base" -> safeGetMaximo = 150.
-        // multP=5, multA=2 não devem tocar nem a Base (100) nem o Poder Atual (150).
+        // ascensaoBase=3, multA=2, sem overflow (bases pequenas) -> fator = (3+0)*2/3 = 2.
         const ficha = fichaComAtributoFisico({
             forcaBase: 0,
             destrezaBase: 0,
             ascensaoBase: 3,
-            multiplicadorForcaPrestigio: 5,
+            multiplicadorForcaPrestigio: 1,
             multiplicadorForcaAscensao: 2,
         });
         ficha.constituicao = { base: 100 };
@@ -418,17 +469,17 @@ describe('Marcados — LinhaAtributoCru NÃO multiplica atributos crus pelos Mul
         const inputsConstituicao = screen.getAllByDisplayValue('Constituição');
         expect(inputsConstituicao).toHaveLength(2);
 
-        expect(inputsConstituicao[0].parentElement.children[1].value).toBe('100');
-        expect(inputsConstituicao[1].parentElement.children[1].textContent).toBe((150).toLocaleString('pt-BR'));
+        expect(inputsConstituicao[0].parentElement.children[1].value).toBe((200).toLocaleString('pt-BR'));
+        expect(inputsConstituicao[1].parentElement.children[1].textContent).toBe((300).toLocaleString('pt-BR'));
     });
 
-    it('campo Base continua editável, gravando exatamente o que foi digitado, sem qualquer transformação pelo multiplicador', () => {
+    it('campo Base revela o valor puro do banco ao ganhar foco e grava exatamente o que o jogador digitar, sem nenhuma divisão pelo fator', () => {
         const ficha = fichaComAtributoFisico({
             forcaBase: 40,
             destrezaBase: 0,
-            ascensaoBase: 1,
-            multiplicadorForcaPrestigio: 3,
-            multiplicadorForcaAscensao: 1,
+            ascensaoBase: 2,
+            multiplicadorForcaPrestigio: 1,
+            multiplicadorForcaAscensao: 3,
         });
         montarMockUseStoreAtributo(ficha);
 
@@ -436,12 +487,65 @@ describe('Marcados — LinhaAtributoCru NÃO multiplica atributos crus pelos Mul
         irParaPaginaAnalise();
 
         const inputValorBase = screen.getAllByDisplayValue('Força')[0].parentElement.children[1];
-        expect(inputValorBase.value).toBe('40');
+        // fator=3 (mesma conta do teste de multA isolado acima) -> preview desfocado = 120.
+        expect(inputValorBase.value).toBe((120).toLocaleString('pt-BR'));
 
         fireEvent.focus(inputValorBase);
+        expect(inputValorBase.value).toBe('40');
+
         fireEvent.change(inputValorBase, { target: { value: '101' } });
 
         expect(ficha.forca.base).toBe(101);
+    });
+
+    it('quando uma Forma/Passiva causa overflow extra APENAS na cascata com mFormas, a coluna Base (radar sem Formas) e a coluna Poder Atual (radar com Formas) usam fatores DIFERENTES — não mais um fator único compartilhado', () => {
+        // vida.mFormas=2.2 empurra SÓ a cascata "com Formas" da categoria vida de
+        // Prestígio=250 (bônus=2) para 250*2.2=550 (bônus=5) — mFormas não é lido nas
+        // outras 4 categorias (mana/aura/chakra/corpo), que ficam fixas em bônus=5 (via
+        // Prestígio=550), nem em 'status' (via forca, sem mFormas, também bônus=5).
+        // Cascata SEM Formas (Base/radar isAtual=false): bônus=[vida=2,mana=5,aura=5,
+        //   chakra=5,corpo=5,status=5] -> nivelCompletos=min=2 -> geral=(1+2)*1=3 -> fatorBase=3.
+        // Cascata COM Formas (Atual/radar isAtual=true): bônus=[vida=5,mana=5,aura=5,
+        //   chakra=5,corpo=5,status=5] -> nivelCompletos=min=5 -> geral=(1+5)*1=6 -> fatorAtual=6.
+        // 'vida' não é um atributo físico da lista (Força/Destreza/...), então seu
+        // mFormas não interfere no cálculo de safeGetMaximo('forca') — usamos Força
+        // (base=4.400.000, sem mFormas próprio) como sonda limpa dessa divergência.
+        const ficha = {
+            vida: { base: 250000000, mFormas: 2.2 }, // Prestígio bruto=250
+            mana: { base: 5500000000 },              // Prestígio=550
+            aura: { base: 5500000000 },
+            chakra: { base: 5500000000 },
+            corpo: { base: 5500000000 },
+            forca: { base: 4400000 },                // soma dos 8 físicos=4.400.000 -> média/1000=550
+            destreza: { base: 0 },
+            inteligencia: { base: 0 },
+            sabedoria: { base: 0 },
+            energiaEsp: { base: 0 },
+            carisma: { base: 0 },
+            stamina: { base: 0 },
+            constituicao: { base: 0 },
+            ascensaoBase: 1,
+            multiplicadorForcaPrestigio: 1,
+            multiplicadorForcaAscensao: 1,
+            divisores: {},
+            bio: {},
+            estetica: {},
+            labels: {},
+        };
+        montarMockUseStoreAtributo(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        const inputsForca = screen.getAllByDisplayValue('Força');
+
+        // Base (fatorBase=3): 4.400.000 * 3 = 13.200.000.
+        expect(inputsForca[0].parentElement.children[1].value).toBe((13200000).toLocaleString('pt-BR'));
+        // Atual (fatorAtual=6, maxVal=4.400.000 sem buffs próprios): 4.400.000 * 6 = 26.400.000.
+        expect(inputsForca[1].parentElement.children[1].textContent).toBe((26400000).toLocaleString('pt-BR'));
+
+        // O indicador "Ascensão Geral Efetiva" mostra a leitura COM Formas (nível=6).
+        expect(screen.getByText('6')).toBeTruthy();
     });
 });
 
@@ -545,5 +649,179 @@ describe('Marcados — Gráficos de Radar reagem ao Multiplicador de Força (Pre
         textosStatus.forEach(texto => {
             expect(texto).toBe('[B] A3 STATUS');
         });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// QA — Indicador "Ascensão Geral Efetiva": leitura direta, composição real com
+// multiplicadorForcaPrestigio + Forma/Passiva simultâneos, reatividade via
+// edição do input "Ascensão Base (Nível)" pelo caminho real (salvar/updateFicha)
+// e blindagem para ascensaoBase=0.
+//
+// Gaps identificados nesta rodada de QA independente: os testes anteriores só
+// validam ascensaoGeralEfetiva/fatorCrescimento* INDIRETAMENTE, lendo o valor já
+// escalado da lista de atributos. Nenhum teste (a) lê o texto do próprio
+// indicador "Ascensão Geral Efetiva" e confere a conta para um caso
+// claramente diferente do ascensaoBase bruto; (b) ativa multiplicadorForcaPrestigio
+// (causando overflow) E um mFormas de Forma/Passiva ao mesmo tempo na MESMA
+// categoria, para garantir que os dois se compõem multiplicativamente em vez de
+// um sobrescrever o outro silenciosamente; (c) edita de fato o input "Ascensão
+// Base (Nível)" pelo caminho real de salvar()/updateFicha() e confere que o
+// indicador recalcula; (d) cobre ascensaoBase=0 explicitamente.
+// ---------------------------------------------------------------------------
+
+function lerIndicadorAscensaoGeral() {
+    return screen.getByText((_, el) => el?.tagName === 'SPAN' && /^Ascensão Geral Efetiva: -?\d+$/.test(el.textContent || ''));
+}
+
+// Mock de useStore que, ao contrário de montarMockUseStoreAtributo (que muta o
+// MESMO objeto in-place), gera uma NOVA referência de ficha a cada updateFicha —
+// espelhando o comportamento real do Immer em stores/useStore.js
+// (`set((state) => { callback(state.minhaFicha) })` produz um novo objeto de
+// estado). Isso é necessário porque o useMemo que calcula ascensaoGeralEfetiva
+// depende de `[minhaFicha]` por referência: sem uma nova referência, o React
+// nem recalcularia o memo em um teste de reatividade real.
+function montarMockUseStoreReativo(fichaInicial) {
+    const mockState = {
+        minhaFicha: fichaInicial,
+        updateFicha: null,
+        meuNome: 'Testador',
+        importarDaAbaStatus: vi.fn(),
+    };
+    mockState.updateFicha = vi.fn((callback) => {
+        const nova = { ...mockState.minhaFicha };
+        callback(nova);
+        mockState.minhaFicha = nova;
+    });
+    useStore.mockImplementation((selector) => (selector ? selector(mockState) : mockState));
+    return mockState;
+}
+
+describe('Marcados — Indicador "Ascensão Geral Efetiva": leitura direta, composição e reatividade', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        window.confirm = vi.fn(() => true);
+        window.alert = vi.fn();
+    });
+
+    afterEach(() => {
+        cleanup();
+    });
+
+    it('lê o TEXTO do indicador diretamente (não só via escala da lista de atributos) e confere a conta para um valor claramente diferente do ascensaoBase bruto', () => {
+        // Mesma cascata do teste "overflow uniforme nas 6 categorias": Prestígio=150 em
+        // TODAS as 6 categorias, ascensaoBase=1, multP=2 -> prestigioTotal=300 em cada,
+        // bonusAscensao=3 em cada -> nivelCompletos=3 -> geral=(1+3)*1=4.
+        // ascensaoBase bruto é 1; o indicador deve mostrar 4 — nitidamente diferente.
+        const ficha = {
+            vida: { base: 150000000 },
+            mana: { base: 1500000000 },
+            aura: { base: 1500000000 },
+            chakra: { base: 1500000000 },
+            corpo: { base: 1500000000 },
+            forca: { base: 1200000 },
+            destreza: { base: 0 },
+            inteligencia: { base: 0 },
+            sabedoria: { base: 0 },
+            energiaEsp: { base: 0 },
+            carisma: { base: 0 },
+            stamina: { base: 0 },
+            constituicao: { base: 0 },
+            ascensaoBase: 1,
+            multiplicadorForcaPrestigio: 2,
+            multiplicadorForcaAscensao: 1,
+            divisores: {},
+            bio: {},
+            estetica: {},
+            labels: {},
+        };
+        montarMockUseStoreAtributo(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        expect(lerIndicadorAscensaoGeral().textContent).toBe('Ascensão Geral Efetiva: 4');
+    });
+
+    it('multiplicadorForcaPrestigio (overflow) E mFormas de Forma/Passiva ativos SIMULTANEAMENTE na mesma categoria compõem multiplicativamente — nem um nem o outro isolado bastaria para gerar o overflow observado', () => {
+        // vida: baseP=30, mFormas=2.5 -> pAtual=floor(30*2.5)=75. Com multP=3 sozinho
+        // (sem mFormas) prestigioTotal seria 90 (sem overflow); com mFormas sozinho (sem
+        // multP) prestigioTotal seria 75 (sem overflow). Só JUNTOS: 75*3=225 -> bonus=2.
+        // As outras 5 categorias (mana/aura/chakra/corpo/status), sem mFormas, ficam em
+        // baseP=180 -> pAtual=180*3=540 -> bonus=5 (não são o gargalo).
+        // nivelCompletos = min(2,5,5,5,5,5) = 2 -> geral=(1+2)*1=3.
+        // Se qualquer um dos dois fatores fosse ignorado pelo código, vida cairia para
+        // bonus=0 e o indicador mostraria 1 em vez de 3.
+        const ficha = {
+            vida: { base: 30000000, mFormas: 2.5 },
+            mana: { base: 1800000000 },
+            aura: { base: 1800000000 },
+            chakra: { base: 1800000000 },
+            corpo: { base: 1800000000 },
+            forca: { base: 1440000 },
+            destreza: { base: 0 },
+            inteligencia: { base: 0 },
+            sabedoria: { base: 0 },
+            energiaEsp: { base: 0 },
+            carisma: { base: 0 },
+            stamina: { base: 0 },
+            constituicao: { base: 0 },
+            ascensaoBase: 1,
+            multiplicadorForcaPrestigio: 3,
+            multiplicadorForcaAscensao: 1,
+            divisores: {},
+            bio: {},
+            estetica: {},
+            labels: {},
+        };
+        montarMockUseStoreAtributo(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        expect(lerIndicadorAscensaoGeral().textContent).toBe('Ascensão Geral Efetiva: 3');
+    });
+
+    it('editar o input "Ascensão Base (Nível)" pelo caminho real (salvar -> updateFicha) recalcula o indicador (smoke test de reatividade, não uma fixture pré-calculada)', () => {
+        const ficha = fichaComAtributoFisico({
+            forcaBase: 0,
+            destrezaBase: 0,
+            ascensaoBase: 2,
+            multiplicadorForcaPrestigio: 1,
+            multiplicadorForcaAscensao: 1,
+        });
+        montarMockUseStoreReativo(ficha);
+
+        const { rerender } = render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        expect(lerIndicadorAscensaoGeral().textContent).toBe('Ascensão Geral Efetiva: 2');
+
+        const inputAscensaoBase = screen.getByText('Ascensão Base (Nível):').nextElementSibling;
+        fireEvent.change(inputAscensaoBase, { target: { value: '7' } });
+        rerender(<MarcadosPanel />);
+
+        expect(lerIndicadorAscensaoGeral().textContent).toBe('Ascensão Geral Efetiva: 7');
+    });
+
+    it('ascensaoBase=0 cai no fallback (parseInt(0)||1 = 1) em vez de gerar NaN/Infinity no indicador ou no fator', () => {
+        const ficha = fichaComAtributoFisico({
+            forcaBase: 40,
+            destrezaBase: 0,
+            ascensaoBase: 0,
+            multiplicadorForcaPrestigio: 1,
+            multiplicadorForcaAscensao: 1,
+        });
+        montarMockUseStoreAtributo(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        expect(lerIndicadorAscensaoGeral().textContent).toBe('Ascensão Geral Efetiva: 1');
+
+        // fator=1 (sem overflow, ascensaoBase efetivo=1) -> lista de atributos permanece crua.
+        const inputsForca = screen.getAllByDisplayValue('Força');
+        expect(inputsForca[0].parentElement.children[1].value).toBe('40');
+        expect(inputsForca[1].parentElement.children[1].textContent).toBe('40');
     });
 });

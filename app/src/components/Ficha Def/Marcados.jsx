@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { uploadImagem, salvarFichaSilencioso, salvarFirebaseImediato } from '../../services/firebase-sync';
 
@@ -228,7 +228,7 @@ const callSave = () => {
     }, 400);
 };
 
-const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false }) => {
+const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange }) => {
     const [focused, setFocused] = useState(false);
     const handleChange = (e) => {
         let val = e.target.value;
@@ -251,8 +251,8 @@ const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "te
         <input
             type={currentType} step={isNumber ? "any" : undefined} value={displayValue}
             onChange={handleChange}
-            onFocus={() => setFocused(true)}
-            onBlur={() => { setFocused(false); callSave(); }}
+            onFocus={() => { setFocused(true); if (onFocusChange) onFocusChange(true); }}
+            onBlur={() => { setFocused(false); if (onFocusChange) onFocusChange(false); callSave(); }}
             placeholder={placeholder}
             style={{ background: 'transparent', border: 'none', borderBottom: '1px dashed currentColor', fontFamily: 'inherit', fontSize: 'inherit', color: 'inherit', fontWeight: 'inherit', fontStyle: 'inherit', outline: 'none', padding: '0 5px', width: '100px', ...styleExtra }}
         />
@@ -273,25 +273,40 @@ const LabelMagico = ({ valor, onChange, fallback }) => (
 // de função estável entre renders — se fosse recriada a cada render (como um
 // componente aninhado), o React desmontaria e remontaria o <input> a cada
 // tecla digitada, quebrando o foco no meio da edição.
-const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, getLabel, setLabel, salvar }) => {
-    const baseVal = ficha[attrKey]?.base ?? '';
+const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, getLabel, setLabel, salvar, fator, attrBaseFocado, setAttrBaseFocado }) => {
+    const baseValRaw = ficha[attrKey]?.base;
+    const rawBase = parseFloat(baseValRaw) || 0;
     let maxVal = safeGetMaximo(ficha, attrKey);
     if (isNaN(maxVal)) maxVal = 0;
 
-    // Sem hierarquia de "double-dipping": os Multiplicadores de Força NÃO multiplicam
-    // o valor bruto de atributos individuais (Força, Destreza, etc.) diretamente. Eles
-    // só atuam na cascata de Prestígio/Ascensão das 6 categorias (ver aplicarMultiplicadorForca
-    // e o Radar). O atributo cru mostra Base (banco) e Atual (base + buffs de
-    // Formas/Passivas via safeGetMaximo) — se a Ascensão Efetiva subir por overflow,
-    // isso aparece nos Radares/Rank, não numa segunda multiplicação aqui.
+    // Amarração final: a lista de atributos recebe o MESMO fator de crescimento que já
+    // expande os gráficos de radar — fatorCrescimentoAtributos = ascensaoGeralEfetiva /
+    // ascensaoBase do banco, calculado uma única vez em MarcadosPanel a partir do menor
+    // overflow de Ascensão entre as 6 categorias (não um multP*multA direto — isso seria
+    // double-dipping). Estaca Zero: sem overflow e com multiplicadorForcaAscensao=1, o
+    // fator é exatamente 1 e a lista mostra o valor puro do banco.
+    const fatorSeguro = parseFloat(fator) || 1;
+    const baseExibido = (baseValRaw === undefined || baseValRaw === null || baseValRaw === '')
+        ? ''
+        : Math.floor(rawBase * fatorSeguro);
+    const valorAtual = Math.floor(maxVal * fatorSeguro);
+
+    // Enquanto o jogador está digitando no campo Base, ele edita e grava o valor
+    // PURO do banco (sem escala) — assim o fator nunca "come" dígitos digitados
+    // quando não é um divisor exato. Ao perder o foco, volta a exibir o preview
+    // escalado (idêntico ao puro quando o fator é 1).
+    const editandoBase = attrBaseFocado === attrKey;
+    const valorCampoBase = editandoBase ? (baseValRaw ?? '') : baseExibido;
+
     return (
         <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em' }}>
             <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
             {isAtual
-                ? <span style={{ fontWeight: 'bold' }}>{Number(maxVal).toLocaleString('pt-BR')}</span>
+                ? <span style={{ fontWeight: 'bold' }}>{Number(valorAtual).toLocaleString('pt-BR')}</span>
                 : <CampoMagico
-                    valor={baseVal}
+                    valor={valorCampoBase}
                     onChange={(v) => salvar(`${attrKey}.base`, v)}
+                    onFocusChange={(focado) => setAttrBaseFocado(focado ? attrKey : null)}
                     styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true}
                   />}
         </div>
@@ -649,6 +664,7 @@ export default function MarcadosPanel() {
     const [modalEstilo, setModalEstilo] = useState(false);
     const [paginaAtual, setPaginaAtual] = useState(1);
     const [salvando, setSalvando] = useState(false);
+    const [attrBaseFocado, setAttrBaseFocado] = useState(null);
 
     const [animDirection, setAnimDirection] = useState('next');
     const [localCorFundo, setLocalCorFundo] = useState('#bba9d8');
@@ -804,6 +820,52 @@ export default function MarcadosPanel() {
     const getLabel = (key, fallback) => minhaFicha.labels?.[key] !== undefined ? minhaFicha.labels[key] : fallback;
     const setLabel = (key, val) => salvar(`labels.${key}`, val);
     const fonteDiario = minhaFicha.estetica?.diarioFonte || '"Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive';
+
+    // 🔥 Ascensão Geral Efetiva — a cada 1 Ascensão COMPLETA nas 6 categorias
+    // (vida/mana/aura/chakra/corpo/status), o personagem ganha +1 de Ascensão Geral
+    // invisível somada à Base. "Completa" = o menor overflow de Ascensão (bônus além
+    // da Ascensão Base já escalada por multiplicadorForcaAscensao) entre as 6
+    // categorias — a categoria mais fraca limita o nível geral. Essa é a MESMA cascata
+    // (aplicarMultiplicadorForca) que já expande os Radares — e, como o Radar usa um
+    // Prestígio DIFERENTE por variante (Base = cru, sem mFormas; Atual = com mFormas
+    // via calcularPrestAtual), calculamos os dois fatores separadamente para que a
+    // lista de atributos espelhe exatamente o mesmo overflow que cada radar mostra.
+    // fatorCrescimento* é a razão entre o nível efetivo e o nível bruto do banco.
+    // Estaca Zero: sem overflow e com multiplicadorForcaAscensao=1, o fator é 1.
+    const { ascensaoGeralEfetiva, fatorCrescimentoBase, fatorCrescimentoAtual } = useMemo(() => {
+        if (!minhaFicha) return { ascensaoGeralEfetiva: 1, fatorCrescimentoBase: 1, fatorCrescimentoAtual: 1 };
+        const ascensaoBase = parseInt(minhaFicha.ascensaoBase) || 1;
+        const multP = minhaFicha.multiplicadorForcaPrestigio ?? 1;
+        const multA = parseFloat(minhaFicha.multiplicadorForcaAscensao) || 1;
+        const ascensaoBaseEfetiva = ascensaoBase * multA;
+
+        const calcularFator = (comFormas) => {
+            const bonusPorCategoria = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
+                const baseP = getBasePFor(minhaFicha, k);
+                const pAtual = comFormas ? calcularPrestAtual(minhaFicha, k, baseP) : baseP;
+                const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
+                return Math.max(0, (rankInfo.ascensaoFinal || 0) - ascensaoBaseEfetiva);
+            });
+            const nivelCompletos = Math.min(...bonusPorCategoria);
+            const geral = (ascensaoBase + nivelCompletos) * multA;
+            const fator = geral / (ascensaoBase || 1);
+            return {
+                geral: isNaN(geral) ? ascensaoBase : geral,
+                fator: isNaN(fator) ? 1 : fator,
+            };
+        };
+
+        const semFormas = calcularFator(false);
+        const comFormas = calcularFator(true);
+        return {
+            // Indicador exibido junto de "Ascensão Base (Nível)": a Ascensão Geral real do
+            // personagem, incluindo buffs de Formas/Passivas ativas (mesma leitura do
+            // radar "Poder Atual").
+            ascensaoGeralEfetiva: comFormas.geral,
+            fatorCrescimentoBase: semFormas.fator,
+            fatorCrescimentoAtual: comFormas.fator,
+        };
+    }, [minhaFicha]);
 
     const getSupremas = () => {
         const pVida = getBasePFor(minhaFicha, 'vida');
@@ -1245,14 +1307,14 @@ export default function MarcadosPanel() {
                             <RadarDesenhado ficha={minhaFicha} isAtual={false} corTinta={localCorTinta} />
                             
                             <div style={{ width: '100%', maxWidth: '300px', marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
-                                <LinhaAtributoCru labelKey="lblDes" fallbackLabel="Destreza" attrKey="destreza" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
-                                <LinhaAtributoCru labelKey="lblInt" fallbackLabel="Inteligência" attrKey="inteligencia" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
-                                <LinhaAtributoCru labelKey="lblSab" fallbackLabel="Sabedoria" attrKey="sabedoria" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
-                                <LinhaAtributoCru labelKey="lblEsp" fallbackLabel="Energia Espiritual" attrKey="energiaEsp" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
-                                <LinhaAtributoCru labelKey="lblCar" fallbackLabel="Carisma" attrKey="carisma" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
-                                <LinhaAtributoCru labelKey="lblSta" fallbackLabel="Stamina" attrKey="stamina" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
-                                <LinhaAtributoCru labelKey="lblCon" fallbackLabel="Constituição" attrKey="constituicao" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
+                                <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblDes" fallbackLabel="Destreza" attrKey="destreza" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblInt" fallbackLabel="Inteligência" attrKey="inteligencia" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblSab" fallbackLabel="Sabedoria" attrKey="sabedoria" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblEsp" fallbackLabel="Energia Espiritual" attrKey="energiaEsp" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblCar" fallbackLabel="Carisma" attrKey="carisma" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblSta" fallbackLabel="Stamina" attrKey="stamina" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblCon" fallbackLabel="Constituição" attrKey="constituicao" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
                             </div>
                         </div>
 
@@ -1261,14 +1323,14 @@ export default function MarcadosPanel() {
                             <RadarDesenhado ficha={minhaFicha} isAtual={true} corTinta={localCorTinta} />
                             
                             <div style={{ width: '100%', maxWidth: '300px', marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
-                                <LinhaAtributoCru labelKey="lblDes" fallbackLabel="Destreza" attrKey="destreza" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
-                                <LinhaAtributoCru labelKey="lblInt" fallbackLabel="Inteligência" attrKey="inteligencia" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
-                                <LinhaAtributoCru labelKey="lblSab" fallbackLabel="Sabedoria" attrKey="sabedoria" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
-                                <LinhaAtributoCru labelKey="lblEsp" fallbackLabel="Energia Espiritual" attrKey="energiaEsp" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
-                                <LinhaAtributoCru labelKey="lblCar" fallbackLabel="Carisma" attrKey="carisma" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
-                                <LinhaAtributoCru labelKey="lblSta" fallbackLabel="Stamina" attrKey="stamina" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
-                                <LinhaAtributoCru labelKey="lblCon" fallbackLabel="Constituição" attrKey="constituicao" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} />
+                                <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblDes" fallbackLabel="Destreza" attrKey="destreza" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblInt" fallbackLabel="Inteligência" attrKey="inteligencia" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblSab" fallbackLabel="Sabedoria" attrKey="sabedoria" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblEsp" fallbackLabel="Energia Espiritual" attrKey="energiaEsp" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblCar" fallbackLabel="Carisma" attrKey="carisma" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblSta" fallbackLabel="Stamina" attrKey="stamina" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblCon" fallbackLabel="Constituição" attrKey="constituicao" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
                             </div>
                         </div>
 
@@ -1279,6 +1341,9 @@ export default function MarcadosPanel() {
                                 <div style={{ background: 'rgba(0,0,0,0.8)', color: '#fff', padding: '10px 20px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
                                     <span style={{ fontWeight: 'bold', fontSize: '1.1em' }}>Ascensão Base (Nível):</span>
                                     <CampoMagico valor={minhaFicha.ascensaoBase || 1} onChange={(v) => salvar('ascensaoBase', v)} type="number" isNumber={true} styleExtra={{ width: '60px', textAlign: 'center', color: '#fff', borderBottom: '1px dashed #fff', fontSize: '1.2em' }} />
+                                    <span style={{ fontSize: '0.85em', opacity: 0.9, fontStyle: 'italic', borderLeft: '1px solid rgba(255,255,255,0.3)', paddingLeft: '12px' }}>
+                                        Ascensão Geral Efetiva: <strong style={{ color: '#ffcc00' }}>{Math.floor(ascensaoGeralEfetiva)}</strong>
+                                    </span>
                                 </div>
                                 <div style={{ background: 'rgba(0,0,0,0.8)', color: '#fff', padding: '10px 20px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
                                     <span style={{ fontWeight: 'bold', fontSize: '1.1em' }}>Mult. Força (Prestígio):</span>
