@@ -5,17 +5,38 @@ import { contarDigitos, tratarUnico, pegarDoisPrimeirosDigitos } from './utils.j
 import { getMaximo, getBuffs, getRawBase, getPoderesDefesa, getEfeitosDeClasse } from './attributes.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 
+// ==========================================
+// 👻 O RESET FANTASMA DA ASCENSÃO 👻
+// Adiciona o valor oculto da Ascensão a todas as rolagens da Engine!
+// ==========================================
+export function getPoderDeLutaStatus(ficha, statKey, isRaw = false) {
+    let val = isRaw ? getRawBase(ficha, statKey) : getMaximo(ficha, statKey);
+    
+    const ascBase = parseInt(ficha?.ascensaoBase) || 1;
+    const multA = parseFloat(ficha?.multiplicadorForcaAscensao) || 1;
+    const ascEfetiva = ascBase * multA;
+    
+    let bonusAscensao = 0;
+    const keyLower = String(statKey).toLowerCase().trim();
+    
+    if (['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaesp', 'carisma', 'stamina', 'constituicao'].includes(keyLower)) {
+        bonusAscensao = ascEfetiva * 100000; // +100k por Ascensão
+    } else if (['mana', 'aura', 'chakra', 'corpo'].includes(keyLower)) {
+        bonusAscensao = ascEfetiva * 1000000000; // +1 Bilhão por Ascensão
+    } else if (['vida', 'pv', 'pm'].includes(keyLower)) {
+        bonusAscensao = ascEfetiva * 100000000; // +100 Milhões por Ascensão
+    }
+    
+    return val + bonusAscensao;
+}
+
 export function calcularCA(ficha, tipo) {
     if (!ficha) return 10;
-    const getDoisDigitos = (valor) => {
-        if (!valor) return 0;
-        const strVal = String(valor).replace(/[^0-9]/g, '');
-        if (!strVal) return 0;
-        return parseInt(strVal.substring(0, 2), 10);
-    };
     let base = 5;
-    if (tipo === 'evasiva') base += getDoisDigitos(ficha.destreza?.base);
-    if (tipo === 'resistencia') base += getDoisDigitos(ficha.forca?.base);
+    
+    // 🔥 Lê o poder verdadeiro (já com a Ascensão)
+    if (tipo === 'evasiva') base += pegarDoisPrimeirosDigitos(getPoderDeLutaStatus(ficha, 'destreza', true));
+    if (tipo === 'resistencia') base += pegarDoisPrimeirosDigitos(getPoderDeLutaStatus(ficha, 'forca', true));
 
     let bonus = 0;
     const somarBonus = (efeitos) => {
@@ -112,7 +133,8 @@ function calcularSubDano({ qtdDados, facesDados, sels, combustaoPorEnergia, comb
     let detalhesTermos = [];
 
     for (let i = 0; i < sels.length; i++) {
-        let val = getMaximo(minhaFicha, sels[i]);
+        // 🔥 APLICA O PODER DE LUTA VERDADEIRO NO DANO 🔥
+        let val = getPoderDeLutaStatus(minhaFicha, sels[i], false);
         let termo = val * mUnico;
         somaTermos += termo;
         let nomeAttr = (minhaFicha[sels[i]] && minhaFicha[sels[i]].nome) || sels[i].toUpperCase();
@@ -218,6 +240,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         let eng = minhaFicha[energiaKey];
         if (!eng) return { dreno: 0, combustao: 0 };
         let bEnergia = getBuffs(minhaFicha, energiaKey);
+        // 🔥 Mantemos o custo proporcional à barra visível, e não à Ascensão Fantasma 🔥
         let mx = getMaximo(minhaFicha, energiaKey, false, bEnergia);
         let combustao = Math.floor(mx * (custoPerc / 100));
         let redBase = eng.reducaoCusto ? parseFloat(eng.reducaoCusto) : 0;
@@ -328,7 +351,8 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         let armaSels = configArma ? configArma.statusUsados || ['forca'] : ['forca'];
 
         for (let i = 0; i < armaSels.length; i++) {
-            let val = getMaximo(minhaFicha, armaSels[i]);
+            // 🔥 APLICA O PODER DE LUTA VERDADEIRO NO DANO DA ARMA 🔥
+            let val = getPoderDeLutaStatus(minhaFicha, armaSels[i], false);
             somaTermosArma += val * uniTotal;
             let nomeAttr = (minhaFicha[armaSels[i]] && minhaFicha[armaSels[i]].nome) || armaSels[i].toUpperCase();
             detalhesArma.push(`<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>×Uni(${uniTotal})`);
@@ -399,9 +423,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     let total = Math.floor(somaDanos * multEfetivo);
     if (isNaN(total)) total = 0;
 
-    // 🔥 CORREÇÃO DE NOTAÇÃO CIENTÍFICA NO MOTOR PRINCIPAL 🔥
     let digitosGerais = contarDigitos(total);
-
     const letalidadeCalculada = Math.max(0, digitosGerais - 8) + Math.floor(iLetalidade);
     const letalidadePorTamanho = Math.max(0, digitosGerais - 8);
 
@@ -501,7 +523,8 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
 
     let vSt = 0;
     for (let i = 0; i < sels.length; i++) {
-        let baseVal = getRawBase(minhaFicha, sels[i]);
+        // 🔥 APLICA O PODER DE LUTA VERDADEIRO NO ACERTO 🔥
+        let baseVal = getPoderDeLutaStatus(minhaFicha, sels[i], true);
         vSt += pegarDoisPrimeirosDigitos(baseVal);
     }
 
@@ -552,7 +575,8 @@ export function calcularEvasiva({ prof, bonus, minhaFicha, itensEquipados }) {
         if (item.tipo === 'armadura') nomesArmaduras.push(item.nome);
     });
 
-    let baseVal = getRawBase(minhaFicha, 'destreza');
+    // 🔥 APLICA O PODER DE LUTA VERDADEIRO NA EVASIVA 🔥
+    let baseVal = getPoderDeLutaStatus(minhaFicha, 'destreza', true);
     let baseD = pegarDoisPrimeirosDigitos(baseVal);
     let bp = getPoderesDefesa(minhaFicha, 'bonus_evasiva');
 
@@ -573,7 +597,8 @@ export function calcularResistencia({ prof, bonus, minhaFicha, itensEquipados })
         if (item.tipo === 'armadura') nomesArmaduras.push(item.nome);
     });
 
-    let baseVal = getRawBase(minhaFicha, 'forca');
+    // 🔥 APLICA O PODER DE LUTA VERDADEIRO NA RESISTÊNCIA 🔥
+    let baseVal = getPoderDeLutaStatus(minhaFicha, 'forca', true);
     let baseD = pegarDoisPrimeirosDigitos(baseVal);
     let bp = getPoderesDefesa(minhaFicha, 'bonus_resistencia');
 
@@ -646,9 +671,6 @@ function formatElemSpan(elemento) {
         .replace(/[\s\/]+/g, '-');
     return `<span class="${cls}">${elemento.toUpperCase()}</span>`;
 }
-// ==========================================
-// 🔥 MOTOR DE CONDIÇÕES E AFINIDADES (INJEÇÃO) 🔥
-// ==========================================
 
 export function processarDefesaComCondicoes(ficha, tipoDefesa, caBaseCalculado) {
     if (!ficha || !ficha.condicoes) return caBaseCalculado;
@@ -657,13 +679,10 @@ export function processarDefesaComCondicoes(ficha, tipoDefesa, caBaseCalculado) 
     const stacks = (id) => { const c = ficha.condicoes.find(x => x.id === id); return c ? c.stacks : 0; };
 
     if (tipoDefesa === 'evasiva') {
-        // Exaustão Nível 5, Imobilizado, Incapacitado ou Petrificado zeram a Evasiva
         if (tem('imobilizado') || tem('incapacitado') || tem('petrificado') || stacks('exausto') >= 5) return 0;
-        // Exaustão Nível 2 ou Lento cortam Evasiva pela metade
         if (tem('lento') || stacks('exausto') >= 2 || stacks('criogenia') >= 3) caFinal = Math.floor(caFinal / 2);
     }
     if (tipoDefesa === 'resistencia') {
-        // Vulnerável ou muito Queimado cortam a Resistência
         if (tem('vulneravel') || stacks('queimado') >= 4) caFinal = Math.floor(caFinal / 2);
     }
     return caFinal;
@@ -681,14 +700,13 @@ export function calcularMultiplicadorElemental(ficha, elementoAtaque) {
 export function calcularEficaciaCura(ficha) {
     if (!ficha) return 1.0;
     
-    let multFinal = 1.0; // 100% de eficácia base
+    let multFinal = 1.0; 
 
-    // 1. APLICAR DEBUFFS (Corta-Cura Multiplicativo)
     if (ficha.condicoes) {
         ficha.condicoes.forEach(c => {
             if (c.id === 'sangrando' || c.id === 'queimado' || c.id === 'criogenia') {
                 for(let i = 0; i < c.stacks; i++) {
-                    multFinal *= 0.5; // Cada stack corta metade do que sobrou
+                    multFinal *= 0.5; 
                 }
             }
             if (c.id === 'exausto' && c.stacks >= 4) {
@@ -697,7 +715,6 @@ export function calcularEficaciaCura(ficha) {
         });
     }
 
-    // 2. APLICAR BUFFS (Poderes, Itens e Classes que aumentam a cura)
     let bonusBuffs = 0;
     const scanCura = (efeitos) => {
         (efeitos || []).forEach(e => {

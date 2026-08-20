@@ -2,10 +2,6 @@
 // UTILITÁRIOS PUROS — Zero dependências
 // ==========================================
 
-/**
- * Conta dígitos corretamente mesmo para números > 10^21.
- * Traduz a notação científica (1e+21) para o número real de dígitos (22).
- */
 export function contarDigitos(v) {
     if (!v || isNaN(v) || v <= 0) return 0;
     return Math.floor(Math.log10(v)) + 1;
@@ -25,14 +21,19 @@ export function tratarUnico(t) {
 export function pegarDoisPrimeirosDigitos(v) {
     let n = Math.floor(Math.abs(v || 0));
     if (n === 0) return 0;
+    
+    // 🔥 FIM DO GARGALO DA EVASIVA 🔥
+    // A partir de 1000, o Acerto e a CA escalam na perfeição (ex: 21.000 = +21 | 421.000 = +421)
+    if (n >= 1000) return Math.floor(n / 1000);
+    
     let str = String(n);
     if (str.includes('e')) {
         const firstNums = str.split('e')[0].replace('.', '');
         return parseInt(firstNums.substring(0, 2).padEnd(2, '0'));
     }
     
-    if (str === "100" || str.startsWith("100")) return 100;
-    return str.length <= 2 ? n : parseInt(str.substring(0, 2));
+    if (n <= 100) return n;
+    return parseInt(str.substring(0, 2));
 }
 
 export function isFisico(s) {

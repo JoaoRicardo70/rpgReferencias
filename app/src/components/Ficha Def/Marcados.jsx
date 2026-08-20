@@ -32,6 +32,26 @@ const safeGetMaximo = (ficha, key) => {
 // A LINHA DO RANK CORRIGIDA
 const safeGetRank = (prest, asc) => typeof getRank === 'function' ? getRank(prest, asc) : { l: 'F', c: '#ffffff', a: asc };
 
+// 🔥 CÁLCULO DO RESET FANTASMA (PARA A INTERFACE) 🔥
+const getGhostAscensionBonus = (key, ficha) => {
+    if (!ficha || !key) return 0;
+    const ascBase = parseInt(ficha?.ascensaoBase) || 1;
+    const multA = parseFloat(ficha?.multiplicadorForcaAscensao) || 1;
+    const ascEfetiva = ascBase * multA;
+    const keyLower = String(key).toLowerCase().trim();
+    
+    if (['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaesp', 'carisma', 'stamina', 'constituicao'].includes(keyLower)) {
+        return ascEfetiva * 100000; // Físicos +100k
+    } else if (['mana', 'aura', 'chakra', 'corpo'].includes(keyLower)) {
+        return ascEfetiva * 1000000000; // Energias +1B
+    } else if (['vida', 'pv', 'pm'].includes(keyLower)) {
+        return ascEfetiva * 100000000; // Vitais +100M
+    } else if (['energiaforca'].includes(keyLower)) {
+        return ascEfetiva * 1000000000; 
+    }
+    return 0;
+};
+
 const CLASSES_REGULARES_BASE = [
     { id: 'saber', nome: 'Saber', icone: '⚔️', cor: '#0088ff' },
     { id: 'archer', nome: 'Archer', icone: '🏹', cor: '#ff003c' },
@@ -202,6 +222,11 @@ const calcularPrestAtual = (ficha, attrKey, baseP) => {
     return Math.floor((baseP || 0) * multForma) || 0;
 };
 
+// 🔥 Multiplicador de Força — agora separado em Prestígio e Ascensão. O Prestígio Base
+// é escalado pelo seu próprio multiplicador e o excesso acima de 100 vira Ascensão extra
+// (overflow), somada à Ascensão Base já escalada pelo multiplicador dela. getRank() é
+// reusado só para o rótulo/cor do badge (Rank), com o mesmo tratamento de limites
+// (EX exato, valores negativos) do resto do sistema de Prestígio/Ascensão.
 const aplicarMultiplicadorForca = (prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) => {
     const multP = parseFloat(multiplicadorForcaPrestigio) || 1;
     const multA = parseFloat(multiplicadorForcaAscensao) || 1;
@@ -226,7 +251,7 @@ const callSave = () => {
     }, 400);
 };
 
-const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange }) => {
+const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange, displayOverride }) => {
     const [focused, setFocused] = useState(false);
     const handleChange = (e) => {
         let val = e.target.value;
@@ -240,12 +265,20 @@ const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "te
     let displayValue = valor !== undefined && valor !== null ? String(valor) : '';
     let currentType = type;
     
-    // 🔥 FORMATADOR CÓSMICO ATUANDO NOS CAMPOS DE TEXTO 🔥
+    // 🔥 FORMATADOR CÓSMICO (COM MÁSCARA DO RESET FANTASMA) 🔥
     if (isNumber && !focused && displayValue !== '') {
-        let num = Number(displayValue);
-        if (!isNaN(num)) displayValue = formatarPoderCosmico(num);
+        if (displayOverride !== undefined && displayOverride !== '') {
+            displayValue = displayOverride; // O Override tem a Ascensão somada e formatada
+        } else {
+            let num = Number(displayValue);
+            if (!isNaN(num)) displayValue = formatarPoderCosmico(num);
+        }
         currentType = 'text';
-    } else if (isNumber && focused) { currentType = 'number'; }
+    } else if (isNumber && focused) { 
+        currentType = 'number'; 
+        // Quando focado, volta ao valor cru para você editar sem dores de cabeça!
+        displayValue = valor !== undefined && valor !== null ? String(valor) : '';
+    }
 
     return (
         <input
@@ -269,28 +302,40 @@ const LabelMagico = ({ valor, onChange, fallback }) => (
     />
 );
 
+// Definida em escopo de módulo (fora de MarcadosPanel) para manter uma identidade
+// de função estável entre renders — se fosse recriada a cada render (como um
+// componente aninhado), o React desmontaria e remontaria o <input> a cada
+// tecla digitada, quebrando o foco no meio da edição.
 const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, getLabel, setLabel, salvar, fator, attrBaseFocado, setAttrBaseFocado }) => {
     const baseValRaw = ficha[attrKey]?.base;
     const rawBase = parseFloat(baseValRaw) || 0;
     let maxVal = safeGetMaximo(ficha, attrKey);
     if (isNaN(maxVal)) maxVal = 0;
 
+    // Amarração final: a lista de atributos recebe o MESMO fator de crescimento que já
+    // expande os gráficos de radar — fatorCrescimentoAtributos = ascensaoGeralEfetiva /
+    // ascensaoBase do banco, calculado uma única vez em MarcadosPanel a partir do menor
+    // overflow de Ascensão entre as 6 categorias (não um multP*multA direto — isso seria
+    // double-dipping). Estaca Zero: sem overflow e com multiplicadorForcaAscensao=1, o
+    // fator é exatamente 1 e a lista mostra o valor puro do banco.
     const fatorSeguro = parseFloat(fator) || 1;
-    const baseExibido = (baseValRaw === undefined || baseValRaw === null || baseValRaw === '')
-        ? ''
-        : Math.floor(rawBase * fatorSeguro);
     const valorAtual = Math.floor(maxVal * fatorSeguro);
 
+    // 🔥 SCOUTER FANTASMA 🔥
+    const bonusAscensao = getGhostAscensionBonus(attrKey, ficha);
+    const trueAtual = valorAtual + bonusAscensao;
+    const trueBase = (baseValRaw === undefined || baseValRaw === null || baseValRaw === '') ? '' : (Math.floor(rawBase * fatorSeguro) + bonusAscensao);
+
     const editandoBase = attrBaseFocado === attrKey;
-    const valorCampoBase = editandoBase ? (baseValRaw ?? '') : baseExibido;
 
     return (
         <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em' }}>
             <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
             {isAtual
-                ? <span style={{ fontWeight: 'bold' }}>{formatarPoderCosmico(valorAtual)}</span>
+                ? <span style={{ fontWeight: 'bold' }}>{formatarPoderCosmico(trueAtual)}</span>
                 : <CampoMagico
-                    valor={valorCampoBase}
+                    valor={baseValRaw}
+                    displayOverride={trueBase !== '' ? formatarPoderCosmico(trueBase) : ''}
                     onChange={(v) => salvar(`${attrKey}.base`, v)}
                     onFocusChange={(focado) => setAttrBaseFocado(focado ? attrKey : null)}
                     styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true}
@@ -299,38 +344,29 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     );
 };
 
-const calcularEscala = (rawMax, key) => {
-    if (!rawMax || isNaN(rawMax) || rawMax <= 0) return { mxDisplay: 0, pVit: 0 };
-    const limit = (key === 'vida' || key === 'pv' || key === 'pm') ? 8 : 9;
-    
-    // Tratamento BigInt e Notação Científica para a Geração de Escala Visual
-    const strVal = String(Math.floor(rawMax));
-    let digitos = strVal.length;
-    if (strVal.includes('e')) {
-        const parts = strVal.split('e');
-        digitos = parseInt(parts[1].replace('+', '')) + 1;
-    }
+// As barras ganham o poder fantasma
+const BarraVital = ({ atual, maximo, cor, corTexto = "#fff", onChangeAtual, vitalKey, ficha }) => {
+    const bonusAscensao = getGhostAscensionBonus(vitalKey, ficha);
+    const trueAtual = atual + bonusAscensao;
+    const trueMaximo = maximo + bonusAscensao;
 
-    const pVit = Math.max(0, digitos - limit); 
-    const mxDisplay = pVit > 0 ? Math.floor(rawMax / Math.pow(10, pVit)) : Math.floor(rawMax);
-    return { mxDisplay: isNaN(mxDisplay) ? 0 : mxDisplay, pVit: isNaN(pVit) ? 0 : pVit };
-};
-
-const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual }) => {
-    const pct = maximo > 0 ? Math.min(100, Math.max(0, (atual / maximo) * 100)) : 0;
+    const pct = trueMaximo > 0 ? Math.min(100, Math.max(0, (trueAtual / trueMaximo) * 100)) : 0;
     const isDark = corTexto === '#fff';
+    
     return (
         <div style={{ position: 'relative', width: '100%', height: '35px', border: '2px solid currentColor', borderRadius: '6px', background: 'rgba(255,255,255,0.2)', overflow: 'hidden', marginTop: '5px', boxShadow: 'inset 0 0 10px rgba(0,0,0,0.5)', display: 'flex' }}>
-            {pVit > 0 && (
-                <div style={{ width: '35px', height: '100%', background: 'rgba(0,0,0,0.9)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2em', borderRight: '2px solid rgba(0,0,0,0.8)', zIndex: 5, boxShadow: `inset 0 0 10px ${cor}` }}>{pVit}</div>
-            )}
             <div style={{ flex: 1, position: 'relative' }}>
                 <div style={{ width: `${pct}%`, height: '100%', background: cor, transition: 'width 0.3s ease' }} />
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2em', color: corTexto, textShadow: isDark ? '1px 1px 3px #000, -1px -1px 3px #000' : 'none' }}>
-                    <CampoMagico valor={atual} onChange={onChangeAtual} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTexto, textShadow: 'inherit', borderBottom: `1px dashed ${isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
+                    <CampoMagico 
+                        valor={atual} 
+                        displayOverride={formatarPoderCosmico(trueAtual)}
+                        onChange={onChangeAtual} 
+                        isNumber={true} 
+                        styleExtra={{ width: '150px', textAlign: 'right', color: corTexto, textShadow: 'inherit', borderBottom: `1px dashed ${isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} 
+                    />
                     <span style={{ margin: '0 8px' }}>/</span>
-                    {/* 🔥 FORMATADOR CÓSMICO NO MÁXIMO DA BARRA 🔥 */}
-                    <span>{formatarPoderCosmico(maximo)}</span>
+                    <span>{formatarPoderCosmico(trueMaximo)}</span>
                 </div>
             </div>
         </div>
@@ -352,6 +388,11 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000" }) => {
         const baseP = getBasePFor(ficha, e.key);
         const pAtual = isAtual ? calcularPrestAtual(ficha, e.key, baseP) : baseP;
 
+        // 🔥 Reatividade da Força Mística: multiplicadorForcaPrestigio acelera o
+        // Prestígio de CADA categoria antes do overflow (100 Prestígios = 1 Ascensão
+        // de Categoria); multiplicadorForcaAscensao escala a Ascensão Base geral. Os
+        // dois radares (Base e Atual) usam essa mesma cascata já resolvida — sem
+        // nenhuma multiplicação extra por cima do resultado (sem double-dipping).
         const efetivo = aplicarMultiplicadorForca(pAtual, ascensao, multP, multA);
         rankInfos.push(efetivo);
 
@@ -359,6 +400,7 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000" }) => {
         if (valNorm >= 100) { valNorm = valNorm % 100; if (valNorm === 0 && efetivo.prestigioFinal > 0) valNorm = 100; }
         const frac = Math.min(Math.max(valNorm / 100, 0.05), 1);
 
+        // 🔥 CORREÇÃO: Adicionado o '* frac' na fórmula do Math.sin(eixo Y)
         return `${100 + 75 * frac * Math.cos(angulos[i])},${100 + 75 * frac * Math.sin(angulos[i])}`;
     }).join(' ');
 
@@ -413,7 +455,7 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
         const catAuto = encontrarCategoriaPorLore(nome);
         if (catAuto) return catAuto === catKey; 
         
-        return dados.categoria === catKey; 
+        return dados.categoria === catKey; // Removido o fallback padrão para evitar vazamentos na gaveta
     });
 
     const handleAdd = (val) => {
@@ -431,6 +473,7 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
         setSelectValue(''); setInputValue('');
     };
 
+    // 🔥 NOVA FUNÇÃO: ADICIONAR TUDO 🔥
     const handleAddTudo = () => {
         if (!window.confirm(`Deseja preencher esta aba adicionando todos os itens oficiais de ${catData.titulo}?`)) return;
         updateFicha(f => {
@@ -476,6 +519,7 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
             </h3>
             <div style={{ width: '100%', borderBottom: '1px dotted currentColor', opacity: 0.2, marginBottom: '5px' }} />
 
+            {/* 1. SELETOR DA LORE & BOTÃO ADICIONAR TUDO */}
             <div style={{ display: 'flex', gap: '10px' }}>
                 <select
                     value={selectValue}
@@ -502,6 +546,7 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                     >
                         ADICIONAR
                     </button>
+                    {/* O NOVO BOTÃO DE ADICIONAR TUDO */}
                     {(PREDEFINIDOS_LORE[catKey] && PREDEFINIDOS_LORE[catKey].length > 0) && (
                         <button 
                             onClick={handleAddTudo} 
@@ -518,6 +563,7 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                 </div>
             </div>
 
+            {/* 2. INPUT DE CRIAÇÃO LIVRE */}
             <div style={{ display: 'flex', gap: '10px' }}>
                 <input
                     type="text"
@@ -541,6 +587,7 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                 </button>
             </div>
 
+            {/* 3. LISTA DE HABILIDADES ADICIONADAS */}
             {dominiosFiltrados.length === 0 ? (
                 <div style={{ opacity: 0.3, fontStyle: 'italic', textAlign: 'center', padding: '15px 0', fontSize: '0.95em' }}>Nenhum registo ainda...</div>
             ) : (
@@ -565,6 +612,7 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                                     <strong style={{ fontSize: '1.2em', textTransform: 'uppercase', letterSpacing: '1px', color: '#fff' }}>{nomeDom}</strong>
                                     
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        {/* Dropdown de mover */}
                                         {!encontrarCategoriaPorLore(nomeDom) && (
                                             <select
                                                 value={dadosDom.categoria || catKey}
@@ -873,9 +921,8 @@ export default function MarcadosPanel() {
         updateFicha(f => {
             ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => {
                 let mx = safeGetMaximo(minhaFicha, k);
-                const { mxDisplay } = calcularEscala(mx, k);
                 if (!f[k]) f[k] = {};
-                f[k].atual = isNaN(mxDisplay) ? 0 : mxDisplay;
+                f[k].atual = isNaN(mx) ? 0 : mx;
             });
             if (!f.pv) f.pv = {}; f.pv.atual = isNaN(pvMax) ? 0 : pvMax;
             if (!f.pm) f.pm = {}; f.pm.atual = isNaN(pmMax) ? 0 : pmMax;
@@ -894,13 +941,12 @@ export default function MarcadosPanel() {
     const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, corTextoBarra = '#fff' }) => {
         const [aberto, setAberta] = useState(false);
         let rawMaximo = safeGetMaximo(minhaFicha, vitalKey);
-        
-        const { mxDisplay, pVit } = calcularEscala(rawMaximo, vitalKey);
+        if (isNaN(rawMaximo)) rawMaximo = 0;
         
         let atual = minhaFicha[vitalKey]?.atual;
-        if (atual === undefined || atual === null || atual === '') atual = mxDisplay; else atual = Number(atual);
-        if (isNaN(atual)) atual = mxDisplay;
-        if (atual > mxDisplay) atual = mxDisplay;
+        if (atual === undefined || atual === null || atual === '') atual = rawMaximo; else atual = Number(atual);
+        if (isNaN(atual)) atual = rawMaximo;
+        if (atual > rawMaximo) atual = rawMaximo;
 
         return (
             <div style={{ marginBottom: '15px' }}>
@@ -908,17 +954,28 @@ export default function MarcadosPanel() {
                     {subItens && <span onClick={() => setAberta(!aberto)} style={{ cursor: 'pointer', width: '20px', display: 'inline-block', userSelect: 'none', fontWeight: 'bold' }}>{aberto ? 'v ' : '> '}</span>}
                     <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
                 </div>
-                <BarraVital atual={atual} maximo={mxDisplay} pVit={pVit} cor={corBarra} corTexto={corTextoBarra} onChangeAtual={(v) => salvar(`${vitalKey}.atual`, v)} />
+                <BarraVital atual={atual} maximo={rawMaximo} cor={corBarra} corTexto={corTextoBarra} onChangeAtual={(v) => salvar(`${vitalKey}.atual`, v)} vitalKey={vitalKey} ficha={minhaFicha} />
                 {aberto && subItens && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '35px', marginTop: '12px' }}>
-                        {subItens.map(sub => (
-                            <div key={sub.labelKey} style={{ fontSize: '1.05em', display: 'flex', alignItems: 'center' }}>
-                                <LabelMagico valor={getLabel(sub.labelKey, sub.fallbackLabel)} onChange={(v) => setLabel(sub.labelKey, v)} />
-                                <span style={{ fontWeight: 'bold', fontStyle: 'italic', margin: '0 5px' }}>: (</span>
-                                <CampoMagico valor={minhaFicha[sub.key]?.base || ''} onChange={(v) => salvar(`${sub.key}.base`, v)} styleExtra={{ width: '90px' }} isNumber={true} type="number" />
-                                <span style={{ fontWeight: 'bold', fontStyle: 'italic' }}>)</span>
-                            </div>
-                        ))}
+                        {subItens.map(sub => {
+                            const subBaseRaw = minhaFicha[sub.key]?.base;
+                            const trueSubBase = (subBaseRaw === undefined || subBaseRaw === null || subBaseRaw === '') ? '' : (parseFloat(subBaseRaw) + getGhostAscensionBonus(sub.key, minhaFicha));
+                            return (
+                                <div key={sub.labelKey} style={{ fontSize: '1.05em', display: 'flex', alignItems: 'center' }}>
+                                    <LabelMagico valor={getLabel(sub.labelKey, sub.fallbackLabel)} onChange={(v) => setLabel(sub.labelKey, v)} />
+                                    <span style={{ fontWeight: 'bold', fontStyle: 'italic', margin: '0 5px' }}>: (</span>
+                                    <CampoMagico 
+                                        valor={subBaseRaw || ''} 
+                                        displayOverride={trueSubBase !== '' ? formatarPoderCosmico(trueSubBase) : ''}
+                                        onChange={(v) => salvar(`${sub.key}.base`, v)} 
+                                        styleExtra={{ width: '90px' }} 
+                                        isNumber={true} 
+                                        type="number" 
+                                    />
+                                    <span style={{ fontWeight: 'bold', fontStyle: 'italic' }}>)</span>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -1166,7 +1223,7 @@ export default function MarcadosPanel() {
                                     <div style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
                                         <LabelMagico valor={getLabel('lblEnergiaForca', 'Força')} onChange={(v) => setLabel('lblEnergiaForca', v)} />
                                     </div>
-                                    <BarraVital atual={minhaFicha.energiaForca?.atual !== undefined && minhaFicha.energiaForca?.atual !== '' ? Number(minhaFicha.energiaForca.atual) : forcaMax} maximo={forcaMax} pVit={0} cor="#FFD700" corTexto="#000" onChangeAtual={(v) => salvar('energiaForca.atual', v)} />
+                                    <BarraVital atual={minhaFicha.energiaForca?.atual !== undefined && minhaFicha.energiaForca?.atual !== '' ? Number(minhaFicha.energiaForca.atual) : forcaMax} maximo={forcaMax} cor="#FFD700" corTexto="#000" onChangeAtual={(v) => salvar('energiaForca.atual', v)} vitalKey="energiaForca" ficha={minhaFicha} />
                                 </div>
                             </div>
 
@@ -1176,11 +1233,11 @@ export default function MarcadosPanel() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                 <div style={{ marginBottom: '5px' }}>
                                     <LabelMagico valor={getLabel('lblPV', 'Pontos Vitais (PV)')} onChange={(v) => setLabel('lblPV', v)} />
-                                    <BarraVital atual={minhaFicha.pv?.atual !== undefined && minhaFicha.pv?.atual !== '' ? Number(minhaFicha.pv.atual) : pvMax} maximo={pvMax} pVit={0} cor="#ffffff" corTexto="#000" onChangeAtual={(v) => salvar('pv.atual', v)} />
+                                    <BarraVital atual={minhaFicha.pv?.atual !== undefined && minhaFicha.pv?.atual !== '' ? Number(minhaFicha.pv.atual) : pvMax} maximo={pvMax} cor="#ffffff" corTexto="#000" onChangeAtual={(v) => salvar('pv.atual', v)} vitalKey="pv" ficha={minhaFicha} />
                                 </div>
                                 <div style={{ marginBottom: '15px' }}>
                                     <LabelMagico valor={getLabel('lblPM', 'Pontos Mortais (PM)')} onChange={(v) => setLabel('lblPM', v)} />
-                                    <BarraVital atual={minhaFicha.pm?.atual !== undefined && minhaFicha.pm?.atual !== '' ? Number(minhaFicha.pm.atual) : pmMax} maximo={pmMax} pVit={0} cor="#000000" corTexto="#fff" onChangeAtual={(v) => salvar('pm.atual', v)} />
+                                    <BarraVital atual={minhaFicha.pm?.atual !== undefined && minhaFicha.pm?.atual !== '' ? Number(minhaFicha.pm.atual) : pmMax} maximo={pmMax} cor="#000000" corTexto="#fff" onChangeAtual={(v) => salvar('pm.atual', v)} vitalKey="pm" ficha={minhaFicha} />
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
@@ -1314,7 +1371,6 @@ export default function MarcadosPanel() {
                                             </div>
                                             <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
                                                 <span style={{ color: rankInfo.c || '#fff', fontWeight: 'bold', fontSize: '0.9em' }}>Rank {rankInfo.l || 'F'} [A{Math.floor(rankInfo.ascensaoFinal || 1)}]</span>
-                                                {/* 🔥 FORMATADOR CÓSMICO APLICADO AOS PRESTÍGIOS 🔥 */}
                                                 <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1em' }}>{formatarPoderCosmico(Math.floor(rankInfo.prestigioFinal || 0))}</span>
                                             </div>
                                         </div>
