@@ -6,6 +6,9 @@ import { uploadImagem, salvarFichaSilencioso, salvarFirebaseImediato } from '../
 import * as AtributosCore from '../../core/attributes';
 import { getRank } from '../../core/prestige';
 
+// 🔥 IMPORTA O NOSSO NOVO SCOUTER DE PODER 🔥
+import { formatarPoderCosmico } from '../../core/utils.js';
+
 // 🔥 IMPORTAÇÕES DAS PÁGINAS MÁGICAS EXTERNAS 🔥
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel'; 
@@ -199,11 +202,6 @@ const calcularPrestAtual = (ficha, attrKey, baseP) => {
     return Math.floor((baseP || 0) * multForma) || 0;
 };
 
-// 🔥 Multiplicador de Força — agora separado em Prestígio e Ascensão. O Prestígio Base
-// é escalado pelo seu próprio multiplicador e o excesso acima de 100 vira Ascensão extra
-// (overflow), somada à Ascensão Base já escalada pelo multiplicador dela. getRank() é
-// reusado só para o rótulo/cor do badge (Rank), com o mesmo tratamento de limites
-// (EX exato, valores negativos) do resto do sistema de Prestígio/Ascensão.
 const aplicarMultiplicadorForca = (prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) => {
     const multP = parseFloat(multiplicadorForcaPrestigio) || 1;
     const multA = parseFloat(multiplicadorForcaAscensao) || 1;
@@ -241,9 +239,11 @@ const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "te
     };
     let displayValue = valor !== undefined && valor !== null ? String(valor) : '';
     let currentType = type;
+    
+    // 🔥 FORMATADOR CÓSMICO ATUANDO NOS CAMPOS DE TEXTO 🔥
     if (isNumber && !focused && displayValue !== '') {
         let num = Number(displayValue);
-        if (!isNaN(num)) displayValue = num.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+        if (!isNaN(num)) displayValue = formatarPoderCosmico(num);
         currentType = 'text';
     } else if (isNumber && focused) { currentType = 'number'; }
 
@@ -269,32 +269,18 @@ const LabelMagico = ({ valor, onChange, fallback }) => (
     />
 );
 
-// Definida em escopo de módulo (fora de MarcadosPanel) para manter uma identidade
-// de função estável entre renders — se fosse recriada a cada render (como um
-// componente aninhado), o React desmontaria e remontaria o <input> a cada
-// tecla digitada, quebrando o foco no meio da edição.
 const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, getLabel, setLabel, salvar, fator, attrBaseFocado, setAttrBaseFocado }) => {
     const baseValRaw = ficha[attrKey]?.base;
     const rawBase = parseFloat(baseValRaw) || 0;
     let maxVal = safeGetMaximo(ficha, attrKey);
     if (isNaN(maxVal)) maxVal = 0;
 
-    // Amarração final: a lista de atributos recebe o MESMO fator de crescimento que já
-    // expande os gráficos de radar — fatorCrescimentoAtributos = ascensaoGeralEfetiva /
-    // ascensaoBase do banco, calculado uma única vez em MarcadosPanel a partir do menor
-    // overflow de Ascensão entre as 6 categorias (não um multP*multA direto — isso seria
-    // double-dipping). Estaca Zero: sem overflow e com multiplicadorForcaAscensao=1, o
-    // fator é exatamente 1 e a lista mostra o valor puro do banco.
     const fatorSeguro = parseFloat(fator) || 1;
     const baseExibido = (baseValRaw === undefined || baseValRaw === null || baseValRaw === '')
         ? ''
         : Math.floor(rawBase * fatorSeguro);
     const valorAtual = Math.floor(maxVal * fatorSeguro);
 
-    // Enquanto o jogador está digitando no campo Base, ele edita e grava o valor
-    // PURO do banco (sem escala) — assim o fator nunca "come" dígitos digitados
-    // quando não é um divisor exato. Ao perder o foco, volta a exibir o preview
-    // escalado (idêntico ao puro quando o fator é 1).
     const editandoBase = attrBaseFocado === attrKey;
     const valorCampoBase = editandoBase ? (baseValRaw ?? '') : baseExibido;
 
@@ -302,7 +288,7 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
         <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em' }}>
             <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
             {isAtual
-                ? <span style={{ fontWeight: 'bold' }}>{Number(valorAtual).toLocaleString('pt-BR')}</span>
+                ? <span style={{ fontWeight: 'bold' }}>{formatarPoderCosmico(valorAtual)}</span>
                 : <CampoMagico
                     valor={valorCampoBase}
                     onChange={(v) => salvar(`${attrKey}.base`, v)}
@@ -316,8 +302,16 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
 const calcularEscala = (rawMax, key) => {
     if (!rawMax || isNaN(rawMax) || rawMax <= 0) return { mxDisplay: 0, pVit: 0 };
     const limit = (key === 'vida' || key === 'pv' || key === 'pm') ? 8 : 9;
+    
+    // Tratamento BigInt e Notação Científica para a Geração de Escala Visual
     const strVal = String(Math.floor(rawMax));
-    const pVit = Math.max(0, strVal.length - limit); 
+    let digitos = strVal.length;
+    if (strVal.includes('e')) {
+        const parts = strVal.split('e');
+        digitos = parseInt(parts[1].replace('+', '')) + 1;
+    }
+
+    const pVit = Math.max(0, digitos - limit); 
     const mxDisplay = pVit > 0 ? Math.floor(rawMax / Math.pow(10, pVit)) : Math.floor(rawMax);
     return { mxDisplay: isNaN(mxDisplay) ? 0 : mxDisplay, pVit: isNaN(pVit) ? 0 : pVit };
 };
@@ -334,7 +328,9 @@ const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual
                 <div style={{ width: `${pct}%`, height: '100%', background: cor, transition: 'width 0.3s ease' }} />
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2em', color: corTexto, textShadow: isDark ? '1px 1px 3px #000, -1px -1px 3px #000' : 'none' }}>
                     <CampoMagico valor={atual} onChange={onChangeAtual} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTexto, textShadow: 'inherit', borderBottom: `1px dashed ${isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
-                    <span style={{ margin: '0 8px' }}>/</span><span>{Number(maximo).toLocaleString('pt-BR')}</span>
+                    <span style={{ margin: '0 8px' }}>/</span>
+                    {/* 🔥 FORMATADOR CÓSMICO NO MÁXIMO DA BARRA 🔥 */}
+                    <span>{formatarPoderCosmico(maximo)}</span>
                 </div>
             </div>
         </div>
@@ -356,11 +352,6 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000" }) => {
         const baseP = getBasePFor(ficha, e.key);
         const pAtual = isAtual ? calcularPrestAtual(ficha, e.key, baseP) : baseP;
 
-        // 🔥 Reatividade da Força Mística: multiplicadorForcaPrestigio acelera o
-        // Prestígio de CADA categoria antes do overflow (100 Prestígios = 1 Ascensão
-        // de Categoria); multiplicadorForcaAscensao escala a Ascensão Base geral. Os
-        // dois radares (Base e Atual) usam essa mesma cascata já resolvida — sem
-        // nenhuma multiplicação extra por cima do resultado (sem double-dipping).
         const efetivo = aplicarMultiplicadorForca(pAtual, ascensao, multP, multA);
         rankInfos.push(efetivo);
 
@@ -368,7 +359,6 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000" }) => {
         if (valNorm >= 100) { valNorm = valNorm % 100; if (valNorm === 0 && efetivo.prestigioFinal > 0) valNorm = 100; }
         const frac = Math.min(Math.max(valNorm / 100, 0.05), 1);
 
-        // 🔥 CORREÇÃO: Adicionado o '* frac' na fórmula do Math.sin(eixo Y)
         return `${100 + 75 * frac * Math.cos(angulos[i])},${100 + 75 * frac * Math.sin(angulos[i])}`;
     }).join(' ');
 
@@ -423,7 +413,7 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
         const catAuto = encontrarCategoriaPorLore(nome);
         if (catAuto) return catAuto === catKey; 
         
-        return dados.categoria === catKey; // Removido o fallback padrão para evitar vazamentos na gaveta
+        return dados.categoria === catKey; 
     });
 
     const handleAdd = (val) => {
@@ -441,7 +431,6 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
         setSelectValue(''); setInputValue('');
     };
 
-    // 🔥 NOVA FUNÇÃO: ADICIONAR TUDO 🔥
     const handleAddTudo = () => {
         if (!window.confirm(`Deseja preencher esta aba adicionando todos os itens oficiais de ${catData.titulo}?`)) return;
         updateFicha(f => {
@@ -487,7 +476,6 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
             </h3>
             <div style={{ width: '100%', borderBottom: '1px dotted currentColor', opacity: 0.2, marginBottom: '5px' }} />
 
-            {/* 1. SELETOR DA LORE & BOTÃO ADICIONAR TUDO */}
             <div style={{ display: 'flex', gap: '10px' }}>
                 <select
                     value={selectValue}
@@ -514,7 +502,6 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                     >
                         ADICIONAR
                     </button>
-                    {/* O NOVO BOTÃO DE ADICIONAR TUDO */}
                     {(PREDEFINIDOS_LORE[catKey] && PREDEFINIDOS_LORE[catKey].length > 0) && (
                         <button 
                             onClick={handleAddTudo} 
@@ -531,7 +518,6 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                 </div>
             </div>
 
-            {/* 2. INPUT DE CRIAÇÃO LIVRE */}
             <div style={{ display: 'flex', gap: '10px' }}>
                 <input
                     type="text"
@@ -555,7 +541,6 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                 </button>
             </div>
 
-            {/* 3. LISTA DE HABILIDADES ADICIONADAS */}
             {dominiosFiltrados.length === 0 ? (
                 <div style={{ opacity: 0.3, fontStyle: 'italic', textAlign: 'center', padding: '15px 0', fontSize: '0.95em' }}>Nenhum registo ainda...</div>
             ) : (
@@ -580,7 +565,6 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                                     <strong style={{ fontSize: '1.2em', textTransform: 'uppercase', letterSpacing: '1px', color: '#fff' }}>{nomeDom}</strong>
                                     
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        {/* Dropdown de mover */}
                                         {!encontrarCategoriaPorLore(nomeDom) && (
                                             <select
                                                 value={dadosDom.categoria || catKey}
@@ -821,17 +805,6 @@ export default function MarcadosPanel() {
     const setLabel = (key, val) => salvar(`labels.${key}`, val);
     const fonteDiario = minhaFicha.estetica?.diarioFonte || '"Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive';
 
-    // 🔥 Ascensão Geral Efetiva — a cada 1 Ascensão COMPLETA nas 6 categorias
-    // (vida/mana/aura/chakra/corpo/status), o personagem ganha +1 de Ascensão Geral
-    // invisível somada à Base. "Completa" = o menor overflow de Ascensão (bônus além
-    // da Ascensão Base já escalada por multiplicadorForcaAscensao) entre as 6
-    // categorias — a categoria mais fraca limita o nível geral. Essa é a MESMA cascata
-    // (aplicarMultiplicadorForca) que já expande os Radares — e, como o Radar usa um
-    // Prestígio DIFERENTE por variante (Base = cru, sem mFormas; Atual = com mFormas
-    // via calcularPrestAtual), calculamos os dois fatores separadamente para que a
-    // lista de atributos espelhe exatamente o mesmo overflow que cada radar mostra.
-    // fatorCrescimento* é a razão entre o nível efetivo e o nível bruto do banco.
-    // Estaca Zero: sem overflow e com multiplicadorForcaAscensao=1, o fator é 1.
     const { ascensaoGeralEfetiva, fatorCrescimentoBase, fatorCrescimentoAtual } = useMemo(() => {
         if (!minhaFicha) return { ascensaoGeralEfetiva: 1, fatorCrescimentoBase: 1, fatorCrescimentoAtual: 1 };
         const ascensaoBase = parseInt(minhaFicha.ascensaoBase) || 1;
@@ -858,9 +831,6 @@ export default function MarcadosPanel() {
         const semFormas = calcularFator(false);
         const comFormas = calcularFator(true);
         return {
-            // Indicador exibido junto de "Ascensão Base (Nível)": a Ascensão Geral real do
-            // personagem, incluindo buffs de Formas/Passivas ativas (mesma leitura do
-            // radar "Poder Atual").
             ascensaoGeralEfetiva: comFormas.geral,
             fatorCrescimentoBase: semFormas.fator,
             fatorCrescimentoAtual: comFormas.fator,
@@ -881,22 +851,14 @@ export default function MarcadosPanel() {
         const ascensao = parseInt(minhaFicha.ascensaoBase) || 1;
         const bonusAscensao = (ascensao - 1) * 100;
 
-        // 🔥 CORREÇÃO: o bônus de Ascensão entra ANTES da multiplicação, para que o
-        // multiplicador escale o valor TOTAL — (Valor_Base + Valor_Ascensao) * Multiplicador
         const pvCalculado = Math.floor((((pVida + pChakra + pCorpo) / 3) + bonusAscensao) * mPV);
         const pmCalculado = Math.floor((((pMana + pAura + pStatus) / 3) + bonusAscensao) * mPM);
 
-        // 🔥 Força é a média aritmética das bases BRUTAS de mana/aura/chakra/corpo — 100%
-        // derivada, nunca armazenada como valor independente. Lê direto de ficha.<attr>.base
-        // (já numérico no Firebase) em vez de reusar getBasePFor, que divide pelos
-        // multiplicadores de prestígio (10.000.000) e produzia um valor errado (ex: 26 em vez de 260.000.000).
         const valMana = Number(minhaFicha?.mana?.base) || 0;
         const valAura = Number(minhaFicha?.aura?.base) || 0;
         const valChakra = Number(minhaFicha?.chakra?.base) || 0;
         const valCorpo = Number(minhaFicha?.corpo?.base) || 0;
         const forcaCalculado = Math.floor((valMana + valAura + valChakra + valCorpo) / 4);
-
-        console.log('Debug Forca:', { valMana, valAura, valChakra, valCorpo, forcaBase: forcaCalculado });
 
         return {
             pvMax: isNaN(pvCalculado) ? 1 : pvCalculado,
@@ -963,7 +925,6 @@ export default function MarcadosPanel() {
         );
     };
 
-
     const handleImageUpload = async (e) => {
         const file = e.target.files[0]; if (!file) return;
         setUploadingImg(true);
@@ -991,8 +952,6 @@ export default function MarcadosPanel() {
             boxShadow: 'inset 0 0 40px rgba(0,0,0,0.1), 0 10px 30px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column',
             overflow: 'visible'
         }}>
-            
-            {/* 🔥 FUNDO ALQUÍMICO 🔥 */}
             {localBgImg && (
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none', borderRadius: '12px', overflow: 'hidden', mixBlendMode: localModoFundo, isolation: 'isolate' }}>
                     <img src={localBgImg} alt="Fundo" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, filter: localModoFundo !== 'normal' ? 'contrast(1.2) saturate(1.2)' : 'none' }} />
@@ -1014,35 +973,16 @@ export default function MarcadosPanel() {
 
                 .grimorio-estilo-papel { --tinta: ${localCorTinta || '#000'}; --fundo: ${localCorFundo || '#fff'}; color: var(--tinta) !important; }
                 .grimorio-estilo-papel * { font-family: ${fonteDiario}, 'Courier New', serif !important; text-shadow: none !important; box-shadow: none !important; }
-                .grimorio-estilo-papel .def-box, .grimorio-estilo-papel [style*="background: rgba"] {
-                    background: transparent !important; border: 2px solid var(--tinta) !important;
-                    border-radius: 2px 255px 3px 25px / 255px 5px 225px 3px !important; position: relative;
-                }
-                .grimorio-estilo-papel .def-box::before, .grimorio-estilo-papel [style*="background: rgba"]::before {
-                    content: ''; position: absolute; top:0; left:0; right:0; bottom:0; background: var(--tinta); opacity: 0.03; pointer-events: none; border-radius: inherit;
-                }
+                .grimorio-estilo-papel .def-box, .grimorio-estilo-papel [style*="background: rgba"] { background: transparent !important; border: 2px solid var(--tinta) !important; border-radius: 2px 255px 3px 25px / 255px 5px 225px 3px !important; position: relative; }
+                .grimorio-estilo-papel .def-box::before, .grimorio-estilo-papel [style*="background: rgba"]::before { content: ''; position: absolute; top:0; left:0; right:0; bottom:0; background: var(--tinta); opacity: 0.03; pointer-events: none; border-radius: inherit; }
                 .grimorio-estilo-papel h2, .grimorio-estilo-papel h3, .grimorio-estilo-papel h4 { color: var(--tinta) !important; display: inline-block; }
-                .grimorio-estilo-papel button {
-                    background: transparent !important; border: 2px dashed var(--tinta) !important;
-                    border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px !important; color: var(--tinta) !important;
-                    font-weight: bold !important; text-transform: uppercase !important; transition: all 0.2s ease !important;
-                }
-                .grimorio-estilo-papel button:hover {
-                    background: var(--tinta) !important; color: var(--fundo) !important; border-style: solid !important; transform: scale(1.02) rotate(-1deg) !important;
-                }
-                .grimorio-estilo-papel input, .grimorio-estilo-papel textarea, .grimorio-estilo-papel select {
-                    background: rgba(0,0,0,0.03) !important; border: none !important; border-bottom: 2px dotted var(--tinta) !important;
-                    color: var(--tinta) !important; border-radius: 0 !important; outline: none !important;
-                }
-                .grimorio-estilo-papel input:focus, .grimorio-estilo-papel textarea:focus {
-                    background: rgba(0,0,0,0.06) !important; border-bottom: 2px solid var(--tinta) !important;
-                }
-                .grimorio-estilo-papel input::placeholder, .grimorio-estilo-papel textarea::placeholder {
-                    color: var(--tinta) !important; opacity: 0.5 !important; font-style: italic !important;
-                }
+                .grimorio-estilo-papel button { background: transparent !important; border: 2px dashed var(--tinta) !important; border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px !important; color: var(--tinta) !important; font-weight: bold !important; text-transform: uppercase !important; transition: all 0.2s ease !important; }
+                .grimorio-estilo-papel button:hover { background: var(--tinta) !important; color: var(--fundo) !important; border-style: solid !important; transform: scale(1.02) rotate(-1deg) !important; }
+                .grimorio-estilo-papel input, .grimorio-estilo-papel textarea, .grimorio-estilo-papel select { background: rgba(0,0,0,0.03) !important; border: none !important; border-bottom: 2px dotted var(--tinta) !important; color: var(--tinta) !important; border-radius: 0 !important; outline: none !important; }
+                .grimorio-estilo-papel input:focus, .grimorio-estilo-papel textarea:focus { background: rgba(0,0,0,0.06) !important; border-bottom: 2px solid var(--tinta) !important; }
+                .grimorio-estilo-papel input::placeholder, .grimorio-estilo-papel textarea::placeholder { color: var(--tinta) !important; opacity: 0.5 !important; font-style: italic !important; }
             `}</style>
 
-            {/* 📌 CONTROLES SUPERIORES */}
             <div style={{ position: 'absolute', top: '-25px', right: '30px', zIndex: 20, display: 'flex', gap: '15px' }}>
                 <div style={{ position: 'relative' }}>
                     <button onClick={handleSalvarTudo} style={{ background: salvando ? '#a5d6a7' : '#4caf50', color: '#fff', border: '1px solid #333', borderBottom: '3px solid #222', padding: '10px 20px', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '1.1em', cursor: 'pointer', borderRadius: '4px', boxShadow: '2px 4px 8px rgba(0,0,0,0.4)', transform: 'rotate(1deg)' }}>
@@ -1114,21 +1054,10 @@ export default function MarcadosPanel() {
                         </div>
                     )}
                 </div>
-                <div style={{ position: 'relative' }}>
-                    <button onClick={() => { setModalImport(!modalImport); setModalEstilo(false); }} style={{ background: '#ffeb3b', color: '#000', border: '1px solid #333', borderBottom: '3px solid #222', padding: '10px 20px', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '1.1em', cursor: 'pointer', borderRadius: '4px', boxShadow: '2px 4px 8px rgba(0,0,0,0.4)', transform: 'rotate(2deg)' }}>📌 Importar</button>
-                    {modalImport && (
-                        <div className="fade-in" style={{ position: 'absolute', top: '55px', right: '0', background: '#fff9c4', padding: '15px', border: '1px solid #ccc', boxShadow: '5px 5px 15px rgba(0,0,0,0.3)', width: '300px', zIndex: 20, borderRadius: '6px' }}>
-                            <textarea value={textoImport} onChange={e => setTextoImport(e.target.value)} placeholder="Cole do Docs..." style={{ width: '100%', height: '100px', background: 'transparent', border: '1px solid rgba(0,0,0,0.2)', fontFamily: 'inherit', resize: 'none', boxSizing: 'border-box' }} />
-                            <button onClick={executarImportacao} style={{ width: '100%', background: '#000', color: '#fff', border: 'none', padding: '8px', marginTop: '10px', fontFamily: 'inherit', cursor: 'pointer' }}>Sincronizar ✍️</button>
-                        </div>
-                    )}
-                </div>
             </div>
 
-            {/* 🔥 AS 5 PÁGINAS DA FICHA DEFINITIVA 🔥 */}
             <div key={paginaAtual} className={`swoop-container ${animDirection === 'next' ? 'page-swoop-next' : 'page-swoop-prev'}`} style={{ flex: 1, display: 'flex', flexWrap: 'wrap', gap: '40px', paddingBottom: '30px' }}>
                 
-                {/* ======================= PÁGINA 1: FICHA E AVATAR ======================= */}
                 {paginaAtual === 1 && (
                     <>
                         <div style={{ flex: '1 1 450px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
@@ -1293,7 +1222,6 @@ export default function MarcadosPanel() {
                     </>
                 )}
 
-                {/* ======================= PÁGINA 2: ANÁLISE DE PODER ======================= */}
                 {paginaAtual === 2 && (
                     <>
                         <div style={{ width: '100%', textAlign: 'center', borderBottom: '2px solid currentColor', paddingBottom: '10px', marginBottom: '20px' }}>
@@ -1386,7 +1314,8 @@ export default function MarcadosPanel() {
                                             </div>
                                             <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
                                                 <span style={{ color: rankInfo.c || '#fff', fontWeight: 'bold', fontSize: '0.9em' }}>Rank {rankInfo.l || 'F'} [A{Math.floor(rankInfo.ascensaoFinal || 1)}]</span>
-                                                <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1em' }}>{Math.floor(rankInfo.prestigioFinal || 0).toLocaleString('pt-BR')}</span>
+                                                {/* 🔥 FORMATADOR CÓSMICO APLICADO AOS PRESTÍGIOS 🔥 */}
+                                                <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1em' }}>{formatarPoderCosmico(Math.floor(rankInfo.prestigioFinal || 0))}</span>
                                             </div>
                                         </div>
                                     );
@@ -1396,24 +1325,12 @@ export default function MarcadosPanel() {
                     </>
                 )}
 
-                {/* ======================= PÁGINA 3: HIERARQUIA DE DOMÍNIOS ======================= */}
-                {paginaAtual === 3 && (
-                    <DominiosPanel ficha={minhaFicha} updateFicha={updateFicha} />
-                )}
-
-                {/* ======================= PÁGINA 4: CLASSIFICAÇÃO ARCANA ======================= */}
-                {paginaAtual === 4 && (
-                    <ClassificacaoPanel />
-                )}
-
-                {/* ======================= PÁGINA 5: RELICÁRIO (INVENTÁRIO E ARSENAL) ======================= */}
-                {paginaAtual === 5 && (
-                    <RelicarioPanel />
-                )}
+                {paginaAtual === 3 && ( <DominiosPanel ficha={minhaFicha} updateFicha={updateFicha} /> )}
+                {paginaAtual === 4 && ( <ClassificacaoPanel /> )}
+                {paginaAtual === 5 && ( <RelicarioPanel /> )}
 
             </div>
 
-            {/* BOTÕES DE NAVEGAÇÃO DA PÁGINA (1 A 5) */}
             <div style={{ position: 'absolute', bottom: '20px', left: '0', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', fontFamily: 'inherit' }}>
                 <button onClick={() => mudarPagina(Math.max(1, paginaAtual - 1))} disabled={paginaAtual === 1} style={{ background: 'transparent', border: 'none', fontSize: '1.2em', fontWeight: 'bold', cursor: paginaAtual === 1 ? 'default' : 'pointer', opacity: paginaAtual === 1 ? 0.3 : 1, fontFamily: 'inherit', color: 'inherit' }}>⮜ Anterior</button>
                 <span style={{ fontSize: '1.1em', fontWeight: 'bold', borderBottom: '2px solid currentColor', padding: '0 10px' }}>Página {paginaAtual} de 5</span>
