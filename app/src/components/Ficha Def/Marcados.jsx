@@ -214,24 +214,6 @@ const getBasePFor = (ficha, k) => {
     return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
 };
 
-const calcularPrestAtual = (ficha, attrKey, baseP) => {
-    const mFormas = getEfetivoMFormas(ficha, attrKey);
-    const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
-    return Math.floor((baseP || 0) * multForma) || 0;
-};
-
-const aplicarMultiplicadorForca = (prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) => {
-    const multP = parseFloat(multiplicadorForcaPrestigio) || 1;
-    const multA = parseFloat(multiplicadorForcaAscensao) || 1;
-    const ascensaoBaseEfetiva = (parseInt(ascensaoBase) || 1) * multA;
-    const prestigioTotal = (prestigioBase || 0) * multP;
-    const bonusAscensao = Math.floor(prestigioTotal / 100);
-    const prestigioFinal = prestigioTotal % 100;
-    const ascensaoFinal = ascensaoBaseEfetiva + bonusAscensao;
-    const rankInfo = safeGetRank(prestigioFinal, ascensaoFinal);
-    return { ...rankInfo, prestigioFinal, ascensaoFinal };
-};
-
 // ==========================================
 // 🖋️ INPUTS E BARRAS MÁGICAS
 // ==========================================
@@ -375,21 +357,55 @@ const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual
     );
 };
 
-const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000" }) => {
+// 🔥 RADAR DESENHADO: AGORA USA O PODER VERDADEIRO E CONVERTE PARA PRESTÍGIO 🔥
+const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => {
     const eixos = [
         { label: 'VIDA', key: 'vida' }, { label: 'MANA', key: 'mana' }, { label: 'AURA', key: 'aura' },
         { label: 'CHAKRA', key: 'chakra' }, { label: 'CORPO', key: 'corpo' }, { label: 'STATUS', key: 'status' }
     ];
     const angulos = Array.from({length: 6}).map((_, i) => Math.PI * 2 * i / 6 - Math.PI / 2);
-    const ascensao = parseInt(ficha?.ascensaoBase) || 1;
-    const multP = ficha?.multiplicadorForcaPrestigio ?? 1;
-    const multA = ficha?.multiplicadorForcaAscensao ?? 1;
+    
+    const supressao = ficha.supressaoPoder !== undefined ? Number(ficha.supressaoPoder) : 100;
     const rankInfos = [];
 
     const dataPoints = eixos.map((e, i) => {
-        const baseP = getBasePFor(ficha, e.key);
-        const pAtual = isAtual ? calcularPrestAtual(ficha, e.key, baseP) : baseP;
-        const efetivo = aplicarMultiplicadorForca(pAtual, ascensao, multP, multA);
+        // 1. Calcula o Poder Verdadeiro de Combate deste Eixo
+        const getPower = (k) => {
+            const rawBase = parseFloat(ficha[k]?.base) || 0;
+            const maxVal = isNaN(safeGetMaximo(ficha, k)) ? 0 : safeGetMaximo(ficha, k);
+            const baseParaPoder = isAtual ? Math.floor(maxVal * fator) : Math.floor(rawBase * fator);
+            const bonusAscensao = getGhostAscensionBonus(k, ficha);
+            let mF = getEfetivoMFormas(ficha, k);
+            if (mF < 1) mF = 1;
+            return Math.floor(((baseParaPoder + bonusAscensao) * mF) * (supressao / 100));
+        };
+
+        let truePower = 0;
+        if (e.key === 'status') {
+            let m = 0;
+            ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
+                m += getPower(s);
+            });
+            truePower = Math.floor(m / 8);
+        } else {
+            truePower = getPower(e.key);
+        }
+
+        // 2. Converte o Poder de Batalha de volta para Pontos de Prestígio puros
+        const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
+        const div = parseFloat(ficha?.divisores?.[e.key]) || 1;
+        
+        const totalPrestige = Math.floor(truePower / ((mults[e.key] || 1) * div));
+        
+        // 3. 100 Prestígios equivalem a 1 Nível de Ascensão na Matemática do Sistema
+        let asc = Math.floor(totalPrestige / 100);
+        if (asc < 1) asc = 1; // Visão mínima
+        const prest = totalPrestige % 100;
+        
+        const efetivo = safeGetRank(prest, asc);
+        efetivo.prestigioFinal = prest;
+        efetivo.ascensaoFinal = asc;
+
         rankInfos.push(efetivo);
 
         let valNorm = efetivo.prestigioFinal || 0;
@@ -628,14 +644,13 @@ export default function MarcadosPanel() {
         }
     }, [minhaFicha?.estetica]);
 
-    // 🔥 CÁLCULO DO SCOUTER GLOBAL (COM LIMITE DO GM E TEMA DINÂMICO) 🔥
     const { poderGlobal, vitalidadeGlobal, supressao, limiteSupressao, temaScouter } = useMemo(() => {
         if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100, limiteSupressao: 1, temaScouter: getTemaScouter(100, 1) };
         
         let sup = minhaFicha.supressaoPoder !== undefined ? Number(minhaFicha.supressaoPoder) : 100;
         const lim = minhaFicha.limiteSupressao !== undefined ? Number(minhaFicha.limiteSupressao) : 1;
         
-        if (sup < lim) sup = lim; // Aplica o Limite do GM
+        if (sup < lim) sup = lim; 
         
         const tema = getTemaScouter(sup, lim);
         
@@ -1101,7 +1116,7 @@ export default function MarcadosPanel() {
                                 <CampoMagico valor={minhaFicha.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
 
-                            {/* 🌟 O NOVO MONÓLITO ARCANO (TEXTO PURO, SEM MÁSCARA/BUG) 🌟 */}
+                            {/* 🌟 O NOVO SCOUTER DE VIDRO HOLOGRÁFICO (BUG-FREE) 🌟 */}
                             <div style={{
                                 marginTop: '15px', marginBottom: '25px', padding: '25px 30px',
                                 background: 'rgba(15, 15, 20, 0.75)',
@@ -1297,7 +1312,7 @@ export default function MarcadosPanel() {
                                         <div style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
                                             <LabelMagico valor={getLabel('lblEnergiaForca', 'Força')} onChange={(v) => setLabel('lblEnergiaForca', v)} />
                                         </div>
-                                        <div style={{ fontSize: '0.85em', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: `${temaScouter.cor}1a`, fontWeight: 'bold' }}>
+                                        <div style={{ fontSize: '0.85em', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: temaScouter.bgDark, fontWeight: 'bold' }}>
                                             Poder: {formatarPoderCosmico(Math.floor((forcaMax + getGhostAscensionBonus('energiaForca', minhaFicha)) * (supressao / 100)))}
                                         </div>
                                     </div>
