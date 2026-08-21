@@ -22,13 +22,23 @@ const safeGetBuffs = (f, k, t) => typeof AtributosCore.getBuffs === 'function' ?
 const safeGetMaximo = (ficha, key) => {
     try {
         if (AtributosCore && typeof AtributosCore.getMaximo === 'function') {
-            return AtributosCore.getMaximo(ficha, key);
+            const val = AtributosCore.getMaximo(ficha, key);
+            return isNaN(val) ? 0 : val;
         }
     } catch (e) { console.warn("Aviso: getMaximo falhou internamente."); }
     return parseFloat(ficha[key]?.base) || 0;
 };
 
-const safeGetRank = (prest, asc) => typeof getRank === 'function' ? getRank(prest, asc) : { l: 'F', c: '#ffffff', a: asc };
+// Blindagem Absoluta contra Crash do Rank
+const safeGetRank = (prest, asc) => {
+    try {
+        const r = typeof getRank === 'function' ? getRank(prest, asc) : null;
+        if (r && typeof r === 'object') return { ...r };
+        return { l: 'F', c: '#ffffff', a: isNaN(asc) ? 1 : asc };
+    } catch (e) {
+        return { l: 'F', c: '#ffffff', a: isNaN(asc) ? 1 : asc };
+    }
+};
 
 const getEfetivoMFormas = (ficha, k) => {
     const anchor = k === 'status' ? 'forca' : k;
@@ -43,7 +53,7 @@ const getGhostAscensionBonus = (key, ficha) => {
     if (!ficha || !key) return 0;
     const ascBase = parseInt(ficha?.ascensaoBase) || 1;
     const multA = parseFloat(ficha?.multiplicadorForcaAscensao) || 1;
-    const ascEfetiva = ascBase * multA;
+    const ascEfetiva = (isNaN(ascBase) ? 1 : ascBase) * (isNaN(multA) ? 1 : multA);
     const keyLower = String(key).toLowerCase().trim();
     
     let flatBonus = 0;
@@ -57,25 +67,25 @@ const getGhostAscensionBonus = (key, ficha) => {
         flatBonus = ascEfetiva * 1000000000; 
     }
 
-    // Usamos a chave original para evitar erros de maiúsculas/minúsculas no mFormas
-    const mFormas = getEfetivoMFormas(ficha, key);
-    const multFormaEfetivo = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
+    let mFormas = getEfetivoMFormas(ficha, keyLower);
+    if (isNaN(mFormas) || mFormas < 1) mFormas = 1;
+    const multFormaEfetivo = mFormas >= 10 ? (mFormas / 10) : mFormas;
     
     return flatBonus * multFormaEfetivo;
 };
 
-// 🔥 NOVO GESTOR DE TEMA (COM CORREÇÃO DO PARÂMETRO LIMITE) 🔥
+// 🔥 GESTOR DE TEMA: VIDRO HOLOGRÁFICO 🔥
 const getTemaScouter = (supressao, limite = 1) => {
     if (supressao >= 100) {
-        return { cor: '#d4af37', glow: '#d4af37', bgDark: '#1a1405', nome: 'Poder Absoluto (Liberto)' }; // Ouro
+        return { cor: '#ffcc00', glow: '#ff8800', nome: 'Poder Máximo (Liberto)', pulse: '0.8s' };
+    } else if (supressao >= 50) {
+        return { cor: '#00e5ff', glow: '#0088ff', nome: 'Supressão Leve (Restrito)', pulse: '1.5s' };
     } else if (supressao >= 10) {
-        return { cor: '#4a90e2', glow: '#4a90e2', bgDark: '#051220', nome: 'Ocultação Leve (Nv.1)' }; // Azul Frio
-    } else if (supressao >= 1) {
-        return { cor: '#b142ff', glow: '#b142ff', bgDark: '#160520', nome: 'Ocultação Profunda (Nv.2)' }; // Roxo Arcano
+        return { cor: '#b142ff', glow: '#6a00ff', nome: 'Ocultação Profunda', pulse: '3s' };
     } else if (supressao > limite) {
-        return { cor: '#a0a0a0', glow: '#ffffff', bgDark: '#111111', nome: 'Falso Mundano (Nv.3)' }; // Prata/Cinza
+        return { cor: '#00ff66', glow: '#00aa44', nome: 'Furtividade Extrema', pulse: '5s' };
     } else {
-        return { cor: '#ff003c', glow: '#ff003c', bgDark: '#20050a', nome: 'Anulação Total (O Vazio)' }; // Carmesim
+        return { cor: '#ff003c', glow: '#880000', nome: 'Anulação no Limite', pulse: '8s' };
     }
 };
 
@@ -302,16 +312,21 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     const editandoBase = attrBaseFocado === attrKey;
     const valorCampoBase = editandoBase ? (baseValRaw ?? '') : baseExibido;
 
-    const supressao = ficha.supressaoPoder !== undefined ? Number(ficha.supressaoPoder) : 100;
-    const limiteSupressao = ficha.limiteSupressao !== undefined ? Number(ficha.limiteSupressao) : 1;
+    let supressao = ficha.supressaoPoder !== undefined ? Number(ficha.supressaoPoder) : 100;
+    if (isNaN(supressao)) supressao = 100;
+    let limiteSupressao = ficha.limiteSupressao !== undefined ? Number(ficha.limiteSupressao) : 1;
+    if (isNaN(limiteSupressao)) limiteSupressao = 1;
+    if (supressao < limiteSupressao) supressao = limiteSupressao;
+    
     const tema = getTemaScouter(supressao, limiteSupressao);
     
     const bonusAscensao = getGhostAscensionBonus(attrKey, ficha);
     let mF = getEfetivoMFormas(ficha, attrKey);
-    if (mF < 1) mF = 1;
+    if (isNaN(mF) || mF < 1) mF = 1;
     
     const baseParaPoder = isAtual ? valorAtual : Math.floor(rawBase * fatorSeguro);
-    const poderVerdadeiro = Math.floor(((baseParaPoder + bonusAscensao) * mF) * (supressao / 100));
+    let poderVerdadeiro = Math.floor(((baseParaPoder + bonusAscensao) * mF) * (supressao / 100));
+    if (isNaN(poderVerdadeiro)) poderVerdadeiro = 0;
 
     return (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em', flexWrap: 'wrap' }}>
@@ -376,6 +391,7 @@ const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual
     );
 };
 
+// 🔥 RADAR 100% BLINDADO CONTRA NaN 🔥
 const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => {
     const eixos = [
         { label: 'VIDA', key: 'vida' }, { label: 'MANA', key: 'mana' }, { label: 'AURA', key: 'aura' },
@@ -383,39 +399,45 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
     ];
     const angulos = Array.from({length: 6}).map((_, i) => Math.PI * 2 * i / 6 - Math.PI / 2);
     
-    const supressao = ficha.supressaoPoder !== undefined ? Number(ficha.supressaoPoder) : 100;
+    let supressao = ficha.supressaoPoder !== undefined ? Number(ficha.supressaoPoder) : 100;
+    if (isNaN(supressao)) supressao = 100;
+    
     const rankInfos = [];
 
     const dataPoints = eixos.map((e, i) => {
-        const getPower = (k) => {
+        const getSafePower = (k) => {
             const rawBase = parseFloat(ficha[k]?.base) || 0;
-            const maxVal = isNaN(safeGetMaximo(ficha, k)) ? 0 : safeGetMaximo(ficha, k);
-            const baseParaPoder = isAtual ? Math.floor(maxVal * fator) : Math.floor(rawBase * fator);
-            const bonusAscensao = getGhostAscensionBonus(k, ficha);
+            const maxVal = parseFloat(safeGetMaximo(ficha, k)) || 0;
+            const f = parseFloat(fator) || 1;
+            const baseParaPoder = isAtual ? Math.floor(maxVal * f) : Math.floor(rawBase * f);
+            const bonusAscensao = getGhostAscensionBonus(k, ficha) || 0;
             let mF = getEfetivoMFormas(ficha, k);
-            if (mF < 1) mF = 1;
-            return Math.floor(((baseParaPoder + bonusAscensao) * mF) * (supressao / 100));
+            if (isNaN(mF) || mF < 1) mF = 1;
+            
+            let finalPower = Math.floor(((baseParaPoder + bonusAscensao) * mF) * (supressao / 100));
+            return isNaN(finalPower) ? 0 : finalPower;
         };
 
         let truePower = 0;
         if (e.key === 'status') {
             let m = 0;
             ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
-                m += getPower(s);
+                m += getSafePower(s);
             });
             truePower = Math.floor(m / 8);
         } else {
-            truePower = getPower(e.key);
+            truePower = getSafePower(e.key);
         }
 
         const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
         const div = parseFloat(ficha?.divisores?.[e.key]) || 1;
         
-        const totalPrestige = Math.floor(truePower / ((mults[e.key] || 1) * div));
+        let totalPrestige = Math.floor(truePower / ((mults[e.key] || 1) * div));
+        if (isNaN(totalPrestige)) totalPrestige = 0;
         
         let asc = Math.floor(totalPrestige / 100);
-        if (asc < 1) asc = 1; 
-        const prest = totalPrestige % 100;
+        if (isNaN(asc) || asc < 1) asc = 1; 
+        const prest = isNaN(totalPrestige % 100) ? 0 : totalPrestige % 100;
         
         const efetivo = safeGetRank(prest, asc);
         efetivo.prestigioFinal = prest;
@@ -423,10 +445,18 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
 
         rankInfos.push(efetivo);
 
-        let valNorm = efetivo.prestigioFinal || 0;
-        if (valNorm >= 100) { valNorm = valNorm % 100; if (valNorm === 0 && efetivo.prestigioFinal > 0) valNorm = 100; }
-        const frac = Math.min(Math.max(valNorm / 100, 0.05), 1);
-        return `${100 + 75 * frac * Math.cos(angulos[i])},${100 + 75 * frac * Math.sin(angulos[i])}`;
+        let valNorm = parseFloat(efetivo.prestigioFinal) || 0;
+        if (valNorm >= 100) valNorm = valNorm % 100 === 0 ? 100 : valNorm % 100; 
+        
+        let frac = Math.min(Math.max(valNorm / 100, 0.05), 1);
+        if (isNaN(frac)) frac = 0.05;
+        
+        let cx = 100 + 75 * frac * Math.cos(angulos[i]);
+        let cy = 100 + 75 * frac * Math.sin(angulos[i]);
+        if (isNaN(cx)) cx = 100;
+        if (isNaN(cy)) cy = 100;
+
+        return `${cx},${cy}`;
     }).join(' ');
 
     const hexToRgba = (hex, alpha) => {
@@ -621,8 +651,9 @@ export default function MarcadosPanel() {
     const minhaFicha = useStore(s => s.minhaFicha);
     const updateFicha = useStore(s => s.updateFicha);
     const meuNome = useStore(s => s.meuNome);
-    const isMestre = useStore(s => s.isMestre);
-    const importarDaAbaStatus = useStore(s => s.importarDaAbaStatus);
+    
+    // SAFE ZUSTAND SELECTOR: Se "isMestre" não existir, não quebra nada.
+    const isMestreStatus = useStore(s => s?.isMestre) || false;
 
     const [uploadingImg, setUploadingImg] = useState(false);
     const [modalImport, setModalImport] = useState(false);
@@ -659,11 +690,17 @@ export default function MarcadosPanel() {
         }
     }, [minhaFicha?.estetica]);
 
+    const isMestre = isMestreStatus || (minhaFicha?.isMestre === true);
+
+    // 🔥 CÁLCULO DO SCOUTER GLOBAL (BLINDADO CONTRA NaN) 🔥
     const { poderGlobal, vitalidadeGlobal, supressao, limiteSupressao, temaScouter } = useMemo(() => {
         if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100, limiteSupressao: 1, temaScouter: getTemaScouter(100, 1) };
         
         let sup = minhaFicha.supressaoPoder !== undefined ? Number(minhaFicha.supressaoPoder) : 100;
-        const lim = minhaFicha.limiteSupressao !== undefined ? Number(minhaFicha.limiteSupressao) : 1;
+        if (isNaN(sup)) sup = 100;
+        
+        let lim = minhaFicha.limiteSupressao !== undefined ? Number(minhaFicha.limiteSupressao) : 1;
+        if (isNaN(lim)) lim = 1;
         
         if (sup < lim) sup = lim; 
         
@@ -673,35 +710,45 @@ export default function MarcadosPanel() {
             if (key === 'status') {
                 let m = 0;
                 ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
-                    let baseTotal = safeGetMaximo(minhaFicha, s) + getGhostAscensionBonus(s, minhaFicha);
+                    let maxSafe = safeGetMaximo(minhaFicha, s);
+                    if (isNaN(maxSafe)) maxSafe = 0;
+                    
+                    let baseTotal = maxSafe + getGhostAscensionBonus(s, minhaFicha);
                     let mF = getEfetivoMFormas(minhaFicha, s);
-                    if (mF < 1) mF = 1;
+                    if (isNaN(mF) || mF < 1) mF = 1;
+                    
                     m += (baseTotal * mF);
                 });
                 return Math.floor(m / 8);
             } else {
-                let baseTotal = safeGetMaximo(minhaFicha, key) + getGhostAscensionBonus(key, minhaFicha);
+                let maxSafe = safeGetMaximo(minhaFicha, key);
+                if (isNaN(maxSafe)) maxSafe = 0;
+                
+                let baseTotal = maxSafe + getGhostAscensionBonus(key, minhaFicha);
                 let mF = getEfetivoMFormas(minhaFicha, key);
-                if (mF < 1) mF = 1;
+                if (isNaN(mF) || mF < 1) mF = 1;
+                
                 return Math.floor(baseTotal * mF);
             }
         };
 
-        const valVida = calcTrueMax('vida');
-        const valMana = calcTrueMax('mana');
-        const valAura = calcTrueMax('aura');
-        const valChakra = calcTrueMax('chakra');
-        const valCorpo = calcTrueMax('corpo');
-        const valStatus = calcTrueMax('status');
+        const valVida = calcTrueMax('vida') || 0;
+        const valMana = calcTrueMax('mana') || 0;
+        const valAura = calcTrueMax('aura') || 0;
+        const valChakra = calcTrueMax('chakra') || 0;
+        const valCorpo = calcTrueMax('corpo') || 0;
+        const valStatus = calcTrueMax('status') || 0;
 
         const media = Math.floor((valVida + valMana + valAura + valChakra + valCorpo + valStatus) / 6);
-        const mediaSupressa = Math.floor(media * (sup / 100));
+        let mediaSupressa = Math.floor(media * (sup / 100));
+        if (isNaN(mediaSupressa)) mediaSupressa = 0;
         
         let strVal = String(mediaSupressa);
         let digitos = strVal.length;
         if (strVal.includes('e')) {
             const parts = strVal.split('e');
-            digitos = parseInt(parts[1].replace('+', '')) + 1;
+            let exponent = parseInt(parts[1].replace('+', ''));
+            if (!isNaN(exponent)) digitos = exponent + 1;
         }
         
         const vit = Math.max(0, digitos - 8);
@@ -937,8 +984,9 @@ export default function MarcadosPanel() {
 
         const bonusAscensao = getGhostAscensionBonus(vitalKey, minhaFicha);
         let mF = getEfetivoMFormas(minhaFicha, vitalKey);
-        if (mF < 1) mF = 1;
-        const poderVerdadeiro = Math.floor(((rawMaximo + bonusAscensao) * mF) * (supressao / 100));
+        if (isNaN(mF) || mF < 1) mF = 1;
+        let poderVerdadeiro = Math.floor(((rawMaximo + bonusAscensao) * mF) * (supressao / 100));
+        if (isNaN(poderVerdadeiro)) poderVerdadeiro = 0;
 
         return (
             <div style={{ marginBottom: '15px' }}>
@@ -960,9 +1008,11 @@ export default function MarcadosPanel() {
                             const subBaseRaw = minhaFicha[sub.key]?.base;
                             const bonusSub = getGhostAscensionBonus(sub.key, minhaFicha);
                             let mFSub = getEfetivoMFormas(minhaFicha, sub.key);
-                            if (mFSub < 1) mFSub = 1;
-                            const trueSubBase = (subBaseRaw === undefined || subBaseRaw === null || subBaseRaw === '') ? '' : Math.floor(((parseFloat(subBaseRaw) + bonusSub) * mFSub) * (supressao / 100));
+                            if (isNaN(mFSub) || mFSub < 1) mFSub = 1;
                             
+                            let trueSubBase = (subBaseRaw === undefined || subBaseRaw === null || subBaseRaw === '') ? '' : Math.floor(((parseFloat(subBaseRaw) + bonusSub) * mFSub) * (supressao / 100));
+                            if (isNaN(trueSubBase)) trueSubBase = 0;
+
                             return (
                                 <div key={sub.labelKey} style={{ fontSize: '1.05em', display: 'flex', alignItems: 'center' }}>
                                     <LabelMagico valor={getLabel(sub.labelKey, sub.fallbackLabel)} onChange={(v) => setLabel(sub.labelKey, v)} />
@@ -1131,7 +1181,7 @@ export default function MarcadosPanel() {
                                 <CampoMagico valor={minhaFicha.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
 
-                            {/* 🌟 O NOVO SCOUTER DE VIDRO HOLOGRÁFICO ETEXTO LIMPO 🌟 */}
+                            {/* 🌟 O NOVO SCOUTER DE VIDRO HOLOGRÁFICO BLINDADO 🌟 */}
                             <div style={{
                                 marginTop: '15px', marginBottom: '25px', padding: '25px 30px',
                                 background: 'rgba(15, 15, 20, 0.75)',
@@ -1145,7 +1195,6 @@ export default function MarcadosPanel() {
                                 display: 'flex', flexDirection: 'column',
                                 position: 'relative', overflow: 'hidden'
                             }}>
-                                {/* O Coração do Scouter */}
                                 <div style={{ position: 'absolute', bottom: '-40%', right: '-10%', width: '300px', height: '300px', background: `radial-gradient(circle, ${temaScouter.cor}22 0%, transparent 70%)`, borderRadius: '50%', pointerEvents: 'none', animation: `pulse-aura ${temaScouter.pulse} ease-in-out infinite` }} />
 
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1, position: 'relative' }}>
@@ -1159,13 +1208,14 @@ export default function MarcadosPanel() {
                                         
                                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '15px' }}>
                                             <span style={{
-                                                fontSize: '3.2em', fontWeight: '900', letterSpacing: '-1px', color: '#ffffff',
+                                                fontSize: '3.2em', fontWeight: '900', letterSpacing: '-1px',
+                                                color: '#ffffff',
                                                 textShadow: `0 0 10px ${temaScouter.glow}, 0 0 20px ${temaScouter.glow}, 0 0 40px ${temaScouter.glow}`
                                             }}>
-                                                {formatarPoderCosmico(poderGlobal)}
+                                                {formatarPoderCosmico(isNaN(poderGlobal) ? 0 : poderGlobal)}
                                             </span>
                                             <span style={{ fontSize: '0.5em', color: '#fff', opacity: 0.6, fontWeight: 'bold', letterSpacing: '1px' }}>
-                                                {Number(poderGlobal).toExponential(2).replace('+', '').toUpperCase()}
+                                                {Number(isNaN(poderGlobal) ? 0 : poderGlobal).toExponential(2).replace('+', '').toUpperCase()}
                                             </span>
                                         </div>
                                     </div>
@@ -1173,21 +1223,22 @@ export default function MarcadosPanel() {
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingLeft: '20px' }}>
                                         <span style={{ color: '#fff', opacity: 0.6, fontSize: '0.65em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '3px', marginBottom: '8px' }}>Grau Vital</span>
                                         <div style={{
-                                            fontSize: '2.5em', fontWeight: '900', color: temaScouter.cor, background: 'rgba(0,0,0,0.6)',
-                                            padding: '8px 25px', borderRadius: '8px', border: `1px solid ${temaScouter.cor}55`,
+                                            fontSize: '2.5em', fontWeight: '900', color: temaScouter.cor,
+                                            background: 'rgba(0,0,0,0.6)',
+                                            padding: '8px 25px', borderRadius: '8px',
+                                            border: `1px solid ${temaScouter.cor}55`,
                                             boxShadow: `inset 0 0 15px ${temaScouter.cor}33, 0 5px 15px rgba(0,0,0,0.5)`,
                                             lineHeight: '1', textShadow: `0 0 10px ${temaScouter.cor}`
                                         }}>
-                                            V{vitalidadeGlobal}
+                                            V{isNaN(vitalidadeGlobal) ? 0 : vitalidadeGlobal}
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* SLIDER DE SUPRESSÃO + CONTROLO DE MESTRE */}
                                 <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '15px', position: 'relative', zIndex: 1, borderTop: `1px solid rgba(255,255,255,0.05)`, paddingTop: '15px' }}>
                                     <span style={{ color: '#fff', opacity: 0.7, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>Ocultar Presença:</span>
                                     <input 
-                                        type="range" min={limiteSupressao} max="100" step="any" value={supressao > 100 ? 100 : supressao}
+                                        type="range" min={limiteSupressao} max="100" step="0.1" value={supressao > 100 ? 100 : supressao}
                                         onChange={e => { salvar('supressaoPoder', e.target.value); }}
                                         style={{ flex: 1, accentColor: temaScouter.cor, cursor: 'pointer', filter: `drop-shadow(0 0 5px ${temaScouter.cor})` }}
                                     />
@@ -1196,6 +1247,7 @@ export default function MarcadosPanel() {
                                             type="number" min={limiteSupressao} max="100" step="any" value={supressao}
                                             onChange={e => {
                                                 let val = Number(e.target.value);
+                                                if (isNaN(val)) val = limiteSupressao;
                                                 if (val < limiteSupressao) val = limiteSupressao;
                                                 salvar('supressaoPoder', val);
                                             }}
@@ -1205,10 +1257,9 @@ export default function MarcadosPanel() {
                                     </div>
                                 </div>
 
-                                {/* O CADEADO DO MESTRE */}
                                 {isMestre && (
                                     <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255, 0, 60, 0.1)', padding: '8px', borderRadius: '6px', border: '1px dashed rgba(255, 0, 60, 0.5)' }}>
-                                        <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>🔒 Controle do GM: Limite de Supressão Permitido:</span>
+                                        <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>🔒 Controle do GM (Limite de Ocultação):</span>
                                         <input 
                                             type="number" min="0.000001" step="any" value={limiteSupressao}
                                             onChange={e => { salvar('limiteSupressao', e.target.value); }}
