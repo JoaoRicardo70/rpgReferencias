@@ -57,24 +57,25 @@ const getGhostAscensionBonus = (key, ficha) => {
         flatBonus = ascEfetiva * 1000000000; 
     }
 
-    const mFormas = getEfetivoMFormas(ficha, keyLower);
+    // Usamos a chave original para evitar erros de maiúsculas/minúsculas no mFormas
+    const mFormas = getEfetivoMFormas(ficha, key);
     const multFormaEfetivo = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
     
     return flatBonus * multFormaEfetivo;
 };
 
-// 🔥 GESTOR DE TEMA: VIDRO HOLOGRÁFICO 🔥
-const getTemaScouter = (supressao, limite) => {
+// 🔥 NOVO GESTOR DE TEMA (COM CORREÇÃO DO PARÂMETRO LIMITE) 🔥
+const getTemaScouter = (supressao, limite = 1) => {
     if (supressao >= 100) {
-        return { cor: '#ffcc00', glow: '#ff8800', nome: 'Poder Máximo (Liberto)', pulse: '0.8s' };
-    } else if (supressao >= 50) {
-        return { cor: '#00e5ff', glow: '#0088ff', nome: 'Supressão Leve (Restrito)', pulse: '1.5s' };
+        return { cor: '#d4af37', glow: '#d4af37', bgDark: '#1a1405', nome: 'Poder Absoluto (Liberto)' }; // Ouro
     } else if (supressao >= 10) {
-        return { cor: '#b142ff', glow: '#6a00ff', nome: 'Ocultação Profunda', pulse: '3s' };
+        return { cor: '#4a90e2', glow: '#4a90e2', bgDark: '#051220', nome: 'Ocultação Leve (Nv.1)' }; // Azul Frio
+    } else if (supressao >= 1) {
+        return { cor: '#b142ff', glow: '#b142ff', bgDark: '#160520', nome: 'Ocultação Profunda (Nv.2)' }; // Roxo Arcano
     } else if (supressao > limite) {
-        return { cor: '#00ff66', glow: '#00aa44', nome: 'Furtividade Extrema', pulse: '5s' };
+        return { cor: '#a0a0a0', glow: '#ffffff', bgDark: '#111111', nome: 'Falso Mundano (Nv.3)' }; // Prata/Cinza
     } else {
-        return { cor: '#ff003c', glow: '#880000', nome: 'Anulação no Limite', pulse: '8s' };
+        return { cor: '#ff003c', glow: '#ff003c', bgDark: '#20050a', nome: 'Anulação Total (O Vazio)' }; // Carmesim
     }
 };
 
@@ -212,6 +213,24 @@ const getBasePFor = (ficha, k) => {
         return Math.floor(((m / 8) / mults.status) * div) || 0;
     }
     return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
+};
+
+const calcularPrestAtual = (ficha, attrKey, baseP) => {
+    const mFormas = getEfetivoMFormas(ficha, attrKey);
+    const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
+    return Math.floor((baseP || 0) * multForma) || 0;
+};
+
+const aplicarMultiplicadorForca = (prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) => {
+    const multP = parseFloat(multiplicadorForcaPrestigio) || 1;
+    const multA = parseFloat(multiplicadorForcaAscensao) || 1;
+    const ascensaoBaseEfetiva = (parseInt(ascensaoBase) || 1) * multA;
+    const prestigioTotal = (prestigioBase || 0) * multP;
+    const bonusAscensao = Math.floor(prestigioTotal / 100);
+    const prestigioFinal = prestigioTotal % 100;
+    const ascensaoFinal = ascensaoBaseEfetiva + bonusAscensao;
+    const rankInfo = safeGetRank(prestigioFinal, ascensaoFinal);
+    return { ...rankInfo, prestigioFinal, ascensaoFinal };
 };
 
 // ==========================================
@@ -357,7 +376,6 @@ const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual
     );
 };
 
-// 🔥 RADAR DESENHADO: AGORA USA O PODER VERDADEIRO E CONVERTE PARA PRESTÍGIO 🔥
 const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => {
     const eixos = [
         { label: 'VIDA', key: 'vida' }, { label: 'MANA', key: 'mana' }, { label: 'AURA', key: 'aura' },
@@ -369,7 +387,6 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
     const rankInfos = [];
 
     const dataPoints = eixos.map((e, i) => {
-        // 1. Calcula o Poder Verdadeiro de Combate deste Eixo
         const getPower = (k) => {
             const rawBase = parseFloat(ficha[k]?.base) || 0;
             const maxVal = isNaN(safeGetMaximo(ficha, k)) ? 0 : safeGetMaximo(ficha, k);
@@ -391,15 +408,13 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
             truePower = getPower(e.key);
         }
 
-        // 2. Converte o Poder de Batalha de volta para Pontos de Prestígio puros
         const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
         const div = parseFloat(ficha?.divisores?.[e.key]) || 1;
         
         const totalPrestige = Math.floor(truePower / ((mults[e.key] || 1) * div));
         
-        // 3. 100 Prestígios equivalem a 1 Nível de Ascensão na Matemática do Sistema
         let asc = Math.floor(totalPrestige / 100);
-        if (asc < 1) asc = 1; // Visão mínima
+        if (asc < 1) asc = 1; 
         const prest = totalPrestige % 100;
         
         const efetivo = safeGetRank(prest, asc);
@@ -1116,7 +1131,7 @@ export default function MarcadosPanel() {
                                 <CampoMagico valor={minhaFicha.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
 
-                            {/* 🌟 O NOVO SCOUTER DE VIDRO HOLOGRÁFICO (BUG-FREE) 🌟 */}
+                            {/* 🌟 O NOVO SCOUTER DE VIDRO HOLOGRÁFICO ETEXTO LIMPO 🌟 */}
                             <div style={{
                                 marginTop: '15px', marginBottom: '25px', padding: '25px 30px',
                                 background: 'rgba(15, 15, 20, 0.75)',
@@ -1143,10 +1158,8 @@ export default function MarcadosPanel() {
                                         </div>
                                         
                                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '15px' }}>
-                                            {/* TEXTO EM BRANCO PURO COM SOMBRA - SEM BUGS DE BACKGROUND-CLIP */}
                                             <span style={{
-                                                fontSize: '3.2em', fontWeight: '900', letterSpacing: '-1px',
-                                                color: '#ffffff',
+                                                fontSize: '3.2em', fontWeight: '900', letterSpacing: '-1px', color: '#ffffff',
                                                 textShadow: `0 0 10px ${temaScouter.glow}, 0 0 20px ${temaScouter.glow}, 0 0 40px ${temaScouter.glow}`
                                             }}>
                                                 {formatarPoderCosmico(poderGlobal)}
@@ -1160,10 +1173,8 @@ export default function MarcadosPanel() {
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingLeft: '20px' }}>
                                         <span style={{ color: '#fff', opacity: 0.6, fontSize: '0.65em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '3px', marginBottom: '8px' }}>Grau Vital</span>
                                         <div style={{
-                                            fontSize: '2.5em', fontWeight: '900', color: temaScouter.cor,
-                                            background: 'rgba(0,0,0,0.6)',
-                                            padding: '8px 25px', borderRadius: '8px',
-                                            border: `1px solid ${temaScouter.cor}55`,
+                                            fontSize: '2.5em', fontWeight: '900', color: temaScouter.cor, background: 'rgba(0,0,0,0.6)',
+                                            padding: '8px 25px', borderRadius: '8px', border: `1px solid ${temaScouter.cor}55`,
                                             boxShadow: `inset 0 0 15px ${temaScouter.cor}33, 0 5px 15px rgba(0,0,0,0.5)`,
                                             lineHeight: '1', textShadow: `0 0 10px ${temaScouter.cor}`
                                         }}>
