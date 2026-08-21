@@ -49,7 +49,39 @@ const getEfetivoMFormas = (ficha, k) => {
     return (v === 1.0 ? 0 : v) + b.mformas;
 };
 
-// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO 🔥
+// 🔥 RECOLHA ABSOLUTA DE TODOS OS MULTIPLICADORES DE DANO 🔥
+const getEfetivoDanoGlobal = (ficha) => {
+    try {
+        let d = ficha?.dano || {};
+        let b = safeGetBuffs(ficha, 'dano', true);
+        
+        const calcAdd = (fichaVal, buffSum, hasBuff) => {
+            let v = parseFloat(fichaVal) || 1.0;
+            if (!hasBuff) return v;
+            return (v === 1.0 ? 0 : v) + buffSum;
+        };
+
+        let bas = calcAdd(d.mBase, b.mbase, b._hasBuff?.mbase);
+        let ger = calcAdd(d.mGeral, b.mgeral, b._hasBuff?.mgeral);
+        let abs = calcAdd(d.mAbsoluto, b.mabs, b._hasBuff?.mabs);
+        
+        let uni = 1.0;
+        if (d.mUnico) {
+            String(d.mUnico).split(',').forEach(v => {
+                let n = parseFloat(v.trim());
+                if (!isNaN(n) && n > 0) uni *= n;
+            });
+        }
+        if (b.munico && Array.isArray(b.munico)) {
+            b.munico.forEach(n => { if (!isNaN(n) && n > 0) uni *= n; });
+        }
+
+        return bas * ger * abs * uni;
+    } catch(e) {
+        return 1;
+    }
+};
+
 const getGhostAscensionBonus = (key, ficha) => {
     if (!ficha || !key) return 0;
     const ascBase = parseInt(ficha?.ascensaoBase) || 1;
@@ -70,6 +102,7 @@ const getGhostAscensionBonus = (key, ficha) => {
     return flatBonus;
 };
 
+// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO (AGORA COM BASE, GERAL, ABSOLUTO E ÚNICO) 🔥
 const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => {
     try {
         if (!ficha || !key) return 0;
@@ -81,15 +114,20 @@ const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => 
         const bonusAscensao = getGhostAscensionBonus(key, ficha) || 0;
 
         let mF = 1;
+        let mDano = 1;
         if (isAtual) {
             mF = getEfetivoMFormas(ficha, key);
             if (isNaN(mF) || mF < 1) mF = 1;
+            
+            mDano = getEfetivoDanoGlobal(ficha);
+            if (isNaN(mDano) || mDano < 1) mDano = 1;
         }
 
         let sup = parseFloat(supressao);
         if (isNaN(sup)) sup = 100;
 
-        let power = (baseParaPoder + bonusAscensao) * mF * (sup / 100);
+        // O Cálculo Final como pediu: (Base + Ascensão) * Formas * [Base * Geral * Absoluto * Único] * Supressão
+        let power = (baseParaPoder + bonusAscensao) * mF * mDano * (sup / 100);
         return isNaN(power) ? 0 : Math.floor(power);
     } catch (e) {
         return 0;
@@ -420,8 +458,6 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000" }) => {
     const rankInfos = [];
 
     const dataPoints = eixos.map((e, i) => {
-        // O Gráfico usa APENAS a base e as formas puras (ignorando Supressão e Ghost Ascension),
-        // garantindo que os Ranks desenhados refletem exatamente a divisão clássica do sistema.
         const baseP = getBasePFor(ficha, e.key);
         const pAtual = isAtual ? calcularPrestAtual(ficha, e.key, baseP) : baseP;
         
@@ -615,7 +651,7 @@ const DominiosPanel = ({ ficha, updateFicha }) => {
     return (
         <div style={{ width: '100%' }}>
             <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-                <h1 style={{ fontSize: '3em', fontStyle: 'italic', fontWeight: 'bold', margin: '0', paddingBottom: '10px', borderBottom: `2px dashed currentColor` }}>A Hierarquia de Domínios</h1>
+                <h1 style={{ fontSize: '3em', fontStyle: 'italic', fontWeight: 'bold', margin: 0, paddingBottom: '10px', borderBottom: `2px dashed currentColor` }}>A Hierarquia de Domínios</h1>
                 <p style={{ opacity: 0.7, fontStyle: 'italic', marginTop: '5px' }}>O Conhecimento Absoluto das Artes Místicas e Marciais</p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '25px' }}>
@@ -676,7 +712,7 @@ export default function MarcadosPanel() {
 
     const isMestre = isMestreStatus || (minhaFicha?.isMestre === true);
 
-    // 🔥 CÁLCULO DO SCOUTER GLOBAL (BLINDADO CONTRA NaN) 🔥
+    // 🔥 CÁLCULO DO SCOUTER GLOBAL (COM SUPRESSÃO E BLINDAGEM) 🔥
     const { poderGlobal, vitalidadeGlobal, supressao, limiteSupressao, temaScouter } = useMemo(() => {
         if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100, limiteSupressao: 1, temaScouter: getTemaScouter(100, 1) };
         
@@ -952,7 +988,7 @@ export default function MarcadosPanel() {
         if (isNaN(atual)) atual = mxDisplay;
         if (atual > mxDisplay) atual = mxDisplay;
 
-        const poderVerdadeiro = getPoderVerdadeiro(vitalKey, minhaFicha, true, supressao, 1);
+        const poderVerdadeiro = getPoderVerdadeiro(vitalKey, minhaFicha, true, supressao);
 
         return (
             <div style={{ marginBottom: '15px' }}>
@@ -972,7 +1008,7 @@ export default function MarcadosPanel() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '35px', marginTop: '12px' }}>
                         {subItens.map(sub => {
                             const subBaseRaw = minhaFicha[sub.key]?.base;
-                            const trueSubBase = getPoderVerdadeiro(sub.key, minhaFicha, true, supressao, 1);
+                            const trueSubBase = getPoderVerdadeiro(sub.key, minhaFicha, true, supressao);
                             
                             return (
                                 <div key={sub.labelKey} style={{ fontSize: '1.05em', display: 'flex', alignItems: 'center' }}>
@@ -1335,7 +1371,7 @@ export default function MarcadosPanel() {
                                         <div style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
                                             <LabelMagico valor={getLabel('lblEnergiaForca', 'Força')} onChange={(v) => setLabel('lblEnergiaForca', v)} />
                                         </div>
-                                        <div style={{ fontSize: '0.85em', color: '#fff', border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: temaScouter.bgDark, fontWeight: 'bold', boxShadow: `inset 0 0 8px ${temaScouter.cor}80` }}>
+                                        <div style={{ fontSize: '0.85em', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: temaScouter.bgDark, fontWeight: 'bold' }}>
                                             Poder: {formatarPoderCosmico(getPoderVerdadeiro('energiaForca', minhaFicha, true, supressao, 1))}
                                         </div>
                                     </div>
