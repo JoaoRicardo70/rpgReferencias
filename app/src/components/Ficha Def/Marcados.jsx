@@ -39,7 +39,6 @@ const getEfetivoMFormas = (ficha, k) => {
     return (v === 1.0 ? 0 : v) + b.mformas;
 };
 
-// 🔥 CÁLCULO DO RESET FANTASMA COM MULTIPLICADOR (mFormas) 🔥
 const getGhostAscensionBonus = (key, ficha) => {
     if (!ficha || !key) return 0;
     const ascBase = parseInt(ficha?.ascensaoBase) || 1;
@@ -49,11 +48,11 @@ const getGhostAscensionBonus = (key, ficha) => {
     
     let flatBonus = 0;
     if (['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaesp', 'carisma', 'stamina', 'constituicao'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 100000; // Físicos +100k
+        flatBonus = ascEfetiva * 100000; 
     } else if (['mana', 'aura', 'chakra', 'corpo'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 1000000000; // Energias +1B
+        flatBonus = ascEfetiva * 1000000000; 
     } else if (['vida', 'pv', 'pm'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 100000000; // Vitais +100M
+        flatBonus = ascEfetiva * 100000000; 
     } else if (['energiaforca'].includes(keyLower)) {
         flatBonus = ascEfetiva * 1000000000; 
     }
@@ -62,6 +61,46 @@ const getGhostAscensionBonus = (key, ficha) => {
     const multFormaEfetivo = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
     
     return flatBonus * multFormaEfetivo;
+};
+
+// 🔥 GESTOR DE TEMA DO SCOUTER E NÍVEIS DE SUPRESSÃO 🔥
+const getTemaScouter = (supressao) => {
+    if (supressao >= 100) {
+        return {
+            cor: '#d4af37', nome: 'Essência de Batalha Global',
+            bgGrid: 'linear-gradient(160deg, #0d0e15 0%, #1a1525 50%, #050508 100%)',
+            textGrad: 'linear-gradient(to bottom right, #fffdf2 20%, #d4af37 50%, #8a6d1c 100%)',
+            shadow: 'rgba(212, 175, 55, 0.4)', anel: 'rgba(212, 175, 55, 0.08)'
+        };
+    } else if (supressao >= 10) {
+        return {
+            cor: '#4a90e2', nome: 'Supressão Nv.1 (Ocultação Leve)',
+            bgGrid: 'linear-gradient(160deg, #0a1118 0%, #101820 50%, #05080a 100%)',
+            textGrad: 'linear-gradient(to bottom right, #e0f7fa 20%, #4a90e2 50%, #1c3d5a 100%)',
+            shadow: 'rgba(74, 144, 226, 0.4)', anel: 'rgba(74, 144, 226, 0.08)'
+        };
+    } else if (supressao >= 1) {
+        return {
+            cor: '#aa00ff', nome: 'Supressão Nv.2 (Ocultação Profunda)',
+            bgGrid: 'linear-gradient(160deg, #120a18 0%, #1a1020 50%, #08050a 100%)',
+            textGrad: 'linear-gradient(to bottom right, #f3e0ff 20%, #aa00ff 50%, #4a0088 100%)',
+            shadow: 'rgba(170, 0, 255, 0.4)', anel: 'rgba(170, 0, 255, 0.08)'
+        };
+    } else if (supressao >= 0.001) {
+        return {
+            cor: '#888888', nome: 'Supressão Nv.3 (Falso Mundano)',
+            bgGrid: 'linear-gradient(160deg, #111111 0%, #1a1a1a 50%, #050505 100%)',
+            textGrad: 'linear-gradient(to bottom right, #cccccc 20%, #888888 50%, #333333 100%)',
+            shadow: 'rgba(136, 136, 136, 0.4)', anel: 'rgba(136, 136, 136, 0.08)'
+        };
+    } else {
+        return {
+            cor: '#ff003c', nome: 'Supressão MAX (Anulação Absoluta)',
+            bgGrid: 'linear-gradient(160deg, #180a0a 0%, #201010 50%, #0a0505 100%)',
+            textGrad: 'linear-gradient(to bottom right, #ffe0e0 20%, #ff003c 50%, #5a0011 100%)',
+            shadow: 'rgba(255, 0, 60, 0.4)', anel: 'rgba(255, 0, 60, 0.08)'
+        };
+    }
 };
 
 const CLASSES_REGULARES_BASE = [
@@ -124,6 +163,7 @@ const CATEGORIAS_DOMINIO = {
     'elementos_basicos_verdadeiros': { titulo: 'Básicos Verdadeiros', icone: '🌋', cor: '#ff3300' },
     'elementos_avancados': { titulo: 'Elementos Avançados', icone: '☄️', cor: '#ffaa00' },
     'elementos_avancados_verdadeiros': { titulo: 'Avançados Verdadeiros', icone: '☀️', cor: '#ffcc00' },
+    
     'mana': { titulo: 'Artes de Mana (Grimório)', icone: '🔮', cor: '#0088ff' },
     'chakra': { titulo: 'Artes de Chakra (Shinobi)', icone: '🌀', cor: '#00ffcc' },
     'aura': { titulo: 'Artes de Aura (Manifestação)', icone: '✨', cor: '#ff00ff' },
@@ -287,9 +327,8 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     const editandoBase = attrBaseFocado === attrKey;
     const valorCampoBase = editandoBase ? (baseValRaw ?? '') : baseExibido;
 
-    // 🔥 O SCOUTER FANTASMA DO ATRIBUTO 🔥
     const supressao = ficha.supressaoPoder !== undefined ? Number(ficha.supressaoPoder) : 100;
-    const isSupresso = supressao < 100;
+    const tema = getTemaScouter(supressao);
     
     const bonusAscensao = getGhostAscensionBonus(attrKey, ficha);
     let mF = getEfetivoMFormas(ficha, attrKey);
@@ -302,7 +341,7 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
-                <span style={{ fontSize: '0.7em', color: isSupresso ? '#4a90e2' : '#00ffcc', border: `1px solid ${isSupresso ? '#4a90e2' : '#00ffcc'}`, padding: '2px 6px', borderRadius: '10px', background: isSupresso ? 'rgba(74, 144, 226, 0.1)' : 'rgba(0,255,204,0.1)', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
+                <span style={{ fontSize: '0.7em', color: tema.cor, border: `1px solid ${tema.cor}`, padding: '2px 6px', borderRadius: '10px', background: `${tema.cor}1a`, whiteSpace: 'nowrap', fontWeight: 'bold' }}>
                     Poder: {formatarPoderCosmico(poderVerdadeiro)}
                 </span>
             </div>
@@ -613,11 +652,12 @@ export default function MarcadosPanel() {
         }
     }, [minhaFicha?.estetica]);
 
-    // 🔥 CÁLCULO DO SCOUTER GLOBAL (COM SUPRESSÃO) 🔥
-    const { poderGlobal, vitalidadeGlobal, supressao } = useMemo(() => {
-        if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100 };
+    // 🔥 CÁLCULO DO SCOUTER GLOBAL (COM SUPRESSÃO DESCENDENTE) 🔥
+    const { poderGlobal, vitalidadeGlobal, supressao, temaScouter } = useMemo(() => {
+        if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100, temaScouter: getTemaScouter(100) };
         
         const sup = minhaFicha.supressaoPoder !== undefined ? Number(minhaFicha.supressaoPoder) : 100;
+        const tema = getTemaScouter(sup);
         
         const calcTrueMax = (key) => {
             if (key === 'status') {
@@ -656,7 +696,7 @@ export default function MarcadosPanel() {
         
         const vit = Math.max(0, digitos - 8);
 
-        return { poderGlobal: mediaSupressa, vitalidadeGlobal: vit, supressao: sup };
+        return { poderGlobal: mediaSupressa, vitalidadeGlobal: vit, supressao: sup, temaScouter: tema };
     }, [minhaFicha]);
 
     if (!minhaFicha) return <div style={{ color: '#000', padding: 20, fontFamily: 'cursive' }}>Abrindo a Ficha...</div>;
@@ -897,7 +937,7 @@ export default function MarcadosPanel() {
                         {subItens && <span onClick={() => setAberta(!aberto)} style={{ cursor: 'pointer', width: '20px', display: 'inline-block', userSelect: 'none', fontWeight: 'bold' }}>{aberto ? 'v ' : '> '}</span>}
                         <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
                     </div>
-                    <div style={{ fontSize: '0.85em', color: supressao < 100 ? '#4a90e2' : '#ffcc00', border: `1px solid ${supressao < 100 ? '#4a90e2' : '#ffcc00'}`, padding: '2px 10px', borderRadius: '12px', background: supressao < 100 ? 'rgba(74,144,226,0.1)' : 'rgba(255,204,0,0.1)', fontWeight: 'bold' }}>
+                    <div style={{ fontSize: '0.85em', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '12px', background: `${temaScouter.cor}1a`, fontWeight: 'bold' }}>
                         Poder: {formatarPoderCosmico(poderVerdadeiro)}
                     </div>
                 </div>
@@ -953,10 +993,6 @@ export default function MarcadosPanel() {
         setTextoImport('');
         alert("A sua ficha foi sincronizada!");
     };
-
-    const isSupresso = supressao < 100;
-    const corTemaScouter = isSupresso ? '#4a90e2' : '#d4af37';
-    const shadowTema = isSupresso ? 'rgba(74, 144, 226, 0.4)' : 'rgba(212, 175, 55, 0.25)';
 
     return (
         <div style={{
@@ -1085,44 +1121,42 @@ export default function MarcadosPanel() {
                                 <CampoMagico valor={minhaFicha.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
 
-                            {/* 🌟 O MEDIDOR DE ESSÊNCIA (NOVO DESIGN ARCANO/MONOLÍTICO) 🌟 */}
+                            {/* 🌟 O MEDIDOR DE ESSÊNCIA DOURADO / FURTIVO 🌟 */}
                             <div style={{
                                 marginTop: '15px', marginBottom: '25px', padding: '25px 30px',
-                                background: isSupresso 
-                                    ? 'linear-gradient(160deg, #0a1118 0%, #101820 50%, #05080a 100%)' 
-                                    : 'linear-gradient(160deg, #0d0e15 0%, #1a1525 50%, #050508 100%)',
-                                border: `1px solid ${isSupresso ? 'rgba(74, 144, 226, 0.3)' : 'rgba(212, 175, 55, 0.2)'}`,
+                                background: temaScouter.bgGrid,
+                                border: `1px solid ${temaScouter.anel}`,
                                 borderRadius: '12px',
-                                boxShadow: `0 15px 35px rgba(0,0,0,0.6), inset 0 0 40px ${isSupresso ? 'rgba(74, 144, 226, 0.05)' : 'rgba(212, 175, 55, 0.03)'}`,
+                                boxShadow: `0 15px 35px rgba(0,0,0,0.6), inset 0 0 40px ${temaScouter.cor}0a`,
                                 display: 'flex', flexDirection: 'column',
                                 position: 'relative', overflow: 'hidden'
                             }}>
-                                {/* Anéis Arcanos (Fundo) */}
-                                <div style={{ position: 'absolute', top: '-60%', left: '-15%', width: '350px', height: '350px', border: `2px dashed ${isSupresso ? 'rgba(74,144,226,0.08)' : 'rgba(212,175,55,0.08)'}`, borderRadius: '50%', animation: 'spin-slow 30s linear infinite', pointerEvents: 'none' }} />
-                                <div style={{ position: 'absolute', bottom: '-50%', right: '-10%', width: '250px', height: '250px', border: '1px dotted rgba(170,0,255,0.15)', borderRadius: '50%', animation: 'spin-reverse-slow 20s linear infinite', pointerEvents: 'none' }} />
-                                
-                                {/* Luz Divina Refletida (Sweep) */}
+                                {/* Anéis Arcanos e Brilhos da Caixa */}
+                                <div style={{ position: 'absolute', top: '-60%', left: '-15%', width: '350px', height: '350px', border: `2px dashed ${temaScouter.anel}`, borderRadius: '50%', animation: 'spin-slow 30s linear infinite', pointerEvents: 'none' }} />
+                                <div style={{ position: 'absolute', bottom: '-50%', right: '-10%', width: '250px', height: '250px', border: `1px dotted ${temaScouter.cor}33`, borderRadius: '50%', animation: 'spin-reverse-slow 20s linear infinite', pointerEvents: 'none' }} />
                                 <div style={{ position: 'absolute', top: 0, left: '-100%', width: '40%', height: '100%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent)', transform: 'skewX(-30deg)', animation: 'metal-sweep 7s infinite ease-in-out', pointerEvents: 'none' }} />
 
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1, position: 'relative' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                                            <div style={{ width: '6px', height: '6px', background: corTemaScouter, borderRadius: '50%', boxShadow: `0 0 10px ${corTemaScouter}` }} />
-                                            <span style={{ color: '#a39b8f', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '4px' }}>
-                                                {isSupresso ? 'Presença Oculta (Supressão)' : 'Essência de Batalha Global'}
+                                            <div style={{ width: '6px', height: '6px', background: temaScouter.cor, borderRadius: '50%', boxShadow: `0 0 10px ${temaScouter.cor}` }} />
+                                            <span style={{ color: '#a39b8f', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '2px' }}>
+                                                {temaScouter.nome}
                                             </span>
                                         </div>
                                         
                                         <span style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
-                                            <span style={{
-                                                fontSize: '2.8em', fontWeight: '900', letterSpacing: '-1px',
-                                                background: isSupresso ? 'linear-gradient(to bottom right, #e0f7fa 20%, #4a90e2 50%, #1c3d5a 100%)' : 'linear-gradient(to bottom right, #fffdf2 20%, #d4af37 50%, #8a6d1c 100%)',
-                                                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                                                filter: `drop-shadow(0px 4px 15px ${shadowTema})`
-                                            }}>
-                                                {formatarPoderCosmico(poderGlobal)}
+                                            {/* 🔥 O ENVELOPE QUE IMPEDE O BLOCO AZUL 🔥 */}
+                                            <span style={{ filter: `drop-shadow(0px 4px 15px ${temaScouter.shadow})` }}>
+                                                <span style={{
+                                                    fontSize: '2.8em', fontWeight: '900', letterSpacing: '-1px',
+                                                    background: temaScouter.textGrad,
+                                                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', color: 'transparent'
+                                                }}>
+                                                    {formatarPoderCosmico(poderGlobal)}
+                                                </span>
                                             </span>
-                                            <span style={{ fontSize: '0.45em', color: isSupresso ? 'rgba(74,144,226,0.5)' : 'rgba(212,175,55,0.5)', fontWeight: 'bold', letterSpacing: '1px' }}>
+                                            <span style={{ fontSize: '0.45em', color: `${temaScouter.cor}80`, fontWeight: 'bold', letterSpacing: '1px' }}>
                                                 {Number(poderGlobal).toExponential(2).replace('+', '').toUpperCase()}
                                             </span>
                                         </span>
@@ -1132,7 +1166,7 @@ export default function MarcadosPanel() {
                                         <span style={{ color: '#a39b8f', fontSize: '0.7em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>Grau Vital</span>
                                         <div style={{
                                             fontSize: '2em', fontWeight: '900', color: '#050508',
-                                            background: isSupresso ? 'linear-gradient(135deg, #b3e5fc 0%, #4a90e2 50%, #1c3d5a 100%)' : 'linear-gradient(135deg, #f3e5ab 0%, #d4af37 50%, #8a6d1c 100%)',
+                                            background: temaScouter.textGrad,
                                             padding: '4px 18px', borderRadius: '6px',
                                             boxShadow: '0 5px 15px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.6)',
                                             lineHeight: '1.1'
@@ -1142,15 +1176,22 @@ export default function MarcadosPanel() {
                                     </div>
                                 </div>
 
-                                {/* SLIDER DE SUPRESSÃO */}
+                                {/* SLIDER E INPUT DE PRECISÃO FINA */}
                                 <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '15px', position: 'relative', zIndex: 1, borderTop: `1px solid rgba(255,255,255,0.05)`, paddingTop: '15px' }}>
                                     <span style={{ color: '#a39b8f', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>Libertar Poder:</span>
                                     <input 
-                                        type="range" min="1" max="100" value={supressao}
+                                        type="range" min="0" max="100" step="0.1" value={supressao > 100 ? 100 : supressao}
                                         onChange={e => { salvar('supressaoPoder', e.target.value); }}
-                                        style={{ flex: 1, accentColor: corTemaScouter, cursor: 'pointer' }}
+                                        style={{ flex: 1, accentColor: temaScouter.cor, cursor: 'pointer' }}
                                     />
-                                    <span style={{ color: corTemaScouter, fontWeight: 'bold', minWidth: '45px', textAlign: 'right', fontSize: '1.1em' }}>{supressao}%</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <input 
+                                            type="number" min="0.000001" max="100" step="any" value={supressao}
+                                            onChange={e => { salvar('supressaoPoder', e.target.value); }}
+                                            style={{ width: '80px', background: 'rgba(0,0,0,0.5)', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }}
+                                        />
+                                        <span style={{ color: temaScouter.cor, fontWeight: 'bold', fontSize: '1.1em' }}>%</span>
+                                    </div>
                                 </div>
 
                                 <style>{`
@@ -1256,7 +1297,7 @@ export default function MarcadosPanel() {
                                         <div style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
                                             <LabelMagico valor={getLabel('lblEnergiaForca', 'Força')} onChange={(v) => setLabel('lblEnergiaForca', v)} />
                                         </div>
-                                        <div style={{ fontSize: '0.85em', color: corTemaScouter, border: `1px solid ${corTemaScouter}`, padding: '2px 10px', borderRadius: '12px', background: isSupresso ? 'rgba(74,144,226,0.1)' : 'rgba(255,204,0,0.1)', fontWeight: 'bold' }}>
+                                        <div style={{ fontSize: '0.85em', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '12px', background: `${temaScouter.cor}1a`, fontWeight: 'bold' }}>
                                             Poder: {formatarPoderCosmico(Math.floor((forcaMax + getGhostAscensionBonus('energiaForca', minhaFicha)) * (supressao / 100)))}
                                         </div>
                                     </div>
