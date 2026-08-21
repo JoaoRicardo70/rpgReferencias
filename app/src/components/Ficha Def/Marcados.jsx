@@ -63,18 +63,18 @@ const getGhostAscensionBonus = (key, ficha) => {
     return flatBonus * multFormaEfetivo;
 };
 
-// 🔥 NOVO GESTOR DE TEMA: O MONÓLITO ARCANO 🔥
-const getTemaScouter = (supressao) => {
+// 🔥 GESTOR DE TEMA: VIDRO HOLOGRÁFICO 🔥
+const getTemaScouter = (supressao, limite) => {
     if (supressao >= 100) {
-        return { cor: '#d4af37', glow: '#d4af37', bgDark: '#1a1405', nome: 'Poder Absoluto (Liberto)' }; // Ouro
+        return { cor: '#ffcc00', glow: '#ff8800', nome: 'Poder Máximo (Liberto)', pulse: '0.8s' };
+    } else if (supressao >= 50) {
+        return { cor: '#00e5ff', glow: '#0088ff', nome: 'Supressão Leve (Restrito)', pulse: '1.5s' };
     } else if (supressao >= 10) {
-        return { cor: '#4a90e2', glow: '#4a90e2', bgDark: '#051220', nome: 'Ocultação Leve (Nv.1)' }; // Azul Frio
-    } else if (supressao >= 1) {
-        return { cor: '#b142ff', glow: '#b142ff', bgDark: '#160520', nome: 'Ocultação Profunda (Nv.2)' }; // Roxo Arcano
-    } else if (supressao >= 0.001) {
-        return { cor: '#a0a0a0', glow: '#ffffff', bgDark: '#111111', nome: 'Falso Mundano (Nv.3)' }; // Prata/Cinza
+        return { cor: '#b142ff', glow: '#6a00ff', nome: 'Ocultação Profunda', pulse: '3s' };
+    } else if (supressao > limite) {
+        return { cor: '#00ff66', glow: '#00aa44', nome: 'Furtividade Extrema', pulse: '5s' };
     } else {
-        return { cor: '#ff003c', glow: '#ff003c', bgDark: '#20050a', nome: 'Anulação Total (O Vazio)' }; // Carmesim
+        return { cor: '#ff003c', glow: '#880000', nome: 'Anulação no Limite', pulse: '8s' };
     }
 };
 
@@ -302,7 +302,8 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     const valorCampoBase = editandoBase ? (baseValRaw ?? '') : baseExibido;
 
     const supressao = ficha.supressaoPoder !== undefined ? Number(ficha.supressaoPoder) : 100;
-    const tema = getTemaScouter(supressao);
+    const limiteSupressao = ficha.limiteSupressao !== undefined ? Number(ficha.limiteSupressao) : 1;
+    const tema = getTemaScouter(supressao, limiteSupressao);
     
     const bonusAscensao = getGhostAscensionBonus(attrKey, ficha);
     let mF = getEfetivoMFormas(ficha, attrKey);
@@ -315,8 +316,8 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
-                <span style={{ fontSize: '0.75em', color: '#fff', border: `1px solid ${tema.cor}`, padding: '2px 8px', borderRadius: '4px', background: tema.bgDark, whiteSpace: 'nowrap', fontWeight: 'bold', boxShadow: `inset 0 0 8px ${tema.cor}80` }}>
-                    {formatarPoderCosmico(poderVerdadeiro)}
+                <span style={{ fontSize: '0.7em', color: '#fff', border: `1px solid ${tema.cor}`, padding: '2px 6px', borderRadius: '10px', background: 'rgba(0,0,0,0.5)', whiteSpace: 'nowrap', fontWeight: 'bold', textShadow: `0 0 5px ${tema.glow}`, boxShadow: `inset 0 0 5px ${tema.cor}80` }}>
+                    Poder: {formatarPoderCosmico(poderVerdadeiro)}
                 </span>
             </div>
             
@@ -589,6 +590,7 @@ export default function MarcadosPanel() {
     const minhaFicha = useStore(s => s.minhaFicha);
     const updateFicha = useStore(s => s.updateFicha);
     const meuNome = useStore(s => s.meuNome);
+    const isMestre = useStore(s => s.isMestre);
     const importarDaAbaStatus = useStore(s => s.importarDaAbaStatus);
 
     const [uploadingImg, setUploadingImg] = useState(false);
@@ -626,12 +628,16 @@ export default function MarcadosPanel() {
         }
     }, [minhaFicha?.estetica]);
 
-    // 🔥 CÁLCULO DO SCOUTER GLOBAL (COM SUPRESSÃO DESCENDENTE E MONÓLITO ARCANO) 🔥
-    const { poderGlobal, vitalidadeGlobal, supressao, temaScouter } = useMemo(() => {
-        if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100, temaScouter: getTemaScouter(100) };
+    // 🔥 CÁLCULO DO SCOUTER GLOBAL (COM LIMITE DO GM E TEMA DINÂMICO) 🔥
+    const { poderGlobal, vitalidadeGlobal, supressao, limiteSupressao, temaScouter } = useMemo(() => {
+        if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100, limiteSupressao: 1, temaScouter: getTemaScouter(100, 1) };
         
-        const sup = minhaFicha.supressaoPoder !== undefined ? Number(minhaFicha.supressaoPoder) : 100;
-        const tema = getTemaScouter(sup);
+        let sup = minhaFicha.supressaoPoder !== undefined ? Number(minhaFicha.supressaoPoder) : 100;
+        const lim = minhaFicha.limiteSupressao !== undefined ? Number(minhaFicha.limiteSupressao) : 1;
+        
+        if (sup < lim) sup = lim; // Aplica o Limite do GM
+        
+        const tema = getTemaScouter(sup, lim);
         
         const calcTrueMax = (key) => {
             if (key === 'status') {
@@ -670,7 +676,7 @@ export default function MarcadosPanel() {
         
         const vit = Math.max(0, digitos - 8);
 
-        return { poderGlobal: mediaSupressa, vitalidadeGlobal: vit, supressao: sup, temaScouter: tema };
+        return { poderGlobal: mediaSupressa, vitalidadeGlobal: vit, supressao: sup, limiteSupressao: lim, temaScouter: tema };
     }, [minhaFicha]);
 
     if (!minhaFicha) return <div style={{ color: '#000', padding: 20, fontFamily: 'cursive' }}>Abrindo a Ficha...</div>;
@@ -1095,71 +1101,104 @@ export default function MarcadosPanel() {
                                 <CampoMagico valor={minhaFicha.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
 
-                            {/* 🌟 O NOVO MONÓLITO ARCANO (DUPLA CAMADA / SEM FUNDO BUGADO) 🌟 */}
+                            {/* 🌟 O NOVO MONÓLITO ARCANO (TEXTO PURO, SEM MÁSCARA/BUG) 🌟 */}
                             <div style={{
                                 marginTop: '15px', marginBottom: '25px', padding: '25px 30px',
-                                background: temaScouter.bgGrid,
-                                border: '1px solid rgba(255, 255, 255, 0.05)',
-                                borderRadius: '4px 12px 12px 4px',
+                                background: 'rgba(15, 15, 20, 0.75)',
+                                backdropFilter: 'blur(10px)',
+                                WebkitBackdropFilter: 'blur(10px)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                borderTop: '1px solid rgba(255, 255, 255, 0.25)',
                                 borderLeft: `4px solid ${temaScouter.cor}`,
-                                boxShadow: `0 10px 30px rgba(0,0,0,0.8), inset 5px 0 20px ${temaScouter.cor}22`,
+                                borderRadius: '6px 12px 12px 6px',
+                                boxShadow: `0 15px 35px rgba(0,0,0,0.6), inset -5px -5px 20px rgba(0,0,0,0.8), inset 0 0 40px ${temaScouter.cor}1a`,
                                 display: 'flex', flexDirection: 'column',
                                 position: 'relative', overflow: 'hidden'
                             }}>
+                                {/* O Coração do Scouter */}
+                                <div style={{ position: 'absolute', bottom: '-40%', right: '-10%', width: '300px', height: '300px', background: `radial-gradient(circle, ${temaScouter.cor}22 0%, transparent 70%)`, borderRadius: '50%', pointerEvents: 'none', animation: `pulse-aura ${temaScouter.pulse} ease-in-out infinite` }} />
+
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1, position: 'relative' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                                            <div style={{ width: '8px', height: '8px', background: temaScouter.cor, borderRadius: '50%', boxShadow: `0 0 10px ${temaScouter.cor}` }} />
-                                            <span style={{ color: '#fff', opacity: 0.7, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '4px' }}>
+                                            <div style={{ width: '8px', height: '8px', background: temaScouter.cor, borderRadius: '50%', boxShadow: `0 0 10px ${temaScouter.cor}, 0 0 20px ${temaScouter.cor}` }} />
+                                            <span style={{ color: '#fff', opacity: 0.8, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '4px' }}>
                                                 {temaScouter.nome}
                                             </span>
                                         </div>
                                         
                                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '15px' }}>
+                                            {/* TEXTO EM BRANCO PURO COM SOMBRA - SEM BUGS DE BACKGROUND-CLIP */}
                                             <span style={{
                                                 fontSize: '3.2em', fontWeight: '900', letterSpacing: '-1px',
-                                                color: '#ffffff', textShadow: `0 0 15px ${temaScouter.glow}, 0 0 30px ${temaScouter.glow}, 0 0 50px ${temaScouter.glow}`
+                                                color: '#ffffff',
+                                                textShadow: `0 0 10px ${temaScouter.glow}, 0 0 20px ${temaScouter.glow}, 0 0 40px ${temaScouter.glow}`
                                             }}>
                                                 {formatarPoderCosmico(poderGlobal)}
                                             </span>
-                                            <span style={{ fontSize: '0.5em', color: '#fff', opacity: 0.5, fontWeight: 'bold', letterSpacing: '1px' }}>
+                                            <span style={{ fontSize: '0.5em', color: '#fff', opacity: 0.6, fontWeight: 'bold', letterSpacing: '1px' }}>
                                                 {Number(poderGlobal).toExponential(2).replace('+', '').toUpperCase()}
                                             </span>
                                         </div>
                                     </div>
 
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingLeft: '20px' }}>
-                                        <span style={{ color: '#fff', opacity: 0.5, fontSize: '0.65em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '3px', marginBottom: '8px' }}>Grau Vital</span>
+                                        <span style={{ color: '#fff', opacity: 0.6, fontSize: '0.65em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '3px', marginBottom: '8px' }}>Grau Vital</span>
                                         <div style={{
                                             fontSize: '2.5em', fontWeight: '900', color: temaScouter.cor,
-                                            background: 'rgba(0,0,0,0.4)',
+                                            background: 'rgba(0,0,0,0.6)',
                                             padding: '8px 25px', borderRadius: '8px',
                                             border: `1px solid ${temaScouter.cor}55`,
-                                            boxShadow: `inset 0 0 15px ${temaScouter.cor}33`,
-                                            lineHeight: '1'
+                                            boxShadow: `inset 0 0 15px ${temaScouter.cor}33, 0 5px 15px rgba(0,0,0,0.5)`,
+                                            lineHeight: '1', textShadow: `0 0 10px ${temaScouter.cor}`
                                         }}>
                                             V{vitalidadeGlobal}
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* SLIDER DE SUPRESSÃO INFINITA (SEM LIMITES MÁXIMOS E MÍNIMOS) */}
+                                {/* SLIDER DE SUPRESSÃO + CONTROLO DE MESTRE */}
                                 <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '15px', position: 'relative', zIndex: 1, borderTop: `1px solid rgba(255,255,255,0.05)`, paddingTop: '15px' }}>
-                                    <span style={{ color: '#fff', opacity: 0.6, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>Libertar Poder:</span>
+                                    <span style={{ color: '#fff', opacity: 0.7, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>Ocultar Presença:</span>
                                     <input 
-                                        type="range" min="0" max="100" step="0.1" value={supressao > 100 ? 100 : supressao}
+                                        type="range" min={limiteSupressao} max="100" step="any" value={supressao > 100 ? 100 : supressao}
                                         onChange={e => { salvar('supressaoPoder', e.target.value); }}
                                         style={{ flex: 1, accentColor: temaScouter.cor, cursor: 'pointer', filter: `drop-shadow(0 0 5px ${temaScouter.cor})` }}
                                     />
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                                         <input 
-                                            type="number" min="0.000001" max="100" step="any" value={supressao}
-                                            onChange={e => { salvar('supressaoPoder', e.target.value); }}
+                                            type="number" min={limiteSupressao} max="100" step="any" value={supressao}
+                                            onChange={e => {
+                                                let val = Number(e.target.value);
+                                                if (val < limiteSupressao) val = limiteSupressao;
+                                                salvar('supressaoPoder', val);
+                                            }}
                                             style={{ width: '80px', background: 'rgba(0,0,0,0.5)', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }}
                                         />
                                         <span style={{ color: temaScouter.cor, fontWeight: 'bold', fontSize: '1.1em' }}>%</span>
                                     </div>
                                 </div>
+
+                                {/* O CADEADO DO MESTRE */}
+                                {isMestre && (
+                                    <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255, 0, 60, 0.1)', padding: '8px', borderRadius: '6px', border: '1px dashed rgba(255, 0, 60, 0.5)' }}>
+                                        <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>🔒 Controle do GM: Limite de Supressão Permitido:</span>
+                                        <input 
+                                            type="number" min="0.000001" step="any" value={limiteSupressao}
+                                            onChange={e => { salvar('limiteSupressao', e.target.value); }}
+                                            style={{ width: '80px', background: 'rgba(0,0,0,0.8)', color: '#ff003c', border: '1px solid #ff003c', padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }}
+                                        />
+                                        <span style={{ color: '#ff003c', fontWeight: 'bold', fontSize: '1em' }}>%</span>
+                                    </div>
+                                )}
+
+                                <style>{`
+                                    @keyframes pulse-aura {
+                                        0% { opacity: 0.3; transform: scale(0.9); }
+                                        50% { opacity: 0.8; transform: scale(1.1); }
+                                        100% { opacity: 0.3; transform: scale(0.9); }
+                                    }
+                                `}</style>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '1.2em' }}>
@@ -1258,7 +1297,7 @@ export default function MarcadosPanel() {
                                         <div style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
                                             <LabelMagico valor={getLabel('lblEnergiaForca', 'Força')} onChange={(v) => setLabel('lblEnergiaForca', v)} />
                                         </div>
-                                        <div style={{ fontSize: '0.85em', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: temaScouter.bgDark, fontWeight: 'bold' }}>
+                                        <div style={{ fontSize: '0.85em', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: `${temaScouter.cor}1a`, fontWeight: 'bold' }}>
                                             Poder: {formatarPoderCosmico(Math.floor((forcaMax + getGhostAscensionBonus('energiaForca', minhaFicha)) * (supressao / 100)))}
                                         </div>
                                     </div>
