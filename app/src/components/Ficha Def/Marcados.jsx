@@ -19,7 +19,6 @@ import RelicarioPanel from './RelicarioPanel';
 const safeGetRawBase = (f, k) => typeof AtributosCore.getRawBase === 'function' ? AtributosCore.getRawBase(f, k) : parseFloat(f[k]?.base) || 0;
 const safeGetBuffs = (f, k, t) => typeof AtributosCore.getBuffs === 'function' ? AtributosCore.getBuffs(f, k, t) : {};
 
-// Função blindada contra o erro da tela vermelha
 const safeGetMaximo = (ficha, key) => {
     try {
         if (AtributosCore && typeof AtributosCore.getMaximo === 'function') {
@@ -29,10 +28,18 @@ const safeGetMaximo = (ficha, key) => {
     return parseFloat(ficha[key]?.base) || 0;
 };
 
-// A LINHA DO RANK CORRIGIDA
 const safeGetRank = (prest, asc) => typeof getRank === 'function' ? getRank(prest, asc) : { l: 'F', c: '#ffffff', a: asc };
 
-// 🔥 CÁLCULO DO RESET FANTASMA (PARA A INTERFACE E SCOUTER) 🔥
+const getEfetivoMFormas = (ficha, k) => {
+    const anchor = k === 'status' ? 'forca' : k;
+    let s = ficha[anchor] || {};
+    let b = safeGetBuffs(ficha, anchor, true);
+    let v = parseFloat(s.mFormas) || 1.0;
+    if (!b._hasBuff || !b._hasBuff.mformas) return v;
+    return (v === 1.0 ? 0 : v) + b.mformas;
+};
+
+// 🔥 CÁLCULO DO RESET FANTASMA COM MULTIPLICADOR (mFormas) 🔥
 const getGhostAscensionBonus = (key, ficha) => {
     if (!ficha || !key) return 0;
     const ascBase = parseInt(ficha?.ascensaoBase) || 1;
@@ -40,16 +47,22 @@ const getGhostAscensionBonus = (key, ficha) => {
     const ascEfetiva = ascBase * multA;
     const keyLower = String(key).toLowerCase().trim();
     
+    let flatBonus = 0;
     if (['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaesp', 'carisma', 'stamina', 'constituicao'].includes(keyLower)) {
-        return ascEfetiva * 100000; // Físicos +100k
+        flatBonus = ascEfetiva * 100000; // Físicos +100k
     } else if (['mana', 'aura', 'chakra', 'corpo'].includes(keyLower)) {
-        return ascEfetiva * 1000000000; // Energias +1B
+        flatBonus = ascEfetiva * 1000000000; // Energias +1B
     } else if (['vida', 'pv', 'pm'].includes(keyLower)) {
-        return ascEfetiva * 100000000; // Vitais +100M
+        flatBonus = ascEfetiva * 100000000; // Vitais +100M
     } else if (['energiaforca'].includes(keyLower)) {
-        return ascEfetiva * 1000000000; 
+        flatBonus = ascEfetiva * 1000000000; 
     }
-    return 0;
+
+    // Pega o multiplicador de Forma (ex: Modo Assalto = 60x) e aplica na Ascensão também!
+    const mFormas = getEfetivoMFormas(ficha, keyLower);
+    const multFormaEfetivo = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
+    
+    return flatBonus * multFormaEfetivo;
 };
 
 const CLASSES_REGULARES_BASE = [
@@ -131,7 +144,6 @@ const PREDEFINIDOS_LORE = {
     elementos_basicos_verdadeiros: [ { label: "Básicos Verdadeiros", itens: ["Fogo Verdadeiro", "Raio Verdadeiro", "Agua Verdadeira", "Vento Verdadeiro", "Terra Verdadeira"] } ],
     elementos_avancados: [ { label: "Elementos Avançados", itens: ["Solar", "Energia", "Gelo", "Vacuo", "Natureza"] } ],
     elementos_avancados_verdadeiros: [ { label: "Avançados Verdadeiros", itens: ["Solar Verdadeiro", "Energia Verdadeira", "Gelo Verdadeiro", "Vacuo Verdadeiro", "Natureza Verdadeira"] } ],
-
     mana: [
         { label: "Magias de Ciclo", itens: ["Truques de Ciclo", "Magias de 1º a 10º Ciclo"] },
         { label: "Magias Arcanas/Negras", itens: ["Truques Arcanos/Negros", "Magias Arcanas/Negra de 1º a 10º Ciclo"] },
@@ -150,9 +162,7 @@ const PREDEFINIDOS_LORE = {
         { label: "Primordiais Verdadeiros", itens: ["Celestial", "Infernal", "Caos"] },
         { label: "Absolutos", itens: ["Criacao", "Destruicao", "Cosmos"] }
     ],
-    astral: [
-        { label: "Domínios da Existência", itens: ["Vida", "Morte", "Vazio", "Neutro", "Energia Astral"] }
-    ],
+    astral: [ { label: "Domínios da Existência", itens: ["Vida", "Morte", "Vazio", "Neutro", "Energia Astral"] } ],
     marciais: [
         { label: "Fundamentos", itens: ["Artes Marciais (Combate Corpo-a-Corpo)", "Reforço Físico"] },
         { label: "Estilos de Combate", itens: ["Punho do Dragão", "Palma Suave", "Caminho do Tigre", "Boxe Demoníaco", "Artes de Assassino", "Estilo Bêbado", "Punho de Ferro"] }
@@ -162,12 +172,8 @@ const PREDEFINIDOS_LORE = {
         { label: "Posturas de Combate", itens: ["Postura da Montanha", "Postura da Água", "Postura do Vento", "Postura do Trovão"] },
         { label: "Outras Armas", itens: ["Maestria com Lança", "Maestria com Foice", "Maestria com Arco", "Maestria com Armas de Fogo", "Maestria com Escudo"] }
     ],
-    cura: [
-        { label: "Medicina", itens: ["Regeneração Básica", "Cura Celular", "Purificação", "Reversão Temporal", "Transferência Vital", "Ressurreição Limitada"] }
-    ],
-    summons: [
-        { label: "Pactos", itens: ["Pacto Demoníaco", "Feras Divinas", "Espíritos Ancestrais", "Contrato Dracônico", "Exército de Sombras", "Invocação de Armamento Sagrado"] }
-    ]
+    cura: [ { label: "Medicina", itens: ["Regeneração Básica", "Cura Celular", "Purificação", "Reversão Temporal", "Transferência Vital", "Ressurreição Limitada"] } ],
+    summons: [ { label: "Pactos", itens: ["Pacto Demoníaco", "Feras Divinas", "Espíritos Ancestrais", "Contrato Dracônico", "Exército de Sombras", "Invocação de Armamento Sagrado"] } ]
 };
 
 const encontrarCategoriaPorLore = (nome) => {
@@ -196,15 +202,6 @@ const getBasePFor = (ficha, k) => {
         return Math.floor(((m / 8) / mults.status) * div) || 0;
     }
     return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
-};
-
-const getEfetivoMFormas = (ficha, k) => {
-    const anchor = k === 'status' ? 'forca' : k;
-    let s = ficha[anchor] || {};
-    let b = safeGetBuffs(ficha, anchor, true);
-    let v = parseFloat(s.mFormas) || 1.0;
-    if (!b._hasBuff || !b._hasBuff.mformas) return v;
-    return (v === 1.0 ? 0 : v) + b.mformas;
 };
 
 const calcularPrestAtual = (ficha, attrKey, baseP) => {
@@ -237,7 +234,8 @@ const callSave = () => {
     }, 400);
 };
 
-const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange, displayOverride }) => {
+// 🔥 CampoMagico Clássico: Retorna a formatação apenas em vírgulas! 🔥
+const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange }) => {
     const [focused, setFocused] = useState(false);
     const handleChange = (e) => {
         let val = e.target.value;
@@ -251,14 +249,9 @@ const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "te
     let displayValue = valor !== undefined && valor !== null ? String(valor) : '';
     let currentType = type;
     
-    // 🔥 FORMATADOR CÓSMICO (COM MÁSCARA DO RESET FANTASMA) 🔥
     if (isNumber && !focused && displayValue !== '') {
-        if (displayOverride !== undefined && displayOverride !== '') {
-            displayValue = displayOverride; 
-        } else {
-            let num = Number(displayValue);
-            if (!isNaN(num)) displayValue = formatarPoderCosmico(num);
-        }
+        let num = Number(displayValue);
+        if (!isNaN(num)) displayValue = num.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
         currentType = 'text';
     } else if (isNumber && focused) { 
         currentType = 'number'; 
@@ -340,12 +333,15 @@ const calcularEscala = (rawMax, key) => {
     return { mxDisplay: isNaN(mxDisplay) ? 0 : mxDisplay, pVit: isNaN(pVit) ? 0 : pVit };
 };
 
-const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual, vitalKey, ficha }) => {
+const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual }) => {
     const pct = maximo > 0 ? Math.min(100, Math.max(0, (atual / maximo) * 100)) : 0;
     const isDark = corTexto === '#fff';
     
     return (
         <div style={{ position: 'relative', width: '100%', height: '35px', border: '2px solid currentColor', borderRadius: '6px', background: 'rgba(255,255,255,0.2)', overflow: 'hidden', marginTop: '5px', boxShadow: 'inset 0 0 10px rgba(0,0,0,0.5)', display: 'flex' }}>
+            {pVit > 0 && (
+                <div style={{ width: '35px', height: '100%', background: 'rgba(0,0,0,0.9)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2em', borderRight: '2px solid rgba(0,0,0,0.8)', zIndex: 5, boxShadow: `inset 0 0 10px ${cor}` }}>{pVit}</div>
+            )}
             <div style={{ flex: 1, position: 'relative' }}>
                 <div style={{ width: `${pct}%`, height: '100%', background: cor, transition: 'width 0.3s ease' }} />
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2em', color: corTexto, textShadow: isDark ? '1px 1px 3px #000, -1px -1px 3px #000' : 'none' }}>
@@ -353,10 +349,10 @@ const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual
                         valor={atual} 
                         onChange={onChangeAtual} 
                         isNumber={true} 
-                        styleExtra={{ width: '150px', textAlign: 'right', color: corTexto, textShadow: 'inherit', borderBottom: `1px dashed ${isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} 
+                        styleExtra={{ width: '120px', textAlign: 'right', color: corTexto, textShadow: 'inherit', borderBottom: `1px dashed ${isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} 
                     />
                     <span style={{ margin: '0 8px' }}>/</span>
-                    <span>{formatarPoderCosmico(maximo)}</span>
+                    <span>{Number(maximo).toLocaleString('pt-BR')}</span>
                 </div>
             </div>
         </div>
@@ -848,8 +844,9 @@ export default function MarcadosPanel() {
         updateFicha(f => {
             ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => {
                 let mx = safeGetMaximo(minhaFicha, k);
+                const { mxDisplay } = calcularEscala(mx, k);
                 if (!f[k]) f[k] = {};
-                f[k].atual = isNaN(mx) ? 0 : mx;
+                f[k].atual = isNaN(mxDisplay) ? 0 : mxDisplay;
             });
             if (!f.pv) f.pv = {}; f.pv.atual = isNaN(pvMax) ? 0 : pvMax;
             if (!f.pm) f.pm = {}; f.pm.atual = isNaN(pmMax) ? 0 : pmMax;
@@ -870,10 +867,12 @@ export default function MarcadosPanel() {
         let rawMaximo = safeGetMaximo(minhaFicha, vitalKey);
         if (isNaN(rawMaximo)) rawMaximo = 0;
         
+        const { mxDisplay, pVit } = calcularEscala(rawMaximo, vitalKey);
+        
         let atual = minhaFicha[vitalKey]?.atual;
-        if (atual === undefined || atual === null || atual === '') atual = rawMaximo; else atual = Number(atual);
-        if (isNaN(atual)) atual = rawMaximo;
-        if (atual > rawMaximo) atual = rawMaximo;
+        if (atual === undefined || atual === null || atual === '') atual = mxDisplay; else atual = Number(atual);
+        if (isNaN(atual)) atual = mxDisplay;
+        if (atual > mxDisplay) atual = mxDisplay;
 
         const bonusAscensao = getGhostAscensionBonus(vitalKey, minhaFicha);
         const poderVerdadeiro = rawMaximo + bonusAscensao;
@@ -890,7 +889,7 @@ export default function MarcadosPanel() {
                     </div>
                 </div>
 
-                <BarraVital atual={atual} maximo={rawMaximo} cor={corBarra} corTexto={corTextoBarra} onChangeAtual={(v) => salvar(`${vitalKey}.atual`, v)} vitalKey={vitalKey} ficha={minhaFicha} />
+                <BarraVital atual={atual} maximo={mxDisplay} pVit={pVit} cor={corBarra} corTexto={corTextoBarra} onChangeAtual={(v) => salvar(`${vitalKey}.atual`, v)} />
                 
                 {aberto && subItens && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '35px', marginTop: '12px' }}>
@@ -1340,7 +1339,7 @@ export default function MarcadosPanel() {
                                             </div>
                                             <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
                                                 <span style={{ color: rankInfo.c || '#fff', fontWeight: 'bold', fontSize: '0.9em' }}>Rank {rankInfo.l || 'F'} [A{Math.floor(rankInfo.ascensaoFinal || 1)}]</span>
-                                                <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1em' }}>{formatarPoderCosmico(Math.floor(rankInfo.prestigioFinal || 0))}</span>
+                                                <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1em' }}>{Number(Math.floor(rankInfo.prestigioFinal || 0)).toLocaleString('pt-BR')}</span>
                                             </div>
                                         </div>
                                     );
