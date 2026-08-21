@@ -32,7 +32,7 @@ const safeGetMaximo = (ficha, key) => {
 // A LINHA DO RANK CORRIGIDA
 const safeGetRank = (prest, asc) => typeof getRank === 'function' ? getRank(prest, asc) : { l: 'F', c: '#ffffff', a: asc };
 
-// 🔥 CÁLCULO DO RESET FANTASMA (PARA O SCOUTER DE PODER) 🔥
+// 🔥 CÁLCULO DO RESET FANTASMA (PARA A INTERFACE E SCOUTER) 🔥
 const getGhostAscensionBonus = (key, ficha) => {
     if (!ficha || !key) return 0;
     const ascBase = parseInt(ficha?.ascensaoBase) || 1;
@@ -126,20 +126,11 @@ const CATEGORIAS_DOMINIO = {
     'summons': { titulo: 'Contratos & Invocações', icone: '👹', cor: '#ffcc00' }
 };
 
-// 🔥 LORE SEPARADA NAS 4 TABELAS ELEMENTAIS 🔥
 const PREDEFINIDOS_LORE = {
-    elementos_basicos: [
-        { label: "Elementos Básicos", itens: ["Fogo", "Raio", "Agua", "Vento", "Terra"] }
-    ],
-    elementos_basicos_verdadeiros: [
-        { label: "Básicos Verdadeiros", itens: ["Fogo Verdadeiro", "Raio Verdadeiro", "Agua Verdadeira", "Vento Verdadeiro", "Terra Verdadeira"] }
-    ],
-    elementos_avancados: [
-        { label: "Elementos Avançados", itens: ["Solar", "Energia", "Gelo", "Vacuo", "Natureza"] }
-    ],
-    elementos_avancados_verdadeiros: [
-        { label: "Avançados Verdadeiros", itens: ["Solar Verdadeiro", "Energia Verdadeira", "Gelo Verdadeiro", "Vacuo Verdadeiro", "Natureza Verdadeira"] }
-    ],
+    elementos_basicos: [ { label: "Elementos Básicos", itens: ["Fogo", "Raio", "Agua", "Vento", "Terra"] } ],
+    elementos_basicos_verdadeiros: [ { label: "Básicos Verdadeiros", itens: ["Fogo Verdadeiro", "Raio Verdadeiro", "Agua Verdadeira", "Vento Verdadeiro", "Terra Verdadeira"] } ],
+    elementos_avancados: [ { label: "Elementos Avançados", itens: ["Solar", "Energia", "Gelo", "Vacuo", "Natureza"] } ],
+    elementos_avancados_verdadeiros: [ { label: "Avançados Verdadeiros", itens: ["Solar Verdadeiro", "Energia Verdadeira", "Gelo Verdadeiro", "Vacuo Verdadeiro", "Natureza Verdadeira"] } ],
 
     mana: [
         { label: "Magias de Ciclo", itens: ["Truques de Ciclo", "Magias de 1º a 10º Ciclo"] },
@@ -246,8 +237,7 @@ const callSave = () => {
     }, 400);
 };
 
-// CampoMagico Restaurado: Exibe sempre os números normais (com vírgulas). Sem máscaras embutidas.
-const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange }) => {
+const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange, displayOverride }) => {
     const [focused, setFocused] = useState(false);
     const handleChange = (e) => {
         let val = e.target.value;
@@ -261,12 +251,18 @@ const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "te
     let displayValue = valor !== undefined && valor !== null ? String(valor) : '';
     let currentType = type;
     
+    // 🔥 FORMATADOR CÓSMICO (COM MÁSCARA DO RESET FANTASMA) 🔥
     if (isNumber && !focused && displayValue !== '') {
-        let num = Number(displayValue);
-        if (!isNaN(num)) displayValue = num.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+        if (displayOverride !== undefined && displayOverride !== '') {
+            displayValue = displayOverride; 
+        } else {
+            let num = Number(displayValue);
+            if (!isNaN(num)) displayValue = formatarPoderCosmico(num);
+        }
         currentType = 'text';
     } else if (isNumber && focused) { 
         currentType = 'number'; 
+        displayValue = valor !== undefined && valor !== null ? String(valor) : '';
     }
 
     return (
@@ -298,8 +294,7 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     if (isNaN(maxVal)) maxVal = 0;
 
     const fatorSeguro = parseFloat(fator) || 1;
-    const baseExibido = (baseValRaw === undefined || baseValRaw === null || baseValRaw === '')
-        ? '' : Math.floor(rawBase * fatorSeguro);
+    const baseExibido = (baseValRaw === undefined || baseValRaw === null || baseValRaw === '') ? '' : Math.floor(rawBase * fatorSeguro);
     const valorAtual = Math.floor(maxVal * fatorSeguro);
 
     const editandoBase = attrBaseFocado === attrKey;
@@ -313,13 +308,10 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
-                {/* 🌟 A NOVA DEMARCAÇÃO DO POWER LEVEL 🌟 */}
                 <span style={{ fontSize: '0.7em', color: '#00ffcc', border: '1px solid #00ffcc', padding: '2px 6px', borderRadius: '10px', background: 'rgba(0,255,204,0.1)', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
                     Poder: {formatarPoderCosmico(poderVerdadeiro)}
                 </span>
             </div>
-            
-            {/* O Valor Original Limpo Mantém-se na Direita */}
             {isAtual
                 ? <span style={{ fontWeight: 'bold' }}>{Number(valorAtual).toLocaleString('pt-BR')}</span>
                 : <CampoMagico
@@ -332,7 +324,6 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     );
 };
 
-// calcularEscala Restaurado!
 const calcularEscala = (rawMax, key) => {
     if (!rawMax || isNaN(rawMax) || rawMax <= 0) return { mxDisplay: 0, pVit: 0 };
     const limit = (key === 'vida' || key === 'pv' || key === 'pm') ? 8 : 9;
@@ -349,21 +340,23 @@ const calcularEscala = (rawMax, key) => {
     return { mxDisplay: isNaN(mxDisplay) ? 0 : mxDisplay, pVit: isNaN(pVit) ? 0 : pVit };
 };
 
-// BarraVital Restaurada com pVit!
-const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual }) => {
+const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual, vitalKey, ficha }) => {
     const pct = maximo > 0 ? Math.min(100, Math.max(0, (atual / maximo) * 100)) : 0;
     const isDark = corTexto === '#fff';
+    
     return (
         <div style={{ position: 'relative', width: '100%', height: '35px', border: '2px solid currentColor', borderRadius: '6px', background: 'rgba(255,255,255,0.2)', overflow: 'hidden', marginTop: '5px', boxShadow: 'inset 0 0 10px rgba(0,0,0,0.5)', display: 'flex' }}>
-            {pVit > 0 && (
-                <div style={{ width: '35px', height: '100%', background: 'rgba(0,0,0,0.9)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2em', borderRight: '2px solid rgba(0,0,0,0.8)', zIndex: 5, boxShadow: `inset 0 0 10px ${cor}` }}>{pVit}</div>
-            )}
             <div style={{ flex: 1, position: 'relative' }}>
                 <div style={{ width: `${pct}%`, height: '100%', background: cor, transition: 'width 0.3s ease' }} />
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2em', color: corTexto, textShadow: isDark ? '1px 1px 3px #000, -1px -1px 3px #000' : 'none' }}>
-                    <CampoMagico valor={atual} onChange={onChangeAtual} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTexto, textShadow: 'inherit', borderBottom: `1px dashed ${isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
+                    <CampoMagico 
+                        valor={atual} 
+                        onChange={onChangeAtual} 
+                        isNumber={true} 
+                        styleExtra={{ width: '150px', textAlign: 'right', color: corTexto, textShadow: 'inherit', borderBottom: `1px dashed ${isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} 
+                    />
                     <span style={{ margin: '0 8px' }}>/</span>
-                    <span>{Number(maximo).toLocaleString('pt-BR')}</span>
+                    <span>{formatarPoderCosmico(maximo)}</span>
                 </div>
             </div>
         </div>
@@ -422,7 +415,6 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000" }) => {
 // ==========================================
 // 📜 O COMPONENTE: HIERARQUIA DE DOMÍNIOS (ISOLADO E BLINDADO)
 // ==========================================
-
 const CHAVES_PROIBIDAS_LEGADO = [
     'elementais', 'elementos', 'mana', 'chakra', 'aura', 'astrais', 'astral',
     'primordiais', 'marciais', 'armas', 'cura', 'summons', 'inventario', 'arsenal',
@@ -437,14 +429,11 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
 
     const dominiosFiltrados = Object.entries(dominiosSalvos).filter(([nome, dados]) => {
         if (!dados || typeof dados !== 'object' || !dados.nivel) return false;
-        
         const nomeLower = String(nome).trim().toLowerCase();
         if (CHAVES_PROIBIDAS_LEGADO.includes(nomeLower)) return false;
-        
         const catAuto = encontrarCategoriaPorLore(nome);
         if (catAuto) return catAuto === catKey; 
-        
-        return dados.categoria === catKey; // Removido o fallback padrão para evitar vazamentos na gaveta
+        return dados.categoria === catKey; 
     });
 
     const handleAdd = (val) => {
@@ -497,25 +486,14 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
     };
 
     return (
-        <div style={{ 
-            border: `1px solid ${corTema}`, padding: '20px', borderRadius: '8px', 
-            background: 'rgba(0,0,0,0.1)', position: 'relative', display: 'flex', flexDirection: 'column', gap: '12px',
-            boxShadow: `inset 0 0 15px ${corTema}10`
-        }}>
+        <div style={{ border: `1px solid ${corTema}`, padding: '20px', borderRadius: '8px', background: 'rgba(0,0,0,0.1)', position: 'relative', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: `inset 0 0 15px ${corTema}10` }}>
             <h3 style={{ margin: '0 0 5px 0', fontSize: '1.25em', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', color: corTema }}>
                 <span>{catData.icone}</span> {catData.titulo}
             </h3>
             <div style={{ width: '100%', borderBottom: '1px dotted currentColor', opacity: 0.2, marginBottom: '5px' }} />
 
             <div style={{ display: 'flex', gap: '10px' }}>
-                <select
-                    value={selectValue}
-                    onChange={e => setSelectValue(e.target.value)}
-                    style={{ 
-                        flex: 1, background: '#0a0a0f', border: `1px solid ${corTema}`, color: '#fff', 
-                        padding: '10px', borderRadius: '4px', outline: 'none', fontFamily: 'inherit', fontSize: '0.95em' 
-                    }}
-                >
+                <select value={selectValue} onChange={e => setSelectValue(e.target.value)} style={{ flex: 1, background: '#0a0a0f', border: `1px solid ${corTema}`, color: '#fff', padding: '10px', borderRadius: '4px', outline: 'none', fontFamily: 'inherit', fontSize: '0.95em' }}>
                     <option value="">-- Escolher da Lore --</option>
                     {(PREDEFINIDOS_LORE[catKey] || []).map(grupo => (
                         <optgroup key={grupo.label} label={`— ${grupo.label} —`} style={{ color: '#fff', background: '#0a0a0f' }}>
@@ -524,52 +502,16 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                     ))}
                 </select>
                 <div style={{ display: 'flex', gap: '5px' }}>
-                    <button 
-                        onClick={() => handleAdd(selectValue)} 
-                        style={{ 
-                            background: 'transparent', border: `1px solid ${corTema}`, color: corTema, cursor: 'pointer', 
-                            padding: '10px 15px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase', fontFamily: 'inherit'
-                        }}
-                    >
-                        ADICIONAR
-                    </button>
+                    <button onClick={() => handleAdd(selectValue)} style={{ background: 'transparent', border: `1px solid ${corTema}`, color: corTema, cursor: 'pointer', padding: '10px 15px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase', fontFamily: 'inherit' }}>ADICIONAR</button>
                     {(PREDEFINIDOS_LORE[catKey] && PREDEFINIDOS_LORE[catKey].length > 0) && (
-                        <button 
-                            onClick={handleAddTudo} 
-                            style={{ 
-                                background: `${corTema}22`, border: `1px solid ${corTema}`, color: corTema, cursor: 'pointer', 
-                                padding: '10px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase', fontFamily: 'inherit',
-                                boxShadow: `0 0 10px ${corTema}44`
-                            }}
-                            title="Adicionar toda a Lore de uma vez"
-                        >
-                            + TUDO
-                        </button>
+                        <button onClick={handleAddTudo} style={{ background: `${corTema}22`, border: `1px solid ${corTema}`, color: corTema, cursor: 'pointer', padding: '10px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase', fontFamily: 'inherit', boxShadow: `0 0 10px ${corTema}44` }} title="Adicionar toda a Lore de uma vez">+ TUDO</button>
                     )}
                 </div>
             </div>
 
             <div style={{ display: 'flex', gap: '10px' }}>
-                <input
-                    type="text"
-                    placeholder="Criar novo (Ex: Punho das Sombras)"
-                    value={inputValue}
-                    onChange={e => setInputValue(e.target.value)}
-                    style={{ 
-                        flex: 1, background: '#0a0a0f', border: '1px solid #ffcc00', color: '#fff', 
-                        padding: '10px', borderRadius: '4px', outline: 'none', fontFamily: 'inherit', fontSize: '0.95em' 
-                    }}
-                />
-                <button 
-                    onClick={() => handleAdd(inputValue)} 
-                    style={{ 
-                        background: 'transparent', border: '1px solid #ffcc00', color: '#ffcc00', cursor: 'pointer', 
-                        padding: '10px 20px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase', 
-                        display: 'flex', alignItems: 'center', gap: '5px', fontFamily: 'inherit'
-                    }}
-                >
-                    + CRIAR
-                </button>
+                <input type="text" placeholder="Criar novo (Ex: Punho das Sombras)" value={inputValue} onChange={e => setInputValue(e.target.value)} style={{ flex: 1, background: '#0a0a0f', border: '1px solid #ffcc00', color: '#fff', padding: '10px', borderRadius: '4px', outline: 'none', fontFamily: 'inherit', fontSize: '0.95em' }} />
+                <button onClick={() => handleAdd(inputValue)} style={{ background: 'transparent', border: '1px solid #ffcc00', color: '#ffcc00', cursor: 'pointer', padding: '10px 20px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px', fontFamily: 'inherit' }}>+ CRIAR</button>
             </div>
 
             {dominiosFiltrados.length === 0 ? (
@@ -580,51 +522,26 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                         const nivel = dadosDom?.nivel || 1;
                         const infoNivel = NIVEIS_DOMINIO[nivel] || NIVEIS_DOMINIO[1];
                         return (
-                            <div key={nomeDom} style={{ 
-                                padding: '14px', border: `1px solid ${corTema}`, background: '#050508', 
-                                borderRadius: '6px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '6px'
-                            }}>
-                                <button 
-                                    onClick={() => handleRemove(nomeDom)} 
-                                    style={{ position: 'absolute', top: '10px', right: '12px', background: 'transparent', border: 'none', color: '#ff003c', fontSize: '1.3em', cursor: 'pointer', padding: '0', fontWeight: 'bold' }} 
-                                    title="Apagar Registo"
-                                >
-                                    ✖
-                                </button>
+                            <div key={nomeDom} style={{ padding: '14px', border: `1px solid ${corTema}`, background: '#050508', borderRadius: '6px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <button onClick={() => handleRemove(nomeDom)} style={{ position: 'absolute', top: '10px', right: '12px', background: 'transparent', border: 'none', color: '#ff003c', fontSize: '1.3em', cursor: 'pointer', padding: '0', fontWeight: 'bold' }} title="Apagar Registo">✖</button>
                                 
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '25px' }}>
                                     <strong style={{ fontSize: '1.2em', textTransform: 'uppercase', letterSpacing: '1px', color: '#fff' }}>{nomeDom}</strong>
-                                    
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         {!encontrarCategoriaPorLore(nomeDom) && (
-                                            <select
-                                                value={dadosDom.categoria || catKey}
-                                                onChange={e => handleMove(nomeDom, e.target.value)}
-                                                style={{ background: '#0a0a0f', color: '#aaa', border: '1px dashed #444', borderRadius: '4px', padding: '4px 6px', fontSize: '0.85em', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }}
-                                                title="Mover para outro quadrante"
-                                            >
+                                            <select value={dadosDom.categoria || catKey} onChange={e => handleMove(nomeDom, e.target.value)} style={{ background: '#0a0a0f', color: '#aaa', border: '1px dashed #444', borderRadius: '4px', padding: '4px 6px', fontSize: '0.85em', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }} title="Mover para outro quadrante">
                                                 {Object.entries(CATEGORIAS_DOMINIO).map(([k, c]) => (
                                                     <option key={k} value={k}>➔ {c.titulo.split(' ')[0]}</option>
                                                 ))}
                                             </select>
                                         )}
-
-                                        <select
-                                            value={nivel}
-                                            onChange={e => handleChangeNivel(nomeDom, e.target.value)}
-                                            style={{ 
-                                                background: '#0a0a0f', color: infoNivel.cor, border: `1px solid ${infoNivel.cor}`, 
-                                                borderRadius: '4px', padding: '4px 8px', fontFamily: 'inherit', outline: 'none', 
-                                                fontWeight: 'bold', fontSize: '0.9em', cursor: 'pointer' 
-                                            }}
-                                        >
+                                        <select value={nivel} onChange={e => handleChangeNivel(nomeDom, e.target.value)} style={{ background: '#0a0a0f', color: infoNivel.cor, border: `1px solid ${infoNivel.cor}`, borderRadius: '4px', padding: '4px 8px', fontFamily: 'inherit', outline: 'none', fontWeight: 'bold', fontSize: '0.9em', cursor: 'pointer' }}>
                                             {Object.entries(NIVEIS_DOMINIO).map(([n, d]) => (
                                                 <option key={n} value={n} style={{ background: '#0a0a0f', color: '#fff' }}>Lv {n} - {d.nome}</option>
                                             ))}
                                         </select>
                                     </div>
                                 </div>
-
                                 <div style={{ fontSize: '0.9em', fontStyle: 'italic', color: '#ccc' }}>
                                     <span style={{ color: infoNivel.cor, fontWeight: 'bold' }}>⚡ :</span> {infoNivel.desc}
                                 </div>
@@ -639,25 +556,15 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
 
 const DominiosPanel = ({ ficha, updateFicha }) => {
     const dominiosSalvos = ficha?.dominios || {};
-
     return (
         <div style={{ width: '100%' }}>
             <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-                <h1 style={{ fontSize: '3em', fontStyle: 'italic', fontWeight: 'bold', margin: 0, paddingBottom: '10px', borderBottom: `2px dashed currentColor` }}>
-                    A Hierarquia de Domínios
-                </h1>
+                <h1 style={{ fontSize: '3em', fontStyle: 'italic', fontWeight: 'bold', margin: 0, paddingBottom: '10px', borderBottom: `2px dashed currentColor` }}>A Hierarquia de Domínios</h1>
                 <p style={{ opacity: 0.7, fontStyle: 'italic', marginTop: '5px' }}>O Conhecimento Absoluto das Artes Místicas e Marciais</p>
             </div>
-
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '25px' }}>
                 {Object.entries(CATEGORIAS_DOMINIO).map(([catKey, catData]) => (
-                    <QuadranteCategoria 
-                        key={catKey} 
-                        catKey={catKey} 
-                        catData={catData} 
-                        dominiosSalvos={dominiosSalvos} 
-                        updateFicha={updateFicha} 
-                    />
+                    <QuadranteCategoria key={catKey} catKey={catKey} catData={catData} dominiosSalvos={dominiosSalvos} updateFicha={updateFicha} />
                 ))}
             </div>
         </div>
@@ -707,6 +614,43 @@ export default function MarcadosPanel() {
             setLocalCorFundoTint(minhaFicha.estetica?.corFundoTint || '#ffffff');
         }
     }, [minhaFicha?.estetica]);
+
+    // 🔥 CÁLCULO DO SCOUTER GLOBAL (MÉDIA DOS 6 STATUS PRINCIPAIS) 🔥
+    const { poderGlobal, vitalidadeGlobal } = useMemo(() => {
+        if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0 };
+        
+        const calcTrueMax = (key) => {
+            if (key === 'status') {
+                let m = 0;
+                ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
+                    m += safeGetMaximo(minhaFicha, s) + getGhostAscensionBonus(s, minhaFicha);
+                });
+                return Math.floor(m / 8);
+            } else {
+                return safeGetMaximo(minhaFicha, key) + getGhostAscensionBonus(key, minhaFicha);
+            }
+        };
+
+        const valVida = calcTrueMax('vida');
+        const valMana = calcTrueMax('mana');
+        const valAura = calcTrueMax('aura');
+        const valChakra = calcTrueMax('chakra');
+        const valCorpo = calcTrueMax('corpo');
+        const valStatus = calcTrueMax('status');
+
+        const media = Math.floor((valVida + valMana + valAura + valChakra + valCorpo + valStatus) / 6);
+        
+        let strVal = String(media);
+        let digitos = strVal.length;
+        if (strVal.includes('e')) {
+            const parts = strVal.split('e');
+            digitos = parseInt(parts[1].replace('+', '')) + 1;
+        }
+        
+        const vit = Math.max(0, digitos - 8);
+
+        return { poderGlobal: media, vitalidadeGlobal: vit };
+    }, [minhaFicha]);
 
     if (!minhaFicha) return <div style={{ color: '#000', padding: 20, fontFamily: 'cursive' }}>Abrindo a Ficha...</div>;
 
@@ -904,9 +848,8 @@ export default function MarcadosPanel() {
         updateFicha(f => {
             ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => {
                 let mx = safeGetMaximo(minhaFicha, k);
-                const { mxDisplay } = calcularEscala(mx, k);
                 if (!f[k]) f[k] = {};
-                f[k].atual = isNaN(mxDisplay) ? 0 : mxDisplay;
+                f[k].atual = isNaN(mx) ? 0 : mx;
             });
             if (!f.pv) f.pv = {}; f.pv.atual = isNaN(pvMax) ? 0 : pvMax;
             if (!f.pm) f.pm = {}; f.pm.atual = isNaN(pmMax) ? 0 : pmMax;
@@ -922,20 +865,16 @@ export default function MarcadosPanel() {
         else salvarFichaSilencioso();
     };
 
-    // 🔥 O COMPONENTE MÁGICO DA LINHA VITAL COM SCOUTER 🔥
     const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, corTextoBarra = '#fff' }) => {
         const [aberto, setAberta] = useState(false);
         let rawMaximo = safeGetMaximo(minhaFicha, vitalKey);
         if (isNaN(rawMaximo)) rawMaximo = 0;
         
-        const { mxDisplay, pVit } = calcularEscala(rawMaximo, vitalKey);
-        
         let atual = minhaFicha[vitalKey]?.atual;
-        if (atual === undefined || atual === null || atual === '') atual = mxDisplay; else atual = Number(atual);
-        if (isNaN(atual)) atual = mxDisplay;
-        if (atual > mxDisplay) atual = mxDisplay;
+        if (atual === undefined || atual === null || atual === '') atual = rawMaximo; else atual = Number(atual);
+        if (isNaN(atual)) atual = rawMaximo;
+        if (atual > rawMaximo) atual = rawMaximo;
 
-        // O Valor Efetivo de Batalha!
         const bonusAscensao = getGhostAscensionBonus(vitalKey, minhaFicha);
         const poderVerdadeiro = rawMaximo + bonusAscensao;
 
@@ -946,25 +885,34 @@ export default function MarcadosPanel() {
                         {subItens && <span onClick={() => setAberta(!aberto)} style={{ cursor: 'pointer', width: '20px', display: 'inline-block', userSelect: 'none', fontWeight: 'bold' }}>{aberto ? 'v ' : '> '}</span>}
                         <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
                     </div>
-                    {/* 🌟 A NOVA DEMARCAÇÃO DO POWER LEVEL 🌟 */}
                     <div style={{ fontSize: '0.85em', color: '#ffcc00', border: '1px solid #ffcc00', padding: '2px 10px', borderRadius: '12px', background: 'rgba(255,204,0,0.1)', fontWeight: 'bold' }}>
                         Poder: {formatarPoderCosmico(poderVerdadeiro)}
                     </div>
                 </div>
 
-                {/* A Barra Clássica e Limpa */}
-                <BarraVital atual={atual} maximo={mxDisplay} pVit={pVit} cor={corBarra} corTexto={corTextoBarra} onChangeAtual={(v) => salvar(`${vitalKey}.atual`, v)} />
+                <BarraVital atual={atual} maximo={rawMaximo} cor={corBarra} corTexto={corTextoBarra} onChangeAtual={(v) => salvar(`${vitalKey}.atual`, v)} vitalKey={vitalKey} ficha={minhaFicha} />
                 
                 {aberto && subItens && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '35px', marginTop: '12px' }}>
-                        {subItens.map(sub => (
-                            <div key={sub.labelKey} style={{ fontSize: '1.05em', display: 'flex', alignItems: 'center' }}>
-                                <LabelMagico valor={getLabel(sub.labelKey, sub.fallbackLabel)} onChange={(v) => setLabel(sub.labelKey, v)} />
-                                <span style={{ fontWeight: 'bold', fontStyle: 'italic', margin: '0 5px' }}>: (</span>
-                                <CampoMagico valor={minhaFicha[sub.key]?.base || ''} onChange={(v) => salvar(`${sub.key}.base`, v)} styleExtra={{ width: '90px' }} isNumber={true} type="number" />
-                                <span style={{ fontWeight: 'bold', fontStyle: 'italic' }}>)</span>
-                            </div>
-                        ))}
+                        {subItens.map(sub => {
+                            const subBaseRaw = minhaFicha[sub.key]?.base;
+                            const trueSubBase = (subBaseRaw === undefined || subBaseRaw === null || subBaseRaw === '') ? '' : (parseFloat(subBaseRaw) + getGhostAscensionBonus(sub.key, minhaFicha));
+                            return (
+                                <div key={sub.labelKey} style={{ fontSize: '1.05em', display: 'flex', alignItems: 'center' }}>
+                                    <LabelMagico valor={getLabel(sub.labelKey, sub.fallbackLabel)} onChange={(v) => setLabel(sub.labelKey, v)} />
+                                    <span style={{ fontWeight: 'bold', fontStyle: 'italic', margin: '0 5px' }}>: (</span>
+                                    <CampoMagico 
+                                        valor={subBaseRaw || ''} 
+                                        displayOverride={trueSubBase !== '' ? formatarPoderCosmico(trueSubBase) : ''}
+                                        onChange={(v) => salvar(`${sub.key}.base`, v)} 
+                                        styleExtra={{ width: '90px' }} 
+                                        isNumber={true} 
+                                        type="number" 
+                                    />
+                                    <span style={{ fontWeight: 'bold', fontStyle: 'italic' }}>)</span>
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>
@@ -1117,6 +1065,33 @@ export default function MarcadosPanel() {
                                 <CampoMagico valor={minhaFicha.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
 
+                            {/* 🌟 O SCOUTER GLOBAL HOLOGRÁFICO SCI-FI 🌟 */}
+                            <div style={{
+                                marginTop: '10px', marginBottom: '20px', padding: '15px 20px',
+                                background: 'linear-gradient(135deg, rgba(0, 255, 204, 0.1) 0%, rgba(0, 0, 0, 0.6) 100%)',
+                                border: '1px solid #00ffcc', borderRadius: '8px',
+                                boxShadow: '0 0 20px rgba(0, 255, 204, 0.2), inset 0 0 10px rgba(0, 255, 204, 0.1)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                position: 'relative', overflow: 'hidden'
+                            }}>
+                                <div style={{ position: 'absolute', top: 0, left: '-100%', width: '50%', height: '100%', background: 'linear-gradient(to right, transparent, rgba(0,255,204,0.1), transparent)', transform: 'skewX(-20deg)', animation: 'scanline 3s infinite linear' }} />
+                                
+                                <div style={{ display: 'flex', flexDirection: 'column', zIndex: 1 }}>
+                                    <span style={{ color: '#00ffcc', fontSize: '0.85em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '2px' }}>Poder de Luta Global</span>
+                                    <span style={{ color: '#fff', fontSize: '2.2em', fontWeight: '900', textShadow: '0 0 10px #00ffcc', display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+                                        {formatarPoderCosmico(poderGlobal)}
+                                        <span style={{ fontSize: '0.4em', color: '#00ffcc', fontWeight: 'normal', opacity: 0.8 }}>({Number(poderGlobal).toExponential(2).replace('+', '')})</span>
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', zIndex: 1 }}>
+                                    <span style={{ color: '#ffcc00', fontSize: '0.85em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>Tier / Vitalidade</span>
+                                    <div style={{ fontSize: '2.5em', fontWeight: '900', color: '#ffcc00', textShadow: '0 0 15px #ffcc00', lineHeight: '1' }}>
+                                        V{vitalidadeGlobal}
+                                    </div>
+                                </div>
+                                <style>{`@keyframes scanline { 0% { left: -50%; } 100% { left: 150%; } }`}</style>
+                            </div>
+
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '1.2em' }}>
                                 {[
                                     { k: 'idade', lbl: 'Idade' },
@@ -1217,7 +1192,7 @@ export default function MarcadosPanel() {
                                             Poder: {formatarPoderCosmico(forcaMax + getGhostAscensionBonus('energiaForca', minhaFicha))}
                                         </div>
                                     </div>
-                                    <BarraVital atual={minhaFicha.energiaForca?.atual !== undefined && minhaFicha.energiaForca?.atual !== '' ? Number(minhaFicha.energiaForca.atual) : forcaMax} maximo={forcaMax} pVit={0} cor="#FFD700" corTexto="#000" onChangeAtual={(v) => salvar('energiaForca.atual', v)} />
+                                    <BarraVital atual={minhaFicha.energiaForca?.atual !== undefined && minhaFicha.energiaForca?.atual !== '' ? Number(minhaFicha.energiaForca.atual) : forcaMax} maximo={forcaMax} cor="#FFD700" corTexto="#000" onChangeAtual={(v) => salvar('energiaForca.atual', v)} vitalKey="energiaForca" ficha={minhaFicha} />
                                 </div>
                             </div>
 
@@ -1227,11 +1202,11 @@ export default function MarcadosPanel() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                 <div style={{ marginBottom: '5px' }}>
                                     <LabelMagico valor={getLabel('lblPV', 'Pontos Vitais (PV)')} onChange={(v) => setLabel('lblPV', v)} />
-                                    <BarraVital atual={minhaFicha.pv?.atual !== undefined && minhaFicha.pv?.atual !== '' ? Number(minhaFicha.pv.atual) : pvMax} maximo={pvMax} pVit={0} cor="#ffffff" corTexto="#000" onChangeAtual={(v) => salvar('pv.atual', v)} />
+                                    <BarraVital atual={minhaFicha.pv?.atual !== undefined && minhaFicha.pv?.atual !== '' ? Number(minhaFicha.pv.atual) : pvMax} maximo={pvMax} cor="#ffffff" corTexto="#000" onChangeAtual={(v) => salvar('pv.atual', v)} vitalKey="pv" ficha={minhaFicha} />
                                 </div>
                                 <div style={{ marginBottom: '15px' }}>
                                     <LabelMagico valor={getLabel('lblPM', 'Pontos Mortais (PM)')} onChange={(v) => setLabel('lblPM', v)} />
-                                    <BarraVital atual={minhaFicha.pm?.atual !== undefined && minhaFicha.pm?.atual !== '' ? Number(minhaFicha.pm.atual) : pmMax} maximo={pmMax} pVit={0} cor="#000000" corTexto="#fff" onChangeAtual={(v) => salvar('pm.atual', v)} />
+                                    <BarraVital atual={minhaFicha.pm?.atual !== undefined && minhaFicha.pm?.atual !== '' ? Number(minhaFicha.pm.atual) : pmMax} maximo={pmMax} cor="#000000" corTexto="#fff" onChangeAtual={(v) => salvar('pm.atual', v)} vitalKey="pm" ficha={minhaFicha} />
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
@@ -1365,7 +1340,7 @@ export default function MarcadosPanel() {
                                             </div>
                                             <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
                                                 <span style={{ color: rankInfo.c || '#fff', fontWeight: 'bold', fontSize: '0.9em' }}>Rank {rankInfo.l || 'F'} [A{Math.floor(rankInfo.ascensaoFinal || 1)}]</span>
-                                                <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1em' }}>{Number(Math.floor(rankInfo.prestigioFinal || 0)).toLocaleString('pt-BR')}</span>
+                                                <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '1.1em' }}>{formatarPoderCosmico(Math.floor(rankInfo.prestigioFinal || 0))}</span>
                                             </div>
                                         </div>
                                     );
