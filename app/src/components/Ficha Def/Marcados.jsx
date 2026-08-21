@@ -49,7 +49,7 @@ const getEfetivoMFormas = (ficha, k) => {
     return (v === 1.0 ? 0 : v) + b.mformas;
 };
 
-// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO (AGORA SIM, DEFINIDA E BLINDADA) 🔥
+// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO 🔥
 const getGhostAscensionBonus = (key, ficha) => {
     if (!ficha || !key) return 0;
     const ascBase = parseInt(ficha?.ascensaoBase) || 1;
@@ -171,7 +171,6 @@ const CATEGORIAS_DOMINIO = {
     'elementos_basicos_verdadeiros': { titulo: 'Básicos Verdadeiros', icone: '🌋', cor: '#ff3300' },
     'elementos_avancados': { titulo: 'Elementos Avançados', icone: '☄️', cor: '#ffaa00' },
     'elementos_avancados_verdadeiros': { titulo: 'Avançados Verdadeiros', icone: '☀️', cor: '#ffcc00' },
-    
     'mana': { titulo: 'Artes de Mana (Grimório)', icone: '🔮', cor: '#0088ff' },
     'chakra': { titulo: 'Artes de Chakra (Shinobi)', icone: '🌀', cor: '#00ffcc' },
     'aura': { titulo: 'Artes de Aura (Manifestação)', icone: '✨', cor: '#ff00ff' },
@@ -470,7 +469,7 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
     };
 
     return (
-        <svg viewBox="0 0 240 240" style={{ width: '100%', maxWidth: '340px', height: 'auto', overflow: 'visible', dropShadow: '2px 2px 2px rgba(0,0,0,0.2)' }}>
+        <svg viewBox="0 0 240 240" style={{ width: '100%', maxWidth: '340px', height: 'auto', overflow: 'visible', filter: 'drop-shadow(2px 2px 2px rgba(0,0,0,0.2))' }}>
             <g transform="translate(20, 20)">
                 {[0.33, 0.66, 1.0].map((scale, i) => <polygon key={i} fill="none" stroke={hexToRgba(corTinta, 0.2)} strokeWidth="1" strokeDasharray="3" points={angulos.map(a => `${100 + 75 * scale * Math.cos(a)},${100 + 75 * scale * Math.sin(a)}`).join(' ')} />)}
                 {angulos.map((a, i) => <line key={i} x1="100" y1="100" x2={100 + 75 * Math.cos(a)} y2={100 + 75 * Math.sin(a)} stroke={hexToRgba(corTinta, 0.2)} strokeWidth="1" strokeDasharray="3" />)}
@@ -655,8 +654,8 @@ export default function MarcadosPanel() {
     const updateFicha = useStore(s => s.updateFicha);
     const meuNome = useStore(s => s.meuNome);
     
-    // SAFE ZUSTAND SELECTOR: Se "isMestre" não existir, não quebra nada.
     const isMestreStatus = useStore(s => s?.isMestre) || false;
+    const importarDaAbaStatus = useStore(s => s.importarDaAbaStatus);
 
     const [uploadingImg, setUploadingImg] = useState(false);
     const [modalImport, setModalImport] = useState(false);
@@ -695,7 +694,7 @@ export default function MarcadosPanel() {
 
     const isMestre = isMestreStatus || (minhaFicha?.isMestre === true);
 
-    // 🔥 CÁLCULO DO SCOUTER GLOBAL (BLINDADO CONTRA NaN) 🔥
+    // 🔥 CÁLCULO DO SCOUTER GLOBAL 🔥
     const { poderGlobal, vitalidadeGlobal, supressao, limiteSupressao, temaScouter } = useMemo(() => {
         if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100, limiteSupressao: 1, temaScouter: getTemaScouter(100, 1) };
         
@@ -1161,7 +1160,7 @@ export default function MarcadosPanel() {
                                 <CampoMagico valor={minhaFicha.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
 
-                            {/* 🌟 O NOVO SCOUTER DE VIDRO HOLOGRÁFICO BLINDADO 🌟 */}
+                            {/* 🌟 O NOVO SCOUTER HOLOGRÁFICO BLINDADO 🌟 */}
                             <div style={{
                                 marginTop: '15px', marginBottom: '25px', padding: '25px 30px',
                                 background: 'rgba(15, 15, 20, 0.75)',
@@ -1354,8 +1353,8 @@ export default function MarcadosPanel() {
                                         <div style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
                                             <LabelMagico valor={getLabel('lblEnergiaForca', 'Força')} onChange={(v) => setLabel('lblEnergiaForca', v)} />
                                         </div>
-                                        <div style={{ fontSize: '0.85em', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: temaScouter.bgDark, fontWeight: 'bold' }}>
-                                            Poder: {formatarPoderCosmico(getPoderVerdadeiro('energiaForca', minhaFicha, true, supressao))}
+                                        <div style={{ fontSize: '0.85em', color: '#fff', border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: 'rgba(0,0,0,0.5)', fontWeight: 'bold', textShadow: `0 0 5px ${temaScouter.glow}`, boxShadow: `inset 0 0 5px ${temaScouter.cor}80` }}>
+                                            Poder: {formatarPoderCosmico(getPoderVerdadeiro('energiaForca', minhaFicha, true, supressao, 1))}
                                         </div>
                                     </div>
                                     <BarraVital atual={minhaFicha.energiaForca?.atual !== undefined && minhaFicha.energiaForca?.atual !== '' ? Number(minhaFicha.energiaForca.atual) : forcaMax} maximo={forcaMax} pVit={0} cor="#FFD700" corTexto="#000" onChangeAtual={(v) => salvar('energiaForca.atual', v)} />
