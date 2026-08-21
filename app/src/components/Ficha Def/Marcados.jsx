@@ -58,7 +58,6 @@ const getGhostAscensionBonus = (key, ficha) => {
         flatBonus = ascEfetiva * 1000000000; 
     }
 
-    // Pega o multiplicador de Forma (ex: Modo Assalto = 60x) e aplica na Ascensão também!
     const mFormas = getEfetivoMFormas(ficha, keyLower);
     const multFormaEfetivo = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
     
@@ -92,7 +91,6 @@ const getClasseInfo = (ficha) => {
     const nomeClasse = ficha?.bio?.classe;
     if (!nomeClasse) return null;
     
-    // 🔥 Inteligência extra: Ignora espaços, hífens e maiúsculas para nunca falhar o Match!
     const normalizar = (txt) => String(txt).replace(/[^a-z0-9]/gi, '').toLowerCase();
     const nomeStr = normalizar(nomeClasse);
     
@@ -121,13 +119,11 @@ const NIVEIS_DOMINIO = {
     10: { nome: "Eterno", cor: "#ffcc00", desc: "Dano Incalculável | Apagamento Conceitual" }
 };
 
-// 🔥 CATEGORIAS SEPARADAS COMO PEDIDO 🔥
 const CATEGORIAS_DOMINIO = {
     'elementos_basicos': { titulo: 'Elementos Básicos', icone: '🔥', cor: '#ff6600' },
     'elementos_basicos_verdadeiros': { titulo: 'Básicos Verdadeiros', icone: '🌋', cor: '#ff3300' },
     'elementos_avancados': { titulo: 'Elementos Avançados', icone: '☄️', cor: '#ffaa00' },
     'elementos_avancados_verdadeiros': { titulo: 'Avançados Verdadeiros', icone: '☀️', cor: '#ffcc00' },
-    
     'mana': { titulo: 'Artes de Mana (Grimório)', icone: '🔮', cor: '#0088ff' },
     'chakra': { titulo: 'Artes de Chakra (Shinobi)', icone: '🌀', cor: '#00ffcc' },
     'aura': { titulo: 'Artes de Aura (Manifestação)', icone: '✨', cor: '#ff00ff' },
@@ -292,18 +288,21 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     const valorCampoBase = editandoBase ? (baseValRaw ?? '') : baseExibido;
 
     // 🔥 O SCOUTER FANTASMA DO ATRIBUTO 🔥
+    const supressao = ficha.supressaoPoder !== undefined ? Number(ficha.supressaoPoder) : 100;
+    const isSupresso = supressao < 100;
+    
     const bonusAscensao = getGhostAscensionBonus(attrKey, ficha);
     let mF = getEfetivoMFormas(ficha, attrKey);
     if (mF < 1) mF = 1;
     
     const baseParaPoder = isAtual ? valorAtual : Math.floor(rawBase * fatorSeguro);
-    const poderVerdadeiro = Math.floor((baseParaPoder + bonusAscensao) * mF);
+    const poderVerdadeiro = Math.floor(((baseParaPoder + bonusAscensao) * mF) * (supressao / 100));
 
     return (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
-                <span style={{ fontSize: '0.7em', color: '#00ffcc', border: '1px solid #00ffcc', padding: '2px 6px', borderRadius: '10px', background: 'rgba(0,255,204,0.1)', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
+                <span style={{ fontSize: '0.7em', color: isSupresso ? '#4a90e2' : '#00ffcc', border: `1px solid ${isSupresso ? '#4a90e2' : '#00ffcc'}`, padding: '2px 6px', borderRadius: '10px', background: isSupresso ? 'rgba(74, 144, 226, 0.1)' : 'rgba(0,255,204,0.1)', whiteSpace: 'nowrap', fontWeight: 'bold' }}>
                     Poder: {formatarPoderCosmico(poderVerdadeiro)}
                 </span>
             </div>
@@ -339,6 +338,7 @@ const calcularEscala = (rawMax, key) => {
 const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual }) => {
     const pct = maximo > 0 ? Math.min(100, Math.max(0, (atual / maximo) * 100)) : 0;
     const isDark = corTexto === '#fff';
+    
     return (
         <div style={{ position: 'relative', width: '100%', height: '35px', border: '2px solid currentColor', borderRadius: '6px', background: 'rgba(255,255,255,0.2)', overflow: 'hidden', marginTop: '5px', boxShadow: 'inset 0 0 10px rgba(0,0,0,0.5)', display: 'flex' }}>
             {pVit > 0 && (
@@ -347,7 +347,12 @@ const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual
             <div style={{ flex: 1, position: 'relative' }}>
                 <div style={{ width: `${pct}%`, height: '100%', background: cor, transition: 'width 0.3s ease' }} />
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2em', color: corTexto, textShadow: isDark ? '1px 1px 3px #000, -1px -1px 3px #000' : 'none' }}>
-                    <CampoMagico valor={atual} onChange={onChangeAtual} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTexto, textShadow: 'inherit', borderBottom: `1px dashed ${isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
+                    <CampoMagico 
+                        valor={atual} 
+                        onChange={onChangeAtual} 
+                        isNumber={true} 
+                        styleExtra={{ width: '120px', textAlign: 'right', color: corTexto, textShadow: 'inherit', borderBottom: `1px dashed ${isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} 
+                    />
                     <span style={{ margin: '0 8px' }}>/</span>
                     <span>{Number(maximo).toLocaleString('pt-BR')}</span>
                 </div>
@@ -608,9 +613,11 @@ export default function MarcadosPanel() {
         }
     }, [minhaFicha?.estetica]);
 
-    // 🔥 CÁLCULO DO SCOUTER GLOBAL COM MULTIPLICADORES 🔥
-    const { poderGlobal, vitalidadeGlobal } = useMemo(() => {
-        if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0 };
+    // 🔥 CÁLCULO DO SCOUTER GLOBAL (COM SUPRESSÃO) 🔥
+    const { poderGlobal, vitalidadeGlobal, supressao } = useMemo(() => {
+        if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100 };
+        
+        const sup = minhaFicha.supressaoPoder !== undefined ? Number(minhaFicha.supressaoPoder) : 100;
         
         const calcTrueMax = (key) => {
             if (key === 'status') {
@@ -619,7 +626,7 @@ export default function MarcadosPanel() {
                     let baseTotal = safeGetMaximo(minhaFicha, s) + getGhostAscensionBonus(s, minhaFicha);
                     let mF = getEfetivoMFormas(minhaFicha, s);
                     if (mF < 1) mF = 1;
-                    m += baseTotal * mF;
+                    m += (baseTotal * mF);
                 });
                 return Math.floor(m / 8);
             } else {
@@ -638,8 +645,9 @@ export default function MarcadosPanel() {
         const valStatus = calcTrueMax('status');
 
         const media = Math.floor((valVida + valMana + valAura + valChakra + valCorpo + valStatus) / 6);
+        const mediaSupressa = Math.floor(media * (sup / 100));
         
-        let strVal = String(media);
+        let strVal = String(mediaSupressa);
         let digitos = strVal.length;
         if (strVal.includes('e')) {
             const parts = strVal.split('e');
@@ -648,7 +656,7 @@ export default function MarcadosPanel() {
         
         const vit = Math.max(0, digitos - 8);
 
-        return { poderGlobal: media, vitalidadeGlobal: vit };
+        return { poderGlobal: mediaSupressa, vitalidadeGlobal: vit, supressao: sup };
     }, [minhaFicha]);
 
     if (!minhaFicha) return <div style={{ color: '#000', padding: 20, fontFamily: 'cursive' }}>Abrindo a Ficha...</div>;
@@ -878,7 +886,9 @@ export default function MarcadosPanel() {
         if (atual > mxDisplay) atual = mxDisplay;
 
         const bonusAscensao = getGhostAscensionBonus(vitalKey, minhaFicha);
-        const poderVerdadeiro = rawMaximo + bonusAscensao;
+        let mF = getEfetivoMFormas(minhaFicha, vitalKey);
+        if (mF < 1) mF = 1;
+        const poderVerdadeiro = Math.floor(((rawMaximo + bonusAscensao) * mF) * (supressao / 100));
 
         return (
             <div style={{ marginBottom: '15px' }}>
@@ -887,7 +897,7 @@ export default function MarcadosPanel() {
                         {subItens && <span onClick={() => setAberta(!aberto)} style={{ cursor: 'pointer', width: '20px', display: 'inline-block', userSelect: 'none', fontWeight: 'bold' }}>{aberto ? 'v ' : '> '}</span>}
                         <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
                     </div>
-                    <div style={{ fontSize: '0.85em', color: '#ffcc00', border: '1px solid #ffcc00', padding: '2px 10px', borderRadius: '12px', background: 'rgba(255,204,0,0.1)', fontWeight: 'bold' }}>
+                    <div style={{ fontSize: '0.85em', color: supressao < 100 ? '#4a90e2' : '#ffcc00', border: `1px solid ${supressao < 100 ? '#4a90e2' : '#ffcc00'}`, padding: '2px 10px', borderRadius: '12px', background: supressao < 100 ? 'rgba(74,144,226,0.1)' : 'rgba(255,204,0,0.1)', fontWeight: 'bold' }}>
                         Poder: {formatarPoderCosmico(poderVerdadeiro)}
                     </div>
                 </div>
@@ -898,7 +908,11 @@ export default function MarcadosPanel() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '35px', marginTop: '12px' }}>
                         {subItens.map(sub => {
                             const subBaseRaw = minhaFicha[sub.key]?.base;
-                            const trueSubBase = (subBaseRaw === undefined || subBaseRaw === null || subBaseRaw === '') ? '' : (parseFloat(subBaseRaw) + getGhostAscensionBonus(sub.key, minhaFicha));
+                            const bonusSub = getGhostAscensionBonus(sub.key, minhaFicha);
+                            let mFSub = getEfetivoMFormas(minhaFicha, sub.key);
+                            if (mFSub < 1) mFSub = 1;
+                            const trueSubBase = (subBaseRaw === undefined || subBaseRaw === null || subBaseRaw === '') ? '' : Math.floor(((parseFloat(subBaseRaw) + bonusSub) * mFSub) * (supressao / 100));
+                            
                             return (
                                 <div key={sub.labelKey} style={{ fontSize: '1.05em', display: 'flex', alignItems: 'center' }}>
                                     <LabelMagico valor={getLabel(sub.labelKey, sub.fallbackLabel)} onChange={(v) => setLabel(sub.labelKey, v)} />
@@ -939,6 +953,10 @@ export default function MarcadosPanel() {
         setTextoImport('');
         alert("A sua ficha foi sincronizada!");
     };
+
+    const isSupresso = supressao < 100;
+    const corTemaScouter = isSupresso ? '#4a90e2' : '#d4af37';
+    const shadowTema = isSupresso ? 'rgba(74, 144, 226, 0.4)' : 'rgba(212, 175, 55, 0.25)';
 
     return (
         <div style={{
@@ -1070,52 +1088,69 @@ export default function MarcadosPanel() {
                             {/* 🌟 O MEDIDOR DE ESSÊNCIA (NOVO DESIGN ARCANO/MONOLÍTICO) 🌟 */}
                             <div style={{
                                 marginTop: '15px', marginBottom: '25px', padding: '25px 30px',
-                                background: 'linear-gradient(160deg, #0d0e15 0%, #1a1525 50%, #050508 100%)',
-                                border: '1px solid rgba(212, 175, 55, 0.2)',
+                                background: isSupresso 
+                                    ? 'linear-gradient(160deg, #0a1118 0%, #101820 50%, #05080a 100%)' 
+                                    : 'linear-gradient(160deg, #0d0e15 0%, #1a1525 50%, #050508 100%)',
+                                border: `1px solid ${isSupresso ? 'rgba(74, 144, 226, 0.3)' : 'rgba(212, 175, 55, 0.2)'}`,
                                 borderRadius: '12px',
-                                boxShadow: '0 15px 35px rgba(0,0,0,0.6), inset 0 0 40px rgba(212, 175, 55, 0.03)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                boxShadow: `0 15px 35px rgba(0,0,0,0.6), inset 0 0 40px ${isSupresso ? 'rgba(74, 144, 226, 0.05)' : 'rgba(212, 175, 55, 0.03)'}`,
+                                display: 'flex', flexDirection: 'column',
                                 position: 'relative', overflow: 'hidden'
                             }}>
                                 {/* Anéis Arcanos (Fundo) */}
-                                <div style={{ position: 'absolute', top: '-60%', left: '-15%', width: '350px', height: '350px', border: '2px dashed rgba(212,175,55,0.08)', borderRadius: '50%', animation: 'spin-slow 30s linear infinite', pointerEvents: 'none' }} />
+                                <div style={{ position: 'absolute', top: '-60%', left: '-15%', width: '350px', height: '350px', border: `2px dashed ${isSupresso ? 'rgba(74,144,226,0.08)' : 'rgba(212,175,55,0.08)'}`, borderRadius: '50%', animation: 'spin-slow 30s linear infinite', pointerEvents: 'none' }} />
                                 <div style={{ position: 'absolute', bottom: '-50%', right: '-10%', width: '250px', height: '250px', border: '1px dotted rgba(170,0,255,0.15)', borderRadius: '50%', animation: 'spin-reverse-slow 20s linear infinite', pointerEvents: 'none' }} />
                                 
                                 {/* Luz Divina Refletida (Sweep) */}
                                 <div style={{ position: 'absolute', top: 0, left: '-100%', width: '40%', height: '100%', background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.03), transparent)', transform: 'skewX(-30deg)', animation: 'metal-sweep 7s infinite ease-in-out', pointerEvents: 'none' }} />
 
-                                <div style={{ display: 'flex', flexDirection: 'column', zIndex: 1 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                                        <div style={{ width: '6px', height: '6px', background: '#d4af37', borderRadius: '50%', boxShadow: '0 0 10px #d4af37' }} />
-                                        <span style={{ color: '#a39b8f', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '4px' }}>Essência de Batalha Global</span>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1, position: 'relative' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                            <div style={{ width: '6px', height: '6px', background: corTemaScouter, borderRadius: '50%', boxShadow: `0 0 10px ${corTemaScouter}` }} />
+                                            <span style={{ color: '#a39b8f', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '4px' }}>
+                                                {isSupresso ? 'Presença Oculta (Supressão)' : 'Essência de Batalha Global'}
+                                            </span>
+                                        </div>
+                                        
+                                        <span style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
+                                            <span style={{
+                                                fontSize: '2.8em', fontWeight: '900', letterSpacing: '-1px',
+                                                background: isSupresso ? 'linear-gradient(to bottom right, #e0f7fa 20%, #4a90e2 50%, #1c3d5a 100%)' : 'linear-gradient(to bottom right, #fffdf2 20%, #d4af37 50%, #8a6d1c 100%)',
+                                                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                                                filter: `drop-shadow(0px 4px 15px ${shadowTema})`
+                                            }}>
+                                                {formatarPoderCosmico(poderGlobal)}
+                                            </span>
+                                            <span style={{ fontSize: '0.45em', color: isSupresso ? 'rgba(74,144,226,0.5)' : 'rgba(212,175,55,0.5)', fontWeight: 'bold', letterSpacing: '1px' }}>
+                                                {Number(poderGlobal).toExponential(2).replace('+', '').toUpperCase()}
+                                            </span>
+                                        </span>
                                     </div>
-                                    
-                                    <span style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
-                                        <span style={{
-                                            fontSize: '2.8em', fontWeight: '900', letterSpacing: '-1px',
-                                            background: 'linear-gradient(to bottom right, #fffdf2 20%, #d4af37 50%, #8a6d1c 100%)',
-                                            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                                            filter: 'drop-shadow(0px 4px 15px rgba(212,175,55,0.25))'
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingLeft: '30px', borderLeft: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <span style={{ color: '#a39b8f', fontSize: '0.7em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>Grau Vital</span>
+                                        <div style={{
+                                            fontSize: '2em', fontWeight: '900', color: '#050508',
+                                            background: isSupresso ? 'linear-gradient(135deg, #b3e5fc 0%, #4a90e2 50%, #1c3d5a 100%)' : 'linear-gradient(135deg, #f3e5ab 0%, #d4af37 50%, #8a6d1c 100%)',
+                                            padding: '4px 18px', borderRadius: '6px',
+                                            boxShadow: '0 5px 15px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.6)',
+                                            lineHeight: '1.1'
                                         }}>
-                                            {formatarPoderCosmico(poderGlobal)}
-                                        </span>
-                                        <span style={{ fontSize: '0.45em', color: 'rgba(212,175,55,0.5)', fontWeight: 'bold', letterSpacing: '1px' }}>
-                                            {Number(poderGlobal).toExponential(2).replace('+', '').toUpperCase()}
-                                        </span>
-                                    </span>
+                                            V{vitalidadeGlobal}
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', zIndex: 1, paddingLeft: '30px', borderLeft: '1px solid rgba(255,255,255,0.05)' }}>
-                                    <span style={{ color: '#a39b8f', fontSize: '0.7em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '8px' }}>Grau Vital</span>
-                                    <div style={{
-                                        fontSize: '2em', fontWeight: '900', color: '#050508',
-                                        background: 'linear-gradient(135deg, #f3e5ab 0%, #d4af37 50%, #8a6d1c 100%)',
-                                        padding: '4px 18px', borderRadius: '6px',
-                                        boxShadow: '0 5px 15px rgba(0,0,0,0.5), inset 0 2px 4px rgba(255,255,255,0.6)',
-                                        lineHeight: '1.1'
-                                    }}>
-                                        V{vitalidadeGlobal}
-                                    </div>
+                                {/* SLIDER DE SUPRESSÃO */}
+                                <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '15px', position: 'relative', zIndex: 1, borderTop: `1px solid rgba(255,255,255,0.05)`, paddingTop: '15px' }}>
+                                    <span style={{ color: '#a39b8f', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>Libertar Poder:</span>
+                                    <input 
+                                        type="range" min="1" max="100" value={supressao}
+                                        onChange={e => { salvar('supressaoPoder', e.target.value); }}
+                                        style={{ flex: 1, accentColor: corTemaScouter, cursor: 'pointer' }}
+                                    />
+                                    <span style={{ color: corTemaScouter, fontWeight: 'bold', minWidth: '45px', textAlign: 'right', fontSize: '1.1em' }}>{supressao}%</span>
                                 </div>
 
                                 <style>{`
@@ -1220,6 +1255,9 @@ export default function MarcadosPanel() {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
                                             <LabelMagico valor={getLabel('lblEnergiaForca', 'Força')} onChange={(v) => setLabel('lblEnergiaForca', v)} />
+                                        </div>
+                                        <div style={{ fontSize: '0.85em', color: corTemaScouter, border: `1px solid ${corTemaScouter}`, padding: '2px 10px', borderRadius: '12px', background: isSupresso ? 'rgba(74,144,226,0.1)' : 'rgba(255,204,0,0.1)', fontWeight: 'bold' }}>
+                                            Poder: {formatarPoderCosmico(Math.floor((forcaMax + getGhostAscensionBonus('energiaForca', minhaFicha)) * (supressao / 100)))}
                                         </div>
                                     </div>
                                     <BarraVital atual={minhaFicha.energiaForca?.atual !== undefined && minhaFicha.energiaForca?.atual !== '' ? Number(minhaFicha.energiaForca.atual) : forcaMax} maximo={forcaMax} pVit={0} cor="#FFD700" corTexto="#000" onChangeAtual={(v) => salvar('energiaForca.atual', v)} />
