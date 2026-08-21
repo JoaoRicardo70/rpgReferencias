@@ -70,35 +70,35 @@ const getTemaScouter = (supressao) => {
             cor: '#d4af37', nome: 'Essência de Batalha Global',
             bgGrid: 'linear-gradient(160deg, #0d0e15 0%, #1a1525 50%, #050508 100%)',
             textGrad: 'linear-gradient(to bottom right, #fffdf2 20%, #d4af37 50%, #8a6d1c 100%)',
-            shadow: 'rgba(212, 175, 55, 0.4)', anel: 'rgba(212, 175, 55, 0.08)'
+            shadow: 'rgba(212, 175, 55, 0.8)', anel: 'rgba(212, 175, 55, 0.08)'
         };
     } else if (supressao >= 10) {
         return {
             cor: '#4a90e2', nome: 'Supressão Nv.1 (Ocultação Leve)',
             bgGrid: 'linear-gradient(160deg, #0a1118 0%, #101820 50%, #05080a 100%)',
             textGrad: 'linear-gradient(to bottom right, #e0f7fa 20%, #4a90e2 50%, #1c3d5a 100%)',
-            shadow: 'rgba(74, 144, 226, 0.4)', anel: 'rgba(74, 144, 226, 0.08)'
+            shadow: 'rgba(74, 144, 226, 0.8)', anel: 'rgba(74, 144, 226, 0.08)'
         };
     } else if (supressao >= 1) {
         return {
             cor: '#aa00ff', nome: 'Supressão Nv.2 (Ocultação Profunda)',
             bgGrid: 'linear-gradient(160deg, #120a18 0%, #1a1020 50%, #08050a 100%)',
             textGrad: 'linear-gradient(to bottom right, #f3e0ff 20%, #aa00ff 50%, #4a0088 100%)',
-            shadow: 'rgba(170, 0, 255, 0.4)', anel: 'rgba(170, 0, 255, 0.08)'
+            shadow: 'rgba(170, 0, 255, 0.8)', anel: 'rgba(170, 0, 255, 0.08)'
         };
     } else if (supressao >= 0.001) {
         return {
             cor: '#888888', nome: 'Supressão Nv.3 (Falso Mundano)',
             bgGrid: 'linear-gradient(160deg, #111111 0%, #1a1a1a 50%, #050505 100%)',
             textGrad: 'linear-gradient(to bottom right, #cccccc 20%, #888888 50%, #333333 100%)',
-            shadow: 'rgba(136, 136, 136, 0.4)', anel: 'rgba(136, 136, 136, 0.08)'
+            shadow: 'rgba(136, 136, 136, 0.8)', anel: 'rgba(136, 136, 136, 0.08)'
         };
     } else {
         return {
             cor: '#ff003c', nome: 'Supressão MAX (Anulação Absoluta)',
             bgGrid: 'linear-gradient(160deg, #180a0a 0%, #201010 50%, #0a0505 100%)',
             textGrad: 'linear-gradient(to bottom right, #ffe0e0 20%, #ff003c 50%, #5a0011 100%)',
-            shadow: 'rgba(255, 0, 60, 0.4)', anel: 'rgba(255, 0, 60, 0.08)'
+            shadow: 'rgba(255, 0, 60, 0.8)', anel: 'rgba(255, 0, 60, 0.08)'
         };
     }
 };
@@ -163,7 +163,6 @@ const CATEGORIAS_DOMINIO = {
     'elementos_basicos_verdadeiros': { titulo: 'Básicos Verdadeiros', icone: '🌋', cor: '#ff3300' },
     'elementos_avancados': { titulo: 'Elementos Avançados', icone: '☄️', cor: '#ffaa00' },
     'elementos_avancados_verdadeiros': { titulo: 'Avançados Verdadeiros', icone: '☀️', cor: '#ffcc00' },
-    
     'mana': { titulo: 'Artes de Mana (Grimório)', icone: '🔮', cor: '#0088ff' },
     'chakra': { titulo: 'Artes de Chakra (Shinobi)', icone: '🌀', cor: '#00ffcc' },
     'aura': { titulo: 'Artes de Aura (Manifestação)', icone: '✨', cor: '#ff00ff' },
@@ -652,7 +651,7 @@ export default function MarcadosPanel() {
         }
     }, [minhaFicha?.estetica]);
 
-    // 🔥 CÁLCULO DO SCOUTER GLOBAL (COM SUPRESSÃO DESCENDENTE) 🔥
+    // 🔥 CÁLCULO DO SCOUTER GLOBAL (COM SUPRESSÃO DESCENDENTE E CAMADA DUPLA) 🔥
     const { poderGlobal, vitalidadeGlobal, supressao, temaScouter } = useMemo(() => {
         if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100, temaScouter: getTemaScouter(100) };
         
@@ -1121,7 +1120,7 @@ export default function MarcadosPanel() {
                                 <CampoMagico valor={minhaFicha.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
 
-                            {/* 🌟 O MEDIDOR DE ESSÊNCIA DOURADO / FURTIVO 🌟 */}
+                            {/* 🌟 O MEDIDOR DE ESSÊNCIA DOURADO / FURTIVO (DUPLA CAMADA) 🌟 */}
                             <div style={{
                                 marginTop: '15px', marginBottom: '25px', padding: '25px 30px',
                                 background: temaScouter.bgGrid,
@@ -1145,17 +1144,28 @@ export default function MarcadosPanel() {
                                             </span>
                                         </div>
                                         
-                                        <span style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
-                                            {/* 🔥 O ENVELOPE QUE IMPEDE O BLOCO AZUL 🔥 */}
-                                            <span style={{ filter: `drop-shadow(0px 4px 15px ${temaScouter.shadow})` }}>
+                                        <span style={{ display: 'flex', alignItems: 'baseline', gap: '12px', position: 'relative' }}>
+                                            {/* 🔥 CAMADA DUPLA PARA EVITAR O BUG DO BLOCO SÓLIDO NO CSS 🔥 */}
+                                            <div style={{ position: 'relative', display: 'inline-block' }}>
+                                                {/* Fundo do Texto: Responsável apenas pela Sombra/Glow */}
                                                 <span style={{
                                                     fontSize: '2.8em', fontWeight: '900', letterSpacing: '-1px',
-                                                    background: temaScouter.textGrad,
-                                                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', color: 'transparent'
+                                                    color: temaScouter.cor, textShadow: `0 0 15px ${temaScouter.cor}`,
+                                                    position: 'absolute', top: 0, left: 0, zIndex: 0
                                                 }}>
                                                     {formatarPoderCosmico(poderGlobal)}
                                                 </span>
-                                            </span>
+                                                {/* Frente do Texto: Responsável apenas pela Textura Metálica (Sem filtros que bugam) */}
+                                                <span style={{
+                                                    fontSize: '2.8em', fontWeight: '900', letterSpacing: '-1px',
+                                                    background: temaScouter.textGrad,
+                                                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                                                    backgroundClip: 'text', color: 'transparent',
+                                                    position: 'relative', zIndex: 1
+                                                }}>
+                                                    {formatarPoderCosmico(poderGlobal)}
+                                                </span>
+                                            </div>
                                             <span style={{ fontSize: '0.45em', color: `${temaScouter.cor}80`, fontWeight: 'bold', letterSpacing: '1px' }}>
                                                 {Number(poderGlobal).toExponential(2).replace('+', '').toUpperCase()}
                                             </span>
@@ -1176,7 +1186,7 @@ export default function MarcadosPanel() {
                                     </div>
                                 </div>
 
-                                {/* SLIDER E INPUT DE PRECISÃO FINA */}
+                                {/* SLIDER DE SUPRESSÃO INFINITA */}
                                 <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '15px', position: 'relative', zIndex: 1, borderTop: `1px solid rgba(255,255,255,0.05)`, paddingTop: '15px' }}>
                                     <span style={{ color: '#a39b8f', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>Libertar Poder:</span>
                                     <input 
