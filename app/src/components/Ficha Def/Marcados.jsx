@@ -49,29 +49,38 @@ const getEfetivoMFormas = (ficha, k) => {
     return (v === 1.0 ? 0 : v) + b.mformas;
 };
 
-const getGhostAscensionBonus = (key, ficha) => {
+// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO (PARA O SCOUTER E RADAR) 🔥
+const getFlatGhostAscension = (key, ficha) => {
     if (!ficha || !key) return 0;
     const ascBase = parseInt(ficha?.ascensaoBase) || 1;
     const multA = parseFloat(ficha?.multiplicadorForcaAscensao) || 1;
     const ascEfetiva = (isNaN(ascBase) ? 1 : ascBase) * (isNaN(multA) ? 1 : multA);
     const keyLower = String(key).toLowerCase().trim();
     
-    let flatBonus = 0;
     if (['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaesp', 'carisma', 'stamina', 'constituicao'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 100000; 
+        return ascEfetiva * 100000; 
     } else if (['mana', 'aura', 'chakra', 'corpo'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 1000000000; 
+        return ascEfetiva * 1000000000; 
     } else if (['vida', 'pv', 'pm'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 100000000; 
+        return ascEfetiva * 100000000; 
     } else if (['energiaforca'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 1000000000; 
+        return ascEfetiva * 1000000000; 
     }
+    return 0;
+};
 
-    let mFormas = getEfetivoMFormas(ficha, keyLower);
-    if (isNaN(mFormas) || mFormas < 1) mFormas = 1;
-    const multFormaEfetivo = mFormas >= 10 ? (mFormas / 10) : mFormas;
+const getPoderVerdadeiro = (key, ficha, isAtual, supressao) => {
+    const rawBase = parseFloat(safeGetMaximo(ficha, key)) || 0;
+    const ghost = getFlatGhostAscension(key, ficha);
     
-    return flatBonus * multFormaEfetivo;
+    let mF = 1;
+    if (isAtual) {
+        mF = getEfetivoMFormas(ficha, key);
+        if (isNaN(mF) || mF < 1) mF = 1;
+    }
+    
+    let power = (rawBase + ghost) * mF * (supressao / 100);
+    return isNaN(power) ? 0 : Math.floor(power);
 };
 
 // 🔥 GESTOR DE TEMA: VIDRO HOLOGRÁFICO 🔥
@@ -225,24 +234,6 @@ const getBasePFor = (ficha, k) => {
     return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
 };
 
-const calcularPrestAtual = (ficha, attrKey, baseP) => {
-    const mFormas = getEfetivoMFormas(ficha, attrKey);
-    const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
-    return Math.floor((baseP || 0) * multForma) || 0;
-};
-
-const aplicarMultiplicadorForca = (prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) => {
-    const multP = parseFloat(multiplicadorForcaPrestigio) || 1;
-    const multA = parseFloat(multiplicadorForcaAscensao) || 1;
-    const ascensaoBaseEfetiva = (parseInt(ascensaoBase) || 1) * multA;
-    const prestigioTotal = (prestigioBase || 0) * multP;
-    const bonusAscensao = Math.floor(prestigioTotal / 100);
-    const prestigioFinal = prestigioTotal % 100;
-    const ascensaoFinal = ascensaoBaseEfetiva + bonusAscensao;
-    const rankInfo = safeGetRank(prestigioFinal, ascensaoFinal);
-    return { ...rankInfo, prestigioFinal, ascensaoFinal };
-};
-
 // ==========================================
 // 🖋️ INPUTS E BARRAS MÁGICAS
 // ==========================================
@@ -319,14 +310,7 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     if (supressao < limiteSupressao) supressao = limiteSupressao;
     
     const tema = getTemaScouter(supressao, limiteSupressao);
-    
-    const bonusAscensao = getGhostAscensionBonus(attrKey, ficha);
-    let mF = getEfetivoMFormas(ficha, attrKey);
-    if (isNaN(mF) || mF < 1) mF = 1;
-    
-    const baseParaPoder = isAtual ? valorAtual : Math.floor(rawBase * fatorSeguro);
-    let poderVerdadeiro = Math.floor(((baseParaPoder + bonusAscensao) * mF) * (supressao / 100));
-    if (isNaN(poderVerdadeiro)) poderVerdadeiro = 0;
+    const poderVerdadeiro = getPoderVerdadeiro(attrKey, ficha, isAtual, supressao);
 
     return (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em', flexWrap: 'wrap' }}>
@@ -391,8 +375,8 @@ const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual
     );
 };
 
-// 🔥 RADAR 100% BLINDADO CONTRA NaN 🔥
-const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => {
+// 🔥 RADAR DESENHADO E LIGADO AO PODER VERDADEIRO (ACOMPANHA AS FORMAS E A SUPRESSÃO!) 🔥
+const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000" }) => {
     const eixos = [
         { label: 'VIDA', key: 'vida' }, { label: 'MANA', key: 'mana' }, { label: 'AURA', key: 'aura' },
         { label: 'CHAKRA', key: 'chakra' }, { label: 'CORPO', key: 'corpo' }, { label: 'STATUS', key: 'status' }
@@ -405,28 +389,15 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
     const rankInfos = [];
 
     const dataPoints = eixos.map((e, i) => {
-        const getSafePower = (k) => {
-            const rawBase = parseFloat(ficha[k]?.base) || 0;
-            const maxVal = parseFloat(safeGetMaximo(ficha, k)) || 0;
-            const f = parseFloat(fator) || 1;
-            const baseParaPoder = isAtual ? Math.floor(maxVal * f) : Math.floor(rawBase * f);
-            const bonusAscensao = getGhostAscensionBonus(k, ficha) || 0;
-            let mF = getEfetivoMFormas(ficha, k);
-            if (isNaN(mF) || mF < 1) mF = 1;
-            
-            let finalPower = Math.floor(((baseParaPoder + bonusAscensao) * mF) * (supressao / 100));
-            return isNaN(finalPower) ? 0 : finalPower;
-        };
-
         let truePower = 0;
         if (e.key === 'status') {
             let m = 0;
             ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
-                m += getSafePower(s);
+                m += getPoderVerdadeiro(s, ficha, isAtual, supressao);
             });
             truePower = Math.floor(m / 8);
         } else {
-            truePower = getSafePower(e.key);
+            truePower = getPoderVerdadeiro(e.key, ficha, isAtual, supressao);
         }
 
         const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
@@ -651,9 +622,8 @@ export default function MarcadosPanel() {
     const minhaFicha = useStore(s => s.minhaFicha);
     const updateFicha = useStore(s => s.updateFicha);
     const meuNome = useStore(s => s.meuNome);
-    
-    // SAFE ZUSTAND SELECTOR: Se "isMestre" não existir, não quebra nada.
     const isMestreStatus = useStore(s => s?.isMestre) || false;
+    const importarDaAbaStatus = useStore(s => s.importarDaAbaStatus);
 
     const [uploadingImg, setUploadingImg] = useState(false);
     const [modalImport, setModalImport] = useState(false);
@@ -692,7 +662,7 @@ export default function MarcadosPanel() {
 
     const isMestre = isMestreStatus || (minhaFicha?.isMestre === true);
 
-    // 🔥 CÁLCULO DO SCOUTER GLOBAL (BLINDADO CONTRA NaN) 🔥
+    // 🔥 CÁLCULO DO SCOUTER GLOBAL UNIFICADO 🔥
     const { poderGlobal, vitalidadeGlobal, supressao, limiteSupressao, temaScouter } = useMemo(() => {
         if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100, limiteSupressao: 1, temaScouter: getTemaScouter(100, 1) };
         
@@ -710,25 +680,11 @@ export default function MarcadosPanel() {
             if (key === 'status') {
                 let m = 0;
                 ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
-                    let maxSafe = safeGetMaximo(minhaFicha, s);
-                    if (isNaN(maxSafe)) maxSafe = 0;
-                    
-                    let baseTotal = maxSafe + getGhostAscensionBonus(s, minhaFicha);
-                    let mF = getEfetivoMFormas(minhaFicha, s);
-                    if (isNaN(mF) || mF < 1) mF = 1;
-                    
-                    m += (baseTotal * mF);
+                    m += getPoderVerdadeiro(s, minhaFicha, true, 100); 
                 });
                 return Math.floor(m / 8);
             } else {
-                let maxSafe = safeGetMaximo(minhaFicha, key);
-                if (isNaN(maxSafe)) maxSafe = 0;
-                
-                let baseTotal = maxSafe + getGhostAscensionBonus(key, minhaFicha);
-                let mF = getEfetivoMFormas(minhaFicha, key);
-                if (isNaN(mF) || mF < 1) mF = 1;
-                
-                return Math.floor(baseTotal * mF);
+                return getPoderVerdadeiro(key, minhaFicha, true, 100);
             }
         };
 
@@ -982,11 +938,7 @@ export default function MarcadosPanel() {
         if (isNaN(atual)) atual = mxDisplay;
         if (atual > mxDisplay) atual = mxDisplay;
 
-        const bonusAscensao = getGhostAscensionBonus(vitalKey, minhaFicha);
-        let mF = getEfetivoMFormas(minhaFicha, vitalKey);
-        if (isNaN(mF) || mF < 1) mF = 1;
-        let poderVerdadeiro = Math.floor(((rawMaximo + bonusAscensao) * mF) * (supressao / 100));
-        if (isNaN(poderVerdadeiro)) poderVerdadeiro = 0;
+        const poderVerdadeiro = getPoderVerdadeiro(vitalKey, minhaFicha, true, supressao);
 
         return (
             <div style={{ marginBottom: '15px' }}>
@@ -1006,13 +958,8 @@ export default function MarcadosPanel() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '35px', marginTop: '12px' }}>
                         {subItens.map(sub => {
                             const subBaseRaw = minhaFicha[sub.key]?.base;
-                            const bonusSub = getGhostAscensionBonus(sub.key, minhaFicha);
-                            let mFSub = getEfetivoMFormas(minhaFicha, sub.key);
-                            if (isNaN(mFSub) || mFSub < 1) mFSub = 1;
+                            const trueSubBase = getPoderVerdadeiro(sub.key, minhaFicha, true, supressao);
                             
-                            let trueSubBase = (subBaseRaw === undefined || subBaseRaw === null || subBaseRaw === '') ? '' : Math.floor(((parseFloat(subBaseRaw) + bonusSub) * mFSub) * (supressao / 100));
-                            if (isNaN(trueSubBase)) trueSubBase = 0;
-
                             return (
                                 <div key={sub.labelKey} style={{ fontSize: '1.05em', display: 'flex', alignItems: 'center' }}>
                                     <LabelMagico valor={getLabel(sub.labelKey, sub.fallbackLabel)} onChange={(v) => setLabel(sub.labelKey, v)} />
@@ -1374,8 +1321,8 @@ export default function MarcadosPanel() {
                                         <div style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
                                             <LabelMagico valor={getLabel('lblEnergiaForca', 'Força')} onChange={(v) => setLabel('lblEnergiaForca', v)} />
                                         </div>
-                                        <div style={{ fontSize: '0.85em', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: temaScouter.bgDark, fontWeight: 'bold' }}>
-                                            Poder: {formatarPoderCosmico(Math.floor((forcaMax + getGhostAscensionBonus('energiaForca', minhaFicha)) * (supressao / 100)))}
+                                        <div style={{ fontSize: '0.85em', color: '#fff', border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: 'rgba(0,0,0,0.5)', fontWeight: 'bold', textShadow: `0 0 5px ${temaScouter.glow}`, boxShadow: `inset 0 0 5px ${temaScouter.cor}80` }}>
+                                            Poder: {formatarPoderCosmico(getPoderVerdadeiro('energiaForca', minhaFicha, true, supressao))}
                                         </div>
                                     </div>
                                     <BarraVital atual={minhaFicha.energiaForca?.atual !== undefined && minhaFicha.energiaForca?.atual !== '' ? Number(minhaFicha.energiaForca.atual) : forcaMax} maximo={forcaMax} pVit={0} cor="#FFD700" corTexto="#000" onChangeAtual={(v) => salvar('energiaForca.atual', v)} />
