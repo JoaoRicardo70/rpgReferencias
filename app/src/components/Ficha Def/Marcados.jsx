@@ -39,7 +39,7 @@ const getEfetivoMFormas = (ficha, k) => {
     return (v === 1.0 ? 0 : v) + b.mformas;
 };
 
-// 🔥 CÁLCULO DO RESET FANTASMA COM MULTIPLICADOR (mFormas) 🔥
+// 🔥 O BÔNUS FANTASMA PURO (SEM MULTIPLICADORES) 🔥
 const getGhostAscensionBonus = (key, ficha) => {
     if (!ficha || !key) return 0;
     const ascBase = parseInt(ficha?.ascensaoBase) || 1;
@@ -47,22 +47,16 @@ const getGhostAscensionBonus = (key, ficha) => {
     const ascEfetiva = ascBase * multA;
     const keyLower = String(key).toLowerCase().trim();
     
-    let flatBonus = 0;
     if (['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaesp', 'carisma', 'stamina', 'constituicao'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 100000; // Físicos +100k
+        return ascEfetiva * 100000; // Físicos +100k
     } else if (['mana', 'aura', 'chakra', 'corpo'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 1000000000; // Energias +1B
+        return ascEfetiva * 1000000000; // Energias +1B
     } else if (['vida', 'pv', 'pm'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 100000000; // Vitais +100M
+        return ascEfetiva * 100000000; // Vitais +100M
     } else if (['energiaforca'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 1000000000; 
+        return ascEfetiva * 1000000000; 
     }
-
-    // Pega o multiplicador de Forma (ex: Modo Assalto = 60x) e aplica na Ascensão também!
-    const mFormas = getEfetivoMFormas(ficha, keyLower);
-    const multFormaEfetivo = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
-    
-    return flatBonus * multFormaEfetivo;
+    return 0;
 };
 
 const CLASSES_REGULARES_BASE = [
@@ -92,7 +86,6 @@ const getClasseInfo = (ficha) => {
     const nomeClasse = ficha?.bio?.classe;
     if (!nomeClasse) return null;
     
-    // 🔥 Inteligência extra: Ignora espaços, hífens e maiúsculas para nunca falhar o Match!
     const normalizar = (txt) => String(txt).replace(/[^a-z0-9]/gi, '').toLowerCase();
     const nomeStr = normalizar(nomeClasse);
     
@@ -121,13 +114,11 @@ const NIVEIS_DOMINIO = {
     10: { nome: "Eterno", cor: "#ffcc00", desc: "Dano Incalculável | Apagamento Conceitual" }
 };
 
-// 🔥 CATEGORIAS SEPARADAS COMO PEDIDO 🔥
 const CATEGORIAS_DOMINIO = {
     'elementos_basicos': { titulo: 'Elementos Básicos', icone: '🔥', cor: '#ff6600' },
     'elementos_basicos_verdadeiros': { titulo: 'Básicos Verdadeiros', icone: '🌋', cor: '#ff3300' },
     'elementos_avancados': { titulo: 'Elementos Avançados', icone: '☄️', cor: '#ffaa00' },
     'elementos_avancados_verdadeiros': { titulo: 'Avançados Verdadeiros', icone: '☀️', cor: '#ffcc00' },
-    
     'mana': { titulo: 'Artes de Mana (Grimório)', icone: '🔮', cor: '#0088ff' },
     'chakra': { titulo: 'Artes de Chakra (Shinobi)', icone: '🌀', cor: '#00ffcc' },
     'aura': { titulo: 'Artes de Aura (Manifestação)', icone: '✨', cor: '#ff00ff' },
@@ -234,8 +225,7 @@ const callSave = () => {
     }, 400);
 };
 
-// 🔥 CampoMagico Clássico: Retorna a formatação apenas em vírgulas! 🔥
-const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange }) => {
+const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange, displayOverride }) => {
     const [focused, setFocused] = useState(false);
     const handleChange = (e) => {
         let val = e.target.value;
@@ -250,8 +240,12 @@ const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "te
     let currentType = type;
     
     if (isNumber && !focused && displayValue !== '') {
-        let num = Number(displayValue);
-        if (!isNaN(num)) displayValue = num.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+        if (displayOverride !== undefined && displayOverride !== '') {
+            displayValue = displayOverride; 
+        } else {
+            let num = Number(displayValue);
+            if (!isNaN(num)) displayValue = formatarPoderCosmico(num);
+        }
         currentType = 'text';
     } else if (isNumber && focused) { 
         currentType = 'number'; 
@@ -293,9 +287,13 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     const editandoBase = attrBaseFocado === attrKey;
     const valorCampoBase = editandoBase ? (baseValRaw ?? '') : baseExibido;
 
-    // 🔥 O SCOUTER FANTASMA DO ATRIBUTO 🔥
+    // 🔥 SCOUTER FANTASMA DO ATRIBUTO 🔥
     const bonusAscensao = getGhostAscensionBonus(attrKey, ficha);
-    const poderVerdadeiro = (isAtual ? valorAtual : Math.floor(rawBase * fatorSeguro)) + bonusAscensao;
+    let mF = getEfetivoMFormas(ficha, attrKey);
+    if (mF < 1) mF = 1;
+    
+    const baseParaPoder = isAtual ? valorAtual : Math.floor(rawBase * fatorSeguro);
+    const poderVerdadeiro = Math.floor((baseParaPoder + bonusAscensao) * mF);
 
     return (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em', flexWrap: 'wrap' }}>
@@ -309,6 +307,7 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
                 ? <span style={{ fontWeight: 'bold' }}>{Number(valorAtual).toLocaleString('pt-BR')}</span>
                 : <CampoMagico
                     valor={valorCampoBase}
+                    displayOverride={baseExibido !== '' ? formatarPoderCosmico(baseExibido) : ''}
                     onChange={(v) => salvar(`${attrKey}.base`, v)}
                     onFocusChange={(focado) => setAttrBaseFocado(focado ? attrKey : null)}
                     styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true}
@@ -347,12 +346,13 @@ const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2em', color: corTexto, textShadow: isDark ? '1px 1px 3px #000, -1px -1px 3px #000' : 'none' }}>
                     <CampoMagico 
                         valor={atual} 
+                        displayOverride={formatarPoderCosmico(atual)}
                         onChange={onChangeAtual} 
                         isNumber={true} 
-                        styleExtra={{ width: '120px', textAlign: 'right', color: corTexto, textShadow: 'inherit', borderBottom: `1px dashed ${isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} 
+                        styleExtra={{ width: '150px', textAlign: 'right', color: corTexto, textShadow: 'inherit', borderBottom: `1px dashed ${isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} 
                     />
                     <span style={{ margin: '0 8px' }}>/</span>
-                    <span>{Number(maximo).toLocaleString('pt-BR')}</span>
+                    <span>{formatarPoderCosmico(maximo)}</span>
                 </div>
             </div>
         </div>
@@ -611,7 +611,7 @@ export default function MarcadosPanel() {
         }
     }, [minhaFicha?.estetica]);
 
-    // 🔥 CÁLCULO DO SCOUTER GLOBAL (MÉDIA DOS 6 STATUS PRINCIPAIS) 🔥
+    // 🔥 CÁLCULO DO SCOUTER GLOBAL COM MULTIPLICADORES 🔥
     const { poderGlobal, vitalidadeGlobal } = useMemo(() => {
         if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0 };
         
@@ -619,11 +619,17 @@ export default function MarcadosPanel() {
             if (key === 'status') {
                 let m = 0;
                 ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
-                    m += safeGetMaximo(minhaFicha, s) + getGhostAscensionBonus(s, minhaFicha);
+                    let baseTotal = safeGetMaximo(minhaFicha, s) + getGhostAscensionBonus(s, minhaFicha);
+                    let mF = getEfetivoMFormas(minhaFicha, s);
+                    if (mF < 1) mF = 1;
+                    m += baseTotal * mF;
                 });
                 return Math.floor(m / 8);
             } else {
-                return safeGetMaximo(minhaFicha, key) + getGhostAscensionBonus(key, minhaFicha);
+                let baseTotal = safeGetMaximo(minhaFicha, key) + getGhostAscensionBonus(key, minhaFicha);
+                let mF = getEfetivoMFormas(minhaFicha, key);
+                if (mF < 1) mF = 1;
+                return Math.floor(baseTotal * mF);
             }
         };
 
@@ -862,6 +868,7 @@ export default function MarcadosPanel() {
         else salvarFichaSilencioso();
     };
 
+    // 🔥 O COMPONENTE DA LINHA VITAL COM MULTIPLICADOR DE PODER 🔥
     const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, corTextoBarra = '#fff' }) => {
         const [aberto, setAberta] = useState(false);
         let rawMaximo = safeGetMaximo(minhaFicha, vitalKey);
@@ -875,7 +882,9 @@ export default function MarcadosPanel() {
         if (atual > mxDisplay) atual = mxDisplay;
 
         const bonusAscensao = getGhostAscensionBonus(vitalKey, minhaFicha);
-        const poderVerdadeiro = rawMaximo + bonusAscensao;
+        let mF = getEfetivoMFormas(minhaFicha, vitalKey);
+        if (mF < 1) mF = 1;
+        const poderVerdadeiro = Math.floor((rawMaximo + bonusAscensao) * mF);
 
         return (
             <div style={{ marginBottom: '15px' }}>
@@ -895,7 +904,11 @@ export default function MarcadosPanel() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '35px', marginTop: '12px' }}>
                         {subItens.map(sub => {
                             const subBaseRaw = minhaFicha[sub.key]?.base;
-                            const trueSubBase = (subBaseRaw === undefined || subBaseRaw === null || subBaseRaw === '') ? '' : (parseFloat(subBaseRaw) + getGhostAscensionBonus(sub.key, minhaFicha));
+                            const bonusSub = getGhostAscensionBonus(sub.key, minhaFicha);
+                            let mFSub = getEfetivoMFormas(minhaFicha, sub.key);
+                            if (mFSub < 1) mFSub = 1;
+                            const trueSubBase = (subBaseRaw === undefined || subBaseRaw === null || subBaseRaw === '') ? '' : Math.floor((parseFloat(subBaseRaw) + bonusSub) * mFSub);
+                            
                             return (
                                 <div key={sub.labelKey} style={{ fontSize: '1.05em', display: 'flex', alignItems: 'center' }}>
                                     <LabelMagico valor={getLabel(sub.labelKey, sub.fallbackLabel)} onChange={(v) => setLabel(sub.labelKey, v)} />
@@ -1191,7 +1204,7 @@ export default function MarcadosPanel() {
                                             Poder: {formatarPoderCosmico(forcaMax + getGhostAscensionBonus('energiaForca', minhaFicha))}
                                         </div>
                                     </div>
-                                    <BarraVital atual={minhaFicha.energiaForca?.atual !== undefined && minhaFicha.energiaForca?.atual !== '' ? Number(minhaFicha.energiaForca.atual) : forcaMax} maximo={forcaMax} cor="#FFD700" corTexto="#000" onChangeAtual={(v) => salvar('energiaForca.atual', v)} vitalKey="energiaForca" ficha={minhaFicha} />
+                                    <BarraVital atual={minhaFicha.energiaForca?.atual !== undefined && minhaFicha.energiaForca?.atual !== '' ? Number(minhaFicha.energiaForca.atual) : forcaMax} maximo={forcaMax} pVit={0} cor="#FFD700" corTexto="#000" onChangeAtual={(v) => salvar('energiaForca.atual', v)} />
                                 </div>
                             </div>
 
@@ -1201,11 +1214,11 @@ export default function MarcadosPanel() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                 <div style={{ marginBottom: '5px' }}>
                                     <LabelMagico valor={getLabel('lblPV', 'Pontos Vitais (PV)')} onChange={(v) => setLabel('lblPV', v)} />
-                                    <BarraVital atual={minhaFicha.pv?.atual !== undefined && minhaFicha.pv?.atual !== '' ? Number(minhaFicha.pv.atual) : pvMax} maximo={pvMax} cor="#ffffff" corTexto="#000" onChangeAtual={(v) => salvar('pv.atual', v)} vitalKey="pv" ficha={minhaFicha} />
+                                    <BarraVital atual={minhaFicha.pv?.atual !== undefined && minhaFicha.pv?.atual !== '' ? Number(minhaFicha.pv.atual) : pvMax} maximo={pvMax} pVit={0} cor="#ffffff" corTexto="#000" onChangeAtual={(v) => salvar('pv.atual', v)} />
                                 </div>
                                 <div style={{ marginBottom: '15px' }}>
                                     <LabelMagico valor={getLabel('lblPM', 'Pontos Mortais (PM)')} onChange={(v) => setLabel('lblPM', v)} />
-                                    <BarraVital atual={minhaFicha.pm?.atual !== undefined && minhaFicha.pm?.atual !== '' ? Number(minhaFicha.pm.atual) : pmMax} maximo={pmMax} cor="#000000" corTexto="#fff" onChangeAtual={(v) => salvar('pm.atual', v)} vitalKey="pm" ficha={minhaFicha} />
+                                    <BarraVital atual={minhaFicha.pm?.atual !== undefined && minhaFicha.pm?.atual !== '' ? Number(minhaFicha.pm.atual) : pmMax} maximo={pmMax} pVit={0} cor="#000000" corTexto="#fff" onChangeAtual={(v) => salvar('pm.atual', v)} />
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
