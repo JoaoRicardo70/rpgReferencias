@@ -49,38 +49,51 @@ const getEfetivoMFormas = (ficha, k) => {
     return (v === 1.0 ? 0 : v) + b.mformas;
 };
 
-// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO (PARA O SCOUTER E RADAR) 🔥
-const getFlatGhostAscension = (key, ficha) => {
+// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO (AGORA SIM, DEFINIDA E BLINDADA) 🔥
+const getGhostAscensionBonus = (key, ficha) => {
     if (!ficha || !key) return 0;
     const ascBase = parseInt(ficha?.ascensaoBase) || 1;
     const multA = parseFloat(ficha?.multiplicadorForcaAscensao) || 1;
     const ascEfetiva = (isNaN(ascBase) ? 1 : ascBase) * (isNaN(multA) ? 1 : multA);
     const keyLower = String(key).toLowerCase().trim();
     
+    let flatBonus = 0;
     if (['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaesp', 'carisma', 'stamina', 'constituicao'].includes(keyLower)) {
-        return ascEfetiva * 100000; 
+        flatBonus = ascEfetiva * 100000; 
     } else if (['mana', 'aura', 'chakra', 'corpo'].includes(keyLower)) {
-        return ascEfetiva * 1000000000; 
+        flatBonus = ascEfetiva * 1000000000; 
     } else if (['vida', 'pv', 'pm'].includes(keyLower)) {
-        return ascEfetiva * 100000000; 
+        flatBonus = ascEfetiva * 100000000; 
     } else if (['energiaforca'].includes(keyLower)) {
-        return ascEfetiva * 1000000000; 
+        flatBonus = ascEfetiva * 1000000000; 
     }
-    return 0;
+    return flatBonus;
 };
 
-const getPoderVerdadeiro = (key, ficha, isAtual, supressao) => {
-    const rawBase = parseFloat(safeGetMaximo(ficha, key)) || 0;
-    const ghost = getFlatGhostAscension(key, ficha);
-    
-    let mF = 1;
-    if (isAtual) {
-        mF = getEfetivoMFormas(ficha, key);
-        if (isNaN(mF) || mF < 1) mF = 1;
+const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => {
+    try {
+        if (!ficha || !key) return 0;
+        const rawBase = parseFloat(ficha[key]?.base) || 0;
+        const maxVal = parseFloat(safeGetMaximo(ficha, key)) || 0;
+        const f = parseFloat(fator) || 1;
+        const baseParaPoder = isAtual ? Math.floor(maxVal * f) : Math.floor(rawBase * f);
+
+        const bonusAscensao = getGhostAscensionBonus(key, ficha) || 0;
+
+        let mF = 1;
+        if (isAtual) {
+            mF = getEfetivoMFormas(ficha, key);
+            if (isNaN(mF) || mF < 1) mF = 1;
+        }
+
+        let sup = parseFloat(supressao);
+        if (isNaN(sup)) sup = 100;
+
+        let power = (baseParaPoder + bonusAscensao) * mF * (sup / 100);
+        return isNaN(power) ? 0 : Math.floor(power);
+    } catch (e) {
+        return 0;
     }
-    
-    let power = (rawBase + ghost) * mF * (supressao / 100);
-    return isNaN(power) ? 0 : Math.floor(power);
 };
 
 // 🔥 GESTOR DE TEMA: VIDRO HOLOGRÁFICO 🔥
@@ -158,6 +171,7 @@ const CATEGORIAS_DOMINIO = {
     'elementos_basicos_verdadeiros': { titulo: 'Básicos Verdadeiros', icone: '🌋', cor: '#ff3300' },
     'elementos_avancados': { titulo: 'Elementos Avançados', icone: '☄️', cor: '#ffaa00' },
     'elementos_avancados_verdadeiros': { titulo: 'Avançados Verdadeiros', icone: '☀️', cor: '#ffcc00' },
+    
     'mana': { titulo: 'Artes de Mana (Grimório)', icone: '🔮', cor: '#0088ff' },
     'chakra': { titulo: 'Artes de Chakra (Shinobi)', icone: '🌀', cor: '#00ffcc' },
     'aura': { titulo: 'Artes de Aura (Manifestação)', icone: '✨', cor: '#ff00ff' },
@@ -232,6 +246,24 @@ const getBasePFor = (ficha, k) => {
         return Math.floor(((m / 8) / mults.status) * div) || 0;
     }
     return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
+};
+
+const calcularPrestAtual = (ficha, attrKey, baseP) => {
+    const mFormas = getEfetivoMFormas(ficha, attrKey);
+    const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
+    return Math.floor((baseP || 0) * multForma) || 0;
+};
+
+const aplicarMultiplicadorForca = (prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) => {
+    const multP = parseFloat(multiplicadorForcaPrestigio) || 1;
+    const multA = parseFloat(multiplicadorForcaAscensao) || 1;
+    const ascensaoBaseEfetiva = (parseInt(ascensaoBase) || 1) * multA;
+    const prestigioTotal = (prestigioBase || 0) * multP;
+    const bonusAscensao = Math.floor(prestigioTotal / 100);
+    const prestigioFinal = prestigioTotal % 100;
+    const ascensaoFinal = ascensaoBaseEfetiva + bonusAscensao;
+    const rankInfo = safeGetRank(prestigioFinal, ascensaoFinal);
+    return { ...rankInfo, prestigioFinal, ascensaoFinal };
 };
 
 // ==========================================
@@ -310,7 +342,7 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     if (supressao < limiteSupressao) supressao = limiteSupressao;
     
     const tema = getTemaScouter(supressao, limiteSupressao);
-    const poderVerdadeiro = getPoderVerdadeiro(attrKey, ficha, isAtual, supressao);
+    const poderVerdadeiro = getPoderVerdadeiro(attrKey, ficha, isAtual, supressao, fatorSeguro);
 
     return (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em', flexWrap: 'wrap' }}>
@@ -375,8 +407,8 @@ const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual
     );
 };
 
-// 🔥 RADAR DESENHADO E LIGADO AO PODER VERDADEIRO (ACOMPANHA AS FORMAS E A SUPRESSÃO!) 🔥
-const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000" }) => {
+// 🔥 RADAR DESENHADO LIGADO AO PODER VERDADEIRO (BLINDADO) 🔥
+const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => {
     const eixos = [
         { label: 'VIDA', key: 'vida' }, { label: 'MANA', key: 'mana' }, { label: 'AURA', key: 'aura' },
         { label: 'CHAKRA', key: 'chakra' }, { label: 'CORPO', key: 'corpo' }, { label: 'STATUS', key: 'status' }
@@ -393,11 +425,11 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000" }) => {
         if (e.key === 'status') {
             let m = 0;
             ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
-                m += getPoderVerdadeiro(s, ficha, isAtual, supressao);
+                m += getPoderVerdadeiro(s, ficha, isAtual, supressao, fator);
             });
             truePower = Math.floor(m / 8);
         } else {
-            truePower = getPoderVerdadeiro(e.key, ficha, isAtual, supressao);
+            truePower = getPoderVerdadeiro(e.key, ficha, isAtual, supressao, fator);
         }
 
         const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
@@ -622,8 +654,9 @@ export default function MarcadosPanel() {
     const minhaFicha = useStore(s => s.minhaFicha);
     const updateFicha = useStore(s => s.updateFicha);
     const meuNome = useStore(s => s.meuNome);
+    
+    // SAFE ZUSTAND SELECTOR: Se "isMestre" não existir, não quebra nada.
     const isMestreStatus = useStore(s => s?.isMestre) || false;
-    const importarDaAbaStatus = useStore(s => s.importarDaAbaStatus);
 
     const [uploadingImg, setUploadingImg] = useState(false);
     const [modalImport, setModalImport] = useState(false);
@@ -662,7 +695,7 @@ export default function MarcadosPanel() {
 
     const isMestre = isMestreStatus || (minhaFicha?.isMestre === true);
 
-    // 🔥 CÁLCULO DO SCOUTER GLOBAL UNIFICADO 🔥
+    // 🔥 CÁLCULO DO SCOUTER GLOBAL (BLINDADO CONTRA NaN) 🔥
     const { poderGlobal, vitalidadeGlobal, supressao, limiteSupressao, temaScouter } = useMemo(() => {
         if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100, limiteSupressao: 1, temaScouter: getTemaScouter(100, 1) };
         
@@ -1321,7 +1354,7 @@ export default function MarcadosPanel() {
                                         <div style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
                                             <LabelMagico valor={getLabel('lblEnergiaForca', 'Força')} onChange={(v) => setLabel('lblEnergiaForca', v)} />
                                         </div>
-                                        <div style={{ fontSize: '0.85em', color: '#fff', border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: 'rgba(0,0,0,0.5)', fontWeight: 'bold', textShadow: `0 0 5px ${temaScouter.glow}`, boxShadow: `inset 0 0 5px ${temaScouter.cor}80` }}>
+                                        <div style={{ fontSize: '0.85em', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: temaScouter.bgDark, fontWeight: 'bold' }}>
                                             Poder: {formatarPoderCosmico(getPoderVerdadeiro('energiaForca', minhaFicha, true, supressao))}
                                         </div>
                                     </div>
@@ -1391,7 +1424,7 @@ export default function MarcadosPanel() {
 
                         <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(0,0,0,0.03)', padding: '20px', borderRadius: '15px', border: '1px dashed currentColor' }}>
                             <h2 style={{ fontSize: '2em', fontStyle: 'italic', fontWeight: 'bold', margin: '0 0 20px 0' }}><LabelMagico valor={getLabel('tituloAnaliseBase', 'Status (Rank Base)')} onChange={(v) => setLabel('tituloAnaliseBase', v)} /></h2>
-                            <RadarDesenhado ficha={minhaFicha} isAtual={false} corTinta={localCorTinta} />
+                            <RadarDesenhado ficha={minhaFicha} isAtual={false} corTinta={localCorTinta} fator={fatorCrescimentoBase} />
                             
                             <div style={{ width: '100%', maxWidth: '300px', marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
@@ -1407,7 +1440,7 @@ export default function MarcadosPanel() {
 
                         <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(0,0,0,0.05)', padding: '20px', borderRadius: '15px', border: '2px solid currentColor' }}>
                             <h2 style={{ fontSize: '2em', fontStyle: 'italic', fontWeight: 'bold', margin: '0 0 20px 0' }}><LabelMagico valor={getLabel('tituloAnaliseAtual', 'Poder Atual (c/ Formas)')} onChange={(v) => setLabel('tituloAnaliseAtual', v)} /></h2>
-                            <RadarDesenhado ficha={minhaFicha} isAtual={true} corTinta={localCorTinta} />
+                            <RadarDesenhado ficha={minhaFicha} isAtual={true} corTinta={localCorTinta} fator={fatorCrescimentoAtual} />
                             
                             <div style={{ width: '100%', maxWidth: '300px', marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
