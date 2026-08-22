@@ -2,21 +2,29 @@ import React, { useState, useEffect, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { uploadImagem, salvarFichaSilencioso, salvarFirebaseImediato } from '../../services/firebase-sync';
 
-// Importação flexível para evitar o ReferenceError
+// Importação flexível para evitar o ReferenceError de "getMaximo is not defined"
 import * as AtributosCore from '../../core/attributes';
 import { getRank } from '../../core/prestige';
+
+// 🔥 IMPORTA O NOSSO NOVO SCOUTER DE PODER 🔥
 import { formatarPoderCosmico } from '../../core/utils.js';
 
+// 🔥 IMPORTAÇÕES DAS PÁGINAS MÁGICAS EXTERNAS 🔥
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel'; 
 
 // ==========================================
-// 🛡️ DADOS DO COMPÊNDIO E FUNÇÕES SEGURAS
+// 🛡️ DADOS DO COMPÊNDIO E FUNÇÕES SEGURAS (HOISTED)
 // ==========================================
-const safeGetRawBase = (f, k) => typeof AtributosCore.getRawBase === 'function' ? AtributosCore.getRawBase(f, k) : parseFloat(f?.[k]?.base) || 0;
-const safeGetBuffs = (f, k, t) => typeof AtributosCore.getBuffs === 'function' ? AtributosCore.getBuffs(f, k, t) : {};
+function safeGetRawBase(f, k) {
+    return typeof AtributosCore.getRawBase === 'function' ? AtributosCore.getRawBase(f, k) : parseFloat(f?.[k]?.base) || 0;
+}
 
-const safeGetMaximo = (ficha, key) => {
+function safeGetBuffs(f, k, t) {
+    return typeof AtributosCore.getBuffs === 'function' ? AtributosCore.getBuffs(f, k, t) : {};
+}
+
+function safeGetMaximo(ficha, key) {
     try {
         if (AtributosCore && typeof AtributosCore.getMaximo === 'function') {
             const val = AtributosCore.getMaximo(ficha, key);
@@ -24,9 +32,9 @@ const safeGetMaximo = (ficha, key) => {
         }
     } catch (e) { console.warn("Aviso: getMaximo falhou internamente."); }
     return parseFloat(ficha?.[key]?.base) || 0;
-};
+}
 
-const safeGetRank = (prest, asc) => {
+function safeGetRank(prest, asc) {
     try {
         const r = typeof getRank === 'function' ? getRank(prest, asc) : null;
         if (r && typeof r === 'object') return { ...r };
@@ -34,10 +42,19 @@ const safeGetRank = (prest, asc) => {
     } catch (e) {
         return { l: 'F', c: '#ffffff', a: isNaN(asc) ? 1 : asc };
     }
-};
+}
 
-// 🔥 EXTRATOR SUPREMO DE COMBOS GLOBAIS (Reage aos Botões de Ligar/Desligar!) 🔥
-const getGlobalMultipliers = (ficha) => {
+function getEfetivoMFormas(ficha, k) {
+    const anchor = k === 'status' ? 'forca' : k;
+    let s = ficha?.[anchor] || {};
+    let b = safeGetBuffs(ficha, anchor, true) || {};
+    let v = parseFloat(s.mFormas) || 1.0;
+    if (!b._hasBuff || !b._hasBuff.mformas) return v;
+    return (v === 1.0 ? 0 : v) + b.mformas;
+}
+
+// 🔥 EXTRATOR SUPREMO DE COMBOS GLOBAIS 🔥
+function getGlobalMultipliers(ficha) {
     try {
         let mBase = 0, mGeral = 0, mFormas = 0, mAbs = 0;
         let unicos = [];
@@ -89,7 +106,7 @@ const getGlobalMultipliers = (ficha) => {
                 }
             });
         };
-        ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios'].forEach(scanCategory);
+        ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios', 'itens'].forEach(scanCategory);
 
         let finalB = mBase > 0 ? mBase : 1;
         let finalG = mGeral > 0 ? mGeral : 1;
@@ -102,19 +119,27 @@ const getGlobalMultipliers = (ficha) => {
     } catch(e) {
         return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalUni: 1, totalDano: 1 };
     }
-};
+}
 
 // 🔥 REGRA DA ASCENSÃO: (Ascensão * 100) + Prestígio 🔥
-const getPoderAbsolutoAtributo = (key, ficha) => {
-    const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, forca: 1000, destreza: 1000, inteligencia: 1000, sabedoria: 1000, energiaEsp: 1000, carisma: 1000, stamina: 1000, constituicao: 1000, energiaForca: 10000000 };
+function getPoderAbsolutoAtributo(key, ficha) {
+    const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, forca: 1000, destreza: 1000, inteligencia: 1000, sabedoria: 1000, energiaEsp: 1000, carisma: 1000, stamina: 1000, constituicao: 1000, energiaForca: 10000000, status: 1000 };
     
     const rawBase = parseFloat(ficha?.[key]?.base) || 0;
-    const isStatus = !['vida', 'mana', 'aura', 'chakra', 'corpo', 'energiaForca'].includes(key);
+    const isStatus = !['vida', 'mana', 'aura', 'chakra', 'corpo', 'energiaForca', 'status'].includes(key);
     const kDiv = isStatus ? 'status' : key;
     const div = parseFloat(ficha?.divisores?.[kDiv]) || 1;
     
-    // Prestígio Real da Base
-    const prestigioBruto = Math.floor((rawBase / (mults[key] || 1)) * div);
+    let prestigioBruto = 0;
+    if (key === 'status') {
+        let m = 0;
+        ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
+            m += parseFloat(ficha?.[s]?.base) || 0;
+        });
+        prestigioBruto = Math.floor(((m / 8) / mults.status) * div) || 0;
+    } else {
+        prestigioBruto = Math.floor((rawBase / (mults[key] || 1)) * div) || 0;
+    }
     
     const ascensaoBase = parseInt(ficha?.ascensaoBase) || 1;
     const multP = parseFloat(ficha?.multiplicadorForcaPrestigio) || 1;
@@ -123,16 +148,21 @@ const getPoderAbsolutoAtributo = (key, ficha) => {
     const ascEfetiva = ascensaoBase * multA;
     const prestEfetivo = prestigioBruto * multP;
     
-    // "Cada ascensão tem 100 pontos" -> Junta-se as dezenas aos atributos
     const pontosTotais = (ascEfetiva * 100) + prestEfetivo;
+    let poderPuro = Math.floor((pontosTotais / div) * (mults[key] || 1));
     
-    // Reverte para a Escala Real do Atributo (ex: Força em Milhares, Vida em Milhões)
-    const poderPuro = Math.floor((pontosTotais / div) * (mults[key] || 1));
+    if (isStatus) {
+        let prestIndiv = Math.floor((rawBase / mults[key]) * div) || 0;
+        let prestIndivEfetivo = prestIndiv * multP;
+        let pontosTotaisIndiv = (ascEfetiva * 100) + prestIndivEfetivo;
+        poderPuro = Math.floor((pontosTotaisIndiv / div) * mults[key]);
+    }
+    
     return isNaN(poderPuro) ? 0 : poderPuro;
-};
+}
 
-// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO (PARA BADGES E SCOUTER) 🔥
-const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => {
+// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO (APENAS PARA BADGES) 🔥
+function getPoderVerdadeiro(key, ficha, isAtual, supressao = 100, fator = 1) {
     try {
         if (!ficha || !key) return 0;
         
@@ -140,36 +170,33 @@ const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => 
         let poderBase = getPoderAbsolutoAtributo(key, ficha) * f;
 
         let mF = 1;
-        let mD = 1;
-        
         if (isAtual) {
-            const glob = getGlobalMultipliers(ficha);
-            mF = glob.finalF;
-            mD = glob.totalDano;
+            mF = getEfetivoMFormas(ficha, key);
+            if (isNaN(mF) || mF < 1) mF = 1;
         }
 
         let sup = parseFloat(supressao);
         if (isNaN(sup)) sup = 100;
 
-        let power = poderBase * mF * mD * (sup / 100);
+        let power = poderBase * mF * (sup / 100);
         return isNaN(power) ? 0 : Math.floor(power);
     } catch (e) {
         return 0;
     }
-};
+}
 
-const getTemaScouter = (supressao, limite = 1) => {
+function getTemaScouter(supressao, limite = 1) {
     if (supressao >= 100) return { cor: '#ffcc00', glow: '#ff8800', nome: 'Poder Máximo (Liberto)', pulse: '0.8s' };
     if (supressao >= 50)  return { cor: '#00e5ff', glow: '#0088ff', nome: 'Supressão Leve (Restrito)', pulse: '1.5s' };
     if (supressao >= 10)  return { cor: '#b142ff', glow: '#6a00ff', nome: 'Ocultação Profunda', pulse: '3s' };
     if (supressao > limite) return { cor: '#00ff66', glow: '#00aa44', nome: 'Furtividade Extrema', pulse: '5s' };
     return { cor: '#ff003c', glow: '#880000', nome: 'Anulação no Limite', pulse: '8s' };
-};
+}
 
 const CLASSES_REGULARES_BASE = [ { id: 'saber', nome: 'Saber', icone: '⚔️', cor: '#0088ff' }, { id: 'archer', nome: 'Archer', icone: '🏹', cor: '#ff003c' }, { id: 'lancer', nome: 'Lancer', icone: '🗡️', cor: '#00ffcc' }, { id: 'rider', nome: 'Rider', icone: '🏇', cor: '#ff8800' }, { id: 'caster', nome: 'Caster', icone: '🧙‍♂️', cor: '#cc00ff' }, { id: 'assassin', nome: 'Assassin', icone: '🔪', cor: '#444444' }, { id: 'berserker', nome: 'Berserker', icone: '狂', cor: '#ff0000' } ];
 const CLASSES_EXTRA_BASE = [ { id: 'shielder', nome: 'Shielder', icone: '🛡️', cor: '#00ffff' }, { id: 'ruler', nome: 'Ruler', icone: '⚖️', cor: '#ffcc00' }, { id: 'avenger', nome: 'Avenger', icone: '⛓️', cor: '#880000' }, { id: 'alterego', nome: 'Alter Ego', icone: '🎭', cor: '#ff00ff' }, { id: 'foreigner', nome: 'Foreigner', icone: '🐙', cor: '#00ff88' }, { id: 'mooncancer', nome: 'Moon Cancer', icone: '🌕', cor: '#8888aa' }, { id: 'pretender', nome: 'Pretender', icone: '🤥', cor: '#ffaa00' }, { id: 'beast', nome: 'Beast', icone: '👹', cor: '#4a0000' }, { id: 'savior', nome: 'Savior', icone: '☀️', cor: '#ffffff' }, { id: 'desconhecido', nome: '?', icone: '👤', cor: '#666666' } ];
 
-const getClasseInfo = (ficha) => {
+function getClasseInfo(ficha) {
     const nomeClasse = ficha?.bio?.classe;
     if (!nomeClasse) return null;
     const normalizar = (txt) => String(txt).replace(/[^a-z0-9]/gi, '').toLowerCase();
@@ -179,7 +206,7 @@ const getClasseInfo = (ficha) => {
     const overrideMatch = Object.values(overrides).find(c => !c.deletado && c.nome && normalizar(c.nome) === nomeStr);
     if (overrideMatch) return overrideMatch;
     return todasClasses.find(c => normalizar(c.nome) === nomeStr) || null;
-};
+}
 
 const NIVEIS_DOMINIO = {
     1: { nome: "Básico", cor: "#44ff44", desc: "+10% Dano Mágico" },
@@ -226,7 +253,7 @@ const PREDEFINIDOS_LORE = {
     summons: [ { label: "Pactos", itens: ["Pacto Demoníaco", "Feras Divinas", "Espíritos Ancestrais", "Contrato Dracônico", "Exército de Sombras", "Invocação de Armamento Sagrado"] } ]
 };
 
-const encontrarCategoriaPorLore = (nome) => {
+function encontrarCategoriaPorLore(nome) {
     const nomeClean = String(nome || '').trim().toLowerCase();
     for (const [catKey, grupos] of Object.entries(PREDEFINIDOS_LORE)) {
         for (const grupo of grupos) {
@@ -234,12 +261,12 @@ const encontrarCategoriaPorLore = (nome) => {
         }
     }
     return null;
-};
+}
 
 // ==========================================
 // 🛡️ FUNÇÕES MATEMÁTICAS E CÁLCULO
 // ==========================================
-const getBasePFor = (ficha, k) => {
+function getBasePFor(ficha, k) {
     const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
     const div = parseFloat(ficha?.divisores?.[k]) || 1;
     if (k === 'status') {
@@ -248,9 +275,9 @@ const getBasePFor = (ficha, k) => {
         return Math.floor(((m / 8) / mults.status) * div) || 0;
     }
     return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
-};
+}
 
-const aplicarMultiplicadorForca = (prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) => {
+function aplicarMultiplicadorForca(prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) {
     const multP = parseFloat(multiplicadorForcaPrestigio) || 1;
     const multA = parseFloat(multiplicadorForcaAscensao) || 1;
     const ascensaoBaseEfetiva = (parseInt(ascensaoBase) || 1) * multA;
@@ -260,21 +287,42 @@ const aplicarMultiplicadorForca = (prestigioBase, ascensaoBase, multiplicadorFor
     const ascensaoFinal = ascensaoBaseEfetiva + bonusAscensao;
     const rankInfo = safeGetRank(prestigioFinal, ascensaoFinal);
     return { ...rankInfo, prestigioFinal, ascensaoFinal };
-};
+}
 
-// ==========================================
-// 🖋️ COMPONENTES ISOLADOS (BLINDADOS)
-// ==========================================
+function calcularPrestAtual(ficha, attrKey, baseP) {
+    const mFormas = getEfetivoMFormas(ficha, attrKey);
+    const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
+    return Math.floor((baseP || 0) * multForma) || 0;
+}
+
+function calcularEscala(rawMax, key) {
+    if (!rawMax || isNaN(rawMax) || rawMax <= 0) return { mxDisplay: 0, pVit: 0 };
+    const limit = (key === 'vida' || key === 'pv' || key === 'pm') ? 8 : 9;
+    const strVal = String(Math.floor(rawMax));
+    let digitos = strVal.length;
+    if (strVal.includes('e')) {
+        const parts = strVal.split('e');
+        let exp = parseInt(parts[1].replace('+', ''));
+        if(!isNaN(exp)) digitos = exp + 1;
+    }
+    const pVit = Math.max(0, digitos - limit); 
+    const mxDisplay = pVit > 0 ? Math.floor(rawMax / Math.pow(10, pVit)) : Math.floor(rawMax);
+    return { mxDisplay: isNaN(mxDisplay) ? 0 : mxDisplay, pVit: isNaN(pVit) ? 0 : pVit };
+}
+
 let globalTimer = null;
-const callSave = (fn) => {
+function callSave(fn) {
     if (globalTimer) clearTimeout(globalTimer);
     globalTimer = setTimeout(() => {
         if (typeof salvarFirebaseImediato === 'function') salvarFirebaseImediato();
         else if (typeof salvarFichaSilencioso === 'function') salvarFichaSilencioso();
         if(fn) fn();
     }, 400);
-};
+}
 
+// ==========================================
+// 🖋️ COMPONENTES ISOLADOS (BLINDADOS)
+// ==========================================
 const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange, displayOverride }) => {
     const [focused, setFocused] = useState(false);
     const handleChange = (e) => {
@@ -346,21 +394,6 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     );
 };
 
-const calcularEscala = (rawMax, key) => {
-    if (!rawMax || isNaN(rawMax) || rawMax <= 0) return { mxDisplay: 0, pVit: 0 };
-    const limit = (key === 'vida' || key === 'pv' || key === 'pm') ? 8 : 9;
-    const strVal = String(Math.floor(rawMax));
-    let digitos = strVal.length;
-    if (strVal.includes('e')) {
-        const parts = strVal.split('e');
-        let exp = parseInt(parts[1].replace('+', ''));
-        if(!isNaN(exp)) digitos = exp + 1;
-    }
-    const pVit = Math.max(0, digitos - limit); 
-    const mxDisplay = pVit > 0 ? Math.floor(rawMax / Math.pow(10, pVit)) : Math.floor(rawMax);
-    return { mxDisplay: isNaN(mxDisplay) ? 0 : mxDisplay, pVit: isNaN(pVit) ? 0 : pVit };
-};
-
 const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual }) => {
     let maxSafe = Number(maximo) || 0;
     let atSafe = Number(atual) || 0;
@@ -381,7 +414,7 @@ const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual
     );
 };
 
-// 🔥 RADAR DESENHADO: MOSTRA A BASE X FORMAS IDÊNTICO À TABELA 🔥
+// 🔥 RADAR DESENHADO: MATEMÁTICA PURA DA TABELA 🔥
 const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => {
     const eixos = [ { label: 'VIDA', key: 'vida' }, { label: 'MANA', key: 'mana' }, { label: 'AURA', key: 'aura' }, { label: 'CHAKRA', key: 'chakra' }, { label: 'CORPO', key: 'corpo' }, { label: 'STATUS', key: 'status' } ];
     const angulos = Array.from({length: 6}).map((_, i) => Math.PI * 2 * i / 6 - Math.PI / 2);
@@ -395,22 +428,15 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
         const displayP = getBasePFor(ficha, e.key);
         
         let mF = 1;
-        if (isAtual) {
-            const glob = getGlobalMultipliers(ficha);
-            mF = glob.finalF;
-        }
+        if (isAtual) { mF = getEfetivoMFormas(ficha, e.key); if (isNaN(mF) || mF < 1) mF = 1; }
         const pAtualValor = Math.floor(displayP * mF);
         
         const efetivo = aplicarMultiplicadorForca(pAtualValor, ascensao, multP, multA);
         rankInfos.push(efetivo);
 
         let valNorm = parseFloat(efetivo.prestigioFinal) || 0;
-        
-        if (valNorm === 0 && Math.floor(efetivo.ascensaoFinal || 1) > 1) {
-            valNorm = 100;
-        } else if (valNorm >= 100) {
-            valNorm = valNorm % 100 === 0 ? 100 : valNorm % 100; 
-        }
+        if (valNorm === 0 && Math.floor(efetivo.ascensaoFinal || 1) > 1) { valNorm = 100; } 
+        else if (valNorm >= 100) { valNorm = valNorm % 100 === 0 ? 100 : valNorm % 100; }
 
         let frac = Math.min(Math.max(valNorm / 100, 0.05), 1);
         if (isNaN(frac)) frac = 0.05;
@@ -674,6 +700,8 @@ export default function MarcadosPanel() {
         
         const calcTrueAverage = () => {
             const getAttr = (k) => {
+                let maxSafe = parseFloat(safeGetMaximo(minhaFicha, k));
+                if (isNaN(maxSafe)) maxSafe = 0;
                 return getPoderAbsolutoAtributo(k, minhaFicha);
             };
             let m = 0;
@@ -683,10 +711,15 @@ export default function MarcadosPanel() {
         };
 
         const trueAvg = calcTrueAverage();
-        const glob = getGlobalMultipliers(minhaFicha);
+        let mF = getEfetivoMFormas(minhaFicha, 'status');
+        if (isNaN(mF) || mF < 1) mF = 1;
         
-        // SCOUTER GLOBAL: O ÚNICO LUGAR QUE RECEBE A MÉDIA ABSOLUTA x FORMAS x DANO GLOBAL
-        let power = trueAvg * glob.finalF * glob.totalDano * (sup / 100);
+        // APENAS NO SCOUTER GLOBAL VAMOS FUNDIR A MÉDIA DE PODER COM O MULTIPLICADOR GIGANTE DE DANO!
+        const glob = getGlobalMultipliers(minhaFicha);
+        let mDano = glob.totalDano;
+        if (isNaN(mDano) || mDano < 1) mDano = 1;
+        
+        let power = trueAvg * mF * mDano * (sup / 100);
         if (isNaN(power)) power = 0;
         
         let strVal = String(Math.floor(power));
@@ -965,7 +998,7 @@ export default function MarcadosPanel() {
                                 <CampoMagico valor={minhaFicha.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
 
-                            {/* 🌟 O NOVO SCOUTER DE VIDRO HOLOGRÁFICO BLINDADO 🌟 */}
+                            {/* 🌟 SCOUTER HOLOGRÁFICO BLINDADO 🌟 */}
                             <div style={{
                                 marginTop: '15px', marginBottom: '25px', padding: '25px 30px',
                                 background: 'rgba(15, 15, 20, 0.75)',
