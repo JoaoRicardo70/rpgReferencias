@@ -2,10 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { uploadImagem, salvarFichaSilencioso, salvarFirebaseImediato } from '../../services/firebase-sync';
 
+// Importação flexível para evitar o ReferenceError de "getMaximo is not defined"
 import * as AtributosCore from '../../core/attributes';
 import { getRank } from '../../core/prestige';
+
+// 🔥 IMPORTA O NOSSO NOVO SCOUTER DE PODER 🔥
 import { formatarPoderCosmico } from '../../core/utils.js';
 
+// 🔥 IMPORTAÇÕES DAS PÁGINAS MÁGICAS EXTERNAS 🔥
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel'; 
 
@@ -25,6 +29,7 @@ const safeGetMaximo = (ficha, key) => {
     return parseFloat(ficha[key]?.base) || 0;
 };
 
+// Blindagem Absoluta contra Crash do Rank
 const safeGetRank = (prest, asc) => {
     try {
         const r = typeof getRank === 'function' ? getRank(prest, asc) : null;
@@ -44,6 +49,7 @@ const getEfetivoMFormas = (ficha, k) => {
     return (v === 1.0 ? 0 : v) + b.mformas;
 };
 
+// 🔥 CÁLCULO DOS MÚLTIPLOS DE DANO PARA O SCOUTER GLOBAL 🔥
 const getEfetivoDanoGlobal = (ficha) => {
     try {
         let d = ficha?.dano || {};
@@ -98,7 +104,7 @@ const getGhostAscensionBonus = (key, ficha) => {
     return flatBonus;
 };
 
-// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO 🔥
+// 🔥 FÓRMULA UNIVERSAL DOS ATRIBUTOS INDIVIDUAIS (SEM DANO GLOBAL, PARA NÃO DUPLICAR) 🔥
 const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => {
     try {
         if (!ficha || !key) return 0;
@@ -787,12 +793,6 @@ export default function MarcadosPanel() {
         callSave();
     };
 
-    const handleImageUpload = async (e) => {
-        const file = e.target.files[0]; if (!file) return; setUploadingImg(true);
-        try { const url = await uploadImagem(file, `avatars/${meuNome || 'desconhecido'}`); updateFicha(f => { if (!f.avatar) f.avatar = { base: "" }; f.avatar.base = url; }); callSave(); } 
-        catch (err) { alert('Erro ao pintar o avatar!'); } finally { setUploadingImg(false); }
-    };
-
     return (
         <div style={{
             width: '95%', maxWidth: '1200px', margin: '0 auto', minHeight: '100%', height: 'auto',
@@ -915,10 +915,11 @@ export default function MarcadosPanel() {
                                 <CampoMagico valor={minhaFicha.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
 
-                            {/* 🌟 O NOVO SCOUTER DE VIDRO HOLOGRÁFICO BLINDADO 🌟 */}
+                            {/* 🌟 SCOUTER HOLOGRÁFICO BLINDADO 🌟 */}
                             <div style={{
                                 marginTop: '15px', marginBottom: '25px', padding: '25px 30px',
-                                background: 'rgba(15, 15, 20, 0.75)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+                                background: 'rgba(15, 15, 20, 0.75)',
+                                backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
                                 border: '1px solid rgba(255, 255, 255, 0.1)', borderTop: '1px solid rgba(255, 255, 255, 0.25)', borderLeft: `4px solid ${temaScouter.cor}`,
                                 borderRadius: '6px 12px 12px 6px',
                                 boxShadow: `0 15px 35px rgba(0,0,0,0.6), inset -5px -5px 20px rgba(0,0,0,0.8), inset 0 0 40px ${temaScouter.cor}1a`,
@@ -1174,10 +1175,7 @@ export default function MarcadosPanel() {
                                     const divisor = minhaFicha.divisores?.[k] || 1;
 
                                     const pAtualValor = calcularPrestAtual(minhaFicha, k, displayP);
-                                    const rankInfo = aplicarMultiplicadorForca(
-                                        pAtualValor, minhaFicha.ascensaoBase || 1,
-                                        minhaFicha.multiplicadorForcaPrestigio ?? 1, minhaFicha.multiplicadorForcaAscensao ?? 1
-                                    );
+                                    const rankInfo = aplicarMultiplicadorForca(pAtualValor, minhaFicha.ascensaoBase || 1, minhaFicha.multiplicadorForcaPrestigio ?? 1, minhaFicha.multiplicadorForcaAscensao ?? 1);
 
                                     return (
                                         <div key={k} style={{ background: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.2)', borderRadius: '8px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: 'inset 0 0 10px rgba(0,0,0,0.05)' }}>
@@ -1189,13 +1187,7 @@ export default function MarcadosPanel() {
                                                 </div>
                                             </div>
                                             <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
-                                                <CampoMagico
-                                                    valor={displayP}
-                                                    onChange={v => handleTabelaChange(k, 'prestigio', v)}
-                                                    type="number"
-                                                    isNumber={true}
-                                                    styleExtra={{ width: '100%', textAlign: 'center', color: '#fff', borderBottom: 'none', fontSize: '1.4em', fontWeight: 'bold' }}
-                                                />
+                                                <CampoMagico valor={displayP} onChange={v => handleTabelaChange(k, 'prestigio', v)} type="number" isNumber={true} styleExtra={{ width: '100%', textAlign: 'center', color: '#fff', borderBottom: 'none', fontSize: '1.4em', fontWeight: 'bold' }} />
                                             </div>
                                             <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
                                                 <span style={{ color: rankInfo.c || '#fff', fontWeight: 'bold', fontSize: '0.9em' }}>Rank {rankInfo.l || 'F'} [A{Math.floor(rankInfo.ascensaoFinal || 1)}]</span>
