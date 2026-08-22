@@ -2,17 +2,21 @@ import React, { useState, useEffect, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { uploadImagem, salvarFichaSilencioso, salvarFirebaseImediato } from '../../services/firebase-sync';
 
+// Importação flexível para evitar o ReferenceError de "getMaximo is not defined"
 import * as AtributosCore from '../../core/attributes';
 import { getRank } from '../../core/prestige';
+
+// 🔥 IMPORTA O NOSSO NOVO SCOUTER DE PODER 🔥
 import { formatarPoderCosmico } from '../../core/utils.js';
 
+// 🔥 IMPORTAÇÕES DAS PÁGINAS MÁGICAS EXTERNAS 🔥
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel'; 
 
 // ==========================================
 // 🛡️ DADOS DO COMPÊNDIO E FUNÇÕES SEGURAS
 // ==========================================
-const safeGetRawBase = (f, k) => typeof AtributosCore.getRawBase === 'function' ? AtributosCore.getRawBase(f, k) : parseFloat(f?.[k]?.base) || 0;
+const safeGetRawBase = (f, k) => typeof AtributosCore.getRawBase === 'function' ? AtributosCore.getRawBase(f, k) : parseFloat(f[k]?.base) || 0;
 const safeGetBuffs = (f, k, t) => typeof AtributosCore.getBuffs === 'function' ? AtributosCore.getBuffs(f, k, t) : {};
 
 const safeGetMaximo = (ficha, key) => {
@@ -22,7 +26,7 @@ const safeGetMaximo = (ficha, key) => {
             return isNaN(val) ? 0 : val;
         }
     } catch (e) { console.warn("Aviso: getMaximo falhou internamente."); }
-    return parseFloat(ficha?.[key]?.base) || 0;
+    return parseFloat(ficha[key]?.base) || 0;
 };
 
 // Blindagem Absoluta contra Crash do Rank
@@ -38,14 +42,14 @@ const safeGetRank = (prest, asc) => {
 
 const getEfetivoMFormas = (ficha, k) => {
     const anchor = k === 'status' ? 'forca' : k;
-    let s = ficha?.[anchor] || {};
-    let b = safeGetBuffs(ficha, anchor, true) || {};
+    let s = ficha[anchor] || {};
+    let b = safeGetBuffs(ficha, anchor, true);
     let v = parseFloat(s.mFormas) || 1.0;
     if (!b._hasBuff || !b._hasBuff.mformas) return v;
     return (v === 1.0 ? 0 : v) + b.mformas;
 };
 
-// 🔥 FÓRMULA DE DANO ABSOLUTO BLINDADA 🔥
+// 🔥 FÓRMULA DE DANO ABSOLUTO 🔥
 const getEfetivoDanoGlobal = (ficha) => {
     try {
         let d = ficha?.dano || {};
@@ -80,76 +84,97 @@ const getEfetivoDanoGlobal = (ficha) => {
     }
 };
 
-const getGhostAscensionBonus = (key, ficha) => {
+// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO (PARA BADGES DE STATUS E RADAR) 🔥
+const getFlatGhostAscension = (key, ficha) => {
     if (!ficha || !key) return 0;
     const ascBase = parseInt(ficha?.ascensaoBase) || 1;
     const multA = parseFloat(ficha?.multiplicadorForcaAscensao) || 1;
     const ascEfetiva = (isNaN(ascBase) ? 1 : ascBase) * (isNaN(multA) ? 1 : multA);
     const keyLower = String(key).toLowerCase().trim();
     
-    let flatBonus = 0;
     if (['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaesp', 'carisma', 'stamina', 'constituicao'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 100000; 
+        return ascEfetiva * 100000; 
     } else if (['mana', 'aura', 'chakra', 'corpo'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 1000000000; 
+        return ascEfetiva * 1000000000; 
     } else if (['vida', 'pv', 'pm'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 100000000; 
+        return ascEfetiva * 100000000; 
     } else if (['energiaforca'].includes(keyLower)) {
-        flatBonus = ascEfetiva * 1000000000; 
+        return ascEfetiva * 1000000000; 
     }
-    return flatBonus;
+    return 0;
 };
 
-// 🔥 FÓRMULA UNIVERSAL DOS ATRIBUTOS INDIVIDUAIS 🔥
-const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => {
-    try {
-        if (!ficha || !key) return 0;
-        const rawBase = parseFloat(ficha[key]?.base) || 0;
-        const maxVal = parseFloat(safeGetMaximo(ficha, key)) || 0;
-        const f = parseFloat(fator) || 1;
-        const baseParaPoder = isAtual ? Math.floor(maxVal * f) : Math.floor(rawBase * f);
-
-        const bonusAscensao = getGhostAscensionBonus(key, ficha) || 0;
-
-        let mF = 1;
-        if (isAtual) {
-            mF = getEfetivoMFormas(ficha, key);
-            if (isNaN(mF) || mF < 1) mF = 1;
-        }
-
-        let sup = parseFloat(supressao);
-        if (isNaN(sup)) sup = 100;
-
-        let power = (baseParaPoder + bonusAscensao) * mF * (sup / 100);
-        return isNaN(power) ? 0 : Math.floor(power);
-    } catch (e) {
-        return 0;
+const getPoderVerdadeiro = (key, ficha, isAtual, supressao) => {
+    const rawBase = parseFloat(safeGetMaximo(ficha, key)) || 0;
+    const ghost = getFlatGhostAscension(key, ficha);
+    
+    let mF = 1;
+    if (isAtual) {
+        mF = getEfetivoMFormas(ficha, key);
+        if (isNaN(mF) || mF < 1) mF = 1;
     }
+    
+    let power = (rawBase + ghost) * mF * (supressao / 100);
+    return isNaN(power) ? 0 : Math.floor(power);
 };
 
+// 🔥 GESTOR DE TEMA: VIDRO HOLOGRÁFICO 🔥
 const getTemaScouter = (supressao, limite = 1) => {
-    if (supressao >= 100) return { cor: '#ffcc00', glow: '#ff8800', nome: 'Poder Máximo (Liberto)', pulse: '0.8s' };
-    if (supressao >= 50)  return { cor: '#00e5ff', glow: '#0088ff', nome: 'Supressão Leve (Restrito)', pulse: '1.5s' };
-    if (supressao >= 10)  return { cor: '#b142ff', glow: '#6a00ff', nome: 'Ocultação Profunda', pulse: '3s' };
-    if (supressao > limite) return { cor: '#00ff66', glow: '#00aa44', nome: 'Furtividade Extrema', pulse: '5s' };
-    return { cor: '#ff003c', glow: '#880000', nome: 'Anulação no Limite', pulse: '8s' };
+    if (supressao >= 100) {
+        return { cor: '#ffcc00', glow: '#ff8800', nome: 'Poder Máximo (Liberto)', pulse: '0.8s' };
+    } else if (supressao >= 50) {
+        return { cor: '#00e5ff', glow: '#0088ff', nome: 'Supressão Leve (Restrito)', pulse: '1.5s' };
+    } else if (supressao >= 10) {
+        return { cor: '#b142ff', glow: '#6a00ff', nome: 'Ocultação Profunda', pulse: '3s' };
+    } else if (supressao > limite) {
+        return { cor: '#00ff66', glow: '#00aa44', nome: 'Furtividade Extrema', pulse: '5s' };
+    } else {
+        return { cor: '#ff003c', glow: '#880000', nome: 'Anulação no Limite', pulse: '8s' };
+    }
 };
 
-const CLASSES_REGULARES_BASE = [ { id: 'saber', nome: 'Saber', icone: '⚔️', cor: '#0088ff' }, { id: 'archer', nome: 'Archer', icone: '🏹', cor: '#ff003c' }, { id: 'lancer', nome: 'Lancer', icone: '🗡️', cor: '#00ffcc' }, { id: 'rider', nome: 'Rider', icone: '🏇', cor: '#ff8800' }, { id: 'caster', nome: 'Caster', icone: '🧙‍♂️', cor: '#cc00ff' }, { id: 'assassin', nome: 'Assassin', icone: '🔪', cor: '#444444' }, { id: 'berserker', nome: 'Berserker', icone: '狂', cor: '#ff0000' } ];
-const CLASSES_EXTRA_BASE = [ { id: 'shielder', nome: 'Shielder', icone: '🛡️', cor: '#00ffff' }, { id: 'ruler', nome: 'Ruler', icone: '⚖️', cor: '#ffcc00' }, { id: 'avenger', nome: 'Avenger', icone: '⛓️', cor: '#880000' }, { id: 'alterego', nome: 'Alter Ego', icone: '🎭', cor: '#ff00ff' }, { id: 'foreigner', nome: 'Foreigner', icone: '🐙', cor: '#00ff88' }, { id: 'mooncancer', nome: 'Moon Cancer', icone: '🌕', cor: '#8888aa' }, { id: 'pretender', nome: 'Pretender', icone: '🤥', cor: '#ffaa00' }, { id: 'beast', nome: 'Beast', icone: '👹', cor: '#4a0000' }, { id: 'savior', nome: 'Savior', icone: '☀️', cor: '#ffffff' }, { id: 'desconhecido', nome: '?', icone: '👤', cor: '#666666' } ];
+const CLASSES_REGULARES_BASE = [
+    { id: 'saber', nome: 'Saber', icone: '⚔️', cor: '#0088ff' },
+    { id: 'archer', nome: 'Archer', icone: '🏹', cor: '#ff003c' },
+    { id: 'lancer', nome: 'Lancer', icone: '🗡️', cor: '#00ffcc' },
+    { id: 'rider', nome: 'Rider', icone: '🏇', cor: '#ff8800' },
+    { id: 'caster', nome: 'Caster', icone: '🧙‍♂️', cor: '#cc00ff' },
+    { id: 'assassin', nome: 'Assassin', icone: '🔪', cor: '#444444' },
+    { id: 'berserker', nome: 'Berserker', icone: '狂', cor: '#ff0000' }
+];
+
+const CLASSES_EXTRA_BASE = [
+    { id: 'shielder', nome: 'Shielder', icone: '🛡️', cor: '#00ffff' },
+    { id: 'ruler', nome: 'Ruler', icone: '⚖️', cor: '#ffcc00' },
+    { id: 'avenger', nome: 'Avenger', icone: '⛓️', cor: '#880000' },
+    { id: 'alterego', nome: 'Alter Ego', icone: '🎭', cor: '#ff00ff' },
+    { id: 'foreigner', nome: 'Foreigner', icone: '🐙', cor: '#00ff88' },
+    { id: 'mooncancer', nome: 'Moon Cancer', icone: '🌕', cor: '#8888aa' },
+    { id: 'pretender', nome: 'Pretender', icone: '🤥', cor: '#ffaa00' },
+    { id: 'beast', nome: 'Beast', icone: '👹', cor: '#4a0000' },
+    { id: 'savior', nome: 'Savior', icone: '☀️', cor: '#ffffff' },
+    { id: 'desconhecido', nome: '?', icone: '👤', cor: '#666666' }
+];
 
 const getClasseInfo = (ficha) => {
     const nomeClasse = ficha?.bio?.classe;
     if (!nomeClasse) return null;
+    
     const normalizar = (txt) => String(txt).replace(/[^a-z0-9]/gi, '').toLowerCase();
     const nomeStr = normalizar(nomeClasse);
+    
     const todasClasses = [...CLASSES_REGULARES_BASE, ...CLASSES_EXTRA_BASE];
     const overrides = ficha?.compendioOverrides?.classes || {};
+    
     const overrideMatch = Object.values(overrides).find(c => !c.deletado && c.nome && normalizar(c.nome) === nomeStr);
     if (overrideMatch) return overrideMatch;
+    
     return todasClasses.find(c => normalizar(c.nome) === nomeStr) || null;
 };
 
+// ==========================================
+// 🌌 REGRAS DOS DOMÍNIOS E HIERARQUIA
+// ==========================================
 const NIVEIS_DOMINIO = {
     1: { nome: "Básico", cor: "#44ff44", desc: "+10% Dano Mágico" },
     2: { nome: "Intermediário", cor: "#44ff44", desc: "+25% Dano | -5% Custo" },
@@ -184,13 +209,34 @@ const PREDEFINIDOS_LORE = {
     elementos_basicos_verdadeiros: [ { label: "Básicos Verdadeiros", itens: ["Fogo Verdadeiro", "Raio Verdadeiro", "Agua Verdadeira", "Vento Verdadeiro", "Terra Verdadeira"] } ],
     elementos_avancados: [ { label: "Elementos Avançados", itens: ["Solar", "Energia", "Gelo", "Vacuo", "Natureza"] } ],
     elementos_avancados_verdadeiros: [ { label: "Avançados Verdadeiros", itens: ["Solar Verdadeiro", "Energia Verdadeira", "Gelo Verdadeiro", "Vacuo Verdadeiro", "Natureza Verdadeira"] } ],
-    mana: [ { label: "Magias de Ciclo", itens: ["Truques de Ciclo", "Magias de 1º a 10º Ciclo"] }, { label: "Magias Arcanas/Negras", itens: ["Truques Arcanos/Negros", "Magias Arcanas/Negra de 1º a 10º Ciclo"] }, { label: "Magias Ancestrais", itens: ["Truques Ancestrais", "Magia de Sangue", "Magia de Osso", "Magia Draconica", "Magia de Alma", "Magia de Tempo", "Magia de Gravidade", "Magia Espacial", "Magia de Borracha", "Magia de Espelho", "Magia de Sal", "Magia de Tremor", "Magia de Equipamento", "Magia de Explosao", "Magia de Metamorfose"] } ],
-    chakra: [ { label: "Kekkei Genkai", itens: ["Elemento Madeira", "Elemento Mineral", "Elemento Cinzas", "Elemento Igneo", "Elemento Lava", "Elemento Vapor", "Elemento Nevoa", "Elemento Tempestade", "Elemento Areia", "Elemento Tufao"] }, { label: "Kekkei Touta", itens: ["Elemento Velocidade", "Elemento Poeira", "Elemento Veneno", "Elemento Cal", "Elemento Carbono", "Elemento Calor", "Elemento Som", "Elemento Magnetismo"] } ],
-    aura: [ { label: "Manifestação", itens: ["Aura Pura", "Projeção de Aura", "Reforço de Aura"] }, { label: "Fusões", itens: ["Fusões Básicas", "Fusões Avançadas"] } ],
-    primordiais: [ { label: "Primordiais Base", itens: ["Luz", "Trevas", "Ether"] }, { label: "Primordiais Verdadeiros", itens: ["Celestial", "Infernal", "Caos"] }, { label: "Absolutos", itens: ["Criacao", "Destruicao", "Cosmos"] } ],
+    mana: [
+        { label: "Magias de Ciclo", itens: ["Truques de Ciclo", "Magias de 1º a 10º Ciclo"] },
+        { label: "Magias Arcanas/Negras", itens: ["Truques Arcanos/Negros", "Magias Arcanas/Negra de 1º a 10º Ciclo"] },
+        { label: "Magias Ancestrais", itens: ["Truques Ancestrais", "Magia de Sangue", "Magia de Osso", "Magia Draconica", "Magia de Alma", "Magia de Tempo", "Magia de Gravidade", "Magia Espacial", "Magia de Borracha", "Magia de Espelho", "Magia de Sal", "Magia de Tremor", "Magia de Equipamento", "Magia de Explosao", "Magia de Metamorfose"] }
+    ],
+    chakra: [
+        { label: "Kekkei Genkai", itens: ["Elemento Madeira", "Elemento Mineral", "Elemento Cinzas", "Elemento Igneo", "Elemento Lava", "Elemento Vapor", "Elemento Nevoa", "Elemento Tempestade", "Elemento Areia", "Elemento Tufao"] },
+        { label: "Kekkei Touta", itens: ["Elemento Velocidade", "Elemento Poeira", "Elemento Veneno", "Elemento Cal", "Elemento Carbono", "Elemento Calor", "Elemento Som", "Elemento Magnetismo"] }
+    ],
+    aura: [
+        { label: "Manifestação", itens: ["Aura Pura", "Projeção de Aura", "Reforço de Aura"] },
+        { label: "Fusões", itens: ["Fusões Básicas", "Fusões Avançadas"] }
+    ],
+    primordiais: [
+        { label: "Primordiais Base", itens: ["Luz", "Trevas", "Ether"] },
+        { label: "Primordiais Verdadeiros", itens: ["Celestial", "Infernal", "Caos"] },
+        { label: "Absolutos", itens: ["Criacao", "Destruicao", "Cosmos"] }
+    ],
     astral: [ { label: "Domínios da Existência", itens: ["Vida", "Morte", "Vazio", "Neutro", "Energia Astral"] } ],
-    marciais: [ { label: "Fundamentos", itens: ["Artes Marciais (Combate Corpo-a-Corpo)", "Reforço Físico"] }, { label: "Estilos de Combate", itens: ["Punho do Dragão", "Palma Suave", "Caminho do Tigre", "Boxe Demoníaco", "Artes de Assassino", "Estilo Bêbado", "Punho de Ferro"] } ],
-    armas: [ { label: "Kenjutsu (Espadas)", itens: ["Ittouryu (1 Espada)", "Nitouryu (2 Espadas)", "Santouryu (3 Espadas)", "Iaido", "Kenjutsu"] }, { label: "Posturas de Combate", itens: ["Postura da Montanha", "Postura da Água", "Postura do Vento", "Postura do Trovão"] }, { label: "Outras Armas", itens: ["Maestria com Lança", "Maestria com Foice", "Maestria com Arco", "Maestria com Armas de Fogo", "Maestria com Escudo"] } ],
+    marciais: [
+        { label: "Fundamentos", itens: ["Artes Marciais (Combate Corpo-a-Corpo)", "Reforço Físico"] },
+        { label: "Estilos de Combate", itens: ["Punho do Dragão", "Palma Suave", "Caminho do Tigre", "Boxe Demoníaco", "Artes de Assassino", "Estilo Bêbado", "Punho de Ferro"] }
+    ],
+    armas: [
+        { label: "Kenjutsu (Espadas)", itens: ["Ittouryu (1 Espada)", "Nitouryu (2 Espadas)", "Santouryu (3 Espadas)", "Iaido", "Kenjutsu"] },
+        { label: "Posturas de Combate", itens: ["Postura da Montanha", "Postura da Água", "Postura do Vento", "Postura do Trovão"] },
+        { label: "Outras Armas", itens: ["Maestria com Lança", "Maestria com Foice", "Maestria com Arco", "Maestria com Armas de Fogo", "Maestria com Escudo"] }
+    ],
     cura: [ { label: "Medicina", itens: ["Regeneração Básica", "Cura Celular", "Purificação", "Reversão Temporal", "Transferência Vital", "Ressurreição Limitada"] } ],
     summons: [ { label: "Pactos", itens: ["Pacto Demoníaco", "Feras Divinas", "Espíritos Ancestrais", "Contrato Dracônico", "Exército de Sombras", "Invocação de Armamento Sagrado"] } ]
 };
@@ -215,37 +261,26 @@ const getBasePFor = (ficha, k) => {
     const div = parseFloat(ficha?.divisores?.[k]) || 1;
     if (k === 'status') {
         let m = 0;
-        ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { m += safeGetRawBase(ficha, s); });
+        ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
+            m += safeGetRawBase(ficha, s);
+        });
         return Math.floor(((m / 8) / mults.status) * div) || 0;
     }
     return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
 };
 
-const aplicarMultiplicadorForca = (prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) => {
-    const multP = parseFloat(multiplicadorForcaPrestigio) || 1;
-    const multA = parseFloat(multiplicadorForcaAscensao) || 1;
-    const ascensaoBaseEfetiva = (parseInt(ascensaoBase) || 1) * multA;
-    const prestigioTotal = (prestigioBase || 0) * multP;
-    const bonusAscensao = Math.floor(prestigioTotal / 100);
-    const prestigioFinal = prestigioTotal % 100;
-    const ascensaoFinal = ascensaoBaseEfetiva + bonusAscensao;
-    const rankInfo = safeGetRank(prestigioFinal, ascensaoFinal);
-    return { ...rankInfo, prestigioFinal, ascensaoFinal };
-};
-
+// ==========================================
+// 🖋️ INPUTS E BARRAS MÁGICAS
+// ==========================================
 let globalTimer = null;
-const callSave = (fn) => {
+const callSave = () => {
     if (globalTimer) clearTimeout(globalTimer);
     globalTimer = setTimeout(() => {
         if (typeof salvarFirebaseImediato === 'function') salvarFirebaseImediato();
-        else if (typeof salvarFichaSilencioso === 'function') salvarFichaSilencioso();
-        if(fn) fn();
+        else salvarFichaSilencioso();
     }, 400);
 };
 
-// ==========================================
-// 🖋️ COMPONENTES ISOLADOS (BLINDADOS)
-// ==========================================
 const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange }) => {
     const [focused, setFocused] = useState(false);
     const handleChange = (e) => {
@@ -259,14 +294,19 @@ const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "te
     };
     let displayValue = valor !== undefined && valor !== null ? String(valor) : '';
     let currentType = type;
+    
     if (isNumber && !focused && displayValue !== '') {
         let num = Number(displayValue);
         if (!isNaN(num)) displayValue = num.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
         currentType = 'text';
-    } else if (isNumber && focused) { currentType = 'number'; }
+    } else if (isNumber && focused) { 
+        currentType = 'number'; 
+    }
 
     return (
-        <input type={currentType} step={isNumber ? "any" : undefined} value={displayValue} onChange={handleChange}
+        <input
+            type={currentType} step={isNumber ? "any" : undefined} value={displayValue}
+            onChange={handleChange}
             onFocus={() => { setFocused(true); if (onFocusChange) onFocusChange(true); }}
             onBlur={() => { setFocused(false); if (onFocusChange) onFocusChange(false); callSave(); }}
             placeholder={placeholder}
@@ -276,7 +316,8 @@ const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "te
 };
 
 const LabelMagico = ({ valor, onChange, fallback }) => (
-    <input type="text" value={valor !== undefined ? valor : fallback} onChange={(e) => onChange(e.target.value)} 
+    <input 
+        type="text" value={valor !== undefined ? valor : fallback} onChange={(e) => onChange(e.target.value)} 
         onBlur={(e) => { e.target.style.borderBottom = '1px solid transparent'; callSave(); }}
         size={Math.max(String(valor !== undefined ? valor : fallback).length, 3)}
         style={{ background: 'transparent', border: 'none', borderBottom: '1px solid transparent', fontFamily: 'inherit', fontSize: 'inherit', color: 'inherit', fontWeight: 'bold', fontStyle: 'italic', outline: 'none', padding: '0', cursor: 'text', transition: '0.2s' }}
@@ -287,10 +328,13 @@ const LabelMagico = ({ valor, onChange, fallback }) => (
 const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, getLabel, setLabel, salvar, fator, attrBaseFocado, setAttrBaseFocado }) => {
     const baseValRaw = ficha[attrKey]?.base;
     const rawBase = parseFloat(baseValRaw) || 0;
-    let maxVal = parseFloat(safeGetMaximo(ficha, attrKey)) || 0;
+    let maxVal = safeGetMaximo(ficha, attrKey);
+    if (isNaN(maxVal)) maxVal = 0;
+
     const fatorSeguro = parseFloat(fator) || 1;
     const baseExibido = (baseValRaw === undefined || baseValRaw === null || baseValRaw === '') ? '' : Math.floor(rawBase * fatorSeguro);
     const valorAtual = Math.floor(maxVal * fatorSeguro);
+
     const editandoBase = attrBaseFocado === attrKey;
     const valorCampoBase = editandoBase ? (baseValRaw ?? '') : baseExibido;
 
@@ -301,17 +345,25 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     if (supressao < limiteSupressao) supressao = limiteSupressao;
     
     const tema = getTemaScouter(supressao, limiteSupressao);
-    const poderVerdadeiro = getPoderVerdadeiro(attrKey, ficha, isAtual, supressao, fatorSeguro);
+    const poderVerdadeiro = getPoderVerdadeiro(attrKey, ficha, isAtual, supressao);
 
     return (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
                 <span style={{ fontSize: '0.7em', color: '#fff', border: `1px solid ${tema.cor}`, padding: '2px 6px', borderRadius: '10px', background: 'rgba(0,0,0,0.5)', whiteSpace: 'nowrap', fontWeight: 'bold', textShadow: `0 0 5px ${tema.glow}`, boxShadow: `inset 0 0 5px ${tema.cor}80` }}>
-                    Poder: {formatarPoderCosmico(Number(poderVerdadeiro) || 0)}
+                    Poder: {formatarPoderCosmico(poderVerdadeiro)}
                 </span>
             </div>
-            {isAtual ? <span style={{ fontWeight: 'bold' }}>{Number(valorAtual).toLocaleString('pt-BR')}</span> : <CampoMagico valor={valorCampoBase} onChange={(v) => salvar(`${attrKey}.base`, v)} onFocusChange={(focado) => setAttrBaseFocado(focado ? attrKey : null)} styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true} />}
+            
+            {isAtual
+                ? <span style={{ fontWeight: 'bold' }}>{Number(valorAtual).toLocaleString('pt-BR')}</span>
+                : <CampoMagico
+                    valor={valorCampoBase}
+                    onChange={(v) => salvar(`${attrKey}.base`, v)}
+                    onFocusChange={(focado) => setAttrBaseFocado(focado ? attrKey : null)}
+                    styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true}
+                  />}
         </div>
     );
 };
@@ -319,60 +371,72 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
 const calcularEscala = (rawMax, key) => {
     if (!rawMax || isNaN(rawMax) || rawMax <= 0) return { mxDisplay: 0, pVit: 0 };
     const limit = (key === 'vida' || key === 'pv' || key === 'pm') ? 8 : 9;
+    
     const strVal = String(Math.floor(rawMax));
     let digitos = strVal.length;
     if (strVal.includes('e')) {
         const parts = strVal.split('e');
-        let exp = parseInt(parts[1].replace('+', ''));
-        if(!isNaN(exp)) digitos = exp + 1;
+        digitos = parseInt(parts[1].replace('+', '')) + 1;
     }
+
     const pVit = Math.max(0, digitos - limit); 
     const mxDisplay = pVit > 0 ? Math.floor(rawMax / Math.pow(10, pVit)) : Math.floor(rawMax);
     return { mxDisplay: isNaN(mxDisplay) ? 0 : mxDisplay, pVit: isNaN(pVit) ? 0 : pVit };
 };
 
 const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual }) => {
-    let maxSafe = Number(maximo) || 0;
-    let atSafe = Number(atual) || 0;
-    const pct = maxSafe > 0 ? Math.min(100, Math.max(0, (atSafe / maxSafe) * 100)) : 0;
+    const pct = maximo > 0 ? Math.min(100, Math.max(0, (atual / maximo) * 100)) : 0;
     const isDark = corTexto === '#fff';
+    
     return (
         <div style={{ position: 'relative', width: '100%', height: '35px', border: '2px solid currentColor', borderRadius: '6px', background: 'rgba(255,255,255,0.2)', overflow: 'hidden', marginTop: '5px', boxShadow: 'inset 0 0 10px rgba(0,0,0,0.5)', display: 'flex' }}>
-            {pVit > 0 && <div style={{ width: '35px', height: '100%', background: 'rgba(0,0,0,0.9)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2em', borderRight: '2px solid rgba(0,0,0,0.8)', zIndex: 5, boxShadow: `inset 0 0 10px ${cor}` }}>{pVit}</div>}
+            {pVit > 0 && (
+                <div style={{ width: '35px', height: '100%', background: 'rgba(0,0,0,0.9)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2em', borderRight: '2px solid rgba(0,0,0,0.8)', zIndex: 5, boxShadow: `inset 0 0 10px ${cor}` }}>{pVit}</div>
+            )}
             <div style={{ flex: 1, position: 'relative' }}>
                 <div style={{ width: `${pct}%`, height: '100%', background: cor, transition: 'width 0.3s ease' }} />
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1.2em', color: corTexto, textShadow: isDark ? '1px 1px 3px #000, -1px -1px 3px #000' : 'none' }}>
-                    <CampoMagico valor={atSafe} onChange={onChangeAtual} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTexto, textShadow: 'inherit', borderBottom: `1px dashed ${isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
+                    <CampoMagico 
+                        valor={atual} 
+                        onChange={onChangeAtual} 
+                        isNumber={true} 
+                        styleExtra={{ width: '120px', textAlign: 'right', color: corTexto, textShadow: 'inherit', borderBottom: `1px dashed ${isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} 
+                    />
                     <span style={{ margin: '0 8px' }}>/</span>
-                    <span>{maxSafe.toLocaleString('pt-BR')}</span>
+                    <span>{Number(maximo).toLocaleString('pt-BR')}</span>
                 </div>
             </div>
         </div>
     );
 };
 
-// 🔥 RADAR DESENHADO: MOSTRA APENAS A BASE X FORMAS 🔥
-const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => {
-    const eixos = [ { label: 'VIDA', key: 'vida' }, { label: 'MANA', key: 'mana' }, { label: 'AURA', key: 'aura' }, { label: 'CHAKRA', key: 'chakra' }, { label: 'CORPO', key: 'corpo' }, { label: 'STATUS', key: 'status' } ];
+// 🔥 RADAR DESENHADO: MATEMÁTICA PURA DA BASE DIVIDIDA PELO PRESTÍGIO (SEM GHOST E SEM DANO) 🔥
+const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000" }) => {
+    const eixos = [
+        { label: 'VIDA', key: 'vida' }, { label: 'MANA', key: 'mana' }, { label: 'AURA', key: 'aura' },
+        { label: 'CHAKRA', key: 'chakra' }, { label: 'CORPO', key: 'corpo' }, { label: 'STATUS', key: 'status' }
+    ];
     const angulos = Array.from({length: 6}).map((_, i) => Math.PI * 2 * i / 6 - Math.PI / 2);
     
     const rankInfos = [];
+
     const dataPoints = eixos.map((e, i) => {
         const getPoderPuroComFormas = (k) => {
-            const rawBase = parseFloat(ficha?.[k]?.base) || 0;
             const maxVal = parseFloat(safeGetMaximo(ficha, k)) || 0;
-            const f = parseFloat(fator) || 1;
-            const base = isAtual ? Math.floor(maxVal * f) : Math.floor(rawBase * f);
-            
             let mF = 1;
-            if (isAtual) { mF = getEfetivoMFormas(ficha, k); if (isNaN(mF) || mF < 1) mF = 1; }
-            return Math.floor(base * mF);
+            if (isAtual) { 
+                mF = getEfetivoMFormas(ficha, k); 
+                if (isNaN(mF) || mF < 1) mF = 1; 
+            }
+            return Math.floor(maxVal * mF);
         };
-        
+
         let truePower = 0;
         if (e.key === 'status') {
             let m = 0;
-            ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { m += getPoderPuroComFormas(s); });
+            ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
+                m += getPoderPuroComFormas(s);
+            });
             truePower = Math.floor(m / 8);
         } else {
             truePower = getPoderPuroComFormas(e.key);
@@ -380,6 +444,7 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
 
         const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
         const div = parseFloat(ficha?.divisores?.[e.key]) || 1;
+        
         let totalPrestige = Math.floor(truePower / ((mults[e.key] || 1) * div));
         if (isNaN(totalPrestige)) totalPrestige = 0;
         
@@ -390,12 +455,15 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
         const efetivo = safeGetRank(prest, asc);
         efetivo.prestigioFinal = prest;
         efetivo.ascensaoFinal = asc;
+
         rankInfos.push(efetivo);
 
         let valNorm = parseFloat(efetivo.prestigioFinal) || 0;
         if (valNorm >= 100) valNorm = valNorm % 100 === 0 ? 100 : valNorm % 100; 
+        
         let frac = Math.min(Math.max(valNorm / 100, 0.05), 1);
         if (isNaN(frac)) frac = 0.05;
+        
         let cx = 100 + 75 * frac * Math.cos(angulos[i]);
         let cy = 100 + 75 * frac * Math.sin(angulos[i]);
         if (isNaN(cx)) cx = 100;
@@ -430,74 +498,43 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
     );
 };
 
-const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, corTextoBarra = '#fff', ficha, supressao, temaScouter, salvar, getLabel, setLabel }) => {
-    const [aberto, setAberta] = useState(false);
-    let rawMaximo = parseFloat(safeGetMaximo(ficha, vitalKey)) || 0;
-    
-    const { mxDisplay, pVit } = calcularEscala(rawMaximo, vitalKey);
-    let atual = ficha?.[vitalKey]?.atual;
-    if (atual === undefined || atual === null || atual === '') atual = mxDisplay; else atual = Number(atual);
-    if (isNaN(atual)) atual = mxDisplay;
-    if (atual > mxDisplay) atual = mxDisplay;
-
-    const poderVerdadeiro = getPoderVerdadeiro(vitalKey, ficha, true, supressao);
-
-    return (
-        <div style={{ marginBottom: '15px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
-                    {subItens && <span onClick={() => setAberta(!aberto)} style={{ cursor: 'pointer', width: '20px', display: 'inline-block', userSelect: 'none', fontWeight: 'bold' }}>{aberto ? 'v ' : '> '}</span>}
-                    <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
-                </div>
-                <div style={{ fontSize: '0.85em', color: '#fff', border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: temaScouter.bgDark, fontWeight: 'bold', boxShadow: `inset 0 0 8px ${temaScouter.cor}80` }}>
-                    Poder: {formatarPoderCosmico(Number(poderVerdadeiro) || 0)}
-                </div>
-            </div>
-            <BarraVital atual={atual} maximo={mxDisplay} pVit={pVit} cor={corBarra} corTexto={corTextoBarra} onChangeAtual={(v) => salvar(`${vitalKey}.atual`, v)} />
-            
-            {aberto && subItens && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '35px', marginTop: '12px' }}>
-                    {subItens.map(sub => {
-                        const subBaseRaw = ficha?.[sub.key]?.base;
-                        const trueSubBase = getPoderVerdadeiro(sub.key, ficha, true, supressao);
-                        return (
-                            <div key={sub.labelKey} style={{ fontSize: '1.05em', display: 'flex', alignItems: 'center' }}>
-                                <LabelMagico valor={getLabel(sub.labelKey, sub.fallbackLabel)} onChange={(v) => setLabel(sub.labelKey, v)} />
-                                <span style={{ fontWeight: 'bold', fontStyle: 'italic', margin: '0 5px' }}>: (</span>
-                                <CampoMagico valor={subBaseRaw || ''} displayOverride={trueSubBase !== '' ? formatarPoderCosmico(Number(trueSubBase) || 0) : ''} onChange={(v) => salvar(`${sub.key}.base`, v)} styleExtra={{ width: '90px' }} isNumber={true} type="number" />
-                                <span style={{ fontWeight: 'bold', fontStyle: 'italic' }}>)</span>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
-    );
-};
-
 // ==========================================
 // 📜 O COMPONENTE: HIERARQUIA DE DOMÍNIOS
 // ==========================================
+const CHAVES_PROIBIDAS_LEGADO = [
+    'elementais', 'elementos', 'mana', 'chakra', 'aura', 'astrais', 'astral',
+    'primordiais', 'marciais', 'armas', 'cura', 'summons', 'inventario', 'arsenal',
+    'elementos_basicos', 'elementos_basicos_verdadeiros', 'elementos_avancados', 'elementos_avancados_verdadeiros'
+];
+
 function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
     const [selectValue, setSelectValue] = useState('');
     const [inputValue, setInputValue] = useState('');
+
     const corTema = catData.cor || '#ffffff';
 
     const dominiosFiltrados = Object.entries(dominiosSalvos).filter(([nome, dados]) => {
         if (!dados || typeof dados !== 'object' || !dados.nivel) return false;
         const nomeLower = String(nome).trim().toLowerCase();
-        if (['elementos', 'mana', 'chakra', 'aura', 'astral', 'primordiais'].includes(nomeLower)) return false;
-        return dados.categoria === catKey || encontrarCategoriaPorLore(nome) === catKey; 
+        if (CHAVES_PROIBIDAS_LEGADO.includes(nomeLower)) return false;
+        const catAuto = encontrarCategoriaPorLore(nome);
+        if (catAuto) return catAuto === catKey; 
+        return dados.categoria === catKey; 
     });
 
     const handleAdd = (val) => {
-        const nome = val?.trim(); if (!nome) return;
+        const nome = val?.trim();
+        if (!nome) return;
         updateFicha(f => {
             if (!f.dominios) f.dominios = {};
-            if (!f.dominios[nome] || typeof f.dominios[nome] !== 'object') f.dominios[nome] = { nivel: 1, categoria: catKey };
-            else f.dominios[nome].categoria = catKey;
+            if (!f.dominios[nome] || typeof f.dominios[nome] !== 'object') {
+                f.dominios[nome] = { nivel: 1, categoria: catKey };
+            } else {
+                f.dominios[nome].categoria = catKey;
+            }
         });
-        callSave(); setSelectValue(''); setInputValue('');
+        callSave();
+        setSelectValue(''); setInputValue('');
     };
 
     const handleAddTudo = () => {
@@ -519,7 +556,8 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
 
     const handleRemove = (nome) => {
         if (!window.confirm(`Riscar o domínio [${nome}] das suas páginas?`)) return;
-        updateFicha(f => { if (f.dominios) delete f.dominios[nome]; }); callSave();
+        updateFicha(f => { if (f.dominios) delete f.dominios[nome]; });
+        callSave();
     };
 
     const handleChangeNivel = (nome, nivel) => {
@@ -543,12 +581,14 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
             <div style={{ display: 'flex', gap: '10px' }}>
                 <select value={selectValue} onChange={e => setSelectValue(e.target.value)} style={{ flex: 1, background: '#0a0a0f', border: `1px solid ${corTema}`, color: '#fff', padding: '10px', borderRadius: '4px', outline: 'none', fontFamily: 'inherit', fontSize: '0.95em' }}>
                     <option value="">-- Escolher da Lore --</option>
-                    {(PREDEFINIDOS_LORE[catKey] || []).map(g => (
-                        <optgroup key={g.label} label={`— ${g.label} —`} style={{ color: '#fff', background: '#0a0a0f' }}>{g.itens.map(item => <option key={item} value={item}>{item}</option>)}</optgroup>
+                    {(PREDEFINIDOS_LORE[catKey] || []).map(grupo => (
+                        <optgroup key={grupo.label} label={`— ${grupo.label} —`} style={{ color: '#fff', background: '#0a0a0f' }}>
+                            {grupo.itens.map(item => <option key={item} value={item}>{item}</option>)}
+                        </optgroup>
                     ))}
                 </select>
                 <div style={{ display: 'flex', gap: '5px' }}>
-                    <button onClick={() => handleAdd(selectValue)} style={{ background: 'transparent', border: `1px solid ${corTema}`, color: corTema, cursor: 'pointer', padding: '10px 15px', borderRadius: '4px', fontWeight: 'bold' }}>+ ADD</button>
+                    <button onClick={() => handleAdd(selectValue)} style={{ background: 'transparent', border: `1px solid ${corTema}`, color: corTema, cursor: 'pointer', padding: '10px 15px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase', fontFamily: 'inherit' }}>ADICIONAR</button>
                     {(PREDEFINIDOS_LORE[catKey] && PREDEFINIDOS_LORE[catKey].length > 0) && (
                         <button onClick={handleAddTudo} style={{ background: `${corTema}22`, border: `1px solid ${corTema}`, color: corTema, cursor: 'pointer', padding: '10px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase', fontFamily: 'inherit', boxShadow: `0 0 10px ${corTema}44` }} title="Adicionar toda a Lore de uma vez">+ TUDO</button>
                     )}
@@ -556,12 +596,12 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
             </div>
 
             <div style={{ display: 'flex', gap: '10px' }}>
-                <input type="text" placeholder="Criar novo..." value={inputValue} onChange={e => setInputValue(e.target.value)} style={{ flex: 1, background: '#0a0a0f', border: '1px solid #ffcc00', color: '#fff', padding: '10px', borderRadius: '4px', outline: 'none' }} />
-                <button onClick={() => handleAdd(inputValue)} style={{ background: 'transparent', border: '1px solid #ffcc00', color: '#ffcc00', cursor: 'pointer', padding: '10px 20px', borderRadius: '4px', fontWeight: 'bold' }}>+ CRIAR</button>
+                <input type="text" placeholder="Criar novo (Ex: Punho das Sombras)" value={inputValue} onChange={e => setInputValue(e.target.value)} style={{ flex: 1, background: '#0a0a0f', border: '1px solid #ffcc00', color: '#fff', padding: '10px', borderRadius: '4px', outline: 'none', fontFamily: 'inherit', fontSize: '0.95em' }} />
+                <button onClick={() => handleAdd(inputValue)} style={{ background: 'transparent', border: '1px solid #ffcc00', color: '#ffcc00', cursor: 'pointer', padding: '10px 20px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px', fontFamily: 'inherit' }}>+ CRIAR</button>
             </div>
 
             {dominiosFiltrados.length === 0 ? (
-                <div style={{ opacity: 0.3, fontStyle: 'italic', textAlign: 'center', padding: '15px 0' }}>Vazio...</div>
+                <div style={{ opacity: 0.3, fontStyle: 'italic', textAlign: 'center', padding: '15px 0', fontSize: '0.95em' }}>Nenhum registo ainda...</div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '5px' }}>
                     {dominiosFiltrados.map(([nomeDom, dadosDom]) => {
@@ -569,14 +609,28 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                         const infoNivel = NIVEIS_DOMINIO[nivel] || NIVEIS_DOMINIO[1];
                         return (
                             <div key={nomeDom} style={{ padding: '14px', border: `1px solid ${corTema}`, background: '#050508', borderRadius: '6px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                <button onClick={() => handleRemove(nomeDom)} style={{ position: 'absolute', top: '10px', right: '12px', background: 'transparent', border: 'none', color: '#ff003c', fontSize: '1.3em', cursor: 'pointer' }}>✖</button>
+                                <button onClick={() => handleRemove(nomeDom)} style={{ position: 'absolute', top: '10px', right: '12px', background: 'transparent', border: 'none', color: '#ff003c', fontSize: '1.3em', cursor: 'pointer', padding: '0', fontWeight: 'bold' }} title="Apagar Registo">✖</button>
+                                
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '25px' }}>
-                                    <strong style={{ fontSize: '1.2em', textTransform: 'uppercase', color: '#fff' }}>{nomeDom}</strong>
-                                    <select value={nivel} onChange={e => { updateFicha(f => f.dominios[nomeDom].nivel = parseInt(e.target.value)); callSave(); }} style={{ background: '#0a0a0f', color: infoNivel.cor, border: `1px solid ${infoNivel.cor}`, borderRadius: '4px', padding: '4px 8px', outline: 'none', fontWeight: 'bold' }}>
-                                        {Object.entries(NIVEIS_DOMINIO).map(([n, d]) => (<option key={n} value={n}>Lv {n}</option>))}
-                                    </select>
+                                    <strong style={{ fontSize: '1.2em', textTransform: 'uppercase', letterSpacing: '1px', color: '#fff' }}>{nomeDom}</strong>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        {!encontrarCategoriaPorLore(nomeDom) && (
+                                            <select value={dadosDom.categoria || catKey} onChange={e => handleMove(nomeDom, e.target.value)} style={{ background: '#0a0a0f', color: '#aaa', border: '1px dashed #444', borderRadius: '4px', padding: '4px 6px', fontSize: '0.85em', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }} title="Mover para outro quadrante">
+                                                {Object.entries(CATEGORIAS_DOMINIO).map(([k, c]) => (
+                                                    <option key={k} value={k}>➔ {c.titulo.split(' ')[0]}</option>
+                                                ))}
+                                            </select>
+                                        )}
+                                        <select value={nivel} onChange={e => handleChangeNivel(nomeDom, e.target.value)} style={{ background: '#0a0a0f', color: infoNivel.cor, border: `1px solid ${infoNivel.cor}`, borderRadius: '4px', padding: '4px 8px', fontFamily: 'inherit', outline: 'none', fontWeight: 'bold', fontSize: '0.9em', cursor: 'pointer' }}>
+                                            {Object.entries(NIVEIS_DOMINIO).map(([n, d]) => (
+                                                <option key={n} value={n} style={{ background: '#0a0a0f', color: '#fff' }}>Lv {n} - {d.nome}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
-                                <div style={{ fontSize: '0.9em', fontStyle: 'italic', color: '#ccc' }}><span style={{ color: infoNivel.cor, fontWeight: 'bold' }}>⚡ :</span> {infoNivel.desc}</div>
+                                <div style={{ fontSize: '0.9em', fontStyle: 'italic', color: '#ccc' }}>
+                                    <span style={{ color: infoNivel.cor, fontWeight: 'bold' }}>⚡ :</span> {infoNivel.desc}
+                                </div>
                             </div>
                         );
                     })}
@@ -586,33 +640,42 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
     );
 }
 
-const DominiosPanel = ({ ficha, updateFicha }) => (
-    <div style={{ width: '100%' }}>
-        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <h1 style={{ fontSize: '3em', fontStyle: 'italic', fontWeight: 'bold', margin: '0', paddingBottom: '10px', borderBottom: `2px dashed currentColor` }}>A Hierarquia de Domínios</h1>
+const DominiosPanel = ({ ficha, updateFicha }) => {
+    const dominiosSalvos = ficha?.dominios || {};
+    return (
+        <div style={{ width: '100%' }}>
+            <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+                <h1 style={{ fontSize: '3em', fontStyle: 'italic', fontWeight: 'bold', margin: 0, paddingBottom: '10px', borderBottom: `2px dashed currentColor` }}>A Hierarquia de Domínios</h1>
+                <p style={{ opacity: 0.7, fontStyle: 'italic', marginTop: '5px' }}>O Conhecimento Absoluto das Artes Místicas e Marciais</p>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '25px' }}>
+                {Object.entries(CATEGORIAS_DOMINIO).map(([catKey, catData]) => (
+                    <QuadranteCategoria key={catKey} catKey={catKey} catData={catData} dominiosSalvos={dominiosSalvos} updateFicha={updateFicha} />
+                ))}
+            </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '25px' }}>
-            {Object.entries(CATEGORIAS_DOMINIO).map(([catKey, catData]) => (<QuadranteCategoria key={catKey} catKey={catKey} catData={catData} dominiosSalvos={ficha?.dominios || {}} updateFicha={updateFicha} />))}
-        </div>
-    </div>
-);
+    );
+};
 
 // ==========================================
 // 📖 PAINEL PRINCIPAL (A FICHA DEFINITIVA)
 // ==========================================
 export default function MarcadosPanel() {
-    const minhaFicha = useStore(s => s?.minhaFicha);
-    const updateFicha = useStore(s => s?.updateFicha);
-    const meuNome = useStore(s => s?.meuNome);
+    const minhaFicha = useStore(s => s.minhaFicha);
+    const updateFicha = useStore(s => s.updateFicha);
+    const meuNome = useStore(s => s.meuNome);
     const isMestreStatus = useStore(s => s?.isMestre) || false;
+    const importarDaAbaStatus = useStore(s => s.importarDaAbaStatus);
 
     const [uploadingImg, setUploadingImg] = useState(false);
+    const [modalImport, setModalImport] = useState(false);
+    const [textoImport, setTextoImport] = useState('');
     const [modalEstilo, setModalEstilo] = useState(false);
     const [paginaAtual, setPaginaAtual] = useState(1);
     const [salvando, setSalvando] = useState(false);
     const [attrBaseFocado, setAttrBaseFocado] = useState(null);
+
     const [animDirection, setAnimDirection] = useState('next');
-    
     const [localCorFundo, setLocalCorFundo] = useState('#bba9d8');
     const [localCorTexto, setLocalCorTexto] = useState('#000000');
     const [localCorTinta, setLocalCorTinta] = useState('#000000');
@@ -639,13 +702,18 @@ export default function MarcadosPanel() {
         }
     }, [minhaFicha?.estetica]);
 
+    const isMestre = isMestreStatus || (minhaFicha?.isMestre === true);
+
+    // 🔥 CÁLCULO DO SCOUTER GLOBAL (ABSORVENDO A FÓRMULA DE DANO) 🔥
     const { poderGlobal, vitalidadeGlobal, supressao, limiteSupressao, temaScouter } = useMemo(() => {
         if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100, limiteSupressao: 1, temaScouter: getTemaScouter(100, 1) };
         
-        let sup = parseFloat(minhaFicha.supressaoPoder);
+        let sup = minhaFicha.supressaoPoder !== undefined ? Number(minhaFicha.supressaoPoder) : 100;
         if (isNaN(sup)) sup = 100;
-        let lim = parseFloat(minhaFicha.limiteSupressao);
+        
+        let lim = minhaFicha.limiteSupressao !== undefined ? Number(minhaFicha.limiteSupressao) : 1;
         if (isNaN(lim)) lim = 1;
+        
         if (sup < lim) sup = lim; 
         
         const tema = getTemaScouter(sup, lim);
@@ -654,40 +722,49 @@ export default function MarcadosPanel() {
             const getAttr = (k) => {
                 let maxSafe = parseFloat(safeGetMaximo(minhaFicha, k));
                 if (isNaN(maxSafe)) maxSafe = 0;
-                return maxSafe + getGhostAscensionBonus(k, minhaFicha);
+                return maxSafe + getFlatGhostAscension(k, minhaFicha);
             };
             let m = 0;
-            ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { m += getAttr(s); });
+            ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
+                m += getAttr(s);
+            });
             const valStatus = m / 8;
             return (getAttr('vida') + getAttr('mana') + getAttr('aura') + getAttr('chakra') + getAttr('corpo') + valStatus) / 6;
         };
 
         const trueAvg = calcTrueAverage();
+
         let mF = getEfetivoMFormas(minhaFicha, 'status');
         if (isNaN(mF) || mF < 1) mF = 1;
+
         let mDano = getEfetivoDanoGlobal(minhaFicha);
         if (isNaN(mDano) || mDano < 1) mDano = 1;
-        
+
         let power = trueAvg * mF * mDano * (sup / 100);
         if (isNaN(power)) power = 0;
-        
+
         let strVal = String(Math.floor(power));
         let digitos = strVal.length;
         if (strVal.includes('e')) {
-            let parts = strVal.split('e');
+            const parts = strVal.split('e');
             let exponent = parseInt(parts[1].replace('+', ''));
             if (!isNaN(exponent)) digitos = exponent + 1;
         }
-        return { poderGlobal: Math.floor(power), vitalidadeGlobal: Math.max(0, digitos - 8), supressao: sup, limiteSupressao: lim, temaScouter: tema };
+
+        const vit = Math.max(0, digitos - 8);
+
+        return { poderGlobal: Math.floor(power), vitalidadeGlobal: vit, supressao: sup, limiteSupressao: lim, temaScouter: tema };
     }, [minhaFicha]);
 
     if (!minhaFicha) return <div style={{ color: '#000', padding: 20, fontFamily: 'cursive' }}>Abrindo a Ficha...</div>;
 
-    const isMestre = isMestreStatus || (minhaFicha?.isMestre === true);
     const classeInfo = getClasseInfo(minhaFicha);
     const iconeFinal = localIconeClasse || classeInfo?.iconeUrl;
 
-    const mudarPagina = (nova) => { setAnimDirection(nova > paginaAtual ? 'next' : 'prev'); setPaginaAtual(nova); };
+    const mudarPagina = (nova) => {
+        setAnimDirection(nova > paginaAtual ? 'next' : 'prev');
+        setPaginaAtual(nova);
+    };
 
     const salvar = (caminho, valor) => {
         const valFinal = (valor === undefined || (isNaN(valor) && typeof valor === 'number')) ? null : valor;
@@ -717,38 +794,90 @@ export default function MarcadosPanel() {
 
         if (window.timerSaveCor) clearTimeout(window.timerSaveCor);
         window.timerSaveCor = setTimeout(() => {
-            updateFicha(f => { if (!f.estetica) f.estetica = {}; f.estetica[key] = val; });
-            callSave();
+            updateFicha(f => {
+                if (!f.estetica) f.estetica = {};
+                f.estetica[key] = val;
+            });
+            if (typeof salvarFirebaseImediato === 'function') salvarFirebaseImediato();
+            else salvarFichaSilencioso();
         }, 800);
     };
 
-    const handleBgUpload = async (e) => { const file = e.target.files[0]; if (!file) return; try { const url = await uploadImagem(file, `backgrounds/${meuNome || 'desconhecido'}_bg`); handleStyleChange('bgImg', url); } catch (err) { alert('Erro ao enviar a imagem!'); } };
-    const handleMolduraUpload = async (e) => { const file = e.target.files[0]; if (!file) return; try { const url = await uploadImagem(file, `molduras_avatars/${meuNome || 'desconhecido'}_moldura`); handleStyleChange('molduraAvatar', url); } catch (err) { alert('Erro ao enviar a moldura!'); } };
-    const handleIconeUpload = async (e) => { const file = e.target.files[0]; if (!file) return; try { const url = await uploadImagem(file, `icones_classes/${meuNome || 'desconhecido'}_icone`); handleStyleChange('iconeClasse', url); } catch (err) { alert('Erro ao enviar o ícone!'); } };
+    const handleBgUpload = async (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        try {
+            const url = await uploadImagem(file, `backgrounds/${meuNome || 'desconhecido'}_bg`);
+            handleStyleChange('bgImg', url);
+        } catch (err) { alert('Erro ao enviar a imagem de fundo!'); }
+    };
+
+    const handleMolduraUpload = async (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        try {
+            const url = await uploadImagem(file, `molduras_avatars/${meuNome || 'desconhecido'}_moldura`);
+            handleStyleChange('molduraAvatar', url);
+        } catch (err) { alert('Erro ao enviar a moldura!'); }
+    };
+
+    const handleIconeUpload = async (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        try {
+            const url = await uploadImagem(file, `icones_classes/${meuNome || 'desconhecido'}_icone`);
+            handleStyleChange('iconeClasse', url);
+        } catch (err) { alert('Erro ao enviar o ícone da classe!'); }
+    };
 
     const handleTabelaChange = (k, tipo, valor) => {
-        let numVal = Number(valor); if (isNaN(numVal)) numVal = 0;
+        let numVal = Number(valor);
+        if (isNaN(numVal)) numVal = 0;
+
         const divAtual = parseFloat(minhaFicha.divisores?.[k]) || 1;
         const prestAtual = safeGetMaximo(minhaFicha, k);
+
         let novoP = tipo === 'prestigio' ? numVal : prestAtual;
         let novoDiv = tipo === 'divisor' ? (numVal > 0 ? numVal : 1) : divAtual;
+
         const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
-        const novaBase = Math.floor((novoP / novoDiv) * (mults[k] || 1));
+        const mult = mults[k] || 1;
+        const novaBase = Math.floor((novoP / novoDiv) * mult);
 
         updateFicha(f => {
             if (f.overridePrestigio) f.overridePrestigio = null;
-            if (tipo === 'divisor') { if (!f.divisores) f.divisores = {}; f.divisores[k] = novoDiv; }
+
+            if (tipo === 'divisor') {
+                if (!f.divisores) f.divisores = {};
+                f.divisores[k] = novoDiv;
+            }
             if (tipo === 'prestigio') {
-                if (k === 'status') { ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { if (!f[s]) f[s] = {}; f[s].base = novaBase; }); }
-                else { if (!f[k]) f[k] = {}; f[k].base = novaBase; }
+                if (k === 'status') {
+                    ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
+                        if (!f[s]) f[s] = {};
+                        f[s].base = novaBase;
+                    });
+                } else {
+                    if (!f[k]) f[k] = {};
+                    f[k].base = novaBase;
+                }
             }
         });
-        callSave();
+        
+        if (typeof salvarFirebaseImediato === 'function') {
+            salvarFirebaseImediato().catch(err => console.error(err));
+        } else {
+            salvarFichaSilencioso();
+        }
     };
 
     const handleSalvarTudo = () => {
         setSalvando(true);
-        callSave(() => setSalvando(false));
+        if (typeof salvarFirebaseImediato === 'function') {
+            salvarFirebaseImediato()
+                .then(() => setTimeout(() => setSalvando(false), 1500))
+                .catch(() => { alert("Erro ao sincronizar!"); setSalvando(false); });
+        } else {
+            salvarFichaSilencioso();
+            setTimeout(() => setSalvando(false), 1500);
+        }
     };
 
     const getLabel = (key, fallback) => minhaFicha.labels?.[key] !== undefined ? minhaFicha.labels[key] : fallback;
@@ -765,28 +894,62 @@ export default function MarcadosPanel() {
         const calcularFator = (comFormas) => {
             const bonusPorCategoria = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
                 const baseP = getBasePFor(minhaFicha, k);
-                const pAtual = comFormas ? calcularPrestAtual(minhaFicha, k, baseP) : baseP;
+                const maxValSafe = parseFloat(safeGetMaximo(minhaFicha, k)) || 0;
+                let mF = 1;
+                if (comFormas) {
+                    mF = getEfetivoMFormas(minhaFicha, k);
+                    if (isNaN(mF) || mF < 1) mF = 1;
+                }
+                const pAtual = Math.floor(maxValSafe * mF);
+                
                 const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
                 return Math.max(0, (rankInfo.ascensaoFinal || 0) - ascensaoBaseEfetiva);
             });
             const nivelCompletos = Math.min(...bonusPorCategoria);
             const geral = (ascensaoBase + nivelCompletos) * multA;
             const fator = geral / (ascensaoBase || 1);
-            return { geral: isNaN(geral) ? ascensaoBase : geral, fator: isNaN(fator) ? 1 : fator };
+            return {
+                geral: isNaN(geral) ? ascensaoBase : geral,
+                fator: isNaN(fator) ? 1 : fator,
+            };
         };
 
-        return { ascensaoGeralEfetiva: calcularFator(true).geral, fatorCrescimentoBase: calcularFator(false).fator, fatorCrescimentoAtual: calcularFator(true).fator };
+        const semFormas = calcularFator(false);
+        const comFormas = calcularFator(true);
+        return {
+            ascensaoGeralEfetiva: comFormas.geral,
+            fatorCrescimentoBase: semFormas.fator,
+            fatorCrescimentoAtual: comFormas.fator,
+        };
     }, [minhaFicha]);
 
     const getSupremas = () => {
-        const pVida = getBasePFor(minhaFicha, 'vida'); const pChakra = getBasePFor(minhaFicha, 'chakra'); const pCorpo = getBasePFor(minhaFicha, 'corpo');
-        const pMana = getBasePFor(minhaFicha, 'mana'); const pAura = getBasePFor(minhaFicha, 'aura'); const pStatus = getBasePFor(minhaFicha, 'status');
-        const mPV = parseFloat(minhaFicha.multiplicadorVida) || 1; const mPM = parseFloat(minhaFicha.multiplicadorMorte) || 1;
-        const ascensao = parseInt(minhaFicha.ascensaoBase) || 1; const bonusAscensao = (ascensao - 1) * 100;
+        const pVida = getBasePFor(minhaFicha, 'vida');
+        const pChakra = getBasePFor(minhaFicha, 'chakra');
+        const pCorpo = getBasePFor(minhaFicha, 'corpo');
+        const pMana = getBasePFor(minhaFicha, 'mana');
+        const pAura = getBasePFor(minhaFicha, 'aura');
+        const pStatus = getBasePFor(minhaFicha, 'status');
+        
+        const mPV = parseFloat(minhaFicha.multiplicadorVida) || 1;
+        const mPM = parseFloat(minhaFicha.multiplicadorMorte) || 1;
+        
+        const ascensao = parseInt(minhaFicha.ascensaoBase) || 1;
+        const bonusAscensao = (ascensao - 1) * 100;
+
+        const pvCalculado = Math.floor((((pVida + pChakra + pCorpo) / 3) + bonusAscensao) * mPV);
+        const pmCalculado = Math.floor((((pMana + pAura + pStatus) / 3) + bonusAscensao) * mPM);
+
+        const valMana = Number(minhaFicha?.mana?.base) || 0;
+        const valAura = Number(minhaFicha?.aura?.base) || 0;
+        const valChakra = Number(minhaFicha?.chakra?.base) || 0;
+        const valCorpo = Number(minhaFicha?.corpo?.base) || 0;
+        const forcaCalculado = Math.floor((valMana + valAura + valChakra + valCorpo) / 4);
+
         return {
-            pvMax: Math.floor((((pVida + pChakra + pCorpo) / 3) + bonusAscensao) * mPV) || 1,
-            pmMax: Math.floor((((pMana + pAura + pStatus) / 3) + bonusAscensao) * mPM) || 1,
-            forcaMax: Math.floor(((Number(minhaFicha?.mana?.base) || 0) + (Number(minhaFicha?.aura?.base) || 0) + (Number(minhaFicha?.chakra?.base) || 0) + (Number(minhaFicha?.corpo?.base) || 0)) / 4) || 1
+            pvMax: isNaN(pvCalculado) ? 1 : pvCalculado,
+            pmMax: isNaN(pmCalculado) ? 1 : pmCalculado,
+            forcaMax: isNaN(forcaCalculado) ? 1 : forcaCalculado
         };
     };
     const { pvMax, pmMax, forcaMax } = getSupremas();
@@ -794,11 +957,99 @@ export default function MarcadosPanel() {
     const handleRegenerarTudo = () => {
         if (!window.confirm('Recuperar toda a Vida, Energias, Pontos e Ações de Turno?')) return;
         updateFicha(f => {
-            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => { let mx = safeGetMaximo(minhaFicha, k); f[k] = { ...f[k], atual: calcularEscala(mx, k).mxDisplay || 0 }; });
-            f.pv = { ...f.pv, atual: pvMax || 0 }; f.pm = { ...f.pm, atual: pmMax || 0 }; f.energiaForca = { ...f.energiaForca, atual: forcaMax || 0 };
-            ['padrao', 'bonus', 'reacao'].forEach(tipo => { if (!f.acoes) f.acoes = {}; if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 }; f.acoes[tipo].atual = f.acoes[tipo].max; });
+            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => {
+                let mx = safeGetMaximo(minhaFicha, k);
+                const { mxDisplay } = calcularEscala(mx, k);
+                if (!f[k]) f[k] = {};
+                f[k].atual = isNaN(mxDisplay) ? 0 : mxDisplay;
+            });
+            if (!f.pv) f.pv = {}; f.pv.atual = isNaN(pvMax) ? 0 : pvMax;
+            if (!f.pm) f.pm = {}; f.pm.atual = isNaN(pmMax) ? 0 : pmMax;
+            if (!f.energiaForca) f.energiaForca = {}; f.energiaForca.atual = isNaN(forcaMax) ? 0 : forcaMax;
+
+            ['padrao', 'bonus', 'reacao'].forEach(tipo => {
+                if (!f.acoes) f.acoes = {};
+                if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 };
+                f.acoes[tipo].atual = f.acoes[tipo].max;
+            });
         });
-        callSave();
+        if (typeof salvarFirebaseImediato === 'function') salvarFirebaseImediato();
+        else salvarFichaSilencioso();
+    };
+
+    const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, corTextoBarra = '#fff' }) => {
+        const [aberto, setAberta] = useState(false);
+        let rawMaximo = safeGetMaximo(minhaFicha, vitalKey);
+        if (isNaN(rawMaximo)) rawMaximo = 0;
+        
+        const { mxDisplay, pVit } = calcularEscala(rawMaximo, vitalKey);
+        
+        let atual = minhaFicha[vitalKey]?.atual;
+        if (atual === undefined || atual === null || atual === '') atual = mxDisplay; else atual = Number(atual);
+        if (isNaN(atual)) atual = mxDisplay;
+        if (atual > mxDisplay) atual = mxDisplay;
+
+        const poderVerdadeiro = getPoderVerdadeiro(vitalKey, minhaFicha, true, supressao);
+
+        return (
+            <div style={{ marginBottom: '15px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
+                        {subItens && <span onClick={() => setAberta(!aberto)} style={{ cursor: 'pointer', width: '20px', display: 'inline-block', userSelect: 'none', fontWeight: 'bold' }}>{aberto ? 'v ' : '> '}</span>}
+                        <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
+                    </div>
+                    <div style={{ fontSize: '0.85em', color: '#fff', border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: temaScouter.bgDark, fontWeight: 'bold', boxShadow: `inset 0 0 8px ${temaScouter.cor}80` }}>
+                        Poder: {formatarPoderCosmico(poderVerdadeiro)}
+                    </div>
+                </div>
+
+                <BarraVital atual={atual} maximo={mxDisplay} pVit={pVit} cor={corBarra} corTexto={corTextoBarra} onChangeAtual={(v) => salvar(`${vitalKey}.atual`, v)} />
+                
+                {aberto && subItens && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '35px', marginTop: '12px' }}>
+                        {subItens.map(sub => {
+                            const subBaseRaw = minhaFicha[sub.key]?.base;
+                            const trueSubBase = getPoderVerdadeiro(sub.key, minhaFicha, true, supressao);
+                            
+                            return (
+                                <div key={sub.labelKey} style={{ fontSize: '1.05em', display: 'flex', alignItems: 'center' }}>
+                                    <LabelMagico valor={getLabel(sub.labelKey, sub.fallbackLabel)} onChange={(v) => setLabel(sub.labelKey, v)} />
+                                    <span style={{ fontWeight: 'bold', fontStyle: 'italic', margin: '0 5px' }}>: (</span>
+                                    <CampoMagico 
+                                        valor={subBaseRaw || ''} 
+                                        displayOverride={trueSubBase !== '' ? formatarPoderCosmico(trueSubBase) : ''}
+                                        onChange={(v) => salvar(`${sub.key}.base`, v)} 
+                                        styleExtra={{ width: '90px' }} 
+                                        isNumber={true} 
+                                        type="number" 
+                                    />
+                                    <span style={{ fontWeight: 'bold', fontStyle: 'italic' }}>)</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        setUploadingImg(true);
+        try {
+            const url = await uploadImagem(file, `avatars/${meuNome || 'desconhecido'}`);
+            updateFicha(f => { if (!f.avatar) f.avatar = { base: "" }; f.avatar.base = url; });
+            if (typeof salvarFirebaseImediato === 'function') await salvarFirebaseImediato();
+        } catch (err) { alert('Erro ao pintar o avatar!'); } 
+        finally { setUploadingImg(false); }
+    };
+
+    const executarImportacao = () => {
+        if (!textoImport.trim()) return alert("Cole o texto do Google Docs primeiro!");
+        importarDaAbaStatus(textoImport);
+        setModalImport(false);
+        setTextoImport('');
+        alert("A sua ficha foi sincronizada!");
     };
 
     return (
@@ -830,6 +1081,11 @@ export default function MarcadosPanel() {
 
                 .grimorio-estilo-papel { --tinta: ${localCorTinta || '#000'}; --fundo: ${localCorFundo || '#fff'}; color: var(--tinta) !important; }
                 .grimorio-estilo-papel * { font-family: ${fonteDiario}, 'Courier New', serif !important; text-shadow: none !important; box-shadow: none !important; }
+                .grimorio-estilo-papel .def-box, .grimorio-estilo-papel [style*="background: rgba"] { background: transparent !important; border: 2px solid var(--tinta) !important; border-radius: 2px 255px 3px 25px / 255px 5px 225px 3px !important; position: relative; }
+                .grimorio-estilo-papel .def-box::before, .grimorio-estilo-papel [style*="background: rgba"]::before { content: ''; position: absolute; top:0; left:0; right:0; bottom:0; background: var(--tinta); opacity: 0.03; pointer-events: none; border-radius: inherit; }
+                .grimorio-estilo-papel h2, .grimorio-estilo-papel h3, .grimorio-estilo-papel h4 { color: var(--tinta) !important; display: inline-block; }
+                .grimorio-estilo-papel button { background: transparent !important; border: 2px dashed var(--tinta) !important; border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px !important; color: var(--tinta) !important; font-weight: bold !important; text-transform: uppercase !important; transition: all 0.2s ease !important; }
+                .grimorio-estilo-papel button:hover { background: var(--tinta) !important; color: var(--fundo) !important; border-style: solid !important; transform: scale(1.02) rotate(-1deg) !important; }
                 .grimorio-estilo-papel input, .grimorio-estilo-papel textarea, .grimorio-estilo-papel select { background: rgba(0,0,0,0.03) !important; border: none !important; border-bottom: 2px dotted var(--tinta) !important; color: var(--tinta) !important; border-radius: 0 !important; outline: none !important; }
                 .grimorio-estilo-papel input:focus, .grimorio-estilo-papel textarea:focus { background: rgba(0,0,0,0.06) !important; border-bottom: 2px solid var(--tinta) !important; }
                 .grimorio-estilo-papel input::placeholder, .grimorio-estilo-papel textarea::placeholder { color: var(--tinta) !important; opacity: 0.5 !important; font-style: italic !important; }
@@ -842,7 +1098,7 @@ export default function MarcadosPanel() {
                     </button>
                 </div>
                 <div style={{ position: 'relative' }}>
-                    <button onClick={() => { setModalEstilo(!modalEstilo); }} style={{ background: '#ff94c2', color: '#000', border: '1px solid #333', borderBottom: '3px solid #222', padding: '10px 20px', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '1.1em', cursor: 'pointer', borderRadius: '4px', boxShadow: '2px 4px 8px rgba(0,0,0,0.4)', transform: 'rotate(-2deg)' }}>🎨 Estilo</button>
+                    <button onClick={() => { setModalEstilo(!modalEstilo); setModalImport(false); }} style={{ background: '#ff94c2', color: '#000', border: '1px solid #333', borderBottom: '3px solid #222', padding: '10px 20px', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '1.1em', cursor: 'pointer', borderRadius: '4px', boxShadow: '2px 4px 8px rgba(0,0,0,0.4)', transform: 'rotate(-2deg)' }}>🎨 Estilo</button>
                     {modalEstilo && (
                         <div className="fade-in" style={{ position: 'absolute', top: '55px', right: '0', background: '#ffe4f0', padding: '15px', border: '1px solid #ccc', boxShadow: '5px 5px 15px rgba(0,0,0,0.3)', width: '320px', zIndex: 20, borderRadius: '6px', color: '#000', maxHeight: '70vh', overflowY: 'auto' }}>
                             <label style={{ display: 'block', fontSize: '0.9em', marginBottom: '5px', fontWeight: 'bold' }}>Cor do Texto da Ficha:</label>
@@ -923,15 +1179,19 @@ export default function MarcadosPanel() {
                                 <CampoMagico valor={minhaFicha.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
 
-                            {/* 🌟 SCOUTER HOLOGRÁFICO BLINDADO 🌟 */}
+                            {/* 🌟 O NOVO SCOUTER DE VIDRO HOLOGRÁFICO BLINDADO 🌟 */}
                             <div style={{
                                 marginTop: '15px', marginBottom: '25px', padding: '25px 30px',
                                 background: 'rgba(15, 15, 20, 0.75)',
-                                backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-                                border: '1px solid rgba(255, 255, 255, 0.1)', borderTop: '1px solid rgba(255, 255, 255, 0.25)', borderLeft: `4px solid ${temaScouter.cor}`,
+                                backdropFilter: 'blur(10px)',
+                                WebkitBackdropFilter: 'blur(10px)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                borderTop: '1px solid rgba(255, 255, 255, 0.25)',
+                                borderLeft: `4px solid ${temaScouter.cor}`,
                                 borderRadius: '6px 12px 12px 6px',
                                 boxShadow: `0 15px 35px rgba(0,0,0,0.6), inset -5px -5px 20px rgba(0,0,0,0.8), inset 0 0 40px ${temaScouter.cor}1a`,
-                                display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden'
+                                display: 'flex', flexDirection: 'column',
+                                position: 'relative', overflow: 'hidden'
                             }}>
                                 <div style={{ position: 'absolute', bottom: '-40%', right: '-10%', width: '300px', height: '300px', background: `radial-gradient(circle, ${temaScouter.cor}22 0%, transparent 70%)`, borderRadius: '50%', pointerEvents: 'none', animation: `pulse-aura ${temaScouter.pulse} ease-in-out infinite` }} />
 
@@ -939,32 +1199,58 @@ export default function MarcadosPanel() {
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                                             <div style={{ width: '8px', height: '8px', background: temaScouter.cor, borderRadius: '50%', boxShadow: `0 0 10px ${temaScouter.cor}, 0 0 20px ${temaScouter.cor}` }} />
-                                            <span style={{ color: '#fff', opacity: 0.8, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '4px' }}>{temaScouter.nome}</span>
+                                            <span style={{ color: '#fff', opacity: 0.8, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '4px' }}>
+                                                {temaScouter.nome}
+                                            </span>
                                         </div>
                                         
                                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '15px' }}>
-                                            <span style={{ fontSize: '3.2em', fontWeight: '900', letterSpacing: '-1px', color: '#ffffff', textShadow: `0 0 10px ${temaScouter.glow}, 0 0 20px ${temaScouter.glow}, 0 0 40px ${temaScouter.glow}` }}>
-                                                {formatarPoderCosmico(Number(poderGlobal) || 0)}
+                                            <span style={{
+                                                fontSize: '3.2em', fontWeight: '900', letterSpacing: '-1px',
+                                                color: '#ffffff',
+                                                textShadow: `0 0 10px ${temaScouter.glow}, 0 0 20px ${temaScouter.glow}, 0 0 40px ${temaScouter.glow}`
+                                            }}>
+                                                {formatarPoderCosmico(isNaN(poderGlobal) ? 0 : poderGlobal)}
                                             </span>
                                             <span style={{ fontSize: '0.5em', color: '#fff', opacity: 0.6, fontWeight: 'bold', letterSpacing: '1px' }}>
-                                                {Number(poderGlobal || 0).toExponential(2).replace('+', '').toUpperCase()}
+                                                {Number(isNaN(poderGlobal) ? 0 : poderGlobal).toExponential(2).replace('+', '').toUpperCase()}
                                             </span>
                                         </div>
                                     </div>
 
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingLeft: '20px' }}>
                                         <span style={{ color: '#fff', opacity: 0.6, fontSize: '0.65em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '3px', marginBottom: '8px' }}>Grau Vital</span>
-                                        <div style={{ fontSize: '2.5em', fontWeight: '900', color: temaScouter.cor, background: 'rgba(0,0,0,0.6)', padding: '8px 25px', borderRadius: '8px', border: `1px solid ${temaScouter.cor}55`, boxShadow: `inset 0 0 15px ${temaScouter.cor}33, 0 5px 15px rgba(0,0,0,0.5)`, lineHeight: '1', textShadow: `0 0 10px ${temaScouter.cor}` }}>
-                                            V{Number(vitalidadeGlobal) || 0}
+                                        <div style={{
+                                            fontSize: '2.5em', fontWeight: '900', color: temaScouter.cor,
+                                            background: 'rgba(0,0,0,0.6)',
+                                            padding: '8px 25px', borderRadius: '8px',
+                                            border: `1px solid ${temaScouter.cor}55`,
+                                            boxShadow: `inset 0 0 15px ${temaScouter.cor}33, 0 5px 15px rgba(0,0,0,0.5)`,
+                                            lineHeight: '1', textShadow: `0 0 10px ${temaScouter.cor}`
+                                        }}>
+                                            V{isNaN(vitalidadeGlobal) ? 0 : vitalidadeGlobal}
                                         </div>
                                     </div>
                                 </div>
 
                                 <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '15px', position: 'relative', zIndex: 1, borderTop: `1px solid rgba(255,255,255,0.05)`, paddingTop: '15px' }}>
                                     <span style={{ color: '#fff', opacity: 0.7, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>Ocultar Presença:</span>
-                                    <input type="range" min={Math.min(limiteSupressao, 100)} max="100" step="0.1" value={supressao > 100 ? 100 : supressao} onChange={e => { salvar('supressaoPoder', e.target.value); }} style={{ flex: 1, accentColor: temaScouter.cor, cursor: 'pointer', filter: `drop-shadow(0 0 5px ${temaScouter.cor})` }} />
+                                    <input 
+                                        type="range" min={limiteSupressao} max="100" step="0.1" value={supressao > 100 ? 100 : supressao}
+                                        onChange={e => { salvar('supressaoPoder', e.target.value); }}
+                                        style={{ flex: 1, accentColor: temaScouter.cor, cursor: 'pointer', filter: `drop-shadow(0 0 5px ${temaScouter.cor})` }}
+                                    />
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                        <input type="number" min={limiteSupressao} max="100" step="any" value={supressao} onChange={e => { let val = Number(e.target.value); if (isNaN(val)) val = limiteSupressao; if (val < limiteSupressao) val = limiteSupressao; salvar('supressaoPoder', val); }} style={{ width: '80px', background: 'rgba(0,0,0,0.5)', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }} />
+                                        <input 
+                                            type="number" min={limiteSupressao} max="100" step="any" value={supressao}
+                                            onChange={e => {
+                                                let val = Number(e.target.value);
+                                                if (isNaN(val)) val = limiteSupressao;
+                                                if (val < limiteSupressao) val = limiteSupressao;
+                                                salvar('supressaoPoder', val);
+                                            }}
+                                            style={{ width: '80px', background: 'rgba(0,0,0,0.5)', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }}
+                                        />
                                         <span style={{ color: temaScouter.cor, fontWeight: 'bold', fontSize: '1.1em' }}>%</span>
                                     </div>
                                 </div>
@@ -972,17 +1258,38 @@ export default function MarcadosPanel() {
                                 {isMestre && (
                                     <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255, 0, 60, 0.1)', padding: '8px', borderRadius: '6px', border: '1px dashed rgba(255, 0, 60, 0.5)' }}>
                                         <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>🔒 Controle do GM (Limite de Ocultação):</span>
-                                        <input type="number" min="0.000001" step="any" value={limiteSupressao} onChange={e => { salvar('limiteSupressao', e.target.value); }} style={{ width: '80px', background: 'rgba(0,0,0,0.8)', color: '#ff003c', border: '1px solid #ff003c', padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }} />
+                                        <input 
+                                            type="number" min="0.000001" step="any" value={limiteSupressao}
+                                            onChange={e => { salvar('limiteSupressao', e.target.value); }}
+                                            style={{ width: '80px', background: 'rgba(0,0,0,0.8)', color: '#ff003c', border: '1px solid #ff003c', padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }}
+                                        />
                                         <span style={{ color: '#ff003c', fontWeight: 'bold', fontSize: '1em' }}>%</span>
                                     </div>
                                 )}
-                                <style>{` @keyframes pulse-aura { 0% { opacity: 0.3; transform: scale(0.9); } 50% { opacity: 0.8; transform: scale(1.1); } 100% { opacity: 0.3; transform: scale(0.9); } } `}</style>
+
+                                <style>{`
+                                    @keyframes pulse-aura {
+                                        0% { opacity: 0.3; transform: scale(0.9); }
+                                        50% { opacity: 0.8; transform: scale(1.1); }
+                                        100% { opacity: 0.3; transform: scale(0.9); }
+                                    }
+                                `}</style>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '1.2em' }}>
-                                {[{ k: 'idade', lbl: 'Idade' }, { k: 'aniversario', lbl: 'Aniversário' }, { k: 'alturaPeso', lbl: 'Altura / Peso' }, { k: 'raca', lbl: 'Raça' }, { k: 'alinhamento', lbl: 'Alinhamento' }, { k: 'afiliacao', lbl: 'Afiliação' }, { k: 'classe', lbl: 'Classe' }].map(item => (
+                                {[
+                                    { k: 'idade', lbl: 'Idade' },
+                                    { k: 'aniversario', lbl: 'Aniversário' },
+                                    { k: 'alturaPeso', lbl: 'Altura / Peso' },
+                                    { k: 'raca', lbl: 'Raça' },
+                                    { k: 'alinhamento', lbl: 'Alinhamento' },
+                                    { k: 'afiliacao', lbl: 'Afiliação' },
+                                    { k: 'classe', lbl: 'Classe' }
+                                ].map(item => (
                                     <div key={item.k} style={{ display: 'flex' }}>
-                                        <div style={{ width: '140px', fontWeight: 'bold' }}> <LabelMagico valor={getLabel(`bio_${item.k}`, item.lbl)} onChange={(v) => setLabel(`bio_${item.k}`, v)} /> </div>
+                                        <div style={{ width: '140px', fontWeight: 'bold' }}>
+                                            <LabelMagico valor={getLabel(`bio_${item.k}`, item.lbl)} onChange={(v) => setLabel(`bio_${item.k}`, v)} />
+                                        </div>
                                         <span style={{ fontWeight: 'bold', marginRight: '8px' }}>:</span>
                                         <CampoMagico valor={minhaFicha.bio?.[item.k]} onChange={(v) => salvar(`bio.${item.k}`, v)} styleExtra={{ flex: 1, borderBottom: '1px dotted currentColor' }} />
                                     </div>
@@ -995,9 +1302,11 @@ export default function MarcadosPanel() {
                                 ) : minhaFicha.avatar?.base ? (
                                     <>
                                         <img src={minhaFicha.avatar.base} alt="Avatar" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center', zIndex: 1, borderRadius: '8px' }} />
+                                        
                                         {localMolduraAvatar && (
                                             <div style={{ position: 'absolute', top: '-3.5%', left: '-3%', width: '106%', height: '107%', zIndex: 2, pointerEvents: 'none', mixBlendMode: localModoMoldura, isolation: 'isolate' }}>
                                                 <img src={localMolduraAvatar} alt="Moldura" style={{ width: '100%', height: '100%', objectFit: 'fill', position: 'absolute', top: 0, left: 0, filter: 'contrast(1.2) saturate(1.2)' }} />
+                                                
                                                 {localCorMoldura && localCorMoldura !== '#ffffff' && (
                                                     <>
                                                         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'color' }} />
@@ -1006,11 +1315,13 @@ export default function MarcadosPanel() {
                                                 )}
                                             </div>
                                         )}
+
                                         {(classeInfo || localIconeClasse) && (
                                             <div style={{ position: 'absolute', bottom: '-8px', left: '50%', transform: 'translateX(-50%)', zIndex: 3, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '70px', height: '70px' }}>
                                                 {iconeFinal ? (
                                                     <div style={{ position: 'relative', width: '100%', height: '100%', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.8))', isolation: 'isolate' }}>
                                                         <img src={iconeFinal} alt="Classe" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
+                                                        
                                                         {localCorMoldura && localCorMoldura !== '#ffffff' && (
                                                             <>
                                                                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'color', WebkitMaskImage: `url(${iconeFinal})`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url(${iconeFinal})`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
@@ -1025,10 +1336,16 @@ export default function MarcadosPanel() {
                                                 )}
                                             </div>
                                         )}
-                                        <label style={{ cursor: 'pointer', position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10 }}><input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} /></label>
+                                        
+                                        <label style={{ cursor: 'pointer', position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10 }}>
+                                            <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+                                        </label>
                                     </>
                                 ) : (
-                                    <label style={{ cursor: 'pointer', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'currentColor', opacity: 0.7, background: 'rgba(255,255,255,0.1)' }}> Colar Fotografia Aqui 📸 <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} /> </label>
+                                    <label style={{ cursor: 'pointer', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'currentColor', opacity: 0.7, background: 'rgba(255,255,255,0.1)' }}>
+                                        Colar Fotografia Aqui 📸
+                                        <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+                                    </label>
                                 )}
                             </div>
                             {minhaFicha.avatar?.base && <button onClick={() => {if(window.confirm('Apagar?')) { updateFicha(f => {f.avatar.base = ""}); callSave(); } }} style={{ background: 'transparent', border: '1px dashed #ff003c', color: '#ff003c', marginTop: '10px', padding: '5px 15px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'inherit', width: 'fit-content' }}>🗑️ Remover Foto</button>}
@@ -1045,17 +1362,17 @@ export default function MarcadosPanel() {
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                <LinhaVital labelKey="lblVida" fallbackLabel="Vida (HP)" vitalKey="vida" corBarra="#ff0000" ficha={minhaFicha} supressao={supressao} temaScouter={temaScouter} salvar={salvar} getLabel={getLabel} setLabel={setLabel} />
-                                <LinhaVital labelKey="lblMana" fallbackLabel="Mana" vitalKey="mana" corBarra="#0000ff" ficha={minhaFicha} supressao={supressao} temaScouter={temaScouter} salvar={salvar} getLabel={getLabel} setLabel={setLabel} subItens={[ { labelKey: 'lblInt', fallbackLabel: 'Inteligência', key: 'inteligencia' }, { labelKey: 'lblSab', fallbackLabel: 'Sabedoria', key: 'sabedoria' } ]} />
-                                <LinhaVital labelKey="lblAura" fallbackLabel="Aura" vitalKey="aura" corBarra="#aa00ff" ficha={minhaFicha} supressao={supressao} temaScouter={temaScouter} salvar={salvar} getLabel={getLabel} setLabel={setLabel} subItens={[ { labelKey: 'lblEsp', fallbackLabel: 'Energia Espiritual', key: 'energiaEsp' }, { labelKey: 'lblCar', fallbackLabel: 'Carisma', key: 'carisma' } ]} />
-                                <LinhaVital labelKey="lblChakra" fallbackLabel="Chakra" vitalKey="chakra" corBarra="#00cc00" ficha={minhaFicha} supressao={supressao} temaScouter={temaScouter} salvar={salvar} getLabel={getLabel} setLabel={setLabel} subItens={[ { labelKey: 'lblSta', fallbackLabel: 'Stamina', key: 'stamina' }, { labelKey: 'lblCon', fallbackLabel: 'Constituição', key: 'constituicao' } ]} />
-                                <LinhaVital labelKey="lblCorpo" fallbackLabel="Corpo" vitalKey="corpo" corBarra="#000000" corTextoBarra="#fff" ficha={minhaFicha} supressao={supressao} temaScouter={temaScouter} salvar={salvar} getLabel={getLabel} setLabel={setLabel} subItens={[ { labelKey: 'lblDes', fallbackLabel: 'Destreza', key: 'destreza' }, { labelKey: 'lblFor', fallbackLabel: 'Força', key: 'forca' } ]} />
+                                <LinhaVital labelKey="lblVida" fallbackLabel="Vida (HP)" vitalKey="vida" corBarra="#ff0000" />
+                                <LinhaVital labelKey="lblMana" fallbackLabel="Mana" vitalKey="mana" corBarra="#0000ff" subItens={[ { labelKey: 'lblInt', fallbackLabel: 'Inteligência', key: 'inteligencia' }, { labelKey: 'lblSab', fallbackLabel: 'Sabedoria', key: 'sabedoria' } ]} />
+                                <LinhaVital labelKey="lblAura" fallbackLabel="Aura" vitalKey="aura" corBarra="#aa00ff" subItens={[ { labelKey: 'lblEsp', fallbackLabel: 'Energia Espiritual', key: 'energiaEsp' }, { labelKey: 'lblCar', fallbackLabel: 'Carisma', key: 'carisma' } ]} />
+                                <LinhaVital labelKey="lblChakra" fallbackLabel="Chakra" vitalKey="chakra" corBarra="#00cc00" subItens={[ { labelKey: 'lblSta', fallbackLabel: 'Stamina', key: 'stamina' }, { labelKey: 'lblCon', fallbackLabel: 'Constituição', key: 'constituicao' } ]} />
+                                <LinhaVital labelKey="lblCorpo" fallbackLabel="Corpo" vitalKey="corpo" corBarra="#000000" corTextoBarra="#fff" subItens={[ { labelKey: 'lblDes', fallbackLabel: 'Destreza', key: 'destreza' }, { labelKey: 'lblFor', fallbackLabel: 'Força', key: 'forca' } ]} />
                                 <div style={{ marginBottom: '15px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>
                                             <LabelMagico valor={getLabel('lblEnergiaForca', 'Força')} onChange={(v) => setLabel('lblEnergiaForca', v)} />
                                         </div>
-                                        <div style={{ fontSize: '0.85em', color: '#fff', border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: temaScouter.bgDark, fontWeight: 'bold', boxShadow: `inset 0 0 8px ${temaScouter.cor}80` }}>
+                                        <div style={{ fontSize: '0.85em', color: '#fff', border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: 'rgba(0,0,0,0.5)', fontWeight: 'bold', textShadow: `0 0 5px ${temaScouter.glow}`, boxShadow: `inset 0 0 5px ${temaScouter.cor}80` }}>
                                             Poder: {formatarPoderCosmico(getPoderVerdadeiro('energiaForca', minhaFicha, true, supressao, 1))}
                                         </div>
                                     </div>
@@ -1095,12 +1412,11 @@ export default function MarcadosPanel() {
                                 <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginTop: '10px' }}>
                                     {['padrao', 'bonus', 'reacao'].map(tipo => {
                                         const acao = minhaFicha.acoes?.[tipo] || { max: 1, atual: 1 };
-                                        const maxValSeguro = Math.max(0, parseInt(acao.max) || 1);
                                         return (
                                             <div key={tipo} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                                                 <span style={{ fontSize: '1.1em' }}><LabelMagico valor={getLabel(`acao_${tipo}`, tipo.toUpperCase())} onChange={(v) => setLabel(`acao_${tipo}`, v)} /></span>
                                                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                                                    {Array.from({ length: maxValSeguro }).map((_, i) => (
+                                                    {Array.from({ length: Math.max(0, parseInt(acao.max) || 1) }).map((_, i) => (
                                                         <div key={i} onClick={() => { salvar(`acoes.${tipo}.atual`, i >= acao.atual ? acao.atual + 1 : acao.atual - 1); callSave(); }}
                                                             style={{ width: '25px', height: '25px', border: '2px solid currentColor', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '1.2em', color: '#ff003c', background: 'rgba(255,255,255,0.2)' }}>
                                                             {i >= acao.atual ? 'X' : ''}
@@ -1126,7 +1442,7 @@ export default function MarcadosPanel() {
 
                         <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(0,0,0,0.03)', padding: '20px', borderRadius: '15px', border: '1px dashed currentColor' }}>
                             <h2 style={{ fontSize: '2em', fontStyle: 'italic', fontWeight: 'bold', margin: '0 0 20px 0' }}><LabelMagico valor={getLabel('tituloAnaliseBase', 'Status (Rank Base)')} onChange={(v) => setLabel('tituloAnaliseBase', v)} /></h2>
-                            <RadarDesenhado ficha={minhaFicha} isAtual={false} corTinta={localCorTinta} fator={fatorCrescimentoBase} />
+                            <RadarDesenhado ficha={minhaFicha} isAtual={false} corTinta={localCorTinta} />
                             
                             <div style={{ width: '100%', maxWidth: '300px', marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
@@ -1142,7 +1458,7 @@ export default function MarcadosPanel() {
 
                         <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(0,0,0,0.05)', padding: '20px', borderRadius: '15px', border: '2px solid currentColor' }}>
                             <h2 style={{ fontSize: '2em', fontStyle: 'italic', fontWeight: 'bold', margin: '0 0 20px 0' }}><LabelMagico valor={getLabel('tituloAnaliseAtual', 'Poder Atual (c/ Formas)')} onChange={(v) => setLabel('tituloAnaliseAtual', v)} /></h2>
-                            <RadarDesenhado ficha={minhaFicha} isAtual={true} corTinta={localCorTinta} fator={fatorCrescimentoAtual} />
+                            <RadarDesenhado ficha={minhaFicha} isAtual={true} corTinta={localCorTinta} />
                             
                             <div style={{ width: '100%', maxWidth: '300px', marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
@@ -1182,7 +1498,7 @@ export default function MarcadosPanel() {
                                     const displayP = getBasePFor(minhaFicha, k);
                                     const divisor = minhaFicha.divisores?.[k] || 1;
 
-                                    const pAtualValor = calcularPrestAtual(minhaFicha, k, displayP);
+                                    const pAtualValor = isAtual ? Math.floor(displayP * (getEfetivoMFormas(minhaFicha, k) >= 10 ? getEfetivoMFormas(minhaFicha, k) / 10 : (getEfetivoMFormas(minhaFicha, k) > 1 ? getEfetivoMFormas(minhaFicha, k) : 1))) : displayP;
                                     const rankInfo = aplicarMultiplicadorForca(
                                         pAtualValor, minhaFicha.ascensaoBase || 1,
                                         minhaFicha.multiplicadorForcaPrestigio ?? 1, minhaFicha.multiplicadorForcaAscensao ?? 1
