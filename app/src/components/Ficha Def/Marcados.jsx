@@ -188,13 +188,34 @@ const PREDEFINIDOS_LORE = {
     elementos_basicos_verdadeiros: [ { label: "Básicos Verdadeiros", itens: ["Fogo Verdadeiro", "Raio Verdadeiro", "Agua Verdadeira", "Vento Verdadeiro", "Terra Verdadeira"] } ],
     elementos_avancados: [ { label: "Elementos Avançados", itens: ["Solar", "Energia", "Gelo", "Vacuo", "Natureza"] } ],
     elementos_avancados_verdadeiros: [ { label: "Avançados Verdadeiros", itens: ["Solar Verdadeiro", "Energia Verdadeira", "Gelo Verdadeiro", "Vacuo Verdadeiro", "Natureza Verdadeira"] } ],
-    mana: [ { label: "Magias de Ciclo", itens: ["Truques de Ciclo", "Magias de 1º a 10º Ciclo"] }, { label: "Magias Arcanas/Negras", itens: ["Truques Arcanos/Negros", "Magias Arcanas/Negra de 1º a 10º Ciclo"] }, { label: "Magias Ancestrais", itens: ["Truques Ancestrais", "Magia de Sangue", "Magia de Osso", "Magia Draconica", "Magia de Alma", "Magia de Tempo", "Magia de Gravidade", "Magia Espacial", "Magia de Borracha", "Magia de Espelho", "Magia de Sal", "Magia de Tremor", "Magia de Equipamento", "Magia de Explosao", "Magia de Metamorfose"] } ],
-    chakra: [ { label: "Kekkei Genkai", itens: ["Elemento Madeira", "Elemento Mineral", "Elemento Cinzas", "Elemento Igneo", "Elemento Lava", "Elemento Vapor", "Elemento Nevoa", "Elemento Tempestade", "Elemento Areia", "Elemento Tufao"] }, { label: "Kekkei Touta", itens: ["Elemento Velocidade", "Elemento Poeira", "Elemento Veneno", "Elemento Cal", "Elemento Carbono", "Elemento Calor", "Elemento Som", "Elemento Magnetismo"] } ],
-    aura: [ { label: "Manifestação", itens: ["Aura Pura", "Projeção de Aura", "Reforço de Aura"] }, { label: "Fusões", itens: ["Fusões Básicas", "Fusões Avançadas"] } ],
-    primordiais: [ { label: "Primordiais Base", itens: ["Luz", "Trevas", "Ether"] }, { label: "Primordiais Verdadeiros", itens: ["Celestial", "Infernal", "Caos"] }, { label: "Absolutos", itens: ["Criacao", "Destruicao", "Cosmos"] } ],
+    mana: [
+        { label: "Magias de Ciclo", itens: ["Truques de Ciclo", "Magias de 1º a 10º Ciclo"] },
+        { label: "Magias Arcanas/Negras", itens: ["Truques Arcanos/Negros", "Magias Arcanas/Negra de 1º a 10º Ciclo"] },
+        { label: "Magias Ancestrais", itens: ["Truques Ancestrais", "Magia de Sangue", "Magia de Osso", "Magia Draconica", "Magia de Alma", "Magia de Tempo", "Magia de Gravidade", "Magia Espacial", "Magia de Borracha", "Magia de Espelho", "Magia de Sal", "Magia de Tremor", "Magia de Equipamento", "Magia de Explosao", "Magia de Metamorfose"] }
+    ],
+    chakra: [
+        { label: "Kekkei Genkai", itens: ["Elemento Madeira", "Elemento Mineral", "Elemento Cinzas", "Elemento Igneo", "Elemento Lava", "Elemento Vapor", "Elemento Nevoa", "Elemento Tempestade", "Elemento Areia", "Elemento Tufao"] },
+        { label: "Kekkei Touta", itens: ["Elemento Velocidade", "Elemento Poeira", "Elemento Veneno", "Elemento Cal", "Elemento Carbono", "Elemento Calor", "Elemento Som", "Elemento Magnetismo"] }
+    ],
+    aura: [
+        { label: "Manifestação", itens: ["Aura Pura", "Projeção de Aura", "Reforço de Aura"] },
+        { label: "Fusões", itens: ["Fusões Básicas", "Fusões Avançadas"] }
+    ],
+    primordiais: [
+        { label: "Primordiais Base", itens: ["Luz", "Trevas", "Ether"] },
+        { label: "Primordiais Verdadeiros", itens: ["Celestial", "Infernal", "Caos"] },
+        { label: "Absolutos", itens: ["Criacao", "Destruicao", "Cosmos"] }
+    ],
     astral: [ { label: "Domínios da Existência", itens: ["Vida", "Morte", "Vazio", "Neutro", "Energia Astral"] } ],
-    marciais: [ { label: "Fundamentos", itens: ["Artes Marciais (Combate Corpo-a-Corpo)", "Reforço Físico"] }, { label: "Estilos de Combate", itens: ["Punho do Dragão", "Palma Suave", "Caminho do Tigre", "Boxe Demoníaco", "Artes de Assassino", "Estilo Bêbado", "Punho de Ferro"] } ],
-    armas: [ { label: "Kenjutsu (Espadas)", itens: ["Ittouryu (1 Espada)", "Nitouryu (2 Espadas)", "Santouryu (3 Espadas)", "Iaido", "Kenjutsu"] }, { label: "Posturas de Combate", itens: ["Postura da Montanha", "Postura da Água", "Postura do Vento", "Postura do Trovão"] }, { label: "Outras Armas", itens: ["Maestria com Lança", "Maestria com Foice", "Maestria com Arco", "Maestria com Armas de Fogo", "Maestria com Escudo"] } ],
+    marciais: [
+        { label: "Fundamentos", itens: ["Artes Marciais (Combate Corpo-a-Corpo)", "Reforço Físico"] },
+        { label: "Estilos de Combate", itens: ["Punho do Dragão", "Palma Suave", "Caminho do Tigre", "Boxe Demoníaco", "Artes de Assassino", "Estilo Bêbado", "Punho de Ferro"] }
+    ],
+    armas: [
+        { label: "Kenjutsu (Espadas)", itens: ["Ittouryu (1 Espada)", "Nitouryu (2 Espadas)", "Santouryu (3 Espadas)", "Iaido", "Kenjutsu"] },
+        { label: "Posturas de Combate", itens: ["Postura da Montanha", "Postura da Água", "Postura do Vento", "Postura do Trovão"] },
+        { label: "Outras Armas", itens: ["Maestria com Lança", "Maestria com Foice", "Maestria com Arco", "Maestria com Armas de Fogo", "Maestria com Escudo"] }
+    ],
     cura: [ { label: "Medicina", itens: ["Regeneração Básica", "Cura Celular", "Purificação", "Reversão Temporal", "Transferência Vital", "Ressurreição Limitada"] } ],
     summons: [ { label: "Pactos", itens: ["Pacto Demoníaco", "Feras Divinas", "Espíritos Ancestrais", "Contrato Dracônico", "Exército de Sombras", "Invocação de Armamento Sagrado"] } ]
 };
@@ -298,9 +319,9 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     const editandoBase = attrBaseFocado === attrKey;
     const valorCampoBase = editandoBase ? (baseValRaw ?? '') : baseExibido;
 
-    let supressao = ficha?.supressaoPoder !== undefined ? Number(ficha.supressaoPoder) : 100;
+    let supressao = ficha.supressaoPoder !== undefined ? Number(ficha.supressaoPoder) : 100;
     if (isNaN(supressao)) supressao = 100;
-    let limiteSupressao = ficha?.limiteSupressao !== undefined ? Number(ficha.limiteSupressao) : 1;
+    let limiteSupressao = ficha.limiteSupressao !== undefined ? Number(ficha.limiteSupressao) : 1;
     if (isNaN(limiteSupressao)) limiteSupressao = 1;
     if (supressao < limiteSupressao) supressao = limiteSupressao;
     
