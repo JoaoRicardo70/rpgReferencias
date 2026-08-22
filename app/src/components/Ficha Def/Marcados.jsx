@@ -53,13 +53,11 @@ function getGlobalMultipliers(ficha) {
         
         let grupos = { MBASE: {}, MGERAL: {}, MFORMAS: {}, MABS: {} };
         let unicos = [];
-        let hasGlob = { MBASE: false, MGERAL: false, MFORMAS: false, MABS: false };
 
         const addManual = (val, type, sourceName) => {
             let v = parseFloat(val);
             if (!isNaN(v) && v > 0 && v !== 1) {
                 grupos[type][sourceName] = (grupos[type][sourceName] || 0) + v;
-                hasGlob[type] = true;
             }
         };
 
@@ -109,7 +107,6 @@ function getGlobalMultipliers(ficha) {
                                 if (val > 0) unicos.push(val);
                             } else if (grupos[tipo]) {
                                 grupos[tipo][nomeSkill] = (grupos[tipo][nomeSkill] || 0) + val;
-                                hasGlob[tipo] = true;
                             }
                         }
                     };
@@ -120,14 +117,12 @@ function getGlobalMultipliers(ficha) {
         };
         ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios', 'itens'].forEach(scanCategory);
 
-        // Multiplica os Totais Agrupados
+        // 🔥 REGRA DE AGRUPAMENTO: multiplicadores do MESMO TIPO se SOMAM (1 + soma) antes
+        // da multiplicação final entre categorias. Só o mUnico (abaixo) é multiplicativo entre si.
         const calcTotal = (tipo) => {
-            if (!hasGlob[tipo]) return 1;
-            let total = 1;
-            Object.values(grupos[tipo]).forEach(sum => {
-                if (sum > 0) total *= sum;
-            });
-            return total;
+            let soma = 0;
+            Object.values(grupos[tipo]).forEach(v => { soma += v; });
+            return 1 + soma;
         };
 
         let finalB = calcTotal('MBASE');
@@ -168,23 +163,24 @@ function getPoderAbsolutoAtributo(key, ficha) {
     const ascensaoBase = parseInt(ficha?.ascensaoBase) || 1;
     const multP = parseFloat(ficha?.multiplicadorForcaPrestigio) || 1;
     const multA = parseFloat(ficha?.multiplicadorForcaAscensao) || 1;
-    
-    const ascEfetiva = ascensaoBase * multA;
-    const prestEfetivo = prestigioBruto * multP;
-    
+
+    // 🔥 Alicerce = valores FINAIS já escalonados (mesma cascata de overflow Prestígio->Ascensão
+    // usada pelo Radar/TabelaPrestigio via aplicarMultiplicadorForca), não a soma crua dos multiplicadores.
+    const { prestigioFinal, ascensaoFinal } = aplicarMultiplicadorForca(prestigioBruto, ascensaoBase, multP, multA);
+
     // Regra Mestra: (Ascensao * 100) + Prestigio
-    const pontosTotais = (ascEfetiva * 100) + prestEfetivo;
-    
+    const pontosTotais = (ascensaoFinal * 100) + prestigioFinal;
+
     let poderPuro = Math.floor((pontosTotais / div) * (mults[key] || 1));
-    
+
     // Calcula para sub-atributos que compõem o Status
     if (isStatus) {
         let prestIndiv = Math.floor((rawBase / mults[key]) * div) || 0;
-        let prestIndivEfetivo = prestIndiv * multP;
-        let pontosTotaisIndiv = (ascEfetiva * 100) + prestIndivEfetivo;
+        const { prestigioFinal: prestIndivFinal, ascensaoFinal: ascIndivFinal } = aplicarMultiplicadorForca(prestIndiv, ascensaoBase, multP, multA);
+        let pontosTotaisIndiv = (ascIndivFinal * 100) + prestIndivFinal;
         poderPuro = Math.floor((pontosTotaisIndiv / div) * mults[key]);
     }
-    
+
     return isNaN(poderPuro) ? 0 : poderPuro;
 }
 
@@ -749,7 +745,25 @@ export default function MarcadosPanel() {
             if (!isNaN(exponent)) digitos = exponent + 1;
         }
         return { poderGlobal: Math.floor(power), vitalidadeGlobal: Math.max(0, digitos - 8), supressao: sup, limiteSupressao: lim, temaScouter: tema };
-    }, [minhaFicha]);
+    }, [
+        minhaFicha,
+        minhaFicha?.dano,
+        minhaFicha?.forca,
+        minhaFicha?.ascensaoBase,
+        minhaFicha?.multiplicadorForcaPrestigio,
+        minhaFicha?.multiplicadorForcaAscensao,
+        minhaFicha?.passivas,
+        minhaFicha?.habilidades,
+        minhaFicha?.transformacoes,
+        minhaFicha?.magias,
+        minhaFicha?.relicarios,
+        minhaFicha?.itens,
+        minhaFicha?.poderes,
+        minhaFicha?.inventario,
+        minhaFicha?.seresSelados,
+        minhaFicha?.supressaoPoder,
+        minhaFicha?.limiteSupressao,
+    ]);
 
     if (!minhaFicha) return <div style={{ color: '#000', padding: 20, fontFamily: 'cursive' }}>Abrindo a Ficha...</div>;
 
