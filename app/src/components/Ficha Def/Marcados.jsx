@@ -49,73 +49,39 @@ const getEfetivoMFormas = (ficha, k) => {
     return (v === 1.0 ? 0 : v) + b.mformas;
 };
 
-// 🔥 EXTRATOR SUPREMO DE COMBOS GLOBAIS 🔥
-// Vasculha as habilidades ativas e junta TODOS os multiplicadores perfeitamente
-const getGlobalMultipliers = (ficha) => {
-    let mBase = 0, mGeral = 0, mFormas = 0, mAbs = 0;
-    let hasB = false, hasG = false, hasF = false, hasA = false;
-    let unicos = [];
+// 🔥 FÓRMULA DE DANO ABSOLUTO BLINDADA 🔥
+const getEfetivoDanoGlobal = (ficha) => {
+    try {
+        let d = ficha?.dano || {};
+        let b = safeGetBuffs(ficha, 'dano', true) || {};
+        
+        const calcAdd = (fichaVal, buffSum, hasBuff) => {
+            let v = parseFloat(fichaVal);
+            if (isNaN(v)) v = 1.0;
+            if (!hasBuff) return v;
+            return (v === 1.0 ? 0 : v) + (parseFloat(buffSum) || 0);
+        };
 
-    const processText = (txt) => {
-        if (!txt) return;
-        const regex = /M(BASE|GERAL|FORMAS|ABS|UNICO)\s*:\s*\+?\s*([\d.,]+)/gi;
-        let match;
-        while ((match = regex.exec(txt)) !== null) {
-            const tipo = match[1].toUpperCase();
-            const val = parseFloat(match[2].replace(',', '.'));
-            if (isNaN(val)) continue;
-            
-            if (tipo === 'BASE') { mBase += val; hasB = true; }
-            if (tipo === 'GERAL') { mGeral += val; hasG = true; }
-            if (tipo === 'FORMAS') { mFormas += val; hasF = true; }
-            if (tipo === 'ABS') { mAbs += val; hasA = true; }
-            if (tipo === 'UNICO') { unicos.push(val); }
+        let bas = calcAdd(d.mBase, b.mbase, b._hasBuff?.mbase);
+        let ger = calcAdd(d.mGeral, b.mgeral, b._hasBuff?.mgeral);
+        let abs = calcAdd(d.mAbsoluto, b.mabs, b._hasBuff?.mabs);
+        
+        let uni = 1.0;
+        if (d.mUnico) {
+            String(d.mUnico).split(',').forEach(v => {
+                let n = parseFloat(v.trim());
+                if (!isNaN(n) && n > 0) uni *= n;
+            });
         }
-    };
-
-    const scanCategory = (cat) => {
-        if (!ficha[cat]) return;
-        Object.values(ficha[cat]).forEach(item => {
-            if (item && item.ativo && !item.deletado) {
-                processText(item.efeitos);
-                processText(item.desc);
-            }
-        });
-    };
-
-    ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios'].forEach(scanCategory);
-
-    const addManual = (val, callbackHas, callbackSum) => {
-        let v = parseFloat(val);
-        if (!isNaN(v) && v > 0 && v !== 1) { 
-            callbackSum(v);
-            callbackHas();
+        if (b.munico && Array.isArray(b.munico)) {
+            b.munico.forEach(n => { if (!isNaN(n) && n > 0) uni *= n; });
         }
-    };
 
-    let d = ficha?.dano || {};
-    addManual(d.mBase, () => hasB = true, v => mBase += v);
-    addManual(d.mGeral, () => hasG = true, v => mGeral += v);
-    addManual(d.mAbsoluto, () => hasA = true, v => mAbs += v);
-    
-    if (d.mUnico) {
-        String(d.mUnico).split(',').forEach(v => {
-            let n = parseFloat(v.trim());
-            if (!isNaN(n) && n > 0) unicos.push(n);
-        });
+        let total = bas * ger * abs * uni;
+        return isNaN(total) ? 1 : total;
+    } catch(e) {
+        return 1;
     }
-    
-    let f = ficha?.forca || {};
-    addManual(f.mFormas, () => hasF = true, v => mFormas += v);
-
-    let finalB = hasB ? (mBase === 0 ? 1 : mBase) : 1;
-    let finalG = hasG ? (mGeral === 0 ? 1 : mGeral) : 1;
-    let finalF = hasF ? (mFormas === 0 ? 1 : mFormas) : 1;
-    let finalA = hasA ? (mAbs === 0 ? 1 : mAbs) : 1;
-    let finalUni = 1.0;
-    unicos.forEach(n => { finalUni *= n; });
-
-    return finalB * finalG * finalF * finalA * finalUni;
 };
 
 const getGhostAscensionBonus = (key, ficha) => {
@@ -138,7 +104,7 @@ const getGhostAscensionBonus = (key, ficha) => {
     return flatBonus;
 };
 
-// 🔥 FÓRMULA UNIVERSAL DOS ATRIBUTOS INDIVIDUAIS (LIMPOS PARA A TABELA) 🔥
+// 🔥 FÓRMULA UNIVERSAL DOS ATRIBUTOS INDIVIDUAIS 🔥
 const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => {
     try {
         if (!ficha || !key) return 0;
@@ -269,7 +235,6 @@ const aplicarMultiplicadorForca = (prestigioBase, ascensaoBase, multiplicadorFor
     return { ...rankInfo, prestigioFinal, ascensaoFinal };
 };
 
-// 🔥 FUNÇÃO RESTAURADA QUE IMPEDIA A RENDERIZAÇÃO DA TABELA 🔥
 const calcularPrestAtual = (ficha, attrKey, baseP) => {
     const mFormas = getEfetivoMFormas(ficha, attrKey);
     const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
@@ -403,7 +368,7 @@ const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual
     );
 };
 
-// 🔥 RADAR DESENHADO: MATEMÁTICA PURA DA TABELA, SEM DEFORMAÇÕES 🔥
+// 🔥 RADAR DESENHADO: MATEMÁTICA PURA DA TABELA 🔥
 const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => {
     const eixos = [ { label: 'VIDA', key: 'vida' }, { label: 'MANA', key: 'mana' }, { label: 'AURA', key: 'aura' }, { label: 'CHAKRA', key: 'chakra' }, { label: 'CORPO', key: 'corpo' }, { label: 'STATUS', key: 'status' } ];
     const angulos = Array.from({length: 6}).map((_, i) => Math.PI * 2 * i / 6 - Math.PI / 2);
@@ -422,7 +387,6 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
 
         let valNorm = parseFloat(efetivo.prestigioFinal) || 0;
         
-        // Magia visual: se bateu exatamente em 0 mas a ascensão subiu, enche a barra em vez de afundar!
         if (valNorm === 0 && Math.floor(efetivo.ascensaoFinal || 1) > 1) {
             valNorm = 100;
         } else if (valNorm >= 100) {
@@ -716,7 +680,9 @@ export default function MarcadosPanel() {
         let mF = getEfetivoMFormas(minhaFicha, 'status');
         if (isNaN(mF) || mF < 1) mF = 1;
         
-        let mDano = getGlobalMultipliers(minhaFicha);
+        // APENAS NO SCOUTER GLOBAL VAMOS FUNDIR A MÉDIA DE PODER COM O MULTIPLICADOR GIGANTE DE DANO!
+        let mDano = getEfetivoDanoGlobal(minhaFicha);
+        if (isNaN(mDano) || mDano < 1) mDano = 1;
         
         let power = trueAvg * mF * mDano * (sup / 100);
         if (isNaN(power)) power = 0;
@@ -992,7 +958,7 @@ export default function MarcadosPanel() {
                                 <CampoMagico valor={minhaFicha.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
 
-                            {/* 🌟 O NOVO SCOUTER DE VIDRO HOLOGRÁFICO BLINDADO 🌟 */}
+                            {/* 🌟 SCOUTER HOLOGRÁFICO BLINDADO 🌟 */}
                             <div style={{
                                 marginTop: '15px', marginBottom: '25px', padding: '25px 30px',
                                 background: 'rgba(15, 15, 20, 0.75)',
@@ -1251,7 +1217,7 @@ export default function MarcadosPanel() {
                                     const displayP = getBasePFor(minhaFicha, k);
                                     const divisor = minhaFicha.divisores?.[k] || 1;
 
-                                    const pAtualValor = isAtual ? calcularPrestAtual(minhaFicha, k, displayP) : displayP;
+                                    const pAtualValor = calcularPrestAtual(minhaFicha, k, displayP);
                                     const rankInfo = aplicarMultiplicadorForca(
                                         pAtualValor, minhaFicha.ascensaoBase || 1,
                                         minhaFicha.multiplicadorForcaPrestigio ?? 1, minhaFicha.multiplicadorForcaAscensao ?? 1
