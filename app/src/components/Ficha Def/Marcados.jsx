@@ -2,14 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { uploadImagem, salvarFichaSilencioso, salvarFirebaseImediato } from '../../services/firebase-sync';
 
-// Importação flexível para evitar o ReferenceError de "getMaximo is not defined"
 import * as AtributosCore from '../../core/attributes';
 import { getRank } from '../../core/prestige';
-
-// 🔥 IMPORTA O NOSSO NOVO SCOUTER DE PODER 🔥
 import { formatarPoderCosmico } from '../../core/utils.js';
 
-// 🔥 IMPORTAÇÕES DAS PÁGINAS MÁGICAS EXTERNAS 🔥
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel'; 
 
@@ -29,7 +25,6 @@ const safeGetMaximo = (ficha, key) => {
     return parseFloat(ficha[key]?.base) || 0;
 };
 
-// Blindagem Absoluta contra Crash do Rank
 const safeGetRank = (prest, asc) => {
     try {
         const r = typeof getRank === 'function' ? getRank(prest, asc) : null;
@@ -49,7 +44,7 @@ const getEfetivoMFormas = (ficha, k) => {
     return (v === 1.0 ? 0 : v) + b.mformas;
 };
 
-// 🔥 CÁLCULO DOS MÚLTIPLOS DE DANO PARA O SCOUTER GLOBAL 🔥
+// 🔥 FÓRMULA DE DANO ABSOLUTO 🔥
 const getEfetivoDanoGlobal = (ficha) => {
     try {
         let d = ficha?.dano || {};
@@ -104,7 +99,7 @@ const getGhostAscensionBonus = (key, ficha) => {
     return flatBonus;
 };
 
-// 🔥 FÓRMULA UNIVERSAL DOS ATRIBUTOS INDIVIDUAIS (SEM DANO GLOBAL, PARA NÃO DUPLICAR) 🔥
+// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO 🔥
 const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => {
     try {
         if (!ficha || !key) return 0;
@@ -116,15 +111,19 @@ const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => 
         const bonusAscensao = getGhostAscensionBonus(key, ficha) || 0;
 
         let mF = 1;
+        let mD = 1;
         if (isAtual) {
             mF = getEfetivoMFormas(ficha, key);
             if (isNaN(mF) || mF < 1) mF = 1;
+            
+            mD = getEfetivoDanoGlobal(ficha);
+            if (isNaN(mD) || mD < 1) mD = 1;
         }
 
         let sup = parseFloat(supressao);
         if (isNaN(sup)) sup = 100;
 
-        let power = (baseParaPoder + bonusAscensao) * mF * (sup / 100);
+        let power = (baseParaPoder + bonusAscensao) * mF * mD * (sup / 100);
         return isNaN(power) ? 0 : Math.floor(power);
     } catch (e) {
         return 0;
@@ -139,8 +138,28 @@ const getTemaScouter = (supressao, limite = 1) => {
     return { cor: '#ff003c', glow: '#880000', nome: 'Anulação no Limite', pulse: '8s' };
 };
 
-const CLASSES_REGULARES_BASE = [ { id: 'saber', nome: 'Saber', icone: '⚔️', cor: '#0088ff' }, { id: 'archer', nome: 'Archer', icone: '🏹', cor: '#ff003c' }, { id: 'lancer', nome: 'Lancer', icone: '🗡️', cor: '#00ffcc' }, { id: 'rider', nome: 'Rider', icone: '🏇', cor: '#ff8800' }, { id: 'caster', nome: 'Caster', icone: '🧙‍♂️', cor: '#cc00ff' }, { id: 'assassin', nome: 'Assassin', icone: '🔪', cor: '#444444' }, { id: 'berserker', nome: 'Berserker', icone: '狂', cor: '#ff0000' } ];
-const CLASSES_EXTRA_BASE = [ { id: 'shielder', nome: 'Shielder', icone: '🛡️', cor: '#00ffff' }, { id: 'ruler', nome: 'Ruler', icone: '⚖️', cor: '#ffcc00' }, { id: 'avenger', nome: 'Avenger', icone: '⛓️', cor: '#880000' }, { id: 'alterego', nome: 'Alter Ego', icone: '🎭', cor: '#ff00ff' }, { id: 'foreigner', nome: 'Foreigner', icone: '🐙', cor: '#00ff88' }, { id: 'mooncancer', nome: 'Moon Cancer', icone: '🌕', cor: '#8888aa' }, { id: 'pretender', nome: 'Pretender', icone: '🤥', cor: '#ffaa00' }, { id: 'beast', nome: 'Beast', icone: '👹', cor: '#4a0000' }, { id: 'savior', nome: 'Savior', icone: '☀️', cor: '#ffffff' }, { id: 'desconhecido', nome: '?', icone: '👤', cor: '#666666' } ];
+const CLASSES_REGULARES_BASE = [
+    { id: 'saber', nome: 'Saber', icone: '⚔️', cor: '#0088ff' },
+    { id: 'archer', nome: 'Archer', icone: '🏹', cor: '#ff003c' },
+    { id: 'lancer', nome: 'Lancer', icone: '🗡️', cor: '#00ffcc' },
+    { id: 'rider', nome: 'Rider', icone: '🏇', cor: '#ff8800' },
+    { id: 'caster', nome: 'Caster', icone: '🧙‍♂️', cor: '#cc00ff' },
+    { id: 'assassin', nome: 'Assassin', icone: '🔪', cor: '#444444' },
+    { id: 'berserker', nome: 'Berserker', icone: '狂', cor: '#ff0000' }
+];
+
+const CLASSES_EXTRA_BASE = [
+    { id: 'shielder', nome: 'Shielder', icone: '🛡️', cor: '#00ffff' },
+    { id: 'ruler', nome: 'Ruler', icone: '⚖️', cor: '#ffcc00' },
+    { id: 'avenger', nome: 'Avenger', icone: '⛓️', cor: '#880000' },
+    { id: 'alterego', nome: 'Alter Ego', icone: '🎭', cor: '#ff00ff' },
+    { id: 'foreigner', nome: 'Foreigner', icone: '🐙', cor: '#00ff88' },
+    { id: 'mooncancer', nome: 'Moon Cancer', icone: '🌕', cor: '#8888aa' },
+    { id: 'pretender', nome: 'Pretender', icone: '🤥', cor: '#ffaa00' },
+    { id: 'beast', nome: 'Beast', icone: '👹', cor: '#4a0000' },
+    { id: 'savior', nome: 'Savior', icone: '☀️', cor: '#ffffff' },
+    { id: 'desconhecido', nome: '?', icone: '👤', cor: '#666666' }
+];
 
 const getClasseInfo = (ficha) => {
     const nomeClasse = ficha?.bio?.classe;
@@ -184,10 +203,18 @@ const CATEGORIAS_DOMINIO = {
 };
 
 const PREDEFINIDOS_LORE = {
-    elementos_basicos: [ { label: "Elementos Básicos", itens: ["Fogo", "Raio", "Agua", "Vento", "Terra"] } ],
-    elementos_basicos_verdadeiros: [ { label: "Básicos Verdadeiros", itens: ["Fogo Verdadeiro", "Raio Verdadeiro", "Agua Verdadeira", "Vento Verdadeiro", "Terra Verdadeira"] } ],
-    elementos_avancados: [ { label: "Elementos Avançados", itens: ["Solar", "Energia", "Gelo", "Vacuo", "Natureza"] } ],
-    elementos_avancados_verdadeiros: [ { label: "Avançados Verdadeiros", itens: ["Solar Verdadeiro", "Energia Verdadeira", "Gelo Verdadeiro", "Vacuo Verdadeiro", "Natureza Verdadeira"] } ],
+    elementos_basicos: [
+        { label: "Elementos Básicos", itens: ["Fogo", "Raio", "Agua", "Vento", "Terra"] }
+    ],
+    elementos_basicos_verdadeiros: [
+        { label: "Básicos Verdadeiros", itens: ["Fogo Verdadeiro", "Raio Verdadeiro", "Agua Verdadeira", "Vento Verdadeiro", "Terra Verdadeira"] }
+    ],
+    elementos_avancados: [
+        { label: "Elementos Avançados", itens: ["Solar", "Energia", "Gelo", "Vacuo", "Natureza"] }
+    ],
+    elementos_avancados_verdadeiros: [
+        { label: "Avançados Verdadeiros", itens: ["Solar Verdadeiro", "Energia Verdadeira", "Gelo Verdadeiro", "Vacuo Verdadeiro", "Natureza Verdadeira"] }
+    ],
     mana: [
         { label: "Magias de Ciclo", itens: ["Truques de Ciclo", "Magias de 1º a 10º Ciclo"] },
         { label: "Magias Arcanas/Negras", itens: ["Truques Arcanos/Negros", "Magias Arcanas/Negra de 1º a 10º Ciclo"] },
@@ -206,7 +233,9 @@ const PREDEFINIDOS_LORE = {
         { label: "Primordiais Verdadeiros", itens: ["Celestial", "Infernal", "Caos"] },
         { label: "Absolutos", itens: ["Criacao", "Destruicao", "Cosmos"] }
     ],
-    astral: [ { label: "Domínios da Existência", itens: ["Vida", "Morte", "Vazio", "Neutro", "Energia Astral"] } ],
+    astral: [
+        { label: "Domínios da Existência", itens: ["Vida", "Morte", "Vazio", "Neutro", "Energia Astral"] }
+    ],
     marciais: [
         { label: "Fundamentos", itens: ["Artes Marciais (Combate Corpo-a-Corpo)", "Reforço Físico"] },
         { label: "Estilos de Combate", itens: ["Punho do Dragão", "Palma Suave", "Caminho do Tigre", "Boxe Demoníaco", "Artes de Assassino", "Estilo Bêbado", "Punho de Ferro"] }
@@ -216,8 +245,12 @@ const PREDEFINIDOS_LORE = {
         { label: "Posturas de Combate", itens: ["Postura da Montanha", "Postura da Água", "Postura do Vento", "Postura do Trovão"] },
         { label: "Outras Armas", itens: ["Maestria com Lança", "Maestria com Foice", "Maestria com Arco", "Maestria com Armas de Fogo", "Maestria com Escudo"] }
     ],
-    cura: [ { label: "Medicina", itens: ["Regeneração Básica", "Cura Celular", "Purificação", "Reversão Temporal", "Transferência Vital", "Ressurreição Limitada"] } ],
-    summons: [ { label: "Pactos", itens: ["Pacto Demoníaco", "Feras Divinas", "Espíritos Ancestrais", "Contrato Dracônico", "Exército de Sombras", "Invocação de Armamento Sagrado"] } ]
+    cura: [
+        { label: "Medicina", itens: ["Regeneração Básica", "Cura Celular", "Purificação", "Reversão Temporal", "Transferência Vital", "Ressurreição Limitada"] }
+    ],
+    summons: [
+        { label: "Pactos", itens: ["Pacto Demoníaco", "Feras Divinas", "Espíritos Ancestrais", "Contrato Dracônico", "Exército de Sombras", "Invocação de Armamento Sagrado"] }
+    ]
 };
 
 const encontrarCategoriaPorLore = (nome) => {
@@ -240,7 +273,9 @@ const getBasePFor = (ficha, k) => {
     const div = parseFloat(ficha?.divisores?.[k]) || 1;
     if (k === 'status') {
         let m = 0;
-        ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { m += safeGetRawBase(ficha, s); });
+        ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
+            m += safeGetRawBase(ficha, s);
+        });
         return Math.floor(((m / 8) / mults.status) * div) || 0;
     }
     return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
@@ -525,9 +560,37 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
         callSave(); setSelectValue(''); setInputValue('');
     };
 
+    const handleAddTudo = () => {
+        if (!window.confirm(`Deseja preencher esta aba adicionando todos os itens oficiais de ${catData.titulo}?`)) return;
+        updateFicha(f => {
+            if (!f.dominios) f.dominios = {};
+            (PREDEFINIDOS_LORE[catKey] || []).forEach(grupo => {
+                grupo.itens.forEach(nome => {
+                    if (!f.dominios[nome] || typeof f.dominios[nome] !== 'object') {
+                        f.dominios[nome] = { nivel: 1, categoria: catKey };
+                    } else {
+                        f.dominios[nome].categoria = catKey;
+                    }
+                });
+            });
+        });
+        callSave();
+    };
+
     const handleRemove = (nome) => {
         if (!window.confirm(`Riscar o domínio [${nome}] das suas páginas?`)) return;
         updateFicha(f => { if (f.dominios) delete f.dominios[nome]; }); callSave();
+    };
+
+    const handleChangeNivel = (nome, nivel) => {
+        updateFicha(f => { if (f.dominios && f.dominios[nome]) f.dominios[nome].nivel = parseInt(nivel); });
+        callSave();
+    };
+
+    const handleMove = (nome, newCat) => {
+        if (!newCat) return;
+        updateFicha(f => { if (f.dominios && f.dominios[nome]) f.dominios[nome].categoria = newCat; });
+        callSave();
     };
 
     return (
@@ -544,7 +607,12 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                         <optgroup key={g.label} label={`— ${g.label} —`} style={{ color: '#fff', background: '#0a0a0f' }}>{g.itens.map(item => <option key={item} value={item}>{item}</option>)}</optgroup>
                     ))}
                 </select>
-                <div style={{ display: 'flex', gap: '5px' }}><button onClick={() => handleAdd(selectValue)} style={{ background: 'transparent', border: `1px solid ${corTema}`, color: corTema, cursor: 'pointer', padding: '10px 15px', borderRadius: '4px', fontWeight: 'bold' }}>+ ADD</button></div>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                    <button onClick={() => handleAdd(selectValue)} style={{ background: 'transparent', border: `1px solid ${corTema}`, color: corTema, cursor: 'pointer', padding: '10px 15px', borderRadius: '4px', fontWeight: 'bold' }}>+ ADD</button>
+                    {(PREDEFINIDOS_LORE[catKey] && PREDEFINIDOS_LORE[catKey].length > 0) && (
+                        <button onClick={handleAddTudo} style={{ background: `${corTema}22`, border: `1px solid ${corTema}`, color: corTema, cursor: 'pointer', padding: '10px', borderRadius: '4px', fontWeight: 'bold', textTransform: 'uppercase', fontFamily: 'inherit', boxShadow: `0 0 10px ${corTema}44` }} title="Adicionar toda a Lore de uma vez">+ TUDO</button>
+                    )}
+                </div>
             </div>
 
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -657,6 +725,8 @@ export default function MarcadosPanel() {
         const trueAvg = calcTrueAverage();
         let mF = getEfetivoMFormas(minhaFicha, 'status');
         if (isNaN(mF) || mF < 1) mF = 1;
+        
+        // APENAS NO SCOUTER GLOBAL VAMOS FUNDIR A MÉDIA DE PODER COM O MULTIPLICADOR GIGANTE DE DANO!
         let mDano = getEfetivoDanoGlobal(minhaFicha);
         if (isNaN(mDano) || mDano < 1) mDano = 1;
         
@@ -915,11 +985,10 @@ export default function MarcadosPanel() {
                                 <CampoMagico valor={minhaFicha.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
 
-                            {/* 🌟 SCOUTER HOLOGRÁFICO BLINDADO 🌟 */}
+                            {/* 🌟 O NOVO SCOUTER DE VIDRO HOLOGRÁFICO BLINDADO 🌟 */}
                             <div style={{
                                 marginTop: '15px', marginBottom: '25px', padding: '25px 30px',
-                                background: 'rgba(15, 15, 20, 0.75)',
-                                backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+                                background: 'rgba(15, 15, 20, 0.75)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
                                 border: '1px solid rgba(255, 255, 255, 0.1)', borderTop: '1px solid rgba(255, 255, 255, 0.25)', borderLeft: `4px solid ${temaScouter.cor}`,
                                 borderRadius: '6px 12px 12px 6px',
                                 boxShadow: `0 15px 35px rgba(0,0,0,0.6), inset -5px -5px 20px rgba(0,0,0,0.8), inset 0 0 40px ${temaScouter.cor}1a`,
@@ -1175,7 +1244,10 @@ export default function MarcadosPanel() {
                                     const divisor = minhaFicha.divisores?.[k] || 1;
 
                                     const pAtualValor = calcularPrestAtual(minhaFicha, k, displayP);
-                                    const rankInfo = aplicarMultiplicadorForca(pAtualValor, minhaFicha.ascensaoBase || 1, minhaFicha.multiplicadorForcaPrestigio ?? 1, minhaFicha.multiplicadorForcaAscensao ?? 1);
+                                    const rankInfo = aplicarMultiplicadorForca(
+                                        pAtualValor, minhaFicha.ascensaoBase || 1,
+                                        minhaFicha.multiplicadorForcaPrestigio ?? 1, minhaFicha.multiplicadorForcaAscensao ?? 1
+                                    );
 
                                     return (
                                         <div key={k} style={{ background: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.2)', borderRadius: '8px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: 'inset 0 0 10px rgba(0,0,0,0.05)' }}>
@@ -1187,7 +1259,13 @@ export default function MarcadosPanel() {
                                                 </div>
                                             </div>
                                             <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
-                                                <CampoMagico valor={displayP} onChange={v => handleTabelaChange(k, 'prestigio', v)} type="number" isNumber={true} styleExtra={{ width: '100%', textAlign: 'center', color: '#fff', borderBottom: 'none', fontSize: '1.4em', fontWeight: 'bold' }} />
+                                                <CampoMagico
+                                                    valor={displayP}
+                                                    onChange={v => handleTabelaChange(k, 'prestigio', v)}
+                                                    type="number"
+                                                    isNumber={true}
+                                                    styleExtra={{ width: '100%', textAlign: 'center', color: '#fff', borderBottom: 'none', fontSize: '1.4em', fontWeight: 'bold' }}
+                                                />
                                             </div>
                                             <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
                                                 <span style={{ color: rankInfo.c || '#fff', fontWeight: 'bold', fontSize: '0.9em' }}>Rank {rankInfo.l || 'F'} [A{Math.floor(rankInfo.ascensaoFinal || 1)}]</span>
