@@ -131,6 +131,19 @@ const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => 
     }
 };
 
+// 🔥 CLONE DE POTENCIAL MÁXIMO: força poderes/formas/pactos como ativos,
+// ignorando o toggle real — usado EXCLUSIVAMENTE na leitura numérica do Scouter,
+// para que o número não oscile quando o jogador liga/desliga habilidades.
+const construirFichaPotencialMaximo = (ficha) => {
+    if (!ficha) return ficha;
+    return {
+        ...ficha,
+        poderes: Array.isArray(ficha.poderes) ? ficha.poderes.map(p => (p ? { ...p, ativa: true } : p)) : ficha.poderes,
+        inventario: Array.isArray(ficha.inventario) ? ficha.inventario.map(item => (item ? { ...item, equipado: true } : item)) : ficha.inventario,
+        seresSelados: Array.isArray(ficha.seresSelados) ? ficha.seresSelados.map(ser => (ser ? { ...ser, ativo: true } : ser)) : ficha.seresSelados,
+    };
+};
+
 const getTemaScouter = (supressao, limite = 1) => {
     if (supressao >= 100) return { cor: '#ffcc00', glow: '#ff8800', nome: 'Poder Máximo (Liberto)', pulse: '0.8s' };
     if (supressao >= 50)  return { cor: '#00e5ff', glow: '#0088ff', nome: 'Supressão Leve (Restrito)', pulse: '1.5s' };
@@ -663,12 +676,16 @@ export default function MarcadosPanel() {
         if (sup < lim) sup = lim; 
         
         const tema = getTemaScouter(sup, lim);
-        
+
+        // 🔥 POTENCIAL MÁXIMO: o Scouter lê como se TUDO que o personagem possui
+        // estivesse ativo, para não oscilar com os toggles de habilidades/formas.
+        const fichaPotencial = construirFichaPotencialMaximo(minhaFicha);
+
         const calcTrueAverage = () => {
             const getAttr = (k) => {
-                let maxSafe = parseFloat(safeGetMaximo(minhaFicha, k));
+                let maxSafe = parseFloat(safeGetMaximo(fichaPotencial, k));
                 if (isNaN(maxSafe)) maxSafe = 0;
-                return maxSafe + getGhostAscensionBonus(k, minhaFicha);
+                return maxSafe + getGhostAscensionBonus(k, fichaPotencial);
             };
             let m = 0;
             ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { m += getAttr(s); });
@@ -677,11 +694,11 @@ export default function MarcadosPanel() {
         };
 
         const trueAvg = calcTrueAverage();
-        let mF = getEfetivoMFormas(minhaFicha, 'status');
+        let mF = getEfetivoMFormas(fichaPotencial, 'status');
         if (isNaN(mF) || mF < 1) mF = 1;
-        
+
         // APENAS NO SCOUTER GLOBAL VAMOS FUNDIR A MÉDIA DE PODER COM O MULTIPLICADOR GIGANTE DE DANO!
-        let mDano = getEfetivoDanoGlobal(minhaFicha);
+        let mDano = getEfetivoDanoGlobal(fichaPotencial);
         if (isNaN(mDano) || mDano < 1) mDano = 1;
         
         let power = trueAvg * mF * mDano * (sup / 100);
