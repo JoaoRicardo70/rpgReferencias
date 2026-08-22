@@ -2,27 +2,19 @@ import React, { useState, useEffect, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { uploadImagem, salvarFichaSilencioso, salvarFirebaseImediato } from '../../services/firebase-sync';
 
-// Importação flexível para evitar o ReferenceError de "getMaximo is not defined"
+// Importação flexível
 import * as AtributosCore from '../../core/attributes';
 import { getRank } from '../../core/prestige';
-
-// 🔥 IMPORTA O NOSSO NOVO SCOUTER DE PODER 🔥
 import { formatarPoderCosmico } from '../../core/utils.js';
 
-// 🔥 IMPORTAÇÕES DAS PÁGINAS MÁGICAS EXTERNAS 🔥
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel'; 
 
 // ==========================================
-// 🛡️ DADOS DO COMPÊNDIO E FUNÇÕES SEGURAS (HOISTED)
+// 🛡️ DADOS DO COMPÊNDIO E FUNÇÕES SEGURAS
 // ==========================================
-function safeGetRawBase(f, k) {
-    return typeof AtributosCore.getRawBase === 'function' ? AtributosCore.getRawBase(f, k) : parseFloat(f?.[k]?.base) || 0;
-}
-
-function safeGetBuffs(f, k, t) {
-    return typeof AtributosCore.getBuffs === 'function' ? AtributosCore.getBuffs(f, k, t) : {};
-}
+function safeGetRawBase(f, k) { return typeof AtributosCore.getRawBase === 'function' ? AtributosCore.getRawBase(f, k) : parseFloat(f?.[k]?.base) || 0; }
+function safeGetBuffs(f, k, t) { return typeof AtributosCore.getBuffs === 'function' ? AtributosCore.getBuffs(f, k, t) : {}; }
 
 function safeGetMaximo(ficha, key) {
     try {
@@ -44,61 +36,69 @@ function safeGetRank(prest, asc) {
     }
 }
 
-function getEfetivoMFormas(ficha, k) {
-    const anchor = k === 'status' ? 'forca' : k;
-    let s = ficha?.[anchor] || {};
-    let b = safeGetBuffs(ficha, anchor, true) || {};
-    let v = parseFloat(s.mFormas) || 1.0;
-    if (!b._hasBuff || !b._hasBuff.mformas) return v;
-    return (v === 1.0 ? 0 : v) + b.mformas;
-}
-
-// 🔥 EXTRATOR SUPREMO DE COMBOS GLOBAIS 🔥
+// 🔥 EXTRATOR SUPREMO DE COMBOS GLOBAIS (Reage aos Botões de Ligar/Desligar!) 🔥
 function getGlobalMultipliers(ficha) {
     try {
-        let mBase = 0, mGeral = 0, mFormas = 0, mAbs = 0;
+        let grupos = { MBASE: {}, MGERAL: {}, MFORMAS: {}, MABS: {} };
         let unicos = [];
-        
-        const addManual = (val, type) => {
+        let hasGlob = { MBASE: false, MGERAL: false, MFORMAS: false, MABS: false };
+
+        const addManual = (val, type, sourceName) => {
             let v = parseFloat(val);
-            if (isNaN(v)) return;
-            if (type === 'MBASE') mBase += v;
-            if (type === 'MGERAL') mGeral += v;
-            if (type === 'MFORMAS') mFormas += v;
-            if (type === 'MABS') mAbs += v;
-            if (type === 'MUNICO' && v > 0) unicos.push(v);
+            if (!isNaN(v) && v > 0 && v !== 1) {
+                grupos[type][sourceName] = (grupos[type][sourceName] || 0) + v;
+                hasGlob[type] = true;
+            }
         };
 
+        // Lê caixas manuais
         let d = ficha?.dano || {};
-        addManual(d.mBase, 'MBASE');
-        addManual(d.mGeral, 'MGERAL');
-        addManual(d.mAbsoluto, 'MABS');
+        addManual(d.mBase, 'MBASE', 'Ficha_Manual');
+        addManual(d.mGeral, 'MGERAL', 'Ficha_Manual');
+        addManual(d.mAbsoluto, 'MABS', 'Ficha_Manual');
         if (d.mUnico) {
             String(d.mUnico).split(',').forEach(v => {
                 let n = parseFloat(v.trim());
                 if (!isNaN(n) && n > 0) unicos.push(n);
             });
         }
-        
+
+        // Lê Formas
+        let f = ficha?.forca || {};
+        addManual(f.mFormas, 'MFORMAS', 'Ficha_Manual');
+
+        // Lê Buffs Dinâmicos do Sistema Core
+        let b = safeGetBuffs(ficha, 'dano', true) || {};
+        if (b._hasBuff) {
+            if (b.mbase) addManual(b.mbase, 'MBASE', 'Buff_Sistema');
+            if (b.mgeral) addManual(b.mgeral, 'MGERAL', 'Buff_Sistema');
+            if (b.mabs) addManual(b.mabs, 'MABS', 'Buff_Sistema');
+            if (b.munico && Array.isArray(b.munico)) {
+                b.munico.forEach(n => { if (!isNaN(n) && n > 0) unicos.push(n); });
+            }
+        }
+
         // Vasculha as abas ativas
         const scanCategory = (cat) => {
             if (!ficha[cat]) return;
             Object.values(ficha[cat]).forEach(item => {
                 if (item && item.ativo && !item.deletado) {
+                    const nomeSkill = String(item.nome || 'Desconhecido').trim().toUpperCase();
                     const processText = (txt) => {
                         if (!txt) return;
-                        const regex = /(MBASE|MGERAL|MFORMAS|MABS|MUNICO)\s*:\s*\+?\s*([\d.,]+)/gi;
+                        const regex = /(MBASE|MGERAL|MFORMAS|MABS|MUNICO)\s*:\s*\+?\s*(-?\d+(?:[.,]\d+)?)/gi;
                         let match;
                         while ((match = regex.exec(txt)) !== null) {
                             const tipo = match[1].toUpperCase();
                             const val = parseFloat(match[2].replace(',', '.'));
                             if (isNaN(val)) continue;
                             
-                            if (tipo === 'MBASE') mBase += val;
-                            if (tipo === 'MGERAL') mGeral += val;
-                            if (tipo === 'MFORMAS') mFormas += val;
-                            if (tipo === 'MABS') mAbs += val;
-                            if (tipo === 'MUNICO') unicos.push(val);
+                            if (tipo === 'MUNICO') {
+                                if (val > 0) unicos.push(val);
+                            } else if (grupos[tipo]) {
+                                grupos[tipo][nomeSkill] = (grupos[tipo][nomeSkill] || 0) + val;
+                                hasGlob[tipo] = true;
+                            }
                         }
                     };
                     processText(item.efeitos);
@@ -108,10 +108,21 @@ function getGlobalMultipliers(ficha) {
         };
         ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios', 'itens'].forEach(scanCategory);
 
-        let finalB = mBase > 0 ? mBase : 1;
-        let finalG = mGeral > 0 ? mGeral : 1;
-        let finalF = mFormas > 0 ? mFormas : 1;
-        let finalA = mAbs > 0 ? mAbs : 1;
+        // Multiplica os Totais Agrupados
+        const calcTotal = (tipo) => {
+            if (!hasGlob[tipo]) return 1;
+            let total = 1;
+            Object.values(grupos[tipo]).forEach(sum => {
+                if (sum > 0) total *= sum;
+            });
+            return total;
+        };
+
+        let finalB = calcTotal('MBASE');
+        let finalG = calcTotal('MGERAL');
+        let finalF = calcTotal('MFORMAS');
+        let finalA = calcTotal('MABS');
+        
         let finalUni = 1.0;
         unicos.forEach(n => { finalUni *= n; });
 
@@ -148,9 +159,12 @@ function getPoderAbsolutoAtributo(key, ficha) {
     const ascEfetiva = ascensaoBase * multA;
     const prestEfetivo = prestigioBruto * multP;
     
+    // Regra Mestra: (Ascensao * 100) + Prestigio
     const pontosTotais = (ascEfetiva * 100) + prestEfetivo;
+    
     let poderPuro = Math.floor((pontosTotais / div) * (mults[key] || 1));
     
+    // Calcula para sub-atributos que compõem o Status
     if (isStatus) {
         let prestIndiv = Math.floor((rawBase / mults[key]) * div) || 0;
         let prestIndivEfetivo = prestIndiv * multP;
@@ -161,18 +175,17 @@ function getPoderAbsolutoAtributo(key, ficha) {
     return isNaN(poderPuro) ? 0 : poderPuro;
 }
 
-// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO (APENAS PARA BADGES) 🔥
+// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO (PARA AS BADGES) 🔥
 function getPoderVerdadeiro(key, ficha, isAtual, supressao = 100, fator = 1) {
     try {
         if (!ficha || !key) return 0;
-        
         const f = parseFloat(fator) || 1;
         let poderBase = getPoderAbsolutoAtributo(key, ficha) * f;
 
         let mF = 1;
         if (isAtual) {
-            mF = getEfetivoMFormas(ficha, key);
-            if (isNaN(mF) || mF < 1) mF = 1;
+            const glob = getGlobalMultipliers(ficha);
+            mF = glob.finalF;
         }
 
         let sup = parseFloat(supressao);
@@ -264,7 +277,7 @@ function encontrarCategoriaPorLore(nome) {
 }
 
 // ==========================================
-// 🛡️ FUNÇÕES MATEMÁTICAS E CÁLCULO
+// 🛡️ FUNÇÕES AUXILIARES DA TABELA
 // ==========================================
 function getBasePFor(ficha, k) {
     const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
@@ -287,12 +300,6 @@ function aplicarMultiplicadorForca(prestigioBase, ascensaoBase, multiplicadorFor
     const ascensaoFinal = ascensaoBaseEfetiva + bonusAscensao;
     const rankInfo = safeGetRank(prestigioFinal, ascensaoFinal);
     return { ...rankInfo, prestigioFinal, ascensaoFinal };
-}
-
-function calcularPrestAtual(ficha, attrKey, baseP) {
-    const mFormas = getEfetivoMFormas(ficha, attrKey);
-    const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
-    return Math.floor((baseP || 0) * multForma) || 0;
 }
 
 function calcularEscala(rawMax, key) {
@@ -414,7 +421,7 @@ const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual
     );
 };
 
-// 🔥 RADAR DESENHADO: MATEMÁTICA PURA DA TABELA 🔥
+// 🔥 RADAR DESENHADO 🔥
 const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => {
     const eixos = [ { label: 'VIDA', key: 'vida' }, { label: 'MANA', key: 'mana' }, { label: 'AURA', key: 'aura' }, { label: 'CHAKRA', key: 'chakra' }, { label: 'CORPO', key: 'corpo' }, { label: 'STATUS', key: 'status' } ];
     const angulos = Array.from({length: 6}).map((_, i) => Math.PI * 2 * i / 6 - Math.PI / 2);
@@ -428,15 +435,22 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
         const displayP = getBasePFor(ficha, e.key);
         
         let mF = 1;
-        if (isAtual) { mF = getEfetivoMFormas(ficha, e.key); if (isNaN(mF) || mF < 1) mF = 1; }
+        if (isAtual) {
+            const glob = getGlobalMultipliers(ficha);
+            mF = glob.finalF;
+        }
         const pAtualValor = Math.floor(displayP * mF);
         
         const efetivo = aplicarMultiplicadorForca(pAtualValor, ascensao, multP, multA);
         rankInfos.push(efetivo);
 
         let valNorm = parseFloat(efetivo.prestigioFinal) || 0;
-        if (valNorm === 0 && Math.floor(efetivo.ascensaoFinal || 1) > 1) { valNorm = 100; } 
-        else if (valNorm >= 100) { valNorm = valNorm % 100 === 0 ? 100 : valNorm % 100; }
+        
+        if (valNorm === 0 && Math.floor(efetivo.ascensaoFinal || 1) > 1) {
+            valNorm = 100;
+        } else if (valNorm >= 100) {
+            valNorm = valNorm % 100 === 0 ? 100 : valNorm % 100; 
+        }
 
         let frac = Math.min(Math.max(valNorm / 100, 0.05), 1);
         if (isNaN(frac)) frac = 0.05;
@@ -700,8 +714,6 @@ export default function MarcadosPanel() {
         
         const calcTrueAverage = () => {
             const getAttr = (k) => {
-                let maxSafe = parseFloat(safeGetMaximo(minhaFicha, k));
-                if (isNaN(maxSafe)) maxSafe = 0;
                 return getPoderAbsolutoAtributo(k, minhaFicha);
             };
             let m = 0;
@@ -711,15 +723,9 @@ export default function MarcadosPanel() {
         };
 
         const trueAvg = calcTrueAverage();
-        let mF = getEfetivoMFormas(minhaFicha, 'status');
-        if (isNaN(mF) || mF < 1) mF = 1;
-        
-        // APENAS NO SCOUTER GLOBAL VAMOS FUNDIR A MÉDIA DE PODER COM O MULTIPLICADOR GIGANTE DE DANO!
         const glob = getGlobalMultipliers(minhaFicha);
-        let mDano = glob.totalDano;
-        if (isNaN(mDano) || mDano < 1) mDano = 1;
         
-        let power = trueAvg * mF * mDano * (sup / 100);
+        let power = trueAvg * glob.finalF * glob.totalDano * (sup / 100);
         if (isNaN(power)) power = 0;
         
         let strVal = String(Math.floor(power));
@@ -1201,33 +1207,33 @@ export default function MarcadosPanel() {
 
                         <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(0,0,0,0.03)', padding: '20px', borderRadius: '15px', border: '1px dashed currentColor' }}>
                             <h2 style={{ fontSize: '2em', fontStyle: 'italic', fontWeight: 'bold', margin: '0 0 20px 0' }}><LabelMagico valor={getLabel('tituloAnaliseBase', 'Status (Rank Base)')} onChange={(v) => setLabel('tituloAnaliseBase', v)} /></h2>
-                            <RadarDesenhado ficha={minhaFicha} isAtual={false} corTinta={localCorTinta} fator={fatorCrescimentoBase} />
+                            <RadarDesenhado ficha={minhaFicha} isAtual={false} corTinta={localCorTinta} />
                             
                             <div style={{ width: '100%', maxWidth: '300px', marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblDes" fallbackLabel="Destreza" attrKey="destreza" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblInt" fallbackLabel="Inteligência" attrKey="inteligencia" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblSab" fallbackLabel="Sabedoria" attrKey="sabedoria" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblEsp" fallbackLabel="Energia Espiritual" attrKey="energiaEsp" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblCar" fallbackLabel="Carisma" attrKey="carisma" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblSta" fallbackLabel="Stamina" attrKey="stamina" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblCon" fallbackLabel="Constituição" attrKey="constituicao" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblDes" fallbackLabel="Destreza" attrKey="destreza" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblInt" fallbackLabel="Inteligência" attrKey="inteligencia" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblSab" fallbackLabel="Sabedoria" attrKey="sabedoria" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblEsp" fallbackLabel="Energia Espiritual" attrKey="energiaEsp" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblCar" fallbackLabel="Carisma" attrKey="carisma" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblSta" fallbackLabel="Stamina" attrKey="stamina" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblCon" fallbackLabel="Constituição" attrKey="constituicao" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
                             </div>
                         </div>
 
                         <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(0,0,0,0.05)', padding: '20px', borderRadius: '15px', border: '2px solid currentColor' }}>
                             <h2 style={{ fontSize: '2em', fontStyle: 'italic', fontWeight: 'bold', margin: '0 0 20px 0' }}><LabelMagico valor={getLabel('tituloAnaliseAtual', 'Poder Atual (c/ Formas)')} onChange={(v) => setLabel('tituloAnaliseAtual', v)} /></h2>
-                            <RadarDesenhado ficha={minhaFicha} isAtual={true} corTinta={localCorTinta} fator={fatorCrescimentoAtual} />
+                            <RadarDesenhado ficha={minhaFicha} isAtual={true} corTinta={localCorTinta} />
                             
                             <div style={{ width: '100%', maxWidth: '300px', marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblDes" fallbackLabel="Destreza" attrKey="destreza" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblInt" fallbackLabel="Inteligência" attrKey="inteligencia" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblSab" fallbackLabel="Sabedoria" attrKey="sabedoria" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblEsp" fallbackLabel="Energia Espiritual" attrKey="energiaEsp" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblCar" fallbackLabel="Carisma" attrKey="carisma" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblSta" fallbackLabel="Stamina" attrKey="stamina" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblCon" fallbackLabel="Constituição" attrKey="constituicao" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblDes" fallbackLabel="Destreza" attrKey="destreza" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblInt" fallbackLabel="Inteligência" attrKey="inteligencia" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblSab" fallbackLabel="Sabedoria" attrKey="sabedoria" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblEsp" fallbackLabel="Energia Espiritual" attrKey="energiaEsp" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblCar" fallbackLabel="Carisma" attrKey="carisma" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblSta" fallbackLabel="Stamina" attrKey="stamina" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblCon" fallbackLabel="Constituição" attrKey="constituicao" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
                             </div>
                         </div>
 
