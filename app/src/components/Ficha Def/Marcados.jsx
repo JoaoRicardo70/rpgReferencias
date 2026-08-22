@@ -2,10 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { uploadImagem, salvarFichaSilencioso, salvarFirebaseImediato } from '../../services/firebase-sync';
 
+// Importação flexível para evitar o ReferenceError de "getMaximo is not defined"
 import * as AtributosCore from '../../core/attributes';
 import { getRank } from '../../core/prestige';
+
+// 🔥 IMPORTA O NOSSO NOVO SCOUTER DE PODER 🔥
 import { formatarPoderCosmico } from '../../core/utils.js';
 
+// 🔥 IMPORTAÇÕES DAS PÁGINAS MÁGICAS EXTERNAS 🔥
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel'; 
 
@@ -25,6 +29,7 @@ const safeGetMaximo = (ficha, key) => {
     return parseFloat(ficha?.[key]?.base) || 0;
 };
 
+// Blindagem Absoluta contra Crash do Rank
 const safeGetRank = (prest, asc) => {
     try {
         const r = typeof getRank === 'function' ? getRank(prest, asc) : null;
@@ -44,6 +49,7 @@ const getEfetivoMFormas = (ficha, k) => {
     return (v === 1.0 ? 0 : v) + b.mformas;
 };
 
+// 🔥 FÓRMULA DE DANO ABSOLUTO BLINDADA 🔥
 const getEfetivoDanoGlobal = (ficha) => {
     try {
         let d = ficha?.dano || {};
@@ -102,7 +108,7 @@ const getGhostAscensionBonus = (key, ficha) => {
 const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => {
     try {
         if (!ficha || !key) return 0;
-        const rawBase = parseFloat(ficha[key]?.base) || 0;
+        const rawBase = parseFloat(ficha?.[key]?.base) || 0;
         const maxVal = parseFloat(safeGetMaximo(ficha, key)) || 0;
         const f = parseFloat(fator) || 1;
         const baseParaPoder = isAtual ? Math.floor(maxVal * f) : Math.floor(rawBase * f);
@@ -197,7 +203,9 @@ const encontrarCategoriaPorLore = (nome) => {
     const nomeClean = String(nome || '').trim().toLowerCase();
     for (const [catKey, grupos] of Object.entries(PREDEFINIDOS_LORE)) {
         for (const grupo of grupos) {
-            if (grupo.itens.some(item => item.trim().toLowerCase() === nomeClean)) return catKey;
+            if (grupo.itens.some(item => item.trim().toLowerCase() === nomeClean)) {
+                return catKey;
+            }
         }
     }
     return null;
@@ -229,6 +237,7 @@ const aplicarMultiplicadorForca = (prestigioBase, ascensaoBase, multiplicadorFor
     return { ...rankInfo, prestigioFinal, ascensaoFinal };
 };
 
+// 🔥 FUNÇÃO RESTAURADA QUE IMPEDIA A RENDERIZAÇÃO DA TABELA 🔥
 const calcularPrestAtual = (ficha, attrKey, baseP) => {
     const mFormas = getEfetivoMFormas(ficha, attrKey);
     const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
@@ -362,51 +371,37 @@ const BarraVital = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual
     );
 };
 
-// 🔥 RADAR DESENHADO: MOSTRA APENAS A BASE X FORMAS 🔥
+// 🔥 RADAR DESENHADO: MOSTRA A BASE X FORMAS IDÊNTICO À TABELA 🔥
 const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => {
     const eixos = [ { label: 'VIDA', key: 'vida' }, { label: 'MANA', key: 'mana' }, { label: 'AURA', key: 'aura' }, { label: 'CHAKRA', key: 'chakra' }, { label: 'CORPO', key: 'corpo' }, { label: 'STATUS', key: 'status' } ];
     const angulos = Array.from({length: 6}).map((_, i) => Math.PI * 2 * i / 6 - Math.PI / 2);
     
+    const ascensao = parseInt(ficha?.ascensaoBase) || 1;
+    const multP = parseFloat(ficha?.multiplicadorForcaPrestigio) || 1;
+    const multA = parseFloat(ficha?.multiplicadorForcaAscensao) || 1;
+    
     const rankInfos = [];
     const dataPoints = eixos.map((e, i) => {
-        const getPoderPuroComFormas = (k) => {
-            const rawBase = parseFloat(ficha?.[k]?.base) || 0;
-            const maxVal = parseFloat(safeGetMaximo(ficha, k)) || 0;
-            const f = parseFloat(fator) || 1;
-            const base = isAtual ? Math.floor(maxVal * f) : Math.floor(rawBase * f);
-            
-            let mF = 1;
-            if (isAtual) { mF = getEfetivoMFormas(ficha, k); if (isNaN(mF) || mF < 1) mF = 1; }
-            return Math.floor(base * mF);
-        };
+        // Usa a matemática Pura da Tabela de Mecânicas de Ascensão!
+        const displayP = getBasePFor(ficha, e.key);
+        const pAtualValor = isAtual ? calcularPrestAtual(ficha, e.key, displayP) : displayP;
         
-        let truePower = 0;
-        if (e.key === 'status') {
-            let m = 0;
-            ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { m += getPoderPuroComFormas(s); });
-            truePower = Math.floor(m / 8);
-        } else {
-            truePower = getPoderPuroComFormas(e.key);
-        }
-
-        const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
-        const div = parseFloat(ficha?.divisores?.[e.key]) || 1;
-        let totalPrestige = Math.floor(truePower / ((mults[e.key] || 1) * div));
-        if (isNaN(totalPrestige)) totalPrestige = 0;
-        
-        let asc = Math.floor(totalPrestige / 100);
-        if (isNaN(asc) || asc < 1) asc = 1; 
-        const prest = isNaN(totalPrestige % 100) ? 0 : totalPrestige % 100;
-        
-        const efetivo = safeGetRank(prest, asc);
-        efetivo.prestigioFinal = prest;
-        efetivo.ascensaoFinal = asc;
+        const efetivo = aplicarMultiplicadorForca(pAtualValor, ascensao, multP, multA);
         rankInfos.push(efetivo);
 
         let valNorm = parseFloat(efetivo.prestigioFinal) || 0;
-        if (valNorm >= 100) valNorm = valNorm % 100 === 0 ? 100 : valNorm % 100; 
+        
+        // 🔮 MAGIA VISUAL: Se a Ascensão for maior que 1 e o prestígio for perfeitamente 0, 
+        // significa que a barra do Rank anterior está 100% cheia, então o polígono desenha no limite em vez de afundar no centro!
+        if (valNorm === 0 && Math.floor(efetivo.ascensaoFinal || 1) > 1) {
+            valNorm = 100;
+        } else if (valNorm >= 100) {
+            valNorm = valNorm % 100 === 0 ? 100 : valNorm % 100; 
+        }
+
         let frac = Math.min(Math.max(valNorm / 100, 0.05), 1);
         if (isNaN(frac)) frac = 0.05;
+        
         let cx = 100 + 75 * frac * Math.cos(angulos[i]);
         let cy = 100 + 75 * frac * Math.sin(angulos[i]);
         if (isNaN(cx)) cx = 100;
