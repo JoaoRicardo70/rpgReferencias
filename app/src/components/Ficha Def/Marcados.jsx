@@ -36,6 +36,16 @@ function safeGetRank(prest, asc) {
     }
 }
 
+// 🔥 FUNÇÃO RESTAURADA: LÊ AS FORMAS INDIVIDUAIS 🔥
+function getEfetivoMFormas(ficha, k) {
+    const anchor = k === 'status' ? 'forca' : k;
+    let s = ficha?.[anchor] || {};
+    let b = safeGetBuffs(ficha, anchor, true) || {};
+    let v = parseFloat(s.mFormas) || 1.0;
+    if (!b._hasBuff || !b._hasBuff.mformas) return v;
+    return (v === 1.0 ? 0 : v) + b.mformas;
+}
+
 // 🔥 EXTRATOR SUPREMO DE COMBOS GLOBAIS 🔥
 function getGlobalMultipliers(ficha) {
     try {
@@ -65,7 +75,7 @@ function getGlobalMultipliers(ficha) {
             });
         }
 
-        // Lê Formas Manuais
+        // Lê Formas Manuais Globais
         let f = ficha?.forca || {};
         addManual(f.mFormas, 'MFORMAS', 'Ficha_Manual');
 
@@ -178,7 +188,7 @@ function getPoderAbsolutoAtributo(key, ficha) {
     return isNaN(poderPuro) ? 0 : poderPuro;
 }
 
-// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO (PARA AS BADGES) 🔥
+// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO (PARA AS BADGES INDIVIDUAIS) 🔥
 function getPoderVerdadeiro(key, ficha, isAtual, supressao = 100, fator = 1) {
     try {
         if (!ficha || !key) return 0;
@@ -187,8 +197,9 @@ function getPoderVerdadeiro(key, ficha, isAtual, supressao = 100, fator = 1) {
 
         let mF = 1;
         if (isAtual) {
-            const glob = getGlobalMultipliers(ficha);
-            mF = glob.finalF;
+            // Badges Individuais usam a Forma Individual, não o Dano Global!
+            mF = getEfetivoMFormas(ficha, key);
+            if (isNaN(mF) || mF < 1) mF = 1;
         }
 
         let sup = parseFloat(supressao);
@@ -303,6 +314,12 @@ function aplicarMultiplicadorForca(prestigioBase, ascensaoBase, multiplicadorFor
     const ascensaoFinal = ascensaoBaseEfetiva + bonusAscensao;
     const rankInfo = safeGetRank(prestigioFinal, ascensaoFinal);
     return { ...rankInfo, prestigioFinal, ascensaoFinal };
+}
+
+function calcularPrestAtual(ficha, attrKey, baseP) {
+    const mFormas = getEfetivoMFormas(ficha, attrKey);
+    const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
+    return Math.floor((baseP || 0) * multForma) || 0;
 }
 
 function calcularEscala(rawMax, key) {
@@ -438,10 +455,7 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
         const displayP = getBasePFor(ficha, e.key);
         
         let mF = 1;
-        if (isAtual) {
-            const glob = getGlobalMultipliers(ficha);
-            mF = glob.finalF;
-        }
+        if (isAtual) { mF = getEfetivoMFormas(ficha, e.key); if (isNaN(mF) || mF < 1) mF = 1; }
         const pAtualValor = Math.floor(displayP * mF);
         
         const efetivo = aplicarMultiplicadorForca(pAtualValor, ascensao, multP, multA);
@@ -839,13 +853,8 @@ export default function MarcadosPanel() {
 
         const calcularFator = (comFormas) => {
             const bonusPorCategoria = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
-                const baseP = getBasePFor(minhaFicha, k);
-                let mF = 1;
-                if (comFormas) {
-                    const glob = getGlobalMultipliers(minhaFicha);
-                    mF = glob.finalF;
-                }
-                const pAtual = Math.floor(baseP * mF);
+                const displayP = getBasePFor(minhaFicha, k);
+                const pAtual = comFormas ? calcularPrestAtual(minhaFicha, k, displayP) : displayP;
                 const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
                 return Math.max(0, (rankInfo.ascensaoFinal || 0) - ascensaoBaseEfetiva);
             });
