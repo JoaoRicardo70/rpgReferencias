@@ -164,28 +164,39 @@ describe('MarcadosPanel — getGlobalMultipliers(): multiplicadores do MESMO TIP
         expect(comDuasFontes).toBe(comUmaFonteSomada);
     });
 
+    // Nota: estes dois testes comparam LEITURAS EXATAS (igualdade/desigualdade), não razões
+    // (ratio). A leitura final do Scouter passou a incluir a injeção de Ascensão via magnitude
+    // de log10 (Poder_Multiplicado + ascensaoGeralEfetiva * 10^(magnitude+1)), que NÃO escala
+    // proporcionalmente ao multiplicador sempre que o valor multiplicado cruza uma "década" de
+    // magnitude — então um ratio de "~17x" deixa de ser válido como sinal, mesmo com a soma
+    // correta. Comparar valores exatos entre fichas com o MESMO Poder_Multiplicado esperado
+    // continua 100% robusto, porque a injeção é determinística: mesmo Poder_Multiplicado ->
+    // mesma leitura final, sempre.
     it.each([
         ['mgeral'],
         ['mbase'],
         ['mabs'],
-    ])('%s: duas fontes ativas de +8 cada multiplicam o Scouter por ~17x (1+8+8), NÃO por ~81x (bug antigo: (1+8)*(1+8) multiplicado entre fontes)', (prop) => {
-        const baseline = renderELerPoderGlobal([]);
+    ])('%s: duas fontes ativas de +8 cada resultam no total correto 1+8+8=17, NÃO no total do bug antigo (1+8)*(1+8)=81 multiplicado entre fontes', (prop) => {
         const comDuasFontes = renderELerPoderGlobal([
             { nome: 'Fonte A', ativa: true, efeitos: [{ atributo: 'geral', propriedade: prop, valor: 8 }] },
             { nome: 'Fonte B', ativa: true, efeitos: [{ atributo: 'geral', propriedade: prop, valor: 8 }] },
         ]);
+        // Total correto (1+8+8=17) obtido diretamente por uma única fonte de +16.
+        const comValorCorreto = renderELerPoderGlobal([
+            { nome: 'Fonte Única', ativa: true, efeitos: [{ atributo: 'geral', propriedade: prop, valor: 16 }] },
+        ]);
+        // Total que o BUG ANTIGO produziria ((1+8)*(1+8)=81), obtido por uma única fonte de +80
+        // (1+80=81) — se "duas fontes" ainda desse esse valor, o bug de multiplicação entre
+        // fontes teria voltado.
+        const comValorDoBugAntigo = renderELerPoderGlobal([
+            { nome: 'Fonte Bug', ativa: true, efeitos: [{ atributo: 'geral', propriedade: prop, valor: 80 }] },
+        ]);
 
-        const ratio = comDuasFontes / baseline;
-
-        // Correto: 1 + 8 + 8 = 17
-        expect(ratio).toBeGreaterThan(16.5);
-        expect(ratio).toBeLessThan(17.5);
-        // Regressão: bug antigo dava (1+8)*(1+8) = 81 — bem longe de 17.
-        expect(ratio).toBeLessThan(20);
+        expect(comDuasFontes).toBe(comValorCorreto);
+        expect(comDuasFontes).not.toBe(comValorDoBugAntigo);
     });
 
-    it('mUnico: duas fontes ativas de x3 cada continuam MULTIPLICANDO o Scouter por ~9x (3*3) — regressão: NÃO deve virar soma aditiva (~7x) como MBASE/MGERAL/MABS', () => {
-        const baseline = renderELerPoderGlobal([]);
+    it('mUnico: duas fontes ativas de x3 cada continuam MULTIPLICANDO o Scouter (3*3=9), NÃO somando (1+3+3=7) como MBASE/MGERAL/MABS', () => {
         const comUmaFonte = renderELerPoderGlobal([
             { nome: 'Único A', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'munico', valor: 3 }] },
         ]);
@@ -193,19 +204,18 @@ describe('MarcadosPanel — getGlobalMultipliers(): multiplicadores do MESMO TIP
             { nome: 'Único A', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'munico', valor: 3 }] },
             { nome: 'Único B', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'munico', valor: 3 }] },
         ]);
+        // Total multiplicativo correto (3*3=9) obtido diretamente por uma única fonte de x9.
+        const comValorMultiplicativo = renderELerPoderGlobal([
+            { nome: 'Único Equivalente', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'munico', valor: 9 }] },
+        ]);
+        // Total que o padrão ADITIVO (hipotético, "1+3+3=7") produziria via mgeral em vez de munico.
+        const comValorAditivoHipotetico = renderELerPoderGlobal([
+            { nome: 'Aditivo Hipotético', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'mgeral', valor: 6 }] },
+        ]);
 
-        const ratioUmaFonte = comUmaFonte / baseline;
-        const ratioDuasFontes = comDuasFontes / baseline;
-
-        // Uma única instância multiplica o total por 3x.
-        expect(ratioUmaFonte).toBeGreaterThan(2.9);
-        expect(ratioUmaFonte).toBeLessThan(3.1);
-
-        // Duas instâncias devem multiplicar por 3*3=9x, não somar para 1+3+3=7x
-        // (o padrão aditivo que passou a valer para MBASE/MGERAL/MABS).
-        expect(ratioDuasFontes).toBeGreaterThan(8.5);
-        expect(ratioDuasFontes).toBeLessThan(9.5);
-        expect(ratioDuasFontes).toBeGreaterThan(7.5); // exclui explicitamente o padrão aditivo (~7x)
+        expect(comDuasFontes).toBe(comValorMultiplicativo);
+        expect(comDuasFontes).not.toBe(comUmaFonte);
+        expect(comDuasFontes).not.toBe(comValorAditivoHipotetico);
     });
 });
 

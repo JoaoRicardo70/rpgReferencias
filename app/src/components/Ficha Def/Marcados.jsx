@@ -26,6 +26,18 @@ function safeGetMaximo(ficha, key) {
     return parseFloat(ficha?.[key]?.base) || 0;
 }
 
+// 🔥 Base + buffs ADITIVOS (sem a pilha de multiplicadores mBase/mGeral/mFormas/mAbsoluto/mUnico).
+// Usado onde o multiplicador global já é aplicado numa etapa separada, para não contar mFormas em dobro.
+function safeGetEfetivoBase(ficha, key) {
+    try {
+        if (AtributosCore && typeof AtributosCore.getEfetivoBase === 'function') {
+            const val = AtributosCore.getEfetivoBase(ficha, key);
+            return isNaN(val) ? 0 : val;
+        }
+    } catch (e) { console.warn("Aviso: getEfetivoBase falhou internamente."); }
+    return parseFloat(ficha?.[key]?.base) || 0;
+}
+
 function safeGetRank(prest, asc) {
     try {
         const r = typeof getRank === 'function' ? getRank(prest, asc) : null;
@@ -710,6 +722,47 @@ export default function MarcadosPanel() {
         }
     }, [minhaFicha?.estetica]);
 
+    const { ascensaoGeralEfetiva, fatorCrescimentoBase, fatorCrescimentoAtual, fatorAtributosBase, fatorAtributosAtual } = useMemo(() => {
+        if (!minhaFicha) return { ascensaoGeralEfetiva: 1, fatorCrescimentoBase: 1, fatorCrescimentoAtual: 1, fatorAtributosBase: 1, fatorAtributosAtual: 1 };
+        const ascensaoBase = parseInt(minhaFicha.ascensaoBase) || 1;
+        const multP = minhaFicha.multiplicadorForcaPrestigio ?? 1;
+        const multA = parseFloat(minhaFicha.multiplicadorForcaAscensao) || 1;
+        const ascensaoBaseEfetiva = ascensaoBase * multA;
+
+        const calcularFator = (comFormas) => {
+            const bonusPorCategoria = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
+                const displayP = getBasePFor(minhaFicha, k);
+                const pAtual = comFormas ? calcularPrestAtual(minhaFicha, k, displayP) : displayP;
+                const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
+                return Math.max(0, (rankInfo.ascensaoFinal || 0) - ascensaoBaseEfetiva);
+            });
+            const nivelCompletos = Math.min(...bonusPorCategoria);
+            const geral = (ascensaoBase + nivelCompletos) * multA;
+            const fator = geral / (ascensaoBase || 1);
+            return { geral: isNaN(geral) ? ascensaoBase : geral, fator: isNaN(fator) ? 1 : fator };
+        };
+
+        // 🔥 Amarra a lista de atributos (Força/Destreza/...) ao MESMO multiplicador que redimensiona
+        // o eixo STATUS do Radar (aplicarMultiplicadorForca por eixo) — não ao gargalo mínimo entre
+        // as 6 categorias usado por fatorCrescimentoBase/Atual — para que texto e radar cresçam juntos.
+        const calcularFatorStatus = (comFormas) => {
+            const displayP = getBasePFor(minhaFicha, 'status');
+            const pAtual = comFormas ? calcularPrestAtual(minhaFicha, 'status', displayP) : displayP;
+            const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
+            const geral = rankInfo.ascensaoFinal || ascensaoBaseEfetiva;
+            const fator = geral / (ascensaoBase || 1);
+            return isNaN(fator) ? 1 : fator;
+        };
+
+        return {
+            ascensaoGeralEfetiva: calcularFator(true).geral,
+            fatorCrescimentoBase: calcularFator(false).fator,
+            fatorCrescimentoAtual: calcularFator(true).fator,
+            fatorAtributosBase: calcularFatorStatus(false),
+            fatorAtributosAtual: calcularFatorStatus(true),
+        };
+    }, [minhaFicha]);
+
     const { poderGlobal, vitalidadeGlobal, supressao, limiteSupressao, temaScouter } = useMemo(() => {
         if (!minhaFicha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100, limiteSupressao: 1, temaScouter: getTemaScouter(100, 1) };
         
@@ -720,23 +773,40 @@ export default function MarcadosPanel() {
         if (sup < lim) sup = lim; 
         
         const tema = getTemaScouter(sup, lim);
-        
-        const calcTrueAverage = () => {
-            const getAttr = (k) => {
-                return getPoderAbsolutoAtributo(k, minhaFicha);
-            };
-            let m = 0;
-            ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { m += getAttr(s); });
-            const valStatus = m / 8;
-            return (getAttr('vida') + getAttr('mana') + getAttr('aura') + getAttr('chakra') + getAttr('corpo') + valStatus) / 6;
+
+        // 🔥 FÓRMULA OBRIGATÓRIA DO PODER BASE: usa os valores EFETIVOS (base + buffs aditivos) dos
+        // atributos, não a abstração de "pontos de prestígio". Status = média efetiva dos 8 atributos
+        // físicos. Usa safeGetEfetivoBase (SEM a pilha de multiplicadores mBase/mGeral/mFormas/mAbsoluto)
+        // porque esses multiplicadores já são aplicados uma única vez a seguir, via getGlobalMultipliers —
+        // usar safeGetMaximo aqui contaria o forca.mFormas em dobro (uma vez local, outra global).
+        const calcPoderBase = () => {
+            const efetivo = (k) => { const v = safeGetEfetivoBase(minhaFicha, k); return isNaN(v) ? 0 : v; };
+            let somaStatus = 0;
+            ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { somaStatus += efetivo(s); });
+            const statusEfetivo = somaStatus / 8;
+            return ((efetivo('vida') * 10) + efetivo('chakra') + efetivo('mana') + efetivo('corpo') + efetivo('aura') + (statusEfetivo * 100)) / 6;
         };
 
-        const trueAvg = calcTrueAverage();
+        const poderBase = calcPoderBase();
         const glob = getGlobalMultipliers(minhaFicha);
-        
-        let power = trueAvg * glob.finalF * glob.totalDano * (sup / 100);
+
+        let poderMultiplicado = poderBase * glob.finalF * glob.totalDano;
+        if (isNaN(poderMultiplicado)) poderMultiplicado = 0;
+
+        // 🔥 Injeção de Ascensão: soma a Ascensão Geral Efetiva como a grandeza máxima (sempre uma
+        // casa decimal acima do valor total), via magnitude de log10 — nunca concatenação de string.
+        // Só injeta a partir de 1 (magnitude >= 0) para não inflar leituras fracionárias (<1).
+        let poderComAscensao = poderMultiplicado;
+        if (poderMultiplicado >= 1) {
+            const magnitude = Math.floor(Math.log10(poderMultiplicado));
+            if (isFinite(magnitude)) {
+                poderComAscensao = poderMultiplicado + (ascensaoGeralEfetiva * Math.pow(10, magnitude + 1));
+            }
+        }
+
+        let power = poderComAscensao * (sup / 100);
         if (isNaN(power)) power = 0;
-        
+
         let strVal = String(Math.floor(power));
         let digitos = strVal.length;
         if (strVal.includes('e')) {
@@ -763,6 +833,7 @@ export default function MarcadosPanel() {
         minhaFicha?.seresSelados,
         minhaFicha?.supressaoPoder,
         minhaFicha?.limiteSupressao,
+        ascensaoGeralEfetiva,
     ]);
 
     if (!minhaFicha) return <div style={{ color: '#000', padding: 20, fontFamily: 'cursive' }}>Abrindo a Ficha...</div>;
@@ -857,29 +928,6 @@ export default function MarcadosPanel() {
     const getLabel = (key, fallback) => minhaFicha.labels?.[key] !== undefined ? minhaFicha.labels[key] : fallback;
     const setLabel = (key, val) => salvar(`labels.${key}`, val);
     const fonteDiario = minhaFicha.estetica?.diarioFonte || '"Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive';
-
-    const { ascensaoGeralEfetiva, fatorCrescimentoBase, fatorCrescimentoAtual } = useMemo(() => {
-        if (!minhaFicha) return { ascensaoGeralEfetiva: 1, fatorCrescimentoBase: 1, fatorCrescimentoAtual: 1 };
-        const ascensaoBase = parseInt(minhaFicha.ascensaoBase) || 1;
-        const multP = minhaFicha.multiplicadorForcaPrestigio ?? 1;
-        const multA = parseFloat(minhaFicha.multiplicadorForcaAscensao) || 1;
-        const ascensaoBaseEfetiva = ascensaoBase * multA;
-
-        const calcularFator = (comFormas) => {
-            const bonusPorCategoria = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
-                const displayP = getBasePFor(minhaFicha, k);
-                const pAtual = comFormas ? calcularPrestAtual(minhaFicha, k, displayP) : displayP;
-                const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
-                return Math.max(0, (rankInfo.ascensaoFinal || 0) - ascensaoBaseEfetiva);
-            });
-            const nivelCompletos = Math.min(...bonusPorCategoria);
-            const geral = (ascensaoBase + nivelCompletos) * multA;
-            const fator = geral / (ascensaoBase || 1);
-            return { geral: isNaN(geral) ? ascensaoBase : geral, fator: isNaN(fator) ? 1 : fator };
-        };
-
-        return { ascensaoGeralEfetiva: calcularFator(true).geral, fatorCrescimentoBase: calcularFator(false).fator, fatorCrescimentoAtual: calcularFator(true).fator };
-    }, [minhaFicha]);
 
     const getSupremas = () => {
         const pVida = getBasePFor(minhaFicha, 'vida'); const pChakra = getBasePFor(minhaFicha, 'chakra'); const pCorpo = getBasePFor(minhaFicha, 'corpo');
@@ -1232,14 +1280,14 @@ export default function MarcadosPanel() {
                             <RadarDesenhado ficha={minhaFicha} isAtual={false} corTinta={localCorTinta} fator={fatorCrescimentoBase} />
                             
                             <div style={{ width: '100%', maxWidth: '300px', marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblDes" fallbackLabel="Destreza" attrKey="destreza" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblInt" fallbackLabel="Inteligência" attrKey="inteligencia" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblSab" fallbackLabel="Sabedoria" attrKey="sabedoria" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblEsp" fallbackLabel="Energia Espiritual" attrKey="energiaEsp" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblCar" fallbackLabel="Carisma" attrKey="carisma" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblSta" fallbackLabel="Stamina" attrKey="stamina" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblCon" fallbackLabel="Constituição" attrKey="constituicao" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblDes" fallbackLabel="Destreza" attrKey="destreza" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblInt" fallbackLabel="Inteligência" attrKey="inteligencia" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblSab" fallbackLabel="Sabedoria" attrKey="sabedoria" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblEsp" fallbackLabel="Energia Espiritual" attrKey="energiaEsp" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblCar" fallbackLabel="Carisma" attrKey="carisma" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblSta" fallbackLabel="Stamina" attrKey="stamina" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblCon" fallbackLabel="Constituição" attrKey="constituicao" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
                             </div>
                         </div>
 
@@ -1248,14 +1296,14 @@ export default function MarcadosPanel() {
                             <RadarDesenhado ficha={minhaFicha} isAtual={true} corTinta={localCorTinta} fator={fatorCrescimentoAtual} />
                             
                             <div style={{ width: '100%', maxWidth: '300px', marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblDes" fallbackLabel="Destreza" attrKey="destreza" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblInt" fallbackLabel="Inteligência" attrKey="inteligencia" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblSab" fallbackLabel="Sabedoria" attrKey="sabedoria" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblEsp" fallbackLabel="Energia Espiritual" attrKey="energiaEsp" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblCar" fallbackLabel="Carisma" attrKey="carisma" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblSta" fallbackLabel="Stamina" attrKey="stamina" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
-                                <LinhaAtributoCru labelKey="lblCon" fallbackLabel="Constituição" attrKey="constituicao" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorCrescimentoAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblDes" fallbackLabel="Destreza" attrKey="destreza" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblInt" fallbackLabel="Inteligência" attrKey="inteligencia" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblSab" fallbackLabel="Sabedoria" attrKey="sabedoria" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblEsp" fallbackLabel="Energia Espiritual" attrKey="energiaEsp" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblCar" fallbackLabel="Carisma" attrKey="carisma" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblSta" fallbackLabel="Stamina" attrKey="stamina" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
+                                <LinhaAtributoCru labelKey="lblCon" fallbackLabel="Constituição" attrKey="constituicao" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
                             </div>
                         </div>
 
