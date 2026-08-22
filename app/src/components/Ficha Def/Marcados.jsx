@@ -2,17 +2,21 @@ import React, { useState, useEffect, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { uploadImagem, salvarFichaSilencioso, salvarFirebaseImediato } from '../../services/firebase-sync';
 
+// Importação flexível para evitar o ReferenceError de "getMaximo is not defined"
 import * as AtributosCore from '../../core/attributes';
 import { getRank } from '../../core/prestige';
+
+// 🔥 IMPORTA O NOSSO NOVO SCOUTER DE PODER 🔥
 import { formatarPoderCosmico } from '../../core/utils.js';
 
+// 🔥 IMPORTAÇÕES DAS PÁGINAS MÁGICAS EXTERNAS 🔥
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel'; 
 
 // ==========================================
 // 🛡️ DADOS DO COMPÊNDIO E FUNÇÕES SEGURAS
 // ==========================================
-const safeGetRawBase = (f, k) => typeof AtributosCore.getRawBase === 'function' ? AtributosCore.getRawBase(f, k) : parseFloat(f[k]?.base) || 0;
+const safeGetRawBase = (f, k) => typeof AtributosCore.getRawBase === 'function' ? AtributosCore.getRawBase(f, k) : parseFloat(f?.[k]?.base) || 0;
 const safeGetBuffs = (f, k, t) => typeof AtributosCore.getBuffs === 'function' ? AtributosCore.getBuffs(f, k, t) : {};
 
 const safeGetMaximo = (ficha, key) => {
@@ -22,9 +26,10 @@ const safeGetMaximo = (ficha, key) => {
             return isNaN(val) ? 0 : val;
         }
     } catch (e) { console.warn("Aviso: getMaximo falhou internamente."); }
-    return parseFloat(ficha[key]?.base) || 0;
+    return parseFloat(ficha?.[key]?.base) || 0;
 };
 
+// Blindagem Absoluta contra Crash do Rank
 const safeGetRank = (prest, asc) => {
     try {
         const r = typeof getRank === 'function' ? getRank(prest, asc) : null;
@@ -37,18 +42,18 @@ const safeGetRank = (prest, asc) => {
 
 const getEfetivoMFormas = (ficha, k) => {
     const anchor = k === 'status' ? 'forca' : k;
-    let s = ficha[anchor] || {};
-    let b = safeGetBuffs(ficha, anchor, true);
+    let s = ficha?.[anchor] || {};
+    let b = safeGetBuffs(ficha, anchor, true) || {};
     let v = parseFloat(s.mFormas) || 1.0;
     if (!b._hasBuff || !b._hasBuff.mformas) return v;
     return (v === 1.0 ? 0 : v) + b.mformas;
 };
 
-// 🔥 FÓRMULA DE DANO ABSOLUTO 🔥
+// 🔥 FÓRMULA DE DANO ABSOLUTO BLINDADA 🔥
 const getEfetivoDanoGlobal = (ficha) => {
     try {
         let d = ficha?.dano || {};
-        let b = safeGetBuffs(ficha, 'dano', true);
+        let b = safeGetBuffs(ficha, 'dano', true) || {};
         
         const calcAdd = (fichaVal, buffSum, hasBuff) => {
             let v = parseFloat(fichaVal);
@@ -99,11 +104,11 @@ const getGhostAscensionBonus = (key, ficha) => {
     return flatBonus;
 };
 
-// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO 🔥
+// 🔥 FÓRMULA UNIVERSAL DOS ATRIBUTOS INDIVIDUAIS 🔥
 const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => {
     try {
         if (!ficha || !key) return 0;
-        const rawBase = parseFloat(ficha[key]?.base) || 0;
+        const rawBase = parseFloat(ficha?.[key]?.base) || 0;
         const maxVal = parseFloat(safeGetMaximo(ficha, key)) || 0;
         const f = parseFloat(fator) || 1;
         const baseParaPoder = isAtual ? Math.floor(maxVal * f) : Math.floor(rawBase * f);
@@ -111,19 +116,15 @@ const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => 
         const bonusAscensao = getGhostAscensionBonus(key, ficha) || 0;
 
         let mF = 1;
-        let mD = 1;
         if (isAtual) {
             mF = getEfetivoMFormas(ficha, key);
             if (isNaN(mF) || mF < 1) mF = 1;
-            
-            mD = getEfetivoDanoGlobal(ficha);
-            if (isNaN(mD) || mD < 1) mD = 1;
         }
 
         let sup = parseFloat(supressao);
         if (isNaN(sup)) sup = 100;
 
-        let power = (baseParaPoder + bonusAscensao) * mF * mD * (sup / 100);
+        let power = (baseParaPoder + bonusAscensao) * mF * (sup / 100);
         return isNaN(power) ? 0 : Math.floor(power);
     } catch (e) {
         return 0;
@@ -138,28 +139,8 @@ const getTemaScouter = (supressao, limite = 1) => {
     return { cor: '#ff003c', glow: '#880000', nome: 'Anulação no Limite', pulse: '8s' };
 };
 
-const CLASSES_REGULARES_BASE = [
-    { id: 'saber', nome: 'Saber', icone: '⚔️', cor: '#0088ff' },
-    { id: 'archer', nome: 'Archer', icone: '🏹', cor: '#ff003c' },
-    { id: 'lancer', nome: 'Lancer', icone: '🗡️', cor: '#00ffcc' },
-    { id: 'rider', nome: 'Rider', icone: '🏇', cor: '#ff8800' },
-    { id: 'caster', nome: 'Caster', icone: '🧙‍♂️', cor: '#cc00ff' },
-    { id: 'assassin', nome: 'Assassin', icone: '🔪', cor: '#444444' },
-    { id: 'berserker', nome: 'Berserker', icone: '狂', cor: '#ff0000' }
-];
-
-const CLASSES_EXTRA_BASE = [
-    { id: 'shielder', nome: 'Shielder', icone: '🛡️', cor: '#00ffff' },
-    { id: 'ruler', nome: 'Ruler', icone: '⚖️', cor: '#ffcc00' },
-    { id: 'avenger', nome: 'Avenger', icone: '⛓️', cor: '#880000' },
-    { id: 'alterego', nome: 'Alter Ego', icone: '🎭', cor: '#ff00ff' },
-    { id: 'foreigner', nome: 'Foreigner', icone: '🐙', cor: '#00ff88' },
-    { id: 'mooncancer', nome: 'Moon Cancer', icone: '🌕', cor: '#8888aa' },
-    { id: 'pretender', nome: 'Pretender', icone: '🤥', cor: '#ffaa00' },
-    { id: 'beast', nome: 'Beast', icone: '👹', cor: '#4a0000' },
-    { id: 'savior', nome: 'Savior', icone: '☀️', cor: '#ffffff' },
-    { id: 'desconhecido', nome: '?', icone: '👤', cor: '#666666' }
-];
+const CLASSES_REGULARES_BASE = [ { id: 'saber', nome: 'Saber', icone: '⚔️', cor: '#0088ff' }, { id: 'archer', nome: 'Archer', icone: '🏹', cor: '#ff003c' }, { id: 'lancer', nome: 'Lancer', icone: '🗡️', cor: '#00ffcc' }, { id: 'rider', nome: 'Rider', icone: '🏇', cor: '#ff8800' }, { id: 'caster', nome: 'Caster', icone: '🧙‍♂️', cor: '#cc00ff' }, { id: 'assassin', nome: 'Assassin', icone: '🔪', cor: '#444444' }, { id: 'berserker', nome: 'Berserker', icone: '狂', cor: '#ff0000' } ];
+const CLASSES_EXTRA_BASE = [ { id: 'shielder', nome: 'Shielder', icone: '🛡️', cor: '#00ffff' }, { id: 'ruler', nome: 'Ruler', icone: '⚖️', cor: '#ffcc00' }, { id: 'avenger', nome: 'Avenger', icone: '⛓️', cor: '#880000' }, { id: 'alterego', nome: 'Alter Ego', icone: '🎭', cor: '#ff00ff' }, { id: 'foreigner', nome: 'Foreigner', icone: '🐙', cor: '#00ff88' }, { id: 'mooncancer', nome: 'Moon Cancer', icone: '🌕', cor: '#8888aa' }, { id: 'pretender', nome: 'Pretender', icone: '🤥', cor: '#ffaa00' }, { id: 'beast', nome: 'Beast', icone: '👹', cor: '#4a0000' }, { id: 'savior', nome: 'Savior', icone: '☀️', cor: '#ffffff' }, { id: 'desconhecido', nome: '?', icone: '👤', cor: '#666666' } ];
 
 const getClasseInfo = (ficha) => {
     const nomeClasse = ficha?.bio?.classe;
@@ -203,54 +184,19 @@ const CATEGORIAS_DOMINIO = {
 };
 
 const PREDEFINIDOS_LORE = {
-    elementos_basicos: [
-        { label: "Elementos Básicos", itens: ["Fogo", "Raio", "Agua", "Vento", "Terra"] }
-    ],
-    elementos_basicos_verdadeiros: [
-        { label: "Básicos Verdadeiros", itens: ["Fogo Verdadeiro", "Raio Verdadeiro", "Agua Verdadeira", "Vento Verdadeiro", "Terra Verdadeira"] }
-    ],
-    elementos_avancados: [
-        { label: "Elementos Avançados", itens: ["Solar", "Energia", "Gelo", "Vacuo", "Natureza"] }
-    ],
-    elementos_avancados_verdadeiros: [
-        { label: "Avançados Verdadeiros", itens: ["Solar Verdadeiro", "Energia Verdadeira", "Gelo Verdadeiro", "Vacuo Verdadeiro", "Natureza Verdadeira"] }
-    ],
-    mana: [
-        { label: "Magias de Ciclo", itens: ["Truques de Ciclo", "Magias de 1º a 10º Ciclo"] },
-        { label: "Magias Arcanas/Negras", itens: ["Truques Arcanos/Negros", "Magias Arcanas/Negra de 1º a 10º Ciclo"] },
-        { label: "Magias Ancestrais", itens: ["Truques Ancestrais", "Magia de Sangue", "Magia de Osso", "Magia Draconica", "Magia de Alma", "Magia de Tempo", "Magia de Gravidade", "Magia Espacial", "Magia de Borracha", "Magia de Espelho", "Magia de Sal", "Magia de Tremor", "Magia de Equipamento", "Magia de Explosao", "Magia de Metamorfose"] }
-    ],
-    chakra: [
-        { label: "Kekkei Genkai", itens: ["Elemento Madeira", "Elemento Mineral", "Elemento Cinzas", "Elemento Igneo", "Elemento Lava", "Elemento Vapor", "Elemento Nevoa", "Elemento Tempestade", "Elemento Areia", "Elemento Tufao"] },
-        { label: "Kekkei Touta", itens: ["Elemento Velocidade", "Elemento Poeira", "Elemento Veneno", "Elemento Cal", "Elemento Carbono", "Elemento Calor", "Elemento Som", "Elemento Magnetismo"] }
-    ],
-    aura: [
-        { label: "Manifestação", itens: ["Aura Pura", "Projeção de Aura", "Reforço de Aura"] },
-        { label: "Fusões", itens: ["Fusões Básicas", "Fusões Avançadas"] }
-    ],
-    primordiais: [
-        { label: "Primordiais Base", itens: ["Luz", "Trevas", "Ether"] },
-        { label: "Primordiais Verdadeiros", itens: ["Celestial", "Infernal", "Caos"] },
-        { label: "Absolutos", itens: ["Criacao", "Destruicao", "Cosmos"] }
-    ],
-    astral: [
-        { label: "Domínios da Existência", itens: ["Vida", "Morte", "Vazio", "Neutro", "Energia Astral"] }
-    ],
-    marciais: [
-        { label: "Fundamentos", itens: ["Artes Marciais (Combate Corpo-a-Corpo)", "Reforço Físico"] },
-        { label: "Estilos de Combate", itens: ["Punho do Dragão", "Palma Suave", "Caminho do Tigre", "Boxe Demoníaco", "Artes de Assassino", "Estilo Bêbado", "Punho de Ferro"] }
-    ],
-    armas: [
-        { label: "Kenjutsu (Espadas)", itens: ["Ittouryu (1 Espada)", "Nitouryu (2 Espadas)", "Santouryu (3 Espadas)", "Iaido", "Kenjutsu"] },
-        { label: "Posturas de Combate", itens: ["Postura da Montanha", "Postura da Água", "Postura do Vento", "Postura do Trovão"] },
-        { label: "Outras Armas", itens: ["Maestria com Lança", "Maestria com Foice", "Maestria com Arco", "Maestria com Armas de Fogo", "Maestria com Escudo"] }
-    ],
-    cura: [
-        { label: "Medicina", itens: ["Regeneração Básica", "Cura Celular", "Purificação", "Reversão Temporal", "Transferência Vital", "Ressurreição Limitada"] }
-    ],
-    summons: [
-        { label: "Pactos", itens: ["Pacto Demoníaco", "Feras Divinas", "Espíritos Ancestrais", "Contrato Dracônico", "Exército de Sombras", "Invocação de Armamento Sagrado"] }
-    ]
+    elementos_basicos: [ { label: "Elementos Básicos", itens: ["Fogo", "Raio", "Agua", "Vento", "Terra"] } ],
+    elementos_basicos_verdadeiros: [ { label: "Básicos Verdadeiros", itens: ["Fogo Verdadeiro", "Raio Verdadeiro", "Agua Verdadeira", "Vento Verdadeiro", "Terra Verdadeira"] } ],
+    elementos_avancados: [ { label: "Elementos Avançados", itens: ["Solar", "Energia", "Gelo", "Vacuo", "Natureza"] } ],
+    elementos_avancados_verdadeiros: [ { label: "Avançados Verdadeiros", itens: ["Solar Verdadeiro", "Energia Verdadeira", "Gelo Verdadeiro", "Vacuo Verdadeiro", "Natureza Verdadeira"] } ],
+    mana: [ { label: "Magias de Ciclo", itens: ["Truques de Ciclo", "Magias de 1º a 10º Ciclo"] }, { label: "Magias Arcanas/Negras", itens: ["Truques Arcanos/Negros", "Magias Arcanas/Negra de 1º a 10º Ciclo"] }, { label: "Magias Ancestrais", itens: ["Truques Ancestrais", "Magia de Sangue", "Magia de Osso", "Magia Draconica", "Magia de Alma", "Magia de Tempo", "Magia de Gravidade", "Magia Espacial", "Magia de Borracha", "Magia de Espelho", "Magia de Sal", "Magia de Tremor", "Magia de Equipamento", "Magia de Explosao", "Magia de Metamorfose"] } ],
+    chakra: [ { label: "Kekkei Genkai", itens: ["Elemento Madeira", "Elemento Mineral", "Elemento Cinzas", "Elemento Igneo", "Elemento Lava", "Elemento Vapor", "Elemento Nevoa", "Elemento Tempestade", "Elemento Areia", "Elemento Tufao"] }, { label: "Kekkei Touta", itens: ["Elemento Velocidade", "Elemento Poeira", "Elemento Veneno", "Elemento Cal", "Elemento Carbono", "Elemento Calor", "Elemento Som", "Elemento Magnetismo"] } ],
+    aura: [ { label: "Manifestação", itens: ["Aura Pura", "Projeção de Aura", "Reforço de Aura"] }, { label: "Fusões", itens: ["Fusões Básicas", "Fusões Avançadas"] } ],
+    primordiais: [ { label: "Primordiais Base", itens: ["Luz", "Trevas", "Ether"] }, { label: "Primordiais Verdadeiros", itens: ["Celestial", "Infernal", "Caos"] }, { label: "Absolutos", itens: ["Criacao", "Destruicao", "Cosmos"] } ],
+    astral: [ { label: "Domínios da Existência", itens: ["Vida", "Morte", "Vazio", "Neutro", "Energia Astral"] } ],
+    marciais: [ { label: "Fundamentos", itens: ["Artes Marciais (Combate Corpo-a-Corpo)", "Reforço Físico"] }, { label: "Estilos de Combate", itens: ["Punho do Dragão", "Palma Suave", "Caminho do Tigre", "Boxe Demoníaco", "Artes de Assassino", "Estilo Bêbado", "Punho de Ferro"] } ],
+    armas: [ { label: "Kenjutsu (Espadas)", itens: ["Ittouryu (1 Espada)", "Nitouryu (2 Espadas)", "Santouryu (3 Espadas)", "Iaido", "Kenjutsu"] }, { label: "Posturas de Combate", itens: ["Postura da Montanha", "Postura da Água", "Postura do Vento", "Postura do Trovão"] }, { label: "Outras Armas", itens: ["Maestria com Lança", "Maestria com Foice", "Maestria com Arco", "Maestria com Armas de Fogo", "Maestria com Escudo"] } ],
+    cura: [ { label: "Medicina", itens: ["Regeneração Básica", "Cura Celular", "Purificação", "Reversão Temporal", "Transferência Vital", "Ressurreição Limitada"] } ],
+    summons: [ { label: "Pactos", itens: ["Pacto Demoníaco", "Feras Divinas", "Espíritos Ancestrais", "Contrato Dracônico", "Exército de Sombras", "Invocação de Armamento Sagrado"] } ]
 };
 
 const encontrarCategoriaPorLore = (nome) => {
@@ -273,9 +219,7 @@ const getBasePFor = (ficha, k) => {
     const div = parseFloat(ficha?.divisores?.[k]) || 1;
     if (k === 'status') {
         let m = 0;
-        ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
-            m += safeGetRawBase(ficha, s);
-        });
+        ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { m += safeGetRawBase(ficha, s); });
         return Math.floor(((m / 8) / mults.status) * div) || 0;
     }
     return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
@@ -354,9 +298,9 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     const editandoBase = attrBaseFocado === attrKey;
     const valorCampoBase = editandoBase ? (baseValRaw ?? '') : baseExibido;
 
-    let supressao = ficha.supressaoPoder !== undefined ? Number(ficha.supressaoPoder) : 100;
+    let supressao = ficha?.supressaoPoder !== undefined ? Number(ficha.supressaoPoder) : 100;
     if (isNaN(supressao)) supressao = 100;
-    let limiteSupressao = ficha.limiteSupressao !== undefined ? Number(ficha.limiteSupressao) : 1;
+    let limiteSupressao = ficha?.limiteSupressao !== undefined ? Number(ficha.limiteSupressao) : 1;
     if (isNaN(limiteSupressao)) limiteSupressao = 1;
     if (supressao < limiteSupressao) supressao = limiteSupressao;
     
@@ -419,7 +363,7 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
     const rankInfos = [];
     const dataPoints = eixos.map((e, i) => {
         const getPoderPuroComFormas = (k) => {
-            const rawBase = parseFloat(ficha[k]?.base) || 0;
+            const rawBase = parseFloat(ficha?.[k]?.base) || 0;
             const maxVal = parseFloat(safeGetMaximo(ficha, k)) || 0;
             const f = parseFloat(fator) || 1;
             const base = isAtual ? Math.floor(maxVal * f) : Math.floor(rawBase * f);
@@ -495,7 +439,7 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
     let rawMaximo = parseFloat(safeGetMaximo(ficha, vitalKey)) || 0;
     
     const { mxDisplay, pVit } = calcularEscala(rawMaximo, vitalKey);
-    let atual = ficha[vitalKey]?.atual;
+    let atual = ficha?.[vitalKey]?.atual;
     if (atual === undefined || atual === null || atual === '') atual = mxDisplay; else atual = Number(atual);
     if (isNaN(atual)) atual = mxDisplay;
     if (atual > mxDisplay) atual = mxDisplay;
@@ -518,7 +462,7 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
             {aberto && subItens && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '35px', marginTop: '12px' }}>
                     {subItens.map(sub => {
-                        const subBaseRaw = ficha[sub.key]?.base;
+                        const subBaseRaw = ficha?.[sub.key]?.base;
                         const trueSubBase = getPoderVerdadeiro(sub.key, ficha, true, supressao);
                         return (
                             <div key={sub.labelKey} style={{ fontSize: '1.05em', display: 'flex', alignItems: 'center' }}>
@@ -725,8 +669,6 @@ export default function MarcadosPanel() {
         const trueAvg = calcTrueAverage();
         let mF = getEfetivoMFormas(minhaFicha, 'status');
         if (isNaN(mF) || mF < 1) mF = 1;
-        
-        // APENAS NO SCOUTER GLOBAL VAMOS FUNDIR A MÉDIA DE PODER COM O MULTIPLICADOR GIGANTE DE DANO!
         let mDano = getEfetivoDanoGlobal(minhaFicha);
         if (isNaN(mDano) || mDano < 1) mDano = 1;
         
