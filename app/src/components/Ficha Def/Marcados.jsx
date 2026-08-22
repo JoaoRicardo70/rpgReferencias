@@ -2,14 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { uploadImagem, salvarFichaSilencioso, salvarFirebaseImediato } from '../../services/firebase-sync';
 
-// Importação flexível para evitar o ReferenceError de "getMaximo is not defined"
 import * as AtributosCore from '../../core/attributes';
 import { getRank } from '../../core/prestige';
-
-// 🔥 IMPORTA O NOSSO NOVO SCOUTER DE PODER 🔥
 import { formatarPoderCosmico } from '../../core/utils.js';
 
-// 🔥 IMPORTAÇÕES DAS PÁGINAS MÁGICAS EXTERNAS 🔥
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel'; 
 
@@ -29,7 +25,6 @@ const safeGetMaximo = (ficha, key) => {
     return parseFloat(ficha?.[key]?.base) || 0;
 };
 
-// Blindagem Absoluta contra Crash do Rank
 const safeGetRank = (prest, asc) => {
     try {
         const r = typeof getRank === 'function' ? getRank(prest, asc) : null;
@@ -49,7 +44,6 @@ const getEfetivoMFormas = (ficha, k) => {
     return (v === 1.0 ? 0 : v) + b.mformas;
 };
 
-// 🔥 FÓRMULA DE DANO ABSOLUTO BLINDADA 🔥
 const getEfetivoDanoGlobal = (ficha) => {
     try {
         let d = ficha?.dano || {};
@@ -108,7 +102,7 @@ const getGhostAscensionBonus = (key, ficha) => {
 const getPoderVerdadeiro = (key, ficha, isAtual, supressao = 100, fator = 1) => {
     try {
         if (!ficha || !key) return 0;
-        const rawBase = parseFloat(ficha?.[key]?.base) || 0;
+        const rawBase = parseFloat(ficha[key]?.base) || 0;
         const maxVal = parseFloat(safeGetMaximo(ficha, key)) || 0;
         const f = parseFloat(fator) || 1;
         const baseParaPoder = isAtual ? Math.floor(maxVal * f) : Math.floor(rawBase * f);
@@ -203,9 +197,7 @@ const encontrarCategoriaPorLore = (nome) => {
     const nomeClean = String(nome || '').trim().toLowerCase();
     for (const [catKey, grupos] of Object.entries(PREDEFINIDOS_LORE)) {
         for (const grupo of grupos) {
-            if (grupo.itens.some(item => item.trim().toLowerCase() === nomeClean)) {
-                return catKey;
-            }
+            if (grupo.itens.some(item => item.trim().toLowerCase() === nomeClean)) return catKey;
         }
     }
     return null;
@@ -237,7 +229,6 @@ const aplicarMultiplicadorForca = (prestigioBase, ascensaoBase, multiplicadorFor
     return { ...rankInfo, prestigioFinal, ascensaoFinal };
 };
 
-// 🔥 FUNÇÃO RESTAURADA QUE IMPEDIA A RENDERIZAÇÃO DA TABELA DE PRESTÍGIOS 🔥
 const calcularPrestAtual = (ficha, attrKey, baseP) => {
     const mFormas = getEfetivoMFormas(ficha, attrKey);
     const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
@@ -257,7 +248,7 @@ const callSave = (fn) => {
 // ==========================================
 // 🖋️ COMPONENTES ISOLADOS (BLINDADOS)
 // ==========================================
-const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange }) => {
+const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange, displayOverride }) => {
     const [focused, setFocused] = useState(false);
     const handleChange = (e) => {
         let val = e.target.value;
@@ -268,9 +259,10 @@ const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "te
         }
         onChange(val);
     };
-    let displayValue = valor !== undefined && valor !== null ? String(valor) : '';
+    
+    let displayValue = displayOverride !== undefined && displayOverride !== '' ? displayOverride : (valor !== undefined && valor !== null ? String(valor) : '');
     let currentType = type;
-    if (isNumber && !focused && displayValue !== '') {
+    if (isNumber && !focused && displayValue !== '' && displayOverride === undefined) {
         let num = Number(displayValue);
         if (!isNaN(num)) displayValue = num.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
         currentType = 'text';
@@ -312,7 +304,15 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     if (supressao < limiteSupressao) supressao = limiteSupressao;
     
     const tema = getTemaScouter(supressao, limiteSupressao);
-    const poderVerdadeiro = getPoderVerdadeiro(attrKey, ficha, isAtual, supressao, fatorSeguro);
+    
+    // BADGE LIMPA: Apenas Base + Fantasma x Formas x Supressão. (SEM mDano AQUI!)
+    const baseParaPoder = isAtual ? valorAtual : Math.floor(rawBase * fatorSeguro);
+    const ghost = getGhostAscensionBonus(attrKey, ficha) || 0;
+    let mF = 1;
+    if (isAtual) { mF = getEfetivoMFormas(ficha, attrKey); if (isNaN(mF) || mF < 1) mF = 1; }
+    
+    let poderVerdadeiro = Math.floor((baseParaPoder + ghost) * mF * (supressao / 100));
+    if (isNaN(poderVerdadeiro)) poderVerdadeiro = 0;
 
     return (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em', flexWrap: 'wrap' }}>
@@ -451,7 +451,11 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
     if (isNaN(atual)) atual = mxDisplay;
     if (atual > mxDisplay) atual = mxDisplay;
 
-    const poderVerdadeiro = getPoderVerdadeiro(vitalKey, ficha, true, supressao);
+    const ghost = getGhostAscensionBonus(vitalKey, ficha) || 0;
+    let mF = getEfetivoMFormas(ficha, vitalKey);
+    if (isNaN(mF) || mF < 1) mF = 1;
+    let poderVerdadeiro = Math.floor((rawMaximo + ghost) * mF * (supressao / 100));
+    if (isNaN(poderVerdadeiro)) poderVerdadeiro = 0;
 
     return (
         <div style={{ marginBottom: '15px' }}>
@@ -461,7 +465,7 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
                     <LabelMagico valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
                 </div>
                 <div style={{ fontSize: '0.85em', color: '#fff', border: `1px solid ${temaScouter.cor}`, padding: '2px 10px', borderRadius: '4px', background: temaScouter.bgDark, fontWeight: 'bold', boxShadow: `inset 0 0 8px ${temaScouter.cor}80` }}>
-                    Poder: {formatarPoderCosmico(Number(poderVerdadeiro) || 0)}
+                    Poder: {formatarPoderCosmico(poderVerdadeiro)}
                 </div>
             </div>
             <BarraVital atual={atual} maximo={mxDisplay} pVit={pVit} cor={corBarra} corTexto={corTextoBarra} onChangeAtual={(v) => salvar(`${vitalKey}.atual`, v)} />
@@ -470,12 +474,19 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '35px', marginTop: '12px' }}>
                     {subItens.map(sub => {
                         const subBaseRaw = ficha?.[sub.key]?.base;
-                        const trueSubBase = getPoderVerdadeiro(sub.key, ficha, true, supressao);
+                        const subMaxVal = parseFloat(safeGetMaximo(ficha, sub.key)) || 0;
+                        const subGhost = getGhostAscensionBonus(sub.key, ficha) || 0;
+                        let subMF = getEfetivoMFormas(ficha, sub.key);
+                        if (isNaN(subMF) || subMF < 1) subMF = 1;
+                        
+                        let trueSubBase = Math.floor((subMaxVal + subGhost) * subMF * (supressao / 100));
+                        if (isNaN(trueSubBase)) trueSubBase = 0;
+
                         return (
                             <div key={sub.labelKey} style={{ fontSize: '1.05em', display: 'flex', alignItems: 'center' }}>
                                 <LabelMagico valor={getLabel(sub.labelKey, sub.fallbackLabel)} onChange={(v) => setLabel(sub.labelKey, v)} />
                                 <span style={{ fontWeight: 'bold', fontStyle: 'italic', margin: '0 5px' }}>: (</span>
-                                <CampoMagico valor={subBaseRaw || ''} displayOverride={trueSubBase !== '' ? formatarPoderCosmico(Number(trueSubBase) || 0) : ''} onChange={(v) => salvar(`${sub.key}.base`, v)} styleExtra={{ width: '90px' }} isNumber={true} type="number" />
+                                <CampoMagico valor={subBaseRaw || ''} displayOverride={trueSubBase !== '' ? formatarPoderCosmico(trueSubBase) : ''} onChange={(v) => salvar(`${sub.key}.base`, v)} styleExtra={{ width: '90px' }} isNumber={true} type="number" />
                                 <span style={{ fontWeight: 'bold', fontStyle: 'italic' }}>)</span>
                             </div>
                         );
@@ -616,6 +627,7 @@ export default function MarcadosPanel() {
     const updateFicha = useStore(s => s?.updateFicha);
     const meuNome = useStore(s => s?.meuNome);
     const isMestreStatus = useStore(s => s?.isMestre) || false;
+    const importarDaAbaStatus = useStore(s => s?.importarDaAbaStatus);
 
     const [uploadingImg, setUploadingImg] = useState(false);
     const [modalEstilo, setModalEstilo] = useState(false);
@@ -634,6 +646,8 @@ export default function MarcadosPanel() {
     const [localModoMoldura, setLocalModoMoldura] = useState('screen');
     const [localModoFundo, setLocalModoFundo] = useState('normal'); 
     const [localCorFundoTint, setLocalCorFundoTint] = useState('#ffffff'); 
+    const [textoImport, setTextoImport] = useState('');
+    const [modalImport, setModalImport] = useState(false);
 
     useEffect(() => {
         if (minhaFicha) {
@@ -676,8 +690,6 @@ export default function MarcadosPanel() {
         const trueAvg = calcTrueAverage();
         let mF = getEfetivoMFormas(minhaFicha, 'status');
         if (isNaN(mF) || mF < 1) mF = 1;
-        
-        // APENAS NO SCOUTER GLOBAL VAMOS FUNDIR A MÉDIA DE PODER COM O MULTIPLICADOR GIGANTE DE DANO!
         let mDano = getEfetivoDanoGlobal(minhaFicha);
         if (isNaN(mDano) || mDano < 1) mDano = 1;
         
@@ -738,6 +750,25 @@ export default function MarcadosPanel() {
     const handleBgUpload = async (e) => { const file = e.target.files[0]; if (!file) return; try { const url = await uploadImagem(file, `backgrounds/${meuNome || 'desconhecido'}_bg`); handleStyleChange('bgImg', url); } catch (err) { alert('Erro ao enviar a imagem!'); } };
     const handleMolduraUpload = async (e) => { const file = e.target.files[0]; if (!file) return; try { const url = await uploadImagem(file, `molduras_avatars/${meuNome || 'desconhecido'}_moldura`); handleStyleChange('molduraAvatar', url); } catch (err) { alert('Erro ao enviar a moldura!'); } };
     const handleIconeUpload = async (e) => { const file = e.target.files[0]; if (!file) return; try { const url = await uploadImagem(file, `icones_classes/${meuNome || 'desconhecido'}_icone`); handleStyleChange('iconeClasse', url); } catch (err) { alert('Erro ao enviar o ícone!'); } };
+
+    const handleImageUpload = async (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        setUploadingImg(true);
+        try {
+            const url = await uploadImagem(file, `avatars/${meuNome || 'desconhecido'}`);
+            updateFicha(f => { if (!f.avatar) f.avatar = { base: "" }; f.avatar.base = url; });
+            callSave();
+        } catch (err) { alert('Erro ao pintar o avatar!'); } 
+        finally { setUploadingImg(false); }
+    };
+
+    const executarImportacao = () => {
+        if (!textoImport.trim()) return alert("Cole o texto do Google Docs primeiro!");
+        importarDaAbaStatus(textoImport);
+        setModalImport(false);
+        setTextoImport('');
+        alert("A sua ficha foi sincronizada!");
+    };
 
     const handleTabelaChange = (k, tipo, valor) => {
         let numVal = Number(valor); if (isNaN(numVal)) numVal = 0;
@@ -936,7 +967,7 @@ export default function MarcadosPanel() {
                                 <CampoMagico valor={minhaFicha.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
 
-                            {/* 🌟 SCOUTER HOLOGRÁFICO BLINDADO 🌟 */}
+                            {/* 🌟 O NOVO SCOUTER DE VIDRO HOLOGRÁFICO BLINDADO 🌟 */}
                             <div style={{
                                 marginTop: '15px', marginBottom: '25px', padding: '25px 30px',
                                 background: 'rgba(15, 15, 20, 0.75)',
