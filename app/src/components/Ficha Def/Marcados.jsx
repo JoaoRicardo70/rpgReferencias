@@ -85,9 +85,20 @@ function getGlobalMultipliers(ficha) {
             });
         }
 
-        // Lê Formas Manuais Globais
-        let f = ficha?.forca || {};
-        addManual(f.mFormas, 'MFORMAS', 'Ficha_Manual');
+        // 🔥 FORMA ATIVA — MESMA FONTE QUE O RADAR: RadarDesenhado (e a lista de atributos logo
+        // abaixo dele) descobrem que uma Forma foi ativada chamando getEfetivoMFormas(ficha, eixo)
+        // para cada uma das 6 categorias (vida/mana/aura/chakra/corpo/status) — função que soma o
+        // campo estático ficha.<attr>.mFormas COM os buffs dinâmicos mformas de poderes/itens/seres
+        // ativos tageados no atributo específico (ex.: atributo:'vida'), não só 'geral'/'dano'.
+        // O código antigo só lia o campo estático ficha.forca.mFormas (e nunca os buffs dinâmicos
+        // nem os outros 5 eixos) — por isso o Radar reagia à Forma ativada e o Scouter não. Somamos
+        // aqui o bônus (mFormas-1) de cada eixo, na mesma convenção "1+soma" das demais categorias.
+        ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].forEach(k => {
+            const mF = getEfetivoMFormas(ficha, k);
+            if (!isNaN(mF) && mF > 1) {
+                grupos.MFORMAS[`Eixo_${k}`] = (grupos.MFORMAS[`Eixo_${k}`] || 0) + (mF - 1);
+            }
+        });
 
         // Lê Buffs Dinâmicos do Sistema Core
         let b = safeGetBuffs(ficha, 'dano', true) || {};
@@ -829,6 +840,11 @@ export default function MarcadosPanel() {
         minhaFicha,
         minhaFicha?.dano,
         minhaFicha?.forca,
+        minhaFicha?.vida,
+        minhaFicha?.mana,
+        minhaFicha?.aura,
+        minhaFicha?.chakra,
+        minhaFicha?.corpo,
         minhaFicha?.ascensaoBase,
         minhaFicha?.multiplicadorForcaPrestigio,
         minhaFicha?.multiplicadorForcaAscensao,
