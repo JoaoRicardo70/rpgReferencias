@@ -18,16 +18,22 @@ import useStore from '../../stores/useStore';
 // injeta um termo muito maior mesmo com Ascensão baixa).
 //
 // A correção introduz:
-//   multiplicadorAscensao = 1 + Math.max(0, ascensaoSegura)
+//   multiplicadorAscensao = Math.pow(2, Math.max(0, ascensaoSegura))
 //   poderMultiplicado = poderBase * multiplicadorAscensao * glob.finalF * glob.totalDano
 // aplicado ANTES da injeção de magnitude (que continua por cima, inalterada,
 // como "flourish" visual, não mais a única fonte do efeito da Ascensão).
+// (Uma primeira versão usava um multiplicador LINEAR, 1+ascensaoSegura — mas
+// verificado com os dois personagens reais reportados pelo usuário, o linear
+// não bastava: x2 vs x5 não superava uma vantagem de ~4.7x nos atributos
+// crus do personagem de Ascensão menor. A versão EXPONENCIAL, 2^ascensao,
+// dobra o Poder Base por nível de Ascensão e resolve isso — ver Teste 1.)
 // O Math.max(0, ...) protege APENAS o multiplicador: uma Ascensão negativa
 // (ascensaoBase ou multiplicadorForcaAscensao negativos, digitados por
-// engano — campos sem `min` na UI) não pode inverter o sinal do cálculo via
-// o multiplicador. A injeção de log10 (e seu ramo `else` para poderBase<=0)
-// continua usando `ascensaoSegura` SEM clamp, então uma Ascensão negativa
-// ainda aparece integralmente ali — ver Teste 3 abaixo.
+// engano — campos sem `min` na UI) não pode virar um expoente negativo
+// (fração) que reduziria o Poder Base ao invés de mantê-lo neutro. A
+// injeção de log10 (e seu ramo `else` para poderBase<=0) continua usando
+// `ascensaoSegura` SEM clamp, então uma Ascensão negativa ainda aparece
+// integralmente ali — ver Teste 3 abaixo.
 //
 // Nenhuma das funções internas (calcPoderBase, getGlobalMultipliers) é
 // exportada — validamos renderizando o MarcadosPanel real e lendo a leitura
@@ -137,7 +143,7 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
     // já que as outras 5 categorias ficam zeradas), mas investimento bruto
     // GRANDE em Vida (peso x10 na fórmula do Poder Base).
     //   Poder_Base_A = (6.000.000.000*10)/6 = 1e10
-    //   multiplicadorAscensao_A = 1 + 1 = 2
+    //   multiplicadorAscensao_A = 2^1 = 2
     //   poderMultiplicado_A = 1e10 * 2 = 2e10
     //   magnitude_A = floor(log10(2e10)) = 10
     //   poderComAscensao_A = 2e10 + 1*10^11 = 1.2e11 = 120.000.000.000
@@ -145,10 +151,12 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
     // Personagem B: Ascensão bem MAIOR (ascensaoBase=99 — 99x a de A), mas
     // investimento bruto bem MENOR em Vida (100x menor que A).
     //   Poder_Base_B = (60.000.000*10)/6 = 1e8
-    //   multiplicadorAscensao_B = 1 + 99 = 100
-    //   poderMultiplicado_B = 1e8 * 100 = 1e10
-    //   magnitude_B = floor(log10(1e10)) = 10
-    //   poderComAscensao_B = 1e10 + 99*10^11 = 9.91e12 = 9.910.000.000.000
+    //   multiplicadorAscensao_B = 2^99 ≈ 6,338253001141147e29
+    //   poderMultiplicado_B = 1e8 * 2^99 ≈ 6,338253001141147e37
+    //   magnitude_B = floor(log10(≈6,34e37)) = 37
+    //   poderComAscensao_B ≈ 6,34e37 + 99*10^38 = 9,96e39 (a leitura do
+    //   Scouter usa toExponential(2), então o valor lido é exatamente
+    //   9.96E39 -> Number("9.96E39"))
     //
     // Sob a fórmula ANTIGA (Ascensão só entrando via injeção de log10, sem
     // multiplicador — poderMultiplicado = Poder_Base, sem *multiplicadorAscensao):
@@ -157,9 +165,10 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
     //   A_antigo (110B) > B_antigo (99,1B) — o BUG: B tinha 99x mais Ascensão
     //   que A e ainda assim lia MENOS, porque a injeção de B fica presa na
     //   magnitude do PRÓPRIO poder base de B (bem menor que o de A).
-    // Sob a fórmula ATUAL, B (9,91 trilhões) > A (120 bilhões) — a Ascensão
-    // 99x maior de B agora vence, porque multiplica o Poder Base diretamente
-    // em vez de só injetar uma casa decimal baseada na própria magnitude.
+    // Sob a fórmula ATUAL (multiplicador exponencial), B (≈9,96e39) > A (120
+    // bilhões) por uma margem colossal — a Ascensão 99x maior de B agora
+    // domina completamente, porque dobra o Poder Base a cada nível em vez de
+    // só injetar uma casa decimal baseada na própria magnitude.
     it('Personagem B (Ascensão 99x maior, atributos 100x menores) agora supera o Personagem A (Ascensão modesta, atributos brutos enormes) — o bug reportado está corrigido', () => {
         montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 6000000000 }, ascensaoBase: 1 }));
         const { unmount } = render(<MarcadosPanel />);
@@ -171,7 +180,7 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
         const leituraB = lerPoderGlobalExibido();
 
         expect(leituraA).toBe(120000000000);
-        expect(leituraB).toBe(9910000000000);
+        expect(leituraB).toBe(9.96e39);
         expect(leituraB).toBeGreaterThan(leituraA);
     });
 
@@ -182,11 +191,11 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
     // mesma inversão do teste anterior, mas agora observada como uma
     // transição reativa (rerender) na MESMA instância de componente, isolando
     // a Ascensão como a única variável que mudou.
-    //   B com ascensaoBase=1: multiplicadorAscensao=2, poderMultiplicado=2e8,
+    //   B com ascensaoBase=1: multiplicadorAscensao=2^1=2, poderMultiplicado=2e8,
     //   magnitude=8, poderComAscensao = 2e8 + 1*10^9 = 1.2e9 = 1.200.000.000
-    //   (menor que A = 120.000.000.000).
-    //   B com ascensaoBase=99 (calculado acima): 9.910.000.000.000 (maior
-    //   que A).
+    //   (menor que A = 120.000.000.000) — mesmo valor da fórmula linear
+    //   anterior, pois 2^1 = 1+1 = 2 coincidem exatamente em ascensaoGeralEfetiva=1.
+    //   B com ascensaoBase=99 (calculado acima): ≈9.96e39 (maior que A).
     it('aumentar SOMENTE a Ascensão Geral Efetiva do Personagem B (atributos fixos) inverte a comparação de B<A para B>A', () => {
         montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 6000000000 }, ascensaoBase: 1 }));
         const { unmount } = render(<MarcadosPanel />);
@@ -202,12 +211,12 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
         mockB.updateFicha((f) => { f.ascensaoBase = 99; });
         rerender(<MarcadosPanel />);
         const leituraB_depois = lerPoderGlobalExibido();
-        expect(leituraB_depois).toBe(9910000000000);
+        expect(leituraB_depois).toBe(9.96e39);
         expect(leituraB_depois).toBeGreaterThan(leituraA);
     });
 });
 
-describe('MarcadosPanel — multiplicadorAscensao (1 + ascensaoSegura) é um multiplicador proporcional real do Poder Base', () => {
+describe('MarcadosPanel — multiplicadorAscensao (2^ascensaoSegura) é um multiplicador exponencial real do Poder Base', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true);
@@ -220,18 +229,18 @@ describe('MarcadosPanel — multiplicadorAscensao (1 + ascensaoSegura) é um mul
 
     // Mesma ficha base (vida=600.000 -> Poder_Base=1e6, glob.finalF=glob.totalDano=1
     // em ambos os casos), variando SÓ ascensaoBase entre 2 e 5:
-    //   ascensaoBase=2: multiplicadorAscensao=1+2=3, poderMultiplicado=1e6*3=3e6
-    //     magnitude=floor(log10(3e6))=6, poderComAscensao=3e6+2*10^7=23.000.000
-    //   ascensaoBase=5: multiplicadorAscensao=1+5=6, poderMultiplicado=1e6*6=6e6
-    //     magnitude=floor(log10(6e6))=6, poderComAscensao=6e6+5*10^7=56.000.000
-    // A razão entre os dois multiplicadores é EXATAMENTE (1+5)/(1+2) = 2, e o
+    //   ascensaoBase=2: multiplicadorAscensao=2^2=4, poderMultiplicado=1e6*4=4e6
+    //     magnitude=floor(log10(4e6))=6, poderComAscensao=4e6+2*10^7=24.000.000
+    //   ascensaoBase=5: multiplicadorAscensao=2^5=32, poderMultiplicado=1e6*32=3.2e7
+    //     magnitude=floor(log10(3.2e7))=7, poderComAscensao=3.2e7+5*10^8=532.000.000
+    // A razão entre os dois multiplicadores é EXATAMENTE 2^5/2^2 = 8, e o
     // poderMultiplicado (pré-injeção) escala pela MESMA razão exata:
-    // 6.000.000 / 3.000.000 = 2 — prova que o multiplicador é proporcional,
-    // não uma injeção de dígito. (A leitura final de 56M/23M não é 2x exato
-    // por causa da injeção de log10 somada por cima — mas os dois números
-    // finais batem exatamente com o valor derivado à mão, o que só é possível
-    // se poderMultiplicado tiver escalado pelo fator correto em cada caso.)
-    it('ascensaoGeralEfetiva=2 vs ascensaoGeralEfetiva=5 na mesma ficha: poderMultiplicado escala exatamente por (1+5)/(1+2)=2, refletido nas leituras finais exatas 23.000.000 e 56.000.000', () => {
+    // 32.000.000 / 4.000.000 = 8 — prova que o multiplicador é exponencial de
+    // verdade (não uma injeção de dígito). (A leitura final de 532M/24M não é
+    // 8x exato por causa da injeção de log10 somada por cima — mas os dois
+    // números finais batem exatamente com o valor derivado à mão, o que só é
+    // possível se poderMultiplicado tiver escalado pelo fator correto em cada caso.)
+    it('ascensaoGeralEfetiva=2 vs ascensaoGeralEfetiva=5 na mesma ficha: poderMultiplicado escala exatamente por 2^5/2^2=8, refletido nas leituras finais exatas 24.000.000 e 532.000.000', () => {
         montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, ascensaoBase: 2 }));
         const { unmount } = render(<MarcadosPanel />);
         const leitura2 = lerPoderGlobalExibido();
@@ -241,8 +250,8 @@ describe('MarcadosPanel — multiplicadorAscensao (1 + ascensaoSegura) é um mul
         render(<MarcadosPanel />);
         const leitura5 = lerPoderGlobalExibido();
 
-        expect(leitura2).toBe(23000000);
-        expect(leitura5).toBe(56000000);
+        expect(leitura2).toBe(24000000);
+        expect(leitura5).toBe(532000000);
         expect(leitura5).toBeGreaterThan(leitura2);
     });
 });
@@ -263,7 +272,7 @@ describe('MarcadosPanel — Math.max(0, ascensaoSegura) protege APENAS multiplic
     // (sem overflow: vida=660.000 < divisor 1.000.000 -> prestígio bruto=0,
     // e as outras 5 categorias ficam zeradas — nivelCompletos permanece 0).
     //   ascensaoSegura = -0.05
-    //   multiplicadorAscensao = 1 + Math.max(0, -0.05) = 1  <- CLAMPADO para 1,
+    //   multiplicadorAscensao = 2^Math.max(0, -0.05) = 2^0 = 1  <- CLAMPADO para 1,
     //   exatamente como se ascensaoGeralEfetiva fosse 0 (não -0.05) nesta etapa.
     //   Poder_Base = (660.000*10)/6 = 1.100.000
     //   poderMultiplicado = 1.100.000 * 1 = 1.100.000
@@ -296,9 +305,9 @@ describe('MarcadosPanel — Math.max(0, ascensaoSegura) protege APENAS multiplic
     // failsafe, que NUNCA usa Math.log10) e ascensaoBase=-5 (multiplicador
     // padrão=1 -> ascensaoGeralEfetiva=-5 EXATO, sem clamp possível vindo do
     // useMemo de cima), a fórmula é:
-    //   multiplicadorAscensao = 1 + Math.max(0, -5) = 1 (clampado, mas como
-    //   poderMultiplicado = Poder_Base(0) * 1 = 0 de qualquer forma, o clamp
-    //   não tem efeito prático aqui)
+    //   multiplicadorAscensao = 2^Math.max(0, -5) = 2^0 = 1 (clampado, mas
+    //   como poderMultiplicado = Poder_Base(0) * 1 = 0 de qualquer forma, o
+    //   clamp não tem efeito prático aqui)
     //   poderComAscensao = ascensaoSegura*10 + poderMultiplicado = -5*10+0 = -50
     // A leitura final de -50 é NEGATIVA — prova, com um valor exato e
     // determinístico, que o clamp (Math.max(0, ...)) protege SOMENTE
@@ -336,22 +345,22 @@ describe('MarcadosPanel — multiplicadorAscensao compõe multiplicativamente co
     // (2-1)=1 ao grupo MFORMAS -> glob.finalF=1+1=2) e um buff MGERAL:+5 via
     // poderes[] ativo (-> glob.finalG=1+5=6 -> glob.totalDano=6, já que
     // finalB=finalA=finalUni=1 sem mais nenhuma fonte).
-    //   multiplicadorAscensao = 1+3 = 4
-    //   poderMultiplicado = 1e6 * 4 * 2 * 6 = 48.000.000
-    //   magnitude = floor(log10(48.000.000)) = 7
-    //   poderComAscensao = 48.000.000 + 3*10^8 = 348.000.000
+    //   multiplicadorAscensao = 2^3 = 8
+    //   poderMultiplicado = 1e6 * 8 * 2 * 6 = 96.000.000
+    //   magnitude = floor(log10(96.000.000)) = 7
+    //   poderComAscensao = 96.000.000 + 3*10^8 = 396.000.000
     //
-    // Comparado com a MESMA ficha mas ascensaoBase=1 (multiplicadorAscensao=2,
-    // metade do valor acima), com Forma e mgeral inalterados:
+    // Comparado com a MESMA ficha mas ascensaoBase=1 (multiplicadorAscensao=2^1=2,
+    // 1/4 do valor acima), com Forma e mgeral inalterados:
     //   poderMultiplicado_baseline = 1e6 * 2 * 2 * 6 = 24.000.000
     //   magnitude_baseline = floor(log10(24.000.000)) = 7
     //   poderComAscensao_baseline = 24.000.000 + 1*10^8 = 124.000.000
-    // poderMultiplicado escalou EXATAMENTE por 48.000.000/24.000.000=2, a
-    // mesma razão de multiplicadorAscensao (4/2=2) — prova que o
+    // poderMultiplicado escalou EXATAMENTE por 96.000.000/24.000.000=4, a
+    // mesma razão de multiplicadorAscensao (2^3/2^1=4) — prova que o
     // multiplicador de Ascensão se combina multiplicativamente com finalF e
     // totalDano (que ficaram fixos em 2 e 6 nos dois casos), em vez de
     // interferir ou ser sobrescrito por eles.
-    it('combina Ascensão (multiplicadorAscensao=4) com Forma ativa (finalF=2) e buff MGERAL:+5 (totalDano=6): leitura exata 348.000.000, escalando 2x sobre o baseline com ascensaoBase=1 (124.000.000)', () => {
+    it('combina Ascensão (multiplicadorAscensao=8) com Forma ativa (finalF=2) e buff MGERAL:+5 (totalDano=6): leitura exata 396.000.000, escalando 4x sobre o baseline com ascensaoBase=1 (124.000.000)', () => {
         const fichaBase = () => fichaMinimaScouter({
             vida: { base: 600000, mFormas: 2 },
             poderes: [{ nome: 'Buff Geral', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'mgeral', valor: 5 }] }],
@@ -367,7 +376,7 @@ describe('MarcadosPanel — multiplicadorAscensao compõe multiplicativamente co
         const leituraCombinada = lerPoderGlobalExibido();
 
         expect(leituraBaseline).toBe(124000000);
-        expect(leituraCombinada).toBe(348000000);
+        expect(leituraCombinada).toBe(396000000);
         expect(leituraCombinada).toBeGreaterThan(leituraBaseline);
     });
 });

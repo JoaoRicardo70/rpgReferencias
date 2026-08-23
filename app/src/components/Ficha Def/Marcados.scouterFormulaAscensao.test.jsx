@@ -196,12 +196,14 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
     // prestígio contaminando o bônus geral — o bottleneck do gargalo mínimo
     // entre as 6 categorias trava nivelCompletos em 0 mesmo com o prestígio
     // individual de Vida sendo enorme) e supressão = 100 (sem suprimir).
-    // Ascensão agora também multiplica o Poder Base diretamente:
-    //   multiplicadorAscensao = 1 + 4 = 5
-    //   poderMultiplicado = 3.2e10 * 5 = 1.6e11
-    //   magnitude = floor(log10(1.6e11)) = 11
-    //   poderComAscensao = 1.6e11 + 4 * 10^12 = 4.16e12 (4.160.000.000.000)
-    it('injeta a Ascensão Geral Efetiva exatamente uma ordem de magnitude acima do poder multiplicado (já com Ascensão como multiplicador do Poder Base)', () => {
+    // Ascensão agora também multiplica o Poder Base diretamente (curva
+    // exponencial: 2^ascensaoGeralEfetiva, dobrando por nível de Ascensão):
+    //   multiplicadorAscensao = 2^4 = 16
+    //   poderMultiplicado = 3.2e10 * 16 = 5.12e11
+    //   magnitude = floor(log10(5.12e11)) = 11
+    //   poderComAscensao = 5.12e11 + 4 * 10^12 = 4.512e12, que a leitura do
+    //   Scouter (toExponential(2)) arredonda para 4.51E12 (4.510.000.000.000)
+    it('injeta a Ascensão Geral Efetiva exatamente uma ordem de magnitude acima do poder multiplicado (já com Ascensão como multiplicador exponencial do Poder Base)', () => {
         // Poder_Base = (vida*10)/6 = 3.2e10  =>  vida = 1.92e10
         const ficha = fichaMinimaScouter({
             vida: { base: 19200000000 },
@@ -211,7 +213,7 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
         render(<MarcadosPanel />);
 
         const leitura = lerPoderGlobalExibido();
-        expect(leitura).toBe(4160000000000);
+        expect(leitura).toBe(4510000000000);
     });
 
     // Failsafe do log10: poderMultiplicado > 0 (mesmo fracionário, < 1) usa o ramo
@@ -219,11 +221,10 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
     // o que apenas encolhe a potência de 10 do termo injetado, sem gerar
     // -Infinity/NaN. Só poderMultiplicado <= 0 (nunca > 0) cai no ramo `else`.
     it('poderMultiplicado fracionário (0 < x < 1 ANTES do multiplicador de Ascensão) usa o ramo do logaritmo normalmente', () => {
-        // Poder_Base = (vida*10)/6 com vida=0.3 => 0.5. multiplicadorAscensao = 1+4 = 5
-        // (ascensaoBase=4, sem overflow) -> poderMultiplicado = 0.5*5 = 2.5 (>0, ramo do log).
-        // magnitude = floor(log10(2.5)) = 0
-        // poderComAscensao = 2.5 + ascensaoGeralEfetiva(4) * 10^(0+1) = 2.5 + 40 = 42.5
-        // Math.floor(42.5) = 42.
+        // Poder_Base = (vida*10)/6 com vida=0.3 => 0.5. multiplicadorAscensao = 2^4 = 16
+        // (ascensaoBase=4, sem overflow) -> poderMultiplicado = 0.5*16 = 8 (>0, ramo do log).
+        // magnitude = floor(log10(8)) = 0
+        // poderComAscensao = 8 + ascensaoGeralEfetiva(4) * 10^(0+1) = 8 + 40 = 48.
         const ficha = fichaMinimaScouter({
             vida: { base: 0.3 },
             ascensaoBase: 4,
@@ -232,7 +233,7 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
         render(<MarcadosPanel />);
 
         const leitura = lerPoderGlobalExibido();
-        expect(leitura).toBe(42);
+        expect(leitura).toBe(48);
     });
 
     it('poderMultiplicado = 0 (todos os atributos zerados) usa o ramo else do failsafe: ascensaoSegura*10 + poderMultiplicado, sem tocar Math.log10', () => {

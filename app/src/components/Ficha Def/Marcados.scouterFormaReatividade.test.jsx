@@ -105,8 +105,11 @@ describe('MarcadosPanel — regressão: buff mformas tageado num eixo específic
 
     // Poder_Base = (vida*10)/6 = (600*10)/6 = 1000 (todo o resto zerado).
     // ascensaoGeralEfetiva = 1 (ascensaoBase padrão=1, sem overflow), então
-    // multiplicadorAscensao = 1+1 = 2 (Ascensão como multiplicador real do
-    // Poder Base — ver poderGlobal em Marcados.jsx).
+    // multiplicadorAscensao = 2^1 = 2 (Ascensão como multiplicador exponencial
+    // real do Poder Base — ver poderGlobal em Marcados.jsx). Coincide
+    // numericamente com o valor que a antiga fórmula linear (1+1) também daria
+    // em ascensaoGeralEfetiva=1 — por isso os valores abaixo (12000/14000) não
+    // mudam entre as duas versões da fórmula, mas a fórmula em si é 2^x, não 1+x.
     //
     // Com o poder DESLIGADO (ativa: false): glob.finalF = 1 (nenhum buff
     // aplicado, já que getBuffs só processa `efeitos` de poderes com
@@ -233,9 +236,10 @@ describe('MarcadosPanel — sem dupla contagem entre o campo estático mFormas e
         const leituraBuff = lerPoderGlobalExibido();
 
         // Poder_Base = 1000 (só vida=600), glob.finalF = 1 + (3-1) = 3 nas
-        // duas rotas. multiplicadorAscensao = 1+1 = 2 (ascensaoGeralEfetiva
-        // padrão=1) -> poderMultiplicado = 1000*2*3 = 6000 -> magnitude = 3 ->
-        // poderComAscensao = 6000 + 1*10^4 = 16000.
+        // duas rotas. multiplicadorAscensao = 2^1 = 2 (ascensaoGeralEfetiva
+        // padrão=1, mesmo valor que a antiga fórmula linear 1+1 daria neste
+        // caso específico) -> poderMultiplicado = 1000*2*3 = 6000 -> magnitude
+        // = 3 -> poderComAscensao = 6000 + 1*10^4 = 16000.
         expect(leituraEstatica).toBe(16000);
         expect(leituraBuff).toBe(16000);
         expect(leituraEstatica).toBe(leituraBuff);

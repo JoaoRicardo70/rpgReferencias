@@ -811,18 +811,45 @@ export default function MarcadosPanel() {
         // vindo do banco) — calculado aqui porque agora também alimenta o multiplicador real abaixo.
         const ascensaoSegura = Number(ascensaoGeralEfetiva) || 0;
 
-        // 🔥 Ascensão como MULTIPLICADOR REAL do Poder Base: antes, a Ascensão só entrava no final via
-        // injeção de log10 (uma "casa decimal a mais"), que nunca conseguia compensar uma diferença
-        // grande nos valores crus dos atributos entre dois personagens — um personagem com Ascensão 4
-        // mas atributos baixos podia mostrar Poder MENOR que outro com Ascensão 1 e atributos altos.
-        // Agora a Ascensão Geral Efetiva multiplica o Poder Base diretamente, então mais Ascensão
-        // sempre significa mais Poder, proporcionalmente — não só "mais um dígito" no final.
-        // Math.max(0, ...) impede que uma Ascensão Base/Multiplicador negativo digitado por engano
-        // vire um multiplicador negativo e inverta o sinal de todo o cálculo do Scouter.
-        const multiplicadorAscensao = 1 + Math.max(0, ascensaoSegura);
+        // 🔥 Ascensão como MULTIPLICADOR EXPONENCIAL do Poder Base: antes, a Ascensão só entrava no
+        // final via injeção de log10 (uma "casa decimal a mais"), que nunca conseguia compensar uma
+        // diferença grande nos valores crus dos atributos entre dois personagens. Uma primeira versão
+        // linear (1+ascensaoGeralEfetiva) melhorou isso mas ainda não bastava: verificado com os dois
+        // personagens reais reportados pelo usuário (Prestígio 60 uniforme/Ascensão 1 vs Prestígio
+        // 12-14/Ascensão Geral Efetiva 4), o multiplicador linear (x2 vs x5, só 2.5x de diferença) NÃO
+        // superava a vantagem de ~4.7x nos atributos crus do primeiro personagem. Dobrar por nível
+        // (2^ascensaoGeralEfetiva, x2 vs x16 nesse mesmo par) resolve: verificado que o personagem de
+        // Ascensão mais alta passa a superar o de atributos crus maiores, como esperado. Math.max(0,
+        // ...) impede que uma Ascensão Base/Multiplicador negativo digitado por engano vire um expoente
+        // negativo (fração) e reduza o poder ao invés de anulá-lo/protegê-lo. Math.min(1000, ...) evita
+        // que um valor de Ascensão absurdamente grande digitado por engano (ex.: dígito extra) estoure
+        // Number.MAX_VALUE (~2^1024) e vire Infinity na leitura — 2^1000 já é astronomicamente maior
+        // que qualquer Ascensão jogável, então o teto não afeta nenhum uso realista.
+        const multiplicadorAscensao = Math.pow(2, Math.min(1000, Math.max(0, ascensaoSegura)));
+
+        // 🔥 SATURACAO_SEGURA: sentinela usado nos 3 failsafes abaixo quando um cálculo intermediário
+        // estoura para Infinity — mesmo com multiplicadorAscensao já limitado por Math.min(1000, ...)
+        // acima, poderMultiplicado ainda pode estourar Number.MAX_VALUE se poderBase também for grande
+        // (ex.: Vida na casa dos bilhões — comum em fichas reais — multiplicada por 2^1000≈1.07e301 já
+        // basta), e a "injeção" de Ascensão (magnitude de log10 abaixo) pode estourar de forma
+        // independente mesmo quando poderMultiplicado continua finito, já que ela multiplica
+        // ascensaoSegura (SEM clamp, de propósito) por 10^(magnitude+1). isNaN(...) sozinho NUNCA pega
+        // Infinity (isNaN(Infinity) === false), então Infinity passava batido pelos failsafes antigos e
+        // vazava até a leitura do Scouter (texto "INFINITY", quebrando a notação científica exibida).
+        // Usamos 1e308 (não Number.MAX_VALUE≈1.7976931348623157e308) porque toExponential(2) arredonda
+        // pra cima na exibição — Number.MAX_VALUE.toExponential(2) vira a STRING "1.80e+308", que ao
+        // ser relida como Number() estoura de volta pra Infinity (1.80e308 > Number.MAX_VALUE). Satura
+        // em 1e308 (não em 0) para manter o princípio desta correção: Ascensão extrema nunca deve fazer
+        // o Poder parecer MENOR ou sumir — só "achata" no teto do double, igual ao próprio
+        // Math.min(1000, ...) já faz com o expoente.
+        // Math.sign(v) preserva o sinal: -Infinity (possível com poderBase muito negativo
+        // combinado a um multiplicadorAscensao/glob.totalDano enorme) satura em -1e308, não em
+        // +1e308 — sem isso, um Poder extremamente negativo "viraria" positivo por engano.
+        const SATURACAO_SEGURA = 1e308;
+        const clampFinito = (v) => Number.isFinite(v) ? v : (Number.isNaN(v) ? 0 : Math.sign(v) * SATURACAO_SEGURA);
 
         let poderMultiplicado = poderBase * multiplicadorAscensao * glob.finalF * glob.totalDano;
-        if (isNaN(poderMultiplicado)) poderMultiplicado = 0;
+        poderMultiplicado = clampFinito(poderMultiplicado);
 
         // 🔥 Injeção de Ascensão: soma a Ascensão Geral Efetiva como a grandeza máxima (sempre uma
         // casa decimal acima do valor total), via magnitude de log10 — nunca concatenação de string.
@@ -836,10 +863,10 @@ export default function MarcadosPanel() {
         } else {
             poderComAscensao = (ascensaoSegura * 10) + poderMultiplicado;
         }
-        if (isNaN(poderComAscensao)) poderComAscensao = 0;
+        poderComAscensao = clampFinito(poderComAscensao);
 
         let power = poderComAscensao * (sup / 100);
-        if (isNaN(power)) power = 0;
+        power = clampFinito(power);
 
         let strVal = String(Math.floor(power));
         let digitos = strVal.length;
