@@ -157,7 +157,10 @@ describe('MarcadosPanel — calcPoderBase() lê safeGetEfetivoBase (base + buffs
 
         const { rerender } = render(<MarcadosPanel />);
         const valorDesligado = lerPoderGlobalExibido();
-        expect(valorDesligado).toBe(0);
+        // poderMultiplicado=0 (nenhum buff ativo) cai no ramo <= 0 do failsafe de
+        // ascensão: poderComAscensao = ascensaoSegura(1) * 10 + 0 = 10 — não mais 0
+        // (o antigo guard ">= 1" que colapsava para 0 foi substituído pelo failsafe).
+        expect(valorDesligado).toBe(10);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = true; });
         rerender(<MarcadosPanel />);
@@ -171,7 +174,7 @@ describe('MarcadosPanel — calcPoderBase() lê safeGetEfetivoBase (base + buffs
         mockState.updateFicha((f) => { f.poderes[0].ativa = false; });
         rerender(<MarcadosPanel />);
         const valorRevertido = lerPoderGlobalExibido();
-        expect(valorRevertido).toBe(0);
+        expect(valorRevertido).toBe(10);
         expect(valorRevertido).toBeLessThan(valorLigado);
     });
 });
@@ -208,11 +211,15 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
         expect(leitura).toBe(432000000000);
     });
 
-    it('NÃO injeta ascensão quando poderMultiplicado < 1 (magnitude negativa/fracionária permanece intocada)', () => {
-        // Poder_Base = (vida*10)/6 com vida=0.3  =>  0.5 (<1, sem injeção).
-        // Math.floor(0.5) = 0 é o valor exibido — comportamento esperado e
-        // documentado: leituras sub-1 colapsam para 0 no Scouter (mesmo
-        // "piso" de exibição usado nas demais leituras inteiras).
+    // Failsafe do log10: poderMultiplicado > 0 (mesmo fracionário, < 1) usa o ramo
+    // do logaritmo normalmente — magnitude fica negativa (ex.: floor(log10(0.5))=-1),
+    // o que apenas encolhe a potência de 10 do termo injetado, sem gerar
+    // -Infinity/NaN. Só poderMultiplicado <= 0 (nunca > 0) cai no ramo `else`.
+    it('poderMultiplicado fracionário (0 < x < 1) usa o ramo do logaritmo normalmente, com magnitude negativa', () => {
+        // Poder_Base = (vida*10)/6 com vida=0.3 => 0.5 (>0, entra no ramo do log).
+        // magnitude = floor(log10(0.5)) = -1
+        // poderComAscensao = 0.5 + ascensaoGeralEfetiva(4) * 10^(-1+1) = 0.5 + 4*1 = 4.5
+        // Math.floor(4.5) = 4.
         const ficha = fichaMinimaScouter({
             vida: { base: 0.3 },
             ascensaoBase: 4,
@@ -221,7 +228,19 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
         render(<MarcadosPanel />);
 
         const leitura = lerPoderGlobalExibido();
-        expect(leitura).toBe(0);
+        expect(leitura).toBe(4);
+    });
+
+    it('poderMultiplicado = 0 (todos os atributos zerados) usa o ramo else do failsafe: ascensaoSegura*10 + poderMultiplicado, sem tocar Math.log10', () => {
+        // Nenhum atributo com valor -> Poder_Base = 0 -> poderMultiplicado = 0 (não
+        // entra no ramo do log, que daria Math.log10(0) = -Infinity).
+        // poderComAscensao = ascensaoGeralEfetiva(4) * 10 + 0 = 40.
+        const ficha = fichaMinimaScouter({ ascensaoBase: 4 });
+        montarMockUseStoreReativo(ficha);
+        render(<MarcadosPanel />);
+
+        const leitura = lerPoderGlobalExibido();
+        expect(leitura).toBe(40);
     });
 });
 

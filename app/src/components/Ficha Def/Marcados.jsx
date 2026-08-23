@@ -100,11 +100,14 @@ function getGlobalMultipliers(ficha) {
             }
         }
 
-        // Vasculha as abas ativas e soma passivas com o mesmo nome
-        const scanCategory = (cat) => {
+        // Vasculha as abas ativas e soma passivas com o mesmo nome. `flagAtivo` e `camposTexto`
+        // são configuráveis porque nem toda categoria usa a mesma convenção de nomes de campo
+        // (ex.: ficha.ataquesElementais, escrito pelo Grimório/ElementosFormContext, usa
+        // `equipado` em vez de `ativo` e `descricao` em vez de `desc`).
+        const scanCategory = (cat, flagAtivo = 'ativo', camposTexto = ['efeitos', 'desc']) => {
             if (!ficha[cat]) return;
             Object.values(ficha[cat]).forEach(item => {
-                if (item && item.ativo && !item.deletado) {
+                if (item && item[flagAtivo] && !item.deletado) {
                     const nomeSkill = String(item.nome || 'Desconhecido').trim().toUpperCase();
                     const processText = (txt) => {
                         if (!txt) return;
@@ -114,7 +117,7 @@ function getGlobalMultipliers(ficha) {
                             const tipo = match[1].toUpperCase();
                             const val = parseFloat(match[2].replace(',', '.'));
                             if (isNaN(val)) continue;
-                            
+
                             if (tipo === 'MUNICO') {
                                 if (val > 0) unicos.push(val);
                             } else if (grupos[tipo]) {
@@ -122,12 +125,15 @@ function getGlobalMultipliers(ficha) {
                             }
                         }
                     };
-                    processText(item.efeitos);
-                    processText(item.desc);
+                    camposTexto.forEach(campo => processText(item[campo]));
                 }
             });
         };
-        ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios', 'itens'].forEach(scanCategory);
+        ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios', 'itens'].forEach(cat => scanCategory(cat));
+        // 🔥 SINCRONIZAÇÃO COM O GRIMÓRIO: ataques elementais equipados em ElementosFormContext
+        // (Grimório -> Página "Afinidades & Elementos") ficam em ficha.ataquesElementais, com
+        // `equipado` como flag de ativação e `descricao` como campo de texto — não `ativo`/`desc`.
+        scanCategory('ataquesElementais', 'equipado', ['descricao', 'efeitos', 'desc']);
 
         // 🔥 REGRA DE AGRUPAMENTO: multiplicadores do MESMO TIPO se SOMAM (1 + soma) antes
         // da multiplicação final entre categorias. Só o mUnico (abaixo) é multiplicativo entre si.
@@ -795,14 +801,18 @@ export default function MarcadosPanel() {
 
         // 🔥 Injeção de Ascensão: soma a Ascensão Geral Efetiva como a grandeza máxima (sempre uma
         // casa decimal acima do valor total), via magnitude de log10 — nunca concatenação de string.
-        // Só injeta a partir de 1 (magnitude >= 0) para não inflar leituras fracionárias (<1).
-        let poderComAscensao = poderMultiplicado;
-        if (poderMultiplicado >= 1) {
+        // Failsafe: ascensaoGeralEfetiva SEMPRE com fallback absoluto para 0 (nunca undefined/NaN
+        // vindo do banco), e ramo separado para base <= 0 — Math.log10(0) é -Infinity e
+        // Math.log10(negativo) é NaN, então esses casos NUNCA entram no ramo do logaritmo.
+        const ascensaoSegura = Number(ascensaoGeralEfetiva) || 0;
+        let poderComAscensao;
+        if (poderMultiplicado > 0) {
             const magnitude = Math.floor(Math.log10(poderMultiplicado));
-            if (isFinite(magnitude)) {
-                poderComAscensao = poderMultiplicado + (ascensaoGeralEfetiva * Math.pow(10, magnitude + 1));
-            }
+            poderComAscensao = poderMultiplicado + (ascensaoSegura * Math.pow(10, magnitude + 1));
+        } else {
+            poderComAscensao = (ascensaoSegura * 10) + poderMultiplicado;
         }
+        if (isNaN(poderComAscensao)) poderComAscensao = 0;
 
         let power = poderComAscensao * (sup / 100);
         if (isNaN(power)) power = 0;
@@ -831,6 +841,7 @@ export default function MarcadosPanel() {
         minhaFicha?.poderes,
         minhaFicha?.inventario,
         minhaFicha?.seresSelados,
+        minhaFicha?.ataquesElementais,
         minhaFicha?.supressaoPoder,
         minhaFicha?.limiteSupressao,
         ascensaoGeralEfetiva,
