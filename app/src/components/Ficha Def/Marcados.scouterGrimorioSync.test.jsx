@@ -218,8 +218,9 @@ describe('MarcadosPanel — Failsafe de log10 (poderComAscensao): poderMultiplic
     // prestigioBruto negativo/nulo em Vida não muda ascensaoGeralEfetiva em relação ao
     // cenário de referência com vida=0 (ascensaoBase=4, sem overflow) já coberto em
     // Marcados.scouterFormulaAscensao.test.jsx, que também vale aqui: ascensaoGeralEfetiva=4.
-    //   poderMultiplicado = -10 (<= 0) -> ramo else:
-    //   poderComAscensao = ascensaoSegura(4)*10 + (-10) = 40 - 10 = 30
+    // Ascensão agora também multiplica o Poder Base (mesmo negativo):
+    //   multiplicadorAscensao = 1+4 = 5 -> poderMultiplicado = -10*5 = -50 (<= 0) -> ramo else:
+    //   poderComAscensao = ascensaoSegura(4)*10 + (-50) = 40 - 50 = -10
     it('poderMultiplicado negativo usa o ramo else do failsafe (ascensaoSegura*10 + poderMultiplicado), sem tocar Math.log10 e sem gerar NaN na leitura', () => {
         const ficha = fichaBaseScouter({
             vida: { base: -6 },
@@ -243,6 +244,6 @@ describe('MarcadosPanel — Failsafe de log10 (poderComAscensao): poderMultiplic
         const leitura = lerPoderGlobalExibido();
         expect(leitura).not.toBeNaN();
         expect(Number.isFinite(leitura)).toBe(true);
-        expect(leitura).toBe(30);
+        expect(leitura).toBe(-10);
     });
 });

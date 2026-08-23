@@ -104,17 +104,22 @@ describe('MarcadosPanel — regressão: buff mformas tageado num eixo específic
     });
 
     // Poder_Base = (vida*10)/6 = (600*10)/6 = 1000 (todo o resto zerado).
+    // ascensaoGeralEfetiva = 1 (ascensaoBase padrão=1, sem overflow), então
+    // multiplicadorAscensao = 1+1 = 2 (Ascensão como multiplicador real do
+    // Poder Base — ver poderGlobal em Marcados.jsx).
+    //
     // Com o poder DESLIGADO (ativa: false): glob.finalF = 1 (nenhum buff
     // aplicado, já que getBuffs só processa `efeitos` de poderes com
-    // `ativa: true`), então poderMultiplicado = 1000. magnitude =
-    // floor(log10(1000)) = 3, poderComAscensao = 1000 + 1*10^4 = 11000.
+    // `ativa: true`), então poderMultiplicado = 1000*2 = 2000. magnitude =
+    // floor(log10(2000)) = 3, poderComAscensao = 2000 + 1*10^4 = 12000.
     //
     // Com o poder LIGADO: getEfetivoMFormas(ficha, 'vida') passa a enxergar
     // o buff mformas tageado em atributo:'vida' (v padrão 1.0 + buff 2 = 2),
     // então grupos.MFORMAS.Eixo_vida = (2-1) = 1 -> glob.finalF = 1+1 = 2.
-    // poderMultiplicado = 1000*2 = 2000, poderComAscensao = 2000 + 10000 =
-    // 12000 — ANTES do fix, esse buff (atributo:'vida', não 'forca'/'geral')
-    // era completamente ignorado pelo Scouter e a leitura JAMAIS mudaria.
+    // poderMultiplicado = 1000*2(ascensão)*2(finalF) = 4000, magnitude = 3,
+    // poderComAscensao = 4000 + 10000 = 14000 — ANTES do fix, esse buff
+    // (atributo:'vida', não 'forca'/'geral') era completamente ignorado pelo
+    // Scouter e a leitura JAMAIS mudaria.
     it('ativar uma Forma via poderes[] com efeito atributo:"vida"/propriedade:"mformas" AUMENTA a leitura do Scouter; desativar REVERTE', () => {
         const ficha = fichaMinimaScouter({
             vida: { base: 600 },
@@ -124,18 +129,18 @@ describe('MarcadosPanel — regressão: buff mformas tageado num eixo específic
 
         const { rerender } = render(<MarcadosPanel />);
         const valorDesligado = lerPoderGlobalExibido();
-        expect(valorDesligado).toBe(11000);
+        expect(valorDesligado).toBe(12000);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = true; });
         rerender(<MarcadosPanel />);
         const valorLigado = lerPoderGlobalExibido();
-        expect(valorLigado).toBe(12000);
+        expect(valorLigado).toBe(14000);
         expect(valorLigado).toBeGreaterThan(valorDesligado);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = false; });
         rerender(<MarcadosPanel />);
         const valorRevertido = lerPoderGlobalExibido();
-        expect(valorRevertido).toBe(11000);
+        expect(valorRevertido).toBe(12000);
         expect(valorRevertido).toBeLessThan(valorLigado);
     });
 });
@@ -159,7 +164,8 @@ describe('MarcadosPanel — cobertura multi-eixo: o fix não é específico de "
     // Poder_Base = (statusEfetivo*100)/6, com statusEfetivo = somaStatus/8 e
     // apenas forca.base=480 setado (demais 7 atributos físicos = 0):
     //   statusEfetivo = 480/8 = 60  =>  Poder_Base = (60*100)/6 = 1000
-    // (mesmo Poder_Base do teste do eixo vida acima, por simetria).
+    // (mesmo Poder_Base do teste do eixo vida acima, por simetria — mesma
+    // conta de multiplicadorAscensao=2 e valores finais).
     it('ativar uma Forma via poderes[] com efeito atributo:"forca"/propriedade:"mformas" AUMENTA a leitura do Scouter (eixo status); desativar REVERTE', () => {
         const ficha = fichaMinimaScouter({
             forca: { base: 480 },
@@ -169,18 +175,18 @@ describe('MarcadosPanel — cobertura multi-eixo: o fix não é específico de "
 
         const { rerender } = render(<MarcadosPanel />);
         const valorDesligado = lerPoderGlobalExibido();
-        expect(valorDesligado).toBe(11000);
+        expect(valorDesligado).toBe(12000);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = true; });
         rerender(<MarcadosPanel />);
         const valorLigado = lerPoderGlobalExibido();
-        expect(valorLigado).toBe(12000);
+        expect(valorLigado).toBe(14000);
         expect(valorLigado).toBeGreaterThan(valorDesligado);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = false; });
         rerender(<MarcadosPanel />);
         const valorRevertido = lerPoderGlobalExibido();
-        expect(valorRevertido).toBe(11000);
+        expect(valorRevertido).toBe(12000);
         expect(valorRevertido).toBeLessThan(valorLigado);
     });
 });
@@ -227,10 +233,11 @@ describe('MarcadosPanel — sem dupla contagem entre o campo estático mFormas e
         const leituraBuff = lerPoderGlobalExibido();
 
         // Poder_Base = 1000 (só vida=600), glob.finalF = 1 + (3-1) = 3 nas
-        // duas rotas -> poderMultiplicado = 3000 -> magnitude = 3 ->
-        // poderComAscensao = 3000 + 1*10^4 = 13000.
-        expect(leituraEstatica).toBe(13000);
-        expect(leituraBuff).toBe(13000);
+        // duas rotas. multiplicadorAscensao = 1+1 = 2 (ascensaoGeralEfetiva
+        // padrão=1) -> poderMultiplicado = 1000*2*3 = 6000 -> magnitude = 3 ->
+        // poderComAscensao = 6000 + 1*10^4 = 16000.
+        expect(leituraEstatica).toBe(16000);
+        expect(leituraBuff).toBe(16000);
         expect(leituraEstatica).toBe(leituraBuff);
     });
 });

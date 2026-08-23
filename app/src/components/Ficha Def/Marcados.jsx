@@ -807,15 +807,28 @@ export default function MarcadosPanel() {
         const poderBase = calcPoderBase();
         const glob = getGlobalMultipliers(minhaFicha);
 
-        let poderMultiplicado = poderBase * glob.finalF * glob.totalDano;
+        // 🔥 Failsafe: ascensaoGeralEfetiva SEMPRE com fallback absoluto para 0 (nunca undefined/NaN
+        // vindo do banco) — calculado aqui porque agora também alimenta o multiplicador real abaixo.
+        const ascensaoSegura = Number(ascensaoGeralEfetiva) || 0;
+
+        // 🔥 Ascensão como MULTIPLICADOR REAL do Poder Base: antes, a Ascensão só entrava no final via
+        // injeção de log10 (uma "casa decimal a mais"), que nunca conseguia compensar uma diferença
+        // grande nos valores crus dos atributos entre dois personagens — um personagem com Ascensão 4
+        // mas atributos baixos podia mostrar Poder MENOR que outro com Ascensão 1 e atributos altos.
+        // Agora a Ascensão Geral Efetiva multiplica o Poder Base diretamente, então mais Ascensão
+        // sempre significa mais Poder, proporcionalmente — não só "mais um dígito" no final.
+        // Math.max(0, ...) impede que uma Ascensão Base/Multiplicador negativo digitado por engano
+        // vire um multiplicador negativo e inverta o sinal de todo o cálculo do Scouter.
+        const multiplicadorAscensao = 1 + Math.max(0, ascensaoSegura);
+
+        let poderMultiplicado = poderBase * multiplicadorAscensao * glob.finalF * glob.totalDano;
         if (isNaN(poderMultiplicado)) poderMultiplicado = 0;
 
         // 🔥 Injeção de Ascensão: soma a Ascensão Geral Efetiva como a grandeza máxima (sempre uma
         // casa decimal acima do valor total), via magnitude de log10 — nunca concatenação de string.
-        // Failsafe: ascensaoGeralEfetiva SEMPRE com fallback absoluto para 0 (nunca undefined/NaN
-        // vindo do banco), e ramo separado para base <= 0 — Math.log10(0) é -Infinity e
-        // Math.log10(negativo) é NaN, então esses casos NUNCA entram no ramo do logaritmo.
-        const ascensaoSegura = Number(ascensaoGeralEfetiva) || 0;
+        // Continua como um "flourish" visual por cima do multiplicador acima, não mais a única fonte
+        // de Ascensão no Scouter. Failsafe: ramo separado para base <= 0 — Math.log10(0) é -Infinity
+        // e Math.log10(negativo) é NaN, então esses casos NUNCA entram no ramo do logaritmo.
         let poderComAscensao;
         if (poderMultiplicado > 0) {
             const magnitude = Math.floor(Math.log10(poderMultiplicado));
