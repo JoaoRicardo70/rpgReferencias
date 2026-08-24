@@ -36,6 +36,38 @@ export function pegarDoisPrimeirosDigitos(v) {
     return parseInt(str.substring(0, 2));
 }
 
+// 🔥 MIGRAÇÃO: converte itens legados de ficha.passivas[] (escritos pela extinta aba
+// "Ficha Narrativa" — ver NarrativaFormContext.jsx) para o formato de ficha.poderes[]
+// usado pela aba Habilidades/Formas/Poderes do Grimório atual. Sem essa migração, esses
+// itens continuam sendo computados no cálculo (attributes.js ainda lê ficha.passivas),
+// mas ficam presos sem nenhuma UI de edição, já que a aba que os criava foi removida.
+export function migrarPassivasParaPoderes(passivas) {
+    if (!Array.isArray(passivas) || passivas.length === 0) return [];
+    // 🔥 id inclui um sufixo aleatório (além de Date.now()+índice) para não colidir
+    // caso a migração rode mais de uma vez dentro do mesmo milissegundo (ex: duas
+    // chamadas de carregarDadosFicha em sequência rápida antes do persist-back salvar
+    // a ficha já migrada e limpar ficha.passivas).
+    return passivas.map((p, i) => ({
+        id: `legado_passiva_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`,
+        nome: p?.nome || 'Habilidade sem nome',
+        descricao: '',
+        vertente: '',
+        elemento: '',
+        elementosAfetados: '',
+        categoria: 'habilidade',
+        ativa: false,
+        efeitos: [],
+        efeitosPassivos: Array.isArray(p?.efeitos) ? p.efeitos : [],
+        imagemUrl: '',
+        dadosQtd: 0,
+        dadosFaces: 20,
+        custoPercentual: 0,
+        alcance: 1,
+        area: 0,
+        armaVinculada: ''
+    }));
+}
+
 export function isFisico(s) {
     return ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaesp', 'carisma', 'stamina', 'constituicao'].includes(s.toLowerCase());
 }

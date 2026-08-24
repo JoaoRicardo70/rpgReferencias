@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import useStore from '../stores/useStore';
 import { db } from '../services/firebase-config';
-import { carregarFichaDoFirebase, iniciarListenerPersonagens, iniciarListenerFeed } from '../services/firebase-sync';
+import { carregarFichaDoFirebase, iniciarListenerPersonagens, iniciarListenerFeed, salvarFirebaseImediato } from '../services/firebase-sync';
 
 export default function useFirebase() {
     const [loading, setLoading] = useState(true);
@@ -25,7 +25,14 @@ export default function useFirebase() {
             if (meuNome && db) {
                 try {
                     const dados = await carregarFichaDoFirebase(meuNome);
-                    if (!cancelled && dados) carregarDadosFicha(dados);
+                    if (!cancelled && dados) {
+                        carregarDadosFicha(dados);
+                        // 🔥 Persiste imediatamente a migração de ficha.passivas -> ficha.poderes
+                        // (ver migrarPassivasParaPoderes), para não repeti-la a cada recarregamento.
+                        if (Array.isArray(dados.passivas) && dados.passivas.length > 0) {
+                            salvarFirebaseImediato().catch(() => {});
+                        }
+                    }
                 } catch (err) { console.error('[useFirebase] Erro:', err); }
             }
 

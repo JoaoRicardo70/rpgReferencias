@@ -106,6 +106,12 @@ export function PerfilFormProvider({ children }) {
             }
         }
 
+        // 🔥 Persiste imediatamente a migração de ficha.passivas -> ficha.poderes
+        // (ver migrarPassivasParaPoderes em core/utils.js), para não repeti-la a cada troca de personagem.
+        if (dadosFinais && Array.isArray(dadosFinais.passivas) && dadosFinais.passivas.length > 0) {
+            precisaSalvarCarimbo = true;
+        }
+
         if (dadosFinais) {
             carregarDadosFicha(dadosFinais);
             localStorage.setItem('rpgFicha_' + n, JSON.stringify(dadosFinais));

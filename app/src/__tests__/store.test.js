@@ -299,6 +299,73 @@ describe('useStore actions', () => {
             expect(useStore.getState().minhaFicha.poderes).toEqual([]);
         });
 
+        it('migra ficha.passivas legadas para ficha.poderes (categoria habilidade) e limpa ficha.passivas', () => {
+            const passivas = [{ nome: 'Instinto Superior', tipo: 'Habilidade', efeitos: [
+                { nome: 'Bonus', atributo: 'dano', propriedade: 'mgeral', valor: 50 },
+            ] }];
+            useStore.getState().carregarDadosFicha({ poderes: [{ nome: 'Angra', ativa: true }], passivas });
+
+            const { poderes, passivas: passivasRestantes } = useStore.getState().minhaFicha;
+            expect(passivasRestantes).toEqual([]);
+            expect(poderes).toHaveLength(2);
+            expect(poderes[0].nome).toBe('Angra');
+            const migrado = poderes.find(p => p.nome === 'Instinto Superior');
+            expect(migrado).toBeDefined();
+            expect(migrado.categoria).toBe('habilidade');
+            expect(migrado.efeitosPassivos).toEqual(passivas[0].efeitos);
+        });
+
+        it('sem ficha.passivas, carregarDadosFicha nao adiciona nada extra a poderes', () => {
+            const poderes = [{ nome: 'Bankai', ativa: false, efeitos: [] }];
+            useStore.getState().carregarDadosFicha({ poderes });
+            expect(useStore.getState().minhaFicha.poderes).toEqual(poderes);
+            expect(useStore.getState().minhaFicha.passivas).toEqual([]);
+        });
+
+        it('mantem poder nativo e passiva migrada como entradas separadas mesmo com nomes colidindo', () => {
+            const poderes = [{ id: 1, nome: 'Instinto Superior', ativa: true, efeitos: [] }];
+            const passivas = [{ nome: 'Instinto Superior', efeitos: [{ nome: 'Bonus', atributo: 'dano', propriedade: 'mgeral', valor: 10 }] }];
+            useStore.getState().carregarDadosFicha({ poderes, passivas });
+
+            const { poderes: resultado } = useStore.getState().minhaFicha;
+            expect(resultado).toHaveLength(2);
+            const nativo = resultado.find(p => p.id === 1);
+            const migrado = resultado.find(p => p.id !== 1);
+            expect(nativo).toBeDefined();
+            expect(migrado).toBeDefined();
+            expect(nativo.nome).toBe('Instinto Superior');
+            expect(migrado.nome).toBe('Instinto Superior');
+            // ids de tipos diferentes (numero do nativo vs string legado) nao colidem em ===
+            expect(nativo.id === migrado.id).toBe(false);
+            expect(typeof nativo.id).toBe('number');
+            expect(typeof migrado.id).toBe('string');
+        });
+
+        it('chamar carregarDadosFicha duas vezes com o mesmo objeto dados NAO duplica poderes (poderes e sempre recalculado do zero a partir de dados, nao acumulado)', () => {
+            // carregarDadosFicha faz `state.minhaFicha.poderes = [...(dados.poderes||[]), ...migrado]`
+            // — ou seja, SUBSTITUI ficha.poderes inteiramente a cada chamada, em vez de
+            // concatenar com o que já está no state. Por isso, chamar a função de novo com o
+            // MESMO objeto `dados` (mesmo `dados.passivas` ainda não-vazio) não faz a lista
+            // crescer: o resultado de cada chamada é sempre `dados.poderes` + uma migração
+            // fresca de `dados.passivas`, descartando o que veio da chamada anterior.
+            // O persist-back (salvarFirebaseImediato/precisaSalvarCarimbo) não existe para
+            // evitar duplicação dentro da mesma sessão — ele existe para gravar a migração de
+            // volta no Firebase, para que o PRÓXIMO carregamento (com `dados` vindo fresco do
+            // Firebase) já receba `dados.passivas` vazio e não precise migrar de novo.
+            const dados = { poderes: [], passivas: [{ nome: 'Instinto Superior', efeitos: [] }] };
+            useStore.getState().carregarDadosFicha(dados);
+            const idAposPrimeiraChamada = useStore.getState().minhaFicha.poderes.find(p => p.nome === 'Instinto Superior').id;
+
+            useStore.getState().carregarDadosFicha(dados);
+
+            const { poderes } = useStore.getState().minhaFicha;
+            const migrados = poderes.filter(p => p.nome === 'Instinto Superior');
+            expect(migrados).toHaveLength(1);
+            // o id muda a cada chamada (nova migração gerada), mas isso é inofensivo pois
+            // não há acumulo de entradas duplicadas
+            expect(migrados[0].id).not.toBe(idAposPrimeiraChamada);
+        });
+
         it('merges divisores with defaults', () => {
             useStore.getState().carregarDadosFicha({ divisores: { vida: 10 } });
             expect(useStore.getState().minhaFicha.divisores.vida).toBe(10);

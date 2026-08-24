@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
+import { migrarPassivasParaPoderes } from '../core/utils.js';
 
 export const fichaPadrao = {
     donoDaFicha: "", // 🔥 O CARIMBO DE PROPRIEDADE NA NUVEM 🔥
@@ -143,9 +144,12 @@ const useStore = create(
             if (dados.notas) state.minhaFicha.notas = Object.assign({}, fichaPadrao.notas, dados.notas);
             if (dados.posicao) state.minhaFicha.posicao = Object.assign({}, fichaPadrao.posicao, dados.posicao);
             state.minhaFicha.inventario = dados.inventario || [];
-            state.minhaFicha.poderes = dados.poderes || [];
+            // 🔥 MIGRAÇÃO: itens legados em dados.passivas (extinta aba "Ficha Narrativa")
+            // viram entradas normais de Habilidade em ficha.poderes, para poderem ser
+            // vistos/editados de novo — ver migrarPassivasParaPoderes em core/utils.js.
+            state.minhaFicha.poderes = [...(dados.poderes || []), ...migrarPassivasParaPoderes(dados.passivas)];
             state.minhaFicha.ataquesElementais = dados.ataquesElementais || [];
-            state.minhaFicha.passivas = dados.passivas || [];
+            state.minhaFicha.passivas = [];
             state.minhaFicha.seresSelados = dados.seresSelados || []; 
             if (dados.hierarquia != null) state.minhaFicha.hierarquia = Object.assign({}, fichaPadrao.hierarquia, dados.hierarquia);
             if (dados.cores !== undefined) state.minhaFicha.cores = Object.assign({}, fichaPadrao.cores, dados.cores || {});

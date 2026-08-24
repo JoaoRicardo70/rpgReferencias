@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { contarDigitos, tratarUnico, pegarDoisPrimeirosDigitos, isFisico, isEnergia } from '../core/utils.js';
+import { contarDigitos, tratarUnico, pegarDoisPrimeirosDigitos, isFisico, isEnergia, migrarPassivasParaPoderes } from '../core/utils.js';
 
 // ==========================================
 // contarDigitos
@@ -139,5 +139,65 @@ describe('isEnergia', () => {
     it('returns false for vida and unknown', () => {
         expect(isEnergia('vida')).toBe(false);
         expect(isEnergia('xyz')).toBe(false);
+    });
+});
+
+// ==========================================
+// migrarPassivasParaPoderes
+// ==========================================
+describe('migrarPassivasParaPoderes', () => {
+    it('retorna array vazio para entrada vazia, nula ou nao-array', () => {
+        expect(migrarPassivasParaPoderes([])).toEqual([]);
+        expect(migrarPassivasParaPoderes(null)).toEqual([]);
+        expect(migrarPassivasParaPoderes(undefined)).toEqual([]);
+        expect(migrarPassivasParaPoderes('nao e array')).toEqual([]);
+    });
+
+    it('converte uma passiva legada num poder categoria "habilidade", inativo, com os efeitos em efeitosPassivos', () => {
+        const passivas = [{ nome: 'Instinto Superior', tipo: 'Habilidade', efeitos: [
+            { nome: 'Bonus Dano', atributo: 'dano', propriedade: 'mgeral', valor: 50 },
+            { nome: 'Bonus Status', atributo: 'todos_status', propriedade: 'mgeral', valor: 40 },
+        ] }];
+
+        const [migrado] = migrarPassivasParaPoderes(passivas);
+
+        expect(migrado.nome).toBe('Instinto Superior');
+        expect(migrado.categoria).toBe('habilidade');
+        expect(migrado.ativa).toBe(false);
+        expect(migrado.efeitos).toEqual([]);
+        expect(migrado.efeitosPassivos).toEqual(passivas[0].efeitos);
+        expect(typeof migrado.id).toBe('string');
+        expect(migrado.id.length).toBeGreaterThan(0);
+    });
+
+    it('gera um id unico para cada item migrado, mesmo com nomes repetidos', () => {
+        const passivas = [{ nome: 'A', efeitos: [] }, { nome: 'A', efeitos: [] }];
+        const [a, b] = migrarPassivasParaPoderes(passivas);
+        expect(a.id).not.toBe(b.id);
+    });
+
+    it('trata item sem nome ou sem efeitos sem lancar erro', () => {
+        const [migrado] = migrarPassivasParaPoderes([{}]);
+        expect(migrado.nome).toBe('Habilidade sem nome');
+        expect(migrado.efeitosPassivos).toEqual([]);
+    });
+
+    it('trata efeitos malformados (nao-array) como efeitosPassivos vazio, sem lancar erro', () => {
+        expect(migrarPassivasParaPoderes([{ nome: 'X', efeitos: 'nao e array' }])[0].efeitosPassivos).toEqual([]);
+        expect(migrarPassivasParaPoderes([{ nome: 'Y', efeitos: { a: 1 } }])[0].efeitosPassivos).toEqual([]);
+        expect(migrarPassivasParaPoderes([{ nome: 'Z', efeitos: null }])[0].efeitosPassivos).toEqual([]);
+    });
+
+    it('gera ids que nao colidem mesmo entre chamadas separadas no mesmo milissegundo', () => {
+        // Regressao: o id antigo era só `legado_passiva_${Date.now()}_${i}`, que colide
+        // se a função for chamada duas vezes com o mesmo índice dentro do mesmo ms
+        // (ex: duas execuções de carregarDadosFicha em sequência rápida, antes do
+        // persist-back salvar a ficha migrada e esvaziar ficha.passivas).
+        const passivas = [{ nome: 'A', efeitos: [] }];
+        const idsGerados = new Set();
+        for (let i = 0; i < 200; i++) {
+            idsGerados.add(migrarPassivasParaPoderes(passivas)[0].id);
+        }
+        expect(idsGerados.size).toBe(200);
     });
 });

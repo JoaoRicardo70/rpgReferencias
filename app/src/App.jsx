@@ -36,11 +36,11 @@ import AuthScreen from './components/auth/AuthScreen';
 import LobbyNeon from './components/lobby/LobbyNeon';
 import TelaLoading from './components/layout/TelaLoading';
 
-import { 
+import {
     carregarFichaDoFirebase, iniciarListenerDummies,
     iniciarListenerCenario, monitorarAuth,
     iniciarSistemaDePresenca, iniciarListenerPresenca, removerPresencaImediata,
-    iniciarListenerMestres
+    iniciarListenerMestres, salvarFirebaseImediato
 } from './services/firebase-sync';
 
 // 🔥 CRIANDO O CONTEXTO GLOBAL DA VOZ 🔥
@@ -203,7 +203,14 @@ export default function App() {
         setPronto(true);
         try {
             const dados = await carregarFichaDoFirebase(nomeSanitizado);
-            if (dados && Object.keys(dados).length > 2) carregarDadosFicha(dados);
+            if (dados && Object.keys(dados).length > 2) {
+                carregarDadosFicha(dados);
+                // 🔥 Persiste imediatamente a migração de ficha.passivas -> ficha.poderes
+                // (ver migrarPassivasParaPoderes), para não repeti-la a cada login.
+                if (Array.isArray(dados.passivas) && dados.passivas.length > 0) {
+                    salvarFirebaseImediato().catch(() => {});
+                }
+            }
         } catch (e) { console.warn('Falha Firebase:', e); }
     };
 
