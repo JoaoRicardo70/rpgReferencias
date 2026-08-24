@@ -341,26 +341,30 @@ describe('MarcadosPanel — multiplicadorAscensao compõe multiplicativamente co
 
     // Ficha com vida=600.000 (Poder_Base=1e6), ascensaoBase=3 (sem overflow:
     // vida=600.000 < divisor 1e6 -> prestígio bruto=0 -> ascensaoGeralEfetiva
-    // = 3 exato), forma ativa em Vida (vida.mFormas=2, estático — soma
-    // (2-1)=1 ao grupo MFORMAS -> glob.finalF=1+1=2) e um buff MGERAL:+5 via
-    // poderes[] ativo (-> glob.finalG=1+5=6 -> glob.totalDano=6, já que
-    // finalB=finalA=finalUni=1 sem mais nenhuma fonte).
+    // = 3 exato), forma ativa em Vida (vida.mFormas=2, campo ESTÁTICO, fora
+    // do Grimório — soma (2-1)=1 ao grupo MFORMAS -> glob.finalF=1+1=2). O
+    // buff MGERAL:+5 vem de ficha.poderes (Grimório), que agora é IGNORADO
+    // pelo cálculo do Scouter (ver Marcados.scouterFormaReatividade.test.jsx)
+    // -> glob.totalDano fica em 1 (finalB=finalG=finalA=finalUni=1, sem mais
+    // nenhuma fonte).
     //   multiplicadorAscensao = 2^3 = 8
-    //   poderMultiplicado = 1e6 * 8 * 2 * 6 = 96.000.000
-    //   magnitude = floor(log10(96.000.000)) = 7
-    //   poderComAscensao = 96.000.000 + 3*10^8 = 396.000.000
+    //   poderMultiplicado = 1e6 * 8 * 2 * 1 = 16.000.000
+    //   magnitude = floor(log10(16.000.000)) = 7
+    //   poderComAscensao = 16.000.000 + 3*10^8 = 316.000.000
     //
     // Comparado com a MESMA ficha mas ascensaoBase=1 (multiplicadorAscensao=2^1=2,
-    // 1/4 do valor acima), com Forma e mgeral inalterados:
-    //   poderMultiplicado_baseline = 1e6 * 2 * 2 * 6 = 24.000.000
-    //   magnitude_baseline = floor(log10(24.000.000)) = 7
-    //   poderComAscensao_baseline = 24.000.000 + 1*10^8 = 124.000.000
-    // poderMultiplicado escalou EXATAMENTE por 96.000.000/24.000.000=4, a
+    // 1/4 do valor acima), com a Forma estática inalterada:
+    //   poderMultiplicado_baseline = 1e6 * 2 * 2 * 1 = 4.000.000
+    //   magnitude_baseline = floor(log10(4.000.000)) = 6
+    //   poderComAscensao_baseline = 4.000.000 + 1*10^7 = 14.000.000
+    // poderMultiplicado escalou EXATAMENTE por 16.000.000/4.000.000=4, a
     // mesma razão de multiplicadorAscensao (2^3/2^1=4) — prova que o
-    // multiplicador de Ascensão se combina multiplicativamente com finalF e
-    // totalDano (que ficaram fixos em 2 e 6 nos dois casos), em vez de
-    // interferir ou ser sobrescrito por eles.
-    it('combina Ascensão (multiplicadorAscensao=8) com Forma ativa (finalF=2) e buff MGERAL:+5 (totalDano=6): leitura exata 396.000.000, escalando 4x sobre o baseline com ascensaoBase=1 (124.000.000)', () => {
+    // multiplicador de Ascensão se combina multiplicativamente com finalF
+    // (que ficou fixo em 2 nos dois casos), em vez de interferir ou ser
+    // sobrescrito por ele. O buff MGERAL do Grimório fica de fora da conta
+    // nos dois casos (totalDano=1), confirmando a exclusão do Grimório do
+    // cálculo do Scouter.
+    it('combina Ascensão (multiplicadorAscensao=8) com Forma estática ativa (finalF=2); o buff MGERAL:+5 do Grimório é ignorado: leitura exata 316.000.000, escalando 4x sobre o baseline com ascensaoBase=1 (14.000.000)', () => {
         const fichaBase = () => fichaMinimaScouter({
             vida: { base: 600000, mFormas: 2 },
             poderes: [{ nome: 'Buff Geral', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'mgeral', valor: 5 }] }],
@@ -375,8 +379,8 @@ describe('MarcadosPanel — multiplicadorAscensao compõe multiplicativamente co
         render(<MarcadosPanel />);
         const leituraCombinada = lerPoderGlobalExibido();
 
-        expect(leituraBaseline).toBe(124000000);
-        expect(leituraCombinada).toBe(396000000);
+        expect(leituraBaseline).toBe(14000000);
+        expect(leituraCombinada).toBe(316000000);
         expect(leituraCombinada).toBeGreaterThan(leituraBaseline);
     });
 });

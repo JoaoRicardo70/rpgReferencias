@@ -105,7 +105,12 @@ describe('MarcadosPanel — Scouter Holográfico (poderGlobal) reage em TEMPO RE
         cleanup();
     });
 
-    it('poderes[].efeitos: ligar ativa=true AUMENTA o Scouter (efeitos só contam quando ativa)', () => {
+    // 🔥 Mudança de comportamento intencional: o Grimório (ficha.poderes — Habilidades/
+    // Formas/Poderes) foi excluído do cálculo do Poder do Scouter (ver
+    // Marcados.scouterGrimorioSync.test.jsx) — ele continua alterando Status/Energias/
+    // Vida normalmente no resto da Ficha, só não move mais esta leitura. Ligar/desligar
+    // um efeito estruturado de poderes[] agora NÃO altera mais o Scouter.
+    it('poderes[].efeitos: ligar ativa=true NÃO altera mais o Scouter (Grimório excluído do cálculo)', () => {
         const ficha = fichaBaseScouter({
             poderes: [{ nome: 'Explosão de Ki', ativa: false, efeitos: [{ atributo: 'geral', propriedade: 'mgeral', valor: 8 }] }],
         });
@@ -118,10 +123,10 @@ describe('MarcadosPanel — Scouter Holográfico (poderGlobal) reage em TEMPO RE
         rerender(<MarcadosPanel />);
         const valorLigado = lerPoderGlobalExibido();
 
-        expect(valorLigado).toBeGreaterThan(valorDesligado);
+        expect(valorLigado).toBe(valorDesligado);
     });
 
-    it('poderes[].efeitos: desligar ativa=false DIMINUI o Scouter (inverso do teste anterior)', () => {
+    it('poderes[].efeitos: desligar ativa=false também NÃO altera o Scouter (inverso do teste anterior)', () => {
         const ficha = fichaBaseScouter({
             poderes: [{ nome: 'Explosão de Ki', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'mgeral', valor: 8 }] }],
         });
@@ -134,7 +139,7 @@ describe('MarcadosPanel — Scouter Holográfico (poderGlobal) reage em TEMPO RE
         rerender(<MarcadosPanel />);
         const valorDesligado = lerPoderGlobalExibido();
 
-        expect(valorDesligado).toBeLessThan(valorLigado);
+        expect(valorDesligado).toBe(valorLigado);
     });
 
     it('inventario[].equipado: equipar o item AUMENTA o Scouter (efeitos só contam quando equipado)', () => {
@@ -201,7 +206,12 @@ describe('MarcadosPanel — Scouter Holográfico (poderGlobal) reage em TEMPO RE
         expect(valorInativo).toBeLessThan(valorAtivo);
     });
 
-    it('poderes[].efeitosPassivos: contam SEMPRE, com ativa=true ou ativa=false o Scouter mostra o MESMO número (passivas são incondicionais)', () => {
+    // 🔥 getBuffs() ainda trata efeitosPassivos de poderes[] como incondicionais (contam
+    // com ativa=true ou ativa=false) para o resto da Ficha (Status/Energias/Vida) — mas
+    // o Grimório inteiro (ativos E passivos) foi excluído do cálculo do Poder do Scouter,
+    // então essa incondicionalidade deixou de ser observável NESTA leitura: o valor fica
+    // preso no mesmo baseline sem buff nos dois estados.
+    it('poderes[].efeitosPassivos: com o Grimório excluído do Scouter, ativa=true ou ativa=false mostram o MESMO número do baseline sem nenhum poder', () => {
         const passivo = [{ atributo: 'geral', propriedade: 'mgeral', valor: 8 }];
 
         const fichaDesligada = fichaBaseScouter({
@@ -220,18 +230,15 @@ describe('MarcadosPanel — Scouter Holográfico (poderGlobal) reage em TEMPO RE
         const valorComAtivaTrue = lerPoderGlobalExibido();
 
         expect(valorComAtivaTrue).toBe(valorComAtivaFalse);
-        // Confere que o passivo realmente teve efeito (não é só "os dois deram 0 por acaso"):
-        // comparado com uma ficha idêntica mas SEM nenhum poder, ambos os casos acima devem
-        // estar acima do baseline sem buff — provando que efeitosPassivos entrou no cálculo
-        // independentemente do valor de ativa.
+
         const fichaSemPoder = fichaBaseScouter({ poderes: [] });
         montarMockUseStoreReativo(fichaSemPoder);
         cleanup();
         render(<MarcadosPanel />);
         const valorBaseline = lerPoderGlobalExibido();
 
-        expect(valorComAtivaTrue).toBeGreaterThan(valorBaseline);
-        expect(valorComAtivaFalse).toBeGreaterThan(valorBaseline);
+        expect(valorComAtivaTrue).toBe(valorBaseline);
+        expect(valorComAtivaFalse).toBe(valorBaseline);
     });
 
     it('reatividade real: o useMemo recalcula via re-render normal do React com uma nova referência de ficha (simulando o Immer), não via chamada manual de função interna', () => {
@@ -247,10 +254,12 @@ describe('MarcadosPanel — Scouter Holográfico (poderGlobal) reage em TEMPO RE
         const { rerender } = render(<MarcadosPanel />);
         const valorInicial = lerPoderGlobalExibido();
 
+        // O Grimório (poderes[]) foi excluído do cálculo do Scouter — ativar este poder
+        // não move mais a leitura (ver describe "reage em TEMPO REAL" acima).
         mockState.updateFicha((f) => { f.poderes[0].ativa = true; });
         rerender(<MarcadosPanel />);
         const valorAposPoder = lerPoderGlobalExibido();
-        expect(valorAposPoder).toBeGreaterThan(valorInicial);
+        expect(valorAposPoder).toBe(valorInicial);
 
         mockState.updateFicha((f) => { f.inventario[0].equipado = true; });
         rerender(<MarcadosPanel />);

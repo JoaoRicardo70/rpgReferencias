@@ -156,7 +156,15 @@ describe('MarcadosPanel — Sincronização Grimório -> Scouter: ficha.ataquesE
         expect(comDuasEntradas).toBe(comUmaEntradaSomada);
     });
 
-    it('uma entrada equipada de ataquesElementais (MBASE: +5) combinada com um poder ativo estruturado (mgeral: +8) soma corretamente nos totais compartilhados de getGlobalMultipliers', () => {
+    // 🔥 Mudança de comportamento intencional: getGlobalMultipliers() agora ignora
+    // qualquer efeito estruturado vindo de ficha.poderes (Grimório — Habilidades/
+    // Formas/Poderes), inclusive os com atributo:'geral'/'dano'. Só o texto livre
+    // (MBASE:/MGERAL:/etc) das categorias legadas (passivas/habilidades/
+    // transformacoes/magias/relicarios/itens/ataquesElementais) continua somando
+    // nos totais compartilhados — o Grimório usa agora o campo dedicado
+    // "PODER (Direto)" (atributo:'poder_direto') para afetar o Scouter.
+    it('um poder ativo estruturado (mgeral: +8) do Grimório NÃO soma mais nos totais globais; ataquesElementais (MBASE: +5) continua somando normalmente', () => {
+        const semNenhumBuff = renderELerPoderGlobal({});
         const apenasAtaque = renderELerPoderGlobal({
             ataquesElementais: [{ nome: 'Ataque MBASE', equipado: true, descricao: 'MBASE: +5' }],
         });
@@ -167,20 +175,14 @@ describe('MarcadosPanel — Sincronização Grimório -> Scouter: ficha.ataquesE
             ataquesElementais: [{ nome: 'Ataque MBASE', equipado: true, descricao: 'MBASE: +5' }],
             poderes: [{ nome: 'Poder MGERAL', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'mgeral', valor: 8 }] }],
         });
-        // Equivalente combinando as MESMAS quantidades (MBASE:+5 e MGERAL:+8), mas com
-        // as duas fontes vindo inteiramente de poderes[] — prova que o agrupamento por
-        // TIPO soma através de categorias diferentes (ataquesElementais + poderes) de
-        // forma idêntica a somar dentro de uma única categoria.
-        const equivalenteTudoViaPoderes = renderELerPoderGlobal({
-            poderes: [
-                { nome: 'Poder MBASE', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'mbase', valor: 5 }] },
-                { nome: 'Poder MGERAL', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'mgeral', valor: 8 }] },
-            ],
-        });
 
-        expect(combinacaoAtaqueEPoder).toBeGreaterThan(apenasAtaque);
-        expect(combinacaoAtaqueEPoder).toBeGreaterThan(apenasPoder);
-        expect(combinacaoAtaqueEPoder).toBe(equivalenteTudoViaPoderes);
+        // O poder do Grimório sozinho não move a leitura (mgeral:+8 é ignorado).
+        expect(apenasPoder).toBe(semNenhumBuff);
+        // O ataque elemental (categoria legada, texto livre) continua valendo normalmente.
+        expect(apenasAtaque).toBeGreaterThan(semNenhumBuff);
+        // Combinar os dois produz a MESMA leitura que só o ataque elemental sozinho —
+        // o poder do Grimório não contribui em nada para o total.
+        expect(combinacaoAtaqueEPoder).toBe(apenasAtaque);
     });
 
     it('deletado=true numa entrada equipada de ataquesElementais EXCLUI a entrada do cálculo (mesmo guard !item.deletado compartilhado por todas as categorias)', () => {

@@ -4,21 +4,25 @@ import MarcadosPanel from './Marcados';
 import useStore from '../../stores/useStore';
 
 // ---------------------------------------------------------------------------
-// QA — Regressão: getGlobalMultipliers() (Scouter) precisa refletir os MESMOS
-// gatilhos de "Forma ativada" que o Radar (RadarDesenhado) já detectava via
-// getEfetivoMFormas(ficha, eixo) para cada uma das 6 categorias
-// (vida/mana/aura/chakra/corpo/status).
+// QA — Regressão: o Poder do Scouter agora IGNORA os bônus de Status/Energia/
+// Vida (mFormas incluído) que vêm do Grimório (ficha.poderes — Habilidades/
+// Formas/Poderes). Esses bônus continuam valendo normalmente no resto da
+// Ficha (Radar, barras de Vida/Mana/etc, painel de Status) — só saem da
+// leitura do Scouter.
 //
-// Bug corrigido: getGlobalMultipliers() antes só lia o campo estático
-// ficha.forca.mFormas e NUNCA os buffs dinâmicos mformas vindos de
-// poderes[]/inventario[]/seresSelados[] — mesmo quando esses buffs eram
-// tageados numa categoria específica (ex.: atributo:'vida'), não só 'geral'.
-// Isso fazia o Radar reagir a uma Forma ativada, mas o Scouter (poderGlobal)
-// permanecer parado.
+// Antes desta mudança, getGlobalMultipliers() somava, para cada um dos 6
+// eixos (vida/mana/aura/chakra/corpo/status), o bônus dinâmico de mFormas
+// vindo de poderes[]/inventario[]/seresSelados[] ao grupo MFORMAS — inclusive
+// quando esse bônus vinha de uma entrada do Grimório. Agora esse cálculo usa
+// getEfetivoMFormas(ficha, eixo, /*ignorarPoderes*/ true), que passa
+// ignorarPoderes=true para getBuffs() e por isso nunca mais lê ficha.poderes.
+// Quem quiser que uma entrada do Grimório afete o Poder do Scouter usa agora
+// o campo dedicado "PODER (Direto)" (atributo:'poder_direto' — ver
+// Marcados.poderDiretoGrimorio.test.jsx).
 //
-// Fix: getGlobalMultipliers() agora soma, para cada um dos 6 eixos, o bônus
-// (getEfetivoMFormas(ficha, eixo) - 1) ao grupo MFORMAS, na mesma convenção
-// "1 + soma" já usada pelas outras categorias (MBASE/MGERAL/MABS).
+// O campo ESTÁTICO ficha.<attr>.mFormas (escrito por fora do Grimório, ex.:
+// pela aba Status) não é afetado por essa mudança — continua contando
+// normalmente no Scouter, como prova o terceiro describe abaixo.
 //
 // Como getGlobalMultipliers/getEfetivoMFormas não são exportadas, a
 // validação é feita renderizando o MarcadosPanel real e lendo a leitura
@@ -92,7 +96,7 @@ function lerPoderGlobalExibido() {
     return Number(span.textContent);
 }
 
-describe('MarcadosPanel — regressão: buff mformas tageado num eixo específico (não "geral") move o Scouter', () => {
+describe('MarcadosPanel — Grimório (poderes[]) com mformas tageado num eixo específico NÃO move mais o Scouter', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true);
@@ -105,25 +109,11 @@ describe('MarcadosPanel — regressão: buff mformas tageado num eixo específic
 
     // Poder_Base = (vida*10)/6 = (600*10)/6 = 1000 (todo o resto zerado).
     // ascensaoGeralEfetiva = 1 (ascensaoBase padrão=1, sem overflow), então
-    // multiplicadorAscensao = 2^1 = 2 (Ascensão como multiplicador exponencial
-    // real do Poder Base — ver poderGlobal em Marcados.jsx). Coincide
-    // numericamente com o valor que a antiga fórmula linear (1+1) também daria
-    // em ascensaoGeralEfetiva=1 — por isso os valores abaixo (12000/14000) não
-    // mudam entre as duas versões da fórmula, mas a fórmula em si é 2^x, não 1+x.
-    //
-    // Com o poder DESLIGADO (ativa: false): glob.finalF = 1 (nenhum buff
-    // aplicado, já que getBuffs só processa `efeitos` de poderes com
-    // `ativa: true`), então poderMultiplicado = 1000*2 = 2000. magnitude =
-    // floor(log10(2000)) = 3, poderComAscensao = 2000 + 1*10^4 = 12000.
-    //
-    // Com o poder LIGADO: getEfetivoMFormas(ficha, 'vida') passa a enxergar
-    // o buff mformas tageado em atributo:'vida' (v padrão 1.0 + buff 2 = 2),
-    // então grupos.MFORMAS.Eixo_vida = (2-1) = 1 -> glob.finalF = 1+1 = 2.
-    // poderMultiplicado = 1000*2(ascensão)*2(finalF) = 4000, magnitude = 3,
-    // poderComAscensao = 4000 + 10000 = 14000 — ANTES do fix, esse buff
-    // (atributo:'vida', não 'forca'/'geral') era completamente ignorado pelo
-    // Scouter e a leitura JAMAIS mudaria.
-    it('ativar uma Forma via poderes[] com efeito atributo:"vida"/propriedade:"mformas" AUMENTA a leitura do Scouter; desativar REVERTE', () => {
+    // multiplicadorAscensao = 2^1 = 2. glob.finalF fica travado em 1 nos dois
+    // estados (ligado/desligado) porque getEfetivoMFormas agora ignora buffs
+    // vindos de ficha.poderes: poderMultiplicado = 1000*2*1 = 2000, magnitude
+    // = floor(log10(2000)) = 3, poderComAscensao = 2000 + 1*10^4 = 12000.
+    it('ativar uma Forma via poderes[] com efeito atributo:"vida"/propriedade:"mformas" NÃO altera mais a leitura do Scouter', () => {
         const ficha = fichaMinimaScouter({
             vida: { base: 600 },
             poderes: [{ nome: 'Forma Vital', ativa: false, efeitos: [{ atributo: 'vida', propriedade: 'mformas', valor: 2 }] }],
@@ -137,18 +127,17 @@ describe('MarcadosPanel — regressão: buff mformas tageado num eixo específic
         mockState.updateFicha((f) => { f.poderes[0].ativa = true; });
         rerender(<MarcadosPanel />);
         const valorLigado = lerPoderGlobalExibido();
-        expect(valorLigado).toBe(14000);
-        expect(valorLigado).toBeGreaterThan(valorDesligado);
+        expect(valorLigado).toBe(12000);
+        expect(valorLigado).toBe(valorDesligado);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = false; });
         rerender(<MarcadosPanel />);
         const valorRevertido = lerPoderGlobalExibido();
         expect(valorRevertido).toBe(12000);
-        expect(valorRevertido).toBeLessThan(valorLigado);
     });
 });
 
-describe('MarcadosPanel — cobertura multi-eixo: o fix não é específico de "vida" (eixo status, âncora "forca")', () => {
+describe('MarcadosPanel — cobertura multi-eixo: a exclusão vale para qualquer eixo, não só "vida" (eixo status, âncora "forca")', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true);
@@ -160,16 +149,11 @@ describe('MarcadosPanel — cobertura multi-eixo: o fix não é específico de "
     });
 
     // getEfetivoMFormas(ficha, 'status') usa a âncora 'forca' (anchor =
-    // k==='status' ? 'forca' : k), então um buff tageado diretamente em
-    // atributo:'forca' (statKey passado a getBuffs é 'forca', e
-    // atr===sK casa direto) afeta o eixo 'status' do Scouter.
-    //
-    // Poder_Base = (statusEfetivo*100)/6, com statusEfetivo = somaStatus/8 e
-    // apenas forca.base=480 setado (demais 7 atributos físicos = 0):
-    //   statusEfetivo = 480/8 = 60  =>  Poder_Base = (60*100)/6 = 1000
-    // (mesmo Poder_Base do teste do eixo vida acima, por simetria — mesma
-    // conta de multiplicadorAscensao=2 e valores finais).
-    it('ativar uma Forma via poderes[] com efeito atributo:"forca"/propriedade:"mformas" AUMENTA a leitura do Scouter (eixo status); desativar REVERTE', () => {
+    // k==='status' ? 'forca' : k). Poder_Base = (statusEfetivo*100)/6, com
+    // statusEfetivo = somaStatus/8 e apenas forca.base=480 setado (demais 7
+    // atributos físicos = 0): statusEfetivo = 480/8 = 60 => Poder_Base =
+    // (60*100)/6 = 1000 (mesmo Poder_Base do teste do eixo vida acima).
+    it('ativar uma Forma via poderes[] com efeito atributo:"forca"/propriedade:"mformas" NÃO altera mais a leitura do Scouter (eixo status)', () => {
         const ficha = fichaMinimaScouter({
             forca: { base: 480 },
             poderes: [{ nome: 'Forma de Combate', ativa: false, efeitos: [{ atributo: 'forca', propriedade: 'mformas', valor: 2 }] }],
@@ -183,18 +167,17 @@ describe('MarcadosPanel — cobertura multi-eixo: o fix não é específico de "
         mockState.updateFicha((f) => { f.poderes[0].ativa = true; });
         rerender(<MarcadosPanel />);
         const valorLigado = lerPoderGlobalExibido();
-        expect(valorLigado).toBe(14000);
-        expect(valorLigado).toBeGreaterThan(valorDesligado);
+        expect(valorLigado).toBe(12000);
+        expect(valorLigado).toBe(valorDesligado);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = false; });
         rerender(<MarcadosPanel />);
         const valorRevertido = lerPoderGlobalExibido();
         expect(valorRevertido).toBe(12000);
-        expect(valorRevertido).toBeLessThan(valorLigado);
     });
 });
 
-describe('MarcadosPanel — sem dupla contagem entre o campo estático mFormas e o buff dinâmico', () => {
+describe('MarcadosPanel — campo ESTÁTICO ficha.<attr>.mFormas (fora do Grimório) continua contando no Scouter', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true);
@@ -205,18 +188,18 @@ describe('MarcadosPanel — sem dupla contagem entre o campo estático mFormas e
         cleanup();
     });
 
-    // getEfetivoMFormas retorna `v` direto quando NÃO há buff, ou
-    // `(v===1.0 ? 0 : v) + buff` quando há. Duas rotas diferentes até o
-    // MESMO mF efetivo = 3:
-    //   Rota A (campo estático): ficha.forca.mFormas = 3, sem buffs
-    //     -> v=3, sem buff -> retorna v = 3 diretamente.
-    //   Rota B (buff dinâmico): ficha.forca.mFormas ausente (v padrão =
-    //     1.0), poderes[] com efeito atributo:'forca'/mformas/valor:3
-    //     -> v===1.0 então soma parte de 0 -> (0) + 3 = 3.
-    // Se houvesse dupla contagem (ex.: somar v + buff sem a lógica
-    // "v===1.0 ? 0 : v"), a Rota B daria mF=4, não 3, e as duas leituras
-    // do Scouter divergiriam.
-    it('campo estático mFormas=3 (sem buff) produz a MESMA leitura que v padrão(1.0)+buff mformas=3 (mesmo mF efetivo)', () => {
+    // Rota A (campo estático, ex.: escrito pela aba Status): ficha.forca.mFormas
+    // = 3, sem buffs de poderes[] -> v=3 -> getEfetivoMFormas retorna v=3
+    // diretamente -> glob.finalF = 1+(3-1) = 3. Poder_Base = (vida*10)/6 =
+    // 1000 (só vida=600). poderMultiplicado = 1000*2(ascensão)*3(finalF) =
+    // 6000, magnitude = 3, poderComAscensao = 6000 + 1*10^4 = 16000.
+    //
+    // Rota B (buff dinâmico via poderes[] ativo): agora IGNORADA pelo Scouter
+    // (ver describes acima) — glob.finalF fica em 1, poderMultiplicado =
+    // 1000*2*1 = 2000, poderComAscensao = 2000 + 10000 = 12000. As duas
+    // leituras NÃO são mais iguais, ao contrário do comportamento anterior à
+    // exclusão do Grimório do cálculo do Scouter.
+    it('campo estático mFormas=3 continua valendo no Scouter (16000); o mesmo bônus vindo de poderes[] não conta mais (12000)', () => {
         const fichaEstatica = fichaMinimaScouter({
             vida: { base: 600 },
             forca: { base: 0, mFormas: 3 },
@@ -235,13 +218,8 @@ describe('MarcadosPanel — sem dupla contagem entre o campo estático mFormas e
         render(<MarcadosPanel />);
         const leituraBuff = lerPoderGlobalExibido();
 
-        // Poder_Base = 1000 (só vida=600), glob.finalF = 1 + (3-1) = 3 nas
-        // duas rotas. multiplicadorAscensao = 2^1 = 2 (ascensaoGeralEfetiva
-        // padrão=1, mesmo valor que a antiga fórmula linear 1+1 daria neste
-        // caso específico) -> poderMultiplicado = 1000*2*3 = 6000 -> magnitude
-        // = 3 -> poderComAscensao = 6000 + 1*10^4 = 16000.
         expect(leituraEstatica).toBe(16000);
-        expect(leituraBuff).toBe(16000);
-        expect(leituraEstatica).toBe(leituraBuff);
+        expect(leituraBuff).toBe(12000);
+        expect(leituraEstatica).not.toBe(leituraBuff);
     });
 });

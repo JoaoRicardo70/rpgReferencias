@@ -27,6 +27,13 @@ import useStore from '../../stores/useStore';
 // Nenhuma das duas funções é exportada — validamos renderizando o
 // MarcadosPanel real, com os mesmos padrões de mock de
 // Marcados.scouterTempoReal.test.jsx.
+//
+// 🔥 As fontes usadas para testar a regra de agrupamento (1+soma por tipo)
+// abaixo são entradas de ficha.ataquesElementais (texto livre MBASE:/MGERAL:/
+// etc), não mais ficha.poderes — o Grimório (Habilidades/Formas/Poderes) foi
+// excluído do cálculo do Scouter (ver Marcados.scouterGrimorioSync.test.jsx),
+// então ele não serve mais como fonte de teste para esta regra, que continua
+// valendo normalmente para as categorias legadas de texto livre.
 // ---------------------------------------------------------------------------
 
 vi.mock('../../stores/useStore');
@@ -40,7 +47,7 @@ vi.mock('../../services/firebase-sync', () => ({
 // aura, chakra, corpo, status via os 8 atributos físicos) — mesmo padrão de
 // Marcados.scouterTempoReal.test.jsx — para que multiplicadores globais
 // produzam variações de ordem de grandeza claras na leitura do Scouter.
-function fichaComPoderes(poderesList = []) {
+function fichaComFontes(ataquesElementaisList = []) {
     return {
         vida: { base: 100000000 },
         mana: { base: 1000000000 },
@@ -59,9 +66,10 @@ function fichaComPoderes(poderesList = []) {
         bio: {},
         estetica: {},
         labels: {},
-        poderes: poderesList,
+        poderes: [],
         inventario: [],
         seresSelados: [],
+        ataquesElementais: ataquesElementaisList,
     };
 }
 
@@ -114,10 +122,10 @@ function lerPoderGlobalExibido() {
     return Number(span.textContent);
 }
 
-// Renderiza uma ficha com a lista de poderes fornecida e devolve a leitura
-// numérica do Scouter, já limpando o DOM em seguida.
-function renderELerPoderGlobal(poderesList) {
-    montarMockUseStore(fichaComPoderes(poderesList));
+// Renderiza uma ficha com a lista de ataquesElementais fornecida e devolve a
+// leitura numérica do Scouter, já limpando o DOM em seguida.
+function renderELerPoderGlobal(ataquesElementaisList) {
+    montarMockUseStore(fichaComFontes(ataquesElementaisList));
     render(<MarcadosPanel />);
     const valor = lerPoderGlobalExibido();
     cleanup();
@@ -153,12 +161,13 @@ describe('MarcadosPanel — getGlobalMultipliers(): multiplicadores do MESMO TIP
         ['mbase'],
         ['mabs'],
     ])('%s: duas fontes ativas de +8 cada resultam no MESMO valor do Scouter que uma única fonte de +16 (soma aditiva entre fontes)', (prop) => {
+        const tag = prop.toUpperCase();
         const comDuasFontes = renderELerPoderGlobal([
-            { nome: 'Fonte A', ativa: true, efeitos: [{ atributo: 'geral', propriedade: prop, valor: 8 }] },
-            { nome: 'Fonte B', ativa: true, efeitos: [{ atributo: 'geral', propriedade: prop, valor: 8 }] },
+            { nome: 'Fonte A', equipado: true, descricao: `${tag}: +8` },
+            { nome: 'Fonte B', equipado: true, descricao: `${tag}: +8` },
         ]);
         const comUmaFonteSomada = renderELerPoderGlobal([
-            { nome: 'Fonte Única', ativa: true, efeitos: [{ atributo: 'geral', propriedade: prop, valor: 16 }] },
+            { nome: 'Fonte Única', equipado: true, descricao: `${tag}: +16` },
         ]);
 
         expect(comDuasFontes).toBe(comUmaFonteSomada);
@@ -177,19 +186,20 @@ describe('MarcadosPanel — getGlobalMultipliers(): multiplicadores do MESMO TIP
         ['mbase'],
         ['mabs'],
     ])('%s: duas fontes ativas de +8 cada resultam no total correto 1+8+8=17, NÃO no total do bug antigo (1+8)*(1+8)=81 multiplicado entre fontes', (prop) => {
+        const tag = prop.toUpperCase();
         const comDuasFontes = renderELerPoderGlobal([
-            { nome: 'Fonte A', ativa: true, efeitos: [{ atributo: 'geral', propriedade: prop, valor: 8 }] },
-            { nome: 'Fonte B', ativa: true, efeitos: [{ atributo: 'geral', propriedade: prop, valor: 8 }] },
+            { nome: 'Fonte A', equipado: true, descricao: `${tag}: +8` },
+            { nome: 'Fonte B', equipado: true, descricao: `${tag}: +8` },
         ]);
         // Total correto (1+8+8=17) obtido diretamente por uma única fonte de +16.
         const comValorCorreto = renderELerPoderGlobal([
-            { nome: 'Fonte Única', ativa: true, efeitos: [{ atributo: 'geral', propriedade: prop, valor: 16 }] },
+            { nome: 'Fonte Única', equipado: true, descricao: `${tag}: +16` },
         ]);
         // Total que o BUG ANTIGO produziria ((1+8)*(1+8)=81), obtido por uma única fonte de +80
         // (1+80=81) — se "duas fontes" ainda desse esse valor, o bug de multiplicação entre
         // fontes teria voltado.
         const comValorDoBugAntigo = renderELerPoderGlobal([
-            { nome: 'Fonte Bug', ativa: true, efeitos: [{ atributo: 'geral', propriedade: prop, valor: 80 }] },
+            { nome: 'Fonte Bug', equipado: true, descricao: `${tag}: +80` },
         ]);
 
         expect(comDuasFontes).toBe(comValorCorreto);
@@ -198,19 +208,19 @@ describe('MarcadosPanel — getGlobalMultipliers(): multiplicadores do MESMO TIP
 
     it('mUnico: duas fontes ativas de x3 cada continuam MULTIPLICANDO o Scouter (3*3=9), NÃO somando (1+3+3=7) como MBASE/MGERAL/MABS', () => {
         const comUmaFonte = renderELerPoderGlobal([
-            { nome: 'Único A', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'munico', valor: 3 }] },
+            { nome: 'Único A', equipado: true, descricao: 'MUNICO: +3' },
         ]);
         const comDuasFontes = renderELerPoderGlobal([
-            { nome: 'Único A', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'munico', valor: 3 }] },
-            { nome: 'Único B', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'munico', valor: 3 }] },
+            { nome: 'Único A', equipado: true, descricao: 'MUNICO: +3' },
+            { nome: 'Único B', equipado: true, descricao: 'MUNICO: +3' },
         ]);
         // Total multiplicativo correto (3*3=9) obtido diretamente por uma única fonte de x9.
         const comValorMultiplicativo = renderELerPoderGlobal([
-            { nome: 'Único Equivalente', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'munico', valor: 9 }] },
+            { nome: 'Único Equivalente', equipado: true, descricao: 'MUNICO: +9' },
         ]);
         // Total que o padrão ADITIVO (hipotético, "1+3+3=7") produziria via mgeral em vez de munico.
         const comValorAditivoHipotetico = renderELerPoderGlobal([
-            { nome: 'Aditivo Hipotético', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'mgeral', valor: 6 }] },
+            { nome: 'Aditivo Hipotético', equipado: true, descricao: 'MGERAL: +6' },
         ]);
 
         expect(comDuasFontes).toBe(comValorMultiplicativo);

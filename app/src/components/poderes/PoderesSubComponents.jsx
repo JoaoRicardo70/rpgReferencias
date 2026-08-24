@@ -5,6 +5,14 @@ import FormasEditor from '../shared/FormasEditor';
 
 const FALLBACK = <div style={{ opacity: 0.5, padding: 10 }}>Poderes provider não encontrado</div>;
 
+// 🔥 Só nesta aba (Habilidades/Formas/Poderes do Grimório): "PODER (Direto)" multiplica o Poder do
+// Scouter diretamente, sem passar por nenhum Status/Energia/Vida — não existe em ArsenalPanel/
+// FormasEditor porque só o Grimório (ficha.poderes) é lido por getPoderDiretoMultiplier (Marcados.jsx).
+const ATRIBUTOS_PODERES = [
+    ...ATRIBUTOS_AGRUPADOS,
+    { label: '⚡ POTÊNCIA DO SCOUTER', options: ['poder_direto'] }
+];
+
 const ELEMENTOS_OPCOES = [
     { label: 'Elementos Básicos', opcoes: ['Fogo', 'Agua', 'Raio', 'Terra', 'Vento'] },
     { label: 'Básicos Verdadeiros', opcoes: ['Fogo Verdadeiro', 'Agua Verdadeira', 'Raio Verdadeiro', 'Terra Verdadeira', 'Vento Verdadeiro'] },
@@ -206,7 +214,7 @@ export function PoderesFormEditor() {
             <input type="text" placeholder="Nome do Efeito" value={nomeEfeito} onChange={e => setNomeEfeito(e.target.value)} style={{ width: '100%', marginBottom: 10 }} />
             <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                 <select value={novoAtr} onChange={e => setNovoAtr(e.target.value)} style={{ flex: 1 }}>
-                    {ATRIBUTOS_AGRUPADOS.map(grupo => (
+                    {ATRIBUTOS_PODERES.map(grupo => (
                         <optgroup key={grupo.label} label={grupo.label}>
                             {grupo.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}
                         </optgroup>
@@ -236,7 +244,7 @@ export function PoderesFormEditor() {
             <input type="text" placeholder="Nome do Efeito Passivo" value={nomeEfeitoPassivo} onChange={e => setNomeEfeitoPassivo(e.target.value)} style={{ width: '100%', marginBottom: 10 }} />
             <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                 <select value={novoAtrPassivo} onChange={e => setNovoAtrPassivo(e.target.value)} style={{ flex: 1 }}>
-                    {ATRIBUTOS_AGRUPADOS.map(grupo => (
+                    {ATRIBUTOS_PODERES.map(grupo => (
                         <optgroup key={grupo.label} label={grupo.label}>
                             {grupo.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}
                         </optgroup>

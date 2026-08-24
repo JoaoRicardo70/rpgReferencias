@@ -39,7 +39,7 @@ export function getEfeitosDeClasse(ficha) {
     return efeitos;
 }
 
-export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = false) {
+export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = false, ignorarPoderes = false) {
     let buffs = { base: 0, mbase: 0, mgeral: 0, mformas: 0, mabs: 0, munico: [], reducaoCusto: 0, regeneracao: 0, fontesMgeral: [] };
     let hasBuff = { mbase: false, mgeral: false, mformas: false, mabs: false };
 
@@ -92,7 +92,7 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
         }
     };
 
-    if (ficha.poderes) {
+    if (!ignorarPoderes && ficha.poderes) {
         for (let i = 0; i < ficha.poderes.length; i++) {
             let p = ficha.poderes[i];
             if (!p) continue;

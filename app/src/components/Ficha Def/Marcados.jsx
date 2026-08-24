@@ -6,6 +6,7 @@ import { uploadImagem, salvarFichaSilencioso, salvarFirebaseImediato } from '../
 import * as AtributosCore from '../../core/attributes';
 import { getRank } from '../../core/prestige';
 import { formatarPoderCosmico } from '../../core/utils.js';
+import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel'; 
@@ -14,7 +15,7 @@ import RelicarioPanel from './RelicarioPanel';
 // 🛡️ DADOS DO COMPÊNDIO E FUNÇÕES SEGURAS
 // ==========================================
 function safeGetRawBase(f, k) { return typeof AtributosCore.getRawBase === 'function' ? AtributosCore.getRawBase(f, k) : parseFloat(f?.[k]?.base) || 0; }
-function safeGetBuffs(f, k, t) { return typeof AtributosCore.getBuffs === 'function' ? AtributosCore.getBuffs(f, k, t) : {}; }
+function safeGetBuffs(f, k, t, ignorarPoderes = false) { return typeof AtributosCore.getBuffs === 'function' ? AtributosCore.getBuffs(f, k, t, false, ignorarPoderes) : {}; }
 
 function safeGetMaximo(ficha, key) {
     try {
@@ -28,10 +29,14 @@ function safeGetMaximo(ficha, key) {
 
 // 🔥 Base + buffs ADITIVOS (sem a pilha de multiplicadores mBase/mGeral/mFormas/mAbsoluto/mUnico).
 // Usado onde o multiplicador global já é aplicado numa etapa separada, para não contar mFormas em dobro.
-function safeGetEfetivoBase(ficha, key) {
+// ignorarPoderes=true remove também os bônus vindos do Grimório (ficha.poderes — Habilidades/
+// Formas/Poderes): usado apenas pelo cálculo do Poder do Scouter, que agora ignora as mudanças de
+// Status/Energia/Vida geradas por essas entradas (elas continuam valendo no resto da Ficha).
+function safeGetEfetivoBase(ficha, key, ignorarPoderes = false) {
     try {
         if (AtributosCore && typeof AtributosCore.getEfetivoBase === 'function') {
-            const val = AtributosCore.getEfetivoBase(ficha, key);
+            const buffsCache = ignorarPoderes ? AtributosCore.getBuffs(ficha, key, false, false, true) : null;
+            const val = AtributosCore.getEfetivoBase(ficha, key, false, buffsCache);
             return isNaN(val) ? 0 : val;
         }
     } catch (e) { console.warn("Aviso: getEfetivoBase falhou internamente."); }
@@ -49,10 +54,10 @@ function safeGetRank(prest, asc) {
 }
 
 // 🔥 FUNÇÃO RESTAURADA: LÊ AS FORMAS INDIVIDUAIS 🔥
-function getEfetivoMFormas(ficha, k) {
+function getEfetivoMFormas(ficha, k, ignorarPoderes = false) {
     const anchor = k === 'status' ? 'forca' : k;
     let s = ficha?.[anchor] || {};
-    let b = safeGetBuffs(ficha, anchor, true) || {};
+    let b = safeGetBuffs(ficha, anchor, true, ignorarPoderes) || {};
     let v = parseFloat(s.mFormas) || 1.0;
     if (!b._hasBuff || !b._hasBuff.mformas) return v;
     return (v === 1.0 ? 0 : v) + b.mformas;
@@ -93,15 +98,18 @@ function getGlobalMultipliers(ficha) {
         // O código antigo só lia o campo estático ficha.forca.mFormas (e nunca os buffs dinâmicos
         // nem os outros 5 eixos) — por isso o Radar reagia à Forma ativada e o Scouter não. Somamos
         // aqui o bônus (mFormas-1) de cada eixo, na mesma convenção "1+soma" das demais categorias.
+        // ignorarPoderes=true: o Poder do Scouter não deve mais herdar os bônus de mFormas/mGeral/etc
+        // que vêm do Grimório (ficha.poderes — Habilidades/Formas/Poderes). Esses efeitos continuam
+        // valendo normalmente no resto da Ficha (Status/Energias/Vida) — só saem desta leitura global.
         ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].forEach(k => {
-            const mF = getEfetivoMFormas(ficha, k);
+            const mF = getEfetivoMFormas(ficha, k, true);
             if (!isNaN(mF) && mF > 1) {
                 grupos.MFORMAS[`Eixo_${k}`] = (grupos.MFORMAS[`Eixo_${k}`] || 0) + (mF - 1);
             }
         });
 
-        // Lê Buffs Dinâmicos do Sistema Core
-        let b = safeGetBuffs(ficha, 'dano', true) || {};
+        // Lê Buffs Dinâmicos do Sistema Core (exclui ficha.poderes — ver comentário acima)
+        let b = safeGetBuffs(ficha, 'dano', true, true) || {};
         if (b._hasBuff) {
             if (b.mbase) addManual(b.mbase, 'MBASE', 'Buff_Sistema');
             if (b.mgeral) addManual(b.mgeral, 'MGERAL', 'Buff_Sistema');
@@ -165,6 +173,47 @@ function getGlobalMultipliers(ficha) {
         return { finalB, finalG, finalF, finalA, finalUni, totalDano: finalB * finalG * finalA * finalUni };
     } catch(e) {
         return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalUni: 1, totalDano: 1 };
+    }
+}
+
+// 🔥 MULTIPLICADOR DIRETO DE PODER: a aba Habilidades/Formas/Poderes (Grimório) agora pode marcar um
+// efeito com atributo:'poder_direto' para multiplicar o Poder do Scouter DIRETAMENTE, sem passar por
+// nenhum Status/Energia/Vida — nenhum statKey do sistema se chama 'poder_direto', então getBuffs()
+// nunca aplica esse efeito a nada além desta leitura (ver condição `afeta` em attributes.js). Usa a
+// MESMA regra de agrupamento já estabelecida para MBASE/MGERAL/MFORMAS/MABS/MUNICO: soma dentro do
+// mesmo tipo (1 + soma), multiplica entre tipos. Só efeitos Ativos contam quando o Poder/Habilidade/
+// Forma está ativada (p.ativa); os Passivos contam sempre — mesma convenção do resto do sistema.
+function getPoderDiretoMultiplier(ficha) {
+    if (!ficha || !ficha.poderes) return 1;
+    try {
+        let grupos = { mbase: 0, mgeral: 0, mformas: 0, mabs: 0 };
+        let unicos = [];
+
+        const processar = (efeitos) => {
+            if (!efeitos) return;
+            efeitos.forEach(e => {
+                if (!e || (e.atributo || '').toLowerCase() !== 'poder_direto') return;
+                const prop = (e.propriedade || '').toLowerCase();
+                const val = parseFloat(e.valor);
+                if (isNaN(val)) return;
+                if (prop === 'munico') { if (val > 0) unicos.push(val); }
+                else if (grupos.hasOwnProperty(prop)) grupos[prop] += val;
+            });
+        };
+
+        ficha.poderes.forEach(p => {
+            if (!p) return;
+            const resolved = resolverEfeitosEntidade(p);
+            if (p.ativa) processar(resolved.efeitos);
+            processar(resolved.efeitosPassivos);
+        });
+
+        let finalUni = 1.0;
+        unicos.forEach(n => { finalUni *= n; });
+
+        return (1 + grupos.mbase) * (1 + grupos.mgeral) * (1 + grupos.mformas) * (1 + grupos.mabs) * finalUni;
+    } catch (e) {
+        return 1;
     }
 }
 
@@ -796,8 +845,11 @@ export default function MarcadosPanel() {
         // físicos. Usa safeGetEfetivoBase (SEM a pilha de multiplicadores mBase/mGeral/mFormas/mAbsoluto)
         // porque esses multiplicadores já são aplicados uma única vez a seguir, via getGlobalMultipliers —
         // usar safeGetMaximo aqui contaria o forca.mFormas em dobro (uma vez local, outra global).
+        // ignorarPoderes=true: os bônus de Status/Energia/Vida vindos do Grimório (Habilidades/Formas/
+        // Poderes) não entram mais aqui — quem quiser que uma entrada do Grimório afete o Poder do
+        // Scouter agora usa o campo dedicado "PODER (Direto)" (ver getPoderDiretoMultiplier abaixo).
         const calcPoderBase = () => {
-            const efetivo = (k) => { const v = safeGetEfetivoBase(minhaFicha, k); return isNaN(v) ? 0 : v; };
+            const efetivo = (k) => { const v = safeGetEfetivoBase(minhaFicha, k, true); return isNaN(v) ? 0 : v; };
             let somaStatus = 0;
             ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { somaStatus += efetivo(s); });
             const statusEfetivo = somaStatus / 8;
@@ -848,7 +900,11 @@ export default function MarcadosPanel() {
         const SATURACAO_SEGURA = 1e308;
         const clampFinito = (v) => Number.isFinite(v) ? v : (Number.isNaN(v) ? 0 : Math.sign(v) * SATURACAO_SEGURA);
 
-        let poderMultiplicado = poderBase * multiplicadorAscensao * glob.finalF * glob.totalDano;
+        // 🔥 Multiplicador direto do Grimório (Habilidades/Formas/Poderes com atributo:'poder_direto') —
+        // entra na mesma cadeia multiplicativa dos demais fatores, com a mesma blindagem de overflow.
+        const multiplicadorPoderDireto = clampFinito(getPoderDiretoMultiplier(minhaFicha));
+
+        let poderMultiplicado = poderBase * multiplicadorAscensao * glob.finalF * glob.totalDano * multiplicadorPoderDireto;
         poderMultiplicado = clampFinito(poderMultiplicado);
 
         // 🔥 Injeção de Ascensão: soma a Ascensão Geral Efetiva como a grandeza máxima (sempre uma

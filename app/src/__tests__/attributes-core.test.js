@@ -571,3 +571,101 @@ describe('integracao — passivas, poderes e inventario juntos', () => {
         expect(getBuffs(ficha, 'mana').mbase).toBe(1.0);
     });
 });
+
+// ---------------------------------------------------------------------------
+// getBuffs — ignorarPoderes (usado pelo cálculo de Poder do Scouter em Marcados.jsx
+// para excluir as mudanças de Status/Energia/Vida geradas pelo Grimório — Habilidades/
+// Formas/Poderes — do cálculo do Poder, mantendo-as no resto da Ficha)
+// ---------------------------------------------------------------------------
+
+describe('getBuffs — ignorarPoderes (5o parametro)', () => {
+    it('ignorarPoderes=true zera os buffs vindos de ficha.poderes, mas mantem os de outras fontes', () => {
+        const ficha = fichaBase({
+            poderes: [poderAtivo([efeito('base', 'forca', 500)])],
+            inventario: [itemEquipado([efeito('base', 'forca', 200)])],
+        });
+        const comPoderes = getBuffs(ficha, 'forca', false, false, false);
+        const semPoderes = getBuffs(ficha, 'forca', false, false, true);
+
+        expect(comPoderes.base).toBe(700);
+        // sem o buff de poderes[] (500), so sobra o do inventario (200)
+        expect(semPoderes.base).toBe(200);
+    });
+
+    it('ignorarPoderes=true tambem exclui efeitos passivos e multiplicadores (mgeral) vindos de poderes[]', () => {
+        const ficha = fichaBase({
+            poderes: [poderInativo([], [efeito('mgeral', 'geral', 8)])],
+        });
+        const comPoderes = getBuffs(ficha, 'forca', false, false, false);
+        const semPoderes = getBuffs(ficha, 'forca', false, false, true);
+
+        expect(comPoderes.mgeral).toBe(8);
+        expect(semPoderes.mgeral).toBe(1.0);
+        expect(semPoderes._hasBuff.mgeral).toBe(false);
+    });
+
+    it('ignorarPoderes=false (padrao, omitido) preserva o comportamento anterior', () => {
+        const ficha = fichaBase({
+            poderes: [poderAtivo([efeito('base', 'forca', 500)])],
+        });
+        expect(getBuffs(ficha, 'forca').base).toBe(500);
+        expect(getBuffs(ficha, 'forca', false, false).base).toBe(500);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// getBuffs — atributo:'poder_direto' (Grimório): reservado exclusivamente para
+// multiplicar o Poder do Scouter (ver getPoderDiretoMultiplier em Marcados.jsx) —
+// nao existe nenhum statKey chamado 'poder_direto' no sistema, entao esse efeito
+// NUNCA deve alterar nenhum Status/Energia/Vida real da Ficha.
+// ---------------------------------------------------------------------------
+
+describe('getBuffs — atributo:"poder_direto" nunca vaza para nenhum Status/Energia/Vida', () => {
+    it('efeito ativo com atributo:"poder_direto" nao afeta forca, vida, mana nem "dano"', () => {
+        const ficha = fichaBase({
+            poderes: [poderAtivo([efeito('mgeral', 'poder_direto', 8)], [efeito('base', 'poder_direto', 999)])],
+        });
+        expect(getBuffs(ficha, 'forca').mgeral).toBe(1.0);
+        expect(getBuffs(ficha, 'forca').base).toBe(0);
+        expect(getBuffs(ficha, 'vida').mgeral).toBe(1.0);
+        expect(getBuffs(ficha, 'mana').mgeral).toBe(1.0);
+        expect(getBuffs(ficha, 'dano').mgeral).toBe(1.0);
+    });
+
+    it('getMaximo permanece inalterado com ou sem o efeito "poder_direto" no poder', () => {
+        const semEfeito = fichaBase({ forca: { base: 1000 } });
+        const comEfeito = fichaBase({
+            forca: { base: 1000 },
+            poderes: [poderAtivo([efeito('mgeral', 'poder_direto', 8)])],
+        });
+        expect(getMaximo(comEfeito, 'forca')).toBe(getMaximo(semEfeito, 'forca'));
+    });
+
+    // Gap: os dois testes acima isolam um efeito por vez. Aqui, o MESMO Poder
+    // do Grimório mistura um efeito "normal" (atributo:'forca', propriedade:
+    // 'base') com um efeito "poder_direto" (propriedade:'mgeral') nos efeitos
+    // ATIVOS. A filtragem em getBuffs() é por EFEITO individual (condição
+    // `afeta` dentro de processarEfeitos), não por Poder inteiro — então
+    // misturar os dois num mesmo objeto não deve fazer um vazar pro outro:
+    // o efeito de forca continua buffando 'forca' normalmente (ignorarPoderes
+    // padrão/false), e o poder_direto continua sem afetar nenhum statKey real.
+    it('poder_direto misturado com um efeito normal no MESMO poder: cada um afeta só o que deveria (sem vazamento cruzado)', () => {
+        const ficha = fichaBase({
+            poderes: [poderAtivo([
+                efeito('base', 'forca', 500),
+                efeito('mgeral', 'poder_direto', 8),
+            ])],
+        });
+
+        const forcaBuffs = getBuffs(ficha, 'forca');
+        expect(forcaBuffs.base).toBe(500); // efeito normal continua valendo
+        expect(forcaBuffs.mgeral).toBe(1.0); // poder_direto NÃO vaza pro mgeral de forca
+        expect(forcaBuffs._hasBuff.mgeral).toBe(false);
+
+        // Com ignorarPoderes=true (o que o cálculo do Poder do Scouter usa),
+        // o efeito de forca:base tambem some, pois a exclusao e do Poder inteiro,
+        // nao so do poder_direto dentro dele.
+        const forcaBuffsSemPoderes = getBuffs(ficha, 'forca', false, false, true);
+        expect(forcaBuffsSemPoderes.base).toBe(0);
+    });
+});

@@ -139,7 +139,7 @@ describe('MarcadosPanel — calcPoderBase(): peso relativo Vida (x10) vs Chakra/
     });
 });
 
-describe('MarcadosPanel — calcPoderBase() lê safeGetEfetivoBase (base + buffs aditivos "propriedade: base")', () => {
+describe('MarcadosPanel — calcPoderBase() ignora buffs "propriedade: base" vindos do Grimório (ficha.poderes)', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true);
@@ -150,7 +150,17 @@ describe('MarcadosPanel — calcPoderBase() lê safeGetEfetivoBase (base + buffs
         cleanup();
     });
 
-    it('poderes[].efeitos com propriedade "base" e ativa=true AUMENTA a leitura do Scouter; ativa=false REVERTE (regressão)', () => {
+    // 🔥 Mudança de comportamento intencional: calcPoderBase() agora chama
+    // safeGetEfetivoBase(ficha, k, /*ignorarPoderes*/ true), que descarta os
+    // buffs de 'base' vindos de ficha.poderes (Habilidades/Formas/Poderes do
+    // Grimório) — essas entradas continuam alterando Vida/Mana/Status/etc
+    // normalmente no resto da Ficha, só não influenciam mais o Poder Base do
+    // Scouter. Ativar/desativar a habilidade abaixo, portanto, NÃO move mais
+    // a leitura do Scouter (permanece em 10 nos dois estados, pelo mesmo
+    // failsafe de ascensão com poderMultiplicado<=0 documentado abaixo). Quem
+    // quiser que uma entrada do Grimório afete o Poder do Scouter usa agora o
+    // campo dedicado "PODER (Direto)" (atributo:'poder_direto').
+    it('poderes[].efeitos com propriedade "base" NÃO altera mais a leitura do Scouter, ativo ou não', () => {
         const ficha = fichaMinimaScouter({
             poderes: [{ nome: 'Bênção Vital', ativa: false, efeitos: [{ atributo: 'vida', propriedade: 'base', valor: 600 }] }],
         });
@@ -159,24 +169,19 @@ describe('MarcadosPanel — calcPoderBase() lê safeGetEfetivoBase (base + buffs
         const { rerender } = render(<MarcadosPanel />);
         const valorDesligado = lerPoderGlobalExibido();
         // poderMultiplicado=0 (nenhum buff ativo) cai no ramo <= 0 do failsafe de
-        // ascensão: poderComAscensao = ascensaoSegura(1) * 10 + 0 = 10 — não mais 0
-        // (o antigo guard ">= 1" que colapsava para 0 foi substituído pelo failsafe).
+        // ascensão: poderComAscensao = ascensaoSegura(1) * 10 + 0 = 10.
         expect(valorDesligado).toBe(10);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = true; });
         rerender(<MarcadosPanel />);
         const valorLigado = lerPoderGlobalExibido();
-        // Mesmo valor exato que a ficha "vida: {base: 600} direta" do describe
-        // anterior — prova que safeGetEfetivoBase soma o buff aditivo de
-        // 'base' à mesma fórmula, sem passar pela pilha de multiplicadores.
-        expect(valorLigado).toBe(12000);
-        expect(valorLigado).toBeGreaterThan(valorDesligado);
+        expect(valorLigado).toBe(10);
+        expect(valorLigado).toBe(valorDesligado);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = false; });
         rerender(<MarcadosPanel />);
         const valorRevertido = lerPoderGlobalExibido();
         expect(valorRevertido).toBe(10);
-        expect(valorRevertido).toBeLessThan(valorLigado);
     });
 });
 
