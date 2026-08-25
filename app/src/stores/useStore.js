@@ -43,6 +43,14 @@ export const fichaPadrao = {
     // 🔥 NOVOS CAMPOS DA NOVA FICHA (Evita Amnésia no F5) 🔥
     estetica: {}, labels: {}, pv: { atual: 0 }, pm: { atual: 0 }, multiplicadorVida: 1, multiplicadorMorte: 1, multiplicadorForcaPrestigio: 1, multiplicadorForcaAscensao: 1,
 
+    // 🔥 Divisor de Poder (exclusivo do Mestre) — divide o resultado final do Poder do
+    // Scouter. 0 = sem override (usa o padrão da mesa, divisorPoderMesa); qualquer valor > 0
+    // é um override explícito por personagem (1 inclusive, para forçar "sem divisão" mesmo
+    // que o padrão da mesa seja outro). Precisa estar em fichaPadrao para sobreviver ao F5
+    // (o loop genérico de carregarDadosFicha só restaura chaves presentes aqui).
+    divisorPoder: 0,
+    supressaoPoder: 100, limiteSupressao: 1,
+
     // 🔥 NOVO: 5ª barra de energia — "Força". O valor atual é independente das outras
     // energias; o máximo é sempre derivado (média de mana/aura/chakra/corpo), nunca
     // armazenado aqui — ver getSupremas() em Marcados.jsx
@@ -81,6 +89,10 @@ const useStore = create(
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
         dummies: {}, alvoSelecionado: null,
         cenario: { ativa: 'default', lista: { default: { nome: 'Cenário Inicial', img: '', escala: 1.5, unidade: 'm' } } },
+        // 🔥 Divisor de Poder padrão da mesa: valor global (fora de ficha.divisorPoder, que é
+        // por personagem) que o Mestre pode definir para dividir o Poder do Scouter de TODOS
+        // os jogadores da mesa de uma vez — ver iniciarListenerDivisorPoderMesa em firebase-sync.js.
+        divisorPoderMesa: 1,
 
         setMinhaFicha: (ficha) => set((state) => { state.minhaFicha = ficha; }),
         setMeuNome: (nome) => set((state) => { state.meuNome = nome; }),
@@ -103,6 +115,7 @@ const useStore = create(
         setDummies: (dummies) => set((state) => { state.dummies = dummies || {}; }),
         setAlvoSelecionado: (id) => set((state) => { state.alvoSelecionado = id; }),
         setCenario: (dados) => set((state) => { state.cenario = dados; }),
+        setDivisorPoderMesa: (valor) => set((state) => { state.divisorPoderMesa = (parseFloat(valor) > 0) ? parseFloat(valor) : 1; }),
         updateFicha: (callback) => set((state) => { callback(state.minhaFicha); }),
 
         carregarDadosFicha: (dados) => set((state) => {

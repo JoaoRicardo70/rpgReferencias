@@ -40,7 +40,7 @@ import {
     carregarFichaDoFirebase, iniciarListenerDummies,
     iniciarListenerCenario, monitorarAuth,
     iniciarSistemaDePresenca, iniciarListenerPresenca, removerPresencaImediata,
-    iniciarListenerMestres, salvarFirebaseImediato
+    iniciarListenerMestres, salvarFirebaseImediato, iniciarListenerDivisorPoderMesa
 } from './services/firebase-sync';
 
 // 🔥 CRIANDO O CONTEXTO GLOBAL DA VOZ 🔥
@@ -85,9 +85,10 @@ export default function App() {
     const carregarDadosFicha = useStore(s => s.carregarDadosFicha);
     const abaAtiva = useStore(s => s.abaAtiva);
     
-    const cenario = useStore(s => s.cenario); 
+    const cenario = useStore(s => s.cenario);
     const setCenario = useStore(s => s.setCenario);
     const setDummies = useStore(s => s.setDummies);
+    const setDivisorPoderMesa = useStore(s => s.setDivisorPoderMesa);
     
     const mesaId = useStore(s => s.mesaId);
     const setMesaId = useStore(s => s.setMesaId);
@@ -176,8 +177,9 @@ export default function App() {
     useEffect(() => {
         const unsubDummies = iniciarListenerDummies((dados) => setDummies(dados || {}));
         const unsubCenario = iniciarListenerCenario((dados) => setCenario(dados));
-        return () => { if (unsubDummies) unsubDummies(); if (unsubCenario) unsubCenario(); };
-    }, [setDummies, setCenario]);
+        const unsubDivisorPoder = iniciarListenerDivisorPoderMesa((valor) => setDivisorPoderMesa(valor));
+        return () => { if (unsubDummies) unsubDummies(); if (unsubCenario) unsubCenario(); if (unsubDivisorPoder) unsubDivisorPoder(); };
+    }, [setDummies, setCenario, setDivisorPoderMesa]);
 
     useEffect(() => {
         if (!mesaId || !userLogado || !pronto) return;

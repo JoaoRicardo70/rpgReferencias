@@ -287,6 +287,23 @@ describe('useStore actions', () => {
             expect(useStore.getState().minhaFicha.ascensaoBase).toBe(5);
         });
 
+        it('restaura ficha.divisorPoder salvo (sobrevive ao F5, presente em fichaPadrao)', () => {
+            useStore.getState().carregarDadosFicha({ divisorPoder: 3 });
+            expect(useStore.getState().minhaFicha.divisorPoder).toBe(3);
+        });
+
+        it('carregarDadosFicha({}) nao mexe em divisorPoder quando ausente nos dados (generico so age se dados[chave] !== undefined)', () => {
+            useStore.getState().updateFicha(f => { f.divisorPoder = 7; });
+            useStore.getState().carregarDadosFicha({});
+            expect(useStore.getState().minhaFicha.divisorPoder).toBe(7);
+        });
+
+        it('resetFicha() volta divisorPoder para o padrao (0, sem override) de fichaPadrao', () => {
+            useStore.getState().updateFicha(f => { f.divisorPoder = 7; });
+            useStore.getState().resetFicha();
+            expect(useStore.getState().minhaFicha.divisorPoder).toBe(0);
+        });
+
         it('loads poderes array', () => {
             const poderes = [{ nome: 'Bankai', ativa: false, efeitos: [] }];
             useStore.getState().carregarDadosFicha({ poderes });
@@ -524,6 +541,27 @@ describe('useStore actions', () => {
         it('setPoderEditandoId', () => {
             useStore.getState().setPoderEditandoId('abc123');
             expect(useStore.getState().poderEditandoId).toBe('abc123');
+        });
+
+        it('setDivisorPoderMesa aceita um valor positivo', () => {
+            useStore.getState().setDivisorPoderMesa(4);
+            expect(useStore.getState().divisorPoderMesa).toBe(4);
+        });
+
+        it('setDivisorPoderMesa aceita string numerica e converte para number', () => {
+            useStore.getState().setDivisorPoderMesa('2.5');
+            expect(useStore.getState().divisorPoderMesa).toBe(2.5);
+        });
+
+        it('setDivisorPoderMesa trata valores invalidos, zero ou negativos como "sem divisao" (cai para 1)', () => {
+            useStore.getState().setDivisorPoderMesa(-3);
+            expect(useStore.getState().divisorPoderMesa).toBe(1);
+
+            useStore.getState().setDivisorPoderMesa(0);
+            expect(useStore.getState().divisorPoderMesa).toBe(1);
+
+            useStore.getState().setDivisorPoderMesa('abc');
+            expect(useStore.getState().divisorPoderMesa).toBe(1);
         });
     });
 });

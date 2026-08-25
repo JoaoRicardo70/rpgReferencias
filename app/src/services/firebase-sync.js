@@ -249,6 +249,24 @@ export function salvarCenarioCompleto(dadosCenario) {
     if (!db || !mesaId) return;
     set(ref(db, `mesas/${mesaId}/cenario`), dadosCenario).catch(() => {});
 }
+// 🔥 Divisor de Poder padrão da mesa: valor global que o Mestre define (fora de
+// ficha.divisorPoder, que é por personagem) para dividir o Poder do Scouter de TODOS os
+// jogadores da mesa de uma vez — mesmo esqueleto de iniciarListenerDummies/salvarDummie.
+export function iniciarListenerDivisorPoderMesa(callback) {
+    if (isInPlasmicCanvas()) return () => {};
+    const { mesaId } = useStore.getState();
+    if (!db || !mesaId) return () => {};
+    return onValue(ref(db, `mesas/${mesaId}/divisorPoderPadrao`), (snapshot) => {
+        const val = parseFloat(snapshot.val());
+        if (callback) callback((!isNaN(val) && val > 0) ? val : 1);
+    });
+}
+export function salvarDivisorPoderMesa(valor) {
+    if (isInPlasmicCanvas()) return;
+    const { mesaId } = useStore.getState();
+    if (!db || !mesaId) return;
+    set(ref(db, `mesas/${mesaId}/divisorPoderPadrao`), valor).catch(() => {});
+}
 export function zerarIniciativaGlobal(nomesArray) {
     if (isInPlasmicCanvas()) return;
     const { mesaId } = useStore.getState();

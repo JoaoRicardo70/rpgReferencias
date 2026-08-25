@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import useStore from '../../stores/useStore';
-import { uploadImagem, salvarFichaSilencioso, salvarFirebaseImediato } from '../../services/firebase-sync';
+import { uploadImagem, salvarFichaSilencioso, salvarFirebaseImediato, salvarDivisorPoderMesa } from '../../services/firebase-sync';
 
 // Importação flexível
 import * as AtributosCore from '../../core/attributes';
@@ -752,6 +752,8 @@ export default function MarcadosPanel() {
     const meuNome = useStore(s => s?.meuNome);
     const isMestreStatus = useStore(s => s?.isMestre) || false;
     const importarDaAbaStatus = useStore(s => s?.importarDaAbaStatus);
+    const divisorPoderMesa = useStore(s => s?.divisorPoderMesa) || 1;
+    const setDivisorPoderMesa = useStore(s => s?.setDivisorPoderMesa);
 
     const [uploadingImg, setUploadingImg] = useState(false);
     const [modalEstilo, setModalEstilo] = useState(false);
@@ -947,6 +949,20 @@ export default function MarcadosPanel() {
         let power = poderComAscensao * (sup / 100);
         power = clampFinito(power);
 
+        // 🔥 Divisor de Poder (exclusivo do Mestre): ficha.divisorPoder é o valor definido POR
+        // PERSONAGEM (nesta Ficha) e tem prioridade sobre divisorPoderMesa, o padrão que o Mestre
+        // pode aplicar de uma vez a TODOS os jogadores da mesa (ver salvarDivisorPoderMesa em
+        // firebase-sync.js). Qualquer valor <= 0 ou inválido é tratado como "sem override" —
+        // cai pro padrão da mesa e, na ausência dele, não divide nada (divisor efetivo = 1).
+        // Aplicado no resultado FINAL (depois de Supressão), como pedido.
+        const divisorIndividual = parseFloat(minhaFicha.divisorPoder);
+        const divisorMesaSeguro = parseFloat(divisorPoderMesa);
+        const divisorEfetivo = (!isNaN(divisorIndividual) && divisorIndividual > 0)
+            ? divisorIndividual
+            : ((!isNaN(divisorMesaSeguro) && divisorMesaSeguro > 0) ? divisorMesaSeguro : 1);
+        power = power / divisorEfetivo;
+        power = clampFinito(power);
+
         let strVal = String(Math.floor(power));
         let digitos = strVal.length;
         if (strVal.includes('e')) {
@@ -979,6 +995,8 @@ export default function MarcadosPanel() {
         minhaFicha?.ataquesElementais,
         minhaFicha?.supressaoPoder,
         minhaFicha?.limiteSupressao,
+        minhaFicha?.divisorPoder,
+        divisorPoderMesa,
         ascensaoGeralEfetivaParaPoder,
     ]);
 
@@ -1002,6 +1020,17 @@ export default function MarcadosPanel() {
             atual[chaves[chaves.length - 1]] = valFinal;
         });
         callSave();
+    };
+
+    // 🔥 Divisor de Poder padrão da mesa (exclusivo do Mestre): diferente de `salvar()`, não
+    // mexe em `minhaFicha` — atualiza a store global (reflete na hora pra quem já está com a
+    // mesa aberta) e persiste em mesas/{mesaId}/divisorPoderPadrao, aplicado a TODOS os
+    // personagens que não tenham o próprio ficha.divisorPoder definido.
+    const salvarDivisorPoderMesaHandler = (valor) => {
+        let v = parseFloat(valor);
+        if (isNaN(v) || v <= 0) v = 1;
+        setDivisorPoderMesa(v);
+        salvarDivisorPoderMesa(v);
     };
 
     const handleStyleChange = (key, val) => {
@@ -1271,6 +1300,33 @@ export default function MarcadosPanel() {
                                         <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>🔒 Controle do GM (Limite de Ocultação):</span>
                                         <input type="number" min="0.000001" step="any" value={limiteSupressao} onChange={e => { salvar('limiteSupressao', e.target.value); }} style={{ width: '80px', background: 'rgba(0,0,0,0.8)', color: '#ff003c', border: '1px solid #ff003c', padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }} />
                                         <span style={{ color: '#ff003c', fontWeight: 'bold', fontSize: '1em' }}>%</span>
+                                    </div>
+                                )}
+
+                                {isMestre && (
+                                    <div style={{ marginTop: '10px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', background: 'rgba(255, 0, 60, 0.1)', padding: '8px', borderRadius: '6px', border: '1px dashed rgba(255, 0, 60, 0.5)' }}>
+                                        <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>🔒 Divisor de Poder (Este Personagem):</span>
+                                        <input
+                                            type="number" min="0" step="any"
+                                            placeholder={`Padrão (÷${divisorPoderMesa})`}
+                                            value={parseFloat(minhaFicha.divisorPoder) > 0 ? minhaFicha.divisorPoder : ''}
+                                            onChange={e => { salvar('divisorPoder', e.target.value === '' ? 0 : e.target.value); }}
+                                            style={{ width: '110px', background: 'rgba(0,0,0,0.8)', color: '#ff003c', border: '1px solid #ff003c', padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }}
+                                        />
+                                        <span style={{ color: '#ff003c', opacity: 0.6, fontSize: '0.75em' }}>(vazio = usa o padrão da mesa)</span>
+                                    </div>
+                                )}
+
+                                {isMestre && (
+                                    <div style={{ marginTop: '10px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px', background: 'rgba(255, 0, 60, 0.1)', padding: '8px', borderRadius: '6px', border: '1px dashed rgba(255, 0, 60, 0.5)' }}>
+                                        <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>🔒 Divisor de Poder Padrão (Todos os Jogadores):</span>
+                                        <input
+                                            type="number" min="0.000001" step="any"
+                                            value={divisorPoderMesa}
+                                            onChange={e => { salvarDivisorPoderMesaHandler(e.target.value); }}
+                                            style={{ width: '110px', background: 'rgba(0,0,0,0.8)', color: '#ff003c', border: '1px solid #ff003c', padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }}
+                                        />
+                                        <span style={{ color: '#ff003c', opacity: 0.6, fontSize: '0.75em' }}>(aplicado a todo mundo que não tiver um divisor próprio)</span>
                                     </div>
                                 )}
                                 <style>{` @keyframes pulse-aura { 0% { opacity: 0.3; transform: scale(0.9); } 50% { opacity: 0.8; transform: scale(1.1); } 100% { opacity: 0.3; transform: scale(0.9); } } `}</style>
