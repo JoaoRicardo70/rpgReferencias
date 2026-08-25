@@ -18,6 +18,16 @@ import useStore from '../../stores/useStore';
 // Marcados.scouterGrimorioSync.test.jsx / Marcados.scouterFormaReatividade.test.jsx:
 // o Grimório não move mais o Scouter via Status/Energia/Vida, mas agora tem
 // um jeito dedicado de fazê-lo via este campo.
+//
+// 🔥 Correção de regressão: multiplicadorPoderDireto é aplicado DEPOIS da injeção de
+// magnitude da Ascensão (poderComAscensao), não dentro de poderMultiplicado antes dela.
+// Aplicá-lo antes fazia a "década" (magnitude = floor(log10(poderMultiplicado))) mudar de
+// forma inconsistente a cada ativação/desativação — um efeito declarado como "x76" podia
+// produzir um salto real de ~95x no Scouter, porque o termo injetado
+// (ascensaoSegura * 10^(magnitude+1)) escala com a década de poderMultiplicado, não
+// linearmente com o fator do efeito. Todos os valores abaixo já refletem essa correção:
+// o poderComAscensao "base" desta ficha (sem nenhum poder_direto) é sempre 12000, e cada
+// cenário só multiplica esse valor pelo fator declarado no efeito.
 // ---------------------------------------------------------------------------
 
 vi.mock('../../stores/useStore');
@@ -108,8 +118,12 @@ describe('MarcadosPanel — "PODER (Direto)" do Grimório: reage a ativa/inativa
         cleanup();
     });
 
-    // poderMultiplicado = 1000*2*9 (multiplicadorPoderDireto=1+8=9) = 18000,
-    // magnitude = floor(log10(18000)) = 4, poderComAscensao = 18000+1*10^5 = 118000.
+    // multiplicadorPoderDireto é aplicado DEPOIS da injeção de magnitude da Ascensão (não
+    // dentro de poderMultiplicado) — ver comentário em Marcados.jsx sobre por que isso importa
+    // para uma relação limpa e exata entre o fator do efeito e a leitura do Scouter. Baseline
+    // sem nenhum poder_direto: poderComAscensao = 12000 (poderMultiplicado=1000*2=2000,
+    // magnitude=3, 2000+1*10^4=12000). Com mgeral:+8 (multiplicadorPoderDireto=1+8=9):
+    // 12000*9 = 108000.
     it('efeito ativo atributo:"poder_direto"/mgeral:+8 AUMENTA o Scouter só quando ativa=true; desativar REVERTE', () => {
         const ficha = fichaMinimaScouter({
             poderes: [{ nome: 'Explosão de Ki Pura', ativa: false, efeitos: [{ atributo: 'poder_direto', propriedade: 'mgeral', valor: 8 }] }],
@@ -123,7 +137,7 @@ describe('MarcadosPanel — "PODER (Direto)" do Grimório: reage a ativa/inativa
         mockState.updateFicha((f) => { f.poderes[0].ativa = true; });
         rerender(<MarcadosPanel />);
         const valorLigado = lerPoderGlobalExibido();
-        expect(valorLigado).toBe(118000);
+        expect(valorLigado).toBe(108000);
         expect(valorLigado).toBeGreaterThan(valorDesligado);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = false; });
@@ -132,7 +146,7 @@ describe('MarcadosPanel — "PODER (Direto)" do Grimório: reage a ativa/inativa
         expect(valorRevertido).toBe(12000);
     });
 
-    it('efeito PASSIVO atributo:"poder_direto"/mgeral:+8 conta SEMPRE, ativa=true ou ativa=false (mesma leitura 118000 nos dois estados)', () => {
+    it('efeito PASSIVO atributo:"poder_direto"/mgeral:+8 conta SEMPRE, ativa=true ou ativa=false (mesma leitura 108000 nos dois estados)', () => {
         const comAtivaFalse = renderELerPoderGlobal({
             poderes: [{ nome: 'Instinto Direto', ativa: false, efeitosPassivos: [{ atributo: 'poder_direto', propriedade: 'mgeral', valor: 8 }] }],
         });
@@ -140,8 +154,8 @@ describe('MarcadosPanel — "PODER (Direto)" do Grimório: reage a ativa/inativa
             poderes: [{ nome: 'Instinto Direto', ativa: true, efeitosPassivos: [{ atributo: 'poder_direto', propriedade: 'mgeral', valor: 8 }] }],
         });
 
-        expect(comAtivaFalse).toBe(118000);
-        expect(comAtivaTrue).toBe(118000);
+        expect(comAtivaFalse).toBe(108000);
+        expect(comAtivaTrue).toBe(108000);
     });
 });
 
@@ -171,7 +185,8 @@ describe('MarcadosPanel — "PODER (Direto)": mesma regra de agrupamento por tip
     });
 
     // mbase:+3 (grupo 1+3=4) e mgeral:+8 (grupo 1+8=9) MULTIPLICAM entre si: 4*9=36.
-    // poderMultiplicado = 1000*2*36 = 72000, magnitude=4, poderComAscensao = 72000+100000 = 172000.
+    // Aplicado por cima do poderComAscensao "base" (12000, sem poder_direto — ver
+    // comentário no describe anterior): 12000*36 = 432000.
     it('tipos diferentes (mbase e mgeral) MULTIPLICAM entre si, não somam', () => {
         const leitura = renderELerPoderGlobal({
             poderes: [{
@@ -184,14 +199,14 @@ describe('MarcadosPanel — "PODER (Direto)": mesma regra de agrupamento por tip
             }],
         });
 
-        expect(leitura).toBe(172000);
+        expect(leitura).toBe(432000);
     });
 
     // munico continua puramente multiplicativo entre instâncias (3*3=9), não aditivo
-    // (o que daria 1+3+3=7, resultado diferente). poderMultiplicado = 1000*2*9=18000,
-    // magnitude=4, poderComAscensao=18000+100000=118000 — mesma leitura de mgeral:+8
-    // isolado (coincidência numérica esperada: (1+8)=9=3*3), mas comparado abaixo
-    // contra o hipotético aditivo (1+3+3=7 -> 114000) para provar que é multiplicativo.
+    // (o que daria 1+3+3=7, resultado diferente). multiplicadorPoderDireto=9 aplicado
+    // por cima do poderComAscensao "base" (12000): 12000*9=108000. Comparado contra o
+    // hipotético aditivo (mgeral:+6, grupo 1+6=7 -> 12000*7=84000) para provar que é
+    // multiplicativo, não aditivo.
     it('munico continua multiplicativo entre instâncias (3*3=9), não aditivo (1+3+3=7)', () => {
         const duasFontesMunico = renderELerPoderGlobal({
             poderes: [{
@@ -207,8 +222,8 @@ describe('MarcadosPanel — "PODER (Direto)": mesma regra de agrupamento por tip
             poderes: [{ nome: 'Aditivo Hipotético', ativa: true, efeitos: [{ atributo: 'poder_direto', propriedade: 'mgeral', valor: 6 }] }],
         });
 
-        expect(duasFontesMunico).toBe(118000);
-        expect(hipoteticoAditivo).toBe(114000);
+        expect(duasFontesMunico).toBe(108000);
+        expect(hipoteticoAditivo).toBe(84000);
         expect(duasFontesMunico).not.toBe(hipoteticoAditivo);
     });
 });
@@ -239,7 +254,7 @@ describe('MarcadosPanel — "PODER (Direto)" nunca vaza para Status/Energia/Vida
     // Poder_Base (não só os efeitos "poder_direto"), o efeito de forca:base
     // não pode vazar para o Poder_Base mesmo estando no MESMO objeto de Poder
     // do efeito poder_direto — e a leitura final deve ser EXATAMENTE igual à
-    // do teste isolado de poder_direto/mgeral:+8 (118000), provando que o
+    // do teste isolado de poder_direto/mgeral:+8 (108000), provando que o
     // bônus de força não contaminou o resultado.
     it('efeito "forca"/base misturado no MESMO Poder que um efeito "poder_direto" não vaza para o Poder_Base; só o poder_direto entra no multiplicador', () => {
         const leitura = renderELerPoderGlobal({
@@ -253,7 +268,7 @@ describe('MarcadosPanel — "PODER (Direto)" nunca vaza para Status/Energia/Vida
             }],
         });
 
-        expect(leitura).toBe(118000);
+        expect(leitura).toBe(108000);
     });
 });
 
@@ -280,19 +295,23 @@ describe('MarcadosPanel — "PODER (Direto)": valores negativos e zero', () => {
 
     // mgeral:-2 produz um multiplicador NEGATIVO ((1-2)=-1), assim como já é
     // permitido pelo resto do sistema para multiplicadores de Status
-    // (getMultiplicadorTotal soma buffs negativos livremente). O Poder final
-    // vira negativo (poderMultiplicado = 1000*2*(-1) = -2000 <= 0), o que
-    // força o ramo "else" do failsafe de log10 (mesma lógica documentada em
-    // Marcados.scouterGrimorioSync.test.jsx): poderComAscensao =
-    // ascensaoSegura*10 + poderMultiplicado = 1*10 + (-2000) = -1990.
-    it('efeito "poder_direto"/mgeral:-2 pode tornar o multiplicador e o Poder final NEGATIVOS, sem gerar NaN/Infinity (ramo else do failsafe)', () => {
+    // (getMultiplicadorTotal soma buffs negativos livremente). Como
+    // multiplicadorPoderDireto é aplicado DEPOIS da injeção de magnitude da
+    // Ascensão (sobre o poderComAscensao "base", positivo, 12000 — ver
+    // describe anterior), o resultado final vira negativo por essa
+    // multiplicação (12000 * -1 = -12000), sem passar pelo ramo "else" do
+    // failsafe de log10 (esse ramo só entra em jogo se poderMultiplicado —
+    // ANTES do poder_direto — já for <= 0, o que um multiplicador negativo
+    // aplicado depois não pode causar). O importante aqui é que o resultado
+    // final continua finito e sem NaN mesmo sendo negativo.
+    it('efeito "poder_direto"/mgeral:-2 pode tornar o multiplicador e o Poder final NEGATIVOS, sem gerar NaN/Infinity', () => {
         const leitura = renderELerPoderGlobal({
             poderes: [{ nome: 'Sabotagem Direta', ativa: true, efeitos: [{ atributo: 'poder_direto', propriedade: 'mgeral', valor: -2 }] }],
         });
 
         expect(leitura).not.toBeNaN();
         expect(Number.isFinite(leitura)).toBe(true);
-        expect(leitura).toBe(-1990);
+        expect(leitura).toBe(-12000);
     });
 });
 
@@ -313,8 +332,8 @@ describe('MarcadosPanel — "PODER (Direto)" e substituição de Forma (resolver
     // resolverEfeitosEntidade() SUBSTITUIR totalmente os efeitos da raiz
     // pelos da Forma (não acumular), getPoderDiretoMultiplier deve enxergar
     // SÓ o mgeral:+3 da Forma — o mgeral:+8 da raiz é descartado. Multiplicador
-    // = 1+3 = 4 -> poderMultiplicado = 1000*2*4 = 8000 -> magnitude=3 ->
-    // poderComAscensao = 8000 + 1*10^4 = 18000.
+    // = 1+3 = 4, aplicado por cima do poderComAscensao "base" (12000):
+    // 12000*4 = 48000.
     it('Forma ativa com acumulaFormaBase:false SUBSTITUI o poder_direto da raiz pelo da Forma (não soma)', () => {
         const leitura = renderELerPoderGlobal({
             poderes: [{
@@ -330,15 +349,15 @@ describe('MarcadosPanel — "PODER (Direto)" e substituição de Forma (resolver
             }],
         });
 
-        expect(leitura).toBe(18000);
+        expect(leitura).toBe(48000);
     });
 
     // Mesmo cenário, mas com acumulaFormaBase:true (comportamento padrão) —
     // agora resolverEfeitosEntidade ACUMULA raiz+Forma: mgeral efetivo =
-    // 8+3=11 -> grupo (1+11)=12 -> poderMultiplicado = 1000*2*12 = 24000 ->
-    // magnitude=4 -> poderComAscensao = 24000 + 1*10^5 = 124000. Confirma que
-    // a exclusão acima é especificamente por causa de acumulaFormaBase:false,
-    // não um bug que ignora a raiz sempre que há uma Forma ativa.
+    // 8+3=11 -> grupo (1+11)=12, aplicado por cima do poderComAscensao "base"
+    // (12000): 12000*12 = 144000. Confirma que a exclusão acima é
+    // especificamente por causa de acumulaFormaBase:false, não um bug que
+    // ignora a raiz sempre que há uma Forma ativa.
     it('Forma ativa com acumulaFormaBase:true ACUMULA o poder_direto da raiz com o da Forma (soma, não substitui)', () => {
         const leitura = renderELerPoderGlobal({
             poderes: [{
@@ -354,6 +373,50 @@ describe('MarcadosPanel — "PODER (Direto)" e substituição de Forma (resolver
             }],
         });
 
-        expect(leitura).toBe(124000);
+        expect(leitura).toBe(144000);
+    });
+});
+
+describe('MarcadosPanel — "PODER (Direto)" combinado com Supressão ("Ocultar Presença"): multiplicadorPoderDireto é aplicado ANTES da Supressão, não depois', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        window.confirm = vi.fn(() => true);
+        window.alert = vi.fn();
+    });
+
+    afterEach(() => {
+        cleanup();
+    });
+
+    // A ordem real no código é: poderComAscensao (12000) -> * multiplicadorPoderDireto (aplicado
+    // logo após a injeção de Ascensão) -> * (sup/100) (Supressão, aplicada por último). Como é uma
+    // cadeia de multiplicações simples, matematicamente a ordem entre poder_direto e Supressão não
+    // deveria importar — mas nenhum teste anterior (neste arquivo ou nos demais do Scouter) exercita
+    // supressaoPoder != 100 junto de um efeito poder_direto, então esta é uma combinação sem
+    // cobertura própria até aqui. Com mgeral:+8 (multiplicadorPoderDireto=9) e supressaoPoder=50:
+    // 12000 * 9 * 0.5 = 54000.
+    it('Supressão a 50% aplicada por cima de um poder_direto positivo (mgeral:+8) resulta em 12000*9*0.5=54000', () => {
+        const leitura = renderELerPoderGlobal({
+            supressaoPoder: 50,
+            poderes: [{ nome: 'Explosão de Ki Pura', ativa: true, efeitos: [{ atributo: 'poder_direto', propriedade: 'mgeral', valor: 8 }] }],
+        });
+
+        expect(leitura).toBe(54000);
+    });
+
+    // Mesma combinação, mas com um poder_direto NEGATIVO (mgeral:-2 -> multiplicador -1) e Supressão
+    // fracionária (50%): 12000 * -1 * 0.5 = -6000. Confirma que a blindagem de overflow
+    // (clampFinito aplicado tanto depois do poder_direto quanto depois da Supressão) não introduz
+    // NaN/Infinity nem "corrige" o sinal negativo quando as duas reduções fracionárias/negativas se
+    // combinam na mesma leitura.
+    it('Supressão a 50% combinada com poder_direto NEGATIVO (mgeral:-2) permanece finita e com o sinal correto (-6000)', () => {
+        const leitura = renderELerPoderGlobal({
+            supressaoPoder: 50,
+            poderes: [{ nome: 'Sabotagem Direta', ativa: true, efeitos: [{ atributo: 'poder_direto', propriedade: 'mgeral', valor: -2 }] }],
+        });
+
+        expect(leitura).not.toBeNaN();
+        expect(Number.isFinite(leitura)).toBe(true);
+        expect(leitura).toBe(-6000);
     });
 });

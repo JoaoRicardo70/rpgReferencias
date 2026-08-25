@@ -390,8 +390,8 @@ function aplicarMultiplicadorForca(prestigioBase, ascensaoBase, multiplicadorFor
     return { ...rankInfo, prestigioFinal, ascensaoFinal };
 }
 
-function calcularPrestAtual(ficha, attrKey, baseP) {
-    const mFormas = getEfetivoMFormas(ficha, attrKey);
+function calcularPrestAtual(ficha, attrKey, baseP, ignorarPoderes = false) {
+    const mFormas = getEfetivoMFormas(ficha, attrKey, ignorarPoderes);
     const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
     return Math.floor((baseP || 0) * multForma) || 0;
 }
@@ -788,17 +788,22 @@ export default function MarcadosPanel() {
         }
     }, [minhaFicha?.estetica]);
 
-    const { ascensaoGeralEfetiva, fatorCrescimentoBase, fatorCrescimentoAtual, fatorAtributosBase, fatorAtributosAtual } = useMemo(() => {
-        if (!minhaFicha) return { ascensaoGeralEfetiva: 1, fatorCrescimentoBase: 1, fatorCrescimentoAtual: 1, fatorAtributosBase: 1, fatorAtributosAtual: 1 };
+    const { ascensaoGeralEfetiva, ascensaoGeralEfetivaParaPoder, fatorCrescimentoBase, fatorCrescimentoAtual, fatorAtributosBase, fatorAtributosAtual } = useMemo(() => {
+        if (!minhaFicha) return { ascensaoGeralEfetiva: 1, ascensaoGeralEfetivaParaPoder: 1, fatorCrescimentoBase: 1, fatorCrescimentoAtual: 1, fatorAtributosBase: 1, fatorAtributosAtual: 1 };
         const ascensaoBase = parseInt(minhaFicha.ascensaoBase) || 1;
         const multP = minhaFicha.multiplicadorForcaPrestigio ?? 1;
         const multA = parseFloat(minhaFicha.multiplicadorForcaAscensao) || 1;
         const ascensaoBaseEfetiva = ascensaoBase * multA;
 
-        const calcularFator = (comFormas) => {
+        // ignorarPoderes=true exclui os bônus de mFormas vindos do Grimório (ficha.poderes) do
+        // cálculo de Prestígio/Ascensão — usado só pela variante "ParaPoder" abaixo, para que
+        // uma Forma/Habilidade/Poder não infle a Ascensão (e, por tabela, o multiplicador
+        // exponencial do Poder do Scouter) através de um bônus de Status/Energia/Vida que já foi
+        // deliberadamente excluído do cálculo do Poder (ver calcPoderBase/getGlobalMultipliers).
+        const calcularFator = (comFormas, ignorarPoderes = false) => {
             const bonusPorCategoria = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
                 const displayP = getBasePFor(minhaFicha, k);
-                const pAtual = comFormas ? calcularPrestAtual(minhaFicha, k, displayP) : displayP;
+                const pAtual = comFormas ? calcularPrestAtual(minhaFicha, k, displayP, ignorarPoderes) : displayP;
                 const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
                 return Math.max(0, (rankInfo.ascensaoFinal || 0) - ascensaoBaseEfetiva);
             });
@@ -822,6 +827,7 @@ export default function MarcadosPanel() {
 
         return {
             ascensaoGeralEfetiva: calcularFator(true).geral,
+            ascensaoGeralEfetivaParaPoder: calcularFator(true, true).geral,
             fatorCrescimentoBase: calcularFator(false).fator,
             fatorCrescimentoAtual: calcularFator(true).fator,
             fatorAtributosBase: calcularFatorStatus(false),
@@ -859,9 +865,16 @@ export default function MarcadosPanel() {
         const poderBase = calcPoderBase();
         const glob = getGlobalMultipliers(minhaFicha);
 
-        // 🔥 Failsafe: ascensaoGeralEfetiva SEMPRE com fallback absoluto para 0 (nunca undefined/NaN
-        // vindo do banco) — calculado aqui porque agora também alimenta o multiplicador real abaixo.
-        const ascensaoSegura = Number(ascensaoGeralEfetiva) || 0;
+        // 🔥 Failsafe: ascensaoGeralEfetivaParaPoder SEMPRE com fallback absoluto para 0 (nunca
+        // undefined/NaN vindo do banco) — calculado aqui porque agora também alimenta o multiplicador
+        // real abaixo. Usa a variante "ParaPoder" (ignorarPoderes=true na cascata de Prestígio/
+        // Ascensão), não a ascensaoGeralEfetiva "normal" exibida no indicador da Ficha — sem isso, uma
+        // Forma/Habilidade/Poder com bônus de mFormas em Vida/Status (ex.: "efeito de transformação")
+        // inflava a Ascensão e, por causa do multiplicador exponencial abaixo, multiplicava o Poder
+        // MUITO além do valor configurado no efeito 'poder_direto' daquela mesma Forma — dobrando a
+        // fonte do bônus (uma vez via Ascensão, outra via poder_direto) mesmo com o cálculo do Poder
+        // já supostamente ignorando mudanças de Status/Energia/Vida do Grimório.
+        const ascensaoSegura = Number(ascensaoGeralEfetivaParaPoder) || 0;
 
         // 🔥 Ascensão como MULTIPLICADOR EXPONENCIAL do Poder Base: antes, a Ascensão só entrava no
         // final via injeção de log10 (uma "casa decimal a mais"), que nunca conseguia compensar uma
@@ -900,11 +913,7 @@ export default function MarcadosPanel() {
         const SATURACAO_SEGURA = 1e308;
         const clampFinito = (v) => Number.isFinite(v) ? v : (Number.isNaN(v) ? 0 : Math.sign(v) * SATURACAO_SEGURA);
 
-        // 🔥 Multiplicador direto do Grimório (Habilidades/Formas/Poderes com atributo:'poder_direto') —
-        // entra na mesma cadeia multiplicativa dos demais fatores, com a mesma blindagem de overflow.
-        const multiplicadorPoderDireto = clampFinito(getPoderDiretoMultiplier(minhaFicha));
-
-        let poderMultiplicado = poderBase * multiplicadorAscensao * glob.finalF * glob.totalDano * multiplicadorPoderDireto;
+        let poderMultiplicado = poderBase * multiplicadorAscensao * glob.finalF * glob.totalDano;
         poderMultiplicado = clampFinito(poderMultiplicado);
 
         // 🔥 Injeção de Ascensão: soma a Ascensão Geral Efetiva como a grandeza máxima (sempre uma
@@ -920,6 +929,20 @@ export default function MarcadosPanel() {
             poderComAscensao = (ascensaoSegura * 10) + poderMultiplicado;
         }
         poderComAscensao = clampFinito(poderComAscensao);
+
+        // 🔥 Multiplicador direto do Grimório (Habilidades/Formas/Poderes com atributo:'poder_direto') —
+        // aplicado DEPOIS da injeção de magnitude da Ascensão acima (não dentro de poderMultiplicado),
+        // para que ele multiplique o Poder já calculado (incluindo o "flourish" da Ascensão) por
+        // exatamente o fator declarado. Aplicá-lo ANTES da injeção fazia o log10(poderMultiplicado)
+        // mudar de "década" (magnitude) de forma inconsistente a cada ativação/desativação, o que
+        // distorcia a leitura final para bem mais (ou menos) do que o fator declarado no efeito —
+        // ex.: um efeito "MFORMAS: +75" (fator x76) podia produzir um salto de ~95x no Scouter, porque
+        // o termo injetado (ascensaoSegura * 10^(magnitude+1)) escala com a década de
+        // poderMultiplicado, não linearmente com o fator do efeito. Multiplicar por cima do resultado
+        // já injetado garante a mesma blindagem de overflow (clampFinito) e uma relação limpa e exata
+        // entre o fator do efeito e a variação observada no Scouter.
+        const multiplicadorPoderDireto = clampFinito(getPoderDiretoMultiplier(minhaFicha));
+        poderComAscensao = clampFinito(poderComAscensao * multiplicadorPoderDireto);
 
         let power = poderComAscensao * (sup / 100);
         power = clampFinito(power);
@@ -956,7 +979,7 @@ export default function MarcadosPanel() {
         minhaFicha?.ataquesElementais,
         minhaFicha?.supressaoPoder,
         minhaFicha?.limiteSupressao,
-        ascensaoGeralEfetiva,
+        ascensaoGeralEfetivaParaPoder,
     ]);
 
     if (!minhaFicha) return <div style={{ color: '#000', padding: 20, fontFamily: 'cursive' }}>Abrindo a Ficha...</div>;

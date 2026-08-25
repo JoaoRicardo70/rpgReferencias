@@ -223,3 +223,82 @@ describe('MarcadosPanel — campo ESTÁTICO ficha.<attr>.mFormas (fora do Grimó
         expect(leituraEstatica).not.toBe(leituraBuff);
     });
 });
+
+describe('MarcadosPanel — Grimório (poderes[]) não infla o Poder INDIRETAMENTE via Ascensão/Prestígio', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        window.confirm = vi.fn(() => true);
+        window.alert = vi.fn();
+    });
+
+    afterEach(() => {
+        cleanup();
+    });
+
+    // As fichas de "gargalo único" acima (fichaMinimaScouter, com 5 das 6 categorias
+    // zeradas) não conseguem expor um vazamento pela Ascensão: como Math.min(...) entre
+    // as 6 categorias já trava nivelCompletos em 0 (as 5 categorias zeradas nunca sobem),
+    // um bônus de mFormas isolado em "vida" nunca muda o mínimo. Aqui, TODAS as 6
+    // categorias têm overflow de Prestígio > 0, com "vida" deliberadamente MENOR que as
+    // outras 5 (o gargalo real) — só assim um bônus de mFormas em "vida" vindo do
+    // Grimório teria como empurrar o mínimo para cima, se ainda vazasse pela Ascensão.
+    //
+    // vida=1e8 -> prestígio bruto=100 -> bonusAscensao=floor(100/100)=1 (o gargalo).
+    // mana/aura/chakra/corpo=5e9 -> prestígio bruto=500 -> bonusAscensao=5 cada.
+    // forca..constituicao=500000 (média) -> prestígio bruto(status)=500 -> bonusAscensao=5.
+    // nivelCompletos = min(1,5,5,5,5,5) = 1 -> ascensaoGeralEfetivaParaPoder = (1+1)*1 = 2
+    // -> multiplicadorAscensao = 2^2 = 4 (mesmo com o poder do Grimório desativado).
+    function fichaComGargaloDeVida(overrides = {}) {
+        return {
+            vida: { base: 100000000 },
+            mana: { base: 5000000000 },
+            aura: { base: 5000000000 },
+            chakra: { base: 5000000000 },
+            corpo: { base: 5000000000 },
+            forca: { base: 500000 },
+            destreza: { base: 500000 },
+            inteligencia: { base: 500000 },
+            sabedoria: { base: 500000 },
+            energiaEsp: { base: 500000 },
+            carisma: { base: 500000 },
+            stamina: { base: 500000 },
+            constituicao: { base: 500000 },
+            divisores: {},
+            bio: {},
+            estetica: {},
+            labels: {},
+            poderes: [],
+            inventario: [],
+            seresSelados: [],
+            ...overrides,
+        };
+    }
+
+    // Se um efeito de poderes[] com atributo:'vida'/propriedade:'mformas' NÃO for excluído
+    // do cálculo de Ascensão (regressão), ele empurraria o gargalo de "vida" (bonusAscensao=1)
+    // para cima do das outras 5 categorias (bonusAscensao=5), fazendo nivelCompletos SUBIR
+    // de 1 para 5 e ascensaoGeralEfetivaParaPoder de 2 para 6 — um salto de 2^6/2^2=16x só
+    // por causa da Ascensão, ADEMAIS de qualquer efeito "poder_direto" no mesmo Poder. Com a
+    // exclusão correta (ignorarPoderes=true em calcularPrestAtual/getEfetivoMFormas), ativar
+    // este Poder NÃO deve mudar a leitura do Scouter em nada.
+    it('efeito de poderes[] com atributo:"vida"/propriedade:"mformas" NÃO altera a Ascensão/Prestígio usada pelo Poder, mesmo quando "vida" é o gargalo do mínimo entre as 6 categorias', () => {
+        const ficha = fichaComGargaloDeVida({
+            poderes: [{ nome: 'Forma Vital Extrema', ativa: false, efeitos: [{ atributo: 'vida', propriedade: 'mformas', valor: 60 }] }],
+        });
+        const mockState = montarMockUseStoreReativo(ficha);
+
+        const { rerender } = render(<MarcadosPanel />);
+        const valorDesligado = lerPoderGlobalExibido();
+
+        mockState.updateFicha((f) => { f.poderes[0].ativa = true; });
+        rerender(<MarcadosPanel />);
+        const valorLigado = lerPoderGlobalExibido();
+
+        expect(valorLigado).toBe(valorDesligado);
+
+        mockState.updateFicha((f) => { f.poderes[0].ativa = false; });
+        rerender(<MarcadosPanel />);
+        const valorRevertido = lerPoderGlobalExibido();
+        expect(valorRevertido).toBe(valorDesligado);
+    });
+});
