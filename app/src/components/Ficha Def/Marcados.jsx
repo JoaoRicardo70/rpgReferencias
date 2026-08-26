@@ -90,17 +90,7 @@ function getGlobalMultipliers(ficha) {
             });
         }
 
-        // 🔥 FORMA ATIVA — MESMA FONTE QUE O RADAR: RadarDesenhado (e a lista de atributos logo
-        // abaixo dele) descobrem que uma Forma foi ativada chamando getEfetivoMFormas(ficha, eixo)
-        // para cada uma das 6 categorias (vida/mana/aura/chakra/corpo/status) — função que soma o
-        // campo estático ficha.<attr>.mFormas COM os buffs dinâmicos mformas de poderes/itens/seres
-        // ativos tageados no atributo específico (ex.: atributo:'vida'), não só 'geral'/'dano'.
-        // O código antigo só lia o campo estático ficha.forca.mFormas (e nunca os buffs dinâmicos
-        // nem os outros 5 eixos) — por isso o Radar reagia à Forma ativada e o Scouter não. Somamos
-        // aqui o bônus (mFormas-1) de cada eixo, na mesma convenção "1+soma" das demais categorias.
-        // ignorarPoderes=true: o Poder do Scouter não deve mais herdar os bônus de mFormas/mGeral/etc
-        // que vêm do Grimório (ficha.poderes — Habilidades/Formas/Poderes). Esses efeitos continuam
-        // valendo normalmente no resto da Ficha (Status/Energias/Vida) — só saem desta leitura global.
+        // 🔥 FORMA ATIVA — MESMA FONTE QUE O RADAR
         ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].forEach(k => {
             const mF = getEfetivoMFormas(ficha, k, true);
             if (!isNaN(mF) && mF > 1) {
@@ -108,7 +98,7 @@ function getGlobalMultipliers(ficha) {
             }
         });
 
-        // Lê Buffs Dinâmicos do Sistema Core (exclui ficha.poderes — ver comentário acima)
+        // Lê Buffs Dinâmicos do Sistema Core
         let b = safeGetBuffs(ficha, 'dano', true, true) || {};
         if (b._hasBuff) {
             if (b.mbase) addManual(b.mbase, 'MBASE', 'Buff_Sistema');
@@ -119,10 +109,7 @@ function getGlobalMultipliers(ficha) {
             }
         }
 
-        // Vasculha as abas ativas e soma passivas com o mesmo nome. `flagAtivo` e `camposTexto`
-        // são configuráveis porque nem toda categoria usa a mesma convenção de nomes de campo
-        // (ex.: ficha.ataquesElementais, escrito pelo Grimório/ElementosFormContext, usa
-        // `equipado` em vez de `ativo` e `descricao` em vez de `desc`).
+        // Vasculha as abas ativas e soma passivas com o mesmo nome.
         const scanCategory = (cat, flagAtivo = 'ativo', camposTexto = ['efeitos', 'desc']) => {
             if (!ficha[cat]) return;
             Object.values(ficha[cat]).forEach(item => {
@@ -149,13 +136,9 @@ function getGlobalMultipliers(ficha) {
             });
         };
         ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios', 'itens'].forEach(cat => scanCategory(cat));
-        // 🔥 SINCRONIZAÇÃO COM O GRIMÓRIO: ataques elementais equipados em ElementosFormContext
-        // (Grimório -> Página "Afinidades & Elementos") ficam em ficha.ataquesElementais, com
-        // `equipado` como flag de ativação e `descricao` como campo de texto — não `ativo`/`desc`.
         scanCategory('ataquesElementais', 'equipado', ['descricao', 'efeitos', 'desc']);
 
-        // 🔥 REGRA DE AGRUPAMENTO: multiplicadores do MESMO TIPO se SOMAM (1 + soma) antes
-        // da multiplicação final entre categorias. Só o mUnico (abaixo) é multiplicativo entre si.
+        // 🔥 REGRA DE AGRUPAMENTO: multiplicadores do MESMO TIPO se SOMAM (1 + soma)
         const calcTotal = (tipo) => {
             let soma = 0;
             Object.values(grupos[tipo]).forEach(v => { soma += v; });
@@ -176,13 +159,7 @@ function getGlobalMultipliers(ficha) {
     }
 }
 
-// 🔥 MULTIPLICADOR DIRETO DE PODER: a aba Habilidades/Formas/Poderes (Grimório) agora pode marcar um
-// efeito com atributo:'poder_direto' para multiplicar o Poder do Scouter DIRETAMENTE, sem passar por
-// nenhum Status/Energia/Vida — nenhum statKey do sistema se chama 'poder_direto', então getBuffs()
-// nunca aplica esse efeito a nada além desta leitura (ver condição `afeta` em attributes.js). Usa a
-// MESMA regra de agrupamento já estabelecida para MBASE/MGERAL/MFORMAS/MABS/MUNICO: soma dentro do
-// mesmo tipo (1 + soma), multiplica entre tipos. Só efeitos Ativos contam quando o Poder/Habilidade/
-// Forma está ativada (p.ativa); os Passivos contam sempre — mesma convenção do resto do sistema.
+// 🔥 MULTIPLICADOR DIRETO DE PODER 🔥
 function getPoderDiretoMultiplier(ficha) {
     if (!ficha || !ficha.poderes) return 1;
     try {
@@ -242,16 +219,11 @@ function getPoderAbsolutoAtributo(key, ficha) {
     const multP = parseFloat(ficha?.multiplicadorForcaPrestigio) || 1;
     const multA = parseFloat(ficha?.multiplicadorForcaAscensao) || 1;
 
-    // 🔥 Alicerce = valores FINAIS já escalonados (mesma cascata de overflow Prestígio->Ascensão
-    // usada pelo Radar/TabelaPrestigio via aplicarMultiplicadorForca), não a soma crua dos multiplicadores.
     const { prestigioFinal, ascensaoFinal } = aplicarMultiplicadorForca(prestigioBruto, ascensaoBase, multP, multA);
-
-    // Regra Mestra: (Ascensao * 100) + Prestigio
     const pontosTotais = (ascensaoFinal * 100) + prestigioFinal;
 
     let poderPuro = Math.floor((pontosTotais / div) * (mults[key] || 1));
 
-    // Calcula para sub-atributos que compõem o Status
     if (isStatus) {
         let prestIndiv = Math.floor((rawBase / mults[key]) * div) || 0;
         const { prestigioFinal: prestIndivFinal, ascensaoFinal: ascIndivFinal } = aplicarMultiplicadorForca(prestIndiv, ascensaoBase, multP, multA);
@@ -271,7 +243,6 @@ function getPoderVerdadeiro(key, ficha, isAtual, supressao = 100, fator = 1) {
 
         let mF = 1;
         if (isAtual) {
-            // Badges Individuais usam a Forma Individual, não o Dano Global!
             mF = getEfetivoMFormas(ficha, key);
             if (isNaN(mF) || mF < 1) mF = 1;
         }
@@ -364,51 +335,6 @@ function encontrarCategoriaPorLore(nome) {
     return null;
 }
 
-// ==========================================
-// 🛡️ FUNÇÕES AUXILIARES DA TABELA
-// ==========================================
-function getBasePFor(ficha, k) {
-    const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
-    const div = parseFloat(ficha?.divisores?.[k]) || 1;
-    if (k === 'status') {
-        let m = 0;
-        ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { m += safeGetRawBase(ficha, s); });
-        return Math.floor(((m / 8) / mults.status) * div) || 0;
-    }
-    return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
-}
-
-function aplicarMultiplicadorForca(prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) {
-    const multP = parseFloat(multiplicadorForcaPrestigio) || 1;
-    const multA = parseFloat(multiplicadorForcaAscensao) || 1;
-    const ascensaoBaseEfetiva = (parseInt(ascensaoBase) || 1) * multA;
-    const prestigioTotal = (prestigioBase || 0) * multP;
-    const bonusAscensao = Math.floor(prestigioTotal / 100);
-    const prestigioFinal = prestigioTotal % 100;
-    const ascensaoFinal = ascensaoBaseEfetiva + bonusAscensao;
-    const rankInfo = safeGetRank(prestigioFinal, ascensaoFinal);
-    return { ...rankInfo, prestigioFinal, ascensaoFinal };
-}
-
-function calcularPrestAtual(ficha, attrKey, baseP, ignorarPoderes = false) {
-    const mFormas = getEfetivoMFormas(ficha, attrKey, ignorarPoderes);
-    const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
-    return Math.floor((baseP || 0) * multForma) || 0;
-}
-
-// 🔥 Calibração de "Tingir Moldura/Fundo/Ícone": mix-blend-mode:'color' troca só matiz/
-// saturação preservando a luminosidade da imagem por baixo — funciona bem para cores
-// saturadas e claras/médias (ex.: roxo, azul, vermelho), mas para cores quase acromáticas
-// (cinza/preto, saturação baixa) ele só DESSATURA a imagem sem escurecer nada — escolher
-// "preto" produzia um brilho branco/cinza lavado em vez de escurecer a moldura, o oposto
-// do que se espera. O MESMO problema aparece, de forma mais sutil, em cores ESCURAS mesmo
-// quando saturadas (ex.: um vermelho quase-preto tipo #200000): 'color' preserva a
-// luminosidade da imagem por baixo, não a da cor escolhida, então a moldura continua tão
-// clara quanto antes, só com um leve matiz — não escurece como o usuário esperaria ao
-// escolher uma cor tão escura. Por isso usamos mix-blend-mode:'multiply' (que sempre
-// multiplica pela cor REAL escolhida, escurecendo E colorindo ao mesmo tempo) sempre que
-// a cor for quase acromática OU suficientemente escura, com opacidade proporcional à
-// escuridão da cor (quanto mais escura, mais forte o escurecimento).
 export function getCamadaTinta(cor) {
     if (!cor || cor === '#ffffff') return null;
     const hex = String(cor).replace('#', '');
@@ -805,6 +731,18 @@ export default function MarcadosPanel() {
     const [textoImport, setTextoImport] = useState('');
     const [modalImport, setModalImport] = useState(false);
 
+    // 🔥 NOVA PALETA OFICIAL RPG/ANIME 🔥
+    const PALETA_PREMIUM = [
+        { cor: '#ffffff', nome: 'Luz (Branco)' },
+        { cor: '#000000', nome: 'Morte (Preto)' },
+        { cor: '#ff003c', nome: 'Sangue (Vermelho)' },
+        { cor: '#aa00ff', nome: 'Energia (Roxo)' },
+        { cor: '#ffcc00', nome: 'Conhecimento (Dourado)' },
+        { cor: '#00e5ff', nome: 'Medo (Ciano)' },
+        { cor: '#00ff66', nome: 'Natureza (Verde)' },
+        { cor: '#0088ff', nome: 'Oceano (Azul)' }
+    ];
+
     useEffect(() => {
         if (minhaFicha) {
             setLocalCorFundo(minhaFicha.estetica?.diarioCor || '#bba9d8');
@@ -827,15 +765,15 @@ export default function MarcadosPanel() {
         const multA = parseFloat(minhaFicha.multiplicadorForcaAscensao) || 1;
         const ascensaoBaseEfetiva = ascensaoBase * multA;
 
-        // ignorarPoderes=true exclui os bônus de mFormas vindos do Grimório (ficha.poderes) do
-        // cálculo de Prestígio/Ascensão — usado só pela variante "ParaPoder" abaixo, para que
-        // uma Forma/Habilidade/Poder não infle a Ascensão (e, por tabela, o multiplicador
-        // exponencial do Poder do Scouter) através de um bônus de Status/Energia/Vida que já foi
-        // deliberadamente excluído do cálculo do Poder (ver calcPoderBase/getGlobalMultipliers).
         const calcularFator = (comFormas, ignorarPoderes = false) => {
             const bonusPorCategoria = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
                 const displayP = getBasePFor(minhaFicha, k);
-                const pAtual = comFormas ? calcularPrestAtual(minhaFicha, k, displayP, ignorarPoderes) : displayP;
+                let pAtual = displayP;
+                if (comFormas) {
+                    let mF = getEfetivoMFormas(minhaFicha, k, ignorarPoderes);
+                    let multForma = mF >= 10 ? (mF / 10) : (mF > 1 ? mF : 1);
+                    pAtual = Math.floor(displayP * multForma);
+                }
                 const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
                 return Math.max(0, (rankInfo.ascensaoFinal || 0) - ascensaoBaseEfetiva);
             });
@@ -845,12 +783,14 @@ export default function MarcadosPanel() {
             return { geral: isNaN(geral) ? ascensaoBase : geral, fator: isNaN(fator) ? 1 : fator };
         };
 
-        // 🔥 Amarra a lista de atributos (Força/Destreza/...) ao MESMO multiplicador que redimensiona
-        // o eixo STATUS do Radar (aplicarMultiplicadorForca por eixo) — não ao gargalo mínimo entre
-        // as 6 categorias usado por fatorCrescimentoBase/Atual — para que texto e radar cresçam juntos.
         const calcularFatorStatus = (comFormas) => {
             const displayP = getBasePFor(minhaFicha, 'status');
-            const pAtual = comFormas ? calcularPrestAtual(minhaFicha, 'status', displayP) : displayP;
+            let pAtual = displayP;
+            if (comFormas) {
+                let mF = getEfetivoMFormas(minhaFicha, 'status');
+                let multForma = mF >= 10 ? (mF / 10) : (mF > 1 ? mF : 1);
+                pAtual = Math.floor(displayP * multForma);
+            }
             const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
             const geral = rankInfo.ascensaoFinal || ascensaoBaseEfetiva;
             const fator = geral / (ascensaoBase || 1);
@@ -878,14 +818,6 @@ export default function MarcadosPanel() {
         
         const tema = getTemaScouter(sup, lim);
 
-        // 🔥 FÓRMULA OBRIGATÓRIA DO PODER BASE: usa os valores EFETIVOS (base + buffs aditivos) dos
-        // atributos, não a abstração de "pontos de prestígio". Status = média efetiva dos 8 atributos
-        // físicos. Usa safeGetEfetivoBase (SEM a pilha de multiplicadores mBase/mGeral/mFormas/mAbsoluto)
-        // porque esses multiplicadores já são aplicados uma única vez a seguir, via getGlobalMultipliers —
-        // usar safeGetMaximo aqui contaria o forca.mFormas em dobro (uma vez local, outra global).
-        // ignorarPoderes=true: os bônus de Status/Energia/Vida vindos do Grimório (Habilidades/Formas/
-        // Poderes) não entram mais aqui — quem quiser que uma entrada do Grimório afete o Poder do
-        // Scouter agora usa o campo dedicado "PODER (Direto)" (ver getPoderDiretoMultiplier abaixo).
         const calcPoderBase = () => {
             const efetivo = (k) => { const v = safeGetEfetivoBase(minhaFicha, k, true); return isNaN(v) ? 0 : v; };
             let somaStatus = 0;
@@ -897,62 +829,15 @@ export default function MarcadosPanel() {
         const poderBase = calcPoderBase();
         const glob = getGlobalMultipliers(minhaFicha);
 
-        // 🔥 Failsafe: ascensaoGeralEfetivaParaPoder SEMPRE com fallback absoluto para 0 (nunca
-        // undefined/NaN vindo do banco) — calculado aqui porque agora também alimenta o multiplicador
-        // real abaixo. Usa a variante "ParaPoder" (ignorarPoderes=true na cascata de Prestígio/
-        // Ascensão), não a ascensaoGeralEfetiva "normal" exibida no indicador da Ficha — sem isso, uma
-        // Forma/Habilidade/Poder com bônus de mFormas em Vida/Status (ex.: "efeito de transformação")
-        // inflava a Ascensão e, por causa do multiplicador exponencial abaixo, multiplicava o Poder
-        // MUITO além do valor configurado no efeito 'poder_direto' daquela mesma Forma — dobrando a
-        // fonte do bônus (uma vez via Ascensão, outra via poder_direto) mesmo com o cálculo do Poder
-        // já supostamente ignorando mudanças de Status/Energia/Vida do Grimório.
         const ascensaoSegura = Number(ascensaoGeralEfetivaParaPoder) || 0;
-
-        // 🔥 Ascensão como MULTIPLICADOR EXPONENCIAL do Poder Base: antes, a Ascensão só entrava no
-        // final via injeção de log10 (uma "casa decimal a mais"), que nunca conseguia compensar uma
-        // diferença grande nos valores crus dos atributos entre dois personagens. Uma primeira versão
-        // linear (1+ascensaoGeralEfetiva) melhorou isso mas ainda não bastava: verificado com os dois
-        // personagens reais reportados pelo usuário (Prestígio 60 uniforme/Ascensão 1 vs Prestígio
-        // 12-14/Ascensão Geral Efetiva 4), o multiplicador linear (x2 vs x5, só 2.5x de diferença) NÃO
-        // superava a vantagem de ~4.7x nos atributos crus do primeiro personagem. Dobrar por nível
-        // (2^ascensaoGeralEfetiva, x2 vs x16 nesse mesmo par) resolve: verificado que o personagem de
-        // Ascensão mais alta passa a superar o de atributos crus maiores, como esperado. Math.max(0,
-        // ...) impede que uma Ascensão Base/Multiplicador negativo digitado por engano vire um expoente
-        // negativo (fração) e reduza o poder ao invés de anulá-lo/protegê-lo. Math.min(1000, ...) evita
-        // que um valor de Ascensão absurdamente grande digitado por engano (ex.: dígito extra) estoure
-        // Number.MAX_VALUE (~2^1024) e vire Infinity na leitura — 2^1000 já é astronomicamente maior
-        // que qualquer Ascensão jogável, então o teto não afeta nenhum uso realista.
         const multiplicadorAscensao = Math.pow(2, Math.min(1000, Math.max(0, ascensaoSegura)));
 
-        // 🔥 SATURACAO_SEGURA: sentinela usado nos 3 failsafes abaixo quando um cálculo intermediário
-        // estoura para Infinity — mesmo com multiplicadorAscensao já limitado por Math.min(1000, ...)
-        // acima, poderMultiplicado ainda pode estourar Number.MAX_VALUE se poderBase também for grande
-        // (ex.: Vida na casa dos bilhões — comum em fichas reais — multiplicada por 2^1000≈1.07e301 já
-        // basta), e a "injeção" de Ascensão (magnitude de log10 abaixo) pode estourar de forma
-        // independente mesmo quando poderMultiplicado continua finito, já que ela multiplica
-        // ascensaoSegura (SEM clamp, de propósito) por 10^(magnitude+1). isNaN(...) sozinho NUNCA pega
-        // Infinity (isNaN(Infinity) === false), então Infinity passava batido pelos failsafes antigos e
-        // vazava até a leitura do Scouter (texto "INFINITY", quebrando a notação científica exibida).
-        // Usamos 1e308 (não Number.MAX_VALUE≈1.7976931348623157e308) porque toExponential(2) arredonda
-        // pra cima na exibição — Number.MAX_VALUE.toExponential(2) vira a STRING "1.80e+308", que ao
-        // ser relida como Number() estoura de volta pra Infinity (1.80e308 > Number.MAX_VALUE). Satura
-        // em 1e308 (não em 0) para manter o princípio desta correção: Ascensão extrema nunca deve fazer
-        // o Poder parecer MENOR ou sumir — só "achata" no teto do double, igual ao próprio
-        // Math.min(1000, ...) já faz com o expoente.
-        // Math.sign(v) preserva o sinal: -Infinity (possível com poderBase muito negativo
-        // combinado a um multiplicadorAscensao/glob.totalDano enorme) satura em -1e308, não em
-        // +1e308 — sem isso, um Poder extremamente negativo "viraria" positivo por engano.
         const SATURACAO_SEGURA = 1e308;
         const clampFinito = (v) => Number.isFinite(v) ? v : (Number.isNaN(v) ? 0 : Math.sign(v) * SATURACAO_SEGURA);
 
         let poderMultiplicado = poderBase * multiplicadorAscensao * glob.finalF * glob.totalDano;
         poderMultiplicado = clampFinito(poderMultiplicado);
 
-        // 🔥 Injeção de Ascensão: soma a Ascensão Geral Efetiva como a grandeza máxima (sempre uma
-        // casa decimal acima do valor total), via magnitude de log10 — nunca concatenação de string.
-        // Continua como um "flourish" visual por cima do multiplicador acima, não mais a única fonte
-        // de Ascensão no Scouter. Failsafe: ramo separado para base <= 0 — Math.log10(0) é -Infinity
-        // e Math.log10(negativo) é NaN, então esses casos NUNCA entram no ramo do logaritmo.
         let poderComAscensao;
         if (poderMultiplicado > 0) {
             const magnitude = Math.floor(Math.log10(poderMultiplicado));
@@ -962,29 +847,12 @@ export default function MarcadosPanel() {
         }
         poderComAscensao = clampFinito(poderComAscensao);
 
-        // 🔥 Multiplicador direto do Grimório (Habilidades/Formas/Poderes com atributo:'poder_direto') —
-        // aplicado DEPOIS da injeção de magnitude da Ascensão acima (não dentro de poderMultiplicado),
-        // para que ele multiplique o Poder já calculado (incluindo o "flourish" da Ascensão) por
-        // exatamente o fator declarado. Aplicá-lo ANTES da injeção fazia o log10(poderMultiplicado)
-        // mudar de "década" (magnitude) de forma inconsistente a cada ativação/desativação, o que
-        // distorcia a leitura final para bem mais (ou menos) do que o fator declarado no efeito —
-        // ex.: um efeito "MFORMAS: +75" (fator x76) podia produzir um salto de ~95x no Scouter, porque
-        // o termo injetado (ascensaoSegura * 10^(magnitude+1)) escala com a década de
-        // poderMultiplicado, não linearmente com o fator do efeito. Multiplicar por cima do resultado
-        // já injetado garante a mesma blindagem de overflow (clampFinito) e uma relação limpa e exata
-        // entre o fator do efeito e a variação observada no Scouter.
         const multiplicadorPoderDireto = clampFinito(getPoderDiretoMultiplier(minhaFicha));
         poderComAscensao = clampFinito(poderComAscensao * multiplicadorPoderDireto);
 
         let power = poderComAscensao * (sup / 100);
         power = clampFinito(power);
 
-        // 🔥 Divisor de Poder (exclusivo do Mestre): ficha.divisorPoder é o valor definido POR
-        // PERSONAGEM (nesta Ficha) e tem prioridade sobre divisorPoderMesa, o padrão que o Mestre
-        // pode aplicar de uma vez a TODOS os jogadores da mesa (ver salvarDivisorPoderMesa em
-        // firebase-sync.js). Qualquer valor <= 0 ou inválido é tratado como "sem override" —
-        // cai pro padrão da mesa e, na ausência dele, não divide nada (divisor efetivo = 1).
-        // Aplicado no resultado FINAL (depois de Supressão), como pedido.
         const divisorIndividual = parseFloat(minhaFicha.divisorPoder);
         const divisorMesaSeguro = parseFloat(divisorPoderMesa);
         const divisorEfetivo = (!isNaN(divisorIndividual) && divisorIndividual > 0)
@@ -1001,34 +869,7 @@ export default function MarcadosPanel() {
             if (!isNaN(exponent)) digitos = exponent + 1;
         }
         return { poderGlobal: Math.floor(power), vitalidadeGlobal: Math.max(0, digitos - 8), supressao: sup, limiteSupressao: lim, temaScouter: tema };
-    }, [
-        minhaFicha,
-        minhaFicha?.dano,
-        minhaFicha?.forca,
-        minhaFicha?.vida,
-        minhaFicha?.mana,
-        minhaFicha?.aura,
-        minhaFicha?.chakra,
-        minhaFicha?.corpo,
-        minhaFicha?.ascensaoBase,
-        minhaFicha?.multiplicadorForcaPrestigio,
-        minhaFicha?.multiplicadorForcaAscensao,
-        minhaFicha?.passivas,
-        minhaFicha?.habilidades,
-        minhaFicha?.transformacoes,
-        minhaFicha?.magias,
-        minhaFicha?.relicarios,
-        minhaFicha?.itens,
-        minhaFicha?.poderes,
-        minhaFicha?.inventario,
-        minhaFicha?.seresSelados,
-        minhaFicha?.ataquesElementais,
-        minhaFicha?.supressaoPoder,
-        minhaFicha?.limiteSupressao,
-        minhaFicha?.divisorPoder,
-        divisorPoderMesa,
-        ascensaoGeralEfetivaParaPoder,
-    ]);
+    }, [minhaFicha, divisorPoderMesa, ascensaoGeralEfetivaParaPoder]);
 
     if (!minhaFicha) return <div style={{ color: '#000', padding: 20, fontFamily: 'cursive' }}>Abrindo a Ficha...</div>;
 
@@ -1037,6 +878,9 @@ export default function MarcadosPanel() {
     const iconeFinal = localIconeClasse || classeInfo?.iconeUrl;
     const tintaMoldura = getCamadaTinta(localCorMoldura);
     const tintaFundo = getCamadaTinta(localCorFundoTint);
+
+    // 🔥 VINCULA A COR DO GLOW À MOLDURA 🔥
+    const glowColor = (localCorMoldura && localCorMoldura !== '#ffffff') ? localCorMoldura : (classeInfo?.cor || localCorTinta || '#ffffff');
 
     const mudarPagina = (nova) => { setAnimDirection(nova > paginaAtual ? 'next' : 'prev'); setPaginaAtual(nova); };
 
@@ -1054,10 +898,6 @@ export default function MarcadosPanel() {
         callSave();
     };
 
-    // 🔥 Divisor de Poder padrão da mesa (exclusivo do Mestre): diferente de `salvar()`, não
-    // mexe em `minhaFicha` — atualiza a store global (reflete na hora pra quem já está com a
-    // mesa aberta) e persiste em mesas/{mesaId}/divisorPoderPadrao, aplicado a TODOS os
-    // personagens que não tenham o próprio ficha.divisorPoder definido.
     const salvarDivisorPoderMesaHandler = (valor) => {
         let v = parseFloat(valor);
         if (isNaN(v) || v <= 0) v = 1;
@@ -1185,6 +1025,11 @@ export default function MarcadosPanel() {
 
                 .grimorio-estilo-papel { --tinta: ${localCorTinta || '#000'}; --fundo: ${localCorFundo || '#fff'}; color: var(--tinta) !important; }
                 .grimorio-estilo-papel * { font-family: ${fonteDiario}, 'Courier New', serif !important; text-shadow: none !important; box-shadow: none !important; }
+                .grimorio-estilo-papel .def-box, .grimorio-estilo-papel [style*="background: rgba"] { background: transparent !important; border: 2px solid var(--tinta) !important; border-radius: 2px 255px 3px 25px / 255px 5px 225px 3px !important; position: relative; }
+                .grimorio-estilo-papel .def-box::before, .grimorio-estilo-papel [style*="background: rgba"]::before { content: ''; position: absolute; top:0; left:0; right:0; bottom:0; background: var(--tinta); opacity: 0.03; pointer-events: none; border-radius: inherit; }
+                .grimorio-estilo-papel h2, .grimorio-estilo-papel h3, .grimorio-estilo-papel h4 { color: var(--tinta) !important; display: inline-block; }
+                .grimorio-estilo-papel button { background: transparent !important; border: 2px dashed var(--tinta) !important; border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px !important; color: var(--tinta) !important; font-weight: bold !important; text-transform: uppercase !important; transition: all 0.2s ease !important; }
+                .grimorio-estilo-papel button:hover { background: var(--tinta) !important; color: var(--fundo) !important; border-style: solid !important; transform: scale(1.02) rotate(-1deg) !important; }
                 .grimorio-estilo-papel input, .grimorio-estilo-papel textarea, .grimorio-estilo-papel select { background: rgba(0,0,0,0.03) !important; border: none !important; border-bottom: 2px dotted var(--tinta) !important; color: var(--tinta) !important; border-radius: 0 !important; outline: none !important; }
                 .grimorio-estilo-papel input:focus, .grimorio-estilo-papel textarea:focus { background: rgba(0,0,0,0.06) !important; border-bottom: 2px solid var(--tinta) !important; }
                 .grimorio-estilo-papel input::placeholder, .grimorio-estilo-papel textarea::placeholder { color: var(--tinta) !important; opacity: 0.5 !important; font-style: italic !important; }
@@ -1197,7 +1042,7 @@ export default function MarcadosPanel() {
                     </button>
                 </div>
                 <div style={{ position: 'relative' }}>
-                    <button onClick={() => { setModalEstilo(!modalEstilo); }} style={{ background: '#ff94c2', color: '#000', border: '1px solid #333', borderBottom: '3px solid #222', padding: '10px 20px', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '1.1em', cursor: 'pointer', borderRadius: '4px', boxShadow: '2px 4px 8px rgba(0,0,0,0.4)', transform: 'rotate(-2deg)' }}>🎨 Estilo</button>
+                    <button onClick={() => { setModalEstilo(!modalEstilo); setModalImport(false); }} style={{ background: '#ff94c2', color: '#000', border: '1px solid #333', borderBottom: '3px solid #222', padding: '10px 20px', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '1.1em', cursor: 'pointer', borderRadius: '4px', boxShadow: '2px 4px 8px rgba(0,0,0,0.4)', transform: 'rotate(-2deg)' }}>🎨 Estilo</button>
                     {modalEstilo && (
                         <div className="fade-in" style={{ position: 'absolute', top: '55px', right: '0', background: '#ffe4f0', padding: '15px', border: '1px solid #ccc', boxShadow: '5px 5px 15px rgba(0,0,0,0.3)', width: '320px', zIndex: 20, borderRadius: '6px', color: '#000', maxHeight: '70vh', overflowY: 'auto' }}>
                             <label style={{ display: 'block', fontSize: '0.9em', marginBottom: '5px', fontWeight: 'bold' }}>Cor do Texto da Ficha:</label>
@@ -1233,15 +1078,18 @@ export default function MarcadosPanel() {
                                 <option value="multiply">Fundo Branco (Magia Multiply)</option>
                                 <option value="normal">Nenhum / Imagem PNG Transparente</option>
                             </select>
+                            
+                            {/* 🔥 NOVA PALETA PREMIUM NAS BORDAS 🔥 */}
                             <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9em', color: '#555', marginTop: '10px', fontWeight: 'bold' }}>
                                 <span>Tingir Moldura & Ícone:</span>
                                 <input type="color" value={localCorMoldura} onChange={(e) => handleStyleChange('corMoldura', e.target.value)} style={{ width: '40px', height: '25px', border: 'none', cursor: 'pointer', background: 'transparent' }} title="Tinge o dourado/metálico da moldura!" />
                             </label>
-                            <div style={{ display: 'flex', gap: '5px', marginBottom: '15px', marginTop: '5px' }}>
-                                {['#ffffff', '#aa00ff', '#ffcc00', '#0088ff', '#ff003c', '#000000'].map(c => (
-                                    <div key={c} onClick={() => handleStyleChange('corMoldura', c)} style={{ width: '20px', height: '20px', backgroundColor: c, border: '1px solid rgba(0,0,0,0.5)', cursor: 'pointer', borderRadius: '3px' }} title={`Pintar de ${c}`} />
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '15px', marginTop: '5px' }}>
+                                {PALETA_PREMIUM.map(p => (
+                                    <div key={`moldura-${p.cor}`} onClick={() => handleStyleChange('corMoldura', p.cor)} style={{ width: '24px', height: '24px', backgroundColor: p.cor, border: localCorMoldura === p.cor ? '2px solid #000' : '1px solid rgba(0,0,0,0.5)', cursor: 'pointer', borderRadius: '50%', boxShadow: `0 0 8px ${p.cor}80` }} title={`Pintar de ${p.nome}`} />
                                 ))}
                             </div>
+                            
                             <label style={{ display: 'block', fontSize: '0.9em', marginBottom: '5px', fontWeight: 'bold' }}>🔷 Ícone da Classe Manual (Opcional):</label>
                             <div style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
                                 <input type="text" value={localIconeClasse} onChange={(e) => handleStyleChange('iconeClasse', e.target.value)} placeholder="Link do Ícone..." style={{ flex: 1, padding: '8px', border: '1px solid rgba(0,0,0,0.2)', background: 'transparent', color: 'inherit' }} />
@@ -1250,8 +1098,18 @@ export default function MarcadosPanel() {
                                 </label>
                             </div>
                             <hr style={{ border: '1px dashed #ccc', margin: '15px 0' }}/>
-                            <label style={{ display: 'block', fontSize: '0.9em', marginBottom: '5px', fontWeight: 'bold' }}>Cor da Tinta (Radar):</label>
-                            <input type="color" value={localCorTinta} onChange={(e) => handleStyleChange('corTintaRadar', e.target.value)} style={{ width: '100%', height: '40px', border: 'none', cursor: 'pointer', marginBottom: '15px', background: 'transparent' }} />
+                            
+                            {/* 🔥 NOVA PALETA PREMIUM NA TINTA DO RADAR 🔥 */}
+                            <label style={{ display: 'block', fontSize: '0.9em', marginBottom: '5px', fontWeight: 'bold' }}>Cor da Tinta (Radar/Textos):</label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                                <input type="color" value={localCorTinta} onChange={(e) => handleStyleChange('corTintaRadar', e.target.value)} style={{ width: '40px', height: '25px', border: 'none', cursor: 'pointer', background: 'transparent' }} />
+                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                    {PALETA_PREMIUM.map(p => (
+                                        <div key={`tinta-${p.cor}`} onClick={() => handleStyleChange('corTintaRadar', p.cor)} style={{ width: '18px', height: '18px', backgroundColor: p.cor, border: localCorTinta === p.cor ? '2px solid #000' : '1px solid rgba(0,0,0,0.5)', cursor: 'pointer', borderRadius: '50%' }} title={`Tinta ${p.nome}`} />
+                                    ))}
+                                </div>
+                            </div>
+                            
                             <label style={{ display: 'block', fontSize: '0.9em', marginBottom: '5px', fontWeight: 'bold' }}>Fonte da Letra:</label>
                             <select value={fonteDiario} onChange={(e) => { salvar('estetica.diarioFonte', e.target.value); callSave(); }} style={{ width: '100%', padding: '8px', border: '1px solid rgba(0,0,0,0.2)', background: 'transparent', fontFamily: 'inherit' }}>
                                 <option value='"Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive'>✏️ Escrito à Mão</option>
@@ -1294,32 +1152,58 @@ export default function MarcadosPanel() {
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                                             <div style={{ width: '8px', height: '8px', background: temaScouter.cor, borderRadius: '50%', boxShadow: `0 0 10px ${temaScouter.cor}, 0 0 20px ${temaScouter.cor}` }} />
-                                            <span style={{ color: '#fff', opacity: 0.8, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '4px' }}>{temaScouter.nome}</span>
+                                            <span style={{ color: '#fff', opacity: 0.8, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '4px' }}>
+                                                {temaScouter.nome}
+                                            </span>
                                         </div>
                                         
                                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '15px' }}>
-                                            <span style={{ fontSize: '3.2em', fontWeight: '900', letterSpacing: '-1px', color: '#ffffff', textShadow: `0 0 10px ${temaScouter.glow}, 0 0 20px ${temaScouter.glow}, 0 0 40px ${temaScouter.glow}` }}>
-                                                {formatarPoderCosmico(Number(poderGlobal) || 0)}
+                                            <span style={{
+                                                fontSize: '3.2em', fontWeight: '900', letterSpacing: '-1px',
+                                                color: '#ffffff',
+                                                textShadow: `0 0 10px ${temaScouter.glow}, 0 0 20px ${temaScouter.glow}, 0 0 40px ${temaScouter.glow}`
+                                            }}>
+                                                {formatarPoderCosmico(isNaN(poderGlobal) ? 0 : poderGlobal)}
                                             </span>
                                             <span style={{ fontSize: '0.5em', color: '#fff', opacity: 0.6, fontWeight: 'bold', letterSpacing: '1px' }}>
-                                                {Number(poderGlobal || 0).toExponential(2).replace('+', '').toUpperCase()}
+                                                {Number(isNaN(poderGlobal) ? 0 : poderGlobal).toExponential(2).replace('+', '').toUpperCase()}
                                             </span>
                                         </div>
                                     </div>
 
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingLeft: '20px' }}>
                                         <span style={{ color: '#fff', opacity: 0.6, fontSize: '0.65em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '3px', marginBottom: '8px' }}>Grau Vital</span>
-                                        <div style={{ fontSize: '2.5em', fontWeight: '900', color: temaScouter.cor, background: 'rgba(0,0,0,0.6)', padding: '8px 25px', borderRadius: '8px', border: `1px solid ${temaScouter.cor}55`, boxShadow: `inset 0 0 15px ${temaScouter.cor}33, 0 5px 15px rgba(0,0,0,0.5)`, lineHeight: '1', textShadow: `0 0 10px ${temaScouter.cor}` }}>
-                                            V{Number(vitalidadeGlobal) || 0}
+                                        <div style={{
+                                            fontSize: '2.5em', fontWeight: '900', color: temaScouter.cor,
+                                            background: 'rgba(0,0,0,0.6)',
+                                            padding: '8px 25px', borderRadius: '8px',
+                                            border: `1px solid ${temaScouter.cor}55`,
+                                            boxShadow: `inset 0 0 15px ${temaScouter.cor}33, 0 5px 15px rgba(0,0,0,0.5)`,
+                                            lineHeight: '1', textShadow: `0 0 10px ${temaScouter.cor}`
+                                        }}>
+                                            V{isNaN(vitalidadeGlobal) ? 0 : vitalidadeGlobal}
                                         </div>
                                     </div>
                                 </div>
 
                                 <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '15px', position: 'relative', zIndex: 1, borderTop: `1px solid rgba(255,255,255,0.05)`, paddingTop: '15px' }}>
                                     <span style={{ color: '#fff', opacity: 0.7, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>Ocultar Presença:</span>
-                                    <input type="range" min={Math.min(limiteSupressao, 100)} max="100" step="0.1" value={supressao > 100 ? 100 : supressao} onChange={e => { salvar('supressaoPoder', e.target.value); }} style={{ flex: 1, accentColor: temaScouter.cor, cursor: 'pointer', filter: `drop-shadow(0 0 5px ${temaScouter.cor})` }} />
+                                    <input 
+                                        type="range" min={Math.min(limiteSupressao, 100)} max="100" step="0.1" value={supressao > 100 ? 100 : supressao}
+                                        onChange={e => { salvar('supressaoPoder', e.target.value); }}
+                                        style={{ flex: 1, accentColor: temaScouter.cor, cursor: 'pointer', filter: `drop-shadow(0 0 5px ${temaScouter.cor})` }}
+                                    />
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                        <input type="number" min={limiteSupressao} max="100" step="any" value={supressao} onChange={e => { let val = Number(e.target.value); if (isNaN(val)) val = limiteSupressao; if (val < limiteSupressao) val = limiteSupressao; salvar('supressaoPoder', val); }} style={{ width: '80px', background: 'rgba(0,0,0,0.5)', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }} />
+                                        <input 
+                                            type="number" min={limiteSupressao} max="100" step="any" value={supressao}
+                                            onChange={e => {
+                                                let val = Number(e.target.value);
+                                                if (isNaN(val)) val = limiteSupressao;
+                                                if (val < limiteSupressao) val = limiteSupressao;
+                                                salvar('supressaoPoder', val);
+                                            }}
+                                            style={{ width: '80px', background: 'rgba(0,0,0,0.5)', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }}
+                                        />
                                         <span style={{ color: temaScouter.cor, fontWeight: 'bold', fontSize: '1.1em' }}>%</span>
                                     </div>
                                 </div>
@@ -1327,7 +1211,11 @@ export default function MarcadosPanel() {
                                 {isMestre && (
                                     <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255, 0, 60, 0.1)', padding: '8px', borderRadius: '6px', border: '1px dashed rgba(255, 0, 60, 0.5)' }}>
                                         <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>🔒 Controle do GM (Limite de Ocultação):</span>
-                                        <input type="number" min="0.000001" step="any" value={limiteSupressao} onChange={e => { salvar('limiteSupressao', e.target.value); }} style={{ width: '80px', background: 'rgba(0,0,0,0.8)', color: '#ff003c', border: '1px solid #ff003c', padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }} />
+                                        <input 
+                                            type="number" min="0.000001" step="any" value={limiteSupressao}
+                                            onChange={e => { salvar('limiteSupressao', e.target.value); }}
+                                            style={{ width: '80px', background: 'rgba(0,0,0,0.8)', color: '#ff003c', border: '1px solid #ff003c', padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }}
+                                        />
                                         <span style={{ color: '#ff003c', fontWeight: 'bold', fontSize: '1em' }}>%</span>
                                     </div>
                                 )}
@@ -1358,53 +1246,90 @@ export default function MarcadosPanel() {
                                         <span style={{ color: '#ff003c', opacity: 0.6, fontSize: '0.75em' }}>(aplicado a todo mundo que não tiver um divisor próprio)</span>
                                     </div>
                                 )}
-                                <style>{` @keyframes pulse-aura { 0% { opacity: 0.3; transform: scale(0.9); } 50% { opacity: 0.8; transform: scale(1.1); } 100% { opacity: 0.3; transform: scale(0.9); } } `}</style>
+                                <style>{`
+                                    @keyframes pulse-aura {
+                                        0% { opacity: 0.3; transform: scale(0.9); }
+                                        50% { opacity: 0.8; transform: scale(1.1); }
+                                        100% { opacity: 0.3; transform: scale(0.9); }
+                                    }
+                                `}</style>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '1.2em' }}>
-                                {[{ k: 'idade', lbl: 'Idade' }, { k: 'aniversario', lbl: 'Aniversário' }, { k: 'alturaPeso', lbl: 'Altura / Peso' }, { k: 'raca', lbl: 'Raça' }, { k: 'alinhamento', lbl: 'Alinhamento' }, { k: 'afiliacao', lbl: 'Afiliação' }, { k: 'classe', lbl: 'Classe' }].map(item => (
+                                {[
+                                    { k: 'idade', lbl: 'Idade' },
+                                    { k: 'aniversario', lbl: 'Aniversário' },
+                                    { k: 'alturaPeso', lbl: 'Altura / Peso' },
+                                    { k: 'raca', lbl: 'Raça' },
+                                    { k: 'alinhamento', lbl: 'Alinhamento' },
+                                    { k: 'afiliacao', lbl: 'Afiliação' },
+                                    { k: 'classe', lbl: 'Classe' }
+                                ].map(item => (
                                     <div key={item.k} style={{ display: 'flex' }}>
-                                        <div style={{ width: '140px', fontWeight: 'bold' }}> <LabelMagico valor={getLabel(`bio_${item.k}`, item.lbl)} onChange={(v) => setLabel(`bio_${item.k}`, v)} /> </div>
+                                        <div style={{ width: '140px', fontWeight: 'bold' }}>
+                                            <LabelMagico valor={getLabel(`bio_${item.k}`, item.lbl)} onChange={(v) => setLabel(`bio_${item.k}`, v)} />
+                                        </div>
                                         <span style={{ fontWeight: 'bold', marginRight: '8px' }}>:</span>
                                         <CampoMagico valor={minhaFicha.bio?.[item.k]} onChange={(v) => salvar(`bio.${item.k}`, v)} styleExtra={{ flex: 1, borderBottom: '1px dotted currentColor' }} />
                                     </div>
                                 ))}
                             </div>
 
-                            <div style={{ marginTop: '20px', position: 'relative', width: '320px', height: '480px', display: 'flex', flexDirection: 'column', borderRadius: '8px', border: minhaFicha.avatar?.base ? 'none' : '2px dashed currentColor', boxShadow: minhaFicha.avatar?.base ? '8px 8px 0px rgba(0,0,0,0.2)' : 'none', isolation: 'isolate' }}>
+                            {/* 🔥 AVATAR COM GLOW DINÂMICO 🔥 */}
+                            <div style={{ 
+                                marginTop: '20px', position: 'relative', width: '320px', height: '480px', display: 'flex', flexDirection: 'column', 
+                                borderRadius: '8px', 
+                                border: minhaFicha.avatar?.base ? 'none' : '2px dashed currentColor', 
+                                boxShadow: minhaFicha.avatar?.base ? `0 0 30px ${glowColor}66, 0 0 10px ${glowColor}33, 8px 8px 0px rgba(0,0,0,0.4)` : 'none', 
+                                isolation: 'isolate' 
+                            }}>
                                 {uploadingImg ? (
                                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', color: '#fff', fontWeight: 'bold', zIndex: 20 }}>✍️ Forjando...</div>
                                 ) : minhaFicha.avatar?.base ? (
                                     <>
                                         <img src={minhaFicha.avatar.base} alt="Avatar" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center', zIndex: 1, borderRadius: '8px' }} />
+                                        
                                         {localMolduraAvatar && (
                                             <div style={{ position: 'absolute', top: '-3.5%', left: '-3%', width: '106%', height: '107%', zIndex: 2, pointerEvents: 'none', mixBlendMode: localModoMoldura, isolation: 'isolate' }}>
                                                 <img src={localMolduraAvatar} alt="Moldura" style={{ width: '100%', height: '100%', objectFit: 'fill', position: 'absolute', top: 0, left: 0, filter: 'contrast(1.2) saturate(1.2)' }} />
-                                                {tintaMoldura && (
-                                                    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo, opacity: tintaMoldura.opacidade }} />
+                                                
+                                                {localCorMoldura && localCorMoldura !== '#ffffff' && (
+                                                    <>
+                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'color' }} />
+                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: 0.8 }} />
+                                                    </>
                                                 )}
                                             </div>
                                         )}
+
+                                        {/* 🔥 SÍMBOLO DA CLASSE COM GLOW 🔥 */}
                                         {(classeInfo || localIconeClasse) && (
                                             <div style={{ position: 'absolute', bottom: '-8px', left: '50%', transform: 'translateX(-50%)', zIndex: 3, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '70px', height: '70px' }}>
                                                 {iconeFinal ? (
-                                                    <div style={{ position: 'relative', width: '100%', height: '100%', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.8))', isolation: 'isolate' }}>
+                                                    <div style={{ position: 'relative', width: '100%', height: '100%', filter: `drop-shadow(0 0 10px ${glowColor}) drop-shadow(0 2px 4px rgba(0,0,0,0.8))`, isolation: 'isolate' }}>
                                                         <img src={iconeFinal} alt="Classe" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
+                                                        
                                                         {tintaMoldura && (
                                                             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo, opacity: tintaMoldura.opacidade, WebkitMaskImage: `url(${iconeFinal})`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url(${iconeFinal})`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
                                                         )}
                                                     </div>
                                                 ) : (
-                                                    <div style={{ width: '50px', height: '50px', background: (localCorMoldura && localCorMoldura !== '#ffffff') ? localCorMoldura : classeInfo.cor, transform: 'rotate(45deg)', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.8)' }}>
-                                                        <span style={{ transform: 'rotate(-45deg)', fontSize: '1.5em', textShadow: '0 2px 4px rgba(0,0,0,0.5)', color: '#fff' }}>{classeInfo.icone}</span>
+                                                    <div style={{ width: '50px', height: '50px', background: glowColor, transform: 'rotate(45deg)', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 20px ${glowColor}99, 0 4px 10px rgba(0,0,0,0.8)` }}>
+                                                        <span style={{ transform: 'rotate(-45deg)', fontSize: '1.5em', textShadow: '0 2px 4px rgba(0,0,0,0.5)', color: '#fff' }}>{classeInfo?.icone || '👤'}</span>
                                                     </div>
                                                 )}
                                             </div>
                                         )}
-                                        <label style={{ cursor: 'pointer', position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10 }}><input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} /></label>
+                                        
+                                        <label style={{ cursor: 'pointer', position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 10 }}>
+                                            <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+                                        </label>
                                     </>
                                 ) : (
-                                    <label style={{ cursor: 'pointer', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'currentColor', opacity: 0.7, background: 'rgba(255,255,255,0.1)' }}> Colar Fotografia Aqui 📸 <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} /> </label>
+                                    <label style={{ cursor: 'pointer', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'currentColor', opacity: 0.7, background: 'rgba(255,255,255,0.1)' }}>
+                                        Colar Fotografia Aqui 📸
+                                        <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+                                    </label>
                                 )}
                             </div>
                             {minhaFicha.avatar?.base && <button onClick={() => {if(window.confirm('Apagar?')) { updateFicha(f => {f.avatar.base = ""}); callSave(); } }} style={{ background: 'transparent', border: '1px dashed #ff003c', color: '#ff003c', marginTop: '10px', padding: '5px 15px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'inherit', width: 'fit-content' }}>🗑️ Remover Foto</button>}
