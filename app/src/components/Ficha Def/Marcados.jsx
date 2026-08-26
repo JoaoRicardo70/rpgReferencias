@@ -27,11 +27,6 @@ function safeGetMaximo(ficha, key) {
     return parseFloat(ficha?.[key]?.base) || 0;
 }
 
-// 🔥 Base + buffs ADITIVOS (sem a pilha de multiplicadores mBase/mGeral/mFormas/mAbsoluto/mUnico).
-// Usado onde o multiplicador global já é aplicado numa etapa separada, para não contar mFormas em dobro.
-// ignorarPoderes=true remove também os bônus vindos do Grimório (ficha.poderes — Habilidades/
-// Formas/Poderes): usado apenas pelo cálculo do Poder do Scouter, que agora ignora as mudanças de
-// Status/Energia/Vida geradas por essas entradas (elas continuam valendo no resto da Ficha).
 function safeGetEfetivoBase(ficha, key, ignorarPoderes = false) {
     try {
         if (AtributosCore && typeof AtributosCore.getEfetivoBase === 'function') {
@@ -53,7 +48,6 @@ function safeGetRank(prest, asc) {
     }
 }
 
-// 🔥 FUNÇÃO RESTAURADA: LÊ AS FORMAS INDIVIDUAIS 🔥
 function getEfetivoMFormas(ficha, k, ignorarPoderes = false) {
     const anchor = k === 'status' ? 'forca' : k;
     let s = ficha?.[anchor] || {};
@@ -90,7 +84,6 @@ function getGlobalMultipliers(ficha) {
             });
         }
 
-        // 🔥 FORMA ATIVA — MESMA FONTE QUE O RADAR
         ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].forEach(k => {
             const mF = getEfetivoMFormas(ficha, k, true);
             if (!isNaN(mF) && mF > 1) {
@@ -138,7 +131,7 @@ function getGlobalMultipliers(ficha) {
         ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios', 'itens'].forEach(cat => scanCategory(cat));
         scanCategory('ataquesElementais', 'equipado', ['descricao', 'efeitos', 'desc']);
 
-        // 🔥 REGRA DE AGRUPAMENTO: multiplicadores do MESMO TIPO se SOMAM (1 + soma)
+        // Multiplica os Totais Agrupados
         const calcTotal = (tipo) => {
             let soma = 0;
             Object.values(grupos[tipo]).forEach(v => { soma += v; });
@@ -192,6 +185,41 @@ function getPoderDiretoMultiplier(ficha) {
     } catch (e) {
         return 1;
     }
+}
+
+// ==========================================
+// 🛡️ FUNÇÕES MATEMÁTICAS RESTAURADAS
+// ==========================================
+
+function getBasePFor(ficha, k) {
+    const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
+    const div = parseFloat(ficha?.divisores?.[k]) || 1;
+    if (k === 'status') {
+        let m = 0;
+        ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
+            m += safeGetRawBase(ficha, s);
+        });
+        return Math.floor(((m / 8) / mults.status) * div) || 0;
+    }
+    return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
+}
+
+function aplicarMultiplicadorForca(prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) {
+    const multP = parseFloat(multiplicadorForcaPrestigio) || 1;
+    const multA = parseFloat(multiplicadorForcaAscensao) || 1;
+    const ascensaoBaseEfetiva = (parseInt(ascensaoBase) || 1) * multA;
+    const prestigioTotal = (prestigioBase || 0) * multP;
+    const bonusAscensao = Math.floor(prestigioTotal / 100);
+    const prestigioFinal = prestigioTotal % 100;
+    const ascensaoFinal = ascensaoBaseEfetiva + bonusAscensao;
+    const rankInfo = safeGetRank(prestigioFinal, ascensaoFinal);
+    return { ...rankInfo, prestigioFinal, ascensaoFinal };
+}
+
+function calcularPrestAtual(ficha, attrKey, baseP, ignorarPoderes = false) {
+    const mFormas = getEfetivoMFormas(ficha, attrKey, ignorarPoderes);
+    const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
+    return Math.floor((baseP || 0) * multForma) || 0;
 }
 
 // 🔥 REGRA DA ASCENSÃO: (Ascensão * 100) + Prestígio 🔥
@@ -1152,58 +1180,32 @@ export default function MarcadosPanel() {
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                                             <div style={{ width: '8px', height: '8px', background: temaScouter.cor, borderRadius: '50%', boxShadow: `0 0 10px ${temaScouter.cor}, 0 0 20px ${temaScouter.cor}` }} />
-                                            <span style={{ color: '#fff', opacity: 0.8, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '4px' }}>
-                                                {temaScouter.nome}
-                                            </span>
+                                            <span style={{ color: '#fff', opacity: 0.8, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '4px' }}>{temaScouter.nome}</span>
                                         </div>
                                         
                                         <div style={{ display: 'flex', alignItems: 'baseline', gap: '15px' }}>
-                                            <span style={{
-                                                fontSize: '3.2em', fontWeight: '900', letterSpacing: '-1px',
-                                                color: '#ffffff',
-                                                textShadow: `0 0 10px ${temaScouter.glow}, 0 0 20px ${temaScouter.glow}, 0 0 40px ${temaScouter.glow}`
-                                            }}>
-                                                {formatarPoderCosmico(isNaN(poderGlobal) ? 0 : poderGlobal)}
+                                            <span style={{ fontSize: '3.2em', fontWeight: '900', letterSpacing: '-1px', color: '#ffffff', textShadow: `0 0 10px ${temaScouter.glow}, 0 0 20px ${temaScouter.glow}, 0 0 40px ${temaScouter.glow}` }}>
+                                                {formatarPoderCosmico(Number(poderGlobal) || 0)}
                                             </span>
                                             <span style={{ fontSize: '0.5em', color: '#fff', opacity: 0.6, fontWeight: 'bold', letterSpacing: '1px' }}>
-                                                {Number(isNaN(poderGlobal) ? 0 : poderGlobal).toExponential(2).replace('+', '').toUpperCase()}
+                                                {Number(poderGlobal || 0).toExponential(2).replace('+', '').toUpperCase()}
                                             </span>
                                         </div>
                                     </div>
 
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingLeft: '20px' }}>
                                         <span style={{ color: '#fff', opacity: 0.6, fontSize: '0.65em', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '3px', marginBottom: '8px' }}>Grau Vital</span>
-                                        <div style={{
-                                            fontSize: '2.5em', fontWeight: '900', color: temaScouter.cor,
-                                            background: 'rgba(0,0,0,0.6)',
-                                            padding: '8px 25px', borderRadius: '8px',
-                                            border: `1px solid ${temaScouter.cor}55`,
-                                            boxShadow: `inset 0 0 15px ${temaScouter.cor}33, 0 5px 15px rgba(0,0,0,0.5)`,
-                                            lineHeight: '1', textShadow: `0 0 10px ${temaScouter.cor}`
-                                        }}>
-                                            V{isNaN(vitalidadeGlobal) ? 0 : vitalidadeGlobal}
+                                        <div style={{ fontSize: '2.5em', fontWeight: '900', color: temaScouter.cor, background: 'rgba(0,0,0,0.6)', padding: '8px 25px', borderRadius: '8px', border: `1px solid ${temaScouter.cor}55`, boxShadow: `inset 0 0 15px ${temaScouter.cor}33, 0 5px 15px rgba(0,0,0,0.5)`, lineHeight: '1', textShadow: `0 0 10px ${temaScouter.cor}` }}>
+                                            V{Number(vitalidadeGlobal) || 0}
                                         </div>
                                     </div>
                                 </div>
 
                                 <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '15px', position: 'relative', zIndex: 1, borderTop: `1px solid rgba(255,255,255,0.05)`, paddingTop: '15px' }}>
                                     <span style={{ color: '#fff', opacity: 0.7, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>Ocultar Presença:</span>
-                                    <input 
-                                        type="range" min={Math.min(limiteSupressao, 100)} max="100" step="0.1" value={supressao > 100 ? 100 : supressao}
-                                        onChange={e => { salvar('supressaoPoder', e.target.value); }}
-                                        style={{ flex: 1, accentColor: temaScouter.cor, cursor: 'pointer', filter: `drop-shadow(0 0 5px ${temaScouter.cor})` }}
-                                    />
+                                    <input type="range" min={Math.min(limiteSupressao, 100)} max="100" step="0.1" value={supressao > 100 ? 100 : supressao} onChange={e => { salvar('supressaoPoder', e.target.value); }} style={{ flex: 1, accentColor: temaScouter.cor, cursor: 'pointer', filter: `drop-shadow(0 0 5px ${temaScouter.cor})` }} />
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                        <input 
-                                            type="number" min={limiteSupressao} max="100" step="any" value={supressao}
-                                            onChange={e => {
-                                                let val = Number(e.target.value);
-                                                if (isNaN(val)) val = limiteSupressao;
-                                                if (val < limiteSupressao) val = limiteSupressao;
-                                                salvar('supressaoPoder', val);
-                                            }}
-                                            style={{ width: '80px', background: 'rgba(0,0,0,0.5)', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }}
-                                        />
+                                        <input type="number" min={limiteSupressao} max="100" step="any" value={supressao} onChange={e => { let val = Number(e.target.value); if (isNaN(val)) val = limiteSupressao; if (val < limiteSupressao) val = limiteSupressao; salvar('supressaoPoder', val); }} style={{ width: '80px', background: 'rgba(0,0,0,0.5)', color: temaScouter.cor, border: `1px solid ${temaScouter.cor}`, padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }} />
                                         <span style={{ color: temaScouter.cor, fontWeight: 'bold', fontSize: '1.1em' }}>%</span>
                                     </div>
                                 </div>
@@ -1211,11 +1213,7 @@ export default function MarcadosPanel() {
                                 {isMestre && (
                                     <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255, 0, 60, 0.1)', padding: '8px', borderRadius: '6px', border: '1px dashed rgba(255, 0, 60, 0.5)' }}>
                                         <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>🔒 Controle do GM (Limite de Ocultação):</span>
-                                        <input 
-                                            type="number" min="0.000001" step="any" value={limiteSupressao}
-                                            onChange={e => { salvar('limiteSupressao', e.target.value); }}
-                                            style={{ width: '80px', background: 'rgba(0,0,0,0.8)', color: '#ff003c', border: '1px solid #ff003c', padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }}
-                                        />
+                                        <input type="number" min="0.000001" step="any" value={limiteSupressao} onChange={e => { salvar('limiteSupressao', e.target.value); }} style={{ width: '80px', background: 'rgba(0,0,0,0.8)', color: '#ff003c', border: '1px solid #ff003c', padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }} />
                                         <span style={{ color: '#ff003c', fontWeight: 'bold', fontSize: '1em' }}>%</span>
                                     </div>
                                 )}
@@ -1246,29 +1244,13 @@ export default function MarcadosPanel() {
                                         <span style={{ color: '#ff003c', opacity: 0.6, fontSize: '0.75em' }}>(aplicado a todo mundo que não tiver um divisor próprio)</span>
                                     </div>
                                 )}
-                                <style>{`
-                                    @keyframes pulse-aura {
-                                        0% { opacity: 0.3; transform: scale(0.9); }
-                                        50% { opacity: 0.8; transform: scale(1.1); }
-                                        100% { opacity: 0.3; transform: scale(0.9); }
-                                    }
-                                `}</style>
+                                <style>{` @keyframes pulse-aura { 0% { opacity: 0.3; transform: scale(0.9); } 50% { opacity: 0.8; transform: scale(1.1); } 100% { opacity: 0.3; transform: scale(0.9); } } `}</style>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '1.2em' }}>
-                                {[
-                                    { k: 'idade', lbl: 'Idade' },
-                                    { k: 'aniversario', lbl: 'Aniversário' },
-                                    { k: 'alturaPeso', lbl: 'Altura / Peso' },
-                                    { k: 'raca', lbl: 'Raça' },
-                                    { k: 'alinhamento', lbl: 'Alinhamento' },
-                                    { k: 'afiliacao', lbl: 'Afiliação' },
-                                    { k: 'classe', lbl: 'Classe' }
-                                ].map(item => (
+                                {[{ k: 'idade', lbl: 'Idade' }, { k: 'aniversario', lbl: 'Aniversário' }, { k: 'alturaPeso', lbl: 'Altura / Peso' }, { k: 'raca', lbl: 'Raça' }, { k: 'alinhamento', lbl: 'Alinhamento' }, { k: 'afiliacao', lbl: 'Afiliação' }, { k: 'classe', lbl: 'Classe' }].map(item => (
                                     <div key={item.k} style={{ display: 'flex' }}>
-                                        <div style={{ width: '140px', fontWeight: 'bold' }}>
-                                            <LabelMagico valor={getLabel(`bio_${item.k}`, item.lbl)} onChange={(v) => setLabel(`bio_${item.k}`, v)} />
-                                        </div>
+                                        <div style={{ width: '140px', fontWeight: 'bold' }}> <LabelMagico valor={getLabel(`bio_${item.k}`, item.lbl)} onChange={(v) => setLabel(`bio_${item.k}`, v)} /> </div>
                                         <span style={{ fontWeight: 'bold', marginRight: '8px' }}>:</span>
                                         <CampoMagico valor={minhaFicha.bio?.[item.k]} onChange={(v) => salvar(`bio.${item.k}`, v)} styleExtra={{ flex: 1, borderBottom: '1px dotted currentColor' }} />
                                     </div>
@@ -1427,7 +1409,7 @@ export default function MarcadosPanel() {
 
                         <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(0,0,0,0.03)', padding: '20px', borderRadius: '15px', border: '1px dashed currentColor' }}>
                             <h2 style={{ fontSize: '2em', fontStyle: 'italic', fontWeight: 'bold', margin: '0 0 20px 0' }}><LabelMagico valor={getLabel('tituloAnaliseBase', 'Status (Rank Base)')} onChange={(v) => setLabel('tituloAnaliseBase', v)} /></h2>
-                            <RadarDesenhado ficha={minhaFicha} isAtual={false} corTinta={localCorTinta} fator={fatorCrescimentoBase} />
+                            <RadarDesenhado ficha={minhaFicha} isAtual={false} corTinta={localCorTinta} fator={fatorAtributosBase} />
                             
                             <div style={{ width: '100%', maxWidth: '300px', marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
@@ -1443,7 +1425,7 @@ export default function MarcadosPanel() {
 
                         <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(0,0,0,0.05)', padding: '20px', borderRadius: '15px', border: '2px solid currentColor' }}>
                             <h2 style={{ fontSize: '2em', fontStyle: 'italic', fontWeight: 'bold', margin: '0 0 20px 0' }}><LabelMagico valor={getLabel('tituloAnaliseAtual', 'Poder Atual (c/ Formas)')} onChange={(v) => setLabel('tituloAnaliseAtual', v)} /></h2>
-                            <RadarDesenhado ficha={minhaFicha} isAtual={true} corTinta={localCorTinta} fator={fatorCrescimentoAtual} />
+                            <RadarDesenhado ficha={minhaFicha} isAtual={true} corTinta={localCorTinta} fator={fatorAtributosAtual} />
                             
                             <div style={{ width: '100%', maxWidth: '300px', marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={true} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosAtual} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} />
