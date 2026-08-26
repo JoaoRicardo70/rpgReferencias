@@ -114,6 +114,11 @@ export default function TabelaPrestigio({ className }) {
                 {/* PRESTÍGIO BASE */}
                 <div className="tabela-prestigio">
                     <h4 className="prestige-title-base">PRESTÍGIO BASE</h4>
+                    {(ficha.statusPool || 0) > 0 && (
+                        <div style={{ background: 'rgba(0,255,150,0.15)', border: '1px solid #00ff96', borderRadius: '8px', padding: '6px 12px', marginBottom: '10px', fontWeight: 'bold', fontSize: '0.85em', color: '#fff' }}>
+                            ⭐ {Math.floor(ficha.statusPool)} pontos de Status aguardando distribuição na aba "Ficha Def" (Status Rank Base)
+                        </div>
+                    )}
                     <div className="prestige-ascension-box">
                         <label className="text-white-md" style={{ display: 'block', marginBottom: '5px' }}>Ascensão Base (Nível):</label>
                         <input
@@ -157,17 +162,37 @@ export default function TabelaPrestigio({ className }) {
                                             }}
                                         /></span>
                                     </div>
-                                    <input type="number" className="prestige-input-base" value={calcBaseP} 
+                                    <input type="number" className="prestige-input-base" value={calcBaseP}
                                         onChange={(e) => {
                                             const val = parseInt(e.target.value) || 0;
+                                            // 🔥 Status vira um POOL: em vez de igualar os 8 atributos (destruindo
+                                            // builds diferenciadas), credita a diferença de pontos no pool de
+                                            // distribuição manual — alocado na aba "Ficha Def" > Status (Rank Base).
+                                            // Calculado fora do updateFicha porque o aviso ao jogador (efeito
+                                            // colateral) não pertence ao callback do Immer.
+                                            let avisoReducaoIncompleta = null;
+                                            if (attrKey === 'status') {
+                                                const stBaseAlvo = val * 1000;
+                                                const somaAtual = STATS.reduce((acc, s) => acc + (parseFloat(ficha[s]?.base) || 0), 0);
+                                                const somaAlvo = stBaseAlvo * STATS.length;
+                                                const delta = somaAlvo - somaAtual;
+                                                const poolAntes = parseFloat(ficha.statusPool) || 0;
+                                                if (delta < 0 && (poolAntes + delta) < 0) {
+                                                    avisoReducaoIncompleta = `Só foi possível remover ${poolAntes} dos ${Math.abs(delta)} pontos pedidos: o restante já foi distribuído entre os atributos e precisa ser reduzido manualmente em cada um.`;
+                                                }
+                                            }
                                             updateFicha(f => {
                                                 if (attrKey === 'status') {
-                                                    const stBase = val * 1000;
-                                                    STATS.forEach(s => { if(f[s]) f[s].base = stBase; });
+                                                    const stBaseAlvo = val * 1000;
+                                                    const somaAtual = STATS.reduce((acc, s) => acc + (parseFloat(f[s]?.base) || 0), 0);
+                                                    const somaAlvo = stBaseAlvo * STATS.length;
+                                                    const delta = somaAlvo - somaAtual;
+                                                    f.statusPool = Math.max(0, (parseFloat(f.statusPool) || 0) + delta);
                                                 } else {
                                                     if(f[attrKey]) f[attrKey].base = val * MULTIPLICADORES[attrKey];
                                                 }
                                             });
+                                            if (avisoReducaoIncompleta) alert(avisoReducaoIncompleta);
                                         }}
                                     />
                                 </div>

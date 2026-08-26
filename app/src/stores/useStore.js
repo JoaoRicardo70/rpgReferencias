@@ -54,7 +54,15 @@ export const fichaPadrao = {
     // 🔥 NOVO: 5ª barra de energia — "Força". O valor atual é independente das outras
     // energias; o máximo é sempre derivado (média de mana/aura/chakra/corpo), nunca
     // armazenado aqui — ver getSupremas() em Marcados.jsx
-    energiaForca: { atual: 0 }
+    energiaForca: { atual: 0 },
+
+    // 🔥 NOVO: Pool de pontos de Status não distribuídos. Ganhar Prestígio na categoria
+    // "Status" credita pontos aqui em vez de igualar os 8 atributos (Força, Destreza,
+    // Inteligência, Sabedoria, Energia Espiritual, Carisma, Stamina, Constituição) — o
+    // jogador/Mestre distribui manualmente entre eles depois. Precisa estar em fichaPadrao
+    // para sobreviver ao F5 (o loop genérico de carregarDadosFicha só restaura chaves
+    // presentes aqui).
+    statusPool: 0
 };
 
 export function sanitizarNome(n) { return !n ? '' : n.replace(/[.#$\[\]\/]/g, '_').trim(); }
