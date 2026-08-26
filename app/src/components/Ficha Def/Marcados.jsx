@@ -57,6 +57,28 @@ function getEfetivoMFormas(ficha, k, ignorarPoderes = false) {
     return (v === 1.0 ? 0 : v) + b.mformas;
 }
 
+// 🔥 NOVO: CALCULADOR INTELIGENTE DE BLEND-MODE PARA CORES ESCURAS 🔥
+function getCamadasTinta(cor) {
+    if (!cor || cor === '#ffffff') return null;
+    const hex = String(cor).replace('#', '');
+    if (hex.length !== 6) return { modo1: 'color', op1: 1, modo2: 'overlay', op2: 0.8 };
+    
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    
+    // Luminosidade perceptual humana (se a cor é "escura" aos nossos olhos)
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    if (lum < 0.45) {
+        // Cores ESCURAS: O mix-blend 'multiply' esmaga a luminosidade do metal base.
+        return { modo1: 'color', op1: 1, modo2: 'multiply', op2: 0.9 };
+    } else {
+        // Cores CLARAS: O mix-blend 'overlay' dá um pop de brilho na cor.
+        return { modo1: 'color', op1: 1, modo2: 'overlay', op2: 0.8 };
+    }
+}
+
 // 🔥 EXTRATOR SUPREMO DE COMBOS GLOBAIS 🔥
 function getGlobalMultipliers(ficha) {
     try {
@@ -102,7 +124,6 @@ function getGlobalMultipliers(ficha) {
             }
         }
 
-        // Vasculha as abas ativas e soma passivas com o mesmo nome.
         const scanCategory = (cat, flagAtivo = 'ativo', camposTexto = ['efeitos', 'desc']) => {
             if (!ficha[cat]) return;
             Object.values(ficha[cat]).forEach(item => {
@@ -131,7 +152,6 @@ function getGlobalMultipliers(ficha) {
         ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios', 'itens'].forEach(cat => scanCategory(cat));
         scanCategory('ataquesElementais', 'equipado', ['descricao', 'efeitos', 'desc']);
 
-        // Multiplica os Totais Agrupados
         const calcTotal = (tipo) => {
             let soma = 0;
             Object.values(grupos[tipo]).forEach(v => { soma += v; });
@@ -187,41 +207,6 @@ function getPoderDiretoMultiplier(ficha) {
     }
 }
 
-// ==========================================
-// 🛡️ FUNÇÕES MATEMÁTICAS RESTAURADAS
-// ==========================================
-
-function getBasePFor(ficha, k) {
-    const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
-    const div = parseFloat(ficha?.divisores?.[k]) || 1;
-    if (k === 'status') {
-        let m = 0;
-        ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
-            m += safeGetRawBase(ficha, s);
-        });
-        return Math.floor(((m / 8) / mults.status) * div) || 0;
-    }
-    return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
-}
-
-function aplicarMultiplicadorForca(prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) {
-    const multP = parseFloat(multiplicadorForcaPrestigio) || 1;
-    const multA = parseFloat(multiplicadorForcaAscensao) || 1;
-    const ascensaoBaseEfetiva = (parseInt(ascensaoBase) || 1) * multA;
-    const prestigioTotal = (prestigioBase || 0) * multP;
-    const bonusAscensao = Math.floor(prestigioTotal / 100);
-    const prestigioFinal = prestigioTotal % 100;
-    const ascensaoFinal = ascensaoBaseEfetiva + bonusAscensao;
-    const rankInfo = safeGetRank(prestigioFinal, ascensaoFinal);
-    return { ...rankInfo, prestigioFinal, ascensaoFinal };
-}
-
-function calcularPrestAtual(ficha, attrKey, baseP, ignorarPoderes = false) {
-    const mFormas = getEfetivoMFormas(ficha, attrKey, ignorarPoderes);
-    const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
-    return Math.floor((baseP || 0) * multForma) || 0;
-}
-
 // 🔥 REGRA DA ASCENSÃO: (Ascensão * 100) + Prestígio 🔥
 function getPoderAbsolutoAtributo(key, ficha) {
     if (!ficha) return 0;
@@ -248,6 +233,7 @@ function getPoderAbsolutoAtributo(key, ficha) {
     const multA = parseFloat(ficha?.multiplicadorForcaAscensao) || 1;
 
     const { prestigioFinal, ascensaoFinal } = aplicarMultiplicadorForca(prestigioBruto, ascensaoBase, multP, multA);
+
     const pontosTotais = (ascensaoFinal * 100) + prestigioFinal;
 
     let poderPuro = Math.floor((pontosTotais / div) * (mults[key] || 1));
@@ -363,21 +349,36 @@ function encontrarCategoriaPorLore(nome) {
     return null;
 }
 
-export function getCamadaTinta(cor) {
-    if (!cor || cor === '#ffffff') return null;
-    const hex = String(cor).replace('#', '');
-    if (hex.length !== 6) return { modo: 'color', opacidade: 1 };
-    const r = parseInt(hex.substring(0, 2), 16);
-    const g = parseInt(hex.substring(2, 4), 16);
-    const b = parseInt(hex.substring(4, 6), 16);
-    if ([r, g, b].some(isNaN)) return { modo: 'color', opacidade: 1 };
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    const chroma = (max - min) / 255;
-    const luminosidade = ((max + min) / 2) / 255;
-    if (chroma < 0.12 || luminosidade < 0.15) {
-        return { modo: 'multiply', opacidade: Math.min(0.85, (1 - luminosidade) * 0.9) };
+// ==========================================
+// 🛡️ FUNÇÕES AUXILIARES DA TABELA E COMPONENTES
+// ==========================================
+function getBasePFor(ficha, k) {
+    const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
+    const div = parseFloat(ficha?.divisores?.[k]) || 1;
+    if (k === 'status') {
+        let m = 0;
+        ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { m += safeGetRawBase(ficha, s); });
+        return Math.floor(((m / 8) / mults.status) * div) || 0;
     }
-    return { modo: 'color', opacidade: 1 };
+    return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
+}
+
+function aplicarMultiplicadorForca(prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) {
+    const multP = parseFloat(multiplicadorForcaPrestigio) || 1;
+    const multA = parseFloat(multiplicadorForcaAscensao) || 1;
+    const ascensaoBaseEfetiva = (parseInt(ascensaoBase) || 1) * multA;
+    const prestigioTotal = (prestigioBase || 0) * multP;
+    const bonusAscensao = Math.floor(prestigioTotal / 100);
+    const prestigioFinal = prestigioTotal % 100;
+    const ascensaoFinal = ascensaoBaseEfetiva + bonusAscensao;
+    const rankInfo = safeGetRank(prestigioFinal, ascensaoFinal);
+    return { ...rankInfo, prestigioFinal, ascensaoFinal };
+}
+
+function calcularPrestAtual(ficha, attrKey, baseP, ignorarPoderes = false) {
+    const mFormas = getEfetivoMFormas(ficha, attrKey, ignorarPoderes);
+    const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
+    return Math.floor((baseP || 0) * multForma) || 0;
 }
 
 function calcularEscala(rawMax, key) {
@@ -904,8 +905,8 @@ export default function MarcadosPanel() {
     const isMestre = isMestreStatus || (minhaFicha?.isMestre === true);
     const classeInfo = getClasseInfo(minhaFicha);
     const iconeFinal = localIconeClasse || classeInfo?.iconeUrl;
-    const tintaMoldura = getCamadaTinta(localCorMoldura);
-    const tintaFundo = getCamadaTinta(localCorFundoTint);
+    const tintaMoldura = getCamadasTinta(localCorMoldura);
+    const tintaFundo = getCamadasTinta(localCorFundoTint);
 
     // 🔥 VINCULA A COR DO GLOW À MOLDURA 🔥
     const glowColor = (localCorMoldura && localCorMoldura !== '#ffffff') ? localCorMoldura : (classeInfo?.cor || localCorTinta || '#ffffff');
@@ -1039,7 +1040,10 @@ export default function MarcadosPanel() {
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none', borderRadius: '12px', overflow: 'hidden', mixBlendMode: localModoFundo, isolation: 'isolate' }}>
                     <img src={localBgImg} alt="Fundo" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, filter: localModoFundo !== 'normal' ? 'contrast(1.2) saturate(1.2)' : 'none' }} />
                     {tintaFundo && (
-                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorFundoTint, mixBlendMode: tintaFundo.modo, opacity: tintaFundo.opacidade }} />
+                        <>
+                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorFundoTint, mixBlendMode: tintaFundo.modo1, opacity: tintaFundo.op1 }} />
+                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorFundoTint, mixBlendMode: tintaFundo.modo2, opacity: tintaFundo.op2 }} />
+                        </>
                     )}
                 </div>
             )}
@@ -1275,10 +1279,10 @@ export default function MarcadosPanel() {
                                             <div style={{ position: 'absolute', top: '-3.5%', left: '-3%', width: '106%', height: '107%', zIndex: 2, pointerEvents: 'none', mixBlendMode: localModoMoldura, isolation: 'isolate' }}>
                                                 <img src={localMolduraAvatar} alt="Moldura" style={{ width: '100%', height: '100%', objectFit: 'fill', position: 'absolute', top: 0, left: 0, filter: 'contrast(1.2) saturate(1.2)' }} />
                                                 
-                                                {localCorMoldura && localCorMoldura !== '#ffffff' && (
+                                                {tintaMoldura && (
                                                     <>
-                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'color' }} />
-                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: 0.8 }} />
+                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo1, opacity: tintaMoldura.op1 }} />
+                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo2, opacity: tintaMoldura.op2 }} />
                                                     </>
                                                 )}
                                             </div>
@@ -1292,7 +1296,10 @@ export default function MarcadosPanel() {
                                                         <img src={iconeFinal} alt="Classe" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
                                                         
                                                         {tintaMoldura && (
-                                                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo, opacity: tintaMoldura.opacidade, WebkitMaskImage: `url(${iconeFinal})`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url(${iconeFinal})`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
+                                                            <>
+                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo1, opacity: tintaMoldura.op1, WebkitMaskImage: `url(${iconeFinal})`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url(${iconeFinal})`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
+                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo2, opacity: tintaMoldura.op2, WebkitMaskImage: `url(${iconeFinal})`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url(${iconeFinal})`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
+                                                            </>
                                                         )}
                                                     </div>
                                                 ) : (
