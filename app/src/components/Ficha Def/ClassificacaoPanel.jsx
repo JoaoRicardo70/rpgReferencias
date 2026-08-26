@@ -168,6 +168,24 @@ function PaginaRegistros() {
         });
     }, [minhaFicha?.hierarquia]);
 
+    // 🔥 Antes, os campos de texto/select desta página (poderNome, poderDesc, etc.) só
+    // atualizavam hTextos (useState local) — nunca chegavam a minhaFicha.hierarquia até o
+    // usuário clicar no botão "SALVAR CLASSIFICAÇÃO NA ALMA". Como o "onBlur" de
+    // CampoMagico/AreaMagica chama callSave() (salvarFichaSilencioso, que salva a ficha
+    // JÁ EXISTENTE no store), sair do campo sem clicar nesse botão específico dava a
+    // impressão de "nunca salva" — o valor digitado nunca tinha entrado na ficha pra
+    // começar. Agora cada edição já propaga pra minhaFicha.hierarquia na hora (mesmo
+    // padrão usado por salvar() no resto da Ficha), então tanto o onBlur quanto o botão
+    // "💾 Guardar Ficha" da tela principal persistem corretamente.
+    const atualizarTextoHierarquia = (campo, valor) => {
+        setHTextos(prev => ({ ...prev, [campo]: valor }));
+        if (!isMestre) return;
+        updateFicha(f => {
+            if (!f.hierarquia) f.hierarquia = {};
+            f.hierarquia[campo] = valor;
+        });
+    };
+
     const salvarHierarquia = (p, i, s) => {
         if (!isMestre) return;
         updateFicha(f => {
@@ -259,7 +277,7 @@ function PaginaRegistros() {
                         <label style={{ fontSize: '0.85em', fontWeight: 'bold', display: 'block', marginBottom: '5px', opacity: 0.8 }}>Vertente do Poder:</label>
                         <select 
                             value={hTextos.poderVertente} 
-                            onChange={e => setHTextos({...hTextos, poderVertente: e.target.value})} 
+                            onChange={e => atualizarTextoHierarquia('poderVertente', e.target.value)}
                             disabled={!isMestre} 
                             style={{ width: '100%', marginBottom: '10px', background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dashed currentColor', padding: '8px', outline: 'none', fontFamily: 'inherit' }}
                         >
@@ -274,7 +292,7 @@ function PaginaRegistros() {
                             <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                                 <div>
                                     <label style={{ fontSize: '0.85em', fontWeight: 'bold', opacity: 0.8 }}>Elemento Oficial:</label>
-                                    <select value={hTextos.poderElemento} onChange={e => setHTextos({...hTextos, poderElemento: e.target.value})} disabled={!isMestre} style={{ width: '100%', background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dashed currentColor', padding: '8px', outline: 'none', fontFamily: 'inherit' }}>
+                                    <select value={hTextos.poderElemento} onChange={e => atualizarTextoHierarquia('poderElemento', e.target.value)} disabled={!isMestre} style={{ width: '100%', background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dashed currentColor', padding: '8px', outline: 'none', fontFamily: 'inherit' }}>
                                         <option value="" style={{ color: '#000' }}>Selecione a raiz elemental...</option>
                                         {ELEMENTOS_OPCOES.map(grupo => (
                                             <optgroup key={grupo.label} label={grupo.label} style={{ color: '#000' }}>
@@ -285,13 +303,13 @@ function PaginaRegistros() {
                                 </div>
                                 <div>
                                     <label style={{ fontSize: '0.85em', fontWeight: 'bold', opacity: 0.8 }}>Afeta/Consome:</label>
-                                    <CampoMagico disabled={!isMestre} valor={hTextos.poderAfeta} onChange={v => setHTextos({...hTextos, poderAfeta: v})} placeholder="Ex: Gelo, Vento" />
+                                    <CampoMagico disabled={!isMestre} valor={hTextos.poderAfeta} onChange={v => atualizarTextoHierarquia('poderAfeta', v)} placeholder="Ex: Gelo, Vento" />
                                 </div>
                             </div>
                         )}
 
-                        <CampoMagico disabled={!isMestre} valor={hTextos.poderNome} onChange={v => setHTextos({...hTextos, poderNome: v})} placeholder="Nome do seu Poder (Ex: Chamas do Purgatório)" styleExtra={{ fontSize: '1.1em', fontWeight: 'bold', marginBottom: '10px' }} />
-                        <AreaMagica disabled={!isMestre} valor={hTextos.poderDesc} onChange={v => setHTextos({...hTextos, poderDesc: v})} placeholder="Descreva como a ressonância da sua habilidade se manifesta na realidade..." />
+                        <CampoMagico disabled={!isMestre} valor={hTextos.poderNome} onChange={v => atualizarTextoHierarquia('poderNome', v)} placeholder="Nome do seu Poder (Ex: Chamas do Purgatório)" styleExtra={{ fontSize: '1.1em', fontWeight: 'bold', marginBottom: '10px' }} />
+                        <AreaMagica disabled={!isMestre} valor={hTextos.poderDesc} onChange={v => atualizarTextoHierarquia('poderDesc', v)} placeholder="Descreva como a ressonância da sua habilidade se manifesta na realidade..." />
                     </div>
                 )}
             </div>
@@ -310,7 +328,7 @@ function PaginaRegistros() {
                         <label style={{ fontSize: '0.85em', fontWeight: 'bold', display: 'block', marginBottom: '5px', opacity: 0.8 }}>Vertente do Infinity:</label>
                         <select 
                             value={hTextos.infinityVertente} 
-                            onChange={e => setHTextos({...hTextos, infinityVertente: e.target.value})} 
+                            onChange={e => atualizarTextoHierarquia('infinityVertente', e.target.value)}
                             disabled={!isMestre} 
                             style={{ width: '100%', marginBottom: '10px', background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dashed currentColor', padding: '8px', outline: 'none', fontFamily: 'inherit' }}
                         >
@@ -325,7 +343,7 @@ function PaginaRegistros() {
                             <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
                                 <div>
                                     <label style={{ fontSize: '0.85em', fontWeight: 'bold', opacity: 0.8 }}>Elemento Oficial:</label>
-                                    <select value={hTextos.infinityElemento} onChange={e => setHTextos({...hTextos, infinityElemento: e.target.value})} disabled={!isMestre} style={{ width: '100%', background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dashed currentColor', padding: '8px', outline: 'none', fontFamily: 'inherit' }}>
+                                    <select value={hTextos.infinityElemento} onChange={e => atualizarTextoHierarquia('infinityElemento', e.target.value)} disabled={!isMestre} style={{ width: '100%', background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dashed currentColor', padding: '8px', outline: 'none', fontFamily: 'inherit' }}>
                                         <option value="" style={{ color: '#000' }}>Selecione a raiz elemental...</option>
                                         {ELEMENTOS_OPCOES.map(grupo => (
                                             <optgroup key={grupo.label} label={grupo.label} style={{ color: '#000' }}>
@@ -336,13 +354,13 @@ function PaginaRegistros() {
                                 </div>
                                 <div>
                                     <label style={{ fontSize: '0.85em', fontWeight: 'bold', opacity: 0.8 }}>Afeta/Consome:</label>
-                                    <CampoMagico disabled={!isMestre} valor={hTextos.infinityAfeta} onChange={v => setHTextos({...hTextos, infinityAfeta: v})} placeholder="Ex: Fogo, Gelo" />
+                                    <CampoMagico disabled={!isMestre} valor={hTextos.infinityAfeta} onChange={v => atualizarTextoHierarquia('infinityAfeta', v)} placeholder="Ex: Fogo, Gelo" />
                                 </div>
                             </div>
                         )}
 
-                        <CampoMagico disabled={!isMestre} valor={hTextos.infinityNome} onChange={v => setHTextos({...hTextos, infinityNome: v})} placeholder="Nome do seu Infinity (Ex: Frio Zero Absoluto)" styleExtra={{ fontSize: '1.1em', fontWeight: 'bold', marginBottom: '10px' }} />
-                        <AreaMagica disabled={!isMestre} valor={hTextos.infinityDesc} onChange={v => setHTextos({...hTextos, infinityDesc: v})} placeholder="Descreva as leis conceituais e limites dessa manipulação infinita..." />
+                        <CampoMagico disabled={!isMestre} valor={hTextos.infinityNome} onChange={v => atualizarTextoHierarquia('infinityNome', v)} placeholder="Nome do seu Infinity (Ex: Frio Zero Absoluto)" styleExtra={{ fontSize: '1.1em', fontWeight: 'bold', marginBottom: '10px' }} />
+                        <AreaMagica disabled={!isMestre} valor={hTextos.infinityDesc} onChange={v => atualizarTextoHierarquia('infinityDesc', v)} placeholder="Descreva as leis conceituais e limites dessa manipulação infinita..." />
                     </div>
                 )}
             </div>
@@ -372,8 +390,8 @@ function PaginaRegistros() {
                         </select>
 
                         <div style={{ paddingTop: '15px', borderTop: '1px dashed currentColor' }}>
-                            <CampoMagico disabled={!isMestre} valor={hTextos.singularidadeNome} onChange={v => setHTextos({...hTextos, singularidadeNome: v})} placeholder="Nome da Singularidade (Ex: All For One)" styleExtra={{ fontSize: '1.1em', fontWeight: 'bold', marginBottom: '10px' }} />
-                            <AreaMagica disabled={!isMestre} valor={hTextos.singularidadeDesc} onChange={v => setHTextos({...hTextos, singularidadeDesc: v})} placeholder="Descreva como essa anomalia cósmica quebra as regras do universo..." />
+                            <CampoMagico disabled={!isMestre} valor={hTextos.singularidadeNome} onChange={v => atualizarTextoHierarquia('singularidadeNome', v)} placeholder="Nome da Singularidade (Ex: All For One)" styleExtra={{ fontSize: '1.1em', fontWeight: 'bold', marginBottom: '10px' }} />
+                            <AreaMagica disabled={!isMestre} valor={hTextos.singularidadeDesc} onChange={v => atualizarTextoHierarquia('singularidadeDesc', v)} placeholder="Descreva como essa anomalia cósmica quebra as regras do universo..." />
                         </div>
                     </div>
                 )}

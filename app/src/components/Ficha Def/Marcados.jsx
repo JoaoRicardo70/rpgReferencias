@@ -396,6 +396,36 @@ function calcularPrestAtual(ficha, attrKey, baseP, ignorarPoderes = false) {
     return Math.floor((baseP || 0) * multForma) || 0;
 }
 
+// 🔥 Calibração de "Tingir Moldura/Fundo/Ícone": mix-blend-mode:'color' troca só matiz/
+// saturação preservando a luminosidade da imagem por baixo — funciona bem para cores
+// saturadas e claras/médias (ex.: roxo, azul, vermelho), mas para cores quase acromáticas
+// (cinza/preto, saturação baixa) ele só DESSATURA a imagem sem escurecer nada — escolher
+// "preto" produzia um brilho branco/cinza lavado em vez de escurecer a moldura, o oposto
+// do que se espera. O MESMO problema aparece, de forma mais sutil, em cores ESCURAS mesmo
+// quando saturadas (ex.: um vermelho quase-preto tipo #200000): 'color' preserva a
+// luminosidade da imagem por baixo, não a da cor escolhida, então a moldura continua tão
+// clara quanto antes, só com um leve matiz — não escurece como o usuário esperaria ao
+// escolher uma cor tão escura. Por isso usamos mix-blend-mode:'multiply' (que sempre
+// multiplica pela cor REAL escolhida, escurecendo E colorindo ao mesmo tempo) sempre que
+// a cor for quase acromática OU suficientemente escura, com opacidade proporcional à
+// escuridão da cor (quanto mais escura, mais forte o escurecimento).
+export function getCamadaTinta(cor) {
+    if (!cor || cor === '#ffffff') return null;
+    const hex = String(cor).replace('#', '');
+    if (hex.length !== 6) return { modo: 'color', opacidade: 1 };
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    if ([r, g, b].some(isNaN)) return { modo: 'color', opacidade: 1 };
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const chroma = (max - min) / 255;
+    const luminosidade = ((max + min) / 2) / 255;
+    if (chroma < 0.12 || luminosidade < 0.15) {
+        return { modo: 'multiply', opacidade: Math.min(0.85, (1 - luminosidade) * 0.9) };
+    }
+    return { modo: 'color', opacidade: 1 };
+}
+
 function calcularEscala(rawMax, key) {
     if (!rawMax || isNaN(rawMax) || rawMax <= 0) return { mxDisplay: 0, pVit: 0 };
     const limit = (key === 'vida' || key === 'pv' || key === 'pm') ? 8 : 9;
@@ -1005,6 +1035,8 @@ export default function MarcadosPanel() {
     const isMestre = isMestreStatus || (minhaFicha?.isMestre === true);
     const classeInfo = getClasseInfo(minhaFicha);
     const iconeFinal = localIconeClasse || classeInfo?.iconeUrl;
+    const tintaMoldura = getCamadaTinta(localCorMoldura);
+    const tintaFundo = getCamadaTinta(localCorFundoTint);
 
     const mudarPagina = (nova) => { setAnimDirection(nova > paginaAtual ? 'next' : 'prev'); setPaginaAtual(nova); };
 
@@ -1138,11 +1170,8 @@ export default function MarcadosPanel() {
             {localBgImg && (
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none', borderRadius: '12px', overflow: 'hidden', mixBlendMode: localModoFundo, isolation: 'isolate' }}>
                     <img src={localBgImg} alt="Fundo" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, filter: localModoFundo !== 'normal' ? 'contrast(1.2) saturate(1.2)' : 'none' }} />
-                    {localCorFundoTint && localCorFundoTint !== '#ffffff' && (
-                        <>
-                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorFundoTint, mixBlendMode: 'color' }} />
-                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorFundoTint, mixBlendMode: 'overlay', opacity: 0.8 }} />
-                        </>
+                    {tintaFundo && (
+                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorFundoTint, mixBlendMode: tintaFundo.modo, opacity: tintaFundo.opacidade }} />
                     )}
                 </div>
             )}
@@ -1351,11 +1380,8 @@ export default function MarcadosPanel() {
                                         {localMolduraAvatar && (
                                             <div style={{ position: 'absolute', top: '-3.5%', left: '-3%', width: '106%', height: '107%', zIndex: 2, pointerEvents: 'none', mixBlendMode: localModoMoldura, isolation: 'isolate' }}>
                                                 <img src={localMolduraAvatar} alt="Moldura" style={{ width: '100%', height: '100%', objectFit: 'fill', position: 'absolute', top: 0, left: 0, filter: 'contrast(1.2) saturate(1.2)' }} />
-                                                {localCorMoldura && localCorMoldura !== '#ffffff' && (
-                                                    <>
-                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'color' }} />
-                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: 0.8 }} />
-                                                    </>
+                                                {tintaMoldura && (
+                                                    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo, opacity: tintaMoldura.opacidade }} />
                                                 )}
                                             </div>
                                         )}
@@ -1364,11 +1390,8 @@ export default function MarcadosPanel() {
                                                 {iconeFinal ? (
                                                     <div style={{ position: 'relative', width: '100%', height: '100%', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.8))', isolation: 'isolate' }}>
                                                         <img src={iconeFinal} alt="Classe" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
-                                                        {localCorMoldura && localCorMoldura !== '#ffffff' && (
-                                                            <>
-                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'color', WebkitMaskImage: `url(${iconeFinal})`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url(${iconeFinal})`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
-                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: 0.8, WebkitMaskImage: `url(${iconeFinal})`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url(${iconeFinal})`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
-                                                            </>
+                                                        {tintaMoldura && (
+                                                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo, opacity: tintaMoldura.opacidade, WebkitMaskImage: `url(${iconeFinal})`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url(${iconeFinal})`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
                                                         )}
                                                     </div>
                                                 ) : (

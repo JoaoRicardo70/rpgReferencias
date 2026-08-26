@@ -175,11 +175,18 @@ export default function App() {
     }, [setMeuNome, carregarDadosFicha]);
 
     useEffect(() => {
+        // 🔥 mesaId PRECISA estar nas dependências: iniciarListenerDummies/Cenario/DivisorPoderMesa
+        // leem mesaId internamente (useStore.getState()) só no momento em que são chamadas — se
+        // mesaId ainda não estava definido quando este efeito rodou pela primeira vez (ex.: primeiro
+        // login da sessão, mesaId chega via setMesaId DEPOIS do mount), os listeners nunca eram
+        // (re)anexados para a mesa certa, e o valor nunca sincronizava enquanto durasse a sessão —
+        // mesmo funcionando "por acidente" quando mesaId já vinha cacheado do localStorage.
+        if (!mesaId) return;
         const unsubDummies = iniciarListenerDummies((dados) => setDummies(dados || {}));
         const unsubCenario = iniciarListenerCenario((dados) => setCenario(dados));
         const unsubDivisorPoder = iniciarListenerDivisorPoderMesa((valor) => setDivisorPoderMesa(valor));
         return () => { if (unsubDummies) unsubDummies(); if (unsubCenario) unsubCenario(); if (unsubDivisorPoder) unsubDivisorPoder(); };
-    }, [setDummies, setCenario, setDivisorPoderMesa]);
+    }, [mesaId, setDummies, setCenario, setDivisorPoderMesa]);
 
     useEffect(() => {
         if (!mesaId || !userLogado || !pronto) return;
