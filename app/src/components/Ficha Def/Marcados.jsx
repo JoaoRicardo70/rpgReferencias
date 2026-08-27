@@ -27,11 +27,6 @@ function safeGetMaximo(ficha, key) {
     return parseFloat(ficha?.[key]?.base) || 0;
 }
 
-// 🔥 Base + buffs ADITIVOS (sem a pilha de multiplicadores mBase/mGeral/mFormas/mAbsoluto/mUnico).
-// Usado onde o multiplicador global já é aplicado numa etapa separada, para não contar mFormas em dobro.
-// ignorarPoderes=true remove também os bônus vindos do Grimório (ficha.poderes — Habilidades/
-// Formas/Poderes): usado apenas pelo cálculo do Poder do Scouter, que agora ignora as mudanças de
-// Status/Energia/Vida geradas por essas entradas (elas continuam valendo no resto da Ficha).
 function safeGetEfetivoBase(ficha, key, ignorarPoderes = false) {
     try {
         if (AtributosCore && typeof AtributosCore.getEfetivoBase === 'function') {
@@ -53,7 +48,6 @@ function safeGetRank(prest, asc) {
     }
 }
 
-// 🔥 FUNÇÃO RESTAURADA: LÊ AS FORMAS INDIVIDUAIS 🔥
 function getEfetivoMFormas(ficha, k, ignorarPoderes = false) {
     const anchor = k === 'status' ? 'forca' : k;
     let s = ficha?.[anchor] || {};
@@ -63,7 +57,6 @@ function getEfetivoMFormas(ficha, k, ignorarPoderes = false) {
     return (v === 1.0 ? 0 : v) + b.mformas;
 }
 
-// 🔥 EXTRATOR SUPREMO DE COMBOS GLOBAIS 🔥
 function getGlobalMultipliers(ficha) {
     try {
         if (!ficha) return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalUni: 1, totalDano: 1 };
@@ -78,7 +71,6 @@ function getGlobalMultipliers(ficha) {
             }
         };
 
-        // Lê caixas manuais
         let d = ficha?.dano || {};
         addManual(d.mBase, 'MBASE', 'Ficha_Manual');
         addManual(d.mGeral, 'MGERAL', 'Ficha_Manual');
@@ -90,17 +82,6 @@ function getGlobalMultipliers(ficha) {
             });
         }
 
-        // 🔥 FORMA ATIVA — MESMA FONTE QUE O RADAR: RadarDesenhado (e a lista de atributos logo
-        // abaixo dele) descobrem que uma Forma foi ativada chamando getEfetivoMFormas(ficha, eixo)
-        // para cada uma das 6 categorias (vida/mana/aura/chakra/corpo/status) — função que soma o
-        // campo estático ficha.<attr>.mFormas COM os buffs dinâmicos mformas de poderes/itens/seres
-        // ativos tageados no atributo específico (ex.: atributo:'vida'), não só 'geral'/'dano'.
-        // O código antigo só lia o campo estático ficha.forca.mFormas (e nunca os buffs dinâmicos
-        // nem os outros 5 eixos) — por isso o Radar reagia à Forma ativada e o Scouter não. Somamos
-        // aqui o bônus (mFormas-1) de cada eixo, na mesma convenção "1+soma" das demais categorias.
-        // ignorarPoderes=true: o Poder do Scouter não deve mais herdar os bônus de mFormas/mGeral/etc
-        // que vêm do Grimório (ficha.poderes — Habilidades/Formas/Poderes). Esses efeitos continuam
-        // valendo normalmente no resto da Ficha (Status/Energias/Vida) — só saem desta leitura global.
         ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].forEach(k => {
             const mF = getEfetivoMFormas(ficha, k, true);
             if (!isNaN(mF) && mF > 1) {
@@ -108,7 +89,6 @@ function getGlobalMultipliers(ficha) {
             }
         });
 
-        // Lê Buffs Dinâmicos do Sistema Core (exclui ficha.poderes — ver comentário acima)
         let b = safeGetBuffs(ficha, 'dano', true, true) || {};
         if (b._hasBuff) {
             if (b.mbase) addManual(b.mbase, 'MBASE', 'Buff_Sistema');
@@ -119,10 +99,6 @@ function getGlobalMultipliers(ficha) {
             }
         }
 
-        // Vasculha as abas ativas e soma passivas com o mesmo nome. `flagAtivo` e `camposTexto`
-        // são configuráveis porque nem toda categoria usa a mesma convenção de nomes de campo
-        // (ex.: ficha.ataquesElementais, escrito pelo Grimório/ElementosFormContext, usa
-        // `equipado` em vez de `ativo` e `descricao` em vez de `desc`).
         const scanCategory = (cat, flagAtivo = 'ativo', camposTexto = ['efeitos', 'desc']) => {
             if (!ficha[cat]) return;
             Object.values(ficha[cat]).forEach(item => {
@@ -149,13 +125,8 @@ function getGlobalMultipliers(ficha) {
             });
         };
         ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios', 'itens'].forEach(cat => scanCategory(cat));
-        // 🔥 SINCRONIZAÇÃO COM O GRIMÓRIO: ataques elementais equipados em ElementosFormContext
-        // (Grimório -> Página "Afinidades & Elementos") ficam em ficha.ataquesElementais, com
-        // `equipado` como flag de ativação e `descricao` como campo de texto — não `ativo`/`desc`.
         scanCategory('ataquesElementais', 'equipado', ['descricao', 'efeitos', 'desc']);
 
-        // 🔥 REGRA DE AGRUPAMENTO: multiplicadores do MESMO TIPO se SOMAM (1 + soma) antes
-        // da multiplicação final entre categorias. Só o mUnico (abaixo) é multiplicativo entre si.
         const calcTotal = (tipo) => {
             let soma = 0;
             Object.values(grupos[tipo]).forEach(v => { soma += v; });
@@ -176,13 +147,6 @@ function getGlobalMultipliers(ficha) {
     }
 }
 
-// 🔥 MULTIPLICADOR DIRETO DE PODER: a aba Habilidades/Formas/Poderes (Grimório) agora pode marcar um
-// efeito com atributo:'poder_direto' para multiplicar o Poder do Scouter DIRETAMENTE, sem passar por
-// nenhum Status/Energia/Vida — nenhum statKey do sistema se chama 'poder_direto', então getBuffs()
-// nunca aplica esse efeito a nada além desta leitura (ver condição `afeta` em attributes.js). Usa a
-// MESMA regra de agrupamento já estabelecida para MBASE/MGERAL/MFORMAS/MABS/MUNICO: soma dentro do
-// mesmo tipo (1 + soma), multiplica entre tipos. Só efeitos Ativos contam quando o Poder/Habilidade/
-// Forma está ativada (p.ativa); os Passivos contam sempre — mesma convenção do resto do sistema.
 function getPoderDiretoMultiplier(ficha) {
     if (!ficha || !ficha.poderes) return 1;
     try {
@@ -217,7 +181,6 @@ function getPoderDiretoMultiplier(ficha) {
     }
 }
 
-// 🔥 REGRA DA ASCENSÃO: (Ascensão * 100) + Prestígio 🔥
 function getPoderAbsolutoAtributo(key, ficha) {
     if (!ficha) return 0;
     const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, forca: 1000, destreza: 1000, inteligencia: 1000, sabedoria: 1000, energiaEsp: 1000, carisma: 1000, stamina: 1000, constituicao: 1000, energiaForca: 10000000, status: 1000 };
@@ -242,16 +205,11 @@ function getPoderAbsolutoAtributo(key, ficha) {
     const multP = parseFloat(ficha?.multiplicadorForcaPrestigio) || 1;
     const multA = parseFloat(ficha?.multiplicadorForcaAscensao) || 1;
 
-    // 🔥 Alicerce = valores FINAIS já escalonados (mesma cascata de overflow Prestígio->Ascensão
-    // usada pelo Radar/TabelaPrestigio via aplicarMultiplicadorForca), não a soma crua dos multiplicadores.
     const { prestigioFinal, ascensaoFinal } = aplicarMultiplicadorForca(prestigioBruto, ascensaoBase, multP, multA);
-
-    // Regra Mestra: (Ascensao * 100) + Prestigio
     const pontosTotais = (ascensaoFinal * 100) + prestigioFinal;
 
     let poderPuro = Math.floor((pontosTotais / div) * (mults[key] || 1));
 
-    // Calcula para sub-atributos que compõem o Status
     if (isStatus) {
         let prestIndiv = Math.floor((rawBase / mults[key]) * div) || 0;
         const { prestigioFinal: prestIndivFinal, ascensaoFinal: ascIndivFinal } = aplicarMultiplicadorForca(prestIndiv, ascensaoBase, multP, multA);
@@ -262,7 +220,6 @@ function getPoderAbsolutoAtributo(key, ficha) {
     return isNaN(poderPuro) ? 0 : poderPuro;
 }
 
-// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO (PARA AS BADGES INDIVIDUAIS) 🔥
 function getPoderVerdadeiro(key, ficha, isAtual, supressao = 100, fator = 1) {
     try {
         if (!ficha || !key) return 0;
@@ -271,7 +228,6 @@ function getPoderVerdadeiro(key, ficha, isAtual, supressao = 100, fator = 1) {
 
         let mF = 1;
         if (isAtual) {
-            // Badges Individuais usam a Forma Individual, não o Dano Global!
             mF = getEfetivoMFormas(ficha, key);
             if (isNaN(mF) || mF < 1) mF = 1;
         }
@@ -364,8 +320,7 @@ function encontrarCategoriaPorLore(nome) {
     return null;
 }
 
-// 🔥 NOVO: CALCULADOR INTELIGENTE DE BLEND-MODE PARA CORES ESCURAS 🔥
-// Resolve o bug de "desbotar a moldura" ao escolher cores escuras/vivas
+// 🔥 CALCULADOR INTELIGENTE DE BLEND-MODE PARA CORES ESCURAS 🔥
 export function getCamadasTinta(cor) {
     if (!cor || cor === '#ffffff' || cor === 'transparent') return null;
     const hex = String(cor).replace('#', '');
@@ -378,11 +333,9 @@ export function getCamadasTinta(cor) {
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     
     if (lum < 0.45) {
-        // Cores Escuras: 'color' tinge, 'multiply' reduzido não esmaga o brilho metálico
         const multiplyOpacity = Math.max(0.3, Math.min(0.65, (1 - lum) * 0.6));
         return { modo1: 'color', op1: 0.95, modo2: 'multiply', op2: multiplyOpacity };
     } else {
-        // Cores Claras: 'color' tinge, 'overlay' traz o brilho do ouro/prata
         return { modo1: 'color', op1: 0.9, modo2: 'overlay', op2: 0.6 };
     }
 }
@@ -486,7 +439,8 @@ const LabelMagico = ({ valor, onChange, fallback }) => (
     />
 );
 
-const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, getLabel, setLabel, salvar, fator, attrBaseFocado, setAttrBaseFocado }) => {
+const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, getLabel, setLabel, salvar, fator, attrBaseFocado, setAttrBaseFocado, poolDisponivel = 0, onAlocarPool }) => {
+    const [qtdAlocar, setQtdAlocar] = useState(1);
     const baseValRaw = ficha[attrKey]?.base;
     const rawBase = parseFloat(baseValRaw) || 0;
     let maxVal = parseFloat(safeGetMaximo(ficha, attrKey)) || 0;
@@ -513,7 +467,21 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
                     Poder: {formatarPoderCosmico(Number(poderVerdadeiro) || 0)}
                 </span>
             </div>
-            {isAtual ? <span style={{ fontWeight: 'bold' }}>{Number(valorAtual).toLocaleString('pt-BR')}</span> : <CampoMagico valor={valorCampoBase} onChange={(v) => salvar(`${attrKey}.base`, v)} onFocusChange={(focado) => setAttrBaseFocado(focado ? attrKey : null)} styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true} />}
+            {isAtual ? <span style={{ fontWeight: 'bold' }}>{Number(valorAtual).toLocaleString('pt-BR')}</span> : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <CampoMagico valor={valorCampoBase} onChange={(v) => salvar(`${attrKey}.base`, v)} onFocusChange={(focado) => setAttrBaseFocado(focado ? attrKey : null)} styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true} />
+                    {onAlocarPool && poolDisponivel > 0 && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7em', opacity: 0.85 }} title={`Pool de Status disponível: ${poolDisponivel}`}>
+                            <input type="number" min="1" max={poolDisponivel} value={qtdAlocar}
+                                onChange={(e) => setQtdAlocar(e.target.value)}
+                                style={{ width: '45px', background: 'rgba(0,0,0,0.15)', border: '1px solid currentColor', borderRadius: '3px', color: 'inherit', textAlign: 'center', padding: '1px 2px' }} />
+                            <button type="button" onClick={() => onAlocarPool(attrKey, qtdAlocar)}
+                                style={{ background: 'rgba(0,255,150,0.15)', border: '1px solid currentColor', borderRadius: '3px', cursor: 'pointer', color: 'inherit', fontWeight: 'bold', padding: '1px 6px' }}
+                                title="Distribuir pontos do pool de Status para este atributo">+ Pool</button>
+                        </span>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
@@ -599,9 +567,10 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
     );
 };
 
-const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, corTextoBarra = '#fff', ficha, supressao, temaScouter, salvar, getLabel, setLabel }) => {
+const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, corTextoBarra = '#fff', ficha, supressao, temaScouter, salvar, getLabel, setLabel, fator = 1 }) => {
     const [aberto, setAberta] = useState(false);
-    let rawMaximo = parseFloat(safeGetMaximo(ficha, vitalKey)) || 0;
+    const fatorSeguro = parseFloat(fator) || 1;
+    let rawMaximo = (parseFloat(safeGetMaximo(ficha, vitalKey)) || 0) * fatorSeguro;
     
     const { mxDisplay, pVit } = calcularEscala(rawMaximo, vitalKey);
     let atual = ficha?.[vitalKey]?.atual;
@@ -741,9 +710,18 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                                 <button onClick={() => handleRemove(nomeDom)} style={{ position: 'absolute', top: '10px', right: '12px', background: 'transparent', border: 'none', color: '#ff003c', fontSize: '1.3em', cursor: 'pointer' }}>✖</button>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '25px' }}>
                                     <strong style={{ fontSize: '1.2em', textTransform: 'uppercase', color: '#fff' }}>{nomeDom}</strong>
-                                    <select value={nivel} onChange={e => { updateFicha(f => f.dominios[nomeDom].nivel = parseInt(e.target.value)); callSave(); }} style={{ background: '#0a0a0f', color: infoNivel.cor, border: `1px solid ${infoNivel.cor}`, borderRadius: '4px', padding: '4px 8px', outline: 'none', fontWeight: 'bold' }}>
-                                        {Object.entries(NIVEIS_DOMINIO).map(([n, d]) => (<option key={n} value={n}>Lv {n}</option>))}
-                                    </select>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        {!encontrarCategoriaPorLore(nomeDom) && (
+                                            <select value={dadosDom.categoria || catKey} onChange={e => handleMove(nomeDom, e.target.value)} style={{ background: '#0a0a0f', color: '#aaa', border: '1px dashed #444', borderRadius: '4px', padding: '4px 6px', fontSize: '0.85em', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }} title="Mover para outro quadrante">
+                                                {Object.entries(CATEGORIAS_DOMINIO).map(([k, c]) => (
+                                                    <option key={k} value={k}>➔ {c.titulo.split(' ')[0]}</option>
+                                                ))}
+                                            </select>
+                                        )}
+                                        <select value={nivel} onChange={e => handleChangeNivel(nomeDom, e.target.value)} style={{ background: '#0a0a0f', color: infoNivel.cor, border: `1px solid ${infoNivel.cor}`, borderRadius: '4px', padding: '4px 8px', outline: 'none', fontWeight: 'bold' }}>
+                                            {Object.entries(NIVEIS_DOMINIO).map(([n, d]) => (<option key={n} value={n}>Lv {n}</option>))}
+                                        </select>
+                                    </div>
                                 </div>
                                 <div style={{ fontSize: '0.9em', fontStyle: 'italic', color: '#ccc' }}><span style={{ color: infoNivel.cor, fontWeight: 'bold' }}>⚡ :</span> {infoNivel.desc}</div>
                             </div>
@@ -759,6 +737,7 @@ const DominiosPanel = ({ ficha, updateFicha }) => (
     <div style={{ width: '100%' }}>
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
             <h1 style={{ fontSize: '3em', fontStyle: 'italic', fontWeight: 'bold', margin: '0', paddingBottom: '10px', borderBottom: `2px dashed currentColor` }}>A Hierarquia de Domínios</h1>
+            <p style={{ opacity: 0.7, fontStyle: 'italic', marginTop: '5px' }}>O Conhecimento Absoluto das Artes Místicas e Marciais</p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '25px' }}>
             {Object.entries(CATEGORIAS_DOMINIO).map(([catKey, catData]) => (<QuadranteCategoria key={catKey} catKey={catKey} catData={catData} dominiosSalvos={ficha?.dominios || {}} updateFicha={updateFicha} />))}
@@ -825,8 +804,9 @@ export default function MarcadosPanel() {
         }
     }, [minhaFicha?.estetica]);
 
-    const { ascensaoGeralEfetiva, ascensaoGeralEfetivaParaPoder, fatorCrescimentoBase, fatorCrescimentoAtual, fatorAtributosBase, fatorAtributosAtual } = useMemo(() => {
-        if (!minhaFicha) return { ascensaoGeralEfetiva: 1, ascensaoGeralEfetivaParaPoder: 1, fatorCrescimentoBase: 1, fatorCrescimentoAtual: 1, fatorAtributosBase: 1, fatorAtributosAtual: 1 };
+    const { ascensaoGeralEfetiva, ascensaoGeralEfetivaParaPoder, fatorCrescimentoBase, fatorCrescimentoAtual, fatorAtributosBase, fatorAtributosAtual, fatoresVitaisAtual } = useMemo(() => {
+        const fatoresVitaisPadrao = { vida: 1, mana: 1, aura: 1, chakra: 1, corpo: 1 };
+        if (!minhaFicha) return { ascensaoGeralEfetiva: 1, ascensaoGeralEfetivaParaPoder: 1, fatorCrescimentoBase: 1, fatorCrescimentoAtual: 1, fatorAtributosBase: 1, fatorAtributosAtual: 1, fatoresVitaisAtual: fatoresVitaisPadrao };
         const ascensaoBase = parseInt(minhaFicha.ascensaoBase) || 1;
         const multP = minhaFicha.multiplicadorForcaPrestigio ?? 1;
         const multA = parseFloat(minhaFicha.multiplicadorForcaAscensao) || 1;
@@ -850,11 +830,11 @@ export default function MarcadosPanel() {
             return { geral: isNaN(geral) ? ascensaoBase : geral, fator: isNaN(fator) ? 1 : fator };
         };
 
-        const calcularFatorStatus = (comFormas) => {
-            const displayP = getBasePFor(minhaFicha, 'status');
+        const calcularFatorCategoria = (key, comFormas) => {
+            const displayP = getBasePFor(minhaFicha, key);
             let pAtual = displayP;
             if (comFormas) {
-                let mF = getEfetivoMFormas(minhaFicha, 'status');
+                let mF = getEfetivoMFormas(minhaFicha, key);
                 let multForma = mF >= 10 ? (mF / 10) : (mF > 1 ? mF : 1);
                 pAtual = Math.floor(displayP * multForma);
             }
@@ -864,13 +844,17 @@ export default function MarcadosPanel() {
             return isNaN(fator) ? 1 : fator;
         };
 
+        const fatoresVitais = {};
+        ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => { fatoresVitais[k] = calcularFatorCategoria(k, true); });
+
         return {
             ascensaoGeralEfetiva: calcularFator(true).geral,
             ascensaoGeralEfetivaParaPoder: calcularFator(true, true).geral,
             fatorCrescimentoBase: calcularFator(false).fator,
             fatorCrescimentoAtual: calcularFator(true).fator,
-            fatorAtributosBase: calcularFatorStatus(false),
-            fatorAtributosAtual: calcularFatorStatus(true),
+            fatorAtributosBase: calcularFatorCategoria('status', false),
+            fatorAtributosAtual: calcularFatorCategoria('status', true),
+            fatoresVitaisAtual: fatoresVitais,
         };
     }, [minhaFicha]);
 
@@ -944,11 +928,9 @@ export default function MarcadosPanel() {
     const classeInfo = getClasseInfo(minhaFicha);
     const iconeFinal = localIconeClasse || classeInfo?.iconeUrl;
     
-    // 🔥 CAMADAS DUPLAS DE CORES 🔥
+    // 🔥 CAMADAS DE TINTA (A ESTÉTICA PREMIUM) 🔥
     const tintaMoldura = getCamadasTinta(localCorMoldura);
     const tintaFundo = getCamadasTinta(localCorFundoTint);
-
-    // 🔥 GLOW DA COR DA CLASSE/MOLDURA 🔥
     const glowColor = (localCorMoldura && localCorMoldura !== '#ffffff') ? localCorMoldura : (classeInfo?.cor || localCorTinta || '#ffffff');
 
     const mudarPagina = (nova) => { setAnimDirection(nova > paginaAtual ? 'next' : 'prev'); setPaginaAtual(nova); };
@@ -1025,13 +1007,48 @@ export default function MarcadosPanel() {
         const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
         const novaBase = Math.floor((novoP / novoDiv) * (mults[k] || 1));
 
+        let avisoReducaoIncompleta = null;
+        if (tipo === 'prestigio' && k === 'status') {
+            const stats8 = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
+            const somaAtual = stats8.reduce((acc, s) => acc + (parseFloat(minhaFicha[s]?.base) || 0), 0);
+            const somaAlvo = novaBase * stats8.length;
+            const delta = somaAlvo - somaAtual;
+            const poolAntes = parseFloat(minhaFicha.statusPool) || 0;
+            if (delta < 0 && (poolAntes + delta) < 0) {
+                avisoReducaoIncompleta = `Só foi possível remover ${poolAntes} dos ${Math.abs(delta)} pontos pedidos: o restante já foi distribuído entre os atributos e precisa ser reduzido manualmente em cada um.`;
+            }
+        }
+
         updateFicha(f => {
             if (f.overridePrestigio) f.overridePrestigio = null;
             if (tipo === 'divisor') { if (!f.divisores) f.divisores = {}; f.divisores[k] = novoDiv; }
             if (tipo === 'prestigio') {
-                if (k === 'status') { ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { if (!f[s]) f[s] = {}; f[s].base = novaBase; }); }
+                if (k === 'status') {
+                    const stats8 = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
+                    const somaAtual = stats8.reduce((acc, s) => acc + (parseFloat(f[s]?.base) || 0), 0);
+                    const somaAlvo = novaBase * stats8.length;
+                    const delta = somaAlvo - somaAtual;
+                    f.statusPool = Math.max(0, (parseFloat(f.statusPool) || 0) + delta);
+                }
                 else { if (!f[k]) f[k] = {}; f[k].base = novaBase; }
             }
+        });
+        callSave();
+        if (avisoReducaoIncompleta) alert(avisoReducaoIncompleta);
+    };
+
+    const alocarPontoStatus = (attrKey, qtd) => {
+        const pontos = Math.floor(Number(qtd)) || 0;
+        if (pontos <= 0) return;
+        const divStatus = parseFloat(minhaFicha.divisores?.status) || 1;
+        updateFicha(f => {
+            const poolAtual = Math.max(0, parseFloat(f.statusPool) || 0);
+            const usar = Math.min(pontos, poolAtual);
+            if (usar <= 0) return;
+            const acrescimo = Math.floor((usar / divStatus) * 1000);
+            if (!f[attrKey]) f[attrKey] = {};
+            f[attrKey].base = (parseFloat(f[attrKey].base) || 0) + acrescimo;
+            f.statusPool = poolAtual - usar;
         });
         callSave();
     };
@@ -1050,10 +1067,13 @@ export default function MarcadosPanel() {
         const pMana = getBasePFor(minhaFicha, 'mana'); const pAura = getBasePFor(minhaFicha, 'aura'); const pStatus = getBasePFor(minhaFicha, 'status');
         const mPV = parseFloat(minhaFicha.multiplicadorVida) || 1; const mPM = parseFloat(minhaFicha.multiplicadorMorte) || 1;
         const ascensao = parseInt(minhaFicha.ascensaoBase) || 1; const bonusAscensao = (ascensao - 1) * 100;
+        
+        const fatorForca = ((fatoresVitaisAtual?.mana || 1) + (fatoresVitaisAtual?.aura || 1) + (fatoresVitaisAtual?.chakra || 1) + (fatoresVitaisAtual?.corpo || 1)) / 4;
+        
         return {
             pvMax: Math.floor((((pVida + pChakra + pCorpo) / 3) + bonusAscensao) * mPV) || 1,
             pmMax: Math.floor((((pMana + pAura + pStatus) / 3) + bonusAscensao) * mPM) || 1,
-            forcaMax: Math.floor(((Number(minhaFicha?.mana?.base) || 0) + (Number(minhaFicha?.aura?.base) || 0) + (Number(minhaFicha?.chakra?.base) || 0) + (Number(minhaFicha?.corpo?.base) || 0)) / 4) || 1
+            forcaMax: Math.floor((((Number(minhaFicha?.mana?.base) || 0) + (Number(minhaFicha?.aura?.base) || 0) + (Number(minhaFicha?.chakra?.base) || 0) + (Number(minhaFicha?.corpo?.base) || 0)) / 4) * fatorForca) || 1
         };
     };
     const { pvMax, pmMax, forcaMax } = getSupremas();
@@ -1061,7 +1081,7 @@ export default function MarcadosPanel() {
     const handleRegenerarTudo = () => {
         if (!window.confirm('Recuperar toda a Vida, Energias, Pontos e Ações de Turno?')) return;
         updateFicha(f => {
-            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => { let mx = safeGetMaximo(minhaFicha, k); f[k] = { ...f[k], atual: calcularEscala(mx, k).mxDisplay || 0 }; });
+            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => { let mx = safeGetMaximo(minhaFicha, k) * (fatoresVitaisAtual[k] || 1); f[k] = { ...f[k], atual: calcularEscala(mx, k).mxDisplay || 0 }; });
             f.pv = { ...f.pv, atual: pvMax || 0 }; f.pm = { ...f.pm, atual: pmMax || 0 }; f.energiaForca = { ...f.energiaForca, atual: forcaMax || 0 };
             ['padrao', 'bonus', 'reacao'].forEach(tipo => { if (!f.acoes) f.acoes = {}; if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 }; f.acoes[tipo].atual = f.acoes[tipo].max; });
         });
@@ -1347,7 +1367,7 @@ export default function MarcadosPanel() {
                                 ))}
                             </div>
 
-                            {/* 🔥 AVATAR COM GLOW DINÂMICO 🔥 */}
+                            {/* 🔥 AVATAR COM GLOW DINÂMICO E DUPLA CAMADA DE TINTA 🔥 */}
                             <div style={{ 
                                 marginTop: '20px', position: 'relative', width: '320px', height: '480px', display: 'flex', flexDirection: 'column', 
                                 borderRadius: '8px', 
