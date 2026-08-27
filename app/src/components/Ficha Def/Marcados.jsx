@@ -28,10 +28,6 @@ function safeGetMaximo(ficha, key) {
 }
 
 // 🔥 Base + buffs ADITIVOS (sem a pilha de multiplicadores mBase/mGeral/mFormas/mAbsoluto/mUnico).
-// Usado onde o multiplicador global já é aplicado numa etapa separada, para não contar mFormas em dobro.
-// ignorarPoderes=true remove também os bônus vindos do Grimório (ficha.poderes — Habilidades/
-// Formas/Poderes): usado apenas pelo cálculo do Poder do Scouter, que agora ignora as mudanças de
-// Status/Energia/Vida geradas por essas entradas (elas continuam valendo no resto da Ficha).
 function safeGetEfetivoBase(ficha, key, ignorarPoderes = false) {
     try {
         if (AtributosCore && typeof AtributosCore.getEfetivoBase === 'function') {
@@ -53,7 +49,6 @@ function safeGetRank(prest, asc) {
     }
 }
 
-// 🔥 FUNÇÃO RESTAURADA: LÊ AS FORMAS INDIVIDUAIS 🔥
 function getEfetivoMFormas(ficha, k, ignorarPoderes = false) {
     const anchor = k === 'status' ? 'forca' : k;
     let s = ficha?.[anchor] || {};
@@ -63,7 +58,6 @@ function getEfetivoMFormas(ficha, k, ignorarPoderes = false) {
     return (v === 1.0 ? 0 : v) + b.mformas;
 }
 
-// 🔥 EXTRATOR SUPREMO DE COMBOS GLOBAIS 🔥
 function getGlobalMultipliers(ficha) {
     try {
         if (!ficha) return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalUni: 1, totalDano: 1 };
@@ -78,7 +72,6 @@ function getGlobalMultipliers(ficha) {
             }
         };
 
-        // Lê caixas manuais
         let d = ficha?.dano || {};
         addManual(d.mBase, 'MBASE', 'Ficha_Manual');
         addManual(d.mGeral, 'MGERAL', 'Ficha_Manual');
@@ -90,17 +83,6 @@ function getGlobalMultipliers(ficha) {
             });
         }
 
-        // 🔥 FORMA ATIVA — MESMA FONTE QUE O RADAR: RadarDesenhado (e a lista de atributos logo
-        // abaixo dele) descobrem que uma Forma foi ativada chamando getEfetivoMFormas(ficha, eixo)
-        // para cada uma das 6 categorias (vida/mana/aura/chakra/corpo/status) — função que soma o
-        // campo estático ficha.<attr>.mFormas COM os buffs dinâmicos mformas de poderes/itens/seres
-        // ativos tageados no atributo específico (ex.: atributo:'vida'), não só 'geral'/'dano'.
-        // O código antigo só lia o campo estático ficha.forca.mFormas (e nunca os buffs dinâmicos
-        // nem os outros 5 eixos) — por isso o Radar reagia à Forma ativada e o Scouter não. Somamos
-        // aqui o bônus (mFormas-1) de cada eixo, na mesma convenção "1+soma" das demais categorias.
-        // ignorarPoderes=true: o Poder do Scouter não deve mais herdar os bônus de mFormas/mGeral/etc
-        // que vêm do Grimório (ficha.poderes — Habilidades/Formas/Poderes). Esses efeitos continuam
-        // valendo normalmente no resto da Ficha (Status/Energias/Vida) — só saem desta leitura global.
         ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].forEach(k => {
             const mF = getEfetivoMFormas(ficha, k, true);
             if (!isNaN(mF) && mF > 1) {
@@ -108,7 +90,6 @@ function getGlobalMultipliers(ficha) {
             }
         });
 
-        // Lê Buffs Dinâmicos do Sistema Core (exclui ficha.poderes — ver comentário acima)
         let b = safeGetBuffs(ficha, 'dano', true, true) || {};
         if (b._hasBuff) {
             if (b.mbase) addManual(b.mbase, 'MBASE', 'Buff_Sistema');
@@ -119,10 +100,6 @@ function getGlobalMultipliers(ficha) {
             }
         }
 
-        // Vasculha as abas ativas e soma passivas com o mesmo nome. `flagAtivo` e `camposTexto`
-        // são configuráveis porque nem toda categoria usa a mesma convenção de nomes de campo
-        // (ex.: ficha.ataquesElementais, escrito pelo Grimório/ElementosFormContext, usa
-        // `equipado` em vez de `ativo` e `descricao` em vez de `desc`).
         const scanCategory = (cat, flagAtivo = 'ativo', camposTexto = ['efeitos', 'desc']) => {
             if (!ficha[cat]) return;
             Object.values(ficha[cat]).forEach(item => {
@@ -149,13 +126,8 @@ function getGlobalMultipliers(ficha) {
             });
         };
         ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios', 'itens'].forEach(cat => scanCategory(cat));
-        // 🔥 SINCRONIZAÇÃO COM O GRIMÓRIO: ataques elementais equipados em ElementosFormContext
-        // (Grimório -> Página "Afinidades & Elementos") ficam em ficha.ataquesElementais, com
-        // `equipado` como flag de ativação e `descricao` como campo de texto — não `ativo`/`desc`.
         scanCategory('ataquesElementais', 'equipado', ['descricao', 'efeitos', 'desc']);
 
-        // 🔥 REGRA DE AGRUPAMENTO: multiplicadores do MESMO TIPO se SOMAM (1 + soma) antes
-        // da multiplicação final entre categorias. Só o mUnico (abaixo) é multiplicativo entre si.
         const calcTotal = (tipo) => {
             let soma = 0;
             Object.values(grupos[tipo]).forEach(v => { soma += v; });
@@ -176,13 +148,6 @@ function getGlobalMultipliers(ficha) {
     }
 }
 
-// 🔥 MULTIPLICADOR DIRETO DE PODER: a aba Habilidades/Formas/Poderes (Grimório) agora pode marcar um
-// efeito com atributo:'poder_direto' para multiplicar o Poder do Scouter DIRETAMENTE, sem passar por
-// nenhum Status/Energia/Vida — nenhum statKey do sistema se chama 'poder_direto', então getBuffs()
-// nunca aplica esse efeito a nada além desta leitura (ver condição `afeta` em attributes.js). Usa a
-// MESMA regra de agrupamento já estabelecida para MBASE/MGERAL/MFORMAS/MABS/MUNICO: soma dentro do
-// mesmo tipo (1 + soma), multiplica entre tipos. Só efeitos Ativos contam quando o Poder/Habilidade/
-// Forma está ativada (p.ativa); os Passivos contam sempre — mesma convenção do resto do sistema.
 function getPoderDiretoMultiplier(ficha) {
     if (!ficha || !ficha.poderes) return 1;
     try {
@@ -217,7 +182,6 @@ function getPoderDiretoMultiplier(ficha) {
     }
 }
 
-// 🔥 REGRA DA ASCENSÃO: (Ascensão * 100) + Prestígio 🔥
 function getPoderAbsolutoAtributo(key, ficha) {
     if (!ficha) return 0;
     const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, forca: 1000, destreza: 1000, inteligencia: 1000, sabedoria: 1000, energiaEsp: 1000, carisma: 1000, stamina: 1000, constituicao: 1000, energiaForca: 10000000, status: 1000 };
@@ -242,16 +206,11 @@ function getPoderAbsolutoAtributo(key, ficha) {
     const multP = parseFloat(ficha?.multiplicadorForcaPrestigio) || 1;
     const multA = parseFloat(ficha?.multiplicadorForcaAscensao) || 1;
 
-    // 🔥 Alicerce = valores FINAIS já escalonados (mesma cascata de overflow Prestígio->Ascensão
-    // usada pelo Radar/TabelaPrestigio via aplicarMultiplicadorForca), não a soma crua dos multiplicadores.
     const { prestigioFinal, ascensaoFinal } = aplicarMultiplicadorForca(prestigioBruto, ascensaoBase, multP, multA);
-
-    // Regra Mestra: (Ascensao * 100) + Prestigio
     const pontosTotais = (ascensaoFinal * 100) + prestigioFinal;
 
     let poderPuro = Math.floor((pontosTotais / div) * (mults[key] || 1));
 
-    // Calcula para sub-atributos que compõem o Status
     if (isStatus) {
         let prestIndiv = Math.floor((rawBase / mults[key]) * div) || 0;
         const { prestigioFinal: prestIndivFinal, ascensaoFinal: ascIndivFinal } = aplicarMultiplicadorForca(prestIndiv, ascensaoBase, multP, multA);
@@ -262,7 +221,6 @@ function getPoderAbsolutoAtributo(key, ficha) {
     return isNaN(poderPuro) ? 0 : poderPuro;
 }
 
-// 🔥 FÓRMULA UNIVERSAL DO PODER VERDADEIRO (PARA AS BADGES INDIVIDUAIS) 🔥
 function getPoderVerdadeiro(key, ficha, isAtual, supressao = 100, fator = 1) {
     try {
         if (!ficha || !key) return 0;
@@ -271,7 +229,6 @@ function getPoderVerdadeiro(key, ficha, isAtual, supressao = 100, fator = 1) {
 
         let mF = 1;
         if (isAtual) {
-            // Badges Individuais usam a Forma Individual, não o Dano Global!
             mF = getEfetivoMFormas(ficha, key);
             if (isNaN(mF) || mF < 1) mF = 1;
         }
@@ -364,29 +321,29 @@ function encontrarCategoriaPorLore(nome) {
     return null;
 }
 
-// 🔥 NOVO: CALCULADOR INTELIGENTE DE BLEND-MODE PARA CORES ESCURAS 🔥
-// A matemática das trevas: força o multiply em cores escuras para manter os reflexos da moldura.
+// 🔥 CALCULADOR INTELIGENTE DE BLEND-MODE PARA CORES ESCURAS 🔥
+// A magia do CSS: Força o tingimento (color) e escurece preservando o brilho (multiply).
 export function getCamadasTinta(cor) {
     if (!cor || cor === '#ffffff' || cor === 'transparent') return null;
     const hex = String(cor).replace('#', '');
-    if (hex.length !== 6) return { modo1: 'multiply', op1: 0.8, modo2: 'overlay', op2: 0.5 };
+    if (hex.length !== 6) return { modo1: 'color', op1: 1, modo2: 'multiply', op2: 0 };
     
     const r = parseInt(hex.substring(0, 2), 16);
     const g = parseInt(hex.substring(2, 4), 16);
     const b = parseInt(hex.substring(4, 6), 16);
     
+    // Calcula a luminosidade (0.0 a 1.0)
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     
-    if (lum < 0.35) {
-        // Cores Escuras (Roxo, Preto, Azul Marinho)
-        // Multiply destrói a luz branca que desbota a cor, mantendo o contraste do ouro/prata!
-        return { modo1: 'multiply', op1: 0.9, modo2: 'overlay', op2: 0.4 };
-    } else if (lum < 0.65) {
-        // Cores Médias
-        return { modo1: 'multiply', op1: 0.75, modo2: 'overlay', op2: 0.6 };
+    if (lum < 0.5) {
+        // Cores Escuras (Roxo Escuro, Preto, Sangue):
+        // 1º Tinge a 100%. 2º Esmaga o brilho residual metálico proporcionalmente à escuridão.
+        const multiplyOpacity = Math.min(0.9, 1 - lum);
+        return { modo1: 'color', op1: 1, modo2: 'multiply', op2: multiplyOpacity };
     } else {
-        // Cores Claras
-        return { modo1: 'color', op1: 0.8, modo2: 'overlay', op2: 0.5 };
+        // Cores Claras (Dourado, Ciano):
+        // Tinge a 100% e dá um 'pop' metálico no brilho com um overlay suave.
+        return { modo1: 'color', op1: 1, modo2: 'overlay', op2: 0.4 };
     }
 }
 
@@ -1390,13 +1347,7 @@ export default function MarcadosPanel() {
                                         <span style={{ color: '#ff003c', opacity: 0.6, fontSize: '0.75em' }}>(aplicado a todo mundo que não tiver um divisor próprio)</span>
                                     </div>
                                 )}
-                                <style>{`
-                                    @keyframes pulse-aura {
-                                        0% { opacity: 0.3; transform: scale(0.9); }
-                                        50% { opacity: 0.8; transform: scale(1.1); }
-                                        100% { opacity: 0.3; transform: scale(0.9); }
-                                    }
-                                `}</style>
+                                <style>{` @keyframes pulse-aura { 0% { opacity: 0.3; transform: scale(0.9); } 50% { opacity: 0.8; transform: scale(1.1); } 100% { opacity: 0.3; transform: scale(0.9); } } `}</style>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '1.2em' }}>
