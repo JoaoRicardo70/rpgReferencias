@@ -486,8 +486,7 @@ const LabelMagico = ({ valor, onChange, fallback }) => (
     />
 );
 
-const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, getLabel, setLabel, salvar, fator, attrBaseFocado, setAttrBaseFocado, poolDisponivel = 0, onAlocarPool }) => {
-    const [qtdAlocar, setQtdAlocar] = useState(1);
+const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, getLabel, setLabel, salvar, fator, attrBaseFocado, setAttrBaseFocado }) => {
     const baseValRaw = ficha[attrKey]?.base;
     const rawBase = parseFloat(baseValRaw) || 0;
     let maxVal = parseFloat(safeGetMaximo(ficha, attrKey)) || 0;
@@ -504,11 +503,7 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     if (supressao < limiteSupressao) supressao = limiteSupressao;
     
     const tema = getTemaScouter(supressao, limiteSupressao);
-    // 🔥 Sem `fatorSeguro` aqui: getPoderAbsolutoAtributo já escala o Poder deste
-    // sub-atributo pelo Multiplicador de Força usando o próprio Prestígio individual dele
-    // (ver o bloco `isStatus` ali). Passar `fatorSeguro` de novo aplicaria o multiplicador
-    // uma segunda vez (double-dipping) — o fator só deve tingir o valor Base/Atual exibido.
-    const poderVerdadeiro = getPoderVerdadeiro(attrKey, ficha, isAtual, supressao);
+    const poderVerdadeiro = getPoderVerdadeiro(attrKey, ficha, isAtual, supressao, fatorSeguro);
 
     return (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em', flexWrap: 'wrap' }}>
@@ -518,21 +513,7 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
                     Poder: {formatarPoderCosmico(Number(poderVerdadeiro) || 0)}
                 </span>
             </div>
-            {isAtual ? <span style={{ fontWeight: 'bold' }}>{Number(valorAtual).toLocaleString('pt-BR')}</span> : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    <CampoMagico valor={valorCampoBase} onChange={(v) => salvar(`${attrKey}.base`, v)} onFocusChange={(focado) => setAttrBaseFocado(focado ? attrKey : null)} styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true} />
-                    {onAlocarPool && poolDisponivel > 0 && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7em', opacity: 0.85 }} title={`Pool de Status disponível: ${poolDisponivel}`}>
-                            <input type="number" min="1" max={poolDisponivel} value={qtdAlocar}
-                                onChange={(e) => setQtdAlocar(e.target.value)}
-                                style={{ width: '45px', background: 'rgba(0,0,0,0.15)', border: '1px solid currentColor', borderRadius: '3px', color: 'inherit', textAlign: 'center', padding: '1px 2px' }} />
-                            <button type="button" onClick={() => onAlocarPool(attrKey, qtdAlocar)}
-                                style={{ background: 'rgba(0,255,150,0.15)', border: '1px solid currentColor', borderRadius: '3px', cursor: 'pointer', color: 'inherit', fontWeight: 'bold', padding: '1px 6px' }}
-                                title="Distribuir pontos do pool de Status para este atributo">+ Pool</button>
-                        </span>
-                    )}
-                </div>
-            )}
+            {isAtual ? <span style={{ fontWeight: 'bold' }}>{Number(valorAtual).toLocaleString('pt-BR')}</span> : <CampoMagico valor={valorCampoBase} onChange={(v) => salvar(`${attrKey}.base`, v)} onFocusChange={(focado) => setAttrBaseFocado(focado ? attrKey : null)} styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true} />}
         </div>
     );
 };
@@ -618,14 +599,10 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
     );
 };
 
-const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, corTextoBarra = '#fff', ficha, supressao, temaScouter, salvar, getLabel, setLabel, fator = 1 }) => {
+const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, corTextoBarra = '#fff', ficha, supressao, temaScouter, salvar, getLabel, setLabel }) => {
     const [aberto, setAberta] = useState(false);
-    const fatorSeguro = parseFloat(fator) || 1;
-    // 🔥 O Multiplicador de Força (Prestígio/Ascensão) precisa inflar o pool real de
-    // Vida/Mana/Aura/Chakra/Corpo, não só o badge "Poder" — mesmo tingimento que já era
-    // aplicado ao valor Base/Atual dos 8 sub-atributos (ver LinhaAtributoCru).
-    let rawMaximo = (parseFloat(safeGetMaximo(ficha, vitalKey)) || 0) * fatorSeguro;
-
+    let rawMaximo = parseFloat(safeGetMaximo(ficha, vitalKey)) || 0;
+    
     const { mxDisplay, pVit } = calcularEscala(rawMaximo, vitalKey);
     let atual = ficha?.[vitalKey]?.atual;
     if (atual === undefined || atual === null || atual === '') atual = mxDisplay; else atual = Number(atual);
@@ -848,9 +825,8 @@ export default function MarcadosPanel() {
         }
     }, [minhaFicha?.estetica]);
 
-    const { ascensaoGeralEfetiva, ascensaoGeralEfetivaParaPoder, fatorCrescimentoBase, fatorCrescimentoAtual, fatorAtributosBase, fatorAtributosAtual, fatoresVitaisAtual } = useMemo(() => {
-        const fatoresVitaisPadrao = { vida: 1, mana: 1, aura: 1, chakra: 1, corpo: 1 };
-        if (!minhaFicha) return { ascensaoGeralEfetiva: 1, ascensaoGeralEfetivaParaPoder: 1, fatorCrescimentoBase: 1, fatorCrescimentoAtual: 1, fatorAtributosBase: 1, fatorAtributosAtual: 1, fatoresVitaisAtual: fatoresVitaisPadrao };
+    const { ascensaoGeralEfetiva, ascensaoGeralEfetivaParaPoder, fatorCrescimentoBase, fatorCrescimentoAtual, fatorAtributosBase, fatorAtributosAtual } = useMemo(() => {
+        if (!minhaFicha) return { ascensaoGeralEfetiva: 1, ascensaoGeralEfetivaParaPoder: 1, fatorCrescimentoBase: 1, fatorCrescimentoAtual: 1, fatorAtributosBase: 1, fatorAtributosAtual: 1 };
         const ascensaoBase = parseInt(minhaFicha.ascensaoBase) || 1;
         const multP = minhaFicha.multiplicadorForcaPrestigio ?? 1;
         const multA = parseFloat(minhaFicha.multiplicadorForcaAscensao) || 1;
@@ -874,17 +850,11 @@ export default function MarcadosPanel() {
             return { geral: isNaN(geral) ? ascensaoBase : geral, fator: isNaN(fator) ? 1 : fator };
         };
 
-        // 🔥 Fator de crescimento POR CATEGORIA (vida/mana/aura/chakra/corpo/status): usa o
-        // Prestígio/Ascensão da própria categoria (não o mínimo entre as 6, como calcularFator
-        // acima) para escalar o valor Base/Atual exibido pelo Multiplicador de Força — mesma
-        // lógica que já existia só para "status" (sub-atributos), generalizada para as barras
-        // vitais também, que antes não recebiam esse fator (o Multiplicador de Força não
-        // aumentava a Vida/Mana/Aura/Chakra/Corpo/Força reais, só o badge "Poder" cosmético).
-        const calcularFatorCategoria = (key, comFormas) => {
-            const displayP = getBasePFor(minhaFicha, key);
+        const calcularFatorStatus = (comFormas) => {
+            const displayP = getBasePFor(minhaFicha, 'status');
             let pAtual = displayP;
             if (comFormas) {
-                let mF = getEfetivoMFormas(minhaFicha, key);
+                let mF = getEfetivoMFormas(minhaFicha, 'status');
                 let multForma = mF >= 10 ? (mF / 10) : (mF > 1 ? mF : 1);
                 pAtual = Math.floor(displayP * multForma);
             }
@@ -894,17 +864,13 @@ export default function MarcadosPanel() {
             return isNaN(fator) ? 1 : fator;
         };
 
-        const fatoresVitais = {};
-        ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => { fatoresVitais[k] = calcularFatorCategoria(k, true); });
-
         return {
             ascensaoGeralEfetiva: calcularFator(true).geral,
             ascensaoGeralEfetivaParaPoder: calcularFator(true, true).geral,
             fatorCrescimentoBase: calcularFator(false).fator,
             fatorCrescimentoAtual: calcularFator(true).fator,
-            fatorAtributosBase: calcularFatorCategoria('status', false),
-            fatorAtributosAtual: calcularFatorCategoria('status', true),
-            fatoresVitaisAtual: fatoresVitais,
+            fatorAtributosBase: calcularFatorStatus(false),
+            fatorAtributosAtual: calcularFatorStatus(true),
         };
     }, [minhaFicha]);
 
@@ -977,10 +943,12 @@ export default function MarcadosPanel() {
     const isMestre = isMestreStatus || (minhaFicha?.isMestre === true);
     const classeInfo = getClasseInfo(minhaFicha);
     const iconeFinal = localIconeClasse || classeInfo?.iconeUrl;
+    
+    // 🔥 CAMADAS DUPLAS DE CORES 🔥
     const tintaMoldura = getCamadasTinta(localCorMoldura);
     const tintaFundo = getCamadasTinta(localCorFundoTint);
 
-    // 🔥 VINCULA A COR DO GLOW À MOLDURA 🔥
+    // 🔥 GLOW DA COR DA CLASSE/MOLDURA 🔥
     const glowColor = (localCorMoldura && localCorMoldura !== '#ffffff') ? localCorMoldura : (classeInfo?.cor || localCorTinta || '#ffffff');
 
     const mudarPagina = (nova) => { setAnimDirection(nova > paginaAtual ? 'next' : 'prev'); setPaginaAtual(nova); };
@@ -1057,57 +1025,13 @@ export default function MarcadosPanel() {
         const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
         const novaBase = Math.floor((novoP / novoDiv) * (mults[k] || 1));
 
-        // 🔥 Status vira um POOL: em vez de igualar os 8 atributos (destruindo builds
-        // diferenciadas), credita a diferença de pontos no pool de distribuição manual — ver
-        // alocarPontoStatus() e a UI em "Status (Rank Base)". Calculado fora do updateFicha
-        // porque precisamos decidir se avisamos o jogador (efeito colateral não pertence ao
-        // callback do Immer).
-        let avisoReducaoIncompleta = null;
-        if (tipo === 'prestigio' && k === 'status') {
-            const stats8 = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
-            const somaAtual = stats8.reduce((acc, s) => acc + (parseFloat(minhaFicha[s]?.base) || 0), 0);
-            const somaAlvo = novaBase * stats8.length;
-            const delta = somaAlvo - somaAtual;
-            const poolAntes = parseFloat(minhaFicha.statusPool) || 0;
-            // Reduzir o Prestígio de Status só consegue "devolver" pontos ainda não distribuídos
-            // (o pool); pontos já alocados nos 8 atributos ficam com o jogador.
-            if (delta < 0 && (poolAntes + delta) < 0) {
-                avisoReducaoIncompleta = `Só foi possível remover ${poolAntes} dos ${Math.abs(delta)} pontos pedidos: o restante já foi distribuído entre os atributos e precisa ser reduzido manualmente em cada um.`;
-            }
-        }
-
         updateFicha(f => {
             if (f.overridePrestigio) f.overridePrestigio = null;
             if (tipo === 'divisor') { if (!f.divisores) f.divisores = {}; f.divisores[k] = novoDiv; }
             if (tipo === 'prestigio') {
-                if (k === 'status') {
-                    const stats8 = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
-                    const somaAtual = stats8.reduce((acc, s) => acc + (parseFloat(f[s]?.base) || 0), 0);
-                    const somaAlvo = novaBase * stats8.length;
-                    const delta = somaAlvo - somaAtual;
-                    f.statusPool = Math.max(0, (parseFloat(f.statusPool) || 0) + delta);
-                }
+                if (k === 'status') { ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { if (!f[s]) f[s] = {}; f[s].base = novaBase; }); }
                 else { if (!f[k]) f[k] = {}; f[k].base = novaBase; }
             }
-        });
-        callSave();
-        if (avisoReducaoIncompleta) alert(avisoReducaoIncompleta);
-    };
-
-    // 🔥 Distribui pontos do pool de Status para um atributo específico (Força, Destreza etc).
-    // 1 ponto do pool = 1000/divisor(status) de base, mesma conversão usada em handleTabelaChange.
-    const alocarPontoStatus = (attrKey, qtd) => {
-        const pontos = Math.floor(Number(qtd)) || 0;
-        if (pontos <= 0) return;
-        const divStatus = parseFloat(minhaFicha.divisores?.status) || 1;
-        updateFicha(f => {
-            const poolAtual = Math.max(0, parseFloat(f.statusPool) || 0);
-            const usar = Math.min(pontos, poolAtual);
-            if (usar <= 0) return;
-            const acrescimo = Math.floor((usar / divStatus) * 1000);
-            if (!f[attrKey]) f[attrKey] = {};
-            f[attrKey].base = (parseFloat(f[attrKey].base) || 0) + acrescimo;
-            f.statusPool = poolAtual - usar;
         });
         callSave();
     };
@@ -1126,14 +1050,10 @@ export default function MarcadosPanel() {
         const pMana = getBasePFor(minhaFicha, 'mana'); const pAura = getBasePFor(minhaFicha, 'aura'); const pStatus = getBasePFor(minhaFicha, 'status');
         const mPV = parseFloat(minhaFicha.multiplicadorVida) || 1; const mPM = parseFloat(minhaFicha.multiplicadorMorte) || 1;
         const ascensao = parseInt(minhaFicha.ascensaoBase) || 1; const bonusAscensao = (ascensao - 1) * 100;
-        // 🔥 Força (5ª barra) deriva da média das bases de mana/aura/chakra/corpo — precisa do
-        // mesmo fator do Multiplicador de Força que já escala essas 4 categorias, senão fica
-        // desatualizada em relação às barras que ela mesma promedia.
-        const fatorForca = ((fatoresVitaisAtual?.mana || 1) + (fatoresVitaisAtual?.aura || 1) + (fatoresVitaisAtual?.chakra || 1) + (fatoresVitaisAtual?.corpo || 1)) / 4;
         return {
             pvMax: Math.floor((((pVida + pChakra + pCorpo) / 3) + bonusAscensao) * mPV) || 1,
             pmMax: Math.floor((((pMana + pAura + pStatus) / 3) + bonusAscensao) * mPM) || 1,
-            forcaMax: Math.floor((((Number(minhaFicha?.mana?.base) || 0) + (Number(minhaFicha?.aura?.base) || 0) + (Number(minhaFicha?.chakra?.base) || 0) + (Number(minhaFicha?.corpo?.base) || 0)) / 4) * fatorForca) || 1
+            forcaMax: Math.floor(((Number(minhaFicha?.mana?.base) || 0) + (Number(minhaFicha?.aura?.base) || 0) + (Number(minhaFicha?.chakra?.base) || 0) + (Number(minhaFicha?.corpo?.base) || 0)) / 4) || 1
         };
     };
     const { pvMax, pmMax, forcaMax } = getSupremas();
@@ -1141,10 +1061,7 @@ export default function MarcadosPanel() {
     const handleRegenerarTudo = () => {
         if (!window.confirm('Recuperar toda a Vida, Energias, Pontos e Ações de Turno?')) return;
         updateFicha(f => {
-            // 🔥 Precisa multiplicar pelo mesmo fator do Multiplicador de Força que LinhaVital
-            // aplica no máximo exibido, senão "Descansar" cura só até o máximo antigo (sem o
-            // bônus de Ascensão/Prestígio), ficando com a barra visivelmente incompleta.
-            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => { let mx = safeGetMaximo(minhaFicha, k) * (fatoresVitaisAtual[k] || 1); f[k] = { ...f[k], atual: calcularEscala(mx, k).mxDisplay || 0 }; });
+            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => { let mx = safeGetMaximo(minhaFicha, k); f[k] = { ...f[k], atual: calcularEscala(mx, k).mxDisplay || 0 }; });
             f.pv = { ...f.pv, atual: pvMax || 0 }; f.pm = { ...f.pm, atual: pmMax || 0 }; f.energiaForca = { ...f.energiaForca, atual: forcaMax || 0 };
             ['padrao', 'bonus', 'reacao'].forEach(tipo => { if (!f.acoes) f.acoes = {}; if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 }; f.acoes[tipo].atual = f.acoes[tipo].max; });
         });
