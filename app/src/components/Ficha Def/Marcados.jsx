@@ -464,7 +464,11 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     if (supressao < limiteSupressao) supressao = limiteSupressao;
     
     const tema = getTemaScouter(supressao, limiteSupressao);
-    const poderVerdadeiro = getPoderVerdadeiro(attrKey, ficha, isAtual, supressao, fatorSeguro);
+    // 🔥 Sem `fatorSeguro` aqui: getPoderAbsolutoAtributo já escala o Poder deste sub-atributo
+    // pelo Multiplicador de Força usando o próprio Prestígio individual dele (bloco `isStatus`
+    // ali). Passar `fatorSeguro` de novo aplicaria o multiplicador em dobro — o fator só deve
+    // tingir o valor Base/Atual exibido (baseExibido/valorAtual abaixo).
+    const poderVerdadeiro = getPoderVerdadeiro(attrKey, ficha, isAtual, supressao);
 
     return (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em', flexWrap: 'wrap' }}>
@@ -481,10 +485,14 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7em', opacity: 0.85 }} title={`Pool de Status disponível: ${poolDisponivel}`}>
                             <input type="number" min="1" max={poolDisponivel} value={qtdAlocar}
                                 onChange={(e) => setQtdAlocar(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') onAlocarPool(attrKey, qtdAlocar); }}
                                 style={{ width: '45px', background: 'rgba(0,0,0,0.15)', border: '1px solid currentColor', borderRadius: '3px', color: 'inherit', textAlign: 'center', padding: '1px 2px' }} />
+                            <button type="button" onClick={() => setQtdAlocar(poolDisponivel)}
+                                style={{ background: 'rgba(0,255,150,0.08)', border: '1px dashed currentColor', borderRadius: '3px', cursor: 'pointer', color: 'inherit', opacity: 0.85, padding: '1px 5px' }}
+                                title="Preencher com todo o pool disponível">Máx</button>
                             <button type="button" onClick={() => onAlocarPool(attrKey, qtdAlocar)}
                                 style={{ background: 'rgba(0,255,150,0.15)', border: '1px solid currentColor', borderRadius: '3px', cursor: 'pointer', color: 'inherit', fontWeight: 'bold', padding: '1px 6px' }}
-                                title="Distribuir pontos do pool de Status para este atributo">+ Pool</button>
+                                title="Distribuir pontos do pool de Status para este atributo (Enter também funciona)">+ Pool</button>
                         </span>
                     )}
                 </div>
@@ -1016,12 +1024,17 @@ export default function MarcadosPanel() {
         const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
         const novaBase = Math.floor((novoP / novoDiv) * (mults[k] || 1));
 
+        // 🔥 Status vira um POOL medido em PONTOS (a mesma unidade que já aparece no campo — 1
+        // ponto = 1000/divisor de base para 1 atributo, igual à conversão de alocarPontoStatus()
+        // logo abaixo). O total "concedido" é statusPool (ainda não gasto) + statusPoolGasto (já
+        // distribuído nos atributos) — NUNCA a média ao vivo dos 8 atributos, porque essa média
+        // já inclui o que foi gasto do próprio pool e faria o campo "reconceder" pontos toda vez
+        // que o jogador reduzisse e aumentasse o valor de novo (double counting).
         let avisoReducaoIncompleta = null;
         if (tipo === 'prestigio' && k === 'status') {
-            const stats8 = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
-            const somaAtual = stats8.reduce((acc, s) => acc + (parseFloat(minhaFicha[s]?.base) || 0), 0);
-            const somaAlvo = novaBase * stats8.length;
-            const delta = somaAlvo - somaAtual;
+            const somaAlvoPontos = novoP * 8;
+            const concedidoAntes = (parseFloat(minhaFicha.statusPool) || 0) + (parseFloat(minhaFicha.statusPoolGasto) || 0);
+            const delta = somaAlvoPontos - concedidoAntes;
             const poolAntes = parseFloat(minhaFicha.statusPool) || 0;
             if (delta < 0 && (poolAntes + delta) < 0) {
                 avisoReducaoIncompleta = `Só foi possível remover ${poolAntes} dos ${Math.abs(delta)} pontos pedidos: o restante já foi distribuído entre os atributos e precisa ser reduzido manualmente em cada um.`;
@@ -1033,10 +1046,9 @@ export default function MarcadosPanel() {
             if (tipo === 'divisor') { if (!f.divisores) f.divisores = {}; f.divisores[k] = novoDiv; }
             if (tipo === 'prestigio') {
                 if (k === 'status') {
-                    const stats8 = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
-                    const somaAtual = stats8.reduce((acc, s) => acc + (parseFloat(f[s]?.base) || 0), 0);
-                    const somaAlvo = novaBase * stats8.length;
-                    const delta = somaAlvo - somaAtual;
+                    const somaAlvoPontos = novoP * 8;
+                    const concedidoAntes = (parseFloat(f.statusPool) || 0) + (parseFloat(f.statusPoolGasto) || 0);
+                    const delta = somaAlvoPontos - concedidoAntes;
                     f.statusPool = Math.max(0, (parseFloat(f.statusPool) || 0) + delta);
                 }
                 else { if (!f[k]) f[k] = {}; f[k].base = novaBase; }
@@ -1046,6 +1058,9 @@ export default function MarcadosPanel() {
         if (avisoReducaoIncompleta) alert(avisoReducaoIncompleta);
     };
 
+    // 🔥 Distribui pontos do pool de Status para um atributo específico (Força, Destreza etc).
+    // 1 ponto do pool = 1000/divisor(status) de base — mesma conversão usada na concessão em
+    // handleTabelaChange, para o pool e o gasto ficarem sempre na mesma unidade.
     const alocarPontoStatus = (attrKey, qtd) => {
         const pontos = Math.floor(Number(qtd)) || 0;
         if (pontos <= 0) return;
@@ -1058,6 +1073,7 @@ export default function MarcadosPanel() {
             if (!f[attrKey]) f[attrKey] = {};
             f[attrKey].base = (parseFloat(f[attrKey].base) || 0) + acrescimo;
             f.statusPool = poolAtual - usar;
+            f.statusPoolGasto = (parseFloat(f.statusPoolGasto) || 0) + usar;
         });
         callSave();
     };
@@ -1584,6 +1600,15 @@ export default function MarcadosPanel() {
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
                                 {['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
                                     const displayP = getBasePFor(minhaFicha, k);
+                                    // 🔥 O campo editável de "status" mostra quantos pontos já foram CONCEDIDOS
+                                    // via Prestígio (pool + já gasto nos atributos) — não a média ao vivo dos 8
+                                    // atributos (que muda sozinha conforme o jogador distribui/edita atributos
+                                    // manualmente e faria esse campo "derivar" para valores que ninguém digitou).
+                                    // O Rank/Badge abaixo continua usando `displayP` normalmente: aquilo reflete
+                                    // o poder REAL do personagem agora, não quanto Prestígio já foi concedido.
+                                    const campoEditavel = k === 'status'
+                                        ? Math.floor(((parseFloat(minhaFicha.statusPool) || 0) + (parseFloat(minhaFicha.statusPoolGasto) || 0)) / 8)
+                                        : displayP;
                                     const divisor = minhaFicha.divisores?.[k] || 1;
 
                                     let mF = 1;
@@ -1606,7 +1631,7 @@ export default function MarcadosPanel() {
                                             </div>
                                             <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
                                                 <CampoMagico
-                                                    valor={displayP}
+                                                    valor={campoEditavel}
                                                     onChange={v => handleTabelaChange(k, 'prestigio', v)}
                                                     type="number"
                                                     isNumber={true}

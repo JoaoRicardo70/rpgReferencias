@@ -258,14 +258,21 @@ export function iniciarListenerDivisorPoderMesa(callback) {
     if (!db || !mesaId) return () => {};
     return onValue(ref(db, `mesas/${mesaId}/divisorPoderPadrao`), (snapshot) => {
         const val = parseFloat(snapshot.val());
-        if (callback) callback((!isNaN(val) && val > 0) ? val : 1);
+        // 🔥 Se a mesa nunca teve esse valor gravado com sucesso no Firebase (nó ausente/inválido —
+        // ex.: uma escrita anterior falhou silenciosamente por regra de segurança), NÃO sobrescreve
+        // o valor já carregado do cache local (localStorage, ver lerDivisorPoderMesaLocal em
+        // useStore.js) com o "1" padrão. Só repassa um valor real vindo do Firebase, preservando
+        // assim o que este navegador já sabia entre um F5 e outro mesmo se a escrita remota falhar.
+        if (!isNaN(val) && val > 0 && callback) callback(val);
     });
 }
 export function salvarDivisorPoderMesa(valor) {
     if (isInPlasmicCanvas()) return;
     const { mesaId } = useStore.getState();
     if (!db || !mesaId) return;
-    set(ref(db, `mesas/${mesaId}/divisorPoderPadrao`), valor).catch(() => {});
+    set(ref(db, `mesas/${mesaId}/divisorPoderPadrao`), valor).catch((err) => {
+        console.warn('Falha ao sincronizar o Divisor de Poder da mesa com o Firebase (o valor continua salvo localmente neste navegador):', err);
+    });
 }
 export function zerarIniciativaGlobal(nomesArray) {
     if (isInPlasmicCanvas()) return;

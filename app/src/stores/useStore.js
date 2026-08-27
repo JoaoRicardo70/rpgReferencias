@@ -59,16 +59,31 @@ export const fichaPadrao = {
     // 🔥 NOVO: Pool de pontos de Status não distribuídos. Ganhar Prestígio na categoria
     // "Status" credita pontos aqui em vez de igualar os 8 atributos (Força, Destreza,
     // Inteligência, Sabedoria, Energia Espiritual, Carisma, Stamina, Constituição) — o
-    // jogador/Mestre distribui manualmente entre eles depois. Precisa estar em fichaPadrao
-    // para sobreviver ao F5 (o loop genérico de carregarDadosFicha só restaura chaves
-    // presentes aqui).
-    statusPool: 0
+    // jogador/Mestre distribui manualmente entre eles depois. statusPoolGasto acompanha quantos
+    // pontos já foram distribuídos (nunca diminui sozinho): pool + gasto = total concedido via
+    // Prestígio, usado para o campo de edição não "reconceder" pontos ao reduzir e aumentar o
+    // valor de novo. Ambos precisam estar em fichaPadrao para sobreviver ao F5 (o loop genérico
+    // de carregarDadosFicha só restaura chaves presentes aqui).
+    statusPool: 0,
+    statusPoolGasto: 0
 };
 
 export function sanitizarNome(n) { return !n ? '' : n.replace(/[.#$\[\]\/]/g, '_').trim(); }
 function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
 const storedMesaId = localStorage.getItem('rpg_mesaId') || '';
+
+// 🔥 Divisor de Poder da mesa: além do Firebase (sincroniza entre todos os jogadores), guarda
+// também no localStorage deste navegador, chaveado pela mesa. Isso garante que o valor nunca se
+// perde num F5/reabertura do App neste dispositivo mesmo se o Firebase estiver lento, offline, ou
+// se a escrita falhar silenciosamente (ver salvarDivisorPoderMesa em firebase-sync.js) — o
+// listener do Firebase, quando responder, ainda sobrescreve este valor local com o da mesa.
+function getDivisorPoderMesaKey(mesaId) { return `rpg_divisorPoderMesa_${mesaId || 'semMesa'}`; }
+function lerDivisorPoderMesaLocal(mesaId) {
+    const raw = localStorage.getItem(getDivisorPoderMesaKey(mesaId));
+    const val = parseFloat(raw);
+    return (!isNaN(val) && val > 0) ? val : 1;
+}
 
 const useStore = create(
     immer((set, get) => ({
@@ -90,6 +105,11 @@ const useStore = create(
             state.mesaId = id;
             if (id) localStorage.setItem('rpg_mesaId', id);
             else localStorage.removeItem('rpg_mesaId');
+            // 🔥 Reseeda o cache local do Divisor de Poder para a mesa NOVA (ou para "sem mesa" ->
+            // padrão 1) sempre que o jogador troca de mesa sem recarregar a página — senão o valor
+            // ficava "vazando" da mesa anterior até o listener do Firebase da mesa nova responder
+            // (e nem respondia, se essa mesa nunca teve o valor gravado com sucesso lá).
+            state.divisorPoderMesa = lerDivisorPoderMesaLocal(id);
         }),
         minhaFicha: deepClone(fichaPadrao),
         meuNome: '', isMestre: false, abaAtiva: 'aba-ficha', personagens: {}, feedCombate: [],
@@ -100,7 +120,7 @@ const useStore = create(
         // 🔥 Divisor de Poder padrão da mesa: valor global (fora de ficha.divisorPoder, que é
         // por personagem) que o Mestre pode definir para dividir o Poder do Scouter de TODOS
         // os jogadores da mesa de uma vez — ver iniciarListenerDivisorPoderMesa em firebase-sync.js.
-        divisorPoderMesa: 1,
+        divisorPoderMesa: lerDivisorPoderMesaLocal(storedMesaId),
 
         setMinhaFicha: (ficha) => set((state) => { state.minhaFicha = ficha; }),
         setMeuNome: (nome) => set((state) => { state.meuNome = nome; }),
@@ -123,7 +143,11 @@ const useStore = create(
         setDummies: (dummies) => set((state) => { state.dummies = dummies || {}; }),
         setAlvoSelecionado: (id) => set((state) => { state.alvoSelecionado = id; }),
         setCenario: (dados) => set((state) => { state.cenario = dados; }),
-        setDivisorPoderMesa: (valor) => set((state) => { state.divisorPoderMesa = (parseFloat(valor) > 0) ? parseFloat(valor) : 1; }),
+        setDivisorPoderMesa: (valor) => set((state) => {
+            const v = (parseFloat(valor) > 0) ? parseFloat(valor) : 1;
+            state.divisorPoderMesa = v;
+            try { localStorage.setItem(getDivisorPoderMesaKey(state.mesaId), String(v)); } catch (e) { /* localStorage indisponível (modo privado etc.) — segue só com Firebase */ }
+        }),
         updateFicha: (callback) => set((state) => { callback(state.minhaFicha); }),
 
         carregarDadosFicha: (dados) => set((state) => {

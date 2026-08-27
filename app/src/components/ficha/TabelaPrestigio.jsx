@@ -146,36 +146,45 @@ export default function TabelaPrestigio({ className }) {
                     <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         {VITALS_KEYS.map((attrKey, i) => {
                             const calcBaseP = getBasePFor(ficha, attrKey);
+                            // 🔥 O campo editável de "status" mostra quantos pontos já foram CONCEDIDOS via
+                            // Prestígio (pool ainda não gasto + já distribuído nos atributos) — não a média ao
+                            // vivo dos 8 atributos (`calcBaseP`, que ainda alimenta o Rank/Badge normalmente e
+                            // muda sozinha conforme o pool é distribuído, o que faria este campo "reconceder"
+                            // pontos toda vez que o jogador reduzisse e aumentasse o valor de novo).
+                            const campoEditavel = attrKey === 'status'
+                                ? Math.floor(((parseFloat(ficha.statusPool) || 0) + (parseFloat(ficha.statusPoolGasto) || 0)) / 8)
+                                : calcBaseP;
                             const divisor = ficha.divisores?.[attrKey] ?? 1;
-                            
+
                             return (
                                 <div key={attrKey}>
                                     <div className="label-divisor" style={{ marginBottom: '5px' }}>
                                         <span style={{ color: '#00ffcc', fontWeight: 'bold' }}>{VITALS_LABELS[i]}</span>
-                                        <span>Divisor: <input type="number" className="divisor-mini-input" value={divisor} 
+                                        <span>Divisor: <input type="number" className="divisor-mini-input" value={divisor}
                                             onChange={(e) => {
                                                 const val = parseFloat(e.target.value) || 1;
-                                                updateFicha(f => { 
+                                                updateFicha(f => {
                                                     if (!f.divisores) f.divisores = { vida: 1, status: 1, mana: 1, aura: 1, chakra: 1, corpo: 1 };
                                                     f.divisores[attrKey] = val;
                                                 });
                                             }}
                                         /></span>
                                     </div>
-                                    <input type="number" className="prestige-input-base" value={calcBaseP}
+                                    <input type="number" className="prestige-input-base" value={campoEditavel}
                                         onChange={(e) => {
                                             const val = parseInt(e.target.value) || 0;
-                                            // 🔥 Status vira um POOL: em vez de igualar os 8 atributos (destruindo
-                                            // builds diferenciadas), credita a diferença de pontos no pool de
-                                            // distribuição manual — alocado na aba "Ficha Def" > Status (Rank Base).
-                                            // Calculado fora do updateFicha porque o aviso ao jogador (efeito
-                                            // colateral) não pertence ao callback do Immer.
+                                            // 🔥 Status vira um POOL medido em PONTOS: em vez de igualar os 8
+                                            // atributos (destruindo builds diferenciadas), credita a diferença no
+                                            // pool de distribuição manual — alocado na aba "Ficha Def" > Status
+                                            // (Rank Base). O total concedido é statusPool + statusPoolGasto, nunca
+                                            // a média ao vivo dos atributos (ver comentário acima). Calculado fora
+                                            // do updateFicha porque o aviso ao jogador (efeito colateral) não
+                                            // pertence ao callback do Immer.
                                             let avisoReducaoIncompleta = null;
                                             if (attrKey === 'status') {
-                                                const stBaseAlvo = val * 1000;
-                                                const somaAtual = STATS.reduce((acc, s) => acc + (parseFloat(ficha[s]?.base) || 0), 0);
-                                                const somaAlvo = stBaseAlvo * STATS.length;
-                                                const delta = somaAlvo - somaAtual;
+                                                const somaAlvoPontos = val * STATS.length;
+                                                const concedidoAntes = (parseFloat(ficha.statusPool) || 0) + (parseFloat(ficha.statusPoolGasto) || 0);
+                                                const delta = somaAlvoPontos - concedidoAntes;
                                                 const poolAntes = parseFloat(ficha.statusPool) || 0;
                                                 if (delta < 0 && (poolAntes + delta) < 0) {
                                                     avisoReducaoIncompleta = `Só foi possível remover ${poolAntes} dos ${Math.abs(delta)} pontos pedidos: o restante já foi distribuído entre os atributos e precisa ser reduzido manualmente em cada um.`;
@@ -183,10 +192,9 @@ export default function TabelaPrestigio({ className }) {
                                             }
                                             updateFicha(f => {
                                                 if (attrKey === 'status') {
-                                                    const stBaseAlvo = val * 1000;
-                                                    const somaAtual = STATS.reduce((acc, s) => acc + (parseFloat(f[s]?.base) || 0), 0);
-                                                    const somaAlvo = stBaseAlvo * STATS.length;
-                                                    const delta = somaAlvo - somaAtual;
+                                                    const somaAlvoPontos = val * STATS.length;
+                                                    const concedidoAntes = (parseFloat(f.statusPool) || 0) + (parseFloat(f.statusPoolGasto) || 0);
+                                                    const delta = somaAlvoPontos - concedidoAntes;
                                                     f.statusPool = Math.max(0, (parseFloat(f.statusPool) || 0) + delta);
                                                 } else {
                                                     if(f[attrKey]) f[attrKey].base = val * MULTIPLICADORES[attrKey];
