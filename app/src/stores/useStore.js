@@ -62,10 +62,14 @@ export const fichaPadrao = {
     // jogador/Mestre distribui manualmente entre eles depois. statusPoolGasto acompanha quantos
     // pontos já foram distribuídos (nunca diminui sozinho): pool + gasto = total concedido via
     // Prestígio, usado para o campo de edição não "reconceder" pontos ao reduzir e aumentar o
-    // valor de novo. Ambos precisam estar em fichaPadrao para sobreviver ao F5 (o loop genérico
-    // de carregarDadosFicha só restaura chaves presentes aqui).
+    // valor de novo. statusPoolUnidadeV2 marca que a ficha já passou pela migração de unidade
+    // de statusPool (base bruta -> pontos, ver carregarDadosFicha) — fichas novas já nascem
+    // migradas, não têm nada de escala antiga para converter. Todos precisam estar em
+    // fichaPadrao para sobreviver ao F5 (o loop genérico de carregarDadosFicha só restaura
+    // chaves presentes aqui).
     statusPool: 0,
-    statusPoolGasto: 0
+    statusPoolGasto: 0,
+    statusPoolUnidadeV2: true
 };
 
 export function sanitizarNome(n) { return !n ? '' : n.replace(/[.#$\[\]\/]/g, '_').trim(); }
@@ -224,6 +228,29 @@ const useStore = create(
                         for (let j = 0; j < numF.length; j++) { if (state.minhaFicha[ch][numF[j]] == null || isNaN(state.minhaFicha[ch][numF[j]])) { state.minhaFicha[ch][numF[j]] = fichaPadrao[ch][numF[j]]; } }
                     } else { state.minhaFicha[ch] = dados[ch]; }
                 }
+            }
+
+            // 🔥 MIGRAÇÃO ÚNICA: statusPool nasceu numa versão anterior com a unidade errada
+            // (base bruta — ex.: 2 pontos de Prestígio virando statusPool=16000) antes de ser
+            // corrigido para a unidade "pontos" que statusPoolGasto/alocarPontoStatus usam (os
+            // mesmos 2 pontos deveriam virar statusPool=16). Fichas salvas antes dessa correção
+            // têm statusPool na escala antiga e "estouram" (aparecem ~1000x maiores no campo de
+            // Prestígio de Status) se lidas como se já estivessem na escala nova.
+            // `statusPoolGasto` nasceu NO MESMO commit que corrigiu a unidade — por isso é o
+            // sinal confiável de "esta ficha já foi salva com o código novo" (mesmo que ainda
+            // não tenha a flag statusPoolUnidadeV2, que só existe a partir desta correção
+            // seguinte): se `dados.statusPoolGasto` já existe, o statusPool salvo já está na
+            // escala nova e NÃO deve ser reconvertido (senão um pool já correto, ex. 16, viraria
+            // 0). Só converte quando `statusPoolGasto` está ausente E a flag também.
+            if (!dados.statusPoolUnidadeV2 && dados.statusPoolGasto === undefined) {
+                const poolAntigo = parseFloat(dados.statusPool) || 0;
+                if (poolAntigo !== 0) {
+                    const divStatus = parseFloat((dados.divisores || fichaPadrao.divisores).status) || 1;
+                    state.minhaFicha.statusPool = Math.floor((poolAntigo * divStatus) / 1000);
+                }
+                state.minhaFicha.statusPoolUnidadeV2 = true;
+            } else if (!dados.statusPoolUnidadeV2) {
+                state.minhaFicha.statusPoolUnidadeV2 = true;
             }
         }),
 

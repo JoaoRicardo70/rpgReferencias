@@ -57,19 +57,19 @@ describe('useStore — statusPool', () => {
     });
 
     describe('carregarDadosFicha', () => {
-        it('restaura ficha.statusPool salvo (sobrevive ao F5, presente em fichaPadrao)', () => {
-            useStore.getState().carregarDadosFicha({ statusPool: 4200 });
+        it('restaura ficha.statusPool salvo (sobrevive ao F5, presente em fichaPadrao) quando ja migrado (statusPoolUnidadeV2)', () => {
+            useStore.getState().carregarDadosFicha({ statusPool: 4200, statusPoolUnidadeV2: true });
             expect(useStore.getState().minhaFicha.statusPool).toBe(4200);
         });
 
         it('carrega statusPool explicitamente igual a 0 (nao confunde com "ausente")', () => {
             useStore.getState().updateFicha(f => { f.statusPool = 999; });
-            useStore.getState().carregarDadosFicha({ statusPool: 0 });
+            useStore.getState().carregarDadosFicha({ statusPool: 0, statusPoolUnidadeV2: true });
             expect(useStore.getState().minhaFicha.statusPool).toBe(0);
         });
 
         it('carregarDadosFicha({}) nao mexe em statusPool quando ausente nos dados (generico so age se dados[chave] !== undefined)', () => {
-            useStore.getState().updateFicha(f => { f.statusPool = 777; });
+            useStore.getState().updateFicha(f => { f.statusPool = 777; f.statusPoolUnidadeV2 = true; });
             useStore.getState().carregarDadosFicha({});
             expect(useStore.getState().minhaFicha.statusPool).toBe(777);
         });
@@ -79,11 +79,55 @@ describe('useStore — statusPool', () => {
         });
 
         it('resetFicha() volta statusPool para o padrao (0) mesmo apos carregar um valor do Firebase', () => {
-            useStore.getState().carregarDadosFicha({ statusPool: 555 });
+            useStore.getState().carregarDadosFicha({ statusPool: 555, statusPoolUnidadeV2: true });
             expect(useStore.getState().minhaFicha.statusPool).toBe(555);
 
             useStore.getState().resetFicha();
             expect(useStore.getState().minhaFicha.statusPool).toBe(0);
+        });
+    });
+
+    // 🔥 Migração de unidade: statusPool nasceu numa versão anterior denominado em base bruta
+    // (ex.: 2 pontos de Prestígio virando statusPool=16000) antes de virar "pontos" (os mesmos
+    // 2 pontos deveriam virar statusPool=16). Fichas salvas sem a flag statusPoolUnidadeV2 têm
+    // que ser convertidas (/1000, ajustado pelo divisor de status) exatamente uma vez.
+    describe('migração de unidade do statusPool (statusPoolUnidadeV2)', () => {
+        it('converte um statusPool antigo (base bruta) para a escala nova (pontos) na primeira carga sem a flag', () => {
+            useStore.getState().carregarDadosFicha({ statusPool: 16000 });
+            expect(useStore.getState().minhaFicha.statusPool).toBe(16);
+            expect(useStore.getState().minhaFicha.statusPoolUnidadeV2).toBe(true);
+        });
+
+        it('leva o divisor de status em conta na conversão', () => {
+            useStore.getState().carregarDadosFicha({ statusPool: 16000, divisores: { status: 2 } });
+            // poolAntigo(16000) * divStatus(2) / 1000 = 32
+            expect(useStore.getState().minhaFicha.statusPool).toBe(32);
+        });
+
+        it('não reconverte um statusPool que já passou pela migração (statusPoolUnidadeV2: true)', () => {
+            useStore.getState().carregarDadosFicha({ statusPool: 16, statusPoolUnidadeV2: true });
+            expect(useStore.getState().minhaFicha.statusPool).toBe(16);
+        });
+
+        it('não reconverte um statusPool já na escala nova mesmo sem a flag, se statusPoolGasto já existir (nasceu no mesmo commit da correção de unidade)', () => {
+            // Ficha salva DEPOIS da correção de unidade mas ANTES desta migração existir: já tem
+            // statusPoolGasto (nem que seja 0), mas ainda não tem statusPoolUnidadeV2. Precisa
+            // preservar o valor como está (16), não dividir por 1000 de novo (o que destruiria
+            // pontos já corretos, reduzindo-os a 0).
+            useStore.getState().carregarDadosFicha({ statusPool: 16, statusPoolGasto: 4 });
+            expect(useStore.getState().minhaFicha.statusPool).toBe(16);
+            expect(useStore.getState().minhaFicha.statusPoolGasto).toBe(4);
+            expect(useStore.getState().minhaFicha.statusPoolUnidadeV2).toBe(true);
+        });
+
+        it('statusPool ausente/zero não gera conversão nem erro, só marca a flag', () => {
+            useStore.getState().carregarDadosFicha({});
+            expect(useStore.getState().minhaFicha.statusPool).toBe(0);
+            expect(useStore.getState().minhaFicha.statusPoolUnidadeV2).toBe(true);
+        });
+
+        it('fichas novas (fichaPadrao) já nascem com statusPoolUnidadeV2: true', () => {
+            expect(fichaPadrao.statusPoolUnidadeV2).toBe(true);
         });
     });
 });
