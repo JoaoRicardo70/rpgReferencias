@@ -105,6 +105,24 @@ function campoQtdDevolver(row) {
     return bloco ? bloco.querySelector('input[type="number"]') : null;
 }
 
+// Localiza o botão "⚖️ Distribuir pool igualmente" (Página 2, "Status (Rank Base)"), visível só
+// quando floor(statusPool) >= 8.
+function botaoDistribuirIgualmente() {
+    return screen.queryByTitle(/Distribui o pool disponível igualmente entre os 8 atributos/);
+}
+
+// Localiza o badge "Rank {letra} [A{ascensão}]" da categoria STATUS no grid "Mecânicas de
+// Ascensão e Divisores" (mesma Página 2) — mesmo padrão de navegação de cardWrapper usado em
+// inputPrestigioStatus, um nível abaixo (children[2] = bloco do badge, não o campo editável).
+function badgeRankStatus(container) {
+    const spans = Array.from(container.querySelectorAll('span'));
+    const statusSpan = spans.find(s => s.textContent === 'STATUS');
+    const headerRow = statusSpan.parentElement;
+    const cardWrapper = headerRow.parentElement;
+    const badgeWrapper = cardWrapper.children[2];
+    return badgeWrapper.querySelector('span').textContent;
+}
+
 describe('Marcados — campo STATUS edita ficha.statusPrestigioAplicado diretamente', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -632,5 +650,110 @@ describe('Marcados — devolverPontoStatus (botão "− Pool" na tela "Status (R
         expect(ficha.statusPool).toBe(120); // 80 + 40
         expect(ficha.statusPoolGasto).toBe(0); // max(0, 20 - 40) — nunca fica negativo
         expect(window.alert).not.toHaveBeenCalled();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// QA — Prestígio como CAUSA, nunca consequência: alocar pool não deve "inflar" o Rank/Badge de
+// Status (que agora vem de statusPrestigioAplicado, não da média ao vivo dos 8 atributos) + testes
+// da distribuição igualitária (distribuirPoolIgualmente / botão "⚖️ Distribuir pool igualmente").
+// ---------------------------------------------------------------------------
+describe('Marcados — Rank/Badge de Status não reage à alocação do pool (só ao campo STATUS editado)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        window.confirm = vi.fn(() => true);
+        window.alert = vi.fn();
+    });
+
+    afterEach(() => cleanup());
+
+    it('alocar pontos do pool num atributo via "+ Pool" NÃO muda o Rank/Ascensão/badge de Status exibido no grid "Mecânicas de Ascensão e Divisores"', () => {
+        // statusPrestigioAplicado=5 é a única fonte do Rank/Badge de Status agora — as bases dos 8
+        // atributos físicos partem de 0 e um bloco generoso de pool (800) fica disponível pra
+        // alocação, propositalmente desconectado de statusPrestigioAplicado. Tanto o painel
+        // "Status (Rank Base)" (com o botão "+ Pool") quanto o grid de Rank/Badge vivem na mesma
+        // Página 2 ("Análise de Poder"), então não há necessidade de trocar de página entre as
+        // duas leituras.
+        const ficha = fichaComStats({ statBase: 0, statusPool: 800, statusPoolGasto: 0, statusPrestigioAplicado: 5, divisores: { status: 1 } });
+        montarMockUseStore(ficha);
+
+        const { container, rerender } = render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+        const badgeAntes = badgeRankStatus(container);
+
+        const row = linhaAtributoBase('Força');
+        fireEvent.change(campoQtdAlocar(row), { target: { value: '800' } });
+        fireEvent.click(botaoConfirmarPool(row));
+
+        // A alocação de fato aconteceu (prova de que o teste não é um falso positivo por
+        // inatividade): Força ganhou toda a base bruta do pool, e o pool foi zerado.
+        expect(ficha.forca.base).toBe(800000);
+        expect(ficha.statusPool).toBe(0);
+
+        rerender(<MarcadosPanel />);
+        const badgeDepois = badgeRankStatus(container);
+
+        expect(badgeDepois).toBe(badgeAntes);
+        expect(ficha.statusPrestigioAplicado).toBe(5); // inalterado — só handleTabelaChange mexe nisso
+    });
+});
+
+describe('Marcados — distribuirPoolIgualmente (botão "⚖️ Distribuir pool igualmente")', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        window.confirm = vi.fn(() => true);
+        window.alert = vi.fn();
+    });
+
+    afterEach(() => cleanup());
+
+    it('distribui floor(pool/8) para cada um dos 8 atributos, mantendo o restante (não divisível por 8) no pool', () => {
+        // pool=50 -> porAtributo=floor(50/8)=6 -> acrescimo=floor((6/1)*1000)=6000 por atributo.
+        // usarTotal=48; sobra 2 no pool.
+        const ficha = fichaComStats({ statBase: 1000, statusPool: 50, statusPoolGasto: 0, divisores: { status: 1 } });
+        montarMockUseStore(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        fireEvent.click(botaoDistribuirIgualmente());
+
+        STATS8.forEach(attr => {
+            expect(ficha[attr].base).toBe(7000); // 1000 + 6000
+            expect(ficha.statusPoolAlocado[attr]).toBe(6000);
+        });
+        expect(ficha.statusPool).toBe(2); // 50 - 48
+        expect(ficha.statusPoolGasto).toBe(48);
+    });
+
+    it('quando o pool disponível é menor que 8, o botão nem é renderizado (nenhuma distribuição parcial silenciosa)', () => {
+        const ficha = fichaComStats({ statBase: 1000, statusPool: 7, statusPoolGasto: 0, divisores: { status: 1 } });
+        montarMockUseStore(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        // O banner de pool disponível continua visível (pool > 0)...
+        expect(screen.getByText(/Pontos de Status Disponíveis: 7/)).toBeTruthy();
+        // ...mas o botão de distribuição igualitária não aparece com pool < 8.
+        expect(botaoDistribuirIgualmente()).toBeNull();
+    });
+
+    it('divisor grande o bastante pra floor(pool/8) virar 0 de base bruta não gasta pool nem muta nenhum atributo, mesmo com o botão visível (pool >= 8)', () => {
+        // pool=8 -> porAtributo=floor(8/8)=1 -> acrescimo=floor((1/1000000)*1000)=floor(0.001)=0
+        // -> guarda `if (acrescimo <= 0) return` interrompe antes de qualquer mutação.
+        const ficha = fichaComStats({ statBase: 1000, statusPool: 8, statusPoolGasto: 0, divisores: { status: 1000000 } });
+        montarMockUseStore(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        expect(botaoDistribuirIgualmente()).toBeTruthy(); // pool=8 >= 8, botão aparece
+        fireEvent.click(botaoDistribuirIgualmente());
+
+        STATS8.forEach(attr => expect(ficha[attr].base).toBe(1000)); // inalterado
+        expect(ficha.statusPool).toBe(8); // inalterado
+        expect(ficha.statusPoolGasto).toBe(0); // inalterado
+        expect(ficha.statusPoolAlocado).toEqual({}); // nenhuma alocação registrada
     });
 });

@@ -628,9 +628,13 @@ describe('Marcados — Gráficos de Radar reagem ao Multiplicador de Força (Pre
         });
     });
 
-    it('STATUS (categoria derivada da média dos 8 atributos, com divisor e ancoragem próprios em getBasePFor) reage a multiplicadorForcaPrestigio e multiplicadorForcaAscensao COMBINADOS em AMBOS os radares — não há special-casing restrito a VIDA', () => {
-        // STATUS usa mults.status=1000 e é a MÉDIA dos 8 atributos físicos crus (getRawBase,
-        // sem buffs): soma=400.000 (só forca), /8=50.000, /1000=50 -> baseP=50.
+    it('STATUS (categoria cujo Rank/Ascensão agora vem de statusPrestigioAplicado, o Prestígio realmente concedido via o campo editável "STATUS", não mais da média ao vivo dos 8 atributos) reage a multiplicadorForcaPrestigio e multiplicadorForcaAscensao COMBINADOS em AMBOS os radares — não há special-casing restrito a VIDA', () => {
+        // STATUS usa mults.status=1000. Antes, o Rank vinha da MÉDIA dos 8 atributos físicos
+        // crus (getRawBase, sem buffs): soma=400.000 (só forca), /8=50.000, /1000=50 -> baseP=50.
+        // Agora o Rank vem de statusPrestigioAplicado (setado abaixo com o valor equivalente
+        // a essa mesma média, 50), preservando a intenção original do teste enquanto usa o
+        // novo mecanismo de entrada (Prestígio aplicado é a CAUSA, não a consequência da
+        // distribuição de pool/edição dos atributos).
         // prestígio=50, ascensaoBase=1, multP=3, multA=2 (ambos ativos ao mesmo tempo)
         // -> prestigioTotal=150, bonusAscensao=1, prestigioFinal=50 (Rank B [40,60))
         // -> ascensaoBaseEfetiva=1*2=2, ascensaoFinal=2+1=3
@@ -639,6 +643,10 @@ describe('Marcados — Gráficos de Radar reagem ao Multiplicador de Força (Pre
             multiplicadorForcaPrestigio: 3, multiplicadorForcaAscensao: 2,
             forcaBase: 400000,
         });
+        // fichaComVida() não tem parâmetro dedicado pra statusPrestigioAplicado — seta
+        // diretamente no objeto, equivalente à média que os 8 atributos (só forca=400.000
+        // aqui) representariam.
+        ficha.statusPrestigioAplicado = 50;
         montarMockUseStore(ficha);
 
         const { container } = render(<MarcadosPanel />);
@@ -713,6 +721,9 @@ describe('Marcados — Indicador "Ascensão Geral Efetiva": leitura direta, comp
         // TODAS as 6 categorias, ascensaoBase=1, multP=2 -> prestigioTotal=300 em cada,
         // bonusAscensao=3 em cada -> nivelCompletos=3 -> geral=(1+3)*1=4.
         // ascensaoBase bruto é 1; o indicador deve mostrar 4 — nitidamente diferente.
+        // Prestígio de STATUS não vem mais da média ao vivo dos 8 atributos (forca=1.200.000
+        // sozinha daria média=150.000/1000=150) — vem de statusPrestigioAplicado, setado
+        // abaixo com esse mesmo valor (150) pra preservar a intenção original do teste.
         const ficha = {
             vida: { base: 150000000 },
             mana: { base: 1500000000 },
@@ -727,6 +738,7 @@ describe('Marcados — Indicador "Ascensão Geral Efetiva": leitura direta, comp
             carisma: { base: 0 },
             stamina: { base: 0 },
             constituicao: { base: 0 },
+            statusPrestigioAplicado: 150,
             ascensaoBase: 1,
             multiplicadorForcaPrestigio: 2,
             multiplicadorForcaAscensao: 1,
@@ -748,7 +760,10 @@ describe('Marcados — Indicador "Ascensão Geral Efetiva": leitura direta, comp
         // (sem mFormas) prestigioTotal seria 90 (sem overflow); com mFormas sozinho (sem
         // multP) prestigioTotal seria 75 (sem overflow). Só JUNTOS: 75*3=225 -> bonus=2.
         // As outras 5 categorias (mana/aura/chakra/corpo/status), sem mFormas, ficam em
-        // baseP=180 -> pAtual=180*3=540 -> bonus=5 (não são o gargalo).
+        // baseP=180 -> pAtual=180*3=540 -> bonus=5 (não são o gargalo). Status não tira mais
+        // esse baseP=180 da média ao vivo dos 8 atributos (forca=1.440.000 sozinha daria
+        // média=180.000/1000=180) — vem de statusPrestigioAplicado, setado abaixo com esse
+        // mesmo valor (180) pra preservar a intenção original do teste.
         // nivelCompletos = min(2,5,5,5,5,5) = 2 -> geral=(1+2)*1=3.
         // Se qualquer um dos dois fatores fosse ignorado pelo código, vida cairia para
         // bonus=0 e o indicador mostraria 1 em vez de 3.
@@ -766,6 +781,7 @@ describe('Marcados — Indicador "Ascensão Geral Efetiva": leitura direta, comp
             carisma: { base: 0 },
             stamina: { base: 0 },
             constituicao: { base: 0 },
+            statusPrestigioAplicado: 180,
             ascensaoBase: 1,
             multiplicadorForcaPrestigio: 3,
             multiplicadorForcaAscensao: 1,

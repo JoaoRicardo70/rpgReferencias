@@ -361,6 +361,19 @@ function getBasePFor(ficha, k) {
     return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
 }
 
+// 🔥 Pontos usados pra calcular Rank/Ascensão/fator de escala de UMA categoria. Para "status", usa
+// ficha.statusPrestigioAplicado (o Prestígio que o jogador realmente concedeu via o campo
+// editável "STATUS") em vez da média ao vivo dos 8 atributos (getBasePFor) — assim o Rank/Badge
+// de Status nunca diverge do campo editável só porque o jogador distribuiu pool ou editou um
+// atributo manualmente. O Prestígio deve ser a CAUSA dos pontos dos atributos, não a
+// consequência: distribuir pool não deveria "inflar" o Rank/Ascensão de Status por conta própria.
+// Para as outras 5 categorias (vida/mana/aura/chakra/corpo), que não têm esse sistema de pool,
+// segue idêntico a getBasePFor.
+function getPontosParaAscensao(ficha, key) {
+    if (key === 'status') return parseFloat(ficha?.statusPrestigioAplicado) || 0;
+    return getBasePFor(ficha, key);
+}
+
 function aplicarMultiplicadorForca(prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) {
     const multP = parseFloat(multiplicadorForcaPrestigio) || 1;
     const multA = parseFloat(multiplicadorForcaAscensao) || 1;
@@ -544,7 +557,7 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
     
     const rankInfos = [];
     const dataPoints = eixos.map((e, i) => {
-        const displayP = getBasePFor(ficha, e.key);
+        const displayP = getPontosParaAscensao(ficha, e.key);
         
         let mF = 1;
         if (isAtual) { mF = getEfetivoMFormas(ficha, e.key); if (isNaN(mF) || mF < 1) mF = 1; }
@@ -841,7 +854,7 @@ export default function MarcadosPanel() {
 
         const calcularFator = (comFormas, ignorarPoderes = false) => {
             const bonusPorCategoria = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
-                const displayP = getBasePFor(minhaFicha, k);
+                const displayP = getPontosParaAscensao(minhaFicha, k);
                 let pAtual = displayP;
                 if (comFormas) {
                     let mF = getEfetivoMFormas(minhaFicha, k, ignorarPoderes);
@@ -858,7 +871,7 @@ export default function MarcadosPanel() {
         };
 
         const calcularFatorCategoria = (key, comFormas) => {
-            const displayP = getBasePFor(minhaFicha, key);
+            const displayP = getPontosParaAscensao(minhaFicha, key);
             let pAtual = displayP;
             if (comFormas) {
                 let mF = getEfetivoMFormas(minhaFicha, key);
@@ -1028,11 +1041,12 @@ export default function MarcadosPanel() {
     };
 
     // 🔥 Ascensão ATUAL de Status — mesmo cálculo do badge "Rank" mostrado ao lado da categoria
-    // STATUS na grade (usa a média ao vivo dos 8 atributos, não o pool). Usado para escalar
-    // quantos pontos de pool cada ponto de Prestígio concede: em Ascensão 1, 1 ponto = 8 pool
-    // (1 por atributo); em Ascensão 2, 1 ponto = 16 pool; e assim por diante.
+    // STATUS na grade, agora baseado em statusPrestigioAplicado (ver getPontosParaAscensao), não
+    // na média ao vivo dos 8 atributos. Usado para escalar quantos pontos de pool cada ponto de
+    // Prestígio concede: em Ascensão 1, 1 ponto = 8 pool (1 por atributo); em Ascensão 2, 1 ponto
+    // = 16 pool; e assim por diante.
     const calcularAscensaoAtualStatus = () => {
-        const displayPStatus = getBasePFor(minhaFicha, 'status');
+        const displayPStatus = getPontosParaAscensao(minhaFicha, 'status');
         let mF = 1;
         if (fatorCrescimentoAtual > 1) { mF = getEfetivoMFormas(minhaFicha, 'status'); if (isNaN(mF) || mF < 1) mF = 1; }
         const pAtualValor = Math.floor(displayPStatus * mF);
@@ -1111,6 +1125,9 @@ export default function MarcadosPanel() {
             const usar = Math.min(pontos, poolAtual);
             if (usar <= 0) return;
             const acrescimo = Math.floor((usar / divStatus) * 1000);
+            // Divisor grande o bastante pra `usar` pontos virarem 0 de base: não faz sentido
+            // gastar pool sem nenhum ganho real no atributo.
+            if (acrescimo <= 0) return;
             if (!f[attrKey]) f[attrKey] = {};
             f[attrKey].base = (parseFloat(f[attrKey].base) || 0) + acrescimo;
             f.statusPool = poolAtual - usar;
@@ -1165,6 +1182,33 @@ export default function MarcadosPanel() {
     const pontosAlocadosStatus = (attrKey) => {
         const divStatus = parseFloat(minhaFicha.divisores?.status) || 1;
         return Math.floor(((minhaFicha.statusPoolAlocado?.[attrKey] || 0) / 1000) * divStatus);
+    };
+
+    // 🔥 Distribui o pool disponível igualmente entre os 8 atributos (floor(pool/8) para cada
+    // um), pra jogadores/Mestres que preferem uma build equilibrada em vez de alocar atributo por
+    // atributo. Sobra (pool não divisível por 8) fica no pool, disponível pra distribuição manual.
+    const distribuirPoolIgualmente = () => {
+        const stats8 = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
+        const divStatus = parseFloat(minhaFicha.divisores?.status) || 1;
+        updateFicha(f => {
+            const poolAtual = Math.max(0, parseFloat(f.statusPool) || 0);
+            const porAtributo = Math.floor(poolAtual / stats8.length);
+            if (porAtributo <= 0) return;
+            const acrescimo = Math.floor((porAtributo / divStatus) * 1000);
+            // Divisor grande o bastante pra `porAtributo` pontos virarem 0 de base: não faz
+            // sentido gastar pool sem nenhum ganho real nos atributos.
+            if (acrescimo <= 0) return;
+            if (!f.statusPoolAlocado) f.statusPoolAlocado = {};
+            stats8.forEach(attrKey => {
+                if (!f[attrKey]) f[attrKey] = {};
+                f[attrKey].base = (parseFloat(f[attrKey].base) || 0) + acrescimo;
+                f.statusPoolAlocado[attrKey] = (parseFloat(f.statusPoolAlocado[attrKey]) || 0) + acrescimo;
+            });
+            const usarTotal = porAtributo * stats8.length;
+            f.statusPool = poolAtual - usarTotal;
+            f.statusPoolGasto = (parseFloat(f.statusPoolGasto) || 0) + usarTotal;
+        });
+        callSave();
     };
 
     const handleSalvarTudo = () => {
@@ -1631,8 +1675,15 @@ export default function MarcadosPanel() {
                         <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(0,0,0,0.03)', padding: '20px', borderRadius: '15px', border: '1px dashed currentColor' }}>
                             <h2 style={{ fontSize: '2em', fontStyle: 'italic', fontWeight: 'bold', margin: '0 0 20px 0' }}><LabelMagico valor={getLabel('tituloAnaliseBase', 'Status (Rank Base)')} onChange={(v) => setLabel('tituloAnaliseBase', v)} /></h2>
                             {(minhaFicha.statusPool || 0) > 0 && (
-                                <div style={{ background: 'rgba(0,255,150,0.15)', border: '1px solid #00ff96', borderRadius: '8px', padding: '6px 14px', marginBottom: '15px', fontWeight: 'bold', fontSize: '0.9em' }}>
-                                    ⭐ Pontos de Status Disponíveis: {Math.floor(minhaFicha.statusPool)}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '15px' }}>
+                                    <div style={{ background: 'rgba(0,255,150,0.15)', border: '1px solid #00ff96', borderRadius: '8px', padding: '6px 14px', fontWeight: 'bold', fontSize: '0.9em' }}>
+                                        ⭐ Pontos de Status Disponíveis: {Math.floor(minhaFicha.statusPool)}
+                                    </div>
+                                    {Math.floor(minhaFicha.statusPool) >= 8 && (
+                                        <button type="button" onClick={distribuirPoolIgualmente}
+                                            style={{ background: 'rgba(0,255,150,0.1)', border: '1px solid #00ff96', borderRadius: '8px', padding: '6px 14px', fontWeight: 'bold', fontSize: '0.85em', cursor: 'pointer', color: 'inherit', fontFamily: 'inherit' }}
+                                            title="Distribui o pool disponível igualmente entre os 8 atributos, pra uma build equilibrada">⚖️ Distribuir pool igualmente</button>
+                                    )}
                                 </div>
                             )}
                             <RadarDesenhado ficha={minhaFicha} isAtual={false} corTinta={localCorTinta} fator={fatorAtributosBase} />
@@ -1688,17 +1739,13 @@ export default function MarcadosPanel() {
 
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
                                 {['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
-                                    const displayP = getBasePFor(minhaFicha, k);
-                                    // 🔥 O campo editável de "status" mostra ficha.statusPrestigioAplicado — o
-                                    // último valor de Prestígio realmente aplicado ao pool (ver handleTabelaChange)
-                                    // — não a média ao vivo dos 8 atributos, que muda sozinha conforme o jogador
-                                    // distribui/edita atributos manualmente e faria esse campo "reconceder" pontos
-                                    // toda vez que fosse reduzido e aumentado de novo. O Rank/Badge abaixo continua
-                                    // usando `displayP` normalmente: aquilo reflete o poder REAL do personagem
-                                    // agora, não quanto Prestígio já foi concedido ao pool.
-                                    const campoEditavel = k === 'status'
-                                        ? (minhaFicha.statusPrestigioAplicado ?? 0)
-                                        : displayP;
+                                    // 🔥 Para "status", displayP e campoEditavel são a MESMA coisa agora
+                                    // (statusPrestigioAplicado, via getPontosParaAscensao) — o Rank/Badge abaixo
+                                    // nunca diverge do campo editável, porque o Prestígio é a causa dos pontos dos
+                                    // atributos, não a consequência (distribuir pool não deveria "inflar" o
+                                    // Rank/Ascensão de Status por conta própria).
+                                    const displayP = getPontosParaAscensao(minhaFicha, k);
+                                    const campoEditavel = displayP;
                                     const divisor = minhaFicha.divisores?.[k] || 1;
 
                                     let mF = 1;

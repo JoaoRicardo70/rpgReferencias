@@ -265,13 +265,22 @@ describe('MarcadosPanel — Página 2: lista de atributos (Força/Destreza/...) 
         cleanup();
     });
 
-    it('com vida/mana/aura/chakra/corpo travados em 0 (gargalo do fator antigo = 1) e Status com overflow próprio + multiplicadorForcaAscensao > 1, a lista de atributos escala pelo fator do eixo STATUS, não pelo gargalo', () => {
-        // ascensaoBase = 1, multiplicadorForcaAscensao = 3, status (8 attrs)
-        // = 400.000 cada:
-        //   prestigioBruto(status) = floor((400000/1000)) = 400
+    it('com vida/mana/aura/chakra/corpo travados em 0 (gargalo do fator antigo = 1) e Status com overflow próprio (via statusPrestigioAplicado) + multiplicadorForcaAscensao > 1, a lista de atributos escala pelo fator do eixo STATUS, não pelo gargalo', () => {
+        // ascensaoBase = 1, multiplicadorForcaAscensao = 3. O Rank/Ascensão do
+        // eixo STATUS agora vem de ficha.statusPrestigioAplicado (Prestígio
+        // REALMENTE concedido via o campo editável "STATUS"), não mais da
+        // média ao vivo dos 8 atributos físicos — então a ficha de teste
+        // define esse campo com o valor equivalente ao que a média dos 8
+        // atributos (400.000 cada) representaria:
+        //   prestigioBruto(status) = floor((400000/1000)) = 400  =>  statusPrestigioAplicado = 400
         //   ascensaoBaseEfetiva = 1 * 3 = 3
         //   bonusAscensao(status) = floor(400/100) = 4  =>  ascensaoFinal = 7
         //   fatorAtributosBase (NOVO, só status) = 7 / 1 = 7
+        //
+        // Os 8 atributos físicos continuam com `base: 400.000` cada só para
+        // verificar que a lista de atributos exibidos escala pelo fator do
+        // eixo STATUS (derivado de statusPrestigioAplicado) e não pela média
+        // ao vivo desses mesmos atributos.
         //
         // Enquanto isso, vida/mana/aura/chakra/corpo (base 0) têm
         // ascensaoFinal = ascensaoBaseEfetiva = 3 cada, então bonus = 0 em
@@ -290,6 +299,7 @@ describe('MarcadosPanel — Página 2: lista de atributos (Força/Destreza/...) 
             carisma: { base: statusVal },
             stamina: { base: statusVal },
             constituicao: { base: statusVal },
+            statusPrestigioAplicado: 400,
             ascensaoBase: 1,
             multiplicadorForcaAscensao: 3,
             multiplicadorForcaPrestigio: 1,

@@ -75,12 +75,23 @@ const getBasePFor = (ficha, k) => {
     return safeGetPrestigioReal(k, safeGetRawBase(ficha, k));
 };
 
+// 🔥 Pontos usados pra calcular Rank/Ascensão/badge de UMA categoria. Para "status", usa
+// ficha.statusPrestigioAplicado (o Prestígio que o jogador realmente concedeu via o campo
+// editável "STATUS") em vez da média ao vivo dos 8 atributos (getBasePFor) — assim o Rank/Badge
+// de Status nunca diverge do campo editável só porque o jogador distribuiu pool ou editou um
+// atributo manualmente. Idêntico ao mesmo helper em Marcados.jsx.
+function getPontosParaAscensao(ficha, key) {
+    if (key === 'status') return parseFloat(ficha?.statusPrestigioAplicado) || 0;
+    return getBasePFor(ficha, key);
+}
+
 // 🔥 Ascensão ATUAL de Status — mesmo cálculo do badge "Rank" mostrado na coluna PRESTÍGIO
-// ATUAL (usa a média ao vivo dos 8 atributos, não o pool). Usado para escalar quantos pontos de
-// pool cada ponto de Prestígio concede: em Ascensão 1, 1 ponto = 8 pool (1 por atributo); em
-// Ascensão 2, 1 ponto = 16 pool; e assim por diante.
+// ATUAL, agora baseado em statusPrestigioAplicado (ver getPontosParaAscensao), não na média ao
+// vivo dos 8 atributos. Usado para escalar quantos pontos de pool cada ponto de Prestígio
+// concede: em Ascensão 1, 1 ponto = 8 pool (1 por atributo); em Ascensão 2, 1 ponto = 16 pool; e
+// assim por diante.
 function calcularAscensaoAtualStatus(ficha) {
-    const baseP = getBasePFor(ficha, 'status');
+    const baseP = getPontosParaAscensao(ficha, 'status');
     const pAtual = calcularPrestAtual(ficha, 'status', baseP);
     const rankInfo = aplicarMultiplicadorForca(pAtual, ficha.ascensaoBase || 1, ficha.multiplicadorForcaPrestigio ?? 1, ficha.multiplicadorForcaAscensao ?? 1);
     return Math.max(1, Math.floor(rankInfo.ascensaoFinal || 1));
@@ -99,7 +110,7 @@ export default function TabelaPrestigio({ className }) {
         const multA = ficha.multiplicadorForcaAscensao ?? 1;
         let sumAscensao = 0;
         VITALS_KEYS.forEach(k => {
-            const baseP = getBasePFor(ficha, k);
+            const baseP = getPontosParaAscensao(ficha, k);
             const pAtual = calcularPrestAtual(ficha, k, baseP);
             const rankFinal = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
             sumAscensao += (rankFinal.ascensaoFinal || 1);
@@ -161,15 +172,11 @@ export default function TabelaPrestigio({ className }) {
                     </div>
                     <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         {VITALS_KEYS.map((attrKey, i) => {
-                            const calcBaseP = getBasePFor(ficha, attrKey);
-                            // 🔥 O campo editável de "status" mostra ficha.statusPrestigioAplicado — o último
-                            // valor de Prestígio realmente aplicado ao pool — não a média ao vivo dos 8
-                            // atributos (`calcBaseP`, que ainda alimenta o Rank/Badge normalmente e muda
-                            // sozinha conforme o pool é distribuído, o que faria este campo "reconceder" pontos
-                            // toda vez que o jogador reduzisse e aumentasse o valor de novo).
-                            const campoEditavel = attrKey === 'status'
-                                ? (ficha.statusPrestigioAplicado ?? 0)
-                                : calcBaseP;
+                            // 🔥 Para "status", calcBaseP já é statusPrestigioAplicado (via
+                            // getPontosParaAscensao) — o mesmo valor que o campo editável mostra, então o
+                            // Rank/Badge na coluna PRESTÍGIO ATUAL nunca diverge dele.
+                            const calcBaseP = getPontosParaAscensao(ficha, attrKey);
+                            const campoEditavel = calcBaseP;
                             const divisor = ficha.divisores?.[attrKey] ?? 1;
 
                             return (
@@ -241,7 +248,7 @@ export default function TabelaPrestigio({ className }) {
                     </div>
                     <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         {VITALS_KEYS.map((attrKey, i) => {
-                            const calcBaseP = getBasePFor(ficha, attrKey);
+                            const calcBaseP = getPontosParaAscensao(ficha, attrKey);
                             const pAtualValor = calcularPrestAtual(ficha, attrKey, calcBaseP);
 
                             // 🔥 Multiplicador de Força: escala Prestígio/Ascensão separadamente e usa
