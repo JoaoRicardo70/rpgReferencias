@@ -4,26 +4,22 @@ import TabelaPrestigio from './TabelaPrestigio';
 import useStore from '../../stores/useStore';
 
 // ---------------------------------------------------------------------------
-// QA — Pool de pontos de Status em TabelaPrestigio.jsx
+// QA — Pool de pontos de Status em TabelaPrestigio.jsx (3ª iteração de design)
 //
-// Mesma regra de negócio do handleTabelaChange de Marcados.jsx (ver
-// Marcados.statusPool.test.jsx), aplicada ao onChange inline do input STATUS na
-// coluna "PRESTÍGIO BASE": alterar o Prestígio agregado de status NÃO iguala mais
-// os 8 atributos físicos — credita a diferença em ficha.statusPool. Se reduzir
-// além do que o pool comporta, um alert() avisa e o pool é clampado em 0.
+// Mesma regra de negócio do onChange de Marcados.jsx (ver
+// Marcados.statusPool.test.jsx): o input STATUS na coluna "PRESTÍGIO BASE"
+// edita DIRETAMENTE ficha.statusPrestigioAplicado. Só a DIFERENÇA em relação ao
+// último valor aplicado credita/debita ficha.statusPool, multiplicada pela
+// Ascensão ATUAL de Status (calcularAscensaoAtualStatus — mesmo cálculo do
+// badge Rank exibido na coluna "PRESTÍGIO ATUAL": 8 pool/ponto em Ascensão 1,
+// 16 em Ascensão 2 etc). Reduções além do pool ainda não gasto são clampadas em
+// 0 (parciais, alert()); statusPrestigioAplicado avança só pelo que coube.
+// Mudar a Ascensão sozinha nunca recalcula o pool já concedido.
 //
-// 🔥 ATUALIZADO (correção dos 2 bugs relatados pelo usuário):
-// 1) Unidade "pontos": a conta usa `val * STATS.length` (pontos), NUNCA
-//    `val * 1000 * STATS.length` (base bruta) — aplicar 2 pontos de Prestígio
-//    credita 16 pontos no pool, não 16000.
-// 2) O baseline da comparação (e o próprio campo editável do input) é
-//    `statusPool + statusPoolGasto` (total já concedido, estável) — NUNCA a
-//    média ao vivo dos 8 atributos (`calcBaseP`), que oscila conforme o pool é
-//    distribuído e causaria "double counting" ao reduzir e re-aumentar o mesmo
-//    valor.
-//
-// Também cobre o banner "pontos de Status aguardando distribuição" exibido
-// quando ficha.statusPool > 0.
+// TabelaPrestigio NÃO tem alocarPontoStatus/devolverPontoStatus (exclusivos de
+// Marcados.jsx "Ficha Def") — o cenário de Ascensão 2 aqui é simulado
+// diretamente via a Base já alocada em Força na ficha fixture (equivalente ao
+// resultado de uma alocação real feita na aba "Ficha Def").
 // ---------------------------------------------------------------------------
 
 vi.mock('../../stores/useStore');
@@ -35,9 +31,12 @@ vi.mock('../../services/firebase-sync.js', () => ({
 
 const STATS8 = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 
-function fichaComStats({ statBase = 0, statusPool = 0, statusPoolGasto = 0, divisores = {} } = {}) {
-    const ficha = { ascensaoBase: 1, divisores, statusPool, statusPoolGasto };
-    STATS8.forEach(s => { ficha[s] = { base: statBase }; });
+function fichaComStats({
+    statBase = 0, statusPool = 0, statusPoolGasto = 0, statusPrestigioAplicado = 0,
+    divisores = {}, ascensaoBase = 1, attrBases = {},
+} = {}) {
+    const ficha = { ascensaoBase, divisores, statusPool, statusPoolGasto, statusPrestigioAplicado };
+    STATS8.forEach(s => { ficha[s] = { base: attrBases[s] !== undefined ? attrBases[s] : statBase }; });
     return ficha;
 }
 
@@ -50,10 +49,8 @@ function montarMockUseStore(minhaFicha) {
     return mockState;
 }
 
-// Localiza o input de Prestígio Base (campoEditavel) da categoria STATUS — mesma
-// estrutura de card usada em TabelaPrestigio.forca.test.jsx > lerVital, mas lendo
-// o INPUT do bloco "PRESTÍGIO BASE" (children[1] do card) em vez do texto final
-// do bloco "PRESTÍGIO ATUAL".
+// Localiza o input de Prestígio Base (campoEditavel) da categoria STATUS — bloco
+// "PRESTÍGIO BASE" (children[1] do card).
 function inputPrestigioBaseStatus(container) {
     const baseBox = container.querySelector('.tabela-prestigio:not(.atual)');
     const spans = Array.from(baseBox.querySelectorAll('span'));
@@ -62,7 +59,7 @@ function inputPrestigioBaseStatus(container) {
     return labelDivisorDiv.nextElementSibling;
 }
 
-describe('TabelaPrestigio — Pool de Status (onChange do input STATUS em PRESTÍGIO BASE)', () => {
+describe('TabelaPrestigio — campo STATUS edita ficha.statusPrestigioAplicado diretamente', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.alert = vi.fn();
@@ -70,71 +67,69 @@ describe('TabelaPrestigio — Pool de Status (onChange do input STATUS em PREST�
 
     afterEach(() => cleanup());
 
-    it('o campo editável mostra floor((statusPool+statusPoolGasto)/8) em PONTOS, não a média ao vivo dos 8 atributos', () => {
-        // Bases dos 8 atributos propositalmente enormes (média ao vivo seria gigante) para provar
-        // que o campo NÃO deriva mais de calcBaseP — só de pool+gasto.
-        const ficha = fichaComStats({ statBase: 999999, statusPool: 8, statusPoolGasto: 0 });
+    it('o campo editável mostra ficha.statusPrestigioAplicado, não a média ao vivo dos 8 atributos', () => {
+        const ficha = fichaComStats({ statBase: 999999, statusPrestigioAplicado: 7 });
         montarMockUseStore(ficha);
 
         const { container } = render(<TabelaPrestigio />);
-        const input = inputPrestigioBaseStatus(container);
-        // floor((8+0)/8) = 1 — se ainda usasse a média ao vivo (calcBaseP), o valor seria ~124.
-        expect(input.value).toBe('1');
+        expect(inputPrestigioBaseStatus(container).value).toBe('7');
     });
 
-    it('aumentar o Prestígio de status credita o delta em PONTOS no statusPool (N*8, não N*8000) SEM alterar os 8 atributos individuais', () => {
-        const ficha = fichaComStats({ statBase: 1000, statusPool: 0, statusPoolGasto: 0 });
+    it('aumentar o Prestígio credita o delta * 8 * ascensaoAtual(=1) no statusPool, sem alterar os 8 atributos', () => {
+        const ficha = fichaComStats({ statBase: 1000, statusPool: 0, statusPoolGasto: 0, statusPrestigioAplicado: 0 });
         montarMockUseStore(ficha);
 
         const { container } = render(<TabelaPrestigio />);
         const input = inputPrestigioBaseStatus(container);
         expect(input.value).toBe('0');
 
-        // val=10 -> somaAlvoPontos=10*8=80; concedidoAntes=0; delta=80 -> statusPool=80.
-        // (Bug antigo teria gerado 80000, multiplicando por 1000 indevidamente.)
+        // delta=10; ascensaoAtual=1; poolCreditoAlvo=10*8*1=80.
         fireEvent.change(input, { target: { value: '10' } });
 
         expect(ficha.statusPool).toBe(80);
+        expect(ficha.statusPrestigioAplicado).toBe(10);
         STATS8.forEach(s => expect(ficha[s].base).toBe(1000));
         expect(window.alert).not.toHaveBeenCalled();
     });
 
-    it('diminuir o Prestígio de status com pool SUFICIENTE reduz o pool e não mexe nos atributos, sem alerta', () => {
-        const ficha = fichaComStats({ statBase: 5000, statusPool: 70, statusPoolGasto: 10 });
+    it('diminuir o Prestígio com pool SUFICIENTE reduz o pool e não mexe nos atributos, sem alerta', () => {
+        const ficha = fichaComStats({ statBase: 5000, statusPool: 70, statusPoolGasto: 10, statusPrestigioAplicado: 10 });
         montarMockUseStore(ficha);
 
         const { container } = render(<TabelaPrestigio />);
         const input = inputPrestigioBaseStatus(container);
-        // campoEditavel = floor((70+10)/8) = 10.
         expect(input.value).toBe('10');
 
-        // val=5 -> somaAlvoPontos=40; concedidoAntes=80; delta=-40; poolAntes=70;
-        // poolAntes+delta=30 (>=0).
+        // delta=-5; poolCreditoAlvo=-40; poolAntes=70; 70-40=30 (>=0).
         fireEvent.change(input, { target: { value: '5' } });
 
         expect(ficha.statusPool).toBe(30);
-        expect(ficha.statusPoolGasto).toBe(10); // gasto nunca é alterado por handleTabelaChange
+        expect(ficha.statusPoolGasto).toBe(10); // onChange nunca mexe no gasto
+        expect(ficha.statusPrestigioAplicado).toBe(5);
         STATS8.forEach(s => expect(ficha[s].base).toBe(5000));
         expect(window.alert).not.toHaveBeenCalled();
     });
 
-    it('diminuir o Prestígio de status com pool INSUFICIENTE zera o pool (nunca negativo), NAO mexe nos atributos e dispara alert', () => {
-        const ficha = fichaComStats({ statBase: 5000, statusPool: 5, statusPoolGasto: 95 });
+    it('diminuir o Prestígio com pool INSUFICIENTE (parte já alocada em atributos) avança statusPrestigioAplicado só pelo que coube, zera o pool e dispara alert', () => {
+        const ficha = fichaComStats({
+            statBase: 0, attrBases: { forca: 56000 },
+            statusPool: 24, statusPoolGasto: 56, statusPrestigioAplicado: 10, divisores: { status: 1 },
+        });
         montarMockUseStore(ficha);
 
         const { container } = render(<TabelaPrestigio />);
         const input = inputPrestigioBaseStatus(container);
-        // campoEditavel = floor((5+95)/8) = 12.
 
-        // val=2 -> somaAlvoPontos=16; concedidoAntes=100; delta=-84; poolAntes=5;
-        // poolAntes+delta=-79 (<0) -> clamp 0 + alert.
+        // deltaPrestigio=-8; poolCreditoAlvo=-64; poolAntes=24; 24-64=-40 (<0) -> clamp 0.
+        // creditoRealAplicado=-24 -> statusPrestigioAplicado = 10 + (-24/8) = 7.
         fireEvent.change(input, { target: { value: '2' } });
 
         expect(ficha.statusPool).toBe(0);
-        expect(ficha.statusPoolGasto).toBe(95);
-        STATS8.forEach(s => expect(ficha[s].base).toBe(5000));
+        expect(ficha.statusPoolGasto).toBe(56);
+        expect(ficha.statusPrestigioAplicado).toBe(7);
+        expect(ficha.forca.base).toBe(56000);
         expect(window.alert).toHaveBeenCalledTimes(1);
-        expect(window.alert.mock.calls[0][0]).toContain('Só foi possível remover 5 dos 84 pontos pedidos');
+        expect(window.alert.mock.calls[0][0]).toContain('Só foi possível remover 24 dos 64 pontos de pool pedidos');
     });
 
     it('outras categorias (ex: VIDA) continuam usando o comportamento antigo (sem pool, base = val * multiplicador)', () => {
@@ -155,33 +150,75 @@ describe('TabelaPrestigio — Pool de Status (onChange do input STATUS em PREST�
         expect(ficha.statusPool).toBe(0);
     });
 
-    it('BUG FIX: reduzir o Prestígio de status a um valor N e depois re-aumentar para o mesmo M de antes NÃO duplica o pool (regressão do bug de "15984 pontos")', () => {
-        // Estado inicial já representa N=5 concedido (statusPool=40, statusPoolGasto=0).
-        const ficha = fichaComStats({ statBase: 1000, statusPool: 40, statusPoolGasto: 0 });
+    it('BUG FIX: aumentar -> reduzir totalmente de volta -> aumentar para o MESMO valor de antes NÃO duplica o pool', () => {
+        const ficha = fichaComStats({ statBase: 1000, statusPool: 40, statusPoolGasto: 0, statusPrestigioAplicado: 5 });
         montarMockUseStore(ficha);
 
         const { container, rerender } = render(<TabelaPrestigio />);
         expect(inputPrestigioBaseStatus(container).value).toBe('5');
 
-        // N(5) -> M(10): concedidoAntes=40; somaAlvo=80; delta=40 -> statusPool=80.
+        // N(5) -> M(10): delta=5; poolCreditoAlvo=40; poolAntes=40 -> statusPool=80.
         fireEvent.change(inputPrestigioBaseStatus(container), { target: { value: '10' } });
         expect(ficha.statusPool).toBe(80);
+        expect(ficha.statusPrestigioAplicado).toBe(10);
         // 🔥 Re-renderiza para que o input controlado reflita o novo campoEditavel (mesmo efeito de
-        // um re-render real disparado pelo Zustand em produção) antes do próximo fireEvent — sem
-        // isso, o DOM controlado não teria trocado seu valor e o próximo change não dispararia.
+        // um re-render real disparado pelo Zustand em produção) antes do próximo fireEvent.
         rerender(<TabelaPrestigio />);
 
-        // M(10) -> N(5) de volta: concedidoAntes=80; somaAlvo=40; delta=-40; poolAntes=80;
-        // 80-40=40 (>=0, sem alerta) -> statusPool volta a 40, igual ao estado inicial.
+        // M(10) -> N(5) de volta: delta=-5; poolCreditoAlvo=-40; poolAntes=80; 80-40=40 (>=0).
         fireEvent.change(inputPrestigioBaseStatus(container), { target: { value: '5' } });
         expect(ficha.statusPool).toBe(40);
+        expect(ficha.statusPrestigioAplicado).toBe(5);
         expect(window.alert).not.toHaveBeenCalled();
         rerender(<TabelaPrestigio />);
 
-        // N(5) -> M(10) de novo: se houvesse double counting, o pool teria virado 120 (ou mais).
-        // Com a correção, é EXATAMENTE o mesmo resultado da primeira transição N->M: 80.
+        // N(5) -> M(10) de novo: se houvesse double counting, o pool teria virado 120+.
+        // Com a correção, é EXATAMENTE o mesmo resultado da primeira transição: 80.
         fireEvent.change(inputPrestigioBaseStatus(container), { target: { value: '10' } });
         expect(ficha.statusPool).toBe(80);
+        expect(ficha.statusPrestigioAplicado).toBe(10);
+    });
+
+    it('Ascensão 2 (overflow real: Força já alocada o suficiente para elevar a média dos 8 atributos) credita 16 pool/ponto em vez de 8', () => {
+        // Força já recebeu o equivalente a 800 pontos do pool (base 800.000, div=1) — resultado
+        // de uma alocação feita antes na aba "Ficha Def". Média dos 8 atributos = 100.000 ->
+        // displayPStatus=100 -> ascensaoFinal = 1 + floor(100/100) = 2.
+        const ficha = fichaComStats({
+            statBase: 0, attrBases: { forca: 800000 },
+            statusPool: 0, statusPoolGasto: 800, statusPrestigioAplicado: 100, divisores: { status: 1 },
+        });
+        montarMockUseStore(ficha);
+
+        const { container } = render(<TabelaPrestigio />);
+        const input = inputPrestigioBaseStatus(container);
+        expect(input.value).toBe('100');
+
+        // delta=10; ascensaoAtual=2 -> poolCreditoAlvo=10*8*2=160.
+        fireEvent.change(input, { target: { value: '110' } });
+
+        expect(ficha.statusPool).toBe(160);
+        expect(ficha.statusPrestigioAplicado).toBe(110);
+    });
+
+    it('mudar a Ascensão do personagem (sem editar o campo STATUS depois) NÃO recalcula o pool já concedido — só afeta crédito de mudanças NOVAS', () => {
+        const ficha = fichaComStats({ statBase: 0, statusPool: 80, statusPoolGasto: 0, statusPrestigioAplicado: 10, ascensaoBase: 1 });
+        montarMockUseStore(ficha);
+
+        const { container, rerender } = render(<TabelaPrestigio />);
+        expect(inputPrestigioBaseStatus(container).value).toBe('10');
+
+        // Muda ascensaoBase diretamente na ficha (nunca passa pelo campo STATUS).
+        ficha.ascensaoBase = 5;
+        rerender(<TabelaPrestigio />);
+        expect(ficha.statusPool).toBe(80);
+        expect(ficha.statusPrestigioAplicado).toBe(10);
+        expect(inputPrestigioBaseStatus(container).value).toBe('10');
+
+        // Só uma edição NOVA aplica a Ascensão atualizada ao crédito: ascensaoAtual agora é 5
+        // (todos os atributos ainda em 0). delta=1 -> poolCreditoAlvo=1*8*5=40 (não mais 8).
+        fireEvent.change(inputPrestigioBaseStatus(container), { target: { value: '11' } });
+        expect(ficha.statusPool).toBe(120);
+        expect(ficha.statusPrestigioAplicado).toBe(11);
     });
 });
 

@@ -66,10 +66,18 @@ export const fichaPadrao = {
     // de statusPool (base bruta -> pontos, ver carregarDadosFicha) — fichas novas já nascem
     // migradas, não têm nada de escala antiga para converter. Todos precisam estar em
     // fichaPadrao para sobreviver ao F5 (o loop genérico de carregarDadosFicha só restaura
-    // chaves presentes aqui).
+    // chaves presentes aqui). statusPrestigioAplicado é o último valor de Prestígio de Status
+    // realmente aplicado ao pool (o que o campo "STATUS" edita diretamente agora) — a diferença
+    // entre um novo valor digitado e este é o que credita/debita statusPool, multiplicada pela
+    // Ascensão atual de Status (ver calcularAscensaoAtualStatus em Marcados.jsx/TabelaPrestigio.jsx).
     statusPool: 0,
     statusPoolGasto: 0,
-    statusPoolUnidadeV2: true
+    statusPoolUnidadeV2: true,
+    statusPrestigioAplicado: 0,
+    // 🔥 Quanto do pool foi alocado em CADA atributo especificamente (ex.: { forca: 20 }) —
+    // statusPoolGasto sozinho é só o total global e não basta pra saber quanto devolver com
+    // segurança de um atributo específico ao pool (ver devolverPontoStatus em Marcados.jsx).
+    statusPoolAlocado: {}
 };
 
 export function sanitizarNome(n) { return !n ? '' : n.replace(/[.#$\[\]\/]/g, '_').trim(); }
@@ -166,6 +174,13 @@ const useStore = create(
             if (dados.proficienciaBase !== undefined) state.minhaFicha.proficienciaBase = parseInt(dados.proficienciaBase) || 0;
             if (dados.proficiencias !== undefined) state.minhaFicha.proficiencias = dados.proficiencias || {};
             if (dados.divisores) state.minhaFicha.divisores = Object.assign({}, fichaPadrao.divisores, dados.divisores);
+            // 🔥 Excluído do loop genérico (como divisores/ataqueConfig): statusPoolAlocado é um mapa
+            // solto attrKey->base bruta, não um objeto de status com campos numéricos fixos (base/
+            // mBase/etc) — o loop genérico tentaria escrever chaves espúrias tipo `.base: undefined`
+            // nele, o que o Firebase rejeita ao salvar. Guardado com `if` como os campos-irmãos
+            // (divisores/ataqueConfig/avatar) — payloads parciais sem essa chave não devem apagar
+            // alocações já carregadas.
+            if (dados.statusPoolAlocado) state.minhaFicha.statusPoolAlocado = Object.assign({}, fichaPadrao.statusPoolAlocado, dados.statusPoolAlocado);
             if (dados.ataqueConfig) state.minhaFicha.ataqueConfig = Object.assign({}, fichaPadrao.ataqueConfig, dados.ataqueConfig);
             if (dados.avatar) state.minhaFicha.avatar = Object.assign({}, fichaPadrao.avatar, dados.avatar);
             else state.minhaFicha.avatar = { base: "" };
@@ -221,7 +236,7 @@ const useStore = create(
             for (let i = 0; i < chaves.length; i++) {
                 const ch = chaves[i];
                 // 🔥 NOVO: Ignorar as novas chaves no loop genérico para evitar sobreposição
-                if (dados[ch] !== undefined && ch !== 'esteticaGrimorio' && ch !== 'habilidades' && ch !== 'formas' && ch !== 'donoDaFicha' && ch !== 'ascensaoBase' && ch !== 'poderes' && ch !== 'divisores' && ch !== 'inventario' && ch !== 'ataquesElementais' && ch !== 'ataqueConfig' && ch !== 'avatar' && ch !== 'bio' && ch !== 'afinidades' && ch !== 'condicoes' && ch !== 'notas' && ch !== 'passivas' && ch !== 'seresSelados' && ch !== 'posicao' && ch !== 'iniciativa' && ch !== 'acoes' && ch !== 'proficienciaBase' && ch !== 'proficiencias' && ch !== 'cores' && ch !== 'hierarquia' && ch !== 'dominios' && ch !== 'estetica' && ch !== 'labels' && ch !== 'pv' && ch !== 'pm' && ch !== 'multiplicadorVida' && ch !== 'multiplicadorMorte' && ch !== 'multiplicadorForcaPrestigio' && ch !== 'multiplicadorForcaAscensao') {
+                if (dados[ch] !== undefined && ch !== 'esteticaGrimorio' && ch !== 'habilidades' && ch !== 'formas' && ch !== 'donoDaFicha' && ch !== 'ascensaoBase' && ch !== 'poderes' && ch !== 'divisores' && ch !== 'inventario' && ch !== 'ataquesElementais' && ch !== 'ataqueConfig' && ch !== 'avatar' && ch !== 'bio' && ch !== 'afinidades' && ch !== 'condicoes' && ch !== 'notas' && ch !== 'passivas' && ch !== 'seresSelados' && ch !== 'posicao' && ch !== 'iniciativa' && ch !== 'acoes' && ch !== 'proficienciaBase' && ch !== 'proficiencias' && ch !== 'cores' && ch !== 'hierarquia' && ch !== 'dominios' && ch !== 'estetica' && ch !== 'labels' && ch !== 'pv' && ch !== 'pm' && ch !== 'multiplicadorVida' && ch !== 'multiplicadorMorte' && ch !== 'multiplicadorForcaPrestigio' && ch !== 'multiplicadorForcaAscensao' && ch !== 'statusPoolAlocado') {
                     if (typeof fichaPadrao[ch] === 'object' && !Array.isArray(fichaPadrao[ch])) {
                         state.minhaFicha[ch] = Object.assign({}, fichaPadrao[ch], dados[ch]);
                         const numF = ['base', 'mBase', 'mGeral', 'mFormas', 'mAbsoluto', 'reducaoCusto', 'regeneracao', 'atual'];
@@ -251,6 +266,17 @@ const useStore = create(
                 state.minhaFicha.statusPoolUnidadeV2 = true;
             } else if (!dados.statusPoolUnidadeV2) {
                 state.minhaFicha.statusPoolUnidadeV2 = true;
+            }
+
+            // 🔥 SEED ÚNICO: statusPrestigioAplicado é o campo novo que o input "STATUS" edita
+            // diretamente (ver Marcados.jsx/TabelaPrestigio.jsx) — antes dele, o campo mostrava
+            // um valor DERIVADO de (statusPool+statusPoolGasto)/8. Para não quebrar a leitura de
+            // fichas que já tinham pool/gasto acumulado antes deste campo existir, semeamos com
+            // esse mesmo valor derivado só na primeira vez (dados.statusPrestigioAplicado ainda
+            // não existe nessa ficha); depois disso o campo passa a ser autoritativo e nunca mais
+            // é recalculado a partir de pool/gasto — só editado diretamente pelo jogador/Mestre.
+            if (dados.statusPrestigioAplicado === undefined) {
+                state.minhaFicha.statusPrestigioAplicado = Math.floor(((parseFloat(state.minhaFicha.statusPool) || 0) + (parseFloat(state.minhaFicha.statusPoolGasto) || 0)) / 8);
             }
         }),
 

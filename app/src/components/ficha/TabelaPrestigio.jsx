@@ -65,10 +65,26 @@ const getBasePFor = (ficha, k) => {
     if (k === 'status') {
         let m = 0;
         STATS.forEach(s => m += safeGetRawBase(ficha, s));
-        return Math.floor((m / 8) / 1000);
+        // 🔥 Precisa multiplicar pelo divisor de status (mesma fórmula de getBasePFor em
+        // Marcados.jsx) — sem isso, a Ascensão de Status calculada aqui diverge da calculada na
+        // aba "Ficha Def" sempre que o divisor de status não for 1, o que agora também afeta
+        // quanto pool cada ponto de Prestígio concede (ver calcularAscensaoAtualStatus abaixo).
+        const div = parseFloat(ficha?.divisores?.status) || 1;
+        return Math.floor(((m / 8) / 1000) * div);
     }
     return safeGetPrestigioReal(k, safeGetRawBase(ficha, k));
 };
+
+// 🔥 Ascensão ATUAL de Status — mesmo cálculo do badge "Rank" mostrado na coluna PRESTÍGIO
+// ATUAL (usa a média ao vivo dos 8 atributos, não o pool). Usado para escalar quantos pontos de
+// pool cada ponto de Prestígio concede: em Ascensão 1, 1 ponto = 8 pool (1 por atributo); em
+// Ascensão 2, 1 ponto = 16 pool; e assim por diante.
+function calcularAscensaoAtualStatus(ficha) {
+    const baseP = getBasePFor(ficha, 'status');
+    const pAtual = calcularPrestAtual(ficha, 'status', baseP);
+    const rankInfo = aplicarMultiplicadorForca(pAtual, ficha.ascensaoBase || 1, ficha.multiplicadorForcaPrestigio ?? 1, ficha.multiplicadorForcaAscensao ?? 1);
+    return Math.max(1, Math.floor(rankInfo.ascensaoFinal || 1));
+}
 
 export default function TabelaPrestigio({ className }) {
     const ficha = useStore((s) => s.minhaFicha);
@@ -146,13 +162,13 @@ export default function TabelaPrestigio({ className }) {
                     <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         {VITALS_KEYS.map((attrKey, i) => {
                             const calcBaseP = getBasePFor(ficha, attrKey);
-                            // 🔥 O campo editável de "status" mostra quantos pontos já foram CONCEDIDOS via
-                            // Prestígio (pool ainda não gasto + já distribuído nos atributos) — não a média ao
-                            // vivo dos 8 atributos (`calcBaseP`, que ainda alimenta o Rank/Badge normalmente e
-                            // muda sozinha conforme o pool é distribuído, o que faria este campo "reconceder"
-                            // pontos toda vez que o jogador reduzisse e aumentasse o valor de novo).
+                            // 🔥 O campo editável de "status" mostra ficha.statusPrestigioAplicado — o último
+                            // valor de Prestígio realmente aplicado ao pool — não a média ao vivo dos 8
+                            // atributos (`calcBaseP`, que ainda alimenta o Rank/Badge normalmente e muda
+                            // sozinha conforme o pool é distribuído, o que faria este campo "reconceder" pontos
+                            // toda vez que o jogador reduzisse e aumentasse o valor de novo).
                             const campoEditavel = attrKey === 'status'
-                                ? Math.floor(((parseFloat(ficha.statusPool) || 0) + (parseFloat(ficha.statusPoolGasto) || 0)) / 8)
+                                ? (ficha.statusPrestigioAplicado ?? 0)
                                 : calcBaseP;
                             const divisor = ficha.divisores?.[attrKey] ?? 1;
 
@@ -173,29 +189,36 @@ export default function TabelaPrestigio({ className }) {
                                     <input type="number" className="prestige-input-base" value={campoEditavel}
                                         onChange={(e) => {
                                             const val = parseInt(e.target.value) || 0;
-                                            // 🔥 Status vira um POOL medido em PONTOS: em vez de igualar os 8
-                                            // atributos (destruindo builds diferenciadas), credita a diferença no
-                                            // pool de distribuição manual — alocado na aba "Ficha Def" > Status
-                                            // (Rank Base). O total concedido é statusPool + statusPoolGasto, nunca
-                                            // a média ao vivo dos atributos (ver comentário acima). Calculado fora
-                                            // do updateFicha porque o aviso ao jogador (efeito colateral) não
-                                            // pertence ao callback do Immer.
+                                            // 🔥 Status vira um POOL medido em PONTOS. Edita diretamente
+                                            // ficha.statusPrestigioAplicado (ver campoEditavel acima), e só a
+                                            // DIFERENÇA em relação ao último valor aplicado credita pool — multiplicada
+                                            // pela Ascensão ATUAL de Status: 8 pool por ponto na Ascensão 1, 16 na
+                                            // Ascensão 2 etc. Mudar de Ascensão só afeta pool concedido DAQUI PRA
+                                            // FRENTE, nunca recalcula o que já existe. Calculado fora do updateFicha
+                                            // porque o aviso ao jogador (efeito colateral) não pertence ao callback do
+                                            // Immer.
                                             let avisoReducaoIncompleta = null;
                                             if (attrKey === 'status') {
-                                                const somaAlvoPontos = val * STATS.length;
-                                                const concedidoAntes = (parseFloat(ficha.statusPool) || 0) + (parseFloat(ficha.statusPoolGasto) || 0);
-                                                const delta = somaAlvoPontos - concedidoAntes;
+                                                const ascensaoAtual = calcularAscensaoAtualStatus(ficha);
+                                                const aplicadoAntes = parseFloat(ficha.statusPrestigioAplicado) || 0;
+                                                const deltaPrestigio = val - aplicadoAntes;
+                                                const poolCreditoAlvo = deltaPrestigio * STATS.length * ascensaoAtual;
                                                 const poolAntes = parseFloat(ficha.statusPool) || 0;
-                                                if (delta < 0 && (poolAntes + delta) < 0) {
-                                                    avisoReducaoIncompleta = `Só foi possível remover ${poolAntes} dos ${Math.abs(delta)} pontos pedidos: o restante já foi distribuído entre os atributos e precisa ser reduzido manualmente em cada um.`;
+                                                if (poolCreditoAlvo < 0 && (poolAntes + poolCreditoAlvo) < 0) {
+                                                    avisoReducaoIncompleta = `Só foi possível remover ${poolAntes} dos ${Math.abs(poolCreditoAlvo)} pontos de pool pedidos: o restante já foi distribuído entre os atributos e precisa ser reduzido manualmente em cada um na aba "Ficha Def" (botão "− Pool").`;
                                                 }
                                             }
                                             updateFicha(f => {
                                                 if (attrKey === 'status') {
-                                                    const somaAlvoPontos = val * STATS.length;
-                                                    const concedidoAntes = (parseFloat(f.statusPool) || 0) + (parseFloat(f.statusPoolGasto) || 0);
-                                                    const delta = somaAlvoPontos - concedidoAntes;
-                                                    f.statusPool = Math.max(0, (parseFloat(f.statusPool) || 0) + delta);
+                                                    const ascensaoAtual = calcularAscensaoAtualStatus(f);
+                                                    const aplicadoAntes = parseFloat(f.statusPrestigioAplicado) || 0;
+                                                    const deltaPrestigio = val - aplicadoAntes;
+                                                    const poolCreditoAlvo = deltaPrestigio * STATS.length * ascensaoAtual;
+                                                    const poolAntes = parseFloat(f.statusPool) || 0;
+                                                    const poolDepois = Math.max(0, poolAntes + poolCreditoAlvo);
+                                                    const creditoRealAplicado = poolDepois - poolAntes;
+                                                    f.statusPool = poolDepois;
+                                                    f.statusPrestigioAplicado = aplicadoAntes + (creditoRealAplicado / (STATS.length * ascensaoAtual));
                                                 } else {
                                                     if(f[attrKey]) f[attrKey].base = val * MULTIPLICADORES[attrKey];
                                                 }

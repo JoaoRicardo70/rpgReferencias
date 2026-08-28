@@ -446,8 +446,9 @@ const LabelMagico = ({ valor, onChange, fallback }) => (
     />
 );
 
-const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, getLabel, setLabel, salvar, fator, attrBaseFocado, setAttrBaseFocado, poolDisponivel = 0, onAlocarPool }) => {
+const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, getLabel, setLabel, salvar, fator, attrBaseFocado, setAttrBaseFocado, poolDisponivel = 0, onAlocarPool, poolGastoDisponivel = 0, onDevolverPool }) => {
     const [qtdAlocar, setQtdAlocar] = useState(1);
+    const [qtdDevolver, setQtdDevolver] = useState(1);
     const baseValRaw = ficha[attrKey]?.base;
     const rawBase = parseFloat(baseValRaw) || 0;
     let maxVal = parseFloat(safeGetMaximo(ficha, attrKey)) || 0;
@@ -493,6 +494,17 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
                             <button type="button" onClick={() => onAlocarPool(attrKey, qtdAlocar)}
                                 style={{ background: 'rgba(0,255,150,0.15)', border: '1px solid currentColor', borderRadius: '3px', cursor: 'pointer', color: 'inherit', fontWeight: 'bold', padding: '1px 6px' }}
                                 title="Distribuir pontos do pool de Status para este atributo (Enter também funciona)">+ Pool</button>
+                        </span>
+                    )}
+                    {onDevolverPool && poolGastoDisponivel > 0 && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7em', opacity: 0.85 }} title={`Total já distribuído pelo pool (pode devolver até): ${poolGastoDisponivel}`}>
+                            <input type="number" min="1" max={poolGastoDisponivel} value={qtdDevolver}
+                                onChange={(e) => setQtdDevolver(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') onDevolverPool(attrKey, qtdDevolver); }}
+                                style={{ width: '45px', background: 'rgba(0,0,0,0.15)', border: '1px solid currentColor', borderRadius: '3px', color: 'inherit', textAlign: 'center', padding: '1px 2px' }} />
+                            <button type="button" onClick={() => onDevolverPool(attrKey, qtdDevolver)}
+                                style={{ background: 'rgba(255,80,80,0.12)', border: '1px solid currentColor', borderRadius: '3px', cursor: 'pointer', color: 'inherit', fontWeight: 'bold', padding: '1px 6px' }}
+                                title="Devolver pontos deste atributo para o pool de Status (Enter também funciona) — facilita reverter uma alocação">− Pool</button>
                         </span>
                     )}
                 </div>
@@ -1015,6 +1027,19 @@ export default function MarcadosPanel() {
         alert("A sua ficha foi sincronizada!");
     };
 
+    // 🔥 Ascensão ATUAL de Status — mesmo cálculo do badge "Rank" mostrado ao lado da categoria
+    // STATUS na grade (usa a média ao vivo dos 8 atributos, não o pool). Usado para escalar
+    // quantos pontos de pool cada ponto de Prestígio concede: em Ascensão 1, 1 ponto = 8 pool
+    // (1 por atributo); em Ascensão 2, 1 ponto = 16 pool; e assim por diante.
+    const calcularAscensaoAtualStatus = () => {
+        const displayPStatus = getBasePFor(minhaFicha, 'status');
+        let mF = 1;
+        if (fatorCrescimentoAtual > 1) { mF = getEfetivoMFormas(minhaFicha, 'status'); if (isNaN(mF) || mF < 1) mF = 1; }
+        const pAtualValor = Math.floor(displayPStatus * mF);
+        const rankInfo = aplicarMultiplicadorForca(pAtualValor, minhaFicha.ascensaoBase || 1, minhaFicha.multiplicadorForcaPrestigio ?? 1, minhaFicha.multiplicadorForcaAscensao ?? 1);
+        return Math.max(1, Math.floor(rankInfo.ascensaoFinal || 1));
+    };
+
     const handleTabelaChange = (k, tipo, valor) => {
         let numVal = Number(valor); if (isNaN(numVal)) numVal = 0;
         const divAtual = parseFloat(minhaFicha.divisores?.[k]) || 1;
@@ -1024,20 +1049,27 @@ export default function MarcadosPanel() {
         const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
         const novaBase = Math.floor((novoP / novoDiv) * (mults[k] || 1));
 
-        // 🔥 Status vira um POOL medido em PONTOS (a mesma unidade que já aparece no campo — 1
-        // ponto = 1000/divisor de base para 1 atributo, igual à conversão de alocarPontoStatus()
-        // logo abaixo). O total "concedido" é statusPool (ainda não gasto) + statusPoolGasto (já
-        // distribuído nos atributos) — NUNCA a média ao vivo dos 8 atributos, porque essa média
-        // já inclui o que foi gasto do próprio pool e faria o campo "reconceder" pontos toda vez
-        // que o jogador reduzisse e aumentasse o valor de novo (double counting).
+        // 🔥 Status vira um POOL medido em PONTOS. O campo "STATUS" edita diretamente
+        // ficha.statusPrestigioAplicado (não é mais derivado de statusPool/statusPoolGasto — ver
+        // migração em useStore.js), e só a DIFERENÇA (deltaPrestigio) em relação ao último valor
+        // aplicado gera crédito de pool, multiplicada pela Ascensão ATUAL de Status (calculada
+        // acima) — 8 pool por ponto na Ascensão 1, 16 na Ascensão 2 etc. Isso garante que mudar
+        // de Ascensão só afeta pool CONCEDIDO DAQUI PRA FRENTE, nunca recalcula o que já existe.
+        // Se a redução pedida for maior que o pool ainda não gasto, ela é parcial (clampada em
+        // 0) e statusPrestigioAplicado avança só pelo que realmente coube — por isso o campo
+        // pode "voltar" para um valor diferente do digitado quando os pontos já foram gastos nos
+        // atributos (aviso explica o motivo em vez de fingir que a redução funcionou).
         let avisoReducaoIncompleta = null;
         if (tipo === 'prestigio' && k === 'status') {
-            const somaAlvoPontos = novoP * 8;
-            const concedidoAntes = (parseFloat(minhaFicha.statusPool) || 0) + (parseFloat(minhaFicha.statusPoolGasto) || 0);
-            const delta = somaAlvoPontos - concedidoAntes;
+            const ascensaoAtual = calcularAscensaoAtualStatus();
+            const aplicadoAntes = parseFloat(minhaFicha.statusPrestigioAplicado) || 0;
+            const deltaPrestigio = novoP - aplicadoAntes;
+            const poolCreditoAlvo = deltaPrestigio * 8 * ascensaoAtual;
             const poolAntes = parseFloat(minhaFicha.statusPool) || 0;
-            if (delta < 0 && (poolAntes + delta) < 0) {
-                avisoReducaoIncompleta = `Só foi possível remover ${poolAntes} dos ${Math.abs(delta)} pontos pedidos: o restante já foi distribuído entre os atributos e precisa ser reduzido manualmente em cada um.`;
+            if (poolCreditoAlvo < 0 && (poolAntes + poolCreditoAlvo) < 0) {
+                const poolReduzido = poolAntes;
+                const poolPedido = Math.abs(poolCreditoAlvo);
+                avisoReducaoIncompleta = `Só foi possível remover ${poolReduzido} dos ${poolPedido} pontos de pool pedidos: o restante já foi distribuído entre os atributos e precisa ser reduzido manualmente em cada um (botão "− Pool").`;
             }
         }
 
@@ -1046,10 +1078,15 @@ export default function MarcadosPanel() {
             if (tipo === 'divisor') { if (!f.divisores) f.divisores = {}; f.divisores[k] = novoDiv; }
             if (tipo === 'prestigio') {
                 if (k === 'status') {
-                    const somaAlvoPontos = novoP * 8;
-                    const concedidoAntes = (parseFloat(f.statusPool) || 0) + (parseFloat(f.statusPoolGasto) || 0);
-                    const delta = somaAlvoPontos - concedidoAntes;
-                    f.statusPool = Math.max(0, (parseFloat(f.statusPool) || 0) + delta);
+                    const ascensaoAtual = calcularAscensaoAtualStatus();
+                    const aplicadoAntes = parseFloat(f.statusPrestigioAplicado) || 0;
+                    const deltaPrestigio = novoP - aplicadoAntes;
+                    const poolCreditoAlvo = deltaPrestigio * 8 * ascensaoAtual;
+                    const poolAntes = parseFloat(f.statusPool) || 0;
+                    const poolDepois = Math.max(0, poolAntes + poolCreditoAlvo);
+                    const creditoRealAplicado = poolDepois - poolAntes;
+                    f.statusPool = poolDepois;
+                    f.statusPrestigioAplicado = aplicadoAntes + (creditoRealAplicado / (8 * ascensaoAtual));
                 }
                 else { if (!f[k]) f[k] = {}; f[k].base = novaBase; }
             }
@@ -1061,6 +1098,10 @@ export default function MarcadosPanel() {
     // 🔥 Distribui pontos do pool de Status para um atributo específico (Força, Destreza etc).
     // 1 ponto do pool = 1000/divisor(status) de base — mesma conversão usada na concessão em
     // handleTabelaChange, para o pool e o gasto ficarem sempre na mesma unidade.
+    // statusPoolAlocado[attrKey] registra em BASE BRUTA (não em pontos!) quanto este atributo
+    // específico recebeu do pool — usar base bruta em vez de pontos evita que uma mudança no
+    // Divisor de Status entre a alocação e uma devolução posterior faça devolverPontoStatus
+    // remover uma quantidade de base diferente da que foi de fato concedida aqui.
     const alocarPontoStatus = (attrKey, qtd) => {
         const pontos = Math.floor(Number(qtd)) || 0;
         if (pontos <= 0) return;
@@ -1074,8 +1115,56 @@ export default function MarcadosPanel() {
             f[attrKey].base = (parseFloat(f[attrKey].base) || 0) + acrescimo;
             f.statusPool = poolAtual - usar;
             f.statusPoolGasto = (parseFloat(f.statusPoolGasto) || 0) + usar;
+            if (!f.statusPoolAlocado) f.statusPoolAlocado = {};
+            f.statusPoolAlocado[attrKey] = (parseFloat(f.statusPoolAlocado[attrKey]) || 0) + acrescimo;
         });
         callSave();
+    };
+
+    // 🔥 Devolve pontos já alocados de um atributo específico de volta para o pool — a maneira
+    // "fácil" de reverter uma alocação sem precisar editar a Base do atributo manualmente. Nunca
+    // devolve mais BASE BRUTA do que foi de fato alocada NESTE atributo especificamente
+    // (statusPoolAlocado[attrKey], não o statusPoolGasto global — senão daria pra "devolver"
+    // pontos de um atributo que nunca recebeu nada do pool, duplicando pontos), nem mais do que a
+    // Base atual comporta (edição manual pode ter reduzido a Base depois da alocação). O pedido
+    // do jogador (`qtd`, em pontos) só serve pra decidir QUANTO tentar devolver — o teto real é
+    // sempre a base bruta registrada em statusPoolAlocado, não uma reconversão via o divisor
+    // atual (que pode ter mudado desde a alocação).
+    const devolverPontoStatus = (attrKey, qtd) => {
+        const pontosPedidos = Math.floor(Number(qtd)) || 0;
+        if (pontosPedidos <= 0) return;
+        const divStatus = parseFloat(minhaFicha.divisores?.status) || 1;
+        const alocadoAttrAntes = Math.max(0, parseFloat(minhaFicha.statusPoolAlocado?.[attrKey]) || 0);
+        const reducaoBasePedida = Math.floor((pontosPedidos / divStatus) * 1000);
+        const avisoDevolucaoIncompleta = reducaoBasePedida > alocadoAttrAntes
+            ? `Só foi possível devolver o equivalente a ${alocadoAttrAntes.toLocaleString('pt-BR')} de base: este atributo não tem mais do que isso alocado por este pool (o resto da Base dele veio de outra fonte).`
+            : null;
+
+        updateFicha(f => {
+            if (!f.statusPoolAlocado) f.statusPoolAlocado = {};
+            const alocadoAttr = Math.max(0, parseFloat(f.statusPoolAlocado[attrKey]) || 0);
+            const baseAtual = parseFloat(f[attrKey]?.base) || 0;
+            // teto real: nunca mais do que foi alocado aqui, nem mais do que a Base atual comporta
+            const reducaoBase = Math.min(reducaoBasePedida, alocadoAttr, baseAtual);
+            if (reducaoBase <= 0) return;
+            const usar = Math.floor((reducaoBase / 1000) * divStatus);
+            if (usar <= 0) return;
+            if (!f[attrKey]) f[attrKey] = {};
+            f[attrKey].base = baseAtual - reducaoBase;
+            f.statusPoolAlocado[attrKey] = alocadoAttr - reducaoBase;
+            f.statusPoolGasto = Math.max(0, (parseFloat(f.statusPoolGasto) || 0) - usar);
+            f.statusPool = (parseFloat(f.statusPool) || 0) + usar;
+        });
+        callSave();
+        if (avisoDevolucaoIncompleta) alert(avisoDevolucaoIncompleta);
+    };
+
+    // 🔥 statusPoolAlocado guarda BASE BRUTA (ver comentário em alocarPontoStatus), mas o input
+    // de "− Pool" na UI é em PONTOS (mesma unidade do "+ Pool") — converte só pra exibição/limite
+    // do campo; o teto de segurança de verdade fica dentro de devolverPontoStatus, em base bruta.
+    const pontosAlocadosStatus = (attrKey) => {
+        const divStatus = parseFloat(minhaFicha.divisores?.status) || 1;
+        return Math.floor(((minhaFicha.statusPoolAlocado?.[attrKey] || 0) / 1000) * divStatus);
     };
 
     const handleSalvarTudo = () => {
@@ -1549,14 +1638,14 @@ export default function MarcadosPanel() {
                             <RadarDesenhado ficha={minhaFicha} isAtual={false} corTinta={localCorTinta} fator={fatorAtributosBase} />
 
                             <div style={{ width: '100%', maxWidth: '300px', marginTop: '30px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} />
-                                <LinhaAtributoCru labelKey="lblDes" fallbackLabel="Destreza" attrKey="destreza" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} />
-                                <LinhaAtributoCru labelKey="lblInt" fallbackLabel="Inteligência" attrKey="inteligencia" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} />
-                                <LinhaAtributoCru labelKey="lblSab" fallbackLabel="Sabedoria" attrKey="sabedoria" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} />
-                                <LinhaAtributoCru labelKey="lblEsp" fallbackLabel="Energia Espiritual" attrKey="energiaEsp" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} />
-                                <LinhaAtributoCru labelKey="lblCar" fallbackLabel="Carisma" attrKey="carisma" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} />
-                                <LinhaAtributoCru labelKey="lblSta" fallbackLabel="Stamina" attrKey="stamina" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} />
-                                <LinhaAtributoCru labelKey="lblCon" fallbackLabel="Constituição" attrKey="constituicao" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} />
+                                <LinhaAtributoCru labelKey="lblFor" fallbackLabel="Força" attrKey="forca" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} poolGastoDisponivel={pontosAlocadosStatus('forca')} onDevolverPool={devolverPontoStatus} />
+                                <LinhaAtributoCru labelKey="lblDes" fallbackLabel="Destreza" attrKey="destreza" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} poolGastoDisponivel={pontosAlocadosStatus('destreza')} onDevolverPool={devolverPontoStatus} />
+                                <LinhaAtributoCru labelKey="lblInt" fallbackLabel="Inteligência" attrKey="inteligencia" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} poolGastoDisponivel={pontosAlocadosStatus('inteligencia')} onDevolverPool={devolverPontoStatus} />
+                                <LinhaAtributoCru labelKey="lblSab" fallbackLabel="Sabedoria" attrKey="sabedoria" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} poolGastoDisponivel={pontosAlocadosStatus('sabedoria')} onDevolverPool={devolverPontoStatus} />
+                                <LinhaAtributoCru labelKey="lblEsp" fallbackLabel="Energia Espiritual" attrKey="energiaEsp" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} poolGastoDisponivel={pontosAlocadosStatus('energiaEsp')} onDevolverPool={devolverPontoStatus} />
+                                <LinhaAtributoCru labelKey="lblCar" fallbackLabel="Carisma" attrKey="carisma" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} poolGastoDisponivel={pontosAlocadosStatus('carisma')} onDevolverPool={devolverPontoStatus} />
+                                <LinhaAtributoCru labelKey="lblSta" fallbackLabel="Stamina" attrKey="stamina" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} poolGastoDisponivel={pontosAlocadosStatus('stamina')} onDevolverPool={devolverPontoStatus} />
+                                <LinhaAtributoCru labelKey="lblCon" fallbackLabel="Constituição" attrKey="constituicao" isAtual={false} ficha={minhaFicha} getLabel={getLabel} setLabel={setLabel} salvar={salvar} fator={fatorAtributosBase} attrBaseFocado={attrBaseFocado} setAttrBaseFocado={setAttrBaseFocado} poolDisponivel={minhaFicha.statusPool || 0} onAlocarPool={alocarPontoStatus} poolGastoDisponivel={pontosAlocadosStatus('constituicao')} onDevolverPool={devolverPontoStatus} />
                             </div>
                         </div>
 
@@ -1600,14 +1689,15 @@ export default function MarcadosPanel() {
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
                                 {['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
                                     const displayP = getBasePFor(minhaFicha, k);
-                                    // 🔥 O campo editável de "status" mostra quantos pontos já foram CONCEDIDOS
-                                    // via Prestígio (pool + já gasto nos atributos) — não a média ao vivo dos 8
-                                    // atributos (que muda sozinha conforme o jogador distribui/edita atributos
-                                    // manualmente e faria esse campo "derivar" para valores que ninguém digitou).
-                                    // O Rank/Badge abaixo continua usando `displayP` normalmente: aquilo reflete
-                                    // o poder REAL do personagem agora, não quanto Prestígio já foi concedido.
+                                    // 🔥 O campo editável de "status" mostra ficha.statusPrestigioAplicado — o
+                                    // último valor de Prestígio realmente aplicado ao pool (ver handleTabelaChange)
+                                    // — não a média ao vivo dos 8 atributos, que muda sozinha conforme o jogador
+                                    // distribui/edita atributos manualmente e faria esse campo "reconceder" pontos
+                                    // toda vez que fosse reduzido e aumentado de novo. O Rank/Badge abaixo continua
+                                    // usando `displayP` normalmente: aquilo reflete o poder REAL do personagem
+                                    // agora, não quanto Prestígio já foi concedido ao pool.
                                     const campoEditavel = k === 'status'
-                                        ? Math.floor(((parseFloat(minhaFicha.statusPool) || 0) + (parseFloat(minhaFicha.statusPoolGasto) || 0)) / 8)
+                                        ? (minhaFicha.statusPrestigioAplicado ?? 0)
                                         : displayP;
                                     const divisor = minhaFicha.divisores?.[k] || 1;
 
