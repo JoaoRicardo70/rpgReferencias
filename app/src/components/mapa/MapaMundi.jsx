@@ -45,6 +45,8 @@ export default function MapaMundi({ children }) {
 
     const [reinoSelecionado, setReinoSelecionado] = useState(null);
     const [modoEdicaoMapa, setModoEdicaoMapa] = useState(false);
+    const [criandoMapa, setCriandoMapa] = useState(false);
+    const [novoMapaNome, setNovoMapaNome] = useState('');
     const [urlInput, setUrlInput] = useState('');
     const [reinoHover, setReinoHover] = useState(null); 
     const [planoHover, setPlanoHover] = useState(null);
@@ -259,13 +261,22 @@ export default function MapaMundi({ children }) {
     // 💡 AS NOVAS FUNÇÕES PARA CRIAR E ENTRAR NO MAPA
     // ==========================================
     
+    // 🔥 Usa um modal próprio em vez de window.prompt(): o prompt() nativo do navegador
+    // não funciona dentro do WebView do App (fica sem resposta ao clicar), só no site.
     const criarNovoMapa = () => {
-        const nome = prompt("Escreva o nome do novo mapa para " + reinoSelecionado + ":");
-        if (nome && nome.trim() !== "") {
-            const novoMapa = { id: `mapa_${Date.now()}`, nome: nome.trim(), img: '' };
+        setNovoMapaNome('');
+        setCriandoMapa(true);
+    };
+
+    const confirmarNovoMapa = () => {
+        const nome = novoMapaNome.trim();
+        if (nome !== "") {
+            const novoMapa = { id: `mapa_${Date.now()}`, nome, img: '' };
             const reinoMapas = atlas[reinoSelecionado] || [];
             salvarAtlas({ ...atlas, [reinoSelecionado]: [...reinoMapas, novoMapa] });
         }
+        setCriandoMapa(false);
+        setNovoMapaNome('');
     };
 
     const abrirMenuReino = (nomeReino) => setReinoSelecionado(nomeReino);
@@ -502,6 +513,25 @@ export default function MapaMundi({ children }) {
                                 ))}
                             </div>
                             <button onClick={criarNovoMapa} style={{ width: '100%', background: 'linear-gradient(to right, #0088ff, #00ffcc)', color: '#000', padding: '14px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>➕ CRIAR NOVO MAPA</button>
+                        </div>
+                    </div>
+                )}
+
+                {criandoMapa && (
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 40, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(6px)' }}>
+                        <div style={{ background: '#111', border: '2px solid #00ffcc', borderRadius: '20px', padding: '30px', width: '340px', textAlign: 'center', position: 'relative' }}>
+                            <button onClick={() => setCriandoMapa(false)} style={{ position: 'absolute', top: '15px', right: '20px', background: 'none', border: 'none', color: '#ff4444', fontSize: '22px', cursor: 'pointer', fontWeight: 'bold' }}>X</button>
+                            <h2 style={{ color: '#00ffcc', margin: '0 0 15px 0', textTransform: 'uppercase', fontSize: '1.1em' }}>Novo Mapa em {reinoSelecionado}</h2>
+                            <input
+                                type="text"
+                                autoFocus
+                                value={novoMapaNome}
+                                onChange={(e) => setNovoMapaNome(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') confirmarNovoMapa(); }}
+                                placeholder="Nome do mapa..."
+                                style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #444', background: '#1a1a1a', color: '#fff', marginBottom: '20px', boxSizing: 'border-box' }}
+                            />
+                            <button onClick={confirmarNovoMapa} style={{ width: '100%', background: 'linear-gradient(to right, #0088ff, #00ffcc)', color: '#000', padding: '14px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>✅ CONFIRMAR</button>
                         </div>
                     </div>
                 )}

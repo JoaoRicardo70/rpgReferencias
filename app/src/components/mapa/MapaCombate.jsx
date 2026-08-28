@@ -4,6 +4,8 @@ import useStore from '../../stores/useStore';
 import { useMapaForm, urlSeguraParaCss, calcularCA } from './MapaFormContext';
 import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { getClassIconById } from '../../core/classIcons';
+import { calcularPoderAtual } from '../../core/poder';
+import { formatarPoderCosmico } from '../../core/utils';
 
 // 🔥 IMPORTAÇÕES PARA RENDERIZAR O DADO 3D FÍSICO 🔥
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -322,7 +324,15 @@ export function MapaIniciativaTracker() {
     } = ctx;
 
     const todasEntidades = useMemo(() => {
-        const js = Object.entries(jogadores || {}).filter(([n, f]) => (f.posicao?.cenaId || 'default') === cenaRenderId).map(([n, f]) => ({ id: n, nome: n, ficha: f, isDummie: false, init: f.iniciativa || 0 }));
+        // Jogador pode ter a posição no sistema novo (posicoes[cenaId]) ou no antigo (posicao.cenaId) —
+        // mesma lógica de tokenMap/ordemIniciativa em MapaFormContext, senão ele "vaza" para toda cena
+        // que caia no fallback 'default'.
+        const estaNaCena = (f) => {
+            const pos = f.posicoes ? f.posicoes[cenaRenderId] : null;
+            if (pos) return true;
+            return !!(f.posicao && (f.posicao.cenaId || 'default') === cenaRenderId);
+        };
+        const js = Object.entries(jogadores || {}).filter(([n, f]) => estaNaCena(f)).map(([n, f]) => ({ id: n, nome: n, ficha: f, isDummie: false, init: f.iniciativa || 0 }));
         const ds = Object.entries(dummies || {}).filter(([id, d]) => (d.cenaId || 'default') === cenaRenderId).map(([id, d]) => ({ id, nome: d.nome, ficha: d, isDummie: true, init: d.iniciativa || 0 }));
         return [...js, ...ds].sort((a, b) => b.init - a.init);
     }, [jogadores, dummies, cenaRenderId]);
@@ -447,6 +457,7 @@ export function MapaRolagemRapida() {
 
 export function MapaHologramaAcao() {
     const ctx = useMapaForm();
+    const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
     if (!ctx) return null;
     const { ordemIniciativa, feedCombate, feedIndexTurnoAtual, jogadorDaVez, jogadores, overridesCompendio, getAvatarInfo, fmt, meuNome, minhaFicha } = ctx;
 
@@ -465,6 +476,11 @@ export function MapaHologramaAcao() {
     let nomeBase = jogadorDaVez ? jogadorDaVez.nome : (acaoExibir ? acaoExibir.nome : '');
     let fichaBase = jogadorDaVez ? jogadorDaVez.ficha : (acaoExibir ? jogadores[acaoExibir.nome] : null);
     let infoBase = getAvatarInfo(fichaBase);
+
+    // 🔥 Poder Atual (o mesmo número do Scouter na ficha), pra saber a força do alvo sem sair do mapa
+    // Nota: sem useMemo de propósito — este ponto do componente já vem depois de dois `return`
+    // condicionais acima, então um hook aqui violaria a Regra dos Hooks (nº de hooks variável entre renders).
+    const poderAtualBase = fichaBase ? calcularPoderAtual(fichaBase, divisorPoderMesa).poderGlobal : 0;
 
     let classId = fichaBase?.bio?.classe;
     if ((classId === 'pretender' || classId === 'alterego') && fichaBase?.bio?.subClasse) classId = fichaBase?.bio?.subClasse;
@@ -598,6 +614,7 @@ export function MapaHologramaAcao() {
                     {fichaBase && acaoExibir?.tipo !== 'sistema' && (
                         <div style={{ padding: '15px', background: '#050505' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(0,0,0,0.7)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffcc00', fontWeight: 'bold', paddingBottom: 8, marginBottom: 2, borderBottom: '1px solid rgba(255,255,255,0.1)' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>⚡ PODER</span><span style={{ textShadow: '0 0 6px #ffcc00' }}>{formatarPoderCosmico(poderAtualBase)}</span></div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff4d4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>HP</span><span>{fmt(fichaBase.vida?.atual)}</span></div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4dffff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>MP</span><span>{fmt(fichaBase.mana?.atual)}</span></div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffff4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>AU</span><span>{fmt(fichaBase.aura?.atual)}</span></div>
