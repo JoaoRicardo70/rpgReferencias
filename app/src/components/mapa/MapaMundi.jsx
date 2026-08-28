@@ -1,5 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import useStore from '../../stores/useStore';
+import { useMapaForm, urlSeguraParaCss } from './MapaFormContext';
+import { salvarCenarioCompleto } from '../../services/firebase-sync';
 
 // 🔥 AS IMAGENS DO MUNDO MATERIAL 🔥
 import mapaClean from '../../assets/runeterra-clean.jpg';
@@ -17,10 +19,28 @@ import mapaCosmologia from '../../assets/mapa-cosmologia.png';
 
 export default function MapaMundi({ children }) {
     const cenario = useStore(s => s.cenario);
-    const setCenario = useStore(s => s.setCenario);
+    // 🔥 Acessa o mesmo contexto do Gerenciador de Cenas (MapaFerramentasMestre) — MapaMundi é
+    // renderizado dentro do MapaFormProvider (via MapaAreaCentral), então dá pra ler qual cena
+    // está publicada/sendo visualizada e pular direto pra ela, sem depender de o jogador navegar
+    // manualmente por todo o mapa cósmico. Retorna null se usado fora do provider (ex: testes).
+    const ctxMapa = useMapaForm();
 
-    const [nivelVisao, setNivelVisao] = useState('sistema_solar'); 
+    const [nivelVisao, setNivelVisao] = useState('sistema_solar');
     const [localAtual, setLocalAtual] = useState({ continente: null, reino: null, mapaId: null, plano: 'Material' });
+
+    // 🔥 Sincroniza com a Cena publicada/visualizada pelo Mestre: sem isso, "Publicar para Todos"
+    // e "Ver Cena Oculta" no Gerenciador de Cenas mudavam o estado global (cenario.ativa /
+    // cenaVisualizadaId) mas NINGUÉM via a mudança — o mapa de batalha (children: grelha/tokens)
+    // só é renderizado quando nivelVisao === 'reino', e nada aqui reagia a essas mudanças.
+    useEffect(() => {
+        const cenaRenderId = ctxMapa?.cenaRenderId;
+        if (!cenaRenderId) return;
+        setLocalAtual(prev => {
+            if (prev.mapaId === cenaRenderId) return prev; // já estamos nela, preserva reino/mapaNome
+            return { ...prev, reino: null, mapaId: cenaRenderId, mapaNome: ctxMapa?.cenaAtual?.nome || '' };
+        });
+        setNivelVisao('reino');
+    }, [ctxMapa?.cenaRenderId]);
 
     // 🔥 O NOVO CÉREBRO LOCAL (BLINDADO CONTRA ERROS DE MEMÓRIA) 🔥
     const [atlas, setAtlas] = useState(() => {
@@ -287,13 +307,13 @@ export default function MapaMundi({ children }) {
         setNivelVisao('reino');
         
         // 🔥 A MÁGICA: Força a Grelha a ler esta Cena! 🔥
+        // Precisa ir por salvarCenarioCompleto (grava no Firebase) — setCenario() sozinho só muda
+        // o estado local deste navegador, então a Cena nunca aparecia pra mais ninguém na mesa.
         const cenasLista = { ...cenario.lista };
-        if (!cenasLista[mapa.id]) {
-            cenasLista[mapa.id] = { nome: `[${reinoSelecionado}] ${mapa.nome}`, img: mapa.img || '', escala: 1.5, unidade: 'm' };
-        } else {
-            cenasLista[mapa.id].img = mapa.img || cenasLista[mapa.id].img;
-        }
-        setCenario({ ...cenario, ativa: mapa.id, lista: cenasLista });
+        cenasLista[mapa.id] = cenasLista[mapa.id]
+            ? { ...cenasLista[mapa.id], img: mapa.img || cenasLista[mapa.id].img }
+            : { nome: `[${reinoSelecionado}] ${mapa.nome}`, img: mapa.img || '', escala: 1.5, unidade: 'm' };
+        salvarCenarioCompleto({ ...cenario, ativa: mapa.id, lista: cenasLista });
     };
 
     const atualizarImagemMapa = (imgData) => {
@@ -307,12 +327,10 @@ export default function MapaMundi({ children }) {
         
         // Atualiza Cena Global (para a Grelha ver a imagem IMEDIATAMENTE)
         const novasCenas = { ...cenario.lista };
-        if (novasCenas[id]) {
-            novasCenas[id].img = imgData;
-        } else {
-            novasCenas[id] = { nome: `[${reino}] ${localAtual.mapaNome}`, img: imgData, escala: 1.5, unidade: 'm' };
-        }
-        setCenario({ ...cenario, ativa: id, lista: novasCenas });
+        novasCenas[id] = novasCenas[id]
+            ? { ...novasCenas[id], img: imgData }
+            : { nome: `[${reino}] ${localAtual.mapaNome}`, img: imgData, escala: 1.5, unidade: 'm' };
+        salvarCenarioCompleto({ ...cenario, ativa: id, lista: novasCenas });
         setModoEdicaoMapa(false);
     };
 
@@ -545,7 +563,9 @@ export default function MapaMundi({ children }) {
     // ==========================================
     if (nivelVisao === 'reino') {
         const mapaAtivoObj = (atlas[localAtual.reino] || []).find(m => m.id === localAtual.mapaId);
-        const backgroundUrl = mapaAtivoObj ? mapaAtivoObj.img : '';
+        // Cenas publicadas/visualizadas via Gerenciador de Cenas não têm entrada no Atlas local
+        // (localAtual.reino fica null nesse caso) — cai pra imagem já sincronizada da própria Cena.
+        const backgroundUrl = mapaAtivoObj ? mapaAtivoObj.img : (ctxMapa?.cenaAtual?.img || '');
 
         return (
             <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '85vh' }}>
@@ -554,10 +574,10 @@ export default function MapaMundi({ children }) {
                         <button onClick={voltarCamera} style={{ background: '#ff4444', color: '#fff', border: 'none', padding: '7px 18px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>⬅ SAIR</button>
                         <button onClick={() => { setUrlInput(backgroundUrl || ''); setModoEdicaoMapa(true); }} style={{ background: 'transparent', color: '#0088ff', border: '1px solid #0088ff', padding: '7px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>⚙️ EDITAR CENÁRIO</button>
                     </div>
-                    <span style={{ color: '#ffcc00', fontWeight: 'bold', textTransform: 'uppercase' }}>{localAtual.reino} : {localAtual.mapaNome}</span>
+                    <span style={{ color: '#ffcc00', fontWeight: 'bold', textTransform: 'uppercase' }}>{localAtual.reino ? `${localAtual.reino} : ` : ''}{localAtual.mapaNome}</span>
                 </div>
                 
-                <div className="fade-in" style={{ flex: 1, position: 'relative', backgroundColor: '#050508', backgroundImage: backgroundUrl ? `url("${backgroundUrl}")` : 'none', backgroundSize: 'cover', backgroundPosition: 'center', border: '1px solid #333', borderTop: 'none', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
+                <div className="fade-in" style={{ flex: 1, position: 'relative', backgroundColor: '#050508', backgroundImage: urlSeguraParaCss(backgroundUrl) || 'none', backgroundSize: 'cover', backgroundPosition: 'center', border: '1px solid #333', borderTop: 'none', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
                     
                     {/* A GRELHA DE COMBATE (OVERLAY) */}
                     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 5 }}>{children}</div>
