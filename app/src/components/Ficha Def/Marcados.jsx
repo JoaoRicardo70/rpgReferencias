@@ -320,12 +320,11 @@ function encontrarCategoriaPorLore(nome) {
     return null;
 }
 
-// 🔥 NOVO: CALCULADOR INTELIGENTE PARA IMAGENS BRANCAS/PRATEADAS 🔥
-// Com uma base prateada ou branca, a cor mistura de forma brutal e orgânica usando apenas o Multiply.
+// 🔥 CALCULADOR INTELIGENTE DE BLEND-MODE PARA CORES ESCURAS 🔥
 export function getCamadasTinta(cor) {
     if (!cor || cor === '#ffffff' || cor === 'transparent') return null;
     const hex = String(cor).replace('#', '');
-    if (hex.length !== 6) return { modo1: 'multiply', op1: 0.9, modo2: 'overlay', op2: 0.3 };
+    if (hex.length !== 6) return { modo1: 'color', op1: 0.85, modo2: 'overlay', op2: 0.5 };
     
     const r = parseInt(hex.substring(0, 2), 16);
     const g = parseInt(hex.substring(2, 4), 16);
@@ -334,12 +333,10 @@ export function getCamadasTinta(cor) {
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     
     if (lum < 0.45) {
-        // Cores Escuras (Roxo, Preto, Azul Escuro): O multiply tinge a cor bruta nas partes brancas da moldura
-        // O "color" extra ajuda a escurecer o dourado/prateado, enquanto o brilho se mantém vivo.
-        return { modo1: 'multiply', op1: 1, modo2: 'color', op2: 0.8 };
+        const multiplyOpacity = Math.max(0.3, Math.min(0.65, (1 - lum) * 0.6));
+        return { modo1: 'color', op1: 0.95, modo2: 'multiply', op2: multiplyOpacity };
     } else {
-        // Cores Claras: Multiply forte para fundir a cor com o prata, Overlay dá o pop metálico.
-        return { modo1: 'multiply', op1: 0.9, modo2: 'overlay', op2: 0.5 };
+        return { modo1: 'color', op1: 0.9, modo2: 'overlay', op2: 0.6 };
     }
 }
 
@@ -1438,29 +1435,13 @@ export default function MarcadosPanel() {
                                         <span style={{ color: '#ff003c', opacity: 0.6, fontSize: '0.75em' }}>(aplicado a todo mundo que não tiver um divisor próprio)</span>
                                     </div>
                                 )}
-                                <style>{`
-                                    @keyframes pulse-aura {
-                                        0% { opacity: 0.3; transform: scale(0.9); }
-                                        50% { opacity: 0.8; transform: scale(1.1); }
-                                        100% { opacity: 0.3; transform: scale(0.9); }
-                                    }
-                                `}</style>
+                                <style>{` @keyframes pulse-aura { 0% { opacity: 0.3; transform: scale(0.9); } 50% { opacity: 0.8; transform: scale(1.1); } 100% { opacity: 0.3; transform: scale(0.9); } } `}</style>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '1.2em' }}>
-                                {[
-                                    { k: 'idade', lbl: 'Idade' },
-                                    { k: 'aniversario', lbl: 'Aniversário' },
-                                    { k: 'alturaPeso', lbl: 'Altura / Peso' },
-                                    { k: 'raca', lbl: 'Raça' },
-                                    { k: 'alinhamento', lbl: 'Alinhamento' },
-                                    { k: 'afiliacao', lbl: 'Afiliação' },
-                                    { k: 'classe', lbl: 'Classe' }
-                                ].map(item => (
+                                {[{ k: 'idade', lbl: 'Idade' }, { k: 'aniversario', lbl: 'Aniversário' }, { k: 'alturaPeso', lbl: 'Altura / Peso' }, { k: 'raca', lbl: 'Raça' }, { k: 'alinhamento', lbl: 'Alinhamento' }, { k: 'afiliacao', lbl: 'Afiliação' }, { k: 'classe', lbl: 'Classe' }].map(item => (
                                     <div key={item.k} style={{ display: 'flex' }}>
-                                        <div style={{ width: '140px', fontWeight: 'bold' }}>
-                                            <LabelMagico valor={getLabel(`bio_${item.k}`, item.lbl)} onChange={(v) => setLabel(`bio_${item.k}`, v)} />
-                                        </div>
+                                        <div style={{ width: '140px', fontWeight: 'bold' }}> <LabelMagico valor={getLabel(`bio_${item.k}`, item.lbl)} onChange={(v) => setLabel(`bio_${item.k}`, v)} /> </div>
                                         <span style={{ fontWeight: 'bold', marginRight: '8px' }}>:</span>
                                         <CampoMagico valor={minhaFicha.bio?.[item.k]} onChange={(v) => salvar(`bio.${item.k}`, v)} styleExtra={{ flex: 1, borderBottom: '1px dotted currentColor' }} />
                                     </div>
@@ -1573,7 +1554,7 @@ export default function MarcadosPanel() {
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
-                                    <div style={{ flex 1, border: '2px solid currentColor', padding: '10px', borderRadius: '6px', background: 'rgba(255,255,255,0.2)' }}>
+                                    <div style={{ flex: 1, border: '2px solid currentColor', padding: '10px', borderRadius: '6px', background: 'rgba(255,255,255,0.2)' }}>
                                         <div style={{ fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}><LabelMagico valor={getLabel('lblMultV', 'Mult. de Vida (PV)')} onChange={(v) => setLabel('lblMultV', v)} /></div>
                                         <CampoMagico valor={minhaFicha.multiplicadorVida || 1} onChange={(v) => salvar('multiplicadorVida', v)} type="number" isNumber={true} styleExtra={{ width: '100%', borderBottom: '1px solid currentColor', marginTop: '5px' }} />
                                     </div>
