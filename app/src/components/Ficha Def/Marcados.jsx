@@ -27,7 +27,6 @@ function safeGetMaximo(ficha, key) {
     return parseFloat(ficha?.[key]?.base) || 0;
 }
 
-// 🔥 Base + buffs ADITIVOS (sem a pilha de multiplicadores mBase/mGeral/mFormas/mAbsoluto/mUnico).
 function safeGetEfetivoBase(ficha, key, ignorarPoderes = false) {
     try {
         if (AtributosCore && typeof AtributosCore.getEfetivoBase === 'function') {
@@ -321,34 +320,31 @@ function encontrarCategoriaPorLore(nome) {
     return null;
 }
 
-// 🔥 CALCULADOR INTELIGENTE DE BLEND-MODE PARA CORES ESCURAS 🔥
-// A magia do CSS: Força o tingimento (color) e escurece preservando o brilho (multiply).
+// 🔥 NOVO: CALCULADOR INTELIGENTE PARA IMAGENS BRANCAS/PRATEADAS 🔥
+// Com uma base prateada ou branca, a cor mistura de forma brutal e orgânica usando apenas o Multiply.
 export function getCamadasTinta(cor) {
     if (!cor || cor === '#ffffff' || cor === 'transparent') return null;
     const hex = String(cor).replace('#', '');
-    if (hex.length !== 6) return { modo1: 'color', op1: 1, modo2: 'multiply', op2: 0 };
+    if (hex.length !== 6) return { modo1: 'multiply', op1: 0.9, modo2: 'overlay', op2: 0.3 };
     
     const r = parseInt(hex.substring(0, 2), 16);
     const g = parseInt(hex.substring(2, 4), 16);
     const b = parseInt(hex.substring(4, 6), 16);
     
-    // Calcula a luminosidade (0.0 a 1.0)
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     
-    if (lum < 0.5) {
-        // Cores Escuras (Roxo Escuro, Preto, Sangue):
-        // 1º Tinge a 100%. 2º Esmaga o brilho residual metálico proporcionalmente à escuridão.
-        const multiplyOpacity = Math.min(0.9, 1 - lum);
-        return { modo1: 'color', op1: 1, modo2: 'multiply', op2: multiplyOpacity };
+    if (lum < 0.45) {
+        // Cores Escuras (Roxo, Preto, Azul Escuro): O multiply tinge a cor bruta nas partes brancas da moldura
+        // O "color" extra ajuda a escurecer o dourado/prateado, enquanto o brilho se mantém vivo.
+        return { modo1: 'multiply', op1: 1, modo2: 'color', op2: 0.8 };
     } else {
-        // Cores Claras (Dourado, Ciano):
-        // Tinge a 100% e dá um 'pop' metálico no brilho com um overlay suave.
-        return { modo1: 'color', op1: 1, modo2: 'overlay', op2: 0.4 };
+        // Cores Claras: Multiply forte para fundir a cor com o prata, Overlay dá o pop metálico.
+        return { modo1: 'multiply', op1: 0.9, modo2: 'overlay', op2: 0.5 };
     }
 }
 
 // ==========================================
-// 🛡️ FUNÇÕES AUXILIARES DA TABELA
+// 🛡️ FUNÇÕES AUXILIARES DA TABELA E COMPONENTES
 // ==========================================
 function getBasePFor(ficha, k) {
     const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
@@ -359,19 +355,6 @@ function getBasePFor(ficha, k) {
         return Math.floor(((m / 8) / mults.status) * div) || 0;
     }
     return Math.floor((safeGetRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
-}
-
-// 🔥 Pontos usados pra calcular Rank/Ascensão/fator de escala de UMA categoria. Para "status", usa
-// ficha.statusPrestigioAplicado (o Prestígio que o jogador realmente concedeu via o campo
-// editável "STATUS") em vez da média ao vivo dos 8 atributos (getBasePFor) — assim o Rank/Badge
-// de Status nunca diverge do campo editável só porque o jogador distribuiu pool ou editou um
-// atributo manualmente. O Prestígio deve ser a CAUSA dos pontos dos atributos, não a
-// consequência: distribuir pool não deveria "inflar" o Rank/Ascensão de Status por conta própria.
-// Para as outras 5 categorias (vida/mana/aura/chakra/corpo), que não têm esse sistema de pool,
-// segue idêntico a getBasePFor.
-function getPontosParaAscensao(ficha, key) {
-    if (key === 'status') return parseFloat(ficha?.statusPrestigioAplicado) || 0;
-    return getBasePFor(ficha, key);
 }
 
 function aplicarMultiplicadorForca(prestigioBase, ascensaoBase, multiplicadorForcaPrestigio, multiplicadorForcaAscensao) {
@@ -390,6 +373,11 @@ function calcularPrestAtual(ficha, attrKey, baseP, ignorarPoderes = false) {
     const mFormas = getEfetivoMFormas(ficha, attrKey, ignorarPoderes);
     const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
     return Math.floor((baseP || 0) * multForma) || 0;
+}
+
+function getPontosParaAscensao(ficha, key) {
+    if (key === 'status') return parseFloat(ficha?.statusPrestigioAplicado) || 0;
+    return getBasePFor(ficha, key);
 }
 
 function calcularEscala(rawMax, key) {
@@ -478,10 +466,6 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     if (supressao < limiteSupressao) supressao = limiteSupressao;
     
     const tema = getTemaScouter(supressao, limiteSupressao);
-    // 🔥 Sem `fatorSeguro` aqui: getPoderAbsolutoAtributo já escala o Poder deste sub-atributo
-    // pelo Multiplicador de Força usando o próprio Prestígio individual dele (bloco `isStatus`
-    // ali). Passar `fatorSeguro` de novo aplicaria o multiplicador em dobro — o fator só deve
-    // tingir o valor Base/Atual exibido (baseExibido/valorAtual abaixo).
     const poderVerdadeiro = getPoderVerdadeiro(attrKey, ficha, isAtual, supressao);
 
     return (
@@ -1040,11 +1024,6 @@ export default function MarcadosPanel() {
         alert("A sua ficha foi sincronizada!");
     };
 
-    // 🔥 Ascensão ATUAL de Status — mesmo cálculo do badge "Rank" mostrado ao lado da categoria
-    // STATUS na grade, agora baseado em statusPrestigioAplicado (ver getPontosParaAscensao), não
-    // na média ao vivo dos 8 atributos. Usado para escalar quantos pontos de pool cada ponto de
-    // Prestígio concede: em Ascensão 1, 1 ponto = 8 pool (1 por atributo); em Ascensão 2, 1 ponto
-    // = 16 pool; e assim por diante.
     const calcularAscensaoAtualStatus = () => {
         const displayPStatus = getPontosParaAscensao(minhaFicha, 'status');
         let mF = 1;
@@ -1063,16 +1042,6 @@ export default function MarcadosPanel() {
         const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
         const novaBase = Math.floor((novoP / novoDiv) * (mults[k] || 1));
 
-        // 🔥 Status vira um POOL medido em PONTOS. O campo "STATUS" edita diretamente
-        // ficha.statusPrestigioAplicado (não é mais derivado de statusPool/statusPoolGasto — ver
-        // migração em useStore.js), e só a DIFERENÇA (deltaPrestigio) em relação ao último valor
-        // aplicado gera crédito de pool, multiplicada pela Ascensão ATUAL de Status (calculada
-        // acima) — 8 pool por ponto na Ascensão 1, 16 na Ascensão 2 etc. Isso garante que mudar
-        // de Ascensão só afeta pool CONCEDIDO DAQUI PRA FRENTE, nunca recalcula o que já existe.
-        // Se a redução pedida for maior que o pool ainda não gasto, ela é parcial (clampada em
-        // 0) e statusPrestigioAplicado avança só pelo que realmente coube — por isso o campo
-        // pode "voltar" para um valor diferente do digitado quando os pontos já foram gastos nos
-        // atributos (aviso explica o motivo em vez de fingir que a redução funcionou).
         let avisoReducaoIncompleta = null;
         if (tipo === 'prestigio' && k === 'status') {
             const ascensaoAtual = calcularAscensaoAtualStatus();
@@ -1109,13 +1078,6 @@ export default function MarcadosPanel() {
         if (avisoReducaoIncompleta) alert(avisoReducaoIncompleta);
     };
 
-    // 🔥 Distribui pontos do pool de Status para um atributo específico (Força, Destreza etc).
-    // 1 ponto do pool = 1000/divisor(status) de base — mesma conversão usada na concessão em
-    // handleTabelaChange, para o pool e o gasto ficarem sempre na mesma unidade.
-    // statusPoolAlocado[attrKey] registra em BASE BRUTA (não em pontos!) quanto este atributo
-    // específico recebeu do pool — usar base bruta em vez de pontos evita que uma mudança no
-    // Divisor de Status entre a alocação e uma devolução posterior faça devolverPontoStatus
-    // remover uma quantidade de base diferente da que foi de fato concedida aqui.
     const alocarPontoStatus = (attrKey, qtd) => {
         const pontos = Math.floor(Number(qtd)) || 0;
         if (pontos <= 0) return;
@@ -1125,8 +1087,6 @@ export default function MarcadosPanel() {
             const usar = Math.min(pontos, poolAtual);
             if (usar <= 0) return;
             const acrescimo = Math.floor((usar / divStatus) * 1000);
-            // Divisor grande o bastante pra `usar` pontos virarem 0 de base: não faz sentido
-            // gastar pool sem nenhum ganho real no atributo.
             if (acrescimo <= 0) return;
             if (!f[attrKey]) f[attrKey] = {};
             f[attrKey].base = (parseFloat(f[attrKey].base) || 0) + acrescimo;
@@ -1138,15 +1098,6 @@ export default function MarcadosPanel() {
         callSave();
     };
 
-    // 🔥 Devolve pontos já alocados de um atributo específico de volta para o pool — a maneira
-    // "fácil" de reverter uma alocação sem precisar editar a Base do atributo manualmente. Nunca
-    // devolve mais BASE BRUTA do que foi de fato alocada NESTE atributo especificamente
-    // (statusPoolAlocado[attrKey], não o statusPoolGasto global — senão daria pra "devolver"
-    // pontos de um atributo que nunca recebeu nada do pool, duplicando pontos), nem mais do que a
-    // Base atual comporta (edição manual pode ter reduzido a Base depois da alocação). O pedido
-    // do jogador (`qtd`, em pontos) só serve pra decidir QUANTO tentar devolver — o teto real é
-    // sempre a base bruta registrada em statusPoolAlocado, não uma reconversão via o divisor
-    // atual (que pode ter mudado desde a alocação).
     const devolverPontoStatus = (attrKey, qtd) => {
         const pontosPedidos = Math.floor(Number(qtd)) || 0;
         if (pontosPedidos <= 0) return;
@@ -1161,7 +1112,6 @@ export default function MarcadosPanel() {
             if (!f.statusPoolAlocado) f.statusPoolAlocado = {};
             const alocadoAttr = Math.max(0, parseFloat(f.statusPoolAlocado[attrKey]) || 0);
             const baseAtual = parseFloat(f[attrKey]?.base) || 0;
-            // teto real: nunca mais do que foi alocado aqui, nem mais do que a Base atual comporta
             const reducaoBase = Math.min(reducaoBasePedida, alocadoAttr, baseAtual);
             if (reducaoBase <= 0) return;
             const usar = Math.floor((reducaoBase / 1000) * divStatus);
@@ -1176,17 +1126,11 @@ export default function MarcadosPanel() {
         if (avisoDevolucaoIncompleta) alert(avisoDevolucaoIncompleta);
     };
 
-    // 🔥 statusPoolAlocado guarda BASE BRUTA (ver comentário em alocarPontoStatus), mas o input
-    // de "− Pool" na UI é em PONTOS (mesma unidade do "+ Pool") — converte só pra exibição/limite
-    // do campo; o teto de segurança de verdade fica dentro de devolverPontoStatus, em base bruta.
     const pontosAlocadosStatus = (attrKey) => {
         const divStatus = parseFloat(minhaFicha.divisores?.status) || 1;
         return Math.floor(((minhaFicha.statusPoolAlocado?.[attrKey] || 0) / 1000) * divStatus);
     };
 
-    // 🔥 Distribui o pool disponível igualmente entre os 8 atributos (floor(pool/8) para cada
-    // um), pra jogadores/Mestres que preferem uma build equilibrada em vez de alocar atributo por
-    // atributo. Sobra (pool não divisível por 8) fica no pool, disponível pra distribuição manual.
     const distribuirPoolIgualmente = () => {
         const stats8 = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
         const divStatus = parseFloat(minhaFicha.divisores?.status) || 1;
@@ -1195,8 +1139,6 @@ export default function MarcadosPanel() {
             const porAtributo = Math.floor(poolAtual / stats8.length);
             if (porAtributo <= 0) return;
             const acrescimo = Math.floor((porAtributo / divStatus) * 1000);
-            // Divisor grande o bastante pra `porAtributo` pontos virarem 0 de base: não faz
-            // sentido gastar pool sem nenhum ganho real nos atributos.
             if (acrescimo <= 0) return;
             if (!f.statusPoolAlocado) f.statusPoolAlocado = {};
             stats8.forEach(attrKey => {
@@ -1496,7 +1438,13 @@ export default function MarcadosPanel() {
                                         <span style={{ color: '#ff003c', opacity: 0.6, fontSize: '0.75em' }}>(aplicado a todo mundo que não tiver um divisor próprio)</span>
                                     </div>
                                 )}
-                                <style>{` @keyframes pulse-aura { 0% { opacity: 0.3; transform: scale(0.9); } 50% { opacity: 0.8; transform: scale(1.1); } 100% { opacity: 0.3; transform: scale(0.9); } } `}</style>
+                                <style>{`
+                                    @keyframes pulse-aura {
+                                        0% { opacity: 0.3; transform: scale(0.9); }
+                                        50% { opacity: 0.8; transform: scale(1.1); }
+                                        100% { opacity: 0.3; transform: scale(0.9); }
+                                    }
+                                `}</style>
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '1.2em' }}>
@@ -1539,8 +1487,8 @@ export default function MarcadosPanel() {
                                                 
                                                 {tintaMoldura && (
                                                     <>
-                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo1, opacity: tintaMoldura.op1 }} />
-                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo2, opacity: tintaMoldura.op2 }} />
+                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo1, opacity: tintaMoldura.op1, WebkitMaskImage: `url("${localMolduraAvatar}")`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url("${localMolduraAvatar}")`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
+                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo2, opacity: tintaMoldura.op2, WebkitMaskImage: `url("${localMolduraAvatar}")`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url("${localMolduraAvatar}")`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
                                                     </>
                                                 )}
                                             </div>
@@ -1555,8 +1503,8 @@ export default function MarcadosPanel() {
                                                         
                                                         {tintaMoldura && (
                                                             <>
-                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo1, opacity: tintaMoldura.op1, WebkitMaskImage: `url(${iconeFinal})`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url(${iconeFinal})`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
-                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo2, opacity: tintaMoldura.op2, WebkitMaskImage: `url(${iconeFinal})`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url(${iconeFinal})`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
+                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo1, opacity: tintaMoldura.op1, WebkitMaskImage: `url("${iconeFinal}")`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url("${iconeFinal}")`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
+                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo2, opacity: tintaMoldura.op2, WebkitMaskImage: `url("${iconeFinal}")`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url("${iconeFinal}")`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
                                                             </>
                                                         )}
                                                     </div>
@@ -1625,7 +1573,7 @@ export default function MarcadosPanel() {
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
-                                    <div style={{ flex: 1, border: '2px solid currentColor', padding: '10px', borderRadius: '6px', background: 'rgba(255,255,255,0.2)' }}>
+                                    <div style={{ flex 1, border: '2px solid currentColor', padding: '10px', borderRadius: '6px', background: 'rgba(255,255,255,0.2)' }}>
                                         <div style={{ fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}><LabelMagico valor={getLabel('lblMultV', 'Mult. de Vida (PV)')} onChange={(v) => setLabel('lblMultV', v)} /></div>
                                         <CampoMagico valor={minhaFicha.multiplicadorVida || 1} onChange={(v) => salvar('multiplicadorVida', v)} type="number" isNumber={true} styleExtra={{ width: '100%', borderBottom: '1px solid currentColor', marginTop: '5px' }} />
                                     </div>
@@ -1739,11 +1687,6 @@ export default function MarcadosPanel() {
 
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
                                 {['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
-                                    // 🔥 Para "status", displayP e campoEditavel são a MESMA coisa agora
-                                    // (statusPrestigioAplicado, via getPontosParaAscensao) — o Rank/Badge abaixo
-                                    // nunca diverge do campo editável, porque o Prestígio é a causa dos pontos dos
-                                    // atributos, não a consequência (distribuir pool não deveria "inflar" o
-                                    // Rank/Ascensão de Status por conta própria).
                                     const displayP = getPontosParaAscensao(minhaFicha, k);
                                     const campoEditavel = displayP;
                                     const divisor = minhaFicha.divisores?.[k] || 1;
