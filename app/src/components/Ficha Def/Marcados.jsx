@@ -1539,6 +1539,8 @@ export default function MarcadosPanel() {
                                                 
                                                 {tintaMoldura && (
                                                     <>
+                                                        {/* 'multiply' garante o tingimento em molduras brancas/claras (onde 'color' sozinho não tem luminosidade pra tingir); as camadas seguintes refinam a cor em molduras com textura/metálico */}
+                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: 1 }} />
                                                         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo1, opacity: tintaMoldura.op1 }} />
                                                         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo2, opacity: tintaMoldura.op2 }} />
                                                     </>
