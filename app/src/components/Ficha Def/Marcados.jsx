@@ -321,10 +321,11 @@ function encontrarCategoriaPorLore(nome) {
 }
 
 // 🔥 CALCULADOR INTELIGENTE DE BLEND-MODE PARA CORES ESCURAS 🔥
+// A matemática das tintas para molduras brancas/prateadas reais
 export function getCamadasTinta(cor) {
     if (!cor || cor === '#ffffff' || cor === 'transparent') return null;
     const hex = String(cor).replace('#', '');
-    if (hex.length !== 6) return { modo1: 'color', op1: 0.85, modo2: 'overlay', op2: 0.5 };
+    if (hex.length !== 6) return { modo1: 'color', op1: 0.95, modo2: 'multiply', op2: 0.5 };
     
     const r = parseInt(hex.substring(0, 2), 16);
     const g = parseInt(hex.substring(2, 4), 16);
@@ -333,15 +334,17 @@ export function getCamadasTinta(cor) {
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     
     if (lum < 0.45) {
-        const multiplyOpacity = Math.max(0.3, Math.min(0.65, (1 - lum) * 0.6));
+        // Cores Escuras (Roxo, Preto, Sangue): usa `color` para tingir e `multiply` suave para recuperar as texturas/sombras do metal
+        const multiplyOpacity = Math.max(0.3, Math.min(0.8, (1 - lum) * 0.8));
         return { modo1: 'color', op1: 0.95, modo2: 'multiply', op2: multiplyOpacity };
     } else {
-        return { modo1: 'color', op1: 0.9, modo2: 'overlay', op2: 0.6 };
+        // Cores Claras: usa `color` para tingir e `overlay` para dar o reflexo vibrante
+        return { modo1: 'color', op1: 0.95, modo2: 'overlay', op2: 0.5 };
     }
 }
 
 // ==========================================
-// 🛡️ FUNÇÕES AUXILIARES DA TABELA E COMPONENTES
+// 🛡️ FUNÇÕES AUXILIARES DA TABELA
 // ==========================================
 function getBasePFor(ficha, k) {
     const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
@@ -1241,6 +1244,7 @@ export default function MarcadosPanel() {
                             <label style={{ display: 'block', fontSize: '0.9em', marginBottom: '5px', fontWeight: 'bold' }}>🖼️ Imagem de Fundo (URL):</label>
                             <div style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
                                 <input type="text" value={localBgImg} onChange={(e) => handleStyleChange('bgImg', e.target.value)} placeholder="Cole o Link aqui..." style={{ flex: 1, padding: '8px', border: '1px solid rgba(0,0,0,0.2)', background: 'transparent', color: 'inherit' }} />
+                                <button onClick={() => handleStyleChange('bgImg', '')} style={{ background: 'rgba(255,0,0,0.1)', border: '1px solid red', color: 'red', cursor: 'pointer', padding: '0 8px', fontWeight: 'bold' }} title="Remover Imagem">X</button>
                                 <label style={{ background: 'rgba(0,0,0,0.1)', border: '1px solid rgba(0,0,0,0.2)', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Fazer upload de Fundo">
                                     📁<input type="file" accept="image/*" onChange={handleBgUpload} style={{ display: 'none' }} />
                                 </label>
@@ -1258,6 +1262,7 @@ export default function MarcadosPanel() {
                             <label style={{ display: 'block', fontSize: '0.9em', marginBottom: '5px', fontWeight: 'bold' }}>✨ Moldura do Personagem:</label>
                             <div style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
                                 <input type="text" value={localMolduraAvatar} onChange={(e) => handleStyleChange('molduraAvatar', e.target.value)} placeholder="Cole o Link da moldura..." style={{ flex: 1, padding: '8px', border: '1px solid rgba(0,0,0,0.2)', background: 'transparent', color: 'inherit' }} />
+                                <button onClick={() => handleStyleChange('molduraAvatar', '')} style={{ background: 'rgba(255,0,0,0.1)', border: '1px solid red', color: 'red', cursor: 'pointer', padding: '0 8px', fontWeight: 'bold' }} title="Remover Moldura">X</button>
                                 <label style={{ background: 'rgba(0,0,0,0.1)', border: '1px solid rgba(0,0,0,0.2)', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Upload de Moldura">
                                     📁<input type="file" accept="image/*" onChange={handleMolduraUpload} style={{ display: 'none' }} />
                                 </label>
@@ -1282,6 +1287,7 @@ export default function MarcadosPanel() {
                             <label style={{ display: 'block', fontSize: '0.9em', marginBottom: '5px', fontWeight: 'bold' }}>🔷 Ícone da Classe Manual (Opcional):</label>
                             <div style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
                                 <input type="text" value={localIconeClasse} onChange={(e) => handleStyleChange('iconeClasse', e.target.value)} placeholder="Link do Ícone..." style={{ flex: 1, padding: '8px', border: '1px solid rgba(0,0,0,0.2)', background: 'transparent', color: 'inherit' }} />
+                                <button onClick={() => handleStyleChange('iconeClasse', '')} style={{ background: 'rgba(255,0,0,0.1)', border: '1px solid red', color: 'red', cursor: 'pointer', padding: '0 8px', fontWeight: 'bold' }} title="Remover Ícone">X</button>
                                 <label style={{ background: 'rgba(0,0,0,0.1)', border: '1px solid rgba(0,0,0,0.2)', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Upload do Ícone">
                                     📁<input type="file" accept="image/*" onChange={handleIconeUpload} style={{ display: 'none' }} />
                                 </label>
@@ -1448,7 +1454,7 @@ export default function MarcadosPanel() {
                                 ))}
                             </div>
 
-                            {/* 🔥 AVATAR COM GLOW DINÂMICO E DUPLA CAMADA DE TINTA 🔥 */}
+                            {/* 🔥 AVATAR COM GLOW DINÂMICO E MÁSCARA DE CORTE PARA A MOLDURA 🔥 */}
                             <div style={{ 
                                 marginTop: '20px', position: 'relative', width: '320px', height: '480px', display: 'flex', flexDirection: 'column', 
                                 borderRadius: '8px', 
@@ -1502,10 +1508,7 @@ export default function MarcadosPanel() {
                                         </label>
                                     </>
                                 ) : (
-                                    <label style={{ cursor: 'pointer', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'currentColor', opacity: 0.7, background: 'rgba(255,255,255,0.1)' }}>
-                                        Colar Fotografia Aqui 📸
-                                        <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
-                                    </label>
+                                    <label style={{ cursor: 'pointer', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'currentColor', opacity: 0.7, background: 'rgba(255,255,255,0.1)' }}> Colar Fotografia Aqui 📸 <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} /> </label>
                                 )}
                             </div>
                             {minhaFicha.avatar?.base && <button onClick={() => {if(window.confirm('Apagar?')) { updateFicha(f => {f.avatar.base = ""}); callSave(); } }} style={{ background: 'transparent', border: '1px dashed #ff003c', color: '#ff003c', marginTop: '10px', padding: '5px 15px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'inherit', width: 'fit-content' }}>🗑️ Remover Foto</button>}
