@@ -37,10 +37,10 @@ export function MapaControlesSuperiores() {
     const ctx = useMapaForm();
     if (!ctx) return FALLBACK;
     
-    const { 
-        modo3D, setModo3D, alterarZoom, tamanhoCelula, isMestre, 
-        cenaVisualizadaId, cenaAtivaIdGlobal, cenaAtual, 
-        altitudeInput, setAltitudeInput, cenario, ativarCena 
+    const {
+        modo3D, setModo3D, alterarZoom, tamanhoCelula, isMestre, souCriador,
+        cenaVisualizadaId, cenaAtivaIdGlobal, cenaAtual,
+        altitudeInput, setAltitudeInput, cenario, ativarCena
     } = ctx;
     
     return (
@@ -63,7 +63,7 @@ export function MapaControlesSuperiores() {
                         onChange={(e) => ativarCena(e.target.value)}
                         style={{ padding: '2px 5px', height: '26px', margin: 0, borderColor: '#ffcc00', color: '#ffcc00', fontWeight: 'bold', cursor: 'pointer' }}
                     >
-                        {Object.entries(cenario?.lista || {}).map(([id, c]) => (
+                        {Object.entries(cenario?.lista || {}).filter(([id, c]) => !c.apenasCriador || souCriador || cenaAtivaIdGlobal === id).map(([id, c]) => (
                             <option key={id} value={id}>{c.nome}</option>
                         ))}
                     </select>

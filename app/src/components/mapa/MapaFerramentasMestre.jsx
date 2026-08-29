@@ -82,17 +82,22 @@ export function MapaMestreCenaVisualizada() {
 export function MapaMestreGerenciadorCenas() {
     const ctx = useMapaForm();
     if (!ctx) return FALLBACK;
-    const { isMestre, isModoRP, mestreVendoRP, cenario, cenaAtivaIdGlobal, cenaRenderId, setCenaVisualizadaId, ativarCena, deletarCena, novaCenaNome, setNovaCenaNome, novaCenaEscala, setNovaCenaEscala, novaCenaUnidade, setNovaCenaUnidade, uploadingMap, handleUploadNovaCena } = ctx;
+    const { isMestre, souCriador, isModoRP, mestreVendoRP, cenario, cenaAtivaIdGlobal, cenaRenderId, setCenaVisualizadaId, ativarCena, deletarCena, novaCenaNome, setNovaCenaNome, novaCenaEscala, setNovaCenaEscala, novaCenaUnidade, setNovaCenaUnidade, novaCenaApenasCriador, setNovaCenaApenasCriador, uploadingMap, handleUploadNovaCena } = ctx;
     if (!isMestre || (isModoRP && !mestreVendoRP)) return null;
+    // 🔥 Cena marcada "apenasCriador" só existe pro Mestre Supremo enquanto não for publicada pra
+    // mesa toda — Co-Mestres nem sabem que ela existe até o Criador dar "Publicar para Todos"
+    // (a partir daí ela é a Cena ativa de todo mundo, então volta a aparecer normalmente).
+    const cenasVisiveis = Object.entries(cenario?.lista || {}).filter(([id, cena]) => !cena.apenasCriador || souCriador || cenaAtivaIdGlobal === id);
     return (
         <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 15, background: 'rgba(0,0,0,0.5)', padding: 15, borderRadius: 5, border: '1px solid #ffcc00' }}>
             <h3 style={{ color: '#ffcc00', margin: 0 }}>🎬 Gerenciador de Cenas</h3>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', background: '#0a0a0a', padding: 10, borderRadius: 5 }}>
-                {Object.entries(cenario?.lista || {}).map(([id, cena]) => {
+                {cenasVisiveis.map(([id, cena]) => {
                     const isAtivaGlobal = cenaAtivaIdGlobal === id;
                     const isVisualizada = cenaRenderId === id;
                     return (
                         <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 5, background: isAtivaGlobal ? 'rgba(0, 255, 136, 0.2)' : isVisualizada ? 'rgba(0, 136, 255, 0.2)' : '#222', border: `1px solid ${isAtivaGlobal ? '#00ff88' : isVisualizada ? '#0088ff' : '#555'}`, padding: '5px 10px', borderRadius: 4, flexWrap: 'wrap' }}>
+                            {cena.apenasCriador && <span title="Só o Mestre Supremo vê esta Cena" style={{ fontSize: '0.9em' }}>🔒</span>}
                             <span style={{ color: isAtivaGlobal ? '#00ff88' : isVisualizada ? '#0088ff' : '#fff', fontWeight: 'bold' }}>{cena.nome}</span>
                             {isAtivaGlobal && <span style={{ fontSize: '0.6em', background: '#00ff88', color: '#000', padding: '2px 4px', borderRadius: 3, fontWeight: 'bold', marginLeft: 4 }}>🌍 PUBLICA</span>}
                             {isVisualizada && !isAtivaGlobal && <span style={{ fontSize: '0.6em', background: '#0088ff', color: '#fff', padding: '2px 4px', borderRadius: 3, fontWeight: 'bold', marginLeft: 4 }}>👁️ VENDO</span>}
@@ -117,6 +122,11 @@ export function MapaMestreGerenciadorCenas() {
                         <option value="m">m</option><option value="km">km</option><option value="milhas">mi</option><option value="anos-luz">Ly</option>
                     </select>
                 </div>
+                {souCriador && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#ffcc00', fontSize: '0.8em', cursor: 'pointer' }} title="Nem os Co-Mestres verão esta Cena até você dar Publicar para Todos">
+                        <input type="checkbox" checked={novaCenaApenasCriador} onChange={e => setNovaCenaApenasCriador(e.target.checked)} /> 🔒 Só eu vejo
+                    </label>
+                )}
             </div>
         </div>
     );

@@ -64,6 +64,8 @@ export function MapaFormProvider({ children }) {
     const updateFicha = useStore(s => s.updateFicha);
     const feedCombate = useStore(s => s.feedCombate) || [];
     const isMestre = useStore(s => s.isMestre);
+    const mesaCriador = useStore(s => s.mesaCriador);
+    const souCriador = !!meuNome && meuNome === mesaCriador;
     const dummies = useStore(s => s.dummies);
     const alvoSelecionado = useStore(s => s.alvoSelecionado);
     const cenario = useStore(s => s.cenario);
@@ -94,6 +96,7 @@ export function MapaFormProvider({ children }) {
     const [novaCenaNome, setNovaCenaNome] = useState('');
     const [novaCenaEscala, setNovaCenaEscala] = useState(1.5);
     const [novaCenaUnidade, setNovaCenaUnidade] = useState('m');
+    const [novaCenaApenasCriador, setNovaCenaApenasCriador] = useState(false);
     const [uploadingMap, setUploadingMap] = useState(false);
 
     const [dadoAnim, setDadoAnim] = useState({ ativo: false, numero: 20, finalResult: null, cor: '#00ffcc', quemRolou: '' });
@@ -101,7 +104,19 @@ export function MapaFormProvider({ children }) {
 
     const [cenaVisualizadaId, setCenaVisualizadaId] = useState(null);
     const cenaAtivaIdGlobal = cenario?.ativa || 'default';
-    
+
+    // 🔥 Se a Cena publicada pra mesa toda mudar (alguém deu "Publicar para Todos" ou entrou num
+    // mapa novo pelo Mapa Mundi), solta qualquer "Ver Cena Oculta" que o Mestre tivesse fixado
+    // antes — senão ele ficava travado olhando pra uma prévia antiga pra sempre, e a Cena nova
+    // nunca aparecia sozinha pra ele (só descobria abrindo o Gerenciador de Cenas manualmente).
+    const cenaAtivaIdGlobalRef = useRef(cenaAtivaIdGlobal);
+    useEffect(() => {
+        if (cenaAtivaIdGlobalRef.current !== cenaAtivaIdGlobal) {
+            cenaAtivaIdGlobalRef.current = cenaAtivaIdGlobal;
+            setCenaVisualizadaId(null);
+        }
+    }, [cenaAtivaIdGlobal]);
+
     const cenaRenderId = (isMestre && cenaVisualizadaId) ? cenaVisualizadaId : cenaAtivaIdGlobal;
     const cenaAtual = cenario?.lista?.[cenaRenderId] || { nome: 'Desconhecido', img: '', escala: 1.5, unidade: 'm' };
 
@@ -255,17 +270,27 @@ export function MapaFormProvider({ children }) {
             const novaCenaId = 'cena_' + Date.now();
             const novoCenario = JSON.parse(JSON.stringify(cenario));
             if (!novoCenario.lista) novoCenario.lista = {};
-            novoCenario.lista[novaCenaId] = { nome: novaCenaNome, img: urlPermanente, escala: parseFloat(novaCenaEscala) || 1.5, unidade: novaCenaUnidade };
+            novoCenario.lista[novaCenaId] = {
+                nome: novaCenaNome, img: urlPermanente, escala: parseFloat(novaCenaEscala) || 1.5, unidade: novaCenaUnidade,
+                // 🔥 Só o Mestre Supremo (souCriador) pode criar uma Cena que nem os Co-Mestres veem
+                // no Gerenciador — enquanto ela não for publicada pra mesa toda.
+                ...(souCriador && novaCenaApenasCriador ? { apenasCriador: true } : {})
+            };
             salvarCenarioCompleto(novoCenario);
             setCenaVisualizadaId(novaCenaId);
-            enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🗺️ O Mestre começou a preparar uma área desconhecida...` });
+            // Cena "só o Mestre Supremo vê" não avisa ninguém no feed — senão entregaria que algo
+            // está sendo preparado escondido.
+            if (!(souCriador && novaCenaApenasCriador)) {
+                enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🗺️ O Mestre começou a preparar uma área desconhecida...` });
+            }
             setNovaCenaNome('');
+            setNovaCenaApenasCriador(false);
         } catch (err) {
             alert('Erro ao enviar a imagem para o Mapa. Verifique o Firebase Storage.');
         } finally {
             setUploadingMap(false);
         }
-    }, [novaCenaNome, novaCenaEscala, novaCenaUnidade, cenario]);
+    }, [novaCenaNome, novaCenaEscala, novaCenaUnidade, novaCenaApenasCriador, souCriador, cenario]);
 
     const ativarCena = useCallback((id) => {
         const novoCenario = JSON.parse(JSON.stringify(cenario));
@@ -760,7 +785,7 @@ export function MapaFormProvider({ children }) {
     const infoDaVez = jogadorDaVez ? getAvatarInfo(jogadorDaVez.ficha) : null;
 
     const value = useMemo(() => ({
-        minhaFicha, meuNome, personagens, feedCombate, isMestre, dummies, alvoSelecionado, cenario, abaAtiva,
+        minhaFicha, meuNome, personagens, feedCombate, isMestre, souCriador, dummies, alvoSelecionado, cenario, abaAtiva,
         fichaSegura, modo3D, setModo3D, tamanhoCelula, setTamanhoCelula,
         iniciativaInput, setIniciativaInput, altitudeInput, setAltitudeInput,
         turnoAtualIndex, feedIndexTurnoAtual, setFeedIndexTurnoAtual,
@@ -768,7 +793,8 @@ export function MapaFormProvider({ children }) {
         mapBonus, setMapBonus, mapStat, setMapStat, mapUsarProf, setMapUsarProf,
         profGlobal, mapVantagens, setMapVantagens, mapDesvantagens, setMapDesvantagens,
         novaCenaNome, setNovaCenaNome, novaCenaEscala, setNovaCenaEscala,
-        novaCenaUnidade, setNovaCenaUnidade, uploadingMap, setUploadingMap,
+        novaCenaUnidade, setNovaCenaUnidade, novaCenaApenasCriador, setNovaCenaApenasCriador,
+        uploadingMap, setUploadingMap,
         dadoAnim, setDadoAnim, cenaVisualizadaId, setCenaVisualizadaId,
         cenaAtivaIdGlobal, cenaRenderId, cenaAtual, isModoRP, mestreVendoRP, setMestreVendoRP,
         tavernaAtivos, isPresenteNaTaverna, overridesCompendio,
@@ -778,11 +804,11 @@ export function MapaFormProvider({ children }) {
         alterarZoom, setMinhaIniciativa, avancarTurno, sairDoCombate, encerrarCombate,
         rolarAcertoRapido, tokenMap, dummyMap, tokens3D, jogadorDaVez, infoDaVez, fmt, deletarZona, toggleActionDot
     }), [
-        minhaFicha, meuNome, personagens, feedCombate, isMestre, dummies, alvoSelecionado, cenario, abaAtiva,
+        minhaFicha, meuNome, personagens, feedCombate, isMestre, souCriador, dummies, alvoSelecionado, cenario, abaAtiva,
         fichaSegura, modo3D, tamanhoCelula, iniciativaInput, altitudeInput,
         turnoAtualIndex, feedIndexTurnoAtual, jogadorHistory, mapQD, mapFD,
         mapBonus, mapStat, mapUsarProf, profGlobal, mapVantagens, mapDesvantagens,
-        novaCenaNome, novaCenaEscala, novaCenaUnidade, uploadingMap, dadoAnim,
+        novaCenaNome, novaCenaEscala, novaCenaUnidade, novaCenaApenasCriador, uploadingMap, dadoAnim,
         cenaVisualizadaId, cenaAtivaIdGlobal, cenaRenderId, cenaAtual, isModoRP,
         mestreVendoRP, tavernaAtivos, isPresenteNaTaverna, overridesCompendio,
         cells, jogadores, playersNaTaverna, ordemIniciativa, tokenMap, dummyMap, tokens3D,
