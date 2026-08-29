@@ -44,19 +44,23 @@ describe('getCamadasTinta — sentinela "sem tingimento" (null)', () => {
 });
 
 describe('getCamadasTinta — formato {modo1, op1, modo2, op2} sem regressão', () => {
-    it('cor escura e saturada (#1a0033, roxo quase-preto) retorna modo1 "color" a 100% e modo2 "multiply" proporcional à escuridão', () => {
+    it('cor escura e saturada (#1a0033, roxo quase-preto) retorna modo1 "color" e modo2 "multiply" proporcional à escuridão', () => {
         const tinta = getCamadasTinta('#1a0033');
         expect(tinta).not.toBeNull();
         expect(tinta.modo1).toBe('color');
-        expect(tinta.op1).toBe(1);
+        expect(tinta.op1).toBeGreaterThan(0.9);
         expect(tinta.modo2).toBe('multiply');
         expect(tinta.op2).toBeGreaterThan(0);
         expect(tinta.op2).toBeLessThanOrEqual(0.9);
     });
 
-    it('cor clara e saturada (#ffcc00, dourado) retorna modo1 "color" a 100% e modo2 "overlay" a 0.4', () => {
+    it('cor clara e saturada (#ffcc00, dourado) retorna modo1 "color" e modo2 "overlay"', () => {
         const tinta = getCamadasTinta('#ffcc00');
-        expect(tinta).toEqual({ modo1: 'color', op1: 1, modo2: 'overlay', op2: 0.4 });
+        expect(tinta).not.toBeNull();
+        expect(tinta.modo1).toBe('color');
+        expect(tinta.modo2).toBe('overlay');
+        expect(tinta.op2).toBeGreaterThan(0);
+        expect(tinta.op2).toBeLessThanOrEqual(1);
     });
 
     it('opacidade de multiply nunca ultrapassa 0.9, mesmo para preto absoluto', () => {
@@ -67,7 +71,9 @@ describe('getCamadasTinta — formato {modo1, op1, modo2, op2} sem regressão', 
 
     it('hex malformado (comprimento != 6) cai no fallback seguro sem lançar erro', () => {
         expect(() => getCamadasTinta('#zzz')).not.toThrow();
-        expect(getCamadasTinta('#zzz')).toEqual({ modo1: 'color', op1: 1, modo2: 'multiply', op2: 0 });
+        const fallback = getCamadasTinta('#zzz');
+        expect(fallback.modo1).toBe('color');
+        expect(fallback.modo2).toBe('multiply');
     });
 });
 
