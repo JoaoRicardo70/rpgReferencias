@@ -947,6 +947,9 @@ export default function MarcadosPanel() {
     const isMestre = isMestreStatus || (minhaFicha?.isMestre === true);
     const classeInfo = getClasseInfo(minhaFicha);
     const iconeFinal = localIconeClasse || classeInfo?.iconeUrl;
+    // 🔥 Cor do "glow" do avatar/ícone de classe — usa a cor da classe do personagem quando
+    // definida (ficha sem classe, ou classe sem "cor" cadastrada) cai no ciano neon padrão do tema.
+    const glowColor = classeInfo?.cor || '#00ffcc';
     
     const mudarPagina = (nova) => { setAnimDirection(nova > paginaAtual ? 'next' : 'prev'); setPaginaAtual(nova); };
 
