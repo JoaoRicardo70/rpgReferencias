@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: './', // 👈 ADICIONE ESTA LINHA AQUI!
+  base: '/', // 👈 ADICIONE ESTA LINHA AQUI!
   plugins: [
     react(),
     VitePWA({
