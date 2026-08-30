@@ -324,21 +324,11 @@ function encontrarCategoriaPorLore(nome) {
 // 🔥 CALCULADOR INTELIGENTE DE BLEND-MODE PARA CORES ESCURAS 🔥
 export function getCamadasTinta(cor) {
     if (!cor || cor === '#ffffff' || cor === 'transparent') return null;
-    const hex = String(cor).replace('#', '');
-    if (hex.length !== 6) return { modo1: 'color', op1: 0.85, modo2: 'overlay', op2: 0.5 };
     
-    const r = parseInt(hex.substring(0, 2), 16);
-    const g = parseInt(hex.substring(2, 4), 16);
-    const b = parseInt(hex.substring(4, 6), 16);
-    
-    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    
-    if (lum < 0.45) {
-        const multiplyOpacity = Math.max(0.3, Math.min(0.65, (1 - lum) * 0.6));
-        return { modo1: 'color', op1: 0.95, modo2: 'multiply', op2: multiplyOpacity };
-    } else {
-        return { modo1: 'color', op1: 0.9, modo2: 'overlay', op2: 0.6 };
-    }
+    // Para pintar áreas brancas/prateadas de uma imagem, o modo 'color' ignora o branco.
+    // O modo 'multiply' é OBRIGATÓRIO e absoluto para escurecer o branco/prata até à cor desejada.
+    // Aplicamos 'multiply' forte (0.85) para agarrar a cor, e 'color' (1.0) para reter os tons médios da textura metálica.
+    return { modo1: 'multiply', op1: 0.85, modo2: 'color', op2: 1 };
 }
 
 // ==========================================
@@ -1443,15 +1433,7 @@ export default function MarcadosPanel() {
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '1.2em' }}>
-                                {[
-                                    { k: 'idade', lbl: 'Idade' },
-                                    { k: 'aniversario', lbl: 'Aniversário' },
-                                    { k: 'alturaPeso', lbl: 'Altura / Peso' },
-                                    { k: 'raca', lbl: 'Raça' },
-                                    { k: 'alinhamento', lbl: 'Alinhamento' },
-                                    { k: 'afiliacao', lbl: 'Afiliação' },
-                                    { k: 'classe', lbl: 'Classe' }
-                                ].map(item => (
+                                {[{ k: 'idade', lbl: 'Idade' }, { k: 'aniversario', lbl: 'Aniversário' }, { k: 'alturaPeso', lbl: 'Altura / Peso' }, { k: 'raca', lbl: 'Raça' }, { k: 'alinhamento', lbl: 'Alinhamento' }, { k: 'afiliacao', lbl: 'Afiliação' }, { k: 'classe', lbl: 'Classe' }].map(item => (
                                     <div key={item.k} style={{ display: 'flex' }}>
                                         <div style={{ width: '140px', fontWeight: 'bold' }}>
                                             <LabelMagico valor={getLabel(`bio_${item.k}`, item.lbl)} onChange={(v) => setLabel(`bio_${item.k}`, v)} />
@@ -1489,9 +1471,9 @@ export default function MarcadosPanel() {
                                             </div>
                                         )}
 
-                                        {/* 🔥 SÍMBOLO DA CLASSE DESCIDO PARA ENCAIXAR NO DIAMANTE 🔥 */}
+                                        {/* 🔥 SÍMBOLO DA CLASSE COM GLOW E ALINHAMENTO ORIGINAL 🔥 */}
                                         {(classeInfo || localIconeClasse) && (
-                                            <div style={{ position: 'absolute', bottom: '-35px', left: '50%', transform: 'translateX(-50%)', zIndex: 3, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '70px', height: '70px' }}>
+                                            <div style={{ position: 'absolute', bottom: '-8px', left: '50%', transform: 'translateX(-50%)', zIndex: 3, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '70px', height: '70px' }}>
                                                 {iconeFinal ? (
                                                     <div style={{ position: 'relative', width: '100%', height: '100%', filter: `drop-shadow(0 0 10px ${glowColor}) drop-shadow(0 2px 4px rgba(0,0,0,0.8))`, isolation: 'isolate' }}>
                                                         <img src={iconeFinal} alt="Classe" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -1610,7 +1592,7 @@ export default function MarcadosPanel() {
                 {paginaAtual === 2 && (
                     <>
                         <div style={{ width: '100%', textAlign: 'center', borderBottom: '2px solid currentColor', paddingBottom: '10px', marginBottom: '20px' }}>
-                            <h1 style={{ fontSize: '3em', fontStyle: 'italic', fontWeight: 'bold', margin: '0', letterSpacing: '-1px' }}>
+                            <h1 style={{ fontSize: '3em', fontStyle: 'italic', fontWeight: 'bold', margin: 0, letterSpacing: '-1px' }}>
                                 <LabelMagico valor={getLabel('tituloAnalise', 'Análise de Poder')} onChange={(v) => setLabel('tituloAnalise', v)} />
                             </h1>
                         </div>
