@@ -433,10 +433,31 @@ function PaginaMarcadores() {
 
     const resetCena = () => {
         if (!window.confirm("Apagar todos os marcadores desta cena e esvaziar o Tanque de Absorção?")) return;
-        updateFicha(f => { 
-            f.marcadores = []; 
-            if(f.combate) f.combate.danoAbsorvido = 0; 
-        }); 
+        updateFicha(f => {
+            f.marcadores = [];
+            if(f.combate) f.combate.danoAbsorvido = 0;
+        });
+        callSave();
+    };
+
+    // 😮‍💨 FADIGA DE COMBATE: desgaste que se acumula a cada turno/grande gasto e
+    // reduz o Poder Calculado do Scouter (ver poderGlobal em Marcados.jsx). Guardada
+    // como contagem de turnos + taxa por turno (não a % final) pra a taxa poder ser
+    // ajustada a qualquer momento sem perder o histórico de turnos já passados.
+    const fadigaTurnos = minhaFicha?.combate?.fadigaTurnos || 0;
+    const fadigaPorTurno = minhaFicha?.combate?.fadigaPorTurno ?? 5;
+    const fadigaAtual = Math.min(100, Math.max(0, fadigaTurnos * fadigaPorTurno));
+
+    const updateFadigaTurnos = (delta) => {
+        updateFicha(f => {
+            if (!f.combate) f.combate = {};
+            f.combate.fadigaTurnos = Math.max(0, (Number(f.combate.fadigaTurnos) || 0) + delta);
+        });
+        callSave();
+    };
+
+    const zerarFadiga = () => {
+        updateFicha(f => { if (!f.combate) f.combate = {}; f.combate.fadigaTurnos = 0; });
         callSave();
     };
 
@@ -484,7 +505,7 @@ function PaginaMarcadores() {
             if (!f.dano.mUnico || f.dano.mUnico === '1.0' || f.dano.mUnico === '1') {
                 f.dano.mUnico = novoValorStr;
             } else {
-                f.dano.mUnico = f.dano.mUnico + ' e ' + novoValorStr;
+                f.dano.mUnico = f.dano.mUnico + ',' + novoValorStr;
             }
         });
         callSave();
@@ -621,6 +642,39 @@ function PaginaMarcadores() {
                             </div>
                         ))
                     )}
+                </div>
+            </div>
+
+            {/* 😮‍💨 FADIGA DE COMBATE (DESGASTE POR TURNO) */}
+            <div style={{ border: '2px solid #ff8800', padding: '20px', borderRadius: '8px', background: 'rgba(255,136,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px dotted #ff8800', paddingBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
+                    <div>
+                        <h2 style={{ margin: 0, fontSize: '1.4em', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff8800' }}>😮‍💨 Fadiga de Combate</h2>
+                        <span style={{ fontSize: '0.85em', opacity: 0.8, fontStyle: 'italic' }}>A cada turno (ou grande gasto) o cansaço se acumula e reduz o Poder Calculado no Scouter.</span>
+                    </div>
+                    <button onClick={zerarFadiga} style={{ padding: '8px 15px', border: '1px solid #ff8800', color: '#ff8800', background: 'transparent', cursor: 'pointer', opacity: 0.8, borderRadius: '4px' }}>🧹 Zerar Fadiga</button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '20px', alignItems: 'stretch', flexWrap: 'wrap' }}>
+                    <div style={{ flex: '1 1 200px', background: 'rgba(0,0,0,0.03)', borderRadius: '6px', padding: '15px', border: '1px dashed #ff8800' }}>
+                        <span style={{ fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', opacity: 0.7, color: '#ff8800' }}>Fadiga por Turno (%)</span>
+                        <CampoMagico valor={fadigaPorTurno} onChange={v => { const n = Number(v); if (isNaN(n)) return; updateFicha(f => { if (!f.combate) f.combate = {}; f.combate.fadigaPorTurno = n; }); callSave(); }} type="number" styleExtra={{ fontSize: '1.1em', fontWeight: 'bold', borderBottomColor: '#ff8800', color: '#ff8800' }} />
+                    </div>
+
+                    <div style={{ flex: '1 1 200px', background: 'rgba(0,0,0,0.03)', borderRadius: '6px', padding: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px dashed #ff8800' }}>
+                        <span style={{ fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', opacity: 0.7, color: '#ff8800' }}>Turnos Cansativos</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginTop: '5px' }}>
+                            <button onClick={() => updateFadigaTurnos(-1)} style={{ background: 'transparent', border: '1px solid #ff8800', color: '#ff8800', fontSize: '1.4em', width: '36px', height: '36px', borderRadius: '50%', cursor: 'pointer' }}>-</button>
+                            <span style={{ fontSize: '1.6em', fontWeight: 'bold', minWidth: '30px', textAlign: 'center' }}>{fadigaTurnos}</span>
+                            <button onClick={() => updateFadigaTurnos(1)} style={{ background: 'transparent', border: '1px solid #ff8800', color: '#ff8800', fontSize: '1.4em', width: '36px', height: '36px', borderRadius: '50%', cursor: 'pointer' }}>+</button>
+                        </div>
+                    </div>
+
+                    <div style={{ flex: '1 1 200px', background: 'rgba(255,136,0,0.08)', border: '1px solid #ff8800', borderRadius: '6px', padding: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+                        <span style={{ fontSize: '0.85em', color: '#ff8800', fontWeight: 'bold', textTransform: 'uppercase' }}>Fadiga Atual</span>
+                        <span style={{ fontSize: '2em', fontWeight: '900', color: '#ff8800' }}>{fadigaAtual}%</span>
+                        <span style={{ fontSize: '0.8em', opacity: 0.7 }}>Poder Calculado reduzido em {fadigaAtual}%</span>
+                    </div>
                 </div>
             </div>
         </div>

@@ -924,6 +924,14 @@ export default function MarcadosPanel() {
         let power = poderComAscensao * (sup / 100);
         power = clampFinito(power);
 
+        // 😮‍💨 Fadiga de Combate (ver "Marcadores & Adaptação" > Fadiga): desgaste acumulado
+        // durante a cena/luta reduz o Poder Calculado do Scouter proporcionalmente.
+        const fadigaTaxaBruta = Number(minhaFicha.combate?.fadigaPorTurno);
+        const fadigaTaxa = isNaN(fadigaTaxaBruta) ? 5 : fadigaTaxaBruta;
+        const fadigaAtual = Math.min(100, Math.max(0, (Number(minhaFicha.combate?.fadigaTurnos) || 0) * fadigaTaxa));
+        power = power * (1 - fadigaAtual / 100);
+        power = clampFinito(power);
+
         const divisorIndividual = parseFloat(minhaFicha.divisorPoder);
         const divisorMesaSeguro = parseFloat(divisorPoderMesa);
         const divisorEfetivo = (!isNaN(divisorIndividual) && divisorIndividual > 0)
@@ -1191,6 +1199,7 @@ export default function MarcadosPanel() {
             ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => { let mx = safeGetMaximo(minhaFicha, k) * (fatoresVitaisAtual[k] || 1); f[k] = { ...f[k], atual: calcularEscala(mx, k).mxDisplay || 0 }; });
             f.pv = { ...f.pv, atual: pvMax || 0 }; f.pm = { ...f.pm, atual: pmMax || 0 }; f.energiaForca = { ...f.energiaForca, atual: forcaMax || 0 };
             ['padrao', 'bonus', 'reacao'].forEach(tipo => { if (!f.acoes) f.acoes = {}; if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 }; f.acoes[tipo].atual = f.acoes[tipo].max; });
+            if (f.combate) f.combate.fadigaTurnos = 0;
         });
         callSave();
     };
@@ -1486,13 +1495,13 @@ export default function MarcadosPanel() {
                                 ))}
                             </div>
 
-                            {/* 🔥 AVATAR COM GLOW DINÂMICO E DUPLA CAMADA DE TINTA (MÁSCARAS OU SCREEN COM SUPORTE TOTAL AOS SLIDERS) 🔥 */}
+                            {/* 🔥 AVATAR COM DUPLA CAMADA DE TINTA (MÁSCARAS OU SCREEN COM SUPORTE TOTAL AOS SLIDERS) 🔥 */}
                             <div style={{ 
                                 marginTop: '20px', position: 'relative', width: '320px', height: '480px', display: 'flex', flexDirection: 'column', 
                                 borderRadius: '8px', 
-                                border: minhaFicha.avatar?.base ? 'none' : '2px dashed currentColor', 
-                                boxShadow: minhaFicha.avatar?.base ? `0 0 30px ${glowColor}66, 0 0 10px ${glowColor}33, 8px 8px 0px rgba(0,0,0,0.4)` : 'none', 
-                                isolation: 'isolate' 
+                                border: minhaFicha.avatar?.base ? 'none' : '2px dashed currentColor',
+                                boxShadow: minhaFicha.avatar?.base ? '8px 8px 0px rgba(0,0,0,0.4)' : 'none',
+                                isolation: 'isolate'
                             }}>
                                 {uploadingImg ? (
                                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', color: '#fff', fontWeight: 'bold', zIndex: 20 }}>✍️ Forjando...</div>
@@ -1524,11 +1533,11 @@ export default function MarcadosPanel() {
                                             </div>
                                         )}
 
-                                        {/* 🔥 SÍMBOLO DA CLASSE COM GLOW ALINHADO (DEFAULT -45PX) E COM SLIDER DE CONTROLO 🔥 */}
+                                        {/* 🔥 SÍMBOLO DA CLASSE ALINHADO (DEFAULT -45PX) E COM SLIDER DE CONTROLO 🔥 */}
                                         {(classeInfo || localIconeClasse) && (
                                             <div style={{ position: 'absolute', bottom: `${localIconeOffsetY}px`, left: '50%', transform: 'translateX(-50%)', zIndex: 3, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '70px', height: '70px' }}>
                                                 {iconeFinal ? (
-                                                    <div style={{ position: 'relative', width: '100%', height: '100%', filter: `drop-shadow(0 0 10px ${glowColor}) drop-shadow(0 2px 4px rgba(0,0,0,0.8))`, isolation: 'isolate' }}>
+                                                    <div style={{ position: 'relative', width: '100%', height: '100%', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.8))', isolation: 'isolate' }}>
                                                         <img src={iconeFinal} alt="Classe" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
                                                         
                                                         {localCorMoldura !== '#ffffff' && (
@@ -1540,7 +1549,7 @@ export default function MarcadosPanel() {
                                                         )}
                                                     </div>
                                                 ) : (
-                                                    <div style={{ width: '50px', height: '50px', background: glowColor, transform: 'rotate(45deg)', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 20px ${glowColor}99, 0 4px 10px rgba(0,0,0,0.8)` }}>
+                                                    <div style={{ width: '50px', height: '50px', background: glowColor, transform: 'rotate(45deg)', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.8)' }}>
                                                         <span style={{ transform: 'rotate(-45deg)', fontSize: '1.5em', textShadow: '0 2px 4px rgba(0,0,0,0.5)', color: '#fff' }}>{classeInfo?.icone || '👤'}</span>
                                                     </div>
                                                 )}
