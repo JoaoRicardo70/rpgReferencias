@@ -321,14 +321,24 @@ function encontrarCategoriaPorLore(nome) {
     return null;
 }
 
-// 🔥 CALCULADOR INTELIGENTE DE BLEND-MODE PARA CORES ESCURAS 🔥
+// 🔥 CALCULADOR INTELIGENTE DE BLEND-MODE (Apenas para o Fundo da Tela) 🔥
 export function getCamadasTinta(cor) {
     if (!cor || cor === '#ffffff' || cor === 'transparent') return null;
+    const hex = String(cor).replace('#', '');
+    if (hex.length !== 6) return { modo1: 'color', op1: 0.85, modo2: 'overlay', op2: 0.5 };
     
-    // Para pintar áreas brancas/prateadas de uma imagem, o modo 'color' ignora o branco.
-    // O modo 'multiply' é OBRIGATÓRIO e absoluto para escurecer o branco/prata até à cor desejada.
-    // Aplicamos 'multiply' forte (0.85) para agarrar a cor, e 'color' (1.0) para reter os tons médios da textura metálica.
-    return { modo1: 'multiply', op1: 0.85, modo2: 'color', op2: 1 };
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    if (lum < 0.45) {
+        const multiplyOpacity = Math.max(0.3, Math.min(0.65, (1 - lum) * 0.6));
+        return { modo1: 'color', op1: 0.95, modo2: 'multiply', op2: multiplyOpacity };
+    } else {
+        return { modo1: 'color', op1: 0.9, modo2: 'overlay', op2: 0.6 };
+    }
 }
 
 // ==========================================
@@ -1464,6 +1474,8 @@ export default function MarcadosPanel() {
                                                 
                                                 {tintaMoldura && (
                                                     <>
+                                                        {/* 'multiply' garante o tingimento em molduras brancas/claras (onde 'color' sozinho não tem luminosidade pra tingir); as camadas seguintes refinam a cor em molduras com textura/metálico. Todas mascaradas pela própria moldura pra não pintar o miolo transparente (janela da foto). */}
+                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: 1, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
                                                         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo1, opacity: tintaMoldura.op1, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
                                                         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo2, opacity: tintaMoldura.op2, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
                                                     </>
@@ -1471,7 +1483,7 @@ export default function MarcadosPanel() {
                                             </div>
                                         )}
 
-                                        {/* 🔥 SÍMBOLO DA CLASSE COM GLOW E ALINHAMENTO ORIGINAL 🔥 */}
+                                        {/* 🔥 SÍMBOLO DA CLASSE COM GLOW ALINHADO EM -8PX 🔥 */}
                                         {(classeInfo || localIconeClasse) && (
                                             <div style={{ position: 'absolute', bottom: '-8px', left: '50%', transform: 'translateX(-50%)', zIndex: 3, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '70px', height: '70px' }}>
                                                 {iconeFinal ? (
