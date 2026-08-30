@@ -27,7 +27,6 @@ function safeGetMaximo(ficha, key) {
     return parseFloat(ficha?.[key]?.base) || 0;
 }
 
-// 🔥 Base + buffs ADITIVOS (sem a pilha de multiplicadores mBase/mGeral/mFormas/mAbsoluto/mUnico).
 function safeGetEfetivoBase(ficha, key, ignorarPoderes = false) {
     try {
         if (AtributosCore && typeof AtributosCore.getEfetivoBase === 'function') {
@@ -321,7 +320,7 @@ function encontrarCategoriaPorLore(nome) {
     return null;
 }
 
-// 🔥 CALCULADOR INTELIGENTE DE BLEND-MODE (Apenas para o Fundo da Tela) 🔥
+// 🔥 NOVO: FILTRO SVG DE TINTA PURA 🔥
 export function getCamadasTinta(cor) {
     if (!cor || cor === '#ffffff' || cor === 'transparent') return null;
     const hex = String(cor).replace('#', '');
@@ -330,19 +329,13 @@ export function getCamadasTinta(cor) {
     const r = parseInt(hex.substring(0, 2), 16);
     const g = parseInt(hex.substring(2, 4), 16);
     const b = parseInt(hex.substring(4, 6), 16);
-    
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     
-    if (lum < 0.45) {
-        const multiplyOpacity = Math.max(0.3, Math.min(0.65, (1 - lum) * 0.6));
-        return { modo1: 'color', op1: 0.95, modo2: 'multiply', op2: multiplyOpacity };
-    } else {
-        return { modo1: 'color', op1: 0.9, modo2: 'overlay', op2: 0.6 };
-    }
+    return { modo1: 'multiply', op1: 1, modo2: 'color', op2: 1 };
 }
 
 // ==========================================
-// 🛡️ FUNÇÕES AUXILIARES DA TABELA
+// 🛡️ FUNÇÕES AUXILIARES DA TABELA E COMPONENTES
 // ==========================================
 function getBasePFor(ficha, k) {
     const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
@@ -793,7 +786,7 @@ export default function MarcadosPanel() {
     const [localMolduraAvatar, setLocalMolduraAvatar] = useState('');
     const [localCorMoldura, setLocalCorMoldura] = useState('#ffffff');
     const [localIconeClasse, setLocalIconeClasse] = useState('');
-    const [localModoMoldura, setLocalModoMoldura] = useState('screen');
+    const [localModoMoldura, setLocalModoMoldura] = useState('normal'); // Corrigido para Normal por padrão
     const [localModoFundo, setLocalModoFundo] = useState('normal'); 
     const [localCorFundoTint, setLocalCorFundoTint] = useState('#ffffff'); 
     const [textoImport, setTextoImport] = useState('');
@@ -820,7 +813,7 @@ export default function MarcadosPanel() {
             setLocalMolduraAvatar(minhaFicha.estetica?.molduraAvatar || '');
             setLocalCorMoldura(minhaFicha.estetica?.corMoldura || '#ffffff');
             setLocalIconeClasse(minhaFicha.estetica?.iconeClasse || '');
-            setLocalModoMoldura(minhaFicha.estetica?.modoMoldura || 'screen');
+            setLocalModoMoldura(minhaFicha.estetica?.modoMoldura || 'normal');
             setLocalModoFundo(minhaFicha.estetica?.modoFundo || 'normal');
             setLocalCorFundoTint(minhaFicha.estetica?.corFundoTint || '#ffffff');
         }
@@ -950,12 +943,10 @@ export default function MarcadosPanel() {
     const classeInfo = getClasseInfo(minhaFicha);
     const iconeFinal = localIconeClasse || classeInfo?.iconeUrl;
     
-    // 🔥 CAMADAS DE TINTA (A ESTÉTICA PREMIUM) 🔥
-    const tintaMoldura = getCamadasTinta(localCorMoldura);
+    // 🔥 VARIÁVEIS DO FILTRO SVG 🔥
+    const usaFiltro = localCorMoldura && localCorMoldura !== '#ffffff' && localCorMoldura !== 'transparent';
+    const glowColor = usaFiltro ? localCorMoldura : (classeInfo?.cor || localCorTinta || '#ffffff');
     const tintaFundo = getCamadasTinta(localCorFundoTint);
-
-    // 🔥 VINCULA A COR DO GLOW À MOLDURA 🔥
-    const glowColor = (localCorMoldura && localCorMoldura !== '#ffffff') ? localCorMoldura : (classeInfo?.cor || localCorTinta || '#ffffff');
 
     const mudarPagina = (nova) => { setAnimDirection(nova > paginaAtual ? 'next' : 'prev'); setPaginaAtual(nova); };
 
@@ -1194,6 +1185,20 @@ export default function MarcadosPanel() {
             boxShadow: 'inset 0 0 40px rgba(0,0,0,0.1), 0 10px 30px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column',
             overflow: 'visible'
         }}>
+            {/* 🔥 O FILTRO SVG ABSOLUTO (MAGIA NEGRA DO FRONT-END) 🔥 */}
+            <svg width="0" height="0" style={{ position: 'absolute', pointerEvents: 'none' }}>
+                <defs>
+                    <filter id="molduraTint" colorInterpolationFilters="sRGB">
+                        {/* 1. Cria um bloco sólido da cor escolhida */}
+                        <feFlood floodColor={localCorMoldura} result="COLOR_FLOOD" />
+                        {/* 2. Recorta esse bloco usando as partes visíveis (Alpha) da Moldura Original */}
+                        <feComposite in="COLOR_FLOOD" in2="SourceAlpha" operator="in" result="MASKED_COLOR" />
+                        {/* 3. Multiplica a cor na moldura, preservando 100% das sombras e detalhes do metal */}
+                        <feBlend in="MASKED_COLOR" in2="SourceGraphic" mode="multiply" />
+                    </filter>
+                </defs>
+            </svg>
+
             {localBgImg && (
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none', borderRadius: '12px', overflow: 'hidden', mixBlendMode: localModoFundo, isolation: 'isolate' }}>
                     <img src={localBgImg} alt="Fundo" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, filter: localModoFundo !== 'normal' ? 'contrast(1.2) saturate(1.2)' : 'none' }} />
@@ -1266,9 +1271,9 @@ export default function MarcadosPanel() {
                                 </label>
                             </div>
                             <select value={localModoMoldura} onChange={(e) => handleStyleChange('modoMoldura', e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid rgba(0,0,0,0.2)', background: 'transparent', fontFamily: 'inherit', marginBottom: '10px' }}>
+                                <option value="normal">Normal / Imagem PNG Transparente</option>
                                 <option value="screen">Fundo Preto (Magia Screen)</option>
                                 <option value="multiply">Fundo Branco (Magia Multiply)</option>
-                                <option value="normal">Nenhum / Imagem PNG Transparente</option>
                             </select>
                             
                             {/* 🔥 NOVA PALETA PREMIUM NAS BORDAS 🔥 */}
@@ -1454,7 +1459,7 @@ export default function MarcadosPanel() {
                                 ))}
                             </div>
 
-                            {/* 🔥 AVATAR COM GLOW DINÂMICO E DUPLA CAMADA DE TINTA (MÁSCARAS CORRIGIDAS) 🔥 */}
+                            {/* 🔥 AVATAR COM FILTRO SVG (BYPASS A CORS E MÁSCARAS) 🔥 */}
                             <div style={{ 
                                 marginTop: '20px', position: 'relative', width: '320px', height: '480px', display: 'flex', flexDirection: 'column', 
                                 borderRadius: '8px', 
@@ -1470,32 +1475,23 @@ export default function MarcadosPanel() {
                                         
                                         {localMolduraAvatar && (
                                             <div style={{ position: 'absolute', top: '-3.5%', left: '-3%', width: '106%', height: '107%', zIndex: 2, pointerEvents: 'none', mixBlendMode: localModoMoldura, isolation: 'isolate' }}>
-                                                <img src={localMolduraAvatar} alt="Moldura" style={{ width: '100%', height: '100%', objectFit: 'fill', position: 'absolute', top: 0, left: 0, filter: 'contrast(1.2) saturate(1.2)' }} />
-                                                
-                                                {tintaMoldura && (
-                                                    <>
-                                                        {/* 'multiply' garante o tingimento em molduras brancas/claras (onde 'color' sozinho não tem luminosidade pra tingir); as camadas seguintes refinam a cor em molduras com textura/metálico. Todas mascaradas pela própria moldura pra não pintar o miolo transparente (janela da foto). */}
-                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: 1, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
-                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo1, opacity: tintaMoldura.op1, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
-                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo2, opacity: tintaMoldura.op2, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
-                                                    </>
-                                                )}
+                                                {/* Imagem Filtrada Diretamente pelo SVG Oculto no topo da página */}
+                                                <img src={localMolduraAvatar} alt="Moldura" style={{ 
+                                                    width: '100%', height: '100%', objectFit: 'fill', position: 'absolute', top: 0, left: 0, 
+                                                    filter: usaFiltro ? 'url(#molduraTint) contrast(1.2) saturate(1.2)' : 'contrast(1.2) saturate(1.2)' 
+                                                }} />
                                             </div>
                                         )}
 
-                                        {/* 🔥 SÍMBOLO DA CLASSE COM GLOW ALINHADO EM -8PX 🔥 */}
+                                        {/* 🔥 SÍMBOLO DA CLASSE EM -48PX 🔥 */}
                                         {(classeInfo || localIconeClasse) && (
-                                            <div style={{ position: 'absolute', bottom: '-8px', left: '50%', transform: 'translateX(-50%)', zIndex: 3, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '70px', height: '70px' }}>
+                                            <div style={{ position: 'absolute', bottom: '-48px', left: '50%', transform: 'translateX(-50%)', zIndex: 3, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '70px', height: '70px' }}>
                                                 {iconeFinal ? (
                                                     <div style={{ position: 'relative', width: '100%', height: '100%', filter: `drop-shadow(0 0 10px ${glowColor}) drop-shadow(0 2px 4px rgba(0,0,0,0.8))`, isolation: 'isolate' }}>
-                                                        <img src={iconeFinal} alt="Classe" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
-                                                        
-                                                        {tintaMoldura && (
-                                                            <>
-                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo1, opacity: tintaMoldura.op1, WebkitMaskImage: `url('${iconeFinal}')`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url('${iconeFinal}')`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
-                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo2, opacity: tintaMoldura.op2, WebkitMaskImage: `url('${iconeFinal}')`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url('${iconeFinal}')`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
-                                                            </>
-                                                        )}
+                                                        <img src={iconeFinal} alt="Classe" style={{ 
+                                                            position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain',
+                                                            filter: usaFiltro ? 'url(#molduraTint)' : 'none'
+                                                        }} />
                                                     </div>
                                                 ) : (
                                                     <div style={{ width: '50px', height: '50px', background: glowColor, transform: 'rotate(45deg)', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 0 20px ${glowColor}99, 0 4px 10px rgba(0,0,0,0.8)` }}>
