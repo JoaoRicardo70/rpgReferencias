@@ -321,10 +321,9 @@ function encontrarCategoriaPorLore(nome) {
     return null;
 }
 
-// 🔥 CALCULADOR INTELIGENTE DE BLEND-MODE DA TELA 🔥
 export function getCamadasTinta(cor) {
     if (!cor || cor === '#ffffff' || cor === 'transparent') return null;
-    return { opM: 0.8, opC: 1.0 }; // Mistura sólida para metal
+    return { modo1: 'color', op1: 0.85, modo2: 'multiply', op2: 0.5 };
 }
 
 // ==========================================
@@ -782,7 +781,13 @@ export default function MarcadosPanel() {
     const [localModoMoldura, setLocalModoMoldura] = useState('screen'); 
     const [localModoFundo, setLocalModoFundo] = useState('normal'); 
     const [localCorFundoTint, setLocalCorFundoTint] = useState('#ffffff'); 
-    const [localIconeOffsetY, setLocalIconeOffsetY] = useState(-45); // 🔥 DEFAULT ALINHADO! Use o slider no menu se precisar
+    const [localIconeOffsetY, setLocalIconeOffsetY] = useState(-45);
+    
+    // 🔥 NOVOS REGULADORES DE PINTURA 🔥
+    const [localMolduraOpColor, setLocalMolduraOpColor] = useState(1);
+    const [localMolduraOpMultiply, setLocalMolduraOpMultiply] = useState(0.85);
+    const [localMolduraOpOverlay, setLocalMolduraOpOverlay] = useState(0.6);
+
     const [textoImport, setTextoImport] = useState('');
     const [modalImport, setModalImport] = useState(false);
 
@@ -811,6 +816,9 @@ export default function MarcadosPanel() {
             setLocalModoFundo(minhaFicha.estetica?.modoFundo || 'normal');
             setLocalCorFundoTint(minhaFicha.estetica?.corFundoTint || '#ffffff');
             setLocalIconeOffsetY(minhaFicha.estetica?.iconeOffsetY ?? -45);
+            setLocalMolduraOpColor(minhaFicha.estetica?.molduraOpColor ?? 1);
+            setLocalMolduraOpMultiply(minhaFicha.estetica?.molduraOpMultiply ?? 0.85);
+            setLocalMolduraOpOverlay(minhaFicha.estetica?.molduraOpOverlay ?? 0.6);
         }
     }, [minhaFicha?.estetica]);
 
@@ -938,28 +946,6 @@ export default function MarcadosPanel() {
     const classeInfo = getClasseInfo(minhaFicha);
     const iconeFinal = localIconeClasse || classeInfo?.iconeUrl;
     
-    // 🔥 CAMADAS DE TINTA (A ESTÉTICA PREMIUM DO FUNDO) 🔥
-    const tintaFundo = getCamadasTinta(localCorFundoTint);
-
-    // 🔥 LIMITADOR ANTI-VAZIO E TINTA 3 CAMADAS (Garante que a tinta escura não destrói a luz da prata) 🔥
-    const tintaMoldura = useMemo(() => {
-        if (!localCorMoldura || localCorMoldura === '#ffffff' || localCorMoldura === 'transparent') return null;
-        const hex = String(localCorMoldura).replace('#', '');
-        if (hex.length !== 6) return { opM: 0.85, opC: 1, opO: 0.6 };
-        
-        const r = parseInt(hex.substring(0, 2), 16);
-        const g = parseInt(hex.substring(2, 4), 16);
-        const b = parseInt(hex.substring(4, 6), 16);
-        const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-        
-        if (lum < 0.1) { return { opM: 0.85, opC: 1, opO: 0.5 }; } 
-        else if (lum < 0.4) { return { opM: 0.8, opC: 1, opO: 0.7 }; } 
-        else { return { opM: 0.5, opC: 1, opO: 0.9 }; }
-    }, [localCorMoldura]);
-
-    // 🔥 VINCULA A COR DO GLOW À MOLDURA 🔥
-    const glowColor = (localCorMoldura && localCorMoldura !== '#ffffff') ? localCorMoldura : (classeInfo?.cor || localCorTinta || '#ffffff');
-
     const mudarPagina = (nova) => { setAnimDirection(nova > paginaAtual ? 'next' : 'prev'); setPaginaAtual(nova); };
 
     const salvar = (caminho, valor) => {
@@ -995,6 +981,9 @@ export default function MarcadosPanel() {
         else if (key === 'modoFundo') setLocalModoFundo(val);
         else if (key === 'corFundoTint') setLocalCorFundoTint(val);
         else if (key === 'iconeOffsetY') setLocalIconeOffsetY(val);
+        else if (key === 'molduraOpColor') setLocalMolduraOpColor(val);
+        else if (key === 'molduraOpMultiply') setLocalMolduraOpMultiply(val);
+        else if (key === 'molduraOpOverlay') setLocalMolduraOpOverlay(val);
 
         if (window.timerSaveCor) clearTimeout(window.timerSaveCor);
         window.timerSaveCor = setTimeout(() => {
@@ -1201,12 +1190,8 @@ export default function MarcadosPanel() {
             {localBgImg && (
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none', borderRadius: '12px', overflow: 'hidden', mixBlendMode: localModoFundo, isolation: 'isolate' }}>
                     <img src={localBgImg} alt="Fundo" style={{ width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', top: 0, left: 0, filter: localModoFundo !== 'normal' ? 'contrast(1.2) saturate(1.2)' : 'none' }} />
-                    {tintaFundo && (
-                        <>
-                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorFundoTint, mixBlendMode: tintaFundo.modo1, opacity: tintaFundo.op1 }} />
-                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorFundoTint, mixBlendMode: tintaFundo.modo2, opacity: tintaFundo.op2 }} />
-                        </>
-                    )}
+                    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorFundoTint, mixBlendMode: 'color', opacity: 0.85 }} />
+                    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorFundoTint, mixBlendMode: 'multiply', opacity: 0.5 }} />
                 </div>
             )}
 
@@ -1238,7 +1223,7 @@ export default function MarcadosPanel() {
                 <div style={{ position: 'relative' }}>
                     <button onClick={() => { setModalEstilo(!modalEstilo); setModalImport(false); }} style={{ background: '#ff94c2', color: '#000', border: '1px solid #333', borderBottom: '3px solid #222', padding: '10px 20px', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '1.1em', cursor: 'pointer', borderRadius: '4px', boxShadow: '2px 4px 8px rgba(0,0,0,0.4)', transform: 'rotate(-2deg)' }}>🎨 Estilo</button>
                     {modalEstilo && (
-                        <div className="fade-in" style={{ position: 'absolute', top: '55px', right: '0', background: '#ffe4f0', padding: '15px', border: '1px solid #ccc', boxShadow: '5px 5px 15px rgba(0,0,0,0.3)', width: '320px', zIndex: 20, borderRadius: '6px', color: '#000', maxHeight: '70vh', overflowY: 'auto' }}>
+                        <div className="fade-in" style={{ position: 'absolute', top: '55px', right: '0', background: '#ffe4f0', padding: '15px', border: '1px solid #ccc', boxShadow: '5px 5px 15px rgba(0,0,0,0.3)', width: '320px', zIndex: 20, borderRadius: '6px', color: '#000', maxHeight: '75vh', overflowY: 'auto' }}>
                             <label style={{ display: 'block', fontSize: '0.9em', marginBottom: '5px', fontWeight: 'bold' }}>Cor do Texto da Ficha:</label>
                             <input type="color" value={localCorTexto} onChange={(e) => handleStyleChange('corTexto', e.target.value)} style={{ width: '100%', height: '40px', border: 'none', cursor: 'pointer', marginBottom: '15px', background: 'transparent' }} />
                             <label style={{ display: 'block', fontSize: '0.9em', marginBottom: '5px', fontWeight: 'bold' }}>Cor do Papel (Fundo Base):</label>
@@ -1261,6 +1246,7 @@ export default function MarcadosPanel() {
                                 <input type="color" value={localCorFundoTint} onChange={(e) => handleStyleChange('corFundoTint', e.target.value)} style={{ width: '40px', height: '25px', border: 'none', cursor: 'pointer', background: 'transparent' }} />
                             </label>
                             <hr style={{ border: '1px dashed #ccc', margin: '15px 0' }}/>
+                            
                             <label style={{ display: 'block', fontSize: '0.9em', marginBottom: '5px', fontWeight: 'bold' }}>✨ Moldura do Personagem:</label>
                             <div style={{ display: 'flex', gap: '5px', marginBottom: '5px' }}>
                                 <input type="text" value={localMolduraAvatar} onChange={(e) => handleStyleChange('molduraAvatar', e.target.value)} placeholder="Cole o Link da moldura..." style={{ flex: 1, padding: '8px', border: '1px solid rgba(0,0,0,0.2)', background: 'transparent', color: 'inherit' }} />
@@ -1285,20 +1271,41 @@ export default function MarcadosPanel() {
                                     <div key={`moldura-${p.cor}`} onClick={() => handleStyleChange('corMoldura', p.cor)} style={{ width: '24px', height: '24px', backgroundColor: p.cor, border: localCorMoldura === p.cor ? '2px solid #000' : '1px solid rgba(0,0,0,0.5)', cursor: 'pointer', borderRadius: '50%', boxShadow: `0 0 8px ${p.cor}80` }} title={`Pintar de ${p.nome}`} />
                                 ))}
                             </div>
+
+                            {/* 🔥 NOVOS REGULADORES DE PINTURA E BRILHO DA MOLDURA 🔥 */}
+                            <div style={{ background: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.1)', padding: '10px', borderRadius: '6px', marginBottom: '15px' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85em', color: '#555', fontWeight: 'bold' }}>
+                                    <span>🎨 Intensidade da Cor:</span>
+                                    <input type="range" min="0" max="100" value={localMolduraOpColor * 100} onChange={(e) => handleStyleChange('molduraOpColor', parseInt(e.target.value) / 100)} style={{ flex: 1, accentColor: localCorMoldura !== '#ffffff' ? localCorMoldura : '#000', cursor: 'pointer' }} />
+                                    <span style={{ width: '35px', textAlign: 'right' }}>{Math.round(localMolduraOpColor * 100)}%</span>
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85em', color: '#555', marginTop: '5px', fontWeight: 'bold' }}>
+                                    <span>🌑 Escurecimento (Sombra):</span>
+                                    <input type="range" min="0" max="100" value={localMolduraOpMultiply * 100} onChange={(e) => handleStyleChange('molduraOpMultiply', parseInt(e.target.value) / 100)} style={{ flex: 1, accentColor: localCorMoldura !== '#ffffff' ? localCorMoldura : '#000', cursor: 'pointer' }} />
+                                    <span style={{ width: '35px', textAlign: 'right' }}>{Math.round(localMolduraOpMultiply * 100)}%</span>
+                                </label>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.85em', color: '#555', marginTop: '5px', fontWeight: 'bold' }}>
+                                    <span>✨ Brilho Metálico (Luz):</span>
+                                    <input type="range" min="0" max="100" value={localMolduraOpOverlay * 100} onChange={(e) => handleStyleChange('molduraOpOverlay', parseInt(e.target.value) / 100)} style={{ flex: 1, accentColor: localCorMoldura !== '#ffffff' ? localCorMoldura : '#000', cursor: 'pointer' }} />
+                                    <span style={{ width: '35px', textAlign: 'right' }}>{Math.round(localMolduraOpOverlay * 100)}%</span>
+                                </label>
+                            </div>
                             
                             <label style={{ display: 'block', fontSize: '0.9em', marginBottom: '5px', fontWeight: 'bold' }}>🔷 Ícone da Classe Manual (Opcional):</label>
-                            <div style={{ display: 'flex', gap: '5px', marginBottom: '15px' }}>
+                            <div style={{ display: 'flex', gap: '5px', marginBottom: '10px' }}>
                                 <input type="text" value={localIconeClasse} onChange={(e) => handleStyleChange('iconeClasse', e.target.value)} placeholder="Link do Ícone..." style={{ flex: 1, padding: '8px', border: '1px solid rgba(0,0,0,0.2)', background: 'transparent', color: 'inherit' }} />
                                 <button onClick={() => handleStyleChange('iconeClasse', '')} style={{ background: 'rgba(255,0,0,0.1)', border: '1px solid red', color: 'red', cursor: 'pointer', padding: '0 8px', fontWeight: 'bold', borderRadius: '4px' }} title="Remover Ícone">✖</button>
                                 <label style={{ background: 'rgba(0,0,0,0.1)', border: '1px solid rgba(0,0,0,0.2)', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Upload do Ícone">
                                     📁<input type="file" accept="image/*" onChange={handleIconeUpload} style={{ display: 'none' }} />
                                 </label>
                             </div>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9em', color: '#555', marginTop: '10px', marginBottom: '15px', fontWeight: 'bold' }}>
+
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9em', color: '#555', marginBottom: '15px', fontWeight: 'bold' }}>
                                 <span>↕️ Ajuste Vertical do Ícone:</span>
                                 <input type="range" min="-100" max="50" value={localIconeOffsetY} onChange={(e) => handleStyleChange('iconeOffsetY', parseInt(e.target.value))} style={{ flex: 1, accentColor: localCorMoldura !== '#ffffff' ? localCorMoldura : '#000', cursor: 'pointer' }} />
                                 <span style={{ width: '40px', textAlign: 'right' }}>{localIconeOffsetY}px</span>
                             </label>
+
                             <hr style={{ border: '1px dashed #ccc', margin: '15px 0' }}/>
                             
                             {/* 🔥 NOVA PALETA PREMIUM NA TINTA DO RADAR 🔥 */}
@@ -1463,7 +1470,7 @@ export default function MarcadosPanel() {
                                 ))}
                             </div>
 
-                            {/* 🔥 AVATAR COM GLOW DINÂMICO E A FORJA DOS 3 METAIS 🔥 */}
+                            {/* 🔥 AVATAR COM GLOW DINÂMICO E DUPLA CAMADA DE TINTA (MÁSCARAS OU SCREEN COM SUPORTE TOTAL AOS SLIDERS) 🔥 */}
                             <div style={{ 
                                 marginTop: '20px', position: 'relative', width: '320px', height: '480px', display: 'flex', flexDirection: 'column', 
                                 borderRadius: '8px', 
@@ -1481,29 +1488,38 @@ export default function MarcadosPanel() {
                                             <div style={{ position: 'absolute', top: '-3.5%', left: '-3%', width: '106%', height: '107%', zIndex: 2, pointerEvents: 'none', mixBlendMode: localModoMoldura, isolation: 'isolate' }}>
                                                 <img src={localMolduraAvatar} alt="Moldura" style={{ width: '100%', height: '100%', objectFit: 'fill', position: 'absolute', top: 0, left: 0, filter: 'contrast(1.2) saturate(1.2)' }} />
                                                 
-                                                {/* CAMADAS DE TINTA (COMPATÍVEL COM MÁSCARAS E SCREEN) */}
-                                                {localCorMoldura !== '#ffffff' && tintaMoldura && (
+                                                {localCorMoldura !== '#ffffff' && (
                                                     <>
-                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: tintaMoldura.opM, WebkitMaskImage: `url("${localMolduraAvatar}")`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url("${localMolduraAvatar}")`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
-                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'color', opacity: tintaMoldura.opC, WebkitMaskImage: `url("${localMolduraAvatar}")`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url("${localMolduraAvatar}")`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
-                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: tintaMoldura.opO, WebkitMaskImage: `url("${localMolduraAvatar}")`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url("${localMolduraAvatar}")`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
+                                                        {localModoMoldura === 'normal' ? (
+                                                            <>
+                                                                <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: localMolduraOpMultiply, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
+                                                                <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'color', opacity: localMolduraOpColor, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
+                                                                <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: localMolduraOpOverlay, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: localMolduraOpMultiply }} />
+                                                                <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'color', opacity: localMolduraOpColor }} />
+                                                                <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: localMolduraOpOverlay }} />
+                                                            </>
+                                                        )}
                                                     </>
                                                 )}
                                             </div>
                                         )}
 
-                                        {/* 🔥 SÍMBOLO DA CLASSE COM GLOW ALINHADO E COM SLIDER DE CONTROLO 🔥 */}
+                                        {/* 🔥 SÍMBOLO DA CLASSE COM GLOW ALINHADO (DEFAULT -45PX) E COM SLIDER DE CONTROLO 🔥 */}
                                         {(classeInfo || localIconeClasse) && (
                                             <div style={{ position: 'absolute', bottom: `${localIconeOffsetY}px`, left: '50%', transform: 'translateX(-50%)', zIndex: 3, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '70px', height: '70px' }}>
                                                 {iconeFinal ? (
                                                     <div style={{ position: 'relative', width: '100%', height: '100%', filter: `drop-shadow(0 0 10px ${glowColor}) drop-shadow(0 2px 4px rgba(0,0,0,0.8))`, isolation: 'isolate' }}>
                                                         <img src={iconeFinal} alt="Classe" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
                                                         
-                                                        {localCorMoldura !== '#ffffff' && tintaMoldura && (
+                                                        {localCorMoldura !== '#ffffff' && (
                                                             <>
-                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: tintaMoldura.opM, WebkitMaskImage: `url("${iconeFinal}")`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url("${iconeFinal}")`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
-                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'color', opacity: tintaMoldura.opC, WebkitMaskImage: `url("${iconeFinal}")`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url("${iconeFinal}")`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
-                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: tintaMoldura.opO, WebkitMaskImage: `url("${iconeFinal}")`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url("${iconeFinal}")`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
+                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: localMolduraOpMultiply, WebkitMaskImage: `url("${iconeFinal}")`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url("${iconeFinal}")`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
+                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'color', opacity: localMolduraOpColor, WebkitMaskImage: `url("${iconeFinal}")`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url("${iconeFinal}")`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
+                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: localMolduraOpOverlay, WebkitMaskImage: `url("${iconeFinal}")`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url("${iconeFinal}")`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
                                                             </>
                                                         )}
                                                     </div>
@@ -1567,12 +1583,12 @@ export default function MarcadosPanel() {
                                     <BarraVital atual={minhaFicha.pv?.atual !== undefined && minhaFicha.pv?.atual !== '' ? Number(minhaFicha.pv.atual) : pvMax} maximo={pvMax} pVit={0} cor="#ffffff" corTexto="#000" onChangeAtual={(v) => salvar('pv.atual', v)} />
                                 </div>
                                 <div style={{ marginBottom: '15px' }}>
-                                    <LabelMagico valor={getLabel('lblPM', 'Pontos Mortais (PM)')} onChange={(v) => setLabel('lblPM', v)} />
+                                    <LabelMagico valor={getLabeSl('lblPM', 'Pontos Mortais (PM)')} onChange={(v) => setLabel('lblPM', v)} />
                                     <BarraVital atual={minhaFicha.pm?.atual !== undefined && minhaFicha.pm?.atual !== '' ? Number(minhaFicha.pm.atual) : pmMax} maximo={pmMax} pVit={0} cor="#000000" corTexto="#fff" onChangeAtual={(v) => salvar('pm.atual', v)} />
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
-                                    <div style={{ flex: 1, border: '2px solid currentColor', padding: '10px', borderRadius: '6px', background: 'rgba(255,255,255,0.2)' }}>
+                                    <div style={{ flexS: 1, border: '2px solid currentColor', padding: '10px', borderRadius: '6px', background: 'rgba(255,255,255,0.2)' }}>
                                         <div style={{ fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}><LabelMagico valor={getLabel('lblMultV', 'Mult. de Vida (PV)')} onChange={(v) => setLabel('lblMultV', v)} /></div>
                                         <CampoMagico valor={minhaFicha.multiplicadorVida || 1} onChange={(v) => salvar('multiplicadorVida', v)} type="number" isNumber={true} styleExtra={{ width: '100%', borderBottom: '1px solid currentColor', marginTop: '5px' }} />
                                     </div>
@@ -1614,7 +1630,7 @@ export default function MarcadosPanel() {
                 {paginaAtual === 2 && (
                     <>
                         <div style={{ width: '100%', textAlign: 'center', borderBottom: '2px solid currentColor', paddingBottom: '10px', marginBottom: '20px' }}>
-                            <h1 style={{ fontSize: '3em', fontStyle: 'italic', fontWeight: 'bold', margin: 0, letterSpacing: '-1px' }}>
+                            <h1 style={{ fontSize: '3em', fontStyle: 'italic', fontWeight: 'bold', margin: '0', letterSpacing: '-1px' }}>
                                 <LabelMagico valor={getLabel('tituloAnalise', 'Análise de Poder')} onChange={(v) => setLabel('tituloAnalise', v)} />
                             </h1>
                         </div>
