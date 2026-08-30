@@ -321,22 +321,27 @@ function encontrarCategoriaPorLore(nome) {
     return null;
 }
 
-// 🔥 CALCULADOR INTELIGENTE DE BLEND-MODE (FUNDO DA TELA) 🔥
+// 🔥 FÓRMULA DOS TRÊS METAIS (RESTAURA O BRILHO DAS CORES ESCURAS) 🔥
 export function getCamadasTinta(cor) {
     if (!cor || cor === '#ffffff' || cor === 'transparent') return null;
-    
     const hex = String(cor).replace('#', '');
-    if (hex.length !== 6) return { modo1: 'color', op1: 1, modo2: 'multiply', op2: 0.5 };
+    if (hex.length !== 6) return { opM: 0.85, opC: 1, opO: 0.6 };
     
     const r = parseInt(hex.substring(0, 2), 16);
     const g = parseInt(hex.substring(2, 4), 16);
     const b = parseInt(hex.substring(4, 6), 16);
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     
-    // O LIMITADOR ANTI-VAZIO: Garante que as cores muito escuras nunca ultrapassem 60% de opacidade no multiply,
-    // o que previne que a moldura inteira fique negra e seja apagada pelo blend-mode "Screen".
-    const multiplyOpacity = Math.max(0.15, Math.min(0.6, (1 - lum) * 0.7));
-    return { modo1: 'color', op1: 1, modo2: 'multiply', op2: multiplyOpacity };
+    if (lum < 0.1) {
+        // Cores Absolutas (Preto): Multiply controlado, e forte Overlay para recuperar os recortes do metal
+        return { opM: 0.85, opC: 1, opO: 0.5 };
+    } else if (lum < 0.4) {
+        // Cores Escuras Ricas (Roxo Sangue, Carmesim): Overlay mais forte para puxar o brilho
+        return { opM: 0.8, opC: 1, opO: 0.7 };
+    } else {
+        // Cores Claras
+        return { opM: 0.5, opC: 1, opO: 0.9 };
+    }
 }
 
 // ==========================================
@@ -791,10 +796,10 @@ export default function MarcadosPanel() {
     const [localMolduraAvatar, setLocalMolduraAvatar] = useState('');
     const [localCorMoldura, setLocalCorMoldura] = useState('#ffffff');
     const [localIconeClasse, setLocalIconeClasse] = useState('');
-    const [localModoMoldura, setLocalModoMoldura] = useState('screen'); 
+    const [localModoMoldura, setLocalModoMoldura] = useState('normal'); 
     const [localModoFundo, setLocalModoFundo] = useState('normal'); 
     const [localCorFundoTint, setLocalCorFundoTint] = useState('#ffffff'); 
-    const [localIconeOffsetY, setLocalIconeOffsetY] = useState(-18); 
+    const [localIconeOffsetY, setLocalIconeOffsetY] = useState(-40); // 🔥 NOVO DEFAULT ALINHADO
     const [textoImport, setTextoImport] = useState('');
     const [modalImport, setModalImport] = useState(false);
 
@@ -819,10 +824,10 @@ export default function MarcadosPanel() {
             setLocalMolduraAvatar(minhaFicha.estetica?.molduraAvatar || '');
             setLocalCorMoldura(minhaFicha.estetica?.corMoldura || '#ffffff');
             setLocalIconeClasse(minhaFicha.estetica?.iconeClasse || '');
-            setLocalModoMoldura(minhaFicha.estetica?.modoMoldura || 'screen'); 
+            setLocalModoMoldura(minhaFicha.estetica?.modoMoldura || 'normal'); 
             setLocalModoFundo(minhaFicha.estetica?.modoFundo || 'normal');
             setLocalCorFundoTint(minhaFicha.estetica?.corFundoTint || '#ffffff');
-            setLocalIconeOffsetY(minhaFicha.estetica?.iconeOffsetY ?? -18);
+            setLocalIconeOffsetY(minhaFicha.estetica?.iconeOffsetY ?? -40);
         }
     }, [minhaFicha?.estetica]);
 
@@ -954,7 +959,20 @@ export default function MarcadosPanel() {
     const tintaFundo = getCamadasTinta(localCorFundoTint);
 
     // 🔥 LIMITADOR ANTI-VAZIO DA MOLDURA (Garante que a tinta escura não destrói a luz da prata) 🔥
-    const tintaMoldura = getCamadasTinta(localCorMoldura);
+    const tintaMoldura = useMemo(() => {
+        if (!localCorMoldura || localCorMoldura === '#ffffff' || localCorMoldura === 'transparent') return null;
+        const hex = String(localCorMoldura).replace('#', '');
+        if (hex.length !== 6) return { opM: 0.85, opC: 1, opO: 0.6 };
+        
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        
+        if (lum < 0.1) { return { opM: 0.85, opC: 1, opO: 0.5 }; } 
+        else if (lum < 0.4) { return { opM: 0.8, opC: 1, opO: 0.7 }; } 
+        else { return { opM: 0.5, opC: 1, opO: 0.9 }; }
+    }, [localCorMoldura]);
 
     // 🔥 VINCULA A COR DO GLOW À MOLDURA 🔥
     const glowColor = (localCorMoldura && localCorMoldura !== '#ffffff') ? localCorMoldura : (classeInfo?.cor || localCorTinta || '#ffffff');
@@ -1294,8 +1312,8 @@ export default function MarcadosPanel() {
                                 </label>
                             </div>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9em', color: '#555', marginTop: '10px', marginBottom: '15px', fontWeight: 'bold' }}>
-                                <span>↕️ Ajuste Vertical do Ícone:</span>
-                                <input type="range" min="-100" max="50" value={localIconeOffsetY} onChange={(e) => handleStyleChange('iconeOffsetY', parseInt(e.target.value))} style={{ flex: 1, accentColor: localCorMoldura !== '#ffffff' ? localCorMoldura : '#000' }} />
+                                <span>↕️ Altura do Ícone (Deslize para afinar):</span>
+                                <input type="range" min="-100" max="50" value={localIconeOffsetY} onChange={(e) => handleStyleChange('iconeOffsetY', parseInt(e.target.value))} style={{ flex: 1, accentColor: localCorMoldura !== '#ffffff' ? localCorMoldura : '#000', cursor: 'pointer' }} />
                                 <span style={{ width: '40px', textAlign: 'right' }}>{localIconeOffsetY}px</span>
                             </label>
                             <hr style={{ border: '1px dashed #ccc', margin: '15px 0' }}/>
@@ -1462,7 +1480,7 @@ export default function MarcadosPanel() {
                                 ))}
                             </div>
 
-                            {/* 🔥 AVATAR COM GLOW DINÂMICO E NOVO LIMITADOR ANTI-VAZIO 🔥 */}
+                            {/* 🔥 AVATAR COM GLOW DINÂMICO E NOVA FORJA DOS 3 METAIS 🔥 */}
                             <div style={{ 
                                 marginTop: '20px', position: 'relative', width: '320px', height: '480px', display: 'flex', flexDirection: 'column', 
                                 borderRadius: '8px', 
@@ -1480,34 +1498,36 @@ export default function MarcadosPanel() {
                                             <div style={{ position: 'absolute', top: '-3.5%', left: '-3%', width: '106%', height: '107%', zIndex: 2, pointerEvents: 'none', mixBlendMode: localModoMoldura, isolation: 'isolate' }}>
                                                 <img src={localMolduraAvatar} alt="Moldura" style={{ width: '100%', height: '100%', objectFit: 'fill', position: 'absolute', top: 0, left: 0, filter: 'contrast(1.2) saturate(1.2)' }} />
                                                 
-                                                {/* BYPASS OTIMIZADO PARA SCREEN - IMPEDE DESAPARECIMENTO */}
+                                                {/* BYPASS OTIMIZADO PARA SCREEN - IMPEDE DESAPARECIMENTO COM A NOVA FÓRMULA DOS 3 METAIS */}
                                                 {localModoMoldura === 'screen' && localCorMoldura !== '#ffffff' && tintaMoldura && (
                                                     <>
-                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'color', opacity: 1 }} />
-                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: Math.min(tintaMoldura.op2, 0.3) }} />
-                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: 0.4 }} />
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'color', opacity: tintaMoldura.opC }} />
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: Math.min(tintaMoldura.opM, 0.4) }} />
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: tintaMoldura.opO }} />
                                                     </>
                                                 )}
 
                                                 {/* BYPASS DE CORS PARA MOLDURAS DE FUNDO BRANCO (MULTIPLY) */}
                                                 {localModoMoldura === 'multiply' && localCorMoldura !== '#ffffff' && tintaMoldura && (
                                                     <>
-                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'color', opacity: 1 }} />
-                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: tintaMoldura.op2 }} />
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'color', opacity: tintaMoldura.opC }} />
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: tintaMoldura.opM }} />
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: tintaMoldura.opO }} />
                                                     </>
                                                 )}
 
-                                                {/* MODO NORMAL PARA IMAGENS PNG VERDADEIRAS */}
+                                                {/* MODO NORMAL (MÁSCARA) PARA IMAGENS PNG COM A NOVA FÓRMULA DOS 3 METAIS */}
                                                 {localModoMoldura === 'normal' && localCorMoldura !== '#ffffff' && tintaMoldura && (
                                                     <>
-                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo1, opacity: tintaMoldura.op1, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
-                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo2, opacity: tintaMoldura.op2, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: tintaMoldura.opM, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'color', opacity: tintaMoldura.opC, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: tintaMoldura.opO, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
                                                     </>
                                                 )}
                                             </div>
                                         )}
 
-                                        {/* 🔥 SÍMBOLO DA CLASSE COM GLOW ALINHADO (DEFAULT -18PX) E COM SLIDER DE CONTROLO 🔥 */}
+                                        {/* 🔥 SÍMBOLO DA CLASSE COM GLOW ALINHADO (DEFAULT -40PX) E COM SLIDER DE CONTROLO 🔥 */}
                                         {(classeInfo || localIconeClasse) && (
                                             <div style={{ position: 'absolute', bottom: `${localIconeOffsetY}px`, left: '50%', transform: 'translateX(-50%)', zIndex: 3, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '70px', height: '70px' }}>
                                                 {iconeFinal ? (
@@ -1516,8 +1536,9 @@ export default function MarcadosPanel() {
                                                         
                                                         {localCorMoldura !== '#ffffff' && tintaMoldura && (
                                                             <>
-                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'color', WebkitMaskImage: `url('${iconeFinal}')`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url('${iconeFinal}')`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
-                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: tintaMoldura.op2, WebkitMaskImage: `url('${iconeFinal}')`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url('${iconeFinal}')`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
+                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: tintaMoldura.opM, WebkitMaskImage: `url('${iconeFinal}')`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url('${iconeFinal}')`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
+                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'color', opacity: tintaMoldura.opC, WebkitMaskImage: `url('${iconeFinal}')`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url('${iconeFinal}')`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
+                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: tintaMoldura.opO, WebkitMaskImage: `url('${iconeFinal}')`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url('${iconeFinal}')`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
                                                             </>
                                                         )}
                                                     </div>
