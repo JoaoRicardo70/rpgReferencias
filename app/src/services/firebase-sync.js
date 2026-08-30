@@ -244,10 +244,19 @@ export function iniciarListenerCenario(callback) {
     });
 }
 export function salvarCenarioCompleto(dadosCenario) {
-    if (isInPlasmicCanvas()) return;
+    if (isInPlasmicCanvas()) return Promise.resolve(true);
     const { mesaId } = useStore.getState();
-    if (!db || !mesaId) return;
-    set(ref(db, `mesas/${mesaId}/cenario`), dadosCenario).catch(() => {});
+    if (!db || !mesaId) return Promise.resolve(true);
+    // 🔥 Retorna uma Promise que resolve pra true/false (nunca rejeita) em vez de engolir o erro em
+    // silêncio: quem estiver criando/publicando uma Cena crítica (ex: MapaMundi.jsx) pode checar o
+    // resultado e avisar o usuário — uma escrita que falha (ex: payload grande demais, regra de
+    // segurança) antes parecia ter funcionado só porque nada acusava o erro. Resolve em vez de
+    // rejeitar de propósito: os ~13 outros call-sites (fire-and-forget) não tratam o retorno, e uma
+    // rejeição não capturada vira ruído/erro não tratado no console pra eles à toa.
+    return set(ref(db, `mesas/${mesaId}/cenario`), dadosCenario).then(() => true).catch((err) => {
+        console.warn('Falha ao sincronizar o Cenário com o Firebase:', err);
+        return false;
+    });
 }
 // 🔥 Divisor de Poder padrão da mesa: valor global que o Mestre define (fora de
 // ficha.divisorPoder, que é por personagem) para dividir o Poder do Scouter de TODOS os
@@ -267,11 +276,17 @@ export function iniciarListenerDivisorPoderMesa(callback) {
     });
 }
 export function salvarDivisorPoderMesa(valor) {
-    if (isInPlasmicCanvas()) return;
+    if (isInPlasmicCanvas()) return Promise.resolve(true);
     const { mesaId } = useStore.getState();
-    if (!db || !mesaId) return;
-    set(ref(db, `mesas/${mesaId}/divisorPoderPadrao`), valor).catch((err) => {
+    if (!db || !mesaId) return Promise.resolve(true);
+    // 🔥 Retorna uma Promise que resolve pra true/false (igual salvarCenarioCompleto, nunca rejeita):
+    // sem isso, uma escrita que falhasse deixava o navegador de quem editou com um valor "próprio"
+    // pra sempre (o setDivisorPoderMesa local já rodou otimista antes desta chamada) enquanto o
+    // resto da mesa ficava com o valor antigo/nenhum no Firebase — cada um via um Poder Atual
+    // diferente pro MESMO personagem, sem nada avisar.
+    return set(ref(db, `mesas/${mesaId}/divisorPoderPadrao`), valor).then(() => true).catch((err) => {
         console.warn('Falha ao sincronizar o Divisor de Poder da mesa com o Firebase (o valor continua salvo localmente neste navegador):', err);
+        return false;
     });
 }
 export function zerarIniciativaGlobal(nomesArray) {

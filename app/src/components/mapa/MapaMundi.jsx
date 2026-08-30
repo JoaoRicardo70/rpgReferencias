@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import useStore from '../../stores/useStore';
 import { useMapaForm, urlSeguraParaCss } from './MapaFormContext';
-import { salvarCenarioCompleto } from '../../services/firebase-sync';
+import { salvarCenarioCompleto, uploadImagem } from '../../services/firebase-sync';
 
 // 🔥 AS IMAGENS DO MUNDO MATERIAL 🔥
 import mapaClean from '../../assets/runeterra-clean.jpg';
@@ -68,6 +68,7 @@ export default function MapaMundi({ children }) {
     const [criandoMapa, setCriandoMapa] = useState(false);
     const [novoMapaNome, setNovoMapaNome] = useState('');
     const [urlInput, setUrlInput] = useState('');
+    const [salvandoCenario, setSalvandoCenario] = useState(false);
     const [reinoHover, setReinoHover] = useState(null); 
     const [planoHover, setPlanoHover] = useState(null);
     const [rotacaoGlobo, setRotacaoGlobo] = useState({ x: 0, y: 0 });
@@ -309,43 +310,70 @@ export default function MapaMundi({ children }) {
         // 🔥 A MÁGICA: Força a Grelha a ler esta Cena! 🔥
         // Precisa ir por salvarCenarioCompleto (grava no Firebase) — setCenario() sozinho só muda
         // o estado local deste navegador, então a Cena nunca aparecia pra mais ninguém na mesa.
+        // Checar o retorno é essencial aqui: sem isso, uma escrita que falhasse (payload grande
+        // demais, conexão instável, regra de segurança) passava batido — a tela mudava pro Mestre,
+        // mas a Cena nunca chegava a existir de verdade no Firebase, então ninguém mais a via.
         const cenasLista = { ...cenario.lista };
         cenasLista[mapa.id] = cenasLista[mapa.id]
             ? { ...cenasLista[mapa.id], img: mapa.img || cenasLista[mapa.id].img }
             : { nome: `[${reinoSelecionado}] ${mapa.nome}`, img: mapa.img || '', escala: 1.5, unidade: 'm' };
-        salvarCenarioCompleto({ ...cenario, ativa: mapa.id, lista: cenasLista });
+        salvarCenarioCompleto({ ...cenario, ativa: mapa.id, lista: cenasLista }).then((ok) => {
+            if (!ok) alert('⚠️ Não foi possível salvar este mapa no servidor — ele pode não aparecer para os outros jogadores. Verifique sua conexão e tente de novo.');
+        });
     };
 
-    const atualizarImagemMapa = (imgData) => {
+    const atualizarImagemMapa = (imgUrl) => {
         const reino = localAtual.reino;
         const id = localAtual.mapaId;
-        
+
         // Atualiza Atlas Local
         const reinoMapas = atlas[reino] || [];
-        const novosMapas = reinoMapas.map(m => m.id === id ? { ...m, img: imgData } : m);
+        const novosMapas = reinoMapas.map(m => m.id === id ? { ...m, img: imgUrl } : m);
         salvarAtlas({ ...atlas, [reino]: novosMapas });
-        
+
         // Atualiza Cena Global (para a Grelha ver a imagem IMEDIATAMENTE)
         const novasCenas = { ...cenario.lista };
         novasCenas[id] = novasCenas[id]
-            ? { ...novasCenas[id], img: imgData }
-            : { nome: `[${reino}] ${localAtual.mapaNome}`, img: imgData, escala: 1.5, unidade: 'm' };
-        salvarCenarioCompleto({ ...cenario, ativa: id, lista: novasCenas });
-        setModoEdicaoMapa(false);
+            ? { ...novasCenas[id], img: imgUrl }
+            : { nome: `[${reino}] ${localAtual.mapaNome}`, img: imgUrl, escala: 1.5, unidade: 'm' };
+        return salvarCenarioCompleto({ ...cenario, ativa: id, lista: novasCenas }).then((ok) => {
+            if (ok) {
+                setModoEdicaoMapa(false);
+            } else {
+                alert('⚠️ Não foi possível salvar o fundo deste cenário no servidor — ele pode não aparecer para os outros jogadores. Verifique sua conexão e tente de novo.');
+            }
+        });
     };
 
-    const handleImageUpload = (e) => {
+    // 🔥 Sobe a imagem pro Firebase Storage (como o Gerenciador de Cenas já faz) em vez de embutir
+    // o arquivo inteiro em base64 direto no Cenário do Firebase — uma foto de alguns MB em base64
+    // podia estourar o limite de payload do Realtime Database e falhar em silêncio, fazendo o
+    // cenário "sumir" pros outros mesmo com o Mestre vendo tudo certo na própria tela.
+    // `salvandoCenario` cobre tanto esse upload quanto a gravação no Firebase de atualizarImagemMapa
+    // (e é resetado sempre que o modal "Configurar Cenário" é reaberto — se um upload travar numa
+    // rede ruim, fechar e abrir o modal de novo destrava o botão/input em vez de ficar preso pra sempre).
+    const handleImageUpload = async (e) => {
         const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => atualizarImagemMapa(reader.result);
-            reader.readAsDataURL(file);
+        if (!file) return;
+        setSalvandoCenario(true);
+        try {
+            const url = await uploadImagem(file, `mapas/${Date.now()}`);
+            await atualizarImagemMapa(url);
+        } catch (err) {
+            alert('Erro ao enviar a imagem para o Mapa. Verifique sua conexão ou tente uma imagem menor.');
+        } finally {
+            setSalvandoCenario(false);
         }
     };
 
-    const salvarUrl = () => {
-        if(urlInput) atualizarImagemMapa(urlInput);
-        else setModoEdicaoMapa(false);
+    const salvarUrl = async () => {
+        if (!urlInput) { setModoEdicaoMapa(false); return; }
+        setSalvandoCenario(true);
+        try {
+            await atualizarImagemMapa(urlInput);
+        } finally {
+            setSalvandoCenario(false);
+        }
     };
 
     // ==========================================
@@ -572,7 +600,7 @@ export default function MapaMundi({ children }) {
                 <div style={{ background: '#111', padding: '12px 20px', borderRadius: '10px 10px 0 0', border: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
                     <div style={{ display: 'flex', gap: '15px' }}>
                         <button onClick={voltarCamera} style={{ background: '#ff4444', color: '#fff', border: 'none', padding: '7px 18px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>⬅ SAIR</button>
-                        <button onClick={() => { setUrlInput(backgroundUrl || ''); setModoEdicaoMapa(true); }} style={{ background: 'transparent', color: '#0088ff', border: '1px solid #0088ff', padding: '7px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>⚙️ EDITAR CENÁRIO</button>
+                        <button onClick={() => { setUrlInput(backgroundUrl || ''); setSalvandoCenario(false); setModoEdicaoMapa(true); }} style={{ background: 'transparent', color: '#0088ff', border: '1px solid #0088ff', padding: '7px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>⚙️ EDITAR CENÁRIO</button>
                     </div>
                     <span style={{ color: '#ffcc00', fontWeight: 'bold', textTransform: 'uppercase' }}>{localAtual.reino ? `${localAtual.reino} : ` : ''}{localAtual.mapaNome}</span>
                 </div>
@@ -590,13 +618,13 @@ export default function MapaMundi({ children }) {
                                 <h3 style={{ color: '#0088ff', marginTop: 0 }}>Configurar Cenário</h3>
                                 <p style={{ color: '#aaa', fontSize: '0.85em', marginBottom: '15px' }}>Defina a imagem de fundo deste campo de batalha. Isso será atualizado para todos os jogadores.</p>
                                 
-                                <label style={{ display: 'block', textAlign: 'left', color: '#0088ff', fontSize: '0.8em', marginBottom: '5px' }}>1. Fazer Upload do PC:</label>
-                                <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'block', color: '#fff', marginBottom: '20px', width: '100%', background: '#1a1a1a', padding: '10px', borderRadius: '8px', border: '1px solid #444' }} />
-                                
+                                <label style={{ display: 'block', textAlign: 'left', color: '#0088ff', fontSize: '0.8em', marginBottom: '5px' }}>1. Fazer Upload do PC:{salvandoCenario && ' (Enviando...)'}</label>
+                                <input type="file" accept="image/*" onChange={handleImageUpload} disabled={salvandoCenario} style={{ display: 'block', color: '#fff', marginBottom: '20px', width: '100%', background: '#1a1a1a', padding: '10px', borderRadius: '8px', border: '1px solid #444', opacity: salvandoCenario ? 0.5 : 1 }} />
+
                                 <label style={{ display: 'block', textAlign: 'left', color: '#0088ff', fontSize: '0.8em', marginBottom: '5px' }}>2. Ou colar URL de Imagem:</label>
-                                <input type="text" value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="http://..." style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #444', background: '#1a1a1a', color: '#fff', marginBottom: '25px' }} />
-                                
-                                <button onClick={salvarUrl} style={{ width: '100%', background: '#0088ff', color: '#fff', padding: '14px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>💾 SALVAR CENÁRIO</button>
+                                <input type="text" value={urlInput} onChange={(e) => setUrlInput(e.target.value)} placeholder="http://..." disabled={salvandoCenario} style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #444', background: '#1a1a1a', color: '#fff', marginBottom: '25px', opacity: salvandoCenario ? 0.5 : 1 }} />
+
+                                <button onClick={salvarUrl} disabled={salvandoCenario} style={{ width: '100%', background: '#0088ff', color: '#fff', padding: '14px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: salvandoCenario ? 'default' : 'pointer', opacity: salvandoCenario ? 0.5 : 1 }}>{salvandoCenario ? '⏳ SALVANDO...' : '💾 SALVAR CENÁRIO'}</button>
                             </div>
                         </div>
                     )}

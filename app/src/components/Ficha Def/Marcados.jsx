@@ -388,6 +388,8 @@ function callSave(fn) {
     }, 400);
 }
 
+let divisorPoderMesaTimer = null;
+
 // ==========================================
 // 🖋️ COMPONENTES ISOLADOS (BLINDADOS)
 // ==========================================
@@ -965,8 +967,19 @@ export default function MarcadosPanel() {
     const salvarDivisorPoderMesaHandler = (valor) => {
         let v = parseFloat(valor);
         if (isNaN(v) || v <= 0) v = 1;
-        setDivisorPoderMesa(v);
-        salvarDivisorPoderMesa(v);
+        setDivisorPoderMesa(v); // atualização otimista local — some não espera o Firebase pra refletir na UI
+
+        // 🔥 Se a gravação no Firebase falhar, este navegador fica "sozinho" com o valor novo (só
+        // localStorage) enquanto o resto da mesa continua vendo o valor antigo — cada um calculando
+        // um Poder Atual diferente pro MESMO personagem sem nenhum aviso. Por isso o alerta aqui.
+        // Debounced (input sem debounce próprio, disparava uma escrita por tecla) pra não empilhar
+        // um alert() por dígito digitado se a rede estiver instável.
+        if (divisorPoderMesaTimer) clearTimeout(divisorPoderMesaTimer);
+        divisorPoderMesaTimer = setTimeout(() => {
+            salvarDivisorPoderMesa(v).then((ok) => {
+                if (!ok) alert('⚠️ Não foi possível sincronizar o Divisor de Poder Padrão com o servidor — os outros jogadores podem continuar vendo o valor antigo. Verifique sua conexão e tente de novo.');
+            });
+        }, 500);
     };
 
     const handleStyleChange = (key, val) => {
@@ -1583,7 +1596,7 @@ export default function MarcadosPanel() {
                                     <BarraVital atual={minhaFicha.pv?.atual !== undefined && minhaFicha.pv?.atual !== '' ? Number(minhaFicha.pv.atual) : pvMax} maximo={pvMax} pVit={0} cor="#ffffff" corTexto="#000" onChangeAtual={(v) => salvar('pv.atual', v)} />
                                 </div>
                                 <div style={{ marginBottom: '15px' }}>
-                                    <LabelMagico valor={getLabeSl('lblPM', 'Pontos Mortais (PM)')} onChange={(v) => setLabel('lblPM', v)} />
+                                    <LabelMagico valor={getLabel('lblPM', 'Pontos Mortais (PM)')} onChange={(v) => setLabel('lblPM', v)} />
                                     <BarraVital atual={minhaFicha.pm?.atual !== undefined && minhaFicha.pm?.atual !== '' ? Number(minhaFicha.pm.atual) : pmMax} maximo={pmMax} pVit={0} cor="#000000" corTexto="#fff" onChangeAtual={(v) => salvar('pm.atual', v)} />
                                 </div>
 
