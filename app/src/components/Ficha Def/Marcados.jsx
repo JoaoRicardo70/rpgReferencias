@@ -321,10 +321,23 @@ function encontrarCategoriaPorLore(nome) {
     return null;
 }
 
-// 🔥 CALCULADOR INTELIGENTE DE BLEND-MODE (SEM SVG, 100% SEGURO) 🔥
+// 🔥 CALCULADOR INTELIGENTE DE BLEND-MODE DO FUNDO DA TELA 🔥
 export function getCamadasTinta(cor) {
     if (!cor || cor === '#ffffff' || cor === 'transparent') return null;
-    return { modo1: 'multiply', op1: 0.85, modo2: 'color', op2: 1 };
+    const hex = String(cor).replace('#', '');
+    if (hex.length !== 6) return { modo1: 'color', op1: 0.85, modo2: 'overlay', op2: 0.5 };
+    
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    if (lum < 0.45) {
+        const multiplyOpacity = Math.max(0.3, Math.min(0.65, (1 - lum) * 0.6));
+        return { modo1: 'color', op1: 0.95, modo2: 'multiply', op2: multiplyOpacity };
+    } else {
+        return { modo1: 'color', op1: 0.9, modo2: 'overlay', op2: 0.6 };
+    }
 }
 
 // ==========================================
@@ -779,10 +792,10 @@ export default function MarcadosPanel() {
     const [localMolduraAvatar, setLocalMolduraAvatar] = useState('');
     const [localCorMoldura, setLocalCorMoldura] = useState('#ffffff');
     const [localIconeClasse, setLocalIconeClasse] = useState('');
-    const [localModoMoldura, setLocalModoMoldura] = useState('normal'); 
+    const [localModoMoldura, setLocalModoMoldura] = useState('screen'); // DEFAULT DE VOLTA A SCREEN PARA MAGIA NEGRA
     const [localModoFundo, setLocalModoFundo] = useState('normal'); 
     const [localCorFundoTint, setLocalCorFundoTint] = useState('#ffffff'); 
-    const [localIconeOffsetY, setLocalIconeOffsetY] = useState(-8); // 🔥 NOVO: SLIDER DO ÍCONE
+    const [localIconeOffsetY, setLocalIconeOffsetY] = useState(-65); // 🔥 NOVO DEFAULT ABSOLUTO
     const [textoImport, setTextoImport] = useState('');
     const [modalImport, setModalImport] = useState(false);
 
@@ -807,10 +820,10 @@ export default function MarcadosPanel() {
             setLocalMolduraAvatar(minhaFicha.estetica?.molduraAvatar || '');
             setLocalCorMoldura(minhaFicha.estetica?.corMoldura || '#ffffff');
             setLocalIconeClasse(minhaFicha.estetica?.iconeClasse || '');
-            setLocalModoMoldura(minhaFicha.estetica?.modoMoldura || 'normal');
+            setLocalModoMoldura(minhaFicha.estetica?.modoMoldura || 'screen'); // DEFAULT A SCREEN
             setLocalModoFundo(minhaFicha.estetica?.modoFundo || 'normal');
             setLocalCorFundoTint(minhaFicha.estetica?.corFundoTint || '#ffffff');
-            setLocalIconeOffsetY(minhaFicha.estetica?.iconeOffsetY ?? -8);
+            setLocalIconeOffsetY(minhaFicha.estetica?.iconeOffsetY ?? -65);
         }
     }, [minhaFicha?.estetica]);
 
@@ -938,8 +951,7 @@ export default function MarcadosPanel() {
     const classeInfo = getClasseInfo(minhaFicha);
     const iconeFinal = localIconeClasse || classeInfo?.iconeUrl;
     
-    // 🔥 CAMADAS DE TINTA (A ESTÉTICA PREMIUM) 🔥
-    const tintaMoldura = getCamadasTinta(localCorMoldura);
+    // 🔥 CAMADAS DE TINTA (A ESTÉTICA PREMIUM DO FUNDO) 🔥
     const tintaFundo = getCamadasTinta(localCorFundoTint);
 
     // 🔥 VINCULA A COR DO GLOW À MOLDURA 🔥
@@ -1255,9 +1267,9 @@ export default function MarcadosPanel() {
                                 </label>
                             </div>
                             <select value={localModoMoldura} onChange={(e) => handleStyleChange('modoMoldura', e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid rgba(0,0,0,0.2)', background: 'transparent', fontFamily: 'inherit', marginBottom: '10px' }}>
-                                <option value="normal">Normal / Imagem PNG Transparente</option>
                                 <option value="screen">Fundo Preto (Magia Screen)</option>
                                 <option value="multiply">Fundo Branco (Magia Multiply)</option>
+                                <option value="normal">Nenhum / Imagem PNG Transparente</option>
                             </select>
                             
                             {/* 🔥 NOVA PALETA PREMIUM NAS BORDAS 🔥 */}
@@ -1281,7 +1293,7 @@ export default function MarcadosPanel() {
                             </div>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9em', color: '#555', marginTop: '10px', marginBottom: '15px', fontWeight: 'bold' }}>
                                 <span>↕️ Ajuste Vertical do Ícone:</span>
-                                <input type="range" min="-80" max="50" value={localIconeOffsetY} onChange={(e) => handleStyleChange('iconeOffsetY', parseInt(e.target.value))} style={{ flex: 1, accentColor: localCorMoldura !== '#ffffff' ? localCorMoldura : '#000' }} />
+                                <input type="range" min="-100" max="50" value={localIconeOffsetY} onChange={(e) => handleStyleChange('iconeOffsetY', parseInt(e.target.value))} style={{ flex: 1, accentColor: localCorMoldura !== '#ffffff' ? localCorMoldura : '#000' }} />
                                 <span style={{ width: '40px', textAlign: 'right' }}>{localIconeOffsetY}px</span>
                             </label>
                             <hr style={{ border: '1px dashed #ccc', margin: '15px 0' }}/>
@@ -1448,7 +1460,7 @@ export default function MarcadosPanel() {
                                 ))}
                             </div>
 
-                            {/* 🔥 AVATAR COM GLOW DINÂMICO E DUPLA CAMADA DE TINTA (MÁSCARAS ORIGINAIS) 🔥 */}
+                            {/* 🔥 AVATAR COM GLOW DINÂMICO E NOVO BYPASS DE MÁSCARA 🔥 */}
                             <div style={{ 
                                 marginTop: '20px', position: 'relative', width: '320px', height: '480px', display: 'flex', flexDirection: 'column', 
                                 borderRadius: '8px', 
@@ -1466,27 +1478,43 @@ export default function MarcadosPanel() {
                                             <div style={{ position: 'absolute', top: '-3.5%', left: '-3%', width: '106%', height: '107%', zIndex: 2, pointerEvents: 'none', mixBlendMode: localModoMoldura, isolation: 'isolate' }}>
                                                 <img src={localMolduraAvatar} alt="Moldura" style={{ width: '100%', height: '100%', objectFit: 'fill', position: 'absolute', top: 0, left: 0, filter: 'contrast(1.2) saturate(1.2)' }} />
                                                 
-                                                {tintaMoldura && (
+                                                {/* BYPASS DE CORS PARA MOLDURAS DE FUNDO PRETO (SCREEN) */}
+                                                {localModoMoldura === 'screen' && localCorMoldura !== '#ffffff' && (
                                                     <>
-                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: 1, WebkitMaskImage: `url("${localMolduraAvatar}")`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url("${localMolduraAvatar}")`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
-                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo1, opacity: tintaMoldura.op1, WebkitMaskImage: `url("${localMolduraAvatar}")`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url("${localMolduraAvatar}")`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
-                                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo2, opacity: tintaMoldura.op2, WebkitMaskImage: `url("${localMolduraAvatar}")`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url("${localMolduraAvatar}")`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'multiply' }} />
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: 0.5 }} />
+                                                    </>
+                                                )}
+
+                                                {/* BYPASS DE CORS PARA MOLDURAS DE FUNDO BRANCO (MULTIPLY) */}
+                                                {localModoMoldura === 'multiply' && localCorMoldura !== '#ffffff' && (
+                                                    <>
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'screen' }} />
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'overlay', opacity: 0.5 }} />
+                                                    </>
+                                                )}
+
+                                                {/* MODO NORMAL (MÁSCARA) PARA IMAGENS PNG COM TRANSPARÊNCIA VERDADEIRA */}
+                                                {localModoMoldura === 'normal' && localCorMoldura !== '#ffffff' && (
+                                                    <>
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'color', opacity: 0.9, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
+                                                        <div style={{ position: 'absolute', inset: 0, backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: 0.6, WebkitMaskImage: `url('${localMolduraAvatar}')`, WebkitMaskSize: '100% 100%', WebkitMaskRepeat: 'no-repeat', maskImage: `url('${localMolduraAvatar}')`, maskSize: '100% 100%', maskRepeat: 'no-repeat' }} />
                                                     </>
                                                 )}
                                             </div>
                                         )}
 
-                                        {/* 🔥 SÍMBOLO DA CLASSE (AGORA COM SLIDER NO MENU ESTILO) 🔥 */}
+                                        {/* 🔥 SÍMBOLO DA CLASSE COM GLOW ALINHADO EM -65PX E COM SLIDER DE CONTROLO 🔥 */}
                                         {(classeInfo || localIconeClasse) && (
                                             <div style={{ position: 'absolute', bottom: `${localIconeOffsetY}px`, left: '50%', transform: 'translateX(-50%)', zIndex: 3, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '70px', height: '70px' }}>
                                                 {iconeFinal ? (
                                                     <div style={{ position: 'relative', width: '100%', height: '100%', filter: `drop-shadow(0 0 10px ${glowColor}) drop-shadow(0 2px 4px rgba(0,0,0,0.8))`, isolation: 'isolate' }}>
                                                         <img src={iconeFinal} alt="Classe" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
                                                         
-                                                        {tintaMoldura && (
+                                                        {localCorMoldura !== '#ffffff' && (
                                                             <>
-                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo1, opacity: tintaMoldura.op1, WebkitMaskImage: `url("${iconeFinal}")`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url("${iconeFinal}")`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
-                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: tintaMoldura.modo2, opacity: tintaMoldura.op2, WebkitMaskImage: `url("${iconeFinal}")`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url("${iconeFinal}")`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
+                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'color', WebkitMaskImage: `url('${iconeFinal}')`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url('${iconeFinal}')`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
+                                                                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: localCorMoldura, mixBlendMode: 'multiply', opacity: 0.5, WebkitMaskImage: `url('${iconeFinal}')`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url('${iconeFinal}')`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center' }} />
                                                             </>
                                                         )}
                                                     </div>
@@ -1514,7 +1542,7 @@ export default function MarcadosPanel() {
 
                         <div style={{ flex: '1 1 450px', display: 'flex', flexDirection: 'column' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '0 0 10px 5px' }}>
-                                <h2 style={{ fontSize: '2em', fontStyle: 'italic', fontWeight: 'bold', margin: '0 0 20px 0', display: 'flex' }}>
+                                <h2 style={{ fontSize: '2em', fontStyle: 'italic', fontWeight: 'bold', margin: 0, display: 'flex' }}>
                                     <LabelMagico valor={getLabel('tituloBase', '> STATUS PRINCIPAIS')} onChange={(v) => setLabel('tituloBase', v)} />
                                 </h2>
                                 <button onClick={handleRegenerarTudo} style={{ background: 'rgba(255,255,255,0.4)', border: '2px solid currentColor', padding: '5px 15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'inherit', fontSize: '0.9em', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '2px 2px 5px rgba(0,0,0,0.2)' }} title="Recuperar toda a Vida, Energias e Ações">
