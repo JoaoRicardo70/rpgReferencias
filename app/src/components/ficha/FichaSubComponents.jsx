@@ -35,7 +35,7 @@ export function FichaBioGroup() {
     if (!ctx) return FALLBACK;
     const {
         minhaFicha, isGrand, grandIcone, classe, mesa, setMesa, comitarBio,
-        raca, setRaca, setClasse, subClasse, alterEgoSlot1, alterEgoSerId, setAlterEgoSlot1, setAlterEgoSerId, mudarSubClasseDireto,
+        raca, setRaca, setClasse, subClasse, setSubClasse, alterEgoSlot1, alterEgoSerId, setAlterEgoSlot1, setAlterEgoSerId, mudarSubClasseDireto,
         descansoLongoPretender, classesMemorizadas, toggleMemoriaPretender,
         idade, setIdade, fisico, setFisico, sangue, setSangue,
         alinhamento, setAlinhamento, afiliacao, setAfiliacao,

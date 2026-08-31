@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import useStore from '../../stores/useStore';
 import { salvarFichaSilencioso } from '../../services/firebase-sync';
+import { getMaximo } from '../../core/attributes.js';
 
 // ==========================================
 // 🌌 CONSTANTES DE ELEMENTOS
