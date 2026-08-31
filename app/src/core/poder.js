@@ -161,7 +161,11 @@ function getGlobalMultipliers(ficha) {
         let finalUni = 1.0;
         unicos.forEach(n => { finalUni *= n; });
 
-        return { finalB, finalG, finalF, finalA, finalUni, totalDano: finalB * finalG * finalA * finalUni };
+        // 🔥 finalUni (mUnico) fica DE FORA de totalDano de propósito — é aplicado
+        // separadamente em calcularPoderAtual, no MESMO estágio (pós-injeção de
+        // Ascensão) que multiplicadorPoderDireto e multiplicadorMunicoCrescente.
+        // Ver o mesmo comentário/motivo em Ficha Def/Marcados.jsx > poderGlobal.
+        return { finalB, finalG, finalF, finalA, finalUni, totalDano: finalB * finalG * finalA };
     } catch (e) {
         return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalUni: 1, totalDano: 1 };
     }
@@ -199,6 +203,19 @@ function getPoderDiretoMultiplier(ficha) {
     } catch (e) {
         return 1;
     }
+}
+
+// ♾️ mUnico Crescente (Infinities tipo Adaptação) — réplica exata de
+// getMunicoCrescenteMultiplier em Ficha Def/Marcados.jsx. Cresce automaticamente
+// a cada turno de combate (combate.municoTurnos x combate.municoPorTurno) e
+// multiplica junto de multiplicadorPoderDireto/glob.finalUni no mesmo estágio
+// pós-injeção de Ascensão, pra não ser diluído.
+function getMunicoCrescenteMultiplier(ficha) {
+    const turnos = Math.max(0, Number(ficha?.combate?.municoTurnos) || 0);
+    if (turnos <= 0) return 1;
+    const taxaBruta = Number(ficha?.combate?.municoPorTurno);
+    const taxa = isNaN(taxaBruta) ? 5 : taxaBruta;
+    return Math.max(1, 1 + (turnos * taxa / 100));
 }
 
 export function getTemaScouter(supressao, limite = 1) {
@@ -254,8 +271,12 @@ export function calcularPoderAtual(ficha, divisorPoderMesa) {
     }
     poderComAscensao = clampFinito(poderComAscensao);
 
+    // 🔥 TODO mUnico se junta aqui, no mesmo estágio (pós-injeção de Ascensão) —
+    // ver o mesmo comentário/motivo em Ficha Def/Marcados.jsx > poderGlobal.
     const multiplicadorPoderDireto = clampFinito(getPoderDiretoMultiplier(ficha));
-    poderComAscensao = clampFinito(poderComAscensao * multiplicadorPoderDireto);
+    const multiplicadorMunicoCrescente = clampFinito(getMunicoCrescenteMultiplier(ficha));
+    const multiplicadorMunicoTotal = clampFinito(glob.finalUni) * multiplicadorPoderDireto * multiplicadorMunicoCrescente;
+    poderComAscensao = clampFinito(poderComAscensao * multiplicadorMunicoTotal);
 
     let power = poderComAscensao * (sup / 100);
     power = clampFinito(power);

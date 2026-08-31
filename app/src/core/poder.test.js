@@ -108,6 +108,75 @@ describe('core/poder - calcularPoderAtual', () => {
     });
 });
 
+// ---------------------------------------------------------------------------
+// QA — mUnico Crescente (Por Turno) e "mUnico sempre multiplica mUnico" em
+// core/poder.js: este arquivo é uma RÉPLICA PURA do useMemo de poderGlobal em
+// Ficha Def/Marcados.jsx (usada pra exibir o mesmo "Poder Atual" na moldura de
+// combate do Mapa — ver MapaCombate.jsx). Uma correção de dilução de mUnico
+// (movida pra multiplicar no mesmo estágio pós-injeção de Ascensão que
+// multiplicadorPoderDireto) foi aplicada em Marcados.jsx mas inicialmente
+// deixada de fora desta réplica — o que faria o Mapa e a Ficha mostrarem
+// números DIFERENTES de Poder pro mesmo personagem. Estes testes garantem que
+// as duas implementações concordam pros mesmos cenários de mUnico.
+// ---------------------------------------------------------------------------
+describe('core/poder - calcularPoderAtual: mUnico Crescente e "mUnico sempre multiplica mUnico"', () => {
+    function poderesComMUnicoPassivo(valor) {
+        return [{ efeitosPassivos: [{ atributo: 'poder_direto', propriedade: 'munico', valor: String(valor) }] }];
+    }
+
+    it('ficha sem combate.municoTurnos produz a MESMA leitura que municoTurnos=0 (sem alteração no Poder)', () => {
+        const semCombate = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
+        const comZeroTurnos = calcularPoderAtual(criarFichaMinima({ combate: { municoTurnos: 0, municoPorTurno: 5 } }), 1).poderGlobal;
+
+        expect(comZeroTurnos).toBe(semCombate);
+    });
+
+    it('10 turnos x 5%/turno (mUnico x1.50) produz a mesma leitura que um mUnico passivo equivalente vindo de Poderes (mesmo estágio pós-injeção de Ascensão)', () => {
+        const semMunico = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
+        const comMunicoCrescente = calcularPoderAtual(criarFichaMinima({ combate: { municoTurnos: 10, municoPorTurno: 5 } }), 1).poderGlobal;
+        const comMUnicoPassivoEquivalente = calcularPoderAtual(criarFichaMinima({ poderes: poderesComMUnicoPassivo('1.5') }), 1).poderGlobal;
+
+        expect(comMunicoCrescente).toBeGreaterThan(semMunico);
+        expect(comMunicoCrescente).toBe(comMUnicoPassivoEquivalente);
+    });
+
+    it('combina multiplicativamente com um mUnico manual em ficha.dano.mUnico (Balança de Adaptação) sem diluição — mesma regressão corrigida em Marcados.jsx', () => {
+        // municoTurnos:10 x municoPorTurno:5% -> mUnico Crescente = x1.5; combinado com
+        // dano.mUnico='2.0' manual -> total esperado x1.5 * x2.0 = x3.0.
+        const comAmbos = calcularPoderAtual(
+            criarFichaMinima({ combate: { municoTurnos: 10, municoPorTurno: 5 }, dano: { mUnico: '2.0' } }),
+            1
+        ).poderGlobal;
+        const equivalenteComMUnicoPassivoDe3 = calcularPoderAtual(criarFichaMinima({ poderes: poderesComMUnicoPassivo('3.0') }), 1).poderGlobal;
+
+        expect(comAmbos).toBe(equivalenteComMUnicoPassivoDe3);
+    });
+
+    it('NÃO clampa em 100% — 40 turnos x 10%/turno (mUnico x5.00) continua crescendo sem teto', () => {
+        const comMunicoCrescente = calcularPoderAtual(criarFichaMinima({ combate: { municoTurnos: 40, municoPorTurno: 10 } }), 1).poderGlobal;
+        const comMUnicoPassivoEquivalente = calcularPoderAtual(criarFichaMinima({ poderes: poderesComMUnicoPassivo('5.0') }), 1).poderGlobal;
+
+        expect(comMunicoCrescente).toBe(comMUnicoPassivoEquivalente);
+    });
+
+    it('municoPorTurno negativo nunca REDUZ o Poder (multiplicador nunca cai abaixo de x1.00)', () => {
+        const semMunico = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
+        const comTaxaNegativa = calcularPoderAtual(criarFichaMinima({ combate: { municoTurnos: 10, municoPorTurno: -50 } }), 1).poderGlobal;
+
+        expect(comTaxaNegativa).toBe(semMunico);
+    });
+
+    it('concorda com Ficha Def/Marcados.jsx: uma ficha com mUnico Crescente + dano.mUnico + Poderes/poder_direto combina os TRÊS multiplicativamente (x1.5 * x2.0 * x2.0 = x6.0)', () => {
+        const comTodasAsFontes = calcularPoderAtual(
+            criarFichaMinima({ combate: { municoTurnos: 10, municoPorTurno: 5 }, dano: { mUnico: '2.0' }, poderes: poderesComMUnicoPassivo('2.0') }),
+            1
+        ).poderGlobal;
+        const equivalenteComMUnicoPassivoDe6 = calcularPoderAtual(criarFichaMinima({ poderes: poderesComMUnicoPassivo('6.0') }), 1).poderGlobal;
+
+        expect(comTodasAsFontes).toBe(equivalenteComMUnicoPassivoDe6);
+    });
+});
+
 describe('core/poder - getTemaScouter', () => {
     it('retorna o tema "Poder Máximo" quando supressao >= 100', () => {
         expect(getTemaScouter(100, 1).nome).toBe('Poder Máximo (Liberto)');

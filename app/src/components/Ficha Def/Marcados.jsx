@@ -83,14 +83,6 @@ function getGlobalMultipliers(ficha) {
             });
         }
 
-        // ♾️ mUnico Crescente (Infinities tipo Adaptação): cresce automaticamente a
-        // cada turno de combate (mesmo padrão de contador da Fadiga, só que aumenta
-        // o Poder em vez de reduzir). Ver "Marcadores & Adaptação" > mUnico Crescente.
-        const municoTurnos = Math.max(0, Number(ficha?.combate?.municoTurnos) || 0);
-        const municoTaxaBruta = Number(ficha?.combate?.municoPorTurno);
-        const municoTaxa = isNaN(municoTaxaBruta) ? 5 : municoTaxaBruta;
-        if (municoTurnos > 0) unicos.push(Math.max(1, 1 + (municoTurnos * municoTaxa / 100)));
-
         ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].forEach(k => {
             const mF = getEfetivoMFormas(ficha, k, true);
             if (!isNaN(mF) && mF > 1) {
@@ -150,7 +142,15 @@ function getGlobalMultipliers(ficha) {
         let finalUni = 1.0;
         unicos.forEach(n => { finalUni *= n; });
 
-        return { finalB, finalG, finalF, finalA, finalUni, totalDano: finalB * finalG * finalA * finalUni };
+        // 🔥 finalUni (mUnico) fica DE FORA de totalDano de propósito — é aplicado
+        // separadamente em poderGlobal, no MESMO estágio (pós-injeção de Ascensão)
+        // que multiplicadorPoderDireto (mUnicos de Poderes/poder_direto) e
+        // multiplicadorMunicoCrescente (mUnico Crescente por turno). Isso garante
+        // que TODO mUnico — não importa a fonte (Balança de Adaptação, buffs,
+        // texto de habilidades, Poderes ou mUnico Crescente) — sempre multiplica
+        // com qualquer outro mUnico, sem ser diluído pela injeção aditiva de
+        // Ascensão que fica no meio do caminho (ver getMunicoCrescenteMultiplier).
+        return { finalB, finalG, finalF, finalA, finalUni, totalDano: finalB * finalG * finalA };
     } catch(e) {
         return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalUni: 1, totalDano: 1 };
     }
@@ -188,6 +188,26 @@ function getPoderDiretoMultiplier(ficha) {
     } catch (e) {
         return 1;
     }
+}
+
+// ♾️ mUnico Crescente (Infinities tipo Adaptação): cresce automaticamente a cada
+// turno de combate (mesmo padrão de contador da Fadiga, só que aumenta o Poder em
+// vez de reduzir). Ver "Marcadores & Adaptação" > mUnico Crescente.
+//
+// 🔥 mUnico SEMPRE multiplica mUnico — nunca soma. Por isso este multiplicador NÃO
+// entra no array `unicos` de getGlobalMultipliers() (que alimenta glob.totalDano,
+// consumido ANTES da injeção aditiva de Ascensão via magnitude de log10 em
+// poderGlobal). Ficando ali, o efeito multiplicativo era "diluído" pela injeção de
+// Ascensão que vem logo depois, e ficava pouco visível ao lado de mUnicos passivos
+// vindos de Poderes (poder_direto), que já multiplicam DEPOIS dessa injeção via
+// multiplicadorPoderDireto. Aplicando junto de multiplicadorPoderDireto (mesmo
+// estágio do pipeline), os dois voltam a multiplicar entre si de verdade.
+function getMunicoCrescenteMultiplier(ficha) {
+    const turnos = Math.max(0, Number(ficha?.combate?.municoTurnos) || 0);
+    if (turnos <= 0) return 1;
+    const taxaBruta = Number(ficha?.combate?.municoPorTurno);
+    const taxa = isNaN(taxaBruta) ? 5 : taxaBruta;
+    return Math.max(1, 1 + (turnos * taxa / 100));
 }
 
 function getPoderAbsolutoAtributo(key, ficha) {
@@ -926,8 +946,16 @@ export default function MarcadosPanel() {
         }
         poderComAscensao = clampFinito(poderComAscensao);
 
+        // 🔥 TODO mUnico se junta aqui, no mesmo estágio (pós-injeção de Ascensão):
+        // glob.finalUni (Balança de Adaptação / buffs / texto de habilidades),
+        // multiplicadorPoderDireto (mUnicos de Poderes/poder_direto) e
+        // multiplicadorMunicoCrescente (mUnico Crescente por turno) — nenhuma
+        // fonte de mUnico fica isolada do resto, então mUnico sempre multiplica
+        // mUnico, não importa de onde venha.
         const multiplicadorPoderDireto = clampFinito(getPoderDiretoMultiplier(minhaFicha));
-        poderComAscensao = clampFinito(poderComAscensao * multiplicadorPoderDireto);
+        const multiplicadorMunicoCrescente = clampFinito(getMunicoCrescenteMultiplier(minhaFicha));
+        const multiplicadorMunicoTotal = clampFinito(glob.finalUni) * multiplicadorPoderDireto * multiplicadorMunicoCrescente;
+        poderComAscensao = clampFinito(poderComAscensao * multiplicadorMunicoTotal);
 
         let power = poderComAscensao * (sup / 100);
         power = clampFinito(power);
