@@ -1,17 +1,22 @@
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import MarcadosPanel from './Marcados';
 import useStore from '../../stores/useStore';
 
 // ---------------------------------------------------------------------------
-// QA — Fadiga de Combate (ver ClassificacaoPanel.jsx > PaginaMarcadores): desgaste
-// acumulado (combate.fadigaTurnos x combate.fadigaPorTurno, clampado em 100%) agora
-// reduz proporcionalmente o Poder Calculado do Scouter, aplicado logo após o
-// damping de Supressão e antes do Divisor de Poder (ver poderGlobal em
-// Marcados.jsx). Uma ficha sem o campo `combate` (ou com fadigaTurnos=0) precisa
-// continuar produzindo exatamente a mesma leitura de antes desta feature —
-// nenhuma ficha existente pode ter o Poder alterado sem o jogador interagir com a
-// nova seção de Fadiga.
+// QA — Fadiga de Combate: desgaste acumulado (combate.fadigaTurnos x
+// combate.fadigaPorTurno, clampado em 100%) reduz proporcionalmente o Poder
+// Calculado do Scouter, aplicado logo após o damping de Supressão e antes do
+// Divisor de Poder (ver poderGlobal em Marcados.jsx). Uma ficha sem o campo
+// `combate` (ou com fadigaTurnos=0) precisa continuar produzindo exatamente a
+// mesma leitura de antes desta feature — nenhuma ficha existente pode ter o
+// Poder alterado sem o jogador interagir com a seção de Fadiga.
+//
+// A seção de Fadiga morava em ClassificacaoPanel.jsx > PaginaMarcadores
+// (Capítulo 2, página 4 da Ficha Definitiva) e foi realocada pro mestre pra
+// dentro de MarcadosPanel, na Página 1 (junto do Scouter/Ocultar
+// Presença/Divisor de Poder) — ver o segundo describe abaixo pra cobertura da
+// UI relocada.
 //
 // Mesmo padrão de mock/leitura de Marcados.scouterAgrupamento.test.jsx.
 // ---------------------------------------------------------------------------
@@ -114,5 +119,70 @@ describe('MarcadosPanel — Fadiga de Combate reduz o Poder Calculado do Scouter
         const com20PorCentoExplicito = renderELerPoderGlobal({ fadigaTurnos: 4, fadigaPorTurno: 5 });
 
         expect(comPadraoExplicito).toBe(com20PorCentoExplicito);
+    });
+});
+
+describe('MarcadosPanel — Fadiga de Combate: seção visível na Página 1 (sem precisar navegar)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        window.confirm = vi.fn(() => true);
+        window.alert = vi.fn();
+    });
+
+    afterEach(() => {
+        cleanup();
+    });
+
+    it('a seção "Fadiga de Combate" já aparece na Página 1 por padrão (paginaAtual inicial), sem precisar clicar em "Próxima"', () => {
+        montarMockUseStore(fichaComFadiga({ fadigaTurnos: 0, fadigaPorTurno: 5 }));
+        render(<MarcadosPanel />);
+
+        expect(screen.getByText('😮‍💨 Fadiga de Combate')).toBeTruthy();
+    });
+
+    it('clicar "+" nos Turnos Cansativos incrementa combate.fadigaTurnos e a Fadiga Atual exibida reflete turnos x taxa', () => {
+        const ficha = fichaComFadiga({ fadigaTurnos: 0, fadigaPorTurno: 5 });
+        montarMockUseStore(ficha);
+        const { rerender } = render(<MarcadosPanel />);
+
+        // "Turnos Cansativos" tem +/- num único elemento <span> por número (ex.: "5" e "%"
+        // são nós de texto separados dentro do mesmo <span>{fadigaAtual}%</span>), então a
+        // localização usa o texto do card ao redor em vez de getByText('+') isolado.
+        const cardTurnos = screen.getByText('Turnos Cansativos').closest('div');
+        const incrementar = cardTurnos.querySelector('button:last-of-type');
+        fireEvent.click(incrementar);
+
+        expect(ficha.combate.fadigaTurnos).toBe(1);
+        // updateFicha (mockado) muta `ficha` direto, sem disparar re-render do React
+        // sozinho — força um rerender() manual pra observar o efeito da mutação na UI.
+        rerender(<MarcadosPanel />);
+        expect(screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === '5%')).toBeTruthy();
+    });
+
+    it('"Zerar Fadiga" zera combate.fadigaTurnos', () => {
+        const ficha = fichaComFadiga({ fadigaTurnos: 7, fadigaPorTurno: 5 });
+        montarMockUseStore(ficha);
+        render(<MarcadosPanel />);
+
+        fireEvent.click(screen.getByText(/Zerar Fadiga/i));
+
+        expect(ficha.combate.fadigaTurnos).toBe(0);
+    });
+
+    it('"Descansar" (handleRegenerarTudo) também zera combate.fadigaTurnos', () => {
+        const ficha = fichaComFadiga({ fadigaTurnos: 12, fadigaPorTurno: 5 });
+        montarMockUseStore(ficha);
+        render(<MarcadosPanel />);
+
+        fireEvent.click(screen.getByText(/Descansar/i));
+
+        expect(ficha.combate.fadigaTurnos).toBe(0);
+    });
+
+    it('ficha sem combate.fadigaTurnos definido (padrão de ficha nova) exibe Fadiga Atual = 0%, sem lançar erro', () => {
+        montarMockUseStore(fichaComFadiga(undefined));
+        expect(() => render(<MarcadosPanel />)).not.toThrow();
+
+        expect(screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === '0%')).toBeTruthy();
     });
 });
