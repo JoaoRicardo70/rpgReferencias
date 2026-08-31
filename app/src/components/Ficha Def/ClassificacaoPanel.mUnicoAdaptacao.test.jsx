@@ -18,6 +18,13 @@ import useStore from '../../stores/useStore';
 // NOTA: a "Fadiga de Combate" que morava nesta página foi realocada pro
 // mestre pra Página 1 da Ficha Definitiva (Marcados.jsx) — ver
 // Marcados.fadigaCombate.test.jsx pra cobertura completa dela lá.
+//
+// No lugar dela, entrou o "mUnico Crescente (Por Turno)": mesmo padrão de
+// contador da Fadiga (turnos x taxa), mas em vez de reduzir o Poder, cresce um
+// Multiplicador Único automaticamente a cada turno — pra Infinities tipo
+// Adaptação, sem precisar de um botão de "injetar" manual como a Balança de
+// Adaptação acima. Ver Marcados.municoCrescente.test.jsx pra cobertura do lado
+// do Scouter (poderGlobal/getGlobalMultipliers).
 // ---------------------------------------------------------------------------
 
 vi.mock('../../stores/useStore');
@@ -101,5 +108,70 @@ describe('ClassificacaoPanel — Balança de Adaptação: separador de múltipla
         // O "1.20" legado (antes do ' e ') nunca é recuperado pelo split(',') — comportamento
         // pré-existente à parte deste fix, não introduzido por ele.
         expect(valores).toEqual([1.05, 1.10]);
+    });
+});
+
+describe('ClassificacaoPanel — mUnico Crescente (Por Turno): turnos x taxa, clamp e reset', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+        cleanup();
+    });
+
+    it('clicar "+" nos Turnos de Combate incrementa combate.municoTurnos e o mUnico Atual exibido reflete 1 + turnos x taxa', () => {
+        const ficha = { combate: { municoTurnos: 0, municoPorTurno: 5 } };
+        montarMockUseStore(ficha);
+        const { rerender } = render(<ClassificacaoPanel />);
+        irParaMarcadoresEAdaptacao();
+
+        const cardTurnos = screen.getByText('Turnos de Combate').closest('div');
+        const incrementar = cardTurnos.querySelector('button:last-of-type');
+        fireEvent.click(incrementar);
+
+        expect(ficha.combate.municoTurnos).toBe(1);
+        // updateFicha (mockado) muta `ficha` direto, sem disparar re-render do React
+        // sozinho — força um rerender() manual pra observar o efeito da mutação na UI.
+        rerender(<ClassificacaoPanel />);
+        expect(screen.getByText('x1.05')).toBeTruthy();
+    });
+
+    it('mUnico Atual cresce SEM teto (diferente da Fadiga, que clampa em 100%) conforme os turnos se acumulam', () => {
+        const ficha = { combate: { municoTurnos: 40, municoPorTurno: 10 } }; // 1 + 40*0.10 = 5.00
+        montarMockUseStore(ficha);
+        render(<ClassificacaoPanel />);
+        irParaMarcadoresEAdaptacao();
+
+        expect(screen.getByText('x5.00')).toBeTruthy();
+    });
+
+    it('mUnico Atual exibido nunca cai abaixo de x1.00, mesmo com uma taxa negativa (mesmo piso da checagem em getGlobalMultipliers)', () => {
+        const ficha = { combate: { municoTurnos: 10, municoPorTurno: -50 } }; // 1 + 10*(-0.5) = -4 -> exibição também precisa mostrar x1.00
+        montarMockUseStore(ficha);
+        render(<ClassificacaoPanel />);
+        irParaMarcadoresEAdaptacao();
+
+        expect(screen.getByText('x1.00')).toBeTruthy();
+    });
+
+    it('"Zerar mUnico" zera combate.municoTurnos', () => {
+        const ficha = { combate: { municoTurnos: 7, municoPorTurno: 5 } };
+        montarMockUseStore(ficha);
+        render(<ClassificacaoPanel />);
+        irParaMarcadoresEAdaptacao();
+
+        fireEvent.click(screen.getByText(/Zerar mUnico/i));
+
+        expect(ficha.combate.municoTurnos).toBe(0);
+    });
+
+    it('ficha sem combate.municoTurnos definido (padrão de ficha nova) exibe mUnico Atual = x1.00, sem lançar erro', () => {
+        const ficha = {};
+        montarMockUseStore(ficha);
+        expect(() => render(<ClassificacaoPanel />)).not.toThrow();
+        irParaMarcadoresEAdaptacao();
+
+        expect(screen.getByText('x1.00')).toBeTruthy();
     });
 });

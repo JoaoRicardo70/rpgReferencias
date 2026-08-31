@@ -83,6 +83,14 @@ function getGlobalMultipliers(ficha) {
             });
         }
 
+        // ♾️ mUnico Crescente (Infinities tipo Adaptação): cresce automaticamente a
+        // cada turno de combate (mesmo padrão de contador da Fadiga, só que aumenta
+        // o Poder em vez de reduzir). Ver "Marcadores & Adaptação" > mUnico Crescente.
+        const municoTurnos = Math.max(0, Number(ficha?.combate?.municoTurnos) || 0);
+        const municoTaxaBruta = Number(ficha?.combate?.municoPorTurno);
+        const municoTaxa = isNaN(municoTaxaBruta) ? 5 : municoTaxaBruta;
+        if (municoTurnos > 0) unicos.push(Math.max(1, 1 + (municoTurnos * municoTaxa / 100)));
+
         ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].forEach(k => {
             const mF = getEfetivoMFormas(ficha, k, true);
             if (!isNaN(mF) && mF > 1) {
@@ -1199,7 +1207,7 @@ export default function MarcadosPanel() {
             ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => { let mx = safeGetMaximo(minhaFicha, k) * (fatoresVitaisAtual[k] || 1); f[k] = { ...f[k], atual: calcularEscala(mx, k).mxDisplay || 0 }; });
             f.pv = { ...f.pv, atual: pvMax || 0 }; f.pm = { ...f.pm, atual: pmMax || 0 }; f.energiaForca = { ...f.energiaForca, atual: forcaMax || 0 };
             ['padrao', 'bonus', 'reacao'].forEach(tipo => { if (!f.acoes) f.acoes = {}; if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 }; f.acoes[tipo].atual = f.acoes[tipo].max; });
-            if (f.combate) f.combate.fadigaTurnos = 0;
+            if (f.combate) { f.combate.fadigaTurnos = 0; f.combate.municoTurnos = 0; }
         });
         callSave();
     };
