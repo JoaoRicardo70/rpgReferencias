@@ -1,8 +1,9 @@
-import { ref, set, get, push, remove, onValue, onChildAdded, limitToLast, query, onDisconnect } from 'firebase/database';
+import { ref, set, update, get, push, remove, onValue, onChildAdded, limitToLast, query, onDisconnect } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from './firebase-config';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import useStore, { sanitizarNome } from '../stores/useStore';
+import { calcularDiffFirebase, mesclarComRemoto } from '../core/utils.js';
 
 let _modoPlasmic = false;
 export function setModoPlasmic(ativo) { _modoPlasmic = ativo; }
@@ -126,12 +127,31 @@ export function salvarFichaSilencioso() {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => { salvarFirebaseImediato().catch(() => {}); }, 500);
 }
+
+// 🔥 Último estado da ficha confirmado no Firebase (o que este cliente sabe que
+// está lá agora). Serve de baseline tanto para calcular o diff de saída (o que
+// realmente mudou desde a última sincronização) quanto para o merge de entrada
+// (mesclarComRemoto, no listener em tempo real abaixo). `null` = ainda não
+// sincronizou nada nesta sessão/personagem.
+let ultimoEstadoSincronizado = null;
+
+// 🔥 Reseta a baseline de sincronização — precisa ser chamado sempre que o
+// jogador troca de mesa ou de personagem, senão o diff/merge do personagem
+// NOVO seria calculado contra o estado do personagem ANTERIOR. Também cancela
+// um debounce pendente: sem isso, um save agendado para o personagem ANTIGO
+// podia disparar depois da troca e gravar a ficha errada no personagem NOVO.
+export function resetSincronizacaoFicha() {
+    ultimoEstadoSincronizado = null;
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+}
+
 export function salvarFirebaseImediato() {
     if (isInPlasmicCanvas()) return Promise.resolve();
     const { minhaFicha, meuNome, mesaId } = useStore.getState();
     const nomeSanitizado = sanitizarNome(meuNome);
     if (!nomeSanitizado || !mesaId) return Promise.resolve();
-    
+
     const fichaParaSalvar = JSON.parse(JSON.stringify(minhaFicha));
 
     // 🔥 TRAVA DE SEGURANÇA DOS DOMÍNIOS (Força a inclusão) 🔥
@@ -143,9 +163,29 @@ export function salvarFirebaseImediato() {
         localStorage.setItem('rpgFicha_' + nomeSanitizado, JSON.stringify(fichaParaSalvar));
         localStorage.setItem('rpgNome', nomeSanitizado);
     } catch (err) {}
-    
+
     if (!db) return Promise.resolve();
-    return set(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}`), fichaParaSalvar).catch((err) => { throw err; });
+
+    // 🔥 ATUALIZAÇÃO PARCIAL (não mais `set()` da ficha inteira): manda pro
+    // Firebase só os campos que mudaram desde a última sincronização. Isso
+    // evita o "esmagamento de dados" — antes, salvar a ficha inteira a cada
+    // debounce apagava qualquer mudança feita por outra aba/dispositivo (ou
+    // pelo Mestre, via PainelMestreSandbox) que este cliente ainda não tinha
+    // recebido de volta.
+    const alteracoes = calcularDiffFirebase(ultimoEstadoSincronizado, fichaParaSalvar);
+    if (Object.keys(alteracoes).length === 0) return Promise.resolve();
+
+    // 🔥 NÃO atualiza `ultimoEstadoSincronizado` aqui no `.then()`: o Firebase já
+    // dispara o `onValue` do listener abaixo (eco da própria escrita) ANTES do
+    // round-trip desta Promise terminar, então quem avança a baseline é sempre
+    // o listener — nunca este `.then()`. Se fizéssemos isso aqui, um `onValue`
+    // que chegasse nesse meio-tempo com uma mudança concorrente legítima (ex:
+    // o Mestre editando esta mesma ficha pelo Painel) teria sua baseline mais
+    // atual pisoteada por este snapshot antigo, fazendo o PRÓXIMO save reverter
+    // aquela mudança concorrente — exatamente o bug que este diff parcial
+    // deveria eliminar.
+    return update(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}`), alteracoes)
+        .catch((err) => { throw err; });
 }
 export async function carregarFichaDoFirebase(nome) {
     if (isInPlasmicCanvas()) return null;
@@ -156,6 +196,58 @@ export async function carregarFichaDoFirebase(nome) {
         const snapshot = await get(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}`));
         return snapshot.exists() ? snapshot.val() : null;
     } catch (err) { return null; }
+}
+// 🔥 ESCUTA ATIVA (real-time) da PRÓPRIA ficha: antes, a ficha do jogador só
+// era carregada uma vez (get único) ao montar o app — qualquer mudança feita
+// por outra aba, outro dispositivo do mesmo jogador, ou pelo Mestre direto no
+// Firebase (PainelMestreSandbox) só aparecia depois de um F5. Agora usa
+// onValue, então a ficha atualiza sozinha.
+// callback(dados, primeiraCarga): `primeiraCarga` é true só na primeira vez
+// que este listener recebe dados (equivalente ao antigo get() inicial) — o
+// chamador deve usar isso para decidir entre "carregar/migrar do zero"
+// (carregarDadosFicha) e "mesclar" (já é feito aqui dentro, o callback só é
+// avisado para poder rodar efeitos colaterais de primeira carga, como a
+// migração de passivas).
+export function iniciarListenerFichaPropria(nome, callback) {
+    if (isInPlasmicCanvas()) return () => {};
+    const nomeSanitizado = sanitizarNome(nome);
+    const { mesaId } = useStore.getState();
+    if (!db || !mesaId || !nomeSanitizado) return () => {};
+    // 🔥 Não usa "já recebi algum snapshot" como sinal de "primeira carga" —
+    // um personagem NOVO recebe um primeiro snapshot com `dados === null`
+    // (ainda não existe no Firebase). Se um segundo snapshot trouxer dados
+    // reais logo em seguida (ex: outra aba do mesmo jogador salvou primeiro),
+    // esse precisa CONTINUAR sendo tratado como "primeira carga" — é a
+    // primeira vez que existe algo pra rodar as migrações de
+    // carregarDadosFicha (statusPool, passivas->poderes, defaults etc.), não
+    // um merge contra uma baseline vazia.
+    let dadosJaRecebidos = false;
+    return onValue(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}`), (snapshot) => {
+        const dados = snapshot.val();
+
+        if (!dadosJaRecebidos) {
+            if (dados) {
+                dadosJaRecebidos = true;
+                ultimoEstadoSincronizado = JSON.parse(JSON.stringify(dados));
+            }
+            if (callback) callback(dados, true);
+            return;
+        }
+
+        // 🔥 MERGE 3 VIAS: nunca sobrescreve cegamente a ficha local com o
+        // que chegou do Firebase — campos que o jogador editou localmente
+        // e ainda não foram salvos (fora do baseline) continuam vencendo,
+        // só os campos "intocados" desde a última sync recebem o valor
+        // remoto. Isso evita perder edições rápidas feitas entre um
+        // debounce e outro quando um snapshot remoto chega no meio.
+        if (dados) {
+            const { minhaFicha, setMinhaFicha } = useStore.getState();
+            setMinhaFicha(mesclarComRemoto(ultimoEstadoSincronizado || {}, minhaFicha, dados));
+            ultimoEstadoSincronizado = JSON.parse(JSON.stringify(dados));
+        }
+
+        if (callback) callback(dados, false);
+    });
 }
 export function iniciarListenerPersonagens(callback) {
     if (isInPlasmicCanvas()) return () => {};
