@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aplicarRegeneracaoDeTurno } from './vitals';
+import { aplicarRegeneracaoDeTurno, descansarCompleto } from './vitals';
 
 // ---------------------------------------------------------------------------
 // QA — Regeneração Automática por Turno (core/vitals.js)
@@ -194,5 +194,115 @@ describe('core/vitals - aplicarRegeneracaoDeTurno: multiplicadorVida/multiplicad
         const fichaMultAlto = { ...base(), pv: { atual: 39, regeneracao: 10 }, multiplicadorVida: 10 };
         aplicarRegeneracaoDeTurno(fichaMultAlto);
         expect(fichaMultAlto.pv.atual).toBe(49); // 39 + 10, bem abaixo do teto x10
+    });
+});
+
+// ---------------------------------------------------------------------------
+// QA — Descanso Completo (core/vitals.js > descansarCompleto)
+//
+// Cura vida/mana/aura/chakra/corpo/pv/pm até o máximo calculado (reaproveita
+// getVitalMax/calcVitalScale, os mesmos helpers internos que
+// aplicarRegeneracaoDeTurno usa) e zera combate.fadigaTurnos/fadigaExtra/
+// municoTurnos — usado tanto pelo botão "💖 Descansar" da Ficha quanto pelo
+// equivalente no Mapa (ver MapaFormContext.jsx > descansar).
+// ---------------------------------------------------------------------------
+describe('core/vitals - descansarCompleto: happy path (cura tudo até o máximo)', () => {
+    it('cura "vida" até o máximo calculado, independente do quão baixo estava "atual"', () => {
+        const ficha = criarFichaMinima({ vida: { ...statBase(100000000), atual: 1, regeneracao: 0 } });
+        descansarCompleto(ficha);
+        // Mesmo máximo calculado nos testes de regeneração acima: mxDisplay = 1e7.
+        expect(ficha.vida.atual).toBe(10000000);
+    });
+
+    it('cura os 5 vitais principais (vida/mana/aura/chakra/corpo) até o máximo, todos de uma vez', () => {
+        const ficha = criarFichaMinima();
+        descansarCompleto(ficha);
+        // "vida" usa limite de 8 dígitos em calcVitalScale -> escala 1 casa (mxDisplay=1e7);
+        // mana/aura/chakra/corpo usam limite de 9 -> "100000000" (9 dígitos) não estoura o
+        // limite, então mxDisplay fica sem escala nenhuma (o próprio valor bruto de base, 1e8).
+        expect(ficha.vida.atual).toBe(10000000);
+        ['mana', 'aura', 'chakra', 'corpo'].forEach((k) => {
+            expect(ficha[k].atual).toBe(100000000);
+        });
+    });
+
+    it('cura PV e PM até o máximo calculado pelas fórmulas especiais (mesmo cálculo de aplicarRegeneracaoDeTurno)', () => {
+        const ficha = criarFichaMinima({ pv: { atual: 1, regeneracao: 0 }, pm: { atual: 1, regeneracao: 0 } });
+        descansarCompleto(ficha);
+        // Mesmos máximos computados no teste "aplica regeneração em PV e PM..." acima (pv=40, pm=340).
+        expect(ficha.pv.atual).toBe(40);
+        expect(ficha.pm.atual).toBe(340);
+    });
+
+    it('cura mesmo quando "atual" já está no máximo ou acima (idempotente, não lança)', () => {
+        const ficha = criarFichaMinima({ vida: { ...statBase(100000000), atual: 10000000, regeneracao: 0 } });
+        expect(() => descansarCompleto(ficha)).not.toThrow();
+        expect(ficha.vida.atual).toBe(10000000);
+    });
+});
+
+describe('core/vitals - descansarCompleto: zera Fadiga e mUnico Crescente', () => {
+    it('zera combate.fadigaTurnos, combate.fadigaExtra e combate.municoTurnos', () => {
+        const ficha = criarFichaMinima({ combate: { fadigaTurnos: 12, fadigaExtra: 8.5, municoTurnos: 20 } });
+        descansarCompleto(ficha);
+        expect(ficha.combate.fadigaTurnos).toBe(0);
+        expect(ficha.combate.fadigaExtra).toBe(0);
+        expect(ficha.combate.municoTurnos).toBe(0);
+    });
+
+    it('cria combate do zero (objeto ausente) sem lançar, e ainda assim os 3 campos ficam zerados', () => {
+        const ficha = criarFichaMinima();
+        delete ficha.combate;
+        expect(() => descansarCompleto(ficha)).not.toThrow();
+        expect(ficha.combate).toEqual({ fadigaTurnos: 0, fadigaExtra: 0, municoTurnos: 0 });
+    });
+
+    it('NÃO toca em outros campos de combate.* não relacionados (danoAbsorvido/furiaMax sobrevivem intactos)', () => {
+        const ficha = criarFichaMinima({
+            combate: { fadigaTurnos: 5, fadigaExtra: 3, municoTurnos: 10, danoAbsorvido: 777, furiaMax: 42 },
+        });
+        descansarCompleto(ficha);
+        expect(ficha.combate.danoAbsorvido).toBe(777);
+        expect(ficha.combate.furiaMax).toBe(42);
+    });
+});
+
+describe('core/vitals - descansarCompleto: robustez com dados faltando', () => {
+    it('não lança exceção quando a ficha é null/undefined', () => {
+        expect(() => descansarCompleto(null)).not.toThrow();
+        expect(() => descansarCompleto(undefined)).not.toThrow();
+    });
+
+    it('não lança e não cria campos sozinha numa ficha vazia ({})', () => {
+        expect(() => descansarCompleto({})).not.toThrow();
+        const ficha = {};
+        descansarCompleto(ficha);
+        expect(ficha.vida).toBeUndefined();
+        expect(ficha.combate).toEqual({ fadigaTurnos: 0, fadigaExtra: 0, municoTurnos: 0 });
+    });
+
+    it('pula um vital ausente (ex.: sem "mana") sem afetar a cura dos demais', () => {
+        const ficha = criarFichaMinima();
+        delete ficha.mana;
+        expect(() => descansarCompleto(ficha)).not.toThrow();
+        expect(ficha.mana).toBeUndefined();
+        expect(ficha.vida.atual).toBe(10000000);
+    });
+
+    it('um vital malformado (base não numérica) não aborta a cura dos demais (try/catch isolado por vital)', () => {
+        const ficha = criarFichaMinima({ vida: { base: 'não-é-um-número', atual: 1 } });
+        expect(() => descansarCompleto(ficha)).not.toThrow();
+        // "mana" continua curando normalmente mesmo com "vida" malformada (limite de 9 dígitos
+        // -> sem escala, mxDisplay = base bruta de 1e8, ver teste "cura os 5 vitais..." acima).
+        expect(ficha.mana.atual).toBe(100000000);
+    });
+
+    it('ficha sem pv/pm definidos não lança e não cria os campos sozinha', () => {
+        const ficha = criarFichaMinima();
+        delete ficha.pv;
+        delete ficha.pm;
+        expect(() => descansarCompleto(ficha)).not.toThrow();
+        expect(ficha.pv).toBeUndefined();
+        expect(ficha.pm).toBeUndefined();
     });
 });

@@ -390,6 +390,20 @@ export function zerarIniciativaGlobal(nomesArray) {
         set(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}/iniciativa`), 0).catch(() => {});
     });
 }
+// 🔥 FERRAMENTA DE DANO RÁPIDO DO MESTRE (Mapa) — escreve DIRETO em vida/atual de um jogador
+// QUALQUER (não só o do cliente que está chamando), mesmo esquema de zerarIniciativaGlobal acima
+// (escrita pontual num campo específico, nunca a ficha inteira, pra não apagar edições
+// concorrentes do próprio dono). Só o Mestre/Co-Mestre chama isso (ver MapaFormContext.jsx >
+// aplicarDanoRapido) — como não existe transação aqui, dois Mestres aplicando dano no mesmo alvo
+// quase ao mesmo tempo podem se sobrepor (o segundo clique "ganha"); aceitável pro uso real (GM
+// clicando um dano por vez), mas documentado caso vire um problema no futuro.
+export function aplicarDanoDireto(nome, novoValorVidaAtual) {
+    if (isInPlasmicCanvas()) return;
+    const { mesaId } = useStore.getState();
+    if (!db || !mesaId || !nome) return;
+    const nomeSanitizado = sanitizarNome(nome);
+    set(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}/vida/atual`), Math.max(0, novoValorVidaAtual)).catch(() => {});
+}
 export function iniciarListenerTemasCustom(callback) {
     if (isInPlasmicCanvas()) return () => {};
     const { mesaId } = useStore.getState();

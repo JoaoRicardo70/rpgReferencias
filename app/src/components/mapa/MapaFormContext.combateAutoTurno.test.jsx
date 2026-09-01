@@ -198,3 +198,108 @@ describe('MapaFormContext — Fadiga de Combate e Regeneração automáticas ao 
         expect(state.minhaFicha.combate.fadigaTurnos).toBe(1);
     });
 });
+
+// ---------------------------------------------------------------------------
+// QA — Fadiga DINÂMICA (combate.fadigaExtra): calcularGanhoFadigaDinamico
+// (core/fadiga.js) roda ANTES de aplicarRegeneracaoDeTurno no mesmo tick, pra
+// refletir o quão gasto/ferido o personagem estava ENTRANDO no turno — não o
+// estado já curado. Ver MapaFormContext.jsx:695-708.
+// ---------------------------------------------------------------------------
+describe('MapaFormContext — Fadiga DINÂMICA (fadigaExtra) acumula no retorno do turno, ANTES da Regeneração mascarar o desgaste', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+        cleanup();
+    });
+
+    it('acumula combate.fadigaExtra > 0 e <= 15 num único tick para uma ficha com pouca vida/energia', () => {
+        const state = baseState({
+            meuNome: 'Heroi',
+            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+        });
+        state.minhaFicha.iniciativa = 10;
+        // Vida quase zerada (grande fator de "vida perdida") -- sem regeneração própria, pra o
+        // valor do fator não mudar entre "antes" e "depois" do cálculo dinâmico.
+        state.minhaFicha.vida = { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1, regeneracao: 0 };
+        state.minhaFicha.combate = { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0 };
+        const { rerender } = montarComEstado(state);
+
+        expect(state.minhaFicha.combate.fadigaExtra).toBe(0);
+
+        act(() => {
+            state.cenario = { ...state.cenario, turnoAtualIndex: 1 };
+        });
+        rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
+
+        expect(state.minhaFicha.combate.fadigaExtra).toBeGreaterThan(0);
+        expect(state.minhaFicha.combate.fadigaExtra).toBeLessThanOrEqual(15);
+        // fadigaTurnos (contador manual/base) continua incrementando normalmente, sem relação.
+        expect(state.minhaFicha.combate.fadigaTurnos).toBe(1);
+    });
+
+    it('reflete o déficit PRÉ-regeneração: mesmo quando a Regeneração cura o vital TOTALMENTE no mesmo tick, o ganho dinâmico não fica mascarado em 0', () => {
+        const state = baseState({
+            meuNome: 'Heroi',
+            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+        });
+        state.minhaFicha.iniciativa = 10;
+        // Vida bem baixa, MAS com regeneração enorme (>= o máximo calculado) -- se o cálculo
+        // dinâmico rodasse DEPOIS da regeneração (ou lesse o estado pós-cura), o fator de "vida
+        // perdida" cairia pra 0 e fadigaExtra ficaria zerado neste tick, o que seria o bug.
+        state.minhaFicha.vida = { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1, regeneracao: 99999999 };
+        state.minhaFicha.combate = { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0 };
+        const { rerender } = montarComEstado(state);
+
+        act(() => {
+            state.cenario = { ...state.cenario, turnoAtualIndex: 1 };
+        });
+        rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
+
+        // A Regeneração realmente curou a vida cheia neste mesmo tick (comportamento herdado,
+        // inalterado)...
+        expect(state.minhaFicha.vida.atual).toBe(10000000); // máximo calculado (mxDisplay)
+        // ...mas o ganho dinâmico já capturado ANTES da cura continua > 0 (não foi mascarado).
+        expect(state.minhaFicha.combate.fadigaExtra).toBeGreaterThan(0);
+    });
+
+    it('uma ficha "de boa" (vida/energia cheias, sem Forma ativa) não ganha fadigaExtra nenhum no tick', () => {
+        const state = baseState({
+            meuNome: 'Heroi',
+            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+        });
+        state.minhaFicha.iniciativa = 10;
+        // "atual" cheio de verdade: getFatorVidaPerdida usa getMaximo(ficha,'vida') de
+        // core/attributes.js diretamente (SEM a escala de exibição de calcVitalScale do
+        // core/vitals.js) -- o máximo "cru" aqui é base(1e8) x mult(1) = 1e8.
+        state.minhaFicha.vida = { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 100000000, regeneracao: 0 };
+        state.minhaFicha.combate = { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0 };
+        const { rerender } = montarComEstado(state);
+
+        act(() => {
+            state.cenario = { ...state.cenario, turnoAtualIndex: 1 };
+        });
+        rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
+
+        expect(state.minhaFicha.combate.fadigaExtra).toBe(0);
+    });
+
+    it('acumula fadigaExtra a partir do valor já existente (soma, não substitui) em ticks sucessivos', () => {
+        const state = baseState({
+            meuNome: 'Heroi',
+            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+        });
+        state.minhaFicha.iniciativa = 10;
+        state.minhaFicha.vida = { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1, regeneracao: 0 };
+        state.minhaFicha.combate = { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 3 };
+        const { rerender } = montarComEstado(state);
+
+        act(() => {
+            state.cenario = { ...state.cenario, turnoAtualIndex: 1 };
+        });
+        rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
+
+        expect(state.minhaFicha.combate.fadigaExtra).toBeGreaterThan(3);
+    });
+});

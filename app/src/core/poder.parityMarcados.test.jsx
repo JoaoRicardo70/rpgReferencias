@@ -99,4 +99,36 @@ describe('core/poder - calcularPoderAtual: paridade real com Ficha Def/Marcados.
         expect(poderDoCore).toBe(0);
         expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
     });
+
+    // -----------------------------------------------------------------------
+    // fadigaExtra (core/fadiga.js): pontos ganhos AUTOMATICAMENTE no Mapa
+    // (energia gasta / vida perdida / Formas ativas), somados EM CIMA da
+    // fadigaBase (fadigaTurnos x fadigaPorTurno) manual — calcularFadigaAtual
+    // é a única fonte de verdade pros dois, então core/poder.js e Marcados.jsx
+    // precisam continuar concordando mesmo combinando as duas partes.
+    // -----------------------------------------------------------------------
+    it('concorda com o Poder Calculado exibido no Scouter quando SÓ fadigaExtra está presente (sem fadigaTurnos)', () => {
+        const combateExtra = { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 12.5 };
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaParaMarcados(combateExtra));
+        const poderDoCore = calcularPoderAtual(fichaParaMarcados(combateExtra), 1).poderGlobal;
+
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
+
+    it('concorda com o Poder Calculado exibido no Scouter combinando fadigaTurnos/fadigaPorTurno (base) COM fadigaExtra (dinâmica) somados', () => {
+        const combateExtra = { fadigaTurnos: 5, fadigaPorTurno: 5, fadigaExtra: 10 }; // base 25% + extra 10% = 35%
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaParaMarcados(combateExtra));
+        const poderDoCore = calcularPoderAtual(fichaParaMarcados(combateExtra), 1).poderGlobal;
+
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
+
+    it('concorda com o Poder Calculado exibido no Scouter quando a SOMA de base + fadigaExtra estoura 100% (clamp conjunto, poder zerado nos dois lados)', () => {
+        const combateExtra = { fadigaTurnos: 15, fadigaPorTurno: 5, fadigaExtra: 50 }; // 75% + 50% = 125% -> clamp 100%
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaParaMarcados(combateExtra));
+        const poderDoCore = calcularPoderAtual(fichaParaMarcados(combateExtra), 1).poderGlobal;
+
+        expect(poderDoCore).toBe(0);
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
 });

@@ -88,7 +88,10 @@ export const fichaPadrao = {
     // inclusive no meio de um combate real.
     combate: {
         municoTurnos: 0, municoPorTurno: 5,
-        fadigaTurnos: 0, fadigaPorTurno: 5,
+        // fadigaExtra: pontos de Fadiga acumulados automaticamente no Mapa a partir do gasto de
+        // Energia, Vida perdida e Formas ativas (ver core/fadiga.js) — somados em cima de
+        // fadigaTurnos x fadigaPorTurno, nunca substituindo o contador manual.
+        fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0,
         danoAbsorvido: 0, danoTotalRecebido: 0, letalidadeTotalRecebida: 0,
         conversaoAlvo: 10000, conversaoBonus: 1,
         furiaMax: 0,

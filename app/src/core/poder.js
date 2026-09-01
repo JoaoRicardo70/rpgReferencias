@@ -6,6 +6,7 @@
 import { getBuffs, getEfetivoBase, getRawBase } from './attributes.js';
 import { getRank } from './prestige.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
+import { calcularFadigaAtual } from './fadiga.js';
 
 const CATEGORIAS_VITAIS = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
@@ -281,11 +282,10 @@ export function calcularPoderAtual(ficha, divisorPoderMesa) {
     let power = poderComAscensao * (sup / 100);
     power = clampFinito(power);
 
-    // 😮‍💨 Fadiga de Combate — réplica exata do bloco equivalente em Ficha Def/Marcados.jsx >
-    // poderGlobal, pra o Poder exibido no Mapa refletir o mesmo desgaste que o da Ficha.
-    const fadigaTaxaBruta = Number(ficha.combate?.fadigaPorTurno);
-    const fadigaTaxa = isNaN(fadigaTaxaBruta) ? 5 : fadigaTaxaBruta;
-    const fadigaAtual = Math.min(100, Math.max(0, (Number(ficha.combate?.fadigaTurnos) || 0) * fadigaTaxa));
+    // 😮‍💨 Fadiga de Combate — calcularFadigaAtual (core/fadiga.js) é a única fonte de verdade
+    // pra este número, compartilhada com Ficha Def/Marcados.jsx, pra o Poder exibido no Mapa
+    // nunca divergir do Poder exibido na Ficha.
+    const fadigaAtual = calcularFadigaAtual(ficha);
     power = power * (1 - fadigaAtual / 100);
     power = clampFinito(power);
 

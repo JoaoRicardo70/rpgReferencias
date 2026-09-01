@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useMapaForm } from './MapaFormContext';
 import { salvarDummie } from '../../services/firebase-sync';
 
@@ -26,12 +26,14 @@ export function MapaFerramentasMestre() {
                         <button className={`btn-neon ${abaMestre === 'tokens' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'tokens' ? '' : 'tokens')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>📦 Gaveta</button>
                         <button className={`btn-neon ${abaMestre === 'dummies' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'dummies' ? '' : 'dummies')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>🤖 Entidades</button>
                         <button className={`btn-neon ${abaMestre === 'zonas' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'zonas' ? '' : 'zonas')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>🌪️ Zonas</button>
+                        <button className={`btn-neon ${abaMestre === 'dano' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'dano' ? '' : 'dano')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>⚔️ Dano</button>
                     </div>
 
                     {abaMestre === 'cenas' && <MapaMestreGerenciadorCenas />}
                     {abaMestre === 'tokens' && <MapaMestreGavetaTokens />}
                     {abaMestre === 'dummies' && <MapaMestreGeradorDummies />}
                     {abaMestre === 'zonas' && <MapaMestreGerenciadorZonas />}
+                    {abaMestre === 'dano' && <MapaMestreDanoRapido />}
                 </div>
             )}
         </div>
@@ -179,6 +181,58 @@ export function MapaMestreGeradorDummies() {
                     salvarDummie(id, { nome: n, hpMax: h, hpAtual: h, tipoDefesa: dt, valorDefesa: dv, visibilidadeHp: vHp, cenaId: cenaRenderId, posicao: { x: 0, y: 0 } });
                 }} style={{ padding: '5px 15px', margin: 0 }}>+ Injetar na Cena</button>
             </div>
+        </div>
+    );
+}
+
+export function MapaMestreDanoRapido() {
+    const ctx = useMapaForm();
+    if (!ctx) return FALLBACK;
+    const { isMestre, isModoRP, mestreVendoRP, jogadores, dummies, cenaRenderId, aplicarDanoRapido } = ctx;
+    const [alvoId, setAlvoId] = useState('');
+    const [valorDano, setValorDano] = useState(10);
+    if (!isMestre || (isModoRP && !mestreVendoRP)) return null;
+
+    // Mesmo filtro-por-cena de MapaIniciativaTracker (todasEntidades) — só mostra quem está
+    // presente na cena que o Mestre está vendo agora, senão a lista ficaria cheia de gente/
+    // entidades de outras cenas/mesas antigas.
+    const alvos = useMemo(() => {
+        const estaNaCena = (f) => {
+            const pos = f.posicoes ? f.posicoes[cenaRenderId] : null;
+            if (pos) return true;
+            return !!(f.posicao && (f.posicao.cenaId || 'default') === cenaRenderId);
+        };
+        const js = Object.entries(jogadores || {}).filter(([n, f]) => estaNaCena(f)).map(([n, f]) => ({ id: n, nome: n, ficha: f, isDummie: false }));
+        const ds = Object.entries(dummies || {}).filter(([id, d]) => (d.cenaId || 'default') === cenaRenderId).map(([id, d]) => ({ id, nome: d.nome, ficha: d, isDummie: true }));
+        return [...js, ...ds];
+    }, [jogadores, dummies, cenaRenderId]);
+
+    const alvoAtual = alvos.find(a => a.id === alvoId) || null;
+
+    const aplicar = () => {
+        if (!alvoAtual) return alert('Escolha um alvo primeiro.');
+        aplicarDanoRapido(alvoAtual, valorDano);
+    };
+
+    return (
+        <div className="fade-in" style={{ background: 'rgba(255, 0, 60, 0.1)', padding: 15, borderRadius: 5, border: '1px solid #ff003c' }}>
+            <h3 style={{ color: '#ff003c', margin: 0 }}>⚔️ Dano Rápido</h3>
+            <p style={{ color: '#888', fontStyle: 'italic', margin: '5px 0 15px', fontSize: '0.85em' }}>Aplica dano direto na Vida de um jogador ou entidade nesta cena, sem precisar que o alvo digite nada.</p>
+            {alvos.length === 0 ? (
+                <p style={{ color: '#888', fontSize: '0.85em' }}>Nenhum jogador ou entidade nesta cena.</p>
+            ) : (
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <select className="input-neon" value={alvoId} onChange={e => setAlvoId(e.target.value)} style={{ padding: 5, minWidth: 140 }}>
+                        <option value="">Escolha o alvo...</option>
+                        {alvos.map(a => <option key={a.id} value={a.id}>{a.isDummie ? '🤖 ' : '🧑 '}{a.nome}</option>)}
+                    </select>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#111', padding: '3px 8px', borderRadius: 5, border: '1px solid #444' }}>
+                        <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold' }}>Dano:</span>
+                        <input className="input-neon" type="number" min="1" value={valorDano} onChange={e => setValorDano(e.target.value)} style={{ width: 80, padding: 4, margin: 0 }} />
+                    </div>
+                    <button className="btn-neon btn-red" onClick={aplicar} disabled={!alvoAtual} style={{ padding: '5px 15px', margin: 0, opacity: alvoAtual ? 1 : 0.5 }}>💥 Aplicar Dano</button>
+                </div>
+            )}
         </div>
     );
 }

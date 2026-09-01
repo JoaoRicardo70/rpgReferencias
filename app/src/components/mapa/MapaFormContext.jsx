@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto } from '../../services/firebase-sync';
 import { calcularAcerto } from '../../core/engine';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { getBuffs } from '../../core/attributes';
-import { aplicarRegeneracaoDeTurno } from '../../core/vitals';
+import { aplicarRegeneracaoDeTurno, descansarCompleto } from '../../core/vitals';
+import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 
 export const MAP_SIZE = 30;
 export const PALETA = ['#ff003c', '#0088ff', '#00ff88', '#ffcc00', '#ff00ff', '#00ffff', '#ff8800', '#88ff00'];
@@ -693,9 +694,14 @@ export function MapaFormProvider({ children }) {
 
                     // 😮‍💨 Fadiga de Combate: cada retorno do MEU turno na iniciativa do Mapa conta como
                     // "mais um turno de luta" — mesma unidade que o stepper manual da Ficha usava até
-                    // agora (ver Ficha Def/Marcados.jsx), só que automático a partir daqui.
+                    // agora (ver Ficha Def/Marcados.jsx), só que automático a partir daqui. Além do
+                    // contador de turnos, soma também os pontos dinâmicos (calcularGanhoFadigaDinamico,
+                    // ver core/fadiga.js) calculados a partir de QUÃO gasto/ferido/transformado o
+                    // personagem está ENTRANDO neste turno — por isso roda ANTES da Regeneração logo
+                    // abaixo, senão a cura já aplicada esconderia o desgaste real deste turno.
                     if (!f.combate) f.combate = {};
                     f.combate.fadigaTurnos = Math.max(0, (Number(f.combate.fadigaTurnos) || 0) + 1);
+                    f.combate.fadigaExtra = Math.max(0, (Number(f.combate.fadigaExtra) || 0) + calcularGanhoFadigaDinamico(f));
 
                     // 💖 Regeneração: mesma regra do botão "Regenerar" da página de Status, aplicada
                     // sozinha sempre que meu turno volta.
@@ -713,6 +719,43 @@ export function MapaFormProvider({ children }) {
         salvarFichaSilencioso();
         setJogadorHistory(null);
     }, [updateFicha]);
+
+    // 💖 Descansar: mesma ação do botão "Descansar" da Ficha (cura tudo + zera Fadiga/mUnico
+    // Crescente), só que direto do Mapa — pra o jogador não precisar voltar pra Ficha só pra
+    // encerrar o desgaste acumulado de uma luta antes da próxima. Só mexe na PRÓPRIA ficha (mesma
+    // limitação de toda mutação no Mapa: cada cliente só grava a si mesmo no Firebase).
+    const descansar = useCallback(() => {
+        if (!window.confirm('Recuperar toda a Vida/Energias e zerar a Fadiga e o mUnico Crescente acumulados?')) return;
+        updateFicha(f => { descansarCompleto(f); });
+        salvarFichaSilencioso();
+        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `💖 ${meuNome} descansou e recuperou as forças!` });
+    }, [updateFicha, meuNome]);
+
+    // ⚔️ Dano Rápido do Mestre: aplica dano direto num jogador OU numa entidade (dummie), sem
+    // precisar que o alvo digite nada manualmente. Dummies já aceitam escrita de qualquer
+    // cliente (salvarDummie); jogadores usam aplicarDanoDireto (escrita pontual em vida/atual,
+    // mesma ideia de zerarIniciativaGlobal) quando o alvo NÃO é quem está clicando — se for o
+    // próprio Mestre se auto-aplicando dano, usa o caminho normal (updateFicha) da própria ficha.
+    const aplicarDanoRapido = useCallback((alvo, dano) => {
+        if (!isMestre || !alvo) return;
+        const valor = Math.max(0, Math.floor(Number(dano)) || 0);
+        if (valor <= 0) return;
+
+        if (alvo.isDummie) {
+            const storeState = useStore.getState();
+            const dData = storeState.dummies[alvo.id];
+            if (!dData) return;
+            salvarDummie(alvo.id, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - valor) });
+        } else if (alvo.nome === meuNome) {
+            updateFicha(f => { if (f.vida) f.vida.atual = Math.max(0, (f.vida.atual || 0) - valor); });
+            salvarFichaSilencioso();
+        } else {
+            const atualAlvo = alvo.ficha?.vida?.atual || 0;
+            aplicarDanoDireto(alvo.nome, atualAlvo - valor);
+        }
+
+        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O Mestre aplicou ${valor} de dano em ${alvo.nome}!` });
+    }, [isMestre, meuNome, updateFicha]);
 
     const encerrarCombate = useCallback(() => {
         if (!window.confirm(`Tem a certeza que deseja ZERAR A INICIATIVA DE TODOS OS JOGADORES E ENTIDADES presentes na cena "${cenaAtual.nome}"?`)) return;
@@ -812,7 +855,7 @@ export function MapaFormProvider({ children }) {
         toggleModoRP, togglePresencaTaverna, changeVantagem, changeDesvantagem,
         handleUploadNovaCena, ativarCena, deletarCena, corDoJogador, getAvatarInfo,
         cells, jogadores, playersNaTaverna, ordemIniciativa, handleCellClick,
-        alterarZoom, setMinhaIniciativa, avancarTurno, sairDoCombate, encerrarCombate,
+        alterarZoom, setMinhaIniciativa, avancarTurno, sairDoCombate, encerrarCombate, descansar, aplicarDanoRapido,
         rolarAcertoRapido, tokenMap, dummyMap, tokens3D, jogadorDaVez, infoDaVez, fmt, deletarZona, toggleActionDot
     }), [
         minhaFicha, meuNome, personagens, feedCombate, isMestre, souCriador, dummies, alvoSelecionado, cenario, abaAtiva,
@@ -824,7 +867,7 @@ export function MapaFormProvider({ children }) {
         mestreVendoRP, tavernaAtivos, isPresenteNaTaverna, overridesCompendio,
         cells, jogadores, playersNaTaverna, ordemIniciativa, tokenMap, dummyMap, tokens3D,
         jogadorDaVez, infoDaVez, fmt, toggleModoRP, togglePresencaTaverna, changeVantagem,
-        changeDesvantagem, handleUploadNovaCena, ativarCena, deletarCena, corDoJogador,
+        changeDesvantagem, handleUploadNovaCena, ativarCena, deletarCena, corDoJogador, descansar, aplicarDanoRapido,
         getAvatarInfo, handleCellClick, alterarZoom, setMinhaIniciativa, avancarTurno,
         sairDoCombate, encerrarCombate, rolarAcertoRapido, deletarZona, toggleActionDot
     ]);

@@ -21,7 +21,7 @@ describe('fichaPadrao.combate — defaults', () => {
     it('nasce com os defaults documentados (municoTurnos/fadigaTurnos zerados, taxas em 5%, etc.)', () => {
         expect(fichaPadrao.combate).toEqual({
             municoTurnos: 0, municoPorTurno: 5,
-            fadigaTurnos: 0, fadigaPorTurno: 5,
+            fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0,
             danoAbsorvido: 0, danoTotalRecebido: 0, letalidadeTotalRecebida: 0,
             conversaoAlvo: 10000, conversaoBonus: 1,
             furiaMax: 0,

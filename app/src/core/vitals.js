@@ -66,3 +66,24 @@ export function aplicarRegeneracaoDeTurno(ficha) {
         } catch (e) { /* pula só este vital */ }
     });
 }
+
+// Descanso completo: cura vida/mana/aura/chakra/corpo/pv/pm até o máximo e zera a Fadiga
+// (fadigaTurnos + fadigaExtra) e o mUnico Crescente acumulados — mesma ideia do botão
+// "💖 Descansar" (handleRegenerarTudo) da Ficha, disponível também no Mapa (ver
+// MapaFormContext.jsx > descansar) pra o personagem não carregar a Fadiga de uma luta pra outra
+// sem precisar voltar pra Ficha. Muta o rascunho Immer recebido.
+export function descansarCompleto(ficha) {
+    if (!ficha) return;
+    VITAIS_REGENERAVEIS.forEach((key) => {
+        try {
+            if (!ficha[key]) return;
+            const rawMx = getVitalMax(key, ficha);
+            const { mxDisplay } = calcVitalScale(rawMx, key);
+            ficha[key].atual = mxDisplay;
+        } catch (e) { /* pula só este vital */ }
+    });
+    if (!ficha.combate) ficha.combate = {};
+    ficha.combate.fadigaTurnos = 0;
+    ficha.combate.fadigaExtra = 0;
+    ficha.combate.municoTurnos = 0;
+}

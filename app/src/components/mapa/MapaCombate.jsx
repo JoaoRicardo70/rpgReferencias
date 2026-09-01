@@ -316,9 +316,9 @@ export function MapaIniciativaTracker() {
     const ctx = useMapaForm();
     if (!ctx) return null;
     
-    const { 
-        minhaFicha, iniciativaInput, setIniciativaInput, isMestre, sairDoCombate, encerrarCombate, 
-        setMinhaIniciativa, avancarTurno, ordemIniciativa, turnoAtualIndex, jogadorHistory, 
+    const {
+        minhaFicha, iniciativaInput, setIniciativaInput, isMestre, sairDoCombate, encerrarCombate, descansar,
+        setMinhaIniciativa, avancarTurno, ordemIniciativa, turnoAtualIndex, jogadorHistory,
         setJogadorHistory, feedCombate, getAvatarInfo, fmt, jogadorDaVez, infoDaVez, cenario,
         jogadores, dummies, cenaRenderId
     } = ctx;
@@ -361,6 +361,10 @@ export function MapaIniciativaTracker() {
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
                     <button className="btn-neon" onClick={avancarTurno} style={{ borderColor: '#00ffcc', color: '#00ffcc', padding: '2px 10px', fontSize: '0.8em', margin: 0 }}>Passar Turno</button>
+                    {/* 💖 Só aparece FORA de combate (iniciativa zerada) — senão daria pra zerar a
+                        Fadiga acumulada a qualquer momento no meio da luta, esvaziando o sentido do
+                        desgaste progressivo. "Sair" primeiro (iniciativa=0), depois "Descansar". */}
+                    {!(minhaFicha?.iniciativa > 0) && <button className="btn-neon btn-green" onClick={descansar} title="Recupera toda a Vida/Energias e zera a Fadiga e o mUnico Crescente acumulados" style={{ padding: '2px 10px', fontSize: '0.8em', margin: 0 }}>💖 Descansar</button>}
                     {minhaFicha?.iniciativa > 0 && <button className="btn-neon btn-red" onClick={sairDoCombate} style={{ padding: '2px 10px', fontSize: '0.8em', margin: 0 }}>Sair</button>}
                     {isMestre && <button className="btn-neon" onClick={encerrarCombate} style={{ borderColor: '#ff003c', color: '#ff003c', padding: '2px 10px', fontSize: '0.8em', margin: 0 }}>Zerar</button>}
                 </div>

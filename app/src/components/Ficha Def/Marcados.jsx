@@ -7,6 +7,7 @@ import * as AtributosCore from '../../core/attributes';
 import { getRank } from '../../core/prestige';
 import { formatarPoderCosmico } from '../../core/utils.js';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
+import { calcularFadigaAtual } from '../../core/fadiga';
 
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel'; 
@@ -962,10 +963,10 @@ export default function MarcadosPanel() {
 
         // 😮‍💨 Fadiga de Combate (ver "Marcadores & Adaptação" > Fadiga): desgaste acumulado
         // durante a cena/luta reduz o Poder Calculado do Scouter proporcionalmente.
-        const fadigaTaxaBruta = Number(minhaFicha.combate?.fadigaPorTurno);
-        const fadigaTaxa = isNaN(fadigaTaxaBruta) ? 5 : fadigaTaxaBruta;
-        const fadigaAtual = Math.min(100, Math.max(0, (Number(minhaFicha.combate?.fadigaTurnos) || 0) * fadigaTaxa));
-        power = power * (1 - fadigaAtual / 100);
+        // calcularFadigaAtual (core/fadiga.js) é a única fonte de verdade pra este número,
+        // compartilhada com core/poder.js, pra a Ficha e o Mapa nunca mostrarem valores diferentes.
+        const fadigaAtualParaPoder = calcularFadigaAtual(minhaFicha);
+        power = power * (1 - fadigaAtualParaPoder / 100);
         power = clampFinito(power);
 
         const divisorIndividual = parseFloat(minhaFicha.divisorPoder);
@@ -1235,7 +1236,7 @@ export default function MarcadosPanel() {
             ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => { let mx = safeGetMaximo(minhaFicha, k) * (fatoresVitaisAtual[k] || 1); f[k] = { ...f[k], atual: calcularEscala(mx, k).mxDisplay || 0 }; });
             f.pv = { ...f.pv, atual: pvMax || 0 }; f.pm = { ...f.pm, atual: pmMax || 0 }; f.energiaForca = { ...f.energiaForca, atual: forcaMax || 0 };
             ['padrao', 'bonus', 'reacao'].forEach(tipo => { if (!f.acoes) f.acoes = {}; if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 }; f.acoes[tipo].atual = f.acoes[tipo].max; });
-            if (f.combate) { f.combate.fadigaTurnos = 0; f.combate.municoTurnos = 0; }
+            if (f.combate) { f.combate.fadigaTurnos = 0; f.combate.fadigaExtra = 0; f.combate.municoTurnos = 0; }
         });
         callSave();
     };
@@ -1244,9 +1245,14 @@ export default function MarcadosPanel() {
     // reduz o Poder Calculado do Scouter (poderGlobal acima). Guardada como
     // contagem de turnos + taxa por turno (não a % final) pra a taxa poder ser
     // ajustada a qualquer momento sem perder o histórico de turnos já passados.
+    // fadigaExtra soma os pontos ganhos AUTOMATICAMENTE no Mapa (energia gasta, vida perdida,
+    // Formas ativas — ver core/fadiga.js e MapaFormContext.jsx) em cima do contador manual.
     const fadigaTurnos = minhaFicha.combate?.fadigaTurnos || 0;
     const fadigaPorTurno = minhaFicha.combate?.fadigaPorTurno ?? 5;
-    const fadigaAtual = Math.min(100, Math.max(0, fadigaTurnos * fadigaPorTurno));
+    const fadigaExtraAtual = Math.max(0, Number(minhaFicha.combate?.fadigaExtra) || 0);
+    // Arredondado só pra exibição — o cálculo real do Poder (dentro do useMemo acima) usa
+    // calcularFadigaAtual sem arredondar, então a redução do Poder continua precisa.
+    const fadigaAtual = Math.round(calcularFadigaAtual(minhaFicha));
 
     const updateFadigaTurnos = (delta) => {
         updateFicha(f => {
@@ -1257,7 +1263,7 @@ export default function MarcadosPanel() {
     };
 
     const zerarFadiga = () => {
-        updateFicha(f => { if (!f.combate) f.combate = {}; f.combate.fadigaTurnos = 0; });
+        updateFicha(f => { if (!f.combate) f.combate = {}; f.combate.fadigaTurnos = 0; f.combate.fadigaExtra = 0; });
         callSave();
     };
 
@@ -1545,7 +1551,7 @@ export default function MarcadosPanel() {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px dotted #ff8800', paddingBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
                                     <div>
                                         <h2 style={{ margin: 0, fontSize: '1.4em', display: 'flex', alignItems: 'center', gap: '10px', color: '#ff8800' }}>😮‍💨 Fadiga de Combate</h2>
-                                        <span style={{ fontSize: '0.85em', opacity: 0.8, fontStyle: 'italic' }}>A cada turno (ou grande gasto) o cansaço se acumula e reduz o Poder Calculado no Scouter.</span>
+                                        <span style={{ fontSize: '0.85em', opacity: 0.8, fontStyle: 'italic' }}>A cada turno (ou grande gasto) o cansaço se acumula e reduz o Poder Calculado no Scouter. No Mapa, o retorno do seu turno já soma isso sozinho — automaticamente mais rápido quanto mais Energia gasta, Vida perdida e Formas ativas você tiver.{fadigaExtraAtual > 0 ? ` (+${fadigaExtraAtual.toFixed(1)}% ganhos automáticos no Mapa até agora)` : ''}</span>
                                     </div>
                                     <button onClick={zerarFadiga} style={{ padding: '8px 15px', border: '1px solid #ff8800', color: '#ff8800', background: 'transparent', cursor: 'pointer', opacity: 0.8, borderRadius: '4px' }}>🧹 Zerar Fadiga</button>
                                 </div>
