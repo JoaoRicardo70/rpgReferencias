@@ -68,6 +68,67 @@ export function migrarPassivasParaPoderes(passivas) {
     }));
 }
 
+// ==========================================
+// 🔥 SINCRONIZAÇÃO MULTIPLAYER (diff parcial + merge 3 vias) 🔥
+// ==========================================
+function ehObjetoPlano(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+
+// 🔥 Calcula só os campos que mudaram entre `anterior` (último estado confirmado
+// no Firebase) e `atual` (ficha local a salvar), como um mapa de caminhos
+// "chave/subchave" -> valor pronto para `update()`. Substitui o antigo `set()`
+// da ficha inteira: dois jogadores/abas editando campos DIFERENTES da mesma
+// ficha não se esmagam mais, porque cada save só escreve os campos que
+// realmente mudaram localmente, e não a ficha inteira. Recursa em objetos
+// simples (aninhados a qualquer profundidade); arrays (poderes, inventario,
+// condicoes etc.) são tratados como valor atômico — sem diff por item.
+export function calcularDiffFirebase(anterior, atual, prefixo = '') {
+    const updates = {};
+    const anteriorObj = ehObjetoPlano(anterior) ? anterior : {};
+    const atualObj = ehObjetoPlano(atual) ? atual : {};
+    const chaves = new Set([...Object.keys(anteriorObj), ...Object.keys(atualObj)]);
+    for (const chave of chaves) {
+        const valorAnterior = anteriorObj[chave];
+        const valorAtual = atualObj[chave];
+        const caminho = prefixo ? `${prefixo}/${chave}` : chave;
+        if (ehObjetoPlano(valorAtual) && ehObjetoPlano(valorAnterior)) {
+            Object.assign(updates, calcularDiffFirebase(valorAnterior, valorAtual, caminho));
+        } else if (JSON.stringify(valorAnterior) !== JSON.stringify(valorAtual)) {
+            updates[caminho] = valorAtual === undefined ? null : valorAtual;
+        }
+    }
+    return updates;
+}
+
+// 🔥 Mescla uma atualização remota (`remoto`, o que acabou de chegar do
+// Firebase) com a ficha local (`local`), usando `base` (o último estado
+// confirmado do Firebase antes desta atualização) para decidir quem venceu
+// campo a campo: se o valor local ainda é IGUAL ao `base`, o jogador não
+// mexeu nele desde a última sincronização, então o valor remoto pode entrar
+// livremente — inclusive um `undefined` remoto genuíno (a chave foi REMOVIDA
+// no Firebase, ex: o Mestre apagou uma proficiência/domínio pelo Painel), que
+// também precisa ser propagado, senão o próximo save local ressuscitaria a
+// chave que acabou de ser apagada por outra pessoa. Se o valor local já MUDOU
+// em relação ao `base` (edição não salva ainda, incluindo o caso de o
+// jogador ter acabado de CRIAR essa chave localmente, então ainda ausente
+// tanto no `base` quanto no `remoto`), o local vence, para nunca apagar o
+// que o jogador acabou de digitar. Mesma regra de recursão de
+// calcularDiffFirebase (objetos simples recursam, arrays são atômicos).
+export function mesclarComRemoto(base, local, remoto) {
+    if (ehObjetoPlano(remoto) && ehObjetoPlano(local)) {
+        const baseObj = ehObjetoPlano(base) ? base : {};
+        const resultado = { ...local };
+        const chaves = new Set([...Object.keys(remoto), ...Object.keys(local)]);
+        for (const chave of chaves) {
+            const valorMesclado = mesclarComRemoto(baseObj[chave], local[chave], remoto[chave]);
+            if (valorMesclado === undefined) delete resultado[chave];
+            else resultado[chave] = valorMesclado;
+        }
+        return resultado;
+    }
+    const alteradoLocalmente = JSON.stringify(local) !== JSON.stringify(base);
+    return alteradoLocalmente ? local : remoto;
+}
+
 export function isFisico(s) {
     return ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaesp', 'carisma', 'stamina', 'constituicao'].includes(s.toLowerCase());
 }

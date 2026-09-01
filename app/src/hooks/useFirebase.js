@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import useStore from '../stores/useStore';
 import { db } from '../services/firebase-config';
-import { carregarFichaDoFirebase, iniciarListenerPersonagens, iniciarListenerFeed, salvarFirebaseImediato } from '../services/firebase-sync';
+import { iniciarListenerFichaPropria, iniciarListenerPersonagens, iniciarListenerFeed, salvarFirebaseImediato, resetSincronizacaoFicha } from '../services/firebase-sync';
 
 export default function useFirebase() {
     const [loading, setLoading] = useState(true);
@@ -12,45 +12,49 @@ export default function useFirebase() {
     const addFeedEntry = useStore((s) => s.addFeedEntry);
 
     useEffect(() => {
+        let unsubFichaPropria = () => {};
         let unsubPersonagens = () => {};
         let unsubFeed = () => {};
         let cancelled = false;
 
-        async function init() {
-            if (!mesaId) {
-                setLoading(false);
-                return;
-            }
+        resetSincronizacaoFicha();
 
-            if (meuNome && db) {
-                try {
-                    const dados = await carregarFichaDoFirebase(meuNome);
-                    if (!cancelled && dados) {
-                        carregarDadosFicha(dados);
-                        // 🔥 Persiste imediatamente a migração de ficha.passivas -> ficha.poderes
-                        // (ver migrarPassivasParaPoderes), para não repeti-la a cada recarregamento.
-                        if (Array.isArray(dados.passivas) && dados.passivas.length > 0) {
-                            salvarFirebaseImediato().catch(() => {});
-                        }
-                    }
-                } catch (err) { console.error('[useFirebase] Erro:', err); }
-            }
-
-            if (!cancelled) setLoading(false);
-
-            unsubPersonagens = iniciarListenerPersonagens((personagens) => {
-                if (!cancelled) setPersonagens(personagens);
-            });
-
-            unsubFeed = iniciarListenerFeed((entry) => {
-                if (!cancelled) addFeedEntry(entry);
-            });
+        if (!mesaId) {
+            setLoading(false);
+            return () => { cancelled = true; };
         }
 
-        init();
+        if (meuNome && db) {
+            // 🔥 ESCUTA ATIVA: substitui o antigo get() único por um onValue, para
+            // que a própria ficha atualize sozinha (Mestre editando pelo Painel,
+            // outra aba/dispositivo do mesmo jogador, etc.) sem precisar de F5.
+            unsubFichaPropria = iniciarListenerFichaPropria(meuNome, (dados, primeiraCarga) => {
+                if (cancelled || !primeiraCarga) return;
+                if (dados) {
+                    carregarDadosFicha(dados);
+                    // 🔥 Persiste imediatamente a migração de ficha.passivas -> ficha.poderes
+                    // (ver migrarPassivasParaPoderes), para não repeti-la a cada recarregamento.
+                    if (Array.isArray(dados.passivas) && dados.passivas.length > 0) {
+                        salvarFirebaseImediato().catch(() => {});
+                    }
+                }
+                setLoading(false);
+            });
+        } else {
+            setLoading(false);
+        }
+
+        unsubPersonagens = iniciarListenerPersonagens((personagens) => {
+            if (!cancelled) setPersonagens(personagens);
+        });
+
+        unsubFeed = iniciarListenerFeed((entry) => {
+            if (!cancelled) addFeedEntry(entry);
+        });
 
         return () => {
             cancelled = true;
+            unsubFichaPropria();
             unsubPersonagens();
             unsubFeed();
         };
