@@ -281,6 +281,14 @@ export function calcularPoderAtual(ficha, divisorPoderMesa) {
     let power = poderComAscensao * (sup / 100);
     power = clampFinito(power);
 
+    // 😮‍💨 Fadiga de Combate — réplica exata do bloco equivalente em Ficha Def/Marcados.jsx >
+    // poderGlobal, pra o Poder exibido no Mapa refletir o mesmo desgaste que o da Ficha.
+    const fadigaTaxaBruta = Number(ficha.combate?.fadigaPorTurno);
+    const fadigaTaxa = isNaN(fadigaTaxaBruta) ? 5 : fadigaTaxaBruta;
+    const fadigaAtual = Math.min(100, Math.max(0, (Number(ficha.combate?.fadigaTurnos) || 0) * fadigaTaxa));
+    power = power * (1 - fadigaAtual / 100);
+    power = clampFinito(power);
+
     const divisorIndividual = parseFloat(ficha.divisorPoder);
     const divisorMesaSeguro = parseFloat(divisorPoderMesa);
     const divisorEfetivo = (!isNaN(divisorIndividual) && divisorIndividual > 0)

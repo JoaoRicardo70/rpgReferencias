@@ -177,6 +177,74 @@ describe('core/poder - calcularPoderAtual: mUnico Crescente e "mUnico sempre mul
     });
 });
 
+// ---------------------------------------------------------------------------
+// QA — Fadiga de Combate em core/poder.js: este arquivo é uma RÉPLICA PURA do
+// useMemo de poderGlobal em Ficha Def/Marcados.jsx (usada pra exibir o mesmo
+// "Poder Atual" na moldura de combate do Mapa — ver MapaCombate.jsx). A Fadiga
+// de Combate (combate.fadigaTurnos x combate.fadigaPorTurno, clampada em 100%)
+// já reduzia poderGlobal em Marcados.jsx mas ficou de fora desta réplica até
+// agora — o que faria o Mapa mostrar o Poder CHEIO (sem desgaste) enquanto a
+// Ficha mostrava o Poder já reduzido pra pessoa em combate. Estes testes
+// seguem o mesmo padrão/estilo do describe de mUnico Crescente acima e o
+// mesmo padrão de asserção de Marcados.fadigaCombate.test.jsx.
+// ---------------------------------------------------------------------------
+describe('core/poder - calcularPoderAtual: Fadiga de Combate', () => {
+    it('ficha sem o campo combate produz a MESMA leitura que combate.fadigaTurnos=0 (sem fadiga = sem regressão pra fichas existentes)', () => {
+        const semCombate = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
+        const comZeroTurnos = calcularPoderAtual(criarFichaMinima({ combate: { fadigaTurnos: 0, fadigaPorTurno: 5 } }), 1).poderGlobal;
+
+        expect(comZeroTurnos).toBe(semCombate);
+    });
+
+    it('50% de fadiga (10 turnos x 5%/turno) reduz o Poder a aproximadamente metade do valor sem fadiga', () => {
+        const semFadiga = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
+        const com50PorCento = calcularPoderAtual(criarFichaMinima({ combate: { fadigaTurnos: 10, fadigaPorTurno: 5 } }), 1).poderGlobal;
+
+        expect(com50PorCento).toBeLessThan(semFadiga);
+        const razao = com50PorCento / semFadiga;
+        expect(razao).toBeGreaterThan(0.49);
+        expect(razao).toBeLessThan(0.51);
+    });
+
+    it('fadiga clampa em 100% (nunca zera nem inverte o sinal) mesmo com turnos x taxa somando muito mais que 100', () => {
+        const com100PorCento = calcularPoderAtual(criarFichaMinima({ combate: { fadigaTurnos: 1000, fadigaPorTurno: 50 } }), 1).poderGlobal; // 1000*50=50000 -> clamp 100
+        const comExatos100 = calcularPoderAtual(criarFichaMinima({ combate: { fadigaTurnos: 20, fadigaPorTurno: 5 } }), 1).poderGlobal; // 20*5=100, sem estourar
+
+        expect(com100PorCento).toBe(comExatos100);
+        expect(com100PorCento).toBe(0);
+    });
+
+    it('fadigaPorTurno ausente usa o padrão de 5%/turno (mesmo default do slider em Marcados.jsx)', () => {
+        const comPadraoImplicito = calcularPoderAtual(criarFichaMinima({ combate: { fadigaTurnos: 4 } }), 1).poderGlobal; // fadigaPorTurno ausente -> default 5 -> 20%
+        const com20PorCentoExplicito = calcularPoderAtual(criarFichaMinima({ combate: { fadigaTurnos: 4, fadigaPorTurno: 5 } }), 1).poderGlobal;
+
+        expect(comPadraoImplicito).toBe(com20PorCentoExplicito);
+    });
+
+    it('combina multiplicativamente com mUnico Crescente (Fadiga aplica DEPOIS do damping de Supressão, sobre o Poder já multiplicado pelo mUnico Crescente)', () => {
+        const semNenhum = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
+
+        // mUnico Crescente: 10 turnos x 5%/turno -> x1.5. Fadiga: 10 turnos x 5%/turno -> -50%.
+        // Combinado, o Poder deveria ficar em torno de x0.75 (1.5 * 0.5) do valor sem nenhum dos
+        // dois. Comparação por RAZÃO (não igualdade exata do produto sobre o valor já arredondado
+        // por floor) para não introduzir um floor prematuro sobre `semNenhum` que a fórmula real
+        // nunca aplica no meio do cálculo (o floor só acontece uma vez, no final do pipeline).
+        const comAmbos = calcularPoderAtual(
+            criarFichaMinima({ combate: { municoTurnos: 10, municoPorTurno: 5, fadigaTurnos: 10, fadigaPorTurno: 5 } }),
+            1
+        ).poderGlobal;
+
+        expect(comAmbos).toBeGreaterThan(0);
+        expect(comAmbos).toBeLessThan(semNenhum);
+        const razao = comAmbos / semNenhum;
+        expect(razao).toBeGreaterThan(0.74);
+        expect(razao).toBeLessThan(0.76);
+    });
+});
+
+// (paridade real, renderizando o próprio MarcadosPanel para a mesma ficha, fica em
+// core/poder.parityMarcados.test.jsx — JSX não é suportado neste arquivo .js)
+
 describe('core/poder - getTemaScouter', () => {
     it('retorna o tema "Poder Máximo" quando supressao >= 100', () => {
         expect(getTemaScouter(100, 1).nome).toBe('Poder Máximo (Liberto)');

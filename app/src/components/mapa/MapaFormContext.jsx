@@ -4,6 +4,7 @@ import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salv
 import { calcularAcerto } from '../../core/engine';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { getBuffs } from '../../core/attributes';
+import { aplicarRegeneracaoDeTurno } from '../../core/vitals';
 
 export const MAP_SIZE = 30;
 export const PALETA = ['#ff003c', '#0088ff', '#00ff88', '#ffcc00', '#ff00ff', '#00ffff', '#ff8800', '#88ff00'];
@@ -689,6 +690,16 @@ export function MapaFormProvider({ children }) {
                     if (f.acoes.padrao) f.acoes.padrao.atual = f.acoes.padrao.max;
                     if (f.acoes.bonus) f.acoes.bonus.atual = f.acoes.bonus.max;
                     if (f.acoes.reacao) f.acoes.reacao.atual = f.acoes.reacao.max;
+
+                    // 😮‍💨 Fadiga de Combate: cada retorno do MEU turno na iniciativa do Mapa conta como
+                    // "mais um turno de luta" — mesma unidade que o stepper manual da Ficha usava até
+                    // agora (ver Ficha Def/Marcados.jsx), só que automático a partir daqui.
+                    if (!f.combate) f.combate = {};
+                    f.combate.fadigaTurnos = Math.max(0, (Number(f.combate.fadigaTurnos) || 0) + 1);
+
+                    // 💖 Regeneração: mesma regra do botão "Regenerar" da página de Status, aplicada
+                    // sozinha sempre que meu turno volta.
+                    aplicarRegeneracaoDeTurno(f);
                 });
                 salvarFichaSilencioso();
             }

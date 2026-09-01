@@ -77,7 +77,23 @@ export const fichaPadrao = {
     // 🔥 Quanto do pool foi alocado em CADA atributo especificamente (ex.: { forca: 20 }) —
     // statusPoolGasto sozinho é só o total global e não basta pra saber quanto devolver com
     // segurança de um atributo específico ao pool (ver devolverPontoStatus em Marcados.jsx).
-    statusPoolAlocado: {}
+    statusPoolAlocado: {},
+
+    // 🔥 Estado de combate por turno (Fadiga, mUnico Crescente, Fúria, Reator de Adaptação,
+    // Leis/Cópias etc — ver Ficha Def/ClassificacaoPanel.jsx e Marcados.jsx). Precisa estar em
+    // fichaPadrao e ter um branch explícito em carregarDadosFicha (como ataqueConfig/bio) para
+    // sobreviver ao F5: sem isso, o loop genérico de carregarDadosFicha simplesmente não
+    // restaura a chave 'combate' (por não existir aqui antes), então fadigaTurnos/municoTurnos
+    // etc. resetavam pra "undefined" (tratado como 0) toda vez que a ficha recarregava —
+    // inclusive no meio de um combate real.
+    combate: {
+        municoTurnos: 0, municoPorTurno: 5,
+        fadigaTurnos: 0, fadigaPorTurno: 5,
+        danoAbsorvido: 0, danoTotalRecebido: 0, letalidadeTotalRecebida: 0,
+        conversaoAlvo: 10000, conversaoBonus: 1,
+        furiaMax: 0,
+        leis: [], copias: [],
+    }
 };
 
 export function sanitizarNome(n) { return !n ? '' : n.replace(/[.#$\[\]\/]/g, '_').trim(); }
@@ -181,6 +197,7 @@ const useStore = create(
             // (divisores/ataqueConfig/avatar) — payloads parciais sem essa chave não devem apagar
             // alocações já carregadas.
             if (dados.statusPoolAlocado) state.minhaFicha.statusPoolAlocado = Object.assign({}, fichaPadrao.statusPoolAlocado, dados.statusPoolAlocado);
+            if (dados.combate) state.minhaFicha.combate = Object.assign({}, fichaPadrao.combate, dados.combate);
             if (dados.ataqueConfig) state.minhaFicha.ataqueConfig = Object.assign({}, fichaPadrao.ataqueConfig, dados.ataqueConfig);
             if (dados.avatar) state.minhaFicha.avatar = Object.assign({}, fichaPadrao.avatar, dados.avatar);
             else state.minhaFicha.avatar = { base: "" };
@@ -236,7 +253,7 @@ const useStore = create(
             for (let i = 0; i < chaves.length; i++) {
                 const ch = chaves[i];
                 // 🔥 NOVO: Ignorar as novas chaves no loop genérico para evitar sobreposição
-                if (dados[ch] !== undefined && ch !== 'esteticaGrimorio' && ch !== 'habilidades' && ch !== 'formas' && ch !== 'donoDaFicha' && ch !== 'ascensaoBase' && ch !== 'poderes' && ch !== 'divisores' && ch !== 'inventario' && ch !== 'ataquesElementais' && ch !== 'ataqueConfig' && ch !== 'avatar' && ch !== 'bio' && ch !== 'afinidades' && ch !== 'condicoes' && ch !== 'notas' && ch !== 'passivas' && ch !== 'seresSelados' && ch !== 'posicao' && ch !== 'iniciativa' && ch !== 'acoes' && ch !== 'proficienciaBase' && ch !== 'proficiencias' && ch !== 'cores' && ch !== 'hierarquia' && ch !== 'dominios' && ch !== 'estetica' && ch !== 'labels' && ch !== 'pv' && ch !== 'pm' && ch !== 'multiplicadorVida' && ch !== 'multiplicadorMorte' && ch !== 'multiplicadorForcaPrestigio' && ch !== 'multiplicadorForcaAscensao' && ch !== 'statusPoolAlocado') {
+                if (dados[ch] !== undefined && ch !== 'esteticaGrimorio' && ch !== 'habilidades' && ch !== 'formas' && ch !== 'donoDaFicha' && ch !== 'ascensaoBase' && ch !== 'poderes' && ch !== 'divisores' && ch !== 'inventario' && ch !== 'ataquesElementais' && ch !== 'ataqueConfig' && ch !== 'avatar' && ch !== 'bio' && ch !== 'afinidades' && ch !== 'condicoes' && ch !== 'notas' && ch !== 'passivas' && ch !== 'seresSelados' && ch !== 'posicao' && ch !== 'iniciativa' && ch !== 'acoes' && ch !== 'proficienciaBase' && ch !== 'proficiencias' && ch !== 'cores' && ch !== 'hierarquia' && ch !== 'dominios' && ch !== 'estetica' && ch !== 'labels' && ch !== 'pv' && ch !== 'pm' && ch !== 'multiplicadorVida' && ch !== 'multiplicadorMorte' && ch !== 'multiplicadorForcaPrestigio' && ch !== 'multiplicadorForcaAscensao' && ch !== 'statusPoolAlocado' && ch !== 'combate') {
                     if (typeof fichaPadrao[ch] === 'object' && !Array.isArray(fichaPadrao[ch])) {
                         state.minhaFicha[ch] = Object.assign({}, fichaPadrao[ch], dados[ch]);
                         const numF = ['base', 'mBase', 'mGeral', 'mFormas', 'mAbsoluto', 'reducaoCusto', 'regeneracao', 'atual'];
