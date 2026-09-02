@@ -873,7 +873,11 @@ export default function MarcadosPanel() {
                 const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
                 return Math.max(0, (rankInfo.ascensaoFinal || 0) - ascensaoBaseEfetiva);
             });
-            const nivelCompletos = Math.min(...bonusPorCategoria);
+            // 🔥 CORREÇÃO: antes usava Math.min(...) — travava o ganho geral na categoria mais
+            // fraca das 6, então multiplicadorForcaPrestigio só tinha efeito se TODAS as 6
+            // categorias subissem de nível juntas. Trocado pela MÉDIA (arredondada pra baixo),
+            // igual core/poder.js — mesma fonte de verdade, ver comentário lá para o motivo.
+            const nivelCompletos = Math.floor(bonusPorCategoria.reduce((a, b) => a + b, 0) / bonusPorCategoria.length);
             const geral = (ascensaoBase + nivelCompletos) * multA;
             const fator = geral / (ascensaoBase || 1);
             return { geral: isNaN(geral) ? ascensaoBase : geral, fator: isNaN(fator) ? 1 : fator };

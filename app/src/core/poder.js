@@ -73,7 +73,15 @@ function calcularAscensaoParaPoder(ficha) {
         const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
         return Math.max(0, (rankInfo.ascensaoFinal || 0) - ascensaoBaseEfetiva);
     });
-    const nivelCompletos = Math.min(...bonusPorCategoria);
+    // 🔥 CORREÇÃO: antes usava Math.min(...) — a Ascensão geral (e portanto o Poder Calculado)
+    // ficava travada na categoria MAIS FRACA das 6, então multiplicadorForcaPrestigio só tinha
+    // efeito em Poder se TODAS as 6 categorias (vida/mana/aura/chakra/corpo/status) subissem de
+    // nível juntas. Trocado pela MÉDIA (arredondada pra baixo) das 6 categorias: agora qualquer
+    // categoria que suba de nível — sozinha ou não — contribui pro ganho geral, sem depender das
+    // outras acompanharem no mesmo instante. Isso alinha o comportamento de
+    // multiplicadorForcaPrestigio com o de multiplicadorForcaAscensao, que já nunca fica travado
+    // por nenhuma categoria específica.
+    const nivelCompletos = Math.floor(bonusPorCategoria.reduce((a, b) => a + b, 0) / bonusPorCategoria.length);
     const geral = (ascensaoBase + nivelCompletos) * multA;
     return isNaN(geral) ? ascensaoBase : geral;
 }

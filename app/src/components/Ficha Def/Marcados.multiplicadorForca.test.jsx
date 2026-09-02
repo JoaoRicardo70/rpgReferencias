@@ -755,18 +755,16 @@ describe('Marcados — Indicador "Ascensão Geral Efetiva": leitura direta, comp
         expect(lerIndicadorAscensaoGeral().textContent).toBe('Ascensão Geral Efetiva: 4');
     });
 
-    it('multiplicadorForcaPrestigio (overflow) E mFormas de Forma/Passiva ativos SIMULTANEAMENTE na mesma categoria compõem multiplicativamente — nem um nem o outro isolado bastaria para gerar o overflow observado', () => {
-        // vida: baseP=30, mFormas=2.5 -> pAtual=floor(30*2.5)=75. Com multP=3 sozinho
-        // (sem mFormas) prestigioTotal seria 90 (sem overflow); com mFormas sozinho (sem
-        // multP) prestigioTotal seria 75 (sem overflow). Só JUNTOS: 75*3=225 -> bonus=2.
+    it('multiplicadorForcaPrestigio E mFormas ativos SIMULTANEAMENTE na mesma categoria compõem multiplicativamente dentro do bônus daquela categoria', () => {
+        // vida: baseP=30, mFormas=2.5 -> pAtual=floor(30*2.5)=75. Com multP=3: prestigioTotal=
+        // 75*3=225 -> bonusAscensao=2 (overflow real, que nem multP=3 sozinho sobre o raw 30
+        // (prestigioTotal=90, bonus=0) nem mFormas=2.5 sozinho com multP=1 (prestigioTotal=75,
+        // bonus=0) gerariam isoladamente — só multiplicados entre si passam de 100).
         // As outras 5 categorias (mana/aura/chakra/corpo/status), sem mFormas, ficam em
-        // baseP=180 -> pAtual=180*3=540 -> bonus=5 (não são o gargalo). Status não tira mais
-        // esse baseP=180 da média ao vivo dos 8 atributos (forca=1.440.000 sozinha daria
-        // média=180.000/1000=180) — vem de statusPrestigioAplicado, setado abaixo com esse
-        // mesmo valor (180) pra preservar a intenção original do teste.
-        // nivelCompletos = min(2,5,5,5,5,5) = 2 -> geral=(1+2)*1=3.
-        // Se qualquer um dos dois fatores fosse ignorado pelo código, vida cairia para
-        // bonus=0 e o indicador mostraria 1 em vez de 3.
+        // baseP=180 -> pAtual=180*3=540 -> bonus=5 cada.
+        // nivelCompletos = floor(média(2,5,5,5,5,5)) = floor(27/6) = floor(4.5) = 4 ->
+        // geral=(1+4)*1=5. (Antes da correção da trava — Math.min(...) em vez de média — o
+        // resultado era 3; ver core/poder.js e o motivo da mudança lá.)
         const ficha = {
             vida: { base: 30000000, mFormas: 2.5 },
             mana: { base: 1800000000 },
@@ -795,7 +793,7 @@ describe('Marcados — Indicador "Ascensão Geral Efetiva": leitura direta, comp
         render(<MarcadosPanel />);
         irParaPaginaAnalise();
 
-        expect(lerIndicadorAscensaoGeral().textContent).toBe('Ascensão Geral Efetiva: 3');
+        expect(lerIndicadorAscensaoGeral().textContent).toBe('Ascensão Geral Efetiva: 5');
     });
 
     it('editar o input "Ascensão Base (Nível)" pelo caminho real (salvar -> updateFicha) recalcula o indicador (smoke test de reatividade, não uma fixture pré-calculada)', () => {

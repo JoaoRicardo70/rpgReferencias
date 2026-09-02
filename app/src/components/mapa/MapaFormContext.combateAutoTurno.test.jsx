@@ -3,6 +3,7 @@ import { render, cleanup, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaFormProvider, useMapaForm } from './MapaFormContext';
 import useStore from '../../stores/useStore';
+import { calcularFadigaAtual } from '../../core/fadiga';
 
 // ---------------------------------------------------------------------------
 // QA — Fadiga de Combate e Regeneração automáticas no Mapa (MapaFormContext.jsx)
@@ -10,11 +11,22 @@ import useStore from '../../stores/useStore';
 // Piggyback no efeito já existente que reseta os pontos de Ação do PRÓPRIO
 // jogador sempre que seu turno volta na iniciativa do Mapa (gated por
 // `currentActor && !currentActor.isDummie && currentActor.nome === meuNome`):
-// além de resetar acoes.padrao/bonus/reacao, agora também incrementa
-// combate.fadigaTurnos em +1 e chama aplicarRegeneracaoDeTurno(f) — SEMPRE
-// dentro do mesmo `if`, então nunca dispara para dummies (NPCs) nem para o
-// turno de outro jogador (updateFicha só pode mutar a MINHA ficha, nunca a
-// de outro personagem conectado).
+// além de resetar acoes.padrao/bonus/reacao, agora também soma
+// combate.fadigaExtra (calcularGanhoFadigaDinamico) e chama
+// aplicarRegeneracaoDeTurno(f) — SEMPRE dentro do mesmo `if`, então nunca
+// dispara para dummies (NPCs) nem para o turno de outro jogador (updateFicha
+// só pode mutar a MINHA ficha, nunca a de outro personagem conectado).
+//
+// 🔥 CORREÇÃO: combate.fadigaTurnos (o contador MANUAL/stepper "Turnos
+// Cansativos" da Ficha) deixou de ser auto-incrementado aqui. Antes, cada
+// retorno do turno somava +1 fadigaTurnos (5% fixos, por padrão) POR CIMA do
+// ganho dinâmico já escalado por Energia/Vida/Maestria/Supressão de Poder —
+// um personagem em condições ideais (100% Maestria, sem gastar Energia, sem
+// levar dano, Poder suprimido) ainda assim acumulava 5%/turno vindos desse
+// contador fixo, contradizendo a própria ideia da Fadiga dinâmica (quase-zero
+// nessas condições). fadigaTurnos continua existindo e editável manualmente
+// (stepper +/- na Ficha), só não é mais tocado pelo avanço automático de
+// turno — ver os testes abaixo que confirmam ele permanece intocado.
 //
 // Mesmo padrão de mock de useStore/firebase-sync de
 // MapaFormContext.apenasCriador.test.jsx; mesma leitura de fadiga de
@@ -94,7 +106,7 @@ describe('MapaFormContext — Fadiga de Combate e Regeneração automáticas ao 
         cleanup();
     });
 
-    it('incrementa combate.fadigaTurnos em +1 e aplica regeneração quando o turno passa a ser o MEU (não-dummie)', () => {
+    it('aplica regeneração quando o turno passa a ser o MEU (não-dummie), e NÃO mexe mais em combate.fadigaTurnos (contador manual)', () => {
         // Preenchedor (dummie) na posição 0 com iniciativa maior; EU (Heroi) na posição 1.
         const state = baseState({
             meuNome: 'Heroi',
@@ -111,7 +123,8 @@ describe('MapaFormContext — Fadiga de Combate e Regeneração automáticas ao 
         });
         rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
 
-        expect(state.minhaFicha.combate.fadigaTurnos).toBe(1);
+        // fadigaTurnos (contador manual) permanece intocado — só o stepper +/- da Ficha mexe nele.
+        expect(state.minhaFicha.combate.fadigaTurnos).toBe(0);
         // Regeneração real de core/vitals.js aplicada: vida.atual(1) + regeneracao(5_000_000).
         expect(state.minhaFicha.vida.atual).toBe(5000001);
     });
@@ -162,7 +175,7 @@ describe('MapaFormContext — Fadiga de Combate e Regeneração automáticas ao 
         expect(state.updateFicha).not.toHaveBeenCalled();
     });
 
-    it('incrementa fadigaTurnos a partir do valor já existente (não reseta para 1) e usa combate.fadigaPorTurno já carregado', () => {
+    it('preserva combate.fadigaTurnos exatamente como estava (contador manual não é mais tocado pelo avanço automático de turno)', () => {
         const state = baseState({
             meuNome: 'Heroi',
             dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
@@ -176,10 +189,10 @@ describe('MapaFormContext — Fadiga de Combate e Regeneração automáticas ao 
         });
         rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
 
-        expect(state.minhaFicha.combate.fadigaTurnos).toBe(7);
+        expect(state.minhaFicha.combate.fadigaTurnos).toBe(6);
     });
 
-    it('cria combate do zero (objeto ausente) sem lançar exceção quando o turno automático dispara pela primeira vez', () => {
+    it('cria combate do zero (objeto ausente) sem lançar exceção quando o turno automático dispara pela primeira vez, sem inventar um fadigaTurnos', () => {
         const state = baseState({
             meuNome: 'Heroi',
             dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
@@ -195,7 +208,9 @@ describe('MapaFormContext — Fadiga de Combate e Regeneração automáticas ao 
             rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
         }).not.toThrow();
 
-        expect(state.minhaFicha.combate.fadigaTurnos).toBe(1);
+        expect(state.minhaFicha.combate).toBeTruthy();
+        expect(state.minhaFicha.combate.fadigaTurnos).toBeUndefined();
+        expect(state.minhaFicha.combate.fadigaExtra).toBeGreaterThanOrEqual(0);
     });
 });
 
@@ -235,8 +250,8 @@ describe('MapaFormContext — Fadiga DINÂMICA (fadigaExtra) acumula no retorno 
 
         expect(state.minhaFicha.combate.fadigaExtra).toBeGreaterThan(0);
         expect(state.minhaFicha.combate.fadigaExtra).toBeLessThanOrEqual(15);
-        // fadigaTurnos (contador manual/base) continua incrementando normalmente, sem relação.
-        expect(state.minhaFicha.combate.fadigaTurnos).toBe(1);
+        // fadigaTurnos (contador manual/base) não é mais tocado pelo avanço automático de turno.
+        expect(state.minhaFicha.combate.fadigaTurnos).toBe(0);
     });
 
     it('reflete o déficit PRÉ-regeneração: mesmo quando a Regeneração cura o vital TOTALMENTE no mesmo tick, o ganho dinâmico não fica mascarado em 0', () => {
@@ -301,5 +316,90 @@ describe('MapaFormContext — Fadiga DINÂMICA (fadigaExtra) acumula no retorno 
         rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
 
         expect(state.minhaFicha.combate.fadigaExtra).toBeGreaterThan(3);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// QA — Regressão direta do bug relatado pelo usuário: a Fadiga automática NÃO
+// tem mais um piso incondicional de 5%/turno. Antes da correção, ALÉM do
+// ganho dinâmico (calcularGanhoFadigaDinamico, já quase-zero em condições
+// ideais), o efeito também incrementava incondicionalmente combate.fadigaTurnos
+// em +1 por turno (5% fixos, por padrão) — um personagem com 100% de Maestria
+// na única Forma ativa, Energia/Vida cheias e Poder fortemente suprimido
+// ainda assim via a Fadiga subir 5%/turno vindos SÓ desse contador fixo. Ver
+// MapaFormContext.jsx:695-710 para o comentário completo da correção.
+// ---------------------------------------------------------------------------
+describe('MapaFormContext — Regressão do bug relatado: sem piso fixo de 5%/turno na Fadiga automática', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+        cleanup();
+    });
+
+    it('personagem em condições IDEAIS (100% Maestria na única Forma ativa, Energia/Vida cheias, Poder fortemente suprimido) fica com Fadiga Atual em 0% mesmo após VÁRIOS retornos do turno — não sobe um % fixo por turno', () => {
+        const state = baseState({
+            meuNome: 'Heroi',
+            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+        });
+        state.minhaFicha.iniciativa = 10;
+        // Vida e as 4 Energias 100% cheias (fatorVida=0, fatorEnergia=0).
+        state.minhaFicha.vida = { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 100000000, regeneracao: 0 };
+        state.minhaFicha.mana = { base: 1000000, atual: 1000000 };
+        state.minhaFicha.aura = { base: 1000000, atual: 1000000 };
+        state.minhaFicha.chakra = { base: 1000000, atual: 1000000 };
+        state.minhaFicha.corpo = { base: 1000000, atual: 1000000 };
+        // Uma Forma ativa turbinando o eixo "status" (âncora "forca", fora de vida/energia
+        // — mesma técnica de isolamento de core/fadiga.test.js) com Maestria=100%, que ZERA
+        // por completo a contribuição dela pro fator de Formas (fatorFormas=0).
+        state.minhaFicha.forca = { base: 1000000, mFormas: 2 };
+        state.minhaFicha.poderes = [{ id: 'p1', nome: 'Forma X', categoria: 'forma', ativa: true, maestria: 100 }];
+        // Poder fortemente suprimido (no limite mínimo permitido).
+        state.minhaFicha.supressaoPoder = 1;
+        state.minhaFicha.limiteSupressao = 1;
+        state.minhaFicha.combate = { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0 };
+        const { rerender } = montarComEstado(state);
+
+        // Simula VÁRIOS retornos do MEU turno (alterna o índice de iniciativa entre o
+        // Filler(0) e EU(1) repetidamente) — se o piso fixo antigo (+1 fadigaTurnos por
+        // turno) ainda estivesse presente, 6 turnos renderiam 30% de Fadiga (6 x 5%).
+        for (let i = 0; i < 6; i++) {
+            act(() => { state.cenario = { ...state.cenario, turnoAtualIndex: 1 }; });
+            rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
+            act(() => { state.cenario = { ...state.cenario, turnoAtualIndex: 0 }; });
+            rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
+        }
+
+        // fadigaTurnos (contador manual/antigo) nunca foi tocado pelo avanço automático.
+        expect(state.minhaFicha.combate.fadigaTurnos).toBe(0);
+        // Com severidade dinâmica = 0 (energia/vida cheias, Forma 100% dominada pela
+        // Maestria), calcularGanhoFadigaDinamico também rende exatamente 0 por turno.
+        expect(state.minhaFicha.combate.fadigaExtra).toBe(0);
+        // A Fadiga Atual final (fonte de verdade compartilhada com core/poder.js) fica em
+        // 0%, NÃO nos 30% que o piso fixo antigo teria produzido depois de 6 turnos.
+        expect(calcularFadigaAtual(state.minhaFicha)).toBe(0);
+    });
+
+    it('combate.fadigaTurnos definido manualmente (stepper da Ficha) permanece CONGELADO mesmo depois de VÁRIOS turnos consecutivos de combate', () => {
+        const state = baseState({
+            meuNome: 'Heroi',
+            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+        });
+        state.minhaFicha.iniciativa = 10;
+        // GM/jogador setou fadigaTurnos=6 manualmente via stepper +/- antes do combate.
+        state.minhaFicha.combate = { fadigaTurnos: 6, fadigaPorTurno: 5 };
+        const { rerender } = montarComEstado(state);
+
+        for (let i = 0; i < 8; i++) {
+            act(() => { state.cenario = { ...state.cenario, turnoAtualIndex: 1 }; });
+            rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
+            act(() => { state.cenario = { ...state.cenario, turnoAtualIndex: 0 }; });
+            rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
+        }
+
+        // fadigaTurnos continua exatamente no valor manual, não importa quantos turnos
+        // se passaram — só o stepper +/- da Ficha pode alterá-lo agora.
+        expect(state.minhaFicha.combate.fadigaTurnos).toBe(6);
     });
 });

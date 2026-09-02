@@ -246,6 +246,17 @@ describe('MarcadosPanel — regressão do bug original (fórmula NOVA vs HIPOTÉ
     });
 
     // Personagem C: Ascensão mínima (ascensaoBase=1), atributos crus ENORMES.
+    //   🔥 divisores.vida MINÚSCULO (correção desta sessão): Vida (6e10)
+    //   sozinha é grande o bastante pra gerar overflow real de Prestígio
+    //   (pAtual=60000 >> 100), e a sessão que trocou nivelCompletos de
+    //   Math.min(...) pela MÉDIA das 6 categorias (ver core/poder.js/
+    //   Marcados.jsx, comentário "🔥 CORREÇÃO") faz esse overflow SOZINHO
+    //   contar pro bônus geral — antes, só contava se TODAS as 6 categorias
+    //   overflowassem. `divisores.vida` multiplica pAtual (não poderBase, que
+    //   usa o valor bruto de `base` diretamente) — um divisor minúsculo
+    //   (1e-12) zera pAtual e neutraliza esse overflow, preservando o Poder
+    //   Base (e os valores hand-computed abaixo) exatamente como antes desta
+    //   sessão.
     //   vida=60.000.000.000 (6e10) -> poderBase_C = (6e10*10)/6 = 1e11
     //   multiplicadorAscensao_C = 2^1 = 2 -> poderMultiplicado_C = 1e11*2 = 2e11
     //   magnitude_C = floor(log10(2e11)) = 11 -> injeção_C = 1*10^12 = 1e12
@@ -277,7 +288,7 @@ describe('MarcadosPanel — regressão do bug original (fórmula NOVA vs HIPOTÉ
     // descartada) é necessária também para este par de valores, não só para o par específico do outro
     // arquivo de teste.
     it('Personagem D (Ascensão 50x maior, atributos 100.000x menores) supera o Personagem C sob a fórmula exponencial — a hipotética fórmula linear anterior NÃO teria corrigido este par', () => {
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 60000000000 }, ascensaoBase: 1 }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 60000000000 }, ascensaoBase: 1, divisores: { vida: 0.000000000001 } }));
         const { unmount } = render(<MarcadosPanel />);
         const leituraC = lerPoderGlobalExibido();
         unmount();

@@ -198,9 +198,17 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
 
     // Caso de referência: Poder_Base = (vida*10)/6 = 3.2e10, com
     // ascensaoGeralEfetiva = 4 (via ascensaoBase = 4, sem overflow de
-    // prestígio contaminando o bônus geral — o bottleneck do gargalo mínimo
-    // entre as 6 categorias trava nivelCompletos em 0 mesmo com o prestígio
-    // individual de Vida sendo enorme) e supressão = 100 (sem suprimir).
+    // prestígio contaminando o bônus geral) e supressão = 100 (sem suprimir).
+    // 🔥 divisores.vida MINÚSCULO (correção desta sessão): Vida (1.92e10)
+    // sozinha é grande o bastante pra gerar overflow real de Prestígio
+    // (pAtual=19200 >> 100), e a sessão que trocou nivelCompletos de
+    // Math.min(...) pela MÉDIA das 6 categorias (ver core/poder.js/
+    // Marcados.jsx, comentário "🔥 CORREÇÃO") faz esse overflow SOZINHO
+    // contar pro bônus geral — antes, só contava se TODAS as 6 categorias
+    // overflowassem. `divisores.vida` multiplica pAtual (não poderBase, que
+    // usa o valor bruto de `base` diretamente) — um divisor minúsculo (1e-12)
+    // zera pAtual e neutraliza esse overflow, preservando ascensaoGeralEfetiva=4
+    // exato e os valores hand-computed abaixo exatamente como antes desta sessão.
     // Ascensão agora também multiplica o Poder Base diretamente (curva
     // exponencial: 2^ascensaoGeralEfetiva, dobrando por nível de Ascensão):
     //   multiplicadorAscensao = 2^4 = 16
@@ -213,6 +221,7 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
         const ficha = fichaMinimaScouter({
             vida: { base: 19200000000 },
             ascensaoBase: 4,
+            divisores: { vida: 0.000000000001 },
         });
         montarMockUseStoreReativo(ficha);
         render(<MarcadosPanel />);

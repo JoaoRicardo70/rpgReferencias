@@ -692,15 +692,21 @@ export function MapaFormProvider({ children }) {
                     if (f.acoes.bonus) f.acoes.bonus.atual = f.acoes.bonus.max;
                     if (f.acoes.reacao) f.acoes.reacao.atual = f.acoes.reacao.max;
 
-                    // 😮‍💨 Fadiga de Combate: cada retorno do MEU turno na iniciativa do Mapa conta como
-                    // "mais um turno de luta" — mesma unidade que o stepper manual da Ficha usava até
-                    // agora (ver Ficha Def/Marcados.jsx), só que automático a partir daqui. Além do
-                    // contador de turnos, soma também os pontos dinâmicos (calcularGanhoFadigaDinamico,
-                    // ver core/fadiga.js) calculados a partir de QUÃO gasto/ferido/transformado o
-                    // personagem está ENTRANDO neste turno — por isso roda ANTES da Regeneração logo
+                    // 😮‍💨 Fadiga de Combate: cada retorno do MEU turno na iniciativa do Mapa soma os
+                    // pontos dinâmicos (calcularGanhoFadigaDinamico, ver core/fadiga.js), calculados a
+                    // partir de QUÃO gasto/ferido/transformado o personagem está ENTRANDO neste turno e
+                    // escalados pela Supressão de Poder atual — por isso roda ANTES da Regeneração logo
                     // abaixo, senão a cura já aplicada esconderia o desgaste real deste turno.
+                    //
+                    // 🔥 CORREÇÃO: o contador MANUAL antigo (combate.fadigaTurnos, o stepper "Turnos
+                    // Cansativos" da Ficha) NÃO é mais incrementado automaticamente aqui. Antes, cada
+                    // turno somava +1 fadigaTurnos (5% fixos, por padrão) POR CIMA do ganho dinâmico já
+                    // escalado por Energia/Vida/Maestria/Supressão — um personagem com 100% de Maestria,
+                    // sem gastar Energia, sem levar dano e com o Poder suprimido ainda assim acumulava
+                    // 5%/turno vindos desse contador fixo, o que ia contra a própria ideia da Fadiga
+                    // dinâmica (quase-zero nessas condições). fadigaTurnos continua existindo e editável
+                    // manualmente na Ficha (stepper +/-), só não é mais tocado pelo avanço de turno.
                     if (!f.combate) f.combate = {};
-                    f.combate.fadigaTurnos = Math.max(0, (Number(f.combate.fadigaTurnos) || 0) + 1);
                     f.combate.fadigaExtra = Math.max(0, (Number(f.combate.fadigaExtra) || 0) + calcularGanhoFadigaDinamico(f));
 
                     // 💖 Regeneração: mesma regra do botão "Regenerar" da página de Status, aplicada

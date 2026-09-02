@@ -70,6 +70,31 @@ function formatarComoOScouter(poderGlobal) {
     return Number(poderGlobal).toExponential(2).replace('+', '').toUpperCase();
 }
 
+// ---------------------------------------------------------------------------
+// QA — nivelCompletos (bônus de Ascensão pelas 6 categorias de Prestígio): a
+// correção que trocou Math.min(...) pela MÉDIA (arredondada pra baixo) das 6
+// categorias precisa continuar concordando entre core/poder.js e
+// Marcados.jsx para uma ficha DESBALANCEADA — exatamente o cenário que
+// escondia o bug original (toda a suíte de regressão pré-existente usa
+// categorias uniformes/balanceadas, onde min===floor(avg), mascarando
+// qualquer divergência entre as duas cópias da fórmula).
+// ---------------------------------------------------------------------------
+function fichaImbalanceadaParaMarcados(multiplicadorForcaPrestigio) {
+    return {
+        ...fichaParaMarcados(undefined),
+        ascensaoBase: 1,
+        vida: { base: 500 * 1000000 },
+        mana: { base: 500 * 10000000 },
+        aura: { base: 500 * 10000000 },
+        chakra: { base: 500 * 10000000 },
+        corpo: { base: 500 * 10000000 },
+        // "status" (a 6ª categoria) fica travada em 0 -- nunca cruza um novo patamar de
+        // 100 Prestígio sozinha, exatamente a condição que denunciava o bug do Math.min.
+        statusPrestigioAplicado: 0,
+        multiplicadorForcaPrestigio,
+    };
+}
+
 describe('core/poder - calcularPoderAtual: paridade real com Ficha Def/Marcados.jsx (Fadiga de Combate)', () => {
     afterEach(() => {
         cleanup();
@@ -129,6 +154,20 @@ describe('core/poder - calcularPoderAtual: paridade real com Ficha Def/Marcados.
         const poderDoCore = calcularPoderAtual(fichaParaMarcados(combateExtra), 1).poderGlobal;
 
         expect(poderDoCore).toBe(0);
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
+
+    it('concorda com o Poder Calculado exibido no Scouter para uma ficha DESBALANCEADA (5 categorias fortes + status travado em 0) com multiplicadorForcaPrestigio alto — guarda a correção Math.min -> média contra as duas cópias da fórmula divergirem', () => {
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaImbalanceadaParaMarcados(5));
+        const poderDoCore = calcularPoderAtual(fichaImbalanceadaParaMarcados(5), 1).poderGlobal;
+
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
+
+    it('concorda com o Poder Calculado exibido no Scouter para a MESMA ficha desbalanceada com multiplicadorForcaPrestigio=1 (baseline, sem o bônus extra)', () => {
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaImbalanceadaParaMarcados(1));
+        const poderDoCore = calcularPoderAtual(fichaImbalanceadaParaMarcados(1), 1).poderGlobal;
+
         expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
     });
 });

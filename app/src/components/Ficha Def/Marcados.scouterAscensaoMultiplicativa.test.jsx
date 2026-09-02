@@ -142,6 +142,16 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
     // Personagem A: Ascensão MODESTA (ascensaoBase=1, padrão — sem overflow,
     // já que as outras 5 categorias ficam zeradas), mas investimento bruto
     // GRANDE em Vida (peso x10 na fórmula do Poder Base).
+    //   🔥 divisores.vida MINÚSCULO (correção desta sessão): Vida (6e9) sozinha
+    //   é grande o bastante pra gerar overflow real de Prestígio (pAtual=6000
+    //   >> 100), e a sessão que trocou nivelCompletos de Math.min(...) pela
+    //   MÉDIA das 6 categorias (ver core/poder.js/Marcados.jsx, comentário "🔥
+    //   CORREÇÃO") faz esse overflow SOZINHO contar pro bônus geral — antes,
+    //   só contava se TODAS as 6 categorias overflowassem. `divisores.vida`
+    //   multiplica pAtual (não poderBase, que usa o valor bruto de `base`
+    //   diretamente) — um divisor minúsculo (1e-12) zera pAtual e neutraliza
+    //   esse overflow, preservando o Poder Base (e portanto os valores
+    //   hand-computed abaixo) exatamente como antes desta sessão.
     //   Poder_Base_A = (6.000.000.000*10)/6 = 1e10
     //   multiplicadorAscensao_A = 2^1 = 2
     //   poderMultiplicado_A = 1e10 * 2 = 2e10
@@ -149,7 +159,8 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
     //   poderComAscensao_A = 2e10 + 1*10^11 = 1.2e11 = 120.000.000.000
     //
     // Personagem B: Ascensão bem MAIOR (ascensaoBase=99 — 99x a de A), mas
-    // investimento bruto bem MENOR em Vida (100x menor que A).
+    // investimento bruto bem MENOR em Vida (100x menor que A) — pequeno o
+    // bastante (pAtual=60 < 100) pra não precisar de divisores.vida.
     //   Poder_Base_B = (60.000.000*10)/6 = 1e8
     //   multiplicadorAscensao_B = 2^99 ≈ 6,338253001141147e29
     //   poderMultiplicado_B = 1e8 * 2^99 ≈ 6,338253001141147e37
@@ -170,7 +181,7 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
     // domina completamente, porque dobra o Poder Base a cada nível em vez de
     // só injetar uma casa decimal baseada na própria magnitude.
     it('Personagem B (Ascensão 99x maior, atributos 100x menores) agora supera o Personagem A (Ascensão modesta, atributos brutos enormes) — o bug reportado está corrigido', () => {
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 6000000000 }, ascensaoBase: 1 }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 6000000000 }, ascensaoBase: 1, divisores: { vida: 0.000000000001 } }));
         const { unmount } = render(<MarcadosPanel />);
         const leituraA = lerPoderGlobalExibido();
         unmount();
@@ -197,7 +208,7 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
     //   anterior, pois 2^1 = 1+1 = 2 coincidem exatamente em ascensaoGeralEfetiva=1.
     //   B com ascensaoBase=99 (calculado acima): ≈9.96e39 (maior que A).
     it('aumentar SOMENTE a Ascensão Geral Efetiva do Personagem B (atributos fixos) inverte a comparação de B<A para B>A', () => {
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 6000000000 }, ascensaoBase: 1 }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 6000000000 }, ascensaoBase: 1, divisores: { vida: 0.000000000001 } }));
         const { unmount } = render(<MarcadosPanel />);
         const leituraA = lerPoderGlobalExibido();
         unmount();

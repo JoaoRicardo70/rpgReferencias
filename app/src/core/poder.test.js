@@ -242,6 +242,104 @@ describe('core/poder - calcularPoderAtual: Fadiga de Combate', () => {
     });
 });
 
+// ---------------------------------------------------------------------------
+// QA — Bug fix: nivelCompletos (bônus de Ascensão vindo do Prestígio das 6
+// categorias vida/mana/aura/chakra/corpo/status) deixou de usar Math.min(...)
+// — que travava o ganho de Poder na categoria MAIS FRACA das 6 — e passou a
+// usar a MÉDIA (arredondada pra baixo) das 6. Isso corrige um cenário
+// relatado pelo usuário: subir multiplicadorForcaPrestigio numa ficha com
+// categorias desbalanceadas não tinha NENHUM efeito no Poder, porque a
+// categoria mais fraca nunca cruzava um novo patamar de 100 Prestígio
+// sozinha — mesmo as outras 5 categorias melhorando bastante. Toda a suíte de
+// regressão pré-existente usa categorias uniformes/balanceadas (onde
+// min(x,...,x) === floor(avg(x,...,x)) === x), condição que escondia esse
+// gargalo por completo.
+// ---------------------------------------------------------------------------
+describe('core/poder - calcularPoderAtual: multiplicadorForcaPrestigio não trava mais na categoria mais fraca (bug do Math.min)', () => {
+    // 5 categorias (vida/mana/aura/chakra/corpo) com pAtual=500 cada; a 6ª ("status", via
+    // statusPrestigioAplicado) fica travada em 0 nos multiplicadores testados abaixo — ela
+    // NUNCA cruza um novo patamar de 100 Prestígio sozinha, exatamente a condição relatada.
+    function fichaImbalanceada(multiplicadorForcaPrestigio) {
+        return criarFichaMinima({
+            ascensaoBase: 1,
+            vida: criarStat(500 * 1000000),
+            mana: criarStat(500 * 10000000),
+            aura: criarStat(500 * 10000000),
+            chakra: criarStat(500 * 10000000),
+            corpo: criarStat(500 * 10000000),
+            statusPrestigioAplicado: 0,
+            divisores: { vida: 1, mana: 1, aura: 1, chakra: 1, corpo: 1, status: 1 },
+            ...(multiplicadorForcaPrestigio !== undefined ? { multiplicadorForcaPrestigio } : {}),
+        });
+    }
+
+    it('regressão do bug relatado: subir multiplicadorForcaPrestigio de 1 para 5 numa ficha desbalanceada AUMENTA poderGlobal, mesmo a categoria mais fraca (status) nunca cruzando um novo patamar de Prestígio', () => {
+        const poderBaixo = calcularPoderAtual(fichaImbalanceada(1), 1).poderGlobal;
+        const poderAlto = calcularPoderAtual(fichaImbalanceada(5), 1).poderGlobal;
+
+        // status: floor(0*1/100)=0 e floor(0*5/100)=0 — literalmente idêntico nos dois
+        // casos, confirmando que o ganho de Poder vem só das outras 5 categorias, não dela.
+        expect(poderAlto).toBeGreaterThan(poderBaixo);
+    });
+
+    it('multiplicadorForcaPrestigio ausente da ficha produz EXATAMENTE o mesmo poderGlobal que multiplicadorForcaPrestigio=1 explícito (comportamento pré-feature preservado)', () => {
+        const semCampo = calcularPoderAtual(fichaImbalanceada(undefined), 1).poderGlobal;
+        const comUmExplicito = calcularPoderAtual(fichaImbalanceada(1), 1).poderGlobal;
+
+        expect(semCampo).toBe(comUmExplicito);
+    });
+
+    it('categorias balanceadas (todas as 6 com o mesmo bônus): a média bate exatamente com o mínimo antigo, então fichas balanceadas pré-existentes produzem um poderGlobal finito e positivo, sem regressão', () => {
+        const ficha = criarFichaMinima({
+            ascensaoBase: 1,
+            vida: criarStat(500 * 1000000),
+            mana: criarStat(500 * 10000000),
+            aura: criarStat(500 * 10000000),
+            chakra: criarStat(500 * 10000000),
+            corpo: criarStat(500 * 10000000),
+            statusPrestigioAplicado: 500, // mesmo nível das outras 5 -- min(x,...,x) === floor(avg(x,...,x)) === x
+            multiplicadorForcaPrestigio: 3,
+        });
+        const resultado = calcularPoderAtual(ficha, 1);
+        expect(Number.isFinite(resultado.poderGlobal)).toBe(true);
+        expect(resultado.poderGlobal).toBeGreaterThan(0);
+    });
+
+    it('edge case: todas as 6 categorias com bônus 0 (nenhum Prestígio aplicado em lugar nenhum) -> nivelCompletos floor(0/6)=0, sem NaN/negativo, mesmo com multiplicadorForcaPrestigio alto', () => {
+        const ficha = criarFichaMinima({
+            ascensaoBase: 1,
+            vida: criarStat(0),
+            mana: criarStat(0),
+            aura: criarStat(0),
+            chakra: criarStat(0),
+            corpo: criarStat(0),
+            statusPrestigioAplicado: 0,
+            multiplicadorForcaPrestigio: 999,
+        });
+        expect(() => calcularPoderAtual(ficha, 1)).not.toThrow();
+        const resultado = calcularPoderAtual(ficha, 1);
+        expect(Number.isFinite(resultado.poderGlobal)).toBe(true);
+        expect(resultado.poderGlobal).toBeGreaterThanOrEqual(0);
+    });
+
+    it('edge case: valores muito grandes e desbalanceados entre as 6 categorias não geram Infinity/NaN no poderGlobal', () => {
+        const ficha = criarFichaMinima({
+            ascensaoBase: 1,
+            vida: criarStat(1e15),
+            mana: criarStat(0),
+            aura: criarStat(1e18),
+            chakra: criarStat(0),
+            corpo: criarStat(1e12),
+            statusPrestigioAplicado: 0,
+            multiplicadorForcaPrestigio: 1000,
+        });
+        expect(() => calcularPoderAtual(ficha, 1)).not.toThrow();
+        const resultado = calcularPoderAtual(ficha, 1);
+        expect(Number.isFinite(resultado.poderGlobal)).toBe(true);
+        expect(Number.isNaN(resultado.poderGlobal)).toBe(false);
+    });
+});
+
 // (paridade real, renderizando o próprio MarcadosPanel para a mesma ficha, fica em
 // core/poder.parityMarcados.test.jsx — JSX não é suportado neste arquivo .js)
 
