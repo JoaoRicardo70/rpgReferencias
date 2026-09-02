@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 
 // 👇 FORÇA O WINDOWS A RECONHECER O SEU NOME, NÃO O DO ELECTRON 👇
@@ -9,11 +9,12 @@ function createWindow() {
     width: 1280,
     height: 720,
     title: "RPG Anime System - Forja Definitiva", // 👈 Força o título da janela
-    icon: path.join(__dirname, 'logo.ico'), 
+    icon: path.join(__dirname, 'logo.ico'),
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
       enableRemoteModule: true,
+      preload: path.join(__dirname, 'preload.cjs'),
     }
   });
 
@@ -23,17 +24,68 @@ function createWindow() {
   // 🔥 CORREÇÃO VITAL: Apontando para o seu domínio real 🔥
   win.loadURL('https://rpg-referencias.web.app');
 
-  // 🔥 CORREÇÃO: alert()/confirm() nativos do Windows roubam o foco da janela e,
-  // ao fechar o diálogo, o Electron/Chromium às vezes não devolve o foco de
-  // teclado pro conteúdo (webContents) — o usuário via a janela normal, mas
-  // nenhum campo aceitava clique/digitação até alt-tab manual. Forçando o foco
-  // de volta pro webContents sempre que a JANELA reganha foco do SO (o que
-  // acontece automaticamente assim que o diálogo nativo fecha) resolve isso
-  // sem precisar tocar em nenhum dos alert()/confirm() espalhados pelo app.
-  // O setTimeout(0) adia a chamada em um tick: em algumas combinações de
-  // Electron/Windows, a própria restauração de foco (quebrada) do Chromium
-  // ainda está em andamento nesse exato instante e sobrescreveria uma
-  // chamada síncrona feita direto no handler.
+  // 🔥 CORREÇÃO DEFINITIVA: alert()/confirm() nativos do Chromium (window.alert/window.confirm)
+  // roubam o foco de teclado da janela e, ao fechar, o Electron/Chromium no Windows não devolve
+  // esse foco de forma confiável — o usuário via a janela normal, mas nenhum campo aceitava
+  // clique/digitação até um alt-tab manual. A primeira tentativa (só reagir ao evento 'focus' da
+  // BrowserWindow) NÃO resolveu na prática: esse diálogo nativo trava a Thread da renderer sem
+  // necessariamente tirar o foco em nível de SO da janela principal, então o evento 'focus'
+  // simplesmente nunca disparava de volta.
+  //
+  // A correção de verdade: preload.cjs substitui window.alert/window.confirm ANTES da página
+  // carregar, redirecionando cada chamada via IPC síncrono pros handlers abaixo, que usam
+  // dialog.showMessageBoxSync (o diálogo NATIVO do próprio Electron, devidamente integrado ao
+  // gerenciamento de foco de janelas do Electron — não o do Chromium). Como
+  // showMessageBoxSync BLOQUEIA o processo principal até o usuário fechar o diálogo, o
+  // win.focus()/win.webContents.focus() abaixo roda no EXATO instante em que o diálogo fecha,
+  // sem depender de nenhum evento que talvez nunca dispare. win.blur() antes do win.focus() força
+  // o Windows a redespachar o foco de teclado, em vez de assumir que a janela "já estava" em foco.
+  const refocarJanela = () => {
+    if (win.isDestroyed()) return;
+    win.blur();
+    win.focus();
+    win.webContents.focus();
+  };
+
+  // 🔥 event.returnValue precisa ser atribuído SEMPRE, mesmo se showMessageBoxSync lançar (ex.:
+  // janela destruída no meio da chamada, numa corrida com o fechamento do app) — sem o
+  // try/finally, uma exceção aqui deixaria o ipcRenderer.sendSync() da preload.cjs esperando pra
+  // sempre uma resposta que nunca chega, reproduzindo o EXATO mesmo travamento de input que esta
+  // correção existe pra resolver, só que por um caminho diferente.
+  ipcMain.on('electron-alert', (event, mensagem) => {
+    try {
+      dialog.showMessageBoxSync(win, {
+        type: 'info',
+        title: 'RPG Anime System',
+        message: String(mensagem ?? ''),
+        buttons: ['OK'],
+      });
+    } finally {
+      event.returnValue = undefined;
+      refocarJanela();
+    }
+  });
+
+  ipcMain.on('electron-confirm', (event, mensagem) => {
+    let resultado;
+    try {
+      resultado = dialog.showMessageBoxSync(win, {
+        type: 'question',
+        title: 'RPG Anime System',
+        message: String(mensagem ?? ''),
+        buttons: ['OK', 'Cancelar'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+    } finally {
+      event.returnValue = resultado === 0;
+      refocarJanela();
+    }
+  });
+
+  // 🔥 Mantido como rede de segurança pra qualquer OUTRO diálogo nativo que não passe pelos
+  // handlers acima (ex.: seletor de arquivo do sistema) — não atrapalha, e nesses casos o Windows
+  // costuma disparar 'focus' corretamente ao fechar.
   win.on('focus', () => {
     setTimeout(() => win.webContents.focus(), 0);
   });
