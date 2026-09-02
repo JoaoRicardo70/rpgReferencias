@@ -12,8 +12,9 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
             id: Date.now(),
             nome: '',
             descricao: '',
-            imagemUrl: '', 
+            imagemUrl: '',
             acumulaFormaBase: true,
+            maestria: 0,
             configs: [{
                 id: Date.now() + 1,
                 nome: 'Padrão',
@@ -33,6 +34,7 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
         
         copia.descricao = copia.descricao || '';
         copia.imagemUrl = copia.imagemUrl || '';
+        copia.maestria = copia.maestria || 0;
 
         copia.configs = (copia.configs || []).map(c => ({
             ...c,
@@ -176,7 +178,14 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
                                                     <img src={forma.imagemUrl} alt={forma.nome} style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '2px solid #ff8800' }} />
                                                 )}
                                                 <div>
-                                                    <h3 style={{ margin: 0, color: isAtiva ? '#ff8800' : '#aaa', textShadow: isAtiva ? '0 0 10px #ff8800' : 'none' }}>{forma.nome || '(Sem Nome)'}</h3>
+                                                    <h3 style={{ margin: 0, color: isAtiva ? '#ff8800' : '#aaa', textShadow: isAtiva ? '0 0 10px #ff8800' : 'none' }}>
+                                                        {forma.nome || '(Sem Nome)'}
+                                                        {(parseFloat(forma.maestria) || 0) > 0 && (
+                                                            <span style={{ marginLeft: 8, fontSize: '0.6em', color: '#00ff88', border: '1px solid #00ff88', borderRadius: 3, padding: '2px 6px', verticalAlign: 'middle' }} title="Reduz a Fadiga gerada por esta Forma no Mapa">
+                                                                🥋 {Math.min(100, Math.max(0, parseFloat(forma.maestria) || 0))}% Maestria
+                                                            </span>
+                                                        )}
+                                                    </h3>
                                                     <span style={{ color: '#666', fontSize: '0.85em' }}>{forma.acumulaFormaBase !== false ? '+ Acumula com os bónus base da arma' : 'Substitui os bónus base da arma'}</span>
                                                     {forma.descricao && <p style={{ color: '#ccc', fontSize: '0.9em', fontStyle: 'italic', margin: '8px 0 0 0', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{forma.descricao}</p>}
                                                 </div>
@@ -248,6 +257,19 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
                                 <input type="checkbox" checked={editando.acumulaFormaBase !== false} onChange={e => handleFormaChange('acumulaFormaBase', e.target.checked)} />
                                 <span style={{ color: '#ffcc00' }}>Acumula com os atributos base da arma</span> (Se desmarcar, a arma perde os buffs normais enquanto transformada)
                             </label>
+
+                            <div style={{ marginBottom: 10 }}>
+                                <label style={{ color: '#00ff88', fontSize: '0.8em', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    🥋 Maestria nesta Forma (%)
+                                    <input
+                                        className="input-neon" type="number" min="0" max="100"
+                                        value={editando.maestria ?? 0}
+                                        onChange={e => { const v = parseFloat(e.target.value); handleFormaChange('maestria', isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
+                                        style={{ width: 70, borderColor: '#00ff88', color: '#00ff88' }}
+                                    />
+                                </label>
+                                <span style={{ color: '#666', fontSize: '0.75em' }}>Quanto maior a Maestria, menos Fadiga essa Forma gera quando ativa no Mapa. 100% = Forma dominada, sem Fadiga.</span>
+                            </div>
 
                             <label style={{ color: '#00ffcc', fontSize: '0.8em' }}>Lore / Descrição Visual da Forma</label>
                             <textarea className="input-neon" value={editando.descricao || ''} onChange={e => handleFormaChange('descricao', e.target.value)} placeholder="Descreva como a arma muda fisicamente..." style={{ width: '100%', minHeight: '60px', marginBottom: 20, whiteSpace: 'pre-wrap' }} />
