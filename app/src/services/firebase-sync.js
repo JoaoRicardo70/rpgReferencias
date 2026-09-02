@@ -326,12 +326,30 @@ export function deletarDummie(id) {
     if (!db || !mesaId) return;
     remove(ref(db, `mesas/${mesaId}/dummies/${id}`)).catch(() => {});
 }
+// 🔥 Último estado do `cenario` confirmado no Firebase (mesmo papel de
+// `ultimoEstadoSincronizado` pra ficha, ver salvarFirebaseImediato acima): baseline
+// pra calcular o diff de saída em salvarCenarioCompleto. `null` = ainda não
+// sincronizou nada nesta sessão/mesa.
+let ultimoCenarioSincronizado = null;
+
+// 🔥 Reseta a baseline de sincronização do Cenário — precisa ser chamado sempre que
+// o jogador troca de mesa, senão o diff de saída seria calculado contra o Cenário
+// da mesa ANTERIOR (mesmo motivo de resetSincronizacaoFicha).
+export function resetSincronizacaoCenario() {
+    ultimoCenarioSincronizado = null;
+}
+
 export function iniciarListenerCenario(callback) {
     if (isInPlasmicCanvas()) return () => {};
     const { mesaId } = useStore.getState();
     if (!db || !mesaId) return () => {};
     return onValue(ref(db, `mesas/${mesaId}/cenario`), (snapshot) => {
         const dados = snapshot.val() || { ativa: 'default', lista: { default: { nome: 'Cenário Inicial', img: '', escala: 1.5, unidade: 'm' } } };
+        // 🔥 Avança a baseline aqui, no eco do listener — nunca no .then() de
+        // salvarCenarioCompleto (mesmo motivo do listener da ficha própria: evita que
+        // uma escrita concorrente legítima, chegando entre o fim do PUT HTTP e o
+        // round-trip da Promise, seja pisoteada por uma baseline desatualizada).
+        ultimoCenarioSincronizado = JSON.parse(JSON.stringify(dados));
         if (callback) callback(dados);
     });
 }
@@ -339,13 +357,26 @@ export function salvarCenarioCompleto(dadosCenario) {
     if (isInPlasmicCanvas()) return Promise.resolve(true);
     const { mesaId } = useStore.getState();
     if (!db || !mesaId) return Promise.resolve(true);
-    // 🔥 Retorna uma Promise que resolve pra true/false (nunca rejeita) em vez de engolir o erro em
-    // silêncio: quem estiver criando/publicando uma Cena crítica (ex: MapaMundi.jsx) pode checar o
-    // resultado e avisar o usuário — uma escrita que falha (ex: payload grande demais, regra de
-    // segurança) antes parecia ter funcionado só porque nada acusava o erro. Resolve em vez de
-    // rejeitar de propósito: os ~13 outros call-sites (fire-and-forget) não tratam o retorno, e uma
-    // rejeição não capturada vira ruído/erro não tratado no console pra eles à toa.
-    return set(ref(db, `mesas/${mesaId}/cenario`), dadosCenario).then(() => true).catch((err) => {
+
+    // 🔥 ATUALIZAÇÃO PARCIAL (não mais `set()` do Cenário inteiro): manda pro Firebase
+    // só os campos/Cenas que mudaram desde a última sincronização, via `update()`
+    // multi-path em vez de `set()`. Isso evita o "esmagamento de Locais" — antes, dois
+    // Mestres/jogadores criando Cenas DIFERENTES ao mesmo tempo cada um lia o
+    // `cenario.lista` local (sem a Cena do outro, que ainda não tinha chegado),
+    // adicionava a própria Cena nova, e sobrescrevia a árvore `cenario` INTEIRA com
+    // `set()` — quem escrevesse por último apagava a Cena que o outro tinha acabado
+    // de criar, mesmo elas tendo IDs diferentes. `calcularDiffFirebase` recursa em
+    // objetos simples (então `lista.novaCenaId` vira um path próprio no diff, só ele é
+    // enviado) mas trata arrays como atômicos (ex: `zonas` continua substituído por
+    // inteiro se mudar — arrays de Zonas concorrentes não são o problema relatado).
+    const alteracoes = calcularDiffFirebase(ultimoCenarioSincronizado, dadosCenario);
+    if (Object.keys(alteracoes).length === 0) return Promise.resolve(true);
+
+    // Resolve pra true/false (nunca rejeita) — mesmo motivo de antes: quem estiver
+    // criando/publicando uma Cena crítica (ex: MapaMundi.jsx) pode checar o resultado e
+    // avisar o usuário, mas os ~13 outros call-sites fire-and-forget não tratam o
+    // retorno e não devem gerar ruído de rejeição não tratada.
+    return update(ref(db, `mesas/${mesaId}/cenario`), alteracoes).then(() => true).catch((err) => {
         console.warn('Falha ao sincronizar o Cenário com o Firebase:', err);
         return false;
     });

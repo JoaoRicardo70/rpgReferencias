@@ -38,7 +38,7 @@ import TelaLoading from './components/layout/TelaLoading';
 
 import {
     carregarFichaDoFirebase, iniciarListenerDummies,
-    iniciarListenerCenario, monitorarAuth,
+    iniciarListenerCenario, resetSincronizacaoCenario, monitorarAuth,
     iniciarSistemaDePresenca, iniciarListenerPresenca, removerPresencaImediata,
     iniciarListenerMestres, salvarFirebaseImediato, iniciarListenerDivisorPoderMesa
 } from './services/firebase-sync';
@@ -182,6 +182,9 @@ export default function App() {
         // (re)anexados para a mesa certa, e o valor nunca sincronizava enquanto durasse a sessão —
         // mesmo funcionando "por acidente" quando mesaId já vinha cacheado do localStorage.
         if (!mesaId) return;
+        // 🔥 Reseta a baseline de diff do Cenário antes de anexar o listener desta mesa — senão o
+        // próximo salvarCenarioCompleto() calcularia o diff contra o Cenário da mesa ANTERIOR.
+        resetSincronizacaoCenario();
         const unsubDummies = iniciarListenerDummies((dados) => setDummies(dados || {}));
         const unsubCenario = iniciarListenerCenario((dados) => setCenario(dados));
         const unsubDivisorPoder = iniciarListenerDivisorPoderMesa((valor) => setDivisorPoderMesa(valor));
