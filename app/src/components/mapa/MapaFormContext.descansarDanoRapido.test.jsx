@@ -3,7 +3,7 @@ import { render, cleanup, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaFormProvider, useMapaForm } from './MapaFormContext';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, aplicarDanoDireto } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, aplicarDanoDireto, aplicarFadigaDireta } from '../../services/firebase-sync';
 
 // ---------------------------------------------------------------------------
 // QA — descansar() e aplicarDanoRapido() (MapaFormContext.jsx)
@@ -24,6 +24,7 @@ vi.mock('../../services/firebase-sync', () => ({
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
     aplicarDanoDireto: vi.fn(),
+    aplicarFadigaDireta: vi.fn(),
 }));
 
 let storeState;
@@ -51,6 +52,31 @@ function fichaComVital(overrides = {}) {
         inventario: [],
         passivas: [],
         combate: { fadigaTurnos: 3, fadigaPorTurno: 5, fadigaExtra: 6, municoTurnos: 4, danoAbsorvido: 777, furiaMax: 42 },
+        ...overrides,
+    };
+}
+
+// Ficha "limpa" pra testes de ganho PRECISO de Fadiga dinâmica (core/fadiga.js): energias cheias
+// (fatorEnergia=0) e nenhuma Forma ativa (fatorFormas=0), então só o dano em si (fatorVidaPerdida)
+// contribui pra severidade — torna o valor esperado de calcularGanhoFadigaDinamico fácil de
+// calcular à mão, sem depender do baseline "atual=1" (quase-tudo-gasto) de fichaComVital() acima
+// (usado nos outros testes deste arquivo, onde o valor exato do ganho de Fadiga não importa).
+function fichaVidaLimpa(overrides = {}) {
+    return {
+        iniciativa: 0,
+        posicao: { x: 0, y: 0, z: 0 },
+        acoes: { padrao: { max: 1, atual: 0 }, bonus: { max: 1, atual: 0 }, reacao: { max: 1, atual: 0 } },
+        vida: { base: 1000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1000000, regeneracao: 0 },
+        mana: { base: 1000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1000000, regeneracao: 0 },
+        aura: { base: 1000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1000000, regeneracao: 0 },
+        chakra: { base: 1000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1000000, regeneracao: 0 },
+        corpo: { base: 1000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1000000, regeneracao: 0 },
+        forca: { base: 1000000 }, destreza: { base: 1000000 }, inteligencia: { base: 1000000 },
+        sabedoria: { base: 1000000 }, energiaEsp: { base: 1000000 }, carisma: { base: 1000000 },
+        stamina: { base: 1000000 }, constituicao: { base: 1000000 },
+        multiplicadorVida: 1, multiplicadorMorte: 1, divisores: {},
+        poderes: [], inventario: [], passivas: [],
+        combate: { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 6 },
         ...overrides,
     };
 }
@@ -221,11 +247,85 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
 
         expect(aplicarDanoDireto).toHaveBeenCalledTimes(1);
         expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 50); // 80 - 30
+        // Também aplica na hora um ganho de Fadiga dinâmica pro alvo, calculado com a Vida JÁ
+        // reduzida por este golpe (ver core/fadiga.js) — cresce a partir do fadigaExtra=6
+        // pré-existente na ficha-base. Valor exato coberto com uma ficha isolada em
+        // core/fadiga.test.js; aqui só confirma que a chamada acontece e realmente soma (não
+        // substitui) o que já havia.
+        expect(aplicarFadigaDireta).toHaveBeenCalledTimes(1);
+        const [nomeFadiga, novoFadigaExtra] = aplicarFadigaDireta.mock.calls[0];
+        expect(nomeFadiga).toBe('Vilao');
+        expect(novoFadigaExtra).toBeGreaterThan(6);
         // A ficha alheia nunca é gravada pelos caminhos "locais" (updateFicha só grava a MINHA ficha).
         expect(salvarFichaSilencioso).not.toHaveBeenCalled();
         expect(salvarDummie).not.toHaveBeenCalled();
         // A MINHA ficha (do Mestre) não foi tocada.
         expect(state.minhaFicha.vida.atual).toBe(1);
+    });
+
+    it('Branch OUTRO JOGADOR: com uma fixture isolada (fichaVidaLimpa), aplica um ganho de Fadiga EXATO — não só "maior que o baseline"', () => {
+        const alvoFicha = fichaVidaLimpa();
+        const state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: alvoFicha } });
+        montarComEstado(state);
+
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoFicha, isDummie: false }, 300000); });
+
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 700000); // 1000000 - 300000
+        // fatorDano = 1 - 700000/1000000 = 0.3 ; fatorEnergia=0 (energias cheias) ; fatorFormas=0
+        // (sem Forma ativa) -> severidade = 0.3/3 = 0.1 -> ganho pré-supressão = 0.1*15 = 1.5.
+        // supressaoPoder ausente -> default 100 -> fatorPoder=1 -> ganho final = 1.5.
+        // fadigaExtra = 6 (baseline da fixture) + 1.5 = 7.5.
+        const [nomeFadiga, novoFadigaExtra] = aplicarFadigaDireta.mock.calls[0];
+        expect(nomeFadiga).toBe('Vilao');
+        expect(novoFadigaExtra).toBeCloseTo(7.5, 6);
+    });
+
+    it('Branch OUTRO JOGADOR: o MESMO dano gera uma Fadiga MENOR quando o alvo está com Supressão de Poder baixa — regressão direta do bug relatado (dano com Poder alto vs. Poder suprimido)', () => {
+        const danoAplicado = 300000;
+
+        const alvoPoderLiberado = fichaVidaLimpa({ supressaoPoder: 100 });
+        let state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: alvoPoderLiberado } });
+        montarComEstado(state);
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoPoderLiberado, isDummie: false }, danoAplicado); });
+        const fadigaComPoderLiberado = aplicarFadigaDireta.mock.calls[0][1];
+
+        vi.clearAllMocks();
+        cleanup();
+
+        const alvoPoderSuprimido = fichaVidaLimpa({ supressaoPoder: 40 });
+        state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: alvoPoderSuprimido } });
+        montarComEstado(state);
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoPoderSuprimido, isDummie: false }, danoAplicado); });
+        const fadigaComPoderSuprimido = aplicarFadigaDireta.mock.calls[0][1];
+
+        // Mesmíssimo dano (300000) nas duas fichas idênticas exceto supressaoPoder:
+        // Liberado (100%): fatorPoder=1 -> ganho=1.5 -> fadigaExtra = 6 + 1.5 = 7.5.
+        // Suprimido (40%): fatorPoder=0.4 -> ganho=1.5*0.4=0.6 -> fadigaExtra = 6 + 0.6 = 6.6.
+        expect(fadigaComPoderLiberado).toBeCloseTo(7.5, 6);
+        expect(fadigaComPoderSuprimido).toBeCloseTo(6.6, 6);
+        expect(fadigaComPoderSuprimido).toBeLessThan(fadigaComPoderLiberado);
+        // Proporcionalidade exata: a razão entre os ganhos (acima do baseline de 6) bate com a
+        // razão de supressaoPoder (40/100) — confirma que o desconto é proporcional, não binário.
+        expect((fadigaComPoderSuprimido - 6) / (fadigaComPoderLiberado - 6)).toBeCloseTo(0.4, 6);
+    });
+
+    it('Branch AUTO (self-damage): soma ao combate.fadigaExtra da PRÓPRIA ficha um ganho EXATO de Fadiga dinâmica, calculado com a Vida JÁ reduzida por este golpe', () => {
+        const minhaFicha = fichaVidaLimpa();
+        const state = baseState({
+            isMestre: true, meuNome: 'Mestre',
+            minhaFicha,
+            updateFicha: vi.fn((callback) => callback(minhaFicha)),
+        });
+        montarComEstado(state);
+
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 300000); });
+
+        expect(minhaFicha.vida.atual).toBe(700000); // 1000000 - 300000
+        // Mesmo cálculo do teste "OUTRO JOGADOR" acima (fixture idêntica): ganho = 1.5.
+        expect(minhaFicha.combate.fadigaExtra).toBeCloseTo(7.5, 6);
+        expect(salvarFichaSilencioso).toHaveBeenCalledTimes(1);
+        expect(aplicarDanoDireto).not.toHaveBeenCalled();
+        expect(aplicarFadigaDireta).not.toHaveBeenCalled();
     });
 
     it('posta uma mensagem de feed com o valor de dano e o nome do alvo em todos os 3 branches', () => {

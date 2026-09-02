@@ -40,9 +40,12 @@ export function PoderesFormProvider({ children }) {
     const [dadosQtd, setDadosQtd] = useState(0);
     const [dadosFaces, setDadosFaces] = useState(20);
     const [custoPercentual, setCustoPercentual] = useState(0);
-    const [poderAlcance, setPoderAlcance] = useState(1); 
+    const [poderAlcance, setPoderAlcance] = useState(1);
     const [poderArea, setPoderArea] = useState(0);
     const [armaVinculada, setArmaVinculada] = useState('');
+    // 🥋 Maestria (0-100%) — só relevante pra categoria 'forma' (ver core/fadiga.js): quanto maior,
+    // menos Fadiga essa Forma gera quando ativa no Mapa. 100% = Forma dominada, sem Fadiga.
+    const [maestriaPoder, setMaestriaPoder] = useState(0);
     
     const [nomeEfeito, setNomeEfeito] = useState('');
     const [novoAtr, setNovoAtr] = useState('forca');
@@ -126,6 +129,7 @@ export function PoderesFormProvider({ children }) {
         setPoderAlcance(1);
         setPoderArea(0); // Correção de nomenclatura
         setArmaVinculada('');
+        setMaestriaPoder(0);
         setEfeitosTemp([]);
         setEfeitosTempPassivos([]);
         setNovoAtrPassivo('evasiva');
@@ -172,6 +176,8 @@ export function PoderesFormProvider({ children }) {
                     ficha.poderes[ix].alcance = parseFloat(poderAlcance) || 1;
                     ficha.poderes[ix].area = parseFloat(poderArea) || 0;
                     ficha.poderes[ix].armaVinculada = armaSafe;
+                    if (abaAtual === 'forma') ficha.poderes[ix].maestria = Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0));
+                    else delete ficha.poderes[ix].maestria;
                 }
             } else {
                 ficha.poderes.push({
@@ -191,7 +197,8 @@ export function PoderesFormProvider({ children }) {
                     custoPercentual: parseFloat(custoPercentual) || 0,
                     alcance: parseFloat(poderAlcance) || 1,
                     area: parseFloat(poderArea) || 0,
-                    armaVinculada: armaSafe
+                    armaVinculada: armaSafe,
+                    ...(abaAtual === 'forma' ? { maestria: Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0)) } : {})
                 });
             }
         });
@@ -201,7 +208,7 @@ export function PoderesFormProvider({ children }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, poderAlcance, poderArea, armaVinculada, cancelarEdicaoPoder]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, poderAlcance, poderArea, armaVinculada, maestriaPoder, cancelarEdicaoPoder]);
 
     const togglePoder = useCallback((id) => {
         const vitais = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
@@ -251,6 +258,7 @@ export function PoderesFormProvider({ children }) {
         setPoderAlcance(p.alcance || 1);
         setPoderArea(p.area || 0);
         setArmaVinculada(p.armaVinculada || '');
+        setMaestriaPoder(p.maestria || 0);
         setEfeitosTemp(JSON.parse(JSON.stringify(p.efeitos || [])));
         setEfeitosTempPassivos(JSON.parse(JSON.stringify(p.efeitosPassivos || [])));
 
@@ -493,6 +501,7 @@ export function PoderesFormProvider({ children }) {
         imagemUrl, setImagemUrl, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
         custoPercentual, setCustoPercentual, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
+        maestriaPoder, setMaestriaPoder,
         nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal,
         nomeEfeitoPassivo, setNomeEfeitoPassivo, novoAtrPassivo, setNovoAtrPassivo,
         novoPropPassivo, setNovoPropPassivo, novoValPassivo, setNovoValPassivo,
@@ -511,7 +520,7 @@ export function PoderesFormProvider({ children }) {
         minhaFicha, meuNome, isMestre, abaAtual,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
         imagemUrl, dadosQtd, dadosFaces, custoPercentual, poderAlcance,
-        poderArea, armaVinculada, nomeEfeito, novoAtr, novoProp, novoVal,
+        poderArea, armaVinculada, maestriaPoder, nomeEfeito, novoAtr, novoProp, novoVal,
         nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, novoValPassivo,
         uploadingImg, vincularAberto, poderPreparandoId, overchargeAtivo,
         addEfeitoTemp, removerEfeitoTemp, addEfeitoPassivoTemp, removerEfeitoPassivoTemp,

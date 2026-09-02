@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaFormProvider } from './MapaFormContext';
 import { MapaMestreDanoRapido } from './MapaFerramentasMestre';
 import useStore from '../../stores/useStore';
-import { salvarDummie, aplicarDanoDireto, salvarFichaSilencioso, enviarParaFeed } from '../../services/firebase-sync';
+import { salvarDummie, aplicarDanoDireto, aplicarFadigaDireta, salvarFichaSilencioso, enviarParaFeed } from '../../services/firebase-sync';
 
 // ==========================================================================
 // NOTA DE ESCOPO:
@@ -26,6 +26,7 @@ vi.mock('../../services/firebase-sync', () => ({
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
     aplicarDanoDireto: vi.fn(),
+    aplicarFadigaDireta: vi.fn(),
 }));
 
 let storeState;

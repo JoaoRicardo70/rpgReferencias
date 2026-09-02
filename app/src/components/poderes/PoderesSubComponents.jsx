@@ -126,6 +126,7 @@ export function PoderesFormEditor() {
         dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
         custoPercentual, setCustoPercentual, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
+        maestriaPoder, setMaestriaPoder,
         descricaoPoder, setDescricaoPoder,
         nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal,
         addEfeitoTemp, efeitosTemp, removerEfeitoTemp,
@@ -200,6 +201,16 @@ export function PoderesFormEditor() {
                         ))}
                     </select>
                 </div>
+                {abaAtual === 'forma' && (
+                    <div className="fade-in">
+                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7, color: '#00ff88' }} title="Quanto maior a Maestria, menos Fadiga esta Forma gera quando ativa no Mapa. 100% = Forma dominada, sem Fadiga.">🥋 Maestria (%)</label>
+                        <input
+                            type="number" min="0" max="100" value={maestriaPoder}
+                            onChange={e => { const v = parseFloat(e.target.value); setMaestriaPoder(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
+                            style={{ width: '100%', textAlign: 'center', borderColor: '#00ff88', color: '#00ff88' }}
+                        />
+                    </div>
+                )}
             </div>
 
             <textarea 
@@ -339,6 +350,11 @@ export function PoderesLista() {
                                         {p.vertente && (
                                             <span style={{ marginLeft: '10px', fontSize: '0.55em', padding: '2px 8px', borderRadius: '10px', border: '1px solid currentColor', opacity: 0.8 }}>
                                                 {pVertenteLower.includes('elemental') ? `🌪️ ELEMENTAL: ${p.elemento || '?'}` : p.vertente.toUpperCase()}
+                                            </span>
+                                        )}
+                                        {(p.categoria || '').toLowerCase() === 'forma' && (parseFloat(p.maestria) || 0) > 0 && (
+                                            <span style={{ marginLeft: '10px', fontSize: '0.55em', padding: '2px 8px', borderRadius: '10px', border: '1px solid #00ff88', color: '#00ff88', opacity: 0.9 }} title="Reduz a Fadiga gerada por esta Forma quando ativa no Mapa">
+                                                🥋 {Math.min(100, Math.max(0, parseFloat(p.maestria) || 0))}% MAESTRIA
                                             </span>
                                         )}
                                     </h3>

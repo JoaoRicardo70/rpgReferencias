@@ -275,15 +275,17 @@ describe('core/fadiga - calcularFadigaAtual', () => {
 // (sem `maestria` em nenhuma Forma e/ou supressaoPoder no default de 100).
 // ---------------------------------------------------------------------------
 describe('core/fadiga - Maestria em Formas (desconta getFatorFormasAtivas)', () => {
-    // Ficha-base com uma Forma ativa em ficha.poderes cujo mFormas satura o fator de
-    // Formas em 1 (mesma técnica do describe de getFatorFormasAtivas acima: mFormas=2
-    // no eixo vida, "atual" acompanhando o novo máximo pra isolar só esse fator).
+    // Ficha-base com uma Forma ATIVA em ficha.poderes (categoria='forma', ativa=true) cujo
+    // mFormas satura o fator de Formas em 1 (mesma técnica do describe de getFatorFormasAtivas
+    // acima: mFormas=2 no eixo vida, "atual" acompanhando o novo máximo pra isolar só esse
+    // fator). Maestria é editada/lida DIRETO no objeto do poder (p.maestria) — não em nenhuma
+    // sub-transformação aninhada (ver PoderesFormContext.jsx/PoderesSubComponents.jsx).
     function fichaComFormaAtiva(maestria) {
-        const forma = { id: 'f1', nome: 'Forma X' };
+        const forma = { id: 'p1', nome: 'Forma X', categoria: 'forma', ativa: true };
         if (maestria !== undefined) forma.maestria = maestria;
         return fichaCheia({
             vida: { base: 1000000, atual: 2000000, mFormas: 2 },
-            poderes: [{ id: 'p1', ativa: true, formaAtivaId: 'f1', formas: [forma] }],
+            poderes: [forma],
         });
     }
 
@@ -316,11 +318,13 @@ describe('core/fadiga - Maestria em Formas (desconta getFatorFormasAtivas)', () 
         expect(ganhoSemCampo).toBeCloseTo(5, 6);
     });
 
-    it('múltiplas Formas ativas simultâneas (poderes + inventario) com maestrias diferentes usam a MÉDIA SIMPLES, não o mínimo/máximo', () => {
+    it('múltiplas Formas ativas simultâneas (dois poderes categoria=forma) com maestrias diferentes usam a MÉDIA SIMPLES, não o mínimo/máximo', () => {
         const ficha = fichaCheia({
             vida: { base: 1000000, atual: 2000000, mFormas: 2 },
-            poderes: [{ id: 'p1', ativa: true, formaAtivaId: 'fp', formas: [{ id: 'fp', maestria: 100 }] }],
-            inventario: [{ id: 'i1', equipado: true, formaAtivaId: 'fi', formas: [{ id: 'fi', maestria: 0 }] }],
+            poderes: [
+                { id: 'p1', categoria: 'forma', ativa: true, maestria: 100 },
+                { id: 'p2', categoria: 'forma', ativa: true, maestria: 0 },
+            ],
         });
         // média = (100+0)/2 = 50 -> mesmo resultado do teste de maestria=50 isolada acima.
         expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(2.5, 6);
@@ -338,46 +342,102 @@ describe('core/fadiga - Maestria em Formas (desconta getFatorFormasAtivas)', () 
         expect(ganhoNeg20).toBeCloseTo(5, 6);
     });
 
-    it('sem Forma ativa (formaAtivaId ausente) -> nenhum desconto de Maestria aplicado, mesmo com Formas cadastradas', () => {
+    it('Forma NÃO ativa (ativa=false) -> nenhum desconto de Maestria aplicado, mesmo com maestria definida', () => {
         const ficha = fichaCheia({
             vida: { base: 1000000, atual: 2000000, mFormas: 2 },
-            poderes: [{ id: 'p1', ativa: true, formas: [{ id: 'fp', maestria: 100 }] }], // sem formaAtivaId
+            poderes: [{ id: 'p1', categoria: 'forma', ativa: false, maestria: 100 }],
         });
         expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(5, 6);
     });
 
-    it('formaAtivaId aponta pra uma Forma que não existe em .formas[] -> nenhum desconto, não lança', () => {
+    it('poder ativo mas categoria diferente de "forma" (habilidade/poder) -> maestria nele é ignorada pra este desconto', () => {
         const ficha = fichaCheia({
             vida: { base: 1000000, atual: 2000000, mFormas: 2 },
-            poderes: [{ id: 'p1', ativa: true, formaAtivaId: 'inexistente', formas: [{ id: 'fp', maestria: 100 }] }],
-        });
-        expect(() => calcularGanhoFadigaDinamico(ficha)).not.toThrow();
-        expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(5, 6);
-    });
-
-    it('entidade ativa sem o array .formas nenhum -> nenhum desconto, não lança', () => {
-        const ficha = fichaCheia({
-            vida: { base: 1000000, atual: 2000000, mFormas: 2 },
-            poderes: [{ id: 'p1', ativa: true, formaAtivaId: 'fp' }], // sem .formas
+            poderes: [{ id: 'p1', categoria: 'habilidade', ativa: true, maestria: 100 }],
         });
         expect(() => calcularGanhoFadigaDinamico(ficha)).not.toThrow();
         expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(5, 6);
     });
 
-    it('ficha sem poderes/inventario/seresSelados nenhum -> não lança, desconto de Maestria fica em 0', () => {
+    it('ficha sem poderes nenhum -> não lança, desconto de Maestria fica em 0', () => {
         const ficha = fichaCheia({ vida: { base: 1000000, atual: 2000000, mFormas: 2 } });
         delete ficha.poderes;
-        delete ficha.inventario;
-        delete ficha.seresSelados;
         expect(() => calcularGanhoFadigaDinamico(ficha)).not.toThrow();
         expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(5, 6);
     });
 
-    it('Ser Selado ativo (ativo=true) também é lido pra Maestria, igual poderes/inventario', () => {
+    it('Maestria em Item do Arsenal ou Ser Selado NÃO é lida — "Forma" de primeira classe com Maestria existe só em ficha.poderes[]', () => {
         const ficha = fichaCheia({
             vida: { base: 1000000, atual: 2000000, mFormas: 2 },
-            seresSelados: [{ id: 's1', ativo: true, formaAtivaId: 'fs', formas: [{ id: 'fs', maestria: 100 }] }],
+            inventario: [{ id: 'i1', equipado: true, tipo: 'arma', maestria: 100 }],
+            seresSelados: [{ id: 's1', ativo: true, maestria: 100 }],
         });
+        // mFormas=2 continua contribuindo o fator cheio de Formas (soma até 1) porque nada em
+        // poderes/categoria='forma' está ativo pra descontar — maestria em itens/seres não conta.
+        expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(5, 6);
+    });
+
+    it('categoria em caixa mista ("Forma"/"FORMA") ainda é reconhecida (match case-insensitive)', () => {
+        const ganhoMinuscula = calcularGanhoFadigaDinamico(fichaCheia({
+            vida: { base: 1000000, atual: 2000000, mFormas: 2 },
+            poderes: [{ id: 'p1', categoria: 'forma', ativa: true, maestria: 100 }],
+        }));
+        const ganhoMaiuscula = calcularGanhoFadigaDinamico(fichaCheia({
+            vida: { base: 1000000, atual: 2000000, mFormas: 2 },
+            poderes: [{ id: 'p1', categoria: 'FORMA', ativa: true, maestria: 100 }],
+        }));
+        const ganhoCapitalizada = calcularGanhoFadigaDinamico(fichaCheia({
+            vida: { base: 1000000, atual: 2000000, mFormas: 2 },
+            poderes: [{ id: 'p1', categoria: 'Forma', ativa: true, maestria: 100 }],
+        }));
+        // As 3 variações de caixa devem ser tratadas de forma idêntica — maestria=100 zera o ganho.
+        expect(ganhoMinuscula).toBeCloseTo(0, 6);
+        expect(ganhoMaiuscula).toBeCloseTo(0, 6);
+        expect(ganhoCapitalizada).toBeCloseTo(0, 6);
+    });
+
+    // ---------------------------------------------------------------------------
+    // Regressão: mesmo depois da Maestria sair de FormasEditor.jsx (ver histórico deste arquivo),
+    // uma Forma ATIVA de sub-transformação de ARMA/Ser Selado (ficha.inventario[]/seresSelados[]
+    // com formaAtivaId/.formas[], lida por getBuffs em attributes.js) precisa CONTINUAR contribuindo
+    // pro "bruto" de getFatorFormasAtivas — só não pode mais ser DESCONTADA por nenhuma Maestria
+    // (limitação de escopo aceita/documentada, não um bug). O risco real que este teste protege
+    // contra é o oposto: uma regressão que EXCLUÍSSE essas Formas do bruto por completo.
+    // ---------------------------------------------------------------------------
+    it('regressão: Forma ativa de uma ARMA do Arsenal (inventario[].formaAtivaId/.formas[]) ainda soma mFormas cheio no bruto — não foi excluída junto com a remoção da Maestria de FormasEditor.jsx', () => {
+        const ficha = fichaCheia({
+            inventario: [{
+                id: 'i1', nome: 'Espada Bankai', equipado: true,
+                formaAtivaId: 'fi1',
+                formas: [{ id: 'fi1', nome: 'Forma Selada', efeitos: [{ atributo: 'forca', propriedade: 'mformas', valor: 3 }] }],
+            }],
+        });
+        // Sem nenhuma Forma de Poder ativa (maestriaMedia=0, sem desconto) — se a Forma da arma
+        // tivesse sido acidentalmente excluída do bruto, o ganho seria 0 (energia/vida cheias).
+        expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(5, 6);
+    });
+
+    it('regressão: Forma ativa de um Ser Selado (seresSelados[].formaAtivaId/.formas[]) ainda soma mFormas cheio no bruto', () => {
+        const ficha = fichaCheia({
+            seresSelados: [{
+                id: 's1', nome: 'Bijuu', ativo: true,
+                formaAtivaId: 'fs1',
+                formas: [{ id: 'fs1', nome: 'Modo Cauda', efeitos: [{ atributo: 'forca', propriedade: 'mformas', valor: 3 }] }],
+            }],
+        });
+        expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(5, 6);
+    });
+
+    it('interação documentada (não é bug NOVO desta sessão): uma Forma de Poder com maestria=100 ativa SIMULTANEAMENTE com uma Forma de arma no MESMO eixo aplica o desconto sobre o bruto COMBINADO (maestriaMedia é um único fator global, não por-fonte) — mesmo comportamento de "média global" que getMaestriaMediaFormasAtivas já tinha antes desta sessão, só mudou ONDE a maestria é lida', () => {
+        const ficha = fichaCheia({
+            inventario: [{
+                id: 'i1', equipado: true, formaAtivaId: 'fi1',
+                formas: [{ id: 'fi1', efeitos: [{ atributo: 'forca', propriedade: 'mformas', valor: 3 }] }],
+            }],
+            poderes: [{ id: 'p1', categoria: 'forma', ativa: true, maestria: 100 }],
+        });
+        // O fator de Formas combinado (arma + eixo "forca") satura em 1, e a média de Maestria das
+        // Formas de Poder ativas (100, a única) desconta o bruto INTEIRO — não só a parte do poder.
         expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(0, 6);
     });
 });
@@ -448,7 +508,7 @@ describe('core/fadiga - Maestria + Supressão de Poder combinadas (ordem de oper
             chakra: { base: 1000000, atual: 0 },
             corpo: { base: 1000000, atual: 0 },
             vida: { base: 1000000, atual: 2000000, mFormas: 2 },
-            poderes: [{ id: 'p1', ativa: true, formaAtivaId: 'fp', formas: [{ id: 'fp', maestria: 50 }] }],
+            poderes: [{ id: 'p1', categoria: 'forma', ativa: true, maestria: 50 }],
             supressaoPoder: 40,
         });
         expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(3, 6);
@@ -467,7 +527,7 @@ describe('core/fadiga - Regressão/compatibilidade retroativa: os 2 novos fatore
             corpo: { base: 1000000, atual: 1000000 },
             vida: { base: 1000000, atual: 700000 }, // 30% perdida
             forca: { base: 1000000, mFormas: 1.4 }, // Forma leve ativa (status)
-            poderes: [{ id: 'p1', ativa: true, formaAtivaId: 'fp', formas: [{ id: 'fp', nome: 'Forma Legada' /* sem maestria */ }] }],
+            poderes: [{ id: 'p1', nome: 'Forma Legada', categoria: 'forma', ativa: true /* sem maestria */ }],
             // supressaoPoder e limiteSupressao ausentes de propósito
         });
 

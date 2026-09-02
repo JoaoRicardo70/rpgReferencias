@@ -62,11 +62,9 @@ function getFatorVidaPerdida(ficha) {
 // nenhum, satisfazendo o "caso elas gerem desgaste" pedido.
 //
 // 🥋 MAESTRIA NAS FORMAS: o resultado bruto acima é descontado pela Maestria média das Formas
-// atualmente ativas (forma.maestria, 0-100%, editável em FormasEditor.jsx). Maestria = 100% numa
-// Forma ativa zera a contribuição dela pra este fator — ela para de gerar Fadiga, exatamente como
-// pedido. Aplicada no nível da Forma (não de cada "config"/modo dentro dela — ver
-// getMaestriaMediaFormasAtivas) porque é a Forma como um todo que o personagem domina, não cada
-// variação estética/elemental dela.
+// (categoria === 'forma' em ficha.poderes[]) atualmente ATIVAS. Maestria = 100% numa Forma ativa
+// zera a contribuição dela pra este fator — ela para de gerar Fadiga, exatamente como pedido. Ver
+// getMaestriaMediaFormasAtivas logo abaixo pra onde/como a Maestria é lida.
 function getFatorFormasAtivas(ficha) {
     if (!ficha) return 0;
     let soma = 0;
@@ -83,26 +81,23 @@ function getFatorFormasAtivas(ficha) {
     return bruto * (1 - maestriaMedia / 100);
 }
 
-// Maestria (0-100%) da Forma ativa em cada entidade que suporta Formas (Poderes ativos, Itens
-// equipados, Seres Selados ativos), lida direto de forma.maestria — média simples entre todas as
-// Formas ativas ao mesmo tempo (o caso comum é UMA só). Sem nenhuma Forma ativa, ou nenhuma delas
-// com maestria definida, retorna 0 (sem desconto, comportamento igual ao de antes da Maestria
-// existir).
+// Maestria (0-100%) das Formas ATIVAS no momento — "Forma" aqui é a categoria de primeira classe
+// em ficha.poderes[] (categoria === 'forma', a mesma aba "🎭 Formas" do Grimório de Poderes), NÃO
+// as sub-transformações aninhadas de FormasEditor.jsx (formaAtivaId/.formas[] usado por armas do
+// Arsenal e Seres Selados) — a Maestria é editada junto com o resto da própria Forma (nome,
+// descrição, efeitos) no formulário principal de Poderes, não num painel separado. Média simples
+// entre todas as Formas ativas ao mesmo tempo (o caso comum é UMA só). Sem nenhuma Forma ativa, ou
+// nenhuma delas com maestria definida, retorna 0 (sem desconto, comportamento igual ao de antes da
+// Maestria existir).
 function getMaestriaMediaFormasAtivas(ficha) {
-    if (!ficha) return 0;
+    if (!ficha || !ficha.poderes) return 0;
     const maestrias = [];
-    const coletar = (lista, ativaKey) => {
-        (lista || []).forEach(entidade => {
-            if (!entidade || !entidade[ativaKey] || !entidade.formaAtivaId || !entidade.formas) return;
-            const forma = entidade.formas.find(f => f && f.id === entidade.formaAtivaId);
-            if (!forma) return;
-            const m = parseFloat(forma.maestria);
-            maestrias.push(isNaN(m) ? 0 : Math.min(100, Math.max(0, m)));
-        });
-    };
-    coletar(ficha.poderes, 'ativa');
-    coletar(ficha.inventario, 'equipado');
-    coletar(ficha.seresSelados, 'ativo');
+    ficha.poderes.forEach(p => {
+        if (!p || !p.ativa) return;
+        if ((p.categoria || '').toLowerCase() !== 'forma') return;
+        const m = parseFloat(p.maestria);
+        maestrias.push(isNaN(m) ? 0 : Math.min(100, Math.max(0, m)));
+    });
 
     if (maestrias.length === 0) return 0;
     return maestrias.reduce((a, b) => a + b, 0) / maestrias.length;

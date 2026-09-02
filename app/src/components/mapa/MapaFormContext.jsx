@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto, aplicarFadigaDireta } from '../../services/firebase-sync';
 import { calcularAcerto } from '../../core/engine';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { getBuffs } from '../../core/attributes';
@@ -733,9 +733,17 @@ export function MapaFormProvider({ children }) {
 
     // ⚔️ Dano Rápido do Mestre: aplica dano direto num jogador OU numa entidade (dummie), sem
     // precisar que o alvo digite nada manualmente. Dummies já aceitam escrita de qualquer
-    // cliente (salvarDummie); jogadores usam aplicarDanoDireto (escrita pontual em vida/atual,
-    // mesma ideia de zerarIniciativaGlobal) quando o alvo NÃO é quem está clicando — se for o
-    // próprio Mestre se auto-aplicando dano, usa o caminho normal (updateFicha) da própria ficha.
+    // cliente (salvarDummie) e não têm Fadiga (são só HP). Jogadores usam aplicarDanoDireto
+    // (escrita pontual em vida/atual, mesma ideia de zerarIniciativaGlobal) quando o alvo NÃO é
+    // quem está clicando — se for o próprio Mestre se auto-aplicando dano, usa o caminho normal
+    // (updateFicha) da própria ficha.
+    //
+    // 🔥 Além do dano, JÁ aplica na hora um ganho de Fadiga dinâmica (calcularGanhoFadigaDinamico,
+    // core/fadiga.js) calculado com a Vida do alvo JÁ reduzida por este golpe, escalado pela
+    // Supressão de Poder ATUAL do alvo — antes disso, dano só virava Fadiga quando o turno do
+    // alvo voltasse na iniciativa do Mapa, o que na prática escondia o efeito da Supressão de
+    // Poder de quem estivesse testando "causar dano com Poder alto vs. Poder suprimido" via este
+    // botão (o dano em si nunca tocava Fadiga nenhuma até um ciclo de turno completo).
     const aplicarDanoRapido = useCallback((alvo, dano) => {
         if (!isMestre || !alvo) return;
         const valor = Math.max(0, Math.floor(Number(dano)) || 0);
@@ -747,11 +755,23 @@ export function MapaFormProvider({ children }) {
             if (!dData) return;
             salvarDummie(alvo.id, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - valor) });
         } else if (alvo.nome === meuNome) {
-            updateFicha(f => { if (f.vida) f.vida.atual = Math.max(0, (f.vida.atual || 0) - valor); });
+            updateFicha(f => {
+                if (f.vida) f.vida.atual = Math.max(0, (f.vida.atual || 0) - valor);
+                if (!f.combate) f.combate = {};
+                f.combate.fadigaExtra = Math.max(0, (Number(f.combate.fadigaExtra) || 0) + calcularGanhoFadigaDinamico(f));
+            });
             salvarFichaSilencioso();
         } else {
-            const atualAlvo = alvo.ficha?.vida?.atual || 0;
-            aplicarDanoDireto(alvo.nome, atualAlvo - valor);
+            const fichaAlvo = alvo.ficha || {};
+            const novaVida = Math.max(0, (fichaAlvo.vida?.atual || 0) - valor);
+            // Ficha "simulada" com a Vida já reduzida, só pra calcular o ganho de Fadiga deste
+            // golpe com o dado mais atual possível — nunca é gravada, só usada localmente aqui.
+            const fichaSimulada = { ...fichaAlvo, vida: { ...(fichaAlvo.vida || {}), atual: novaVida } };
+            const fadigaExtraAtual = Math.max(0, Number(fichaAlvo.combate?.fadigaExtra) || 0);
+            const novaFadigaExtra = fadigaExtraAtual + calcularGanhoFadigaDinamico(fichaSimulada);
+
+            aplicarDanoDireto(alvo.nome, novaVida);
+            aplicarFadigaDireta(alvo.nome, novaFadigaExtra);
         }
 
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O Mestre aplicou ${valor} de dano em ${alvo.nome}!` });

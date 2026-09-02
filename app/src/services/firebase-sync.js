@@ -435,6 +435,17 @@ export function aplicarDanoDireto(nome, novoValorVidaAtual) {
     const nomeSanitizado = sanitizarNome(nome);
     set(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}/vida/atual`), Math.max(0, novoValorVidaAtual)).catch(() => {});
 }
+// 🔥 Mesmo esquema de aplicarDanoDireto acima, só que pro contador combate/fadigaExtra — usado
+// pelo Dano Rápido do Mestre (ver MapaFormContext.jsx > aplicarDanoRapido) pra que o dano que o
+// Mestre aplica em OUTRO jogador já gere Fadiga na hora, escalada pela Supressão de Poder daquele
+// jogador, sem precisar esperar o turno dele voltar na iniciativa do Mapa.
+export function aplicarFadigaDireta(nome, novoFadigaExtra) {
+    if (isInPlasmicCanvas()) return;
+    const { mesaId } = useStore.getState();
+    if (!db || !mesaId || !nome) return;
+    const nomeSanitizado = sanitizarNome(nome);
+    set(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}/combate/fadigaExtra`), Math.max(0, novoFadigaExtra)).catch(() => {});
+}
 export function iniciarListenerTemasCustom(callback) {
     if (isInPlasmicCanvas()) return () => {};
     const { mesaId } = useStore.getState();
