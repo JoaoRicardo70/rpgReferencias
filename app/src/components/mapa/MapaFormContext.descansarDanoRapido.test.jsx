@@ -281,6 +281,11 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
     });
 
     it('Branch OUTRO JOGADOR: o MESMO dano gera uma Fadiga MENOR quando o alvo está com Supressão de Poder baixa — regressão direta do bug relatado (dano com Poder alto vs. Poder suprimido)', () => {
+        // 🔥 NOTA (sessão atual): core/fadiga.js > getFatorPoderUsado ganhou uma "zona livre" de
+        // 80% — usar até 80% do Poder não gera NENHUMA Fadiga, só escalando linearmente ACIMA
+        // disso. supressaoPoder=90 (em vez do 40 original, que agora cai na zona livre e zeraria
+        // por completo) é usado aqui pra continuar exercitando a escala linear PARCIAL (nem 0%
+        // nem 100% do fator), só que dentro da faixa que ainda produz Fadiga sob a fórmula nova.
         const danoAplicado = 300000;
 
         const alvoPoderLiberado = fichaVidaLimpa({ supressaoPoder: 100 });
@@ -292,21 +297,24 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
         vi.clearAllMocks();
         cleanup();
 
-        const alvoPoderSuprimido = fichaVidaLimpa({ supressaoPoder: 40 });
+        const alvoPoderSuprimido = fichaVidaLimpa({ supressaoPoder: 90 });
         state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: alvoPoderSuprimido } });
         montarComEstado(state);
         act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoPoderSuprimido, isDummie: false }, danoAplicado); });
         const fadigaComPoderSuprimido = aplicarFadigaDireta.mock.calls[0][1];
 
         // Mesmíssimo dano (300000) nas duas fichas idênticas exceto supressaoPoder:
-        // Liberado (100%): fatorPoder=1 -> ganho=1.5 -> fadigaExtra = 6 + 1.5 = 7.5.
-        // Suprimido (40%): fatorPoder=0.4 -> ganho=1.5*0.4=0.6 -> fadigaExtra = 6 + 0.6 = 6.6.
+        // Liberado (100%): fatorPoder=(100-80)/20=1 -> ganho=1.5 -> fadigaExtra = 6 + 1.5 = 7.5.
+        // Suprimido (90%, acima do limiar de 80%): fatorPoder=(90-80)/20=0.5 -> ganho=1.5*0.5=0.75
+        // -> fadigaExtra = 6 + 0.75 = 6.75.
         expect(fadigaComPoderLiberado).toBeCloseTo(7.5, 6);
-        expect(fadigaComPoderSuprimido).toBeCloseTo(6.6, 6);
+        expect(fadigaComPoderSuprimido).toBeCloseTo(6.75, 6);
         expect(fadigaComPoderSuprimido).toBeLessThan(fadigaComPoderLiberado);
         // Proporcionalidade exata: a razão entre os ganhos (acima do baseline de 6) bate com a
-        // razão de supressaoPoder (40/100) — confirma que o desconto é proporcional, não binário.
-        expect((fadigaComPoderSuprimido - 6) / (fadigaComPoderLiberado - 6)).toBeCloseTo(0.4, 6);
+        // razão entre os dois fatorPoder ((90-80)/20=0.5 vs (100-80)/20=1) — confirma que o
+        // desconto continua proporcional (linear), não binário, só que agora dentro da faixa
+        // 80%-100% em vez de 0%-100%.
+        expect((fadigaComPoderSuprimido - 6) / (fadigaComPoderLiberado - 6)).toBeCloseTo(0.5, 6);
     });
 
     it('Branch AUTO (self-damage): soma ao combate.fadigaExtra da PRÓPRIA ficha um ganho EXATO de Fadiga dinâmica, calculado com a Vida JÁ reduzida por este golpe', () => {

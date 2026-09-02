@@ -63,8 +63,13 @@ function getFatorVidaPerdida(ficha) {
 //
 // 🥋 MAESTRIA NAS FORMAS: o resultado bruto acima é descontado pela Maestria média das Formas
 // (categoria === 'forma' em ficha.poderes[]) atualmente ATIVAS. Maestria = 100% numa Forma ativa
-// zera a contribuição dela pra este fator — ela para de gerar Fadiga, exatamente como pedido. Ver
-// getMaestriaMediaFormasAtivas logo abaixo pra onde/como a Maestria é lida.
+// zera a contribuição dela pra este fator, como antes. NOVO: se a Supressão de Poder atual do
+// personagem estiver EM OU ABAIXO da própria Maestria daquela Forma (ex.: Supressão 50% e
+// Maestria 50%, ou Supressão 50% e Maestria 60%), a Forma some do cálculo por completo — usá-la
+// enquanto já suprime o Poder numa medida compatível com o quanto ela é dominada não deveria gerar
+// NENHUMA Fadiga extra, não só uma fração dela. Acima desse ponto (Supressão maior que a
+// Maestria), volta a valer o desconto linear normal. Ver getMaestriaMediaFormasAtivas/
+// getSupressaoClampeada logo abaixo.
 function getFatorFormasAtivas(ficha) {
     if (!ficha) return 0;
     let soma = 0;
@@ -78,6 +83,7 @@ function getFatorFormasAtivas(ficha) {
     });
     const bruto = Math.min(1, Math.max(0, soma));
     const maestriaMedia = getMaestriaMediaFormasAtivas(ficha); // 0-100
+    if (maestriaMedia > 0 && getSupressaoClampeada(ficha) <= maestriaMedia) return 0;
     return bruto * (1 - maestriaMedia / 100);
 }
 
@@ -103,18 +109,32 @@ function getMaestriaMediaFormasAtivas(ficha) {
     return maestrias.reduce((a, b) => a + b, 0) / maestrias.length;
 }
 
-// 0 (supressaoPoder no mínimo permitido — personagem restringindo quase todo o próprio Poder) a 1
-// (supressaoPoder = 100 — Poder liberado por completo). Réplica do mesmo clamp que
-// calcularPoderAtual (core/poder.js) já aplica em supressaoPoder/limiteSupressao, pra este fator
-// usar exatamente a mesma leitura de "quanto do Poder o personagem está usando" que o próprio
-// Scouter usa pra escalar o Poder Atual.
-function getFatorPoderUsado(ficha) {
+// Supressão de Poder (0-100), já clampada no mínimo permitido (limiteSupressao) — réplica do
+// mesmo clamp que calcularPoderAtual (core/poder.js) já aplica, pra todo mundo aqui usar
+// exatamente a mesma leitura de "quanto do Poder o personagem está usando" que o próprio Scouter
+// usa pra escalar o Poder Atual. Compartilhada entre getFatorFormasAtivas (regra da Maestria) e
+// getFatorPoderUsado (limiar dos 80%) abaixo.
+function getSupressaoClampeada(ficha) {
     let sup = parseFloat(ficha?.supressaoPoder);
     if (isNaN(sup)) sup = 100;
     let lim = parseFloat(ficha?.limiteSupressao);
     if (isNaN(lim)) lim = 1;
     if (sup < lim) sup = lim;
-    return Math.min(1, Math.max(0, sup / 100));
+    return Math.min(100, Math.max(0, sup));
+}
+
+// LIMIAR_SEM_FADIGA: usando até este tanto do Poder (inclusive), o personagem não acumula
+// NENHUMA Fadiga dinâmica — só acima disso a Fadiga começa a aparecer, crescendo linearmente até
+// o valor cheio em 100% de Poder liberado. Antes, a escala era linear desde 0% (usar 10% do Poder
+// já gerava um pouco de Fadiga); agora só o trecho "livre" (0% a 80%) fica de fora por completo.
+const LIMIAR_SEM_FADIGA = 80;
+
+// 0 (usando LIMIAR_SEM_FADIGA% do Poder ou menos — sem Fadiga nenhuma) a 1 (supressaoPoder = 100,
+// Poder liberado por completo — Fadiga no valor cheio). Entre o limiar e 100%, escala linear.
+function getFatorPoderUsado(ficha) {
+    const sup = getSupressaoClampeada(ficha);
+    if (sup <= LIMIAR_SEM_FADIGA) return 0;
+    return Math.min(1, Math.max(0, (sup - LIMIAR_SEM_FADIGA) / (100 - LIMIAR_SEM_FADIGA)));
 }
 
 // Quantos pontos percentuais de Fadiga automática este personagem ganha se o turno dele virar

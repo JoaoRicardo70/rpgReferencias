@@ -73,16 +73,27 @@ function calcularAscensaoParaPoder(ficha) {
         const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
         return Math.max(0, (rankInfo.ascensaoFinal || 0) - ascensaoBaseEfetiva);
     });
-    // 🔥 CORREÇÃO: antes usava Math.min(...) — a Ascensão geral (e portanto o Poder Calculado)
+    // 🔥 CORREÇÃO (1): antes usava Math.min(...) — a Ascensão geral (e portanto o Poder Calculado)
     // ficava travada na categoria MAIS FRACA das 6, então multiplicadorForcaPrestigio só tinha
     // efeito em Poder se TODAS as 6 categorias (vida/mana/aura/chakra/corpo/status) subissem de
-    // nível juntas. Trocado pela MÉDIA (arredondada pra baixo) das 6 categorias: agora qualquer
-    // categoria que suba de nível — sozinha ou não — contribui pro ganho geral, sem depender das
-    // outras acompanharem no mesmo instante. Isso alinha o comportamento de
-    // multiplicadorForcaPrestigio com o de multiplicadorForcaAscensao, que já nunca fica travado
-    // por nenhuma categoria específica.
-    const nivelCompletos = Math.floor(bonusPorCategoria.reduce((a, b) => a + b, 0) / bonusPorCategoria.length);
-    const geral = (ascensaoBase + nivelCompletos) * multA;
+    // nível juntas. Trocado pela MÉDIA das 6 categorias: agora qualquer categoria que suba de
+    // nível — sozinha ou não — contribui pro ganho geral, sem depender das outras acompanharem no
+    // mesmo instante. Isso alinha o comportamento de multiplicadorForcaPrestigio com o de
+    // multiplicadorForcaAscensao, que já nunca fica travado por nenhuma categoria específica.
+    //
+    // 🔥 CORREÇÃO (2): a média NÃO é mais arredondada pra baixo aqui. Cada bônus por categoria já
+    // vem de Math.floor(prestigioTotal/100) (um "nível" só conta quando realmente completo) — soma
+    // e faz média disso, e ARREDONDAR ESSA MÉDIA de novo (double floor) fazia o Prestígio
+    // multiplicado pelo multiplicadorForcaPrestigio precisar acumular o bastante pra mover a média
+    // em pelo menos 1 nível INTEIRO antes do Poder Calculado sequer se mexer — pra um personagem
+    // com Prestígio/Ascensão baixos, um multiplicador bem maior podia não mudar o Poder em NADA.
+    // Mantendo a média fracionária (sem floor), qualquer aumento real de Prestígio×Multiplicador já
+    // reflete proporcionalmente no Poder Calculado, sem precisar completar um nível inteiro
+    // primeiro — só o indicador "Ascensão Geral Efetiva" (exibido pro jogador como Rank/Nível,
+    // Marcados.jsx) continua arredondado pra baixo, porque ali faz sentido ser um número inteiro de
+    // Ascensão.
+    const nivelMedio = bonusPorCategoria.reduce((a, b) => a + b, 0) / bonusPorCategoria.length;
+    const geral = (ascensaoBase + nivelMedio) * multA;
     return isNaN(geral) ? ascensaoBase : geral;
 }
 

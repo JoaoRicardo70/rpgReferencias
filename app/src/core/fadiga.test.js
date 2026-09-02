@@ -442,7 +442,7 @@ describe('core/fadiga - Maestria em Formas (desconta getFatorFormasAtivas)', () 
     });
 });
 
-describe('core/fadiga - Supressão de Poder (escala a severidade FINAL via getFatorPoderUsado)', () => {
+describe('core/fadiga - Supressão de Poder (escala a severidade FINAL via getFatorPoderUsado, com limiar de 80%)', () => {
     // Ficha-base com severidade > 0 vinda só de energia gasta (fatorEnergia=1, fatorVida=0,
     // fatorFormas=0) -> sem escala de Poder, ganho = (1+0+0)/3*15 = 5.
     function fichaComEnergiaGasta(extra = {}) {
@@ -465,30 +465,37 @@ describe('core/fadiga - Supressão de Poder (escala a severidade FINAL via getFa
         expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(5, 6);
     });
 
-    it('supressaoPoder=50 produz EXATAMENTE metade do ganho de Fadiga de supressaoPoder=100 (mesma ficha)', () => {
-        const ganho100 = calcularGanhoFadigaDinamico(fichaComEnergiaGasta({ supressaoPoder: 100 }));
-        const ganho50 = calcularGanhoFadigaDinamico(fichaComEnergiaGasta({ supressaoPoder: 50 }));
-        expect(ganho100).toBeCloseTo(5, 6);
-        expect(ganho50).toBeCloseTo(2.5, 6);
-        expect(ganho50).toBeCloseTo(ganho100 / 2, 6);
+    it('usando 80% do Poder OU MENOS não acumula NENHUMA Fadiga dinâmica (limiar novo — 0%, 50% e exatamente 80% todos zeram o ganho)', () => {
+        expect(calcularGanhoFadigaDinamico(fichaComEnergiaGasta({ supressaoPoder: 0 }))).toBe(0);
+        expect(calcularGanhoFadigaDinamico(fichaComEnergiaGasta({ supressaoPoder: 50 }))).toBe(0);
+        expect(calcularGanhoFadigaDinamico(fichaComEnergiaGasta({ supressaoPoder: 80 }))).toBe(0);
     });
 
-    it('supressaoPoder=0 com limiteSupressao=0 zera por completo o ganho de Fadiga dinâmica', () => {
+    it('acima de 80%, a Fadiga escala LINEARMENTE entre o limiar (80%, ganho 0) e 100% (ganho cheio) — supressaoPoder=90 produz EXATAMENTE metade do ganho de supressaoPoder=100', () => {
+        // fatorPoder(100) = (100-80)/(100-80) = 1 -> ganho = 5*1 = 5.
+        // fatorPoder(90)  = (90-80)/(100-80)  = 0.5 -> ganho = 5*0.5 = 2.5.
+        const ganho100 = calcularGanhoFadigaDinamico(fichaComEnergiaGasta({ supressaoPoder: 100 }));
+        const ganho90 = calcularGanhoFadigaDinamico(fichaComEnergiaGasta({ supressaoPoder: 90 }));
+        expect(ganho100).toBeCloseTo(5, 6);
+        expect(ganho90).toBeCloseTo(2.5, 6);
+        expect(ganho90).toBeCloseTo(ganho100 / 2, 6);
+    });
+
+    it('supressaoPoder=0 com limiteSupressao=0 zera por completo o ganho de Fadiga dinâmica (já abaixo do limiar de 80%)', () => {
         const ficha = fichaComEnergiaGasta({ supressaoPoder: 0, limiteSupressao: 0 });
         expect(calcularGanhoFadigaDinamico(ficha)).toBe(0);
     });
 
-    it('supressaoPoder abaixo de limiteSupressao é clampado PRA CIMA até o limite antes de calcular o fator (igual core/poder.js)', () => {
-        // sup=5, lim=20 -> sup vira 20 -> fator = 20/100 = 0.2 -> ganho = 5 * 0.2 = 1.
-        const ficha = fichaComEnergiaGasta({ supressaoPoder: 5, limiteSupressao: 20 });
-        expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(1, 6);
+    it('supressaoPoder abaixo de limiteSupressao é clampado PRA CIMA até o limite antes de calcular o fator (igual core/poder.js) — usando um limite ACIMA do limiar de 80% pra confirmar que o clamp participa da escala linear, não só do "zera"', () => {
+        // sup=5, lim=90 -> sup vira 90 -> fator = (90-80)/20 = 0.5 -> ganho = 5 * 0.5 = 2.5.
+        const ficha = fichaComEnergiaGasta({ supressaoPoder: 5, limiteSupressao: 90 });
+        expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(2.5, 6);
 
         // Paridade direta: o mesmo par sup/lim, passado por calcularPoderAtual (core/poder.js),
-        // devolve "supressao" já clampada pro mesmo valor (20) que getFatorPoderUsado usa por
+        // devolve "supressao" já clampada pro mesmo valor (90) que getFatorPoderUsado usa por
         // dentro — confirmando as duas leituras do "quanto de Poder está liberado" concordam.
-        const { supressao } = calcularPoderAtual({ ...ficha, supressaoPoder: 5, limiteSupressao: 20 });
-        expect(supressao).toBe(20);
-        expect(supressao / 100).toBeCloseTo(0.2, 6);
+        const { supressao } = calcularPoderAtual({ ...ficha, supressaoPoder: 5, limiteSupressao: 90 });
+        expect(supressao).toBe(90);
     });
 
     it('supressaoPoder/limiteSupressao NaN (string inválida) caem no default 100/1, igual campo ausente', () => {
@@ -501,7 +508,8 @@ describe('core/fadiga - Maestria + Supressão de Poder combinadas (ordem de oper
     it('Maestria desconta o sub-fator de Formas ANTES da média (severidade), e a Supressão escala a severidade FINAL já somada — não há dupla-aplicação nem ordem trocada', () => {
         // fatorEnergia=1 (4 energias zeradas), fatorVida=0, fatorFormas bruto satura em 1 mas
         // com maestria=50 vira 0.5 -> severidade = (1 + 0 + 0.5)/3 = 0.5 -> ganho pré-supressão
-        // = 0.5*15 = 7.5. Com supressaoPoder=40, fatorPoder=0.4 -> ganho final = 7.5*0.4 = 3.
+        // = 0.5*15 = 7.5. Com supressaoPoder=90 (acima do limiar de 80%), fatorPoder=(90-80)/20=
+        // 0.5 -> ganho final = 7.5*0.5 = 3.75.
         const ficha = fichaCheia({
             mana: { base: 1000000, atual: 0 },
             aura: { base: 1000000, atual: 0 },
@@ -509,9 +517,69 @@ describe('core/fadiga - Maestria + Supressão de Poder combinadas (ordem de oper
             corpo: { base: 1000000, atual: 0 },
             vida: { base: 1000000, atual: 2000000, mFormas: 2 },
             poderes: [{ id: 'p1', categoria: 'forma', ativa: true, maestria: 50 }],
-            supressaoPoder: 40,
+            supressaoPoder: 90,
         });
-        expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(3, 6);
+        expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(3.75, 6);
+    });
+
+    it('regra da Maestria zera a Forma por completo quando Supressão <= Maestria daquela Forma, mesmo com Supressão ACIMA do limiar de 80% (as duas regras são independentes)', () => {
+        // Supressão=90 (> 80, então o limiar geral SOZINHO permitiria Fadiga) mas Maestria=90 na
+        // Forma ativa -> Supressão(90) <= Maestria(90) -> a Forma contribui ZERO pro fator de
+        // Formas, mesmo a Fadiga de energia/vida continuando normal.
+        // fatorEnergia=1, fatorVida=0, fatorFormas=0 (zerado pela regra da Maestria, não pelo
+        // desconto linear normal) -> severidade=(1+0+0)/3=0.3333 -> ganho pré-supressão=5.
+        // fatorPoder(90)=(90-80)/20=0.5 -> ganho final=5*0.5=2.5 — EXATAMENTE igual a uma ficha
+        // sem Forma nenhuma ativa (prova que a Forma realmente não contribuiu em nada).
+        const comFormaMaestriaAltaESupressaoIgual = fichaCheia({
+            mana: { base: 1000000, atual: 0 },
+            aura: { base: 1000000, atual: 0 },
+            chakra: { base: 1000000, atual: 0 },
+            corpo: { base: 1000000, atual: 0 },
+            vida: { base: 1000000, atual: 2000000, mFormas: 2 },
+            poderes: [{ id: 'p1', categoria: 'forma', ativa: true, maestria: 90 }],
+            supressaoPoder: 90,
+        });
+        const semFormaNenhuma = fichaCheia({
+            mana: { base: 1000000, atual: 0 },
+            aura: { base: 1000000, atual: 0 },
+            chakra: { base: 1000000, atual: 0 },
+            corpo: { base: 1000000, atual: 0 },
+            supressaoPoder: 90,
+        });
+        const ganhoComForma = calcularGanhoFadigaDinamico(comFormaMaestriaAltaESupressaoIgual);
+        const ganhoSemForma = calcularGanhoFadigaDinamico(semFormaNenhuma);
+        expect(ganhoComForma).toBeCloseTo(2.5, 6);
+        expect(ganhoComForma).toBeCloseTo(ganhoSemForma, 6);
+    });
+
+    it('Supressão MAIOR que a Maestria da Forma volta a valer o desconto linear normal (não zera mais)', () => {
+        // Maestria=50, Supressão=90 (90 > 50, então a regra de "zera" NÃO se aplica) -> desconto
+        // linear normal: fatorFormas = bruto(1) * (1-50/100) = 0.5. Mesmo cálculo do teste
+        // "Maestria desconta o sub-fator..." acima -> ganho=3.75.
+        const ficha = fichaCheia({
+            mana: { base: 1000000, atual: 0 },
+            aura: { base: 1000000, atual: 0 },
+            chakra: { base: 1000000, atual: 0 },
+            corpo: { base: 1000000, atual: 0 },
+            vida: { base: 1000000, atual: 2000000, mFormas: 2 },
+            poderes: [{ id: 'p1', categoria: 'forma', ativa: true, maestria: 50 }],
+            supressaoPoder: 90,
+        });
+        expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(3.75, 6);
+    });
+
+    it('exemplos literais do pedido — Supressão 50% e Maestria 50%, e Supressão 50% e Maestria 60% — nenhum dos dois gera Fadiga da Forma (aqui ela já não geraria mesmo pelo limiar geral de 80%, mas a regra da Maestria também dispara isoladamente)', () => {
+        const base = (maestria) => fichaCheia({
+            mana: { base: 1000000, atual: 0 },
+            aura: { base: 1000000, atual: 0 },
+            chakra: { base: 1000000, atual: 0 },
+            corpo: { base: 1000000, atual: 0 },
+            vida: { base: 1000000, atual: 2000000, mFormas: 2 },
+            poderes: [{ id: 'p1', categoria: 'forma', ativa: true, maestria }],
+            supressaoPoder: 50,
+        });
+        expect(calcularGanhoFadigaDinamico(base(50))).toBe(0);
+        expect(calcularGanhoFadigaDinamico(base(60))).toBe(0);
     });
 });
 
@@ -592,5 +660,205 @@ describe('core/fadiga - getFatorFormasAtivas: paridade com o pipeline real de mF
         // getMaximo (usado por getFatorVidaPerdida/getFatorEnergiaGasta) continua utilizável
         // normalmente na mesma ficha, sem qualquer interferência do mFormas de Forma.
         expect(getMaximo(ficha, 'vida')).toBeGreaterThan(0);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// QA — Change 1: limiar exato dos 80% (getFatorPoderUsado) — casos-limite bem em cima da
+// fronteira, pra provar que a comparação é "<=" (zera em 80 inclusive) e não "<".
+// ---------------------------------------------------------------------------
+describe('core/fadiga - QA: Supressão de Poder, limite exato do limiar de 80% (boundary <= vs <)', () => {
+    function fichaComEnergiaGasta(extra = {}) {
+        return fichaCheia({
+            mana: { base: 1000000, atual: 0 },
+            aura: { base: 1000000, atual: 1000000 },
+            chakra: { base: 1000000, atual: 1000000 },
+            corpo: { base: 1000000, atual: 1000000 },
+            ...extra,
+        });
+    }
+    // fatorEnergia = 0.25/... na verdade (1-0)/4 = 0.25 -> severidade = 0.25/3 -> ganho pré-fator
+    // de poder = (0.25/3)*15 = 1.25. Usado só como "ganho cheio" de referência pros testes abaixo.
+    const GANHO_CHEIO = (0.25 / 3) * 15;
+
+    it('supressaoPoder=79.9999 (uma fração abaixo do limiar) ainda zera o ganho por completo', () => {
+        expect(calcularGanhoFadigaDinamico(fichaComEnergiaGasta({ supressaoPoder: 79.9999 }))).toBe(0);
+    });
+
+    it('supressaoPoder=80 EXATO zera o ganho (o limiar é inclusive — "<=", não "<")', () => {
+        expect(calcularGanhoFadigaDinamico(fichaComEnergiaGasta({ supressaoPoder: 80 }))).toBe(0);
+    });
+
+    it('supressaoPoder=80.0001 (uma fração acima do limiar) já produz um ganho pequeno porém NÃO-zero, provando que o limiar é estritamente exclusivo acima de 80', () => {
+        const ganho = calcularGanhoFadigaDinamico(fichaComEnergiaGasta({ supressaoPoder: 80.0001 }));
+        expect(ganho).toBeGreaterThan(0);
+        expect(ganho).toBeLessThan(0.001); // (0.0001/20) do ganho cheio -> extremamente pequeno
+    });
+
+    it('supressaoPoder=81 produz um ganho pequeno e nao-zero (fatorPoder = 1/20 = 0.05)', () => {
+        const ganho = calcularGanhoFadigaDinamico(fichaComEnergiaGasta({ supressaoPoder: 81 }));
+        expect(ganho).toBeGreaterThan(0);
+        expect(ganho).toBeCloseTo(GANHO_CHEIO * 0.05, 6);
+    });
+
+    it('supressaoPoder=99 (bem perto de 100) produz um ganho próximo do máximo mas estritamente menor que ele (fatorPoder = 19/20 = 0.95)', () => {
+        const ganho99 = calcularGanhoFadigaDinamico(fichaComEnergiaGasta({ supressaoPoder: 99 }));
+        const ganho100 = calcularGanhoFadigaDinamico(fichaComEnergiaGasta({ supressaoPoder: 100 }));
+        expect(ganho99).toBeCloseTo(GANHO_CHEIO * 0.95, 6);
+        expect(ganho99).toBeLessThan(ganho100);
+        expect(ganho100 - ganho99).toBeCloseTo(GANHO_CHEIO * 0.05, 6);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// QA — Change 2: mais combinações da regra "Supressão <= Maestria da Forma zera a contribuição".
+// ---------------------------------------------------------------------------
+describe('core/fadiga - QA: regra Maestria vs Supressão, combinações adicionais', () => {
+    function fichaComForma(maestria, supressaoPoder) {
+        return fichaCheia({
+            vida: { base: 1000000, atual: 2000000, mFormas: 2 },
+            poderes: [{ id: 'p1', categoria: 'forma', ativa: true, maestria }],
+            supressaoPoder,
+        });
+    }
+    function fichaSemForma(supressaoPoder) {
+        return fichaCheia({ supressaoPoder });
+    }
+
+    it('Maestria=100 (teto) zera a Forma para QUALQUER Supressão de 0 a 100 (sup <= 100 é sempre verdadeiro, intencionalmente)', () => {
+        [0, 1, 50, 79, 80, 81, 99, 100].forEach((sup) => {
+            const comForma = calcularGanhoFadigaDinamico(fichaComForma(100, sup));
+            const semForma = calcularGanhoFadigaDinamico(fichaSemForma(sup));
+            expect(comForma).toBeCloseTo(semForma, 6);
+        });
+    });
+
+    it('Maestria=1 (mínimo do range 1-100%) com Supressão=1 (igual) ainda zera a Forma — fronteira mais apertada possível', () => {
+        const comForma = calcularGanhoFadigaDinamico(fichaComForma(1, 1));
+        const semForma = calcularGanhoFadigaDinamico(fichaSemForma(1));
+        expect(comForma).toBeCloseTo(semForma, 6);
+    });
+
+    it('Maestria=1 com Supressão=2 (Supressão > Maestria por só 1 ponto) já NÃO zera mais — volta o desconto linear normal (fatorFormas = bruto*(1-1/100) = 0.99*bruto, não 0)', () => {
+        const comForma = calcularGanhoFadigaDinamico(fichaComForma(1, 2));
+        const semForma = calcularGanhoFadigaDinamico(fichaSemForma(2));
+        // Com Supressão=2 (abaixo do limiar de 80% do Change 1), o fatorPoder já é 0 e portanto o
+        // ganho FINAL de qualquer uma das duas fichas é 0 mesmo — o que este teste realmente prova
+        // é que fatorFormas (o subfator, não o ganho final) deixou de ser zerado pela regra da
+        // Maestria: usamos supressaoPoder=90 (> 80, fatorPoder>0) só neste teste específico pra
+        // conseguir observar a diferença no ganho FINAL.
+        const comFormaAcimaDoLimiar = calcularGanhoFadigaDinamico(fichaComForma(1, 90));
+        const semFormaAcimaDoLimiar = calcularGanhoFadigaDinamico(fichaSemForma(90));
+        // fichaComForma tem uma Forma ativa contribuindo quase o bruto cheio (só 1% descontado
+        // pela Maestria=1) pro fator de Formas, enquanto fichaSemForma não tem Forma nenhuma
+        // ativa (fatorFormas=0) — então o ganho COM a Forma deve ficar MAIOR que sem ela, provando
+        // que a regra do zero (Change 2) de fato NÃO se aplicou aqui (senão seria igual/menor).
+        expect(comFormaAcimaDoLimiar).toBeGreaterThan(semFormaAcimaDoLimiar);
+        // ganho final zero pra ambas com supressao=2, só por causa do limiar de 80% (Change 1),
+        // não por causa da regra da Maestria (que não deveria mais se aplicar aqui):
+        expect(comForma).toBe(0);
+        expect(semForma).toBe(0);
+    });
+
+    it('múltiplas Formas ativas com Maestrias diferentes: a regra do zero usa a Maestria MÉDIA das Formas ativas, não a de nenhuma Forma individual', () => {
+        // Duas Formas ativas: maestria 40 e maestria 80 -> média = 60. Supressão=60 (== média)
+        // deve zerar; Supressão=61 (> média) não deve mais zerar, mesmo 61 ainda sendo <= 80
+        // (a Maestria da Forma MAIS forte individualmente).
+        const fichaDuasFormas = (supressaoPoder) => fichaCheia({
+            vida: { base: 1000000, atual: 2000000, mFormas: 2 },
+            poderes: [
+                { id: 'p1', categoria: 'forma', ativa: true, maestria: 40 },
+                { id: 'p2', categoria: 'forma', ativa: true, maestria: 80 },
+            ],
+            supressaoPoder,
+        });
+        const semForma = (supressaoPoder) => fichaCheia({ supressaoPoder });
+
+        // Supressão=60, acima do limiar geral de 80%? Não (60<80) -> ganho final já seria 0 pelo
+        // Change 1. Pra observar a regra da Maestria isoladamente usamos Supressão=90 (>80) junto
+        // com maestria média deslocada proporcionalmente (mesma proporção 60/61 escalada): usamos
+        // diretamente maestria média 90 (formas com maestria 85 e 95) vs Supressão 90/91.
+        const fichaMediaIgualSupressao = fichaCheia({
+            vida: { base: 1000000, atual: 2000000, mFormas: 2 },
+            poderes: [
+                { id: 'p1', categoria: 'forma', ativa: true, maestria: 85 },
+                { id: 'p2', categoria: 'forma', ativa: true, maestria: 95 },
+            ],
+            supressaoPoder: 90, // média das duas = 90, exatamente igual -> zera
+        });
+        const fichaMediaAbaixoSupressao = fichaCheia({
+            vida: { base: 1000000, atual: 2000000, mFormas: 2 },
+            poderes: [
+                { id: 'p1', categoria: 'forma', ativa: true, maestria: 85 },
+                { id: 'p2', categoria: 'forma', ativa: true, maestria: 95 },
+            ],
+            supressaoPoder: 91, // média(90) < 91 -> NÃO zera mais, desconto linear normal
+        });
+
+        const ganhoIgual = calcularGanhoFadigaDinamico(fichaMediaIgualSupressao);
+        const ganhoSemFormaIgual = calcularGanhoFadigaDinamico(semForma(90));
+        const ganhoAcima = calcularGanhoFadigaDinamico(fichaMediaAbaixoSupressao);
+        const ganhoSemFormaAcima = calcularGanhoFadigaDinamico(semForma(91));
+
+        // Supressão == média(90): Forma some do cálculo, igual não ter Forma nenhuma ativa.
+        expect(ganhoIgual).toBeCloseTo(ganhoSemFormaIgual, 6);
+        // Supressão(91) > média(90): a regra do zero NÃO se aplica mais -> desconto linear normal
+        // (fatorFormas = bruto*(1-90/100) = 0.1*bruto > 0) -> ganho da Forma É MAIOR que sem Forma.
+        expect(ganhoAcima).toBeGreaterThan(ganhoSemFormaAcima);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// QA — Sanity check de interação entre as 3 mudanças da sessão (Change 1: limiar de 80% na
+// Fadiga; Change 2: zero-rule de Maestria vs Supressão na Fadiga; Change 3: Poder Calculado
+// contínuo por multiplicadorForcaPrestigio). Fadiga (core/fadiga.js) e Poder (core/poder.js)
+// são calculados por caminhos de código totalmente independentes, mas ambos leem os MESMOS
+// campos supressaoPoder/multiplicadorForcaPrestigio da mesma ficha — este teste confirma
+// empiricamente que não há nenhuma interferência cruzada nem NaN/crash quando as 3 mudanças
+// são exercitadas ao mesmo tempo na mesma ficha.
+// ---------------------------------------------------------------------------
+describe('core/fadiga + core/poder - QA: sanity check de interação entre as 3 mudanças combinadas numa mesma ficha', () => {
+    it('Supressão=90 (> limiar 80% -> Change 1 permite Fadiga), Forma ativa com Maestria=50 (parcial, não 100% nem <= Supressão -> desconto linear normal do Change 2, não a zero-rule), e multiplicadorForcaPrestigio aumentado (Change 3) -> Fadiga e Poder calculados sem NaN/Infinity/crash, com valores coerentes', () => {
+        const fichaBase = (multiplicadorForcaPrestigio) => ({
+            ascensaoBase: 1,
+            vida: { base: 1000000, atual: 500000, mFormas: 2 }, // 50% perdida + Forma ativa
+            mana: { base: 10000000, atual: 5000000 },
+            aura: { base: 10000000, atual: 10000000 },
+            chakra: { base: 10000000, atual: 10000000 },
+            corpo: { base: 10000000, atual: 10000000 },
+            forca: { base: 1000000 }, destreza: { base: 1000000 }, inteligencia: { base: 1000000 },
+            sabedoria: { base: 1000000 }, energiaEsp: { base: 1000000 }, carisma: { base: 1000000 },
+            stamina: { base: 1000000 }, constituicao: { base: 1000000 },
+            statusPrestigioAplicado: 600,
+            divisores: {},
+            divisorPoder: 0,
+            poderes: [{ id: 'p1', categoria: 'forma', ativa: true, maestria: 50 }],
+            supressaoPoder: 90,
+            limiteSupressao: 1,
+            multiplicadorForcaPrestigio,
+            combate: {},
+        });
+
+        const fichaMultBaixo = fichaBase(1.0);
+        const fichaMultAlto = fichaBase(1.2);
+
+        // Fadiga: independe do multiplicadorForcaPrestigio -> deve produzir o MESMO ganho nos dois
+        // casos (prova que Change 3 não vaza pro cálculo de Fadiga).
+        const ganhoFadigaBaixo = calcularGanhoFadigaDinamico(fichaMultBaixo);
+        const ganhoFadigaAlto = calcularGanhoFadigaDinamico(fichaMultAlto);
+        expect(Number.isFinite(ganhoFadigaBaixo)).toBe(true);
+        expect(Number.isFinite(ganhoFadigaAlto)).toBe(true);
+        expect(ganhoFadigaBaixo).toBeGreaterThan(0); // Change 1 + Change 2 (parcial) permitem Fadiga > 0
+        expect(ganhoFadigaBaixo).toBeCloseTo(ganhoFadigaAlto, 6);
+
+        // Poder: sensível ao multiplicadorForcaPrestigio (Change 3) — resultado ainda finito, sem
+        // NaN, e maior (ou igual) com o multiplicador maior.
+        const poderBaixo = calcularPoderAtual(fichaMultBaixo, 1);
+        const poderAlto = calcularPoderAtual(fichaMultAlto, 1);
+        expect(Number.isFinite(poderBaixo.poderGlobal)).toBe(true);
+        expect(Number.isFinite(poderAlto.poderGlobal)).toBe(true);
+        expect(Number.isNaN(poderBaixo.poderGlobal)).toBe(false);
+        expect(Number.isNaN(poderAlto.poderGlobal)).toBe(false);
+        expect(poderAlto.poderGlobal).toBeGreaterThanOrEqual(poderBaixo.poderGlobal);
     });
 });

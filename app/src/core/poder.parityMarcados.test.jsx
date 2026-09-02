@@ -170,4 +170,49 @@ describe('core/poder - calcularPoderAtual: paridade real com Ficha Def/Marcados.
 
         expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
     });
+
+    // -----------------------------------------------------------------------
+    // QA — Change 3 (sessão atual): nivelMedio deixou de ser arredondado pra baixo (double
+    // floor) na leitura que alimenta o Poder Calculado (ascensaoGeralEfetivaParaPoder, em
+    // Marcados.jsx, com continuo=true). Fixture idêntica à de
+    // core/poder.test.js > "QA (Change 3)": 5 categorias com pAtual=600 cada, status travado em
+    // 0 -- floor(nivelMedio) é o MESMO valor (5) tanto pra multiplicadorForcaPrestigio=1.0 quanto
+    // =1.2 (a correção Math.min->média sozinha, da sessão anterior, não teria efeito aqui), então
+    // este é o cenário mínimo que realmente exercita a remoção do double-floor. Confirma que
+    // core/poder.js e Marcados.jsx continuam concordando exatamente nesse cenário de delta
+    // pequeno/contínuo, não só nos deltas grandes/discretos já cobertos acima.
+    // -----------------------------------------------------------------------
+    function fichaBucketFixoParaMarcados(multiplicadorForcaPrestigio) {
+        return {
+            ...fichaParaMarcados(undefined),
+            ascensaoBase: 1,
+            vida: { base: 600 * 1000000 },
+            mana: { base: 600 * 10000000 },
+            aura: { base: 600 * 10000000 },
+            chakra: { base: 600 * 10000000 },
+            corpo: { base: 600 * 10000000 },
+            statusPrestigioAplicado: 0,
+            multiplicadorForcaPrestigio,
+        };
+    }
+
+    it('concorda com o Poder Calculado exibido no Scouter para multiplicadorForcaPrestigio=1.2 (delta modesto, mesmo balde de floor(nivelMedio) que multiplicadorForcaPrestigio=1.0 sob a fórmula antiga) — guarda a remoção do double-floor contra as duas cópias da fórmula divergirem num delta pequeno', () => {
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaBucketFixoParaMarcados(1.2));
+        const poderDoCore = calcularPoderAtual(fichaBucketFixoParaMarcados(1.2), 1).poderGlobal;
+
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
+
+    it('concorda com o Poder Calculado exibido no Scouter para multiplicadorForcaPrestigio=1.0 (baseline da mesma fixture, delta zero)', () => {
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaBucketFixoParaMarcados(1.0));
+        const poderDoCore = calcularPoderAtual(fichaBucketFixoParaMarcados(1.0), 1).poderGlobal;
+
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
+
+    it('o Poder exibido no Scouter para multiplicadorForcaPrestigio=1.2 é estritamente MAIOR que para 1.0 nesta fixture (prova visível ao jogador de que a resposta contínua também chega até a UI real, não só ao core)', () => {
+        const poder10 = calcularPoderAtual(fichaBucketFixoParaMarcados(1.0), 1).poderGlobal;
+        const poder12 = calcularPoderAtual(fichaBucketFixoParaMarcados(1.2), 1).poderGlobal;
+        expect(poder12).toBeGreaterThan(poder10);
+    });
 });

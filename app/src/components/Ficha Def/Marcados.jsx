@@ -861,7 +861,7 @@ export default function MarcadosPanel() {
         const multA = parseFloat(minhaFicha.multiplicadorForcaAscensao) || 1;
         const ascensaoBaseEfetiva = ascensaoBase * multA;
 
-        const calcularFator = (comFormas, ignorarPoderes = false) => {
+        const calcularFator = (comFormas, ignorarPoderes = false, continuo = false) => {
             const bonusPorCategoria = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
                 const displayP = getPontosParaAscensao(minhaFicha, k);
                 let pAtual = displayP;
@@ -873,11 +873,21 @@ export default function MarcadosPanel() {
                 const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
                 return Math.max(0, (rankInfo.ascensaoFinal || 0) - ascensaoBaseEfetiva);
             });
-            // 🔥 CORREÇÃO: antes usava Math.min(...) — travava o ganho geral na categoria mais
+            // 🔥 CORREÇÃO (1): antes usava Math.min(...) — travava o ganho geral na categoria mais
             // fraca das 6, então multiplicadorForcaPrestigio só tinha efeito se TODAS as 6
-            // categorias subissem de nível juntas. Trocado pela MÉDIA (arredondada pra baixo),
-            // igual core/poder.js — mesma fonte de verdade, ver comentário lá para o motivo.
-            const nivelCompletos = Math.floor(bonusPorCategoria.reduce((a, b) => a + b, 0) / bonusPorCategoria.length);
+            // categorias subissem de nível juntas. Trocado pela MÉDIA, igual core/poder.js — mesma
+            // fonte de verdade, ver comentário lá para o motivo.
+            //
+            // 🔥 CORREÇÃO (2): pra quem alimenta o Poder Calculado (continuo=true, ver
+            // ascensaoGeralEfetivaParaPoder abaixo), a média NÃO é mais arredondada pra baixo — um
+            // segundo Math.floor em cima da média (que já soma bônus individualmente arredondados)
+            // fazia falta acumular Prestígio×multiplicadorForcaPrestigio suficiente pra mover a
+            // média em 1 nível INTEIRO antes do Poder Calculado sequer reagir, mesmo com o
+            // multiplicador claramente maior. O indicador "Ascensão Geral Efetiva" exibido pro
+            // jogador (continuo=false, o padrão) continua arredondado — ali faz sentido ser um
+            // número inteiro de Rank/Ascensão.
+            const nivelMedio = bonusPorCategoria.reduce((a, b) => a + b, 0) / bonusPorCategoria.length;
+            const nivelCompletos = continuo ? nivelMedio : Math.floor(nivelMedio);
             const geral = (ascensaoBase + nivelCompletos) * multA;
             const fator = geral / (ascensaoBase || 1);
             return { geral: isNaN(geral) ? ascensaoBase : geral, fator: isNaN(fator) ? 1 : fator };
@@ -902,7 +912,7 @@ export default function MarcadosPanel() {
 
         return {
             ascensaoGeralEfetiva: calcularFator(true).geral,
-            ascensaoGeralEfetivaParaPoder: calcularFator(true, true).geral,
+            ascensaoGeralEfetivaParaPoder: calcularFator(true, true, true).geral,
             fatorCrescimentoBase: calcularFator(false).fator,
             fatorCrescimentoAtual: calcularFator(true).fator,
             fatorAtributosBase: calcularFatorCategoria('status', false),

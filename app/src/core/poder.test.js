@@ -340,6 +340,73 @@ describe('core/poder - calcularPoderAtual: multiplicadorForcaPrestigio não trav
     });
 });
 
+// ---------------------------------------------------------------------------
+// QA — Change 3 (sessão atual): calcularAscensaoParaPoder deixou de aplicar um SEGUNDO
+// Math.floor em cima da média dos bônus por categoria (nivelMedio, fracionário) — antes,
+// nivelCompletos = Math.floor(nivelMedio); agora nivelCompletos = nivelMedio direto. Isso é
+// DIFERENTE da correção Math.min->média da sessão anterior (que já garantia QUALQUER resposta
+// != 0): aqui o objetivo é provar resposta CONTÍNUA — um aumento MODESTO de
+// multiplicadorForcaPrestigio que fica DENTRO do mesmo "balde" de floor(nivelMedio) sob a
+// fórmula ANTIGA (ou seja, que a correção da sessão anterior sozinha NÃO teria corrigido)
+// precisa mesmo assim mover o poderGlobal um pouco, porque a NOVA fórmula usa nivelMedio
+// fracionário sem arredondar.
+//
+// Fixture cirúrgica: 5 categorias (vida/mana/aura/chakra/corpo) com pAtual=600 cada; a 6ª
+// ("status") travada em 0 (statusPrestigioAplicado=0, igual ao padrão de fichaImbalanceada
+// acima). bonus por categoria = floor(pAtual*multP/100):
+//   multP=1.0 -> floor(600*1.0/100) = floor(6.0) = 6 (nas 5 categorias) + 0 (status)
+//   multP=1.2 -> floor(600*1.2/100) = floor(7.2) = 7 (nas 5 categorias) + 0 (status)
+// nivelMedio(1.0) = (6*5+0)/6 = 5.0 -> floor = 5
+// nivelMedio(1.2) = (7*5+0)/6 = 5.8333... -> floor = 5 (MESMO valor sob a fórmula ANTIGA!)
+// Sob a fórmula ANTIGA (double floor), multP 1.0 -> 1.2 portanto NÃO mudava nivelCompletos (5
+// nos dois casos) -> poderGlobal idêntico, apesar do multiplicador ter subido 20%. Sob a NOVA
+// fórmula, nivelMedio fracionário (5.0 vs 5.8333) É diferente -> geral muda -> poderGlobal muda.
+// ---------------------------------------------------------------------------
+describe('core/poder - QA (Change 3): calcularAscensaoParaPoder responde de forma CONTÍNUA a multiplicadorForcaPrestigio, mesmo dentro do mesmo "balde" de nível inteiro que a fórmula antiga (double floor) ignorava por completo', () => {
+    function fichaBucketFixo(multiplicadorForcaPrestigio) {
+        return criarFichaMinima({
+            ascensaoBase: 1,
+            vida: criarStat(600 * 1000000),
+            mana: criarStat(600 * 10000000),
+            aura: criarStat(600 * 10000000),
+            chakra: criarStat(600 * 10000000),
+            corpo: criarStat(600 * 10000000),
+            statusPrestigioAplicado: 0,
+            divisores: { vida: 1, mana: 1, aura: 1, chakra: 1, corpo: 1, status: 1 },
+            multiplicadorForcaPrestigio,
+        });
+    }
+
+    it('REGRESSÃO DIRETA do bug relatado: multiplicadorForcaPrestigio de 1.0 para 1.2 (aumento modesto, dentro do mesmo balde de floor(nivelMedio)=5 sob a fórmula antiga) já produz uma MUDANÇA MENSURÁVEL em poderGlobal na fórmula nova', () => {
+        const poder10 = calcularPoderAtual(fichaBucketFixo(1.0), 1).poderGlobal;
+        const poder12 = calcularPoderAtual(fichaBucketFixo(1.2), 1).poderGlobal;
+
+        expect(Number.isFinite(poder10)).toBe(true);
+        expect(Number.isFinite(poder12)).toBe(true);
+        // Sob a fórmula ANTIGA (double floor) estes dois valores seriam EXATAMENTE iguais —
+        // ver o cálculo de nivelMedio/floor no comentário acima. A fórmula nova precisa
+        // diferenciá-los.
+        expect(poder12).toBeGreaterThan(poder10);
+    });
+
+    it('confirma por fora (reimplementação da fórmula antiga) que multP=1.0 e multP=1.2 caem no MESMO floor(nivelMedio)=5 — prova que este cenário é realmente "invisível" para a correção Math.min->média isolada, e que só a remoção do double-floor resolve', () => {
+        const bonusPorCategoria = (multP) => {
+            const bonus600 = Math.floor((600 * multP) / 100); // as 5 categorias vitais
+            return [bonus600, bonus600, bonus600, bonus600, bonus600, 0]; // status travado em 0
+        };
+        const floorDaMedia = (multP) => Math.floor(bonusPorCategoria(multP).reduce((a, b) => a + b, 0) / 6);
+
+        expect(floorDaMedia(1.0)).toBe(5);
+        expect(floorDaMedia(1.2)).toBe(5); // idêntico -> a fórmula antiga não reagiria a essa mudança
+    });
+
+    it('multiplicadorForcaPrestigio=1.0 (baseline explícito) produz o MESMO poderGlobal que a ficha sem o campo (comportamento padrão preservado)', () => {
+        const semCampo = calcularPoderAtual(fichaBucketFixo(undefined), 1).poderGlobal;
+        const comUmExplicito = calcularPoderAtual(fichaBucketFixo(1.0), 1).poderGlobal;
+        expect(semCampo).toBe(comUmExplicito);
+    });
+});
+
 // (paridade real, renderizando o próprio MarcadosPanel para a mesma ficha, fica em
 // core/poder.parityMarcados.test.jsx — JSX não é suportado neste arquivo .js)
 
