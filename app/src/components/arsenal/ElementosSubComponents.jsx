@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useElementosForm, emogis, cores, BONUS_OPTIONS, NIVEIS_DOMINIO } from './ElementosFormContext';
-import { getNivelDominio } from '../../core/dominios';
+import { getNivelDominio, getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 
 const FALLBACK = <div style={{ opacity: 0.5, padding: 10 }}>Elementos provider não encontrado...</div>;
 
@@ -287,6 +287,14 @@ export function ElementosMagiaCard({ magia }) {
     const nivelDom = getNivelDominio(minhaFicha, elemText);
     const infoDom = NIVEIS_DOMINIO[nivelDom];
 
+    // 🛡️ Quanto esse Domínio protege o personagem quando ELE é o alvo de um golpe deste elemento:
+    // Resistência (desconto de Fadiga em golpes de Overcharge/combate) e Redução de Dano bruto
+    // (calcularReducaoDanoElemental) — mostrado no "melhor caso" (contra um atacante sem nenhum
+    // Domínio, nível 0), já que a redução real depende do Domínio de quem golpeia (ver
+    // core/dominios.js > calcularReducaoDanoElemental).
+    const resistenciaPct = Math.round(getFracaoDominio(minhaFicha, elemText) * 100);
+    const reducaoDanoMaxPct = Math.round(calcularReducaoDanoElemental(nivelDom, 0) * 100);
+
     let redCustoMult = 1;
     if (nivelDom >= 9) redCustoMult = 0;
     else if (nivelDom >= 8) redCustoMult = 0.50; 
@@ -366,6 +374,12 @@ export function ElementosMagiaCard({ magia }) {
                             <span style={{ color: infoDom.cor, fontWeight: 'bold', fontSize: '0.85em' }}>Mestre (Nv. {nivelDom} - {infoDom.nome})</span>
                             <br/>
                             <span style={{ fontSize: '0.8em', fontStyle: 'italic' }}>{infoDom.desc}</span>
+                            {nivelDom > 0 && (
+                                <div style={{ fontSize: '0.8em', marginTop: '4px', opacity: 0.85 }}>
+                                    🛡️ Resistência a {elemText}: <strong>{resistenciaPct}%</strong>
+                                    {' '}| Redução de Dano (máx., vs. Domínio 0): <strong>{reducaoDanoMaxPct}%</strong>
+                                </div>
+                            )}
                         </div>
                     )}
 

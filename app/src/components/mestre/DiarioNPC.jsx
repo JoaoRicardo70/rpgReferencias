@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { uploadImagem } from '../../services/firebase-sync';
-import { getMaximo, getRawBase, getBuffs } from '../../core/attributes';
+import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from '../../core/attributes';
 import { getRank } from '../../core/prestige';
 
 // ==========================================
@@ -139,11 +139,15 @@ const LabelMagicoNPC = ({ valor, onChange, fallback }) => (
     />
 );
 
-const calcularEscala = (rawMax, key) => {
+// rawMaxParaEscala decide SÓ a escala de notação (pVit) — chamadores que precisam ignorar Formas
+// na decisão passam o máximo ESTÁVEL (getMaximoSemFormas) aqui, mantendo rawMax (completo, com
+// Formas) como numerador de mxDisplay (ver core/vitals.js > calcVitalScale).
+const calcularEscala = (rawMax, key, rawMaxParaEscala = rawMax) => {
     if (!rawMax || isNaN(rawMax) || rawMax <= 0) return { mxDisplay: 0, pVit: 0 };
     const limit = (key === 'vida' || key === 'pv' || key === 'pm') ? 8 : 9;
-    const strVal = String(Math.floor(rawMax));
-    const pVit = Math.max(0, strVal.length - limit); 
+    const baseEscala = (rawMaxParaEscala && !isNaN(rawMaxParaEscala) && rawMaxParaEscala > 0) ? rawMaxParaEscala : rawMax;
+    const strVal = String(Math.floor(baseEscala));
+    const pVit = Math.max(0, strVal.length - limit);
     const mxDisplay = pVit > 0 ? Math.floor(rawMax / Math.pow(10, pVit)) : Math.floor(rawMax);
     return { mxDisplay: isNaN(mxDisplay) ? 0 : mxDisplay, pVit: isNaN(pVit) ? 0 : pVit };
 };
@@ -395,7 +399,9 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
         ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => {
             let mx = 0;
             try { mx = getMaximo(novoNpc, k); } catch(e) { mx = novoNpc[k]?.base || 0; }
-            const { mxDisplay } = calcularEscala(mx, k);
+            let mxEstavel = mx;
+            try { mxEstavel = getMaximoSemFormas(novoNpc, k); } catch(e) { mxEstavel = mx; }
+            const { mxDisplay } = calcularEscala(mx, k, mxEstavel);
             if (!novoNpc[k]) novoNpc[k] = {};
             novoNpc[k].atual = isNaN(mxDisplay) ? 0 : mxDisplay;
         });
@@ -423,10 +429,15 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
     const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, overrideMax, subItens, corBarra, corTextoBarra = '#fff' }) => {
         const [aberto, setAberta] = useState(false);
         let rawMaximo = overrideMax !== undefined ? overrideMax : 0;
-        if (overrideMax === undefined) { try { rawMaximo = getMaximo(npcData, vitalKey); } catch(e) { rawMaximo = npcData[vitalKey]?.base || 0; } }
+        let rawMaximoEstavel = rawMaximo;
+        if (overrideMax === undefined) {
+            try { rawMaximo = getMaximo(npcData, vitalKey); } catch(e) { rawMaximo = npcData[vitalKey]?.base || 0; }
+            try { rawMaximoEstavel = getMaximoSemFormas(npcData, vitalKey); } catch(e) { rawMaximoEstavel = rawMaximo; }
+        }
         if (isNaN(rawMaximo)) rawMaximo = 0;
-        
-        const { mxDisplay, pVit } = calcularEscala(rawMaximo, vitalKey);
+        if (isNaN(rawMaximoEstavel)) rawMaximoEstavel = rawMaximo;
+
+        const { mxDisplay, pVit } = calcularEscala(rawMaximo, vitalKey, rawMaximoEstavel);
         let atual = npcData[vitalKey]?.atual;
         if (atual === undefined || atual === null || atual === '') atual = mxDisplay; else atual = Number(atual);
         if (isNaN(atual)) atual = mxDisplay;

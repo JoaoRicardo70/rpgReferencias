@@ -356,3 +356,45 @@ export function getMaximo(ficha, k, avoidLoop = false, buffsCache = null) {
     let mx = Math.floor(b * mult);
     return isNaN(mx) ? 0 : mx;
 }
+
+// 🔥 Réplica de getMultiplicadorTotal/getMaximo, só que com o multiplicador de Formas (mF) travado
+// em 1.0 — ou seja, "quanto este vital vale SEM nenhuma Forma ativa/temporária" (estático ou via
+// buff, tanto faz — ambos entram no mesmo eixo "mformas"). Usada por core/vitals.js pra decidir a
+// ESCALA DE NOTAÇÃO de exibição (calcVitalScale) com base só no que é ESTÁVEL do personagem
+// (Prestígio, equipamento permanente, etc.), nunca no que uma Forma temporária adiciona — assim
+// ativar/desativar uma Forma nunca muda a "casa decimal" que a Ficha usa pra mostrar o número,
+// só o valor exibido DENTRO dessa escala (que cresce ou volta ao normal, nunca "pula" de notação
+// e aparenta ter encolhido). Ver core/vitals.js > rescalarVitaisProporcional/calcVitalScale.
+export function getMultiplicadorTotalSemFormas(ficha, k, avoidLoop = false, buffsCache = null) {
+    if (!ficha || !k) return 1.0;
+    let s = ficha[k] || {};
+    let b = buffsCache || getBuffs(ficha, k, false, avoidLoop);
+
+    const calcAdd = (fichaVal, buffSum, hasBuffFlag) => {
+        let v = parseFloat(fichaVal) || 1.0;
+        if (!hasBuffFlag) return v;
+        return (v === 1.0 ? 0 : v) + buffSum;
+    };
+
+    let mB = calcAdd(s.mBase, b.mbase, b._hasBuff.mbase);
+    let mG = calcAdd(s.mGeral, b.mgeral, b._hasBuff.mgeral);
+    // mF fica de fora de propósito — este é o único ponto de diferença com getMultiplicadorTotal.
+    let mA = calcAdd(s.mAbsoluto, b.mabs, b._hasBuff.mabs);
+
+    let u1 = tratarUnico(s.mUnico || "1.0");
+    let uniFicha = 1.0;
+    for (let i = 0; i < u1.length; i++) { uniFicha *= u1[i]; }
+
+    let mU = 1.0;
+    for (let i = 0; i < b.munico.length; i++) mU *= b.munico[i];
+
+    return mB * mG * mA * uniFicha * mU;
+}
+
+export function getMaximoSemFormas(ficha, k, avoidLoop = false, buffsCache = null) {
+    let buffs = buffsCache || getBuffs(ficha, k, false, avoidLoop);
+    let b = getEfetivoBase(ficha, k, avoidLoop, buffs);
+    let mult = getMultiplicadorTotalSemFormas(ficha, k, avoidLoop, buffs);
+    let mx = Math.floor(b * mult);
+    return isNaN(mx) ? 0 : mx;
+}

@@ -711,11 +711,16 @@ export function MapaFormProvider({ children }) {
                     // verdade; fadigaTurnos é só editável manualmente na Ficha (stepper +/-) por cima.
                     if (!f.combate) f.combate = {};
                     f.combate.fadigaTurnos = Math.max(0, (Number(f.combate.fadigaTurnos) || 0) + 1);
-                    f.combate.fadigaExtra = Math.max(0, (Number(f.combate.fadigaExtra) || 0) + calcularGanhoFadigaDinamico(f));
+                    const ganhoDinamicoDoTurno = calcularGanhoFadigaDinamico(f);
+                    f.combate.fadigaExtra = Math.max(0, (Number(f.combate.fadigaExtra) || 0) + ganhoDinamicoDoTurno);
 
                     // 💖 Regeneração: mesma regra do botão "Regenerar" da página de Status, aplicada
-                    // sozinha sempre que meu turno volta.
-                    aplicarRegeneracaoDeTurno(f);
+                    // sozinha sempre que meu turno volta. Passa o ganho dinâmico deste MESMO turno
+                    // como piso: o desconto de Fadiga por Regeneração pode comer a Fadiga acumulada
+                    // de turnos ANTERIORES à vontade, mas nunca mascara o ganho que acabou de ser
+                    // somado acima (senão curar 100% no mesmo tick escondia o quão gasto o
+                    // personagem estava entrando neste turno — ver MapaFormContext.combateAutoTurno.test.jsx).
+                    aplicarRegeneracaoDeTurno(f, ganhoDinamicoDoTurno);
                 });
                 salvarFichaSilencioso();
             }

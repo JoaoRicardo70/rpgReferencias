@@ -110,11 +110,12 @@ export function StatusAtributosLista({ isAtual }) {
 export function StatusVitalBar({ vitalKey, label, color, borderC, isSpecial, gridStyle }) {
     const ctx = useStatusForm();
     if (!ctx) return FALLBACK;
-    const { ficha, getVitalMax } = ctx;
+    const { ficha, getVitalMax, getVitalMaxEstavel } = ctx;
     if (!ficha) return null;
 
     const rawMx = getVitalMax(vitalKey, ficha);
-    const { p, mxDisplay } = calcVitalScale(rawMx, vitalKey);
+    const rawMxEstavel = getVitalMaxEstavel(vitalKey, ficha);
+    const { p, mxDisplay } = calcVitalScale(rawMx, vitalKey, rawMxEstavel);
 
     let atual = ficha[vitalKey]?.atual ?? mxDisplay;
     if (atual > mxDisplay) atual = mxDisplay;

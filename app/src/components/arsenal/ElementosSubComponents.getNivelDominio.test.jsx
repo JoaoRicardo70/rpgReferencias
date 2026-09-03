@@ -127,6 +127,28 @@ describe('ElementosMagiaCard — redCustoMult (curva de desconto de custo) e inf
         expect(screen.getByText(/Mestre \(Nv\. 5 - Maestria\)/)).toBeDefined();
     });
 
+    // 🛡️ Pedido do usuário: ver o quanto de Resistência/Redução de Dano o Domínio dá — mostrado
+    // junto do card infoDom, usando getFracaoDominio (Resistência) e calcularReducaoDanoElemental
+    // no melhor caso (defensor vs. atacante Domínio 0) — ver core/dominios.js.
+    it('mostra Resistência (getFracaoDominio*100) e Redução de Dano máxima (calcularReducaoDanoElemental vs. Domínio 0) quando nivelDom > 0', () => {
+        montar({ dominios: { Fogo: { nivel: 5 } } });
+        // Resistência: 5/10 = 50%. Redução de Dano: vantagem 0.5 * 0.75 = 0.375 -> 38% (arredondado).
+        expect(screen.getByText(/Resistência a Fogo:/)).toBeDefined();
+        expect(screen.getByText('50%')).toBeDefined();
+        expect(screen.getByText('38%')).toBeDefined();
+    });
+
+    it('nivelDom=10 (Domínio máximo) mostra 100% de Resistência e 75% de Redução de Dano (teto da mecânica)', () => {
+        montar({ dominios: { Fogo: { nivel: 10 } } });
+        expect(screen.getByText('100%')).toBeDefined();
+        expect(screen.getByText('75%')).toBeDefined();
+    });
+
+    it('sem Domínio nenhum (nivelDom=0) não mostra a linha de Resistência/Redução de Dano', () => {
+        montar({ dominios: {} });
+        expect(screen.queryByText(/Resistência a Fogo:/)).toBeNull();
+    });
+
     it('a curva de desconto/infoDom usa o Domínio do ELEMENTO DA MAGIA, não de um elemento qualquer (Gelo alto não afeta uma magia de Fogo)', () => {
         montar({ dominios: { Gelo: { nivel: 10 } } }, { elemento: 'Fogo' });
         expect(screen.getByText(/20% \(MANA\)/)).toBeDefined(); // sem desconto, pois o Domínio é de Gelo, não Fogo

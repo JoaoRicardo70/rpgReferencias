@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import useStore from '../../stores/useStore';
-import { getMaximo, getRawBase, getBuffs } from '../../core/attributes.js';
+import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from '../../core/attributes.js';
 import { getPrestigioReal, getRank } from '../../core/prestige.js';
+import { calcularReducaoFadigaPorRegeneracao } from '../../core/fadiga.js';
 import { salvarFichaSilencioso } from '../../services/firebase-sync.js';
 
 const safeFn = (fn, fallback) => (...args) => {
@@ -10,6 +11,7 @@ const safeFn = (fn, fallback) => (...args) => {
 };
 
 const safeGetMaximo = safeFn(getMaximo, 1);
+const safeGetMaximoSemFormas = safeFn(getMaximoSemFormas, 1);
 const safeGetRawBase = safeFn(getRawBase, 0);
 const safeGetPrestigioReal = safeFn(getPrestigioReal, 0);
 const safeGetRank = safeFn(getRank, { l: 'F', c: '#ffffff', a: 1 });
@@ -68,10 +70,16 @@ export const getBasePFor = (ficha, k) => {
     return safeGetPrestigioReal(k, safeGetRawBase(ficha, k));
 };
 
-export function calcVitalScale(rawMx, key) {
+// rawMxParaEscala decide SÓ a escala de notação (p) — os chamadores que precisam ignorar Formas
+// na decisão de escala (pra uma Forma temporária nunca "pular" de notação e parecer que a energia
+// caiu) passam o máximo ESTÁVEL (safeGetMaximoSemFormas/getVitalMaxEstavel) aqui, mantendo rawMx
+// (completo, com Formas) como numerador de mxDisplay — ver core/vitals.js > calcVitalScale, mesma
+// lógica replicada aqui pra esta tela específica.
+export function calcVitalScale(rawMx, key, rawMxParaEscala = rawMx) {
     if (!rawMx || rawMx <= 0) return { p: 0, mxDisplay: 0 };
     const limit = (key === 'vida' || key === 'pv' || key === 'pm') ? 8 : 9;
-    const strMx = Math.floor(rawMx).toString();
+    const baseEscala = (rawMxParaEscala && rawMxParaEscala > 0) ? rawMxParaEscala : rawMx;
+    const strMx = Math.floor(baseEscala).toString();
     const p = Math.max(0, strMx.length - limit);
     const mxDisplay = p > 0 ? Math.floor(rawMx / Math.pow(10, p)) : Math.floor(rawMx);
     return { p, mxDisplay };
@@ -171,12 +179,20 @@ export function StatusFormProvider({ children }) {
         return safeGetMaximo(f, key);
     }, []);
 
+    // Réplica de getVitalMax, só que com o multiplicador de Formas travado fora — decide SÓ a
+    // escala de notação (calcVitalScale), nunca o numerador exibido. pv/pm nunca passam por
+    // getMaximo/Formas, então ficam idênticos ao getVitalMax original.
+    const getVitalMaxEstavel = useCallback((key, f) => {
+        if (key === 'pv' || key === 'pm') return getVitalMax(key, f);
+        return safeGetMaximoSemFormas(f, key);
+    }, [getVitalMax]);
+
     useEffect(() => {
         if (!ficha || inicializado.current) return;
         updateFicha((f) => {
             allVitals.forEach(({ key }) => {
                 const rawMx = getVitalMax(key, f);
-                const { mxDisplay } = calcVitalScale(rawMx, key);
+                const { mxDisplay } = calcVitalScale(rawMx, key, getVitalMaxEstavel(key, f));
                 if (!f[key]) f[key] = {};
                 if (f[key].atual === undefined || f[key].atual === null) {
                     f[key].atual = mxDisplay;
@@ -184,7 +200,7 @@ export function StatusFormProvider({ children }) {
             });
         });
         inicializado.current = true;
-    }, [ficha, updateFicha, allVitals, getVitalMax]);
+    }, [ficha, updateFicha, allVitals, getVitalMax, getVitalMaxEstavel]);
 
     const alterarVital = useCallback((tipo) => {
         const valor = parseInt(inputDano) || 0;
@@ -193,7 +209,7 @@ export function StatusFormProvider({ children }) {
 
         updateFicha((f) => {
             const rawMx = getVitalMax(targetBar, f);
-            const { mxDisplay } = calcVitalScale(rawMx, targetBar);
+            const { mxDisplay } = calcVitalScale(rawMx, targetBar, getVitalMaxEstavel(targetBar, f));
 
             let danoFinal = valor;
             if (tipo === 'dano' && letalidade > 0) {
@@ -209,32 +225,45 @@ export function StatusFormProvider({ children }) {
         });
         salvarFichaSilencioso();
         setInputDano('');
-    }, [inputDano, inputLetalidade, updateFicha, targetBar, getVitalMax]);
+    }, [inputDano, inputLetalidade, updateFicha, targetBar, getVitalMax, getVitalMaxEstavel]);
 
     const curarTudo = useCallback(() => {
         updateFicha((f) => {
             allVitals.forEach(({ key }) => {
                 const rawMx = getVitalMax(key, f);
-                const { mxDisplay } = calcVitalScale(rawMx, key);
+                const { mxDisplay } = calcVitalScale(rawMx, key, getVitalMaxEstavel(key, f));
                 if (f[key]) f[key].atual = mxDisplay;
             });
         });
         salvarFichaSilencioso();
-    }, [updateFicha, allVitals, getVitalMax]);
+    }, [updateFicha, allVitals, getVitalMax, getVitalMaxEstavel]);
 
+    // Regeneração + o bônus de Poderes/Passivas/Itens ativos (getBuffs(...).regeneracao), mesma
+    // regra que aplicarRegeneracaoDeTurno em core/vitals.js (chamada automaticamente no Mapa) —
+    // e o mesmo desconto de Fadiga acumulada proporcional ao quanto foi curado neste clique.
     const aplicarRegeneracaoTurno = useCallback(() => {
         updateFicha((f) => {
+            const fracoesCuradas = [];
             allVitals.forEach(({ key }) => {
                 const rawMx = getVitalMax(key, f);
-                const { mxDisplay } = calcVitalScale(rawMx, key);
-                const regen = parseFloat(f[key]?.regeneracao) || 0;
-                if (regen > 0 && (f[key].atual || 0) < mxDisplay) {
-                    f[key].atual = Math.min(mxDisplay, (f[key].atual || 0) + regen);
+                const { mxDisplay } = calcVitalScale(rawMx, key, getVitalMaxEstavel(key, f));
+                const regenBase = parseFloat(f[key]?.regeneracao) || 0;
+                const regenBuff = getBuffs(f, key).regeneracao || 0;
+                const regen = regenBase + regenBuff;
+                if (regen > 0 && mxDisplay > 0 && (f[key].atual || 0) < mxDisplay) {
+                    const antes = f[key].atual || 0;
+                    f[key].atual = Math.min(mxDisplay, antes + regen);
+                    fracoesCuradas.push((f[key].atual - antes) / mxDisplay);
                 }
             });
+            if (fracoesCuradas.length > 0) {
+                if (!f.combate) f.combate = {};
+                const reducao = calcularReducaoFadigaPorRegeneracao(fracoesCuradas);
+                f.combate.fadigaExtra = Math.max(0, (Number(f.combate.fadigaExtra) || 0) - reducao);
+            }
         });
         salvarFichaSilencioso();
-    }, [updateFicha, allVitals, getVitalMax]);
+    }, [updateFicha, allVitals, getVitalMax, getVitalMaxEstavel]);
 
     const resetarTurno = useCallback(() => {
         updateFicha(f => {
@@ -284,6 +313,7 @@ export function StatusFormProvider({ children }) {
         salvarCores,
         resetarCores,
         getVitalMax,
+        getVitalMaxEstavel,
         alterarVital,
         curarTudo,
         aplicarRegeneracaoTurno,
@@ -296,7 +326,7 @@ export function StatusFormProvider({ children }) {
         showCores, salvandoCores, tempCores,
         vitalsBars, vitaisEspeciais, allVitals,
         handleColorChange, salvarCores, resetarCores,
-        getVitalMax, alterarVital, curarTudo,
+        getVitalMax, getVitalMaxEstavel, alterarVital, curarTudo,
         aplicarRegeneracaoTurno, resetarTurno,
         changeActionMax, toggleActionDot,
     ]);

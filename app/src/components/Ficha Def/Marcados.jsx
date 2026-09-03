@@ -8,6 +8,7 @@ import { getRank } from '../../core/prestige';
 import { formatarPoderCosmico } from '../../core/utils.js';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { calcularFadigaAtual } from '../../core/fadiga';
+import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel'; 
@@ -26,6 +27,19 @@ function safeGetMaximo(ficha, key) {
         }
     } catch (e) { console.warn("Aviso: getMaximo falhou internamente."); }
     return parseFloat(ficha?.[key]?.base) || 0;
+}
+
+// Réplica de safeGetMaximo, só que com o multiplicador de Formas travado fora — decide SÓ a
+// escala de notação (calcularEscala), nunca o numerador exibido, pra uma Forma temporária nunca
+// "pular" de notação e parecer que a energia caiu (ver core/vitals.js > getMaximoSemFormas).
+function safeGetMaximoSemFormas(ficha, key) {
+    try {
+        if (AtributosCore && typeof AtributosCore.getMaximoSemFormas === 'function') {
+            const val = AtributosCore.getMaximoSemFormas(ficha, key);
+            return isNaN(val) ? 0 : val;
+        }
+    } catch (e) { console.warn("Aviso: getMaximoSemFormas falhou internamente."); }
+    return safeGetMaximo(ficha, key);
 }
 
 // 🔥 Base + buffs ADITIVOS (sem a pilha de multiplicadores mBase/mGeral/mFormas/mAbsoluto/mUnico).
@@ -392,17 +406,21 @@ function getPontosParaAscensao(ficha, key) {
     return getBasePFor(ficha, key);
 }
 
-function calcularEscala(rawMax, key) {
+// rawMaxParaEscala decide SÓ a escala de notação (pVit) — chamadores que precisam ignorar Formas
+// na decisão passam o máximo ESTÁVEL (safeGetMaximoSemFormas) aqui, mantendo rawMax (completo,
+// com Formas) como numerador de mxDisplay (ver core/vitals.js > calcVitalScale).
+function calcularEscala(rawMax, key, rawMaxParaEscala = rawMax) {
     if (!rawMax || isNaN(rawMax) || rawMax <= 0) return { mxDisplay: 0, pVit: 0 };
     const limit = (key === 'vida' || key === 'pv' || key === 'pm') ? 8 : 9;
-    const strVal = String(Math.floor(rawMax));
+    const baseEscala = (rawMaxParaEscala && !isNaN(rawMaxParaEscala) && rawMaxParaEscala > 0) ? rawMaxParaEscala : rawMax;
+    const strVal = String(Math.floor(baseEscala));
     let digitos = strVal.length;
     if (strVal.includes('e')) {
         const parts = strVal.split('e');
         let exp = parseInt(parts[1].replace('+', ''));
         if(!isNaN(exp)) digitos = exp + 1;
     }
-    const pVit = Math.max(0, digitos - limit); 
+    const pVit = Math.max(0, digitos - limit);
     const mxDisplay = pVit > 0 ? Math.floor(rawMax / Math.pow(10, pVit)) : Math.floor(rawMax);
     return { mxDisplay: isNaN(mxDisplay) ? 0 : mxDisplay, pVit: isNaN(pVit) ? 0 : pVit };
 }
@@ -609,8 +627,9 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
     const [aberto, setAberta] = useState(false);
     const fatorSeguro = parseFloat(fator) || 1;
     let rawMaximo = (parseFloat(safeGetMaximo(ficha, vitalKey)) || 0) * fatorSeguro;
-    
-    const { mxDisplay, pVit } = calcularEscala(rawMaximo, vitalKey);
+    let rawMaximoEstavel = (parseFloat(safeGetMaximoSemFormas(ficha, vitalKey)) || 0) * fatorSeguro;
+
+    const { mxDisplay, pVit } = calcularEscala(rawMaximo, vitalKey, rawMaximoEstavel);
     let atual = ficha?.[vitalKey]?.atual;
     if (atual === undefined || atual === null || atual === '') atual = mxDisplay; else atual = Number(atual);
     if (isNaN(atual)) atual = mxDisplay;
@@ -658,6 +677,12 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
     const [selectValue, setSelectValue] = useState('');
     const [inputValue, setInputValue] = useState('');
     const corTema = catData.cor || '#ffffff';
+    // 🛡️ Resistência/Redução de Dano só fazem sentido pras 4 categorias de Elementos (Básicos/
+    // Avançados/Verdadeiros) — são elas que alimentam calcularReducaoDanoElemental/
+    // getFracaoResistenciaElemental em combate (ver core/dominios.js), nunca Artes Marciais,
+    // Cura, Invocações etc.
+    const isElemental = catKey.startsWith('elementos_');
+    const fichaParaDominio = { dominios: dominiosSalvos };
 
     const dominiosFiltrados = Object.entries(dominiosSalvos).filter(([nome, dados]) => {
         if (!dados || typeof dados !== 'object' || !dados.nivel) return false;
@@ -762,6 +787,12 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                                     </div>
                                 </div>
                                 <div style={{ fontSize: '0.9em', fontStyle: 'italic', color: '#ccc' }}><span style={{ color: infoNivel.cor, fontWeight: 'bold' }}>⚡ :</span> {infoNivel.desc}</div>
+                                {isElemental && nivel > 0 && (
+                                    <div style={{ fontSize: '0.82em', color: '#aaa', borderTop: '1px dotted #333', paddingTop: '6px' }}>
+                                        🛡️ Resistência: <strong style={{ color: infoNivel.cor }}>{Math.round(getFracaoDominio(fichaParaDominio, nomeDom) * 100)}%</strong>
+                                        {' '}| Redução de Dano (máx., vs. Domínio 0): <strong style={{ color: infoNivel.cor }}>{Math.round(calcularReducaoDanoElemental(nivel, 0) * 100)}%</strong>
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
@@ -1247,7 +1278,7 @@ export default function MarcadosPanel() {
     const handleRegenerarTudo = () => {
         if (!window.confirm('Recuperar toda a Vida, Energias, Pontos e Ações de Turno?')) return;
         updateFicha(f => {
-            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => { let mx = safeGetMaximo(minhaFicha, k) * (fatoresVitaisAtual[k] || 1); f[k] = { ...f[k], atual: calcularEscala(mx, k).mxDisplay || 0 }; });
+            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => { let mx = safeGetMaximo(minhaFicha, k) * (fatoresVitaisAtual[k] || 1); let mxEstavel = safeGetMaximoSemFormas(minhaFicha, k) * (fatoresVitaisAtual[k] || 1); f[k] = { ...f[k], atual: calcularEscala(mx, k, mxEstavel).mxDisplay || 0 }; });
             f.pv = { ...f.pv, atual: pvMax || 0 }; f.pm = { ...f.pm, atual: pmMax || 0 }; f.energiaForca = { ...f.energiaForca, atual: forcaMax || 0 };
             ['padrao', 'bonus', 'reacao'].forEach(tipo => { if (!f.acoes) f.acoes = {}; if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 }; f.acoes[tipo].atual = f.acoes[tipo].max; });
             if (f.combate) { f.combate.fadigaTurnos = 0; f.combate.fadigaExtra = 0; f.combate.municoTurnos = 0; }

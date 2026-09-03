@@ -224,3 +224,23 @@ export function calcularFadigaAtual(ficha) {
     const fadigaExtra = Math.max(0, Number(ficha?.combate?.fadigaExtra) || 0);
     return Math.min(100, Math.max(0, fadigaExtra));
 }
+
+// 💖 REDUÇÃO DE FADIGA POR REGENERAÇÃO — mesma ideia de "resistir menos cansado" que a Resistência
+// Elemental já aplica em getFatorVidaPerdida/getLimiarSemFadiga acima, só que pela cura RECEBIDA
+// neste turno em vez de pelo Domínio: quanto mais Vida/Energia um personagem recupera no próprio
+// turno — via regeneração ativa OU passiva (ficha[vital].regeneracao + buffs.regeneracao de
+// Poderes/Passivas/Itens ativos, ver core/vitals.js > aplicarRegeneracaoDeTurno) — menos desgastado
+// ele volta a ficar. `fracoesCuradas` é a lista de "quanto do teto exibido de cada vital foi
+// efetivamente recuperado neste turno" (0-1 cada), uma por vital que de fato regenerou; o desconto
+// final é a MÉDIA dessas frações vezes o peso máximo — mesma ordem de grandeza de
+// PESO_MAX_DINAMICO_PADRAO (15), só que descontando em vez de somando à Fadiga.
+const PESO_REDUCAO_FADIGA_REGEN = 10;
+
+export function calcularReducaoFadigaPorRegeneracao(fracoesCuradas) {
+    if (!fracoesCuradas || fracoesCuradas.length === 0) return 0;
+    // Clampa CADA fração em [0,1] antes da média — nunca a média como um todo — pra uma única
+    // entrada hostil/fora de faixa não distorcer o peso das demais.
+    const soma = fracoesCuradas.reduce((acc, f) => acc + (Number.isFinite(f) ? Math.min(1, Math.max(0, f)) : 0), 0);
+    const media = soma / fracoesCuradas.length;
+    return media * PESO_REDUCAO_FADIGA_REGEN;
+}
