@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { aplicarDanoDireto } from './firebase-sync';
+import { aplicarDanoDireto, aplicarElementoDireto } from './firebase-sync';
 import useStore from '../stores/useStore';
 import { ref, set } from 'firebase/database';
 
@@ -96,5 +96,56 @@ describe('firebase-sync — aplicarDanoDireto', () => {
         const pathEscrito = ref.mock.calls[0][1];
         expect(pathEscrito.endsWith('/vida/atual')).toBe(true);
         expect(pathEscrito).not.toBe('mesas/mesa1/personagens/Heroi');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// QA — aplicarElementoDireto (firebase-sync.js) — mesmo esquema cross-player de
+// aplicarDanoDireto/aplicarFadigaDireta, pro campo combate/ultimoElementoRecebido
+// (usado pelo Dano Rápido do Mestre pra marcar de qual elemento veio o golpe,
+// ver core/dominios.js e core/fadiga.js > getFatorVidaPerdida).
+// ---------------------------------------------------------------------------
+describe('firebase-sync — aplicarElementoDireto', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        useStore.getState.mockReturnValue({ mesaId: 'mesa1' });
+    });
+
+    it('Happy Path: grava o elemento no path sanitizado do jogador-alvo', () => {
+        aplicarElementoDireto('Vilao', 'Fogo');
+
+        expect(set).toHaveBeenCalledTimes(1);
+        expect(ref).toHaveBeenCalledWith({}, 'mesas/mesa1/personagens/Vilao/combate/ultimoElementoRecebido');
+        expect(set.mock.calls[0][1]).toBe('Fogo');
+    });
+
+    it('elemento falsy (null/undefined/vazio) grava null — LIMPA o campo, nunca escreve undefined', () => {
+        aplicarElementoDireto('Vilao', null);
+        expect(set.mock.calls[0][1]).toBe(null);
+
+        aplicarElementoDireto('Vilao', undefined);
+        expect(set.mock.calls[1][1]).toBe(null);
+
+        aplicarElementoDireto('Vilao', '');
+        expect(set.mock.calls[2][1]).toBe(null);
+    });
+
+    it('sem mesaId, não escreve nada no Firebase', () => {
+        useStore.getState.mockReturnValue({ mesaId: '' });
+        aplicarElementoDireto('Vilao', 'Fogo');
+        expect(set).not.toHaveBeenCalled();
+    });
+
+    it('sem "nome" (undefined/vazio), não escreve nada no Firebase — mesmo com elemento definido', () => {
+        aplicarElementoDireto(undefined, 'Fogo');
+        aplicarElementoDireto('', 'Fogo');
+        expect(set).not.toHaveBeenCalled();
+    });
+
+    it('falha silenciosa (catch) não lança erro não tratado quando o Firebase rejeita a escrita', async () => {
+        set.mockReturnValueOnce(Promise.reject(new Error('permissão negada')));
+
+        expect(() => aplicarElementoDireto('Vilao', 'Fogo')).not.toThrow();
+        await new Promise((resolve) => setTimeout(resolve, 0));
     });
 });

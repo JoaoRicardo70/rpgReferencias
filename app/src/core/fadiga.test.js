@@ -120,6 +120,53 @@ describe('core/fadiga - getFatorVidaPerdida (via calcularGanhoFadigaDinamico iso
         const ficha = fichaCheia({ vida: { base: 0, atual: 0 } });
         expect(calcularGanhoFadigaDinamico(ficha)).toBe(0);
     });
+
+    // 🛡️ Resistência Elemental (core/dominios.js) — Domínio nível 1-10 no elemento do ÚLTIMO golpe
+    // recebido (combate.ultimoElementoRecebido) desconta este fator especificamente.
+    it('Domínio nível 10 ("Eterno") no elemento do último golpe recebido ZERA por completo o fator de vida perdida', () => {
+        const ficha = fichaCheia({
+            vida: { base: 1000000, atual: 0 },
+            dominios: { Fogo: { nivel: 10 } },
+            combate: { ultimoElementoRecebido: 'Fogo' },
+        });
+        expect(calcularGanhoFadigaDinamico(ficha)).toBe(0);
+    });
+
+    it('Domínio nível 5 no elemento do último golpe recebido desconta o fator de vida pela metade', () => {
+        const ficha = fichaCheia({
+            vida: { base: 1000000, atual: 0 },
+            dominios: { Fogo: { nivel: 5 } },
+            combate: { ultimoElementoRecebido: 'Fogo' },
+        });
+        // fatorVida bruto=1 -> descontado 50% = 0.5 -> ganho = (0+0.5+0)/3*15 = 2.5.
+        expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(2.5, 6);
+    });
+
+    it('Domínio treinado em elemento DIFERENTE do último golpe recebido não desconta nada', () => {
+        const ficha = fichaCheia({
+            vida: { base: 1000000, atual: 0 },
+            dominios: { Agua: { nivel: 10 } },
+            combate: { ultimoElementoRecebido: 'Fogo' },
+        });
+        expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(5, 6);
+    });
+
+    it('sem ultimoElementoRecebido definido, comportamento idêntico a antes da Resistência Elemental existir (sem desconto, mesmo com Domínios altos)', () => {
+        const ficha = fichaCheia({
+            vida: { base: 1000000, atual: 0 },
+            dominios: { Fogo: { nivel: 10 } },
+        });
+        expect(calcularGanhoFadigaDinamico(ficha)).toBeCloseTo(5, 6);
+    });
+
+    it('match de nome do Domínio é acento/caixa-insensível ("fogo" bate com "Fogo")', () => {
+        const ficha = fichaCheia({
+            vida: { base: 1000000, atual: 0 },
+            dominios: { Fogo: { nivel: 10 } },
+            combate: { ultimoElementoRecebido: 'fogo' },
+        });
+        expect(calcularGanhoFadigaDinamico(ficha)).toBe(0);
+    });
 });
 
 describe('core/fadiga - getFatorFormasAtivas (via calcularGanhoFadigaDinamico isolado)', () => {
@@ -223,30 +270,29 @@ describe('core/fadiga - calcularGanhoFadigaDinamico: robustez (try/catch)', () =
 });
 
 describe('core/fadiga - calcularFadigaAtual', () => {
-    it('soma fadigaBase (fadigaTurnos x fadigaPorTurno) com fadigaExtra corretamente', () => {
+    it('é só combate.fadigaExtra — fadigaTurnos/fadigaPorTurno NÃO entram mais na soma (contador informativo, ver MapaFormContext.jsx)', () => {
         const ficha = { combate: { fadigaTurnos: 4, fadigaPorTurno: 5, fadigaExtra: 12.5 } };
-        // base = 4*5 = 20 ; total = 20 + 12.5 = 32.5
-        expect(calcularFadigaAtual(ficha)).toBeCloseTo(32.5, 6);
+        expect(calcularFadigaAtual(ficha)).toBeCloseTo(12.5, 6);
     });
 
-    it('fadigaExtra sozinho (sem contador manual) também é somado', () => {
+    it('fadigaTurnos alto sozinho (sem fadigaExtra) não gera Fadiga nenhuma', () => {
+        const ficha = { combate: { fadigaTurnos: 999, fadigaPorTurno: 50, fadigaExtra: 0 } };
+        expect(calcularFadigaAtual(ficha)).toBe(0);
+    });
+
+    it('fadigaExtra sozinho (sem fadigaTurnos) é somado normalmente', () => {
         const ficha = { combate: { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 7 } };
         expect(calcularFadigaAtual(ficha)).toBe(7);
     });
 
-    it('clampa em 100 quando a soma ultrapassa o teto', () => {
-        const ficha = { combate: { fadigaTurnos: 15, fadigaPorTurno: 5, fadigaExtra: 50 } }; // 75+50=125
+    it('clampa em 100 quando fadigaExtra ultrapassa o teto sozinho', () => {
+        const ficha = { combate: { fadigaTurnos: 15, fadigaPorTurno: 5, fadigaExtra: 125 } };
         expect(calcularFadigaAtual(ficha)).toBe(100);
     });
 
     it('clampa em 0 (nunca fica negativo) mesmo com fadigaExtra negativo', () => {
         const ficha = { combate: { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: -50 } };
         expect(calcularFadigaAtual(ficha)).toBe(0);
-    });
-
-    it('fadigaPorTurno ausente usa o padrão de 5%/turno', () => {
-        const ficha = { combate: { fadigaTurnos: 4 } };
-        expect(calcularFadigaAtual(ficha)).toBe(20);
     });
 
     it('ficha sem "combate" nenhum não lança e retorna 0', () => {

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useMapaForm } from './MapaFormContext';
 import { salvarDummie } from '../../services/firebase-sync';
+import { ELEMENTOS_OPCOES } from '../poderes/PoderesSubComponents';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Mapa provider não encontrado</div>;
 
@@ -191,6 +192,10 @@ export function MapaMestreDanoRapido() {
     const { isMestre, isModoRP, mestreVendoRP, jogadores, dummies, cenaRenderId, aplicarDanoRapido } = ctx;
     const [alvoId, setAlvoId] = useState('');
     const [valorDano, setValorDano] = useState(10);
+    // 🛡️ Elemento do dano (opcional): marcar o elemento aqui registra ficha.combate.
+    // ultimoElementoRecebido no alvo, e core/fadiga.js > getFatorVidaPerdida desconta a Fadiga
+    // gerada por ESTE dano se o alvo tiver Domínio treinado (página 3) sobre aquele elemento.
+    const [elementoDano, setElementoDano] = useState('');
     if (!isMestre || (isModoRP && !mestreVendoRP)) return null;
 
     // Mesmo filtro-por-cena de MapaIniciativaTracker (todasEntidades) — só mostra quem está
@@ -211,13 +216,13 @@ export function MapaMestreDanoRapido() {
 
     const aplicar = () => {
         if (!alvoAtual) return alert('Escolha um alvo primeiro.');
-        aplicarDanoRapido(alvoAtual, valorDano);
+        aplicarDanoRapido(alvoAtual, valorDano, elementoDano || null);
     };
 
     return (
         <div className="fade-in" style={{ background: 'rgba(255, 0, 60, 0.1)', padding: 15, borderRadius: 5, border: '1px solid #ff003c' }}>
             <h3 style={{ color: '#ff003c', margin: 0 }}>⚔️ Dano Rápido</h3>
-            <p style={{ color: '#888', fontStyle: 'italic', margin: '5px 0 15px', fontSize: '0.85em' }}>Aplica dano direto na Vida de um jogador ou entidade nesta cena, sem precisar que o alvo digite nada.</p>
+            <p style={{ color: '#888', fontStyle: 'italic', margin: '5px 0 15px', fontSize: '0.85em' }}>Aplica dano direto na Vida de um jogador ou entidade nesta cena, sem precisar que o alvo digite nada. Marcar o Elemento (opcional) desconta a Fadiga deste golpe se o alvo tiver Domínio treinado sobre ele.</p>
             {alvos.length === 0 ? (
                 <p style={{ color: '#888', fontSize: '0.85em' }}>Nenhum jogador ou entidade nesta cena.</p>
             ) : (
@@ -230,6 +235,14 @@ export function MapaMestreDanoRapido() {
                         <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold' }}>Dano:</span>
                         <input className="input-neon" type="number" min="1" value={valorDano} onChange={e => setValorDano(e.target.value)} style={{ width: 80, padding: 4, margin: 0 }} />
                     </div>
+                    <select className="input-neon" value={elementoDano} onChange={e => setElementoDano(e.target.value)} style={{ padding: 5, minWidth: 140 }}>
+                        <option value="">Elemento (Físico/Nenhum)</option>
+                        {ELEMENTOS_OPCOES.map(grupo => (
+                            <optgroup key={grupo.label} label={grupo.label}>
+                                {grupo.opcoes.map(el => <option key={el} value={el}>{el}</option>)}
+                            </optgroup>
+                        ))}
+                    </select>
                     <button className="btn-neon btn-red" onClick={aplicar} disabled={!alvoAtual} style={{ padding: '5px 15px', margin: 0, opacity: alvoAtual ? 1 : 0.5 }}>💥 Aplicar Dano</button>
                 </div>
             )}

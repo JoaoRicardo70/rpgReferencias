@@ -446,6 +446,20 @@ export function aplicarFadigaDireta(nome, novoFadigaExtra) {
     const nomeSanitizado = sanitizarNome(nome);
     set(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}/combate/fadigaExtra`), Math.max(0, novoFadigaExtra)).catch(() => {});
 }
+// 🔥 Mesmo esquema de aplicarFadigaDireta acima, só que pro campo combate/ultimoElementoRecebido —
+// usado pelo Dano Rápido do Mestre (ver MapaFormContext.jsx > aplicarDanoRapido) quando o Mestre
+// marca de qual elemento veio o golpe, pra core/fadiga.js > getFatorVidaPerdida poder descontar a
+// Fadiga do alvo se ele tiver Domínio (página 3) sobre aquele elemento.
+export function aplicarElementoDireto(nome, elemento) {
+    if (isInPlasmicCanvas()) return;
+    const { mesaId } = useStore.getState();
+    if (!db || !mesaId || !nome) return;
+    const nomeSanitizado = sanitizarNome(nome);
+    // `elemento` falsy (Mestre não marcou nenhum, golpe físico) LIMPA o campo — a resistência
+    // elemental é sempre sobre o ÚLTIMO golpe, nunca deve "grudar" de um golpe elemental antigo
+    // em cima de golpes físicos/não-marcados que vieram depois.
+    set(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}/combate/ultimoElementoRecebido`), elemento || null).catch(() => {});
+}
 export function iniciarListenerTemasCustom(callback) {
     if (isInPlasmicCanvas()) return () => {};
     const { mesaId } = useStore.getState();

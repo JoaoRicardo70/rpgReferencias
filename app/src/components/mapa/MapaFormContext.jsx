@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto, aplicarFadigaDireta } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto } from '../../services/firebase-sync';
 import { calcularAcerto } from '../../core/engine';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { getBuffs } from '../../core/attributes';
@@ -698,15 +698,18 @@ export function MapaFormProvider({ children }) {
                     // escalados pela Supressão de Poder atual — por isso roda ANTES da Regeneração logo
                     // abaixo, senão a cura já aplicada esconderia o desgaste real deste turno.
                     //
-                    // 🔥 CORREÇÃO: o contador MANUAL antigo (combate.fadigaTurnos, o stepper "Turnos
-                    // Cansativos" da Ficha) NÃO é mais incrementado automaticamente aqui. Antes, cada
-                    // turno somava +1 fadigaTurnos (5% fixos, por padrão) POR CIMA do ganho dinâmico já
-                    // escalado por Energia/Vida/Maestria/Supressão — um personagem com 100% de Maestria,
-                    // sem gastar Energia, sem levar dano e com o Poder suprimido ainda assim acumulava
-                    // 5%/turno vindos desse contador fixo, o que ia contra a própria ideia da Fadiga
-                    // dinâmica (quase-zero nessas condições). fadigaTurnos continua existindo e editável
-                    // manualmente na Ficha (stepper +/-), só não é mais tocado pelo avanço de turno.
+                    // combate.fadigaTurnos (o stepper "Turnos Cansativos" da Ficha) volta a subir +1
+                    // sozinho a cada turno aqui — mas hoje é só um contador INFORMATIVO ("há quantos
+                    // turnos esta luta dura"), sem nenhum efeito na Fadiga% (ver core/fadiga.js >
+                    // calcularFadigaAtual): antes, cada turno também somava fadigaTurnos x fadigaPorTurno
+                    // (5% fixos, por padrão) direto na Fadiga%, POR CIMA do ganho dinâmico já escalado
+                    // por Energia/Vida/Maestria/Supressão — um personagem com 100% de Maestria, sem
+                    // gastar Energia, sem levar dano e com o Poder suprimido ainda assim acumulava
+                    // 5%/turno vindos desse contador, o que ia contra a própria ideia da Fadiga dinâmica
+                    // (quase-zero nessas condições). Agora só a % dinâmica (fadigaExtra) gera Fadiga de
+                    // verdade; fadigaTurnos é só editável manualmente na Ficha (stepper +/-) por cima.
                     if (!f.combate) f.combate = {};
+                    f.combate.fadigaTurnos = Math.max(0, (Number(f.combate.fadigaTurnos) || 0) + 1);
                     f.combate.fadigaExtra = Math.max(0, (Number(f.combate.fadigaExtra) || 0) + calcularGanhoFadigaDinamico(f));
 
                     // 💖 Regeneração: mesma regra do botão "Regenerar" da página de Status, aplicada
@@ -750,7 +753,14 @@ export function MapaFormProvider({ children }) {
     // alvo voltasse na iniciativa do Mapa, o que na prática escondia o efeito da Supressão de
     // Poder de quem estivesse testando "causar dano com Poder alto vs. Poder suprimido" via este
     // botão (o dano em si nunca tocava Fadiga nenhuma até um ciclo de turno completo).
-    const aplicarDanoRapido = useCallback((alvo, dano) => {
+    //
+    // 🛡️ `elemento` (opcional): quando o Mestre marca de qual elemento veio o golpe, grava em
+    // combate.ultimoElementoRecebido — core/fadiga.js > getFatorVidaPerdida desconta a Fadiga
+    // gerada por ESTE dano se o alvo tiver Domínio (página 3) sobre aquele elemento. SEMPRE
+    // sobrescreve o campo (inclusive limpando quando `elemento` vem vazio/Físico) — a resistência
+    // é sobre o ÚLTIMO golpe recebido, nunca deve "grudar" de um golpe elemental antigo em cima
+    // de golpes físicos/não-marcados que vieram depois.
+    const aplicarDanoRapido = useCallback((alvo, dano, elemento) => {
         if (!isMestre || !alvo) return;
         const valor = Math.max(0, Math.floor(Number(dano)) || 0);
         if (valor <= 0) return;
@@ -764,20 +774,27 @@ export function MapaFormProvider({ children }) {
             updateFicha(f => {
                 if (f.vida) f.vida.atual = Math.max(0, (f.vida.atual || 0) - valor);
                 if (!f.combate) f.combate = {};
+                f.combate.ultimoElementoRecebido = elemento || null;
                 f.combate.fadigaExtra = Math.max(0, (Number(f.combate.fadigaExtra) || 0) + calcularGanhoFadigaDinamico(f));
             });
             salvarFichaSilencioso();
         } else {
             const fichaAlvo = alvo.ficha || {};
             const novaVida = Math.max(0, (fichaAlvo.vida?.atual || 0) - valor);
-            // Ficha "simulada" com a Vida já reduzida, só pra calcular o ganho de Fadiga deste
-            // golpe com o dado mais atual possível — nunca é gravada, só usada localmente aqui.
-            const fichaSimulada = { ...fichaAlvo, vida: { ...(fichaAlvo.vida || {}), atual: novaVida } };
+            // Ficha "simulada" com a Vida já reduzida (e o elemento deste golpe já registrado), só
+            // pra calcular o ganho de Fadiga deste golpe com o dado mais atual possível — nunca é
+            // gravada, só usada localmente aqui.
+            const fichaSimulada = {
+                ...fichaAlvo,
+                vida: { ...(fichaAlvo.vida || {}), atual: novaVida },
+                combate: { ...(fichaAlvo.combate || {}), ultimoElementoRecebido: elemento || null }
+            };
             const fadigaExtraAtual = Math.max(0, Number(fichaAlvo.combate?.fadigaExtra) || 0);
             const novaFadigaExtra = fadigaExtraAtual + calcularGanhoFadigaDinamico(fichaSimulada);
 
             aplicarDanoDireto(alvo.nome, novaVida);
             aplicarFadigaDireta(alvo.nome, novaFadigaExtra);
+            aplicarElementoDireto(alvo.nome, elemento || null);
         }
 
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O Mestre aplicou ${valor} de dano em ${alvo.nome}!` });

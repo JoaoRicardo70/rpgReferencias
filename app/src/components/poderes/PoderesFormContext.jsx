@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useRef, useMemo, useEffect,
 import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes';
 import { salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync';
+import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
+import { calcularGanhoFadigaOvercharge, calcularMultiplicadorOvercharge } from '../../core/dominios';
 
 export const SINGULAR = {
     'habilidade': 'Habilidade',
@@ -234,25 +236,14 @@ export function PoderesFormProvider({ children }) {
     }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, pastaPoder, cancelarEdicaoPoder]);
 
     const togglePoder = useCallback((id) => {
-        const vitais = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
-
         updateFicha((ficha) => {
             if (!ficha.poderes) return;
             const p = ficha.poderes.find(po => po.id === id);
             if (!p) return;
 
-            const oldM = {};
-            vitais.forEach(v => { oldM[v] = getMaximo(ficha, v) || 1; });
-
+            const oldM = capturarMaximosAtuais(ficha);
             p.ativa = !p.ativa;
-
-            vitais.forEach(k => {
-                const nMax = getMaximo(ficha, k) || 1;
-                let atu = parseFloat(ficha[k].atual);
-                if (isNaN(atu)) atu = nMax;
-                ficha[k].atual = Math.floor(atu * (nMax / oldM[k]));
-                if (isNaN(ficha[k].atual) || ficha[k].atual < 0 || ficha[k].atual > nMax) ficha[k].atual = nMax;
-            });
+            rescalarVitaisProporcional(ficha, oldM);
         });
 
         salvarFichaSilencioso();
@@ -335,20 +326,12 @@ export function PoderesFormProvider({ children }) {
     }, [updateFicha]);
 
     const ativarFormaPoder = useCallback((poderId, formaId) => {
-        const vitais = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
         updateFicha((ficha) => {
             const p = (ficha.poderes || []).find(po => po.id === poderId);
             if (!p) return;
-            const oldM = {};
-            vitais.forEach(v => { oldM[v] = getMaximo(ficha, v) || 1; });
+            const oldM = capturarMaximosAtuais(ficha);
             p.formaAtivaId = formaId;
-            vitais.forEach(k => {
-                const nMax = getMaximo(ficha, k) || 1;
-                let atu = parseFloat(ficha[k].atual);
-                if (isNaN(atu)) atu = nMax;
-                ficha[k].atual = Math.floor(atu * (nMax / oldM[k]));
-                if (isNaN(ficha[k].atual) || ficha[k].atual < 0 || ficha[k].atual > nMax) ficha[k].atual = nMax;
-            });
+            rescalarVitaisProporcional(ficha, oldM);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
@@ -459,24 +442,37 @@ export function PoderesFormProvider({ children }) {
     const mPotencial = minhaFicha?.dano?.mPotencial || 1;
     const danoBruto = minhaFicha?.dano?.danoBruto || 0;
 
+    // 🎓 DOMÍNIO ELEMENTAL (página 3 da Ficha, ficha.dominios) aplicado ao Overcharge de Técnicas
+    // Elementais — ver core/dominios.js: quanto maior o nível do Domínio do elemento desta
+    // técnica, MENOR o multiplicador de custo do Overcharge (2.0x sem domínio até 1.2x no nível
+    // máximo) E MENOR a Fadiga instantânea que o Overcharge gera (zero no nível máximo, "Eterno").
+    // Dá uma razão concreta e recorrente pra treinar a Hierarquia de Domínios.
     const dispararAtaque = useCallback((poder) => {
         let custoFinalPerc = poder.custoPercentual || 0;
         const vertenteLower = (poder.vertente || '').toLowerCase();
-        const isHabilidadeElemental = vertenteLower.includes('elemental'); 
+        const isHabilidadeElemental = vertenteLower.includes('elemental');
+        const multOvercharge = isHabilidadeElemental ? calcularMultiplicadorOvercharge(minhaFicha, poder.elemento) : 2;
+        const overchargeGeraFadiga = isHabilidadeElemental && overchargeAtivo;
 
         if (isHabilidadeElemental) {
-            custoFinalPerc = overchargeAtivo ? (poder.custoPercentual * 2) : 0;
+            custoFinalPerc = overchargeAtivo ? (poder.custoPercentual * multOvercharge) : 0;
         }
 
-        if (custoFinalPerc > 0) {
+        if (custoFinalPerc > 0 || overchargeGeraFadiga) {
             updateFicha(ficha => {
-                ['mana', 'aura', 'chakra'].forEach(v => {
-                    let max = getMaximo(ficha, v);
-                    let drain = Math.floor(max * (custoFinalPerc / 100));
-                    let curr = ficha[v]?.atual !== undefined ? ficha[v].atual : max;
-                    if (!ficha[v]) ficha[v] = {};
-                    ficha[v].atual = Math.max(0, curr - drain);
-                });
+                if (custoFinalPerc > 0) {
+                    ['mana', 'aura', 'chakra'].forEach(v => {
+                        let max = getMaximo(ficha, v);
+                        let drain = Math.floor(max * (custoFinalPerc / 100));
+                        let curr = ficha[v]?.atual !== undefined ? ficha[v].atual : max;
+                        if (!ficha[v]) ficha[v] = {};
+                        ficha[v].atual = Math.max(0, curr - drain);
+                    });
+                }
+                if (overchargeGeraFadiga) {
+                    if (!ficha.combate) ficha.combate = {};
+                    ficha.combate.fadigaExtra = Math.max(0, (Number(ficha.combate.fadigaExtra) || 0) + calcularGanhoFadigaOvercharge(ficha, poder.elemento));
+                }
             });
             salvarFichaSilencioso();
         }
@@ -493,7 +489,7 @@ export function PoderesFormProvider({ children }) {
                 msg += `   ↳ Multiplicador Potencial Aplicado: x${mPotencial}\n`;
                 let danoTotalFlat = Math.floor((danoBruto + energiaElemental) * mPotencial);
                 msg += `💥 Dano Flat Estimado (Sem os dados): ${danoTotalFlat}\n`;
-                msg += `🔻 Custo Aplicado: ${custoFinalPerc}% drenado da Mana, Aura e Chakra.\n`;
+                msg += `🔻 Custo Aplicado: ${custoFinalPerc.toFixed(1)}% drenado da Mana, Aura e Chakra (x${multOvercharge.toFixed(2)}, pelo seu Domínio de ${poder.elemento || '?'}).\n`;
             } else {
                 let danoTotalFlat = danoBruto + energiaElemental;
                 msg += `💥 Dano Flat Estimado (Sem os dados): ${danoTotalFlat}\n`;
@@ -508,7 +504,7 @@ export function PoderesFormProvider({ children }) {
         alert(msg);
         setPoderPreparandoId(null);
         setOverchargeAtivo(false);
-    }, [overchargeAtivo, updateFicha, danoBruto, energiaElemental, mPotencial]);
+    }, [overchargeAtivo, updateFicha, danoBruto, energiaElemental, mPotencial, minhaFicha]);
 
     const injetarJsonDaIA = useCallback((jsonString) => {
         try {

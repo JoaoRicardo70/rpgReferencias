@@ -13,7 +13,10 @@ const ATRIBUTOS_PODERES = [
     { label: '⚡ POTÊNCIA DO SCOUTER', options: ['poder_direto'] }
 ];
 
-const ELEMENTOS_OPCOES = [
+// Exportada pra reuso no seletor "Elemento do Dano" do Dano Rápido do Mestre (ver
+// MapaFerramentasMestre.jsx > MapaMestreDanoRapido) — mesma grafia usada nas Técnicas Elementais
+// aqui, essencial pra bater com o nome do Domínio treinado na Hierarquia (página 3 da Ficha).
+export const ELEMENTOS_OPCOES = [
     { label: 'Elementos Básicos', opcoes: ['Fogo', 'Agua', 'Raio', 'Terra', 'Vento'] },
     { label: 'Básicos Verdadeiros', opcoes: ['Fogo Verdadeiro', 'Agua Verdadeira', 'Raio Verdadeiro', 'Terra Verdadeira', 'Vento Verdadeiro'] },
     { label: 'Elementos Avançados', opcoes: ['Solar', 'Energia', 'Gelo', 'Vacuo', 'Natureza'] },

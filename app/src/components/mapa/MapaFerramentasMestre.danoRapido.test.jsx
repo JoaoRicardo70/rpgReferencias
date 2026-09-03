@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaFormProvider } from './MapaFormContext';
 import { MapaMestreDanoRapido } from './MapaFerramentasMestre';
 import useStore from '../../stores/useStore';
-import { salvarDummie, aplicarDanoDireto, aplicarFadigaDireta, salvarFichaSilencioso, enviarParaFeed } from '../../services/firebase-sync';
+import { salvarDummie, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, salvarFichaSilencioso, enviarParaFeed } from '../../services/firebase-sync';
 
 // ==========================================================================
 // NOTA DE ESCOPO:
@@ -27,6 +27,7 @@ vi.mock('../../services/firebase-sync', () => ({
     zerarIniciativaGlobal: vi.fn(),
     aplicarDanoDireto: vi.fn(),
     aplicarFadigaDireta: vi.fn(),
+    aplicarElementoDireto: vi.fn(),
 }));
 
 let storeState;
@@ -126,7 +127,8 @@ describe('MapaMestreDanoRapido — aplicar dano', () => {
         mockUseStore(baseState({ dummies: { goblin: { nome: 'Goblin', cenaId: 'default', hpAtual: 30 } } }));
         render(<MapaFormProvider><MapaMestreDanoRapido /></MapaFormProvider>);
 
-        const select = screen.getByRole('combobox');
+        // Duas <select>: alvo (primeira) e elemento do dano (segunda) — pega a de alvo por índice.
+        const select = screen.getAllByRole('combobox')[0];
         fireEvent.change(select, { target: { value: 'goblin' } });
 
         const inputDano = screen.getByDisplayValue('10'); // valor padrão do input de dano
@@ -146,11 +148,30 @@ describe('MapaMestreDanoRapido — aplicar dano', () => {
         }));
         render(<MapaFormProvider><MapaMestreDanoRapido /></MapaFormProvider>);
 
-        const select = screen.getByRole('combobox');
+        // Duas <select>: alvo (primeira) e elemento do dano (segunda) — pega a de alvo por índice.
+        const select = screen.getAllByRole('combobox')[0];
         fireEvent.change(select, { target: { value: 'Vilao' } });
         fireEvent.click(screen.getByText('💥 Aplicar Dano'));
 
         expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 70); // 80 - 10 (padrão)
         expect(salvarFichaSilencioso).not.toHaveBeenCalled();
+        // Sem elemento selecionado (padrão "Físico/Nenhum") -> limpa o campo (null), nunca deixa
+        // undefined/sem chamar (ver aplicarElementoDireto em firebase-sync.js).
+        expect(aplicarElementoDireto).toHaveBeenCalledWith('Vilao', null);
+    });
+
+    it('selecionar um Elemento no dropdown e aplicar dano em OUTRO jogador chama aplicarElementoDireto com o elemento marcado', () => {
+        mockUseStore(baseState({
+            personagens: { Vilao: { posicao: { x: 1, y: 1, z: 0, cenaId: 'default' }, vida: { atual: 80 } } },
+        }));
+        render(<MapaFormProvider><MapaMestreDanoRapido /></MapaFormProvider>);
+
+        const [selectAlvo, selectElemento] = screen.getAllByRole('combobox');
+        fireEvent.change(selectAlvo, { target: { value: 'Vilao' } });
+        fireEvent.change(selectElemento, { target: { value: 'Fogo' } });
+        fireEvent.click(screen.getByText('💥 Aplicar Dano'));
+
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 70);
+        expect(aplicarElementoDireto).toHaveBeenCalledWith('Vilao', 'Fogo');
     });
 });

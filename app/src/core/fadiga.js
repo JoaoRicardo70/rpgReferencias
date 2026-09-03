@@ -3,16 +3,22 @@
 // Poder exibido no Mapa) pra nunca haver dois números diferentes de Fadiga pro mesmo
 // personagem — mesmo motivo/padrão de getMunicoCrescenteMultiplier em core/poder.js.
 //
-// A Fadiga Atual (sempre clampada em 0-100%) soma duas partes:
-//   1) fadigaBase = combate.fadigaTurnos x combate.fadigaPorTurno — o contador manual/stepper
-//      que já existia ("Turnos Cansativos" x Taxa), inalterado.
-//   2) fadigaExtra = combate.fadigaExtra — pontos acumulados AUTOMATICAMENTE a cada retorno do
-//      turno de cada jogador no Mapa (ver MapaFormContext.jsx), calculados a partir de o quão
-//      gasto/ferido/transformado o personagem estava NAQUELE turno específico (ver
-//      calcularGanhoFadigaDinamico abaixo) — cada ganho é somado de uma vez, nunca recalculado
-//      retroativamente.
+// A Fadiga Atual (sempre clampada em 0-100%) é hoje só combate.fadigaExtra — os pontos
+// acumulados AUTOMATICAMENTE a cada retorno do turno de cada jogador no Mapa (ver
+// MapaFormContext.jsx), calculados a partir de o quão gasto/ferido/transformado o personagem
+// estava NAQUELE turno específico (ver calcularGanhoFadigaDinamico abaixo), MAIS qualquer ganho
+// instantâneo aplicado na hora (dano do Mestre, Overcharge de Técnica Elemental — ver
+// core/dominios.js) — cada ganho é somado de uma vez, nunca recalculado retroativamente.
+//
+// combate.fadigaTurnos ("Turnos Cansativos" na Ficha) NÃO entra mais nessa soma: ele volta a subir
+// sozinho a cada turno no Mapa (MapaFormContext.jsx), mas hoje é só um contador informativo de
+// "há quantos turnos esta luta dura" — testado ter fadigaTurnos x fadigaPorTurno somado direto na
+// Fadiga% duplicava o ganho já coberto pela % dinâmica acima, gerando desgaste mesmo em condições
+// ideais (sem gasto de energia, sem dano, Poder suprimido). combate.fadigaPorTurno permanece salvo
+// na ficha só por compatibilidade retroativa, sem efeito nenhum no cálculo abaixo.
 // ==========================================
 import { getMaximo, getBuffs } from './attributes.js';
+import { getFracaoDominio } from './dominios.js';
 
 const ENERGIAS = ['mana', 'aura', 'chakra', 'corpo'];
 const EIXOS_FORMAS = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'];
@@ -46,13 +52,25 @@ function getFatorEnergiaGasta(ficha) {
 // cumulativo de dano recebido durante a luta (curar não "desconta" dano já sofrido de um
 // contador) — é o estado atual, que é o que realmente importa pra o quão cansado/combalido o
 // personagem está entrando no turno seguinte.
+//
+// 🛡️ RESISTÊNCIA ELEMENTAL: o resultado bruto acima é descontado pelo Domínio (página 3 da
+// Ficha, ficha.dominios — ver core/dominios.js) do elemento do ÚLTIMO golpe recebido
+// (combate.ultimoElementoRecebido, setado por quem aplica o dano — ver aplicarDanoRapido em
+// MapaFormContext.jsx). Um personagem com Domínio nível 10 ("Eterno") sobre o elemento que acabou
+// de levar não fica NADA mais cansado por causa daquele dano especificamente — ainda perde a
+// Vida normalmente, só não some tanto pela Fadiga. Sem nenhum elemento registrado no último golpe,
+// ou sem Domínio nenhum sobre ele, comporta-se exatamente como antes (sem desconto).
 function getFatorVidaPerdida(ficha) {
     if (!ficha || !ficha.vida) return 0;
     const max = getMaximo(ficha, 'vida') || 0;
     if (max <= 0) return 0;
     const atualBruto = parseFloat(ficha.vida.atual);
     const atual = isNaN(atualBruto) ? max : atualBruto;
-    return Math.min(1, Math.max(0, 1 - (atual / max)));
+    const bruto = Math.min(1, Math.max(0, 1 - (atual / max)));
+    const elementoRecebido = ficha?.combate?.ultimoElementoRecebido;
+    if (!elementoRecebido) return bruto;
+    const resistencia = getFracaoDominio(ficha, elementoRecebido);
+    return bruto * (1 - resistencia);
 }
 
 // 0 (nenhuma Forma ativa aumentando atributos) a 1 (mFormas efetivo somando +100% ou mais em
@@ -185,16 +203,13 @@ export function calcularGanhoFadigaDinamico(ficha) {
     } catch (e) { return 0; }
 }
 
-// Fadiga Atual final (0-100%): fadigaBase (contador manual x taxa) + fadigaExtra (pontos
-// dinâmicos já acumulados). Réplica exata do bloco antes duplicado em Marcados.jsx e
-// core/poder.js > calcularPoderAtual — agora os dois chamam esta função em vez de calcular cada
-// um a sua própria cópia (mesmo motivo do getMunicoCrescenteMultiplier: nunca deixar duas fontes
-// de verdade pro mesmo número divergirem).
+// Fadiga Atual final (0-100%): combate.fadigaExtra (pontos dinâmicos + instantâneos já
+// acumulados), clampado. Réplica exata do bloco antes duplicado em Marcados.jsx e core/poder.js >
+// calcularPoderAtual — agora os dois chamam esta função em vez de calcular cada um a sua própria
+// cópia (mesmo motivo do getMunicoCrescenteMultiplier: nunca deixar duas fontes de verdade pro
+// mesmo número divergirem). combate.fadigaTurnos/fadigaPorTurno NÃO entram mais aqui (ver
+// cabeçalho do arquivo) — fadigaTurnos hoje é só um contador informativo de turnos em combate.
 export function calcularFadigaAtual(ficha) {
-    const fadigaTaxaBruta = Number(ficha?.combate?.fadigaPorTurno);
-    const fadigaTaxa = isNaN(fadigaTaxaBruta) ? 5 : fadigaTaxaBruta;
-    const fadigaTurnos = Math.max(0, Number(ficha?.combate?.fadigaTurnos) || 0);
-    const fadigaBase = fadigaTurnos * fadigaTaxa;
     const fadigaExtra = Math.max(0, Number(ficha?.combate?.fadigaExtra) || 0);
-    return Math.min(100, Math.max(0, fadigaBase + fadigaExtra));
+    return Math.min(100, Math.max(0, fadigaExtra));
 }

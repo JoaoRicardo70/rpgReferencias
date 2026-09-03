@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { salvarFichaSilencioso } from '../../services/firebase-sync';
-import { getMaximo } from '../../core/attributes';
+import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 
 export const ARMA_TIPOS = ['espada', 'arco', 'lança', 'machado', 'adaga', 'cajado', 'arma de fogo', 'manopla', 'foice', 'chicote', 'martelo', 'escudo'];
 export const RARIDADES = ['comum', 'rara', 'avançada', 'lendaria', 'lendaria (Longuinus)', 'espiritual', 'fantasma nobre'];
@@ -240,23 +240,15 @@ export function ArsenalFormProvider({ children }) {
     }, [updateFicha]);
 
     const ativarFormaItem = useCallback((itemId, formaId, configId = null) => {
-        const vitais = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
         updateFicha((ficha) => {
             const item = (ficha.inventario || []).find(i => i.id === itemId);
             if (!item) return;
-            const oldM = {};
-            vitais.forEach(v => { oldM[v] = getMaximo(ficha, v) || 1; });
+            const oldM = capturarMaximosAtuais(ficha);
 
             item.formaAtivaId = formaId;
             item.configAtivaId = configId;
 
-            vitais.forEach(k => {
-                const nMax = getMaximo(ficha, k) || 1;
-                let atu = parseFloat(ficha[k].atual);
-                if (isNaN(atu)) atu = nMax;
-                ficha[k].atual = Math.floor(atu * (nMax / oldM[k]));
-                if (isNaN(ficha[k].atual) || ficha[k].atual < 0 || ficha[k].atual > nMax) ficha[k].atual = nMax;
-            });
+            rescalarVitaisProporcional(ficha, oldM);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);

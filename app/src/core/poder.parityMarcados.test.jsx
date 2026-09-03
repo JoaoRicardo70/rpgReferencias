@@ -101,8 +101,8 @@ describe('core/poder - calcularPoderAtual: paridade real com Ficha Def/Marcados.
         vi.clearAllMocks();
     });
 
-    it('concorda com o Poder Calculado exibido no Scouter da Ficha para 35% de Fadiga (7 turnos x 5%/turno)', () => {
-        const combateExtra = { fadigaTurnos: 7, fadigaPorTurno: 5 };
+    it('concorda com o Poder Calculado exibido no Scouter da Ficha para 35% de Fadiga (fadigaExtra)', () => {
+        const combateExtra = { fadigaExtra: 35 };
         const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaParaMarcados(combateExtra));
         const poderDoCore = calcularPoderAtual(fichaParaMarcados(combateExtra), 1).poderGlobal;
 
@@ -116,8 +116,18 @@ describe('core/poder - calcularPoderAtual: paridade real com Ficha Def/Marcados.
         expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
     });
 
+    it('combate.fadigaTurnos/fadigaPorTurno altos sozinhos NÃO afetam o Poder em nenhum dos dois lados (contador só informativo)', () => {
+        const combateExtra = { fadigaTurnos: 1000, fadigaPorTurno: 50, fadigaExtra: 0 };
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaParaMarcados(combateExtra));
+        const poderDoCore = calcularPoderAtual(fichaParaMarcados(combateExtra), 1).poderGlobal;
+        const poderSemCombate = calcularPoderAtual(fichaParaMarcados(undefined), 1).poderGlobal;
+
+        expect(poderDoCore).toBe(poderSemCombate);
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
+
     it('concorda com o Poder Calculado exibido no Scouter da Ficha em 100% de Fadiga (clamp, poder zerado)', () => {
-        const combateExtra = { fadigaTurnos: 1000, fadigaPorTurno: 50 };
+        const combateExtra = { fadigaExtra: 50000 };
         const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaParaMarcados(combateExtra));
         const poderDoCore = calcularPoderAtual(fichaParaMarcados(combateExtra), 1).poderGlobal;
 
@@ -127,29 +137,22 @@ describe('core/poder - calcularPoderAtual: paridade real com Ficha Def/Marcados.
 
     // -----------------------------------------------------------------------
     // fadigaExtra (core/fadiga.js): pontos ganhos AUTOMATICAMENTE no Mapa
-    // (energia gasta / vida perdida / Formas ativas), somados EM CIMA da
-    // fadigaBase (fadigaTurnos x fadigaPorTurno) manual — calcularFadigaAtual
-    // é a única fonte de verdade pros dois, então core/poder.js e Marcados.jsx
-    // precisam continuar concordando mesmo combinando as duas partes.
+    // (energia gasta / vida perdida / Formas ativas) — hoje é a ÚNICA fonte da
+    // Fadiga% (combate.fadigaTurnos/fadigaPorTurno não entram mais na conta,
+    // ver core/fadiga.js > calcularFadigaAtual). calcularFadigaAtual é a única
+    // fonte de verdade, então core/poder.js e Marcados.jsx precisam continuar
+    // concordando.
     // -----------------------------------------------------------------------
-    it('concorda com o Poder Calculado exibido no Scouter quando SÓ fadigaExtra está presente (sem fadigaTurnos)', () => {
-        const combateExtra = { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 12.5 };
+    it('concorda com o Poder Calculado exibido no Scouter quando fadigaExtra está presente', () => {
+        const combateExtra = { fadigaExtra: 12.5 };
         const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaParaMarcados(combateExtra));
         const poderDoCore = calcularPoderAtual(fichaParaMarcados(combateExtra), 1).poderGlobal;
 
         expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
     });
 
-    it('concorda com o Poder Calculado exibido no Scouter combinando fadigaTurnos/fadigaPorTurno (base) COM fadigaExtra (dinâmica) somados', () => {
-        const combateExtra = { fadigaTurnos: 5, fadigaPorTurno: 5, fadigaExtra: 10 }; // base 25% + extra 10% = 35%
-        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaParaMarcados(combateExtra));
-        const poderDoCore = calcularPoderAtual(fichaParaMarcados(combateExtra), 1).poderGlobal;
-
-        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
-    });
-
-    it('concorda com o Poder Calculado exibido no Scouter quando a SOMA de base + fadigaExtra estoura 100% (clamp conjunto, poder zerado nos dois lados)', () => {
-        const combateExtra = { fadigaTurnos: 15, fadigaPorTurno: 5, fadigaExtra: 50 }; // 75% + 50% = 125% -> clamp 100%
+    it('concorda com o Poder Calculado exibido no Scouter quando fadigaExtra estoura 100% (clamp conjunto, poder zerado nos dois lados)', () => {
+        const combateExtra = { fadigaExtra: 125 };
         const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaParaMarcados(combateExtra));
         const poderDoCore = calcularPoderAtual(fichaParaMarcados(combateExtra), 1).poderGlobal;
 

@@ -4,13 +4,15 @@ import MarcadosPanel from './Marcados';
 import useStore from '../../stores/useStore';
 
 // ---------------------------------------------------------------------------
-// QA — Fadiga de Combate: desgaste acumulado (combate.fadigaTurnos x
-// combate.fadigaPorTurno, clampado em 100%) reduz proporcionalmente o Poder
-// Calculado do Scouter, aplicado logo após o damping de Supressão e antes do
-// Divisor de Poder (ver poderGlobal em Marcados.jsx). Uma ficha sem o campo
-// `combate` (ou com fadigaTurnos=0) precisa continuar produzindo exatamente a
-// mesma leitura de antes desta feature — nenhuma ficha existente pode ter o
-// Poder alterado sem o jogador interagir com a seção de Fadiga.
+// QA — Fadiga de Combate: desgaste acumulado (hoje só combate.fadigaExtra,
+// clampado em 100% — ver core/fadiga.js; combate.fadigaTurnos/fadigaPorTurno
+// não afetam mais o Poder, são só um contador informativo de turnos em
+// combate) reduz proporcionalmente o Poder Calculado do Scouter, aplicado
+// logo após o damping de Supressão e antes do Divisor de Poder (ver
+// poderGlobal em Marcados.jsx). Uma ficha sem o campo `combate` (ou com
+// fadigaExtra=0) precisa continuar produzindo exatamente a mesma leitura de
+// antes desta feature — nenhuma ficha existente pode ter o Poder alterado sem
+// o jogador interagir com a seção de Fadiga.
 //
 // A seção de Fadiga morava em ClassificacaoPanel.jsx > PaginaMarcadores
 // (Capítulo 2, página 4 da Ficha Definitiva) e foi realocada pro mestre pra
@@ -90,16 +92,23 @@ describe('MarcadosPanel — Fadiga de Combate reduz o Poder Calculado do Scouter
         cleanup();
     });
 
-    it('ficha sem o campo combate produz a MESMA leitura que combate.fadigaTurnos=0 (sem fadiga = sem alteração no Poder)', () => {
+    it('ficha sem o campo combate produz a MESMA leitura que combate.fadigaExtra=0 (sem fadiga = sem alteração no Poder)', () => {
         const semCombate = renderELerPoderGlobal(undefined);
-        const comZeroTurnos = renderELerPoderGlobal({ fadigaTurnos: 0, fadigaPorTurno: 5 });
+        const comZeroExtra = renderELerPoderGlobal({ fadigaExtra: 0 });
 
-        expect(comZeroTurnos).toBe(semCombate);
+        expect(comZeroExtra).toBe(semCombate);
     });
 
-    it('50% de fadiga (10 turnos x 5%/turno) reduz o Poder Calculado a aproximadamente metade do valor sem fadiga', () => {
+    it('combate.fadigaTurnos/fadigaPorTurno alto sozinho NÃO reduz o Poder Calculado — só fadigaExtra conta', () => {
         const semFadiga = renderELerPoderGlobal(undefined);
-        const com50PorCento = renderELerPoderGlobal({ fadigaTurnos: 10, fadigaPorTurno: 5 });
+        const comTurnosAltos = renderELerPoderGlobal({ fadigaTurnos: 999, fadigaPorTurno: 50, fadigaExtra: 0 });
+
+        expect(comTurnosAltos).toBe(semFadiga);
+    });
+
+    it('50% de fadigaExtra reduz o Poder Calculado a aproximadamente metade do valor sem fadiga', () => {
+        const semFadiga = renderELerPoderGlobal(undefined);
+        const com50PorCento = renderELerPoderGlobal({ fadigaExtra: 50 });
 
         expect(com50PorCento).toBeLessThan(semFadiga);
         const razao = com50PorCento / semFadiga;
@@ -107,18 +116,11 @@ describe('MarcadosPanel — Fadiga de Combate reduz o Poder Calculado do Scouter
         expect(razao).toBeLessThan(0.51);
     });
 
-    it('fadiga clampa em 100% (nunca ultrapassa) mesmo com turnos x taxa somando muito mais que 100', () => {
-        const com100PorCento = renderELerPoderGlobal({ fadigaTurnos: 1000, fadigaPorTurno: 50 }); // 1000*50=50000 -> clamp 100
-        const comExatos100 = renderELerPoderGlobal({ fadigaTurnos: 20, fadigaPorTurno: 5 }); // 20*5=100, sem estourar
+    it('fadiga clampa em 100% (nunca ultrapassa) mesmo com fadigaExtra muito acima de 100', () => {
+        const com100PorCento = renderELerPoderGlobal({ fadigaExtra: 50000 });
+        const comExatos100 = renderELerPoderGlobal({ fadigaExtra: 100 });
 
         expect(com100PorCento).toBe(comExatos100);
-    });
-
-    it('fadigaPorTurno ausente usa o padrão de 5%/turno (mesmo padrão do slider em PaginaMarcadores)', () => {
-        const comPadraoExplicito = renderELerPoderGlobal({ fadigaTurnos: 4 }); // fadigaPorTurno ausente -> default 5 -> 20%
-        const com20PorCentoExplicito = renderELerPoderGlobal({ fadigaTurnos: 4, fadigaPorTurno: 5 });
-
-        expect(comPadraoExplicito).toBe(com20PorCentoExplicito);
     });
 });
 
@@ -140,7 +142,7 @@ describe('MarcadosPanel — Fadiga de Combate: seção visível na Página 1 (se
         expect(screen.getByText('😮‍💨 Fadiga de Combate')).toBeTruthy();
     });
 
-    it('clicar "+" nos Turnos Cansativos incrementa combate.fadigaTurnos e a Fadiga Atual exibida reflete turnos x taxa', () => {
+    it('clicar "+" nos Turnos Cansativos incrementa combate.fadigaTurnos, mas NÃO altera a Fadiga Atual exibida (contador só informativo — quem gera % é fadigaExtra)', () => {
         const ficha = fichaComFadiga({ fadigaTurnos: 0, fadigaPorTurno: 5 });
         montarMockUseStore(ficha);
         const { rerender } = render(<MarcadosPanel />);
@@ -156,7 +158,7 @@ describe('MarcadosPanel — Fadiga de Combate: seção visível na Página 1 (se
         // updateFicha (mockado) muta `ficha` direto, sem disparar re-render do React
         // sozinho — força um rerender() manual pra observar o efeito da mutação na UI.
         rerender(<MarcadosPanel />);
-        expect(screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === '5%')).toBeTruthy();
+        expect(screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === '0%')).toBeTruthy();
     });
 
     it('"Zerar Fadiga" zera combate.fadigaTurnos', () => {

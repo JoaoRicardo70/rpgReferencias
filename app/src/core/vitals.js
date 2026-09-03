@@ -8,6 +8,44 @@ import { getPrestigioReal } from './prestige.js';
 
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 const VITAIS_REGENERAVEIS = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'pv', 'pm'];
+const VITAIS_PRINCIPAIS = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
+
+// ==========================================
+// RESCALA PROPORCIONAL AO ATIVAR/DESATIVAR FORMAS — réplica única usada por togglePoder e
+// ativarFormaPoder (components/poderes/PoderesFormContext.jsx) e ativarFormaItem
+// (components/arsenal/ArsenalFormContext.jsx), que antes duplicavam esta mesma lógica 3x cada
+// uma com sua própria cópia. Preserva a PORCENTAGEM de "atual" quando o MÁXIMO calculado
+// (getMaximo, que já soma mFormas/buffs de Formas ativas) muda: se o máximo dobra ao ativar uma
+// Forma, o atual também dobra, mantendo a mesma fração cheia/vazia — e vice-versa ao desativar.
+//
+// 🛡️ CORREÇÃO: nunca deixa "atual" ser reduzido quando o máximo NÃO encolheu (novoMax >= oldMax).
+// Antes, o rescale proporcional (atual * novoMax/oldMax, sempre arredondado pra baixo) podia
+// "drenar" um pouco de energia mesmo ATIVANDO uma Forma — por exemplo, se "atual" já estivesse
+// fracionário por qualquer motivo (edição manual, alguma conta anterior não inteira), qualquer
+// toggle — inclusive de uma Forma que nem afeta aquele vital (razão exatamente 1) — arredondava
+// pra baixo o valor fracionário, perdendo um pouco a cada ativação. Agora só reduz "atual" quando
+// o máximo de fato encolhe (Forma sendo desativada, ou um efeito propositalmente negativo).
+// ==========================================
+export function capturarMaximosAtuais(ficha, vitais = VITAIS_PRINCIPAIS) {
+    const maximos = {};
+    vitais.forEach(v => { maximos[v] = getMaximo(ficha, v) || 1; });
+    return maximos;
+}
+
+export function rescalarVitaisProporcional(ficha, maximosAntigos, vitais = VITAIS_PRINCIPAIS) {
+    if (!ficha || !maximosAntigos) return;
+    vitais.forEach(k => {
+        if (!ficha[k]) return;
+        const oldMax = maximosAntigos[k] || 1;
+        const novoMax = getMaximo(ficha, k) || 1;
+        let atual = parseFloat(ficha[k].atual);
+        if (isNaN(atual)) atual = novoMax;
+        let novoAtual = Math.floor(atual * (novoMax / oldMax));
+        if (novoMax >= oldMax && novoAtual < atual) novoAtual = atual;
+        if (isNaN(novoAtual) || novoAtual < 0 || novoAtual > novoMax) novoAtual = novoMax;
+        ficha[k].atual = novoAtual;
+    });
+}
 
 function getBasePFor(ficha, k) {
     if (k === 'status') {
@@ -86,4 +124,5 @@ export function descansarCompleto(ficha) {
     ficha.combate.fadigaTurnos = 0;
     ficha.combate.fadigaExtra = 0;
     ficha.combate.municoTurnos = 0;
+    delete ficha.combate.ultimoElementoRecebido;
 }

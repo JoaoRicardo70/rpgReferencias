@@ -3,7 +3,7 @@ import { render, cleanup, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaFormProvider, useMapaForm } from './MapaFormContext';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, aplicarDanoDireto, aplicarFadigaDireta } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto } from '../../services/firebase-sync';
 
 // ---------------------------------------------------------------------------
 // QA — descansar() e aplicarDanoRapido() (MapaFormContext.jsx)
@@ -25,6 +25,7 @@ vi.mock('../../services/firebase-sync', () => ({
     zerarIniciativaGlobal: vi.fn(),
     aplicarDanoDireto: vi.fn(),
     aplicarFadigaDireta: vi.fn(),
+    aplicarElementoDireto: vi.fn(),
 }));
 
 let storeState;
