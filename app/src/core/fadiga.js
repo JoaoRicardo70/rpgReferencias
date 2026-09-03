@@ -17,10 +17,12 @@ import { getMaximo, getBuffs } from './attributes.js';
 const ENERGIAS = ['mana', 'aura', 'chakra', 'corpo'];
 const EIXOS_FORMAS = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'];
 
-// Peso máximo (em pontos percentuais de Fadiga) que a soma dos 3 fatores pode render num único
+// Peso PADRÃO (em pontos percentuais de Fadiga) que a soma dos 3 fatores pode render num único
 // turno, no pior caso (100% de energia gasta + 100% da vida perdida + mFormas todo saturado ao
-// mesmo tempo). Decisão de balanceamento, não extraído de nenhuma fórmula pré-existente.
-const PESO_MAX_DINAMICO = 15;
+// mesmo tempo), usado quando NENHUMA Forma está ativa. Decisão de balanceamento, não extraído de
+// nenhuma fórmula pré-existente. Com uma Forma ativa, este peso é substituído pelo campo editável
+// fadigaPorUso dela — ver getPesoFadigaFormasAtivas mais abaixo.
+const PESO_MAX_DINAMICO_PADRAO = 15;
 
 // 0 (energias cheias) a 1 (todas as 4 energias — mana/aura/chakra/corpo — zeradas). Vida fica de
 // fora daqui de propósito: ela tem seu próprio fator (getFatorVidaPerdida) — "energia gasta" e
@@ -63,13 +65,9 @@ function getFatorVidaPerdida(ficha) {
 //
 // 🥋 MAESTRIA NAS FORMAS: o resultado bruto acima é descontado pela Maestria média das Formas
 // (categoria === 'forma' em ficha.poderes[]) atualmente ATIVAS. Maestria = 100% numa Forma ativa
-// zera a contribuição dela pra este fator, como antes. NOVO: se a Supressão de Poder atual do
-// personagem estiver EM OU ABAIXO da própria Maestria daquela Forma (ex.: Supressão 50% e
-// Maestria 50%, ou Supressão 50% e Maestria 60%), a Forma some do cálculo por completo — usá-la
-// enquanto já suprime o Poder numa medida compatível com o quanto ela é dominada não deveria gerar
-// NENHUMA Fadiga extra, não só uma fração dela. Acima desse ponto (Supressão maior que a
-// Maestria), volta a valer o desconto linear normal. Ver getMaestriaMediaFormasAtivas/
-// getSupressaoClampeada logo abaixo.
+// zera a contribuição dela pra este fator. O gatilho "Supressão até a Maestria = zero Fadiga" NÃO
+// vive mais aqui — ele agora é geral (afeta a Fadiga inteira, não só este fator) e fica em
+// getLimiarSemFadiga/getFatorPoderUsado mais abaixo.
 function getFatorFormasAtivas(ficha) {
     if (!ficha) return 0;
     let soma = 0;
@@ -83,30 +81,45 @@ function getFatorFormasAtivas(ficha) {
     });
     const bruto = Math.min(1, Math.max(0, soma));
     const maestriaMedia = getMaestriaMediaFormasAtivas(ficha); // 0-100
-    if (maestriaMedia > 0 && getSupressaoClampeada(ficha) <= maestriaMedia) return 0;
     return bruto * (1 - maestriaMedia / 100);
 }
 
-// Maestria (0-100%) das Formas ATIVAS no momento — "Forma" aqui é a categoria de primeira classe
-// em ficha.poderes[] (categoria === 'forma', a mesma aba "🎭 Formas" do Grimório de Poderes), NÃO
-// as sub-transformações aninhadas de FormasEditor.jsx (formaAtivaId/.formas[] usado por armas do
-// Arsenal e Seres Selados) — a Maestria é editada junto com o resto da própria Forma (nome,
-// descrição, efeitos) no formulário principal de Poderes, não num painel separado. Média simples
-// entre todas as Formas ativas ao mesmo tempo (o caso comum é UMA só). Sem nenhuma Forma ativa, ou
-// nenhuma delas com maestria definida, retorna 0 (sem desconto, comportamento igual ao de antes da
-// Maestria existir).
-function getMaestriaMediaFormasAtivas(ficha) {
-    if (!ficha || !ficha.poderes) return 0;
-    const maestrias = [];
-    ficha.poderes.forEach(p => {
-        if (!p || !p.ativa) return;
-        if ((p.categoria || '').toLowerCase() !== 'forma') return;
-        const m = parseFloat(p.maestria);
-        maestrias.push(isNaN(m) ? 0 : Math.min(100, Math.max(0, m)));
-    });
+// Formas (categoria === 'forma' em ficha.poderes[], a mesma aba "🎭 Formas" do Grimório de
+// Poderes) atualmente ATIVAS — NÃO as sub-transformações aninhadas de FormasEditor.jsx
+// (formaAtivaId/.formas[] usado por armas do Arsenal e Seres Selados). Compartilhada por
+// getMaestriaMediaFormasAtivas e getPesoFadigaFormasAtivas.
+function getFormasAtivasComMaestria(ficha) {
+    if (!ficha || !ficha.poderes) return [];
+    return ficha.poderes.filter(p => p && p.ativa && (p.categoria || '').toLowerCase() === 'forma');
+}
 
-    if (maestrias.length === 0) return 0;
+// Maestria (0-100%) das Formas ATIVAS no momento — editada junto com o resto da própria Forma
+// (nome, descrição, efeitos) no formulário principal de Poderes, não num painel separado. Média
+// simples entre todas as Formas ativas ao mesmo tempo (o caso comum é UMA só). Sem nenhuma Forma
+// ativa, ou nenhuma delas com maestria definida, retorna 0.
+function getMaestriaMediaFormasAtivas(ficha) {
+    const formas = getFormasAtivasComMaestria(ficha);
+    if (formas.length === 0) return 0;
+    const maestrias = formas.map(p => {
+        const m = parseFloat(p.maestria);
+        return isNaN(m) ? 0 : Math.min(100, Math.max(0, m));
+    });
     return maestrias.reduce((a, b) => a + b, 0) / maestrias.length;
+}
+
+// 🥋 Peso de Fadiga por uso ACIMA da Maestria — campo editável POR Forma (fadigaPorUso, em pontos
+// percentuais de Fadiga, mesma unidade/escala de PESO_MAX_DINAMICO_PADRAO). Com uma ou mais Formas
+// ativas, o peso padrão de 15 é substituído pela média do fadigaPorUso das Formas ativas (Formas
+// sem o campo definido usam o próprio padrão de 15 como fallback) — cada Forma pode ser configurada
+// pra ser mais ou menos cansativa de sustentar além do ponto que o personagem já domina.
+function getPesoFadigaFormasAtivas(ficha) {
+    const formas = getFormasAtivasComMaestria(ficha);
+    if (formas.length === 0) return PESO_MAX_DINAMICO_PADRAO;
+    const pesos = formas.map(p => {
+        const w = parseFloat(p.fadigaPorUso);
+        return isNaN(w) ? PESO_MAX_DINAMICO_PADRAO : Math.max(0, w);
+    });
+    return pesos.reduce((a, b) => a + b, 0) / pesos.length;
 }
 
 // Supressão de Poder (0-100), já clampada no mínimo permitido (limiteSupressao) — réplica do
@@ -123,18 +136,34 @@ function getSupressaoClampeada(ficha) {
     return Math.min(100, Math.max(0, sup));
 }
 
-// LIMIAR_SEM_FADIGA: usando até este tanto do Poder (inclusive), o personagem não acumula
-// NENHUMA Fadiga dinâmica — só acima disso a Fadiga começa a aparecer, crescendo linearmente até
-// o valor cheio em 100% de Poder liberado. Antes, a escala era linear desde 0% (usar 10% do Poder
-// já gerava um pouco de Fadiga); agora só o trecho "livre" (0% a 80%) fica de fora por completo.
-const LIMIAR_SEM_FADIGA = 80;
+// LIMIAR_SEM_FADIGA_PADRAO: sem nenhuma Forma ativa, usando até este tanto do Poder (inclusive), o
+// personagem não acumula NENHUMA Fadiga dinâmica — só acima disso a Fadiga começa a aparecer,
+// crescendo linearmente até o valor cheio em 100% de Poder liberado.
+const LIMIAR_SEM_FADIGA_PADRAO = 80;
 
-// 0 (usando LIMIAR_SEM_FADIGA% do Poder ou menos — sem Fadiga nenhuma) a 1 (supressaoPoder = 100,
-// Poder liberado por completo — Fadiga no valor cheio). Entre o limiar e 100%, escala linear.
+// Limiar de Fadiga EFETIVO. Sem nenhuma Forma ativa, é o padrão fixo de 80%. Com uma ou mais
+// Formas ativas, o limiar passa a ser a própria Maestria média delas — dominar bem uma Forma
+// (Maestria alta) dá MAIS margem de Poder livre de Fadiga do que os 80% padrão; uma Forma pouco
+// dominada (Maestria baixa) RESTRINGE essa margem pra bem menos que isso. Ex.: ativar uma Forma
+// com 60% de Maestria passa a exigir Supressão em 60% ou mais (ou seja, usar até 60% do Poder) pra
+// não acumular Fadiga nenhuma — acima disso, volta a crescer.
+function getLimiarSemFadiga(ficha) {
+    const formas = getFormasAtivasComMaestria(ficha);
+    if (formas.length === 0) return LIMIAR_SEM_FADIGA_PADRAO;
+    return getMaestriaMediaFormasAtivas(ficha);
+}
+
+// 0 (usando o limiar efetivo do Poder ou menos — sem Fadiga nenhuma) a 1 (supressaoPoder = 100,
+// Poder liberado por completo — Fadiga no valor cheio). Entre o limiar e 100%, escala linear. Uma
+// Forma com Maestria 100% ativa (limiar = 100) nunca gera Fadiga por Poder, não importa a
+// Supressão — Forma perfeitamente dominada.
 function getFatorPoderUsado(ficha) {
     const sup = getSupressaoClampeada(ficha);
-    if (sup <= LIMIAR_SEM_FADIGA) return 0;
-    return Math.min(1, Math.max(0, (sup - LIMIAR_SEM_FADIGA) / (100 - LIMIAR_SEM_FADIGA)));
+    const limiar = getLimiarSemFadiga(ficha);
+    const faixa = 100 - limiar;
+    if (faixa <= 0) return 0;
+    if (sup <= limiar) return 0;
+    return Math.min(1, Math.max(0, (sup - limiar) / faixa));
 }
 
 // Quantos pontos percentuais de Fadiga automática este personagem ganha se o turno dele virar
@@ -151,7 +180,8 @@ export function calcularGanhoFadigaDinamico(ficha) {
         const fatorFormas = getFatorFormasAtivas(ficha);
         const severidade = (fatorEnergia + fatorDano + fatorFormas) / 3;
         const fatorPoder = getFatorPoderUsado(ficha);
-        return Math.max(0, severidade * PESO_MAX_DINAMICO * fatorPoder);
+        const pesoMax = getPesoFadigaFormasAtivas(ficha);
+        return Math.max(0, severidade * pesoMax * fatorPoder);
     } catch (e) { return 0; }
 }
 

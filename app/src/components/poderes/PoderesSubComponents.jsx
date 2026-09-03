@@ -126,7 +126,8 @@ export function PoderesFormEditor() {
         dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
         custoPercentual, setCustoPercentual, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
-        maestriaPoder, setMaestriaPoder,
+        maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
+        pastaPoder, setPastaPoder, pastasExistentes,
         descricaoPoder, setDescricaoPoder,
         nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal,
         addEfeitoTemp, efeitosTemp, removerEfeitoTemp,
@@ -203,12 +204,35 @@ export function PoderesFormEditor() {
                 </div>
                 {abaAtual === 'forma' && (
                     <div className="fade-in">
-                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7, color: '#00ff88' }} title="Quanto maior a Maestria, menos Fadiga esta Forma gera quando ativa no Mapa. 100% = Forma dominada, sem Fadiga.">🥋 Maestria (%)</label>
+                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7, color: '#00ff88' }} title="Define até quanto de Poder liberado (Supressão) o personagem pode usar com esta Forma ativa sem acumular Fadiga. 100% = Forma dominada, nunca gera Fadiga por Poder.">🥋 Maestria (%)</label>
                         <input
                             type="number" min="0" max="100" value={maestriaPoder}
                             onChange={e => { const v = parseFloat(e.target.value); setMaestriaPoder(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
                             style={{ width: '100%', textAlign: 'center', borderColor: '#00ff88', color: '#00ff88' }}
                         />
+                    </div>
+                )}
+                {abaAtual === 'forma' && (
+                    <div className="fade-in">
+                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7, color: '#ff8800' }} title="O quanto esta Forma pesa na Fadiga dinâmica quando usada ACIMA da própria Maestria. Padrão: 15.">😮‍💨 Fadiga por Uso</label>
+                        <input
+                            type="number" min="0" value={fadigaPorUsoPoder}
+                            onChange={e => { const v = parseFloat(e.target.value); setFadigaPorUsoPoder(isNaN(v) ? 0 : Math.max(0, v)); }}
+                            style={{ width: '100%', textAlign: 'center', borderColor: '#ff8800', color: '#ff8800' }}
+                        />
+                    </div>
+                )}
+                {abaAtual === 'forma' && (
+                    <div className="fade-in">
+                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }} title="Organize suas Formas em pastas. Selecione uma existente ou digite um nome novo.">🗂️ Pasta (Opc.)</label>
+                        <input
+                            type="text" list="pastas-formas-datalist" placeholder="Sem pasta"
+                            value={pastaPoder} onChange={e => setPastaPoder(e.target.value)}
+                            style={{ width: '100%', textAlign: 'center' }}
+                        />
+                        <datalist id="pastas-formas-datalist">
+                            {(pastasExistentes || []).map(nome => <option key={nome} value={nome} />)}
+                        </datalist>
                     </div>
                 )}
             </div>
@@ -288,27 +312,36 @@ export function PoderesFormEditor() {
     );
 }
 
+// 🗂️ Nome do "bucket" pra Formas sem pasta atribuída — nunca colide com um nome de pasta real
+// porque pastaPoder é sempre .trim()'ado antes de salvar (nunca fica só espaços).
+const SEM_PASTA = 'Sem Pasta';
+
 export function PoderesLista() {
     const ctx = usePoderesForm();
     if (!ctx) return FALLBACK;
-    const { 
+    const {
         abaAtual, itensFiltrados, poderPreparandoId, setPoderPreparandoId,
         setOverchargeAtivo, togglePoder, vincularAberto, setVincularAberto,
         vincularRef, minhaFicha, armasEquipadas, vincularArmaAoPoder,
         editarPoder, deletarPoder, overchargeAtivo, curMana, curAura, curChakra,
         energiaElemental, mPotencial, danoBruto, dispararAtaque,
-        salvarFormaPoder, deletarFormaPoder, ativarFormaPoder
+        salvarFormaPoder, deletarFormaPoder, ativarFormaPoder,
+        renomearPastaForma
     } = ctx;
+
+    const [pastasFechadas, setPastasFechadas] = useState({});
+    const toggleFechada = (nome) => setPastasFechadas(prev => ({ ...prev, [nome]: !prev[nome] }));
 
     const sing = SINGULAR[abaAtual] || 'Poder/Habilidade';
 
-    return (
-        <div style={{ marginTop: '20px' }}>
-            {itensFiltrados.length === 0 ? (
-                <p style={{ opacity: 0.5, fontStyle: 'italic', textAlign: 'center' }}>Nenhum registo deste tipo na sua alma.</p>
-            ) : (
-                itensFiltrados.map((p) => {
-                    if (!p) return null;
+    const renomearOuRemoverPasta = (nomeAtual) => {
+        const novo = window.prompt(`Renomear a pasta "${nomeAtual}" (deixe em branco pra remover a pasta e soltar as Formas em "${SEM_PASTA}"):`, nomeAtual);
+        if (novo === null) return;
+        renomearPastaForma(nomeAtual, novo);
+    };
+
+    const renderItem = (p) => {
+            if (!p) return null;
                     const isEquipped = p.ativa;
                     const txtArr = (p.efeitos || []).map(e => {
                         if (!e) return '';
@@ -353,8 +386,13 @@ export function PoderesLista() {
                                             </span>
                                         )}
                                         {(p.categoria || '').toLowerCase() === 'forma' && (parseFloat(p.maestria) || 0) > 0 && (
-                                            <span style={{ marginLeft: '10px', fontSize: '0.55em', padding: '2px 8px', borderRadius: '10px', border: '1px solid #00ff88', color: '#00ff88', opacity: 0.9 }} title="Reduz a Fadiga gerada por esta Forma quando ativa no Mapa">
+                                            <span style={{ marginLeft: '10px', fontSize: '0.55em', padding: '2px 8px', borderRadius: '10px', border: '1px solid #00ff88', color: '#00ff88', opacity: 0.9 }} title="Livre de Fadiga por Poder até este tanto de Supressão liberada, enquanto esta Forma estiver ativa">
                                                 🥋 {Math.min(100, Math.max(0, parseFloat(p.maestria) || 0))}% MAESTRIA
+                                            </span>
+                                        )}
+                                        {(p.categoria || '').toLowerCase() === 'forma' && (
+                                            <span style={{ marginLeft: '10px', fontSize: '0.55em', padding: '2px 8px', borderRadius: '10px', border: '1px solid #ff8800', color: '#ff8800', opacity: 0.9 }} title="Peso de Fadiga gerado por uso acima da Maestria">
+                                                😮‍💨 {p.fadigaPorUso !== undefined ? p.fadigaPorUso : 15} FADIGA/USO
                                             </span>
                                         )}
                                     </h3>
@@ -494,8 +532,49 @@ export function PoderesLista() {
                                 onAtivarForma={(formaId) => ativarFormaPoder(p.id, formaId)}
                             />
                         </div>
+            );
+    };
+
+    // 🗂️ Só a aba "🎭 Formas" agrupa por pasta — Habilidades e Poderes continuam em lista simples.
+    let grupos = null;
+    if (abaAtual === 'forma') {
+        const mapa = {};
+        itensFiltrados.forEach(p => {
+            if (!p) return;
+            const nome = (p.pasta || '').trim() || SEM_PASTA;
+            if (!mapa[nome]) mapa[nome] = [];
+            mapa[nome].push(p);
+        });
+        const nomes = Object.keys(mapa).filter(n => n !== SEM_PASTA).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+        if (mapa[SEM_PASTA]) nomes.push(SEM_PASTA);
+        grupos = nomes.map(nome => ({ nome, itens: mapa[nome] }));
+    }
+
+    return (
+        <div style={{ marginTop: '20px' }}>
+            {itensFiltrados.length === 0 ? (
+                <p style={{ opacity: 0.5, fontStyle: 'italic', textAlign: 'center' }}>Nenhum registo deste tipo na sua alma.</p>
+            ) : grupos ? (
+                grupos.map(({ nome, itens }) => {
+                    const fechada = !!pastasFechadas[nome];
+                    return (
+                        <div key={nome} style={{ marginTop: 20 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px dashed currentColor', paddingBottom: 8 }}>
+                                <button onClick={() => toggleFechada(nome)} style={{ flex: 1, textAlign: 'left', padding: '8px 12px', fontWeight: 'bold', fontSize: '1em' }}>
+                                    {fechada ? '▶' : '▼'} 📁 {nome} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>({itens.length})</span>
+                                </button>
+                                {nome !== SEM_PASTA && (
+                                    <button onClick={() => renomearOuRemoverPasta(nome)} style={{ padding: '6px 10px', fontSize: '0.8em', opacity: 0.7 }}>
+                                        ✎ Renomear/Remover
+                                    </button>
+                                )}
+                            </div>
+                            {!fechada && itens.map(p => renderItem(p))}
+                        </div>
                     );
                 })
+            ) : (
+                itensFiltrados.map(p => renderItem(p))
             )}
         </div>
     );

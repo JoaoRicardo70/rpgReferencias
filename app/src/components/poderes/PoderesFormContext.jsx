@@ -43,9 +43,19 @@ export function PoderesFormProvider({ children }) {
     const [poderAlcance, setPoderAlcance] = useState(1);
     const [poderArea, setPoderArea] = useState(0);
     const [armaVinculada, setArmaVinculada] = useState('');
-    // 🥋 Maestria (0-100%) — só relevante pra categoria 'forma' (ver core/fadiga.js): quanto maior,
-    // menos Fadiga essa Forma gera quando ativa no Mapa. 100% = Forma dominada, sem Fadiga.
+    // 🥋 Maestria (0-100%) — só relevante pra categoria 'forma' (ver core/fadiga.js): também define
+    // até quanto de Poder liberado (Supressão) o personagem pode usar com esta Forma ativa SEM
+    // acumular Fadiga (ex.: Maestria 60% = livre até 60% de Poder). 100% = Forma dominada, nunca
+    // gera Fadiga por Poder.
     const [maestriaPoder, setMaestriaPoder] = useState(0);
+    // 😮‍💨 Fadiga por Uso (pontos percentuais) — só relevante pra categoria 'forma': o quanto esta
+    // Forma especificamente pesa na Fadiga dinâmica quando usada ACIMA da própria Maestria. Cada
+    // Forma pode ser configurada como mais ou menos cansativa de sustentar além do que já é
+    // dominado; sem valor definido, usa o padrão de 15 (ver PESO_MAX_DINAMICO_PADRAO).
+    const [fadigaPorUsoPoder, setFadigaPorUsoPoder] = useState(15);
+    // 🗂️ Pasta (organização) — só relevante pra categoria 'forma': agrupa Formas em pastas
+    // nomeadas pelo próprio usuário na aba "🎭 Formas" do Grimório de Poderes.
+    const [pastaPoder, setPastaPoder] = useState('');
     
     const [nomeEfeito, setNomeEfeito] = useState('');
     const [novoAtr, setNovoAtr] = useState('forca');
@@ -130,6 +140,8 @@ export function PoderesFormProvider({ children }) {
         setPoderArea(0); // Correção de nomenclatura
         setArmaVinculada('');
         setMaestriaPoder(0);
+        setFadigaPorUsoPoder(15);
+        setPastaPoder('');
         setEfeitosTemp([]);
         setEfeitosTempPassivos([]);
         setNovoAtrPassivo('evasiva');
@@ -176,8 +188,15 @@ export function PoderesFormProvider({ children }) {
                     ficha.poderes[ix].alcance = parseFloat(poderAlcance) || 1;
                     ficha.poderes[ix].area = parseFloat(poderArea) || 0;
                     ficha.poderes[ix].armaVinculada = armaSafe;
-                    if (abaAtual === 'forma') ficha.poderes[ix].maestria = Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0));
-                    else delete ficha.poderes[ix].maestria;
+                    if (abaAtual === 'forma') {
+                        ficha.poderes[ix].maestria = Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0));
+                        ficha.poderes[ix].fadigaPorUso = Math.max(0, parseFloat(fadigaPorUsoPoder) || 0);
+                        ficha.poderes[ix].pasta = (pastaPoder || '').trim();
+                    } else {
+                        delete ficha.poderes[ix].maestria;
+                        delete ficha.poderes[ix].fadigaPorUso;
+                        delete ficha.poderes[ix].pasta;
+                    }
                 }
             } else {
                 ficha.poderes.push({
@@ -198,7 +217,11 @@ export function PoderesFormProvider({ children }) {
                     alcance: parseFloat(poderAlcance) || 1,
                     area: parseFloat(poderArea) || 0,
                     armaVinculada: armaSafe,
-                    ...(abaAtual === 'forma' ? { maestria: Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0)) } : {})
+                    ...(abaAtual === 'forma' ? {
+                        maestria: Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0)),
+                        fadigaPorUso: Math.max(0, parseFloat(fadigaPorUsoPoder) || 0),
+                        pasta: (pastaPoder || '').trim()
+                    } : {})
                 });
             }
         });
@@ -208,7 +231,7 @@ export function PoderesFormProvider({ children }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, poderAlcance, poderArea, armaVinculada, maestriaPoder, cancelarEdicaoPoder]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, pastaPoder, cancelarEdicaoPoder]);
 
     const togglePoder = useCallback((id) => {
         const vitais = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
@@ -259,6 +282,8 @@ export function PoderesFormProvider({ children }) {
         setPoderArea(p.area || 0);
         setArmaVinculada(p.armaVinculada || '');
         setMaestriaPoder(p.maestria || 0);
+        setFadigaPorUsoPoder(p.fadigaPorUso !== undefined ? p.fadigaPorUso : 15);
+        setPastaPoder(p.pasta || '');
         setEfeitosTemp(JSON.parse(JSON.stringify(p.efeitos || [])));
         setEfeitosTempPassivos(JSON.parse(JSON.stringify(p.efeitosPassivos || [])));
 
@@ -331,7 +356,7 @@ export function PoderesFormProvider({ children }) {
     const armasEquipadas = useMemo(() => (minhaFicha?.inventario || []).filter(i => i.tipo === 'arma' && i.equipado), [minhaFicha]);
     const poderesGlobais = minhaFicha?.poderes || [];
     const passivas = minhaFicha?.passivas || [];
-    
+
     const itensFiltrados = useMemo(() => {
         return poderesGlobais.filter(p => {
             const cat = (p.categoria || 'poder').toLowerCase();
@@ -339,6 +364,32 @@ export function PoderesFormProvider({ children }) {
             return cat === alvo;
         });
     }, [poderesGlobais, abaAtual]);
+
+    // 🗂️ Nomes de pasta já usados por alguma Forma — alimenta o <datalist> do campo Pasta no
+    // formulário (sugestão de pastas existentes, sem impedir digitar uma nova).
+    const pastasExistentes = useMemo(() => {
+        const set = new Set();
+        poderesGlobais.forEach(p => {
+            if (p && (p.categoria || '').toLowerCase() === 'forma' && (p.pasta || '').trim()) {
+                set.add(p.pasta.trim());
+            }
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }, [poderesGlobais]);
+
+    // Renomeia (ou remove, se pastaNova vier vazia) uma pasta em TODAS as Formas que a usam de uma
+    // vez, sem precisar editar Forma por Forma.
+    const renomearPastaForma = useCallback((pastaAntiga, pastaNova) => {
+        const novaLimpa = (pastaNova || '').trim();
+        updateFicha((ficha) => {
+            (ficha.poderes || []).forEach(p => {
+                if (p && (p.categoria || '').toLowerCase() === 'forma' && (p.pasta || '').trim() === pastaAntiga) {
+                    p.pasta = novaLimpa;
+                }
+            });
+        });
+        salvarFichaSilencioso();
+    }, [updateFicha]);
 
     const relatorioAuditoria = useMemo(() => {
         const nomesProps = { mbase: 'MULT BASE (x)', mgeral: 'MULT GERAL (x)', mformas: 'MULT FORMA (x)', mabs: 'MULT ABSOLUTO (x)', munico: 'MULT UNICO (x)', base: 'VALOR BRUTO (+)' };
@@ -501,7 +552,8 @@ export function PoderesFormProvider({ children }) {
         imagemUrl, setImagemUrl, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
         custoPercentual, setCustoPercentual, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
-        maestriaPoder, setMaestriaPoder,
+        maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
+        pastaPoder, setPastaPoder, pastasExistentes, renomearPastaForma,
         nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal,
         nomeEfeitoPassivo, setNomeEfeitoPassivo, novoAtrPassivo, setNovoAtrPassivo,
         novoPropPassivo, setNovoPropPassivo, novoValPassivo, setNovoValPassivo,
@@ -515,12 +567,13 @@ export function PoderesFormProvider({ children }) {
         armasEquipadas, itensFiltrados, relatorioAuditoria,
         curMana, curAura, curChakra, energiaElemental, mPotencial, danoBruto,
         dispararAtaque, efeitosTemp, efeitosTempPassivos, poderEditandoId,
-        injetarJsonDaIA 
+        injetarJsonDaIA
     }), [
         minhaFicha, meuNome, isMestre, abaAtual,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
         imagemUrl, dadosQtd, dadosFaces, custoPercentual, poderAlcance,
-        poderArea, armaVinculada, maestriaPoder, nomeEfeito, novoAtr, novoProp, novoVal,
+        poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, pastaPoder, pastasExistentes, renomearPastaForma,
+        nomeEfeito, novoAtr, novoProp, novoVal,
         nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, novoValPassivo,
         uploadingImg, vincularAberto, poderPreparandoId, overchargeAtivo,
         addEfeitoTemp, removerEfeitoTemp, addEfeitoPassivoTemp, removerEfeitoPassivoTemp,
