@@ -210,7 +210,9 @@ export function ArsenalFormProvider({ children }) {
     const deletarItem = useCallback((id) => {
         if (!window.confirm('Deseja destruir este equipamento permanentemente?')) return;
         updateFicha((ficha) => {
+            const oldM = capturarMaximosAtuais(ficha);
             ficha.inventario = (ficha.inventario || []).filter(i => i.id !== id);
+            rescalarVitaisProporcional(ficha, oldM);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
@@ -234,11 +236,13 @@ export function ArsenalFormProvider({ children }) {
         updateFicha((ficha) => {
             const item = (ficha.inventario || []).find(i => i.id === itemId);
             if (!item) return;
+            const oldM = capturarMaximosAtuais(ficha);
             item.formas = (item.formas || []).filter(f => f.id !== formaId);
             if (item.formaAtivaId === formaId) {
                 item.formaAtivaId = null;
                 item.configAtivaId = null;
             }
+            rescalarVitaisProporcional(ficha, oldM);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);

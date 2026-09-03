@@ -6,6 +6,7 @@ import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { getBuffs } from '../../core/attributes';
 import { aplicarRegeneracaoDeTurno, descansarCompleto } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
+import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 
 export const MAP_SIZE = 30;
 export const PALETA = ['#ff003c', '#0088ff', '#00ff88', '#ffcc00', '#ff00ff', '#00ffff', '#ff8800', '#88ff00'];
@@ -765,13 +766,32 @@ export function MapaFormProvider({ children }) {
     // usado no cálculo, em vez de ler o que o próprio alvo tem registrado na Ficha — útil pra
     // NPCs/dummies sem Domínio próprio ou pra simular uma resistência pontual diferente. Vazio/
     // undefined = "usar o Domínio do próprio personagem" (comportamento normal).
-    const aplicarDanoRapido = useCallback((alvo, dano, elemento, nivelDominioOverride) => {
+    //
+    // 🛡️⚔️ `nivelDominioAtacante` (opcional, 0-10, padrão 0): o Domínio de QUEM golpeou nesse
+    // elemento. Quando um elemento é marcado, o dano BRUTO já sai reduzido por
+    // calcularReducaoDanoElemental (core/dominios.js) — o Domínio do ALVO (override acima, ou o
+    // que ele tem na Ficha) só protege NA MEDIDA em que supera o Domínio de quem golpeou; um
+    // golpe vindo de um Domínio igual ou maior atravessa sem nenhuma redução. Isso é uma redução
+    // de DANO de verdade (menos Vida perdida), diferente da Resistência Elemental de Fadiga
+    // (getFracaoResistenciaElemental) que já existia — as duas convivem: o dano já sai menor, e
+    // o pouco que passa ainda gera menos Fadiga se o alvo tiver Domínio ali.
+    const aplicarDanoRapido = useCallback((alvo, dano, elemento, nivelDominioOverride, nivelDominioAtacante) => {
         if (!isMestre || !alvo) return;
-        const valor = Math.max(0, Math.floor(Number(dano)) || 0);
-        if (valor <= 0) return;
+        const valorBruto = Math.max(0, Math.floor(Number(dano)) || 0);
+        if (valorBruto <= 0) return;
 
         const nivelOverride = (nivelDominioOverride === '' || nivelDominioOverride === undefined || nivelDominioOverride === null)
             ? null : nivelDominioOverride;
+        const nivelAtacante = parseFloat(nivelDominioAtacante) || 0;
+
+        let valor = valorBruto;
+        let reducaoAplicada = 0;
+        if (elemento && !alvo.isDummie) {
+            const fichaParaResistencia = alvo.nome === meuNome ? minhaFicha : alvo.ficha;
+            const nivelDefensor = nivelOverride !== null ? nivelOverride : getNivelDominio(fichaParaResistencia, elemento);
+            reducaoAplicada = calcularReducaoDanoElemental(nivelDefensor, nivelAtacante);
+            if (reducaoAplicada > 0) valor = Math.max(0, Math.floor(valorBruto * (1 - reducaoAplicada)));
+        }
 
         if (alvo.isDummie) {
             const storeState = useStore.getState();
@@ -807,8 +827,9 @@ export function MapaFormProvider({ children }) {
             aplicarElementoNivelDireto(alvo.nome, nivelOverride);
         }
 
-        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O Mestre aplicou ${valor} de dano em ${alvo.nome}!` });
-    }, [isMestre, meuNome, updateFicha]);
+        const textoReducao = reducaoAplicada > 0 ? ` (Resistência Elemental descontou ${Math.round(reducaoAplicada * 100)}%, bruto era ${valorBruto})` : '';
+        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O Mestre aplicou ${valor} de dano em ${alvo.nome}!${textoReducao}` });
+    }, [isMestre, meuNome, updateFicha, minhaFicha]);
 
     const encerrarCombate = useCallback(() => {
         if (!window.confirm(`Tem a certeza que deseja ZERAR A INICIATIVA DE TODOS OS JOGADORES E ENTIDADES presentes na cena "${cenaAtual.nome}"?`)) return;

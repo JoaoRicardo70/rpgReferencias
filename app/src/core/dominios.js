@@ -99,3 +99,20 @@ export function getFracaoResistenciaElemental(ficha) {
     }
     return getFracaoDominio(ficha, elemento);
 }
+
+// 🛡️⚔️ REDUÇÃO DE DANO ELEMENTAL — quanto o Domínio do DEFENSOR nesse elemento reduz o dano BRUTO
+// recebido (não a Fadiga — isso é getFracaoResistenciaElemental acima). A vantagem só existe na
+// medida em que o Domínio do defensor SUPERA o de quem golpeou: um golpe vindo de um Domínio
+// IGUAL ou MAIOR atravessa a resistência por completo (0% de redução) — só quando o defensor
+// domina o elemento MAIS que o atacante é que a redução realmente aparece, proporcional à
+// diferença entre os dois. Ex.: defensor Domínio 8, atacante Domínio 3 -> vantagem de 5 em 10 ->
+// metade da redução máxima. Defensor Domínio 5, atacante Domínio 7 -> vantagem negativa -> 0%
+// (o atacante domina mais, a resistência do defensor não segura o golpe).
+const REDUCAO_DANO_MAXIMA = 0.75; // teto: defensor no nível 10 contra um atacante sem Domínio nenhum (nível 0).
+
+export function calcularReducaoDanoElemental(nivelDefensor, nivelAtacante) {
+    const defensor = Math.min(NIVEL_MAX_DOMINIO, Math.max(0, parseFloat(nivelDefensor) || 0));
+    const atacante = Math.min(NIVEL_MAX_DOMINIO, Math.max(0, parseFloat(nivelAtacante) || 0));
+    const vantagem = Math.max(0, (defensor - atacante) / NIVEL_MAX_DOMINIO);
+    return vantagem * REDUCAO_DANO_MAXIMA;
+}

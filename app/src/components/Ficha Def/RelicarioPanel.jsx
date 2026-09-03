@@ -111,7 +111,11 @@ export function RelicarioProvider({ children }) {
 
     const removeItemById = useCallback((id) => {
         if(window.confirm('Deitar fora este item para sempre?')) {
-            updateFicha(f => { f.inventario = f.inventario.filter(x => x.id !== id); });
+            updateFicha(f => {
+                const oldM = capturarMaximosAtuais(f);
+                f.inventario = f.inventario.filter(x => x.id !== id);
+                rescalarVitaisProporcional(f, oldM);
+            });
             callSave();
         }
     }, [updateFicha, callSave]);

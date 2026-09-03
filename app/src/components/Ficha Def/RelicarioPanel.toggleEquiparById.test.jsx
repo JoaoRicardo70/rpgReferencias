@@ -83,8 +83,8 @@ describe('RelicarioPanel — toggleEquiparById(): equipar/desequipar SEM efeito 
     });
 });
 
-describe('RelicarioPanel — toggleEquiparById(): item com efeito mformas rescala ".atual" proporcionalmente', () => {
-    it('equipar uma relíquia com efeito mformas=2 dobra o máximo de vida, e dobra ".atual" preservando a fração (50%)', () => {
+describe('RelicarioPanel — toggleEquiparById(): item com efeito mformas trava ".atual" (nunca reduz, só clampa se ultrapassar)', () => {
+    it('equipar uma relíquia com efeito mformas=2 dobra o máximo de vida, mas NÃO altera ".atual" (correção definitiva: sem rescale proporcional)', () => {
         const ficha = {
             armaEspiritual: { nome: '', passivas: [], runas: [], formas: [], formasVerdadeiras: [] },
             vida: { base: 100, atual: 50, mFormas: 1.0 },
@@ -98,10 +98,10 @@ describe('RelicarioPanel — toggleEquiparById(): item com efeito mformas rescal
         const maxDepois = getMaximo(ficha, 'vida');
 
         expect(maxDepois).toBeGreaterThan(maxAntes);
-        expect(ficha.vida.atual / maxDepois).toBeCloseTo(0.5, 6);
+        expect(ficha.vida.atual).toBe(50); // valor absoluto intocado, não "dobra" pra 100
     });
 
-    it('desequipar essa mesma relíquia depois encolhe ".atual" de volta proporcionalmente, sem deixar acima do novo máximo', () => {
+    it('desequipar essa mesma relíquia depois NÃO reduz ".atual" — o ciclo completo equipar/desequipar termina exatamente onde começou', () => {
         const ficha = {
             armaEspiritual: { nome: '', passivas: [], runas: [], formas: [], formasVerdadeiras: [] },
             vida: { base: 100, atual: 50, mFormas: 1.0 },
@@ -110,15 +110,16 @@ describe('RelicarioPanel — toggleEquiparById(): item com efeito mformas rescal
         montarStore({ minhaFicha: ficha });
         render(<RelicarioProvider><Harness /></RelicarioProvider>);
 
-        act(() => { probe.toggleEquiparById(1); }); // equipa -> máximo dobra, atual dobra
-        const maxEquipado = getMaximo(ficha, 'vida');
-        const atualEquipado = ficha.vida.atual;
+        act(() => { probe.toggleEquiparById(1); }); // equipa -> máximo dobra, atual intocado (50)
+        expect(ficha.vida.atual).toBe(50);
 
         act(() => { probe.toggleEquiparById(1); }); // desequipa -> máximo volta ao original
         const maxDesequipado = getMaximo(ficha, 'vida');
 
+        // 50 <= maxDesequipado (100) -> sem clamp nenhum, permanece exatamente 50 (o rescale
+        // proporcional antigo reduziria pra 25).
         expect(ficha.vida.atual).toBeLessThanOrEqual(maxDesequipado);
-        expect(ficha.vida.atual / maxDesequipado).toBeCloseTo(atualEquipado / maxEquipado, 6);
+        expect(ficha.vida.atual).toBe(50);
     });
 });
 
@@ -139,6 +140,101 @@ describe('RelicarioPanel — toggleEquiparById(): NÃO auto-desequipa itens do m
 
         expect(ficha.inventario[0].equipado).toBe(true); // Espada A continua equipada
         expect(ficha.inventario[1].equipado).toBe(true); // Espada B agora também equipada
+    });
+});
+
+describe('RelicarioPanel — removeItemById(): destruir um item EQUIPADO/boostando um vital clampa ".atual" se ultrapassar o novo (menor) máximo, mas nunca reduz proporcionalmente', () => {
+    beforeEach(() => {
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+    });
+
+    it('destruir uma relíquia EQUIPADA com efeito mformas=2 (dobrava o máximo) some com o boost, mas ".atual" só é clampado se de fato ultrapassar o novo teto', () => {
+        const ficha = {
+            armaEspiritual: { nome: '', passivas: [], runas: [], formas: [], formasVerdadeiras: [] },
+            vida: { base: 100, atual: 150, mFormas: 1.0 },
+            inventario: [{ id: 1, nome: 'Relíquia Ancestral', tipo: 'acessorio', equipado: true, efeitos: [{ atributo: 'vida', propriedade: 'mformas', valor: 2 }] }],
+        };
+        montarStore({ minhaFicha: ficha });
+        render(<RelicarioProvider><Harness /></RelicarioProvider>);
+
+        expect(getMaximo(ficha, 'vida')).toBe(200);
+
+        act(() => { probe.removeItemById(1); });
+
+        expect(ficha.inventario.length).toBe(0);
+        const maxDepois = getMaximo(ficha, 'vida');
+        expect(maxDepois).toBe(100);
+        // 150 ultrapassa o novo teto (100) -> clampado exatamente em 100 (rescale proporcional
+        // antigo daria 150*(100/200)=75).
+        expect(ficha.vida.atual).toBe(100);
+    });
+
+    it('destruir uma relíquia EQUIPADA cujo ".atual" NÃO ultrapassa o novo máximo mais baixo não é alterado', () => {
+        const ficha = {
+            armaEspiritual: { nome: '', passivas: [], runas: [], formas: [], formasVerdadeiras: [] },
+            vida: { base: 100, atual: 60, mFormas: 1.0 },
+            inventario: [{ id: 1, nome: 'Relíquia Ancestral', tipo: 'acessorio', equipado: true, efeitos: [{ atributo: 'vida', propriedade: 'mformas', valor: 2 }] }],
+        };
+        montarStore({ minhaFicha: ficha });
+        render(<RelicarioProvider><Harness /></RelicarioProvider>);
+
+        act(() => { probe.removeItemById(1); });
+
+        expect(ficha.inventario.length).toBe(0);
+        expect(getMaximo(ficha, 'vida')).toBe(100);
+        expect(ficha.vida.atual).toBe(60); // rescale proporcional antigo daria 30
+    });
+
+    it('destruir um item NÃO equipado (sem efeito no máximo atual) deixa ".atual" completamente intocado', () => {
+        const ficha = {
+            armaEspiritual: { nome: '', passivas: [], runas: [], formas: [], formasVerdadeiras: [] },
+            vida: { base: 100, atual: 79.5, mFormas: 1.0 },
+            inventario: [{ id: 1, nome: 'Relíquia Guardada', tipo: 'acessorio', equipado: false, efeitos: [{ atributo: 'vida', propriedade: 'mformas', valor: 2 }] }],
+        };
+        montarStore({ minhaFicha: ficha });
+        render(<RelicarioProvider><Harness /></RelicarioProvider>);
+
+        expect(getMaximo(ficha, 'vida')).toBe(100); // item desequipado -> efeito não conta
+
+        act(() => { probe.removeItemById(1); });
+
+        expect(ficha.inventario.length).toBe(0);
+        expect(ficha.vida.atual).toBe(79.5); // fracionário intocado
+    });
+
+    it('destruir um item qualquer sem efeito em vitais é um no-op total pros vitais, mesmo havendo outros itens no inventário', () => {
+        const ficha = {
+            armaEspiritual: { nome: '', passivas: [], runas: [], formas: [], formasVerdadeiras: [] },
+            vida: { base: 100, atual: 33, mFormas: 1.0 },
+            inventario: [
+                { id: 1, nome: 'Anel Cosmético', tipo: 'acessorio', equipado: true, efeitos: [] },
+                { id: 2, nome: 'Outra Relíquia', tipo: 'acessorio', equipado: false, efeitos: [] },
+            ],
+        };
+        montarStore({ minhaFicha: ficha });
+        render(<RelicarioProvider><Harness /></RelicarioProvider>);
+
+        act(() => { probe.removeItemById(1); });
+
+        expect(ficha.inventario.length).toBe(1);
+        expect(ficha.inventario[0].id).toBe(2);
+        expect(ficha.vida.atual).toBe(33);
+    });
+
+    it('cancelar a confirmação (window.confirm=false) não deleta o item nem toca nos vitais', () => {
+        window.confirm.mockReturnValue(false);
+        const ficha = {
+            armaEspiritual: { nome: '', passivas: [], runas: [], formas: [], formasVerdadeiras: [] },
+            vida: { base: 100, atual: 150, mFormas: 1.0 },
+            inventario: [{ id: 1, nome: 'Relíquia Ancestral', tipo: 'acessorio', equipado: true, efeitos: [{ atributo: 'vida', propriedade: 'mformas', valor: 2 }] }],
+        };
+        montarStore({ minhaFicha: ficha });
+        render(<RelicarioProvider><Harness /></RelicarioProvider>);
+
+        act(() => { probe.removeItemById(1); });
+
+        expect(ficha.inventario.length).toBe(1);
+        expect(ficha.vida.atual).toBe(150);
     });
 });
 

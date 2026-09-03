@@ -197,10 +197,14 @@ export function MapaMestreDanoRapido() {
     // descontam/elevam a Fadiga gerada por ESTE dano se o alvo tiver Domínio treinado (página 3)
     // sobre aquele elemento.
     const [elementoDano, setElementoDano] = useState('');
-    // 🎚️ Nível de Domínio (opcional, 0-10): sobrescreve o Domínio LIDO DA FICHA do alvo pra este
-    // golpe específico — em branco usa o Domínio que o próprio personagem tem registrado
+    // 🎚️ Nível de Domínio do ALVO (opcional, 0-10): sobrescreve o Domínio LIDO DA FICHA do alvo
+    // pra este golpe específico — em branco usa o Domínio que o próprio personagem tem registrado
     // normalmente (comportamento padrão). Útil pra NPCs/dummies sem Domínio próprio na Ficha.
     const [nivelDominioDano, setNivelDominioDano] = useState('');
+    // ⚔️ Nível de Domínio de QUEM GOLPEOU (opcional, 0-10, padrão 0): reduz/anula a vantagem de
+    // Redução de Dano do alvo — um golpe vindo de um Domínio igual ou maior que o do alvo
+    // atravessa sem nenhuma redução. Em branco = ataque comum, sem Domínio nenhum (0).
+    const [nivelAtacanteDano, setNivelAtacanteDano] = useState('');
     if (!isMestre || (isModoRP && !mestreVendoRP)) return null;
 
     // Mesmo filtro-por-cena de MapaIniciativaTracker (todasEntidades) — só mostra quem está
@@ -221,13 +225,13 @@ export function MapaMestreDanoRapido() {
 
     const aplicar = () => {
         if (!alvoAtual) return alert('Escolha um alvo primeiro.');
-        aplicarDanoRapido(alvoAtual, valorDano, elementoDano || null, nivelDominioDano === '' ? null : nivelDominioDano);
+        aplicarDanoRapido(alvoAtual, valorDano, elementoDano || null, nivelDominioDano === '' ? null : nivelDominioDano, nivelAtacanteDano === '' ? 0 : nivelAtacanteDano);
     };
 
     return (
         <div className="fade-in" style={{ background: 'rgba(255, 0, 60, 0.1)', padding: 15, borderRadius: 5, border: '1px solid #ff003c' }}>
             <h3 style={{ color: '#ff003c', margin: 0 }}>⚔️ Dano Rápido</h3>
-            <p style={{ color: '#888', fontStyle: 'italic', margin: '5px 0 15px', fontSize: '0.85em' }}>Aplica dano direto na Vida de um jogador ou entidade nesta cena, sem precisar que o alvo digite nada. Marcar o Elemento (opcional) desconta a Fadiga deste golpe se o alvo tiver Domínio treinado sobre ele.</p>
+            <p style={{ color: '#888', fontStyle: 'italic', margin: '5px 0 15px', fontSize: '0.85em' }}>Aplica dano direto na Vida de um jogador ou entidade nesta cena, sem precisar que o alvo digite nada. Marcar o Elemento (opcional) já reduz o próprio dano se o Domínio do alvo superar o de quem golpeou (campo "Golpe"), e desconta a Fadiga gerada por este golpe se o alvo tiver Domínio treinado sobre ele.</p>
             {alvos.length === 0 ? (
                 <p style={{ color: '#888', fontSize: '0.85em' }}>Nenhum jogador ou entidade nesta cena.</p>
             ) : (
@@ -240,7 +244,7 @@ export function MapaMestreDanoRapido() {
                         <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold' }}>Dano:</span>
                         <input className="input-neon" type="number" min="1" value={valorDano} onChange={e => setValorDano(e.target.value)} style={{ width: 80, padding: 4, margin: 0 }} />
                     </div>
-                    <select className="input-neon" value={elementoDano} onChange={e => { setElementoDano(e.target.value); if (!e.target.value) setNivelDominioDano(''); }} style={{ padding: 5, minWidth: 140 }}>
+                    <select className="input-neon" value={elementoDano} onChange={e => { setElementoDano(e.target.value); if (!e.target.value) { setNivelDominioDano(''); setNivelAtacanteDano(''); } }} style={{ padding: 5, minWidth: 140 }}>
                         <option value="">Elemento (Físico/Nenhum)</option>
                         {ELEMENTOS_OPCOES.map(grupo => (
                             <optgroup key={grupo.label} label={grupo.label}>
@@ -248,9 +252,13 @@ export function MapaMestreDanoRapido() {
                             </optgroup>
                         ))}
                     </select>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#111', padding: '3px 8px', borderRadius: 5, border: '1px solid #444' }} title="Sobrescreve o Domínio lido da Ficha do alvo pra este golpe — em branco usa o Domínio que o personagem já tem registrado.">
-                        <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold' }}>Domínio:</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#111', padding: '3px 8px', borderRadius: 5, border: '1px solid #444' }} title="Sobrescreve o Domínio lido da Ficha do alvo pra este golpe (defesa) — em branco usa o Domínio que o personagem já tem registrado.">
+                        <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold' }}>Domínio Alvo:</span>
                         <input className="input-neon" type="number" min="0" max="10" placeholder="auto" value={nivelDominioDano} onChange={e => setNivelDominioDano(e.target.value)} style={{ width: 60, padding: 4, margin: 0 }} disabled={!elementoDano} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#111', padding: '3px 8px', borderRadius: 5, border: '1px solid #444' }} title="Domínio de QUEM DESFERIU o golpe nesse elemento — reduz ou anula a vantagem de Redução de Dano do alvo. Em branco/0 = ataque comum, sem Domínio.">
+                        <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold' }}>Domínio Golpe:</span>
+                        <input className="input-neon" type="number" min="0" max="10" placeholder="0" value={nivelAtacanteDano} onChange={e => setNivelAtacanteDano(e.target.value)} style={{ width: 60, padding: 4, margin: 0 }} disabled={!elementoDano} />
                     </div>
                     <button className="btn-neon btn-red" onClick={aplicar} disabled={!alvoAtual} style={{ padding: '5px 15px', margin: 0, opacity: alvoAtual ? 1 : 0.5 }}>💥 Aplicar Dano</button>
                 </div>

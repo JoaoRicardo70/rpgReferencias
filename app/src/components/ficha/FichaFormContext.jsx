@@ -384,7 +384,12 @@ export function FichaFormProvider({ children }) {
 
     const removeSerSelado = useCallback((id) => {
         if(!window.confirm('Tem certeza que deseja exilar esta entidade e quebrar o pacto?')) return;
-        updateFicha(f => { if (f.seresSelados) f.seresSelados = f.seresSelados.filter(x => x.id !== id); });
+        updateFicha(f => {
+            if (!f.seresSelados) return;
+            const oldM = capturarMaximosAtuais(f);
+            f.seresSelados = f.seresSelados.filter(x => x.id !== id);
+            rescalarVitaisProporcional(f, oldM);
+        });
         salvarFichaSilencioso();
     }, [updateFicha]);
 
@@ -415,7 +420,11 @@ export function FichaFormProvider({ children }) {
         if (!window.confirm("Deseja apagar esta forma/modo do Ser Selado?")) return;
         updateFicha(f => {
             const s = (f.seresSelados || []).find(x => x.id === serId);
-            if (s && s.formas) { s.formas = s.formas.filter(x => x.id !== formaId); if (s.formaAtivaId === formaId) s.formaAtivaId = null; }
+            if (!s || !s.formas) return;
+            const oldM = capturarMaximosAtuais(f);
+            s.formas = s.formas.filter(x => x.id !== formaId);
+            if (s.formaAtivaId === formaId) s.formaAtivaId = null;
+            rescalarVitaisProporcional(f, oldM);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
