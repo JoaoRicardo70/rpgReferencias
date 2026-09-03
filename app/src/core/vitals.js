@@ -125,4 +125,5 @@ export function descansarCompleto(ficha) {
     ficha.combate.fadigaExtra = 0;
     ficha.combate.municoTurnos = 0;
     delete ficha.combate.ultimoElementoRecebido;
+    delete ficha.combate.ultimoElementoRecebidoNivel;
 }

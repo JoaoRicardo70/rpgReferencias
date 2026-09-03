@@ -18,7 +18,7 @@
 // na ficha só por compatibilidade retroativa, sem efeito nenhum no cálculo abaixo.
 // ==========================================
 import { getMaximo, getBuffs } from './attributes.js';
-import { getFracaoDominio } from './dominios.js';
+import { getFracaoResistenciaElemental } from './dominios.js';
 
 const ENERGIAS = ['mana', 'aura', 'chakra', 'corpo'];
 const EIXOS_FORMAS = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'];
@@ -53,13 +53,16 @@ function getFatorEnergiaGasta(ficha) {
 // contador) — é o estado atual, que é o que realmente importa pra o quão cansado/combalido o
 // personagem está entrando no turno seguinte.
 //
-// 🛡️ RESISTÊNCIA ELEMENTAL: o resultado bruto acima é descontado pelo Domínio (página 3 da
-// Ficha, ficha.dominios — ver core/dominios.js) do elemento do ÚLTIMO golpe recebido
-// (combate.ultimoElementoRecebido, setado por quem aplica o dano — ver aplicarDanoRapido em
-// MapaFormContext.jsx). Um personagem com Domínio nível 10 ("Eterno") sobre o elemento que acabou
-// de levar não fica NADA mais cansado por causa daquele dano especificamente — ainda perde a
-// Vida normalmente, só não some tanto pela Fadiga. Sem nenhum elemento registrado no último golpe,
-// ou sem Domínio nenhum sobre ele, comporta-se exatamente como antes (sem desconto).
+// 🛡️ RESISTÊNCIA ELEMENTAL: o resultado bruto acima é descontado pela resistência elemental
+// (getFracaoResistenciaElemental, core/dominios.js — normalmente o Domínio, página 3 da Ficha,
+// no elemento do ÚLTIMO golpe recebido, combate.ultimoElementoRecebido; o Mestre pode sobrescrever
+// esse nível na hora de aplicar o golpe via combate.ultimoElementoRecebidoNivel). Um personagem
+// com resistência máxima sobre o elemento que acabou de levar não fica NADA mais cansado por
+// causa daquele dano especificamente — ainda perde a Vida normalmente, só não some tanto pela
+// Fadiga. Sem nenhum elemento registrado no último golpe, ou sem Domínio nenhum sobre ele,
+// comporta-se exatamente como antes (sem desconto). Este é só UM dos dois lugares que a
+// Resistência Elemental afeta — ver também getLimiarSemFadiga mais abaixo, que eleva o próprio
+// limiar de Fadiga (efeito bem mais forte, já que afeta o ganho INTEIRO, não só este fator).
 function getFatorVidaPerdida(ficha) {
     if (!ficha || !ficha.vida) return 0;
     const max = getMaximo(ficha, 'vida') || 0;
@@ -67,10 +70,7 @@ function getFatorVidaPerdida(ficha) {
     const atualBruto = parseFloat(ficha.vida.atual);
     const atual = isNaN(atualBruto) ? max : atualBruto;
     const bruto = Math.min(1, Math.max(0, 1 - (atual / max)));
-    const elementoRecebido = ficha?.combate?.ultimoElementoRecebido;
-    if (!elementoRecebido) return bruto;
-    const resistencia = getFracaoDominio(ficha, elementoRecebido);
-    return bruto * (1 - resistencia);
+    return bruto * (1 - getFracaoResistenciaElemental(ficha));
 }
 
 // 0 (nenhuma Forma ativa aumentando atributos) a 1 (mFormas efetivo somando +100% ou mais em
@@ -165,10 +165,21 @@ const LIMIAR_SEM_FADIGA_PADRAO = 80;
 // dominada (Maestria baixa) RESTRINGE essa margem pra bem menos que isso. Ex.: ativar uma Forma
 // com 60% de Maestria passa a exigir Supressão em 60% ou mais (ou seja, usar até 60% do Poder) pra
 // não acumular Fadiga nenhuma — acima disso, volta a crescer.
+//
+// 🛡️ RESISTÊNCIA ELEMENTAL (segundo lugar que ela afeta, além do desconto em getFatorVidaPerdida
+// acima): a resistência do último golpe recebido também EMPURRA esse limiar em direção a 100% —
+// mesma mecânica da Maestria de Forma, só que a fonte é o Domínio elemental em vez da Forma. Numa
+// resistência máxima (fração=1), o limiar vai pra 100% (nunca gera Fadiga por Poder, não importa
+// a Supressão) INDEPENDENTE do limiar-base (80% padrão ou Maestria de Forma) — as duas fontes se
+// somam, exatamente como a Maestria de Forma já soma com a Supressão do Scouter. Esse é o efeito
+// realmente forte da Resistência Elemental — o desconto em getFatorVidaPerdida sozinho é sutil
+// (só 1 de 3 fatores média), mas elevar o limiar afeta o ganho de Fadiga INTEIRO.
 function getLimiarSemFadiga(ficha) {
     const formas = getFormasAtivasComMaestria(ficha);
-    if (formas.length === 0) return LIMIAR_SEM_FADIGA_PADRAO;
-    return getMaestriaMediaFormasAtivas(ficha);
+    const limiarBase = formas.length === 0 ? LIMIAR_SEM_FADIGA_PADRAO : getMaestriaMediaFormasAtivas(ficha);
+    const resistencia = getFracaoResistenciaElemental(ficha);
+    if (resistencia <= 0) return limiarBase;
+    return limiarBase + resistencia * (100 - limiarBase);
 }
 
 // 0 (usando o limiar efetivo do Poder ou menos — sem Fadiga nenhuma) a 1 (supressaoPoder = 100,

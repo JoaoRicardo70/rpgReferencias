@@ -460,6 +460,18 @@ export function aplicarElementoDireto(nome, elemento) {
     // em cima de golpes físicos/não-marcados que vieram depois.
     set(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}/combate/ultimoElementoRecebido`), elemento || null).catch(() => {});
 }
+// 🔥 Mesmo esquema de aplicarElementoDireto acima, pro campo combate/ultimoElementoRecebidoNivel —
+// o Mestre pode sobrescrever o nível de Domínio (0-10) usado no cálculo de Resistência Elemental
+// (ver core/dominios.js > getFracaoResistenciaElemental) pra ESTE golpe específico, em vez de usar
+// o Domínio que o próprio alvo tem registrado na Ficha (útil pra NPCs sem Domínio próprio, ou pra
+// simular uma resistência pontual diferente).
+export function aplicarElementoNivelDireto(nome, nivel) {
+    if (isInPlasmicCanvas()) return;
+    const { mesaId } = useStore.getState();
+    if (!db || !mesaId || !nome) return;
+    const nomeSanitizado = sanitizarNome(nome);
+    set(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}/combate/ultimoElementoRecebidoNivel`), (nivel === '' || nivel === undefined) ? null : nivel).catch(() => {});
+}
 export function iniciarListenerTemasCustom(callback) {
     if (isInPlasmicCanvas()) return () => {};
     const { mesaId } = useStore.getState();

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useElementosForm, emogis, cores, BONUS_OPTIONS, NIVEIS_DOMINIO } from './ElementosFormContext';
+import { getNivelDominio } from '../../core/dominios';
 
 const FALLBACK = <div style={{ opacity: 0.5, padding: 10 }}>Elementos provider não encontrado...</div>;
 
@@ -124,8 +125,6 @@ export function ElementosGrimorio() {
     const { abaAtual, elemSelecionado, selecionarElemento, minhaFicha, abasDinamicas, criarElementoCustomizado } = ctx;
     const categoriasVisiveis = abasDinamicas[abaAtual]?.categorias || [];
 
-    const dominios = minhaFicha?.dominios?.elementais || {};
-
     const handleCriar = () => {
         const nome = window.prompt(`Como se chama o novo Conhecimento/Caminho que quer forjar neste capítulo?`);
         if (nome) criarElementoCustomizado(nome);
@@ -144,7 +143,7 @@ export function ElementosGrimorio() {
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
                             {categoria.itens.map(elem => {
                                 const isActive = elem === elemSelecionado;
-                                const nivelDom = dominios[elem]?.nivel;
+                                const nivelDom = getNivelDominio(minhaFicha, elem);
                                 const domTexto = nivelDom ? ` (Nv.${nivelDom})` : '';
                                 const corBase = cores[elem] || 'currentColor';
                                 
@@ -281,8 +280,11 @@ export function ElementosMagiaCard({ magia }) {
     const energiaAtiva = magia.energiaCombustao;
     const isInato = elementosInatos.includes(elemText.toLowerCase().trim());
 
-    const dominioData = minhaFicha?.dominios?.elementais?.[elemText];
-    const nivelDom = dominioData?.nivel || 0;
+    // 🎓 Antes lia ficha.dominios.elementais[elemText] — um caminho aninhado que nunca tinha
+    // nenhuma UI escrevendo nele (resíduo de uma estrutura antiga, sempre 0/sem efeito). Agora lê
+    // o MESMO Domínio real da Hierarquia (página 3 da Ficha) que já alimenta Overcharge/Fadiga/
+    // Resistência Elemental em Poderes — ver core/dominios.js.
+    const nivelDom = getNivelDominio(minhaFicha, elemText);
     const infoDom = NIVEIS_DOMINIO[nivelDom];
 
     let redCustoMult = 1;

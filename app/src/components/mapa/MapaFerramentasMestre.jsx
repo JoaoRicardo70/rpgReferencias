@@ -193,9 +193,14 @@ export function MapaMestreDanoRapido() {
     const [alvoId, setAlvoId] = useState('');
     const [valorDano, setValorDano] = useState(10);
     // 🛡️ Elemento do dano (opcional): marcar o elemento aqui registra ficha.combate.
-    // ultimoElementoRecebido no alvo, e core/fadiga.js > getFatorVidaPerdida desconta a Fadiga
-    // gerada por ESTE dano se o alvo tiver Domínio treinado (página 3) sobre aquele elemento.
+    // ultimoElementoRecebido no alvo, e core/fadiga.js > getFatorVidaPerdida/getLimiarSemFadiga
+    // descontam/elevam a Fadiga gerada por ESTE dano se o alvo tiver Domínio treinado (página 3)
+    // sobre aquele elemento.
     const [elementoDano, setElementoDano] = useState('');
+    // 🎚️ Nível de Domínio (opcional, 0-10): sobrescreve o Domínio LIDO DA FICHA do alvo pra este
+    // golpe específico — em branco usa o Domínio que o próprio personagem tem registrado
+    // normalmente (comportamento padrão). Útil pra NPCs/dummies sem Domínio próprio na Ficha.
+    const [nivelDominioDano, setNivelDominioDano] = useState('');
     if (!isMestre || (isModoRP && !mestreVendoRP)) return null;
 
     // Mesmo filtro-por-cena de MapaIniciativaTracker (todasEntidades) — só mostra quem está
@@ -216,7 +221,7 @@ export function MapaMestreDanoRapido() {
 
     const aplicar = () => {
         if (!alvoAtual) return alert('Escolha um alvo primeiro.');
-        aplicarDanoRapido(alvoAtual, valorDano, elementoDano || null);
+        aplicarDanoRapido(alvoAtual, valorDano, elementoDano || null, nivelDominioDano === '' ? null : nivelDominioDano);
     };
 
     return (
@@ -235,7 +240,7 @@ export function MapaMestreDanoRapido() {
                         <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold' }}>Dano:</span>
                         <input className="input-neon" type="number" min="1" value={valorDano} onChange={e => setValorDano(e.target.value)} style={{ width: 80, padding: 4, margin: 0 }} />
                     </div>
-                    <select className="input-neon" value={elementoDano} onChange={e => setElementoDano(e.target.value)} style={{ padding: 5, minWidth: 140 }}>
+                    <select className="input-neon" value={elementoDano} onChange={e => { setElementoDano(e.target.value); if (!e.target.value) setNivelDominioDano(''); }} style={{ padding: 5, minWidth: 140 }}>
                         <option value="">Elemento (Físico/Nenhum)</option>
                         {ELEMENTOS_OPCOES.map(grupo => (
                             <optgroup key={grupo.label} label={grupo.label}>
@@ -243,6 +248,10 @@ export function MapaMestreDanoRapido() {
                             </optgroup>
                         ))}
                     </select>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#111', padding: '3px 8px', borderRadius: 5, border: '1px solid #444' }} title="Sobrescreve o Domínio lido da Ficha do alvo pra este golpe — em branco usa o Domínio que o personagem já tem registrado.">
+                        <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold' }}>Domínio:</span>
+                        <input className="input-neon" type="number" min="0" max="10" placeholder="auto" value={nivelDominioDano} onChange={e => setNivelDominioDano(e.target.value)} style={{ width: 60, padding: 4, margin: 0 }} disabled={!elementoDano} />
+                    </div>
                     <button className="btn-neon btn-red" onClick={aplicar} disabled={!alvoAtual} style={{ padding: '5px 15px', margin: 0, opacity: alvoAtual ? 1 : 0.5 }}>💥 Aplicar Dano</button>
                 </div>
             )}

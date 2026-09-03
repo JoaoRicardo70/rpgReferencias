@@ -98,6 +98,8 @@ export function ArsenalFormProvider({ children }) {
             const itemIndex = ficha.inventario.findIndex(i => i.id === id);
             if (itemIndex === -1) return;
 
+            const oldM = capturarMaximosAtuais(ficha);
+
             const itemToEquip = ficha.inventario[itemIndex];
             if (!itemToEquip.equipado && (itemToEquip.tipo === 'arma' || itemToEquip.tipo === 'armadura')) {
                 ficha.inventario.forEach(i => {
@@ -110,6 +112,8 @@ export function ArsenalFormProvider({ children }) {
                 ficha.inventario[itemIndex].formaAtivaId = null;
                 ficha.inventario[itemIndex].configAtivaId = null;
             }
+
+            rescalarVitaisProporcional(ficha, oldM);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);

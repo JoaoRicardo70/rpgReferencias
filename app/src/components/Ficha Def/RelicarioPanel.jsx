@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import useStore from '../../stores/useStore';
 import { salvarFichaSilencioso, uploadImagem } from '../../services/firebase-sync';
+import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 
 // ==========================================
 // 🎲 CONSTANTES DE RPG (ITENS E ARMAS)
@@ -116,7 +117,13 @@ export function RelicarioProvider({ children }) {
     }, [updateFicha, callSave]);
 
     const toggleEquiparById = useCallback((id) => {
-        updateFicha(f => { const i = f.inventario.find(x => x.id === id); if (i) i.equipado = !i.equipado; });
+        updateFicha(f => {
+            const i = f.inventario.find(x => x.id === id);
+            if (!i) return;
+            const oldM = capturarMaximosAtuais(f);
+            i.equipado = !i.equipado;
+            rescalarVitaisProporcional(f, oldM);
+        });
         callSave();
     }, [updateFicha, callSave]);
 

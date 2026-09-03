@@ -319,8 +319,10 @@ export function PoderesFormProvider({ children }) {
         updateFicha((ficha) => {
             const p = (ficha.poderes || []).find(po => po.id === poderId);
             if (!p) return;
+            const oldM = capturarMaximosAtuais(ficha);
             p.formas = (p.formas || []).filter(f => f.id !== formaId);
             if (p.formaAtivaId === formaId) p.formaAtivaId = null;
+            rescalarVitaisProporcional(ficha, oldM);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);

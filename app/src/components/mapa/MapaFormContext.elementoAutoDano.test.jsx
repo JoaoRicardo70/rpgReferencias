@@ -33,6 +33,7 @@ vi.mock('../../services/firebase-sync', () => ({
     aplicarDanoDireto: vi.fn(),
     aplicarFadigaDireta: vi.fn(),
     aplicarElementoDireto: vi.fn(),
+    aplicarElementoNivelDireto: vi.fn(),
 }));
 
 let storeState;

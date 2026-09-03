@@ -78,3 +78,24 @@ export function calcularMultiplicadorOvercharge(ficha, nomeElemento) {
     const fracao = getFracaoDominio(ficha, nomeElemento);
     return MULT_OVERCHARGE_SEM_DOMINIO - fracao * (MULT_OVERCHARGE_SEM_DOMINIO - MULT_OVERCHARGE_DOMINIO_MAX);
 }
+
+// 🛡️ RESISTÊNCIA ELEMENTAL — fração de resistência (0-1) a aplicar por causa do ÚLTIMO golpe
+// recebido (ficha.combate.ultimoElementoRecebido, setado pelo Dano Rápido do Mestre — ver
+// MapaFormContext.jsx > aplicarDanoRapido). Normalmente é só getFracaoDominio(ficha, elemento) —
+// o próprio nível de Domínio do ALVO nesse elemento. Mas o Mestre pode OVERRIDAR esse nível na
+// hora de aplicar o golpe (campo "Nível de Domínio" no Dano Rápido, guardado em
+// ficha.combate.ultimoElementoRecebidoNivel) — útil pra NPCs/criaturas sem Domínio registrado na
+// própria Ficha, ou pra simular uma resistência pontual diferente da que o personagem tem
+// registrada na Hierarquia. Um override de 0 é válido e distinto de "sem override" (null/
+// undefined/string vazia) — 0 explicitamente zera a resistência mesmo que o alvo tenha um
+// Domínio real mais alto.
+export function getFracaoResistenciaElemental(ficha) {
+    const elemento = ficha?.combate?.ultimoElementoRecebido;
+    if (!elemento) return 0;
+    const override = ficha?.combate?.ultimoElementoRecebidoNivel;
+    if (override !== undefined && override !== null && override !== '') {
+        const nivel = parseFloat(override);
+        if (!isNaN(nivel)) return Math.min(NIVEL_MAX_DOMINIO, Math.max(0, nivel)) / NIVEL_MAX_DOMINIO;
+    }
+    return getFracaoDominio(ficha, elemento);
+}

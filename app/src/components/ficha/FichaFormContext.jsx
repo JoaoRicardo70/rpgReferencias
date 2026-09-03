@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import useStore from '../../stores/useStore';
 import { contarDigitos } from '../../core/utils.js';
 import { getMaximo, getBuffs, getEfeitosDeClasse } from '../../core/attributes.js';
+import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals.js';
 import { salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync.js';
 
 export const STATS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
@@ -391,7 +392,10 @@ export function FichaFormProvider({ children }) {
         updateFicha(f => {
             if (!f.seresSelados) return;
             const s = f.seresSelados.find(x => x.id === id);
-            if (s) s.ativo = !s.ativo;
+            if (!s) return;
+            const oldM = capturarMaximosAtuais(f);
+            s.ativo = !s.ativo;
+            rescalarVitaisProporcional(f, oldM);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
@@ -419,7 +423,11 @@ export function FichaFormProvider({ children }) {
     const ativarFormaSer = useCallback((serId, formaId) => {
         updateFicha(f => {
             const s = (f.seresSelados || []).find(x => x.id === serId);
-            if (s) { s.formaAtivaId = s.formaAtivaId === formaId ? null : formaId; if (s.formaAtivaId && !s.ativo) s.ativo = true; }
+            if (!s) return;
+            const oldM = capturarMaximosAtuais(f);
+            s.formaAtivaId = s.formaAtivaId === formaId ? null : formaId;
+            if (s.formaAtivaId && !s.ativo) s.ativo = true;
+            rescalarVitaisProporcional(f, oldM);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);

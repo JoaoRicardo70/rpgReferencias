@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto } from '../../services/firebase-sync';
 import { calcularAcerto } from '../../core/engine';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { getBuffs } from '../../core/attributes';
@@ -755,15 +755,23 @@ export function MapaFormProvider({ children }) {
     // botão (o dano em si nunca tocava Fadiga nenhuma até um ciclo de turno completo).
     //
     // 🛡️ `elemento` (opcional): quando o Mestre marca de qual elemento veio o golpe, grava em
-    // combate.ultimoElementoRecebido — core/fadiga.js > getFatorVidaPerdida desconta a Fadiga
-    // gerada por ESTE dano se o alvo tiver Domínio (página 3) sobre aquele elemento. SEMPRE
-    // sobrescreve o campo (inclusive limpando quando `elemento` vem vazio/Físico) — a resistência
-    // é sobre o ÚLTIMO golpe recebido, nunca deve "grudar" de um golpe elemental antigo em cima
-    // de golpes físicos/não-marcados que vieram depois.
-    const aplicarDanoRapido = useCallback((alvo, dano, elemento) => {
+    // combate.ultimoElementoRecebido — core/fadiga.js > getFatorVidaPerdida e getLimiarSemFadiga
+    // descontam/elevam a Fadiga gerada por ESTE dano se o alvo tiver Domínio (página 3) sobre
+    // aquele elemento. SEMPRE sobrescreve o campo (inclusive limpando quando `elemento` vem vazio/
+    // Físico) — a resistência é sobre o ÚLTIMO golpe recebido, nunca deve "grudar" de um golpe
+    // elemental antigo em cima de golpes físicos/não-marcados que vieram depois.
+    //
+    // 🎚️ `nivelDominioOverride` (opcional, 0-10): o Mestre pode sobrescrever o nível de Domínio
+    // usado no cálculo, em vez de ler o que o próprio alvo tem registrado na Ficha — útil pra
+    // NPCs/dummies sem Domínio próprio ou pra simular uma resistência pontual diferente. Vazio/
+    // undefined = "usar o Domínio do próprio personagem" (comportamento normal).
+    const aplicarDanoRapido = useCallback((alvo, dano, elemento, nivelDominioOverride) => {
         if (!isMestre || !alvo) return;
         const valor = Math.max(0, Math.floor(Number(dano)) || 0);
         if (valor <= 0) return;
+
+        const nivelOverride = (nivelDominioOverride === '' || nivelDominioOverride === undefined || nivelDominioOverride === null)
+            ? null : nivelDominioOverride;
 
         if (alvo.isDummie) {
             const storeState = useStore.getState();
@@ -775,19 +783,20 @@ export function MapaFormProvider({ children }) {
                 if (f.vida) f.vida.atual = Math.max(0, (f.vida.atual || 0) - valor);
                 if (!f.combate) f.combate = {};
                 f.combate.ultimoElementoRecebido = elemento || null;
+                f.combate.ultimoElementoRecebidoNivel = nivelOverride;
                 f.combate.fadigaExtra = Math.max(0, (Number(f.combate.fadigaExtra) || 0) + calcularGanhoFadigaDinamico(f));
             });
             salvarFichaSilencioso();
         } else {
             const fichaAlvo = alvo.ficha || {};
             const novaVida = Math.max(0, (fichaAlvo.vida?.atual || 0) - valor);
-            // Ficha "simulada" com a Vida já reduzida (e o elemento deste golpe já registrado), só
-            // pra calcular o ganho de Fadiga deste golpe com o dado mais atual possível — nunca é
-            // gravada, só usada localmente aqui.
+            // Ficha "simulada" com a Vida já reduzida (e o elemento/nível deste golpe já
+            // registrados), só pra calcular o ganho de Fadiga deste golpe com o dado mais atual
+            // possível — nunca é gravada, só usada localmente aqui.
             const fichaSimulada = {
                 ...fichaAlvo,
                 vida: { ...(fichaAlvo.vida || {}), atual: novaVida },
-                combate: { ...(fichaAlvo.combate || {}), ultimoElementoRecebido: elemento || null }
+                combate: { ...(fichaAlvo.combate || {}), ultimoElementoRecebido: elemento || null, ultimoElementoRecebidoNivel: nivelOverride }
             };
             const fadigaExtraAtual = Math.max(0, Number(fichaAlvo.combate?.fadigaExtra) || 0);
             const novaFadigaExtra = fadigaExtraAtual + calcularGanhoFadigaDinamico(fichaSimulada);
@@ -795,6 +804,7 @@ export function MapaFormProvider({ children }) {
             aplicarDanoDireto(alvo.nome, novaVida);
             aplicarFadigaDireta(alvo.nome, novaFadigaExtra);
             aplicarElementoDireto(alvo.nome, elemento || null);
+            aplicarElementoNivelDireto(alvo.nome, nivelOverride);
         }
 
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O Mestre aplicou ${valor} de dano em ${alvo.nome}!` });
