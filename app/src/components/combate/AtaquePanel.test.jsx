@@ -6,11 +6,18 @@ import { getBuffs } from '../../core/attributes';
 import { enviarParaFeed } from '../../services/firebase-sync';
 
 vi.mock('../../stores/useStore');
-vi.mock('../../core/attributes', () => ({
-    getBuffs: vi.fn(),
-    getMaximo: vi.fn(() => 100),
-    getEfeitosDeClasse: vi.fn(() => [])
-}));
+// importOriginal — mantém getMaximoSemFormas real (usado internamente por core/vitals.js >
+// getVitalMxDisplay, chamado por AtaqueFormContext.jsx pra evitar o vazamento de Energia da
+// escala de notação na Fúria Berserker), só sobrescrevendo os 3 exports que este teste stuba.
+vi.mock('../../core/attributes', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        getBuffs: vi.fn(),
+        getMaximo: vi.fn(() => 100),
+        getEfeitosDeClasse: vi.fn(() => [])
+    };
+});
 vi.mock('../../core/engine', () => ({
     calcularDano: vi.fn(() => ({ dano: 100, letalidade: 0, rolagem: '1d20' }))
 }));

@@ -80,7 +80,13 @@ describe('PoderesFormContext — salvarNovoPoder(): Maestria só é salva na aba
         expect(novo.maestria).toBe(80);
     });
 
-    it('criar um poder novo na aba "🗡️ Habilidades" NÃO grava nenhum campo maestria, mesmo com maestriaPoder residual não-zero de uma interação anterior', async () => {
+    // 🎓 Habilidades TAMBÉM ganharam Maestria própria (pedido do usuário: "algumas Habilidades
+    // podem requerer certo nível de Maestria afim de não gerar gasto/Fadiga") — diferente da
+    // Maestria de FORMA (sustentar uma transformação ativa), aqui é "o quanto o personagem já
+    // domina ESTA Habilidade específica" comparado contra maestriaRequerida (ver
+    // core/fadiga.js > calcularGanhoFadigaMaestriaInsuficiente). fadigaPorUso e pasta continuam
+    // exclusivos de Forma.
+    it('criar um poder novo na aba "🗡️ Habilidades" grava maestria/maestriaRequerida (NÃO fadigaPorUso/pasta, exclusivos de Forma)', async () => {
         montarStore();
         render(<PoderesFormProvider><Harness /></PoderesFormProvider>);
 
@@ -88,10 +94,8 @@ describe('PoderesFormContext — salvarNovoPoder(): Maestria só é salva na aba
             probe.setAbaAtual('habilidade');
             probe.setNomePoder('Golpe Rápido');
             probe.setDescricaoPoder('Um golpe físico.');
-            // Simula estado "residual" de maestriaPoder (ex.: usuário mexeu na aba Formas antes) —
-            // manipulado direto via contexto pra provar que salvarNovoPoder ignora esse valor fora
-            // da aba "forma", independente de como ele chegou nesse estado.
             probe.setMaestriaPoder(80);
+            probe.setMaestriaRequeridaPoder(50);
         });
 
         await act(async () => { probe.salvarNovoPoder(); });
@@ -99,7 +103,10 @@ describe('PoderesFormContext — salvarNovoPoder(): Maestria só é salva na aba
         expect(mockState.minhaFicha.poderes).toHaveLength(1);
         const novo = mockState.minhaFicha.poderes[0];
         expect(novo.categoria).toBe('habilidade');
-        expect('maestria' in novo).toBe(false);
+        expect(novo.maestria).toBe(80);
+        expect(novo.maestriaRequerida).toBe(50);
+        expect('fadigaPorUso' in novo).toBe(false);
+        expect('pasta' in novo).toBe(false);
     });
 
     it('criar um poder novo na aba "✨ Poderes" também NÃO grava maestria', async () => {
@@ -197,10 +204,11 @@ describe('PoderesFormContext — editarPoder(): pré-preenchimento da Maestria',
 });
 
 // ---------------------------------------------------------------------------
-// Bloco 3 — trocar categoria durante a edição e salvar: deleta p.maestria
+// Bloco 3 — trocar categoria durante a edição e salvar: deleta p.maestria (categorias sem
+// nenhum uso de Maestria) ou a REINTERPRETA (Habilidade, que agora também tem a sua própria)
 // ---------------------------------------------------------------------------
 describe('PoderesFormContext — salvarNovoPoder() no caminho de EDIÇÃO: trocar a categoria pra longe de "forma" apaga p.maestria', () => {
-    it('editar uma Forma com maestria definida, trocar a categoria (via contexto) e salvar remove p.maestria do poder existente, sem lançar', async () => {
+    it('editar uma Forma com maestria definida, trocar a categoria pra "poder" (sem nenhum uso de Maestria) e salvar remove p.maestria do poder existente, sem lançar', async () => {
         montarStore({
             minhaFicha: { poderes: [{ id: 5, nome: 'Forma X', descricao: 'Uma forma armada.', categoria: 'forma', ativa: false, maestria: 70, efeitos: [], efeitosPassivos: [] }] },
         });
@@ -213,28 +221,69 @@ describe('PoderesFormContext — salvarNovoPoder() no caminho de EDIÇÃO: troca
         // Simula a troca de categoria durante a edição diretamente pelo contexto (a UI de
         // navegação por abas cancela a edição ao trocar de aba — ver PoderesNavegacaoLivro — então
         // este é um teste de caixa-branca da lógica defensiva de salvarNovoPoder em si, cobrindo o
-        // branch "else delete ficha.poderes[ix].maestria" pedido no code review).
-        act(() => { probe.setAbaAtual('habilidade'); });
+        // branch "else delete ficha.poderes[ix].maestria" pedido no code review). "poder" não usa
+        // Maestria nenhuma (diferente de "habilidade", que agora tem a sua própria — ver o teste
+        // seguinte), então continua batendo nesse branch de delete.
+        act(() => { probe.setAbaAtual('poder'); });
 
         expect(() => { act(() => { probe.salvarNovoPoder(); }); }).not.toThrow();
         // precisa esperar o salvarFirebaseImediato().then(...) resolver
         await act(async () => { await Promise.resolve(); });
 
         const editado = mockState.minhaFicha.poderes.find(p => p.id === 5);
-        expect(editado.categoria).toBe('habilidade');
+        expect(editado.categoria).toBe('poder');
         expect('maestria' in editado).toBe(false);
+    });
+
+    it('editar uma Forma com maestria definida, trocar a categoria pra "habilidade" REINTERPRETA maestria (não apaga) e adiciona maestriaRequerida', async () => {
+        montarStore({
+            minhaFicha: { poderes: [{ id: 6, nome: 'Forma Y', descricao: 'Outra forma.', categoria: 'forma', ativa: false, maestria: 70, fadigaPorUso: 20, pasta: 'X', efeitos: [], efeitosPassivos: [] }] },
+        });
+        render(<PoderesFormProvider><Harness /></PoderesFormProvider>);
+
+        act(() => { probe.editarPoder(6); });
+        act(() => { probe.setAbaAtual('habilidade'); probe.setMaestriaRequeridaPoder(40); });
+
+        await act(async () => { probe.salvarNovoPoder(); });
+        await act(async () => { await Promise.resolve(); });
+
+        const editado = mockState.minhaFicha.poderes.find(p => p.id === 6);
+        expect(editado.categoria).toBe('habilidade');
+        expect(editado.maestria).toBe(70); // carregado da Forma, agora reinterpretado como Maestria da Habilidade
+        expect(editado.maestriaRequerida).toBe(40);
+        // fadigaPorUso/pasta são exclusivos de Forma — precisam ser removidos ao trocar de categoria.
+        expect('fadigaPorUso' in editado).toBe(false);
+        expect('pasta' in editado).toBe(false);
     });
 });
 
 // ---------------------------------------------------------------------------
-// Bloco 4 — UI: o input de Maestria só aparece na aba "forma"
+// Bloco 4 — UI: o input de Maestria aparece nas abas "forma" E "habilidade" (cada uma com o seu
+// próprio conjunto de campos — Formas: Maestria + Fadiga por Uso + Pasta; Habilidades: Maestria +
+// Maestria Requerida), NUNCA na aba "poder".
 // ---------------------------------------------------------------------------
-describe('PoderesFormEditor (UI) — o campo "🥋 Maestria (%)" só é renderizado na aba "forma"', () => {
-    it('aba "🗡️ Habilidades" (padrão) NÃO mostra o campo de Maestria', () => {
+describe('PoderesFormEditor (UI) — os campos de Maestria aparecem nas abas "forma" e "habilidade", nunca em "poder"', () => {
+    it('aba "🗡️ Habilidades" (padrão) mostra Maestria E Maestria Requerida, mas NÃO Fadiga por Uso/Pasta (exclusivos de Forma)', () => {
         montarStore();
         render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesFormEditor /></PoderesFormProvider>);
 
-        expect(screen.queryByText(/Maestria/i)).toBeNull();
+        expect(screen.getByText(/🎓 Maestria \(%\)/)).toBeDefined();
+        expect(screen.getByText(/Maestria Requerida/i)).toBeDefined();
+        expect(screen.queryByText(/Fadiga por Uso/i)).toBeNull();
+        expect(screen.queryByText(/Pasta/i)).toBeNull();
+    });
+
+    it('digitar 150 no campo de Maestria Requerida (aba Habilidades) clampa visualmente pra 100, e -20 clampa pra 0', () => {
+        montarStore();
+        render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesFormEditor /></PoderesFormProvider>);
+
+        const getInput = () => screen.getByText(/Maestria Requerida/i).closest('div').querySelector('input');
+
+        fireEvent.change(getInput(), { target: { value: '150' } });
+        expect(getInput().value).toBe('100');
+
+        fireEvent.change(getInput(), { target: { value: '-20' } });
+        expect(getInput().value).toBe('0');
     });
 
     it('clicar na aba "🎭 Formas" faz o campo de Maestria aparecer', () => {

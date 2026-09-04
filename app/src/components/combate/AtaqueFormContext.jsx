@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import useStore from '../../stores/useStore';
-import { getMaximo, getBuffs, getEfeitosDeClasse } from '../../core/attributes';
+import { getBuffs, getEfeitosDeClasse } from '../../core/attributes';
+import { getVitalMxDisplay } from '../../core/vitals';
 import { calcularDano } from '../../core/engine';
 import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
 
@@ -131,10 +132,11 @@ export function AtaqueFormProvider({ children }) {
         return maxFuria;
     }, [minhaFicha]);
 
-    const rawMaxVida = minhaFicha ? getMaximo(minhaFicha, 'vida', true) : 1;
-    const strVal = String(Math.floor(rawMaxVida));
-    const pVit = Math.max(0, strVal.length - 8);
-    const maxVida = pVit > 0 ? Math.floor(rawMaxVida / Math.pow(10, pVit)) : rawMaxVida;
+    // getVitalMxDisplay já decide a escala ignorando Formas (getMaximoSemFormas) — evita que uma
+    // Forma temporária empurre "maxVida" através de uma fronteira de dígitos e infle
+    // percAtualLostFloor artificialmente (disparando Fúria Berserker sem o personagem ter perdido
+    // Vida de verdade).
+    const maxVida = minhaFicha ? getVitalMxDisplay('vida', minhaFicha) : 1;
 
     const atualVida = minhaFicha?.vida?.atual ?? maxVida;
     const percAtualLostFloor = Math.floor(maxVida > 0 ? Math.max(0, ((maxVida - atualVida) / maxVida) * 100) : 0);
@@ -353,7 +355,11 @@ export function AtaqueFormProvider({ children }) {
             const percNum = parseFloat(custoAtiva) || 0;
             let logEnergia = '';
             if (tipoAtiva && tipoAtiva !== 'nenhum' && percNum > 0) {
-                const maxEnergia = getMaximo(minhaFicha, tipoAtiva) || 0;
+                // 🔥 CORREÇÃO (6ª rodada, mesma causa de PoderesFormContext.jsx > dispararAtaque):
+                // usava o máximo BRUTO (getMaximo) pra calcular o %, mas subtraía do "atual" já
+                // guardado na escala comprimida — dreno gigantesco e desproporcional. Agora usa
+                // getVitalMxDisplay (mesma escala do "atual").
+                const maxEnergia = getVitalMxDisplay(tipoAtiva, minhaFicha) || 0;
                 const custoCalculado = Math.floor((maxEnergia * percNum) / 100);
 
                 updateFicha(ficha => {

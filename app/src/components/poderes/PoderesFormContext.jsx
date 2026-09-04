@@ -2,8 +2,9 @@ import React, { createContext, useContext, useState, useRef, useMemo, useEffect,
 import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes';
 import { salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync';
-import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
+import { capturarMaximosAtuais, rescalarVitaisProporcional, getVitalMxDisplay } from '../../core/vitals';
 import { calcularGanhoFadigaOvercharge, calcularMultiplicadorOvercharge } from '../../core/dominios';
+import { calcularGanhoFadigaMaestriaInsuficiente } from '../../core/fadiga';
 
 export const SINGULAR = {
     'habilidade': 'Habilidade',
@@ -45,16 +46,24 @@ export function PoderesFormProvider({ children }) {
     const [poderAlcance, setPoderAlcance] = useState(1);
     const [poderArea, setPoderArea] = useState(0);
     const [armaVinculada, setArmaVinculada] = useState('');
-    // 🥋 Maestria (0-100%) — só relevante pra categoria 'forma' (ver core/fadiga.js): também define
-    // até quanto de Poder liberado (Supressão) o personagem pode usar com esta Forma ativa SEM
-    // acumular Fadiga (ex.: Maestria 60% = livre até 60% de Poder). 100% = Forma dominada, nunca
-    // gera Fadiga por Poder.
+    // 🥋 Maestria (0-100%) — mesmo campo, dois usos conforme a categoria (ver core/fadiga.js):
+    // numa 'forma', define até quanto de Poder liberado (Supressão) o personagem pode usar com ela
+    // ativa SEM acumular Fadiga (100% = Forma dominada, nunca gera Fadiga por Poder). Numa
+    // 'habilidade', é só "o quanto o personagem já domina ESTA Habilidade especificamente",
+    // comparado contra maestriaRequeridaPoder abaixo pra decidir se ela gera Fadiga extra ao usar.
     const [maestriaPoder, setMaestriaPoder] = useState(0);
     // 😮‍💨 Fadiga por Uso (pontos percentuais) — só relevante pra categoria 'forma': o quanto esta
     // Forma especificamente pesa na Fadiga dinâmica quando usada ACIMA da própria Maestria. Cada
     // Forma pode ser configurada como mais ou menos cansativa de sustentar além do que já é
     // dominado; sem valor definido, usa o padrão de 15 (ver PESO_MAX_DINAMICO_PADRAO).
     const [fadigaPorUsoPoder, setFadigaPorUsoPoder] = useState(15);
+    // 🎓 Maestria Requerida (0-100%) — só relevante pra categoria 'habilidade': o nível mínimo de
+    // Maestria (maestriaPoder acima) que o personagem precisa ter NESTA Habilidade específica pra
+    // usá-la sem gerar Fadiga extra. Abaixo do requisito, dispararAtaque soma uma Fadiga
+    // instantânea proporcional à distância que falta (ver core/fadiga.js >
+    // calcularGanhoFadigaMaestriaInsuficiente) — 0 (padrão) significa "sem requisito", nunca gera
+    // Fadiga extra por Maestria insuficiente.
+    const [maestriaRequeridaPoder, setMaestriaRequeridaPoder] = useState(0);
     // 🗂️ Pasta (organização) — só relevante pra categoria 'forma': agrupa Formas em pastas
     // nomeadas pelo próprio usuário na aba "🎭 Formas" do Grimório de Poderes.
     const [pastaPoder, setPastaPoder] = useState('');
@@ -194,8 +203,15 @@ export function PoderesFormProvider({ children }) {
                         ficha.poderes[ix].maestria = Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0));
                         ficha.poderes[ix].fadigaPorUso = Math.max(0, parseFloat(fadigaPorUsoPoder) || 0);
                         ficha.poderes[ix].pasta = (pastaPoder || '').trim();
+                        delete ficha.poderes[ix].maestriaRequerida;
+                    } else if (abaAtual === 'habilidade') {
+                        ficha.poderes[ix].maestria = Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0));
+                        ficha.poderes[ix].maestriaRequerida = Math.min(100, Math.max(0, parseFloat(maestriaRequeridaPoder) || 0));
+                        delete ficha.poderes[ix].fadigaPorUso;
+                        delete ficha.poderes[ix].pasta;
                     } else {
                         delete ficha.poderes[ix].maestria;
+                        delete ficha.poderes[ix].maestriaRequerida;
                         delete ficha.poderes[ix].fadigaPorUso;
                         delete ficha.poderes[ix].pasta;
                     }
@@ -223,6 +239,9 @@ export function PoderesFormProvider({ children }) {
                         maestria: Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0)),
                         fadigaPorUso: Math.max(0, parseFloat(fadigaPorUsoPoder) || 0),
                         pasta: (pastaPoder || '').trim()
+                    } : abaAtual === 'habilidade' ? {
+                        maestria: Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0)),
+                        maestriaRequerida: Math.min(100, Math.max(0, parseFloat(maestriaRequeridaPoder) || 0))
                     } : {})
                 });
             }
@@ -233,7 +252,7 @@ export function PoderesFormProvider({ children }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, pastaPoder, cancelarEdicaoPoder]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, cancelarEdicaoPoder]);
 
     const togglePoder = useCallback((id) => {
         updateFicha((ficha) => {
@@ -274,6 +293,7 @@ export function PoderesFormProvider({ children }) {
         setArmaVinculada(p.armaVinculada || '');
         setMaestriaPoder(p.maestria || 0);
         setFadigaPorUsoPoder(p.fadigaPorUso !== undefined ? p.fadigaPorUso : 15);
+        setMaestriaRequeridaPoder(p.maestriaRequerida || 0);
         setPastaPoder(p.pasta || '');
         setEfeitosTemp(JSON.parse(JSON.stringify(p.efeitos || [])));
         setEfeitosTempPassivos(JSON.parse(JSON.stringify(p.efeitosPassivos || [])));
@@ -460,20 +480,37 @@ export function PoderesFormProvider({ children }) {
             custoFinalPerc = overchargeAtivo ? (poder.custoPercentual * multOvercharge) : 0;
         }
 
-        if (custoFinalPerc > 0 || overchargeGeraFadiga) {
+        // 🎓 MAESTRIA DE HABILIDADES: uma Habilidade (categoria='habilidade') com Maestria
+        // Requerida definida (poder.maestriaRequerida > 0) gera Fadiga instantânea extra quando
+        // usada abaixo do requisito — ver core/fadiga.js > calcularGanhoFadigaMaestriaInsuficiente.
+        const isHabilidade = (poder.categoria || '').toLowerCase() === 'habilidade';
+        const ganhoFadigaMaestria = (isHabilidade && (parseFloat(poder.maestriaRequerida) || 0) > 0)
+            ? calcularGanhoFadigaMaestriaInsuficiente(poder.maestria, poder.maestriaRequerida)
+            : 0;
+
+        if (custoFinalPerc > 0 || overchargeGeraFadiga || ganhoFadigaMaestria > 0) {
             updateFicha(ficha => {
                 if (custoFinalPerc > 0) {
+                    // 🔥 CORREÇÃO (6ª rodada): o dreno era calculado sobre o máximo BRUTO
+                    // (getMaximo), mas subtraído do "atual" já guardado na escala COMPRIMIDA de
+                    // exibição — uma unidade gigante contra uma pequena. Num vital com o máximo
+                    // comprimido (a maioria dos personagens já progredidos), isso drenava MUITO
+                    // mais do que o % pretendido, às vezes o "atual" inteiro de uma vez. Agora usa
+                    // getVitalMxDisplay (mesma escala que o "atual" guardado) como base do %.
                     ['mana', 'aura', 'chakra'].forEach(v => {
-                        let max = getMaximo(ficha, v);
-                        let drain = Math.floor(max * (custoFinalPerc / 100));
-                        let curr = ficha[v]?.atual !== undefined ? ficha[v].atual : max;
+                        let maxDisplay = getVitalMxDisplay(v, ficha);
+                        let drain = Math.floor(maxDisplay * (custoFinalPerc / 100));
+                        let curr = ficha[v]?.atual !== undefined ? ficha[v].atual : maxDisplay;
                         if (!ficha[v]) ficha[v] = {};
                         ficha[v].atual = Math.max(0, curr - drain);
                     });
                 }
-                if (overchargeGeraFadiga) {
+                if (overchargeGeraFadiga || ganhoFadigaMaestria > 0) {
                     if (!ficha.combate) ficha.combate = {};
-                    ficha.combate.fadigaExtra = Math.max(0, (Number(ficha.combate.fadigaExtra) || 0) + calcularGanhoFadigaOvercharge(ficha, poder.elemento));
+                    let ganhoTotal = 0;
+                    if (overchargeGeraFadiga) ganhoTotal += calcularGanhoFadigaOvercharge(ficha, poder.elemento);
+                    ganhoTotal += ganhoFadigaMaestria;
+                    ficha.combate.fadigaExtra = Math.max(0, (Number(ficha.combate.fadigaExtra) || 0) + ganhoTotal);
                 }
             });
             salvarFichaSilencioso();
@@ -551,6 +588,7 @@ export function PoderesFormProvider({ children }) {
         custoPercentual, setCustoPercentual, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
+        maestriaRequeridaPoder, setMaestriaRequeridaPoder,
         pastaPoder, setPastaPoder, pastasExistentes, renomearPastaForma,
         nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal,
         nomeEfeitoPassivo, setNomeEfeitoPassivo, novoAtrPassivo, setNovoAtrPassivo,
@@ -570,7 +608,7 @@ export function PoderesFormProvider({ children }) {
         minhaFicha, meuNome, isMestre, abaAtual,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
         imagemUrl, dadosQtd, dadosFaces, custoPercentual, poderAlcance,
-        poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, pastaPoder, pastasExistentes, renomearPastaForma,
+        poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma,
         nomeEfeito, novoAtr, novoProp, novoVal,
         nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, novoValPassivo,
         uploadingImg, vincularAberto, poderPreparandoId, overchargeAtivo,

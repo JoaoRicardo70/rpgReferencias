@@ -244,3 +244,21 @@ export function calcularReducaoFadigaPorRegeneracao(fracoesCuradas) {
     const media = soma / fracoesCuradas.length;
     return media * PESO_REDUCAO_FADIGA_REGEN;
 }
+
+// 🎓 MAESTRIA DE HABILIDADES — pedido do usuário: algumas Habilidades podem exigir um certo nível
+// de Maestria (poder.maestria, 0-100, o quanto o personagem já domina AQUELA Habilidade específica
+// — não confundir com a Maestria de FORMA acima, que é sobre sustentar uma transformação ativa)
+// pra não gerar gasto/Fadiga extra ao usá-las. Abaixo do requisito (poder.maestriaRequerida), usar
+// a Habilidade soma uma Fadiga INSTANTÂNEA (mesmo padrão de calcularGanhoFadigaOvercharge em
+// core/dominios.js — ganho direto em combate.fadigaExtra no momento do disparo, não contínuo por
+// turno) proporcional à distância que falta pro requisito: pior caso (Maestria 0 contra um
+// requisito de 100) soma o peso máximo; atingir ou superar o requisito não gera Fadiga nenhuma.
+// Ver PoderesFormContext.jsx > dispararAtaque.
+const PESO_MAESTRIA_INSUFICIENTE = 10;
+
+export function calcularGanhoFadigaMaestriaInsuficiente(maestria, maestriaRequerida) {
+    const m = Math.min(100, Math.max(0, parseFloat(maestria) || 0));
+    const req = Math.min(100, Math.max(0, parseFloat(maestriaRequerida) || 0));
+    const distancia = Math.max(0, req - m);
+    return (distancia / 100) * PESO_MAESTRIA_INSUFICIENTE;
+}

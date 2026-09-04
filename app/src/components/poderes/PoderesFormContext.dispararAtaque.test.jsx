@@ -277,6 +277,60 @@ describe('dispararAtaque — matching de "elemental" na vertente é case-insensi
     });
 });
 
+describe('dispararAtaque — Maestria de Habilidades: Fadiga extra ao usar abaixo do requisito (core/fadiga.js > calcularGanhoFadigaMaestriaInsuficiente)', () => {
+    function habilidade(overrides = {}) {
+        return {
+            id: 3, nome: 'Golpe Estudado', categoria: 'habilidade', vertente: 'Físico', elemento: '',
+            custoPercentual: 0, dadosQtd: 1, dadosFaces: 6,
+            ...overrides,
+        };
+    }
+
+    it('Maestria abaixo do requisito soma Fadiga instantânea proporcional à distância (0 vs 100 -> +10)', () => {
+        const ficha = montar({ dominios: {}, combate: { fadigaExtra: 0 } });
+        act(() => { probe.dispararAtaque(habilidade({ maestria: 0, maestriaRequerida: 100 })); });
+        expect(ficha.combate.fadigaExtra).toBeCloseTo(10, 6);
+    });
+
+    it('Maestria igual ou acima do requisito NÃO soma Fadiga nenhuma', () => {
+        const ficha = montar({ dominios: {}, combate: { fadigaExtra: 0 } });
+        act(() => { probe.dispararAtaque(habilidade({ maestria: 80, maestriaRequerida: 80 })); });
+        expect(ficha.combate.fadigaExtra).toBe(0);
+    });
+
+    it('sem maestriaRequerida definida (0/ausente) nunca soma Fadiga, mesmo com maestria baixa', () => {
+        const ficha = montar({ dominios: {}, combate: { fadigaExtra: 0 } });
+        act(() => { probe.dispararAtaque(habilidade({ maestria: 0 })); });
+        expect(ficha.combate.fadigaExtra).toBe(0);
+    });
+
+    it('Poderes/Formas (categoria != "habilidade") NUNCA geram Fadiga por Maestria, mesmo com os campos presentes', () => {
+        const ficha = montar({ dominios: {}, combate: { fadigaExtra: 0 } });
+        act(() => { probe.dispararAtaque({ ...habilidade({ maestria: 0, maestriaRequerida: 100 }), categoria: 'poder' }); });
+        expect(ficha.combate.fadigaExtra).toBe(0);
+    });
+
+    it('a Fadiga por Maestria insuficiente SOMA com a Fadiga de Overcharge quando ambas se aplicam no mesmo disparo', () => {
+        const ficha = montar({ dominios: {}, combate: { fadigaExtra: 0 } });
+        act(() => { probe.setOverchargeAtivo(true); });
+        act(() => {
+            probe.dispararAtaque(habilidade({
+                categoria: 'habilidade', vertente: 'Elemental', elemento: 'Fogo',
+                custoPercentual: 10, maestria: 0, maestriaRequerida: 100,
+            }));
+        });
+        // Overcharge nível 0 de Domínio: +10 (calcularGanhoFadigaOvercharge). Maestria 0 vs 100: +10.
+        expect(ficha.combate.fadigaExtra).toBeCloseTo(20, 6);
+    });
+
+    it('drena energia (custoPercentual) mesmo quando a Fadiga por Maestria é o único motivo do updateFicha rodar', () => {
+        const ficha = montar({ dominios: {}, combate: { fadigaExtra: 0 } });
+        act(() => { probe.dispararAtaque(habilidade({ custoPercentual: 0, maestria: 0, maestriaRequerida: 100 })); });
+        expect(salvarFichaSilencioso).toHaveBeenCalledTimes(1);
+        expect(ficha.mana.atual).toBe(1000000); // custo 0 -> energia intocada
+    });
+});
+
 describe('dispararAtaque — efeitos colaterais gerais (sempre executam, independente do ramo)', () => {
     it('sempre reseta poderPreparandoId e overchargeAtivo ao final, mesmo sem custo/Fadiga', () => {
         montar({ dominios: {} });

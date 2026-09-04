@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import useStore from '../../stores/useStore';
-import { contarDigitos } from '../../core/utils.js';
 import { getMaximo, getBuffs, getEfeitosDeClasse } from '../../core/attributes.js';
-import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals.js';
+import { capturarMaximosAtuais, rescalarVitaisProporcional, getVitalMxDisplay } from '../../core/vitals.js';
 import { salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync.js';
 
 export const STATS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
@@ -226,9 +225,10 @@ export function FichaFormProvider({ children }) {
     }
 
     const rawMaxVida = minhaFicha ? getMaximo(minhaFicha, 'vida', true) : 1;
-    const strVal = String(Math.floor(rawMaxVida));
-    const pVit = Math.max(0, strVal.length - 8);
-    const maxVida = pVit > 0 ? Math.floor(rawMaxVida / Math.pow(10, pVit)) : rawMaxVida;
+    // getVitalMxDisplay já decide a escala ignorando Formas (getMaximoSemFormas) — evita que uma
+    // Forma temporária empurre "maxVida" através de uma fronteira de dígitos e infle
+    // percAtualLostFloor artificialmente (disparando/ratchando furiaMax sem Vida perdida de verdade).
+    const maxVida = minhaFicha ? getVitalMxDisplay('vida', minhaFicha) : 1;
     const atualVida = minhaFicha?.vida?.atual ?? maxVida;
     const percAtualLostFloor = Math.floor(maxVida > 0 ? Math.max(0, ((maxVida - atualVida) / maxVida) * 100) : 0);
     const furiaMax = minhaFicha?.combate?.furiaMax || 0;
@@ -282,6 +282,15 @@ export function FichaFormProvider({ children }) {
 
     useEffect(() => { carregarAtributoNaTela(); }, [carregarAtributoNaTela]);
 
+    // 🔥 CORREÇÃO CRÍTICA (6ª rodada do vazamento de Energia): esta função tinha sua PRÓPRIA cópia,
+    // separada, da lógica de compressão de notação — e, diferente de TODOS os outros lugares que
+    // escrevem "atual" (core/vitals.js, StatusFormContext.jsx etc.), ela SOBRESCREVIA
+    // incondicionalmente ficha[c].atual = mx a cada "SALVAR ATRIBUTOS", jogando fora
+    // COMPLETAMENTE o valor atual (Vida/Energia) que o personagem tinha — bastava editar QUALQUER
+    // campo de um vital (inclusive só a Regeneração) pra "atual" ser resetado. Agora usa
+    // capturarMaximosAtuais/rescalarVitaisProporcional (já importadas neste arquivo pros toggles
+    // de Ser Selado) — o mesmo travamento testado que NUNCA reduz "atual" por conta própria, só
+    // clampa pra baixo se ele ultrapassar o novo teto.
     const salvarAtributo = useCallback(() => {
         const s = selAtributo;
         let chs = [];
@@ -290,17 +299,16 @@ export function FichaFormProvider({ children }) {
         else chs = [s];
         const v = { b: parseInt(campos.base) || 0, mb: parseFloat(campos.mBase) || 1, rg: parseFloat(campos.regeneracao) || 0 };
         updateFicha((ficha) => {
+            const vitaisAfetados = chs.filter(c => ['vida', 'mana', 'aura', 'chakra', 'corpo', 'pontosVitais', 'pontosMortais'].includes(c));
+            const oldM = vitaisAfetados.length > 0 ? capturarMaximosAtuais(ficha, vitaisAfetados) : null;
+
             for (let i = 0; i < chs.length; i++) {
                 const c = chs[i];
-                if (!ficha[c]) ficha[c] = {}; 
+                if (!ficha[c]) ficha[c] = {};
                 ficha[c].base = v.b; ficha[c].mBase = v.mb; ficha[c].regeneracao = v.rg;
-                if (['vida', 'mana', 'aura', 'chakra', 'corpo', 'pontosVitais', 'pontosMortais'].includes(c)) {
-                    let mx = getMaximo(ficha, c);
-                    if (c === 'vida') { const p = Math.max(0, contarDigitos(mx) - 8); if (p > 0) mx = Math.floor(mx / Math.pow(10, p)); } 
-                    else { const p = Math.max(0, contarDigitos(mx) - 9); if (p > 0) mx = Math.floor(mx / Math.pow(10, p)); }
-                    ficha[c].atual = mx;
-                }
             }
+
+            if (vitaisAfetados.length > 0) rescalarVitaisProporcional(ficha, oldM, vitaisAfetados);
         });
         salvarFichaSilencioso(); alert('Salvo!');
     }, [selAtributo, campos, updateFicha]);

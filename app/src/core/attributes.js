@@ -186,10 +186,17 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
     processarEfeitos(getEfeitosDeClasse(ficha), `Classe Mística`);
 
     if (maxFuriaVal > 0 && !avoidLoop) {
-        let rawMaxVida = getMaximo(ficha, 'vida', true); 
-        let strVal = String(Math.floor(rawMaxVida));
+        let rawMaxVida = getMaximo(ficha, 'vida', true);
+        // 🔥 CORREÇÃO (6ª rodada do vazamento de Energia): a escala de notação (pVit) era decidida
+        // pelo máximo COMPLETO (com Formas) — a mesma causa raiz já corrigida em core/vitals.js >
+        // calcVitalScale. Aqui não dá pra importar vitals.js (importaria de volta este próprio
+        // arquivo, ciclo) — então usa getMaximoSemFormas (definida logo acima neste arquivo) como
+        // base da escala, mantendo rawMaxVida (completo) como numerador de maxVida.
+        let rawMaxVidaEstavel = getMaximoSemFormas(ficha, 'vida', true);
+        let baseEscala = rawMaxVidaEstavel > 0 ? rawMaxVidaEstavel : rawMaxVida;
+        let strVal = String(Math.floor(baseEscala));
         let pVit = Math.max(0, strVal.length - 8);
-        
+
         let maxVida = pVit > 0 ? Math.floor(rawMaxVida / Math.pow(10, pVit)) : rawMaxVida;
         let atualVida = ficha.vida?.atual ?? maxVida;
         

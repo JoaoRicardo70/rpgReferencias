@@ -105,7 +105,7 @@ function getBasePFor(ficha, k) {
     return getPrestigioReal(k, getRawBase(ficha, k) || 0) || 0;
 }
 
-function getVitalMax(key, ficha) {
+export function getVitalMax(key, ficha) {
     if (key === 'pv') {
         const bC = getBasePFor(ficha, 'corpo');
         const bV = getBasePFor(ficha, 'vida');
@@ -126,7 +126,7 @@ function getVitalMax(key, ficha) {
 
 // Réplica de getVitalMax, só que com o multiplicador de Formas travado fora (getMaximoSemFormas em
 // vez de getMaximo) — pv/pm nunca passam por getMaximo/Formas, então ficam idênticos ao original.
-function getVitalMaxEstavel(key, ficha) {
+export function getVitalMaxEstavel(key, ficha) {
     if (key === 'pv' || key === 'pm') return getVitalMax(key, ficha);
     const v = getMaximoSemFormas(ficha, key);
     return (v !== undefined && v !== null && !Number.isNaN(v)) ? v : 1;
@@ -135,7 +135,7 @@ function getVitalMaxEstavel(key, ficha) {
 // rawMxParaEscala decide SÓ a escala de notação (p) — por padrão é o próprio rawMx, mas os
 // chamadores que precisam ignorar Formas na decisão de escala (ver bloco de comentário acima)
 // passam o máximo ESTÁVEL aqui, mantendo rawMx (completo) como numerador de mxDisplay.
-function calcVitalScale(rawMx, key, rawMxParaEscala = rawMx) {
+export function calcVitalScale(rawMx, key, rawMxParaEscala = rawMx) {
     if (!rawMx || rawMx <= 0) return { p: 0, mxDisplay: 0 };
     const limit = (key === 'vida' || key === 'pv' || key === 'pm') ? 8 : 9;
     const baseEscala = (rawMxParaEscala && rawMxParaEscala > 0) ? rawMxParaEscala : rawMx;
@@ -143,6 +143,21 @@ function calcVitalScale(rawMx, key, rawMxParaEscala = rawMx) {
     const p = Math.max(0, strMx.length - limit);
     const mxDisplay = p > 0 ? Math.floor(rawMx / Math.pow(10, p)) : Math.floor(rawMx);
     return { p, mxDisplay };
+}
+
+// 🔥 ÚNICA FONTE DE VERDADE pro "teto EXIBIDO" (já na escala comprimida, sem Formas cruzando
+// fronteira de dígitos) de um vital — combina getVitalMax + getVitalMaxEstavel + calcVitalScale
+// num só lugar. Qualquer código fora deste módulo que precise saber "quanto vale o teto que o
+// jogador VÊ na tela" (pra clampar dano, calcular custo em % do máximo, etc.) DEVE usar esta
+// função em vez de reimplementar a conta — foi exatamente reimplementações separadas (em
+// PoderesFormContext.jsx > dispararAtaque e AtaqueFormContext.jsx > cálculo manual) comparando um
+// custo calculado sobre o máximo BRUTO (getMaximo, muito maior) contra o "atual" já comprimido que
+// causou o vazamento de Energia real (drenos gigantescos, muito além do % pretendido) descoberto
+// na 6ª rodada de investigação deste bug.
+export function getVitalMxDisplay(key, ficha) {
+    const rawMx = getVitalMax(key, ficha);
+    const rawMxEstavel = getVitalMaxEstavel(key, ficha);
+    return calcVitalScale(rawMx, key, rawMxEstavel).mxDisplay;
 }
 
 // Aplica ficha[key].regeneracao + o bônus de regeneração vindo de Poderes/Passivas/Itens ativos

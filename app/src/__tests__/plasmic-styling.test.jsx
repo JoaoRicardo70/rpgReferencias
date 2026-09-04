@@ -114,16 +114,32 @@ vi.mock('../components/ficha/TabelaPrestigio', () => ({
     default: () => <div data-testid="tabela-prestigio" />,
 }));
 
-// Stub core utilities used deep in FichaFormContext
-vi.mock('../core/utils.js', () => ({
-    contarDigitos: vi.fn((n) => String(Math.floor(n)).length),
-}));
+// Stub core utilities used deep in FichaFormContext — importOriginal (mesmo motivo do mock de
+// attributes.js abaixo): mantém tratarUnico e outros exports reais usados por
+// getMultiplicadorTotalSemFormas (core/attributes.js), só sobrescrevendo contarDigitos.
+vi.mock('../core/utils.js', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        contarDigitos: vi.fn((n) => String(Math.floor(n)).length),
+    };
+});
 
-vi.mock('../core/attributes.js', () => ({
-    getMaximo: vi.fn(() => 100),
-    getBuffs: vi.fn(() => ({ _hasBuff: {}, munico: [], fontesMgeral: [] })),
-    getEfeitosDeClasse: vi.fn(() => []),
-}));
+// Mock parcial via importOriginal — mantém TODOS os exports reais (getRawBase,
+// getMaximoSemFormas etc., usados internamente por core/vitals.js e StatusFormContext.jsx) e só
+// sobrescreve os 3 que este arquivo de teste realmente precisa stubar. Um mock com uma lista fixa
+// de exports (como antes) fica desatualizado sempre que attributes.js ganha uma função nova
+// consumida por um módulo importado transitivamente — já causou esse exato tipo de crash mais de
+// uma vez neste projeto.
+vi.mock('../core/attributes.js', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        getMaximo: vi.fn(() => 100),
+        getBuffs: vi.fn(() => ({ _hasBuff: {}, munico: [], fontesMgeral: [] })),
+        getEfeitosDeClasse: vi.fn(() => []),
+    };
+});
 
 vi.mock('../core/prestige.js', () => ({ calcularPrestigio: vi.fn(() => ({ rank: 'D', pts: 0 })) }));
 

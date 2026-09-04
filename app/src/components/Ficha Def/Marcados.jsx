@@ -637,6 +637,14 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
 
     const poderVerdadeiro = getPoderVerdadeiro(vitalKey, ficha, true, supressao);
 
+    // 💖 Regeneração deste vital — mesmo campo manual (ficha[vitalKey].regeneracao) editado na aba
+    // Ficha > Editor de Atributos, mais o bônus de Poderes/Passivas/Itens ativos (getBuffs, ver
+    // core/vitals.js > aplicarRegeneracaoDeTurno) que realmente entra na conta a cada turno/clique
+    // em "Regenerar". Trazido pra cá pra não precisar trocar de aba só pra ver/ajustar isso.
+    const regenManual = parseFloat(ficha?.[vitalKey]?.regeneracao) || 0;
+    const regenBuff = safeGetBuffs(ficha, vitalKey, false, false)?.regeneracao || 0;
+    const regenTotal = regenManual + regenBuff;
+
     return (
         <div style={{ marginBottom: '15px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -649,7 +657,22 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
                 </div>
             </div>
             <BarraVital atual={atual} maximo={mxDisplay} pVit={pVit} cor={corBarra} corTexto={corTextoBarra} onChangeAtual={(v) => salvar(`${vitalKey}.atual`, v)} />
-            
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', fontSize: '0.8em', opacity: 0.85 }}>
+                <span style={{ opacity: 0.7 }}>💖 Regen/turno:</span>
+                <input
+                    type="number" step="0.01" value={regenManual}
+                    onChange={(e) => salvar(`${vitalKey}.regeneracao`, parseFloat(e.target.value) || 0)}
+                    style={{ width: '70px', background: 'rgba(0,0,0,0.3)', color: 'inherit', border: `1px solid ${corBarra}80`, borderRadius: '4px', padding: '2px 4px', textAlign: 'center' }}
+                    title="Regeneração manual/fixa deste vital"
+                />
+                {regenBuff > 0 && (
+                    <span style={{ color: '#0f0', textShadow: '0 0 5px rgba(0,255,0,0.5)' }}>
+                        + {regenBuff} (Poder/Passiva/Item) = <strong>{regenTotal}</strong>/turno
+                    </span>
+                )}
+            </div>
+
             {aberto && subItens && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '35px', marginTop: '12px' }}>
                     {subItens.map(sub => {

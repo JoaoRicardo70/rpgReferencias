@@ -130,6 +130,7 @@ export function PoderesFormEditor() {
         custoPercentual, setCustoPercentual, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
+        maestriaRequeridaPoder, setMaestriaRequeridaPoder,
         pastaPoder, setPastaPoder, pastasExistentes,
         descricaoPoder, setDescricaoPoder,
         nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal,
@@ -221,6 +222,26 @@ export function PoderesFormEditor() {
                         <input
                             type="number" min="0" value={fadigaPorUsoPoder}
                             onChange={e => { const v = parseFloat(e.target.value); setFadigaPorUsoPoder(isNaN(v) ? 0 : Math.max(0, v)); }}
+                            style={{ width: '100%', textAlign: 'center', borderColor: '#ff8800', color: '#ff8800' }}
+                        />
+                    </div>
+                )}
+                {abaAtual === 'habilidade' && (
+                    <div className="fade-in">
+                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7, color: '#00ff88' }} title="O quanto o personagem já domina ESTA Habilidade especificamente.">🎓 Maestria (%)</label>
+                        <input
+                            type="number" min="0" max="100" value={maestriaPoder}
+                            onChange={e => { const v = parseFloat(e.target.value); setMaestriaPoder(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
+                            style={{ width: '100%', textAlign: 'center', borderColor: '#00ff88', color: '#00ff88' }}
+                        />
+                    </div>
+                )}
+                {abaAtual === 'habilidade' && (
+                    <div className="fade-in">
+                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7, color: '#ff8800' }} title="Maestria mínima exigida pra usar esta Habilidade sem gerar Fadiga extra. 0 = sem requisito (padrão).">🎯 Maestria Requerida (%)</label>
+                        <input
+                            type="number" min="0" max="100" value={maestriaRequeridaPoder}
+                            onChange={e => { const v = parseFloat(e.target.value); setMaestriaRequeridaPoder(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
                             style={{ width: '100%', textAlign: 'center', borderColor: '#ff8800', color: '#ff8800' }}
                         />
                     </div>
@@ -517,8 +538,25 @@ export function PoderesLista() {
                                         </div>
                                     )}
 
-                                    <button 
-                                        style={{ width: '100%', margin: 0, padding: '12px', fontSize: '1.1em', letterSpacing: '1px', fontWeight: 'bold', border: '2px solid currentColor', background: overchargeAtivo ? 'rgba(0,0,0,0.1)' : 'transparent' }} 
+                                    {(p.categoria || '').toLowerCase() === 'habilidade' && (parseFloat(p.maestriaRequerida) || 0) > 0 && (
+                                        (() => {
+                                            const maestriaAtual = parseFloat(p.maestria) || 0;
+                                            const req = parseFloat(p.maestriaRequerida) || 0;
+                                            const suficiente = maestriaAtual >= req;
+                                            const cor = suficiente ? '#00ff88' : '#ff8800';
+                                            return (
+                                                <div style={{ borderLeft: `3px solid ${cor}`, paddingLeft: '10px', marginBottom: '15px', color: cor }}>
+                                                    <p style={{ margin: 0, fontSize: '0.85em', fontWeight: 'bold' }}>
+                                                        🎓 Maestria: {maestriaAtual}% / {req}% requerida
+                                                        {suficiente ? ' — dominada, sem Fadiga extra.' : ' — abaixo do requisito, gera Fadiga extra ao usar.'}
+                                                    </p>
+                                                </div>
+                                            );
+                                        })()
+                                    )}
+
+                                    <button
+                                        style={{ width: '100%', margin: 0, padding: '12px', fontSize: '1.1em', letterSpacing: '1px', fontWeight: 'bold', border: '2px solid currentColor', background: overchargeAtivo ? 'rgba(0,0,0,0.1)' : 'transparent' }}
                                         onClick={() => dispararAtaque(p)}
                                     >
                                         {overchargeAtivo ? '💥 DISPARAR OVERCHARGE FATAL!' : '⚔️ EXECUTAR HABILIDADE'}
