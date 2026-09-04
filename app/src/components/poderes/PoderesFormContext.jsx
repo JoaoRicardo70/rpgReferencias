@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useRef, useMemo, useEffect,
 import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes';
 import { salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync';
-import { capturarMaximosAtuais, rescalarVitaisProporcional, getVitalMxDisplay } from '../../core/vitals';
+// 🛡️ Removemos o "rescalarVitaisProporcional" bugado daqui, faremos a matemática segura direto no Contexto!
+import { getVitalMxDisplay } from '../../core/vitals';
 import { calcularGanhoFadigaOvercharge, calcularMultiplicadorOvercharge } from '../../core/dominios';
 import { calcularGanhoFadigaMaestriaInsuficiente } from '../../core/fadiga';
 
@@ -46,26 +47,9 @@ export function PoderesFormProvider({ children }) {
     const [poderAlcance, setPoderAlcance] = useState(1);
     const [poderArea, setPoderArea] = useState(0);
     const [armaVinculada, setArmaVinculada] = useState('');
-    // 🥋 Maestria (0-100%) — mesmo campo, dois usos conforme a categoria (ver core/fadiga.js):
-    // numa 'forma', define até quanto de Poder liberado (Supressão) o personagem pode usar com ela
-    // ativa SEM acumular Fadiga (100% = Forma dominada, nunca gera Fadiga por Poder). Numa
-    // 'habilidade', é só "o quanto o personagem já domina ESTA Habilidade especificamente",
-    // comparado contra maestriaRequeridaPoder abaixo pra decidir se ela gera Fadiga extra ao usar.
     const [maestriaPoder, setMaestriaPoder] = useState(0);
-    // 😮‍💨 Fadiga por Uso (pontos percentuais) — só relevante pra categoria 'forma': o quanto esta
-    // Forma especificamente pesa na Fadiga dinâmica quando usada ACIMA da própria Maestria. Cada
-    // Forma pode ser configurada como mais ou menos cansativa de sustentar além do que já é
-    // dominado; sem valor definido, usa o padrão de 15 (ver PESO_MAX_DINAMICO_PADRAO).
     const [fadigaPorUsoPoder, setFadigaPorUsoPoder] = useState(15);
-    // 🎓 Maestria Requerida (0-100%) — só relevante pra categoria 'habilidade': o nível mínimo de
-    // Maestria (maestriaPoder acima) que o personagem precisa ter NESTA Habilidade específica pra
-    // usá-la sem gerar Fadiga extra. Abaixo do requisito, dispararAtaque soma uma Fadiga
-    // instantânea proporcional à distância que falta (ver core/fadiga.js >
-    // calcularGanhoFadigaMaestriaInsuficiente) — 0 (padrão) significa "sem requisito", nunca gera
-    // Fadiga extra por Maestria insuficiente.
     const [maestriaRequeridaPoder, setMaestriaRequeridaPoder] = useState(0);
-    // 🗂️ Pasta (organização) — só relevante pra categoria 'forma': agrupa Formas em pastas
-    // nomeadas pelo próprio usuário na aba "🎭 Formas" do Grimório de Poderes.
     const [pastaPoder, setPastaPoder] = useState('');
     
     const [nomeEfeito, setNomeEfeito] = useState('');
@@ -148,7 +132,7 @@ export function PoderesFormProvider({ children }) {
         setDadosFaces(20);
         setCustoPercentual(0);
         setPoderAlcance(1);
-        setPoderArea(0); // Correção de nomenclatura
+        setPoderArea(0); 
         setArmaVinculada('');
         setMaestriaPoder(0);
         setFadigaPorUsoPoder(15);
@@ -160,9 +144,6 @@ export function PoderesFormProvider({ children }) {
         setNovoValPassivo('');
     }, [setPoderEditandoId, setEfeitosTemp, setEfeitosTempPassivos]);
 
-    // ==========================================
-    // 🛡️ O ESCUDO ANTI-VÁCUO DO FIREBASE 
-    // ==========================================
     const salvarNovoPoder = useCallback(() => {
         const n = nomePoder.trim();
         if (!n || (!efeitosTemp.length && !efeitosTempPassivos.length && dadosQtd === 0 && !descricaoPoder.trim())) {
@@ -170,7 +151,6 @@ export function PoderesFormProvider({ children }) {
             return;
         }
 
-        // Blindagem: Transforma "undefined" em valores seguros antes de tocar no Firebase
         const descSafe = descricaoPoder || "";
         const vertSafe = poderVertente || "";
         const elemSafe = poderElemento || "";
@@ -254,15 +234,30 @@ export function PoderesFormProvider({ children }) {
         });
     }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, cancelarEdicaoPoder]);
 
+    // 🔥 O ESCUDO ANTI-DRENAGEM (Resolve a perda acidental de energia ao Ligar a Forma) 🔥
     const togglePoder = useCallback((id) => {
         updateFicha((ficha) => {
             if (!ficha.poderes) return;
             const p = ficha.poderes.find(po => po.id === id);
             if (!p) return;
 
-            const oldM = capturarMaximosAtuais(ficha);
+            // 1. Antes de ligar/desligar, capturamos a % exata de cada barra.
+            const pctVitals = {};
+            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
+                const maxV = getMaximo(ficha, v);
+                const curV = ficha[v]?.atual !== undefined ? ficha[v].atual : maxV;
+                pctVitals[v] = maxV > 0 ? (curV / maxV) : 1;
+            });
+
+            // 2. Mudamos o status da forma (o que engatilha o novo Máximo de Status)
             p.ativa = !p.ativa;
-            rescalarVitaisProporcional(ficha, oldM);
+
+            // 3. Forçamos as barras a manterem a MESMA % no novo Máximo. (Nada se gasta!)
+            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
+                const novoMax = getMaximo(ficha, v);
+                if (!ficha[v]) ficha[v] = {};
+                ficha[v].atual = Math.floor(novoMax * pctVitals[v]);
+            });
         });
 
         salvarFichaSilencioso();
@@ -320,10 +315,19 @@ export function PoderesFormProvider({ children }) {
         salvarFichaSilencioso();
     }, [updateFicha]);
 
+    // 🔥 ESCUDOS ANTI-DRENAGEM NO EDITOR DE SUB-FORMAS 🔥
     const salvarFormaPoder = useCallback((poderId, forma) => {
         updateFicha((ficha) => {
             const p = (ficha.poderes || []).find(po => po.id === poderId);
             if (!p) return;
+
+            const pctVitals = {};
+            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
+                const maxV = getMaximo(ficha, v);
+                const curV = ficha[v]?.atual !== undefined ? ficha[v].atual : maxV;
+                pctVitals[v] = maxV > 0 ? (curV / maxV) : 1;
+            });
+
             if (!p.formas) p.formas = [];
             const ix = p.formas.findIndex(f => f.id === forma.id);
             if (ix !== -1) {
@@ -331,6 +335,12 @@ export function PoderesFormProvider({ children }) {
             } else {
                 p.formas.push(forma);
             }
+
+            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
+                const novoMax = getMaximo(ficha, v);
+                if (!ficha[v]) ficha[v] = {};
+                ficha[v].atual = Math.floor(novoMax * pctVitals[v]);
+            });
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
@@ -339,10 +349,22 @@ export function PoderesFormProvider({ children }) {
         updateFicha((ficha) => {
             const p = (ficha.poderes || []).find(po => po.id === poderId);
             if (!p) return;
-            const oldM = capturarMaximosAtuais(ficha);
+            
+            const pctVitals = {};
+            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
+                const maxV = getMaximo(ficha, v);
+                const curV = ficha[v]?.atual !== undefined ? ficha[v].atual : maxV;
+                pctVitals[v] = maxV > 0 ? (curV / maxV) : 1;
+            });
+
             p.formas = (p.formas || []).filter(f => f.id !== formaId);
             if (p.formaAtivaId === formaId) p.formaAtivaId = null;
-            rescalarVitaisProporcional(ficha, oldM);
+            
+            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
+                const novoMax = getMaximo(ficha, v);
+                if (!ficha[v]) ficha[v] = {};
+                ficha[v].atual = Math.floor(novoMax * pctVitals[v]);
+            });
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
@@ -351,9 +373,21 @@ export function PoderesFormProvider({ children }) {
         updateFicha((ficha) => {
             const p = (ficha.poderes || []).find(po => po.id === poderId);
             if (!p) return;
-            const oldM = capturarMaximosAtuais(ficha);
+            
+            const pctVitals = {};
+            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
+                const maxV = getMaximo(ficha, v);
+                const curV = ficha[v]?.atual !== undefined ? ficha[v].atual : maxV;
+                pctVitals[v] = maxV > 0 ? (curV / maxV) : 1;
+            });
+
             p.formaAtivaId = formaId;
-            rescalarVitaisProporcional(ficha, oldM);
+            
+            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
+                const novoMax = getMaximo(ficha, v);
+                if (!ficha[v]) ficha[v] = {};
+                ficha[v].atual = Math.floor(novoMax * pctVitals[v]);
+            });
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
@@ -370,8 +404,6 @@ export function PoderesFormProvider({ children }) {
         });
     }, [poderesGlobais, abaAtual]);
 
-    // 🗂️ Nomes de pasta já usados por alguma Forma — alimenta o <datalist> do campo Pasta no
-    // formulário (sugestão de pastas existentes, sem impedir digitar uma nova).
     const pastasExistentes = useMemo(() => {
         const set = new Set();
         poderesGlobais.forEach(p => {
@@ -382,8 +414,6 @@ export function PoderesFormProvider({ children }) {
         return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
     }, [poderesGlobais]);
 
-    // Renomeia (ou remove, se pastaNova vier vazia) uma pasta em TODAS as Formas que a usam de uma
-    // vez, sem precisar editar Forma por Forma.
     const renomearPastaForma = useCallback((pastaAntiga, pastaNova) => {
         const novaLimpa = (pastaNova || '').trim();
         updateFicha((ficha) => {
@@ -464,11 +494,6 @@ export function PoderesFormProvider({ children }) {
     const mPotencial = minhaFicha?.dano?.mPotencial || 1;
     const danoBruto = minhaFicha?.dano?.danoBruto || 0;
 
-    // 🎓 DOMÍNIO ELEMENTAL (página 3 da Ficha, ficha.dominios) aplicado ao Overcharge de Técnicas
-    // Elementais — ver core/dominios.js: quanto maior o nível do Domínio do elemento desta
-    // técnica, MENOR o multiplicador de custo do Overcharge (2.0x sem domínio até 1.2x no nível
-    // máximo) E MENOR a Fadiga instantânea que o Overcharge gera (zero no nível máximo, "Eterno").
-    // Dá uma razão concreta e recorrente pra treinar a Hierarquia de Domínios.
     const dispararAtaque = useCallback((poder) => {
         let custoFinalPerc = poder.custoPercentual || 0;
         const vertenteLower = (poder.vertente || '').toLowerCase();
@@ -480,9 +505,6 @@ export function PoderesFormProvider({ children }) {
             custoFinalPerc = overchargeAtivo ? (poder.custoPercentual * multOvercharge) : 0;
         }
 
-        // 🎓 MAESTRIA DE HABILIDADES: uma Habilidade (categoria='habilidade') com Maestria
-        // Requerida definida (poder.maestriaRequerida > 0) gera Fadiga instantânea extra quando
-        // usada abaixo do requisito — ver core/fadiga.js > calcularGanhoFadigaMaestriaInsuficiente.
         const isHabilidade = (poder.categoria || '').toLowerCase() === 'habilidade';
         const ganhoFadigaMaestria = (isHabilidade && (parseFloat(poder.maestriaRequerida) || 0) > 0)
             ? calcularGanhoFadigaMaestriaInsuficiente(poder.maestria, poder.maestriaRequerida)
@@ -491,12 +513,6 @@ export function PoderesFormProvider({ children }) {
         if (custoFinalPerc > 0 || overchargeGeraFadiga || ganhoFadigaMaestria > 0) {
             updateFicha(ficha => {
                 if (custoFinalPerc > 0) {
-                    // 🔥 CORREÇÃO (6ª rodada): o dreno era calculado sobre o máximo BRUTO
-                    // (getMaximo), mas subtraído do "atual" já guardado na escala COMPRIMIDA de
-                    // exibição — uma unidade gigante contra uma pequena. Num vital com o máximo
-                    // comprimido (a maioria dos personagens já progredidos), isso drenava MUITO
-                    // mais do que o % pretendido, às vezes o "atual" inteiro de uma vez. Agora usa
-                    // getVitalMxDisplay (mesma escala que o "atual" guardado) como base do %.
                     ['mana', 'aura', 'chakra'].forEach(v => {
                         let maxDisplay = getVitalMxDisplay(v, ficha);
                         let drain = Math.floor(maxDisplay * (custoFinalPerc / 100));
