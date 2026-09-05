@@ -89,7 +89,7 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
         expect(screen.getAllByText(/Kakaroto/i).length).toBeGreaterThan(0);
     });
 
-    it('mostra o Atual/Máximo da vida (não só o número cru) quando a ficha tem status suficiente pra calcular um máximo', () => {
+    it('mostra a barra de vida (BarraVital) com um width em porcentagem válido, SEM mostrar o número de Máximo ao lado do Atual', () => {
         const ficha = criarFichaDeCombate(500000);
         const { container } = renderHolograma(montarMockState({ minhaFicha: ficha, feedCombate: [{ tipo: 'dano', nome: 'Kakaroto', dano: 9999 }] }));
 
@@ -102,6 +102,36 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
             expect(pct).toBeGreaterThanOrEqual(0);
             expect(pct).toBeLessThanOrEqual(100);
         });
+
+        // QA — pedido do usuário: mostrar "Atual / Máximo" lado a lado não ficou interessante,
+        // só o valor Atual deve aparecer (a barra já é o indicador visual "prático" de fartura).
+        expect(container.textContent).not.toMatch(/\d\s*\/\s*[\d.,]+/);
+    });
+
+    // -------------------------------------------------------------------------
+    // QA — Regressão do bug relatado: a moldura comparava "atual" (guardado na escala de
+    // EXIBIÇÃO comprimida, ver core/vitals.js > calcVitalScale) contra getMaximo() BRUTO (sem
+    // compressão), fazendo "atual" aparecer MAIOR que o "máximo" pra qualquer vital grande o
+    // bastante pra cruzar a fronteira de compressão (9+ dígitos em mana/aura/chakra/corpo) —
+    // exatamente o que o usuário reportou (screenshot: "345.000.000 / 230.000.000"). Corrigido
+    // trocando getMaximo() por getVitalMxDisplay() (a mesma "única fonte de verdade" que a
+    // própria Ficha Definitiva e a Regeneração automática já usam).
+    // -------------------------------------------------------------------------
+    it('a barra de MP não estoura 100% mesmo quando "atual" (na escala comprimida) seria maior que o getMaximo() bruto', () => {
+        const ficha = criarFichaDeCombate(500000);
+        // base = 5 bilhões (10 dígitos) -> calcVitalScale comprime com p=1 -> mxDisplay = 500.000.000.
+        // atual = 400.000.000 já na escala comprimida (é assim que a Ficha Definitiva grava) —
+        // ANTES da correção, a barra comparava isso contra getMaximo() bruto = 5.000.000.000,
+        // dando ~8% (errado); DEPOIS, compara contra getVitalMxDisplay() = 500.000.000 -> 80%.
+        ficha.mana = { atual: 400000000, base: 5000000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mUnico: '1.0', mAbsoluto: 1.0 };
+        const { container } = renderHolograma(montarMockState({ minhaFicha: ficha, feedCombate: [{ tipo: 'dano', nome: 'Kakaroto', dano: 1 }] }));
+
+        const barraMp = Array.from(container.querySelectorAll('div')).find(d => (d.getAttribute('style') || '').includes('#4dffff') && /width:\s*\d/.test(d.getAttribute('style') || ''));
+        expect(barraMp).toBeDefined();
+        const match = /width:\s*(\d+(?:\.\d+)?)%/.exec(barraMp.getAttribute('style'));
+        const pct = parseFloat(match[1]);
+        expect(pct).toBeCloseTo(80, 0);
+        expect(pct).toBeLessThanOrEqual(100);
     });
 
     it('não quebra quando a ficha do alvo não tem NENHUM status definido (getMaximo com dados ausentes)', () => {
@@ -238,5 +268,97 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
         expect(valorSpan.textContent.trim().length).toBeGreaterThan(0);
         // formatarPoderCosmico sempre devolve um número (pt-BR) ou notação Xe+Y, nunca vazio/NaN/undefined.
         expect(valorSpan.textContent).not.toMatch(/NaN|undefined/i);
+    });
+
+    // -----------------------------------------------------------------------
+    // QA (gap) — vital em ZERO (atual=0) com um teto REAL (getVitalMxDisplay > 0), diferente do
+    // teste já existente "maximo <= 0 E atual === 0" (que testa a ficha SEM base nenhuma). Aqui a
+    // barra deve ficar em 0% (não NaN, não 100% pelo fallback de "sem máximo") e, sendo a barra de
+    // HP (perigo=true), a cor de perigo mais forte (vermelho, <=20%) deve disparar em 0% também.
+    // -----------------------------------------------------------------------
+    it('HP zerado (atual=0, com máximo real > 0) renderiza a barra em 0% (não NaN) E já dispara a cor de perigo vermelha', () => {
+        const ficha = criarFichaDeCombate(0);
+        const { container } = renderHolograma(montarMockState({ minhaFicha: ficha, feedCombate: [{ tipo: 'dano', nome: 'Kakaroto', dano: 1 }] }));
+
+        const barraVermelha = Array.from(container.querySelectorAll('div')).find(d => (d.getAttribute('style') || '').includes('#ff3030'));
+        expect(barraVermelha).toBeDefined();
+        expect(barraVermelha.getAttribute('style')).toMatch(/width:\s*0%/);
+        expect(barraVermelha.getAttribute('style')).not.toMatch(/NaN/);
+    });
+
+    it('MP zerado (atual=0, com máximo real > 0, vital SEM perigo) renderiza a barra em 0% sem lançar erro e sem virar cor de perigo (perigo é exclusivo de HP)', () => {
+        const ficha = criarFichaDeCombate(500000);
+        ficha.mana = { atual: 0, base: 100000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mUnico: '1.0', mAbsoluto: 1.0 };
+        let container;
+        expect(() => {
+            ({ container } = renderHolograma(montarMockState({ minhaFicha: ficha, feedCombate: [{ tipo: 'dano', nome: 'Kakaroto', dano: 1 }] })));
+        }).not.toThrow();
+
+        const barraMp = Array.from(container.querySelectorAll('div')).find(d => (d.getAttribute('style') || '').includes('#4dffff') && /width:\s*\d/.test(d.getAttribute('style') || ''));
+        expect(barraMp).toBeDefined();
+        expect(barraMp.getAttribute('style')).toMatch(/width:\s*0%/);
+        // MP não é a barra "perigo" (só HP é) -- nunca deveria assumir #ff3030/#ffcc00 mesmo em 0%.
+        expect(barraMp.getAttribute('style')).not.toMatch(/#ff3030|#ffcc00/);
+    });
+
+    // -----------------------------------------------------------------------
+    // QA (gap) — os 5 vitais (vida/mana/aura/chakra/corpo) cruzando a fronteira de compressão de
+    // calcVitalScale AO MESMO TEMPO, não só mana isolado (como no teste de regressão já existente
+    // acima). Vida usa o limite de 8 dígitos; as outras 4 usam 9 -- com o MESMO "base" de
+    // 100.000.000 (9 dígitos), vida (limite 8) já comprime com p=1 (mxDisplay=10.000.000), enquanto
+    // mana/aura/chakra/corpo (limite 9) ainda NÃO comprimem (p=0, mxDisplay=100.000.000 igual ao
+    // bruto) -- provando que getVitalMxDisplay é chamado com a chave certa (não reaproveitando o
+    // mesmo threshold pros 5) e que a barra de cada um reflete seu próprio teto comprimido.
+    // -----------------------------------------------------------------------
+    it('vida/mana/aura/chakra/corpo cruzando a fronteira de compressão SIMULTANEAMENTE: vida (limite 8 dígitos) já comprime, as outras 4 (limite 9) ainda não, com o MESMO "base"', () => {
+        const baseComum = 100000000; // 9 dígitos
+        // 70% do próprio mxDisplay -- longe o bastante dos thresholds de perigo (<=20%/<=50%) de
+        // HP pra não mudar a cor da barra de vida, já que só ela (perigo=true) muda de cor com o pct.
+        const ficha = criarFichaDeCombate(7000000); // vida: mxDisplay comprimido = 10.000.000 (limite 8) -> 70% = 7.000.000
+        ficha.vida = { atual: 7000000, base: baseComum, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mUnico: '1.0', mAbsoluto: 1.0 };
+        ['mana', 'aura', 'chakra', 'corpo'].forEach(k => {
+            ficha[k] = { atual: 70000000, base: baseComum, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mUnico: '1.0', mAbsoluto: 1.0 }; // mxDisplay sem compressão = 100.000.000 (limite 9) -> 70% = 70.000.000
+        });
+        const { container } = renderHolograma(montarMockState({ minhaFicha: ficha, feedCombate: [{ tipo: 'dano', nome: 'Kakaroto', dano: 1 }] }));
+
+        const coresEsperadas = ['#ff4d4d', '#4dffff', '#ffff4d', '#00ffcc', '#ff66ff'];
+        coresEsperadas.forEach(cor => {
+            const barra = Array.from(container.querySelectorAll('div')).find(d => {
+                const style = d.getAttribute('style') || '';
+                return style.includes(cor) && /width:\s*\d/.test(style);
+            });
+            expect(barra, `barra de cor ${cor} deveria existir`).toBeDefined();
+            const pct = parseFloat(/width:\s*(\d+(?:\.\d+)?)%/.exec(barra.getAttribute('style'))[1]);
+            // Todos os 5 vitais foram setados em exatamente 70% do próprio teto comprimido
+            // (mxDisplay), independente de vida ter comprimido (p=1) e os outros não (p=0) --
+            // todos devem dar 70%, provando que cada um usa SEU PRÓPRIO getVitalMxDisplay(key,ficha).
+            expect(pct).toBeCloseTo(70, 0);
+        });
+    });
+
+    // -----------------------------------------------------------------------
+    // QA (gap) — regressão explícita: getMaximo() (core/attributes.js, valor BRUTO sem a escala de
+    // exibição) não pode voltar a ser usado em MapaCombate.jsx pra calcular os "máximos" das barras
+    // -- foi exatamente essa troca (getMaximo -> getVitalMxDisplay) que corrigiu o bug relatado.
+    // Escaneia o próprio código-fonte em vez de só testar comportamento, porque um import
+    // "esquecido" de getMaximo sem uso real não quebraria nenhuma asserção de comportamento acima.
+    // -----------------------------------------------------------------------
+    it('regressão de fonte: MapaCombate.jsx não importa nem usa getMaximo de core/attributes.js para os máximos das barras', async () => {
+        const fs = await import('node:fs');
+        const path = await import('node:path');
+        const caminho = path.resolve(__dirname, './MapaCombate.jsx');
+        const codigoFonte = fs.readFileSync(caminho, 'utf8');
+
+        // Sem import de getMaximo vindo de core/attributes (direto ou via require dinâmico).
+        expect(codigoFonte).not.toMatch(/import\s*\{[^}]*\bgetMaximo\b[^}]*\}\s*from\s*['"].*attributes(\.js)?['"]/);
+        // E sem NENHUMA chamada real "getMaximo(" fora de comentários (a função getVitalMxDisplay
+        // continua sendo a única fonte de teto usada aqui).
+        const semComentarios = codigoFonte
+            .split('\n')
+            .filter(linha => !/^\s*(\/\/|\*|\/\*)/.test(linha))
+            .join('\n');
+        expect(semComentarios).not.toMatch(/[^a-zA-Z_]getMaximo\(/);
+        // Confirma que getVitalMxDisplay CONTINUA sendo o import real usado.
+        expect(codigoFonte).toMatch(/import\s*\{\s*getVitalMxDisplay\s*\}\s*from\s*['"]\.\.\/\.\.\/core\/vitals['"]/);
     });
 });

@@ -5,7 +5,7 @@ import { useMapaForm, urlSeguraParaCss, calcularCA } from './MapaFormContext';
 import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { getClassIconById } from '../../core/classIcons';
 import { calcularPoderAtual } from '../../core/poder';
-import { getMaximo } from '../../core/attributes';
+import { getVitalMxDisplay } from '../../core/vitals';
 import { formatarPoderCosmico } from '../../core/utils';
 
 // 🔥 IMPORTAÇÕES PARA RENDERIZAR O DADO 3D FÍSICO 🔥
@@ -460,10 +460,24 @@ export function MapaRolagemRapida() {
     );
 }
 
-// 🔥 Barrinha de vida/energia da moldura de combate — mostra Atual/Máximo (getMaximo,
-// core/attributes.js) em vez de só o número cru. Pra HP (perigo=true) a cor muda pra
-// amarelo/vermelho conforme a vida cai, já que é o recurso que mais importa saber "quão
-// perto da morte" o alvo está sem precisar fazer conta de cabeça.
+// 🔥 Barrinha de vida/energia da moldura de combate — desenha o quão cheio "atual" está em
+// relação ao teto EXIBIDO do vital (getVitalMxDisplay, core/vitals.js — a mesma "única fonte de
+// verdade" que a própria Ficha Definitiva e a Regeneração automática já usam). O número de
+// Máximo em si não é mostrado ao lado do Atual (só a barra) por pedido explícito do usuário —
+// mostrar os dois juntos gerava confusão. Pra HP (perigo=true) a cor muda pra amarelo/vermelho
+// conforme a vida cai, já que é o recurso que mais importa saber "quão perto da morte" está.
+//
+// ⚠️ Residual conhecido: a Ficha Definitiva (Ficha Def/Marcados.jsx > handleRegenerarTudo/
+// LinhaVital) aplica, por cima do teto de cada vital, um fator extra de Ascensão específico
+// daquele vital (fatoresVitaisAtual/calcularFatorCategoria) — um bônus praticamente sempre >1
+// pra qualquer personagem com pontos de Ascensão naquele vital, não um caso raro. Esse fator
+// NÃO existe em getVitalMxDisplay, então pra um personagem já beneficiado por ele, "atual"
+// (gravado pela Ficha JÁ com o fator) ainda pode legitimamente exceder o teto calculado aqui —
+// a barra fica clampada em 100% (não estoura visualmente), mas o threshold de cor "perigo"
+// (<=20%/<=50%) usa um denominador um pouco menor do que o real pra esses personagens. Replicar
+// esse fator aqui foi tentado e revertido nesta mesma investigação por quebrar 11 testes já
+// validados de core/vitals.js (o fator afeta a fonte única de verdade usada por drenos/clamps
+// no app inteiro, não só esta exibição) — ver histórico do commit para detalhes.
 function BarraVital({ atual, maximo, cor, perigo = false }) {
     const atualSeguro = Number(atual) || 0;
     const maximoSeguro = Number(maximo) || 0;
@@ -504,13 +518,17 @@ export function MapaHologramaAcao() {
     // condicionais acima, então um hook aqui violaria a Regra dos Hooks (nº de hooks variável entre renders).
     const poderAtualBase = fichaBase ? calcularPoderAtual(fichaBase, divisorPoderMesa).poderGlobal : 0;
 
-    // 🔥 Máximos efetivos (com Formas/buffs) pras barrinhas de recurso — mesma função já
-    // usada pela Fadiga (core/fadiga.js) pra saber quão perto do teto cada vital está.
-    const vidaMaxima = fichaBase ? getMaximo(fichaBase, 'vida') : 0;
-    const manaMaxima = fichaBase ? getMaximo(fichaBase, 'mana') : 0;
-    const auraMaxima = fichaBase ? getMaximo(fichaBase, 'aura') : 0;
-    const chakraMaximo = fichaBase ? getMaximo(fichaBase, 'chakra') : 0;
-    const corpoMaximo = fichaBase ? getMaximo(fichaBase, 'corpo') : 0;
+    // 🔥 Teto EXIBIDO de cada vital pras barrinhas de recurso — getVitalMxDisplay (core/vitals.js)
+    // é a mesma "única fonte de verdade" que a própria Ficha Definitiva usa pra mostrar o Máximo
+    // na tela de Status e que a Regeneração automática de turno usa como teto. Usar aqui o
+    // getMaximo() bruto (sem a escala de notação nem o fator de Ascensão por vital) fazia a barra
+    // comparar "atual" (guardado já nessa escala/fator) contra um teto em outra unidade — o mesmo
+    // vazamento de escala já documentado no topo de core/vitals.js.
+    const vidaMaxima = fichaBase ? getVitalMxDisplay('vida', fichaBase) : 0;
+    const manaMaxima = fichaBase ? getVitalMxDisplay('mana', fichaBase) : 0;
+    const auraMaxima = fichaBase ? getVitalMxDisplay('aura', fichaBase) : 0;
+    const chakraMaximo = fichaBase ? getVitalMxDisplay('chakra', fichaBase) : 0;
+    const corpoMaximo = fichaBase ? getVitalMxDisplay('corpo', fichaBase) : 0;
 
     let classId = fichaBase?.bio?.classe;
     if ((classId === 'pretender' || classId === 'alterego') && fichaBase?.bio?.subClasse) classId = fichaBase?.bio?.subClasse;
@@ -660,23 +678,23 @@ export function MapaHologramaAcao() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(0,0,0,0.7)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffcc00', fontWeight: 'bold', paddingBottom: 8, marginBottom: 2, borderBottom: '1px solid rgba(255,255,255,0.1)' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>⚡ PODER</span><span style={{ textShadow: '0 0 6px #ffcc00' }}>{formatarPoderCosmico(poderAtualBase)}</span></div>
                                 <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff4d4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>HP</span><span>{fmt(fichaBase.vida?.atual)}{vidaMaxima > 0 && <span style={{ opacity: 0.5, fontWeight: 'normal' }}> / {fmt(vidaMaxima)}</span>}</span></div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff4d4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>HP</span><span>{fmt(fichaBase.vida?.atual)}</span></div>
                                     <BarraVital atual={fichaBase.vida?.atual} maximo={vidaMaxima} cor="#ff4d4d" perigo />
                                 </div>
                                 <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4dffff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>MP</span><span>{fmt(fichaBase.mana?.atual)}{manaMaxima > 0 && <span style={{ opacity: 0.5, fontWeight: 'normal' }}> / {fmt(manaMaxima)}</span>}</span></div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4dffff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>MP</span><span>{fmt(fichaBase.mana?.atual)}</span></div>
                                     <BarraVital atual={fichaBase.mana?.atual} maximo={manaMaxima} cor="#4dffff" />
                                 </div>
                                 <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffff4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>AU</span><span>{fmt(fichaBase.aura?.atual)}{auraMaxima > 0 && <span style={{ opacity: 0.5, fontWeight: 'normal' }}> / {fmt(auraMaxima)}</span>}</span></div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffff4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>AU</span><span>{fmt(fichaBase.aura?.atual)}</span></div>
                                     <BarraVital atual={fichaBase.aura?.atual} maximo={auraMaxima} cor="#ffff4d" />
                                 </div>
                                 <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#00ffcc', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>CK</span><span>{fmt(fichaBase.chakra?.atual)}{chakraMaximo > 0 && <span style={{ opacity: 0.5, fontWeight: 'normal' }}> / {fmt(chakraMaximo)}</span>}</span></div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#00ffcc', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>CK</span><span>{fmt(fichaBase.chakra?.atual)}</span></div>
                                     <BarraVital atual={fichaBase.chakra?.atual} maximo={chakraMaximo} cor="#00ffcc" />
                                 </div>
                                 <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff66ff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>CP</span><span>{fmt(fichaBase.corpo?.atual)}{corpoMaximo > 0 && <span style={{ opacity: 0.5, fontWeight: 'normal' }}> / {fmt(corpoMaximo)}</span>}</span></div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff66ff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>CP</span><span>{fmt(fichaBase.corpo?.atual)}</span></div>
                                     <BarraVital atual={fichaBase.corpo?.atual} maximo={corpoMaximo} cor="#ff66ff" />
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.1)' }}>

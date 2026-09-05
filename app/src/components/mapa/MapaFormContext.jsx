@@ -670,12 +670,22 @@ export function MapaFormProvider({ children }) {
 
         if (nextPlayer.isDummie && isMestre) {
             const dData = storeState.dummies[nextPlayer.id];
-            if (dData && dData.acoes) {
-                const acoes = JSON.parse(JSON.stringify(dData.acoes));
-                if (acoes.padrao) acoes.padrao.atual = acoes.padrao.max;
-                if (acoes.bonus) acoes.bonus.atual = acoes.bonus.max;
-                if (acoes.reacao) acoes.reacao.atual = acoes.reacao.max;
-                salvarDummie(nextPlayer.id, { ...dData, acoes });
+            if (dData) {
+                const dDataAtualizado = JSON.parse(JSON.stringify(dData));
+                if (dDataAtualizado.acoes) {
+                    const acoes = dDataAtualizado.acoes;
+                    if (acoes.padrao) acoes.padrao.atual = acoes.padrao.max;
+                    if (acoes.bonus) acoes.bonus.atual = acoes.bonus.max;
+                    if (acoes.reacao) acoes.reacao.atual = acoes.reacao.max;
+                }
+                // 💖 Regeneração: dummies/NPCs nunca passavam pelo useEffect logo abaixo (ele só
+                // mexe em `minhaFicha`, e um dummie não é ninguém "logado") — sem isso, o campo
+                // Regen/turno de um NPC nunca fazia nada, mesmo o turno dele voltando normalmente
+                // na iniciativa a cada round. Sem piso de Fadiga (ao contrário do path do
+                // jogador logo abaixo) de propósito: dummies não têm Fadiga de Combate exposta em
+                // lugar nenhum da UI, então não há "desgaste do próprio turno" pra preservar aqui.
+                aplicarRegeneracaoDeTurno(dDataAtualizado);
+                salvarDummie(nextPlayer.id, dDataAtualizado);
             }
         }
     }, [ordemIniciativa, cenario, feedCombate.length, dispararEfeitoDaZona, isMestre]);

@@ -409,3 +409,132 @@ describe('MapaFormContext — Regressão do bug relatado: sem piso fixo de 5%/tu
         expect(state.minhaFicha.combate.fadigaTurnos).toBe(14);
     });
 });
+
+// ---------------------------------------------------------------------------
+// QA — Regressão: dummies/NPCs nunca regeneravam automaticamente. O useEffect
+// acima só mexe em `minhaFicha` (nunca em `dummies`, que não é "ninguém
+// logado"), e o bloco de `avancarTurno` que já reseta acoes.padrao/bonus/reacao
+// de um dummie quando o turno dele volta não chamava aplicarRegeneracaoDeTurno
+// — corrigido chamando-a ali também, salvando o resultado via salvarDummie
+// (o Mestre já tem permissão de escrita nos dummies, diferente de outro
+// jogador). Precisa `isMestre: true` porque o bloco de dummie em avancarTurno
+// é gated nisso (só o Mestre reseta/regenera NPCs).
+// ---------------------------------------------------------------------------
+describe('MapaFormContext — avancarTurno: Regeneração automática também se aplica a dummies (NPCs)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+        cleanup();
+    });
+
+    function dummieComVital(overrides = {}) {
+        return {
+            nome: 'Goblin', iniciativa: 10, posicao: { x: 1, y: 1, z: 0 },
+            acoes: { padrao: { max: 1, atual: 0 }, bonus: { max: 1, atual: 0 }, reacao: { max: 1, atual: 0 } },
+            vida: { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1, regeneracao: 5000000 },
+            ...overrides,
+        };
+    }
+
+    it('regenera a vida do dummie e reseta suas ações quando o turno dele chega, chamando salvarDummie com o resultado', async () => {
+        const firebaseSync = await import('../../services/firebase-sync');
+        const state = baseState({ meuNome: 'Heroi', isMestre: true, dummies: { goblin: dummieComVital() } });
+        state.minhaFicha.iniciativa = 20; // Heroi(20) na posição 0, Goblin(10) na posição 1
+        montarComEstado(state);
+
+        act(() => { probe.avancarTurno(); });
+
+        expect(firebaseSync.salvarDummie).toHaveBeenCalledTimes(1);
+        const [idSalvo, dadosSalvos] = firebaseSync.salvarDummie.mock.calls[0];
+        expect(idSalvo).toBe('goblin');
+        // Regeneração real de core/vitals.js: vida.atual(1) + regeneracao(5_000_000).
+        expect(dadosSalvos.vida.atual).toBe(5000001);
+        // O reset de ações (comportamento já existente) continua funcionando junto.
+        expect(dadosSalvos.acoes.padrao.atual).toBe(1);
+    });
+
+    it('não lança e não chama salvarDummie quando o próximo ator é um dummie sem NENHUM dado de vitais', () => {
+        const state = baseState({ meuNome: 'Heroi', isMestre: true, dummies: { goblin: { nome: 'Goblin', iniciativa: 10, posicao: { x: 1, y: 1, z: 0 } } } });
+        state.minhaFicha.iniciativa = 20;
+        montarComEstado(state);
+
+        expect(() => { act(() => { probe.avancarTurno(); }); }).not.toThrow();
+    });
+
+    it('NÃO chama salvarDummie (nem regenera) quando quem NÃO é Mestre avança o turno pro dummie', async () => {
+        const firebaseSync = await import('../../services/firebase-sync');
+        const state = baseState({ meuNome: 'Heroi', isMestre: false, dummies: { goblin: dummieComVital() } });
+        state.minhaFicha.iniciativa = 20;
+        montarComEstado(state);
+
+        act(() => { probe.avancarTurno(); });
+
+        expect(firebaseSync.salvarDummie).not.toHaveBeenCalled();
+    });
+
+    // -------------------------------------------------------------------------
+    // QA (gap) — dummie JÁ no teto (atual === mxDisplay): aplicarRegeneracaoDeTurno não deveria
+    // fazer overheal (o guard `(ficha[key].atual || 0) < mxDisplay` em core/vitals.js já cobre isso
+    // na fonte), nem lançar erro, e salvarDummie ainda deveria ser chamado normalmente -- "sempre
+    // salva, regenerar é só uma consequência opcional de já não estar cheio".
+    // -------------------------------------------------------------------------
+    it('dummie já no máximo (atual === mxDisplay) não sofre overheal nem lança erro, e salvarDummie ainda é chamado normalmente', async () => {
+        const firebaseSync = await import('../../services/firebase-sync');
+        // base=100_000_000 (9 dígitos) -> mxDisplay (limite 9, sem compressão) = 100_000_000.
+        const dummieCheio = dummieComVital({ vida: { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 100000000, regeneracao: 5000000 } });
+        const state = baseState({ meuNome: 'Heroi', isMestre: true, dummies: { goblin: dummieCheio } });
+        state.minhaFicha.iniciativa = 20;
+        montarComEstado(state);
+
+        expect(() => { act(() => { probe.avancarTurno(); }); }).not.toThrow();
+
+        expect(firebaseSync.salvarDummie).toHaveBeenCalledTimes(1);
+        const [idSalvo, dadosSalvos] = firebaseSync.salvarDummie.mock.calls[0];
+        expect(idSalvo).toBe('goblin');
+        // Nenhum overheal: permanece exatamente no teto, nunca ultrapassa.
+        expect(dadosSalvos.vida.atual).toBe(100000000);
+        // O reset de ações continua acontecendo independentemente da regeneração ter sido um no-op.
+        expect(dadosSalvos.acoes.padrao.atual).toBe(1);
+    });
+
+    // -------------------------------------------------------------------------
+    // QA (gap) — paridade: o path do jogador (useEffect acima) e o path do dummie (bloco de
+    // avancarTurno) agora chamam a MESMA função aplicarRegeneracaoDeTurno (core/vitals.js) --
+    // pra um mesmo estado inicial de vital (mesmo base/atual/regeneracao), a quantidade regenerada
+    // deve ser IDÊNTICA nos dois caminhos, provando que não existe uma segunda implementação
+    // divergente de regeneração escondida em algum dos dois call sites.
+    // -------------------------------------------------------------------------
+    it('regeneração do jogador e do dummie produzem o MESMO "vida.atual" final para o mesmo estado inicial (mesma função aplicarRegeneracaoDeTurno nos dois paths)', async () => {
+        const firebaseSync = await import('../../services/firebase-sync');
+        const vitalInicial = { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1, regeneracao: 5000000 };
+
+        // --- Path do JOGADOR (useEffect de retorno do MEU turno) ---
+        const stateJogador = baseState({
+            meuNome: 'Heroi',
+            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+        });
+        stateJogador.minhaFicha.iniciativa = 10;
+        stateJogador.minhaFicha.vida = { ...vitalInicial };
+        const { rerender } = montarComEstado(stateJogador);
+        act(() => { stateJogador.cenario = { ...stateJogador.cenario, turnoAtualIndex: 1 }; });
+        rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
+        const vidaFinalJogador = stateJogador.minhaFicha.vida.atual;
+
+        cleanup();
+        vi.clearAllMocks();
+
+        // --- Path do DUMMIE (bloco de avancarTurno) ---
+        const stateDummie = baseState({ meuNome: 'Heroi', isMestre: true, dummies: { goblin: { nome: 'Goblin', iniciativa: 10, posicao: { x: 1, y: 1, z: 0 }, vida: { ...vitalInicial } } } });
+        stateDummie.minhaFicha.iniciativa = 20;
+        montarComEstado(stateDummie);
+        act(() => { probe.avancarTurno(); });
+        const [, dadosSalvosDummie] = firebaseSync.salvarDummie.mock.calls[0];
+
+        expect(vidaFinalJogador).toBe(dadosSalvosDummie.vida.atual);
+        // Confere também contra o valor esperado bruto (regressão dupla: nem os dois caminhos
+        // divergiram entre si, nem os dois divergiram do valor matematicamente correto).
+        expect(vidaFinalJogador).toBe(5000001);
+    });
+});
