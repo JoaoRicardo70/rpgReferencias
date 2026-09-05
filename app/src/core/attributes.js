@@ -23,14 +23,15 @@ export function getEfeitosDeClasse(ficha) {
     }
 
     let efeitos = [];
+    let classesRegistradas = mestreOverrides.classes || {};
 
-    let classData = mestreOverrides[classeHeroica];
+    let classData = classesRegistradas[classeHeroica];
     if (classData && classData.efeitosMatematicos) {
         efeitos = [...classData.efeitosMatematicos];
     }
 
     if ((classeHeroica === 'alterego' || classeHeroica === 'pretender') && subClasse) {
-        let subClassData = mestreOverrides[subClasse];
+        let subClassData = classesRegistradas[subClasse];
         if (subClassData && subClassData.efeitosMatematicos) {
             efeitos = [...efeitos, ...subClassData.efeitosMatematicos];
         }

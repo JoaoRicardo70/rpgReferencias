@@ -297,6 +297,14 @@ function getTemaScouter(supressao, limite = 1) {
 const CLASSES_REGULARES_BASE = [ { id: 'saber', nome: 'Saber', icone: '⚔️', cor: '#0088ff' }, { id: 'archer', nome: 'Archer', icone: '🏹', cor: '#ff003c' }, { id: 'lancer', nome: 'Lancer', icone: '🗡️', cor: '#00ffcc' }, { id: 'rider', nome: 'Rider', icone: '🏇', cor: '#ff8800' }, { id: 'caster', nome: 'Caster', icone: '🧙‍♂️', cor: '#cc00ff' }, { id: 'assassin', nome: 'Assassin', icone: '🔪', cor: '#444444' }, { id: 'berserker', nome: 'Berserker', icone: '狂', cor: '#ff0000' } ];
 const CLASSES_EXTRA_BASE = [ { id: 'shielder', nome: 'Shielder', icone: '🛡️', cor: '#00ffff' }, { id: 'ruler', nome: 'Ruler', icone: '⚖️', cor: '#ffcc00' }, { id: 'avenger', nome: 'Avenger', icone: '⛓️', cor: '#880000' }, { id: 'alterego', nome: 'Alter Ego', icone: '🎭', cor: '#ff00ff' }, { id: 'foreigner', nome: 'Foreigner', icone: '🐙', cor: '#00ff88' }, { id: 'mooncancer', nome: 'Moon Cancer', icone: '🌕', cor: '#8888aa' }, { id: 'pretender', nome: 'Pretender', icone: '🤥', cor: '#ffaa00' }, { id: 'beast', nome: 'Beast', icone: '👹', cor: '#4a0000' }, { id: 'savior', nome: 'Savior', icone: '☀️', cor: '#ffffff' }, { id: 'desconhecido', nome: '?', icone: '👤', cor: '#666666' } ];
 
+// 🔥 Opções canônicas de Classe Mística pro <select> — precisam bater exatamente com os ids usados
+// em core/classIcons.js e no cálculo de bônus (core/attributes.js), senão o ícone no Mapa e o
+// bônus no Poder Calculado somem silenciosamente. Um campo de texto livre já causou esse bug.
+const CLASSE_SELECT_OPTIONS = [
+    { id: '', nome: 'Nenhuma / Mundano', icone: '' },
+    ...CLASSES_REGULARES_BASE, ...CLASSES_EXTRA_BASE.filter(c => c.id !== 'desconhecido')
+];
+
 function getClasseInfo(ficha) {
     const nomeClasse = ficha?.bio?.classe;
     if (!nomeClasse) return null;
@@ -1654,7 +1662,14 @@ export default function MarcadosPanel() {
                                             <LabelMagico valor={getLabel(`bio_${item.k}`, item.lbl)} onChange={(v) => setLabel(`bio_${item.k}`, v)} />
                                         </div>
                                         <span style={{ fontWeight: 'bold', marginRight: '8px' }}>:</span>
-                                        <CampoMagico valor={minhaFicha.bio?.[item.k]} onChange={(v) => salvar(`bio.${item.k}`, v)} styleExtra={{ flex: 1, borderBottom: '1px dotted currentColor' }} />
+                                        {item.k === 'classe' ? (
+                                            <select value={minhaFicha.bio?.classe || ''} onChange={(e) => { salvar('bio.classe', e.target.value); }}
+                                                style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px dotted currentColor', fontFamily: 'inherit', fontSize: 'inherit', color: 'inherit', fontWeight: 'inherit', outline: 'none', padding: '0 5px' }}>
+                                                {CLASSE_SELECT_OPTIONS.map(opt => <option key={opt.id} value={opt.id} style={{ color: '#000' }}>{opt.icone ? `${opt.icone} ${opt.nome}` : opt.nome}</option>)}
+                                            </select>
+                                        ) : (
+                                            <CampoMagico valor={minhaFicha.bio?.[item.k]} onChange={(v) => salvar(`bio.${item.k}`, v)} styleExtra={{ flex: 1, borderBottom: '1px dotted currentColor' }} />
+                                        )}
                                     </div>
                                 ))}
                             </div>

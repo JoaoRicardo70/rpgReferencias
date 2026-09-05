@@ -494,7 +494,7 @@ export function MapaHologramaAcao() {
     const listaCands = overridesCompendio?.grands?.[`${classId}_${mesaBase}_candidatos`] || [];
     const isCandidato = classId && !isGrand && listaCands.includes(nomeBase);
     const grandIconUrl = overridesCompendio?.grands?.[`${classId}_${mesaBase}_icone`];
-    const customClassIcon = classId ? overridesCompendio[classId]?.iconeUrl : null;
+    const customClassIcon = classId ? overridesCompendio?.classes?.[classId]?.iconeUrl : null;
     const defaultClassSymbol = getClassIconById(classId);
 
     let isCritNormal = false, isCritFatal = false, isFalha = false;
