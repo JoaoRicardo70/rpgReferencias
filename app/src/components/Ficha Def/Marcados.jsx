@@ -11,7 +11,8 @@ import { calcularFadigaAtual } from '../../core/fadiga';
 import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 
 import ClassificacaoPanel from './ClassificacaoPanel';
-import RelicarioPanel from './RelicarioPanel'; 
+import RelicarioPanel from './RelicarioPanel';
+import PactosPanel from './PactosPanel';
 
 // ==========================================
 // 🛡️ DADOS DO COMPÊNDIO E FUNÇÕES SEGURAS
@@ -1952,13 +1953,14 @@ export default function MarcadosPanel() {
                 {paginaAtual === 3 && ( <DominiosPanel ficha={minhaFicha} updateFicha={updateFicha} /> )}
                 {paginaAtual === 4 && ( <ClassificacaoPanel /> )}
                 {paginaAtual === 5 && ( <RelicarioPanel /> )}
+                {paginaAtual === 6 && ( <PactosPanel /> )}
 
             </div>
 
             <div style={{ position: 'absolute', bottom: '20px', left: '0', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', fontFamily: 'inherit' }}>
                 <button onClick={() => mudarPagina(Math.max(1, paginaAtual - 1))} disabled={paginaAtual === 1} style={{ background: 'transparent', border: 'none', fontSize: '1.2em', fontWeight: 'bold', cursor: paginaAtual === 1 ? 'default' : 'pointer', opacity: paginaAtual === 1 ? 0.3 : 1, fontFamily: 'inherit', color: 'inherit' }}>⮜ Anterior</button>
-                <span style={{ fontSize: '1.1em', fontWeight: 'bold', borderBottom: '2px solid currentColor', padding: '0 10px' }}>Página {paginaAtual} de 5</span>
-                <button onClick={() => mudarPagina(Math.min(5, paginaAtual + 1))} disabled={paginaAtual === 5} style={{ background: 'transparent', border: 'none', fontSize: '1.2em', fontWeight: 'bold', cursor: paginaAtual === 5 ? 'default' : 'pointer', opacity: paginaAtual === 5 ? 0.3 : 1, fontFamily: 'inherit', color: 'inherit' }}>Próxima ⮞</button>
+                <span style={{ fontSize: '1.1em', fontWeight: 'bold', borderBottom: '2px solid currentColor', padding: '0 10px' }}>Página {paginaAtual} de 6</span>
+                <button onClick={() => mudarPagina(Math.min(6, paginaAtual + 1))} disabled={paginaAtual === 6} style={{ background: 'transparent', border: 'none', fontSize: '1.2em', fontWeight: 'bold', cursor: paginaAtual === 6 ? 'default' : 'pointer', opacity: paginaAtual === 6 ? 0.3 : 1, fontFamily: 'inherit', color: 'inherit' }}>Próxima ⮞</button>
             </div>
         </div>
     );
