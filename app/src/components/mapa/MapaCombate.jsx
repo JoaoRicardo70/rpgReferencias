@@ -5,6 +5,7 @@ import { useMapaForm, urlSeguraParaCss, calcularCA } from './MapaFormContext';
 import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { getClassIconById } from '../../core/classIcons';
 import { calcularPoderAtual } from '../../core/poder';
+import { getMaximo } from '../../core/attributes';
 import { formatarPoderCosmico } from '../../core/utils';
 
 // 🔥 IMPORTAÇÕES PARA RENDERIZAR O DADO 3D FÍSICO 🔥
@@ -459,6 +460,23 @@ export function MapaRolagemRapida() {
     );
 }
 
+// 🔥 Barrinha de vida/energia da moldura de combate — mostra Atual/Máximo (getMaximo,
+// core/attributes.js) em vez de só o número cru. Pra HP (perigo=true) a cor muda pra
+// amarelo/vermelho conforme a vida cai, já que é o recurso que mais importa saber "quão
+// perto da morte" o alvo está sem precisar fazer conta de cabeça.
+function BarraVital({ atual, maximo, cor, perigo = false }) {
+    const atualSeguro = Number(atual) || 0;
+    const maximoSeguro = Number(maximo) || 0;
+    const pct = maximoSeguro > 0 ? Math.max(0, Math.min(100, (atualSeguro / maximoSeguro) * 100)) : (atualSeguro > 0 ? 100 : 0);
+    let corBarra = cor;
+    if (perigo) { if (pct <= 20) corBarra = '#ff3030'; else if (pct <= 50) corBarra = '#ffcc00'; }
+    return (
+        <div style={{ width: '100%', height: 5, background: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden', marginTop: 3 }}>
+            <div style={{ width: `${pct}%`, height: '100%', background: corBarra, borderRadius: 3, transition: 'width 0.6s ease, background 0.3s ease', boxShadow: `0 0 6px ${corBarra}` }} />
+        </div>
+    );
+}
+
 export function MapaHologramaAcao() {
     const ctx = useMapaForm();
     const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
@@ -485,6 +503,14 @@ export function MapaHologramaAcao() {
     // Nota: sem useMemo de propósito — este ponto do componente já vem depois de dois `return`
     // condicionais acima, então um hook aqui violaria a Regra dos Hooks (nº de hooks variável entre renders).
     const poderAtualBase = fichaBase ? calcularPoderAtual(fichaBase, divisorPoderMesa).poderGlobal : 0;
+
+    // 🔥 Máximos efetivos (com Formas/buffs) pras barrinhas de recurso — mesma função já
+    // usada pela Fadiga (core/fadiga.js) pra saber quão perto do teto cada vital está.
+    const vidaMaxima = fichaBase ? getMaximo(fichaBase, 'vida') : 0;
+    const manaMaxima = fichaBase ? getMaximo(fichaBase, 'mana') : 0;
+    const auraMaxima = fichaBase ? getMaximo(fichaBase, 'aura') : 0;
+    const chakraMaximo = fichaBase ? getMaximo(fichaBase, 'chakra') : 0;
+    const corpoMaximo = fichaBase ? getMaximo(fichaBase, 'corpo') : 0;
 
     let classId = fichaBase?.bio?.classe;
     if ((classId === 'pretender' || classId === 'alterego') && fichaBase?.bio?.subClasse) classId = fichaBase?.bio?.subClasse;
@@ -566,7 +592,21 @@ export function MapaHologramaAcao() {
     }
 
     return (
-        <div className="def-box" style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', border: isGrand ? `3px solid #ffcc00` : (isCandidato ? `2px solid #00ccff` : `2px solid ${corImpacto}`), boxShadow: isGrand ? `0 0 30px rgba(255,0,60,0.6), inset 0 0 20px rgba(255,204,0,0.3)` : (isCandidato ? `0 0 20px rgba(0,204,255,0.4)` : `0 0 20px ${corImpacto}40`) }}>
+        <>
+            {/* 🔥 A moldura pulsa ao chegar uma ação nova — o key={feedSeguro.length} força o
+                React a remontar esta div a cada item novo no feed, o que reinicia a animação
+                CSS do zero (o mesmo truque de "resetar com key" usado pra qualquer elemento,
+                não só itens de lista). Sem isso a moldura só troca o número na hora, estática. */}
+            <style dangerouslySetInnerHTML={{__html: `
+                @keyframes hologramaImpacto {
+                    0% { transform: scale(1.035); filter: brightness(1.6); }
+                    100% { transform: scale(1); filter: brightness(1); }
+                }
+                .holograma-impacto {
+                    animation: hologramaImpacto 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+                }
+            `}} />
+            <div key={feedSeguro.length} className="def-box holograma-impacto" style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', border: isGrand ? `3px solid #ffcc00` : (isCandidato ? `2px solid #00ccff` : `2px solid ${corImpacto}`), boxShadow: isGrand ? `0 0 30px rgba(255,0,60,0.6), inset 0 0 20px rgba(255,204,0,0.3)` : (isCandidato ? `0 0 20px rgba(0,204,255,0.4)` : `0 0 20px ${corImpacto}40`) }}>
             <div style={{ background: corHeader, color: corTextoHeader, padding: '10px', textAlign: 'center', fontWeight: '900', letterSpacing: 2, fontSize: '1.2em', textTransform: 'uppercase' }}>{tituloImpacto}</div>
             {acaoExibir?.tipo === 'sistema' && !acaoExibir.texto.includes('É a vez de') ? (
                  <div style={{ flex: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 30, textAlign: 'center', background: 'rgba(0,0,0,0.8)' }}>
@@ -619,11 +659,26 @@ export function MapaHologramaAcao() {
                         <div style={{ padding: '15px', background: '#050505' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(0,0,0,0.7)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffcc00', fontWeight: 'bold', paddingBottom: 8, marginBottom: 2, borderBottom: '1px solid rgba(255,255,255,0.1)' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>⚡ PODER</span><span style={{ textShadow: '0 0 6px #ffcc00' }}>{formatarPoderCosmico(poderAtualBase)}</span></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff4d4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>HP</span><span>{fmt(fichaBase.vida?.atual)}</span></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4dffff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>MP</span><span>{fmt(fichaBase.mana?.atual)}</span></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffff4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>AU</span><span>{fmt(fichaBase.aura?.atual)}</span></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#00ffcc', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>CK</span><span>{fmt(fichaBase.chakra?.atual)}</span></div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff66ff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>CP</span><span>{fmt(fichaBase.corpo?.atual)}</span></div>
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff4d4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>HP</span><span>{fmt(fichaBase.vida?.atual)}{vidaMaxima > 0 && <span style={{ opacity: 0.5, fontWeight: 'normal' }}> / {fmt(vidaMaxima)}</span>}</span></div>
+                                    <BarraVital atual={fichaBase.vida?.atual} maximo={vidaMaxima} cor="#ff4d4d" perigo />
+                                </div>
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4dffff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>MP</span><span>{fmt(fichaBase.mana?.atual)}{manaMaxima > 0 && <span style={{ opacity: 0.5, fontWeight: 'normal' }}> / {fmt(manaMaxima)}</span>}</span></div>
+                                    <BarraVital atual={fichaBase.mana?.atual} maximo={manaMaxima} cor="#4dffff" />
+                                </div>
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffff4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>AU</span><span>{fmt(fichaBase.aura?.atual)}{auraMaxima > 0 && <span style={{ opacity: 0.5, fontWeight: 'normal' }}> / {fmt(auraMaxima)}</span>}</span></div>
+                                    <BarraVital atual={fichaBase.aura?.atual} maximo={auraMaxima} cor="#ffff4d" />
+                                </div>
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#00ffcc', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>CK</span><span>{fmt(fichaBase.chakra?.atual)}{chakraMaximo > 0 && <span style={{ opacity: 0.5, fontWeight: 'normal' }}> / {fmt(chakraMaximo)}</span>}</span></div>
+                                    <BarraVital atual={fichaBase.chakra?.atual} maximo={chakraMaximo} cor="#00ffcc" />
+                                </div>
+                                <div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff66ff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>CP</span><span>{fmt(fichaBase.corpo?.atual)}{corpoMaximo > 0 && <span style={{ opacity: 0.5, fontWeight: 'normal' }}> / {fmt(corpoMaximo)}</span>}</span></div>
+                                    <BarraVital atual={fichaBase.corpo?.atual} maximo={corpoMaximo} cor="#ff66ff" />
+                                </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                                     <div style={{ color: '#0088ff', fontWeight: 'bold', fontSize: '0.9em', textShadow: '0 0 5px #0088ff' }}>🛡️ EVA: {calcularCA(fichaBase, 'evasiva')}</div>
                                     <div style={{ color: '#ccc', fontWeight: 'bold', fontSize: '0.9em', textShadow: '0 0 5px #ccc' }}>🛡️ RES: {calcularCA(fichaBase, 'resistencia')}</div>
@@ -633,6 +688,7 @@ export function MapaHologramaAcao() {
                     )}
                 </>
             )}
-        </div>
+            </div>
+        </>
     );
 }

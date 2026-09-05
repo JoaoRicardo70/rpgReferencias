@@ -178,6 +178,95 @@ describe('core/poder - calcularPoderAtual: mUnico Crescente e "mUnico sempre mul
 });
 
 // ---------------------------------------------------------------------------
+// QA — Pactos/Entidades Seladas (ficha.seresSelados) também alimentam o
+// multiplicador de Poder Direto (getPoderDiretoMultiplier), do mesmo jeito que
+// Poderes Clássicos (ficha.poderes) já alimentavam. Antes desta mudança,
+// getPoderDiretoMultiplier só lia ficha.poderes — um Pacto com um efeito
+// atributo:'poder_direto' na Ficha Definitiva (Ficha Def/PactosPanel.jsx)
+// aparentava funcionar na UI mas não mexia em nada no Poder Calculado.
+// ---------------------------------------------------------------------------
+describe('core/poder - calcularPoderAtual: Pactos (seresSelados) alimentam Poder Direto', () => {
+    function pactoComPoderDireto(valor, { ativo = true, propriedade = 'munico' } = {}) {
+        return [{
+            id: 'pacto-1', nome: 'Sylphie', ativo,
+            efeitos: [{ nome: 'Bencao', atributo: 'poder_direto', propriedade, valor: String(valor) }],
+            efeitosPassivos: [], formas: [], formaAtivaId: null, configAtivaId: null,
+        }];
+    }
+
+    it('um Pacto Sincronizado (ativo:true) com poder_direto/munico produz a MESMA leitura que um Poder equivalente', () => {
+        const comPacto = calcularPoderAtual(criarFichaMinima({ seresSelados: pactoComPoderDireto('2.0') }), 1).poderGlobal;
+        const comPoderEquivalente = calcularPoderAtual(criarFichaMinima({ poderes: [{ efeitosPassivos: [{ atributo: 'poder_direto', propriedade: 'munico', valor: '2.0' }] }] }), 1).poderGlobal;
+
+        expect(comPacto).toBeGreaterThan(calcularPoderAtual(criarFichaMinima(), 1).poderGlobal);
+        expect(comPacto).toBe(comPoderEquivalente);
+    });
+
+    it('um Pacto ADORMECIDO (ativo:false) com o mesmo efeito NÃO altera o Poder — a sincronização precisa estar ligada, igual a qualquer outro buff de seresSelados', () => {
+        const semPacto = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
+        const comPactoDesativado = calcularPoderAtual(criarFichaMinima({ seresSelados: pactoComPoderDireto('2.0', { ativo: false }) }), 1).poderGlobal;
+
+        expect(comPactoDesativado).toBe(semPacto);
+    });
+
+    it('combina multiplicativamente com um poder_direto vindo de Poderes Clássicos (x2.0 de Pacto * x3.0 de Poder = x6.0)', () => {
+        const ficha = criarFichaMinima({
+            seresSelados: pactoComPoderDireto('2.0'),
+            poderes: [{ efeitosPassivos: [{ atributo: 'poder_direto', propriedade: 'munico', valor: '3.0' }] }],
+        });
+        const comAmbos = calcularPoderAtual(ficha, 1).poderGlobal;
+        const equivalenteComPoderDe6 = calcularPoderAtual(criarFichaMinima({ poderes: [{ efeitosPassivos: [{ atributo: 'poder_direto', propriedade: 'munico', valor: '6.0' }] }] }), 1).poderGlobal;
+
+        expect(comAmbos).toBe(equivalenteComPoderDe6);
+    });
+
+    it('propriedade "mbase" de um Pacto soma aditivamente (1 + 0.5 = x1.5), assim como já acontece pra Poderes Clássicos', () => {
+        const semPacto = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
+        const comPacto = calcularPoderAtual(criarFichaMinima({ seresSelados: pactoComPoderDireto('0.5', { propriedade: 'mbase' }) }), 1).poderGlobal;
+
+        // Não há injeção de Ascensão adicional aqui (mesma ascensaoBase em ambos), então a
+        // razão deve bater com o multiplicador (1+0.5) aplicado ANTES da injeção de Ascensão
+        // (glob.totalDano/finalF ficam nesse estágio) — checamos só o sentido/proporção pra
+        // não acoplar o teste aos detalhes exatos da fórmula de injeção de Ascensão.
+        expect(comPacto).toBeGreaterThan(semPacto);
+    });
+
+    it('não lança exceção quando um item de seresSelados é null/undefined dentro do array', () => {
+        expect(() => calcularPoderAtual(criarFichaMinima({ seresSelados: [null, undefined] }), 1)).not.toThrow();
+    });
+
+    // -----------------------------------------------------------------------
+    // QA (gap) — mistura de propriedades DIFERENTES vindas de fontes DIFERENTES
+    // (mbase de Poderes Clássicos + munico de um Pacto) ao mesmo tempo. Os testes
+    // acima já cobrem "mesma propriedade, fontes diferentes" (munico+munico) e
+    // "fontes combinadas, mesma propriedade" — mas não uma mistura de PROPRIEDADES
+    // (mbase é aditivo dentro do seu próprio grupo antes de multiplicar; munico é
+    // multiplicativo direto), que é onde um bug de "grupos" trocados entre as
+    // fontes seria mais fácil de esconder.
+    // -----------------------------------------------------------------------
+    it('combina um mbase vindo de Poderes Clássicos com um munico vindo de um Pacto: (1+0.5) grupo-mbase * 2.0 grupo-munico = x3.0 — idêntico a ter as DUAS fontes dentro do mesmo array de Poderes', () => {
+        const fichaMista = criarFichaMinima({
+            poderes: [{ efeitosPassivos: [{ atributo: 'poder_direto', propriedade: 'mbase', valor: '0.5' }] }],
+            seresSelados: pactoComPoderDireto('2.0', { propriedade: 'munico' }),
+        });
+        const fichaEquivalenteMesmaFonte = criarFichaMinima({
+            poderes: [{
+                efeitosPassivos: [
+                    { atributo: 'poder_direto', propriedade: 'mbase', valor: '0.5' },
+                    { atributo: 'poder_direto', propriedade: 'munico', valor: '2.0' },
+                ],
+            }],
+        });
+
+        const comMistura = calcularPoderAtual(fichaMista, 1).poderGlobal;
+        const comMesmaFonte = calcularPoderAtual(fichaEquivalenteMesmaFonte, 1).poderGlobal;
+
+        expect(comMistura).toBeGreaterThan(calcularPoderAtual(criarFichaMinima(), 1).poderGlobal);
+        expect(comMistura).toBe(comMesmaFonte);
+    });
+});
+
+// ---------------------------------------------------------------------------
 // QA — Fadiga de Combate em core/poder.js: este arquivo é uma RÉPLICA PURA do
 // useMemo de poderGlobal em Ficha Def/Marcados.jsx (usada pra exibir o mesmo
 // "Poder Atual" na moldura de combate do Mapa — ver MapaCombate.jsx). A Fadiga

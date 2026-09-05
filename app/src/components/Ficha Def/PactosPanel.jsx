@@ -14,6 +14,18 @@ import FormasEditor from '../shared/FormasEditor';
 // sem precisar de nenhuma mudança no core.
 // ==========================================
 
+// 🔥 "PODER DIRETO" aumenta o Poder Calculado do Scouter diretamente (core/poder.js
+// > getPoderDiretoMultiplier), sem passar por nenhum Status/Energia/Vida — mesmo
+// grupo extra que já existe só pra Poderes Clássicos (PoderesSubComponents.jsx).
+// Fica de fora de ATRIBUTOS_AGRUPADOS (a lista compartilhada) de propósito: só
+// ficha.poderes e ficha.seresSelados são lidos por getPoderDiretoMultiplier, então
+// oferecer essa opção em Arsenal/Formas criaria um buff que pareceria funcionar
+// na UI mas nunca faria nada.
+const ATRIBUTOS_PACTOS = [
+    ...ATRIBUTOS_AGRUPADOS,
+    { label: '⚡ POTÊNCIA DO SCOUTER', options: ['poder_direto'] }
+];
+
 const CampoMagico = ({ valor, onChange, onBlur, placeholder, styleExtra = {}, type = "text" }) => (
     <input
         type={type} value={valor || ''} onChange={e => onChange(e.target.value)}
@@ -42,7 +54,7 @@ const EditorEfeitos = ({ titulo, cor, isAtivo, draftBuffs, novo, setNovo, addEfe
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 70px auto', gap: 5, marginBottom: 8 }}>
             <CampoMagico valor={novo.nome} onChange={v => setNovo(n => ({ ...n, nome: v }))} placeholder="Nome do Efeito" styleExtra={{ fontSize: '0.85em' }} />
             <select value={novo.atributo} onChange={e => setNovo(n => ({ ...n, atributo: e.target.value }))} style={{ background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dashed currentColor', outline: 'none', fontFamily: 'inherit', fontSize: '0.85em' }}>
-                {ATRIBUTOS_AGRUPADOS.map(g => <optgroup key={g.label} label={g.label} style={{ color: '#000' }}>{g.options.map(a => <option key={a} value={a} style={{ color: '#000' }}>{a.replace('_', ' ').toUpperCase()}</option>)}</optgroup>)}
+                {ATRIBUTOS_PACTOS.map(g => <optgroup key={g.label} label={g.label} style={{ color: '#000' }}>{g.options.map(a => <option key={a} value={a} style={{ color: '#000' }}>{a.replace('_', ' ').toUpperCase()}</option>)}</optgroup>)}
             </select>
             <select value={novo.propriedade} onChange={e => setNovo(n => ({ ...n, propriedade: e.target.value }))} style={{ background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dashed currentColor', outline: 'none', fontFamily: 'inherit', fontSize: '0.85em' }}>
                 {PROPRIEDADE_OPTIONS.map(p => <option key={p} value={p} style={{ color: '#000' }}>{p.toUpperCase()}</option>)}

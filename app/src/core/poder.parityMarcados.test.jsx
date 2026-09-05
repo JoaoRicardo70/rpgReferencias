@@ -218,4 +218,69 @@ describe('core/poder - calcularPoderAtual: paridade real com Ficha Def/Marcados.
         const poder12 = calcularPoderAtual(fichaBucketFixoParaMarcados(1.2), 1).poderGlobal;
         expect(poder12).toBeGreaterThan(poder10);
     });
+
+    // -----------------------------------------------------------------------
+    // QA — Pactos/Entidades Seladas (ficha.seresSelados) agora alimentam
+    // getPoderDiretoMultiplier em AMBOS os lados (core/poder.js e o useMemo de
+    // poderGlobal em Marcados.jsx). Antes só ficha.poderes era lido; um Pacto
+    // Sincronizado com atributo:'poder_direto' aparentava funcionar na UI da
+    // nova página (Ficha Def/PactosPanel.jsx) mas não mexia em nada no Poder
+    // Calculado real. Este teste renderiza o MarcadosPanel de verdade (mesmo
+    // padrão dos testes de Fadiga acima) pra provar que os dois lados
+    // concordam com um Pacto Sincronizado carregando esse efeito.
+    // -----------------------------------------------------------------------
+    function fichaComPactoPoderDireto(ativo) {
+        return {
+            ...fichaParaMarcados(undefined),
+            seresSelados: [{
+                id: 'pacto-1', nome: 'Sylphie', ativo,
+                efeitos: [{ nome: 'Bencao', atributo: 'poder_direto', propriedade: 'munico', valor: '2.0' }],
+                efeitosPassivos: [], formas: [], formaAtivaId: null, configAtivaId: null,
+            }],
+        };
+    }
+
+    it('concorda com o Poder Calculado exibido no Scouter da Ficha quando um Pacto Sincronizado carrega um efeito poder_direto (x2.0)', () => {
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaComPactoPoderDireto(true));
+        const poderDoCore = calcularPoderAtual(fichaComPactoPoderDireto(true), 1).poderGlobal;
+
+        expect(poderDoCore).toBeGreaterThan(calcularPoderAtual(fichaParaMarcados(undefined), 1).poderGlobal);
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
+
+    it('concorda com o Poder Calculado exibido no Scouter da Ficha quando o MESMO Pacto está Adormecido (ativo:false) — nenhum dos dois lados aplica o buff', () => {
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaComPactoPoderDireto(false));
+        const poderDoCore = calcularPoderAtual(fichaComPactoPoderDireto(false), 1).poderGlobal;
+        const poderSemPacto = calcularPoderAtual(fichaParaMarcados(undefined), 1).poderGlobal;
+
+        expect(poderDoCore).toBe(poderSemPacto);
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
+
+    // -----------------------------------------------------------------------
+    // QA (gap) — mistura de propriedades diferentes (mbase de Poderes Clássicos +
+    // munico de um Pacto Sincronizado) ao mesmo tempo, provando que as duas cópias
+    // de getPoderDiretoMultiplier (core/poder.js e o useMemo de Marcados.jsx)
+    // continuam concordando também neste cenário misto, não só quando as duas
+    // fontes carregam a MESMA propriedade.
+    // -----------------------------------------------------------------------
+    function fichaComPactoEPoderMistos() {
+        return {
+            ...fichaParaMarcados(undefined),
+            poderes: [{ efeitosPassivos: [{ atributo: 'poder_direto', propriedade: 'mbase', valor: '0.5' }] }],
+            seresSelados: [{
+                id: 'pacto-1', nome: 'Sylphie', ativo: true,
+                efeitos: [{ nome: 'Bencao', atributo: 'poder_direto', propriedade: 'munico', valor: '2.0' }],
+                efeitosPassivos: [], formas: [], formaAtivaId: null, configAtivaId: null,
+            }],
+        };
+    }
+
+    it('concorda com o Poder Calculado exibido no Scouter da Ficha quando um mbase de Poder Clássico e um munico de Pacto Sincronizado se combinam ao mesmo tempo', () => {
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(fichaComPactoEPoderMistos());
+        const poderDoCore = calcularPoderAtual(fichaComPactoEPoderMistos(), 1).poderGlobal;
+
+        expect(poderDoCore).toBeGreaterThan(calcularPoderAtual(fichaParaMarcados(undefined), 1).poderGlobal);
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
 });

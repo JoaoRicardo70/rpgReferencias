@@ -173,7 +173,7 @@ function getGlobalMultipliers(ficha) {
 }
 
 function getPoderDiretoMultiplier(ficha) {
-    if (!ficha || !ficha.poderes) return 1;
+    if (!ficha) return 1;
     try {
         let grupos = { mbase: 0, mgeral: 0, mformas: 0, mabs: 0 };
         let unicos = [];
@@ -190,10 +190,20 @@ function getPoderDiretoMultiplier(ficha) {
             });
         };
 
-        ficha.poderes.forEach(p => {
+        (ficha.poderes || []).forEach(p => {
             if (!p) return;
             const resolved = resolverEfeitosEntidade(p);
             if (p.ativa) processar(resolved.efeitos);
+            processar(resolved.efeitosPassivos);
+        });
+
+        // 🔥 Pactos/Entidades Seladas (ficha.seresSelados) também podem carregar um
+        // efeito "poder_direto" — só conta enquanto o Pacto estiver Sincronizado
+        // (ser.ativo), igual a todo o resto dos buffs dele (ver core/attributes.js).
+        (ficha.seresSelados || []).forEach(ser => {
+            if (!ser || !ser.ativo) return;
+            const resolved = resolverEfeitosEntidade(ser);
+            processar(resolved.efeitos);
             processar(resolved.efeitosPassivos);
         });
 
