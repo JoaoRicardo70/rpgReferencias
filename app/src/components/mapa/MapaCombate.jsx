@@ -2,6 +2,7 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import useStore from '../../stores/useStore';
 import { useMapaForm, urlSeguraParaCss, calcularCA } from './MapaFormContext';
+import { useAtaqueForm } from '../combate/AtaqueFormContext';
 import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { getClassIconById } from '../../core/classIcons';
 import { calcularPoderAtual } from '../../core/poder';
@@ -456,6 +457,55 @@ export function MapaRolagemRapida() {
             <div style={{ flex: 1, textAlign: 'right' }}>
                 <button className="btn-neon btn-gold" onClick={rolarAcertoRapido} style={{ margin: 0, padding: '4px 15px' }}>🎲 ROLAR</button>
             </div>
+        </div>
+    );
+}
+
+// 🔥 Acesso rápido, direto do Mapa, aos "Ataques Salvos" (ficha.ataqueConfig.formulasSalvas —
+// mesmas fórmulas de Modo Deus salvas na aba Ataque, ver AtaqueSubComponents.jsx >
+// AtaqueDanoCustomizado) — antes o jogador precisava sair do Mapa e ir pra aba Ataque só pra rolar
+// uma fórmula que já tinha salvo. Reusa a MESMA rolarDanoCustomizado (AtaqueFormContext.jsx) —
+// mesmo cálculo de dado/dano/consumo de energia e mesmo feed de combate — contra o `alvoSelecionado`
+// atual (estado global compartilhado com o clique-pra-mirar dos tokens da própria grelha do Mapa,
+// ver components/combat/DummieToken.jsx), então não existe uma segunda lógica de dano duplicada
+// aqui. Precisa do seu próprio <AtaqueFormProvider> (ver MapaPanel.jsx) — é um provider TOTALMENTE
+// à parte da instância que já vive (sempre montada) na aba Ataque, cada um com seu próprio estado
+// local (o texto digitado no Modo Deus etc.); não há nada compartilhado entre as duas instâncias
+// além do que já vem do Zustand (minhaFicha, alvoSelecionado).
+export function MapaAtaquesSalvos() {
+    const ataqueCtx = useAtaqueForm();
+    if (!ataqueCtx) return null;
+    const { minhaFicha, rolarDanoCustomizado, dummieAlvo } = ataqueCtx;
+    const formulasSalvas = minhaFicha?.ataqueConfig?.formulasSalvas || [];
+
+    return (
+        <div className="def-box" style={{ marginTop: 15, padding: '8px 12px', border: '1px solid #ff00ff' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <h4 style={{ color: '#ff00ff', margin: 0 }}>⚔️ Meus Ataques Salvos</h4>
+                <span style={{ color: dummieAlvo ? '#0f0' : '#888', fontSize: '0.8em', fontStyle: 'italic' }}>
+                    {dummieAlvo ? `🎯 Alvo: ${dummieAlvo.nome}` : 'Nenhum alvo selecionado'}
+                </span>
+            </div>
+
+            {formulasSalvas.length === 0 ? (
+                <p style={{ color: '#888', fontSize: '0.8em', margin: '8px 0 0 0' }}>
+                    Nenhum ataque salvo ainda. Vá na aba <strong>Ataque</strong> → Modo Deus, monte sua fórmula e clique em 💾 pra poder disparar ela direto por aqui.
+                </p>
+            ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                    {formulasSalvas.map(f => (
+                        <button
+                            key={f.id}
+                            className="btn-neon"
+                            onClick={() => rolarDanoCustomizado(f.formula, f.letalidade, f.energiaTipo, f.energiaCusto)}
+                            title={`Fórmula: ${f.formula} | Letalidade: +${f.letalidade || 0}${f.energiaTipo && f.energiaTipo !== 'nenhum' && f.energiaCusto ? ` | Custo: ${f.energiaCusto}% ${f.energiaTipo}` : ''}`}
+                            style={{ margin: 0, padding: '6px 14px', background: 'rgba(255,0,255,0.15)', borderColor: '#ff00ff', color: '#ff00ff', fontWeight: 'bold' }}
+                        >
+                            ▶ {f.nome}
+                        </button>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

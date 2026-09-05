@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto, salvarCamposPersonagem } from '../../services/firebase-sync';
 import { calcularAcerto } from '../../core/engine';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { getBuffs } from '../../core/attributes';
-import { aplicarRegeneracaoDeTurno, descansarCompleto } from '../../core/vitals';
+import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 
@@ -50,6 +50,51 @@ export function calcularCA(ficha, tipo) {
     });
 
     return Math.floor(base + bonus);
+}
+
+// 🔥 Início de turno (reset de Ações + Fadiga de Combate dinâmica + Regeneração automática) — a
+// MESMA conta pra qualquer personagem (jogador real ou dummie), usada por avancarTurno tanto pro
+// caminho "sou eu mesmo" (updateFicha local) quanto pro caminho "é outro jogador" (escrita direta
+// no Firebase via salvarCamposPersonagem, ver firebase-sync.js). Muta o rascunho recebido (draft
+// Immer OU um clone solto, tanto faz). A ordem importa: calcularGanhoFadigaDinamico precisa rodar
+// ANTES de aplicarRegeneracaoDeTurno, senão a cura já aplicada no mesmo tick esconderia o quão
+// gasto o personagem estava entrando neste turno.
+function aplicarInicioDeTurno(ficha) {
+    if (!ficha.acoes) ficha.acoes = { padrao: { max: 1, atual: 1 }, bonus: { max: 1, atual: 1 }, reacao: { max: 1, atual: 1 } };
+    if (ficha.acoes.padrao) ficha.acoes.padrao.atual = ficha.acoes.padrao.max;
+    if (ficha.acoes.bonus) ficha.acoes.bonus.atual = ficha.acoes.bonus.max;
+    if (ficha.acoes.reacao) ficha.acoes.reacao.atual = ficha.acoes.reacao.max;
+
+    if (!ficha.combate) ficha.combate = {};
+    ficha.combate.fadigaTurnos = Math.max(0, (Number(ficha.combate.fadigaTurnos) || 0) + 1);
+    const ganhoDinamicoDoTurno = calcularGanhoFadigaDinamico(ficha);
+    ficha.combate.fadigaExtra = Math.max(0, (Number(ficha.combate.fadigaExtra) || 0) + ganhoDinamicoDoTurno);
+
+    aplicarRegeneracaoDeTurno(ficha, ganhoDinamicoDoTurno);
+}
+
+// 🔥 Recorta de uma ficha só os campos que aplicarInicioDeTurno pode ter mudado, no formato de
+// caminhos relativos que salvarCamposPersonagem espera — usado pra escrever DIRETO no Firebase de
+// OUTRO jogador (nunca a ficha inteira, só o que realmente mudou aqui). Usa a MESMA lista
+// VITAIS_REGENERAVEIS de core/vitals.js (inclui pv/pm, não só os 5 vitais principais) — listar os
+// vitais aqui à mão de novo já causou, numa rodada anterior desta correção, o mesmo bug que ela
+// tentava consertar (pv/pm regenerando na hora só pra depois nunca serem escritos no Firebase de
+// outro jogador).
+function camposDeInicioDeTurno(ficha) {
+    const campos = {};
+    VITAIS_REGENERAVEIS.forEach((k) => {
+        if (ficha[k] && ficha[k].atual !== undefined) campos[`${k}/atual`] = ficha[k].atual;
+    });
+    if (ficha.combate) {
+        if (ficha.combate.fadigaTurnos !== undefined) campos['combate/fadigaTurnos'] = ficha.combate.fadigaTurnos;
+        if (ficha.combate.fadigaExtra !== undefined) campos['combate/fadigaExtra'] = ficha.combate.fadigaExtra;
+    }
+    if (ficha.acoes) {
+        if (ficha.acoes.padrao) campos['acoes/padrao/atual'] = ficha.acoes.padrao.atual;
+        if (ficha.acoes.bonus) campos['acoes/bonus/atual'] = ficha.acoes.bonus.atual;
+        if (ficha.acoes.reacao) campos['acoes/reacao/atual'] = ficha.acoes.reacao.atual;
+    }
+    return campos;
 }
 
 const MapaFormContext = createContext(null);
@@ -638,14 +683,23 @@ export function MapaFormProvider({ children }) {
         setFeedIndexTurnoAtual(feedCombate.length); 
     }, [iniciativaInput, cenaRenderId, updateFicha, feedCombate.length]);
 
+    // 🔥 Trava contra duplo-clique: "Passar Turno" agora aplica ações/fadiga/regeneração de forma
+    // SÍNCRONA aqui dentro (ver comentário mais abaixo), não mais só reativamente num efeito
+    // protegido por uma transição de índice já observada — sem essa trava, dois cliques rápidos no
+    // botão antes do `cenario.turnoAtualIndex` fechar o round-trip com o Firebase calculariam o
+    // MESMO nextIndex/nextPlayer duas vezes e aplicariam a conta de início de turno em dobro no
+    // mesmo personagem. Libera de novo assim que a escrita do Cenário for confirmada.
+    const avancandoTurnoRef = useRef(false);
+
     const avancarTurno = useCallback(() => {
-        if (ordemIniciativa.length === 0) return;
-        
+        if (ordemIniciativa.length === 0 || avancandoTurnoRef.current) return;
+        avancandoTurnoRef.current = true;
+
         let nextIndex = (cenario?.turnoAtualIndex || 0) + 1;
         if (nextIndex >= ordemIniciativa.length) nextIndex = 0;
-        
+
         const nextPlayer = ordemIniciativa[nextIndex];
-        
+
         setFeedIndexTurnoAtual(feedCombate.length);
         setJogadorHistory(null);
 
@@ -662,81 +716,56 @@ export function MapaFormProvider({ children }) {
                     if (z.duracao > 0 && z.danoOriginal) dispararEfeitoDaZona(z);
                     return z.duracao > 0;
                 }
-                return true; 
+                return true;
             });
         }
 
-        salvarCenarioCompleto(novoCenario);
+        Promise.resolve(salvarCenarioCompleto(novoCenario)).finally(() => { avancandoTurnoRef.current = false; });
 
-        if (nextPlayer.isDummie && isMestre) {
+        // 💖 Início de turno (reset de Ações + Fadiga dinâmica + Regeneração automática) do
+        // personagem cujo turno está começando — aplicado AQUI, direto por quem clicou "Passar
+        // Turno" (Mestre ou outro jogador), em vez de depender de um efeito que só roda no
+        // navegador do PRÓPRIO dono daquela ficha. Antes, a Regeneração de um jogador real só
+        // acontecia se a aba DELE estivesse aberta bem no instante em que o turno dele chegasse —
+        // se não estivesse, aquele round de Regeneração simplesmente nunca acontecia, mesmo com os
+        // turnos continuando a passar normalmente pra todo mundo (bug relatado: "os Rounds passam,
+        // mas a Vida e Energias não recuperam"). Ver aplicarInicioDeTurno/camposDeInicioDeTurno
+        // acima e salvarCamposPersonagem em firebase-sync.js.
+        if (nextPlayer.isDummie) {
+            if (!isMestre) return;
             const dData = storeState.dummies[nextPlayer.id];
             if (dData) {
                 const dDataAtualizado = JSON.parse(JSON.stringify(dData));
-                if (dDataAtualizado.acoes) {
-                    const acoes = dDataAtualizado.acoes;
-                    if (acoes.padrao) acoes.padrao.atual = acoes.padrao.max;
-                    if (acoes.bonus) acoes.bonus.atual = acoes.bonus.max;
-                    if (acoes.reacao) acoes.reacao.atual = acoes.reacao.max;
-                }
-                // 💖 Regeneração: dummies/NPCs nunca passavam pelo useEffect logo abaixo (ele só
-                // mexe em `minhaFicha`, e um dummie não é ninguém "logado") — sem isso, o campo
-                // Regen/turno de um NPC nunca fazia nada, mesmo o turno dele voltando normalmente
-                // na iniciativa a cada round. Sem piso de Fadiga (ao contrário do path do
-                // jogador logo abaixo) de propósito: dummies não têm Fadiga de Combate exposta em
-                // lugar nenhum da UI, então não há "desgaste do próprio turno" pra preservar aqui.
-                aplicarRegeneracaoDeTurno(dDataAtualizado);
+                aplicarInicioDeTurno(dDataAtualizado);
                 salvarDummie(nextPlayer.id, dDataAtualizado);
             }
-        }
-    }, [ordemIniciativa, cenario, feedCombate.length, dispararEfeitoDaZona, isMestre]);
-
-    const prevTurnoIndex = useRef(cenario?.turnoAtualIndex || 0);
-
-    useEffect(() => {
-        const currentIndex = cenario?.turnoAtualIndex || 0;
-        if (currentIndex !== prevTurnoIndex.current && ordemIniciativa.length > 0) {
-            const currentActor = ordemIniciativa[currentIndex];
-            if (currentActor && !currentActor.isDummie && currentActor.nome === meuNome) {
-                updateFicha(f => {
-                    if (!f.acoes) f.acoes = { padrao: {max:1, atual:1}, bonus: {max:1, atual:1}, reacao: {max:1, atual:1} };
-                    if (f.acoes.padrao) f.acoes.padrao.atual = f.acoes.padrao.max;
-                    if (f.acoes.bonus) f.acoes.bonus.atual = f.acoes.bonus.max;
-                    if (f.acoes.reacao) f.acoes.reacao.atual = f.acoes.reacao.max;
-
-                    // 😮‍💨 Fadiga de Combate: cada retorno do MEU turno na iniciativa do Mapa soma os
-                    // pontos dinâmicos (calcularGanhoFadigaDinamico, ver core/fadiga.js), calculados a
-                    // partir de QUÃO gasto/ferido/transformado o personagem está ENTRANDO neste turno e
-                    // escalados pela Supressão de Poder atual — por isso roda ANTES da Regeneração logo
-                    // abaixo, senão a cura já aplicada esconderia o desgaste real deste turno.
-                    //
-                    // combate.fadigaTurnos (o stepper "Turnos Cansativos" da Ficha) volta a subir +1
-                    // sozinho a cada turno aqui — mas hoje é só um contador INFORMATIVO ("há quantos
-                    // turnos esta luta dura"), sem nenhum efeito na Fadiga% (ver core/fadiga.js >
-                    // calcularFadigaAtual): antes, cada turno também somava fadigaTurnos x fadigaPorTurno
-                    // (5% fixos, por padrão) direto na Fadiga%, POR CIMA do ganho dinâmico já escalado
-                    // por Energia/Vida/Maestria/Supressão — um personagem com 100% de Maestria, sem
-                    // gastar Energia, sem levar dano e com o Poder suprimido ainda assim acumulava
-                    // 5%/turno vindos desse contador, o que ia contra a própria ideia da Fadiga dinâmica
-                    // (quase-zero nessas condições). Agora só a % dinâmica (fadigaExtra) gera Fadiga de
-                    // verdade; fadigaTurnos é só editável manualmente na Ficha (stepper +/-) por cima.
-                    if (!f.combate) f.combate = {};
-                    f.combate.fadigaTurnos = Math.max(0, (Number(f.combate.fadigaTurnos) || 0) + 1);
-                    const ganhoDinamicoDoTurno = calcularGanhoFadigaDinamico(f);
-                    f.combate.fadigaExtra = Math.max(0, (Number(f.combate.fadigaExtra) || 0) + ganhoDinamicoDoTurno);
-
-                    // 💖 Regeneração: mesma regra do botão "Regenerar" da página de Status, aplicada
-                    // sozinha sempre que meu turno volta. Passa o ganho dinâmico deste MESMO turno
-                    // como piso: o desconto de Fadiga por Regeneração pode comer a Fadiga acumulada
-                    // de turnos ANTERIORES à vontade, mas nunca mascara o ganho que acabou de ser
-                    // somado acima (senão curar 100% no mesmo tick escondia o quão gasto o
-                    // personagem estava entrando neste turno — ver MapaFormContext.combateAutoTurno.test.jsx).
-                    aplicarRegeneracaoDeTurno(f, ganhoDinamicoDoTurno);
-                });
-                salvarFichaSilencioso();
+        } else if (nextPlayer.nome === storeState.meuNome) {
+            // Sou eu mesmo quem começa o turno: aplica local (fonte de verdade imediata, sem
+            // esperar o Firebase) e deixa o debounce de sempre sincronizar.
+            updateFicha(f => { aplicarInicioDeTurno(f); });
+            salvarFichaSilencioso();
+        } else {
+            // Outro jogador começa o turno: nunca posso mutar a ficha dele localmente
+            // (`updateFicha` só mexe na MINHA), então calculo em cima da cópia mais recente que
+            // este cliente já tem (`personagens`, espelho completo sincronizado via Firebase) e
+            // escrevo só os campos que mudaram direto no nó dele.
+            //
+            // ⚠️ Mesma limitação já aceita em aplicarDanoDireto/aplicarFadigaDireta acima: sem
+            // transação, se o `personagens[nome]` espelhado neste cliente ainda estiver um pouco
+            // atrasado em relação ao Firebase (ex: o próprio dono levou um dano que ainda não
+            // chegou aqui), este write pode sobrescrever esse valor mais novo com uma conta feita
+            // em cima do estado antigo. Aceitável pro uso real (só os campos regeneráveis são
+            // escritos, nunca a ficha inteira, e o próximo save do dono corrige o resto), mas
+            // documentado aqui porque, diferente de aplicarDanoDireto (1 clique manual do Mestre),
+            // este caminho dispara automaticamente a CADA avanço de turno.
+            const fichaAlvo = storeState.personagens?.[nextPlayer.nome];
+            if (fichaAlvo) {
+                const rascunho = JSON.parse(JSON.stringify(fichaAlvo));
+                aplicarInicioDeTurno(rascunho);
+                salvarCamposPersonagem(nextPlayer.nome, camposDeInicioDeTurno(rascunho));
             }
-            prevTurnoIndex.current = currentIndex;
         }
-    }, [cenario?.turnoAtualIndex, ordemIniciativa, meuNome, updateFicha]);
+    }, [ordemIniciativa, cenario, feedCombate.length, dispararEfeitoDaZona, isMestre, updateFicha]);
 
     const sairDoCombate = useCallback(() => {
         updateFicha(ficha => { ficha.iniciativa = 0; });

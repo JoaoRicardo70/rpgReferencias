@@ -6,8 +6,8 @@ import useStore from '../../stores/useStore';
 
 // ---------------------------------------------------------------------------
 // QA — regressão de integração do `pisoFadigaExtra` (core/vitals.js >
-// aplicarRegeneracaoDeTurno) através do próprio handler de avanço de turno de
-// MapaFormContext.jsx (linhas ~711-720), SEM mockar core/vitals.js nem
+// aplicarRegeneracaoDeTurno) através do próprio avancarTurno de
+// MapaFormContext.jsx (aplicarInicioDeTurno), SEM mockar core/vitals.js nem
 // core/fadiga.js — exercita o wiring real entre os dois módulos, não só a
 // função pura isolada (já coberta por vitals.regeneracaoBuffsFadiga.test.js >
 // "pisoFadigaExtra"). Mesmo padrão de mock de useStore/firebase-sync de
@@ -22,6 +22,7 @@ vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
     salvarDummie: vi.fn(),
+    salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
@@ -63,12 +64,13 @@ function montarComEstado(state) {
     return render(<MapaFormProvider><Harness /></MapaFormProvider>);
 }
 
-function passarMeuTurno(state, rerender) {
-    // alterna pro Filler e depois de volta pra mim, pra forçar uma transição real de
-    // "turnoAtualIndex" apontando pra mim de novo (o efeito só dispara em TRANSIÇÃO).
+async function passarMeuTurno(state, rerender) {
+    // chama avancarTurno() (turnoAtualIndex 0(Filler) -> 1(EU), aplicando a conta de início de
+    // turno direto), depois reseta o índice pra simular o próximo round recomeçando do Filler.
+    // `await act(async ...)` flusha o microtask que libera a trava contra duplo-clique
+    // (avancandoTurnoRef) antes da PRÓXIMA chamada de passarMeuTurno.
+    await act(async () => { probe.avancarTurno(); });
     act(() => { state.cenario = { ...state.cenario, turnoAtualIndex: 0 }; });
-    rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
-    act(() => { state.cenario = { ...state.cenario, turnoAtualIndex: 1 }; });
     rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
 }
 
@@ -88,10 +90,9 @@ describe('MapaFormContext — integração real do piso de Fadiga (pisoFadigaExt
             combate: { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0 },
         };
         const state = baseState(minhaFicha);
-        const { rerender } = montarComEstado(state);
+        montarComEstado(state);
 
-        act(() => { state.cenario = { ...state.cenario, turnoAtualIndex: 1 }; });
-        rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
+        act(() => { probe.avancarTurno(); });
 
         // A cura de fato aconteceu neste mesmo tick...
         expect(minhaFicha.vida.atual).toBe(10000000); // mxDisplay do teto
@@ -133,10 +134,9 @@ describe('MapaFormContext — integração real do piso de Fadiga (pisoFadigaExt
     it('ganho dinâmico deste turno em 0 (vida/energia cheias) -> piso=0 -> o desconto de Fadiga por Regeneração (via cura de pv) come a Fadiga ACUMULADA de turnos anteriores livremente', () => {
         const minhaFicha = fichaGanhoZeroComPv(0, { fadigaExtra: 20 });
         const state = baseState(minhaFicha);
-        const { rerender } = montarComEstado(state);
+        montarComEstado(state);
 
-        act(() => { state.cenario = { ...state.cenario, turnoAtualIndex: 1 }; });
-        rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
+        act(() => { probe.avancarTurno(); });
 
         // pv curado do zero (0) ao teto (40) -> fração=1.0 -> desconto = 1.0 * 10 = 10 pontos.
         // Ganho dinâmico deste turno = 0 (piso = 0) -> 20 - 10 = 10, exatamente, nada mascarado.
@@ -144,20 +144,20 @@ describe('MapaFormContext — integração real do piso de Fadiga (pisoFadigaExt
         expect(minhaFicha.combate.fadigaExtra).toBe(10);
     });
 
-    it('em turnos sucessivos: o desconto só volta a agir quando HÁ cura nova naquele tick — depois que pv já está no teto, um segundo turno sem ganho E sem cura nova mantém a Fadiga estável, nunca some sozinha nem "acumula" desconto residual', () => {
+    it('em turnos sucessivos: o desconto só volta a agir quando HÁ cura nova naquele tick — depois que pv já está no teto, um segundo turno sem ganho E sem cura nova mantém a Fadiga estável, nunca some sozinha nem "acumula" desconto residual', async () => {
         const minhaFicha = fichaGanhoZeroComPv(0, { fadigaExtra: 40 });
         const state = baseState(minhaFicha);
         const { rerender } = montarComEstado(state);
 
         // Turno 1: pv cura do zero ao teto (fração=1.0) -> desconto de 10. 40 - 10 = 30.
-        passarMeuTurno(state, rerender);
+        await passarMeuTurno(state, rerender);
         expect(minhaFicha.pv.atual).toBe(40);
         expect(minhaFicha.combate.fadigaExtra).toBe(30);
 
         // Turno 2: pv já está no teto (40) -> aplicarRegeneracaoDeTurno não tem mais nada pra
         // curar nele (atual < mxDisplay é falso) -> fracoesCuradas fica vazio -> SEM desconto
         // nenhum neste tick, mesmo com fadigaExtra ainda > 0. Ganho dinâmico continua 0.
-        passarMeuTurno(state, rerender);
+        await passarMeuTurno(state, rerender);
         expect(minhaFicha.pv.atual).toBe(40);
         expect(minhaFicha.combate.fadigaExtra).toBe(30);
     });

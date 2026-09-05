@@ -435,6 +435,29 @@ export function aplicarDanoDireto(nome, novoValorVidaAtual) {
     const nomeSanitizado = sanitizarNome(nome);
     set(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}/vida/atual`), Math.max(0, novoValorVidaAtual)).catch(() => {});
 }
+// 🔥 Mesmo esquema de aplicarDanoDireto acima, mas para VÁRIOS campos pontuais de uma vez —
+// usado por avancarTurno (ver MapaFormContext.jsx) pra aplicar a Regeneração/Ações/Fadiga de
+// início de turno DIRETO no personagem cujo turno está começando, mesmo que não seja o meu e
+// mesmo que o navegador DELE não esteja aberto neste exato momento. Antes, a Regeneração de um
+// jogador real só rodava através de um efeito que só existe no PRÓPRIO navegador daquele jogador
+// (só ele pode mutar `minhaFicha`) — se a aba dele não estivesse aberta bem na hora em que o turno
+// chegasse, a Regeneração daquele round simplesmente nunca acontecia, por mais que os turnos
+// continuassem passando normalmente pros outros. Agora quem quer que tenha clicado "Passar Turno"
+// (o Mestre, ou o próprio jogador anterior) já aplica a conta e escreve os campos que mudaram —
+// nunca a ficha inteira, só os caminhos passados em `campos` (ex: `{'vida/atual': 500}`), pra não
+// apagar edições concorrentes que o dono real daquela ficha ainda não sincronizou de volta.
+export function salvarCamposPersonagem(nome, campos) {
+    if (isInPlasmicCanvas()) return;
+    const { mesaId } = useStore.getState();
+    if (!db || !mesaId || !nome || !campos) return;
+    const nomeSanitizado = sanitizarNome(nome);
+    const updates = {};
+    Object.keys(campos).forEach((caminho) => {
+        updates[`mesas/${mesaId}/personagens/${nomeSanitizado}/${caminho}`] = campos[caminho];
+    });
+    if (Object.keys(updates).length === 0) return;
+    update(ref(db), updates).catch(() => {});
+}
 // 🔥 Mesmo esquema de aplicarDanoDireto acima, só que pro contador combate/fadigaExtra — usado
 // pelo Dano Rápido do Mestre (ver MapaFormContext.jsx > aplicarDanoRapido) pra que o dano que o
 // Mestre aplica em OUTRO jogador já gere Fadiga na hora, escalada pela Supressão de Poder daquele

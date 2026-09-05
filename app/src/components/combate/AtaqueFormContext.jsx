@@ -29,6 +29,7 @@ export function AtaqueFormProvider({ children }) {
     const personagens = useStore(s => s.personagens); 
     const updateFicha = useStore(s => s.updateFicha);
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
+    const abaAtiva = useStore(s => s.abaAtiva);
     const feedCombate = useStore(s => s.feedCombate);
     const alvoSelecionado = useStore(s => s.alvoSelecionado);
     const dummies = useStore(s => s.dummies);
@@ -404,12 +405,17 @@ export function AtaqueFormProvider({ children }) {
             };
 
             enviarParaFeed(feedData);
-            setAbaAtiva('aba-log');
+            // 🔥 Só força a troca pra aba do Log se quem rolou não estiver já no Mapa — lá o
+            // resultado já aparece ao vivo na Moldura de combate (MapaHologramaAcao), então
+            // arrancar o jogador pro Log no meio de um combate no Mapa (ver
+            // MapaCombate.jsx > MapaAtaquesSalvos, que reusa esta MESMA função pra rolar
+            // fórmulas salvas direto do Mapa) seria uma navegação indesejada.
+            if (abaAtiva !== 'aba-mapa') setAbaAtiva('aba-log');
             if (formulaOverride === undefined) { setCustomFormula(''); }
         } catch (e) {
             alert('Erro ao calcular a fórmula matemática. Verifique se os parênteses fecham corretamente.');
         }
-    }, [customFormula, customLetalidade, customEnergiaTipo, customEnergiaCusto, meuNome, dummieAlvo, alvoSelecionado, setAbaAtiva, updateFicha, minhaFicha, elementoAtivo]);
+    }, [customFormula, customLetalidade, customEnergiaTipo, customEnergiaCusto, meuNome, dummieAlvo, alvoSelecionado, setAbaAtiva, abaAtiva, updateFicha, minhaFicha, elementoAtivo]);
 
     const rolarDano = useCallback(() => {
         salvarConfigAtaque();
