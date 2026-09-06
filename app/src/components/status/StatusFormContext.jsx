@@ -3,6 +3,7 @@ import useStore from '../../stores/useStore';
 import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from '../../core/attributes.js';
 import { getPrestigioReal, getRank } from '../../core/prestige.js';
 import { calcularReducaoFadigaPorRegeneracao } from '../../core/fadiga.js';
+import { getNumBarrasVida } from '../../core/vitals.js';
 import { salvarFichaSilencioso } from '../../services/firebase-sync.js';
 
 const safeFn = (fn, fallback) => (...args) => {
@@ -192,10 +193,12 @@ export function StatusFormProvider({ children }) {
         updateFicha((f) => {
             allVitals.forEach(({ key }) => {
                 const rawMx = getVitalMax(key, f);
-                const { mxDisplay } = calcVitalScale(rawMx, key, getVitalMaxEstavel(key, f));
+                const { p, mxDisplay } = calcVitalScale(rawMx, key, getVitalMaxEstavel(key, f));
                 if (!f[key]) f[key] = {};
                 if (f[key].atual === undefined || f[key].atual === null) {
-                    f[key].atual = mxDisplay;
+                    // 🩸 Vida ganha 1 barra cheia extra por ponto de Vitalidade — um personagem
+                    // novo já começa com TODAS as barras cheias.
+                    f[key].atual = key === 'vida' ? mxDisplay * getNumBarrasVida(p) : mxDisplay;
                 }
             });
         });
@@ -209,7 +212,9 @@ export function StatusFormProvider({ children }) {
 
         updateFicha((f) => {
             const rawMx = getVitalMax(targetBar, f);
-            const { mxDisplay } = calcVitalScale(rawMx, targetBar, getVitalMaxEstavel(targetBar, f));
+            const { p, mxDisplay } = calcVitalScale(rawMx, targetBar, getVitalMaxEstavel(targetBar, f));
+            // 🩸 Vida cura até a SOMA de todas as barras (getNumBarrasVida), não só uma.
+            const teto = targetBar === 'vida' ? mxDisplay * getNumBarrasVida(p) : mxDisplay;
 
             let danoFinal = valor;
             if (tipo === 'dano' && letalidade > 0) {
@@ -220,7 +225,7 @@ export function StatusFormProvider({ children }) {
             if (tipo === 'dano') {
                 f[targetBar].atual = Math.max(0, (f[targetBar].atual || 0) - danoFinal);
             } else {
-                f[targetBar].atual = Math.min(mxDisplay, (f[targetBar].atual || 0) + danoFinal);
+                f[targetBar].atual = Math.min(teto, (f[targetBar].atual || 0) + danoFinal);
             }
         });
         salvarFichaSilencioso();
@@ -231,8 +236,9 @@ export function StatusFormProvider({ children }) {
         updateFicha((f) => {
             allVitals.forEach(({ key }) => {
                 const rawMx = getVitalMax(key, f);
-                const { mxDisplay } = calcVitalScale(rawMx, key, getVitalMaxEstavel(key, f));
-                if (f[key]) f[key].atual = mxDisplay;
+                const { p, mxDisplay } = calcVitalScale(rawMx, key, getVitalMaxEstavel(key, f));
+                // 🩸 Vida cura até a SOMA de todas as barras (getNumBarrasVida), não só uma.
+                if (f[key]) f[key].atual = key === 'vida' ? mxDisplay * getNumBarrasVida(p) : mxDisplay;
             });
         });
         salvarFichaSilencioso();
@@ -246,14 +252,16 @@ export function StatusFormProvider({ children }) {
             const fracoesCuradas = [];
             allVitals.forEach(({ key }) => {
                 const rawMx = getVitalMax(key, f);
-                const { mxDisplay } = calcVitalScale(rawMx, key, getVitalMaxEstavel(key, f));
+                const { p, mxDisplay } = calcVitalScale(rawMx, key, getVitalMaxEstavel(key, f));
+                // 🩸 Vida regenera até a SOMA de todas as barras (getNumBarrasVida), não só uma.
+                const teto = key === 'vida' ? mxDisplay * getNumBarrasVida(p) : mxDisplay;
                 const regenBase = parseFloat(f[key]?.regeneracao) || 0;
                 const regenBuff = getBuffs(f, key).regeneracao || 0;
                 const regen = regenBase + regenBuff;
-                if (regen > 0 && mxDisplay > 0 && (f[key].atual || 0) < mxDisplay) {
+                if (regen > 0 && teto > 0 && (f[key].atual || 0) < teto) {
                     const antes = f[key].atual || 0;
-                    f[key].atual = Math.min(mxDisplay, antes + regen);
-                    fracoesCuradas.push((f[key].atual - antes) / mxDisplay);
+                    f[key].atual = Math.min(teto, antes + regen);
+                    fracoesCuradas.push((f[key].atual - antes) / teto);
                 }
             });
             if (fracoesCuradas.length > 0) {

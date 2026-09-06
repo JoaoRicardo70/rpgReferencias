@@ -343,6 +343,114 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
     // Escaneia o próprio código-fonte em vez de só testar comportamento, porque um import
     // "esquecido" de getMaximo sem uso real não quebraria nenhuma asserção de comportamento acima.
     // -----------------------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // QA (gap) — turno de um DUMMY/NPC do Mapa (jogadorDaVez.isDummie: true). Diferente de um
+    // jogador (fichaBase.vida = { atual, base, ... }), o dummy usa um shape FLAT (fichaBase.hpMax/
+    // fichaBase.hpAtual) e passa pelo branch `calcularBarrasVidaDummy` em vez de
+    // `calcularBarrasVida` (ver MapaCombate.jsx > MapaHologramaAcao > isDummieDaVez). Monta o
+    // dummy via `dummies` + `ordemIniciativa`/`jogadorDaVez` (MapaFormContext.jsx deriva
+    // jogadorDaVez a partir de `dummies` com iniciativa>0 na cena ativa), não via `minhaFicha`.
+    // -----------------------------------------------------------------------
+    function montarMockStateComDummy(dummyOverrides = {}, stateOverrides = {}) {
+        const dummy = {
+            nome: 'Slime Selvagem',
+            iniciativa: 15,
+            hpMax: 100000000, // 9 dígitos -> cruza a fronteira (calcularBarrasVidaDummy: p=1) -> 2 barras de 5e7 cada
+            hpAtual: 60000000, // dano total = 4e7: esvazia metade da barra da frente (5e7 -> resta 1e7)
+            ...dummyOverrides,
+        };
+        return montarMockState({
+            dummies: { dummie1: dummy },
+            ...stateOverrides,
+        });
+    }
+
+    it('turno de um DUMMY (isDummie=true) usa calcularBarrasVidaDummy e renderiza HP corretamente sem quebrar (hpMax cruzando a fronteira, 2 barras)', () => {
+        const { container } = renderHolograma(montarMockStateComDummy());
+
+        expect(screen.getAllByText(/Slime Selvagem/i).length).toBeGreaterThan(0);
+
+        // HP total exibido = hpAtual (60.000.000), formatado em pt-BR, com o sufixo "(2 barras)"
+        // (MapaCombate.jsx > `${vidaInfo.barras.length > 1 ? ... : ''}`).
+        expect(screen.getByText(/60\.000\.000/)).toBeDefined();
+        expect(screen.getByText(/\(2 barras\)/)).toBeDefined();
+
+        // As 2 barras de HP (BarraVital, cor #ff4d4d, perigo=true) devem existir com width válido
+        // (0-100%), sem NaN -- barra 0 (frente) parcialmente esvaziada, barra 1 (trás) intacta.
+        const barrasHp = Array.from(container.querySelectorAll('div')).filter(d => {
+            const style = d.getAttribute('style') || '';
+            return /width:\s*\d/.test(style) && (style.includes('#ff4d4d') || style.includes('#ff3030') || style.includes('#ffcc00'));
+        });
+        expect(barrasHp.length).toBe(2);
+        barrasHp.forEach(b => {
+            const match = /width:\s*(\d+(?:\.\d+)?)%/.exec(b.getAttribute('style'));
+            expect(match).not.toBeNull();
+            const pct = parseFloat(match[1]);
+            expect(Number.isFinite(pct)).toBe(true);
+            expect(pct).toBeGreaterThanOrEqual(0);
+            expect(pct).toBeLessThanOrEqual(100);
+        });
+
+        // Barra da FRENTE (índice 0, primeira renderizada) recebeu o dano primeiro: dano total=4e7,
+        // mxPorBarra=5e7 -> barra 0 fica com 1e7/5e7 = 20% (dano < 1 barra, sem cascata); barra 1
+        // (trás) continua 100% intacta.
+        const pcts = barrasHp.map(b => parseFloat(/width:\s*(\d+(?:\.\d+)?)%/.exec(b.getAttribute('style'))[1]));
+        expect(pcts[0]).toBeCloseTo(20, 0);
+        expect(pcts[1]).toBeCloseTo(100, 0);
+    });
+
+    it('turno de um DUMMY sem cruzar a fronteira (hpMax pequeno) renderiza exatamente 1 barra de HP, sem o sufixo "(N barras)"', () => {
+        const { container } = renderHolograma(montarMockStateComDummy({ hpMax: 500, hpAtual: 250 }));
+
+        expect(screen.getByText(/^250$/)).toBeDefined();
+        expect(container.textContent).not.toMatch(/\(\d+ barras\)/);
+
+        const barrasHp = Array.from(container.querySelectorAll('div')).filter(d => {
+            const style = d.getAttribute('style') || '';
+            return /width:\s*\d/.test(style) && (style.includes('#ff4d4d') || style.includes('#ff3030') || style.includes('#ffcc00'));
+        });
+        expect(barrasHp.length).toBe(1);
+        const pct = parseFloat(/width:\s*(\d+(?:\.\d+)?)%/.exec(barrasHp[0].getAttribute('style'))[1]);
+        expect(pct).toBeCloseTo(50, 0);
+    });
+
+    it('turno de um DUMMY com hpAtual=0 (derrotado) renderiza todas as barras em 0%, sem NaN nem lançar', () => {
+        let container;
+        expect(() => {
+            ({ container } = renderHolograma(montarMockStateComDummy({ hpAtual: 0 })));
+        }).not.toThrow();
+
+        const barrasHp = Array.from(container.querySelectorAll('div')).filter(d => {
+            const style = d.getAttribute('style') || '';
+            return /width:\s*\d/.test(style) && (style.includes('#ff4d4d') || style.includes('#ff3030') || style.includes('#ffcc00'));
+        });
+        expect(barrasHp.length).toBe(2);
+        barrasHp.forEach(b => {
+            expect(b.getAttribute('style')).toMatch(/width:\s*0%/);
+            expect(b.getAttribute('style')).not.toMatch(/NaN/);
+        });
+    });
+
+    it('turno de um jogador NORMAL (isDummie=false) continua usando calcularBarrasVida (não o branch de dummy), preservando o comportamento já validado', () => {
+        // Regressão simples: confirma que ligar `dummies` no state não faz um turno de JOGADOR
+        // normal (via minhaFicha/feedCombate, sem ordemIniciativa) acidentalmente cair no branch
+        // de dummy quando jogadorDaVez é null (fora de combate) -- mesmo cenário dos testes
+        // originais deste arquivo, só que agora com `dummies` populado ao mesmo tempo.
+        const ficha = criarFichaDeCombate(500000);
+        const { container } = renderHolograma(montarMockState({
+            minhaFicha: ficha,
+            feedCombate: [{ tipo: 'dano', nome: 'Kakaroto', dano: 1 }],
+            dummies: { dummie1: { nome: 'Slime Selvagem', iniciativa: 0, hpMax: 100000000, hpAtual: 60000000 } },
+        }));
+
+        expect(container.textContent).not.toMatch(/\(\d+ barras\)/); // ficha de player (base 1e6) não cruza a fronteira de Vitalidade
+        const barrasHp = Array.from(container.querySelectorAll('div')).filter(d => {
+            const style = d.getAttribute('style') || '';
+            return /width:\s*\d/.test(style) && (style.includes('#ff4d4d') || style.includes('#ff3030') || style.includes('#ffcc00'));
+        });
+        expect(barrasHp.length).toBe(1);
+    });
+
     it('regressão de fonte: MapaCombate.jsx não importa nem usa getMaximo de core/attributes.js para os máximos das barras', async () => {
         const fs = await import('node:fs');
         const path = await import('node:path');
@@ -358,7 +466,11 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
             .filter(linha => !/^\s*(\/\/|\*|\/\*)/.test(linha))
             .join('\n');
         expect(semComentarios).not.toMatch(/[^a-zA-Z_]getMaximo\(/);
-        // Confirma que getVitalMxDisplay CONTINUA sendo o import real usado.
-        expect(codigoFonte).toMatch(/import\s*\{\s*getVitalMxDisplay\s*\}\s*from\s*['"]\.\.\/\.\.\/core\/vitals['"]/);
+        // Confirma que getVitalMxDisplay CONTINUA sendo importado de core/vitals — junto de
+        // calcularBarrasVida/calcularBarrasVidaDummy (múltiplas barras de Vida), que passaram a
+        // ser a fonte real do teto de HP especificamente (getVitalMxDisplay continua servindo
+        // MP/AU/CK/CP, que não ganham múltiplas barras).
+        expect(codigoFonte).toMatch(/import\s*\{[^}]*\bgetVitalMxDisplay\b[^}]*\}\s*from\s*['"]\.\.\/\.\.\/core\/vitals['"]/);
+        expect(codigoFonte).toMatch(/import\s*\{[^}]*\bcalcularBarrasVida\b[^}]*\}\s*from\s*['"]\.\.\/\.\.\/core\/vitals['"]/);
     });
 });

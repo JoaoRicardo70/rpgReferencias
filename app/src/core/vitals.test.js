@@ -89,22 +89,25 @@ describe('core/vitals - aplicarRegeneracaoDeTurno: happy path', () => {
 
 describe('core/vitals - aplicarRegeneracaoDeTurno: clamp no máximo (não faz overheal)', () => {
     it('clampa "vida" no máximo calculado quando a soma ultrapassaria o teto', () => {
+        // 🩸 mxDisplay = 1e7 (ver teste acima), mas Vida com p=1 (calcVitalScale) ganha 2 barras
+        // (getNumBarrasVida) -> teto REAL é a SOMA das duas, 2e7, não uma barra só.
         const ficha = criarFichaMinima({
-            vida: { ...statBase(100000000), atual: 9999999, regeneracao: 5000000 },
+            vida: { ...statBase(100000000), atual: 19999999, regeneracao: 5000000 },
         });
         aplicarRegeneracaoDeTurno(ficha);
 
-        // mxDisplay = 1e7 (ver teste acima) -> 9_999_999 + 5_000_000 estoura, clampa em 1e7.
-        expect(ficha.vida.atual).toBe(10000000);
+        // 19_999_999 + 5_000_000 estoura o teto de 2e7, clampa em 2e7.
+        expect(ficha.vida.atual).toBe(20000000);
     });
 
     it('não regenera (nem lança) quando o vital já está exatamente no máximo', () => {
+        // 🩸 Teto real de Vida = mxDisplay(1e7) * getNumBarrasVida(p=1) = 2e7 (2 barras).
         const ficha = criarFichaMinima({
-            vida: { ...statBase(100000000), atual: 10000000, regeneracao: 5000000 },
+            vida: { ...statBase(100000000), atual: 20000000, regeneracao: 5000000 },
         });
         aplicarRegeneracaoDeTurno(ficha);
 
-        expect(ficha.vida.atual).toBe(10000000);
+        expect(ficha.vida.atual).toBe(20000000);
     });
 
     it('não regenera quando o vital já está ACIMA do máximo calculado (nunca reduz)', () => {
@@ -210,17 +213,20 @@ describe('core/vitals - descansarCompleto: happy path (cura tudo até o máximo)
     it('cura "vida" até o máximo calculado, independente do quão baixo estava "atual"', () => {
         const ficha = criarFichaMinima({ vida: { ...statBase(100000000), atual: 1, regeneracao: 0 } });
         descansarCompleto(ficha);
-        // Mesmo máximo calculado nos testes de regeneração acima: mxDisplay = 1e7.
-        expect(ficha.vida.atual).toBe(10000000);
+        // Mesmo máximo calculado nos testes de regeneração acima: mxDisplay = 1e7, mas Vida com
+        // p=1 ganha 2 barras (getNumBarrasVida) -> teto real de cura é 2e7.
+        expect(ficha.vida.atual).toBe(20000000);
     });
 
     it('cura os 5 vitais principais (vida/mana/aura/chakra/corpo) até o máximo, todos de uma vez', () => {
         const ficha = criarFichaMinima();
         descansarCompleto(ficha);
-        // "vida" usa limite de 8 dígitos em calcVitalScale -> escala 1 casa (mxDisplay=1e7);
+        // "vida" usa limite de 8 dígitos em calcVitalScale -> escala 1 casa (mxDisplay=1e7), e com
+        // p=1 ganha 2 barras cheias (getNumBarrasVida) -> teto real de cura é 2e7;
         // mana/aura/chakra/corpo usam limite de 9 -> "100000000" (9 dígitos) não estoura o
-        // limite, então mxDisplay fica sem escala nenhuma (o próprio valor bruto de base, 1e8).
-        expect(ficha.vida.atual).toBe(10000000);
+        // limite, então mxDisplay fica sem escala nenhuma (o próprio valor bruto de base, 1e8) —
+        // e continuam com 1 barra só (só Vida ganha barras extras).
+        expect(ficha.vida.atual).toBe(20000000);
         ['mana', 'aura', 'chakra', 'corpo'].forEach((k) => {
             expect(ficha[k].atual).toBe(100000000);
         });
@@ -235,9 +241,10 @@ describe('core/vitals - descansarCompleto: happy path (cura tudo até o máximo)
     });
 
     it('cura mesmo quando "atual" já está no máximo ou acima (idempotente, não lança)', () => {
-        const ficha = criarFichaMinima({ vida: { ...statBase(100000000), atual: 10000000, regeneracao: 0 } });
+        // 🩸 Teto real de Vida = mxDisplay(1e7) * getNumBarrasVida(p=1) = 2e7 (2 barras).
+        const ficha = criarFichaMinima({ vida: { ...statBase(100000000), atual: 20000000, regeneracao: 0 } });
         expect(() => descansarCompleto(ficha)).not.toThrow();
-        expect(ficha.vida.atual).toBe(10000000);
+        expect(ficha.vida.atual).toBe(20000000);
     });
 });
 
@@ -286,7 +293,8 @@ describe('core/vitals - descansarCompleto: robustez com dados faltando', () => {
         delete ficha.mana;
         expect(() => descansarCompleto(ficha)).not.toThrow();
         expect(ficha.mana).toBeUndefined();
-        expect(ficha.vida.atual).toBe(10000000);
+        // 🩸 Vida com p=1 ganha 2 barras (getNumBarrasVida) -> teto real de cura é 2e7.
+        expect(ficha.vida.atual).toBe(20000000);
     });
 
     it('um vital malformado (base não numérica) não aborta a cura dos demais (try/catch isolado por vital)', () => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { uploadImagem } from '../../services/firebase-sync';
 import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from '../../core/attributes';
 import { getRank } from '../../core/prestige';
+import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida } from '../../core/vitals';
 
 // ==========================================
 // 🛡️ DADOS DO COMPÊNDIO (PARA O ÍCONE DA MOLDURA)
@@ -138,19 +139,6 @@ const LabelMagicoNPC = ({ valor, onChange, fallback }) => (
         onFocus={(e) => e.target.style.borderBottom = '1px dashed currentColor'} onBlur={(e) => e.target.style.borderBottom = '1px solid transparent'}
     />
 );
-
-// rawMaxParaEscala decide SÓ a escala de notação (pVit) — chamadores que precisam ignorar Formas
-// na decisão passam o máximo ESTÁVEL (getMaximoSemFormas) aqui, mantendo rawMax (completo, com
-// Formas) como numerador de mxDisplay (ver core/vitals.js > calcVitalScale).
-const calcularEscala = (rawMax, key, rawMaxParaEscala = rawMax) => {
-    if (!rawMax || isNaN(rawMax) || rawMax <= 0) return { mxDisplay: 0, pVit: 0 };
-    const limit = (key === 'vida' || key === 'pv' || key === 'pm') ? 8 : 9;
-    const baseEscala = (rawMaxParaEscala && !isNaN(rawMaxParaEscala) && rawMaxParaEscala > 0) ? rawMaxParaEscala : rawMax;
-    const strVal = String(Math.floor(baseEscala));
-    const pVit = Math.max(0, strVal.length - limit);
-    const mxDisplay = pVit > 0 ? Math.floor(rawMax / Math.pow(10, pVit)) : Math.floor(rawMax);
-    return { mxDisplay: isNaN(mxDisplay) ? 0 : mxDisplay, pVit: isNaN(pVit) ? 0 : pVit };
-};
 
 const BarraVitalNPC = ({ atual, maximo, pVit, cor, corTexto = "#fff", onChangeAtual }) => {
     const pct = maximo > 0 ? Math.min(100, Math.max(0, (atual / maximo) * 100)) : 0;
@@ -401,9 +389,10 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
             try { mx = getMaximo(novoNpc, k); } catch(e) { mx = novoNpc[k]?.base || 0; }
             let mxEstavel = mx;
             try { mxEstavel = getMaximoSemFormas(novoNpc, k); } catch(e) { mxEstavel = mx; }
-            const { mxDisplay } = calcularEscala(mx, k, mxEstavel);
+            // 🩸 Vida cura até a SOMA de todas as barras (getTetoVida, core/vitals.js), não só uma.
+            const teto = getTetoVida(mx, k, mxEstavel);
             if (!novoNpc[k]) novoNpc[k] = {};
-            novoNpc[k].atual = isNaN(mxDisplay) ? 0 : mxDisplay;
+            novoNpc[k].atual = isNaN(teto) ? 0 : teto;
         });
         if (!novoNpc.pv) novoNpc.pv = {}; novoNpc.pv.atual = isNaN(pvMax) ? 0 : pvMax;
         if (!novoNpc.pm) novoNpc.pm = {}; novoNpc.pm.atual = isNaN(pmMax) ? 0 : pmMax;
@@ -437,11 +426,10 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
         if (isNaN(rawMaximo)) rawMaximo = 0;
         if (isNaN(rawMaximoEstavel)) rawMaximoEstavel = rawMaximo;
 
-        const { mxDisplay, pVit } = calcularEscala(rawMaximo, vitalKey, rawMaximoEstavel);
-        let atual = npcData[vitalKey]?.atual;
-        if (atual === undefined || atual === null || atual === '') atual = mxDisplay; else atual = Number(atual);
-        if (isNaN(atual)) atual = mxDisplay;
-        if (atual > mxDisplay) atual = mxDisplay;
+        // 🩸 Vida ganha 1 barra cheia extra por ponto de Vitalidade — mesma regra da Ficha de
+        // personagem (ver Ficha Def/Marcados.jsx > LinhaVital), derivada pela ÚNICA fonte de
+        // verdade dessa conta (core/vitals.js > calcularBarrasVida).
+        const { p: pVit, mxDisplay, numBarras, totalMax, atual: atualTotal, barras } = calcularBarrasVida(rawMaximo, vitalKey, npcData[vitalKey]?.atual, rawMaximoEstavel);
 
         return (
             <div style={{ marginBottom: '15px' }}>
@@ -449,7 +437,17 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
                     {subItens && <span onClick={() => setAberta(!aberto)} style={{ cursor: 'pointer', width: '20px', display: 'inline-block', userSelect: 'none', fontWeight: 'bold' }}>{aberto ? 'v ' : '> '}</span>}
                     <LabelMagicoNPC valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
                 </div>
-                <BarraVitalNPC atual={atual} maximo={mxDisplay} pVit={pVit} cor={corBarra} corTexto={corTextoBarra} onChangeAtual={(v) => salvar(`${vitalKey}.atual`, v)} />
+                {barras.map((barra, i) => (
+                    <BarraVitalNPC
+                        key={i}
+                        atual={barra.atual}
+                        maximo={barra.max}
+                        pVit={numBarras > 1 ? (i + 1) : pVit}
+                        cor={corBarra}
+                        corTexto={corTextoBarra}
+                        onChangeAtual={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, mxDisplay, i, v))}
+                    />
+                ))}
                 {aberto && subItens && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '35px', marginTop: '12px' }}>
                         {subItens.map(sub => (

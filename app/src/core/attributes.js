@@ -198,9 +198,17 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
         let strVal = String(Math.floor(baseEscala));
         let pVit = Math.max(0, strVal.length - 8);
 
-        let maxVida = pVit > 0 ? Math.floor(rawMaxVida / Math.pow(10, pVit)) : rawMaxVida;
+        let maxVidaBarra = pVit > 0 ? Math.floor(rawMaxVida / Math.pow(10, pVit)) : rawMaxVida;
+        // 🩸 Vida pode ter várias barras (1 por ponto de Vitalidade) — a fração perdida pra Fúria
+        // Berserker precisa considerar o TOTAL (soma de todas as barras), senão a barra da frente
+        // vazia já contaria como "quase morto" mesmo com reservas cheias sobrando. `(pVit + 1)` é
+        // a mesma fórmula de core/vitals.js > getNumBarrasVida, duplicada aqui de propósito (não
+        // dá pra importar vitals.js nesta função pelo mesmo motivo do comentário logo acima —
+        // ciclo de import) — se a fórmula de getNumBarrasVida mudar um dia, esta linha precisa
+        // mudar junto.
+        let maxVida = maxVidaBarra * (pVit + 1);
         let atualVida = ficha.vida?.atual ?? maxVida;
-        
+
         let percLost = maxVida > 0 ? Math.max(0, ((maxVida - atualVida) / maxVida) * 100) : 0;
         
         let furiaMax = (ficha.combate && ficha.combate.furiaMax) !== undefined 

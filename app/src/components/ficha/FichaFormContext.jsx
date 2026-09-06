@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { getMaximo, getBuffs, getEfeitosDeClasse } from '../../core/attributes.js';
-import { capturarMaximosAtuais, rescalarVitaisProporcional, getVitalMxDisplay } from '../../core/vitals.js';
+import { capturarMaximosAtuais, rescalarVitaisProporcional, getVidaTotalMaxDisplay } from '../../core/vitals.js';
 import { salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync.js';
 
 export const STATS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
@@ -225,10 +225,11 @@ export function FichaFormProvider({ children }) {
     }
 
     const rawMaxVida = minhaFicha ? getMaximo(minhaFicha, 'vida', true) : 1;
-    // getVitalMxDisplay já decide a escala ignorando Formas (getMaximoSemFormas) — evita que uma
-    // Forma temporária empurre "maxVida" através de uma fronteira de dígitos e infle
-    // percAtualLostFloor artificialmente (disparando/ratchando furiaMax sem Vida perdida de verdade).
-    const maxVida = minhaFicha ? getVitalMxDisplay('vida', minhaFicha) : 1;
+    // getVidaTotalMaxDisplay já decide a escala ignorando Formas (getMaximoSemFormas) — evita que
+    // uma Forma temporária empurre "maxVida" através de uma fronteira de dígitos e infle
+    // percAtualLostFloor artificialmente (disparando/ratchando furiaMax sem Vida perdida de
+    // verdade). Usa o TOTAL somando todas as barras de Vida (getNumBarrasVida), não só uma.
+    const maxVida = minhaFicha ? getVidaTotalMaxDisplay(minhaFicha) : 1;
     const atualVida = minhaFicha?.vida?.atual ?? maxVida;
     const percAtualLostFloor = Math.floor(maxVida > 0 ? Math.max(0, ((maxVida - atualVida) / maxVida) * 100) : 0);
     const furiaMax = minhaFicha?.combate?.furiaMax || 0;

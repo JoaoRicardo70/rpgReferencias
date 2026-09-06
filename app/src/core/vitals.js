@@ -90,9 +90,11 @@ export function rescalarVitaisProporcional(ficha, maximosAntigosEstaveis, vitais
         // quantidade absoluta noutra notação, nunca um encolhimento de verdade.
         if (pNovo !== pAntigo) atual = atual * Math.pow(10, pAntigo - pNovo);
 
-        // Só depois da conversão de notação: nunca reduz além disso, só clampa pra baixo se
-        // ultrapassar o novo teto exibido, e nunca abaixo de 0.
-        ficha[k].atual = Math.min(Math.max(0, atual), novoMaxExibido || 1);
+        // 🩸 Vida pode ter várias barras (getNumBarrasVida) — o teto real é a SOMA de todas, não só
+        // uma barra (novoMaxExibido). Só depois da conversão de notação: nunca reduz além disso, só
+        // clampa pra baixo se ultrapassar o novo teto exibido, e nunca abaixo de 0.
+        const novoTeto = k === 'vida' ? novoMaxExibido * getNumBarrasVida(pNovo) : novoMaxExibido;
+        ficha[k].atual = Math.min(Math.max(0, atual), novoTeto || 1);
     });
 }
 
@@ -140,7 +142,17 @@ export function calcVitalScale(rawMx, key, rawMxParaEscala = rawMx) {
     const limit = (key === 'vida' || key === 'pv' || key === 'pm') ? 8 : 9;
     const baseEscala = (rawMxParaEscala && rawMxParaEscala > 0) ? rawMxParaEscala : rawMx;
     const strMx = Math.floor(baseEscala).toString();
-    const p = Math.max(0, strMx.length - limit);
+    // 🔥 Números MUITO grandes (>= 1e21) viram notação científica no .toString() ("1e+21"), cujo
+    // .length não reflete a contagem real de dígitos — mesma correção já existente nas cópias
+    // locais desta conta (Ficha Def/Marcados.jsx > calcularEscala, e o cálculo do Scouter/
+    // vitalidadeGlobal no mesmo arquivo), trazida pra cá pra ser a única versão robusta.
+    let digitos = strMx.length;
+    if (strMx.includes('e')) {
+        const partes = strMx.split('e');
+        const expoente = parseInt(partes[1].replace('+', ''), 10);
+        if (!isNaN(expoente)) digitos = expoente + 1;
+    }
+    const p = Math.max(0, digitos - limit);
     const mxDisplay = p > 0 ? Math.floor(rawMx / Math.pow(10, p)) : Math.floor(rawMx);
     return { p, mxDisplay };
 }
@@ -158,6 +170,112 @@ export function getVitalMxDisplay(key, ficha) {
     const rawMx = getVitalMax(key, ficha);
     const rawMxEstavel = getVitalMaxEstavel(key, ficha);
     return calcVitalScale(rawMx, key, rawMxEstavel).mxDisplay;
+}
+
+// ==========================================
+// 🩸 MÚLTIPLAS BARRAS DE VIDA (pedido do usuário, paridade nenhuma com mana/aura/chakra/corpo/pv/
+// pm — só Vida faz isso): a cada ponto de Vitalidade (o mesmo "p"/pVit que calcVitalScale já usava
+// só pra decidir a casa decimal exibida) o personagem ganha mais uma barra CHEIA de Vida, do MESMO
+// tamanho (mxDisplay) que as anteriores. Em vez de guardar um array de barras na ficha, "atual"
+// continua sendo um ÚNICO número — o TOTAL restante somando todas as barras (0 a mxDisplay*N) — e
+// as barras individuais são só DERIVADAS dele aqui, na hora de exibir/editar. Isso faz dano e cura
+// funcionarem automaticamente sem mudar nenhum outro código (Math.max(0, atual-dano) e
+// Math.min(novoTeto, atual+cura) continuam corretos, só o TETO usado pra clampar cura/regen muda),
+// e faz "derrotado" continuar sendo simplesmente "atual <= 0" (só quando TODAS as barras zeram).
+//
+// A barra da FRENTE (índice 0) é a primeira a ser atingida por dano; o excesso da MESMA pancada já
+// transborda pra próxima barra (decisão do usuário — sujeita a mudar futuramente).
+//
+// ⚠️ Consequência matemática INEVITÁVEL de derivar as barras de um único total (em vez de guardar
+// um array com o estado de cada uma): como a barra da frente é SEMPRE a primeira a ESVAZIAR
+// conforme o total cai, ela também é, necessariamente, a ÚLTIMA a voltar a ENCHER conforme o total
+// sobe de novo (cura/regeneração) — a barra de trás (a única que ainda tinha alguma Vida quando o
+// personagem estava quase morto) é quem recebe os primeiros pontos de cura, só depois "transborda"
+// pra frente. Não é um bug nem uma inversão acidental: dado um único número guardado, é a ÚNICA
+// distribuição possível que respeita "a frente esvazia primeiro" nos dois sentidos (dano E cura
+// percorrem a MESMA reta numérica, só em direções opostas). Se no futuro o pedido for "a barra da
+// frente enche primeiro ao curar, independente de qual esvaziou primeiro no dano", isso exige
+// guardar o estado de CADA barra separadamente (não dá mais pra derivar de um total único).
+export function getNumBarrasVida(p) {
+    return Math.max(1, (Number(p) || 0) + 1);
+}
+
+// Teto REAL de Vida (soma de todas as barras) — usar isto em vez de calcVitalScale(...).mxDisplay
+// sempre que o código for clampar/regenerar/curar o vital 'vida' até o máximo. Para as demais
+// chaves (mana/aura/chakra/corpo/pv/pm) é idêntico a mxDisplay (numBarras sempre 1).
+export function getTetoVida(rawMx, key, rawMxParaEscala = rawMx) {
+    const { p, mxDisplay } = calcVitalScale(rawMx, key, rawMxParaEscala);
+    const numBarras = key === 'vida' ? getNumBarrasVida(p) : 1;
+    return mxDisplay * numBarras;
+}
+
+// Deriva as barras individuais (front-to-back) a partir do TOTAL guardado em "atual". Reutilizável
+// tanto pra uma ficha de personagem quanto pra um dummy/NPC do Mapa (que não tem sub-objeto
+// ficha.vida — só passe o hpMax bruto dele como rawMx e hpAtual como atualTotal).
+export function calcularBarrasVida(rawMx, key, atualTotal, rawMxParaEscala = rawMx) {
+    const { p, mxDisplay } = calcVitalScale(rawMx, key, rawMxParaEscala);
+    const numBarras = key === 'vida' ? getNumBarrasVida(p) : 1;
+    const totalMax = mxDisplay * numBarras;
+
+    let atual = Number(atualTotal);
+    if (atualTotal === undefined || atualTotal === null || atualTotal === '' || isNaN(atual)) atual = totalMax;
+    atual = Math.min(Math.max(0, atual), totalMax || 0);
+
+    const barras = [];
+    const danoTotal = totalMax - atual;
+    for (let i = 0; i < numBarras; i++) {
+        const danoNestaBarra = mxDisplay > 0 ? Math.min(Math.max(0, danoTotal - mxDisplay * i), mxDisplay) : 0;
+        barras.push({ atual: mxDisplay - danoNestaBarra, max: mxDisplay });
+    }
+
+    return { p, mxDisplay, numBarras, totalMax, atual, barras };
+}
+
+// Recalcula o novo TOTAL de Vida a partir de uma edição manual numa barra específica (ex.: o
+// jogador digita um valor direto na barra 2 de 3) — mantém as outras barras como estavam.
+export function aplicarEdicaoBarraVida(barras, mxDisplay, indice, novoValor) {
+    const novoClamp = Math.min(Math.max(0, Number(novoValor) || 0), mxDisplay || 0);
+    return (barras || []).reduce((soma, b, i) => soma + (i === indice ? novoClamp : (Number(b.atual) || 0)), 0);
+}
+
+// Convenience: teto TOTAL de Vida já pronto a partir de uma ficha de personagem (usa Formas no
+// numerador, mas ignora Formas na decisão da escala/nº de barras — mesma regra de sempre).
+export function getVidaTotalMaxDisplay(ficha) {
+    const rawMx = getVitalMax('vida', ficha);
+    const rawMxEstavel = getVitalMaxEstavel('vida', ficha);
+    return getTetoVida(rawMx, 'vida', rawMxEstavel);
+}
+
+// Variante de calcularBarrasVida pros dummies/NPCs simplificados do Mapa (MapaFerramentasMestre.jsx
+// > MapaMestreGeradorDummies): eles não têm atributos (força/constituição/etc.) de onde extrair um
+// "máximo bruto" pra comprimir — o "hpMax" que o Mestre digita É o total de verdade, o número que
+// ele espera ver refletido no token. Por isso aqui a mesma regra de "1 dígito a mais = 1 barra a
+// mais" (a partir de 9 dígitos) só REPARTE esse total em pedaços iguais de até 8 dígitos cada,
+// nunca aumenta nem diminui o hpMax configurado (diferente de calcularBarrasVida, que já usa
+// mxDisplay = rawMx/10^p como tamanho de CADA barra, correto pra vida de personagem mas errado
+// aqui, onde inflaria/encolheria o hpMax que o Mestre já definiu).
+export function calcularBarrasVidaDummy(hpMaxBruto, hpAtualTotal) {
+    const max = Math.max(0, Number(hpMaxBruto) || 0);
+    const strMx = Math.floor(max).toString();
+    const p = max > 0 ? Math.max(0, strMx.length - 8) : 0;
+    const numBarras = getNumBarrasVida(p);
+    // Math.floor: se o hpMax não for divisível igualmente pelo nº de barras, cada barra fica com
+    // um valor inteiro (nunca fracionário) — mesma convenção de arredondamento usada em todo o
+    // resto do app (mxDisplay também é sempre inteiro).
+    const mxPorBarra = numBarras > 0 ? Math.floor(max / numBarras) : 0;
+
+    let atual = Number(hpAtualTotal);
+    if (hpAtualTotal === undefined || hpAtualTotal === null || hpAtualTotal === '' || isNaN(atual)) atual = max;
+    atual = Math.min(Math.max(0, atual), max);
+
+    const barras = [];
+    const danoTotal = max - atual;
+    for (let i = 0; i < numBarras; i++) {
+        const danoNestaBarra = mxPorBarra > 0 ? Math.min(Math.max(0, danoTotal - mxPorBarra * i), mxPorBarra) : 0;
+        barras.push({ atual: mxPorBarra - danoNestaBarra, max: mxPorBarra });
+    }
+
+    return { p, numBarras, mxPorBarra, totalMax: max, atual, barras };
 }
 
 // Aplica ficha[key].regeneracao + o bônus de regeneração vindo de Poderes/Passivas/Itens ativos
@@ -187,14 +305,16 @@ export function aplicarRegeneracaoDeTurno(ficha, pisoFadigaExtra = 0) {
             if (!ficha[key]) return;
             const rawMx = getVitalMax(key, ficha);
             const rawMxEstavel = getVitalMaxEstavel(key, ficha);
-            const { mxDisplay } = calcVitalScale(rawMx, key, rawMxEstavel);
+            // 🩸 Vida pode ter várias barras — o teto de regeneração é a SOMA de todas (getTetoVida),
+            // não só uma barra.
+            const teto = getTetoVida(rawMx, key, rawMxEstavel);
             const regenBase = parseFloat(ficha[key].regeneracao) || 0;
             const regenBuff = (getBuffs(ficha, key).regeneracao) || 0;
             const regen = regenBase + regenBuff;
-            if (regen > 0 && mxDisplay > 0 && (ficha[key].atual || 0) < mxDisplay) {
+            if (regen > 0 && teto > 0 && (ficha[key].atual || 0) < teto) {
                 const antes = ficha[key].atual || 0;
-                ficha[key].atual = Math.min(mxDisplay, antes + regen);
-                fracoesCuradas.push((ficha[key].atual - antes) / mxDisplay);
+                ficha[key].atual = Math.min(teto, antes + regen);
+                fracoesCuradas.push((ficha[key].atual - antes) / teto);
             }
         } catch (e) { /* pula só este vital */ }
     });
@@ -222,8 +342,8 @@ export function descansarCompleto(ficha) {
             if (!ficha[key]) return;
             const rawMx = getVitalMax(key, ficha);
             const rawMxEstavel = getVitalMaxEstavel(key, ficha);
-            const { mxDisplay } = calcVitalScale(rawMx, key, rawMxEstavel);
-            ficha[key].atual = mxDisplay;
+            // 🩸 Vida cura até a SOMA de todas as barras, não só uma.
+            ficha[key].atual = getTetoVida(rawMx, key, rawMxEstavel);
         } catch (e) { /* pula só este vital */ }
     });
     if (!ficha.combate) ficha.combate = {};

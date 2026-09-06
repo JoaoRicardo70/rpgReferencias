@@ -9,6 +9,7 @@ import { formatarPoderCosmico } from '../../core/utils.js';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { calcularFadigaAtual } from '../../core/fadiga';
 import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
+import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida } from '../../core/vitals';
 
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel';
@@ -31,8 +32,9 @@ function safeGetMaximo(ficha, key) {
 }
 
 // Réplica de safeGetMaximo, só que com o multiplicador de Formas travado fora — decide SÓ a
-// escala de notação (calcularEscala), nunca o numerador exibido, pra uma Forma temporária nunca
-// "pular" de notação e parecer que a energia caiu (ver core/vitals.js > getMaximoSemFormas).
+// escala de notação (calcularBarrasVida, core/vitals.js), nunca o numerador exibido, pra uma
+// Forma temporária nunca "pular" de notação e parecer que a energia caiu (ver core/vitals.js >
+// getMaximoSemFormas).
 function safeGetMaximoSemFormas(ficha, key) {
     try {
         if (AtributosCore && typeof AtributosCore.getMaximoSemFormas === 'function') {
@@ -425,25 +427,6 @@ function getPontosParaAscensao(ficha, key) {
     return getBasePFor(ficha, key);
 }
 
-// rawMaxParaEscala decide SÓ a escala de notação (pVit) — chamadores que precisam ignorar Formas
-// na decisão passam o máximo ESTÁVEL (safeGetMaximoSemFormas) aqui, mantendo rawMax (completo,
-// com Formas) como numerador de mxDisplay (ver core/vitals.js > calcVitalScale).
-function calcularEscala(rawMax, key, rawMaxParaEscala = rawMax) {
-    if (!rawMax || isNaN(rawMax) || rawMax <= 0) return { mxDisplay: 0, pVit: 0 };
-    const limit = (key === 'vida' || key === 'pv' || key === 'pm') ? 8 : 9;
-    const baseEscala = (rawMaxParaEscala && !isNaN(rawMaxParaEscala) && rawMaxParaEscala > 0) ? rawMaxParaEscala : rawMax;
-    const strVal = String(Math.floor(baseEscala));
-    let digitos = strVal.length;
-    if (strVal.includes('e')) {
-        const parts = strVal.split('e');
-        let exp = parseInt(parts[1].replace('+', ''));
-        if(!isNaN(exp)) digitos = exp + 1;
-    }
-    const pVit = Math.max(0, digitos - limit);
-    const mxDisplay = pVit > 0 ? Math.floor(rawMax / Math.pow(10, pVit)) : Math.floor(rawMax);
-    return { mxDisplay: isNaN(mxDisplay) ? 0 : mxDisplay, pVit: isNaN(pVit) ? 0 : pVit };
-}
-
 let globalTimer = null;
 function callSave(fn) {
     if (globalTimer) clearTimeout(globalTimer);
@@ -648,11 +631,14 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
     let rawMaximo = (parseFloat(safeGetMaximo(ficha, vitalKey)) || 0) * fatorSeguro;
     let rawMaximoEstavel = (parseFloat(safeGetMaximoSemFormas(ficha, vitalKey)) || 0) * fatorSeguro;
 
-    const { mxDisplay, pVit } = calcularEscala(rawMaximo, vitalKey, rawMaximoEstavel);
-    let atual = ficha?.[vitalKey]?.atual;
-    if (atual === undefined || atual === null || atual === '') atual = mxDisplay; else atual = Number(atual);
-    if (isNaN(atual)) atual = mxDisplay;
-    if (atual > mxDisplay) atual = mxDisplay;
+    // 🩸 MÚLTIPLAS BARRAS DE VIDA (pedido do usuário): a cada ponto de Vitalidade (p) o personagem
+    // ganha mais uma barra CHEIA de Vida, do mesmo tamanho (mxDisplay) que as anteriores — só Vida
+    // faz isso, as demais (mana/aura/chakra/corpo) continuam com 1 barra só. "atual" continua
+    // sendo um ÚNICO número guardado na ficha — o TOTAL restante somando todas as barras — as
+    // barras individuais são só DERIVADAS dele por calcularBarrasVida (core/vitals.js, ÚNICA fonte
+    // de verdade dessa conta, reaproveitada por toda a Ficha/Mapa/Mestre): a barra da frente
+    // (índice 0) esvazia primeiro, o excesso da mesma pancada transborda pra próxima.
+    const { mxDisplay, p: pVit, numBarras, totalMax, atual: atualTotal, barras } = calcularBarrasVida(rawMaximo, vitalKey, ficha?.[vitalKey]?.atual, rawMaximoEstavel);
 
     const poderVerdadeiro = getPoderVerdadeiro(vitalKey, ficha, true, supressao);
 
@@ -675,7 +661,17 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
                     Poder: {formatarPoderCosmico(Number(poderVerdadeiro) || 0)}
                 </div>
             </div>
-            <BarraVital atual={atual} maximo={mxDisplay} pVit={pVit} cor={corBarra} corTexto={corTextoBarra} onChangeAtual={(v) => salvar(`${vitalKey}.atual`, v)} />
+            {barras.map((barra, i) => (
+                <BarraVital
+                    key={i}
+                    atual={barra.atual}
+                    maximo={barra.max}
+                    pVit={numBarras > 1 ? (i + 1) : pVit}
+                    cor={corBarra}
+                    corTexto={corTextoBarra}
+                    onChangeAtual={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, mxDisplay, i, v))}
+                />
+            ))}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', fontSize: '0.8em', opacity: 0.85 }}>
                 <span style={{ opacity: 0.7 }}>💖 Regen/turno:</span>
@@ -1320,7 +1316,13 @@ export default function MarcadosPanel() {
     const handleRegenerarTudo = () => {
         if (!window.confirm('Recuperar toda a Vida, Energias, Pontos e Ações de Turno?')) return;
         updateFicha(f => {
-            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => { let mx = safeGetMaximo(minhaFicha, k) * (fatoresVitaisAtual[k] || 1); let mxEstavel = safeGetMaximoSemFormas(minhaFicha, k) * (fatoresVitaisAtual[k] || 1); f[k] = { ...f[k], atual: calcularEscala(mx, k, mxEstavel).mxDisplay || 0 }; });
+            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => {
+                let mx = safeGetMaximo(minhaFicha, k) * (fatoresVitaisAtual[k] || 1);
+                let mxEstavel = safeGetMaximoSemFormas(minhaFicha, k) * (fatoresVitaisAtual[k] || 1);
+                // 🩸 Vida cura até a SOMA de todas as barras (getTetoVida, core/vitals.js), não só uma.
+                const teto = getTetoVida(mx, k, mxEstavel);
+                f[k] = { ...f[k], atual: teto || 0 };
+            });
             f.pv = { ...f.pv, atual: pvMax || 0 }; f.pm = { ...f.pm, atual: pmMax || 0 }; f.energiaForca = { ...f.energiaForca, atual: forcaMax || 0 };
             ['padrao', 'bonus', 'reacao'].forEach(tipo => { if (!f.acoes) f.acoes = {}; if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 }; f.acoes[tipo].atual = f.acoes[tipo].max; });
             if (f.combate) { f.combate.fadigaTurnos = 0; f.combate.fadigaExtra = 0; f.combate.municoTurnos = 0; }

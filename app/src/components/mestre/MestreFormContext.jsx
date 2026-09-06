@@ -3,6 +3,7 @@ import useStore from '../../stores/useStore';
 import { enviarParaFeed, salvarDummie, apagarFicha } from '../../services/firebase-sync';
 import { getMaximo } from '../../core/attributes';
 import { calcularCA } from '../../core/engine';
+import { getVidaTotalMaxDisplay } from '../../core/vitals';
 import { ref, set, remove } from 'firebase/database';
 import { db } from '../../services/firebase-config'; 
 
@@ -98,7 +99,12 @@ export function MestreFormProvider({ children }) {
 
     const jogadoresComStats = useMemo(() => {
         return jogadoresList.map(([nome, ficha]) => {
-            const hpMax = getMaximo(ficha, 'vida');
+            // 🩸 getVidaTotalMaxDisplay já está na mesma escala/unidade que ficha.vida.atual (a
+            // "única fonte de verdade" também usada pela Ficha/Regeneração) e já soma todas as
+            // barras de Vida (getNumBarrasVida) — getMaximo(ficha,'vida') sozinho é o valor BRUTO
+            // (sem a escala comprimida), unidade diferente de "atual" e sempre maior, o que fazia
+            // percHp ficar perto de 0% pra qualquer personagem de alto Poder.
+            const hpMax = getVidaTotalMaxDisplay(ficha);
             const hpAtual = ficha.vida?.atual ?? hpMax;
             const percHp = hpMax > 0 ? (hpAtual / hpMax) * 100 : 0;
             const mpMax = getMaximo(ficha, 'mana');

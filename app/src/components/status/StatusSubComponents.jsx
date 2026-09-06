@@ -5,9 +5,10 @@ import {
     VITALS_RADAR, VITALS_LABELS, ATRIBUTOS_PRINCIPAIS, COLOR_CONFIGS,
     CX, CY, R, ANGLES,
     hexPoints, radarPoint, hexToRgba,
-    getBasePFor, calcularPrestAtual, calcVitalScale,
+    getBasePFor, calcularPrestAtual,
     safeGetMaximo, safeGetRawBase, safeGetRank,
 } from './StatusFormContext';
+import { calcularBarrasVida } from '../../core/vitals';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Status provider nao encontrado</div>;
 
@@ -115,41 +116,51 @@ export function StatusVitalBar({ vitalKey, label, color, borderC, isSpecial, gri
 
     const rawMx = getVitalMax(vitalKey, ficha);
     const rawMxEstavel = getVitalMaxEstavel(vitalKey, ficha);
-    const { p, mxDisplay } = calcVitalScale(rawMx, vitalKey, rawMxEstavel);
 
-    let atual = ficha[vitalKey]?.atual ?? mxDisplay;
-    if (atual > mxDisplay) atual = mxDisplay;
+    // 🩸 MÚLTIPLAS BARRAS DE VIDA (pedido do usuário): a cada ponto de Vitalidade (p) o personagem
+    // ganha mais uma barra CHEIA de Vida, do mesmo tamanho (mxDisplay) que as anteriores — só Vida
+    // faz isso. "atual" continua sendo um único número na ficha (o TOTAL somando todas as
+    // barras); cada barra abaixo é só DERIVADA dele por calcularBarrasVida (core/vitals.js, ÚNICA
+    // fonte de verdade dessa conta) — a da frente (índice 0) esvazia primeiro, o excesso
+    // transborda pra próxima.
+    const { p, mxDisplay, numBarras, barras: barrasInfo } = calcularBarrasVida(rawMx, vitalKey, ficha[vitalKey]?.atual, rawMxEstavel);
+    const barras = barrasInfo.map(b => b.atual);
 
     const regen = parseFloat(ficha[vitalKey]?.regeneracao) || 0;
     const extra = regen > 0 ? `(+${regen}/turno)` : '';
-    const percent = Number.isNaN(atual / mxDisplay) ? 0 : Math.min((atual / mxDisplay) * 100, 100);
-
-    const vitalitySymbol = (p > 0 && (vitalKey === 'vida' || vitalKey === 'pv' || vitalKey === 'pm')) ? (
-        <div style={{
-            position: 'absolute', left: '8px', zIndex: 3, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: '32px', height: '32px', background: 'rgba(20, 0, 0, 0.9)',
-            border: `3px solid ${borderC || color}`, boxShadow: `0 0 10px ${borderC || color}, inset 0 0 5px ${borderC || color}80`,
-            borderRadius: '4px', color: '#fff', fontWeight: 'bold', fontSize: '18px',
-            fontFamily: 'arial, sans-serif', textShadow: `0 0 5px ${borderC || color}`
-        }}>
-            {p}
-        </div>
-    ) : null;
 
     return (
         <div className="vital-container" style={gridStyle}>
             <div className="vital-label" style={{ color, textShadow: `0 0 8px ${color}80`, letterSpacing: '1px', fontWeight: 'bold', fontSize: '0.85em', textTransform: 'uppercase' }}>
                 {label} {extra && <span style={{ fontSize: '0.9em', color: '#aaa', textShadow: 'none' }}>{extra}</span>}
             </div>
-            <div className="bar-bg" style={{ position: 'relative', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: isSpecial ? `1px solid ${color}40` : '' }}>
-                <div className="bar-fill" style={{ width: `${percent}%`, backgroundColor: color, position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: 'inherit', transition: 'width 0.3s' }} />
-                {vitalitySymbol}
-                <div className="bar-text" style={{ position: 'relative', zIndex: 2, width: '100%', textAlign: 'center', textShadow: '1px 1px 3px #000, -1px -1px 3px #000' }}>
-                    <span style={{ fontSize: '1.2em', fontWeight: 'bold', color: '#fff' }}>
-                        {Math.floor(atual).toLocaleString('pt-BR')} / {mxDisplay.toLocaleString('pt-BR')}
-                    </span>
-                </div>
-            </div>
+            {barras.map((atualBarra, i) => {
+                const percent = mxDisplay > 0 ? Math.min((atualBarra / mxDisplay) * 100, 100) : 0;
+                const badge = numBarras > 1 ? (i + 1) : p;
+                const vitalitySymbol = (badge > 0 && (vitalKey === 'vida' || vitalKey === 'pv' || vitalKey === 'pm')) ? (
+                    <div style={{
+                        position: 'absolute', left: '8px', zIndex: 3, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        width: '32px', height: '32px', background: 'rgba(20, 0, 0, 0.9)',
+                        border: `3px solid ${borderC || color}`, boxShadow: `0 0 10px ${borderC || color}, inset 0 0 5px ${borderC || color}80`,
+                        borderRadius: '4px', color: '#fff', fontWeight: 'bold', fontSize: '18px',
+                        fontFamily: 'arial, sans-serif', textShadow: `0 0 5px ${borderC || color}`
+                    }}>
+                        {badge}
+                    </div>
+                ) : null;
+
+                return (
+                    <div key={i} className="bar-bg" style={{ position: 'relative', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: isSpecial ? `1px solid ${color}40` : '', marginTop: i > 0 ? '4px' : 0 }}>
+                        <div className="bar-fill" style={{ width: `${percent}%`, backgroundColor: color, position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: 'inherit', transition: 'width 0.3s' }} />
+                        {vitalitySymbol}
+                        <div className="bar-text" style={{ position: 'relative', zIndex: 2, width: '100%', textAlign: 'center', textShadow: '1px 1px 3px #000, -1px -1px 3px #000' }}>
+                            <span style={{ fontSize: '1.2em', fontWeight: 'bold', color: '#fff' }}>
+                                {Math.floor(atualBarra).toLocaleString('pt-BR')} / {mxDisplay.toLocaleString('pt-BR')}
+                            </span>
+                        </div>
+                    </div>
+                );
+            })}
         </div>
     );
 }

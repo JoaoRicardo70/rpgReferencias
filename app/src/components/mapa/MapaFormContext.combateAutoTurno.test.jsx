@@ -335,7 +335,9 @@ describe('MapaFormContext — Fadiga DINÂMICA (fadigaExtra) acumula ao chegar o
 
         // A Regeneração realmente curou a vida cheia neste mesmo tick (comportamento herdado,
         // inalterado)...
-        expect(state.minhaFicha.vida.atual).toBe(10000000); // máximo calculado (mxDisplay)
+        // 🩸 Vida com p=1 (calcVitalScale) ganha 2 barras (getNumBarrasVida) -- teto real de cura
+        // é mxDisplay(1e7) * 2 = 2e7, não uma barra só.
+        expect(state.minhaFicha.vida.atual).toBe(20000000); // máximo calculado (2 barras)
         // ...mas o ganho dinâmico já capturado ANTES da cura continua > 0 (não foi mascarado).
         expect(state.minhaFicha.combate.fadigaExtra).toBeGreaterThan(0);
     });
@@ -625,14 +627,18 @@ describe('MapaFormContext — avancarTurno: combate com um ÚNICO combatente na 
         expect(state.minhaFicha.vida.atual).toBe(5000001);
 
         // 2º clique (trava já liberada pelo .finally do 1º): aplica de novo, não é pulado.
+        // 🩸 Vida com p=1 ganha 2 barras (getNumBarrasVida) -- teto real é 2e7 (mxDisplay=1e7 x2),
+        // então 5_000_001 + 5_000_000 = 10_000_001 ainda está bem abaixo do teto (sem clamp).
         await act(async () => { probe.avancarTurno(); });
         expect(state.minhaFicha.combate.fadigaTurnos).toBe(2);
-        expect(state.minhaFicha.vida.atual).toBe(10000000); // clampado no teto (mxDisplay)
+        expect(state.minhaFicha.vida.atual).toBe(10000001);
 
-        // 3º clique: continua aplicando (reset de ações/fadigaTurnos), mesmo já no teto de vida.
+        // 3º clique: continua aplicando (reset de ações/fadigaTurnos) -- 10_000_001 + 5_000_000 =
+        // 15_000_001, ainda abaixo do teto de 2e7 (o clamp em si já é coberto por
+        // core/vitals.test.js; aqui o foco é confirmar que a Regeneração roda TODA VEZ).
         await act(async () => { probe.avancarTurno(); });
         expect(state.minhaFicha.combate.fadigaTurnos).toBe(3);
-        expect(state.minhaFicha.vida.atual).toBe(10000000); // sem overheal
+        expect(state.minhaFicha.vida.atual).toBe(15000001);
         expect(state.minhaFicha.acoes.padrao.atual).toBe(state.minhaFicha.acoes.padrao.max);
     });
 });

@@ -5,12 +5,27 @@ import { database } from '../../services/firebase-config';
 import PainelMestreSandbox from './PainelMestreSandbox';
 import { getMaximo } from '../../core/attributes';
 import { calcularCA } from '../../core/engine';
+import { calcularBarrasVida, getVitalMax, getVitalMaxEstavel } from '../../core/vitals';
 
 const FALLBACK = <div style={{color:'#888',padding:10}}>Mestre provider não encontrado</div>;
 
 // --- FUNÇÕES DE CÁLCULO DE STATUS ---
 function getStatusLimpo(ficha, chave, threshold) {
     if (!ficha) return { max: 0, atual: 0, pVit: 0 };
+
+    // 🩸 Vida passa pela MESMA fonte única de verdade que o resto do app (calcularBarrasVida,
+    // core/vitals.js) — ela decide a escala/nº de barras pelo máximo ESTÁVEL (sem Formas), igual
+    // MestreFormContext.jsx > jogadoresComStats já faz pro card compacto. Reimplementar a conta
+    // aqui com o máximo BRUTO (com Formas, via getMaximo) fazia este card "expandido" mostrar um
+    // nº de barras/Máximo diferente do card compacto pro MESMO personagem sempre que ele tivesse
+    // uma Forma ativa.
+    if (chave === 'vida') {
+        const rawMx = getVitalMax('vida', ficha);
+        const rawMxEstavel = getVitalMaxEstavel('vida', ficha);
+        const info = calcularBarrasVida(rawMx, 'vida', ficha.vida?.atual, rawMxEstavel);
+        return { max: info.totalMax, atual: info.atual, pVit: info.p };
+    }
+
     let mx = 0;
     try { mx = getMaximo(ficha, chave); } catch(e){}
     if (!mx || isNaN(mx)) mx = parseInt(ficha[chave]?.base) || 0;

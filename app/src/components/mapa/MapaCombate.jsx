@@ -9,7 +9,7 @@ import { useElementosForm, emogis as ELEMENTOS_EMOJIS, cores as ELEMENTOS_CORES 
 import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { getClassIconById } from '../../core/classIcons';
 import { calcularPoderAtual } from '../../core/poder';
-import { getVitalMxDisplay } from '../../core/vitals';
+import { getVitalMxDisplay, getVitalMax, getVitalMaxEstavel, calcularBarrasVida, calcularBarrasVidaDummy } from '../../core/vitals';
 import { formatarPoderCosmico } from '../../core/utils';
 
 // 🔥 IMPORTAÇÕES PARA RENDERIZAR O DADO 3D FÍSICO 🔥
@@ -835,7 +835,15 @@ export function MapaHologramaAcao() {
     // getMaximo() bruto (sem a escala de notação nem o fator de Ascensão por vital) fazia a barra
     // comparar "atual" (guardado já nessa escala/fator) contra um teto em outra unidade — o mesmo
     // vazamento de escala já documentado no topo de core/vitals.js.
-    const vidaMaxima = fichaBase ? getVitalMxDisplay('vida', fichaBase) : 0;
+    // 🩸 MÚLTIPLAS BARRAS DE VIDA (pedido do usuário, mesma regra da Ficha — ver core/vitals.js >
+    // calcularBarrasVida/calcularBarrasVidaDummy): também vale pros dummies/NPCs do Mapa, que não
+    // têm ficha.vida (usam hpMax/hpAtual planos), daí o branch por isDummie abaixo.
+    const isDummieDaVez = !!(jogadorDaVez && jogadorDaVez.isDummie);
+    const vidaInfo = fichaBase
+        ? (isDummieDaVez
+            ? calcularBarrasVidaDummy(fichaBase.hpMax, fichaBase.hpAtual)
+            : calcularBarrasVida(getVitalMax('vida', fichaBase), 'vida', fichaBase.vida?.atual, getVitalMaxEstavel('vida', fichaBase)))
+        : { atual: 0, totalMax: 0, barras: [] };
     const manaMaxima = fichaBase ? getVitalMxDisplay('mana', fichaBase) : 0;
     const auraMaxima = fichaBase ? getVitalMxDisplay('aura', fichaBase) : 0;
     const chakraMaximo = fichaBase ? getVitalMxDisplay('chakra', fichaBase) : 0;
@@ -989,8 +997,10 @@ export function MapaHologramaAcao() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(0,0,0,0.7)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffcc00', fontWeight: 'bold', paddingBottom: 8, marginBottom: 2, borderBottom: '1px solid rgba(255,255,255,0.1)' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>⚡ PODER</span><span style={{ textShadow: '0 0 6px #ffcc00' }}>{formatarPoderCosmico(poderAtualBase)}</span></div>
                                 <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff4d4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>HP</span><span>{fmt(fichaBase.vida?.atual)}</span></div>
-                                    <BarraVital atual={fichaBase.vida?.atual} maximo={vidaMaxima} cor="#ff4d4d" perigo />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff4d4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>HP</span><span>{fmt(vidaInfo.atual)}{vidaInfo.barras.length > 1 ? ` (${vidaInfo.barras.length} barras)` : ''}</span></div>
+                                    {vidaInfo.barras.map((barra, i) => (
+                                        <BarraVital key={i} atual={barra.atual} maximo={barra.max} cor="#ff4d4d" perigo />
+                                    ))}
                                 </div>
                                 <div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4dffff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>MP</span><span>{fmt(fichaBase.mana?.atual)}</span></div>
