@@ -226,9 +226,9 @@ export function PoderesFormEditor() {
                         />
                     </div>
                 )}
-                {abaAtual === 'habilidade' && (
+                {(abaAtual === 'habilidade' || abaAtual === 'poder') && (
                     <div className="fade-in">
-                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7, color: '#00ff88' }} title="O quanto o personagem já domina ESTA Habilidade especificamente.">🎓 Maestria (%)</label>
+                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7, color: '#00ff88' }} title={`O quanto o personagem já domina ESTE(A) ${sing} especificamente.`}>🎓 Maestria (%)</label>
                         <input
                             type="number" min="0" max="100" value={maestriaPoder}
                             onChange={e => { const v = parseFloat(e.target.value); setMaestriaPoder(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
@@ -236,9 +236,9 @@ export function PoderesFormEditor() {
                         />
                     </div>
                 )}
-                {abaAtual === 'habilidade' && (
+                {(abaAtual === 'habilidade' || abaAtual === 'poder') && (
                     <div className="fade-in">
-                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7, color: '#ff8800' }} title="Maestria mínima exigida pra usar esta Habilidade sem gerar Fadiga extra. 0 = sem requisito (padrão).">🎯 Maestria Requerida (%)</label>
+                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7, color: '#ff8800' }} title={`Maestria mínima exigida pra usar este(a) ${sing} sem gerar Fadiga extra. 0 = sem requisito (padrão).`}>🎯 Maestria Requerida (%)</label>
                         <input
                             type="number" min="0" max="100" value={maestriaRequeridaPoder}
                             onChange={e => { const v = parseFloat(e.target.value); setMaestriaRequeridaPoder(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
@@ -546,7 +546,7 @@ export function PoderesLista() {
                                         </div>
                                     )}
 
-                                    {(p.categoria || '').toLowerCase() === 'habilidade' && (parseFloat(p.maestriaRequerida) || 0) > 0 && (
+                                    {['habilidade', 'poder'].includes((p.categoria || '').toLowerCase()) && (parseFloat(p.maestriaRequerida) || 0) > 0 && (
                                         (() => {
                                             const maestriaAtual = parseFloat(p.maestria) || 0;
                                             const req = parseFloat(p.maestriaRequerida) || 0;

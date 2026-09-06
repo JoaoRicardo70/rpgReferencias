@@ -277,7 +277,7 @@ describe('dispararAtaque — matching de "elemental" na vertente é case-insensi
     });
 });
 
-describe('dispararAtaque — Maestria de Habilidades: Fadiga extra ao usar abaixo do requisito (core/fadiga.js > calcularGanhoFadigaMaestriaInsuficiente)', () => {
+describe('dispararAtaque — Maestria de Habilidades e Poderes: Fadiga extra ao usar abaixo do requisito (core/fadiga.js > calcularGanhoFadigaMaestriaInsuficiente)', () => {
     function habilidade(overrides = {}) {
         return {
             id: 3, nome: 'Golpe Estudado', categoria: 'habilidade', vertente: 'Físico', elemento: '',
@@ -304,9 +304,20 @@ describe('dispararAtaque — Maestria de Habilidades: Fadiga extra ao usar abaix
         expect(ficha.combate.fadigaExtra).toBe(0);
     });
 
-    it('Poderes/Formas (categoria != "habilidade") NUNCA geram Fadiga por Maestria, mesmo com os campos presentes', () => {
+    // 🎓 Poderes ganharam a MESMA Maestria de Habilidades (pedido do usuário: paridade entre as
+    // 3 categorias) — categoria "poder" agora gera Fadiga por Maestria insuficiente exatamente
+    // como "habilidade"; só Formas ficam de fora (a Maestria delas afeta a Fadiga DINÂMICA
+    // contínua enquanto ativas, ver core/fadiga.js > getFatorFormasAtivas, não este ganho
+    // instantâneo por disparo).
+    it('Poderes (categoria "poder") TAMBÉM geram Fadiga por Maestria insuficiente, igual Habilidades', () => {
         const ficha = montar({ dominios: {}, combate: { fadigaExtra: 0 } });
         act(() => { probe.dispararAtaque({ ...habilidade({ maestria: 0, maestriaRequerida: 100 }), categoria: 'poder' }); });
+        expect(ficha.combate.fadigaExtra).toBeCloseTo(10, 6);
+    });
+
+    it('Formas (categoria "forma") NUNCA geram Fadiga por Maestria neste disparo, mesmo com os campos presentes', () => {
+        const ficha = montar({ dominios: {}, combate: { fadigaExtra: 0 } });
+        act(() => { probe.dispararAtaque({ ...habilidade({ maestria: 0, maestriaRequerida: 100 }), categoria: 'forma' }); });
         expect(ficha.combate.fadigaExtra).toBe(0);
     });
 
@@ -328,6 +339,70 @@ describe('dispararAtaque — Maestria de Habilidades: Fadiga extra ao usar abaix
         act(() => { probe.dispararAtaque(habilidade({ custoPercentual: 0, maestria: 0, maestriaRequerida: 100 })); });
         expect(salvarFichaSilencioso).toHaveBeenCalledTimes(1);
         expect(ficha.mana.atual).toBe(1000000); // custo 0 -> energia intocada
+    });
+
+    // ---------------------------------------------------------------------
+    // QA — poder.maestria com valor não-numérico/garbage (string inválida ou null), traçado
+    // END-TO-END através de dispararAtaque (não só na função pura calcularGanhoFadigaMaestriaInsuficiente
+    // isoladamente, já coberta em core/fadiga.test.js) — confirma que o fallback `parseFloat(...)
+    // || 0` blinda o disparo real e nunca deixa NaN vazar pra combate.fadigaExtra.
+    // ---------------------------------------------------------------------
+    it('poder.maestria = "abc" (string não-numérica) é tratado como 0 (parseFloat || 0) — soma a Fadiga máxima (10) contra um requisito de 100, sem NaN', () => {
+        const ficha = montar({ dominios: {}, combate: { fadigaExtra: 0 } });
+        act(() => { probe.dispararAtaque(habilidade({ maestria: 'abc', maestriaRequerida: 100 })); });
+        expect(ficha.combate.fadigaExtra).toBeCloseTo(10, 6);
+        expect(Number.isNaN(ficha.combate.fadigaExtra)).toBe(false);
+    });
+
+    it('poder.maestria = null é tratado como 0 — mesmo resultado de "abc" ou de maestria=0 explícito, sem NaN', () => {
+        const ficha = montar({ dominios: {}, combate: { fadigaExtra: 0 } });
+        act(() => { probe.dispararAtaque(habilidade({ maestria: null, maestriaRequerida: 100 })); });
+        expect(ficha.combate.fadigaExtra).toBeCloseTo(10, 6);
+        expect(Number.isNaN(ficha.combate.fadigaExtra)).toBe(false);
+    });
+
+    it('poder.maestriaRequerida = "xyz" (string não-numérica) é tratado como 0 (sem requisito real) — nunca soma Fadiga nem quebra o cálculo', () => {
+        const ficha = montar({ dominios: {}, combate: { fadigaExtra: 0 } });
+        act(() => { probe.dispararAtaque(habilidade({ maestria: 0, maestriaRequerida: 'xyz' })); });
+        expect(ficha.combate.fadigaExtra).toBe(0);
+        expect(Number.isNaN(ficha.combate.fadigaExtra)).toBe(false);
+    });
+
+    it('categoria "poder" (não só "habilidade") também blinda contra maestria garbage sem gerar NaN', () => {
+        const ficha = montar({ dominios: {}, combate: { fadigaExtra: 0 } });
+        act(() => { probe.dispararAtaque({ ...habilidade({ maestria: 'garbage', maestriaRequerida: 50 }), categoria: 'poder' }); });
+        expect(ficha.combate.fadigaExtra).toBeCloseTo(5, 6); // distancia 50 -> (50/100)*10 = 5
+        expect(Number.isNaN(ficha.combate.fadigaExtra)).toBe(false);
+    });
+
+    // ---------------------------------------------------------------------
+    // QA — Poder (categoria "poder") elemental + Overcharge + Maestria insuficiente ao mesmo
+    // tempo: confirma que as DUAS fontes de Fadiga (Overcharge + Maestria) somam corretamente pra
+    // uma categoria "poder", não só "habilidade" (já coberto acima em outro describe).
+    // ---------------------------------------------------------------------
+    it('categoria "poder" elemental + Overcharge ativo + maestria insuficiente: Fadiga de Overcharge e de Maestria SOMAM no mesmo disparo', () => {
+        const ficha = montar({ dominios: {}, combate: { fadigaExtra: 0 } });
+        act(() => { probe.setOverchargeAtivo(true); });
+        act(() => {
+            probe.dispararAtaque({
+                id: 30, nome: 'Rajada Suprema', categoria: 'poder', vertente: 'Elemental', elemento: 'Fogo',
+                custoPercentual: 10, dadosQtd: 1, dadosFaces: 6, maestria: 0, maestriaRequerida: 100,
+            });
+        });
+        // Overcharge nível 0 de Domínio: +10 (calcularGanhoFadigaOvercharge). Maestria 0 vs 100: +10.
+        expect(ficha.combate.fadigaExtra).toBeCloseTo(20, 6);
+    });
+
+    it('categoria "poder" elemental + Overcharge ativo + maestria JÁ suficiente: só a Fadiga de Overcharge é somada (Maestria contribui 0)', () => {
+        const ficha = montar({ dominios: {}, combate: { fadigaExtra: 0 } });
+        act(() => { probe.setOverchargeAtivo(true); });
+        act(() => {
+            probe.dispararAtaque({
+                id: 31, nome: 'Rajada Dominada', categoria: 'poder', vertente: 'Elemental', elemento: 'Fogo',
+                custoPercentual: 10, dadosQtd: 1, dadosFaces: 6, maestria: 100, maestriaRequerida: 100,
+            });
+        });
+        expect(ficha.combate.fadigaExtra).toBeCloseTo(10, 6);
     });
 });
 

@@ -111,7 +111,10 @@ describe('PoderesFormContext — salvarNovoPoder(): Maestria só é salva na aba
         expect(novo.pasta).toBe('Combos Físicos');
     });
 
-    it('criar um poder novo na aba "✨ Poderes" também NÃO grava maestria', async () => {
+    // 🎓 Poderes ganharam a MESMA Maestria de Habilidades (pedido do usuário: paridade entre as
+    // 3 categorias — Formas/Habilidades/Poderes) — mesma conta de maestria/maestriaRequerida,
+    // sem fadigaPorUso (exclusivo de Forma).
+    it('criar um poder novo na aba "✨ Poderes" grava maestria/maestriaRequerida/pasta, igual Habilidades (mas NÃO fadigaPorUso)', async () => {
         montarStore();
         render(<PoderesFormProvider><Harness /></PoderesFormProvider>);
 
@@ -120,13 +123,18 @@ describe('PoderesFormContext — salvarNovoPoder(): Maestria só é salva na aba
             probe.setNomePoder('Rajada de Energia');
             probe.setDescricaoPoder('Um poder ofensivo.');
             probe.setMaestriaPoder(55);
+            probe.setMaestriaRequeridaPoder(30);
+            probe.setPastaPoder('Ofensivos');
         });
 
         await act(async () => { probe.salvarNovoPoder(); });
 
         const novo = mockState.minhaFicha.poderes[0];
         expect(novo.categoria).toBe('poder');
-        expect('maestria' in novo).toBe(false);
+        expect(novo.maestria).toBe(55);
+        expect(novo.maestriaRequerida).toBe(30);
+        expect('fadigaPorUso' in novo).toBe(false);
+        expect(novo.pasta).toBe('Ofensivos');
     });
 
     it('Maestria digitada fora do intervalo [0,100] é clampada no momento de salvar (150 -> 100, -20 -> 0)', async () => {
@@ -206,13 +214,14 @@ describe('PoderesFormContext — editarPoder(): pré-preenchimento da Maestria',
 });
 
 // ---------------------------------------------------------------------------
-// Bloco 3 — trocar categoria durante a edição e salvar: deleta p.maestria (categorias sem
-// nenhum uso de Maestria) ou a REINTERPRETA (Habilidade, que agora também tem a sua própria)
+// Bloco 3 — trocar categoria durante a edição e salvar: as 3 categorias reais (Forma/Habilidade/
+// Poder) TODAS usam Maestria hoje, então trocar entre elas REINTERPRETA p.maestria (nunca apaga);
+// só uma categoria desconhecida/legada (fora das 3) cai no branch defensivo de delete.
 // ---------------------------------------------------------------------------
-describe('PoderesFormContext — salvarNovoPoder() no caminho de EDIÇÃO: trocar a categoria pra longe de "forma" apaga p.maestria', () => {
-    it('editar uma Forma com maestria definida, trocar a categoria pra "poder" (sem nenhum uso de Maestria) e salvar remove p.maestria do poder existente, sem lançar', async () => {
+describe('PoderesFormContext — salvarNovoPoder() no caminho de EDIÇÃO: trocar de categoria reinterpreta Maestria (Forma/Habilidade/Poder), só uma categoria desconhecida apaga', () => {
+    it('editar uma Forma com maestria definida, trocar a categoria pra "poder" REINTERPRETA maestria (não apaga) e adiciona maestriaRequerida — Poder tem a mesma Maestria de Habilidade', async () => {
         montarStore({
-            minhaFicha: { poderes: [{ id: 5, nome: 'Forma X', descricao: 'Uma forma armada.', categoria: 'forma', ativa: false, maestria: 70, efeitos: [], efeitosPassivos: [] }] },
+            minhaFicha: { poderes: [{ id: 5, nome: 'Forma X', descricao: 'Uma forma armada.', categoria: 'forma', ativa: false, maestria: 70, fadigaPorUso: 20, pasta: 'X', efeitos: [], efeitosPassivos: [] }] },
         });
         render(<PoderesFormProvider><Harness /></PoderesFormProvider>);
 
@@ -220,13 +229,7 @@ describe('PoderesFormContext — salvarNovoPoder() no caminho de EDIÇÃO: troca
         expect(probe.maestriaPoder).toBe(70);
         expect(mockState.minhaFicha.poderes[0].maestria).toBe(70);
 
-        // Simula a troca de categoria durante a edição diretamente pelo contexto (a UI de
-        // navegação por abas cancela a edição ao trocar de aba — ver PoderesNavegacaoLivro — então
-        // este é um teste de caixa-branca da lógica defensiva de salvarNovoPoder em si, cobrindo o
-        // branch "else delete ficha.poderes[ix].maestria" pedido no code review). "poder" não usa
-        // Maestria nenhuma (diferente de "habilidade", que agora tem a sua própria — ver o teste
-        // seguinte), então continua batendo nesse branch de delete.
-        act(() => { probe.setAbaAtual('poder'); });
+        act(() => { probe.setAbaAtual('poder'); probe.setMaestriaRequeridaPoder(35); });
 
         expect(() => { act(() => { probe.salvarNovoPoder(); }); }).not.toThrow();
         // precisa esperar o salvarFirebaseImediato().then(...) resolver
@@ -234,7 +237,12 @@ describe('PoderesFormContext — salvarNovoPoder() no caminho de EDIÇÃO: troca
 
         const editado = mockState.minhaFicha.poderes.find(p => p.id === 5);
         expect(editado.categoria).toBe('poder');
-        expect('maestria' in editado).toBe(false);
+        expect(editado.maestria).toBe(70); // carregado da Forma, agora reinterpretado como Maestria do Poder
+        expect(editado.maestriaRequerida).toBe(35);
+        // fadigaPorUso continua exclusivo de Forma — precisa ser removido ao trocar de categoria.
+        expect('fadigaPorUso' in editado).toBe(false);
+        // Pasta NÃO é mais exclusiva de Forma — continua no poder mesmo depois de virar Poder.
+        expect(editado.pasta).toBe('X');
     });
 
     it('editar uma Forma com maestria definida, trocar a categoria pra "habilidade" REINTERPRETA maestria (não apaga) e adiciona maestriaRequerida', async () => {
@@ -258,15 +266,74 @@ describe('PoderesFormContext — salvarNovoPoder() no caminho de EDIÇÃO: troca
         // Pasta NÃO é mais exclusiva de Forma — continua no poder mesmo depois de virar Habilidade.
         expect(editado.pasta).toBe('X');
     });
+
+    // -------------------------------------------------------------------------
+    // QA — o branch defensivo "else delete maestria/maestriaRequerida/fadigaPorUso" só é
+    // alcançável hoje por uma categoria FORA das 3 reais (dado legado/corrompido, já que a UI
+    // normal (PoderesNavegacaoLivro) só oferece forma/habilidade/poder) — teste de caixa-branca
+    // confirmando que esse branch de segurança continua funcionando sem lançar.
+    // -------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // QA — direção INVERSA da já coberta acima (Forma -> Poder/Habilidade): editar um Poder
+    // existente (que já tem maestria/maestriaRequerida) e trocar a categoria pra "forma". Forma
+    // não usa maestriaRequerida (deve ser removida) e precisa ganhar fadigaPorUso (campo que
+    // Poder nunca teve) — confirma que a reinterpretação de `maestria` é simétrica nos dois
+    // sentidos, não só Forma -> Poder.
+    // -------------------------------------------------------------------------
+    it('editar um Poder existente com maestria/maestriaRequerida definidas, trocar a categoria pra "forma" REINTERPRETA maestria, REMOVE maestriaRequerida e ADICIONA fadigaPorUso', async () => {
+        montarStore({
+            minhaFicha: { poderes: [{ id: 8, nome: 'Rajada Base', descricao: 'Um poder ofensivo.', categoria: 'poder', ativa: false, maestria: 60, maestriaRequerida: 45, pasta: 'Ofensivos', efeitos: [], efeitosPassivos: [] }] },
+        });
+        render(<PoderesFormProvider><Harness /></PoderesFormProvider>);
+
+        act(() => { probe.editarPoder(8); });
+        expect(probe.maestriaPoder).toBe(60);
+        expect(probe.maestriaRequeridaPoder).toBe(45);
+        // fadigaPorUsoPoder é pré-preenchido com o padrão 15 quando o Poder original não tinha o campo.
+        expect(probe.fadigaPorUsoPoder).toBe(15);
+
+        act(() => { probe.setAbaAtual('forma'); });
+
+        await act(async () => { probe.salvarNovoPoder(); });
+        await act(async () => { await Promise.resolve(); });
+
+        const editado = mockState.minhaFicha.poderes.find(p => p.id === 8);
+        expect(editado.categoria).toBe('forma');
+        expect(editado.maestria).toBe(60); // carregado do Poder, agora reinterpretado como Maestria da Forma
+        expect('maestriaRequerida' in editado).toBe(false); // Forma não usa esse campo
+        expect(editado.fadigaPorUso).toBe(15); // campo novo que Poder nunca teve, adicionado ao virar Forma
+        expect(editado.pasta).toBe('Ofensivos'); // Pasta não é exclusiva de nenhuma categoria
+    });
+
+    it('trocar pra uma categoria desconhecida/legada (fora de forma/habilidade/poder) apaga maestria/maestriaRequerida/fadigaPorUso, sem lançar', async () => {
+        montarStore({
+            minhaFicha: { poderes: [{ id: 7, nome: 'Forma Z', descricao: 'desc', categoria: 'forma', ativa: false, maestria: 70, fadigaPorUso: 20, efeitos: [], efeitosPassivos: [] }] },
+        });
+        render(<PoderesFormProvider><Harness /></PoderesFormProvider>);
+
+        act(() => { probe.editarPoder(7); });
+        // Categoria fora das 3 abas reais — só alcançável via chamada direta ao contexto (a UI
+        // normal nunca oferece isso), simulando dado legado/corrompido.
+        act(() => { probe.setAbaAtual('legado'); });
+
+        expect(() => { act(() => { probe.salvarNovoPoder(); }); }).not.toThrow();
+        await act(async () => { await Promise.resolve(); });
+
+        const editado = mockState.minhaFicha.poderes.find(p => p.id === 7);
+        expect(editado.categoria).toBe('legado');
+        expect('maestria' in editado).toBe(false);
+        expect('maestriaRequerida' in editado).toBe(false);
+        expect('fadigaPorUso' in editado).toBe(false);
+    });
 });
 
 // ---------------------------------------------------------------------------
-// Bloco 4 — UI: o input de Maestria aparece nas abas "forma" E "habilidade" (cada uma com o seu
-// próprio conjunto de campos — Formas: Maestria + Fadiga por Uso; Habilidades: Maestria +
-// Maestria Requerida), NUNCA na aba "poder". Pasta aparece em TODAS as abas (não é mais exclusiva
-// de Forma).
+// Bloco 4 — UI: o input de Maestria aparece nas 3 abas (Formas/Habilidades/Poderes), cada uma
+// com o seu próprio conjunto de campos — Formas: Maestria + Fadiga por Uso; Habilidades e
+// Poderes: Maestria + Maestria Requerida (idêntico entre os dois — Poderes ganharam a mesma
+// Maestria de Habilidades). Pasta aparece em TODAS as abas (não é mais exclusiva de Forma).
 // ---------------------------------------------------------------------------
-describe('PoderesFormEditor (UI) — os campos de Maestria aparecem nas abas "forma" e "habilidade", nunca em "poder"', () => {
+describe('PoderesFormEditor (UI) — os campos de Maestria aparecem nas 3 abas, cada uma com seu conjunto (Forma: +Fadiga por Uso; Habilidade/Poder: +Maestria Requerida)', () => {
     it('aba "🗡️ Habilidades" (padrão) mostra Maestria E Maestria Requerida, mas NÃO Fadiga por Uso (exclusivo de Forma); Pasta continua visível', () => {
         montarStore();
         render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesFormEditor /></PoderesFormProvider>);
@@ -299,13 +366,15 @@ describe('PoderesFormEditor (UI) — os campos de Maestria aparecem nas abas "fo
         expect(screen.getByText(/Maestria \(%\)/i)).toBeDefined();
     });
 
-    it('clicar na aba "✨ Poderes" NÃO mostra o campo de Maestria', () => {
+    it('clicar na aba "✨ Poderes" mostra Maestria E Maestria Requerida, mas NÃO Fadiga por Uso (exclusivo de Forma) — igual Habilidades', () => {
         montarStore();
         render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesFormEditor /></PoderesFormProvider>);
 
         fireEvent.click(screen.getByText('✨ Poderes'));
 
-        expect(screen.queryByText(/Maestria/i)).toBeNull();
+        expect(screen.getByText(/🎓 Maestria \(%\)/)).toBeDefined();
+        expect(screen.getByText(/Maestria Requerida/i)).toBeDefined();
+        expect(screen.queryByText(/Fadiga por Uso/i)).toBeNull();
     });
 
     it('digitar 150 no campo de Maestria clampa visualmente para 100, e -20 clampa para 0 (onChange controlado)', () => {
@@ -382,5 +451,104 @@ describe('PoderesLista (UI) — badge "🥋 X% MAESTRIA" só aparece pra Forma (
 
         expect(screen.getByText('Habilidade X')).toBeDefined();
         expect(screen.queryByText(/MAESTRIA/)).toBeNull();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Bloco 5b — UI: bloco "🎓 Maestria: X%/Y% requerida" na Central de Disparo (dentro de
+// "PREPARAR AÇÃO"), pra categoria "poder" — os testes de Bloco 5 acima só cobrem o badge "🥋
+// MAESTRIA" (exclusivo de Forma); este bloco é o OUTRO "Maestria" (habilidade/poder), que até
+// agora só era coberto indiretamente na lógica pura de dispararAtaque, nunca no texto renderizado.
+// ---------------------------------------------------------------------------
+describe('PoderesLista (UI) — bloco "🎓 Maestria: X%/Y% requerida" na Central de Disparo, pra categoria "poder"', () => {
+    function prepararEAbrirDisparo(nome) {
+        fireEvent.click(screen.getByText('✨ Poderes'));
+        fireEvent.click(screen.getByText('⚔️ PREPARAR AÇÃO'));
+    }
+
+    it('Poder com maestria ABAIXO da maestriaRequerida mostra "abaixo do requisito" em laranja', () => {
+        montarStore({
+            minhaFicha: { poderes: [{ id: 20, nome: 'Rajada Fraca', categoria: 'poder', ativa: false, maestria: 20, maestriaRequerida: 80, custoPercentual: 0, dadosQtd: 1, dadosFaces: 6, efeitos: [], efeitosPassivos: [] }] },
+        });
+        render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesLista /></PoderesFormProvider>);
+
+        prepararEAbrirDisparo();
+
+        expect(screen.getByText(/🎓 Maestria: 20% \/ 80% requerida/)).toBeDefined();
+        expect(screen.getByText(/abaixo do requisito, gera Fadiga extra ao usar/)).toBeDefined();
+    });
+
+    it('Poder com maestria IGUAL ou ACIMA da maestriaRequerida mostra "dominada, sem Fadiga extra"', () => {
+        montarStore({
+            minhaFicha: { poderes: [{ id: 21, nome: 'Rajada Dominada', categoria: 'poder', ativa: false, maestria: 90, maestriaRequerida: 80, custoPercentual: 0, dadosQtd: 1, dadosFaces: 6, efeitos: [], efeitosPassivos: [] }] },
+        });
+        render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesLista /></PoderesFormProvider>);
+
+        prepararEAbrirDisparo();
+
+        expect(screen.getByText(/🎓 Maestria: 90% \/ 80% requerida/)).toBeDefined();
+        expect(screen.getByText(/dominada, sem Fadiga extra/)).toBeDefined();
+    });
+
+    it('Poder com maestriaRequerida=0 (sem requisito) NÃO mostra o bloco de Maestria na Central de Disparo', () => {
+        montarStore({
+            minhaFicha: { poderes: [{ id: 22, nome: 'Poder Livre', categoria: 'poder', ativa: false, maestria: 10, maestriaRequerida: 0, custoPercentual: 0, dadosQtd: 1, dadosFaces: 6, efeitos: [], efeitosPassivos: [] }] },
+        });
+        render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesLista /></PoderesFormProvider>);
+
+        prepararEAbrirDisparo();
+
+        expect(screen.queryByText(/🎓 Maestria:/)).toBeNull();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Bloco 6 — togglePoder(): ligar/desligar um Poder é completamente alheio aos campos de Maestria
+// (maestria/maestriaRequerida) — o "Escudo Anti-Drenagem" só mexe em ativa + nas barras vitais
+// proporcionais, nunca deveria resetar ou alterar a Maestria configurada no Poder/Habilidade.
+// ---------------------------------------------------------------------------
+describe('PoderesFormContext — togglePoder(): alternar ativa/inativa não afeta os campos de Maestria', () => {
+    it('togglePoder em um Poder com maestria/maestriaRequerida definidas alterna só o campo "ativa", preservando ambos os campos intactos', () => {
+        montarStore({
+            minhaFicha: { poderes: [{ id: 9, nome: 'Rajada Estável', categoria: 'poder', ativa: false, maestria: 55, maestriaRequerida: 30, efeitos: [], efeitosPassivos: [] }] },
+        });
+        render(<PoderesFormProvider><Harness /></PoderesFormProvider>);
+
+        act(() => { probe.togglePoder(9); });
+
+        const poder = mockState.minhaFicha.poderes.find(p => p.id === 9);
+        expect(poder.ativa).toBe(true);
+        expect(poder.maestria).toBe(55);
+        expect(poder.maestriaRequerida).toBe(30);
+    });
+
+    it('togglePoder duas vezes seguidas (ligar e desligar) devolve ativa ao estado original, sem tocar na Maestria', () => {
+        montarStore({
+            minhaFicha: { poderes: [{ id: 10, nome: 'Golpe Estudado', categoria: 'habilidade', ativa: false, maestria: 70, maestriaRequerida: 90, efeitos: [], efeitosPassivos: [] }] },
+        });
+        render(<PoderesFormProvider><Harness /></PoderesFormProvider>);
+
+        act(() => { probe.togglePoder(10); });
+        act(() => { probe.togglePoder(10); });
+
+        const poder = mockState.minhaFicha.poderes.find(p => p.id === 10);
+        expect(poder.ativa).toBe(false);
+        expect(poder.maestria).toBe(70);
+        expect(poder.maestriaRequerida).toBe(90);
+    });
+
+    it('togglePoder chama salvarFichaSilencioso (não Firebase imediato), sem lançar mesmo sem atributos/vitais na ficha', () => {
+        montarStore({
+            minhaFicha: { poderes: [{ id: 11, nome: 'Poder Cru', categoria: 'poder', ativa: false, maestria: 20, maestriaRequerida: 10, efeitos: [], efeitosPassivos: [] }] },
+        });
+        render(<PoderesFormProvider><Harness /></PoderesFormProvider>);
+
+        expect(() => { act(() => { probe.togglePoder(11); }); }).not.toThrow();
+        expect(salvarFichaSilencioso).toHaveBeenCalledTimes(1);
+        expect(salvarFirebaseImediato).not.toHaveBeenCalled();
+
+        const poder = mockState.minhaFicha.poderes.find(p => p.id === 11);
+        expect(poder.maestria).toBe(20);
+        expect(poder.maestriaRequerida).toBe(10);
     });
 });

@@ -183,7 +183,11 @@ export function PoderesFormProvider({ children }) {
                         ficha.poderes[ix].maestria = Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0));
                         ficha.poderes[ix].fadigaPorUso = Math.max(0, parseFloat(fadigaPorUsoPoder) || 0);
                         delete ficha.poderes[ix].maestriaRequerida;
-                    } else if (abaAtual === 'habilidade') {
+                    } else if (abaAtual === 'habilidade' || abaAtual === 'poder') {
+                        // 🎓 Poderes ganharam a MESMA Maestria própria de Habilidades (pedido do
+                        // usuário: paridade entre as 3 categorias) — o quanto o personagem já
+                        // domina ESTE Poder específico, comparado contra maestriaRequerida (ver
+                        // core/fadiga.js > calcularGanhoFadigaMaestriaInsuficiente).
                         ficha.poderes[ix].maestria = Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0));
                         ficha.poderes[ix].maestriaRequerida = Math.min(100, Math.max(0, parseFloat(maestriaRequeridaPoder) || 0));
                         delete ficha.poderes[ix].fadigaPorUso;
@@ -222,7 +226,7 @@ export function PoderesFormProvider({ children }) {
                     ...(abaAtual === 'forma' ? {
                         maestria: Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0)),
                         fadigaPorUso: Math.max(0, parseFloat(fadigaPorUsoPoder) || 0),
-                    } : abaAtual === 'habilidade' ? {
+                    } : (abaAtual === 'habilidade' || abaAtual === 'poder') ? {
                         maestria: Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0)),
                         maestriaRequerida: Math.min(100, Math.max(0, parseFloat(maestriaRequeridaPoder) || 0))
                     } : {})
@@ -521,8 +525,14 @@ export function PoderesFormProvider({ children }) {
             custoFinalPerc = overchargeAtivo ? (poder.custoPercentual * multOvercharge) : 0;
         }
 
-        const isHabilidade = (poder.categoria || '').toLowerCase() === 'habilidade';
-        const ganhoFadigaMaestria = (isHabilidade && (parseFloat(poder.maestriaRequerida) || 0) > 0)
+        // 🎓 Maestria insuficiente gera Fadiga instantânea em Habilidades E Poderes (Poderes
+        // ganharam a mesma Maestria de Habilidades — pedido do usuário, paridade entre as 3
+        // categorias); Formas não entram aqui (a Maestria delas afeta a Fadiga DINÂMICA contínua
+        // enquanto a transformação está ativa, ver core/fadiga.js > getFatorFormasAtivas, não este
+        // ganho instantâneo por disparo).
+        const categoriaLower = (poder.categoria || '').toLowerCase();
+        const usaMaestriaDeDisparo = categoriaLower === 'habilidade' || categoriaLower === 'poder';
+        const ganhoFadigaMaestria = (usaMaestriaDeDisparo && (parseFloat(poder.maestriaRequerida) || 0) > 0)
             ? calcularGanhoFadigaMaestriaInsuficiente(poder.maestria, poder.maestriaRequerida)
             : 0;
 
