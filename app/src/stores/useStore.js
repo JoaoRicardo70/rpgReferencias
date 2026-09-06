@@ -147,6 +147,17 @@ const useStore = create(
         efeitosTemp: [], efeitosTempPassivos: [], efeitosTempArsenal: [], efeitosTempPassivosArsenal: [], efeitosTempForma: [], efeitosTempPassivosForma: [],
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
         dummies: {}, alvoSelecionado: null,
+        // 🔥 "Ignorar Trava de Acerto" (AtaqueFormContext.jsx > rolarDano/rolarDanoCustomizado) e
+        // "pastas fechadas" da lista de Técnicas Rápidas do Mapa (MapaCombate.jsx >
+        // MapaTecnicasRapidas) — UI state transiente (nunca sincronizado no Firebase, igual
+        // poderEditandoId/itemEditandoId acima). Precisam viver aqui, fora da árvore de React, e
+        // não como useState local dos componentes: os provedores do Mapa (AtaqueFormProvider,
+        // PoderesFormProvider etc., ver MapaPanel.jsx > mapaEmFoco) só ficam montados enquanto a
+        // aba do Mapa está em foco — um useState local perderia esse estado (reabrindo pastas
+        // fechadas, desmarcando "Ignorar Trava") toda vez que o jogador trocasse de aba e
+        // voltasse, que foi exatamente o bug relatado pelo usuário.
+        ignorarTravaAcerto: false,
+        pastasFechadasMapaTecnicas: {},
         cenario: { ativa: 'default', lista: { default: { nome: 'Cenário Inicial', img: '', escala: 1.5, unidade: 'm' } } },
         // 🔥 Divisor de Poder padrão da mesa: valor global (fora de ficha.divisorPoder, que é
         // por personagem) que o Mestre pode definir para dividir o Poder do Scouter de TODOS
@@ -166,6 +177,8 @@ const useStore = create(
         setPoderEditandoId: (id) => set((state) => { state.poderEditandoId = id; }),
         setItemEditandoId: (id) => set((state) => { state.itemEditandoId = id; }),
         setElemEditandoId: (id) => set((state) => { state.elemEditandoId = id; }),
+        setIgnorarTravaAcerto: (val) => set((state) => { state.ignorarTravaAcerto = val; }),
+        setPastasFechadasMapaTecnicas: (mapa) => set((state) => { state.pastasFechadasMapaTecnicas = mapa; }),
         setPersonagemParaDeletar: (nome) => set((state) => { state.personagemParaDeletar = nome; }),
         setAbaAtiva: (aba) => set((state) => { state.abaAtiva = aba; }),
         setPersonagens: (personagens) => set((state) => { state.personagens = personagens; }),

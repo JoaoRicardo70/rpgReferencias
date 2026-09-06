@@ -47,7 +47,9 @@ describe('AtaquePanel', () => {
             addFeedEntry: mockAddFeedEntry,
             feedCombate: [],
             alvoSelecionado: null,
-            dummies: {}
+            dummies: {},
+            ignorarTravaAcerto: false,
+            setIgnorarTravaAcerto: vi.fn(),
         };
         useStore.mockImplementation(selector => selector ? selector(mockState) : mockState);
 

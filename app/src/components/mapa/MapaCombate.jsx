@@ -602,13 +602,23 @@ const MAPA_TECNICAS_SEM_PASTA = 'Sem Pasta';
 // Poderes); Habilidades/Poderes só agrupam se algum item da categoria já tiver uma pasta
 // atribuída, senão ficam em lista simples — pedido do usuário pra organizar a lista longa de
 // técnicas que aparecia toda achatada no Mapa.
+//
+// 🔥 "Pastas fechadas" vive no Zustand (pastasFechadasMapaTecnicas/setPastasFechadasMapaTecnicas
+// em useStore.js), NÃO num useState local, de propósito: este painel (e os outros do Mapa —
+// MapaAtaqueArma etc.) só fica montado enquanto `abaAtiva === 'aba-mapa'` (ver MapaPanel.jsx >
+// mapaEmFoco), pra não rodar os providers de Ataque/Poderes/Arsenal/Elementos em paralelo o tempo
+// todo. Isso significa que trocar de aba e voltar pro Mapa DESMONTA e REMONTA este componente —
+// um `useState({})` comum perderia todo o "fechei essas pastas" nesse meio-tempo (bug relatado:
+// fechar pastas, trocar de aba, voltar ao Mapa e ver tudo aberto de novo). O Zustand é um
+// singleton fora da árvore de React, então sobrevive ao desmonte/remonte por construção.
 export function MapaTecnicasRapidas() {
     const poderesCtx = usePoderesForm();
-    const [pastasFechadas, setPastasFechadas] = useState({});
+    const pastasFechadas = useStore(s => s.pastasFechadasMapaTecnicas);
+    const setPastasFechadasMapaTecnicas = useStore(s => s.setPastasFechadasMapaTecnicas);
     if (!poderesCtx) return null;
     const { minhaFicha, togglePoder } = poderesCtx;
     const poderes = minhaFicha?.poderes || [];
-    const toggleFechada = (chave) => setPastasFechadas(prev => ({ ...prev, [chave]: !prev[chave] }));
+    const toggleFechada = (chave) => setPastasFechadasMapaTecnicas({ ...pastasFechadas, [chave]: !pastasFechadas[chave] });
 
     if (poderes.length === 0) {
         return (

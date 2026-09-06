@@ -33,6 +33,12 @@ export function AtaqueFormProvider({ children }) {
     const feedCombate = useStore(s => s.feedCombate);
     const alvoSelecionado = useStore(s => s.alvoSelecionado);
     const dummies = useStore(s => s.dummies);
+    // 🔥 No store (não useState local) de propósito: o Mapa monta um AtaqueFormProvider PRÓPRIO,
+    // separado do da aba Ataque, só enquanto a aba do Mapa está em foco (ver MapaPanel.jsx >
+    // mapaEmFoco) — um useState local perderia esse valor (voltando a desmarcado) toda vez que o
+    // provider do Mapa desmontasse/remontasse ao trocar de aba, o que já foi relatado como bug.
+    const ignorarTravaAcerto = useStore(s => s.ignorarTravaAcerto);
+    const setIgnorarTravaAcerto = useStore(s => s.setIgnorarTravaAcerto);
 
     const ac = minhaFicha.ataqueConfig || {};
 
@@ -52,7 +58,6 @@ export function AtaqueFormProvider({ children }) {
     
     const [elementoAtivo, setElementoAtivo] = useState('fisico');
 
-    const [ignorarTravaAcerto, setIgnorarTravaAcerto] = useState(false);
     const [skillConfigs, setSkillConfigs] = useState({});
     const [podeRolarDano, setPodeRolarDano] = useState(true);
     const [furiaAcalmadaMsg, setFuriaAcalmadaMsg] = useState(false);

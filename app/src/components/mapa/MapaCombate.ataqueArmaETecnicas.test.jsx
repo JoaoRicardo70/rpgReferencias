@@ -54,6 +54,10 @@ function montarStore(overrides = {}) {
         setEfeitosTempPassivosArsenal: vi.fn(),
         elemEditandoId: null,
         setElemEditandoId: vi.fn(),
+        ignorarTravaAcerto: false,
+        setIgnorarTravaAcerto: vi.fn((v) => { mockState.ignorarTravaAcerto = v; }),
+        pastasFechadasMapaTecnicas: {},
+        setPastasFechadasMapaTecnicas: vi.fn((mapa) => { mockState.pastasFechadasMapaTecnicas = mapa; }),
         ...overrides,
     };
     useStore.mockImplementation((selector) => (typeof selector === 'function' ? selector(mockState) : mockState));
@@ -96,12 +100,16 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
             dummies: { goblin1: { nome: 'Goblin', hpAtual: 10 } },
             feedCombate: [],
         });
-        const { getByRole, getByText } = render(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
+        const { getByRole, getByText, rerender } = render(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
 
         expect(getByText('ACERTO NECESSÁRIO PRIMEIRO').disabled).toBe(true);
 
         const checkbox = getByRole('checkbox');
         act(() => { checkbox.click(); });
+        // ignorarTravaAcerto agora vive no Zustand (useStore.js), não em useState local — o mock
+        // de useStore não é reativo por si só, então precisamos re-renderizar pra este componente
+        // reler o valor atualizado de mockState.ignorarTravaAcerto (mutado pelo mock do setter).
+        rerender(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
 
         expect(getByText('⚔️ ATACAR GOBLIN').disabled).toBe(false);
     });
@@ -209,6 +217,132 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
         // efeito no feed de combate mesmo a vida do alvo não caindo duas vezes.
         expect(salvarDummie).toHaveBeenNthCalledWith(1, 'goblin1', expect.objectContaining({ hpAtual: 40 }));
         expect(salvarDummie).toHaveBeenNthCalledWith(2, 'goblin1', expect.objectContaining({ hpAtual: 40 }));
+    });
+
+    // -------------------------------------------------------------------------
+    // QA (regressão desta sessão) — ignorarTravaAcerto agora vive no Zustand (useStore.js), não
+    // mais em useState local. rolarDano (AtaqueFormContext.jsx, ~linha 475) é lógica PRÉ-EXISTENTE
+    // que faz um auto-reset de "ignorarTravaAcerto" pra false logo depois de disparar a rolagem de
+    // dano (pra não deixar o checkbox marcado indefinidamente pro próximo ataque). Essa lógica foi
+    // escrita originalmente pensando num setState local — os testes abaixo confirmam que ela
+    // continua funcionando corretamente agora que setIgnorarTravaAcerto vem do store.
+    // -------------------------------------------------------------------------
+    describe('rolarDano() e o auto-reset de "Ignorar Trava de Acerto" (store-backed)', () => {
+        it('ao clicar em ATACAR com "Ignorar Trava" já marcado (via store), rolarDano chama setIgnorarTravaAcerto(false) — e o checkbox aparece desmarcado após reler o store', () => {
+            const minhaFicha = {
+                poderes: [], inventario: [], passivas: [], ataquesElementais: [],
+                mana: { base: 1000000, atual: 1000000 },
+                vida: { base: 1000000, atual: 1000000 },
+                combate: {}, hierarquia: {},
+            };
+            montarStore({
+                minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)),
+                alvoSelecionado: 'goblin1',
+                dummies: { goblin1: { nome: 'Goblin', hpAtual: 50 } },
+                // Nenhum Acerto no feed -> podeRolarDano começaria falso; só "Ignorar Trava" (já
+                // pré-marcada no store, simulando o jogador ter marcado antes) libera o botão.
+                feedCombate: [],
+                ignorarTravaAcerto: true,
+            });
+            const { getByText, getByRole, rerender } = render(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
+
+            const checkboxAntes = getByRole('checkbox');
+            expect(checkboxAntes.checked).toBe(true);
+
+            const botao = getByText('⚔️ ATACAR GOBLIN');
+            expect(botao.disabled).toBe(false);
+
+            act(() => { botao.click(); });
+
+            // rolarDano (AtaqueFormContext.jsx linha ~475) chama setIgnorarTravaAcerto(false) como
+            // parte do seu próprio fluxo interno, independente de quem forneceu o setter.
+            expect(mockState.setIgnorarTravaAcerto).toHaveBeenCalledWith(false);
+            expect(mockState.ignorarTravaAcerto).toBe(false);
+
+            // Como o mock de useStore não é reativo por si só, precisamos re-renderizar pra este
+            // componente reler o valor mutado do "store" — mesma convenção já usada no resto desta
+            // suíte (ver comentário no teste "o checkbox... habilita o botão..." acima).
+            rerender(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
+            const checkboxDepois = getByRole('checkbox');
+            expect(checkboxDepois.checked).toBe(false);
+        });
+
+        it('o dano ainda é aplicado normalmente no mesmo clique em que o auto-reset acontece (o reset de ignorarTravaAcerto não interrompe o resto de rolarDano)', () => {
+            const minhaFicha = {
+                poderes: [], inventario: [], passivas: [], ataquesElementais: [],
+                mana: { base: 1000000, atual: 1000000 },
+                vida: { base: 1000000, atual: 1000000 },
+                combate: {}, hierarquia: {},
+            };
+            montarStore({
+                minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)),
+                alvoSelecionado: 'goblin1',
+                dummies: { goblin1: { nome: 'Goblin', hpAtual: 50 } },
+                feedCombate: [],
+                ignorarTravaAcerto: true,
+            });
+            const { getByText } = render(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
+
+            act(() => { getByText('⚔️ ATACAR GOBLIN').click(); });
+
+            expect(salvarDummie).toHaveBeenCalledWith('goblin1', expect.objectContaining({ hpAtual: 40 }));
+            expect(enviarParaFeed).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'dano', dano: 10, alvoNome: 'Goblin' }));
+        });
+
+        // ---------------------------------------------------------------------
+        // QA — "compartilhado entre a aba Ataque e o Mapa": como ignorarTravaAcerto agora vive no
+        // Zustand (singleton fora da árvore de React), QUALQUER consumidor que leia
+        // `useStore(s => s.ignorarTravaAcerto)` enxerga o MESMO valor — não há mais uma cópia por
+        // instância de AtaqueFormProvider. Isso é, em grande parte, uma propriedade do próprio
+        // Zustand (não algo que dê pra "provar" de verdade com um mock simples de useStore, que já
+        // é por definição um único objeto compartilhado) — o teste abaixo é o mais próximo que dá
+        // pra chegar disso SEM reescrever o mock pra um store reativo de verdade: duas instâncias
+        // independentes de <AtaqueFormProvider><MapaAtaqueArma/></AtaqueFormProvider> (equivalente
+        // a "aba Ataque" + "Mapa" montados ao mesmo tempo) lendo do mesmo mockState — alternar o
+        // checkbox em uma reflete na outra depois de reler o store.
+        // NOTA (limite do mock): isto confirma que o CAMPO do store é único/compartilhado; não
+        // exercita de fato o hook reativo do Zustand re-renderizando os dois automaticamente (o
+        // mock não é reativo — por isso o rerender manual nos dois). Documentando esse limite
+        // aqui, como pedido.
+        // ---------------------------------------------------------------------
+        it('duas instâncias de MapaAtaqueArma (simulando "aba Ataque" + "Mapa" ao mesmo tempo) leem o MESMO valor de ignorarTravaAcerto do store', () => {
+            montarStore({ minhaFicha: { poderes: [], inventario: [] }, ignorarTravaAcerto: false });
+
+            const { getAllByRole, rerender } = render(
+                <>
+                    <AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>
+                    <AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>
+                </>
+            );
+
+            let checkboxes = getAllByRole('checkbox');
+            expect(checkboxes.length).toBe(2);
+            expect(checkboxes[0].checked).toBe(false);
+            expect(checkboxes[1].checked).toBe(false);
+
+            act(() => { checkboxes[0].click(); });
+            rerender(
+                <>
+                    <AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>
+                    <AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>
+                </>
+            );
+
+            checkboxes = getAllByRole('checkbox');
+            // As DUAS instâncias, mesmo sendo Providers/componentes totalmente separados, refletem
+            // o mesmo valor — porque ambas leem `useStore(s => s.ignorarTravaAcerto)`, o mesmo
+            // campo único do Zustand, e não mais um useState isolado por instância.
+            expect(checkboxes[0].checked).toBe(true);
+            expect(checkboxes[1].checked).toBe(true);
+        });
+
+        it('valor de ignorarTravaAcerto JÁ presente no store no momento do PRIMEIRO mount (simulando troca de aba anterior) aparece marcado desde a primeira renderização, sem precisar de nenhum toggle', () => {
+            montarStore({ minhaFicha: { poderes: [], inventario: [] }, ignorarTravaAcerto: true });
+
+            const { getByRole } = render(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
+
+            expect(getByRole('checkbox').checked).toBe(true);
+        });
     });
 
     // -------------------------------------------------------------------------
@@ -520,14 +654,123 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
                     ],
                 },
             });
-            const { getByText, queryByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+            const { getByText, queryByText, rerender } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
 
             expect(getByText('☆ Bankai')).toBeTruthy();
             act(() => { getByText(/📁 Transformações/).click(); });
+            // pastasFechadas agora vive no Zustand (useStore.js) — o mock de useStore não é
+            // reativo sozinho, então precisamos re-renderizar pra reler o valor atualizado.
+            rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
 
             expect(queryByText('☆ Bankai')).toBeNull();
             // A outra pasta continua expandida normalmente.
             expect(getByText('☆ Ego')).toBeTruthy();
+        });
+
+        // -----------------------------------------------------------------------
+        // QA — pastasFechadasMapaTecnicas agora é um MAPA acumulado no store (chave por
+        // "categoria::pasta" -> boolean), não mais um único valor. toggleFechada faz
+        // `setPastasFechadasMapaTecnicas({ ...pastasFechadas, [chave]: !pastasFechadas[chave] })`
+        // (MapaCombate.jsx) — confirma que fechar UMA pasta não sobrescreve/apaga a entrada de
+        // OUTRA pasta já presente no mapa, e que o mapa realmente ACUMULA as duas chaves.
+        // -----------------------------------------------------------------------
+        it('fechar duas pastas diferentes, uma de cada vez, acumula as DUAS entradas no mapa do store sem uma apagar a outra', () => {
+            montarStore({
+                minhaFicha: {
+                    poderes: [
+                        { id: 1, nome: 'Bankai', categoria: 'forma', ativa: false, pasta: 'Transformações' },
+                        { id: 2, nome: 'Ego', categoria: 'forma', ativa: false, pasta: 'Selados' },
+                    ],
+                },
+            });
+            const { getByText, queryByText, rerender } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            act(() => { getByText(/📁 Transformações/).click(); });
+            rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            // Depois de fechar SÓ "Transformações": o mapa tem uma única chave, "Selados" nem
+            // apareceu ainda (toggleFechada só grava a chave que foi de fato clicada).
+            expect(mockState.pastasFechadasMapaTecnicas).toEqual({ 'forma::Transformações': true });
+            expect(queryByText('☆ Bankai')).toBeNull();
+            expect(getByText('☆ Ego')).toBeTruthy();
+
+            act(() => { getByText(/📁 Selados/).click(); });
+            rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            // As DUAS chaves convivem no mesmo mapa agora — fechar "Selados" não reescreveu nem
+            // removeu a entrada de "Transformações" que já estava lá.
+            expect(mockState.pastasFechadasMapaTecnicas).toEqual({
+                'forma::Transformações': true,
+                'forma::Selados': true,
+            });
+            expect(queryByText('☆ Bankai')).toBeNull();
+            expect(queryByText('☆ Ego')).toBeNull();
+
+            // Reabrindo só "Transformações" de volta: a chave de "Selados" continua true, intocada.
+            act(() => { getByText(/📁 Transformações/).click(); });
+            rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            expect(mockState.pastasFechadasMapaTecnicas).toEqual({
+                'forma::Transformações': false,
+                'forma::Selados': true,
+            });
+            expect(getByText('☆ Bankai')).toBeTruthy();
+            expect(queryByText('☆ Ego')).toBeNull();
+        });
+
+        // -----------------------------------------------------------------------
+        // QA — valor de pastasFechadasMapaTecnicas JÁ presente no store no momento do PRIMEIRO
+        // mount (simulando "o jogador tinha fechado essa pasta numa visita anterior ao Mapa, e o
+        // componente está sendo montado de novo agora"). Confirma que o componente respeita esse
+        // estado pré-existente já na primeira renderização, sem precisar de nenhum clique.
+        // -----------------------------------------------------------------------
+        it('uma pasta já marcada como fechada no store ANTES do mount aparece recolhida desde a primeira renderização', () => {
+            montarStore({
+                minhaFicha: {
+                    poderes: [{ id: 1, nome: 'Bankai', categoria: 'forma', ativa: false, pasta: 'Selo Eterno' }],
+                },
+                pastasFechadasMapaTecnicas: { 'forma::Selo Eterno': true },
+            });
+
+            const { getByText, queryByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            expect(queryByText('☆ Bankai')).toBeNull();
+            expect(getByText(/▶ 📁 Selo Eterno/)).toBeTruthy();
+        });
+
+        // -----------------------------------------------------------------------
+        // QA (regressão relatada pelo usuário) — os painéis do Mapa (MapaTecnicasRapidas
+        // incluído) só ficam montados enquanto a aba do Mapa está em foco (ver MapaPanel.jsx >
+        // mapaEmFoco); trocar de aba e voltar DESMONTA e REMONTA o componente. Antes desta
+        // correção, "pastasFechadas" vivia num useState local que reiniciava do zero a cada
+        // remonte, reabrindo TODAS as pastas que o jogador tinha fechado — exatamente o bug
+        // relatado: "fechei todas as pastas, troquei de aba, voltei ao Mapa e via tudo aberto de
+        // novo". Agora o valor vive no Zustand (pastasFechadasMapaTecnicas, useStore.js) — um
+        // singleton FORA da árvore de React, que sobrevive a qualquer desmonte/remonte de
+        // componente por construção (só reseta mesmo com um F5 de página, o que é esperado).
+        // -----------------------------------------------------------------------
+        it('recolher uma pasta sobrevive a desmontar e remontar o componente (troca de aba no Mapa e volta)', () => {
+            montarStore({
+                minhaFicha: {
+                    poderes: [{ id: 1, nome: 'Bankai', categoria: 'forma', ativa: false, pasta: 'Selo Eterno' }],
+                },
+            });
+            const { getByText, queryByText, rerender, unmount } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            act(() => { getByText(/📁 Selo Eterno/).click(); });
+            rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+            expect(queryByText('☆ Bankai')).toBeNull();
+
+            // Simula a troca de aba (desmonta o painel inteiro, como MapaPanel.jsx faz ao sair
+            // da aba-mapa) e a volta pro Mapa (remonta do zero) — a fonte de verdade
+            // (pastasFechadasMapaTecnicas) não mora neste componente, então nem precisaria disso
+            // pra continuar fechada, mas o teste simula o cenário real relatado mesmo assim.
+            unmount();
+            const segundaMontagem = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            // A pasta continua fechada — não voltou a abrir sozinha.
+            expect(segundaMontagem.queryByText('☆ Bankai')).toBeNull();
+            expect(segundaMontagem.getByText(/▶ 📁 Selo Eterno/)).toBeTruthy();
         });
     });
 });
