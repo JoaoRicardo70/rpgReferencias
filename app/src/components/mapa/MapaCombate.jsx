@@ -5,6 +5,7 @@ import { useMapaForm, urlSeguraParaCss, calcularCA } from './MapaFormContext';
 import { useAtaqueForm } from '../combate/AtaqueFormContext';
 import { usePoderesForm } from '../poderes/PoderesFormContext';
 import { useArsenalForm } from '../arsenal/ArsenalFormContext';
+import { useElementosForm, emogis as ELEMENTOS_EMOJIS, cores as ELEMENTOS_CORES } from '../arsenal/ElementosFormContext';
 import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { getClassIconById } from '../../core/classIcons';
 import { calcularPoderAtual } from '../../core/poder';
@@ -685,6 +686,74 @@ export function MapaTecnicasRapidas() {
                                 {itensCat.map(renderChip)}
                             </div>
                         )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+// 🔥 Memoriza/desmemoriza Técnicas Elementais (ficha.ataquesElementais, criadas na página
+// "Afinidades & Elementos" do Grimório — ElementosFormContext.jsx) direto do Mapa. Mesma lógica
+// da terceira categoria de técnicas que faltava aqui (Formas/Poderes/Habilidades já cobertos por
+// MapaTecnicasRapidas acima — Elementais vivem num array à parte, ataquesElementais, com seu
+// próprio toggle). "Conjurar" uma magia elemental nesta ficha NÃO tem um roll próprio (ver
+// conjurarMagia em ElementosFormContext.jsx — hoje só existe pra apontar pro Ataque) — o fluxo
+// real do jogo é MEMORIZAR (equipar) a magia aqui e depois rolar o dano normalmente em ⚔️ Ataque
+// com Arma acima, que já entra em conta com toda magia elemental equipada. Agrupado por elemento
+// (Fogo/Água/Vento/...), reusando os mesmos emojis/cores já usados na aba Afinidades & Elementos.
+export function MapaMagiasElementais() {
+    const elemCtx = useElementosForm();
+    if (!elemCtx) return null;
+    const { minhaFicha, toggleEquiparElem } = elemCtx;
+    const magias = minhaFicha?.ataquesElementais || [];
+
+    if (magias.length === 0) {
+        return (
+            <div className="def-box" style={{ marginTop: 15, padding: '8px 12px', border: '1px solid #00ffcc' }}>
+                <h4 style={{ color: '#00ffcc', margin: 0 }}>🌪️ Técnicas Elementais</h4>
+                <p style={{ color: '#888', fontSize: '0.8em', margin: '8px 0 0 0' }}>
+                    Nenhuma magia elemental criada ainda. Vá em <strong>Afinidades & Elementos</strong> (Grimório) pra escrever uma e memorizá-la direto por aqui.
+                </p>
+            </div>
+        );
+    }
+
+    const grupos = {};
+    magias.forEach(m => {
+        if (!m) return;
+        const nome = m.elemento || 'Neutro';
+        if (!grupos[nome]) grupos[nome] = [];
+        grupos[nome].push(m);
+    });
+    const nomesElementos = Object.keys(grupos).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+    return (
+        <div className="def-box" style={{ marginTop: 15, padding: '8px 12px', border: '1px solid #00ffcc' }}>
+            <h4 style={{ color: '#00ffcc', margin: '0 0 8px 0' }}>🌪️ Técnicas Elementais</h4>
+            {nomesElementos.map(nomeEl => {
+                const cor = ELEMENTOS_CORES[nomeEl] || '#00ffcc';
+                const emoji = ELEMENTOS_EMOJIS[nomeEl] || '🌪️';
+                return (
+                    <div key={nomeEl} style={{ marginTop: 8 }}>
+                        <div style={{ color: cor, fontWeight: 'bold', fontSize: '0.8em', marginBottom: 4 }}>{emoji} {nomeEl}</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            {grupos[nomeEl].map(m => (
+                                <button
+                                    key={m.id}
+                                    className="btn-neon"
+                                    onClick={() => toggleEquiparElem(m.id)}
+                                    title={m.descricao || ''}
+                                    style={{
+                                        margin: 0, padding: '6px 14px', fontWeight: 'bold', borderColor: cor,
+                                        background: m.equipado ? `${cor}40` : 'transparent',
+                                        color: m.equipado ? '#fff' : cor,
+                                    }}
+                                >
+                                    {m.equipado ? '★' : '☆'} {m.nome || 'Sem nome'}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 );
             })}

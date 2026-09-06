@@ -1,12 +1,13 @@
 import React from 'react';
 import useStore from '../../stores/useStore';
 import { MapaFormProvider } from './MapaFormContext';
-import { MapaDadoAnimado, MapaRolagemRapida, MapaIniciativaTracker, MapaHologramaAcao, MapaAtaquesSalvos, MapaAtaqueArma, MapaTecnicasRapidas } from './MapaCombate';
+import { MapaDadoAnimado, MapaRolagemRapida, MapaIniciativaTracker, MapaHologramaAcao, MapaAtaquesSalvos, MapaAtaqueArma, MapaTecnicasRapidas, MapaMagiasElementais } from './MapaCombate';
 import { MapaFerramentasMestre } from './MapaFerramentasMestre';
 import { MapaAreaCentral } from './MapaGrelha';
 import { AtaqueFormProvider } from '../combate/AtaqueFormContext';
 import { PoderesFormProvider } from '../poderes/PoderesFormContext';
 import { ArsenalFormProvider } from '../arsenal/ArsenalFormContext';
+import { ElementosFormProvider } from '../arsenal/ElementosFormContext';
 
 export default function MapaPanel({ className, children }) {
     const hasChildren = React.Children.count(children) > 0;
@@ -49,6 +50,11 @@ export default function MapaPanel({ className, children }) {
                                 <PoderesFormProvider>
                                     <MapaTecnicasRapidas />
                                 </PoderesFormProvider>
+                            )}
+                            {mapaEmFoco && (
+                                <ElementosFormProvider>
+                                    <MapaMagiasElementais />
+                                </ElementosFormProvider>
                             )}
                         </div>
 

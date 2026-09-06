@@ -1,10 +1,11 @@
 import React from 'react';
 import { render, cleanup, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { MapaAtaqueArma, MapaTecnicasRapidas } from './MapaCombate';
+import { MapaAtaqueArma, MapaTecnicasRapidas, MapaMagiasElementais } from './MapaCombate';
 import { AtaqueFormProvider } from '../combate/AtaqueFormContext';
 import { PoderesFormProvider } from '../poderes/PoderesFormContext';
 import { ArsenalFormProvider } from '../arsenal/ArsenalFormContext';
+import { ElementosFormProvider } from '../arsenal/ElementosFormContext';
 import useStore from '../../stores/useStore';
 import { salvarDummie, enviarParaFeed } from '../../services/firebase-sync';
 
@@ -51,6 +52,8 @@ function montarStore(overrides = {}) {
         setEfeitosTempArsenal: vi.fn(),
         efeitosTempPassivosArsenal: [],
         setEfeitosTempPassivosArsenal: vi.fn(),
+        elemEditandoId: null,
+        setElemEditandoId: vi.fn(),
         ...overrides,
     };
     useStore.mockImplementation((selector) => (typeof selector === 'function' ? selector(mockState) : mockState));
@@ -573,5 +576,181 @@ describe('MapaAtaqueArma + MapaTecnicasRapidas juntos no mesmo Mapa (como em Map
         // useStore não é um store reativo de verdade, então o componente não re-renderiza sozinho
         // só porque mutamos minhaFicha.poderes[0].ativa por fora — o que já é testado à parte.)
         expect(minhaFicha.poderes[0].ativa).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// QA — MapaMagiasElementais: memoriza/desmemoriza Técnicas Elementais (ficha.ataquesElementais,
+// criadas na página "Afinidades & Elementos" do Grimório) direto do Mapa — reusa o MESMO
+// toggleEquiparElem de ElementosFormContext.jsx, agrupado por elemento. Era a 3ª categoria de
+// técnica que ainda faltava no Mapa (Formas/Poderes/Habilidades já cobertos por
+// MapaTecnicasRapidas) — Elementais vivem num array totalmente à parte (ataquesElementais), sem
+// nenhuma relação de dados com ficha.poderes.
+// ---------------------------------------------------------------------------
+describe('MapaMagiasElementais — memoriza/desmemoriza Técnicas Elementais do Grimório direto do Mapa', () => {
+    it('mostra uma dica quando a ficha não tem nenhuma magia elemental criada ainda', () => {
+        montarStore({ minhaFicha: { ataquesElementais: [] } });
+        const { getByText, queryAllByRole } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>);
+
+        expect(getByText(/Nenhuma magia elemental criada ainda/i)).toBeTruthy();
+        expect(queryAllByRole('button').length).toBe(0);
+    });
+
+    it('agrupa as magias por elemento, marcando visualmente as já memorizadas (equipado)', () => {
+        montarStore({
+            minhaFicha: {
+                ataquesElementais: [
+                    { id: 1, nome: 'Bola de Fogo', elemento: 'Fogo', equipado: false },
+                    { id: 2, nome: 'Jato de Água', elemento: 'Agua', equipado: true },
+                ],
+            },
+        });
+        const { getByText } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>);
+
+        expect(getByText('🔥 Fogo')).toBeTruthy();
+        expect(getByText('💧 Agua')).toBeTruthy();
+        expect(getByText('☆ Bola de Fogo')).toBeTruthy();
+        expect(getByText('★ Jato de Água')).toBeTruthy();
+    });
+
+    it('magia sem elemento definido cai no grupo "Neutro"', () => {
+        montarStore({
+            minhaFicha: { ataquesElementais: [{ id: 1, nome: 'Golpe Puro', equipado: false }] },
+        });
+        const { getByText } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>);
+
+        expect(getByText(/Neutro/)).toBeTruthy();
+        expect(getByText('☆ Golpe Puro')).toBeTruthy();
+    });
+
+    it('clicar numa magia chama toggleEquiparElem(id) e alterna o campo equipado (mesma função da aba Afinidades & Elementos)', () => {
+        const minhaFicha = { ataquesElementais: [{ id: 1, nome: 'Bola de Fogo', elemento: 'Fogo', equipado: false }] };
+        montarStore({ minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)) });
+        const { getByText } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>);
+
+        act(() => { getByText('☆ Bola de Fogo').click(); });
+
+        expect(minhaFicha.ataquesElementais[0].equipado).toBe(true);
+    });
+
+    it('magia sem "nome" cai no fallback "Sem nome", sem lançar', () => {
+        montarStore({
+            minhaFicha: { ataquesElementais: [{ id: 1, nome: undefined, elemento: 'Fogo', equipado: false }] },
+        });
+        expect(() => {
+            render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>);
+        }).not.toThrow();
+    });
+
+    it('não lança e renderiza null se usado FORA de um ElementosFormProvider (defensivo)', () => {
+        montarStore();
+        expect(() => render(<MapaMagiasElementais />)).not.toThrow();
+    });
+
+    // -------------------------------------------------------------------------
+    // QA — gaps adicionais: fallback de emoji/cor para elemento desconhecido, agrupamento sem
+    // duplicar cabeçalho, ordenação alfabética estável, `equipado` undefined, isolamento do
+    // toggle entre magias do MESMO grupo e ausência total da chave `ataquesElementais` na ficha.
+    // -------------------------------------------------------------------------
+    it('elemento que NÃO existe nas tabelas emogis/cores cai no fallback (🌪️ e não lança), sem virar "undefined"', () => {
+        // ELEMENTOS_EMOJIS['ElementoInventado'] e ELEMENTOS_CORES['ElementoInventado'] são
+        // ambos `undefined` — o componente usa `|| '🌪️'` e `|| '#00ffcc'` como fallback
+        // (ver MapaMagiasElementais em MapaCombate.jsx). Confirma que o cabeçalho do grupo
+        // não renderiza a string literal "undefined" em nenhum lugar.
+        montarStore({
+            minhaFicha: {
+                ataquesElementais: [{ id: 1, nome: 'Magia Rara', elemento: 'ElementoInventado', equipado: false }],
+            },
+        });
+        let getByText, container;
+        expect(() => {
+            ({ getByText, container } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>));
+        }).not.toThrow();
+
+        expect(getByText('🌪️ ElementoInventado')).toBeTruthy();
+        expect(getByText('☆ Magia Rara')).toBeTruthy();
+        expect(container.textContent).not.toMatch(/undefined/);
+    });
+
+    it('múltiplas magias com o MESMO elemento renderizam sob um ÚNICO cabeçalho de grupo, sem duplicar', () => {
+        montarStore({
+            minhaFicha: {
+                ataquesElementais: [
+                    { id: 1, nome: 'Bola de Fogo', elemento: 'Fogo', equipado: false },
+                    { id: 2, nome: 'Lança Flamejante', elemento: 'Fogo', equipado: false },
+                    { id: 3, nome: 'Explosão Ígnea', elemento: 'Fogo', equipado: true },
+                ],
+            },
+        });
+        const { getAllByText, getByText } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>);
+
+        expect(getAllByText('🔥 Fogo').length).toBe(1);
+        expect(getByText('☆ Bola de Fogo')).toBeTruthy();
+        expect(getByText('☆ Lança Flamejante')).toBeTruthy();
+        expect(getByText('★ Explosão Ígnea')).toBeTruthy();
+    });
+
+    it('grupos de elemento renderizam em ordem alfabética estável (pt-BR), independente da ordem de criação das magias', () => {
+        montarStore({
+            minhaFicha: {
+                ataquesElementais: [
+                    { id: 1, nome: 'Rajada', elemento: 'Vento', equipado: false },
+                    { id: 2, nome: 'Onda', elemento: 'Agua', equipado: false },
+                    { id: 3, nome: 'Chama', elemento: 'Fogo', equipado: false },
+                ],
+            },
+        });
+        const { container } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>);
+
+        const texto = container.textContent;
+        const iAgua = texto.indexOf('Agua');
+        const iFogo = texto.indexOf('Fogo');
+        const iVento = texto.indexOf('Vento');
+        expect(iAgua).toBeGreaterThan(-1);
+        expect(iFogo).toBeGreaterThan(-1);
+        expect(iVento).toBeGreaterThan(-1);
+        expect(iAgua).toBeLessThan(iFogo);
+        expect(iFogo).toBeLessThan(iVento);
+    });
+
+    it('uma magia com `equipado` nunca definido (undefined) renderiza como NÃO memorizada (☆), igual a `false`', () => {
+        montarStore({
+            minhaFicha: {
+                ataquesElementais: [{ id: 1, nome: 'Pergaminho Antigo', elemento: 'Fogo' }], // sem a chave "equipado"
+            },
+        });
+        const { getByText, queryByText } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>);
+
+        expect(getByText('☆ Pergaminho Antigo')).toBeTruthy();
+        expect(queryByText('★ Pergaminho Antigo')).toBeNull();
+    });
+
+    it('clicar em UMA magia dentro de um grupo com várias do mesmo elemento só alterna ELA, não as irmãs (toggleEquiparElem usa findIndex por id)', () => {
+        const minhaFicha = {
+            ataquesElementais: [
+                { id: 1, nome: 'Bola de Fogo', elemento: 'Fogo', equipado: false },
+                { id: 2, nome: 'Lança Flamejante', elemento: 'Fogo', equipado: false },
+                { id: 3, nome: 'Explosão Ígnea', elemento: 'Fogo', equipado: false },
+            ],
+        };
+        montarStore({ minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)) });
+        const { getByText } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>);
+
+        act(() => { getByText('☆ Lança Flamejante').click(); });
+
+        expect(minhaFicha.ataquesElementais[0].equipado).toBe(false);
+        expect(minhaFicha.ataquesElementais[1].equipado).toBe(true);
+        expect(minhaFicha.ataquesElementais[2].equipado).toBe(false);
+    });
+
+    it('ficha SEM a chave "ataquesElementais" (nunca criada, nem como array vazio) se comporta como o caso vazio, sem lançar', () => {
+        montarStore({ minhaFicha: {} }); // nem `ataquesElementais: []` está presente
+        let getByText, queryAllByRole;
+        expect(() => {
+            ({ getByText, queryAllByRole } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>));
+        }).not.toThrow();
+
+        expect(getByText(/Nenhuma magia elemental criada ainda/i)).toBeTruthy();
+        expect(queryAllByRole('button').length).toBe(0);
     });
 });
