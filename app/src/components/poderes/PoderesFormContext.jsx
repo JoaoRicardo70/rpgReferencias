@@ -182,19 +182,20 @@ export function PoderesFormProvider({ children }) {
                     if (abaAtual === 'forma') {
                         ficha.poderes[ix].maestria = Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0));
                         ficha.poderes[ix].fadigaPorUso = Math.max(0, parseFloat(fadigaPorUsoPoder) || 0);
-                        ficha.poderes[ix].pasta = (pastaPoder || '').trim();
                         delete ficha.poderes[ix].maestriaRequerida;
                     } else if (abaAtual === 'habilidade') {
                         ficha.poderes[ix].maestria = Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0));
                         ficha.poderes[ix].maestriaRequerida = Math.min(100, Math.max(0, parseFloat(maestriaRequeridaPoder) || 0));
                         delete ficha.poderes[ix].fadigaPorUso;
-                        delete ficha.poderes[ix].pasta;
                     } else {
                         delete ficha.poderes[ix].maestria;
                         delete ficha.poderes[ix].maestriaRequerida;
                         delete ficha.poderes[ix].fadigaPorUso;
-                        delete ficha.poderes[ix].pasta;
                     }
+                    // 🗂️ Pasta: hoje disponível pra QUALQUER categoria (Formas, Habilidades e
+                    // Poderes), não só Formas — pedido do usuário pra organizar o Grimório inteiro
+                    // (e, por tabela, a lista de Técnicas Rápidas do Mapa) em pastas.
+                    ficha.poderes[ix].pasta = (pastaPoder || '').trim();
                 }
             } else {
                 ficha.poderes.push({
@@ -215,10 +216,12 @@ export function PoderesFormProvider({ children }) {
                     alcance: parseFloat(poderAlcance) || 1,
                     area: parseFloat(poderArea) || 0,
                     armaVinculada: armaSafe,
+                    // 🗂️ Pasta: disponível pra QUALQUER categoria (ver comentário em cima, no
+                    // ramo de edição) — sempre gravada, igual já era só pra Forma antes.
+                    pasta: (pastaPoder || '').trim(),
                     ...(abaAtual === 'forma' ? {
                         maestria: Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0)),
                         fadigaPorUso: Math.max(0, parseFloat(fadigaPorUsoPoder) || 0),
-                        pasta: (pastaPoder || '').trim()
                     } : abaAtual === 'habilidade' ? {
                         maestria: Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0)),
                         maestriaRequerida: Math.min(100, Math.max(0, parseFloat(maestriaRequeridaPoder) || 0))
@@ -404,21 +407,34 @@ export function PoderesFormProvider({ children }) {
         });
     }, [poderesGlobais, abaAtual]);
 
+    // 🗂️ Pastas existentes pra sugestão (datalist) no campo Pasta do editor — olha pra TODOS os
+    // poderes (Formas, Habilidades e Poderes), não só Formas, já que a Pasta deixou de ser
+    // exclusiva de Forma (ver salvarNovoPoder acima).
     const pastasExistentes = useMemo(() => {
         const set = new Set();
         poderesGlobais.forEach(p => {
-            if (p && (p.categoria || '').toLowerCase() === 'forma' && (p.pasta || '').trim()) {
+            if (p && (p.pasta || '').trim()) {
                 set.add(p.pasta.trim());
             }
         });
         return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
     }, [poderesGlobais]);
 
-    const renomearPastaForma = useCallback((pastaAntiga, pastaNova) => {
+    // 🗂️ Renomeia (ou remove, se pastaNova vier vazia) uma pasta nos poderes que a usam — nome
+    // mantido (renomearPastaForma) por compatibilidade com quem já chama esta função, mas não é
+    // mais exclusiva de Forma. `categoria` (opcional) escopa a operação só aos poderes DAQUELA
+    // categoria — a UI (PoderesSubComponents.jsx > renomearOuRemoverPasta) sempre passa a aba
+    // atual, pra renomear uma pasta na aba Habilidades nunca afetar sem querer uma Forma ou Poder
+    // que reusa o mesmo nome de pasta. Omitir `categoria` (ex: chamada direta em testes/scripts)
+    // continua renomeando em TODAS as categorias, comportamento original desta função.
+    const renomearPastaForma = useCallback((pastaAntiga, pastaNova, categoria) => {
         const novaLimpa = (pastaNova || '').trim();
+        const catAlvo = categoria ? categoria.toLowerCase() : null;
         updateFicha((ficha) => {
             (ficha.poderes || []).forEach(p => {
-                if (p && (p.categoria || '').toLowerCase() === 'forma' && (p.pasta || '').trim() === pastaAntiga) {
+                if (!p) return;
+                if (catAlvo && (p.categoria || '').toLowerCase() !== catAlvo) return;
+                if ((p.pasta || '').trim() === pastaAntiga) {
                     p.pasta = novaLimpa;
                 }
             });

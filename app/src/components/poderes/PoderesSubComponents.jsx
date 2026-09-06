@@ -246,19 +246,17 @@ export function PoderesFormEditor() {
                         />
                     </div>
                 )}
-                {abaAtual === 'forma' && (
-                    <div className="fade-in">
-                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }} title="Organize suas Formas em pastas. Selecione uma existente ou digite um nome novo.">🗂️ Pasta (Opc.)</label>
-                        <input
-                            type="text" list="pastas-formas-datalist" placeholder="Sem pasta"
-                            value={pastaPoder} onChange={e => setPastaPoder(e.target.value)}
-                            style={{ width: '100%', textAlign: 'center' }}
-                        />
-                        <datalist id="pastas-formas-datalist">
-                            {(pastasExistentes || []).map(nome => <option key={nome} value={nome} />)}
-                        </datalist>
-                    </div>
-                )}
+                <div className="fade-in">
+                    <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }} title="Organize Formas, Habilidades e Poderes em pastas. Selecione uma existente ou digite um nome novo.">🗂️ Pasta (Opc.)</label>
+                    <input
+                        type="text" list="pastas-formas-datalist" placeholder="Sem pasta"
+                        value={pastaPoder} onChange={e => setPastaPoder(e.target.value)}
+                        style={{ width: '100%', textAlign: 'center' }}
+                    />
+                    <datalist id="pastas-formas-datalist">
+                        {(pastasExistentes || []).map(nome => <option key={nome} value={nome} />)}
+                    </datalist>
+                </div>
             </div>
 
             <textarea 
@@ -336,9 +334,14 @@ export function PoderesFormEditor() {
     );
 }
 
-// 🗂️ Nome do "bucket" pra Formas sem pasta atribuída — nunca colide com um nome de pasta real
+// 🗂️ Nome do "bucket" pra itens sem pasta atribuída — nunca colide com um nome de pasta real
 // porque pastaPoder é sempre .trim()'ado antes de salvar (nunca fica só espaços).
 const SEM_PASTA = 'Sem Pasta';
+
+// 🗂️ Plural com artigo de cada categoria, pro texto do prompt de renomear pasta (Pasta deixou de
+// ser exclusiva de Forma — este texto não pode mais dizer "Formas" fixo quando quem está
+// renomeando está na aba Habilidades ou Poderes).
+const PLURAL_COM_ARTIGO = { habilidade: 'as Habilidades', forma: 'as Formas', poder: 'os Poderes' };
 
 export function PoderesLista() {
     const ctx = usePoderesForm();
@@ -354,14 +357,19 @@ export function PoderesLista() {
     } = ctx;
 
     const [pastasFechadas, setPastasFechadas] = useState({});
-    const toggleFechada = (nome) => setPastasFechadas(prev => ({ ...prev, [nome]: !prev[nome] }));
+    // Namespaced por categoria (abaAtual::nome) — sem isso, recolher "Combos" na aba Habilidades
+    // também recolheria uma pasta "Combos" de outra categoria que reusasse o mesmo nome.
+    const toggleFechada = (nome) => setPastasFechadas(prev => ({ ...prev, [`${abaAtual}::${nome}`]: !prev[`${abaAtual}::${nome}`] }));
 
     const sing = SINGULAR[abaAtual] || 'Poder/Habilidade';
 
     const renomearOuRemoverPasta = (nomeAtual) => {
-        const novo = window.prompt(`Renomear a pasta "${nomeAtual}" (deixe em branco pra remover a pasta e soltar as Formas em "${SEM_PASTA}"):`, nomeAtual);
+        const plural = PLURAL_COM_ARTIGO[abaAtual] || 'os itens';
+        const novo = window.prompt(`Renomear a pasta "${nomeAtual}" (deixe em branco pra remover a pasta e soltar ${plural} em "${SEM_PASTA}"):`, nomeAtual);
         if (novo === null) return;
-        renomearPastaForma(nomeAtual, novo);
+        // Escopado só à categoria atual (abaAtual) — renomear uma pasta na aba Habilidades nunca
+        // deve afetar sem querer uma Forma/Poder que reusa o mesmo nome de pasta.
+        renomearPastaForma(nomeAtual, novo, abaAtual);
     };
 
     const renderItem = (p) => {
@@ -576,9 +584,13 @@ export function PoderesLista() {
             );
     };
 
-    // 🗂️ Só a aba "🎭 Formas" agrupa por pasta — Habilidades e Poderes continuam em lista simples.
+    // 🗂️ A aba "🎭 Formas" SEMPRE agrupa por pasta (comportamento original, preservado — quem
+    // nunca usou pasta nas Formas continua vendo o bucket único "📁 Sem Pasta"). Habilidades e
+    // Poderes, que só ganharam Pasta agora, só entram em modo agrupado se ALGUM item da aba já
+    // tiver uma pasta atribuída — senão continuam em lista simples, sem um "📁 Sem Pasta" boiando
+    // sozinho pra quem nunca usou pastas nessas duas categorias.
     let grupos = null;
-    if (abaAtual === 'forma') {
+    if (abaAtual === 'forma' || itensFiltrados.some(p => p && (p.pasta || '').trim())) {
         const mapa = {};
         itensFiltrados.forEach(p => {
             if (!p) return;
@@ -597,7 +609,7 @@ export function PoderesLista() {
                 <p style={{ opacity: 0.5, fontStyle: 'italic', textAlign: 'center' }}>Nenhum registo deste tipo na sua alma.</p>
             ) : grupos ? (
                 grupos.map(({ nome, itens }) => {
-                    const fechada = !!pastasFechadas[nome];
+                    const fechada = !!pastasFechadas[`${abaAtual}::${nome}`];
                     return (
                         <div key={nome} style={{ marginTop: 20 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px dashed currentColor', paddingBottom: 8 }}>

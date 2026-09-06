@@ -84,9 +84,10 @@ describe('PoderesFormContext — salvarNovoPoder(): Maestria só é salva na aba
     // podem requerer certo nível de Maestria afim de não gerar gasto/Fadiga") — diferente da
     // Maestria de FORMA (sustentar uma transformação ativa), aqui é "o quanto o personagem já
     // domina ESTA Habilidade específica" comparado contra maestriaRequerida (ver
-    // core/fadiga.js > calcularGanhoFadigaMaestriaInsuficiente). fadigaPorUso e pasta continuam
-    // exclusivos de Forma.
-    it('criar um poder novo na aba "🗡️ Habilidades" grava maestria/maestriaRequerida (NÃO fadigaPorUso/pasta, exclusivos de Forma)', async () => {
+    // core/fadiga.js > calcularGanhoFadigaMaestriaInsuficiente). fadigaPorUso continua exclusivo
+    // de Forma; Pasta, por outro lado, deixou de ser exclusiva de Forma (pedido do usuário pra
+    // organizar Habilidades/Poderes em pastas também, ver pastasExistentes/renomearPastaForma).
+    it('criar um poder novo na aba "🗡️ Habilidades" grava maestria/maestriaRequerida/pasta (mas NÃO fadigaPorUso, exclusivo de Forma)', async () => {
         montarStore();
         render(<PoderesFormProvider><Harness /></PoderesFormProvider>);
 
@@ -96,6 +97,7 @@ describe('PoderesFormContext — salvarNovoPoder(): Maestria só é salva na aba
             probe.setDescricaoPoder('Um golpe físico.');
             probe.setMaestriaPoder(80);
             probe.setMaestriaRequeridaPoder(50);
+            probe.setPastaPoder('Combos Físicos');
         });
 
         await act(async () => { probe.salvarNovoPoder(); });
@@ -106,7 +108,7 @@ describe('PoderesFormContext — salvarNovoPoder(): Maestria só é salva na aba
         expect(novo.maestria).toBe(80);
         expect(novo.maestriaRequerida).toBe(50);
         expect('fadigaPorUso' in novo).toBe(false);
-        expect('pasta' in novo).toBe(false);
+        expect(novo.pasta).toBe('Combos Físicos');
     });
 
     it('criar um poder novo na aba "✨ Poderes" também NÃO grava maestria', async () => {
@@ -251,26 +253,28 @@ describe('PoderesFormContext — salvarNovoPoder() no caminho de EDIÇÃO: troca
         expect(editado.categoria).toBe('habilidade');
         expect(editado.maestria).toBe(70); // carregado da Forma, agora reinterpretado como Maestria da Habilidade
         expect(editado.maestriaRequerida).toBe(40);
-        // fadigaPorUso/pasta são exclusivos de Forma — precisam ser removidos ao trocar de categoria.
+        // fadigaPorUso continua exclusivo de Forma — precisa ser removido ao trocar de categoria.
         expect('fadigaPorUso' in editado).toBe(false);
-        expect('pasta' in editado).toBe(false);
+        // Pasta NÃO é mais exclusiva de Forma — continua no poder mesmo depois de virar Habilidade.
+        expect(editado.pasta).toBe('X');
     });
 });
 
 // ---------------------------------------------------------------------------
 // Bloco 4 — UI: o input de Maestria aparece nas abas "forma" E "habilidade" (cada uma com o seu
-// próprio conjunto de campos — Formas: Maestria + Fadiga por Uso + Pasta; Habilidades: Maestria +
-// Maestria Requerida), NUNCA na aba "poder".
+// próprio conjunto de campos — Formas: Maestria + Fadiga por Uso; Habilidades: Maestria +
+// Maestria Requerida), NUNCA na aba "poder". Pasta aparece em TODAS as abas (não é mais exclusiva
+// de Forma).
 // ---------------------------------------------------------------------------
 describe('PoderesFormEditor (UI) — os campos de Maestria aparecem nas abas "forma" e "habilidade", nunca em "poder"', () => {
-    it('aba "🗡️ Habilidades" (padrão) mostra Maestria E Maestria Requerida, mas NÃO Fadiga por Uso/Pasta (exclusivos de Forma)', () => {
+    it('aba "🗡️ Habilidades" (padrão) mostra Maestria E Maestria Requerida, mas NÃO Fadiga por Uso (exclusivo de Forma); Pasta continua visível', () => {
         montarStore();
         render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesFormEditor /></PoderesFormProvider>);
 
         expect(screen.getByText(/🎓 Maestria \(%\)/)).toBeDefined();
         expect(screen.getByText(/Maestria Requerida/i)).toBeDefined();
         expect(screen.queryByText(/Fadiga por Uso/i)).toBeNull();
-        expect(screen.queryByText(/Pasta/i)).toBeNull();
+        expect(screen.getByText(/Pasta \(Opc\.\)/i)).toBeDefined();
     });
 
     it('digitar 150 no campo de Maestria Requerida (aba Habilidades) clampa visualmente pra 100, e -20 clampa pra 0', () => {

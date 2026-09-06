@@ -6,6 +6,7 @@ import { MapaFerramentasMestre } from './MapaFerramentasMestre';
 import { MapaAreaCentral } from './MapaGrelha';
 import { AtaqueFormProvider } from '../combate/AtaqueFormContext';
 import { PoderesFormProvider } from '../poderes/PoderesFormContext';
+import { ArsenalFormProvider } from '../arsenal/ArsenalFormContext';
 
 export default function MapaPanel({ className, children }) {
     const hasChildren = React.Children.count(children) > 0;
@@ -38,7 +39,9 @@ export default function MapaPanel({ className, children }) {
                             <MapaIniciativaTracker />
                             {mapaEmFoco && (
                                 <AtaqueFormProvider>
-                                    <MapaAtaqueArma />
+                                    <ArsenalFormProvider>
+                                        <MapaAtaqueArma />
+                                    </ArsenalFormProvider>
                                     <MapaAtaquesSalvos />
                                 </AtaqueFormProvider>
                             )}

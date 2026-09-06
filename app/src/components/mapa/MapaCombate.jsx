@@ -4,6 +4,7 @@ import useStore from '../../stores/useStore';
 import { useMapaForm, urlSeguraParaCss, calcularCA } from './MapaFormContext';
 import { useAtaqueForm } from '../combate/AtaqueFormContext';
 import { usePoderesForm } from '../poderes/PoderesFormContext';
+import { useArsenalForm } from '../arsenal/ArsenalFormContext';
 import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { getClassIconById } from '../../core/classIcons';
 import { calcularPoderAtual } from '../../core/poder';
@@ -516,11 +517,20 @@ export function MapaAtaquesSalvos() {
 // da aba Ataque já usa (ver AtaqueSubComponents.jsx > AtaqueBotoesAcao), inclusive o mesmo
 // requisito de ter Acertado o alvo primeiro na aba Acerto (ou marcar "Ignorar Trava"). Não é uma
 // segunda regra de combate — é o MESMO botão, só que sem precisar sair do Mapa pra clicar nele.
+//
+// 🗡️ Troca rápida de arma: o sistema só permite UMA arma equipada por vez (equipar uma desequipa
+// a outra automaticamente, ver ArsenalFormContext.jsx > toggleEquiparItem — não existe "dual
+// wielding"), então "múltiplas Armas Salvas" na prática significa poder TROCAR de arma rápido sem
+// sair do Mapa pra ir na aba Arsenal. Lista todas as armas do inventário; clicar numa equipa ela
+// (reusa o MESMO toggleEquiparItem do Arsenal, incluindo o recálculo de vitais que ele já faz) —
+// a arma equipada aparece destacada e é a que o ATACAR/ROLAR DANO acima já usa.
 export function MapaAtaqueArma() {
     const ataqueCtx = useAtaqueForm();
+    const arsenalCtx = useArsenalForm();
     if (!ataqueCtx) return null;
-    const { armaEquipada, podeRolarDano, ignorarTravaAcerto, setIgnorarTravaAcerto, rolarDano, dummieAlvo } = ataqueCtx;
+    const { armaEquipada, podeRolarDano, ignorarTravaAcerto, setIgnorarTravaAcerto, rolarDano, dummieAlvo, minhaFicha } = ataqueCtx;
     const podeAtacar = podeRolarDano || ignorarTravaAcerto;
+    const armas = (minhaFicha?.inventario || []).filter(i => i.tipo === 'arma');
 
     return (
         <div className="def-box" style={{ marginTop: 15, padding: '8px 12px', border: '1px solid #f90' }}>
@@ -531,6 +541,27 @@ export function MapaAtaqueArma() {
                     Ignorar Trava de Acerto (P/ Saving Throws ou Área)
                 </label>
             </div>
+
+            {arsenalCtx && armas.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
+                    {armas.map(arma => (
+                        <button
+                            key={arma.id}
+                            className="btn-neon"
+                            onClick={() => { if (!arma.equipado) arsenalCtx.toggleEquiparItem(arma.id); }}
+                            title={arma.equipado ? 'Arma equipada atualmente' : 'Clique pra equipar (desequipa a arma atual)'}
+                            style={{
+                                margin: 0, padding: '4px 12px', fontSize: '0.85em', fontWeight: 'bold', borderColor: '#f90',
+                                background: arma.equipado ? 'rgba(255,153,0,0.3)' : 'transparent',
+                                color: arma.equipado ? '#fff' : '#f90',
+                            }}
+                        >
+                            {arma.equipado ? '🗡️' : '⚪'} {arma.nome || 'Sem nome'}
+                        </button>
+                    ))}
+                </div>
+            )}
+
             <p style={{ color: '#888', fontSize: '0.8em', margin: '4px 0 8px 0' }}>
                 {armaEquipada ? `Arma equipada: ${armaEquipada.nome}` : 'Nenhuma arma equipada — role assim mesmo com a config de dano atual da aba Ataque.'}
             </p>
@@ -551,44 +582,112 @@ export function MapaAtaqueArma() {
     );
 }
 
+const MAPA_TECNICAS_CATEGORIAS = {
+    forma: { label: '🎭 Formas', cor: '#aa00ff' },
+    habilidade: { label: '🗡️ Habilidades', cor: '#ff8800' },
+    poder: { label: '✨ Poderes', cor: '#00ffcc' },
+};
+const MAPA_TECNICAS_SEM_PASTA = 'Sem Pasta';
+
 // 🔥 Ativa/desativa Poderes/Formas/Habilidades criadas no Grimório direto do Mapa, sem precisar
 // sair do combate — reusa o MESMO togglePoder (PoderesFormContext.jsx) que a aba Poderes/Grimório
 // usa (mesmo p.ativa, mesmo recálculo de vitais ao ligar/desligar uma Forma). Não dispara dano
 // sozinha (o Poder/Forma entra na conta do rolarDano/Modo Deus normalmente, do jeito que já
 // funciona hoje) — é só o interruptor rápido pra ligar a técnica ANTES de atacar.
+//
+// 🗂️ Organização: agrupa primeiro por CATEGORIA (Formas/Habilidades/Poderes — as 3 abas do
+// Grimório) e, dentro de cada uma, por PASTA (p.pasta, mesmo campo que a aba Poderes usa — ver
+// PoderesFormContext.jsx). Formas sempre agrupam por pasta (mesmo comportamento de sempre na aba
+// Poderes); Habilidades/Poderes só agrupam se algum item da categoria já tiver uma pasta
+// atribuída, senão ficam em lista simples — pedido do usuário pra organizar a lista longa de
+// técnicas que aparecia toda achatada no Mapa.
 export function MapaTecnicasRapidas() {
     const poderesCtx = usePoderesForm();
+    const [pastasFechadas, setPastasFechadas] = useState({});
     if (!poderesCtx) return null;
     const { minhaFicha, togglePoder } = poderesCtx;
     const poderes = minhaFicha?.poderes || [];
+    const toggleFechada = (chave) => setPastasFechadas(prev => ({ ...prev, [chave]: !prev[chave] }));
+
+    if (poderes.length === 0) {
+        return (
+            <div className="def-box" style={{ marginTop: 15, padding: '8px 12px', border: '1px solid #aa00ff' }}>
+                <h4 style={{ color: '#aa00ff', margin: 0 }}>📖 Minhas Técnicas (Grimório)</h4>
+                <p style={{ color: '#888', fontSize: '0.8em', margin: '8px 0 0 0' }}>
+                    Nenhuma técnica criada ainda. Vá no <strong>Grimório</strong> (Livro dos Poderes) pra criar Poderes/Formas/Habilidades e ativá-las direto por aqui.
+                </p>
+            </div>
+        );
+    }
+
+    const renderChip = (p) => (
+        <button
+            key={p.id}
+            className="btn-neon"
+            onClick={() => togglePoder(p.id)}
+            title={p.descricao || ''}
+            style={{
+                margin: 0, padding: '6px 14px', fontWeight: 'bold', borderColor: '#aa00ff',
+                background: p.ativa ? 'rgba(170,0,255,0.3)' : 'transparent',
+                color: p.ativa ? '#fff' : '#aa00ff',
+            }}
+        >
+            {p.ativa ? '★' : '☆'} {p.nome || 'Sem nome'}
+        </button>
+    );
 
     return (
         <div className="def-box" style={{ marginTop: 15, padding: '8px 12px', border: '1px solid #aa00ff' }}>
             <h4 style={{ color: '#aa00ff', margin: '0 0 8px 0' }}>📖 Minhas Técnicas (Grimório)</h4>
+            {Object.keys(MAPA_TECNICAS_CATEGORIAS).map(cat => {
+                const itensCat = poderes.filter(p => p && ((p.categoria || 'poder').toLowerCase() === cat));
+                if (itensCat.length === 0) return null;
+                const info = MAPA_TECNICAS_CATEGORIAS[cat];
 
-            {poderes.length === 0 ? (
-                <p style={{ color: '#888', fontSize: '0.8em', margin: 0 }}>
-                    Nenhuma técnica criada ainda. Vá no <strong>Grimório</strong> (Livro dos Poderes) pra criar Poderes/Formas/Habilidades e ativá-las direto por aqui.
-                </p>
-            ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    {poderes.map(p => (
-                        <button
-                            key={p.id}
-                            className="btn-neon"
-                            onClick={() => togglePoder(p.id)}
-                            title={p.descricao || ''}
-                            style={{
-                                margin: 0, padding: '6px 14px', fontWeight: 'bold', borderColor: '#aa00ff',
-                                background: p.ativa ? 'rgba(170,0,255,0.3)' : 'transparent',
-                                color: p.ativa ? '#fff' : '#aa00ff',
-                            }}
-                        >
-                            {p.ativa ? '★' : '☆'} {p.nome}
-                        </button>
-                    ))}
-                </div>
-            )}
+                let grupos = null;
+                if (cat === 'forma' || itensCat.some(p => (p.pasta || '').trim())) {
+                    const mapa = {};
+                    itensCat.forEach(p => {
+                        const nome = (p.pasta || '').trim() || MAPA_TECNICAS_SEM_PASTA;
+                        if (!mapa[nome]) mapa[nome] = [];
+                        mapa[nome].push(p);
+                    });
+                    const nomes = Object.keys(mapa).filter(n => n !== MAPA_TECNICAS_SEM_PASTA).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+                    if (mapa[MAPA_TECNICAS_SEM_PASTA]) nomes.push(MAPA_TECNICAS_SEM_PASTA);
+                    grupos = nomes.map(nome => ({ nome, itens: mapa[nome] }));
+                }
+
+                return (
+                    <div key={cat} style={{ marginTop: 10 }}>
+                        <div style={{ color: info.cor, fontWeight: 'bold', fontSize: '0.85em', marginBottom: 6, borderBottom: `1px dashed ${info.cor}`, paddingBottom: 4 }}>
+                            {info.label}
+                        </div>
+                        {grupos ? grupos.map(({ nome, itens }) => {
+                            const chave = `${cat}::${nome}`;
+                            const fechada = !!pastasFechadas[chave];
+                            return (
+                                <div key={nome} style={{ marginBottom: 8 }}>
+                                    <button
+                                        onClick={() => toggleFechada(chave)}
+                                        style={{ background: 'none', border: 'none', color: info.cor, fontWeight: 'bold', fontSize: '0.8em', padding: '2px 0', cursor: 'pointer' }}
+                                    >
+                                        {fechada ? '▶' : '▼'} 📁 {nome} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>({itens.length})</span>
+                                    </button>
+                                    {!fechada && (
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                                            {itens.map(renderChip)}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        }) : (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                {itensCat.map(renderChip)}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
         </div>
     );
 }

@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaAtaqueArma, MapaTecnicasRapidas } from './MapaCombate';
 import { AtaqueFormProvider } from '../combate/AtaqueFormContext';
 import { PoderesFormProvider } from '../poderes/PoderesFormContext';
+import { ArsenalFormProvider } from '../arsenal/ArsenalFormContext';
 import useStore from '../../stores/useStore';
 import { salvarDummie, enviarParaFeed } from '../../services/firebase-sync';
 
@@ -44,6 +45,12 @@ function montarStore(overrides = {}) {
         setEfeitosTempPassivos: vi.fn(),
         poderEditandoId: null,
         setPoderEditandoId: vi.fn(),
+        itemEditandoId: null,
+        setItemEditandoId: vi.fn(),
+        efeitosTempArsenal: [],
+        setEfeitosTempArsenal: vi.fn(),
+        efeitosTempPassivosArsenal: [],
+        setEfeitosTempPassivosArsenal: vi.fn(),
         ...overrides,
     };
     useStore.mockImplementation((selector) => (typeof selector === 'function' ? selector(mockState) : mockState));
@@ -200,6 +207,99 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
         expect(salvarDummie).toHaveBeenNthCalledWith(1, 'goblin1', expect.objectContaining({ hpAtual: 40 }));
         expect(salvarDummie).toHaveBeenNthCalledWith(2, 'goblin1', expect.objectContaining({ hpAtual: 40 }));
     });
+
+    // -------------------------------------------------------------------------
+    // QA — Troca rápida de arma (reusa toggleEquiparItem de ArsenalFormContext.jsx). Só renderiza
+    // quando o Mapa está DENTRO de um ArsenalFormProvider também (ver MapaPanel.jsx) — sem ele,
+    // o componente já cobre graciosamente (arsenalCtx null) nos testes anteriores desta suíte.
+    // -------------------------------------------------------------------------
+    describe('troca rápida de arma (ArsenalFormProvider)', () => {
+        it('lista todas as armas do inventário, destacando a equipada', () => {
+            montarStore({
+                minhaFicha: {
+                    poderes: [],
+                    inventario: [
+                        { id: 1, nome: 'Espada Longa', tipo: 'arma', equipado: true },
+                        { id: 2, nome: 'Arco Curto', tipo: 'arma', equipado: false },
+                    ],
+                },
+            });
+            const { getByText } = render(
+                <AtaqueFormProvider><ArsenalFormProvider><MapaAtaqueArma /></ArsenalFormProvider></AtaqueFormProvider>
+            );
+
+            expect(getByText('🗡️ Espada Longa')).toBeTruthy();
+            expect(getByText('⚪ Arco Curto')).toBeTruthy();
+        });
+
+        it('clicar numa arma NÃO equipada chama toggleEquiparItem, que a equipa e desequipa a anterior (mesma função do Arsenal)', () => {
+            const minhaFicha = {
+                poderes: [],
+                inventario: [
+                    { id: 1, nome: 'Espada Longa', tipo: 'arma', equipado: true },
+                    { id: 2, nome: 'Arco Curto', tipo: 'arma', equipado: false },
+                ],
+            };
+            montarStore({ minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)) });
+            const { getByText } = render(
+                <AtaqueFormProvider><ArsenalFormProvider><MapaAtaqueArma /></ArsenalFormProvider></AtaqueFormProvider>
+            );
+
+            act(() => { getByText('⚪ Arco Curto').click(); });
+
+            const [espada, arco] = minhaFicha.inventario;
+            expect(arco.equipado).toBe(true);
+            expect(espada.equipado).toBe(false); // toggleEquiparItem desequipa a arma anterior automaticamente
+        });
+
+        it('clicar na arma JÁ equipada não faz nada (não desequipa, não chama updateFicha de novo)', () => {
+            const minhaFicha = {
+                poderes: [],
+                inventario: [{ id: 1, nome: 'Espada Longa', tipo: 'arma', equipado: true }],
+            };
+            const updateFicha = vi.fn((cb) => cb(minhaFicha));
+            montarStore({ minhaFicha, updateFicha });
+            const { getByText } = render(
+                <AtaqueFormProvider><ArsenalFormProvider><MapaAtaqueArma /></ArsenalFormProvider></AtaqueFormProvider>
+            );
+
+            act(() => { getByText('🗡️ Espada Longa').click(); });
+
+            expect(minhaFicha.inventario[0].equipado).toBe(true);
+            expect(updateFicha).not.toHaveBeenCalled();
+        });
+
+        it('sem inventário nenhum, não mostra a lista de armas nem lança', () => {
+            montarStore({ minhaFicha: { poderes: [], inventario: [] } });
+            expect(() => {
+                render(<AtaqueFormProvider><ArsenalFormProvider><MapaAtaqueArma /></ArsenalFormProvider></AtaqueFormProvider>);
+            }).not.toThrow();
+        });
+
+        // ---------------------------------------------------------------------
+        // QA — item com tipo 'arma' mas `equipado` NUNCA setado (undefined, não `false`) — cobre
+        // o caso de armas antigas/legadas cujo registro nunca passou por um toggle. O chip precisa
+        // tratar undefined como "não equipada" (⚪), igual trataria `false`, e o clique precisa
+        // funcionar normalmente (chama toggleEquiparItem).
+        // ---------------------------------------------------------------------------
+        it('uma arma com `equipado` nunca definido (undefined) renderiza como NÃO equipada (⚪) e o clique nela chama toggleEquiparItem normalmente', () => {
+            const minhaFicha = {
+                poderes: [],
+                inventario: [{ id: 1, nome: 'Adaga Enferrujada', tipo: 'arma' }], // sem a chave "equipado" de jeito nenhum
+            };
+            montarStore({ minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)) });
+            const { getByText, queryByText } = render(
+                <AtaqueFormProvider><ArsenalFormProvider><MapaAtaqueArma /></ArsenalFormProvider></AtaqueFormProvider>
+            );
+
+            expect(getByText('⚪ Adaga Enferrujada')).toBeTruthy();
+            expect(queryByText('🗡️ Adaga Enferrujada')).toBeNull();
+
+            act(() => { getByText('⚪ Adaga Enferrujada').click(); });
+
+            expect(minhaFicha.inventario[0].equipado).toBe(true);
+        });
+    });
 });
 
 describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Grimório direto do Mapa', () => {
@@ -241,7 +341,7 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
         expect(() => render(<MapaTecnicasRapidas />)).not.toThrow();
     });
 
-    it('não lança ao renderizar um poder sem "nome" (undefined) nem com nome vazio — chip aparece só com a estrela', () => {
+    it('não lança ao renderizar um poder sem "nome" (undefined) nem com nome vazio — chip cai no fallback "Sem nome"', () => {
         const minhaFicha = {
             poderes: [
                 { id: 'p1', nome: undefined, categoria: 'habilidade', ativa: false, vida: {}, mana: {}, aura: {}, chakra: {}, corpo: {} },
@@ -257,8 +357,8 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
 
         const botoes = getAllByRole('button');
         expect(botoes.length).toBe(2);
-        expect(botoes[0].textContent.trim()).toBe('☆');
-        expect(botoes[1].textContent.trim()).toBe('★');
+        expect(botoes[0].textContent.trim()).toBe('☆ Sem nome');
+        expect(botoes[1].textContent.trim()).toBe('★ Sem nome');
     });
 
     it('alterna um poder normalmente mesmo com um alvo selecionado e podeRolarDano (Ataque) falso — toggle de Técnica não depende da trava de Acerto do Mapa', () => {
@@ -282,6 +382,150 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
         act(() => { getByText('☆ Bola de Fogo').click(); });
 
         expect(minhaFicha.poderes[0].ativa).toBe(true);
+    });
+
+    // -------------------------------------------------------------------------
+    // QA — Organização por categoria (Formas/Habilidades/Poderes) e por pasta dentro de cada uma
+    // (mesmo campo p.pasta que a aba Poderes usa, ver PoderesFormContext.jsx) — pedido do usuário
+    // pra não ficar tudo achatado numa lista só, como aparecia antes no Mapa.
+    // -------------------------------------------------------------------------
+    describe('organização por categoria e por pasta', () => {
+        it('separa em 3 seções (Formas/Habilidades/Poderes), escondendo as categorias vazias', () => {
+            montarStore({
+                minhaFicha: {
+                    poderes: [
+                        { id: 1, nome: 'Bankai', categoria: 'forma', ativa: false },
+                        { id: 2, nome: 'Golpe Rápido', categoria: 'habilidade', ativa: false },
+                    ],
+                },
+            });
+            const { getByText, queryByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            expect(getByText('🎭 Formas')).toBeTruthy();
+            expect(getByText('🗡️ Habilidades')).toBeTruthy();
+            // Nenhum "poder" (categoria 'poder') na ficha -> a seção "✨ Poderes" nem aparece.
+            expect(queryByText('✨ Poderes')).toBeNull();
+        });
+
+        it('Formas SEMPRE agrupam por pasta, mesmo sem nenhuma pasta atribuída (cai tudo em "Sem Pasta")', () => {
+            montarStore({
+                minhaFicha: {
+                    poderes: [
+                        { id: 1, nome: 'Bankai', categoria: 'forma', ativa: false },
+                        { id: 2, nome: 'Modo Berserker', categoria: 'forma', ativa: false },
+                    ],
+                },
+            });
+            const { getByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            expect(getByText(/Sem Pasta/)).toBeTruthy();
+            // Ambas as Formas continuam visíveis dentro do grupo (expandido por padrão).
+            expect(getByText('☆ Bankai')).toBeTruthy();
+            expect(getByText('☆ Modo Berserker')).toBeTruthy();
+        });
+
+        it('Formas com pastas diferentes aparecem em cabeçalhos separados, em ordem alfabética', () => {
+            montarStore({
+                minhaFicha: {
+                    poderes: [
+                        { id: 1, nome: 'Zeta', categoria: 'forma', ativa: false, pasta: 'Zulu' },
+                        { id: 2, nome: 'Alfa', categoria: 'forma', ativa: false, pasta: 'Alpha' },
+                    ],
+                },
+            });
+            const { getAllByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            const cabecalhos = getAllByText(/📁/).map(el => el.textContent);
+            expect(cabecalhos[0]).toContain('Alpha');
+            expect(cabecalhos[1]).toContain('Zulu');
+        });
+
+        it('Habilidades continuam em lista simples (sem cabeçalho 📁) enquanto nenhuma tiver pasta', () => {
+            montarStore({
+                minhaFicha: {
+                    poderes: [{ id: 1, nome: 'Golpe Rápido', categoria: 'habilidade', ativa: false }],
+                },
+            });
+            const { getByText, queryByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            expect(getByText('☆ Golpe Rápido')).toBeTruthy();
+            expect(queryByText(/📁/)).toBeNull();
+        });
+
+        it('Habilidades passam a agrupar por pasta assim que alguma delas tiver uma pasta atribuída', () => {
+            montarStore({
+                minhaFicha: {
+                    poderes: [
+                        { id: 1, nome: 'Golpe Rápido', categoria: 'habilidade', ativa: false, pasta: 'Combos' },
+                        { id: 2, nome: 'Grito de Guerra', categoria: 'habilidade', ativa: false },
+                    ],
+                },
+            });
+            const { getByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            expect(getByText(/📁 Combos/)).toBeTruthy();
+            expect(getByText(/Sem Pasta/)).toBeTruthy();
+        });
+
+        // -----------------------------------------------------------------
+        // QA — filtro de categoria em cada seção: `(p.categoria || 'poder').toLowerCase() === cat`.
+        // Um poder SEM categoria (undefined/ausente) cai no fallback 'poder' e aparece na seção
+        // "✨ Poderes". Já um poder com uma categoria ESTRANHA/legada (não vazia, mas também não
+        // 'forma'/'habilidade'/'poder') não bate com NENHUM dos 3 filtros — o fallback só entra em
+        // jogo quando `p.categoria` é falsy, não quando é uma string não reconhecida — então ele
+        // desaparece silenciosamente das 3 seções. Documentado aqui como comportamento real (não é
+        // uma regressão desta sessão: o mesmo padrão de filtro já existe em
+        // PoderesFormContext.itensFiltrados), mas vale registrar via teste.
+        // -----------------------------------------------------------------
+        it('um poder SEM campo "categoria" (undefined) cai no fallback e aparece na seção "✨ Poderes"', () => {
+            montarStore({
+                minhaFicha: {
+                    poderes: [{ id: 1, nome: 'Relíquia Sem Categoria', ativa: false }],
+                },
+            });
+            const { getByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            expect(getByText('✨ Poderes')).toBeTruthy();
+            expect(getByText('☆ Relíquia Sem Categoria')).toBeTruthy();
+        });
+
+        it('DOCUMENTA: um poder com uma categoria ESTRANHA/legada (ex: "legado", não vazia) some das 3 seções silenciosamente, sem lançar', () => {
+            montarStore({
+                minhaFicha: {
+                    poderes: [
+                        { id: 1, nome: 'Item Legado', categoria: 'legado', ativa: false },
+                        { id: 2, nome: 'Golpe Normal', categoria: 'habilidade', ativa: false },
+                    ],
+                },
+            });
+            const { getByText, queryByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            // O item normal aparece normalmente...
+            expect(getByText('☆ Golpe Normal')).toBeTruthy();
+            // ...mas o item de categoria estranha não aparece em NENHUMA das 3 seções, nem lança.
+            expect(queryByText(/Item Legado/)).toBeNull();
+            expect(queryByText('🎭 Formas')).toBeNull();
+            expect(queryByText('✨ Poderes')).toBeNull();
+        });
+
+        it('clicar no cabeçalho de uma pasta recolhe e esconde os itens dela, sem afetar as outras pastas', () => {
+            montarStore({
+                minhaFicha: {
+                    poderes: [
+                        { id: 1, nome: 'Bankai', categoria: 'forma', ativa: false, pasta: 'Transformações' },
+                        { id: 2, nome: 'Ego', categoria: 'forma', ativa: false, pasta: 'Selados' },
+                    ],
+                },
+            });
+            const { getByText, queryByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+
+            expect(getByText('☆ Bankai')).toBeTruthy();
+            act(() => { getByText(/📁 Transformações/).click(); });
+
+            expect(queryByText('☆ Bankai')).toBeNull();
+            // A outra pasta continua expandida normalmente.
+            expect(getByText('☆ Ego')).toBeTruthy();
+        });
     });
 });
 
