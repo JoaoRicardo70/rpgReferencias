@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import useStore from '../../stores/useStore';
 import { useMapaForm, urlSeguraParaCss, calcularCA } from './MapaFormContext';
 import { useAtaqueForm } from '../combate/AtaqueFormContext';
+import { usePoderesForm } from '../poderes/PoderesFormContext';
 import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { getClassIconById } from '../../core/classIcons';
 import { calcularPoderAtual } from '../../core/poder';
@@ -502,6 +503,88 @@ export function MapaAtaquesSalvos() {
                             style={{ margin: 0, padding: '6px 14px', background: 'rgba(255,0,255,0.15)', borderColor: '#ff00ff', color: '#ff00ff', fontWeight: 'bold' }}
                         >
                             ▶ {f.nome}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// 🔥 Ataque com a Arma equipada, direto do Mapa — reusa o MESMO rolarDano (AtaqueFormContext.jsx)
+// e a MESMA trava de Acerto (podeRolarDano/ignorarTravaAcerto) que o botão "ATACAR"/"ROLAR DANO"
+// da aba Ataque já usa (ver AtaqueSubComponents.jsx > AtaqueBotoesAcao), inclusive o mesmo
+// requisito de ter Acertado o alvo primeiro na aba Acerto (ou marcar "Ignorar Trava"). Não é uma
+// segunda regra de combate — é o MESMO botão, só que sem precisar sair do Mapa pra clicar nele.
+export function MapaAtaqueArma() {
+    const ataqueCtx = useAtaqueForm();
+    if (!ataqueCtx) return null;
+    const { armaEquipada, podeRolarDano, ignorarTravaAcerto, setIgnorarTravaAcerto, rolarDano, dummieAlvo } = ataqueCtx;
+    const podeAtacar = podeRolarDano || ignorarTravaAcerto;
+
+    return (
+        <div className="def-box" style={{ marginTop: 15, padding: '8px 12px', border: '1px solid #f90' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                <h4 style={{ color: '#f90', margin: 0 }}>🗡️ Ataque com Arma</h4>
+                <label style={{ color: '#aaa', fontSize: '0.75em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }} title="Use pra Saving Throws ou ataques em Área, que não passam pela trava normal de Acerto">
+                    <input type="checkbox" checked={ignorarTravaAcerto} onChange={e => setIgnorarTravaAcerto(e.target.checked)} />
+                    Ignorar Trava de Acerto (P/ Saving Throws ou Área)
+                </label>
+            </div>
+            <p style={{ color: '#888', fontSize: '0.8em', margin: '4px 0 8px 0' }}>
+                {armaEquipada ? `Arma equipada: ${armaEquipada.nome}` : 'Nenhuma arma equipada — role assim mesmo com a config de dano atual da aba Ataque.'}
+            </p>
+            <button
+                className={`btn-neon ${podeAtacar ? 'btn-red' : ''}`}
+                onClick={rolarDano}
+                disabled={!podeAtacar}
+                style={{ width: '100%', margin: 0, opacity: podeAtacar ? 1 : 0.5 }}
+            >
+                {dummieAlvo ? (podeAtacar ? `⚔️ ATACAR ${dummieAlvo.nome.toUpperCase()}` : 'ACERTO NECESSÁRIO PRIMEIRO') : '⚔️ ROLAR DANO'}
+            </button>
+            {!podeAtacar && (
+                <p style={{ color: '#f90', fontSize: '0.75em', margin: '4px 0 0 0', fontStyle: 'italic' }}>
+                    Role um Acerto contra este alvo na aba Acerto primeiro, ou marque "Ignorar Trava" acima.
+                </p>
+            )}
+        </div>
+    );
+}
+
+// 🔥 Ativa/desativa Poderes/Formas/Habilidades criadas no Grimório direto do Mapa, sem precisar
+// sair do combate — reusa o MESMO togglePoder (PoderesFormContext.jsx) que a aba Poderes/Grimório
+// usa (mesmo p.ativa, mesmo recálculo de vitais ao ligar/desligar uma Forma). Não dispara dano
+// sozinha (o Poder/Forma entra na conta do rolarDano/Modo Deus normalmente, do jeito que já
+// funciona hoje) — é só o interruptor rápido pra ligar a técnica ANTES de atacar.
+export function MapaTecnicasRapidas() {
+    const poderesCtx = usePoderesForm();
+    if (!poderesCtx) return null;
+    const { minhaFicha, togglePoder } = poderesCtx;
+    const poderes = minhaFicha?.poderes || [];
+
+    return (
+        <div className="def-box" style={{ marginTop: 15, padding: '8px 12px', border: '1px solid #aa00ff' }}>
+            <h4 style={{ color: '#aa00ff', margin: '0 0 8px 0' }}>📖 Minhas Técnicas (Grimório)</h4>
+
+            {poderes.length === 0 ? (
+                <p style={{ color: '#888', fontSize: '0.8em', margin: 0 }}>
+                    Nenhuma técnica criada ainda. Vá no <strong>Grimório</strong> (Livro dos Poderes) pra criar Poderes/Formas/Habilidades e ativá-las direto por aqui.
+                </p>
+            ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {poderes.map(p => (
+                        <button
+                            key={p.id}
+                            className="btn-neon"
+                            onClick={() => togglePoder(p.id)}
+                            title={p.descricao || ''}
+                            style={{
+                                margin: 0, padding: '6px 14px', fontWeight: 'bold', borderColor: '#aa00ff',
+                                background: p.ativa ? 'rgba(170,0,255,0.3)' : 'transparent',
+                                color: p.ativa ? '#fff' : '#aa00ff',
+                            }}
+                        >
+                            {p.ativa ? '★' : '☆'} {p.nome}
                         </button>
                     ))}
                 </div>
