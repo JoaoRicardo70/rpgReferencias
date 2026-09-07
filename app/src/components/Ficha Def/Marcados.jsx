@@ -14,6 +14,7 @@ import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida } from '../../c
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel';
 import PactosPanel from './PactosPanel';
+import BarrasVida from '../shared/BarrasVida';
 
 // ==========================================
 // 🛡️ DADOS DO COMPÊNDIO E FUNÇÕES SEGURAS
@@ -661,17 +662,33 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
                     Poder: {formatarPoderCosmico(Number(poderVerdadeiro) || 0)}
                 </div>
             </div>
-            {barras.map((barra, i) => (
-                <BarraVital
-                    key={i}
-                    atual={barra.atual}
-                    maximo={barra.max}
-                    pVit={numBarras > 1 ? (i + 1) : pVit}
+            {numBarras > 1 ? (
+                // 💔 BREAK BARS: 2+ barras (ver core/vitals.js > getNumBarrasVida) usam o visual
+                // novo de barras em pílula com losangos e "quebra" animada ao esvaziar (pedido do
+                // usuário) — componente compartilhado com Status/Mestre/Mapa (components/shared/BarrasVida.jsx).
+                <BarrasVida
+                    barras={barras}
                     cor={corBarra}
                     corTexto={corTextoBarra}
-                    onChangeAtual={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, mxDisplay, i, v))}
+                    altura={35}
+                    renderTexto={(atualSeguro, maxSeguro, i) => (
+                        <>
+                            <CampoMagico valor={atualSeguro} onChange={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, mxDisplay, i, v))} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTextoBarra, textShadow: 'inherit', borderBottom: `1px dashed ${corTextoBarra === '#fff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
+                            <span style={{ margin: '0 8px' }}>/</span>
+                            <span>{maxSeguro.toLocaleString('pt-BR')}</span>
+                        </>
+                    )}
                 />
-            ))}
+            ) : (
+                <BarraVital
+                    atual={barras[0].atual}
+                    maximo={barras[0].max}
+                    pVit={pVit}
+                    cor={corBarra}
+                    corTexto={corTextoBarra}
+                    onChangeAtual={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, mxDisplay, 0, v))}
+                />
+            )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', fontSize: '0.8em', opacity: 0.85 }}>
                 <span style={{ opacity: 0.7 }}>💖 Regen/turno:</span>

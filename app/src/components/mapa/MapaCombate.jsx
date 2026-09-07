@@ -10,6 +10,7 @@ import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../.
 import { getClassIconById } from '../../core/classIcons';
 import { calcularPoderAtual } from '../../core/poder';
 import { getVitalMxDisplay, getVitalMax, getVitalMaxEstavel, calcularBarrasVida, calcularBarrasVidaDummy } from '../../core/vitals';
+import BarrasVida from '../shared/BarrasVida';
 import { formatarPoderCosmico } from '../../core/utils';
 
 // 🔥 IMPORTAÇÕES PARA RENDERIZAR O DADO 3D FÍSICO 🔥
@@ -997,10 +998,15 @@ export function MapaHologramaAcao() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(0,0,0,0.7)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffcc00', fontWeight: 'bold', paddingBottom: 8, marginBottom: 2, borderBottom: '1px solid rgba(255,255,255,0.1)' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>⚡ PODER</span><span style={{ textShadow: '0 0 6px #ffcc00' }}>{formatarPoderCosmico(poderAtualBase)}</span></div>
                                 <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff4d4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>HP</span><span>{fmt(vidaInfo.atual)}{vidaInfo.barras.length > 1 ? ` (${vidaInfo.barras.length} barras)` : ''}</span></div>
-                                    {vidaInfo.barras.map((barra, i) => (
-                                        <BarraVital key={i} atual={barra.atual} maximo={barra.max} cor="#ff4d4d" perigo />
-                                    ))}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff4d4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>HP</span><span>{fmt(vidaInfo.atual)}</span></div>
+                                    {vidaInfo.barras.length > 1 ? (
+                                        // 💔 BREAK BARS: visual novo em pílula com losangos e "quebra" animada (pedido do
+                                        // usuário) — componente compartilhado (components/shared/BarrasVida.jsx). Sem
+                                        // texto embutido (já mostrado acima) e barra mais fina, pra caber na moldura.
+                                        <BarrasVida barras={vidaInfo.barras} cor="#ff4d4d" altura={8} mostrarTexto={false} perigo />
+                                    ) : (
+                                        <BarraVital atual={vidaInfo.barras[0].atual} maximo={vidaInfo.barras[0].max} cor="#ff4d4d" perigo />
+                                    )}
                                 </div>
                                 <div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4dffff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>MP</span><span>{fmt(fichaBase.mana?.atual)}</span></div>

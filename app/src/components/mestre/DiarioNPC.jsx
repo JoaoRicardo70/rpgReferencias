@@ -3,6 +3,7 @@ import { uploadImagem } from '../../services/firebase-sync';
 import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from '../../core/attributes';
 import { getRank } from '../../core/prestige';
 import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida } from '../../core/vitals';
+import BarrasVida from '../shared/BarrasVida';
 
 // ==========================================
 // 🛡️ DADOS DO COMPÊNDIO (PARA O ÍCONE DA MOLDURA)
@@ -437,17 +438,33 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
                     {subItens && <span onClick={() => setAberta(!aberto)} style={{ cursor: 'pointer', width: '20px', display: 'inline-block', userSelect: 'none', fontWeight: 'bold' }}>{aberto ? 'v ' : '> '}</span>}
                     <LabelMagicoNPC valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
                 </div>
-                {barras.map((barra, i) => (
-                    <BarraVitalNPC
-                        key={i}
-                        atual={barra.atual}
-                        maximo={barra.max}
-                        pVit={numBarras > 1 ? (i + 1) : pVit}
+                {numBarras > 1 ? (
+                    // 💔 BREAK BARS: 2+ barras usam o visual novo em pílula com losangos e
+                    // "quebra" animada (pedido do usuário) — componente compartilhado
+                    // (components/shared/BarrasVida.jsx), mesmo usado em Ficha Def/Marcados.jsx.
+                    <BarrasVida
+                        barras={barras}
                         cor={corBarra}
                         corTexto={corTextoBarra}
-                        onChangeAtual={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, mxDisplay, i, v))}
+                        altura={35}
+                        renderTexto={(atualSeguro, maxSeguro, i) => (
+                            <>
+                                <CampoMagicoNPC valor={atualSeguro} onChange={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, mxDisplay, i, v))} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTextoBarra, textShadow: 'inherit', borderBottom: `1px dashed ${corTextoBarra === '#fff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
+                                <span style={{ margin: '0 8px' }}>/</span>
+                                <span>{maxSeguro.toLocaleString('pt-BR')}</span>
+                            </>
+                        )}
                     />
-                ))}
+                ) : (
+                    <BarraVitalNPC
+                        atual={barras[0].atual}
+                        maximo={barras[0].max}
+                        pVit={pVit}
+                        cor={corBarra}
+                        corTexto={corTextoBarra}
+                        onChangeAtual={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, mxDisplay, 0, v))}
+                    />
+                )}
                 {aberto && subItens && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginLeft: '35px', marginTop: '12px' }}>
                         {subItens.map(sub => (

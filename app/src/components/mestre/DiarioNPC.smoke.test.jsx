@@ -81,29 +81,26 @@ describe('DiarioNPC - smoke test de render (regressão do ReferenceError em Linh
         render(<DiarioNPC npcData={npc} onSaveNpc={vi.fn()} />);
 
         const linhaVida = acharLinhaVital('Vida (HP)');
-        // Vida com p=1 (getNumBarrasVida) gera 2 <BarraVitalNPC>, cada uma dentro de uma div com o
-        // boxShadow padrão da moldura (inset 0 0 10px rgba(0,0,0,0.5)).
-        const barrasVida = Array.from(linhaVida.querySelectorAll('div')).filter(d =>
-            (d.getAttribute('style') || '').includes('inset 0 0 10px rgba(0,0,0,0.5)')
-        );
+        // Vida com p=1 (getNumBarrasVida) gera 2 barras no visual novo de "Break Bars"
+        // (components/shared/BarrasVida.jsx), cada uma com a classe .break-bars-barra.
+        const barrasVida = linhaVida.querySelectorAll('.break-bars-barra');
         expect(barrasVida.length).toBe(2);
 
         // Cada barra mostra seu próprio "max" (mxDisplay = 10.000.000) formatado em pt-BR.
         expect(linhaVida.textContent).toMatch(/10\.000\.000/);
     });
 
-    it('o indicador numérico de barra (pVit / índice da barra) aparece pra CADA uma das 2 barras quando numBarras > 1 (exercitando "numBarras > 1 ? (i + 1) : pVit" em BarraVitalNPC)', () => {
+    it('a fileira de losangos ("pips") mostra uma marca pra CADA barra quando numBarras > 1 (visual novo de Break Bars, substitui o antigo indicador numérico por barra)', () => {
         const npc = criarNpcMinimo();
         render(<DiarioNPC npcData={npc} onSaveNpc={vi.fn()} />);
 
         const linhaVida = acharLinhaVital('Vida (HP)');
-        // O indicador de índice de barra é um pequeno bloco numérico (boxShadow com a cor #ff0000
-        // da barra de Vida) só renderizado quando pVit > 0 -- aqui numBarras=2, então os
-        // indicadores viram (i+1) = "1" e "2".
-        const indicadores = Array.from(linhaVida.querySelectorAll('div')).filter(d =>
-            (d.getAttribute('style') || '').includes('#ff0000') && /^\d+$/.test(d.textContent.trim())
-        );
-        expect(indicadores.map(d => d.textContent.trim()).sort()).toEqual(['1', '2']);
+        const pips = linhaVida.querySelectorAll('.break-bars-pip');
+        expect(pips.length).toBe(2);
+        // vida.atual=15.000.000 de um total de 20.000.000 -- nenhuma das 2 barras está
+        // zerada ainda, então nenhum pip deveria estar marcado como "quebrado".
+        const quebrados = linhaVida.querySelectorAll('.break-bars-pip--quebrada');
+        expect(quebrados.length).toBe(0);
     });
 
     it('não lança e ainda renderiza a Vida quando o NPC não tem NENHUMA Forma/poder (fallback dos helpers seguros)', () => {

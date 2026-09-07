@@ -9,6 +9,7 @@ import {
     safeGetMaximo, safeGetRawBase, safeGetRank,
 } from './StatusFormContext';
 import { calcularBarrasVida } from '../../core/vitals';
+import BarrasVida from '../shared/BarrasVida';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Status provider nao encontrado</div>;
 
@@ -123,44 +124,53 @@ export function StatusVitalBar({ vitalKey, label, color, borderC, isSpecial, gri
     // barras); cada barra abaixo é só DERIVADA dele por calcularBarrasVida (core/vitals.js, ÚNICA
     // fonte de verdade dessa conta) — a da frente (índice 0) esvazia primeiro, o excesso
     // transborda pra próxima.
-    const { p, mxDisplay, numBarras, barras: barrasInfo } = calcularBarrasVida(rawMx, vitalKey, ficha[vitalKey]?.atual, rawMxEstavel);
-    const barras = barrasInfo.map(b => b.atual);
+    const { p, mxDisplay, numBarras, barras } = calcularBarrasVida(rawMx, vitalKey, ficha[vitalKey]?.atual, rawMxEstavel);
 
     const regen = parseFloat(ficha[vitalKey]?.regeneracao) || 0;
     const extra = regen > 0 ? `(+${regen}/turno)` : '';
+
+    // 💔 BREAK BARS: 2+ barras (ver core/vitals.js > getNumBarrasVida) usam o visual novo em
+    // pílula com losangos e "quebra" animada ao esvaziar (pedido do usuário) — componente
+    // compartilhado (components/shared/BarrasVida.jsx), mesmo usado em Ficha Def/Marcados.jsx.
+    if (numBarras > 1) {
+        return (
+            <div className="vital-container" style={gridStyle}>
+                <div className="vital-label" style={{ color, textShadow: `0 0 8px ${color}80`, letterSpacing: '1px', fontWeight: 'bold', fontSize: '0.85em', textTransform: 'uppercase' }}>
+                    {label} {extra && <span style={{ fontSize: '0.9em', color: '#aaa', textShadow: 'none' }}>{extra}</span>}
+                </div>
+                <BarrasVida barras={barras} cor={color} corTexto="#fff" altura={40} />
+            </div>
+        );
+    }
+
+    const atualBarra = barras[0].atual;
+    const percent = mxDisplay > 0 ? Math.min((atualBarra / mxDisplay) * 100, 100) : 0;
+    const vitalitySymbol = (p > 0 && (vitalKey === 'vida' || vitalKey === 'pv' || vitalKey === 'pm')) ? (
+        <div style={{
+            position: 'absolute', left: '8px', zIndex: 3, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: '32px', height: '32px', background: 'rgba(20, 0, 0, 0.9)',
+            border: `3px solid ${borderC || color}`, boxShadow: `0 0 10px ${borderC || color}, inset 0 0 5px ${borderC || color}80`,
+            borderRadius: '4px', color: '#fff', fontWeight: 'bold', fontSize: '18px',
+            fontFamily: 'arial, sans-serif', textShadow: `0 0 5px ${borderC || color}`
+        }}>
+            {p}
+        </div>
+    ) : null;
 
     return (
         <div className="vital-container" style={gridStyle}>
             <div className="vital-label" style={{ color, textShadow: `0 0 8px ${color}80`, letterSpacing: '1px', fontWeight: 'bold', fontSize: '0.85em', textTransform: 'uppercase' }}>
                 {label} {extra && <span style={{ fontSize: '0.9em', color: '#aaa', textShadow: 'none' }}>{extra}</span>}
             </div>
-            {barras.map((atualBarra, i) => {
-                const percent = mxDisplay > 0 ? Math.min((atualBarra / mxDisplay) * 100, 100) : 0;
-                const badge = numBarras > 1 ? (i + 1) : p;
-                const vitalitySymbol = (badge > 0 && (vitalKey === 'vida' || vitalKey === 'pv' || vitalKey === 'pm')) ? (
-                    <div style={{
-                        position: 'absolute', left: '8px', zIndex: 3, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        width: '32px', height: '32px', background: 'rgba(20, 0, 0, 0.9)',
-                        border: `3px solid ${borderC || color}`, boxShadow: `0 0 10px ${borderC || color}, inset 0 0 5px ${borderC || color}80`,
-                        borderRadius: '4px', color: '#fff', fontWeight: 'bold', fontSize: '18px',
-                        fontFamily: 'arial, sans-serif', textShadow: `0 0 5px ${borderC || color}`
-                    }}>
-                        {badge}
-                    </div>
-                ) : null;
-
-                return (
-                    <div key={i} className="bar-bg" style={{ position: 'relative', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: isSpecial ? `1px solid ${color}40` : '', marginTop: i > 0 ? '4px' : 0 }}>
-                        <div className="bar-fill" style={{ width: `${percent}%`, backgroundColor: color, position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: 'inherit', transition: 'width 0.3s' }} />
-                        {vitalitySymbol}
-                        <div className="bar-text" style={{ position: 'relative', zIndex: 2, width: '100%', textAlign: 'center', textShadow: '1px 1px 3px #000, -1px -1px 3px #000' }}>
-                            <span style={{ fontSize: '1.2em', fontWeight: 'bold', color: '#fff' }}>
-                                {Math.floor(atualBarra).toLocaleString('pt-BR')} / {mxDisplay.toLocaleString('pt-BR')}
-                            </span>
-                        </div>
-                    </div>
-                );
-            })}
+            <div className="bar-bg" style={{ position: 'relative', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: isSpecial ? `1px solid ${color}40` : '' }}>
+                <div className="bar-fill" style={{ width: `${percent}%`, backgroundColor: color, position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: 'inherit', transition: 'width 0.3s' }} />
+                {vitalitySymbol}
+                <div className="bar-text" style={{ position: 'relative', zIndex: 2, width: '100%', textAlign: 'center', textShadow: '1px 1px 3px #000, -1px -1px 3px #000' }}>
+                    <span style={{ fontSize: '1.2em', fontWeight: 'bold', color: '#fff' }}>
+                        {Math.floor(atualBarra).toLocaleString('pt-BR')} / {mxDisplay.toLocaleString('pt-BR')}
+                    </span>
+                </div>
+            </div>
         </div>
     );
 }

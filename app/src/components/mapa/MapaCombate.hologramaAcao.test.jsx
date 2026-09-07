@@ -370,10 +370,12 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
 
         expect(screen.getAllByText(/Slime Selvagem/i).length).toBeGreaterThan(0);
 
-        // HP total exibido = hpAtual (60.000.000), formatado em pt-BR, com o sufixo "(2 barras)"
-        // (MapaCombate.jsx > `${vidaInfo.barras.length > 1 ? ... : ''}`).
+        // HP total exibido = hpAtual (60.000.000), formatado em pt-BR. O nº de barras não aparece
+        // mais como texto -- o visual novo de "Break Bars" (components/shared/BarrasVida.jsx) já
+        // mostra isso pela fileira de losangos ("pips") acima das barras.
         expect(screen.getByText(/60\.000\.000/)).toBeDefined();
-        expect(screen.getByText(/\(2 barras\)/)).toBeDefined();
+        const pips = container.querySelectorAll('.break-bars-pip');
+        expect(pips.length).toBe(2);
 
         // As 2 barras de HP (BarraVital, cor #ff4d4d, perigo=true) devem existir com width válido
         // (0-100%), sem NaN -- barra 0 (frente) parcialmente esvaziada, barra 1 (trás) intacta.
