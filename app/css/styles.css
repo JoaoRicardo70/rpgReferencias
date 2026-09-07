@@ -1468,16 +1468,23 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .break-bars-pip--cheia { box-shadow: 0 0 6px var(--break-bars-cor, #fff); }
 .break-bars-pip--quebrada { background: #1a1a1a !important; opacity: 0.4; box-shadow: none; }
 
+/* 🃏 Pilha de barras "Break Bars": cada .break-bars-barra vira position:absolute (inline, via
+   BarrasVida.jsx) e se posiciona em cascata dentro deste container relativo, uma sobre a outra em
+   vez de uma lista com espaço entre elas. */
+/* isolation:isolate cria um contexto de empilhamento PRÓPRIO pra essa pilha -- sem isso, os
+   z-index internos (usados só pra decidir qual barra fica por cima DENTRO da própria pilha)
+   competeriam com z-index de outras partes da tela (ex.: .modal-overlay usa z-index:1000). */
+.break-bars-pilha { position: relative; isolation: isolate; }
+
 .break-bars-barra {
     position: relative;
     width: 100%;
     border-radius: 999px;
     overflow: hidden;
     background: rgba(255, 255, 255, 0.12);
-    box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.5);
-    transition: filter 0.5s ease;
+    box-shadow: inset 0 0 8px rgba(0, 0, 0, 0.5), 0 3px 8px rgba(0, 0, 0, 0.6);
+    transition: filter 0.5s ease, top 0.3s ease, left 0.3s ease;
 }
-.break-bars-barra + .break-bars-barra { margin-top: 5px; }
 .break-bars-barra--quebrada { filter: grayscale(0.7) brightness(0.55); }
 .break-bars-barra__preenchimento {
     height: 100%;

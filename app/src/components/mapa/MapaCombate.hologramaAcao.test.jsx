@@ -321,7 +321,9 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
         });
         const { container } = renderHolograma(montarMockState({ minhaFicha: ficha, feedCombate: [{ tipo: 'dano', nome: 'Kakaroto', dano: 1 }] }));
 
-        const coresEsperadas = ['#ff4d4d', '#4dffff', '#ffff4d', '#00ffcc', '#ff66ff'];
+        // mana/aura/chakra/corpo continuam com 1 barra só (numBarras=1 sempre) -- cor inalterada,
+        // dá pra achar pela cor literal do vital.
+        const coresEsperadas = ['#4dffff', '#ffff4d', '#00ffcc', '#ff66ff'];
         coresEsperadas.forEach(cor => {
             const barra = Array.from(container.querySelectorAll('div')).find(d => {
                 const style = d.getAttribute('style') || '';
@@ -329,11 +331,24 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
             });
             expect(barra, `barra de cor ${cor} deveria existir`).toBeDefined();
             const pct = parseFloat(/width:\s*(\d+(?:\.\d+)?)%/.exec(barra.getAttribute('style'))[1]);
-            // Todos os 5 vitais foram setados em exatamente 70% do próprio teto comprimido
+            // Todos os vitais foram setados em exatamente 70% do próprio teto comprimido
             // (mxDisplay), independente de vida ter comprimido (p=1) e os outros não (p=0) --
             // todos devem dar 70%, provando que cada um usa SEU PRÓPRIO getVitalMxDisplay(key,ficha).
             expect(pct).toBeCloseTo(70, 0);
         });
+
+        // Vida (limite 8 dígitos) comprime com p=1 -> 2 barras "Break Bars" (getNumBarrasVida).
+        // Desde que cada barra ganhou sua PRÓPRIA cor (pedido do usuário), a barra da frente
+        // (índice 0) não é mais garantida como #ff4d4d literal -- busca por classe em vez de cor.
+        // Dano total=3.000.000 (7.000.000 de 10.000.000): barra 0 esvazia inteira (0%), barra 1
+        // fica com o restante (7.000.000/10.000.000 = 70%), provando a escala comprimida (1e7).
+        const barrasVida = Array.from(container.querySelectorAll('.break-bars-barra'));
+        expect(barrasVida.length).toBe(2);
+        const pctsVida = barrasVida.map(b => {
+            const preenchimento = b.querySelector('.break-bars-barra__preenchimento');
+            return parseFloat(/width:\s*(\d+(?:\.\d+)?)%/.exec(preenchimento.getAttribute('style'))[1]);
+        }).sort((a, b) => a - b);
+        expect(pctsVida).toEqual([0, 70]);
     });
 
     // -----------------------------------------------------------------------
@@ -377,26 +392,25 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
         const pips = container.querySelectorAll('.break-bars-pip');
         expect(pips.length).toBe(2);
 
-        // As 2 barras de HP (BarraVital, cor #ff4d4d, perigo=true) devem existir com width válido
-        // (0-100%), sem NaN -- barra 0 (frente) parcialmente esvaziada, barra 1 (trás) intacta.
-        const barrasHp = Array.from(container.querySelectorAll('div')).filter(d => {
-            const style = d.getAttribute('style') || '';
-            return /width:\s*\d/.test(style) && (style.includes('#ff4d4d') || style.includes('#ff3030') || style.includes('#ffcc00'));
-        });
+        // As 2 barras de HP (perigo=true) devem existir com width válido (0-100%), sem NaN --
+        // barra 0 (frente) parcialmente esvaziada, barra 1 (trás) intacta. Busca por classe (não
+        // mais por cor literal, já que cada barra ganhou sua própria cor -- pedido do usuário).
+        const barrasHp = Array.from(container.querySelectorAll('.break-bars-barra'));
         expect(barrasHp.length).toBe(2);
-        barrasHp.forEach(b => {
-            const match = /width:\s*(\d+(?:\.\d+)?)%/.exec(b.getAttribute('style'));
+        const pcts = barrasHp.map(b => {
+            const preenchimento = b.querySelector('.break-bars-barra__preenchimento');
+            const match = /width:\s*(\d+(?:\.\d+)?)%/.exec(preenchimento.getAttribute('style'));
             expect(match).not.toBeNull();
             const pct = parseFloat(match[1]);
             expect(Number.isFinite(pct)).toBe(true);
             expect(pct).toBeGreaterThanOrEqual(0);
             expect(pct).toBeLessThanOrEqual(100);
+            return pct;
         });
 
         // Barra da FRENTE (índice 0, primeira renderizada) recebeu o dano primeiro: dano total=4e7,
         // mxPorBarra=5e7 -> barra 0 fica com 1e7/5e7 = 20% (dano < 1 barra, sem cascata); barra 1
         // (trás) continua 100% intacta.
-        const pcts = barrasHp.map(b => parseFloat(/width:\s*(\d+(?:\.\d+)?)%/.exec(b.getAttribute('style'))[1]));
         expect(pcts[0]).toBeCloseTo(20, 0);
         expect(pcts[1]).toBeCloseTo(100, 0);
     });

@@ -302,3 +302,206 @@ describe('BarrasVida - flash de "quebra" (transição atual>0 -> atual<=0)', () 
         expect(divsBarra[1].querySelector('.break-bars-barra__flash')).toBeNull();
     });
 });
+
+// ---------------------------------------------------------------------------
+// corDaBarra (função local, não exportada) — testada indiretamente através do
+// "background"/"box-shadow" renderizado em .break-bars-barra__preenchimento e
+// da custom property --break-bars-cor no pip correspondente. Seguindo o mesmo
+// padrão dos testes de "perigo" acima: jsdom normaliza "background: #hex" pra
+// "rgb(...)", mas preserva o hex literal dentro de "box-shadow:", então a
+// extração da cor usa sempre o box-shadow.
+// ---------------------------------------------------------------------------
+
+function corDoBoxShadow(el) {
+    const style = el.getAttribute('style') || '';
+    const m = style.match(/box-shadow:\s*0 0 6px (#[0-9a-fA-F]{3,6})/);
+    return m ? m[1] : null;
+}
+
+describe('BarrasVida - corDaBarra (cor derivada por índice)', () => {
+    afterEach(() => cleanup());
+
+    it('índice 0 mantém a cor base EXATAMENTE igual (sem nenhum ajuste de matiz/saturação/luminosidade)', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(50, 100), barra(50, 100), barra(50, 100)]} cor="#ff4d4d" />
+        );
+        const preenchimentos = container.querySelectorAll('.break-bars-barra__preenchimento');
+        expect(corDoBoxShadow(preenchimentos[0])).toBe('#ff4d4d');
+    });
+
+    it('índices 1+ recebem cores DIFERENTES entre si e diferentes da cor base (índice 0)', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(50, 100), barra(50, 100), barra(50, 100)]} cor="#ff4d4d" />
+        );
+        const preenchimentos = container.querySelectorAll('.break-bars-barra__preenchimento');
+        const cores = Array.from(preenchimentos).map(corDoBoxShadow);
+
+        expect(cores[1]).not.toBe(cores[0]);
+        expect(cores[2]).not.toBe(cores[0]);
+        expect(cores[1]).not.toBe(cores[2]);
+        // Todas devem ser hex válidos, nada de NaN/undefined vazando pro CSS.
+        cores.forEach(c => expect(c).toMatch(/^#[0-9a-fA-F]{6}$/));
+    });
+
+    it('o pip de cada barra recebe a MESMA cor (--break-bars-cor) que o preenchimento da barra correspondente', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(50, 100), barra(50, 100), barra(50, 100)]} cor="#ff4d4d" />
+        );
+        const preenchimentos = container.querySelectorAll('.break-bars-barra__preenchimento');
+        const pips = container.querySelectorAll('.break-bars-pip');
+        expect(pips.length).toBe(3);
+
+        for (let i = 0; i < 3; i++) {
+            const corPreenchimento = corDoBoxShadow(preenchimentos[i]);
+            const corPip = pips[i].style.getPropertyValue('--break-bars-cor');
+            expect(corPip).toBe(corPreenchimento);
+        }
+    });
+
+    it('guarda contra cinza puro: cor base "#000000" (preto) — a barra de índice 1 NÃO fica preta (matiz sem saturação/luminosidade seguras colapsaria de volta pro preto)', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(50, 100), barra(50, 100)]} cor="#000000" />
+        );
+        const preenchimentos = container.querySelectorAll('.break-bars-barra__preenchimento');
+        expect(corDoBoxShadow(preenchimentos[0])).toBe('#000000');
+        const corIndice1 = corDoBoxShadow(preenchimentos[1]);
+        expect(corIndice1).not.toBe('#000000');
+        expect(corIndice1).not.toBeNull();
+    });
+
+    it('guarda contra cinza puro: cor base "#ffffff" (branco) — a barra de índice 1 NÃO fica branca', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(50, 100), barra(50, 100)]} cor="#ffffff" />
+        );
+        const preenchimentos = container.querySelectorAll('.break-bars-barra__preenchimento');
+        expect(corDoBoxShadow(preenchimentos[0])).toBe('#ffffff');
+        const corIndice1 = corDoBoxShadow(preenchimentos[1]);
+        expect(corIndice1).not.toBe('#ffffff');
+        expect(corIndice1).not.toBeNull();
+    });
+
+    it('hexParaRgb com cor malformada ("not-a-color") não lança e não produz NaN/undefined no style de nenhuma barra', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(50, 100), barra(50, 100)]} cor="not-a-color" />
+        );
+        expect(() => container.innerHTML).not.toThrow();
+        expect(container.innerHTML).not.toMatch(/NaN/);
+        expect(container.innerHTML).not.toMatch(/undefined/);
+    });
+
+    it('hexParaRgb com cor vazia ("") não lança e não produz NaN/undefined no style de nenhuma barra', () => {
+        expect(() => render(
+            <BarrasVida barras={[barra(50, 100), barra(50, 100)]} cor="" />
+        )).not.toThrow();
+        const { container } = render(
+            <BarrasVida barras={[barra(50, 100), barra(50, 100)]} cor="" />
+        );
+        expect(container.innerHTML).not.toMatch(/NaN/);
+        expect(container.innerHTML).not.toMatch(/undefined/);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Empilhamento (posicionamento absoluto + z-index) — só existe quando
+// barras.length > 1 ("empilhado"); com 1 única barra, nenhuma posição
+// absoluta/wrapper .break-bars-pilha deve existir (comportamento idêntico ao
+// de antes desta funcionalidade inteira ter sido criada).
+// ---------------------------------------------------------------------------
+
+describe('BarrasVida - empilhamento (geometria de posição)', () => {
+    afterEach(() => cleanup());
+
+    it('com 3 barras, cada barra é position:absolute e top/left crescem estritamente por índice', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(50, 100), barra(50, 100), barra(50, 100)]} cor="#ff4d4d" />
+        );
+        const divsBarra = container.querySelectorAll('.break-bars-barra');
+        expect(divsBarra.length).toBe(3);
+
+        const tops = [];
+        const lefts = [];
+        divsBarra.forEach((div) => {
+            expect(div.style.position).toBe('absolute');
+            tops.push(parseFloat(div.style.top));
+            lefts.push(parseFloat(div.style.left));
+        });
+
+        expect(tops[1]).toBeGreaterThan(tops[0]);
+        expect(tops[2]).toBeGreaterThan(tops[1]);
+        expect(lefts[1]).toBeGreaterThan(lefts[0]);
+        expect(lefts[2]).toBeGreaterThan(lefts[1]);
+    });
+
+    it('o container .break-bars-pilha tem altura suficiente para acomodar todas as barras empilhadas', () => {
+        const altura = 40;
+        const { container } = render(
+            <BarrasVida barras={[barra(50, 100), barra(50, 100), barra(50, 100)]} cor="#ff4d4d" altura={altura} />
+        );
+        const pilha = container.querySelector('.break-bars-pilha');
+        expect(pilha).not.toBeNull();
+
+        const divsBarra = container.querySelectorAll('.break-bars-barra');
+        const maiorTop = Math.max(...Array.from(divsBarra).map(d => parseFloat(d.style.top)));
+        const alturaContainer = parseFloat(pilha.style.height);
+
+        // A altura do container precisa cobrir a última barra inteira (top + sua própria altura).
+        expect(alturaContainer).toBeGreaterThanOrEqual(maiorTop + altura);
+    });
+
+    it('com exatamente 1 barra, NENHUM elemento é position:absolute e o wrapper .break-bars-pilha não existe', () => {
+        const { container } = render(<BarrasVida barras={[barra(50, 100)]} cor="#ff4d4d" />);
+
+        expect(container.querySelector('.break-bars-pilha')).toBeNull();
+
+        const todosElementos = container.querySelectorAll('*');
+        todosElementos.forEach((el) => {
+            expect(el.style.position).not.toBe('absolute');
+        });
+    });
+});
+
+describe('BarrasVida - empilhamento (z-index: barra ativa sempre por cima de barra quebrada)', () => {
+    afterEach(() => cleanup());
+
+    function zIndices(container) {
+        return Array.from(container.querySelectorAll('.break-bars-barra')).map(
+            (div) => parseInt(div.style.zIndex, 10)
+        );
+    }
+
+    it('todas as barras cheias (atual>0): índice 0 fica por cima de todas as outras', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(50, 100), barra(80, 100), barra(100, 100)]} cor="#ff4d4d" />
+        );
+        const [z0, z1, z2] = zIndices(container);
+        expect(z0).toBeGreaterThan(z1);
+        expect(z0).toBeGreaterThan(z2);
+    });
+
+    it('frente quebrada (índice 0) + uma barra ativa no meio (índice 1) + fundo quebrado (índice 2): a barra ativa (índice 1) fica por cima de todas', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(0, 100), barra(50, 100), barra(0, 100)]} cor="#ff4d4d" />
+        );
+        const [z0, z1, z2] = zIndices(container);
+        expect(z1).toBeGreaterThan(z0);
+        expect(z1).toBeGreaterThan(z2);
+    });
+
+    it('todas quebradas menos a última (índice 2 ativa): a barra ativa (índice 2) fica por cima de todas', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(0, 100), barra(0, 100), barra(50, 100)]} cor="#ff4d4d" />
+        );
+        const [z0, z1, z2] = zIndices(container);
+        expect(z2).toBeGreaterThan(z0);
+        expect(z2).toBeGreaterThan(z1);
+    });
+
+    it('todas as barras quebradas (atual<=0): índice 0 fica por cima de todas (menor índice vence dentro do mesmo grupo)', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(0, 100), barra(0, 100), barra(0, 100)]} cor="#ff4d4d" />
+        );
+        const [z0, z1, z2] = zIndices(container);
+        expect(z0).toBeGreaterThan(z1);
+        expect(z0).toBeGreaterThan(z2);
+    });
+});
