@@ -60,6 +60,9 @@ function hslParaHex(h, s, l) {
 // empilhado), derivada da cor base do próprio vital (gira o matiz mantendo saturação/luminosidade
 // parecidas, pra continuar "combinando" com o tema daquele vital em vez de virar cores aleatórias).
 // Sem personalização manual por enquanto (decisão do usuário) — só essa paleta automática.
+// "indice" aqui já vem INVERTIDO pelo chamador (ver "indiceCorInvertido" abaixo) — quem chama com
+// indice=0 é sempre a ÚLTIMA barra (a reserva mais profunda), que fica com a cor base intocada;
+// as anteriores (a que esvazia primeiro incluída) é que recebem a rotação.
 function corDaBarra(corBase, indice) {
     if (!indice) return corBase;
     const { r, g, b } = hexParaRgb(corBase);
@@ -70,12 +73,17 @@ function corDaBarra(corBase, indice) {
     // cinza) — todas as barras colapsariam de volta pra uma cor só, matando a própria mudança
     // pedida aqui. Preto/branco puro (luminosidade 0 ou 100) têm o mesmo problema mesmo com
     // saturação: nesses extremos NENHUMA cor tem "matiz" visível. Garante uma saturação e uma
-    // luminosidade mínimas só pra decidir a cor das barras seguintes (índice > 0) — a barra 0
-    // continua exatamente com a cor que o usuário escolheu, sem nenhum ajuste; "s"/"l" seguros
+    // luminosidade mínimas só pra decidir a cor das barras que não são a última; "s"/"l" seguros
     // aqui NUNCA são salvos em lugar nenhum, só usados nesta conta.
     const sSegura = Math.max(s, 40);
     const lSegura = Math.min(85, Math.max(15, l));
     return hslParaHex(h + indice * 35, sSegura, lSegura);
+}
+
+// 🩸 Pedido do usuário: a barra vermelha (cor base do vital) deve ser a ÚLTIMA da pilha (a reserva
+// final, mais crítica), não a primeira/frente — inverte o índice antes de mandar pra corDaBarra.
+function indiceCorInvertido(i, total) {
+    return total - 1 - i;
 }
 
 // Uma barra individual: detecta a transição "tinha Vida -> chegou a zero" e dispara um flash de
@@ -127,27 +135,26 @@ function BarraQuebravel({ atual, maximo, cor, corTexto, altura, perigo, mostrarT
 // no texto padrão "atual / max". mostrarTexto=false esconde o texto de todas (útil pra barras bem
 // finas, tipo a moldura de combate do Mapa, que já mostra o número em outro lugar).
 //
-// 🃏 EMPILHAMENTO (pedido do usuário — "uma sobre a outra", em vez de uma lista com espaço entre
-// elas): cada barra é posicionada em cascata (deslocada um pouco pra baixo/direita da anterior,
-// tipo um baralho de cartas aberto em leque), todas na MESMA pilha. A barra ainda com Vida (>0) de
-// MENOR índice fica por cima de tudo (z-index mais alto) — é sempre ela a "ativa"/atual, a que o
-// jogador precisa ler; barras já quebradas (atual<=0) caem pra trás da pilha (z-index mais baixo,
-// visual escurecido) assim que a próxima barra vira a ativa, revelando-a por cima.
+// 🃏 EMPILHAMENTO (pedido do usuário — "cada barra EXATAMENTE uma sobre a outra", sem nenhum
+// deslocamento diagonal): todas as barras ocupam o MESMO espaço (top:0, left:0, right:0), uma
+// literalmente por cima da outra. A barra ainda com Vida (>0) de MENOR índice fica por cima de
+// tudo (z-index mais alto) — é sempre ela a "ativa"/atual, a única visível e a que o jogador
+// precisa ler; barras já quebradas (atual<=0) caem pra trás da pilha (z-index mais baixo, visual
+// escurecido e completamente coberta pela de cima) assim que a próxima barra vira a ativa,
+// revelando-a por cima. A fileira de losangos ("pips") acima é quem mostra quantas barras existem
+// no total — as próprias barras, sobrepostas, só deixam ver a de cima.
 export default function BarrasVida({ barras, cor, corTexto = '#fff', altura = 40, mostrarPips = true, mostrarTexto = true, perigo = false, renderTexto }) {
     if (!barras || barras.length === 0) return null;
 
     const numBarras = barras.length;
     const empilhado = numBarras > 1;
-    const deslocY = empilhado ? Math.max(4, Math.round(altura * 0.25)) : 0;
-    const deslocX = empilhado ? Math.max(6, Math.round(altura * 0.4)) : 0;
-    const alturaContainer = altura + (numBarras - 1) * deslocY;
 
     const bars = barras.map((b, i) => (
         <BarraQuebravel
             key={i}
             atual={b.atual}
             maximo={b.max}
-            cor={corDaBarra(cor, i)}
+            cor={corDaBarra(cor, indiceCorInvertido(i, numBarras))}
             corTexto={corTexto}
             altura={altura}
             perigo={perigo}
@@ -155,8 +162,8 @@ export default function BarrasVida({ barras, cor, corTexto = '#fff', altura = 40
             renderTexto={renderTexto ? (atualSeguro, maxSeguro) => renderTexto(atualSeguro, maxSeguro, i) : undefined}
             posicaoStyle={empilhado ? {
                 position: 'absolute',
-                top: i * deslocY,
-                left: i * deslocX,
+                top: 0,
+                left: 0,
                 right: 0,
                 // Isolado do resto da página via .break-bars-pilha { isolation: isolate }
                 // (styles.css) — estes números só importam ENTRE si, dentro desta pilha.
@@ -173,13 +180,13 @@ export default function BarrasVida({ barras, cor, corTexto = '#fff', altura = 40
                         <span
                             key={i}
                             className={`break-bars-pip ${(Number(b.atual) || 0) > 0 ? 'break-bars-pip--cheia' : 'break-bars-pip--quebrada'}`}
-                            style={{ '--break-bars-cor': corDaBarra(cor, i) }}
+                            style={{ '--break-bars-cor': corDaBarra(cor, indiceCorInvertido(i, numBarras)) }}
                         />
                     ))}
                 </div>
             )}
             {empilhado ? (
-                <div className="break-bars-pilha" style={{ height: alturaContainer }}>{bars}</div>
+                <div className="break-bars-pilha" style={{ height: altura }}>{bars}</div>
             ) : bars}
         </div>
     );
