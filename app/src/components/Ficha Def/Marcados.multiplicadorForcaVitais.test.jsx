@@ -111,16 +111,19 @@ function parsePtBr(texto) {
 // components/shared/BarrasVida.jsx), lerMaximoBarra/lerAtualBarra (pensadas pra 1 barra só) não
 // bastam mais -- somam-se os máximos/atuais de TODAS as barras empilhadas pra comparar com o TOTAL
 // real (que nunca é maior nem menor que o bruto escalado pelo Multiplicador de Força).
+//
+// Desde a correção do bug de números sobrepostos (só a barra ATIVA mostra texto agora -- ver
+// BarrasVida.jsx), o texto visível não basta mais pra ler o total: as barras não-ativas não têm
+// texto nenhum no DOM. Por isso cada .break-bars-barra carrega seu valor real em data-atual/
+// data-max (sempre presentes, independente do texto estar visível ou não) -- lê-se DAÍ, não do
+// texto renderizado.
 function lerTotalMaximoBarras(labelText) {
     const input = screen.getByDisplayValue(labelText);
     const wrapper = input.parentElement.parentElement.parentElement;
     const barraDiv = wrapper.children[1];
-    const textos = barraDiv.querySelectorAll('.break-bars-barra__texto');
+    const barras = barraDiv.querySelectorAll('.break-bars-barra');
     let total = 0;
-    textos.forEach((t) => {
-        const spans = t.querySelectorAll('span');
-        total += parsePtBr(spans[spans.length - 1].textContent);
-    });
+    barras.forEach((b) => { total += Number(b.getAttribute('data-max')) || 0; });
     return total;
 }
 
@@ -128,9 +131,9 @@ function lerTotalAtualBarras(labelText) {
     const input = screen.getByDisplayValue(labelText);
     const wrapper = input.parentElement.parentElement.parentElement;
     const barraDiv = wrapper.children[1];
-    const inputs = barraDiv.querySelectorAll('input');
+    const barras = barraDiv.querySelectorAll('.break-bars-barra');
     let total = 0;
-    inputs.forEach((i) => { total += parsePtBr(i.value); });
+    barras.forEach((b) => { total += Number(b.getAttribute('data-atual')) || 0; });
     return total;
 }
 

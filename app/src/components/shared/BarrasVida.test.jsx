@@ -109,25 +109,26 @@ describe('BarrasVida - mostrarTexto e renderTexto', () => {
         expect(container.querySelectorAll('.break-bars-barra__texto').length).toBe(0);
     });
 
-    it('renderTexto é chamado com (atual, max, indice) pra cada barra e seu retorno é o que de fato renderiza (substitui o texto default)', () => {
+    it('com 1 única barra, renderTexto é chamado com (atual, max, indice) e seu retorno é o que de fato renderiza (substitui o texto default)', () => {
         const renderTexto = vi.fn((atual, max, indice) => `custom-${indice}:${atual}/${max}`);
         render(
             <BarrasVida
-                barras={[barra(10, 100), barra(20, 200)]}
+                barras={[barra(10, 100)]}
                 cor="#ff4d4d"
                 renderTexto={renderTexto}
             />
         );
 
-        expect(renderTexto).toHaveBeenCalledTimes(2);
+        expect(renderTexto).toHaveBeenCalledTimes(1);
         expect(renderTexto).toHaveBeenNthCalledWith(1, 10, 100, 0);
-        expect(renderTexto).toHaveBeenNthCalledWith(2, 20, 200, 1);
 
         expect(screen.getByText('custom-0:10/100')).toBeDefined();
-        expect(screen.getByText('custom-1:20/200')).toBeDefined();
         // O texto default "10 / 100" não deveria aparecer, já que renderTexto assumiu o conteúdo.
         expect(screen.queryByText('10 / 100')).toBeNull();
     });
+
+    // Com múltiplas barras, só a barra ATIVA (menor índice ainda com Vida > 0) chama renderTexto —
+    // ver o describe "sobreposição" mais abaixo, que cobre esse caso especificamente.
 });
 
 describe('BarrasVida - perigo (cor de preenchimento por threshold)', () => {
@@ -549,18 +550,17 @@ describe('BarrasVida - caso de barra única (numBarras===1) permanece intocado p
     });
 });
 
-describe('BarrasVida - sobreposição total é puramente visual (z-index), não esconde nem duplica conteúdo via display/opacity inline', () => {
+describe('BarrasVida - sobreposição: as barras em si continuam TODAS no DOM (diferenciação por z-index), mas o texto só aparece na barra ativa', () => {
     afterEach(() => cleanup());
 
-    it('com 3 barras (uma já quebrada) e mostrarTexto=true, os 3 elementos .break-bars-barra__texto continuam TODOS presentes no DOM simultaneamente (a diferenciação é só visual, via z-index)', () => {
+    it('com 3 barras (uma já quebrada) e mostrarTexto=true, as 3 .break-bars-barra continuam TODAS presentes no DOM (a sobreposição delas é só visual, via z-index)', () => {
         const { container } = render(
             <BarrasVida barras={[barra(0, 100), barra(50, 100), barra(80, 100)]} cor="#ff4d4d" />
         );
-        const textos = container.querySelectorAll('.break-bars-barra__texto');
-        expect(textos.length).toBe(3);
+        expect(container.querySelectorAll('.break-bars-barra').length).toBe(3);
     });
 
-    it('nenhuma .break-bars-barra (nem sua .break-bars-barra__texto), quebrada ou não, recebe "display" ou "opacity" via inline style — a única diferenciação inline entre elas é position/top/left/right/zIndex/height', () => {
+    it('nenhuma .break-bars-barra recebe "display" ou "opacity" via inline style — a diferenciação inline entre elas é position/top/left/right/zIndex/height', () => {
         const { container } = render(
             <BarrasVida barras={[barra(0, 100), barra(50, 100), barra(80, 100)]} cor="#ff4d4d" />
         );
@@ -570,11 +570,226 @@ describe('BarrasVida - sobreposição total é puramente visual (z-index), não 
             expect(div.style.display).toBe('');
             expect(div.style.opacity).toBe('');
         });
+    });
 
+    // 🔤 Correção: o fundo de cada barra é translúcido (.break-bars-barra, styles.css), então
+    // mostrar o texto de TODAS as barras empilhadas ao mesmo tempo fazia os números da(s) barra(s)
+    // cobertas vazarem por trás da barra de cima e ficarem ilegíveis (dígitos sobrepostos — bug
+    // reportado pelo usuário com screenshot). A partir de agora, só a barra ATIVA (a de menor
+    // índice ainda com Vida > 0) renderiza seu .break-bars-barra__texto; as outras não têm texto
+    // nenhum no DOM enquanto não forem a ativa.
+    it('com 3 barras (uma já quebrada, a do meio ativa) e mostrarTexto=true, SÓ a barra ativa (índice 1) renderiza .break-bars-barra__texto — nenhuma outra tem texto no DOM', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(0, 100), barra(50, 100), barra(80, 100)]} cor="#ff4d4d" />
+        );
         const textos = container.querySelectorAll('.break-bars-barra__texto');
-        textos.forEach((texto) => {
-            expect(texto.style.display).toBe('');
-            expect(texto.style.opacity).toBe('');
-        });
+        expect(textos.length).toBe(1);
+        expect(textos[0].textContent).toBe('50 / 100');
+    });
+
+    it('quando a barra da frente (índice 0) ainda tem Vida, é ela a ativa — as barras seguintes (mesmo cheias) não mostram texto', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(30, 100), barra(100, 100), barra(100, 100)]} cor="#ff4d4d" />
+        );
+        const textos = container.querySelectorAll('.break-bars-barra__texto');
+        expect(textos.length).toBe(1);
+        expect(textos[0].textContent).toBe('30 / 100');
+    });
+
+    it('todas as barras quebradas (personagem no zero): mostra o texto da barra de índice 0 (frente da pilha), mesma regra usada pro zIndex nesse caso', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(0, 100), barra(0, 100), barra(0, 100)]} cor="#ff4d4d" />
+        );
+        const textos = container.querySelectorAll('.break-bars-barra__texto');
+        expect(textos.length).toBe(1);
+        expect(textos[0].textContent).toBe('0 / 100');
+    });
+
+    it('com 1 única barra, a lógica de "ativa" não se aplica — o texto sempre aparece normalmente', () => {
+        const { container } = render(<BarrasVida barras={[barra(50, 100)]} cor="#ff4d4d" />);
+        expect(container.querySelectorAll('.break-bars-barra__texto').length).toBe(1);
+    });
+
+    it('renderTexto customizado (ex.: campo editável) também só é renderizado pra barra ativa — as demais não chamam renderTexto', () => {
+        const renderTexto = vi.fn((atual, max, indice) => `custom-${indice}`);
+        render(
+            <BarrasVida
+                barras={[barra(0, 100), barra(50, 100), barra(80, 100)]}
+                cor="#ff4d4d"
+                renderTexto={renderTexto}
+            />
+        );
+        expect(renderTexto).toHaveBeenCalledTimes(1);
+        expect(renderTexto).toHaveBeenCalledWith(50, 100, 1);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// QA (4ª iteração — cobertura extra pra "indiceAtiva"): valores "sujos" que
+// podem chegar de fora (undefined/null/NaN/string numérica) precisam ser
+// tratados como 0/inativo (ou 0/válido, no caso da string) na hora de decidir
+// QUAL barra é a ativa — a mesma normalização "Number(x) || 0" já usada pro
+// resto do componente (largura, classe --quebrada, zIndex). Também cobre o
+// atributo data-atual/data-max (sempre presente, mesmo em barra sem texto) e
+// a transição de "barra ativa" entre re-renders coexistindo com o flash de
+// quebra.
+// ---------------------------------------------------------------------------
+
+describe('BarrasVida - indiceAtiva com valores "sujos" (undefined/null/NaN/string numérica)', () => {
+    afterEach(() => cleanup());
+
+    it('atual=undefined numa barra do meio é tratado como 0/inativo — a ativa continua sendo a próxima barra com Vida real', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(0, 100), barra(undefined, 100), barra(50, 100)]} cor="#ff4d4d" />
+        );
+        const textos = container.querySelectorAll('.break-bars-barra__texto');
+        expect(textos.length).toBe(1);
+        expect(textos[0].textContent).toBe('50 / 100');
+    });
+
+    it('atual=null numa barra do meio é tratado como 0/inativo — a ativa continua sendo a próxima barra com Vida real', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(0, 100), barra(null, 100), barra(50, 100)]} cor="#ff4d4d" />
+        );
+        const textos = container.querySelectorAll('.break-bars-barra__texto');
+        expect(textos.length).toBe(1);
+        expect(textos[0].textContent).toBe('50 / 100');
+    });
+
+    it('atual=NaN numa barra do meio é tratado como 0/inativo — a ativa continua sendo a próxima barra com Vida real', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(0, 100), barra(NaN, 100), barra(50, 100)]} cor="#ff4d4d" />
+        );
+        const textos = container.querySelectorAll('.break-bars-barra__texto');
+        expect(textos.length).toBe(1);
+        expect(textos[0].textContent).toBe('50 / 100');
+    });
+
+    it('todas as barras "sujas" (undefined/null/NaN, nenhuma com Vida real): cai pro fallback de índice 0, sem lançar e sem NaN no texto', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(undefined, 100), barra(null, 100), barra(NaN, 100)]} cor="#ff4d4d" />
+        );
+        const textos = container.querySelectorAll('.break-bars-barra__texto');
+        expect(textos.length).toBe(1);
+        expect(textos[0].textContent).toBe('0 / 100');
+        expect(container.innerHTML).not.toMatch(/NaN/);
+    });
+
+    it('atual como string numérica ("50") é reconhecido como Vida > 0 — essa barra vira a ativa normalmente', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(0, 100), barra('50', 100), barra(80, 100)]} cor="#ff4d4d" />
+        );
+        const textos = container.querySelectorAll('.break-bars-barra__texto');
+        expect(textos.length).toBe(1);
+        expect(textos[0].textContent).toBe('50 / 100');
+    });
+
+    it('atual como string não-numérica ("abc") é tratado como 0/inativo (Number("abc") é NaN)', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra('abc', 100), barra(50, 100)]} cor="#ff4d4d" />
+        );
+        const textos = container.querySelectorAll('.break-bars-barra__texto');
+        expect(textos.length).toBe(1);
+        expect(textos[0].textContent).toBe('50 / 100');
+    });
+
+    it('exatamente 2 barras, só a ÚLTIMA (índice 1) com Vida, com renderTexto: renderTexto é chamado exatamente 1 vez, pra barra 1', () => {
+        const renderTexto = vi.fn((atual, max, indice) => `custom-${indice}:${atual}/${max}`);
+        const { container } = render(
+            <BarrasVida
+                barras={[barra(0, 100), barra(30, 100)]}
+                cor="#ff4d4d"
+                renderTexto={renderTexto}
+            />
+        );
+        expect(renderTexto).toHaveBeenCalledTimes(1);
+        expect(renderTexto).toHaveBeenCalledWith(30, 100, 1);
+        expect(screen.getByText('custom-1:30/100')).toBeDefined();
+        expect(container.querySelectorAll('.break-bars-barra__texto').length).toBe(1);
+    });
+});
+
+describe('BarrasVida - atributos data-atual/data-max (sempre presentes, inclusive em barras sem texto)', () => {
+    afterEach(() => cleanup());
+
+    it('toda .break-bars-barra carrega data-atual e data-max com os valores numéricos reais, mesmo a que não mostra texto', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(0, 100), barra(50, 200), barra(80, 300)]} cor="#ff4d4d" />
+        );
+        const divs = container.querySelectorAll('.break-bars-barra');
+        expect(divs.length).toBe(3);
+        expect(divs[0].getAttribute('data-atual')).toBe('0');
+        expect(divs[0].getAttribute('data-max')).toBe('100');
+        expect(divs[1].getAttribute('data-atual')).toBe('50');
+        expect(divs[1].getAttribute('data-max')).toBe('200');
+        expect(divs[2].getAttribute('data-atual')).toBe('80');
+        expect(divs[2].getAttribute('data-max')).toBe('300');
+    });
+
+    it('data-atual/data-max normalizam valores "sujos" (undefined vira "0"), assim como o resto do componente', () => {
+        const { container } = render(
+            <BarrasVida barras={[barra(undefined, 100)]} cor="#ff4d4d" />
+        );
+        const div = container.querySelector('.break-bars-barra');
+        expect(div.getAttribute('data-atual')).toBe('0');
+        expect(div.getAttribute('data-max')).toBe('100');
+    });
+});
+
+describe('BarrasVida - transição de barra ativa entre re-renders, junto com o flash de quebra', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        cleanup();
+        vi.useRealTimers();
+    });
+
+    it('quando a barra ativa (índice 0) quebra, o texto imediatamente passa a aparecer na próxima barra com Vida (índice 1), e o flash de quebra aparece na barra 0 (não na 1)', () => {
+        const { container, rerender } = render(
+            <BarrasVida barras={[barra(50, 100), barra(80, 100)]} cor="#ff4d4d" />
+        );
+
+        // Antes de quebrar: texto aparece na barra 0, nenhum flash ainda.
+        let textos = container.querySelectorAll('.break-bars-barra__texto');
+        expect(textos.length).toBe(1);
+        expect(textos[0].textContent).toBe('50 / 100');
+        expect(container.querySelector('.break-bars-barra__flash')).toBeNull();
+
+        // Barra 0 quebra -> barra 1 assume o texto, e o flash aparece na barra 0 (que quebrou).
+        rerender(<BarrasVida barras={[barra(0, 100), barra(80, 100)]} cor="#ff4d4d" />);
+
+        textos = container.querySelectorAll('.break-bars-barra__texto');
+        expect(textos.length).toBe(1);
+        expect(textos[0].textContent).toBe('80 / 100');
+
+        const divsBarra = container.querySelectorAll('.break-bars-barra');
+        expect(divsBarra[0].querySelector('.break-bars-barra__flash')).not.toBeNull();
+        expect(divsBarra[1].querySelector('.break-bars-barra__flash')).toBeNull();
+
+        // O flash da barra 0 ainda some sozinho depois de 600ms, normalmente, mesmo com a
+        // troca de barra ativa tendo acontecido no mesmo render.
+        act(() => { vi.advanceTimersByTime(600); });
+        expect(divsBarra[0].querySelector('.break-bars-barra__flash')).toBeNull();
+
+        // E o texto continua na barra 1 depois do flash sumir.
+        textos = container.querySelectorAll('.break-bars-barra__texto');
+        expect(textos.length).toBe(1);
+        expect(textos[0].textContent).toBe('80 / 100');
+    });
+
+    it('com renderTexto, a troca de barra ativa também move QUAL índice é passado pra renderTexto (de 0 pra 1)', () => {
+        const renderTexto = vi.fn((atual, max, indice) => `custom-${indice}:${atual}`);
+        const { rerender } = render(
+            <BarrasVida barras={[barra(50, 100), barra(80, 100)]} cor="#ff4d4d" renderTexto={renderTexto} />
+        );
+        expect(renderTexto).toHaveBeenLastCalledWith(50, 100, 0);
+
+        renderTexto.mockClear();
+        rerender(<BarrasVida barras={[barra(0, 100), barra(80, 100)]} cor="#ff4d4d" renderTexto={renderTexto} />);
+
+        expect(renderTexto).toHaveBeenCalledTimes(1);
+        expect(renderTexto).toHaveBeenCalledWith(80, 100, 1);
     });
 });

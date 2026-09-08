@@ -115,7 +115,12 @@ function BarraQuebravel({ atual, maximo, cor, corTexto, altura, perigo, mostrarT
     if (perigo) { if (pct <= 20) corPreenchimento = '#ff3030'; else if (pct <= 50) corPreenchimento = '#ffcc00'; }
 
     return (
-        <div className={`break-bars-barra ${quebrada ? 'break-bars-barra--quebrada' : ''}`} style={{ height: altura, ...posicaoStyle }}>
+        <div
+            className={`break-bars-barra ${quebrada ? 'break-bars-barra--quebrada' : ''}`}
+            style={{ height: altura, ...posicaoStyle }}
+            data-atual={atualSeguro}
+            data-max={maxSeguro}
+        >
             <div className="break-bars-barra__preenchimento" style={{ width: `${pct}%`, background: corPreenchimento, boxShadow: `0 0 6px ${corPreenchimento}` }} />
             {quebrando && <div className="break-bars-barra__flash" />}
             {mostrarTexto && (
@@ -149,6 +154,16 @@ export default function BarrasVida({ barras, cor, corTexto = '#fff', altura = 40
     const numBarras = barras.length;
     const empilhado = numBarras > 1;
 
+    // 🔤 Pedido do usuário: o fundo de cada barra é translúcido (.break-bars-barra, styles.css), então
+    // com TODAS as barras empilhadas mostrando texto ao mesmo tempo, os números das barras cobertas
+    // vazavam por trás da barra de cima e ficavam ilegíveis (dígitos sobrepostos). Enquanto a barra
+    // ativa (a de cima, ainda não quebrada) não esvaziar, o valor da(s) barra(s) seguinte(s) fica
+    // oculto — mostra texto só da barra de menor índice que ainda tem Vida > 0; se todas já
+    // quebraram (personagem no zero), cai pra frente da pilha (i=0), que é quem fica visualmente
+    // por cima nesse caso também (mesmo critério de zIndex logo abaixo).
+    let indiceAtiva = barras.findIndex((b) => (Number(b.atual) || 0) > 0);
+    if (indiceAtiva === -1) indiceAtiva = 0;
+
     const bars = barras.map((b, i) => (
         <BarraQuebravel
             key={i}
@@ -158,7 +173,7 @@ export default function BarrasVida({ barras, cor, corTexto = '#fff', altura = 40
             corTexto={corTexto}
             altura={altura}
             perigo={perigo}
-            mostrarTexto={mostrarTexto}
+            mostrarTexto={mostrarTexto && (!empilhado || i === indiceAtiva)}
             renderTexto={renderTexto ? (atualSeguro, maxSeguro) => renderTexto(atualSeguro, maxSeguro, i) : undefined}
             posicaoStyle={empilhado ? {
                 position: 'absolute',

@@ -87,10 +87,13 @@ describe('Marcados — editar manualmente uma Break Bar de Vida clampa no teto R
         const wrapper = inputLabel.parentElement.parentElement.parentElement;
         const barraDiv = wrapper.children[1];
         const inputsAtual = barraDiv.querySelectorAll('input');
-        expect(inputsAtual.length).toBe(2); // 2 Break Bars -> 2 campos editáveis
+        // Barra 0 já está quebrada (0/100.000.000) -- só a barra ATIVA (índice 1, a que segura o
+        // resto) mostra seu campo editável agora (as demais não mostram texto/input nenhum, pra
+        // evitar números sobrepostos ilegíveis -- ver BarrasVida.jsx).
+        expect(inputsAtual.length).toBe(1); // só a Break Bar ativa tem campo editável
 
         // Digita um valor MUITO maior que o teto real da barra 1 (50.000.000) nela mesma (índice 1).
-        fireEvent.change(inputsAtual[1], { target: { value: '999999999' } });
+        fireEvent.change(inputsAtual[0], { target: { value: '999999999' } });
         rerender(<MarcadosPanel />);
 
         // Barra 0 continua vazia (0, não editada) + barra 1 clampada no SEU PRÓPRIO teto
@@ -108,7 +111,7 @@ describe('Marcados — editar manualmente uma Break Bar de Vida clampa no teto R
         const barraDiv = wrapper.children[1];
         const inputsAtual = barraDiv.querySelectorAll('input');
 
-        fireEvent.change(inputsAtual[1], { target: { value: '25000000' } });
+        fireEvent.change(inputsAtual[0], { target: { value: '25000000' } });
         rerender(<MarcadosPanel />);
 
         // Barra 0 (0, inalterada) + barra 1 editada pra 25.000.000 (dentro do seu range de 0-50M).
