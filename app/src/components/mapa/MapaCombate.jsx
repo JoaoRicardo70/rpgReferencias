@@ -8,8 +8,8 @@ import { useArsenalForm } from '../arsenal/ArsenalFormContext';
 import { useElementosForm, emogis as ELEMENTOS_EMOJIS, cores as ELEMENTOS_CORES } from '../arsenal/ElementosFormContext';
 import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { getClassIconById } from '../../core/classIcons';
-import { calcularPoderAtual } from '../../core/poder';
-import { getVitalMxDisplay, getVitalMax, getVitalMaxEstavel, calcularBarrasVida, calcularBarrasVidaDummy } from '../../core/vitals';
+import { calcularPoderAtual, calcularFatorMultiplicadorForca } from '../../core/poder';
+import { getVitalMax, getVitalMaxEstavel, calcVitalScale, calcularBarrasVida, calcularBarrasVidaDummy } from '../../core/vitals';
 import BarrasVida from '../shared/BarrasVida';
 import { formatarPoderCosmico } from '../../core/utils';
 
@@ -773,23 +773,25 @@ export function MapaMagiasElementais() {
 }
 
 // 🔥 Barrinha de vida/energia da moldura de combate — desenha o quão cheio "atual" está em
-// relação ao teto EXIBIDO do vital (getVitalMxDisplay, core/vitals.js — a mesma "única fonte de
-// verdade" que a própria Ficha Definitiva e a Regeneração automática já usam). O número de
-// Máximo em si não é mostrado ao lado do Atual (só a barra) por pedido explícito do usuário —
-// mostrar os dois juntos gerava confusão. Pra HP (perigo=true) a cor muda pra amarelo/vermelho
-// conforme a vida cai, já que é o recurso que mais importa saber "quão perto da morte" está.
+// relação ao teto EXIBIDO do vital (calcVitalScale/calcularBarrasVida, core/vitals.js — a mesma
+// "única fonte de verdade" que a própria Ficha Definitiva e a Regeneração automática já usam,
+// combinada com calcularFatorMultiplicadorForca de core/poder.js — ver comentário mais abaixo, em
+// MapaHologramaAcao, sobre por que esse fator entra aqui também). O número de Máximo em si não é
+// mostrado ao lado do Atual (só a barra) por pedido explícito do usuário — mostrar os dois juntos
+// gerava confusão. Pra HP (perigo=true) a cor muda pra amarelo/vermelho conforme a vida cai, já
+// que é o recurso que mais importa saber "quão perto da morte" está.
 //
-// ⚠️ Residual conhecido: a Ficha Definitiva (Ficha Def/Marcados.jsx > handleRegenerarTudo/
-// LinhaVital) aplica, por cima do teto de cada vital, um fator extra de Ascensão específico
-// daquele vital (fatoresVitaisAtual/calcularFatorCategoria) — um bônus praticamente sempre >1
-// pra qualquer personagem com pontos de Ascensão naquele vital, não um caso raro. Esse fator
-// NÃO existe em getVitalMxDisplay, então pra um personagem já beneficiado por ele, "atual"
-// (gravado pela Ficha JÁ com o fator) ainda pode legitimamente exceder o teto calculado aqui —
-// a barra fica clampada em 100% (não estoura visualmente), mas o threshold de cor "perigo"
-// (<=20%/<=50%) usa um denominador um pouco menor do que o real pra esses personagens. Replicar
-// esse fator aqui foi tentado e revertido nesta mesma investigação por quebrar 11 testes já
-// validados de core/vitals.js (o fator afeta a fonte única de verdade usada por drenos/clamps
-// no app inteiro, não só esta exibição) — ver histórico do commit para detalhes.
+// ✅ RESOLVIDO (era um "residual conhecido" nesta mesma investigação): a Ficha Definitiva (Ficha
+// Def/Marcados.jsx > handleRegenerarTudo/LinhaVital) aplica, por cima do teto de cada vital, um
+// fator extra de Ascensão específico daquele vital (fatoresVitaisAtual/calcularFatorCategoria) —
+// um bônus praticamente sempre >1 pra qualquer personagem com pontos de Ascensão naquele vital,
+// não um caso raro. Esse fator não existia aqui, então o MESMO personagem podia mostrar um Máximo
+// diferente na Ficha e no Mapa (pedido do usuário pra corrigir). Uma tentativa anterior de dobrar
+// esse fator DENTRO de core/vitals.js > getMaximo/getVitalMax quebrou 11 testes (o fator inflaria
+// o teto REAL usado por drenos/clamps/regen em todo o app, não só a exibição) — a correção certa
+// foi extrair o cálculo como função pura, SÓ DE EXIBIÇÃO (core/poder.js >
+// calcularFatorMultiplicadorForca), e aplicá-la aqui exatamente como a Ficha já fazia, sem tocar
+// em core/vitals.js.
 function BarraVital({ atual, maximo, cor, perigo = false }) {
     const atualSeguro = Number(atual) || 0;
     const maximoSeguro = Number(maximo) || 0;
@@ -836,19 +838,38 @@ export function MapaHologramaAcao() {
     // getMaximo() bruto (sem a escala de notação nem o fator de Ascensão por vital) fazia a barra
     // comparar "atual" (guardado já nessa escala/fator) contra um teto em outra unidade — o mesmo
     // vazamento de escala já documentado no topo de core/vitals.js.
+    //
+    // 🩹 SINCRONIA COM A FICHA (pedido do usuário — o mesmo personagem mostrava Máximos diferentes
+    // na Ficha Definitiva e no Mapa): a Ficha (Marcados.jsx > LinhaVital) multiplica o teto de cada
+    // vital pelo "Multiplicador de Força" daquele vital (Ascensão/Prestígio-overflow individual,
+    // ver core/poder.js > calcularFatorMultiplicadorForca) ANTES de decidir escala/nº de barras —
+    // esta tela não aplicava esse fator, então o mesmo personagem podia mostrar Máximos diferentes
+    // em cada tela. Aplicado aqui do mesmo jeito (só de EXIBIÇÃO, não entra em getMaximo/
+    // getVitalMax — ver o comentário de calcularFatorMultiplicadorForca pro motivo).
+    const fatorVida = fichaBase ? calcularFatorMultiplicadorForca(fichaBase, 'vida') : 1;
+
     // 🩸 MÚLTIPLAS BARRAS DE VIDA (pedido do usuário, mesma regra da Ficha — ver core/vitals.js >
     // calcularBarrasVida/calcularBarrasVidaDummy): também vale pros dummies/NPCs do Mapa, que não
-    // têm ficha.vida (usam hpMax/hpAtual planos), daí o branch por isDummie abaixo.
+    // têm ficha.vida (usam hpMax/hpAtual planos, sem Multiplicador de Força — daí o branch por
+    // isDummie abaixo não precisar de fatorVida).
     const isDummieDaVez = !!(jogadorDaVez && jogadorDaVez.isDummie);
     const vidaInfo = fichaBase
         ? (isDummieDaVez
             ? calcularBarrasVidaDummy(fichaBase.hpMax, fichaBase.hpAtual)
-            : calcularBarrasVida(getVitalMax('vida', fichaBase), 'vida', fichaBase.vida?.atual, getVitalMaxEstavel('vida', fichaBase)))
+            : calcularBarrasVida(getVitalMax('vida', fichaBase) * fatorVida, 'vida', fichaBase.vida?.atual, getVitalMaxEstavel('vida', fichaBase) * fatorVida))
         : { atual: 0, totalMax: 0, barras: [] };
-    const manaMaxima = fichaBase ? getVitalMxDisplay('mana', fichaBase) : 0;
-    const auraMaxima = fichaBase ? getVitalMxDisplay('aura', fichaBase) : 0;
-    const chakraMaximo = fichaBase ? getVitalMxDisplay('chakra', fichaBase) : 0;
-    const corpoMaximo = fichaBase ? getVitalMxDisplay('corpo', fichaBase) : 0;
+
+    const maximoExibidoComFator = (key) => {
+        if (!fichaBase) return 0;
+        const fator = calcularFatorMultiplicadorForca(fichaBase, key);
+        const rawMx = getVitalMax(key, fichaBase) * fator;
+        const rawMxEstavel = getVitalMaxEstavel(key, fichaBase) * fator;
+        return calcVitalScale(rawMx, key, rawMxEstavel).mxDisplay;
+    };
+    const manaMaxima = maximoExibidoComFator('mana');
+    const auraMaxima = maximoExibidoComFator('aura');
+    const chakraMaximo = maximoExibidoComFator('chakra');
+    const corpoMaximo = maximoExibidoComFator('corpo');
 
     let classId = fichaBase?.bio?.classe;
     if ((classId === 'pretender' || classId === 'alterego') && fichaBase?.bio?.subClasse) classId = fichaBase?.bio?.subClasse;

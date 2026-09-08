@@ -6,6 +6,7 @@ import PainelMestreSandbox from './PainelMestreSandbox';
 import { getMaximo } from '../../core/attributes';
 import { calcularCA } from '../../core/engine';
 import { calcularBarrasVida, getVitalMax, getVitalMaxEstavel } from '../../core/vitals';
+import { calcularFatorMultiplicadorForca } from '../../core/poder';
 
 const FALLBACK = <div style={{color:'#888',padding:10}}>Mestre provider não encontrado</div>;
 
@@ -19,9 +20,15 @@ function getStatusLimpo(ficha, chave, threshold) {
     // aqui com o máximo BRUTO (com Formas, via getMaximo) fazia este card "expandido" mostrar um
     // nº de barras/Máximo diferente do card compacto pro MESMO personagem sempre que ele tivesse
     // uma Forma ativa.
+    //
+    // 🩹 SINCRONIA COM A FICHA/MAPA (pedido do usuário): multiplica pelo "Multiplicador de Força"
+    // de Vida (core/poder.js > calcularFatorMultiplicadorForca), igual a Ficha Definitiva e a
+    // moldura de combate do Mapa já fazem — senão o MESMO personagem mostra um Máximo diferente
+    // aqui.
     if (chave === 'vida') {
-        const rawMx = getVitalMax('vida', ficha);
-        const rawMxEstavel = getVitalMaxEstavel('vida', ficha);
+        const fatorVida = calcularFatorMultiplicadorForca(ficha, 'vida');
+        const rawMx = getVitalMax('vida', ficha) * fatorVida;
+        const rawMxEstavel = getVitalMaxEstavel('vida', ficha) * fatorVida;
         const info = calcularBarrasVida(rawMx, 'vida', ficha.vida?.atual, rawMxEstavel);
         return { max: info.totalMax, atual: info.atual, pVit: info.p };
     }
@@ -29,6 +36,10 @@ function getStatusLimpo(ficha, chave, threshold) {
     let mx = 0;
     try { mx = getMaximo(ficha, chave); } catch(e){}
     if (!mx || isNaN(mx)) mx = parseInt(ficha[chave]?.base) || 0;
+    // 🩹 SINCRONIA COM A FICHA/MAPA (pedido do usuário): mesmo "Multiplicador de Força" aplicado
+    // acima pra vida, agora também pra mana/aura/chakra/corpo — senão o MESMO personagem mostra um
+    // Máximo diferente aqui do que na Ficha Definitiva/Mapa assim que o Multiplicador entra em jogo.
+    mx = mx * (calcularFatorMultiplicadorForca(ficha, chave) || 1);
     const strVal = String(Math.floor(mx));
     const pVit = Math.max(0, strVal.length - threshold);
     const maxFinal = pVit > 0 ? Math.floor(mx / Math.pow(10, pVit)) : mx;

@@ -228,7 +228,7 @@ export function FichaFormProvider({ children }) {
     // getVidaTotalMaxDisplay já decide a escala ignorando Formas (getMaximoSemFormas) — evita que
     // uma Forma temporária empurre "maxVida" através de uma fronteira de dígitos e infle
     // percAtualLostFloor artificialmente (disparando/ratchando furiaMax sem Vida perdida de
-    // verdade). Usa o TOTAL somando todas as barras de Vida (getNumBarrasVida), não só uma.
+    // verdade). Usa o TOTAL de Vida (getTetoVida, nunca inflado além do bruto real), não uma barra só.
     const maxVida = minhaFicha ? getVidaTotalMaxDisplay(minhaFicha) : 1;
     const atualVida = minhaFicha?.vida?.atual ?? maxVida;
     const percAtualLostFloor = Math.floor(maxVida > 0 ? Math.max(0, ((maxVida - atualVida) / maxVida) * 100) : 0);

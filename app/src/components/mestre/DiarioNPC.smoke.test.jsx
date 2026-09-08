@@ -24,17 +24,16 @@ function statBase(base, extra = {}) {
     return { base, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mUnico: '1.0', mAbsoluto: 1.0, ...extra };
 }
 
-// npcData mínimo, com "vida" cruzando a fronteira de compressão de calcVitalScale
-// (base de 9 dígitos, limite de vida=8) -> p=1 -> getNumBarrasVida(1)=2 barras.
-// Isso força LinhaVital a de fato desestruturar TODO o retorno de calcularBarrasVida
-// (incluindo "pVit"/numBarras/barras) — exercitando exatamente o caminho que
-// continha o ReferenceError corrigido.
+// npcData mínimo, com "vida" acima do limiar de 100 milhões (core/vitals.js > LIMIAR_BARRA_VIDA)
+// -> 2 Break Bars (1 cravada em 100M + 1 ativa com o resto de 50M). Isso força LinhaVital a de
+// fato desestruturar TODO o retorno de calcularBarrasVida (incluindo "pVit"/numBarras/barras) —
+// exercitando exatamente o caminho que continha o ReferenceError corrigido.
 function criarNpcMinimo(overrides = {}) {
     const npc = {
         id: 'npc-1',
         nome: 'Slime Ancião',
         bio: { nivel: 10, classe: '' },
-        vida: { ...statBase(100000000), atual: 15000000 }, // 9 dígitos -> 2 barras (10.000.000 cada)
+        vida: { ...statBase(150000000), atual: 115000000 }, // acima do limiar -> 2 barras (100M + 50M)
         mana: { ...statBase(1000), atual: 500 },
         aura: { ...statBase(1000), atual: 500 },
         chakra: { ...statBase(1000), atual: 500 },
@@ -81,13 +80,15 @@ describe('DiarioNPC - smoke test de render (regressão do ReferenceError em Linh
         render(<DiarioNPC npcData={npc} onSaveNpc={vi.fn()} />);
 
         const linhaVida = acharLinhaVital('Vida (HP)');
-        // Vida com p=1 (getNumBarrasVida) gera 2 barras no visual novo de "Break Bars"
-        // (components/shared/BarrasVida.jsx), cada uma com a classe .break-bars-barra.
+        // Vida acima do limiar (getVitalidadeVida) gera 2 barras no visual novo de "Break Bars"
+        // (components/shared/BarrasVida.jsx), cada uma com a classe .break-bars-barra: 1 cravada
+        // em 100.000.000 (cheia) + 1 ativa com o resto (50.000.000) -- soma bate com o bruto.
         const barrasVida = linhaVida.querySelectorAll('.break-bars-barra');
         expect(barrasVida.length).toBe(2);
 
-        // Cada barra mostra seu próprio "max" (mxDisplay = 10.000.000) formatado em pt-BR.
-        expect(linhaVida.textContent).toMatch(/10\.000\.000/);
+        // Cada barra mostra seu próprio "max" (100.000.000 e 50.000.000) formatado em pt-BR.
+        expect(linhaVida.textContent).toMatch(/100\.000\.000/);
+        expect(linhaVida.textContent).toMatch(/50\.000\.000/);
     });
 
     it('a fileira de losangos ("pips") mostra uma marca pra CADA barra quando numBarras > 1 (visual novo de Break Bars, substitui o antigo indicador numérico por barra)', () => {
@@ -97,7 +98,7 @@ describe('DiarioNPC - smoke test de render (regressão do ReferenceError em Linh
         const linhaVida = acharLinhaVital('Vida (HP)');
         const pips = linhaVida.querySelectorAll('.break-bars-pip');
         expect(pips.length).toBe(2);
-        // vida.atual=15.000.000 de um total de 20.000.000 -- nenhuma das 2 barras está
+        // vida.atual=115.000.000 de um total de 150.000.000 -- nenhuma das 2 barras está
         // zerada ainda, então nenhum pip deveria estar marcado como "quebrado".
         const quebrados = linhaVida.querySelectorAll('.break-bars-pip--quebrada');
         expect(quebrados.length).toBe(0);

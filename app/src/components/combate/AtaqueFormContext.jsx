@@ -141,7 +141,7 @@ export function AtaqueFormProvider({ children }) {
     // getVidaTotalMaxDisplay já decide a escala ignorando Formas (getMaximoSemFormas) — evita que
     // uma Forma temporária empurre "maxVida" através de uma fronteira de dígitos e infle
     // percAtualLostFloor artificialmente (disparando Fúria Berserker sem o personagem ter perdido
-    // Vida de verdade). Usa o TOTAL somando todas as barras de Vida (getNumBarrasVida), não só uma.
+    // Vida de verdade). Usa o TOTAL de Vida (getTetoVida, nunca inflado além do bruto real), não uma barra só.
     const maxVida = minhaFicha ? getVidaTotalMaxDisplay(minhaFicha) : 1;
 
     const atualVida = minhaFicha?.vida?.atual ?? maxVida;

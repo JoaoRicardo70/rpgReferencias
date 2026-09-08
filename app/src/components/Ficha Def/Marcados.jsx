@@ -663,7 +663,7 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
                 </div>
             </div>
             {numBarras > 1 ? (
-                // 💔 BREAK BARS: 2+ barras (ver core/vitals.js > getNumBarrasVida) usam o visual
+                // 💔 BREAK BARS: 2+ barras (ver core/vitals.js > calcularBarrasVida/montarBarrasVida) usam o visual
                 // novo de barras em pílula com losangos e "quebra" animada ao esvaziar (pedido do
                 // usuário) — componente compartilhado com Status/Mestre/Mapa (components/shared/BarrasVida.jsx).
                 <BarrasVida
@@ -673,7 +673,7 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
                     altura={35}
                     renderTexto={(atualSeguro, maxSeguro, i) => (
                         <>
-                            <CampoMagico valor={atualSeguro} onChange={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, mxDisplay, i, v))} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTextoBarra, textShadow: 'inherit', borderBottom: `1px dashed ${corTextoBarra === '#fff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
+                            <CampoMagico valor={atualSeguro} onChange={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, maxSeguro, i, v))} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTextoBarra, textShadow: 'inherit', borderBottom: `1px dashed ${corTextoBarra === '#fff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
                             <span style={{ margin: '0 8px' }}>/</span>
                             <span>{maxSeguro.toLocaleString('pt-BR')}</span>
                         </>
@@ -686,7 +686,7 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
                     pVit={pVit}
                     cor={corBarra}
                     corTexto={corTextoBarra}
-                    onChangeAtual={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, mxDisplay, 0, v))}
+                    onChangeAtual={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, barras[0].max, 0, v))}
                 />
             )}
 

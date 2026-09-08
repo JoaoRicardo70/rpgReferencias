@@ -449,7 +449,7 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
                         altura={35}
                         renderTexto={(atualSeguro, maxSeguro, i) => (
                             <>
-                                <CampoMagicoNPC valor={atualSeguro} onChange={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, mxDisplay, i, v))} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTextoBarra, textShadow: 'inherit', borderBottom: `1px dashed ${corTextoBarra === '#fff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
+                                <CampoMagicoNPC valor={atualSeguro} onChange={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, maxSeguro, i, v))} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTextoBarra, textShadow: 'inherit', borderBottom: `1px dashed ${corTextoBarra === '#fff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
                                 <span style={{ margin: '0 8px' }}>/</span>
                                 <span>{maxSeguro.toLocaleString('pt-BR')}</span>
                             </>
@@ -462,7 +462,7 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
                         pVit={pVit}
                         cor={corBarra}
                         corTexto={corTextoBarra}
-                        onChangeAtual={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, mxDisplay, 0, v))}
+                        onChangeAtual={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, barras[0].max, 0, v))}
                     />
                 )}
                 {aberto && subItens && (

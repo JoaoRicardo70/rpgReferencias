@@ -103,6 +103,37 @@ function lerAtualBarra(labelText) {
     return barraDiv.querySelector('input').value;
 }
 
+function parsePtBr(texto) {
+    return parseInt(String(texto).replace(/\./g, ''), 10) || 0;
+}
+
+// Quando o vital tem 2+ Break Bars empilhadas (core/vitals.js > calcularBarrasVida, ver
+// components/shared/BarrasVida.jsx), lerMaximoBarra/lerAtualBarra (pensadas pra 1 barra só) não
+// bastam mais -- somam-se os máximos/atuais de TODAS as barras empilhadas pra comparar com o TOTAL
+// real (que nunca é maior nem menor que o bruto escalado pelo Multiplicador de Força).
+function lerTotalMaximoBarras(labelText) {
+    const input = screen.getByDisplayValue(labelText);
+    const wrapper = input.parentElement.parentElement.parentElement;
+    const barraDiv = wrapper.children[1];
+    const textos = barraDiv.querySelectorAll('.break-bars-barra__texto');
+    let total = 0;
+    textos.forEach((t) => {
+        const spans = t.querySelectorAll('span');
+        total += parsePtBr(spans[spans.length - 1].textContent);
+    });
+    return total;
+}
+
+function lerTotalAtualBarras(labelText) {
+    const input = screen.getByDisplayValue(labelText);
+    const wrapper = input.parentElement.parentElement.parentElement;
+    const barraDiv = wrapper.children[1];
+    const inputs = barraDiv.querySelectorAll('input');
+    let total = 0;
+    inputs.forEach((i) => { total += parsePtBr(i.value); });
+    return total;
+}
+
 describe('Marcados — Fix do double-dip: badge "Poder" dos 8 sub-atributos NÃO aplica o Multiplicador de Força duas vezes', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -201,19 +232,20 @@ describe('Marcados — LinhaVital: Multiplicador de Força agora infla o máximo
         expect(lerMaximoBarra('Vida (HP)')).toBe((50000000).toLocaleString('pt-BR'));
     });
 
-    it('multiplicadorForcaPrestigio causando overflow de Ascensão: máximo de Vida exibido FICA MAIOR (fator=4 > 1)', () => {
+    it('multiplicadorForcaPrestigio causando overflow de Ascensão: máximo REAL de Vida (soma de todas as Break Bars) FICA MAIOR (fator=4 > 1)', () => {
         // vida.base=100.000.000 -> displayP=100; multP=3,multA=1 -> prestigioTotal=300,
         // bonusAscensao=3, ascensaoFinal=1+3=4 -> fator=4/1=4.
-        // rawMaximo = 100.000.000*4 = 400.000.000 -> pVit=max(0,9-8)=1 ->
-        // mxDisplay=floor(400.000.000/10)=40.000.000 (4x o valor sem multiplicador).
+        // rawMaximo = 100.000.000*4 = 400.000.000 -- acima do limiar de 100 milhões, vira 4
+        // Break Bars empilhadas de 100.000.000 cada (getTetoVida nunca infla nem encolhe o
+        // total: a soma das barras bate exatamente com o bruto escalado pelo fator).
         const ficha = fichaBase({ vida: { base: 100000000 }, multiplicadorForcaPrestigio: 3 });
         montarMockUseStore(ficha);
 
         render(<MarcadosPanel />);
 
-        const maximoExibido = lerMaximoBarra('Vida (HP)');
-        expect(maximoExibido).toBe((40000000).toLocaleString('pt-BR'));
-        expect(maximoExibido).not.toBe((10000000).toLocaleString('pt-BR'));
+        const totalExibido = lerTotalMaximoBarras('Vida (HP)');
+        expect(totalExibido).toBe(400000000);
+        expect(totalExibido).not.toBe(100000000); // não pode ficar preso no máximo sem multiplicador
     });
 
     it('cada categoria vital usa o SEU PRÓPRIO fator (Mana escalado diferente de Vida quando os Prestígios divergem)', () => {
@@ -245,20 +277,21 @@ describe('Marcados — handleRegenerarTudo ("💖 Descansar") cura até o NOVO m
 
     afterEach(() => cleanup());
 
-    it('após Descansar, Vida.atual bate com o mxDisplay JÁ escalado pelo fator (não com o máximo antigo sem multiplicador)', () => {
+    it('após Descansar, Vida.atual bate com o TOTAL (soma de todas as Break Bars) já escalado pelo fator (não com o máximo antigo sem multiplicador)', () => {
         const ficha = fichaBase({ vida: { base: 100000000, atual: 0 }, multiplicadorForcaPrestigio: 3 });
         montarMockUseStoreReativo(ficha);
 
         const { rerender } = render(<MarcadosPanel />);
-        expect(lerAtualBarra('Vida (HP)')).toBe('0');
+        expect(lerTotalAtualBarras('Vida (HP)')).toBe(0);
 
         const botaoDescansar = screen.getByRole('button', { name: /Descansar/ });
         fireEvent.click(botaoDescansar);
         rerender(<MarcadosPanel />);
 
-        // Mesmo cálculo do teste de LinhaVital acima: máximo escalado = 40.000.000.
-        expect(lerAtualBarra('Vida (HP)')).toBe((40000000).toLocaleString('pt-BR'));
-        expect(lerMaximoBarra('Vida (HP)')).toBe((40000000).toLocaleString('pt-BR'));
+        // Mesmo cálculo do teste de LinhaVital acima: total escalado = 400.000.000 (4 Break Bars
+        // de 100 milhões cada), nunca o máximo sem multiplicador (100.000.000).
+        expect(lerTotalAtualBarras('Vida (HP)')).toBe(400000000);
+        expect(lerTotalMaximoBarras('Vida (HP)')).toBe(400000000);
     });
 });
 

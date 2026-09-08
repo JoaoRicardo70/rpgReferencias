@@ -187,26 +187,13 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
     processarEfeitos(getEfeitosDeClasse(ficha), `Classe Mística`);
 
     if (maxFuriaVal > 0 && !avoidLoop) {
-        let rawMaxVida = getMaximo(ficha, 'vida', true);
-        // 🔥 CORREÇÃO (6ª rodada do vazamento de Energia): a escala de notação (pVit) era decidida
-        // pelo máximo COMPLETO (com Formas) — a mesma causa raiz já corrigida em core/vitals.js >
-        // calcVitalScale. Aqui não dá pra importar vitals.js (importaria de volta este próprio
-        // arquivo, ciclo) — então usa getMaximoSemFormas (definida logo acima neste arquivo) como
-        // base da escala, mantendo rawMaxVida (completo) como numerador de maxVida.
-        let rawMaxVidaEstavel = getMaximoSemFormas(ficha, 'vida', true);
-        let baseEscala = rawMaxVidaEstavel > 0 ? rawMaxVidaEstavel : rawMaxVida;
-        let strVal = String(Math.floor(baseEscala));
-        let pVit = Math.max(0, strVal.length - 8);
-
-        let maxVidaBarra = pVit > 0 ? Math.floor(rawMaxVida / Math.pow(10, pVit)) : rawMaxVida;
-        // 🩸 Vida pode ter várias barras (1 por ponto de Vitalidade) — a fração perdida pra Fúria
-        // Berserker precisa considerar o TOTAL (soma de todas as barras), senão a barra da frente
-        // vazia já contaria como "quase morto" mesmo com reservas cheias sobrando. `(pVit + 1)` é
-        // a mesma fórmula de core/vitals.js > getNumBarrasVida, duplicada aqui de propósito (não
-        // dá pra importar vitals.js nesta função pelo mesmo motivo do comentário logo acima —
-        // ciclo de import) — se a fórmula de getNumBarrasVida mudar um dia, esta linha precisa
-        // mudar junto.
-        let maxVida = maxVidaBarra * (pVit + 1);
+        // 🩸 Vida pode ter várias "Break Bars" (ver core/vitals.js > getTetoVida/calcularBarrasVida),
+        // mas o TOTAL de Vida (soma de todas as barras) é SEMPRE igual ao máximo ESTÁVEL bruto (sem
+        // Formas, pra uma Forma temporária nunca fazer surgir/sumir uma barra sozinha) — a mecânica
+        // de barras só reparte visualmente esse total, nunca o infla. A fração perdida pra Fúria
+        // Berserker precisa considerar esse TOTAL, senão a barra da frente vazia já contaria como
+        // "quase morto" mesmo com reservas cheias sobrando.
+        let maxVida = getMaximoSemFormas(ficha, 'vida', true) || 0;
         let atualVida = ficha.vida?.atual ?? maxVida;
 
         let percLost = maxVida > 0 ? Math.max(0, ((maxVida - atualVida) / maxVida) * 100) : 0;

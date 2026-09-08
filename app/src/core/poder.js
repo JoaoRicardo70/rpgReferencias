@@ -248,6 +248,38 @@ function getMunicoCrescenteMultiplier(ficha) {
     return Math.max(1, 1 + (turnos * taxa / 100));
 }
 
+// 🔥 "MULTIPLICADOR DE FORÇA" POR VITAL — réplica exata de calcularFatorCategoria em
+// Ficha Def/Marcados.jsx (o mesmo bônus de Ascensão/Prestígio-overflow individual de cada
+// vida/mana/aura/chakra/corpo, incluindo o próprio mFormas daquele vital). A Ficha usa isso como
+// o "fator" de LinhaVital, escalando o teto de cada vital ANTES de decidir escala/nº de barras —
+// mas nenhum outro lugar do app aplicava esse fator (a moldura de combate do Mapa, o Mestre, o
+// Diário de NPC), causando o MESMO personagem mostrar um Máximo de Vida diferente na Ficha e no
+// Mapa. Exportado aqui pra qualquer tela reaproveitar o MESMO cálculo em vez de divergir.
+//
+// ⚠️ SÓ DE EXIBIÇÃO — nunca fold isto em core/vitals.js > getMaximo/getVitalMax (usados por
+// regeneração de turno, clamps de dano/cura, drenos de energia etc. em QUALQUER personagem). Uma
+// tentativa anterior de embutir esse fator ali quebrou o conjunto de testes de core/vitals.js
+// inteiro (valores esperados fixos como base:100000000 dobravam de tamanho) — o teto REAL usado
+// pra jogo (quanto cura, quanto pode drenar) continua vindo só de getMaximo/getVitalMax; este
+// fator só multiplica o NÚMERO MOSTRADO NA TELA, do mesmo jeito que a Ficha já fazia.
+export function calcularFatorMultiplicadorForca(ficha, key) {
+    if (!ficha) return 1;
+    const ascensaoBase = parseInt(ficha.ascensaoBase) || 1;
+    const multP = ficha.multiplicadorForcaPrestigio ?? 1;
+    const multA = parseFloat(ficha.multiplicadorForcaAscensao) || 1;
+    const ascensaoBaseEfetiva = ascensaoBase * multA;
+
+    const displayP = getPontosParaAscensao(ficha, key);
+    const mF = getEfetivoMFormas(ficha, key);
+    const multForma = mF >= 10 ? (mF / 10) : (mF > 1 ? mF : 1);
+    const pAtual = Math.floor(displayP * multForma);
+
+    const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
+    const geral = rankInfo.ascensaoFinal || ascensaoBaseEfetiva;
+    const fator = geral / (ascensaoBase || 1);
+    return isNaN(fator) ? 1 : fator;
+}
+
 export function getTemaScouter(supressao, limite = 1) {
     if (supressao >= 100) return { cor: '#ffcc00', glow: '#ff8800', nome: 'Poder Máximo (Liberto)', pulse: '0.8s' };
     if (supressao >= 50) return { cor: '#00e5ff', glow: '#0088ff', nome: 'Supressão Leve (Restrito)', pulse: '1.5s' };

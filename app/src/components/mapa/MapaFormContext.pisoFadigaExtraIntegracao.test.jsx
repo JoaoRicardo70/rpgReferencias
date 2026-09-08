@@ -95,9 +95,9 @@ describe('MapaFormContext — integração real do piso de Fadiga (pisoFadigaExt
         act(() => { probe.avancarTurno(); });
 
         // A cura de fato aconteceu neste mesmo tick...
-        // 🩸 Vida com p=1 (calcVitalScale) ganha 2 barras (getNumBarrasVida) -- teto real de cura
-        // é mxDisplay(1e7) * 2 = 2e7, não uma barra só.
-        expect(minhaFicha.vida.atual).toBe(20000000); // teto real (2 barras)
+        // 🩸 Vida usa getTetoVida (Break Bars, core/vitals.js) -- o teto NUNCA é maior nem menor
+        // que o bruto (base=1e8, exatamente o limiar) -- teto real de cura é o próprio 1e8.
+        expect(minhaFicha.vida.atual).toBe(100000000); // teto real
         // ...mas o ganho dinâmico calculado ANTES da cura não pode ter sido mascarado a 0 pelo
         // desconto de Fadiga por Regeneração que roda logo em seguida, no mesmo updateFicha.
         expect(minhaFicha.combate.fadigaExtra).toBeGreaterThan(0);

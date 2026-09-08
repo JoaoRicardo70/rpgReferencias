@@ -129,7 +129,7 @@ export function StatusVitalBar({ vitalKey, label, color, borderC, isSpecial, gri
     const regen = parseFloat(ficha[vitalKey]?.regeneracao) || 0;
     const extra = regen > 0 ? `(+${regen}/turno)` : '';
 
-    // 💔 BREAK BARS: 2+ barras (ver core/vitals.js > getNumBarrasVida) usam o visual novo em
+    // 💔 BREAK BARS: 2+ barras (ver core/vitals.js > calcularBarrasVida/montarBarrasVida) usam o visual novo em
     // pílula com losangos e "quebra" animada ao esvaziar (pedido do usuário) — componente
     // compartilhado (components/shared/BarrasVida.jsx), mesmo usado em Ficha Def/Marcados.jsx.
     if (numBarras > 1) {
@@ -144,7 +144,8 @@ export function StatusVitalBar({ vitalKey, label, color, borderC, isSpecial, gri
     }
 
     const atualBarra = barras[0].atual;
-    const percent = mxDisplay > 0 ? Math.min((atualBarra / mxDisplay) * 100, 100) : 0;
+    const maxBarra = barras[0].max;
+    const percent = maxBarra > 0 ? Math.min((atualBarra / maxBarra) * 100, 100) : 0;
     const vitalitySymbol = (p > 0 && (vitalKey === 'vida' || vitalKey === 'pv' || vitalKey === 'pm')) ? (
         <div style={{
             position: 'absolute', left: '8px', zIndex: 3, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -167,7 +168,7 @@ export function StatusVitalBar({ vitalKey, label, color, borderC, isSpecial, gri
                 {vitalitySymbol}
                 <div className="bar-text" style={{ position: 'relative', zIndex: 2, width: '100%', textAlign: 'center', textShadow: '1px 1px 3px #000, -1px -1px 3px #000' }}>
                     <span style={{ fontSize: '1.2em', fontWeight: 'bold', color: '#fff' }}>
-                        {Math.floor(atualBarra).toLocaleString('pt-BR')} / {mxDisplay.toLocaleString('pt-BR')}
+                        {Math.floor(atualBarra).toLocaleString('pt-BR')} / {maxBarra.toLocaleString('pt-BR')}
                     </span>
                 </div>
             </div>

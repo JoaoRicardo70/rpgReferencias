@@ -42,6 +42,13 @@ function criarFichaDeCombate(vidaAtual) {
         chakra: criarStat(500, 100000),
         corpo: criarStat(500, 100000),
         divisores: { vida: 1, status: 1, mana: 1, aura: 1, chakra: 1, corpo: 1 },
+        // 🔥 ascensaoBase bem alto pra neutralizar o "Multiplicador de Força" (core/poder.js >
+        // calcularFatorMultiplicadorForca, replicado de Ficha Def/Marcados.jsx > LinhaVital) —
+        // sem isso, um "base" grande o bastante pra cruzar a fronteira de compressão TAMBÉM
+        // dispara um bônus de Ascensão por overflow de Prestígio incidental (fator>1),
+        // contaminando estes testes que são sobre a escala de exibição (calcVitalScale), não sobre
+        // o Multiplicador de Força (esse tem sua própria suíte, Marcados.multiplicadorForcaVitais).
+        ascensaoBase: 1000000,
     };
     ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
         ficha[s] = criarStat(0, 1000);
@@ -302,20 +309,21 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
     });
 
     // -----------------------------------------------------------------------
-    // QA (gap) — os 5 vitais (vida/mana/aura/chakra/corpo) cruzando a fronteira de compressão de
-    // calcVitalScale AO MESMO TEMPO, não só mana isolado (como no teste de regressão já existente
-    // acima). Vida usa o limite de 8 dígitos; as outras 4 usam 9 -- com o MESMO "base" de
-    // 100.000.000 (9 dígitos), vida (limite 8) já comprime com p=1 (mxDisplay=10.000.000), enquanto
-    // mana/aura/chakra/corpo (limite 9) ainda NÃO comprimem (p=0, mxDisplay=100.000.000 igual ao
-    // bruto) -- provando que getVitalMxDisplay é chamado com a chave certa (não reaproveitando o
-    // mesmo threshold pros 5) e que a barra de cada um reflete seu próprio teto comprimido.
+    // QA (gap) — os 5 vitais (vida/mana/aura/chakra/corpo) usando cada um SEU PRÓPRIO teto, não um
+    // threshold compartilhado. mana/aura/chakra/corpo continuam na escala comprimida antiga de
+    // calcVitalScale (limite de 9 dígitos, base=100.000.000 com 9 dígitos ainda NÃO comprime, p=0,
+    // mxDisplay=100.000.000 igual ao bruto) -- provando que getVitalMxDisplay é chamado com a chave
+    // certa. Vida NÃO participa mais dessa comparação por dígitos (ganhou seu próprio mecanismo de
+    // Break Bars fixas de 100 milhões, ver core/vitals.js > getTetoVida) -- usa um "base" bem menor
+    // (abaixo do limiar de 100 milhões E abaixo do limiar de overflow de Ascensão por Prestígio, 100
+    // pontos) só pra continuar 1 barra só, sem interferência de nenhum dos dois mecanismos.
     // -----------------------------------------------------------------------
     it('vida/mana/aura/chakra/corpo cruzando a fronteira de compressão SIMULTANEAMENTE: vida (limite 8 dígitos) já comprime, as outras 4 (limite 9) ainda não, com o MESMO "base"', () => {
         const baseComum = 100000000; // 9 dígitos
         // 70% do próprio mxDisplay -- longe o bastante dos thresholds de perigo (<=20%/<=50%) de
         // HP pra não mudar a cor da barra de vida, já que só ela (perigo=true) muda de cor com o pct.
-        const ficha = criarFichaDeCombate(7000000); // vida: mxDisplay comprimido = 10.000.000 (limite 8) -> 70% = 7.000.000
-        ficha.vida = { atual: 7000000, base: baseComum, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mUnico: '1.0', mAbsoluto: 1.0 };
+        const ficha = criarFichaDeCombate(7000000); // vida: base bem abaixo do limiar -> teto = o próprio bruto (10.000.000) -> 70% = 7.000.000
+        ficha.vida = { atual: 7000000, base: 10000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mUnico: '1.0', mAbsoluto: 1.0 };
         ['mana', 'aura', 'chakra', 'corpo'].forEach(k => {
             ficha[k] = { atual: 70000000, base: baseComum, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mUnico: '1.0', mAbsoluto: 1.0 }; // mxDisplay sem compressão = 100.000.000 (limite 9) -> 70% = 70.000.000
         });
@@ -337,18 +345,17 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
             expect(pct).toBeCloseTo(70, 0);
         });
 
-        // Vida (limite 8 dígitos) comprime com p=1 -> 2 barras "Break Bars" (getNumBarrasVida).
-        // Desde que cada barra ganhou sua PRÓPRIA cor (pedido do usuário), a barra da frente
-        // (índice 0) não é mais garantida como #ff4d4d literal -- busca por classe em vez de cor.
-        // Dano total=3.000.000 (7.000.000 de 10.000.000): barra 0 esvazia inteira (0%), barra 1
-        // fica com o restante (7.000.000/10.000.000 = 70%), provando a escala comprimida (1e7).
-        const barrasVida = Array.from(container.querySelectorAll('.break-bars-barra'));
-        expect(barrasVida.length).toBe(2);
-        const pctsVida = barrasVida.map(b => {
-            const preenchimento = b.querySelector('.break-bars-barra__preenchimento');
-            return parseFloat(/width:\s*(\d+(?:\.\d+)?)%/.exec(preenchimento.getAttribute('style'))[1]);
-        }).sort((a, b) => a - b);
-        expect(pctsVida).toEqual([0, 70]);
+        // Vida com base=10.000.000 (bem abaixo do limiar de 100 milhões de Break Bars, ver
+        // core/vitals.js > getTetoVida) continua 1 barra só -- teto = o próprio bruto (10.000.000),
+        // sem NENHUMA compressão por dígitos (essa conta não existe mais pra vida). 7.000.000 de
+        // 10.000.000 = 70%, provando que getTetoVida/getVitalMax são chamados com a chave certa.
+        const barraVida = Array.from(container.querySelectorAll('div')).find(d => {
+            const style = d.getAttribute('style') || '';
+            return /width:\s*\d/.test(style) && (style.includes('#ff4d4d') || style.includes('#ff3030') || style.includes('#ffcc00'));
+        });
+        expect(barraVida).toBeDefined();
+        const pctVida = parseFloat(/width:\s*(\d+(?:\.\d+)?)%/.exec(barraVida.getAttribute('style'))[1]);
+        expect(pctVida).toBeCloseTo(70, 0);
     });
 
     // -----------------------------------------------------------------------
@@ -370,8 +377,12 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
         const dummy = {
             nome: 'Slime Selvagem',
             iniciativa: 15,
-            hpMax: 100000000, // 9 dígitos -> cruza a fronteira (calcularBarrasVidaDummy: p=1) -> 2 barras de 5e7 cada
-            hpAtual: 60000000, // dano total = 4e7: esvazia metade da barra da frente (5e7 -> resta 1e7)
+            // 🩸 hpMax=150.000.000: 1 Break Bar completa (100M, cravada) + 1 barra ativa com o
+            // resto (50M) -- core/vitals.js > calcularBarrasVidaDummy NUNCA infla o total além do
+            // hpMax digitado (um hpMax EXATAMENTE múltiplo de 100M, como 100.000.000, geraria só 1
+            // barra, sem fantasma -- ver core/vitals.js > montarBarrasVida).
+            hpMax: 150000000,
+            hpAtual: 110000000, // dano total = 4e7: esvazia 40% da barra da frente (100M), a de trás (50M) intacta
             ...dummyOverrides,
         };
         return montarMockState({
@@ -385,10 +396,10 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
 
         expect(screen.getAllByText(/Slime Selvagem/i).length).toBeGreaterThan(0);
 
-        // HP total exibido = hpAtual (60.000.000), formatado em pt-BR. O nº de barras não aparece
+        // HP total exibido = hpAtual (110.000.000), formatado em pt-BR. O nº de barras não aparece
         // mais como texto -- o visual novo de "Break Bars" (components/shared/BarrasVida.jsx) já
         // mostra isso pela fileira de losangos ("pips") acima das barras.
-        expect(screen.getByText(/60\.000\.000/)).toBeDefined();
+        expect(screen.getByText(/110\.000\.000/)).toBeDefined();
         const pips = container.querySelectorAll('.break-bars-pip');
         expect(pips.length).toBe(2);
 
@@ -409,9 +420,9 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
         });
 
         // Barra da FRENTE (índice 0, primeira renderizada) recebeu o dano primeiro: dano total=4e7,
-        // mxPorBarra=5e7 -> barra 0 fica com 1e7/5e7 = 20% (dano < 1 barra, sem cascata); barra 1
-        // (trás) continua 100% intacta.
-        expect(pcts[0]).toBeCloseTo(20, 0);
+        // cap da barra 0=1e8 -> fica com 6e7/1e8 = 60% (dano < 1 barra, sem cascata); barra 1
+        // (trás, cap=5e7, o resto) continua 100% intacta.
+        expect(pcts[0]).toBeCloseTo(60, 0);
         expect(pcts[1]).toBeCloseTo(100, 0);
     });
 
@@ -482,11 +493,10 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
             .filter(linha => !/^\s*(\/\/|\*|\/\*)/.test(linha))
             .join('\n');
         expect(semComentarios).not.toMatch(/[^a-zA-Z_]getMaximo\(/);
-        // Confirma que getVitalMxDisplay CONTINUA sendo importado de core/vitals — junto de
-        // calcularBarrasVida/calcularBarrasVidaDummy (múltiplas barras de Vida), que passaram a
-        // ser a fonte real do teto de HP especificamente (getVitalMxDisplay continua servindo
-        // MP/AU/CK/CP, que não ganham múltiplas barras).
-        expect(codigoFonte).toMatch(/import\s*\{[^}]*\bgetVitalMxDisplay\b[^}]*\}\s*from\s*['"]\.\.\/\.\.\/core\/vitals['"]/);
+        // Confirma que calcVitalScale CONTINUA sendo importado de core/vitals — a fonte real do
+        // teto de MP/AU/CK/CP (que não ganham múltiplas barras, ao contrário de HP) — junto de
+        // calcularBarrasVida/calcularBarrasVidaDummy (múltiplas barras de Vida).
+        expect(codigoFonte).toMatch(/import\s*\{[^}]*\bcalcVitalScale\b[^}]*\}\s*from\s*['"]\.\.\/\.\.\/core\/vitals['"]/);
         expect(codigoFonte).toMatch(/import\s*\{[^}]*\bcalcularBarrasVida\b[^}]*\}\s*from\s*['"]\.\.\/\.\.\/core\/vitals['"]/);
     });
 });

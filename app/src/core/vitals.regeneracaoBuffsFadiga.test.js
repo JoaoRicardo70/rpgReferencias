@@ -83,6 +83,9 @@ describe('core/vitals - aplicarRegeneracaoDeTurno: bônus de regeneração de Po
     });
 });
 
+// 🩸 Vida ganhou o sistema de "Break Bars" (core/vitals.js > getTetoVida/calcularBarrasVida), mas
+// o teto real (getTetoVida) NUNCA infla além do valor bruto — com base=1e6 (bem abaixo do limiar
+// de 100 milhões), o teto continua sendo exatamente 1e6, igual sempre foi.
 describe('core/vitals - aplicarRegeneracaoDeTurno: desconto de Fadiga (combate.fadigaExtra) proporcional à cura', () => {
     it('regenerar um vital do zero ao teto (100% do teto exibido) desconta o peso máximo de Fadiga (10 pontos)', () => {
         const ficha = fichaComPoderRegen(900000, { vida: { ...statBase(1000000), atual: 0, regeneracao: 0 } });

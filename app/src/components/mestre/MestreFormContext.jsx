@@ -3,7 +3,8 @@ import useStore from '../../stores/useStore';
 import { enviarParaFeed, salvarDummie, apagarFicha } from '../../services/firebase-sync';
 import { getMaximo } from '../../core/attributes';
 import { calcularCA } from '../../core/engine';
-import { getVidaTotalMaxDisplay } from '../../core/vitals';
+import { getVitalMax, getVitalMaxEstavel, getTetoVida } from '../../core/vitals';
+import { calcularFatorMultiplicadorForca } from '../../core/poder';
 import { ref, set, remove } from 'firebase/database';
 import { db } from '../../services/firebase-config'; 
 
@@ -99,12 +100,18 @@ export function MestreFormProvider({ children }) {
 
     const jogadoresComStats = useMemo(() => {
         return jogadoresList.map(([nome, ficha]) => {
-            // 🩸 getVidaTotalMaxDisplay já está na mesma escala/unidade que ficha.vida.atual (a
-            // "única fonte de verdade" também usada pela Ficha/Regeneração) e já soma todas as
-            // barras de Vida (getNumBarrasVida) — getMaximo(ficha,'vida') sozinho é o valor BRUTO
-            // (sem a escala comprimida), unidade diferente de "atual" e sempre maior, o que fazia
-            // percHp ficar perto de 0% pra qualquer personagem de alto Poder.
-            const hpMax = getVidaTotalMaxDisplay(ficha);
+            // 🩸 getTetoVida já está na mesma escala/unidade que ficha.vida.atual (a "única fonte
+            // de verdade" também usada pela Ficha/Regeneração) e já é o TOTAL real de Vida (nunca
+            // inflado além do bruto, mesmo com várias Break Bars) — getMaximo(ficha,'vida') sozinho
+            // é o valor BRUTO com Formas, unidade diferente de "atual", o que fazia percHp ficar
+            // perto de 0% pra qualquer personagem de alto Poder.
+            //
+            // 🩹 SINCRONIA COM A FICHA/MAPA (pedido do usuário): a Ficha Definitiva multiplica o
+            // teto de Vida pelo "Multiplicador de Força" daquele vital ANTES de decidir escala/nº
+            // de barras (ver core/poder.js > calcularFatorMultiplicadorForca) — sem isso aqui, o
+            // MESMO personagem mostrava um Máximo de Vida diferente no card do Mestre.
+            const fatorVida = calcularFatorMultiplicadorForca(ficha, 'vida');
+            const hpMax = getTetoVida(getVitalMax('vida', ficha) * fatorVida, 'vida', getVitalMaxEstavel('vida', ficha) * fatorVida);
             const hpAtual = ficha.vida?.atual ?? hpMax;
             const percHp = hpMax > 0 ? (hpAtual / hpMax) * 100 : 0;
             const mpMax = getMaximo(ficha, 'mana');

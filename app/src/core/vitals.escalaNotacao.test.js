@@ -143,11 +143,18 @@ describe('core/vitals - REGRESSÃO: mudança de escala de notação (calcVitalSc
         expect(ficha.vida.atual).toBe(80); // continua exatamente igual, sem conversão de notação
     });
 
+    // 🩸 "mana" de propósito aqui (não "vida"): desde que Vida ganhou o sistema de múltiplas Break
+    // Bars de 100 milhões fixos (core/vitals.js > getTetoVida/calcularBarrasVida), o teto de "vida"
+    // com base=100 (bem abaixo do limiar) virou SEMPRE 1 barra fixa de 100 milhões — não existe
+    // mais nenhum cenário de "máximo genuinamente encolhe pra 100" pra clampar contra, já que
+    // Formas nem entram na conta do teto de vida (só o máximo ESTÁVEL, que não mudou aqui: base
+    // continua 100 nos dois momentos, só mFormas mudou). "mana" continua na escala genérica
+    // antiga (calcVitalScale, teto = getMaximo() bruto), preservando o cenário original.
     it('desativar (máximo genuinamente encolhe, mesma escala) continua clampando exatamente no novo teto, nunca abaixo dele', () => {
-        const ficha = { vida: { base: 100, atual: 200, mFormas: 2 }, forca: { base: 100 },
+        const ficha = { mana: { base: 100, atual: 200, mFormas: 2 }, forca: { base: 100 },
             poderes: [], inventario: [], passivas: [], seresSelados: [], combate: {} };
-        simulaToggle(ficha, f => { f.vida.mFormas = 1; }, ['vida']); // 200 -> 100
-        expect(ficha.vida.atual).toBe(100);
+        simulaToggle(ficha, f => { f.mana.mFormas = 1; }, ['mana']); // 200 -> 100
+        expect(ficha.mana.atual).toBe(100);
     });
 
     it('DUAS vitais cruzando fronteiras de dígitos DIFERENTES no mesmo toggle não se contaminam — cada uma usa seu próprio p/mxDisplay, isolada da outra', () => {

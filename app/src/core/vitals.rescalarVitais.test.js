@@ -143,33 +143,41 @@ describe('core/vitals - rescalarVitaisProporcional: máximo DIMINUI (Forma desat
         expect(getMaximo(ficha, 'vida')).toBe(100);
     });
 
+    // 🩸 Estes dois testes usam "mana" (não "vida") de propósito: desde que Vida ganhou o sistema
+    // de múltiplas Break Bars de 100 milhões fixos (core/vitals.js > getTetoVida/calcularBarrasVida),
+    // o teto real de "vida" passou a vir de getTetoVida (baseado só no máximo ESTÁVEL, nunca no
+    // getMaximo() bruto usado aqui) — com valores de teste pequenos como base=100, o teto de vida
+    // vira uma barra fixa de 100 milhões, tornando esses cenários de clamp (que dependiam do teto
+    // ser exatamente o getMaximo() bruto) impossíveis de reproduzir com "vida". "mana" continua
+    // usando a escala genérica antiga (calcVitalScale) sem NENHUMA mudança, preservando o mesmo
+    // comportamento que este teste sempre validou.
     it('"atual" que estava cheio no teto boostado É clampado pro novo teto mais baixo ao desativar (nunca fica acima do máximo)', () => {
-        const ficha = { vida: { base: 100, atual: 200, mFormas: 2 } }; // cheio no teto boostado (200)
-        const oldM = capturarMaximosAtuais(ficha, ['vida']);
+        const ficha = { mana: { base: 100, atual: 200, mFormas: 2 } }; // cheio no teto boostado (200)
+        const oldM = capturarMaximosAtuais(ficha, ['mana']);
 
-        ficha.vida.mFormas = 1; // desativa -> novo máximo = 100
+        ficha.mana.mFormas = 1; // desativa -> novo máximo = 100
 
-        rescalarVitaisProporcional(ficha, oldM, ['vida']);
+        rescalarVitaisProporcional(ficha, oldM, ['mana']);
 
-        const novoMax = getMaximo(ficha, 'vida');
+        const novoMax = getMaximo(ficha, 'mana');
         expect(novoMax).toBe(100);
-        expect(ficha.vida.atual).toBe(100); // clampado exatamente no novo teto, não em 200*0.5=100 coincidente aqui —
+        expect(ficha.mana.atual).toBe(100); // clampado exatamente no novo teto, não em 200*0.5=100 coincidente aqui —
         // ver o próximo teste pra um caso onde o clamp e o antigo rescale proporcional dariam valores DIFERENTES.
     });
 
     it('"atual" PARCIALMENTE cheio no teto boostado NÃO é reduzido proporcionalmente ao desativar — só clampado se ultrapassar o novo teto', () => {
-        const ficha = { vida: { base: 100, atual: 150, mFormas: 2 } }; // máximo=200, atual=150 (75%)
-        const oldM = capturarMaximosAtuais(ficha, ['vida']);
+        const ficha = { mana: { base: 100, atual: 150, mFormas: 2 } }; // máximo=200, atual=150 (75%)
+        const oldM = capturarMaximosAtuais(ficha, ['mana']);
 
-        ficha.vida.mFormas = 1; // desativa -> novo máximo = 100
+        ficha.mana.mFormas = 1; // desativa -> novo máximo = 100
 
-        rescalarVitaisProporcional(ficha, oldM, ['vida']);
+        rescalarVitaisProporcional(ficha, oldM, ['mana']);
 
-        const novoMax = getMaximo(ficha, 'vida');
+        const novoMax = getMaximo(ficha, 'mana');
         expect(novoMax).toBe(100);
         // Rescale proporcional ANTIGO daria 150*(100/200)=75. Comportamento ATUAL: 150 ultrapassa o
         // novo teto (100) -> clampa exatamente em 100, não em 75.
-        expect(ficha.vida.atual).toBe(100);
+        expect(ficha.mana.atual).toBe(100);
     });
 
     it('"atual" que NÃO ultrapassa o novo máximo mais baixo fica intocado, mesmo desativando uma Forma', () => {
@@ -195,18 +203,20 @@ describe('core/vitals - rescalarVitaisProporcional: clamps finais (negativo/NaN/
         expect(ficha.vida.atual).toBeGreaterThanOrEqual(0);
     });
 
+    // 🩸 "mana" de propósito aqui também (mesmo motivo do bloco de máximo DIMINUI acima): o
+    // fallback pro "novoMax" só bate com getMaximo() bruto pras chaves que NÃO são "vida".
     it('"atual" ausente/NaN cai no fallback do novoMax (fallback de segurança, não erro)', () => {
-        const ficha = { vida: { base: 100 } }; // sem "atual"
-        const oldM = capturarMaximosAtuais(ficha, ['vida']);
-        rescalarVitaisProporcional(ficha, oldM, ['vida']);
-        expect(ficha.vida.atual).toBe(getMaximo(ficha, 'vida'));
+        const ficha = { mana: { base: 100 } }; // sem "atual"
+        const oldM = capturarMaximosAtuais(ficha, ['mana']);
+        rescalarVitaisProporcional(ficha, oldM, ['mana']);
+        expect(ficha.mana.atual).toBe(getMaximo(ficha, 'mana'));
     });
 
     it('"atual" como string não-numérica (NaN) também cai no fallback do novoMax', () => {
-        const ficha = { vida: { base: 100, atual: 'não-é-número' } };
-        const oldM = capturarMaximosAtuais(ficha, ['vida']);
-        rescalarVitaisProporcional(ficha, oldM, ['vida']);
-        expect(ficha.vida.atual).toBe(getMaximo(ficha, 'vida'));
+        const ficha = { mana: { base: 100, atual: 'não-é-número' } };
+        const oldM = capturarMaximosAtuais(ficha, ['mana']);
+        rescalarVitaisProporcional(ficha, oldM, ['mana']);
+        expect(ficha.mana.atual).toBe(getMaximo(ficha, 'mana'));
     });
 
     it('um aumento agressivo de máximo NÃO faz "atual" crescer junto — continua no valor absoluto de antes', () => {
@@ -271,5 +281,57 @@ describe('core/vitals - rescalarVitaisProporcional: robustez e independência en
         expect(() => rescalarVitaisProporcional(ficha, {}, ['vida'])).not.toThrow();
         // atual(50) <= novoMax(100) -> sem clamp, permanece 50 independente de maximosAntigos.
         expect(ficha.vida.atual).toBe(50);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// QA — rescalarVitaisProporcional: "vida" tem uma regra PRÓPRIA (não passa mais pela conversão de
+// notação de calcVitalScale, já que cada barra vale um valor FIXO — ver core/vitals.js >
+// getTetoVida/calcularBarrasVida). O teto de clamp de vida vem do máximo ESTÁVEL (sem Formas),
+// nunca do getMaximo() bruto (com Formas) usado pelas demais chaves.
+// ---------------------------------------------------------------------------
+describe('core/vitals - rescalarVitaisProporcional: "vida" usa getTetoVida (Break Bars fixas), não a conversão de notação genérica', () => {
+    it('"vida" nunca clampa enquanto o máximo ESTÁVEL ficar abaixo do limiar (100 milhões) — mesmo com uma Forma multiplicando o máximo BRUTO muito além disso', () => {
+        const ficha = { vida: { base: 100, atual: 50, mFormas: 1 } };
+        const oldM = capturarMaximosAtuais(ficha, ['vida']);
+
+        ficha.vida.mFormas = 1000000; // máximo BRUTO explode (getMaximo), mas o ESTÁVEL continua 100
+
+        rescalarVitaisProporcional(ficha, oldM, ['vida']);
+
+        // Teto real = getTetoVida(100, 'vida') = 1 barra fixa de 100 milhões -- "atual" (50) fica
+        // muitíssimo abaixo disso, então nada é clampado, apesar do máximo bruto ter mudado muito.
+        expect(ficha.vida.atual).toBe(50);
+    });
+
+    it('"vida" que ultrapassa o teto real (soma de todas as Break Bars) é clampada EXATAMENTE nesse teto', () => {
+        const ficha = { vida: { base: 250000000, atual: 250000000, mFormas: 1 } }; // estável=2.5e8 -> teto=2.5e8 (nunca infla além do bruto)
+        const oldM = capturarMaximosAtuais(ficha, ['vida']);
+
+        // Simula o máximo ESTÁVEL encolhendo (ex.: editar a Base pra um valor menor) — aqui só
+        // trocamos "base" diretamente, o suficiente pra capturarMaximosAtuais/getMaximoSemFormas
+        // já refletirem o novo valor no PRÓPRIO rescalarVitaisProporcional (ele sempre lê o
+        // estável ATUAL da ficha, nunca usa maximosAntigosEstaveis pra "vida").
+        ficha.vida.base = 50000000; // estável=5e7, abaixo do limiar -> teto = o próprio 5e7
+
+        rescalarVitaisProporcional(ficha, oldM, ['vida']);
+
+        // atual (250_000_000) ultrapassa e é clampado no novo teto (50_000_000).
+        expect(ficha.vida.atual).toBe(50000000);
+    });
+
+    it('"vida" ausente/NaN cai no fallback do NOVO teto (getTetoVida), não no getMaximo() bruto', () => {
+        const ficha = { vida: { base: 500 } }; // sem "atual"
+        const oldM = capturarMaximosAtuais(ficha, ['vida']);
+        rescalarVitaisProporcional(ficha, oldM, ['vida']);
+        // base=500 é bem abaixo do limiar -> teto = o próprio valor bruto, 500 (sem inflar).
+        expect(ficha.vida.atual).toBe(500);
+    });
+
+    it('"vida" negativa continua clampada em 0, igual às demais chaves', () => {
+        const ficha = { vida: { base: 500, atual: -999 } };
+        const oldM = capturarMaximosAtuais(ficha, ['vida']);
+        rescalarVitaisProporcional(ficha, oldM, ['vida']);
+        expect(ficha.vida.atual).toBe(0);
     });
 });
