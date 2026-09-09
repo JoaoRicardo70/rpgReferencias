@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
-import useStore from '../../stores/useStore';
+import useStore, { sanitizarNome } from '../../stores/useStore';
 import { enviarParaFeed, salvarDummie, apagarFicha } from '../../services/firebase-sync';
 import { getMaximo } from '../../core/attributes';
 import { calcularCA } from '../../core/engine';
@@ -77,8 +77,16 @@ export function MestreFormProvider({ children }) {
         if (meuNome !== mesaCriador) return alert("Apenas o Mestre Supremo (Dono da Sala) pode nomear Co-Mestres.");
         if (nomeAmigo === mesaCriador) return alert("Esta pessoa já é o Dono da mesa!");
         
-        const nickSanitizado = nomeAmigo.toLowerCase().replace(/[^a-z0-9]/g, '');
-        const mestreRef = ref(db, `mesas/${mesaId}/mestres/${nickSanitizado}`);
+        // 🔥 CORREÇÃO: isMestre é decidido em App.jsx > iniciarListenerMestres, que lê
+        // "index_mesas/{mesaId}/mestres" com a chave gerada por sanitizarNome() -- esta função
+        // gravava em "mesas/{mesaId}/mestres" (árvore errada, de dados do JOGO, não de metadados
+        // da mesa) usando uma sanitização PRÓPRIA (toLowerCase + remover tudo que não for a-z0-9),
+        // diferente de sanitizarNome() (só troca ".#$[]/" e dá trim, preserva maiúsculas/acentos).
+        // As duas falhas juntas faziam a promoção "funcionar" (sem erro, alerta de sucesso) sem
+        // NUNCA conceder permissão de Mestre de verdade -- a segunda falha sozinha já quebraria
+        // qualquer nome com maiúscula, acento ou espaço, mesmo com o caminho certo.
+        const nickSanitizado = sanitizarNome(nomeAmigo);
+        const mestreRef = ref(db, `index_mesas/${mesaId}/mestres/${nickSanitizado}`);
         
         try {
             if (mesaMestres[nickSanitizado]) {

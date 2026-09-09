@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useMestreForm } from './MestreFormContext';
 import { ref, set } from 'firebase/database';
 import { database } from '../../services/firebase-config';
+import { sanitizarNome } from '../../stores/useStore';
 import PainelMestreSandbox from './PainelMestreSandbox';
 import { getMaximo } from '../../core/attributes';
 import { calcularCA } from '../../core/engine';
@@ -166,7 +167,10 @@ export function MestreVisorJogadores() {
         const isGrand = String(classId).toLowerCase().includes('grand ');
         const isMisterio = classId === '?' || classId?.toLowerCase() === 'desconhecido';
         
-        const nickSanitizado = nome.toLowerCase().replace(/[^a-z0-9]/g, '');
+        // 🔥 Mesma chave usada por App.jsx/MestreFormContext.jsx pra decidir Mestre de verdade
+        // (sanitizarNome) -- uma regex própria aqui (toLowerCase + só a-z0-9) fazia o selo de
+        // Co-Mestre errar pra qualquer nome com maiúscula, acento ou espaço.
+        const nickSanitizado = sanitizarNome(nome);
         const isCoMestre = mesaMestres && mesaMestres[nickSanitizado];
         const isSupremo = nome === mesaCriador;
 
