@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { uploadImagem } from '../../services/firebase-sync';
+import { lerImagemComoBase64 } from '../../services/firebase-storage';
 import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from '../../core/attributes';
 import { getRank } from '../../core/prestige';
 import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida } from '../../core/vitals';
@@ -287,28 +287,22 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
         }, 800);
     };
 
-    const handleBgUpload = async (e) => {
+    // 🔥 Upload como arquivo (base64 direto no Realtime Database) — o Firebase Storage
+    // (uploadImagem de firebase-sync.js) não estava funcionando; lerImagemComoBase64 evita o
+    // Storage por completo, mesmo padrão já usado em RelicarioPanel.jsx/Marcados.jsx.
+    const handleBgUpload = (e) => {
         const file = e.target.files[0]; if (!file) return;
-        try {
-            const url = await uploadImagem(file, `backgrounds_npcs/${npcData.id || 'desconhecido'}_bg`);
-            handleStyleChange('bgImg', url);
-        } catch (err) { alert('Erro ao enviar a imagem de fundo!'); }
+        lerImagemComoBase64(file).then(url => handleStyleChange('bgImg', url)).catch(err => alert(err.message || 'Erro ao enviar a imagem de fundo!'));
     };
 
-    const handleMolduraUpload = async (e) => {
+    const handleMolduraUpload = (e) => {
         const file = e.target.files[0]; if (!file) return;
-        try {
-            const url = await uploadImagem(file, `molduras_avatars_npcs/${npcData.id || 'desconhecido'}_moldura`);
-            handleStyleChange('molduraAvatar', url);
-        } catch (err) { alert('Erro ao enviar a moldura!'); }
+        lerImagemComoBase64(file).then(url => handleStyleChange('molduraAvatar', url)).catch(err => alert(err.message || 'Erro ao enviar a moldura!'));
     };
 
-    const handleIconeUpload = async (e) => {
+    const handleIconeUpload = (e) => {
         const file = e.target.files[0]; if (!file) return;
-        try {
-            const url = await uploadImagem(file, `icones_classes_npcs/${npcData.id || 'desconhecido'}_icone`);
-            handleStyleChange('iconeClasse', url);
-        } catch (err) { alert('Erro ao enviar o ícone!'); }
+        lerImagemComoBase64(file).then(url => handleStyleChange('iconeClasse', url)).catch(err => alert(err.message || 'Erro ao enviar o ícone!'));
     };
 
     const handleTabelaChange = (k, tipo, valor) => {
@@ -406,14 +400,13 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
         onSaveNpc(novoNpc);
     };
 
-    const handleImageUpload = async (e) => {
+    const handleImageUpload = (e) => {
         const file = e.target.files[0]; if (!file) return;
         setUploadingImg(true);
-        try {
-            const url = await uploadImagem(file, `avatars_npcs/${npcData.id || 'desconhecido'}`);
-            salvar('avatar.base', url);
-        } catch (err) { alert('Erro ao pintar o avatar da Entidade!'); } 
-        finally { setUploadingImg(false); }
+        lerImagemComoBase64(file)
+            .then((url) => salvar('avatar.base', url))
+            .catch((err) => alert(err.message || 'Erro ao pintar o avatar da Entidade!'))
+            .finally(() => setUploadingImg(false));
     };
 
     const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, overrideMax, subItens, corBarra, corTextoBarra = '#fff' }) => {

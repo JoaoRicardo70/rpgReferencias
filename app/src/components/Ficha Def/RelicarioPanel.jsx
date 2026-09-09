@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import useStore from '../../stores/useStore';
 import { salvarFichaSilencioso } from '../../services/firebase-sync';
+import { lerImagemComoBase64 } from '../../services/firebase-storage';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 
 // ==========================================
@@ -182,8 +183,9 @@ const AreaMagica = ({ valor, onChange, placeholder, styleExtra = {}, disabled = 
 // 🔥 UPLOAD COMO ARQUIVO (BASE64 DIRETO NO REALTIME DATABASE) — mesmo padrão já usado em
 // FormasEditor.jsx/CompendioFormContext.jsx/MapaMundi.jsx. O ImageUploader antigo desta página
 // dependia do Firebase Storage (uploadImagem de firebase-sync.js), que não estava funcionando; lendo
-// o arquivo com FileReader e gravando o data URL direto no campo da ficha evita o Storage por
-// completo e sincroniza junto com o resto da ficha via Realtime Database, como o resto do app já faz.
+// o arquivo com FileReader (via lerImagemComoBase64, que também valida tipo/tamanho) e gravando o
+// data URL direto no campo da ficha evita o Storage por completo e sincroniza junto com o resto da
+// ficha via Realtime Database, como o resto do app já faz.
 const ImageUploader = ({ valorAtual, onUploadComplete, placeholder, disabled = false }) => {
     const [loading, setLoading] = useState(false);
     const { callSave } = useRelicario();
@@ -191,14 +193,10 @@ const ImageUploader = ({ valorAtual, onUploadComplete, placeholder, disabled = f
     const handleUpload = (e) => {
         const file = e.target.files[0]; if (!file) return;
         setLoading(true);
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            onUploadComplete(reader.result);
-            callSave();
-            setLoading(false);
-        };
-        reader.onerror = () => { alert('Erro ao ler a imagem!'); setLoading(false); };
-        reader.readAsDataURL(file);
+        lerImagemComoBase64(file)
+            .then((dataUrl) => { onUploadComplete(dataUrl); callSave(); })
+            .catch((err) => alert(err.message || 'Erro ao ler a imagem!'))
+            .finally(() => setLoading(false));
     };
 
     return (

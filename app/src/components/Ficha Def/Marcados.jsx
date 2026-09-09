@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import useStore from '../../stores/useStore';
-import { uploadImagem, salvarFichaSilencioso, salvarFirebaseImediato, salvarDivisorPoderMesa } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, salvarFirebaseImediato, salvarDivisorPoderMesa } from '../../services/firebase-sync';
+import { lerImagemComoBase64 } from '../../services/firebase-storage';
 
 // Importação flexível
 import * as AtributosCore from '../../core/attributes';
@@ -884,7 +885,13 @@ export default function MarcadosPanel() {
     const [uploadingImg, setUploadingImg] = useState(false);
     const [modalEstilo, setModalEstilo] = useState(false);
     const [paginaAtual, setPaginaAtual] = useState(1);
-    const [salvando, setSalvando] = useState(false);
+    // 🔥 Correção: "Guardar Ficha" mostrava "✅ Guardado!" na hora do clique, ANTES da gravação no
+    // Firebase sequer começar (o antigo callSave não aguardava salvarFirebaseImediato) — se o
+    // jogador saísse da página logo depois, a gravação podia nunca terminar e ele não teria como
+    // saber. Agora o estado só vira "salvo" depois que a gravação de fato confirma, e "erro" se
+    // ela falhar, em vez de fingir sucesso sempre.
+    const [estadoSalvar, setEstadoSalvar] = useState('idle'); // 'idle' | 'salvando' | 'salvo' | 'erro'
+    const tentativaSalvarRef = useRef(0); // evita que o timeout de uma tentativa antiga reverta pra "idle" por cima de uma tentativa mais nova em andamento
     const [attrBaseFocado, setAttrBaseFocado] = useState(null);
     const [animDirection, setAnimDirection] = useState('next');
     
@@ -1153,19 +1160,24 @@ export default function MarcadosPanel() {
         }, 800);
     };
 
-    const handleBgUpload = async (e) => { const file = e.target.files[0]; if (!file) return; try { const url = await uploadImagem(file, `backgrounds/${meuNome || 'desconhecido'}_bg`); handleStyleChange('bgImg', url); } catch (err) { alert('Erro ao enviar a imagem!'); } };
-    const handleMolduraUpload = async (e) => { const file = e.target.files[0]; if (!file) return; try { const url = await uploadImagem(file, `molduras_avatars/${meuNome || 'desconhecido'}_moldura`); handleStyleChange('molduraAvatar', url); } catch (err) { alert('Erro ao enviar a moldura!'); } };
-    const handleIconeUpload = async (e) => { const file = e.target.files[0]; if (!file) return; try { const url = await uploadImagem(file, `icones_classes/${meuNome || 'desconhecido'}_icone`); handleStyleChange('iconeClasse', url); } catch (err) { alert('Erro ao enviar o ícone!'); } };
+    // 🔥 Upload como arquivo (base64 direto no Realtime Database) — o Firebase Storage
+    // (uploadImagem de firebase-sync.js) não estava funcionando (avatares somem/não sobem pra
+    // outros jogadores); lerImagemComoBase64 evita o Storage por completo, mesmo padrão já usado
+    // em RelicarioPanel.jsx/FormasEditor.jsx/CompendioFormContext.jsx.
+    const handleBgUpload = (e) => { const file = e.target.files[0]; if (!file) return; lerImagemComoBase64(file).then(url => handleStyleChange('bgImg', url)).catch(err => alert(err.message || 'Erro ao enviar a imagem!')); };
+    const handleMolduraUpload = (e) => { const file = e.target.files[0]; if (!file) return; lerImagemComoBase64(file).then(url => handleStyleChange('molduraAvatar', url)).catch(err => alert(err.message || 'Erro ao enviar a moldura!')); };
+    const handleIconeUpload = (e) => { const file = e.target.files[0]; if (!file) return; lerImagemComoBase64(file).then(url => handleStyleChange('iconeClasse', url)).catch(err => alert(err.message || 'Erro ao enviar o ícone!')); };
 
-    const handleImageUpload = async (e) => {
+    const handleImageUpload = (e) => {
         const file = e.target.files[0]; if (!file) return;
         setUploadingImg(true);
-        try {
-            const url = await uploadImagem(file, `avatars/${meuNome || 'desconhecido'}`);
-            updateFicha(f => { if (!f.avatar) f.avatar = { base: "" }; f.avatar.base = url; });
-            callSave();
-        } catch (err) { alert('Erro ao pintar o avatar!'); } 
-        finally { setUploadingImg(false); }
+        lerImagemComoBase64(file)
+            .then((url) => {
+                updateFicha(f => { if (!f.avatar) f.avatar = { base: "" }; f.avatar.base = url; });
+                callSave();
+            })
+            .catch((err) => alert(err.message || 'Erro ao pintar o avatar!'))
+            .finally(() => setUploadingImg(false));
     };
 
     const executarImportacao = () => {
@@ -1305,9 +1317,17 @@ export default function MarcadosPanel() {
         callSave();
     };
 
-    const handleSalvarTudo = () => {
-        setSalvando(true);
-        callSave(() => setSalvando(false));
+    const handleSalvarTudo = async () => {
+        const minhaTentativa = ++tentativaSalvarRef.current;
+        setEstadoSalvar('salvando');
+        try {
+            await salvarFirebaseImediato();
+            setEstadoSalvar('salvo');
+            setTimeout(() => { if (tentativaSalvarRef.current === minhaTentativa) setEstadoSalvar('idle'); }, 1500);
+        } catch (err) {
+            setEstadoSalvar('erro');
+            setTimeout(() => { if (tentativaSalvarRef.current === minhaTentativa) setEstadoSalvar('idle'); }, 3000);
+        }
     };
 
     const getLabel = (key, fallback) => minhaFicha.labels?.[key] !== undefined ? minhaFicha.labels[key] : fallback;
@@ -1410,8 +1430,8 @@ export default function MarcadosPanel() {
 
             <div style={{ position: 'absolute', top: '-25px', right: '30px', zIndex: 20, display: 'flex', gap: '15px' }}>
                 <div style={{ position: 'relative' }}>
-                    <button onClick={handleSalvarTudo} style={{ background: salvando ? '#a5d6a7' : '#4caf50', color: '#fff', border: '1px solid #333', borderBottom: '3px solid #222', padding: '10px 20px', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '1.1em', cursor: 'pointer', borderRadius: '4px', boxShadow: '2px 4px 8px rgba(0,0,0,0.4)', transform: 'rotate(1deg)' }}>
-                        {salvando ? '✅ Guardado!' : '💾 Guardar Ficha'}
+                    <button onClick={handleSalvarTudo} disabled={estadoSalvar === 'salvando'} style={{ background: estadoSalvar === 'erro' ? '#e57373' : estadoSalvar === 'salvo' ? '#a5d6a7' : estadoSalvar === 'salvando' ? '#ffd54f' : '#4caf50', color: '#fff', border: '1px solid #333', borderBottom: '3px solid #222', padding: '10px 20px', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '1.1em', cursor: estadoSalvar === 'salvando' ? 'default' : 'pointer', borderRadius: '4px', boxShadow: '2px 4px 8px rgba(0,0,0,0.4)', transform: 'rotate(1deg)' }}>
+                        {estadoSalvar === 'salvando' ? '⏳ Guardando...' : estadoSalvar === 'salvo' ? '✅ Guardado!' : estadoSalvar === 'erro' ? '⚠️ Erro ao Guardar!' : '💾 Guardar Ficha'}
                     </button>
                 </div>
                 <div style={{ position: 'relative' }}>

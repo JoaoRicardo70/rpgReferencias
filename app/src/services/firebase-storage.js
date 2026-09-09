@@ -11,6 +11,22 @@ function validarArquivo(arquivo) {
     return null;
 }
 
+// 🔥 Le um arquivo de imagem como base64 (data URL) -- usa a MESMA validação de tipo/tamanho de
+// uploadImagem, mas sem depender do Firebase Storage, que se mostrou não confiável em produção
+// (uploads de avatar/fundo/moldura falhando com "Erro ao pintar o avatar!"). O data URL resultante
+// é gravado direto no campo da ficha e sincroniza pelo Realtime Database como o resto da ficha --
+// mesmo padrão já usado em FormasEditor.jsx/CompendioFormContext.jsx/MapaMundi.jsx.
+export function lerImagemComoBase64(arquivo) {
+    return new Promise((resolve, reject) => {
+        const erro = validarArquivo(arquivo);
+        if (erro) return reject(new Error(erro));
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Erro ao ler o arquivo de imagem.'));
+        reader.readAsDataURL(arquivo);
+    });
+}
+
 export function uploadImagem(caminho, arquivo, onProgresso) {
     return new Promise((resolve, reject) => {
         const erro = validarArquivo(arquivo);
