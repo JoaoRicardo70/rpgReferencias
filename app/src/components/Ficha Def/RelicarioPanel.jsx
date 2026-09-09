@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso, uploadImagem } from '../../services/firebase-sync';
+import { salvarFichaSilencioso } from '../../services/firebase-sync';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 
 // ==========================================
@@ -41,6 +41,11 @@ const CAPITULOS = [
     { id: 'arsenal', label: 'Arsenal Místico', icon: '⚔️' },
     { id: 'suprimentos', label: 'Suprimentos & Notas', icon: '🧪' }
 ];
+
+// 🗡️ Capítulos 1-4 documentam EXCLUSIVAMENTE a Arma Espiritual/Fantasma Nobre da entidade (a
+// relíquia única e evolutiva, não um item comum do Arsenal) — armas comuns (espadas, armas de
+// fogo, etc.) pertencem ao Arsenal Místico (Capítulo 5), nunca a estes 4 capítulos.
+const CAPITULOS_ARMA_ESPIRITUAL = ['altar', 'passivas', 'formas', 'verdadeiras'];
 
 // ==========================================
 // 🧠 CONTEXTO ISOLADO DO RELICÁRIO
@@ -174,30 +179,39 @@ const AreaMagica = ({ valor, onChange, placeholder, styleExtra = {}, disabled = 
     );
 };
 
-const ImageUploader = ({ valorAtual, onUploadComplete, placeholder }) => {
+// 🔥 UPLOAD COMO ARQUIVO (BASE64 DIRETO NO REALTIME DATABASE) — mesmo padrão já usado em
+// FormasEditor.jsx/CompendioFormContext.jsx/MapaMundi.jsx. O ImageUploader antigo desta página
+// dependia do Firebase Storage (uploadImagem de firebase-sync.js), que não estava funcionando; lendo
+// o arquivo com FileReader e gravando o data URL direto no campo da ficha evita o Storage por
+// completo e sincroniza junto com o resto da ficha via Realtime Database, como o resto do app já faz.
+const ImageUploader = ({ valorAtual, onUploadComplete, placeholder, disabled = false }) => {
     const [loading, setLoading] = useState(false);
-    const { meuNome, callSave } = useRelicario();
+    const { callSave } = useRelicario();
 
-    const handleUpload = async (e) => {
+    const handleUpload = (e) => {
         const file = e.target.files[0]; if (!file) return;
         setLoading(true);
-        try {
-            const url = await uploadImagem(file, `relicario/${meuNome}_${Date.now()}`);
-            onUploadComplete(url);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            onUploadComplete(reader.result);
             callSave();
-        } catch (err) { alert('Erro na forja da imagem!'); }
-        finally { setLoading(false); }
+            setLoading(false);
+        };
+        reader.onerror = () => { alert('Erro ao ler a imagem!'); setLoading(false); };
+        reader.readAsDataURL(file);
     };
 
     return (
         <div style={{ position: 'relative', width: '100%', height: '100%', border: valorAtual ? 'none' : '2px dashed currentColor', borderRadius: '8px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)' }}>
-            {loading ? <span style={{ fontWeight: 'bold' }}>Forjando...</span> : 
-             valorAtual ? <img src={valorAtual} alt="Imagem" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : 
-             <span style={{ opacity: 0.5, fontStyle: 'italic', padding: '20px', textAlign: 'center' }}>{placeholder}</span>}
-            
-            <label style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }}>
-                <input type="file" accept="image/*" onChange={handleUpload} style={{ display: 'none' }} />
-            </label>
+            {loading ? <span style={{ fontWeight: 'bold' }}>Gravando...</span> :
+             valorAtual ? <img src={valorAtual} alt="Imagem" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> :
+             <span style={{ opacity: 0.5, fontStyle: 'italic', padding: '20px', textAlign: 'center' }}>{disabled ? '🔒 Somente o Mestre' : placeholder}</span>}
+
+            {!disabled && (
+                <label style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 10 }}>
+                    <input type="file" accept="image/*" onChange={handleUpload} style={{ display: 'none' }} />
+                </label>
+            )}
         </div>
     );
 };
@@ -228,35 +242,36 @@ function RelicarioNavegacao() {
 // 🗡️ PÁGINA 1: O ALTAR DA RELÍQUIA
 // ==========================================
 function PaginaAltar() {
-    const { minhaFicha, updateFicha } = useRelicario();
+    const { minhaFicha, updateFicha, isMestre } = useRelicario();
     const arma = minhaFicha?.armaEspiritual || {};
     const updateArma = (campo, valor) => { updateFicha(f => { if(f.armaEspiritual) f.armaEspiritual[campo] = valor; }); };
+    const bloqueado = !isMestre;
 
     return (
         <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ textAlign: 'center', padding: '20px', border: '3px double currentColor', background: 'rgba(0,0,0,0.03)', borderRadius: '8px' }}>
-                <CampoMagico valor={arma.nome} onChange={v => updateArma('nome', v)} placeholder="Nome da Entidade/Arma (Ex: EA - Scathach Tilith)" styleExtra={{ fontSize: '2.5em', fontWeight: '900', textAlign: 'center', color: '#ff003c', letterSpacing: '2px', border: 'none' }} />
-                <CampoMagico valor={arma.epiteto} onChange={v => updateArma('epiteto', v)} placeholder="Epíteto (Ex: Soberania da Rainha)" styleExtra={{ fontSize: '1.2em', fontStyle: 'italic', textAlign: 'center', color: 'currentColor', border: 'none', opacity: 0.8 }} />
+                <CampoMagico valor={arma.nome} onChange={v => updateArma('nome', v)} placeholder="Nome da Entidade/Arma (Ex: EA - Scathach Tilith)" disabled={bloqueado} styleExtra={{ fontSize: '2.5em', fontWeight: '900', textAlign: 'center', color: '#ff003c', letterSpacing: '2px', border: 'none' }} />
+                <CampoMagico valor={arma.epiteto} onChange={v => updateArma('epiteto', v)} placeholder="Epíteto (Ex: Soberania da Rainha)" disabled={bloqueado} styleExtra={{ fontSize: '1.2em', fontStyle: 'italic', textAlign: 'center', color: 'currentColor', border: 'none', opacity: 0.8 }} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     <div style={{ border: '1px dashed currentColor', padding: '15px', borderRadius: '8px', background: 'rgba(0,0,0,0.02)' }}>
                         <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1em', opacity: 0.8 }}>📜 Cântico de Invocação</h3>
-                        <AreaMagica valor={arma.cantico} onChange={v => updateArma('cantico', v)} placeholder={"Ex: I am the bone of my sword...\nUnknown to life,\nBut known for death."} styleExtra={{ minHeight: '180px', fontStyle: 'italic', fontSize: '1.1em', lineHeight: '1.5', border: 'none', background: 'transparent' }} />
+                        <AreaMagica valor={arma.cantico} onChange={v => updateArma('cantico', v)} placeholder={"Ex: I am the bone of my sword...\nUnknown to life,\nBut known for death."} disabled={bloqueado} styleExtra={{ minHeight: '180px', fontStyle: 'italic', fontSize: '1.1em', lineHeight: '1.5', border: 'none', background: 'transparent' }} />
                     </div>
                     <div style={{ border: '2px solid currentColor', padding: '15px', borderRadius: '8px', background: 'rgba(0,0,0,0.05)' }}>
                         <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1em', color: '#ff003c' }}>💥 Dano Base da Relíquia</h3>
-                        <CampoMagico valor={arma.danoBase} onChange={v => updateArma('danoBase', v)} placeholder="Ex: 250d8 + Des x2 + Energia Espiritual x2" styleExtra={{ fontSize: '1.3em', fontWeight: 'bold' }} />
+                        <CampoMagico valor={arma.danoBase} onChange={v => updateArma('danoBase', v)} placeholder="Ex: 250d8 + Des x2 + Energia Espiritual x2" disabled={bloqueado} styleExtra={{ fontSize: '1.3em', fontWeight: 'bold' }} />
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '15px' }}>
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         <h3 style={{ margin: 0, fontSize: '1em', textAlign: 'center', opacity: 0.8 }}>Forma Humanoide</h3>
-                        <div style={{ flex: 1, minHeight: '300px' }}><ImageUploader valorAtual={arma.avatarHumano} onUploadComplete={v => updateArma('avatarHumano', v)} placeholder="Retrato Humanoide 📸" /></div>
+                        <div style={{ flex: 1, minHeight: '300px' }}><ImageUploader valorAtual={arma.avatarHumano} onUploadComplete={v => updateArma('avatarHumano', v)} placeholder="Retrato Humanoide 📸" disabled={bloqueado} /></div>
                     </div>
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         <h3 style={{ margin: 0, fontSize: '1em', textAlign: 'center', opacity: 0.8 }}>Forma Espada</h3>
-                        <div style={{ flex: 1, minHeight: '300px' }}><ImageUploader valorAtual={arma.avatarArma} onUploadComplete={v => updateArma('avatarArma', v)} placeholder="Retrato da Lâmina 📸" /></div>
+                        <div style={{ flex: 1, minHeight: '300px' }}><ImageUploader valorAtual={arma.avatarArma} onUploadComplete={v => updateArma('avatarArma', v)} placeholder="Retrato da Lâmina 📸" disabled={bloqueado} /></div>
                     </div>
                 </div>
             </div>
@@ -268,21 +283,22 @@ function PaginaAltar() {
 // 🪨 PÁGINA 2: ESTIGMAS & RUNAS
 // ==========================================
 function PaginaPassivas() {
-    const { minhaFicha, handleArrayItem } = useRelicario();
+    const { minhaFicha, handleArrayItem, isMestre } = useRelicario();
     const arma = minhaFicha?.armaEspiritual || {};
+    const bloqueado = !isMestre;
     return (
         <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '30px' }}>
             <div style={{ border: '1px dashed currentColor', padding: '20px', borderRadius: '8px', background: 'rgba(0,0,0,0.02)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px dotted currentColor', paddingBottom: '10px' }}>
                     <h2 style={{ margin: 0, fontSize: '1.4em', color: '#00ffcc' }}>✨ Passivas da Relíquia</h2>
-                    <button onClick={() => handleArrayItem('passivas', 'add')} style={{ background: 'transparent', border: '1px solid currentColor', color: 'inherit', padding: '5px 10px', cursor: 'pointer' }}>+ Inscrever</button>
+                    {isMestre && <button onClick={() => handleArrayItem('passivas', 'add')} style={{ background: 'transparent', border: '1px solid currentColor', color: 'inherit', padding: '5px 10px', cursor: 'pointer' }}>+ Inscrever</button>}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {(arma.passivas || []).map((p, i) => (
                         <div key={p.id} style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                             <span style={{ fontSize: '1.5em', opacity: 0.5 }}>-</span>
-                            <AreaMagica valor={p.texto} onChange={v => handleArrayItem('passivas', 'update', i, 'texto', v)} placeholder="Ex: EA pode absorver armas..." styleExtra={{ minHeight: '40px', padding: '5px' }} />
-                            <button onClick={() => { if(window.confirm('Apagar?')) handleArrayItem('passivas', 'remove', i); }} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
+                            <AreaMagica valor={p.texto} onChange={v => handleArrayItem('passivas', 'update', i, 'texto', v)} placeholder="Ex: EA pode absorver armas..." disabled={bloqueado} styleExtra={{ minHeight: '40px', padding: '5px' }} />
+                            {isMestre && <button onClick={() => { if(window.confirm('Apagar?')) handleArrayItem('passivas', 'remove', i); }} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>}
                         </div>
                     ))}
                 </div>
@@ -290,14 +306,14 @@ function PaginaPassivas() {
             <div style={{ border: '1px dashed currentColor', padding: '20px', borderRadius: '8px', background: 'rgba(0,0,0,0.02)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px dotted currentColor', paddingBottom: '10px' }}>
                     <h2 style={{ margin: 0, fontSize: '1.4em', color: '#ff00ff' }}>🔮 Runas & Multiplicadores</h2>
-                    <button onClick={() => handleArrayItem('runas', 'add')} style={{ background: 'transparent', border: '1px solid currentColor', color: 'inherit', padding: '5px 10px', cursor: 'pointer' }}>+ Inscrever</button>
+                    {isMestre && <button onClick={() => handleArrayItem('runas', 'add')} style={{ background: 'transparent', border: '1px solid currentColor', color: 'inherit', padding: '5px 10px', cursor: 'pointer' }}>+ Inscrever</button>}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {(arma.runas || []).map((r, i) => (
                         <div key={r.id} style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                             <span style={{ fontSize: '1.5em', opacity: 0.5 }}>•</span>
-                            <AreaMagica valor={r.texto} onChange={v => handleArrayItem('runas', 'update', i, 'texto', v)} placeholder="Ex: EA multiplica o dano em 10x..." styleExtra={{ minHeight: '40px', padding: '5px' }} />
-                            <button onClick={() => { if(window.confirm('Apagar?')) handleArrayItem('runas', 'remove', i); }} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>
+                            <AreaMagica valor={r.texto} onChange={v => handleArrayItem('runas', 'update', i, 'texto', v)} placeholder="Ex: EA multiplica o dano em 10x..." disabled={bloqueado} styleExtra={{ minHeight: '40px', padding: '5px' }} />
+                            {isMestre && <button onClick={() => { if(window.confirm('Apagar?')) handleArrayItem('runas', 'remove', i); }} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>}
                         </div>
                     ))}
                 </div>
@@ -310,36 +326,37 @@ function PaginaPassivas() {
 // 🌌 PÁGINA 3: FORMAS BASE
 // ==========================================
 function PaginaFormas() {
-    const { minhaFicha, handleArrayItem } = useRelicario();
+    const { minhaFicha, handleArrayItem, isMestre } = useRelicario();
     const arma = minhaFicha?.armaEspiritual || {};
+    const bloqueado = !isMestre;
 
     return (
         <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid currentColor', paddingBottom: '10px' }}>
                 <h2 style={{ margin: 0, fontSize: '1.8em', color: '#00aaff' }}>🌌 Formas Base da Lâmina</h2>
-                <button onClick={() => handleArrayItem('formas', 'add')} style={{ padding: '10px 20px', background: 'transparent', border: '2px solid currentColor', color: 'inherit', fontWeight: 'bold', cursor: 'pointer', borderRadius: '4px' }}>+ CRIAR FORMA BASE</button>
+                {isMestre && <button onClick={() => handleArrayItem('formas', 'add')} style={{ padding: '10px 20px', background: 'transparent', border: '2px solid currentColor', color: 'inherit', fontWeight: 'bold', cursor: 'pointer', borderRadius: '4px' }}>+ CRIAR FORMA BASE</button>}
             </div>
             {(arma.formas || []).map((forma, i) => (
                 <div key={forma.id} style={{ border: '2px double currentColor', padding: '20px', borderRadius: '8px', background: 'rgba(0,170,255,0.03)', position: 'relative' }}>
-                    <button onClick={() => { if(window.confirm('Destruir Forma?')) handleArrayItem('formas', 'remove', i); }} style={{ position: 'absolute', top: '10px', right: '10px', background: 'transparent', border: 'none', color: '#ff003c', fontSize: '1.2em', cursor: 'pointer' }}>✖</button>
+                    {isMestre && <button onClick={() => { if(window.confirm('Destruir Forma?')) handleArrayItem('formas', 'remove', i); }} style={{ position: 'absolute', top: '10px', right: '10px', background: 'transparent', border: 'none', color: '#ff003c', fontSize: '1.2em', cursor: 'pointer' }}>✖</button>}
                     <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '20px' }}>
-                        <div style={{ flex: '0 0 150px', height: '200px' }}><ImageUploader valorAtual={forma.img} onUploadComplete={v => handleArrayItem('formas', 'update', i, 'img', v)} placeholder="Foto Forma 📸" /></div>
+                        <div style={{ flex: '0 0 150px', height: '200px' }}><ImageUploader valorAtual={forma.img} onUploadComplete={v => handleArrayItem('formas', 'update', i, 'img', v)} placeholder="Foto Forma 📸" disabled={bloqueado} /></div>
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <CampoMagico valor={forma.nome} onChange={v => handleArrayItem('formas', 'update', i, 'nome', v)} placeholder="Ex: 1ª Forma: Pecados" styleExtra={{ fontSize: '1.5em', fontWeight: 'bold', color: '#00aaff' }} />
-                            <CampoMagico valor={forma.dano} onChange={v => handleArrayItem('formas', 'update', i, 'dano', v)} placeholder="Dano Adicional (Ex: 36d4)" styleExtra={{ fontSize: '1.1em', fontWeight: 'bold' }} />
+                            <CampoMagico valor={forma.nome} onChange={v => handleArrayItem('formas', 'update', i, 'nome', v)} placeholder="Ex: 1ª Forma: Pecados" disabled={bloqueado} styleExtra={{ fontSize: '1.5em', fontWeight: 'bold', color: '#00aaff' }} />
+                            <CampoMagico valor={forma.dano} onChange={v => handleArrayItem('formas', 'update', i, 'dano', v)} placeholder="Dano Adicional (Ex: 36d4)" disabled={bloqueado} styleExtra={{ fontSize: '1.1em', fontWeight: 'bold' }} />
                             <div style={{ marginTop: '15px', borderTop: '1px dashed currentColor', paddingTop: '15px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                                     <h4 style={{ margin: 0, opacity: 0.8 }}>Sub-Configurações Elementais</h4>
-                                    <button onClick={() => handleArrayItem('formas', 'add-config', i)} style={{ background: 'transparent', border: '1px solid currentColor', color: 'inherit', padding: '4px 8px', fontSize: '0.8em', cursor: 'pointer' }}>+ Sub-Configuração</button>
+                                    {isMestre && <button onClick={() => handleArrayItem('formas', 'add-config', i)} style={{ background: 'transparent', border: '1px solid currentColor', color: 'inherit', padding: '4px 8px', fontSize: '0.8em', cursor: 'pointer' }}>+ Sub-Configuração</button>}
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                     {(forma.configs || []).map((cfg, cIdx) => (
                                         <div key={cfg.id} style={{ display: 'flex', gap: '15px', background: 'rgba(0,0,0,0.05)', padding: '10px', borderRadius: '6px', position: 'relative' }}>
-                                            <button onClick={() => { if(window.confirm('Apagar?')) handleArrayItem('formas', 'remove-config', i, null, null, cIdx); }} style={{ position: 'absolute', top: '5px', right: '5px', background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer' }}>✖</button>
-                                            <div style={{ flex: '0 0 80px', height: '100px' }}><ImageUploader valorAtual={cfg.img} onUploadComplete={v => handleArrayItem('formas', 'update-config', i, null, v, cIdx, 'img')} placeholder="Lâmina 📸" /></div>
+                                            {isMestre && <button onClick={() => { if(window.confirm('Apagar?')) handleArrayItem('formas', 'remove-config', i, null, null, cIdx); }} style={{ position: 'absolute', top: '5px', right: '5px', background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer' }}>✖</button>}
+                                            <div style={{ flex: '0 0 80px', height: '100px' }}><ImageUploader valorAtual={cfg.img} onUploadComplete={v => handleArrayItem('formas', 'update-config', i, null, v, cIdx, 'img')} placeholder="Lâmina 📸" disabled={bloqueado} /></div>
                                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                                <CampoMagico valor={cfg.nome} onChange={v => handleArrayItem('formas', 'update-config', i, null, v, cIdx, 'nome')} placeholder="Ex: Tiamat Branca-Gelo" styleExtra={{ fontWeight: 'bold', fontSize: '1.1em', color: 'inherit' }} />
-                                                <AreaMagica valor={cfg.desc} onChange={v => handleArrayItem('formas', 'update-config', i, null, v, cIdx, 'desc')} placeholder="Efeitos específicos..." styleExtra={{ minHeight: '40px', fontSize: '0.9em' }} />
+                                                <CampoMagico valor={cfg.nome} onChange={v => handleArrayItem('formas', 'update-config', i, null, v, cIdx, 'nome')} placeholder="Ex: Tiamat Branca-Gelo" disabled={bloqueado} styleExtra={{ fontWeight: 'bold', fontSize: '1.1em', color: 'inherit' }} />
+                                                <AreaMagica valor={cfg.desc} onChange={v => handleArrayItem('formas', 'update-config', i, null, v, cIdx, 'desc')} placeholder="Efeitos específicos..." disabled={bloqueado} styleExtra={{ minHeight: '40px', fontSize: '0.9em' }} />
                                             </div>
                                         </div>
                                     ))}
@@ -358,36 +375,37 @@ function PaginaFormas() {
 // 👑 PÁGINA 4: FORMAS VERDADEIRAS
 // ==========================================
 function PaginaFormasVerdadeiras() {
-    const { minhaFicha, handleArrayItem } = useRelicario();
+    const { minhaFicha, handleArrayItem, isMestre } = useRelicario();
     const arma = minhaFicha?.armaEspiritual || {};
+    const bloqueado = !isMestre;
 
     return (
         <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #ffcc00', paddingBottom: '10px' }}>
                 <h2 style={{ margin: 0, fontSize: '1.8em', color: '#ffcc00' }}>👑 Formas Verdadeiras (O Ápice)</h2>
-                <button onClick={() => handleArrayItem('formasVerdadeiras', 'add')} style={{ padding: '10px 20px', background: 'transparent', border: '2px solid #ffcc00', color: '#ffcc00', fontWeight: 'bold', cursor: 'pointer', borderRadius: '4px' }}>+ DESPERTAR FORMA VERDADEIRA</button>
+                {isMestre && <button onClick={() => handleArrayItem('formasVerdadeiras', 'add')} style={{ padding: '10px 20px', background: 'transparent', border: '2px solid #ffcc00', color: '#ffcc00', fontWeight: 'bold', cursor: 'pointer', borderRadius: '4px' }}>+ DESPERTAR FORMA VERDADEIRA</button>}
             </div>
             {(arma.formasVerdadeiras || []).map((forma, i) => (
                 <div key={forma.id} style={{ border: '2px double #ffcc00', padding: '20px', borderRadius: '8px', background: 'rgba(255,204,0,0.05)', position: 'relative' }}>
-                    <button onClick={() => { if(window.confirm('Destruir Forma Verdadeira?')) handleArrayItem('formasVerdadeiras', 'remove', i); }} style={{ position: 'absolute', top: '10px', right: '10px', background: 'transparent', border: 'none', color: '#ff003c', fontSize: '1.2em', cursor: 'pointer' }}>✖</button>
+                    {isMestre && <button onClick={() => { if(window.confirm('Destruir Forma Verdadeira?')) handleArrayItem('formasVerdadeiras', 'remove', i); }} style={{ position: 'absolute', top: '10px', right: '10px', background: 'transparent', border: 'none', color: '#ff003c', fontSize: '1.2em', cursor: 'pointer' }}>✖</button>}
                     <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '20px' }}>
-                        <div style={{ flex: '0 0 150px', height: '200px' }}><ImageUploader valorAtual={forma.img} onUploadComplete={v => handleArrayItem('formasVerdadeiras', 'update', i, 'img', v)} placeholder="Foto Forma 📸" /></div>
+                        <div style={{ flex: '0 0 150px', height: '200px' }}><ImageUploader valorAtual={forma.img} onUploadComplete={v => handleArrayItem('formasVerdadeiras', 'update', i, 'img', v)} placeholder="Foto Forma 📸" disabled={bloqueado} /></div>
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <CampoMagico valor={forma.nome} onChange={v => handleArrayItem('formasVerdadeiras', 'update', i, 'nome', v)} placeholder="Ex: 1 Forma Verdadeira: Pecados" styleExtra={{ fontSize: '1.5em', fontWeight: 'bold', color: '#ff003c' }} />
-                            <CampoMagico valor={forma.dano} onChange={v => handleArrayItem('formasVerdadeiras', 'update', i, 'dano', v)} placeholder="Dano Colossal (Ex: 120d4 + Des + E.E)" styleExtra={{ fontSize: '1.1em', fontWeight: 'bold', color: '#ffcc00' }} />
+                            <CampoMagico valor={forma.nome} onChange={v => handleArrayItem('formasVerdadeiras', 'update', i, 'nome', v)} placeholder="Ex: 1 Forma Verdadeira: Pecados" disabled={bloqueado} styleExtra={{ fontSize: '1.5em', fontWeight: 'bold', color: '#ff003c' }} />
+                            <CampoMagico valor={forma.dano} onChange={v => handleArrayItem('formasVerdadeiras', 'update', i, 'dano', v)} placeholder="Dano Colossal (Ex: 120d4 + Des + E.E)" disabled={bloqueado} styleExtra={{ fontSize: '1.1em', fontWeight: 'bold', color: '#ffcc00' }} />
                             <div style={{ marginTop: '15px', borderTop: '1px dashed #ffcc00', paddingTop: '15px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                                     <h4 style={{ margin: 0, opacity: 0.9, color: '#ffcc00' }}>Sub-Configurações Supremas</h4>
-                                    <button onClick={() => handleArrayItem('formasVerdadeiras', 'add-config', i)} style={{ background: 'transparent', border: '1px solid #ffcc00', color: '#ffcc00', padding: '4px 8px', fontSize: '0.8em', cursor: 'pointer' }}>+ Sub-Configuração</button>
+                                    {isMestre && <button onClick={() => handleArrayItem('formasVerdadeiras', 'add-config', i)} style={{ background: 'transparent', border: '1px solid #ffcc00', color: '#ffcc00', padding: '4px 8px', fontSize: '0.8em', cursor: 'pointer' }}>+ Sub-Configuração</button>}
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                                     {(forma.configs || []).map((cfg, cIdx) => (
                                         <div key={cfg.id} style={{ display: 'flex', gap: '15px', background: 'rgba(0,0,0,0.2)', padding: '10px', borderRadius: '6px', position: 'relative', border: '1px solid #ffcc0040' }}>
-                                            <button onClick={() => { if(window.confirm('Apagar?')) handleArrayItem('formasVerdadeiras', 'remove-config', i, null, null, cIdx); }} style={{ position: 'absolute', top: '5px', right: '5px', background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer' }}>✖</button>
-                                            <div style={{ flex: '0 0 80px', height: '100px' }}><ImageUploader valorAtual={cfg.img} onUploadComplete={v => handleArrayItem('formasVerdadeiras', 'update-config', i, null, v, cIdx, 'img')} placeholder="Lâmina 📸" /></div>
+                                            {isMestre && <button onClick={() => { if(window.confirm('Apagar?')) handleArrayItem('formasVerdadeiras', 'remove-config', i, null, null, cIdx); }} style={{ position: 'absolute', top: '5px', right: '5px', background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer' }}>✖</button>}
+                                            <div style={{ flex: '0 0 80px', height: '100px' }}><ImageUploader valorAtual={cfg.img} onUploadComplete={v => handleArrayItem('formasVerdadeiras', 'update-config', i, null, v, cIdx, 'img')} placeholder="Lâmina 📸" disabled={bloqueado} /></div>
                                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                                <CampoMagico valor={cfg.nome} onChange={v => handleArrayItem('formasVerdadeiras', 'update-config', i, null, v, cIdx, 'nome')} placeholder="Ex: Variante Verdadeira" styleExtra={{ fontWeight: 'bold', fontSize: '1.1em', color: '#ffcc00' }} />
-                                                <AreaMagica valor={cfg.desc} onChange={v => handleArrayItem('formasVerdadeiras', 'update-config', i, null, v, cIdx, 'desc')} placeholder="Efeitos específicos..." styleExtra={{ minHeight: '40px', fontSize: '0.9em' }} />
+                                                <CampoMagico valor={cfg.nome} onChange={v => handleArrayItem('formasVerdadeiras', 'update-config', i, null, v, cIdx, 'nome')} placeholder="Ex: Variante Verdadeira" disabled={bloqueado} styleExtra={{ fontWeight: 'bold', fontSize: '1.1em', color: '#ffcc00' }} />
+                                                <AreaMagica valor={cfg.desc} onChange={v => handleArrayItem('formasVerdadeiras', 'update-config', i, null, v, cIdx, 'desc')} placeholder="Efeitos específicos..." disabled={bloqueado} styleExtra={{ minHeight: '40px', fontSize: '0.9em' }} />
                                             </div>
                                         </div>
                                     ))}
@@ -559,13 +577,33 @@ export default function RelicarioPanel() {
     );
 }
 
+// 📖 Aviso fixo nos Capítulos 1-4: deixa claro o escopo (só Arma Espiritual/Fantasma Nobre, não
+// armas comuns) e, pra quem não é Mestre/Co-Mestre, que esta seção é somente consulta.
+function AvisoArmaEspiritual({ isMestre }) {
+    return (
+        <div style={{ marginBottom: '20px', padding: '10px 15px', border: '1px dashed currentColor', borderRadius: '6px', background: 'rgba(0,0,0,0.03)', fontSize: '0.85em', opacity: 0.85, textAlign: 'center', lineHeight: '1.6' }}>
+            📖 Exclusivo da <strong>Arma Espiritual / Fantasma Nobre</strong> desta entidade — armas comuns vão no <strong>Arsenal Místico</strong> (Capítulo 5).
+            {!isMestre && <><br />🔒 Somente o Mestre e Co-Mestres podem editar esta seção; jogadores podem apenas consultar.</>}
+        </div>
+    );
+}
+
 function ConteudoDinamico() {
-    const { abaAtual } = useRelicario();
-    if (abaAtual === 'altar') return <PaginaAltar />;
-    if (abaAtual === 'passivas') return <PaginaPassivas />;
-    if (abaAtual === 'formas') return <PaginaFormas />;
-    if (abaAtual === 'verdadeiras') return <PaginaFormasVerdadeiras />;
-    if (abaAtual === 'arsenal') return <PaginaArsenal />;
-    if (abaAtual === 'suprimentos') return <PaginaSuprimentos />;
-    return null;
+    const { abaAtual, isMestre } = useRelicario();
+
+    let pagina = null;
+    if (abaAtual === 'altar') pagina = <PaginaAltar />;
+    else if (abaAtual === 'passivas') pagina = <PaginaPassivas />;
+    else if (abaAtual === 'formas') pagina = <PaginaFormas />;
+    else if (abaAtual === 'verdadeiras') pagina = <PaginaFormasVerdadeiras />;
+    else if (abaAtual === 'arsenal') pagina = <PaginaArsenal />;
+    else if (abaAtual === 'suprimentos') pagina = <PaginaSuprimentos />;
+    else return null;
+
+    return (
+        <>
+            {CAPITULOS_ARMA_ESPIRITUAL.includes(abaAtual) && <AvisoArmaEspiritual isMestre={isMestre} />}
+            {pagina}
+        </>
+    );
 }
