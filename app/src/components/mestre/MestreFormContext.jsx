@@ -20,6 +20,7 @@ export function MestreFormProvider({ children }) {
     const personagens = useStore(s => s.personagens);
     const isMestre = useStore(s => s.isMestre);
     const meuNome = useStore(s => s.meuNome);
+    const userLogado = useStore(s => s.userLogado);
 
     // Puxa as informações da Sala para o sistema de Patentes
     const mesaId = useStore(s => s.mesaId);
@@ -74,7 +75,14 @@ export function MestreFormProvider({ children }) {
 
     // 🔥 NOVA FUNÇÃO RESTAURADA: NOMEAR CO-MESTRES 🔥
     const toggleCoMestre = useCallback(async (nomeAmigo) => {
-        if (meuNome !== mesaCriador) return alert("Apenas o Mestre Supremo (Dono da Sala) pode nomear Co-Mestres.");
+        // 🔥 CORREÇÃO: mesaCriador vem de "index_mesas/{mesaId}/mestre", gravado com o NOME DE
+        // LOGIN (userLogado) na criação da mesa (ver LobbyNeon.jsx > registrarNovaMesa) -- nunca
+        // com o nome do PERSONAGEM (meuNome) escolhido depois em "Entrar na Mesa". Comparar
+        // meuNome (personagem) com mesaCriador (login) só "funciona" quando o Dono usa um
+        // personagem com o mesmo nome do seu login; qualquer outro personagem ativo (ex.: um PC
+        // chamado "Kiriya D Zoldyck" enquanto o login é "kiriya") faz este botão desaparecer da
+        // aba do Mestre pra sempre, mesmo pro dono de verdade.
+        if (userLogado !== mesaCriador) return alert("Apenas o Mestre Supremo (Dono da Sala) pode nomear Co-Mestres.");
         if (nomeAmigo === mesaCriador) return alert("Esta pessoa já é o Dono da mesa!");
         
         // 🔥 CORREÇÃO: isMestre é decidido em App.jsx > iniciarListenerMestres, que lê
@@ -100,7 +108,7 @@ export function MestreFormProvider({ children }) {
             console.error("Erro ao alterar Co-Mestre", err);
             alert("Erro de permissão. Apenas o Dono da sala tem acesso a esta função no Firebase.");
         }
-    }, [mesaId, mesaCriador, mesaMestres, meuNome]);
+    }, [mesaId, mesaCriador, mesaMestres, userLogado]);
 
     const jogadoresList = useMemo(() => Object.entries(personagens || {}), [personagens]);
 
@@ -138,6 +146,7 @@ export function MestreFormProvider({ children }) {
     const value = useMemo(() => ({
         isMestre,
         meuNome,
+        userLogado,
         mesaCriador,
         mesaMestres,
         msgSistema, setMsgSistema,
@@ -156,7 +165,7 @@ export function MestreFormProvider({ children }) {
         jogadoresComStats,
         fmt,
     }), [
-        isMestre, meuNome, mesaCriador, mesaMestres,
+        isMestre, meuNome, userLogado, mesaCriador, mesaMestres,
         msgSistema, dNome, dHp, dVit, dDefTipo, dDef, dVisivelHp, dOculto,
         enviarAviso, injetarDummie, handleApagarJogador, toggleCoMestre,
         jogadoresList, jogadoresComStats, fmt,

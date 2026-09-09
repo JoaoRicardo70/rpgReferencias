@@ -91,6 +91,10 @@ export function RelicarioProvider({ children }) {
             }
 
             if (!ficha.armaEspiritual) return;
+            // 🔥 Mesma blindagem do "notas" acima: garante que a lista existe antes de mexer
+            // nela, caso o efeito de inicialização ainda não tenha rodado (ou a ficha tenha
+            // vindo do Firebase sem essa chave, já que arrays vazios não persistem lá).
+            if (!Array.isArray(ficha.armaEspiritual[chave])) ficha.armaEspiritual[chave] = [];
             const target = ficha.armaEspiritual[chave];
             
             if (acao === 'add') {

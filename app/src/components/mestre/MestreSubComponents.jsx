@@ -121,7 +121,7 @@ export function MestreAcessoNegado() {
 export function MestreVisorJogadores() {
     const ctx = useMestreForm();
     if (!ctx) return FALLBACK;
-    const { jogadoresComStats, meuNome, handleApagarJogador, fmt, toggleCoMestre, mesaCriador, mesaMestres } = ctx;
+    const { jogadoresComStats, meuNome, userLogado, handleApagarJogador, fmt, toggleCoMestre, mesaCriador, mesaMestres } = ctx;
 
     const [abaVisor, setAbaVisor] = useState('jogadores');
     const [pastasAbertas, setPastasAbertas] = useState({});
@@ -240,8 +240,12 @@ export function MestreVisorJogadores() {
                         📖 ABRIR FICHA
                     </button>
                     
-                    {/* SÓ O DONO DA SALA PODE VER O BOTÃO DE PROMOVER CO-MESTRE */}
-                    {meuNome === mesaCriador && !isSupremo && (
+                    {/* SÓ O DONO DA SALA PODE VER O BOTÃO DE PROMOVER CO-MESTRE -- mesaCriador é o
+                        nome de LOGIN de quem criou a mesa, não o nome do personagem ativo (meuNome);
+                        comparar com userLogado (login) em vez de meuNome (personagem) evita que o
+                        botão suma pro dono de verdade sempre que ele estiver com um personagem cujo
+                        nome não é idêntico ao seu login (ver comentário em MestreFormContext.jsx). */}
+                    {userLogado === mesaCriador && !isSupremo && (
                         <button
                             className={`btn-neon ${isCoMestre ? 'btn-gold' : 'btn-purple'}`}
                             style={{ flex: 1, padding: '4px', fontSize: '0.8em', margin: 0, borderColor: isCoMestre ? '#ffcc00' : '#aa00ff', color: isCoMestre ? '#ffcc00' : '#aa00ff' }}

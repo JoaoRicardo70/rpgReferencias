@@ -62,6 +62,13 @@ function montarStore(overrides = {}) {
         personagens: {},
         isMestre: true,
         meuNome: 'Dono',
+        // 🔥 A guarda de permissão de toggleCoMestre() compara userLogado (login de verdade) com
+        // mesaCriador -- NÃO meuNome (personagem ativo, que pode ser diferente do login). Por
+        // padrão este helper representa "estou logado como o Dono da mesa" (o cenário mais comum
+        // nos testes abaixo), então userLogado começa igual a mesaCriador; overrides que querem
+        // testar "NÃO sou o Dono" devem sobrescrever userLogado explicitamente (ver os testes de
+        // guarda de permissão e o de regressão do bug real).
+        userLogado: 'Dono',
         mesaId: 'MESA-X',
         mesaCriador: 'Dono',
         mesaMestres: {},
@@ -89,7 +96,10 @@ afterEach(() => { cleanup(); });
 
 describe('MestreFormContext — toggleCoMestre(): guarda de permissão (só o Dono da mesa pode promover/rebaixar)', () => {
     it('quem NÃO é o criador da mesa recebe alerta e NÃO toca o Firebase', async () => {
-        montarStore({ meuNome: 'Jogador1', mesaCriador: 'Dono' });
+        // meuNome aqui é irrelevante pra guarda de permissão (é userLogado que decide) -- fica
+        // diferente de propósito só pra não mascarar acidentalmente um bug onde a guarda ainda
+        // comparasse meuNome.
+        montarStore({ meuNome: 'Jogador1', userLogado: 'Jogador1', mesaCriador: 'Dono' });
         montar();
 
         await act(async () => { await probe.toggleCoMestre('OutroJogador'); });
@@ -106,6 +116,46 @@ describe('MestreFormContext — toggleCoMestre(): guarda de permissão (só o Do
         await act(async () => { await probe.toggleCoMestre('Dono'); });
 
         expect(window.alert).toHaveBeenCalledWith('Esta pessoa já é o Dono da mesa!');
+        expect(set).not.toHaveBeenCalled();
+        expect(remove).not.toHaveBeenCalled();
+    });
+
+    // 🔥 Regressão do bug real corrigido nesta sessão: o Dono de verdade (userLogado === mesaCriador)
+    // jogando com um PERSONAGEM ATIVO cujo nome NÃO bate com mesaCriador (cenário normal -- login
+    // "kiriya", personagem "Kiriya D Zoldyck") tinha a promoção bloqueada antes da correção, porque
+    // a guarda comparava meuNome (personagem) em vez de userLogado (login) com mesaCriador. Este
+    // teste falharia com a guarda antiga (`meuNome !== mesaCriador`) e só passa com a guarda
+    // corrigida (`userLogado !== mesaCriador`).
+    it('userLogado === mesaCriador (dono de verdade logado) promove com sucesso mesmo com meuNome (personagem ativo) DIFERENTE de mesaCriador', async () => {
+        montarStore({
+            userLogado: 'kiriya',
+            mesaCriador: 'kiriya',
+            meuNome: 'Kiriya D Zoldyck',
+            mesaId: 'MESA-X',
+            mesaMestres: {},
+        });
+        montar();
+
+        await act(async () => { await probe.toggleCoMestre('joao'); });
+
+        expect(window.alert).not.toHaveBeenCalledWith('Apenas o Mestre Supremo (Dono da Sala) pode nomear Co-Mestres.');
+        expect(set).toHaveBeenCalledWith('index_mesas/MESA-X/mestres/joao', true);
+        expect(window.alert).toHaveBeenCalledWith('joao foi promovido a Co-Mestre!');
+    });
+
+    it('userLogado DIFERENTE de mesaCriador continua bloqueado mesmo quando meuNome (personagem ativo) coincide com mesaCriador (prova que a checagem usa userLogado, não meuNome)', async () => {
+        montarStore({
+            userLogado: 'Jogador1',
+            mesaCriador: 'kiriya',
+            meuNome: 'kiriya',
+            mesaId: 'MESA-X',
+            mesaMestres: {},
+        });
+        montar();
+
+        await act(async () => { await probe.toggleCoMestre('joao'); });
+
+        expect(window.alert).toHaveBeenCalledWith('Apenas o Mestre Supremo (Dono da Sala) pode nomear Co-Mestres.');
         expect(set).not.toHaveBeenCalled();
         expect(remove).not.toHaveBeenCalled();
     });
