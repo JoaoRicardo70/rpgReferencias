@@ -82,7 +82,7 @@ When changes are pushed to `main`, the GitHub Actions workflow (`.github/workflo
 - If the run is `in_progress`, watch it with: `gh run watch <run-id> --exit-status`
 - If the run **failed**, check logs with: `gh run view <run-id> --log-failed`, fix the issue, and push again.
 - Only proceed when the deploy status is **success**.
-- Site URL: https://databaserpg-5595b.web.app
+- Site URL: https://rpg-referencias.web.app
 
 ## Step 5 — Deliver
 Only after review, tests, and deploy pass, present the final result to the user.

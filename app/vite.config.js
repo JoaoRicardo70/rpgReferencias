@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  // O site é hospedado na RAIZ do Firebase Hosting (databaserpg-5595b.web.app), não num
+  // O site é hospedado na RAIZ do Firebase Hosting (rpg-referencias.web.app), não num
   // subcaminho como GitHub Pages — "base" tem que ser "/", senão os arquivos JS/manifest são
   // referenciados em /rpgReferencias/... (que não existe no servidor) e o rewrite de SPA do
   // Firebase (firebase.json) devolve index.html no lugar, quebrando o carregamento dos módulos.
