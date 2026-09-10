@@ -1,19 +1,17 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import useStore from '../../stores/useStore';
-// 🔥 Adicionado salvarFirebaseImediato para espelhar a força do painel principal
-import { salvarFichaSilencioso, salvarFirebaseImediato } from '../../services/firebase-sync';
+import { salvarFichaSilencioso } from '../../services/firebase-sync';
 import { lerImagemComoBase64 } from '../../services/firebase-storage';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 
 // ==========================================
-// ⏱️ ESCUDO DE DEBOUNCE GLOBAL (Evita bombardear o Firebase)
+// ⏱️ ESCUDO DE DEBOUNCE GLOBAL
 // ==========================================
 let globalTimerRelicario = null;
 function callSaveDebounced() {
     if (globalTimerRelicario) clearTimeout(globalTimerRelicario);
     globalTimerRelicario = setTimeout(() => {
-        if (typeof salvarFirebaseImediato === 'function') salvarFirebaseImediato();
-        else if (typeof salvarFichaSilencioso === 'function') salvarFichaSilencioso();
+        salvarFichaSilencioso();
     }, 400);
 }
 
@@ -44,9 +42,6 @@ const TIPOS_SUPRIMENTO = [
 
 const TIPOS_DANO = ['Cortante', 'Perfurante', 'Impacto', 'Mágico', 'Elemental', 'Verdadeiro', 'Conceitual', 'Espiritual', 'Nenhum'];
 
-// ==========================================
-// 📖 OS CAPÍTULOS DO RELICÁRIO
-// ==========================================
 const CAPITULOS = [
     { id: 'altar', label: 'Altar da Relíquia', icon: '🗡️' },
     { id: 'passivas', label: 'Estigmas & Runas', icon: '🪨' },
@@ -74,7 +69,6 @@ export function RelicarioProvider({ children }) {
     const meuNome = useStore(s => s.meuNome);
     const [abaAtual, setAbaAtual] = useState('altar');
 
-    // 🔥 O SEGREDO DA SINCRONIZAÇÃO: Chama a função com debounce e força máxima!
     const callSave = useCallback(() => { callSaveDebounced(); }, []);
 
     useEffect(() => {
@@ -118,7 +112,7 @@ export function RelicarioProvider({ children }) {
             else if (acao === 'remove-config') target[index].configs.splice(subIndex, 1);
             else if (acao === 'update-config') target[index].configs[subIndex][subCampo] = valor;
         });
-        callSave();
+        callSave(); // Ações de botão forçam o save
     }, [updateFicha, callSave]);
 
     const updateItemById = useCallback((id, campo, valor) => {
@@ -128,8 +122,8 @@ export function RelicarioProvider({ children }) {
             const i = f.inventario.find(x => x.id === id); 
             if (i) i[campo] = valSeguro; 
         });
-        callSave();
-    }, [updateFicha, callSave]);
+        // Removemos o callSave daqui para evitar spam. O CampoMagico faz onBlur!
+    }, [updateFicha]);
 
     const removeItemById = useCallback((id) => {
         if(window.confirm('Deitar fora este item para sempre?')) {
@@ -174,14 +168,36 @@ export function RelicarioProvider({ children }) {
 }
 
 // ==========================================
-// 🖋️ COMPONENTES VISUAIS
+// 🖋️ COMPONENTES VISUAIS BLINDADOS (Iguais ao Marcados.jsx)
 // ==========================================
-const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", disabled = false }) => {
+const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, disabled = false }) => {
     const { callSave } = useRelicario();
+    const [focused, setFocused] = useState(false);
+    
+    const handleChange = (e) => {
+        let val = e.target.value;
+        if (isNumber && val !== '') {
+            val = val.replace(',', '.');
+            let num = Number(val);
+            if (!isNaN(num)) val = num; else val = 0;
+        }
+        onChange(val);
+    };
+
+    let displayValue = valor !== undefined && valor !== null ? String(valor) : '';
+    let currentType = type;
+    if (isNumber && !focused && displayValue !== '') {
+        let num = Number(displayValue);
+        if (!isNaN(num)) displayValue = num.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+        currentType = 'text';
+    } else if (isNumber && focused) { currentType = 'number'; }
+
     return (
         <input 
-            type={type} value={valor || ''} onChange={e => { onChange(e.target.value); callSave(); }} 
-            onBlur={callSave} placeholder={placeholder} disabled={disabled}
+            type={currentType} step={isNumber ? "any" : undefined} value={displayValue} onChange={handleChange}
+            onFocus={() => setFocused(true)}
+            onBlur={() => { setFocused(false); callSave(); }} 
+            placeholder={placeholder} disabled={disabled}
             style={{ background: 'transparent', border: 'none', borderBottom: '1px dashed currentColor', fontFamily: 'inherit', fontSize: 'inherit', color: 'inherit', fontWeight: 'inherit', fontStyle: 'inherit', outline: 'none', padding: '5px', width: '100%', opacity: disabled ? 0.7 : 1, ...styleExtra }} 
         />
     );
@@ -191,7 +207,7 @@ const AreaMagica = ({ valor, onChange, placeholder, styleExtra = {}, disabled = 
     const { callSave } = useRelicario();
     return (
         <textarea 
-            value={valor || ''} onChange={e => { onChange(e.target.value); callSave(); }} placeholder={placeholder}
+            value={valor || ''} onChange={e => onChange(e.target.value)} placeholder={placeholder}
             onBlur={callSave} disabled={disabled}
             style={{ width: '100%', minHeight: '60px', background: 'transparent', border: 'none', borderBottom: '2px dotted currentColor', color: 'inherit', fontFamily: 'inherit', padding: '8px', outline: 'none', resize: 'vertical', opacity: disabled ? 0.7 : 1, ...styleExtra }}
         />
@@ -252,14 +268,15 @@ function RelicarioNavegacao() {
 // 🗡️ PÁGINA 1: O ALTAR DA RELÍQUIA
 // ==========================================
 function PaginaAltar() {
-    const { minhaFicha, updateFicha, isMestre, callSave } = useRelicario();
+    const { minhaFicha, updateFicha, isMestre } = useRelicario();
     const arma = minhaFicha?.armaEspiritual || {};
+    
+    // Atualiza apenas o estado local, o botão de imagem/texto cuida do save
     const updateArma = (campo, valor) => { 
         updateFicha(f => { 
             if(!f.armaEspiritual) f.armaEspiritual = {}; 
             f.armaEspiritual[campo] = valor; 
         }); 
-        callSave(); 
     };
     const bloqueado = !isMestre;
 
@@ -440,7 +457,7 @@ function PaginaFormasVerdadeiras() {
 // ⚔️ PÁGINA 5: ARSENAL MÍSTICO
 // ==========================================
 function PaginaArsenal() {
-    const { minhaFicha, updateItemById, removeItemById, toggleEquiparById, addItem } = useRelicario();
+    const { minhaFicha, updateItemById, removeItemById, toggleEquiparById, addItem, callSave } = useRelicario();
     const inventario = minhaFicha?.inventario || [];
     
     const arsenal = inventario.filter(i => ['arma', 'armadura', 'acessorio'].includes(i.tipo));
@@ -463,16 +480,16 @@ function PaginaArsenal() {
                             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                                 <CampoMagico valor={item.nome} onChange={v => updateItemById(item.id, 'nome', v)} placeholder="Nome do Item" styleExtra={{ flex: '1 1 200px', fontWeight: 'bold', fontSize: '1.2em', color: rData.cor }} />
                                 
-                                <select value={item.tipo || 'arma'} onChange={e => updateItemById(item.id, 'tipo', e.target.value)} style={{ background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dotted currentColor', outline: 'none', fontFamily: 'inherit' }}>
+                                <select value={item.tipo || 'arma'} onChange={e => { updateItemById(item.id, 'tipo', e.target.value); callSave(); }} style={{ background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dotted currentColor', outline: 'none', fontFamily: 'inherit' }}>
                                     {TIPOS_ARSENAL.map(opt => <option key={opt.value} value={opt.value} style={{color: '#000'}}>{opt.label}</option>)}
                                 </select>
 
-                                <select value={item.raridade || 'comum'} onChange={e => updateItemById(item.id, 'raridade', e.target.value)} style={{ background: 'transparent', color: rData.cor, border: 'none', borderBottom: '1px dotted currentColor', outline: 'none', fontWeight: 'bold', fontFamily: 'inherit' }}>
+                                <select value={item.raridade || 'comum'} onChange={e => { updateItemById(item.id, 'raridade', e.target.value); callSave(); }} style={{ background: 'transparent', color: rData.cor, border: 'none', borderBottom: '1px dotted currentColor', outline: 'none', fontWeight: 'bold', fontFamily: 'inherit' }}>
                                     {Object.entries(RARIDADES).map(([k, v]) => <option key={k} value={k} style={{color: '#000'}}>{v.label}</option>)}
                                 </select>
                                 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Qtd:</span><CampoMagico valor={item.quantidade} onChange={v => updateItemById(item.id, 'quantidade', Number(v))} type="number" styleExtra={{ width: '50px', textAlign: 'center' }} /></div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Kg:</span><CampoMagico valor={item.peso} onChange={v => updateItemById(item.id, 'peso', Number(v))} type="number" step="0.1" styleExtra={{ width: '50px', textAlign: 'center' }} /></div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Qtd:</span><CampoMagico valor={item.quantidade} onChange={v => updateItemById(item.id, 'quantidade', v)} isNumber={true} type="number" styleExtra={{ width: '50px', textAlign: 'center' }} /></div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Kg:</span><CampoMagico valor={item.peso} onChange={v => updateItemById(item.id, 'peso', v)} isNumber={true} type="number" step="0.1" styleExtra={{ width: '50px', textAlign: 'center' }} /></div>
                                 <button onClick={() => removeItemById(item.id)} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2em' }}>✖</button>
                             </div>
 
@@ -485,7 +502,7 @@ function PaginaArsenal() {
                                         </div>
                                         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '5px' }}>
                                             <span style={{ fontSize: '0.8em', opacity: 0.7, fontWeight: 'bold' }}>Tipo:</span>
-                                            <select value={item.tipoDano || 'Cortante'} onChange={e => updateItemById(item.id, 'tipoDano', e.target.value)} style={{ background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dashed currentColor', outline: 'none', fontFamily: 'inherit', flex: 1 }}>
+                                            <select value={item.tipoDano || 'Cortante'} onChange={e => { updateItemById(item.id, 'tipoDano', e.target.value); callSave(); }} style={{ background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dashed currentColor', outline: 'none', fontFamily: 'inherit', flex: 1 }}>
                                                 {TIPOS_DANO.map(d => <option key={d} value={d} style={{color: '#000'}}>{d}</option>)}
                                             </select>
                                         </div>
@@ -510,11 +527,12 @@ function PaginaArsenal() {
 // 🧪 PÁGINA 6: SUPRIMENTOS E NOTAS
 // ==========================================
 function PaginaSuprimentos() {
-    const { minhaFicha, updateItemById, removeItemById, addItem, handleArrayItem } = useRelicario();
+    const { minhaFicha, updateItemById, removeItemById, addItem, handleArrayItem, callSave } = useRelicario();
     const inventario = minhaFicha?.inventario || [];
     
     const suprimentos = inventario.filter(i => ['consumivel', 'mundano'].includes(i.tipo));
 
+    // 🔥 BLINDAGEM DO NOTAS PARA EVITAR CRASH 🔥
     const notasArray = Array.isArray(minhaFicha?.notas) ? minhaFicha.notas : [];
 
     return (
@@ -535,16 +553,16 @@ function PaginaSuprimentos() {
                                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                                     <CampoMagico valor={item.nome} onChange={v => updateItemById(item.id, 'nome', v)} placeholder="Nome da Poção/Item" styleExtra={{ flex: '1 1 200px', fontWeight: 'bold', fontSize: '1.1em', color: rData.cor }} />
                                     
-                                    <select value={item.tipo || 'consumivel'} onChange={e => updateItemById(item.id, 'tipo', e.target.value)} style={{ background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dotted currentColor', outline: 'none', fontFamily: 'inherit' }}>
+                                    <select value={item.tipo || 'consumivel'} onChange={e => { updateItemById(item.id, 'tipo', e.target.value); callSave(); }} style={{ background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dotted currentColor', outline: 'none', fontFamily: 'inherit' }}>
                                         {TIPOS_SUPRIMENTO.map(opt => <option key={opt.value} value={opt.value} style={{color: '#000'}}>{opt.label}</option>)}
                                     </select>
 
-                                    <select value={item.raridade || 'comum'} onChange={e => updateItemById(item.id, 'raridade', e.target.value)} style={{ background: 'transparent', color: rData.cor, border: 'none', borderBottom: '1px dotted currentColor', outline: 'none', fontWeight: 'bold', fontFamily: 'inherit' }}>
+                                    <select value={item.raridade || 'comum'} onChange={e => { updateItemById(item.id, 'raridade', e.target.value); callSave(); }} style={{ background: 'transparent', color: rData.cor, border: 'none', borderBottom: '1px dotted currentColor', outline: 'none', fontWeight: 'bold', fontFamily: 'inherit' }}>
                                         {Object.entries(RARIDADES).map(([k, v]) => <option key={k} value={k} style={{color: '#000'}}>{v.label}</option>)}
                                     </select>
                                     
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Qtd:</span><CampoMagico valor={item.quantidade} onChange={v => updateItemById(item.id, 'quantidade', Number(v))} type="number" styleExtra={{ width: '40px', textAlign: 'center' }} /></div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Kg:</span><CampoMagico valor={item.peso} onChange={v => updateItemById(item.id, 'peso', Number(v))} type="number" step="0.1" styleExtra={{ width: '40px', textAlign: 'center' }} /></div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Qtd:</span><CampoMagico valor={item.quantidade} onChange={v => updateItemById(item.id, 'quantidade', v)} isNumber={true} type="number" styleExtra={{ width: '40px', textAlign: 'center' }} /></div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Kg:</span><CampoMagico valor={item.peso} onChange={v => updateItemById(item.id, 'peso', v)} isNumber={true} type="number" step="0.1" styleExtra={{ width: '40px', textAlign: 'center' }} /></div>
                                     <button onClick={() => removeItemById(item.id)} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2em' }}>✖</button>
                                 </div>
                                 <AreaMagica valor={item.desc} onChange={v => updateItemById(item.id, 'desc', v)} placeholder="Efeito da poção ou utilidade..." styleExtra={{ minHeight: '30px', fontSize: '0.85em' }} />
@@ -592,6 +610,8 @@ export default function RelicarioPanel() {
     );
 }
 
+// 📖 Aviso fixo nos Capítulos 1-4: deixa claro o escopo (só Arma Espiritual/Fantasma Nobre, não
+// armas comuns) e, pra quem não é Mestre/Co-Mestre, que esta seção é somente consulta.
 function AvisoArmaEspiritual({ isMestre }) {
     return (
         <div style={{ marginBottom: '20px', padding: '10px 15px', border: '1px dashed currentColor', borderRadius: '6px', background: 'rgba(0,0,0,0.03)', fontSize: '0.85em', opacity: 0.85, textAlign: 'center', lineHeight: '1.6' }}>
