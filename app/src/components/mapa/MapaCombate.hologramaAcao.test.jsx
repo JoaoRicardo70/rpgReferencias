@@ -377,12 +377,12 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
         const dummy = {
             nome: 'Slime Selvagem',
             iniciativa: 15,
-            // 🩸 hpMax=150.000.000: 1 Break Bar completa (100M, cravada) + 1 barra ativa com o
-            // resto (50M) -- core/vitals.js > calcularBarrasVidaDummy NUNCA infla o total além do
-            // hpMax digitado (um hpMax EXATAMENTE múltiplo de 100M, como 100.000.000, geraria só 1
-            // barra, sem fantasma -- ver core/vitals.js > montarBarrasVida).
+            // 🩸 hpMax=150.000.000: 1 barra ativa na FRENTE com o resto (50M) + 1 Break Bar
+            // completa atrás (100M, cravada) -- core/vitals.js > calcularBarrasVidaDummy NUNCA
+            // infla o total além do hpMax digitado (um hpMax EXATAMENTE múltiplo de 100M, como
+            // 100.000.000, geraria só 1 barra, sem fantasma -- ver core/vitals.js > montarBarrasVida).
             hpMax: 150000000,
-            hpAtual: 110000000, // dano total = 4e7: esvazia 40% da barra da frente (100M), a de trás (50M) intacta
+            hpAtual: 110000000, // dano total = 4e7: esvazia 80% da barra da frente (o resto, 50M), a de trás (100M cravada) fica intacta
             ...dummyOverrides,
         };
         return montarMockState({
@@ -419,10 +419,11 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
             return pct;
         });
 
-        // Barra da FRENTE (índice 0, primeira renderizada) recebeu o dano primeiro: dano total=4e7,
-        // cap da barra 0=1e8 -> fica com 6e7/1e8 = 60% (dano < 1 barra, sem cascata); barra 1
-        // (trás, cap=5e7, o resto) continua 100% intacta.
-        expect(pcts[0]).toBeCloseTo(60, 0);
+        // Barra da FRENTE (índice 0, primeira renderizada) é agora o RESTO (cap=5e7) e recebeu o
+        // dano primeiro: dano total=4e7 (menor que o cap dela, sem cascata) -> fica com 1e7/5e7 =
+        // 20%; barra 1 (trás, cravada em 1e8) continua 100% intacta, só seria atingida se a da
+        // frente esvaziasse por completo.
+        expect(pcts[0]).toBeCloseTo(20, 0);
         expect(pcts[1]).toBeCloseTo(100, 0);
     });
 

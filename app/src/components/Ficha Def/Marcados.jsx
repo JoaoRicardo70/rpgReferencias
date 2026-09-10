@@ -149,26 +149,31 @@ function getGlobalMultipliers(ficha) {
         scanCategory('ataquesElementais', 'equipado', ['descricao', 'efeitos', 'desc']);
 
         // 🔮 Relicário — Passivas da Relíquia / Runas & Multiplicadores (Ficha Def/RelicarioPanel.jsx,
-        // Capítulo 2): sempre "ativas" enquanto listadas (documentam a Arma Espiritual/Fantasma
-        // Nobre permanente da entidade, sem toggle "ativo" próprio como Poderes/Itens têm) — mesma
+        // Capítulo 2): só contam enquanto a Arma Espiritual estiver EQUIPADA (arma.equipada !== false
+        // -- campo ausente em fichas antigas conta como equipada, pra nunca mudar o comportamento de
+        // quem já tinha a arma valendo antes desta trava existir; ver botão "Equipar/Desequipar" no
+        // Altar da Relíquia, Capítulo 1). Enquanto equipada, sempre "ativas" (documentam a arma
+        // permanente da entidade, sem toggle "ativo" próprio por item como Poderes/Itens têm) — mesma
         // convenção de tags MBASE/MGERAL/MFORMAS/MABS/MUNICO já usada em Poderes/Habilidades/
         // Transformações/Magias/Itens, lida do campo "texto" de cada item.
         const armaEsp = ficha.armaEspiritual || {};
-        [['passivas', 'Passiva da Relíquia'], ['runas', 'Runa']].forEach(([campo, rotulo]) => {
-            (armaEsp[campo] || []).forEach((item, i) => {
-                if (!item || !item.texto) return;
-                const nomeItem = `${rotulo} #${i + 1}`.toUpperCase();
-                const regex = /(MBASE|MGERAL|MFORMAS|MABS|MUNICO)\s*:\s*\+?\s*(-?\d+(?:[.,]\d+)?)/gi;
-                let match;
-                while ((match = regex.exec(item.texto)) !== null) {
-                    const tipo = match[1].toUpperCase();
-                    const val = parseFloat(match[2].replace(',', '.'));
-                    if (isNaN(val)) continue;
-                    if (tipo === 'MUNICO') { if (val > 0) unicos.push(val); }
-                    else if (grupos[tipo]) grupos[tipo][nomeItem] = (grupos[tipo][nomeItem] || 0) + val;
-                }
+        if (armaEsp.equipada !== false) {
+            [['passivas', 'Passiva da Relíquia'], ['runas', 'Runa']].forEach(([campo, rotulo]) => {
+                (armaEsp[campo] || []).forEach((item, i) => {
+                    if (!item || !item.texto) return;
+                    const nomeItem = `${rotulo} #${i + 1}`.toUpperCase();
+                    const regex = /(MBASE|MGERAL|MFORMAS|MABS|MUNICO)\s*:\s*\+?\s*(-?\d+(?:[.,]\d+)?)/gi;
+                    let match;
+                    while ((match = regex.exec(item.texto)) !== null) {
+                        const tipo = match[1].toUpperCase();
+                        const val = parseFloat(match[2].replace(',', '.'));
+                        if (isNaN(val)) continue;
+                        if (tipo === 'MUNICO') { if (val > 0) unicos.push(val); }
+                        else if (grupos[tipo]) grupos[tipo][nomeItem] = (grupos[tipo][nomeItem] || 0) + val;
+                    }
+                });
             });
-        });
+        }
 
         const calcTotal = (tipo) => {
             let soma = 0;

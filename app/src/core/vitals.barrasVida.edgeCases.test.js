@@ -47,12 +47,12 @@ describe('core/vitals - montarBarrasVida (via calcularBarrasVida/calcularBarrasV
         expect(infoNull.totalMax).toBe(0);
     });
 
-    it('total fracionário (100.000.000,5): Number(total)||0 preserva a fração -- vitalidade ainda conta só os 100 milhões completos, resto fica com a fração', () => {
+    it('total fracionário (100.000.000,5): Number(total)||0 preserva a fração -- vitalidade ainda conta só os 100 milhões completos, resto (a fração, na FRENTE) fica com a fração', () => {
         const info = calcularBarrasVida(100000000.5, 'vida', 100000000.5);
         expect(info.totalMax).toBe(100000000.5);
         expect(info.numBarras).toBe(2);
-        expect(info.barras[0]).toEqual({ atual: 100000000, max: 100000000 });
-        expect(info.barras[1]).toEqual({ atual: 0.5, max: 0.5 });
+        expect(info.barras[0]).toEqual({ atual: 0.5, max: 0.5 });
+        expect(info.barras[1]).toEqual({ atual: 100000000, max: 100000000 });
         expect(somaMax(info)).toBeCloseTo(info.totalMax, 6);
     });
 
@@ -73,13 +73,14 @@ describe('core/vitals - montarBarrasVida (via calcularBarrasVida/calcularBarrasV
         expect(info.barras[info.barras.length - 1]).toEqual({ atual: 100000000, max: 100000000 });
     });
 
-    it('total grande e NÃO múltiplo exato (1e10 + 12345): a última barra fica com o resto exato', () => {
+    it('total grande e NÃO múltiplo exato (1e10 + 12345): a PRIMEIRA barra (a da frente) fica com o resto exato', () => {
         const total = 1e10 + 12345;
         const info = calcularBarrasVida(total, 'vida', total);
         expect(info.numBarras).toBe(101);
         expect(info.totalMax).toBe(total);
         expect(somaMax(info)).toBe(total);
-        expect(info.barras[info.barras.length - 1]).toEqual({ atual: 12345, max: 12345 });
+        expect(info.barras[0]).toEqual({ atual: 12345, max: 12345 });
+        expect(info.barras[info.barras.length - 1]).toEqual({ atual: 100000000, max: 100000000 });
     });
 
     it('[PERF] 1e7 barras (total=1e15) não deveria travar por minutos -- documenta o tempo real de montarBarrasVida numa magnitude extrema (timeout generoso de 20s só para este teste, não representativo de uso normal)', () => {

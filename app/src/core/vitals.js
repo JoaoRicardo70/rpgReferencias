@@ -196,8 +196,8 @@ export function getVitalMxDisplay(key, ficha) {
 // blocos visuais de até LIMIAR_BARRA_VIDA (100 milhões) cada, ao ultrapassar cada 100 milhões de
 // Vida (máximo ESTÁVEL, sem Formas — mesma regra de sempre pra decisão ESTRUTURAL de quantas
 // barras existem, pra uma Forma temporária nunca fazer surgir/sumir uma barra sozinha). Toda barra
-// JÁ COMPLETA fica "cravada" em exatamente 100 milhões (cheia, permanente); a barra de TRÁS (índice
-// mais alto — a mais recente, ainda em formação) mostra só o RESTO real (total - blocos já
+// JÁ COMPLETA fica "cravada" em exatamente 100 milhões (cheia, permanente); a barra da FRENTE
+// (índice 0 — a mais recente, ainda em formação) mostra só o RESTO real (total - blocos já
 // cravados) — nunca os 100 milhões cheios antes disso, senão um personagem com, digamos, 75 milhões de Vida (abaixo do
 // 1º limiar) veria sua Vida máxima inflada artificialmente pra 100 milhões, e o total pularia de
 // ~100M pra 200M só por cruzar o limiar por 1 unidade. Isso substitui a 2ª versão (toda barra,
@@ -208,18 +208,25 @@ export function getVitalMxDisplay(key, ficha) {
 // e calcularBarrasVidaDummy (dummies).
 //
 // A barra da FRENTE (índice 0) é a primeira a ser atingida por dano; o excesso da MESMA pancada já
-// transborda pra próxima barra (decisão do usuário — sujeita a mudar futuramente).
+// transborda pra próxima barra.
+//
+// 🔥 CORREÇÃO (pedido do usuário): a barra da FRENTE (a primeira a levar dano) é sempre a PARCIAL
+// (o resto — a mais recente, ainda "em formação", com menos de 100 milhões), nunca uma das barras
+// já cravadas em 100 milhões cheios. Isso é o oposto da versão anterior, que colocava a parcial por
+// ÚLTIMO (a barra "de trás") — nesta versão ela vem PRIMEIRO, exatamente porque é a primeira a
+// receber dano na prática (faz sentido narrativo: a "camada mais fina" quebra primeiro).
 //
 // ⚠️ Consequência matemática INEVITÁVEL de derivar as barras de um único total (em vez de guardar
 // um array com o estado de cada uma): como a barra da frente é SEMPRE a primeira a ESVAZIAR
 // conforme o total cai, ela também é, necessariamente, a ÚLTIMA a voltar a ENCHER conforme o total
-// sobe de novo (cura/regeneração) — a barra de trás (a única que ainda tinha alguma Vida quando o
-// personagem estava quase morto) é quem recebe os primeiros pontos de cura, só depois "transborda"
-// pra frente. Não é um bug nem uma inversão acidental: dado um único número guardado, é a ÚNICA
-// distribuição possível que respeita "a frente esvazia primeiro" nos dois sentidos (dano E cura
-// percorrem a MESMA reta numérica, só em direções opostas). Se no futuro o pedido for "a barra da
-// frente enche primeiro ao curar, independente de qual esvaziou primeiro no dano", isso exige
-// guardar o estado de CADA barra separadamente (não dá mais pra derivar de um total único).
+// sobe de novo (cura/regeneração) — a barra de trás (a última cravada de 100 milhões, a única que
+// ainda tinha alguma Vida quando o personagem estava quase morto) é quem recebe os primeiros
+// pontos de cura, só depois "transborda" pra frente, até finalmente reencher a parcial por último.
+// Não é um bug nem uma inversão acidental: dado um único número guardado, é a ÚNICA distribuição
+// possível que respeita "a frente esvazia primeiro" nos dois sentidos (dano E cura percorrem a
+// MESMA reta numérica, só em direções opostas). Se no futuro o pedido for "a barra da frente enche
+// primeiro ao curar, independente de qual esvaziou primeiro no dano", isso exige guardar o estado
+// de CADA barra separadamente (não dá mais pra derivar de um total único).
 export const LIMIAR_BARRA_VIDA = 100000000;
 
 // Vitalidade de Vida (2ª versão): 1 ponto pra CADA 100 milhões COMPLETOS de Vida bruta ESTÁVEL
@@ -236,21 +243,25 @@ export function getVitalidadeVida(rawValorEstavel) {
 // COMPLETAS (totalmente "cravadas") valem exatamente 100 milhões; a barra ATIVA (a mais recente,
 // ainda em formação) fica com o RESTO exato (total - vitalidade*LIMIAR) — sem criar uma barra
 // "fantasma" de max=0 quando o total for um múltiplo EXATO de 100 milhões.
+//
+// 🔥 A barra parcial (o "resto") vai no ÍNDICE 0 (a frente, primeira a levar dano) — as barras
+// cravadas de 100 milhões vêm DEPOIS dela, na ordem em que forem sendo esvaziadas (ver comentário
+// acima de LIMIAR_BARRA_VIDA).
 function montarBarrasVida(total, atualTotal) {
     const max = Math.max(0, Number(total) || 0);
     const vitalidade = getVitalidadeVida(max);
     const resto = max - vitalidade * LIMIAR_BARRA_VIDA;
 
-    let numBarras, capUltimaBarra;
+    let numBarras, capPrimeiraBarra;
     if (max <= 0) {
         numBarras = 1;
-        capUltimaBarra = 0;
+        capPrimeiraBarra = 0;
     } else if (resto > 0) {
         numBarras = vitalidade + 1;
-        capUltimaBarra = resto;
+        capPrimeiraBarra = resto;
     } else {
         numBarras = Math.max(1, vitalidade);
-        capUltimaBarra = LIMIAR_BARRA_VIDA;
+        capPrimeiraBarra = LIMIAR_BARRA_VIDA;
     }
 
     let atual = Number(atualTotal);
@@ -261,7 +272,7 @@ function montarBarrasVida(total, atualTotal) {
     const danoTotal = max - atual;
     let danoAcumulado = 0;
     for (let i = 0; i < numBarras; i++) {
-        const capBarra = (i === numBarras - 1) ? capUltimaBarra : LIMIAR_BARRA_VIDA;
+        const capBarra = (i === 0) ? capPrimeiraBarra : LIMIAR_BARRA_VIDA;
         const danoNestaBarra = capBarra > 0 ? Math.min(Math.max(0, danoTotal - danoAcumulado), capBarra) : 0;
         barras.push({ atual: capBarra - danoNestaBarra, max: capBarra });
         danoAcumulado += capBarra;
@@ -324,7 +335,7 @@ export function getVidaTotalMaxDisplay(ficha) {
 // "máximo bruto" — o "hpMax" que o Mestre digita É o total de verdade, o número que ele espera ver
 // refletido no token, e NUNCA pode ser inflado/encolhido por esta conta. Usa a MESMA regra de
 // LIMIAR_BARRA_VIDA (100 milhões) dos personagens: barras completas valem exatamente 100 milhões
-// cada, e a ÚLTIMA fica com o RESTO (hpMax - vitalidade*100M) — assim a soma das barras bate
+// cada, e a PRIMEIRA (índice 0, a frente) fica com o RESTO (hpMax - vitalidade*100M) — assim a soma das barras bate
 // EXATAMENTE com o hpMax configurado, sem arredondar (diferente de repartir hpMax igualmente pelo
 // nº de barras, que só preservava o total por acaso quando ele já era múltiplo exato do nº de
 // barras).

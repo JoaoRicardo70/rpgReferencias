@@ -81,16 +81,19 @@ describe('DiarioNPC - smoke test de render (regressão do ReferenceError em Linh
 
         const linhaVida = acharLinhaVital('Vida (HP)');
         // Vida acima do limiar (getVitalidadeVida) gera 2 barras no visual novo de "Break Bars"
-        // (components/shared/BarrasVida.jsx), cada uma com a classe .break-bars-barra: 1 cravada
-        // em 100.000.000 (cheia) + 1 ativa com o resto (50.000.000) -- soma bate com o bruto.
+        // (components/shared/BarrasVida.jsx), cada uma com a classe .break-bars-barra: 1 ativa na
+        // FRENTE com o resto (50.000.000) + 1 cravada em 100.000.000 atrás -- soma bate com o bruto.
         const barrasVida = linhaVida.querySelectorAll('.break-bars-barra');
         expect(barrasVida.length).toBe(2);
 
-        // NPC recém-criado começa com Vida cheia (atual=max em todas as barras) -- a barra ATIVA
-        // (menor índice ainda com Vida > 0) é a de índice 0, cravada em 100.000.000; só ela mostra
-        // texto (a barra seguinte, com o resto de 50.000.000, fica sem texto enquanto a de cima não
-        // quebrar -- ver BarrasVida.jsx, correção pro bug de números sobrepostos ilegíveis).
-        expect(linhaVida.textContent).toMatch(/100\.000\.000/);
+        // NPC com vida.atual=115.000.000 de 150.000.000 (dano total=35.000.000) -- a barra ATIVA
+        // (menor índice ainda com Vida > 0) é a de índice 0, a da FRENTE, que segura o resto (cap
+        // 50.000.000) e leva o dano primeiro (fica com 15.000.000/50.000.000); só ela mostra texto
+        // (a barra de trás, cravada em 100.000.000 e intocada pelo dano, fica sem texto enquanto a
+        // da frente não quebrar -- ver BarrasVida.jsx, correção pro bug de números sobrepostos
+        // ilegíveis). O span de teto da barra ativa mostra o SEU PRÓPRIO max (50.000.000), não mais
+        // os 100.000.000 da barra cravada de trás.
+        expect(linhaVida.textContent).toMatch(/50\.000\.000/);
     });
 
     it('a fileira de losangos ("pips") mostra uma marca pra CADA barra quando numBarras > 1 (visual novo de Break Bars, substitui o antigo indicador numérico por barra)', () => {

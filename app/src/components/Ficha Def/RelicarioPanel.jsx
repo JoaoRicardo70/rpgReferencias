@@ -268,20 +268,71 @@ function RelicarioNavegacao() {
 // 🗡️ PÁGINA 1: O ALTAR DA RELÍQUIA
 // ==========================================
 function PaginaAltar() {
-    const { minhaFicha, updateFicha, isMestre } = useRelicario();
+    const { minhaFicha, updateFicha, isMestre, callSave } = useRelicario();
     const arma = minhaFicha?.armaEspiritual || {};
-    
+
     // Atualiza apenas o estado local, o botão de imagem/texto cuida do save
-    const updateArma = (campo, valor) => { 
-        updateFicha(f => { 
-            if(!f.armaEspiritual) f.armaEspiritual = {}; 
-            f.armaEspiritual[campo] = valor; 
-        }); 
+    const updateArma = (campo, valor) => {
+        updateFicha(f => {
+            if(!f.armaEspiritual) f.armaEspiritual = {};
+            f.armaEspiritual[campo] = valor;
+        });
     };
     const bloqueado = !isMestre;
 
+    // 🔥 EQUIPAR/DESEQUIPAR A ARMA ESPIRITUAL (pedido do usuário): campos ausentes (fichas
+    // antigas, de antes desta funcionalidade) são tratados como "equipada" e "destravada" -- nunca
+    // muda o comportamento de ninguém que já tinha a arma valendo os multiplicadores. Só quando
+    // "equipada" (ver core/poder.js/Marcados.jsx > getGlobalMultipliers) as tags MBASE/MGERAL/
+    // MFORMAS/MABS/MUNICO escritas nas Passivas/Runas desta página realmente contam pro Poder do
+    // Scouter -- desequipada, a arma continua documentada aqui, só para de valer mecanicamente.
+    //
+    // Normalmente o DONO do personagem decide sozinho quando equipar/desequipar (é a ficha dele,
+    // esta página é sempre "a minha própria Arma Espiritual"). "trancadaParaJogador" é uma exceção
+    // rara, só o Mestre/Co-Mestre pode ligar/desligar (ex.: casos de RP onde a entidade fica presa
+    // numa forma) -- enquanto travada, só o Mestre pode equipar/desequipar por ele.
+    const equipada = arma.equipada !== false;
+    const travadaParaJogador = !!arma.trancadaParaJogador;
+    const podeAlternarEquipar = isMestre || !travadaParaJogador;
+
+    const toggleEquipada = () => {
+        updateFicha(f => {
+            if (!f.armaEspiritual) f.armaEspiritual = {};
+            f.armaEspiritual.equipada = !(f.armaEspiritual.equipada !== false);
+        });
+        callSave();
+    };
+
+    const toggleTrava = () => {
+        updateFicha(f => {
+            if (!f.armaEspiritual) f.armaEspiritual = {};
+            f.armaEspiritual.trancadaParaJogador = !f.armaEspiritual.trancadaParaJogador;
+        });
+        callSave();
+    };
+
     return (
         <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+                <button
+                    onClick={toggleEquipada}
+                    disabled={!podeAlternarEquipar}
+                    title={!podeAlternarEquipar ? 'O Mestre travou este controle -- só ele pode equipar/desequipar esta entidade.' : undefined}
+                    style={{
+                        padding: '8px 20px', borderRadius: '20px', fontWeight: 'bold', cursor: podeAlternarEquipar ? 'pointer' : 'not-allowed',
+                        border: `2px solid ${equipada ? '#00ff88' : '#888'}`, background: equipada ? 'rgba(0,255,136,0.15)' : 'rgba(136,136,136,0.1)',
+                        color: equipada ? '#00ff88' : '#888', opacity: podeAlternarEquipar ? 1 : 0.6
+                    }}
+                >
+                    {equipada ? '🗡️ EQUIPADA (multiplicadores ativos)' : '📦 DESEQUIPADA (multiplicadores inativos)'}
+                </button>
+                {isMestre && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8em', opacity: 0.75, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={travadaParaJogador} onChange={toggleTrava} />
+                        🔒 Impedir o jogador de equipar/desequipar sozinho (caso especial de RP)
+                    </label>
+                )}
+            </div>
             <div style={{ textAlign: 'center', padding: '20px', border: '3px double currentColor', background: 'rgba(0,0,0,0.03)', borderRadius: '8px' }}>
                 <CampoMagico valor={arma.nome} onChange={v => updateArma('nome', v)} placeholder="Nome da Entidade/Arma (Ex: EA - Scathach Tilith)" disabled={bloqueado} styleExtra={{ fontSize: '2.5em', fontWeight: '900', textAlign: 'center', color: '#ff003c', letterSpacing: '2px', border: 'none' }} />
                 <CampoMagico valor={arma.epiteto} onChange={v => updateArma('epiteto', v)} placeholder="Epíteto (Ex: Soberania da Rainha)" disabled={bloqueado} styleExtra={{ fontSize: '1.2em', fontStyle: 'italic', textAlign: 'center', color: 'currentColor', border: 'none', opacity: 0.8 }} />
