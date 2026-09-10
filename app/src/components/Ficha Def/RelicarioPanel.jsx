@@ -5,6 +5,17 @@ import { lerImagemComoBase64 } from '../../services/firebase-storage';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 
 // ==========================================
+// ⏱️ ESCUDO DE DEBOUNCE GLOBAL (Evita bombardear o Firebase)
+// ==========================================
+let globalTimerRelicario = null;
+function callSaveDebounced() {
+    if (globalTimerRelicario) clearTimeout(globalTimerRelicario);
+    globalTimerRelicario = setTimeout(() => {
+        salvarFichaSilencioso();
+    }, 400);
+}
+
+// ==========================================
 // 🎲 CONSTANTES DE RPG (ITENS E ARMAS)
 // ==========================================
 const RARIDADES = {
@@ -64,7 +75,8 @@ export function RelicarioProvider({ children }) {
     const meuNome = useStore(s => s.meuNome);
     const [abaAtual, setAbaAtual] = useState('altar');
 
-    const callSave = useCallback(() => { salvarFichaSilencioso(); }, []);
+    // 🔥 O SEGREDO DA SINCRONIZAÇÃO: Chama a função com debounce!
+    const callSave = useCallback(() => { callSaveDebounced(); }, []);
 
     useEffect(() => {
         if (minhaFicha && !minhaFicha.armaEspiritual) {
@@ -81,7 +93,6 @@ export function RelicarioProvider({ children }) {
 
     const handleArrayItem = useCallback((chave, acao, index, campo, valor, subIndex = null, subCampo = null) => {
         updateFicha((ficha) => {
-            // 🔥 CORREÇÃO DE BLINDAGEM: Se "notas" for texto/undefined antigo, força a ser Array
             if (chave === 'notas') {
                 if (!Array.isArray(ficha.notas)) ficha.notas = [];
                 if (acao === 'add') ficha.notas.push({ id: Date.now(), titulo: '', texto: '' });
@@ -91,9 +102,6 @@ export function RelicarioProvider({ children }) {
             }
 
             if (!ficha.armaEspiritual) return;
-            // 🔥 Mesma blindagem do "notas" acima: garante que a lista existe antes de mexer
-            // nela, caso o efeito de inicialização ainda não tenha rodado (ou a ficha tenha
-            // vindo do Firebase sem essa chave, já que arrays vazios não persistem lá).
             if (!Array.isArray(ficha.armaEspiritual[chave])) ficha.armaEspiritual[chave] = [];
             const target = ficha.armaEspiritual[chave];
             
@@ -184,12 +192,6 @@ const AreaMagica = ({ valor, onChange, placeholder, styleExtra = {}, disabled = 
     );
 };
 
-// 🔥 UPLOAD COMO ARQUIVO (BASE64 DIRETO NO REALTIME DATABASE) — mesmo padrão já usado em
-// FormasEditor.jsx/CompendioFormContext.jsx/MapaMundi.jsx. O ImageUploader antigo desta página
-// dependia do Firebase Storage (uploadImagem de firebase-sync.js), que não estava funcionando; lendo
-// o arquivo com FileReader (via lerImagemComoBase64, que também valida tipo/tamanho) e gravando o
-// data URL direto no campo da ficha evita o Storage por completo e sincroniza junto com o resto da
-// ficha via Realtime Database, como o resto do app já faz.
 const ImageUploader = ({ valorAtual, onUploadComplete, placeholder, disabled = false }) => {
     const [loading, setLoading] = useState(false);
     const { callSave } = useRelicario();
