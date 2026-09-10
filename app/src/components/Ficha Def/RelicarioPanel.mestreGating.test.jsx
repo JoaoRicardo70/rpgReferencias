@@ -258,7 +258,14 @@ describe('RelicarioPanel — ImageUploader: upload base64 via FileReader (substi
         });
 
         expect(mockState.minhaFicha.armaEspiritual.avatarHumano).toMatch(/^data:image\/png;base64,/);
-        expect(salvarFichaSilencioso).toHaveBeenCalled();
+
+        // callSave() agora passa por callSaveDebounced() (RelicarioPanel.jsx), que atrasa
+        // salvarFichaSilencioso() em 400ms (setTimeout com escudo global anti-spam) em vez de
+        // chamar na hora — por isso esperamos com waitFor (timers reais, mesmo padrão de
+        // espera assíncrona já usado nesta suíte para o FileReader) em vez de checar de imediato.
+        await waitFor(() => {
+            expect(salvarFichaSilencioso).toHaveBeenCalled();
+        }, { timeout: 1000 });
     });
 
     it('Happy Path: upload de imagem numa Sub-Configuração de Forma Base também grava base64 no índice correto', async () => {

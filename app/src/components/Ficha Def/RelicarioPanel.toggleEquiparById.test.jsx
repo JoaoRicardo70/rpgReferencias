@@ -260,17 +260,20 @@ describe('RelicarioPanel — toggleEquiparById(): robustez', () => {
         expect(() => { act(() => { probe.toggleEquiparById(1); }); }).not.toThrow();
     });
 
-    // 🔥 BUG PRÉ-EXISTENTE DOCUMENTADO (não introduzido por esta sessão — a linha
-    // `f.inventario.find(...)` já não tinha guarda antes do bugfix de rescala de vitais, ver
-    // git diff): sem NENHUM `ficha.inventario` (nem []), toggleEquiparById lança TypeError. Na
-    // prática impossível de acontecer (fichaPadrao em useStore.js sempre inicializa inventario=[]),
-    // mas documentado aqui como um gap de blindagem — diferente de ArsenalFormContext.toggleEquiparItem,
-    // que TEM a guarda `if (!ficha.inventario) return;`.
-    it('DOCUMENTADO: sem ficha.inventario nenhum (nem array vazio), lança TypeError — diferente de ArsenalFormContext.toggleEquiparItem, que é blindado contra este caso', () => {
-        montarStore({ minhaFicha: { armaEspiritual: { nome: '', passivas: [], runas: [], formas: [], formasVerdadeiras: [] } } });
+    // ✅ CORRIGIDO: sem NENHUM `ficha.inventario` (nem []), toggleEquiparById agora ganhou a
+    // guarda `if (!f.inventario) f.inventario = [];` (mesmo commit que corrigiu removeItemById/
+    // updateItemById), então deixou de lançar TypeError — ficando consistente com
+    // ArsenalFormContext.toggleEquiparItem, que já era blindado contra este caso (embora lá o
+    // guard apenas retorne cedo sem criar o array; aqui ele cria `inventario = []` e depois
+    // no-opa, já que não há item algum para encontrar).
+    it('sem ficha.inventario nenhum (nem array vazio), NÃO lança mais — cria inventario=[] e no-opa (consistente com ArsenalFormContext.toggleEquiparItem)', () => {
+        const ficha = { armaEspiritual: { nome: '', passivas: [], runas: [], formas: [], formasVerdadeiras: [] } };
+        montarStore({ minhaFicha: ficha });
         render(<RelicarioProvider><Harness /></RelicarioProvider>);
 
-        expect(() => { act(() => { probe.toggleEquiparById(1); }); }).toThrow();
+        expect(() => { act(() => { probe.toggleEquiparById(1); }); }).not.toThrow();
+
+        expect(ficha.inventario).toEqual([]);
     });
 
     it('chama salvarFichaSilencioso (via callSave) exatamente uma vez por toggle', () => {
@@ -283,8 +286,18 @@ describe('RelicarioPanel — toggleEquiparById(): robustez', () => {
         render(<RelicarioProvider><Harness /></RelicarioProvider>);
         vi.clearAllMocks(); // descarta qualquer chamada do useEffect de inicialização no mount
 
-        act(() => { probe.toggleEquiparById(1); });
+        // callSave() agora passa por callSaveDebounced() (RelicarioPanel.jsx): um `setTimeout`
+        // de 400ms com escudo global anti-spam, em vez de chamar salvarFichaSilencioso() na
+        // hora. Usamos fake timers SÓ neste teste (arquivo não tinha convenção prévia de
+        // timers) pra avançar exatamente os 400ms e confirmar que o save eventualmente dispara.
+        vi.useFakeTimers();
+        try {
+            act(() => { probe.toggleEquiparById(1); });
+            act(() => { vi.advanceTimersByTime(400); });
 
-        expect(salvarFichaSilencioso).toHaveBeenCalledTimes(1);
+            expect(salvarFichaSilencioso).toHaveBeenCalledTimes(1);
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });
