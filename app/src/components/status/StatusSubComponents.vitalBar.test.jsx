@@ -61,7 +61,15 @@ describe('StatusSubComponents - StatusVitalBar: teto exibido de Vida (1 barra s�
 
         const { container } = render(<StatusVitalBar vitalKey="vida" label="Vida" color="#ff0000" borderC="#ff0000" />);
 
-        expect(container.querySelectorAll('.break-bars-barra').length).toBe(2);
+        // 🔥 Eram 2 barras antes de StatusVitalBar passar a aplicar calcularFatorMultiplicadorForca
+        // (core/poder.js) ao teto de Vida, igual às outras 4 telas (Marcados/Mestre/Mapa) já
+        // faziam. Uma base bruta de 150.000.000 de Vida, mesmo com ascensaoBase=1 (padrão), já
+        // ultrapassa o "estouro" de Ascensão/Prestígio de core/poder.js (150 pontos de Prestígio
+        // vira +1 nível de Ascensão), resultando num fator 2x aplicado ANTES de calcularBarrasVida
+        // -- teto real vira 300.000.000, que é EXATAMENTE 3 barras de 100.000.000 (LIMIAR_BARRA_VIDA),
+        // não mais 2. Isso não é uma regressão: é a mesma conta que Marcados.jsx/MestreSubComponents.jsx/
+        // MapaCombate.jsx já faziam pra este mesmo personagem -- a Ficha só estava divergindo delas antes.
+        expect(container.querySelectorAll('.break-bars-barra').length).toBe(3);
     });
 
     it('mana (sem Break Bars, sempre 1 barra) continua usando o mesmo teto de sempre, sem regressão', () => {

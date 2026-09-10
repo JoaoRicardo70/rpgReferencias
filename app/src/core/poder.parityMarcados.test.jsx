@@ -283,4 +283,67 @@ describe('core/poder - calcularPoderAtual: paridade real com Ficha Def/Marcados.
         expect(poderDoCore).toBeGreaterThan(calcularPoderAtual(fichaParaMarcados(undefined), 1).poderGlobal);
         expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
     });
+
+    // -----------------------------------------------------------------------
+    // QA — Relicário (ficha.armaEspiritual.passivas/.runas): bloco NOVO adicionado
+    // aos DOIS lugares onde getGlobalMultipliers existe (core/poder.js E o cópia
+    // local em Ficha Def/Marcados.jsx, que é a que realmente alimenta o Poder
+    // exibido no Scouter da própria Ficha). O reviewer sinalizou que essas duas
+    // cópias são mantidas manualmente sincronizadas ("byte-for-byte idênticas") e
+    // que este código novo especificamente não tinha NENHUM teste de paridade —
+    // este é o teste mais valioso pra esta feature: garante que um jogador vendo
+    // o Scouter na Ficha (Marcados.jsx) vê o MESMO número que qualquer outra tela
+    // que reaproveita core/poder.js (ex.: Mapa), com tags de Passivas/Runas ativas.
+    // -----------------------------------------------------------------------
+    function fichaComArmaEspiritual({ passivas, runas } = {}) {
+        return {
+            ...fichaParaMarcados(undefined),
+            armaEspiritual: {
+                ...(passivas !== undefined ? { passivas } : {}),
+                ...(runas !== undefined ? { runas } : {}),
+            },
+        };
+    }
+
+    it('concorda com o Poder Calculado exibido no Scouter quando uma Passiva da Relíquia carrega a tag "MGERAL: +50"', () => {
+        const ficha = fichaComArmaEspiritual({ passivas: [{ id: 'p1', texto: 'Concede MGERAL: +50 permanentemente.' }] });
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(ficha);
+        const poderDoCore = calcularPoderAtual(ficha, 1).poderGlobal;
+
+        expect(poderDoCore).toBeGreaterThan(calcularPoderAtual(fichaParaMarcados(undefined), 1).poderGlobal);
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
+
+    it('concorda com o Poder Calculado exibido no Scouter quando uma Runa carrega a tag "MUNICO: 2"', () => {
+        const ficha = fichaComArmaEspiritual({ runas: [{ id: 'r1', texto: 'Multiplicador: MUNICO: 2' }] });
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(ficha);
+        const poderDoCore = calcularPoderAtual(ficha, 1).poderGlobal;
+
+        expect(poderDoCore).toBeGreaterThan(calcularPoderAtual(fichaParaMarcados(undefined), 1).poderGlobal);
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
+
+    it('concorda com o Poder Calculado exibido no Scouter quando Passivas (MGERAL) e Runas (MUNICO) da Relíquia se combinam ao mesmo tempo', () => {
+        const ficha = fichaComArmaEspiritual({
+            passivas: [{ id: 'p1', texto: 'MGERAL: +50' }],
+            runas: [{ id: 'r1', texto: 'MUNICO: 2' }],
+        });
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(ficha);
+        const poderDoCore = calcularPoderAtual(ficha, 1).poderGlobal;
+
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
+
+    it('concorda com o Poder Calculado exibido no Scouter quando armaEspiritual está presente mas SEM tags nas passivas/runas (no-op nos dois lados)', () => {
+        const ficha = fichaComArmaEspiritual({
+            passivas: [{ id: 'p1', texto: 'Só um texto descritivo, sem tags.' }],
+            runas: [],
+        });
+        const poderDaFichaStr = lerPoderExibidoStringDoMarcados(ficha);
+        const poderDoCore = calcularPoderAtual(ficha, 1).poderGlobal;
+        const poderSemArmaEspiritual = calcularPoderAtual(fichaParaMarcados(undefined), 1).poderGlobal;
+
+        expect(poderDoCore).toBe(poderSemArmaEspiritual);
+        expect(poderDaFichaStr).toBe(formatarComoOScouter(poderDoCore));
+    });
 });

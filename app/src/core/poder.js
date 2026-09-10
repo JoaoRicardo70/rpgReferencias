@@ -167,6 +167,30 @@ function getGlobalMultipliers(ficha) {
         ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios', 'itens'].forEach(cat => scanCategory(cat));
         scanCategory('ataquesElementais', 'equipado', ['descricao', 'efeitos', 'desc']);
 
+        // 🔮 Relicário — Passivas da Relíquia / Runas & Multiplicadores (Ficha Def/RelicarioPanel.jsx,
+        // Capítulo 2): sempre "ativas" enquanto listadas (documentam a Arma Espiritual/Fantasma
+        // Nobre permanente da entidade, sem toggle "ativo" próprio como Poderes/Itens têm) — mesma
+        // convenção de tags MBASE/MGERAL/MFORMAS/MABS/MUNICO já usada em Poderes/Habilidades/
+        // Transformações/Magias/Itens, lida do campo "texto" de cada item. Réplica exata do mesmo
+        // bloco em Ficha Def/Marcados.jsx > getGlobalMultipliers, pra este cálculo (reaproveitado
+        // pelo Mapa etc.) nunca divergir do que o Scouter mostra.
+        const armaEsp = ficha.armaEspiritual || {};
+        [['passivas', 'Passiva da Relíquia'], ['runas', 'Runa']].forEach(([campo, rotulo]) => {
+            (armaEsp[campo] || []).forEach((item, i) => {
+                if (!item || !item.texto) return;
+                const nomeItem = `${rotulo} #${i + 1}`.toUpperCase();
+                const regex = /(MBASE|MGERAL|MFORMAS|MABS|MUNICO)\s*:\s*\+?\s*(-?\d+(?:[.,]\d+)?)/gi;
+                let match;
+                while ((match = regex.exec(item.texto)) !== null) {
+                    const tipo = match[1].toUpperCase();
+                    const val = parseFloat(match[2].replace(',', '.'));
+                    if (isNaN(val)) continue;
+                    if (tipo === 'MUNICO') { if (val > 0) unicos.push(val); }
+                    else if (grupos[tipo]) grupos[tipo][nomeItem] = (grupos[tipo][nomeItem] || 0) + val;
+                }
+            });
+        });
+
         const calcTotal = (tipo) => {
             let soma = 0;
             Object.values(grupos[tipo]).forEach(v => { soma += v; });

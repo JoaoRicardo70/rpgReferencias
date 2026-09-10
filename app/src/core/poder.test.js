@@ -497,6 +497,117 @@ describe('core/poder - QA (Change 3): calcularAscensaoParaPoder responde de form
     });
 });
 
+// ---------------------------------------------------------------------------
+// QA — Relicário (ficha.armaEspiritual.passivas / .runas) alimentando
+// getGlobalMultipliers: bloco novo que escaneia o campo "texto" de cada item de
+// Passivas da Relíquia / Runas & Multiplicadores (Ficha Def/RelicarioPanel.jsx)
+// em busca das MESMAS tags MBASE/MGERAL/MFORMAS/MABS/MUNICO já usadas em
+// Poderes/Habilidades/Itens/etc., sempre "ativo" (sem toggle próprio). Réplica
+// idêntica existe em Ficha Def/Marcados.jsx > getGlobalMultipliers (comparada
+// de verdade em core/poder.parityMarcados.test.jsx). Aqui testamos só a cópia
+// de core/poder.js (usada por outras telas, ex.: Mapa) via calcularPoderAtual.
+// ---------------------------------------------------------------------------
+describe('core/poder - calcularPoderAtual: Relicário (armaEspiritual.passivas/.runas) alimenta os multiplicadores globais', () => {
+    it('ficha com armaEspiritual presente mas SEM tags nas passivas/runas produz a MESMA leitura que sem armaEspiritual nenhum (no-op)', () => {
+        const semArmaEspiritual = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
+        const comArmaEspiritualVazia = calcularPoderAtual(criarFichaMinima({
+            armaEspiritual: { passivas: [], runas: [] },
+        }), 1).poderGlobal;
+        const comTextosSemTags = calcularPoderAtual(criarFichaMinima({
+            armaEspiritual: {
+                passivas: [{ id: 'p1', texto: 'Apenas um texto descritivo, sem nenhuma tag reconhecida.' }],
+                runas: [{ id: 'r1', texto: '' }, null],
+            },
+        }), 1).poderGlobal;
+
+        expect(comArmaEspiritualVazia).toBe(semArmaEspiritual);
+        expect(comTextosSemTags).toBe(semArmaEspiritual);
+    });
+
+    it('uma Passiva da Relíquia com tag "MGERAL: +50" no texto AUMENTA o poderGlobal em relação à ficha sem ela', () => {
+        const semTag = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
+        const comPassivaMGeral = calcularPoderAtual(criarFichaMinima({
+            armaEspiritual: { passivas: [{ id: 'p1', texto: 'Concede MGERAL: +50 permanentemente.' }] },
+        }), 1).poderGlobal;
+
+        expect(comPassivaMGeral).toBeGreaterThan(semTag);
+    });
+
+    it('uma Passiva da Relíquia com "MGERAL: +50" produz EXATAMENTE o mesmo poderGlobal que um Item ativo equivalente com a mesma tag (mesmo grupo MGERAL, soma idêntica)', () => {
+        const comPassivaMGeral = calcularPoderAtual(criarFichaMinima({
+            armaEspiritual: { passivas: [{ id: 'p1', texto: 'MGERAL: +50' }] },
+        }), 1).poderGlobal;
+        const comItemEquivalente = calcularPoderAtual(criarFichaMinima({
+            itens: [{ nome: 'Item Teste', ativo: true, desc: 'MGERAL: +50' }],
+        }), 1).poderGlobal;
+
+        expect(comPassivaMGeral).toBe(comItemEquivalente);
+    });
+
+    it('uma Runa com tag "MUNICO: 2" no texto AUMENTA o poderGlobal e produz o MESMO resultado que um dano.mUnico manual equivalente (ambos alimentam o mesmo array `unicos`)', () => {
+        const semTag = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
+        const comRunaMunico = calcularPoderAtual(criarFichaMinima({
+            armaEspiritual: { runas: [{ id: 'r1', texto: 'Multiplicador: MUNICO: 2' }] },
+        }), 1).poderGlobal;
+        const comMUnicoManualEquivalente = calcularPoderAtual(criarFichaMinima({
+            dano: { mUnico: '2.0' },
+        }), 1).poderGlobal;
+
+        expect(comRunaMunico).toBeGreaterThan(semTag);
+        expect(comRunaMunico).toBe(comMUnicoManualEquivalente);
+    });
+
+    it('uma Runa com tag "MABS: +10" no texto AUMENTA o poderGlobal em relação à ficha sem ela', () => {
+        const semTag = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
+        const comRunaMAbs = calcularPoderAtual(criarFichaMinima({
+            armaEspiritual: { runas: [{ id: 'r1', texto: 'MABS: +10' }] },
+        }), 1).poderGlobal;
+
+        expect(comRunaMAbs).toBeGreaterThan(semTag);
+    });
+
+    it('combina passivas (MGERAL) e runas (MUNICO) simultaneamente, cada uma alimentando seu próprio grupo de multiplicador', () => {
+        const semNenhuma = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
+        const somenteGeral = calcularPoderAtual(criarFichaMinima({
+            armaEspiritual: { passivas: [{ id: 'p1', texto: 'MGERAL: +50' }] },
+        }), 1).poderGlobal;
+        const comAmbas = calcularPoderAtual(criarFichaMinima({
+            armaEspiritual: {
+                passivas: [{ id: 'p1', texto: 'MGERAL: +50' }],
+                runas: [{ id: 'r1', texto: 'MUNICO: 2' }],
+            },
+        }), 1).poderGlobal;
+
+        expect(somenteGeral).toBeGreaterThan(semNenhuma);
+        expect(comAmbas).toBeGreaterThan(somenteGeral);
+    });
+
+    it('não lança exceção quando armaEspiritual.passivas/.runas contêm itens null/undefined ou sem campo "texto"', () => {
+        const ficha = criarFichaMinima({
+            armaEspiritual: {
+                passivas: [null, undefined, {}, { id: 'p1' }],
+                runas: [null, { id: 'r1', texto: null }],
+            },
+        });
+        expect(() => calcularPoderAtual(ficha, 1)).not.toThrow();
+        const resultado = calcularPoderAtual(ficha, 1);
+        expect(Number.isFinite(resultado.poderGlobal)).toBe(true);
+    });
+
+    it('aceita decimal com vírgula na tag ("MGERAL: +12,5") do mesmo jeito que as demais categorias já aceitam', () => {
+        const semTag = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
+        const comVirgula = calcularPoderAtual(criarFichaMinima({
+            armaEspiritual: { passivas: [{ id: 'p1', texto: 'MGERAL: +12,5' }] },
+        }), 1).poderGlobal;
+        const comPonto = calcularPoderAtual(criarFichaMinima({
+            armaEspiritual: { passivas: [{ id: 'p1', texto: 'MGERAL: +12.5' }] },
+        }), 1).poderGlobal;
+
+        expect(comVirgula).toBeGreaterThan(semTag);
+        expect(comVirgula).toBe(comPonto);
+    });
+});
+
 // (paridade real, renderizando o próprio MarcadosPanel para a mesma ficha, fica em
 // core/poder.parityMarcados.test.jsx — JSX não é suportado neste arquivo .js)
 

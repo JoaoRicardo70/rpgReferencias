@@ -326,11 +326,16 @@ function PaginaPassivas() {
                     <h2 style={{ margin: 0, fontSize: '1.4em', color: '#00ffcc' }}>✨ Passivas da Relíquia</h2>
                     {isMestre && <button onClick={() => handleArrayItem('passivas', 'add')} style={{ background: 'transparent', border: '1px solid currentColor', color: 'inherit', padding: '5px 10px', cursor: 'pointer' }}>+ Inscrever</button>}
                 </div>
+                {/* 🔮 Escrever "MGERAL: +50", "MBASE: +20", "MFORMAS: +10", "MABS: +5" ou "MUNICO: 2"
+                    em qualquer Passiva/Runa conta de verdade no Poder Calculado pelo Scouter, igual
+                    já funciona em Poderes/Habilidades/Transformações/Magias/Itens (ver
+                    core/poder.js e Marcados.jsx > getGlobalMultipliers). */}
+                <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic', marginBottom: '10px' }}>Dica: escrever "MGERAL: +50" (ou MBASE/MFORMAS/MABS/MUNICO) no texto conta pro Poder do Scouter.</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {(arma.passivas || []).map((p, i) => (
                         <div key={p.id} style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                             <span style={{ fontSize: '1.5em', opacity: 0.5 }}>-</span>
-                            <AreaMagica valor={p.texto} onChange={v => handleArrayItem('passivas', 'update', i, 'texto', v)} placeholder="Ex: EA pode absorver armas..." disabled={bloqueado} styleExtra={{ minHeight: '40px', padding: '5px' }} />
+                            <AreaMagica valor={p.texto} onChange={v => handleArrayItem('passivas', 'update', i, 'texto', v)} placeholder="Ex: EA pode absorver armas... (ou MGERAL: +50)" disabled={bloqueado} styleExtra={{ minHeight: '40px', padding: '5px' }} />
                             {isMestre && <button onClick={() => { if(window.confirm('Apagar?')) handleArrayItem('passivas', 'remove', i); }} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>}
                         </div>
                     ))}
@@ -341,11 +346,12 @@ function PaginaPassivas() {
                     <h2 style={{ margin: 0, fontSize: '1.4em', color: '#ff00ff' }}>🔮 Runas & Multiplicadores</h2>
                     {isMestre && <button onClick={() => handleArrayItem('runas', 'add')} style={{ background: 'transparent', border: '1px solid currentColor', color: 'inherit', padding: '5px 10px', cursor: 'pointer' }}>+ Inscrever</button>}
                 </div>
+                <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic', marginBottom: '10px' }}>Dica: escrever "MGERAL: +50" (ou MBASE/MFORMAS/MABS/MUNICO) no texto conta pro Poder do Scouter.</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {(arma.runas || []).map((r, i) => (
                         <div key={r.id} style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                             <span style={{ fontSize: '1.5em', opacity: 0.5 }}>•</span>
-                            <AreaMagica valor={r.texto} onChange={v => handleArrayItem('runas', 'update', i, 'texto', v)} placeholder="Ex: EA multiplica o dano em 10x..." disabled={bloqueado} styleExtra={{ minHeight: '40px', padding: '5px' }} />
+                            <AreaMagica valor={r.texto} onChange={v => handleArrayItem('runas', 'update', i, 'texto', v)} placeholder="Ex: EA multiplica o dano em 10x... (ou MGERAL: +50)" disabled={bloqueado} styleExtra={{ minHeight: '40px', padding: '5px' }} />
                             {isMestre && <button onClick={() => { if(window.confirm('Apagar?')) handleArrayItem('runas', 'remove', i); }} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>}
                         </div>
                     ))}

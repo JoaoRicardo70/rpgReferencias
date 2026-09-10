@@ -9,6 +9,7 @@ import {
     safeGetMaximo, safeGetRawBase, safeGetRank,
 } from './StatusFormContext';
 import { calcularBarrasVida } from '../../core/vitals';
+import { calcularFatorMultiplicadorForca } from '../../core/poder';
 import BarrasVida from '../shared/BarrasVida';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Status provider nao encontrado</div>;
@@ -115,8 +116,19 @@ export function StatusVitalBar({ vitalKey, label, color, borderC, isSpecial, gri
     const { ficha, getVitalMax, getVitalMaxEstavel } = ctx;
     if (!ficha) return null;
 
-    const rawMx = getVitalMax(vitalKey, ficha);
-    const rawMxEstavel = getVitalMaxEstavel(vitalKey, ficha);
+    let rawMx = getVitalMax(vitalKey, ficha);
+    let rawMxEstavel = getVitalMaxEstavel(vitalKey, ficha);
+
+    // 🔥 CORREÇÃO: a Ficha (esta tela) era a ÚNICA a decidir a quantidade de Break Bars de Vida
+    // SEM o "Multiplicador de Força" de Ascensão/Prestígio (core/poder.js >
+    // calcularFatorMultiplicadorForca) que o Mestre, o Scouter (Marcados.jsx) e o Mapa já aplicavam
+    // — o MESMO personagem podia mostrar um número de barras diferente aqui do que nas outras 3
+    // telas. Aplicado aqui também, igual às demais, pra bater sempre com a mesma conta.
+    if (vitalKey === 'vida') {
+        const fatorVida = calcularFatorMultiplicadorForca(ficha, 'vida');
+        rawMx = rawMx * fatorVida;
+        rawMxEstavel = rawMxEstavel * fatorVida;
+    }
 
     // 🩸 MÚLTIPLAS BARRAS DE VIDA (pedido do usuário): a cada ponto de Vitalidade (p) o personagem
     // ganha mais uma barra CHEIA de Vida, do mesmo tamanho (mxDisplay) que as anteriores — só Vida
