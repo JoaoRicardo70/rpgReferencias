@@ -5,7 +5,7 @@ import { lerImagemComoBase64 } from '../../services/firebase-storage';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 
 // ==========================================
-// ⏱️ ESCUDO DE DEBOUNCE GLOBAL (Evita bombardear o Firebase)
+// ⏱️ ESCUDO DE DEBOUNCE GLOBAL
 // ==========================================
 let globalTimerRelicario = null;
 function callSaveDebounced() {
@@ -42,9 +42,6 @@ const TIPOS_SUPRIMENTO = [
 
 const TIPOS_DANO = ['Cortante', 'Perfurante', 'Impacto', 'Mágico', 'Elemental', 'Verdadeiro', 'Conceitual', 'Espiritual', 'Nenhum'];
 
-// ==========================================
-// 📖 OS CAPÍTULOS DO RELICÁRIO
-// ==========================================
 const CAPITULOS = [
     { id: 'altar', label: 'Altar da Relíquia', icon: '🗡️' },
     { id: 'passivas', label: 'Estigmas & Runas', icon: '🪨' },
@@ -54,9 +51,6 @@ const CAPITULOS = [
     { id: 'suprimentos', label: 'Suprimentos & Notas', icon: '🧪' }
 ];
 
-// 🗡️ Capítulos 1-4 documentam EXCLUSIVAMENTE a Arma Espiritual/Fantasma Nobre da entidade (a
-// relíquia única e evolutiva, não um item comum do Arsenal) — armas comuns (espadas, armas de
-// fogo, etc.) pertencem ao Arsenal Místico (Capítulo 5), nunca a estes 4 capítulos.
 const CAPITULOS_ARMA_ESPIRITUAL = ['altar', 'passivas', 'formas', 'verdadeiras'];
 
 // ==========================================
@@ -75,7 +69,6 @@ export function RelicarioProvider({ children }) {
     const meuNome = useStore(s => s.meuNome);
     const [abaAtual, setAbaAtual] = useState('altar');
 
-    // 🔥 O SEGREDO DA SINCRONIZAÇÃO: Chama a função com debounce!
     const callSave = useCallback(() => { callSaveDebounced(); }, []);
 
     useEffect(() => {
@@ -101,7 +94,7 @@ export function RelicarioProvider({ children }) {
                 return;
             }
 
-            if (!ficha.armaEspiritual) return;
+            if (!ficha.armaEspiritual) ficha.armaEspiritual = {};
             if (!Array.isArray(ficha.armaEspiritual[chave])) ficha.armaEspiritual[chave] = [];
             const target = ficha.armaEspiritual[chave];
             
@@ -123,7 +116,12 @@ export function RelicarioProvider({ children }) {
     }, [updateFicha, callSave]);
 
     const updateItemById = useCallback((id, campo, valor) => {
-        updateFicha(f => { const i = f.inventario.find(x => x.id === id); if (i) i[campo] = valor; });
+        const valSeguro = (valor === undefined || (typeof valor === 'number' && isNaN(valor))) ? null : valor;
+        updateFicha(f => { 
+            if (!f.inventario) f.inventario = [];
+            const i = f.inventario.find(x => x.id === id); 
+            if (i) i[campo] = valSeguro; 
+        });
         callSave();
     }, [updateFicha, callSave]);
 
@@ -131,6 +129,7 @@ export function RelicarioProvider({ children }) {
         if(window.confirm('Deitar fora este item para sempre?')) {
             updateFicha(f => {
                 const oldM = capturarMaximosAtuais(f);
+                if (!f.inventario) f.inventario = [];
                 f.inventario = f.inventario.filter(x => x.id !== id);
                 rescalarVitaisProporcional(f, oldM);
             });
@@ -140,6 +139,7 @@ export function RelicarioProvider({ children }) {
 
     const toggleEquiparById = useCallback((id) => {
         updateFicha(f => {
+            if (!f.inventario) f.inventario = [];
             const i = f.inventario.find(x => x.id === id);
             if (!i) return;
             const oldM = capturarMaximosAtuais(f);
@@ -174,7 +174,7 @@ const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "te
     const { callSave } = useRelicario();
     return (
         <input 
-            type={type} value={valor || ''} onChange={e => onChange(e.target.value)} 
+            type={type} value={valor || ''} onChange={e => { onChange(e.target.value); callSave(); }} 
             onBlur={callSave} placeholder={placeholder} disabled={disabled}
             style={{ background: 'transparent', border: 'none', borderBottom: '1px dashed currentColor', fontFamily: 'inherit', fontSize: 'inherit', color: 'inherit', fontWeight: 'inherit', fontStyle: 'inherit', outline: 'none', padding: '5px', width: '100%', opacity: disabled ? 0.7 : 1, ...styleExtra }} 
         />
@@ -185,7 +185,7 @@ const AreaMagica = ({ valor, onChange, placeholder, styleExtra = {}, disabled = 
     const { callSave } = useRelicario();
     return (
         <textarea 
-            value={valor || ''} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+            value={valor || ''} onChange={e => { onChange(e.target.value); callSave(); }} placeholder={placeholder}
             onBlur={callSave} disabled={disabled}
             style={{ width: '100%', minHeight: '60px', background: 'transparent', border: 'none', borderBottom: '2px dotted currentColor', color: 'inherit', fontFamily: 'inherit', padding: '8px', outline: 'none', resize: 'vertical', opacity: disabled ? 0.7 : 1, ...styleExtra }}
         />
@@ -246,9 +246,15 @@ function RelicarioNavegacao() {
 // 🗡️ PÁGINA 1: O ALTAR DA RELÍQUIA
 // ==========================================
 function PaginaAltar() {
-    const { minhaFicha, updateFicha, isMestre } = useRelicario();
+    const { minhaFicha, updateFicha, isMestre, callSave } = useRelicario();
     const arma = minhaFicha?.armaEspiritual || {};
-    const updateArma = (campo, valor) => { updateFicha(f => { if(f.armaEspiritual) f.armaEspiritual[campo] = valor; }); };
+    const updateArma = (campo, valor) => { 
+        updateFicha(f => { 
+            if(!f.armaEspiritual) f.armaEspiritual = {}; 
+            f.armaEspiritual[campo] = valor; 
+        }); 
+        callSave(); 
+    };
     const bloqueado = !isMestre;
 
     return (
@@ -459,8 +465,8 @@ function PaginaArsenal() {
                                     {Object.entries(RARIDADES).map(([k, v]) => <option key={k} value={k} style={{color: '#000'}}>{v.label}</option>)}
                                 </select>
                                 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Qtd:</span><CampoMagico valor={item.quantidade} onChange={v => updateItemById(item.id, 'quantidade', Number(v))} type="number" styleExtra={{ width: '50px', textAlign: 'center' }} /></div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Kg:</span><CampoMagico valor={item.peso} onChange={v => updateItemById(item.id, 'peso', Number(v))} type="number" step="0.1" styleExtra={{ width: '50px', textAlign: 'center' }} /></div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Qtd:</span><CampoMagico valor={item.quantidade} onChange={v => updateItemById(item.id, 'quantidade', v)} isNumber={true} type="number" styleExtra={{ width: '50px', textAlign: 'center' }} /></div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Kg:</span><CampoMagico valor={item.peso} onChange={v => updateItemById(item.id, 'peso', v)} isNumber={true} type="number" step="0.1" styleExtra={{ width: '50px', textAlign: 'center' }} /></div>
                                 <button onClick={() => removeItemById(item.id)} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2em' }}>✖</button>
                             </div>
 
@@ -532,8 +538,8 @@ function PaginaSuprimentos() {
                                         {Object.entries(RARIDADES).map(([k, v]) => <option key={k} value={k} style={{color: '#000'}}>{v.label}</option>)}
                                     </select>
                                     
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Qtd:</span><CampoMagico valor={item.quantidade} onChange={v => updateItemById(item.id, 'quantidade', Number(v))} type="number" styleExtra={{ width: '40px', textAlign: 'center' }} /></div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Kg:</span><CampoMagico valor={item.peso} onChange={v => updateItemById(item.id, 'peso', Number(v))} type="number" step="0.1" styleExtra={{ width: '40px', textAlign: 'center' }} /></div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Qtd:</span><CampoMagico valor={item.quantidade} onChange={v => updateItemById(item.id, 'quantidade', v)} isNumber={true} type="number" styleExtra={{ width: '40px', textAlign: 'center' }} /></div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Kg:</span><CampoMagico valor={item.peso} onChange={v => updateItemById(item.id, 'peso', v)} isNumber={true} type="number" step="0.1" styleExtra={{ width: '40px', textAlign: 'center' }} /></div>
                                     <button onClick={() => removeItemById(item.id)} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2em' }}>✖</button>
                                 </div>
                                 <AreaMagica valor={item.desc} onChange={v => updateItemById(item.id, 'desc', v)} placeholder="Efeito da poção ou utilidade..." styleExtra={{ minHeight: '30px', fontSize: '0.85em' }} />
