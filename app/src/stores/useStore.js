@@ -3,23 +3,29 @@ import { immer } from 'zustand/middleware/immer';
 import { migrarPassivasParaPoderes } from '../core/utils.js';
 
 export const fichaPadrao = {
-    donoDaFicha: "", // 🔥 O CARIMBO DE PROPRIEDADE NA NUVEM 🔥
+    donoDaFicha: "", 
     ascensaoBase: 1, poderes: [], inventario: [], ataquesElementais: [], passivas: [], seresSelados: [],
     
-    // 🔥 NOVO: Estruturas do Novo Grimório 🔥
     habilidades: [], formas: [], esteticaGrimorio: {},
+    
+    // 🔥 A CURA DA AMNÉSIA: O Store agora sabe que a Arma Espiritual existe desde o berço!
+    armaEspiritual: {
+        nome: '', epiteto: '', cantico: '', danoBase: '',
+        avatarHumano: '', avatarArma: '',
+        passivas: [], runas: [], formas: [], formasVerdadeiras: []
+    },
     
     hierarquia: { poder: false, infinity: false, singularidade: '', poderNome: '', poderDesc: '', infinityNome: '', infinityDesc: '', singularidadeNome: '', singularidadeDesc: '' },
     proficienciaBase: 2, proficiencias: {}, avatar: { base: "" },
     
-    // 🔥 NOVO: Adicionado "apelido" e "nivel" na Bio
     bio: { raca: "", classe: "", idade: "", fisico: "", sangue: "", alinhamento: "", afiliacao: "", dinheiro: "", apelido: "", nivel: 0 },
     
-    // 🔥 NOVO: Matriz de Afinidades Elementais e Condições (Stacks)
     afinidades: { resistencias: [], vulnerabilidades: [], imunidades: [], absorcoes: [] },
     condicoes: [], 
     
-    notas: { base: "", geral: "", abs: "" }, posicao: { x: 0, y: 0, z: 0 }, iniciativa: 0,
+    notas: [], // 🔥 CORRIGIDO: As notas agora nascem como um Array vazio e não dão conflito!
+    
+    posicao: { x: 0, y: 0, z: 0 }, iniciativa: 0,
     acoes: { padrao: { max: 1, atual: 1 }, bonus: { max: 1, atual: 1 }, reacao: { max: 1, atual: 1 } },
     ataqueConfig: { armaStatusUsados: ['forca'], armaEnergiaCombustao: 'mana', armaPercEnergia: 0, criticoNormalMin: 16, criticoNormalMax: 18, criticoFatalMin: 19, criticoFatalMax: 20, vantagens: 0, desvantagens: 0 },
     dano: { base: 0, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mUnico: "1.0", mAbsoluto: 1.0, mPotencial: 1.0, reducaoCusto: 0, regeneracao: 0 },
@@ -40,57 +46,21 @@ export const fichaPadrao = {
     compendioOverrides: {}, cores: {},
     dominios: { elementais: {}, elementos: {}, mana: {}, chakra: {}, aura: {}, astral: {}, primordiais: {}, marciais: {}, armas: {}, cura: {}, summons: {} },
     
-    // 🔥 NOVOS CAMPOS DA NOVA FICHA (Evita Amnésia no F5) 🔥
     estetica: {}, labels: {}, pv: { atual: 0 }, pm: { atual: 0 }, multiplicadorVida: 1, multiplicadorMorte: 1, multiplicadorForcaPrestigio: 1, multiplicadorForcaAscensao: 1,
 
-    // 🔥 Divisor de Poder (exclusivo do Mestre) — divide o resultado final do Poder do
-    // Scouter. 0 = sem override (usa o padrão da mesa, divisorPoderMesa); qualquer valor > 0
-    // é um override explícito por personagem (1 inclusive, para forçar "sem divisão" mesmo
-    // que o padrão da mesa seja outro). Precisa estar em fichaPadrao para sobreviver ao F5
-    // (o loop genérico de carregarDadosFicha só restaura chaves presentes aqui).
     divisorPoder: 0,
     supressaoPoder: 100, limiteSupressao: 1,
 
-    // 🔥 NOVO: 5ª barra de energia — "Força". O valor atual é independente das outras
-    // energias; o máximo é sempre derivado (média de mana/aura/chakra/corpo), nunca
-    // armazenado aqui — ver getSupremas() em Marcados.jsx
     energiaForca: { atual: 0 },
 
-    // 🔥 NOVO: Pool de pontos de Status não distribuídos. Ganhar Prestígio na categoria
-    // "Status" credita pontos aqui em vez de igualar os 8 atributos (Força, Destreza,
-    // Inteligência, Sabedoria, Energia Espiritual, Carisma, Stamina, Constituição) — o
-    // jogador/Mestre distribui manualmente entre eles depois. statusPoolGasto acompanha quantos
-    // pontos já foram distribuídos (nunca diminui sozinho): pool + gasto = total concedido via
-    // Prestígio, usado para o campo de edição não "reconceder" pontos ao reduzir e aumentar o
-    // valor de novo. statusPoolUnidadeV2 marca que a ficha já passou pela migração de unidade
-    // de statusPool (base bruta -> pontos, ver carregarDadosFicha) — fichas novas já nascem
-    // migradas, não têm nada de escala antiga para converter. Todos precisam estar em
-    // fichaPadrao para sobreviver ao F5 (o loop genérico de carregarDadosFicha só restaura
-    // chaves presentes aqui). statusPrestigioAplicado é o último valor de Prestígio de Status
-    // realmente aplicado ao pool (o que o campo "STATUS" edita diretamente agora) — a diferença
-    // entre um novo valor digitado e este é o que credita/debita statusPool, multiplicada pela
-    // Ascensão atual de Status (ver calcularAscensaoAtualStatus em Marcados.jsx/TabelaPrestigio.jsx).
     statusPool: 0,
     statusPoolGasto: 0,
     statusPoolUnidadeV2: true,
     statusPrestigioAplicado: 0,
-    // 🔥 Quanto do pool foi alocado em CADA atributo especificamente (ex.: { forca: 20 }) —
-    // statusPoolGasto sozinho é só o total global e não basta pra saber quanto devolver com
-    // segurança de um atributo específico ao pool (ver devolverPontoStatus em Marcados.jsx).
     statusPoolAlocado: {},
 
-    // 🔥 Estado de combate por turno (Fadiga, mUnico Crescente, Fúria, Reator de Adaptação,
-    // Leis/Cópias etc — ver Ficha Def/ClassificacaoPanel.jsx e Marcados.jsx). Precisa estar em
-    // fichaPadrao e ter um branch explícito em carregarDadosFicha (como ataqueConfig/bio) para
-    // sobreviver ao F5: sem isso, o loop genérico de carregarDadosFicha simplesmente não
-    // restaura a chave 'combate' (por não existir aqui antes), então fadigaTurnos/municoTurnos
-    // etc. resetavam pra "undefined" (tratado como 0) toda vez que a ficha recarregava —
-    // inclusive no meio de um combate real.
     combate: {
         municoTurnos: 0, municoPorTurno: 5,
-        // fadigaExtra: pontos de Fadiga acumulados automaticamente no Mapa a partir do gasto de
-        // Energia, Vida perdida e Formas ativas (ver core/fadiga.js) — somados em cima de
-        // fadigaTurnos x fadigaPorTurno, nunca substituindo o contador manual.
         fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0,
         danoAbsorvido: 0, danoTotalRecebido: 0, letalidadeTotalRecebida: 0,
         conversaoAlvo: 10000, conversaoBonus: 1,
@@ -104,11 +74,6 @@ function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
 const storedMesaId = localStorage.getItem('rpg_mesaId') || '';
 
-// 🔥 Divisor de Poder da mesa: além do Firebase (sincroniza entre todos os jogadores), guarda
-// também no localStorage deste navegador, chaveado pela mesa. Isso garante que o valor nunca se
-// perde num F5/reabertura do App neste dispositivo mesmo se o Firebase estiver lento, offline, ou
-// se a escrita falhar silenciosamente (ver salvarDivisorPoderMesa em firebase-sync.js) — o
-// listener do Firebase, quando responder, ainda sobrescreve este valor local com o da mesa.
 function getDivisorPoderMesaKey(mesaId) { return `rpg_divisorPoderMesa_${mesaId || 'semMesa'}`; }
 function lerDivisorPoderMesaLocal(mesaId) {
     const raw = localStorage.getItem(getDivisorPoderMesaKey(mesaId));
@@ -136,10 +101,6 @@ const useStore = create(
             state.mesaId = id;
             if (id) localStorage.setItem('rpg_mesaId', id);
             else localStorage.removeItem('rpg_mesaId');
-            // 🔥 Reseeda o cache local do Divisor de Poder para a mesa NOVA (ou para "sem mesa" ->
-            // padrão 1) sempre que o jogador troca de mesa sem recarregar a página — senão o valor
-            // ficava "vazando" da mesa anterior até o listener do Firebase da mesa nova responder
-            // (e nem respondia, se essa mesa nunca teve o valor gravado com sucesso lá).
             state.divisorPoderMesa = lerDivisorPoderMesaLocal(id);
         }),
         minhaFicha: deepClone(fichaPadrao),
@@ -147,21 +108,10 @@ const useStore = create(
         efeitosTemp: [], efeitosTempPassivos: [], efeitosTempArsenal: [], efeitosTempPassivosArsenal: [], efeitosTempForma: [], efeitosTempPassivosForma: [],
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
         dummies: {}, alvoSelecionado: null,
-        // 🔥 "Ignorar Trava de Acerto" (AtaqueFormContext.jsx > rolarDano/rolarDanoCustomizado) e
-        // "pastas fechadas" da lista de Técnicas Rápidas do Mapa (MapaCombate.jsx >
-        // MapaTecnicasRapidas) — UI state transiente (nunca sincronizado no Firebase, igual
-        // poderEditandoId/itemEditandoId acima). Precisam viver aqui, fora da árvore de React, e
-        // não como useState local dos componentes: os provedores do Mapa (AtaqueFormProvider,
-        // PoderesFormProvider etc., ver MapaPanel.jsx > mapaEmFoco) só ficam montados enquanto a
-        // aba do Mapa está em foco — um useState local perderia esse estado (reabrindo pastas
-        // fechadas, desmarcando "Ignorar Trava") toda vez que o jogador trocasse de aba e
-        // voltasse, que foi exatamente o bug relatado pelo usuário.
+        
         ignorarTravaAcerto: false,
         pastasFechadasMapaTecnicas: {},
         cenario: { ativa: 'default', lista: { default: { nome: 'Cenário Inicial', img: '', escala: 1.5, unidade: 'm' } } },
-        // 🔥 Divisor de Poder padrão da mesa: valor global (fora de ficha.divisorPoder, que é
-        // por personagem) que o Mestre pode definir para dividir o Poder do Scouter de TODOS
-        // os jogadores da mesa de uma vez — ver iniciarListenerDivisorPoderMesa em firebase-sync.js.
         divisorPoderMesa: lerDivisorPoderMesaLocal(storedMesaId),
 
         setMinhaFicha: (ficha) => set((state) => { state.minhaFicha = ficha; }),
@@ -190,7 +140,7 @@ const useStore = create(
         setDivisorPoderMesa: (valor) => set((state) => {
             const v = (parseFloat(valor) > 0) ? parseFloat(valor) : 1;
             state.divisorPoderMesa = v;
-            try { localStorage.setItem(getDivisorPoderMesaKey(state.mesaId), String(v)); } catch (e) { /* localStorage indisponível (modo privado etc.) — segue só com Firebase */ }
+            try { localStorage.setItem(getDivisorPoderMesaKey(state.mesaId), String(v)); } catch (e) { }
         }),
         updateFicha: (callback) => set((state) => { callback(state.minhaFicha); }),
 
@@ -198,7 +148,6 @@ const useStore = create(
             if (!dados) return;
             const chaves = Object.keys(fichaPadrao);
             
-            // 🔥 NOVO: Reconhecimento imediato do dono
             if (dados.donoDaFicha !== undefined) state.minhaFicha.donoDaFicha = dados.donoDaFicha;
             
             if (dados.ascensaoBase !== undefined) state.minhaFicha.ascensaoBase = parseInt(dados.ascensaoBase) || 1;
@@ -206,12 +155,6 @@ const useStore = create(
             if (dados.proficienciaBase !== undefined) state.minhaFicha.proficienciaBase = parseInt(dados.proficienciaBase) || 0;
             if (dados.proficiencias !== undefined) state.minhaFicha.proficiencias = dados.proficiencias || {};
             if (dados.divisores) state.minhaFicha.divisores = Object.assign({}, fichaPadrao.divisores, dados.divisores);
-            // 🔥 Excluído do loop genérico (como divisores/ataqueConfig): statusPoolAlocado é um mapa
-            // solto attrKey->base bruta, não um objeto de status com campos numéricos fixos (base/
-            // mBase/etc) — o loop genérico tentaria escrever chaves espúrias tipo `.base: undefined`
-            // nele, o que o Firebase rejeita ao salvar. Guardado com `if` como os campos-irmãos
-            // (divisores/ataqueConfig/avatar) — payloads parciais sem essa chave não devem apagar
-            // alocações já carregadas.
             if (dados.statusPoolAlocado) state.minhaFicha.statusPoolAlocado = Object.assign({}, fichaPadrao.statusPoolAlocado, dados.statusPoolAlocado);
             if (dados.combate) state.minhaFicha.combate = Object.assign({}, fichaPadrao.combate, dados.combate);
             if (dados.ataqueConfig) state.minhaFicha.ataqueConfig = Object.assign({}, fichaPadrao.ataqueConfig, dados.ataqueConfig);
@@ -219,11 +162,9 @@ const useStore = create(
             else state.minhaFicha.avatar = { base: "" };
             if (dados.bio) state.minhaFicha.bio = Object.assign({}, fichaPadrao.bio, dados.bio);
             
-            // 🔥 NOVO: Carregar Afinidades e Condições do Firebase
             if (dados.afinidades) state.minhaFicha.afinidades = Object.assign({}, fichaPadrao.afinidades, dados.afinidades);
             if (dados.condicoes) state.minhaFicha.condicoes = dados.condicoes || [];
 
-            // 🔥 NOVO: Carregar Estética e Variáveis da Nova Ficha
             if (dados.estetica) state.minhaFicha.estetica = Object.assign({}, fichaPadrao.estetica, dados.estetica);
             if (dados.labels) state.minhaFicha.labels = Object.assign({}, fichaPadrao.labels, dados.labels);
             if (dados.pv) state.minhaFicha.pv = Object.assign({}, fichaPadrao.pv, dados.pv);
@@ -233,17 +174,34 @@ const useStore = create(
             if (dados.multiplicadorForcaPrestigio !== undefined) state.minhaFicha.multiplicadorForcaPrestigio = parseFloat(dados.multiplicadorForcaPrestigio) || 1;
             if (dados.multiplicadorForcaAscensao !== undefined) state.minhaFicha.multiplicadorForcaAscensao = parseFloat(dados.multiplicadorForcaAscensao) || 1;
 
-            // 🔥 NOVO: Carregar Estilo do Grimório e Listas Novas
             if (dados.esteticaGrimorio) state.minhaFicha.esteticaGrimorio = Object.assign({}, fichaPadrao.esteticaGrimorio, dados.esteticaGrimorio);
             state.minhaFicha.habilidades = dados.habilidades || [];
             state.minhaFicha.formas = dados.formas || [];
 
-            if (dados.notas) state.minhaFicha.notas = Object.assign({}, fichaPadrao.notas, dados.notas);
+            // 🔥 A MEMÓRIA DA ARMA ESPIRITUAL E NOTAS FOI RESTAURADA 🔥
+            if (dados.armaEspiritual) {
+                state.minhaFicha.armaEspiritual = dados.armaEspiritual;
+            } else {
+                state.minhaFicha.armaEspiritual = deepClone(fichaPadrao.armaEspiritual);
+            }
+
+            // 🔥 Migração Segura: Se "notas" era um objeto antigo, transformamos num Diário (Array)
+            if (dados.notas) {
+                if (Array.isArray(dados.notas)) {
+                    state.minhaFicha.notas = dados.notas;
+                } else if (typeof dados.notas === 'object') {
+                    state.minhaFicha.notas = [];
+                    if (dados.notas.base) state.minhaFicha.notas.push({ id: Date.now(), titulo: "Notas Base", texto: dados.notas.base });
+                    if (dados.notas.geral) state.minhaFicha.notas.push({ id: Date.now()+1, titulo: "Geral", texto: dados.notas.geral });
+                    if (dados.notas.abs) state.minhaFicha.notas.push({ id: Date.now()+2, titulo: "Absoluto", texto: dados.notas.abs });
+                }
+            } else {
+                state.minhaFicha.notas = [];
+            }
+
             if (dados.posicao) state.minhaFicha.posicao = Object.assign({}, fichaPadrao.posicao, dados.posicao);
             state.minhaFicha.inventario = dados.inventario || [];
-            // 🔥 MIGRAÇÃO: itens legados em dados.passivas (extinta aba "Ficha Narrativa")
-            // viram entradas normais de Habilidade em ficha.poderes, para poderem ser
-            // vistos/editados de novo — ver migrarPassivasParaPoderes em core/utils.js.
+            
             state.minhaFicha.poderes = [...(dados.poderes || []), ...migrarPassivasParaPoderes(dados.passivas)];
             state.minhaFicha.ataquesElementais = dados.ataquesElementais || [];
             state.minhaFicha.passivas = [];
@@ -268,8 +226,8 @@ const useStore = create(
 
             for (let i = 0; i < chaves.length; i++) {
                 const ch = chaves[i];
-                // 🔥 NOVO: Ignorar as novas chaves no loop genérico para evitar sobreposição
-                if (dados[ch] !== undefined && ch !== 'esteticaGrimorio' && ch !== 'habilidades' && ch !== 'formas' && ch !== 'donoDaFicha' && ch !== 'ascensaoBase' && ch !== 'poderes' && ch !== 'divisores' && ch !== 'inventario' && ch !== 'ataquesElementais' && ch !== 'ataqueConfig' && ch !== 'avatar' && ch !== 'bio' && ch !== 'afinidades' && ch !== 'condicoes' && ch !== 'notas' && ch !== 'passivas' && ch !== 'seresSelados' && ch !== 'posicao' && ch !== 'iniciativa' && ch !== 'acoes' && ch !== 'proficienciaBase' && ch !== 'proficiencias' && ch !== 'cores' && ch !== 'hierarquia' && ch !== 'dominios' && ch !== 'estetica' && ch !== 'labels' && ch !== 'pv' && ch !== 'pm' && ch !== 'multiplicadorVida' && ch !== 'multiplicadorMorte' && ch !== 'multiplicadorForcaPrestigio' && ch !== 'multiplicadorForcaAscensao' && ch !== 'statusPoolAlocado' && ch !== 'combate') {
+                // 🔥 PROTEÇÃO ABSOLUTA: A 'armaEspiritual' não pode entrar neste Loop genérico!
+                if (dados[ch] !== undefined && ch !== 'armaEspiritual' && ch !== 'esteticaGrimorio' && ch !== 'habilidades' && ch !== 'formas' && ch !== 'donoDaFicha' && ch !== 'ascensaoBase' && ch !== 'poderes' && ch !== 'divisores' && ch !== 'inventario' && ch !== 'ataquesElementais' && ch !== 'ataqueConfig' && ch !== 'avatar' && ch !== 'bio' && ch !== 'afinidades' && ch !== 'condicoes' && ch !== 'notas' && ch !== 'passivas' && ch !== 'seresSelados' && ch !== 'posicao' && ch !== 'iniciativa' && ch !== 'acoes' && ch !== 'proficienciaBase' && ch !== 'proficiencias' && ch !== 'cores' && ch !== 'hierarquia' && ch !== 'dominios' && ch !== 'estetica' && ch !== 'labels' && ch !== 'pv' && ch !== 'pm' && ch !== 'multiplicadorVida' && ch !== 'multiplicadorMorte' && ch !== 'multiplicadorForcaPrestigio' && ch !== 'multiplicadorForcaAscensao' && ch !== 'statusPoolAlocado' && ch !== 'combate') {
                     if (typeof fichaPadrao[ch] === 'object' && !Array.isArray(fichaPadrao[ch])) {
                         state.minhaFicha[ch] = Object.assign({}, fichaPadrao[ch], dados[ch]);
                         const numF = ['base', 'mBase', 'mGeral', 'mFormas', 'mAbsoluto', 'reducaoCusto', 'regeneracao', 'atual'];
@@ -278,18 +236,6 @@ const useStore = create(
                 }
             }
 
-            // 🔥 MIGRAÇÃO ÚNICA: statusPool nasceu numa versão anterior com a unidade errada
-            // (base bruta — ex.: 2 pontos de Prestígio virando statusPool=16000) antes de ser
-            // corrigido para a unidade "pontos" que statusPoolGasto/alocarPontoStatus usam (os
-            // mesmos 2 pontos deveriam virar statusPool=16). Fichas salvas antes dessa correção
-            // têm statusPool na escala antiga e "estouram" (aparecem ~1000x maiores no campo de
-            // Prestígio de Status) se lidas como se já estivessem na escala nova.
-            // `statusPoolGasto` nasceu NO MESMO commit que corrigiu a unidade — por isso é o
-            // sinal confiável de "esta ficha já foi salva com o código novo" (mesmo que ainda
-            // não tenha a flag statusPoolUnidadeV2, que só existe a partir desta correção
-            // seguinte): se `dados.statusPoolGasto` já existe, o statusPool salvo já está na
-            // escala nova e NÃO deve ser reconvertido (senão um pool já correto, ex. 16, viraria
-            // 0). Só converte quando `statusPoolGasto` está ausente E a flag também.
             if (!dados.statusPoolUnidadeV2 && dados.statusPoolGasto === undefined) {
                 const poolAntigo = parseFloat(dados.statusPool) || 0;
                 if (poolAntigo !== 0) {
@@ -301,13 +247,6 @@ const useStore = create(
                 state.minhaFicha.statusPoolUnidadeV2 = true;
             }
 
-            // 🔥 SEED ÚNICO: statusPrestigioAplicado é o campo novo que o input "STATUS" edita
-            // diretamente (ver Marcados.jsx/TabelaPrestigio.jsx) — antes dele, o campo mostrava
-            // um valor DERIVADO de (statusPool+statusPoolGasto)/8. Para não quebrar a leitura de
-            // fichas que já tinham pool/gasto acumulado antes deste campo existir, semeamos com
-            // esse mesmo valor derivado só na primeira vez (dados.statusPrestigioAplicado ainda
-            // não existe nessa ficha); depois disso o campo passa a ser autoritativo e nunca mais
-            // é recalculado a partir de pool/gasto — só editado diretamente pelo jogador/Mestre.
             if (dados.statusPrestigioAplicado === undefined) {
                 state.minhaFicha.statusPrestigioAplicado = Math.floor(((parseFloat(state.minhaFicha.statusPool) || 0) + (parseFloat(state.minhaFicha.statusPoolGasto) || 0)) / 8);
             }
