@@ -1,17 +1,19 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso } from '../../services/firebase-sync';
+// 🔥 Adicionado salvarFirebaseImediato para espelhar a força do painel principal
+import { salvarFichaSilencioso, salvarFirebaseImediato } from '../../services/firebase-sync';
 import { lerImagemComoBase64 } from '../../services/firebase-storage';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 
 // ==========================================
-// ⏱️ ESCUDO DE DEBOUNCE GLOBAL
+// ⏱️ ESCUDO DE DEBOUNCE GLOBAL (Evita bombardear o Firebase)
 // ==========================================
 let globalTimerRelicario = null;
 function callSaveDebounced() {
     if (globalTimerRelicario) clearTimeout(globalTimerRelicario);
     globalTimerRelicario = setTimeout(() => {
-        salvarFichaSilencioso();
+        if (typeof salvarFirebaseImediato === 'function') salvarFirebaseImediato();
+        else if (typeof salvarFichaSilencioso === 'function') salvarFichaSilencioso();
     }, 400);
 }
 
@@ -42,6 +44,9 @@ const TIPOS_SUPRIMENTO = [
 
 const TIPOS_DANO = ['Cortante', 'Perfurante', 'Impacto', 'Mágico', 'Elemental', 'Verdadeiro', 'Conceitual', 'Espiritual', 'Nenhum'];
 
+// ==========================================
+// 📖 OS CAPÍTULOS DO RELICÁRIO
+// ==========================================
 const CAPITULOS = [
     { id: 'altar', label: 'Altar da Relíquia', icon: '🗡️' },
     { id: 'passivas', label: 'Estigmas & Runas', icon: '🪨' },
@@ -69,6 +74,7 @@ export function RelicarioProvider({ children }) {
     const meuNome = useStore(s => s.meuNome);
     const [abaAtual, setAbaAtual] = useState('altar');
 
+    // 🔥 O SEGREDO DA SINCRONIZAÇÃO: Chama a função com debounce e força máxima!
     const callSave = useCallback(() => { callSaveDebounced(); }, []);
 
     useEffect(() => {
@@ -465,8 +471,8 @@ function PaginaArsenal() {
                                     {Object.entries(RARIDADES).map(([k, v]) => <option key={k} value={k} style={{color: '#000'}}>{v.label}</option>)}
                                 </select>
                                 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Qtd:</span><CampoMagico valor={item.quantidade} onChange={v => updateItemById(item.id, 'quantidade', v)} isNumber={true} type="number" styleExtra={{ width: '50px', textAlign: 'center' }} /></div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Kg:</span><CampoMagico valor={item.peso} onChange={v => updateItemById(item.id, 'peso', v)} isNumber={true} type="number" step="0.1" styleExtra={{ width: '50px', textAlign: 'center' }} /></div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Qtd:</span><CampoMagico valor={item.quantidade} onChange={v => updateItemById(item.id, 'quantidade', Number(v))} type="number" styleExtra={{ width: '50px', textAlign: 'center' }} /></div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Kg:</span><CampoMagico valor={item.peso} onChange={v => updateItemById(item.id, 'peso', Number(v))} type="number" step="0.1" styleExtra={{ width: '50px', textAlign: 'center' }} /></div>
                                 <button onClick={() => removeItemById(item.id)} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2em' }}>✖</button>
                             </div>
 
@@ -509,7 +515,6 @@ function PaginaSuprimentos() {
     
     const suprimentos = inventario.filter(i => ['consumivel', 'mundano'].includes(i.tipo));
 
-    // 🔥 BLINDAGEM DO NOTAS PARA EVITAR CRASH 🔥
     const notasArray = Array.isArray(minhaFicha?.notas) ? minhaFicha.notas : [];
 
     return (
@@ -538,8 +543,8 @@ function PaginaSuprimentos() {
                                         {Object.entries(RARIDADES).map(([k, v]) => <option key={k} value={k} style={{color: '#000'}}>{v.label}</option>)}
                                     </select>
                                     
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Qtd:</span><CampoMagico valor={item.quantidade} onChange={v => updateItemById(item.id, 'quantidade', v)} isNumber={true} type="number" styleExtra={{ width: '40px', textAlign: 'center' }} /></div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Kg:</span><CampoMagico valor={item.peso} onChange={v => updateItemById(item.id, 'peso', v)} isNumber={true} type="number" step="0.1" styleExtra={{ width: '40px', textAlign: 'center' }} /></div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Qtd:</span><CampoMagico valor={item.quantidade} onChange={v => updateItemById(item.id, 'quantidade', Number(v))} type="number" styleExtra={{ width: '40px', textAlign: 'center' }} /></div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Kg:</span><CampoMagico valor={item.peso} onChange={v => updateItemById(item.id, 'peso', Number(v))} type="number" step="0.1" styleExtra={{ width: '40px', textAlign: 'center' }} /></div>
                                     <button onClick={() => removeItemById(item.id)} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2em' }}>✖</button>
                                 </div>
                                 <AreaMagica valor={item.desc} onChange={v => updateItemById(item.id, 'desc', v)} placeholder="Efeito da poção ou utilidade..." styleExtra={{ minHeight: '30px', fontSize: '0.85em' }} />
@@ -587,8 +592,6 @@ export default function RelicarioPanel() {
     );
 }
 
-// 📖 Aviso fixo nos Capítulos 1-4: deixa claro o escopo (só Arma Espiritual/Fantasma Nobre, não
-// armas comuns) e, pra quem não é Mestre/Co-Mestre, que esta seção é somente consulta.
 function AvisoArmaEspiritual({ isMestre }) {
     return (
         <div style={{ marginBottom: '20px', padding: '10px 15px', border: '1px dashed currentColor', borderRadius: '6px', background: 'rgba(0,0,0,0.03)', fontSize: '0.85em', opacity: 0.85, textAlign: 'center', lineHeight: '1.6' }}>
