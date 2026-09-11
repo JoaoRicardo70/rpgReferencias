@@ -12,7 +12,14 @@ export const fichaPadrao = {
     armaEspiritual: {
         nome: '', epiteto: '', cantico: '', danoBase: '',
         avatarHumano: '', avatarArma: '',
-        passivas: [], runas: [], formas: [], formasVerdadeiras: []
+        passivas: [], runas: [], formas: [], formasVerdadeiras: [],
+        // 🔥 Estados da Arma Espiritual (Base / Forma Verdadeira / Fantasma Nobre): passivasVerdadeira/
+        // runasVerdadeira e passivasFantasma/runasFantasma são os buffs PRÓPRIOS de cada estado
+        // superior (excludentes entre si -- ver getGlobalMultipliers em core/poder.js e Marcados.jsx).
+        // acessoVerdadeira nasce liberado (progressão comum) e acessoFantasma nasce travado (ápice,
+        // só pra poucos) -- o Mestre/Co-Mestre libera pelo Altar da Relíquia, Capítulo 1.
+        passivasVerdadeira: [], runasVerdadeira: [], passivasFantasma: [], runasFantasma: [],
+        estadoAtivo: 'base', acessoVerdadeira: true, acessoFantasma: false
     },
     
     hierarquia: { poder: false, infinity: false, singularidade: '', poderNome: '', poderDesc: '', infinityNome: '', infinityDesc: '', singularidadeNome: '', singularidadeDesc: '' },

@@ -53,6 +53,21 @@ const CAPITULOS = [
 
 const CAPITULOS_ARMA_ESPIRITUAL = ['altar', 'passivas', 'formas', 'verdadeiras'];
 
+// 🔥 Estados da Arma Espiritual/Fantasma Nobre: excludentes entre si (só um conta pro Scouter de
+// cada vez -- ver getGlobalMultipliers em core/poder.js e Marcados.jsx). "acesso: null" = sempre
+// liberado (Base nunca precisa de permissão do Mestre).
+const ESTADOS_ARMA = [
+    { id: 'base', label: 'Base', icon: '🌌', cor: '#00aaff', acesso: null },
+    { id: 'verdadeira', label: 'Forma Verdadeira', icon: '👑', cor: '#ffcc00', acesso: 'acessoVerdadeira' },
+    { id: 'fantasma', label: 'Fantasma Nobre', icon: '⚜️', cor: '#ff003c', acesso: 'acessoFantasma' }
+];
+
+function temAcessoAoEstado(arma, estadoId) {
+    if (estadoId === 'verdadeira') return arma.acessoVerdadeira !== false;
+    if (estadoId === 'fantasma') return !!arma.acessoFantasma;
+    return true;
+}
+
 // ==========================================
 // 🧠 CONTEXTO ISOLADO DO RELICÁRIO
 // ==========================================
@@ -77,7 +92,9 @@ export function RelicarioProvider({ children }) {
                 f.armaEspiritual = {
                     nome: '', epiteto: '', cantico: '', danoBase: '',
                     avatarHumano: '', avatarArma: '',
-                    passivas: [], runas: [], formas: [], formasVerdadeiras: []
+                    passivas: [], runas: [], formas: [], formasVerdadeiras: [],
+                    passivasVerdadeira: [], runasVerdadeira: [], passivasFantasma: [], runasFantasma: [],
+                    estadoAtivo: 'base', acessoVerdadeira: true, acessoFantasma: false
                 };
             });
             callSave();
@@ -311,6 +328,42 @@ function PaginaAltar() {
         callSave();
     };
 
+    // 🔥 ESTADOS DA ARMA ESPIRITUAL (Base / Forma Verdadeira / Fantasma Nobre): o dono da ficha
+    // troca de estado livremente entre os que já tem acesso -- acesso é concedido pelo Mestre/
+    // Co-Mestre marcando o checkbox correspondente (Forma Verdadeira nasce liberada pra fichas
+    // antigas/novas, Fantasma Nobre nasce travado por ser o ápice). O Mestre pode selecionar
+    // qualquer estado mesmo sem acesso liberado (override pra casos de RP/NPC). Só o estado ATIVO
+    // conta pro Poder do Scouter (ver Capítulo 2 e core/poder.js/Marcados.jsx > getGlobalMultipliers).
+    const estadoAtivo = arma.estadoAtivo || 'base';
+    // Mesma cascata de fallback usada no cálculo real do Scouter (core/poder.js/Marcados.jsx >
+    // getGlobalMultipliers) -- serve só pra avisar o Mestre quando o estado marcado "(ATIVO)" foi
+    // selecionado por override e na prática está contando como um estado inferior.
+    let estadoEfetivo = estadoAtivo;
+    if (estadoEfetivo === 'fantasma' && !temAcessoAoEstado(arma, 'fantasma')) estadoEfetivo = 'verdadeira';
+    if (estadoEfetivo === 'verdadeira' && !temAcessoAoEstado(arma, 'verdadeira')) estadoEfetivo = 'base';
+    const selecionarEstado = (estadoId) => {
+        if (!isMestre && !temAcessoAoEstado(arma, estadoId)) return;
+        updateFicha(f => {
+            if (!f.armaEspiritual) f.armaEspiritual = {};
+            f.armaEspiritual.estadoAtivo = estadoId;
+        });
+        callSave();
+    };
+    const toggleAcessoVerdadeira = () => {
+        updateFicha(f => {
+            if (!f.armaEspiritual) f.armaEspiritual = {};
+            f.armaEspiritual.acessoVerdadeira = !(f.armaEspiritual.acessoVerdadeira !== false);
+        });
+        callSave();
+    };
+    const toggleAcessoFantasma = () => {
+        updateFicha(f => {
+            if (!f.armaEspiritual) f.armaEspiritual = {};
+            f.armaEspiritual.acessoFantasma = !f.armaEspiritual.acessoFantasma;
+        });
+        callSave();
+    };
+
     return (
         <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
@@ -331,6 +384,47 @@ function PaginaAltar() {
                         <input type="checkbox" checked={travadaParaJogador} onChange={toggleTrava} />
                         🔒 Impedir o jogador de equipar/desequipar sozinho (caso especial de RP)
                     </label>
+                )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                    {ESTADOS_ARMA.map(e => {
+                        const liberado = isMestre || temAcessoAoEstado(arma, e.id);
+                        const ativo = estadoAtivo === e.id;
+                        return (
+                            <button
+                                key={e.id}
+                                onClick={() => selecionarEstado(e.id)}
+                                disabled={!liberado}
+                                title={!liberado ? 'Este estado ainda não foi liberado pelo Mestre/Co-Mestre.' : undefined}
+                                style={{
+                                    padding: '8px 16px', borderRadius: '20px', fontWeight: 'bold', cursor: liberado ? 'pointer' : 'not-allowed',
+                                    border: `2px solid ${ativo ? e.cor : '#888'}`, background: ativo ? `${e.cor}26` : 'rgba(136,136,136,0.1)',
+                                    color: ativo ? e.cor : '#888', opacity: liberado ? 1 : 0.5
+                                }}
+                            >
+                                {liberado ? e.icon : '🔒'} {e.label}{ativo ? ' (ATIVO)' : ''}
+                            </button>
+                        );
+                    })}
+                </div>
+                {estadoAtivo !== estadoEfetivo && (
+                    <div style={{ fontSize: '0.8em', color: '#ffaa00', fontWeight: 'bold', textAlign: 'center' }}>
+                        ⚠️ "{ESTADOS_ARMA.find(e => e.id === estadoAtivo)?.label}" foi marcado como ATIVO sem acesso liberado — o Poder do Scouter está contando como "{ESTADOS_ARMA.find(e => e.id === estadoEfetivo)?.label}" até o acesso ser concedido.
+                    </div>
+                )}
+                <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic', textAlign: 'center' }}>Os estados são excludentes — só as Passivas/Runas (Capítulo 2) do estado ATIVO contam pro Poder do Scouter.</div>
+                {isMestre && (
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', flexWrap: 'wrap', fontSize: '0.8em', opacity: 0.75 }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={arma.acessoVerdadeira !== false} onChange={toggleAcessoVerdadeira} />
+                            🔓 Liberar acesso à Forma Verdadeira
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={!!arma.acessoFantasma} onChange={toggleAcessoFantasma} />
+                            🔓 Liberar acesso ao Fantasma Nobre
+                        </label>
+                    </div>
                 )}
             </div>
             <div style={{ textAlign: 'center', padding: '20px', border: '3px double currentColor', background: 'rgba(0,0,0,0.03)', borderRadius: '8px' }}>
@@ -366,46 +460,82 @@ function PaginaAltar() {
 // ==========================================
 // 🪨 PÁGINA 2: ESTIGMAS & RUNAS
 // ==========================================
+// 🔥 Campos de Passivas/Runas de cada estado -- excludentes entre si no Scouter (ver
+// getGlobalMultipliers em core/poder.js e Marcados.jsx). Base usa os campos originais
+// (passivas/runas) por compatibilidade com fichas antigas.
+const CAMPOS_PASSIVAS_POR_ESTADO = {
+    base: { passivas: 'passivas', runas: 'runas' },
+    verdadeira: { passivas: 'passivasVerdadeira', runas: 'runasVerdadeira' },
+    fantasma: { passivas: 'passivasFantasma', runas: 'runasFantasma' }
+};
+
 function PaginaPassivas() {
     const { minhaFicha, handleArrayItem, isMestre } = useRelicario();
     const arma = minhaFicha?.armaEspiritual || {};
     const bloqueado = !isMestre;
+    const estadoAtivo = arma.estadoAtivo || 'base';
+    const [abaEstado, setAbaEstado] = useState(estadoAtivo);
+    const estadoInfo = ESTADOS_ARMA.find(e => e.id === abaEstado) || ESTADOS_ARMA[0];
+    const campos = CAMPOS_PASSIVAS_POR_ESTADO[abaEstado] || CAMPOS_PASSIVAS_POR_ESTADO.base;
+
     return (
-        <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '30px' }}>
-            <div style={{ border: '1px dashed currentColor', padding: '20px', borderRadius: '8px', background: 'rgba(0,0,0,0.02)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px dotted currentColor', paddingBottom: '10px' }}>
-                    <h2 style={{ margin: 0, fontSize: '1.4em', color: '#00ffcc' }}>✨ Passivas da Relíquia</h2>
-                    {isMestre && <button onClick={() => handleArrayItem('passivas', 'add')} style={{ background: 'transparent', border: '1px solid currentColor', color: 'inherit', padding: '5px 10px', cursor: 'pointer' }}>+ Inscrever</button>}
-                </div>
-                {/* 🔮 Escrever "MGERAL: +50", "MBASE: +20", "MFORMAS: +10", "MABS: +5" ou "MUNICO: 2"
-                    em qualquer Passiva/Runa conta de verdade no Poder Calculado pelo Scouter, igual
-                    já funciona em Poderes/Habilidades/Transformações/Magias/Itens (ver
-                    core/poder.js e Marcados.jsx > getGlobalMultipliers). */}
-                <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic', marginBottom: '10px' }}>Dica: escrever "MGERAL: +50" (ou MBASE/MFORMAS/MABS/MUNICO) no texto conta pro Poder do Scouter.</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {(arma.passivas || []).map((p, i) => (
-                        <div key={p.id} style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                            <span style={{ fontSize: '1.5em', opacity: 0.5 }}>-</span>
-                            <AreaMagica valor={p.texto} onChange={v => handleArrayItem('passivas', 'update', i, 'texto', v)} placeholder="Ex: EA pode absorver armas... (ou MGERAL: +50)" disabled={bloqueado} styleExtra={{ minHeight: '40px', padding: '5px' }} />
-                            {isMestre && <button onClick={() => { if(window.confirm('Apagar?')) handleArrayItem('passivas', 'remove', i); }} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>}
-                        </div>
-                    ))}
-                </div>
+        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                {ESTADOS_ARMA.map(e => (
+                    <button
+                        key={e.id}
+                        onClick={() => setAbaEstado(e.id)}
+                        style={{
+                            padding: '6px 14px', borderRadius: '16px', fontWeight: 'bold', cursor: 'pointer',
+                            border: `2px solid ${e.cor}`, background: abaEstado === e.id ? `${e.cor}26` : 'transparent',
+                            color: e.cor, opacity: abaEstado === e.id ? 1 : 0.6
+                        }}
+                    >
+                        {e.icon} {e.label}{estadoAtivo === e.id ? ' ● ATIVO' : ''}
+                    </button>
+                ))}
             </div>
-            <div style={{ border: '1px dashed currentColor', padding: '20px', borderRadius: '8px', background: 'rgba(0,0,0,0.02)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px dotted currentColor', paddingBottom: '10px' }}>
-                    <h2 style={{ margin: 0, fontSize: '1.4em', color: '#ff00ff' }}>🔮 Runas & Multiplicadores</h2>
-                    {isMestre && <button onClick={() => handleArrayItem('runas', 'add')} style={{ background: 'transparent', border: '1px solid currentColor', color: 'inherit', padding: '5px 10px', cursor: 'pointer' }}>+ Inscrever</button>}
+            <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic', textAlign: 'center' }}>
+                {estadoAtivo === abaEstado
+                    ? `Este é o estado ATIVO no momento — as tags abaixo contam pro Poder do Scouter.`
+                    : `Este estado não está ativo agora — as tags abaixo ficam guardadas, mas só passam a contar quando "${estadoInfo.label}" for selecionado no Altar da Relíquia (Capítulo 1).`}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '30px' }}>
+                <div style={{ border: '1px dashed currentColor', padding: '20px', borderRadius: '8px', background: 'rgba(0,0,0,0.02)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px dotted currentColor', paddingBottom: '10px' }}>
+                        <h2 style={{ margin: 0, fontSize: '1.4em', color: '#00ffcc' }}>✨ Passivas ({estadoInfo.label})</h2>
+                        {isMestre && <button onClick={() => handleArrayItem(campos.passivas, 'add')} style={{ background: 'transparent', border: '1px solid currentColor', color: 'inherit', padding: '5px 10px', cursor: 'pointer' }}>+ Inscrever</button>}
+                    </div>
+                    {/* 🔮 Escrever "MGERAL: +50", "MBASE: +20", "MFORMAS: +10", "MABS: +5" ou "MUNICO: 2"
+                        em qualquer Passiva/Runa conta de verdade no Poder Calculado pelo Scouter, igual
+                        já funciona em Poderes/Habilidades/Transformações/Magias/Itens (ver
+                        core/poder.js e Marcados.jsx > getGlobalMultipliers). */}
+                    <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic', marginBottom: '10px' }}>Dica: escrever "MGERAL: +50" (ou MBASE/MFORMAS/MABS/MUNICO) no texto conta pro Poder do Scouter.</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {(arma[campos.passivas] || []).map((p, i) => (
+                            <div key={p.id} style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                                <span style={{ fontSize: '1.5em', opacity: 0.5 }}>-</span>
+                                <AreaMagica valor={p.texto} onChange={v => handleArrayItem(campos.passivas, 'update', i, 'texto', v)} placeholder="Ex: EA pode absorver armas... (ou MGERAL: +50)" disabled={bloqueado} styleExtra={{ minHeight: '40px', padding: '5px' }} />
+                                {isMestre && <button onClick={() => { if(window.confirm('Apagar?')) handleArrayItem(campos.passivas, 'remove', i); }} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>}
+                            </div>
+                        ))}
+                    </div>
                 </div>
-                <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic', marginBottom: '10px' }}>Dica: escrever "MGERAL: +50" (ou MBASE/MFORMAS/MABS/MUNICO) no texto conta pro Poder do Scouter.</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    {(arma.runas || []).map((r, i) => (
-                        <div key={r.id} style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                            <span style={{ fontSize: '1.5em', opacity: 0.5 }}>•</span>
-                            <AreaMagica valor={r.texto} onChange={v => handleArrayItem('runas', 'update', i, 'texto', v)} placeholder="Ex: EA multiplica o dano em 10x... (ou MGERAL: +50)" disabled={bloqueado} styleExtra={{ minHeight: '40px', padding: '5px' }} />
-                            {isMestre && <button onClick={() => { if(window.confirm('Apagar?')) handleArrayItem('runas', 'remove', i); }} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>}
-                        </div>
-                    ))}
+                <div style={{ border: '1px dashed currentColor', padding: '20px', borderRadius: '8px', background: 'rgba(0,0,0,0.02)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px dotted currentColor', paddingBottom: '10px' }}>
+                        <h2 style={{ margin: 0, fontSize: '1.4em', color: '#ff00ff' }}>🔮 Runas & Multiplicadores ({estadoInfo.label})</h2>
+                        {isMestre && <button onClick={() => handleArrayItem(campos.runas, 'add')} style={{ background: 'transparent', border: '1px solid currentColor', color: 'inherit', padding: '5px 10px', cursor: 'pointer' }}>+ Inscrever</button>}
+                    </div>
+                    <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic', marginBottom: '10px' }}>Dica: escrever "MGERAL: +50" (ou MBASE/MFORMAS/MABS/MUNICO) no texto conta pro Poder do Scouter.</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {(arma[campos.runas] || []).map((r, i) => (
+                            <div key={r.id} style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                                <span style={{ fontSize: '1.5em', opacity: 0.5 }}>•</span>
+                                <AreaMagica valor={r.texto} onChange={v => handleArrayItem(campos.runas, 'update', i, 'texto', v)} placeholder="Ex: EA multiplica o dano em 10x... (ou MGERAL: +50)" disabled={bloqueado} styleExtra={{ minHeight: '40px', padding: '5px' }} />
+                                {isMestre && <button onClick={() => { if(window.confirm('Apagar?')) handleArrayItem(campos.runas, 'remove', i); }} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold' }}>✖</button>}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
         </div>

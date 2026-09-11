@@ -148,17 +148,33 @@ function getGlobalMultipliers(ficha) {
         ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios', 'itens'].forEach(cat => scanCategory(cat));
         scanCategory('ataquesElementais', 'equipado', ['descricao', 'efeitos', 'desc']);
 
-        // 🔮 Relicário — Passivas da Relíquia / Runas & Multiplicadores (Ficha Def/RelicarioPanel.jsx,
-        // Capítulo 2): só contam enquanto a Arma Espiritual estiver EQUIPADA (arma.equipada !== false
-        // -- campo ausente em fichas antigas conta como equipada, pra nunca mudar o comportamento de
-        // quem já tinha a arma valendo antes desta trava existir; ver botão "Equipar/Desequipar" no
-        // Altar da Relíquia, Capítulo 1). Enquanto equipada, sempre "ativas" (documentam a arma
-        // permanente da entidade, sem toggle "ativo" próprio por item como Poderes/Itens têm) — mesma
-        // convenção de tags MBASE/MGERAL/MFORMAS/MABS/MUNICO já usada em Poderes/Habilidades/
-        // Transformações/Magias/Itens, lida do campo "texto" de cada item.
+        // 🔮 Relicário — Passivas/Runas POR ESTADO da Arma Espiritual (Base, Forma Verdadeira,
+        // Fantasma Nobre; ver Ficha Def/RelicarioPanel.jsx, Capítulo 2): só contam enquanto a Arma
+        // Espiritual estiver EQUIPADA (arma.equipada !== false -- campo ausente em fichas antigas
+        // conta como equipada, pra nunca mudar o comportamento de quem já tinha a arma valendo antes
+        // desta trava existir; ver botão "Equipar/Desequipar" no Altar da Relíquia, Capítulo 1). Os
+        // três estados são EXCLUDENTES (pedido do usuário): só as Passivas/Runas do estado ATIVO
+        // (armaEsp.estadoAtivo) contam -- ativar a Forma Verdadeira desliga as do Base, ativar o
+        // Fantasma Nobre desliga as de Base e Verdadeira. Se o acesso ao estado selecionado for
+        // revogado pelo Mestre depois (acessoVerdadeira/acessoFantasma), o cálculo cai um nível
+        // sozinho em vez de continuar contando um estado sem acesso. Enquanto equipada, sempre
+        // "ativas" (documentam a arma permanente da entidade, sem toggle "ativo" próprio por item
+        // como Poderes/Itens têm) — mesma convenção de tags MBASE/MGERAL/MFORMAS/MABS/MUNICO já usada
+        // em Poderes/Habilidades/Transformações/Magias/Itens, lida do campo "texto" de cada item.
         const armaEsp = ficha.armaEspiritual || {};
         if (armaEsp.equipada !== false) {
-            [['passivas', 'Passiva da Relíquia'], ['runas', 'Runa']].forEach(([campo, rotulo]) => {
+            const acessoVerdadeira = armaEsp.acessoVerdadeira !== false;
+            const acessoFantasma = !!armaEsp.acessoFantasma;
+            let estadoEfetivo = armaEsp.estadoAtivo || 'base';
+            if (estadoEfetivo === 'fantasma' && !acessoFantasma) estadoEfetivo = 'verdadeira';
+            if (estadoEfetivo === 'verdadeira' && !acessoVerdadeira) estadoEfetivo = 'base';
+
+            const CAMPOS_POR_ESTADO = {
+                base: [['passivas', 'Passiva da Relíquia'], ['runas', 'Runa']],
+                verdadeira: [['passivasVerdadeira', 'Passiva da Forma Verdadeira'], ['runasVerdadeira', 'Runa da Forma Verdadeira']],
+                fantasma: [['passivasFantasma', 'Passiva do Fantasma Nobre'], ['runasFantasma', 'Runa do Fantasma Nobre']]
+            };
+            (CAMPOS_POR_ESTADO[estadoEfetivo] || CAMPOS_POR_ESTADO.base).forEach(([campo, rotulo]) => {
                 (armaEsp[campo] || []).forEach((item, i) => {
                     if (!item || !item.texto) return;
                     const nomeItem = `${rotulo} #${i + 1}`.toUpperCase();
