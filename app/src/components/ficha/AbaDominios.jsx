@@ -69,9 +69,22 @@ export default function AbaDominios() {
     const updateFicha = useStore(s => s.updateFicha);
     const [selecionados, setSelecionados] = useState({});
     const [salvando, setSalvando] = useState(false);
+    // 🔥 EVOLUÇÃO EM MASSA: marcados[chave] guarda os nomes marcados naquela categoria;
+    // nivelAlvoMassa[chave] guarda o nível escolhido pro botão "Aplicar" daquela categoria.
+    const [marcados, setMarcados] = useState({});
+    const [nivelAlvoMassa, setNivelAlvoMassa] = useState({});
 
     if (!minhaFicha) return <div style={{ color: '#888', padding: 20 }}>Carregando ficha...</div>;
     const dominios = minhaFicha.dominios || {};
+
+    const limparMarcado = (categoria, item) => {
+        setMarcados(prev => {
+            if (!prev[categoria] || !prev[categoria].has(item)) return prev;
+            const atual = new Set(prev[categoria]);
+            atual.delete(item);
+            return { ...prev, [categoria]: atual };
+        });
+    };
 
     const atualizarDominio = (categoria, item, nivel) => {
         updateFicha(f => {
@@ -81,6 +94,33 @@ export default function AbaDominios() {
             if (nivel === 0) delete f.dominios[targetCat][item];
             else f.dominios[targetCat][item] = { nivel: nivel, nome: NIVEIS_INFO[nivel].nome };
         });
+        if (nivel === 0) limparMarcado(categoria, item);
+    };
+
+    const toggleMarcado = (categoria, item) => {
+        setMarcados(prev => {
+            const atual = new Set(prev[categoria] || []);
+            if (atual.has(item)) atual.delete(item); else atual.add(item);
+            return { ...prev, [categoria]: atual };
+        });
+    };
+
+    const selecionarTodos = (categoria, nomes, marcar) => {
+        setMarcados(prev => ({ ...prev, [categoria]: marcar ? new Set(nomes) : new Set() }));
+    };
+
+    const aplicarNivelEmMassa = (categoria, nomes, nivel) => {
+        if (nomes.length === 0) return;
+        updateFicha(f => {
+            if (!f.dominios) f.dominios = {};
+            const targetCat = ['elementos', 'mana', 'chakra', 'aura', 'astral', 'primordiais'].includes(categoria) ? 'elementais' : categoria;
+            if (!f.dominios[targetCat]) f.dominios[targetCat] = {};
+            nomes.forEach(item => {
+                if (nivel === 0) delete f.dominios[targetCat][item];
+                else f.dominios[targetCat][item] = { nivel: nivel, nome: NIVEIS_INFO[nivel].nome };
+            });
+        });
+        setMarcados(prev => ({ ...prev, [categoria]: new Set() }));
     };
 
     const handleSalvarTudo = async () => {
@@ -125,25 +165,55 @@ export default function AbaDominios() {
                     </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {Object.entries(dominios[gavetaDoStore] || {}).filter(([nome]) => {
+                {(() => {
+                    const itensFiltrados = Object.entries(dominios[gavetaDoStore] || {}).filter(([nome]) => {
                         const isNestaLista = flatPredefs[chave].includes(nome);
                         const isCustom = isMagica ? !todasMagias.includes(nome) : !flatPredefs[chave].includes(nome);
                         return isNestaLista || (isCustom && (chave === 'elementos' || !isMagica));
-                    }).map(([nome, dados]) => (
-                        <div key={nome} style={{ background: 'rgba(0,0,0,0.4)', padding: '10px', borderRadius: '5px', border: '1px solid #333' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <strong style={{ color: '#fff', fontSize: '0.9em' }}>{nome.toUpperCase()}</strong>
-                                <select className="input-neon" value={dados.nivel} onChange={(e) => atualizarDominio(chave, nome, Number(e.target.value))} style={{ borderColor: NIVEIS_INFO[dados.nivel].cor, color: NIVEIS_INFO[dados.nivel].cor, width: '120px', fontSize: '0.8em' }}>
-                                    {[...Array(11).keys()].map(n => <option key={n} value={n}>{n === 0 ? "❌ Apagar" : `Lv ${n} - ${NIVEIS_INFO[n].nome}`}</option>)}
-                                </select>
+                    });
+                    const marcadosSet = marcados[chave] || new Set();
+                    const nomesFiltrados = itensFiltrados.map(([nome]) => nome);
+                    const todosMarcados = nomesFiltrados.length > 0 && nomesFiltrados.every(nome => marcadosSet.has(nome));
+                    const nivelAlvo = nivelAlvoMassa[chave] ?? 1;
+
+                    return (
+                        <>
+                            {itensFiltrados.length > 1 && (
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px', padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: '5px', flexWrap: 'wrap' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75em', color: '#ccc', cursor: 'pointer', flex: '1 0 auto' }}>
+                                        <input type="checkbox" checked={todosMarcados} onChange={(e) => selecionarTodos(chave, nomesFiltrados, e.target.checked)} />
+                                        Selecionar Todos
+                                    </label>
+                                    <select className="input-neon" value={nivelAlvo} onChange={(e) => setNivelAlvoMassa(prev => ({ ...prev, [chave]: Number(e.target.value) }))} style={{ width: '150px', fontSize: '0.75em', borderColor: corBase, color: corBase }}>
+                                        {[...Array(11).keys()].map(n => <option key={n} value={n}>{n === 0 ? "❌ Apagar" : `Lv ${n} - ${NIVEIS_INFO[n].nome}`}</option>)}
+                                    </select>
+                                    <button className="btn-neon" disabled={marcadosSet.size === 0} onClick={() => aplicarNivelEmMassa(chave, nomesFiltrados.filter(nome => marcadosSet.has(nome)), nivelAlvo)}
+                                        style={{ flex: '0 0 auto', width: 'auto', borderColor: corBase, color: corBase, margin: 0, padding: '6px 12px', fontWeight: 'bold', fontSize: '0.75em', opacity: marcadosSet.size === 0 ? 0.5 : 1, cursor: marcadosSet.size === 0 ? 'default' : 'pointer' }}>
+                                        ⚡ APLICAR A {marcadosSet.size} SELECIONADO{marcadosSet.size === 1 ? '' : 'S'}
+                                    </button>
+                                </div>
+                            )}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {itensFiltrados.map(([nome, dados]) => (
+                                    <div key={nome} style={{ background: 'rgba(0,0,0,0.4)', padding: '10px', borderRadius: '5px', border: marcadosSet.has(nome) ? `1px solid ${corBase}` : '1px solid #333' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', minWidth: 0 }}>
+                                                <input type="checkbox" checked={marcadosSet.has(nome)} onChange={() => toggleMarcado(chave, nome)} />
+                                                <strong style={{ color: '#fff', fontSize: '0.9em' }}>{nome.toUpperCase()}</strong>
+                                            </label>
+                                            <select className="input-neon" value={dados.nivel} onChange={(e) => atualizarDominio(chave, nome, Number(e.target.value))} style={{ borderColor: NIVEIS_INFO[dados.nivel].cor, color: NIVEIS_INFO[dados.nivel].cor, width: '120px', fontSize: '0.8em', flex: '0 0 auto' }}>
+                                                {[...Array(11).keys()].map(n => <option key={n} value={n}>{n === 0 ? "❌ Apagar" : `Lv ${n} - ${NIVEIS_INFO[n].nome}`}</option>)}
+                                            </select>
+                                        </div>
+                                        <div style={{ marginTop: '5px', fontSize: '0.75em', color: '#aaa', fontStyle: 'italic' }}>
+                                            <span style={{ color: NIVEIS_INFO[dados.nivel].cor }}>⚡:</span> {NIVEIS_INFO[dados.nivel].desc}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                            <div style={{ marginTop: '5px', fontSize: '0.75em', color: '#aaa', fontStyle: 'italic' }}>
-                                <span style={{ color: NIVEIS_INFO[dados.nivel].cor }}>⚡:</span> {NIVEIS_INFO[dados.nivel].desc}
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                        </>
+                    );
+                })()}
             </div>
         );
     };
