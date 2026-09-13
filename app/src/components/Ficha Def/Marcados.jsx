@@ -775,6 +775,10 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
 function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
     const [selectValue, setSelectValue] = useState('');
     const [inputValue, setInputValue] = useState('');
+    // 🔥 EVOLUÇÃO EM MASSA (pedido do usuário): marca vários domínios deste quadrante e sobe todos
+    // de uma vez pro nível escolhido, em vez de um select por um select.
+    const [marcados, setMarcados] = useState(() => new Set());
+    const [nivelAlvoMassa, setNivelAlvoMassa] = useState(1);
     const corTema = catData.cor || '#ffffff';
     // 🛡️ Resistência/Redução de Dano só fazem sentido pras 4 categorias de Elementos (Básicos/
     // Avançados/Verdadeiros) — são elas que alimentam calcularReducaoDanoElemental/
@@ -820,6 +824,7 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
     const handleRemove = (nome) => {
         if (!window.confirm(`Riscar o domínio [${nome}] das suas páginas?`)) return;
         updateFicha(f => { if (f.dominios) delete f.dominios[nome]; }); callSave();
+        setMarcados(prev => { if (!prev.has(nome)) return prev; const s = new Set(prev); s.delete(nome); return s; });
     };
 
     const handleChangeNivel = (nome, nivel) => {
@@ -831,6 +836,29 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
         if (!newCat) return;
         updateFicha(f => { if (f.dominios && f.dominios[nome]) f.dominios[nome].categoria = newCat; });
         callSave();
+    };
+
+    const toggleMarcado = (nome) => {
+        setMarcados(prev => {
+            const atual = new Set(prev);
+            if (atual.has(nome)) atual.delete(nome); else atual.add(nome);
+            return atual;
+        });
+    };
+
+    const selecionarTodosMassa = (marcar) => {
+        setMarcados(marcar ? new Set(dominiosFiltrados.map(([nome]) => nome)) : new Set());
+    };
+
+    const aplicarNivelEmMassa = () => {
+        const nomesAlvo = dominiosFiltrados.map(([nome]) => nome).filter(nome => marcados.has(nome));
+        if (nomesAlvo.length === 0) return;
+        updateFicha(f => {
+            if (!f.dominios) return;
+            nomesAlvo.forEach(nome => { if (f.dominios[nome]) f.dominios[nome].nivel = nivelAlvoMassa; });
+        });
+        callSave();
+        setMarcados(new Set());
     };
 
     return (
@@ -864,14 +892,31 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                 <div style={{ opacity: 0.3, fontStyle: 'italic', textAlign: 'center', padding: '15px 0' }}>Vazio...</div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '5px' }}>
+                    {dominiosFiltrados.length > 1 && (
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', padding: '10px', border: `1px dashed ${corTema}`, borderRadius: '6px', background: `${corTema}0d` }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8em', color: '#ccc', cursor: 'pointer', flex: '1 0 auto' }}>
+                                <input type="checkbox" checked={dominiosFiltrados.every(([nome]) => marcados.has(nome))} onChange={e => selecionarTodosMassa(e.target.checked)} />
+                                Selecionar Todos
+                            </label>
+                            <select value={nivelAlvoMassa} onChange={e => setNivelAlvoMassa(parseInt(e.target.value))} style={{ background: '#0a0a0f', color: NIVEIS_DOMINIO[nivelAlvoMassa].cor, border: `1px solid ${NIVEIS_DOMINIO[nivelAlvoMassa].cor}`, borderRadius: '4px', padding: '4px 8px', outline: 'none', fontWeight: 'bold' }}>
+                                {Object.entries(NIVEIS_DOMINIO).map(([n, d]) => (<option key={n} value={n}>Lv {n} - {d.nome}</option>))}
+                            </select>
+                            <button onClick={aplicarNivelEmMassa} disabled={marcados.size === 0} style={{ background: marcados.size === 0 ? 'transparent' : `${corTema}22`, border: `1px solid ${corTema}`, color: corTema, cursor: marcados.size === 0 ? 'default' : 'pointer', padding: '6px 12px', borderRadius: '4px', fontWeight: 'bold', fontSize: '0.8em', opacity: marcados.size === 0 ? 0.5 : 1 }}>
+                                ⚡ APLICAR A {marcados.size} SELECIONADO{marcados.size === 1 ? '' : 'S'}
+                            </button>
+                        </div>
+                    )}
                     {dominiosFiltrados.map(([nomeDom, dadosDom]) => {
                         const nivel = dadosDom?.nivel || 1;
                         const infoNivel = NIVEIS_DOMINIO[nivel] || NIVEIS_DOMINIO[1];
                         return (
-                            <div key={nomeDom} style={{ padding: '14px', border: `1px solid ${corTema}`, background: '#050508', borderRadius: '6px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div key={nomeDom} style={{ padding: '14px', border: `1px solid ${corTema}`, background: '#050508', borderRadius: '6px', position: 'relative', display: 'flex', flexDirection: 'column', gap: '6px', boxShadow: marcados.has(nomeDom) ? `0 0 8px ${corTema}80` : 'none' }}>
                                 <button onClick={() => handleRemove(nomeDom)} style={{ position: 'absolute', top: '10px', right: '12px', background: 'transparent', border: 'none', color: '#ff003c', fontSize: '1.3em', cursor: 'pointer' }}>✖</button>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '25px' }}>
-                                    <strong style={{ fontSize: '1.2em', textTransform: 'uppercase', color: '#fff' }}>{nomeDom}</strong>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', minWidth: 0 }}>
+                                        <input type="checkbox" checked={marcados.has(nomeDom)} onChange={() => toggleMarcado(nomeDom)} />
+                                        <strong style={{ fontSize: '1.2em', textTransform: 'uppercase', color: '#fff' }}>{nomeDom}</strong>
+                                    </label>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         {!encontrarCategoriaPorLore(nomeDom) && (
                                             <select value={dadosDom.categoria || catKey} onChange={e => handleMove(nomeDom, e.target.value)} style={{ background: '#0a0a0f', color: '#aaa', border: '1px dashed #444', borderRadius: '4px', padding: '4px 6px', fontSize: '0.85em', fontFamily: 'inherit', outline: 'none', cursor: 'pointer' }} title="Mover para outro quadrante">
