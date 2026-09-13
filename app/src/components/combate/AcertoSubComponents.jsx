@@ -12,7 +12,7 @@ export function AcertoClasseBuffs() {
     if (bonusAcertoClasse <= 0 && bonusMaestriaArma <= 0) return null;
     return (
         <>
-            {bonusAcertoClasse > 0 && <p style={{ color: '#0f0', fontSize: '0.85em', margin: '0 0 10px 0', textShadow: '0 0 5px rgba(0,255,0,0.5)' }}>✨ Instinto de Batalha: A sua classe concede +{bonusAcertoClasse} de Acerto passivo!</p>}
+            {bonusAcertoClasse > 0 && <p style={{ color: '#0f0', fontSize: '0.85em', margin: '0 0 10px 0', textShadow: '0 0 5px rgba(0,255,0,0.5)' }}>✨ Instinto de Batalha: a sua classe e/ou Habilidades ativas concedem +{bonusAcertoClasse} de Acerto!</p>}
             {bonusMaestriaArma > 0 && <p style={{ color: '#00ffcc', fontSize: '0.85em', margin: '0 0 10px 0', textShadow: '0 0 5px rgba(0,255,204,0.5)' }}>⚔️ Mestre de Armas: A sua classe concede +{bonusMaestriaArma} de Acerto ao usar [{nomesMaestriaArma.join(', ')}]!</p>}
         </>
     );

@@ -268,6 +268,12 @@ export function PoderesFormEditor() {
 
             {/* SEÇÃO MATEMÁTICA ATIVA */}
             <h4 style={{ marginTop: 25, marginBottom: 10, fontSize: '1em', opacity: 0.8, borderBottom: '1px dotted currentColor', paddingBottom: '5px' }}>➕ Efeitos Matemáticos Ativos</h4>
+            {/* 🎯 BONUS_ACERTO (pedido do usuário): bônus de Acerto que só conta enquanto ESTA
+                Habilidade específica estiver "★ ATIVADA" -- ligue-a antes de rolar Acerto pelo ataque
+                que ela representa, e desligue depois, pra não ficar somando em outros ataques. Some-se
+                com o de outras Habilidades que também estejam Ativas ao mesmo tempo (ver
+                core/attributes.js > getPoderesDefesa), então mantenha só a do ataque em uso ligada. */}
+            <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic', marginBottom: 8 }}>Dica: use a propriedade BONUS_ACERTO pra um bônus de Acerto que só vale enquanto esta Habilidade estiver "★ Ativada" (ligue antes do ataque, desligue depois).</div>
             <input type="text" placeholder="Nome do Efeito" value={nomeEfeito} onChange={e => setNomeEfeito(e.target.value)} style={{ width: '100%', marginBottom: 10 }} />
             <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                 <select value={novoAtr} onChange={e => setNovoAtr(e.target.value)} style={{ flex: 1 }}>

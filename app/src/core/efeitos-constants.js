@@ -23,5 +23,5 @@ export const ATRIBUTOS_AGRUPADOS = [
 ];
 
 export const PROPRIEDADE_OPTIONS = [
-    'base', 'mbase', 'mgeral', 'mformas', 'mabs', 'munico', 'furia_berserker', 'reducaocusto', 'regeneracao', 'elemento_inato'
+    'base', 'mbase', 'mgeral', 'mformas', 'mabs', 'munico', 'furia_berserker', 'reducaocusto', 'regeneracao', 'elemento_inato', 'bonus_acerto'
 ];
