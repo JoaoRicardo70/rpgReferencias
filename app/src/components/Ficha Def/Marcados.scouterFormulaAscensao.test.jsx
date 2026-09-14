@@ -318,10 +318,13 @@ describe('MarcadosPanel — Página 2: lista de atributos (Força/Destreza/...) 
 
         fireEvent.click(screen.getByText('Próxima ⮞'));
 
-        // Valor esperado com o fator NOVO (status-only): floor(400000 * 7) = 2.800.000
-        const valorEsperadoNovoFator = (400000 * 7).toLocaleString('pt-BR');
-        // Valor que apareceria se ainda estivesse usando o gargalo ANTIGO: floor(400000 * 3) = 1.200.000
-        const valorGargaloAntigo = (400000 * 3).toLocaleString('pt-BR');
+        // Valor esperado com o fator NOVO (status-only): floor(400000 * 7 / 1000) = 2.800
+        // (dividido por 1000 na exibição — reformulação de Status pedida pelo usuário, ver
+        // FATOR_EXIBICAO_STATUS em Marcados.jsx; não afeta o Poder Calculado, que lê o valor
+        // bruto por outro caminho.)
+        const valorEsperadoNovoFator = Math.floor((400000 * 7) / 1000).toLocaleString('pt-BR');
+        // Valor que apareceria se ainda estivesse usando o gargalo ANTIGO: floor(400000 * 3 / 1000) = 1.200
+        const valorGargaloAntigo = Math.floor((400000 * 3) / 1000).toLocaleString('pt-BR');
 
         const camposComNovoFator = screen.getAllByDisplayValue(valorEsperadoNovoFator);
         // Um input de "Base" por atributo físico (Força, Destreza, Inteligência,

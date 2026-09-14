@@ -14,6 +14,11 @@ import BarrasVida from '../shared/BarrasVida';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Status provider nao encontrado</div>;
 
+// 🔥 Mesmo divisor de exibição usado em "Ficha Def/Marcados.jsx" (FATOR_EXIBICAO_STATUS) —
+// mantém este painel (Plasmic Studio) consistente com o que os jogadores veem na Ficha real,
+// caso ele volte a ser usado. Não afeta o valor bruto salvo nem o Poder Calculado.
+const FATOR_EXIBICAO_STATUS = 1000;
+
 /* ── Radar Chart ── */
 
 export function StatusRadarChart({ isAtual }) {
@@ -93,7 +98,7 @@ export function StatusAtributosLista({ isAtual }) {
             const mBase = parseFloat(ficha[key]?.mBase) || 1.0;
             valor = Math.floor(rawBase * mBase);
         }
-        return { key, label, valor };
+        return { key, label, valor: Math.floor(valor / FATOR_EXIBICAO_STATUS) };
     }), [ficha, isAtual]);
 
     return (

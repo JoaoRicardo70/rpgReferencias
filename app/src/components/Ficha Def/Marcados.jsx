@@ -526,6 +526,13 @@ const LabelMagico = ({ valor, onChange, fallback }) => (
     />
 );
 
+// 🔥 Reformulação de Status (pedido do usuário): os números de Força/Destreza/etc. exibidos
+// aqui estavam "inflados" (ex.: 50.000 em vez de 50). Este divisor só existe na EXIBIÇÃO/EDIÇÃO
+// desta linha — o valor bruto salvo em ficha[attrKey].base continua exatamente como sempre foi,
+// porque é ele que alimenta o Poder Calculado (core/attributes.js > getRawBase/getEfetivoBase) e
+// não pode mudar, senão o Poder mudaria junto.
+const FATOR_EXIBICAO_STATUS = 1000;
+
 const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, getLabel, setLabel, salvar, fator, attrBaseFocado, setAttrBaseFocado, poolDisponivel = 0, onAlocarPool, poolGastoDisponivel = 0, onDevolverPool }) => {
     const [qtdAlocar, setQtdAlocar] = useState(1);
     const [qtdDevolver, setQtdDevolver] = useState(1);
@@ -533,10 +540,11 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
     const rawBase = parseFloat(baseValRaw) || 0;
     let maxVal = parseFloat(safeGetMaximo(ficha, attrKey)) || 0;
     const fatorSeguro = parseFloat(fator) || 1;
-    const baseExibido = (baseValRaw === undefined || baseValRaw === null || baseValRaw === '') ? '' : Math.floor(rawBase * fatorSeguro);
-    const valorAtual = Math.floor(maxVal * fatorSeguro);
+    const baseExibido = (baseValRaw === undefined || baseValRaw === null || baseValRaw === '') ? '' : Math.floor((rawBase * fatorSeguro) / FATOR_EXIBICAO_STATUS);
+    const valorAtual = Math.floor((maxVal * fatorSeguro) / FATOR_EXIBICAO_STATUS);
     const editandoBase = attrBaseFocado === attrKey;
-    const valorCampoBase = editandoBase ? (baseValRaw ?? '') : baseExibido;
+    const baseEditavel = (baseValRaw === undefined || baseValRaw === null || baseValRaw === '') ? '' : (rawBase / FATOR_EXIBICAO_STATUS);
+    const valorCampoBase = editandoBase ? baseEditavel : baseExibido;
 
     let supressao = ficha?.supressaoPoder !== undefined ? Number(ficha.supressaoPoder) : 100;
     if (isNaN(supressao)) supressao = 100;
@@ -557,7 +565,7 @@ const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual, ficha, ge
             </div>
             {isAtual ? <span style={{ fontWeight: 'bold' }}>{Number(valorAtual).toLocaleString('pt-BR')}</span> : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    <CampoMagico valor={valorCampoBase} onChange={(v) => salvar(`${attrKey}.base`, v)} onFocusChange={(focado) => setAttrBaseFocado(focado ? attrKey : null)} styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true} />
+                    <CampoMagico valor={valorCampoBase} onChange={(v) => salvar(`${attrKey}.base`, v === '' ? '' : (parseFloat(v) || 0) * FATOR_EXIBICAO_STATUS)} onFocusChange={(focado) => setAttrBaseFocado(focado ? attrKey : null)} styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true} />
                     {onAlocarPool && poolDisponivel > 0 && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7em', opacity: 0.85 }} title={`Pool de Status disponível: ${poolDisponivel}`}>
                             <input type="number" min="1" max={poolDisponivel} value={qtdAlocar}
