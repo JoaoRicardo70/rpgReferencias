@@ -10,7 +10,7 @@ import { formatarPoderCosmico } from '../../core/utils.js';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { calcularFadigaAtual } from '../../core/fadiga';
 import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
-import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida } from '../../core/vitals';
+import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel';
@@ -718,6 +718,10 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
                 // 💔 BREAK BARS: 2+ barras (ver core/vitals.js > calcularBarrasVida/montarBarrasVida) usam o visual
                 // novo de barras em pílula com losangos e "quebra" animada ao esvaziar (pedido do
                 // usuário) — componente compartilhado com Status/Mestre/Mapa (components/shared/BarrasVida.jsx).
+                // 🔥 Reformulação de Vida/Energias: atualSeguro/maxSeguro aqui embaixo continuam no valor
+                // BRUTO (o mesmo usado pra clampar/gravar) — só a EXIBIÇÃO divide por FATOR_EXIBICAO_VITAIS;
+                // o onChange converte o número digitado (já na escala nova) de volta multiplicando por
+                // FATOR_EXIBICAO_VITAIS antes de gravar, preservando o valor bruto de sempre.
                 <BarrasVida
                     barras={barras}
                     cor={corBarra}
@@ -725,34 +729,37 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
                     altura={35}
                     renderTexto={(atualSeguro, maxSeguro, i) => (
                         <>
-                            <CampoMagico valor={atualSeguro} onChange={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, maxSeguro, i, v))} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTextoBarra, textShadow: 'inherit', borderBottom: `1px dashed ${corTextoBarra === '#fff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
+                            <CampoMagico valor={Math.floor(atualSeguro / FATOR_EXIBICAO_VITAIS)} onChange={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, maxSeguro, i, (parseFloat(v) || 0) * FATOR_EXIBICAO_VITAIS))} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTextoBarra, textShadow: 'inherit', borderBottom: `1px dashed ${corTextoBarra === '#fff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
                             <span style={{ margin: '0 8px' }}>/</span>
-                            <span>{maxSeguro.toLocaleString('pt-BR')}</span>
+                            <span>{Math.floor(maxSeguro / FATOR_EXIBICAO_VITAIS).toLocaleString('pt-BR')}</span>
                         </>
                     )}
                 />
             ) : (
+                // 🔥 Mesma reformulação: BarraVital recebe atual/máximo JÁ divididos (o % de preenchimento
+                // da barra não muda, pois numerador e denominador são divididos igualmente); o
+                // onChangeAtual multiplica de volta por FATOR_EXIBICAO_VITAIS antes de gravar o valor bruto.
                 <BarraVital
-                    atual={barras[0].atual}
-                    maximo={barras[0].max}
+                    atual={Math.floor(barras[0].atual / FATOR_EXIBICAO_VITAIS)}
+                    maximo={Math.floor(barras[0].max / FATOR_EXIBICAO_VITAIS)}
                     pVit={pVit}
                     cor={corBarra}
                     corTexto={corTextoBarra}
-                    onChangeAtual={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, barras[0].max, 0, v))}
+                    onChangeAtual={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, barras[0].max, 0, (parseFloat(v) || 0) * FATOR_EXIBICAO_VITAIS))}
                 />
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', fontSize: '0.8em', opacity: 0.85 }}>
                 <span style={{ opacity: 0.7 }}>💖 Regen/turno:</span>
                 <input
-                    type="number" step="0.01" value={regenManual}
-                    onChange={(e) => salvar(`${vitalKey}.regeneracao`, parseFloat(e.target.value) || 0)}
+                    type="number" step="0.01" value={regenManual / FATOR_EXIBICAO_VITAIS}
+                    onChange={(e) => salvar(`${vitalKey}.regeneracao`, (parseFloat(e.target.value) || 0) * FATOR_EXIBICAO_VITAIS)}
                     style={{ width: '70px', background: 'rgba(0,0,0,0.3)', color: 'inherit', border: `1px solid ${corBarra}80`, borderRadius: '4px', padding: '2px 4px', textAlign: 'center' }}
                     title="Regeneração manual/fixa deste vital"
                 />
                 {regenBuff > 0 && (
                     <span style={{ color: '#0f0', textShadow: '0 0 5px rgba(0,255,0,0.5)' }}>
-                        + {regenBuff} (Poder/Passiva/Item) = <strong>{regenTotal}</strong>/turno
+                        + {regenBuff / FATOR_EXIBICAO_VITAIS} (Poder/Passiva/Item) = <strong>{regenTotal / FATOR_EXIBICAO_VITAIS}</strong>/turno
                     </span>
                 )}
             </div>

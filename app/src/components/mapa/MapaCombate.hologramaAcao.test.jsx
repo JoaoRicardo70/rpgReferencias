@@ -377,12 +377,14 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
         const dummy = {
             nome: 'Slime Selvagem',
             iniciativa: 15,
-            // 🩸 hpMax=150.000.000: 1 barra ativa na FRENTE com o resto (50M) + 1 Break Bar
-            // completa atrás (100M, cravada) -- core/vitals.js > calcularBarrasVidaDummy NUNCA
-            // infla o total além do hpMax digitado (um hpMax EXATAMENTE múltiplo de 100M, como
-            // 100.000.000, geraria só 1 barra, sem fantasma -- ver core/vitals.js > montarBarrasVida).
-            hpMax: 150000000,
-            hpAtual: 110000000, // dano total = 4e7: esvazia 80% da barra da frente (o resto, 50M), a de trás (100M cravada) fica intacta
+            // 🩸 hpMax=1.500.000.000: 1 barra ativa na FRENTE com o resto (500M) + 1 Break Bar
+            // completa atrás (1 bilhão, cravada) -- core/vitals.js > calcularBarrasVidaDummy NUNCA
+            // infla o total além do hpMax digitado (um hpMax EXATAMENTE múltiplo de 1 bilhão
+            // geraria só 1 barra, sem fantasma -- ver core/vitals.js > montarBarrasVida).
+            // Valores ×10 em relação à versão original (LIMIAR_BARRA_VIDA passou de 100 milhões
+            // pra 1 bilhão -- reformulação de Vida/Energias) pra preservar a mesma estrutura de 2 barras.
+            hpMax: 1500000000,
+            hpAtual: 1100000000, // dano total = 4e8: esvazia 80% da barra da frente (o resto, 500M), a de trás (1 bilhão cravado) fica intacta
             ...dummyOverrides,
         };
         return montarMockState({
@@ -396,10 +398,11 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
 
         expect(screen.getAllByText(/Slime Selvagem/i).length).toBeGreaterThan(0);
 
-        // HP total exibido = hpAtual (110.000.000), formatado em pt-BR. O nº de barras não aparece
-        // mais como texto -- o visual novo de "Break Bars" (components/shared/BarrasVida.jsx) já
+        // HP total exibido = hpAtual/FATOR_EXIBICAO_VITAIS (1.100.000.000/1000=1.100.000),
+        // formatado em pt-BR (reformulação de Vida/Energias). O nº de barras não aparece mais
+        // como texto -- o visual novo de "Break Bars" (components/shared/BarrasVida.jsx) já
         // mostra isso pela fileira de losangos ("pips") acima das barras.
-        expect(screen.getByText(/110\.000\.000/)).toBeDefined();
+        expect(screen.getByText(/1\.100\.000/)).toBeDefined();
         const pips = container.querySelectorAll('.break-bars-pip');
         expect(pips.length).toBe(2);
 
@@ -428,7 +431,9 @@ describe('MapaCombate - MapaHologramaAcao (moldura de combate)', () => {
     });
 
     it('turno de um DUMMY sem cruzar a fronteira (hpMax pequeno) renderiza exatamente 1 barra de HP, sem o sufixo "(N barras)"', () => {
-        const { container } = renderHolograma(montarMockStateComDummy({ hpMax: 500, hpAtual: 250 }));
+        // 🔥 Reformulação de Vida/Energias: hpMax/hpAtual ×1000 em relação à versão original pra
+        // que o texto exibido (já dividido por FATOR_EXIBICAO_VITAIS) continue sendo "500"/"250".
+        const { container } = renderHolograma(montarMockStateComDummy({ hpMax: 500000, hpAtual: 250000 }));
 
         expect(screen.getByText(/^250$/)).toBeDefined();
         expect(container.textContent).not.toMatch(/\(\d+ barras\)/);

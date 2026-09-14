@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useMapaForm } from './MapaFormContext';
 import { salvarDummie } from '../../services/firebase-sync';
 import { ELEMENTOS_OPCOES } from '../poderes/PoderesSubComponents';
+import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Mapa provider não encontrado</div>;
 
@@ -174,7 +175,9 @@ export function MapaMestreGeradorDummies() {
                     const n = document.getElementById('dummieNome').value || 'Entidade';
                     const hBase = parseInt(document.getElementById('dummieHp').value) || 100;
                     const vit = parseInt(document.getElementById('dummieVitalidade').value) || 0;
-                    const h = hBase * Math.pow(10, vit);
+                    // 🔥 Reformulação de Vida/Energias: "HP Base" é digitado já na escala EXIBIDA —
+                    // multiplica de volta por FATOR_EXIBICAO_VITAIS antes de gravar o valor bruto do dummy.
+                    const h = hBase * Math.pow(10, vit) * FATOR_EXIBICAO_VITAIS;
                     const dt = document.getElementById('dummieDefTipo').value;
                     const dv = parseInt(document.getElementById('dummieDef').value) || 10;
                     const vHp = document.getElementById('dummieVisivel').value;

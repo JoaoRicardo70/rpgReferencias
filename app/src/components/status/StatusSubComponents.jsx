@@ -8,7 +8,7 @@ import {
     getBasePFor, calcularPrestAtual,
     safeGetMaximo, safeGetRawBase, safeGetRank,
 } from './StatusFormContext';
-import { calcularBarrasVida } from '../../core/vitals';
+import { calcularBarrasVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularFatorMultiplicadorForca } from '../../core/poder';
 import BarrasVida from '../shared/BarrasVida';
 
@@ -143,7 +143,13 @@ export function StatusVitalBar({ vitalKey, label, color, borderC, isSpecial, gri
     // transborda pra próxima.
     const { p, mxDisplay, numBarras, barras } = calcularBarrasVida(rawMx, vitalKey, ficha[vitalKey]?.atual, rawMxEstavel);
 
-    const regen = parseFloat(ficha[vitalKey]?.regeneracao) || 0;
+    // 🔥 Reformulação de Vida/Energias: só os 5 vitais principais dividem por FATOR_EXIBICAO_VITAIS
+    // na exibição — pv/pm ficam FORA desta reformulação (calcularBarrasVida é compartilhada com
+    // eles, mas o divisor não se aplica).
+    const fatorExibicao = ['vida', 'mana', 'aura', 'chakra', 'corpo'].includes(vitalKey) ? FATOR_EXIBICAO_VITAIS : 1;
+    const barrasExibidas = fatorExibicao === 1 ? barras : barras.map(b => ({ atual: b.atual / fatorExibicao, max: b.max / fatorExibicao }));
+
+    const regen = (parseFloat(ficha[vitalKey]?.regeneracao) || 0) / fatorExibicao;
     const extra = regen > 0 ? `(+${regen}/turno)` : '';
 
     // 💔 BREAK BARS: 2+ barras (ver core/vitals.js > calcularBarrasVida/montarBarrasVida) usam o visual novo em
@@ -155,13 +161,13 @@ export function StatusVitalBar({ vitalKey, label, color, borderC, isSpecial, gri
                 <div className="vital-label" style={{ color, textShadow: `0 0 8px ${color}80`, letterSpacing: '1px', fontWeight: 'bold', fontSize: '0.85em', textTransform: 'uppercase' }}>
                     {label} {extra && <span style={{ fontSize: '0.9em', color: '#aaa', textShadow: 'none' }}>{extra}</span>}
                 </div>
-                <BarrasVida barras={barras} cor={color} corTexto="#fff" altura={40} />
+                <BarrasVida barras={barrasExibidas} cor={color} corTexto="#fff" altura={40} />
             </div>
         );
     }
 
-    const atualBarra = barras[0].atual;
-    const maxBarra = barras[0].max;
+    const atualBarra = barrasExibidas[0].atual;
+    const maxBarra = barrasExibidas[0].max;
     const percent = maxBarra > 0 ? Math.min((atualBarra / maxBarra) * 100, 100) : 0;
     const vitalitySymbol = (p > 0 && (vitalKey === 'vida' || vitalKey === 'pv' || vitalKey === 'pm')) ? (
         <div style={{

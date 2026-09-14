@@ -3,7 +3,7 @@ import useStore, { sanitizarNome } from '../../stores/useStore';
 import { enviarParaFeed, salvarDummie, apagarFicha } from '../../services/firebase-sync';
 import { getMaximo } from '../../core/attributes';
 import { calcularCA } from '../../core/engine';
-import { getVitalMax, getVitalMaxEstavel, getTetoVida } from '../../core/vitals';
+import { getVitalMax, getVitalMaxEstavel, getTetoVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularFatorMultiplicadorForca } from '../../core/poder';
 import { ref, set, remove } from 'firebase/database';
 import { db } from '../../services/firebase-config'; 
@@ -45,7 +45,10 @@ export function MestreFormProvider({ children }) {
     const injetarDummie = useCallback(() => {
         const hBase = parseInt(dHp) || 100;
         const vit = parseInt(dVit) || 0;
-        const h = hBase * Math.pow(10, vit);
+        // 🔥 Reformulação de Vida/Energias: "HP Base" é digitado já na escala EXIBIDA (a mesma que
+        // Vida de jogadores mostra) — multiplica de volta por FATOR_EXIBICAO_VITAIS pra gravar o
+        // dummy na mesma unidade bruta que calcularBarrasVidaDummy/MapaHologramaAcao esperam.
+        const h = hBase * Math.pow(10, vit) * FATOR_EXIBICAO_VITAIS;
         const dv = parseInt(dDef) || 10;
         const id = 'dummie_' + Date.now();
 
@@ -127,11 +130,16 @@ export function MestreFormProvider({ children }) {
             // de barras (ver core/poder.js > calcularFatorMultiplicadorForca) — sem isso aqui, o
             // MESMO personagem mostrava um Máximo de Vida diferente no card do Mestre.
             const fatorVida = calcularFatorMultiplicadorForca(ficha, 'vida');
-            const hpMax = getTetoVida(getVitalMax('vida', ficha) * fatorVida, 'vida', getVitalMaxEstavel('vida', ficha) * fatorVida);
-            const hpAtual = ficha.vida?.atual ?? hpMax;
-            const percHp = hpMax > 0 ? (hpAtual / hpMax) * 100 : 0;
-            const mpMax = getMaximo(ficha, 'mana');
-            const mpAtual = ficha.mana?.atual ?? mpMax;
+            // 🔥 Reformulação de Vida/Energias: hpMax/hpAtual/mpMax/mpAtual expostos aqui já vêm
+            // divididos por FATOR_EXIBICAO_VITAIS (só exibição — percHp é uma razão, não muda; e
+            // MestreInjetorEntidades usa hpMax pra pré-preencher "HP Base" já na escala nova).
+            const hpMaxBruto = getTetoVida(getVitalMax('vida', ficha) * fatorVida, 'vida', getVitalMaxEstavel('vida', ficha) * fatorVida);
+            const hpAtualBruto = ficha.vida?.atual ?? hpMaxBruto;
+            const percHp = hpMaxBruto > 0 ? (hpAtualBruto / hpMaxBruto) * 100 : 0;
+            const hpMax = hpMaxBruto / FATOR_EXIBICAO_VITAIS;
+            const hpAtual = hpAtualBruto / FATOR_EXIBICAO_VITAIS;
+            const mpMax = getMaximo(ficha, 'mana') / FATOR_EXIBICAO_VITAIS;
+            const mpAtual = (ficha.mana?.atual ?? getMaximo(ficha, 'mana')) / FATOR_EXIBICAO_VITAIS;
 
             let classId = ficha?.bio?.classe;
             if ((classId === 'pretender' || classId === 'alterego') && ficha?.bio?.subClasse) classId = ficha?.bio?.subClasse;

@@ -68,8 +68,9 @@ describe('Marcados (página 1, LinhaVital) — Regeneração de Vida/Energia', (
         montarMockUseStore(ficha);
         render(<MarcadosPanel />);
 
+        // 🔥 Reformulação de Vida/Energias: exibido dividido por FATOR_EXIBICAO_VITAIS (50.000/1000=50).
         const regenInput = linhaRegen('Vida (HP)').querySelector('input[type="number"]');
-        expect(regenInput.value).toBe('50000');
+        expect(regenInput.value).toBe('50');
     });
 
     it('sem nenhum bônus de Poder/Passiva/Item, mostra só o campo manual (sem a linha "+ ... (Poder/Passiva/Item)")', () => {
@@ -85,11 +86,13 @@ describe('Marcados (página 1, LinhaVital) — Regeneração de Vida/Energia', (
         const mockState = montarMockUseStore(ficha);
         render(<MarcadosPanel />);
 
+        // 🔥 Reformulação de Vida/Energias: "750" digitado é a escala EXIBIDA -- multiplicado de
+        // volta por FATOR_EXIBICAO_VITAIS antes de gravar o valor bruto.
         const regenInput = linhaRegen('Vida (HP)').querySelector('input[type="number"]');
         fireEvent.change(regenInput, { target: { value: '750' } });
 
         expect(mockState.updateFicha).toHaveBeenCalled();
-        expect(ficha.vida.regeneracao).toBe(750);
+        expect(ficha.vida.regeneracao).toBe(750000);
     });
 
     it('um Poder ATIVO com efeito propriedade="regeneracao" em "vida" soma ao total exibido', () => {
@@ -100,9 +103,11 @@ describe('Marcados (página 1, LinhaVital) — Regeneração de Vida/Energia', (
         montarMockUseStore(ficha);
         render(<MarcadosPanel />);
 
+        // 🔥 Reformulação de Vida/Energias: exibido dividido por FATOR_EXIBICAO_VITAIS
+        // (400/1000=0,4; total 500/1000=0,5).
         const texto = linhaRegen('Vida (HP)').textContent;
-        expect(texto).toMatch(/\+ 400/);
-        expect(texto).toMatch(/500/); // 100 (manual) + 400 (buff) = 500
+        expect(texto).toMatch(/\+ 0\.4/);
+        expect(texto).toMatch(/0\.5/); // 0,1 (manual) + 0,4 (buff) = 0,5
     });
 
     it('um Poder do bônus de regeneração DESATIVADO (ativa=false, sem efeitosPassivos) NÃO soma nada', () => {
@@ -125,8 +130,10 @@ describe('Marcados (página 1, LinhaVital) — Regeneração de Vida/Energia', (
         montarMockUseStore(ficha);
         render(<MarcadosPanel />);
 
-        expect(linhaRegen('Vida (HP)').textContent).toMatch(/\+ 400/);
+        // 🔥 Reformulação de Vida/Energias: exibido dividido por FATOR_EXIBICAO_VITAIS
+        // (400/1000=0,4; Mana 20/1000=0,02).
+        expect(linhaRegen('Vida (HP)').textContent).toMatch(/\+ 0\.4/);
         expect(linhaRegen('Mana').textContent).not.toMatch(/Poder\/Passiva\/Item/);
-        expect(linhaRegen('Mana').querySelector('input[type="number"]').value).toBe('20');
+        expect(linhaRegen('Mana').querySelector('input[type="number"]').value).toBe('0.02');
     });
 });

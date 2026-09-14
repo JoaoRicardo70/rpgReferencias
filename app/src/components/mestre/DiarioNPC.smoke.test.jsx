@@ -33,7 +33,7 @@ function criarNpcMinimo(overrides = {}) {
         id: 'npc-1',
         nome: 'Slime Ancião',
         bio: { nivel: 10, classe: '' },
-        vida: { ...statBase(150000000), atual: 115000000 }, // acima do limiar -> 2 barras (100M + 50M)
+        vida: { ...statBase(1500000000), atual: 1150000000 }, // acima do limiar (1 bilhão, reformulação de Vida/Energias) -> 2 barras (1 bilhão + 500M)
         mana: { ...statBase(1000), atual: 500 },
         aura: { ...statBase(1000), atual: 500 },
         chakra: { ...statBase(1000), atual: 500 },
@@ -82,18 +82,19 @@ describe('DiarioNPC - smoke test de render (regressão do ReferenceError em Linh
         const linhaVida = acharLinhaVital('Vida (HP)');
         // Vida acima do limiar (getVitalidadeVida) gera 2 barras no visual novo de "Break Bars"
         // (components/shared/BarrasVida.jsx), cada uma com a classe .break-bars-barra: 1 ativa na
-        // FRENTE com o resto (50.000.000) + 1 cravada em 100.000.000 atrás -- soma bate com o bruto.
+        // FRENTE com o resto (500.000.000) + 1 cravada em 1 bilhão atrás -- soma bate com o bruto.
         const barrasVida = linhaVida.querySelectorAll('.break-bars-barra');
         expect(barrasVida.length).toBe(2);
 
-        // NPC com vida.atual=115.000.000 de 150.000.000 (dano total=35.000.000) -- a barra ATIVA
-        // (menor índice ainda com Vida > 0) é a de índice 0, a da FRENTE, que segura o resto (cap
-        // 50.000.000) e leva o dano primeiro (fica com 15.000.000/50.000.000); só ela mostra texto
-        // (a barra de trás, cravada em 100.000.000 e intocada pelo dano, fica sem texto enquanto a
-        // da frente não quebrar -- ver BarrasVida.jsx, correção pro bug de números sobrepostos
-        // ilegíveis). O span de teto da barra ativa mostra o SEU PRÓPRIO max (50.000.000), não mais
-        // os 100.000.000 da barra cravada de trás.
-        expect(linhaVida.textContent).toMatch(/50\.000\.000/);
+        // NPC com vida.atual=1.150.000.000 de 1.500.000.000 (dano total=350.000.000) -- a barra
+        // ATIVA (menor índice ainda com Vida > 0) é a de índice 0, a da FRENTE, que segura o resto
+        // (cap 500.000.000) e leva o dano primeiro (fica com 150.000.000/500.000.000); só ela
+        // mostra texto (a barra de trás, cravada em 1 bilhão e intocada pelo dano, fica sem texto
+        // enquanto a da frente não quebrar -- ver BarrasVida.jsx, correção pro bug de números
+        // sobrepostos ilegíveis). O span de teto da barra ativa mostra o SEU PRÓPRIO max
+        // (500.000.000), não mais o 1 bilhão da barra cravada de trás -- exibido dividido por
+        // FATOR_EXIBICAO_VITAIS (reformulação de Vida/Energias): 500.000.000/1000=500.000.
+        expect(linhaVida.textContent).toMatch(/500\.000(?!\.)/);
     });
 
     it('a fileira de losangos ("pips") mostra uma marca pra CADA barra quando numBarras > 1 (visual novo de Break Bars, substitui o antigo indicador numérico por barra)', () => {
@@ -103,7 +104,7 @@ describe('DiarioNPC - smoke test de render (regressão do ReferenceError em Linh
         const linhaVida = acharLinhaVital('Vida (HP)');
         const pips = linhaVida.querySelectorAll('.break-bars-pip');
         expect(pips.length).toBe(2);
-        // vida.atual=115.000.000 de um total de 150.000.000 -- nenhuma das 2 barras está
+        // vida.atual=1.150.000.000 de um total de 1.500.000.000 -- nenhuma das 2 barras está
         // zerada ainda, então nenhum pip deveria estar marcado como "quebrado".
         const quebrados = linhaVida.querySelectorAll('.break-bars-pip--quebrada');
         expect(quebrados.length).toBe(0);

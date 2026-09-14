@@ -47,48 +47,48 @@ describe('core/vitals - montarBarrasVida (via calcularBarrasVida/calcularBarrasV
         expect(infoNull.totalMax).toBe(0);
     });
 
-    it('total fracionário (100.000.000,5): Number(total)||0 preserva a fração -- vitalidade ainda conta só os 100 milhões completos, resto (a fração, na FRENTE) fica com a fração', () => {
-        const info = calcularBarrasVida(100000000.5, 'vida', 100000000.5);
-        expect(info.totalMax).toBe(100000000.5);
+    it('total fracionário (1.000.000.000,5): Number(total)||0 preserva a fração -- vitalidade ainda conta só o 1 bilhão completo, resto (a fração, na FRENTE) fica com a fração', () => {
+        const info = calcularBarrasVida(1000000000.5, 'vida', 1000000000.5);
+        expect(info.totalMax).toBe(1000000000.5);
         expect(info.numBarras).toBe(2);
         expect(info.barras[0]).toEqual({ atual: 0.5, max: 0.5 });
-        expect(info.barras[1]).toEqual({ atual: 100000000, max: 100000000 });
+        expect(info.barras[1]).toEqual({ atual: 1000000000, max: 1000000000 });
         expect(somaMax(info)).toBeCloseTo(info.totalMax, 6);
     });
 
-    // ⚠️ ACHADO DE PERFORMANCE (não corrigido -- fixaria o design de "1 barra por 100 milhões",
-    // fora do escopo desta sessão): totais na casa de 1e15+ geram 1e7+ barras, e
-    // montarBarrasVida constrói um array O(numBarras) com um loop -- em torno de 1e7 iterações,
-    // isso já estourou o timeout padrão de 5s do Vitest (>8s só para montar o array, antes de
-    // qualquer render). Um personagem real com Vida bruta ESTÁVEL nessa magnitude congelaria a
-    // aba ao tentar desenhar as Break Bars. Cobrindo aqui com uma magnitude bem menor (1e10 ->
-    // 100 barras) para não estourar o timeout do teste, mas o comportamento numérico (soma exata)
-    // já fica provado; ver nota no relatório de QA sobre o risco de performance em totais maiores.
-    it('total grande (1e10, 100 barras): soma das barras continua batendo EXATAMENTE com o total, sem estourar nem perder precisão', () => {
-        const total = 1e10; // múltiplo exato de 1e8 -> 100 barras cheias, sem barra fantasma.
+    // ⚠️ ACHADO DE PERFORMANCE (não corrigido -- fixaria o design de "1 barra por 1 bilhão",
+    // fora do escopo desta sessão): totais bem grandes geram muitas barras, e
+    // montarBarrasVida constrói um array O(numBarras) com um loop -- em magnitudes extremas
+    // isso já estourou o timeout padrão de 5s do Vitest. Um personagem real com Vida bruta
+    // ESTÁVEL nessa magnitude congelaria a aba ao tentar desenhar as Break Bars. Cobrindo aqui
+    // com uma magnitude bem menor (1e10 -> 10 barras) para não estourar o timeout do teste, mas
+    // o comportamento numérico (soma exata) já fica provado; ver nota no relatório de QA sobre o
+    // risco de performance em totais maiores.
+    it('total grande (1e10, 10 barras): soma das barras continua batendo EXATAMENTE com o total, sem estourar nem perder precisão', () => {
+        const total = 1e10; // múltiplo exato de 1e9 -> 10 barras cheias, sem barra fantasma.
         const info = calcularBarrasVida(total, 'vida', total);
-        expect(info.numBarras).toBe(100);
+        expect(info.numBarras).toBe(10);
         expect(info.totalMax).toBe(total);
         expect(somaMax(info)).toBe(total);
-        expect(info.barras[info.barras.length - 1]).toEqual({ atual: 100000000, max: 100000000 });
+        expect(info.barras[info.barras.length - 1]).toEqual({ atual: 1000000000, max: 1000000000 });
     });
 
     it('total grande e NÃO múltiplo exato (1e10 + 12345): a PRIMEIRA barra (a da frente) fica com o resto exato', () => {
         const total = 1e10 + 12345;
         const info = calcularBarrasVida(total, 'vida', total);
-        expect(info.numBarras).toBe(101);
+        expect(info.numBarras).toBe(11);
         expect(info.totalMax).toBe(total);
         expect(somaMax(info)).toBe(total);
         expect(info.barras[0]).toEqual({ atual: 12345, max: 12345 });
-        expect(info.barras[info.barras.length - 1]).toEqual({ atual: 100000000, max: 100000000 });
+        expect(info.barras[info.barras.length - 1]).toEqual({ atual: 1000000000, max: 1000000000 });
     });
 
-    it('[PERF] 1e7 barras (total=1e15) não deveria travar por minutos -- documenta o tempo real de montarBarrasVida numa magnitude extrema (timeout generoso de 20s só para este teste, não representativo de uso normal)', () => {
+    it('[PERF] 1e6 barras (total=1e15) não deveria travar por minutos -- documenta o tempo real de montarBarrasVida numa magnitude extrema (timeout generoso de 20s só para este teste, não representativo de uso normal)', () => {
         const total = 1e15;
         const inicio = Date.now();
         const info = calcularBarrasVida(total, 'vida', total);
         const duracaoMs = Date.now() - inicio;
-        expect(info.numBarras).toBe(1e7);
+        expect(info.numBarras).toBe(1e6);
         expect(somaMax(info)).toBe(total);
         // Não é uma trava dura de performance (o app não tem SLA definido para isso) -- só
         // documenta a ordem de grandeza observada, para research futura caso vire um problema real.
@@ -117,10 +117,10 @@ describe('core/vitals - montarBarrasVida (via calcularBarrasVida/calcularBarrasV
     });
 
     it('string numérica como total ainda funciona (Number(total) converte) -- robustez contra dado salvo como string', () => {
-        const info = calcularBarrasVida('150000000', 'vida', '150000000');
-        expect(info.totalMax).toBe(150000000);
+        const info = calcularBarrasVida('1500000000', 'vida', '1500000000');
+        expect(info.totalMax).toBe(1500000000);
         expect(info.numBarras).toBe(2);
-        expect(somaMax(info)).toBe(150000000);
+        expect(somaMax(info)).toBe(1500000000);
     });
 
     it('string não-numérica como total cai no fallback de 0, sem lançar', () => {
@@ -146,7 +146,7 @@ describe('core/vitals - calcularBarrasVidaDummy: mesmos casos-limite do lado dos
 
     it('hpMax gigante (1e12) com hpAtual em cascata: invariante soma(max)===hpMax mantido', () => {
         const info = calcularBarrasVidaDummy(1e12, 1e12 - 250000000);
-        expect(info.numBarras).toBe(1e4);
+        expect(info.numBarras).toBe(1e3);
         const somaMaxTotal = info.barras.reduce((s, b) => s + b.max, 0);
         expect(somaMaxTotal).toBe(1e12);
         const somaAtualTotal = info.barras.reduce((s, b) => s + b.atual, 0);

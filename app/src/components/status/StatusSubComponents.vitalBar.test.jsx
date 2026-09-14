@@ -33,14 +33,16 @@ describe('StatusSubComponents - StatusVitalBar: teto exibido de Vida (1 barra s�
         vi.clearAllMocks();
     });
 
-    it('Vida com base bem abaixo de 100 milhões mostra o teto REAL (não a constante fixa de 100.000.000)', () => {
-        const ficha = { vida: { base: 1000, atual: 500 } };
+    it('Vida com base bem abaixo de 1 bilhão mostra o teto REAL (não a constante fixa de 1 bilhão)', () => {
+        // 🔥 Reformulação de Vida/Energias: base/atual ×1000 em relação à versão original pra que o
+        // texto exibido (já dividido por FATOR_EXIBICAO_VITAIS) continue sendo "500 / 1.000".
+        const ficha = { vida: { base: 1000000, atual: 500000 } };
         montarCtx(ficha);
 
         render(<StatusVitalBar vitalKey="vida" label="Vida" color="#ff0000" borderC="#ff0000" />);
 
         expect(screen.getByText('500 / 1.000')).toBeDefined();
-        expect(screen.queryByText(/100\.000\.000/)).toBeNull();
+        expect(screen.queryByText(/1\.000\.000\.000/)).toBeNull();
     });
 
     it('a % preenchida da barra usa o teto real como denominador (50%, não ~0%)', () => {
@@ -56,24 +58,23 @@ describe('StatusSubComponents - StatusVitalBar: teto exibido de Vida (1 barra s�
     });
 
     it('Vida acima do limiar (múltiplas Break Bars) continua intocada -- renderiza o visual empilhado, não a barra única', () => {
-        const ficha = { vida: { base: 150000000, atual: 115000000 } };
+        // 🔥 Reformulação de Vida/Energias: LIMIAR_BARRA_VIDA passou de 100 milhões pra 1 bilhão.
+        // base=600.000.000 -> 600 pontos de Prestígio -> bonusAscensao=floor(600/100)=6 ->
+        // ascensaoFinal=1+6=7 -> fator=7 (mesma conta de core/poder.js > calcularFatorMultiplicadorForca,
+        // independente do limiar de Break Bars). Teto real = 600.000.000*7 = 4.200.000.000 --
+        // vitalidade=floor(4,2e9/1e9)=4, resto=200.000.000 -> 5 barras (4 cravadas em 1 bilhão +
+        // 1 na frente com o resto de 200 milhões).
+        const ficha = { vida: { base: 600000000, atual: 4200000000 } };
         montarCtx(ficha);
 
         const { container } = render(<StatusVitalBar vitalKey="vida" label="Vida" color="#ff0000" borderC="#ff0000" />);
-
-        // 🔥 Eram 2 barras antes de StatusVitalBar passar a aplicar calcularFatorMultiplicadorForca
-        // (core/poder.js) ao teto de Vida, igual às outras 4 telas (Marcados/Mestre/Mapa) já
-        // faziam. Uma base bruta de 150.000.000 de Vida, mesmo com ascensaoBase=1 (padrão), já
-        // ultrapassa o "estouro" de Ascensão/Prestígio de core/poder.js (150 pontos de Prestígio
-        // vira +1 nível de Ascensão), resultando num fator 2x aplicado ANTES de calcularBarrasVida
-        // -- teto real vira 300.000.000, que é EXATAMENTE 3 barras de 100.000.000 (LIMIAR_BARRA_VIDA),
-        // não mais 2. Isso não é uma regressão: é a mesma conta que Marcados.jsx/MestreSubComponents.jsx/
-        // MapaCombate.jsx já faziam pra este mesmo personagem -- a Ficha só estava divergindo delas antes.
-        expect(container.querySelectorAll('.break-bars-barra').length).toBe(3);
+        expect(container.querySelectorAll('.break-bars-barra').length).toBe(5);
     });
 
     it('mana (sem Break Bars, sempre 1 barra) continua usando o mesmo teto de sempre, sem regressão', () => {
-        const ficha = { mana: { base: 2000, atual: 1000 } };
+        // 🔥 Reformulação de Vida/Energias: base/atual ×1000 pra que o texto exibido (já dividido
+        // por FATOR_EXIBICAO_VITAIS) continue sendo "1.000 / 2.000".
+        const ficha = { mana: { base: 2000000, atual: 1000000 } };
         montarCtx(ficha);
 
         render(<StatusVitalBar vitalKey="mana" label="Mana" color="#0000ff" borderC="#0000ff" />);

@@ -6,7 +6,7 @@ import { sanitizarNome } from '../../stores/useStore';
 import PainelMestreSandbox from './PainelMestreSandbox';
 import { getMaximo } from '../../core/attributes';
 import { calcularCA } from '../../core/engine';
-import { calcularBarrasVida, getVitalMax, getVitalMaxEstavel } from '../../core/vitals';
+import { calcularBarrasVida, getVitalMax, getVitalMaxEstavel, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularFatorMultiplicadorForca } from '../../core/poder';
 
 const FALLBACK = <div style={{color:'#888',padding:10}}>Mestre provider não encontrado</div>;
@@ -26,12 +26,15 @@ function getStatusLimpo(ficha, chave, threshold) {
     // de Vida (core/poder.js > calcularFatorMultiplicadorForca), igual a Ficha Definitiva e a
     // moldura de combate do Mapa já fazem — senão o MESMO personagem mostra um Máximo diferente
     // aqui.
+    // 🔥 Reformulação de Vida/Energias: max/atual retornados aqui já vêm divididos por
+    // FATOR_EXIBICAO_VITAIS (só exibição, neste card do Mestre) — pVit (exponente da notação
+    // comprimida) NÃO é uma grandeza, então continua intocado.
     if (chave === 'vida') {
         const fatorVida = calcularFatorMultiplicadorForca(ficha, 'vida');
         const rawMx = getVitalMax('vida', ficha) * fatorVida;
         const rawMxEstavel = getVitalMaxEstavel('vida', ficha) * fatorVida;
         const info = calcularBarrasVida(rawMx, 'vida', ficha.vida?.atual, rawMxEstavel);
-        return { max: info.totalMax, atual: info.atual, pVit: info.p };
+        return { max: info.totalMax / FATOR_EXIBICAO_VITAIS, atual: info.atual / FATOR_EXIBICAO_VITAIS, pVit: info.p };
     }
 
     let mx = 0;
@@ -49,7 +52,7 @@ function getStatusLimpo(ficha, chave, threshold) {
         let at = parseFloat(ficha[chave].atual);
         if (!isNaN(at)) atual = (pVit > 0 && at > maxFinal * 10) ? Math.floor(at / Math.pow(10, pVit)) : at;
     }
-    return { max: maxFinal, atual: atual, pVit: pVit };
+    return { max: maxFinal / FATOR_EXIBICAO_VITAIS, atual: atual / FATOR_EXIBICAO_VITAIS, pVit: pVit };
 }
 
 function getEnergiasSupremas(ficha) {

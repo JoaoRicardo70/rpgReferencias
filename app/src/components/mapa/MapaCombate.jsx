@@ -9,7 +9,7 @@ import { useElementosForm, emogis as ELEMENTOS_EMOJIS, cores as ELEMENTOS_CORES 
 import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { getClassIconById } from '../../core/classIcons';
 import { calcularPoderAtual, calcularFatorMultiplicadorForca } from '../../core/poder';
-import { getVitalMax, getVitalMaxEstavel, calcVitalScale, calcularBarrasVida, calcularBarrasVidaDummy } from '../../core/vitals';
+import { getVitalMax, getVitalMaxEstavel, calcVitalScale, calcularBarrasVida, calcularBarrasVidaDummy, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import BarrasVida from '../shared/BarrasVida';
 import { formatarPoderCosmico } from '../../core/utils';
 
@@ -859,12 +859,15 @@ export function MapaHologramaAcao() {
             : calcularBarrasVida(getVitalMax('vida', fichaBase) * fatorVida, 'vida', fichaBase.vida?.atual, getVitalMaxEstavel('vida', fichaBase) * fatorVida))
         : { atual: 0, totalMax: 0, barras: [] };
 
+    // 🔥 Reformulação de Vida/Energias: divide por FATOR_EXIBICAO_VITAIS só aqui, na EXIBIÇÃO —
+    // getVitalMax/getVitalMaxEstavel/calcVitalScale continuam intocados (mesma escala bruta de
+    // sempre, usada pelo Poder Calculado e pelo custo/dano em combate).
     const maximoExibidoComFator = (key) => {
         if (!fichaBase) return 0;
         const fator = calcularFatorMultiplicadorForca(fichaBase, key);
         const rawMx = getVitalMax(key, fichaBase) * fator;
         const rawMxEstavel = getVitalMaxEstavel(key, fichaBase) * fator;
-        return calcVitalScale(rawMx, key, rawMxEstavel).mxDisplay;
+        return calcVitalScale(rawMx, key, rawMxEstavel).mxDisplay / FATOR_EXIBICAO_VITAIS;
     };
     const manaMaxima = maximoExibidoComFator('mana');
     const auraMaxima = maximoExibidoComFator('aura');
@@ -1019,31 +1022,31 @@ export function MapaHologramaAcao() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(0,0,0,0.7)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffcc00', fontWeight: 'bold', paddingBottom: 8, marginBottom: 2, borderBottom: '1px solid rgba(255,255,255,0.1)' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>⚡ PODER</span><span style={{ textShadow: '0 0 6px #ffcc00' }}>{formatarPoderCosmico(poderAtualBase)}</span></div>
                                 <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff4d4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>HP</span><span>{fmt(vidaInfo.atual)}</span></div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff4d4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>HP</span><span>{fmt(vidaInfo.atual / FATOR_EXIBICAO_VITAIS)}</span></div>
                                     {vidaInfo.barras.length > 1 ? (
                                         // 💔 BREAK BARS: visual novo em pílula com losangos e "quebra" animada (pedido do
                                         // usuário) — componente compartilhado (components/shared/BarrasVida.jsx). Sem
                                         // texto embutido (já mostrado acima) e barra mais fina, pra caber na moldura.
                                         <BarrasVida barras={vidaInfo.barras} cor="#ff4d4d" altura={8} mostrarTexto={false} perigo />
                                     ) : (
-                                        <BarraVital atual={vidaInfo.barras[0].atual} maximo={vidaInfo.barras[0].max} cor="#ff4d4d" perigo />
+                                        <BarraVital atual={vidaInfo.barras[0].atual / FATOR_EXIBICAO_VITAIS} maximo={vidaInfo.barras[0].max / FATOR_EXIBICAO_VITAIS} cor="#ff4d4d" perigo />
                                     )}
                                 </div>
                                 <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4dffff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>MP</span><span>{fmt(fichaBase.mana?.atual)}</span></div>
-                                    <BarraVital atual={fichaBase.mana?.atual} maximo={manaMaxima} cor="#4dffff" />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4dffff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>MP</span><span>{fmt((fichaBase.mana?.atual || 0) / FATOR_EXIBICAO_VITAIS)}</span></div>
+                                    <BarraVital atual={(fichaBase.mana?.atual || 0) / FATOR_EXIBICAO_VITAIS} maximo={manaMaxima} cor="#4dffff" />
                                 </div>
                                 <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffff4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>AU</span><span>{fmt(fichaBase.aura?.atual)}</span></div>
-                                    <BarraVital atual={fichaBase.aura?.atual} maximo={auraMaxima} cor="#ffff4d" />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffff4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>AU</span><span>{fmt((fichaBase.aura?.atual || 0) / FATOR_EXIBICAO_VITAIS)}</span></div>
+                                    <BarraVital atual={(fichaBase.aura?.atual || 0) / FATOR_EXIBICAO_VITAIS} maximo={auraMaxima} cor="#ffff4d" />
                                 </div>
                                 <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#00ffcc', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>CK</span><span>{fmt(fichaBase.chakra?.atual)}</span></div>
-                                    <BarraVital atual={fichaBase.chakra?.atual} maximo={chakraMaximo} cor="#00ffcc" />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#00ffcc', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>CK</span><span>{fmt((fichaBase.chakra?.atual || 0) / FATOR_EXIBICAO_VITAIS)}</span></div>
+                                    <BarraVital atual={(fichaBase.chakra?.atual || 0) / FATOR_EXIBICAO_VITAIS} maximo={chakraMaximo} cor="#00ffcc" />
                                 </div>
                                 <div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff66ff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>CP</span><span>{fmt(fichaBase.corpo?.atual)}</span></div>
-                                    <BarraVital atual={fichaBase.corpo?.atual} maximo={corpoMaximo} cor="#ff66ff" />
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff66ff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>CP</span><span>{fmt((fichaBase.corpo?.atual || 0) / FATOR_EXIBICAO_VITAIS)}</span></div>
+                                    <BarraVital atual={(fichaBase.corpo?.atual || 0) / FATOR_EXIBICAO_VITAIS} maximo={corpoMaximo} cor="#ff66ff" />
                                 </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                                     <div style={{ color: '#0088ff', fontWeight: 'bold', fontSize: '0.9em', textShadow: '0 0 5px #0088ff' }}>🛡️ EVA: {calcularCA(fichaBase, 'evasiva')}</div>

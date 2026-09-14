@@ -193,17 +193,17 @@ export function getVitalMxDisplay(key, ficha) {
 //
 // 🔢 REGRA DO TAMANHO DE CADA BARRA (3ª versão, pedido do usuário): o TOTAL de Vida exibido NUNCA
 // é maior nem menor que o máximo bruto real do personagem — a mecânica só REPARTE esse total em
-// blocos visuais de até LIMIAR_BARRA_VIDA (100 milhões) cada, ao ultrapassar cada 100 milhões de
+// blocos visuais de até LIMIAR_BARRA_VIDA (1 bilhão) cada, ao ultrapassar cada 1 bilhão de
 // Vida (máximo ESTÁVEL, sem Formas — mesma regra de sempre pra decisão ESTRUTURAL de quantas
 // barras existem, pra uma Forma temporária nunca fazer surgir/sumir uma barra sozinha). Toda barra
-// JÁ COMPLETA fica "cravada" em exatamente 100 milhões (cheia, permanente); a barra da FRENTE
+// JÁ COMPLETA fica "cravada" em exatamente 1 bilhão (cheia, permanente); a barra da FRENTE
 // (índice 0 — a mais recente, ainda em formação) mostra só o RESTO real (total - blocos já
-// cravados) — nunca os 100 milhões cheios antes disso, senão um personagem com, digamos, 75 milhões de Vida (abaixo do
-// 1º limiar) veria sua Vida máxima inflada artificialmente pra 100 milhões, e o total pularia de
-// ~100M pra 200M só por cruzar o limiar por 1 unidade. Isso substitui a 2ª versão (toda barra,
+// cravados) — nunca os 1 bilhão cheios antes disso, senão um personagem com, digamos, 750 milhões de Vida (abaixo do
+// 1º limiar) veria sua Vida máxima inflada artificialmente pra 1 bilhão, e o total pularia de
+// ~1 bilhão pra 2 bilhões só por cruzar o limiar por 1 unidade. Isso substitui a 2ª versão (toda barra,
 // inclusive a ativa, valia o limiar CHEIO) e a 1ª (cada barra usava mxDisplay, a escala comprimida
 // de calcVitalScale, mudando junto quando a Vida bruta cruzasse uma ORDEM DE GRANDEZA inteira —
-// 1e9, 1e10... — não a cada 100 milhões, o oposto do "cravar em 100 milhões, sucessivamente"
+// 1e9, 1e10... — não a cada 1 bilhão, o oposto do "cravar em 1 bilhão, sucessivamente"
 // pedido). Ver montarBarrasVida, a implementação compartilhada por calcularBarrasVida (personagens)
 // e calcularBarrasVidaDummy (dummies).
 //
@@ -211,15 +211,15 @@ export function getVitalMxDisplay(key, ficha) {
 // transborda pra próxima barra.
 //
 // 🔥 CORREÇÃO (pedido do usuário): a barra da FRENTE (a primeira a levar dano) é sempre a PARCIAL
-// (o resto — a mais recente, ainda "em formação", com menos de 100 milhões), nunca uma das barras
-// já cravadas em 100 milhões cheios. Isso é o oposto da versão anterior, que colocava a parcial por
+// (o resto — a mais recente, ainda "em formação", com menos de 1 bilhão), nunca uma das barras
+// já cravadas em 1 bilhão cheios. Isso é o oposto da versão anterior, que colocava a parcial por
 // ÚLTIMO (a barra "de trás") — nesta versão ela vem PRIMEIRO, exatamente porque é a primeira a
 // receber dano na prática (faz sentido narrativo: a "camada mais fina" quebra primeiro).
 //
 // ⚠️ Consequência matemática INEVITÁVEL de derivar as barras de um único total (em vez de guardar
 // um array com o estado de cada uma): como a barra da frente é SEMPRE a primeira a ESVAZIAR
 // conforme o total cai, ela também é, necessariamente, a ÚLTIMA a voltar a ENCHER conforme o total
-// sobe de novo (cura/regeneração) — a barra de trás (a última cravada de 100 milhões, a única que
+// sobe de novo (cura/regeneração) — a barra de trás (a última cravada de 1 bilhão, a única que
 // ainda tinha alguma Vida quando o personagem estava quase morto) é quem recebe os primeiros
 // pontos de cura, só depois "transborda" pra frente, até finalmente reencher a parcial por último.
 // Não é um bug nem uma inversão acidental: dado um único número guardado, é a ÚNICA distribuição
@@ -227,11 +227,26 @@ export function getVitalMxDisplay(key, ficha) {
 // MESMA reta numérica, só em direções opostas). Se no futuro o pedido for "a barra da frente enche
 // primeiro ao curar, independente de qual esvaziou primeiro no dano", isso exige guardar o estado
 // de CADA barra separadamente (não dá mais pra derivar de um total único).
-export const LIMIAR_BARRA_VIDA = 100000000;
+// 🔥 Reformulação de Vida/Energias (pedido do usuário): o limiar de cada Break Bar passou de 100
+// milhões pra 1 bilhão bruto — exatamente pra que, depois de dividido por FATOR_EXIBICAO_VITAIS na
+// exibição, cada barra cheia mostre "1.000.000" (o "1 milhão de Vida" pedido), em vez do antigo
+// "100.000.000". Só o NÚMERO do limiar mudou; toda a lógica de reparto em barras abaixo continua
+// idêntica.
+export const LIMIAR_BARRA_VIDA = 1000000000;
 
-// Vitalidade de Vida (2ª versão): 1 ponto pra CADA 100 milhões COMPLETOS de Vida bruta ESTÁVEL
-// (sem Formas). Generaliza a Vitalidade antiga (que só subia ao cruzar uma ORDEM DE GRANDEZA
-// inteira — 1e8, 1e9, 1e10...) pra subir a CADA 100 milhões dentro desse intervalo também.
+// 🔥 Reformulação de Status/Vida/Energias (pedido do usuário): divisor usado SÓ na EXIBIÇÃO/EDIÇÃO
+// de Vida/Mana/Aura/Chakra/Corpo (current/max/regeneração) pelos componentes de UI (Ficha Def,
+// Mapa, Mestre) — o valor bruto salvo em ficha[vital] continua exatamente como sempre foi, porque é
+// ele que alimenta o Poder Calculado (core/attributes.js) e o custo/dano de combate (getVitalMax/
+// getVitalMxDisplay/getTetoVida acima, usados sem nenhuma mudança). NUNCA aplicar este fator dentro
+// de calcVitalScale/calcularBarrasVida/getVitalMxDisplay/getTetoVida — essas funções são
+// compartilhadas com 'pv'/'pm' (que ficam FORA desta reformulação) e com o próprio cálculo de
+// custo/dano; a divisão deve acontecer só no componente de UI, no momento de formatar o texto.
+export const FATOR_EXIBICAO_VITAIS = 1000;
+
+// Vitalidade de Vida (2ª versão): 1 ponto pra CADA LIMIAR_BARRA_VIDA de Vida bruta ESTÁVEL (sem
+// Formas). Generaliza a Vitalidade antiga (que só subia ao cruzar uma ORDEM DE GRANDEZA inteira —
+// 1e8, 1e9, 1e10...) pra subir a CADA LIMIAR_BARRA_VIDA dentro desse intervalo também.
 export function getVitalidadeVida(rawValorEstavel) {
     return Math.max(0, Math.floor((Number(rawValorEstavel) || 0) / LIMIAR_BARRA_VIDA));
 }
@@ -239,13 +254,13 @@ export function getVitalidadeVida(rawValorEstavel) {
 // Núcleo compartilhado de "Break Bars" de Vida — usado tanto por calcularBarrasVida (personagens)
 // quanto por calcularBarrasVidaDummy (dummies/NPCs do Mapa). O TOTAL de Vida NUNCA é inflado nem
 // encolhido por esta conta: ele é SEMPRE exatamente o "total" recebido — a mecânica só reparte
-// esse mesmo número em blocos visuais de até LIMIAR_BARRA_VIDA (100 milhões) cada. Barras
-// COMPLETAS (totalmente "cravadas") valem exatamente 100 milhões; a barra ATIVA (a mais recente,
+// esse mesmo número em blocos visuais de até LIMIAR_BARRA_VIDA (1 bilhão) cada. Barras
+// COMPLETAS (totalmente "cravadas") valem exatamente 1 bilhão; a barra ATIVA (a mais recente,
 // ainda em formação) fica com o RESTO exato (total - vitalidade*LIMIAR) — sem criar uma barra
-// "fantasma" de max=0 quando o total for um múltiplo EXATO de 100 milhões.
+// "fantasma" de max=0 quando o total for um múltiplo EXATO de 1 bilhão.
 //
 // 🔥 A barra parcial (o "resto") vai no ÍNDICE 0 (a frente, primeira a levar dano) — as barras
-// cravadas de 100 milhões vêm DEPOIS dela, na ordem em que forem sendo esvaziadas (ver comentário
+// cravadas de 1 bilhão vêm DEPOIS dela, na ordem em que forem sendo esvaziadas (ver comentário
 // acima de LIMIAR_BARRA_VIDA).
 function montarBarrasVida(total, atualTotal) {
     const max = Math.max(0, Number(total) || 0);
@@ -334,13 +349,13 @@ export function getVidaTotalMaxDisplay(ficha) {
 // > MapaMestreGeradorDummies): eles não têm atributos (força/constituição/etc.) de onde extrair um
 // "máximo bruto" — o "hpMax" que o Mestre digita É o total de verdade, o número que ele espera ver
 // refletido no token, e NUNCA pode ser inflado/encolhido por esta conta. Usa a MESMA regra de
-// LIMIAR_BARRA_VIDA (100 milhões) dos personagens: barras completas valem exatamente 100 milhões
-// cada, e a PRIMEIRA (índice 0, a frente) fica com o RESTO (hpMax - vitalidade*100M) — assim a soma das barras bate
+// LIMIAR_BARRA_VIDA (1 bilhão) dos personagens: barras completas valem exatamente 1 bilhão
+// cada, e a PRIMEIRA (índice 0, a frente) fica com o RESTO (hpMax - vitalidade*1 bilhão) — assim a soma das barras bate
 // EXATAMENTE com o hpMax configurado, sem arredondar (diferente de repartir hpMax igualmente pelo
 // nº de barras, que só preservava o total por acaso quando ele já era múltiplo exato do nº de
 // barras).
-// Usa a mesma montarBarrasVida compartilhada com calcularBarrasVida — hpMax MÚLTIPLO EXATO de 100
-// milhões (resto=0) não cria uma barra extra FANTASMA de max=0: as "vitalidade" barras já cheias
+// Usa a mesma montarBarrasVida compartilhada com calcularBarrasVida — hpMax MÚLTIPLO EXATO de 1
+// bilhão (resto=0) não cria uma barra extra FANTASMA de max=0: as "vitalidade" barras já cheias
 // bastam. hpMax=0 continua sendo o caso especial de sempre: 1 barra só, de max=0.
 export function calcularBarrasVidaDummy(hpMaxBruto, hpAtualTotal) {
     const { vitalidade, numBarras, totalMax, atual, barras } = montarBarrasVida(hpMaxBruto, hpAtualTotal);

@@ -60,8 +60,9 @@ describe('Marcados (página 1, LinhaVital) — Regeneração de Corpo e Aura (vi
         montarMockUseStore(ficha);
         render(<MarcadosPanel />);
 
+        // 🔥 Reformulação de Vida/Energias: exibido dividido por FATOR_EXIBICAO_VITAIS (250/1000=0,25).
         const regenInput = linhaRegen('Corpo').querySelector('input[type="number"]');
-        expect(regenInput.value).toBe('250');
+        expect(regenInput.value).toBe('0.25');
     });
 
     it('editar o campo manual de Corpo chama updateFicha e grava em ficha.corpo.regeneracao', () => {
@@ -69,11 +70,13 @@ describe('Marcados (página 1, LinhaVital) — Regeneração de Corpo e Aura (vi
         const mockState = montarMockUseStore(ficha);
         render(<MarcadosPanel />);
 
+        // 🔥 Reformulação de Vida/Energias: "333" digitado é a escala EXIBIDA -- multiplicado de
+        // volta por FATOR_EXIBICAO_VITAIS antes de gravar o valor bruto.
         const regenInput = linhaRegen('Corpo').querySelector('input[type="number"]');
         fireEvent.change(regenInput, { target: { value: '333' } });
 
         expect(mockState.updateFicha).toHaveBeenCalled();
-        expect(ficha.corpo.regeneracao).toBe(333);
+        expect(ficha.corpo.regeneracao).toBe(333000);
     });
 
     it('um Poder ATIVO com efeito propriedade="regeneracao" em "corpo" soma ao total exibido, sem vazar pra Aura', () => {
@@ -85,12 +88,14 @@ describe('Marcados (página 1, LinhaVital) — Regeneração de Corpo e Aura (vi
         montarMockUseStore(ficha);
         render(<MarcadosPanel />);
 
+        // 🔥 Reformulação de Vida/Energias: exibido dividido por FATOR_EXIBICAO_VITAIS
+        // (60/1000=0,06; total 160/1000=0,16; Aura 10/1000=0,01).
         const textoCorpo = linhaRegen('Corpo').textContent;
-        expect(textoCorpo).toMatch(/\+ 60/);
-        expect(textoCorpo).toMatch(/160/); // 100 (manual) + 60 (buff) = 160
+        expect(textoCorpo).toMatch(/\+ 0\.06/);
+        expect(textoCorpo).toMatch(/0\.16/); // 0,1 (manual) + 0,06 (buff) = 0,16
 
         expect(linhaRegen('Aura').textContent).not.toMatch(/Poder\/Passiva\/Item/);
-        expect(linhaRegen('Aura').querySelector('input[type="number"]').value).toBe('10');
+        expect(linhaRegen('Aura').querySelector('input[type="number"]').value).toBe('0.01');
     });
 
     it('Aura sem regeneração manual definida (undefined) mostra o input com valor 0, sem lançar', () => {
@@ -114,7 +119,8 @@ describe('Marcados (página 1, LinhaVital) — Regeneração de Corpo e Aura (vi
         montarMockUseStore(ficha);
         render(<MarcadosPanel />);
 
+        // 🔥 Reformulação de Vida/Energias: exibido dividido por FATOR_EXIBICAO_VITAIS (40/1000=0,04).
         expect(linhaRegen('Corpo').textContent).not.toMatch(/Poder\/Passiva\/Item/);
-        expect(linhaRegen('Aura').textContent).toMatch(/\+ 40/);
+        expect(linhaRegen('Aura').textContent).toMatch(/\+ 0\.04/);
     });
 });

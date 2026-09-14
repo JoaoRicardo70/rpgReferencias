@@ -221,7 +221,7 @@ describe('Marcados — LinhaVital: Multiplicador de Força agora infla o máximo
 
     afterEach(() => cleanup());
 
-    it('sem overflow (multiplicadores em 1): máximo de Vida exibido é igual ao valor cru (fator=1, sem tingimento)', () => {
+    it('sem overflow (multiplicadores em 1): máximo de Vida exibido é igual ao valor cru dividido por FATOR_EXIBICAO_VITAIS (fator=1, sem tingimento)', () => {
         // vida.base=50.000.000 fica ABAIXO do limiar de 100 Prestígio (que já geraria 1
         // Ascensão de overflow "de fábrica", independente de qualquer multiplicador — ver
         // o teste seguinte, onde vida.base=100.000.000 sozinho já é o limiar exato).
@@ -231,24 +231,25 @@ describe('Marcados — LinhaVital: Multiplicador de Força agora infla o máximo
         render(<MarcadosPanel />);
 
         // getBasePFor(vida)=50 (50.000.000/1.000.000), sem overflow -> fator=1.
-        // pVit=max(0,8-8)=0 -> mxDisplay=floor(50.000.000*1)=50.000.000.
-        expect(lerMaximoBarra('Vida (HP)')).toBe((50000000).toLocaleString('pt-BR'));
+        // pVit=max(0,8-8)=0 -> mxDisplay=floor(50.000.000*1)=50.000.000 -- dividido por
+        // FATOR_EXIBICAO_VITAIS (reformulação de Vida/Energias) na exibição = 50.000.
+        expect(lerMaximoBarra('Vida (HP)')).toBe((50000).toLocaleString('pt-BR'));
     });
 
-    it('multiplicadorForcaPrestigio causando overflow de Ascensão: máximo REAL de Vida (soma de todas as Break Bars) FICA MAIOR (fator=4 > 1)', () => {
+    it('multiplicadorForcaPrestigio causando overflow de Ascensão: máximo REAL de Vida exibido FICA MAIOR (fator=4 > 1)', () => {
         // vida.base=100.000.000 -> displayP=100; multP=3,multA=1 -> prestigioTotal=300,
         // bonusAscensao=3, ascensaoFinal=1+3=4 -> fator=4/1=4.
-        // rawMaximo = 100.000.000*4 = 400.000.000 -- acima do limiar de 100 milhões, vira 4
-        // Break Bars empilhadas de 100.000.000 cada (getTetoVida nunca infla nem encolhe o
-        // total: a soma das barras bate exatamente com o bruto escalado pelo fator).
+        // rawMaximo = 100.000.000*4 = 400.000.000 -- abaixo do LIMIAR_BARRA_VIDA (1 bilhão,
+        // reformulação de Vida/Energias), então continua 1 barra só; exibido dividido por
+        // FATOR_EXIBICAO_VITAIS = 400.000.
         const ficha = fichaBase({ vida: { base: 100000000 }, multiplicadorForcaPrestigio: 3 });
         montarMockUseStore(ficha);
 
         render(<MarcadosPanel />);
 
-        const totalExibido = lerTotalMaximoBarras('Vida (HP)');
-        expect(totalExibido).toBe(400000000);
-        expect(totalExibido).not.toBe(100000000); // não pode ficar preso no máximo sem multiplicador
+        const maximoExibido = lerMaximoBarra('Vida (HP)');
+        expect(maximoExibido).toBe((400000).toLocaleString('pt-BR'));
+        expect(maximoExibido).not.toBe((100000).toLocaleString('pt-BR')); // não pode ficar preso no máximo sem multiplicador
     });
 
     it('cada categoria vital usa o SEU PRÓPRIO fator (Mana escalado diferente de Vida quando os Prestígios divergem)', () => {
@@ -263,11 +264,12 @@ describe('Marcados — LinhaVital: Multiplicador de Força agora infla o máximo
 
         render(<MarcadosPanel />);
 
-        // vida: rawMaximo=1.000.000*1=1.000.000 -> pVit=max(0,7-8)=0 -> mxDisplay=1.000.000.
-        expect(lerMaximoBarra('Vida (HP)')).toBe((1000000).toLocaleString('pt-BR'));
+        // vida: rawMaximo=1.000.000*1=1.000.000 -> pVit=max(0,7-8)=0 -> mxDisplay=1.000.000,
+        // exibido/1000 = 1.000.
+        expect(lerMaximoBarra('Vida (HP)')).toBe((1000).toLocaleString('pt-BR'));
         // mana: rawMaximo=1.000.000.000*4=4.000.000.000 -> pVit=max(0,10-9)=1 ->
-        // mxDisplay=floor(4.000.000.000/10)=400.000.000.
-        expect(lerMaximoBarra('Mana')).toBe((400000000).toLocaleString('pt-BR'));
+        // mxDisplay=floor(4.000.000.000/10)=400.000.000, exibido/1000 = 400.000.
+        expect(lerMaximoBarra('Mana')).toBe((400000).toLocaleString('pt-BR'));
     });
 });
 
@@ -280,21 +282,22 @@ describe('Marcados — handleRegenerarTudo ("💖 Descansar") cura até o NOVO m
 
     afterEach(() => cleanup());
 
-    it('após Descansar, Vida.atual bate com o TOTAL (soma de todas as Break Bars) já escalado pelo fator (não com o máximo antigo sem multiplicador)', () => {
+    it('após Descansar, Vida.atual exibido bate com o NOVO máximo escalado pelo fator (não com o máximo antigo sem multiplicador)', () => {
         const ficha = fichaBase({ vida: { base: 100000000, atual: 0 }, multiplicadorForcaPrestigio: 3 });
         montarMockUseStoreReativo(ficha);
 
         const { rerender } = render(<MarcadosPanel />);
-        expect(lerTotalAtualBarras('Vida (HP)')).toBe(0);
+        expect(lerAtualBarra('Vida (HP)')).toBe('0');
 
         const botaoDescansar = screen.getByRole('button', { name: /Descansar/ });
         fireEvent.click(botaoDescansar);
         rerender(<MarcadosPanel />);
 
-        // Mesmo cálculo do teste de LinhaVital acima: total escalado = 400.000.000 (4 Break Bars
-        // de 100 milhões cada), nunca o máximo sem multiplicador (100.000.000).
-        expect(lerTotalAtualBarras('Vida (HP)')).toBe(400000000);
-        expect(lerTotalMaximoBarras('Vida (HP)')).toBe(400000000);
+        // Mesmo cálculo do teste de LinhaVital acima: máximo bruto escalado = 400.000.000 --
+        // abaixo do LIMIAR_BARRA_VIDA (1 bilhão), então continua 1 barra só; exibido dividido
+        // por FATOR_EXIBICAO_VITAIS = 400.000, nunca o máximo sem multiplicador (100.000).
+        expect(lerAtualBarra('Vida (HP)')).toBe((400000).toLocaleString('pt-BR'));
+        expect(lerMaximoBarra('Vida (HP)')).toBe((400000).toLocaleString('pt-BR'));
     });
 });
 

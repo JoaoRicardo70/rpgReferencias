@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { getDatabase, ref, update } from 'firebase/database';
-import { calcularEficaciaCura } from '../../core/engine'; 
+import { calcularEficaciaCura } from '../../core/engine';
+import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import DiarioNPC from './DiarioNPC';
 
 const TODAS_CONDICOES_BASE = [
@@ -76,10 +77,15 @@ export default function PainelMestreSandbox({ personagemId, ficha }) {
             }
         }
 
+        // 🔥 Reformulação de Vida/Energias: "val" (e os alertas de eficácia de cura acima) ficam na
+        // escala EXIBIDA (a mesma que o Mestre vê no card do jogador) -- só aqui, na hora de
+        // aplicar de fato, é que vira o valor bruto gravado em ficha[energiaAlvo].atual. energiaAlvo
+        // só assume vida/mana/aura/chakra/corpo (ver <select> abaixo), todos dentro da reformulação.
+        const valBruto = val * FATOR_EXIBICAO_VITAIS;
         let valorAtual = ficha?.[energiaAlvo]?.atual !== undefined ? ficha[energiaAlvo].atual : 0;
-        let novoValor = tipo === 'dano' ? valorAtual - val : valorAtual + val;
-        
-        if (novoValor < 0) novoValor = 0; 
+        let novoValor = tipo === 'dano' ? valorAtual - valBruto : valorAtual + valBruto;
+
+        if (novoValor < 0) novoValor = 0;
 
         update(ref(db, `mesas/${mesaId}/personagens/${personagemId}/${energiaAlvo}`), {
             atual: novoValor
@@ -214,7 +220,7 @@ export default function PainelMestreSandbox({ personagemId, ficha }) {
                             
                             <input 
                                 type="number" 
-                                placeholder="Ex: 5000" 
+                                placeholder="Ex: 500"
                                 value={valorRapido} 
                                 onChange={e => setValorRapido(e.target.value)} 
                                 style={{ flex: '2 1 120px', padding: '8px', background: '#000', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '1.1em', textAlign: 'center' }} 

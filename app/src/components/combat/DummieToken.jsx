@@ -1,6 +1,7 @@
 import React from 'react';
 import useStore from '../../stores/useStore';
 import { salvarDummie, deletarDummie } from '../../services/firebase-sync';
+import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 
 // 🔥 Formatador de Números Gigantes (K, M, B, T)
 const formatNum = (n) => {
@@ -74,7 +75,11 @@ export default function DummieToken({ className, id, dummie }) {
             {hpVisivel ? (
                 <div style={{ width: '120%', position: 'absolute', bottom: -12, background: 'rgba(0,0,0,0.9)', borderRadius: '4px', border: '1px solid #555', overflow: 'visible', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingBottom: '1px' }}>
                     <span style={{ fontSize: '8px', fontWeight: 'bold', color: '#fff', textShadow: '1px 1px 2px #000', marginBottom: '-1px', zIndex: 2 }}>
-                        {formatNum(dummie.hpAtual)}/{formatNum(dummie.hpMax)}
+                        {/* 🔥 Reformulação de Vida/Energias: hpAtual/hpMax do dummy são gravados na escala
+                            BRUTA (ver MestreFormContext.jsx > injetarDummie) -- divide por
+                            FATOR_EXIBICAO_VITAIS aqui pra bater com o mesmo valor mostrado no card de
+                            combate do Mapa (MapaCombate.jsx) pra essa mesma entidade. */}
+                        {formatNum(dummie.hpAtual / FATOR_EXIBICAO_VITAIS)}/{formatNum(dummie.hpMax / FATOR_EXIBICAO_VITAIS)}
                     </span>
                     <div style={{ width: '96%', height: '4px', background: '#333', borderRadius: '2px', overflow: 'hidden' }}>
                         <div style={{ height: '100%', width: `${pct}%`, background: pct > 50 ? '#0f0' : pct > 20 ? '#ffcc00' : '#f00', transition: 'width 0.3s' }} />

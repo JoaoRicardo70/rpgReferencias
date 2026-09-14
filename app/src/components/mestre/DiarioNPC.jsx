@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { lerImagemComoBase64 } from '../../services/firebase-storage';
 import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from '../../core/attributes';
 import { getRank } from '../../core/prestige';
-import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida } from '../../core/vitals';
+import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import BarrasVida from '../shared/BarrasVida';
 
 // ==========================================
@@ -442,20 +442,20 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
                         altura={35}
                         renderTexto={(atualSeguro, maxSeguro, i) => (
                             <>
-                                <CampoMagicoNPC valor={atualSeguro} onChange={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, maxSeguro, i, v))} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTextoBarra, textShadow: 'inherit', borderBottom: `1px dashed ${corTextoBarra === '#fff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
+                                <CampoMagicoNPC valor={Math.floor(atualSeguro / FATOR_EXIBICAO_VITAIS)} onChange={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, maxSeguro, i, (parseFloat(v) || 0) * FATOR_EXIBICAO_VITAIS))} isNumber={true} styleExtra={{ width: '120px', textAlign: 'right', color: corTextoBarra, textShadow: 'inherit', borderBottom: `1px dashed ${corTextoBarra === '#fff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'}` }} />
                                 <span style={{ margin: '0 8px' }}>/</span>
-                                <span>{maxSeguro.toLocaleString('pt-BR')}</span>
+                                <span>{Math.floor(maxSeguro / FATOR_EXIBICAO_VITAIS).toLocaleString('pt-BR')}</span>
                             </>
                         )}
                     />
                 ) : (
                     <BarraVitalNPC
-                        atual={barras[0].atual}
-                        maximo={barras[0].max}
+                        atual={Math.floor(barras[0].atual / FATOR_EXIBICAO_VITAIS)}
+                        maximo={Math.floor(barras[0].max / FATOR_EXIBICAO_VITAIS)}
                         pVit={pVit}
                         cor={corBarra}
                         corTexto={corTextoBarra}
-                        onChangeAtual={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, barras[0].max, 0, v))}
+                        onChangeAtual={(v) => salvar(`${vitalKey}.atual`, aplicarEdicaoBarraVida(barras, barras[0].max, 0, (parseFloat(v) || 0) * FATOR_EXIBICAO_VITAIS))}
                     />
                 )}
                 {aberto && subItens && (
