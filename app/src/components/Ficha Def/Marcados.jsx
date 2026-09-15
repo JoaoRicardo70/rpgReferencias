@@ -795,11 +795,12 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
     const [marcados, setMarcados] = useState(() => new Set());
     const [nivelAlvoMassa, setNivelAlvoMassa] = useState(1);
     const corTema = catData.cor || '#ffffff';
-    // 🛡️ Resistência/Redução de Dano só fazem sentido pras 4 categorias de Elementos (Básicos/
-    // Avançados/Verdadeiros) — são elas que alimentam calcularReducaoDanoElemental/
-    // getFracaoResistenciaElemental em combate (ver core/dominios.js), nunca Artes Marciais,
-    // Cura, Invocações etc.
-    const isElemental = catKey.startsWith('elementos_');
+    // 🛡️ Resistência/Redução de Dano (pedido do usuário): core/dominios.js já é 100% genérico —
+    // getNivelDominio/getFracaoDominio/calcularReducaoDanoElemental leem qualquer Domínio pelo NOME,
+    // sem checar categoria — e ElementosMagiaCard (arsenal/ElementosSubComponents.jsx) já exibe/
+    // aplica esse mesmo bloco pra magias de QUALQUER categoria (mana/chakra/aura/etc.), não só
+    // Elementos. Antes esta página só MOSTRAVA o bloco pras 4 categorias de Elementos Básicos/
+    // Avançados/Verdadeiros — agora todas as categorias de Domínio exibem a mesma informação.
     const fichaParaDominio = { dominios: dominiosSalvos };
 
     const dominiosFiltrados = Object.entries(dominiosSalvos).filter(([nome, dados]) => {
@@ -946,7 +947,7 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
                                     </div>
                                 </div>
                                 <div style={{ fontSize: '0.9em', fontStyle: 'italic', color: '#ccc' }}><span style={{ color: infoNivel.cor, fontWeight: 'bold' }}>⚡ :</span> {infoNivel.desc}</div>
-                                {isElemental && nivel > 0 && (
+                                {nivel > 0 && (
                                     <div style={{ fontSize: '0.82em', color: '#aaa', borderTop: '1px dotted #333', paddingTop: '6px' }}>
                                         🛡️ Resistência: <strong style={{ color: infoNivel.cor }}>{Math.round(getFracaoDominio(fichaParaDominio, nomeDom) * 100)}%</strong>
                                         {' '}| Redução de Dano (máx., vs. Domínio 0): <strong style={{ color: infoNivel.cor }}>{Math.round(calcularReducaoDanoElemental(nivel, 0) * 100)}%</strong>
@@ -1927,7 +1928,7 @@ export default function MarcadosPanel() {
                                             Poder: {formatarPoderCosmico(getPoderVerdadeiro('energiaForca', minhaFicha, true, supressao, 1))}
                                         </div>
                                     </div>
-                                    <BarraVital atual={minhaFicha.energiaForca?.atual !== undefined && minhaFicha.energiaForca?.atual !== '' ? Number(minhaFicha.energiaForca.atual) : forcaMax} maximo={forcaMax} pVit={0} cor="#FFD700" corTexto="#000" onChangeAtual={(v) => salvar('energiaForca.atual', v)} />
+                                    <BarraVital atual={Math.floor((minhaFicha.energiaForca?.atual !== undefined && minhaFicha.energiaForca?.atual !== '' ? Number(minhaFicha.energiaForca.atual) : forcaMax) / FATOR_EXIBICAO_VITAIS)} maximo={Math.floor(forcaMax / FATOR_EXIBICAO_VITAIS)} pVit={0} cor="#FFD700" corTexto="#000" onChangeAtual={(v) => salvar('energiaForca.atual', (parseFloat(v) || 0) * FATOR_EXIBICAO_VITAIS)} />
                                 </div>
                             </div>
 

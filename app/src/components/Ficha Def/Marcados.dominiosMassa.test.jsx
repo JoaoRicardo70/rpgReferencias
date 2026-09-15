@@ -18,8 +18,9 @@ import useStore from '../../stores/useStore';
 // Usamos a categoria "cura" (Atributos de Cura e Suporte) com nomes de
 // domínio que NÃO existem em PREDEFINIDOS_LORE, pra cair sempre no ramo
 // `dados.categoria === catKey` do filtro (sem depender de encontrarCategoria-
-// PorLore) e não ser uma categoria elemental (sem o bloco extra de
-// Resistência/Redução de Dano, que só aparece pra 'elementos_*').
+// PorLore). Desde a reformulação que estendeu o bloco de Resistência/Redução
+// de Dano pra TODAS as categorias (antes só 'elementos_*'), essa escolha não
+// muda mais o que é exibido -- mantida assim mesmo pra não depender da Lore.
 // ---------------------------------------------------------------------------
 
 vi.mock('../../stores/useStore');

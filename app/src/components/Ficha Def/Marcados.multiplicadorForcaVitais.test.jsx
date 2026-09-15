@@ -311,13 +311,17 @@ describe('Marcados — getSupremas(): forcaMax (5ª barra "Força"/energiaForca)
     afterEach(() => cleanup());
 
     it('sem multiplicador (fator=1 em todas): forcaMax = média crua das 4 bases, igual ao comportamento anterior', () => {
+        // 🔥 Reformulação de Vida/Energias: fixtures ×1000 em relação à versão original (bruto,
+        // bem abaixo do divisor de prestígio 1e7, então fatorForca continua 1) -- a barra de Força
+        // agora divide por FATOR_EXIBICAO_VITAIS na exibição, então o valor exibido esperado
+        // permanece o mesmo de antes.
         const ficha = fichaBase({
-            mana: { base: 100 }, aura: { base: 200 }, chakra: { base: 300 }, corpo: { base: 400 },
+            mana: { base: 100000 }, aura: { base: 200000 }, chakra: { base: 300000 }, corpo: { base: 400000 },
         });
         montarMockUseStore(ficha);
 
         render(<MarcadosPanel />);
-        // (100+200+300+400)/4 = 250, fatorForca=1 -> 250.
+        // bruto: (100.000+200.000+300.000+400.000)/4 = 250.000, fatorForca=1 -> exibido /1000 = 250.
         expect(lerMaximoBarra('Força')).toBe((250).toLocaleString('pt-BR'));
     });
 
@@ -325,6 +329,8 @@ describe('Marcados — getSupremas(): forcaMax (5ª barra "Força"/energiaForca)
         // mana=aura=chakra=corpo=400.000.000 -> getBasePFor cada = floor(4e8/1e7)=40;
         // multP=3,multA=1 -> prestigioTotal=120, bonusAscensao=1, ascensaoFinal=2 -> fator=2.
         // fatorForca = (2+2+2+2)/4 = 2.
+        // Fixture NÃO escalada (precisa cruzar o divisor de prestígio 1e7 pra gerar o overflow) --
+        // apenas o valor exibido esperado agora divide por FATOR_EXIBICAO_VITAIS.
         const ficha = fichaBase({
             mana: { base: 400000000 }, aura: { base: 400000000 }, chakra: { base: 400000000 }, corpo: { base: 400000000 },
             multiplicadorForcaPrestigio: 3,
@@ -333,16 +339,17 @@ describe('Marcados — getSupremas(): forcaMax (5ª barra "Força"/energiaForca)
 
         render(<MarcadosPanel />);
 
-        // média crua = 400.000.000; * fatorForca(2) = 800.000.000.
+        // média bruta = 400.000.000; * fatorForca(2) = 800.000.000 (bruto) -> exibido /1000 = 800.000.
         const maximoExibido = lerMaximoBarra('Força');
-        expect(maximoExibido).toBe((800000000).toLocaleString('pt-BR'));
-        expect(maximoExibido).not.toBe((400000000).toLocaleString('pt-BR'));
+        expect(maximoExibido).toBe((800000).toLocaleString('pt-BR'));
+        expect(maximoExibido).not.toBe((400000).toLocaleString('pt-BR'));
     });
 
     it('fatores DIFERENTES entre as 4 energias tiram a média corretamente (nem todas overflow igual)', () => {
         // mana/aura com overflow (fator=2 cada, mesma conta do teste anterior);
         // chakra/corpo pequenos, sem overflow (fator=1 cada).
         // fatorForca = (2+2+1+1)/4 = 1.5.
+        // Fixture NÃO escalada pelo mesmo motivo do teste anterior.
         const ficha = fichaBase({
             mana: { base: 400000000 }, aura: { base: 400000000 },
             chakra: { base: 1000000 }, corpo: { base: 1000000 },
@@ -352,8 +359,8 @@ describe('Marcados — getSupremas(): forcaMax (5ª barra "Força"/energiaForca)
 
         render(<MarcadosPanel />);
 
-        // média crua = (4e8+4e8+1e6+1e6)/4 = 200.500.000; * 1.5 = floor(300.750.000).
+        // média bruta = (4e8+4e8+1e6+1e6)/4 = 200.500.000; * 1.5 = 300.750.000 (bruto) -> exibido /1000 = 300.750.
         const maximoExibido = lerMaximoBarra('Força');
-        expect(maximoExibido).toBe((300750000).toLocaleString('pt-BR'));
+        expect(maximoExibido).toBe((300750).toLocaleString('pt-BR'));
     });
 });
