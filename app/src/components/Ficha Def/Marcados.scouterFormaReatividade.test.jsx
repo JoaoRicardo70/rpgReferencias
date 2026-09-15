@@ -109,10 +109,10 @@ describe('MarcadosPanel — Grimório (poderes[]) com mformas tageado num eixo e
 
     // Poder_Base = (vida*10)/6 = (600*10)/6 = 1000 (todo o resto zerado).
     // ascensaoGeralEfetiva = 1 (ascensaoBase padrão=1, sem overflow), então
-    // multiplicadorAscensao = 2^1 = 2. glob.finalF fica travado em 1 nos dois
+    // multiplicadorAscensao = 1.5^1 = 1.5. glob.finalF fica travado em 1 nos dois
     // estados (ligado/desligado) porque getEfetivoMFormas agora ignora buffs
-    // vindos de ficha.poderes: poderMultiplicado = 1000*2*1 = 2000, magnitude
-    // = floor(log10(2000)) = 3, poderComAscensao = 2000 + 1*10^4 = 12000.
+    // vindos de ficha.poderes: poderMultiplicado = 1000*1.5*1 = 1500, magnitude
+    // = floor(log10(1500)) = 3, poderComAscensao = 1500 + 1*10^4 = 11500.
     it('ativar uma Forma via poderes[] com efeito atributo:"vida"/propriedade:"mformas" NÃO altera mais a leitura do Scouter', () => {
         const ficha = fichaMinimaScouter({
             vida: { base: 600 },
@@ -122,18 +122,18 @@ describe('MarcadosPanel — Grimório (poderes[]) com mformas tageado num eixo e
 
         const { rerender } = render(<MarcadosPanel />);
         const valorDesligado = lerPoderGlobalExibido();
-        expect(valorDesligado).toBe(12000);
+        expect(valorDesligado).toBe(11500);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = true; });
         rerender(<MarcadosPanel />);
         const valorLigado = lerPoderGlobalExibido();
-        expect(valorLigado).toBe(12000);
+        expect(valorLigado).toBe(11500);
         expect(valorLigado).toBe(valorDesligado);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = false; });
         rerender(<MarcadosPanel />);
         const valorRevertido = lerPoderGlobalExibido();
-        expect(valorRevertido).toBe(12000);
+        expect(valorRevertido).toBe(11500);
     });
 });
 
@@ -152,7 +152,8 @@ describe('MarcadosPanel — cobertura multi-eixo: a exclusão vale para qualquer
     // k==='status' ? 'forca' : k). Poder_Base = (statusEfetivo*100)/6, com
     // statusEfetivo = somaStatus/8 e apenas forca.base=480 setado (demais 7
     // atributos físicos = 0): statusEfetivo = 480/8 = 60 => Poder_Base =
-    // (60*100)/6 = 1000 (mesmo Poder_Base do teste do eixo vida acima).
+    // (60*100)/6 = 1000 (mesmo Poder_Base do teste do eixo vida acima, logo
+    // mesmo baseline 11500 — ver comentário no describe acima).
     it('ativar uma Forma via poderes[] com efeito atributo:"forca"/propriedade:"mformas" NÃO altera mais a leitura do Scouter (eixo status)', () => {
         const ficha = fichaMinimaScouter({
             forca: { base: 480 },
@@ -162,18 +163,18 @@ describe('MarcadosPanel — cobertura multi-eixo: a exclusão vale para qualquer
 
         const { rerender } = render(<MarcadosPanel />);
         const valorDesligado = lerPoderGlobalExibido();
-        expect(valorDesligado).toBe(12000);
+        expect(valorDesligado).toBe(11500);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = true; });
         rerender(<MarcadosPanel />);
         const valorLigado = lerPoderGlobalExibido();
-        expect(valorLigado).toBe(12000);
+        expect(valorLigado).toBe(11500);
         expect(valorLigado).toBe(valorDesligado);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = false; });
         rerender(<MarcadosPanel />);
         const valorRevertido = lerPoderGlobalExibido();
-        expect(valorRevertido).toBe(12000);
+        expect(valorRevertido).toBe(11500);
     });
 });
 
@@ -191,15 +192,15 @@ describe('MarcadosPanel — campo ESTÁTICO ficha.<attr>.mFormas (fora do Grimó
     // Rota A (campo estático, ex.: escrito pela aba Status): ficha.forca.mFormas
     // = 3, sem buffs de poderes[] -> v=3 -> getEfetivoMFormas retorna v=3
     // diretamente -> glob.finalF = 1+(3-1) = 3. Poder_Base = (vida*10)/6 =
-    // 1000 (só vida=600). poderMultiplicado = 1000*2(ascensão)*3(finalF) =
-    // 6000, magnitude = 3, poderComAscensao = 6000 + 1*10^4 = 16000.
+    // 1000 (só vida=600). poderMultiplicado = 1000*1.5(ascensão)*3(finalF) =
+    // 4500, magnitude = 3, poderComAscensao = 4500 + 1*10^4 = 14500.
     //
     // Rota B (buff dinâmico via poderes[] ativo): agora IGNORADA pelo Scouter
     // (ver describes acima) — glob.finalF fica em 1, poderMultiplicado =
-    // 1000*2*1 = 2000, poderComAscensao = 2000 + 10000 = 12000. As duas
+    // 1000*1.5*1 = 1500, poderComAscensao = 1500 + 10000 = 11500. As duas
     // leituras NÃO são mais iguais, ao contrário do comportamento anterior à
     // exclusão do Grimório do cálculo do Scouter.
-    it('campo estático mFormas=3 continua valendo no Scouter (16000); o mesmo bônus vindo de poderes[] não conta mais (12000)', () => {
+    it('campo estático mFormas=3 continua valendo no Scouter (14500); o mesmo bônus vindo de poderes[] não conta mais (11500)', () => {
         const fichaEstatica = fichaMinimaScouter({
             vida: { base: 600 },
             forca: { base: 0, mFormas: 3 },
@@ -218,8 +219,8 @@ describe('MarcadosPanel — campo ESTÁTICO ficha.<attr>.mFormas (fora do Grimó
         render(<MarcadosPanel />);
         const leituraBuff = lerPoderGlobalExibido();
 
-        expect(leituraEstatica).toBe(16000);
-        expect(leituraBuff).toBe(12000);
+        expect(leituraEstatica).toBe(14500);
+        expect(leituraBuff).toBe(11500);
         expect(leituraEstatica).not.toBe(leituraBuff);
     });
 });
@@ -247,7 +248,7 @@ describe('MarcadosPanel — Grimório (poderes[]) não infla o Poder INDIRETAMEN
     // mana/aura/chakra/corpo=5e9 -> prestígio bruto=500 -> bonusAscensao=5 cada.
     // forca..constituicao=500000 (média) -> prestígio bruto(status)=500 -> bonusAscensao=5.
     // nivelCompletos = min(1,5,5,5,5,5) = 1 -> ascensaoGeralEfetivaParaPoder = (1+1)*1 = 2
-    // -> multiplicadorAscensao = 2^2 = 4 (mesmo com o poder do Grimório desativado).
+    // -> multiplicadorAscensao = 1.5^2 = 2,25 (mesmo com o poder do Grimório desativado).
     function fichaComGargaloDeVida(overrides = {}) {
         return {
             vida: { base: 100000000 },
@@ -277,7 +278,7 @@ describe('MarcadosPanel — Grimório (poderes[]) não infla o Poder INDIRETAMEN
     // Se um efeito de poderes[] com atributo:'vida'/propriedade:'mformas' NÃO for excluído
     // do cálculo de Ascensão (regressão), ele empurraria o gargalo de "vida" (bonusAscensao=1)
     // para cima do das outras 5 categorias (bonusAscensao=5), fazendo nivelCompletos SUBIR
-    // de 1 para 5 e ascensaoGeralEfetivaParaPoder de 2 para 6 — um salto de 2^6/2^2=16x só
+    // de 1 para 5 e ascensaoGeralEfetivaParaPoder de 2 para 6 — um salto de 1.5^6/1.5^2=1.5^4≈5,06x só
     // por causa da Ascensão, ADEMAIS de qualquer efeito "poder_direto" no mesmo Poder. Com a
     // exclusão correta (ignorarPoderes=true em calcularPrestAtual/getEfetivoMFormas), ativar
     // este Poder NÃO deve mudar a leitura do Scouter em nada.

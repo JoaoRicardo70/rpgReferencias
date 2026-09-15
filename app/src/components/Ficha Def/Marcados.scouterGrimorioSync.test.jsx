@@ -221,9 +221,10 @@ describe('MarcadosPanel — Failsafe de log10 (poderComAscensao): poderMultiplic
     // cenário de referência com vida=0 (ascensaoBase=4, sem overflow) já coberto em
     // Marcados.scouterFormulaAscensao.test.jsx, que também vale aqui: ascensaoGeralEfetiva=4.
     // Ascensão agora também multiplica o Poder Base (mesmo negativo), com a curva
-    // exponencial atual (2^ascensaoGeralEfetiva):
-    //   multiplicadorAscensao = 2^4 = 16 -> poderMultiplicado = -10*16 = -160 (<= 0) -> ramo else:
-    //   poderComAscensao = ascensaoSegura(4)*10 + (-160) = 40 - 160 = -120
+    // exponencial atual (1.5^ascensaoGeralEfetiva — base reduzida de 2 pra 1.5 nesta sessão,
+    // pedido do usuário, pra suavizar o quanto a Ascensão escala o Poder Calculado):
+    //   multiplicadorAscensao = 1.5^4 = 5,0625 -> poderMultiplicado = -10*5,0625 = -50,625 (<= 0) -> ramo else:
+    //   poderComAscensao = ascensaoSegura(4)*10 + (-50,625) = 40 - 50,625 = -10,625 -> Math.floor = -11
     it('poderMultiplicado negativo usa o ramo else do failsafe (ascensaoSegura*10 + poderMultiplicado), sem tocar Math.log10 e sem gerar NaN na leitura', () => {
         const ficha = fichaBaseScouter({
             vida: { base: -6 },
@@ -247,6 +248,6 @@ describe('MarcadosPanel — Failsafe de log10 (poderComAscensao): poderMultiplic
         const leitura = lerPoderGlobalExibido();
         expect(leitura).not.toBeNaN();
         expect(Number.isFinite(leitura)).toBe(true);
-        expect(leitura).toBe(-120);
+        expect(leitura).toBe(-11);
     });
 });

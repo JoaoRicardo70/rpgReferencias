@@ -41,6 +41,23 @@ import useStore from '../../stores/useStore';
 // Ascensão extrema parecer "sem poder nenhum", o mesmo tipo de regressão que
 // esta correção inteira existe para evitar). Os testes abaixo validam essa
 // correção.
+//
+// 🔥 BASE do expoente reduzida de 2 pra 1.5 (pedido do usuário, sessão
+// posterior, pra suavizar o quanto a Ascensão escala o Poder Calculado — ver
+// core/poder.js e Marcados.jsx). Isso NÃO muda a lógica do guard em si
+// (Math.min(1000, ...) + clampFinito continuam exatamente iguais), só desloca
+// MUITO pra cima o ponto em que esses valores de Ascensão realmente
+// saturam em 1e308 (1.5^1000 ≈ 1,23e176 é bem menor que 2^1000 ≈ 1,07e301).
+// Os testes que dependiam de saturação de fato (não apenas de finitude) usam
+// agora mana=1e131 (em vez de vida=600.000) pra continuar empurrando
+// poderMultiplicado sozinho além do overflow de double, preservando a mesma
+// validação do guard com a nova base. Usamos MANA (não Vida) de propósito:
+// Vida tem sua própria mecânica de "Break Bars" (montarBarrasVida, core/
+// vitals.js) que faz um loop O(vida/1 bilhão) pra montar as barras — com uma
+// Vida de 1e130+ isso tentaria alocar ~1e121 barras e travaria o teste
+// (OutOfMemory) por um motivo TOTALMENTE alheio ao que este arquivo testa;
+// Mana não tem Break Bars (usa a escala comprimida O(1) de calcVitalScale),
+// então sustenta esses valores extremos sem esse efeito colateral.
 // ---------------------------------------------------------------------------
 
 vi.mock('../../stores/useStore');
@@ -126,17 +143,14 @@ describe('MarcadosPanel — guarda de overflow: Math.min(1000, ...) + saturaçã
 
     // Ficha com vida=600.000 (poderBase=1e6, mesmo padrão de
     // Marcados.scouterAscensaoMultiplicativa.test.jsx), variando SÓ
-    // ascensaoBase entre valores absurdos (1000, 1001, 5000 e 50000).
-    // Confirmado rodando a fórmula real em Node: com o `Math.min(1000, ...)`
-    // sozinho (SEM a saturação também aplicada à injeção/poderMultiplicado),
-    // TODOS os 4 casos abaixo estouravam para Infinity — não é um caso de
-    // canto raro, é o comportamento padrão para qualquer ascensaoBase>=1000
-    // combinado com um poderBase realista (>=~10.000, muito abaixo de
-    // poderBase=1e6 usado aqui e em vários testes desta suíte). Depois da
-    // correção (saturação em 1e308 nos 3 pontos de failsafe), os 4 casos
-    // saturam exatamente no mesmo teto — por isso a leitura é IDÊNTICA nos
-    // 4, o que também prova que o teto de multiplicadorAscensao (2^1000) é o
-    // mesmo não importa o quão além de 1000 o input vá.
+    // ascensaoBase entre valores absurdos (1000, 1001, 5000 e 50000). Com a
+    // BASE do expoente em 1.5, poderBase=1e6 já não é suficiente pra estourar
+    // (1.5^1000 ≈ 1,23e176 é bem menor que o antigo 2^1000 ≈ 1,07e301) — mas
+    // o guard em si (Math.min(1000,...) + clampFinito) segue funcionando
+    // corretamente: a leitura continua finita, positiva e sem NaN pra
+    // qualquer ascensaoBase>=1000, só não satura mais nesta magnitude de
+    // poderBase (ver os dois testes seguintes, que usam vida=1e130 pra
+    // efetivamente forçar a saturação com a nova base).
     it.each([1000, 1001, 5000, 50000])('ascensaoBase=%i (poderBase=1e6): leitura do Scouter é finita, não-negativa e não-NaN', (ascensaoBase) => {
         const ficha = fichaMinimaScouter({ vida: { base: 600000 }, ascensaoBase });
         montarMockUseStore(ficha);
@@ -151,9 +165,18 @@ describe('MarcadosPanel — guarda de overflow: Math.min(1000, ...) + saturaçã
         cleanup();
     });
 
-    it('ascensaoBase=1000, 1001, 5000 e 50000 (poderBase=1e6) produzem a MESMA leitura exata do Scouter — o multiplicador satura sempre no mesmo teto, não importa o quão além de 1000 o input vá', () => {
+    // Pra genuinamente estourar poderMultiplicado sozinho com BASE=1.5 (garantindo
+    // saturação idêntica não importa o quão além de 1000 ascensaoBase vá — mesmo
+    // quando a injeção NÃO-clampada por ascensaoSegura seria diferente entre os 4
+    // casos), o poder base precisa ser MUITO maior que 1e6: com mana=1e131,
+    // poderBase=1e131/6≈1,67e130 e poderMultiplicado=poderBase*1,5^1000
+    // (≈1,23e176) ≈ 2,05e306, que já ultrapassa Number.MAX_VALUE (~1,7977e308)
+    // quando multiplicado mais adiante — confirmado rodando a fórmula exata:
+    // os 4 casos saturam idênticos em 1e308. (Mana, não Vida — ver nota de
+    // Break Bars no topo do arquivo.)
+    it('ascensaoBase=1000, 1001, 5000 e 50000 (mana=1e131) produzem a MESMA leitura exata do Scouter — o multiplicador satura sempre no mesmo teto, não importa o quão além de 1000 o input vá', () => {
         const leituras = [1000, 1001, 5000, 50000].map((ascensaoBase) => {
-            montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, ascensaoBase }));
+            montarMockUseStoreReativo(fichaMinimaScouter({ mana: { base: 1e131 }, ascensaoBase }));
             const { unmount } = render(<MarcadosPanel />);
             const leitura = lerPoderGlobalExibido();
             unmount();
@@ -172,7 +195,7 @@ describe('MarcadosPanel — guarda de overflow: Math.min(1000, ...) + saturaçã
     // Documenta o valor exato do teto de saturação (1e308 — não Number.MAX_VALUE, cujo
     // toExponential(2) arredondaria para uma string que estoura de volta pra Infinity ao ser relida).
     it('o teto de saturação exato é 1e308 (não Number.MAX_VALUE, não 0)', () => {
-        montarMockUseStore(fichaMinimaScouter({ vida: { base: 600000 }, ascensaoBase: 1000 }));
+        montarMockUseStore(fichaMinimaScouter({ mana: { base: 1e131 }, ascensaoBase: 1000 }));
         render(<MarcadosPanel />);
 
         expect(lerPoderGlobalExibido()).toBe(1e308);
@@ -182,7 +205,7 @@ describe('MarcadosPanel — guarda de overflow: Math.min(1000, ...) + saturaçã
     // (50000) num re-render normal continua lendo o MESMO teto — não há acúmulo/drift de estado entre
     // recomputações do useMemo em valores extremos.
     it('reatividade: subir ascensaoBase de 5000 para 50000 via rerender() mantém a leitura saturada idêntica', () => {
-        const mock = montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, ascensaoBase: 5000 }));
+        const mock = montarMockUseStoreReativo(fichaMinimaScouter({ mana: { base: 1e131 }, ascensaoBase: 5000 }));
         const { rerender } = render(<MarcadosPanel />);
         const leituraAntes = lerPoderGlobalExibido();
         expect(Number.isFinite(leituraAntes)).toBe(true);
@@ -208,15 +231,15 @@ describe('MarcadosPanel — o clamp NÃO satura prematuramente: Ascensão alta p
     });
 
     // Mesma ficha base (vida=600.000 -> poderBase=1e6), ascensaoBase=20 vs 30 — ambos MUITO abaixo do
-    // teto de Math.min(1000, ...), então multiplicadorAscensao = 2^20 e 2^30 exatos (sem clamp/
+    // teto de Math.min(1000, ...), então multiplicadorAscensao = 1.5^20 e 1.5^30 exatos (sem clamp/
     // saturação envolvidos em nenhuma etapa). Valores conferidos rodando a fórmula exata em Node:
-    //   asc=20: multiplicadorAscensao=2^20=1.048.576, poderMultiplicado=1e6*1.048.576=1.048.576.000.000
-    //     magnitude=floor(log10(1.048576e12))=12, injeção=20*10^13=2e14
-    //     poderComAscensao=1.048.576.000.000+2e14=201.048.576.000.000 -> toExponential(2)="2.01e+14"
-    //   asc=30: multiplicadorAscensao=2^30=1.073.741.824, poderMultiplicado=1e6*1.073.741.824=1.073.741.824.000.000
-    //     magnitude=floor(log10(1.073741824e15))=15, injeção=30*10^16=3e17
-    //     poderComAscensao=1.073.741.824.000.000+3e17=301.073.741.824.000.000 -> toExponential(2)="3.01e+17"
-    it('ascensaoGeralEfetiva=20 vs 30 (bem abaixo do teto de 1000): leituras exatas 2.01e14 e 3.01e17, crescendo normalmente sem qualquer saturação', () => {
+    //   asc=20: multiplicadorAscensao=1.5^20=3.325,256730079651, poderMultiplicado=1e6*3325,25673≈3.325.256.730,08
+    //     magnitude=floor(log10(3,32525673e9))=9, injeção=20*10^10=2e11
+    //     poderComAscensao≈3.325.256.730,08+2e11=203.325.256.730,08 -> toExponential(2)="2.03e+11"
+    //   asc=30: multiplicadorAscensao=1.5^30=191.751,0592328841, poderMultiplicado=1e6*191751,059≈191.751.059.232,88
+    //     magnitude=floor(log10(1,9175105923e11))=11, injeção=30*10^12=3e13
+    //     poderComAscensao≈191.751.059.232,88+3e13=30.191.751.059.232,88 -> toExponential(2)="3.02e+13"
+    it('ascensaoGeralEfetiva=20 vs 30 (bem abaixo do teto de 1000): leituras exatas 2.03e11 e 3.02e13, crescendo normalmente sem qualquer saturação', () => {
         montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, ascensaoBase: 20 }));
         const { unmount } = render(<MarcadosPanel />);
         const leitura20 = lerPoderGlobalExibido();
@@ -226,8 +249,8 @@ describe('MarcadosPanel — o clamp NÃO satura prematuramente: Ascensão alta p
         render(<MarcadosPanel />);
         const leitura30 = lerPoderGlobalExibido();
 
-        expect(leitura20).toBe(201000000000000);
-        expect(leitura30).toBe(301000000000000000);
+        expect(leitura20).toBe(203000000000);
+        expect(leitura30).toBe(30200000000000);
         expect(leitura30).toBeGreaterThan(leitura20);
         // Bem longe do teto de saturação (1e308) — prova que o clamp de overflow não interfere aqui.
         expect(leitura30).toBeLessThan(1e100);
@@ -258,35 +281,37 @@ describe('MarcadosPanel — regressão do bug original (fórmula NOVA vs HIPOTÉ
     //   Base (e os valores hand-computed abaixo) exatamente como antes desta
     //   sessão.
     //   vida=60.000.000.000 (6e10) -> poderBase_C = (6e10*10)/6 = 1e11
-    //   multiplicadorAscensao_C = 2^1 = 2 -> poderMultiplicado_C = 1e11*2 = 2e11
-    //   magnitude_C = floor(log10(2e11)) = 11 -> injeção_C = 1*10^12 = 1e12
-    //   poderComAscensao_C = 2e11 + 1e12 = 1.200.000.000.000 (1,2e12)
+    //   multiplicadorAscensao_C = 1.5^1 = 1.5 -> poderMultiplicado_C = 1e11*1.5 = 1.5e11
+    //   magnitude_C = floor(log10(1.5e11)) = 11 -> injeção_C = 1*10^12 = 1e12
+    //   poderComAscensao_C = 1.5e11 + 1e12 = 1.150.000.000.000 (1,15e12)
     //
     // Personagem D: Ascensão 50x maior que C (ascensaoBase=50 — valor DIFERENTE dos 99 usados em
     // Marcados.scouterAscensaoMultiplicativa.test.jsx), atributos crus 100.000x menores que C.
     //   vida=600.000 -> poderBase_D = (600.000*10)/6 = 1e6
-    //   multiplicadorAscensao_D = 2^50 = 1.125.899.906.842.624 -> poderMultiplicado_D = 1e6*2^50 ≈ 1,1259e21
-    //   magnitude_D = floor(log10(1,1259e21)) = 21 -> injeção_D = 50*10^22 = 5e22... [valor exato
-    //   conferido em Node: poderComAscensao_D ≈ 5,011258999068426e23]
-    //   toExponential(2) -> "5.01e+23"
+    //   multiplicadorAscensao_D = 1.5^50 = 637.621.500,2140496 -> poderMultiplicado_D = 1e6*1.5^50 ≈ 6,376215e14
+    //   magnitude_D = floor(log10(6,376215e14)) = 14 -> injeção_D = 50*10^15 = 5e16... [valor exato
+    //   conferido em Node: poderComAscensao_D ≈ 5,0637621500214e16]
+    //   toExponential(2) -> "5.06e+16"
     //
-    // FÓRMULA NOVA (2^ascensao, a que está em produção): D (5,01e23) SUPERA C (1,2e12) por uma margem
-    // colossal — a Ascensão 50x maior de D domina, mesmo com atributos crus 100.000x menores.
+    // FÓRMULA NOVA (1.5^ascensao, base reduzida de 2 pra 1.5 nesta sessão pra suavizar a escala): D
+    // (5,06e16) SUPERA C (1,15e12) por uma margem bem menor que com base=2 (~4,4e4x, contra ~4,2e11x
+    // antes), mas ainda assim decisiva — a Ascensão 50x maior de D continua dominando, mesmo com
+    // atributos crus 100.000x menores.
     //
     // FÓRMULA ANTIGA HIPOTÉTICA (1+ascensao, a PRIMEIRA versão da correção, já substituída pela
-    // exponencial antes mesmo de chegar em produção): recalculando os MESMOS dois personagens com
-    // multiplicadorLinear = 1+ascensaoSegura no lugar do exponencial:
-    //   poderMultiplicado_C_linear = 1e11*(1+1) = 2e11 (idêntico ao caso exponencial, pois 2^1=1+1=2
-    //   coincidem em ascensaoGeralEfetiva=1) -> poderComAscensao_C_linear = 1,2e12 (igual a C acima)
+    // exponencial antes mesmo de chegar em produção — independe da BASE do expoente escolhida depois,
+    // então os números abaixo não mudam com a redução de base): recalculando os MESMOS dois
+    // personagens com multiplicadorLinear = 1+ascensaoSegura no lugar do exponencial:
+    //   poderMultiplicado_C_linear = 1e11*(1+1) = 2e11 -> poderComAscensao_C_linear = 1,2e12
     //   poderMultiplicado_D_linear = 1e6*(1+50) = 5,1e7 -> magnitude=7 -> injeção=50*10^8=5e9
     //   poderComAscensao_D_linear = 5,1e7 + 5e9 = 5.051.000.000 -> toExponential(2) = "5.05e+09"
     // Sob a fórmula linear, D_linear (5,05e9) PERDE de C_linear (1,2e12) por quase 3 ordens de
     // grandeza — ou seja, com ESTE par de personagens (diferente do par ascensaoBase=1 vs 99 usado no
     // outro arquivo de teste), a fórmula linear NÃO teria corrigido o bug (D continuaria perdendo
-    // apesar de ter 50x mais Ascensão), enquanto a fórmula exponencial em produção inverte a
-    // comparação decisivamente. Isso prova que a escolha pela fórmula exponencial (em vez da linear
-    // descartada) é necessária também para este par de valores, não só para o par específico do outro
-    // arquivo de teste.
+    // apesar de ter 50x mais Ascensão), enquanto a fórmula exponencial em produção (mesmo com a base
+    // reduzida) inverte a comparação decisivamente. Isso prova que a escolha pela fórmula exponencial
+    // (em vez da linear descartada) é necessária também para este par de valores, não só para o par
+    // específico do outro arquivo de teste.
     it('Personagem D (Ascensão 50x maior, atributos 100.000x menores) supera o Personagem C sob a fórmula exponencial — a hipotética fórmula linear anterior NÃO teria corrigido este par', () => {
         montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 60000000000 }, ascensaoBase: 1, divisores: { vida: 0.000000000001 } }));
         const { unmount } = render(<MarcadosPanel />);
@@ -297,8 +322,8 @@ describe('MarcadosPanel — regressão do bug original (fórmula NOVA vs HIPOTÉ
         render(<MarcadosPanel />);
         const leituraD = lerPoderGlobalExibido();
 
-        expect(leituraC).toBe(1200000000000);
-        expect(leituraD).toBe(5.01e23);
+        expect(leituraC).toBe(1150000000000);
+        expect(leituraD).toBe(5.06e16);
         expect(leituraD).toBeGreaterThan(leituraC);
     });
 });
@@ -319,12 +344,14 @@ describe('MarcadosPanel — clampFinito preserva o SINAL ao saturar: -Infinity v
     // QUALQUER Infinity (positivo OU negativo) em +1e308 — invertendo silenciosamente o
     // sinal de uma leitura extremamente negativa. Corrigido com Math.sign(v)*SATURACAO_SEGURA.
     //
-    // Vida MUITO negativa (base=-6e20) com todas as outras 5 categorias zeradas (trava
-    // nivelCompletos=0, então ascensaoGeralEfetiva=ascensaoBase=2000 exato, sem overflow
-    // contaminando o valor):
-    //   poderBase = (-6e20*10)/6 = -1e21
-    //   multiplicadorAscensao = 2^min(1000,2000) = 2^1000 ≈ 1,0715e301
-    //   poderMultiplicado = -1e21 * 1,0715e301 ≈ -1,0715e322 -> ultrapassa
+    // Mana MUITO negativa (não Vida — ver nota de Break Bars no topo do arquivo) com todas
+    // as outras 5 categorias zeradas (trava nivelCompletos=0, então
+    // ascensaoGeralEfetiva=ascensaoBase=2000 exato, sem overflow contaminando o valor). Com
+    // BASE=1.5 (reduzida nesta sessão), 1.5^1000 ≈ 1,23e176 é bem menor que o antigo
+    // 2^1000 ≈ 1,07e301 — mana=-1e151 garante a mesma saturação genuína com a nova base:
+    //   poderBase = -1e151/6 ≈ -1,667e150
+    //   multiplicadorAscensao = 1.5^min(1000,2000) = 1.5^1000 ≈ 1,23e176
+    //   poderMultiplicado = -1,667e150 * 1,23e176 ≈ -2,05e326 -> ultrapassa
     //   -Number.MAX_VALUE (-1,7976931348623157e308) -> vira -Infinity em JS
     //   clampFinito(-Infinity) = Math.sign(-Infinity)*1e308 = -1e308 (finito, NEGATIVO)
     //   poderMultiplicado(-1e308) não é > 0 -> ramo else:
@@ -333,9 +360,9 @@ describe('MarcadosPanel — clampFinito preserva o SINAL ao saturar: -Infinity v
     //   power = poderComAscensao * (sup/100) = -1e308 * 1 = -1e308 (sup=100 padrão)
     // Leitura final: -1e308 (negativa, finita) — NÃO +1e308 (o que a versão antiga do
     // clampFinito, sem Math.sign, produziria por engano).
-    it('poderBase extremamente negativo (vida muito negativa) combinado com Ascensão absurda satura em -1e308 (negativo), nunca em +1e308', () => {
+    it('poderBase extremamente negativo (mana muito negativa) combinado com Ascensão absurda satura em -1e308 (negativo), nunca em +1e308', () => {
         const ficha = fichaMinimaScouter({
-            vida: { base: -6e20 },
+            mana: { base: -1e151 },
             ascensaoBase: 2000,
         });
         montarMockUseStore(ficha);

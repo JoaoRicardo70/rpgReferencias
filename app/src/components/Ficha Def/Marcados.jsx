@@ -1141,7 +1141,11 @@ export default function MarcadosPanel() {
         const glob = getGlobalMultipliers(minhaFicha);
 
         const ascensaoSegura = Number(ascensaoGeralEfetivaParaPoder) || 0;
-        const multiplicadorAscensao = Math.pow(2, Math.min(1000, Math.max(0, ascensaoSegura)));
+        // 🔥 Base do expoente reduzida de 2 pra 1.5 (pedido do usuário) pra suavizar o quanto a
+        // Ascensão escala o Poder Calculado — continua crescimento exponencial (Ascensão segue
+        // sendo o multiplicador mais forte do jogo), só a curva fica menos brusca. Réplica exata
+        // em core/poder.js > calcularPoderAtual precisa mudar junto.
+        const multiplicadorAscensao = Math.pow(1.5, Math.min(1000, Math.max(0, ascensaoSegura)));
 
         const SATURACAO_SEGURA = 1e308;
         const clampFinito = (v) => Number.isFinite(v) ? v : (Number.isNaN(v) ? 0 : Math.sign(v) * SATURACAO_SEGURA);
