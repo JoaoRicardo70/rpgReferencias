@@ -133,6 +133,23 @@ export function MestreAcessoNegado() {
 // (e recalcula) quando QUALQUER personagem da mesa muda, não só o que mudou de fato. Ainda assim,
 // vale a pena: a maior parte das interações no Visor é local, e o memo corta o trabalho repetido
 // nelas sem custar nada nos casos em que precisa recalcular mesmo.
+// 🏷️ Um "chip" compacto pra um recurso secundário (MP/AURA/CHAK/CORP/P.VIT/P.MOR) -- substitui a
+// grade rígida 3x3 de caixas iguais (que fazia "10.000" e "12/12" ocuparem o mesmo espaço enxuto,
+// deixando tudo com cara de arquivo) por pastilhas que se ajustam ao próprio conteúdo e quebram
+// linha livremente (pedido do usuário: "essa organização em blocos não ficou boa").
+function ChipRecurso({ label, color, atual, max, fmt }) {
+    return (
+        <div style={{
+            display: 'flex', alignItems: 'baseline', gap: '4px', background: `${color}1a`,
+            border: `1px solid ${color}55`, borderRadius: '20px', padding: '3px 10px', fontSize: '0.72em',
+            color: '#eee', whiteSpace: 'nowrap', lineHeight: 1.4
+        }}>
+            <strong style={{ color }}>{label}</strong>
+            <span>{fmt(atual)} / {fmt(max)}</span>
+        </div>
+    );
+}
+
 const EntidadeCard = React.memo(function EntidadeCard({ jogador, meuNome, userLogado, mesaCriador, mesaMestres, fmt, condicoesGlobais, onAbrirFicha, onPromover, onApagar }) {
     const { nome, ficha, classId, percHp } = jogador;
 
@@ -170,44 +187,59 @@ const EntidadeCard = React.memo(function EntidadeCard({ jogador, meuNome, userLo
         subColor = '#ffcc00';
     }
 
-    return (
-        <div style={{ background: 'rgba(0,0,0,0.6)', border: boxBorder, padding: '15px', borderRadius: '5px', position: 'relative', overflow: 'hidden', boxShadow: boxShadow }}>
-            <div style={{ position: 'absolute', top: 0, left: 0, height: '4px', width: `${percHp}%`, background: percHp > 50 ? '#0f0' : percHp > 20 ? '#ffcc00' : '#f00', transition: 'width 0.3s' }} />
+    const corHp = percHp > 50 ? '#0f0' : percHp > 20 ? '#ffcc00' : '#f00';
+    const percHpSeguro = Math.max(0, Math.min(100, percHp));
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', marginTop: '5px' }}>
-                <strong style={{ color: titleColor, fontSize: '1.2em', textShadow: isGrand ? '0 0 10px #ff003c' : 'none' }}>
-                    {nome} {nome === meuNome && <span style={{color: '#0f0', fontSize: '0.6em', textShadow: 'none'}}>(VOCÊ)</span>}
-                    {isSupremo && <span style={{marginLeft:'5px'}} title="Mestre Supremo">👑</span>}
-                    {isCoMestre && !isSupremo && <span style={{marginLeft:'5px'}} title="Co-Mestre">🛡️</span>}
-                </strong>
-                <span style={{ color: subColor, fontSize: isGrand ? '0.85em' : '0.8em', fontStyle: isMisterio ? 'normal' : 'italic', fontWeight: isGrand ? 'bold' : 'normal' }}>
-                    {subText}
-                </span>
+    return (
+        <div style={{ background: 'rgba(0,0,0,0.6)', border: boxBorder, padding: '15px', borderRadius: '8px', position: 'relative', overflow: 'hidden', boxShadow: boxShadow }}>
+            {/* 🖼️ Retrato com anel de HP -- o avatar do personagem nunca aparecia no Visor (só dentro
+                do modal de Grimório); o anel em conic-gradient mostra o % de Vida de relance, sem
+                brigar por espaço com o texto do cabeçalho. */}
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '12px' }}>
+                <div style={{
+                    flexShrink: 0, width: '52px', height: '52px', borderRadius: '50%', padding: '3px',
+                    background: `conic-gradient(${corHp} ${percHpSeguro}%, rgba(255,255,255,0.12) 0)`,
+                    boxShadow: `0 0 10px ${corHp}66`, transition: 'background 0.3s'
+                }}>
+                    <div style={{ width: '100%', height: '100%', borderRadius: '50%', overflow: 'hidden', background: '#151515', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {ficha?.avatar?.base ? (
+                            <img src={ficha.avatar.base} alt={nome} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                            <span style={{ fontSize: '1.4em' }}>{isGrand ? '👑' : isMisterio ? '❓' : '🎭'}</span>
+                        )}
+                    </div>
+                </div>
+
+                <div style={{ minWidth: 0, flex: 1 }}>
+                    <strong style={{ color: titleColor, fontSize: '1.1em', textShadow: isGrand ? '0 0 10px #ff003c' : 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {nome} {nome === meuNome && <span style={{color: '#0f0', fontSize: '0.6em', textShadow: 'none'}}>(VOCÊ)</span>}
+                        {isSupremo && <span style={{marginLeft:'5px'}} title="Mestre Supremo">👑</span>}
+                        {isCoMestre && !isSupremo && <span style={{marginLeft:'5px'}} title="Co-Mestre">🛡️</span>}
+                    </strong>
+                    <span style={{ color: subColor, fontSize: isGrand ? '0.85em' : '0.8em', fontStyle: isMisterio ? 'normal' : 'italic', fontWeight: isGrand ? 'bold' : 'normal' }}>
+                        {subText}
+                    </span>
+                </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', fontSize: '0.78em', color: '#ddd', marginBottom: '12px' }}>
-                <div style={{ gridColumn: 'span 3', background: 'rgba(255,0,0,0.1)', padding: '6px', borderRadius: '3px', borderLeft: '3px solid #f00', display: 'flex', justifyContent: 'space-between' }}>
-                    <span><span style={{ color: '#f00', fontWeight: 'bold' }}>HP:</span> {fmt(vida.atual)} / {fmt(vida.max)}</span>
-                    {vida.pVit > 0 && <span style={{ color: '#ffcc00', fontWeight: 'bold' }}>+{vida.pVit} Vit</span>}
+            {/* ❤️ HP em barra cheia (o recurso mais olhado em combate) -- deixou de disputar espaço
+                igual aos outros recursos numa grade rígida. */}
+            <div style={{ position: 'relative', height: '26px', borderRadius: '13px', overflow: 'hidden', background: 'rgba(255,255,255,0.06)', marginBottom: '10px', border: `1px solid ${corHp}55` }}>
+                <div style={{ position: 'absolute', inset: 0, width: `${percHpSeguro}%`, background: corHp, opacity: 0.35, transition: 'width 0.3s' }} />
+                <div style={{ position: 'relative', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.8em', fontWeight: 'bold', color: '#fff', textShadow: '1px 1px 2px #000' }}>
+                    <span style={{ color: corHp }}>HP:</span> {fmt(vida.atual)} / {fmt(vida.max)}
+                    {vida.pVit > 0 && <span style={{ color: '#ffcc00' }}>+{vida.pVit} Vit</span>}
                 </div>
-                <div style={{ background: 'rgba(0,136,255,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #0088ff' }}>
-                    <span style={{ color: '#0088ff', fontWeight: 'bold' }}>MP:</span><br/>{fmt(mana.atual)} / {fmt(mana.max)}
-                </div>
-                <div style={{ background: 'rgba(170,0,255,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #aa00ff' }}>
-                    <span style={{ color: '#aa00ff', fontWeight: 'bold' }}>AURA:</span><br/>{fmt(aura.atual)} / {fmt(aura.max)}
-                </div>
-                <div style={{ background: 'rgba(0,255,170,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #00ffaa' }}>
-                    <span style={{ color: '#00ffaa', fontWeight: 'bold' }}>CHAK:</span><br/>{fmt(chakra.atual)} / {fmt(chakra.max)}
-                </div>
-                <div style={{ background: 'rgba(255,136,0,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #ff8800' }}>
-                    <span style={{ color: '#ff8800', fontWeight: 'bold' }}>CORP:</span><br/>{fmt(corpo.atual)} / {fmt(corpo.max)}
-                </div>
-                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #fff' }}>
-                    <span style={{ color: '#fff', fontWeight: 'bold' }}>P.VIT:</span><br/>{fmt(supremas.vitais.atual)} / {fmt(supremas.vitais.max)}
-                </div>
-                <div style={{ background: 'rgba(150,0,0,0.2)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #ff3333' }}>
-                    <span style={{ color: '#ff3333', fontWeight: 'bold' }}>P.MOR:</span><br/>{fmt(supremas.mortais.atual)} / {fmt(supremas.mortais.max)}
-                </div>
+            </div>
+
+            {/* 🏷️ Recursos secundários como pastilhas que se ajustam ao conteúdo, em vez da grade 3x3 */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+                <ChipRecurso label="MP" color="#0088ff" atual={mana.atual} max={mana.max} fmt={fmt} />
+                <ChipRecurso label="AURA" color="#aa00ff" atual={aura.atual} max={aura.max} fmt={fmt} />
+                <ChipRecurso label="CHAK" color="#00ffaa" atual={chakra.atual} max={chakra.max} fmt={fmt} />
+                <ChipRecurso label="CORP" color="#ff8800" atual={corpo.atual} max={corpo.max} fmt={fmt} />
+                <ChipRecurso label="P.VIT" color="#ffffff" atual={supremas.vitais.atual} max={supremas.vitais.max} fmt={fmt} />
+                <ChipRecurso label="P.MOR" color="#ff3333" atual={supremas.mortais.atual} max={supremas.mortais.max} fmt={fmt} />
             </div>
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>

@@ -80,21 +80,32 @@ describe('DiarioNPC - smoke test de render (regressão do ReferenceError em Linh
         render(<DiarioNPC npcData={npc} onSaveNpc={vi.fn()} />);
 
         const linhaVida = acharLinhaVital('Vida (HP)');
-        // Vida acima do limiar (getVitalidadeVida) gera 2 barras no visual novo de "Break Bars"
-        // (components/shared/BarrasVida.jsx), cada uma com a classe .break-bars-barra: 1 ativa na
-        // FRENTE com o resto (500.000.000) + 1 cravada em 1 bilhão atrás -- soma bate com o bruto.
+        // 🔥 CORREÇÃO (fix #1, calcularFatorMultiplicadorForca agora aplicado ao Máximo de Vida):
+        // este fixture tem ascensaoBase=1 (padrão) e prestígio bruto de Vida = floor(1.5e9/1e6) =
+        // 1500 -> aplicarMultiplicadorForca(1500, ascensaoBase=1, multP=1, multA=1) produz
+        // bonusAscensao=floor(1500/100)=15, ascensaoFinal=1+15=16, fator=16/1=16. O Máximo bruto de
+        // Vida deixa de ser 1.500.000.000 e passa a ser 1.500.000.000*16=24.000.000.000, que cruza
+        // o limiar de 1 bilhão (LIMIAR_BARRA_VIDA) 24 vezes em vez de 2 -- valores recalculados e
+        // verificados via scratch script (core/vitals.js > calcularBarrasVida) antes de fixar aqui.
         const barrasVida = linhaVida.querySelectorAll('.break-bars-barra');
-        expect(barrasVida.length).toBe(2);
+        expect(barrasVida.length).toBe(24);
 
-        // NPC com vida.atual=1.150.000.000 de 1.500.000.000 (dano total=350.000.000) -- a barra
-        // ATIVA (menor índice ainda com Vida > 0) é a de índice 0, a da FRENTE, que segura o resto
-        // (cap 500.000.000) e leva o dano primeiro (fica com 150.000.000/500.000.000); só ela
-        // mostra texto (a barra de trás, cravada em 1 bilhão e intocada pelo dano, fica sem texto
-        // enquanto a da frente não quebrar -- ver BarrasVida.jsx, correção pro bug de números
-        // sobrepostos ilegíveis). O span de teto da barra ativa mostra o SEU PRÓPRIO max
-        // (500.000.000), não mais o 1 bilhão da barra cravada de trás -- exibido dividido por
-        // FATOR_EXIBICAO_VITAIS (reformulação de Vida/Energias): 500.000.000/1000=500.000.
-        expect(linhaVida.textContent).toMatch(/500\.000(?!\.)/);
+        // NPC com vida.atual=1.150.000.000 (o campo "atual" NÃO é multiplicado pelo fator de Força
+        // -- só o Máximo é, ver LinhaVital) de um Máximo agora de 24.000.000.000 (dano
+        // total=22.850.000.000) -- as primeiras 22 barras (índices 0 a 21, cap 1 bilhão cada) ficam
+        // totalmente zeradas pelo dano; a barra de índice 22 é a primeira ainda com Vida > 0 (sobra
+        // 150.000.000 de um cap de 1 bilhão) e portanto é a ATIVA (menor índice com Vida > 0) --
+        // só ela mostra texto. O SPAN de teto da barra ativa (o texto "atual / max" é composto por
+        // um <input> editável pro atual + um <span> só-leitura pro max, ver LinhaVital/BarrasVida.jsx)
+        // mostra o SEU PRÓPRIO max (1.000.000.000), exibido dividido por FATOR_EXIBICAO_VITAIS:
+        // 1.000.000.000/1000=1.000.000 -- span aparece em .textContent normalmente.
+        expect(linhaVida.textContent).toMatch(/1\.000\.000(?!\.)/);
+        // O atual (150.000.000/1000=150.000) fica dentro do VALUE de um <input> (CampoMagicoNPC),
+        // que não aparece em .textContent (inputs não têm filhos de texto) -- precisa ler o
+        // atributo/valor do input diretamente.
+        const inputsNumericos = linhaVida.querySelectorAll('input[type="text"], input[type="number"]');
+        const valores = Array.from(inputsNumericos).map(i => i.value);
+        expect(valores).toContain('150.000');
     });
 
     it('a fileira de losangos ("pips") mostra uma marca pra CADA barra quando numBarras > 1 (visual novo de Break Bars, substitui o antigo indicador numérico por barra)', () => {
@@ -103,11 +114,15 @@ describe('DiarioNPC - smoke test de render (regressão do ReferenceError em Linh
 
         const linhaVida = acharLinhaVital('Vida (HP)');
         const pips = linhaVida.querySelectorAll('.break-bars-pip');
-        expect(pips.length).toBe(2);
-        // vida.atual=1.150.000.000 de um total de 1.500.000.000 -- nenhuma das 2 barras está
-        // zerada ainda, então nenhum pip deveria estar marcado como "quebrado".
+        // 🔥 CORREÇÃO (fix #1): ver a explicação completa no teste anterior -- Máximo real de Vida
+        // agora é 24.000.000.000 (fator de Força=16 aplicado), gerando 24 barras em vez de 2.
+        expect(pips.length).toBe(24);
+        // Dano total = 22.850.000.000 -- as primeiras 22 barras (cap 1 bilhão cada, índices 0-21)
+        // ficam totalmente zeradas ("quebradas"); a barra 22 fica parcial (150M/1bi, ainda com Vida
+        // > 0) e a barra 23 (a última, mais profunda) permanece intocada e cheia -- só 22 pips
+        // devem aparecer como quebrados, não mais 0.
         const quebrados = linhaVida.querySelectorAll('.break-bars-pip--quebrada');
-        expect(quebrados.length).toBe(0);
+        expect(quebrados.length).toBe(22);
     });
 
     it('não lança e ainda renderiza a Vida quando o NPC não tem NENHUMA Forma/poder (fallback dos helpers seguros)', () => {

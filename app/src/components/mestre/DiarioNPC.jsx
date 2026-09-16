@@ -3,7 +3,14 @@ import { lerImagemComoBase64 } from '../../services/firebase-storage';
 import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from '../../core/attributes';
 import { getRank } from '../../core/prestige';
 import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
+import { calcularFatorMultiplicadorForca } from '../../core/poder';
 import BarrasVida from '../shared/BarrasVida';
+
+// 🔥 Reformulação de Status (mesma constante de Marcados.jsx/StatusSubComponents.jsx): os números
+// de Força/Destreza/etc. exibidos/editados aqui só existem "inflados" x1000 no valor BRUTO salvo
+// em ficha[attrKey].base -- esse divisor é só de EXIBIÇÃO/EDIÇÃO, o bruto continua alimentando o
+// Poder Calculado sem mudar.
+const FATOR_EXIBICAO_STATUS = 1000;
 
 // ==========================================
 // 🛡️ DADOS DO COMPÊNDIO (PARA O ÍCONE DA MOLDURA)
@@ -364,12 +371,16 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
         
         const mPV = parseFloat(npcData.multiplicadorVida) || 1;
         const mPM = parseFloat(npcData.multiplicadorMorte) || 1;
-        
-        const ascensao = parseInt(npcData.ascensaoBase) || 1;
-        const bonusAscensao = (ascensao - 1) * 100;
-        
-        const pvCalculado = Math.floor(((pVida + pChakra + pCorpo) / 3) * mPV) + bonusAscensao;
-        const pmCalculado = Math.floor(((pMana + pAura + pStatus) / 3) * mPM) + bonusAscensao;
+
+        // 🔥 CORREÇÃO (Grimório do Mestre estava desatualizado): removido um termo
+        // "bonusAscensao = (ascensaoBase-1)*100" que não existe na fórmula canônica de PV/PM (ver
+        // core/vitals.js/StatusFormContext.jsx/MestreSubComponents.jsx > getEnergiasSupremas --
+        // todas fazem só Math.floor(((b1+b2+b3)/3)*m), sem bônus de Ascensão). Essa invenção fazia
+        // o Máximo de PV/PM mudar toda vez que o Mestre editava a Ascensão Base nesta mesma tela,
+        // sem o "atual" já salvo acompanhar -- a causa raiz do bug relatado de "atual" aparecer
+        // MAIOR que o "máximo" (ex.: Pontos Mortais "519 / 319").
+        const pvCalculado = Math.floor(((pVida + pChakra + pCorpo) / 3) * mPV);
+        const pmCalculado = Math.floor(((pMana + pAura + pStatus) / 3) * mPM);
 
         return { pvMax: isNaN(pvCalculado) ? 1 : pvCalculado, pmMax: isNaN(pmCalculado) ? 1 : pmCalculado };
     };
@@ -419,6 +430,21 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
         }
         if (isNaN(rawMaximo)) rawMaximo = 0;
         if (isNaN(rawMaximoEstavel)) rawMaximoEstavel = rawMaximo;
+
+        // 🔥 CORREÇÃO (Grimório do Mestre estava desatualizado): faltava aplicar o "Multiplicador
+        // de Força" de Ascensão/Prestígio (core/poder.js > calcularFatorMultiplicadorForca) antes
+        // de decidir o Máximo -- a Ficha Definitiva, o Mapa e o próprio card do Mestre no Visor de
+        // Entidades (MestreSubComponents.jsx > getStatusLimpo) já aplicam isso. Sem ele, todo
+        // Máximo/Atual mostrado aqui ficava muito MENOR que a realidade pra qualquer personagem
+        // com Ascensão/Prestígio acima do nível 1 -- a causa raiz dos números "desatualizados".
+        // Só se aplica quando o Máximo vem do próprio npcData (overrideMax === undefined) -- um
+        // eventual chamador futuro que passe overrideMax já decidiu o Máximo por conta própria e
+        // deve aplicar esse fator (ou não) por si mesmo, sem que esta função o faça de novo.
+        if (overrideMax === undefined) {
+            const fatorForca = calcularFatorMultiplicadorForca(npcData, vitalKey);
+            rawMaximo = rawMaximo * fatorForca;
+            rawMaximoEstavel = rawMaximoEstavel * fatorForca;
+        }
 
         // 🩸 Vida ganha 1 barra cheia extra por ponto de Vitalidade — mesma regra da Ficha de
         // personagem (ver Ficha Def/Marcados.jsx > LinhaVital), derivada pela ÚNICA fonte de
@@ -475,14 +501,34 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
     };
 
     const LinhaAtributoCru = ({ labelKey, fallbackLabel, attrKey, isAtual }) => {
-        const baseVal = npcData[attrKey]?.base || '';
+        const baseValRaw = npcData[attrKey]?.base;
+        const rawBase = parseFloat(baseValRaw) || 0;
         let maxVal = 0;
-        try { maxVal = getMaximo(npcData, attrKey); } catch(e) { maxVal = baseVal; }
+        try { maxVal = getMaximo(npcData, attrKey); } catch(e) { maxVal = rawBase; }
         if (isNaN(maxVal)) maxVal = 0;
+
+        // 🔥 CORREÇÃO (Grimório do Mestre estava desatualizado): faltava dividir por
+        // FATOR_EXIBICAO_STATUS na exibição/edição -- igual a Ficha Definitiva (Marcados.jsx) e o
+        // painel de Status (StatusSubComponents.jsx) já fazem. Sem isso, todo Força/Destreza/etc.
+        // mostrado (e gravado ao editar) aqui ficava 1000x maior que o valor real.
+        const baseExibido = (baseValRaw === undefined || baseValRaw === null || baseValRaw === '') ? '' : Math.floor(rawBase / FATOR_EXIBICAO_STATUS);
+
+        // 🔥 CORREÇÃO: a coluna "Atual" (isAtual=true, só leitura) também precisa do multiplicador
+        // de Ascensão/Prestígio (core/poder.js > calcularFatorMultiplicadorForca) -- a Ficha
+        // Definitiva usa exatamente essa mesma fórmula pra key='status' (Marcados.jsx >
+        // fatorAtributosAtual), então sem isso o "Atual" ficava menor que a realidade pra qualquer
+        // NPC com Ascensão/Prestígio acima do nível 1, igual o bug já corrigido em LinhaVital. A
+        // coluna "Base" (isAtual=false, EDITÁVEL) fica de fora de propósito: aplicar esse fator só
+        // na exibição, sem também desfazê-lo no save, inflaria o valor digitado pelo Mestre e
+        // corromperia o dado bruto salvo -- a Ficha Definitiva evita isso com um modo de edição que
+        // revela o valor cru só enquanto o campo está focado, comportamento que o CampoMagicoNPC
+        // usado aqui não replica.
+        const maxExibido = Math.floor((maxVal * calcularFatorMultiplicadorForca(npcData, 'status')) / FATOR_EXIBICAO_STATUS);
+
         return (
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dotted currentColor', padding: '6px 0', fontSize: '1.1em' }}>
                 <LabelMagicoNPC valor={getLabel(labelKey, fallbackLabel)} onChange={(v) => setLabel(labelKey, v)} />
-                {isAtual ? <span style={{ fontWeight: 'bold' }}>{Number(maxVal).toLocaleString('pt-BR')}</span> : <CampoMagicoNPC valor={baseVal} onChange={(v) => salvar(`${attrKey}.base`, v)} styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true} />}
+                {isAtual ? <span style={{ fontWeight: 'bold' }}>{Number(maxExibido).toLocaleString('pt-BR')}</span> : <CampoMagicoNPC valor={baseExibido} onChange={(v) => salvar(`${attrKey}.base`, v === '' ? '' : (parseFloat(v) || 0) * FATOR_EXIBICAO_STATUS)} styleExtra={{ width: '100px', textAlign: 'right', fontWeight: 'bold' }} type="number" isNumber={true} />}
             </div>
         );
     };
