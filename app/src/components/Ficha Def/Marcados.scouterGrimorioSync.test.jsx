@@ -221,10 +221,17 @@ describe('MarcadosPanel — Failsafe de log10 (poderComAscensao): poderMultiplic
     // cenário de referência com vida=0 (ascensaoBase=4, sem overflow) já coberto em
     // Marcados.scouterFormulaAscensao.test.jsx, que também vale aqui: ascensaoGeralEfetiva=4.
     // Ascensão agora também multiplica o Poder Base (mesmo negativo), com a curva
-    // exponencial atual (1.5^ascensaoGeralEfetiva — base reduzida de 2 pra 1.5 nesta sessão,
-    // pedido do usuário, pra suavizar o quanto a Ascensão escala o Poder Calculado):
-    //   multiplicadorAscensao = 1.5^4 = 5,0625 -> poderMultiplicado = -10*5,0625 = -50,625 (<= 0) -> ramo else:
-    //   poderComAscensao = ascensaoSegura(4)*10 + (-50,625) = 40 - 50,625 = -10,625 -> Math.floor = -11
+    // exponencial atual (1.25^ascensaoGeralEfetiva — base reduzida de 2 -> 1.5 -> 1.25,
+    // pedidos sucessivos do usuário, pra suavizar o quanto a Ascensão escala o Poder Calculado):
+    //   multiplicadorAscensao = 1.25^4 = 2,44140625 -> poderMultiplicado = -10*2,44140625 = -24,4140625 (<= 0) -> ramo else:
+    //   poderComAscensao = ascensaoSegura(4)*10 + (-24,4140625) = 40 - 24,4140625 = 15,5859375 -> Math.floor = 15
+    // 🔥 Nota: com bases sucessivamente menores, o termo aditivo (ascensaoSegura*10, que não
+    // depende da base) passou a DOMINAR sobre o poderMultiplicado negativo (que fica cada vez
+    // menor em módulo) — o resultado final CRUZOU ZERO ao longo das reduções (-120 com BASE=2,
+    // -11 com BASE=1.5, agora +15 com BASE=1.25). Isso não invalida o teste: o objetivo aqui é
+    // só confirmar que o ramo `else` do failsafe (sem tocar Math.log10) continua produzindo um
+    // resultado finito e sem NaN quando poderMultiplicado é <= 0 — o sinal final do resultado
+    // não é o que está sendo validado.
     it('poderMultiplicado negativo usa o ramo else do failsafe (ascensaoSegura*10 + poderMultiplicado), sem tocar Math.log10 e sem gerar NaN na leitura', () => {
         const ficha = fichaBaseScouter({
             vida: { base: -6 },
@@ -248,6 +255,6 @@ describe('MarcadosPanel — Failsafe de log10 (poderComAscensao): poderMultiplic
         const leitura = lerPoderGlobalExibido();
         expect(leitura).not.toBeNaN();
         expect(Number.isFinite(leitura)).toBe(true);
-        expect(leitura).toBe(-11);
+        expect(leitura).toBe(15);
     });
 });

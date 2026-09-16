@@ -361,11 +361,11 @@ export function calcularPoderAtual(ficha, divisorPoderMesa) {
     const glob = getGlobalMultipliers(ficha);
 
     const ascensaoSegura = Number(calcularAscensaoParaPoder(ficha)) || 0;
-    // 🔥 Base do expoente reduzida de 2 pra 1.5 (pedido do usuário) pra suavizar o quanto a
+    // 🔥 Base do expoente: 2 -> 1.5 -> 1.25 (pedidos sucessivos do usuário) pra suavizar o quanto a
     // Ascensão escala o Poder Calculado — continua crescimento exponencial (Ascensão segue sendo
-    // o multiplicador mais forte do jogo), só a curva fica menos brusca. Réplica exata do mesmo
-    // useMemo em Ficha Def/Marcados.jsx > poderGlobal precisa mudar junto.
-    const multiplicadorAscensao = Math.pow(1.5, Math.min(1000, Math.max(0, ascensaoSegura)));
+    // o multiplicador mais forte do jogo), só a curva fica menos brusca a cada redução. Réplica
+    // exata do mesmo useMemo em Ficha Def/Marcados.jsx > poderGlobal precisa mudar junto.
+    const multiplicadorAscensao = Math.pow(1.25, Math.min(1000, Math.max(0, ascensaoSegura)));
 
     const SATURACAO_SEGURA = 1e308;
     const clampFinito = (v) => Number.isFinite(v) ? v : (Number.isNaN(v) ? 0 : Math.sign(v) * SATURACAO_SEGURA);
