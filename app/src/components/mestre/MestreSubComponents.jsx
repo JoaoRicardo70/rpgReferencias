@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useMestreForm } from './MestreFormContext';
 import { ref, set } from 'firebase/database';
 import { database } from '../../services/firebase-config';
-import { sanitizarNome } from '../../stores/useStore';
-import PainelMestreSandbox from './PainelMestreSandbox';
+import useStore, { sanitizarNome } from '../../stores/useStore';
+import PainelMestreSandbox, { TODAS_CONDICOES_BASE } from './PainelMestreSandbox';
 import { getMaximo } from '../../core/attributes';
 import { calcularCA } from '../../core/engine';
 import { calcularBarrasVida, getVitalMax, getVitalMaxEstavel, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
@@ -120,27 +120,198 @@ export function MestreAcessoNegado() {
     );
 }
 
+// 🔥 CARD DE ENTIDADE MEMOIZADO (otimização do Domínio do Mestre): antes cada card era gerado
+// por uma função `renderCard` comum, redefinida a cada render de MestreVisorJogadores -- ou seja,
+// TODOS os cards (e seus PainelMestreSandbox filhos) recalculavam getStatusLimpo/getEnergiasSupremas
+// e re-renderizavam do zero sempre que qualquer estado LOCAL do Visor mudava (abrir/fechar a ficha
+// de UM jogador, trocar de aba Jogadores/NPCs, abrir uma pasta de família de NPC, digitar na busca),
+// mesmo sem nenhum dado de entidade ter mudado -- é esse caso (o mais comum, já que o Mestre mexe
+// nesses controles o tempo todo) que o React.memo abaixo elimina. Ele NÃO evita o recálculo quando
+// o Firebase empurra uma atualização real: `iniciarListenerPersonagens` (firebase-sync.js) escuta
+// a mesa inteira e devolve uma árvore nova a cada mudança, e `jogadoresComStats` (MestreFormContext)
+// remapeia TODOS os personagens sempre que isso acontece -- ou seja, todo card troca de referência
+// (e recalcula) quando QUALQUER personagem da mesa muda, não só o que mudou de fato. Ainda assim,
+// vale a pena: a maior parte das interações no Visor é local, e o memo corta o trabalho repetido
+// nelas sem custar nada nos casos em que precisa recalcular mesmo.
+const EntidadeCard = React.memo(function EntidadeCard({ jogador, meuNome, userLogado, mesaCriador, mesaMestres, fmt, condicoesGlobais, onAbrirFicha, onPromover, onApagar }) {
+    const { nome, ficha, classId, percHp } = jogador;
+
+    const vida = getStatusLimpo(ficha, 'vida', 8);
+    const mana = getStatusLimpo(ficha, 'mana', 9);
+    const aura = getStatusLimpo(ficha, 'aura', 9);
+    const chakra = getStatusLimpo(ficha, 'chakra', 9);
+    const corpo = getStatusLimpo(ficha, 'corpo', 9);
+    const supremas = getEnergiasSupremas(ficha);
+
+    const isGrand = String(classId).toLowerCase().includes('grand ');
+    const isMisterio = classId === '?' || classId?.toLowerCase() === 'desconhecido';
+
+    // 🔥 Mesma chave usada por App.jsx/MestreFormContext.jsx pra decidir Mestre de verdade
+    // (sanitizarNome) -- uma regex própria aqui (toLowerCase + só a-z0-9) fazia o selo de
+    // Co-Mestre errar pra qualquer nome com maiúscula, acento ou espaço.
+    const nickSanitizado = sanitizarNome(nome);
+    const isCoMestre = mesaMestres && mesaMestres[nickSanitizado];
+    const isSupremo = nome === mesaCriador;
+
+    let boxBorder = `1px solid ${nome === meuNome ? '#0f0' : '#333'}`;
+    let boxShadow = nome === meuNome ? '0 0 15px rgba(0,255,0,0.2)' : 'none';
+    let titleColor = '#fff';
+    let subColor = '#aaa';
+    let subText = classId ? String(classId).toUpperCase() : 'MUNDANO';
+
+    if (isMisterio) {
+        boxBorder = '2px dashed #666';
+        titleColor = '#aaa'; subColor = '#666';
+        subText = '👤 CLASSE: ? (ENCOBERTO)';
+    } else if (isGrand) {
+        boxBorder = '2px solid #ffcc00';
+        boxShadow = '0 0 20px rgba(255,0,60,0.4), inset 0 0 20px rgba(255,204,0,0.1)';
+        titleColor = '#ffcc00';
+        subColor = '#ffcc00';
+    }
+
+    return (
+        <div style={{ background: 'rgba(0,0,0,0.6)', border: boxBorder, padding: '15px', borderRadius: '5px', position: 'relative', overflow: 'hidden', boxShadow: boxShadow }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, height: '4px', width: `${percHp}%`, background: percHp > 50 ? '#0f0' : percHp > 20 ? '#ffcc00' : '#f00', transition: 'width 0.3s' }} />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', marginTop: '5px' }}>
+                <strong style={{ color: titleColor, fontSize: '1.2em', textShadow: isGrand ? '0 0 10px #ff003c' : 'none' }}>
+                    {nome} {nome === meuNome && <span style={{color: '#0f0', fontSize: '0.6em', textShadow: 'none'}}>(VOCÊ)</span>}
+                    {isSupremo && <span style={{marginLeft:'5px'}} title="Mestre Supremo">👑</span>}
+                    {isCoMestre && !isSupremo && <span style={{marginLeft:'5px'}} title="Co-Mestre">🛡️</span>}
+                </strong>
+                <span style={{ color: subColor, fontSize: isGrand ? '0.85em' : '0.8em', fontStyle: isMisterio ? 'normal' : 'italic', fontWeight: isGrand ? 'bold' : 'normal' }}>
+                    {subText}
+                </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', fontSize: '0.78em', color: '#ddd', marginBottom: '12px' }}>
+                <div style={{ gridColumn: 'span 3', background: 'rgba(255,0,0,0.1)', padding: '6px', borderRadius: '3px', borderLeft: '3px solid #f00', display: 'flex', justifyContent: 'space-between' }}>
+                    <span><span style={{ color: '#f00', fontWeight: 'bold' }}>HP:</span> {fmt(vida.atual)} / {fmt(vida.max)}</span>
+                    {vida.pVit > 0 && <span style={{ color: '#ffcc00', fontWeight: 'bold' }}>+{vida.pVit} Vit</span>}
+                </div>
+                <div style={{ background: 'rgba(0,136,255,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #0088ff' }}>
+                    <span style={{ color: '#0088ff', fontWeight: 'bold' }}>MP:</span><br/>{fmt(mana.atual)} / {fmt(mana.max)}
+                </div>
+                <div style={{ background: 'rgba(170,0,255,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #aa00ff' }}>
+                    <span style={{ color: '#aa00ff', fontWeight: 'bold' }}>AURA:</span><br/>{fmt(aura.atual)} / {fmt(aura.max)}
+                </div>
+                <div style={{ background: 'rgba(0,255,170,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #00ffaa' }}>
+                    <span style={{ color: '#00ffaa', fontWeight: 'bold' }}>CHAK:</span><br/>{fmt(chakra.atual)} / {fmt(chakra.max)}
+                </div>
+                <div style={{ background: 'rgba(255,136,0,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #ff8800' }}>
+                    <span style={{ color: '#ff8800', fontWeight: 'bold' }}>CORP:</span><br/>{fmt(corpo.atual)} / {fmt(corpo.max)}
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #fff' }}>
+                    <span style={{ color: '#fff', fontWeight: 'bold' }}>P.VIT:</span><br/>{fmt(supremas.vitais.atual)} / {fmt(supremas.vitais.max)}
+                </div>
+                <div style={{ background: 'rgba(150,0,0,0.2)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #ff3333' }}>
+                    <span style={{ color: '#ff3333', fontWeight: 'bold' }}>P.MOR:</span><br/>{fmt(supremas.mortais.atual)} / {fmt(supremas.mortais.max)}
+                </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                    className="btn-neon btn-blue"
+                    style={{ flex: 1, padding: '4px', fontSize: '0.8em', margin: 0 }}
+                    onClick={() => onAbrirFicha(nome)}
+                >
+                    📖 ABRIR FICHA
+                </button>
+
+                {/* SÓ O DONO DA SALA PODE VER O BOTÃO DE PROMOVER CO-MESTRE -- mesaCriador é o
+                    nome de LOGIN de quem criou a mesa, não o nome do personagem ativo (meuNome);
+                    comparar com userLogado (login) em vez de meuNome (personagem) evita que o
+                    botão suma pro dono de verdade sempre que ele estiver com um personagem cujo
+                    nome não é idêntico ao seu login (ver comentário em MestreFormContext.jsx). */}
+                {userLogado === mesaCriador && !isSupremo && (
+                    <button
+                        className={`btn-neon ${isCoMestre ? 'btn-gold' : 'btn-purple'}`}
+                        style={{ flex: 1, padding: '4px', fontSize: '0.8em', margin: 0, borderColor: isCoMestre ? '#ffcc00' : '#aa00ff', color: isCoMestre ? '#ffcc00' : '#aa00ff' }}
+                        onClick={() => onPromover(nome)}
+                    >
+                        {isCoMestre ? '👑 REBAIXAR' : '🛡️ PROMOVER'}
+                    </button>
+                )}
+
+                <button
+                    className="btn-neon btn-red"
+                    style={{ flex: 1, padding: '4px', fontSize: '0.8em', margin: 0, opacity: isSupremo ? 0.3 : 1 }}
+                    onClick={() => onApagar(nome)}
+                    disabled={isSupremo}
+                >
+                    ❌ APAGAR
+                </button>
+            </div>
+
+            <PainelMestreSandbox personagemId={nome} ficha={ficha} condicoesGlobais={condicoesGlobais} />
+        </div>
+    );
+});
+
 // 🔥 O NOVO VISOR COM SISTEMA DE PASTAS, ABRIR FICHA E CO-MESTRE 🔥
 export function MestreVisorJogadores() {
+    // 🔥 Regra dos Hooks: TODOS os hooks abaixo (useMestreForm/useStore/useState/useMemo) são
+    // chamados incondicionalmente, antes de qualquer `return` antecipado -- o `if (!ctx)` só
+    // acontece depois de todos eles terem rodado (ver comentário mais abaixo).
     const ctx = useMestreForm();
-    if (!ctx) return FALLBACK;
-    const { jogadoresComStats, meuNome, userLogado, handleApagarJogador, fmt, toggleCoMestre, mesaCriador, mesaMestres } = ctx;
+    const personagens = useStore(s => s.personagens);
+    const minhaFicha = useStore(s => s.minhaFicha);
 
     const [abaVisor, setAbaVisor] = useState('jogadores');
     const [pastasAbertas, setPastasAbertas] = useState({});
-    
-    // O ESTADO QUE ABRE O MODAL DA FICHA
-    const [jogadorInspecionado, setJogadorInspecionado] = useState(null);
+    const [busca, setBusca] = useState('');
+
+    // O ESTADO QUE ABRE O MODAL DA FICHA -- guarda só o NOME, nunca a ficha em si. Guardar o
+    // objeto `jogador` inteiro (como era antes) tirava uma "foto" da ficha no instante do clique;
+    // se o jogador mudasse algo (equipar item, subir Ascensão, regenerar) enquanto o Mestre estava
+    // com o Grimório aberto, a tela ficava PARADA naquele instantâneo antigo -- exatamente o bug
+    // relatado ("não é a versão atualizada"). Derivando de `jogadoresComStats` (que já é recalculado
+    // ao vivo pelo listener do Firebase em MestreFormContext.jsx) o modal some/atualiza sozinho.
+    const [nomeInspecionado, setNomeInspecionado] = useState(null);
+
+    // 🔥 OTIMIZAÇÃO: a lista de condições customizadas (compêndio) é a mesma pra TODAS as entidades
+    // da mesa -- calcular uma vez aqui em vez de dentro de cada PainelMestreSandbox evita repetir o
+    // mesmo merge de overrides até 26+ vezes por render.
+    const condicoesGlobais = useMemo(() => {
+        const overrides = {};
+        if (personagens) {
+            Object.values(personagens).forEach(p => {
+                if (p?.compendioOverrides?.condicoes) Object.assign(overrides, p.compendioOverrides.condicoes);
+            });
+        }
+        if (minhaFicha?.compendioOverrides?.condicoes) {
+            Object.assign(overrides, minhaFicha.compendioOverrides.condicoes);
+        }
+
+        const map = {};
+        TODAS_CONDICOES_BASE.forEach(c => map[c.id] = { ...c });
+        Object.keys(overrides).forEach(k => {
+            if (overrides[k].deletado) delete map[k];
+            else if (map[k]) map[k] = { ...map[k], ...overrides[k] };
+            else map[k] = overrides[k];
+        });
+        return Object.values(map);
+    }, [personagens, minhaFicha]);
+
+    if (!ctx) return FALLBACK;
+    const { jogadoresComStats, meuNome, userLogado, handleApagarJogador, fmt, toggleCoMestre, mesaCriador, mesaMestres } = ctx;
+    const jogadorInspecionado = nomeInspecionado ? jogadoresComStats.find(j => j.nome === nomeInspecionado) : null;
 
     const togglePasta = (nomePasta) => setPastasAbertas(prev => ({...prev, [nomePasta]: !prev[nomePasta]}));
 
-    const herois = jogadoresComStats.filter(j => !j.ficha?.isNPC && j.ficha?.bio?.mesa !== 'npc');
-    const npcs = jogadoresComStats.filter(j => j.ficha?.isNPC || j.ficha?.bio?.mesa === 'npc');
+    // 🔍 Melhoria de visibilidade: com muitas entidades na mesa, buscar por nome é bem mais rápido
+    // que rolar a tela procurando o card certo (Jogadores e NPCs filtram independente da aba ativa).
+    const buscaNormalizada = busca.trim().toLowerCase();
+    const filtrarPorBusca = (lista) => buscaNormalizada ? lista.filter(j => j.nome.toLowerCase().includes(buscaNormalizada)) : lista;
+
+    const herois = filtrarPorBusca(jogadoresComStats.filter(j => !j.ficha?.isNPC && j.ficha?.bio?.mesa !== 'npc'));
+    const npcs = filtrarPorBusca(jogadoresComStats.filter(j => j.ficha?.isNPC || j.ficha?.bio?.mesa === 'npc'));
 
     const npcsPorFamilia = {};
     npcs.forEach(npc => {
         let familia = npc.ficha?.bio?.afiliacao;
-        
+
         if (!familia || familia.trim() === '') {
             const lorePoder = (npc.ficha?.poderes || []).find(p => p.nome === "📖 Linhagem & Lore");
             if (lorePoder && lorePoder.descricao) {
@@ -148,134 +319,34 @@ export function MestreVisorJogadores() {
                 if (match && match[1]) familia = match[1].trim();
             }
         }
-        
+
         if (!familia || familia === 'Nenhum' || familia.trim() === '') {
             familia = 'Sem Clã / Bestas Soltas';
         }
-        
+
         if (!npcsPorFamilia[familia]) npcsPorFamilia[familia] = [];
         npcsPorFamilia[familia].push(npc);
     });
 
-    const renderCard = (jogador) => {
-        const { nome, ficha, classId, percHp } = jogador;
-        
-        const vida = getStatusLimpo(ficha, 'vida', 8);
-        const mana = getStatusLimpo(ficha, 'mana', 9);
-        const aura = getStatusLimpo(ficha, 'aura', 9);
-        const chakra = getStatusLimpo(ficha, 'chakra', 9);
-        const corpo = getStatusLimpo(ficha, 'corpo', 9);
-        const supremas = getEnergiasSupremas(ficha);
-
-        const isGrand = String(classId).toLowerCase().includes('grand ');
-        const isMisterio = classId === '?' || classId?.toLowerCase() === 'desconhecido';
-        
-        // 🔥 Mesma chave usada por App.jsx/MestreFormContext.jsx pra decidir Mestre de verdade
-        // (sanitizarNome) -- uma regex própria aqui (toLowerCase + só a-z0-9) fazia o selo de
-        // Co-Mestre errar pra qualquer nome com maiúscula, acento ou espaço.
-        const nickSanitizado = sanitizarNome(nome);
-        const isCoMestre = mesaMestres && mesaMestres[nickSanitizado];
-        const isSupremo = nome === mesaCriador;
-
-        let boxBorder = `1px solid ${nome === meuNome ? '#0f0' : '#333'}`;
-        let boxShadow = nome === meuNome ? '0 0 15px rgba(0,255,0,0.2)' : 'none';
-        let titleColor = '#fff';
-        let subColor = '#aaa';
-        let subText = classId ? String(classId).toUpperCase() : 'MUNDANO';
-
-        if (isMisterio) {
-            boxBorder = '2px dashed #666';
-            titleColor = '#aaa'; subColor = '#666';
-            subText = '👤 CLASSE: ? (ENCOBERTO)';
-        } else if (isGrand) {
-            boxBorder = '2px solid #ffcc00';
-            boxShadow = '0 0 20px rgba(255,0,60,0.4), inset 0 0 20px rgba(255,204,0,0.1)';
-            titleColor = '#ffcc00';
-            subColor = '#ffcc00';
-        }
-
-        return (
-            <div key={nome} style={{ background: 'rgba(0,0,0,0.6)', border: boxBorder, padding: '15px', borderRadius: '5px', position: 'relative', overflow: 'hidden', boxShadow: boxShadow }}>
-                <div style={{ position: 'absolute', top: 0, left: 0, height: '4px', width: `${percHp}%`, background: percHp > 50 ? '#0f0' : percHp > 20 ? '#ffcc00' : '#f00', transition: 'width 0.3s' }} />
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', marginTop: '5px' }}>
-                    <strong style={{ color: titleColor, fontSize: '1.2em', textShadow: isGrand ? '0 0 10px #ff003c' : 'none' }}>
-                        {nome} {nome === meuNome && <span style={{color: '#0f0', fontSize: '0.6em', textShadow: 'none'}}>(VOCÊ)</span>}
-                        {isSupremo && <span style={{marginLeft:'5px'}} title="Mestre Supremo">👑</span>}
-                        {isCoMestre && !isSupremo && <span style={{marginLeft:'5px'}} title="Co-Mestre">🛡️</span>}
-                    </strong>
-                    <span style={{ color: subColor, fontSize: isGrand ? '0.85em' : '0.8em', fontStyle: isMisterio ? 'normal' : 'italic', fontWeight: isGrand ? 'bold' : 'normal' }}>
-                        {subText}
-                    </span>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', fontSize: '0.75em', color: '#ccc', marginBottom: '12px' }}>
-                    <div style={{ gridColumn: 'span 3', background: 'rgba(255,0,0,0.1)', padding: '6px', borderRadius: '3px', borderLeft: '3px solid #f00', display: 'flex', justifyContent: 'space-between' }}>
-                        <span><span style={{ color: '#f00', fontWeight: 'bold' }}>HP:</span> {fmt(vida.atual)} / {fmt(vida.max)}</span>
-                        {vida.pVit > 0 && <span style={{ color: '#ffcc00', fontWeight: 'bold' }}>+{vida.pVit} Vit</span>}
-                    </div>
-                    <div style={{ background: 'rgba(0,136,255,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #0088ff' }}>
-                        <span style={{ color: '#0088ff', fontWeight: 'bold' }}>MP:</span><br/>{fmt(mana.atual)} / {fmt(mana.max)}
-                    </div>
-                    <div style={{ background: 'rgba(170,0,255,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #aa00ff' }}>
-                        <span style={{ color: '#aa00ff', fontWeight: 'bold' }}>AURA:</span><br/>{fmt(aura.atual)} / {fmt(aura.max)}
-                    </div>
-                    <div style={{ background: 'rgba(0,255,170,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #00ffaa' }}>
-                        <span style={{ color: '#00ffaa', fontWeight: 'bold' }}>CHAK:</span><br/>{fmt(chakra.atual)} / {fmt(chakra.max)}
-                    </div>
-                    <div style={{ background: 'rgba(255,136,0,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #ff8800' }}>
-                        <span style={{ color: '#ff8800', fontWeight: 'bold' }}>CORP:</span><br/>{fmt(corpo.atual)} / {fmt(corpo.max)}
-                    </div>
-                    <div style={{ background: 'rgba(255,255,255,0.1)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #fff' }}>
-                        <span style={{ color: '#fff', fontWeight: 'bold' }}>P.VIT:</span><br/>{fmt(supremas.vitais.atual)} / {fmt(supremas.vitais.max)}
-                    </div>
-                    <div style={{ background: 'rgba(150,0,0,0.2)', padding: '4px 6px', borderRadius: '3px', borderLeft: '2px solid #ff3333' }}>
-                        <span style={{ color: '#ff3333', fontWeight: 'bold' }}>P.MOR:</span><br/>{fmt(supremas.mortais.atual)} / {fmt(supremas.mortais.max)}
-                    </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    <button
-                        className="btn-neon btn-blue"
-                        style={{ flex: 1, padding: '4px', fontSize: '0.8em', margin: 0 }}
-                        onClick={() => setJogadorInspecionado(jogador)}
-                    >
-                        📖 ABRIR FICHA
-                    </button>
-                    
-                    {/* SÓ O DONO DA SALA PODE VER O BOTÃO DE PROMOVER CO-MESTRE -- mesaCriador é o
-                        nome de LOGIN de quem criou a mesa, não o nome do personagem ativo (meuNome);
-                        comparar com userLogado (login) em vez de meuNome (personagem) evita que o
-                        botão suma pro dono de verdade sempre que ele estiver com um personagem cujo
-                        nome não é idêntico ao seu login (ver comentário em MestreFormContext.jsx). */}
-                    {userLogado === mesaCriador && !isSupremo && (
-                        <button
-                            className={`btn-neon ${isCoMestre ? 'btn-gold' : 'btn-purple'}`}
-                            style={{ flex: 1, padding: '4px', fontSize: '0.8em', margin: 0, borderColor: isCoMestre ? '#ffcc00' : '#aa00ff', color: isCoMestre ? '#ffcc00' : '#aa00ff' }}
-                            onClick={() => toggleCoMestre(nome)}
-                        >
-                            {isCoMestre ? '👑 REBAIXAR' : '🛡️ PROMOVER'}
-                        </button>
-                    )}
-
-                    <button
-                        className="btn-neon btn-red"
-                        style={{ flex: 1, padding: '4px', fontSize: '0.8em', margin: 0, opacity: isSupremo ? 0.3 : 1 }}
-                        onClick={() => handleApagarJogador(nome)}
-                        disabled={isSupremo}
-                    >
-                        ❌ APAGAR
-                    </button>
-                </div>
-                
-                <PainelMestreSandbox personagemId={nome} ficha={ficha} />
-            </div>
-        );
-    };
+    const renderCard = (jogador) => (
+        <EntidadeCard
+            key={jogador.nome}
+            jogador={jogador}
+            meuNome={meuNome}
+            userLogado={userLogado}
+            mesaCriador={mesaCriador}
+            mesaMestres={mesaMestres}
+            fmt={fmt}
+            condicoesGlobais={condicoesGlobais}
+            onAbrirFicha={setNomeInspecionado}
+            onPromover={toggleCoMestre}
+            onApagar={handleApagarJogador}
+        />
+    );
 
     return (
         <div className="def-box" style={{ flex: '1 1 60%', minWidth: '400px', borderLeft: '4px solid #0088ff' }}>
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
                 <h3 style={{ color: '#0088ff', margin: 0 }}>Visor de Entidades ({jogadoresComStats.length})</h3>
                 <div style={{ display: 'flex', gap: '5px' }}>
@@ -284,10 +355,19 @@ export function MestreVisorJogadores() {
                 </div>
             </div>
 
+            <input
+                className="input-neon"
+                type="text"
+                placeholder="🔍 Buscar por nome..."
+                value={busca}
+                onChange={e => setBusca(e.target.value)}
+                style={{ width: '100%', marginBottom: '15px', borderColor: '#0088ff', color: '#0088ff' }}
+            />
+
             {abaVisor === 'jogadores' && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
                     {herois.map(renderCard)}
-                    {herois.length === 0 && <div style={{ color: '#aaa', fontStyle: 'italic' }}>Nenhum jogador encontrado.</div>}
+                    {herois.length === 0 && <div style={{ color: '#aaa', fontStyle: 'italic' }}>{buscaNormalizada ? 'Nenhum jogador corresponde à busca.' : 'Nenhum jogador encontrado.'}</div>}
                 </div>
             )}
 
@@ -295,12 +375,12 @@ export function MestreVisorJogadores() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {Object.entries(npcsPorFamilia).map(([familia, lista]) => (
                         <div key={familia} style={{ border: '1px solid #444', borderRadius: '5px', overflow: 'hidden' }}>
-                            <button 
+                            <button
                                 onClick={() => togglePasta(familia)}
-                                style={{ 
-                                    width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-                                    padding: '12px 15px', background: pastasAbertas[familia] ? 'rgba(255, 0, 60, 0.2)' : 'rgba(0, 0, 0, 0.5)', 
-                                    border: 'none', borderLeft: '4px solid #ff003c', color: '#ffcc00', fontWeight: 'bold', 
+                                style={{
+                                    width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                    padding: '12px 15px', background: pastasAbertas[familia] ? 'rgba(255, 0, 60, 0.2)' : 'rgba(0, 0, 0, 0.5)',
+                                    border: 'none', borderLeft: '4px solid #ff003c', color: '#ffcc00', fontWeight: 'bold',
                                     cursor: 'pointer', textAlign: 'left', fontSize: '1.1em', transition: '0.3s'
                                 }}
                             >
@@ -309,7 +389,7 @@ export function MestreVisorJogadores() {
                                 </span>
                                 <span style={{ color: '#fff', fontSize: '0.8em', background: '#ff003c', padding: '2px 8px', borderRadius: '12px' }}>{lista.length}</span>
                             </button>
-                            
+
                             {pastasAbertas[familia] && (
                                 <div style={{ padding: '15px', background: 'rgba(0,0,0,0.3)', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
                                     {lista.map(renderCard)}
@@ -317,7 +397,7 @@ export function MestreVisorJogadores() {
                             )}
                         </div>
                     ))}
-                    {npcs.length === 0 && <div style={{ color: '#aaa', fontStyle: 'italic' }}>Nenhum NPC ou Monstro encontrado.</div>}
+                    {npcs.length === 0 && <div style={{ color: '#aaa', fontStyle: 'italic' }}>{buscaNormalizada ? 'Nenhum NPC corresponde à busca.' : 'Nenhum NPC ou Monstro encontrado.'}</div>}
                 </div>
             )}
 
@@ -333,7 +413,7 @@ export function MestreVisorJogadores() {
                         background: '#0a0a0f', border: '2px solid #0088ff', borderRadius: '10px', padding: '20px', position: 'relative',
                         boxShadow: '0 0 30px rgba(0,136,255,0.3)'
                     }}>
-                        <button onClick={() => setJogadorInspecionado(null)} style={{ position: 'absolute', top: 15, right: 15, background: 'none', border: 'none', color: '#ff003c', fontSize: '1.5em', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+                        <button onClick={() => setNomeInspecionado(null)} style={{ position: 'absolute', top: 15, right: 15, background: 'none', border: 'none', color: '#ff003c', fontSize: '1.5em', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
                         
                         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px', borderBottom: '1px solid #333', paddingBottom: '15px' }}>
                             {jogadorInspecionado.ficha.avatar?.base ? (

@@ -10,6 +10,14 @@ import { db } from '../../services/firebase-config';
 
 const MestreFormContext = createContext(null);
 
+// 🔥 Referência ESTÁVEL pro fallback de mesaMestres -- `useStore(s => s.mesaMestres) || {}` sozinho
+// aloca um objeto `{}` NOVO a cada render sempre que a mesa ainda não tem Co-Mestre promovido (caso
+// comum), mudando a referência de `mesaMestres` (e, por tabela, de `toggleCoMestre` e do `value` do
+// contexto) em TODO re-render do Provider, mesmo os causados por estado local de componentes-irmãos
+// (ex.: digitar em MestreInjetorEntidades/MestreVozSistema). Isso derrotava silenciosamente o
+// React.memo(EntidadeCard) em MestreSubComponents.jsx, que recebe mesaMestres como prop.
+const MESA_MESTRES_VAZIA = {};
+
 export function useMestreForm() {
     const ctx = useContext(MestreFormContext);
     if (!ctx) return null;
@@ -25,7 +33,7 @@ export function MestreFormProvider({ children }) {
     // Puxa as informações da Sala para o sistema de Patentes
     const mesaId = useStore(s => s.mesaId);
     const mesaCriador = useStore(s => s.mesaCriador);
-    const mesaMestres = useStore(s => s.mesaMestres) || {};
+    const mesaMestres = useStore(s => s.mesaMestres) || MESA_MESTRES_VAZIA;
 
     const [msgSistema, setMsgSistema] = useState('');
     const [dNome, setDNome] = useState('Goblin Espiao');

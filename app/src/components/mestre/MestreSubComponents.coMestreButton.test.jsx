@@ -29,7 +29,7 @@ vi.mock('./MestreFormContext', async (importOriginal) => {
     return { ...actual, useMestreForm: vi.fn() };
 });
 
-vi.mock('./PainelMestreSandbox', () => ({ default: () => null }));
+vi.mock('./PainelMestreSandbox', () => ({ default: () => null, TODAS_CONDICOES_BASE: [] }));
 
 function statBase(base) {
     return { base, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mUnico: '1.0', mAbsoluto: 1.0 };

@@ -1,11 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import useStore from '../../stores/useStore';
 import { getDatabase, ref, update } from 'firebase/database';
 import { calcularEficaciaCura } from '../../core/engine';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import DiarioNPC from './DiarioNPC';
 
-const TODAS_CONDICOES_BASE = [
+export const TODAS_CONDICOES_BASE = [
     { id: 'sangrando', icone: '🩸', cor: '#ff003c', nome: 'Sangrando' },
     { id: 'queimado', icone: '🔥', cor: '#ff4400', nome: 'Queimado' },
     { id: 'exausto', icone: '😮‍💨', cor: '#aaaaaa', nome: 'Exausto' },
@@ -24,42 +24,30 @@ const TODAS_CONDICOES_BASE = [
     { id: 'provocado', icone: '💢', cor: '#ff5500', nome: 'Provocado' }
 ];
 
-export default function PainelMestreSandbox({ personagemId, ficha }) {
+// 🔥 OTIMIZAÇÃO (Domínio do Mestre): antes este componente assinava a árvore INTEIRA de
+// `personagens` do Zustand (useStore(s => s.personagens)) só pra recalcular a lista de
+// condições -- como cada card de entidade no Visor monta um PainelMestreSandbox próprio, QUALQUER
+// atualização de QUALQUER personagem na mesa (ex.: um jogador tomando dano) fazia TODOS os
+// sandboxes (mesmo os fechados/de outras entidades) re-renderizar e recalcular esse merge.
+// Agora `condicoesGlobais` já vem pronto do pai (MestreSubComponents.jsx > MestreVisorJogadores),
+// calculado UMA vez pra todos os cards, e os `personagens` que os handlers abaixo ainda precisam
+// pra gravar (spread otimista) são lidos sob demanda via useStore.getState() -- sem assinar
+// re-renders por isso.
+export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlobais }) {
     const mesaId = useStore(s => s.mesaId);
-    const personagens = useStore(s => s.personagens);
-    const minhaFicha = useStore(s => s.minhaFicha);
     const meuNome = useStore(s => s.meuNome);
     const setPersonagens = useStore(s => s.setPersonagens);
     const updateFicha = useStore(s => s.updateFicha);
     const db = getDatabase();
-    
+
     const [expandido, setExpandido] = useState(false);
     const [valorRapido, setValorRapido] = useState('');
-    const [energiaAlvo, setEnergiaAlvo] = useState('vida'); 
-    
+    const [energiaAlvo, setEnergiaAlvo] = useState('vida');
+
     // 🔥 ESTADO DO MODAL DE TELA CHEIA PARA O GRIMÓRIO
     const [grimorioAberto, setGrimorioAberto] = useState(false);
 
-    const condicoesDinamicas = useMemo(() => {
-        const overrides = {};
-        if (personagens) {
-            Object.values(personagens).forEach(p => {
-                if (p?.compendioOverrides?.condicoes) Object.assign(overrides, p.compendioOverrides.condicoes);
-            });
-        }
-        if (minhaFicha?.compendioOverrides?.condicoes) {
-            Object.assign(overrides, minhaFicha.compendioOverrides.condicoes);
-        }
-
-        const map = {};
-        TODAS_CONDICOES_BASE.forEach(c => map[c.id] = { ...c });
-        Object.keys(overrides).forEach(k => {
-            if (overrides[k].deletado) delete map[k];
-            else if (map[k]) map[k] = { ...map[k], ...overrides[k] };
-            else map[k] = overrides[k];
-        });
-        return Object.values(map);
-    }, [personagens, minhaFicha]);
+    const condicoesDinamicas = condicoesGlobais || TODAS_CONDICOES_BASE;
 
     const aplicarCuraDano = (tipo) => {
         let val = parseInt(valorRapido);
@@ -92,7 +80,7 @@ export default function PainelMestreSandbox({ personagemId, ficha }) {
         }).catch(err => alert("Erro ao atualizar recursos: " + err.message));
 
         setPersonagens({
-            ...personagens,
+            ...useStore.getState().personagens,
             [personagemId]: {
                 ...ficha,
                 [energiaAlvo]: {
@@ -130,7 +118,7 @@ export default function PainelMestreSandbox({ personagemId, ficha }) {
         }).catch(e => console.error(e));
 
         setPersonagens({
-            ...personagens,
+            ...useStore.getState().personagens,
             [personagemId]: {
                 ...ficha,
                 condicoes: condicoesAtuais
@@ -170,7 +158,7 @@ export default function PainelMestreSandbox({ personagemId, ficha }) {
                                 delete fichaAtualizada.nome;
                                 update(ref(db, `personagens/${personagemId}`), fichaAtualizada).catch(err => alert("Erro ao salvar NPC: " + err.message));
                                 setPersonagens({
-                                    ...personagens,
+                                    ...useStore.getState().personagens,
                                     [personagemId]: fichaAtualizada
                                 });
                             }} 
