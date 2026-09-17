@@ -68,7 +68,14 @@ function fichaVidaLimpa(overrides = {}) {
         iniciativa: 0,
         posicao: { x: 0, y: 0, z: 0 },
         acoes: { padrao: { max: 1, atual: 0 }, bonus: { max: 1, atual: 0 }, reacao: { max: 1, atual: 0 } },
-        vida: { base: 1000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1000000, regeneracao: 0 },
+        // 🔥 base/atual de vida em 1 bilhão (raw) — depois da correção de escala de
+        // aplicarDanoRapido, um dano digitado de 300000 (exibido) vira 300000*FATOR_EXIBICAO_VITAIS
+        // (1000) = 300.000.000 bruto; com o antigo default de 1.000.000 isso zerava a vida por
+        // completo (perdendo o cenário de dano PARCIAL que os testes deste arquivo dependem). Em 1
+        // bilhão, o MESMO dano de 300000 continua consumindo exatamente 30% da vida (fatorDano=0.3),
+        // preservando os valores de Fadiga (7.5, 6.75 etc.) já calculados à mão nos comentários
+        // abaixo — só a base mudou de escala, a PROPORÇÃO do dano continua idêntica.
+        vida: { base: 1000000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1000000000, regeneracao: 0 },
         mana: { base: 1000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1000000, regeneracao: 0 },
         aura: { base: 1000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1000000, regeneracao: 0 },
         chakra: { base: 1000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1000000, regeneracao: 0 },
@@ -204,7 +211,9 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
     });
 
     it('Branch DUMMIE: chama salvarDummie com hpAtual reduzido, relendo os dados FRESCOS de useStore.getState().dummies (não o snapshot "ficha" passado)', () => {
-        const state = baseState({ isMestre: true, dummies: { goblin: { nome: 'Goblin', hpAtual: 50, cenaId: 'default' } } });
+        // 🔥 hpAtual bruto (500.000) numa escala realista — o antigo "50" clamparia pra 0 com
+        // qualquer dano digitado depois da correção de escala de aplicarDanoRapido.
+        const state = baseState({ isMestre: true, dummies: { goblin: { nome: 'Goblin', hpAtual: 500000, cenaId: 'default' } } });
         montarComEstado(state);
 
         // Snapshot desatualizado propositalmente passado como alvo.ficha -- a implementação deve
@@ -216,7 +225,9 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
         expect(salvarDummie).toHaveBeenCalledTimes(1);
         const [idChamado, dadosChamados] = salvarDummie.mock.calls[0];
         expect(idChamado).toBe('goblin');
-        expect(dadosChamados.hpAtual).toBe(35); // 50 (dado fresco do store) - 15, não 999-15
+        // 15 (dano exibido) * FATOR_EXIBICAO_VITAIS (1000) = 15.000 bruto subtraídos de 500.000
+        // (dado fresco do store) -> 485.000, não 999-15.
+        expect(dadosChamados.hpAtual).toBe(485000); // 500000 (dado fresco) - 15*1000, não 999-15
     });
 
     it('Branch DUMMIE: clampa hpAtual em 0 (nunca negativo) quando o dano excede o HP restante', () => {
@@ -241,14 +252,16 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
     });
 
     it('Branch OUTRO JOGADOR: chama a escrita cross-player aplicarDanoDireto(nome, ficha.vida.atual - dano), NUNCA salvarFichaSilencioso/updateFicha local', () => {
-        const outroJogador = fichaComVital({ vida: { base: 100000000, atual: 80, regeneracao: 0 } });
+        // 🔥 vida.atual bruto numa escala realista (500.000) — o antigo "80" clamparia pra 0.
+        const outroJogador = fichaComVital({ vida: { base: 100000000, atual: 500000, regeneracao: 0 } });
         const state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: outroJogador } });
         montarComEstado(state);
 
         act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador, isDummie: false }, 30); });
 
         expect(aplicarDanoDireto).toHaveBeenCalledTimes(1);
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 50); // 80 - 30
+        // 30 (dano exibido) * FATOR_EXIBICAO_VITAIS (1000) = 30.000 bruto subtraídos de 500.000.
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 470000); // 500000 - 30*1000
         // Também aplica na hora um ganho de Fadiga dinâmica pro alvo, calculado com a Vida JÁ
         // reduzida por este golpe (ver core/fadiga.js) — cresce a partir do fadigaExtra=6
         // pré-existente na ficha-base. Valor exato coberto com uma ficha isolada em
@@ -272,8 +285,10 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
 
         act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoFicha, isDummie: false }, 300000); });
 
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 700000); // 1000000 - 300000
-        // fatorDano = 1 - 700000/1000000 = 0.3 ; fatorEnergia=0 (energias cheias) ; fatorFormas=0
+        // 300000 (dano exibido) * FATOR_EXIBICAO_VITAIS (1000) = 300.000.000 bruto subtraídos de
+        // 1.000.000.000 (base de fichaVidaLimpa, ver comentário na fábrica acima) -> 700.000.000.
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 700000000); // 1000000000 - 300000*1000
+        // fatorDano = 1 - 700000000/1000000000 = 0.3 ; fatorEnergia=0 (energias cheias) ; fatorFormas=0
         // (sem Forma ativa) -> severidade = 0.3/3 = 0.1 -> ganho pré-supressão = 0.1*15 = 1.5.
         // supressaoPoder ausente -> default 100 -> fatorPoder=1 -> ganho final = 1.5.
         // fadigaExtra = 6 (baseline da fixture) + 1.5 = 7.5.
@@ -330,7 +345,9 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
 
         act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 300000); });
 
-        expect(minhaFicha.vida.atual).toBe(700000); // 1000000 - 300000
+        // Mesma conta do teste "OUTRO JOGADOR" acima: 300000*1000 = 300.000.000 bruto subtraídos
+        // de 1.000.000.000 -> 700.000.000.
+        expect(minhaFicha.vida.atual).toBe(700000000); // 1000000000 - 300000*1000
         // Mesmo cálculo do teste "OUTRO JOGADOR" acima (fixture idêntica): ganho = 1.5.
         expect(minhaFicha.combate.fadigaExtra).toBeCloseTo(7.5, 6);
         expect(salvarFichaSilencioso).toHaveBeenCalledTimes(1);
@@ -386,12 +403,16 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
         });
 
         it('valor de dano fracionário é truncado (Math.floor) antes de aplicar', () => {
-            const state = baseState({ isMestre: true, dummies: { goblin: { nome: 'Goblin', hpAtual: 50, cenaId: 'default' } } });
+            // 🔥 hpAtual bruto em escala realista (500.000) — ver mesmo raciocínio dos outros
+            // testes de dummy neste arquivo.
+            const state = baseState({ isMestre: true, dummies: { goblin: { nome: 'Goblin', hpAtual: 500000, cenaId: 'default' } } });
             montarComEstado(state);
 
             act(() => { probe.aplicarDanoRapido({ id: 'goblin', nome: 'Goblin', ficha: state.dummies.goblin, isDummie: true }, 15.9); });
 
-            expect(salvarDummie.mock.calls[0][1].hpAtual).toBe(35); // 50 - floor(15.9)=15
+            // floor(15.9) = 15 (exibido) * FATOR_EXIBICAO_VITAIS (1000) = 15.000 bruto subtraídos
+            // de 500.000 -> 485.000.
+            expect(salvarDummie.mock.calls[0][1].hpAtual).toBe(485000); // 500000 - floor(15.9)*1000
         });
     });
 });

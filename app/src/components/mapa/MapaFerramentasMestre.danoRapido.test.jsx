@@ -125,7 +125,11 @@ describe('MapaMestreDanoRapido — aplicar dano', () => {
     });
 
     it('selecionar um dummie e clicar "Aplicar Dano" chama aplicarDanoRapido -> salvarDummie com hpAtual reduzido pelo valor do input', () => {
-        mockUseStore(baseState({ dummies: { goblin: { nome: 'Goblin', cenaId: 'default', hpAtual: 30 } } }));
+        // 🔥 hpAtual bruto (500.000) numa escala realista pós-correção de aplicarDanoRapido —
+        // dummies também gravam hpAtual na escala BRUTA (FATOR_EXIBICAO_VITAIS = 1000x a exibida),
+        // então um hpAtual pequeno como o antigo "30" clamparia pra 0 com qualquer dano digitado
+        // e perderia o sentido de "dano parcial" que este teste quer exercitar.
+        mockUseStore(baseState({ dummies: { goblin: { nome: 'Goblin', cenaId: 'default', hpAtual: 500000 } } }));
         render(<MapaFormProvider><MapaMestreDanoRapido /></MapaFormProvider>);
 
         // Duas <select>: alvo (primeira) e elemento do dano (segunda) — pega a de alvo por índice.
@@ -140,12 +144,16 @@ describe('MapaMestreDanoRapido — aplicar dano', () => {
         expect(salvarDummie).toHaveBeenCalledTimes(1);
         const [idChamado, dadosChamados] = salvarDummie.mock.calls[0];
         expect(idChamado).toBe('goblin');
-        expect(dadosChamados.hpAtual).toBe(18); // 30 - 12
+        // 12 (dano exibido, digitado no input) * FATOR_EXIBICAO_VITAIS (1000) = 12.000 bruto
+        // subtraídos de 500.000 -> 488.000.
+        expect(dadosChamados.hpAtual).toBe(488000); // 500000 - 12*1000
     });
 
     it('selecionar OUTRO jogador (não-Mestre) chama aplicarDanoDireto (escrita cross-player), nunca salvarFichaSilencioso local', () => {
+        // 🔥 vida.atual bruto numa escala realista (500.000) — o antigo "80" clamparia pra 0 com
+        // qualquer dano digitado depois da correção de escala de aplicarDanoRapido.
         mockUseStore(baseState({
-            personagens: { Vilao: { posicao: { x: 1, y: 1, z: 0, cenaId: 'default' }, vida: { atual: 80 } } },
+            personagens: { Vilao: { posicao: { x: 1, y: 1, z: 0, cenaId: 'default' }, vida: { atual: 500000 } } },
         }));
         render(<MapaFormProvider><MapaMestreDanoRapido /></MapaFormProvider>);
 
@@ -154,7 +162,9 @@ describe('MapaMestreDanoRapido — aplicar dano', () => {
         fireEvent.change(select, { target: { value: 'Vilao' } });
         fireEvent.click(screen.getByText('💥 Aplicar Dano'));
 
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 70); // 80 - 10 (padrão)
+        // Vilao não tem `dominios`, então sem elemento marcado o dano passa integral: 10 (padrão,
+        // exibido) * FATOR_EXIBICAO_VITAIS (1000) = 10.000 bruto subtraídos de 500.000 -> 490.000.
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 490000); // 500000 - 10*1000 (padrão)
         expect(salvarFichaSilencioso).not.toHaveBeenCalled();
         // Sem elemento selecionado (padrão "Físico/Nenhum") -> limpa o campo (null), nunca deixa
         // undefined/sem chamar (ver aplicarElementoDireto em firebase-sync.js).
@@ -162,8 +172,9 @@ describe('MapaMestreDanoRapido — aplicar dano', () => {
     });
 
     it('selecionar um Elemento no dropdown e aplicar dano em OUTRO jogador chama aplicarElementoDireto com o elemento marcado', () => {
+        // Mesma escala realista de vida.atual do teste acima.
         mockUseStore(baseState({
-            personagens: { Vilao: { posicao: { x: 1, y: 1, z: 0, cenaId: 'default' }, vida: { atual: 80 } } },
+            personagens: { Vilao: { posicao: { x: 1, y: 1, z: 0, cenaId: 'default' }, vida: { atual: 500000 } } },
         }));
         render(<MapaFormProvider><MapaMestreDanoRapido /></MapaFormProvider>);
 
@@ -172,7 +183,9 @@ describe('MapaMestreDanoRapido — aplicar dano', () => {
         fireEvent.change(selectElemento, { target: { value: 'Fogo' } });
         fireEvent.click(screen.getByText('💥 Aplicar Dano'));
 
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 70);
+        // Vilao não tem `dominios` -> getNivelDominio(Vilao, 'Fogo') = 0 -> sem redução mesmo com
+        // elemento marcado -> mesma conta do teste acima: 500000 - 10*1000 = 490000.
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 490000);
         expect(aplicarElementoDireto).toHaveBeenCalledWith('Vilao', 'Fogo');
     });
 });

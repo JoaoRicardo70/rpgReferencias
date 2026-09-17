@@ -230,14 +230,17 @@ describe('MapaFormContext — aplicarDanoRapido(): branch DUMMIE ignora nivelDom
     afterEach(() => cleanup());
 
     it('aplicar dano com elemento+override num dummie nunca chama aplicarElementoNivelDireto/aplicarElementoDireto, e salvarDummie não grava nenhum campo de combate', () => {
-        const state = baseState({ isMestre: true, dummies: { goblin: { nome: 'Goblin', hpAtual: 50, cenaId: 'default' } } });
+        // 🔥 hpAtual bruto em escala realista (500.000) — o antigo "50" clamparia pra 0 depois da
+        // correção de escala de aplicarDanoRapido (FATOR_EXIBICAO_VITAIS).
+        const state = baseState({ isMestre: true, dummies: { goblin: { nome: 'Goblin', hpAtual: 500000, cenaId: 'default' } } });
         montarComEstado(state);
 
         act(() => { probe.aplicarDanoRapido({ id: 'goblin', nome: 'Goblin', ficha: state.dummies.goblin, isDummie: true }, 15, 'Fogo', 8); });
 
         expect(salvarDummie).toHaveBeenCalledTimes(1);
         const dadosSalvos = salvarDummie.mock.calls[0][1];
-        expect(dadosSalvos.hpAtual).toBe(35);
+        // 15 (dano exibido) * FATOR_EXIBICAO_VITAIS (1000) = 15.000 bruto subtraídos de 500.000.
+        expect(dadosSalvos.hpAtual).toBe(485000); // 500000 - 15*1000
         expect(dadosSalvos.combate).toBeUndefined();
         expect(aplicarElementoNivelDireto).not.toHaveBeenCalled();
         expect(aplicarElementoDireto).not.toHaveBeenCalled();

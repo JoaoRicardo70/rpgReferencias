@@ -4,7 +4,7 @@ import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salv
 import { calcularAcerto } from '../../core/engine';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { getBuffs } from '../../core/attributes';
-import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS } from '../../core/vitals';
+import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 
@@ -837,14 +837,24 @@ export function MapaFormProvider({ children }) {
             if (reducaoAplicada > 0) valor = Math.max(0, Math.floor(valorBruto * (1 - reducaoAplicada)));
         }
 
+        // 🔥 CORREÇÃO: `valor`/`valorBruto` vêm do campo "Dano" da UI, na MESMA escala EXIBIDA da
+        // barra de HP na tela (ex.: a mesma unidade do "HP: 46.000" mostrado no Holograma de Ação)
+        // — mas vida.atual/hpAtual são gravados na escala BRUTA, FATOR_EXIBICAO_VITAIS (1000x) maior
+        // (reformulação de Vida/Energias, core/vitals.js). Todo outro campo editável de Vida no app
+        // (CampoMagico em Marcados.jsx/DiarioNPC.jsx, criação de dummy em MapaFerramentasMestre.jsx)
+        // já multiplica de volta por FATOR_EXIBICAO_VITAIS antes de gravar — o Dano Rápido não fazia
+        // isso, então um dano digitado na escala exibida praticamente não tirava HP nenhum dos
+        // Máximos novos (na casa dos bilhões/trilhões).
+        const valorRaw = valor * FATOR_EXIBICAO_VITAIS;
+
         if (alvo.isDummie) {
             const storeState = useStore.getState();
             const dData = storeState.dummies[alvo.id];
             if (!dData) return;
-            salvarDummie(alvo.id, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - valor) });
+            salvarDummie(alvo.id, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - valorRaw) });
         } else if (alvo.nome === meuNome) {
             updateFicha(f => {
-                if (f.vida) f.vida.atual = Math.max(0, (f.vida.atual || 0) - valor);
+                if (f.vida) f.vida.atual = Math.max(0, (f.vida.atual || 0) - valorRaw);
                 if (!f.combate) f.combate = {};
                 f.combate.ultimoElementoRecebido = elemento || null;
                 f.combate.ultimoElementoRecebidoNivel = nivelOverride;
@@ -853,7 +863,7 @@ export function MapaFormProvider({ children }) {
             salvarFichaSilencioso();
         } else {
             const fichaAlvo = alvo.ficha || {};
-            const novaVida = Math.max(0, (fichaAlvo.vida?.atual || 0) - valor);
+            const novaVida = Math.max(0, (fichaAlvo.vida?.atual || 0) - valorRaw);
             // Ficha "simulada" com a Vida já reduzida (e o elemento/nível deste golpe já
             // registrados), só pra calcular o ganho de Fadiga deste golpe com o dado mais atual
             // possível — nunca é gravada, só usada localmente aqui.
