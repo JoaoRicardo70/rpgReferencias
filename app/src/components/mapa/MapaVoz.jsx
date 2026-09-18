@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MapaOlhoSextaFeira } from './MapaSextaFeira';
+// Dentro da function MapaSessaoRP(...)
+useOuvidoSextaFeira(meuNome, isPresenteNaTaverna, chatCtx.mutado);
 
 export function urlSeguraParaCss(url) {
     if (!url || typeof url !== 'string') return '';
