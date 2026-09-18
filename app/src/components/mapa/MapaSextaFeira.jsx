@@ -63,12 +63,46 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
                     const logFormatado = `🗣️ ${papel}: "${frase}"`;
                     
                     addLog(logFormatado);
-                    
-                    // 🔥 1. Envia para backup no Firebase
                     enviarParaBancoDeDados(frase, papel);
                     
-                    // 🔥 2. A PONTE NEURAL: Dispara imediatamente para a aba dos Registros Akáshicos!
-                    window.dispatchEvent(new CustomEvent('novaTranscricaoSextaFeira', { detail: logFormatado }));
+                    // ========================================================
+                    // 🔥 A INJEÇÃO DIRETA: BYPASS NO REACT
+                    // ========================================================
+                    try {
+                        const rawCaps = localStorage.getItem('rpgSextaFeira_capitulos');
+                        const capAtivo = Number(localStorage.getItem('rpgSextaFeira_capituloAtivo'));
+                        const arcoAtivo = Number(localStorage.getItem('rpgSextaFeira_arcoAtivoPresente'));
+
+                        if (rawCaps && capAtivo && arcoAtivo) {
+                            let caps = JSON.parse(rawCaps);
+                            let alterou = false;
+
+                            caps = caps.map(c => {
+                                if (c.id === capAtivo) {
+                                    return {
+                                        ...c,
+                                        arcos: c.arcos.map(a => {
+                                            if (a.id === arcoAtivo) {
+                                                alterou = true;
+                                                const sep = a.texto && a.texto.trim() ? '\n' : '';
+                                                return { ...a, texto: a.texto + sep + logFormatado };
+                                            }
+                                            return a;
+                                        })
+                                    };
+                                }
+                                return c;
+                            });
+
+                            if (alterou) {
+                                // Grava à força na memória profunda
+                                localStorage.setItem('rpgSextaFeira_capitulos', JSON.stringify(caps));
+                                // Grita para o painel atualizar (se ele estiver aberto)
+                                window.dispatchEvent(new Event('sextaFeiraStorageUpdated'));
+                            }
+                        }
+                    } catch(err) { console.error("Erro na Injeção Direta:", err); }
+                    // ========================================================
                 }
             };
 
@@ -86,9 +120,7 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
             try {
                 recognition.start();
                 recognitionRef.current = recognition;
-            } catch(e) {
-                addLog("❌ Erro ao ligar o ouvido nativo.");
-            }
+            } catch(e) { addLog("❌ Erro ao ligar o ouvido nativo."); }
         } else {
             addLog("⚠️ Aviso: Navegador não suporta transcrição nativa.");
         }

@@ -89,6 +89,21 @@ export function AIFormProvider({ children }) {
     const [capFuturoAtivoId, setCapFuturoAtivoId] = useState(() => Number(localStorage.getItem('rpgSextaFeira_capFuturoAtivo')) || 100);
     const [arcoAtivoIdFuturo, setArcoAtivoIdFuturo] = useState(() => Number(localStorage.getItem('rpgSextaFeira_arcoAtivoFuturo')) || 101);
 
+    // ========================================================
+    // 🔥 PONTE NEURAL V2: LÊ DIRETO DA MEMÓRIA DO NAVEGADOR
+    // ========================================================
+    useEffect(() => {
+        const recarregarLoreDoStorage = () => {
+            const rawPresente = localStorage.getItem('rpgSextaFeira_capitulos');
+            if (rawPresente) {
+                const capsPresente = migrarParaArcos(rawPresente);
+                if (capsPresente) setCapitulosPresente(capsPresente);
+            }
+        };
+        window.addEventListener('sextaFeiraStorageUpdated', recarregarLoreDoStorage);
+        return () => window.removeEventListener('sextaFeiraStorageUpdated', recarregarLoreDoStorage);
+    }, []);
+
     useEffect(() => {
         const cap = capitulosPresente.find(c => c.id === capituloAtivoId);
         if (cap && cap.arcos.length > 0 && !cap.arcos.some(a => a.id === arcoAtivoIdPresente)) setArcoAtivoIdPresente(cap.arcos[0].id);
@@ -108,35 +123,6 @@ export function AIFormProvider({ children }) {
 
     const textoAtivo = arcoAtivoObj?.texto || '';
     const tierListAtiva = capituloAtivoObj?.tierList || [];
-
-    // ========================================================
-    // 🔥 PONTE NEURAL: ESCUTA A HUD E INJETA NOS REGISTROS 🔥
-    // ========================================================
-    const adicionarTranscricaoAoArco = useCallback((novaFrase) => {
-        const capId = loreFoco === 'presente' ? capituloAtivoId : capFuturoAtivoId;
-        const arcId = loreFoco === 'presente' ? arcoAtivoIdPresente : arcoAtivoIdFuturo;
-        const setCaps = loreFoco === 'presente' ? setCapitulosPresente : setCapitulosFuturo;
-        
-        setCaps(prev => prev.map(c => {
-            if (c.id === capId) {
-                return { ...c, arcos: c.arcos.map(a => {
-                    if (a.id === arcId) {
-                        const separador = a.texto && a.texto.trim() ? '\n' : '';
-                        return { ...a, texto: a.texto + separador + novaFrase };
-                    }
-                    return a;
-                })};
-            }
-            return c;
-        }));
-    }, [loreFoco, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo]);
-
-    useEffect(() => {
-        const listener = (e) => adicionarTranscricaoAoArco(e.detail);
-        window.addEventListener('novaTranscricaoSextaFeira', listener);
-        return () => window.removeEventListener('novaTranscricaoSextaFeira', listener);
-    }, [adicionarTranscricaoAoArco]);
-    // ========================================================
 
     useEffect(() => {
         if (meuNome) {
