@@ -1,7 +1,54 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MapaOlhoSextaFeira } from './MapaSextaFeira';
-// Dentro da function MapaSessaoRP(...)
-useOuvidoSextaFeira(meuNome, isPresenteNaTaverna, chatCtx.mutado);
+
+// ==========================================
+// 🧠 OUVINDO A MESA: O CÉREBRO DA SEXTA-FEIRA
+// ==========================================
+export function useOuvidoSextaFeira(meuNome, isPresente, mutado) {
+    const [transcript, setTranscript] = useState('');
+
+    useEffect(() => {
+        // Se o jogador não está na call ou mutou o mic, a Sexta-Feira para de ouvir
+        if (!isPresente || mutado) return;
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            console.warn("Navegador não suporta transcrição nativa.");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = false;
+        recognition.lang = 'pt-BR'; // Pode trocar para pt-PT se preferir
+
+        recognition.onresult = (event) => {
+            const lastResultIndex = event.results.length - 1;
+            const fraseDigitada = event.results[lastResultIndex][0].transcript.trim();
+            
+            if (fraseDigitada) {
+                console.log(`[Sexta-Feira ouviu] ${meuNome}: ${fraseDigitada}`);
+                // 🔥 NO FUTURO, DESCOMENTAREMOS AQUI PARA ENVIAR AO FIREBASE:
+                // enviarMemoriaSextaFeira(meuNome, fraseDigitada);
+            }
+        };
+
+        recognition.onerror = (e) => console.log("Erro no ouvido da IA:", e.error);
+        
+        // Reinicia automaticamente se parar (para ficar sempre a escutar durante a sessão)
+        recognition.onend = () => { if (isPresente && !mutado) recognition.start(); };
+
+        recognition.start();
+
+        return () => { recognition.onend = null; recognition.abort(); };
+    }, [meuNome, isPresente, mutado]);
+
+    return transcript;
+}
+
+// ==========================================
+// 📡 FUNÇÕES ORIGINAIS DE ÁUDIO DO SISTEMA
+// ==========================================
 
 export function urlSeguraParaCss(url) {
     if (!url || typeof url !== 'string') return '';
@@ -173,6 +220,9 @@ export function MapaSessaoRP({ chatCtx, meuNome, minhaFicha, personagens, cenari
     const playerCount = cenario?.tavernaAtivos?.length || 0;
     const cardSize = playerCount === 1 ? '400px' : playerCount === 2 ? '350px' : '280px';
     const [radioLigado, setRadioLigado] = useState(false);
+
+    // 🔥 OUVINDO A MESA: A Sexta-Feira agora está conectada!
+    useOuvidoSextaFeira(meuNome, isPresenteNaTaverna, chatCtx.mutado);
 
     return (
         <>
