@@ -38,21 +38,6 @@ export function useAIForm() {
     return ctx;
 }
 
-const migrarParaArcos = (salvoStr) => {
-    try {
-        if (!salvoStr) return null;
-        const parsed = JSON.parse(salvoStr);
-        return parsed.map(c => {
-            let migrated = { ...c, tierList: c.tierList || [] };
-            if (!migrated.arcos) {
-                migrated.arcos = [{ id: Date.now() + Math.random(), titulo: 'Arco Principal', texto: c.texto || '' }];
-                delete migrated.texto;
-            }
-            return migrated;
-        });
-    } catch (e) { return null; }
-};
-
 export function AIFormProvider({ children }) {
     const minhaFicha = useStore(s => s.minhaFicha);
     const meuNome = useStore(s => s.meuNome) || 'Desconhecido';
@@ -71,38 +56,25 @@ export function AIFormProvider({ children }) {
     const chatRef = useRef(null);
     const fileInputRef = useRef(null);
 
-    const [loreFoco, setLoreFoco] = useState('presente'); 
+    const [loreFoco, setLoreFoco] = useState('presente');
     const [novoPersonagem, setNovoPersonagem] = useState('');
     const [novoAvatar, setNovoAvatar] = useState('');
-    
-    const [capitulosPresente, setCapitulosPresente] = useState(() => {
-        return migrarParaArcos(localStorage.getItem('rpgSextaFeira_capitulos')) || 
-               [{ id: 1, titulo: 'Capítulo 1 - Reino de Faku', arcos: [{ id: 11, titulo: 'Arco 1 - O Início', texto: 'A jornada começa...' }], tierList: [] }];
-    });
-    const [capituloAtivoId, setCapituloAtivoId] = useState(() => Number(localStorage.getItem('rpgSextaFeira_capituloAtivo')) || 1);
-    const [arcoAtivoIdPresente, setArcoAtivoIdPresente] = useState(() => Number(localStorage.getItem('rpgSextaFeira_arcoAtivoPresente')) || 11);
 
-    const [capitulosFuturo, setCapitulosFuturo] = useState(() => {
-        return migrarParaArcos(localStorage.getItem('rpgSextaFeira_capitulosFuturo')) || 
-               [{ id: 100, titulo: 'Ecos do Futuro - Parte 1', arcos: [{ id: 101, titulo: 'Arco Principal', texto: 'Crônicas do Amanhã...' }], tierList: [] }];
-    });
-    const [capFuturoAtivoId, setCapFuturoAtivoId] = useState(() => Number(localStorage.getItem('rpgSextaFeira_capFuturoAtivo')) || 100);
-    const [arcoAtivoIdFuturo, setArcoAtivoIdFuturo] = useState(() => Number(localStorage.getItem('rpgSextaFeira_arcoAtivoFuturo')) || 101);
+    // 🔥 PONTE DEFINITIVA: capítulos/arcos vivem no Zustand (useStore.js), fonte única
+    // compartilhada com o HUD MapaSextaFeira — nada de localStorage/CustomEvent aqui.
+    const capitulosPresente = useStore(s => s.loreCapitulosPresente);
+    const setCapitulosPresente = useStore(s => s.setLoreCapitulosPresente);
+    const capituloAtivoId = useStore(s => s.loreCapituloAtivoId);
+    const setCapituloAtivoId = useStore(s => s.setLoreCapituloAtivoId);
+    const arcoAtivoIdPresente = useStore(s => s.loreArcoAtivoIdPresente);
+    const setArcoAtivoIdPresente = useStore(s => s.setLoreArcoAtivoIdPresente);
 
-    // ========================================================
-    // 🔥 PONTE NEURAL V2: LÊ DIRETO DA MEMÓRIA DO NAVEGADOR
-    // ========================================================
-    useEffect(() => {
-        const recarregarLoreDoStorage = () => {
-            const rawPresente = localStorage.getItem('rpgSextaFeira_capitulos');
-            if (rawPresente) {
-                const capsPresente = migrarParaArcos(rawPresente);
-                if (capsPresente) setCapitulosPresente(capsPresente);
-            }
-        };
-        window.addEventListener('sextaFeiraStorageUpdated', recarregarLoreDoStorage);
-        return () => window.removeEventListener('sextaFeiraStorageUpdated', recarregarLoreDoStorage);
-    }, []);
+    const capitulosFuturo = useStore(s => s.loreCapitulosFuturo);
+    const setCapitulosFuturo = useStore(s => s.setLoreCapitulosFuturo);
+    const capFuturoAtivoId = useStore(s => s.loreCapFuturoAtivoId);
+    const setCapFuturoAtivoId = useStore(s => s.setLoreCapFuturoAtivoId);
+    const arcoAtivoIdFuturo = useStore(s => s.loreArcoAtivoIdFuturo);
+    const setArcoAtivoIdFuturo = useStore(s => s.setLoreArcoAtivoIdFuturo);
 
     useEffect(() => {
         const cap = capitulosPresente.find(c => c.id === capituloAtivoId);

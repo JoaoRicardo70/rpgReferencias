@@ -81,6 +81,35 @@ function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
 const storedMesaId = localStorage.getItem('rpg_mesaId') || '';
 
+// 🔥 REGISTROS AKÁSHICOS (Lore da Sexta-Feira): única fonte de verdade no Zustand,
+// para que o HUD do Mestre (MapaSextaFeira) e o painel do Oráculo (AIFormContext)
+// nunca mais dessincronizem via localStorage/eventos de window.
+const loreCapitulosPresentePadrao = [{ id: 1, titulo: 'Capítulo 1 - Reino de Faku', arcos: [{ id: 11, titulo: 'Arco 1 - O Início', texto: 'A jornada começa...' }], tierList: [] }];
+const loreCapitulosFuturoPadrao = [{ id: 100, titulo: 'Ecos do Futuro - Parte 1', arcos: [{ id: 101, titulo: 'Arco Principal', texto: 'Crônicas do Amanhã...' }], tierList: [] }];
+
+function migrarLoreParaArcos(salvoStr) {
+    try {
+        if (!salvoStr) return null;
+        const parsed = JSON.parse(salvoStr);
+        return parsed.map(c => {
+            let migrated = { ...c, tierList: c.tierList || [] };
+            if (!migrated.arcos) {
+                migrated.arcos = [{ id: Date.now() + Math.random(), titulo: 'Arco Principal', texto: c.texto || '' }];
+                delete migrated.texto;
+            }
+            return migrated;
+        });
+    } catch (e) { return null; }
+}
+
+function lerLoreLocal(chave, padrao) {
+    const migrado = migrarLoreParaArcos(localStorage.getItem(chave));
+    return migrado || padrao;
+}
+function lerLoreNumeroLocal(chave, padrao) {
+    return Number(localStorage.getItem(chave)) || padrao;
+}
+
 function getDivisorPoderMesaKey(mesaId) { return `rpg_divisorPoderMesa_${mesaId || 'semMesa'}`; }
 function lerDivisorPoderMesaLocal(mesaId) {
     const raw = localStorage.getItem(getDivisorPoderMesaKey(mesaId));
@@ -150,6 +179,33 @@ const useStore = create(
             try { localStorage.setItem(getDivisorPoderMesaKey(state.mesaId), String(v)); } catch (e) { }
         }),
         updateFicha: (callback) => set((state) => { callback(state.minhaFicha); }),
+
+        loreCapitulosPresente: lerLoreLocal('rpgSextaFeira_capitulos', loreCapitulosPresentePadrao),
+        loreCapituloAtivoId: lerLoreNumeroLocal('rpgSextaFeira_capituloAtivo', 1),
+        loreArcoAtivoIdPresente: lerLoreNumeroLocal('rpgSextaFeira_arcoAtivoPresente', 11),
+        loreCapitulosFuturo: lerLoreLocal('rpgSextaFeira_capitulosFuturo', loreCapitulosFuturoPadrao),
+        loreCapFuturoAtivoId: lerLoreNumeroLocal('rpgSextaFeira_capFuturoAtivo', 100),
+        loreArcoAtivoIdFuturo: lerLoreNumeroLocal('rpgSextaFeira_arcoAtivoFuturo', 101),
+
+        setLoreCapitulosPresente: (updater) => set((state) => { state.loreCapitulosPresente = typeof updater === 'function' ? updater(state.loreCapitulosPresente) : updater; }),
+        setLoreCapituloAtivoId: (updater) => set((state) => { state.loreCapituloAtivoId = typeof updater === 'function' ? updater(state.loreCapituloAtivoId) : updater; }),
+        setLoreArcoAtivoIdPresente: (updater) => set((state) => { state.loreArcoAtivoIdPresente = typeof updater === 'function' ? updater(state.loreArcoAtivoIdPresente) : updater; }),
+        setLoreCapitulosFuturo: (updater) => set((state) => { state.loreCapitulosFuturo = typeof updater === 'function' ? updater(state.loreCapitulosFuturo) : updater; }),
+        setLoreCapFuturoAtivoId: (updater) => set((state) => { state.loreCapFuturoAtivoId = typeof updater === 'function' ? updater(state.loreCapFuturoAtivoId) : updater; }),
+        setLoreArcoAtivoIdFuturo: (updater) => set((state) => { state.loreArcoAtivoIdFuturo = typeof updater === 'function' ? updater(state.loreArcoAtivoIdFuturo) : updater; }),
+
+        // 🔥 PONTE DEFINITIVA: o HUD (MapaSextaFeira) chama esta ação diretamente — sem
+        // localStorage, sem CustomEvent — e o Oráculo (AIFormContext) já está no mesmo
+        // store, então a <textarea> dos Registros Akáshicos reage instantaneamente.
+        injetarFalaNoArcoAtivo: (linhaFormatada) => set((state) => {
+            const capId = state.loreCapituloAtivoId;
+            const arcId = state.loreArcoAtivoIdPresente;
+            const cap = state.loreCapitulosPresente.find(c => c.id === capId);
+            const arco = cap?.arcos?.find(a => a.id === arcId);
+            if (!arco) return;
+            const sep = arco.texto && arco.texto.trim() ? '\n' : '';
+            arco.texto = arco.texto + sep + linhaFormatada;
+        }),
 
         carregarDadosFicha: (dados) => set((state) => {
             if (!dados) return;

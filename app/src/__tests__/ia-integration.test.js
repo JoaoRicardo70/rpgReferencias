@@ -51,6 +51,26 @@ vi.mock('pdfjs-dist', () => ({
 }));
 
 vi.mock('../stores/useStore', () => {
+    // Espelha a hidratação de "Registros Akáshicos" (lore) feita em stores/useStore.js:
+    // o AIFormContext não lê mais o localStorage diretamente, então o mock precisa
+    // replicar essa migração/fallback para os testes de hidratação continuarem válidos.
+    const migrarLoreParaArcos = (salvoStr) => {
+        try {
+            if (!salvoStr) return null;
+            const parsed = JSON.parse(salvoStr);
+            return parsed.map(c => {
+                let migrated = { ...c, tierList: c.tierList || [] };
+                if (!migrated.arcos) {
+                    migrated.arcos = [{ id: Date.now() + Math.random(), titulo: 'Arco Principal', texto: c.texto || '' }];
+                    delete migrated.texto;
+                }
+                return migrated;
+            });
+        } catch (e) { return null; }
+    };
+    const loreCapitulosPresentePadrao = [{ id: 1, titulo: 'Capítulo 1 - Reino de Faku', arcos: [{ id: 11, titulo: 'Arco 1 - O Início', texto: 'A jornada começa...' }], tierList: [] }];
+    const loreCapitulosFuturoPadrao = [{ id: 100, titulo: 'Ecos do Futuro - Parte 1', arcos: [{ id: 101, titulo: 'Arco Principal', texto: 'Crônicas do Amanhã...' }], tierList: [] }];
+
     const state = {
         meuNome: 'Tester',
         minhaFicha: {
@@ -67,6 +87,35 @@ vi.mock('../stores/useStore', () => {
         formas: {},
         inventario: {},
     };
+
+    // Os campos de lore são getters — recalculados a cada leitura a partir do
+    // localStorage — porque `vi.mock` só roda esta factory uma vez por arquivo de
+    // teste; `vi.resetModules()` no beforeEach não a reexecuta, então valores
+    // capturados uma única vez ficariam desatualizados entre os testes.
+    Object.defineProperties(state, {
+        loreCapitulosPresente: { configurable: true, enumerable: true, get: () => migrarLoreParaArcos(localStorage.getItem('rpgSextaFeira_capitulos')) || JSON.parse(JSON.stringify(loreCapitulosPresentePadrao)) },
+        loreCapituloAtivoId: { configurable: true, enumerable: true, get: () => Number(localStorage.getItem('rpgSextaFeira_capituloAtivo')) || 1 },
+        loreArcoAtivoIdPresente: { configurable: true, enumerable: true, get: () => Number(localStorage.getItem('rpgSextaFeira_arcoAtivoPresente')) || 11 },
+        loreCapitulosFuturo: { configurable: true, enumerable: true, get: () => migrarLoreParaArcos(localStorage.getItem('rpgSextaFeira_capitulosFuturo')) || JSON.parse(JSON.stringify(loreCapitulosFuturoPadrao)) },
+        loreCapFuturoAtivoId: { configurable: true, enumerable: true, get: () => Number(localStorage.getItem('rpgSextaFeira_capFuturoAtivo')) || 100 },
+        loreArcoAtivoIdFuturo: { configurable: true, enumerable: true, get: () => Number(localStorage.getItem('rpgSextaFeira_arcoAtivoFuturo')) || 101 },
+    });
+    state.setLoreCapitulosPresente = (updater) => { const next = typeof updater === 'function' ? updater(state.loreCapitulosPresente) : updater; localStorage.setItem('rpgSextaFeira_capitulos', JSON.stringify(next)); };
+    state.setLoreCapituloAtivoId = (updater) => { const next = typeof updater === 'function' ? updater(state.loreCapituloAtivoId) : updater; localStorage.setItem('rpgSextaFeira_capituloAtivo', String(next)); };
+    state.setLoreArcoAtivoIdPresente = (updater) => { const next = typeof updater === 'function' ? updater(state.loreArcoAtivoIdPresente) : updater; localStorage.setItem('rpgSextaFeira_arcoAtivoPresente', String(next)); };
+    state.setLoreCapitulosFuturo = (updater) => { const next = typeof updater === 'function' ? updater(state.loreCapitulosFuturo) : updater; localStorage.setItem('rpgSextaFeira_capitulosFuturo', JSON.stringify(next)); };
+    state.setLoreCapFuturoAtivoId = (updater) => { const next = typeof updater === 'function' ? updater(state.loreCapFuturoAtivoId) : updater; localStorage.setItem('rpgSextaFeira_capFuturoAtivo', String(next)); };
+    state.setLoreArcoAtivoIdFuturo = (updater) => { const next = typeof updater === 'function' ? updater(state.loreArcoAtivoIdFuturo) : updater; localStorage.setItem('rpgSextaFeira_arcoAtivoFuturo', String(next)); };
+    state.injetarFalaNoArcoAtivo = (linhaFormatada) => {
+        const caps = state.loreCapitulosPresente;
+        const cap = caps.find(c => c.id === state.loreCapituloAtivoId);
+        const arco = cap?.arcos?.find(a => a.id === state.loreArcoAtivoIdPresente);
+        if (!arco) return;
+        const sep = arco.texto && arco.texto.trim() ? '\n' : '';
+        arco.texto = arco.texto + sep + linhaFormatada;
+        localStorage.setItem('rpgSextaFeira_capitulos', JSON.stringify(caps));
+    };
+
     return {
         default: vi.fn((selector) => selector(state)),
     };

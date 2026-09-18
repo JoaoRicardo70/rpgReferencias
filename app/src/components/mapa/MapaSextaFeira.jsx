@@ -12,10 +12,11 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
     const [mascaraMestre, setMascaraMestre] = useState('narrador'); 
     const [nomeNpc, setNomeNpc] = useState('');
 
-    const recognitionRef = useRef(null); 
-    const gravandoRef = useRef(false); 
+    const recognitionRef = useRef(null);
+    const gravandoRef = useRef(false);
     const logsEndRef = useRef(null);
-    const mesaId = useStore(s => s.mesaId); 
+    const mesaId = useStore(s => s.mesaId);
+    const injetarFalaNoArcoAtivo = useStore(s => s.injetarFalaNoArcoAtivo);
 
     useEffect(() => {
         if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -64,45 +65,11 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
                     
                     addLog(logFormatado);
                     enviarParaBancoDeDados(frase, papel);
-                    
-                    // ========================================================
-                    // 🔥 A INJEÇÃO DIRETA: BYPASS NO REACT
-                    // ========================================================
-                    try {
-                        const rawCaps = localStorage.getItem('rpgSextaFeira_capitulos');
-                        const capAtivo = Number(localStorage.getItem('rpgSextaFeira_capituloAtivo'));
-                        const arcoAtivo = Number(localStorage.getItem('rpgSextaFeira_arcoAtivoPresente'));
 
-                        if (rawCaps && capAtivo && arcoAtivo) {
-                            let caps = JSON.parse(rawCaps);
-                            let alterou = false;
-
-                            caps = caps.map(c => {
-                                if (c.id === capAtivo) {
-                                    return {
-                                        ...c,
-                                        arcos: c.arcos.map(a => {
-                                            if (a.id === arcoAtivo) {
-                                                alterou = true;
-                                                const sep = a.texto && a.texto.trim() ? '\n' : '';
-                                                return { ...a, texto: a.texto + sep + logFormatado };
-                                            }
-                                            return a;
-                                        })
-                                    };
-                                }
-                                return c;
-                            });
-
-                            if (alterou) {
-                                // Grava à força na memória profunda
-                                localStorage.setItem('rpgSextaFeira_capitulos', JSON.stringify(caps));
-                                // Grita para o painel atualizar (se ele estiver aberto)
-                                window.dispatchEvent(new Event('sextaFeiraStorageUpdated'));
-                            }
-                        }
-                    } catch(err) { console.error("Erro na Injeção Direta:", err); }
-                    // ========================================================
+                    // 🔥 PONTE DEFINITIVA: escreve direto no Zustand (useStore.js), a mesma
+                    // fonte que o AIFormContext lê — sem localStorage, sem CustomEvent, e a
+                    // <textarea> dos Registros Akáshicos atualiza instantaneamente.
+                    injetarFalaNoArcoAtivo(logFormatado);
                 }
             };
 
