@@ -71,6 +71,12 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
                 if (frase) {
                     const papel = mascaraMestre === 'npc' && nomeNpc ? nomeNpc : meuNome;
                     addLog(`🗣️ ${papel}: "${frase}"`);
+    
+    // 🔥 Salva no Firebase para backup
+    enviarParaBancoDeDados(frase, papel);
+    
+    // 🔥 Dispara a frase diretamente para os Registros Akáshicos ao vivo!
+    window.dispatchEvent(new CustomEvent('novaTranscricaoSextaFeira', { detail: `🗣️ ${papel}: "${frase}"` }));(`🗣️ ${papel}: "${frase}"`);
                     
                     // 🔥 AGORA SIM! A frase vai para o Firebase!
                     enviarParaBancoDeDados(frase, papel);

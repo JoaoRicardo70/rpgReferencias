@@ -109,6 +109,35 @@ export function AIFormProvider({ children }) {
     const textoAtivo = arcoAtivoObj?.texto || '';
     const tierListAtiva = capituloAtivoObj?.tierList || [];
 
+    // ========================================================
+    // 🔥 PONTE NEURAL: ESCUTA A HUD E INJETA NOS REGISTROS 🔥
+    // ========================================================
+    const adicionarTranscricaoAoArco = useCallback((novaFrase) => {
+        const capId = loreFoco === 'presente' ? capituloAtivoId : capFuturoAtivoId;
+        const arcId = loreFoco === 'presente' ? arcoAtivoIdPresente : arcoAtivoIdFuturo;
+        const setCaps = loreFoco === 'presente' ? setCapitulosPresente : setCapitulosFuturo;
+        
+        setCaps(prev => prev.map(c => {
+            if (c.id === capId) {
+                return { ...c, arcos: c.arcos.map(a => {
+                    if (a.id === arcId) {
+                        const separador = a.texto && a.texto.trim() ? '\n' : '';
+                        return { ...a, texto: a.texto + separador + novaFrase };
+                    }
+                    return a;
+                })};
+            }
+            return c;
+        }));
+    }, [loreFoco, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo]);
+
+    useEffect(() => {
+        const listener = (e) => adicionarTranscricaoAoArco(e.detail);
+        window.addEventListener('novaTranscricaoSextaFeira', listener);
+        return () => window.removeEventListener('novaTranscricaoSextaFeira', listener);
+    }, [adicionarTranscricaoAoArco]);
+    // ========================================================
+
     useEffect(() => {
         if (meuNome) {
             try {
@@ -384,7 +413,6 @@ export function AIFormProvider({ children }) {
         if (!minhaFicha) return { nome: meuNome };
         const bio = minhaFicha.bio || {};
         
-        // 🔥 O WINRAR DE ITENS: Comprime os dados para caber tudo sem estourar o limite 🔥
         const formatarItem = (i) => {
             const raridade = i.raridade || 'Comum';
             const tipo = i.armaTipo || i.tipo || 'Item';
@@ -401,10 +429,6 @@ export function AIFormProvider({ children }) {
 
         return {
             dadosPersonagem: { nome: meuNome, raca: bio.raca || 'N/A', classe: bio.classe || 'N/A' },
-            // 🔥 CORREÇÃO: vida/mana/aura são gravados na escala BRUTA, FATOR_EXIBICAO_VITAIS (1000x)
-            // maior que a escala exibida ao jogador (reformulação de Vida/Energias, core/vitals.js)
-            // -- sem dividir aqui, a Sexta-Feira relatava HP/Mana 1000x maiores do que o jogador vê
-            // na própria Ficha.
             statusVitais: { hp: (minhaFicha.vida?.atual||0) / FATOR_EXIBICAO_VITAIS, mana: (minhaFicha.mana?.atual||0) / FATOR_EXIBICAO_VITAIS, aura: (minhaFicha.aura?.atual||0) / FATOR_EXIBICAO_VITAIS },
             combate: {
                 armasEquipadas: armasEquipadas.length > 0 ? armasEquipadas : ['Desarmado'],
@@ -415,7 +439,6 @@ export function AIFormProvider({ children }) {
         };
     }, [minhaFicha, meuNome]);
 
-    // 🔥 O RAG (RECUPERAÇÃO INTELIGENTE DE LORE E FICHA) 🔥
     const enviarMensagem = useCallback(async () => {
         if ((!mensagem.trim() && !arquivoTexto) || carregando) return;
         const msgUsuario = mensagem.trim();
@@ -432,31 +455,27 @@ export function AIFormProvider({ children }) {
             const cxt = montarContextoFicha();
             const msgLower = msgUsuario.toLowerCase();
             
-            // 1. DETECTOR DE INTENÇÃO (Ficha ou História?)
             const querSaberLore = ['história', 'historia', 'lore', 'resumo', 'aconteceu', 'sessão', 'sessao', 'npc', 'arco', 'capítulo', 'capitulo', 'vilão', 'passado', 'onde', 'quem'].some(k => msgLower.includes(k));
             const querSaberFicha = ['arma', 'dano', 'hp', 'vida', 'mana', 'aura', 'chakra', 'magia', 'poder', 'elemento', 'fraqueza', 'bater', 'atacar', 'status', 'ficha', 'inventário', 'inventario', 'guardada', 'mochila', 'raridade'].some(k => msgLower.includes(k));
 
-            // 2. MOTOR RAG DE LORE: Vasculha TODOS os arcos atrás de palavras-chave
             let todaLore = "";
             capitulosPresente.forEach(c => c.arcos.forEach(a => { todaLore += a.texto + "\n"; }));
             capitulosFuturo.forEach(c => c.arcos.forEach(a => { todaLore += a.texto + "\n"; }));
 
             let loreFiltrada = "";
-            // Extrai palavras úteis da pergunta do usuário (ignorando artigos e palavras curtas)
             const keywords = msgLower.replace(/[?!.,]/g, '').split(/\s+/).filter(w => w.length > 4 && !['sobre', 'minha', 'nossa', 'quais'].includes(w));
             
             if (keywords.length > 0) {
                 const paragrafos = todaLore.split('\n').filter(p => p.trim().length > 10);
                 const paragrafosRelevantes = paragrafos.filter(p => keywords.some(kw => p.toLowerCase().includes(kw)));
                 if (paragrafosRelevantes.length > 0) {
-                    loreFiltrada = paragrafosRelevantes.join(' [...] ').substring(0, 600); // Corta em 600 chars pra não estourar o Firebase
+                    loreFiltrada = paragrafosRelevantes.join(' [...] ').substring(0, 600); 
                 }
             }
             if (!loreFiltrada) {
-                loreFiltrada = (arcoAtivoObj?.texto || '').slice(-600); // Se não achou nada, manda o final do arco atual
+                loreFiltrada = (arcoAtivoObj?.texto || '').slice(-600); 
             }
 
-            // 3. MONTAGEM DO DOSSIÊ DINÂMICO
             let dossieOculto = `[INFO] Nome:${cxt.dadosPersonagem.nome}|Classe:${cxt.dadosPersonagem.classe}`;
 
             if (querSaberLore && !querSaberFicha) {
@@ -469,7 +488,7 @@ export function AIFormProvider({ children }) {
 
             let promptFinal = `${dossieOculto}\n\nMENSAGEM: ${msgUsuario || 'Resumo do anexo.'}`;
             if (promptFinal.length > 1900) {
-                promptFinal = promptFinal.substring(0, 1900); // Segurança final contra o limite de 2000
+                promptFinal = promptFinal.substring(0, 1900); 
             }
 
             const payload = { 
