@@ -105,7 +105,11 @@ export default function GravadorPanel() {
     };
 
     const iniciarMediaRecorder = () => {
-        const recorder = new MediaRecorder(streamRef.current, { mimeType: 'audio/webm' });
+        // Sem audioBitsPerSecond explícito, o Chrome grava a 128kbps por padrão: um bloco de
+        // 20 minutos (TEMPO_CORTE) vira ~24MB em base64, acima do limite de ~20MB de dados
+        // inline da API do Gemini — por isso a transcrição falhava (sempre) nos cortes automáticos.
+        // 32kbps é mais que suficiente para voz e mantém um bloco de 20min em ~6MB.
+        const recorder = new MediaRecorder(streamRef.current, { mimeType: 'audio/webm', audioBitsPerSecond: 32000 });
         let localChunks = [];
         const numeroPedaco = pedacoContadorRef.current;
         pedacoContadorRef.current++; 
@@ -144,7 +148,9 @@ export default function GravadorPanel() {
                     addLog(`📜 Legendas da Parte ${numeroPedaco} geradas com sucesso! Salvando no Arco selecionado...`);
                     if (salvarNoRegistro) {
                         const dataHoje = new Date().toLocaleDateString('pt-BR');
-                        salvarNoRegistro(textoGerado, `Sessão ${dataHoje} - Parte ${numeroPedaco}`, destinoLore, loreFoco);
+                        // semPrompt: esta gravação é salva automaticamente (sem clique do
+                        // usuário nesse instante) — nunca pode ficar esperando um window.prompt().
+                        salvarNoRegistro(textoGerado, `Sessão ${dataHoje} - Parte ${numeroPedaco}`, destinoLore, loreFoco, { semPrompt: true });
                     }
                 } else {
                     addLog(`⚠️ Parte ${numeroPedaco}: A IA não conseguiu extrair palavras.`);

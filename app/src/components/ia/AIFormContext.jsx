@@ -291,7 +291,8 @@ export function AIFormProvider({ children }) {
         }));
     }, [loreFoco, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo]);
 
-    const salvarNoRegistro = useCallback((texto, tituloRegistro, destinoVal, foco = 'presente') => {
+    const salvarNoRegistro = useCallback((texto, tituloRegistro, destinoVal, foco = 'presente', opts = {}) => {
+        const { semPrompt = false } = opts;
         const timestamp = new Date().toLocaleTimeString('pt-BR');
         const separador = `\n\n================================\n[${tituloRegistro} - ${timestamp}]\n================================\n\n`;
 
@@ -300,9 +301,13 @@ export function AIFormProvider({ children }) {
         const setArcAtivo = foco === 'presente' ? setArcoAtivoIdPresente : setArcoAtivoIdFuturo;
 
         if (destinoVal === 'novo_capitulo') {
-            const nomeCap = window.prompt("Nome do NOVO CAPÍTULO?");
+            // 🔥 Fluxos automáticos (ex.: GravadorPanel, disparado por timer/onstop, sem
+            // gesto direto do usuário) nunca podem depender de window.prompt(): o diálogo
+            // pode passar despercebido ou ser bloqueado pelo navegador, descartando a
+            // transcrição em silêncio. Nesses casos usamos o título já gerado automaticamente.
+            const nomeCap = semPrompt ? tituloRegistro : window.prompt("Nome do NOVO CAPÍTULO?");
             if (!nomeCap) return;
-            const nomeArco = window.prompt("Nome do PRIMEIRO ARCO deste capítulo?", "Arco 1");
+            const nomeArco = semPrompt ? 'Arco 1' : window.prompt("Nome do PRIMEIRO ARCO deste capítulo?", "Arco 1");
             if (!nomeArco) return;
             const newCapId = Date.now();
             const newArcId = Date.now() + 1;
@@ -310,7 +315,7 @@ export function AIFormProvider({ children }) {
             setCapAtivo(newCapId); setArcAtivo(newArcId); setLoreFoco(foco);
         } else if (destinoVal.startsWith('novo_arco_')) {
             const capId = Number(destinoVal.replace('novo_arco_', ''));
-            const nomeArco = window.prompt("Nome do NOVO ARCO?");
+            const nomeArco = semPrompt ? tituloRegistro : window.prompt("Nome do NOVO ARCO?");
             if (!nomeArco) return;
             const newArcId = Date.now();
             setCaps(prev => prev.map(c => {
