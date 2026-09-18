@@ -1,8 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom'; // 🔥 O FEITIÇO DE LEVITAÇÃO ABSOLUTA
-import { ref, uploadBytes } from 'firebase/storage';
-import { httpsCallable } from 'firebase/functions';
-import { storage, functions } from '../../services/firebase-config';
+import { createPortal } from 'react-dom'; 
 
 export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAtivos, meuStream, conexoes }) {
     const [gravando, setGravando] = useState(false);
@@ -12,19 +9,9 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
     const [mascaraMestre, setMascaraMestre] = useState('narrador'); 
     const [nomeNpc, setNomeNpc] = useState('');
 
-    const mediaRecorderRef = useRef(null);
-    const recognitionRef = useRef(null); // 🔥 O ouvido nativo do navegador
-    const gravandoRef = useRef(false); // Para a IA saber se deve continuar a ouvir
-    
-    const timerRef = useRef(null);
-    const mixerCtxRef = useRef(null);
-    const pedacoContadorRef = useRef(1);
+    const recognitionRef = useRef(null); 
+    const gravandoRef = useRef(false); 
     const logsEndRef = useRef(null);
-
-    const perfisJogadores = (Array.isArray(tavernaAtivos) ? tavernaAtivos : []).map(nome => {
-        const ficha = nome === meuNome ? minhaFicha : personagens?.[nome];
-        return `${nome} (Classe: ${ficha?.bio?.classe || 'Mundano'}, Raça: ${ficha?.bio?.raca || 'Desconhecida'})`;
-    });
 
     useEffect(() => {
         if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -32,9 +19,6 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
 
     useEffect(() => {
         return () => {
-            if (timerRef.current) clearInterval(timerRef.current);
-            if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") mediaRecorderRef.current.stop();
-            if (mixerCtxRef.current) mixerCtxRef.current.close();
             if (recognitionRef.current) {
                 recognitionRef.current.onend = null;
                 recognitionRef.current.abort();
@@ -42,7 +26,6 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
         };
     }, []);
 
-    // Aumentei o histórico para 12 linhas para você ver os diálogos rolarem
     const addLog = (msg) => { 
         const hora = new Date().toLocaleTimeString('pt-BR', { hour12: false }); 
         setLogs(prev => [...prev.slice(-12), `[${hora}] ${msg}`]); 
@@ -53,93 +36,48 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
         
         setGravando(true); 
         gravandoRef.current = true;
-        setExpandido(true); // Mantém a HUD aberta para ver a mágica
+        setExpandido(true); 
+        addLog("🎙️ Escuta Ativa! Analisando voz...");
 
         // ========================================================
-        // 🧠 1. TRANSCRIÇÃO EM TEMPO REAL (O NOVO CÉREBRO)
+        // 🧠 TRANSCRIÇÃO PURA (Sem conflito de microfones)
         // ========================================================
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
             const recognition = new SpeechRecognition();
             recognition.continuous = true;
             recognition.interimResults = false;
-            recognition.lang = 'pt-BR'; // Mude para pt-PT se desejar sotaque lusitano
+            recognition.lang = 'pt-BR'; 
 
             recognition.onresult = (event) => {
                 const frase = event.results[event.results.length - 1][0].transcript.trim();
                 if (frase) {
                     const papel = mascaraMestre === 'npc' && nomeNpc ? nomeNpc : meuNome;
                     addLog(`🗣️ ${papel}: "${frase}"`);
-                    // 🔥 FUTURO: Aqui chamaremos a função para salvar a frase no Firebase!
                 }
             };
 
             recognition.onerror = (e) => {
-                if (e.error !== 'no-speech') addLog(`⚠️ Alerta de Áudio: ${e.error}`);
+                if (e.error !== 'no-speech') addLog(`⚠️ Alerta: ${e.error}`);
             };
             
-            // Se o navegador tentar desligar o ouvido por silêncio, nós forçamos a ligar de novo!
-            recognition.onend = () => { if (gravandoRef.current) recognition.start(); };
+            // Timeout de 500ms para evitar que o navegador entre em pânico e trave o mic da Call
+            recognition.onend = () => { 
+                if (gravandoRef.current) {
+                    setTimeout(() => {
+                        try { recognition.start(); } catch(e) {}
+                    }, 500);
+                } 
+            };
             
-            recognition.start();
-            recognitionRef.current = recognition;
+            try {
+                recognition.start();
+                recognitionRef.current = recognition;
+            } catch(e) {
+                addLog("❌ Erro ao ligar o ouvido nativo.");
+            }
         } else {
             addLog("⚠️ Aviso: Navegador não suporta transcrição nativa.");
-        }
-
-        // ========================================================
-        // 📼 2. BACKUP EM ÁUDIO (O SEU SISTEMA ORIGINAL INTACTO)
-        // ========================================================
-        try {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            mixerCtxRef.current = audioCtx;
-            const destination = audioCtx.createMediaStreamDestination();
-            
-            audioCtx.createMediaStreamSource(meuStream).connect(destination);
-            let vozesExtras = 0;
-            conexoes.forEach(c => { if (c.stream) { audioCtx.createMediaStreamSource(c.stream).connect(destination); vozesExtras++; } });
-            
-            const recorder = new MediaRecorder(destination.stream, { mimeType: 'audio/webm' });
-            let chunks = [];
-            pedacoContadorRef.current = 1;
-
-            recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-            
-            recorder.onstop = async () => {
-                if (chunks.length === 0) return;
-                const audioBlob = new Blob(chunks, { type: 'audio/webm' }); chunks = [];
-                const num = pedacoContadorRef.current; pedacoContadorRef.current++;
-                try {
-                    const nomeArquivo = `sessao_mapa_${Date.now()}_pt${num}.webm`;
-                    await uploadBytes(ref(storage, `audios_mesa/${nomeArquivo}`), audioBlob);
-                    
-                    const instrucaoMestre = (mascaraMestre === 'npc' && nomeNpc.trim())
-                        ? `[ATENÇÃO IA: O usuário (${meuNome}) está interpretando o NPC "${nomeNpc.trim()}".]` 
-                        : `[ATENÇÃO IA: O usuário (${meuNome}) é o Narrador.]`;
-
-                    const transcrever = httpsCallable(functions, 'transcreverAudioSextaFeira');
-                    await transcrever({ 
-                        fileName: nomeArquivo, 
-                        nomesParticipantes: perfisJogadores, 
-                        gravadorPrincipal: meuNome,
-                        instrucaoMestre: instrucaoMestre 
-                    });
-                    addLog(`📦 Backup P${num} consolidado na Nuvem!`);
-                } catch(e) { 
-                    addLog(`❌ Falha no Backup P${num} (Erro Servidor).`); 
-                }
-            };
-
-            recorder.start();
-            mediaRecorderRef.current = recorder;
-            addLog(`🎙️ Escuta Ativa! Gravando Mic + ${vozesExtras} vozes.`);
-
-            timerRef.current = setInterval(() => {
-                if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
-                recorder.start();
-            }, 20 * 60 * 1000);
-        } catch(e) { 
-            addLog("❌ Erro ao iniciar mixer de áudio."); 
         }
     };
 
@@ -147,9 +85,6 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
         setGravando(false);
         gravandoRef.current = false;
         
-        if (timerRef.current) clearInterval(timerRef.current);
-        if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
-        if (mixerCtxRef.current) mixerCtxRef.current.close();
         if (recognitionRef.current) {
             recognitionRef.current.onend = null;
             recognitionRef.current.abort();
@@ -212,6 +147,5 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
         </div>
     );
 
-    // 🔥 O Feitiço de Levitação: Rende o componente diretamente no 'body' da página, sobrepondo-se a todos os mapas, CSS ou bloqueios visuais!
     return createPortal(hudSextaFeira, document.body);
 }
