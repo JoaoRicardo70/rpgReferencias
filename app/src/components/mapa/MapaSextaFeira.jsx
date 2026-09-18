@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom'; 
+import { ref as dbRef, push } from 'firebase/database'; // 🔥 Adicionado Realtime Database
+import { db } from '../../services/firebase-config';
+import useStore from '../../stores/useStore'; // 🔥 Para pegar a mesa atual
 
 export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAtivos, meuStream, conexoes }) {
     const [gravando, setGravando] = useState(false);
@@ -12,6 +15,7 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
     const recognitionRef = useRef(null); 
     const gravandoRef = useRef(false); 
     const logsEndRef = useRef(null);
+    const mesaId = useStore(s => s.mesaId); // 🔥 Pega a ID da mesa para salvar no lugar certo
 
     useEffect(() => {
         if (logsEndRef.current) logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -31,6 +35,22 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
         setLogs(prev => [...prev.slice(-12), `[${hora}] ${msg}`]); 
     };
 
+    // 🔥 FUNÇÃO QUE ENVIA PARA O FIREBASE
+    const enviarParaBancoDeDados = (frase, papel) => {
+        if (!db || !mesaId) return;
+        
+        const logEntry = {
+            timestamp: Date.now(),
+            autor: papel,
+            texto: frase,
+            tipo: mascaraMestre // 'narrador' ou 'npc'
+        };
+
+        // Salva numa gaveta exclusiva para a Sexta-Feira organizar depois
+        push(dbRef(db, `mesas/${mesaId}/sexta_feira_transcricao`), logEntry)
+            .catch(() => addLog("❌ Erro ao sincronizar com a Nuvem."));
+    };
+
     const iniciarGravacao = () => {
         if (!meuStream) return addLog("❌ Erro: Microfone offline.");
         
@@ -39,9 +59,6 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
         setExpandido(true); 
         addLog("🎙️ Escuta Ativa! Analisando voz...");
 
-        // ========================================================
-        // 🧠 TRANSCRIÇÃO PURA (Sem conflito de microfones)
-        // ========================================================
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (SpeechRecognition) {
             const recognition = new SpeechRecognition();
@@ -54,14 +71,18 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
                 if (frase) {
                     const papel = mascaraMestre === 'npc' && nomeNpc ? nomeNpc : meuNome;
                     addLog(`🗣️ ${papel}: "${frase}"`);
+                    
+                    // 🔥 AGORA SIM! A frase vai para o Firebase!
+                    enviarParaBancoDeDados(frase, papel);
                 }
             };
 
             recognition.onerror = (e) => {
-                if (e.error !== 'no-speech') addLog(`⚠️ Alerta: ${e.error}`);
+                // 🔥 FILTRO SILENCIOSO: Ignora os erros de 'aborted' e 'no-speech' para não sujar a tela
+                if (e.error === 'no-speech' || e.error === 'aborted') return;
+                addLog(`⚠️ Alerta: ${e.error}`);
             };
             
-            // Timeout de 500ms para evitar que o navegador entre em pânico e trave o mic da Call
             recognition.onend = () => { 
                 if (gravandoRef.current) {
                     setTimeout(() => {
@@ -92,21 +113,15 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
         addLog("⏹️ Escuta encerrada.");
     };
 
-    // ========================================================
-    // 🎨 UI HUD: RENDERIZADO NO PORTAL PARA FLUTUAR SEMPRE
-    // ========================================================
     const hudSextaFeira = (
         <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 2147483647, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '15px' }}>
-            {/* BOTÃO REDONDO (O OLHO) */}
             <div onClick={() => setExpandido(!expandido)} style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(0, 20, 40, 0.85)', backdropFilter: 'blur(10px)', border: `2px solid ${gravando ? '#ff003c' : '#00ffcc'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '26px', cursor: 'pointer', boxShadow: gravando ? '0 0 25px rgba(255,0,60,0.6)' : '0 0 15px rgba(0,255,204,0.4)', transition: 'all 0.3s ease' }}>
                 {gravando ? '🎙️' : '👁️'}
             </div>
 
-            {/* PAINEL HUD EXPANDIDO */}
             {expandido && (
                 <div className="fade-in" style={{ background: 'rgba(0, 15, 30, 0.85)', backdropFilter: 'blur(15px)', border: `1px solid ${gravando ? '#ff003c' : 'rgba(0, 255, 204, 0.4)'}`, borderRadius: '12px', padding: '20px', width: '340px', boxShadow: gravando ? '0 0 30px rgba(255,0,60,0.3), inset 0 0 20px rgba(255,0,60,0.1)' : '0 0 25px rgba(0,255,204,0.2), inset 0 0 15px rgba(0,255,204,0.05)', transition: 'all 0.3s ease' }}>
                     
-                    {/* CABEÇALHO */}
                     <div style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ color: gravando ? '#ff003c' : '#00ffcc', fontWeight: '900', letterSpacing: '1px', textTransform: 'uppercase', fontSize: '0.9em', textShadow: `0 0 10px ${gravando ? '#ff003c' : '#00ffcc'}` }}>
                             {gravando ? '🔴 TRANSMISSÃO ATIVA' : '📡 SEXTA-FEIRA OS'}
@@ -114,7 +129,6 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
                         <button onClick={() => setExpandido(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', opacity: 0.5, fontSize: '1.2em' }}>✕</button>
                     </div>
 
-                    {/* MÁSCARAS DE GRAVAÇÃO */}
                     <div style={{ marginTop: '15px', padding: '15px', background: 'rgba(0,0,0,0.4)', borderRadius: '8px', border: '1px dashed rgba(255,204,0,0.3)' }}>
                         <span style={{ color: '#ffcc00', fontSize: '0.75em', fontWeight: 'bold', display: 'block', marginBottom: '10px', textAlign: 'center', letterSpacing: '1px' }}>🎭 MÁSCARA DE IDENTIDADE</span>
                         
@@ -128,14 +142,12 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
                         )}
                     </div>
 
-                    {/* BOTÃO DE AÇÃO */}
                     {!gravando ? (
                         <button onClick={iniciarGravacao} style={{ marginTop: '15px', width: '100%', padding: '12px', background: 'rgba(0, 255, 204, 0.1)', border: '1px solid #00ffcc', color: '#00ffcc', fontWeight: '900', letterSpacing: '2px', cursor: 'pointer', borderRadius: '6px', boxShadow: '0 0 15px rgba(0,255,204,0.2)', transition: 'all 0.2s' }}>▶ INICIAR ESCUTA</button>
                     ) : (
                         <button onClick={pararGravacao} style={{ marginTop: '15px', width: '100%', padding: '12px', background: 'rgba(255, 0, 60, 0.1)', border: '1px solid #ff003c', color: '#ff003c', fontWeight: '900', letterSpacing: '2px', cursor: 'pointer', borderRadius: '6px', boxShadow: '0 0 15px rgba(255,0,60,0.3)', animation: 'pulse 1.5s infinite' }}>⏹ ENCERRAR</button>
                     )}
                     
-                    {/* TERMINAL DE LOGS */}
                     <div style={{ background: 'rgba(0,5,10,0.8)', marginTop: '15px', borderRadius: '6px', padding: '10px', fontSize: '0.75em', color: '#00ffcc', fontFamily: 'monospace', height: '140px', overflowY: 'auto', border: '1px solid rgba(0,255,204,0.2)', boxShadow: 'inset 0 0 10px rgba(0,0,0,0.8)', lineHeight: '1.4' }}>
                         {logs.map((l, i) => (
                             <div key={i} style={{ marginBottom: '4px', opacity: i === logs.length -1 ? 1 : 0.7 }}>{l}</div>
