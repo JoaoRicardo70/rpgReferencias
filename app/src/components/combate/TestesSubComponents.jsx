@@ -49,7 +49,7 @@ export function TestesSavingThrows() {
     const ctx = useTestesForm();
     if (!ctx) return <div className="def-box" style={{ opacity: 0.5 }}>Saving Throws (sem contexto)</div>;
 
-    const { minhaFicha, profGlobal, getModificadorDoisDigitos, getProfLevel, toggleProf, executarRolagem } = ctx;
+    const { profGlobal, getModificadorDoisDigitos, getProfLevel, toggleProf, executarRolagem } = ctx;
 
     return (
         <div className="def-box">
@@ -57,7 +57,7 @@ export function TestesSavingThrows() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
                 {SAVES.map(save => {
                     const pNivel = getProfLevel(save.id);
-                    const valBase = getModificadorDoisDigitos(minhaFicha[save.attr]?.base);
+                    const valBase = getModificadorDoisDigitos(save.attr);
                     const totalMod = valBase + (pNivel * profGlobal);
 
                     return (
@@ -89,7 +89,7 @@ export function TestesHabilidades() {
     const ctx = useTestesForm();
     if (!ctx) return <div className="def-box" style={{ opacity: 0.5 }}>Testes de Pericia (sem contexto)</div>;
 
-    const { minhaFicha, profGlobal, filtro, setFiltro, getModificadorDoisDigitos, getProfLevel, toggleProf, executarRolagem, skillsFiltradas } = ctx;
+    const { profGlobal, filtro, setFiltro, getModificadorDoisDigitos, getProfLevel, toggleProf, executarRolagem, skillsFiltradas } = ctx;
 
     return (
         <div className="def-box">
@@ -108,7 +108,7 @@ export function TestesHabilidades() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 10 }}>
                 {skillsFiltradas.length > 0 ? skillsFiltradas.map(skill => {
                     const pNivel = getProfLevel(skill.id);
-                    const valBase = getModificadorDoisDigitos(minhaFicha[skill.attr]?.base);
+                    const valBase = getModificadorDoisDigitos(skill.attr);
                     const totalMod = valBase + (pNivel * profGlobal);
 
                     return (

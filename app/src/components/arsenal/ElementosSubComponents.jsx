@@ -323,13 +323,13 @@ export function ElementosMagiaCard({ magia }) {
     let regente = 'inteligencia';
     let modBase = 0;
     if (energiaAtiva === 'corpo') {
-        const modForca = getModificadorDoisDigitos(minhaFicha['forca']?.base);
-        const modDestreza = getModificadorDoisDigitos(minhaFicha['destreza']?.base);
+        const modForca = getModificadorDoisDigitos('forca');
+        const modDestreza = getModificadorDoisDigitos('destreza');
         modBase = Math.max(modForca, modDestreza);
     } else {
         const energiaToAttr = { 'mana': 'inteligencia', 'aura': 'energiaEsp', 'chakra': 'stamina', 'pontosVitais': 'constituicao', 'pontosMortais': 'inteligencia', 'livre': 'inteligencia', 'flexivel': 'inteligencia' };
         regente = energiaToAttr[energiaAtiva || 'mana'] || 'inteligencia';
-        modBase = getModificadorDoisDigitos(minhaFicha[regente]?.base);
+        modBase = getModificadorDoisDigitos(regente);
     }
 
     const cd = 8 + modBase + profGlobal;

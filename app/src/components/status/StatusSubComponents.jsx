@@ -10,6 +10,7 @@ import {
 } from './StatusFormContext';
 import { calcularBarrasVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularFatorMultiplicadorForca } from '../../core/poder';
+import { salvarFichaSilencioso } from '../../services/firebase-sync.js';
 import BarrasVida from '../shared/BarrasVida';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Status provider nao encontrado</div>;
@@ -92,7 +93,11 @@ export function StatusAtributosLista({ isAtual }) {
     const valores = useMemo(() => ATRIBUTOS_PRINCIPAIS.map(({ key, label }) => {
         let valor;
         if (isAtual) {
-            valor = safeGetMaximo(ficha, key);
+            // 🔥 CORREÇÃO: faltava o "Multiplicador de Força" de Ascensão/Prestígio-overflow que
+            // Marcados.jsx aplica na coluna "Atual" (LinhaAtributoCru > fatorAtributosAtual =
+            // calcularFatorCategoria('status', true)) -- sem isso, a coluna Atual mostrava um valor
+            // menor aqui do que na Ficha Definitiva pra qualquer personagem ascendido.
+            valor = safeGetMaximo(ficha, key) * calcularFatorMultiplicadorForca(ficha, 'status');
         } else {
             const rawBase = safeGetRawBase(ficha, key);
             const mBase = parseFloat(ficha[key]?.mBase) || 1.0;
@@ -129,10 +134,16 @@ export function StatusVitalBar({ vitalKey, label, color, borderC, isSpecial, gri
     // calcularFatorMultiplicadorForca) que o Mestre, o Scouter (Marcados.jsx) e o Mapa já aplicavam
     // — o MESMO personagem podia mostrar um número de barras diferente aqui do que nas outras 3
     // telas. Aplicado aqui também, igual às demais, pra bater sempre com a mesma conta.
-    if (vitalKey === 'vida') {
-        const fatorVida = calcularFatorMultiplicadorForca(ficha, 'vida');
-        rawMx = rawMx * fatorVida;
-        rawMxEstavel = rawMxEstavel * fatorVida;
+    //
+    // 🔥 CORREÇÃO 2: só "vida" recebia o fator -- mas Marcados.jsx aplica esse MESMO fator,
+    // calculado INDIVIDUALMENTE por vital, também em mana/aura/chakra/corpo (ver
+    // `fatoresVitaisAtual` em Marcados.jsx, que roda calcularFatorCategoria/
+    // calcularFatorMultiplicadorForca pra CADA um dos 5 vitais). Sem isso, um personagem ascendido
+    // via Mana/Aura/Chakra/Corpo mostrava um Máximo menor aqui do que na Ficha Definitiva.
+    if (['vida', 'mana', 'aura', 'chakra', 'corpo'].includes(vitalKey)) {
+        const fatorVital = calcularFatorMultiplicadorForca(ficha, vitalKey);
+        rawMx = rawMx * fatorVital;
+        rawMxEstavel = rawMxEstavel * fatorVital;
     }
 
     // 🩸 MÚLTIPLAS BARRAS DE VIDA (pedido do usuário): a cada ponto de Vitalidade (p) o personagem
@@ -259,11 +270,11 @@ export function StatusMultiplicadores() {
         <div style={{ display: 'flex', gap: '15px', marginBottom: '30px' }}>
             <div className="input-group" style={{ flex: 1, background: 'rgba(0, 255, 136, 0.05)', padding: '10px', borderRadius: '8px', border: '1px solid #00ff88', margin: 0 }}>
                 <label style={{ color: '#00ff88', fontSize: '0.8em', marginBottom: '5px', display: 'block' }}>MULT. DE VIDA (PV)</label>
-                <input type="number" step="0.1" value={ficha.multiplicadorVida || 1} onChange={(e) => { updateFicha(f => f.multiplicadorVida = parseFloat(e.target.value) || 1); }} style={{ borderColor: '#00ff88', color: '#fff', width: '100%' }} />
+                <input type="number" step="0.1" value={ficha.multiplicadorVida || 1} onChange={(e) => { updateFicha(f => f.multiplicadorVida = parseFloat(e.target.value) || 1); salvarFichaSilencioso(); }} style={{ borderColor: '#00ff88', color: '#fff', width: '100%' }} />
             </div>
             <div className="input-group" style={{ flex: 1, background: 'rgba(255, 0, 255, 0.05)', padding: '10px', borderRadius: '8px', border: '1px solid #ff00ff', margin: 0 }}>
                 <label style={{ color: '#ff00ff', fontSize: '0.8em', marginBottom: '5px', display: 'block' }}>MULT. DE MORTE (PM)</label>
-                <input type="number" step="0.1" value={ficha.multiplicadorMorte || 1} onChange={(e) => { updateFicha(f => f.multiplicadorMorte = parseFloat(e.target.value) || 1); }} style={{ borderColor: '#ff00ff', color: '#fff', width: '100%' }} />
+                <input type="number" step="0.1" value={ficha.multiplicadorMorte || 1} onChange={(e) => { updateFicha(f => f.multiplicadorMorte = parseFloat(e.target.value) || 1); salvarFichaSilencioso(); }} style={{ borderColor: '#ff00ff', color: '#fff', width: '100%' }} />
             </div>
         </div>
     );

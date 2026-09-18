@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useRef, useEffect, useCallb
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../services/firebase-config';
 import useStore from '../../stores/useStore';
+import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import * as pdfjsLib from 'pdfjs-dist';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -400,7 +401,11 @@ export function AIFormProvider({ children }) {
 
         return {
             dadosPersonagem: { nome: meuNome, raca: bio.raca || 'N/A', classe: bio.classe || 'N/A' },
-            statusVitais: { hp: minhaFicha.vida?.atual||0, mana: minhaFicha.mana?.atual||0, aura: minhaFicha.aura?.atual||0 },
+            // 🔥 CORREÇÃO: vida/mana/aura são gravados na escala BRUTA, FATOR_EXIBICAO_VITAIS (1000x)
+            // maior que a escala exibida ao jogador (reformulação de Vida/Energias, core/vitals.js)
+            // -- sem dividir aqui, a Sexta-Feira relatava HP/Mana 1000x maiores do que o jogador vê
+            // na própria Ficha.
+            statusVitais: { hp: (minhaFicha.vida?.atual||0) / FATOR_EXIBICAO_VITAIS, mana: (minhaFicha.mana?.atual||0) / FATOR_EXIBICAO_VITAIS, aura: (minhaFicha.aura?.atual||0) / FATOR_EXIBICAO_VITAIS },
             combate: {
                 armasEquipadas: armasEquipadas.length > 0 ? armasEquipadas : ['Desarmado'],
                 armasGuardadas: armasGuardadas.length > 0 ? armasGuardadas : ['Vazio'],

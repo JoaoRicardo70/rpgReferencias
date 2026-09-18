@@ -1,19 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import useStore from '../../stores/useStore';
-import { getRawBase, getBuffs } from '../../core/attributes.js'; 
-import { getPrestigioReal, getRank } from '../../core/prestige.js';
+import { getRawBase, getBuffs } from '../../core/attributes.js';
+import { getRank } from '../../core/prestige.js';
 import { salvarFichaSilencioso } from '../../services/firebase-sync.js';
 
 const safeFn = (fn, fallback) => (...args) => {
     if (typeof fn !== 'function') return fallback;
-    try { 
+    try {
         const res = fn(...args);
         return (res !== undefined && res !== null && !Number.isNaN(res)) ? res : fallback;
     } catch (e) { return fallback; }
 };
 
 const safeGetRawBase = safeFn(getRawBase, 0);
-const safeGetPrestigioReal = safeFn(getPrestigioReal, 0);
 const safeGetRank = safeFn(getRank, { l: 'F', c: '#ffffff', a: 1 });
 
 const VITALS_KEYS = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'];
@@ -38,10 +37,14 @@ function getEfetivoMFormas(ficha, k) {
     return (v === 1.0 ? 0 : v) + b.mformas;
 }
 
+// 🔥 CORREÇÃO: faltava o ramo `(mFormas > 1 ? mFormas : 1)` que Marcados.jsx já tem — sem ele,
+// qualquer Forma com mFormas entre 1x e 10x (exclusive) era tratada como se não desse NENHUM
+// bônus (`multForma = 1`), subestimando o Prestígio Atual/Ascensão Efetiva desta tela em relação
+// ao que a Ficha Definitiva já contabiliza pra mesma Forma.
 function calcularPrestAtual(ficha, attrKey, baseP) {
     const mFormas = getEfetivoMFormas(ficha, attrKey);
-    const multForma = mFormas >= 10 ? (mFormas / 10) : 1;
-    return Math.floor(baseP * multForma);
+    const multForma = mFormas >= 10 ? (mFormas / 10) : (mFormas > 1 ? mFormas : 1);
+    return Math.floor((baseP || 0) * multForma) || 0;
 }
 
 // 🔥 Multiplicador de Força — separado em Prestígio e Ascensão. O Prestígio Base é
@@ -61,18 +64,21 @@ function aplicarMultiplicadorForca(prestigioBase, ascensaoBase, multiplicadorFor
     return { ...rankInfo, prestigioFinal, ascensaoFinal };
 }
 
+// 🔥 CORREÇÃO: pros eixos que não são "status" (vida/mana/aura/chakra/corpo), esta função usava
+// getPrestigioReal (core/prestige.js) — que NUNCA leu ficha.divisores, por design (é usado em
+// outros lugares que não têm Divisor nenhum). Isso deixava o próprio campo "Divisor" que ESTA
+// tela expõe por linha (ver o <input> de Divisor mais abaixo) sem nenhum efeito prático pra
+// qualquer eixo além de status — editar o Divisor de Vida/Mana/etc. não mudava nada aqui, embora
+// mudasse o Prestígio Base/Atual na Ficha Definitiva (Marcados.jsx > getBasePFor). Agora usa
+// exatamente a mesma fórmula de Marcados.jsx (MULTIPLICADORES locais * divisor).
 const getBasePFor = (ficha, k) => {
+    const div = parseFloat(ficha?.divisores?.[k]) || 1;
     if (k === 'status') {
         let m = 0;
         STATS.forEach(s => m += safeGetRawBase(ficha, s));
-        // 🔥 Precisa multiplicar pelo divisor de status (mesma fórmula de getBasePFor em
-        // Marcados.jsx) — sem isso, a Ascensão de Status calculada aqui diverge da calculada na
-        // aba "Ficha Def" sempre que o divisor de status não for 1, o que agora também afeta
-        // quanto pool cada ponto de Prestígio concede (ver calcularAscensaoAtualStatus abaixo).
-        const div = parseFloat(ficha?.divisores?.status) || 1;
-        return Math.floor(((m / 8) / 1000) * div);
+        return Math.floor(((m / 8) / MULTIPLICADORES.status) * div);
     }
-    return safeGetPrestigioReal(k, safeGetRawBase(ficha, k));
+    return Math.floor((safeGetRawBase(ficha, k) / (MULTIPLICADORES[k] || 1)) * div);
 };
 
 // 🔥 Pontos usados pra calcular Rank/Ascensão/badge de UMA categoria. Para "status", usa

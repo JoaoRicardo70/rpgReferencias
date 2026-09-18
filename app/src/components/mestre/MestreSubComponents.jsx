@@ -596,6 +596,7 @@ export function MestreVozSistema() {
 }
 
 export function MestreForjaNPC() {
+    const mesaId = useStore(s => s.mesaId);
     const [npc, setNpc] = useState({
         nome: '', avatar: '', hpMax: 100, manaMax: 50, forca: 1, destreza: 1, inteligencia: 1,
     });
@@ -630,7 +631,7 @@ export function MestreForjaNPC() {
         };
         
         try {
-            await set(ref(database, `personagens/${npc.nome}`), fichaCompleta);
+            await set(ref(database, `mesas/${mesaId}/personagens/${sanitizarNome(npc.nome)}`), fichaCompleta);
             alert(`🔥 Ameaça [${npc.nome}] forjada e enviada para o Firebase com sucesso!`);
             
             setNpc({ nome: '', avatar: '', hpMax: 100, manaMax: 50, forca: 1, destreza: 1, inteligencia: 1 });

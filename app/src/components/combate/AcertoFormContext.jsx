@@ -1,11 +1,15 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
 import useStore from '../../stores/useStore';
-import { calcularAcerto } from '../../core/engine';
+// 🔥 CORREÇÃO: `calcularCA` vinha de `../mapa/MapaFormContext`, uma cópia própria e desatualizada
+// (sem o bônus de Ascensão de `getPoderDeLutaStatus` e sem os penalizantes/bônus de condições de
+// `processarDefesaComCondicoes`) usada só pra checar a defesa de alvos ALIADOS num acerto em área --
+// `combate/DefesaFormContext.jsx` já importa a versão canônica direto de `core/engine.js`; esta tela
+// agora faz o mesmo, em vez de divergir.
+import { calcularAcerto, calcularCA } from '../../core/engine';
 import { getPoderesDefesa, getEfeitosDeClasse } from '../../core/attributes';
 import { enviarParaFeed, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
 
 import { cores } from '../arsenal/ElementosFormContext';
-import { calcularCA } from '../mapa/MapaFormContext';
 
 const AcertoFormContext = createContext(null);
 

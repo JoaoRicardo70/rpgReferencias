@@ -86,13 +86,18 @@ export default function AbaDominios() {
         });
     };
 
+    // 🔥 CORREÇÃO CRÍTICA: gravava aninhado por categoria (`f.dominios[categoria][item]`), mas a
+    // fonte canônica de leitura (core/dominios.js > getNivelDominio) e a Ficha Definitiva
+    // (Marcados.jsx) sempre esperaram/gravaram um formato PLANO -- `f.dominios[item] = { nivel,
+    // categoria }`, com o NOME do Domínio como chave de primeiro nível. Qualquer nível de Domínio
+    // definido por aqui salvava sem erro, mas ficava INVISÍVEL pra Overcharge, desconto de Fadiga,
+    // redução de dano elemental (calcularReducaoDanoElemental) e pro selo de resistência do
+    // Arsenal -- zero efeito mecânico. Agora grava no mesmo formato plano.
     const atualizarDominio = (categoria, item, nivel) => {
         updateFicha(f => {
             if (!f.dominios) f.dominios = {};
-            const targetCat = ['elementos', 'mana', 'chakra', 'aura', 'astral', 'primordiais'].includes(categoria) ? 'elementais' : categoria;
-            if (!f.dominios[targetCat]) f.dominios[targetCat] = {};
-            if (nivel === 0) delete f.dominios[targetCat][item];
-            else f.dominios[targetCat][item] = { nivel: nivel, nome: NIVEIS_INFO[nivel].nome };
+            if (nivel === 0) delete f.dominios[item];
+            else f.dominios[item] = { nivel: nivel, categoria: categoria };
         });
         if (nivel === 0) limparMarcado(categoria, item);
     };
@@ -113,11 +118,9 @@ export default function AbaDominios() {
         if (nomes.length === 0) return;
         updateFicha(f => {
             if (!f.dominios) f.dominios = {};
-            const targetCat = ['elementos', 'mana', 'chakra', 'aura', 'astral', 'primordiais'].includes(categoria) ? 'elementais' : categoria;
-            if (!f.dominios[targetCat]) f.dominios[targetCat] = {};
             nomes.forEach(item => {
-                if (nivel === 0) delete f.dominios[targetCat][item];
-                else f.dominios[targetCat][item] = { nivel: nivel, nome: NIVEIS_INFO[nivel].nome };
+                if (nivel === 0) delete f.dominios[item];
+                else f.dominios[item] = { nivel: nivel, categoria: categoria };
             });
         });
         setMarcados(prev => ({ ...prev, [categoria]: new Set() }));
@@ -136,7 +139,6 @@ export default function AbaDominios() {
 
     const renderSecao = (titulo, chave, corBase) => {
         const isMagica = ['elementos', 'mana', 'chakra', 'aura', 'astral', 'primordiais'].includes(chave);
-        const gavetaDoStore = isMagica ? 'elementais' : chave;
         const todasMagias = flatPredefs.elementos.concat(flatPredefs.mana, flatPredefs.chakra, flatPredefs.aura, flatPredefs.astral, flatPredefs.primordiais);
 
         return (
@@ -166,10 +168,25 @@ export default function AbaDominios() {
                 </div>
 
                 {(() => {
-                    const itensFiltrados = Object.entries(dominios[gavetaDoStore] || {}).filter(([nome]) => {
+                    // 🔥 CORREÇÃO: `dominios` agora é um objeto PLANO único (nome do Domínio -> {nivel,
+                    // categoria}), compartilhado por TODAS as 10 abas -- então, diferente do antigo
+                    // "gavetaDoStore" isolado por categoria, um item CUSTOM (fora da Lore) só pode ser
+                    // atribuído à sua própria aba conferindo `dados.categoria === chave` explicitamente,
+                    // senão apareceria (duplicado) em qualquer aba não-mágica ao mesmo tempo. Itens da
+                    // Lore continuam batendo pelo NOME em qualquer aba cuja lista pré-definida os
+                    // contenha, igual ao comportamento de sempre.
+                    const itensFiltrados = Object.entries(dominios).filter(([nome, dados]) => {
+                        if (!dados || typeof dados !== 'object' || !('nivel' in dados)) return false;
                         const isNestaLista = flatPredefs[chave].includes(nome);
-                        const isCustom = isMagica ? !todasMagias.includes(nome) : !flatPredefs[chave].includes(nome);
-                        return isNestaLista || (isCustom && (chave === 'elementos' || !isMagica));
+                        if (isNestaLista) return true;
+                        // 🔥 CORREÇÃO (nota do code review): o gate extra `(chave === 'elementos' ||
+                        // !isMagica)` era resíduo do esquema antigo de "gaveta única pras 6 abas
+                        // mágicas" -- combinado com o `dados.categoria === chave` novo, ele escondia
+                        // por completo qualquer item CUSTOM criado em mana/chakra/aura/astral/
+                        // primordiais (não aparecia nem na própria aba, já que exige simultaneamente
+                        // chave==='elementos' E categoria===chave, contraditório). `categoria === chave`
+                        // sozinho já isola corretamente cada item na sua própria aba.
+                        return dados.categoria === chave;
                     });
                     const marcadosSet = marcados[chave] || new Set();
                     const nomesFiltrados = itensFiltrados.map(([nome]) => nome);

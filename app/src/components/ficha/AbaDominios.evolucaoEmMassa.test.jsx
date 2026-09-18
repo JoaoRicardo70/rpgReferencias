@@ -15,17 +15,22 @@ import useStore from '../../stores/useStore';
 // atribuições/deletes simples dentro do callback).
 //
 // Fixture usada em quase todos os testes (criarFicha()):
-//   dominios.elementais = {
-//     'Aura Pura'          -> nivel 1 (categoria "aura", gaveta compartilhada elementais)
-//     'Projeção de Aura'   -> nivel 2
-//     'Reforço de Aura'    -> nivel 3
-//     'Vida'               -> nivel 1 (categoria "astral", único item dessa gaveta+categoria)
+//   dominios (formato PLANO, único namespace compartilhado por TODAS as abas -- ver
+//   correção crítica em AbaDominios.jsx: `f.dominios[item] = { nivel, categoria }`) = {
+//     'Aura Pura'          -> { nivel: 1, categoria: 'aura' }
+//     'Projeção de Aura'   -> { nivel: 2, categoria: 'aura' }
+//     'Reforço de Aura'    -> { nivel: 3, categoria: 'aura' }
+//     'Vida'               -> { nivel: 1, categoria: 'astral' }
+//     'Artes Marciais (Combate Corpo-a-Corpo)' -> { nivel: 1, categoria: 'marciais' }
+//     'Reforço Físico'                         -> { nivel: 1, categoria: 'marciais' }
 //   }
-//   dominios.marciais = {
-//     'Artes Marciais (Combate Corpo-a-Corpo)' -> nivel 1
-//     'Reforço Físico'                         -> nivel 1
-//   }
-//   dominios.cura = {} (implícito — nenhum item)
+//   (nenhum item com categoria "cura" -> 0 itens nessa aba)
+//
+// Cada item acima é reconhecido na sua respectiva aba por NOME (bate em
+// flatPredefs[chave], ver PREDEFINICOES em AbaDominios.jsx), então o campo
+// `categoria` gravado é meramente informativo pra esses itens de Lore (não afeta
+// o filtro `itensFiltrados`, que só recorre a `dados.categoria === chave` para
+// itens CUSTOM fora da Lore -- não é o caso de nenhum item desta fixture).
 //
 // Isso dá: "aura" com 3 itens (>1 -> barra aparece), "astral" com 1 item (barra
 // NÃO aparece), "cura" com 0 itens (barra NÃO aparece) e "marciais" com
@@ -51,16 +56,12 @@ function montarStore(overrides = {}) {
 function criarFicha() {
     return {
         dominios: {
-            elementais: {
-                'Aura Pura': { nivel: 1, nome: 'Básico' },
-                'Projeção de Aura': { nivel: 2, nome: 'Intermediário' },
-                'Reforço de Aura': { nivel: 3, nome: 'Avançado' },
-                'Vida': { nivel: 1, nome: 'Básico' },
-            },
-            marciais: {
-                'Artes Marciais (Combate Corpo-a-Corpo)': { nivel: 1, nome: 'Básico' },
-                'Reforço Físico': { nivel: 1, nome: 'Básico' },
-            },
+            'Aura Pura': { nivel: 1, categoria: 'aura' },
+            'Projeção de Aura': { nivel: 2, categoria: 'aura' },
+            'Reforço de Aura': { nivel: 3, categoria: 'aura' },
+            'Vida': { nivel: 1, categoria: 'astral' },
+            'Artes Marciais (Combate Corpo-a-Corpo)': { nivel: 1, categoria: 'marciais' },
+            'Reforço Físico': { nivel: 1, categoria: 'marciais' },
         },
     };
 }
@@ -108,10 +109,10 @@ describe('AbaDominios — Evolução em Massa: aplicar apenas aos itens marcados
         fireEvent.change(within(toolbar).getByRole('combobox'), { target: { value: '5' } });
         fireEvent.click(within(toolbar).getByRole('button', { name: /APLICAR/i }));
 
-        expect(ficha.dominios.elementais['Aura Pura']).toEqual({ nivel: 5, nome: 'Maestria' });
-        expect(ficha.dominios.elementais['Projeção de Aura']).toEqual({ nivel: 5, nome: 'Maestria' });
+        expect(ficha.dominios['Aura Pura']).toEqual({ nivel: 5, categoria: 'aura' });
+        expect(ficha.dominios['Projeção de Aura']).toEqual({ nivel: 5, categoria: 'aura' });
         // não marcado -> permanece com o nível original
-        expect(ficha.dominios.elementais['Reforço de Aura']).toEqual({ nivel: 3, nome: 'Avançado' });
+        expect(ficha.dominios['Reforço de Aura']).toEqual({ nivel: 3, categoria: 'aura' });
     });
 });
 
@@ -128,9 +129,9 @@ describe('AbaDominios — Evolução em Massa: "Selecionar Todos"', () => {
         fireEvent.change(within(toolbar).getByRole('combobox'), { target: { value: '2' } });
         fireEvent.click(within(toolbar).getByRole('button', { name: /APLICAR/i }));
 
-        expect(ficha.dominios.elementais['Aura Pura']).toEqual({ nivel: 2, nome: 'Intermediário' });
-        expect(ficha.dominios.elementais['Projeção de Aura']).toEqual({ nivel: 2, nome: 'Intermediário' });
-        expect(ficha.dominios.elementais['Reforço de Aura']).toEqual({ nivel: 2, nome: 'Intermediário' });
+        expect(ficha.dominios['Aura Pura']).toEqual({ nivel: 2, categoria: 'aura' });
+        expect(ficha.dominios['Projeção de Aura']).toEqual({ nivel: 2, categoria: 'aura' });
+        expect(ficha.dominios['Reforço de Aura']).toEqual({ nivel: 2, categoria: 'aura' });
     });
 });
 
@@ -151,10 +152,10 @@ describe('AbaDominios — Evolução em Massa: nível-alvo 0 ("❌ Apagar")', ()
         fireEvent.change(within(toolbar).getByRole('combobox'), { target: { value: '0' } });
         fireEvent.click(within(toolbar).getByRole('button', { name: /APLICAR/i }));
 
-        expect(ficha.dominios.elementais).not.toHaveProperty('Aura Pura');
-        expect(ficha.dominios.elementais).not.toHaveProperty('Projeção de Aura');
+        expect(ficha.dominios).not.toHaveProperty('Aura Pura');
+        expect(ficha.dominios).not.toHaveProperty('Projeção de Aura');
         // item não marcado permanece intacto
-        expect(ficha.dominios.elementais['Reforço de Aura']).toEqual({ nivel: 3, nome: 'Avançado' });
+        expect(ficha.dominios['Reforço de Aura']).toEqual({ nivel: 3, categoria: 'aura' });
     });
 });
 
@@ -169,9 +170,9 @@ describe('AbaDominios — regressão: select individual de UM item', () => {
 
         fireEvent.change(within(rowPura).getByRole('combobox'), { target: { value: '4' } });
 
-        expect(ficha.dominios.elementais['Aura Pura']).toEqual({ nivel: 4, nome: 'Virtuoso' });
-        expect(ficha.dominios.elementais['Projeção de Aura']).toEqual({ nivel: 2, nome: 'Intermediário' });
-        expect(ficha.dominios.elementais['Reforço de Aura']).toEqual({ nivel: 3, nome: 'Avançado' });
+        expect(ficha.dominios['Aura Pura']).toEqual({ nivel: 4, categoria: 'aura' });
+        expect(ficha.dominios['Projeção de Aura']).toEqual({ nivel: 2, categoria: 'aura' });
+        expect(ficha.dominios['Reforço de Aura']).toEqual({ nivel: 3, categoria: 'aura' });
     });
 
     it('setar o nível de um item para 0 pelo select individual apaga o item E limpa a marcação em massa dele (limparMarcado)', () => {
@@ -194,9 +195,9 @@ describe('AbaDominios — regressão: select individual de UM item', () => {
         // apaga "Aura Pura" diretamente pelo select individual do item (nível 0)
         fireEvent.change(within(rowPura).getByRole('combobox'), { target: { value: '0' } });
 
-        expect(ficha.dominios.elementais).not.toHaveProperty('Aura Pura');
+        expect(ficha.dominios).not.toHaveProperty('Aura Pura');
         // "Projeção de Aura" não foi tocado por essa ação
-        expect(ficha.dominios.elementais['Projeção de Aura']).toEqual({ nivel: 2, nome: 'Intermediário' });
+        expect(ficha.dominios['Projeção de Aura']).toEqual({ nivel: 2, categoria: 'aura' });
 
         // a marcação em massa de "Aura Pura" foi limpa -> só sobra 1 selecionado
         toolbar = getToolbar(section); // re-obtém pois o DOM foi re-renderizado

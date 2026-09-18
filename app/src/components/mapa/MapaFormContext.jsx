@@ -205,17 +205,39 @@ export function MapaFormProvider({ children }) {
         salvarCenarioCompleto(novoCenario);
     }, [cenario, isPresenteNaTaverna, meuNome]);
 
+    // 🔥 CORREÇÃO: este useMemo lia só o PRIMEIRO personagem (por ordem de chaves) que tivesse
+    // QUALQUER coisa em compendioOverrides -- como toda ficha tem `compendioOverrides: {}` por
+    // padrão (um objeto VAZIO, mas ainda assim "truthy"), isso na prática travava sempre no
+    // primeiro personagem da lista (ou na própria ficha do Mestre, sempre truthy), nunca mesclando
+    // overrides de vários personagens/Mestres diferentes -- Grands/candidatos/ícones de classe
+    // customizados salvos por OUTRO Mestre/jogador podiam nunca aparecer no Mapa, dependendo de
+    // quem estivesse vendo. `CompendioFormContext.jsx` (fonte real do Compêndio) já resolvia isso
+    // com uma mesclagem completa via Object.assign -- replicado aqui, exatamente igual.
     const overridesCompendio = useMemo(() => {
-        if (!minhaFicha) return {};
-        if (isMestre && minhaFicha.compendioOverrides) return minhaFicha.compendioOverrides;
+        let globais = { classes: {}, grands: {}, condicoes: {}, elementos: {}, regras: {} };
+
         if (personagens) {
-            const chaves = Object.keys(personagens);
-            for(let k of chaves) {
-                if (personagens[k]?.compendioOverrides) return personagens[k].compendioOverrides;
-            }
+            Object.values(personagens).forEach(p => {
+                if (p && p.compendioOverrides) {
+                    if (p.compendioOverrides.classes) Object.assign(globais.classes, p.compendioOverrides.classes);
+                    if (p.compendioOverrides.grands) Object.assign(globais.grands, p.compendioOverrides.grands);
+                    if (p.compendioOverrides.condicoes) Object.assign(globais.condicoes, p.compendioOverrides.condicoes);
+                    if (p.compendioOverrides.elementos) Object.assign(globais.elementos, p.compendioOverrides.elementos);
+                    if (p.compendioOverrides.regras) Object.assign(globais.regras, p.compendioOverrides.regras);
+                }
+            });
         }
-        return {};
-    }, [isMestre, minhaFicha, personagens]);
+
+        if (minhaFicha && minhaFicha.compendioOverrides) {
+            if (minhaFicha.compendioOverrides.classes) Object.assign(globais.classes, minhaFicha.compendioOverrides.classes);
+            if (minhaFicha.compendioOverrides.grands) Object.assign(globais.grands, minhaFicha.compendioOverrides.grands);
+            if (minhaFicha.compendioOverrides.condicoes) Object.assign(globais.condicoes, minhaFicha.compendioOverrides.condicoes);
+            if (minhaFicha.compendioOverrides.elementos) Object.assign(globais.elementos, minhaFicha.compendioOverrides.elementos);
+            if (minhaFicha.compendioOverrides.regras) Object.assign(globais.regras, minhaFicha.compendioOverrides.regras);
+        }
+
+        return globais;
+    }, [minhaFicha, personagens]);
 
     const toggleActionDot = useCallback((tipo, isAvailable, entidadeNome, isDummie, idDummie) => {
         if (isDummie && idDummie && isMestre) {

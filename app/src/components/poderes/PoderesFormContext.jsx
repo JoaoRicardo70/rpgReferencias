@@ -2,8 +2,15 @@ import React, { createContext, useContext, useState, useRef, useMemo, useEffect,
 import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes';
 import { salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync';
-// 🛡️ Removemos o "rescalarVitaisProporcional" bugado daqui, faremos a matemática segura direto no Contexto!
-import { getVitalMxDisplay } from '../../core/vitals';
+// 🔥 CORREÇÃO: a matemática "segura" que substituiu capturarMaximosAtuais/rescalarVitaisProporcional
+// aqui na verdade misturava escalas -- comparava `ficha[v].atual` (SEMPRE guardado na escala
+// COMPRIMIDA de calcVitalScale) contra `getMaximo(ficha, v)` (escala BRUTA/descomprimida) pra tirar
+// uma "%", produzindo uma porcentagem errada sempre que o Máximo bruto do personagem já tivesse
+// cruzado uma fronteira de compressão -- exatamente a população de personagens fortes/ascendidos
+// pra quem essa compressão existe. `capturarMaximosAtuais`/`rescalarVitaisProporcional` (usadas
+// corretamente em `arsenal/ArsenalFormContext.jsx`) já fazem essa conta na escala certa e têm testes
+// dedicados (`core/vitals.rescalarVitais.test.js`) -- voltamos a usá-las.
+import { getVitalMxDisplay, capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 import { calcularGanhoFadigaOvercharge, calcularMultiplicadorOvercharge } from '../../core/dominios';
 import { calcularGanhoFadigaMaestriaInsuficiente } from '../../core/fadiga';
 
@@ -248,23 +255,14 @@ export function PoderesFormProvider({ children }) {
             const p = ficha.poderes.find(po => po.id === id);
             if (!p) return;
 
-            // 1. Antes de ligar/desligar, capturamos a % exata de cada barra.
-            const pctVitals = {};
-            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
-                const maxV = getMaximo(ficha, v);
-                const curV = ficha[v]?.atual !== undefined ? ficha[v].atual : maxV;
-                pctVitals[v] = maxV > 0 ? (curV / maxV) : 1;
-            });
+            // 1. Antes de ligar/desligar, capturamos os Máximos ESTÁVEIS de cada barra.
+            const oldM = capturarMaximosAtuais(ficha);
 
             // 2. Mudamos o status da forma (o que engatilha o novo Máximo de Status)
             p.ativa = !p.ativa;
 
-            // 3. Forçamos as barras a manterem a MESMA % no novo Máximo. (Nada se gasta!)
-            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
-                const novoMax = getMaximo(ficha, v);
-                if (!ficha[v]) ficha[v] = {};
-                ficha[v].atual = Math.floor(novoMax * pctVitals[v]);
-            });
+            // 3. Re-escala "atual" de cada barra pra manter a MESMA % no novo Máximo. (Nada se gasta!)
+            rescalarVitaisProporcional(ficha, oldM);
         });
 
         salvarFichaSilencioso();
@@ -328,12 +326,7 @@ export function PoderesFormProvider({ children }) {
             const p = (ficha.poderes || []).find(po => po.id === poderId);
             if (!p) return;
 
-            const pctVitals = {};
-            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
-                const maxV = getMaximo(ficha, v);
-                const curV = ficha[v]?.atual !== undefined ? ficha[v].atual : maxV;
-                pctVitals[v] = maxV > 0 ? (curV / maxV) : 1;
-            });
+            const oldM = capturarMaximosAtuais(ficha);
 
             if (!p.formas) p.formas = [];
             const ix = p.formas.findIndex(f => f.id === forma.id);
@@ -343,11 +336,7 @@ export function PoderesFormProvider({ children }) {
                 p.formas.push(forma);
             }
 
-            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
-                const novoMax = getMaximo(ficha, v);
-                if (!ficha[v]) ficha[v] = {};
-                ficha[v].atual = Math.floor(novoMax * pctVitals[v]);
-            });
+            rescalarVitaisProporcional(ficha, oldM);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
@@ -356,22 +345,13 @@ export function PoderesFormProvider({ children }) {
         updateFicha((ficha) => {
             const p = (ficha.poderes || []).find(po => po.id === poderId);
             if (!p) return;
-            
-            const pctVitals = {};
-            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
-                const maxV = getMaximo(ficha, v);
-                const curV = ficha[v]?.atual !== undefined ? ficha[v].atual : maxV;
-                pctVitals[v] = maxV > 0 ? (curV / maxV) : 1;
-            });
+
+            const oldM = capturarMaximosAtuais(ficha);
 
             p.formas = (p.formas || []).filter(f => f.id !== formaId);
             if (p.formaAtivaId === formaId) p.formaAtivaId = null;
-            
-            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
-                const novoMax = getMaximo(ficha, v);
-                if (!ficha[v]) ficha[v] = {};
-                ficha[v].atual = Math.floor(novoMax * pctVitals[v]);
-            });
+
+            rescalarVitaisProporcional(ficha, oldM);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
@@ -380,21 +360,12 @@ export function PoderesFormProvider({ children }) {
         updateFicha((ficha) => {
             const p = (ficha.poderes || []).find(po => po.id === poderId);
             if (!p) return;
-            
-            const pctVitals = {};
-            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
-                const maxV = getMaximo(ficha, v);
-                const curV = ficha[v]?.atual !== undefined ? ficha[v].atual : maxV;
-                pctVitals[v] = maxV > 0 ? (curV / maxV) : 1;
-            });
+
+            const oldM = capturarMaximosAtuais(ficha);
 
             p.formaAtivaId = formaId;
-            
-            ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(v => {
-                const novoMax = getMaximo(ficha, v);
-                if (!ficha[v]) ficha[v] = {};
-                ficha[v].atual = Math.floor(novoMax * pctVitals[v]);
-            });
+
+            rescalarVitaisProporcional(ficha, oldM);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);

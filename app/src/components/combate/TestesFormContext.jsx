@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { enviarParaFeed, salvarFichaSilencioso } from '../../services/firebase-sync';
+import { getPoderDeLutaStatus } from '../../core/engine';
+import { pegarDoisPrimeirosDigitos } from '../../core/utils';
 
 export const SAVES = [
     { id: 'forca', label: 'Forca', attr: 'forca', cor: '#ff4d4d' },
@@ -70,12 +72,17 @@ export function TestesFormProvider({ children }) {
 
     const profGlobal = parseInt(minhaFicha.proficienciaBase) || 0;
 
-    const getModificadorDoisDigitos = useCallback((valorAttr) => {
-        if (!valorAttr) return 0;
-        const strVal = String(valorAttr).replace(/[^0-9]/g, '');
-        if (!strVal) return 0;
-        return parseInt(strVal.substring(0, 2), 10);
-    }, []);
+    // 🔥 CORREÇÃO: recebia o valor CRU de `ficha[attr]?.base` e extraía os 2 primeiros dígitos "na
+    // unha" (substring), o que (a) nunca somava o bônus oculto de Ascensão que TODAS as outras
+    // rolagens (Acerto/Evasiva/Resistência, core/engine.js > calcularCA/getPoderDeLutaStatus) já
+    // recebem, deixando Perícias/Testes de Resistência sem escalar com Ascensão; e (b) divergia
+    // numericamente do algoritmo canônico pra valores de 3+ dígitos exibidos (ver
+    // core/utils.js > pegarDoisPrimeirosDigitos: acima de 1000 ele usa n/1000, não os 2 primeiros
+    // caracteres da string). Agora usa exatamente os mesmos dois helpers que calcularCA usa pra
+    // Evasiva/Resistência (isRaw=true: base + Ascensão, sem outros buffs).
+    const getModificadorDoisDigitos = useCallback((attrKey) => {
+        return pegarDoisPrimeirosDigitos(getPoderDeLutaStatus(minhaFicha, attrKey, true));
+    }, [minhaFicha]);
 
     const rolarDado = useCallback((qtd, faces) => {
         let sum = 0;
@@ -106,8 +113,7 @@ export function TestesFormProvider({ children }) {
         const fD = parseInt(facesConfig) || 20;
         const bonusFixo = parseInt(bonusConfig) || 0;
 
-        const valBruto = minhaFicha[tipoAttr]?.base || 0;
-        const modBase = getModificadorDoisDigitos(valBruto);
+        const modBase = getModificadorDoisDigitos(tipoAttr);
 
         const profNivel = getProfLevel(skillId);
         const valorProficiencia = profNivel * profGlobal;

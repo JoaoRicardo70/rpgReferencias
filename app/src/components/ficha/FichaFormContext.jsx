@@ -7,6 +7,12 @@ import { salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../
 export const STATS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 export const ENERGIAS = ['mana', 'aura', 'chakra', 'corpo', 'pontosVitais', 'pontosMortais'];
 
+// 🔥 Mesmo divisor de exibição/edição usado em "Ficha Def/Marcados.jsx" e status/StatusSubComponents.jsx
+// (FATOR_EXIBICAO_STATUS) -- Força/Destreza/etc. são gravados na escala BRUTA, 1000x maior que a
+// escala mostrada/editada ao jogador. Usado só pelo Editor de Atributos (carregarAtributoNaTela/
+// salvarAtributo) abaixo.
+const FATOR_EXIBICAO_STATUS = 1000;
+
 export const ATRIBUTO_OPTIONS = [
     { value: 'forca', label: 'Forca' }, { value: 'destreza', label: 'Destreza' }, { value: 'inteligencia', label: 'Inteligencia' },
     { value: 'sabedoria', label: 'Sabedoria' }, { value: 'energiaEsp', label: 'Energia Espiritual' }, { value: 'carisma', label: 'Carisma' },
@@ -273,12 +279,20 @@ export function FichaFormProvider({ children }) {
     const [selAtributo, setSelAtributo] = useState('forca');
     const [campos, setCampos] = useState({ base: 0, mBase: 1, regeneracao: 0 });
 
+    // 🔥 CORREÇÃO: pra atributos de STATUS (Força/Destreza/etc.), este editor mostrava/aceitava o
+    // valor BRUTO direto (ex.: "50000"), enquanto a Ficha Definitiva (Marcados.jsx) e o próprio
+    // Status (StatusSubComponents.jsx) sempre exibem/editam esse MESMO campo já dividido por
+    // FATOR_EXIBICAO_STATUS (ex.: "50") -- um Mestre/jogador acostumado com a Ficha Definitiva que
+    // viesse editar por aqui digitando o valor "na escala que está acostumado" (ex.: "50") gravava
+    // sem querer um valor 1000x menor do que pretendia. Energias (mana/aura/etc.) não usam essa
+    // escala neste editor -- ficam de fora do divisor.
     const carregarAtributoNaTela = useCallback(() => {
         const s = selAtributo;
         const k = (s === 'todos_status') ? 'forca' : (s === 'todas_energias') ? 'mana' : s;
         if (!minhaFicha || !minhaFicha[k]) { setCampos({ base: 0, mBase: 1, regeneracao: 0 }); return; }
         const st = minhaFicha[k];
-        setCampos({ base: st.base || 0, mBase: st.mBase || 1, regeneracao: st.regeneracao || 0 });
+        const fator = (s === 'todos_status' || STATS.includes(k)) ? FATOR_EXIBICAO_STATUS : 1;
+        setCampos({ base: (st.base || 0) / fator, mBase: st.mBase || 1, regeneracao: (st.regeneracao || 0) / fator });
     }, [selAtributo, minhaFicha]);
 
     useEffect(() => { carregarAtributoNaTela(); }, [carregarAtributoNaTela]);
@@ -298,7 +312,8 @@ export function FichaFormProvider({ children }) {
         if (s === 'todos_status') chs = [...STATS];
         else if (s === 'todas_energias') chs = [...ENERGIAS];
         else chs = [s];
-        const v = { b: parseInt(campos.base) || 0, mb: parseFloat(campos.mBase) || 1, rg: parseFloat(campos.regeneracao) || 0 };
+        const fator = (s === 'todos_status' || STATS.includes(s)) ? FATOR_EXIBICAO_STATUS : 1;
+        const v = { b: (parseInt(campos.base) || 0) * fator, mb: parseFloat(campos.mBase) || 1, rg: (parseFloat(campos.regeneracao) || 0) * fator };
         updateFicha((ficha) => {
             const vitaisAfetados = chs.filter(c => ['vida', 'mana', 'aura', 'chakra', 'corpo', 'pontosVitais', 'pontosMortais'].includes(c));
             const oldM = vitaisAfetados.length > 0 ? capturarMaximosAtuais(ficha, vitaisAfetados) : null;

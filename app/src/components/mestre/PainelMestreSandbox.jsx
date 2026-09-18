@@ -156,7 +156,7 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
                             onSaveNpc={(novosDados) => {
                                 const fichaAtualizada = { ...novosDados };
                                 delete fichaAtualizada.nome;
-                                update(ref(db, `personagens/${personagemId}`), fichaAtualizada).catch(err => alert("Erro ao salvar NPC: " + err.message));
+                                update(ref(db, `mesas/${mesaId}/personagens/${personagemId}`), fichaAtualizada).catch(err => alert("Erro ao salvar NPC: " + err.message));
                                 setPersonagens({
                                     ...useStore.getState().personagens,
                                     [personagemId]: fichaAtualizada

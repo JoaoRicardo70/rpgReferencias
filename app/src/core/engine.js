@@ -3,6 +3,7 @@
 // ==========================================
 import { contarDigitos, tratarUnico, pegarDoisPrimeirosDigitos } from './utils.js';
 import { getMaximo, getBuffs, getRawBase, getPoderesDefesa, getEfeitosDeClasse } from './attributes.js';
+import { getVitalMxDisplay } from './vitals.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 
 // ==========================================
@@ -240,8 +241,13 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         let eng = minhaFicha[energiaKey];
         if (!eng) return { dreno: 0, combustao: 0 };
         let bEnergia = getBuffs(minhaFicha, energiaKey);
-        // 🔥 Mantemos o custo proporcional à barra visível, e não à Ascensão Fantasma 🔥
-        let mx = getMaximo(minhaFicha, energiaKey, false, bEnergia);
+        // 🔥 CORREÇÃO (mesma causa-raiz das rodadas já resolvidas em PoderesFormContext.jsx >
+        // dispararAtaque e AtaqueFormContext.jsx > cálculo manual, ver core/vitals.js >
+        // getVitalMxDisplay): "atual" é SEMPRE guardado na escala EXIBIDA/comprimida
+        // (calcVitalScale), nunca no valor bruto de getMaximo — usar getMaximo aqui pra tirar o %
+        // e depois subtrair o resultado de "atual" causava um dreno gigantesco e desproporcional
+        // sempre que o Máximo bruto do personagem já tivesse cruzado uma fronteira de compressão.
+        let mx = getVitalMxDisplay(energiaKey, minhaFicha);
         let combustao = Math.floor(mx * (custoPerc / 100));
         let redBase = eng.reducaoCusto ? parseFloat(eng.reducaoCusto) : 0;
         let red = Math.min(100, redBase + bEnergia.reducaoCusto);
@@ -627,7 +633,11 @@ export function calcularReducao({ energiaKey, perc, multBase, minhaFicha, itensE
     for (let i = 0; i < keys.length; i++) {
         let e = keys[i];
         let bEnergia = getBuffs(minhaFicha, e);
-        let mMax = getMaximo(minhaFicha, e, false, bEnergia);
+        // 🔥 CORREÇÃO: mesma causa-raiz de calcularDreno acima (ver core/vitals.js >
+        // getVitalMxDisplay) — "atual" é sempre guardado na escala exibida/comprimida, nunca no
+        // bruto de getMaximo, então o gasto calculado sobre o bruto ficava desproporcional ao
+        // comparar/subtrair contra "atual".
+        let mMax = getVitalMxDisplay(e, minhaFicha);
         let gt = Math.floor(mMax * (perc / 100));
         let redBase = (minhaFicha[e] && minhaFicha[e].reducaoCusto) ? parseFloat(minhaFicha[e].reducaoCusto) : 0;
         let red = Math.min(100, redBase + bEnergia.reducaoCusto);
