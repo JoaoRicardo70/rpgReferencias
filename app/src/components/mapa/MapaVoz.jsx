@@ -1,6 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MapaOlhoSextaFeira } from './MapaSextaFeira';
 import { lerVolumeVoz, salvarVolumeVoz } from '../../core/volumesVoz';
+import {
+    FFT_SIZE, LIMIAR_FALA_REMOTA, NIVEL_MAXIMO_EXIBIDO, SENSIBILIDADE_MAX, SENSIBILIDADE_MIN, SENSIBILIDADE_PADRAO,
+    estadoPortao, faixaDeVoz, medirNivelDeVoz
+} from '../../core/audioVoz';
 
 // ==========================================
 // 🧠 OUVINDO A MESA: O CÉREBRO DA SEXTA-FEIRA
@@ -101,42 +105,55 @@ export function PlayerDeAudioRemoto({ stream, volume, surdo, nome, sinkId }) {
 
 export function CalibradorDeVoz({ stream, sensibilidade, setSensibilidade }) {
     const barraRef = useRef(null);
+    const marcaEfetivaRef = useRef(null);
+    // A barra lê a sensibilidade por ref: arrastar o controle não recria o contexto de áudio.
+    const sensibilidadeRef = useRef(sensibilidade);
+    useEffect(() => { sensibilidadeRef.current = sensibilidade; }, [sensibilidade]);
+
     useEffect(() => {
-        if (!stream) return;
+        if (!stream) return undefined;
         let raf;
         const actx = new (window.AudioContext || window.webkitAudioContext)();
         try {
-            const source = actx.createMediaStreamSource(stream); 
+            const source = actx.createMediaStreamSource(stream);
             const analyser = actx.createAnalyser();
-            analyser.fftSize = 256;
+            analyser.fftSize = FFT_SIZE;
             analyser.smoothingTimeConstant = 0.5;
             source.connect(analyser);
 
+            const faixa = faixaDeVoz(actx.sampleRate, FFT_SIZE);
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
             const draw = () => {
                 analyser.getByteFrequencyData(dataArray);
-                let sum = 0; for(let i=0; i<dataArray.length; i++) sum += dataArray[i];
-                const avg = sum / dataArray.length; 
-                const percent = Math.min(100, (avg / 60) * 100); 
-                
+                // Mesma medida do portão de ruído: só a faixa da voz.
+                const nivel = medirNivelDeVoz(dataArray, faixa);
+                const percent = Math.min(100, (nivel / NIVEL_MAXIMO_EXIBIDO) * 100);
+                // Com o portão ativo, a cor mostra se o microfone está de fato aberto (limiar efetivo).
+                const passou = estadoPortao.ativo ? estadoPortao.aberto : nivel > sensibilidadeRef.current;
+
                 if (barraRef.current) {
                     barraRef.current.style.width = `${percent}%`;
-                    barraRef.current.style.backgroundColor = avg > sensibilidade ? '#00ffcc' : '#ffcc00';
+                    barraRef.current.style.backgroundColor = passou ? '#00ffcc' : '#ffcc00';
+                }
+                if (marcaEfetivaRef.current) {
+                    marcaEfetivaRef.current.style.display = estadoPortao.ativo ? 'block' : 'none';
+                    marcaEfetivaRef.current.style.left = `${Math.min(100, (estadoPortao.limiar / NIVEL_MAXIMO_EXIBIDO) * 100)}%`;
                 }
                 raf = requestAnimationFrame(draw);
             };
             draw();
             return () => { cancelAnimationFrame(raf); actx.close(); };
-        } catch(e) {}
-    }, [stream, sensibilidade]);
+        } catch (e) { return undefined; }
+    }, [stream]);
 
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderLeft: '1px solid #444', paddingLeft: '15px' }}>
-            <span style={{ color: '#aaa', fontSize: '0.8em' }}>Limiar:</span>
-            <div style={{ position: 'relative', width: '120px', height: '14px', background: '#000', borderRadius: '7px', border: '1px solid #333', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', borderLeft: '1px solid #444', paddingLeft: '15px' }} title="Arraste para ajustar o limiar mínimo do microfone. A marca tracejada é o limiar que está valendo agora: ele sobe sozinho quando a sala tem ruído de fundo.">
+            <span style={{ color: '#aaa', fontSize: '0.8em' }}>Sensibilidade:</span>
+            <div style={{ position: 'relative', width: '140px', height: '14px', background: '#000', borderRadius: '7px', border: '1px solid #333', overflow: 'hidden' }}>
                 <div ref={barraRef} style={{ width: '0%', height: '100%', background: '#ffcc00', transition: 'width 0.05s ease-out' }} />
-                <input type="range" min="1" max="50" value={sensibilidade} onChange={e => setSensibilidade(parseInt(e.target.value))} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
-                <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${(sensibilidade / 60) * 100}%`, width: '2px', background: '#fff', boxShadow: '0 0 5px #fff', pointerEvents: 'none' }} />
+                <input type="range" min={SENSIBILIDADE_MIN} max={SENSIBILIDADE_MAX} value={sensibilidade} onChange={e => setSensibilidade(parseInt(e.target.value))} aria-label="Sensibilidade do microfone" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
+                <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${(sensibilidade / NIVEL_MAXIMO_EXIBIDO) * 100}%`, width: '2px', background: '#fff', boxShadow: '0 0 5px #fff', pointerEvents: 'none' }} />
+                <div ref={marcaEfetivaRef} className="calibrador-marca-efetiva" style={{ display: 'none', left: '0%' }} />
             </div>
         </div>
     );
@@ -162,17 +179,21 @@ export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamPara
 
             const source = actx.createMediaStreamSource(targetStream);
             const analyser = actx.createAnalyser();
-            analyser.fftSize = 256;
+            analyser.fftSize = FFT_SIZE;
             analyser.smoothingTimeConstant = 0.4; 
             source.connect(analyser); 
 
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            const getLimiar = () => isMe ? (parseInt(localStorage.getItem('rpg_sensibilidade_voz')) || 10) : 5;
+            const faixa = faixaDeVoz(actx.sampleRate, FFT_SIZE);
+            const limiarLocal = () => parseInt(localStorage.getItem('rpg_sensibilidade_voz_v2')) || SENSIBILIDADE_PADRAO;
 
             const checkVolume = () => {
                 analyser.getByteFrequencyData(dataArray);
-                let sum = 0; for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                const falando = (sum / dataArray.length) > getLimiar();
+                const nivel = medirNivelDeVoz(dataArray, faixa);
+                // Eu: brilha quando o portão de ruído está aberto (é isso que os outros ouvem).
+                const falando = isMe
+                    ? (estadoPortao.ativo ? estadoPortao.aberto : nivel > limiarLocal())
+                    : nivel > LIMIAR_FALA_REMOTA;
                 
                 if (isMe) setEuEstouFalandoState(falando);
                 else setIsSpeakingRemote(falando);

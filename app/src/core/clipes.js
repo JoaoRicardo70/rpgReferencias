@@ -7,6 +7,9 @@
 // cluster qualquer deixaria o player parado até o próximo quadro-chave) até o fim, com os
 // timecodes reescritos para começar em 0.
 
+import { juntarBlobs } from './bytesBlob';
+import { extrairCabecalhoMp4, montarClipeMp4 } from './clipesMp4';
+
 export const RETENCAO_MAXIMA_MS = 10 * 60 * 1000 + 30 * 1000;
 // Margem olhada antes do ponto pedido para achar um quadro-chave (o clipe pode sair um pouco maior).
 export const MARGEM_QUADRO_CHAVE_MS = 20 * 1000;
@@ -187,19 +190,6 @@ export function reescalarClusters(bytes, base) {
     return bytes;
 }
 
-async function lerBytes(blob) {
-    return new Uint8Array(await blob.arrayBuffer());
-}
-
-async function juntarBlobs(blobs) {
-    const partes = await Promise.all(blobs.map(lerBytes));
-    const total = partes.reduce((s, p) => s + p.length, 0);
-    const r = new Uint8Array(total);
-    let o = 0;
-    partes.forEach(p => { r.set(p, o); o += p.length; });
-    return r;
-}
-
 // Extrai o cabeçalho (tudo antes do primeiro Cluster) olhando até 3 chunks iniciais.
 // Retorna { blob, trilhaVideo } ou null se não achar (formato inesperado).
 export async function extrairCabecalhoWebm(chunksIniciais) {
@@ -207,7 +197,17 @@ export async function extrairCabecalhoWebm(chunksIniciais) {
     const inicio = acharInicioDeCluster(bytes);
     if (inicio <= 0) return null;
     const cabecalho = bytes.slice(0, inicio);
-    return { blob: new Blob([cabecalho]), trilhaVideo: acharTrilhaDeVideo(cabecalho) };
+    return { formato: 'webm', blob: new Blob([cabecalho]), trilhaVideo: acharTrilhaDeVideo(cabecalho) };
+}
+
+// Escolhe o leitor de cabeçalho pelo tipo gravado (video/mp4, audio/mp4 ou webm).
+export function extrairCabecalho(chunksIniciais, tipo) {
+    return /mp4/i.test(tipo || '') ? extrairCabecalhoMp4(chunksIniciais) : extrairCabecalhoWebm(chunksIniciais);
+}
+
+export function extensaoDoTipo(tipo) {
+    if (/^audio\/mp4/i.test(tipo || '')) return 'm4a';
+    return /mp4/i.test(tipo || '') ? 'mp4' : 'webm';
 }
 
 // Descarta o que passou da janela de retenção. Retorna a nova lista (não muta a original).
@@ -221,6 +221,7 @@ export function podarChunks(chunks, agora, retencaoMs = RETENCAO_MAXIMA_MS) {
 // `chunks`: [{ blob, t }] em ordem; `cabecalho`: resultado de extrairCabecalhoWebm.
 export async function montarClipe(chunks, cabecalho, segundos, agora, tipo = 'video/webm') {
     if (!chunks.length) return null;
+    if (cabecalho && cabecalho.formato === 'mp4') return montarClipeMp4(chunks, cabecalho, segundos, agora, MARGEM_QUADRO_CHAVE_MS, tipo);
     const desde = agora - segundos * 1000;
 
     // Sem cabeçalho conhecido não dá para garantir um arquivo tocável: devolve o trecho cru.
@@ -250,8 +251,8 @@ export async function montarClipe(chunks, cabecalho, segundos, agora, tipo = 'vi
     };
 }
 
-export function nomeArquivoClipe(meuNome, segundos, agora = new Date()) {
+export function nomeArquivoClipe(meuNome, segundos, agora = new Date(), extensao = 'webm') {
     const carimbo = agora.toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const nome = (meuNome || 'Anonimo').replace(/[^a-zA-Z0-9_-]+/g, '_');
-    return `clipe_${nome}_${segundos}s_${carimbo}.webm`;
+    return `clipe_${nome}_${segundos}s_${carimbo}.${extensao}`;
 }

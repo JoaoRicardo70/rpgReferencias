@@ -1607,3 +1607,9 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 
 /* Indicador de captura ligada (buffer de clipes / gravação) no botão flutuante */
 .dock-com-rec { position: absolute; bottom: -4px; left: -4px; width: 18px; height: 18px; line-height: 18px; border-radius: 50%; background: #000; color: #ff003c; font-size: 12px; text-align: center; border: 1px solid #ff003c; animation: pulse 1.5s infinite; }
+
+/* Gravador: aviso quando a gravação sai só com áudio */
+.gravador-aviso { border: 1px solid #ff003c; background: rgba(255, 0, 60, 0.12); color: #ffb3c1; border-radius: 6px; padding: 10px 14px; font-size: 0.9em; }
+
+/* Calibrador de voz: marca do limiar efetivo do portão de ruído */
+.calibrador-marca-efetiva { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed #ff00aa; pointer-events: none; }

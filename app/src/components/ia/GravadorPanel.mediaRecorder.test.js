@@ -234,7 +234,7 @@ describe('GravadorPanel — edge cases', () => {
 
         expect(capturedDownload).not.toBeNull();
         expect(capturedDownload).toMatch(
-            new RegExp(`^gravacao_${nomeEsperado}_\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}\\.webm$`)
+            new RegExp(`^gravacao_${nomeEsperado}_\\d{4}-\\d{2}-\\d{2}T\\d{2}-\\d{2}-\\d{2}_somente-audio\\.webm$`)
         );
         expect(capturedDownload).not.toMatch(/[/\s#]/);
     });
@@ -522,6 +522,7 @@ describe('GravadorPanel — casos de borda do fluxo de gravação', () => {
         rafSpy.mockRestore();
         playSpy.mockRestore();
         pauseSpy.mockRestore();
+        if (spyCriarElemento) { spyCriarElemento.mockRestore(); spyCriarElemento = null; }
         delete MockMediaRecorder.isTypeSupported;
         vi.clearAllMocks();
     });
@@ -544,7 +545,22 @@ describe('GravadorPanel — casos de borda do fluxo de gravação', () => {
         });
     }
 
-    it('falls back to audio-only and releases the screen when video/webm is not supported', async () => {
+    let spyCriarElemento = null;
+    const MIME_MP4 = 'video/mp4;codecs=avc1.42E01E,mp4a.40.2';
+
+    // Captura o nome do arquivo baixado (intercepta o click do link para o jsdom nao navegar).
+    function interceptarDownload() {
+        const captura = { nome: null };
+        const original = document.createElement.bind(document);
+        spyCriarElemento = vi.spyOn(document, 'createElement').mockImplementation((tag, ...rest) => {
+            const el = original(tag, ...rest);
+            if (tag === 'a') el.click = vi.fn(() => { captura.nome = el.download; });
+            return el;
+        });
+        return captura;
+    }
+
+    it('falls back to audio-only and releases the screen when neither video/mp4 nor video/webm is supported', async () => {
         MockMediaRecorder.isTypeSupported = vi.fn(() => false);
         await renderizar(null);
         await clicarIniciar();
@@ -554,16 +570,90 @@ describe('GravadorPanel — casos de borda do fluxo de gravação', () => {
         expect(rec.options).toMatchObject({ mimeType: 'audio/webm', audioBitsPerSecond: 32000 });
         expect(rec.stream.getVideoTracks()).toHaveLength(0);
         expect(telaTrack.stop).toHaveBeenCalled();
-        expect(screen.getByText(/não grava vídeo webm/)).toBeTruthy();
+        expect(screen.getByText(/Este navegador não grava vídeo mp4 nem webm/)).toBeTruthy();
+        expect(screen.getByRole('alert').textContent).toMatch(/^\s*⚠️ Sem captura de tela/);
     });
 
-    it('records video when isTypeSupported reports video/webm as supported', async () => {
-        MockMediaRecorder.isTypeSupported = vi.fn(() => true);
+    it('records video/webm when only video/webm is reported as supported', async () => {
+        MockMediaRecorder.isTypeSupported = vi.fn((t) => t === 'video/webm');
         await renderizar(null);
         await clicarIniciar();
 
         expect(MockMediaRecorder.isTypeSupported).toHaveBeenCalledWith('video/webm');
         expect(MockMediaRecorder.instances[0].options.mimeType).toBe('video/webm');
+        expect(MockMediaRecorder.instances[0].stream.getVideoTracks()).toHaveLength(1);
+    });
+
+    it('prefers video/mp4 (H.264 + AAC) when supported and names the download .mp4', async () => {
+        MockMediaRecorder.isTypeSupported = vi.fn(() => true);
+        const captura = interceptarDownload();
+        await renderizar(null);
+        await clicarIniciar();
+
+        expect(MockMediaRecorder.instances).toHaveLength(1);
+        const rec = MockMediaRecorder.instances[0];
+        expect(rec.options.mimeType).toBe(MIME_MP4);
+        expect(rec.options).toMatchObject({ videoBitsPerSecond: 1500000, audioBitsPerSecond: 64000 });
+
+        await act(async () => {
+            rec.ondataavailable({ data: new Blob(['x'], { type: MIME_MP4 }) });
+            fireEvent.click(screen.getByText('⏹ ENCERRAR E BAIXAR'));
+        });
+        expect(captura.nome).toMatch(/^gravacao_Tester_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.mp4$/);
+        // O Blob baixado nao carrega a lista de codecs no type.
+        expect(global.URL.createObjectURL.mock.calls[0][0].type).toBe('video/mp4');
+    });
+
+    it('falls back to webm when the MediaRecorder constructor throws for mp4 but not for webm', async () => {
+        MockMediaRecorder.isTypeSupported = vi.fn(() => true);
+        const Original = global.MediaRecorder;
+        const Seletivo = class extends MockMediaRecorder {
+            constructor(stream, options) {
+                if (/mp4/.test(options.mimeType)) throw new Error('sem encoder h264');
+                super(stream, options);
+            }
+        };
+        global.MediaRecorder = Seletivo;
+        window.MediaRecorder = Seletivo;
+        const captura = interceptarDownload();
+        try {
+            await renderizar(null);
+            await clicarIniciar();
+
+            expect(MockMediaRecorder.instances).toHaveLength(1);
+            const rec = MockMediaRecorder.instances[0];
+            expect(rec.options.mimeType).toBe('video/webm');
+            expect(rec.stream.getVideoTracks()).toHaveLength(1);
+            expect(screen.queryByRole('alert')).toBeNull();
+
+            await act(async () => {
+                rec.ondataavailable({ data: new Blob(['x'], { type: 'video/webm' }) });
+                fireEvent.click(screen.getByText('⏹ ENCERRAR E BAIXAR'));
+            });
+            expect(captura.nome).toMatch(/\.webm$/);
+        } finally {
+            global.MediaRecorder = Original;
+            window.MediaRecorder = Original;
+        }
+    });
+
+    it('audio-only uses audio/mp4 (.m4a) when the browser supports it', async () => {
+        MockMediaRecorder.isTypeSupported = vi.fn((t) => t === 'audio/mp4;codecs=mp4a.40.2');
+        Object.defineProperty(global.navigator, 'mediaDevices', {
+            value: { getUserMedia: getUserMediaMock },
+            configurable: true,
+        });
+        const captura = interceptarDownload();
+        await renderizar(null);
+        await clicarIniciar();
+
+        const rec = MockMediaRecorder.instances[0];
+        expect(rec.options).toMatchObject({ mimeType: 'audio/mp4;codecs=mp4a.40.2', audioBitsPerSecond: 48000 });
+        await act(async () => {
+            rec.ondataavailable({ data: new Blob(['x']) });
+            fireEvent.click(screen.getByText('⏹ ENCERRAR E BAIXAR'));
+        });
+        expect(captura.nome).toMatch(/_somente-audio\.m4a$/);
     });
 
     it('falls back to audio-only when getDisplayMedia does not exist in the browser', async () => {

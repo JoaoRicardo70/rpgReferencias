@@ -3,8 +3,9 @@ import useStore from '../../stores/useStore';
 import { VoiceContext } from '../../hooks/VoiceContext';
 import { haCapturaEmAndamento, registrarCapturaAtiva } from '../../core/estadoBuffer';
 import {
-    OPCOES_DURACAO_CLIPE, extrairCabecalhoWebm, montarClipe, nomeArquivoClipe, podarChunks
+    OPCOES_DURACAO_CLIPE, extensaoDoTipo, extrairCabecalho, montarClipe, nomeArquivoClipe, podarChunks
 } from '../../core/clipes';
+import { criarPipelineDeVideo } from '../../core/pipelineVideo';
 
 function sanitizarNomeArquivo(nome) {
     return (nome || 'Anonimo').replace(/[^a-zA-Z0-9_-]+/g, '_');
@@ -39,6 +40,53 @@ function gravarPreferencia(chave, valor) {
     try { localStorage.setItem(chave, String(valor)); } catch (e) { /* sem storage: só não lembra */ }
 }
 
+function tipoSuportado(tipo) {
+    return typeof MediaRecorder !== 'undefined' && typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(tipo);
+}
+
+// Formatos em ordem de preferência. MP4 (H.264 + AAC) toca em qualquer player (inclusive os do Windows);
+// o WebM (VP8/VP9) muitas vezes abre só com áudio, sem imagem. WebM fica como reserva.
+// Quadro-chave a cada 2s (Chromium recente; ignorado onde não existe): cada fragmento do MP4 começa num
+// quadro-chave, e é onde um clipe pode começar — quanto mais frequente, mais perto do pedido ele fica.
+function candidatosDeFormato(comVideo) {
+    const lista = [];
+    if (comVideo) {
+        if (tipoSuportado('video/mp4;codecs=avc1.42E01E,mp4a.40.2')) {
+            lista.push({
+                mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', extensao: 'mp4',
+                opcoes: { videoBitsPerSecond: 1500000, audioBitsPerSecond: 64000, videoKeyFrameIntervalDuration: 2000 },
+            });
+        }
+        const webmOk = typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function' || MediaRecorder.isTypeSupported('video/webm');
+        if (webmOk) {
+            lista.push({
+                mimeType: 'video/webm', extensao: 'webm',
+                opcoes: { videoBitsPerSecond: 1500000, audioBitsPerSecond: 64000, videoKeyFrameIntervalDuration: 2000 },
+            });
+        }
+        return lista;
+    }
+    if (tipoSuportado('audio/mp4;codecs=mp4a.40.2')) {
+        lista.push({ mimeType: 'audio/mp4;codecs=mp4a.40.2', extensao: 'm4a', opcoes: { audioBitsPerSecond: 48000 } });
+    }
+    lista.push({ mimeType: 'audio/webm', extensao: 'webm', opcoes: { audioBitsPerSecond: 32000 } });
+    return lista;
+}
+
+// Cria o gravador com o primeiro formato que o navegador aceitar de fato (isTypeSupported pode dizer
+// que sim quando falta um codificador): devolve { recorder, formato }. Lança o último erro se nenhum servir.
+function criarGravador(stream, candidatos) {
+    let ultimoErro = null;
+    for (const formato of candidatos) {
+        try {
+            return { recorder: new MediaRecorder(stream, { mimeType: formato.mimeType, ...formato.opcoes }), formato };
+        } catch (err) {
+            ultimoErro = err;
+        }
+    }
+    throw ultimoErro || new Error('Nenhum formato de gravação disponível.');
+}
+
 function estaNoAppDesktop() {
     return typeof navigator !== 'undefined' && /Electron/i.test(navigator.userAgent || '');
 }
@@ -46,6 +94,8 @@ function estaNoAppDesktop() {
 export default function GravadorPanel() {
     const [gravando, setGravando] = useState(false);
     const [guardarTudo, setGuardarTudo] = useState(false);
+    // Sem captura de tela os arquivos saem só com áudio: mostrado em destaque para não parecer defeito.
+    const [semVideo, setSemVideo] = useState(false);
     const [duracaoClipe, setDuracaoClipe] = useState(() => {
         const salva = Number(lerPreferencia(PREF_DURACAO_CLIPE, '60'));
         return OPCOES_DURACAO_CLIPE.some(o => o.segundos === salva) ? salva : 60;
@@ -58,6 +108,9 @@ export default function GravadorPanel() {
     const chunksRef = useRef([]);
     const cabecalhoRef = useRef(null);
     const tipoRef = useRef('video/webm');
+    const extensaoRef = useRef('webm');
+    const semVideoRef = useRef(false);
+    const pipelineVideoRef = useRef(null);
     const guardarTudoRef = useRef(false);
     const salvandoClipeRef = useRef(false);
     const salvarClipeRef = useRef(() => {});
@@ -123,6 +176,10 @@ export default function GravadorPanel() {
     // Libera tudo que o gravador abriu (tela, mic próprio, mixagem). Nunca encerra o
     // stream do microfone da Sala de Rádio (voz.meuStream): ele pertence ao useVoiceChat.
     const liberarRecursos = () => {
+        if (pipelineVideoRef.current) {
+            try { pipelineVideoRef.current.parar(); } catch (e) { /* já parado */ }
+            pipelineVideoRef.current = null;
+        }
         pararTracks(telaStreamRef.current);
         telaStreamRef.current = null;
         pararTracks(micProprioRef.current);
@@ -268,7 +325,8 @@ export default function GravadorPanel() {
     // e clica nele sozinho — nada é enviado para fora do navegador.
     const baixarGravacao = (blob) => {
         const carimbo = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const nomeArquivo = `gravacao_${sanitizarNomeArquivo(meuNome)}_${carimbo}.webm`;
+        const marcaAudio = semVideoRef.current ? '_somente-audio' : '';
+        const nomeArquivo = `gravacao_${sanitizarNomeArquivo(meuNome)}_${carimbo}${marcaAudio}.${extensaoRef.current}`;
         baixarBlob(blob, nomeArquivo);
         return nomeArquivo;
     };
@@ -285,9 +343,9 @@ export default function GravadorPanel() {
                 await new Promise(resolve => setTimeout(resolve, 150));
                 if (gravador.state !== 'recording') { addLog('⚠️ A gravação foi encerrada antes de salvar o clipe.'); return; }
             }
-            const clipe = await montarClipe(chunksRef.current, cabecalhoRef.current, duracaoClipe, Date.now(), tipoRef.current);
+            const clipe = await montarClipe(chunksRef.current, cabecalhoRef.current, duracaoClipe, Date.now(), tipoRef.current.split(';')[0]);
             if (!clipe) { addLog('⚠️ Ainda não há imagem suficiente no buffer para um clipe. Tente de novo em alguns segundos.'); return; }
-            const nomeArquivo = nomeArquivoClipe(meuNome, duracaoClipe);
+            const nomeArquivo = nomeArquivoClipe(meuNome, duracaoClipe, new Date(), extensaoDoTipo(tipoRef.current));
             baixarBlob(clipe.blob, nomeArquivo);
             addLog(`✂️ Clipe de ~${clipe.segundosReais}s salvo no seu computador como "${nomeArquivo}".`);
             if (clipe.semCabecalho) addLog('⚠️ Não foi possível ler o cabeçalho do vídeo: o clipe pode não abrir em todos os players.');
@@ -318,7 +376,7 @@ export default function GravadorPanel() {
         if (!cabecalhoRef.current && chunksRef.current.length <= 3) {
             const iniciais = chunksRef.current.map(c => c.blob);
             Promise.resolve()
-                .then(() => extrairCabecalhoWebm(iniciais))
+                .then(() => extrairCabecalho(iniciais, tipoRef.current))
                 .then(cab => { if (cab && !cabecalhoRef.current) cabecalhoRef.current = cab; })
                 .catch(() => { /* sem cabeçalho: o clipe cai para o trecho cru */ });
         }
@@ -338,7 +396,7 @@ export default function GravadorPanel() {
             gravador.ondataavailable = (event) => { if (event.data.size > 0) partes.push(event.data); };
             gravador.onstop = () => {
                 if (partes.length === 0) { addLog('⚠️ Nada foi capturado.'); return; }
-                const nomeArquivo = baixarGravacao(new Blob(partes, { type: tipo }));
+                const nomeArquivo = baixarGravacao(new Blob(partes, { type: tipo.split(';')[0] }));
                 addLog(`💾 Gravação salva no seu computador como "${nomeArquivo}".`);
             };
             gravador.start(1000);
@@ -405,29 +463,31 @@ export default function GravadorPanel() {
             const audioMixado = destinoRef.current.stream;
             iniciarVisualizador(audioMixado);
 
-            const webmVideoOk = typeof MediaRecorder.isTypeSupported !== 'function' || MediaRecorder.isTypeSupported('video/webm');
-            if (telaStream && !webmVideoOk) {
+            let gravaVideo = !!telaStream;
+            let candidatos = candidatosDeFormato(gravaVideo);
+            if (gravaVideo && candidatos.length === 0) {
                 pararTracks(telaStream);
                 telaStreamRef.current = null;
-                addLog('⚠️ Este navegador não grava vídeo webm — gravando somente o áudio.');
+                gravaVideo = false;
+                candidatos = candidatosDeFormato(false);
+                addLog('⚠️ Este navegador não grava vídeo mp4 nem webm — gravando somente o áudio.');
             }
-            const gravaVideo = telaStream && webmVideoOk;
-            const trilhas = [...(gravaVideo ? telaStream.getVideoTracks() : []), ...audioMixado.getAudioTracks()];
-            const streamFinal = new MediaStream(trilhas);
-            // Quadro-chave a cada 2s (Chromium recente; ignorado onde não existe): é onde um clipe pode
-            // começar, então quanto mais frequente, mais perto do tempo pedido o clipe fica.
-            const opcoes = gravaVideo
-                ? { mimeType: 'video/webm', videoBitsPerSecond: 1500000, audioBitsPerSecond: 64000, videoKeyFrameIntervalDuration: 2000 }
-                : { mimeType: 'audio/webm', audioBitsPerSecond: 32000 };
+            // A tela passa por um canvas de tamanho fixo (a janela muda de tamanho; o MP4 não aguenta isso).
+            const pipeline = gravaVideo ? criarPipelineDeVideo(telaStream) : null;
+            pipelineVideoRef.current = pipeline;
+            const trilhasVideo = gravaVideo ? (pipeline ? pipeline.trilhas : telaStream.getVideoTracks()) : [];
+            const streamFinal = new MediaStream([...trilhasVideo, ...audioMixado.getAudioTracks()]);
 
             chunksRef.current = [];
             cabecalhoRef.current = null;
             guardarTudoRef.current = gravarSessaoInteira;
-            tipoRef.current = opcoes.mimeType;
+            const { recorder, formato } = criarGravador(streamFinal, candidatos);
+            const tipo = formato.mimeType;
+            tipoRef.current = tipo;
+            extensaoRef.current = formato.extensao;
+            semVideoRef.current = !gravaVideo;
             streamFinalRef.current = streamFinal;
-            opcoesRef.current = opcoes;
-            const recorder = new MediaRecorder(streamFinal, opcoes);
-            const tipo = opcoes.mimeType;
+            opcoesRef.current = { mimeType: tipo, ...formato.opcoes };
 
             recorder.ondataavailable = (event) => {
                 if (event.data.size > 0) registrarChunk(event.data);
@@ -440,7 +500,7 @@ export default function GravadorPanel() {
                 // No modo clipe o buffer é só para clipes: não há sessão inteira para baixar.
                 if (!guardarTudoRef.current) return;
                 if (chunks.length === 0) { addLog('⚠️ Nada foi capturado.'); return; }
-                const blob = new Blob(chunks.map(c => c.blob), { type: tipo });
+                const blob = new Blob(chunks.map(c => c.blob), { type: tipo.split(';')[0] });
                 const nomeArquivo = baixarGravacao(blob);
                 addLog(`💾 Gravação salva no seu computador como "${nomeArquivo}".`);
             };
@@ -453,6 +513,7 @@ export default function GravadorPanel() {
             mediaRecorderRef.current = recorder;
 
             setGuardarTudo(gravarSessaoInteira);
+            setSemVideo(!gravaVideo);
             setGravando(true);
             const destino = gravaVideo ? 'tela do app + vozes' : 'somente áudio';
             addLog(gravarSessaoInteira
@@ -482,6 +543,7 @@ export default function GravadorPanel() {
         pararVisualizador();
         setGravando(false);
         setGuardarTudo(false);
+        setSemVideo(false);
         addLog(guardarTudoRef.current ? '⏹️ Gravação encerrada.' : '⏹️ Buffer de clipes desligado.');
     };
 
@@ -522,9 +584,15 @@ export default function GravadorPanel() {
             <div style={{ borderBottom: '1px solid #333', paddingBottom: '10px' }}>
                 <h3 style={{ color: '#00ffcc', margin: 0 }}>🎬 Gravação da Sessão (Tela + Vozes)</h3>
                 <p style={{ color: '#aaa', fontSize: '0.85em', margin: '5px 0 0 0' }}>
-                    Grava a tela do app e as vozes de todos na Sala de Rádio da Party. Ao encerrar, baixa um arquivo .webm direto no seu computador. Nada é enviado para a nuvem — só quem clicou em "Iniciar" fica com o arquivo. No app desktop a gravação continua mesmo com a janela minimizada.
+                    Grava a tela do app e as vozes de todos na Sala de Rádio da Party. Ao encerrar, baixa um vídeo (.mp4) direto no seu computador. Nada é enviado para a nuvem — só quem clicou em "Iniciar" fica com o arquivo. No app desktop a gravação continua mesmo com a janela minimizada.
                 </p>
             </div>
+
+            {gravando && semVideo && (
+                <div className="gravador-aviso" role="alert">
+                    ⚠️ Sem captura de tela: os arquivos desta gravação terão só áudio (sem imagem). No app desktop isso acontece quando o instalador é antigo; instale o mais recente.
+                </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', padding: '0 20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75em', color: '#aaa' }}>

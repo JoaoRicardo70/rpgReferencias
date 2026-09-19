@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Peer from 'peerjs';
 import { montarIceServers, temTurnConfigurado } from '../core/iceServers';
+import {
+    FFT_SIZE, SENSIBILIDADE_PADRAO, criarPortaoDeVoz, estadoPortao, faixaDeVoz, medirNivelDeVoz
+} from '../core/audioVoz';
 
 // Vigia o estado da conexão WebRTC de uma chamada: quando o ICE falha (normalmente NAT sem
 // TURN), o jogador vê o motivo na tela em vez de um rádio "conectado" que não transmite áudio.
@@ -33,11 +36,14 @@ function encontrarMelhorMic(audioInputs) {
     return audioInputs[0]?.deviceId || null;
 }
 
+// Com o filtro ligado o ganho automático fica DESLIGADO: ele amplifica o ruído baixo e deixa o microfone
+// "sensível demais". O cancelamento de eco e o supressor do navegador continuam ativos.
 const getAudioConstraints = (deviceId, supressor) => ({
     deviceId: deviceId ? { exact: deviceId } : undefined,
     echoCancellation: true,
     noiseSuppression: supressor,
-    autoGainControl: true,
+    autoGainControl: !supressor,
+    voiceIsolation: supressor,
     googEchoCancellation: true,
     googExperimentalEchoCancellation: true,
     googNoiseSuppression: supressor,
@@ -66,7 +72,7 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
     const [supressorAtivo, setSupressorAtivo] = useState(true);
     
     // 🔥 O SEGREDO DO NOISE GATE: Guarda a sensibilidade no navegador
-    const [sensibilidadeVoz, setSensibilidadeVoz] = useState(() => parseInt(localStorage.getItem('rpg_sensibilidade_voz')) || 10);
+    const [sensibilidadeVoz, setSensibilidadeVoz] = useState(() => parseInt(localStorage.getItem('rpg_sensibilidade_voz_v2')) || SENSIBILIDADE_PADRAO);
 
     const meuStreamRef = useRef(null);
     const conexoesRef = useRef([]);
@@ -79,7 +85,19 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
 
     useEffect(() => { conexoesRef.current = conexoes; }, [conexoes]);
     useEffect(() => { supressorAtivoRef.current = supressorAtivo; }, [supressorAtivo]);
-    useEffect(() => { localStorage.setItem('rpg_sensibilidade_voz', sensibilidadeVoz); }, [sensibilidadeVoz]);
+    useEffect(() => { localStorage.setItem('rpg_sensibilidade_voz_v2', sensibilidadeVoz); }, [sensibilidadeVoz]);
+    // O portão lê a sensibilidade por ref: arrastar o controle não recria o contexto de áudio.
+    const sensibilidadeRef = useRef(sensibilidadeVoz);
+    useEffect(() => { sensibilidadeRef.current = sensibilidadeVoz; }, [sensibilidadeVoz]);
+    const mutadoRef = useRef(false);
+
+    // Trocar o filtro vale já para o microfone aberto (antes só na próxima vez que ele fosse aberto).
+    useEffect(() => {
+        const trilha = meuStreamRef.current && meuStreamRef.current.getAudioTracks()[0];
+        if (!trilha || typeof trilha.applyConstraints !== 'function') return;
+        // applyConstraints substitui o conjunto inteiro: reenvia o cancelamento de eco junto.
+        Promise.resolve(trilha.applyConstraints({ echoCancellation: true, noiseSuppression: supressorAtivo, autoGainControl: !supressorAtivo, voiceIsolation: supressorAtivo })).catch(() => {});
+    }, [supressorAtivo]);
 
     // 1. INICIALIZA A ANTENA PEERJS
     useEffect(() => {
@@ -249,71 +267,65 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
         return () => clearInterval(interval);
     }, [tavernaAtivos, peerObj, isPresenteNaTaverna, meuNome, fazerChamada]);
 
-    // 🔥 4. O PODEROSO NOISE GATE (SUPRESSOR DE RUÍDO) 🔥
+    // 4. PORTÃO DE RUÍDO: abre o microfone só quando a FAIXA DA VOZ passa do piso de ruído da sala mais
+    // uma margem (com histerese e tempo de espera), em vez de comparar a média de todas as frequências
+    // com um limiar fixo baixo. Regras e números em core/audioVoz.js.
+    // Atualizado no próprio render (não em efeito): o laço do portão nunca vê o mute com um quadro de atraso.
+    mutadoRef.current = mutado;
     useEffect(() => {
         if (!streamAnalisador || !meuStreamRef.current) return;
-        
+
         // Se o supressor for desligado pelo jogador, garante que o mic fica sempre aberto
         if (!supressorAtivo) {
+            estadoPortao.ativo = false;
             const track = meuStreamRef.current.getAudioTracks()[0];
-            if (track && !mutado) track.enabled = true;
+            if (track && !mutadoRef.current) track.enabled = true;
             return;
         }
 
         let actx;
         let raf;
-        let releaseTimeout;
 
         try {
             actx = new (window.AudioContext || window.webkitAudioContext)();
             const source = actx.createMediaStreamSource(streamAnalisador);
             const analyser = actx.createAnalyser();
-            analyser.fftSize = 256;
-            analyser.smoothingTimeConstant = 0.3; // Resposta super rápida aos picos de voz
+            analyser.fftSize = FFT_SIZE;
+            // Pouca suavização: com 0.3 o pico de um clique se espalhava por dois quadros e abria o portão.
+            analyser.smoothingTimeConstant = 0.1;
             source.connect(analyser);
 
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            const faixa = faixaDeVoz(actx.sampleRate, FFT_SIZE);
+            const dados = new Uint8Array(analyser.frequencyBinCount);
+            const portao = criarPortaoDeVoz();
+            estadoPortao.ativo = true;
 
-            const noiseGateProcess = () => {
-                analyser.getByteFrequencyData(dataArray);
-                let sum = 0;
-                for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-                const avg = sum / dataArray.length;
+            const processar = () => {
+                analyser.getByteFrequencyData(dados);
+                const nivel = medirNivelDeVoz(dados, faixa);
+                const r = portao.processar(nivel, sensibilidadeRef.current, performance.now());
+                // Mutado não "fala": o brilho do cartão e a barra do calibrador não podem acender.
+                estadoPortao.aberto = r.aberto && !mutadoRef.current;
+                estadoPortao.piso = r.piso;
+                estadoPortao.limiar = r.limiarAbrir;
 
-                const track = meuStreamRef.current.getAudioTracks()[0];
-                if (track && !mutado) { // Respeita o botão de Mute manual
-                    if (avg > sensibilidadeVoz) {
-                        // FALANDO: Abre o microfone na hora!
-                        track.enabled = true;
-                        if (releaseTimeout) {
-                            clearTimeout(releaseTimeout);
-                            releaseTimeout = null;
-                        }
-                    } else {
-                        // SILÊNCIO: Aguarda 500ms antes de cortar o áudio (Release Time) para não picotar o fim das palavras
-                        if (!releaseTimeout && track.enabled) {
-                            releaseTimeout = setTimeout(() => {
-                                if (meuStreamRef.current && !mutado) {
-                                    const t = meuStreamRef.current.getAudioTracks()[0];
-                                    if (t) t.enabled = false; // Muta fisicamente a faixa!
-                                }
-                            }, 500); 
-                        }
-                    }
-                }
-                raf = requestAnimationFrame(noiseGateProcess);
+                const track = meuStreamRef.current && meuStreamRef.current.getAudioTracks()[0];
+                // Respeita o botão de Mute manual
+                if (track && !mutadoRef.current && track.enabled !== r.aberto) track.enabled = r.aberto;
+                raf = requestAnimationFrame(processar);
             };
-            noiseGateProcess();
+            processar();
         } catch (err) {
             console.warn("[VOZ] Erro no Noise Gate:", err);
         }
 
         return () => {
+            estadoPortao.ativo = false;
+            estadoPortao.aberto = false;
             if (raf) cancelAnimationFrame(raf);
-            if (releaseTimeout) clearTimeout(releaseTimeout);
             if (actx && actx.state !== 'closed') actx.close().catch(()=>{});
         };
-    }, [streamAnalisador, supressorAtivo, sensibilidadeVoz, mutado]);
+    }, [streamAnalisador, supressorAtivo]);
 
     const trocarMicrofone = useCallback(async (deviceId) => {
         try {
