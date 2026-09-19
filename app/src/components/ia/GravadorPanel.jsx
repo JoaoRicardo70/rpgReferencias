@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect, useContext } from 'react';
 import useStore from '../../stores/useStore';
 import { VoiceContext } from '../../hooks/VoiceContext';
+import {
+    OPCOES_DURACAO_CLIPE, extrairCabecalhoWebm, montarClipe, nomeArquivoClipe, podarChunks
+} from '../../core/clipes';
 
 function sanitizarNomeArquivo(nome) {
     return (nome || 'Anonimo').replace(/[^a-zA-Z0-9_-]+/g, '_');
@@ -10,9 +13,34 @@ function pararTracks(stream) {
     if (stream) stream.getTracks().forEach(track => track.stop());
 }
 
+function baixarBlob(blob, nomeArquivo) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = nomeArquivo;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+function estaNoAppDesktop() {
+    return typeof navigator !== 'undefined' && /Electron/i.test(navigator.userAgent || '');
+}
+
 export default function GravadorPanel() {
     const [gravando, setGravando] = useState(false);
+    const [guardarTudo, setGuardarTudo] = useState(false);
+    const [duracaoClipe, setDuracaoClipe] = useState(60);
     const [logs, setLogs] = useState(['Gravador local pronto.']);
+
+    // Pedaços recentes da gravação ({ blob, t }) e o cabeçalho do webm: base do "clipe".
+    const chunksRef = useRef([]);
+    const cabecalhoRef = useRef(null);
+    const tipoRef = useRef('video/webm');
+    const guardarTudoRef = useRef(false);
+    const salvandoClipeRef = useRef(false);
+    const salvarClipeRef = useRef(() => {});
 
     const micProprioRef = useRef(null);
     const telaStreamRef = useRef(null);
@@ -203,20 +231,67 @@ export default function GravadorPanel() {
     const baixarGravacao = (blob) => {
         const carimbo = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
         const nomeArquivo = `gravacao_${sanitizarNomeArquivo(meuNome)}_${carimbo}.webm`;
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = nomeArquivo;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        baixarBlob(blob, nomeArquivo);
         return nomeArquivo;
     };
 
-    const iniciarGravacao = async () => {
+    // Salva os últimos `duracaoClipe` segundos do que está sendo gravado (buffer contínuo).
+    const salvarClipe = async () => {
+        if (salvandoClipeRef.current || !mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') return;
+        salvandoClipeRef.current = true;
+        try {
+            // Pede o pedaço parcial mais recente para o clipe incluir até o último instante.
+            const gravador = mediaRecorderRef.current;
+            if (typeof gravador.requestData === 'function') {
+                gravador.requestData();
+                await new Promise(resolve => setTimeout(resolve, 150));
+                if (gravador.state !== 'recording') { addLog('⚠️ A gravação foi encerrada antes de salvar o clipe.'); return; }
+            }
+            const clipe = await montarClipe(chunksRef.current, cabecalhoRef.current, duracaoClipe, Date.now(), tipoRef.current);
+            if (!clipe) { addLog('⚠️ Ainda não há imagem suficiente no buffer para um clipe. Tente de novo em alguns segundos.'); return; }
+            const nomeArquivo = nomeArquivoClipe(meuNome, duracaoClipe);
+            baixarBlob(clipe.blob, nomeArquivo);
+            addLog(`✂️ Clipe de ~${clipe.segundosReais}s salvo no seu computador como "${nomeArquivo}".`);
+            if (clipe.semCabecalho) addLog('⚠️ Não foi possível ler o cabeçalho do vídeo: o clipe pode não abrir em todos os players.');
+        } catch (err) {
+            addLog(`❌ Erro ao salvar o clipe: ${err.message}`);
+        } finally {
+            salvandoClipeRef.current = false;
+        }
+    };
+    salvarClipeRef.current = salvarClipe;
+
+    // Atalho Alt+C: salva o clipe de qualquer aba do app (o gravador continua montado em segundo plano).
+    useEffect(() => {
+        const aoTeclar = (e) => {
+            if (e.repeat || !e.altKey || e.ctrlKey || e.metaKey || (e.key !== 'c' && e.key !== 'C')) return;
+            // Só "engole" o atalho quando há algo sendo gravado.
+            if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') return;
+            e.preventDefault();
+            salvarClipeRef.current();
+        };
+        window.addEventListener('keydown', aoTeclar);
+        return () => window.removeEventListener('keydown', aoTeclar);
+    }, []);
+
+    // Guarda o pedaço e, no modo clipe (sem gravar a sessão inteira), descarta o que passou da retenção.
+    const registrarChunk = (blob) => {
+        chunksRef.current.push({ blob, t: Date.now() });
+        if (!cabecalhoRef.current && chunksRef.current.length <= 3) {
+            const iniciais = chunksRef.current.map(c => c.blob);
+            Promise.resolve()
+                .then(() => extrairCabecalhoWebm(iniciais))
+                .then(cab => { if (cab && !cabecalhoRef.current) cabecalhoRef.current = cab; })
+                .catch(() => { /* sem cabeçalho: o clipe cai para o trecho cru */ });
+        }
+        if (!guardarTudoRef.current && (cabecalhoRef.current || chunksRef.current.length > 3)) {
+            chunksRef.current = podarChunks(chunksRef.current, Date.now());
+        }
+    };
+
+    const iniciarCaptura = async (gravarSessaoInteira) => {
         // O seletor de tela demora: um segundo clique nesse intervalo abriria uma segunda gravação.
-        if (iniciandoRef.current) return;
+        if (iniciandoRef.current || (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording')) return;
         iniciandoRef.current = true;
         try {
             // Criado já no clique (antes dos awaits) para o navegador não deixar a mixagem suspensa.
@@ -238,7 +313,12 @@ export default function GravadorPanel() {
                     });
                     const superficie = telaStream.getVideoTracks()[0]?.getSettings?.().displaySurface;
                     if (superficie && superficie !== 'browser') addLog('⚠️ Você compartilhou a tela/janela inteira. Para gravar só o app, escolha a aba do sistema.');
-                } catch (err) { addLog('⚠️ Captura de tela não autorizada — gravando somente o áudio.'); }
+                } catch (err) {
+                    // No app desktop antigo (sem o handler de captura) o pedido é recusado sempre.
+                    addLog(estaNoAppDesktop()
+                        ? '⚠️ O app desktop instalado é uma versão antiga e não consegue capturar a tela — instale o instalador mais recente. Gravando somente o áudio.'
+                        : '⚠️ Captura de tela não autorizada — gravando somente o áudio.');
+                }
             } else {
                 addLog('⚠️ Este navegador não permite capturar a tela — gravando somente o áudio.');
             }
@@ -266,22 +346,31 @@ export default function GravadorPanel() {
             const gravaVideo = telaStream && webmVideoOk;
             const trilhas = [...(gravaVideo ? telaStream.getVideoTracks() : []), ...audioMixado.getAudioTracks()];
             const streamFinal = new MediaStream(trilhas);
+            // Quadro-chave a cada 2s (Chromium recente; ignorado onde não existe): é onde um clipe pode
+            // começar, então quanto mais frequente, mais perto do tempo pedido o clipe fica.
             const opcoes = gravaVideo
-                ? { mimeType: 'video/webm', videoBitsPerSecond: 1500000, audioBitsPerSecond: 64000 }
+                ? { mimeType: 'video/webm', videoBitsPerSecond: 1500000, audioBitsPerSecond: 64000, videoKeyFrameIntervalDuration: 2000 }
                 : { mimeType: 'audio/webm', audioBitsPerSecond: 32000 };
 
-            let localChunks = [];
+            chunksRef.current = [];
+            cabecalhoRef.current = null;
+            guardarTudoRef.current = gravarSessaoInteira;
+            tipoRef.current = opcoes.mimeType;
             const recorder = new MediaRecorder(streamFinal, opcoes);
             const tipo = opcoes.mimeType;
 
             recorder.ondataavailable = (event) => {
-                if (event.data.size > 0) localChunks.push(event.data);
+                if (event.data.size > 0) registrarChunk(event.data);
             };
 
             recorder.onstop = () => {
-                if (localChunks.length === 0) { addLog('⚠️ Nada foi capturado.'); return; }
-                const blob = new Blob(localChunks, { type: tipo });
-                localChunks = [];
+                const chunks = chunksRef.current;
+                chunksRef.current = [];
+                cabecalhoRef.current = null;
+                // No modo clipe o buffer é só para clipes: não há sessão inteira para baixar.
+                if (!guardarTudoRef.current) return;
+                if (chunks.length === 0) { addLog('⚠️ Nada foi capturado.'); return; }
+                const blob = new Blob(chunks.map(c => c.blob), { type: tipo });
                 const nomeArquivo = baixarGravacao(blob);
                 addLog(`💾 Gravação salva no seu computador como "${nomeArquivo}".`);
             };
@@ -289,13 +378,16 @@ export default function GravadorPanel() {
             // Se o usuário clicar em "Parar compartilhamento" do navegador, encerra e baixa.
             if (gravaVideo) telaStream.getVideoTracks()[0].onended = () => pararGravacao();
 
-            recorder.start();
+            // Pedaços de 1s: o clipe é montado a partir deles (a sessão inteira segue igual).
+            recorder.start(1000);
             mediaRecorderRef.current = recorder;
 
+            setGuardarTudo(gravarSessaoInteira);
             setGravando(true);
-            addLog(gravaVideo
-                ? '🎬 Gravando tela do app + vozes. Tudo fica só neste navegador — nada vai para a nuvem.'
-                : '🎙️ Gravando somente áudio. Tudo fica só neste navegador — nada vai para a nuvem.');
+            const destino = gravaVideo ? 'tela do app + vozes' : 'somente áudio';
+            addLog(gravarSessaoInteira
+                ? `🎬 Gravando ${destino}. Tudo fica só neste computador — nada vai para a nuvem.`
+                : `🎞️ Modo clipe ativo (${destino}): guardando os últimos minutos. Use "Salvar clipe" ou Alt+C para salvar o que acabou de acontecer.`);
         } catch (err) {
             liberarRecursos();
             pararVisualizador();
@@ -310,7 +402,8 @@ export default function GravadorPanel() {
         liberarRecursos();
         pararVisualizador();
         setGravando(false);
-        addLog('⏹️ Gravação encerrada.');
+        setGuardarTudo(false);
+        addLog(guardarTudoRef.current ? '⏹️ Gravação encerrada.' : '⏹️ Modo clipe desativado.');
     };
 
     return (
@@ -318,7 +411,7 @@ export default function GravadorPanel() {
             <div style={{ borderBottom: '1px solid #333', paddingBottom: '10px' }}>
                 <h3 style={{ color: '#00ffcc', margin: 0 }}>🎬 Gravação da Sessão (Tela + Vozes)</h3>
                 <p style={{ color: '#aaa', fontSize: '0.85em', margin: '5px 0 0 0' }}>
-                    Grava a tela do app e as vozes de todos na Sala de Rádio da Party. Ao encerrar, baixa um arquivo .webm direto no seu computador. Nada é enviado para a nuvem — só quem clicou em "Iniciar" fica com o arquivo.
+                    Grava a tela do app e as vozes de todos na Sala de Rádio da Party. Ao encerrar, baixa um arquivo .webm direto no seu computador. Nada é enviado para a nuvem — só quem clicou em "Iniciar" fica com o arquivo. No app desktop a gravação continua mesmo com a janela minimizada.
                 </p>
             </div>
 
@@ -341,12 +434,32 @@ export default function GravadorPanel() {
                 </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', padding: '10px 0' }}>
+            <div className="gravador-acoes">
                 {!gravando ? (
-                    <button className="btn-neon btn-green" onClick={iniciarGravacao} style={{ padding: '15px 30px', fontWeight: 'bold' }}>▶ INICIAR GRAVAÇÃO</button>
+                    <>
+                        <button className="btn-neon btn-green" onClick={() => iniciarCaptura(true)}>▶ INICIAR GRAVAÇÃO</button>
+                        <button className="btn-neon btn-blue" onClick={() => iniciarCaptura(false)}>🎞️ ATIVAR MODO CLIPE</button>
+                    </>
                 ) : (
-                    <button className="btn-neon btn-red" onClick={pararGravacao} style={{ padding: '15px 30px', fontWeight: 'bold', animation: 'pulse 1.5s infinite' }}>⏹ ENCERRAR E BAIXAR</button>
+                    <button className="btn-neon btn-red gravador-pulsando" onClick={pararGravacao}>
+                        {guardarTudo ? '⏹ ENCERRAR E BAIXAR' : '⏹ DESATIVAR MODO CLIPE'}
+                    </button>
                 )}
+            </div>
+
+            <div className="gravador-clipe">
+                <div className="gravador-clipe-titulo">✂️ Clipe: salvar o que acabou de acontecer</div>
+                <p className="gravador-clipe-texto">
+                    Enquanto grava (ou com o modo clipe ativo), o app guarda os últimos minutos só na memória deste computador. Ao salvar, você recebe um vídeo dos últimos instantes, sem precisar ter apertado gravar antes. O clipe começa no quadro-chave mais próximo, então pode sair uns segundos maior que o pedido.
+                </p>
+                <div className="gravador-clipe-linha">
+                    <label htmlFor="duracao-clipe">Duração:</label>
+                    <select id="duracao-clipe" className="input-neon" value={duracaoClipe} onChange={e => setDuracaoClipe(Number(e.target.value))}>
+                        {OPCOES_DURACAO_CLIPE.map(o => <option key={o.segundos} value={o.segundos}>{o.rotulo}</option>)}
+                    </select>
+                    <button className="btn-neon btn-green" disabled={!gravando} onClick={salvarClipe}>✂️ SALVAR CLIPE</button>
+                </div>
+                <div className="gravador-clipe-atalho">Atalho: <kbd>Alt</kbd> + <kbd>C</kbd> (funciona em qualquer aba enquanto o gravador estiver ligado)</div>
             </div>
 
             <div style={{ flex: 1, background: '#0a0a0a', border: '1px solid #333', borderRadius: '5px', padding: '10px', display: 'flex', flexDirection: 'column' }}>

@@ -1564,3 +1564,27 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .painel-com .btn-neon { width: auto; margin-top: 0; padding: 8px 14px; font-size: 0.85em; }
 .painel-com .dock-com-novo-btn { width: 100%; }
 .dock-com-form .btn-neon { flex-shrink: 0; }
+
+/* Avatares dos personagens nos chats e na Sala da Party */
+.avatar-com { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; background-size: cover; background-position: top center; background-repeat: no-repeat; border: 2px solid rgba(0, 255, 204, 0.6); background-color: #111; color: #00ffcc; font-weight: bold; vertical-align: middle; }
+.avatar-com.sem-imagem { background-color: rgba(0, 255, 204, 0.12); }
+.dock-com-linha { display: flex; align-items: flex-end; gap: 8px; align-self: flex-start; max-width: 100%; }
+.dock-com-linha.minha { flex-direction: row-reverse; align-self: flex-end; }
+.dock-com-linha .dock-com-msg { align-self: auto; }
+.dock-com-item-icone { display: inline-flex; align-items: center; }
+.dock-com-voz-pessoa { display: flex; align-items: center; gap: 12px; padding: 8px 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid #333; border-radius: 10px; }
+.dock-com-voz-nome { flex: 1; color: #fff; font-weight: bold; }
+
+/* Gravador: ações e clipe */
+.gravador-acoes { display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; padding: 10px 0; }
+.gravador-acoes .btn-neon { width: auto; margin-top: 0; padding: 15px 30px; font-size: 1.1em; }
+.gravador-pulsando { animation: pulse 1.5s infinite; }
+.gravador-clipe { border: 1px dashed rgba(0, 255, 204, 0.4); border-radius: 8px; padding: 14px 16px; background: rgba(0, 0, 0, 0.35); }
+.gravador-clipe-titulo { color: #00ffcc; font-weight: bold; margin-bottom: 6px; }
+.gravador-clipe-texto { color: #aaa; font-size: 0.82em; margin: 0 0 10px; }
+.gravador-clipe-linha { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.gravador-clipe-linha .input-neon { width: auto; }
+.gravador-clipe-linha .btn-neon { width: auto; margin-top: 0; padding: 8px 18px; font-size: 1em; }
+.gravador-clipe-linha .btn-neon:disabled { opacity: 0.35; cursor: not-allowed; }
+.gravador-clipe-atalho { color: #888; font-size: 0.78em; margin-top: 8px; }
+.gravador-clipe-atalho kbd { background: #222; border: 1px solid #555; border-radius: 4px; padding: 1px 6px; color: #fff; }

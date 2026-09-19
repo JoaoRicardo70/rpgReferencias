@@ -8,6 +8,7 @@ import {
     descreverErroChat, formatarHoraMensagem, iconeDoChat, nomeDoChat
 } from '../../core/chats';
 import { ultimoErroChat } from '../../services/chat-sync';
+import AvatarPersonagem from './AvatarPersonagem';
 
 function JanelaDoChat({ chat, meuNome, mensagens, onEnviar, onVoltar, onSair }) {
     const [texto, setTexto] = useState('');
@@ -31,7 +32,9 @@ function JanelaDoChat({ chat, meuNome, mensagens, onEnviar, onVoltar, onSair }) 
         <div className="dock-com-janela">
             <div className="dock-com-janela-topo">
                 <button type="button" className="dock-com-voltar" onClick={onVoltar} title="Voltar para as conversas">←</button>
-                <span className="dock-com-janela-titulo">{iconeDoChat(chat)} {nomeDoChat(chat, meuNome)}</span>
+                <span className="dock-com-janela-titulo">
+                    {chat.tipo === 'privado' ? <AvatarPersonagem nome={nomeDoChat(chat, meuNome)} tamanho={28} /> : iconeDoChat(chat)} {nomeDoChat(chat, meuNome)}
+                </span>
                 {chat.tipo !== 'party' && (
                     <button type="button" className="dock-com-sair" onClick={() => onSair(chat)} title="Sair desta conversa">Sair</button>
                 )}
@@ -40,9 +43,12 @@ function JanelaDoChat({ chat, meuNome, mensagens, onEnviar, onVoltar, onSair }) 
             <div className="dock-com-mensagens">
                 {mensagens.length === 0 && <div className="dock-com-vazio">Nenhuma mensagem ainda. Diga olá!</div>}
                 {mensagens.map(m => (
-                    <div key={m.id} className={`dock-com-msg${m.autor === meuNome ? ' minha' : ''}`}>
-                        <span className="dock-com-msg-autor">{m.autor === meuNome ? 'Você' : m.autor} <small>{formatarHoraMensagem(m.ts)}</small></span>
-                        <span className="dock-com-msg-texto">{m.texto}</span>
+                    <div key={m.id} className={`dock-com-linha${m.autor === meuNome ? ' minha' : ''}`}>
+                        <AvatarPersonagem nome={m.autor} tamanho={34} />
+                        <div className={`dock-com-msg${m.autor === meuNome ? ' minha' : ''}`}>
+                            <span className="dock-com-msg-autor">{m.autor === meuNome ? 'Você' : m.autor} <small>{formatarHoraMensagem(m.ts)}</small></span>
+                            <span className="dock-com-msg-texto">{m.texto}</span>
+                        </div>
                     </div>
                 ))}
                 <div ref={fimRef} />
@@ -86,11 +92,11 @@ function NovoChat({ candidatos, naTaverna, onPrivado, onGrupo, onCancelar }) {
                 {candidatos.map(nome => (
                     modo === 'privado' ? (
                         <button type="button" key={nome} className="dock-com-candidato" onClick={() => onPrivado(nome)}>
-                            {naTaverna.includes(nome) ? '🟢' : '⚪'} {nome}
+                            <AvatarPersonagem nome={nome} tamanho={28} /> {naTaverna.includes(nome) ? '🟢' : '⚪'} {nome}
                         </button>
                     ) : (
                         <label key={nome} className="dock-com-candidato">
-                            <input type="checkbox" checked={escolhidos.includes(nome)} onChange={() => alternar(nome)} /> {nome}
+                            <input type="checkbox" checked={escolhidos.includes(nome)} onChange={() => alternar(nome)} /> <AvatarPersonagem nome={nome} tamanho={28} /> {nome}
                         </label>
                     )
                 ))}
@@ -150,7 +156,7 @@ function AbaChats({ chat, candidatos, naTaverna }) {
                 const n = naoLidas[c.id] || 0;
                 return (
                     <button type="button" key={c.id} className="dock-com-item" onClick={() => setAberto(c.id)}>
-                        <span className="dock-com-item-icone">{iconeDoChat(c)}</span>
+                        <span className="dock-com-item-icone">{c.tipo === 'privado' ? <AvatarPersonagem nome={nomeDoChat(c, meuNome)} tamanho={36} /> : iconeDoChat(c)}</span>
                         <span className="dock-com-item-corpo">
                             <strong>{nomeDoChat(c, meuNome)}</strong>
                             <small>{ultima ? `${ultima.autor === meuNome ? 'Você' : ultima.autor}: ${ultima.texto}` : (c.tipo === 'party' ? 'Todos da mesa' : 'Sem mensagens')}</small>
@@ -164,7 +170,7 @@ function AbaChats({ chat, candidatos, naTaverna }) {
     );
 }
 
-function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca }) {
+function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome }) {
     return (
         <div className="dock-com-voz">
             <div className="dock-com-voz-status">📡 {voz.voiceStatus}</div>
@@ -176,7 +182,13 @@ function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca }) {
             <div className="dock-com-voz-lista">
                 <strong>Na Sala da Party ({naTaverna.length})</strong>
                 {naTaverna.length === 0 && <div className="dock-com-vazio">Ninguém na call agora.</div>}
-                {naTaverna.map(n => <div key={n}>🟢 {n}</div>)}
+                {naTaverna.map(n => (
+                    <div key={n} className="dock-com-voz-pessoa">
+                        <AvatarPersonagem nome={n} tamanho={44} />
+                        <span className="dock-com-voz-nome">{n}{n === meuNome ? ' (você)' : ''}</span>
+                        <span className="dock-com-voz-ponto" title="Na call">🟢</span>
+                    </div>
+                ))}
             </div>
         </div>
     );
@@ -214,7 +226,7 @@ export function PainelComunicacao({ onFechar, className = '' }) {
             <div className="dock-com-corpo">
                 {aba === 'chats'
                     ? <AbaChats chat={chat} candidatos={candidatos} naTaverna={naTaverna} />
-                    : <AbaVoz voz={voz} estouNaCall={estouNaCall} naTaverna={naTaverna} alternarPresenca={alternarPresenca} />}
+                    : <AbaVoz voz={voz} estouNaCall={estouNaCall} naTaverna={naTaverna} alternarPresenca={alternarPresenca} meuNome={meuNome} />}
             </div>
         </div>
     );

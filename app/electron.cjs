@@ -1,8 +1,17 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
 const path = require('path');
 
 // 👇 FORÇA O WINDOWS A RECONHECER O SEU NOME, NÃO O DO ELECTRON 👇
 app.setAppUserModelId("RPG Anime System");
+
+const URL_DO_APP = 'https://rpg-referencias.web.app';
+
+// 🎬 O gravador de sessão precisa que a janela continue "viva" com o app minimizado ou coberto por
+// outra janela: sem estes ajustes o Chromium pausa a renderização e os timers, e a gravação da tela
+// (e o filtro de ruído da Sala da Party) congelam assim que você minimiza.
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -14,15 +23,28 @@ function createWindow() {
       nodeIntegration: true,
       contextIsolation: false,
       enableRemoteModule: true,
+      backgroundThrottling: false,
       preload: path.join(__dirname, 'preload.cjs'),
     }
   });
+
+  // 🎬 getDisplayMedia() no Electron não abre nenhum seletor por conta própria: sem este handler o
+  // pedido de captura de tela é recusado e o gravador cai para "somente áudio". Entrega o próprio
+  // conteúdo do app (o frame que pediu, só se for o site do app) — captura só o app, não a tela toda,
+  // e continua entregando quadros com a janela minimizada.
+  session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
+    let origemDoApp = false;
+    try { origemDoApp = new URL(request.securityOrigin).origin === URL_DO_APP; } catch (e) { /* origem inválida */ }
+    // Só o quadro principal do app pode pedir a captura (não subquadros/iframes).
+    if (!origemDoApp || !request.frame || request.frame.parent) return callback({});
+    callback({ video: request.frame });
+  }, { useSystemPicker: false });
 
   win.webContents.session.clearCache();
   win.webContents.session.clearStorageData({ storages: ['serviceworkers'] });
 
   // 🔥 CORREÇÃO VITAL: Apontando para o seu domínio real 🔥
-  win.loadURL('https://rpg-referencias.web.app');
+  win.loadURL(URL_DO_APP);
 
   // 🔥 CORREÇÃO DEFINITIVA: alert()/confirm() nativos do Chromium (window.alert/window.confirm)
   // roubam o foco de teclado da janela e, ao fechar, o Electron/Chromium no Windows não devolve

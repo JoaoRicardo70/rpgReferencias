@@ -3,6 +3,7 @@ import useStore from '../../stores/useStore';
 import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto, salvarCamposPersonagem } from '../../services/firebase-sync';
 import { calcularAcerto } from '../../core/engine';
 import { alternarPresencaNaTaverna } from '../../core/chats';
+import { infoAvatarDaFicha } from '../../core/avatar';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { getBuffs } from '../../core/attributes';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
@@ -391,20 +392,7 @@ export function MapaFormProvider({ children }) {
         salvarCenarioCompleto(novoCenario);
     }, [cenario]);
 
-    const getAvatarInfo = useCallback((ficha) => {
-        if (!ficha) return { img: '', forma: null };
-        const result = { img: ficha.avatar ? ficha.avatar.base : '', forma: null };
-        if (ficha.poderes) {
-            for (let j = 0; j < ficha.poderes.length; j++) {
-                const p = ficha.poderes[j];
-                if (p.ativa && p.imagemUrl && p.imagemUrl.trim() !== '') {
-                    result.img = p.imagemUrl;
-                    result.forma = p.nome;
-                }
-            }
-        }
-        return result;
-    }, []);
+    const getAvatarInfo = useCallback((ficha) => infoAvatarDaFicha(ficha), []);
 
     const fmt = useCallback((n) => Number(n || 0).toLocaleString('pt-BR'), []);
 
