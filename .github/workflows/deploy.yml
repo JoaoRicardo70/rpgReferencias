@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: deploy
@@ -13,7 +14,10 @@ jobs:
   # Instalador do app desktop (atualização automática). A versão é 1.0.N, onde N = número de commits
   # que mexeram em electron.cjs/preload.cjs: só muda (e só gera atualização) quando esses arquivos mudam.
   # Se essa versão (ou uma maior) já está publicada, nada é reconstruído.
+  # PAUSADO até existir um lugar para hospedar o instalador (Hosting Spark proíbe .exe e o Storage está
+  # com faturamento desativado). Roda só manualmente (Actions > Run workflow).
   desktop:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     defaults:
       run:
