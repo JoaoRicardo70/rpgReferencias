@@ -76,9 +76,14 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
             recognition.onerror = (e) => {
                 if (e.error === 'no-speech' || e.error === 'aborted') return;
                 addLog(`⚠️ Alerta: ${e.error}`);
+                // Erros permanentes (ex.: 'network' no app desktop): não adianta reiniciar em laço.
+                if (['network', 'not-allowed', 'service-not-allowed', 'audio-capture', 'language-not-supported'].includes(e.error)) {
+                    recognition.onend = null;
+                    addLog("⚠️ Transcrição indisponível neste ambiente — use o site no navegador para transcrever.");
+                }
             };
-            
-            recognition.onend = () => { 
+
+            recognition.onend = () => {
                 if (gravandoRef.current) {
                     setTimeout(() => { try { recognition.start(); } catch(e) {} }, 500);
                 } 

@@ -33,14 +33,33 @@ export function useOuvidoSextaFeira(meuNome, isPresente, mutado) {
             }
         };
 
-        recognition.onerror = (e) => console.log("Erro no ouvido da IA:", e.error);
-        
-        // Reinicia automaticamente se parar (para ficar sempre a escutar durante a sessão)
-        recognition.onend = () => { if (isPresente && !mutado) recognition.start(); };
+        // Erros que nunca se resolvem sozinhos (ex.: 'network' no app desktop, que não tem o serviço
+        // de voz do Google). Reiniciar nesses casos abre/fecha a captura do microfone em laço e
+        // atrapalha o áudio da chamada — então o ouvido é desligado de vez.
+        let desistiu = false;
+        let reinicios = 0;
+        let silencio = false;
+        recognition.onerror = (e) => {
+            console.log("Erro no ouvido da IA:", e.error);
+            if (['network', 'not-allowed', 'service-not-allowed', 'audio-capture', 'language-not-supported'].includes(e.error)) desistiu = true;
+            // Silêncio longo encerra a sessão normalmente: não conta como falha para o limite.
+            if (e.error === 'no-speech') silencio = true;
+        };
 
-        recognition.start();
+        // Reinicia se parar (para ficar sempre a escutar durante a sessão), com pausa crescente e limite.
+        let timeoutReinicio;
+        recognition.onend = () => {
+            if (desistiu || !isPresente || mutado || reinicios >= 20) return;
+            const espera = silencio ? 500 : Math.min(10000, 500 * 2 ** Math.min(reinicios, 5));
+            if (!silencio) reinicios += 1;
+            silencio = false;
+            timeoutReinicio = setTimeout(() => { try { recognition.start(); } catch (err) { /* já iniciado */ } }, espera);
+        };
+        recognition.onresult = ((original) => (event) => { reinicios = 0; original(event); })(recognition.onresult);
 
-        return () => { recognition.onend = null; recognition.abort(); };
+        try { recognition.start(); } catch (err) { return; }
+
+        return () => { clearTimeout(timeoutReinicio); recognition.onend = null; recognition.abort(); };
     }, [meuNome, isPresente, mutado]);
 
     return transcript;
