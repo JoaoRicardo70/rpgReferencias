@@ -7,6 +7,10 @@ import useFirebase from './hooks/useFirebase';
 // 🔥 IMPORTANDO O MOTOR DE VOZ PARA O TOPO DO APP 🔥
 import { useVoiceChat } from './hooks/useVoiceChat';
 import { VoiceContext } from './hooks/VoiceContext';
+import { ChatContext } from './hooks/ChatContext';
+import { useChats } from './hooks/useChats';
+import DockComunicacao from './components/comunicacao/DockComunicacao';
+import AudioVozGlobal from './components/comunicacao/AudioVozGlobal';
 
 // 📂 Import de Layout e Componentes
 import Sidebar from './components/layout/Sidebar';
@@ -54,10 +58,16 @@ function ProvedorDeVozGlobal({ meuNome, cenario, children }) {
     
     // O motor nasce aqui de forma segura com o ID correto (Ex: Natsu)
     const chatCtx = useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna);
+    const mesaId = useStore(s => s.mesaId);
+    const chats = useChats(mesaId, meuNome);
 
     return (
         <VoiceContext.Provider value={chatCtx}>
-            {children}
+            <ChatContext.Provider value={chats}>
+                {children}
+                <AudioVozGlobal tavernaAtivos={tavernaAtivos} />
+                <DockComunicacao />
+            </ChatContext.Provider>
         </VoiceContext.Provider>
     );
 }

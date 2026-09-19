@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MapaOlhoSextaFeira } from './MapaSextaFeira';
+import { lerVolumeVoz, salvarVolumeVoz } from '../../core/volumesVoz';
 
 // ==========================================
 // 🧠 OUVINDO A MESA: O CÉREBRO DA SEXTA-FEIRA
@@ -143,11 +144,9 @@ export function CalibradorDeVoz({ stream, sensibilidade, setSensibilidade }) {
 
 export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamParaTocar, streamAnalisador, mutado, surdo, fazerChamada, cardSize, fmt, selectedSpeaker }) {
     const [isSpeakingRemote, setIsSpeakingRemote] = useState(false);
-    const [volume, setVolume] = useState(() => {
-        const saved = localStorage.getItem(`rpg_vol_${nome}`);
-        return saved !== null ? parseFloat(saved) : 1; 
-    });
-    useEffect(() => { localStorage.setItem(`rpg_vol_${nome}`, volume); }, [volume, nome]);
+    const [volume, setVolumeLocal] = useState(() => lerVolumeVoz(nome));
+    // O áudio toca no player global (AudioVozGlobal); aqui só o controle de volume.
+    const setVolume = (v) => { setVolumeLocal(v); salvarVolumeVoz(nome, v); };
     
     const [euEstouFalandoState, setEuEstouFalandoState] = useState(false);
 
@@ -211,10 +210,6 @@ export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamPara
                 </div>
             )}
             
-            {!isMe && isConnected && streamParaTocar && (
-                <PlayerDeAudioRemoto stream={streamParaTocar} volume={volume} surdo={surdo} nome={nome} sinkId={selectedSpeaker} />
-            )}
-
             <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', display: 'flex', flexDirection: 'column', background: 'rgba(10,10,15,0.9)', borderTop: '2px solid #222', padding: '6px 10px', backdropFilter: 'blur(3px)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <span style={{ color: isConnected ? (isSpeakingFinal ? '#00ffcc' : '#00aaff') : '#fff', fontWeight: 'bold', fontSize: '0.8em', textTransform: 'uppercase', letterSpacing: 1, textShadow: '1px 1px 2px #000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', transition: 'color 0.2s', paddingRight: '5px' }}>{nome}</span>

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useMemo, useRef, useEffect,
 import useStore from '../../stores/useStore';
 import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto, salvarCamposPersonagem } from '../../services/firebase-sync';
 import { calcularAcerto } from '../../core/engine';
+import { alternarPresencaNaTaverna } from '../../core/chats';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { getBuffs } from '../../core/attributes';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
@@ -195,15 +196,8 @@ export function MapaFormProvider({ children }) {
     }, [cenario]);
 
     const togglePresencaTaverna = useCallback(() => {
-        const novoCenario = JSON.parse(JSON.stringify(cenario || {}));
-        if (!Array.isArray(novoCenario.tavernaAtivos)) novoCenario.tavernaAtivos = [];
-        if (isPresenteNaTaverna) {
-            novoCenario.tavernaAtivos = novoCenario.tavernaAtivos.filter(n => n !== meuNome);
-        } else {
-            novoCenario.tavernaAtivos.push(meuNome);
-        }
-        salvarCenarioCompleto(novoCenario);
-    }, [cenario, isPresenteNaTaverna, meuNome]);
+        salvarCenarioCompleto(alternarPresencaNaTaverna(cenario, meuNome));
+    }, [cenario, meuNome]);
 
     // 🔥 CORREÇÃO: este useMemo lia só o PRIMEIRO personagem (por ordem de chaves) que tivesse
     // QUALQUER coisa em compendioOverrides -- como toda ficha tem `compendioOverrides: {}` por
