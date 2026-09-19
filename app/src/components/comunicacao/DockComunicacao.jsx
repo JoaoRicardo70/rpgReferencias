@@ -5,12 +5,13 @@ import { ChatContext } from '../../hooks/ChatContext';
 import { salvarCenarioCompleto } from '../../services/firebase-sync';
 import {
     LIMITE_NOME_GRUPO, LIMITE_TEXTO_MENSAGEM, alternarPresencaNaTaverna,
-    formatarHoraMensagem, iconeDoChat, nomeDoChat
+    descreverErroChat, formatarHoraMensagem, iconeDoChat, nomeDoChat
 } from '../../core/chats';
+import { ultimoErroChat } from '../../services/chat-sync';
 
 function JanelaDoChat({ chat, meuNome, mensagens, onEnviar, onVoltar, onSair }) {
     const [texto, setTexto] = useState('');
-    const [erro, setErro] = useState(false);
+    const [erro, setErro] = useState('');
     const fimRef = useRef(null);
 
     useEffect(() => {
@@ -23,7 +24,7 @@ function JanelaDoChat({ chat, meuNome, mensagens, onEnviar, onVoltar, onSair }) 
         if (!t.trim()) return;
         setTexto('');
         const ok = await onEnviar(chat.id, t);
-        setErro(!ok);
+        setErro(ok ? '' : descreverErroChat(ultimoErroChat()));
     };
 
     return (
@@ -46,7 +47,7 @@ function JanelaDoChat({ chat, meuNome, mensagens, onEnviar, onVoltar, onSair }) 
                 ))}
                 <div ref={fimRef} />
             </div>
-            {erro && <div className="dock-com-erro">Não foi possível enviar. Verifique a conexão.</div>}
+            {erro && <div className="dock-com-erro" role="alert">{erro}</div>}
             <form className="dock-com-form" onSubmit={enviar}>
                 <input className="input-neon" value={texto} maxLength={LIMITE_TEXTO_MENSAGEM} onChange={e => setTexto(e.target.value)} placeholder="Escreva uma mensagem..." aria-label="Mensagem" />
                 <button type="submit" className="btn-neon btn-green" disabled={!texto.trim()}>Enviar</button>
@@ -181,14 +182,13 @@ function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca }) {
     );
 }
 
-// Botão flutuante presente em TODAS as abas: chats + Sala da Party (voz).
-export default function DockComunicacao() {
+// Painel completo (abas Chats e Sala da Party). Usado no botão flutuante e na aba Comunicação.
+export function PainelComunicacao({ onFechar, className = '' }) {
     const voz = useContext(VoiceContext);
     const chat = useContext(ChatContext);
     const meuNome = useStore(s => s.meuNome);
     const cenario = useStore(s => s.cenario);
     const personagens = useStore(s => s.personagens);
-    const [aberto, setAberto] = useState(false);
     const [aba, setAba] = useState('chats');
 
     const naTaverna = useMemo(() => (Array.isArray(cenario?.tavernaAtivos) ? cenario.tavernaAtivos : []), [cenario]);
@@ -203,23 +203,39 @@ export default function DockComunicacao() {
     const total = chat.totalNaoLidas;
 
     return (
-        <div className="dock-com">
-            {aberto && (
-                <div className="dock-com-painel" role="dialog" aria-label="Comunicação">
-                    <div className="dock-com-cabecalho">
-                        <div className="dock-com-abas">
-                            <button type="button" className={aba === 'chats' ? 'ativa' : ''} onClick={() => setAba('chats')}>💬 Chats{total > 0 ? ` (${total})` : ''}</button>
-                            <button type="button" className={aba === 'voz' ? 'ativa' : ''} onClick={() => setAba('voz')}>🎙️ Sala da Party</button>
-                        </div>
-                        <button type="button" className="dock-com-fechar" onClick={() => setAberto(false)} title="Fechar">✕</button>
-                    </div>
-                    <div className="dock-com-corpo">
-                        {aba === 'chats'
-                            ? <AbaChats chat={chat} candidatos={candidatos} naTaverna={naTaverna} />
-                            : <AbaVoz voz={voz} estouNaCall={estouNaCall} naTaverna={naTaverna} alternarPresenca={alternarPresenca} />}
-                    </div>
+        <div className={`painel-com ${className}`.trim()} role={onFechar ? 'dialog' : 'region'} aria-label="Comunicação">
+            <div className="dock-com-cabecalho">
+                <div className="dock-com-abas">
+                    <button type="button" className={aba === 'chats' ? 'ativa' : ''} onClick={() => setAba('chats')}>💬 Chats{total > 0 ? ` (${total})` : ''}</button>
+                    <button type="button" className={aba === 'voz' ? 'ativa' : ''} onClick={() => setAba('voz')}>🎙️ Sala da Party</button>
                 </div>
-            )}
+                {onFechar && <button type="button" className="dock-com-fechar" onClick={onFechar} title="Fechar">✕</button>}
+            </div>
+            <div className="dock-com-corpo">
+                {aba === 'chats'
+                    ? <AbaChats chat={chat} candidatos={candidatos} naTaverna={naTaverna} />
+                    : <AbaVoz voz={voz} estouNaCall={estouNaCall} naTaverna={naTaverna} alternarPresenca={alternarPresenca} />}
+            </div>
+        </div>
+    );
+}
+
+// Botão flutuante presente em TODAS as abas (menos na própria aba Comunicação).
+export default function DockComunicacao() {
+    const voz = useContext(VoiceContext);
+    const chat = useContext(ChatContext);
+    const meuNome = useStore(s => s.meuNome);
+    const cenario = useStore(s => s.cenario);
+    const abaAtiva = useStore(s => s.abaAtiva);
+    const [aberto, setAberto] = useState(false);
+
+    if (!voz || !chat || abaAtiva === 'aba-comunicacao') return null;
+    const estouNaCall = Array.isArray(cenario?.tavernaAtivos) && cenario.tavernaAtivos.includes(meuNome);
+    const total = chat.totalNaoLidas;
+
+    return (
+        <div className="dock-com">
+            {aberto && <PainelComunicacao className="dock-com-painel" onFechar={() => setAberto(false)} />}
             <button type="button" className={`dock-com-fab${estouNaCall ? ' na-call' : ''}${total > 0 ? ' tem-nova' : ''}`} onClick={() => setAberto(a => !a)} title="Chats e Sala da Party" aria-label="Abrir comunicação">
                 {estouNaCall ? (voz.mutado ? '🔇' : '🎙️') : '💬'}
                 {total > 0 && <span className="dock-com-badge fab">{total > 99 ? '99+' : total}</span>}

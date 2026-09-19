@@ -46,6 +46,7 @@ export default function Sidebar({ onResetClick }) {
             id: 'mundo', icone: '🌌', nome: 'Multiverso', cor: '#0088ff', bg: 'rgba(0,136,255,0.15)',
             abas: [
                 { id: 'aba-mapa', icone: '🗺️', nome: 'Mapa' },
+                { id: 'aba-comunicacao', icone: '💬', nome: 'Comunicação (Chat e Voz)' },
                 { id: 'aba-log', icone: '📜', nome: 'Feed e Log' },
                 { id: 'aba-compendio', icone: '📚', nome: 'Lore do Mundo' },
                 { id: 'aba-musica', icone: '🎵', nome: 'Jukebox' },

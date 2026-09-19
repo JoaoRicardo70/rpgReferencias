@@ -11,6 +11,7 @@ import { ChatContext } from './hooks/ChatContext';
 import { useChats } from './hooks/useChats';
 import DockComunicacao from './components/comunicacao/DockComunicacao';
 import AudioVozGlobal from './components/comunicacao/AudioVozGlobal';
+import ComunicacaoPanel from './components/comunicacao/ComunicacaoPanel';
 
 // 📂 Import de Layout e Componentes
 import Sidebar from './components/layout/Sidebar';
@@ -384,6 +385,7 @@ export default function App() {
                     <TabPanel id="aba-compendio"><CompendioPanel /></TabPanel>
                     <TabPanel id="aba-oraculo"><AIPanel /></TabPanel>
                     <TabPanel id="aba-gravador"><GravadorPanel /></TabPanel>
+                    <TabPanel id="aba-comunicacao"><ComunicacaoPanel /></TabPanel>
                     {/* 🔥 AS DUAS ABAS ÉPICAS! */}
                     <TabPanel id="aba-Ficha Def"><MarcadosPanel /></TabPanel>
                     <TabPanel id="aba-grimorio"><GrimorioPanel /></TabPanel>

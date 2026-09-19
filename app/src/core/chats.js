@@ -115,3 +115,16 @@ export function alternarPresencaNaTaverna(cenario, meuNome) {
     else novo.tavernaAtivos.push(meuNome);
     return novo;
 }
+
+// Texto amigável para o motivo de uma falha do Firebase nos chats.
+export function descreverErroChat(erro) {
+    if (!erro) return 'Não foi possível enviar. Verifique a conexão.';
+    const codigo = String(erro.codigo || '').toLowerCase();
+    if (codigo.includes('permission')) {
+        return 'O banco de dados recusou a gravação (permission_denied): as regras do Firebase ainda não liberam os chats desta mesa.';
+    }
+    if (codigo.includes('network') || codigo.includes('unavailable') || codigo.includes('disconnected')) {
+        return 'Sem conexão com o servidor. Verifique a internet e tente de novo.';
+    }
+    return `Falha ao ${erro.operacao || 'enviar'}: ${erro.codigo}`;
+}

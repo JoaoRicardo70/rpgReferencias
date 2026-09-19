@@ -65,3 +65,13 @@ describe('chats — lógica pura', () => {
         expect(alternarPresencaNaTaverna(undefined, 'A').tavernaAtivos).toEqual(['A']);
     });
 });
+
+import { descreverErroChat } from '../core/chats';
+describe('descreverErroChat', () => {
+    it('explica permission_denied, rede e erro genérico', () => {
+        expect(descreverErroChat({ codigo: 'PERMISSION_DENIED', operacao: 'enviar mensagem' })).toMatch(/regras do Firebase/);
+        expect(descreverErroChat({ codigo: 'network-error' })).toMatch(/Sem conexão/);
+        expect(descreverErroChat({ codigo: 'xyz', operacao: 'criar conversa' })).toBe('Falha ao criar conversa: xyz');
+        expect(descreverErroChat(null)).toMatch(/Não foi possível enviar/);
+    });
+});
