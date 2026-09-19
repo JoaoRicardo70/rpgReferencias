@@ -12,7 +12,7 @@ concurrency:
 jobs:
   # Instalador do app desktop (atualização automática). A versão é 1.0.N, onde N = número de commits
   # que mexeram em electron.cjs/preload.cjs: só muda (e só gera atualização) quando esses arquivos mudam.
-  # Se a versão já está publicada no site, nada é reconstruído.
+  # Se essa versão (ou uma maior) já está publicada, nada é reconstruído.
   desktop:
     runs-on: windows-latest
     defaults:
@@ -30,7 +30,7 @@ jobs:
         run: |
           N=$(git rev-list --count HEAD -- app/electron.cjs app/preload.cjs)
           VERSAO="1.0.$N"
-          PUBLICADA=$(curl -fsS https://rpg-referencias.web.app/desktop/latest.yml | grep -E '^version:' | awk '{print $2}' | tr -d "\r'\"" || true)
+          PUBLICADA=$(curl -fsSL https://rpg-referencias.web.app/desktop/latest.yml | grep -E '^version:' | awk '{print $2}' | tr -d "\r'\"" || true)
           echo "versão atual: $VERSAO / publicada: $PUBLICADA"
           echo "versao=$VERSAO" >> "$GITHUB_OUTPUT"
           # Não reconstrói se a versão publicada é igual ou MAIOR (evita rebaixar quem já atualizou).
@@ -64,7 +64,7 @@ jobs:
 
   deploy:
     needs: desktop
-    # O site sobe mesmo se o instalador falhar (nesse caso reaproveita o que já está publicado).
+    # O site sobe mesmo se o instalador falhar.
     if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
@@ -88,28 +88,31 @@ jobs:
           VITE_TURN_USERNAME: ${{ secrets.VITE_TURN_USERNAME }}
           VITE_TURN_CREDENTIAL: ${{ secrets.VITE_TURN_CREDENTIAL }}
 
-      # O deploy do Hosting substitui o site inteiro, então o instalador precisa ir junto a cada deploy:
-      # o recém-construído, ou (se a versão não mudou) uma cópia do que já está publicado.
+      # O Hosting do plano Spark proíbe arquivos .exe, então o instalador fica no Firebase Storage (leitura
+      # pública) e o Hosting só redireciona /desktop/* para lá (firebase.json). O latest.yml sobe por último:
+      # assim nenhum cliente vê a versão nova antes de o instalador existir. Se falhar, o site sobe mesmo assim.
       - name: Baixar instalador recém-construído
         if: needs.desktop.outputs.construido == 'true'
         uses: actions/download-artifact@v4
         with:
           name: instalador-desktop
-          path: app/dist/desktop
+          path: desktop-artefatos
 
-      - name: Reaproveitar instalador já publicado
-        if: needs.desktop.outputs.construido != 'true'
+      - name: Autenticar no Google Cloud
+        if: needs.desktop.outputs.construido == 'true'
+        continue-on-error: true
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Publicar instalador no Storage
+        if: needs.desktop.outputs.construido == 'true'
+        continue-on-error: true
         run: |
-          mkdir -p app/dist/desktop
-          # O Hosting responde 200 com o index.html para arquivos que não existem (rewrite do SPA),
-          # então só vale a cópia se o conteúdo for de verdade o arquivo esperado.
-          for f in latest.yml Instalador_RPG_Anime_System.exe Instalador_RPG_Anime_System.exe.blockmap; do
-            curl -fsS -o "app/dist/desktop/$f" "https://rpg-referencias.web.app/desktop/$f" || rm -f "app/dist/desktop/$f"
-          done
-          if [ -f app/dist/desktop/latest.yml ] && ! grep -q '^version:' app/dist/desktop/latest.yml; then rm -f app/dist/desktop/latest.yml; fi
-          if [ -f app/dist/desktop/Instalador_RPG_Anime_System.exe ] && [ "$(head -c 2 app/dist/desktop/Instalador_RPG_Anime_System.exe)" != "MZ" ]; then rm -f app/dist/desktop/Instalador_RPG_Anime_System.exe; fi
-          if [ -f app/dist/desktop/Instalador_RPG_Anime_System.exe.blockmap ] && head -c 1 app/dist/desktop/Instalador_RPG_Anime_System.exe.blockmap | grep -q '<'; then rm -f app/dist/desktop/Instalador_RPG_Anime_System.exe.blockmap; fi
-          ls -la app/dist/desktop
+          DESTINO=gs://rpg-referencias.firebasestorage.app/desktop
+          gcloud storage cp desktop-artefatos/Instalador_RPG_Anime_System.exe "$DESTINO/" --content-type=application/octet-stream --cache-control=no-cache
+          gcloud storage cp desktop-artefatos/Instalador_RPG_Anime_System.exe.blockmap "$DESTINO/" --content-type=application/octet-stream --cache-control=no-cache
+          gcloud storage cp desktop-artefatos/latest.yml "$DESTINO/" --content-type=text/yaml --cache-control=no-cache
 
       - name: Install functions dependencies
         run: npm install

@@ -13,6 +13,13 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "redirects": [
+      {
+        "source": "/desktop/:arquivo",
+        "destination": "https://firebasestorage.googleapis.com/v0/b/rpg-referencias.firebasestorage.app/o/desktop%2F:arquivo?alt=media",
+        "type": 302
+      }
+    ],
     "rewrites": [
       {
         "source": "**",
