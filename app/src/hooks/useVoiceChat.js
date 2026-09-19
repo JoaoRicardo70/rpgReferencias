@@ -1,5 +1,26 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Peer from 'peerjs';
+import { montarIceServers, temTurnConfigurado } from '../core/iceServers';
+
+// Vigia o estado da conexão WebRTC de uma chamada: quando o ICE falha (normalmente NAT sem
+// TURN), o jogador vê o motivo na tela em vez de um rádio "conectado" que não transmite áudio.
+function vigiarConexao(call, nomeAmigo, setVoiceStatus, aindaNaTaverna) {
+    const pc = call.peerConnection;
+    if (!pc) return;
+    const anterior = pc.oniceconnectionstatechange;
+    pc.oniceconnectionstatechange = (ev) => {
+        if (anterior) anterior.call(pc, ev);
+        console.log(`[VOZ] ICE com ${nomeAmigo}: ${pc.iceConnectionState}`);
+        if (!aindaNaTaverna()) return;
+        if (pc.iceConnectionState === 'failed') {
+            setVoiceStatus(temTurnConfigurado(import.meta.env)
+                ? `⚠️ Falha de rede na ligação com ${nomeAmigo}`
+                : `⚠️ Sem rota direta com ${nomeAmigo}: a rede de vocês precisa de um servidor TURN`);
+        } else if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+            setVoiceStatus('Online na Taverna!');
+        }
+    };
+}
 
 const BLACKLIST_MIC = ['mixagem', 'stereo mix', 'wave out', 'loopback', 'virtual', 'cable', 'voicemeeter', 'what u hear', 'monitor', 'wasapi'];
 
@@ -28,6 +49,7 @@ const getAudioConstraints = (deviceId, supressor) => ({
 
 export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
     const [peerObj, setPeerObj] = useState(null);
+    const [tentativaPeer, setTentativaPeer] = useState(0);
     const [meuStream, setMeuStream] = useState(null);
     const [streamAnalisador, setStreamAnalisador] = useState(null);
     const [conexoes, setConexoes] = useState([]);
@@ -50,6 +72,7 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
     const conexoesRef = useRef([]);
     const chamadasEmAndamento = useRef(new Set());
     const rtcLigado = useRef(false);
+    const tentativasFalhasRef = useRef(0);
     const supressorAtivoRef = useRef(supressorAtivo);
 
     const meuIDTelefone = meuNome ? meuNome.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
@@ -62,13 +85,7 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
     useEffect(() => {
         if (!meuIDTelefone || peerObj) return;
 
-        const ICE_SERVERS = [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' },
-            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-        ];
+        const ICE_SERVERS = montarIceServers(import.meta.env);
 
         console.log(`[VOZ] A ligar à Central de Rádio com ID: anime-rpg-${meuIDTelefone}`);
         
@@ -77,7 +94,12 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
             debug: 2 
         });
 
+        let retryTimeout;
+        let peerAberto = false;
+
         novoPeer.on('open', (id) => {
+            peerAberto = true;
+            tentativasFalhasRef.current = 0;
             console.log(`[VOZ] Ligação estabelecida com sucesso! ID Central: ${id}`);
             setPeerObj(novoPeer);
         });
@@ -89,7 +111,8 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
                 if (meuStreamRef.current) {
                     console.log(`[VOZ] A atender chamada de ${call.peer}...`);
                     call.answer(meuStreamRef.current);
-                    
+                    vigiarConexao(call, call.peer.replace(/^anime-rpg-/, ''), setVoiceStatus, () => rtcLigado.current);
+
                     call.on('stream', (remoteStream) => {
                         setConexoes(prev => {
                             const exists = prev.find(c => c.id === call.peer);
@@ -107,11 +130,30 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
             attemptAnswer();
         });
 
-        novoPeer.on('disconnected', () => { novoPeer.reconnect(); });
-        novoPeer.on('error', (err) => { setVoiceStatus(`Erro de Ligação: ${err.type}`); });
+        novoPeer.on('disconnected', () => { if (!novoPeer.destroyed) novoPeer.reconnect(); });
+        novoPeer.on('error', (err) => {
+            // peer-unavailable = o amigo ainda não abriu o rádio; o auto-dialer tenta de novo sozinho.
+            if (err.type === 'peer-unavailable') return;
+            setVoiceStatus(`Erro de Ligação: ${err.type}`);
+            // Erros fatais (ex.: unavailable-id, quando o servidor ainda guarda o ID da sessão
+            // anterior) deixavam o rádio morto para sempre. Recria a antena após uma pausa.
+            // Só recria se o peer nunca chegou a abrir, ou se o ID está ocupado: depois de aberto,
+            // quedas de sinalização são tratadas por 'disconnected' -> reconnect(), e destruir o peer
+            // cortaria as chamadas de voz que seguem funcionando ponto a ponto.
+            const fatal = err.type === 'unavailable-id'
+                || (!peerAberto && ['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type));
+            if (fatal) {
+                setPeerObj(null);
+                novoPeer.destroy();
+                // Espera 4s, 8s, 16s... até 60s, para não martelar o servidor de sinalização.
+                const espera = Math.min(60000, 4000 * 2 ** tentativasFalhasRef.current);
+                tentativasFalhasRef.current += 1;
+                retryTimeout = setTimeout(() => setTentativaPeer(t => t + 1), espera);
+            }
+        });
 
-        return () => { novoPeer.destroy(); };
-    }, [meuIDTelefone]);
+        return () => { clearTimeout(retryTimeout); novoPeer.destroy(); };
+    }, [meuIDTelefone, tentativaPeer]);
 
     // 2. LIGAR MICROFONE
     useEffect(() => {
@@ -172,6 +214,7 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
 
         const call = peerObj.call(idFormatado, meuStreamRef.current);
         if (!call) { chamadasEmAndamento.current.delete(idFormatado); return; }
+        vigiarConexao(call, nomeDestino, setVoiceStatus, () => rtcLigado.current);
 
         call.on('stream', (remoteStream) => {
             setConexoes(prev => {

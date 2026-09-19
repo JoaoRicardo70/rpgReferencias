@@ -25,6 +25,9 @@ jobs:
         env:
           VITE_PLASMIC_PROJECT_ID: ${{ secrets.VITE_PLASMIC_PROJECT_ID }}
           VITE_PLASMIC_PUBLIC_TOKEN: ${{ secrets.VITE_PLASMIC_PUBLIC_TOKEN }}
+          VITE_TURN_URLS: ${{ secrets.VITE_TURN_URLS }}
+          VITE_TURN_USERNAME: ${{ secrets.VITE_TURN_USERNAME }}
+          VITE_TURN_CREDENTIAL: ${{ secrets.VITE_TURN_CREDENTIAL }}
 
       - name: Install functions dependencies
         run: npm install
