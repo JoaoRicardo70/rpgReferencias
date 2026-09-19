@@ -2,15 +2,6 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { GoogleGenAI } = require("@google/genai");
 
-const admin = require("firebase-admin");
-const os = require("os");
-const path = require("path");
-const fs = require("fs");
-
-if (!admin.apps.length) {
-    admin.initializeApp();
-}
-
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
 // 🔥 A ALMA DA SEXTA-FEIRA (APENAS PARA O CHAT DE TEXTO) 🔥
@@ -122,82 +113,6 @@ exports.falarComSextaFeira = onCall(
 
             console.error("[falarComSextaFeira] Erro Gemini:", err);
             throw new HttpsError("internal", "Erro ao processar resposta da IA.");
-        }
-    }
-);
-
-// 2. 🔥 FUNÇÃO DO GRAVADOR (COM DONO DO MICROFONE E ANCORAGEM DE VOZ) 🔥
-exports.transcreverAudioSextaFeira = onCall(
-    { 
-        region: "us-central1", 
-        maxInstances: 5, 
-        timeoutSeconds: 300, 
-        secrets: [geminiApiKey] 
-    },
-    async (request) => {
-        const { fileName, nomesParticipantes, gravadorPrincipal } = request.data; 
-        if (!fileName) throw new HttpsError("invalid-argument", "Arquivo ausente.");
-
-        const tempFilePath = path.join(os.tmpdir(), fileName);
-
-        try {
-            const bucket = admin.storage().bucket();
-            const file = bucket.file(`audios_mesa/${fileName}`);
-            await file.download({ destination: tempFilePath });
-            
-            const ai = new GoogleGenAI({ apiKey: geminiApiKey.value() });
-            const audioBase64 = fs.readFileSync(tempFilePath).toString("base64");
-
-            const listaPerfis = (nomesParticipantes || []).join(' | ');
-            const donoMic = gravadorPrincipal || "Desconhecido";
-            
-            // 🔥 PROMPT FINAL: COM ANCORAGEM ACÚSTICA 🔥
-            const prompt = `Abaixo está o áudio de uma conversa do nosso RPG de mesa.
-            Os jogadores/personagens presentes na cena e os seus perfis são: [${listaPerfis}].
-            O dono do microfone (quem está gravando e possui a voz mais próxima/clara) é: ${donoMic}.
-            
-            Sua ÚNICA TAREFA é atuar como um software de transcrição de legendas.
-            
-            REGRAS ABSOLUTAS:
-            1. Escreva APENAS o que foi dito, no formato "Nome: Fala" em cada linha.
-            2. IDENTIFICAÇÃO INTELIGENTE E ANCORAGEM DE VOZ:
-               - A voz principal e mais limpa pertence sempre a ${donoMic}.
-               - ANCORAGEM: Preste atenção a quando os jogadores chamam o nome uns dos outros. Se o ${donoMic} disser "Kiriya, testa aí", a voz que responder fica permanentemente associada ao Kiriya para o resto do áudio, mesmo quando ele disser coisas fora do personagem (ex: "tá funcionando?").
-               - Use as classes/raças para deduzir outras vozes (ex: feitiços = Mago).
-               - Se a voz der comandos de jogo, atribua ao "Mestre".
-            3. NÃO crie histórias, NÃO crie títulos, NÃO faça resumos, NÃO escreva "Registro Akáshico".
-            4. Limpe gaguejos ("humm", "ééé"). Torne o diálogo direto.
-            5. O contexto é RPG (termos: HP, Mana, D20, Mestre, Dano, Turno).
-            
-            Exemplo de saída esperada:
-            Mestre: O dragão ataca vocês. Rolem evasiva.
-            Natsu: É foda!
-            Kiriya: Tá funcionando o meu microfone?
-            
-            NÃO ADICIONE NENHUM TEXTO ALÉM DA TRANSCRIÇÃO.`;
-
-            const response = await ai.models.generateContent({
-                model: "gemini-2.5-flash",
-                contents: [{
-                    role: "user",
-                    parts: [
-                        { inlineData: { data: audioBase64, mimeType: "audio/webm" } },
-                        { text: prompt }
-                    ]
-                }],
-                config: {
-                    systemInstruction: "Você é uma ferramenta de transcrição de áudio estritamente literal. É EXPRESSAMENTE PROIBIDO inventar histórias, criar narrativas ou descrever cenários. Apenas transcreva as falas que ouvir no áudio."
-                }
-            });
-
-            if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-            await file.delete(); 
-
-            return { texto: response.text };
-
-        } catch (err) {
-            if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
-            throw new HttpsError("internal", "Erro na IA: " + err.message);
         }
     }
 );

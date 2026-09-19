@@ -1,14 +1,6 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    
-    // 🎙️ NOVA REGRA: Pasta exclusiva para o gravador da Sexta-Feira
-    match /audios_mesa/{allPaths=**} {
-      allow read, delete: if true;
-      allow write: if request.resource != null
-                   // Permite apenas envio de ficheiros de áudio (como o nosso .webm)
-                   && request.resource.contentType.matches('audio/.*');
-    }
 
     // 🖼️ REGRA ORIGINAL: Mantida intacta para as fichas e avatares não quebrarem
     match /{allPaths=**} {
