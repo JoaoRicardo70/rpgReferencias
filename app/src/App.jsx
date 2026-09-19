@@ -1,4 +1,4 @@
-import React, { useEffect, useState, createContext } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ref, get, set, onValue } from 'firebase/database';
 import { db } from './services/firebase-config';
 import useStore, { sanitizarNome } from './stores/useStore';
@@ -6,6 +6,7 @@ import useFirebase from './hooks/useFirebase';
 
 // 🔥 IMPORTANDO O MOTOR DE VOZ PARA O TOPO DO APP 🔥
 import { useVoiceChat } from './hooks/useVoiceChat';
+import { VoiceContext } from './hooks/VoiceContext';
 
 // 📂 Import de Layout e Componentes
 import Sidebar from './components/layout/Sidebar';
@@ -44,7 +45,7 @@ import {
 } from './services/firebase-sync';
 
 // 🔥 CRIANDO O CONTEXTO GLOBAL DA VOZ 🔥
-export const VoiceContext = createContext(null);
+export { VoiceContext };
 
 // 🛡️ O GUARDIÃO DO RÁDIO: Só liga depois de você escolher o seu nome!
 function ProvedorDeVozGlobal({ meuNome, cenario, children }) {
