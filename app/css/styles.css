@@ -1588,3 +1588,22 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .gravador-clipe-linha .btn-neon:disabled { opacity: 0.35; cursor: not-allowed; }
 .gravador-clipe-atalho { color: #888; font-size: 0.78em; margin-top: 8px; }
 .gravador-clipe-atalho kbd { background: #222; border: 1px solid #555; border-radius: 4px; padding: 1px 6px; color: #fff; }
+
+/* Sala da Party (aba Comunicação): cartões grandes como no Mapa */
+.sala-party { align-items: stretch; gap: 14px; }
+.sala-party-barra { display: flex; flex-direction: column; align-items: center; gap: 10px; background: rgba(0, 0, 0, 0.45); border: 1px solid #333; border-radius: 8px; padding: 10px 14px; }
+.sala-party-ajustes { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: center; }
+.sala-party-campo { display: flex; align-items: center; gap: 6px; color: #00ffcc; font-size: 0.8em; }
+.sala-party-campo .input-neon { width: auto; max-width: 200px; padding: 4px; font-size: 0.9em; }
+.sala-party-titulo { color: #ffcc00; font-weight: bold; text-align: center; letter-spacing: 1px; text-transform: uppercase; }
+.sala-party-grade { display: flex; flex-wrap: wrap; justify-content: center; gap: 25px; width: 100%; }
+.sala-party-grade.compacta { flex-direction: column; align-items: stretch; gap: 14px; }
+
+/* Gravador: estado do buffer de clipes */
+.gravador-buffer-status { color: #888; font-weight: bold; margin-bottom: 10px; }
+.gravador-buffer-status.ligado { color: #00ff88; text-shadow: 0 0 8px rgba(0, 255, 136, 0.5); }
+.gravador-clipe-auto { display: flex; align-items: center; gap: 8px; color: #ccc; font-size: 0.85em; margin-top: 10px; cursor: pointer; }
+.gravador-salvar-clipe { font-weight: bold; }
+
+/* Indicador de captura ligada (buffer de clipes / gravação) no botão flutuante */
+.dock-com-rec { position: absolute; bottom: -4px; left: -4px; width: 18px; height: 18px; line-height: 18px; border-radius: 50%; background: #000; color: #ff003c; font-size: 12px; text-align: center; border: 1px solid #ff003c; animation: pulse 1.5s infinite; }

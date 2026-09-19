@@ -9,6 +9,10 @@ import {
 } from '../../core/chats';
 import { ultimoErroChat } from '../../services/chat-sync';
 import AvatarPersonagem from './AvatarPersonagem';
+import { AvatarCardVoz, CalibradorDeVoz } from '../mapa/MapaVoz';
+import { infoAvatarDaFicha } from '../../core/avatar';
+import { idDeVoz } from '../../core/volumesVoz';
+import { useBufferLigado } from '../../core/estadoBuffer';
 
 function JanelaDoChat({ chat, meuNome, mensagens, onEnviar, onVoltar, onSair }) {
     const [texto, setTexto] = useState('');
@@ -170,25 +174,67 @@ function AbaChats({ chat, candidatos, naTaverna }) {
     );
 }
 
-function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome }) {
+const fmtNumero = (n) => Number(n || 0).toLocaleString('pt-BR');
+
+// Sala da Party: cartões grandes com a imagem do personagem (como no Mapa), quem fala acende,
+// controles de microfone/saída e calibrador. O áudio dos outros toca no player global (AudioVozGlobal).
+function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome, compacto }) {
+    const minhaFicha = useStore(s => s.minhaFicha);
+    const personagens = useStore(s => s.personagens);
+    const tamanhoCartao = compacto ? '100%' : (naTaverna.length === 1 ? '400px' : naTaverna.length === 2 ? '350px' : '280px');
+    const mics = voz.mics || [];
+    const speakers = voz.speakers || [];
+
     return (
-        <div className="dock-com-voz">
-            <div className="dock-com-voz-status">📡 {voz.voiceStatus}</div>
-            <div className="dock-com-voz-botoes">
-                <button type="button" className={`dock-com-redondo${voz.mutado ? ' ativo' : ''}`} disabled={!estouNaCall} onClick={voz.toggleMute} title={voz.mutado ? 'Ativar microfone' : 'Silenciar microfone'}>{voz.mutado ? '🔇' : '🎙️'}</button>
-                <button type="button" className={`dock-com-redondo${voz.surdo ? ' ativo' : ''}`} disabled={!estouNaCall} onClick={voz.toggleDeafen} title={voz.surdo ? 'Voltar a ouvir' : 'Ensurdecer'}>{voz.surdo ? '🔕' : '🎧'}</button>
-                <button type="button" className={`btn-neon ${estouNaCall ? 'btn-red' : 'btn-green'}`} onClick={alternarPresenca}>{estouNaCall ? 'Sair da call' : 'Entrar na call'}</button>
-            </div>
-            <div className="dock-com-voz-lista">
-                <strong>Na Sala da Party ({naTaverna.length})</strong>
-                {naTaverna.length === 0 && <div className="dock-com-vazio">Ninguém na call agora.</div>}
-                {naTaverna.map(n => (
-                    <div key={n} className="dock-com-voz-pessoa">
-                        <AvatarPersonagem nome={n} tamanho={44} />
-                        <span className="dock-com-voz-nome">{n}{n === meuNome ? ' (você)' : ''}</span>
-                        <span className="dock-com-voz-ponto" title="Na call">🟢</span>
+        <div className="dock-com-voz sala-party">
+            <div className="sala-party-barra">
+                <div className="dock-com-voz-status">📡 {voz.voiceStatus}</div>
+                <div className="dock-com-voz-botoes">
+                    <button type="button" className={`dock-com-redondo${voz.mutado ? ' ativo' : ''}`} disabled={!estouNaCall} onClick={voz.toggleMute} title={voz.mutado ? 'Ativar microfone' : 'Silenciar microfone'}>{voz.mutado ? '🔇' : '🎙️'}</button>
+                    <button type="button" className={`dock-com-redondo${voz.surdo ? ' ativo' : ''}`} disabled={!estouNaCall} onClick={voz.toggleDeafen} title={voz.surdo ? 'Voltar a ouvir' : 'Ensurdecer'}>{voz.surdo ? '🔕' : '🎧'}</button>
+                    <button type="button" className={`btn-neon ${estouNaCall ? 'btn-red' : 'btn-green'}`} onClick={alternarPresenca}>{estouNaCall ? 'Sair da call' : 'Entrar na call'}</button>
+                </div>
+                {estouNaCall && (
+                    <div className="sala-party-ajustes">
+                        {mics.length > 0 && (
+                            <label className="sala-party-campo">🎙️
+                                <select className="input-neon" value={voz.selectedMic} onChange={e => voz.trocarMicrofone(e.target.value)} aria-label="Microfone">
+                                    {mics.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Mic ${m.deviceId.substring(0, 4)}`}</option>)}
+                                </select>
+                            </label>
+                        )}
+                        {speakers.length > 0 && (
+                            <label className="sala-party-campo">🎧
+                                <select className="input-neon" value={voz.selectedSpeaker} onChange={e => voz.trocarSpeaker(e.target.value)} aria-label="Saída de áudio">
+                                    {speakers.map(s => <option key={s.deviceId} value={s.deviceId}>{s.label || `Saída ${s.deviceId.substring(0, 4)}`}</option>)}
+                                </select>
+                            </label>
+                        )}
+                        <label className="sala-party-campo">
+                            <input type="checkbox" checked={!!voz.supressorAtivo} onChange={e => voz.setSupressorAtivo(e.target.checked)} /> Filtro de Eco
+                        </label>
+                        {voz.streamAnalisador && <CalibradorDeVoz stream={voz.streamAnalisador} sensibilidade={voz.sensibilidadeVoz} setSensibilidade={voz.setSensibilidadeVoz} />}
                     </div>
-                ))}
+                )}
+            </div>
+
+            <div className="sala-party-titulo">Na Sala da Party ({naTaverna.length})</div>
+            {naTaverna.length === 0 && <div className="dock-com-vazio">Ninguém na call agora. Clique em "Entrar na call" para sentar na mesa.</div>}
+            <div className={`sala-party-grade${compacto ? ' compacta' : ''}`}>
+                {naTaverna.map(nome => {
+                    const souEu = nome === meuNome;
+                    const ficha = souEu ? (minhaFicha || personagens?.[nome]) : personagens?.[nome];
+                    const conexao = (voz.conexoes || []).find(c => c.id === idDeVoz(nome));
+                    return (
+                        <AvatarCardVoz
+                            key={nome} nome={nome} info={infoAvatarDaFicha(ficha)} ficha={ficha} isMe={souEu}
+                            isConnected={souEu || !!conexao} streamParaTocar={conexao?.stream}
+                            streamAnalisador={souEu ? voz.streamAnalisador : null}
+                            mutado={voz.mutado} surdo={voz.surdo} fazerChamada={voz.fazerChamada}
+                            cardSize={tamanhoCartao} fmt={fmtNumero} selectedSpeaker={voz.selectedSpeaker}
+                        />
+                    );
+                })}
             </div>
         </div>
     );
@@ -226,7 +272,7 @@ export function PainelComunicacao({ onFechar, className = '' }) {
             <div className="dock-com-corpo">
                 {aba === 'chats'
                     ? <AbaChats chat={chat} candidatos={candidatos} naTaverna={naTaverna} />
-                    : <AbaVoz voz={voz} estouNaCall={estouNaCall} naTaverna={naTaverna} alternarPresenca={alternarPresenca} meuNome={meuNome} />}
+                    : <AbaVoz voz={voz} estouNaCall={estouNaCall} naTaverna={naTaverna} alternarPresenca={alternarPresenca} meuNome={meuNome} compacto={!!onFechar} />}
             </div>
         </div>
     );
@@ -239,6 +285,7 @@ export default function DockComunicacao() {
     const meuNome = useStore(s => s.meuNome);
     const cenario = useStore(s => s.cenario);
     const abaAtiva = useStore(s => s.abaAtiva);
+    const capturando = useBufferLigado();
     const [aberto, setAberto] = useState(false);
 
     if (!voz || !chat || abaAtiva === 'aba-comunicacao') return null;
@@ -250,6 +297,7 @@ export default function DockComunicacao() {
             {aberto && <PainelComunicacao className="dock-com-painel" onFechar={() => setAberto(false)} />}
             <button type="button" className={`dock-com-fab${estouNaCall ? ' na-call' : ''}${total > 0 ? ' tem-nova' : ''}`} onClick={() => setAberto(a => !a)} title="Chats e Sala da Party" aria-label="Abrir comunicação">
                 {estouNaCall ? (voz.mutado ? '🔇' : '🎙️') : '💬'}
+                {capturando && <span className="dock-com-rec" title="Gravador ligado: o app está sendo capturado (buffer de clipes ou gravação)">●</span>}
                 {total > 0 && <span className="dock-com-badge fab">{total > 99 ? '99+' : total}</span>}
             </button>
         </div>

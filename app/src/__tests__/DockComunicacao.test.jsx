@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, waitFor, act } from '@testing-library/react';
 
 vi.mock('../services/firebase-sync', () => ({ salvarCenarioCompleto: vi.fn() }));
 
@@ -8,7 +8,8 @@ import useStore from '../stores/useStore';
 import { VoiceContext } from '../hooks/VoiceContext';
 import { ChatContext } from '../hooks/ChatContext';
 import { salvarCenarioCompleto } from '../services/firebase-sync';
-import DockComunicacao from '../components/comunicacao/DockComunicacao';
+import DockComunicacao, { PainelComunicacao } from '../components/comunicacao/DockComunicacao';
+import { definirBufferLigado, lerBufferLigado, useBufferLigado } from '../core/estadoBuffer';
 import AudioVozGlobal from '../components/comunicacao/AudioVozGlobal';
 
 const chatParty = { id: 'party', tipo: 'party', nome: 'Party', membros: [], criadoPor: '', criadoEm: 0 };
@@ -206,7 +207,7 @@ describe('DockComunicacao', () => {
             useStore.setState({ cenario: {} });
             montar();
             abrirVoz();
-            expect(screen.getByText('Ninguém na call agora.')).toBeTruthy();
+            expect(screen.getByText(/Ninguém na call agora/)).toBeTruthy();
             expect(screen.getByTitle('Silenciar microfone').disabled).toBe(true);
             fireEvent.click(screen.getByText('Entrar na call'));
             expect(salvarCenarioCompleto).toHaveBeenCalledWith({ tavernaAtivos: ['Ana'] });
@@ -222,6 +223,186 @@ describe('DockComunicacao', () => {
             expect(voz.toggleMute).toHaveBeenCalled();
             expect(voz.toggleDeafen).toHaveBeenCalled();
             expect(screen.getByText('Conectado', { exact: false })).toBeTruthy();
+        });
+    });
+
+    describe('indicador de gravacao no FAB', () => {
+        afterEach(() => act(() => { definirBufferLigado(false); }));
+
+        it('mostra .dock-com-rec quando o buffer esta ligado e some ao desligar', () => {
+            montar();
+            const fab = screen.getByLabelText('Abrir comunicação');
+            expect(fab.querySelector('.dock-com-rec')).toBeNull();
+            act(() => { definirBufferLigado(true); });
+            expect(fab.querySelector('.dock-com-rec')).toBeTruthy();
+            act(() => { definirBufferLigado(false); });
+            expect(fab.querySelector('.dock-com-rec')).toBeNull();
+        });
+
+        it('ja aparece se o buffer estava ligado antes de montar', () => {
+            definirBufferLigado(true);
+            montar();
+            expect(screen.getByLabelText('Abrir comunicação').querySelector('.dock-com-rec')).toBeTruthy();
+        });
+    });
+
+    describe('estadoBuffer', () => {
+        afterEach(() => act(() => { definirBufferLigado(false); }));
+
+        it('define/le com coercao booleana e notifica so quando muda', () => {
+            const fn = vi.fn();
+            function Sonda() { fn(useBufferLigado()); return null; }
+            render(<Sonda />);
+            expect(lerBufferLigado()).toBe(false);
+            expect(fn).toHaveBeenLastCalledWith(false);
+            const chamadas = fn.mock.calls.length;
+            act(() => { definirBufferLigado(false); });
+            expect(fn.mock.calls.length).toBe(chamadas);
+            act(() => { definirBufferLigado('sim'); });
+            expect(lerBufferLigado()).toBe(true);
+            expect(fn).toHaveBeenLastCalledWith(true);
+            act(() => { definirBufferLigado(0); });
+            expect(lerBufferLigado()).toBe(false);
+            expect(fn).toHaveBeenLastCalledWith(false);
+        });
+
+        it('desassina ao desmontar', () => {
+            const fn = vi.fn();
+            function Sonda() { fn(useBufferLigado()); return null; }
+            const r = render(<Sonda />);
+            r.unmount();
+            const n = fn.mock.calls.length;
+            act(() => { definirBufferLigado(true); });
+            expect(fn.mock.calls.length).toBe(n);
+        });
+    });
+
+    describe('Sala da Party redesenhada (cartoes)', () => {
+        const audioCtxOriginal = window.AudioContext;
+        beforeEach(() => {
+            window.AudioContext = class {
+                constructor() { this.state = 'running'; }
+                resume() {}
+                createMediaStreamSource() { return { connect: vi.fn() }; }
+                createAnalyser() { return { fftSize: 0, frequencyBinCount: 8, getByteFrequencyData: vi.fn(), smoothingTimeConstant: 0 }; }
+                close() { this.state = 'closed'; return Promise.resolve(); }
+            };
+        });
+        afterEach(() => { window.AudioContext = audioCtxOriginal; });
+
+        const tabCompleta = () => render(
+            <VoiceContext.Provider value={vozCompleta.current}>
+                <ChatContext.Provider value={fakeChat()}>
+                    <PainelComunicacao />
+                </ChatContext.Provider>
+            </VoiceContext.Provider>
+        );
+        const vozCompleta = { current: null };
+        function abrirDock(voz) {
+            montar(fakeChat(), voz);
+            fireEvent.click(screen.getByLabelText('Abrir comunicação'));
+            fireEvent.click(screen.getByText(/Sala da Party/, { selector: 'button' }));
+        }
+        function abrirTab(voz) {
+            vozCompleta.current = voz;
+            const r = tabCompleta();
+            fireEvent.click(screen.getByText(/Sala da Party/, { selector: 'button' }));
+            return r;
+        }
+        const cartao = (nome) => screen.getByText(nome, { selector: 'span' }).closest('.fade-in');
+        const setTaverna = (lista) => useStore.setState({ meuNome: 'Ana', cenario: { tavernaAtivos: lista }, personagens: { Ana: {}, Bob: {}, Cida: {}, Dani: {} } });
+
+        it('renderiza um cartao por pessoa com o nome e o titulo com a contagem', () => {
+            setTaverna(['Ana', 'Bob', 'Cida']);
+            abrirTab(fakeVoz());
+            expect(screen.getByText('Na Sala da Party (3)')).toBeTruthy();
+            ['Ana', 'Bob', 'Cida'].forEach(n => expect(cartao(n)).toBeTruthy());
+            expect(document.querySelectorAll('.sala-party-grade .fade-in')).toHaveLength(3);
+            expect(screen.queryByText(/Ninguém na call agora/)).toBeNull();
+        });
+
+        it('vazio: mostra o texto de ninguem na call, titulo (0) e nenhum cartao', () => {
+            setTaverna([]);
+            abrirTab(fakeVoz());
+            expect(screen.getByText(/Ninguém na call agora/)).toBeTruthy();
+            expect(screen.getByText('Na Sala da Party (0)')).toBeTruthy();
+            expect(document.querySelectorAll('.sala-party-grade .fade-in')).toHaveLength(0);
+        });
+
+        it('cenario invalido (tavernaAtivos nao-array) trata como vazio', () => {
+            useStore.setState({ meuNome: 'Ana', cenario: { tavernaAtivos: 'Bob' }, personagens: {} });
+            abrirTab(fakeVoz());
+            expect(screen.getByText('Na Sala da Party (0)')).toBeTruthy();
+        });
+
+        it.each([
+            [['Bob'], '400px'],
+            [['Bob', 'Cida'], '350px'],
+            [['Bob', 'Cida', 'Dani'], '280px'],
+            [['Ana', 'Bob', 'Cida', 'Dani'], '280px'],
+        ])('aba completa: %j usa cartao de %s', (lista, largura) => {
+            setTaverna(lista);
+            abrirTab(fakeVoz());
+            expect(cartao(lista[0]).style.width).toBe(largura);
+            expect(document.querySelector('.sala-party-grade').className).not.toContain('compacta');
+        });
+
+        it('dock flutuante (compacto): cartao 100% e grade com classe compacta', () => {
+            setTaverna(['Bob']);
+            abrirDock(fakeVoz());
+            expect(cartao('Bob').style.width).toBe('100%');
+            expect(document.querySelector('.sala-party-grade').className).toContain('compacta');
+        });
+
+        it('na call: mostra selects de mic/saida e o filtro de eco', () => {
+            setTaverna(['Ana', 'Bob']);
+            const voz = fakeVoz({
+                mics: [{ deviceId: 'm1abcd', label: 'Mic Um' }, { deviceId: 'm2abcd', label: '' }],
+                speakers: [{ deviceId: 's1abcd', label: 'Fone' }],
+                selectedMic: 'm1abcd', selectedSpeaker: 's1abcd',
+                trocarMicrofone: vi.fn(), trocarSpeaker: vi.fn(), setSupressorAtivo: vi.fn(), supressorAtivo: false,
+            });
+            abrirTab(voz);
+            const mic = screen.getByLabelText('Microfone');
+            expect(Array.from(mic.options).map(o => o.textContent)).toEqual(['Mic Um', 'Mic m2ab']);
+            fireEvent.change(mic, { target: { value: 'm2abcd' } });
+            expect(voz.trocarMicrofone).toHaveBeenCalledWith('m2abcd');
+            expect(screen.getByLabelText('Saída de áudio')).toBeTruthy();
+            const eco = screen.getByLabelText(/Filtro de Eco/);
+            fireEvent.click(eco);
+            expect(voz.setSupressorAtivo).toHaveBeenCalledWith(true);
+        });
+
+        it('na call sem dispositivos listados nao renderiza selects, mas mantem o filtro de eco', () => {
+            setTaverna(['Ana']);
+            abrirTab(fakeVoz({ setSupressorAtivo: vi.fn() }));
+            expect(screen.queryByLabelText('Microfone')).toBeNull();
+            expect(screen.queryByLabelText('Saída de áudio')).toBeNull();
+            expect(screen.getByLabelText(/Filtro de Eco/)).toBeTruthy();
+        });
+
+        it('fora da call: ajustes (selects e filtro de eco) ficam ocultos', () => {
+            setTaverna(['Bob']);
+            abrirTab(fakeVoz({ mics: [{ deviceId: 'm1', label: 'A' }], speakers: [{ deviceId: 's1', label: 'B' }] }));
+            expect(screen.queryByLabelText('Microfone')).toBeNull();
+            expect(screen.queryByLabelText('Saída de áudio')).toBeNull();
+            expect(screen.queryByText(/Filtro de Eco/)).toBeNull();
+        });
+
+        it('FORÇAR LIGAÇÃO aparece para remoto sem conexao e chama fazerChamada(nome)', () => {
+            setTaverna(['Ana', 'Bob']);
+            const voz = fakeVoz({ fazerChamada: vi.fn() });
+            abrirTab(voz);
+            const botoes = screen.getAllByText(/FORÇAR LIGAÇÃO/);
+            expect(botoes).toHaveLength(1);
+            fireEvent.click(botoes[0]);
+            expect(voz.fazerChamada).toHaveBeenCalledWith('Bob');
+        });
+
+        it('sem FORÇAR LIGAÇÃO para mim nem para remoto ja conectado', () => {
+            setTaverna(['Ana', 'Bob']);
+            abrirTab(fakeVoz({ conexoes: [{ id: 'anime-rpg-bob', stream: null }], fazerChamada: vi.fn() }));
+            expect(screen.queryByText(/FORÇAR LIGAÇÃO/)).toBeNull();
         });
     });
 });

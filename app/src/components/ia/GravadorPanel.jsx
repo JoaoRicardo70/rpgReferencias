@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useContext } from 'react';
 import useStore from '../../stores/useStore';
 import { VoiceContext } from '../../hooks/VoiceContext';
+import { haCapturaEmAndamento, registrarCapturaAtiva } from '../../core/estadoBuffer';
 import {
     OPCOES_DURACAO_CLIPE, extrairCabecalhoWebm, montarClipe, nomeArquivoClipe, podarChunks
 } from '../../core/clipes';
@@ -24,6 +25,20 @@ function baixarBlob(blob, nomeArquivo) {
     URL.revokeObjectURL(url);
 }
 
+const PREF_BUFFER_AUTO = 'rpg_clipe_buffer_auto';
+const PREF_DURACAO_CLIPE = 'rpg_clipe_duracao';
+
+function lerPreferencia(chave, padrao) {
+    try {
+        const v = localStorage.getItem(chave);
+        return v === null ? padrao : v;
+    } catch (e) { return padrao; }
+}
+
+function gravarPreferencia(chave, valor) {
+    try { localStorage.setItem(chave, String(valor)); } catch (e) { /* sem storage: só não lembra */ }
+}
+
 function estaNoAppDesktop() {
     return typeof navigator !== 'undefined' && /Electron/i.test(navigator.userAgent || '');
 }
@@ -31,7 +46,12 @@ function estaNoAppDesktop() {
 export default function GravadorPanel() {
     const [gravando, setGravando] = useState(false);
     const [guardarTudo, setGuardarTudo] = useState(false);
-    const [duracaoClipe, setDuracaoClipe] = useState(60);
+    const [duracaoClipe, setDuracaoClipe] = useState(() => {
+        const salva = Number(lerPreferencia(PREF_DURACAO_CLIPE, '60'));
+        return OPCOES_DURACAO_CLIPE.some(o => o.segundos === salva) ? salva : 60;
+    });
+    // Buffer de clipes ligado sozinho ao abrir o app desktop (lembra a última escolha do usuário).
+    const [bufferAuto, setBufferAuto] = useState(() => lerPreferencia(PREF_BUFFER_AUTO, '0') === '1');
     const [logs, setLogs] = useState(['Gravador local pronto.']);
 
     // Pedaços recentes da gravação ({ blob, t }) e o cabeçalho do webm: base do "clipe".
@@ -41,6 +61,12 @@ export default function GravadorPanel() {
     const guardarTudoRef = useRef(false);
     const salvandoClipeRef = useRef(false);
     const salvarClipeRef = useRef(() => {});
+    const iniciarCapturaRef = useRef(() => {});
+    // Gravação da sessão iniciada com o buffer de clipes já ligado: usa um segundo gravador
+    // (arquivo próprio, com linha do tempo própria) e o buffer continua rodando.
+    const sessaoExtraRef = useRef(null);
+    const streamFinalRef = useRef(null);
+    const opcoesRef = useRef(null);
 
     const micProprioRef = useRef(null);
     const telaStreamRef = useRef(null);
@@ -76,15 +102,22 @@ export default function GravadorPanel() {
 
     // A gravação inteira só existe na memória até o clique em "Encerrar e Baixar" — não há
     // salvamento incremental na nuvem. Avisa antes de fechar/recarregar a aba para não
-    // perder a sessão toda sem querer.
+    // perder a sessão toda sem querer. Só vale para a gravação da sessão: o buffer de clipes é
+    // descartável por natureza e (ligado sozinho) nunca pode impedir o app de fechar.
     useEffect(() => {
         const avisarAntesDeSair = (e) => {
-            if (!gravando) return;
+            if (!guardarTudo) return;
             e.preventDefault();
             e.returnValue = '';
         };
         window.addEventListener('beforeunload', avisarAntesDeSair);
         return () => window.removeEventListener('beforeunload', avisarAntesDeSair);
+    }, [guardarTudo]);
+
+    // Avisa o resto do app (indicador no botão flutuante) que há captura de tela/voz em andamento.
+    useEffect(() => {
+        if (!gravando) return undefined;
+        return registrarCapturaAtiva();
     }, [gravando]);
 
     // Libera tudo que o gravador abriu (tela, mic próprio, mixagem). Nunca encerra o
@@ -111,6 +144,11 @@ export default function GravadorPanel() {
         ativoRef.current = true;
         return () => {
             ativoRef.current = false;
+            if (sessaoExtraRef.current) {
+                sessaoExtraRef.current.onstop = null;
+                if (sessaoExtraRef.current.state === 'recording') sessaoExtraRef.current.stop();
+                sessaoExtraRef.current = null;
+            }
             if (mediaRecorderRef.current) mediaRecorderRef.current.onstop = null;
             if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') mediaRecorderRef.current.stop();
             liberarRecursos();
@@ -289,9 +327,39 @@ export default function GravadorPanel() {
         }
     };
 
-    const iniciarCaptura = async (gravarSessaoInteira) => {
+    // Começa a gravar a sessão inteira num arquivo próprio enquanto o buffer de clipes segue ligado.
+    const iniciarSessaoExtra = () => {
+        const stream = streamFinalRef.current;
+        if (!stream || sessaoExtraRef.current) return;
+        try {
+            const partes = [];
+            const tipo = tipoRef.current;
+            const gravador = new MediaRecorder(stream, opcoesRef.current);
+            gravador.ondataavailable = (event) => { if (event.data.size > 0) partes.push(event.data); };
+            gravador.onstop = () => {
+                if (partes.length === 0) { addLog('⚠️ Nada foi capturado.'); return; }
+                const nomeArquivo = baixarGravacao(new Blob(partes, { type: tipo }));
+                addLog(`💾 Gravação salva no seu computador como "${nomeArquivo}".`);
+            };
+            gravador.start(1000);
+            sessaoExtraRef.current = gravador;
+            setGuardarTudo(true);
+            addLog('🎬 Gravação da sessão iniciada. O buffer de clipes continua ligado.');
+        } catch (err) {
+            sessaoExtraRef.current = null;
+            addLog(`❌ Erro ao iniciar a gravação da sessão: ${err.message}`);
+        }
+    };
+
+    // `silencioso`: início automático (sem clique do usuário) — não abre o microfone por conta própria.
+    const iniciarCaptura = async (gravarSessaoInteira, { silencioso = false } = {}) => {
+        // Buffer já ligado: "Iniciar gravação" só acrescenta a gravação da sessão.
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+            if (gravarSessaoInteira && !guardarTudoRef.current) iniciarSessaoExtra();
+            return;
+        }
         // O seletor de tela demora: um segundo clique nesse intervalo abriria uma segunda gravação.
-        if (iniciandoRef.current || (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording')) return;
+        if (iniciandoRef.current) return;
         iniciandoRef.current = true;
         try {
             // Criado já no clique (antes dos awaits) para o navegador não deixar a mixagem suspensa.
@@ -325,14 +393,14 @@ export default function GravadorPanel() {
             telaStreamRef.current = telaStream;
 
             // 2. Voz: se você não está na Sala de Rádio, abre o microfone por conta própria.
-            if (!(voz && voz.meuStream)) {
+            if (!(voz && voz.meuStream) && !silencioso) {
                 micProprioRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
             }
             // Se o painel foi desmontado enquanto os pedidos de permissão estavam abertos, desiste.
             if (!ativoRef.current) { liberarRecursos(); return; }
             sincronizarVozes();
             if (voz && voz.meuStream) addLog(`🎧 Sala de Rádio: ${(voz.conexoes || []).length} jogador(es) conectado(s) serão gravados.`);
-            else addLog('ℹ️ Você não está na Sala de Rádio: gravando só o seu microfone.');
+            else if (!silencioso) addLog('ℹ️ Você não está na Sala de Rádio: gravando só o seu microfone.');
 
             const audioMixado = destinoRef.current.stream;
             iniciarVisualizador(audioMixado);
@@ -356,6 +424,8 @@ export default function GravadorPanel() {
             cabecalhoRef.current = null;
             guardarTudoRef.current = gravarSessaoInteira;
             tipoRef.current = opcoes.mimeType;
+            streamFinalRef.current = streamFinal;
+            opcoesRef.current = opcoes;
             const recorder = new MediaRecorder(streamFinal, opcoes);
             const tipo = opcoes.mimeType;
 
@@ -387,7 +457,7 @@ export default function GravadorPanel() {
             const destino = gravaVideo ? 'tela do app + vozes' : 'somente áudio';
             addLog(gravarSessaoInteira
                 ? `🎬 Gravando ${destino}. Tudo fica só neste computador — nada vai para a nuvem.`
-                : `🎞️ Modo clipe ativo (${destino}): guardando os últimos minutos. Use "Salvar clipe" ou Alt+C para salvar o que acabou de acontecer.`);
+                : `🎞️ Buffer de clipes ligado (${destino}): guardando os últimos minutos em segundo plano. Clique em "Salvar clipe agora" ou use Alt+C para salvar o que acabou de acontecer.`);
         } catch (err) {
             liberarRecursos();
             pararVisualizador();
@@ -397,14 +467,55 @@ export default function GravadorPanel() {
         }
     };
 
+    // Encerra só a gravação da sessão (arquivo próprio); o buffer de clipes continua ligado.
+    const encerrarSessaoExtra = () => {
+        const gravador = sessaoExtraRef.current;
+        sessaoExtraRef.current = null;
+        if (gravador && gravador.state === 'recording') gravador.stop();
+        setGuardarTudo(false);
+    };
+
     const pararGravacao = () => {
+        if (sessaoExtraRef.current) encerrarSessaoExtra();
         if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') mediaRecorderRef.current.stop();
         liberarRecursos();
         pararVisualizador();
         setGravando(false);
         setGuardarTudo(false);
-        addLog(guardarTudoRef.current ? '⏹️ Gravação encerrada.' : '⏹️ Modo clipe desativado.');
+        addLog(guardarTudoRef.current ? '⏹️ Gravação encerrada.' : '⏹️ Buffer de clipes desligado.');
     };
+
+    iniciarCapturaRef.current = iniciarCaptura;
+
+    const encerrarGravacao = () => {
+        if (sessaoExtraRef.current) {
+            encerrarSessaoExtra();
+            addLog('⏹️ Gravação da sessão encerrada.');
+            return;
+        }
+        pararGravacao();
+    };
+
+    // Ligar/desligar na mão vale só para esta sessão: voltar sozinho ao abrir o app é uma escolha
+    // explícita, feita no checkbox abaixo.
+    const ligarBuffer = () => { iniciarCaptura(false); };
+    const desligarBuffer = () => { pararGravacao(); };
+    const alternarBufferAuto = (ligado) => {
+        setBufferAuto(ligado);
+        gravarPreferencia(PREF_BUFFER_AUTO, ligado ? '1' : '0');
+    };
+    const mudarDuracaoClipe = (segundos) => {
+        setDuracaoClipe(segundos);
+        gravarPreferencia(PREF_DURACAO_CLIPE, segundos);
+    };
+
+    // App desktop: religa o buffer sozinho ao abrir (sem seletor de tela: o Electron entrega o app direto).
+    useEffect(() => {
+        if (!estaNoAppDesktop() || lerPreferencia(PREF_BUFFER_AUTO, '0') !== '1') return undefined;
+        // Se outra instância do Gravador (ex.: sub-aba do Oráculo) já está capturando, não duplica a captura.
+        const espera = setTimeout(() => { if (!haCapturaEmAndamento()) iniciarCapturaRef.current(false, { silencioso: true }); }, 2500);
+        return () => clearTimeout(espera);
+    }, []);
 
     return (
         <div className="def-box" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px', height: '100%' }}>
@@ -434,32 +545,39 @@ export default function GravadorPanel() {
                 </div>
             </div>
 
-            <div className="gravador-acoes">
-                {!gravando ? (
-                    <>
-                        <button className="btn-neon btn-green" onClick={() => iniciarCaptura(true)}>▶ INICIAR GRAVAÇÃO</button>
-                        <button className="btn-neon btn-blue" onClick={() => iniciarCaptura(false)}>🎞️ ATIVAR MODO CLIPE</button>
-                    </>
-                ) : (
-                    <button className="btn-neon btn-red gravador-pulsando" onClick={pararGravacao}>
-                        {guardarTudo ? '⏹ ENCERRAR E BAIXAR' : '⏹ DESATIVAR MODO CLIPE'}
-                    </button>
-                )}
-            </div>
-
             <div className="gravador-clipe">
-                <div className="gravador-clipe-titulo">✂️ Clipe: salvar o que acabou de acontecer</div>
+                <div className="gravador-clipe-titulo">✂️ Clipes instantâneos (estilo Medal)</div>
                 <p className="gravador-clipe-texto">
-                    Enquanto grava (ou com o modo clipe ativo), o app guarda os últimos minutos só na memória deste computador. Ao salvar, você recebe um vídeo dos últimos instantes, sem precisar ter apertado gravar antes. O clipe começa no quadro-chave mais próximo, então pode sair uns segundos maior que o pedido.
+                    Com o buffer ligado, o app guarda em segundo plano (só na memória deste computador, nada vai para a nuvem) os últimos minutos do app e das vozes. Quando algo épico acontecer, clique em salvar: você recebe um vídeo do que acabou de acontecer, sem ter apertado gravar antes. O clipe começa no quadro-chave mais próximo, então pode sair uns segundos maior que o pedido.
                 </p>
+                <div className={`gravador-buffer-status${gravando ? ' ligado' : ''}`}>
+                    {gravando ? '● Buffer ligado: guardando os últimos minutos' : '○ Buffer desligado'}
+                </div>
                 <div className="gravador-clipe-linha">
+                    {!gravando ? (
+                        <button className="btn-neon btn-blue" onClick={ligarBuffer}>🎞️ LIGAR BUFFER DE CLIPES</button>
+                    ) : (
+                        <button className="btn-neon btn-red" onClick={desligarBuffer} disabled={guardarTudo}>⏹ DESLIGAR BUFFER</button>
+                    )}
                     <label htmlFor="duracao-clipe">Duração:</label>
-                    <select id="duracao-clipe" className="input-neon" value={duracaoClipe} onChange={e => setDuracaoClipe(Number(e.target.value))}>
+                    <select id="duracao-clipe" className="input-neon" value={duracaoClipe} onChange={e => mudarDuracaoClipe(Number(e.target.value))}>
                         {OPCOES_DURACAO_CLIPE.map(o => <option key={o.segundos} value={o.segundos}>{o.rotulo}</option>)}
                     </select>
-                    <button className="btn-neon btn-green" disabled={!gravando} onClick={salvarClipe}>✂️ SALVAR CLIPE</button>
+                    <button className="btn-neon btn-green gravador-salvar-clipe" disabled={!gravando} onClick={salvarClipe}>✂️ SALVAR CLIPE AGORA</button>
                 </div>
-                <div className="gravador-clipe-atalho">Atalho: <kbd>Alt</kbd> + <kbd>C</kbd> (funciona em qualquer aba enquanto o gravador estiver ligado)</div>
+                <label className="gravador-clipe-auto">
+                    <input type="checkbox" checked={bufferAuto} onChange={e => alternarBufferAuto(e.target.checked)} />
+                    Ligar o buffer sozinho quando abrir o app desktop
+                </label>
+                <div className="gravador-clipe-atalho">Atalho: <kbd>Alt</kbd> + <kbd>C</kbd> (funciona em qualquer aba enquanto o buffer estiver ligado). No navegador o buffer precisa ser ligado a cada sessão.</div>
+            </div>
+
+            <div className="gravador-acoes">
+                {!guardarTudo ? (
+                    <button className="btn-neon btn-green" onClick={() => iniciarCaptura(true)}>▶ INICIAR GRAVAÇÃO</button>
+                ) : (
+                    <button className="btn-neon btn-red gravador-pulsando" onClick={encerrarGravacao}>⏹ ENCERRAR E BAIXAR</button>
+                )}
             </div>
 
             <div style={{ flex: 1, background: '#0a0a0a', border: '1px solid #333', borderRadius: '5px', padding: '10px', display: 'flex', flexDirection: 'column' }}>
