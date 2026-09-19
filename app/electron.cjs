@@ -13,6 +13,52 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 
+// 🔄 Atualização automática: o instalador novo é publicado em URL_DO_APP/desktop (ver
+// .github/workflows/deploy.yml). O app confere ao abrir e a cada 30 minutos, baixa em segundo plano e
+// pergunta se pode reiniciar. Só vale no app instalado (em desenvolvimento não há o que atualizar).
+// Mudanças no SITE já chegam sozinhas; isto só cobre mudanças neste arquivo e no preload.cjs.
+const INTERVALO_CHECAGEM_ATUALIZACAO_MS = 30 * 60 * 1000;
+
+function iniciarAtualizador(getJanela) {
+  if (!app.isPackaged) return;
+  let autoUpdater;
+  try {
+    ({ autoUpdater } = require('electron-updater'));
+  } catch (e) {
+    console.error('Atualizador indisponível:', e);
+    return;
+  }
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('error', (e) => console.error('Erro ao atualizar:', e));
+  let avisado = false;
+  autoUpdater.on('update-downloaded', (info) => {
+    // As checagens seguintes reemitem este evento: pergunta uma vez só. Quem escolher "Depois"
+    // recebe a atualização ao fechar o app (autoInstallOnAppQuit).
+    if (avisado) return;
+    avisado = true;
+    const janela = getJanela();
+    const opcoes = {
+      type: 'info',
+      title: 'RPG Anime System',
+      message: `A versão ${info.version} do aplicativo foi baixada.`,
+      detail: 'Reiniciar agora para atualizar? Se escolher "Depois", ela será instalada quando você fechar o app.',
+      buttons: ['Reiniciar agora', 'Depois'],
+      defaultId: 0,
+      cancelId: 1,
+    };
+    const aberto = janela && !janela.isDestroyed();
+    (aberto ? dialog.showMessageBox(janela, opcoes) : dialog.showMessageBox(opcoes)).then((r) => {
+      if (r.response === 0) autoUpdater.quitAndInstall(true, true);
+    });
+  });
+  const checar = () => autoUpdater.checkForUpdates().catch((e) => console.error('Falha ao checar atualização:', e));
+  checar();
+  setInterval(checar, INTERVALO_CHECAGEM_ATUALIZACAO_MS);
+}
+
+let janelaPrincipal = null;
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
@@ -27,6 +73,9 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
     }
   });
+
+  janelaPrincipal = win;
+  win.on('closed', () => { janelaPrincipal = null; });
 
   // 🎬 getDisplayMedia() no Electron não abre nenhum seletor por conta própria: sem este handler o
   // pedido de captura de tela é recusado e o gravador cai para "somente áudio". Entrega o próprio
@@ -113,7 +162,10 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  iniciarAtualizador(() => janelaPrincipal);
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();

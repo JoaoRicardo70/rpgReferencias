@@ -12,7 +12,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate', 
+      registerType: 'autoUpdate',
+      // /desktop/ guarda o instalador do app desktop: o service worker não pode devolver o index.html no lugar.
+      workbox: { navigateFallbackDenylist: [/^\/desktop\//] },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'Multiverso RPG Anime System',

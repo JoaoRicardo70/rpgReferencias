@@ -5,8 +5,67 @@ on:
     branches:
       - main
 
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
 jobs:
+  # Instalador do app desktop (atualização automática). A versão é 1.0.N, onde N = número de commits
+  # que mexeram em electron.cjs/preload.cjs: só muda (e só gera atualização) quando esses arquivos mudam.
+  # Se a versão já está publicada no site, nada é reconstruído.
+  desktop:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    outputs:
+      construido: ${{ steps.versao.outputs.construir }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decidir versão do desktop
+        id: versao
+        run: |
+          N=$(git rev-list --count HEAD -- app/electron.cjs app/preload.cjs)
+          VERSAO="1.0.$N"
+          PUBLICADA=$(curl -fsS https://rpg-referencias.web.app/desktop/latest.yml | grep -E '^version:' | awk '{print $2}' | tr -d "\r'\"" || true)
+          echo "versão atual: $VERSAO / publicada: $PUBLICADA"
+          echo "versao=$VERSAO" >> "$GITHUB_OUTPUT"
+          # Não reconstrói se a versão publicada é igual ou MAIOR (evita rebaixar quem já atualizou).
+          MAIOR=$(printf '%s\n%s\n' "$PUBLICADA" "$VERSAO" | sort -V | tail -1)
+          if [ -n "$PUBLICADA" ] && [ "$MAIOR" = "$PUBLICADA" ]; then echo "construir=false" >> "$GITHUB_OUTPUT"; else echo "construir=true" >> "$GITHUB_OUTPUT"; fi
+
+      - uses: actions/setup-node@v4
+        if: steps.versao.outputs.construir == 'true'
+        with:
+          node-version: 20
+
+      - name: Instalar dependências
+        if: steps.versao.outputs.construir == 'true'
+        run: npm install
+        working-directory: app
+
+      - name: Gerar instalador
+        if: steps.versao.outputs.construir == 'true'
+        run: npx electron-builder --win --publish never -c.extraMetadata.version=${{ steps.versao.outputs.versao }}
+        working-directory: app
+
+      - name: Guardar instalador
+        if: steps.versao.outputs.construir == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: instalador-desktop
+          path: |
+            app/release/latest.yml
+            app/release/Instalador_RPG_Anime_System.exe
+            app/release/Instalador_RPG_Anime_System.exe.blockmap
+
   deploy:
+    needs: desktop
+    # O site sobe mesmo se o instalador falhar (nesse caso reaproveita o que já está publicado).
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,6 +87,29 @@ jobs:
           VITE_TURN_URLS: ${{ secrets.VITE_TURN_URLS }}
           VITE_TURN_USERNAME: ${{ secrets.VITE_TURN_USERNAME }}
           VITE_TURN_CREDENTIAL: ${{ secrets.VITE_TURN_CREDENTIAL }}
+
+      # O deploy do Hosting substitui o site inteiro, então o instalador precisa ir junto a cada deploy:
+      # o recém-construído, ou (se a versão não mudou) uma cópia do que já está publicado.
+      - name: Baixar instalador recém-construído
+        if: needs.desktop.outputs.construido == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: instalador-desktop
+          path: app/dist/desktop
+
+      - name: Reaproveitar instalador já publicado
+        if: needs.desktop.outputs.construido != 'true'
+        run: |
+          mkdir -p app/dist/desktop
+          # O Hosting responde 200 com o index.html para arquivos que não existem (rewrite do SPA),
+          # então só vale a cópia se o conteúdo for de verdade o arquivo esperado.
+          for f in latest.yml Instalador_RPG_Anime_System.exe Instalador_RPG_Anime_System.exe.blockmap; do
+            curl -fsS -o "app/dist/desktop/$f" "https://rpg-referencias.web.app/desktop/$f" || rm -f "app/dist/desktop/$f"
+          done
+          if [ -f app/dist/desktop/latest.yml ] && ! grep -q '^version:' app/dist/desktop/latest.yml; then rm -f app/dist/desktop/latest.yml; fi
+          if [ -f app/dist/desktop/Instalador_RPG_Anime_System.exe ] && [ "$(head -c 2 app/dist/desktop/Instalador_RPG_Anime_System.exe)" != "MZ" ]; then rm -f app/dist/desktop/Instalador_RPG_Anime_System.exe; fi
+          if [ -f app/dist/desktop/Instalador_RPG_Anime_System.exe.blockmap ] && head -c 1 app/dist/desktop/Instalador_RPG_Anime_System.exe.blockmap | grep -q '<'; then rm -f app/dist/desktop/Instalador_RPG_Anime_System.exe.blockmap; fi
+          ls -la app/dist/desktop
 
       - name: Install functions dependencies
         run: npm install
