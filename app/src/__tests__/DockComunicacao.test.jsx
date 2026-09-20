@@ -449,7 +449,7 @@ describe('AudioVozGlobal', () => {
     });
 
     it('aplica volume salvo e zera quando surdo', () => {
-        localStorage.setItem('rpg_vol_Bob', '0.4');
+        localStorage.setItem('rpg_vol2_Bob', '0.4');
         const voz = fakeVoz({ conexoes: [{ id: 'anime-rpg-bob', stream: stream(1) }] });
         const { container, rerender } = render(
             <VoiceContext.Provider value={voz}><AudioVozGlobal tavernaAtivos={['Bob']} /></VoiceContext.Provider>

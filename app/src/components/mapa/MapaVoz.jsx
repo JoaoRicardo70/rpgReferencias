@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MapaOlhoSextaFeira } from './MapaSextaFeira';
-import { lerVolumeVoz, salvarVolumeVoz } from '../../core/volumesVoz';
+import { VOLUME_MAXIMO_VOZ, lerVolumeVoz, salvarVolumeVoz } from '../../core/volumesVoz';
 import {
     FFT_SIZE, LIMIAR_FALA_REMOTA, NIVEL_MAXIMO_EXIBIDO, SENSIBILIDADE_MAX, SENSIBILIDADE_MIN, SENSIBILIDADE_PADRAO,
     estadoPortao, faixaDeVoz, medirNivelDeVoz
@@ -81,24 +81,84 @@ export function urlSeguraParaCss(url) {
     return `url("${trimmed.replace(/["\\)]/g, '')}")`;
 }
 
-export function PlayerDeAudioRemoto({ stream, volume, surdo, nome, sinkId }) {
+export function PlayerDeAudioRemoto({ stream, volume, surdo, sinkId }) {
     const audioRef = useRef(null);
+    const ctxRef = useRef(null);
+    const ganhoRef = useRef(null);
+
+    // A voz passa por um GainNode (permite passar de 100%) e por um limitador que segura os picos para não
+    // estourar. O <audio> continua ligado ao stream, mas mudo: o Chromium só entrega o áudio remoto ao
+    // Web Audio se houver um elemento consumindo o stream. Sem Web Audio (ou sem AudioContext.setSinkId, que
+    // é o que respeita a caixa de som escolhida), toca direto no elemento (até 100%).
     useEffect(() => {
-        if (audioRef.current && stream && audioRef.current.srcObject !== stream) {
-            audioRef.current.srcObject = stream;
-            audioRef.current.play().catch(e => console.warn(`Clique na tela para ouvir ${nome}`));
+        const audio = audioRef.current;
+        if (!audio || !stream) return undefined;
+        if (audio.srcObject !== stream) audio.srcObject = stream;
+        const Contexto = typeof window !== 'undefined' ? (window.AudioContext || window.webkitAudioContext) : null;
+        if (!Contexto) {
+            audio.play().catch(() => console.warn('Clique na tela para ouvir os jogadores'));
+            return undefined;
         }
-    }, [stream, nome]);
+        let ctx = null;
+        let retomar = null;
+        try {
+            ctx = new Contexto();
+            if (typeof ctx.setSinkId !== 'function') throw new Error('sem setSinkId');
+            const fonte = ctx.createMediaStreamSource(stream);
+            const ganho = ctx.createGain();
+            const limitador = ctx.createDynamicsCompressor();
+            limitador.threshold.value = -6;
+            limitador.knee.value = 6;
+            limitador.ratio.value = 12;
+            limitador.attack.value = 0.003;
+            limitador.release.value = 0.1;
+            fonte.connect(ganho);
+            ganho.connect(limitador);
+            limitador.connect(ctx.destination);
+            audio.muted = true;
+            ctxRef.current = ctx;
+            ganhoRef.current = ganho;
+            if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+            // Se o navegador segurou o contexto até haver interação, retoma no primeiro toque/tecla.
+            retomar = () => { if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {}); };
+            document.addEventListener('pointerdown', retomar, { once: true });
+            document.addEventListener('keydown', retomar, { once: true });
+            audio.play().catch(() => console.warn('Clique na tela para ouvir os jogadores'));
+        } catch (e) {
+            // Falhou no meio: volta para o elemento simples.
+            if (ctx && ctx.state !== 'closed') ctx.close().catch(() => {});
+            ctx = null;
+            ctxRef.current = null;
+            ganhoRef.current = null;
+            audio.muted = false;
+            audio.play().catch(() => console.warn('Clique na tela para ouvir os jogadores'));
+        }
+        return () => {
+            if (retomar) {
+                document.removeEventListener('pointerdown', retomar);
+                document.removeEventListener('keydown', retomar);
+            }
+            ganhoRef.current = null;
+            ctxRef.current = null;
+            if (ctx && ctx.state !== 'closed') ctx.close().catch(() => {});
+        };
+    }, [stream]);
 
     useEffect(() => {
-        if (audioRef.current) audioRef.current.volume = surdo ? 0 : Math.min(1, Math.max(0, volume));
-    }, [volume, surdo]);
+        const alvo = surdo ? 0 : Math.min(VOLUME_MAXIMO_VOZ, Math.max(0, volume));
+        if (ganhoRef.current) ganhoRef.current.gain.value = alvo;
+        else if (audioRef.current) audioRef.current.volume = Math.min(1, alvo);
+    }, [volume, surdo, stream]);
 
     useEffect(() => {
-        if (audioRef.current && sinkId && typeof audioRef.current.setSinkId === 'function') {
+        if (!sinkId) return;
+        const ctx = ctxRef.current;
+        if (ctx && typeof ctx.setSinkId === 'function') {
+            ctx.setSinkId(sinkId).catch(err => console.log('Bloqueio saída:', err));
+        } else if (audioRef.current && typeof audioRef.current.setSinkId === 'function') {
             audioRef.current.setSinkId(sinkId).catch(err => console.log('Bloqueio saída:', err));
         }
-    }, [sinkId]);
+    }, [sinkId, stream]);
 
     return <audio ref={audioRef} autoPlay playsInline style={{ display: 'none' }} />;
 }
@@ -235,9 +295,10 @@ export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamPara
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <span style={{ color: isConnected ? (isSpeakingFinal ? '#00ffcc' : '#00aaff') : '#fff', fontWeight: 'bold', fontSize: '0.8em', textTransform: 'uppercase', letterSpacing: 1, textShadow: '1px 1px 2px #000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', transition: 'color 0.2s', paddingRight: '5px' }}>{nome}</span>
                     {!isMe && isConnected && streamParaTocar && (
-                        <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '70px', background: 'rgba(0,0,0,0.5)', padding: '2px 5px', borderRadius: '10px', border: '1px solid #333' }}>
+                        <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '104px', background: 'rgba(0,0,0,0.5)', padding: '2px 5px', borderRadius: '10px', border: '1px solid #333' }} title={`Volume desta voz: ${Math.round(volume * 100)}% (vai até ${VOLUME_MAXIMO_VOZ * 100}%)`}>
                             <span style={{ fontSize: '9px', color: volume === 0 ? '#ff003c' : '#aaa' }}>{volume === 0 ? '🔇' : '🔉'}</span>
-                            <input type="range" min="0" max="1" step="0.05" value={volume} onChange={e => setVolume(parseFloat(e.target.value))} style={{ width: '100%', height: '3px', cursor: 'pointer', accentColor: '#00ffcc' }} />
+                            <input type="range" min="0" max={VOLUME_MAXIMO_VOZ} step="0.05" value={volume} onChange={e => setVolume(parseFloat(e.target.value))} aria-label={`Volume de ${nome}`} style={{ width: '100%', height: '3px', cursor: 'pointer', accentColor: volume > 1 ? '#ffcc00' : '#00ffcc' }} />
+                            <span style={{ fontSize: '9px', color: '#aaa', minWidth: '26px', textAlign: 'right' }}>{Math.round(volume * 100)}%</span>
                         </div>
                     )}
                 </div>

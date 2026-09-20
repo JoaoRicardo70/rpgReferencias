@@ -1613,3 +1613,10 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 
 /* Calibrador de voz: marca do limiar efetivo do portão de ruído */
 .calibrador-marca-efetiva { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed #ff00aa; pointer-events: none; }
+
+/* ===== Mesa de Som: volume da música ===== */
+.jukebox-volume { display: flex; align-items: center; gap: 12px; margin-top: 15px; flex-wrap: wrap; }
+.jukebox-volume-mudo { margin: 0; height: 40px; min-width: 48px; padding: 0 12px; font-size: 1.1em; }
+.jukebox-volume-slider { flex: 1 1 220px; max-width: 420px; height: 6px; cursor: pointer; accent-color: #00ffcc; }
+.jukebox-volume-valor { min-width: 44px; color: #00ffcc; font-weight: bold; }
+.jukebox-volume-dica { color: #888; font-size: 0.8em; }

@@ -32,3 +32,42 @@ describe('infoAvatarDaFicha', () => {
         expect(infoAvatarDaFicha({}).img).toBe('');
     });
 });
+
+describe('infoAvatarDaFicha: Formas ativas', () => {
+    const forma = (extra = {}) => ({ id: 'f1', nome: 'Forma Final', imagemUrl: 'https://x/forma.png', configs: [], ...extra });
+
+    it('usa a imagem da Forma ativa de um poder ativo', () => {
+        const f = { avatar: { base: 'b' }, poderes: [{ nome: 'Transf', ativa: true, formaAtivaId: 'f1', formas: [forma()] }] };
+        expect(infoAvatarDaFicha(f)).toEqual({ img: 'https://x/forma.png', forma: 'Forma Final' });
+    });
+    it('a Forma vence a imagem do proprio poder', () => {
+        const f = { avatar: { base: 'b' }, poderes: [{ nome: 'Transf', ativa: true, imagemUrl: 'https://x/poder.png', formaAtivaId: 'f1', formas: [forma()] }] };
+        expect(infoAvatarDaFicha(f).img).toBe('https://x/forma.png');
+    });
+    it('a Configuracao ativa com imagem vence a da Forma', () => {
+        const f = { avatar: { base: 'b' }, poderes: [{ nome: 'T', ativa: true, formaAtivaId: 'f1',
+            formas: [forma({ configAtivaId: 'c2', configs: [{ id: 'c1', imagemUrl: 'c1.png' }, { id: 'c2', imagemUrl: 'c2.png' }] })] }] };
+        expect(infoAvatarDaFicha(f).img).toBe('c2.png');
+    });
+    it('Configuracao sem imagem cai para a imagem da Forma', () => {
+        const f = { avatar: { base: 'b' }, poderes: [{ nome: 'T', ativa: true, formaAtivaId: 'f1',
+            formas: [forma({ configAtivaId: 'c1', configs: [{ id: 'c1', imagemUrl: '' }] })] }] };
+        expect(infoAvatarDaFicha(f).img).toBe('https://x/forma.png');
+    });
+    it('Forma sem imagem mantem a imagem do poder', () => {
+        const f = { avatar: { base: 'b' }, poderes: [{ nome: 'T', ativa: true, imagemUrl: 'p.png', formaAtivaId: 'f1', formas: [forma({ imagemUrl: '' })] }] };
+        expect(infoAvatarDaFicha(f)).toEqual({ img: 'p.png', forma: 'T' });
+    });
+    it('poder inativo ou Forma inexistente sao ignorados', () => {
+        const f = { avatar: { base: 'b' }, poderes: [
+            { nome: 'A', ativa: false, formaAtivaId: 'f1', formas: [forma()] },
+            { nome: 'B', ativa: true, formaAtivaId: 'nao-existe', formas: [forma()] }] };
+        expect(infoAvatarDaFicha(f)).toEqual({ img: 'b', forma: null });
+    });
+    it('Forma ativa de um Ser Selado ativo tambem vale', () => {
+        const f = { avatar: { base: 'b' }, seresSelados: [{ nome: 'Ser', ativo: true, formaAtivaId: 'f1', formas: [forma()] }] };
+        expect(infoAvatarDaFicha(f).img).toBe('https://x/forma.png');
+        const inativo = { avatar: { base: 'b' }, seresSelados: [{ nome: 'Ser', ativo: false, formaAtivaId: 'f1', formas: [forma()] }] };
+        expect(infoAvatarDaFicha(inativo).img).toBe('b');
+    });
+});

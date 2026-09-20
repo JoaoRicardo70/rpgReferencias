@@ -31,11 +31,24 @@ function carregarYouTubeApi() {
     });
 }
 
+// Volume da música é só seu (não vai para os outros): fica guardado neste computador.
+const CHAVE_VOLUME_MUSICA = 'rpg_volume_musica';
+
+function lerVolumeMusica() {
+    try {
+        const salvo = parseInt(localStorage.getItem(CHAVE_VOLUME_MUSICA), 10);
+        if (Number.isFinite(salvo)) return Math.min(100, Math.max(0, salvo));
+    } catch (e) { /* sem localStorage */ }
+    return 60;
+}
+
 export default function Jukebox({ className }) {
     const [inputUrl, setInputUrl] = useState('');
     const [tocando, setTocando] = useState(false);
     const [videoId, setVideoId] = useState(null);
     const [pausado, setPausado] = useState(false);
+    const [volume, setVolume] = useState(lerVolumeMusica);
+    const volumeRef = useRef(volume);
 
     const playerRef = useRef(null);
     const containerRef = useRef(null);
@@ -44,6 +57,17 @@ export default function Jukebox({ className }) {
     const inputUrlRef = useRef(inputUrl);
 
     useEffect(() => { inputUrlRef.current = inputUrl; }, [inputUrl]);
+
+    // O controle de volume do próprio player do YouTube some/fica escondido nesta caixa pequena: o volume
+    // é ajustado aqui, por fora, e reaplicado sempre que um player novo é criado.
+    useEffect(() => {
+        volumeRef.current = volume;
+        try { localStorage.setItem(CHAVE_VOLUME_MUSICA, String(volume)); } catch (e) { /* sem localStorage */ }
+        const player = playerRef.current;
+        if (player && typeof player.setVolume === 'function') {
+            try { player.setVolume(volume); } catch (e) { /* player ainda não está pronto */ }
+        }
+    }, [volume]);
 
     const extractVideoId = (url) => {
         if (!url) return null;
@@ -90,6 +114,9 @@ export default function Jukebox({ className }) {
                 modestbranding: 1
             },
             events: {
+                onReady: (event) => {
+                    try { event.target.setVolume(volumeRef.current); } catch (e) { /* ignore */ }
+                },
                 onStateChange: (event) => {
                     if (ignorandoEventoLocal.current) return;
 
@@ -227,6 +254,29 @@ export default function Jukebox({ className }) {
                 <button className="btn-neon btn-red" onClick={handleStop} style={{ margin: 0, height: '44px', padding: '0 25px' }}>
                     ⏹ PARAR
                 </button>
+            </div>
+
+            <div className="jukebox-volume">
+                <button
+                    type="button"
+                    className="btn-neon jukebox-volume-mudo"
+                    onClick={() => setVolume(v => (v === 0 ? 60 : 0))}
+                    aria-label={volume === 0 ? 'Ativar o som da música' : 'Silenciar a música'}
+                >
+                    {volume === 0 ? '🔇' : volume < 50 ? '🔉' : '🔊'}
+                </button>
+                <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={volume}
+                    onChange={(e) => setVolume(parseInt(e.target.value, 10))}
+                    aria-label="Volume da música"
+                    className="jukebox-volume-slider"
+                />
+                <span className="jukebox-volume-valor">{volume}%</span>
+                <span className="jukebox-volume-dica">Só o seu volume: não muda o dos outros jogadores.</span>
             </div>
 
             {(tocando || pausado) && videoId && (

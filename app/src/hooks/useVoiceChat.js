@@ -101,7 +101,9 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
 
     // 1. INICIALIZA A ANTENA PEERJS
     useEffect(() => {
-        if (!meuIDTelefone || peerObj) return;
+        // Sem checar o peer anterior: ao trocar de personagem o ID muda, e o efeito TEM que criar a antena nova
+        // (o estado ainda guardava a antena antiga, já destruída, e a chamada nunca era refeita).
+        if (!meuIDTelefone) return;
 
         const ICE_SERVERS = montarIceServers(import.meta.env);
 
@@ -114,8 +116,10 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
 
         let retryTimeout;
         let peerAberto = false;
+        let cancelado = false;
 
         novoPeer.on('open', (id) => {
+            if (cancelado) return;
             peerAberto = true;
             tentativasFalhasRef.current = 0;
             console.log(`[VOZ] Ligação estabelecida com sucesso! ID Central: ${id}`);
@@ -170,7 +174,15 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
             }
         });
 
-        return () => { clearTimeout(retryTimeout); novoPeer.destroy(); };
+        return () => {
+            cancelado = true;
+            clearTimeout(retryTimeout);
+            novoPeer.destroy();
+            // A antena antiga morreu: nada de reaproveitar a chamada ou o peer dela com o ID novo.
+            setPeerObj(null);
+            setConexoes([]);
+            chamadasEmAndamento.current.clear();
+        };
     }, [meuIDTelefone, tentativaPeer]);
 
     // 2. LIGAR MICROFONE

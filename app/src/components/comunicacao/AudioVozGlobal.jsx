@@ -9,7 +9,7 @@ function PlayerDeUmJogador({ nome, stream, surdo, sinkId }) {
         setVolume(lerVolumeVoz(nome));
         return assinarVolumesVoz((n, v) => { if (n === nome) setVolume(v); });
     }, [nome]);
-    return <PlayerDeAudioRemoto stream={stream} volume={volume} surdo={surdo} nome={nome} sinkId={sinkId} />;
+    return <PlayerDeAudioRemoto stream={stream} volume={volume} surdo={surdo} sinkId={sinkId} />;
 }
 
 // Toca a voz de todos na Sala da Party em qualquer aba do app (antes só tocava dentro do Mapa).

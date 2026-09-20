@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ref, get, set, onValue } from 'firebase/database';
 import { db } from './services/firebase-config';
 import useStore, { sanitizarNome } from './stores/useStore';
@@ -46,7 +46,7 @@ import {
     carregarFichaDoFirebase, iniciarListenerDummies,
     iniciarListenerCenario, resetSincronizacaoCenario, monitorarAuth,
     iniciarSistemaDePresenca, iniciarListenerPresenca, removerPresencaImediata,
-    iniciarListenerMestres, salvarFirebaseImediato, iniciarListenerDivisorPoderMesa
+    iniciarListenerMestres, salvarFirebaseImediato, iniciarListenerDivisorPoderMesa, salvarCenarioCompleto
 } from './services/firebase-sync';
 
 // 🔥 CRIANDO O CONTEXTO GLOBAL DA VOZ 🔥
@@ -61,6 +61,19 @@ function ProvedorDeVozGlobal({ meuNome, cenario, children }) {
     const chatCtx = useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna);
     const mesaId = useStore(s => s.mesaId);
     const chats = useChats(mesaId, meuNome);
+
+    // Ao trocar de personagem (ex.: do criado com o nome da conta para o de jogo), o personagem anterior não pode
+    // ficar "sentado" na Sala da Party: os outros veriam um fantasma tentando ligar para um rádio que não existe.
+    const anteriorRef = useRef({ nome: meuNome, mesaId });
+    useEffect(() => {
+        if (!meuNome) return;
+        const anterior = anteriorRef.current;
+        anteriorRef.current = { nome: meuNome, mesaId };
+        if (!anterior.nome || anterior.nome === meuNome || anterior.mesaId !== mesaId) return;
+        if (!tavernaAtivos.includes(anterior.nome)) return;
+        salvarCenarioCompleto({ ...(cenario || {}), tavernaAtivos: tavernaAtivos.filter(n => n !== anterior.nome) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage à troca de personagem/mesa, não a cada mudança do cenário
+    }, [meuNome, mesaId]);
 
     return (
         <VoiceContext.Provider value={chatCtx}>
