@@ -16,7 +16,7 @@
     "redirects": [
       {
         "source": "/desktop/:arquivo",
-        "destination": "https://firebasestorage.googleapis.com/v0/b/rpg-referencias.firebasestorage.app/o/desktop%2F:arquivo?alt=media",
+        "destination": "https://github.com/JoaoRicardo70/rpgReferencias/releases/download/desktop-latest/:arquivo",
         "type": 302
       }
     ],
