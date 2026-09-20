@@ -40,6 +40,7 @@ class MockAudioContext {
     createAnalyser() { return { fftSize: 0, frequencyBinCount: 128, getByteFrequencyData: vi.fn() }; }
     createMediaStreamSource() { return { connect: vi.fn(), disconnect: vi.fn() }; }
     createMediaStreamDestination() { return { stream: { getAudioTracks: () => [{ kind: 'audio' }] } }; }
+    createGain() { return { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() }; }
     resume() {}
     close() { this.state = 'closed'; }
 }

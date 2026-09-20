@@ -130,6 +130,11 @@ export default function GravadorPanel() {
     const mixCtxRef = useRef(null);
     const destinoRef = useRef(null);
     const fontesRef = useRef(new Map());
+    // Áudio da própria página (música da Mesa de Som e as vozes como você as ouve), vindo da captura de tela.
+    // Quando existe, as vozes remotas já estão nele: a mixagem delas fica muda para não gravar em dobro.
+    const fontePaginaRef = useRef(null);
+    const ganhoRemotasRef = useRef(null);
+    const paginaTemAudioRef = useRef(false);
     // Elementos <audio> mudos ligados às vozes remotas: o Chromium entrega silêncio ao
     // WebAudio quando um stream WebRTC remoto não está anexado a nenhum elemento de mídia.
     const ancorasRef = useRef(new Map());
@@ -173,6 +178,23 @@ export default function GravadorPanel() {
         return registrarCapturaAtiva();
     }, [gravando]);
 
+    const atualizarGanhoDasVozesRemotas = () => {
+        const ganho = ganhoRemotasRef.current;
+        if (!ganho) return;
+        // Com o áudio da página na gravação, as vozes só entram pela mixagem se você estiver surdo
+        // (surdo = mudo no seu alto-falante, então elas não estariam no áudio da página).
+        ganho.gain.value = (paginaTemAudioRef.current && !(voz && voz.surdo)) ? 0 : 1;
+    };
+
+    const desligarAudioDaPagina = () => {
+        if (fontePaginaRef.current) {
+            try { fontePaginaRef.current.disconnect(); } catch (e) { /* já desconectada */ }
+            fontePaginaRef.current = null;
+        }
+        paginaTemAudioRef.current = false;
+        atualizarGanhoDasVozesRemotas();
+    };
+
     // Libera tudo que o gravador abriu (tela, mic próprio, mixagem). Nunca encerra o
     // stream do microfone da Sala de Rádio (voz.meuStream): ele pertence ao useVoiceChat.
     const liberarRecursos = () => {
@@ -186,6 +208,8 @@ export default function GravadorPanel() {
         micProprioRef.current = null;
         fontesRef.current.forEach(fonte => { try { fonte.disconnect(); } catch (e) { /* já desconectada */ } });
         fontesRef.current.clear();
+        desligarAudioDaPagina();
+        ganhoRemotasRef.current = null;
         ancorasRef.current.forEach(audio => { audio.pause(); audio.srcObject = null; });
         ancorasRef.current.clear();
         falhasRef.current.clear();
@@ -248,7 +272,7 @@ export default function GravadorPanel() {
                     ancorasRef.current.set(chave, ancora);
                 }
                 const fonte = ctx.createMediaStreamSource(stream);
-                fonte.connect(destino);
+                fonte.connect(chave.startsWith('local:') ? destino : (ganhoRemotasRef.current || destino));
                 fontesRef.current.set(chave, fonte);
                 addLog(`🔊 Captando voz: ${rotulo}`);
             } catch (err) {
@@ -264,6 +288,10 @@ export default function GravadorPanel() {
     useEffect(() => {
         if (gravando) sincronizarVozes();
     }, [gravando, voz && voz.meuStream, voz && voz.conexoes]);
+
+    useEffect(() => {
+        if (gravando) atualizarGanhoDasVozesRemotas();
+    }, [gravando, voz && voz.surdo]);
 
     const iniciarVisualizador = (stream) => {
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -425,15 +453,20 @@ export default function GravadorPanel() {
             if (mixCtx.resume) mixCtx.resume();
             mixCtxRef.current = mixCtx;
             destinoRef.current = mixCtx.createMediaStreamDestination();
+            ganhoRemotasRef.current = mixCtx.createGain();
+            ganhoRemotasRef.current.connect(destinoRef.current);
+            paginaTemAudioRef.current = false;
 
-            // 1. Tela: só a aba do próprio app (Chrome/Edge). Sem áudio de sistema, para não
-            // duplicar as vozes que já entram pela mixagem.
+            // 1. Tela: só a aba do próprio app. Pede também o áudio da página (no app desktop é só o áudio do
+            // próprio app, nunca o do sistema): é por ele que a música da Mesa de Som entra na gravação.
             let telaStream = null;
             if (navigator.mediaDevices.getDisplayMedia) {
                 try {
                     telaStream = await navigator.mediaDevices.getDisplayMedia({
                         video: { frameRate: 15 },
-                        audio: false,
+                        // Só no app desktop: lá o handler entrega o áudio do próprio app. No navegador o áudio
+                        // seria da aba que o usuário escolher (talvez outra), então a mixagem de vozes segue sozinha.
+                        audio: estaNoAppDesktop(),
                         preferCurrentTab: true,
                         selfBrowserSurface: 'include',
                     });
@@ -449,6 +482,22 @@ export default function GravadorPanel() {
                 addLog('⚠️ Este navegador não permite capturar a tela — gravando somente o áudio.');
             }
             telaStreamRef.current = telaStream;
+
+            const trilhasAudioPagina = telaStream && typeof telaStream.getAudioTracks === 'function' ? telaStream.getAudioTracks() : [];
+            if (trilhasAudioPagina.length > 0) {
+                try {
+                    fontePaginaRef.current = mixCtx.createMediaStreamSource(new MediaStream(trilhasAudioPagina));
+                    fontePaginaRef.current.connect(destinoRef.current);
+                    paginaTemAudioRef.current = true;
+                    atualizarGanhoDasVozesRemotas();
+                    addLog('🎵 Áudio do app (música da Mesa de Som e vozes como você as ouve) incluído na gravação.');
+                } catch (err) {
+                    fontePaginaRef.current = null;
+                    addLog(`⚠️ Não foi possível captar o áudio do app: ${err.message}`);
+                }
+            } else if (telaStream && estaNoAppDesktop()) {
+                addLog('ℹ️ Sem áudio do app nesta captura: a música da Mesa de Som não vai na gravação (no app desktop, instale a versão mais recente).');
+            }
 
             // 2. Voz: se você não está na Sala de Rádio, abre o microfone por conta própria.
             if (!(voz && voz.meuStream) && !silencioso) {
@@ -468,6 +517,7 @@ export default function GravadorPanel() {
             if (gravaVideo && candidatos.length === 0) {
                 pararTracks(telaStream);
                 telaStreamRef.current = null;
+                desligarAudioDaPagina();
                 gravaVideo = false;
                 candidatos = candidatosDeFormato(false);
                 addLog('⚠️ Este navegador não grava vídeo mp4 nem webm — gravando somente o áudio.');

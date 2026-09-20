@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MapaOlhoSextaFeira } from './MapaSextaFeira';
+import { imagensDaFicha } from '../../core/avatar';
+import { useImagemQueCarrega } from '../../hooks/useImagemQueCarrega';
 import { VOLUME_MAXIMO_VOZ, lerVolumeVoz, salvarVolumeVoz } from '../../core/volumesVoz';
 import {
     FFT_SIZE, LIMIAR_FALA_REMOTA, NIVEL_MAXIMO_EXIBIDO, SENSIBILIDADE_MAX, SENSIBILIDADE_MIN, SENSIBILIDADE_PADRAO,
@@ -78,7 +80,8 @@ export function urlSeguraParaCss(url) {
     if (!url || typeof url !== 'string') return '';
     const trimmed = url.trim();
     if (!/^https?:\/\//i.test(trimmed) && !/^data:image\//i.test(trimmed)) return '';
-    return `url("${trimmed.replace(/["\\)]/g, '')}")`;
+    // Aspas e barras quebrariam o url("..."); parênteses são codificados (links como "arte (1).png" seguem válidos).
+    return `url("${trimmed.replace(/["\\]/g, '').replace(/\)/g, '%29')}")`;
 }
 
 export function PlayerDeAudioRemoto({ stream, volume, surdo, sinkId }) {
@@ -221,6 +224,8 @@ export function CalibradorDeVoz({ stream, sensibilidade, setSensibilidade }) {
 
 export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamParaTocar, streamAnalisador, mutado, surdo, fazerChamada, cardSize, fmt, selectedSpeaker }) {
     const [isSpeakingRemote, setIsSpeakingRemote] = useState(false);
+    // Usa a primeira imagem que carrega (Forma/poder/base): um link quebrado não deixa mais o cartão preto.
+    const imagemDoCartao = useImagemQueCarrega(ficha ? imagensDaFicha(ficha) : (info && info.img ? [info.img] : []));
     const [volume, setVolumeLocal] = useState(() => lerVolumeVoz(nome));
     // O áudio toca no player global (AudioVozGlobal); aqui só o controle de volume.
     const setVolume = (v) => { setVolumeLocal(v); salvarVolumeVoz(nome, v); };
@@ -282,7 +287,7 @@ export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamPara
     } else if (!isMe) { borderCard = '2px dashed #444'; boxShadowCard = 'none'; iconMic = '🔄'; }
 
     return (
-        <div className="fade-in" style={{ position: 'relative', width: cardSize, aspectRatio: '4/3', background: '#111', border: borderCard, borderRadius: 6, overflow: 'hidden', backgroundImage: urlSeguraParaCss(info.img) || 'none', backgroundSize: 'cover', backgroundPosition: 'top center', boxShadow: boxShadowCard, transition: 'all 0.15s ease-out' }}>
+        <div className="fade-in" style={{ position: 'relative', width: cardSize, aspectRatio: '4/3', background: '#111', border: borderCard, borderRadius: 6, overflow: 'hidden', backgroundImage: urlSeguraParaCss(imagemDoCartao) || 'none', backgroundSize: 'cover', backgroundPosition: 'top center', boxShadow: boxShadowCard, transition: 'all 0.15s ease-out' }}>
             <div style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.8)', borderRadius: '50%', padding: '5px 8px', fontSize: '1.2em', border: borderCard }}>{iconMic}</div>
             
             {!isConnected && !isMe && (

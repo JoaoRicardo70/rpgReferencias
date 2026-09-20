@@ -4,6 +4,7 @@ import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salv
 import { calcularAcerto } from '../../core/engine';
 import { alternarPresencaNaTaverna } from '../../core/chats';
 import { infoAvatarDaFicha } from '../../core/avatar';
+import { assinarFalhasDeImagem } from '../../core/imagemVerificada';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { getBuffs } from '../../core/attributes';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
@@ -17,7 +18,7 @@ export function urlSeguraParaCss(url) {
     if (!url || typeof url !== 'string') return '';
     const trimmed = url.trim();
     if (!/^https?:\/\//i.test(trimmed) && !/^data:image\//i.test(trimmed)) return '';
-    return `url("${trimmed.replace(/["\\)]/g, '')}")`;
+    return `url("${trimmed.replace(/["\\]/g, '').replace(/\)/g, '%29')}")`;
 }
 
 export function calcularCA(ficha, tipo) {
@@ -392,7 +393,11 @@ export function MapaFormProvider({ children }) {
         salvarCenarioCompleto(novoCenario);
     }, [cenario]);
 
-    const getAvatarInfo = useCallback((ficha) => infoAvatarDaFicha(ficha), []);
+    // Quando uma imagem de Forma/poder é descoberta como quebrada, redesenha para cair na próxima (não ficar preto).
+    const [versaoImagensQuebradas, setVersaoImagensQuebradas] = useState(0);
+    useEffect(() => assinarFalhasDeImagem(() => setVersaoImagensQuebradas(v => v + 1)), []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a versão só serve para renovar a função (e o contexto)
+    const getAvatarInfo = useCallback((ficha) => infoAvatarDaFicha(ficha), [versaoImagensQuebradas]);
 
     const fmt = useCallback((n) => Number(n || 0).toLocaleString('pt-BR'), []);
 

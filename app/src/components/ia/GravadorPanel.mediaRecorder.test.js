@@ -50,6 +50,8 @@ class MockAudioContext {
     constructor() {
         this.state = 'running';
         this.fontes = [];
+        this.destinos = [];
+        this.ganhos = [];
         MockAudioContext.instances.push(this);
     }
     createAnalyser() {
@@ -61,7 +63,14 @@ class MockAudioContext {
         return fonte;
     }
     createMediaStreamDestination() {
-        return { stream: { getAudioTracks: () => [{ kind: 'audio' }] } };
+        const destino = { stream: { getAudioTracks: () => [{ kind: 'audio' }] } };
+        this.destinos.push(destino);
+        return destino;
+    }
+    createGain() {
+        const ganho = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() };
+        this.ganhos.push(ganho);
+        return ganho;
     }
     resume() {}
     close() { this.state = 'closed'; }
@@ -359,7 +368,7 @@ describe('GravadorPanel — tela do app e vozes da Sala de Rádio', () => {
         return utils;
     }
 
-    it('captures the current tab (video, no system audio) and records video/webm', async () => {
+    it('captures the current tab (video, no page audio outside the desktop app) and records video/webm', async () => {
         await montar(null);
 
         expect(getDisplayMediaMock).toHaveBeenCalledWith(

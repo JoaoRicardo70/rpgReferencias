@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import useStore from '../../stores/useStore';
-import { infoAvatarDaFicha } from '../../core/avatar';
+import { imagensDaFicha } from '../../core/avatar';
+import { useImagemQueCarrega } from '../../hooks/useImagemQueCarrega';
 import { urlSeguraParaCss } from '../mapa/MapaVoz';
 
 // Imagem redonda do personagem (a mesma do Mapa: base da ficha ou forma ativa).
@@ -12,7 +13,7 @@ function AvatarPersonagem({ nome, tamanho = 32 }) {
     const minhaFicha = useStore(s => (s.meuNome === nome ? s.minhaFicha : null));
 
     const ficha = souEu ? (minhaFicha || fichaDaMesa) : fichaDaMesa;
-    const { img } = infoAvatarDaFicha(ficha);
+    const img = useImagemQueCarrega(imagensDaFicha(ficha));
     const fundo = urlSeguraParaCss(img);
 
     return (

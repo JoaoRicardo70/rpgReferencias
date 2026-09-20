@@ -86,7 +86,9 @@ function createWindow() {
     try { origemDoApp = new URL(request.securityOrigin).origin === URL_DO_APP; } catch (e) { /* origem inválida */ }
     // Só o quadro principal do app pode pedir a captura (não subquadros/iframes).
     if (!origemDoApp || !request.frame || request.frame.parent) return callback({});
-    callback({ video: request.frame });
+    // audio: o áudio desse mesmo quadro (música da Mesa de Som, incluindo o iframe do YouTube, e as vozes como
+    // o jogador as ouve) — nunca o áudio do sistema. É por aqui que a música entra na gravação e nos clipes.
+    callback({ video: request.frame, audio: request.frame });
   }, { useSystemPicker: false });
 
   win.webContents.session.clearCache();
