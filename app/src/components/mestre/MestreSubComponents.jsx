@@ -7,7 +7,8 @@ import PainelMestreSandbox, { TODAS_CONDICOES_BASE } from './PainelMestreSandbox
 import { getMaximo } from '../../core/attributes';
 import { calcularCA } from '../../core/engine';
 import { calcularBarrasVida, getVitalMax, getVitalMaxEstavel, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
-import { calcularFatorMultiplicadorForca } from '../../core/poder';
+import { calcularFatorMultiplicadorForca, calcularPoderAtual } from '../../core/poder';
+import { formatarPoderCosmico } from '../../core/utils';
 
 const FALLBACK = <div style={{color:'#888',padding:10}}>Mestre provider não encontrado</div>;
 
@@ -150,7 +151,7 @@ function ChipRecurso({ label, color, atual, max, fmt }) {
     );
 }
 
-const EntidadeCard = React.memo(function EntidadeCard({ jogador, meuNome, userLogado, mesaCriador, mesaMestres, fmt, condicoesGlobais, onAbrirFicha, onPromover, onApagar }) {
+const EntidadeCard = React.memo(function EntidadeCard({ jogador, meuNome, userLogado, mesaCriador, mesaMestres, fmt, condicoesGlobais, divisorPoderMesa, onAbrirFicha, onPromover, onApagar }) {
     const { nome, ficha, classId, percHp } = jogador;
 
     const vida = getStatusLimpo(ficha, 'vida', 8);
@@ -159,6 +160,9 @@ const EntidadeCard = React.memo(function EntidadeCard({ jogador, meuNome, userLo
     const chakra = getStatusLimpo(ficha, 'chakra', 9);
     const corpo = getStatusLimpo(ficha, 'corpo', 9);
     const supremas = getEnergiasSupremas(ficha);
+    // ⚡ Poder Calculado — mesma conta do Scouter na Ficha (core/poder.js > calcularPoderAtual),
+    // pra o Mestre ver a força de cada entidade sem precisar abrir a ficha de cada uma.
+    const poderCalculado = calcularPoderAtual(ficha, divisorPoderMesa).poderGlobal;
 
     const isGrand = String(classId).toLowerCase().includes('grand ');
     const isMisterio = classId === '?' || classId?.toLowerCase() === 'desconhecido';
@@ -232,6 +236,12 @@ const EntidadeCard = React.memo(function EntidadeCard({ jogador, meuNome, userLo
                 </div>
             </div>
 
+            {/* ⚡ Poder Calculado — mesmo número do Scouter na Ficha do jogador */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', background: 'rgba(255,204,0,0.08)', border: '1px solid rgba(255,204,0,0.4)', borderRadius: '6px', padding: '4px 10px', marginBottom: '10px', fontSize: '0.85em', fontWeight: 'bold' }}>
+                <span style={{ color: '#ffcc00' }}>⚡ PODER</span>
+                <span style={{ color: '#ffcc00', textShadow: '0 0 6px #ffcc00' }}>{formatarPoderCosmico(poderCalculado)}</span>
+            </div>
+
             {/* 🏷️ Recursos secundários como pastilhas que se ajustam ao conteúdo, em vez da grade 3x3 */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
                 <ChipRecurso label="MP" color="#0088ff" atual={mana.atual} max={mana.max} fmt={fmt} />
@@ -289,6 +299,7 @@ export function MestreVisorJogadores() {
     const ctx = useMestreForm();
     const personagens = useStore(s => s.personagens);
     const minhaFicha = useStore(s => s.minhaFicha);
+    const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
 
     const [abaVisor, setAbaVisor] = useState('jogadores');
     const [pastasAbertas, setPastasAbertas] = useState({});
@@ -370,6 +381,7 @@ export function MestreVisorJogadores() {
             mesaMestres={mesaMestres}
             fmt={fmt}
             condicoesGlobais={condicoesGlobais}
+            divisorPoderMesa={divisorPoderMesa}
             onAbrirFicha={setNomeInspecionado}
             onPromover={toggleCoMestre}
             onApagar={handleApagarJogador}

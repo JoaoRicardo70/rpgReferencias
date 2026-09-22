@@ -3,8 +3,10 @@ import { lerImagemComoBase64 } from '../../services/firebase-storage';
 import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from '../../core/attributes';
 import { getRank } from '../../core/prestige';
 import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
-import { calcularFatorMultiplicadorForca } from '../../core/poder';
+import { calcularFatorMultiplicadorForca, calcularPoderAtual } from '../../core/poder';
+import { formatarPoderCosmico } from '../../core/utils';
 import BarrasVida from '../shared/BarrasVida';
+import useStore from '../../stores/useStore';
 
 // 🔥 Reformulação de Status (mesma constante de Marcados.jsx/StatusSubComponents.jsx): os números
 // de Força/Destreza/etc. exibidos/editados aqui só existem "inflados" x1000 no valor BRUTO salvo
@@ -235,6 +237,8 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
     const [localModoFundo, setLocalModoFundo] = useState('normal');
     const [localCorFundoTint, setLocalCorFundoTint] = useState('#ffffff');
 
+    const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
+
     useEffect(() => {
         if (npcData) {
             setLocalCorFundo(npcData.estetica?.diarioCor || '#ffe6cc');
@@ -251,6 +255,10 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
     }, [npcData?.estetica]);
 
     if (!npcData) return <div style={{ color: '#fff', padding: 20 }}>Conectando à Entidade...</div>;
+
+    // ⚡ Poder Calculado — mesma conta do Scouter na Ficha (core/poder.js > calcularPoderAtual),
+    // pro Mestre ver a força desta entidade sem precisar sair do Grimório dela.
+    const poderCalculado = calcularPoderAtual(npcData, divisorPoderMesa).poderGlobal;
 
     const classeInfo = getClasseInfo(npcData);
     const iconeFinal = localIconeClasse || classeInfo?.iconeUrl;
@@ -720,6 +728,12 @@ export default function DiarioNPC({ npcData, onSaveNpc }) {
                                 <LabelMagicoNPC valor={getLabel('tituloLv', '- Limite quebrado - LV')} onChange={(v) => setLabel('tituloLv', v)} />
                                 <CampoMagicoNPC valor={npcData.bio?.nivel} onChange={(v) => salvar('bio.nivel', v)} styleExtra={{ width: '60px', borderBottom: 'none', marginLeft: '10px' }} isNumber={true} type="number" />
                             </h2>
+
+                            {/* ⚡ PODER CALCULADO — mesmo número do Scouter na Ficha desta entidade */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '2px dashed currentColor', borderRadius: '6px', padding: '8px 15px', marginBottom: '15px', width: 'fit-content', minWidth: '300px' }}>
+                                <span style={{ fontWeight: 'bold' }}>⚡ Poder Calculado</span>
+                                <span style={{ fontWeight: 'bold', fontSize: '1.3em', marginLeft: '20px' }}>{formatarPoderCosmico(poderCalculado)}</span>
+                            </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '1.2em' }}>
                                 {[

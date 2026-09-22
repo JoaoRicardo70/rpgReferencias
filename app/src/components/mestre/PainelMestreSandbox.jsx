@@ -3,6 +3,8 @@ import useStore from '../../stores/useStore';
 import { getDatabase, ref, update } from 'firebase/database';
 import { calcularEficaciaCura } from '../../core/engine';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
+import { calcularPoderAtual } from '../../core/poder';
+import { formatarPoderCosmico } from '../../core/utils';
 import DiarioNPC from './DiarioNPC';
 
 export const TODAS_CONDICOES_BASE = [
@@ -38,6 +40,7 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
     const meuNome = useStore(s => s.meuNome);
     const setPersonagens = useStore(s => s.setPersonagens);
     const updateFicha = useStore(s => s.updateFicha);
+    const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
     const db = getDatabase();
 
     const [expandido, setExpandido] = useState(false);
@@ -46,6 +49,15 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
 
     // 🔥 ESTADO DO MODAL DE TELA CHEIA PARA O GRIMÓRIO
     const [grimorioAberto, setGrimorioAberto] = useState(false);
+
+    // ⚡ Poder Calculado — mesma conta do Scouter na Ficha (core/poder.js > calcularPoderAtual),
+    // pro Mestre ver a força da entidade sem precisar abrir o Grimório dela. Só calcula com o
+    // painel expandido (só aí a badge aparece) -- este cálculo não é trivial (percorre status,
+    // poderes, seres selados e a arma espiritual), e todo card do Visor de Entidades monta um
+    // PainelMestreSandbox próprio (ver comentário no topo do arquivo); recalcular à toa em cada
+    // um, a cada atualização de QUALQUER personagem da mesa, reintroduziria o mesmo desperdício
+    // que esse comentário já documenta ter sido eliminado pro resto do card.
+    const poderCalculado = expandido ? calcularPoderAtual(ficha, divisorPoderMesa).poderGlobal : 0;
 
     const condicoesDinamicas = condicoesGlobais || TODAS_CONDICOES_BASE;
 
@@ -181,7 +193,13 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
 
             {expandido && (
                 <div className="fade-in" style={{ background: 'rgba(10,10,15,0.95)', border: '2px solid #ffcc00', borderTop: 'none', padding: '15px', borderRadius: '0 0 8px 8px', boxShadow: '0 5px 15px rgba(0,0,0,0.8)' }}>
-                    
+
+                    {/* ⚡ PODER CALCULADO — mesmo número do Scouter na Ficha desta entidade */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,204,0,0.08)', border: '1px solid #ffcc00', borderRadius: '6px', padding: '10px 15px', marginBottom: '15px', fontWeight: 'bold' }}>
+                        <span style={{ color: '#ffcc00' }}>⚡ Poder Calculado</span>
+                        <span style={{ color: '#ffcc00', fontSize: '1.2em', textShadow: '0 0 6px #ffcc00' }}>{formatarPoderCosmico(poderCalculado)}</span>
+                    </div>
+
                     {/* BOTÃO PARA ABRIR O GRIMÓRIO (TELA CHEIA) */}
                     <button 
                         onClick={() => setGrimorioAberto(true)}
