@@ -457,16 +457,17 @@ export default function GravadorPanel() {
             ganhoRemotasRef.current.connect(destinoRef.current);
             paginaTemAudioRef.current = false;
 
-            // 1. Tela: só a aba do próprio app. Pede também o áudio da página (no app desktop é só o áudio do
-            // próprio app, nunca o do sistema): é por ele que a música da Mesa de Som entra na gravação.
+            // 1. Tela: só a aba do próprio app. Pede também o áudio da página -- no app desktop o handler
+            // entrega o áudio do próprio app (nunca o do sistema); no navegador é o áudio da aba escolhida
+            // (por isso preferCurrentTab: true, para a aba pré-selecionada já ser a do próprio app). É por
+            // ele que a música da Mesa de Som e as vozes da Sala de Rádio (como você as ouve) entram na
+            // gravação; sem ele, a mixagem manual de vozes (sincronizarVozes) segue como reserva.
             let telaStream = null;
             if (navigator.mediaDevices.getDisplayMedia) {
                 try {
                     telaStream = await navigator.mediaDevices.getDisplayMedia({
                         video: { frameRate: 15 },
-                        // Só no app desktop: lá o handler entrega o áudio do próprio app. No navegador o áudio
-                        // seria da aba que o usuário escolher (talvez outra), então a mixagem de vozes segue sozinha.
-                        audio: estaNoAppDesktop(),
+                        audio: true,
                         preferCurrentTab: true,
                         selfBrowserSurface: 'include',
                     });
@@ -495,8 +496,10 @@ export default function GravadorPanel() {
                     fontePaginaRef.current = null;
                     addLog(`⚠️ Não foi possível captar o áudio do app: ${err.message}`);
                 }
-            } else if (telaStream && estaNoAppDesktop()) {
-                addLog('ℹ️ Sem áudio do app nesta captura: a música da Mesa de Som não vai na gravação (no app desktop, instale a versão mais recente).');
+            } else if (telaStream) {
+                addLog(estaNoAppDesktop()
+                    ? 'ℹ️ Sem áudio do app nesta captura: a música da Mesa de Som não vai na gravação (no app desktop, instale a versão mais recente).'
+                    : 'ℹ️ Sem áudio do app nesta captura: escolha a opção "Aba" (não janela/tela inteira) no seletor para incluir a música da Mesa de Som na gravação.');
             }
 
             // 2. Voz: se você não está na Sala de Rádio, abre o microfone por conta própria.

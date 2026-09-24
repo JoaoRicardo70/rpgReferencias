@@ -155,20 +155,20 @@ describe('GravadorPanel — áudio da página na gravação', () => {
         expect(getDisplayMediaMock).toHaveBeenCalledWith(expect.objectContaining({ audio: true, preferCurrentTab: true }));
     });
 
-    it('(a) no navegador comum pede getDisplayMedia com audio: false', async () => {
+    it('(a) no navegador comum também pede getDisplayMedia com audio: true (aba pré-selecionada pelo preferCurrentTab)', async () => {
         definirUserAgent(userAgentOriginal);
         await montar(null);
-        expect(getDisplayMediaMock).toHaveBeenCalledWith(expect.objectContaining({ audio: false, preferCurrentTab: true }));
+        expect(getDisplayMediaMock).toHaveBeenCalledWith(expect.objectContaining({ audio: true, preferCurrentTab: true }));
     });
 
-    it('(c) no navegador comum (sem trilha de áudio) não cria fonte da página, ganho fica 1 e não loga "Sem áudio do app"', async () => {
+    it('(c) no navegador comum (sem trilha de áudio, ex.: usuário escolheu janela/tela em vez de aba) não cria fonte da página, ganho fica 1 e loga o aviso orientando a escolher a aba', async () => {
         definirUserAgent(userAgentOriginal);
         telaStream = { getTracks: () => [telaTrack], getVideoTracks: () => [telaTrack], getAudioTracks: () => [] };
         await montar(vozBase());
 
         expect(fontePagina()).toBeUndefined();
         expect(ctx().ganhos[0].gain.value).toBe(1);
-        expect(screen.queryByText(/Sem áudio do app/)).toBeNull();
+        expect(screen.getByText(/Sem áudio do app nesta captura: escolha a opção "Aba"/)).toBeTruthy();
         expect(MockMediaRecorder.instances).toHaveLength(1);
     });
 
@@ -212,6 +212,16 @@ describe('GravadorPanel — áudio da página na gravação', () => {
             rerender(React.createElement(VoiceContext.Provider, { value: { ...voz, surdo: false } }, React.createElement(GravadorPanel)));
         });
         expect(ctx().ganhos[0].gain.value).toBe(0);
+    });
+
+    it('(c) no app desktop (Electron) sem trilha de áudio loga o aviso específico de instalar a versão mais recente (não o de escolher a aba)', async () => {
+        telaStream = { getTracks: () => [telaTrack], getVideoTracks: () => [telaTrack], getAudioTracks: () => [] };
+        await montar(vozBase());
+
+        expect(fontePagina()).toBeUndefined();
+        expect(ctx().ganhos[0].gain.value).toBe(1);
+        expect(screen.getByText(/Sem áudio do app nesta captura: a música da Mesa de Som não vai na gravação \(no app desktop, instale a versão mais recente\)/)).toBeTruthy();
+        expect(screen.queryByText(/escolha a opção "Aba"/)).toBeNull();
     });
 
     it('(c) captura sem trilhas de áudio mantém ganho 1 e registra o log "Sem áudio do app"', async () => {

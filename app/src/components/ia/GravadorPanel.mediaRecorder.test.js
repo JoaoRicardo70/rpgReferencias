@@ -368,11 +368,11 @@ describe('GravadorPanel — tela do app e vozes da Sala de Rádio', () => {
         return utils;
     }
 
-    it('captures the current tab (video, no page audio outside the desktop app) and records video/webm', async () => {
+    it('captures the current tab (video + page audio, so page music/voices are recorded too) and records video/webm', async () => {
         await montar(null);
 
         expect(getDisplayMediaMock).toHaveBeenCalledWith(
-            expect.objectContaining({ audio: false, preferCurrentTab: true })
+            expect.objectContaining({ audio: true, preferCurrentTab: true })
         );
         const recorder = MockMediaRecorder.instances[0];
         expect(recorder.options).toMatchObject({ mimeType: 'video/webm' });
