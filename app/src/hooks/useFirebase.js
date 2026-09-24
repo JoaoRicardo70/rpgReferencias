@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import useStore from '../stores/useStore';
 import { db } from '../services/firebase-config';
-import { iniciarListenerFichaPropria, iniciarListenerPersonagens, iniciarListenerFeed, salvarFirebaseImediato, resetSincronizacaoFicha } from '../services/firebase-sync';
+import { iniciarListenerFichaPropria, iniciarListenerPersonagens, iniciarListenerFeed, salvarFirebaseImediato, resetSincronizacaoFicha, mesclarPersonagensRemotos } from '../services/firebase-sync';
 
 export default function useFirebase() {
     const [loading, setLoading] = useState(true);
@@ -45,7 +45,14 @@ export default function useFirebase() {
         }
 
         unsubPersonagens = iniciarListenerPersonagens((personagens) => {
-            if (!cancelled) setPersonagens(personagens);
+            if (cancelled) return;
+            // 🔥 GRIMÓRIO DA ENTIDADE: se o Mestre está editando alguma entidade alheia ao vivo
+            // (FichaAlvoContext.jsx), mescla o snapshot remoto com o merge 3 vias em vez de
+            // sobrescrever -- senão uma digitação dele "voltava" sempre que QUALQUER personagem
+            // da mesa mudasse algo (é esta árvore inteira que dispara este listener). Sem
+            // ninguém editando por este caminho, mesclarPersonagensRemotos devolve o snapshot
+            // como está, idêntico ao comportamento de sempre.
+            setPersonagens(mesclarPersonagensRemotos(useStore.getState().personagens, personagens));
         });
 
         unsubFeed = iniciarListenerFeed((entry) => {

@@ -180,6 +180,24 @@ const useStore = create(
         }),
         updateFicha: (callback) => set((state) => { callback(state.minhaFicha); }),
 
+        // 🔥 GRIMÓRIO DA ENTIDADE (visão do Mestre): mesma mutação Immer de updateFicha, mas
+        // mirando UMA ENTIDADE ESCOLHIDA (nome) em vez de sempre "eu mesmo". Se o nome é o do
+        // próprio jogador logado, cai no caminho de sempre (state.minhaFicha) -- assim, o Mestre
+        // editando a PRÓPRIA ficha pelo Grimório continua mantendo minhaFicha em sincronia, igual
+        // ao resto do app já espera. Só existe pra permitir que a Ficha Definitiva (Marcados.jsx)
+        // e seus painéis sejam reaproveitados ao vivo pelo Mestre sem duplicar toda a lógica de
+        // edição -- ver FichaAlvoContext.jsx.
+        updateFichaAlvo: (nome, callback) => set((state) => {
+            if (!nome) return;
+            if (sanitizarNome(nome) === sanitizarNome(state.meuNome || '')) {
+                callback(state.minhaFicha);
+                return;
+            }
+            if (state.personagens && state.personagens[nome]) {
+                callback(state.personagens[nome]);
+            }
+        }),
+
         loreCapitulosPresente: lerLoreLocal('rpgSextaFeira_capitulos', loreCapitulosPresentePadrao),
         loreCapituloAtivoId: lerLoreNumeroLocal('rpgSextaFeira_capituloAtivo', 1),
         loreArcoAtivoIdPresente: lerLoreNumeroLocal('rpgSextaFeira_arcoAtivoPresente', 11),

@@ -1,19 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso } from '../../services/firebase-sync';
 import { lerImagemComoBase64 } from '../../services/firebase-storage';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
-
-// ==========================================
-// ⏱️ ESCUDO DE DEBOUNCE GLOBAL
-// ==========================================
-let globalTimerRelicario = null;
-function callSaveDebounced() {
-    if (globalTimerRelicario) clearTimeout(globalTimerRelicario);
-    globalTimerRelicario = setTimeout(() => {
-        salvarFichaSilencioso();
-    }, 400);
-}
+import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
 
 // ==========================================
 // 🎲 CONSTANTES DE RPG (ITENS E ARMAS)
@@ -78,13 +67,12 @@ export function useRelicario() {
 }
 
 export function RelicarioProvider({ children }) {
-    const minhaFicha = useStore(s => s.minhaFicha);
-    const updateFicha = useStore(s => s.updateFicha);
+    // 🔥 GRIMÓRIO DA ENTIDADE: ver o mesmo comentário em Marcados.jsx > MarcadosPanel.
+    const { ficha: minhaFicha, updateFicha, nome: meuNome } = useFichaAtiva();
     const isMestre = useStore(s => s.isMestre);
-    const meuNome = useStore(s => s.meuNome);
     const [abaAtual, setAbaAtual] = useState('altar');
 
-    const callSave = useCallback(() => { callSaveDebounced(); }, []);
+    const callSave = useCallSaveAtivo();
 
     useEffect(() => {
         if (minhaFicha && !minhaFicha.armaEspiritual) {

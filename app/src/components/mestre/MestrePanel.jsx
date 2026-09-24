@@ -1,6 +1,5 @@
 import React from 'react';
 import { MestreFormProvider, useMestreForm } from './MestreFormContext';
-import DiarioNPC from './DiarioNPC'; // Ajuste o caminho se a pasta for diferente
 import {
     MestreAcessoNegado,
     MestreVisorJogadores,

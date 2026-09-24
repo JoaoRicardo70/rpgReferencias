@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso, salvarFirebaseImediato, salvarDivisorPoderMesa } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, salvarFirebaseImediato, salvarDivisorPoderMesa, salvarFichaAlvoSilencioso, salvarFichaAlvoImediato } from '../../services/firebase-sync';
 import { lerImagemComoBase64 } from '../../services/firebase-storage';
 
 // Importação flexível
@@ -16,6 +16,7 @@ import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel';
 import PactosPanel from './PactosPanel';
 import BarrasVida from '../shared/BarrasVida';
+import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
 
 // ==========================================
 // 🛡️ DADOS DO COMPÊNDIO E FUNÇÕES SEGURAS
@@ -473,7 +474,11 @@ function getPontosParaAscensao(ficha, key) {
 }
 
 let globalTimer = null;
-function callSave(fn) {
+// 🔥 GRIMÓRIO DA ENTIDADE: esta é só a implementação "eu mesmo" (minhaFicha) -- os componentes
+// que chamavam a antiga função livre `callSave()` diretamente (CampoMagico/LabelMagico, abaixo)
+// agora resolvem qual salvar usar via useCallSaveAtivo() (FichaAlvoContext.jsx), que cai aqui
+// quando não há Mestre editando outra entidade, e redireciona pro alvo certo quando há.
+function callSaveMinhaFicha(fn) {
     if (globalTimer) clearTimeout(globalTimer);
     globalTimer = setTimeout(() => {
         if (typeof salvarFirebaseImediato === 'function') salvarFirebaseImediato();
@@ -489,6 +494,7 @@ let divisorPoderMesaTimer = null;
 // ==========================================
 const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange, displayOverride }) => {
     const [focused, setFocused] = useState(false);
+    const callSave = useCallSaveAtivo();
     const handleChange = (e) => {
         let val = e.target.value;
         if (isNumber && val !== '') {
@@ -517,14 +523,17 @@ const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "te
     );
 };
 
-const LabelMagico = ({ valor, onChange, fallback }) => (
-    <input type="text" value={valor !== undefined ? valor : fallback} onChange={(e) => onChange(e.target.value)} 
-        onBlur={(e) => { e.target.style.borderBottom = '1px solid transparent'; callSave(); }}
-        size={Math.max(String(valor !== undefined ? valor : fallback).length, 3)}
-        style={{ background: 'transparent', border: 'none', borderBottom: '1px solid transparent', fontFamily: 'inherit', fontSize: 'inherit', color: 'inherit', fontWeight: 'bold', fontStyle: 'italic', outline: 'none', padding: '0', cursor: 'text', transition: '0.2s' }}
-        onFocus={(e) => e.target.style.borderBottom = '1px dashed currentColor'} 
-    />
-);
+const LabelMagico = ({ valor, onChange, fallback }) => {
+    const callSave = useCallSaveAtivo();
+    return (
+        <input type="text" value={valor !== undefined ? valor : fallback} onChange={(e) => onChange(e.target.value)}
+            onBlur={(e) => { e.target.style.borderBottom = '1px solid transparent'; callSave(); }}
+            size={Math.max(String(valor !== undefined ? valor : fallback).length, 3)}
+            style={{ background: 'transparent', border: 'none', borderBottom: '1px solid transparent', fontFamily: 'inherit', fontSize: 'inherit', color: 'inherit', fontWeight: 'bold', fontStyle: 'italic', outline: 'none', padding: '0', cursor: 'text', transition: '0.2s' }}
+            onFocus={(e) => e.target.style.borderBottom = '1px dashed currentColor'}
+        />
+    );
+};
 
 // 🔥 Reformulação de Status (pedido do usuário): os números de Força/Destreza/etc. exibidos
 // aqui estavam "inflados" (ex.: 50.000 em vez de 50). Este divisor só existe na EXIBIÇÃO/EDIÇÃO
@@ -787,7 +796,7 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
 // ==========================================
 // 📜 O COMPONENTE: HIERARQUIA DE DOMÍNIOS
 // ==========================================
-function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
+function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha, callSave }) {
     const [selectValue, setSelectValue] = useState('');
     const [inputValue, setInputValue] = useState('');
     // 🔥 EVOLUÇÃO EM MASSA (pedido do usuário): marca vários domínios deste quadrante e sobe todos
@@ -962,14 +971,14 @@ function QuadranteCategoria({ catKey, catData, dominiosSalvos, updateFicha }) {
     );
 }
 
-const DominiosPanel = ({ ficha, updateFicha }) => (
+const DominiosPanel = ({ ficha, updateFicha, callSave }) => (
     <div style={{ width: '100%' }}>
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
             <h1 style={{ fontSize: '3em', fontStyle: 'italic', fontWeight: 'bold', margin: '0', paddingBottom: '10px', borderBottom: `2px dashed currentColor` }}>A Hierarquia de Domínios</h1>
             <p style={{ opacity: 0.7, fontStyle: 'italic', marginTop: '5px' }}>O Conhecimento Absoluto das Artes Místicas e Marciais</p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '25px' }}>
-            {Object.entries(CATEGORIAS_DOMINIO).map(([catKey, catData]) => (<QuadranteCategoria key={catKey} catKey={catKey} catData={catData} dominiosSalvos={ficha?.dominios || {}} updateFicha={updateFicha} />))}
+            {Object.entries(CATEGORIAS_DOMINIO).map(([catKey, catData]) => (<QuadranteCategoria key={catKey} catKey={catKey} catData={catData} dominiosSalvos={ficha?.dominios || {}} updateFicha={updateFicha} callSave={callSave} />))}
         </div>
     </div>
 );
@@ -978,13 +987,29 @@ const DominiosPanel = ({ ficha, updateFicha }) => (
 // 📖 PAINEL PRINCIPAL (A FICHA DEFINITIVA)
 // ==========================================
 export default function MarcadosPanel() {
-    const minhaFicha = useStore(s => s?.minhaFicha);
-    const updateFicha = useStore(s => s?.updateFicha);
+    // 🔥 GRIMÓRIO DA ENTIDADE: minhaFicha/updateFicha continuam se chamando assim (evita renomear
+    // as centenas de usos abaixo), mas agora vêm de useFichaAtiva() -- fora de um
+    // FichaAlvoProvider (ou mirando o próprio nome do jogador logado), é byte a byte
+    // s.minhaFicha/s.updateFicha de sempre; dentro de um Provider mirando OUTRA entidade (o
+    // Mestre editando pelo Grimório em PainelMestreSandbox.jsx), passa a ler/gravar nela.
+    const { ficha: minhaFicha, updateFicha, nome: nomeFichaAtiva, souEuMesmo } = useFichaAtiva();
     const meuNome = useStore(s => s?.meuNome);
     const isMestreStatus = useStore(s => s?.isMestre) || false;
     const importarDaAbaStatus = useStore(s => s?.importarDaAbaStatus);
     const divisorPoderMesa = useStore(s => s?.divisorPoderMesa) || 1;
     const setDivisorPoderMesa = useStore(s => s?.setDivisorPoderMesa);
+
+    // Mesmo motivo do callSave "instance-scoped" em CampoMagico/LabelMagico (useCallSaveAtivo),
+    // mas aqui usa useFichaAtiva() de qualquer forma (o componente já assina minhaFicha inteira
+    // pra tudo mais), então só redireciona pro alvo certo -- os ~25 `callSave()` já espalhados
+    // pelo corpo de MarcadosPanel abaixo continuam funcionando sem editar nenhum deles: como esta
+    // constante SOMBREIA o antigo nome livre `callSaveMinhaFicha` só dentro deste escopo, toda
+    // closure definida aqui dentro (handlers inline, `salvar`, etc.) resolve pra ESTA versão.
+    const callSave = useCallback((fn) => {
+        if (souEuMesmo) { callSaveMinhaFicha(fn); return; }
+        salvarFichaAlvoSilencioso(nomeFichaAtiva);
+        if (fn) fn();
+    }, [souEuMesmo, nomeFichaAtiva]);
 
     const [uploadingImg, setUploadingImg] = useState(false);
     const [modalEstilo, setModalEstilo] = useState(false);
@@ -1429,7 +1454,7 @@ export default function MarcadosPanel() {
         const minhaTentativa = ++tentativaSalvarRef.current;
         setEstadoSalvar('salvando');
         try {
-            await salvarFirebaseImediato();
+            await (souEuMesmo ? salvarFirebaseImediato() : salvarFichaAlvoImediato(nomeFichaAtiva));
             setEstadoSalvar('salvo');
             setTimeout(() => { if (tentativaSalvarRef.current === minhaTentativa) setEstadoSalvar('idle'); }, 1500);
         } catch (err) {
@@ -1659,7 +1684,7 @@ export default function MarcadosPanel() {
                         <div style={{ flex: '1 1 450px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                             <div style={{ display: 'flex', alignItems: 'baseline', borderBottom: '2px solid currentColor', paddingBottom: '5px', marginBottom: '10px', width: 'fit-content' }}>
                                 <span style={{ fontSize: '3.5em', fontStyle: 'italic', fontWeight: 'bold', margin: 0 }}>/</span>
-                                <CampoMagico valor={minhaFicha.bio?.apelido !== undefined ? minhaFicha.bio.apelido : meuNome} onChange={(v) => salvar('bio.apelido', v)} placeholder="Nome" styleExtra={{ fontSize: '3.5em', fontStyle: 'italic', fontWeight: 'bold', minWidth: '300px', width: 'auto', borderBottom: 'none' }} />
+                                <CampoMagico valor={minhaFicha.bio?.apelido !== undefined ? minhaFicha.bio.apelido : nomeFichaAtiva} onChange={(v) => salvar('bio.apelido', v)} placeholder="Nome" styleExtra={{ fontSize: '3.5em', fontStyle: 'italic', fontWeight: 'bold', minWidth: '300px', width: 'auto', borderBottom: 'none' }} />
                                 <span style={{ fontSize: '3.5em', fontStyle: 'italic', fontWeight: 'bold', margin: 0 }}>©</span>
                             </div>
                             <h2 style={{ fontSize: '2.2em', fontStyle: 'italic', fontWeight: 'bold', margin: '0 0 20px 0', display: 'flex', alignItems: 'center' }}>
@@ -2107,7 +2132,7 @@ export default function MarcadosPanel() {
                     </>
                 )}
 
-                {paginaAtual === 3 && ( <DominiosPanel ficha={minhaFicha} updateFicha={updateFicha} /> )}
+                {paginaAtual === 3 && ( <DominiosPanel ficha={minhaFicha} updateFicha={updateFicha} callSave={callSave} /> )}
                 {paginaAtual === 4 && ( <ClassificacaoPanel /> )}
                 {paginaAtual === 5 && ( <RelicarioPanel /> )}
                 {paginaAtual === 6 && ( <PactosPanel /> )}

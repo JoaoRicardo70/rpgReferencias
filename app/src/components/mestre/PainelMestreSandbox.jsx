@@ -5,7 +5,8 @@ import { calcularEficaciaCura } from '../../core/engine';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularPoderAtual } from '../../core/poder';
 import { formatarPoderCosmico } from '../../core/utils';
-import DiarioNPC from './DiarioNPC';
+import MarcadosPanel from '../Ficha Def/Marcados';
+import { FichaAlvoProvider } from '../Ficha Def/FichaAlvoContext';
 
 export const TODAS_CONDICOES_BASE = [
     { id: 'sangrando', icone: '🩸', cor: '#ff003c', nome: 'Sangrando' },
@@ -163,18 +164,14 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
                             ❌ FECHAR LIVRO
                         </button>
                         
-                        <DiarioNPC 
-                            npcData={{ ...ficha, nome: personagemId }} 
-                            onSaveNpc={(novosDados) => {
-                                const fichaAtualizada = { ...novosDados };
-                                delete fichaAtualizada.nome;
-                                update(ref(db, `mesas/${mesaId}/personagens/${personagemId}`), fichaAtualizada).catch(err => alert("Erro ao salvar NPC: " + err.message));
-                                setPersonagens({
-                                    ...useStore.getState().personagens,
-                                    [personagemId]: fichaAtualizada
-                                });
-                            }} 
-                        />
+                        {/* 🔥 GRIMÓRIO DA ENTIDADE: a MESMA Ficha Definitiva que o jogador usa, ao vivo, mirando
+                            este personagem em vez de "eu mesmo" (FichaAlvoContext.jsx) -- antes era uma cópia
+                            simplificada (DiarioNPC) com só uma fração dos campos/páginas da ficha real, que
+                            precisava ser mantida manualmente em dia; agora qualquer campo novo da Ficha
+                            Definitiva já aparece aqui sozinho, sem nenhum trabalho extra. */}
+                        <FichaAlvoProvider nome={personagemId}>
+                            <MarcadosPanel />
+                        </FichaAlvoProvider>
                     </div>
                 </div>
             )}

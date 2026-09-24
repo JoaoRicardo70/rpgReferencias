@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso } from '../../services/firebase-sync';
 import { getMaximo } from '../../core/attributes.js';
+import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
 
 // ==========================================
 // 🌌 CONSTANTES DE ELEMENTOS
@@ -42,13 +42,16 @@ export function useClassificacao() {
 }
 
 export function ClassificacaoProvider({ children }) {
-    const minhaFicha = useStore(s => s.minhaFicha);
-    const updateFicha = useStore(s => s.updateFicha);
+    // 🔥 GRIMÓRIO DA ENTIDADE: fora de um FichaAlvoProvider (ou mirando o próprio nome do
+    // jogador logado), useFichaAtiva() devolve exatamente s.minhaFicha/s.updateFicha de sempre.
+    // Dentro de um Provider mirando outra entidade (o Mestre editando pelo Grimório em
+    // PainelMestreSandbox.jsx), passa a ler/gravar nela -- ver Marcados.jsx > MarcadosPanel.
+    const { ficha: minhaFicha, updateFicha } = useFichaAtiva();
     const isMestre = useStore(s => s.isMestre);
     const [abaAtual, setAbaAtual] = useState('registros');
 
     // Funções de Save
-    const callSave = useCallback(() => { salvarFichaSilencioso(); }, []);
+    const callSave = useCallSaveAtivo();
 
     // Marcadores
     const [novoTrackerNome, setNovoTrackerNome] = useState('');

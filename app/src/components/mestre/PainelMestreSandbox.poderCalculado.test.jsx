@@ -17,11 +17,12 @@ import { calcularPoderAtual } from '../../core/poder';
 // seguir; usa o mesmo formato de mock de firebase/database já usado em outros
 // testes do projeto, ex.: MestreFormContext.toggleCoMestre.test.jsx). Mocka
 // '../../stores/useStore' (default) no mesmo padrão de
-// MestreSubComponents.visorEntidades.test.jsx. Mocka './DiarioNPC' (não é o alvo
-// deste teste, e evita puxar sua própria árvore pesada de dependências) e faz um
-// mock PARCIAL de '../../core/poder' (só calcularPoderAtual vira spy, preservando
-// o resto do módulo real via importOriginal) para poder assertar quantas vezes
-// (e com quais argumentos) ele é chamado.
+// MestreSubComponents.visorEntidades.test.jsx. Mocka a Ficha Definitiva/
+// FichaAlvoContext (o Grimório da Entidade -- não é o alvo deste teste, e evita
+// puxar sua própria árvore pesada de dependências) e faz um mock PARCIAL de
+// '../../core/poder' (só calcularPoderAtual vira spy, preservando o resto do
+// módulo real via importOriginal) para poder assertar quantas vezes (e com quais
+// argumentos) ele é chamado.
 // ---------------------------------------------------------------------------
 
 vi.mock('firebase/database', () => ({
@@ -30,7 +31,8 @@ vi.mock('firebase/database', () => ({
     update: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock('./DiarioNPC', () => ({ default: () => null }));
+vi.mock('../Ficha Def/Marcados', () => ({ default: () => null }));
+vi.mock('../Ficha Def/FichaAlvoContext', () => ({ FichaAlvoProvider: ({ children }) => children }));
 
 var calcularPoderAtualReal;
 vi.mock('../../core/poder', async (importOriginal) => {

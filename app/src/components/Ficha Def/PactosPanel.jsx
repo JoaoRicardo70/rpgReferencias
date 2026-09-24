@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso } from '../../services/firebase-sync';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS } from '../../core/efeitos-constants';
 import { CLASSES_OPTIONS } from '../ficha/FichaFormContext';
 import FormasEditor from '../shared/FormasEditor';
+import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
 
 // ==========================================
 // 👁️ REINO INTERIOR — PACTOS, ESPÍRITOS & ENTIDADES SELADAS
@@ -74,9 +73,9 @@ const EditorEfeitos = ({ titulo, cor, isAtivo, draftBuffs, novo, setNovo, addEfe
 );
 
 export default function PactosPanel() {
-    const minhaFicha = useStore(s => s.minhaFicha);
-    const updateFicha = useStore(s => s.updateFicha);
-    const callSave = () => salvarFichaSilencioso();
+    // 🔥 GRIMÓRIO DA ENTIDADE: ver o mesmo comentário em Marcados.jsx > MarcadosPanel.
+    const { ficha: minhaFicha, updateFicha } = useFichaAtiva();
+    const callSave = useCallSaveAtivo();
 
     const seresSelados = minhaFicha?.seresSelados || [];
     const [editandoId, setEditandoId] = useState(null);

@@ -257,6 +257,100 @@ export function iniciarListenerPersonagens(callback) {
 }
 
 // ==========================================
+// 🔥 GRIMÓRIO DA ENTIDADE — sincronização de uma ficha ALHEIA (Mestre editando outra entidade)
+// ==========================================
+// Mesmo diff/baseline/debounce de salvarFirebaseImediato/salvarFichaSilencioso acima, mas por
+// NOME (Map, não uma variável global única) -- só existe enquanto o Mestre tem aquela entidade
+// aberta pra edição no Grimório da Entidade (FichaAlvoContext.jsx). Outras entidades da mesa
+// continuam só sendo sobrescritas pelo snapshot bruto do listener (iniciarListenerPersonagens),
+// sem baseline, porque ninguém está editando-as localmente por este caminho.
+const debounceTimersAlvo = new Map();
+const baselinesAlvo = new Map();
+
+// Chamado ao abrir o Grimório pra uma entidade que não é "eu mesmo" -- inicia o rastreamento de
+// baseline dela a partir do que já está carregado localmente. Chamar de novo ao fechar o
+// Grimório/trocar de entidade evita que uma sessão de edição anterior "vaze" pro diff da próxima.
+export function iniciarSincronizacaoFichaAlvo(nome) {
+    if (!nome) return;
+    const chave = sanitizarNome(nome);
+    const { personagens } = useStore.getState();
+    const atual = personagens && personagens[nome];
+    baselinesAlvo.set(chave, atual ? JSON.parse(JSON.stringify(atual)) : null);
+}
+
+export function pararSincronizacaoFichaAlvo(nome) {
+    if (!nome) return;
+    const chave = sanitizarNome(nome);
+    // 🔥 Achata uma edição pendente ANTES de descartar o timer/baseline -- sem isto, fechar o
+    // Grimório logo depois de editar um campo perdia a última mudança em silêncio: o blur do
+    // campo agenda um save daqui a 500ms (salvarFichaAlvoSilencioso), mas fechar o Grimório
+    // desmonta o FichaAlvoProvider (e chama esta função) antes desse tempo passar, cancelando o
+    // timer sem a mudança nunca ter ido pro Firebase -- e como a baseline também some aqui, o
+    // próximo snapshot remoto da mesa sobrescreve a entidade de volta pro valor antigo sem aviso.
+    if (debounceTimersAlvo.has(chave)) {
+        clearTimeout(debounceTimersAlvo.get(chave));
+        salvarFichaAlvoImediato(nome).catch(() => {});
+    }
+    debounceTimersAlvo.delete(chave);
+    baselinesAlvo.delete(chave);
+}
+
+export function salvarFichaAlvoImediato(nome) {
+    if (isInPlasmicCanvas() || !nome) return Promise.resolve();
+    const chave = sanitizarNome(nome);
+    const { meuNome, mesaId, personagens } = useStore.getState();
+    // Mirando o próprio Mestre: usa o caminho normal (minhaFicha/meuNome continuam a única fonte
+    // de verdade pro PRÓPRIO personagem dele, igual updateFichaAlvo já faz no store).
+    if (chave === sanitizarNome(meuNome || '')) return salvarFirebaseImediato();
+    if (!db || !mesaId) return Promise.resolve();
+
+    const fichaAtual = personagens && personagens[nome];
+    if (!fichaAtual) return Promise.resolve();
+    const fichaParaSalvar = JSON.parse(JSON.stringify(fichaAtual));
+
+    if (fichaAtual.dominios && !fichaParaSalvar.dominios) fichaParaSalvar.dominios = fichaAtual.dominios;
+
+    const baseline = baselinesAlvo.has(chave) ? baselinesAlvo.get(chave) : null;
+    const alteracoes = calcularDiffFirebase(baseline, fichaParaSalvar);
+    if (Object.keys(alteracoes).length === 0) return Promise.resolve();
+
+    // Mesmo motivo do "não atualiza aqui" de salvarFirebaseImediato: quem avança a baseline é
+    // sempre o listener da mesa (mesclarPersonagensRemotos), nunca este .then() -- senão um
+    // snapshot concorrente (o próprio jogador editando esta ficha ao mesmo tempo) teria sua
+    // baseline mais atual pisoteada por este envio, revertendo aquela mudança no próximo save.
+    return update(ref(db, `mesas/${mesaId}/personagens/${nome}`), alteracoes)
+        .catch((err) => { throw err; });
+}
+
+export function salvarFichaAlvoSilencioso(nome) {
+    if (isInPlasmicCanvas() || !nome) return;
+    const chave = sanitizarNome(nome);
+    clearTimeout(debounceTimersAlvo.get(chave));
+    debounceTimersAlvo.set(chave, setTimeout(() => { salvarFichaAlvoImediato(nome).catch(() => {}); }, 500));
+}
+
+// Usado pelo listener da mesa inteira (iniciarListenerPersonagens, via hooks/useFirebase.js): pra
+// qualquer entidade SEM baseline ativa aqui (ninguém editando-a pelo Grimório agora), devolve o
+// snapshot remoto como sempre foi (sobrescrita direta). Pra a(s) que tiverem, aplica o mesmo merge
+// 3 vias que a própria ficha usa (mesclarComRemoto) -- sem isso, uma digitação do Mestre no
+// Grimório podia "voltar" no meio de uma frase sempre que QUALQUER OUTRO personagem da mesa
+// mudasse algo (o listener reage à árvore `personagens` inteira, não só à entidade aberta).
+export function mesclarPersonagensRemotos(personagensLocais, personagensRemotos) {
+    if (baselinesAlvo.size === 0) return personagensRemotos;
+    const resultado = { ...personagensRemotos };
+    baselinesAlvo.forEach((baseline, chave) => {
+        const nome = Object.keys(personagensRemotos).find(k => sanitizarNome(k) === chave)
+            || Object.keys(personagensLocais || {}).find(k => sanitizarNome(k) === chave);
+        if (!nome) return;
+        const remoto = personagensRemotos[nome];
+        const local = personagensLocais && personagensLocais[nome];
+        if (remoto && local) resultado[nome] = mesclarComRemoto(baseline || {}, local, remoto);
+        baselinesAlvo.set(chave, remoto ? JSON.parse(JSON.stringify(remoto)) : baseline);
+    });
+    return resultado;
+}
+
+// ==========================================
 // 🔥 OUTROS SISTEMAS DE MESA 🔥
 // ==========================================
 export function iniciarListenerFeed(callback) {
