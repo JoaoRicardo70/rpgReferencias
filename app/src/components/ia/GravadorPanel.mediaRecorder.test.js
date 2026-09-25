@@ -372,7 +372,7 @@ describe('GravadorPanel — tela do app e vozes da Sala de Rádio', () => {
         await montar(null);
 
         expect(getDisplayMediaMock).toHaveBeenCalledWith(
-            expect.objectContaining({ audio: true, preferCurrentTab: true })
+            expect.objectContaining({ audio: { suppressLocalAudioPlayback: false }, preferCurrentTab: true })
         );
         const recorder = MockMediaRecorder.instances[0];
         expect(recorder.options).toMatchObject({ mimeType: 'video/webm' });

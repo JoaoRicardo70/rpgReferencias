@@ -1,9 +1,11 @@
 /**
  * Tests for GravadorPanel.jsx — áudio da página (música da Mesa de Som) na gravação.
  *
- * getDisplayMedia é pedido com `audio: true`. Se a captura trouxer trilha de áudio, ela entra na
- * mixagem e as vozes remotas ficam com ganho 0 (já estão no áudio da página), a menos que o
- * usuário esteja surdo (voz.surdo), quando voltam a ganho 1. Sem áudio da página, ganho 1 e um log.
+ * getDisplayMedia é pedido com `audio: { suppressLocalAudioPlayback: false }` (o segundo campo evita
+ * que o Chrome abafe o áudio da aba localmente enquanto ela é capturada). Se a captura trouxer
+ * trilha de áudio, ela entra na mixagem e as vozes remotas ficam com ganho 0 (já estão no áudio da
+ * página), a menos que o usuário esteja surdo (voz.surdo), quando voltam a ganho 1. Sem áudio da
+ * página, ganho 1 e um log.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -150,15 +152,19 @@ describe('GravadorPanel — áudio da página na gravação', () => {
     const fontePagina = () => ctx().fontes.find(f => f.stream instanceof MockMediaStream);
     const fonteDe = (id) => ctx().fontes.find(f => f.stream.id === id);
 
-    it('(a) no app desktop (Electron) pede getDisplayMedia com audio: true', async () => {
+    it('(a) no app desktop (Electron) pede getDisplayMedia com audio sem abafar a reprodução local', async () => {
         await montar(null);
-        expect(getDisplayMediaMock).toHaveBeenCalledWith(expect.objectContaining({ audio: true, preferCurrentTab: true }));
+        expect(getDisplayMediaMock).toHaveBeenCalledWith(expect.objectContaining({
+            audio: { suppressLocalAudioPlayback: false }, preferCurrentTab: true
+        }));
     });
 
-    it('(a) no navegador comum também pede getDisplayMedia com audio: true (aba pré-selecionada pelo preferCurrentTab)', async () => {
+    it('(a) no navegador comum também pede getDisplayMedia com audio sem abafar a reprodução local (aba pré-selecionada pelo preferCurrentTab)', async () => {
         definirUserAgent(userAgentOriginal);
         await montar(null);
-        expect(getDisplayMediaMock).toHaveBeenCalledWith(expect.objectContaining({ audio: true, preferCurrentTab: true }));
+        expect(getDisplayMediaMock).toHaveBeenCalledWith(expect.objectContaining({
+            audio: { suppressLocalAudioPlayback: false }, preferCurrentTab: true
+        }));
     });
 
     it('(c) no navegador comum (sem trilha de áudio, ex.: usuário escolheu janela/tela em vez de aba) não cria fonte da página, ganho fica 1 e loga o aviso orientando a escolher a aba', async () => {

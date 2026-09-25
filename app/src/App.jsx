@@ -28,10 +28,8 @@ import ArsenalPanel from './components/arsenal/ArsenalPanel';
 import ElementosPanel from './components/arsenal/ElementosPanel';
 import FeedCombate from './components/feed/FeedCombate';
 import MapaPanel from './components/mapa/MapaPanel';
-import Jukebox from './components/jukebox/Jukebox';
 import CompendioPanel from './components/compendio/CompendioPanel';
 import AIPanel from './components/ia/AIPanel';
-import GravadorPanel from './components/ia/GravadorPanel';
 import MarcadosPanel from './components/Ficha Def/Marcados';
 
 // IMPORTAÇÃO DO NOVO GRIMÓRIO!
@@ -394,10 +392,8 @@ export default function App() {
                     <TabPanel id="aba-elementos"><ElementosPanel /></TabPanel>
                     <TabPanel id="aba-log"><FeedCombate /></TabPanel>
                     <TabPanel id="aba-mapa"><MapaPanel /></TabPanel>
-                    <TabPanel id="aba-musica"><Jukebox /></TabPanel>
                     <TabPanel id="aba-compendio"><CompendioPanel /></TabPanel>
                     <TabPanel id="aba-oraculo"><AIPanel /></TabPanel>
-                    <TabPanel id="aba-gravador"><GravadorPanel /></TabPanel>
                     <TabPanel id="aba-comunicacao"><ComunicacaoPanel /></TabPanel>
                     {/* 🔥 AS DUAS ABAS ÉPICAS! */}
                     <TabPanel id="aba-Ficha Def"><MarcadosPanel /></TabPanel>

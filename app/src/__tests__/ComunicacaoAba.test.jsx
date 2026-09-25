@@ -2,7 +2,12 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 
-vi.mock('../services/firebase-sync', () => ({ salvarCenarioCompleto: vi.fn() }));
+vi.mock('../services/firebase-sync', () => ({
+    salvarCenarioCompleto: vi.fn(),
+    // ComunicacaoPanel agora também monta a Mesa de Som (Jukebox), que depende destas duas.
+    enviarParaJukebox: vi.fn(),
+    iniciarListenerJukebox: vi.fn(() => () => {}),
+}));
 
 import useStore from '../stores/useStore';
 import { VoiceContext } from '../hooks/VoiceContext';
@@ -24,13 +29,20 @@ const com = (ui, chat = fakeChat()) => render(
 
 beforeEach(() => {
     useStore.setState({ meuNome: 'Ana', cenario: { tavernaAtivos: [] }, personagens: { Ana: {} }, abaAtiva: 'aba-ficha' });
+    // O Gravador (agora sempre montado nesta aba) rola os logs para baixo a cada render; jsdom não implementa scrollIntoView.
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 afterEach(() => cleanup());
 
 describe('ComunicacaoPanel', () => {
-    it('nao renderiza fora da aba comunicacao', () => {
-        const { container } = com(<ComunicacaoPanel />);
-        expect(container.firstChild).toBeNull();
+    it('esconde os Chats fora da aba comunicacao, mas mantem Mesa de Som e Gravador montados', () => {
+        // Mesa de Som (Jukebox) e Gravador têm estado próprio (player do YouTube, MediaRecorder):
+        // precisam continuar rodando em segundo plano mesmo fora desta aba, então ficam sempre no
+        // DOM (escondidos só por CSS). Já os Chats só existem quando a aba está mesmo visível.
+        com(<ComunicacaoPanel />);
+        expect(screen.getByText(/Mesa de Som \(Controlo Mestre/)).toBeTruthy();
+        expect(screen.getByText(/Gravação da Sessão/)).toBeTruthy();
+        expect(screen.queryByText('+ Nova conversa')).toBeNull();
     });
     it('renderiza o painel quando a aba esta ativa', () => {
         useStore.setState({ abaAtiva: 'aba-comunicacao' });
@@ -40,12 +52,33 @@ describe('ComunicacaoPanel', () => {
         expect(screen.getByText(/Sala da Party/, { selector: 'button' })).toBeTruthy();
         expect(container.querySelector('.painel-com-aba')).toBeTruthy();
         expect(screen.queryByTitle('Fechar')).toBeNull();
+        // Seção inicial é Chats.
+        expect(screen.getByText('+ Nova conversa')).toBeTruthy();
     });
-    it('reage a troca de aba', () => {
-        const { container } = com(<ComunicacaoPanel />);
-        expect(container.firstChild).toBeNull();
+    it('troca de secao mostra Sala da Party, Mesa de Som e Gravador sem desmontar os dois ultimos', () => {
+        useStore.setState({ abaAtiva: 'aba-comunicacao' });
+        com(<ComunicacaoPanel />);
+
+        fireEvent.click(screen.getByText('🎙️ Sala da Party'));
+        expect(screen.getByText(/Na Sala da Party/)).toBeTruthy();
+        expect(screen.queryByText('+ Nova conversa')).toBeNull();
+
+        fireEvent.click(screen.getByText('🎵 Mesa de Som'));
+        expect(screen.getByText(/Mesa de Som \(Controlo Mestre/)).toBeTruthy();
+
+        fireEvent.click(screen.getByText('🎬 Gravador'));
+        expect(screen.getByText(/Gravação da Sessão/)).toBeTruthy();
+        // Mesmo fora de vista, a Mesa de Som continua montada (não reapareceu do zero).
+        expect(screen.getByText(/Mesa de Som \(Controlo Mestre/)).toBeTruthy();
+    });
+    it('reage a troca de aba (Chats aparecem e desaparecem, o resto continua montado)', () => {
+        com(<ComunicacaoPanel />);
+        expect(screen.queryByText('+ Nova conversa')).toBeNull();
         act(() => useStore.setState({ abaAtiva: 'aba-comunicacao' }));
-        expect(container.querySelector('.comunicacao-aba')).toBeTruthy();
+        expect(screen.getByText('+ Nova conversa')).toBeTruthy();
+        act(() => useStore.setState({ abaAtiva: 'aba-ficha' }));
+        expect(screen.queryByText('+ Nova conversa')).toBeNull();
+        expect(screen.getByText(/Gravação da Sessão/)).toBeTruthy();
     });
     it('sem providers nao renderiza o dialogo', () => {
         useStore.setState({ abaAtiva: 'aba-comunicacao' });
@@ -68,7 +101,7 @@ describe('Sidebar Comunicacao', () => {
     it('botao dentro da gaveta Multiverso define abaAtiva', () => {
         render(<Sidebar onResetClick={() => {}} />);
         fireEvent.click(screen.getByTitle('Multiverso'));
-        const botao = screen.getByTitle('Comunicação (Chat e Voz)');
+        const botao = screen.getByTitle('Comunicação (Chat, Voz e Mesa de Som)');
         expect(botao.closest('.sub-abas-wrapper').className).toContain('aberta');
         expect(botao.closest('.gaveta-container').querySelector('[title="Multiverso"]')).toBeTruthy();
         fireEvent.click(botao);

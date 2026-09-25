@@ -113,7 +113,7 @@ function NovoChat({ candidatos, naTaverna, onPrivado, onGrupo, onCancelar }) {
     );
 }
 
-function AbaChats({ chat, candidatos, naTaverna }) {
+export function AbaChats({ chat, candidatos, naTaverna }) {
     const meuNome = chat.eu;
     const [aberto, setAberto] = useState(null);
     const [criando, setCriando] = useState(false);
@@ -178,7 +178,7 @@ const fmtNumero = (n) => Number(n || 0).toLocaleString('pt-BR');
 
 // Sala da Party: cartões grandes com a imagem do personagem (como no Mapa), quem fala acende,
 // controles de microfone/saída e calibrador. O áudio dos outros toca no player global (AudioVozGlobal).
-function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome, compacto }) {
+export function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome, compacto }) {
     const minhaFicha = useStore(s => s.minhaFicha);
     const personagens = useStore(s => s.personagens);
     const tamanhoCartao = compacto ? '100%' : (naTaverna.length === 1 ? '400px' : naTaverna.length === 2 ? '350px' : '280px');

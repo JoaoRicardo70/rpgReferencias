@@ -1560,6 +1560,7 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .painel-com-aba { width: 100%; max-width: 900px; height: calc(100vh - 170px); min-height: 360px; margin: 0 auto; }
 .comunicacao-aba { padding: 10px 16px; }
 .comunicacao-aba-titulo { color: #00ffcc; margin: 0 0 12px; text-align: center; }
+.comunicacao-aba-secao { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; }
 /* .btn-neon global é grande (largura total, fonte 1.5em): dentro do painel vira botão compacto */
 .painel-com .btn-neon { width: auto; margin-top: 0; padding: 8px 14px; font-size: 0.85em; }
 .painel-com .dock-com-novo-btn { width: 100%; }
