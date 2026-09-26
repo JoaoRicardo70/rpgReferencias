@@ -88,7 +88,13 @@ function createWindow() {
     if (!origemDoApp || !request.frame || request.frame.parent) return callback({});
     // audio: o áudio desse mesmo quadro (música da Mesa de Som, incluindo o iframe do YouTube, e as vozes como
     // o jogador as ouve) — nunca o áudio do sistema. É por aqui que a música entra na gravação e nos clipes.
-    callback({ video: request.frame, audio: request.frame });
+    // enableLocalEcho: true é essencial -- por padrão, ao capturar o áudio de um WebFrameMain o próprio
+    // Electron MUTA a reprodução local desse quadro enquanto dura a captura (é a causa real da música e
+    // das vozes da Sala da Party ficarem mudas para quem está gravando ou com o buffer de clipes ligado:
+    // nenhuma configuração de getDisplayMedia/getUserMedia no lado do site alcança isso, e nenhuma opção
+    // do Windows tem qualquer efeito aqui -- é o Electron, não o Chrome nem o Windows). Sem risco de eco
+    // duplicado aqui: o áudio capturado só alimenta o arquivo gravado, nunca é reenviado a ninguém.
+    callback({ video: request.frame, audio: request.frame, enableLocalEcho: true });
   }, { useSystemPicker: false });
 
   win.webContents.session.clearCache();
