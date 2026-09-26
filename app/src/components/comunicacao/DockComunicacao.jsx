@@ -188,7 +188,7 @@ export function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome,
     return (
         <div className="dock-com-voz sala-party">
             <div className="sala-party-barra">
-                <div className="dock-com-voz-status">📡 {voz.voiceStatus}</div>
+                <div className={`dock-com-voz-status${voz.voiceStatus.startsWith('⚠️') ? ' gravador-aviso' : ''}`} role={voz.voiceStatus.startsWith('⚠️') ? 'alert' : undefined}>📡 {voz.voiceStatus}</div>
                 <div className="dock-com-voz-botoes">
                     <button type="button" className={`dock-com-redondo${voz.mutado ? ' ativo' : ''}`} disabled={!estouNaCall} onClick={voz.toggleMute} title={voz.mutado ? 'Ativar microfone' : 'Silenciar microfone'}>{voz.mutado ? '🔇' : '🎙️'}</button>
                     <button type="button" className={`dock-com-redondo${voz.surdo ? ' ativo' : ''}`} disabled={!estouNaCall} onClick={voz.toggleDeafen} title={voz.surdo ? 'Voltar a ouvir' : 'Ensurdecer'}>{voz.surdo ? '🔕' : '🎧'}</button>
@@ -228,7 +228,7 @@ export function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome,
                     return (
                         <AvatarCardVoz
                             key={nome} nome={nome} info={infoAvatarDaFicha(ficha)} ficha={ficha} isMe={souEu}
-                            isConnected={souEu || !!conexao} streamParaTocar={conexao?.stream}
+                            isConnected={souEu || !!conexao} streamParaTocar={conexao?.stream} iceState={conexao?.iceState}
                             streamAnalisador={souEu ? voz.streamAnalisador : null}
                             mutado={voz.mutado} surdo={voz.surdo} fazerChamada={voz.fazerChamada}
                             cardSize={tamanhoCartao} fmt={fmtNumero} selectedSpeaker={voz.selectedSpeaker}

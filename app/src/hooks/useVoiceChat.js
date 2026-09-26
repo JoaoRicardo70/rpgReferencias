@@ -7,13 +7,20 @@ import {
 
 // Vigia o estado da conexão WebRTC de uma chamada: quando o ICE falha (normalmente NAT sem
 // TURN), o jogador vê o motivo na tela em vez de um rádio "conectado" que não transmite áudio.
-function vigiarConexao(call, nomeAmigo, setVoiceStatus, aindaNaTaverna) {
+// Além do aviso em `voiceStatus` (uma frase só, que a próxima chamada sobrescreve), guarda o estado
+// de CADA conexão em `conexoes[].iceState`: é o que os cartões da Sala da Party usam pra não mostrar
+// "🔊 conectado" enquanto o áudio de fato não chegou (o stream já existe assim que o SDP é trocado,
+// bem antes do ICE confirmar que o áudio realmente passa pela rede).
+function vigiarConexao(call, nomeAmigo, peerId, setVoiceStatus, setConexoes, aindaNaTaverna) {
     const pc = call.peerConnection;
     if (!pc) return;
+    const atualizarIceState = () => setConexoes(prev => prev.map(c => (c.id === peerId ? { ...c, iceState: pc.iceConnectionState } : c)));
+    atualizarIceState();
     const anterior = pc.oniceconnectionstatechange;
     pc.oniceconnectionstatechange = (ev) => {
         if (anterior) anterior.call(pc, ev);
         console.log(`[VOZ] ICE com ${nomeAmigo}: ${pc.iceConnectionState}`);
+        atualizarIceState();
         if (!aindaNaTaverna()) return;
         if (pc.iceConnectionState === 'failed') {
             setVoiceStatus(temTurnConfigurado(import.meta.env)
@@ -133,13 +140,14 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
                 if (meuStreamRef.current) {
                     console.log(`[VOZ] A atender chamada de ${call.peer}...`);
                     call.answer(meuStreamRef.current);
-                    vigiarConexao(call, call.peer.replace(/^anime-rpg-/, ''), setVoiceStatus, () => rtcLigado.current);
+                    vigiarConexao(call, call.peer.replace(/^anime-rpg-/, ''), call.peer, setVoiceStatus, setConexoes, () => rtcLigado.current);
 
                     call.on('stream', (remoteStream) => {
+                        const iceState = (call.peerConnection && call.peerConnection.iceConnectionState) || 'new';
                         setConexoes(prev => {
                             const exists = prev.find(c => c.id === call.peer);
                             if (exists && exists.stream && exists.stream.active) return prev;
-                            return [...prev.filter(c => c.id !== call.peer), { id: call.peer, stream: remoteStream }];
+                            return [...prev.filter(c => c.id !== call.peer), { id: call.peer, stream: remoteStream, iceState }];
                         });
                     });
                     
@@ -244,13 +252,14 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
 
         const call = peerObj.call(idFormatado, meuStreamRef.current);
         if (!call) { chamadasEmAndamento.current.delete(idFormatado); return; }
-        vigiarConexao(call, nomeDestino, setVoiceStatus, () => rtcLigado.current);
+        vigiarConexao(call, nomeDestino, idFormatado, setVoiceStatus, setConexoes, () => rtcLigado.current);
 
         call.on('stream', (remoteStream) => {
+            const iceState = (call.peerConnection && call.peerConnection.iceConnectionState) || 'new';
             setConexoes(prev => {
                 const exists = prev.find(c => c.id === idFormatado);
                 if (exists && exists.stream && exists.stream.active) return prev;
-                return [...prev.filter(c => c.id !== idFormatado), { id: idFormatado, stream: remoteStream }];
+                return [...prev.filter(c => c.id !== idFormatado), { id: idFormatado, stream: remoteStream, iceState }];
             });
             chamadasEmAndamento.current.delete(idFormatado);
         });

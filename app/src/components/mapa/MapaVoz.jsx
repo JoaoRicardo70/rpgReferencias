@@ -222,7 +222,7 @@ export function CalibradorDeVoz({ stream, sensibilidade, setSensibilidade }) {
     );
 }
 
-export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamParaTocar, streamAnalisador, mutado, surdo, fazerChamada, cardSize, fmt, selectedSpeaker }) {
+export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamParaTocar, iceState, streamAnalisador, mutado, surdo, fazerChamada, cardSize, fmt, selectedSpeaker }) {
     const [isSpeakingRemote, setIsSpeakingRemote] = useState(false);
     // Usa a primeira imagem que carrega (Forma/poder/base): um link quebrado não deixa mais o cartão preto.
     const imagemDoCartao = useImagemQueCarrega(ficha ? imagensDaFicha(ficha) : (info && info.img ? [info.img] : []));
@@ -277,18 +277,27 @@ export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamPara
     let boxShadowCard = '0 0 15px rgba(0,0,0,0.8)';
     let borderCard = '2px solid #333';
     let iconMic = '⏳';
+    let tituloMic = '';
     const isSpeakingFinal = isMe ? euEstouFalandoState : isSpeakingRemote;
+    // O stream do outro jogador já existe assim que o SDP é trocado (call.on('stream')), bem antes de
+    // o ICE confirmar que o áudio realmente atravessa a rede -- por isso "conectado" sozinho não basta
+    // pra mostrar "🔊 tocando": enquanto o ICE não chegar a connected/completed, o cartão avisa em vez
+    // de fingir que já está tudo bem (é exatamente o caso de "conectou mas não escuto o outro").
+    const iceFalhou = !isMe && iceState === 'failed';
+    const iceConectando = !isMe && iceState && !iceFalhou && iceState !== 'connected' && iceState !== 'completed';
 
     if (isConnected) {
-        if (isMe && mutado) { borderCard = '2px solid #ff003c'; boxShadowCard = '0 0 20px rgba(255,0,60,0.4)'; iconMic = '🔇'; } 
-        else if (isSpeakingFinal) { borderCard = '2px solid #00ffcc'; boxShadowCard = '0 0 35px #00ffcc, inset 0 0 20px rgba(0,255,204,0.4)'; iconMic = '🔊'; } 
-        else if (!isMe && streamParaTocar) { borderCard = '2px solid #00aaff'; boxShadowCard = '0 0 20px rgba(0,170,255,0.4)'; iconMic = '🔊'; } 
+        if (isMe && mutado) { borderCard = '2px solid #ff003c'; boxShadowCard = '0 0 20px rgba(255,0,60,0.4)'; iconMic = '🔇'; }
+        else if (iceFalhou) { borderCard = '2px solid #ff003c'; boxShadowCard = '0 0 20px rgba(255,0,60,0.5)'; iconMic = '⚠️'; tituloMic = 'Sem áudio: falha de rede (a conexão precisa de um servidor TURN)'; }
+        else if (iceConectando) { borderCard = '2px dashed #ffcc00'; boxShadowCard = 'none'; iconMic = '🔄'; tituloMic = 'Conectando o áudio...'; }
+        else if (isSpeakingFinal) { borderCard = '2px solid #00ffcc'; boxShadowCard = '0 0 35px #00ffcc, inset 0 0 20px rgba(0,255,204,0.4)'; iconMic = '🔊'; }
+        else if (!isMe && streamParaTocar) { borderCard = '2px solid #00aaff'; boxShadowCard = '0 0 20px rgba(0,170,255,0.4)'; iconMic = '🔊'; }
         else { borderCard = '2px solid #005588'; boxShadowCard = '0 0 10px rgba(0,85,136,0.5)'; iconMic = '🎙️'; }
     } else if (!isMe) { borderCard = '2px dashed #444'; boxShadowCard = 'none'; iconMic = '🔄'; }
 
     return (
         <div className="fade-in" style={{ position: 'relative', width: cardSize, aspectRatio: '4/3', background: '#111', border: borderCard, borderRadius: 6, overflow: 'hidden', backgroundImage: urlSeguraParaCss(imagemDoCartao) || 'none', backgroundSize: 'cover', backgroundPosition: 'top center', boxShadow: boxShadowCard, transition: 'all 0.15s ease-out' }}>
-            <div style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.8)', borderRadius: '50%', padding: '5px 8px', fontSize: '1.2em', border: borderCard }}>{iconMic}</div>
+            <div title={tituloMic || undefined} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.8)', borderRadius: '50%', padding: '5px 8px', fontSize: '1.2em', border: borderCard }}>{iconMic}</div>
             
             {!isConnected && !isMe && (
                 <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 10 }}>
@@ -383,11 +392,11 @@ export function MapaSessaoRP({ chatCtx, meuNome, minhaFicha, personagens, cenari
                             const con = chatCtx.conexoes.find(c => c.id === `anime-rpg-${(nome||'').toLowerCase().replace(/[^a-z0-9]/g, '')}`);
                             
                             return (
-                                <AvatarCardVoz 
-                                    key={nome} nome={nome} info={info} ficha={f} isMe={isMe} 
-                                    isConnected={isMe || !!con} streamParaTocar={con?.stream} streamAnalisador={isMe ? chatCtx.streamAnalisador : null} 
-                                    mutado={chatCtx.mutado} surdo={chatCtx.surdo} fazerChamada={chatCtx.fazerChamada} 
-                                    cardSize={cardSize} fmt={fmt} selectedSpeaker={chatCtx.selectedSpeaker} 
+                                <AvatarCardVoz
+                                    key={nome} nome={nome} info={info} ficha={f} isMe={isMe}
+                                    isConnected={isMe || !!con} streamParaTocar={con?.stream} iceState={con?.iceState} streamAnalisador={isMe ? chatCtx.streamAnalisador : null}
+                                    mutado={chatCtx.mutado} surdo={chatCtx.surdo} fazerChamada={chatCtx.fazerChamada}
+                                    cardSize={cardSize} fmt={fmt} selectedSpeaker={chatCtx.selectedSpeaker}
                                 />
                             );
                         })}
