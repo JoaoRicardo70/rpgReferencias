@@ -121,4 +121,71 @@ describe('useVoiceChat - visibilidade do estado ICE em conexoes[]', () => {
         });
         expect(result.current.voiceStatus).toBe('Online na Taverna!');
     });
+
+    it('trata "disconnected" preso como falha depois do tempo limite (alguns navegadores nunca chegam a "failed")', async () => {
+        const { result } = await montar();
+
+        vi.useFakeTimers();
+        try {
+            act(() => { result.current.fazerChamada('Bob'); });
+            const { call, pc } = peers[0].calls[0];
+            act(() => { call._emit('stream', { id: 'remote-stream', active: true }); });
+
+            act(() => { pc.iceConnectionState = 'checking'; pc.oniceconnectionstatechange(); });
+            act(() => { pc.iceConnectionState = 'disconnected'; pc.oniceconnectionstatechange(); });
+            expect(result.current.conexoes.find(c => c.id === 'anime-rpg-bob').iceState).toBe('disconnected');
+
+            act(() => { vi.advanceTimersByTime(12000); });
+
+            const conexao = result.current.conexoes.find(c => c.id === 'anime-rpg-bob');
+            expect(conexao.iceState).toBe('failed');
+            expect(result.current.voiceStatus).toMatch(/^⚠️/);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('nao marca falha se o ICE conectar antes do tempo limite', async () => {
+        const { result } = await montar();
+
+        vi.useFakeTimers();
+        try {
+            act(() => { result.current.fazerChamada('Bob'); });
+            const { call, pc } = peers[0].calls[0];
+            act(() => { call._emit('stream', { id: 'remote-stream', active: true }); });
+            act(() => { pc.iceConnectionState = 'connected'; pc.oniceconnectionstatechange(); });
+
+            act(() => { vi.advanceTimersByTime(12000); });
+
+            const conexao = result.current.conexoes.find(c => c.id === 'anime-rpg-bob');
+            expect(conexao.iceState).toBe('connected');
+            expect(result.current.voiceStatus).toBe('Online na Taverna!');
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('cancela o cronometro de timeout se a chamada fechar antes de vencer', async () => {
+        const { result } = await montar();
+
+        vi.useFakeTimers();
+        try {
+            act(() => { result.current.fazerChamada('Bob'); });
+            const { call } = peers[0].calls[0];
+            // Precisa existir uma conexao de verdade antes do close: senao o timeout, mesmo não
+            // cancelado, já não acharia nada pra marcar em conexoes e o teste passaria por acidente.
+            act(() => { call._emit('stream', { id: 'remote-stream', active: true }); });
+            expect(result.current.conexoes.find(c => c.id === 'anime-rpg-bob')).toBeTruthy();
+
+            act(() => { call._emit('close'); });
+            expect(result.current.conexoes.find(c => c.id === 'anime-rpg-bob')).toBeUndefined();
+
+            // Se o cronômetro não tivesse sido cancelado, ele dispararia aqui e reescreveria o
+            // voiceStatus com o aviso de falha de rede -- mesmo sem achar mais a conexão em si.
+            expect(() => act(() => { vi.advanceTimersByTime(12000); })).not.toThrow();
+            expect(result.current.voiceStatus).not.toMatch(/^⚠️/);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
 });

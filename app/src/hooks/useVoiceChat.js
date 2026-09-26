@@ -5,31 +5,49 @@ import {
     FFT_SIZE, SENSIBILIDADE_PADRAO, criarPortaoDeVoz, estadoPortao, faixaDeVoz, medirNivelDeVoz
 } from '../core/audioVoz';
 
+// Nem todo navegador chega a reportar 'failed': sem nenhum par de candidatos que funcione (o caso
+// clássico de NAT sem TURN) o Chrome às vezes trava em 'checking' e pula direto pra 'disconnected'
+// -- e fica lá pra sempre, já que 'disconnected' também cobre quedas passageiras de uma ligação que
+// já funcionou (por isso não pode ser tratado como falha na hora). Depois desse tempo sem conectar
+// nenhuma vez, trata como falha mesmo assim: melhor avisar tarde do que nunca.
+const TEMPO_LIMITE_ICE_MS = 12000;
+
 // Vigia o estado da conexão WebRTC de uma chamada: quando o ICE falha (normalmente NAT sem
 // TURN), o jogador vê o motivo na tela em vez de um rádio "conectado" que não transmite áudio.
 // Além do aviso em `voiceStatus` (uma frase só, que a próxima chamada sobrescreve), guarda o estado
 // de CADA conexão em `conexoes[].iceState`: é o que os cartões da Sala da Party usam pra não mostrar
 // "🔊 conectado" enquanto o áudio de fato não chegou (o stream já existe assim que o SDP é trocado,
-// bem antes do ICE confirmar que o áudio realmente passa pela rede).
+// bem antes do ICE confirmar que o áudio realmente passa pela rede). Devolve uma função pra cancelar
+// o cronômetro de timeout quando a chamada fechar (ex.: o jogador saiu da call antes de dar tempo).
 function vigiarConexao(call, nomeAmigo, peerId, setVoiceStatus, setConexoes, aindaNaTaverna) {
     const pc = call.peerConnection;
-    if (!pc) return;
-    const atualizarIceState = () => setConexoes(prev => prev.map(c => (c.id === peerId ? { ...c, iceState: pc.iceConnectionState } : c)));
-    atualizarIceState();
+    if (!pc) return () => {};
+    let conectouAlgumaVez = false;
+    const atualizarIceState = (estado) => setConexoes(prev => prev.map(c => (c.id === peerId ? { ...c, iceState: estado } : c)));
+    const avisarFalha = () => setVoiceStatus(temTurnConfigurado(import.meta.env)
+        ? `⚠️ Falha de rede na ligação com ${nomeAmigo}`
+        : `⚠️ Sem rota direta com ${nomeAmigo}: a rede de vocês precisa de um servidor TURN`);
+    atualizarIceState(pc.iceConnectionState);
     const anterior = pc.oniceconnectionstatechange;
     pc.oniceconnectionstatechange = (ev) => {
         if (anterior) anterior.call(pc, ev);
         console.log(`[VOZ] ICE com ${nomeAmigo}: ${pc.iceConnectionState}`);
-        atualizarIceState();
+        atualizarIceState(pc.iceConnectionState);
+        if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') conectouAlgumaVez = true;
         if (!aindaNaTaverna()) return;
         if (pc.iceConnectionState === 'failed') {
-            setVoiceStatus(temTurnConfigurado(import.meta.env)
-                ? `⚠️ Falha de rede na ligação com ${nomeAmigo}`
-                : `⚠️ Sem rota direta com ${nomeAmigo}: a rede de vocês precisa de um servidor TURN`);
+            avisarFalha();
         } else if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
             setVoiceStatus('Online na Taverna!');
         }
     };
+    const timeoutId = setTimeout(() => {
+        if (conectouAlgumaVez || !aindaNaTaverna()) return;
+        console.log(`[VOZ] ICE com ${nomeAmigo}: sem sucesso após ${TEMPO_LIMITE_ICE_MS / 1000}s (preso em "${pc.iceConnectionState}") -- tratando como falha de rede`);
+        atualizarIceState('failed');
+        avisarFalha();
+    }, TEMPO_LIMITE_ICE_MS);
+    return () => clearTimeout(timeoutId);
 }
 
 const BLACKLIST_MIC = ['mixagem', 'stereo mix', 'wave out', 'loopback', 'virtual', 'cable', 'voicemeeter', 'what u hear', 'monitor', 'wasapi'];
@@ -140,7 +158,7 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
                 if (meuStreamRef.current) {
                     console.log(`[VOZ] A atender chamada de ${call.peer}...`);
                     call.answer(meuStreamRef.current);
-                    vigiarConexao(call, call.peer.replace(/^anime-rpg-/, ''), call.peer, setVoiceStatus, setConexoes, () => rtcLigado.current);
+                    const pararVigiaIce = vigiarConexao(call, call.peer.replace(/^anime-rpg-/, ''), call.peer, setVoiceStatus, setConexoes, () => rtcLigado.current);
 
                     call.on('stream', (remoteStream) => {
                         const iceState = (call.peerConnection && call.peerConnection.iceConnectionState) || 'new';
@@ -150,9 +168,9 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
                             return [...prev.filter(c => c.id !== call.peer), { id: call.peer, stream: remoteStream, iceState }];
                         });
                     });
-                    
-                    call.on('close', () => setConexoes(prev => prev.filter(c => c.id !== call.peer)));
-                    call.on('error', (err) => console.error(`[VOZ] Erro na chamada de ${call.peer}:`, err));
+
+                    call.on('close', () => { pararVigiaIce(); setConexoes(prev => prev.filter(c => c.id !== call.peer)); });
+                    call.on('error', (err) => { pararVigiaIce(); console.error(`[VOZ] Erro na chamada de ${call.peer}:`, err); });
                 } else {
                     if (tentativas < 10) setTimeout(() => attemptAnswer(tentativas + 1), 500);
                 }
@@ -252,7 +270,7 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
 
         const call = peerObj.call(idFormatado, meuStreamRef.current);
         if (!call) { chamadasEmAndamento.current.delete(idFormatado); return; }
-        vigiarConexao(call, nomeDestino, idFormatado, setVoiceStatus, setConexoes, () => rtcLigado.current);
+        const pararVigiaIce = vigiarConexao(call, nomeDestino, idFormatado, setVoiceStatus, setConexoes, () => rtcLigado.current);
 
         call.on('stream', (remoteStream) => {
             const iceState = (call.peerConnection && call.peerConnection.iceConnectionState) || 'new';
@@ -264,8 +282,8 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
             chamadasEmAndamento.current.delete(idFormatado);
         });
         
-        call.on('close', () => { setConexoes(prev => prev.filter(c => c.id !== idFormatado)); chamadasEmAndamento.current.delete(idFormatado); });
-        call.on('error', () => { setConexoes(prev => prev.filter(c => c.id !== idFormatado)); chamadasEmAndamento.current.delete(idFormatado); });
+        call.on('close', () => { pararVigiaIce(); setConexoes(prev => prev.filter(c => c.id !== idFormatado)); chamadasEmAndamento.current.delete(idFormatado); });
+        call.on('error', () => { pararVigiaIce(); setConexoes(prev => prev.filter(c => c.id !== idFormatado)); chamadasEmAndamento.current.delete(idFormatado); });
     }, [peerObj]);
 
     useEffect(() => {
