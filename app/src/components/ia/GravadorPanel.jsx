@@ -462,16 +462,16 @@ export default function GravadorPanel() {
             // (por isso preferCurrentTab: true, para a aba pré-selecionada já ser a do próprio app). É por
             // ele que a música da Mesa de Som e as vozes da Sala de Rádio (como você as ouve) entram na
             // gravação; sem ele, a mixagem manual de vozes (sincronizarVozes) segue como reserva.
-            // suppressLocalAudioPlayback: false é essencial -- por padrão o Chrome abafa (duck) o áudio
-            // que está sendo capturado da aba, para quem ouviria a mesma coisa em dobro numa chamada.
-            // Aqui não existe esse risco (o áudio captado só vai para o arquivo gravado), então isso
-            // faz a música/vozes tocarem no volume normal para você enquanto grava.
+            // Se a música ou a voz da call ficarem abafadas/mudas enquanto grava (ou durante a própria
+            // call), o Chrome não é o culpado: é o Windows reduzindo/mutando "outros sons" assim que
+            // detecta uma chamada (Config. de Som > Comunicações). Ajustar essa opção para "Não fazer nada"
+            // resolve -- não existe constraint de getUserMedia/getDisplayMedia que sobreponha isso.
             let telaStream = null;
             if (navigator.mediaDevices.getDisplayMedia) {
                 try {
                     telaStream = await navigator.mediaDevices.getDisplayMedia({
                         video: { frameRate: 15 },
-                        audio: { suppressLocalAudioPlayback: false },
+                        audio: true,
                         preferCurrentTab: true,
                         selfBrowserSurface: 'include',
                     });
