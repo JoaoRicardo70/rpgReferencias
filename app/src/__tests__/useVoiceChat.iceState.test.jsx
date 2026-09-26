@@ -15,6 +15,7 @@ vi.mock('peerjs', () => {
             setTimeout(() => { (this.handlers.open || []).forEach(h => h('id-teste')); }, 0);
         }
         on(ev, cb) { (this.handlers[ev] = this.handlers[ev] || []).push(cb); }
+        emit(ev, ...args) { (this.handlers[ev] || []).forEach(h => h(...args)); }
         call(idFormatado) {
             const callHandlers = {};
             const pc = { iceConnectionState: 'new', oniceconnectionstatechange: null, getSenders: () => [] };
@@ -44,6 +45,21 @@ function criarTrilha() {
     return { enabled: true, kind: 'audio', stop: vi.fn(), clone: () => ({ ...criarTrilha0(), clone: undefined }), applyConstraints: vi.fn(() => Promise.resolve()) };
 }
 function criarTrilha0() { return { enabled: true, kind: 'audio', stop: vi.fn() }; }
+
+// Simula uma chamada CHEGANDO de outro jogador (novoPeer.on('call', ...)), pro contrário de
+// Peer.call() (que simula NÓS discando).
+function criarChamadaRecebidaFalsa(peerId) {
+    const handlers = {};
+    const pc = { iceConnectionState: 'new', oniceconnectionstatechange: null, getSenders: () => [] };
+    return {
+        peer: peerId,
+        peerConnection: pc,
+        answer: vi.fn(),
+        on(ev, cb) { (handlers[ev] = handlers[ev] || []).push(cb); },
+        _emit(ev, ...args) { (handlers[ev] || []).forEach(h => h(...args)); },
+        pc
+    };
+}
 
 async function montar() {
     const hook = renderHook(() => useVoiceChat('Alice', ['Bob'], true));
@@ -187,5 +203,52 @@ describe('useVoiceChat - visibilidade do estado ICE em conexoes[]', () => {
         } finally {
             vi.useRealTimers();
         }
+    });
+});
+
+describe('useVoiceChat - evita ligacao duplicada quando as duas pontas discam ao mesmo tempo', () => {
+    it('nao disca de novo pro amigo enquanto uma chamada recebida dele ainda esta sendo negociada', async () => {
+        const { result } = await montar();
+        const peer = peers[0];
+
+        // Bob liga pra gente primeiro (chega como chamada recebida) -- ainda sem stream, só chegou.
+        const chamadaRecebida = criarChamadaRecebidaFalsa('anime-rpg-bob');
+        act(() => { peer.emit('call', chamadaRecebida); });
+        expect(chamadaRecebida.answer).toHaveBeenCalledTimes(1);
+
+        // "FORÇAR LIGAÇÃO" (ou o auto-dialer) tentando ligar pro Bob nesse meio-tempo: antes da
+        // correção, isso criava uma SEGUNDA conexão WebRTC pro mesmo amigo (a ligação duplicada que
+        // deixava um lado "conectado" só que mudo).
+        act(() => { result.current.fazerChamada('Bob'); });
+
+        expect(peer.calls.length).toBe(0);
+    });
+
+    it('depois que a chamada recebida termina (fechou/deu erro), voltar a discar pro mesmo amigo funciona normalmente', async () => {
+        const { result } = await montar();
+        const peer = peers[0];
+
+        const chamadaRecebida = criarChamadaRecebidaFalsa('anime-rpg-bob');
+        act(() => { peer.emit('call', chamadaRecebida); });
+        act(() => { chamadaRecebida._emit('close'); });
+
+        act(() => { result.current.fazerChamada('Bob'); });
+
+        expect(peer.calls.length).toBe(1);
+        expect(peer.calls[0].idFormatado).toBe('anime-rpg-bob');
+    });
+
+    it('nao disca de novo pro amigo se a conexao com ele ja esta ativa', async () => {
+        const { result } = await montar();
+        const peer = peers[0];
+
+        act(() => { result.current.fazerChamada('Bob'); });
+        const { call } = peer.calls[0];
+        act(() => { call._emit('stream', { id: 'remote-stream', active: true }); });
+        await waitFor(() => expect(result.current.conexoes.find(c => c.id === 'anime-rpg-bob')).toBeTruthy());
+
+        act(() => { result.current.fazerChamada('Bob'); });
+
+        expect(peer.calls.length).toBe(1);
     });
 });

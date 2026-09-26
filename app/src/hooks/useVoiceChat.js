@@ -153,7 +153,13 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
 
         novoPeer.on('call', (call) => {
             console.log(`[VOZ] A receber chamada de: ${call.peer}`);
-            
+            // Marca já aqui (antes até de atender) pra "FORÇAR LIGAÇÃO"/o auto-dialer não discarem
+            // por cima enquanto essa chamada recebida ainda está sendo negociada: com as duas pontas
+            // ligando ao mesmo tempo, o app cria DUAS conexões WebRTC pro mesmo amigo, e qual delas
+            // "vence" (e carrega o áudio de verdade) vira sorte -- é assim que um lado passa a ouvir
+            // "conectado" só silêncio enquanto o outro lado escuta normalmente.
+            chamadasEmAndamento.current.add(call.peer);
+
             const attemptAnswer = (tentativas = 0) => {
                 if (meuStreamRef.current) {
                     console.log(`[VOZ] A atender chamada de ${call.peer}...`);
@@ -169,10 +175,11 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
                         });
                     });
 
-                    call.on('close', () => { pararVigiaIce(); setConexoes(prev => prev.filter(c => c.id !== call.peer)); });
-                    call.on('error', (err) => { pararVigiaIce(); console.error(`[VOZ] Erro na chamada de ${call.peer}:`, err); });
+                    call.on('close', () => { pararVigiaIce(); chamadasEmAndamento.current.delete(call.peer); setConexoes(prev => prev.filter(c => c.id !== call.peer)); });
+                    call.on('error', (err) => { pararVigiaIce(); chamadasEmAndamento.current.delete(call.peer); console.error(`[VOZ] Erro na chamada de ${call.peer}:`, err); });
                 } else {
                     if (tentativas < 10) setTimeout(() => attemptAnswer(tentativas + 1), 500);
+                    else chamadasEmAndamento.current.delete(call.peer);
                 }
             };
             attemptAnswer();
@@ -265,7 +272,11 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
         if (!peerObj || !meuStreamRef.current || !nomeDestino) return;
         const idFormatado = `anime-rpg-${(nomeDestino || '').toLowerCase().replace(/[^a-z0-9]/g, '')}`;
         
-        if (chamadasEmAndamento.current.has(idFormatado)) return;
+        // Bloqueia tanto uma chamada já em andamento (nossa ou recebida dele, ver novoPeer.on('call'))
+        // quanto um amigo já conectado: sem isso, "FORÇAR LIGAÇÃO" clicado enquanto a ligação dele já
+        // está chegando cria uma segunda conexão pro mesmo amigo, e só uma das duas acaba carregando
+        // áudio de verdade -- o outro lado "conecta" mas fica em silêncio.
+        if (chamadasEmAndamento.current.has(idFormatado) || conexoesRef.current.some(c => c.id === idFormatado)) return;
         chamadasEmAndamento.current.add(idFormatado);
 
         const call = peerObj.call(idFormatado, meuStreamRef.current);
