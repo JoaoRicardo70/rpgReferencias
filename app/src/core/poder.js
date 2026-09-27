@@ -42,7 +42,10 @@ function getBasePFor(ficha, k) {
 // "A2 + 34" dão o mesmo Poder, e continuar ganhando Prestígio depois de ascender sempre soma.
 // Entra SÓ na base do Poder Calculado — nunca em getMaximo/vitais (ver aviso em
 // calcularFatorMultiplicadorForca abaixo).
-const MULTS_PRESTIGIO_BASE = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
+// Status fica de fora: Ascender (core/prestigioDistribuicao.js > aplicarAscensao) só troca o
+// Prestígio de Status exibido e NÃO tira dos atributos os pontos que o pool já deu — somar a Base
+// equivalente aqui contaria esses 100 pontos duas vezes.
+const MULTS_PRESTIGIO_BASE = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000 };
 
 export function getBaseEquivalenteAscensao(ficha, k) {
     if (!ficha || !MULTS_PRESTIGIO_BASE[k]) return 0;

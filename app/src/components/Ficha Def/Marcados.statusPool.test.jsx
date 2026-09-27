@@ -60,6 +60,10 @@ function montarMockUseStore(minhaFicha) {
         updateFicha: vi.fn((callback) => callback(minhaFicha)),
         meuNome: 'Testador',
         importarDaAbaStatus: vi.fn(),
+        // Estes testes cobrem a matemática do pool com o Prestígio editado LIVRE (caminho do
+        // Mestre/Co-Mestre). O jogador só distribui Pontos de Prestígio concedidos — coberto em
+        // Marcados.prestigioDistribuicao.test.jsx.
+        isMestre: true,
     };
     useStore.mockImplementation((selector) => (selector ? selector(mockState) : mockState));
     return mockState;

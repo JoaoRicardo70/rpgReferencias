@@ -63,14 +63,14 @@ describe('core/poder - getBaseEquivalenteAscensao (função pura)', () => {
         expect(divisorUm).toBe(100000000);
     });
 
-    it('calcula o valor correto por categoria (vida, mana/aura/chakra/corpo, status) em Ascensão Base 2', () => {
+    it('calcula o valor correto por categoria (vida, mana/aura/chakra/corpo) em Ascensão Base 2; Status não soma (Ascender não tira dos atributos)', () => {
         const ficha = { ascensaoBase: 2, divisores: { vida: 1, mana: 1, aura: 1, chakra: 1, corpo: 1, status: 1 } };
         expect(getBaseEquivalenteAscensao(ficha, 'vida')).toBe(100 * 1000000);
         expect(getBaseEquivalenteAscensao(ficha, 'mana')).toBe(100 * 10000000);
         expect(getBaseEquivalenteAscensao(ficha, 'aura')).toBe(100 * 10000000);
         expect(getBaseEquivalenteAscensao(ficha, 'chakra')).toBe(100 * 10000000);
         expect(getBaseEquivalenteAscensao(ficha, 'corpo')).toBe(100 * 10000000);
-        expect(getBaseEquivalenteAscensao(ficha, 'status')).toBe(100 * 1000);
+        expect(getBaseEquivalenteAscensao(ficha, 'status')).toBe(0);
     });
 
     it('escala linearmente com o número de níveis manuais (ascensaoBase - 1)', () => {
@@ -99,7 +99,7 @@ describe('core/poder - calcularPoderAtual: reposição de Base ao subir Ascensã
             ascensaoBase: 2,
             vida: 34000000,         // 34 * 1e6  (134 - 100)
             energia: 260000000,     // 26 * 1e7  (126 - 100)
-            statusAttr: 30000,      // 30 * 1000 (130 - 100)
+            statusAttr: 130000,     // Ascender NÃO tira dos atributos o que o pool de Status já deu
             statusPrestigioAplicado: 30,
         });
 
@@ -125,7 +125,7 @@ describe('core/poder - calcularPoderAtual: reposição de Base ao subir Ascensã
             ascensaoBase: 2,
             vida: 0,
             energia: 0,
-            statusAttr: 0,
+            statusAttr: 100000,    // atributos intactos ao Ascender
             statusPrestigioAplicado: 0,
         });
 
@@ -167,5 +167,17 @@ describe('core/poder - calcularPoderAtual: reposição de Base ao subir Ascensã
         expect(getBaseEquivalenteAscensao(ficha, 'status')).toBe(0);
         const { poderGlobal } = calcularPoderAtual(ficha, 1);
         expect(poderGlobal).toBeGreaterThan(0);
+    });
+
+    it('exemplo do usuário: A4 + 5 em tudo é MAIS FORTE que A3 + 95 em tudo', () => {
+        const a3p95 = fichaBase({ ascensaoBase: 3, vida: 95000000, energia: 950000000, statusAttr: 95000, statusPrestigioAplicado: 95 });
+        const a4p5 = fichaBase({ ascensaoBase: 4, vida: 5000000, energia: 50000000, statusAttr: 95000, statusPrestigioAplicado: 5 });
+        expect(calcularPoderAtual(a4p5, 1).poderGlobal).toBeGreaterThan(calcularPoderAtual(a3p95, 1).poderGlobal);
+    });
+
+    it('Ascender (A1 + 100 em tudo -> A2 + 1 em tudo, atributos intactos) nunca diminui o Poder', () => {
+        const antes = fichaBase({ ascensaoBase: 1, vida: 100000000, energia: 1000000000, statusAttr: 100000, statusPrestigioAplicado: 100 });
+        const depois = fichaBase({ ascensaoBase: 2, vida: 1000000, energia: 10000000, statusAttr: 100000, statusPrestigioAplicado: 1 });
+        expect(calcularPoderAtual(depois, 1).poderGlobal).toBeGreaterThanOrEqual(calcularPoderAtual(antes, 1).poderGlobal);
     });
 });

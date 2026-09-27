@@ -11,6 +11,7 @@ import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { calcularFadigaAtual } from '../../core/fadiga';
 import { getBaseEquivalenteAscensao } from '../../core/poder';
 import { planejarAjustePrestigioStatus, aplicarAjustePrestigioStatus, recolherPontosAlocados, getTotalPontosAlocados } from '../../core/statusPool';
+import { getPontosPrestigioDisponiveis, getPontosDistribuidos, calcularBaseDoPrestigio, validarDistribuicaoPrestigio, registrarDistribuicaoPrestigio, podeAscender, prestigioAposAscensao, aplicarAscensao, CATEGORIAS_PRESTIGIO } from '../../core/prestigioDistribuicao';
 import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 
@@ -1360,8 +1361,7 @@ export default function MarcadosPanel() {
         alert("A sua ficha foi sincronizada!");
     };
 
-    const calcularAscensaoAtualStatus = () => {
-        const displayPStatus = getPontosParaAscensao(minhaFicha, 'status');
+    const calcularAscensaoAtualStatus = (displayPStatus = getPontosParaAscensao(minhaFicha, 'status')) => {
         let mF = 1;
         if (fatorCrescimentoAtual > 1) { mF = getEfetivoMFormas(minhaFicha, 'status'); if (isNaN(mF) || mF < 1) mF = 1; }
         const pAtualValor = Math.floor(displayPStatus * mF);
@@ -1375,17 +1375,32 @@ export default function MarcadosPanel() {
         const prestAtual = safeGetMaximo(minhaFicha, k);
         let novoP = tipo === 'prestigio' ? numVal : prestAtual;
         let novoDiv = tipo === 'divisor' ? (numVal > 0 ? numVal : 1) : divAtual;
-        const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
-        const novaBase = Math.floor((novoP / novoDiv) * (mults[k] || 1));
+        const novaBase = calcularBaseDoPrestigio(k, novoP, novoDiv);
 
-        // 🔧 Status: reduzir o Prestígio agora recolhe sozinho (proporcionalmente) os pontos que já
-        // tinham sido distribuídos nos atributos, em vez de parar pela metade e obrigar o jogador a
-        // tirar "− Pool" atributo por atributo (core/statusPool.js). Pede confirmação antes, porque
-        // mexe na distribuição que o jogador fez.
+        // 🎖️ Jogador só DISTRIBUI os Pontos de Prestígio que o Mestre concedeu (e só desfaz o que ele
+        // mesmo distribuiu desde a última Ascensão) — core/prestigioDistribuicao.js. O Mestre/Co-Mestre
+        // continua editando livre.
+        const prestigioAntes = tipo === 'prestigio' ? getPontosParaAscensao(minhaFicha, k) : 0;
+        let deltaDistribuido = 0;
+        if (tipo === 'divisor' && !isMestre) return;
+        if (tipo === 'prestigio' && !isMestre) {
+            const validacao = validarDistribuicaoPrestigio(minhaFicha, k, prestigioAntes, novoP);
+            if (!validacao.ok) { if (validacao.motivo) alert(validacao.motivo); return; }
+            deltaDistribuido = validacao.delta;
+        }
+
+        // 🔧 Status: reduzir o Prestígio recolhe sozinho (proporcionalmente) os pontos que já tinham
+        // sido distribuídos nos atributos (core/statusPool.js), com confirmação antes. A Ascensão
+        // usada no crédito/débito é a do MENOR dos dois Prestígios, pra subir e desfazer o mesmo
+        // trecho valerem exatamente os mesmos pontos (senão cruzar 100 creditava x1 e debitava x2).
         let avisoReducaoIncompleta = null;
-        const ascensaoStatus = (tipo === 'prestigio' && k === 'status') ? calcularAscensaoAtualStatus() : 1;
+        const ascensaoStatus = (tipo === 'prestigio' && k === 'status') ? calcularAscensaoAtualStatus(Math.min(prestigioAntes, novoP)) : 1;
         if (tipo === 'prestigio' && k === 'status') {
             const plano = planejarAjustePrestigioStatus(minhaFicha, novoP, ascensaoStatus);
+            if (plano.semOrigem > 0 && !isMestre) {
+                alert(`Não dá para reduzir o Prestígio de Status para ${novoP}: ${plano.semOrigem} ponto(s) dessa redução não vieram do pool (a Base dos atributos foi editada direto). Peça ao Mestre para ajustar.`);
+                return;
+            }
             if (plano.aRecolher > 0 && !window.confirm(`Reduzir o Prestígio de Status para ${novoP} precisa de ${plano.aRecolher} pontos que já foram distribuídos nos atributos.\n\nEles serão retirados dos atributos proporcionalmente ao que cada um recebeu do pool. Continuar?`)) return;
             if (plano.semOrigem > 0) {
                 avisoReducaoIncompleta = `Não foi possível remover ${plano.semOrigem} pontos: essa parte da Base dos atributos não veio do pool (foi editada direto no campo Base). Ajuste esses atributos manualmente.`;
@@ -1398,6 +1413,7 @@ export default function MarcadosPanel() {
             if (tipo === 'prestigio') {
                 if (k === 'status') aplicarAjustePrestigioStatus(f, novoP, ascensaoStatus);
                 else { if (!f[k]) f[k] = {}; f[k].base = novaBase; }
+                if (deltaDistribuido) registrarDistribuicaoPrestigio(f, k, deltaDistribuido);
             }
         });
         callSave();
@@ -1411,6 +1427,32 @@ export default function MarcadosPanel() {
         if (total <= 0) return;
         if (!window.confirm(`Devolver os ${total} pontos distribuídos nos 8 atributos de volta ao pool de Status?`)) return;
         updateFicha(f => { recolherPontosAlocados(f, Infinity); });
+        callSave();
+    };
+
+    // 🎖️ Pontos de Prestígio concedidos — só o Mestre/Co-Mestre altera (core/prestigioDistribuicao.js).
+    const salvarPontosPrestigioDisponiveis = (valor) => {
+        if (!isMestre) return;
+        const pontos = Math.max(0, Math.floor(Number(valor) || 0));
+        updateFicha(f => { f.prestigioPontosDisponiveis = pontos; });
+        callSave();
+    };
+
+    const prestigiosPorCategoria = () => {
+        const mapa = {};
+        CATEGORIAS_PRESTIGIO.forEach(k => { mapa[k] = getPontosParaAscensao(minhaFicha, k); });
+        return mapa;
+    };
+
+    // ⬆️ Todas as 6 categorias em 100: cada uma volta pra 1 (o excedente acima de 100 fica) e a
+    // Ascensão Base sobe 1. O Poder Calculado não cai (core/poder.js > getBaseEquivalenteAscensao).
+    const ascenderPersonagem = () => {
+        const prestigios = prestigiosPorCategoria();
+        if (!podeAscender(prestigios)) return;
+        const ascensaoAtual = parseInt(minhaFicha.ascensaoBase) || 1;
+        const resumo = CATEGORIAS_PRESTIGIO.map(k => `${k.toUpperCase()}: ${Math.floor(prestigios[k])} → ${prestigioAposAscensao(prestigios[k])}`).join('\n');
+        if (!window.confirm(`Ascender para a Ascensão Base ${ascensaoAtual + 1}?\n\n${resumo}\n\nO Poder Calculado não diminui: você ascende em Poder.`)) return;
+        updateFicha(f => { aplicarAscensao(f, prestigios); });
         callSave();
     };
 
@@ -2132,7 +2174,29 @@ export default function MarcadosPanel() {
                                     <span style={{ fontWeight: 'bold', fontSize: '1.1em' }}>Mult. Força (Ascensão):</span>
                                     <CampoMagico valor={minhaFicha.multiplicadorForcaAscensao ?? 1} onChange={(v) => salvar('multiplicadorForcaAscensao', v)} type="number" isNumber={true} styleExtra={{ width: '60px', textAlign: 'center', color: '#fff', borderBottom: '1px dashed #fff', fontSize: '1.2em' }} />
                                 </div>
+                                {/* 🎖️ Pontos de Prestígio concedidos pelo Mestre — só Mestre/Co-Mestre edita; o jogador distribui nas categorias abaixo */}
+                                <div className="prestigio-pontos-box" title={isMestre ? 'Pontos de Prestígio que este personagem recebeu e ainda pode distribuir.' : '🔒 Só o Mestre/Co-Mestre concede Pontos de Prestígio.'}>
+                                    <span className="prestigio-pontos-label">🎖️ Pontos de Prestígio:</span>
+                                    {isMestre ? (
+                                        <CampoNumeroConfirmavel
+                                            valor={getPontosPrestigioDisponiveis(minhaFicha)}
+                                            onConfirmar={salvarPontosPrestigioDisponiveis}
+                                            styleExtra={{ width: '70px', textAlign: 'center', color: '#ffcc00', borderBottom: '1px dashed #ffcc00', fontSize: '1.2em', fontWeight: 'bold' }}
+                                        />
+                                    ) : (
+                                        <span className="prestigio-pontos-valor">{getPontosPrestigioDisponiveis(minhaFicha).toLocaleString('pt-BR')} 🔒</span>
+                                    )}
+                                </div>
                             </div>
+
+                            {podeAscender(prestigiosPorCategoria()) && (
+                                <div className="prestigio-ascender-wrap">
+                                    <button type="button" className="btn-ascender" onClick={ascenderPersonagem}>
+                                        ⬆️ ASCENDER (Ascensão Base {(parseInt(minhaFicha.ascensaoBase) || 1) + 1})
+                                    </button>
+                                    <span className="prestigio-ascender-dica">Todas as categorias chegaram a 100 de Prestígio.</span>
+                                </div>
+                            )}
 
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
                                 {['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].map(k => {
@@ -2155,11 +2219,30 @@ export default function MarcadosPanel() {
                                                 <span style={{ fontWeight: 'bold', color: 'inherit', fontSize: '1.1em' }}>{k.toUpperCase()}</span>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.9em' }}>
                                                     <span style={{ fontStyle: 'italic', fontWeight: 'bold' }}>Divisor:</span>
-                                                    <CampoMagico valor={divisor} onChange={v => handleTabelaChange(k, 'divisor', v)} type="number" isNumber={true} styleExtra={{ width: '50px', textAlign: 'center', border: '1px solid currentColor', borderRadius: '4px', background: 'rgba(255,255,255,0.5)' }} />
+                                                    {/* 🔒 Divisor só Mestre/Co-Mestre: baixar o divisor inflaria o Prestígio de graça (e o ASCENDER tornaria isso permanente) */}
+                                                    {isMestre ? (
+                                                        <CampoMagico valor={divisor} onChange={v => handleTabelaChange(k, 'divisor', v)} type="number" isNumber={true} styleExtra={{ width: '50px', textAlign: 'center', border: '1px solid currentColor', borderRadius: '4px', background: 'rgba(255,255,255,0.5)' }} />
+                                                    ) : (
+                                                        <span className="prestigio-divisor-travado" title="🔒 Só o Mestre/Co-Mestre altera o divisor.">{divisor}</span>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
-                                                {k === 'status' ? (
+                                                {!isMestre ? (
+                                                    <div className="prestigio-distribuir">
+                                                        <button type="button" className="btn-prestigio-passo" title="Desfazer 1 ponto distribuído"
+                                                            disabled={getPontosDistribuidos(minhaFicha, k) <= 0}
+                                                            onClick={() => handleTabelaChange(k, 'prestigio', Math.floor(campoEditavel) - 1)}>−</button>
+                                                        <CampoNumeroConfirmavel
+                                                            valor={campoEditavel}
+                                                            onConfirmar={v => handleTabelaChange(k, 'prestigio', v)}
+                                                            styleExtra={{ width: '100%', minWidth: 0, textAlign: 'center', color: '#fff', borderBottom: 'none', fontSize: '1.4em', fontWeight: 'bold' }}
+                                                        />
+                                                        <button type="button" className="btn-prestigio-passo" title="Distribuir 1 Ponto de Prestígio"
+                                                            disabled={getPontosPrestigioDisponiveis(minhaFicha) <= 0}
+                                                            onClick={() => handleTabelaChange(k, 'prestigio', Math.floor(campoEditavel) + 1)}>+</button>
+                                                    </div>
+                                                ) : k === 'status' ? (
                                                     <CampoNumeroConfirmavel
                                                         valor={campoEditavel}
                                                         onConfirmar={v => handleTabelaChange(k, 'prestigio', v)}

@@ -1655,3 +1655,17 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 /* ===== Ficha Def: Pool de Status - devolver toda a distribuicao ===== */
 .btn-devolver-pool { background: rgba(255, 170, 0, 0.12); border: 1px solid #ffaa00; border-radius: 8px; padding: 6px 14px; font-weight: bold; font-size: 0.85em; cursor: pointer; color: inherit; font-family: inherit; }
 .btn-devolver-pool:hover { background: rgba(255, 170, 0, 0.25); }
+/* 🎖️ Pontos de Prestígio concedidos pelo Mestre + botão de Ascender (Ficha Def/Marcados.jsx > Mecânicas de Ascensão) */
+.prestigio-pontos-box { background: rgba(0, 0, 0, 0.8); color: #fff; padding: 10px 20px; border-radius: 8px; display: flex; align-items: center; gap: 15px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 204, 0, 0.6); }
+.prestigio-pontos-label { font-weight: bold; font-size: 1.1em; }
+.prestigio-pontos-valor { color: #ffcc00; font-weight: bold; font-size: 1.2em; }
+.prestigio-ascender-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 20px; }
+.btn-ascender { background: linear-gradient(90deg, #ffcc00, #ff00ff); color: #000; border: none; border-radius: 10px; padding: 10px 26px; font-weight: bold; font-size: 1.1em; font-family: inherit; cursor: pointer; box-shadow: 0 0 14px rgba(255, 204, 0, 0.7); animation: pulse-ascender 1.6s ease-in-out infinite; }
+.btn-ascender:hover { filter: brightness(1.15); }
+.prestigio-ascender-dica { font-size: 0.85em; font-style: italic; opacity: 0.85; }
+@keyframes pulse-ascender { 0%, 100% { box-shadow: 0 0 8px rgba(255, 204, 0, 0.5); } 50% { box-shadow: 0 0 22px rgba(255, 0, 255, 0.8); } }
+.prestigio-distribuir { display: flex; align-items: center; gap: 4px; }
+.btn-prestigio-passo { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 6px; border: 1px solid #00ffcc; background: rgba(0, 255, 204, 0.12); color: #00ffcc; font-weight: bold; font-size: 1.1em; font-family: inherit; cursor: pointer; line-height: 1; }
+.btn-prestigio-passo:hover:not(:disabled) { background: rgba(0, 255, 204, 0.3); }
+.btn-prestigio-passo:disabled { opacity: 0.3; cursor: default; }
+.prestigio-divisor-travado { display: inline-block; min-width: 50px; text-align: center; border: 1px dashed currentColor; border-radius: 4px; opacity: 0.8; cursor: not-allowed; }
