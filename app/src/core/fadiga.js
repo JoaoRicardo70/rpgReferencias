@@ -225,6 +225,18 @@ export function calcularFadigaAtual(ficha) {
     return Math.min(100, Math.max(0, fadigaExtra));
 }
 
+// 👑 AJUSTE MANUAL DE FADIGA PELO MESTRE (aba Mestre > Sandbox da entidade): soma/subtrai `delta`
+// pontos percentuais à Fadiga Atual EXIBIDA (calcularFadigaAtual, já clampada em 0-100) e devolve
+// o novo combate.fadigaExtra, também clampado em 0-100. Parte do valor exibido, não do bruto, pra
+// que "-5%" sempre reduza o número que o Mestre está vendo, mesmo que fadigaExtra tenha passado
+// de 100 por acúmulo dinâmico.
+export function calcularFadigaAjustada(ficha, delta) {
+    const atual = calcularFadigaAtual(ficha);
+    const d = Number(delta);
+    if (!Number.isFinite(d)) return atual;
+    return Math.min(100, Math.max(0, atual + d));
+}
+
 // 💖 REDUÇÃO DE FADIGA POR REGENERAÇÃO — mesma ideia de "resistir menos cansado" que a Resistência
 // Elemental já aplica em getFatorVidaPerdida/getLimiarSemFadiga acima, só que pela cura RECEBIDA
 // neste turno em vez de pelo Domínio: quanto mais Vida/Energia um personagem recupera no próprio

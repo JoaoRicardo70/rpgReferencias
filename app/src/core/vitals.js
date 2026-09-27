@@ -6,6 +6,7 @@
 import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from './attributes.js';
 import { getPrestigioReal } from './prestige.js';
 import { calcularReducaoFadigaPorRegeneracao } from './fadiga.js';
+import { calcularFatorMultiplicadorForca } from './poder.js';
 
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 export const VITAIS_REGENERAVEIS = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'pv', 'pm'];
@@ -362,6 +363,29 @@ export function calcularBarrasVidaDummy(hpMaxBruto, hpAtualTotal) {
     return { p: vitalidade, numBarras, totalMax, atual, barras };
 }
 
+// 💖 Teto de Regeneração/Descanso de um vital — o MESMO teto que a Ficha Definitiva (Marcados.jsx >
+// LinhaVital/handleRegenerarTudo), o Mapa e o Mestre mostram na tela: getVitalMax/getVitalMaxEstavel
+// multiplicados pelo "Multiplicador de Força" daquele vital (core/poder.js >
+// calcularFatorMultiplicadorForca). Antes este teto ignorava o fator, então qualquer personagem
+// com Ascensão/Prestígio-overflow (fator > 1) tinha "atual" (gravado pela Ficha já com o fator)
+// ACIMA do teto sem fator — `atual < teto` nunca era verdade e a Regeneração de turno não fazia
+// nada; e "Descansar" no Mapa deixava a barra longe de cheia. pv/pm não têm esse fator em nenhuma
+// tela, então ficam com o teto de sempre.
+function getFatorVitalSeguro(key, ficha) {
+    if (!VITAIS_PRINCIPAIS.includes(key)) return 1;
+    try {
+        const fator = Number(calcularFatorMultiplicadorForca(ficha, key));
+        return (Number.isFinite(fator) && fator > 0) ? fator : 1;
+    } catch (e) { return 1; }
+}
+
+export function getTetoExibidoComFator(key, ficha) {
+    const fator = getFatorVitalSeguro(key, ficha);
+    const rawMx = getVitalMax(key, ficha) * fator;
+    const rawMxEstavel = getVitalMaxEstavel(key, ficha) * fator;
+    return getTetoVida(rawMx, key, rawMxEstavel);
+}
+
 // Aplica ficha[key].regeneracao + o bônus de regeneração vindo de Poderes/Passivas/Itens ativos
 // (getBuffs(ficha,key).regeneracao — propriedade 'regeneracao' num efeito, já filtrada por
 // ativa/equipado do mesmo jeito que qualquer outro bônus da ficha) a cada vital (vida/mana/aura/
@@ -387,11 +411,9 @@ export function aplicarRegeneracaoDeTurno(ficha, pisoFadigaExtra = 0) {
         // outros vitais nem quebrar o avanço de turno no Mapa.
         try {
             if (!ficha[key]) return;
-            const rawMx = getVitalMax(key, ficha);
-            const rawMxEstavel = getVitalMaxEstavel(key, ficha);
             // 🩸 Vida pode ter várias barras — o teto de regeneração é a SOMA de todas (getTetoVida),
             // não só uma barra.
-            const teto = getTetoVida(rawMx, key, rawMxEstavel);
+            const teto = getTetoExibidoComFator(key, ficha);
             const regenBase = parseFloat(ficha[key].regeneracao) || 0;
             const regenBuff = (getBuffs(ficha, key).regeneracao) || 0;
             const regen = regenBase + regenBuff;
@@ -424,10 +446,8 @@ export function descansarCompleto(ficha) {
     VITAIS_REGENERAVEIS.forEach((key) => {
         try {
             if (!ficha[key]) return;
-            const rawMx = getVitalMax(key, ficha);
-            const rawMxEstavel = getVitalMaxEstavel(key, ficha);
             // 🩸 Vida cura até a SOMA de todas as barras, não só uma.
-            ficha[key].atual = getTetoVida(rawMx, key, rawMxEstavel);
+            ficha[key].atual = getTetoExibidoComFator(key, ficha);
         } catch (e) { /* pula só este vital */ }
     });
     if (!ficha.combate) ficha.combate = {};

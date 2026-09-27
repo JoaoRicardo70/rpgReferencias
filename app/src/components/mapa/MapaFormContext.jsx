@@ -975,6 +975,33 @@ export function MapaFormProvider({ children }) {
     const jogadorDaVez = ordemIniciativa.length > 0 ? ordemIniciativa[turnoAtualIndex % ordemIniciativa.length] : null;
     const infoDaVez = jogadorDaVez ? getAvatarInfo(jogadorDaVez.ficha) : null;
 
+    // ⏭️ Passar Turno pela aba Mestre (ver resumoTurnoMapa/acaoAvancarTurnoMapa em useStore.js):
+    // registra UMA função estável que sempre chama a versão mais recente de avancarTurno (via ref),
+    // pra não reescrever a store a cada render; e publica o resumo da ordem só quando algo que a
+    // aba Mestre mostra realmente muda (nome/iniciativa/turno/cena), não a cada update de ficha.
+    const avancarTurnoAtualRef = useRef(avancarTurno);
+    useEffect(() => { avancarTurnoAtualRef.current = avancarTurno; }, [avancarTurno]);
+
+    // getState?.()/?. em tudo: este registro é só um atalho pra aba Mestre — nunca pode derrubar o
+    // Mapa (ex.: store parcial/mocks sem estes campos).
+    useEffect(() => {
+        const acao = () => avancarTurnoAtualRef.current();
+        useStore.getState?.()?.setAcaoAvancarTurnoMapa?.(acao);
+        return () => {
+            const estado = useStore.getState?.();
+            if (estado?.acaoAvancarTurnoMapa === acao) estado.setAcaoAvancarTurnoMapa?.(null);
+        };
+    }, []);
+
+    const chaveResumoTurno = `${cenaRenderId}#${turnoAtualIndex}#${ordemIniciativa.map(e => `${e.id}:${e.nome}:${e.iniciativa}:${e.isDummie ? 1 : 0}`).join('|')}`;
+    useEffect(() => {
+        useStore.getState?.()?.setResumoTurnoMapa?.({
+            ordem: ordemIniciativa.map(e => ({ id: e.id, nome: e.nome, iniciativa: e.iniciativa, isDummie: e.isDummie })),
+            turnoAtualIndex,
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- chaveResumoTurno já resume ordemIniciativa/turnoAtualIndex/cena
+    }, [chaveResumoTurno]);
+
     const value = useMemo(() => ({
         minhaFicha, meuNome, personagens, feedCombate, isMestre, souCriador, dummies, alvoSelecionado, cenario, abaAtiva,
         fichaSegura, modo3D, setModo3D, tamanhoCelula, setTamanhoCelula,

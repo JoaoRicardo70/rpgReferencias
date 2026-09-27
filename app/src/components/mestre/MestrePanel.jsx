@@ -7,6 +7,7 @@ import {
     MestreVozSistema,
     MestreForjaNPC // Adicionámos a importação aqui!
 } from './MestreSubComponents';
+import MestreControleTurno from './MestreControleTurno';
 
 function MestreConteudoSeguro() {
     const ctx = useMestreForm();
@@ -18,7 +19,10 @@ function MestreConteudoSeguro() {
             <h2 style={{ color: '#ffcc00', textShadow: '0 0 10px #ffcc00', borderBottom: '2px solid #ffcc00', paddingBottom: 10, margin: 0 }}>
                 👑 DOMÍNIO DO MESTRE
             </h2>
-            
+
+            {/* Controle de Turnos do combate (mesma ação do "Passar Turno" do Mapa) */}
+            <MestreControleTurno />
+
             {/* Primeira linha: Visor, Injetor Rápido e Voz do Sistema */}
             <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                 <MestreVisorJogadores />

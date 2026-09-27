@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import useStore from '../../stores/useStore';
+import React, { useState, useCallback } from 'react';
+import useStore, { sanitizarNome } from '../../stores/useStore';
 import { getDatabase, ref, update } from 'firebase/database';
 import { calcularEficaciaCura } from '../../core/engine';
+import { calcularFadigaAtual, calcularFadigaAjustada } from '../../core/fadiga';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularPoderAtual } from '../../core/poder';
 import { formatarPoderCosmico } from '../../core/utils';
@@ -88,7 +89,7 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
 
         if (novoValor < 0) novoValor = 0;
 
-        update(ref(db, `mesas/${mesaId}/personagens/${personagemId}/${energiaAlvo}`), {
+        update(ref(db, `mesas/${mesaId}/personagens/${sanitizarNome(personagemId)}/${energiaAlvo}`), {
             atual: novoValor
         }).catch(err => alert("Erro ao atualizar recursos: " + err.message));
 
@@ -126,7 +127,7 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
             condicoesAtuais.push({ id: condId, stacks: 1 });
         }
 
-        update(ref(db, `mesas/${mesaId}/personagens/${personagemId}`), {
+        update(ref(db, `mesas/${mesaId}/personagens/${sanitizarNome(personagemId)}`), {
             condicoes: condicoesAtuais
         }).catch(e => console.error(e));
 
@@ -146,6 +147,42 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
     };
 
     const condicoesDaFicha = ficha?.condicoes || [];
+
+    // 😮‍💨 FADIGA DE COMBATE pelo Mestre: aplica/reduz pontos percentuais direto na Fadiga Atual
+    // (combate.fadigaExtra — a única fonte de verdade de calcularFadigaAtual, core/fadiga.js) desta
+    // entidade, sem precisar abrir o Grimório. Escrita pontual só em combate/* (nunca a ficha
+    // inteira), igual ao Dano Rápido do Mapa, pra não apagar edições concorrentes do dono.
+    const [valorFadiga, setValorFadiga] = useState('');
+    const fadigaAtual = Math.round(calcularFadigaAtual(ficha));
+
+    const gravarFadiga = useCallback((novaFadiga, zerarTurnos) => {
+        const campos = { fadigaExtra: novaFadiga };
+        if (zerarTurnos) campos.fadigaTurnos = 0;
+
+        update(ref(db, `mesas/${mesaId}/personagens/${sanitizarNome(personagemId)}/combate`), campos)
+            .catch(err => alert("Erro ao atualizar Fadiga: " + err.message));
+
+        setPersonagens({
+            ...useStore.getState().personagens,
+            [personagemId]: { ...ficha, combate: { ...(ficha?.combate || {}), ...campos } }
+        });
+
+        if (personagemId === meuNome) {
+            updateFicha(f => {
+                if (!f.combate) f.combate = {};
+                Object.keys(campos).forEach(k => { f.combate[k] = campos[k]; });
+            });
+        }
+    }, [db, mesaId, personagemId, ficha, meuNome, setPersonagens, updateFicha]);
+
+    const ajustarFadiga = useCallback((sinal) => {
+        const val = parseFloat(valorFadiga);
+        if (!val || isNaN(val) || val <= 0) return;
+        gravarFadiga(calcularFadigaAjustada(ficha, sinal * val), false);
+        setValorFadiga('');
+    }, [valorFadiga, ficha, gravarFadiga]);
+
+    const zerarFadiga = useCallback(() => gravarFadiga(0, true), [gravarFadiga]);
 
     return (
         <div style={{ marginTop: '15px', width: '100%' }}>
@@ -241,6 +278,31 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
                             >
                                 + CURAR
                             </button>
+                        </div>
+                    </div>
+
+                    {/* 😮‍💨 FADIGA DE COMBATE (aplicada pelo Mestre) */}
+                    <div className="mestre-fadiga">
+                        <div className="mestre-fadiga-topo">
+                            <span className="mestre-fadiga-titulo">😮‍💨 Fadiga de Combate</span>
+                            <span className="mestre-fadiga-valor" title="Poder Calculado reduzido nesta porcentagem">{fadigaAtual}%</span>
+                        </div>
+                        <div className="mestre-fadiga-barra">
+                            <div className="mestre-fadiga-preenchimento" style={{ width: `${fadigaAtual}%` }} />
+                        </div>
+                        <div className="mestre-fadiga-controles">
+                            <input
+                                className="input-neon mestre-fadiga-input"
+                                type="number"
+                                min="0"
+                                max="100"
+                                placeholder="% (Ex: 10)"
+                                value={valorFadiga}
+                                onChange={e => setValorFadiga(e.target.value)}
+                            />
+                            <button className="btn-neon mestre-fadiga-btn mestre-fadiga-btn-aplicar" onClick={() => ajustarFadiga(1)}>+ APLICAR</button>
+                            <button className="btn-neon mestre-fadiga-btn mestre-fadiga-btn-reduzir" onClick={() => ajustarFadiga(-1)}>- REDUZIR</button>
+                            <button className="btn-neon mestre-fadiga-btn mestre-fadiga-btn-zerar" onClick={zerarFadiga} title="Zera a Fadiga e o contador de turnos em combate">🧹 ZERAR</button>
                         </div>
                     </div>
 

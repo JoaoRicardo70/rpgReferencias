@@ -1621,3 +1621,33 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .jukebox-volume-slider { flex: 1 1 220px; max-width: 420px; height: 6px; cursor: pointer; accent-color: #00ffcc; }
 .jukebox-volume-valor { min-width: 44px; color: #00ffcc; font-weight: bold; }
 .jukebox-volume-dica { color: #888; font-size: 0.8em; }
+
+/* ===== Aba Mestre: Controle de Turnos ===== */
+.mestre-turno { background: rgba(0, 0, 0, 0.5); border: 1px solid #00ffcc; border-radius: 8px; padding: 12px 15px; box-shadow: 0 0 12px rgba(0, 255, 204, 0.15); }
+.mestre-turno-topo { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mestre-turno-titulo { color: #00ffcc; margin: 0; font-size: 1.1em; text-shadow: 0 0 6px rgba(0, 255, 204, 0.5); }
+.mestre-turno-btn-passar { margin: 0; padding: 8px 18px; border-color: #00ffcc; color: #00ffcc; font-weight: bold; }
+.mestre-turno-btn-passar:disabled { opacity: 0.4; cursor: not-allowed; }
+.mestre-turno-vazio { color: #888; font-size: 0.85em; font-style: italic; margin: 10px 0 0; }
+.mestre-turno-link { background: none; border: none; padding: 0; color: #00ffcc; text-decoration: underline; cursor: pointer; font: inherit; }
+.mestre-turno-status { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 10px; color: #ccc; font-size: 0.9em; }
+.mestre-turno-davez { color: #ffcc00; text-shadow: 0 0 6px rgba(255, 204, 0, 0.6); }
+.mestre-turno-proximo { color: #888; }
+.mestre-turno-ordem { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; padding-bottom: 4px; }
+.mestre-turno-chip { flex: 0 0 auto; padding: 4px 10px; border-radius: 14px; border: 1px solid #333; background: rgba(255, 255, 255, 0.03); color: #aaa; font-size: 0.8em; white-space: nowrap; }
+.mestre-turno-chip.dummie { border-style: dashed; }
+.mestre-turno-chip.ativo { border-color: #ffcc00; color: #ffcc00; background: rgba(255, 204, 0, 0.12); box-shadow: 0 0 8px rgba(255, 204, 0, 0.4); font-weight: bold; }
+
+/* ===== Aba Mestre: Fadiga de Combate no Sandbox da entidade ===== */
+.mestre-fadiga { background: rgba(255, 136, 0, 0.06); padding: 12px; border-radius: 6px; border: 1px solid #ff8800; margin-bottom: 15px; }
+.mestre-fadiga-topo { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.mestre-fadiga-titulo { font-size: 0.8em; color: #ff8800; font-weight: bold; text-transform: uppercase; }
+.mestre-fadiga-valor { font-size: 1.3em; font-weight: 900; color: #ff8800; text-shadow: 0 0 6px rgba(255, 136, 0, 0.6); }
+.mestre-fadiga-barra { width: 100%; height: 6px; background: rgba(255, 255, 255, 0.08); border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
+.mestre-fadiga-preenchimento { height: 100%; background: #ff8800; box-shadow: 0 0 6px #ff8800; transition: width 0.4s ease; }
+.mestre-fadiga-controles { display: flex; gap: 8px; flex-wrap: wrap; }
+.mestre-fadiga-input { flex: 2 1 100px; margin: 0; text-align: center; }
+.mestre-fadiga-btn { flex: 1 1 80px; margin: 0; padding: 8px; font-weight: bold; font-size: 0.9em; }
+.mestre-fadiga-btn-aplicar { border-color: #ff8800; color: #ff8800; }
+.mestre-fadiga-btn-reduzir { border-color: #00ffcc; color: #00ffcc; }
+.mestre-fadiga-btn-zerar { border-color: #888; color: #aaa; }

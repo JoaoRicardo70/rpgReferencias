@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { aplicarRegeneracaoDeTurno, descansarCompleto } from './vitals';
+import { aplicarRegeneracaoDeTurno, descansarCompleto, getTetoExibidoComFator } from './vitals';
+import { calcularFatorMultiplicadorForca } from './poder';
+
+// Teto de Vida do fixture criarFichaMinima: bruto 1e8 x Multiplicador de Força da Vida (2) — o
+// mesmo teto que a Ficha Definitiva (Marcados.jsx > LinhaVital) mostra na tela.
+const TETO_VIDA_FIXTURE = 200000000;
 
 // ---------------------------------------------------------------------------
 // QA — Regeneração Automática por Turno (core/vitals.js)
@@ -89,36 +94,53 @@ describe('core/vitals - aplicarRegeneracaoDeTurno: happy path', () => {
 
 describe('core/vitals - aplicarRegeneracaoDeTurno: clamp no máximo (não faz overheal)', () => {
     it('clampa "vida" no máximo calculado quando a soma ultrapassaria o teto', () => {
-        // 🩸 O teto real de Vida NUNCA é maior nem menor que o bruto (getTetoVida) -- com
-        // base=1e8 (exatamente o limiar), o teto é o próprio 1e8, sem inflar pra 2e8.
+        // 🩸 O teto de Vida é o MESMO que a Ficha Definitiva mostra: bruto (1e8) x Multiplicador
+        // de Força da Vida (core/poder.js > calcularFatorMultiplicadorForca, 2 neste fixture) = 2e8.
         const ficha = criarFichaMinima({
-            vida: { ...statBase(100000000), atual: 99999999, regeneracao: 5000000 },
+            vida: { ...statBase(100000000), atual: TETO_VIDA_FIXTURE - 1, regeneracao: 5000000 },
         });
         aplicarRegeneracaoDeTurno(ficha);
 
-        // 99_999_999 + 5_000_000 estoura o teto de 1e8, clampa em 1e8.
-        expect(ficha.vida.atual).toBe(100000000);
+        // teto-1 + 5_000_000 estoura o teto, clampa no teto.
+        expect(ficha.vida.atual).toBe(TETO_VIDA_FIXTURE);
     });
 
     it('não regenera (nem lança) quando o vital já está exatamente no máximo', () => {
-        // 🩸 Teto real de Vida (getTetoVida) = o próprio bruto, 1e8.
         const ficha = criarFichaMinima({
-            vida: { ...statBase(100000000), atual: 100000000, regeneracao: 5000000 },
+            vida: { ...statBase(100000000), atual: TETO_VIDA_FIXTURE, regeneracao: 5000000 },
         });
         aplicarRegeneracaoDeTurno(ficha);
 
-        expect(ficha.vida.atual).toBe(100000000);
+        expect(ficha.vida.atual).toBe(TETO_VIDA_FIXTURE);
     });
 
     it('não regenera quando o vital já está ACIMA do máximo calculado (nunca reduz)', () => {
         const ficha = criarFichaMinima({
-            vida: { ...statBase(100000000), atual: 150000000, regeneracao: 5000000 },
+            vida: { ...statBase(100000000), atual: TETO_VIDA_FIXTURE + 50000000, regeneracao: 5000000 },
         });
         aplicarRegeneracaoDeTurno(ficha);
 
-        // atual (150_000_000) já é >= o teto (100_000_000) -> a guarda `atual < teto` não deixa a
-        // função sequer tentar somar, preservando o valor acima do teto.
-        expect(ficha.vida.atual).toBe(150000000);
+        // atual já é >= o teto -> a guarda `atual < teto` não deixa a função sequer tentar somar,
+        // preservando o valor acima do teto.
+        expect(ficha.vida.atual).toBe(TETO_VIDA_FIXTURE + 50000000);
+    });
+
+    it('REGRESSÃO: regenera "vida" entre o bruto sem fator e o teto EXIBIDO pela Ficha (antes ficava travada)', () => {
+        // Bug relatado ("Regeneração não funciona"): o teto ignorava o Multiplicador de Força, então
+        // uma Vida de 150M (abaixo dos 200M que a Ficha mostra, mas acima dos 100M sem fator) nunca
+        // regenerava.
+        const ficha = criarFichaMinima({
+            vida: { ...statBase(100000000), atual: 150000000, regeneracao: 5000000 },
+        });
+        expect(calcularFatorMultiplicadorForca(ficha, 'vida')).toBeGreaterThan(1);
+        aplicarRegeneracaoDeTurno(ficha);
+        expect(ficha.vida.atual).toBe(155000000);
+    });
+
+    it('o teto de regeneração é exatamente getTetoExibidoComFator (o mesmo teto da Ficha)', () => {
+        const ficha = criarFichaMinima({ vida: { ...statBase(100000000), atual: 1, regeneracao: 1e12 } });
+        aplicarRegeneracaoDeTurno(ficha);
+        expect(ficha.vida.atual).toBe(getTetoExibidoComFator('vida', ficha));
     });
 });
 
@@ -213,19 +235,17 @@ describe('core/vitals - descansarCompleto: happy path (cura tudo até o máximo)
     it('cura "vida" até o máximo calculado, independente do quão baixo estava "atual"', () => {
         const ficha = criarFichaMinima({ vida: { ...statBase(100000000), atual: 1, regeneracao: 0 } });
         descansarCompleto(ficha);
-        // "vida" usa getTetoVida agora: o teto NUNCA é maior nem menor que o bruto -- com
-        // base=1e8 (exatamente o limiar), o teto de cura é o próprio 1e8.
-        expect(ficha.vida.atual).toBe(100000000);
+        // "vida" cura até o teto EXIBIDO pela Ficha (bruto x Multiplicador de Força).
+        expect(ficha.vida.atual).toBe(TETO_VIDA_FIXTURE);
     });
 
     it('cura os 5 vitais principais (vida/mana/aura/chakra/corpo) até o máximo, todos de uma vez', () => {
         const ficha = criarFichaMinima();
         descansarCompleto(ficha);
-        // "vida" não usa mais a escala comprimida de calcVitalScale -- o teto é sempre o próprio
-        // bruto (getTetoVida), 1e8 pra este fixture; mana/aura/chakra/corpo continuam na escala
-        // comprimida antiga (limite de 9 dígitos, "100000000" com 9 dígitos não estoura o limite,
-        // então mxDisplay fica sem escala nenhuma, o próprio valor bruto de base, 1e8).
-        expect(ficha.vida.atual).toBe(100000000);
+        // "vida" cura até o teto EXIBIDO pela Ficha (bruto x Multiplicador de Força = 2e8 pra este
+        // fixture); mana/aura/chakra/corpo têm fator 1 aqui e continuam na escala comprimida
+        // (limite de 9 dígitos, "100000000" com 9 dígitos não estoura o limite -> 1e8).
+        expect(ficha.vida.atual).toBe(TETO_VIDA_FIXTURE);
         ['mana', 'aura', 'chakra', 'corpo'].forEach((k) => {
             expect(ficha[k].atual).toBe(100000000);
         });
@@ -240,10 +260,9 @@ describe('core/vitals - descansarCompleto: happy path (cura tudo até o máximo)
     });
 
     it('cura mesmo quando "atual" já está no máximo ou acima (idempotente, não lança)', () => {
-        // 🩸 Teto real de Vida (getTetoVida) = o próprio bruto, 1e8.
-        const ficha = criarFichaMinima({ vida: { ...statBase(100000000), atual: 100000000, regeneracao: 0 } });
+        const ficha = criarFichaMinima({ vida: { ...statBase(100000000), atual: TETO_VIDA_FIXTURE, regeneracao: 0 } });
         expect(() => descansarCompleto(ficha)).not.toThrow();
-        expect(ficha.vida.atual).toBe(100000000);
+        expect(ficha.vida.atual).toBe(TETO_VIDA_FIXTURE);
     });
 });
 
@@ -292,8 +311,7 @@ describe('core/vitals - descansarCompleto: robustez com dados faltando', () => {
         delete ficha.mana;
         expect(() => descansarCompleto(ficha)).not.toThrow();
         expect(ficha.mana).toBeUndefined();
-        // 🩸 Teto real de Vida (getTetoVida) = o próprio bruto, 1e8 (base=1e8, exatamente o limiar).
-        expect(ficha.vida.atual).toBe(100000000);
+        expect(ficha.vida.atual).toBe(TETO_VIDA_FIXTURE);
     });
 
     it('um vital malformado (base não numérica) não aborta a cura dos demais (try/catch isolado por vital)', () => {

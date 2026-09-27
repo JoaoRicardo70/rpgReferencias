@@ -173,6 +173,16 @@ const useStore = create(
         setDummies: (dummies) => set((state) => { state.dummies = dummies || {}; }),
         setAlvoSelecionado: (id) => set((state) => { state.alvoSelecionado = id; }),
         setCenario: (dados) => set((state) => { state.cenario = dados; }),
+
+        // ⏭️ CONTROLE DE TURNO FORA DO MAPA (aba Mestre): o MapaFormProvider (sempre montado, ver
+        // TabPanel.jsx) publica aqui um resumo leve da ordem de iniciativa da cena que está sendo
+        // exibida e registra a própria função avancarTurno — assim o Mestre passa o turno sem
+        // trocar de aba, reaproveitando EXATAMENTE a mesma lógica (Ações/Fadiga/Regeneração/Zonas)
+        // do botão "Passar Turno" do Mapa, nunca uma cópia.
+        resumoTurnoMapa: { ordem: [], turnoAtualIndex: 0 },
+        setResumoTurnoMapa: (resumo) => set((state) => { state.resumoTurnoMapa = resumo || { ordem: [], turnoAtualIndex: 0 }; }),
+        acaoAvancarTurnoMapa: null,
+        setAcaoAvancarTurnoMapa: (fn) => set((state) => { state.acaoAvancarTurnoMapa = fn || null; }),
         setDivisorPoderMesa: (valor) => set((state) => {
             const v = (parseFloat(valor) > 0) ? parseFloat(valor) : 1;
             state.divisorPoderMesa = v;

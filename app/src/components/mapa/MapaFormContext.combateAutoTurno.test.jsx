@@ -540,8 +540,12 @@ describe('MapaFormContext — avancarTurno: Regeneração automática também se
     // -------------------------------------------------------------------------
     it('dummie já no máximo (atual === mxDisplay) não sofre overheal nem lança erro, e salvarDummie ainda é chamado normalmente', async () => {
         const firebaseSync = await import('../../services/firebase-sync');
-        // base=100_000_000 (9 dígitos) -> mxDisplay (limite 9, sem compressão) = 100_000_000.
-        const dummieCheio = dummieComVital({ vida: { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 100000000, regeneracao: 5000000 } });
+        // O teto de Vida é o mesmo que a Ficha mostra: bruto x Multiplicador de Força
+        // (core/vitals.js > getTetoExibidoComFator) — o dummie começa exatamente nele.
+        const { getTetoExibidoComFator } = await import('../../core/vitals');
+        const dummieBase = dummieComVital({ vida: { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 0, regeneracao: 5000000 } });
+        const tetoVida = getTetoExibidoComFator('vida', dummieBase);
+        const dummieCheio = { ...dummieBase, vida: { ...dummieBase.vida, atual: tetoVida } };
         const state = baseState({ meuNome: 'Heroi', isMestre: true, dummies: { goblin: dummieCheio } });
         state.minhaFicha.iniciativa = 20;
         montarComEstado(state);
@@ -552,7 +556,7 @@ describe('MapaFormContext — avancarTurno: Regeneração automática também se
         const [idSalvo, dadosSalvos] = firebaseSync.salvarDummie.mock.calls[0];
         expect(idSalvo).toBe('goblin');
         // Nenhum overheal: permanece exatamente no teto, nunca ultrapassa.
-        expect(dadosSalvos.vida.atual).toBe(100000000);
+        expect(dadosSalvos.vida.atual).toBe(tetoVida);
         // O reset de ações continua acontecendo independentemente da regeneração ter sido um no-op.
         expect(dadosSalvos.acoes.padrao.atual).toBe(1);
     });
