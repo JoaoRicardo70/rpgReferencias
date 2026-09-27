@@ -1669,3 +1669,4 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .btn-prestigio-passo:hover:not(:disabled) { background: rgba(0, 255, 204, 0.3); }
 .btn-prestigio-passo:disabled { opacity: 0.3; cursor: default; }
 .prestigio-divisor-travado { display: inline-block; min-width: 50px; text-align: center; border: 1px dashed currentColor; border-radius: 4px; opacity: 0.8; cursor: not-allowed; }
+.ascensao-base-travada { display: inline-block; min-width: 60px; text-align: center; font-size: 1.2em; border-bottom: 1px dashed currentColor; opacity: 0.85; cursor: not-allowed; }

@@ -9,7 +9,7 @@
 //     desde a última Ascensão — é o limite de quanto ele pode DESFAZER (corrigir um erro)
 //     sozinho; reduzir além disso só o Mestre.
 //   - Quando TODAS as 6 categorias chegam a 100, o jogador pode Ascender: cada categoria volta
-//     pra 1 (o excedente acima de 100 é preservado) e a Ascensão Base sobe 1. O Poder Calculado
+//     pra 1 (o jogador não distribui além de 100) e a Ascensão Base sobe 1. O Poder Calculado
 //     não cai: core/poder.js > getBaseEquivalenteAscensao repõe os 100 pontos de cada vital, e o
 //     Status não mexe nos atributos (os pontos que o pool já deu continuam lá).
 // ==========================================
@@ -50,6 +50,9 @@ export function validarDistribuicaoPrestigio(ficha, cat, prestigioAtual, prestig
     const delta = novo - Math.floor(num(prestigioAtual));
     if (delta === 0) return { ok: false, delta: 0, motivo: null };
     if (delta > 0) {
+        if (novo > PRESTIGIO_PARA_ASCENDER) {
+            return { ok: false, delta, motivo: `O máximo de Prestígio por categoria é ${PRESTIGIO_PARA_ASCENDER}. Com todas as categorias em ${PRESTIGIO_PARA_ASCENDER}, use o botão ASCENDER.` };
+        }
         const disponiveis = getPontosPrestigioDisponiveis(ficha);
         if (delta > disponiveis) {
             return { ok: false, delta, motivo: `Você só tem ${disponiveis} Ponto(s) de Prestígio para distribuir (tentou usar ${delta}). Peça mais ao Mestre.` };
@@ -77,10 +80,11 @@ export function podeAscender(prestigiosPorCategoria) {
     return CATEGORIAS_PRESTIGIO.every((cat) => num(prestigiosPorCategoria?.[cat]) >= PRESTIGIO_PARA_ASCENDER);
 }
 
-// Prestígio da categoria depois de Ascender: volta pra 1, mas o que passou de 100 não se perde
-// (100 -> 1, 130 -> 30), pra Ascender nunca custar Prestígio já conquistado.
-export function prestigioAposAscensao(prestigio) {
-    return Math.max(1, Math.floor(num(prestigio)) - PRESTIGIO_PARA_ASCENDER);
+// Prestígio da categoria depois de Ascender: SEMPRE 1 (regra do usuário). Pra nenhum ponto se
+// perder nisso, o jogador não consegue distribuir além de 100 numa categoria (ver
+// validarDistribuicaoPrestigio); só o Mestre, editando livre, passa disso.
+export function prestigioAposAscensao() {
+    return 1;
 }
 
 // Aplica a Ascensão (muta o rascunho Immer). `prestigiosPorCategoria` = Prestígio exibido de cada
@@ -89,7 +93,7 @@ export function prestigioAposAscensao(prestigio) {
 export function aplicarAscensao(ficha, prestigiosPorCategoria) {
     if (!ficha || !podeAscender(prestigiosPorCategoria)) return false;
     CATEGORIAS_PRESTIGIO.forEach((cat) => {
-        const novoP = prestigioAposAscensao(prestigiosPorCategoria[cat]);
+        const novoP = prestigioAposAscensao();
         if (cat === 'status') {
             ficha.statusPrestigioAplicado = novoP;
         } else {

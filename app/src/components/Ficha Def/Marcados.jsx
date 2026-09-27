@@ -11,7 +11,7 @@ import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { calcularFadigaAtual } from '../../core/fadiga';
 import { getBaseEquivalenteAscensao } from '../../core/poder';
 import { planejarAjustePrestigioStatus, aplicarAjustePrestigioStatus, recolherPontosAlocados, getTotalPontosAlocados } from '../../core/statusPool';
-import { getPontosPrestigioDisponiveis, getPontosDistribuidos, calcularBaseDoPrestigio, validarDistribuicaoPrestigio, registrarDistribuicaoPrestigio, podeAscender, prestigioAposAscensao, aplicarAscensao, CATEGORIAS_PRESTIGIO } from '../../core/prestigioDistribuicao';
+import { getPontosPrestigioDisponiveis, getPontosDistribuidos, calcularBaseDoPrestigio, validarDistribuicaoPrestigio, registrarDistribuicaoPrestigio, podeAscender, prestigioAposAscensao, aplicarAscensao, CATEGORIAS_PRESTIGIO, PRESTIGIO_PARA_ASCENDER } from '../../core/prestigioDistribuicao';
 import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 
@@ -1444,13 +1444,13 @@ export default function MarcadosPanel() {
         return mapa;
     };
 
-    // ⬆️ Todas as 6 categorias em 100: cada uma volta pra 1 (o excedente acima de 100 fica) e a
+    // ⬆️ Todas as 6 categorias em 100: cada uma volta pra 1 e a
     // Ascensão Base sobe 1. O Poder Calculado não cai (core/poder.js > getBaseEquivalenteAscensao).
     const ascenderPersonagem = () => {
         const prestigios = prestigiosPorCategoria();
         if (!podeAscender(prestigios)) return;
         const ascensaoAtual = parseInt(minhaFicha.ascensaoBase) || 1;
-        const resumo = CATEGORIAS_PRESTIGIO.map(k => `${k.toUpperCase()}: ${Math.floor(prestigios[k])} → ${prestigioAposAscensao(prestigios[k])}`).join('\n');
+        const resumo = CATEGORIAS_PRESTIGIO.map(k => `${k.toUpperCase()}: ${Math.floor(prestigios[k])} → ${prestigioAposAscensao()}`).join('\n');
         if (!window.confirm(`Ascender para a Ascensão Base ${ascensaoAtual + 1}?\n\n${resumo}\n\nO Poder Calculado não diminui: você ascende em Poder.`)) return;
         updateFicha(f => { aplicarAscensao(f, prestigios); });
         callSave();
@@ -2161,7 +2161,12 @@ export default function MarcadosPanel() {
                             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
                                 <div style={{ background: 'rgba(0,0,0,0.8)', color: '#fff', padding: '10px 20px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
                                     <span style={{ fontWeight: 'bold', fontSize: '1.1em' }}>Ascensão Base (Nível):</span>
-                                    <CampoMagico valor={minhaFicha.ascensaoBase || 1} onChange={(v) => salvar('ascensaoBase', v)} type="number" isNumber={true} styleExtra={{ width: '60px', textAlign: 'center', color: '#fff', borderBottom: '1px dashed #fff', fontSize: '1.2em' }} />
+                                    {/* 🔒 Ascensão Base só Mestre/Co-Mestre edita — o jogador sobe pelo botão ASCENDER */}
+                                    {isMestre ? (
+                                        <CampoMagico valor={minhaFicha.ascensaoBase || 1} onChange={(v) => salvar('ascensaoBase', v)} type="number" isNumber={true} styleExtra={{ width: '60px', textAlign: 'center', color: '#fff', borderBottom: '1px dashed #fff', fontSize: '1.2em' }} />
+                                    ) : (
+                                        <span className="ascensao-base-travada" title="🔒 Só o Mestre/Co-Mestre altera a Ascensão Base. Use o botão ASCENDER quando todas as categorias chegarem a 100.">{parseInt(minhaFicha.ascensaoBase) || 1}</span>
+                                    )}
                                     <span style={{ fontSize: '0.85em', opacity: 0.9, fontStyle: 'italic', borderLeft: '1px solid rgba(255,255,255,0.3)', paddingLeft: '12px' }}>
                                         Ascensão Geral Efetiva: <strong style={{ color: '#ffcc00' }}>{Math.floor(ascensaoGeralEfetiva)}</strong>
                                     </span>
@@ -2239,7 +2244,7 @@ export default function MarcadosPanel() {
                                                             styleExtra={{ width: '100%', minWidth: 0, textAlign: 'center', color: '#fff', borderBottom: 'none', fontSize: '1.4em', fontWeight: 'bold' }}
                                                         />
                                                         <button type="button" className="btn-prestigio-passo" title="Distribuir 1 Ponto de Prestígio"
-                                                            disabled={getPontosPrestigioDisponiveis(minhaFicha) <= 0}
+                                                            disabled={getPontosPrestigioDisponiveis(minhaFicha) <= 0 || Math.floor(campoEditavel) >= PRESTIGIO_PARA_ASCENDER}
                                                             onClick={() => handleTabelaChange(k, 'prestigio', Math.floor(campoEditavel) + 1)}>+</button>
                                                     </div>
                                                 ) : k === 'status' ? (

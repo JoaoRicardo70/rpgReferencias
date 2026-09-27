@@ -16,7 +16,7 @@ import useStore from '../../stores/useStore';
 //   aplicado no blur, validado por validarDistribuicaoPrestigio (alerta e não muda nada se faltar
 //   pontos). Mestre edita as categorias livremente, sem gastar pontos.
 // - `.btn-ascender`: só aparece quando as 6 categorias chegam a 100 de Prestígio; ao clicar (com
-//   confirmação), aplicarAscensao reseta cada categoria pra 1 (excedente preservado) e soma 1 em
+//   confirmação), aplicarAscensao reseta cada categoria pra 1 e soma 1 em
 //   ascensaoBase, sem tocar no pool de Status nem nas bases dos 8 atributos físicos.
 // ---------------------------------------------------------------------------
 
@@ -98,6 +98,18 @@ function editarPrestigioCategoria(container, label, valor) {
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: valor } });
     fireEvent.blur(input);
+}
+
+// Localiza o bloco "Ascensão Base (Nível):" — Mestre edita livre (CampoMagico -> <input>), jogador
+// só vê `.ascensao-base-travada` (somente leitura).
+function wrapperAscensaoBase(container) {
+    const spans = Array.from(container.querySelectorAll('span'));
+    const labelSpan = spans.find(s => s.textContent === 'Ascensão Base (Nível):');
+    return labelSpan.parentElement;
+}
+
+function inputAscensaoBase(container) {
+    return wrapperAscensaoBase(container).querySelector('input');
 }
 
 describe('Marcados — Pontos de Prestígio (jogador): botões +/- distribuem, campo valida contra o disponível', () => {
@@ -184,6 +196,32 @@ describe('Marcados — Pontos de Prestígio (jogador): botões +/- distribuem, c
         expect(ficha.prestigioPontosDisponiveis).toBe(1);
         expect(ficha.prestigioPontosDistribuidos.vida ?? 0).toBe(0);
     });
+
+    it('jogador não consegue subir uma categoria acima de 100: digitar 101 dispara alert (menciona ASCENDER) e não muda nada, mesmo com pontos de sobra', () => {
+        const ficha = fichaPrestigio({ vidaP: 99, prestigioPontosDisponiveis: 50 });
+        montarMockUseStore(ficha, false);
+
+        const { container } = render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        editarPrestigioCategoria(container, 'VIDA', '101');
+
+        expect(window.alert).toHaveBeenCalledTimes(1);
+        expect(window.alert.mock.calls[0][0]).toMatch(/ASCENDER/);
+        expect(ficha.vida.base).toBe(99 * MULTS.vida);
+        expect(ficha.prestigioPontosDisponiveis).toBe(50);
+        expect(ficha.prestigioPontosDistribuidos.vida ?? 0).toBe(0);
+    });
+
+    it('"+" fica desabilitado ao chegar em 100, mesmo com Pontos de Prestígio disponíveis de sobra', () => {
+        const ficha = fichaPrestigio({ vidaP: 100, prestigioPontosDisponiveis: 50 });
+        montarMockUseStore(ficha, false);
+
+        const { container } = render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        expect(botoesPrestigioCategoria(container, 'VIDA').mais.disabled).toBe(true);
+    });
 });
 
 describe('Marcados — Pontos de Prestígio (mestre): edição livre da caixa e das categorias', () => {
@@ -228,6 +266,62 @@ describe('Marcados — Pontos de Prestígio (mestre): edição livre da caixa e 
         expect(ficha.vida.base).toBe(10 * MULTS.vida);
         expect(ficha.prestigioPontosDisponiveis).toBe(5); // inalterado — Mestre não gasta pontos
         expect(window.alert).not.toHaveBeenCalled();
+    });
+
+    it('Mestre continua livre para passar uma categoria de 100 (limite só vale para o jogador)', () => {
+        const ficha = fichaPrestigio({ vidaP: 100 });
+        montarMockUseStore(ficha, true);
+
+        const { container } = render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        editarPrestigioCategoria(container, 'VIDA', '150');
+
+        expect(ficha.vida.base).toBe(150 * MULTS.vida);
+        expect(window.alert).not.toHaveBeenCalled();
+    });
+});
+
+describe('Marcados — Ascensão Base (Nível): Mestre-only', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        window.confirm = vi.fn(() => true);
+        window.alert = vi.fn();
+    });
+
+    afterEach(() => cleanup());
+
+    it('jogador vê a Ascensão Base travada (.ascensao-base-travada), sem input', () => {
+        const ficha = fichaPrestigio({ ascensaoBase: 3 });
+        montarMockUseStore(ficha, false);
+
+        const { container } = render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        const wrapper = wrapperAscensaoBase(container);
+        const travada = wrapper.querySelector('.ascensao-base-travada');
+        expect(travada).toBeTruthy();
+        expect(travada.textContent).toBe('3');
+        expect(wrapper.querySelector('input')).toBeNull();
+    });
+
+    it('Mestre vê um input editável de Ascensão Base (sem .ascensao-base-travada) e pode alterá-lo', () => {
+        const ficha = fichaPrestigio({ ascensaoBase: 3 });
+        montarMockUseStore(ficha, true);
+
+        const { container } = render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        const wrapper = wrapperAscensaoBase(container);
+        expect(wrapper.querySelector('.ascensao-base-travada')).toBeNull();
+        const input = inputAscensaoBase(container);
+        expect(input).toBeTruthy();
+
+        fireEvent.focus(input);
+        fireEvent.change(input, { target: { value: '7' } });
+        fireEvent.blur(input);
+
+        expect(ficha.ascensaoBase).toBe(7);
     });
 });
 
@@ -288,6 +382,25 @@ describe('Marcados — botão ASCENDER (.btn-ascender)', () => {
         // Pool de Status e as bases dos 8 atributos físicos ficam intocados.
         expect(ficha.statusPool).toBe(12);
         STATS8.forEach(s => expect(ficha[s].base).toBe(1000));
+    });
+
+    it('uma categoria que o Mestre deixou acima de 100 (ex.: CORPO em 130) volta EXATAMENTE para 1 após ASCENDER, sem carregar o excedente', () => {
+        // Só o Mestre consegue deixar uma categoria acima de 100 (o jogador é barrado em 100 pelo
+        // próprio handleTabelaChange/validarDistribuicaoPrestigio) — aqui simulamos esse estado
+        // diretamente na ficha, como o Mestre teria deixado via edição livre.
+        const ficha = fichaPrestigio({ vidaP: 100, manaP: 100, auraP: 100, chakraP: 100, corpoP: 130, statusP: 100 });
+        expect(ficha.corpo.base).toBe(130 * MULTS.corpo);
+        montarMockUseStore(ficha, false);
+
+        const { container } = render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+
+        fireEvent.click(container.querySelector('.btn-ascender'));
+
+        // Antes, o excedente (30) era preservado (130 -> 30); agora a regra é sempre resetar pra 1.
+        expect(ficha.corpo.base).toBe(1 * MULTS.corpo);
+        expect(ficha.vida.base).toBe(1 * MULTS.vida);
+        expect(ficha.ascensaoBase).toBe(2);
     });
 
     it('clicar com confirm=false não muda nada', () => {

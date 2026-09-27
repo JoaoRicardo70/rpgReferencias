@@ -62,10 +62,17 @@ describe('core/prestigioDistribuicao', () => {
         expect(podeAscender({ ...todos(150), corpo: 0 })).toBe(false);
     });
 
-    it('prestigioAposAscensao: 100 -> 1, excedente preservado', () => {
+    it('prestigioAposAscensao: sempre volta pra 1', () => {
         expect(prestigioAposAscensao(100)).toBe(1);
-        expect(prestigioAposAscensao(101)).toBe(1);
-        expect(prestigioAposAscensao(130)).toBe(30);
+        expect(prestigioAposAscensao(130)).toBe(1);
+    });
+
+    it('jogador não distribui além de 100 numa categoria', () => {
+        const ficha = { prestigioPontosDisponiveis: 50 };
+        expect(validarDistribuicaoPrestigio(ficha, 'vida', 95, 100).ok).toBe(true);
+        const r = validarDistribuicaoPrestigio(ficha, 'vida', 95, 101);
+        expect(r.ok).toBe(false);
+        expect(r.motivo).toMatch(/ASCENDER/);
     });
 
     it('aplicarAscensao reseta as categorias, sobe a Ascensão Base e não mexe no pool/atributos de Status', () => {
@@ -81,7 +88,7 @@ describe('core/prestigioDistribuicao', () => {
         expect(ficha.ascensaoBase).toBe(4);
         expect(ficha.vida.base).toBe(1000000);
         expect(ficha.mana.base).toBe(10000000);
-        expect(ficha.corpo.base).toBe(300000000);
+        expect(ficha.corpo.base).toBe(10000000);
         expect(ficha.statusPrestigioAplicado).toBe(1);
         expect(ficha.statusPool).toBe(12);
         expect(ficha.forca.base).toBe(555);

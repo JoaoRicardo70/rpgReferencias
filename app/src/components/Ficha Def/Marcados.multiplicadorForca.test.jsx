@@ -695,6 +695,8 @@ function montarMockUseStoreReativo(fichaInicial) {
         updateFicha: null,
         meuNome: 'Testador',
         importarDaAbaStatus: vi.fn(),
+        // Ascensão Base só é editável pelo Mestre/Co-Mestre (o jogador sobe pelo botão ASCENDER).
+        isMestre: true,
     };
     mockState.updateFicha = vi.fn((callback) => {
         const nova = { ...mockState.minhaFicha };
