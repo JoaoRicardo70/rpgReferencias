@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import useStore, { sanitizarNome } from '../../stores/useStore';
 import { enviarParaFeed, salvarDummie, apagarFicha } from '../../services/firebase-sync';
-import { getMaximo } from '../../core/attributes';
 import { calcularCA } from '../../core/engine';
-import { getVitalMax, getVitalMaxEstavel, getTetoVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
+import { getVitalMax, getVitalMaxEstavel, getTetoVida, getTetoExibidoComFator, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularFatorMultiplicadorForca } from '../../core/poder';
 import { ref, set, remove } from 'firebase/database';
 import { db } from '../../services/firebase-config'; 
@@ -146,8 +145,11 @@ export function MestreFormProvider({ children }) {
             const percHp = hpMaxBruto > 0 ? (hpAtualBruto / hpMaxBruto) * 100 : 0;
             const hpMax = hpMaxBruto / FATOR_EXIBICAO_VITAIS;
             const hpAtual = hpAtualBruto / FATOR_EXIBICAO_VITAIS;
-            const mpMax = getMaximo(ficha, 'mana') / FATOR_EXIBICAO_VITAIS;
-            const mpAtual = (ficha.mana?.atual ?? getMaximo(ficha, 'mana')) / FATOR_EXIBICAO_VITAIS;
+            // Mana: mesmo teto exibido da Ficha/Mapa (escala comprimida + Multiplicador de Força + Base
+            // equivalente às Ascensões manuais — core/vitals.js > getTetoExibidoComFator).
+            const mpMaxBruto = getTetoExibidoComFator('mana', ficha);
+            const mpMax = mpMaxBruto / FATOR_EXIBICAO_VITAIS;
+            const mpAtual = (ficha.mana?.atual ?? mpMaxBruto) / FATOR_EXIBICAO_VITAIS;
 
             let classId = ficha?.bio?.classe;
             if ((classId === 'pretender' || classId === 'alterego') && ficha?.bio?.subClasse) classId = ficha?.bio?.subClasse;

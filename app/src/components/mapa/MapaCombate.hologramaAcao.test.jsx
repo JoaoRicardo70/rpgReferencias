@@ -41,14 +41,16 @@ function criarFichaDeCombate(vidaAtual) {
         aura: criarStat(500, 100000),
         chakra: criarStat(500, 100000),
         corpo: criarStat(500, 100000),
-        divisores: { vida: 1, status: 1, mana: 1, aura: 1, chakra: 1, corpo: 1 },
-        // 🔥 ascensaoBase bem alto pra neutralizar o "Multiplicador de Força" (core/poder.js >
-        // calcularFatorMultiplicadorForca, replicado de Ficha Def/Marcados.jsx > LinhaVital) —
-        // sem isso, um "base" grande o bastante pra cruzar a fronteira de compressão TAMBÉM
-        // dispara um bônus de Ascensão por overflow de Prestígio incidental (fator>1),
-        // contaminando estes testes que são sobre a escala de exibição (calcVitalScale), não sobre
-        // o Multiplicador de Força (esse tem sua própria suíte, Marcados.multiplicadorForcaVitais).
-        ascensaoBase: 1000000,
+        // 🔥 Divisores minúsculos pra neutralizar o "Multiplicador de Força" (core/poder.js >
+        // calcularFatorMultiplicadorForca, replicado de Ficha Def/Marcados.jsx > LinhaVital): o
+        // Prestígio derivado da base (base / mult * divisor) fica ~0, então um "base" grande o
+        // bastante pra cruzar a fronteira de compressão NÃO dispara bônus de Ascensão por overflow
+        // (fator = 1) — estes testes são sobre a escala de exibição (calcVitalScale), não sobre o
+        // Multiplicador de Força (esse tem sua própria suíte, Marcados.multiplicadorForcaVitais).
+        // (Antes isso era feito com ascensaoBase=1000000, mas uma Ascensão Base alta agora conta
+        // de verdade no máximo das barras — core/vitals.js > getMaximoVital.)
+        divisores: { vida: 1e-12, status: 1, mana: 1e-12, aura: 1e-12, chakra: 1e-12, corpo: 1e-12 },
+        ascensaoBase: 1,
     };
     ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => {
         ficha[s] = criarStat(0, 1000);

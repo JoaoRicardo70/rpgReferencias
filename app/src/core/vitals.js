@@ -3,10 +3,24 @@
 // components/status/StatusFormContext.jsx, para reuso fora da Ficha (ex.: quando o
 // turno de alguém volta no Mapa, ver MapaFormContext.jsx).
 // ==========================================
-import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from './attributes.js';
+import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs, getMultiplicadorTotal, getMultiplicadorTotalSemFormas } from './attributes.js';
 import { getPrestigioReal } from './prestige.js';
 import { calcularReducaoFadigaPorRegeneracao } from './fadiga.js';
-import { calcularFatorMultiplicadorForca } from './poder.js';
+import { calcularFatorMultiplicadorForca, getBaseEquivalenteAscensao } from './poder.js';
+
+// ⬆️ Máximo BRUTO de um vital principal (vida/mana/aura/chakra/corpo) já somando a Base
+// equivalente às Ascensões manuais (Ascensão Base > 1, ver core/poder.js >
+// getBaseEquivalenteAscensao) — multiplicada pelos MESMOS multiplicadores do vital, como se aqueles
+// 100 de Prestígio por nível ainda estivessem na Base. Sem isso, "resetar" o Prestígio pra subir a
+// Ascensão Base derrubava o máximo das barras. Com Ascensão Base 1 é idêntico a getMaximo.
+export function getMaximoVital(ficha, key, semFormas = false) {
+    const maxBase = semFormas ? getMaximoSemFormas(ficha, key) : getMaximo(ficha, key);
+    const equiv = VITAIS_PRINCIPAIS.includes(key) ? getBaseEquivalenteAscensao(ficha, key) : 0;
+    if (!equiv) return maxBase;
+    const mult = semFormas ? getMultiplicadorTotalSemFormas(ficha, key) : getMultiplicadorTotal(ficha, key);
+    const extra = equiv * mult;
+    return Number.isFinite(extra) ? Math.floor((Number(maxBase) || 0) + extra) : maxBase;
+}
 
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 export const VITAIS_REGENERAVEIS = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'pv', 'pm'];
@@ -68,7 +82,7 @@ export function capturarMaximosAtuais(ficha, vitais = VITAIS_PRINCIPAIS) {
     const maximos = {};
     // valor ESTÁVEL (sem Formas) — é só isso que decide se a escala de notação (p) muda; nunca o
     // máximo completo, senão uma Forma temporária poderia cruzar uma fronteira de dígitos sozinha.
-    vitais.forEach(v => { maximos[v] = getMaximoSemFormas(ficha, v) || 1; });
+    vitais.forEach(v => { maximos[v] = getMaximoVital(ficha, v, true) || 1; });
     return maximos;
 }
 
@@ -84,16 +98,16 @@ export function rescalarVitaisProporcional(ficha, maximosAntigosEstaveis, vitais
         // precisa ser RE-CLAMPADO pro novo teto (que pode crescer/encolher conforme o máximo
         // ESTÁVEL muda, ex.: ao ativar/desativar uma Forma).
         if (k === 'vida') {
-            const novoEstavel = getMaximoSemFormas(ficha, 'vida') || 1;
+            const novoEstavel = getMaximoVital(ficha, 'vida', true) || 1;
             const novoTeto = getTetoVida(novoEstavel, 'vida');
             if (isNaN(atual)) atual = novoTeto;
             ficha[k].atual = Math.min(Math.max(0, atual), novoTeto || 1);
             return;
         }
 
-        const oldEstavel = (maximosAntigosEstaveis && maximosAntigosEstaveis[k]) || getMaximoSemFormas(ficha, k) || 1;
-        const novoEstavel = getMaximoSemFormas(ficha, k) || 1;
-        const novoRawCompleto = getMaximo(ficha, k) || 1; // COM Formas — é o que de fato aparece na tela
+        const oldEstavel = (maximosAntigosEstaveis && maximosAntigosEstaveis[k]) || getMaximoVital(ficha, k, true) || 1;
+        const novoEstavel = getMaximoVital(ficha, k, true) || 1;
+        const novoRawCompleto = getMaximoVital(ficha, k) || 1; // COM Formas — é o que de fato aparece na tela
 
         const { p: pAntigo } = calcVitalScale(oldEstavel, k);
         // A escala (p) vem do estável; o numerador de mxDisplay vem do completo (com Formas).
@@ -133,7 +147,7 @@ export function getVitalMax(key, ficha) {
         const m = parseFloat(ficha.multiplicadorMorte) || 1;
         return Math.floor(((bM + bS + bA) / 3) * m);
     }
-    const v = getMaximo(ficha, key);
+    const v = getMaximoVital(ficha, key);
     return (v !== undefined && v !== null && !Number.isNaN(v)) ? v : 1;
 }
 
@@ -141,7 +155,7 @@ export function getVitalMax(key, ficha) {
 // vez de getMaximo) — pv/pm nunca passam por getMaximo/Formas, então ficam idênticos ao original.
 export function getVitalMaxEstavel(key, ficha) {
     if (key === 'pv' || key === 'pm') return getVitalMax(key, ficha);
-    const v = getMaximoSemFormas(ficha, key);
+    const v = getMaximoVital(ficha, key, true);
     return (v !== undefined && v !== null && !Number.isNaN(v)) ? v : 1;
 }
 
@@ -234,6 +248,7 @@ export function getVitalMxDisplay(key, ficha) {
 // "100.000.000". Só o NÚMERO do limiar mudou; toda a lógica de reparto em barras abaixo continua
 // idêntica.
 export const LIMIAR_BARRA_VIDA = 1000000000;
+export const MAX_BARRAS_VIDA_MONTADAS = 100;
 
 // 🔥 Reformulação de Status/Vida/Energias (pedido do usuário): divisor usado SÓ na EXIBIÇÃO/EDIÇÃO
 // de Vida/Mana/Aura/Chakra/Corpo (current/max/regeneração) pelos componentes de UI (Ficha Def,
@@ -284,11 +299,17 @@ function montarBarrasVida(total, atualTotal) {
     if (atualTotal === undefined || atualTotal === null || atualTotal === '' || isNaN(atual)) atual = max;
     atual = Math.min(Math.max(0, atual), max);
 
+    // 🛡️ Trava de render: Vida astronômica (ex.: Ascensão Base digitada como 1000) geraria dezenas
+    // de milhares de barras e travava a tela. Só as primeiras MAX_BARRAS_VIDA_MONTADAS-1 barras são
+    // montadas individualmente; a última AGREGA todo o resto (a soma dos max continua == total, e
+    // numBarras continua sendo a contagem real).
+    const barrasMontadas = Math.min(numBarras, MAX_BARRAS_VIDA_MONTADAS);
     const barras = [];
     const danoTotal = max - atual;
     let danoAcumulado = 0;
-    for (let i = 0; i < numBarras; i++) {
-        const capBarra = (i === 0) ? capPrimeiraBarra : LIMIAR_BARRA_VIDA;
+    for (let i = 0; i < barrasMontadas; i++) {
+        const agregaResto = barrasMontadas < numBarras && i === barrasMontadas - 1;
+        const capBarra = agregaResto ? (max - danoAcumulado) : ((i === 0) ? capPrimeiraBarra : LIMIAR_BARRA_VIDA);
         const danoNestaBarra = capBarra > 0 ? Math.min(Math.max(0, danoTotal - danoAcumulado), capBarra) : 0;
         barras.push({ atual: capBarra - danoNestaBarra, max: capBarra });
         danoAcumulado += capBarra;

@@ -39,7 +39,7 @@ function getStatusLimpo(ficha, chave, threshold) {
     }
 
     let mx = 0;
-    try { mx = getMaximo(ficha, chave); } catch(e){}
+    try { mx = getVitalMax(chave, ficha); } catch(e){}
     if (!mx || isNaN(mx)) mx = parseInt(ficha[chave]?.base) || 0;
     // 🩹 SINCRONIA COM A FICHA/MAPA (pedido do usuário): mesmo "Multiplicador de Força" aplicado
     // acima pra vida, agora também pra mana/aura/chakra/corpo — senão o MESMO personagem mostra um

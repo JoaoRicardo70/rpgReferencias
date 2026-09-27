@@ -343,8 +343,20 @@ export function calcularFatorMultiplicadorForca(ficha, key) {
 
     const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
     const geral = rankInfo.ascensaoFinal || ascensaoBaseEfetiva;
-    const fator = geral / (ascensaoBase || 1);
+    const fator = geral / getDivisorFatorForca(key, ascensaoBase);
     return isNaN(fator) ? 1 : fator;
+}
+
+// ⬆️ Divisor do Multiplicador de Força. Pros 5 VITAIS com Ascensão Base > 1 o fator é a Ascensão
+// final INTEIRA (não mais dividida pela Ascensão Base): junto com a Base equivalente que
+// core/vitals.js > getMaximoVital repõe (getBaseEquivalenteAscensao), isso faz "A1 + 134 de
+// Prestígio" e "A2 + 34" terem EXATAMENTE o mesmo máximo de barra — antes o reset derrubava o
+// máximo de ~268M pra 34M. Com Ascensão Base 1 (ou menor) nada muda. Status segue como antes.
+// Réplica exata em Ficha Def/Marcados.jsx > calcularFatorCategoria.
+const VITAIS_FATOR_FORCA = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
+export function getDivisorFatorForca(key, ascensaoBase) {
+    if (VITAIS_FATOR_FORCA.includes(key) && ascensaoBase > 1) return 1;
+    return ascensaoBase || 1;
 }
 
 export function getTemaScouter(supressao, limite = 1) {
