@@ -9,10 +9,10 @@ import { getRank } from '../../core/prestige';
 import { formatarPoderCosmico } from '../../core/utils.js';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { calcularFadigaAtual } from '../../core/fadiga';
-import { getBaseEquivalenteAscensao, getDivisorFatorForca } from '../../core/poder';
+import { getBaseEquivalenteAscensao } from '../../core/poder';
 import { planejarAjustePrestigioStatus, aplicarAjustePrestigioStatus, recolherPontosAlocados, getTotalPontosAlocados } from '../../core/statusPool';
 import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
-import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida, getMaximoVital, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
+import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel';
@@ -40,17 +40,6 @@ function safeGetMaximo(ficha, key) {
 // escala de notação (calcularBarrasVida, core/vitals.js), nunca o numerador exibido, pra uma
 // Forma temporária nunca "pular" de notação e parecer que a energia caiu (ver core/vitals.js >
 // getMaximoSemFormas).
-// ⬆️ Máximo de um VITAL (vida/mana/aura/chakra/corpo) já com a Base equivalente às Ascensões
-// manuais — core/vitals.js > getMaximoVital, a mesma conta usada por Mapa/Mestre/Regeneração.
-function safeGetMaximoVital(ficha, key, semFormas = false) {
-    try {
-        const val = getMaximoVital(ficha, key, semFormas);
-        return isNaN(val) ? 0 : val;
-    } catch (e) {
-        return semFormas ? safeGetMaximoSemFormas(ficha, key) : safeGetMaximo(ficha, key);
-    }
-}
-
 function safeGetMaximoSemFormas(ficha, key) {
     try {
         if (AtributosCore && typeof AtributosCore.getMaximoSemFormas === 'function') {
@@ -738,8 +727,8 @@ const RadarDesenhado = ({ ficha, isAtual, corTinta = "#000000", fator = 1 }) => 
 const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, corTextoBarra = '#fff', ficha, supressao, temaScouter, salvar, getLabel, setLabel, fator = 1 }) => {
     const [aberto, setAberta] = useState(false);
     const fatorSeguro = parseFloat(fator) || 1;
-    let rawMaximo = (parseFloat(safeGetMaximoVital(ficha, vitalKey)) || 0) * fatorSeguro;
-    let rawMaximoEstavel = (parseFloat(safeGetMaximoVital(ficha, vitalKey, true)) || 0) * fatorSeguro;
+    let rawMaximo = (parseFloat(safeGetMaximo(ficha, vitalKey)) || 0) * fatorSeguro;
+    let rawMaximoEstavel = (parseFloat(safeGetMaximoSemFormas(ficha, vitalKey)) || 0) * fatorSeguro;
 
     // 🩸 MÚLTIPLAS BARRAS DE VIDA (pedido do usuário): a cada ponto de Vitalidade (p) o personagem
     // ganha mais uma barra CHEIA de Vida, do mesmo tamanho (mxDisplay) que as anteriores — só Vida
@@ -1173,7 +1162,7 @@ export default function MarcadosPanel() {
             }
             const rankInfo = aplicarMultiplicadorForca(pAtual, ascensaoBase, multP, multA);
             const geral = rankInfo.ascensaoFinal || ascensaoBaseEfetiva;
-            const fator = geral / getDivisorFatorForca(key, ascensaoBase);
+            const fator = geral / (ascensaoBase || 1);
             return isNaN(fator) ? 1 : fator;
         };
 
@@ -1539,8 +1528,8 @@ export default function MarcadosPanel() {
         if (!window.confirm('Recuperar toda a Vida, Energias, Pontos e Ações de Turno?')) return;
         updateFicha(f => {
             ['vida', 'mana', 'aura', 'chakra', 'corpo'].forEach(k => {
-                let mx = safeGetMaximoVital(minhaFicha, k) * (fatoresVitaisAtual[k] || 1);
-                let mxEstavel = safeGetMaximoVital(minhaFicha, k, true) * (fatoresVitaisAtual[k] || 1);
+                let mx = safeGetMaximo(minhaFicha, k) * (fatoresVitaisAtual[k] || 1);
+                let mxEstavel = safeGetMaximoSemFormas(minhaFicha, k) * (fatoresVitaisAtual[k] || 1);
                 // 🩸 Vida cura até a SOMA de todas as barras (getTetoVida, core/vitals.js), não só uma.
                 const teto = getTetoVida(mx, k, mxEstavel);
                 f[k] = { ...f[k], atual: teto || 0 };

@@ -3,7 +3,7 @@ import useStore from '../../stores/useStore';
 import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from '../../core/attributes.js';
 import { getPrestigioReal, getRank } from '../../core/prestige.js';
 import { calcularReducaoFadigaPorRegeneracao } from '../../core/fadiga.js';
-import { getTetoVida, getMaximoVital } from '../../core/vitals.js';
+import { getTetoVida } from '../../core/vitals.js';
 import { salvarFichaSilencioso } from '../../services/firebase-sync.js';
 
 const safeFn = (fn, fallback) => (...args) => {
@@ -13,8 +13,6 @@ const safeFn = (fn, fallback) => (...args) => {
 
 const safeGetMaximo = safeFn(getMaximo, 1);
 const safeGetMaximoSemFormas = safeFn(getMaximoSemFormas, 1);
-// ⬆️ Máximo de vital com a Base equivalente às Ascensões manuais (core/vitals.js > getMaximoVital).
-const safeGetMaximoVital = safeFn(getMaximoVital, 1);
 const safeGetRawBase = safeFn(getRawBase, 0);
 const safeGetPrestigioReal = safeFn(getPrestigioReal, 0);
 const safeGetRank = safeFn(getRank, { l: 'F', c: '#ffffff', a: 1 });
@@ -179,7 +177,7 @@ export function StatusFormProvider({ children }) {
             const m = parseFloat(f.multiplicadorMorte) || 1;
             return Math.floor(((bM + bS + bA) / 3) * m);
         }
-        return safeGetMaximoVital(f, key);
+        return safeGetMaximo(f, key);
     }, []);
 
     // Réplica de getVitalMax, só que com o multiplicador de Formas travado fora — decide SÓ a
@@ -187,7 +185,7 @@ export function StatusFormProvider({ children }) {
     // getMaximo/Formas, então ficam idênticos ao getVitalMax original.
     const getVitalMaxEstavel = useCallback((key, f) => {
         if (key === 'pv' || key === 'pm') return getVitalMax(key, f);
-        return safeGetMaximoVital(f, key, true);
+        return safeGetMaximoSemFormas(f, key);
     }, [getVitalMax]);
 
     useEffect(() => {
