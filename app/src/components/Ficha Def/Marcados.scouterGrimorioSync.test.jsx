@@ -1,3 +1,6 @@
+// Nota: onde o teste só precisa variar a Ascensão Geral (expoente do Poder), ela é variada por
+// multiplicadorForcaAscensao — uma Ascensão Base > 1 agora também repõe a Base de Prestígio
+// equivalente (core/poder.js > getBaseEquivalenteAscensao), o que mudaria o poderBase esperado.
 import { render, screen, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import MarcadosPanel from './Marcados';
@@ -247,7 +250,7 @@ describe('MarcadosPanel — Failsafe de log10 (poderComAscensao): poderMultiplic
             carisma: { base: 0 },
             stamina: { base: 0 },
             constituicao: { base: 0 },
-            ascensaoBase: 4,
+            multiplicadorForcaAscensao: 4,
         });
         montarMockUseStore(ficha);
         render(<MarcadosPanel />);

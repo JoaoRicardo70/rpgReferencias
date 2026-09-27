@@ -1651,3 +1651,7 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .mestre-fadiga-btn-aplicar { border-color: #ff8800; color: #ff8800; }
 .mestre-fadiga-btn-reduzir { border-color: #00ffcc; color: #00ffcc; }
 .mestre-fadiga-btn-zerar { border-color: #888; color: #aaa; }
+
+/* ===== Ficha Def: Pool de Status - devolver toda a distribuicao ===== */
+.btn-devolver-pool { background: rgba(255, 170, 0, 0.12); border: 1px solid #ffaa00; border-radius: 8px; padding: 6px 14px; font-weight: bold; font-size: 0.85em; cursor: pointer; color: inherit; font-family: inherit; }
+.btn-devolver-pool:hover { background: rgba(255, 170, 0, 0.25); }

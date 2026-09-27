@@ -1,3 +1,6 @@
+// Nota: onde o teste só precisa variar a Ascensão Geral (expoente do Poder), ela é variada por
+// multiplicadorForcaAscensao — uma Ascensão Base > 1 agora também repõe a Base de Prestígio
+// equivalente (core/poder.js > getBaseEquivalenteAscensao), o que mudaria o poderBase esperado.
 import { render, screen, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import MarcadosPanel from './Marcados';
@@ -261,12 +264,12 @@ describe('MarcadosPanel — o clamp NÃO satura prematuramente: Ascensão alta p
     //     magnitude=floor(log10(8,0779357e8))=8, injeção=30*10^9=3e10
     //     poderComAscensao≈807.793.566,95+3e10=30.807.793.566,95 -> toExponential(2)="3.08e+10"
     it('ascensaoGeralEfetiva=20 vs 30 (bem abaixo do teto de 1000): leituras exatas 2.09e9 e 3.08e10, crescendo normalmente sem qualquer saturação', () => {
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, ascensaoBase: 20 }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, multiplicadorForcaAscensao: 20 }));
         const { unmount } = render(<MarcadosPanel />);
         const leitura20 = lerPoderGlobalExibido();
         unmount();
 
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, ascensaoBase: 30 }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, multiplicadorForcaAscensao: 30 }));
         render(<MarcadosPanel />);
         const leitura30 = lerPoderGlobalExibido();
 
@@ -342,7 +345,7 @@ describe('MarcadosPanel — regressão do bug original (fórmula NOVA vs HIPOTÉ
         const leituraC = lerPoderGlobalExibido();
         unmount();
 
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, ascensaoBase: 50 }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, multiplicadorForcaAscensao: 50 }));
         render(<MarcadosPanel />);
         const leituraD = lerPoderGlobalExibido();
 

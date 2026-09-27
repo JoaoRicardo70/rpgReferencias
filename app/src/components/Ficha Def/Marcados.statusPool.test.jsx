@@ -80,6 +80,15 @@ function inputPrestigioStatus(container) {
     return prestigioWrapper.querySelector('input');
 }
 
+// O campo de Prestígio de STATUS só APLICA ao sair do campo (blur) ou Enter — digitar sozinho
+// não mexe no pool (ver CampoNumeroConfirmavel em Marcados.jsx).
+function editarPrestigioStatus(container, valor) {
+    const input = inputPrestigioStatus(container);
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: valor } });
+    fireEvent.blur(input);
+}
+
 // Localiza a linha (row) de um atributo específico na tela "Status (Rank Base)"
 // (isAtual=false -> primeira ocorrência do displayValue do label).
 function linhaAtributoBase(labelText) {
@@ -153,7 +162,7 @@ describe('Marcados — campo STATUS edita ficha.statusPrestigioAplicado diretame
         expect(inputPrestigioStatus(container).value).toBe('0');
 
         // deltaPrestigio=10; ascensaoAtual=1 (bases baixas); poolCreditoAlvo=10*8*1=80.
-        fireEvent.change(inputPrestigioStatus(container), { target: { value: '10' } });
+        editarPrestigioStatus(container, '10');
 
         expect(ficha.statusPool).toBe(80);
         expect(ficha.statusPrestigioAplicado).toBe(10);
@@ -170,7 +179,7 @@ describe('Marcados — campo STATUS edita ficha.statusPrestigioAplicado diretame
         expect(inputPrestigioStatus(container).value).toBe('10');
 
         // deltaPrestigio=-5; poolCreditoAlvo=-40; poolAntes=70; 70-40=30 (>=0, sem alerta).
-        fireEvent.change(inputPrestigioStatus(container), { target: { value: '5' } });
+        editarPrestigioStatus(container, '5');
 
         expect(ficha.statusPool).toBe(30);
         expect(ficha.statusPoolGasto).toBe(10); // handleTabelaChange nunca mexe no gasto
@@ -179,7 +188,7 @@ describe('Marcados — campo STATUS edita ficha.statusPrestigioAplicado diretame
         expect(window.alert).not.toHaveBeenCalled();
     });
 
-    it('diminuir o Prestígio com pool INSUFICIENTE (parte já alocada em atributos) avança statusPrestigioAplicado só pelo que coube, zera o pool e dispara alert', () => {
+    it('diminuir o Prestígio com pool INSUFICIENTE recolhe (após confirmar) dos atributos o que faltar e aplica a redução INTEIRA, sem alerta', () => {
         // 24 pontos ainda livres no pool + 56 já alocados em Força (base bruta 56000, div=1).
         const ficha = fichaComStats({
             statBase: 0, attrBases: { forca: 56000 },
@@ -191,17 +200,117 @@ describe('Marcados — campo STATUS edita ficha.statusPrestigioAplicado diretame
         const { container } = render(<MarcadosPanel />);
         irParaPaginaAnalise();
 
-        // ascensaoAtual continua 1 (média = 56000/8 = 7000 -> floor(7000/1000)=7 < 100).
-        // deltaPrestigio=-8; poolCreditoAlvo=-64; poolAntes=24; 24-64=-40 (<0) -> clamp 0.
-        // creditoRealAplicado = 0-24 = -24 -> statusPrestigioAplicado = 10 + (-24/8) = 7.
-        fireEvent.change(inputPrestigioStatus(container), { target: { value: '2' } });
+        // ascensaoAtual = 1. delta=-8 -> precisa de 64 pontos; 24 livres -> recolhe 40 de Força.
+        editarPrestigioStatus(container, '2');
 
+        expect(window.confirm).toHaveBeenCalledTimes(1);
+        expect(window.confirm.mock.calls[0][0]).toContain('40 pontos');
+        expect(ficha.forca.base).toBe(16000);
+        expect(ficha.statusPoolAlocado.forca).toBe(16000);
+        expect(ficha.statusPoolGasto).toBe(16);
         expect(ficha.statusPool).toBe(0);
-        expect(ficha.statusPoolGasto).toBe(56);
-        expect(ficha.statusPrestigioAplicado).toBe(7);
+        expect(ficha.statusPrestigioAplicado).toBe(2);
+        expect(window.alert).not.toHaveBeenCalled();
+    });
+
+    it('cancelar a confirmação NÃO muda nada (nem pool, nem atributos, nem Prestígio)', () => {
+        const ficha = fichaComStats({
+            statBase: 0, attrBases: { forca: 56000 },
+            statusPool: 24, statusPoolGasto: 56, statusPoolAlocado: { forca: 56000 },
+            statusPrestigioAplicado: 10, divisores: { status: 1 },
+        });
+        montarMockUseStore(ficha);
+        window.confirm = vi.fn(() => false);
+
+        const { container } = render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+        editarPrestigioStatus(container, '2');
+
+        expect(ficha.statusPool).toBe(24);
         expect(ficha.forca.base).toBe(56000);
+        expect(ficha.statusPrestigioAplicado).toBe(10);
+    });
+
+    it('recolhe proporcionalmente de VÁRIOS atributos (quem recebeu mais devolve mais)', () => {
+        const ficha = fichaComStats({
+            statBase: 0, attrBases: { forca: 30000, destreza: 10000 },
+            statusPool: 0, statusPoolGasto: 40, statusPoolAlocado: { forca: 30000, destreza: 10000 },
+            statusPrestigioAplicado: 5, divisores: { status: 1 },
+        });
+        montarMockUseStore(ficha);
+
+        const { container } = render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+        // delta=-2 -> 16 pontos: 3/4 de Força (12) e 1/4 de Destreza (4).
+        editarPrestigioStatus(container, '3');
+
+        expect(ficha.forca.base).toBe(18000);
+        expect(ficha.destreza.base).toBe(6000);
+        expect(ficha.statusPoolGasto).toBe(24);
+        expect(ficha.statusPool).toBe(0);
+        expect(ficha.statusPrestigioAplicado).toBe(3);
+    });
+
+    it('base que NÃO veio do pool não é tocada: reduz só o que der e avisa', () => {
+        // Força tem base 56000 mas só 8000 vieram do pool.
+        const ficha = fichaComStats({
+            statBase: 0, attrBases: { forca: 56000 },
+            statusPool: 0, statusPoolGasto: 8, statusPoolAlocado: { forca: 8000 },
+            statusPrestigioAplicado: 10, divisores: { status: 1 },
+        });
+        montarMockUseStore(ficha);
+
+        const { container } = render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+        // delta=-2 -> 16 pontos, só 8 recolhíveis.
+        editarPrestigioStatus(container, '8');
+
+        expect(ficha.forca.base).toBe(48000);
+        expect(ficha.statusPoolAlocado.forca).toBe(0);
+        expect(ficha.statusPool).toBe(0);
+        expect(ficha.statusPrestigioAplicado).toBe(9);
         expect(window.alert).toHaveBeenCalledTimes(1);
-        expect(window.alert.mock.calls[0][0]).toContain('Só foi possível remover 24 dos 64 pontos de pool pedidos');
+        expect(window.alert.mock.calls[0][0]).toContain('Não foi possível remover 8 pontos');
+    });
+
+    it('digitar no campo NÃO aplica nada até sair do campo; Esc cancela a edição', () => {
+        const ficha = fichaComStats({ statBase: 0, statusPool: 80, statusPrestigioAplicado: 10 });
+        montarMockUseStore(ficha);
+
+        const { container } = render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+        const input = inputPrestigioStatus(container);
+        fireEvent.focus(input);
+        fireEvent.change(input, { target: { value: '3' } });
+        expect(ficha.statusPool).toBe(80);
+        expect(ficha.statusPrestigioAplicado).toBe(10);
+
+        fireEvent.keyDown(input, { key: 'Escape' });
+        fireEvent.blur(input);
+        expect(ficha.statusPool).toBe(80);
+        expect(ficha.statusPrestigioAplicado).toBe(10);
+    });
+
+    it('botão "Devolver tudo ao pool" devolve todas as alocações e zera statusPoolGasto', () => {
+        const ficha = fichaComStats({
+            statBase: 1000, attrBases: { forca: 31000, carisma: 11000 },
+            statusPool: 5, statusPoolGasto: 40, statusPoolAlocado: { forca: 30000, carisma: 10000 },
+            statusPrestigioAplicado: 5, divisores: { status: 1 },
+        });
+        montarMockUseStore(ficha);
+
+        render(<MarcadosPanel />);
+        irParaPaginaAnalise();
+        fireEvent.click(screen.getByTitle(/Devolve todos os pontos já distribuídos/));
+
+        expect(window.confirm).toHaveBeenCalledTimes(1);
+        expect(ficha.forca.base).toBe(1000);
+        expect(ficha.carisma.base).toBe(1000);
+        expect(ficha.statusPoolAlocado.forca).toBe(0);
+        expect(ficha.statusPoolAlocado.carisma).toBe(0);
+        expect(ficha.statusPoolGasto).toBe(0);
+        expect(ficha.statusPool).toBe(45);
+        expect(ficha.statusPrestigioAplicado).toBe(5);
     });
 
     it('BUG FIX: aumentar -> reduzir totalmente de volta -> aumentar para o MESMO valor de antes NÃO duplica o pool', () => {
@@ -214,13 +323,13 @@ describe('Marcados — campo STATUS edita ficha.statusPrestigioAplicado diretame
         expect(inputPrestigioStatus(container).value).toBe('5');
 
         // N(5) -> M(10): delta=5; poolCreditoAlvo=40; poolAntes=40 -> statusPool=80.
-        fireEvent.change(inputPrestigioStatus(container), { target: { value: '10' } });
+        editarPrestigioStatus(container, '10');
         expect(ficha.statusPool).toBe(80);
         expect(ficha.statusPrestigioAplicado).toBe(10);
         rerender(<MarcadosPanel />);
 
         // M(10) -> N(5) de volta: delta=-5; poolCreditoAlvo=-40; poolAntes=80; 80-40=40 (>=0).
-        fireEvent.change(inputPrestigioStatus(container), { target: { value: '5' } });
+        editarPrestigioStatus(container, '5');
         expect(ficha.statusPool).toBe(40);
         expect(ficha.statusPrestigioAplicado).toBe(5);
         expect(window.alert).not.toHaveBeenCalled();
@@ -228,7 +337,7 @@ describe('Marcados — campo STATUS edita ficha.statusPrestigioAplicado diretame
 
         // N(5) -> M(10) de novo: se houvesse double counting, o pool teria virado 120+.
         // Com a correção, é EXATAMENTE o mesmo resultado da primeira transição: 80.
-        fireEvent.change(inputPrestigioStatus(container), { target: { value: '10' } });
+        editarPrestigioStatus(container, '10');
         expect(ficha.statusPool).toBe(80);
         expect(ficha.statusPrestigioAplicado).toBe(10);
     });
@@ -241,7 +350,7 @@ describe('Marcados — campo STATUS edita ficha.statusPrestigioAplicado diretame
         irParaPaginaAnalise();
 
         // Passo 1: concede 800 pontos de pool em Ascensão 1 (8 pool/ponto).
-        fireEvent.change(inputPrestigioStatus(container), { target: { value: '100' } });
+        editarPrestigioStatus(container, '100');
         expect(ficha.statusPool).toBe(800);
         expect(ficha.statusPrestigioAplicado).toBe(100);
         rerender(<MarcadosPanel />);
@@ -258,7 +367,7 @@ describe('Marcados — campo STATUS edita ficha.statusPrestigioAplicado diretame
         rerender(<MarcadosPanel />);
 
         // Passo 3: novo aumento de Prestígio agora credita 8*2=16 pool por ponto.
-        fireEvent.change(inputPrestigioStatus(container), { target: { value: '110' } });
+        editarPrestigioStatus(container, '110');
         expect(ficha.statusPool).toBe(160);
         expect(ficha.statusPrestigioAplicado).toBe(110);
     });
@@ -281,7 +390,7 @@ describe('Marcados — campo STATUS edita ficha.statusPrestigioAplicado diretame
         // Só uma edição NOVA do campo STATUS aplica a Ascensão atualizada ao crédito.
         // Com ascensaoBase=5 e todos os atributos ainda em 0: ascensaoAtual = 5.
         // delta=1 -> poolCreditoAlvo = 1*8*5 = 40 (não mais 8).
-        fireEvent.change(inputPrestigioStatus(container), { target: { value: '11' } });
+        editarPrestigioStatus(container, '11');
         expect(ficha.statusPool).toBe(120);
         expect(ficha.statusPrestigioAplicado).toBe(11);
     });

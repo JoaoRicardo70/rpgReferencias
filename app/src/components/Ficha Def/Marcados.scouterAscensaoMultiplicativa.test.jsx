@@ -1,3 +1,6 @@
+// Nota: onde o teste só precisa variar a Ascensão Geral (expoente do Poder), ela é variada por
+// multiplicadorForcaAscensao — uma Ascensão Base > 1 agora também repõe a Base de Prestígio
+// equivalente (core/poder.js > getBaseEquivalenteAscensao), o que mudaria o poderBase esperado.
 import { render, screen, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import MarcadosPanel from './Marcados';
@@ -196,7 +199,7 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
         const leituraA = lerPoderGlobalExibido();
         unmount();
 
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 60000000 }, ascensaoBase: 99 }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 60000000 }, multiplicadorForcaAscensao: 99 }));
         render(<MarcadosPanel />);
         const leituraB = lerPoderGlobalExibido();
 
@@ -228,7 +231,7 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
         expect(leituraB_antes).toBe(1130000000);
         expect(leituraB_antes).toBeLessThan(leituraA);
 
-        mockB.updateFicha((f) => { f.ascensaoBase = 99; });
+        mockB.updateFicha((f) => { f.multiplicadorForcaAscensao = 99; });
         rerender(<MarcadosPanel />);
         const leituraB_depois = lerPoderGlobalExibido();
         expect(leituraB_depois).toBe(9.94e19);
@@ -261,12 +264,12 @@ describe('MarcadosPanel — multiplicadorAscensao (1.25^ascensaoSegura) é um mu
     // números finais batem exatamente com o valor derivado à mão, o que só é
     // possível se poderMultiplicado tiver escalado pelo fator correto em cada caso.)
     it('ascensaoGeralEfetiva=2 vs ascensaoGeralEfetiva=5 na mesma ficha: poderMultiplicado escala exatamente por 1.25^5/1.25^2=1,953125, refletido nas leituras finais exatas 21.600.000 e 53.100.000', () => {
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, ascensaoBase: 2 }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, multiplicadorForcaAscensao: 2 }));
         const { unmount } = render(<MarcadosPanel />);
         const leitura2 = lerPoderGlobalExibido();
         unmount();
 
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, ascensaoBase: 5 }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, multiplicadorForcaAscensao: 5 }));
         render(<MarcadosPanel />);
         const leitura5 = lerPoderGlobalExibido();
 
@@ -398,7 +401,7 @@ describe('MarcadosPanel — multiplicadorAscensao compõe multiplicativamente co
         const leituraBaseline = lerPoderGlobalExibido();
         unmount();
 
-        montarMockUseStoreReativo({ ...fichaBase(), ascensaoBase: 3 });
+        montarMockUseStoreReativo({ ...fichaBase(), multiplicadorForcaAscensao: 3 });
         render(<MarcadosPanel />);
         const leituraCombinada = lerPoderGlobalExibido();
 

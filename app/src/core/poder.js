@@ -31,6 +31,28 @@ function getBasePFor(ficha, k) {
     return Math.floor((getRawBase(ficha, k) / (mults[k] || 1)) * div) || 0;
 }
 
+// ⬆️ BASE "CONSUMIDA" PELAS ASCENSÕES MANUAIS (Ascensão Base / Nível > 1) — pedido do usuário:
+// ao "resetar" o Prestígio de uma categoria (ex.: 134 -> 34) pra subir a Ascensão Base em 1, o
+// Poder Calculado DESPENCAVA (~10x; em A2 com Prestígio 0 ia a ~20), porque a Base de cada
+// categoria é gerada só a partir do Prestígio digitado (handleTabelaChange em Marcados.jsx:
+// Prestígio x mult / divisor) e a Ascensão Base manual não repunha o valor dos 100 pontos
+// convertidos. Um transbordo automático (Prestígio >= 100) nunca teve esse problema: a Base
+// continuava lá. Aqui cada Ascensão Base acima de 1 vale exatamente 100 de Prestígio de Base em
+// cada categoria (na MESMA escala de handleTabelaChange/getBasePFor), então "A1 + 134" e
+// "A2 + 34" dão o mesmo Poder, e continuar ganhando Prestígio depois de ascender sempre soma.
+// Entra SÓ na base do Poder Calculado — nunca em getMaximo/vitais (ver aviso em
+// calcularFatorMultiplicadorForca abaixo).
+const MULTS_PRESTIGIO_BASE = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
+
+export function getBaseEquivalenteAscensao(ficha, k) {
+    if (!ficha || !MULTS_PRESTIGIO_BASE[k]) return 0;
+    const niveisManuais = Math.max(0, (parseInt(ficha.ascensaoBase) || 1) - 1);
+    if (niveisManuais <= 0) return 0;
+    const div = parseFloat(ficha?.divisores?.[k]) || 1;
+    const valor = Math.floor(((niveisManuais * 100) / div) * MULTS_PRESTIGIO_BASE[k]);
+    return Number.isFinite(valor) ? valor : 0;
+}
+
 function getPontosParaAscensao(ficha, key) {
     if (key === 'status') return parseFloat(ficha?.statusPrestigioAplicado) || 0;
     return getBasePFor(ficha, key);
@@ -348,12 +370,12 @@ export function calcularPoderAtual(ficha, divisorPoderMesa) {
     const calcPoderBase = () => {
         const efetivo = (k) => {
             const buffsCache = getBuffs(ficha, k, false, false, true);
-            const v = getEfetivoBase(ficha, k, false, buffsCache);
+            const v = getEfetivoBase(ficha, k, false, buffsCache) + getBaseEquivalenteAscensao(ficha, k);
             return isNaN(v) ? 0 : v;
         };
         let somaStatus = 0;
         STATUS_FISICOS.forEach(s => { somaStatus += efetivo(s); });
-        const statusEfetivo = somaStatus / 8;
+        const statusEfetivo = somaStatus / 8 + getBaseEquivalenteAscensao(ficha, 'status');
         return ((efetivo('vida') * 10) + efetivo('chakra') + efetivo('mana') + efetivo('corpo') + efetivo('aura') + (statusEfetivo * 100)) / 6;
     };
 

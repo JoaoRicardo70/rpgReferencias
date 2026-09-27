@@ -9,6 +9,8 @@ import { getRank } from '../../core/prestige';
 import { formatarPoderCosmico } from '../../core/utils.js';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { calcularFadigaAtual } from '../../core/fadiga';
+import { getBaseEquivalenteAscensao } from '../../core/poder';
+import { planejarAjustePrestigioStatus, aplicarAjustePrestigioStatus, recolherPontosAlocados, getTotalPontosAlocados } from '../../core/statusPool';
 import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 
@@ -492,6 +494,41 @@ let divisorPoderMesaTimer = null;
 // ==========================================
 // 🖋️ COMPONENTES ISOLADOS (BLINDADOS)
 // ==========================================
+// 🔧 Campo numérico que só APLICA ao sair do campo (blur) ou Enter — Esc cancela. Usado no
+// Prestígio de Status: com CampoMagico cada tecla aplicava na hora, então apagar "130" pra digitar
+// "30" passava por "3" (e por vazio = 0), creditando/debitando o pool a cada tecla e disparando
+// avisos no meio da digitação — o que tornava corrigir o Prestígio de Status impraticável.
+const CampoNumeroConfirmavel = ({ valor, onConfirmar, styleExtra = {} }) => {
+    const [rascunho, setRascunho] = useState(null);
+    const editando = rascunho !== null;
+    const numeroAtual = Number(valor) || 0;
+    const exibido = editando ? rascunho : numeroAtual.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
+    const confirmar = () => {
+        if (rascunho === null) return;
+        const texto = String(rascunho).replace(',', '.').trim();
+        setRascunho(null);
+        if (texto === '') return;
+        const novo = Number(texto);
+        if (Number.isNaN(novo) || novo === numeroAtual) return;
+        onConfirmar(novo);
+    };
+
+    return (
+        <input type={editando ? 'number' : 'text'} step="any" value={exibido}
+            onFocus={() => setRascunho(String(numeroAtual))}
+            onChange={(e) => setRascunho(e.target.value)}
+            onBlur={confirmar}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur();
+                if (e.key === 'Escape') { setRascunho(null); setTimeout(() => e.target.blur(), 0); }
+            }}
+            title="Digite o novo valor e pressione Enter (ou clique fora) para aplicar. Esc cancela."
+            style={{ background: 'transparent', border: 'none', borderBottom: '1px dashed currentColor', fontFamily: 'inherit', fontSize: 'inherit', color: 'inherit', outline: 'none', padding: '0 2px', ...styleExtra }}
+        />
+    );
+};
+
 const CampoMagico = ({ valor, onChange, placeholder, styleExtra = {}, type = "text", isNumber = false, onFocusChange, displayOverride }) => {
     const [focused, setFocused] = useState(false);
     const callSave = useCallSaveAtivo();
@@ -1155,10 +1192,12 @@ export default function MarcadosPanel() {
         const tema = getTemaScouter(sup, lim);
 
         const calcPoderBase = () => {
-            const efetivo = (k) => { const v = safeGetEfetivoBase(minhaFicha, k, true); return isNaN(v) ? 0 : v; };
+            // ⬆️ + a Base equivalente às Ascensões manuais (core/poder.js > getBaseEquivalenteAscensao):
+            // converter 100 de Prestígio em +1 de Ascensão Base nunca pode derrubar o Poder.
+            const efetivo = (k) => { const v = safeGetEfetivoBase(minhaFicha, k, true) + getBaseEquivalenteAscensao(minhaFicha, k); return isNaN(v) ? 0 : v; };
             let somaStatus = 0;
             ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].forEach(s => { somaStatus += efetivo(s); });
-            const statusEfetivo = somaStatus / 8;
+            const statusEfetivo = somaStatus / 8 + getBaseEquivalenteAscensao(minhaFicha, 'status');
             return ((efetivo('vida') * 10) + efetivo('chakra') + efetivo('mana') + efetivo('corpo') + efetivo('aura') + (statusEfetivo * 100)) / 6;
         };
 
@@ -1339,17 +1378,17 @@ export default function MarcadosPanel() {
         const mults = { vida: 1000000, mana: 10000000, aura: 10000000, chakra: 10000000, corpo: 10000000, status: 1000 };
         const novaBase = Math.floor((novoP / novoDiv) * (mults[k] || 1));
 
+        // 🔧 Status: reduzir o Prestígio agora recolhe sozinho (proporcionalmente) os pontos que já
+        // tinham sido distribuídos nos atributos, em vez de parar pela metade e obrigar o jogador a
+        // tirar "− Pool" atributo por atributo (core/statusPool.js). Pede confirmação antes, porque
+        // mexe na distribuição que o jogador fez.
         let avisoReducaoIncompleta = null;
+        const ascensaoStatus = (tipo === 'prestigio' && k === 'status') ? calcularAscensaoAtualStatus() : 1;
         if (tipo === 'prestigio' && k === 'status') {
-            const ascensaoAtual = calcularAscensaoAtualStatus();
-            const aplicadoAntes = parseFloat(minhaFicha.statusPrestigioAplicado) || 0;
-            const deltaPrestigio = novoP - aplicadoAntes;
-            const poolCreditoAlvo = deltaPrestigio * 8 * ascensaoAtual;
-            const poolAntes = parseFloat(minhaFicha.statusPool) || 0;
-            if (poolCreditoAlvo < 0 && (poolAntes + poolCreditoAlvo) < 0) {
-                const poolReduzido = poolAntes;
-                const poolPedido = Math.abs(poolCreditoAlvo);
-                avisoReducaoIncompleta = `Só foi possível remover ${poolReduzido} dos ${poolPedido} pontos de pool pedidos: o restante já foi distribuído entre os atributos e precisa ser reduzido manualmente em cada um (botão "− Pool").`;
+            const plano = planejarAjustePrestigioStatus(minhaFicha, novoP, ascensaoStatus);
+            if (plano.aRecolher > 0 && !window.confirm(`Reduzir o Prestígio de Status para ${novoP} precisa de ${plano.aRecolher} pontos que já foram distribuídos nos atributos.\n\nEles serão retirados dos atributos proporcionalmente ao que cada um recebeu do pool. Continuar?`)) return;
+            if (plano.semOrigem > 0) {
+                avisoReducaoIncompleta = `Não foi possível remover ${plano.semOrigem} pontos: essa parte da Base dos atributos não veio do pool (foi editada direto no campo Base). Ajuste esses atributos manualmente.`;
             }
         }
 
@@ -1357,22 +1396,22 @@ export default function MarcadosPanel() {
             if (f.overridePrestigio) f.overridePrestigio = null;
             if (tipo === 'divisor') { if (!f.divisores) f.divisores = {}; f.divisores[k] = novoDiv; }
             if (tipo === 'prestigio') {
-                if (k === 'status') {
-                    const ascensaoAtual = calcularAscensaoAtualStatus();
-                    const aplicadoAntes = parseFloat(f.statusPrestigioAplicado) || 0;
-                    const deltaPrestigio = novoP - aplicadoAntes;
-                    const poolCreditoAlvo = deltaPrestigio * 8 * ascensaoAtual;
-                    const poolAntes = parseFloat(f.statusPool) || 0;
-                    const poolDepois = Math.max(0, poolAntes + poolCreditoAlvo);
-                    const creditoRealAplicado = poolDepois - poolAntes;
-                    f.statusPool = poolDepois;
-                    f.statusPrestigioAplicado = aplicadoAntes + (creditoRealAplicado / (8 * ascensaoAtual));
-                }
+                if (k === 'status') aplicarAjustePrestigioStatus(f, novoP, ascensaoStatus);
                 else { if (!f[k]) f[k] = {}; f[k].base = novaBase; }
             }
         });
         callSave();
         if (avisoReducaoIncompleta) alert(avisoReducaoIncompleta);
+    };
+
+    // ↩️ Devolve TODOS os pontos já distribuídos de volta ao pool (pra refazer a distribuição do
+    // zero depois de um erro, sem precisar tirar "− Pool" de cada atributo).
+    const devolverTodoPool = () => {
+        const total = getTotalPontosAlocados(minhaFicha);
+        if (total <= 0) return;
+        if (!window.confirm(`Devolver os ${total} pontos distribuídos nos 8 atributos de volta ao pool de Status?`)) return;
+        updateFicha(f => { recolherPontosAlocados(f, Infinity); });
+        callSave();
     };
 
     const alocarPontoStatus = (attrKey, qtd) => {
@@ -1427,6 +1466,8 @@ export default function MarcadosPanel() {
         const divStatus = parseFloat(minhaFicha.divisores?.status) || 1;
         return Math.floor(((minhaFicha.statusPoolAlocado?.[attrKey] || 0) / 1000) * divStatus);
     };
+
+    const totalPontosAlocadosStatus = getTotalPontosAlocados(minhaFicha);
 
     const distribuirPoolIgualmente = () => {
         const stats8 = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
@@ -2024,11 +2065,17 @@ export default function MarcadosPanel() {
 
                         <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(0,0,0,0.03)', padding: '20px', borderRadius: '15px', border: '1px dashed currentColor' }}>
                             <h2 style={{ fontSize: '2em', fontStyle: 'italic', fontWeight: 'bold', margin: '0 0 20px 0' }}><LabelMagico valor={getLabel('tituloAnaliseBase', 'Status (Rank Base)')} onChange={(v) => setLabel('tituloAnaliseBase', v)} /></h2>
-                            {(minhaFicha.statusPool || 0) > 0 && (
+                            {((minhaFicha.statusPool || 0) > 0 || totalPontosAlocadosStatus > 0) && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '15px' }}>
-                                    <div style={{ background: 'rgba(0,255,150,0.15)', border: '1px solid #00ff96', borderRadius: '8px', padding: '6px 14px', fontWeight: 'bold', fontSize: '0.9em' }}>
-                                        ⭐ Pontos de Status Disponíveis: {Math.floor(minhaFicha.statusPool)}
-                                    </div>
+                                    {(minhaFicha.statusPool || 0) > 0 && (
+                                        <div style={{ background: 'rgba(0,255,150,0.15)', border: '1px solid #00ff96', borderRadius: '8px', padding: '6px 14px', fontWeight: 'bold', fontSize: '0.9em' }}>
+                                            ⭐ Pontos de Status Disponíveis: {Math.floor(minhaFicha.statusPool)}
+                                        </div>
+                                    )}
+                                    {totalPontosAlocadosStatus > 0 && (
+                                        <button type="button" className="btn-devolver-pool" onClick={devolverTodoPool}
+                                            title="Devolve todos os pontos já distribuídos nos 8 atributos de volta ao pool, pra refazer a distribuição">↩️ Devolver tudo ao pool ({totalPontosAlocadosStatus})</button>
+                                    )}
                                     {Math.floor(minhaFicha.statusPool) >= 8 && (
                                         <button type="button" onClick={distribuirPoolIgualmente}
                                             style={{ background: 'rgba(0,255,150,0.1)', border: '1px solid #00ff96', borderRadius: '8px', padding: '6px 14px', fontWeight: 'bold', fontSize: '0.85em', cursor: 'pointer', color: 'inherit', fontFamily: 'inherit' }}
@@ -2112,13 +2159,21 @@ export default function MarcadosPanel() {
                                                 </div>
                                             </div>
                                             <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
-                                                <CampoMagico
-                                                    valor={campoEditavel}
-                                                    onChange={v => handleTabelaChange(k, 'prestigio', v)}
-                                                    type="number"
-                                                    isNumber={true}
-                                                    styleExtra={{ width: '100%', textAlign: 'center', color: '#fff', borderBottom: 'none', fontSize: '1.4em', fontWeight: 'bold' }}
-                                                />
+                                                {k === 'status' ? (
+                                                    <CampoNumeroConfirmavel
+                                                        valor={campoEditavel}
+                                                        onConfirmar={v => handleTabelaChange(k, 'prestigio', v)}
+                                                        styleExtra={{ width: '100%', textAlign: 'center', color: '#fff', borderBottom: 'none', fontSize: '1.4em', fontWeight: 'bold' }}
+                                                    />
+                                                ) : (
+                                                    <CampoMagico
+                                                        valor={campoEditavel}
+                                                        onChange={v => handleTabelaChange(k, 'prestigio', v)}
+                                                        type="number"
+                                                        isNumber={true}
+                                                        styleExtra={{ width: '100%', textAlign: 'center', color: '#fff', borderBottom: 'none', fontSize: '1.4em', fontWeight: 'bold' }}
+                                                    />
+                                                )}
                                             </div>
                                             <div style={{ width: '100%', background: 'rgba(0,0,0,0.85)', borderRadius: '6px', padding: '5px 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.3)' }}>
                                                 <span style={{ color: rankInfo.c || '#fff', fontWeight: 'bold', fontSize: '0.9em' }}>Rank {rankInfo.l || 'F'} [A{Math.floor(rankInfo.ascensaoFinal || 1)}]</span>

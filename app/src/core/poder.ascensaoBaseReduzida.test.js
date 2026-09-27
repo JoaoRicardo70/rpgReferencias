@@ -23,9 +23,13 @@ function criarStat(base) {
     return { base, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mUnico: '1.0', mAbsoluto: 1.0, reducaoCusto: 0, regeneracao: 0 };
 }
 
-function fichaControlada(ascensaoBase) {
+// A Ascensão Geral é variada pelo multiplicadorForcaAscensao (Ascensão Base fica em 1): uma
+// Ascensão Base > 1 agora também repõe a Base de Prestígio equivalente
+// (getBaseEquivalenteAscensao), o que mudaria o poderBase — este arquivo isola SÓ o expoente.
+function fichaControlada(ascensao) {
     const ficha = {
-        ascensaoBase,
+        ascensaoBase: 1,
+        multiplicadorForcaAscensao: ascensao,
         vida: criarStat(0),
         mana: criarStat(0),
         aura: criarStat(0),

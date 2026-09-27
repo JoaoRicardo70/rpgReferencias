@@ -1,3 +1,6 @@
+// Nota: onde o teste só precisa variar a Ascensão Geral (expoente do Poder), ela é variada por
+// multiplicadorForcaAscensao — uma Ascensão Base > 1 agora também repõe a Base de Prestígio
+// equivalente (core/poder.js > getBaseEquivalenteAscensao), o que mudaria o poderBase esperado.
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import MarcadosPanel from './Marcados';
@@ -226,7 +229,7 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
         // Poder_Base = (vida*10)/6 = 3.2e10  =>  vida = 1.92e10
         const ficha = fichaMinimaScouter({
             vida: { base: 19200000000 },
-            ascensaoBase: 4,
+            multiplicadorForcaAscensao: 4,
             divisores: { vida: 0.000000000001 },
         });
         montarMockUseStoreReativo(ficha);
@@ -248,7 +251,7 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
         // -> Math.floor(power) = 41 (o piso acontece ANTES do toExponential(2) de exibição).
         const ficha = fichaMinimaScouter({
             vida: { base: 0.3 },
-            ascensaoBase: 4,
+            multiplicadorForcaAscensao: 4,
         });
         montarMockUseStoreReativo(ficha);
         render(<MarcadosPanel />);
@@ -261,7 +264,7 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
         // Nenhum atributo com valor -> Poder_Base = 0 -> poderMultiplicado = 0 (não
         // entra no ramo do log, que daria Math.log10(0) = -Infinity).
         // poderComAscensao = ascensaoGeralEfetiva(4) * 10 + 0 = 40.
-        const ficha = fichaMinimaScouter({ ascensaoBase: 4 });
+        const ficha = fichaMinimaScouter({ multiplicadorForcaAscensao: 4 });
         montarMockUseStoreReativo(ficha);
         render(<MarcadosPanel />);
 
