@@ -65,7 +65,14 @@ export default function Jukebox({ className }) {
         try { localStorage.setItem(CHAVE_VOLUME_MUSICA, String(volume)); } catch (e) { /* sem localStorage */ }
         const player = playerRef.current;
         if (player && typeof player.setVolume === 'function') {
-            try { player.setVolume(volume); } catch (e) { /* player ainda não está pronto */ }
+            try {
+                player.setVolume(volume);
+                // Mudo (mute/unMute) é um estado à parte do volume na API do YouTube: setVolume() não
+                // desliga ele. Um player criado por autoplay (ex: alguém entra na call com a música de
+                // outro jogador já tocando, sem ter clicado em nada) nasce mudo por política do Chrome, e
+                // sem isto a barra de volume mexeria sem nenhum efeito audível até a página recarregar.
+                if (volume > 0 && typeof player.unMute === 'function') player.unMute();
+            } catch (e) { /* player ainda não está pronto */ }
         }
     }, [volume]);
 
@@ -115,7 +122,10 @@ export default function Jukebox({ className }) {
             },
             events: {
                 onReady: (event) => {
-                    try { event.target.setVolume(volumeRef.current); } catch (e) { /* ignore */ }
+                    try {
+                        event.target.setVolume(volumeRef.current);
+                        if (volumeRef.current > 0 && typeof event.target.unMute === 'function') event.target.unMute();
+                    } catch (e) { /* ignore */ }
                 },
                 onStateChange: (event) => {
                     if (ignorandoEventoLocal.current) return;

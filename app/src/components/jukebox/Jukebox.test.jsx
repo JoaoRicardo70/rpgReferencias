@@ -96,4 +96,111 @@ describe('Jukebox - volume', () => {
         fireEvent.change(slider(), { target: { value: '75' } });
         expect(jogador.setVolume).toHaveBeenLastCalledWith(75);
     });
+
+    it('mudar o slider para um volume > 0 tambem chama unMute (player nasceu mudo por autoplay)', async () => {
+        const jogador = { setVolume: vi.fn(), unMute: vi.fn(), destroy: vi.fn(), getPlayerState: vi.fn(() => 2), playVideo: vi.fn(), pauseVideo: vi.fn() };
+        let opcoes;
+        window.YT = {
+            PlayerState: { PLAYING: 1, PAUSED: 2 },
+            Player: vi.fn(function (id, o) { opcoes = o; return jogador; })
+        };
+        let callbackRemoto;
+        iniciarListenerJukebox.mockImplementationOnce((cb) => { callbackRemoto = cb; return () => {}; });
+        localStorage.setItem(CHAVE, '40');
+        render(<Jukebox />);
+
+        await act(async () => { callbackRemoto({ videoId: 'dQw4w9WgXcQ', playing: false, inputUrl: '' }); });
+        await act(async () => { await Promise.resolve(); });
+        expect(window.YT.Player).toHaveBeenCalled();
+
+        fireEvent.change(slider(), { target: { value: '75' } });
+        expect(jogador.setVolume).toHaveBeenLastCalledWith(75);
+        expect(jogador.unMute).toHaveBeenCalled();
+    });
+
+    it('mudar o slider para 0 (mudo) nao chama unMute', async () => {
+        const jogador = { setVolume: vi.fn(), unMute: vi.fn(), destroy: vi.fn(), getPlayerState: vi.fn(() => 2), playVideo: vi.fn(), pauseVideo: vi.fn() };
+        let opcoes;
+        window.YT = {
+            PlayerState: { PLAYING: 1, PAUSED: 2 },
+            Player: vi.fn(function (id, o) { opcoes = o; return jogador; })
+        };
+        let callbackRemoto;
+        iniciarListenerJukebox.mockImplementationOnce((cb) => { callbackRemoto = cb; return () => {}; });
+        localStorage.setItem(CHAVE, '40');
+        render(<Jukebox />);
+
+        await act(async () => { callbackRemoto({ videoId: 'dQw4w9WgXcQ', playing: false, inputUrl: '' }); });
+        await act(async () => { await Promise.resolve(); });
+        expect(window.YT.Player).toHaveBeenCalled();
+
+        fireEvent.change(slider(), { target: { value: '0' } });
+        expect(jogador.setVolume).toHaveBeenLastCalledWith(0);
+        expect(jogador.unMute).not.toHaveBeenCalled();
+    });
+
+    it('onReady chama unMute quando o volume atual (guardado) e maior que zero', async () => {
+        const jogador = { setVolume: vi.fn(), unMute: vi.fn(), destroy: vi.fn(), getPlayerState: vi.fn(() => 2), playVideo: vi.fn(), pauseVideo: vi.fn() };
+        let opcoes;
+        window.YT = {
+            PlayerState: { PLAYING: 1, PAUSED: 2 },
+            Player: vi.fn(function (id, o) { opcoes = o; return jogador; })
+        };
+        let callbackRemoto;
+        iniciarListenerJukebox.mockImplementationOnce((cb) => { callbackRemoto = cb; return () => {}; });
+        localStorage.setItem(CHAVE, '40');
+        render(<Jukebox />);
+
+        await act(async () => { callbackRemoto({ videoId: 'dQw4w9WgXcQ', playing: false, inputUrl: '' }); });
+        await act(async () => { await Promise.resolve(); });
+        expect(window.YT.Player).toHaveBeenCalled();
+
+        opcoes.events.onReady({ target: jogador });
+        expect(jogador.setVolume).toHaveBeenLastCalledWith(40);
+        expect(jogador.unMute).toHaveBeenCalled();
+    });
+
+    it('onReady nao chama unMute quando o volume atual (guardado) e zero', async () => {
+        const jogador = { setVolume: vi.fn(), unMute: vi.fn(), destroy: vi.fn(), getPlayerState: vi.fn(() => 2), playVideo: vi.fn(), pauseVideo: vi.fn() };
+        let opcoes;
+        window.YT = {
+            PlayerState: { PLAYING: 1, PAUSED: 2 },
+            Player: vi.fn(function (id, o) { opcoes = o; return jogador; })
+        };
+        let callbackRemoto;
+        iniciarListenerJukebox.mockImplementationOnce((cb) => { callbackRemoto = cb; return () => {}; });
+        localStorage.setItem(CHAVE, '0');
+        render(<Jukebox />);
+
+        await act(async () => { callbackRemoto({ videoId: 'dQw4w9WgXcQ', playing: false, inputUrl: '' }); });
+        await act(async () => { await Promise.resolve(); });
+        expect(window.YT.Player).toHaveBeenCalled();
+
+        opcoes.events.onReady({ target: jogador });
+        expect(jogador.setVolume).toHaveBeenLastCalledWith(0);
+        expect(jogador.unMute).not.toHaveBeenCalled();
+    });
+
+    it('nao lanca erro quando o player nao tem unMute (compatibilidade com players antigos/limitados)', async () => {
+        const jogador = { setVolume: vi.fn(), destroy: vi.fn(), getPlayerState: vi.fn(() => 2), playVideo: vi.fn(), pauseVideo: vi.fn() };
+        let opcoes;
+        window.YT = {
+            PlayerState: { PLAYING: 1, PAUSED: 2 },
+            Player: vi.fn(function (id, o) { opcoes = o; return jogador; })
+        };
+        let callbackRemoto;
+        iniciarListenerJukebox.mockImplementationOnce((cb) => { callbackRemoto = cb; return () => {}; });
+        localStorage.setItem(CHAVE, '40');
+        render(<Jukebox />);
+
+        await act(async () => { callbackRemoto({ videoId: 'dQw4w9WgXcQ', playing: false, inputUrl: '' }); });
+        await act(async () => { await Promise.resolve(); });
+        expect(window.YT.Player).toHaveBeenCalled();
+
+        expect(() => opcoes.events.onReady({ target: jogador })).not.toThrow();
+        expect(jogador.setVolume).toHaveBeenLastCalledWith(40);
+
+        expect(() => fireEvent.change(slider(), { target: { value: '75' } })).not.toThrow();
+        expect(jogador.setVolume).toHaveBeenLastCalledWith(75);
+    });
 });
