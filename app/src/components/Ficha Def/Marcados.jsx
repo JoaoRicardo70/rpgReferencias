@@ -9,7 +9,7 @@ import { getRank } from '../../core/prestige';
 import { formatarPoderCosmico } from '../../core/utils.js';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { calcularFadigaAtual } from '../../core/fadiga';
-import { getBaseEquivalenteAscensao } from '../../core/poder';
+import { getBaseEquivalenteAscensao, amortecerPoderBruto, getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder } from '../../core/poder';
 import { planejarAjustePrestigioStatus, aplicarAjustePrestigioStatus, recolherPontosAlocados, getTotalPontosAlocados } from '../../core/statusPool';
 import { getPontosPrestigioDisponiveis, getPontosDistribuidos, calcularBaseDoPrestigio, validarDistribuicaoPrestigio, registrarDistribuicaoPrestigio, podeAscender, prestigioAposAscensao, aplicarAscensao, CATEGORIAS_PRESTIGIO, PRESTIGIO_PARA_ASCENDER } from '../../core/prestigioDistribuicao';
 import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
@@ -273,8 +273,8 @@ function getPoderDiretoMultiplier(ficha) {
 //
 // 🔥 mUnico SEMPRE multiplica mUnico — nunca soma. Por isso este multiplicador NÃO
 // entra no array `unicos` de getGlobalMultipliers() (que alimenta glob.totalDano,
-// consumido ANTES da injeção aditiva de Ascensão via magnitude de log10 em
-// poderGlobal). Ficando ali, o efeito multiplicativo era "diluído" pela injeção de
+// consumido ANTES da injeção de Ascensão em poderGlobal — hoje Poder × (1 + Ascensão),
+// core/poder.js > injetarAscensaoNoPoder). Ficando ali, o efeito multiplicativo era "diluído" pela injeção de
 // Ascensão que vem logo depois, e ficava pouco visível ao lado de mUnicos passivos
 // vindos de Poderes (poder_direto), que já multiplicam DEPOIS dessa injeção via
 // multiplicadorPoderDireto. Aplicando junto de multiplicadorPoderDireto (mesmo
@@ -1206,26 +1206,17 @@ export default function MarcadosPanel() {
         const glob = getGlobalMultipliers(minhaFicha);
 
         const ascensaoSegura = Number(ascensaoGeralEfetivaParaPoder) || 0;
-        // 🔥 Base do expoente: 2 -> 1.5 -> 1.25 (pedidos sucessivos do usuário) pra suavizar o
-        // quanto a Ascensão escala o Poder Calculado — continua crescimento exponencial (Ascensão
-        // segue sendo o multiplicador mais forte do jogo), só a curva fica menos brusca a cada
-        // redução. Réplica exata em core/poder.js > calcularPoderAtual precisa mudar junto.
-        const multiplicadorAscensao = Math.pow(1.25, Math.min(1000, Math.max(0, ascensaoSegura)));
+        // ⚖️ Curva do Poder (bruto^0,9, base 1,1, injeção suave) — core/poder.js, a mesma de
+        // calcularPoderAtual, pra Ficha e Mapa/Mestre nunca divergirem.
+        const multiplicadorAscensao = getMultiplicadorAscensaoPoder(ascensaoSegura);
 
         const SATURACAO_SEGURA = 1e308;
         const clampFinito = (v) => Number.isFinite(v) ? v : (Number.isNaN(v) ? 0 : Math.sign(v) * SATURACAO_SEGURA);
 
-        let poderMultiplicado = poderBase * multiplicadorAscensao * glob.finalF * glob.totalDano;
+        let poderMultiplicado = amortecerPoderBruto(poderBase) * multiplicadorAscensao * glob.finalF * glob.totalDano;
         poderMultiplicado = clampFinito(poderMultiplicado);
 
-        let poderComAscensao;
-        if (poderMultiplicado > 0) {
-            const magnitude = Math.floor(Math.log10(poderMultiplicado));
-            poderComAscensao = poderMultiplicado + (ascensaoSegura * Math.pow(10, magnitude + 1));
-        } else {
-            poderComAscensao = (ascensaoSegura * 10) + poderMultiplicado;
-        }
-        poderComAscensao = clampFinito(poderComAscensao);
+        let poderComAscensao = clampFinito(injetarAscensaoNoPoder(poderMultiplicado, ascensaoSegura));
 
         // 🔥 TODO mUnico se junta aqui, no mesmo estágio (pós-injeção de Ascensão):
         // glob.finalUni (Balança de Adaptação / buffs / texto de habilidades),

@@ -5,6 +5,7 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import MarcadosPanel from './Marcados';
 import useStore from '../../stores/useStore';
+import { amortecerPoderBruto } from '../../core/poder.js';
 
 // ---------------------------------------------------------------------------
 // QA — Nova fórmula "Poder Base" do Scouter + Injeção de Magnitude da Ascensão
@@ -101,21 +102,18 @@ describe('MarcadosPanel — calcPoderBase(): peso relativo Vida (x10) vs Chakra/
     });
 
     // Com todo o resto zerado, Poder_Base(vida=600) = (600*10)/6 = 1000 e
-    // Poder_Base(chakra=600) = 600/6 = 100 — uma razão de exatamente 10x,
-    // refletindo o peso x10 de Vida contra o peso x1 de Chakra/Mana/Corpo/
-    // Aura, ambos divididos pelo mesmo /6. Ascensão Geral Efetiva fica presa
-    // em 1 (ascensaoBase padrão=1, sem overflow) -> multiplicadorAscensao =
-    // 1.25^1 = 1.25 (base reduzida de 1.5 pra 1.25, pedido do usuário),
-    // aplicado igualmente aos dois casos (não afeta a razão).
-    // poderMultiplicado(vida)=1000*1.25=1250, magnitude=3, injeção=1*10^4=10000
-    // -> poderComAscensao=11250, exibido 11300. poderMultiplicado(chakra)=100*1.25=125,
-    // magnitude=2, injeção=1*10^3=1000 -> poderComAscensao=1125, exibido 1130. Como
-    // glob.finalF e glob.totalDano ficam em 1 (nenhum buff de dano/forma nas
-    // duas fichas), a injeção de magnitude (Math.floor(log10(...))) cai numa
-    // casa decimal a mais em exatamente uma unidade (3 vs 2) para o caso da
-    // Vida — o que faz o termo injetado escalar pela MESMA razão 10x,
-    // preservando a razão final observável no Scouter mesmo após a injeção.
-    it('alterar SOMENTE Vida move a leitura do Scouter 10x mais que alterar Chakra pelo mesmo delta', () => {
+    // Poder_Base(chakra=600) = 600/6 = 100 — uma razão de exatamente 10x ANTES do
+    // amortecimento, refletindo o peso x10 de Vida contra o peso x1 de Chakra/Mana/Corpo/
+    // Aura, ambos divididos pelo mesmo /6.
+    // 🔥 CURVA DO PODER (opção "E" + base 1,1, pedido do usuário): o Poder Base agora passa
+    // por amortecerPoderBruto (poderBase^0,9) ANTES de qualquer multiplicador — como essa
+    // função NÃO é linear, ela já não preserva a razão de 10x entre Vida e Chakra: a razão
+    // vira 10^0,9 ≈ 7,943 (amortecer(1000)/amortecer(100) = 1000^0,9/100^0,9 = 10^0,9),
+    // não mais 10 exato. O restante do pipeline (multiplicadorAscensao=1.1^1=1.1 e a
+    // injeção suave ×(1+Ascensão)=×2) é igual nos dois casos e não afeta essa razão.
+    // Poder_Base(vida) amortecido ≈ 501,19 -> poderComAscensao ≈ 1102,61, exibido 1100.
+    // Poder_Base(chakra) amortecido ≈ 63,10 -> poderComAscensao ≈ 138,81, exibido 138.
+    it('alterar SOMENTE Vida move a leitura do Scouter MAIS que alterar Chakra pelo mesmo delta (peso x10, atenuado pelo amortecimento ^0,9 pra ~7,94x)', () => {
         montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600 } }));
         const { unmount } = render(<MarcadosPanel />);
         const leituraVida = lerPoderGlobalExibido();
@@ -125,12 +123,17 @@ describe('MarcadosPanel — calcPoderBase(): peso relativo Vida (x10) vs Chakra/
         render(<MarcadosPanel />);
         const leituraChakra = lerPoderGlobalExibido();
 
-        expect(leituraVida).toBe(11300);
-        expect(leituraChakra).toBe(1130);
-        expect(leituraVida / leituraChakra).toBeCloseTo(10, 5);
+        expect(leituraVida).toBe(1100);
+        expect(leituraChakra).toBe(138);
+        // Já não é 10x exato (amortecerPoderBruto não é linear) — a razão TEÓRICA antes do
+        // floor/arredondamento de exibição é exatamente 10^0,9, confirmada usando o próprio
+        // helper exportado (amortecerPoderBruto), não um número mágico reinventado aqui.
+        expect(amortecerPoderBruto(1000) / amortecerPoderBruto(100)).toBeCloseTo(Math.pow(10, 0.9), 10);
+        expect(leituraVida / leituraChakra).toBeGreaterThan(7);
+        expect(leituraVida / leituraChakra).toBeLessThan(8);
     });
 
-    it('alterar SOMENTE Vida move a leitura 10x mais que alterar Mana pelo mesmo delta (peso x1 confirmado numa segunda categoria)', () => {
+    it('alterar SOMENTE Vida move a leitura MAIS que alterar Mana pelo mesmo delta (peso x1 confirmado numa segunda categoria, mesma razão ~7,94x de Chakra)', () => {
         montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600 } }));
         const { unmount } = render(<MarcadosPanel />);
         const leituraVida = lerPoderGlobalExibido();
@@ -140,9 +143,10 @@ describe('MarcadosPanel — calcPoderBase(): peso relativo Vida (x10) vs Chakra/
         render(<MarcadosPanel />);
         const leituraMana = lerPoderGlobalExibido();
 
-        expect(leituraVida).toBe(11300);
-        expect(leituraMana).toBe(1130);
-        expect(leituraVida / leituraMana).toBeCloseTo(10, 5);
+        expect(leituraVida).toBe(1100);
+        expect(leituraMana).toBe(138);
+        expect(leituraVida / leituraMana).toBeGreaterThan(7);
+        expect(leituraVida / leituraMana).toBeLessThan(8);
     });
 });
 
@@ -217,15 +221,16 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
     // zera pAtual e neutraliza esse overflow, preservando ascensaoGeralEfetiva=4
     // exato e os valores hand-computed abaixo exatamente como antes desta sessão.
     // Ascensão agora também multiplica o Poder Base diretamente (curva
-    // exponencial: 1.25^ascensaoGeralEfetiva por nível de Ascensão — base
-    // reduzida de 2 -> 1.5 -> 1.25, pedidos sucessivos do usuário, pra suavizar
-    // ainda mais o crescimento):
-    //   multiplicadorAscensao = 1.25^4 = 2,44140625
-    //   poderMultiplicado = 3.2e10 * 2,44140625 = 7,8125e10
-    //   magnitude = floor(log10(7,8125e10)) = 10
-    //   poderComAscensao = 7,8125e10 + 4 * 10^11 = 4,78125e11, que a leitura do
-    //   Scouter (toExponential(2)) arredonda para 4.78E11 (478.000.000.000)
-    it('injeta a Ascensão Geral Efetiva exatamente uma ordem de magnitude acima do poder multiplicado (já com Ascensão como multiplicador exponencial do Poder Base)', () => {
+    // exponencial: 1.1^ascensaoGeralEfetiva por nível de Ascensão — base
+    // reduzida de 2 -> 1.5 -> 1.25 -> 1.1, pedidos sucessivos do usuário, pra suavizar
+    // ainda mais o crescimento), e o Poder Base agora é amortecido (^0,9) ANTES do
+    // multiplicador de Ascensão:
+    //   poderBase = 3.2e10, amortecido = (3.2e10)^0,9 ≈ 2.848.623.026,2
+    //   multiplicadorAscensao = 1.1^4 = 1,4641
+    //   poderMultiplicado ≈ 2.848.623.026,2 * 1,4641 ≈ 4.170.668.972,66
+    //   injeção suave × (1 + Ascensão) = × 5 -> poderComAscensao ≈ 20.853.344.863,3
+    //   que a leitura do Scouter (toExponential(2)) arredonda para 2.09E10 (20.900.000.000)
+    it('a Ascensão Geral Efetiva multiplica o Poder Base amortecido e é injetada de forma suave (× (1 + Ascensão))', () => {
         // Poder_Base = (vida*10)/6 = 3.2e10  =>  vida = 1.92e10
         const ficha = fichaMinimaScouter({
             vida: { base: 19200000000 },
@@ -236,19 +241,19 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
         render(<MarcadosPanel />);
 
         const leitura = lerPoderGlobalExibido();
-        expect(leitura).toBe(478000000000);
+        expect(leitura).toBe(20900000000);
     });
 
-    // Failsafe do log10: poderMultiplicado > 0 (mesmo fracionário, < 1) usa o ramo
-    // do logaritmo normalmente — magnitude fica negativa (ex.: floor(log10(2.5))=0),
-    // o que apenas encolhe a potência de 10 do termo injetado, sem gerar
-    // -Infinity/NaN. Só poderMultiplicado <= 0 (nunca > 0) cai no ramo `else`.
-    it('poderMultiplicado fracionário (0 < x < 1 ANTES do multiplicador de Ascensão) usa o ramo do logaritmo normalmente', () => {
-        // Poder_Base = (vida*10)/6 com vida=0.3 => 0.5. multiplicadorAscensao = 1.25^4 = 2,44140625
-        // (ascensaoBase=4, sem overflow) -> poderMultiplicado = 0.5*2,44140625 = 1,220703125 (>0, ramo do log).
-        // magnitude = floor(log10(1,220703125)) = 0
-        // poderComAscensao = 1,220703125 + ascensaoGeralEfetiva(4) * 10^(0+1) = 1,220703125 + 40 = 41,220703125
-        // -> Math.floor(power) = 41 (o piso acontece ANTES do toExponential(2) de exibição).
+    // Failsafe da injeção: poderMultiplicado > 0 (mesmo fracionário, < 1) usa o ramo
+    // multiplicativo normalmente (× (1 + Ascensão)) — amortecerPoderBruto (^0,9) também
+    // aceita frações positivas sem gerar NaN/-Infinity. Só poderMultiplicado <= 0 (nunca > 0)
+    // cai no ramo `else`.
+    it('poderMultiplicado fracionário (0 < x < 1 ANTES do multiplicador de Ascensão) usa o ramo multiplicativo normalmente', () => {
+        // Poder_Base = (vida*10)/6 com vida=0.3 => 0.5, amortecido (^0,9) ≈ 0,5359.
+        // multiplicadorAscensao = 1.1^4 = 1,4641 (ascensaoBase=4, sem overflow)
+        // -> poderMultiplicado ≈ 0,5359*1,4641 ≈ 0,7847 (>0, ramo multiplicativo).
+        // poderComAscensao = poderMultiplicado * (1 + ascensaoGeralEfetiva(4)) ≈ 0,7847*5 ≈ 3,9236
+        // -> Math.floor(power) = 3 (o piso acontece ANTES do toExponential(2) de exibição).
         const ficha = fichaMinimaScouter({
             vida: { base: 0.3 },
             multiplicadorForcaAscensao: 4,
@@ -257,7 +262,7 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
         render(<MarcadosPanel />);
 
         const leitura = lerPoderGlobalExibido();
-        expect(leitura).toBe(41);
+        expect(leitura).toBe(3);
     });
 
     it('poderMultiplicado = 0 (todos os atributos zerados) usa o ramo else do failsafe: ascensaoSegura*10 + poderMultiplicado, sem tocar Math.log10', () => {

@@ -2,20 +2,16 @@ import { describe, it, expect } from 'vitest';
 import { calcularPoderAtual } from './poder';
 
 // ==========================================================================
-// Trava de regressão do game-balance: a base do expoente que a Ascensão
-// aplica em calcularPoderAtual (multiplicadorAscensao) foi reduzida de 2,
-// depois pra 1.5, e agora pra 1.25 (pedidos sucessivos do usuário), pra
-// suavizar cada vez mais o quanto a Ascensão escala o Poder Calculado sem
-// remover o crescimento exponencial. Ver o mesmo comentário/motivo na
-// réplica exata em Ficha Def/Marcados.jsx > poderGlobal.
-//
-// Ficha de controle: vida/mana/aura/chakra/corpo ficam ZERADOS (nenhuma
-// categoria cruza um patamar de Prestígio, então calcularAscensaoParaPoder
-// nunca injeta bônus de overflow) e os 8 status físicos ficam fixos e > 0
-// (só pra gerar um poderBase != 0 -- 0 * multiplicadorAscensao seria 0
-// independente da base do expoente, e não provaria nada). Isso deixa a
-// "Ascensão Geral Efetiva" == ascensaoBase * multiplicadorForcaAscensao,
-// sem ruído, então dá pra prever à mão o valor de poderGlobal.
+// Trava de regressão do game-balance: a curva que a Ascensão aplica em
+// calcularPoderAtual foi suavizada em sucessivos pedidos do usuário — a base
+// do expoente (multiplicadorAscensao) foi de 2, pra 1.5, pra 1.25, agora pra
+// 1.1 — e, na mesma sessão que trocou 1.25 -> 1.1, DOIS outros pesos também
+// mudaram: (1) o Poder Base bruto agora é amortecido por poderBase^0,9 antes
+// de qualquer multiplicador (amortecerPoderBruto), e (2) a "injeção de
+// Ascensão" deixou de ser a antiga soma de magnitude (+ Ascensão x
+// 10^(dígitos)) e virou um multiplicador suave: Poder × (1 + Ascensão)
+// (injetarAscensaoNoPoder). Ver o mesmo comentário/motivo na réplica exata em
+// Ficha Def/Marcados.jsx > poderGlobal.
 // ==========================================================================
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 
@@ -44,35 +40,28 @@ function fichaControlada(ascensao) {
     return ficha;
 }
 
-describe('core/poder - calcularPoderAtual: base do expoente de Ascensão reduzida de 2 -> 1.5 -> 1.25', () => {
-    it('numa Ascensão fixa > 0, o Poder Calculado é MENOR do que a base antiga (2) teria dado', () => {
+describe('core/poder - calcularPoderAtual: base do expoente de Ascensão reduzida de 2 -> 1.5 -> 1.25 -> 1.1', () => {
+    it('numa Ascensão fixa > 0, o Poder Calculado é MENOR do que a fórmula/base antiga (2, sem amortecimento, injeção por magnitude) teria dado', () => {
         // Com a ficha de controle, poderBase = ((0+0+0+0+0)+ statusEfetivo*100) / 6, onde
         // statusEfetivo = somaStatus/8 = 100000 (os 8 status ficam em 100000 cada).
         const poderBase = (100000 * 100) / 6;
 
         const ascensao = 2; // ascensaoBase truthy (evita o fallback parseInt(0)||1 do 0)
 
-        // O multiplicador "cru" que as reduções sucessivas pediram: a base ATUAL (1.25) tem
-        // que ser estritamente menor que a base original (2) pra qualquer Ascensão > 0.
-        const multiplicadorNovo = Math.pow(1.25, ascensao);
+        // Pipeline ANTIGO completo (antes de QUALQUER uma das reduções sucessivas): sem
+        // amortecerPoderBruto, base do expoente = 2, injeção por magnitude de log10 (em vez do
+        // multiplicador suave atual). Serve só de referência histórica pra provar que a curva
+        // ficou consideravelmente mais fraca no total, não só por causa da base do expoente.
         const multiplicadorAntigo = Math.pow(2, ascensao);
-        expect(multiplicadorNovo).toBeLessThan(multiplicadorAntigo);
+        const poderMultiplicadoAntigo = poderBase * multiplicadorAntigo;
+        const magnitudeAntiga = Math.floor(Math.log10(poderMultiplicadoAntigo));
+        const poderComAscensaoAntigo = poderMultiplicadoAntigo + (ascensao * Math.pow(10, magnitudeAntiga + 1));
+        const poderEsperadoComFormulaAntiga = Math.floor(poderComAscensaoAntigo);
 
-        // Replica o resto do pipeline de calcularPoderAtual (glob=1, sem mUnico/fadiga/divisor
-        // na nossa ficha de controle) só pra comparar o resultado FINAL de poderGlobal com o
-        // que a base antiga teria produzido -- não só o multiplicador isolado.
-        const finalizarPoder = (multiplicador) => {
-            const poderMultiplicado = poderBase * multiplicador;
-            const magnitude = Math.floor(Math.log10(poderMultiplicado));
-            const poderComAscensao = poderMultiplicado + (ascensao * Math.pow(10, magnitude + 1));
-            return Math.floor(poderComAscensao);
-        };
-
-        const poderEsperadoComBaseAntiga = finalizarPoder(multiplicadorAntigo);
         const poderReal = calcularPoderAtual(fichaControlada(ascensao), 1).poderGlobal;
 
-        expect(poderReal).toBe(finalizarPoder(multiplicadorNovo));
-        expect(poderReal).toBeLessThan(poderEsperadoComBaseAntiga);
+        expect(poderReal).toBeLessThan(poderEsperadoComFormulaAntiga);
+        expect(poderReal).toBe(1444010);
     });
 
     it('o crescimento continua monotonicamente crescente conforme a Ascensão sobe (não virou um no-op)', () => {
@@ -85,11 +74,11 @@ describe('core/poder - calcularPoderAtual: base do expoente de Ascensão reduzid
     });
 
     it('o teto Math.min(1000, ...) continua travando o EXPOENTE em 1000, mesmo pra Ascensão muito acima disso', () => {
-        // Se o teto de 1000 quebrasse (ou fosse removido), Ascensão=2000 aplicaria 1.25^2000 em
-        // vez de 1.25^1000 -- uma diferença de ~97 ordens de grandeza a mais. Como o termo
-        // aditivo (ascensaoSegura * 10^(magnitude+1)) escala só LINEARMENTE com a Ascensão, se
-        // o teto estiver funcionando o poderGlobal em Ascensão=2000 fica na MESMA ordem de
-        // grandeza que em Ascensão=1000 (razão pequena, de dígito único) -- não uma razão
+        // Se o teto de 1000 quebrasse (ou fosse removido), Ascensão=2000 aplicaria 1.1^2000 em
+        // vez de 1.1^1000 -- uma diferença de dezenas de ordens de grandeza a mais. Como a
+        // injeção suave (× (1 + Ascensão)) escala só LINEARMENTE com a Ascensão (não-clampada),
+        // se o teto do EXPOENTE estiver funcionando o poderGlobal em Ascensão=2000 fica bem
+        // próximo (mesma ordem de grandeza, razão pequena) do de Ascensão=1000 -- não uma razão
         // astronômica.
         const poder1000 = calcularPoderAtual(fichaControlada(1000), 1).poderGlobal;
         const poder2000 = calcularPoderAtual(fichaControlada(2000), 1).poderGlobal;
@@ -97,26 +86,31 @@ describe('core/poder - calcularPoderAtual: base do expoente de Ascensão reduzid
         expect(Number.isFinite(poder1000)).toBe(true);
         expect(Number.isFinite(poder2000)).toBe(true);
         expect(poder2000).toBeGreaterThan(poder1000);
-        // Crescimento aproximadamente linear (razão perto de 2, nunca perto de 10^97).
+        // Crescimento aproximadamente linear (razão perto de 2 — a injeção ×(1+Ascensão) dobra
+        // de ~1001x pra ~2001x --, nunca perto de uma explosão exponencial).
         expect(poder2000 / poder1000).toBeLessThan(10);
     });
 
-    it('o clamp Math.max(0, ...) trava o EXPOENTE em 0 (multiplicador=1) pra qualquer Ascensão negativa, sem colapsar pra frações minúsculas', () => {
-        // Com multiplicador sempre 1 (1.25^0), poderMultiplicado fica constante em poderBase
-        // (~1.666.666,67) pra qualquer Ascensão negativa -- só o termo aditivo
-        // (ascensaoSegura*10^(magnitude+1), NÃO clampado) muda, subtraindo linearmente.
-        // Se o clamp Math.max(0,...) quebrasse, Ascensão=-100 aplicaria 1.25^-100 (uma fração
-        // praticamente 0), mudando completamente esse padrão linear previsível.
+    it('o clamp Math.max(0, ...) trava tanto o multiplicador (expoente 0) quanto a injeção em 0 pra Ascensão negativa — poderGlobal fica CONSTANTE, não cada vez mais negativo', () => {
+        // 🔥 Mudança de comportamento desta sessão: a injeção de Ascensão deixou de ser a soma
+        // "ascensaoSegura*10^(magnitude+1)" (SEM clamp, então uma Ascensão bem negativa arrastava
+        // o resultado cada vez mais pra baixo) e virou injetarAscensaoNoPoder, que usa
+        // Math.max(0, ascensao) tanto no multiplicador quanto na própria injeção. Com
+        // poderMultiplicado > 0 (nosso caso, poderBase fixo > 0), QUALQUER Ascensão negativa —
+        // -1, -5 ou -100 — cai no mesmo Math.max(0, ...) = 0 nos dois pontos, então o resultado
+        // final é EXATAMENTE o mesmo (poderBase amortecido, sem multiplicador nem injeção),
+        // independente do quão negativa a Ascensão seja. Isso é o esperado ("Ascender nunca
+        // diminui o Poder" — inclusive não deixa uma Ascensão negativa acidental destruir o Poder).
         const poderMenos1 = calcularPoderAtual(fichaControlada(-1), 1).poderGlobal;
         const poderMenos5 = calcularPoderAtual(fichaControlada(-5), 1).poderGlobal;
         const poderMenos100 = calcularPoderAtual(fichaControlada(-100), 1).poderGlobal;
 
-        expect(poderMenos1).toBe(-8333334);
-        expect(poderMenos5).toBe(-48333334);
-        expect(poderMenos100).toBe(-998333334);
+        expect(poderMenos1).toBe(397799);
+        expect(poderMenos5).toBe(397799);
+        expect(poderMenos100).toBe(397799);
 
-        // Todas negativas e cada vez mais negativas (padrão linear, não um colapso pra ~0).
-        expect(poderMenos5).toBeLessThan(poderMenos1);
-        expect(poderMenos100).toBeLessThan(poderMenos5);
+        // Constante, não mais decrescente com o módulo da Ascensão negativa.
+        expect(poderMenos5).toBe(poderMenos1);
+        expect(poderMenos100).toBe(poderMenos5);
     });
 });

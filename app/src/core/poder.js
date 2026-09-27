@@ -358,6 +358,32 @@ export function getTemaScouter(supressao, limite = 1) {
     return { cor: '#ff003c', glow: '#880000', nome: 'Anulação no Limite', pulse: '8s' };
 }
 
+// ==========================================
+// ⚖️ CURVA DO PODER CALCULADO — compartilhada com Ficha Def/Marcados.jsx > poderGlobal.
+// Pedido do usuário (opção "E" + base 1,1): o Poder estava alto demais. Nenhum termo saiu, só o peso:
+//   1) Valores brutos amortecidos: poderBase^0,9 (quanto maior o bruto, mais ele é amortecido).
+//   2) Base da Ascensão: 2 -> 1.5 -> 1.25 -> 1.1 (pedidos sucessivos do usuário).
+//   3) "Injeção de Ascensão" suave: Poder × (1 + Ascensão). Antes era + Ascensão × 10^(dígitos),
+//      que multiplicava por ~10-20x e dava saltos de 10x sempre que o Poder ganhava um dígito.
+// Ascender continua nunca diminuindo o Poder, e A4+5 segue acima de A3+95.
+// ==========================================
+export const EXPOENTE_PODER_BRUTO = 0.9;
+export const BASE_ASCENSAO_PODER = 1.1;
+
+export function amortecerPoderBruto(poderBase) {
+    return poderBase > 0 ? Math.pow(poderBase, EXPOENTE_PODER_BRUTO) : poderBase;
+}
+
+export function getMultiplicadorAscensaoPoder(ascensao) {
+    return Math.pow(BASE_ASCENSAO_PODER, Math.min(1000, Math.max(0, Number(ascensao) || 0)));
+}
+
+export function injetarAscensaoNoPoder(poderMultiplicado, ascensao) {
+    const asc = Number(ascensao) || 0;
+    if (poderMultiplicado > 0) return poderMultiplicado * (1 + Math.max(0, asc));
+    return (asc * 10) + poderMultiplicado;
+}
+
 // Réplica exata do useMemo de `poderGlobal` em Ficha Def/Marcados.jsx.
 export function calcularPoderAtual(ficha, divisorPoderMesa) {
     if (!ficha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100, limiteSupressao: 1, temaScouter: getTemaScouter(100, 1) };
@@ -386,26 +412,15 @@ export function calcularPoderAtual(ficha, divisorPoderMesa) {
     const glob = getGlobalMultipliers(ficha);
 
     const ascensaoSegura = Number(calcularAscensaoParaPoder(ficha)) || 0;
-    // 🔥 Base do expoente: 2 -> 1.5 -> 1.25 (pedidos sucessivos do usuário) pra suavizar o quanto a
-    // Ascensão escala o Poder Calculado — continua crescimento exponencial (Ascensão segue sendo
-    // o multiplicador mais forte do jogo), só a curva fica menos brusca a cada redução. Réplica
-    // exata do mesmo useMemo em Ficha Def/Marcados.jsx > poderGlobal precisa mudar junto.
-    const multiplicadorAscensao = Math.pow(1.25, Math.min(1000, Math.max(0, ascensaoSegura)));
+    const multiplicadorAscensao = getMultiplicadorAscensaoPoder(ascensaoSegura);
 
     const SATURACAO_SEGURA = 1e308;
     const clampFinito = (v) => Number.isFinite(v) ? v : (Number.isNaN(v) ? 0 : Math.sign(v) * SATURACAO_SEGURA);
 
-    let poderMultiplicado = poderBase * multiplicadorAscensao * glob.finalF * glob.totalDano;
+    let poderMultiplicado = amortecerPoderBruto(poderBase) * multiplicadorAscensao * glob.finalF * glob.totalDano;
     poderMultiplicado = clampFinito(poderMultiplicado);
 
-    let poderComAscensao;
-    if (poderMultiplicado > 0) {
-        const magnitude = Math.floor(Math.log10(poderMultiplicado));
-        poderComAscensao = poderMultiplicado + (ascensaoSegura * Math.pow(10, magnitude + 1));
-    } else {
-        poderComAscensao = (ascensaoSegura * 10) + poderMultiplicado;
-    }
-    poderComAscensao = clampFinito(poderComAscensao);
+    let poderComAscensao = clampFinito(injetarAscensaoNoPoder(poderMultiplicado, ascensaoSegura));
 
     // 🔥 TODO mUnico se junta aqui, no mesmo estágio (pós-injeção de Ascensão) —
     // ver o mesmo comentário/motivo em Ficha Def/Marcados.jsx > poderGlobal.

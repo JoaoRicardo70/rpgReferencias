@@ -31,29 +31,34 @@ import useStore from '../../stores/useStore';
 // crus do personagem de Ascensão menor. A versão EXPONENCIAL resolve isso —
 // ver Teste 1.)
 //
-// 🔥 BASE reduzida de 2 -> 1.5 -> 1.25 (pedidos sucessivos do usuário, sessões
-// posteriores): o crescimento exponencial da Ascensão sobre o Poder Calculado
-// estava "bastante considerável" demais na prática, mesmo já em 1.5 — a
-// mecânica continua exponencial (Ascensão ainda domina qualquer disputa de
-// Poder dado vantagem suficiente, ver Teste 1 abaixo), só a curva ficou ainda
-// menos brusca. Todos os valores hand-computed deste arquivo foram
-// recalculados com BASE=1.25.
-// O Math.max(0, ...) protege APENAS o multiplicador: uma Ascensão negativa
-// (ascensaoBase ou multiplicadorForcaAscensao negativos, digitados por
-// engano — campos sem `min` na UI) não pode virar um expoente negativo
-// (fração) que reduziria o Poder Base ao invés de mantê-lo neutro. A
-// injeção de log10 (e seu ramo `else` para poderBase<=0) continua usando
-// `ascensaoSegura` SEM clamp, então uma Ascensão negativa ainda aparece
-// integralmente ali — ver Teste 3 abaixo.
+// 🔥 CURVA DO PODER (opção "E" + base 1,1, pedido do usuário, sessão mais recente): base do
+// expoente reduzida de 2 -> 1.5 -> 1.25 -> 1.1 — o crescimento exponencial da Ascensão sobre o
+// Poder Calculado estava "bastante considerável" demais na prática, mesmo já em 1.25 — a
+// mecânica continua exponencial (Ascensão ainda domina qualquer disputa de Poder dado
+// vantagem suficiente, ver Teste 1 abaixo), só a curva ficou ainda menos brusca. Junto com a
+// base do expoente, MAIS DOIS pesos mudaram nesta sessão: (1) o Poder Base bruto agora é
+// amortecido por poderBase^0,9 (amortecerPoderBruto) ANTES de qualquer multiplicador; (2) a
+// "injeção de Ascensão" deixou de ser a soma de magnitude (log10, "+1 casa decimal") e virou
+// um multiplicador suave: Poder × (1 + Ascensão) (injetarAscensaoNoPoder). Todos os valores
+// hand-computed deste arquivo foram recalculados com essa curva (helpers exportados de
+// core/poder.js: amortecerPoderBruto, getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder).
+// O Math.max(0, ...) protege o multiplicador exponencial: uma Ascensão negativa (ascensaoBase
+// ou multiplicadorForcaAscensao negativos, digitados por engano — campos sem `min` na UI) não
+// pode virar um expoente negativo (fração) que reduziria o Poder Base ao invés de mantê-lo
+// neutro.
+// 🔥 Mudança de comportamento desta sessão: a NOVA injeção suave (injetarAscensaoNoPoder)
+// também usa Math.max(0, ascensao) quando poderMultiplicado > 0 — ao contrário da injeção
+// antiga por magnitude, que usava `ascensaoSegura` SEM clamp ali. Isso significa que, com
+// poderMultiplicado > 0, uma Ascensão negativa não reduz mais nem o multiplicador nem a
+// injeção (os dois ficam presos em "sem efeito"); só o ramo `else` (poderMultiplicado <= 0)
+// continua usando `ascensaoSegura` sem clamp — ver Teste 3 abaixo.
 //
 // Nenhuma das funções internas (calcPoderBase, getGlobalMultipliers) é
 // exportada — validamos renderizando o MarcadosPanel real e lendo a leitura
 // auxiliar em notação científica do Scouter, mesmo padrão de
 // Marcados.scouterFormulaAscensao.test.jsx. Todos os valores abaixo foram
-// escolhidos para ter NO MÁXIMO 3 algarismos significativos (o que
-// `toExponential(2)` consegue reconstruir sem perda/arredondamento) e foram
-// conferidos batendo a fórmula exata em Node antes de escrever as
-// asserções — nenhum valor é aproximado.
+// conferidos batendo a fórmula exata em Node (via os helpers exportados de
+// core/poder.js) antes de escrever as asserções — nenhum valor é aproximado.
 // ---------------------------------------------------------------------------
 
 vi.mock('../../stores/useStore');
@@ -153,7 +158,7 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
     // Personagem A: Ascensão MODESTA (ascensaoBase=1, padrão — sem overflow,
     // já que as outras 5 categorias ficam zeradas), mas investimento bruto
     // GRANDE em Vida (peso x10 na fórmula do Poder Base).
-    //   🔥 divisores.vida MINÚSCULO (correção desta sessão): Vida (6e9) sozinha
+    //   🔥 divisores.vida MINÚSCULO (correção de uma sessão anterior): Vida (6e9) sozinha
     //   é grande o bastante pra gerar overflow real de Prestígio (pAtual=6000
     //   >> 100), e a sessão que trocou nivelCompletos de Math.min(...) pela
     //   MÉDIA das 6 categorias (ver core/poder.js/Marcados.jsx, comentário "🔥
@@ -162,37 +167,34 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
     //   multiplica pAtual (não poderBase, que usa o valor bruto de `base`
     //   diretamente) — um divisor minúsculo (1e-12) zera pAtual e neutraliza
     //   esse overflow, preservando o Poder Base (e portanto os valores
-    //   hand-computed abaixo) exatamente como antes desta sessão.
-    //   Poder_Base_A = (6.000.000.000*10)/6 = 1e10
-    //   multiplicadorAscensao_A = 1.25^1 = 1.25
-    //   poderMultiplicado_A = 1e10 * 1.25 = 1.25e10
-    //   magnitude_A = floor(log10(1.25e10)) = 10
-    //   poderComAscensao_A = 1.25e10 + 1*10^11 = 1.125e11, exibido 113.000.000.000
+    //   hand-computed abaixo) exatamente como antes dessa sessão.
+    //   Poder_Base_A = (6.000.000.000*10)/6 = 1e10, amortecido (^0,9) = 1e9
+    //   multiplicadorAscensao_A = 1.1^1 = 1.1
+    //   poderMultiplicado_A = 1e9 * 1.1 = 1,1e9
+    //   injeção suave ×(1+1) -> poderComAscensao_A = 2,2e9, exibido 2.200.000.000
     //
     // Personagem B: Ascensão bem MAIOR (ascensaoBase=99 — 99x a de A), mas
     // investimento bruto bem MENOR em Vida (100x menor que A) — pequeno o
     // bastante (pAtual=60 < 100) pra não precisar de divisores.vida.
-    //   Poder_Base_B = (60.000.000*10)/6 = 1e8
-    //   multiplicadorAscensao_B = 1.25^99 ≈ 3,927274772238181e9
-    //   poderMultiplicado_B = 1e8 * 1.25^99 ≈ 3,927274772238181e17
-    //   magnitude_B = floor(log10(≈3,93e17)) = 17
-    //   poderComAscensao_B ≈ 3,93e17 + 99*10^18 = 9,939273e19 (a leitura do
-    //   Scouter usa toExponential(2), então o valor lido é exatamente
-    //   9.94E19 -> Number("9.94E19"))
+    //   Poder_Base_B = (60.000.000*10)/6 = 1e8, amortecido (^0,9) ≈ 15.848.931,92
+    //   multiplicadorAscensao_B = 1.1^99 ≈ 12.527,83
+    //   poderMultiplicado_B ≈ 15.848.931,92 * 12.527,83 ≈ 198.552.715.321,18
+    //   injeção suave ×(1+99)=×100 -> poderComAscensao_B ≈ 19.855.271.532.118,29,
+    //   que a leitura do Scouter (toExponential(2)) arredonda para 1.99E13
     //
     // Sob a fórmula ANTIGA (Ascensão só entrando via injeção de log10, sem
-    // multiplicador — poderMultiplicado = Poder_Base, sem *multiplicadorAscensao):
-    //   A_antigo = 1e10 + 1*10^11 = 1.1e11 = 110.000.000.000
-    //   B_antigo = 1e8 + 99*10^9 = 9.91e10 = 99.100.000.000
-    //   A_antigo (110B) > B_antigo (99,1B) — o BUG: B tinha 99x mais Ascensão
-    //   que A e ainda assim lia MENOS, porque a injeção de B fica presa na
-    //   magnitude do PRÓPRIO poder base de B (bem menor que o de A).
-    // Sob a fórmula ATUAL (multiplicador exponencial, BASE=1.25), B (≈9,94e19)
-    // > A (113 bilhões) ainda por uma margem colossal (≈8,8e8x) — a Ascensão
-    // 99x maior de B continua dominando completamente, mesmo com a base do
-    // expoente reduzida mais uma vez. A margem em si encolheu bastante frente
-    // à BASE=1.5 anterior (lá era ≈8,6e16x) — é exatamente o efeito pretendido
-    // pela redução: menos "explosivo", mas ainda longe de virar irrelevante.
+    // multiplicador — poderMultiplicado = Poder_Base, sem *multiplicadorAscensao, sem
+    // amortecimento): A_antigo = 1e10 + 1*10^11 = 1.1e11 = 110.000.000.000;
+    // B_antigo = 1e8 + 99*10^9 = 9.91e10 = 99.100.000.000 — A_antigo (110B) >
+    // B_antigo (99,1B), o BUG original: B tinha 99x mais Ascensão que A e ainda
+    // assim lia MENOS, porque a injeção de B fica presa na magnitude do PRÓPRIO
+    // poder base de B (bem menor que o de A).
+    // Sob a fórmula ATUAL (multiplicador exponencial, BASE=1.1, com amortecimento e
+    // injeção suave), B (≈1,99e13) > A (2,2 bilhões) por uma margem grande (≈9000x) — a
+    // Ascensão 99x maior de B continua dominando, mesmo com a base do expoente reduzida
+    // sucessivas vezes (a margem em si encolheu bastante frente às bases anteriores — é
+    // exatamente o efeito pretendido pela redução: menos "explosivo", mas ainda longe de
+    // virar irrelevante).
     it('Personagem B (Ascensão 99x maior, atributos 100x menores) agora supera o Personagem A (Ascensão modesta, atributos brutos enormes) — o bug reportado está corrigido', () => {
         montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 6000000000 }, ascensaoBase: 1, divisores: { vida: 0.000000000001 } }));
         const { unmount } = render(<MarcadosPanel />);
@@ -203,8 +205,8 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
         render(<MarcadosPanel />);
         const leituraB = lerPoderGlobalExibido();
 
-        expect(leituraA).toBe(113000000000);
-        expect(leituraB).toBe(9.94e19);
+        expect(leituraA).toBe(2200000000);
+        expect(leituraB).toBe(1.99e13);
         expect(leituraB).toBeGreaterThan(leituraA);
     });
 
@@ -215,10 +217,10 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
     // mesma inversão do teste anterior, mas agora observada como uma
     // transição reativa (rerender) na MESMA instância de componente, isolando
     // a Ascensão como a única variável que mudou.
-    //   B com ascensaoBase=1: multiplicadorAscensao=1.25^1=1.25, poderMultiplicado=1.25e8,
-    //   magnitude=8, poderComAscensao = 1.25e8 + 1*10^9 = 1.125e9, exibido 1.130.000.000
-    //   (menor que A = 113.000.000.000).
-    //   B com ascensaoBase=99 (calculado acima): ≈9.94e19 (maior que A).
+    //   B com ascensaoBase=1: multiplicadorAscensao=1.1^1=1.1, poderMultiplicado≈15.848.931,92*1.1
+    //   ≈17.433.825,11, injeção suave ×(1+1) -> poderComAscensao≈34.867.650,23, exibido
+    //   34.900.000 (menor que A = 2.200.000.000).
+    //   B com ascensaoBase=99 (calculado acima): ≈1,99e13 (maior que A).
     it('aumentar SOMENTE a Ascensão Geral Efetiva do Personagem B (atributos fixos) inverte a comparação de B<A para B>A', () => {
         montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 6000000000 }, ascensaoBase: 1, divisores: { vida: 0.000000000001 } }));
         const { unmount } = render(<MarcadosPanel />);
@@ -228,13 +230,13 @@ describe('MarcadosPanel — Ascensão como multiplicador real: corrige o bug rep
         const mockB = montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 60000000 }, ascensaoBase: 1 }));
         const { rerender } = render(<MarcadosPanel />);
         const leituraB_antes = lerPoderGlobalExibido();
-        expect(leituraB_antes).toBe(1130000000);
+        expect(leituraB_antes).toBe(34900000);
         expect(leituraB_antes).toBeLessThan(leituraA);
 
         mockB.updateFicha((f) => { f.multiplicadorForcaAscensao = 99; });
         rerender(<MarcadosPanel />);
         const leituraB_depois = lerPoderGlobalExibido();
-        expect(leituraB_depois).toBe(9.94e19);
+        expect(leituraB_depois).toBe(1.99e13);
         expect(leituraB_depois).toBeGreaterThan(leituraA);
     });
 });
@@ -250,20 +252,19 @@ describe('MarcadosPanel — multiplicadorAscensao (1.25^ascensaoSegura) é um mu
         cleanup();
     });
 
-    // Mesma ficha base (vida=600.000 -> Poder_Base=1e6, glob.finalF=glob.totalDano=1
-    // em ambos os casos), variando SÓ ascensaoBase entre 2 e 5:
-    //   ascensaoBase=2: multiplicadorAscensao=1.25^2=1.5625, poderMultiplicado=1e6*1.5625=1.5625e6
-    //     magnitude=floor(log10(1.5625e6))=6, poderComAscensao=1.5625e6+2*10^7=21.562.500
-    //   ascensaoBase=5: multiplicadorAscensao=1.25^5=3.0517578125, poderMultiplicado=1e6*3.0517578125=3.0517578125e6
-    //     magnitude=floor(log10(3.0517578125e6))=6, poderComAscensao=3.0517578125e6+5*10^7=53.051.757,8125
-    // A razão entre os dois multiplicadores é EXATAMENTE 1.25^5/1.25^2 = 1.25^3 = 1,953125, e
-    // o poderMultiplicado (pré-injeção) escala pela MESMA razão exata:
-    // 3.051.757,8125 / 1.562.500 = 1,953125 — prova que o multiplicador é exponencial de
-    // verdade (não uma injeção de dígito). (A leitura final de 53,1M/21,6M não é
-    // 1,953125x exato por causa da injeção de log10 somada por cima — mas os dois
-    // números finais batem exatamente com o valor derivado à mão, o que só é
-    // possível se poderMultiplicado tiver escalado pelo fator correto em cada caso.)
-    it('ascensaoGeralEfetiva=2 vs ascensaoGeralEfetiva=5 na mesma ficha: poderMultiplicado escala exatamente por 1.25^5/1.25^2=1,953125, refletido nas leituras finais exatas 21.600.000 e 53.100.000', () => {
+    // Mesma ficha base (vida=600.000 -> Poder_Base=1e6, amortecido (^0,9) ≈ 251.188,64,
+    // glob.finalF=glob.totalDano=1 em ambos os casos), variando SÓ ascensaoBase entre 2 e 5:
+    //   ascensaoBase=2: multiplicadorAscensao=1.1^2=1,21, poderMultiplicado≈251.188,64*1,21≈303.938,25
+    //     injeção suave ×(1+2)=×3 -> poderComAscensao≈911.814,74, exibido 912.000
+    //   ascensaoBase=5: multiplicadorAscensao=1.1^5≈1,61051, poderMultiplicado≈251.188,64*1,61051≈404.541,58
+    //     injeção suave ×(1+5)=×6 -> poderComAscensao≈2.427.249,48, exibido 2.430.000
+    // A razão entre os dois multiplicadores é EXATAMENTE 1.1^5/1.1^2 = 1.1^3 = 1,331, e
+    // o poderMultiplicado (pré-injeção) escala pela MESMA razão exata — prova que o
+    // multiplicador é exponencial de verdade (não uma injeção de dígito). (A leitura final
+    // não escala por exatamente essa razão porque a injeção suave ×(1+Ascensão) multiplica
+    // por um fator DIFERENTE em cada caso — ×3 vs ×6 —, não porque haja qualquer "soma de
+    // magnitude" residual como na fórmula antiga.)
+    it('ascensaoGeralEfetiva=2 vs ascensaoGeralEfetiva=5 na mesma ficha: poderMultiplicado escala exatamente por 1.1^5/1.1^2=1,331, refletido nas leituras finais 912.000 e 2.430.000', () => {
         montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, multiplicadorForcaAscensao: 2 }));
         const { unmount } = render(<MarcadosPanel />);
         const leitura2 = lerPoderGlobalExibido();
@@ -273,13 +274,13 @@ describe('MarcadosPanel — multiplicadorAscensao (1.25^ascensaoSegura) é um mu
         render(<MarcadosPanel />);
         const leitura5 = lerPoderGlobalExibido();
 
-        expect(leitura2).toBe(21600000);
-        expect(leitura5).toBe(53100000);
+        expect(leitura2).toBe(912000);
+        expect(leitura5).toBe(2430000);
         expect(leitura5).toBeGreaterThan(leitura2);
     });
 });
 
-describe('MarcadosPanel — Math.max(0, ascensaoSegura) protege APENAS multiplicadorAscensao, não a injeção de log10', () => {
+describe('MarcadosPanel — Math.max(0, ascensaoSegura) protege o multiplicador SEMPRE, e também a injeção suave quando poderMultiplicado > 0', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true);
@@ -290,27 +291,25 @@ describe('MarcadosPanel — Math.max(0, ascensaoSegura) protege APENAS multiplic
         cleanup();
     });
 
-    // ascensaoBase=-5 com multiplicadorForcaAscensao=0.01 (campo numérico
-    // livre, sem `min` na UI) produz ascensaoGeralEfetiva = -5*0.01 = -0.05
-    // (sem overflow: vida=660.000 < divisor 1.000.000 -> prestígio bruto=0,
-    // e as outras 5 categorias ficam zeradas — nivelCompletos permanece 0).
+    // 🔥 Mudança de comportamento desta sessão: com a antiga injeção por magnitude de log10,
+    // o Math.max(0, ...) protegia SÓ o multiplicador — a injeção usava `ascensaoSegura` sem
+    // clamp e ainda conseguia subtrair do resultado numa Ascensão negativa. A NOVA injeção
+    // suave (injetarAscensaoNoPoder) usa Math.max(0, ascensao) TAMBÉM quando poderMultiplicado
+    // > 0 — então agora uma Ascensão negativa modesta não reduz mais NADA (nem o multiplicador
+    // nem a injeção) enquanto o Poder Base amortecido continuar positivo.
+    //
+    // ascensaoBase=-5 com multiplicadorForcaAscensao=0.01 (campo numérico livre, sem `min` na
+    // UI) produz ascensaoGeralEfetiva = -5*0.01 = -0.05 (sem overflow: vida=660.000 < divisor
+    // 1.000.000 -> prestígio bruto=0, e as outras 5 categorias ficam zeradas — nivelCompletos
+    // permanece 0).
     //   ascensaoSegura = -0.05
-    //   multiplicadorAscensao = 1.25^Math.max(0, -0.05) = 1.25^0 = 1  <- CLAMPADO para 1,
-    //   exatamente como se ascensaoGeralEfetiva fosse 0 (não -0.05) nesta etapa.
-    //   (o resultado do clamp é sempre 1 nesta etapa, não importa a BASE do
-    //   expoente — por isso os valores abaixo não mudam com a redução da base.)
-    //   Poder_Base = (660.000*10)/6 = 1.100.000
-    //   poderMultiplicado = 1.100.000 * 1 = 1.100.000
-    //   magnitude = floor(log10(1.100.000)) = 6
-    //   poderComAscensao = 1.100.000 + (-0.05)*10^7 = 1.100.000 - 500.000 = 600.000
-    // A injeção usa ascensaoSegura SEM clamp (-0.05, não 0), então ainda
-    // SUBTRAI 500.000 do resultado — mas como o Poder Base é grande o
-    // bastante perto da própria "casa decimal" da injeção, o resultado final
-    // continua positivo e finito (não NaN, não negativo), confirmando que o
-    // clamp cumpre seu papel de proteger o SINAL do multiplicador sem, no
-    // entanto, "esconder" o valor negativo real de ascensaoGeralEfetiva na
-    // injeção (comportamento intencional, documentado no código-fonte).
-    it('Ascensão negativa modesta: multiplicadorAscensao fica clampado em 1 e a leitura final continua positiva e finita (nem negativa, nem NaN)', () => {
+    //   multiplicadorAscensao = 1.1^Math.max(0, -0.05) = 1.1^0 = 1  <- CLAMPADO para 1
+    //   Poder_Base = (660.000*10)/6 = 1.100.000, amortecido (^0,9) ≈ 273.686,53
+    //   poderMultiplicado = 273.686,53 * 1 = 273.686,53 (> 0)
+    //   injeção suave: poderMultiplicado * (1 + Math.max(0, -0.05)) = 273.686,53 * 1 =
+    //   273.686,53 (a injeção TAMBÉM fica clampada em "sem efeito" aqui, ao contrário da
+    //   fórmula antiga) -> poderGlobal (floor) 273.686, exibido 274.000.
+    it('Ascensão negativa modesta: com poderMultiplicado > 0, NEM o multiplicador NEM a injeção reduzem o Poder — leitura final continua positiva e finita', () => {
         const ficha = fichaMinimaScouter({
             vida: { base: 660000 },
             ascensaoBase: -5,
@@ -320,28 +319,27 @@ describe('MarcadosPanel — Math.max(0, ascensaoSegura) protege APENAS multiplic
         render(<MarcadosPanel />);
 
         const leitura = lerPoderGlobalExibido();
-        expect(leitura).toBe(600000);
+        expect(leitura).toBe(274000);
         expect(Number.isFinite(leitura)).toBe(true);
         expect(leitura).toBeGreaterThanOrEqual(0);
     });
 
     // Documenta explicitamente o limite do clamp: com TODOS os atributos
-    // zerados (Poder_Base=0 -> poderMultiplicado=0, cai no ramo `else` do
-    // failsafe, que NUNCA usa Math.log10) e ascensaoBase=-5 (multiplicador
-    // padrão=1 -> ascensaoGeralEfetiva=-5 EXATO, sem clamp possível vindo do
-    // useMemo de cima), a fórmula é:
-    //   multiplicadorAscensao = 1.25^Math.max(0, -5) = 1.25^0 = 1 (clampado, mas
+    // zerados (Poder_Base=0 -> poderMultiplicado=0, que NÃO é > 0, cai no ramo `else` de
+    // injetarAscensaoNoPoder) e ascensaoBase=-5 (multiplicador padrão=1 ->
+    // ascensaoGeralEfetiva=-5 EXATO, sem clamp possível vindo do useMemo de cima), a
+    // fórmula é:
+    //   multiplicadorAscensao = 1.1^Math.max(0, -5) = 1.1^0 = 1 (clampado, mas
     //   como poderMultiplicado = Poder_Base(0) * 1 = 0 de qualquer forma, o
     //   clamp não tem efeito prático aqui)
     //   poderComAscensao = ascensaoSegura*10 + poderMultiplicado = -5*10+0 = -50
-    // A leitura final de -50 é NEGATIVA — prova, com um valor exato e
-    // determinístico, que o clamp (Math.max(0, ...)) protege SOMENTE
-    // `multiplicadorAscensao`, e não `ascensaoSegura` como usada na injeção
-    // de magnitude/ramo `else` — exatamente como o comentário no código-fonte
-    // descreve. Isso não é uma regressão: é o comportamento documentado e
-    // deliberado da correção (o clamp existe para o multiplicador não
-    // inverter o sinal de TODO o cálculo, não para blindar 100% contra
-    // Ascensões negativas extremas na injeção).
+    // A leitura final de -50 é NEGATIVA — prova, com um valor exato e determinístico, que
+    // o clamp (Math.max(0, ...)) SÓ deixa de proteger o resultado final no ramo `else`
+    // (poderMultiplicado <= 0), que continua usando `ascensaoSegura` sem clamp — exatamente
+    // como o comentário no código-fonte descreve. Isso não é uma regressão: é o
+    // comportamento documentado e deliberado (o clamp existe para o multiplicador/injeção
+    // não inverterem o sinal do cálculo quando há Poder Base real, não para blindar 100%
+    // contra Ascensões negativas extremas quando não há Poder Base nenhum).
     it('[documentação] com Poder Base zerado, uma Ascensão negativa extrema ainda produz leitura negativa exata via o ramo `else` (não-clampado) — só o multiplicador é protegido', () => {
         const ficha = fichaMinimaScouter({ ascensaoBase: -5 });
         montarMockUseStore(ficha);
@@ -364,33 +362,32 @@ describe('MarcadosPanel — multiplicadorAscensao compõe multiplicativamente co
         cleanup();
     });
 
-    // Ficha com vida=600.000 (Poder_Base=1e6), ascensaoBase=3 (sem overflow:
-    // vida=600.000 < divisor 1e6 -> prestígio bruto=0 -> ascensaoGeralEfetiva
+    // Ficha com vida=600.000 (Poder_Base=1e6, amortecido (^0,9) ≈ 251.188,64), ascensaoBase=3
+    // (sem overflow: vida=600.000 < divisor 1e6 -> prestígio bruto=0 -> ascensaoGeralEfetiva
     // = 3 exato), forma ativa em Vida (vida.mFormas=2, campo ESTÁTICO, fora
     // do Grimório — soma (2-1)=1 ao grupo MFORMAS -> glob.finalF=1+1=2). O
     // buff MGERAL:+5 vem de ficha.poderes (Grimório), que agora é IGNORADO
     // pelo cálculo do Scouter (ver Marcados.scouterFormaReatividade.test.jsx)
     // -> glob.totalDano fica em 1 (finalB=finalG=finalA=finalUni=1, sem mais
     // nenhuma fonte).
-    //   multiplicadorAscensao = 1.25^3 = 1,953125
-    //   poderMultiplicado = 1e6 * 1,953125 * 2 * 1 = 3.906.250
-    //   magnitude = floor(log10(3.906.250)) = 6
-    //   poderComAscensao = 3.906.250 + 3*10^7 = 33.906.250 -> toExponential(2)
-    //   arredonda pra 3.39E7 (33.900.000)
+    //   multiplicadorAscensao = 1.1^3 = 1,331
+    //   poderMultiplicado ≈ 251.188,64 * 1,331 * 2 * 1 ≈ 668.664,17
+    //   injeção suave ×(1+3)=×4 -> poderComAscensao ≈ 2.674.656,67 -> toExponential(2)
+    //   arredonda pra 2.67E6 (2.670.000)
     //
-    // Comparado com a MESMA ficha mas ascensaoBase=1 (multiplicadorAscensao=1.25^1=1.25,
-    // 1/1,5625 do valor acima), com a Forma estática inalterada:
-    //   poderMultiplicado_baseline = 1e6 * 1.25 * 2 * 1 = 2.500.000
-    //   magnitude_baseline = floor(log10(2.500.000)) = 6
-    //   poderComAscensao_baseline = 2.500.000 + 1*10^7 = 12.500.000
-    // poderMultiplicado escalou EXATAMENTE por 3.906.250/2.500.000=1,5625, a
-    // mesma razão de multiplicadorAscensao (1.25^3/1.25^1=1.25^2=1,5625) — prova que o
+    // Comparado com a MESMA ficha mas ascensaoBase=1 (multiplicadorAscensao=1.1^1=1.1,
+    // 1/1,21 do valor acima), com a Forma estática inalterada:
+    //   poderMultiplicado_baseline ≈ 251.188,64 * 1.1 * 2 * 1 ≈ 552.615,01
+    //   injeção suave ×(1+1)=×2 -> poderComAscensao_baseline ≈ 1.105.230,03, exibido
+    //   1.110.000
+    // poderMultiplicado escalou EXATAMENTE por 668.664,17/552.615,01=1,21, a
+    // mesma razão de multiplicadorAscensao (1.1^3/1.1^1=1.1^2=1,21) — prova que o
     // multiplicador de Ascensão se combina multiplicativamente com finalF
     // (que ficou fixo em 2 nos dois casos), em vez de interferir ou ser
     // sobrescrito por ele. O buff MGERAL do Grimório fica de fora da conta
     // nos dois casos (totalDano=1), confirmando a exclusão do Grimório do
     // cálculo do Scouter.
-    it('combina Ascensão (multiplicadorAscensao=1,953125) com Forma estática ativa (finalF=2); o buff MGERAL:+5 do Grimório é ignorado: leitura exata 33.900.000, escalando ~1,5625x sobre o baseline com ascensaoBase=1 (12.500.000)', () => {
+    it('combina Ascensão (multiplicadorAscensao=1,331) com Forma estática ativa (finalF=2); o buff MGERAL:+5 do Grimório é ignorado: leitura exata 2.670.000, escalando ~1,21x sobre o baseline com ascensaoBase=1 (1.110.000)', () => {
         const fichaBase = () => fichaMinimaScouter({
             vida: { base: 600000, mFormas: 2 },
             poderes: [{ nome: 'Buff Geral', ativa: true, efeitos: [{ atributo: 'geral', propriedade: 'mgeral', valor: 5 }] }],
@@ -405,8 +402,8 @@ describe('MarcadosPanel — multiplicadorAscensao compõe multiplicativamente co
         render(<MarcadosPanel />);
         const leituraCombinada = lerPoderGlobalExibido();
 
-        expect(leituraBaseline).toBe(12500000);
-        expect(leituraCombinada).toBe(33900000);
+        expect(leituraBaseline).toBe(1110000);
+        expect(leituraCombinada).toBe(2670000);
         expect(leituraCombinada).toBeGreaterThan(leituraBaseline);
     });
 });

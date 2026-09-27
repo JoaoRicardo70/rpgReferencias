@@ -8,7 +8,7 @@ import useStore from '../../stores/useStore';
 
 // ---------------------------------------------------------------------------
 // QA — Sincronização Grimório -> Scouter (ficha.ataquesElementais) +
-// failsafe de log10 para poderMultiplicado negativo
+// failsafe da injeção de Ascensão para poderMultiplicado negativo
 //
 // Antes da correção, getGlobalMultipliers() em Marcados.jsx nunca vasculhava
 // ficha.ataquesElementais — a lista de "Afinidades & Elementos" escrita pelo
@@ -204,7 +204,7 @@ describe('MarcadosPanel — Sincronização Grimório -> Scouter: ficha.ataquesE
     });
 });
 
-describe('MarcadosPanel — Failsafe de log10 (poderComAscensao): poderMultiplicado negativo', () => {
+describe('MarcadosPanel — Failsafe da injeção de Ascensão (poderComAscensao): poderMultiplicado negativo', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true);
@@ -215,27 +215,31 @@ describe('MarcadosPanel — Failsafe de log10 (poderComAscensao): poderMultiplic
         cleanup();
     });
 
-    // poderMultiplicado <= 0 (aqui, estritamente negativo) NUNCA pode entrar no ramo do
-    // logaritmo (Math.log10 de número <= 0 é NaN/-Infinity). Um valor de Vida negativo
-    // (permitido por sanitizarBaseNumerica, que devolve números já numéricos sem alteração)
-    // com todas as outras 5 categorias zeradas produz Poder_Base = (vida*10)/6 = -10 (< 0).
-    // O bônus de overflow de Ascensão por categoria usa Math.max(0, ...), então uma
-    // prestigioBruto negativo/nulo em Vida não muda ascensaoGeralEfetiva em relação ao
-    // cenário de referência com vida=0 (ascensaoBase=4, sem overflow) já coberto em
+    // poderMultiplicado <= 0 (aqui, estritamente negativo) NUNCA pode entrar no ramo
+    // multiplicativo da injeção (injetarAscensaoNoPoder só multiplica por (1+Ascensão)
+    // quando poderMultiplicado > 0). Um valor de Vida negativo (permitido por
+    // sanitizarBaseNumerica, que devolve números já numéricos sem alteração) com todas as
+    // outras 5 categorias zeradas produz Poder_Base = (vida*10)/6 = -10 (< 0) — e
+    // amortecerPoderBruto NÃO amortece valores <= 0 (retorna o valor bruto sem alteração,
+    // já que Math.pow de base negativa com expoente fracionário daria NaN). O bônus de
+    // overflow de Ascensão por categoria usa Math.max(0, ...), então uma prestigioBruto
+    // negativo/nulo em Vida não muda ascensaoGeralEfetiva em relação ao cenário de
+    // referência com vida=0 (ascensaoBase=4, sem overflow) já coberto em
     // Marcados.scouterFormulaAscensao.test.jsx, que também vale aqui: ascensaoGeralEfetiva=4.
-    // Ascensão agora também multiplica o Poder Base (mesmo negativo), com a curva
-    // exponencial atual (1.25^ascensaoGeralEfetiva — base reduzida de 2 -> 1.5 -> 1.25,
-    // pedidos sucessivos do usuário, pra suavizar o quanto a Ascensão escala o Poder Calculado):
-    //   multiplicadorAscensao = 1.25^4 = 2,44140625 -> poderMultiplicado = -10*2,44140625 = -24,4140625 (<= 0) -> ramo else:
-    //   poderComAscensao = ascensaoSegura(4)*10 + (-24,4140625) = 40 - 24,4140625 = 15,5859375 -> Math.floor = 15
+    // Ascensão agora também multiplica o Poder Base (mesmo negativo, sem amortecimento), com
+    // a curva exponencial atual (1.1^ascensaoGeralEfetiva — base reduzida de 2 -> 1.5 -> 1.25
+    // -> 1.1, pedidos sucessivos do usuário, pra suavizar o quanto a Ascensão escala o Poder
+    // Calculado):
+    //   multiplicadorAscensao = 1.1^4 = 1,4641 -> poderMultiplicado = -10*1,4641 = -14,641 (<= 0) -> ramo else:
+    //   poderComAscensao = ascensaoSegura(4)*10 + (-14,641) = 40 - 14,641 = 25,359 -> Math.floor = 25
     // 🔥 Nota: com bases sucessivamente menores, o termo aditivo (ascensaoSegura*10, que não
-    // depende da base) passou a DOMINAR sobre o poderMultiplicado negativo (que fica cada vez
-    // menor em módulo) — o resultado final CRUZOU ZERO ao longo das reduções (-120 com BASE=2,
-    // -11 com BASE=1.5, agora +15 com BASE=1.25). Isso não invalida o teste: o objetivo aqui é
-    // só confirmar que o ramo `else` do failsafe (sem tocar Math.log10) continua produzindo um
-    // resultado finito e sem NaN quando poderMultiplicado é <= 0 — o sinal final do resultado
-    // não é o que está sendo validado.
-    it('poderMultiplicado negativo usa o ramo else do failsafe (ascensaoSegura*10 + poderMultiplicado), sem tocar Math.log10 e sem gerar NaN na leitura', () => {
+    // depende da base) passou a DOMINAR cada vez mais sobre o poderMultiplicado negativo (que
+    // fica cada vez menor em módulo) — o resultado final CRUZOU ZERO ao longo das reduções
+    // (-120 com BASE=2, -11 com BASE=1.5, +15 com BASE=1.25, agora +25 com BASE=1.1). Isso não
+    // invalida o teste: o objetivo aqui é só confirmar que o ramo `else` do failsafe continua
+    // produzindo um resultado finito e sem NaN quando poderMultiplicado é <= 0 — o sinal final
+    // do resultado não é o que está sendo validado.
+    it('poderMultiplicado negativo usa o ramo else do failsafe (ascensaoSegura*10 + poderMultiplicado), sem gerar NaN na leitura', () => {
         const ficha = fichaBaseScouter({
             vida: { base: -6 },
             mana: { base: 0 },
@@ -258,6 +262,6 @@ describe('MarcadosPanel — Failsafe de log10 (poderComAscensao): poderMultiplic
         const leitura = lerPoderGlobalExibido();
         expect(leitura).not.toBeNaN();
         expect(Number.isFinite(leitura)).toBe(true);
-        expect(leitura).toBe(15);
+        expect(leitura).toBe(25);
     });
 });
