@@ -1637,6 +1637,22 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .mestre-turno-chip { flex: 0 0 auto; padding: 4px 10px; border-radius: 14px; border: 1px solid #333; background: rgba(255, 255, 255, 0.03); color: #aaa; font-size: 0.8em; white-space: nowrap; }
 .mestre-turno-chip.dummie { border-style: dashed; }
 .mestre-turno-chip.ativo { border-color: #ffcc00; color: #ffcc00; background: rgba(255, 204, 0, 0.12); box-shadow: 0 0 8px rgba(255, 204, 0, 0.4); font-weight: bold; }
+/* 🔀 Ordem de turno manual (arrastar pra dentro/fora/reordenar) — MestreControleTurno.jsx */
+.mestre-turno-soltura { min-height: 38px; align-items: center; border: 1px dashed transparent; border-radius: 8px; padding: 4px; transition: border-color 0.2s, background 0.2s; }
+.mestre-turno-soltura.ativa { border-color: #00ffcc; background: rgba(0, 255, 204, 0.06); }
+.mestre-turno-soltura-dica { color: #00ffcc; opacity: 0.7; font-size: 0.8em; font-style: italic; }
+.mestre-turno-chip.arrastavel { cursor: grab; display: inline-flex; align-items: center; gap: 4px; }
+.mestre-turno-chip.arrastavel:active { cursor: grabbing; }
+.mestre-turno-chip-remover { background: none; border: none; color: #ff003c; cursor: pointer; padding: 0 0 0 4px; font-size: 0.9em; line-height: 1; opacity: 0.6; }
+.mestre-turno-chip-remover:hover { opacity: 1; }
+.mestre-turno-marcador { flex: 0 0 auto; width: 3px; align-self: stretch; min-height: 22px; border-radius: 2px; background: #00ffcc; box-shadow: 0 0 8px #00ffcc; }
+.mestre-turno-remover-zona { margin-top: 8px; padding: 10px; border: 1px dashed #ff003c; border-radius: 8px; color: #ff003c; text-align: center; font-weight: bold; font-size: 0.85em; background: rgba(255, 0, 60, 0.08); }
+.mestre-turno-adicionar { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.mestre-turno-adicionar-select { flex: 1 1 200px; margin: 0; padding: 6px 8px; font-size: 0.85em; }
+.mestre-turno-adicionar-btn { margin: 0; padding: 6px 14px; font-size: 0.85em; border-color: #00ffcc; color: #00ffcc; }
+.mestre-turno-adicionar-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.entidade-card-arrastavel { cursor: grab; }
+.entidade-card-arrastavel:active { cursor: grabbing; }
 
 /* ===== Aba Mestre: Fadiga de Combate no Sandbox da entidade ===== */
 .mestre-fadiga { background: rgba(255, 136, 0, 0.06); padding: 12px; border-radius: 6px; border: 1px solid #ff8800; margin-bottom: 15px; }

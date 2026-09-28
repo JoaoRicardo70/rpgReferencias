@@ -183,6 +183,11 @@ const useStore = create(
         setResumoTurnoMapa: (resumo) => set((state) => { state.resumoTurnoMapa = resumo || { ordem: [], turnoAtualIndex: 0 }; }),
         acaoAvancarTurnoMapa: null,
         setAcaoAvancarTurnoMapa: (fn) => set((state) => { state.acaoAvancarTurnoMapa = fn || null; }),
+        // 🔀 Mesma ideia, pra arrumar a ordem de turno à mão (arrastar pra dentro/fora/reordenar):
+        // { reordenar(chave, indice), adicionar(entidade, indice), remover(entidade) } — ver
+        // MapaFormContext.jsx e core/turnos.js.
+        acoesOrdemTurnoMapa: null,
+        setAcoesOrdemTurnoMapa: (acoes) => set((state) => { state.acoesOrdemTurnoMapa = acoes || null; }),
         setDivisorPoderMesa: (valor) => set((state) => {
             const v = (parseFloat(valor) > 0) ? parseFloat(valor) : 1;
             state.divisorPoderMesa = v;

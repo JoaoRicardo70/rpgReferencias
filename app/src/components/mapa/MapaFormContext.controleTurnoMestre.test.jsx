@@ -68,6 +68,8 @@ function baseState(overrides = {}) {
         setAcaoAvancarTurnoMapa: vi.fn(),
         setResumoTurnoMapa: vi.fn(),
         acaoAvancarTurnoMapa: null,
+        setAcoesOrdemTurnoMapa: vi.fn(),
+        acoesOrdemTurnoMapa: null,
         ...overrides,
     };
 }
@@ -161,8 +163,8 @@ describe('MapaFormContext — publica acaoAvancarTurnoMapa/resumoTurnoMapa na st
 
         expect(ultimaChamada.turnoAtualIndex).toBe(0);
         expect(ultimaChamada.ordem).toEqual([
-            { id: 'filler', nome: 'Filler', iniciativa: 20, isDummie: true },
-            { id: 'Heroi', nome: 'Heroi', iniciativa: 10, isDummie: false },
+            { id: 'filler', nome: 'Filler', iniciativa: 20, isDummie: true, chave: 'd:filler' },
+            { id: 'Heroi', nome: 'Heroi', iniciativa: 10, isDummie: false, chave: 'p:Heroi' },
         ]);
     });
 
@@ -226,5 +228,154 @@ describe('MapaFormContext — publica acaoAvancarTurnoMapa/resumoTurnoMapa na st
     it('não lança quando a store não tem setAcaoAvancarTurnoMapa/setResumoTurnoMapa (mock parcial, defensivo)', () => {
         const state = baseState({ setAcaoAvancarTurnoMapa: undefined, setResumoTurnoMapa: undefined });
         expect(() => montarComEstado(state)).not.toThrow();
+    });
+});
+
+// ---------------------------------------------------------------------------
+// QA — Ordem de turno MANUAL (reordenarTurno/adicionarAoTurno/removerDoTurno,
+// core/turnos.js): registradas na store como acoesOrdemTurnoMapa (reordenar/
+// adicionar/remover), do MESMO jeito que acaoAvancarTurnoMapa. Confere que
+// salvarCenarioCompleto recebe ordemTurnoManual[cena] e um turnoAtualIndex
+// que mantém quem está na vez, e que remover zera iniciativa (via
+// zerarIniciativaGlobal para outros personagens).
+// ---------------------------------------------------------------------------
+describe('MapaFormContext — ordem de turno manual (reordenarTurno/adicionarAoTurno/removerDoTurno)', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+        cleanup();
+    });
+
+    function estadoComOrdemManual(overrides = {}) {
+        const state = baseState({
+            isMestre: true,
+            dummies: {
+                goblin: { nome: 'Goblin', iniciativa: 15, posicao: { x: 3, y: 3, z: 0 }, cenaId: 'default' },
+            },
+            personagens: {
+                Aliado: { iniciativa: 5, posicoes: { default: { cenaId: 'default' } }, vida: { atual: 1 } },
+            },
+            ...overrides,
+        });
+        state.minhaFicha.iniciativa = 20; // Heroi(20) > Goblin(15) > Aliado(5), por iniciativa
+        return state;
+    }
+
+    it('registra uma acoesOrdemTurnoMapa com reordenar/adicionar/remover ao montar', () => {
+        const state = estadoComOrdemManual();
+        montarComEstado(state);
+
+        expect(state.setAcoesOrdemTurnoMapa).toHaveBeenCalledTimes(1);
+        const acoes = state.setAcoesOrdemTurnoMapa.mock.calls[0][0];
+        expect(typeof acoes.reordenar).toBe('function');
+        expect(typeof acoes.adicionar).toBe('function');
+        expect(typeof acoes.remover).toBe('function');
+    });
+
+    it('reordenar move a chave para o índice pedido e salva ordemTurnoManual[cena] com turnoAtualIndex que mantém quem está na vez', async () => {
+        const firebaseSync = await import('../../services/firebase-sync');
+        const state = estadoComOrdemManual({ cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 } });
+        montarComEstado(state);
+        // ordemIniciativa por iniciativa: Heroi(20), goblin(15), Aliado(5) -> índice 0 = Heroi (da vez)
+
+        const acoes = state.setAcoesOrdemTurnoMapa.mock.calls[0][0];
+        await act(async () => { acoes.reordenar('p:Heroi', 2); }); // manda Heroi pro fim
+
+        expect(firebaseSync.salvarCenarioCompleto).toHaveBeenCalled();
+        const novoCenario = firebaseSync.salvarCenarioCompleto.mock.calls[firebaseSync.salvarCenarioCompleto.mock.calls.length - 1][0];
+        expect(novoCenario.ordemTurnoManual.default).toEqual(['d:goblin', 'p:Aliado', 'p:Heroi']);
+        // Heroi tinha a vez (índice 0) e continua com ela: agora está no índice 2.
+        expect(novoCenario.turnoAtualIndex).toBe(2);
+    });
+
+    it('reordenar não faz nada (não salva) se quem chama não é Mestre', async () => {
+        const firebaseSync = await import('../../services/firebase-sync');
+        const state = estadoComOrdemManual({ isMestre: false });
+        montarComEstado(state);
+
+        const acoes = state.setAcoesOrdemTurnoMapa.mock.calls[0][0];
+        await act(async () => { acoes.reordenar('p:Heroi', 2); });
+
+        expect(firebaseSync.salvarCenarioCompleto).not.toHaveBeenCalled();
+    });
+
+    it('adicionar um dummie fora da ordem (iniciativa 0) dá iniciativa 1 a ele, salva no dummie e grava a ordemTurnoManual', async () => {
+        const firebaseSync = await import('../../services/firebase-sync');
+        const state = estadoComOrdemManual({
+            dummies: {
+                filler: { nome: 'Filler', iniciativa: 0, posicao: { x: 1, y: 1, z: 0 }, cenaId: 'default' },
+            },
+        });
+        montarComEstado(state);
+        // ordemIniciativa: só Heroi (20) -- Filler tem iniciativa 0, então fica de fora.
+
+        const acoes = state.setAcoesOrdemTurnoMapa.mock.calls[0][0];
+        await act(async () => { acoes.adicionar({ id: 'filler', isDummie: true }, 0); });
+
+        expect(firebaseSync.salvarDummie).toHaveBeenCalledWith('filler', expect.objectContaining({ iniciativa: 1 }));
+        expect(firebaseSync.salvarCenarioCompleto).toHaveBeenCalled();
+        const novoCenario = firebaseSync.salvarCenarioCompleto.mock.calls[firebaseSync.salvarCenarioCompleto.mock.calls.length - 1][0];
+        expect(novoCenario.ordemTurnoManual.default).toContain('d:filler');
+    });
+
+    it('adicionar um NPC (não Mestre, não o próprio) usa salvarCamposPersonagem para dar iniciativa 1', async () => {
+        const firebaseSync = await import('../../services/firebase-sync');
+        const state = estadoComOrdemManual({
+            personagens: {
+                Aliado: { iniciativa: 0, posicoes: { default: { cenaId: 'default' } }, vida: { atual: 1 } },
+            },
+        });
+        montarComEstado(state);
+
+        const acoes = state.setAcoesOrdemTurnoMapa.mock.calls[0][0];
+        await act(async () => { acoes.adicionar({ id: 'Aliado', isDummie: false }, 0); });
+
+        expect(firebaseSync.salvarCamposPersonagem).toHaveBeenCalledWith('Aliado', expect.objectContaining({ iniciativa: 1 }));
+        expect(firebaseSync.salvarCenarioCompleto).toHaveBeenCalled();
+    });
+
+    it('remover quem está na vez tira a chave da ordemTurnoManual e passa a vez pro próximo que ainda está na ordem, zerando a iniciativa via zerarIniciativaGlobal', async () => {
+        const firebaseSync = await import('../../services/firebase-sync');
+        const state = estadoComOrdemManual({ cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 1 } });
+        montarComEstado(state);
+        // ordemIniciativa: Heroi(20,0), goblin(15,1), Aliado(5,2) -- turnoAtualIndex=1 -> vez do goblin (dummie, sem zerarIniciativaGlobal)
+        // Removendo o Aliado (não é quem está na vez) só tira ele da ordem.
+
+        const acoes = state.setAcoesOrdemTurnoMapa.mock.calls[0][0];
+        await act(async () => { acoes.remover({ id: 'Aliado', isDummie: false }); });
+
+        expect(firebaseSync.zerarIniciativaGlobal).toHaveBeenCalledWith(['Aliado']);
+        expect(firebaseSync.salvarCenarioCompleto).toHaveBeenCalled();
+        const novoCenario = firebaseSync.salvarCenarioCompleto.mock.calls[firebaseSync.salvarCenarioCompleto.mock.calls.length - 1][0];
+        expect(novoCenario.ordemTurnoManual.default).toEqual(['p:Heroi', 'd:goblin']);
+        // O goblin (índice 1, da vez) continua na ordem, agora no índice 1 ainda.
+        expect(novoCenario.turnoAtualIndex).toBe(1);
+    });
+
+    it('remover a MIM MESMO (meuNome) zera a própria iniciativa via updateFicha/setIniciativaInput, sem chamar zerarIniciativaGlobal', async () => {
+        const firebaseSync = await import('../../services/firebase-sync');
+        const state = estadoComOrdemManual();
+        montarComEstado(state);
+
+        expect(state.minhaFicha.iniciativa).toBe(20);
+        const acoes = state.setAcoesOrdemTurnoMapa.mock.calls[0][0];
+        await act(async () => { acoes.remover({ id: 'Heroi', isDummie: false }); });
+
+        expect(state.minhaFicha.iniciativa).toBe(0);
+        expect(firebaseSync.zerarIniciativaGlobal).not.toHaveBeenCalled();
+        expect(firebaseSync.salvarFichaSilencioso).toHaveBeenCalled();
+    });
+
+    it('remover uma chave que não está na ordem (entidade inexistente) não salva nada', async () => {
+        const firebaseSync = await import('../../services/firebase-sync');
+        const state = estadoComOrdemManual();
+        montarComEstado(state);
+
+        const acoes = state.setAcoesOrdemTurnoMapa.mock.calls[0][0];
+        await act(async () => { acoes.remover({ id: 'fantasma', isDummie: true }); });
+
+        expect(firebaseSync.salvarCenarioCompleto).not.toHaveBeenCalled();
     });
 });

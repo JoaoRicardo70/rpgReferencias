@@ -10,6 +10,7 @@ import { getBuffs } from '../../core/attributes';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
+import { ordenarOrdemTurno, chaveEntidadeTurno, moverChaveNaOrdem, recalcularIndiceTurno } from '../../core/turnos';
 
 export const MAP_SIZE = 30;
 export const PALETA = ['#ff003c', '#0088ff', '#00ff88', '#ffcc00', '#ff00ff', '#00ffff', '#ff8800', '#88ff00'];
@@ -513,9 +514,9 @@ export function MapaFormProvider({ children }) {
             }
         }
 
-        lista.sort((a, b) => b.iniciativa - a.iniciativa);
-        return lista;
-    }, [jogadores, dummies, cenaRenderId]);
+        // 🔀 Ordem arrumada à mão pelo Mestre (cenario.ordemTurnoManual) — core/turnos.js.
+        return ordenarOrdemTurno(lista, cenario?.ordemTurnoManual?.[cenaRenderId]);
+    }, [jogadores, dummies, cenaRenderId, cenario?.ordemTurnoManual]);
 
     const getDanoDinamicoZona = useCallback((zona) => {
         let baseResult = { dano: zona.danoOriginal || zona.danoAplicado || 0, letalidade: zona.letalidadeOriginal || 0 };
@@ -914,9 +915,92 @@ export function MapaFormProvider({ children }) {
         
         const novoCenario = JSON.parse(JSON.stringify(storeState.cenario || {}));
         novoCenario.turnoAtualIndex = 0;
+        // 🔀 Combate novo começa pela iniciativa de novo, sem a ordem manual deste.
+        if (novoCenario.ordemTurnoManual?.[cenaRenderId]) novoCenario.ordemTurnoManual[cenaRenderId] = null;
         salvarCenarioCompleto(novoCenario);
 
-    }, [cenaAtual.nome, ordemIniciativa, updateFicha]);
+    }, [cenaAtual.nome, ordemIniciativa, updateFicha, cenaRenderId]);
+
+    // 🔀 ORDEM DE TURNO MANUAL (Mestre/Co-Mestre, pela aba Mestre — MestreControleTurno.jsx):
+    // grava a nova ordem em cenario.ordemTurnoManual[cena] e corrige turnoAtualIndex no MESMO
+    // write, pra a vez continuar com quem já estava jogando (core/turnos.js). Entrar/sair continua
+    // sendo a iniciativa da ficha (> 0 = na ordem), igual ao Mapa: quem entra ganha iniciativa 1
+    // (se não tinha) e presença na cena; quem sai fica com iniciativa 0, como "Sair do Combate".
+    const gravarOrdemTurno = useCallback((novasChaves, chavesAntes) => {
+        const storeState = useStore.getState();
+        const novoCenario = JSON.parse(JSON.stringify(storeState.cenario || {}));
+        if (!novoCenario.ordemTurnoManual) novoCenario.ordemTurnoManual = {};
+        novoCenario.ordemTurnoManual[cenaRenderId] = novasChaves;
+        novoCenario.turnoAtualIndex = recalcularIndiceTurno(chavesAntes, novasChaves, novoCenario.turnoAtualIndex || 0);
+        salvarCenarioCompleto(novoCenario);
+    }, [cenaRenderId]);
+
+    const reordenarTurno = useCallback((chave, novoIndice) => {
+        if (!isMestre) return;
+        const chavesAntes = ordemIniciativa.map(chaveEntidadeTurno);
+        if (!chavesAntes.includes(chave)) return;
+        const novasChaves = moverChaveNaOrdem(chavesAntes, chave, novoIndice);
+        if (novasChaves.join('|') === chavesAntes.join('|')) return;
+        gravarOrdemTurno(novasChaves, chavesAntes);
+        const nome = ordemIniciativa.find(e => chaveEntidadeTurno(e) === chave)?.nome || '?';
+        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔀 O Mestre moveu ${nome} para a ${novasChaves.indexOf(chave) + 1}ª posição da ordem de turno.` });
+    }, [isMestre, ordemIniciativa, gravarOrdemTurno]);
+
+    const adicionarAoTurno = useCallback((entidade, indice) => {
+        if (!isMestre || !entidade?.id) return;
+        const chave = chaveEntidadeTurno(entidade);
+        const chavesAntes = ordemIniciativa.map(chaveEntidadeTurno);
+        if (chavesAntes.includes(chave)) { reordenarTurno(chave, indice); return; }
+
+        const storeState = useStore.getState();
+        let nome = entidade.id;
+        if (entidade.isDummie) {
+            const d = storeState.dummies?.[entidade.id];
+            if (!d) return;
+            if ((d.cenaId || 'default') !== cenaRenderId) { alert(`${d.nome} não está nesta cena do Mapa.`); return; }
+            nome = d.nome;
+            salvarDummie(entidade.id, { ...d, iniciativa: Number(d.iniciativa) > 0 ? d.iniciativa : 1 });
+        } else if (entidade.id === storeState.meuNome) {
+            updateFicha((ficha) => {
+                if (!(Number(ficha.iniciativa) > 0)) ficha.iniciativa = 1;
+                if (!ficha.posicoes) ficha.posicoes = {};
+                ficha.posicoes[cenaRenderId] = { ...ficha.posicoes[cenaRenderId], cenaId: cenaRenderId };
+            });
+            salvarFichaSilencioso();
+        } else {
+            const ficha = jogadores[entidade.id];
+            if (!ficha) return;
+            const campos = { [`posicoes/${cenaRenderId}/cenaId`]: cenaRenderId };
+            if (!(Number(ficha.iniciativa) > 0)) campos.iniciativa = 1;
+            salvarCamposPersonagem(entidade.id, campos);
+        }
+
+        gravarOrdemTurno(moverChaveNaOrdem(chavesAntes, chave, indice ?? chavesAntes.length), chavesAntes);
+        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O Mestre colocou ${nome} na ordem de turno!` });
+    }, [isMestre, ordemIniciativa, cenaRenderId, jogadores, updateFicha, gravarOrdemTurno, reordenarTurno]);
+
+    const removerDoTurno = useCallback((entidade) => {
+        if (!isMestre || !entidade?.id) return;
+        const chave = chaveEntidadeTurno(entidade);
+        const chavesAntes = ordemIniciativa.map(chaveEntidadeTurno);
+        const alvo = ordemIniciativa.find(e => chaveEntidadeTurno(e) === chave);
+        if (!alvo) return;
+
+        const storeState = useStore.getState();
+        if (entidade.isDummie) {
+            const d = storeState.dummies?.[entidade.id];
+            if (d) salvarDummie(entidade.id, { ...d, iniciativa: 0 });
+        } else if (entidade.id === storeState.meuNome) {
+            updateFicha((ficha) => { ficha.iniciativa = 0; });
+            setIniciativaInput(0);
+            salvarFichaSilencioso();
+        } else {
+            zerarIniciativaGlobal([entidade.id]);
+        }
+
+        gravarOrdemTurno(chavesAntes.filter(c => c !== chave), chavesAntes);
+        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🚪 O Mestre tirou ${alvo.nome} da ordem de turno.` });
+    }, [isMestre, ordemIniciativa, updateFicha, gravarOrdemTurno]);
 
     const rolarAcertoRapido = useCallback(() => {
         const qD = parseInt(mapQD) || 1;
@@ -993,13 +1077,42 @@ export function MapaFormProvider({ children }) {
         };
     }, []);
 
-    const chaveResumoTurno = `${cenaRenderId}#${turnoAtualIndex}#${ordemIniciativa.map(e => `${e.id}:${e.nome}:${e.iniciativa}:${e.isDummie ? 1 : 0}`).join('|')}`;
+    // 🔀 Ações de ordem manual pra aba Mestre — mesmo esquema estável (ref) do avancarTurno acima.
+    const acoesOrdemTurnoRef = useRef({ reordenarTurno, adicionarAoTurno, removerDoTurno });
+    useEffect(() => { acoesOrdemTurnoRef.current = { reordenarTurno, adicionarAoTurno, removerDoTurno }; }, [reordenarTurno, adicionarAoTurno, removerDoTurno]);
+    useEffect(() => {
+        const acoes = {
+            reordenar: (chave, indice) => acoesOrdemTurnoRef.current.reordenarTurno(chave, indice),
+            adicionar: (entidade, indice) => acoesOrdemTurnoRef.current.adicionarAoTurno(entidade, indice),
+            remover: (entidade) => acoesOrdemTurnoRef.current.removerDoTurno(entidade),
+        };
+        useStore.getState?.()?.setAcoesOrdemTurnoMapa?.(acoes);
+        return () => {
+            const estado = useStore.getState?.();
+            if (estado?.acoesOrdemTurnoMapa === acoes) estado.setAcoesOrdemTurnoMapa?.(null);
+        };
+    }, []);
+
+    // Entidades que podem ENTRAR na ordem (lista do "adicionar" da aba Mestre): jogadores/NPCs
+    // fora dela e dummies desta cena fora dela.
+    const foraDaOrdem = useMemo(() => {
+        const naOrdem = new Set(ordemIniciativa.map(chaveEntidadeTurno));
+        const lista = [];
+        Object.keys(jogadores || {}).forEach(n => { if (!naOrdem.has(`p:${n}`)) lista.push({ id: n, nome: n, isDummie: false }); });
+        Object.entries(dummies || {}).forEach(([id, d]) => {
+            if (d && (d.cenaId || 'default') === cenaRenderId && !naOrdem.has(`d:${id}`)) lista.push({ id, nome: d.nome || id, isDummie: true });
+        });
+        return lista.sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
+    }, [jogadores, dummies, cenaRenderId, ordemIniciativa]);
+
+    const chaveResumoTurno = `${cenaRenderId}#${turnoAtualIndex}#${ordemIniciativa.map(e => `${e.id}:${e.nome}:${e.iniciativa}:${e.isDummie ? 1 : 0}`).join('|')}#${foraDaOrdem.map(e => `${e.isDummie ? 'd' : 'p'}:${e.id}:${e.nome}`).join('|')}`;
     useEffect(() => {
         useStore.getState?.()?.setResumoTurnoMapa?.({
-            ordem: ordemIniciativa.map(e => ({ id: e.id, nome: e.nome, iniciativa: e.iniciativa, isDummie: e.isDummie })),
+            ordem: ordemIniciativa.map(e => ({ id: e.id, nome: e.nome, iniciativa: e.iniciativa, isDummie: e.isDummie, chave: chaveEntidadeTurno(e) })),
             turnoAtualIndex,
+            foraDaOrdem,
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- chaveResumoTurno já resume ordemIniciativa/turnoAtualIndex/cena
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- chaveResumoTurno já resume ordemIniciativa/turnoAtualIndex/cena/foraDaOrdem
     }, [chaveResumoTurno]);
 
     const value = useMemo(() => ({

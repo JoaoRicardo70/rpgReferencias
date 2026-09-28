@@ -9,6 +9,7 @@ import { calcularCA } from '../../core/engine';
 import { calcularBarrasVida, getVitalMax, getVitalMaxEstavel, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularFatorMultiplicadorForca, calcularPoderAtual } from '../../core/poder';
 import { formatarPoderCosmico } from '../../core/utils';
+import { iniciarArrastoTurno, lerArrastoTurno, encerrarArrastoTurno } from './MestreControleTurno';
 
 const FALLBACK = <div style={{color:'#888',padding:10}}>Mestre provider não encontrado</div>;
 
@@ -199,7 +200,13 @@ const EntidadeCard = React.memo(function EntidadeCard({ jogador, meuNome, userLo
             {/* 🖼️ Retrato com anel de HP -- o avatar do personagem nunca aparecia no Visor (só dentro
                 do modal de Grimório); o anel em conic-gradient mostra o % de Vida de relance, sem
                 brigar por espaço com o texto do cabeçalho. */}
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '12px' }}>
+            {/* 🔀 Arrastar o cabeçalho (retrato + nome) pro Controle de Turnos coloca na ordem de turno */}
+            <div className="entidade-card-arrastavel" style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '12px' }}
+                draggable
+                title="Arraste para o Controle de Turnos para colocar na ordem de turno"
+                onDragStart={(e) => iniciarArrastoTurno(e, { origem: 'visor', id: nome, isDummie: false, nome })}
+                onDragEnd={encerrarArrastoTurno}
+            >
                 <div style={{
                     flexShrink: 0, width: '52px', height: '52px', borderRadius: '50%', padding: '3px',
                     background: `conic-gradient(${corHp} ${percHpSeguro}%, rgba(255,255,255,0.12) 0)`,
@@ -300,6 +307,7 @@ export function MestreVisorJogadores() {
     const personagens = useStore(s => s.personagens);
     const minhaFicha = useStore(s => s.minhaFicha);
     const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
+    const acoesOrdemTurno = useStore(s => s.acoesOrdemTurnoMapa);
 
     const [abaVisor, setAbaVisor] = useState('jogadores');
     const [pastasAbertas, setPastasAbertas] = useState({});
@@ -389,7 +397,17 @@ export function MestreVisorJogadores() {
     );
 
     return (
-        <div className="def-box" style={{ flex: '1 1 60%', minWidth: '400px', borderLeft: '4px solid #0088ff' }}>
+        <div className="def-box" style={{ flex: '1 1 60%', minWidth: '400px', borderLeft: '4px solid #0088ff' }}
+            onDragOver={(e) => { if (acoesOrdemTurno && lerArrastoTurno(e)?.origem === 'ordem') e.preventDefault(); }}
+            onDrop={(e) => {
+                // 🔀 Chip da ordem de turno solto de volta no Visor = tirar da ordem.
+                const payload = lerArrastoTurno(e);
+                if (payload?.origem !== 'ordem' || !acoesOrdemTurno) return;
+                e.preventDefault();
+                encerrarArrastoTurno();
+                acoesOrdemTurno.remover({ id: payload.id, isDummie: !!payload.isDummie });
+            }}
+        >
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
                 <h3 style={{ color: '#0088ff', margin: 0 }}>Visor de Entidades ({jogadoresComStats.length})</h3>
