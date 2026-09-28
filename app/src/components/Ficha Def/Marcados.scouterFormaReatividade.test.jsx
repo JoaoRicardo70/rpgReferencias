@@ -2,6 +2,7 @@ import { render, screen, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import MarcadosPanel from './Marcados';
 import useStore from '../../stores/useStore';
+import { ESCALA_PODER_CALCULADO } from '../../core/poder.js';
 
 // ---------------------------------------------------------------------------
 // QA — Regressão: o Poder do Scouter agora IGNORA os bônus de Status/Energia/
@@ -28,7 +29,19 @@ import useStore from '../../stores/useStore';
 // validação é feita renderizando o MarcadosPanel real e lendo a leitura
 // auxiliar em notação científica do Scouter (mesmo padrão dos demais
 // arquivos de teste do Scouter, ex.: Marcados.scouterFormulaAscensao.test.jsx).
+//
+// 🔽 ESCALA (core/poder.js): Poder Calculado é dividido por ESCALA_PODER_CALCULADO no fim do
+// pipeline (aplicarEscalaPoderCalculado) — o valor já mudou de 1 (sem escala) -> 1000 ->
+// 100.000 em pedidos sucessivos do usuário. Este arquivo deriva as leituras esperadas de
+// ESCALA_PODER_CALCULADO (importado direto de core/poder.js) via exibirPoder(), em vez de
+// números mágicos.
 // ---------------------------------------------------------------------------
+function escalarPoder(valorBruto) {
+    return Math.floor(valorBruto / ESCALA_PODER_CALCULADO);
+}
+function exibirPoder(valorBruto) {
+    return Number(Number(escalarPoder(valorBruto)).toExponential(2));
+}
 
 vi.mock('../../stores/useStore');
 vi.mock('../../services/firebase-sync', () => ({
@@ -70,6 +83,16 @@ function fichaMinimaScouter(overrides = {}) {
     };
 }
 
+// Poder_Base = (vida*10)/6 = (600.000.000*10)/6 = 1.000.000.000, amortecido (^0,9) ≈
+// 125.892.541,18, multiplicadorAscensao = 1.1^1 = 1.1 (ascensaoBase padrão, sem overflow —
+// ver divisores.vida MINÚSCULO nas fichas que usam esse valor). poderMultiplicado (finalF=1)
+// ≈ 138.481.795,30, injeção suave ×(1+1) -> poderComAscensao ≈ 276.963.590,59
+// (PODER_COM_ASCENSAO_BASE, valor EXATO conferido em Node). Cada cenário deriva sua leitura
+// esperada desse valor (multiplicado pelo finalF quando aplicável) via exibirPoder().
+// 🔽 vida/forca bumped em sessões sucessivas (600 -> 6.000.000 -> 600.000.000, acompanhando
+// os aumentos de ESCALA_PODER_CALCULADO) pra manter dígitos suficientes depois da divisão.
+const PODER_COM_ASCENSAO_BASE = 276963590.5947169;
+
 // Mock de useStore que gera uma NOVA referência de ficha a cada updateFicha,
 // espelhando o Immer real — necessário para que o useMemo do Scouter
 // recalcule em um re-render normal via `rerender()`.
@@ -107,36 +130,34 @@ describe('MarcadosPanel — Grimório (poderes[]) com mformas tageado num eixo e
         cleanup();
     });
 
-    // Poder_Base = (vida*10)/6 = (6.000.000*10)/6 = 10.000.000 (todo o resto zerado),
-    // amortecido (^0,9) ≈ 1.995.262,31. ascensaoGeralEfetiva = 1 (ascensaoBase padrão=1,
-    // sem overflow), então multiplicadorAscensao = 1.1^1 = 1.1. glob.finalF fica travado em 1
-    // nos dois estados (ligado/desligado) porque getEfetivoMFormas agora ignora buffs vindos
-    // de ficha.poderes: poderMultiplicado ≈ 1.995.262,31*1.1*1 ≈ 2.194.788,55, injeção suave
-    // ×(1+1) -> poderComAscensao ≈ 4.389.577,09 -> escala /1000 -> poderGlobal 4389, exibido
-    // 4390.
-    // 🔽 vida bumped ×10.000 (600 -> 6.000.000) nesta sessão pra manter dígitos suficientes
-    // depois da escala /1000 (ESCALA_PODER_CALCULADO, core/poder.js).
+    // 🔥 divisores.vida MINÚSCULO: vida=600.000.000 sozinha já é grande o bastante pra gerar
+    // overflow real de Prestígio, que contaminaria ascensaoGeralEfetiva além do ascensaoBase=1
+    // puro (ver mesmo mecanismo documentado em Marcados.divisorPoderGM.test.jsx). O divisor
+    // minúsculo (1e-12) neutraliza esse overflow, preservando PODER_COM_ASCENSAO_BASE exato.
+    // glob.finalF fica travado em 1 nos dois estados (ligado/desligado) porque
+    // getEfetivoMFormas agora ignora buffs vindos de ficha.poderes.
     it('ativar uma Forma via poderes[] com efeito atributo:"vida"/propriedade:"mformas" NÃO altera mais a leitura do Scouter', () => {
         const ficha = fichaMinimaScouter({
-            vida: { base: 6000000 },
+            vida: { base: 600000000 },
+            divisores: { vida: 0.000000000001 },
             poderes: [{ nome: 'Forma Vital', ativa: false, efeitos: [{ atributo: 'vida', propriedade: 'mformas', valor: 2 }] }],
         });
         const mockState = montarMockUseStoreReativo(ficha);
 
         const { rerender } = render(<MarcadosPanel />);
         const valorDesligado = lerPoderGlobalExibido();
-        expect(valorDesligado).toBe(4390);
+        expect(valorDesligado).toBe(exibirPoder(PODER_COM_ASCENSAO_BASE));
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = true; });
         rerender(<MarcadosPanel />);
         const valorLigado = lerPoderGlobalExibido();
-        expect(valorLigado).toBe(4390);
+        expect(valorLigado).toBe(exibirPoder(PODER_COM_ASCENSAO_BASE));
         expect(valorLigado).toBe(valorDesligado);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = false; });
         rerender(<MarcadosPanel />);
         const valorRevertido = lerPoderGlobalExibido();
-        expect(valorRevertido).toBe(4390);
+        expect(valorRevertido).toBe(exibirPoder(PODER_COM_ASCENSAO_BASE));
     });
 });
 
@@ -153,31 +174,33 @@ describe('MarcadosPanel — cobertura multi-eixo: a exclusão vale para qualquer
 
     // getEfetivoMFormas(ficha, 'status') usa a âncora 'forca' (anchor =
     // k==='status' ? 'forca' : k). Poder_Base = (statusEfetivo*100)/6, com
-    // statusEfetivo = somaStatus/8 e apenas forca.base=4.800.000 setado (demais 7
-    // atributos físicos = 0): statusEfetivo = 4.800.000/8 = 600.000 => Poder_Base =
-    // (600.000*100)/6 = 10.000.000 (mesmo Poder_Base do teste do eixo vida acima, logo
-    // mesmo baseline 4390 — ver comentário no describe acima).
+    // statusEfetivo = somaStatus/8 e apenas forca.base=480.000.000 setado (demais 7
+    // atributos físicos = 0): statusEfetivo = 480.000.000/8 = 60.000.000 => Poder_Base =
+    // (60.000.000*100)/6 = 1.000.000.000 (mesmo Poder_Base do teste do eixo vida acima, logo
+    // mesmo baseline PODER_COM_ASCENSAO_BASE — ver comentário no describe acima). Verificado
+    // que, ao contrário do eixo vida, este cenário não precisa de divisores.status
+    // neutralizador (conferido rodando a fórmula real em Node).
     it('ativar uma Forma via poderes[] com efeito atributo:"forca"/propriedade:"mformas" NÃO altera mais a leitura do Scouter (eixo status)', () => {
         const ficha = fichaMinimaScouter({
-            forca: { base: 4800000 },
+            forca: { base: 480000000 },
             poderes: [{ nome: 'Forma de Combate', ativa: false, efeitos: [{ atributo: 'forca', propriedade: 'mformas', valor: 2 }] }],
         });
         const mockState = montarMockUseStoreReativo(ficha);
 
         const { rerender } = render(<MarcadosPanel />);
         const valorDesligado = lerPoderGlobalExibido();
-        expect(valorDesligado).toBe(4390);
+        expect(valorDesligado).toBe(exibirPoder(PODER_COM_ASCENSAO_BASE));
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = true; });
         rerender(<MarcadosPanel />);
         const valorLigado = lerPoderGlobalExibido();
-        expect(valorLigado).toBe(4390);
+        expect(valorLigado).toBe(exibirPoder(PODER_COM_ASCENSAO_BASE));
         expect(valorLigado).toBe(valorDesligado);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = false; });
         rerender(<MarcadosPanel />);
         const valorRevertido = lerPoderGlobalExibido();
-        expect(valorRevertido).toBe(4390);
+        expect(valorRevertido).toBe(exibirPoder(PODER_COM_ASCENSAO_BASE));
     });
 });
 
@@ -194,18 +217,18 @@ describe('MarcadosPanel — campo ESTÁTICO ficha.<attr>.mFormas (fora do Grimó
 
     // Rota A (campo estático, ex.: escrito pela aba Status): ficha.forca.mFormas
     // = 3, sem buffs de poderes[] -> v=3 -> getEfetivoMFormas retorna v=3
-    // diretamente -> glob.finalF = 1+(3-1) = 3. Poder_Base = (vida*10)/6 =
-    // 10.000.000 (só vida=6.000.000), amortecido (^0,9) ≈ 1.995.262,31. poderMultiplicado ≈
-    // 1.995.262,31*1.1(ascensão)*3(finalF) ≈ 6.584.365,64, injeção suave ×(1+1) ->
-    // poderComAscensao ≈ 13.168.731,28 -> escala /1000 -> poderGlobal 13168, exibido 13200.
+    // diretamente -> glob.finalF = 1+(3-1) = 3. Isso multiplica o poderMultiplicado
+    // (não o poderComAscensao final diretamente) por 3, então a leitura esperada é
+    // PODER_COM_ASCENSAO_BASE*3 (a injeção de Ascensão continua a mesma nos dois casos).
     //
     // Rota B (buff dinâmico via poderes[] ativo): agora IGNORADA pelo Scouter
-    // (ver describes acima) — glob.finalF fica em 1, poderComAscensao ≈ 4.389.577,09,
-    // poderGlobal 4389, exibido 4390. As duas leituras NÃO são mais iguais, ao contrário
-    // do comportamento anterior à exclusão do Grimório do cálculo do Scouter.
-    it('campo estático mFormas=3 continua valendo no Scouter (13200); o mesmo bônus vindo de poderes[] não conta mais (4390)', () => {
+    // (ver describes acima) — glob.finalF fica em 1, leitura = PODER_COM_ASCENSAO_BASE. As
+    // duas leituras NÃO são mais iguais, ao contrário do comportamento anterior à exclusão
+    // do Grimório do cálculo do Scouter.
+    it('campo estático mFormas=3 continua valendo no Scouter; o mesmo bônus vindo de poderes[] não conta mais', () => {
         const fichaEstatica = fichaMinimaScouter({
-            vida: { base: 6000000 },
+            vida: { base: 600000000 },
+            divisores: { vida: 0.000000000001 },
             forca: { base: 0, mFormas: 3 },
         });
         montarMockUseStoreReativo(fichaEstatica);
@@ -214,7 +237,8 @@ describe('MarcadosPanel — campo ESTÁTICO ficha.<attr>.mFormas (fora do Grimó
         unmount();
 
         const fichaBuff = fichaMinimaScouter({
-            vida: { base: 6000000 },
+            vida: { base: 600000000 },
+            divisores: { vida: 0.000000000001 },
             forca: { base: 0 },
             poderes: [{ nome: 'Forma de Combate III', ativa: true, efeitos: [{ atributo: 'forca', propriedade: 'mformas', valor: 3 }] }],
         });
@@ -222,8 +246,8 @@ describe('MarcadosPanel — campo ESTÁTICO ficha.<attr>.mFormas (fora do Grimó
         render(<MarcadosPanel />);
         const leituraBuff = lerPoderGlobalExibido();
 
-        expect(leituraEstatica).toBe(13200);
-        expect(leituraBuff).toBe(4390);
+        expect(leituraEstatica).toBe(exibirPoder(PODER_COM_ASCENSAO_BASE * 3));
+        expect(leituraBuff).toBe(exibirPoder(PODER_COM_ASCENSAO_BASE));
         expect(leituraEstatica).not.toBe(leituraBuff);
     });
 });
@@ -250,8 +274,10 @@ describe('MarcadosPanel — Grimório (poderes[]) não infla o Poder INDIRETAMEN
     // vida=1e8 -> prestígio bruto=100 -> bonusAscensao=floor(100/100)=1 (o gargalo).
     // mana/aura/chakra/corpo=5e9 -> prestígio bruto=500 -> bonusAscensao=5 cada.
     // forca..constituicao=500000 (média) -> prestígio bruto(status)=500 -> bonusAscensao=5.
-    // nivelCompletos = min(1,5,5,5,5,5) = 1 -> ascensaoGeralEfetivaParaPoder = (1+1)*1 = 2
-    // -> multiplicadorAscensao = 1.25^2 = 1,5625 (mesmo com o poder do Grimório desativado).
+    // Como nivelCompletos usa a MÉDIA das 6 categorias (ver core/poder.js, "🔥ãCORREÇÃO"),
+    // o valor exato não importa aqui — o que este teste comprova é que ativar/desativar o
+    // efeito de mFormas em "vida" NÃO muda a leitura, comparando o resultado antes/depois
+    // (sem depender de nenhum número mágico).
     function fichaComGargaloDeVida(overrides = {}) {
         return {
             vida: { base: 100000000 },
@@ -279,12 +305,10 @@ describe('MarcadosPanel — Grimório (poderes[]) não infla o Poder INDIRETAMEN
     }
 
     // Se um efeito de poderes[] com atributo:'vida'/propriedade:'mformas' NÃO for excluído
-    // do cálculo de Ascensão (regressão), ele empurraria o gargalo de "vida" (bonusAscensao=1)
-    // para cima do das outras 5 categorias (bonusAscensao=5), fazendo nivelCompletos SUBIR
-    // de 1 para 5 e ascensaoGeralEfetivaParaPoder de 2 para 6 — um salto de 1.25^6/1.25^2=1.25^4≈2,44x só
-    // por causa da Ascensão, ADEMAIS de qualquer efeito "poder_direto" no mesmo Poder. Com a
-    // exclusão correta (ignorarPoderes=true em calcularPrestAtual/getEfetivoMFormas), ativar
-    // este Poder NÃO deve mudar a leitura do Scouter em nada.
+    // do cálculo de Ascensão (regressão), ele empurraria o gargalo de "vida" pra cima do das
+    // outras 5 categorias, mudando ascensaoGeralEfetivaParaPoder e portanto a leitura do
+    // Scouter. Com a exclusão correta (ignorarPoderes=true em calcularPrestAtual/
+    // getEfetivoMFormas), ativar este Poder NÃO deve mudar a leitura do Scouter em nada.
     it('efeito de poderes[] com atributo:"vida"/propriedade:"mformas" NÃO altera a Ascensão/Prestígio usada pelo Poder, mesmo quando "vida" é o gargalo do mínimo entre as 6 categorias', () => {
         const ficha = fichaComGargaloDeVida({
             poderes: [{ nome: 'Forma Vital Extrema', ativa: false, efeitos: [{ atributo: 'vida', propriedade: 'mformas', valor: 60 }] }],

@@ -5,6 +5,22 @@ import { render, screen, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import MarcadosPanel from './Marcados';
 import useStore from '../../stores/useStore';
+import { ESCALA_PODER_CALCULADO } from '../../core/poder.js';
+
+// 🔽 ESCALA (core/poder.js): Poder Calculado é dividido por ESCALA_PODER_CALCULADO no fim do
+// pipeline (aplicarEscalaPoderCalculado) — o valor já mudou de 1 (sem escala) -> 1000 ->
+// 100.000 em pedidos sucessivos do usuário. Este arquivo deriva as leituras esperadas de
+// ESCALA_PODER_CALCULADO (importado direto de core/poder.js) via exibirPoder(), a partir dos
+// valores "poderComAscensao" EXATOS (pré-escala, conferidos em Node) — uma futura mudança de
+// escala só exige rodar os testes de novo. O teto de saturação também é derivado da constante
+// (1e308 / ESCALA_PODER_CALCULADO), nunca um número mágico fixo.
+function escalarPoder(valorBruto) {
+    return Math.floor(valorBruto / ESCALA_PODER_CALCULADO);
+}
+function exibirPoder(valorBruto) {
+    return Number(Number(escalarPoder(valorBruto)).toExponential(2));
+}
+const TETO_SATURACAO_EXIBIDO = 1e308 / ESCALA_PODER_CALCULADO;
 
 // ---------------------------------------------------------------------------
 // QA — Guarda de overflow do multiplicador exponencial de Ascensão
@@ -50,24 +66,23 @@ import useStore from '../../stores/useStore';
 // já NÃO satura mais com a curva atual — foi recalibrado pra mana=1e150 (ver
 // os 4 testes abaixo).
 //
-// 🔽 ESCALA (pedido seguinte do usuário, mesma sessão): Poder Calculado agora é
-// dividido por ESCALA_PODER_CALCULADO=1000 (aplicarEscalaPoderCalculado,
-// core/poder.js), aplicado no fim do pipeline — DEPOIS do clampFinito que
-// satura em ±1e308. Como 1e308/1000=1e305 continua bem abaixo de
-// Number.MAX_VALUE, essa divisão nunca satura de novo nem produz
-// Infinity/NaN — só desloca o teto EXIBIDO de 1e308 pra 1e305 (ver os testes
-// de saturação abaixo, todos recalibrados pra esse novo teto).
+// 🔽 ESCALA (core/poder.js): Poder Calculado é dividido por ESCALA_PODER_CALCULADO
+// (aplicarEscalaPoderCalculado), aplicado no fim do pipeline — DEPOIS do clampFinito que
+// satura em ±1e308. O valor da escala já mudou de 1 (sem escala) -> 1000 -> 100.000 em
+// pedidos sucessivos do usuário; como 1e308/ESCALA_PODER_CALCULADO continua bem abaixo de
+// Number.MAX_VALUE pra qualquer escala razoável, essa divisão nunca satura de novo nem
+// produz Infinity/NaN — só desloca o teto EXIBIDO de 1e308 pra 1e308/ESCALA_PODER_CALCULADO
+// (TETO_SATURACAO_EXIBIDO abaixo, derivado da constante importada, não um número mágico).
 //
 // Com mana=1e150, os 4 casos abaixo (ascensaoBase=1000/1001/5000/50000)
-// continuam saturando idênticos em 1e305 (depois da escala) — porque
+// continuam saturando idênticos (depois da escala) — porque
 // Math.min(1000,...) trava `multiplicadorAscensao` no mesmo valor (1.1^1000)
 // nos 4 casos, e o overflow de Prestígio astronômico gerado por mana=1e150
 // (pAtual=floor(1e150/1e7)= 1e143 -> bonusAscensao=floor(1e143/100)=1e141)
 // dwarfa completamente a diferença entre ascensaoBase=1000 e 50000 na injeção
 // × (1 + ascensaoSegura) — ascensaoSegura fica ≈1e141 nos 4 casos por igual,
 // grande o bastante pra que poderMultiplicado * (1 + ascensaoSegura) estoure
-// Number.MAX_VALUE idêntico nos 4 casos, saturando sempre no mesmo teto
-// (1e308 antes da escala, 1e305 depois).
+// Number.MAX_VALUE idêntico nos 4 casos, saturando sempre no mesmo teto.
 //
 // Só o teste de saturação NEGATIVA (final do arquivo) usa uma mecânica
 // diferente — lá o overflow de Prestígio de um valor NEGATIVO é clampado a 0
@@ -216,16 +231,17 @@ describe('MarcadosPanel — guarda de overflow: Math.min(1000, ...) + saturaçã
         expect(leituras[3]).toBe(leituras[0]);
     });
 
-    // Documenta o valor exato do teto de saturação depois da escala /1000: clampFinito
+    // Documenta o valor exato do teto de saturação depois da escala: clampFinito
     // continua saturando internamente em 1e308 (não Number.MAX_VALUE, cujo toExponential(2)
     // arredondaria para uma string que estoura de volta pra Infinity ao ser relida) — mas
-    // aplicarEscalaPoderCalculado (ESCALA_PODER_CALCULADO=1000, core/poder.js) divide esse
-    // valor já saturado, e o teto EXIBIDO vira 1e308/1000=1e305.
-    it('o teto de saturação exato (depois da escala /1000) é 1e305 (não 1e308, não Number.MAX_VALUE, não 0)', () => {
+    // aplicarEscalaPoderCalculado (core/poder.js) divide esse valor já saturado por
+    // ESCALA_PODER_CALCULADO, e o teto EXIBIDO vira 1e308/ESCALA_PODER_CALCULADO
+    // (TETO_SATURACAO_EXIBIDO, derivado da constante importada).
+    it('o teto de saturação exato (depois da escala) é 1e308/ESCALA_PODER_CALCULADO (não 1e308, não Number.MAX_VALUE, não 0)', () => {
         montarMockUseStore(fichaMinimaScouter({ mana: { base: 1e150 }, ascensaoBase: 1000 }));
         render(<MarcadosPanel />);
 
-        expect(lerPoderGlobalExibido()).toBe(1e305);
+        expect(lerPoderGlobalExibido()).toBe(TETO_SATURACAO_EXIBIDO);
     });
 
     // Reatividade: subir a Ascensão de um valor MUITO alto (5000, já saturado) para MAIS alto ainda
@@ -257,31 +273,33 @@ describe('MarcadosPanel — o clamp NÃO satura prematuramente: Ascensão alta p
         cleanup();
     });
 
-    // Mesma ficha base (vida=600.000 -> poderBase=1e6, amortecido (^0,9) ≈ 251.188,64),
+    // Mesma ficha base (vida=60.000.000 -> poderBase=1e8, amortecido (^0,9) ≈ 15.848.931,92),
     // ascensaoBase=20 vs 30 — ambos MUITO abaixo do teto de Math.min(1000, ...), então
     // multiplicadorAscensao = 1.1^20 e 1.1^30 exatos (sem clamp/saturação envolvidos em
     // nenhuma etapa). Valores conferidos rodando a fórmula exata em Node:
-    //   asc=20: multiplicadorAscensao=1.1^20≈6,7275, poderMultiplicado≈251.188,64*6,7275≈1.689.871,58
-    //     injeção suave ×(1+20)=×21 -> poderComAscensao≈35.487.303,27 -> escala /1000 ->
-    //     poderGlobal 35.487, exibido 35.500 (toExponential(2)="3.55e+4")
-    //   asc=30: multiplicadorAscensao=1.1^30≈17,4494, poderMultiplicado≈251.188,64*17,4494≈4.383.091,68
-    //     injeção suave ×(1+30)=×31 -> poderComAscensao≈135.875.842,07 -> escala /1000 ->
-    //     poderGlobal 135.875, exibido 136.000 (toExponential(2)="1.36e+5")
-    it('ascensaoGeralEfetiva=20 vs 30 (bem abaixo do teto de 1000): leituras exatas 35.500 e 136.000, crescendo normalmente sem qualquer saturação', () => {
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, multiplicadorForcaAscensao: 20 }));
+    //   asc=20: poderComAscensao ≈ 2.239.097.463,11 (PODER_COM_ASCENSAO_ASC20)
+    //   asc=30: poderComAscensao ≈ 8.573.186.049,23 (PODER_COM_ASCENSAO_ASC30)
+    // 🔽 vida bumped em sessões sucessivas (600.000 -> 60.000.000, acompanhando os aumentos de
+    // ESCALA_PODER_CALCULADO) pra manter dígitos suficientes depois da divisão — sem precisar
+    // de divisores.vida neutralizador (pAtual=60 < 100, conferido em Node).
+    const PODER_COM_ASCENSAO_ASC20 = 2239097463.1134167;
+    const PODER_COM_ASCENSAO_ASC30 = 8573186049.226833;
+
+    it('ascensaoGeralEfetiva=20 vs 30 (bem abaixo do teto de 1000): crescendo normalmente sem qualquer saturação', () => {
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 60000000 }, multiplicadorForcaAscensao: 20 }));
         const { unmount } = render(<MarcadosPanel />);
         const leitura20 = lerPoderGlobalExibido();
         unmount();
 
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, multiplicadorForcaAscensao: 30 }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 60000000 }, multiplicadorForcaAscensao: 30 }));
         render(<MarcadosPanel />);
         const leitura30 = lerPoderGlobalExibido();
 
-        expect(leitura20).toBe(35500);
-        expect(leitura30).toBe(136000);
+        expect(leitura20).toBe(exibirPoder(PODER_COM_ASCENSAO_ASC20));
+        expect(leitura30).toBe(exibirPoder(PODER_COM_ASCENSAO_ASC30));
         expect(leitura30).toBeGreaterThan(leitura20);
-        // Bem longe do teto de saturação (1e305 depois da escala) — prova que o clamp de
-        // overflow não interfere aqui.
+        // Bem longe do teto de saturação (1e308/ESCALA depois da escala) — prova que o clamp
+        // de overflow não interfere aqui.
         expect(leitura30).toBeLessThan(1e100);
     });
 });
@@ -298,67 +316,48 @@ describe('MarcadosPanel — regressão do bug original (fórmula NOVA vs HIPOTÉ
     });
 
     // Personagem C: Ascensão mínima (ascensaoBase=1), atributos crus ENORMES.
-    //   🔥 divisores.vida MINÚSCULO (correção desta sessão): Vida (6e10)
-    //   sozinha é grande o bastante pra gerar overflow real de Prestígio
-    //   (pAtual=60000 >> 100), e a sessão que trocou nivelCompletos de
-    //   Math.min(...) pela MÉDIA das 6 categorias (ver core/poder.js/
-    //   Marcados.jsx, comentário "🔥 CORREÇÃO") faz esse overflow SOZINHO
-    //   contar pro bônus geral — antes, só contava se TODAS as 6 categorias
-    //   overflowassem. `divisores.vida` multiplica pAtual (não poderBase, que
-    //   usa o valor bruto de `base` diretamente) — um divisor minúsculo
-    //   (1e-12) zera pAtual e neutraliza esse overflow, preservando o Poder
-    //   Base (e os valores hand-computed abaixo) exatamente como antes desta
-    //   sessão.
-    //   vida=60.000.000.000 (6e10) -> poderBase_C = (6e10*10)/6 = 1e11, amortecido (^0,9) ≈
-    //   15.848.931.924,61
-    //   multiplicadorAscensao_C = 1.1^1 = 1.1 -> poderMultiplicado_C ≈ 17.433.825.117,08
-    //   injeção suave ×(1+1)=×2 -> poderComAscensao_C ≈ 34.867.650.234,15... [valor exato
-    //   conferido em Node antes da escala: 34.950.442.326.489 -- ver nota abaixo]
-    //   -> escala /1000 -> poderGlobal_C = 17.475.221, exibido 1,75e7
+    //   🔥 divisores.vida MINÚSCULO: Vida sozinha é grande o bastante pra gerar overflow real
+    //   de Prestígio, e a média das 6 categorias (ver core/poder.js, comentário "🔥 CORREÇÃO")
+    //   faz esse overflow SOZINHO contar pro bônus geral — antes, só contava se TODAS as 6
+    //   categorias overflowassem. `divisores.vida` multiplica pAtual (não poderBase, que usa
+    //   o valor bruto de `base` diretamente) — um divisor minúsculo (1e-12) zera pAtual e
+    //   neutraliza esse overflow.
+    //   vida=6.000.000.000.000 (6e12) -> poderBase_C = (6e12*10)/6 = 1e13, amortecido (^0,9)
+    //   ≈ 501.187.233.627,27 -> multiplicadorAscensao_C = 1.1^1 = 1.1 -> injeção suave
+    //   ×(1+1)=×2 -> poderComAscensao_C ≈ 1.102.611.913.980 (PODER_COM_ASCENSAO_C, valor
+    //   EXATO conferido em Node).
     //
-    // 🔥 Nota sobre o valor de C: a Ascensão Base=1 de C ADICIONA um overflow de Prestígio
-    // ao poderBase amortecido via a média das 6 categorias (mesmo mecanismo documentado no
-    // comentário "🔥 CORREÇÃO" em core/poder.js), então o valor final de C não é
-    // exatamente o cálculo manual acima — o número usado nas asserções (poderGlobal exato
-    // 17.475.221, exibido 1,75e7) é o valor exato conferido rodando a fórmula real em Node
-    // antes de escrever a asserção.
+    // Personagem D: Ascensão 100x maior que C (ascensaoBase=100), atributos crus 100.000x
+    // menores que C (vida=60.000.000, SEM bump nesta sessão — já grande o bastante pra
+    // sobreviver à escala com o expoente 100 exagerando o resultado, e pequeno o bastante
+    // pra não precisar de divisores.vida — pAtual=60 < 100, conferido em Node).
+    //   poderBase_D = (60.000.000*10)/6 = 1e8, amortecido (^0,9) ≈ 15.848.931,92 ->
+    //   multiplicadorAscensao_D = 1.1^100 ≈ 13.780,61 -> injeção suave ×(1+100)=×101 ->
+    //   poderComAscensao_D ≈ 22.059.206.672.183,42 (PODER_COM_ASCENSAO_D, valor EXATO
+    //   conferido em Node).
     //
-    // Personagem D: Ascensão 100x maior que C (ascensaoBase=100 — recalibrado numa sessão
-    // anterior; era 50x nas curvas anteriores, mas com a base do expoente reduzida pra 1.1 e
-    // o Poder Base agora amortecido (^0,9), uma vantagem de só 50x em Ascensão contra
-    // 100.000x em atributos brutos JÁ NÃO bastava pra D superar C — ver "ACHADO DE QA"
-    // abaixo), atributos crus 100.000x menores que C.
-    //   vida=600.000 -> poderBase_D = (600.000*10)/6 = 1e6, amortecido (^0,9) ≈ 251.188,64
-    //   multiplicadorAscensao_D = 1.1^100 ≈ 13.780,61 -> poderMultiplicado_D ≈ 3.461.633.317,80
-    //   injeção suave ×(1+100)=×101 -> poderComAscensao_D ≈ 349.624.965.097,80 [valor exato
-    //   conferido em Node: 349.614.864.858] -> escala /1000 -> poderGlobal_D = 349.614.864,
-    //   exibido 3,50e8
-    //
-    // >>> ACHADO DE QA (comportamento esperado da redução pedida pelo usuário, não um bug) <<<
-    // Com a curva atual (amortecimento ^0,9 + base 1.1 + injeção suave), a MESMA Ascensão 50x
-    // maior que corrigia o bug original nas curvas anteriores (bases 2/1.5/1.25) JÁ NÃO É
-    // SUFICIENTE pra D superar C — recalculando com multiplicadorForcaAscensao=50 (não 100),
-    // D ficaria bem MENOR que C. Isso é consequência DIRETA e ESPERADA da redução pedida pelo
-    // usuário (a Ascensão precisa ser cada vez MAIOR pra continuar compensando uma vantagem
-    // bruta de atributos tão grande) — não uma reintrodução do bug original (ali a Ascensão
-    // não tinha NENHUM efeito multiplicativo real; aqui ela tem, só que mais fraco).
-    // Recalibrado para ascensaoBase=100 (margem de ≈20x sobre C) pra manter o mesmo propósito
-    // do teste: provar que a Ascensão, dada vantagem suficiente, ainda consegue superar um
-    // investimento bruto muito maior. 🔽 A escala /1000 (ESCALA_PODER_CALCULADO, pedido
-    // seguinte do usuário, mesma sessão) divide C e D igualmente, então não afeta essa margem
-    // nem exigiu recalibrar nada além dos valores esperados abaixo.
+    // >>> ACHADO DE QA histórico (comportamento esperado da redução pedida pelo usuário, não
+    // um bug): a Ascensão 50x maior que corrigia o bug original nas curvas anteriores (bases
+    // 2/1.5/1.25) JÁ NÃO era suficiente pra D superar C sob a curva atual (amortecimento ^0,9
+    // + base 1.1) — recalibrado pra ascensaoBase=100 (margem de ≈20x sobre C) pra manter o
+    // mesmo propósito do teste: provar que a Ascensão, dada vantagem suficiente, ainda
+    // consegue superar um investimento bruto muito maior. A escala (ESCALA_PODER_CALCULADO)
+    // divide C e D igualmente, então nunca afeta essa margem.
+    const PODER_COM_ASCENSAO_C = 1102611913980;
+    const PODER_COM_ASCENSAO_D = 22059206672183.418;
+
     it('Personagem D (Ascensão 100x maior, atributos 100.000x menores) supera o Personagem C sob a fórmula exponencial atual', () => {
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 60000000000 }, ascensaoBase: 1, divisores: { vida: 0.000000000001 } }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 6000000000000 }, ascensaoBase: 1, divisores: { vida: 0.000000000001 } }));
         const { unmount } = render(<MarcadosPanel />);
         const leituraC = lerPoderGlobalExibido();
         unmount();
 
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000 }, multiplicadorForcaAscensao: 100 }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 60000000 }, multiplicadorForcaAscensao: 100 }));
         render(<MarcadosPanel />);
         const leituraD = lerPoderGlobalExibido();
 
-        expect(leituraC).toBe(1.75e7);
-        expect(leituraD).toBe(3.5e8);
+        expect(leituraC).toBe(exibirPoder(PODER_COM_ASCENSAO_C));
+        expect(leituraD).toBe(exibirPoder(PODER_COM_ASCENSAO_D));
         expect(leituraD).toBeGreaterThan(leituraC);
     });
 });
@@ -399,12 +398,13 @@ describe('MarcadosPanel — clampFinito preserva o SINAL ao saturar: -Infinity v
     //   poderComAscensao = ascensaoSegura(2000)*10 + (-1e308) = 20.000 - 1e308 ≈ -1e308
     //   (20.000 é desprezível frente a 1e308 — o double resultante é exatamente -1e308)
     //   power = poderComAscensao * (sup/100) = -1e308 * 1 = -1e308 (sup=100 padrão)
-    // 🔽 ESCALA (pedido seguinte do usuário, mesma sessão): aplicarEscalaPoderCalculado divide
-    // esse -1e308 já saturado por 1000 -> -1e305, que continua bem abaixo de
+    // 🔽 ESCALA (core/poder.js): aplicarEscalaPoderCalculado divide esse -1e308 já saturado
+    // por ESCALA_PODER_CALCULADO -> -TETO_SATURACAO_EXIBIDO, que continua bem abaixo de
     // Number.MAX_VALUE (não satura de novo, nem gera Infinity/NaN).
-    // Leitura final: -1e305 (negativa, finita) — NÃO +1e305/+1e308 (o que a versão antiga do
-    // clampFinito, sem Math.sign, produziria por engano).
-    it('poderBase extremamente negativo (mana muito negativa) combinado com Ascensão absurda satura em -1e308 (negativo, exibido -1e305 após a escala /1000), nunca em +1e308/+1e305', () => {
+    // Leitura final: -TETO_SATURACAO_EXIBIDO (negativa, finita) — NÃO
+    // +TETO_SATURACAO_EXIBIDO/+1e308 (o que a versão antiga do clampFinito, sem Math.sign,
+    // produziria por engano).
+    it('poderBase extremamente negativo (mana muito negativa) combinado com Ascensão absurda satura em -1e308 (negativo, exibido -1e308/ESCALA após a escala), nunca em positivo', () => {
         const ficha = fichaMinimaScouter({
             mana: { base: -1e300 },
             ascensaoBase: 2000,
@@ -416,6 +416,6 @@ describe('MarcadosPanel — clampFinito preserva o SINAL ao saturar: -Infinity v
         expect(Number.isFinite(leitura)).toBe(true);
         expect(Number.isNaN(leitura)).toBe(false);
         expect(leitura).toBeLessThan(0);
-        expect(leitura).toBe(-1e305);
+        expect(leitura).toBe(-TETO_SATURACAO_EXIBIDO);
     });
 });

@@ -379,10 +379,10 @@ export function getMultiplicadorAscensaoPoder(ascensao) {
 }
 
 // 🔽 Escala final do Poder Calculado exibido: pedido do usuário (depois da opção "E") foi dividir
-// os Poderes Calculados por 1000. Entra no fim, depois de Supressão/Fadiga/Divisor, então é uma
+// os Poderes Calculados por 1000, e depois mais 100x (total 100.000). Entra no fim, depois de Supressão/Fadiga/Divisor, então é uma
 // divisão uniforme que preserva todas as proporções. O "V" (vitalidadeGlobal) continua contado
 // sobre o valor antes desta escala, pra não mudar de nível junto.
-export const ESCALA_PODER_CALCULADO = 1000;
+export const ESCALA_PODER_CALCULADO = 100000;
 
 export function aplicarEscalaPoderCalculado(power) {
     const v = power / ESCALA_PODER_CALCULADO;

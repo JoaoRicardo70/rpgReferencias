@@ -5,7 +5,21 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import MarcadosPanel from './Marcados';
 import useStore from '../../stores/useStore';
-import { amortecerPoderBruto } from '../../core/poder.js';
+import { amortecerPoderBruto, ESCALA_PODER_CALCULADO } from '../../core/poder.js';
+
+// 🔽 ESCALA (core/poder.js): Poder Calculado é dividido por ESCALA_PODER_CALCULADO no fim do
+// pipeline (aplicarEscalaPoderCalculado) — o valor já mudou de 1 (sem escala) -> 1000 ->
+// 100.000 em pedidos sucessivos do usuário. Este arquivo deriva as leituras esperadas de
+// ESCALA_PODER_CALCULADO (importado direto de core/poder.js) via exibirPoder(), em vez de
+// números mágicos — e, onde a fórmula é puramente linear (os testes de failsafe da injeção),
+// a própria FICHA de teste é derivada de ESCALA_PODER_CALCULADO, então o resultado esperado
+// fica sempre um número redondo e preciso, não importa o quão grande/pequena a escala seja.
+function escalarPoder(valorBruto) {
+    return Math.floor(valorBruto / ESCALA_PODER_CALCULADO);
+}
+function exibirPoder(valorBruto) {
+    return Number(Number(escalarPoder(valorBruto)).toExponential(2));
+}
 
 // ---------------------------------------------------------------------------
 // QA — Nova fórmula "Poder Base" do Scouter + Injeção de Magnitude da Ascensão
@@ -101,56 +115,62 @@ describe('MarcadosPanel — calcPoderBase(): peso relativo Vida (x10) vs Chakra/
         cleanup();
     });
 
-    // Com todo o resto zerado, Poder_Base(vida=6.000.000) = (6.000.000*10)/6 = 10.000.000 e
-    // Poder_Base(chakra=6.000.000) = 6.000.000/6 = 1.000.000 — uma razão de exatamente 10x
-    // ANTES do amortecimento, refletindo o peso x10 de Vida contra o peso x1 de
-    // Chakra/Mana/Corpo/Aura, ambos divididos pelo mesmo /6.
+    // Com todo o resto zerado, Poder_Base(vida=600.000.000) = (600.000.000*10)/6 =
+    // 1.000.000.000 e Poder_Base(chakra=600.000.000) = 600.000.000/6 = 100.000.000 — uma
+    // razão de exatamente 10x ANTES do amortecimento, refletindo o peso x10 de Vida contra o
+    // peso x1 de Chakra/Mana/Corpo/Aura, ambos divididos pelo mesmo /6.
     // 🔥 CURVA DO PODER (opção "E" + base 1,1, pedido do usuário): o Poder Base agora passa
     // por amortecerPoderBruto (poderBase^0,9) ANTES de qualquer multiplicador — como essa
     // função NÃO é linear, ela já não preserva a razão de 10x entre Vida e Chakra: a razão
-    // vira 10^0,9 ≈ 7,943 (amortecer(10.000.000)/amortecer(1.000.000) = 10^0,9), não mais 10
-    // exato. O restante do pipeline (multiplicadorAscensao=1.1^1=1.1 e a injeção suave
-    // ×(1+Ascensão)=×2) é igual nos dois casos e não afeta essa razão.
-    // 🔽 vida/chakra/mana bumped ×10.000 (600 -> 6.000.000) nesta sessão: com o Poder
-    // Calculado agora dividido por ESCALA_PODER_CALCULADO=1000 (aplicarEscalaPoderCalculado,
-    // core/poder.js), o baseline antigo (poderComAscensao≈1102,61/138,81) viraria 1/0 depois
-    // da escala — precisão insuficiente pra manter a comparação de razão deste teste.
-    // Poder_Base(vida) amortecido ≈ 1.995.262,31 -> poderComAscensao ≈ 4.389.577,09 -> escala
-    // /1000 -> poderGlobal 4389, exibido 4390.
-    // Poder_Base(chakra) amortecido ≈ 251.188,64 -> poderComAscensao ≈ 552.615,01 -> escala
-    // /1000 -> poderGlobal 552, exibido 552.
+    // vira 10^0,9 ≈ 7,943 (amortecer(1.000.000.000)/amortecer(100.000.000) = 10^0,9), não
+    // mais 10 exato. O restante do pipeline (multiplicadorAscensao=1.1^1=1.1 e a injeção
+    // suave ×(1+Ascensão)=×2) é igual nos dois casos e não afeta essa razão.
+    // 🔽 vida/chakra/mana bumped em sessões sucessivas (600 -> 6.000.000 -> 600.000.000,
+    // acompanhando os aumentos de ESCALA_PODER_CALCULADO) pra manter dígitos suficientes
+    // depois da divisão.
+    // 🔥 divisores.vida MINÚSCULO: vida=600.000.000 sozinha já é grande o bastante pra gerar
+    // overflow real de Prestígio, que contaminaria ascensaoGeralEfetiva além do ascensaoBase=1
+    // puro (mesmo mecanismo documentado em Marcados.divisorPoderGM.test.jsx). Verificado que
+    // chakra/mana NÃO precisam do mesmo tratamento neste valor (conferido rodando a fórmula
+    // real em Node).
+    // PODER_COM_ASCENSAO_VIDA/CHAKRA abaixo são os valores EXATOS (pré-escala) conferidos em
+    // Node antes de escrever qualquer asserção.
+    const PODER_COM_ASCENSAO_VIDA = 276963590.5947169;
+    const PODER_COM_ASCENSAO_CHAKRA = 34867650.23414452;
+
     it('alterar SOMENTE Vida move a leitura do Scouter MAIS que alterar Chakra pelo mesmo delta (peso x10, atenuado pelo amortecimento ^0,9 pra ~7,94x)', () => {
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 6000000 } }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000000 }, divisores: { vida: 0.000000000001 } }));
         const { unmount } = render(<MarcadosPanel />);
         const leituraVida = lerPoderGlobalExibido();
         unmount();
 
-        montarMockUseStoreReativo(fichaMinimaScouter({ chakra: { base: 6000000 } }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ chakra: { base: 600000000 } }));
         render(<MarcadosPanel />);
         const leituraChakra = lerPoderGlobalExibido();
 
-        expect(leituraVida).toBe(4390);
-        expect(leituraChakra).toBe(552);
+        expect(leituraVida).toBe(exibirPoder(PODER_COM_ASCENSAO_VIDA));
+        expect(leituraChakra).toBe(exibirPoder(PODER_COM_ASCENSAO_CHAKRA));
         // Já não é 10x exato (amortecerPoderBruto não é linear) — a razão TEÓRICA antes do
         // floor/arredondamento de exibição é exatamente 10^0,9, confirmada usando o próprio
         // helper exportado (amortecerPoderBruto), não um número mágico reinventado aqui.
-        expect(amortecerPoderBruto(10000000) / amortecerPoderBruto(1000000)).toBeCloseTo(Math.pow(10, 0.9), 10);
+        expect(amortecerPoderBruto(1000000000) / amortecerPoderBruto(100000000)).toBeCloseTo(Math.pow(10, 0.9), 10);
         expect(leituraVida / leituraChakra).toBeGreaterThan(7);
         expect(leituraVida / leituraChakra).toBeLessThan(8);
     });
 
     it('alterar SOMENTE Vida move a leitura MAIS que alterar Mana pelo mesmo delta (peso x1 confirmado numa segunda categoria, mesma razão ~7,94x de Chakra)', () => {
-        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 6000000 } }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ vida: { base: 600000000 }, divisores: { vida: 0.000000000001 } }));
         const { unmount } = render(<MarcadosPanel />);
         const leituraVida = lerPoderGlobalExibido();
         unmount();
 
-        montarMockUseStoreReativo(fichaMinimaScouter({ mana: { base: 6000000 } }));
+        montarMockUseStoreReativo(fichaMinimaScouter({ mana: { base: 600000000 } }));
         render(<MarcadosPanel />);
         const leituraMana = lerPoderGlobalExibido();
 
-        expect(leituraVida).toBe(4390);
-        expect(leituraMana).toBe(552);
+        expect(leituraVida).toBe(exibirPoder(PODER_COM_ASCENSAO_VIDA));
+        // Mana usa o mesmo peso x1 (e o mesmo Poder_Base) de Chakra.
+        expect(leituraMana).toBe(exibirPoder(PODER_COM_ASCENSAO_CHAKRA));
         expect(leituraVida / leituraMana).toBeGreaterThan(7);
         expect(leituraVida / leituraMana).toBeLessThan(8);
     });
@@ -177,37 +197,37 @@ describe('MarcadosPanel — calcPoderBase() ignora buffs "propriedade: base" vin
     // failsafe de ascensão com poderMultiplicado<=0 documentado abaixo). Quem
     // quiser que uma entrada do Grimório afete o Poder do Scouter usa agora o
     // campo dedicado "PODER (Direto)" (atributo:'poder_direto').
-    // 🔽 multiplicadorForcaAscensao=100000 bumped nesta sessão: poderMultiplicado=0
-    // (nenhum buff ativo) cai no ramo <= 0 do failsafe, que soma
-    // ascensaoSegura*10 + 0 — com ascensaoSegura=1 (valor original), isso dá só 10,
-    // que a escala /1000 (aplicarEscalaPoderCalculado, core/poder.js) arredondaria pra
-    // 0 (pouca precisão pra confirmar a leitura constante). Bumpado pra
-    // ascensaoSegura=100000 (via multiplicadorForcaAscensao), o resultado passa a ser
-    // 100000*10+0=1.000.000 -> escala /1000 -> poderGlobal 1000.
+    // 🔽 multiplicadorForcaAscensao derivado de ESCALA_PODER_CALCULADO nesta sessão:
+    // poderMultiplicado=0 (nenhum buff ativo) cai no ramo <= 0 do failsafe, que soma
+    // ascensaoSegura*10 + 0. Pra sobreviver à escala com dígitos suficientes SEJA QUAL FOR o
+    // valor de ESCALA_PODER_CALCULADO, ascensaoSegura é escolhida como ESCALA_PODER_CALCULADO
+    // * 100 — assim poderComAscensao = (ESCALA*100)*10 = ESCALA*1000, e escalarPoder(...) =
+    // floor(ESCALA*1000/ESCALA) = 1000 SEMPRE, não importa o tamanho da escala.
+    const ASCENSAO_SEGURA_GRIMORIO_IGNORADO = ESCALA_PODER_CALCULADO * 100;
+    const PODER_COM_ASCENSAO_GRIMORIO_IGNORADO = ASCENSAO_SEGURA_GRIMORIO_IGNORADO * 10;
     it('poderes[].efeitos com propriedade "base" NÃO altera mais a leitura do Scouter, ativo ou não', () => {
         const ficha = fichaMinimaScouter({
-            multiplicadorForcaAscensao: 100000,
+            multiplicadorForcaAscensao: ASCENSAO_SEGURA_GRIMORIO_IGNORADO,
             poderes: [{ nome: 'Bênção Vital', ativa: false, efeitos: [{ atributo: 'vida', propriedade: 'base', valor: 600 }] }],
         });
         const mockState = montarMockUseStoreReativo(ficha);
 
         const { rerender } = render(<MarcadosPanel />);
         const valorDesligado = lerPoderGlobalExibido();
-        // poderMultiplicado=0 (nenhum buff ativo) cai no ramo <= 0 do failsafe de
-        // ascensão: poderComAscensao = ascensaoSegura(100000) * 10 + 0 = 1.000.000,
-        // escala /1000 -> poderGlobal 1000.
-        expect(valorDesligado).toBe(1000);
+        // poderMultiplicado=0 (nenhum buff ativo) cai no ramo <= 0 do failsafe de ascensão:
+        // poderComAscensao = ascensaoSegura*10 + 0.
+        expect(valorDesligado).toBe(exibirPoder(PODER_COM_ASCENSAO_GRIMORIO_IGNORADO));
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = true; });
         rerender(<MarcadosPanel />);
         const valorLigado = lerPoderGlobalExibido();
-        expect(valorLigado).toBe(1000);
+        expect(valorLigado).toBe(exibirPoder(PODER_COM_ASCENSAO_GRIMORIO_IGNORADO));
         expect(valorLigado).toBe(valorDesligado);
 
         mockState.updateFicha((f) => { f.poderes[0].ativa = false; });
         rerender(<MarcadosPanel />);
         const valorRevertido = lerPoderGlobalExibido();
-        expect(valorRevertido).toBe(1000);
+        expect(valorRevertido).toBe(exibirPoder(PODER_COM_ASCENSAO_GRIMORIO_IGNORADO));
     });
 });
 
@@ -222,35 +242,32 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
         cleanup();
     });
 
-    // Caso de referência: Poder_Base = (vida*10)/6 = 3.2e10, com
+    // Caso de referência: Poder_Base = (vida*10)/6 = 3,2e12, com
     // ascensaoGeralEfetiva = 4 (via ascensaoBase = 4, sem overflow de
     // prestígio contaminando o bônus geral) e supressão = 100 (sem suprimir).
-    // 🔥 divisores.vida MINÚSCULO (correção desta sessão): Vida (1.92e10)
-    // sozinha é grande o bastante pra gerar overflow real de Prestígio
-    // (pAtual=19200 >> 100), e a sessão que trocou nivelCompletos de
-    // Math.min(...) pela MÉDIA das 6 categorias (ver core/poder.js/
-    // Marcados.jsx, comentário "🔥 CORREÇÃO") faz esse overflow SOZINHO
-    // contar pro bônus geral — antes, só contava se TODAS as 6 categorias
-    // overflowassem. `divisores.vida` multiplica pAtual (não poderBase, que
-    // usa o valor bruto de `base` diretamente) — um divisor minúsculo (1e-12)
-    // zera pAtual e neutraliza esse overflow, preservando ascensaoGeralEfetiva=4
-    // exato e os valores hand-computed abaixo exatamente como antes desta sessão.
+    // 🔥 divisores.vida MINÚSCULO: Vida (1,92e12) sozinha é grande o bastante pra gerar
+    // overflow real de Prestígio, e a média das 6 categorias (ver core/poder.js, comentário
+    // "🔥 CORREÇÃO") faz esse overflow SOZINHO contar pro bônus geral — antes, só contava se
+    // TODAS as 6 categorias overflowassem. `divisores.vida` multiplica pAtual (não poderBase,
+    // que usa o valor bruto de `base` diretamente) — um divisor minúsculo (1e-12) zera pAtual
+    // e neutraliza esse overflow, preservando ascensaoGeralEfetiva=4 exato.
     // Ascensão agora também multiplica o Poder Base diretamente (curva
     // exponencial: 1.1^ascensaoGeralEfetiva por nível de Ascensão — base
     // reduzida de 2 -> 1.5 -> 1.25 -> 1.1, pedidos sucessivos do usuário, pra suavizar
     // ainda mais o crescimento), e o Poder Base agora é amortecido (^0,9) ANTES do
     // multiplicador de Ascensão:
-    //   poderBase = 3.2e10, amortecido = (3.2e10)^0,9 ≈ 2.848.623.026,2
+    //   poderBase = 3,2e12, amortecido = (3,2e12)^0,9 ≈ 179.735.962.003,67
     //   multiplicadorAscensao = 1.1^4 = 1,4641
-    //   poderMultiplicado ≈ 2.848.623.026,2 * 1,4641 ≈ 4.170.668.972,66
-    //   injeção suave × (1 + Ascensão) = × 5 -> poderComAscensao ≈ 20.853.344.863,3
-    //   -> escala /1000 (aplicarEscalaPoderCalculado, core/poder.js) -> poderGlobal
-    //   20.853.344, que a leitura do Scouter (toExponential(2)) arredonda para 2.09E7
-    //   (20.900.000)
+    //   poderMultiplicado ≈ 179.735.962.003,67 * 1,4641 ≈ 263.151.421.969,58
+    //   injeção suave × (1 + Ascensão) = × 5 -> poderComAscensao ≈ 1.315.757.109.847,89
+    // 🔽 vida bumped em sessões sucessivas (1,92e10 -> 1,92e12, acompanhando os aumentos de
+    // ESCALA_PODER_CALCULADO) pra manter dígitos suficientes depois da divisão. Valor EXATO
+    // (PODER_COM_ASCENSAO_INJECAO abaixo) conferido em Node antes de escrever a asserção.
+    const PODER_COM_ASCENSAO_INJECAO = 1315757109847.8916;
     it('a Ascensão Geral Efetiva multiplica o Poder Base amortecido e é injetada de forma suave (× (1 + Ascensão))', () => {
-        // Poder_Base = (vida*10)/6 = 3.2e10  =>  vida = 1.92e10
+        // Poder_Base = (vida*10)/6 = 3,2e12  =>  vida = 1,92e12
         const ficha = fichaMinimaScouter({
-            vida: { base: 19200000000 },
+            vida: { base: 1920000000000 },
             multiplicadorForcaAscensao: 4,
             divisores: { vida: 0.000000000001 },
         });
@@ -258,7 +275,7 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
         render(<MarcadosPanel />);
 
         const leitura = lerPoderGlobalExibido();
-        expect(leitura).toBe(20900000);
+        expect(leitura).toBe(exibirPoder(PODER_COM_ASCENSAO_INJECAO));
     });
 
     // Failsafe da injeção: poderMultiplicado > 0 (mesmo fracionário, < 1) usa o ramo
@@ -293,23 +310,24 @@ describe('MarcadosPanel — Injeção de Magnitude da Ascensão (poderComAscensa
         expect(leitura).toBe(0);
     });
 
-    // 🔽 multiplicadorForcaAscensao bumped de 4 pra 4000 nesta sessão: com o valor original
-    // (ascensaoGeralEfetiva=4), poderComAscensao=4*10+0=40, que a escala /1000
-    // (aplicarEscalaPoderCalculado) arredondaria pra 0 — sem precisão suficiente pra provar
-    // que o ramo `else` (linear, sem tocar o multiplicador exponencial) continua funcionando.
-    // Bumpado pra ascensaoGeralEfetiva=4000: poderComAscensao=4000*10+0=40.000 -> escala
-    // /1000 -> poderGlobal 40.
+    // 🔽 multiplicadorForcaAscensao derivado de ESCALA_PODER_CALCULADO nesta sessão (mesma
+    // técnica do describe anterior): com um valor fixo pequeno (ex.: 4), poderComAscensao=
+    // 4*10+0=40 ficaria abaixo da escala e arredondaria pra 0 — sem precisão suficiente pra
+    // provar que o ramo `else` (linear, sem tocar o multiplicador exponencial) continua
+    // funcionando. ascensaoGeralEfetiva = ESCALA_PODER_CALCULADO*10 garante poderComAscensao =
+    // ESCALA*100 -> escalarPoder(...) = 100 SEMPRE, não importa o tamanho da escala.
+    const ASCENSAO_SEGURA_RAMO_ELSE = ESCALA_PODER_CALCULADO * 10;
+    const PODER_COM_ASCENSAO_RAMO_ELSE = ASCENSAO_SEGURA_RAMO_ELSE * 10;
     it('poderMultiplicado = 0 (todos os atributos zerados) usa o ramo else do failsafe: ascensaoSegura*10 + poderMultiplicado', () => {
         // Nenhum atributo com valor -> Poder_Base = 0 -> poderMultiplicado = 0 (não
         // entra no ramo multiplicativo).
-        // poderComAscensao = ascensaoGeralEfetiva(4000) * 10 + 0 = 40.000 -> escala /1000
-        // -> poderGlobal 40.
-        const ficha = fichaMinimaScouter({ multiplicadorForcaAscensao: 4000 });
+        // poderComAscensao = ascensaoGeralEfetiva * 10 + 0.
+        const ficha = fichaMinimaScouter({ multiplicadorForcaAscensao: ASCENSAO_SEGURA_RAMO_ELSE });
         montarMockUseStoreReativo(ficha);
         render(<MarcadosPanel />);
 
         const leitura = lerPoderGlobalExibido();
-        expect(leitura).toBe(40);
+        expect(leitura).toBe(exibirPoder(PODER_COM_ASCENSAO_RAMO_ELSE));
     });
 });
 

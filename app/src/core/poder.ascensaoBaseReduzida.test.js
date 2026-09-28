@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcularPoderAtual } from './poder';
+import { calcularPoderAtual, amortecerPoderBruto, getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder, aplicarEscalaPoderCalculado } from './poder';
 
 // ==========================================================================
 // Trava de regressão do game-balance: a curva que a Ascensão aplica em
@@ -12,20 +12,23 @@ import { calcularPoderAtual } from './poder';
 // 10^(dígitos)) e virou um multiplicador suave: Poder × (1 + Ascensão)
 // (injetarAscensaoNoPoder). Ver o mesmo comentário/motivo na réplica exata em
 // Ficha Def/Marcados.jsx > poderGlobal.
-// 🔽 ESCALA (pedido seguinte do usuário, mesma sessão): poderGlobal agora é
-// dividido por ESCALA_PODER_CALCULADO=1000 (aplicarEscalaPoderCalculado,
-// core/poder.js), aplicado no fim do pipeline. Todos os valores hardcoded
-// abaixo já refletem essa divisão (recomputados rodando calcularPoderAtual
-// de verdade, não à mão) — a ficha de controle já produzia números grandes o
-// bastante (ordem de milhões pra cima) pra sobreviver à escala sem perder
-// dígitos significativos, então nenhuma base (STATUS_FISICOS) precisou ser
-// bumpada nesta sessão.
+// 🔽 ESCALA (core/poder.js): poderGlobal agora é dividido por ESCALA_PODER_CALCULADO
+// (aplicarEscalaPoderCalculado), aplicado no fim do pipeline. O valor da escala já mudou de 1
+// (sem escala) -> 1000 -> 100.000 em pedidos sucessivos do usuário — este arquivo deriva os
+// valores esperados diretamente dos helpers exportados (amortecerPoderBruto,
+// getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder, aplicarEscalaPoderCalculado) em vez
+// de números mágicos, então uma futura mudança de escala não exige reescrever nada aqui.
 // ==========================================================================
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 
 function criarStat(base) {
     return { base, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mUnico: '1.0', mAbsoluto: 1.0, reducaoCusto: 0, regeneracao: 0 };
 }
+
+// 🔽 statusBase bumped em sessões sucessivas (100.000 -> 10.000.000, acompanhando os aumentos
+// de ESCALA_PODER_CALCULADO) pra manter dígitos suficientes depois da divisão.
+const STATUS_BASE = 10000000;
+const PODER_BASE_CONTROLADO = (STATUS_BASE * 100) / 6;
 
 // A Ascensão Geral é variada pelo multiplicadorForcaAscensao (Ascensão Base fica em 1): uma
 // Ascensão Base > 1 agora também repõe a Base de Prestígio equivalente
@@ -44,24 +47,30 @@ function fichaControlada(ascensao) {
         supressaoPoder: 100,
         limiteSupressao: 1,
     };
-    STATUS_FISICOS.forEach(s => { ficha[s] = criarStat(100000); });
+    STATUS_FISICOS.forEach(s => { ficha[s] = criarStat(STATUS_BASE); });
     return ficha;
 }
 
-describe('core/poder - calcularPoderAtual: base do expoente de Ascensão reduzida de 2 -> 1.5 -> 1.25 -> 1.1', () => {
-    it('numa Ascensão fixa > 0, o Poder Calculado é MENOR do que a fórmula/base antiga (2, sem amortecimento, injeção por magnitude) teria dado', () => {
-        // Com a ficha de controle, poderBase = ((0+0+0+0+0)+ statusEfetivo*100) / 6, onde
-        // statusEfetivo = somaStatus/8 = 100000 (os 8 status ficam em 100000 cada).
-        const poderBase = (100000 * 100) / 6;
+// Reproduz o pipeline atual (amortecer -> multiplicar por Ascensão -> injetar -> escalar)
+// usando os mesmos helpers exportados que calcularPoderAtual usa internamente, pra derivar o
+// valor esperado sem reinventar a fórmula nem depender de números mágicos fixos.
+function poderEsperado(ascensao) {
+    const poderMultiplicado = amortecerPoderBruto(PODER_BASE_CONTROLADO) * getMultiplicadorAscensaoPoder(ascensao);
+    const poderComAscensao = injetarAscensaoNoPoder(poderMultiplicado, ascensao);
+    return aplicarEscalaPoderCalculado(poderComAscensao);
+}
 
+describe('core/poder - calcularPoderAtual: base do expoente de Ascensão reduzida de 2 -> 1.5 -> 1.25 -> 1.1', () => {
+    it('numa Ascensão fixa > 0, o Poder Calculado é MENOR do que a fórmula/base antiga (2, sem amortecimento, injeção por magnitude, sem escala) teria dado', () => {
         const ascensao = 2; // ascensaoBase truthy (evita o fallback parseInt(0)||1 do 0)
 
         // Pipeline ANTIGO completo (antes de QUALQUER uma das reduções sucessivas): sem
         // amortecerPoderBruto, base do expoente = 2, injeção por magnitude de log10 (em vez do
-        // multiplicador suave atual). Serve só de referência histórica pra provar que a curva
-        // ficou consideravelmente mais fraca no total, não só por causa da base do expoente.
+        // multiplicador suave atual), sem escala final. Serve só de referência histórica pra
+        // provar que a curva ficou consideravelmente mais fraca no total, não só por causa da
+        // base do expoente.
         const multiplicadorAntigo = Math.pow(2, ascensao);
-        const poderMultiplicadoAntigo = poderBase * multiplicadorAntigo;
+        const poderMultiplicadoAntigo = PODER_BASE_CONTROLADO * multiplicadorAntigo;
         const magnitudeAntiga = Math.floor(Math.log10(poderMultiplicadoAntigo));
         const poderComAscensaoAntigo = poderMultiplicadoAntigo + (ascensao * Math.pow(10, magnitudeAntiga + 1));
         const poderEsperadoComFormulaAntiga = Math.floor(poderComAscensaoAntigo);
@@ -69,7 +78,7 @@ describe('core/poder - calcularPoderAtual: base do expoente de Ascensão reduzid
         const poderReal = calcularPoderAtual(fichaControlada(ascensao), 1).poderGlobal;
 
         expect(poderReal).toBeLessThan(poderEsperadoComFormulaAntiga);
-        expect(poderReal).toBe(1444);
+        expect(poderReal).toBe(poderEsperado(ascensao));
     });
 
     it('o crescimento continua monotonicamente crescente conforme a Ascensão sobe (não virou um no-op)', () => {
@@ -79,6 +88,8 @@ describe('core/poder - calcularPoderAtual: base do expoente de Ascensão reduzid
         for (let i = 1; i < poderes.length; i++) {
             expect(poderes[i]).toBeGreaterThan(poderes[i - 1]);
         }
+        // Bate exatamente com a composição dos helpers exportados pra cada nível.
+        niveis.forEach((n, i) => expect(poderes[i]).toBe(poderEsperado(n)));
     });
 
     it('o teto Math.min(1000, ...) continua travando o EXPOENTE em 1000, mesmo pra Ascensão muito acima disso', () => {
@@ -94,31 +105,39 @@ describe('core/poder - calcularPoderAtual: base do expoente de Ascensão reduzid
         expect(Number.isFinite(poder1000)).toBe(true);
         expect(Number.isFinite(poder2000)).toBe(true);
         expect(poder2000).toBeGreaterThan(poder1000);
+        expect(poder1000).toBe(poderEsperado(1000));
+        expect(poder2000).toBe(poderEsperado(2000));
         // Crescimento aproximadamente linear (razão perto de 2 — a injeção ×(1+Ascensão) dobra
         // de ~1001x pra ~2001x --, nunca perto de uma explosão exponencial).
         expect(poder2000 / poder1000).toBeLessThan(10);
     });
 
     it('o clamp Math.max(0, ...) trava tanto o multiplicador (expoente 0) quanto a injeção em 0 pra Ascensão negativa — poderGlobal fica CONSTANTE, não cada vez mais negativo', () => {
-        // 🔥 Mudança de comportamento desta sessão: a injeção de Ascensão deixou de ser a soma
-        // "ascensaoSegura*10^(magnitude+1)" (SEM clamp, então uma Ascensão bem negativa arrastava
-        // o resultado cada vez mais pra baixo) e virou injetarAscensaoNoPoder, que usa
-        // Math.max(0, ascensao) tanto no multiplicador quanto na própria injeção. Com
-        // poderMultiplicado > 0 (nosso caso, poderBase fixo > 0), QUALQUER Ascensão negativa —
-        // -1, -5 ou -100 — cai no mesmo Math.max(0, ...) = 0 nos dois pontos, então o resultado
-        // final é EXATAMENTE o mesmo (poderBase amortecido, sem multiplicador nem injeção),
-        // independente do quão negativa a Ascensão seja. Isso é o esperado ("Ascender nunca
-        // diminui o Poder" — inclusive não deixa uma Ascensão negativa acidental destruir o Poder).
+        // 🔥 A injeção de Ascensão deixou de ser a soma "ascensaoSegura*10^(magnitude+1)" (SEM
+        // clamp, então uma Ascensão bem negativa arrastava o resultado cada vez mais pra baixo)
+        // e virou injetarAscensaoNoPoder, que usa Math.max(0, ascensao) tanto no multiplicador
+        // quanto na própria injeção. Com poderMultiplicado > 0 (nosso caso, poderBase fixo > 0),
+        // QUALQUER Ascensão negativa — -1, -5 ou -100 — cai no mesmo Math.max(0, ...) = 0 nos
+        // dois pontos, então o resultado final é EXATAMENTE o mesmo (poderBase amortecido, sem
+        // multiplicador nem injeção), independente do quão negativa a Ascensão seja. Isso é o
+        // esperado ("Ascender nunca diminui o Poder" — inclusive não deixa uma Ascensão
+        // negativa acidental destruir o Poder).
         const poderMenos1 = calcularPoderAtual(fichaControlada(-1), 1).poderGlobal;
         const poderMenos5 = calcularPoderAtual(fichaControlada(-5), 1).poderGlobal;
         const poderMenos100 = calcularPoderAtual(fichaControlada(-100), 1).poderGlobal;
 
-        expect(poderMenos1).toBe(397);
-        expect(poderMenos5).toBe(397);
-        expect(poderMenos100).toBe(397);
+        const esperadoClampado = aplicarEscalaPoderCalculado(amortecerPoderBruto(PODER_BASE_CONTROLADO));
+        expect(poderMenos1).toBe(esperadoClampado);
+        expect(poderMenos5).toBe(esperadoClampado);
+        expect(poderMenos100).toBe(esperadoClampado);
 
         // Constante, não mais decrescente com o módulo da Ascensão negativa.
         expect(poderMenos5).toBe(poderMenos1);
         expect(poderMenos100).toBe(poderMenos5);
+        // Sanidade: garante que este arquivo não está lendo um número trivial (0/1) por causa
+        // de uma escala grande demais pra STATUS_BASE — se algum dia ESCALA_PODER_CALCULADO
+        // crescer o bastante pra isso acontecer, este teste falha de forma óbvia em vez de
+        // silenciosamente validar 0 contra 0.
+        expect(esperadoClampado).toBeGreaterThan(1);
     });
 });
