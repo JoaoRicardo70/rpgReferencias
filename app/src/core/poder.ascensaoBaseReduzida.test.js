@@ -12,6 +12,14 @@ import { calcularPoderAtual } from './poder';
 // 10^(dígitos)) e virou um multiplicador suave: Poder × (1 + Ascensão)
 // (injetarAscensaoNoPoder). Ver o mesmo comentário/motivo na réplica exata em
 // Ficha Def/Marcados.jsx > poderGlobal.
+// 🔽 ESCALA (pedido seguinte do usuário, mesma sessão): poderGlobal agora é
+// dividido por ESCALA_PODER_CALCULADO=1000 (aplicarEscalaPoderCalculado,
+// core/poder.js), aplicado no fim do pipeline. Todos os valores hardcoded
+// abaixo já refletem essa divisão (recomputados rodando calcularPoderAtual
+// de verdade, não à mão) — a ficha de controle já produzia números grandes o
+// bastante (ordem de milhões pra cima) pra sobreviver à escala sem perder
+// dígitos significativos, então nenhuma base (STATUS_FISICOS) precisou ser
+// bumpada nesta sessão.
 // ==========================================================================
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 
@@ -61,7 +69,7 @@ describe('core/poder - calcularPoderAtual: base do expoente de Ascensão reduzid
         const poderReal = calcularPoderAtual(fichaControlada(ascensao), 1).poderGlobal;
 
         expect(poderReal).toBeLessThan(poderEsperadoComFormulaAntiga);
-        expect(poderReal).toBe(1444010);
+        expect(poderReal).toBe(1444);
     });
 
     it('o crescimento continua monotonicamente crescente conforme a Ascensão sobe (não virou um no-op)', () => {
@@ -105,9 +113,9 @@ describe('core/poder - calcularPoderAtual: base do expoente de Ascensão reduzid
         const poderMenos5 = calcularPoderAtual(fichaControlada(-5), 1).poderGlobal;
         const poderMenos100 = calcularPoderAtual(fichaControlada(-100), 1).poderGlobal;
 
-        expect(poderMenos1).toBe(397799);
-        expect(poderMenos5).toBe(397799);
-        expect(poderMenos100).toBe(397799);
+        expect(poderMenos1).toBe(397);
+        expect(poderMenos5).toBe(397);
+        expect(poderMenos100).toBe(397);
 
         // Constante, não mais decrescente com o módulo da Ascensão negativa.
         expect(poderMenos5).toBe(poderMenos1);

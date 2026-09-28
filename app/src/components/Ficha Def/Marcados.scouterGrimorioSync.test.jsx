@@ -239,6 +239,21 @@ describe('MarcadosPanel — Failsafe da injeção de Ascensão (poderComAscensao
     // invalida o teste: o objetivo aqui é só confirmar que o ramo `else` do failsafe continua
     // produzindo um resultado finito e sem NaN quando poderMultiplicado é <= 0 — o sinal final
     // do resultado não é o que está sendo validado.
+    // 🔽 ESCALA (pedido seguinte do usuário, mesma sessão): 25,359 / ESCALA_PODER_CALCULADO
+    // (1000, aplicarEscalaPoderCalculado em core/poder.js) = 0,025359, Math.floor(...) = 0.
+    // Esse cenário é inerentemente de magnitude minúscula por natureza (é uma cancelação quase
+    // exata entre um termo aditivo pequeno e um poderMultiplicado igualmente pequeno — ver a
+    // nota acima sobre o resultado "cruzar zero" entre as reduções de base) — tentamos
+    // numericamente (variando vida e a Ascensão) encontrar uma combinação que preservasse essa
+    // mesma cancelação POSITIVA e ainda desse >= 1000 depois da escala /1000, mas não existe
+    // nenhuma: o termo aditivo (ascensaoSegura*10) só cresce LINEARMENTE com a Ascensão,
+    // enquanto o poderMultiplicado negativo cresce EXPONENCIALMENTE (1.1^ascensaoSegura) — pra
+    // qualquer poderBase negativo fixo, a maior leitura POSITIVA possível antes do
+    // poderMultiplicado dominar fica bem abaixo de 1000 (ex.: com poderBase=-10, o máximo é
+    // ≈5,96 em ascensaoSegura=38; valores maiores de Ascensão só produzem leituras cada vez
+    // MAIS negativas). Por isso o resultado esperado aqui virou 0 nesta sessão — ainda um
+    // número finito e determinístico, não NaN/Infinity, que é o que este teste sempre existiu
+    // pra confirmar.
     it('poderMultiplicado negativo usa o ramo else do failsafe (ascensaoSegura*10 + poderMultiplicado), sem gerar NaN na leitura', () => {
         const ficha = fichaBaseScouter({
             vida: { base: -6 },
@@ -262,6 +277,6 @@ describe('MarcadosPanel — Failsafe da injeção de Ascensão (poderComAscensao
         const leitura = lerPoderGlobalExibido();
         expect(leitura).not.toBeNaN();
         expect(Number.isFinite(leitura)).toBe(true);
-        expect(leitura).toBe(25);
+        expect(leitura).toBe(0);
     });
 });

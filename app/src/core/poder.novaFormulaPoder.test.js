@@ -4,6 +4,7 @@ import {
     amortecerPoderBruto,
     getMultiplicadorAscensaoPoder,
     injetarAscensaoNoPoder,
+    aplicarEscalaPoderCalculado,
     EXPOENTE_PODER_BRUTO,
     BASE_ASCENSAO_PODER,
 } from './poder';
@@ -14,10 +15,12 @@ import {
 //   2) getMultiplicadorAscensaoPoder: BASE_ASCENSAO_PODER^clamp(ascensao, 0, 1000).
 //   3) injetarAscensaoNoPoder: poderMultiplicado * (1 + max(0, ascensao)) quando
 //      poderMultiplicado > 0; senão (ascensao*10) + poderMultiplicado.
+//   4) aplicarEscalaPoderCalculado: divide o resultado por ESCALA_PODER_CALCULADO=1000
+//      (floor), aplicado no fim do pipeline (pedido seguinte do usuário, mesma sessão).
 //
 // Este arquivo:
-//   (a) prova que os três helpers exportados batem com a fórmula documentada;
-//   (b) prova que calcularPoderAtual realmente COMPÕE esses três helpers (não uma
+//   (a) prova que os quatro helpers exportados batem com a fórmula documentada;
+//   (b) prova que calcularPoderAtual realmente COMPÕE esses quatro helpers (não uma
 //       cópia divergente inline);
 //   (c) trava as regras de game-balance do usuário que têm que continuar valendo
 //       com QUALQUER curva: Ascender nunca abaixa o Poder, A4+5 > A3+95, e o Poder
@@ -52,6 +55,28 @@ describe('core/poder — helpers exportados da curva atual batem com a fórmula 
         expect(injetarAscensaoNoPoder(-10, -5)).toBe(-60); // -5*10 + (-10), sem clamp aqui
         expect(injetarAscensaoNoPoder(0, 5)).toBe(50); // 0 não é > 0 -> ramo linear
     });
+
+    it('aplicarEscalaPoderCalculado: divide por ESCALA_PODER_CALCULADO=1000 com floor; NaN -> 0; satura em ±1e308', () => {
+        // Divisão exata com floor (não Math.round nem truncamento simples): valores negativos
+        // arredondam pra baixo (em direção a -Infinity), não em direção a zero.
+        expect(aplicarEscalaPoderCalculado(1102610)).toBe(1102);
+        expect(aplicarEscalaPoderCalculado(999)).toBe(0);
+        expect(aplicarEscalaPoderCalculado(1000)).toBe(1);
+        expect(aplicarEscalaPoderCalculado(-1)).toBe(-1); // floor(-0,001) = -1, não 0
+        expect(aplicarEscalaPoderCalculado(-1000)).toBe(-1);
+        expect(aplicarEscalaPoderCalculado(-1001)).toBe(-2);
+        expect(aplicarEscalaPoderCalculado(0)).toBe(0);
+
+        // NaN nunca escapa como NaN — vira 0, mesmo padrão de failsafe do resto do pipeline.
+        expect(aplicarEscalaPoderCalculado(NaN)).toBe(0);
+        expect(Number.isNaN(aplicarEscalaPoderCalculado(NaN))).toBe(false);
+
+        // Infinity/valores extremos continuam saturando em ±1e308 (mesmo teto de
+        // SATURACAO_SEGURA usado em clampFinito, dentro de calcularPoderAtual) — a escala não
+        // introduz um novo teto nem deixa Infinity/-Infinity vazar pra fora da função.
+        expect(aplicarEscalaPoderCalculado(Infinity)).toBe(1e308);
+        expect(aplicarEscalaPoderCalculado(-Infinity)).toBe(-1e308);
+    });
 });
 
 describe('core/poder — calcularPoderAtual compõe exatamente os helpers exportados (não uma cópia divergente)', () => {
@@ -71,16 +96,19 @@ describe('core/poder — calcularPoderAtual compõe exatamente os helpers export
         return ficha;
     }
 
-    it('poderGlobal bate com amortecerPoderBruto + getMultiplicadorAscensaoPoder + injetarAscensaoNoPoder aplicados manualmente ao mesmo poderBase/ascensao', () => {
+    it('poderGlobal bate com amortecerPoderBruto + getMultiplicadorAscensaoPoder + injetarAscensaoNoPoder + aplicarEscalaPoderCalculado aplicados manualmente ao mesmo poderBase/ascensao', () => {
         const ascensao = 7;
         const poderBase = (100000 * 100) / 6; // mesma fórmula de calcPoderBase (só status físico > 0)
 
         const poderMultiplicado = amortecerPoderBruto(poderBase) * getMultiplicadorAscensaoPoder(ascensao);
         const poderComAscensao = injetarAscensaoNoPoder(poderMultiplicado, ascensao);
-        const esperado = Math.floor(poderComAscensao);
+        const esperado = aplicarEscalaPoderCalculado(poderComAscensao);
 
         const real = calcularPoderAtual(fichaControlada(ascensao), 1).poderGlobal;
         expect(real).toBe(esperado);
+        // Sanidade: garante que a composição manual realmente aplicou a escala (não é trivial
+        // igual a Math.floor(poderComAscensao) sem dividir por 1000).
+        expect(real).not.toBe(Math.floor(poderComAscensao));
     });
 });
 
@@ -137,10 +165,19 @@ describe('core/poder — regras de game-balance do usuário continuam valendo co
     // e suave) — então o Poder Calculado deve variar SUAVEMENTE conforme poderBase cresce, sem
     // nenhum salto de ~10x ao cruzar um múltiplo de 10 em poderBase.
     it('Poder é contínuo: cruzar uma potência de 10 no Poder Base não causa salto de 10x no Poder Calculado', () => {
-        // status físico médio de 59.999 -> poderBase = (59.999*100)/6 ≈ 999.983,33, pouco abaixo de 1.000.000
-        const logoAbaixo = fichaBase({ ascensaoBase: 1, vida: 0, energia: 0, statusAttr: 59999, statusPrestigioAplicado: 0 });
-        // status físico médio de 60.001 -> poderBase = (60.001*100)/6 ≈ 1.000.016,67, pouco acima de 1.000.000
-        const logoAcima = fichaBase({ ascensaoBase: 1, vida: 0, energia: 0, statusAttr: 60001, statusPrestigioAplicado: 0 });
+        // 🔽 ESCALA (pedido seguinte do usuário, mesma sessão): aplicarEscalaPoderCalculado
+        // divide o resultado final por 1000 (floor) — com o statusAttr original (59.999/60.001,
+        // cruzando poderBase=1.000.000), as duas leituras ficavam PEQUENAS demais (poderGlobal
+        // pré-escala na casa das centenas) e o floor da escala /1000 fazia as duas leituras
+        // colapsarem pro MESMO inteiro (552 nos dois casos) — não porque o Poder deixou de ser
+        // contínuo, mas porque a granularidade de um floor(/1000) engole diferenças pequenas
+        // demais. Bumpado ×1000 (59.999 -> 59.999.000 / 60.001 -> 60.001.000, cruzando
+        // poderBase=1.000.000.000 em vez de 1.000.000) pra manter dígitos suficientes depois da
+        // escala e continuar provando a ausência de salto de 10x com a granularidade certa.
+        // status físico médio de 59.999.000 -> poderBase ≈ 999.983.333,33, pouco abaixo de 1e9
+        const logoAbaixo = fichaBase({ ascensaoBase: 1, vida: 0, energia: 0, statusAttr: 59999000, statusPrestigioAplicado: 0 });
+        // status físico médio de 60.001.000 -> poderBase ≈ 1.000.016.666,67, pouco acima de 1e9
+        const logoAcima = fichaBase({ ascensaoBase: 1, vida: 0, energia: 0, statusAttr: 60001000, statusPrestigioAplicado: 0 });
 
         const poderAbaixo = calcularPoderAtual(logoAbaixo, 1).poderGlobal;
         const poderAcima = calcularPoderAtual(logoAcima, 1).poderGlobal;

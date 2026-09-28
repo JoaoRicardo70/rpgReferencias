@@ -27,20 +27,33 @@ vi.mock('../../services/firebase-sync', () => ({
     salvarDivisorPoderMesa: vi.fn(),
 }));
 
-// vida=600, ascensaoBase padrão=1 (sem overflow) -> Poder_Base=(600*10)/6=1000,
-// amortecido (poderBase^0,9) -> 1000^0,9≈501,1872336, multiplicadorAscensao=1.1^1=1.1,
-// poderMultiplicado≈551,3059570, injeção suave (×(1+Ascensão)=×2) ->
-// poderComAscensao≈1102,611914, floor(power)=1102, exibido 1100 — mesmo baseline usado
-// nos outros arquivos de teste do Scouter (Marcados.poderDiretoGrimorio.test.jsx etc).
+// vida=6.000.000 (bumped 10.000x nesta sessão — ver "🔽 ESCALA" abaixo), ascensaoBase
+// padrão=1 (sem overflow) -> Poder_Base=(6.000.000*10)/6=10.000.000, amortecido
+// (poderBase^0,9) -> 10.000.000^0,9≈1.995.262,31, multiplicadorAscensao=1.1^1=1.1,
+// poderMultiplicado≈2.194.788,55, injeção suave (×(1+Ascensão)=×2) ->
+// poderComAscensao≈4.389.577,09, floor(power)=4.389.577 — dividido pela
+// ESCALA_PODER_CALCULADO (1000, ver abaixo) -> poderGlobal=4.389, exibido 4390 — mesmo
+// baseline usado nos outros arquivos de teste do Scouter
+// (Marcados.poderDiretoGrimorio.test.jsx etc).
 // 🔥 CURVA DO PODER (opção "E" + base 1,1, pedido do usuário): base do expoente de
 // Ascensão 2 -> 1.5 -> 1.25 -> 1.1; Poder Base agora amortecido por ^0,9; injeção de
-// Ascensão deixou de ser "+ Ascensão x 10^(dígitos)" e virou "× (1 + Ascensão)" — o
-// baseline foi 12000, depois 11500, depois 11300, agora 1100; todos os valores abaixo
-// (e os que passam por divisão) foram recalculados a partir de 1102 (o poderGlobal
-// EXATO/floor, antes do arredondamento de exibição em toExponential(2)).
+// Ascensão deixou de ser "+ Ascensão x 10^(dígitos)" e virou "× (1 + Ascensão)".
+// 🔽 ESCALA (pedido seguinte do usuário, mesma sessão): Poder Calculado agora é dividido
+// por ESCALA_PODER_CALCULADO=1000 (aplicarEscalaPoderCalculado, core/poder.js), aplicado
+// no fim do pipeline (depois de Supressão/Fadiga/Divisor) — o "V" (vitalidadeGlobal)
+// continua contado sobre o valor ANTES desta escala. Com o vida=600 antigo (poderGlobal
+// exato 1102), o baseline pós-escala virava 1 — pouca precisão pra manter as comparações
+// deste arquivo (divisões, sinais). Por isso o vida da ficha mínima foi escalado ×10.000
+// (600 -> 6.000.000) nesta sessão, só pra manter dígitos suficientes depois da divisão por
+// 1000 — a fórmula em si (curva de Ascensão) continua sendo exercida do mesmo jeito, só o
+// "tamanho" do personagem de teste mudou. O baseline foi 12000, depois 11500, depois
+// 11300, depois 1100 (vida=600, antes da escala), agora 4390 (vida=6.000.000, com a
+// escala); todos os valores abaixo (e os que passam por divisão) foram recalculados a
+// partir de 4389 (o poderGlobal EXATO, já escalado e floored, antes do arredondamento de
+// exibição em toExponential(2)).
 function fichaMinimaScouter(overrides = {}) {
     return {
-        vida: { base: 600 },
+        vida: { base: 6000000 },
         mana: { base: 0 },
         aura: { base: 0 },
         chakra: { base: 0 },
@@ -103,14 +116,14 @@ describe('MarcadosPanel — Divisor de Poder por personagem (ficha.divisorPoder)
         cleanup();
     });
 
-    it('sem nenhum divisor definido (divisorPoder=0, divisorPoderMesa=1) o Poder não é afetado (1100)', () => {
+    it('sem nenhum divisor definido (divisorPoder=0, divisorPoderMesa=1) o Poder não é afetado (4390)', () => {
         const leitura = renderELerPoderGlobal({ divisorPoder: 0 });
-        expect(leitura).toBe(1100);
+        expect(leitura).toBe(4390);
     });
 
-    it('ficha.divisorPoder=2 divide o resultado final do Poder por 2 (1102/2=551, exibido 551)', () => {
+    it('ficha.divisorPoder=2 divide o resultado final do Poder por 2 (4389/2=2194,5, exibido 2190)', () => {
         const leitura = renderELerPoderGlobal({ divisorPoder: 2 });
-        expect(leitura).toBe(551);
+        expect(leitura).toBe(2190);
     });
 
     // salvar() (o helper usado pelo input real na UI) não converte o valor pra Number antes
@@ -118,20 +131,20 @@ describe('MarcadosPanel — Divisor de Poder por personagem (ficha.divisorPoder)
     // parseFloat, então uma string numérica precisa funcionar igual a um número.
     it('ficha.divisorPoder como STRING numérica ("2", como vem do input real) funciona igual a um number', () => {
         const leitura = renderELerPoderGlobal({ divisorPoder: '2' });
-        expect(leitura).toBe(551);
+        expect(leitura).toBe(2190);
     });
 
-    it('ficha.divisorPoder=1 explicito força "sem divisão" mesmo com um padrão de mesa diferente (1100/1=1100, ignora divisorPoderMesa=5)', () => {
+    it('ficha.divisorPoder=1 explicito força "sem divisão" mesmo com um padrão de mesa diferente (4389/1=4389, exibido 4390, ignora divisorPoderMesa=5)', () => {
         const leitura = renderELerPoderGlobal({ divisorPoder: 1 }, { divisorPoderMesa: 5 });
-        expect(leitura).toBe(1100);
+        expect(leitura).toBe(4390);
     });
 
     it('valor negativo ou inválido em ficha.divisorPoder é tratado como "sem override" (cai pro padrão de 1, sem afetar o Poder)', () => {
         const leituraNegativo = renderELerPoderGlobal({ divisorPoder: -5 });
-        expect(leituraNegativo).toBe(1100);
+        expect(leituraNegativo).toBe(4390);
 
         const leituraNaN = renderELerPoderGlobal({ divisorPoder: 'abc' });
-        expect(leituraNaN).toBe(1100);
+        expect(leituraNaN).toBe(4390);
     });
 });
 
@@ -146,19 +159,19 @@ describe('MarcadosPanel — Divisor de Poder padrão da mesa (divisorPoderMesa)'
         cleanup();
     });
 
-    it('divisorPoderMesa=4 sem override individual (divisorPoder=0) divide o Poder de TODOS os jogadores por 4 (1102/4=275,5, exibido 275)', () => {
+    it('divisorPoderMesa=4 sem override individual (divisorPoder=0) divide o Poder de TODOS os jogadores por 4 (4389/4=1097,25, exibido 1100)', () => {
         const leitura = renderELerPoderGlobal({ divisorPoder: 0 }, { divisorPoderMesa: 4 });
-        expect(leitura).toBe(275);
+        expect(leitura).toBe(1100);
     });
 
-    it('override individual (divisorPoder=3) tem PRIORIDADE sobre divisorPoderMesa=5 (1102/3=367,33, exibido 367, não 1102/5)', () => {
+    it('override individual (divisorPoder=3) tem PRIORIDADE sobre divisorPoderMesa=5 (4389/3=1463, exibido 1460, não 4389/5)', () => {
         const leitura = renderELerPoderGlobal({ divisorPoder: 3 }, { divisorPoderMesa: 5 });
-        expect(leitura).toBe(367);
+        expect(leitura).toBe(1460);
     });
 
     it('divisorPoderMesa inválido/negativo é tratado como "sem padrão" (Poder não é afetado)', () => {
         const leitura = renderELerPoderGlobal({ divisorPoder: 0 }, { divisorPoderMesa: -3 });
-        expect(leitura).toBe(1100);
+        expect(leitura).toBe(4390);
     });
 });
 
@@ -176,7 +189,7 @@ describe('MarcadosPanel — Divisor de Poder com Poder final já negativo (sinal
     // "PODER (Direto)" do Grimório (atributo:'poder_direto') permite fatores negativos: um
     // efeito ativo com propriedade:'mgeral' valor=-2 dá grupos.mgeral=-2 -> fator (1+(-2))=-1,
     // então multiplicadorPoderDireto=-1 vira o Poder final negativo ANTES do Divisor de Poder
-    // entrar em jogo (1100 * -1 = -1100) — cenário real (não hipotético) de "power" negativo
+    // entrar em jogo (4390 * -1 = -4390) — cenário real (não hipotético) de "power" negativo
     // chegando na nova etapa de divisão.
     const poderesComEfeitoNegativo = [{
         nome: 'Efeito Negativo',
@@ -184,23 +197,23 @@ describe('MarcadosPanel — Divisor de Poder com Poder final já negativo (sinal
         efeitos: [{ atributo: 'poder_direto', propriedade: 'mgeral', valor: -2 }],
     }];
 
-    it('confirma o baseline negativo (-1100) sem nenhum Divisor de Poder aplicado', () => {
+    it('confirma o baseline negativo (-4390) sem nenhum Divisor de Poder aplicado', () => {
         const leitura = renderELerPoderGlobal({ divisorPoder: 0, poderes: poderesComEfeitoNegativo });
-        expect(leitura).toBe(-1100);
+        expect(leitura).toBe(-4390);
     });
 
-    it('ficha.divisorPoder=3 divide um Poder NEGATIVO mantendo o sinal (-1102/3=-367,33, exibido -368)', () => {
+    it('ficha.divisorPoder=3 divide um Poder NEGATIVO mantendo o sinal (-4389/3=-1463, exibido -1460)', () => {
         const leitura = renderELerPoderGlobal({ divisorPoder: 3, poderes: poderesComEfeitoNegativo });
-        expect(leitura).toBe(-368);
+        expect(leitura).toBe(-1460);
         expect(leitura).toBeLessThan(0);
     });
 
-    it('divisorPoderMesa também divide um Poder NEGATIVO mantendo o sinal (-1102/4=-275,5, exibido -276)', () => {
+    it('divisorPoderMesa também divide um Poder NEGATIVO mantendo o sinal (-4389/4=-1097,25, exibido -1100)', () => {
         const leitura = renderELerPoderGlobal(
             { divisorPoder: 0, poderes: poderesComEfeitoNegativo },
             { divisorPoderMesa: 4 }
         );
-        expect(leitura).toBe(-276);
+        expect(leitura).toBe(-1100);
     });
 });
 
@@ -220,25 +233,28 @@ describe('MarcadosPanel — Divisor de Poder extremo (próximo de zero) não esc
     // blindado pelo MESMO clampFinito/SATURACAO_SEGURA (1e308) que protege os outros passos da
     // fórmula, e nunca vazar como Infinity/NaN na leitura do Scouter.
     // 🔥 A curva atual (Poder Base amortecido ^0,9 + injeção suave) produz um baseline BEM menor
-    // (poderComAscensao≈1102, contra 11250 antes desta sessão) — 1102 / 1e-305 ≈ 1.1e308 já NÃO
-    // estoura mais (fica abaixo de Number.MAX_VALUE ≈ 1.7976931348623157e308, então não haveria
-    // saturação pra testar). Precisa de um divisor bem menor, 1e-307, pra 1102 / 1e-307 ≈ 1.1e310
-    // realmente ultrapassar MAX_VALUE e virar +Infinity antes do clamp (que então satura em
-    // 1e308, não importa a curva atual do Poder).
-    it('divisorPoder=1e-307 amplifica o Poder até estourar Infinity, mas clampFinito satura em +1e308 (nunca Infinity/NaN)', () => {
+    // (poderComAscensao≈4.389.577, contra 11250 antes desta sessão) — 4.389.577 / 1e-305 ≈ 4,4e310
+    // ultrapassa Number.MAX_VALUE (~1.7976931348623157e308) e vira +Infinity antes do clamp (que
+    // satura em 1e308 de qualquer forma) — 1e-307 também satura (ainda menor). A divisão pelo
+    // Divisor de Poder acontece ANTES da escala final /1000 (aplicarEscalaPoderCalculado), então o
+    // valor exibido depois da saturação é 1e308/1000=1e305 (não mais 1e308) — a escala se aplica
+    // por cima do clamp já saturado, ela mesma sendo finita (1e308 é bem menor que
+    // Number.MAX_VALUE, então 1e308/1000 nunca satura de novo).
+    it('divisorPoder=1e-307 amplifica o Poder até estourar Infinity, mas clampFinito satura em +1e308 (nunca Infinity/NaN), exibido como 1e305 após a escala /1000', () => {
         const leitura = renderELerPoderGlobal({ divisorPoder: 1e-307 });
         expect(Number.isFinite(leitura)).toBe(true);
-        expect(leitura).toBe(1e308);
+        expect(leitura).toBe(1e305);
     });
 
     // Mesmo teste, mas com o Poder final negativo antes da divisão (ver describe acima) — o sinal
-    // precisa ser preservado também na saturação: -Infinity deve saturar em -1e308, não em +1e308.
-    it('divisorPoder=1e-307 aplicado a um Poder já NEGATIVO satura em -1e308, preservando o sinal', () => {
+    // precisa ser preservado também na saturação: -Infinity deve saturar em -1e308 (exibido -1e305
+    // depois da escala /1000), não em +1e305/+1e308.
+    it('divisorPoder=1e-307 aplicado a um Poder já NEGATIVO satura em -1e308 (exibido -1e305 após a escala), preservando o sinal', () => {
         const leitura = renderELerPoderGlobal({
             divisorPoder: 1e-307,
             poderes: [{ nome: 'Efeito Negativo', ativa: true, efeitos: [{ atributo: 'poder_direto', propriedade: 'mgeral', valor: -2 }] }],
         });
-        expect(leitura).toBe(-1e308);
+        expect(leitura).toBe(-1e305);
     });
 });
 
@@ -274,20 +290,20 @@ describe('MarcadosPanel — divisorPoderMesa é lido reativamente da store (prop
         return mockState;
     }
 
-    it('mudar divisorPoderMesa e chamar rerender() (sem tocar na ficha) atualiza a leitura do Poder já exibida (1100 -> 275 -> 1100)', () => {
+    it('mudar divisorPoderMesa e chamar rerender() (sem tocar na ficha) atualiza a leitura do Poder já exibida (4390 -> 1100 -> 4390)', () => {
         const ficha = fichaMinimaScouter({ divisorPoder: 0 });
         const mockState = montarMockUseStoreReativo(ficha, 1);
 
         const { rerender } = render(<MarcadosPanel />);
-        expect(lerPoderGlobalExibido()).toBe(1100);
+        expect(lerPoderGlobalExibido()).toBe(4390);
 
         mockState.divisorPoderMesa = 4;
         rerender(<MarcadosPanel />);
-        expect(lerPoderGlobalExibido()).toBe(275);
+        expect(lerPoderGlobalExibido()).toBe(1100);
 
         mockState.divisorPoderMesa = 1;
         rerender(<MarcadosPanel />);
-        expect(lerPoderGlobalExibido()).toBe(1100);
+        expect(lerPoderGlobalExibido()).toBe(4390);
     });
 });
 

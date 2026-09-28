@@ -9,7 +9,7 @@ import { getRank } from '../../core/prestige';
 import { formatarPoderCosmico } from '../../core/utils.js';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { calcularFadigaAtual } from '../../core/fadiga';
-import { getBaseEquivalenteAscensao, amortecerPoderBruto, getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder } from '../../core/poder';
+import { getBaseEquivalenteAscensao, amortecerPoderBruto, getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder, aplicarEscalaPoderCalculado } from '../../core/poder';
 import { planejarAjustePrestigioStatus, aplicarAjustePrestigioStatus, recolherPontosAlocados, getTotalPontosAlocados } from '../../core/statusPool';
 import { getPontosPrestigioDisponiveis, getPontosDistribuidos, calcularBaseDoPrestigio, validarDistribuicaoPrestigio, registrarDistribuicaoPrestigio, podeAscender, prestigioAposAscensao, aplicarAscensao, CATEGORIAS_PRESTIGIO, PRESTIGIO_PARA_ASCENDER } from '../../core/prestigioDistribuicao';
 import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
@@ -1255,7 +1255,7 @@ export default function MarcadosPanel() {
             let exponent = parseInt(parts[1].replace('+', ''));
             if (!isNaN(exponent)) digitos = exponent + 1;
         }
-        return { poderGlobal: Math.floor(power), vitalidadeGlobal: Math.max(0, digitos - 8), supressao: sup, limiteSupressao: lim, temaScouter: tema };
+        return { poderGlobal: aplicarEscalaPoderCalculado(power), vitalidadeGlobal: Math.max(0, digitos - 8), supressao: sup, limiteSupressao: lim, temaScouter: tema };
     }, [minhaFicha, divisorPoderMesa, ascensaoGeralEfetivaParaPoder]);
 
     if (!minhaFicha) return <div style={{ color: '#000', padding: 20, fontFamily: 'cursive' }}>Abrindo a Ficha...</div>;

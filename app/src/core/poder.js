@@ -378,6 +378,17 @@ export function getMultiplicadorAscensaoPoder(ascensao) {
     return Math.pow(BASE_ASCENSAO_PODER, Math.min(1000, Math.max(0, Number(ascensao) || 0)));
 }
 
+// 🔽 Escala final do Poder Calculado exibido: pedido do usuário (depois da opção "E") foi dividir
+// os Poderes Calculados por 1000. Entra no fim, depois de Supressão/Fadiga/Divisor, então é uma
+// divisão uniforme que preserva todas as proporções. O "V" (vitalidadeGlobal) continua contado
+// sobre o valor antes desta escala, pra não mudar de nível junto.
+export const ESCALA_PODER_CALCULADO = 1000;
+
+export function aplicarEscalaPoderCalculado(power) {
+    const v = power / ESCALA_PODER_CALCULADO;
+    return Number.isFinite(v) ? Math.floor(v) : (Number.isNaN(v) ? 0 : Math.floor(Math.sign(v) * 1e308));
+}
+
 export function injetarAscensaoNoPoder(poderMultiplicado, ascensao) {
     const asc = Number(ascensao) || 0;
     if (poderMultiplicado > 0) return poderMultiplicado * (1 + Math.max(0, asc));
@@ -454,5 +465,5 @@ export function calcularPoderAtual(ficha, divisorPoderMesa) {
         let exponent = parseInt(parts[1].replace('+', ''));
         if (!isNaN(exponent)) digitos = exponent + 1;
     }
-    return { poderGlobal: Math.floor(power), vitalidadeGlobal: Math.max(0, digitos - 8), supressao: sup, limiteSupressao: lim, temaScouter: tema };
+    return { poderGlobal: aplicarEscalaPoderCalculado(power), vitalidadeGlobal: Math.max(0, digitos - 8), supressao: sup, limiteSupressao: lim, temaScouter: tema };
 }
