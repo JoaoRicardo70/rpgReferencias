@@ -30,6 +30,15 @@ const EIXOS_FORMAS = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'];
 // fadigaPorUso dela — ver getPesoFadigaFormasAtivas mais abaixo.
 const PESO_MAX_DINAMICO_PADRAO = 15;
 
+// 💪 ESFORÇO DE PODER: fração do peso acima que o simples fato de lutar com o Poder liberado além
+// do limiar já rende, MESMO com Vida/Energias cheias e sem Forma ativa (severidade 0). Sem isso,
+// um personagem descansado podia passar turnos a 100% de Poder sem acumular Fadiga nenhuma (bug
+// relatado com o Natsu). 0,2 x 15 = 3% por turno a 100% de Poder (valor pedido pelo usuário); o
+// desgaste real (Energia/Vida/Formas) preenche o resto até o peso cheio. Só entra no ganho do
+// INÍCIO DE TURNO (opção incluirEsforcoPoder) — o ganho instantâneo por golpe do Dano Rápido
+// continua só com a severidade, senão cada golpe somaria de novo o esforço de um turno inteiro.
+export const FRACAO_BASE_ESFORCO_PODER = 0.2;
+
 // 0 (energias cheias) a 1 (todas as 4 energias — mana/aura/chakra/corpo — zeradas). Vida fica de
 // fora daqui de propósito: ela tem seu próprio fator (getFatorVidaPerdida) — "energia gasta" e
 // "dano recebido" são fatores distintos mesmo os dois lendo vitais.
@@ -198,11 +207,13 @@ function getFatorPoderUsado(ficha) {
 // Quantos pontos percentuais de Fadiga automática este personagem ganha se o turno dele virar
 // AGORA, considerando o quanto de Energia (mana/aura/chakra/corpo) está gasto, o quanto de Vida já
 // foi perdida, e o quanto de mFormas de transformações ativas está em uso (já descontado pela
-// Maestria) — os 3 fatores pedidos, cada um pesando igualmente na severidade final. Essa
-// severidade é então escalada por getFatorPoderUsado: um personagem se restringindo (Poder
-// suprimido) gera bem menos Fadiga do que um lutando de igual pra igual com o Poder liberado por
-// completo, que gera o valor cheio calculado acima.
-export function calcularGanhoFadigaDinamico(ficha) {
+// Maestria) — os 3 fatores pedidos, cada um pesando igualmente na severidade final. Acima do
+// limiar, no início de turno (incluirEsforcoPoder), há sempre um piso de FRACAO_BASE_ESFORCO_PODER
+// do peso (esforço de Poder), mesmo com severidade 0. Essa intensidade é então escalada por
+// getFatorPoderUsado: um personagem se restringindo (Poder suprimido) gera bem menos Fadiga do que
+// um lutando de igual pra igual com o Poder liberado por completo, que gera o valor cheio.
+export function calcularGanhoFadigaDinamico(ficha, { incluirEsforcoPoder = false } = {}) {
+    if (!ficha) return 0;
     try {
         const fatorEnergia = getFatorEnergiaGasta(ficha);
         const fatorDano = getFatorVidaPerdida(ficha);
@@ -210,7 +221,10 @@ export function calcularGanhoFadigaDinamico(ficha) {
         const severidade = (fatorEnergia + fatorDano + fatorFormas) / 3;
         const fatorPoder = getFatorPoderUsado(ficha);
         const pesoMax = getPesoFadigaFormasAtivas(ficha);
-        return Math.max(0, severidade * pesoMax * fatorPoder);
+        const intensidade = incluirEsforcoPoder
+            ? FRACAO_BASE_ESFORCO_PODER + (1 - FRACAO_BASE_ESFORCO_PODER) * severidade
+            : severidade;
+        return Math.max(0, intensidade * pesoMax * fatorPoder);
     } catch (e) { return 0; }
 }
 

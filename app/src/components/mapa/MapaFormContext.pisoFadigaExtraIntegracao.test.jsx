@@ -127,6 +127,9 @@ describe('MapaFormContext — integração real do piso de Fadiga (pisoFadigaExt
             corpo: { ...statCheio },
             chakra: { ...statCheio },
             multiplicadorVida: 1,
+            // Poder no limiar livre (80%): sem isso, o Esforço de Poder (core/fadiga.js >
+            // FRACAO_BASE_ESFORCO_PODER) daria ganho > 0 mesmo com vida/energia cheias.
+            supressaoPoder: 80,
             pv: { atual: pvAtual, regeneracao: 40 },
             poderes: [], inventario: [], passivas: [],
             combate: { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0, ...combateOverrides },

@@ -342,12 +342,13 @@ describe('MapaFormContext — Fadiga DINÂMICA (fadigaExtra) acumula ao chegar o
         expect(state.minhaFicha.combate.fadigaExtra).toBeGreaterThan(0);
     });
 
-    it('uma ficha "de boa" (vida/energia cheias, sem Forma ativa) não ganha fadigaExtra nenhum no tick', () => {
+    it('uma ficha "de boa" (vida/energia cheias, sem Forma ativa) com Poder no limiar livre (80%) não ganha fadigaExtra nenhum no tick', () => {
         const state = baseState({
             meuNome: 'Heroi',
             dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         });
         state.minhaFicha.iniciativa = 10;
+        state.minhaFicha.supressaoPoder = 80;
         // "atual" cheio de verdade: getFatorVidaPerdida usa getMaximo(ficha,'vida') de
         // core/attributes.js diretamente (SEM a escala de exibição de calcVitalScale do
         // core/vitals.js) -- o máximo "cru" aqui é base(1e8) x mult(1) = 1e8.
@@ -358,6 +359,24 @@ describe('MapaFormContext — Fadiga DINÂMICA (fadigaExtra) acumula ao chegar o
         act(() => { probe.avancarTurno(); });
 
         expect(state.minhaFicha.combate.fadigaExtra).toBe(0);
+    });
+
+    // 💪 Bug relatado (Natsu): descansado, mas lutando com o Poder liberado, passava turnos sem
+    // acumular Fadiga nenhuma. Agora o Esforço de Poder rende 3%/turno a 100% de Poder.
+    it('uma ficha "de boa" com Poder a 100% acumula 3% de fadigaExtra por turno (Esforço de Poder)', () => {
+        const state = baseState({
+            meuNome: 'Heroi',
+            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+        });
+        state.minhaFicha.iniciativa = 10;
+        state.minhaFicha.supressaoPoder = 100;
+        state.minhaFicha.vida = { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 100000000, regeneracao: 0 };
+        state.minhaFicha.combate = { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0 };
+        montarComEstado(state);
+
+        act(() => { probe.avancarTurno(); });
+
+        expect(state.minhaFicha.combate.fadigaExtra).toBeCloseTo(3, 10);
     });
 
     it('acumula fadigaExtra a partir do valor já existente (soma, não substitui)', () => {

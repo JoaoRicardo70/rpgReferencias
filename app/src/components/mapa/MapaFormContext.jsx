@@ -71,7 +71,8 @@ function aplicarInicioDeTurno(ficha) {
 
     if (!ficha.combate) ficha.combate = {};
     ficha.combate.fadigaTurnos = Math.max(0, (Number(ficha.combate.fadigaTurnos) || 0) + 1);
-    const ganhoDinamicoDoTurno = calcularGanhoFadigaDinamico(ficha);
+    // incluirEsforcoPoder: lutar acima do limiar de Poder cansa mesmo com Vida/Energias cheias.
+    const ganhoDinamicoDoTurno = calcularGanhoFadigaDinamico(ficha, { incluirEsforcoPoder: true });
     ficha.combate.fadigaExtra = Math.max(0, (Number(ficha.combate.fadigaExtra) || 0) + ganhoDinamicoDoTurno);
 
     aplicarRegeneracaoDeTurno(ficha, ganhoDinamicoDoTurno);
