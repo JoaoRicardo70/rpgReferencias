@@ -27,15 +27,17 @@ export function AIHeader() {
                 Sexta-Feira (IA Central)
                 <span className={`sexta-status ${iaConfigurada ? 'online' : 'offline'}`}>{iaConfigurada ? '● online' : '● sem chave'}</span>
             </h2>
-            <div className="sexta-abas">
-                <button className={`btn-neon ${subAba === 'chat' ? 'btn-green' : ''}`} onClick={() => setSubAba('chat')}>💬 Chat</button>
-                {/* 📚 Codex = Registros + Tier List + Árvore (sub-abas dentro dele) */}
-                <button className={`btn-neon ${emCodex ? 'btn-blue' : ''}`} onClick={() => { if (!emCodex) setSubAba('lore'); }}>📚 Codex</button>
-                <button className={`btn-neon ${subAba === 'gravador' ? 'btn-red' : ''}`} onClick={() => setSubAba('gravador')}>🎙️ Gravador</button>
-                {isMestre && (
-                    <button className={`btn-neon ${subAba === 'config' ? 'btn-gold' : ''}`} onClick={() => setSubAba('config')}>⚙️ Config</button>
-                )}
-            </div>
+            {/* 📚 Codex = Registros + Tier List + Árvore (sub-abas dentro dele) */}
+            <nav className="sexta-nav" role="tablist" aria-label="Seções da Sexta-Feira">
+                {[
+                    { id: 'chat', rotulo: '💬 Chat', ativo: subAba === 'chat', ir: () => setSubAba('chat') },
+                    { id: 'codex', rotulo: '📚 Codex', ativo: emCodex, ir: () => { if (!emCodex) setSubAba('lore'); } },
+                    { id: 'gravador', rotulo: '🎙️ Gravador', ativo: subAba === 'gravador', ir: () => setSubAba('gravador') },
+                    ...(isMestre ? [{ id: 'config', rotulo: '⚙️ Config', ativo: subAba === 'config', ir: () => setSubAba('config') }] : []),
+                ].map(item => (
+                    <button key={item.id} type="button" role="tab" aria-selected={item.ativo} className={`sexta-nav-item${item.ativo ? ' ativo' : ''}`} onClick={item.ir}>{item.rotulo}</button>
+                ))}
+            </nav>
         </div>
     );
 }
@@ -155,7 +157,7 @@ function AcoesMensagemIA({ msg }) {
                                 if (ok) ctx.dialogos.avisar('✅ Texto enviado para o Arco selecionado!');
                             }).catch(() => ctx.dialogos.avisar('Não foi possível enviar para os Registros.', 'erro'));
                         }}
-                        className="btn-neon btn-blue sexta-msg-acoes-btn"
+                        className="sexta-chip-btn azul"
                     >
                         📜 Enviar
                     </button>
@@ -164,8 +166,8 @@ function AcoesMensagemIA({ msg }) {
             {isMestre && (
                 memorizado ? <span className="sexta-msg-acoes-rotulo">{memorizado}</span> : (
                     <>
-                        <button className="btn-neon sexta-msg-acoes-btn" onClick={() => memorizar(false)} title="A Sexta-Feira passa a lembrar disto em todas as conversas da mesa">📌 Memorizar</button>
-                        <button className="btn-neon sexta-msg-acoes-btn" onClick={() => memorizar(true)} title="Só aparece para o Mestre">🔒 Só Mestre</button>
+                        <button className="sexta-chip-btn" onClick={() => memorizar(false)} title="A Sexta-Feira passa a lembrar disto em todas as conversas da mesa">📌 Memorizar</button>
+                        <button className="sexta-chip-btn" onClick={() => memorizar(true)} title="Só aparece para o Mestre">🔒 Só Mestre</button>
                     </>
                 )
             )}
@@ -183,7 +185,7 @@ function ResumirSessaoMestre() {
             <select className="input-neon sexta-msg-acoes-select" value={periodo} onChange={e => setPeriodo(e.target.value)} aria-label="Período do resumo">
                 {Object.entries(PERIODOS_RESUMO).map(([valor, rotulo]) => <option key={valor} value={valor}>Sessão {rotulo}</option>)}
             </select>
-            <button className="btn-neon btn-gold sexta-msg-acoes-btn" onClick={() => ctx.resumirSessao(periodo)} disabled={ctx.carregando} title="Junta o feed de combate e as falas transcritas e escreve uma crônica para os Registros">
+            <button className="sexta-chip-btn ouro" onClick={() => ctx.resumirSessao(periodo)} disabled={ctx.carregando} title="Junta o feed de combate e as falas transcritas e escreve uma crônica para os Registros">
                 📝 Resumir sessão
             </button>
         </div>
@@ -201,7 +203,7 @@ function BotaoOuvir({ texto }) {
             window.speechSynthesis.speak(fala);
         } catch (e) { /* sem voz */ }
     };
-    return <button type="button" className="btn-neon sexta-msg-acoes-btn" onClick={ouvir} title="Ouvir esta resposta" aria-label="Ouvir esta resposta">🔊</button>;
+    return <button type="button" className="sexta-chip-btn" onClick={ouvir} title="Ouvir esta resposta" aria-label="Ouvir esta resposta">🔊</button>;
 }
 
 function MensagemChat({ msg, meuNome, ultima }) {
@@ -214,7 +216,7 @@ function MensagemChat({ msg, meuNome, ultima }) {
                 <div className="sexta-msg-rotulo">{rotulo}</div>
                 {papel === 'ai' ? <MarkdownSexta texto={msg.texto} /> : <div className="sexta-msg-texto">{msg.texto}</div>}
                 {papel === 'erro' && ultima && ctx && (
-                    <button type="button" className="btn-neon sexta-msg-acoes-btn sexta-msg-retry" onClick={ctx.tentarDeNovo} disabled={ctx.carregando}>↻ Tentar de novo</button>
+                    <button type="button" className="sexta-chip-btn vermelho sexta-msg-retry" onClick={ctx.tentarDeNovo} disabled={ctx.carregando}>↻ Tentar de novo</button>
                 )}
             </div>
             {papel === 'ai' && (
@@ -585,7 +587,7 @@ function LixeiraModal({ aoFechar }) {
                                 {item.tipo === 'capitulo' ? '📖' : '📂'} <strong>{item.dados?.titulo || '(sem título)'}</strong>
                                 <small className="sexta-lixeira-info"> · {item.foco === 'futuro' ? 'Futuro' : 'Presente'} · apagado em {dataCurta(item.em)}{item.autor ? ` por ${item.autor}` : ''}</small>
                             </span>
-                            <button type="button" className="btn-neon btn-green sexta-msg-acoes-btn" onClick={() => restaurar(item)}>↩️ Restaurar</button>
+                            <button type="button" className="sexta-chip-btn verde" onClick={() => restaurar(item)}>↩️ Restaurar</button>
                         </li>
                     ))}
                 </ul>
@@ -662,8 +664,8 @@ export function AILore() {
             <AICapituladorHeader />
             {historicoDisponivel && (
                 <div className="sexta-registros-ferramentas">
-                    <button type="button" className="btn-neon sexta-msg-acoes-btn" onClick={() => setModal('versoes')}>🕘 Versões deste Arco</button>
-                    <button type="button" className="btn-neon sexta-msg-acoes-btn" onClick={() => setModal('lixeira')}>♻️ Lixeira</button>
+                    <button type="button" className="sexta-chip-btn" onClick={() => setModal('versoes')}>🕘 Versões deste Arco</button>
+                    <button type="button" className="sexta-chip-btn" onClick={() => setModal('lixeira')}>♻️ Lixeira</button>
                 </div>
             )}
             <div className="sexta-registros-corpo">
@@ -829,7 +831,7 @@ function MemoriaMesaConfig() {
                     {fatos.map(([id, f]) => (
                         <li key={id} className="sexta-memoria-item">
                             <span>{f.soMestre ? '🔒 ' : ''}{f.texto}</span>
-                            <button type="button" className="btn-neon btn-red sexta-msg-acoes-btn" onClick={async () => { if (await ctx.dialogos.confirmar({ titulo: '🗑️ Esquecer fato', mensagem: `Apagar da memória da Sexta-Feira: "${f.texto}"?`, textoConfirmar: 'Apagar', perigo: true })) ctx.esquecerFato(id); }} title="Esquecer">🗑️</button>
+                            <button type="button" className="sexta-chip-btn vermelho" onClick={async () => { if (await ctx.dialogos.confirmar({ titulo: '🗑️ Esquecer fato', mensagem: `Apagar da memória da Sexta-Feira: "${f.texto}"?`, textoConfirmar: 'Apagar', perigo: true })) ctx.esquecerFato(id); }} title="Esquecer">🗑️</button>
                         </li>
                     ))}
                 </ul>
