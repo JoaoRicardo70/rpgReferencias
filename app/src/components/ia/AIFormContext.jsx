@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { ref, set, get } from 'firebase/database';
 import { db } from '../../services/firebase-config';
-import useStore from '../../stores/useStore';
+import useStore, { sanitizarNome } from '../../stores/useStore';
+import { salvarFichaSilencioso, salvarDummie } from '../../services/firebase-sync';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import {
     MODELO_GEMINI_PADRAO, montarHistoricoGemini,
@@ -12,6 +13,7 @@ import { markdownParaTextoFalado } from '../../core/markdownSexta';
 import { useDialogosSexta } from './DialogosSexta';
 import { chamarGemini } from '../../services/sextaFeiraIA';
 import { DECLARACOES_FERRAMENTAS, executarFerramenta, montarContextoInicial } from '../../core/sextaFeiraFerramentas';
+import { DECLARACOES_CRIACAO, CAMPO_FICHA_POR_TIPO, anexarNaLista, normalizarProposta } from '../../core/sextaFeiraCriacao';
 import {
     montarLinhasSessao, listarDestinosRegistros, montarPedidoResumo, extrairDestinoSugerido, montarTextoMemoria,
 } from '../../core/sextaFeiraSessao';
@@ -19,6 +21,7 @@ import {
     carregarEventosFeedDesde, carregarTranscricoesDesde, memorizarFato, apagarFato,
     lerUltimoResumoEm, gravarUltimoResumoEm, carregarChat, salvarChat, LIMITE_MENSAGENS_CHAT_SALVAS,
     chaveVersaoArco, salvarVersaoArco, listarVersoesArco, guardarNaLixeira, listarLixeira, removerDaLixeira,
+    anexarNaFicha, enviarPendente, registrarDecisao, reivindicarPendente,
 } from '../../services/sextaFeiraDados';
 import * as pdfjsLib from 'pdfjs-dist';
 
@@ -108,6 +111,8 @@ export function AIFormProvider({ children }) {
     const sextaFeiraConfig = useStore(s => s.sextaFeiraConfig);
     const registrosCompartilhados = useStore(s => s.registrosCompartilhados);
     const sextaFeiraMemoria = useStore(s => s.sextaFeiraMemoria);
+    const sextaFeiraPendentes = useStore(s => s.sextaFeiraPendentes);
+    const updateFicha = useStore(s => s.updateFicha);
     // 🪟 Modais no tema (components/ia/DialogosSexta.jsx); sem o provider, janelas do navegador.
     const dialogos = useDialogosSexta();
 
@@ -736,7 +741,22 @@ export function AIFormProvider({ children }) {
                 } catch (e) { /* sem acesso ao banco: tenta a cópia local */ }
                 try { return JSON.parse(localStorage.getItem('rpgSextaFeira_arvore') || 'null'); } catch (e) { return null; }
             };
+            // Propostas de criação feitas nesta resposta (viram cartões na mensagem da Sexta-Feira).
+            const propostasDoTurno = [];
             const opcoesFerramentas = {
+                registrarProposta: async (p) => {
+                    const id = `prop_${Date.now()}_${propostasDoTurno.length}`;
+                    const extras = {};
+                    // Tier List: fica presa ao capítulo aberto AGORA; NPC: à cena publicada agora.
+                    if (p.tipo === 'tierlist') { extras.foco = loreFoco; extras.capituloId = capituloAtivoObj?.id; extras.capituloTitulo = capituloAtivoObj?.titulo || ''; }
+                    if (p.tipo === 'npc') {
+                        const cen = useStore.getState().cenario;
+                        extras.cenaId = cen?.ativa || 'default';
+                        extras.cenaNome = cen?.lista?.[extras.cenaId]?.nome || extras.cenaId;
+                    }
+                    propostasDoTurno.push({ id, ...p, ...extras, estado: 'nova' });
+                    return id;
+                },
                 carregarArvore,
                 carregarTranscricoes: (desde) => carregarTranscricoesDesde(mesaId, desde),
                 memorizar: ({ texto, soMestre }) => memorizarFato(mesaId, { texto, soMestre, autor: meuNome }),
@@ -748,8 +768,11 @@ export function AIFormProvider({ children }) {
                 : `Quem fala: ${meuNome || 'Desconhecido'}\nPapel: ${isMestre ? 'Mestre' : 'Jogador'}\n(Quem fala desligou o acesso aos dados da mesa nesta conversa.)`;
             const systemInstruction = montarInstrucaoSistema({ contextoFicha, lore, memoria, semFerramentas: !preferencias.mesa });
             // Fontes desligadas também tiram as ferramentas correspondentes.
-            const declaracoes = DECLARACOES_FERRAMENTAS.filter(d => !(
+            // Jogadores não recebem as ferramentas só-Mestre (NPC, Tier List, poder do grupo).
+            const soMestre = ['propor_npc', 'propor_tier_list', 'poder_do_grupo'];
+            const declaracoes = [...DECLARACOES_FERRAMENTAS, ...DECLARACOES_CRIACAO].filter(d => !(
                 (!preferencias.lore && d.name === 'buscar_lore') || (!preferencias.memoria && d.name === 'memorizar_fato')
+                || (!isMestre && soMestre.includes(d.name))
             ));
 
             let textoPedido = msgUsuario || 'Faça um resumo do arquivo anexado.';
@@ -772,7 +795,7 @@ export function AIFormProvider({ children }) {
                 } : null,
                 aoReceberTexto: (parcial) => setRespostaParcial(parcial),
             });
-            setHistorico(prev => [...prev, { role: 'ai', texto: resposta }]);
+            setHistorico(prev => [...prev, { role: 'ai', texto: resposta, ...(propostasDoTurno.length ? { propostas: propostasDoTurno } : {}) }]);
             if (preferencias.voz) falarTexto(resposta);
         } catch (err) {
             console.error('[Sexta-Feira]', err);
@@ -873,6 +896,175 @@ export function AIFormProvider({ children }) {
         await processarEnvio({ ...pedido, historicoBase: historico.slice(0, idx) });
     }, [carregando, iaConfigurada, avisarSemChave, historico, resumirSessao, processarEnvio]);
 
+    // 🛠️ CRIAÇÃO COM CONFIRMAÇÃO (core/sextaFeiraCriacao.js): as propostas ficam na própria resposta
+    // (msg.propostas) com um estado: nova -> aplicada (Mestre) | enviada (jogador, aguarda o Mestre)
+    // | descartada. O Mestre aprova/recusa os pedidos dos jogadores pela fila `sextaFeiraPendentes`.
+    const atualizarProposta = useCallback((msgIdx, propostaId, patch) => {
+        setHistorico(prev => prev.map((m, i) => (i !== msgIdx || !Array.isArray(m.propostas) ? m : {
+            ...m, propostas: m.propostas.map(p => (p.id === propostaId ? { ...p, ...patch } : p)),
+        })));
+    }, []);
+
+    // Grava de fato uma criação já validada (usado pelo Mestre, direto ou ao aprovar um pedido).
+    const gravarCriacao = useCallback(async ({ tipo, objeto, alvo, quantidade, cenaId: cenaProposta, foco: focoProposta, capituloId: capituloProposta }) => {
+        if (tipo === 'poder' || tipo === 'magia' || tipo === 'item') {
+            const campo = CAMPO_FICHA_POR_TIPO[tipo];
+            const novo = { ...objeto, id: Date.now() };
+            if (sanitizarNome(alvo || '') === sanitizarNome(meuNome || '')) {
+                updateFicha((f) => { f[campo] = anexarNaLista(f[campo], novo); });
+                salvarFichaSilencioso();
+            } else {
+                await anexarNaFicha(mesaId, alvo, campo, novo);
+            }
+            return;
+        }
+        if (tipo === 'npc') {
+            // Mesmo padrão do Mapa: sem Cena publicada, é a 'default'.
+            const cenaId = cenaProposta || useStore.getState().cenario?.ativa || 'default';
+            const qtd = Math.min(10, Math.max(1, Number(quantidade) || 1));
+            for (let i = 0; i < qtd; i++) {
+                const nome = qtd > 1 ? `${objeto.nome} ${i + 1}` : objeto.nome;
+                salvarDummie(`dummie_${Date.now()}_${i}`, { ...objeto, nome, cenaId, posicao: { x: i, y: 0 } });
+            }
+            return;
+        }
+        if (tipo === 'tierlist') {
+            const foco = focoProposta || loreFoco;
+            const setCaps = foco === 'presente' ? setCapitulosPresente : setCapitulosFuturo;
+            const capId = capituloProposta ?? (foco === 'presente' ? capituloAtivoId : capFuturoAtivoId);
+            const listaCaps = foco === 'presente' ? useStore.getState().loreCapitulosPresente : useStore.getState().loreCapitulosFuturo;
+            if (!listaCaps.some(c => c.id === capId)) throw new Error('O capítulo desta Tier List não existe mais.');
+            const avatarDe = (nome) => poolPersonagens.find(p => p.nome === nome)?.avatar || '';
+            setCaps(prev => prev.map((c) => {
+                if (c.id !== capId) return c;
+                let tier = Array.isArray(c.tierList) ? [...c.tierList] : [];
+                (objeto.ranks || []).forEach(({ nome, rank }) => {
+                    const existente = tier.find(t => t.nome === nome);
+                    tier = tier.filter(t => t.nome !== nome);
+                    tier.push({ ...(existente || {}), nome, avatar: existente?.avatar || avatarDe(nome), rank });
+                });
+                return { ...c, tierList: tier };
+            }));
+            return;
+        }
+        throw new Error('Tipo de criação desconhecido.');
+    }, [meuNome, mesaId, updateFicha, loreFoco, capituloAtivoId, capFuturoAtivoId, poolPersonagens]);
+
+    // Propostas sendo aplicadas agora: impede gravar duas vezes (duplo clique / chamadas paralelas),
+    // já que o estado 'aplicada' só chega ao histórico depois da gravação.
+    const aplicandoRef = useRef(new Set());
+    const aplicarProposta = useCallback(async (msgIdx, propostaId) => {
+        const proposta = historico[msgIdx]?.propostas?.find(p => p.id === propostaId);
+        if (!isMestre || !proposta || proposta.estado !== 'nova' || aplicandoRef.current.has(propostaId)) return false;
+        aplicandoRef.current.add(propostaId);
+        try {
+            await gravarCriacao(proposta);
+            atualizarProposta(msgIdx, propostaId, { estado: 'aplicada' });
+            dialogos.avisar(`✅ ${proposta.objeto?.nome || 'Tier List'} aplicado${proposta.alvo ? ` em ${proposta.alvo}` : ''}.`);
+            return true;
+        } catch (err) {
+            dialogos.avisar(`Não foi possível aplicar: ${err?.message || 'erro desconhecido'}.`, 'erro');
+            return false;
+        } finally {
+            aplicandoRef.current.delete(propostaId);
+        }
+    }, [isMestre, historico, gravarCriacao, atualizarProposta, dialogos]);
+
+    const enviarPropostaParaAprovacao = useCallback(async (msgIdx, propostaId) => {
+        const proposta = historico[msgIdx]?.propostas?.find(p => p.id === propostaId);
+        if (!proposta || proposta.estado !== 'nova' || !mesaId) return false;
+        if (!['poder', 'magia', 'item'].includes(proposta.tipo)) return false;
+        try {
+            await enviarPendente(mesaId, { tipo: proposta.tipo, alvo: proposta.alvo, objeto: proposta.objeto, avisos: proposta.avisos, solicitante: meuNome });
+            atualizarProposta(msgIdx, propostaId, { estado: 'enviada' });
+            dialogos.avisar('📨 Enviado para o Mestre aprovar.');
+            return true;
+        } catch (err) {
+            dialogos.avisar(`Não foi possível enviar: ${err?.message || 'erro desconhecido'}.`, 'erro');
+            return false;
+        }
+    }, [historico, mesaId, meuNome, atualizarProposta, dialogos]);
+
+    const descartarProposta = useCallback((msgIdx, propostaId) => {
+        atualizarProposta(msgIdx, propostaId, { estado: 'descartada' });
+    }, [atualizarProposta]);
+
+    // Pedidos de jogadores: tudo é validado DE NOVO antes de gravar (o pedido veio do banco e
+    // qualquer um da mesa consegue escrever lá): o tipo, o objeto, e que o pedido é para a própria
+    // ficha de quem pediu, que precisa existir na mesa.
+    const validarPedido = useCallback((pedido) => {
+        if (!pedido || !['poder', 'magia', 'item'].includes(pedido.tipo)) return { erro: 'Tipo de pedido inválido.' };
+        const { objeto, valido } = normalizarProposta(pedido.tipo, pedido.objeto);
+        if (!valido) return { erro: 'O conteúdo do pedido é inválido.' };
+        const alvo = String(pedido.alvo || '');
+        if (!alvo || sanitizarNome(alvo) !== sanitizarNome(pedido.solicitante || '')) return { erro: 'O pedido não é para a ficha de quem pediu.' };
+        const loja = useStore.getState();
+        const existe = sanitizarNome(alvo) === sanitizarNome(loja.meuNome || '')
+            || Object.keys(loja.personagens || {}).some(n => sanitizarNome(n) === sanitizarNome(alvo));
+        if (!existe) return { erro: `O personagem "${alvo}" não existe nesta mesa.` };
+        return { objeto, alvo };
+    }, []);
+
+    const aprovarPendente = useCallback(async (id) => {
+        if (!isMestre) return false;
+        const previa = validarPedido(useStore.getState().sextaFeiraPendentes?.[id]);
+        if (previa.erro) { dialogos.avisar(`${previa.erro} Recuse o pedido.`, 'erro'); return false; }
+        // Pega o pedido da fila de forma atômica: dois Mestres não aprovam o mesmo pedido.
+        let pedido;
+        try {
+            pedido = await reivindicarPendente(mesaId, id);
+        } catch (err) {
+            dialogos.avisar(`Não foi possível aprovar: ${err?.message || 'erro de conexão'}.`, 'erro');
+            return false;
+        }
+        if (!pedido) { dialogos.avisar('Este pedido já foi tratado.', 'erro'); return false; }
+        const { objeto, alvo, erro } = validarPedido(pedido);
+        if (erro) {
+            Promise.resolve(enviarPendente(mesaId, pedido)).catch(() => {});
+            dialogos.avisar(erro, 'erro');
+            return false;
+        }
+        try {
+            await gravarCriacao({ tipo: pedido.tipo, objeto, alvo });
+        } catch (err) {
+            // Não gravou: devolve o pedido pra fila, pra não sumir.
+            Promise.resolve(enviarPendente(mesaId, pedido)).catch(() => {});
+            dialogos.avisar(`Não foi possível aprovar: ${err?.message || 'erro desconhecido'}.`, 'erro');
+            return false;
+        }
+        Promise.resolve(registrarDecisao(mesaId, { solicitante: pedido.solicitante, nomeCriacao: objeto.nome, tipo: pedido.tipo, aprovado: true })).catch(() => {});
+        dialogos.avisar(`✅ "${objeto.nome}" aprovado e adicionado a ${alvo}.`);
+        return true;
+    }, [isMestre, mesaId, gravarCriacao, dialogos, validarPedido]);
+
+    const recusarPendente = useCallback(async (id) => {
+        const pedido = useStore.getState().sextaFeiraPendentes?.[id];
+        if (!isMestre || !pedido) return false;
+        const ok = await dialogos.confirmar({ titulo: '❌ Recusar pedido', mensagem: `Recusar "${pedido.objeto?.nome || 'pedido'}" de ${pedido.solicitante}?`, textoConfirmar: 'Recusar', perigo: true });
+        if (!ok) return false;
+        try {
+            if (!(await reivindicarPendente(mesaId, id))) { dialogos.avisar('Este pedido já foi tratado.', 'erro'); return false; }
+            Promise.resolve(registrarDecisao(mesaId, { solicitante: pedido.solicitante, nomeCriacao: pedido.objeto?.nome, tipo: pedido.tipo, aprovado: false })).catch(() => {});
+            return true;
+        } catch (err) {
+            dialogos.avisar(`Não foi possível recusar: ${err?.message || 'erro desconhecido'}.`, 'erro');
+            return false;
+        }
+    }, [isMestre, mesaId, dialogos]);
+
+    // 🔔 O jogador é avisado quando o Mestre decide um pedido dele (só decisões novas).
+    const sextaFeiraDecisoes = useStore(s => s.sextaFeiraDecisoes);
+    const montadoEmRef = useRef(Date.now());
+    const decisoesVistasRef = useRef(new Set());
+    useEffect(() => {
+        Object.entries(sextaFeiraDecisoes || {}).forEach(([id, d]) => {
+            if (!d || decisoesVistasRef.current.has(id)) return;
+            decisoesVistasRef.current.add(id);
+            if (Number(d.em) < montadoEmRef.current || sanitizarNome(d.solicitante || '') !== sanitizarNome(meuNome || '')) return;
+            dialogos.avisar(d.aprovado ? `✅ O Mestre aprovou "${d.nomeCriacao}". Já está na sua ficha.` : `❌ O Mestre recusou "${d.nomeCriacao}".`, d.aprovado ? 'ok' : 'erro');
+        });
+    }, [sextaFeiraDecisoes, meuNome, dialogos]);
+
     // ⚙️ Config da Sexta-Feira na mesa (só Mestre/Co-Mestre). Lida por hooks/useSextaFeiraMesa.js.
     const salvarConfigSextaFeira = useCallback(async ({ chaveGemini, modelo }) => {
         if (!isMestre || !mesaId || !db) return false;
@@ -908,7 +1100,8 @@ export function AIFormProvider({ children }) {
         sextaFeiraConfig, iaConfigurada, salvarConfigSextaFeira,
         sextaFeiraMemoria, memorizarTexto, esquecerFato, resumirSessao,
         preferencias, alternarPreferencia, respostaParcial, alvosMencao, tentarDeNovo, pararVoz,
-        dialogos, historicoDisponivel, listarVersoesDoArcoAtivo, restaurarVersao, carregarLixeira, restaurarDaLixeira
+        dialogos, historicoDisponivel, listarVersoesDoArcoAtivo, restaurarVersao, carregarLixeira, restaurarDaLixeira,
+        sextaFeiraPendentes, aplicarProposta, enviarPropostaParaAprovacao, descartarProposta, aprovarPendente, recusarPendente
     }), [
         minhaFicha, meuNome, personagens, subAba, mensagem, historico, carregando,
         loreFoco, novoPersonagem, novoAvatar, capitulosPresente, capituloAtivoId, arcoAtivoIdPresente,
@@ -922,7 +1115,8 @@ export function AIFormProvider({ children }) {
         sextaFeiraConfig, iaConfigurada, salvarConfigSextaFeira,
         sextaFeiraMemoria, memorizarTexto, esquecerFato, resumirSessao,
         preferencias, alternarPreferencia, respostaParcial, alvosMencao, tentarDeNovo,
-        dialogos, historicoDisponivel, listarVersoesDoArcoAtivo, restaurarVersao, carregarLixeira, restaurarDaLixeira
+        dialogos, historicoDisponivel, listarVersoesDoArcoAtivo, restaurarVersao, carregarLixeira, restaurarDaLixeira,
+        sextaFeiraPendentes, aplicarProposta, enviarPropostaParaAprovacao, descartarProposta, aprovarPendente, recusarPendente
     ]);
 
     return (

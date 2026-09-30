@@ -7,10 +7,11 @@
 //   sessoes/ultimoResumoEm  quando a última sessão foi resumida (ms)
 // O feed de combate continua onde sempre esteve (mesas/{mesaId}/feed_combate), só lido aqui.
 // ==========================================
-import { ref, get, set, push, remove, query, orderByKey, startAt, limitToLast } from 'firebase/database';
+import { ref, get, set, push, remove, query, orderByKey, startAt, limitToLast, runTransaction } from 'firebase/database';
 import { db } from './firebase-config';
 import { sanitizarNome } from '../stores/useStore';
 import { chaveFirebaseDoInstante } from '../core/sextaFeiraSessao';
+import { anexarNaLista } from '../core/sextaFeiraCriacao';
 
 export const LIMITE_EVENTOS_SESSAO = 1500;
 export const LIMITE_MENSAGENS_CHAT_SALVAS = 60;
@@ -159,4 +160,54 @@ export async function listarLixeira(mesaId) {
 export function removerDaLixeira(mesaId, id) {
     if (!db || !mesaId || !id) return Promise.resolve();
     return remove(ref(db, `${base(mesaId)}/lixeira/${id}`));
+}
+
+// ---------- 🛠️ Criações pela Sexta-Feira: aplicar, fila de aprovação e decisões ----------
+//   pendentes/{push}  { tipo, alvo, objeto, avisos, solicitante, em }   (pedidos de jogadores)
+//   decisoes/{push}   { solicitante, nomeCriacao, tipo, aprovado, motivo, em } (aviso pro jogador)
+export const LIMITE_DECISOES = 50;
+
+// Anexa um objeto a uma lista da ficha (poderes, ataquesElementais, inventario) com transação:
+// não sobrescreve o que o dono da ficha acabou de gravar nem perde itens entre leituras.
+export async function anexarNaFicha(mesaId, nome, campo, objeto) {
+    if (!db || !mesaId || !sanitizarNome(nome) || !campo || !objeto) throw new Error('Dados insuficientes para gravar.');
+    const limpo = JSON.parse(JSON.stringify(objeto));
+    const resultado = await runTransaction(ref(db, `mesas/${mesaId}/personagens/${sanitizarNome(nome)}/${campo}`), (atual) => anexarNaLista(atual, limpo));
+    if (!resultado?.committed) throw new Error('O banco não confirmou a gravação.');
+}
+
+export function enviarPendente(mesaId, { tipo, alvo, objeto, avisos, solicitante }) {
+    if (!db || !mesaId || !objeto) return Promise.reject(new Error('Dados insuficientes para enviar.'));
+    return push(ref(db, `${base(mesaId)}/pendentes`), JSON.parse(JSON.stringify({
+        tipo, alvo: alvo || '', objeto, avisos: avisos || [], solicitante: String(solicitante || '').substring(0, 60), em: Date.now(),
+    })));
+}
+
+export function removerPendente(mesaId, id) {
+    if (!db || !mesaId || !id) return Promise.resolve();
+    return remove(ref(db, `${base(mesaId)}/pendentes/${id}`));
+}
+
+export async function registrarDecisao(mesaId, { solicitante, nomeCriacao, tipo, aprovado, motivo }) {
+    if (!db || !mesaId) return;
+    const caminho = `${base(mesaId)}/decisoes`;
+    await push(ref(db, caminho), {
+        solicitante: String(solicitante || '').substring(0, 60), nomeCriacao: String(nomeCriacao || '').substring(0, 120),
+        tipo: tipo || '', aprovado: !!aprovado, motivo: String(motivo || '').substring(0, 300), em: Date.now(),
+    });
+    await podarMaisAntigos(caminho, LIMITE_DECISOES);
+}
+
+// Tira o pedido da fila de forma atômica: só um Mestre/Co-Mestre consegue "pegar" cada pedido
+// (evita aprovar duas vezes). Devolve o pedido, ou null se outro já pegou/não existe mais.
+export async function reivindicarPendente(mesaId, id) {
+    if (!db || !mesaId || !id) return null;
+    let pedido = null;
+    const resultado = await runTransaction(ref(db, `${base(mesaId)}/pendentes/${id}`), (atual) => {
+        // null pode ser só "ainda não tenho no cache": devolver null deixa o servidor refazer a
+        // transação com o valor real, se ele existir. Só quem viu o pedido de fato o remove.
+        pedido = atual;
+        return null;
+    });
+    return resultado?.committed && pedido ? pedido : null;
 }

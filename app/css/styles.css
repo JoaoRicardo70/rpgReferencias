@@ -1899,3 +1899,26 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
     .sexta-nav { align-self: stretch; }
     .sexta-nav-item { flex: 1 1 0; min-width: 0; padding: 7px 4px; font-size: 0.78em; letter-spacing: 0; }
 }
+
+/* 🛠️ Sexta-Feira (Fase 5): cartões de criação e pedidos pendentes */
+.sexta-criacao { display: flex; flex-direction: column; gap: 8px; border: 1px solid rgba(255, 204, 0, 0.55); border-radius: 8px; background: rgba(40, 30, 0, 0.25); padding: 10px 12px; box-shadow: 0 0 10px rgba(255, 204, 0, 0.12); }
+.sexta-criacao-aplicada { border-color: rgba(0, 255, 136, 0.55); background: rgba(0, 40, 20, 0.25); box-shadow: none; }
+.sexta-criacao-enviada { border-color: rgba(0, 136, 255, 0.55); background: rgba(0, 20, 40, 0.25); box-shadow: none; }
+.sexta-criacao-descartada { opacity: 0.55; box-shadow: none; }
+.sexta-criacao-topo { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.sexta-criacao-tipo { color: #ffd84d; font-size: 0.72em; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+.sexta-criacao-nome { color: #fff; }
+.sexta-criacao-alvo { color: #99a; font-size: 0.82em; }
+.sexta-criacao-detalhes { display: flex; flex-direction: column; gap: 6px; }
+.sexta-criacao-resumo { color: #cde; font-size: 0.85em; }
+.sexta-criacao-descricao { margin: 0; color: #aab; font-size: 0.85em; line-height: 1.45; white-space: pre-wrap; }
+.sexta-criacao-efeitos, .sexta-criacao-avisos { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 2px; font-size: 0.82em; color: #ccd; }
+.sexta-criacao-efeitos code { color: #00ffcc; font-size: 0.95em; }
+.sexta-criacao-avisos { color: #ffb366; list-style: none; padding-left: 0; }
+.sexta-criacao-acoes { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.sexta-criacao-estado { color: #aab; font-size: 0.82em; font-weight: bold; }
+.sexta-pendentes { border-top-color: rgba(255, 204, 0, 0.4); }
+.sexta-pendentes .sexta-painel-titulo { color: #ffd84d; }
+.sexta-pendente { display: flex; flex-direction: column; gap: 6px; background: rgba(0, 0, 0, 0.35); border: 1px solid #3a3320; border-radius: 6px; padding: 7px 8px; }
+.sexta-pendente-cabecalho { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; background: none; border: none; padding: 0; color: #eee; text-align: left; cursor: pointer; font-family: inherit; }
+.sexta-pendente-cabecalho small { color: #99a; font-size: 0.78em; }

@@ -7,6 +7,8 @@ const mockSet = vi.fn();
 
 vi.mock('firebase/database', () => ({
     ref: vi.fn((db, path) => path),
+    query: vi.fn((r) => r),
+    limitToLast: vi.fn((n) => ({ limitToLast: n })),
     onValue: vi.fn((path, cb) => {
         listeners[path] = cb;
         const un = vi.fn();

@@ -5,6 +5,8 @@ import { renderHook, act, cleanup } from '@testing-library/react';
 const chamadas = [];
 vi.mock('firebase/database', () => ({
     ref: vi.fn((db, path) => path),
+    query: vi.fn((r) => r),
+    limitToLast: vi.fn((n) => ({ limitToLast: n })),
     onValue: vi.fn((path, ok, err) => {
         const unsub = vi.fn();
         chamadas.push({ path, ok, err, unsub });
@@ -187,5 +189,69 @@ describe('useSextaFeiraMesa - memoria da Sexta-Feira', () => {
         act(() => doPath(pathMem('M1'))[0].ok(snap({ a: { texto: 'x', em: 1 } })));
         unmount();
         expect(useStore.getState().sextaFeiraMemoria).toEqual({});
+    });
+});
+
+describe('useSextaFeiraMesa - pedidos de criacao (pendentes) e decisoes', () => {
+    const pathPend = (m) => `mesas/${m}/sextaFeira/pendentes`;
+    const pathDec = (m) => `mesas/${m}/sextaFeira/decisoes`;
+
+    it('jogador nao escuta pendentes, mas escuta decisoes (com limitToLast(20))', async () => {
+        const { query, limitToLast } = await import('firebase/database');
+        renderHook(() => useSextaFeiraMesa());
+        expect(doPath(pathPend('M1'))).toHaveLength(0);
+        expect(doPath(pathDec('M1'))).toHaveLength(1);
+        expect(limitToLast).toHaveBeenCalledWith(20);
+        expect(query).toHaveBeenCalled();
+    });
+    it('Mestre escuta pendentes e decisoes; valores vao para o store, null vira {}', () => {
+        useStore.setState({ isMestre: true });
+        renderHook(() => useSextaFeiraMesa());
+        act(() => doPath(pathPend('M1'))[0].ok(snap({ p1: { tipo: 'poder' } })));
+        expect(useStore.getState().sextaFeiraPendentes).toEqual({ p1: { tipo: 'poder' } });
+        act(() => doPath(pathPend('M1'))[0].ok(snap(null)));
+        expect(useStore.getState().sextaFeiraPendentes).toEqual({});
+        act(() => doPath(pathDec('M1'))[0].ok(snap({ d1: { aprovado: true } })));
+        expect(useStore.getState().sextaFeiraDecisoes).toEqual({ d1: { aprovado: true } });
+        act(() => doPath(pathDec('M1'))[0].ok(snap(null)));
+        expect(useStore.getState().sextaFeiraDecisoes).toEqual({});
+    });
+    it('deixar de ser Mestre encerra a escuta de pendentes e limpa o store', () => {
+        useStore.setState({ isMestre: true });
+        renderHook(() => useSextaFeiraMesa());
+        const l = doPath(pathPend('M1'))[0];
+        act(() => l.ok(snap({ p1: { tipo: 'poder' } })));
+        act(() => useStore.setState({ isMestre: false }));
+        expect(l.unsub).toHaveBeenCalled();
+        expect(useStore.getState().sextaFeiraPendentes).toEqual({});
+    });
+    it('erro em pendentes reescuta apos 15 s sem afetar decisoes', () => {
+        useStore.setState({ isMestre: true });
+        renderHook(() => useSextaFeiraMesa());
+        const primeira = doPath(pathPend('M1'))[0];
+        act(() => primeira.err(new Error('x')));
+        act(() => { vi.advanceTimersByTime(14999); });
+        expect(doPath(pathPend('M1'))).toHaveLength(1);
+        act(() => { vi.advanceTimersByTime(1); });
+        expect(doPath(pathPend('M1'))).toHaveLength(2);
+        expect(primeira.unsub).toHaveBeenCalledTimes(1);
+        expect(doPath(pathDec('M1'))).toHaveLength(1);
+    });
+    it('erro em decisoes reescuta apos 15 s; unmount cancela a espera e desinscreve', () => {
+        const { unmount } = renderHook(() => useSextaFeiraMesa());
+        act(() => doPath(pathDec('M1'))[0].err(new Error('x')));
+        act(() => { vi.advanceTimersByTime(15000); });
+        expect(doPath(pathDec('M1'))).toHaveLength(2);
+        act(() => doPath(pathDec('M1'))[1].err(new Error('y')));
+        unmount();
+        act(() => { vi.advanceTimersByTime(30000); });
+        expect(doPath(pathDec('M1'))).toHaveLength(2);
+        expect(doPath(pathDec('M1'))[1].unsub).toHaveBeenCalled();
+    });
+    it('sem mesa: nenhuma escuta e stores limpos', () => {
+        useStore.setState({ mesaId: '', isMestre: true });
+        renderHook(() => useSextaFeiraMesa());
+        expect(doPath(pathPend(''))).toHaveLength(0);
+        expect(chamadas).toHaveLength(0);
     });
 });

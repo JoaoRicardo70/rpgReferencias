@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ref, onValue, set } from 'firebase/database';
+import { ref, onValue, set, query, limitToLast } from 'firebase/database';
 import { db } from '../services/firebase-config';
 import useStore, { loreCapitulosPresentePadrao, loreCapitulosFuturoPadrao } from '../stores/useStore';
 import { normalizarRegistros } from '../core/sextaFeira';
@@ -44,6 +44,10 @@ export default function useSextaFeiraMesa() {
     const [tentativaRegistros, setTentativaRegistros] = useState(0);
     const [tentativaMemoria, setTentativaMemoria] = useState(0);
     const setSextaFeiraMemoria = useStore(s => s.setSextaFeiraMemoria);
+    const [tentativaPendentes, setTentativaPendentes] = useState(0);
+    const [tentativaDecisoes, setTentativaDecisoes] = useState(0);
+    const setSextaFeiraPendentes = useStore(s => s.setSextaFeiraPendentes);
+    const setSextaFeiraDecisoes = useStore(s => s.setSextaFeiraDecisoes);
 
     // Último estado dos Registros que veio do Firebase (ou que foi gravado lá), serializado —
     // evita regravar o que acabou de chegar (eco) e decide quando subir a versão local.
@@ -71,6 +75,30 @@ export default function useSextaFeiraMesa() {
 
     // Ao trocar de mesa (ou sair dela), a config e a memória da mesa anterior não valem mais.
     useEffect(() => () => { setSextaFeiraConfig(null); setSextaFeiraMemoria({}); }, [mesaId, setSextaFeiraConfig, setSextaFeiraMemoria]);
+
+    // 🛠️ Pedidos de criação dos jogadores (só o Mestre escuta: é quem aprova).
+    useEffect(() => {
+        if (!mesaId || !db || !isMestre) { setSextaFeiraPendentes({}); return undefined; }
+        let timerNovaEscuta = null;
+        const unsub = onValue(
+            ref(db, `mesas/${mesaId}/sextaFeira/pendentes`),
+            (snap) => setSextaFeiraPendentes(snap.val() || {}),
+            () => { timerNovaEscuta = setTimeout(() => setTentativaPendentes(t => t + 1), ESPERA_NOVA_ESCUTA_MS); },
+        );
+        return () => { unsub(); if (timerNovaEscuta) clearTimeout(timerNovaEscuta); };
+    }, [mesaId, isMestre, setSextaFeiraPendentes, tentativaPendentes]);
+
+    // Decisões recentes do Mestre (o jogador vê o aviso das dele).
+    useEffect(() => {
+        if (!mesaId || !db) { setSextaFeiraDecisoes({}); return undefined; }
+        let timerNovaEscuta = null;
+        const unsub = onValue(
+            query(ref(db, `mesas/${mesaId}/sextaFeira/decisoes`), limitToLast(20)),
+            (snap) => setSextaFeiraDecisoes(snap.val() || {}),
+            () => { timerNovaEscuta = setTimeout(() => setTentativaDecisoes(t => t + 1), ESPERA_NOVA_ESCUTA_MS); },
+        );
+        return () => { unsub(); if (timerNovaEscuta) clearTimeout(timerNovaEscuta); };
+    }, [mesaId, setSextaFeiraDecisoes, tentativaDecisoes]);
 
     // 📌 Memória permanente da mesa (fatos gravados pelo Mestre).
     useEffect(() => {

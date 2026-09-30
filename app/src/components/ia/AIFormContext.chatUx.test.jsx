@@ -19,6 +19,10 @@ import useStore from '../../stores/useStore';
 import * as dados from '../../services/sextaFeiraDados';
 import { chamarGemini } from '../../services/sextaFeiraIA';
 import { DECLARACOES_FERRAMENTAS } from '../../core/sextaFeiraFerramentas';
+import { DECLARACOES_CRIACAO } from '../../core/sextaFeiraCriacao';
+
+// Jogadores recebem as ferramentas de consulta + as propor_* de personagem (sem npc/tier list/poder_do_grupo).
+const DECLARACOES_JOGADOR = [...DECLARACOES_FERRAMENTAS, ...DECLARACOES_CRIACAO.filter(d => ['propor_habilidade', 'propor_magia', 'propor_item'].includes(d.name))];
 import { chaveFirebaseDoInstante } from '../../core/sextaFeiraSessao';
 
 const CHAVE_PREF = 'rpgSextaFeira_preferencias';
@@ -175,7 +179,7 @@ describe('preferencias', () => {
         expect(arg.systemInstruction).not.toContain('Segredo do castelo');
         expect(nomes(arg.ferramentas.declaracoes)).not.toContain('buscar_lore');
         expect(nomes(arg.ferramentas.declaracoes)).toContain('memorizar_fato');
-        expect(arg.ferramentas.declaracoes).toHaveLength(DECLARACOES_FERRAMENTAS.length - 1);
+        expect(arg.ferramentas.declaracoes).toHaveLength(DECLARACOES_JOGADOR.length - 1);
     });
     it('memoria off: sem texto de memoria e sem memorizar_fato', async () => {
         chamarGemini.mockResolvedValue('r');
@@ -220,7 +224,18 @@ describe('preferencias', () => {
         const arg = chamarGemini.mock.calls[0][0];
         expect(arg.systemInstruction).toContain('Você tem ferramentas para consultar a mesa');
         expect(arg.systemInstruction).toContain('poderCalculado');
-        expect(arg.ferramentas.declaracoes).toHaveLength(DECLARACOES_FERRAMENTAS.length);
+        expect(arg.ferramentas.declaracoes).toHaveLength(DECLARACOES_JOGADOR.length);
+        expect(nomes(arg.ferramentas.declaracoes)).not.toContain('propor_npc');
+        expect(nomes(arg.ferramentas.declaracoes)).not.toContain('poder_do_grupo');
+    });
+    it('tudo ligado como Mestre: recebe tambem propor_npc, propor_tier_list e poder_do_grupo', async () => {
+        useStore.setState({ isMestre: true });
+        chamarGemini.mockResolvedValue('r');
+        const { result } = montar();
+        await digitarEEnviar(result, 'oi');
+        const arg = chamarGemini.mock.calls[0][0];
+        expect(arg.ferramentas.declaracoes).toHaveLength(DECLARACOES_FERRAMENTAS.length + DECLARACOES_CRIACAO.length);
+        expect(nomes(arg.ferramentas.declaracoes)).toEqual(expect.arrayContaining(['propor_npc', 'propor_tier_list', 'poder_do_grupo']));
     });
 
     describe('executar respeita ferramentas desligadas', () => {

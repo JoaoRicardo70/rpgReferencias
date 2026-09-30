@@ -9,6 +9,7 @@ import { ModalSexta } from './DialogosSexta';
 import { resumoFichaDetalhado } from '../../core/sextaFeiraFerramentas';
 import { markdownParaTextoFalado } from '../../core/markdownSexta';
 import MarkdownSexta from './MarkdownSexta';
+import { resumirProposta, ROTULO_TIPO } from '../../core/sextaFeiraCriacao';
 import { listarModelosGemini } from '../../services/sextaFeiraIA';
 import GravadorPanel from './GravadorPanel';
 import AIArvoreGenealogica from './AIArvoreGenealogica'; // <-- ADIÇÃO: Importando o novo componente
@@ -206,7 +207,103 @@ function BotaoOuvir({ texto }) {
     return <button type="button" className="sexta-chip-btn" onClick={ouvir} title="Ouvir esta resposta" aria-label="Ouvir esta resposta">🔊</button>;
 }
 
-function MensagemChat({ msg, meuNome, ultima }) {
+// 🛠️ Detalhes de uma criação (usado no cartão da resposta e nos pedidos pendentes do Mestre).
+function DetalhesCriacao({ tipo, objeto, avisos }) {
+    if (!objeto) return null;
+    const efeitos = [...(objeto.efeitos || []).map(e => ({ ...e, passivo: false })), ...(objeto.efeitosPassivos || []).map(e => ({ ...e, passivo: true }))];
+    return (
+        <div className="sexta-criacao-detalhes">
+            <div className="sexta-criacao-resumo">{resumirProposta(tipo, objeto)}</div>
+            {objeto.descricao && <p className="sexta-criacao-descricao">{objeto.descricao}</p>}
+            {efeitos.length > 0 && (
+                <ul className="sexta-criacao-efeitos">
+                    {efeitos.map((e, i) => (
+                        <li key={i}>{e.passivo ? '🛡️' : '⚡'} {e.nome}: <code>{e.atributo}</code> · <code>{e.propriedade}</code> = <strong>{e.valor}</strong></li>
+                    ))}
+                </ul>
+            )}
+            {tipo === 'tierlist' && (
+                <ul className="sexta-criacao-efeitos">
+                    {(objeto.ranks || []).map(r => <li key={r.nome}><strong>{r.rank}</strong> · {r.nome}</li>)}
+                </ul>
+            )}
+            {(avisos || []).length > 0 && (
+                <ul className="sexta-criacao-avisos">
+                    {avisos.map((a, i) => <li key={i}>⚠️ {a}</li>)}
+                </ul>
+            )}
+        </div>
+    );
+}
+
+const ESTADO_PROPOSTA = { aplicada: '✅ Aplicada', enviada: '⏳ Enviada ao Mestre', descartada: '🗑️ Descartada' };
+
+function CartaoProposta({ proposta, msgIdx }) {
+    const ctx = useAIForm();
+    const [ocupado, setOcupado] = useState(false);
+    if (!ctx) return null;
+    const { isMestre } = ctx;
+    const titulo = proposta.tipo === 'tierlist' ? 'Tier List' : (proposta.objeto?.nome || 'Sem nome');
+    const executar = async (fn) => { setOcupado(true); try { await fn(msgIdx, proposta.id); } finally { setOcupado(false); } };
+    const podeEnviar = !isMestre && ['poder', 'magia', 'item'].includes(proposta.tipo);
+    return (
+        <div className={`sexta-criacao sexta-criacao-${proposta.estado || 'nova'}`}>
+            <div className="sexta-criacao-topo">
+                <span className="sexta-criacao-tipo">🛠️ {ROTULO_TIPO[proposta.tipo] || proposta.tipo}{proposta.quantidade > 1 ? ` × ${proposta.quantidade}` : ''}</span>
+                <strong className="sexta-criacao-nome">{titulo}</strong>
+                {proposta.alvo && <span className="sexta-criacao-alvo">para {proposta.alvo}</span>}
+                {proposta.cenaNome && <span className="sexta-criacao-alvo">na cena "{proposta.cenaNome}"</span>}
+                {proposta.tipo === 'tierlist' && proposta.capituloTitulo && <span className="sexta-criacao-alvo">no capítulo "{proposta.capituloTitulo}"</span>}
+            </div>
+            <DetalhesCriacao tipo={proposta.tipo} objeto={proposta.objeto} avisos={proposta.avisos} />
+            <div className="sexta-criacao-acoes">
+                {proposta.estado && proposta.estado !== 'nova' ? (
+                    <span className="sexta-criacao-estado">{ESTADO_PROPOSTA[proposta.estado] || proposta.estado}</span>
+                ) : (
+                    <>
+                        {isMestre && <button type="button" className="sexta-chip-btn verde" disabled={ocupado} onClick={() => executar(ctx.aplicarProposta)}>✅ Aplicar</button>}
+                        {podeEnviar && <button type="button" className="sexta-chip-btn azul" disabled={ocupado} onClick={() => executar(ctx.enviarPropostaParaAprovacao)}>📨 Enviar para aprovação</button>}
+                        {!isMestre && !podeEnviar && <span className="sexta-criacao-estado">Só o Mestre pode aplicar isto.</span>}
+                        <button type="button" className="sexta-chip-btn" disabled={ocupado} onClick={() => ctx.descartarProposta(msgIdx, proposta.id)}>Descartar</button>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// 📥 Pedidos de criação dos jogadores esperando o Mestre (painel lateral).
+function PendentesMestre() {
+    const ctx = useAIForm();
+    const [aberto, setAberto] = useState(null);
+    const [ocupado, setOcupado] = useState(null);
+    if (!ctx || !ctx.isMestre) return null;
+    const pedidos = Object.entries(ctx.sextaFeiraPendentes || {})
+        .filter(([, p]) => p && p.objeto)
+        .sort(([, a], [, b]) => (Number(a.em) || 0) - (Number(b.em) || 0));
+    if (pedidos.length === 0) return null;
+    const agir = async (fn, id) => { setOcupado(id); try { await fn(id); } finally { setOcupado(null); } };
+    return (
+        <div className="sexta-painel-bloco sexta-pendentes">
+            <div className="sexta-painel-titulo">📥 Pedidos dos jogadores ({pedidos.length})</div>
+            {pedidos.map(([id, p]) => (
+                <div key={id} className="sexta-pendente">
+                    <button type="button" className="sexta-pendente-cabecalho" onClick={() => setAberto(aberto === id ? null : id)} aria-expanded={aberto === id}>
+                        <strong>{p.objeto.nome}</strong>
+                        <small>{ROTULO_TIPO[p.tipo] || p.tipo} · {p.solicitante}{p.alvo && p.alvo !== p.solicitante ? ` → ${p.alvo}` : ''}</small>
+                    </button>
+                    {aberto === id && <DetalhesCriacao tipo={p.tipo} objeto={p.objeto} avisos={p.avisos} />}
+                    <div className="sexta-criacao-acoes">
+                        <button type="button" className="sexta-chip-btn verde" disabled={ocupado === id} onClick={() => agir(ctx.aprovarPendente, id)}>✅ Aprovar</button>
+                        <button type="button" className="sexta-chip-btn vermelho" disabled={ocupado === id} onClick={() => agir(ctx.recusarPendente, id)}>❌ Recusar</button>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function MensagemChat({ msg, meuNome, ultima, msgIdx }) {
     const ctx = useAIForm();
     const papel = msg.role === 'user' ? 'user' : msg.role === 'erro' ? 'erro' : 'ai';
     const rotulo = papel === 'user' ? meuNome?.toUpperCase() : papel === 'erro' ? 'ERRO' : (msg.tipo === 'resumo' ? 'SEXTA-FEIRA · RESUMO DE SESSÃO' : 'SEXTA-FEIRA');
@@ -219,6 +316,9 @@ function MensagemChat({ msg, meuNome, ultima }) {
                     <button type="button" className="sexta-chip-btn vermelho sexta-msg-retry" onClick={ctx.tentarDeNovo} disabled={ctx.carregando}>↻ Tentar de novo</button>
                 )}
             </div>
+            {papel === 'ai' && Array.isArray(msg.propostas) && msg.propostas.map(p => (
+                <CartaoProposta key={p.id} proposta={p} msgIdx={msgIdx} />
+            ))}
             {papel === 'ai' && (
                 <div className="sexta-msg-rodape">
                     <BotaoOuvir texto={msg.texto} />
@@ -360,6 +460,8 @@ function PainelContextoSexta() {
                 </div>
             </div>
 
+            <PendentesMestre />
+
             <div className="sexta-painel-bloco sexta-painel-visao">
                 <div className="sexta-painel-titulo">👁️ O que ela está vendo</div>
                 <div className="sexta-painel-linha"><span>Você</span><strong>{meuNome} · {isMestre ? 'Mestre' : 'Jogador'}</strong></div>
@@ -412,7 +514,7 @@ export function AIChat() {
                 <div ref={chatRef} className="def-box sexta-chat-mensagens" aria-live="polite">
                     {historico.length === 0 && respostaParcial === null && <div className="sexta-chat-vazio">A Sexta-Feira está online e pronta para ajudar. Experimente um atalho abaixo ou mencione alguém com @.</div>}
                     {historico.map((msg, i) => (
-                        <MensagemChat key={i} msg={msg} meuNome={meuNome} ultima={i === historico.length - 1} />
+                        <MensagemChat key={i} msg={msg} meuNome={meuNome} ultima={i === historico.length - 1} msgIdx={i} />
                     ))}
                     {carregando && (
                         <div className="sexta-msg sexta-msg-ai">

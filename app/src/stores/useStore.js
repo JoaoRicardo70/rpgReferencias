@@ -235,6 +235,11 @@ const useStore = create(
         // Fatos que o Mestre mandou a Sexta-Feira lembrar ({ [id]: { texto, soMestre, autor, em } }).
         sextaFeiraMemoria: {},
         setSextaFeiraMemoria: (memoria) => set((state) => { state.sextaFeiraMemoria = memoria || {}; }),
+        // Criações pedidas por jogadores esperando o Mestre ({ [id]: pedido }) e decisões recentes.
+        sextaFeiraPendentes: {},
+        setSextaFeiraPendentes: (pendentes) => set((state) => { state.sextaFeiraPendentes = pendentes || {}; }),
+        sextaFeiraDecisoes: {},
+        setSextaFeiraDecisoes: (decisoes) => set((state) => { state.sextaFeiraDecisoes = decisoes || {}; }),
         setSextaFeiraConfig: (config) => set((state) => { state.sextaFeiraConfig = config || null; }),
         setRegistrosCompartilhados: (val) => set((state) => { state.registrosCompartilhados = !!val; }),
         // Aplica os Registros vindos do Firebase e corrige capítulo/arco ativos que não existam mais.

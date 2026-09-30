@@ -18,6 +18,7 @@ import { AIFormProvider, useAIForm } from './AIFormContext';
 import useStore from '../../stores/useStore';
 import { chamarGemini } from '../../services/sextaFeiraIA';
 import { DECLARACOES_FERRAMENTAS } from '../../core/sextaFeiraFerramentas';
+import { DECLARACOES_CRIACAO } from '../../core/sextaFeiraCriacao';
 import { MODELO_GEMINI_PADRAO } from '../../core/sextaFeira';
 
 const fichaAna = () => ({
@@ -62,7 +63,11 @@ describe('AIFormContext - ferramentas do Gemini', () => {
         const { result } = montar();
         await enviar(result, 'oi');
         const arg = chamarGemini.mock.calls[0][0];
-        expect(arg.ferramentas.declaracoes).toStrictEqual(DECLARACOES_FERRAMENTAS);
+        // Jogador: consulta + propor_habilidade/magia/item (sem as so-Mestre).
+        expect(arg.ferramentas.declaracoes).toStrictEqual([
+            ...DECLARACOES_FERRAMENTAS,
+            ...DECLARACOES_CRIACAO.filter(d => ['propor_habilidade', 'propor_magia', 'propor_item'].includes(d.name)),
+        ]);
         expect(typeof arg.ferramentas.executar).toBe('function');
     });
     it('executar roda executarFerramenta sobre o estado do store (jogador)', async () => {

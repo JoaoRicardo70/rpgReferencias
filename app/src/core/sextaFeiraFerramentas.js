@@ -21,6 +21,9 @@ import {
     CATEGORIAS_PRESTIGIO, MULTS_BASE_PRESTIGIO, PRESTIGIO_PARA_ASCENDER,
     calcularBaseDoPrestigio, getPontosPrestigioDisponiveis,
 } from './prestigioDistribuicao.js';
+import {
+    TIPO_POR_FERRAMENTA, TIPOS_SO_MESTRE, normalizarProposta, avaliarEquilibrio, resumirProposta, ROTULO_TIPO,
+} from './sextaFeiraCriacao.js';
 
 const VITAIS = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
 const LIMITE_FEED = 30;
@@ -245,6 +248,69 @@ function trechosComTermo(capitulos, termo, rotulo) {
     return achados;
 }
 
+// ---------- 🛠️ criação com confirmação (core/sextaFeiraCriacao.js) ----------
+async function executarProposta(tipo, a, estado, registrarProposta) {
+    try {
+        if (TIPOS_SO_MESTRE.includes(tipo) && !estado.isMestre) return { erro: 'Só o Mestre pode preparar isso.' };
+        if (typeof registrarProposta !== 'function') return { erro: 'Criação indisponível nesta conversa.' };
+        const dados = { ...a };
+        delete dados.alvo;
+        let alvo = null;
+        let fichaAlvo = null;
+        if (tipo === 'poder' || tipo === 'magia' || tipo === 'item') {
+            const achado = resolverPersonagem(estado, a.alvo);
+            if (!achado) return { erro: `Não encontrei o personagem "${a.alvo || 'de quem pede'}". Use listar_personagens.` };
+            if (!podeVerDetalhes(estado, achado.nome)) return { erro: 'Jogadores só podem pedir criações para o próprio personagem.' };
+            alvo = achado.nome;
+            fichaAlvo = achado.ficha;
+        }
+        const nomesConhecidos = [
+            ...(estado.meuNome ? [estado.meuNome] : []),
+            ...Object.keys(estado.personagens || {}),
+            ...Object.entries(estado.dummies || {}).map(([id, d]) => d?.nome || id),
+        ];
+        const { objeto, avisos, valido, quantidade } = normalizarProposta(tipo, dados, { nomesConhecidos });
+        if (!valido) return { erro: 'Proposta incompleta.', avisos };
+        const avisosEquilibrio = avaliarEquilibrio(tipo, objeto, fichaAlvo);
+        const id = await registrarProposta({ tipo, objeto, alvo, avisos: [...avisos, ...avisosEquilibrio], quantidade: quantidade || 1 });
+        return {
+            ok: true, proposta: id, tipo: ROTULO_TIPO[tipo], alvo, resumo: resumirProposta(tipo, objeto),
+            ajustes: avisos, equilibrio: avisosEquilibrio,
+            instrucao: estado.isMestre
+                ? 'Diga que preparou a proposta: ela aparece como um cartão abaixo da sua resposta, com o botão Aplicar. Nada foi gravado ainda.'
+                : 'Diga que preparou a proposta: ela aparece como um cartão abaixo da sua resposta, e o jogador pode enviá-la para o Mestre aprovar. Nada foi gravado ainda.',
+        };
+    } catch (err) {
+        return { erro: `Falha ao preparar a proposta (${err?.message || 'erro desconhecido'}).` };
+    }
+}
+
+// Jogadores de verdade (fichas de NPC criadas pela Árvore ficam de fora).
+function poderDoGrupo(estado) {
+    if (!estado.isMestre) return { erro: 'Só o Mestre pode consultar o grupo inteiro.' };
+    try {
+        const fichas = [];
+        if (estado.minhaFicha && estado.meuNome) fichas.push([estado.meuNome, estado.minhaFicha]);
+        Object.entries(estado.personagens || {}).forEach(([n, f]) => {
+            if (f && typeof f === 'object' && normalizar(n) !== normalizar(estado.meuNome)) fichas.push([n, f]);
+        });
+        const jogadores = fichas
+            .filter(([, f]) => !f.isNPC && normalizar(f.bio?.mesa) !== 'npc')
+            .map(([nome, f]) => {
+                const vida = resumoVital(f, 'vida');
+                return { nome, poderCalculado: poderDe(f, estado), vidaMaxima: vida ? vida.maximo : 0, vidaPorcentagem: vida ? vida.porcentagem : null, fadigaPorcentagem: arred(calcularFadigaAtual(f)) };
+            });
+        const media = (campo) => (jogadores.length ? Math.round(jogadores.reduce((s, j) => s + (Number(j[campo]) || 0), 0) / jogadores.length) : 0);
+        return {
+            jogadores,
+            medias: { poderCalculado: media('poderCalculado'), vidaMaxima: media('vidaMaxima') },
+            dica: 'Para propor_npc, "vida" usa a mesma escala de vidaMaxima. Um inimigo equilibrado costuma ter Vida parecida com a média do grupo; chefes, 2 a 4 vezes.',
+        };
+    } catch (err) {
+        return { erro: `Falha ao consultar o grupo (${err?.message || 'erro desconhecido'}).` };
+    }
+}
+
 // ---------- execução ----------
 // `estado`: { meuNome, isMestre, minhaFicha, personagens, dummies, resumoTurnoMapa, cenario,
 //             feedCombate, divisorPoderMesa, capitulosPresente, capitulosFuturo, podeVerFuturo }
@@ -252,8 +318,12 @@ function trechosComTermo(capitulos, termo, rotulo) {
 // `carregarArvore`: função async opcional que devolve a Árvore da mesa ({ familia: [membros] }).
 // `carregarTranscricoes(desdeMs)`: async, devolve [{ timestamp, autor, texto, tipo }].
 // `memorizar({ texto, soMestre })`: async, grava um fato na memória da mesa (só chamada pro Mestre).
-export async function executarFerramenta(nomeFerramenta, args, estado, { carregarArvore, carregarTranscricoes, memorizar } = {}) {
+// `registrarProposta({ tipo, objeto, alvo, avisos, quantidade })`: guarda uma proposta de criação
+//   (vira cartão de confirmação no chat) e devolve o id dela. Nada é gravado na ficha aqui.
+export async function executarFerramenta(nomeFerramenta, args, estado, { carregarArvore, carregarTranscricoes, memorizar, registrarProposta } = {}) {
     const a = args || {};
+    if (TIPO_POR_FERRAMENTA[nomeFerramenta]) return executarProposta(TIPO_POR_FERRAMENTA[nomeFerramenta], a, estado, registrarProposta);
+    if (nomeFerramenta === 'poder_do_grupo') return poderDoGrupo(estado);
     try {
         switch (nomeFerramenta) {
             case 'listar_personagens': {
