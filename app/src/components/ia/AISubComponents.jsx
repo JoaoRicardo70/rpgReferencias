@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useAIForm, TODOS_RANKS } from './AIFormContext';
+import { useAIForm, TODOS_RANKS, PERIODOS_RESUMO } from './AIFormContext';
 import { MODELO_GEMINI_PADRAO } from '../../core/sextaFeira';
 import { listarModelosGemini } from '../../services/sextaFeiraIA';
 import GravadorPanel from './GravadorPanel';
@@ -105,23 +105,101 @@ export function AICapituladorHeader() {
     );
 }
 
+// Ações embaixo de cada resposta da Sexta-Feira: mandar pros Registros (com o destino sugerido
+// pelo resumo de sessão já escolhido) e, pro Mestre, gravar na memória permanente da mesa.
+function AcoesMensagemIA({ msg }) {
+    const ctx = useAIForm();
+    const [destino, setDestino] = useState(msg.destinoSugerido || 'novo_capitulo');
+    const [memorizado, setMemorizado] = useState('');
+    if (!ctx) return null;
+    const { salvarNoRegistro, loreFoco, capitulosPresente, capitulosFuturo, podeEditarRegistros, isMestre, memorizarTexto } = ctx;
+    // Resumo de sessão sempre vai pro Presente (os destinos sugeridos são de lá).
+    const foco = msg.tipo === 'resumo' ? 'presente' : loreFoco;
+    const capitulos = foco === 'presente' ? capitulosPresente : capitulosFuturo;
+
+    const memorizar = async (soMestre) => {
+        try {
+            await memorizarTexto(msg.texto.substring(0, 500), soMestre);
+            setMemorizado(soMestre ? '🔒 Memorizado (só Mestre)' : '📌 Memorizado');
+        } catch (e) {
+            setMemorizado('❌ Não foi possível memorizar');
+        }
+    };
+
+    if (!podeEditarRegistros && !isMestre) return null;
+    return (
+        <div className="sexta-msg-acoes">
+            {podeEditarRegistros && (
+                <>
+                    <span className="sexta-msg-acoes-rotulo">{msg.destinoSugerido ? 'Destino sugerido:' : 'Destino:'}</span>
+                    <select className="input-neon sexta-msg-acoes-select" value={destino} onChange={e => setDestino(e.target.value)}>
+                        <option value="novo_capitulo">➕ Criar Novo Capítulo Inteiro</option>
+                        {capitulos.map(cap => (
+                            <optgroup key={cap.id} label={`📖 ${cap.titulo}`}>
+                                <option value={`novo_arco_${cap.id}`}>➕ Novo Arco aqui dentro</option>
+                                {cap.arcos.map(a => <option key={a.id} value={`${cap.id}_${a.id}`}>📂 {a.titulo}</option>)}
+                            </optgroup>
+                        ))}
+                    </select>
+                    <button
+                        onClick={() => {
+                            const titulo = msg.tipo === 'resumo' ? 'Resumo de Sessão da Sexta-Feira' : 'Análise da Sexta-Feira';
+                            if (salvarNoRegistro(msg.texto, titulo, destino, foco)) {
+                                alert('✅ Texto transferido com sucesso para o Arco selecionado!');
+                            }
+                        }}
+                        className="btn-neon btn-blue sexta-msg-acoes-btn"
+                    >
+                        📜 Enviar
+                    </button>
+                </>
+            )}
+            {isMestre && (
+                memorizado ? <span className="sexta-msg-acoes-rotulo">{memorizado}</span> : (
+                    <>
+                        <button className="btn-neon sexta-msg-acoes-btn" onClick={() => memorizar(false)} title="A Sexta-Feira passa a lembrar disto em todas as conversas da mesa">📌 Memorizar</button>
+                        <button className="btn-neon sexta-msg-acoes-btn" onClick={() => memorizar(true)} title="Só aparece para o Mestre">🔒 Só Mestre</button>
+                    </>
+                )
+            )}
+        </div>
+    );
+}
+
+// 📝 Botão do Mestre: resume a sessão (feed de combate + falas transcritas) do período escolhido.
+function ResumirSessaoMestre() {
+    const ctx = useAIForm();
+    const [periodo, setPeriodo] = useState('hoje');
+    if (!ctx || !ctx.isMestre) return null;
+    return (
+        <div className="sexta-resumo-sessao">
+            <select className="input-neon sexta-msg-acoes-select" value={periodo} onChange={e => setPeriodo(e.target.value)} aria-label="Período do resumo">
+                {Object.entries(PERIODOS_RESUMO).map(([valor, rotulo]) => <option key={valor} value={valor}>Sessão {rotulo}</option>)}
+            </select>
+            <button className="btn-neon btn-gold sexta-msg-acoes-btn" onClick={() => ctx.resumirSessao(periodo)} disabled={ctx.carregando} title="Junta o feed de combate e as falas transcritas e escreve uma crônica para os Registros">
+                📝 Resumir sessão
+            </button>
+        </div>
+    );
+}
+
 export function AIChat() {
     const ctx = useAIForm();
     if (!ctx) return FALLBACK;
-    const { chatRef, historico, meuNome, mensagem, setMensagem, handleKeyDown, carregando, enviarMensagem, arquivoTexto, nomeArquivo, setArquivoTexto, setNomeArquivo, fileInputRef, handleArquivoSelecionado, limparChat, salvarNoRegistro, loreFoco, capitulosPresente, capitulosFuturo, podeEditarRegistros } = ctx;
-
-    const [destinoLore, setDestinoLore] = useState('novo_capitulo');
-    const arcosDisponiveis = loreFoco === 'presente' ? capitulosPresente : capitulosFuturo;
+    const { chatRef, historico, meuNome, mensagem, setMensagem, handleKeyDown, carregando, enviarMensagem, arquivoTexto, nomeArquivo, setArquivoTexto, setNomeArquivo, fileInputRef, handleArquivoSelecionado, limparChat } = ctx;
 
     return (
         <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '-5px', padding: '0 5px' }}>
+            <div className="sexta-chat-topo">
                 <span style={{ color: '#00ffcc', fontSize: '0.85em', fontWeight: 'bold' }}>📡 Memória Neural Ativa para: {meuNome}</span>
-                {historico.length > 0 && (
-                    <button onClick={limparChat} style={{ background: 'none', border: 'none', color: '#ff003c', cursor: 'pointer', fontSize: '0.85em', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }} title="Zerar a conversa com a IA">
-                        🗑️ Limpar Memória
-                    </button>
-                )}
+                <div className="sexta-chat-topo-acoes">
+                    <ResumirSessaoMestre />
+                    {historico.length > 0 && (
+                        <button onClick={limparChat} style={{ background: 'none', border: 'none', color: '#ff003c', cursor: 'pointer', fontSize: '0.85em', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }} title="Zerar a conversa com a IA">
+                            🗑️ Limpar Memória
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div ref={chatRef} className="def-box" style={{ flex: 1, minHeight: '300px', maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '15px', padding: '15px' }}>
@@ -129,36 +207,12 @@ export function AIChat() {
                 {historico.map((msg, i) => (
                     <div key={i} style={{ alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '80%', display: 'flex', flexDirection: 'column', gap: '5px' }}>
                         <div style={{ padding: '10px 14px', borderRadius: '8px', background: msg.role === 'user' ? 'rgba(0, 255, 204, 0.15)' : msg.role === 'erro' ? 'rgba(255, 0, 60, 0.15)' : 'rgba(0, 136, 255, 0.15)', border: `1px solid ${msg.role === 'user' ? '#00ffcc' : msg.role === 'erro' ? '#ff003c' : '#0088ff'}`, color: '#ddd', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.95em' }}>
-                            <div style={{ fontSize: '0.7em', fontWeight: 'bold', marginBottom: '4px', color: msg.role === 'user' ? '#00ffcc' : msg.role === 'erro' ? '#ff003c' : '#0088ff' }}>{msg.role === 'user' ? meuNome?.toUpperCase() : msg.role === 'erro' ? 'ERRO' : 'SEXTA-FEIRA'}</div>
+                            <div style={{ fontSize: '0.7em', fontWeight: 'bold', marginBottom: '4px', color: msg.role === 'user' ? '#00ffcc' : msg.role === 'erro' ? '#ff003c' : '#0088ff' }}>{msg.role === 'user' ? meuNome?.toUpperCase() : msg.role === 'erro' ? 'ERRO' : (msg.tipo === 'resumo' ? 'SEXTA-FEIRA · RESUMO DE SESSÃO' : 'SEXTA-FEIRA')}</div>
                             {msg.texto}
                         </div>
-                        
-                        {/* 🔥 SELETOR HIERÁRQUICO NO CHAT 🔥 */}
-                        {msg.role === 'ai' && podeEditarRegistros && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px', background: 'rgba(0,0,0,0.5)', padding: '5px', borderRadius: '5px', border: '1px solid #333', alignSelf: 'flex-start', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '0.75em', color: '#aaa' }}>Destino:</span>
-                                <select className="input-neon" value={destinoLore} onChange={e => setDestinoLore(e.target.value)} style={{ padding: '2px 5px', fontSize: '0.75em', maxWidth: '200px', borderColor: '#444', color: '#fff' }}>
-                                    <option value="novo_capitulo">➕ Criar Novo Capítulo Inteiro</option>
-                                    {arcosDisponiveis.map(cap => (
-                                        <optgroup key={cap.id} label={`📖 ${cap.titulo}`}>
-                                            <option value={`novo_arco_${cap.id}`}>➕ Novo Arco aqui dentro</option>
-                                            {cap.arcos.map(a => <option key={a.id} value={`${cap.id}_${a.id}`}>📂 {a.titulo}</option>)}
-                                        </optgroup>
-                                    ))}
-                                </select>
-                                <button 
-                                    onClick={() => {
-                                        if (salvarNoRegistro(msg.texto, 'Análise da Sexta-Feira', destinoLore, loreFoco)) {
-                                            alert('✅ Texto transferido com sucesso para o Arco selecionado!');
-                                        }
-                                    }}
-                                    className="btn-neon btn-blue"
-                                    style={{ padding: '4px 10px', fontSize: '0.75em', margin: 0, opacity: 0.9 }}
-                                >
-                                    📜 Enviar
-                                </button>
-                            </div>
-                        )}
+
+                        {/* 🔥 SELETOR HIERÁRQUICO NO CHAT + MEMÓRIA 🔥 */}
+                        {msg.role === 'ai' && <AcoesMensagemIA msg={msg} />}
                     </div>
                 ))}
             </div>
@@ -356,7 +410,35 @@ export function AIConfig() {
                 )}
             </div>
             {status && <p className="sexta-config-status">{status}</p>}
+            <MemoriaMesaConfig />
             <p className="sexta-config-aviso">⚠️ Qualquer pessoa desta mesa consegue ler a chave (o navegador dela precisa usá-la). Use uma chave só para isto. Se desconfiar de abuso, apague a chave no AI Studio, crie outra e salve aqui: vale para a mesa toda na hora.</p>
+        </div>
+    );
+}
+
+// 📌 Memória permanente da mesa: fatos que a Sexta-Feira lembra em toda conversa (gravados pelo
+// botão "Memorizar" nas respostas ou quando o Mestre pede no chat). Só o Mestre vê e apaga aqui.
+function MemoriaMesaConfig() {
+    const ctx = useAIForm();
+    if (!ctx) return null;
+    const fatos = Object.entries(ctx.sextaFeiraMemoria || {})
+        .filter(([, f]) => f && f.texto)
+        .sort(([, a], [, b]) => (Number(b.em) || 0) - (Number(a.em) || 0));
+    return (
+        <div className="sexta-memoria">
+            <h4 className="sexta-config-titulo">📌 Memória da mesa ({fatos.length})</h4>
+            {fatos.length === 0 ? (
+                <p className="sexta-config-texto">Nada memorizado ainda. Use "📌 Memorizar" numa resposta da Sexta-Feira, ou peça no chat: "lembre que...".</p>
+            ) : (
+                <ul className="sexta-memoria-lista">
+                    {fatos.map(([id, f]) => (
+                        <li key={id} className="sexta-memoria-item">
+                            <span>{f.soMestre ? '🔒 ' : ''}{f.texto}</span>
+                            <button type="button" className="btn-neon btn-red sexta-msg-acoes-btn" onClick={() => { if (window.confirm('Apagar este fato da memória da Sexta-Feira?')) ctx.esquecerFato(id); }} title="Esquecer">🗑️</button>
+                        </li>
+                    ))}
+                </ul>
+            )}
         </div>
     );
 }

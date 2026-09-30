@@ -138,3 +138,54 @@ describe('useSextaFeiraMesa - config ao trocar de mesa', () => {
         expect(doPath(pathCfg('M1'))).toHaveLength(1);
     });
 });
+
+describe('useSextaFeiraMesa - memoria da Sexta-Feira', () => {
+    const pathMem = (m) => `mesas/${m}/sextaFeira/memoria`;
+    beforeEach(() => { useStore.setState({ sextaFeiraMemoria: {} }); });
+    it('assina o no de memoria e grava o valor no store; null vira {}', () => {
+        renderHook(() => useSextaFeiraMesa());
+        expect(doPath(pathMem('M1'))).toHaveLength(1);
+        const fatos = { a: { texto: 'x', em: 1 } };
+        act(() => doPath(pathMem('M1'))[0].ok(snap(fatos)));
+        expect(useStore.getState().sextaFeiraMemoria).toEqual(fatos);
+        act(() => doPath(pathMem('M1'))[0].ok(snap(null)));
+        expect(useStore.getState().sextaFeiraMemoria).toEqual({});
+    });
+    it('erro reescuta apos 15 s, desinscrevendo a antiga', () => {
+        renderHook(() => useSextaFeiraMesa());
+        const primeira = doPath(pathMem('M1'))[0];
+        act(() => primeira.err(new Error('permission_denied')));
+        act(() => { vi.advanceTimersByTime(14999); });
+        expect(doPath(pathMem('M1'))).toHaveLength(1);
+        act(() => { vi.advanceTimersByTime(1); });
+        expect(doPath(pathMem('M1'))).toHaveLength(2);
+        expect(primeira.unsub).toHaveBeenCalledTimes(1);
+    });
+    it('unmount durante a espera cancela a reescuta', () => {
+        const { unmount } = renderHook(() => useSextaFeiraMesa());
+        act(() => doPath(pathMem('M1'))[0].err(new Error('x')));
+        unmount();
+        act(() => { vi.advanceTimersByTime(60000); });
+        expect(doPath(pathMem('M1'))).toHaveLength(1);
+    });
+    it('sem mesa nao assina', () => {
+        useStore.setState({ mesaId: '' });
+        renderHook(() => useSextaFeiraMesa());
+        expect(chamadas.filter(c => c.path.includes('/memoria'))).toHaveLength(0);
+    });
+    it('trocar de mesa limpa a memoria e assina a nova', () => {
+        renderHook(() => useSextaFeiraMesa());
+        act(() => doPath(pathMem('M1'))[0].ok(snap({ a: { texto: 'x', em: 1 } })));
+        expect(Object.keys(useStore.getState().sextaFeiraMemoria)).toHaveLength(1);
+        act(() => useStore.setState({ mesaId: 'M2' }));
+        expect(useStore.getState().sextaFeiraMemoria).toEqual({});
+        expect(doPath(pathMem('M2'))).toHaveLength(1);
+        expect(doPath(pathMem('M1'))[0].unsub).toHaveBeenCalled();
+    });
+    it('unmount limpa a memoria', () => {
+        const { unmount } = renderHook(() => useSextaFeiraMesa());
+        act(() => doPath(pathMem('M1'))[0].ok(snap({ a: { texto: 'x', em: 1 } })));
+        unmount();
+        expect(useStore.getState().sextaFeiraMemoria).toEqual({});
+    });
+});

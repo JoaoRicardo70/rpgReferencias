@@ -73,6 +73,29 @@ export const DECLARACOES_FERRAMENTAS = [
         },
     },
     {
+        name: 'transcricoes_recentes',
+        description: 'Falas transcritas da mesa (voz do Mestre como narrador ou NPC, e dos jogadores) nas últimas horas, da mais antiga pra mais recente.',
+        parameters: {
+            type: 'OBJECT',
+            properties: {
+                horas: { type: 'NUMBER', description: 'Quantas horas pra trás (padrão 6, máximo 48).' },
+                termo: { type: 'STRING', description: 'Opcional: só falas que contenham este termo (ex.: nome de um NPC).' },
+            },
+        },
+    },
+    {
+        name: 'memorizar_fato',
+        description: 'SOMENTE quando o Mestre pedir explicitamente para você lembrar/guardar algo: grava um fato na memória permanente da mesa.',
+        parameters: {
+            type: 'OBJECT',
+            properties: {
+                texto: { type: 'STRING', description: 'O fato, em uma frase curta e completa.' },
+                soMestre: { type: 'BOOLEAN', description: 'true se for segredo que só o Mestre pode ver.' },
+            },
+            required: ['texto'],
+        },
+    },
+    {
         name: 'simular_prestigio',
         description: 'Simula colocar pontos de Prestígio numa categoria (vida, mana, aura, chakra ou corpo) e devolve o Poder Calculado antes e depois, sem mudar nada na ficha.',
         parameters: {
@@ -195,7 +218,7 @@ function resumoDummie(id, d, isMestre) {
     };
 }
 
-function resumirEventoFeed(e) {
+export function resumirEventoFeed(e) {
     if (!e || typeof e !== 'object') return null;
     const partes = [`[${e.tipo || 'evento'}] ${e.nome || '?'}`];
     if (e.texto) partes.push(String(e.texto));
@@ -227,7 +250,9 @@ function trechosComTermo(capitulos, termo, rotulo) {
 //             feedCombate, divisorPoderMesa, capitulosPresente, capitulosFuturo, podeVerFuturo }
 // (podeVerFuturo: Mestre, ou jogador com Registros só dele, não compartilhados pela mesa)
 // `carregarArvore`: função async opcional que devolve a Árvore da mesa ({ familia: [membros] }).
-export async function executarFerramenta(nomeFerramenta, args, estado, { carregarArvore } = {}) {
+// `carregarTranscricoes(desdeMs)`: async, devolve [{ timestamp, autor, texto, tipo }].
+// `memorizar({ texto, soMestre })`: async, grava um fato na memória da mesa (só chamada pro Mestre).
+export async function executarFerramenta(nomeFerramenta, args, estado, { carregarArvore, carregarTranscricoes, memorizar } = {}) {
     const a = args || {};
     try {
         switch (nomeFerramenta) {
@@ -294,6 +319,27 @@ export async function executarFerramenta(nomeFerramenta, args, estado, { carrega
                     }
                 }));
                 return membros.length ? { termo: a.termo, encontrados: membros.slice(0, 20) } : { termo: a.termo, encontrados: [], familias };
+            }
+            case 'transcricoes_recentes': {
+                if (typeof carregarTranscricoes !== 'function') return { erro: 'Transcrições indisponíveis.' };
+                const horas = Math.min(48, Math.max(0.5, num(a.horas) || 6));
+                const desde = Date.now() - horas * 3600000;
+                const termo = normalizar(a.termo);
+                const falas = lista(await carregarTranscricoes(desde))
+                    .filter(t => t && t.texto && num(t.timestamp) >= desde)
+                    .filter(t => !termo || normalizar(`${t.autor} ${t.texto}`).includes(termo))
+                    .sort((x, y) => num(x.timestamp) - num(y.timestamp))
+                    .slice(-80)
+                    .map(t => `${t.autor || '?'}${t.tipo === 'npc' ? ' (NPC)' : ''}: "${String(t.texto).trim().substring(0, 300)}"`);
+                return falas.length ? { horas, falas } : { horas, falas: [], mensagem: 'Nenhuma fala transcrita nesse período.' };
+            }
+            case 'memorizar_fato': {
+                if (!estado.isMestre) return { erro: 'Só o Mestre pode gravar fatos na memória da mesa.' };
+                if (typeof memorizar !== 'function') return { erro: 'Memória indisponível.' };
+                const texto = String(a.texto || '').trim().substring(0, 500);
+                if (!texto) return { erro: 'Nada para memorizar.' };
+                await memorizar({ texto, soMestre: !!a.soMestre });
+                return { ok: true, memorizado: texto, soMestre: !!a.soMestre };
             }
             case 'simular_prestigio': {
                 const cat = normalizar(a.categoria);

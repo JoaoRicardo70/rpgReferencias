@@ -49,10 +49,10 @@ function estadoBase(over = {}) {
 const chamar = (nome, args, estado, extra) => executarFerramenta(nome, args, estado, extra);
 
 describe('DECLARACOES_FERRAMENTAS', () => {
-    it('declara as 8 ferramentas com name/description/parameters', () => {
+    it('declara as 10 ferramentas com name/description/parameters', () => {
         expect(DECLARACOES_FERRAMENTAS.map(d => d.name)).toEqual([
             'listar_personagens', 'consultar_ficha', 'estado_combate', 'feed_recente',
-            'buscar_lore', 'buscar_arvore', 'simular_prestigio', 'projetar_fadiga',
+            'buscar_lore', 'buscar_arvore', 'transcricoes_recentes', 'memorizar_fato', 'simular_prestigio', 'projetar_fadiga',
         ]);
         DECLARACOES_FERRAMENTAS.forEach(d => {
             expect(typeof d.description).toBe('string');

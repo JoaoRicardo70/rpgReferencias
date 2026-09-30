@@ -136,8 +136,9 @@ export function selecionarLoreRelevante(capitulos, mensagem, textoArcoAtivo, lim
 }
 
 // Instrução de sistema completa: personalidade + contexto da ficha + lore relevante.
-export function montarInstrucaoSistema({ contextoFicha, lore }) {
+export function montarInstrucaoSistema({ contextoFicha, lore, memoria }) {
     const partes = [SYSTEM_PROMPT_SEXTA_FEIRA, '', '--- CONTEXTO ---', contextoFicha || ''];
+    if (memoria && memoria.trim()) partes.push('', 'Memória permanente da mesa (fatos que o Mestre pediu para você lembrar):', memoria.trim());
     if (lore && lore.trim()) partes.push('', 'Trechos da lore (Registros Akáshicos):', lore.trim());
     partes.push('--- FIM DO CONTEXTO ---');
     return partes.join('\n');

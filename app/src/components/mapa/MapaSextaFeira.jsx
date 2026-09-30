@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom'; 
-import { ref as dbRef, push } from 'firebase/database'; 
-import { db } from '../../services/firebase-config';
 import useStore from '../../stores/useStore'; 
+import { registrarTranscricao } from '../../services/sextaFeiraDados';
 
 export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAtivos, meuStream, conexoes }) {
     const [gravando, setGravando] = useState(false);
@@ -37,9 +36,10 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
     };
 
     const enviarParaBancoDeDados = (frase, papel) => {
-        if (!db || !mesaId) return;
-        const logEntry = { timestamp: Date.now(), autor: papel, texto: frase, tipo: mascaraMestre };
-        push(dbRef(db, `mesas/${mesaId}/sexta_feira_transcricao`), logEntry).catch(() => addLog("❌ Erro Nuvem."));
+        if (!mesaId) return;
+        // 📝 Fica em mesas/{mesaId}/sextaFeira/transcricoes: a Sexta-Feira usa no resumo de sessão
+        // e na ferramenta transcricoes_recentes (ver services/sextaFeiraDados.js).
+        Promise.resolve(registrarTranscricao(mesaId, { autor: papel, texto: frase, tipo: mascaraMestre })).catch(() => addLog("❌ Erro Nuvem."));
     };
 
     const iniciarGravacao = () => {

@@ -1704,3 +1704,14 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .sexta-config-status { margin: 0; color: #00ffcc; font-size: 0.9em; }
 .sexta-config-aviso { margin: 0; color: #ff8800; font-size: 0.8em; }
 .sexta-config-btn-icone { flex: 0 0 auto; }
+/* 📝 Sexta-Feira: resumo de sessão, ações das respostas e memória da mesa */
+.sexta-chat-topo { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: -5px; padding: 0 5px; }
+.sexta-chat-topo-acoes { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sexta-resumo-sessao { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sexta-msg-acoes { display: flex; align-items: center; gap: 5px; margin-top: 2px; background: rgba(0, 0, 0, 0.5); padding: 5px; border-radius: 5px; border: 1px solid #333; align-self: flex-start; flex-wrap: wrap; }
+.sexta-msg-acoes-rotulo { font-size: 0.75em; color: #aaa; }
+.sexta-msg-acoes-select { padding: 2px 5px; font-size: 0.75em; max-width: 220px; border-color: #444; color: #fff; margin: 0; }
+.sexta-msg-acoes-btn { padding: 4px 10px; font-size: 0.75em; margin: 0; }
+.sexta-memoria { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #333; padding-top: 12px; }
+.sexta-memoria-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sexta-memoria-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: rgba(0, 0, 0, 0.4); border: 1px solid #333; border-radius: 6px; padding: 6px 10px; color: #ccc; font-size: 0.85em; }

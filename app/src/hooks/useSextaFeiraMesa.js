@@ -42,6 +42,8 @@ export default function useSextaFeiraMesa() {
     const aplicarRegistrosRemotos = useStore(s => s.aplicarRegistrosRemotos);
     const [tentativaConfig, setTentativaConfig] = useState(0);
     const [tentativaRegistros, setTentativaRegistros] = useState(0);
+    const [tentativaMemoria, setTentativaMemoria] = useState(0);
+    const setSextaFeiraMemoria = useStore(s => s.setSextaFeiraMemoria);
 
     // Último estado dos Registros que veio do Firebase (ou que foi gravado lá), serializado —
     // evita regravar o que acabou de chegar (eco) e decide quando subir a versão local.
@@ -67,8 +69,20 @@ export default function useSextaFeiraMesa() {
         return () => { unsub(); if (timerNovaEscuta) clearTimeout(timerNovaEscuta); };
     }, [mesaId, setSextaFeiraConfig, tentativaConfig]);
 
-    // Ao trocar de mesa (ou sair dela), a config da mesa anterior não vale mais.
-    useEffect(() => () => setSextaFeiraConfig(null), [mesaId, setSextaFeiraConfig]);
+    // Ao trocar de mesa (ou sair dela), a config e a memória da mesa anterior não valem mais.
+    useEffect(() => () => { setSextaFeiraConfig(null); setSextaFeiraMemoria({}); }, [mesaId, setSextaFeiraConfig, setSextaFeiraMemoria]);
+
+    // 📌 Memória permanente da mesa (fatos gravados pelo Mestre).
+    useEffect(() => {
+        if (!mesaId || !db) return undefined;
+        let timerNovaEscuta = null;
+        const unsub = onValue(
+            ref(db, `mesas/${mesaId}/sextaFeira/memoria`),
+            (snap) => setSextaFeiraMemoria(snap.val() || {}),
+            () => { timerNovaEscuta = setTimeout(() => setTentativaMemoria(t => t + 1), ESPERA_NOVA_ESCUTA_MS); },
+        );
+        return () => { unsub(); if (timerNovaEscuta) clearTimeout(timerNovaEscuta); };
+    }, [mesaId, setSextaFeiraMemoria, tentativaMemoria]);
 
     useEffect(() => {
         remotoCarregadoRef.current = false;

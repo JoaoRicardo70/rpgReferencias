@@ -9,7 +9,22 @@ import {
 } from '../../core/sextaFeira';
 import { chamarGemini } from '../../services/sextaFeiraIA';
 import { DECLARACOES_FERRAMENTAS, executarFerramenta, montarContextoInicial } from '../../core/sextaFeiraFerramentas';
+import {
+    montarLinhasSessao, listarDestinosRegistros, montarPedidoResumo, extrairDestinoSugerido, montarTextoMemoria,
+} from '../../core/sextaFeiraSessao';
+import {
+    carregarEventosFeedDesde, carregarTranscricoesDesde, memorizarFato, apagarFato,
+    lerUltimoResumoEm, gravarUltimoResumoEm, carregarChat, salvarChat, LIMITE_MENSAGENS_CHAT_SALVAS,
+} from '../../services/sextaFeiraDados';
 import * as pdfjsLib from 'pdfjs-dist';
+
+// Períodos do "Resumir sessão" (valor -> rótulo). 'ultimo' = desde o último resumo feito.
+export const PERIODOS_RESUMO = { hoje: 'de hoje', '6h': 'das últimas 6 horas', ultimo: 'desde o último resumo' };
+
+function inicioDoDia() { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }
+
+// Cópia local da conversa, separada por mesa (a de uma mesa nunca aparece na outra).
+function chaveChatLocal(mesaId, nome) { return `rpgSextaFeira_chat_${mesaId || 'semMesa'}_${nome}`; }
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
@@ -56,6 +71,7 @@ export function AIFormProvider({ children }) {
     const isMestre = useStore(s => s.isMestre);
     const sextaFeiraConfig = useStore(s => s.sextaFeiraConfig);
     const registrosCompartilhados = useStore(s => s.registrosCompartilhados);
+    const sextaFeiraMemoria = useStore(s => s.sextaFeiraMemoria);
 
     // 🔒 Registros da mesa (hooks/useSextaFeiraMesa.js): só Mestre/Co-Mestre editam, e o Futuro
     // ("Ecos do Futuro") é só deles. Sem Registros na mesa, cada um edita os seus, como antes.
@@ -116,17 +132,77 @@ export function AIFormProvider({ children }) {
     const textoAtivo = arcoAtivoObj?.texto || '';
     const tierListAtiva = capituloAtivoObj?.tierList || [];
 
+    // 💾 CONVERSA: cópia local por mesa + jogador (localStorage) e cópia na mesa
+    // (mesas/{mesaId}/sextaFeira/chats/{nome}), que aparece em qualquer aparelho.
+    //  - Ao abrir (ou trocar de mesa/personagem): mostra a cópia local na hora e busca a da mesa.
+    //    Se ninguém mexeu na conversa enquanto isso, a da mesa (quando existe) vence.
+    //  - Se a pessoa mandou mensagens enquanto carregava, elas são somadas à da mesa; se limpou a
+    //    conversa, a limpeza vale (e apaga a da mesa).
+    //  - Só depois dessa primeira leitura as mudanças são gravadas na mesa (debounce), e nunca
+    //    se forem iguais ao que já está lá.
+    const historicoRef = useRef(historico);
+    historicoRef.current = historico;
+    const chatCarregadoRef = useRef(null);
+    const ultimoChatSalvoRef = useRef(null);
+    // Conversa local recém-lida que ainda não chegou à tela: até ela chegar, o histórico em
+    // memória é o da mesa/personagem anterior e não pode ser gravado na chave nova.
+    const aguardandoLocalRef = useRef(null);
     useEffect(() => {
-        if (meuNome) {
-            try {
-                const salvo = localStorage.getItem(`rpgSextaFeira_chat_${meuNome}`);
-                if (salvo) setHistorico(JSON.parse(salvo));
-                else setHistorico([]); 
-            } catch(e) { setHistorico([]); }
+        chatCarregadoRef.current = null;
+        ultimoChatSalvoRef.current = null;
+        if (!meuNome) return undefined;
+        let local = [];
+        try {
+            let salvo = localStorage.getItem(chaveChatLocal(mesaId, meuNome));
+            if (salvo === null) {
+                // Migração, uma vez só: a conversa antiga (sem mesa) vai pra esta mesa e a chave
+                // antiga é apagada, pra não reaparecer nas outras mesas.
+                const chaveAntiga = `rpgSextaFeira_chat_${meuNome}`;
+                salvo = localStorage.getItem(chaveAntiga);
+                if (salvo !== null && mesaId) { localStorage.setItem(chaveChatLocal(mesaId, meuNome), salvo); localStorage.removeItem(chaveAntiga); }
+            }
+            const lido = salvo ? JSON.parse(salvo) : [];
+            local = Array.isArray(lido) ? lido : [];
+        } catch (e) { local = []; }
+        aguardandoLocalRef.current = local;
+        setHistorico(local);
+        if (!mesaId) return undefined;
+        let cancelado = false;
+        carregarChat(mesaId, meuNome).then((remoto) => {
+            if (cancelado) return;
+            const temRemoto = Array.isArray(remoto) && remoto.length > 0;
+            const atual = historicoRef.current;
+            const mexeu = atual !== local;
+            let final;
+            if (!mexeu) final = temRemoto ? remoto : local;
+            else if (local.every((m, i) => atual[i] === m)) final = [...(temRemoto ? remoto : local), ...atual.slice(local.length)];
+            else final = atual; // limpou (ou trocou) a conversa enquanto carregava: vale o que está na tela
+            ultimoChatSalvoRef.current = temRemoto ? JSON.stringify(remoto.slice(-LIMITE_MENSAGENS_CHAT_SALVAS)) : null;
+            chatCarregadoRef.current = `${mesaId}|${meuNome}`;
+            if (final !== atual) setHistorico(final);
+            if (mexeu) {
+                ultimoChatSalvoRef.current = JSON.stringify(final.slice(-LIMITE_MENSAGENS_CHAT_SALVAS));
+                Promise.resolve(salvarChat(mesaId, meuNome, final)).catch(() => { ultimoChatSalvoRef.current = null; });
+            }
+        }).catch(() => { /* sem acesso ao banco: a conversa fica só neste navegador */ });
+        return () => { cancelado = true; };
+    }, [mesaId, meuNome]);
+    useEffect(() => {
+        if (!meuNome) return undefined;
+        if (aguardandoLocalRef.current) {
+            if (historico !== aguardandoLocalRef.current) return undefined;
+            aguardandoLocalRef.current = null;
         }
-    }, [meuNome]);
-
-    useEffect(() => { if (meuNome) localStorage.setItem(`rpgSextaFeira_chat_${meuNome}`, JSON.stringify(historico)); }, [historico, meuNome]);
+        try { localStorage.setItem(chaveChatLocal(mesaId, meuNome), JSON.stringify(historico)); } catch (e) { /* sem localStorage */ }
+        if (!mesaId || chatCarregadoRef.current !== `${mesaId}|${meuNome}`) return undefined;
+        const json = JSON.stringify(historico.slice(-LIMITE_MENSAGENS_CHAT_SALVAS));
+        if (json === ultimoChatSalvoRef.current) return undefined;
+        const timer = setTimeout(() => {
+            ultimoChatSalvoRef.current = json;
+            Promise.resolve(salvarChat(mesaId, meuNome, historico)).catch(() => { ultimoChatSalvoRef.current = null; });
+        }, 1500);
+        return () => clearTimeout(timer);
+    }, [historico, mesaId, meuNome]);
 
     useEffect(() => {
         localStorage.setItem('rpgSextaFeira_capitulos', JSON.stringify(capitulosPresente));
@@ -139,9 +215,22 @@ export function AIFormProvider({ children }) {
 
     const limparChat = useCallback(() => {
         if (window.confirm("Deseja formatar a memória desta conversa? A Sexta-Feira esquecerá tudo o que falaram aqui.")) {
-            setHistorico([]); localStorage.removeItem(`rpgSextaFeira_chat_${meuNome}`);
+            setHistorico([]);
+            try { localStorage.removeItem(chaveChatLocal(mesaId, meuNome)); localStorage.removeItem(`rpgSextaFeira_chat_${meuNome}`); } catch (e) { /* sem localStorage */ }
         }
-    }, [meuNome]);
+    }, [meuNome, mesaId]);
+
+    // 📌 Memória permanente da mesa (só Mestre grava/apaga).
+    const memorizarTexto = useCallback(async (texto, soMestre = false) => {
+        if (!isMestre || !mesaId) return false;
+        await memorizarFato(mesaId, { texto, soMestre, autor: meuNome });
+        return true;
+    }, [isMestre, mesaId, meuNome]);
+    const esquecerFato = useCallback(async (id) => {
+        if (!isMestre || !mesaId) return false;
+        await apagarFato(mesaId, id);
+        return true;
+    }, [isMestre, mesaId]);
 
     const poolPersonagens = useMemo(() => {
         const avataresDoServidor = [];
@@ -469,7 +558,13 @@ export function AIFormProvider({ children }) {
                 } catch (e) { /* sem acesso ao banco: tenta a cópia local */ }
                 try { return JSON.parse(localStorage.getItem('rpgSextaFeira_arvore') || 'null'); } catch (e) { return null; }
             };
-            const systemInstruction = montarInstrucaoSistema({ contextoFicha: montarContextoInicial(estadoMesa), lore });
+            const opcoesFerramentas = {
+                carregarArvore,
+                carregarTranscricoes: (desde) => carregarTranscricoesDesde(mesaId, desde),
+                memorizar: ({ texto, soMestre }) => memorizarFato(mesaId, { texto, soMestre, autor: meuNome }),
+            };
+            const memoria = montarTextoMemoria(loja.sextaFeiraMemoria, isMestre);
+            const systemInstruction = montarInstrucaoSistema({ contextoFicha: montarContextoInicial(estadoMesa), lore, memoria });
 
             let textoPedido = msgUsuario || 'Faça um resumo do arquivo anexado.';
             if (textoAnexo) textoPedido += `\n\n--- CONTEÚDO DO ARQUIVO ANEXADO (${nomeAnexo}) ---\n${textoAnexo}\n--- FIM DO ARQUIVO ---`;
@@ -482,7 +577,7 @@ export function AIFormProvider({ children }) {
                 contents,
                 ferramentas: {
                     declaracoes: DECLARACOES_FERRAMENTAS,
-                    executar: (nome, args) => executarFerramenta(nome, args, estadoMesa, { carregarArvore }),
+                    executar: (nome, args) => executarFerramenta(nome, args, estadoMesa, opcoesFerramentas),
                 },
             });
             setHistorico(prev => [...prev, { role: 'ai', texto: resposta }]);
@@ -492,6 +587,49 @@ export function AIFormProvider({ children }) {
         }
         finally { setCarregando(false); }
     }, [mensagem, arquivoTexto, nomeArquivo, carregando, iaConfigurada, isMestre, historico, podeVerFuturo, capitulosPresente, capitulosFuturo, loreFoco, arcoAtivoObj, meuNome, mesaId, sextaFeiraConfig]);
+
+    // 📝 RESUMO DE SESSÃO (só Mestre): junta o feed de combate e as falas transcritas do período,
+    // pede à Sexta-Feira uma crônica e sugere onde guardar nos Registros (o Mestre confirma no
+    // seletor "Destino" da própria resposta).
+    const resumirSessao = useCallback(async (periodo = 'hoje') => {
+        if (!isMestre || carregando) return;
+        if (!iaConfigurada) {
+            setHistorico(prev => [...prev, { role: 'erro', texto: 'A Sexta-Feira ainda não tem uma chave do Gemini. Abra ⚙️ Config nesta aba e cadastre a chave.' }]);
+            return;
+        }
+        const rotulo = PERIODOS_RESUMO[periodo] || PERIODOS_RESUMO.hoje;
+        setHistorico(prev => [...prev, { role: 'user', texto: `📝 Resumir a sessão ${rotulo}` }]);
+        setCarregando(true);
+        try {
+            let desde = periodo === '6h' ? Date.now() - 6 * 3600000 : inicioDoDia();
+            if (periodo === 'ultimo') desde = (await lerUltimoResumoEm(mesaId)) || inicioDoDia();
+            const [eventosFeed, transcricoes] = await Promise.all([
+                carregarEventosFeedDesde(mesaId, desde),
+                carregarTranscricoesDesde(mesaId, desde),
+            ]);
+            const sessao = montarLinhasSessao({ eventosFeed, transcricoes });
+            if (sessao.total === 0) {
+                setHistorico(prev => [...prev, { role: 'erro', texto: 'Não há eventos de combate nem falas transcritas nesse período para resumir.' }]);
+                return;
+            }
+            const destinos = listarDestinosRegistros(capitulosPresente);
+            const desdeTexto = `desde ${new Date(desde).toLocaleString('pt-BR')}, ${sessao.total} registro(s)`;
+            const resposta = await chamarGemini({
+                chave: sextaFeiraConfig.chaveGemini,
+                modelo: sextaFeiraConfig.modelo || MODELO_GEMINI_PADRAO,
+                systemInstruction: montarInstrucaoSistema({ contextoFicha: `Quem pede: ${meuNome} (Mestre)`, lore: '', memoria: montarTextoMemoria(sextaFeiraMemoria, true) }),
+                contents: [{ role: 'user', parts: [{ text: montarPedidoResumo({ linhasSessao: sessao.texto, destinos, desdeTexto }) }] }],
+            });
+            const { texto, destino } = extrairDestinoSugerido(resposta, destinos);
+            setHistorico(prev => [...prev, { role: 'ai', tipo: 'resumo', texto, ...(destino ? { destinoSugerido: destino } : {}) }]);
+            Promise.resolve(gravarUltimoResumoEm(mesaId, Date.now())).catch(() => {});
+        } catch (err) {
+            console.error('[Sexta-Feira] resumo de sessão', err);
+            setHistorico(prev => [...prev, { role: 'erro', texto: err?.message || 'Não foi possível resumir a sessão.' }]);
+        } finally {
+            setCarregando(false);
+        }
+    }, [isMestre, carregando, iaConfigurada, mesaId, capitulosPresente, sextaFeiraConfig, meuNome, sextaFeiraMemoria]);
 
     // ⚙️ Config da Sexta-Feira na mesa (só Mestre/Co-Mestre). Lida por hooks/useSextaFeiraMesa.js.
     const salvarConfigSextaFeira = useCallback(async ({ chaveGemini, modelo }) => {
@@ -525,7 +663,8 @@ export function AIFormProvider({ children }) {
         arquivoTexto, nomeArquivo, setArquivoTexto, setNomeArquivo,
         fileInputRef, handleArquivoSelecionado, limparChat,
         isMestre, podeEditarRegistros, podeVerFuturo, registrosCompartilhados,
-        sextaFeiraConfig, iaConfigurada, salvarConfigSextaFeira
+        sextaFeiraConfig, iaConfigurada, salvarConfigSextaFeira,
+        sextaFeiraMemoria, memorizarTexto, esquecerFato, resumirSessao
     }), [
         minhaFicha, meuNome, personagens, subAba, mensagem, historico, carregando,
         loreFoco, novoPersonagem, novoAvatar, capitulosPresente, capituloAtivoId, arcoAtivoIdPresente,
@@ -536,7 +675,8 @@ export function AIFormProvider({ children }) {
         montarContextoFicha, enviarMensagem, handleKeyDown,
         arquivoTexto, nomeArquivo, handleArquivoSelecionado, limparChat,
         isMestre, podeEditarRegistros, podeVerFuturo, registrosCompartilhados,
-        sextaFeiraConfig, iaConfigurada, salvarConfigSextaFeira
+        sextaFeiraConfig, iaConfigurada, salvarConfigSextaFeira,
+        sextaFeiraMemoria, memorizarTexto, esquecerFato, resumirSessao
     ]);
 
     return (

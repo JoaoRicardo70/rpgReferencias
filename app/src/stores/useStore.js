@@ -232,6 +232,9 @@ const useStore = create(
         // (compartilhados: só Mestre/Co-Mestre editam, jogadores leem e não veem o Futuro).
         sextaFeiraConfig: null,
         registrosCompartilhados: false,
+        // Fatos que o Mestre mandou a Sexta-Feira lembrar ({ [id]: { texto, soMestre, autor, em } }).
+        sextaFeiraMemoria: {},
+        setSextaFeiraMemoria: (memoria) => set((state) => { state.sextaFeiraMemoria = memoria || {}; }),
         setSextaFeiraConfig: (config) => set((state) => { state.sextaFeiraConfig = config || null; }),
         setRegistrosCompartilhados: (val) => set((state) => { state.registrosCompartilhados = !!val; }),
         // Aplica os Registros vindos do Firebase e corrige capítulo/arco ativos que não existam mais.
