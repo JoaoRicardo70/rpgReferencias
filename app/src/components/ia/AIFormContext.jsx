@@ -1,8 +1,13 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../../services/firebase-config';
+import { ref, set } from 'firebase/database';
+import { db } from '../../services/firebase-config';
 import useStore from '../../stores/useStore';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
+import {
+    MODELO_GEMINI_PADRAO, montarContextoFicha as montarContextoFichaTexto, montarHistoricoGemini,
+    adicionarMensagemUsuario, selecionarLoreRelevante, montarInstrucaoSistema,
+} from '../../core/sextaFeira';
+import { chamarGemini } from '../../services/sextaFeiraIA';
 import * as pdfjsLib from 'pdfjs-dist';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -46,6 +51,16 @@ export function AIFormProvider({ children }) {
     const habilidadesGlobais = useStore(s => s.habilidades) || {};
     const formasGlobais = useStore(s => s.formas) || {};
     const inventarioGlobal = useStore(s => s.inventario) || {};
+    const mesaId = useStore(s => s.mesaId);
+    const isMestre = useStore(s => s.isMestre);
+    const sextaFeiraConfig = useStore(s => s.sextaFeiraConfig);
+    const registrosCompartilhados = useStore(s => s.registrosCompartilhados);
+
+    // 🔒 Registros da mesa (hooks/useSextaFeiraMesa.js): só Mestre/Co-Mestre editam, e o Futuro
+    // ("Ecos do Futuro") é só deles. Sem Registros na mesa, cada um edita os seus, como antes.
+    const podeEditarRegistros = isMestre || !registrosCompartilhados;
+    const podeVerFuturo = isMestre || !registrosCompartilhados;
+    const iaConfigurada = !!(sextaFeiraConfig && sextaFeiraConfig.chaveGemini);
 
     const [subAba, setSubAba] = useState('chat');
     const [mensagem, setMensagem] = useState('');
@@ -92,6 +107,10 @@ export function AIFormProvider({ children }) {
         const arcId = loreFoco === 'presente' ? arcoAtivoIdPresente : arcoAtivoIdFuturo;
         return capituloAtivoObj?.arcos?.find(a => a.id === arcId) || capituloAtivoObj?.arcos?.[0];
     }, [capituloAtivoObj, loreFoco, arcoAtivoIdPresente, arcoAtivoIdFuturo]);
+
+    useEffect(() => {
+        if (!podeVerFuturo && loreFoco !== 'presente') setLoreFoco('presente');
+    }, [podeVerFuturo, loreFoco]);
 
     const textoAtivo = arcoAtivoObj?.texto || '';
     const tierListAtiva = capituloAtivoObj?.tierList || [];
@@ -180,6 +199,7 @@ export function AIFormProvider({ children }) {
     }, [minhaFicha, meuNome, personagens, poderesGlobais, habilidadesGlobais, formasGlobais, inventarioGlobal, tierListAtiva]);
 
     const moverPersonagem = useCallback((personagem, novoRank) => {
+        if (!podeEditarRegistros) return;
         const isPresente = loreFoco === 'presente';
         const setCapitulos = isPresente ? setCapitulosPresente : setCapitulosFuturo;
         const ativoId = isPresente ? capituloAtivoId : capFuturoAtivoId;
@@ -189,7 +209,7 @@ export function AIFormProvider({ children }) {
             if (novoRank !== 'pool') novaTierList.push({ ...personagem, rank: novoRank });
             return { ...cap, tierList: novaTierList };
         }));
-    }, [loreFoco, capituloAtivoId, capFuturoAtivoId]);
+    }, [loreFoco, capituloAtivoId, capFuturoAtivoId, podeEditarRegistros]);
 
     const handleDragStart = useCallback((e, personagem) => { e.dataTransfer.setData('personagem', JSON.stringify(personagem)); e.dataTransfer.effectAllowed = 'move'; }, []);
     const handleDragOver = useCallback((e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }, []);
@@ -202,6 +222,7 @@ export function AIFormProvider({ children }) {
     }, [novoPersonagem, novoAvatar, moverPersonagem]);
 
     const adicionarCapitulo = useCallback(() => {
+        if (!podeEditarRegistros) return;
         const tituloCap = window.prompt(`Nome do novo Capítulo para o ${loreFoco}:`);
         if (!tituloCap || tituloCap.trim() === '') return;
         const tituloArco = window.prompt(`Nome do primeiro Arco deste Capítulo:`, "Arco 1");
@@ -213,17 +234,19 @@ export function AIFormProvider({ children }) {
         
         if (loreFoco === 'presente') { setCapitulosPresente(prev => [...prev, novoCap]); setCapituloAtivoId(novoCapId); setArcoAtivoIdPresente(novoArcoId); }
         else { setCapitulosFuturo(prev => [...prev, novoCap]); setCapFuturoAtivoId(novoCapId); setArcoAtivoIdFuturo(novoArcoId); }
-    }, [loreFoco]);
+    }, [loreFoco, podeEditarRegistros]);
 
     const editarTituloCapitulo = useCallback(() => {
+        if (!podeEditarRegistros) return;
         const novoTitulo = window.prompt("Editar nome do Capítulo:", capituloAtivoObj?.titulo);
         if (!novoTitulo || novoTitulo.trim() === '') return;
         const idAtivo = loreFoco === 'presente' ? capituloAtivoId : capFuturoAtivoId;
         if (loreFoco === 'presente') setCapitulosPresente(prev => prev.map(cap => cap.id === idAtivo ? { ...cap, titulo: novoTitulo } : cap));
         else setCapitulosFuturo(prev => prev.map(cap => cap.id === idAtivo ? { ...cap, titulo: novoTitulo } : cap));
-    }, [loreFoco, capituloAtivoObj, capituloAtivoId, capFuturoAtivoId]);
+    }, [loreFoco, capituloAtivoObj, capituloAtivoId, capFuturoAtivoId, podeEditarRegistros]);
 
     const apagarCapitulo = useCallback(() => {
+        if (!podeEditarRegistros) return;
         const lista = loreFoco === 'presente' ? capitulosPresente : capitulosFuturo;
         if (lista.length <= 1) return alert("Não pode apagar o único Capítulo existente!");
         const idAtivo = loreFoco === 'presente' ? capituloAtivoId : capFuturoAtivoId;
@@ -235,9 +258,10 @@ export function AIFormProvider({ children }) {
             const nova = capitulosFuturo.filter(cap => cap.id !== idAtivo);
             setCapitulosFuturo(nova); setCapFuturoAtivoId(nova[0].id); setArcoAtivoIdFuturo(nova[0].arcos[0].id);
         }
-    }, [loreFoco, capitulosPresente, capitulosFuturo, capituloAtivoId, capFuturoAtivoId]);
+    }, [loreFoco, capitulosPresente, capitulosFuturo, capituloAtivoId, capFuturoAtivoId, podeEditarRegistros]);
 
     const adicionarArco = useCallback(() => {
+        if (!podeEditarRegistros) return;
         const titulo = window.prompt(`Nome do novo Arco:`);
         if (!titulo || titulo.trim() === '') return;
         const novoId = Date.now();
@@ -249,9 +273,10 @@ export function AIFormProvider({ children }) {
             return c;
         }));
         if (loreFoco === 'presente') setArcoAtivoIdPresente(novoId); else setArcoAtivoIdFuturo(novoId);
-    }, [loreFoco, capituloAtivoId, capFuturoAtivoId]);
+    }, [loreFoco, capituloAtivoId, capFuturoAtivoId, podeEditarRegistros]);
 
     const editarTituloArco = useCallback(() => {
+        if (!podeEditarRegistros) return;
         const novoTitulo = window.prompt("Editar nome do Arco:", arcoAtivoObj?.titulo);
         if (!novoTitulo || novoTitulo.trim() === '') return;
         const capId = loreFoco === 'presente' ? capituloAtivoId : capFuturoAtivoId;
@@ -262,9 +287,10 @@ export function AIFormProvider({ children }) {
             if (c.id === capId) return { ...c, arcos: c.arcos.map(a => a.id === arcId ? { ...a, titulo: novoTitulo } : a) };
             return c;
         }));
-    }, [loreFoco, arcoAtivoObj, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo]);
+    }, [loreFoco, arcoAtivoObj, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo, podeEditarRegistros]);
 
     const apagarArco = useCallback(() => {
+        if (!podeEditarRegistros) return;
         if (capituloAtivoObj?.arcos.length <= 1) return alert("Um Capítulo deve ter pelo menos um Arco!");
         if (!window.confirm("Tem certeza que deseja apagar este Arco?")) return;
         const capId = loreFoco === 'presente' ? capituloAtivoId : capFuturoAtivoId;
@@ -279,9 +305,10 @@ export function AIFormProvider({ children }) {
             }
             return c;
         }));
-    }, [loreFoco, capituloAtivoObj, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo]);
+    }, [loreFoco, capituloAtivoObj, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo, podeEditarRegistros]);
 
     const atualizarTexto = useCallback((novoTexto) => {
+        if (!podeEditarRegistros) return;
         const capId = loreFoco === 'presente' ? capituloAtivoId : capFuturoAtivoId;
         const arcId = loreFoco === 'presente' ? arcoAtivoIdPresente : arcoAtivoIdFuturo;
         const setCaps = loreFoco === 'presente' ? setCapitulosPresente : setCapitulosFuturo;
@@ -289,9 +316,10 @@ export function AIFormProvider({ children }) {
             if (c.id === capId) return { ...c, arcos: c.arcos.map(a => a.id === arcId ? { ...a, texto: novoTexto } : a) };
             return c;
         }));
-    }, [loreFoco, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo]);
+    }, [loreFoco, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo, podeEditarRegistros]);
 
     const salvarNoRegistro = useCallback((texto, tituloRegistro, destinoVal, foco = 'presente') => {
+        if (!podeEditarRegistros) return false;
         const timestamp = new Date().toLocaleTimeString('pt-BR');
         const separador = `\n\n================================\n[${tituloRegistro} - ${timestamp}]\n================================\n\n`;
 
@@ -301,9 +329,9 @@ export function AIFormProvider({ children }) {
 
         if (destinoVal === 'novo_capitulo') {
             const nomeCap = window.prompt("Nome do NOVO CAPÍTULO?");
-            if (!nomeCap) return;
+            if (!nomeCap) return false;
             const nomeArco = window.prompt("Nome do PRIMEIRO ARCO deste capítulo?", "Arco 1");
-            if (!nomeArco) return;
+            if (!nomeArco) return false;
             const newCapId = Date.now();
             const newArcId = Date.now() + 1;
             setCaps(prev => [...prev, { id: newCapId, titulo: nomeCap, tierList: [], arcos: [{ id: newArcId, titulo: nomeArco, texto: texto }] }]);
@@ -311,7 +339,7 @@ export function AIFormProvider({ children }) {
         } else if (destinoVal.startsWith('novo_arco_')) {
             const capId = Number(destinoVal.replace('novo_arco_', ''));
             const nomeArco = window.prompt("Nome do NOVO ARCO?");
-            if (!nomeArco) return;
+            if (!nomeArco) return false;
             const newArcId = Date.now();
             setCaps(prev => prev.map(c => {
                 if (c.id === capId) return { ...c, arcos: [...c.arcos, { id: newArcId, titulo: nomeArco, texto: texto }] };
@@ -335,7 +363,8 @@ export function AIFormProvider({ children }) {
             }));
             setCapAtivo(capId); setArcAtivo(arcId); setLoreFoco(foco);
         }
-    }, [setCapitulosPresente, setCapituloAtivoId, setArcoAtivoIdPresente, setCapitulosFuturo, setCapFuturoAtivoId, setArcoAtivoIdFuturo, setLoreFoco]);
+        return true;
+    }, [podeEditarRegistros, setCapitulosPresente, setCapituloAtivoId, setArcoAtivoIdPresente, setCapitulosFuturo, setCapFuturoAtivoId, setArcoAtivoIdFuturo, setLoreFoco]);
 
     useEffect(() => { if (subAba === 'chat' && chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight; }, [historico, subAba]);
 
@@ -402,67 +431,56 @@ export function AIFormProvider({ children }) {
         const msgUsuario = mensagem.trim();
         const textoAnexo = arquivoTexto;
         const nomeAnexo = nomeArquivo;
+
+        if (!iaConfigurada) {
+            setHistorico(prev => [...prev, { role: 'erro', texto: isMestre
+                ? 'A Sexta-Feira ainda não tem uma chave do Gemini. Abra ⚙️ Config nesta aba e cadastre a chave.'
+                : 'A Sexta-Feira ainda não foi configurada pelo Mestre desta mesa.' }]);
+            return;
+        }
+
         setMensagem(''); setArquivoTexto(''); setNomeArquivo('');
-        
+
         const displayMsg = nomeAnexo ? `${msgUsuario || 'Analise o documento anexado.'}\n📄 [Arquivo: ${nomeAnexo}]` : msgUsuario;
-        setHistorico(prev => [...prev, { role: 'user', texto: displayMsg }]); 
+        // Histórico ANTES desta mensagem: vai junto pro Gemini como memória da conversa.
+        const historicoAnterior = historico;
+        setHistorico(prev => [...prev, { role: 'user', texto: displayMsg }]);
         setCarregando(true);
-        
+
         try {
-            const chamarIA = httpsCallable(functions, 'falarComSextaFeira');
-            const cxt = montarContextoFicha();
-            const msgLower = msgUsuario.toLowerCase();
-            
-            const querSaberLore = ['história', 'historia', 'lore', 'resumo', 'aconteceu', 'sessão', 'sessao', 'npc', 'arco', 'capítulo', 'capitulo', 'vilão', 'passado', 'onde', 'quem'].some(k => msgLower.includes(k));
-            const querSaberFicha = ['arma', 'dano', 'hp', 'vida', 'mana', 'aura', 'chakra', 'magia', 'poder', 'elemento', 'fraqueza', 'bater', 'atacar', 'status', 'ficha', 'inventário', 'inventario', 'guardada', 'mochila', 'raridade'].some(k => msgLower.includes(k));
+            // Jogadores não recebem trechos do Futuro (spoilers) quando os Registros são da mesa.
+            const capitulosParaIA = podeVerFuturo ? [...capitulosPresente, ...capitulosFuturo] : capitulosPresente;
+            const textoArcoParaIA = (loreFoco === 'futuro' && !podeVerFuturo) ? '' : (arcoAtivoObj?.texto || '');
+            const lore = selecionarLoreRelevante(capitulosParaIA, msgUsuario, textoArcoParaIA);
+            const systemInstruction = montarInstrucaoSistema({ contextoFicha: montarContextoFichaTexto(minhaFicha, meuNome), lore });
 
-            let todaLore = "";
-            capitulosPresente.forEach(c => c.arcos.forEach(a => { todaLore += a.texto + "\n"; }));
-            capitulosFuturo.forEach(c => c.arcos.forEach(a => { todaLore += a.texto + "\n"; }));
+            let textoPedido = msgUsuario || 'Faça um resumo do arquivo anexado.';
+            if (textoAnexo) textoPedido += `\n\n--- CONTEÚDO DO ARQUIVO ANEXADO (${nomeAnexo}) ---\n${textoAnexo}\n--- FIM DO ARQUIVO ---`;
+            const contents = adicionarMensagemUsuario(montarHistoricoGemini(historicoAnterior), textoPedido);
 
-            let loreFiltrada = "";
-            const keywords = msgLower.replace(/[?!.,]/g, '').split(/\s+/).filter(w => w.length > 4 && !['sobre', 'minha', 'nossa', 'quais'].includes(w));
-            
-            if (keywords.length > 0) {
-                const paragrafos = todaLore.split('\n').filter(p => p.trim().length > 10);
-                const paragrafosRelevantes = paragrafos.filter(p => keywords.some(kw => p.toLowerCase().includes(kw)));
-                if (paragrafosRelevantes.length > 0) {
-                    loreFiltrada = paragrafosRelevantes.join(' [...] ').substring(0, 600); 
-                }
-            }
-            if (!loreFiltrada) {
-                loreFiltrada = (arcoAtivoObj?.texto || '').slice(-600); 
-            }
-
-            let dossieOculto = `[INFO] Nome:${cxt.dadosPersonagem.nome}|Classe:${cxt.dadosPersonagem.classe}`;
-
-            if (querSaberLore && !querSaberFicha) {
-                dossieOculto += `|LORE RELEVANTE:${loreFiltrada}`;
-            } else if (querSaberFicha && !querSaberLore) {
-                dossieOculto += `|Vida:${cxt.statusVitais.hp}|Mana:${cxt.statusVitais.mana}|Armas(Equipadas):${cxt.combate.armasEquipadas.join('; ')}|Armas(Guardadas):${cxt.combate.armasGuardadas.join('; ')}|Magias:${cxt.combate.magiasPreparadas.join(', ')}|Poderes:${cxt.combate.poderesAtivos.join(', ')}`;
-            } else {
-                dossieOculto += `|Armas(Eqp/Grd):${cxt.combate.armasEquipadas[0]||'ND'} / ${cxt.combate.armasGuardadas[0]||'ND'}|Magias:${cxt.combate.magiasPreparadas.slice(0,2).join(', ')}|LORE:${loreFiltrada}`;
-            }
-
-            let promptFinal = `${dossieOculto}\n\nMENSAGEM: ${msgUsuario || 'Resumo do anexo.'}`;
-            if (promptFinal.length > 1900) {
-                promptFinal = promptFinal.substring(0, 1900); 
-            }
-
-            const payload = { 
-                mensagem: promptFinal, 
-                contextoFicha: cxt 
-            };
-            if (textoAnexo) payload.conteudoArquivo = textoAnexo;
-            
-            const resultado = await chamarIA(payload);
-            setHistorico(prev => [...prev, { role: 'ai', texto: resultado.data?.resposta || 'Sem resposta.' }]);
-        } catch (err) { 
-            console.error(err);
-            setHistorico(prev => [...prev, { role: 'erro', texto: 'Erro ao contactar a IA. Limite excedido ou falha de rede.' }]); 
+            const resposta = await chamarGemini({
+                chave: sextaFeiraConfig.chaveGemini,
+                modelo: sextaFeiraConfig.modelo || MODELO_GEMINI_PADRAO,
+                systemInstruction,
+                contents,
+            });
+            setHistorico(prev => [...prev, { role: 'ai', texto: resposta }]);
+        } catch (err) {
+            console.error('[Sexta-Feira]', err);
+            setHistorico(prev => [...prev, { role: 'erro', texto: err?.message || 'Erro ao contactar a IA.' }]);
         }
         finally { setCarregando(false); }
-    }, [mensagem, arquivoTexto, nomeArquivo, carregando, montarContextoFicha, capitulosPresente, capitulosFuturo, arcoAtivoObj]);
+    }, [mensagem, arquivoTexto, nomeArquivo, carregando, iaConfigurada, isMestre, historico, podeVerFuturo, capitulosPresente, capitulosFuturo, loreFoco, arcoAtivoObj, minhaFicha, meuNome, sextaFeiraConfig]);
+
+    // ⚙️ Config da Sexta-Feira na mesa (só Mestre/Co-Mestre). Lida por hooks/useSextaFeiraMesa.js.
+    const salvarConfigSextaFeira = useCallback(async ({ chaveGemini, modelo }) => {
+        if (!isMestre || !mesaId || !db) return false;
+        const chave = String(chaveGemini || '').trim();
+        await set(ref(db, `mesas/${mesaId}/sextaFeira/config`), chave
+            ? { chaveGemini: chave, modelo: String(modelo || '').trim() || MODELO_GEMINI_PADRAO, atualizadoEm: Date.now() }
+            : null);
+        return true;
+    }, [isMestre, mesaId]);
 
     const handleKeyDown = useCallback((e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensagem(); } }, [enviarMensagem]);
 
@@ -481,7 +499,9 @@ export function AIFormProvider({ children }) {
         atualizarTexto, salvarNoRegistro, 
         montarContextoFicha, enviarMensagem, handleKeyDown,
         arquivoTexto, nomeArquivo, setArquivoTexto, setNomeArquivo,
-        fileInputRef, handleArquivoSelecionado, limparChat
+        fileInputRef, handleArquivoSelecionado, limparChat,
+        isMestre, podeEditarRegistros, podeVerFuturo, registrosCompartilhados,
+        sextaFeiraConfig, iaConfigurada, salvarConfigSextaFeira
     }), [
         minhaFicha, meuNome, personagens, subAba, mensagem, historico, carregando,
         loreFoco, novoPersonagem, novoAvatar, capitulosPresente, capituloAtivoId, arcoAtivoIdPresente,
@@ -490,7 +510,9 @@ export function AIFormProvider({ children }) {
         adicionarCapitulo, editarTituloCapitulo, apagarCapitulo, adicionarArco, editarTituloArco, apagarArco,
         atualizarTexto, salvarNoRegistro,
         montarContextoFicha, enviarMensagem, handleKeyDown,
-        arquivoTexto, nomeArquivo, handleArquivoSelecionado, limparChat
+        arquivoTexto, nomeArquivo, handleArquivoSelecionado, limparChat,
+        isMestre, podeEditarRegistros, podeVerFuturo, registrosCompartilhados,
+        sextaFeiraConfig, iaConfigurada, salvarConfigSextaFeira
     ]);
 
     return (

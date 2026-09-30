@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAIForm, TODOS_RANKS } from './AIFormContext';
+import { MODELO_GEMINI_PADRAO } from '../../core/sextaFeira';
 import GravadorPanel from './GravadorPanel';
 import AIArvoreGenealogica from './AIArvoreGenealogica'; // <-- ADIÇÃO: Importando o novo componente
 
@@ -8,11 +9,14 @@ const FALLBACK = <div style={{ color: '#888', padding: 10 }}>AI provider não en
 export function AIHeader() {
     const ctx = useAIForm();
     if (!ctx) return FALLBACK;
-    const { subAba, setSubAba } = ctx;
+    const { subAba, setSubAba, isMestre, iaConfigurada } = ctx;
 
     return (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2px solid #00ffcc', paddingBottom: 10 }}>
-            <h2 style={{ color: '#00ffcc', textShadow: '0 0 10px #00ffcc', margin: 0 }}>Sexta-Feira (IA Central)</h2>
+            <h2 style={{ color: '#00ffcc', textShadow: '0 0 10px #00ffcc', margin: 0 }}>
+                Sexta-Feira (IA Central)
+                <span className={`sexta-status ${iaConfigurada ? 'online' : 'offline'}`}>{iaConfigurada ? '● online' : '● sem chave'}</span>
+            </h2>
             <div style={{ display: 'flex', gap: '5px' }}>
                 <button className={`btn-neon ${subAba === 'chat' ? 'btn-green' : ''}`} onClick={() => setSubAba('chat')} style={{ padding: '5px 10px', margin: 0 }}>💬 Chat</button>
                 <button className={`btn-neon ${subAba === 'gravador' ? 'btn-red' : ''}`} onClick={() => setSubAba('gravador')} style={{ padding: '5px 10px', margin: 0 }}>🎙️ Gravador</button>
@@ -20,6 +24,9 @@ export function AIHeader() {
                 <button className={`btn-neon ${subAba === 'lore' ? 'btn-blue' : ''}`} onClick={() => setSubAba('lore')} style={{ padding: '5px 10px', margin: 0 }}>📜 Registros</button>
                 {/* 👇 ADIÇÃO: O NOVO BOTÃO ENTRA AQUI 👇 */}
                 <button className={`btn-neon ${subAba === 'arvore' ? 'btn-purple' : ''}`} onClick={() => setSubAba('arvore')} style={{ padding: '5px 10px', margin: 0, borderColor: subAba === 'arvore' ? '#b180ff' : '', color: subAba === 'arvore' ? '#b180ff' : '' }}>🌳 Árvore</button>
+                {isMestre && (
+                    <button className={`btn-neon ${subAba === 'config' ? 'btn-gold' : ''}`} onClick={() => setSubAba('config')} style={{ padding: '5px 10px', margin: 0 }}>⚙️ Config</button>
+                )}
             </div>
         </div>
     );
@@ -34,7 +41,8 @@ export function AICapituladorHeader() {
         arcoAtivoIdPresente, setArcoAtivoIdPresente, arcoAtivoIdFuturo, setArcoAtivoIdFuturo,
         capitulosPresente, capitulosFuturo, capituloAtivoObj,
         editarTituloCapitulo, apagarCapitulo, adicionarCapitulo,
-        adicionarArco, editarTituloArco, apagarArco
+        adicionarArco, editarTituloArco, apagarArco,
+        podeEditarRegistros, podeVerFuturo, registrosCompartilhados
     } = ctx;
 
     return (
@@ -50,9 +58,16 @@ export function AICapituladorHeader() {
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
                     <button className={`btn-neon ${loreFoco === 'presente' ? 'btn-green' : ''}`} onClick={() => setLoreFoco('presente')} style={{ padding: '8px 15px', fontSize: '0.9em', margin: 0, opacity: loreFoco === 'presente' ? 1 : 0.5 }}>⏳ Presente</button>
-                    <button className={`btn-neon ${loreFoco === 'futuro' ? 'btn-gold' : ''}`} onClick={() => setLoreFoco('futuro')} style={{ padding: '8px 15px', fontSize: '0.9em', margin: 0, opacity: loreFoco === 'futuro' ? 1 : 0.5 }}>🚀 Futuro</button>
+                    {podeVerFuturo && (
+                        <button className={`btn-neon ${loreFoco === 'futuro' ? 'btn-gold' : ''}`} onClick={() => setLoreFoco('futuro')} style={{ padding: '8px 15px', fontSize: '0.9em', margin: 0, opacity: loreFoco === 'futuro' ? 1 : 0.5 }}>🚀 Futuro</button>
+                    )}
                 </div>
             </div>
+            {registrosCompartilhados && (
+                <p className="sexta-registros-aviso">
+                    {podeEditarRegistros ? '🌐 Registros da mesa: o que você edita aqui aparece para todos os jogadores.' : '🔒 Registros da mesa: somente o Mestre edita.'}
+                </p>
+            )}
 
             {/* LINHA 1: GESTÃO DE CAPÍTULOS */}
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center', paddingBottom: '10px', borderBottom: '1px solid #333', flexWrap: 'wrap' }}>
@@ -60,11 +75,13 @@ export function AICapituladorHeader() {
                 <select className="input-neon" value={loreFoco === 'presente' ? capituloAtivoId : capFuturoAtivoId} onChange={(e) => loreFoco === 'presente' ? setCapituloAtivoId(Number(e.target.value)) : setCapFuturoAtivoId(Number(e.target.value))} style={{ flex: 1, minWidth: '150px', borderColor: loreFoco === 'presente' ? '#00ffcc' : '#ffcc00', color: '#fff', padding: '8px', backgroundColor: 'rgba(0,0,0,0.5)' }}>
                     {(loreFoco === 'presente' ? capitulosPresente : capitulosFuturo).map(cap => <option key={cap.id} value={cap.id} style={{ color: '#000' }}>{cap.titulo}</option>)}
                 </select>
-                <div style={{ display: 'flex', gap: '5px' }}>
-                    <button className="btn-neon btn-gold" onClick={editarTituloCapitulo} style={{ padding: '8px 15px', margin: 0 }} title="Editar Nome do Capítulo">✏️</button>
-                    <button className="btn-neon btn-red" onClick={apagarCapitulo} style={{ padding: '8px 15px', margin: 0 }} title="Apagar Capítulo Inteiro">🗑️</button>
-                    <button className="btn-neon btn-green" onClick={adicionarCapitulo} style={{ padding: '8px 15px', margin: 0 }}>➕ Novo Capítulo</button>
-                </div>
+                {podeEditarRegistros && (
+                    <div style={{ display: 'flex', gap: '5px' }}>
+                        <button className="btn-neon btn-gold" onClick={editarTituloCapitulo} style={{ padding: '8px 15px', margin: 0 }} title="Editar Nome do Capítulo">✏️</button>
+                        <button className="btn-neon btn-red" onClick={apagarCapitulo} style={{ padding: '8px 15px', margin: 0 }} title="Apagar Capítulo Inteiro">🗑️</button>
+                        <button className="btn-neon btn-green" onClick={adicionarCapitulo} style={{ padding: '8px 15px', margin: 0 }}>➕ Novo Capítulo</button>
+                    </div>
+                )}
             </div>
 
             {/* LINHA 2: GESTÃO DE ARCOS DENTRO DO CAPÍTULO ATUAL */}
@@ -74,11 +91,13 @@ export function AICapituladorHeader() {
                     <select className="input-neon" value={loreFoco === 'presente' ? arcoAtivoIdPresente : arcoAtivoIdFuturo} onChange={(e) => loreFoco === 'presente' ? setArcoAtivoIdPresente(Number(e.target.value)) : setArcoAtivoIdFuturo(Number(e.target.value))} style={{ flex: 1, minWidth: '150px', borderColor: '#0088ff', color: '#fff', padding: '8px', backgroundColor: 'rgba(0,0,0,0.5)' }}>
                         {capituloAtivoObj?.arcos?.map(a => <option key={a.id} value={a.id} style={{ color: '#000' }}>{a.titulo}</option>)}
                     </select>
-                    <div style={{ display: 'flex', gap: '5px' }}>
-                        <button className="btn-neon btn-gold" onClick={editarTituloArco} style={{ padding: '8px 15px', margin: 0 }} title="Editar Nome do Arco">✏️</button>
-                        <button className="btn-neon btn-red" onClick={apagarArco} style={{ padding: '8px 15px', margin: 0 }} title="Apagar este Arco">🗑️</button>
-                        <button className="btn-neon btn-blue" onClick={adicionarArco} style={{ padding: '8px 15px', margin: 0 }}>➕ Novo Arco Aqui</button>
-                    </div>
+                    {podeEditarRegistros && (
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                            <button className="btn-neon btn-gold" onClick={editarTituloArco} style={{ padding: '8px 15px', margin: 0 }} title="Editar Nome do Arco">✏️</button>
+                            <button className="btn-neon btn-red" onClick={apagarArco} style={{ padding: '8px 15px', margin: 0 }} title="Apagar este Arco">🗑️</button>
+                            <button className="btn-neon btn-blue" onClick={adicionarArco} style={{ padding: '8px 15px', margin: 0 }}>➕ Novo Arco Aqui</button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -88,7 +107,7 @@ export function AICapituladorHeader() {
 export function AIChat() {
     const ctx = useAIForm();
     if (!ctx) return FALLBACK;
-    const { chatRef, historico, meuNome, mensagem, setMensagem, handleKeyDown, carregando, enviarMensagem, arquivoTexto, nomeArquivo, setArquivoTexto, setNomeArquivo, fileInputRef, handleArquivoSelecionado, limparChat, salvarNoRegistro, loreFoco, capitulosPresente, capitulosFuturo } = ctx;
+    const { chatRef, historico, meuNome, mensagem, setMensagem, handleKeyDown, carregando, enviarMensagem, arquivoTexto, nomeArquivo, setArquivoTexto, setNomeArquivo, fileInputRef, handleArquivoSelecionado, limparChat, salvarNoRegistro, loreFoco, capitulosPresente, capitulosFuturo, podeEditarRegistros } = ctx;
 
     const [destinoLore, setDestinoLore] = useState('novo_capitulo');
     const arcosDisponiveis = loreFoco === 'presente' ? capitulosPresente : capitulosFuturo;
@@ -114,7 +133,7 @@ export function AIChat() {
                         </div>
                         
                         {/* 🔥 SELETOR HIERÁRQUICO NO CHAT 🔥 */}
-                        {msg.role === 'ai' && (
+                        {msg.role === 'ai' && podeEditarRegistros && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px', background: 'rgba(0,0,0,0.5)', padding: '5px', borderRadius: '5px', border: '1px solid #333', alignSelf: 'flex-start', flexWrap: 'wrap' }}>
                                 <span style={{ fontSize: '0.75em', color: '#aaa' }}>Destino:</span>
                                 <select className="input-neon" value={destinoLore} onChange={e => setDestinoLore(e.target.value)} style={{ padding: '2px 5px', fontSize: '0.75em', maxWidth: '200px', borderColor: '#444', color: '#fff' }}>
@@ -128,8 +147,9 @@ export function AIChat() {
                                 </select>
                                 <button 
                                     onClick={() => {
-                                        salvarNoRegistro(msg.texto, 'Análise da Sexta-Feira', destinoLore, loreFoco);
-                                        alert('✅ Texto transferido com sucesso para o Arco selecionado!');
+                                        if (salvarNoRegistro(msg.texto, 'Análise da Sexta-Feira', destinoLore, loreFoco)) {
+                                            alert('✅ Texto transferido com sucesso para o Arco selecionado!');
+                                        }
                                     }}
                                     className="btn-neon btn-blue"
                                     style={{ padding: '4px 10px', fontSize: '0.75em', margin: 0, opacity: 0.9 }}
@@ -163,7 +183,7 @@ export function AIChat() {
 export function AITierList() {
     const ctx = useAIForm();
     if (!ctx) return FALLBACK;
-    const { tierListAtiva, handleDragOver, handleDrop, handleDragStart, moverPersonagem, poolPersonagens, novoPersonagem, setNovoPersonagem, novoAvatar, setNovoAvatar, adicionarCustomizado } = ctx;
+    const { tierListAtiva, handleDragOver, handleDrop, handleDragStart, moverPersonagem, poolPersonagens, novoPersonagem, setNovoPersonagem, novoAvatar, setNovoAvatar, adicionarCustomizado, podeEditarRegistros } = ctx;
 
     return (
         <div className="def-box" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px' }}>
@@ -179,10 +199,10 @@ export function AITierList() {
                             <div style={{ width: isEmpty ? '50px' : '80px', background: rank.cor, color: rank.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: isEmpty ? '1em' : '1.6em', fontWeight: 'bold', textShadow: '0 0 3px rgba(255,255,255,0.4)', transition: 'all 0.2s' }}>{rank.id}</div>
                             <div style={{ flex: 1, padding: '5px 10px', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
                                 {personagensNesteRank.map((pers, i) => (
-                                    <div key={i} draggable onDragStart={(e) => handleDragStart(e, pers)} style={{ cursor: 'grab', background: 'rgba(0,0,0,0.8)', padding: '5px 12px', borderRadius: '30px', border: `1px solid ${rank.cor}`, color: '#fff', fontSize: '0.9em', display: 'flex', gap: '10px', alignItems: 'center', boxShadow: `0 0 8px ${rank.cor}40` }}>
+                                    <div key={i} draggable={podeEditarRegistros} onDragStart={(e) => handleDragStart(e, pers)} style={{ cursor: podeEditarRegistros ? 'grab' : 'default', background: 'rgba(0,0,0,0.8)', padding: '5px 12px', borderRadius: '30px', border: `1px solid ${rank.cor}`, color: '#fff', fontSize: '0.9em', display: 'flex', gap: '10px', alignItems: 'center', boxShadow: `0 0 8px ${rank.cor}40` }}>
                                         {pers.avatar && <img src={pers.avatar} alt={pers.nome} style={{ width: '35px', height: '35px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${rank.cor}`, backgroundColor: '#222' }} onError={(e) => { e.target.style.display = 'none'; }} />}
                                         {pers.nome}
-                                        <span style={{ cursor: 'pointer', color: '#ff003c', fontSize: '1.4em', lineHeight: '0.5', paddingLeft: '5px' }} onClick={() => moverPersonagem(pers, 'pool')} title="Devolver ao Banco">×</span>
+                                        {podeEditarRegistros && <span style={{ cursor: 'pointer', color: '#ff003c', fontSize: '1.4em', lineHeight: '0.5', paddingLeft: '5px' }} onClick={() => moverPersonagem(pers, 'pool')} title="Devolver ao Banco">×</span>}
                                     </div>
                                 ))}
                             </div>
@@ -191,6 +211,7 @@ export function AITierList() {
                 })}
             </div>
 
+            {podeEditarRegistros && (
             <div style={{ borderTop: '2px solid #333', paddingTop: '15px' }}>
                 <div onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'pool')} style={{ minHeight: '80px', background: 'rgba(0,0,0,0.3)', border: '2px dashed #555', borderRadius: '8px', padding: '15px', marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <h4 style={{ margin: 0, color: '#aaa' }}>📦 Banco de Entidades Expandido (Arraste para classificar)</h4>
@@ -212,6 +233,7 @@ export function AITierList() {
                     <button className="btn-neon btn-blue" onClick={adicionarCustomizado} style={{ flex: 'none', width: 'auto', padding: '0 20px', height: '40px', margin: 0 }}>+ CRIAR NOVO</button>
                 </div>
             </div>
+            )}
         </div>
     );
 }
@@ -219,12 +241,12 @@ export function AITierList() {
 export function AILore() {
     const ctx = useAIForm();
     if (!ctx) return FALLBACK;
-    const { textoAtivo, atualizarTexto, loreFoco } = ctx;
+    const { textoAtivo, atualizarTexto, loreFoco, podeEditarRegistros } = ctx;
 
     return (
         <div className="def-box" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px' }}>
             <AICapituladorHeader />
-            <textarea className="input-neon" value={textoAtivo} onChange={e => atualizarTexto(e.target.value)} placeholder={`A história deste Arco será escrita aqui...`} style={{ flex: 1, width: '100%', resize: 'none', borderColor: loreFoco === 'presente' ? '#00ffcc' : '#ffcc00', color: '#ddd', lineHeight: '1.6', padding: '15px', boxSizing: 'border-box', transition: 'border-color 0.3s' }} />
+            <textarea className="input-neon" value={textoAtivo} readOnly={!podeEditarRegistros} onChange={e => atualizarTexto(e.target.value)} placeholder={`A história deste Arco será escrita aqui...`} style={{ flex: 1, width: '100%', resize: 'none', borderColor: loreFoco === 'presente' ? '#00ffcc' : '#ffcc00', color: '#ddd', lineHeight: '1.6', padding: '15px', boxSizing: 'border-box', transition: 'border-color 0.3s' }} />
         </div>
     );
 }
@@ -239,6 +261,71 @@ export function AIAreaCentral() {
     if (subAba === 'tierlist') return <AITierList />;
     if (subAba === 'lore') return <AILore />;
     {/* 👇 ADIÇÃO: O ROTEADOR DA NOVA ABA 👇 */}
-    if (subAba === 'arvore') return <AIArvoreGenealogica />; 
+    if (subAba === 'arvore') return <AIArvoreGenealogica />;
+    if (subAba === 'config') return <AIConfig />;
     return null;
+}
+
+// ⚙️ CONFIGURAÇÃO DA SEXTA-FEIRA (só Mestre/Co-Mestre): chave gratuita do Gemini (Google AI
+// Studio) + modelo, gravados na mesa. O projeto está no plano gratuito do Firebase, então o
+// navegador de cada jogador usa esta chave pra falar direto com o Gemini.
+export function AIConfig() {
+    const ctx = useAIForm();
+    const configAtual = ctx?.sextaFeiraConfig;
+    const [chave, setChave] = useState(configAtual?.chaveGemini || '');
+    const [modelo, setModelo] = useState(configAtual?.modelo || MODELO_GEMINI_PADRAO);
+    const [mostrarChave, setMostrarChave] = useState(false);
+    const [status, setStatus] = useState('');
+
+    useEffect(() => {
+        setChave(configAtual?.chaveGemini || '');
+        setModelo(configAtual?.modelo || MODELO_GEMINI_PADRAO);
+    }, [configAtual?.chaveGemini, configAtual?.modelo]);
+
+    if (!ctx) return FALLBACK;
+    if (!ctx.isMestre) return <div className="def-box sexta-config"><p>Somente o Mestre configura a Sexta-Feira.</p></div>;
+
+    const salvar = async (novaChave) => {
+        setStatus('Salvando...');
+        try {
+            await ctx.salvarConfigSextaFeira({ chaveGemini: novaChave, modelo });
+            setStatus(novaChave.trim() ? '✅ Configuração salva. A Sexta-Feira já está disponível para a mesa.' : '🗑️ Chave removida. A Sexta-Feira ficou offline.');
+        } catch (e) {
+            setStatus('❌ Não foi possível salvar. Verifique a conexão.');
+        }
+    };
+
+    return (
+        <div className="def-box sexta-config">
+            <h3 className="sexta-config-titulo">⚙️ Configuração da Sexta-Feira</h3>
+            <p className="sexta-config-texto">
+                A Sexta-Feira usa o Gemini direto do navegador com uma <strong>chave gratuita</strong> do Google AI Studio.
+                Sem faturamento ativado no projeto dessa chave, o uso nunca gera cobrança: ao passar do limite gratuito ela só pausa até a cota renovar.
+            </p>
+            <ol className="sexta-config-passos">
+                <li>Acesse <strong>aistudio.google.com</strong> e clique em <strong>Get API key</strong> → <strong>Create API key</strong>.</li>
+                <li>Recomendado: no Google Cloud (APIs e serviços → Credenciais → a chave), em <strong>Restrições de aplicativos</strong>, escolha <strong>Sites</strong> e adicione <code>https://rpg-referencias.web.app/*</code>. Assim a chave só funciona no site da mesa.</li>
+                <li>Cole a chave abaixo e salve. Todos da mesa passam a usar a Sexta-Feira.</li>
+            </ol>
+            <label className="sexta-config-campo">
+                <span>Chave do Gemini</span>
+                <div className="sexta-config-linha">
+                    <input className="input-neon" type={mostrarChave ? 'text' : 'password'} value={chave} onChange={e => setChave(e.target.value)} placeholder="AIza..." autoComplete="off" spellCheck={false} />
+                    <button type="button" className="btn-neon" onClick={() => setMostrarChave(v => !v)} title={mostrarChave ? 'Esconder chave' : 'Mostrar chave'}>{mostrarChave ? '🙈' : '👁️'}</button>
+                </div>
+            </label>
+            <label className="sexta-config-campo">
+                <span>Modelo</span>
+                <input className="input-neon" type="text" value={modelo} onChange={e => setModelo(e.target.value)} placeholder={MODELO_GEMINI_PADRAO} spellCheck={false} />
+            </label>
+            <div className="sexta-config-linha">
+                <button type="button" className="btn-neon btn-green" onClick={() => salvar(chave)} disabled={!chave.trim()}>💾 Salvar</button>
+                {configAtual?.chaveGemini && (
+                    <button type="button" className="btn-neon btn-red" onClick={() => { if (window.confirm('Remover a chave? A Sexta-Feira ficará offline para toda a mesa.')) { setChave(''); salvar(''); } }}>🗑️ Remover chave</button>
+                )}
+            </div>
+            {status && <p className="sexta-config-status">{status}</p>}
+            <p className="sexta-config-aviso">⚠️ Qualquer pessoa desta mesa consegue ler a chave (o navegador dela precisa usá-la). Use uma chave só para isto, com a restrição de site acima.</p>
+        </div>
+    );
 }

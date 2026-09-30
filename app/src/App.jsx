@@ -3,6 +3,7 @@ import { ref, get, set, onValue } from 'firebase/database';
 import { db } from './services/firebase-config';
 import useStore, { sanitizarNome } from './stores/useStore';
 import useFirebase from './hooks/useFirebase';
+import useSextaFeiraMesa from './hooks/useSextaFeiraMesa';
 
 // 🔥 IMPORTANDO O MOTOR DE VOZ PARA O TOPO DO APP 🔥
 import { useVoiceChat } from './hooks/useVoiceChat';
@@ -121,6 +122,7 @@ export default function App() {
     const setIsMestre = useStore(s => s.setIsMestre);
 
     const { loading } = useFirebase();
+    useSextaFeiraMesa();
     const [pronto, setPronto] = useState(false);
     const [modalAberto, setModalAberto] = useState(false);
     const [themeReady, setThemeReady] = useState(false);
@@ -168,18 +170,14 @@ export default function App() {
 
     useEffect(() => {
         if (!mesaId || !isMestre) return;
-        const unsubLore = onValue(ref(db, `mesas/${mesaId}/lore`), (snap) => {
-            if (snap.exists()) {
-                localStorage.setItem('rpgSextaFeira_capitulos', JSON.stringify(snap.val()));
-            }
-        });
+        // Os Registros Akáshicos (lore) agora sincronizam por useSextaFeiraMesa, em
+        // mesas/{mesaId}/sextaFeira/registros.
         const unsubArvore = onValue(ref(db, `mesas/${mesaId}/arvore`), (snap) => {
             if (snap.exists()) {
                 localStorage.setItem('rpgSextaFeira_arvore', JSON.stringify(snap.val()));
             }
         });
         return () => {
-            unsubLore();
             unsubArvore();
         };
     }, [mesaId, isMestre]);

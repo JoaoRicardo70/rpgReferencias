@@ -84,8 +84,8 @@ const storedMesaId = localStorage.getItem('rpg_mesaId') || '';
 // 🔥 REGISTROS AKÁSHICOS (Lore da Sexta-Feira): única fonte de verdade no Zustand,
 // para que o HUD do Mestre (MapaSextaFeira) e o painel do Oráculo (AIFormContext)
 // nunca mais dessincronizem via localStorage/eventos de window.
-const loreCapitulosPresentePadrao = [{ id: 1, titulo: 'Capítulo 1 - Reino de Faku', arcos: [{ id: 11, titulo: 'Arco 1 - O Início', texto: 'A jornada começa...' }], tierList: [] }];
-const loreCapitulosFuturoPadrao = [{ id: 100, titulo: 'Ecos do Futuro - Parte 1', arcos: [{ id: 101, titulo: 'Arco Principal', texto: 'Crônicas do Amanhã...' }], tierList: [] }];
+export const loreCapitulosPresentePadrao = [{ id: 1, titulo: 'Capítulo 1 - Reino de Faku', arcos: [{ id: 11, titulo: 'Arco 1 - O Início', texto: 'A jornada começa...' }], tierList: [] }];
+export const loreCapitulosFuturoPadrao = [{ id: 100, titulo: 'Ecos do Futuro - Parte 1', arcos: [{ id: 101, titulo: 'Arco Principal', texto: 'Crônicas do Amanhã...' }], tierList: [] }];
 
 function migrarLoreParaArcos(salvoStr) {
     try {
@@ -226,6 +226,29 @@ const useStore = create(
         setLoreCapitulosFuturo: (updater) => set((state) => { state.loreCapitulosFuturo = typeof updater === 'function' ? updater(state.loreCapitulosFuturo) : updater; }),
         setLoreCapFuturoAtivoId: (updater) => set((state) => { state.loreCapFuturoAtivoId = typeof updater === 'function' ? updater(state.loreCapFuturoAtivoId) : updater; }),
         setLoreArcoAtivoIdFuturo: (updater) => set((state) => { state.loreArcoAtivoIdFuturo = typeof updater === 'function' ? updater(state.loreArcoAtivoIdFuturo) : updater; }),
+
+        // 🤖 SEXTA-FEIRA NA MESA (hooks/useSextaFeiraMesa.js): config cadastrada pelo Mestre
+        // (chave do Gemini + modelo) e se os Registros acima vêm do Firebase da mesa
+        // (compartilhados: só Mestre/Co-Mestre editam, jogadores leem e não veem o Futuro).
+        sextaFeiraConfig: null,
+        registrosCompartilhados: false,
+        setSextaFeiraConfig: (config) => set((state) => { state.sextaFeiraConfig = config || null; }),
+        setRegistrosCompartilhados: (val) => set((state) => { state.registrosCompartilhados = !!val; }),
+        // Aplica os Registros vindos do Firebase e corrige capítulo/arco ativos que não existam mais.
+        aplicarRegistrosRemotos: ({ presente, futuro }) => set((state) => {
+            state.loreCapitulosPresente = presente;
+            state.loreCapitulosFuturo = futuro;
+            const capP = presente.find(c => c.id === state.loreCapituloAtivoId) || presente[0];
+            if (capP) {
+                state.loreCapituloAtivoId = capP.id;
+                if (!capP.arcos.some(a => a.id === state.loreArcoAtivoIdPresente) && capP.arcos[0]) state.loreArcoAtivoIdPresente = capP.arcos[0].id;
+            }
+            const capF = futuro.find(c => c.id === state.loreCapFuturoAtivoId) || futuro[0];
+            if (capF) {
+                state.loreCapFuturoAtivoId = capF.id;
+                if (!capF.arcos.some(a => a.id === state.loreArcoAtivoIdFuturo) && capF.arcos[0]) state.loreArcoAtivoIdFuturo = capF.arcos[0].id;
+            }
+        }),
 
         // 🔥 PONTE DEFINITIVA: o HUD (MapaSextaFeira) chama esta ação diretamente — sem
         // localStorage, sem CustomEvent — e o Oráculo (AIFormContext) já está no mesmo

@@ -1686,3 +1686,20 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .btn-prestigio-passo:disabled { opacity: 0.3; cursor: default; }
 .prestigio-divisor-travado { display: inline-block; min-width: 50px; text-align: center; border: 1px dashed currentColor; border-radius: 4px; opacity: 0.8; cursor: not-allowed; }
 .ascensao-base-travada { display: inline-block; min-width: 60px; text-align: center; font-size: 1.2em; border-bottom: 1px dashed currentColor; opacity: 0.85; cursor: not-allowed; }
+
+/* 🤖 Sexta-Feira (IA): status da chave, aviso dos Registros da mesa e tela de Config */
+.sexta-status { margin-left: 12px; font-size: 0.45em; font-weight: bold; letter-spacing: 1px; vertical-align: middle; text-shadow: none; }
+.sexta-status.online { color: #00ff88; }
+.sexta-status.offline { color: #ff8800; }
+.sexta-registros-aviso { margin: 0 0 10px; font-size: 0.8em; color: #aaa; font-style: italic; }
+.sexta-config { display: flex; flex-direction: column; gap: 14px; padding: 20px; max-width: 760px; }
+.sexta-config-titulo { margin: 0; color: #ffcc00; }
+.sexta-config-texto, .sexta-config-passos { margin: 0; color: #ccc; font-size: 0.9em; line-height: 1.5; }
+.sexta-config-passos { padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.sexta-config-passos code { color: #00ffcc; word-break: break-all; }
+.sexta-config-campo { display: flex; flex-direction: column; gap: 6px; color: #00ffcc; font-size: 0.85em; font-weight: bold; }
+.sexta-config-campo .input-neon { flex: 1; min-width: 0; margin: 0; padding: 8px; color: #fff; }
+.sexta-config-linha { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.sexta-config-linha .btn-neon { margin: 0; padding: 8px 14px; }
+.sexta-config-status { margin: 0; color: #00ffcc; font-size: 0.9em; }
+.sexta-config-aviso { margin: 0; color: #ff8800; font-size: 0.8em; }
