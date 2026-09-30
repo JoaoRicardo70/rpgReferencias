@@ -6,7 +6,9 @@ import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import {
     MODELO_GEMINI_PADRAO, montarHistoricoGemini,
     adicionarMensagemUsuario, selecionarLoreRelevante, montarInstrucaoSistema,
+    listarAlvosMencao, descreverMencoes,
 } from '../../core/sextaFeira';
+import { markdownParaTextoFalado } from '../../core/markdownSexta';
 import { chamarGemini } from '../../services/sextaFeiraIA';
 import { DECLARACOES_FERRAMENTAS, executarFerramenta, montarContextoInicial } from '../../core/sextaFeiraFerramentas';
 import {
@@ -22,6 +24,35 @@ import * as pdfjsLib from 'pdfjs-dist';
 export const PERIODOS_RESUMO = { hoje: 'de hoje', '6h': 'das últimas 6 horas', ultimo: 'desde o último resumo' };
 
 function inicioDoDia() { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }
+
+// 🎚️ Preferências do chat guardadas neste navegador (fontes que a Sexta-Feira usa + voz).
+const CHAVE_PREFERENCIAS_CHAT = 'rpgSextaFeira_preferencias';
+export const PREFERENCIAS_CHAT_PADRAO = { lore: true, mesa: true, memoria: true, voz: false };
+function lerPreferenciasChat() {
+    try {
+        const salvo = JSON.parse(localStorage.getItem(CHAVE_PREFERENCIAS_CHAT) || 'null');
+        return { ...PREFERENCIAS_CHAT_PADRAO, ...(salvo && typeof salvo === 'object' ? salvo : {}) };
+    } catch (e) { return { ...PREFERENCIAS_CHAT_PADRAO }; }
+}
+function salvarPreferenciasChat(pref) {
+    try { localStorage.setItem(CHAVE_PREFERENCIAS_CHAT, JSON.stringify(pref)); } catch (e) { /* sem localStorage */ }
+}
+
+// 🔊 Leitura em voz alta (Web Speech API do navegador, sem custo). Sem suporte, não faz nada.
+function pararVoz() {
+    try { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) { /* sem voz */ }
+}
+function falarTexto(texto) {
+    try {
+        if (typeof window === 'undefined' || !window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== 'function') return;
+        const falado = markdownParaTextoFalado(texto);
+        if (!falado) return;
+        window.speechSynthesis.cancel();
+        const fala = new window.SpeechSynthesisUtterance(falado);
+        fala.lang = 'pt-BR';
+        window.speechSynthesis.speak(fala);
+    } catch (e) { /* sem voz */ }
+}
 
 // Cópia local da conversa, separada por mesa (a de uma mesa nunca aparece na outra).
 function chaveChatLocal(mesaId, nome) { return `rpgSextaFeira_chat_${mesaId || 'semMesa'}_${nome}`; }
@@ -83,6 +114,11 @@ export function AIFormProvider({ children }) {
     const [mensagem, setMensagem] = useState('');
     const [historico, setHistorico] = useState([]);
     const [carregando, setCarregando] = useState(false);
+    // 🔇 Sair da aba/app não deixa a Sexta-Feira falando sozinha.
+    useEffect(() => () => pararVoz(), []);
+
+    // Texto da resposta enquanto ela ainda está sendo escrita (streaming); null quando parada.
+    const [respostaParcial, setRespostaParcial] = useState(null);
     const [arquivoTexto, setArquivoTexto] = useState('');
     const [nomeArquivo, setNomeArquivo] = useState('');
     const chatRef = useRef(null);
@@ -456,7 +492,7 @@ export function AIFormProvider({ children }) {
         return true;
     }, [podeEditarRegistros, setCapitulosPresente, setCapituloAtivoId, setArcoAtivoIdPresente, setCapitulosFuturo, setCapFuturoAtivoId, setArcoAtivoIdFuturo, setLoreFoco]);
 
-    useEffect(() => { if (subAba === 'chat' && chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight; }, [historico, subAba]);
+    useEffect(() => { if (subAba === 'chat' && chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight; }, [historico, subAba, respostaParcial, carregando]);
 
     const extrairTextoPDF = useCallback(async (file) => {
         const arrayBuffer = await file.arrayBuffer();
@@ -516,32 +552,36 @@ export function AIFormProvider({ children }) {
         };
     }, [minhaFicha, meuNome]);
 
-    const enviarMensagem = useCallback(async () => {
-        if ((!mensagem.trim() && !arquivoTexto) || carregando) return;
-        const msgUsuario = mensagem.trim();
-        const textoAnexo = arquivoTexto;
-        const nomeAnexo = nomeArquivo;
+    // 🎚️ PREFERÊNCIAS DO CHAT (de cada pessoa, neste navegador): quais fontes a Sexta-Feira usa e
+    // se lê as respostas em voz alta.
+    const [preferencias, setPreferencias] = useState(lerPreferenciasChat);
+    const alternarPreferencia = useCallback((chave) => {
+        setPreferencias((atual) => {
+            const nova = { ...atual, [chave]: !atual[chave] };
+            salvarPreferenciasChat(nova);
+            if (chave === 'voz' && !nova.voz) pararVoz();
+            return nova;
+        });
+    }, []);
 
-        if (!iaConfigurada) {
-            setHistorico(prev => [...prev, { role: 'erro', texto: isMestre
-                ? 'A Sexta-Feira ainda não tem uma chave do Gemini. Abra ⚙️ Config nesta aba e cadastre a chave.'
-                : 'A Sexta-Feira ainda não foi configurada pelo Mestre desta mesa.' }]);
-            return;
-        }
+    const ultimoPedidoRef = useRef(null);
 
-        setMensagem(''); setArquivoTexto(''); setNomeArquivo('');
+    // Nomes/arcos que dá pra mencionar com @ no chat.
+    const personagensStore = useStore(s => s.personagens);
+    const dummiesStore = useStore(s => s.dummies);
+    const alvosMencao = useMemo(() => listarAlvosMencao({
+        meuNome, personagens: personagensStore, dummies: dummiesStore, capitulosPresente, capitulosFuturo, podeVerFuturo,
+    }), [meuNome, personagensStore, dummiesStore, capitulosPresente, capitulosFuturo, podeVerFuturo]);
 
-        const displayMsg = nomeAnexo ? `${msgUsuario || 'Analise o documento anexado.'}\n📄 [Arquivo: ${nomeAnexo}]` : msgUsuario;
-        // Histórico ANTES desta mensagem: vai junto pro Gemini como memória da conversa.
-        const historicoAnterior = historico;
-        setHistorico(prev => [...prev, { role: 'user', texto: displayMsg }]);
+    // Monta o pedido (contexto, lore, memória, ferramentas) e fala com o Gemini. A mensagem do
+    // usuário já deve estar no histórico; `historicoBase` é a conversa ANTES dela.
+    const processarEnvio = useCallback(async ({ msgUsuario, textoAnexo, nomeAnexo, historicoBase }) => {
         setCarregando(true);
-
         try {
             // Jogadores não recebem trechos do Futuro (spoilers) quando os Registros são da mesa.
             const capitulosParaIA = podeVerFuturo ? [...capitulosPresente, ...capitulosFuturo] : capitulosPresente;
             const textoArcoParaIA = (loreFoco === 'futuro' && !podeVerFuturo) ? '' : (arcoAtivoObj?.texto || '');
-            const lore = selecionarLoreRelevante(capitulosParaIA, msgUsuario, textoArcoParaIA);
+            const lore = preferencias.lore ? selecionarLoreRelevante(capitulosParaIA, msgUsuario, textoArcoParaIA) : '';
             // 🛠️ Estado da mesa no momento do envio: as ferramentas (core/sextaFeiraFerramentas.js)
             // leem daqui, já filtrando pelo papel de quem pergunta.
             const loja = useStore.getState();
@@ -563,30 +603,72 @@ export function AIFormProvider({ children }) {
                 carregarTranscricoes: (desde) => carregarTranscricoesDesde(mesaId, desde),
                 memorizar: ({ texto, soMestre }) => memorizarFato(mesaId, { texto, soMestre, autor: meuNome }),
             };
-            const memoria = montarTextoMemoria(loja.sextaFeiraMemoria, isMestre);
-            const systemInstruction = montarInstrucaoSistema({ contextoFicha: montarContextoInicial(estadoMesa), lore, memoria });
+            const memoria = preferencias.memoria ? montarTextoMemoria(loja.sextaFeiraMemoria, isMestre) : '';
+            // Sem "Dados da mesa": nem a ficha, nem as ferramentas — só quem fala e o papel.
+            const contextoFicha = preferencias.mesa
+                ? montarContextoInicial(estadoMesa)
+                : `Quem fala: ${meuNome || 'Desconhecido'}\nPapel: ${isMestre ? 'Mestre' : 'Jogador'}\n(Quem fala desligou o acesso aos dados da mesa nesta conversa.)`;
+            const systemInstruction = montarInstrucaoSistema({ contextoFicha, lore, memoria, semFerramentas: !preferencias.mesa });
+            // Fontes desligadas também tiram as ferramentas correspondentes.
+            const declaracoes = DECLARACOES_FERRAMENTAS.filter(d => !(
+                (!preferencias.lore && d.name === 'buscar_lore') || (!preferencias.memoria && d.name === 'memorizar_fato')
+            ));
 
             let textoPedido = msgUsuario || 'Faça um resumo do arquivo anexado.';
+            const dicaMencoes = descreverMencoes(msgUsuario, alvosMencao, { comFerramentas: preferencias.mesa });
+            if (dicaMencoes) textoPedido += `\n\n(${dicaMencoes})`;
             if (textoAnexo) textoPedido += `\n\n--- CONTEÚDO DO ARQUIVO ANEXADO (${nomeAnexo}) ---\n${textoAnexo}\n--- FIM DO ARQUIVO ---`;
-            const contents = adicionarMensagemUsuario(montarHistoricoGemini(historicoAnterior), textoPedido);
+            const contents = adicionarMensagemUsuario(montarHistoricoGemini(historicoBase), textoPedido);
 
             const resposta = await chamarGemini({
                 chave: sextaFeiraConfig.chaveGemini,
                 modelo: sextaFeiraConfig.modelo || MODELO_GEMINI_PADRAO,
                 systemInstruction,
                 contents,
-                ferramentas: {
-                    declaracoes: DECLARACOES_FERRAMENTAS,
-                    executar: (nome, args) => executarFerramenta(nome, args, estadoMesa, opcoesFerramentas),
-                },
+                ferramentas: preferencias.mesa ? {
+                    declaracoes,
+                    // Pedido de uma ferramenta de fonte desligada é recusado.
+                    executar: (nome, args) => (declaracoes.some(d => d.name === nome) || !DECLARACOES_FERRAMENTAS.some(d => d.name === nome)
+                        ? executarFerramenta(nome, args, estadoMesa, opcoesFerramentas)
+                        : { erro: 'Essa fonte está desligada nesta conversa.' }),
+                } : null,
+                aoReceberTexto: (parcial) => setRespostaParcial(parcial),
             });
             setHistorico(prev => [...prev, { role: 'ai', texto: resposta }]);
+            if (preferencias.voz) falarTexto(resposta);
         } catch (err) {
             console.error('[Sexta-Feira]', err);
             setHistorico(prev => [...prev, { role: 'erro', texto: err?.message || 'Erro ao contactar a IA.' }]);
+        } finally {
+            setRespostaParcial(null);
+            setCarregando(false);
         }
-        finally { setCarregando(false); }
-    }, [mensagem, arquivoTexto, nomeArquivo, carregando, iaConfigurada, isMestre, historico, podeVerFuturo, capitulosPresente, capitulosFuturo, loreFoco, arcoAtivoObj, meuNome, mesaId, sextaFeiraConfig]);
+    }, [podeVerFuturo, capitulosPresente, capitulosFuturo, loreFoco, arcoAtivoObj, preferencias, meuNome, isMestre, mesaId, alvosMencao, sextaFeiraConfig]);
+
+    const avisarSemChave = useCallback(() => {
+        setHistorico(prev => [...prev, { role: 'erro', texto: isMestre
+            ? 'A Sexta-Feira ainda não tem uma chave do Gemini. Abra ⚙️ Config nesta aba e cadastre a chave.'
+            : 'A Sexta-Feira ainda não foi configurada pelo Mestre desta mesa.' }]);
+    }, [isMestre]);
+
+    // Envia o que está digitado (com anexo), ou `textoDireto` (atalhos) sem mexer no campo.
+    const enviarMensagem = useCallback(async (textoDireto) => {
+        const direto = typeof textoDireto === 'string';
+        const msgUsuario = (direto ? textoDireto : mensagem).trim();
+        const textoAnexo = direto ? '' : arquivoTexto;
+        const nomeAnexo = direto ? '' : nomeArquivo;
+        if ((!msgUsuario && !textoAnexo) || carregando) return;
+        if (!iaConfigurada) { avisarSemChave(); return; }
+
+        if (!direto) { setMensagem(''); setArquivoTexto(''); setNomeArquivo(''); }
+
+        const displayMsg = nomeAnexo ? `${msgUsuario || 'Analise o documento anexado.'}\n📄 [Arquivo: ${nomeAnexo}]` : msgUsuario;
+        ultimoPedidoRef.current = { displayMsg, msgUsuario, textoAnexo, nomeAnexo };
+        // Histórico ANTES desta mensagem: vai junto pro Gemini como memória da conversa.
+        const historicoBase = historico;
+        setHistorico(prev => [...prev, { role: 'user', texto: displayMsg }]);
+        await processarEnvio({ msgUsuario, textoAnexo, nomeAnexo, historicoBase });
+    }, [mensagem, arquivoTexto, nomeArquivo, carregando, iaConfigurada, avisarSemChave, historico, processarEnvio]);
 
     // 📝 RESUMO DE SESSÃO (só Mestre): junta o feed de combate e as falas transcritas do período,
     // pede à Sexta-Feira uma crônica e sugere onde guardar nos Registros (o Mestre confirma no
@@ -598,7 +680,7 @@ export function AIFormProvider({ children }) {
             return;
         }
         const rotulo = PERIODOS_RESUMO[periodo] || PERIODOS_RESUMO.hoje;
-        setHistorico(prev => [...prev, { role: 'user', texto: `📝 Resumir a sessão ${rotulo}` }]);
+        setHistorico(prev => [...prev, { role: 'user', tipo: 'pedidoResumo', periodo, texto: `📝 Resumir a sessão ${rotulo}` }]);
         setCarregando(true);
         try {
             let desde = periodo === '6h' ? Date.now() - 6 * 3600000 : inicioDoDia();
@@ -630,6 +712,28 @@ export function AIFormProvider({ children }) {
             setCarregando(false);
         }
     }, [isMestre, carregando, iaConfigurada, mesaId, capitulosPresente, sextaFeiraConfig, meuNome, sextaFeiraMemoria]);
+
+    // ↻ TENTAR DE NOVO: refaz o último pedido (depois de um erro), sem repetir a mensagem na conversa.
+    const tentarDeNovo = useCallback(async () => {
+        if (carregando) return;
+        if (!iaConfigurada) { avisarSemChave(); return; }
+        let idx = historico.length - 1;
+        while (idx >= 0 && historico[idx].role !== 'user') idx--;
+        if (idx < 0) return;
+        const pedidoMsg = historico[idx];
+        if (pedidoMsg.tipo === 'pedidoResumo') {
+            // resumirSessao adiciona o próprio pedido de novo.
+            setHistorico(historico.slice(0, idx));
+            await resumirSessao(pedidoMsg.periodo);
+            return;
+        }
+        const ultimo = ultimoPedidoRef.current;
+        const pedido = ultimo && ultimo.displayMsg === pedidoMsg.texto
+            ? ultimo
+            : { msgUsuario: String(pedidoMsg.texto).replace(/\n📄 \[Arquivo: [^\]]*\]$/, ''), textoAnexo: '', nomeAnexo: '' };
+        setHistorico(historico.slice(0, idx + 1));
+        await processarEnvio({ ...pedido, historicoBase: historico.slice(0, idx) });
+    }, [carregando, iaConfigurada, avisarSemChave, historico, resumirSessao, processarEnvio]);
 
     // ⚙️ Config da Sexta-Feira na mesa (só Mestre/Co-Mestre). Lida por hooks/useSextaFeiraMesa.js.
     const salvarConfigSextaFeira = useCallback(async ({ chaveGemini, modelo }) => {
@@ -664,7 +768,8 @@ export function AIFormProvider({ children }) {
         fileInputRef, handleArquivoSelecionado, limparChat,
         isMestre, podeEditarRegistros, podeVerFuturo, registrosCompartilhados,
         sextaFeiraConfig, iaConfigurada, salvarConfigSextaFeira,
-        sextaFeiraMemoria, memorizarTexto, esquecerFato, resumirSessao
+        sextaFeiraMemoria, memorizarTexto, esquecerFato, resumirSessao,
+        preferencias, alternarPreferencia, respostaParcial, alvosMencao, tentarDeNovo, pararVoz
     }), [
         minhaFicha, meuNome, personagens, subAba, mensagem, historico, carregando,
         loreFoco, novoPersonagem, novoAvatar, capitulosPresente, capituloAtivoId, arcoAtivoIdPresente,
@@ -676,7 +781,8 @@ export function AIFormProvider({ children }) {
         arquivoTexto, nomeArquivo, handleArquivoSelecionado, limparChat,
         isMestre, podeEditarRegistros, podeVerFuturo, registrosCompartilhados,
         sextaFeiraConfig, iaConfigurada, salvarConfigSextaFeira,
-        sextaFeiraMemoria, memorizarTexto, esquecerFato, resumirSessao
+        sextaFeiraMemoria, memorizarTexto, esquecerFato, resumirSessao,
+        preferencias, alternarPreferencia, respostaParcial, alvosMencao, tentarDeNovo
     ]);
 
     return (

@@ -62,7 +62,7 @@ describe('AIFormContext - ferramentas do Gemini', () => {
         const { result } = montar();
         await enviar(result, 'oi');
         const arg = chamarGemini.mock.calls[0][0];
-        expect(arg.ferramentas.declaracoes).toBe(DECLARACOES_FERRAMENTAS);
+        expect(arg.ferramentas.declaracoes).toStrictEqual(DECLARACOES_FERRAMENTAS);
         expect(typeof arg.ferramentas.executar).toBe('function');
     });
     it('executar roda executarFerramenta sobre o estado do store (jogador)', async () => {

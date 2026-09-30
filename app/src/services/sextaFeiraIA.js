@@ -61,10 +61,76 @@ function erroSemTexto(dados) {
     return new Error('O Gemini respondeu vazio. Tente reformular a mensagem.');
 }
 
-export async function chamarGemini({ chave, modelo, systemInstruction, contents, ferramentas = null, fetchImpl = fetch }) {
+// 📡 STREAMING (streamGenerateContent?alt=sse): cada pedaço chega como uma linha "data: {...}"
+// com o mesmo formato da resposta normal. Junta as partes numa resposta completa (pra o ciclo de
+// ferramentas funcionar igual) e avisa `aoPedaco` a cada pedaço. O tempo limite recomeça a cada
+// pedaço recebido (conta tempo parado, não o total).
+async function requisitarStream(fetchImpl, url, init, aoPedaco) {
+    const controle = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    let timer = null;
+    const armar = () => { if (!controle) return; if (timer) clearTimeout(timer); timer = setTimeout(() => controle.abort(), TEMPO_LIMITE_MS); };
+    armar();
+    try {
+        let resposta;
+        try {
+            resposta = await fetchImpl(url, { ...init, signal: controle?.signal });
+        } catch (err) {
+            if (err?.name === 'AbortError') throw new Error('O Gemini demorou demais para responder. Tente de novo.');
+            throw new Error('Não consegui falar com o Gemini. Verifique a conexão e tente de novo.');
+        }
+        if (!resposta.ok) {
+            let dados = null;
+            try { dados = await resposta.json(); } catch (e) { dados = null; }
+            throw new Error(traduzirErroGemini(resposta.status, dados?.error?.message));
+        }
+        const processarLinha = (linha) => {
+            const l = linha.trim();
+            if (!l.startsWith('data:')) return;
+            const json = l.slice(5).trim();
+            if (!json || json === '[DONE]') return;
+            let pedaco = null;
+            try { pedaco = JSON.parse(json); } catch (e) { return; }
+            if (pedaco?.error) throw new Error(traduzirErroGemini(Number(pedaco.error.code) || 500, pedaco.error.message));
+            aoPedaco(pedaco);
+        };
+        const leitor = resposta.body && typeof resposta.body.getReader === 'function' ? resposta.body.getReader() : null;
+        try {
+            if (!leitor) {
+                String(await resposta.text()).split('\n').forEach(processarLinha);
+                return;
+            }
+            const decodificador = new TextDecoder();
+            let buffer = '';
+            for (;;) {
+                const { done, value } = await leitor.read();
+                if (done) break;
+                armar();
+                buffer += decodificador.decode(value, { stream: true });
+                let idx;
+                while ((idx = buffer.indexOf('\n')) >= 0) {
+                    processarLinha(buffer.slice(0, idx));
+                    buffer = buffer.slice(idx + 1);
+                }
+            }
+            buffer += decodificador.decode();
+            if (buffer) processarLinha(buffer);
+        } catch (err) {
+            if (leitor) { try { leitor.cancel().catch(() => {}); } catch (e) { /* já fechado */ } }
+            if (err?.name === 'AbortError') throw new Error('O Gemini parou de responder no meio. Tente de novo.');
+            throw err;
+        }
+    } finally {
+        if (timer) clearTimeout(timer);
+    }
+}
+
+// Com `aoReceberTexto(textoParcial)`, usa streaming e vai mostrando a resposta enquanto ela é
+// escrita (a cada rodada de ferramentas o texto parcial recomeça).
+export async function chamarGemini({ chave, modelo, systemInstruction, contents, ferramentas = null, aoReceberTexto = null, fetchImpl = fetch }) {
     if (!chave) throw new Error('A Sexta-Feira ainda não foi configurada: o Mestre precisa cadastrar a chave do Gemini.');
     const nomeModelo = String(modelo || MODELO_GEMINI_PADRAO).trim() || MODELO_GEMINI_PADRAO;
     const url = `${URL_BASE_GEMINI}/${encodeURIComponent(nomeModelo)}:generateContent`;
+    const urlStream = `${URL_BASE_GEMINI}/${encodeURIComponent(nomeModelo)}:streamGenerateContent?alt=sse`;
     const usarFerramentas = !!(ferramentas && Array.isArray(ferramentas.declaracoes) && ferramentas.declaracoes.length && typeof ferramentas.executar === 'function');
     const conversa = [...(contents || [])];
 
@@ -73,11 +139,32 @@ export async function chamarGemini({ chave, modelo, systemInstruction, contents,
         // Na última rodada não oferece mais ferramentas: força a resposta em texto.
         if (usarFerramentas && rodada < MAX_RODADAS_FERRAMENTAS) corpo.tools = [{ functionDeclarations: ferramentas.declaracoes }];
 
-        const dados = await requisitar(fetchImpl, url, {
+        const init = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-goog-api-key': chave },
             body: JSON.stringify(corpo),
-        });
+        };
+        let dados;
+        if (typeof aoReceberTexto === 'function') {
+            const partesJuntas = [];
+            let textoRodada = '';
+            let finishReason;
+            let promptFeedback;
+            aoReceberTexto('');
+            await requisitarStream(fetchImpl, urlStream, init, (pedaco) => {
+                const cand = pedaco?.candidates?.[0];
+                if (pedaco?.promptFeedback) promptFeedback = pedaco.promptFeedback;
+                if (cand?.finishReason) finishReason = cand.finishReason;
+                (cand?.content?.parts || []).forEach((p) => {
+                    if (!p) return;
+                    partesJuntas.push(p);
+                    if (typeof p.text === 'string' && !p.thought) { textoRodada += p.text; aoReceberTexto(textoRodada); }
+                });
+            });
+            dados = { candidates: [{ content: { role: 'model', parts: partesJuntas }, ...(finishReason ? { finishReason } : {}) }], ...(promptFeedback ? { promptFeedback } : {}) };
+        } else {
+            dados = await requisitar(fetchImpl, url, init);
+        }
 
         const partes = dados?.candidates?.[0]?.content?.parts || [];
         // Na última rodada (sem ferramentas oferecidas) qualquer functionCall é ignorado e vale o texto.

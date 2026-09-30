@@ -1,6 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import useStore from '../../stores/useStore';
 import { useAIForm, TODOS_RANKS, PERIODOS_RESUMO } from './AIFormContext';
-import { MODELO_GEMINI_PADRAO } from '../../core/sextaFeira';
+import {
+    MODELO_GEMINI_PADRAO, ATALHOS_JOGADOR, ATALHOS_MESTRE, detectarMencaoAtiva, aplicarMencao, filtrarAlvosMencao,
+} from '../../core/sextaFeira';
+import { resumoFichaDetalhado } from '../../core/sextaFeiraFerramentas';
+import { markdownParaTextoFalado } from '../../core/markdownSexta';
+import MarkdownSexta from './MarkdownSexta';
 import { listarModelosGemini } from '../../services/sextaFeiraIA';
 import GravadorPanel from './GravadorPanel';
 import AIArvoreGenealogica from './AIArvoreGenealogica'; // <-- ADIÇÃO: Importando o novo componente
@@ -13,12 +19,12 @@ export function AIHeader() {
     const { subAba, setSubAba, isMestre, iaConfigurada } = ctx;
 
     return (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2px solid #00ffcc', paddingBottom: 10 }}>
-            <h2 style={{ color: '#00ffcc', textShadow: '0 0 10px #00ffcc', margin: 0 }}>
+        <div className="sexta-header">
+            <h2 className="sexta-header-titulo">
                 Sexta-Feira (IA Central)
                 <span className={`sexta-status ${iaConfigurada ? 'online' : 'offline'}`}>{iaConfigurada ? '● online' : '● sem chave'}</span>
             </h2>
-            <div style={{ display: 'flex', gap: '5px' }}>
+            <div className="sexta-abas">
                 <button className={`btn-neon ${subAba === 'chat' ? 'btn-green' : ''}`} onClick={() => setSubAba('chat')} style={{ padding: '5px 10px', margin: 0 }}>💬 Chat</button>
                 <button className={`btn-neon ${subAba === 'gravador' ? 'btn-red' : ''}`} onClick={() => setSubAba('gravador')} style={{ padding: '5px 10px', margin: 0 }}>🎙️ Gravador</button>
                 <button className={`btn-neon ${subAba === 'tierlist' ? 'btn-gold' : ''}`} onClick={() => setSubAba('tierlist')} style={{ padding: '5px 10px', margin: 0 }}>🏆 Tier List</button>
@@ -183,55 +189,257 @@ function ResumirSessaoMestre() {
     );
 }
 
+// 🔊 Lê uma resposta em voz alta (Web Speech API do navegador). Some se o navegador não tiver voz.
+function BotaoOuvir({ texto }) {
+    if (typeof window === 'undefined' || !window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== 'function') return null;
+    const ouvir = () => {
+        try {
+            window.speechSynthesis.cancel();
+            const fala = new window.SpeechSynthesisUtterance(markdownParaTextoFalado(texto));
+            fala.lang = 'pt-BR';
+            window.speechSynthesis.speak(fala);
+        } catch (e) { /* sem voz */ }
+    };
+    return <button type="button" className="btn-neon sexta-msg-acoes-btn" onClick={ouvir} title="Ouvir esta resposta" aria-label="Ouvir esta resposta">🔊</button>;
+}
+
+function MensagemChat({ msg, meuNome, ultima }) {
+    const ctx = useAIForm();
+    const papel = msg.role === 'user' ? 'user' : msg.role === 'erro' ? 'erro' : 'ai';
+    const rotulo = papel === 'user' ? meuNome?.toUpperCase() : papel === 'erro' ? 'ERRO' : (msg.tipo === 'resumo' ? 'SEXTA-FEIRA · RESUMO DE SESSÃO' : 'SEXTA-FEIRA');
+    return (
+        <div className={`sexta-msg sexta-msg-${papel}`}>
+            <div className="sexta-msg-balao">
+                <div className="sexta-msg-rotulo">{rotulo}</div>
+                {papel === 'ai' ? <MarkdownSexta texto={msg.texto} /> : <div className="sexta-msg-texto">{msg.texto}</div>}
+                {papel === 'erro' && ultima && ctx && (
+                    <button type="button" className="btn-neon sexta-msg-acoes-btn sexta-msg-retry" onClick={ctx.tentarDeNovo} disabled={ctx.carregando}>↻ Tentar de novo</button>
+                )}
+            </div>
+            {papel === 'ai' && (
+                <div className="sexta-msg-rodape">
+                    <BotaoOuvir texto={msg.texto} />
+                    <AcoesMensagemIA msg={msg} />
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ⚡ Perguntas prontas (um clique envia). O Mestre tem as dele.
+function AtalhosChat() {
+    const ctx = useAIForm();
+    if (!ctx) return null;
+    const atalhos = ctx.isMestre ? ATALHOS_MESTRE : ATALHOS_JOGADOR;
+    return (
+        <div className="sexta-atalhos">
+            {atalhos.map(a => (
+                <button key={a.rotulo} type="button" className="sexta-atalho" onClick={() => ctx.enviarMensagem(a.texto)} disabled={ctx.carregando} title={a.texto}>{a.rotulo}</button>
+            ))}
+        </div>
+    );
+}
+
+const ROTULO_TIPO_MENCAO = { cena: '🗺️ cena', personagem: '🧑 personagem', npc: '👾 NPC', arco: '📜 arco' };
+
+// Campo de mensagem com menções: "@" abre a lista de personagens, NPCs, arcos e a cena atual.
+function CampoMensagem() {
+    const ctx = useAIForm();
+    const campoRef = useRef(null);
+    const [mencao, setMencao] = useState(null);
+    const carregandoCtx = !!ctx?.carregando;
+    // Depois que a resposta chega, o cursor volta pro campo (ele fica desabilitado enquanto ela escreve).
+    useEffect(() => { if (!carregandoCtx && campoRef.current && document.activeElement === document.body) campoRef.current.focus(); }, [carregandoCtx]);
+    if (!ctx) return null;
+    const { mensagem, setMensagem, handleKeyDown, carregando, alvosMencao } = ctx;
+    const opcoes = mencao ? filtrarAlvosMencao(alvosMencao, mencao.termo) : [];
+    const aberta = !!mencao && opcoes.length > 0;
+    const indice = aberta ? Math.min(mencao.indice, opcoes.length - 1) : 0;
+
+    const atualizarMencao = (texto, cursor) => {
+        const achada = detectarMencaoAtiva(texto, cursor);
+        setMencao(achada ? { ...achada, cursor, indice: 0 } : null);
+    };
+    const escolher = (alvo) => {
+        const { texto, cursor } = aplicarMencao(mensagem, mencao.inicio, mencao.cursor, alvo.rotulo);
+        setMensagem(texto);
+        setMencao(null);
+        requestAnimationFrame(() => {
+            const el = campoRef.current;
+            if (el) { el.focus(); el.setSelectionRange(cursor, cursor); }
+        });
+    };
+    const aoTeclar = (e) => {
+        if (aberta) {
+            if (e.key === 'ArrowDown') { e.preventDefault(); setMencao({ ...mencao, indice: (indice + 1) % opcoes.length }); return; }
+            if (e.key === 'ArrowUp') { e.preventDefault(); setMencao({ ...mencao, indice: (indice - 1 + opcoes.length) % opcoes.length }); return; }
+            if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); escolher(opcoes[indice]); return; }
+            if (e.key === 'Escape') { e.preventDefault(); setMencao(null); return; }
+        }
+        handleKeyDown(e);
+    };
+
+    return (
+        <div className="sexta-campo">
+            {aberta && (
+                <ul id="sexta-lista-mencoes" className="sexta-mencoes" role="listbox" aria-label="Mencionar">
+                    {opcoes.map((alvo, i) => (
+                        <li key={`${alvo.tipo}-${alvo.rotulo}-${i}`} id={`sexta-mencao-${i}`} role="option" aria-selected={i === indice}
+                            className={`sexta-mencao${i === indice ? ' ativa' : ''}`}
+                            onMouseDown={(e) => { e.preventDefault(); escolher(alvo); }}>
+                            <span>@{alvo.rotulo}</span>
+                            <small>{ROTULO_TIPO_MENCAO[alvo.tipo] || alvo.tipo}{alvo.capitulo ? ` · ${alvo.capitulo}` : ''}</small>
+                        </li>
+                    ))}
+                </ul>
+            )}
+            <textarea
+                ref={campoRef}
+                className="input-neon sexta-campo-texto"
+                placeholder="Fale com a Sexta-Feira... (use @ para mencionar)"
+                aria-label="Mensagem para a Sexta-Feira"
+                aria-expanded={aberta}
+                aria-controls={aberta ? 'sexta-lista-mencoes' : undefined}
+                aria-activedescendant={aberta ? `sexta-mencao-${indice}` : undefined}
+                value={mensagem}
+                onChange={e => { setMensagem(e.target.value); atualizarMencao(e.target.value, e.target.selectionStart); }}
+                onKeyDown={aoTeclar}
+                onClick={e => atualizarMencao(e.target.value, e.target.selectionStart)}
+                onBlur={() => setMencao(null)}
+                disabled={carregando}
+            />
+        </div>
+    );
+}
+
+const ESTADOS_SEXTA = {
+    pensando: { rotulo: 'Pensando...', icone: '🧠' },
+    combate: { rotulo: 'Modo combate', icone: '⚔️' },
+    pronta: { rotulo: 'Pronta', icone: '💠' },
+    offline: { rotulo: 'Sem chave', icone: '💤' },
+};
+
+// 🛰️ Painel ao lado do chat: estado da Sexta-Feira, o que ela está "vendo" e as fontes ligadas.
+function PainelContextoSexta() {
+    const ctx = useAIForm();
+    const minhaFicha = useStore(s => s.minhaFicha);
+    const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
+    const resumoTurno = useStore(s => s.resumoTurnoMapa);
+    const cenario = useStore(s => s.cenario);
+    const meuNome = ctx?.meuNome;
+    const minhaVisao = useMemo(() => {
+        if (!minhaFicha) return null;
+        try { return resumoFichaDetalhado(meuNome, minhaFicha, { divisorPoderMesa }); } catch (e) { return null; }
+    }, [minhaFicha, meuNome, divisorPoderMesa]);
+    if (!ctx) return null;
+    const { isMestre, carregando, iaConfigurada, preferencias, alternarPreferencia, arcoAtivoObj, capituloAtivoObj, sextaFeiraMemoria } = ctx;
+
+    const ordem = Array.isArray(resumoTurno?.ordem) ? resumoTurno.ordem : [];
+    const emCombate = ordem.length > 0;
+    const vezDe = emCombate ? ordem[((Number(resumoTurno.turnoAtualIndex) || 0) % ordem.length + ordem.length) % ordem.length]?.nome : null;
+    const cena = cenario?.lista?.[cenario?.ativa]?.nome || '';
+    const estado = !iaConfigurada ? 'offline' : carregando ? 'pensando' : emCombate ? 'combate' : 'pronta';
+    const totalMemoria = Object.values(sextaFeiraMemoria || {}).filter(f => f && f.texto && (isMestre || !f.soMestre)).length;
+    const fontes = [
+        { chave: 'lore', rotulo: '📜 Lore', dica: 'Trechos dos Registros ligados à pergunta' },
+        { chave: 'mesa', rotulo: '🛠️ Dados da mesa', dica: 'Fichas, combate, feed, Árvore e simulações' },
+        { chave: 'memoria', rotulo: '📌 Memória', dica: 'Fatos que o Mestre mandou lembrar' },
+        { chave: 'voz', rotulo: '🔊 Voz', dica: 'Ler as respostas em voz alta' },
+    ];
+
+    return (
+        <aside className="sexta-painel">
+            <div className={`sexta-avatar sexta-avatar-${estado}`}>
+                <div className="sexta-avatar-orbe" aria-hidden="true">{ESTADOS_SEXTA[estado].icone}</div>
+                <div>
+                    <div className="sexta-avatar-nome">SEXTA-FEIRA</div>
+                    <div className="sexta-avatar-estado">{ESTADOS_SEXTA[estado].rotulo}</div>
+                </div>
+            </div>
+
+            <div className="sexta-painel-bloco sexta-painel-visao">
+                <div className="sexta-painel-titulo">👁️ O que ela está vendo</div>
+                <div className="sexta-painel-linha"><span>Você</span><strong>{meuNome} · {isMestre ? 'Mestre' : 'Jogador'}</strong></div>
+                {minhaVisao && (
+                    <>
+                        <div className="sexta-painel-linha"><span>Poder</span><strong>{Number(minhaVisao.poderCalculado || 0).toLocaleString('pt-BR')}</strong></div>
+                        <div className="sexta-painel-linha"><span>Fadiga</span><strong>{minhaVisao.fadigaPorcentagem}%</strong></div>
+                        {minhaVisao.vitais?.vida && <div className="sexta-painel-linha"><span>Vida</span><strong>{minhaVisao.vitais.vida.porcentagem}%</strong></div>}
+                    </>
+                )}
+                <div className="sexta-painel-linha"><span>Combate</span><strong>{emCombate ? `vez de ${vezDe}` : 'nenhum'}</strong></div>
+                {cena && <div className="sexta-painel-linha"><span>Cena</span><strong>{cena}</strong></div>}
+                {arcoAtivoObj && <div className="sexta-painel-linha"><span>Arco</span><strong>{capituloAtivoObj?.titulo ? `${capituloAtivoObj.titulo} › ` : ''}{arcoAtivoObj.titulo}</strong></div>}
+                <div className="sexta-painel-linha"><span>Memória</span><strong>{totalMemoria} fato(s)</strong></div>
+            </div>
+
+            <div className="sexta-painel-bloco">
+                <div className="sexta-painel-titulo">🎚️ Fontes</div>
+                <div className="sexta-fontes">
+                    {fontes.map(f => (
+                        <button key={f.chave} type="button" className={`sexta-fonte${preferencias[f.chave] ? ' ligada' : ''}`} onClick={() => alternarPreferencia(f.chave)} title={f.dica} aria-pressed={!!preferencias[f.chave]}>
+                            {f.rotulo}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </aside>
+    );
+}
+
 export function AIChat() {
     const ctx = useAIForm();
     if (!ctx) return FALLBACK;
-    const { chatRef, historico, meuNome, mensagem, setMensagem, handleKeyDown, carregando, enviarMensagem, arquivoTexto, nomeArquivo, setArquivoTexto, setNomeArquivo, fileInputRef, handleArquivoSelecionado, limparChat } = ctx;
+    const { chatRef, historico, meuNome, carregando, enviarMensagem, arquivoTexto, nomeArquivo, setArquivoTexto, setNomeArquivo, fileInputRef, handleArquivoSelecionado, limparChat, respostaParcial, mensagem } = ctx;
+    const podeEnviar = !carregando && (mensagem.trim() || arquivoTexto);
 
     return (
-        <>
-            <div className="sexta-chat-topo">
-                <span style={{ color: '#00ffcc', fontSize: '0.85em', fontWeight: 'bold' }}>📡 Memória Neural Ativa para: {meuNome}</span>
-                <div className="sexta-chat-topo-acoes">
-                    <ResumirSessaoMestre />
-                    {historico.length > 0 && (
-                        <button onClick={limparChat} style={{ background: 'none', border: 'none', color: '#ff003c', cursor: 'pointer', fontSize: '0.85em', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 'bold' }} title="Zerar a conversa com a IA">
-                            🗑️ Limpar Memória
-                        </button>
+        <div className="sexta-chat-layout">
+            <div className="sexta-chat-coluna">
+                <div className="sexta-chat-topo">
+                    <span className="sexta-chat-memoria">📡 Memória Neural Ativa para: {meuNome}</span>
+                    <div className="sexta-chat-topo-acoes">
+                        <ResumirSessaoMestre />
+                        {historico.length > 0 && (
+                            <button onClick={limparChat} className="sexta-chat-limpar" title="Zerar a conversa com a IA">🗑️ Limpar Memória</button>
+                        )}
+                    </div>
+                </div>
+
+                <div ref={chatRef} className="def-box sexta-chat-mensagens" aria-live="polite">
+                    {historico.length === 0 && respostaParcial === null && <div className="sexta-chat-vazio">A Sexta-Feira está online e pronta para ajudar. Experimente um atalho abaixo ou mencione alguém com @.</div>}
+                    {historico.map((msg, i) => (
+                        <MensagemChat key={i} msg={msg} meuNome={meuNome} ultima={i === historico.length - 1} />
+                    ))}
+                    {carregando && (
+                        <div className="sexta-msg sexta-msg-ai">
+                            <div className="sexta-msg-balao sexta-msg-escrevendo">
+                                <div className="sexta-msg-rotulo">SEXTA-FEIRA</div>
+                                {respostaParcial ? <MarkdownSexta texto={respostaParcial} /> : <div className="sexta-msg-texto sexta-pensando">Consultando os dados da mesa<span className="sexta-reticencias" /></div>}
+                            </div>
+                        </div>
                     )}
                 </div>
-            </div>
 
-            <div ref={chatRef} className="def-box" style={{ flex: 1, minHeight: '300px', maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '15px', padding: '15px' }}>
-                {historico.length === 0 && <div style={{ color: '#555', textAlign: 'center', fontStyle: 'italic', marginTop: '40px' }}>A Sexta-Feira está online e pronta para ajudar.</div>}
-                {historico.map((msg, i) => (
-                    <div key={i} style={{ alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '80%', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                        <div style={{ padding: '10px 14px', borderRadius: '8px', background: msg.role === 'user' ? 'rgba(0, 255, 204, 0.15)' : msg.role === 'erro' ? 'rgba(255, 0, 60, 0.15)' : 'rgba(0, 136, 255, 0.15)', border: `1px solid ${msg.role === 'user' ? '#00ffcc' : msg.role === 'erro' ? '#ff003c' : '#0088ff'}`, color: '#ddd', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.95em' }}>
-                            <div style={{ fontSize: '0.7em', fontWeight: 'bold', marginBottom: '4px', color: msg.role === 'user' ? '#00ffcc' : msg.role === 'erro' ? '#ff003c' : '#0088ff' }}>{msg.role === 'user' ? meuNome?.toUpperCase() : msg.role === 'erro' ? 'ERRO' : (msg.tipo === 'resumo' ? 'SEXTA-FEIRA · RESUMO DE SESSÃO' : 'SEXTA-FEIRA')}</div>
-                            {msg.texto}
+                <AtalhosChat />
+
+                <div className="sexta-envio">
+                    {nomeArquivo && (
+                        <div className="sexta-anexo">
+                            <span>📄 {nomeArquivo}</span>
+                            <button onClick={() => { setArquivoTexto(''); setNomeArquivo(''); }} className="sexta-anexo-remover" title="Remover arquivo" aria-label="Remover arquivo">✕</button>
                         </div>
-
-                        {/* 🔥 SELETOR HIERÁRQUICO NO CHAT + MEMÓRIA 🔥 */}
-                        {msg.role === 'ai' && <AcoesMensagemIA msg={msg} />}
+                    )}
+                    <div className="sexta-envio-linha">
+                        <input type="file" ref={fileInputRef} accept=".pdf,.txt,.md" onChange={handleArquivoSelecionado} style={{ display: 'none' }} />
+                        <button className={`btn-neon sexta-envio-anexar${nomeArquivo ? ' com-anexo' : ''}`} onClick={() => fileInputRef.current?.click()} title="Anexar PDF, TXT ou MD" aria-label="Anexar PDF, TXT ou MD">📎</button>
+                        <CampoMensagem />
+                        <button className="btn-neon sexta-envio-btn" onClick={enviarMensagem} disabled={!podeEnviar}>{carregando ? '...' : 'ENVIAR'}</button>
                     </div>
-                ))}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px', width: '100%' }}>
-                {nomeArquivo && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'rgba(255, 204, 0, 0.1)', border: '1px solid #ffcc00', borderRadius: '6px' }}>
-                        <span style={{ color: '#ffcc00', fontSize: '0.85em' }}>📄 {nomeArquivo}</span>
-                        <button onClick={() => { setArquivoTexto(''); setNomeArquivo(''); }} style={{ cursor: 'pointer', color: '#ff003c', fontWeight: 'bold', marginLeft: 'auto', background: 'none', border: 'none', padding: '2px 6px', fontSize: '1em' }} title="Remover arquivo">✕</button>
-                    </div>
-                )}
-                <div style={{ display: 'flex', flexDirection: 'row', gap: '10px', alignItems: 'flex-start' }}>
-                    <input type="file" ref={fileInputRef} accept=".pdf,.txt,.md" onChange={handleArquivoSelecionado} style={{ display: 'none' }} />
-                    <button className="btn-neon" onClick={() => fileInputRef.current?.click()} title="Anexar PDF, TXT ou MD" style={{ flex: 'none', width: '45px', height: '60px', padding: 0, margin: 0, borderColor: nomeArquivo ? '#ffcc00' : '#555', color: nomeArquivo ? '#ffcc00' : '#888', fontSize: '1.2em' }}>📎</button>
-                    <textarea className="input-neon" placeholder="Fale com a Sexta-Feira..." value={mensagem} onChange={e => setMensagem(e.target.value)} onKeyDown={handleKeyDown} disabled={carregando} style={{ flex: 1, minHeight: '60px', resize: 'vertical', borderColor: '#00ffcc', color: '#fff', padding: '12px', boxSizing: 'border-box' }} />
-                    <button className="btn-neon" onClick={enviarMensagem} disabled={carregando || (!mensagem.trim() && !arquivoTexto)} style={{ flex: '0 0 auto', width: '120px', minWidth: '120px', height: '60px', padding: '0 20px', borderColor: '#00ffcc', color: '#00ffcc', margin: 0, opacity: (carregando || (!mensagem.trim() && !arquivoTexto)) ? 0.4 : 1 }}>{carregando ? '...' : 'ENVIAR'}</button>
                 </div>
             </div>
-        </>
+            <PainelContextoSexta />
+        </div>
     );
 }
 

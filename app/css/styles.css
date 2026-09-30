@@ -1715,3 +1715,94 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .sexta-memoria { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #333; padding-top: 12px; }
 .sexta-memoria-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .sexta-memoria-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; background: rgba(0, 0, 0, 0.4); border: 1px solid #333; border-radius: 6px; padding: 6px 10px; color: #ccc; font-size: 0.85em; }
+
+/* 💠 Sexta-Feira (Fase 4a): layout em duas colunas, Markdown, atalhos, menções e painel de contexto */
+.sexta-aba { padding: 20px; display: flex; flex-direction: column; gap: 15px; height: 100%; box-sizing: border-box; min-width: 0; }
+.sexta-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; flex-wrap: wrap; border-bottom: 2px solid #00ffcc; padding-bottom: 10px; }
+.sexta-header-titulo { color: #00ffcc; text-shadow: 0 0 10px #00ffcc; margin: 0; }
+.sexta-abas { display: flex; gap: 5px; flex-wrap: wrap; }
+.sexta-abas .btn-neon { padding: 5px 10px; margin: 0; }
+.sexta-chat-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 15px; flex: 1; min-height: 0; }
+.sexta-chat-coluna { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
+.sexta-chat-memoria { color: #00ffcc; font-size: 0.85em; font-weight: bold; }
+.sexta-chat-limpar { background: none; border: none; color: #ff003c; cursor: pointer; font-size: 0.85em; font-weight: bold; font-family: inherit; }
+.sexta-chat-mensagens { flex: 1; min-height: 300px; max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; padding: 15px; }
+.sexta-chat-vazio { color: #666; text-align: center; font-style: italic; margin-top: 40px; }
+.sexta-msg { display: flex; flex-direction: column; gap: 5px; max-width: 85%; }
+.sexta-msg-user { align-self: flex-end; }
+.sexta-msg-ai, .sexta-msg-erro { align-self: flex-start; }
+.sexta-msg-balao { padding: 10px 14px; border-radius: 8px; color: #ddd; word-break: break-word; font-size: 0.95em; border: 1px solid #0088ff; background: rgba(0, 136, 255, 0.15); }
+.sexta-msg-user .sexta-msg-balao { border-color: #00ffcc; background: rgba(0, 255, 204, 0.15); }
+.sexta-msg-erro .sexta-msg-balao { border-color: #ff003c; background: rgba(255, 0, 60, 0.15); }
+.sexta-msg-rotulo { font-size: 0.7em; font-weight: bold; margin-bottom: 4px; color: #0088ff; }
+.sexta-msg-user .sexta-msg-rotulo { color: #00ffcc; }
+.sexta-msg-erro .sexta-msg-rotulo { color: #ff003c; }
+.sexta-msg-texto { white-space: pre-wrap; }
+.sexta-msg-retry { margin-top: 8px; border-color: #ff003c; color: #ff003c; }
+.sexta-msg-rodape { display: flex; align-items: flex-start; gap: 5px; flex-wrap: wrap; }
+.sexta-msg-escrevendo { border-style: dashed; }
+.sexta-pensando { color: #88aacc; font-style: italic; }
+.sexta-reticencias::after { content: "..."; animation: sexta-reticencias 1.2s steps(4, end) infinite; display: inline-block; overflow: hidden; vertical-align: bottom; width: 0; }
+@keyframes sexta-reticencias { to { width: 1.2em; } }
+.sexta-md { display: flex; flex-direction: column; gap: 8px; line-height: 1.5; }
+.sexta-md-paragrafo { margin: 0; }
+.sexta-md-titulo { margin: 4px 0 0; color: #00ffcc; font-size: 1.05em; }
+.sexta-md-lista { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 3px; }
+.sexta-md-code { background: rgba(0, 0, 0, 0.5); border: 1px solid #333; border-radius: 4px; padding: 0 4px; font-family: monospace; color: #00ffcc; }
+.sexta-md-pre { margin: 0; background: rgba(0, 0, 0, 0.6); border: 1px solid #333; border-radius: 6px; padding: 10px; overflow-x: auto; font-size: 0.85em; color: #cfe; }
+.sexta-md-citacao { margin: 0; border-left: 3px solid #00ffcc; padding-left: 10px; color: #aac; font-style: italic; }
+.sexta-md-regua { border: none; border-top: 1px solid #334; margin: 4px 0; width: 100%; }
+.sexta-md-tabela-wrap { overflow-x: auto; max-width: 100%; }
+.sexta-md-tabela { border-collapse: collapse; font-size: 0.9em; min-width: 100%; }
+.sexta-md-tabela th, .sexta-md-tabela td { border: 1px solid #334; padding: 5px 8px; text-align: left; vertical-align: top; }
+.sexta-md-tabela th { background: rgba(0, 255, 204, 0.12); color: #00ffcc; }
+.sexta-md strong { color: #fff; }
+.sexta-atalhos { display: flex; gap: 6px; flex-wrap: wrap; }
+.sexta-atalho { background: rgba(0, 255, 204, 0.08); border: 1px solid rgba(0, 255, 204, 0.4); color: #bdf; border-radius: 20px; padding: 5px 12px; font-size: 0.8em; cursor: pointer; font-family: inherit; }
+.sexta-atalho:hover:not(:disabled) { background: rgba(0, 255, 204, 0.2); color: #fff; }
+.sexta-atalho:disabled { opacity: 0.4; cursor: default; }
+.sexta-envio { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.sexta-anexo { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(255, 204, 0, 0.1); border: 1px solid #ffcc00; border-radius: 6px; color: #ffcc00; font-size: 0.85em; }
+.sexta-anexo-remover { cursor: pointer; color: #ff003c; font-weight: bold; margin-left: auto; background: none; border: none; padding: 2px 6px; font-size: 1em; }
+.sexta-envio-linha { display: flex; gap: 10px; align-items: flex-start; }
+.sexta-envio-anexar { flex: none; width: 45px; height: 60px; padding: 0; margin: 0; border-color: #555; color: #888; font-size: 1.2em; }
+.sexta-envio-anexar.com-anexo { border-color: #ffcc00; color: #ffcc00; }
+.sexta-envio-btn { flex: 0 0 auto; width: 120px; height: 60px; padding: 0 20px; margin: 0; border-color: #00ffcc; color: #00ffcc; }
+.sexta-envio-btn:disabled { opacity: 0.4; }
+.sexta-campo { position: relative; flex: 1; min-width: 0; }
+.sexta-campo-texto { width: 100%; min-height: 60px; resize: vertical; border-color: #00ffcc; color: #fff; padding: 12px; box-sizing: border-box; margin: 0; }
+.sexta-mencoes { position: absolute; bottom: calc(100% + 4px); left: 0; right: 0; max-height: 240px; overflow-y: auto; margin: 0; padding: 4px; list-style: none; background: rgba(5, 12, 24, 0.97); border: 1px solid #00ffcc; border-radius: 8px; box-shadow: 0 0 15px rgba(0, 255, 204, 0.25); z-index: 20; }
+.sexta-mencao { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 5px; cursor: pointer; color: #ddd; font-size: 0.9em; }
+.sexta-mencao small { color: #88a; font-size: 0.8em; white-space: nowrap; }
+.sexta-mencao.ativa, .sexta-mencao:hover { background: rgba(0, 255, 204, 0.15); color: #fff; }
+.sexta-painel { display: flex; flex-direction: column; gap: 12px; background: rgba(0, 10, 20, 0.6); border: 1px solid rgba(0, 255, 204, 0.25); border-radius: 10px; padding: 14px; align-self: start; min-width: 0; }
+.sexta-avatar { display: flex; align-items: center; gap: 12px; }
+.sexta-avatar-orbe { width: 48px; height: 48px; flex: 0 0 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; border: 2px solid #00ffcc; background: radial-gradient(circle, rgba(0, 255, 204, 0.25), rgba(0, 20, 40, 0.9)); box-shadow: 0 0 14px rgba(0, 255, 204, 0.45); }
+.sexta-avatar-nome { color: #00ffcc; font-weight: 900; letter-spacing: 2px; font-size: 0.85em; }
+.sexta-avatar-estado { color: #aaa; font-size: 0.8em; }
+.sexta-avatar-pensando .sexta-avatar-orbe { animation: sexta-pulso 1.1s ease-in-out infinite; border-color: #b180ff; box-shadow: 0 0 18px rgba(177, 128, 255, 0.6); }
+.sexta-avatar-combate .sexta-avatar-orbe { border-color: #ff003c; box-shadow: 0 0 18px rgba(255, 0, 60, 0.55); }
+.sexta-avatar-combate .sexta-avatar-estado { color: #ff5577; }
+.sexta-avatar-offline .sexta-avatar-orbe { border-color: #555; box-shadow: none; filter: grayscale(1); }
+@keyframes sexta-pulso { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+.sexta-painel-bloco { display: flex; flex-direction: column; gap: 5px; border-top: 1px solid #223; padding-top: 10px; }
+.sexta-painel-titulo { color: #00ffcc; font-size: 0.75em; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+.sexta-painel-linha { display: flex; justify-content: space-between; gap: 10px; font-size: 0.82em; color: #99a; }
+.sexta-painel-linha strong { color: #eee; text-align: right; overflow-wrap: anywhere; }
+.sexta-fontes { display: flex; flex-wrap: wrap; gap: 6px; }
+.sexta-fonte { border: 1px solid #444; background: transparent; color: #777; border-radius: 20px; padding: 4px 10px; font-size: 0.78em; cursor: pointer; font-family: inherit; }
+.sexta-fonte.ligada { border-color: #00ffcc; color: #00ffcc; background: rgba(0, 255, 204, 0.1); }
+@media (max-width: 900px) {
+    .sexta-chat-layout { grid-template-columns: minmax(0, 1fr); }
+    .sexta-painel { align-self: stretch; }
+    .sexta-painel-visao { display: none; }
+}
+@media (max-width: 600px) {
+    .sexta-aba { padding: 10px; }
+    .sexta-header-titulo { font-size: 1.2em; }
+    .sexta-msg { max-width: 100%; }
+    .sexta-chat-mensagens { max-height: 55vh; padding: 10px; }
+    .sexta-envio-btn { width: 70px; padding: 0 8px; }
+    .sexta-atalhos { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+    .sexta-atalho { white-space: nowrap; }
+}
