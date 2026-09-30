@@ -40,3 +40,24 @@ export function configurarFalaSexta(fala, vozes) {
     if (voz) { fala.voice = voz; fala.lang = voz.lang; } else fala.pitch = TOM_SEM_VOZ_FEMININA;
     return fala;
 }
+
+// 🎤 Junta o que foi falado ao que já estava digitado no campo.
+export function juntarTextoFalado(digitado, falado) {
+    const a = String(digitado || '').trim();
+    const b = String(falado || '').trim();
+    return a && b ? `${a} ${b}` : (a || b);
+}
+
+// 🎤 Aviso para cada erro do reconhecimento de voz do navegador.
+export function mensagemErroMicrofone(erro) {
+    switch (erro) {
+        case 'not-allowed':
+        case 'service-not-allowed':
+            return 'O navegador bloqueou o microfone. Permita o acesso ao microfone para este site e tente de novo.';
+        case 'no-speech': return 'Não ouvi nada. Clique no 🎤 e fale logo em seguida.';
+        case 'audio-capture': return 'Nenhum microfone encontrado.';
+        case 'network': return 'O reconhecimento de voz não respondeu. Confira a internet; no app desktop ele não funciona, use o site no Chrome ou no Edge.';
+        case 'language-not-supported': return 'Este navegador não reconhece fala em português.';
+        default: return 'Não foi possível usar o microfone agora.';
+    }
+}

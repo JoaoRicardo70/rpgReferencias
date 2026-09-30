@@ -722,7 +722,7 @@ export function AIFormProvider({ children }) {
 
     // Monta o pedido (contexto, lore, memória, ferramentas) e fala com o Gemini. A mensagem do
     // usuário já deve estar no histórico; `historicoBase` é a conversa ANTES dela.
-    const processarEnvio = useCallback(async ({ msgUsuario, textoAnexo, nomeAnexo, historicoBase }) => {
+    const processarEnvio = useCallback(async ({ msgUsuario, textoAnexo, nomeAnexo, historicoBase, falarResposta = false }) => {
         setCarregando(true);
         try {
             // Jogadores não recebem trechos do Futuro (spoilers) quando os Registros são da mesa.
@@ -800,7 +800,8 @@ export function AIFormProvider({ children }) {
                 aoReceberTexto: (parcial) => setRespostaParcial(parcial),
             });
             setHistorico(prev => [...prev, { role: 'ai', texto: resposta, ...(propostasDoTurno.length ? { propostas: propostasDoTurno } : {}) }]);
-            if (preferencias.voz) falarTexto(resposta);
+            // Pergunta feita pelo 🎤 é respondida em voz alta mesmo com a leitura automática desligada.
+            if (preferencias.voz || falarResposta) falarTexto(resposta);
         } catch (err) {
             console.error('[Sexta-Feira]', err);
             setHistorico(prev => [...prev, { role: 'erro', texto: err?.message || 'Erro ao contactar a IA.' }]);
@@ -816,8 +817,9 @@ export function AIFormProvider({ children }) {
             : 'A Sexta-Feira ainda não foi configurada pelo Mestre desta mesa.' }]);
     }, [isMestre]);
 
-    // Envia o que está digitado (com anexo), ou `textoDireto` (atalhos) sem mexer no campo.
-    const enviarMensagem = useCallback(async (textoDireto) => {
+    // Envia o que está digitado (com anexo), ou `textoDireto` (atalhos, 🎤) sem mexer no campo.
+    // `opcoes.porVoz`: a pergunta veio do microfone, então a resposta também é falada.
+    const enviarMensagem = useCallback(async (textoDireto, opcoes) => {
         const direto = typeof textoDireto === 'string';
         const msgUsuario = (direto ? textoDireto : mensagem).trim();
         const textoAnexo = direto ? '' : arquivoTexto;
@@ -832,7 +834,7 @@ export function AIFormProvider({ children }) {
         // Histórico ANTES desta mensagem: vai junto pro Gemini como memória da conversa.
         const historicoBase = historico;
         setHistorico(prev => [...prev, { role: 'user', texto: displayMsg }]);
-        await processarEnvio({ msgUsuario, textoAnexo, nomeAnexo, historicoBase });
+        await processarEnvio({ msgUsuario, textoAnexo, nomeAnexo, historicoBase, falarResposta: !!opcoes?.porVoz });
     }, [mensagem, arquivoTexto, nomeArquivo, carregando, iaConfigurada, avisarSemChave, historico, processarEnvio]);
 
     // 📝 RESUMO DE SESSÃO (só Mestre): junta o feed de combate e as falas transcritas do período,

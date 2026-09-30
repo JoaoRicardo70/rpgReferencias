@@ -1761,11 +1761,18 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .sexta-envio { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .sexta-anexo { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: rgba(255, 204, 0, 0.1); border: 1px solid #ffcc00; border-radius: 6px; color: #ffcc00; font-size: 0.85em; }
 .sexta-anexo-remover { cursor: pointer; color: #ff003c; font-weight: bold; margin-left: auto; background: none; border: none; padding: 2px 6px; font-size: 1em; }
-.sexta-envio-linha { display: flex; gap: 10px; align-items: flex-start; }
+.sexta-envio-linha { display: flex; gap: 10px; align-items: flex-start; position: relative; }
 .sexta-envio-anexar { flex: none; width: 45px; height: 60px; padding: 0; margin: 0; border-color: #555; color: #888; font-size: 1.2em; }
 .sexta-envio-anexar.com-anexo { border-color: #ffcc00; color: #ffcc00; }
 .sexta-envio-btn { flex: 0 0 auto; width: 120px; height: 60px; padding: 0 20px; margin: 0; border-color: #00ffcc; color: #00ffcc; }
 .sexta-envio-btn:disabled { opacity: 0.4; }
+.sexta-mic { flex: none; }
+.sexta-mic-btn { width: 45px; height: 60px; padding: 0; margin: 0; border-color: #555; color: #888; font-size: 1.2em; }
+.sexta-mic-btn:disabled { opacity: 0.4; }
+.sexta-mic-btn.ouvindo { border-color: #ff003c; color: #ff003c; box-shadow: 0 0 14px rgba(255, 0, 60, 0.55); animation: sexta-mic-pulso 1.2s ease-in-out infinite; }
+@keyframes sexta-mic-pulso { 50% { box-shadow: 0 0 4px rgba(255, 0, 60, 0.25); } }
+.sexta-mic-parcial { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); padding: 8px 12px; border: 1px solid #ff003c; border-radius: 10px; background: rgba(10, 0, 5, 0.92); color: #ffd6de; font-size: 0.9em; z-index: 5; white-space: normal; }
+@media (prefers-reduced-motion: reduce) { .sexta-mic-btn.ouvindo { animation: none; } }
 .sexta-campo { position: relative; flex: 1; min-width: 0; }
 .sexta-campo-texto { width: 100%; min-height: 60px; resize: vertical; border-color: #00ffcc; color: #fff; padding: 12px; box-sizing: border-box; margin: 0; }
 .sexta-mencoes { position: absolute; bottom: calc(100% + 4px); left: 0; right: 0; max-height: 240px; overflow-y: auto; margin: 0; padding: 4px; list-style: none; background: rgba(5, 12, 24, 0.97); border: 1px solid #00ffcc; border-radius: 8px; box-shadow: 0 0 15px rgba(0, 255, 204, 0.25); z-index: 20; }
@@ -1800,6 +1807,7 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
     .sexta-msg { max-width: 100%; }
     .sexta-chat-mensagens { max-height: 55vh; padding: 10px; }
     .sexta-envio-btn { width: 70px; padding: 0 8px; }
+    .sexta-envio-anexar, .sexta-mic-btn { width: 40px; }
     .sexta-atalhos { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
     .sexta-atalho { white-space: nowrap; }
 }

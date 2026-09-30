@@ -8,7 +8,7 @@ import {
 import { ModalSexta } from './DialogosSexta';
 import { resumoFichaDetalhado } from '../../core/sextaFeiraFerramentas';
 import { markdownParaTextoFalado } from '../../core/markdownSexta';
-import { configurarFalaSexta } from '../../core/vozSexta';
+import { configurarFalaSexta, juntarTextoFalado, mensagemErroMicrofone } from '../../core/vozSexta';
 import MarkdownSexta from './MarkdownSexta';
 import { resumirProposta, ROTULO_TIPO } from '../../core/sextaFeiraCriacao';
 import { listarModelosGemini } from '../../services/sextaFeiraIA';
@@ -416,6 +416,89 @@ function CampoMensagem() {
     );
 }
 
+// 🎤 Pergunta por voz (reconhecimento de voz do navegador; só existe no Chrome/Edge pelo site).
+// Clique para falar; ao terminar a frase (ou clicar de novo) o texto é enviado e a resposta é
+// lida em voz alta. Com um arquivo anexado, o texto só vai para o campo (o envio fica com você).
+function BotaoMicrofone() {
+    const ctx = useAIForm();
+    const [ouvindo, setOuvindo] = useState(false);
+    const [parcial, setParcial] = useState('');
+    const reconhecedorRef = useRef(null);
+    const ctxRef = useRef(ctx);
+    ctxRef.current = ctx;
+    useEffect(() => () => {
+        const rec = reconhecedorRef.current;
+        if (!rec) return;
+        rec.onresult = null; rec.onerror = null; rec.onend = null;
+        try { rec.abort(); } catch (e) { /* já parado */ }
+    }, []);
+    const Reconhecimento = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+    if (!ctx || !Reconhecimento) return null;
+
+    const avisar = (texto) => ctxRef.current?.dialogos?.avisar?.(texto, 'erro');
+    const comecar = () => {
+        let rec;
+        try { rec = new Reconhecimento(); } catch (e) { avisar(mensagemErroMicrofone('falha')); return; }
+        rec.lang = 'pt-BR';
+        rec.continuous = false;
+        rec.interimResults = true;
+        rec.maxAlternatives = 1;
+        let final = '';
+        let interino = '';
+        let falhou = false;
+        rec.onresult = (e) => {
+            interino = '';
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+                const trecho = e.results[i][0]?.transcript || '';
+                if (e.results[i].isFinal) final += trecho; else interino += trecho;
+            }
+            setParcial(`${final} ${interino}`.replace(/\s+/g, ' ').trim());
+        };
+        rec.onerror = (e) => {
+            if (e.error === 'aborted') return;
+            falhou = true;
+            avisar(mensagemErroMicrofone(e.error));
+        };
+        rec.onend = () => {
+            reconhecedorRef.current = null;
+            setOuvindo(false);
+            setParcial('');
+            // Alguns navegadores encerram sem "fechar" a última frase: usa o que já tinha sido ouvido.
+            const falado = (final.trim() || interino).trim();
+            const atual = ctxRef.current;
+            if (falhou || !falado || !atual) return;
+            const texto = juntarTextoFalado(atual.mensagem, falado);
+            // Sem enviar agora (anexo, resposta em andamento ou IA sem chave): o texto fica no campo.
+            if (atual.nomeArquivo || atual.carregando || !atual.iaConfigurada) {
+                atual.setMensagem(texto);
+                // Sem chave: o envio direto não mexe no campo e só mostra o aviso de configuração.
+                if (!atual.iaConfigurada) atual.enviarMensagem(texto);
+                return;
+            }
+            atual.setMensagem('');
+            atual.enviarMensagem(texto, { porVoz: true });
+        };
+        // A Sexta-Feira para de falar, senão o microfone ouve a própria voz dela.
+        ctx.pararVoz?.();
+        try {
+            rec.start();
+            reconhecedorRef.current = rec;
+            setOuvindo(true);
+        } catch (e) { avisar(mensagemErroMicrofone('falha')); }
+    };
+    const parar = () => { try { reconhecedorRef.current?.stop(); } catch (e) { /* já parado */ } };
+
+    const rotulo = ouvindo ? 'Parar de ouvir e enviar' : 'Falar com a Sexta-Feira';
+    return (
+        <div className="sexta-mic">
+            {ouvindo && <div className="sexta-mic-parcial" aria-live="polite">🎤 {parcial || 'Ouvindo...'}</div>}
+            <button type="button" className={`btn-neon sexta-mic-btn${ouvindo ? ' ouvindo' : ''}`}
+                onClick={ouvindo ? parar : comecar} disabled={!ouvindo && ctx.carregando}
+                title={rotulo} aria-label={rotulo}>🎤</button>
+        </div>
+    );
+}
+
 const ESTADOS_SEXTA = {
     pensando: { rotulo: 'Pensando...', icone: '🧠' },
     combate: { rotulo: 'Modo combate', icone: '⚔️' },
@@ -540,6 +623,7 @@ export function AIChat() {
                         <input type="file" ref={fileInputRef} accept=".pdf,.txt,.md" onChange={handleArquivoSelecionado} style={{ display: 'none' }} />
                         <button className={`btn-neon sexta-envio-anexar${nomeArquivo ? ' com-anexo' : ''}`} onClick={() => fileInputRef.current?.click()} title="Anexar PDF, TXT ou MD" aria-label="Anexar PDF, TXT ou MD">📎</button>
                         <CampoMensagem />
+                        <BotaoMicrofone />
                         <button className="btn-neon sexta-envio-btn" onClick={enviarMensagem} disabled={!podeEnviar}>{carregando ? '...' : 'ENVIAR'}</button>
                     </div>
                 </div>

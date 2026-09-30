@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { escolherVozFeminina, configurarFalaSexta, TOM_SEM_VOZ_FEMININA } from './vozSexta.js';
+import { escolherVozFeminina, configurarFalaSexta, TOM_SEM_VOZ_FEMININA, juntarTextoFalado, mensagemErroMicrofone } from './vozSexta.js';
 
 const v = (name, lang) => ({ name, lang });
 const daniel = v('Microsoft Daniel - Portuguese (Brazil)', 'pt-BR');
@@ -137,5 +137,52 @@ describe('configurarFalaSexta', () => {
     it('TOM_SEM_VOZ_FEMININA é número agudo (> 1)', () => {
         expect(typeof TOM_SEM_VOZ_FEMININA).toBe('number');
         expect(TOM_SEM_VOZ_FEMININA).toBeGreaterThan(1);
+    });
+});
+
+describe('juntarTextoFalado', () => {
+    it('junta digitado e falado com um espaço', () => {
+        expect(juntarTextoFalado('quem é', 'o Natsu')).toBe('quem é o Natsu');
+    });
+    it('só falado / só digitado', () => {
+        expect(juntarTextoFalado('', 'oi')).toBe('oi');
+        expect(juntarTextoFalado('oi', '')).toBe('oi');
+    });
+    it('aplica trim nos dois lados', () => {
+        expect(juntarTextoFalado('  a  ', '  b  ')).toBe('a b');
+        expect(juntarTextoFalado('   ', '  b ')).toBe('b');
+    });
+    it('null/undefined/vazios viram string vazia', () => {
+        expect(juntarTextoFalado(null, undefined)).toBe('');
+        expect(juntarTextoFalado(undefined, null)).toBe('');
+        expect(juntarTextoFalado('', '')).toBe('');
+    });
+    it('valores não-string são convertidos', () => {
+        expect(juntarTextoFalado(12, 34)).toBe('12 34');
+    });
+    it('unicode preservado', () => {
+        expect(juntarTextoFalado('ação', '日本語 🎤')).toBe('ação 日本語 🎤');
+    });
+});
+
+describe('mensagemErroMicrofone', () => {
+    it('not-allowed e service-not-allowed: mensagem de permissão', () => {
+        expect(mensagemErroMicrofone('not-allowed')).toMatch(/bloqueou o microfone/);
+        expect(mensagemErroMicrofone('service-not-allowed')).toBe(mensagemErroMicrofone('not-allowed'));
+    });
+    it('no-speech, audio-capture, network, language-not-supported têm mensagens próprias', () => {
+        expect(mensagemErroMicrofone('no-speech')).toMatch(/Não ouvi nada/);
+        expect(mensagemErroMicrofone('audio-capture')).toMatch(/Nenhum microfone/);
+        expect(mensagemErroMicrofone('network')).toMatch(/internet/);
+        expect(mensagemErroMicrofone('language-not-supported')).toMatch(/português/);
+    });
+    it('desconhecido / vazio / undefined usam mensagem padrão', () => {
+        const padrao = 'Não foi possível usar o microfone agora.';
+        for (const e of ['falha', 'xyz', '', undefined, null]) expect(mensagemErroMicrofone(e)).toBe(padrao);
+    });
+    it('mensagens de categorias diferentes são distintas e não vazias', () => {
+        const ms = ['not-allowed', 'no-speech', 'audio-capture', 'network', 'language-not-supported', 'x'].map(mensagemErroMicrofone);
+        ms.forEach(m => expect(m.length).toBeGreaterThan(0));
+        expect(new Set(ms).size).toBe(6);
     });
 });
