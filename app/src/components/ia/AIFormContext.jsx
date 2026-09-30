@@ -6,9 +6,10 @@ import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import {
     MODELO_GEMINI_PADRAO, montarHistoricoGemini,
     adicionarMensagemUsuario, selecionarLoreRelevante, montarInstrucaoSistema,
-    listarAlvosMencao, descreverMencoes,
+    listarAlvosMencao, descreverMencoes, normalizarCapitulos,
 } from '../../core/sextaFeira';
 import { markdownParaTextoFalado } from '../../core/markdownSexta';
+import { useDialogosSexta } from './DialogosSexta';
 import { chamarGemini } from '../../services/sextaFeiraIA';
 import { DECLARACOES_FERRAMENTAS, executarFerramenta, montarContextoInicial } from '../../core/sextaFeiraFerramentas';
 import {
@@ -17,11 +18,15 @@ import {
 import {
     carregarEventosFeedDesde, carregarTranscricoesDesde, memorizarFato, apagarFato,
     lerUltimoResumoEm, gravarUltimoResumoEm, carregarChat, salvarChat, LIMITE_MENSAGENS_CHAT_SALVAS,
+    chaveVersaoArco, salvarVersaoArco, listarVersoesArco, guardarNaLixeira, listarLixeira, removerDaLixeira,
 } from '../../services/sextaFeiraDados';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Períodos do "Resumir sessão" (valor -> rótulo). 'ultimo' = desde o último resumo feito.
 export const PERIODOS_RESUMO = { hoje: 'de hoje', '6h': 'das últimas 6 horas', ultimo: 'desde o último resumo' };
+
+// Depois de tanto tempo sem mexer num arco, a próxima edição guarda o texto anterior como versão.
+const INTERVALO_VERSAO_EDICAO_MS = 10 * 60 * 1000;
 
 function inicioDoDia() { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }
 
@@ -103,6 +108,8 @@ export function AIFormProvider({ children }) {
     const sextaFeiraConfig = useStore(s => s.sextaFeiraConfig);
     const registrosCompartilhados = useStore(s => s.registrosCompartilhados);
     const sextaFeiraMemoria = useStore(s => s.sextaFeiraMemoria);
+    // 🪟 Modais no tema (components/ia/DialogosSexta.jsx); sem o provider, janelas do navegador.
+    const dialogos = useDialogosSexta();
 
     // 🔒 Registros da mesa (hooks/useSextaFeiraMesa.js): só Mestre/Co-Mestre editam, e o Futuro
     // ("Ecos do Futuro") é só deles. Sem Registros na mesa, cada um edita os seus, como antes.
@@ -249,12 +256,17 @@ export function AIFormProvider({ children }) {
         localStorage.setItem('rpgSextaFeira_arcoAtivoFuturo', arcoAtivoIdFuturo);
     }, [capitulosPresente, capituloAtivoId, arcoAtivoIdPresente, capitulosFuturo, capFuturoAtivoId, arcoAtivoIdFuturo]);
 
-    const limparChat = useCallback(() => {
-        if (window.confirm("Deseja formatar a memória desta conversa? A Sexta-Feira esquecerá tudo o que falaram aqui.")) {
+    const limparChat = useCallback(async () => {
+        const ok = await dialogos.confirmar({
+            titulo: '🗑️ Limpar Memória da conversa',
+            mensagem: 'A Sexta-Feira vai esquecer tudo o que vocês conversaram aqui (a memória da mesa continua).',
+            textoConfirmar: 'Limpar', perigo: true,
+        });
+        if (ok) {
             setHistorico([]);
             try { localStorage.removeItem(chaveChatLocal(mesaId, meuNome)); localStorage.removeItem(`rpgSextaFeira_chat_${meuNome}`); } catch (e) { /* sem localStorage */ }
         }
-    }, [meuNome, mesaId]);
+    }, [meuNome, mesaId, dialogos]);
 
     // 📌 Memória permanente da mesa (só Mestre grava/apaga).
     const memorizarTexto = useCallback(async (texto, soMestre = false) => {
@@ -347,104 +359,172 @@ export function AIFormProvider({ children }) {
         setNovoPersonagem(''); setNovoAvatar('');
     }, [novoPersonagem, novoAvatar, moverPersonagem]);
 
-    const adicionarCapitulo = useCallback(() => {
+    // 🕘 VERSÕES E LIXEIRA (só com Registros da mesa e só Mestre/Co-Mestre, que são quem edita):
+    // antes de mudanças grandes o texto anterior do arco vira uma versão restaurável, e capítulos/
+    // arcos apagados vão pra Lixeira (services/sextaFeiraDados.js).
+    const historicoDisponivel = registrosCompartilhados && isMestre && !!mesaId;
+    // Quando cada arco ganhou a última versão (memória + localStorage, pra recarregar a página não
+    // gerar uma versão nova a cada vez). Durante uma edição longa, uma versão a cada intervalo.
+    const versaoEmRef = useRef({});
+    const ultimaVersaoEm = useCallback((chave) => {
+        if (versaoEmRef.current[chave] !== undefined) return versaoEmRef.current[chave];
+        try { return Number(localStorage.getItem(`rpgSextaFeira_versaoEm_${mesaId}_${chave}`)) || 0; } catch (e) { return 0; }
+    }, [mesaId]);
+    const marcarVersaoEm = useCallback((chave, ms) => {
+        versaoEmRef.current[chave] = ms;
+        try { localStorage.setItem(`rpgSextaFeira_versaoEm_${mesaId}_${chave}`, String(ms)); } catch (e) { /* sem localStorage */ }
+    }, [mesaId]);
+    const guardarVersao = useCallback((foco, capId, arcId, texto, titulo, motivo) => {
+        if (!historicoDisponivel || typeof texto !== 'string' || !texto.trim()) return;
+        const chave = chaveVersaoArco(foco, capId, arcId);
+        const anterior = ultimaVersaoEm(chave);
+        marcarVersaoEm(chave, Date.now());
+        Promise.resolve(salvarVersaoArco(mesaId, chave, { texto, titulo, autor: meuNome, motivo }))
+            .catch((err) => {
+                // Falhou: a próxima edição tenta de novo.
+                marcarVersaoEm(chave, anterior);
+                console.error('[Sexta-Feira] Falha ao guardar versão do arco:', err);
+            });
+    }, [historicoDisponivel, mesaId, meuNome, ultimaVersaoEm, marcarVersaoEm]);
+    // Espera a cópia chegar na Lixeira antes de apagar. Se falhar, pergunta se apaga mesmo assim
+    // (sem cópia). Retorna true quando pode seguir com a exclusão.
+    const mandarParaLixeira = useCallback(async (item) => {
+        if (!historicoDisponivel) return true;
+        try {
+            await guardarNaLixeira(mesaId, { ...item, autor: meuNome });
+            return true;
+        } catch (err) {
+            console.error('[Sexta-Feira] Falha ao mandar para a Lixeira:', err);
+            return dialogos.confirmar({
+                titulo: '⚠️ Lixeira indisponível',
+                mensagem: 'Não consegui guardar uma cópia na Lixeira. Apagar mesmo assim, SEM poder restaurar depois?',
+                textoConfirmar: 'Apagar sem cópia', perigo: true,
+            });
+        }
+    }, [historicoDisponivel, mesaId, meuNome, dialogos]);
+
+    const adicionarCapitulo = useCallback(async () => {
         if (!podeEditarRegistros) return;
-        const tituloCap = window.prompt(`Nome do novo Capítulo para o ${loreFoco}:`);
-        if (!tituloCap || tituloCap.trim() === '') return;
-        const tituloArco = window.prompt(`Nome do primeiro Arco deste Capítulo:`, "Arco 1");
-        if (!tituloArco || tituloArco.trim() === '') return;
-        
+        const valores = await dialogos.pedirTextos({
+            titulo: `📖 Novo Capítulo (${loreFoco === 'presente' ? 'Presente' : 'Futuro'})`,
+            campos: [{ rotulo: 'Nome do Capítulo' }, { rotulo: 'Nome do primeiro Arco', valorInicial: 'Arco 1' }],
+        });
+        if (!valores) return;
+        const [tituloCap, tituloArco] = valores.map(v => String(v || '').trim());
+        if (!tituloCap || !tituloArco) return;
+
         const novoCapId = Date.now();
         const novoArcoId = Date.now() + 1;
         const novoCap = { id: novoCapId, titulo: tituloCap, tierList: [], arcos: [{ id: novoArcoId, titulo: tituloArco, texto: '' }] };
-        
+
         if (loreFoco === 'presente') { setCapitulosPresente(prev => [...prev, novoCap]); setCapituloAtivoId(novoCapId); setArcoAtivoIdPresente(novoArcoId); }
         else { setCapitulosFuturo(prev => [...prev, novoCap]); setCapFuturoAtivoId(novoCapId); setArcoAtivoIdFuturo(novoArcoId); }
-    }, [loreFoco, podeEditarRegistros]);
+    }, [loreFoco, podeEditarRegistros, dialogos]);
 
-    const editarTituloCapitulo = useCallback(() => {
+    const editarTituloCapitulo = useCallback(async () => {
         if (!podeEditarRegistros) return;
-        const novoTitulo = window.prompt("Editar nome do Capítulo:", capituloAtivoObj?.titulo);
+        const novoTitulo = await dialogos.pedirTexto({ titulo: '✏️ Renomear Capítulo', rotulo: 'Nome do Capítulo', valorInicial: capituloAtivoObj?.titulo });
         if (!novoTitulo || novoTitulo.trim() === '') return;
         const idAtivo = loreFoco === 'presente' ? capituloAtivoId : capFuturoAtivoId;
         if (loreFoco === 'presente') setCapitulosPresente(prev => prev.map(cap => cap.id === idAtivo ? { ...cap, titulo: novoTitulo } : cap));
         else setCapitulosFuturo(prev => prev.map(cap => cap.id === idAtivo ? { ...cap, titulo: novoTitulo } : cap));
-    }, [loreFoco, capituloAtivoObj, capituloAtivoId, capFuturoAtivoId, podeEditarRegistros]);
+    }, [loreFoco, capituloAtivoObj, capituloAtivoId, capFuturoAtivoId, podeEditarRegistros, dialogos]);
 
-    const apagarCapitulo = useCallback(() => {
+    const apagarCapitulo = useCallback(async () => {
         if (!podeEditarRegistros) return;
         const lista = loreFoco === 'presente' ? capitulosPresente : capitulosFuturo;
-        if (lista.length <= 1) return alert("Não pode apagar o único Capítulo existente!");
+        if (lista.length <= 1) { dialogos.avisar('Não dá para apagar o único Capítulo existente.', 'erro'); return; }
         const idAtivo = loreFoco === 'presente' ? capituloAtivoId : capFuturoAtivoId;
-        if (!window.confirm("Tem certeza que deseja apagar este Capítulo INTEIRO e todos os seus Arcos?")) return;
+        const capitulo = lista.find(cap => cap.id === idAtivo);
+        const ok = await dialogos.confirmar({
+            titulo: '🗑️ Apagar Capítulo',
+            mensagem: `Apagar o Capítulo "${capitulo?.titulo || ''}" INTEIRO, com todos os seus Arcos?${historicoDisponivel ? ' Ele fica na ♻️ Lixeira e pode ser restaurado.' : ''}`,
+            textoConfirmar: 'Apagar', perigo: true,
+        });
+        if (!ok) return;
+        if (capitulo && !(await mandarParaLixeira({ tipo: 'capitulo', foco: loreFoco, capituloId: capitulo.id, dados: capitulo }))) return;
+        // Lê a lista de novo: enquanto o modal/Lixeira esperavam, os Registros podem ter mudado.
+        const loja = useStore.getState();
         if (loreFoco === 'presente') {
-            const nova = capitulosPresente.filter(cap => cap.id !== idAtivo);
+            const nova = loja.loreCapitulosPresente.filter(cap => cap.id !== idAtivo);
+            if (nova.length === 0) return;
             setCapitulosPresente(nova); setCapituloAtivoId(nova[0].id); setArcoAtivoIdPresente(nova[0].arcos[0].id);
         } else {
-            const nova = capitulosFuturo.filter(cap => cap.id !== idAtivo);
+            const nova = loja.loreCapitulosFuturo.filter(cap => cap.id !== idAtivo);
+            if (nova.length === 0) return;
             setCapitulosFuturo(nova); setCapFuturoAtivoId(nova[0].id); setArcoAtivoIdFuturo(nova[0].arcos[0].id);
         }
-    }, [loreFoco, capitulosPresente, capitulosFuturo, capituloAtivoId, capFuturoAtivoId, podeEditarRegistros]);
+    }, [loreFoco, capitulosPresente, capitulosFuturo, capituloAtivoId, capFuturoAtivoId, podeEditarRegistros, dialogos, historicoDisponivel, mandarParaLixeira]);
 
-    const adicionarArco = useCallback(() => {
+    const adicionarArco = useCallback(async () => {
         if (!podeEditarRegistros) return;
-        const titulo = window.prompt(`Nome do novo Arco:`);
+        const titulo = await dialogos.pedirTexto({ titulo: '📂 Novo Arco', rotulo: 'Nome do Arco' });
         if (!titulo || titulo.trim() === '') return;
         const novoId = Date.now();
         const idAtivo = loreFoco === 'presente' ? capituloAtivoId : capFuturoAtivoId;
-        
+
         const setCaps = loreFoco === 'presente' ? setCapitulosPresente : setCapitulosFuturo;
         setCaps(prev => prev.map(c => {
             if (c.id === idAtivo) return { ...c, arcos: [...c.arcos, { id: novoId, titulo, texto: '' }] };
             return c;
         }));
         if (loreFoco === 'presente') setArcoAtivoIdPresente(novoId); else setArcoAtivoIdFuturo(novoId);
-    }, [loreFoco, capituloAtivoId, capFuturoAtivoId, podeEditarRegistros]);
+    }, [loreFoco, capituloAtivoId, capFuturoAtivoId, podeEditarRegistros, dialogos]);
 
-    const editarTituloArco = useCallback(() => {
+    const editarTituloArco = useCallback(async () => {
         if (!podeEditarRegistros) return;
-        const novoTitulo = window.prompt("Editar nome do Arco:", arcoAtivoObj?.titulo);
+        const novoTitulo = await dialogos.pedirTexto({ titulo: '✏️ Renomear Arco', rotulo: 'Nome do Arco', valorInicial: arcoAtivoObj?.titulo });
         if (!novoTitulo || novoTitulo.trim() === '') return;
         const capId = loreFoco === 'presente' ? capituloAtivoId : capFuturoAtivoId;
         const arcId = loreFoco === 'presente' ? arcoAtivoIdPresente : arcoAtivoIdFuturo;
         const setCaps = loreFoco === 'presente' ? setCapitulosPresente : setCapitulosFuturo;
-        
+
         setCaps(prev => prev.map(c => {
             if (c.id === capId) return { ...c, arcos: c.arcos.map(a => a.id === arcId ? { ...a, titulo: novoTitulo } : a) };
             return c;
         }));
-    }, [loreFoco, arcoAtivoObj, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo, podeEditarRegistros]);
+    }, [loreFoco, arcoAtivoObj, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo, podeEditarRegistros, dialogos]);
 
-    const apagarArco = useCallback(() => {
+    const apagarArco = useCallback(async () => {
         if (!podeEditarRegistros) return;
-        if (capituloAtivoObj?.arcos.length <= 1) return alert("Um Capítulo deve ter pelo menos um Arco!");
-        if (!window.confirm("Tem certeza que deseja apagar este Arco?")) return;
+        if (capituloAtivoObj?.arcos.length <= 1) { dialogos.avisar('Um Capítulo precisa ter pelo menos um Arco.', 'erro'); return; }
+        const ok = await dialogos.confirmar({
+            titulo: '🗑️ Apagar Arco',
+            mensagem: `Apagar o Arco "${arcoAtivoObj?.titulo || ''}"?${historicoDisponivel ? ' Ele fica na ♻️ Lixeira e pode ser restaurado.' : ''}`,
+            textoConfirmar: 'Apagar', perigo: true,
+        });
+        if (!ok) return;
         const capId = loreFoco === 'presente' ? capituloAtivoId : capFuturoAtivoId;
         const arcId = loreFoco === 'presente' ? arcoAtivoIdPresente : arcoAtivoIdFuturo;
         const setCaps = loreFoco === 'presente' ? setCapitulosPresente : setCapitulosFuturo;
-        
-        setCaps(prev => prev.map(c => {
-            if (c.id === capId) {
-                const novosArcos = c.arcos.filter(a => a.id !== arcId);
-                if (loreFoco === 'presente') setArcoAtivoIdPresente(novosArcos[0].id); else setArcoAtivoIdFuturo(novosArcos[0].id);
-                return { ...c, arcos: novosArcos };
-            }
-            return c;
-        }));
-    }, [loreFoco, capituloAtivoObj, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo, podeEditarRegistros]);
+        const arco = capituloAtivoObj?.arcos.find(a => a.id === arcId);
+        if (arco && !(await mandarParaLixeira({ tipo: 'arco', foco: loreFoco, capituloId: capId, dados: arco }))) return;
+
+        // Relê a lista (os Registros podem ter mudado durante as esperas) e nunca deixa o capítulo sem arco.
+        const listaAgora = loreFoco === 'presente' ? useStore.getState().loreCapitulosPresente : useStore.getState().loreCapitulosFuturo;
+        const novosArcos = (listaAgora.find(c => c.id === capId)?.arcos || []).filter(a => a.id !== arcId);
+        if (novosArcos.length === 0) return;
+        setCaps(prev => prev.map(c => (c.id === capId ? { ...c, arcos: c.arcos.filter(a => a.id !== arcId) } : c)));
+        if (loreFoco === 'presente') setArcoAtivoIdPresente(novosArcos[0].id); else setArcoAtivoIdFuturo(novosArcos[0].id);
+    }, [loreFoco, capituloAtivoObj, arcoAtivoObj, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo, podeEditarRegistros, dialogos, historicoDisponivel, mandarParaLixeira]);
 
     const atualizarTexto = useCallback((novoTexto) => {
         if (!podeEditarRegistros) return;
         const capId = loreFoco === 'presente' ? capituloAtivoId : capFuturoAtivoId;
         const arcId = loreFoco === 'presente' ? arcoAtivoIdPresente : arcoAtivoIdFuturo;
         const setCaps = loreFoco === 'presente' ? setCapitulosPresente : setCapitulosFuturo;
+        // Guarda o texto de antes como versão, no máximo uma vez a cada INTERVALO_VERSAO_EDICAO_MS por arco.
+        if (historicoDisponivel && arcoAtivoObj?.texto !== novoTexto
+            && Date.now() - ultimaVersaoEm(chaveVersaoArco(loreFoco, capId, arcId)) > INTERVALO_VERSAO_EDICAO_MS) {
+            guardarVersao(loreFoco, capId, arcId, arcoAtivoObj?.texto || '', arcoAtivoObj?.titulo, 'antes de uma edição');
+        }
         setCaps(prev => prev.map(c => {
             if (c.id === capId) return { ...c, arcos: c.arcos.map(a => a.id === arcId ? { ...a, texto: novoTexto } : a) };
             return c;
         }));
-    }, [loreFoco, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo, podeEditarRegistros]);
+    }, [loreFoco, capituloAtivoId, capFuturoAtivoId, arcoAtivoIdPresente, arcoAtivoIdFuturo, podeEditarRegistros, arcoAtivoObj, guardarVersao, historicoDisponivel, ultimaVersaoEm]);
 
-    const salvarNoRegistro = useCallback((texto, tituloRegistro, destinoVal, foco = 'presente') => {
+    const salvarNoRegistro = useCallback(async (texto, tituloRegistro, destinoVal, foco = 'presente') => {
         if (!podeEditarRegistros) return false;
         const timestamp = new Date().toLocaleTimeString('pt-BR');
         const separador = `\n\n================================\n[${tituloRegistro} - ${timestamp}]\n================================\n\n`;
@@ -454,18 +534,21 @@ export function AIFormProvider({ children }) {
         const setArcAtivo = foco === 'presente' ? setArcoAtivoIdPresente : setArcoAtivoIdFuturo;
 
         if (destinoVal === 'novo_capitulo') {
-            const nomeCap = window.prompt("Nome do NOVO CAPÍTULO?");
-            if (!nomeCap) return false;
-            const nomeArco = window.prompt("Nome do PRIMEIRO ARCO deste capítulo?", "Arco 1");
-            if (!nomeArco) return false;
+            const valores = await dialogos.pedirTextos({
+                titulo: '📖 Novo Capítulo para este texto',
+                campos: [{ rotulo: 'Nome do Capítulo' }, { rotulo: 'Nome do primeiro Arco', valorInicial: 'Arco 1' }],
+            });
+            if (!valores) return false;
+            const [nomeCap, nomeArco] = valores.map(v => String(v || '').trim());
+            if (!nomeCap || !nomeArco) return false;
             const newCapId = Date.now();
             const newArcId = Date.now() + 1;
             setCaps(prev => [...prev, { id: newCapId, titulo: nomeCap, tierList: [], arcos: [{ id: newArcId, titulo: nomeArco, texto: texto }] }]);
             setCapAtivo(newCapId); setArcAtivo(newArcId); setLoreFoco(foco);
         } else if (destinoVal.startsWith('novo_arco_')) {
             const capId = Number(destinoVal.replace('novo_arco_', ''));
-            const nomeArco = window.prompt("Nome do NOVO ARCO?");
-            if (!nomeArco) return false;
+            const nomeArco = await dialogos.pedirTexto({ titulo: '📂 Novo Arco para este texto', rotulo: 'Nome do Arco' });
+            if (!nomeArco || !nomeArco.trim()) return false;
             const newArcId = Date.now();
             setCaps(prev => prev.map(c => {
                 if (c.id === capId) return { ...c, arcos: [...c.arcos, { id: newArcId, titulo: nomeArco, texto: texto }] };
@@ -475,6 +558,9 @@ export function AIFormProvider({ children }) {
         } else {
             const [capIdStr, arcIdStr] = destinoVal.split('_');
             const capId = Number(capIdStr); const arcId = Number(arcIdStr);
+            const listaAtual = foco === 'presente' ? capitulosPresente : capitulosFuturo;
+            const arcoAntes = listaAtual.find(c => c.id === capId)?.arcos.find(a => a.id === arcId);
+            if (arcoAntes) guardarVersao(foco, capId, arcId, arcoAntes.texto, arcoAntes.titulo, `antes de acrescentar: ${tituloRegistro}`);
             setCaps(prev => prev.map(c => {
                 if (c.id === capId) {
                     return { ...c, arcos: c.arcos.map(a => {
@@ -490,7 +576,59 @@ export function AIFormProvider({ children }) {
             setCapAtivo(capId); setArcAtivo(arcId); setLoreFoco(foco);
         }
         return true;
-    }, [podeEditarRegistros, setCapitulosPresente, setCapituloAtivoId, setArcoAtivoIdPresente, setCapitulosFuturo, setCapFuturoAtivoId, setArcoAtivoIdFuturo, setLoreFoco]);
+    }, [podeEditarRegistros, setCapitulosPresente, setCapituloAtivoId, setArcoAtivoIdPresente, setCapitulosFuturo, setCapFuturoAtivoId, setArcoAtivoIdFuturo, setLoreFoco, dialogos, capitulosPresente, capitulosFuturo, guardarVersao]);
+
+    // 🕘 Versões do arco aberto (mais nova primeiro) e restauração (o texto atual vira versão antes).
+    // Depende só dos ids: sincronizar o texto do arco não recarrega a lista aberta na janela.
+    const capituloAtivoIdAtual = capituloAtivoObj?.id;
+    const arcoAtivoIdAtual = arcoAtivoObj?.id;
+    const listarVersoesDoArcoAtivo = useCallback(async () => {
+        if (!historicoDisponivel || capituloAtivoIdAtual === undefined || arcoAtivoIdAtual === undefined) return [];
+        return listarVersoesArco(mesaId, chaveVersaoArco(loreFoco, capituloAtivoIdAtual, arcoAtivoIdAtual));
+    }, [historicoDisponivel, mesaId, loreFoco, capituloAtivoIdAtual, arcoAtivoIdAtual]);
+
+    const restaurarVersao = useCallback((versao) => {
+        if (!podeEditarRegistros || !capituloAtivoObj || !arcoAtivoObj || typeof versao?.texto !== 'string') return false;
+        const capId = capituloAtivoObj.id; const arcId = arcoAtivoObj.id;
+        guardarVersao(loreFoco, capId, arcId, arcoAtivoObj.texto, arcoAtivoObj.titulo, 'antes de restaurar uma versão');
+        const setCaps = loreFoco === 'presente' ? setCapitulosPresente : setCapitulosFuturo;
+        setCaps(prev => prev.map(c => (c.id === capId ? { ...c, arcos: c.arcos.map(a => (a.id === arcId ? { ...a, texto: versao.texto } : a)) } : c)));
+        return true;
+    }, [podeEditarRegistros, capituloAtivoObj, arcoAtivoObj, loreFoco, guardarVersao, setCapitulosPresente, setCapitulosFuturo]);
+
+    // ♻️ Lixeira: capítulo volta pro fim da lista certa; arco volta pro capítulo de origem (ou pro
+    // capítulo aberto, se o de origem não existir mais). Ids repetidos ganham um id novo.
+    const carregarLixeira = useCallback(async () => (historicoDisponivel ? listarLixeira(mesaId) : []), [historicoDisponivel, mesaId]);
+
+    const restaurarDaLixeira = useCallback(async (item) => {
+        if (!historicoDisponivel || !item?.dados) return false;
+        const foco = item.foco === 'futuro' ? 'futuro' : 'presente';
+        const setCaps = foco === 'presente' ? setCapitulosPresente : setCapitulosFuturo;
+        const lista = foco === 'presente' ? capitulosPresente : capitulosFuturo;
+        // Valida tudo ANTES de mexer na Lixeira; tira da Lixeira primeiro (se isso falhar, nada muda)
+        // e só então devolve aos Registros — assim nunca some sem voltar, nem volta duas vezes.
+        if (item.tipo === 'capitulo') {
+            const [cap] = normalizarCapitulos([item.dados]);
+            if (!cap) return false;
+            await removerDaLixeira(mesaId, item.id);
+            setCaps(prev => [...prev, prev.some(c => c.id === cap.id) ? { ...cap, id: Date.now() } : cap]);
+        } else {
+            const arco = { id: item.dados.id ?? Date.now(), titulo: item.dados.titulo || 'Arco restaurado', texto: typeof item.dados.texto === 'string' ? item.dados.texto : '' };
+            const destinoId = lista.some(c => c.id === item.capituloId) ? item.capituloId : (capituloAtivoObj?.id ?? lista[0]?.id);
+            if (destinoId === undefined || destinoId === null || !lista.some(c => c.id === destinoId)) return false;
+            await removerDaLixeira(mesaId, item.id);
+            setCaps(prev => {
+                // Se o capítulo de destino sumiu nesse meio tempo, vai pro primeiro que existir.
+                const alvo = prev.some(c => c.id === destinoId) ? destinoId : prev[0]?.id;
+                return prev.map(c => {
+                    if (c.id !== alvo) return c;
+                    const arcoFinal = c.arcos.some(a => a.id === arco.id) ? { ...arco, id: Date.now() } : arco;
+                    return { ...c, arcos: [...c.arcos, arcoFinal] };
+                });
+            });
+        }
+        return true;
+    }, [historicoDisponivel, mesaId, capitulosPresente, capitulosFuturo, capituloAtivoObj, setCapitulosPresente, setCapitulosFuturo]);
 
     useEffect(() => { if (subAba === 'chat' && chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight; }, [historico, subAba, respostaParcial, carregando]);
 
@@ -513,14 +651,14 @@ export function AIFormProvider({ children }) {
             let texto = '';
             if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) texto = await extrairTextoPDF(file);
             else if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.md')) texto = await file.text();
-            else return alert('Formato não suportado. Use PDF, TXT ou MD.');
+            else { dialogos.avisar('Formato não suportado. Use PDF, TXT ou MD.', 'erro'); return; }
             
             const MAX_CHARS = 15000;
             if (texto.length > MAX_CHARS) texto = texto.substring(0, MAX_CHARS) + '\n...[TEXTO TRUNCADO]';
             setArquivoTexto(texto); setNomeArquivo(file.name);
-        } catch (err) { alert('Erro ao ler o arquivo.'); } 
+        } catch (err) { dialogos.avisar('Erro ao ler o arquivo.', 'erro'); } 
         finally { e.target.value = ''; }
-    }, [extrairTextoPDF]);
+    }, [extrairTextoPDF, dialogos]);
 
     const montarContextoFicha = useCallback(() => {
         if (!minhaFicha) return { nome: meuNome };
@@ -769,7 +907,8 @@ export function AIFormProvider({ children }) {
         isMestre, podeEditarRegistros, podeVerFuturo, registrosCompartilhados,
         sextaFeiraConfig, iaConfigurada, salvarConfigSextaFeira,
         sextaFeiraMemoria, memorizarTexto, esquecerFato, resumirSessao,
-        preferencias, alternarPreferencia, respostaParcial, alvosMencao, tentarDeNovo, pararVoz
+        preferencias, alternarPreferencia, respostaParcial, alvosMencao, tentarDeNovo, pararVoz,
+        dialogos, historicoDisponivel, listarVersoesDoArcoAtivo, restaurarVersao, carregarLixeira, restaurarDaLixeira
     }), [
         minhaFicha, meuNome, personagens, subAba, mensagem, historico, carregando,
         loreFoco, novoPersonagem, novoAvatar, capitulosPresente, capituloAtivoId, arcoAtivoIdPresente,
@@ -782,7 +921,8 @@ export function AIFormProvider({ children }) {
         isMestre, podeEditarRegistros, podeVerFuturo, registrosCompartilhados,
         sextaFeiraConfig, iaConfigurada, salvarConfigSextaFeira,
         sextaFeiraMemoria, memorizarTexto, esquecerFato, resumirSessao,
-        preferencias, alternarPreferencia, respostaParcial, alvosMencao, tentarDeNovo
+        preferencias, alternarPreferencia, respostaParcial, alvosMencao, tentarDeNovo,
+        dialogos, historicoDisponivel, listarVersoesDoArcoAtivo, restaurarVersao, carregarLixeira, restaurarDaLixeira
     ]);
 
     return (

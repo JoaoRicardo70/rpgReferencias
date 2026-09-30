@@ -1806,3 +1806,67 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
     .sexta-atalhos { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
     .sexta-atalho { white-space: nowrap; }
 }
+
+/* 🪟 Sexta-Feira (Fase 4b): modais, avisos, Codex e editor dos Registros */
+.sexta-modal-fundo { position: fixed; inset: 0; z-index: 10000; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; box-sizing: border-box; }
+.sexta-modal { width: 100%; max-width: 440px; max-height: calc(100vh - 32px); display: flex; flex-direction: column; background: rgba(5, 12, 24, 0.98); border: 1px solid #00ffcc; border-radius: 12px; box-shadow: 0 0 30px rgba(0, 255, 204, 0.25); overflow: hidden; }
+.sexta-modal-larga { max-width: 860px; }
+.sexta-modal-topo { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid #1c2a3a; }
+.sexta-modal-titulo { margin: 0; color: #00ffcc; font-size: 1.05em; }
+.sexta-modal-fechar { background: none; border: none; color: #888; font-size: 1.1em; cursor: pointer; }
+.sexta-modal-fechar:hover { color: #fff; }
+.sexta-modal-corpo { padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.sexta-modal-mensagem { margin: 0; color: #ccc; line-height: 1.5; }
+.sexta-modal-campo { display: flex; flex-direction: column; gap: 6px; color: #00ffcc; font-size: 0.85em; font-weight: bold; }
+.sexta-modal-campo .input-neon { margin: 0; padding: 9px; color: #fff; }
+.sexta-modal-rodape { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid #1c2a3a; flex-wrap: wrap; }
+.sexta-modal-btn { margin: 0; padding: 8px 16px; }
+.sexta-avisos { position: fixed; right: 16px; bottom: 16px; z-index: 10001; display: flex; flex-direction: column; gap: 8px; max-width: min(380px, calc(100vw - 32px)); }
+.sexta-aviso { background: rgba(5, 12, 24, 0.97); border: 1px solid #00ffcc; color: #dff; border-radius: 8px; padding: 10px 14px; font-size: 0.9em; box-shadow: 0 0 14px rgba(0, 255, 204, 0.25); animation: sexta-aviso-entra 0.2s ease-out; }
+.sexta-aviso-erro { border-color: #ff003c; color: #ffd0d8; box-shadow: 0 0 14px rgba(255, 0, 60, 0.3); }
+@keyframes sexta-aviso-entra { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+.sexta-codex { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
+.sexta-codex-nav { display: flex; gap: 4px; border-bottom: 1px solid #1c2a3a; flex-wrap: wrap; }
+.sexta-codex-aba { background: none; border: none; border-bottom: 2px solid transparent; color: #889; padding: 8px 14px; cursor: pointer; font-family: inherit; font-size: 0.95em; font-weight: bold; }
+.sexta-codex-aba:hover { color: #cde; }
+.sexta-codex-aba.ativa { color: #00ffcc; border-bottom-color: #00ffcc; }
+.sexta-registros { flex: 1; display: flex; flex-direction: column; padding: 20px; min-height: 0; }
+.sexta-registros-ferramentas { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.sexta-registros-corpo { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 12px; flex: 1; min-height: 420px; }
+.sexta-registros-texto { width: 100%; height: 100%; min-height: 380px; resize: none; color: #ddd; line-height: 1.6; padding: 15px; box-sizing: border-box; margin: 0; transition: border-color 0.3s; }
+.sexta-registros-texto.presente { border-color: #00ffcc; }
+.sexta-registros-texto.futuro { border-color: #ffcc00; }
+.sexta-registros-nav { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-height: 70vh; overflow-y: auto; padding-right: 4px; }
+.sexta-registros-busca { margin: 0; padding: 8px; color: #fff; }
+.sexta-registros-vazio { color: #777; font-size: 0.85em; margin: 0; }
+.sexta-registros-resultados { display: flex; flex-direction: column; gap: 6px; }
+.sexta-registros-resultado { display: flex; flex-direction: column; gap: 3px; text-align: left; background: rgba(0, 0, 0, 0.4); border: 1px solid #223; border-radius: 6px; padding: 8px; color: #ccd; cursor: pointer; font-family: inherit; }
+.sexta-registros-resultado:hover { border-color: #00ffcc; }
+.sexta-registros-resultado strong { color: #00ffcc; font-size: 0.85em; }
+.sexta-registros-resultado small { color: #99a; font-size: 0.78em; line-height: 1.4; }
+.sexta-linha-tempo { list-style: none; margin: 0; padding: 0 0 0 4px; display: flex; flex-direction: column; gap: 10px; border-left: 2px solid #1c3a4a; }
+.sexta-linha-tempo-cap { display: flex; gap: 8px; margin-left: -13px; }
+.sexta-linha-tempo-marco { flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%; background: #0a1a26; border: 2px solid #1c3a4a; color: #88a; font-size: 0.7em; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+.sexta-linha-tempo-cap.ativo .sexta-linha-tempo-marco { border-color: #00ffcc; color: #00ffcc; box-shadow: 0 0 8px rgba(0, 255, 204, 0.5); }
+.sexta-linha-tempo-titulo { color: #cde; font-weight: bold; font-size: 0.88em; margin: 2px 0 4px; }
+.sexta-linha-tempo-cap ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.sexta-linha-tempo-arco { width: 100%; display: flex; justify-content: space-between; gap: 6px; background: none; border: none; border-radius: 4px; padding: 3px 6px; color: #99a; font-size: 0.82em; text-align: left; cursor: pointer; font-family: inherit; }
+.sexta-linha-tempo-arco small { color: #556; white-space: nowrap; }
+.sexta-linha-tempo-arco:hover { background: rgba(0, 255, 204, 0.08); color: #dfe; }
+.sexta-linha-tempo-arco.ativo { background: rgba(0, 255, 204, 0.15); color: #fff; }
+.sexta-versoes { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 12px; min-height: 300px; }
+.sexta-versoes-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 55vh; overflow-y: auto; }
+.sexta-versao { width: 100%; display: flex; flex-direction: column; gap: 2px; text-align: left; background: rgba(0, 0, 0, 0.4); border: 1px solid #223; border-radius: 6px; padding: 7px 9px; color: #ccd; cursor: pointer; font-family: inherit; }
+.sexta-versao small { color: #889; font-size: 0.78em; }
+.sexta-versao.ativa { border-color: #00ffcc; background: rgba(0, 255, 204, 0.1); }
+.sexta-versao-previa { margin: 0; white-space: pre-wrap; word-break: break-word; background: rgba(0, 0, 0, 0.5); border: 1px solid #223; border-radius: 6px; padding: 12px; color: #ccd; font-family: inherit; font-size: 0.88em; line-height: 1.5; max-height: 55vh; overflow-y: auto; }
+.sexta-lixeira-info { color: #889; }
+@media (max-width: 900px) {
+    .sexta-registros-corpo { grid-template-columns: minmax(0, 1fr); }
+    .sexta-registros-nav { max-height: 220px; }
+    .sexta-versoes { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+    .sexta-registros { padding: 10px; }
+    .sexta-modal-rodape .sexta-modal-btn { flex: 1; }
+}

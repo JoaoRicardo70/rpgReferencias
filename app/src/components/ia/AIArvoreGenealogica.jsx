@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useStore, { sanitizarNome, fichaPadrao } from '../../stores/useStore'; 
 import { ref, set, onValue } from 'firebase/database'; // 🔥 INJETADO onValue PARA ESCUTA REAL-TIME 🔥
-import { database } from '../../services/firebase-config'; 
+import { database } from '../../services/firebase-config';
+import { useDialogosSexta } from './DialogosSexta';
 
 export default function AIArvoreGenealogica() {
     const personagens = useStore(s => s.personagens);
     const setPersonagens = useStore(s => s.setPersonagens);
     const mesaId = useStore(s => s.mesaId); 
+
+    // 🪟 Modais no tema da Sexta-Feira no lugar de prompt/confirm/alert do navegador.
+    const dialogos = useDialogosSexta();
 
     const [familias, setFamilias] = useState(() => {
         const salvo = localStorage.getItem('rpgSextaFeira_arvore');
@@ -64,10 +68,10 @@ export default function AIArvoreGenealogica() {
         }
     };
 
-    const editarNomeFamilia = (nomeAtual) => {
-        const novoNome = window.prompt("Digite o novo nome para esta Árvore:", nomeAtual);
+    const editarNomeFamilia = async (nomeAtual) => {
+        const novoNome = await dialogos.pedirTexto({ titulo: '✏️ Renomear Árvore', rotulo: 'Novo nome da Árvore', valorInicial: nomeAtual });
         if (!novoNome || novoNome.trim() === '' || novoNome === nomeAtual) return;
-        if (familias[novoNome]) return alert("Já existe uma árvore com este nome!");
+        if (familias[novoNome]) { dialogos.avisar('Já existe uma árvore com este nome!', 'erro'); return; }
 
         const novasFamilias = { ...familias };
         novasFamilias[novoNome] = novasFamilias[nomeAtual];
@@ -78,8 +82,8 @@ export default function AIArvoreGenealogica() {
         sincronizarArvoreNuvem(novasFamilias);
     };
 
-    const deletarFamilia = (nomeFam) => {
-        if(window.confirm(`ATENÇÃO! Deseja apagar a ÁRVORE "${nomeFam}" e TODOS os seus membros permanentemente?`)) {
+    const deletarFamilia = async (nomeFam) => {
+        if (await dialogos.confirmar({ titulo: '🗑️ Apagar Árvore', mensagem: `Apagar a ÁRVORE "${nomeFam}" e TODOS os seus membros permanentemente?`, textoConfirmar: 'Apagar', perigo: true })) {
             const novasFamilias = { ...familias };
             delete novasFamilias[nomeFam];
             setFamilias(novasFamilias);
@@ -99,7 +103,7 @@ export default function AIArvoreGenealogica() {
     };
 
     const adicionarMembro = (parentId = null, genitor2 = "") => {
-        if (!familiaAtiva) return alert("Crie ou selecione uma árvore primeiro!");
+        if (!familiaAtiva) { dialogos.avisar('Crie ou selecione uma árvore primeiro!', 'erro'); return; }
         
         const novoId = Date.now();
         const novoNpc = { 
@@ -122,7 +126,7 @@ export default function AIArvoreGenealogica() {
 
     const atualizarNpc = (campo, valor) => {
         if (!npcSelecionado || !familiaAtiva) return;
-        if (campo === 'parentId' && valor === npcSelecionado.id) return alert("Erro de paradoxo: Você não pode ser pai de si mesmo.");
+        if (campo === 'parentId' && valor === npcSelecionado.id) { dialogos.avisar('Erro de paradoxo: ninguém pode ser pai de si mesmo.', 'erro'); return; }
 
         const npcAtualizado = { ...npcSelecionado, [campo]: valor };
         setNpcSelecionado(npcAtualizado);
@@ -135,9 +139,9 @@ export default function AIArvoreGenealogica() {
         sincronizarArvoreNuvem(novoEstado);
     };
 
-    const deletarNpc = (id) => {
+    const deletarNpc = async (id) => {
         if (!familiaAtiva) return;
-        if(window.confirm("Apagar este NPC? (Seus filhos se tornarão fundadores órfãos soltos na árvore para não sumirem)")) {
+        if (await dialogos.confirmar({ titulo: '🗑️ Apagar NPC', mensagem: 'Apagar este NPC? Os filhos dele viram fundadores soltos na árvore, para não sumirem.', textoConfirmar: 'Apagar', perigo: true })) {
             const listaAtualizada = (familias[familiaAtiva] || [])
                 .filter(npc => npc.id !== id)
                 .map(npc => npc.parentId === id ? { ...npc, parentId: null } : npc);
@@ -151,16 +155,17 @@ export default function AIArvoreGenealogica() {
 
     const injetarNaMesa = async () => {
         if (!npcSelecionado || !npcSelecionado.nome || npcSelecionado.nome.trim() === '') {
-            return alert("O NPC precisa de um Nome Completo antes de ser enviado para a mesa!");
+            dialogos.avisar('O NPC precisa de um Nome Completo antes de ser enviado para a mesa!', 'erro');
+            return;
         }
-        if (!mesaId) return alert("Erro: Você não está conectado a nenhuma Mesa!");
+        if (!mesaId) { dialogos.avisar('Você não está conectado a nenhuma Mesa!', 'erro'); return; }
 
         const nomeOriginal = npcSelecionado.nome.trim();
         const funcSanitizar = typeof sanitizarNome === 'function' ? sanitizarNome : (n) => n.replace(/[.#$\[\]\/]/g, '_');
         const nomePersonagem = funcSanitizar(nomeOriginal);
 
         if (personagens && personagens[nomePersonagem]) {
-            if (!window.confirm(`⚠️ O personagem "${nomePersonagem}" já está na memória! Deseja sobrescrever a ficha dele com a da Árvore?`)) {
+            if (!(await dialogos.confirmar({ titulo: '⚠️ Personagem já existe', mensagem: `O personagem "${nomePersonagem}" já existe na mesa. Sobrescrever a ficha dele com a da Árvore?`, textoConfirmar: 'Sobrescrever', perigo: true }))) {
                 return;
             }
         }
@@ -206,9 +211,9 @@ export default function AIArvoreGenealogica() {
 
         try {
             await set(ref(database, `mesas/${mesaId}/personagens/${nomePersonagem}`), novaFicha);
-            alert(`✅ INJEÇÃO ABSOLUTA! O personagem [${nomePersonagem}] foi forjado!\n\n👉 Ele agora pertence à pasta "${npcSelecionado.afiliacao || familiaAtiva}" no Painel do Mestre!`);
+            dialogos.avisar(`✅ ${nomePersonagem} foi forjado! Ele está na pasta "${npcSelecionado.afiliacao || familiaAtiva}" no Painel do Mestre.`);
         } catch (erro) {
-            alert(`⚠️ O Firebase bloqueou o save na cloud, MAS A INJEÇÃO LOCAL FUNCIONOU!`);
+            dialogos.avisar('⚠️ O Firebase bloqueou o save na nuvem, mas a criação local funcionou.', 'erro');
         }
     };
 
@@ -233,8 +238,8 @@ export default function AIArvoreGenealogica() {
                 setFamiliaAtiva(Object.keys(dados)[0] || null);
                 setNpcSelecionado(null);
                 sincronizarArvoreNuvem(dados);
-                alert("✅ Backup das Árvores carregado com sucesso!");
-            } catch (err) { alert("❌ Erro ao ler o ficheiro JSON."); }
+                dialogos.avisar('✅ Backup das Árvores carregado com sucesso!');
+            } catch (err) { dialogos.avisar('❌ Erro ao ler o arquivo JSON.', 'erro'); }
         };
         reader.readAsText(file);
         e.target.value = ''; 

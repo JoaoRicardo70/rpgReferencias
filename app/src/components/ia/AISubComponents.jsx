@@ -3,7 +3,9 @@ import useStore from '../../stores/useStore';
 import { useAIForm, TODOS_RANKS, PERIODOS_RESUMO } from './AIFormContext';
 import {
     MODELO_GEMINI_PADRAO, ATALHOS_JOGADOR, ATALHOS_MESTRE, detectarMencaoAtiva, aplicarMencao, filtrarAlvosMencao,
+    buscarNosRegistros,
 } from '../../core/sextaFeira';
+import { ModalSexta } from './DialogosSexta';
 import { resumoFichaDetalhado } from '../../core/sextaFeiraFerramentas';
 import { markdownParaTextoFalado } from '../../core/markdownSexta';
 import MarkdownSexta from './MarkdownSexta';
@@ -17,6 +19,7 @@ export function AIHeader() {
     const ctx = useAIForm();
     if (!ctx) return FALLBACK;
     const { subAba, setSubAba, isMestre, iaConfigurada } = ctx;
+    const emCodex = ['lore', 'tierlist', 'arvore'].includes(subAba);
 
     return (
         <div className="sexta-header">
@@ -25,14 +28,12 @@ export function AIHeader() {
                 <span className={`sexta-status ${iaConfigurada ? 'online' : 'offline'}`}>{iaConfigurada ? '● online' : '● sem chave'}</span>
             </h2>
             <div className="sexta-abas">
-                <button className={`btn-neon ${subAba === 'chat' ? 'btn-green' : ''}`} onClick={() => setSubAba('chat')} style={{ padding: '5px 10px', margin: 0 }}>💬 Chat</button>
-                <button className={`btn-neon ${subAba === 'gravador' ? 'btn-red' : ''}`} onClick={() => setSubAba('gravador')} style={{ padding: '5px 10px', margin: 0 }}>🎙️ Gravador</button>
-                <button className={`btn-neon ${subAba === 'tierlist' ? 'btn-gold' : ''}`} onClick={() => setSubAba('tierlist')} style={{ padding: '5px 10px', margin: 0 }}>🏆 Tier List</button>
-                <button className={`btn-neon ${subAba === 'lore' ? 'btn-blue' : ''}`} onClick={() => setSubAba('lore')} style={{ padding: '5px 10px', margin: 0 }}>📜 Registros</button>
-                {/* 👇 ADIÇÃO: O NOVO BOTÃO ENTRA AQUI 👇 */}
-                <button className={`btn-neon ${subAba === 'arvore' ? 'btn-purple' : ''}`} onClick={() => setSubAba('arvore')} style={{ padding: '5px 10px', margin: 0, borderColor: subAba === 'arvore' ? '#b180ff' : '', color: subAba === 'arvore' ? '#b180ff' : '' }}>🌳 Árvore</button>
+                <button className={`btn-neon ${subAba === 'chat' ? 'btn-green' : ''}`} onClick={() => setSubAba('chat')}>💬 Chat</button>
+                {/* 📚 Codex = Registros + Tier List + Árvore (sub-abas dentro dele) */}
+                <button className={`btn-neon ${emCodex ? 'btn-blue' : ''}`} onClick={() => { if (!emCodex) setSubAba('lore'); }}>📚 Codex</button>
+                <button className={`btn-neon ${subAba === 'gravador' ? 'btn-red' : ''}`} onClick={() => setSubAba('gravador')}>🎙️ Gravador</button>
                 {isMestre && (
-                    <button className={`btn-neon ${subAba === 'config' ? 'btn-gold' : ''}`} onClick={() => setSubAba('config')} style={{ padding: '5px 10px', margin: 0 }}>⚙️ Config</button>
+                    <button className={`btn-neon ${subAba === 'config' ? 'btn-gold' : ''}`} onClick={() => setSubAba('config')}>⚙️ Config</button>
                 )}
             </div>
         </div>
@@ -150,9 +151,9 @@ function AcoesMensagemIA({ msg }) {
                     <button
                         onClick={() => {
                             const titulo = msg.tipo === 'resumo' ? 'Resumo de Sessão da Sexta-Feira' : 'Análise da Sexta-Feira';
-                            if (salvarNoRegistro(msg.texto, titulo, destino, foco)) {
-                                alert('✅ Texto transferido com sucesso para o Arco selecionado!');
-                            }
+                            Promise.resolve(salvarNoRegistro(msg.texto, titulo, destino, foco)).then((ok) => {
+                                if (ok) ctx.dialogos.avisar('✅ Texto enviado para o Arco selecionado!');
+                            }).catch(() => ctx.dialogos.avisar('Não foi possível enviar para os Registros.', 'erro'));
                         }}
                         className="btn-neon btn-blue sexta-msg-acoes-btn"
                     >
@@ -501,15 +502,195 @@ export function AITierList() {
     );
 }
 
+function dataCurta(ms) {
+    const d = new Date(Number(ms));
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+// 🕘 Versões do arco aberto: lista (mais nova primeiro), prévia e restaurar.
+function VersoesArcoModal({ aoFechar }) {
+    const ctx = useAIForm();
+    const [versoes, setVersoes] = useState(null);
+    const [selecionada, setSelecionada] = useState(null);
+    const [erro, setErro] = useState('');
+    const listar = ctx?.listarVersoesDoArcoAtivo;
+    useEffect(() => {
+        let ativo = true;
+        if (!listar) return undefined;
+        listar().then((lista) => { if (ativo) { setVersoes(lista); setSelecionada(lista[0] || null); } })
+            .catch(() => { if (ativo) { setVersoes([]); setErro('Não foi possível carregar as versões.'); } });
+        return () => { ativo = false; };
+    }, [listar]);
+    if (!ctx) return null;
+    const restaurar = async () => {
+        if (!selecionada) return;
+        const ok = await ctx.dialogos.confirmar({ titulo: '🕘 Restaurar versão', mensagem: `Trocar o texto de "${ctx.arcoAtivoObj?.titulo}" pela versão de ${dataCurta(selecionada.em)}? O texto atual vira uma versão e pode ser recuperado.`, textoConfirmar: 'Restaurar' });
+        if (!ok) return;
+        if (ctx.restaurarVersao(selecionada)) { ctx.dialogos.avisar('✅ Versão restaurada.'); aoFechar(); }
+    };
+    return (
+        <ModalSexta titulo={`🕘 Versões de "${ctx.arcoAtivoObj?.titulo || ''}"`} aoFechar={aoFechar} largura="larga"
+            rodape={<><button type="button" className="btn-neon sexta-modal-btn" onClick={aoFechar}>Fechar</button><button type="button" className="btn-neon btn-green sexta-modal-btn" onClick={restaurar} disabled={!selecionada}>Restaurar esta versão</button></>}>
+            {versoes === null && <p className="sexta-modal-mensagem">Carregando...</p>}
+            {erro && <p className="sexta-modal-mensagem">{erro}</p>}
+            {versoes && versoes.length === 0 && !erro && <p className="sexta-modal-mensagem">Ainda não há versões guardadas deste arco. Elas são criadas antes de edições, de textos acrescentados pela Sexta-Feira e de restaurações.</p>}
+            {versoes && versoes.length > 0 && (
+                <div className="sexta-versoes">
+                    <ul className="sexta-versoes-lista">
+                        {versoes.map(v => (
+                            <li key={v.id}>
+                                <button type="button" className={`sexta-versao${selecionada?.id === v.id ? ' ativa' : ''}`} onClick={() => setSelecionada(v)}>
+                                    <strong>{dataCurta(v.em)}</strong>
+                                    <small>{v.autor ? `${v.autor} · ` : ''}{v.motivo || 'versão'} · {v.texto.length.toLocaleString('pt-BR')} caracteres</small>
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                    <pre className="sexta-versao-previa">{selecionada?.texto || ''}</pre>
+                </div>
+            )}
+        </ModalSexta>
+    );
+}
+
+// ♻️ Lixeira: capítulos e arcos apagados, com restaurar.
+function LixeiraModal({ aoFechar }) {
+    const ctx = useAIForm();
+    const [itens, setItens] = useState(null);
+    const carregar = ctx?.carregarLixeira;
+    useEffect(() => {
+        let ativo = true;
+        if (!carregar) return undefined;
+        carregar().then((lista) => { if (ativo) setItens(lista); }).catch(() => { if (ativo) setItens([]); });
+        return () => { ativo = false; };
+    }, [carregar]);
+    if (!ctx) return null;
+    const restaurar = async (item) => {
+        try {
+            if (await ctx.restaurarDaLixeira(item)) {
+                setItens(prev => (prev || []).filter(i => i.id !== item.id));
+                ctx.dialogos.avisar(`✅ ${item.tipo === 'capitulo' ? 'Capítulo' : 'Arco'} "${item.dados?.titulo || ''}" restaurado.`);
+            }
+        } catch (e) { ctx.dialogos.avisar('Não foi possível restaurar.', 'erro'); }
+    };
+    return (
+        <ModalSexta titulo="♻️ Lixeira dos Registros" aoFechar={aoFechar} largura="larga" rodape={<button type="button" className="btn-neon sexta-modal-btn" onClick={aoFechar}>Fechar</button>}>
+            {itens === null && <p className="sexta-modal-mensagem">Carregando...</p>}
+            {itens && itens.length === 0 && <p className="sexta-modal-mensagem">A Lixeira está vazia.</p>}
+            {itens && itens.length > 0 && (
+                <ul className="sexta-memoria-lista">
+                    {itens.map(item => (
+                        <li key={item.id} className="sexta-memoria-item">
+                            <span>
+                                {item.tipo === 'capitulo' ? '📖' : '📂'} <strong>{item.dados?.titulo || '(sem título)'}</strong>
+                                <small className="sexta-lixeira-info"> · {item.foco === 'futuro' ? 'Futuro' : 'Presente'} · apagado em {dataCurta(item.em)}{item.autor ? ` por ${item.autor}` : ''}</small>
+                            </span>
+                            <button type="button" className="btn-neon btn-green sexta-msg-acoes-btn" onClick={() => restaurar(item)}>↩️ Restaurar</button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </ModalSexta>
+    );
+}
+
+// 🔎 + 🗺️ Coluna dos Registros: busca por termo e linha do tempo (capítulos e arcos em ordem).
+function NavegadorRegistros() {
+    const ctx = useAIForm();
+    const [termo, setTermo] = useState('');
+    const resultados = useMemo(() => (ctx ? buscarNosRegistros({
+        capitulosPresente: ctx.capitulosPresente, capitulosFuturo: ctx.capitulosFuturo, incluirFuturo: ctx.podeVerFuturo,
+    }, termo) : []), [ctx?.capitulosPresente, ctx?.capitulosFuturo, ctx?.podeVerFuturo, termo]);
+    if (!ctx) return null;
+    const { loreFoco, setLoreFoco, capitulosPresente, capitulosFuturo, capituloAtivoObj, arcoAtivoObj,
+        setCapituloAtivoId, setArcoAtivoIdPresente, setCapFuturoAtivoId, setArcoAtivoIdFuturo } = ctx;
+    const abrir = (foco, capId, arcId) => {
+        setLoreFoco(foco);
+        if (foco === 'presente') { setCapituloAtivoId(capId); setArcoAtivoIdPresente(arcId); }
+        else { setCapFuturoAtivoId(capId); setArcoAtivoIdFuturo(arcId); }
+    };
+    const capitulos = loreFoco === 'presente' ? capitulosPresente : capitulosFuturo;
+    const buscando = termo.trim().length >= 2;
+    return (
+        <nav className="sexta-registros-nav" aria-label="Navegar pelos Registros">
+            <input className="input-neon sexta-registros-busca" type="search" value={termo} onChange={e => setTermo(e.target.value)} placeholder="🔎 Buscar nos Registros..." aria-label="Buscar nos Registros" />
+            {buscando ? (
+                <div className="sexta-registros-resultados">
+                    <div className="sexta-painel-titulo">{resultados.length} resultado(s)</div>
+                    {resultados.length === 0 && <p className="sexta-registros-vazio">Nada encontrado.</p>}
+                    {resultados.map(r => (
+                        <button key={`${r.foco}-${r.capituloId}-${r.arcoId}`} type="button" className="sexta-registros-resultado" onClick={() => abrir(r.foco, r.capituloId, r.arcoId)}>
+                            <strong>{r.foco === 'futuro' ? '🚀 ' : ''}{r.capituloTitulo} › {r.arcoTitulo}</strong>
+                            <small>{r.ocorrencias > 0 ? `${r.ocorrencias}× · ` : ''}{r.trecho}</small>
+                        </button>
+                    ))}
+                </div>
+            ) : (
+                <ol className="sexta-linha-tempo">
+                    {capitulos.map((cap, i) => (
+                        <li key={cap.id} className={`sexta-linha-tempo-cap${capituloAtivoObj?.id === cap.id ? ' ativo' : ''}`}>
+                            <span className="sexta-linha-tempo-marco" aria-hidden="true">{i + 1}</span>
+                            <div>
+                                <div className="sexta-linha-tempo-titulo">{cap.titulo}</div>
+                                <ul>
+                                    {(cap.arcos || []).map(arco => (
+                                        <li key={arco.id}>
+                                            <button type="button" className={`sexta-linha-tempo-arco${capituloAtivoObj?.id === cap.id && arcoAtivoObj?.id === arco.id ? ' ativo' : ''}`} onClick={() => abrir(loreFoco, cap.id, arco.id)}>
+                                                {arco.titulo}
+                                                <small>{(arco.texto || '').length.toLocaleString('pt-BR')} car.</small>
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        </li>
+                    ))}
+                </ol>
+            )}
+        </nav>
+    );
+}
+
 export function AILore() {
     const ctx = useAIForm();
+    const [modal, setModal] = useState(null);
     if (!ctx) return FALLBACK;
-    const { textoAtivo, atualizarTexto, loreFoco, podeEditarRegistros } = ctx;
+    const { textoAtivo, atualizarTexto, loreFoco, podeEditarRegistros, historicoDisponivel } = ctx;
 
     return (
-        <div className="def-box" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '20px' }}>
+        <div className="def-box sexta-registros">
             <AICapituladorHeader />
-            <textarea className="input-neon" value={textoAtivo} readOnly={!podeEditarRegistros} onChange={e => atualizarTexto(e.target.value)} placeholder={`A história deste Arco será escrita aqui...`} style={{ flex: 1, width: '100%', resize: 'none', borderColor: loreFoco === 'presente' ? '#00ffcc' : '#ffcc00', color: '#ddd', lineHeight: '1.6', padding: '15px', boxSizing: 'border-box', transition: 'border-color 0.3s' }} />
+            {historicoDisponivel && (
+                <div className="sexta-registros-ferramentas">
+                    <button type="button" className="btn-neon sexta-msg-acoes-btn" onClick={() => setModal('versoes')}>🕘 Versões deste Arco</button>
+                    <button type="button" className="btn-neon sexta-msg-acoes-btn" onClick={() => setModal('lixeira')}>♻️ Lixeira</button>
+                </div>
+            )}
+            <div className="sexta-registros-corpo">
+                <NavegadorRegistros />
+                <textarea className={`input-neon sexta-registros-texto ${loreFoco === 'presente' ? 'presente' : 'futuro'}`} value={textoAtivo} readOnly={!podeEditarRegistros} onChange={e => atualizarTexto(e.target.value)} placeholder="A história deste Arco será escrita aqui..." aria-label="Texto do Arco" />
+            </div>
+            {modal === 'versoes' && <VersoesArcoModal aoFechar={() => setModal(null)} />}
+            {modal === 'lixeira' && <LixeiraModal aoFechar={() => setModal(null)} />}
+        </div>
+    );
+}
+
+// 📚 CODEX: Registros, Tier List e Árvore ficam juntos numa aba só (são a "enciclopédia" da mesa).
+export const ABAS_CODEX = [
+    { id: 'lore', rotulo: '📜 Registros' },
+    { id: 'tierlist', rotulo: '🏆 Tier List' },
+    { id: 'arvore', rotulo: '🌳 Árvore' },
+];
+
+function CodexNav() {
+    const ctx = useAIForm();
+    if (!ctx) return null;
+    return (
+        <div className="sexta-codex-nav" role="tablist" aria-label="Codex">
+            {ABAS_CODEX.map(a => (
+                <button key={a.id} type="button" role="tab" aria-selected={ctx.subAba === a.id} className={`sexta-codex-aba${ctx.subAba === a.id ? ' ativa' : ''}`} onClick={() => ctx.setSubAba(a.id)}>{a.rotulo}</button>
+            ))}
         </div>
     );
 }
@@ -521,11 +702,17 @@ export function AIAreaCentral() {
 
     if (subAba === 'chat') return <AIChat />;
     if (subAba === 'gravador') return <div style={{ flex: 1, overflowY: 'auto' }}><GravadorPanel /></div>;
-    if (subAba === 'tierlist') return <AITierList />;
-    if (subAba === 'lore') return <AILore />;
-    {/* 👇 ADIÇÃO: O ROTEADOR DA NOVA ABA 👇 */}
-    if (subAba === 'arvore') return <AIArvoreGenealogica />;
     if (subAba === 'config') return <AIConfig />;
+    if (ABAS_CODEX.some(a => a.id === subAba)) {
+        return (
+            <div className="sexta-codex">
+                <CodexNav />
+                {subAba === 'lore' && <AILore />}
+                {subAba === 'tierlist' && <AITierList />}
+                {subAba === 'arvore' && <AIArvoreGenealogica />}
+            </div>
+        );
+    }
     return null;
 }
 
@@ -614,7 +801,7 @@ export function AIConfig() {
             <div className="sexta-config-linha">
                 <button type="button" className="btn-neon btn-green" onClick={() => salvar(chave)} disabled={!chave.trim()}>💾 Salvar</button>
                 {configAtual?.chaveGemini && (
-                    <button type="button" className="btn-neon btn-red" onClick={() => { if (window.confirm('Remover a chave? A Sexta-Feira ficará offline para toda a mesa.')) { setChave(''); salvar(''); } }}>🗑️ Remover chave</button>
+                    <button type="button" className="btn-neon btn-red" onClick={async () => { if (await ctx.dialogos.confirmar({ titulo: '🗑️ Remover chave', mensagem: 'Remover a chave? A Sexta-Feira ficará offline para toda a mesa.', textoConfirmar: 'Remover', perigo: true })) { setChave(''); salvar(''); } }}>🗑️ Remover chave</button>
                 )}
             </div>
             {status && <p className="sexta-config-status">{status}</p>}
@@ -642,7 +829,7 @@ function MemoriaMesaConfig() {
                     {fatos.map(([id, f]) => (
                         <li key={id} className="sexta-memoria-item">
                             <span>{f.soMestre ? '🔒 ' : ''}{f.texto}</span>
-                            <button type="button" className="btn-neon btn-red sexta-msg-acoes-btn" onClick={() => { if (window.confirm('Apagar este fato da memória da Sexta-Feira?')) ctx.esquecerFato(id); }} title="Esquecer">🗑️</button>
+                            <button type="button" className="btn-neon btn-red sexta-msg-acoes-btn" onClick={async () => { if (await ctx.dialogos.confirmar({ titulo: '🗑️ Esquecer fato', mensagem: `Apagar da memória da Sexta-Feira: "${f.texto}"?`, textoConfirmar: 'Apagar', perigo: true })) ctx.esquecerFato(id); }} title="Esquecer">🗑️</button>
                         </li>
                     ))}
                 </ul>

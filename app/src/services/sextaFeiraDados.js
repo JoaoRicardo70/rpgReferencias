@@ -100,3 +100,63 @@ export function salvarChat(mesaId, nome, mensagens) {
     // JSON.parse(JSON.stringify()) descarta campos undefined, que o banco recusa.
     return set(ref(db, caminhoChat(mesaId, nome)), { mensagens: JSON.parse(JSON.stringify(recorte)), atualizadoEm: Date.now() });
 }
+
+// ---------- 🕘 Versões dos arcos e ♻️ Lixeira dos Registros ----------
+//   versoes/{chaveArco}/{push}  { texto, titulo, autor, motivo, em }   (últimas LIMITE_VERSOES_ARCO)
+//   lixeira/{push}              { tipo: 'capitulo'|'arco', foco, capituloId, dados, autor, em }
+export const LIMITE_VERSOES_ARCO = 20;
+export const LIMITE_LIXEIRA = 30;
+
+export function chaveVersaoArco(foco, capituloId, arcoId) {
+    return sanitizarNome(`${foco}_${capituloId}_${arcoId}`);
+}
+
+async function podarMaisAntigos(caminho, limite) {
+    const snap = await get(query(ref(db, caminho), orderByKey()));
+    if (!snap.exists()) return;
+    const chaves = [];
+    snap.forEach((filho) => { chaves.push(filho.key); });
+    const excesso = chaves.length - limite;
+    if (excesso > 0) await Promise.all(chaves.slice(0, excesso).map(k => remove(ref(db, `${caminho}/${k}`))));
+}
+
+export async function salvarVersaoArco(mesaId, chaveArco, { texto, titulo, autor, motivo }) {
+    if (!db || !mesaId || !chaveArco || typeof texto !== 'string') return;
+    const caminho = `${base(mesaId)}/versoes/${chaveArco}`;
+    await push(ref(db, caminho), {
+        texto, titulo: String(titulo || ''), autor: String(autor || '').substring(0, 60), motivo: String(motivo || ''), em: Date.now(),
+    });
+    await podarMaisAntigos(caminho, LIMITE_VERSOES_ARCO);
+}
+
+// Versões do arco, da mais nova pra mais antiga.
+export async function listarVersoesArco(mesaId, chaveArco) {
+    if (!db || !mesaId || !chaveArco) return [];
+    const snap = await get(ref(db, `${base(mesaId)}/versoes/${chaveArco}`));
+    const itens = [];
+    if (snap.exists()) snap.forEach((filho) => { itens.push({ id: filho.key, ...filho.val() }); });
+    return itens.filter(v => typeof v.texto === 'string').sort((a, b) => (Number(b.em) || 0) - (Number(a.em) || 0));
+}
+
+export async function guardarNaLixeira(mesaId, { tipo, foco, capituloId, dados, autor }) {
+    if (!db || !mesaId || !dados) return;
+    const caminho = `${base(mesaId)}/lixeira`;
+    await push(ref(db, caminho), {
+        tipo, foco, capituloId: capituloId ?? null, dados: JSON.parse(JSON.stringify(dados)),
+        autor: String(autor || '').substring(0, 60), em: Date.now(),
+    });
+    await podarMaisAntigos(caminho, LIMITE_LIXEIRA);
+}
+
+export async function listarLixeira(mesaId) {
+    if (!db || !mesaId) return [];
+    const snap = await get(ref(db, `${base(mesaId)}/lixeira`));
+    const itens = [];
+    if (snap.exists()) snap.forEach((filho) => { itens.push({ id: filho.key, ...filho.val() }); });
+    return itens.filter(i => i && i.dados).sort((a, b) => (Number(b.em) || 0) - (Number(a.em) || 0));
+}
+
+export function removerDaLixeira(mesaId, id) {
+    if (!db || !mesaId || !id) return Promise.resolve();
+    return remove(ref(db, `${base(mesaId)}/lixeira/${id}`));
+}

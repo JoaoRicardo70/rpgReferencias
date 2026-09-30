@@ -276,3 +276,33 @@ export function descreverMencoes(texto, alvos, { comFerramentas = true } = {}) {
         : { cena: 'a cena atual do Mapa', personagem: 'personagem', npc: 'NPC/dummie do Mapa', arco: 'arco dos Registros' };
     return 'Menções nesta mensagem: ' + unicas.map(a => `@${a.rotulo} = ${descricao[a.tipo] || a.tipo}${a.capitulo ? ` do capítulo "${a.capitulo}"` : ''}`).join('; ') + '.';
 }
+
+// ---------- Busca nos Registros (aba Codex > Registros) ----------
+// Procura o termo (sem diferenciar maiúsculas/acentos) nos títulos e textos dos arcos. Futuro só
+// entra com `incluirFuturo`. Cada resultado traz um trecho em volta da primeira ocorrência.
+export function buscarNosRegistros({ capitulosPresente, capitulosFuturo, incluirFuturo }, termo, limite = 50) {
+    const alvo = semAcento(String(termo || '').trim());
+    if (alvo.length < 2) return [];
+    const resultados = [];
+    const varrer = (capitulos, foco) => (Array.isArray(capitulos) ? capitulos : []).forEach((cap) => (cap?.arcos || []).forEach((arco) => {
+        // NFC: as posições achadas no texto normalizado batem com as do texto original.
+        const texto = String(arco?.texto || '').normalize('NFC');
+        const textoNorm = semAcento(texto);
+        const noTitulo = semAcento(`${cap.titulo} ${arco.titulo}`).includes(alvo);
+        let ocorrencias = 0;
+        let pos = textoNorm.indexOf(alvo);
+        const primeira = pos;
+        while (pos >= 0) { ocorrencias++; pos = textoNorm.indexOf(alvo, pos + alvo.length); }
+        if (!ocorrencias && !noTitulo) return;
+        let trecho = texto.slice(0, 140);
+        if (primeira >= 0) {
+            const ini = Math.max(0, primeira - 60);
+            trecho = `${ini > 0 ? '…' : ''}${texto.slice(ini, primeira + alvo.length + 80)}${primeira + alvo.length + 80 < texto.length ? '…' : ''}`;
+        }
+        resultados.push({ foco, capituloId: cap.id, capituloTitulo: cap.titulo, arcoId: arco.id, arcoTitulo: arco.titulo, trecho: trecho.replace(/\s+/g, ' ').trim(), ocorrencias });
+    }));
+    varrer(capitulosPresente, 'presente');
+    if (incluirFuturo) varrer(capitulosFuturo, 'futuro');
+    resultados.sort((a, b) => b.ocorrencias - a.ocorrencias);
+    return resultados.slice(0, limite);
+}

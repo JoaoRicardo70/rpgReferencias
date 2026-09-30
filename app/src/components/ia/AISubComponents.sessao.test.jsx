@@ -11,6 +11,7 @@ vi.mock('../../services/sextaFeiraDados', () => ({
     carregarChat: vi.fn(), salvarChat: vi.fn(),
     carregarEventosFeedDesde: vi.fn(), carregarTranscricoesDesde: vi.fn(),
     memorizarFato: vi.fn(), apagarFato: vi.fn(),
+    chaveVersaoArco: vi.fn(), salvarVersaoArco: vi.fn(), listarVersoesArco: vi.fn(), guardarNaLixeira: vi.fn(), listarLixeira: vi.fn(), removerDaLixeira: vi.fn(),
     lerUltimoResumoEm: vi.fn(), gravarUltimoResumoEm: vi.fn(),
 }));
 
@@ -66,28 +67,28 @@ describe('AcoesMensagemIA (via AIChat)', () => {
         expect(screen.queryByText(/Enviar/)).toBeNull();
         expect(screen.queryByRole('combobox')).toBeNull();
     });
-    it('resumo enviado ao arco escolhido com titulo "Resumo de Sessão da Sexta-Feira"', () => {
+    it('resumo enviado ao arco escolhido com titulo "Resumo de Sessão da Sexta-Feira"', async () => {
         semear([{ role: 'ai', tipo: 'resumo', texto: 'Cronica da sessao', destinoSugerido: '1_11' }]);
         const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
         montar();
-        fireEvent.click(screen.getByText(/Enviar/));
+        await act(async () => { fireEvent.click(screen.getByText(/Enviar/)); });
         const texto = useStore.getState().loreCapitulosPresente[0].arcos[0].texto;
         expect(texto).toContain('texto inicial');
         expect(texto).toContain('[Resumo de Sessão da Sexta-Feira - ');
         expect(texto.endsWith('Cronica da sessao')).toBe(true);
-        expect(alertSpy).toHaveBeenCalled();
+        await waitFor(() => expect(alertSpy).toHaveBeenCalledWith('✅ Texto enviado para o Arco selecionado!'));
         alertSpy.mockRestore();
     });
-    it('resposta comum usa o titulo "Análise da Sexta-Feira"', () => {
+    it('resposta comum usa o titulo "Análise da Sexta-Feira"', async () => {
         semear([{ role: 'ai', texto: 'Analise X' }]);
         vi.spyOn(window, 'alert').mockImplementation(() => {});
         montar();
         fireEvent.change(screen.getByRole('combobox'), { target: { value: '1_11' } });
-        fireEvent.click(screen.getByText(/Enviar/));
+        await act(async () => { fireEvent.click(screen.getByText(/Enviar/)); });
         expect(useStore.getState().loreCapitulosPresente[0].arcos[0].texto).toContain('[Análise da Sexta-Feira - ');
         window.alert.mockRestore();
     });
-    it('Mestre com foco no Futuro: resumo ainda vai para o Presente e lista os capitulos do Presente', () => {
+    it('Mestre com foco no Futuro: resumo ainda vai para o Presente e lista os capitulos do Presente', async () => {
         useStore.setState({
             isMestre: true, loreCapitulosFuturo: [{ id: 100, titulo: 'Cap F', tierList: [], arcos: [{ id: 101, titulo: 'Arco F', texto: 'fut' }] }],
             loreCapFuturoAtivoId: 100, loreArcoAtivoIdFuturo: 101,
@@ -97,17 +98,17 @@ describe('AcoesMensagemIA (via AIChat)', () => {
         montar();
         const select = screen.getAllByRole('combobox').find(s => s.value === '1_11');
         expect(within(select).queryByText(/Arco F/)).toBeNull();
-        fireEvent.click(screen.getByText(/Enviar/));
+        await act(async () => { fireEvent.click(screen.getByText(/Enviar/)); });
         expect(useStore.getState().loreCapitulosPresente[0].arcos[0].texto).toContain('R');
         expect(useStore.getState().loreCapitulosFuturo[0].arcos[0].texto).toBe('fut');
         window.alert.mockRestore();
     });
-    it('destino novo_capitulo cancelado no prompt nao dispara alert de sucesso', () => {
+    it('destino novo_capitulo cancelado no prompt nao dispara alert de sucesso', async () => {
         semear([{ role: 'ai', texto: 'X' }]);
         vi.spyOn(window, 'prompt').mockReturnValue(null);
         const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
         montar();
-        fireEvent.click(screen.getByText(/Enviar/));
+        await act(async () => { fireEvent.click(screen.getByText(/Enviar/)); });
         expect(alertSpy).not.toHaveBeenCalled();
         expect(useStore.getState().loreCapitulosPresente).toHaveLength(1);
         alertSpy.mockRestore(); window.prompt.mockRestore();

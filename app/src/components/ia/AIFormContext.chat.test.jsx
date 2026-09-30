@@ -203,7 +203,7 @@ describe('chat - mudancas durante o carregamento', () => {
         dados.carregarChat.mockReturnValue(d.p);
         const { result } = montar();
         vi.spyOn(window, 'confirm').mockReturnValue(true);
-        act(() => result.current.limparChat());
+        await act(async () => { await result.current.limparChat(); });
         expect(result.current.historico).toEqual([]);
         await act(async () => { d.res([M('user', 'remoto'), M('ai', 'x')]); await d.p; });
         await flush();
@@ -217,7 +217,7 @@ describe('chat - mudancas durante o carregamento', () => {
         const { result } = montar();
         await flush();
         vi.spyOn(window, 'confirm').mockReturnValue(false);
-        act(() => result.current.limparChat());
+        await act(async () => { await result.current.limparChat(); });
         expect(result.current.historico).toHaveLength(1);
         window.confirm.mockRestore();
     });
