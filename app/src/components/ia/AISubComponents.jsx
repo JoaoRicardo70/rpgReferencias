@@ -8,6 +8,7 @@ import {
 import { ModalSexta } from './DialogosSexta';
 import { resumoFichaDetalhado } from '../../core/sextaFeiraFerramentas';
 import { markdownParaTextoFalado } from '../../core/markdownSexta';
+import { configurarFalaSexta } from '../../core/vozSexta';
 import MarkdownSexta from './MarkdownSexta';
 import { resumirProposta, ROTULO_TIPO } from '../../core/sextaFeiraCriacao';
 import { listarModelosGemini } from '../../services/sextaFeiraIA';
@@ -200,7 +201,7 @@ function BotaoOuvir({ texto }) {
         try {
             window.speechSynthesis.cancel();
             const fala = new window.SpeechSynthesisUtterance(markdownParaTextoFalado(texto));
-            fala.lang = 'pt-BR';
+            configurarFalaSexta(fala, window.speechSynthesis.getVoices?.() || []);
             window.speechSynthesis.speak(fala);
         } catch (e) { /* sem voz */ }
     };

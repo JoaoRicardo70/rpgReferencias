@@ -10,6 +10,7 @@ import {
     listarAlvosMencao, descreverMencoes, normalizarCapitulos,
 } from '../../core/sextaFeira';
 import { markdownParaTextoFalado } from '../../core/markdownSexta';
+import { configurarFalaSexta } from '../../core/vozSexta';
 import { useDialogosSexta } from './DialogosSexta';
 import { chamarGemini } from '../../services/sextaFeiraIA';
 import { DECLARACOES_FERRAMENTAS, executarFerramenta, montarContextoInicial } from '../../core/sextaFeiraFerramentas';
@@ -47,6 +48,9 @@ function salvarPreferenciasChat(pref) {
 }
 
 // 🔊 Leitura em voz alta (Web Speech API do navegador, sem custo). Sem suporte, não faz nada.
+// O Chrome só carrega a lista de vozes depois do primeiro getVoices(): já pede aqui, para a voz
+// feminina estar disponível na primeira fala.
+try { if (typeof window !== 'undefined') window.speechSynthesis?.getVoices?.(); } catch (e) { /* sem voz */ }
 function pararVoz() {
     try { if (typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) { /* sem voz */ }
 }
@@ -57,7 +61,7 @@ function falarTexto(texto) {
         if (!falado) return;
         window.speechSynthesis.cancel();
         const fala = new window.SpeechSynthesisUtterance(falado);
-        fala.lang = 'pt-BR';
+        configurarFalaSexta(fala, window.speechSynthesis.getVoices?.() || []);
         window.speechSynthesis.speak(fala);
     } catch (e) { /* sem voz */ }
 }
