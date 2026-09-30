@@ -10,6 +10,7 @@ vi.mock('../../services/sextaFeiraIA', () => ({ chamarGemini: vi.fn(), traduzirE
 import { AIFormProvider, useAIForm } from './AIFormContext';
 import useStore from '../../stores/useStore';
 import { chamarGemini } from '../../services/sextaFeiraIA';
+import { MODELO_GEMINI_PADRAO } from '../../core/sextaFeira';
 
 const presente = [{ id: 1, titulo: 'Cap P', tierList: [], arcos: [{ id: 11, titulo: 'Arco P', texto: 'Segredo do castelo antigo presente' }] }];
 const futuro = [{ id: 100, titulo: 'Cap F', tierList: [], arcos: [{ id: 101, titulo: 'Arco F', texto: 'SPOILER a rainha morrera no futuro' }] }];
@@ -133,7 +134,7 @@ describe('AIFormContext - enviarMensagem', () => {
         chamarGemini.mockResolvedValue('ok');
         const { result } = montar();
         await enviar(result, 'oi');
-        expect(chamarGemini.mock.calls[0][0].modelo).toBe('gemini-2.5-flash');
+        expect(chamarGemini.mock.calls[0][0].modelo).toBe(MODELO_GEMINI_PADRAO);
     });
     it('erro do Gemini vira mensagem de erro no historico e libera carregando', async () => {
         useStore.setState({ sextaFeiraConfig: { chaveGemini: 'K' } });

@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { ref, set } from 'firebase/database';
+import { ref, set, get } from 'firebase/database';
 import { db } from '../../services/firebase-config';
 import useStore from '../../stores/useStore';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import {
-    MODELO_GEMINI_PADRAO, montarContextoFicha as montarContextoFichaTexto, montarHistoricoGemini,
+    MODELO_GEMINI_PADRAO, montarHistoricoGemini,
     adicionarMensagemUsuario, selecionarLoreRelevante, montarInstrucaoSistema,
 } from '../../core/sextaFeira';
 import { chamarGemini } from '../../services/sextaFeiraIA';
+import { DECLARACOES_FERRAMENTAS, executarFerramenta, montarContextoInicial } from '../../core/sextaFeiraFerramentas';
 import * as pdfjsLib from 'pdfjs-dist';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -452,7 +453,23 @@ export function AIFormProvider({ children }) {
             const capitulosParaIA = podeVerFuturo ? [...capitulosPresente, ...capitulosFuturo] : capitulosPresente;
             const textoArcoParaIA = (loreFoco === 'futuro' && !podeVerFuturo) ? '' : (arcoAtivoObj?.texto || '');
             const lore = selecionarLoreRelevante(capitulosParaIA, msgUsuario, textoArcoParaIA);
-            const systemInstruction = montarInstrucaoSistema({ contextoFicha: montarContextoFichaTexto(minhaFicha, meuNome), lore });
+            // 🛠️ Estado da mesa no momento do envio: as ferramentas (core/sextaFeiraFerramentas.js)
+            // leem daqui, já filtrando pelo papel de quem pergunta.
+            const loja = useStore.getState();
+            const estadoMesa = {
+                meuNome, isMestre, podeVerFuturo,
+                minhaFicha: loja.minhaFicha, personagens: loja.personagens, dummies: loja.dummies,
+                resumoTurnoMapa: loja.resumoTurnoMapa, cenario: loja.cenario, feedCombate: loja.feedCombate,
+                divisorPoderMesa: loja.divisorPoderMesa,
+                capitulosPresente, capitulosFuturo: podeVerFuturo ? capitulosFuturo : [],
+            };
+            const carregarArvore = async () => {
+                try {
+                    if (db && mesaId) { const snap = await get(ref(db, `mesas/${mesaId}/arvore`)); if (snap.exists()) return snap.val(); }
+                } catch (e) { /* sem acesso ao banco: tenta a cópia local */ }
+                try { return JSON.parse(localStorage.getItem('rpgSextaFeira_arvore') || 'null'); } catch (e) { return null; }
+            };
+            const systemInstruction = montarInstrucaoSistema({ contextoFicha: montarContextoInicial(estadoMesa), lore });
 
             let textoPedido = msgUsuario || 'Faça um resumo do arquivo anexado.';
             if (textoAnexo) textoPedido += `\n\n--- CONTEÚDO DO ARQUIVO ANEXADO (${nomeAnexo}) ---\n${textoAnexo}\n--- FIM DO ARQUIVO ---`;
@@ -463,6 +480,10 @@ export function AIFormProvider({ children }) {
                 modelo: sextaFeiraConfig.modelo || MODELO_GEMINI_PADRAO,
                 systemInstruction,
                 contents,
+                ferramentas: {
+                    declaracoes: DECLARACOES_FERRAMENTAS,
+                    executar: (nome, args) => executarFerramenta(nome, args, estadoMesa, { carregarArvore }),
+                },
             });
             setHistorico(prev => [...prev, { role: 'ai', texto: resposta }]);
         } catch (err) {
@@ -470,15 +491,18 @@ export function AIFormProvider({ children }) {
             setHistorico(prev => [...prev, { role: 'erro', texto: err?.message || 'Erro ao contactar a IA.' }]);
         }
         finally { setCarregando(false); }
-    }, [mensagem, arquivoTexto, nomeArquivo, carregando, iaConfigurada, isMestre, historico, podeVerFuturo, capitulosPresente, capitulosFuturo, loreFoco, arcoAtivoObj, minhaFicha, meuNome, sextaFeiraConfig]);
+    }, [mensagem, arquivoTexto, nomeArquivo, carregando, iaConfigurada, isMestre, historico, podeVerFuturo, capitulosPresente, capitulosFuturo, loreFoco, arcoAtivoObj, meuNome, mesaId, sextaFeiraConfig]);
 
     // ⚙️ Config da Sexta-Feira na mesa (só Mestre/Co-Mestre). Lida por hooks/useSextaFeiraMesa.js.
     const salvarConfigSextaFeira = useCallback(async ({ chaveGemini, modelo }) => {
         if (!isMestre || !mesaId || !db) return false;
         const chave = String(chaveGemini || '').trim();
-        await set(ref(db, `mesas/${mesaId}/sextaFeira/config`), chave
+        const novaConfig = chave
             ? { chaveGemini: chave, modelo: String(modelo || '').trim() || MODELO_GEMINI_PADRAO, atualizadoEm: Date.now() }
-            : null);
+            : null;
+        await set(ref(db, `mesas/${mesaId}/sextaFeira/config`), novaConfig);
+        // Status "online" na hora, sem depender da escuta (ex.: escuta recusada antes de as regras mudarem).
+        useStore.getState().setSextaFeiraConfig(novaConfig);
         return true;
     }, [isMestre, mesaId]);
 

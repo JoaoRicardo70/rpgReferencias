@@ -9,7 +9,9 @@
 // ==========================================
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 
-export const MODELO_GEMINI_PADRAO = 'gemini-2.5-flash';
+// A família 2.5 ficou restrita a quem já a usava; projetos novos precisam dos modelos atuais.
+// O Mestre pode trocar na Config (o botão "Testar chave" lista os modelos que a chave aceita).
+export const MODELO_GEMINI_PADRAO = 'gemini-3.8-flash';
 
 // Quantas mensagens anteriores da conversa vão junto em cada pedido (memória de curto prazo).
 export const LIMITE_HISTORICO_IA = 12;
@@ -33,8 +35,10 @@ REGRAS DE COMPORTAMENTO E TOM DE VOZ:
    - Abandone o sarcasmo e a doçura imediatamente. Torne-se analítica, direta, fria e focada 100% na sobrevivência da equipe e na vitória matemática.
 
 DIRETRIZES TÉCNICAS:
-- Leia atentamente o Contexto enviado junto (ficha de quem fala com você e trechos da lore).
-- Use os dados do Contexto para respostas imersivas e precisas. Nunca invente números que não estejam no Contexto; se não souber, diga que não tem esse dado.
+- Leia atentamente o Contexto enviado junto (quem fala, o papel dele, a ficha dele e trechos da lore).
+- Você tem ferramentas para consultar a mesa: fichas, combate e ordem de turno, feed de combate, Registros (lore), Árvore Genealógica e simulações de Prestígio e Fadiga. Use-as sempre que a pergunta depender desses dados, em vez de supor.
+- Os números (Poder Calculado, Fadiga, vitais, Prestígio) vêm do motor do jogo: repita-os como vieram. Nunca invente números; se não tiver o dado, diga que não tem.
+- Se uma ferramenta negar acesso (ficha completa de outro jogador, segredos do Mestre), diga que essa informação é restrita, sem tentar adivinhar.
 - Mantenha respostas relativamente curtas para não poluir o chat. Responda sempre em português.`;
 
 function numeroExibicao(valor) {

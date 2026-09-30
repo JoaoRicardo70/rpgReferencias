@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAIForm, TODOS_RANKS } from './AIFormContext';
 import { MODELO_GEMINI_PADRAO } from '../../core/sextaFeira';
+import { listarModelosGemini } from '../../services/sextaFeiraIA';
 import GravadorPanel from './GravadorPanel';
 import AIArvoreGenealogica from './AIArvoreGenealogica'; // <-- ADIÇÃO: Importando o novo componente
 
@@ -276,6 +277,8 @@ export function AIConfig() {
     const [modelo, setModelo] = useState(configAtual?.modelo || MODELO_GEMINI_PADRAO);
     const [mostrarChave, setMostrarChave] = useState(false);
     const [status, setStatus] = useState('');
+    const [modelos, setModelos] = useState([]);
+    const [testando, setTestando] = useState(false);
 
     useEffect(() => {
         setChave(configAtual?.chaveGemini || '');
@@ -291,7 +294,27 @@ export function AIConfig() {
             await ctx.salvarConfigSextaFeira({ chaveGemini: novaChave, modelo });
             setStatus(novaChave.trim() ? '✅ Configuração salva. A Sexta-Feira já está disponível para a mesa.' : '🗑️ Chave removida. A Sexta-Feira ficou offline.');
         } catch (e) {
-            setStatus('❌ Não foi possível salvar. Verifique a conexão.');
+            const negado = String(e?.code || e?.message || '').toLowerCase().includes('permission');
+            setStatus(negado
+                ? '❌ O banco recusou a gravação (regras do Realtime Database). Libere o nó "sextaFeira" dentro de mesas/$mesaId nas Regras do Firebase.'
+                : `❌ Não foi possível salvar (${e?.message || 'erro desconhecido'}).`);
+        }
+    };
+
+    const testarChave = async () => {
+        setTestando(true);
+        setStatus('Testando a chave...');
+        try {
+            const lista = await listarModelosGemini({ chave: chave.trim() });
+            setModelos(lista);
+            setStatus(lista.length
+                ? `✅ Chave válida. ${lista.length} modelo(s) disponível(is): escolha um na lista e salve.`
+                : '⚠️ A chave respondeu, mas não listou nenhum modelo de texto.');
+        } catch (e) {
+            setModelos([]);
+            setStatus(`❌ ${e?.message || 'Não foi possível testar a chave.'}`);
+        } finally {
+            setTestando(false);
         }
     };
 
@@ -300,23 +323,31 @@ export function AIConfig() {
             <h3 className="sexta-config-titulo">⚙️ Configuração da Sexta-Feira</h3>
             <p className="sexta-config-texto">
                 A Sexta-Feira usa o Gemini direto do navegador com uma <strong>chave gratuita</strong> do Google AI Studio.
-                Sem faturamento ativado no projeto dessa chave, o uso nunca gera cobrança: ao passar do limite gratuito ela só pausa até a cota renovar.
+                Sem faturamento no projeto dessa chave, o uso nunca gera cobrança: ao passar do limite gratuito ela só pausa até a cota renovar.
             </p>
             <ol className="sexta-config-passos">
-                <li>Acesse <strong>aistudio.google.com</strong> e clique em <strong>Get API key</strong> → <strong>Create API key</strong>.</li>
-                <li>Recomendado: no Google Cloud (APIs e serviços → Credenciais → a chave), em <strong>Restrições de aplicativos</strong>, escolha <strong>Sites</strong> e adicione <code>https://rpg-referencias.web.app/*</code>. Assim a chave só funciona no site da mesa.</li>
-                <li>Cole a chave abaixo e salve. Todos da mesa passam a usar a Sexta-Feira.</li>
+                <li>Com uma <strong>conta Google pessoal (@gmail.com)</strong>, acesse <strong>aistudio.google.com</strong> e clique em <strong>Get API key</strong> → <strong>Create API key</strong>. Contas de empresa/escola costumam bloquear chaves.</li>
+                <li>No AI Studio, confira se a chave está no plano <strong>Free (gratuito)</strong>, sem faturamento vinculado.</li>
+                <li>Cole a chave abaixo, clique em <strong>Testar chave</strong>, escolha o modelo e salve. Todos da mesa passam a usar a Sexta-Feira.</li>
             </ol>
             <label className="sexta-config-campo">
                 <span>Chave do Gemini</span>
                 <div className="sexta-config-linha">
                     <input className="input-neon" type={mostrarChave ? 'text' : 'password'} value={chave} onChange={e => setChave(e.target.value)} placeholder="AIza..." autoComplete="off" spellCheck={false} />
-                    <button type="button" className="btn-neon" onClick={() => setMostrarChave(v => !v)} title={mostrarChave ? 'Esconder chave' : 'Mostrar chave'}>{mostrarChave ? '🙈' : '👁️'}</button>
+                    <button type="button" className="btn-neon sexta-config-btn-icone" onClick={() => setMostrarChave(v => !v)} title={mostrarChave ? 'Esconder chave' : 'Mostrar chave'}>{mostrarChave ? '🙈' : '👁️'}</button>
+                    <button type="button" className="btn-neon btn-blue sexta-config-btn-icone" onClick={testarChave} disabled={!chave.trim() || testando}>{testando ? '...' : '🔍 Testar chave'}</button>
                 </div>
             </label>
             <label className="sexta-config-campo">
                 <span>Modelo</span>
-                <input className="input-neon" type="text" value={modelo} onChange={e => setModelo(e.target.value)} placeholder={MODELO_GEMINI_PADRAO} spellCheck={false} />
+                {modelos.length > 0 ? (
+                    <select className="input-neon" value={modelo} onChange={e => setModelo(e.target.value)}>
+                        {!modelos.some(m => m.id === modelo) && <option value={modelo}>{modelo} (atual)</option>}
+                        {modelos.map(m => <option key={m.id} value={m.id}>{m.nome} — {m.id}</option>)}
+                    </select>
+                ) : (
+                    <input className="input-neon" type="text" value={modelo} onChange={e => setModelo(e.target.value)} placeholder={MODELO_GEMINI_PADRAO} spellCheck={false} />
+                )}
             </label>
             <div className="sexta-config-linha">
                 <button type="button" className="btn-neon btn-green" onClick={() => salvar(chave)} disabled={!chave.trim()}>💾 Salvar</button>
@@ -325,7 +356,7 @@ export function AIConfig() {
                 )}
             </div>
             {status && <p className="sexta-config-status">{status}</p>}
-            <p className="sexta-config-aviso">⚠️ Qualquer pessoa desta mesa consegue ler a chave (o navegador dela precisa usá-la). Use uma chave só para isto, com a restrição de site acima.</p>
+            <p className="sexta-config-aviso">⚠️ Qualquer pessoa desta mesa consegue ler a chave (o navegador dela precisa usá-la). Use uma chave só para isto. Se desconfiar de abuso, apague a chave no AI Studio, crie outra e salve aqui: vale para a mesa toda na hora.</p>
         </div>
     );
 }

@@ -1703,3 +1703,4 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .sexta-config-linha .btn-neon { margin: 0; padding: 8px 14px; }
 .sexta-config-status { margin: 0; color: #00ffcc; font-size: 0.9em; }
 .sexta-config-aviso { margin: 0; color: #ff8800; font-size: 0.8em; }
+.sexta-config-btn-icone { flex: 0 0 auto; }

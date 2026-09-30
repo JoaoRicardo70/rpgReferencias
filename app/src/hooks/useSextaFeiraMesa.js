@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ref, onValue, set } from 'firebase/database';
 import { db } from '../services/firebase-config';
 import useStore, { loreCapitulosPresentePadrao, loreCapitulosFuturoPadrao } from '../stores/useStore';
@@ -13,6 +13,9 @@ import { normalizarRegistros } from '../core/sextaFeira';
 //    em localStorage (rpgSextaFeira_backupLocal), sem nunca ser sobrescrita.
 
 const DEBOUNCE_REGISTROS_MS = 800;
+// Escuta recusada (ex.: regras do banco ainda sem o nó "sextaFeira"): o Firebase encerra a escuta
+// de vez, então ela é refeita depois deste intervalo, sem precisar de F5.
+const ESPERA_NOVA_ESCUTA_MS = 15000;
 const CHAVE_BACKUP_LOCAL = 'rpgSextaFeira_backupLocal';
 
 function caminhoRegistros(mesaId) { return `mesas/${mesaId}/sextaFeira/registros`; }
@@ -37,6 +40,8 @@ export default function useSextaFeiraMesa() {
     const setSextaFeiraConfig = useStore(s => s.setSextaFeiraConfig);
     const setRegistrosCompartilhados = useStore(s => s.setRegistrosCompartilhados);
     const aplicarRegistrosRemotos = useStore(s => s.aplicarRegistrosRemotos);
+    const [tentativaConfig, setTentativaConfig] = useState(0);
+    const [tentativaRegistros, setTentativaRegistros] = useState(0);
 
     // Último estado dos Registros que veio do Firebase (ou que foi gravado lá), serializado —
     // evita regravar o que acabou de chegar (eco) e decide quando subir a versão local.
@@ -53,19 +58,25 @@ export default function useSextaFeiraMesa() {
 
     useEffect(() => {
         if (!mesaId || !db) { setSextaFeiraConfig(null); return undefined; }
+        let timerNovaEscuta = null;
         const unsub = onValue(
             ref(db, `mesas/${mesaId}/sextaFeira/config`),
             (snap) => setSextaFeiraConfig(snap.val() || null),
-            () => setSextaFeiraConfig(null),
+            () => { timerNovaEscuta = setTimeout(() => setTentativaConfig(t => t + 1), ESPERA_NOVA_ESCUTA_MS); },
         );
-        return () => { unsub(); setSextaFeiraConfig(null); };
-    }, [mesaId, setSextaFeiraConfig]);
+        return () => { unsub(); if (timerNovaEscuta) clearTimeout(timerNovaEscuta); };
+    }, [mesaId, setSextaFeiraConfig, tentativaConfig]);
+
+    // Ao trocar de mesa (ou sair dela), a config da mesa anterior não vale mais.
+    useEffect(() => () => setSextaFeiraConfig(null), [mesaId, setSextaFeiraConfig]);
 
     useEffect(() => {
         remotoCarregadoRef.current = false;
         ultimoRemotoRef.current = null;
+        falhouGravarRef.current = false;
         setRegistrosCompartilhados(false);
         if (!mesaId || !db) return undefined;
+        let timerNovaEscuta = null;
         const unsub = onValue(ref(db, caminhoRegistros(mesaId)), (snap) => {
             remotoCarregadoRef.current = true;
             const normalizado = normalizarRegistros(snap.val());
@@ -91,9 +102,12 @@ export default function useSextaFeiraMesa() {
             aplicarRegistrosRemotos({ presente, futuro });
             loreOrigemRef.current = mesaId;
             setRegistrosCompartilhados(true);
+        }, () => {
+            // Leitura recusada: os Registros continuam locais e a escuta é refeita depois.
+            timerNovaEscuta = setTimeout(() => setTentativaRegistros(t => t + 1), ESPERA_NOVA_ESCUTA_MS);
         });
-        return () => unsub();
-    }, [mesaId, setRegistrosCompartilhados, aplicarRegistrosRemotos]);
+        return () => { unsub(); if (timerNovaEscuta) clearTimeout(timerNovaEscuta); };
+    }, [mesaId, setRegistrosCompartilhados, aplicarRegistrosRemotos, tentativaRegistros]);
 
     useEffect(() => {
         if (!mesaId || !isMestre || !db) { agendarEnvioRef.current = null; return undefined; }

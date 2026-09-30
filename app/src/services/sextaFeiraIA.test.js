@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { chamarGemini, traduzirErroGemini } from './sextaFeiraIA';
+import { MODELO_GEMINI_PADRAO } from '../core/sextaFeira';
 
 const resp = (status, body, ok = status >= 200 && status < 300) => ({ ok, status, json: async () => body });
 const base = { chave: 'SEGREDO123', modelo: 'gemini-x', systemInstruction: 'SYS', contents: [{ role: 'user', parts: [{ text: 'oi' }] }] };
@@ -24,7 +25,7 @@ describe('chamarGemini', () => {
     it('usa modelo padrao quando vazio', async () => {
         const f = vi.fn().mockResolvedValue(resp(200, okBody));
         await chamarGemini({ ...base, modelo: '   ', fetchImpl: f });
-        expect(f.mock.calls[0][0]).toContain('/models/gemini-2.5-flash:generateContent');
+        expect(f.mock.calls[0][0]).toContain(`/models/${MODELO_GEMINI_PADRAO}:generateContent`);
     });
     it('codifica o nome do modelo', async () => {
         const f = vi.fn().mockResolvedValue(resp(200, okBody));
