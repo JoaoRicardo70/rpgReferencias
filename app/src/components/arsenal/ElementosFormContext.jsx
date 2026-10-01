@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useMemo } from 'react';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso, enviarParaFeed } from '../../services/firebase-sync';
+import { enviarParaFeed } from '../../services/firebase-sync';
+import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { getPoderDeLutaStatus } from '../../core/engine';
 import { pegarDoisPrimeirosDigitos } from '../../core/utils';
 
@@ -132,13 +133,19 @@ export function useElementosForm() {
 }
 
 export function ElementosFormProvider({ children }) {
-    const minhaFicha = useStore(s => s.minhaFicha);
-    const meuNome = useStore(s => s.meuNome);
-    const updateFicha = useStore(s => s.updateFicha);
+    // 🔥 GRIMÓRIO DA ENTIDADE: dentro de um FichaAlvoProvider mirando outro personagem (livro do
+    // Mestre) lê e grava a ficha DELE; fora disso é a minha, como sempre (FichaAlvoContext.jsx).
+    const { ficha: fichaAtiva, updateFicha, nome: meuNome, souEuMesmo } = useFichaAtiva();
+    const minhaFicha = fichaAtiva || {};
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
-    
-    const elemEditandoId = useStore(s => s.elemEditandoId);
-    const setElemEditandoId = useStore(s => s.setElemEditandoId);
+    const salvarFichaSilencioso = useCallSaveAtivo();
+
+    // "Editando qual magia" mora na store pra MINHA ficha; para outro personagem fica local.
+    const elemEditandoIdGlobal = useStore(s => s.elemEditandoId);
+    const setElemEditandoIdGlobal = useStore(s => s.setElemEditandoId);
+    const [elemEditandoIdLocal, setElemEditandoIdLocal] = useState(null);
+    const elemEditandoId = souEuMesmo ? elemEditandoIdGlobal : elemEditandoIdLocal;
+    const setElemEditandoId = souEuMesmo ? setElemEditandoIdGlobal : setElemEditandoIdLocal;
 
     const [abaAtual, setAbaAtual] = useState('basicos'); 
     const [elemSelecionado, setElemSelecionado] = useState('Neutro');
@@ -220,7 +227,7 @@ export function ElementosFormProvider({ children }) {
         });
         salvarFichaSilencioso();
         setElemSelecionado(nForm);
-    }, [abaAtual, updateFicha, setElemSelecionado]);
+    }, [abaAtual, updateFicha, setElemSelecionado, salvarFichaSilencioso]);
 
     // Lógicas de inatos e combustão...
     const elementosInatos = useMemo(() => {
@@ -381,7 +388,7 @@ export function ElementosFormProvider({ children }) {
         });
         cancelarEdicaoElem();
         salvarFichaSilencioso();
-    }, [nomeElem, descricaoElem, elemSelecionado, elementosAfetados, bonusTipo, bonusValor, custoValor, dadosQtd, dadosFaces, energiaCombustao, tipoMecanica, savingAttr, alcanceQuad, areaQuad, alvosAfetados, duracaoZona, elemEditandoId, updateFicha, cancelarEdicaoElem]);
+    }, [nomeElem, descricaoElem, elemSelecionado, elementosAfetados, bonusTipo, bonusValor, custoValor, dadosQtd, dadosFaces, energiaCombustao, tipoMecanica, savingAttr, alcanceQuad, areaQuad, alvosAfetados, duracaoZona, elemEditandoId, updateFicha, cancelarEdicaoElem, salvarFichaSilencioso]);
 
     const editarElem = useCallback((id) => {
         const p = (minhaFicha.ataquesElementais || []).find(i => i.id === id);
@@ -412,7 +419,7 @@ export function ElementosFormProvider({ children }) {
         setAreaQuad(p.areaQuad || 0); setAlvosAfetados(p.alvosAfetados || 'todos'); setDuracaoZona(p.duracaoZona || 0);
 
         if (formRef.current) formRef.current.scrollIntoView({ behavior: 'smooth' });
-    }, [minhaFicha.ataquesElementais, setElemEditandoId, updateFicha, abasDinamicas]);
+    }, [minhaFicha.ataquesElementais, setElemEditandoId, updateFicha, abasDinamicas, salvarFichaSilencioso]);
 
     const toggleEquiparElem = useCallback((id) => {
         updateFicha((ficha) => {
@@ -421,18 +428,21 @@ export function ElementosFormProvider({ children }) {
             if (itemIndex !== -1) ficha.ataquesElementais[itemIndex].equipado = !ficha.ataquesElementais[itemIndex].equipado;
         });
         salvarFichaSilencioso();
-    }, [updateFicha]);
+    }, [updateFicha, salvarFichaSilencioso]);
 
     const deletarElem = useCallback((id) => {
         if (!window.confirm('Rasgar esta página do Grimório para sempre?')) return;
         updateFicha((ficha) => { ficha.ataquesElementais = (ficha.ataquesElementais || []).filter(i => i.id !== id); });
         salvarFichaSilencioso();
-    }, [updateFicha]);
+    }, [updateFicha, salvarFichaSilencioso]);
 
     const conjurarMagia = useCallback((magia, energiaOverride = null) => {
+        // Vendo o Grimório de outro personagem (livro do Mestre): não fala no feed em nome dele nem
+        // troca a aba de quem está olhando.
+        if (!souEuMesmo) return;
         enviarParaFeed({ tipo: 'sistema', nome: meuNome, texto: `Atenção: A conjuração direta pelo Grimório foi desativada. Equipe a magia e use o painel principal!` });
         setAbaAtiva('aba-ataque');
-    }, [meuNome, setAbaAtiva]);
+    }, [meuNome, setAbaAtiva, souEuMesmo]);
 
     const injetarJsonDaIA = useCallback((jsonString) => {
         try {
@@ -475,7 +485,7 @@ export function ElementosFormProvider({ children }) {
             alert("Erro no código da IA. Certifique-se de copiar o JSON completo.");
             return false;
         }
-    }, [updateFicha, elemSelecionado]);
+    }, [updateFicha, elemSelecionado, salvarFichaSilencioso]);
 
     const ataquesElementais = minhaFicha.ataquesElementais || [];
     const magiasDoGrupo = useMemo(() => ataquesElementais.filter(e => (e.elemento || 'Neutro') === elemSelecionado), [ataquesElementais, elemSelecionado]);

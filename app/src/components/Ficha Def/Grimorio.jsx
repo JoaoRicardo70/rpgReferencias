@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import useStore from '../../stores/useStore';
 import PoderesPanel from '../poderes/PoderesPanel';
 import ElementosPanel from '../arsenal/ElementosPanel';
-import { salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync';
+import { uploadImagem } from '../../services/firebase-sync';
+import { useFichaAtiva, useCallSaveAtivo, useSalvarImediatoAtivo } from './FichaAlvoContext';
 
 export default function GrimorioPanel() {
-    const minhaFicha = useStore(s => s.minhaFicha);
-    const updateFicha = useStore(s => s.updateFicha);
-    const meuNome = useStore(s => s.meuNome);
+    // 🔥 GRIMÓRIO DA ENTIDADE: dentro de um FichaAlvoProvider (livro do Mestre) é o Grimório de
+    // OUTRO personagem — Poderes e Elementos abaixo também passam a mirar ele. Fora disso, o meu.
+    const { ficha: minhaFicha, updateFicha, nome: meuNome } = useFichaAtiva();
+    const salvarFichaSilencioso = useCallSaveAtivo();
+    const salvarFirebaseImediato = useSalvarImediatoAtivo();
     
     const [paginaAtual, setPaginaAtual] = useState(1);
     const [animDirection, setAnimDirection] = useState('next');

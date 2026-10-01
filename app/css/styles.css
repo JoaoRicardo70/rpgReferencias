@@ -1983,32 +1983,14 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .grimorio-mestre-aba:hover { color: #fff; border-color: #555; }
 .grimorio-mestre-aba.ativa { color: var(--cor-destaque); border-color: var(--cor-destaque); background: rgba(var(--cor-destaque-rgb), 0.1); box-shadow: 0 0 10px rgba(var(--cor-destaque-rgb), 0.25); }
 .grimorio-mestre-aba-pedido { padding: 0 6px; border-radius: 8px; background: rgba(var(--cor-destaque-rgb), 0.2); color: var(--cor-destaque); font-size: 0.85em; font-weight: bold; }
-.grimorio-pasta { display: flex; flex-direction: column; gap: 8px; }
-.grimorio-pasta-titulo { padding: 7px 12px; border: none; border-bottom: 1px dashed #444; background: none; color: #ddd; font-family: inherit; font-size: 1em; font-weight: bold; text-align: left; cursor: pointer; }
-.grimorio-pasta-titulo small, .grimorio-elemento-titulo small { opacity: 0.6; font-weight: normal; }
-.grimorio-elemento-titulo { margin: 8px 0 0; padding-bottom: 4px; border-bottom: 1px solid currentColor; color: #ccc; text-transform: uppercase; letter-spacing: 1px; font-size: 0.95em; }
-.grimorio-cartao { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px dashed #444; border-radius: 6px; background: rgba(255, 255, 255, 0.02); }
-.grimorio-cartao.ativo { border: 1px solid rgba(0, 255, 136, 0.6); background: rgba(0, 255, 136, 0.04); }
-.grimorio-cartao-topo { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 8px; }
-.grimorio-cartao-nome { color: #fff; font-size: 1.1em; margin-right: 4px; }
-.grimorio-selo { padding: 1px 8px; border: 1px solid #555; border-radius: 10px; color: #aab; font-size: 0.75em; }
-.grimorio-selo.ativo, .grimorio-selo.verde { border-color: #00ff88; color: #00ff88; }
-.grimorio-selo.laranja { border-color: #ff8800; color: #ff8800; }
-.grimorio-cartao-descricao { margin: 0; color: #aab; font-size: 0.9em; font-style: italic; white-space: pre-wrap; }
-.grimorio-cartao-linha { margin: 0; color: #bbc; font-size: 0.85em; }
-.grimorio-cartao-numeros { display: flex; flex-wrap: wrap; gap: 4px 16px; color: #ccd; font-size: 0.85em; }
-.grimorio-cartao-numeros b, .grimorio-cartao-mecanica b { color: #99a; font-weight: bold; }
-.grimorio-cartao-mecanica { padding-top: 5px; border-top: 1px dotted #333; color: #bbc; font-size: 0.82em; overflow-wrap: anywhere; }
-.grimorio-cartao-passivos { display: block; margin-top: 3px; font-style: italic; }
-.grimorio-vazio { color: #888; font-style: italic; }
-.livro-entidade-fundo { position: fixed; inset: 0; z-index: 9995; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 20px 20px; box-sizing: border-box; background: rgba(0, 0, 0, 0.92); backdrop-filter: blur(5px); }
+.livro-entidade-fundo { position: fixed; inset: 0; z-index: 10000; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 20px 20px; box-sizing: border-box; background: rgba(0, 0, 0, 0.92); backdrop-filter: blur(5px); }
 .livro-entidade-barra { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; width: 100%; max-width: 1400px; }
 .livro-entidade-abas { display: flex; flex-wrap: wrap; gap: 6px; }
 .livro-entidade-fechar { padding: 8px 18px; border: 3px solid #000; border-radius: 8px; background: var(--cor-secundaria); color: #fff; font-family: inherit; font-size: 1.05em; font-weight: bold; cursor: pointer; box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5); transition: transform 0.2s; }
 .livro-entidade-fechar:hover { transform: scale(1.05); }
 .livro-entidade-corpo { position: relative; flex: 1; min-height: 0; width: 100%; max-width: 1400px; overflow-y: auto; }
-.livro-entidade-grimorio { display: flex; flex-direction: column; gap: 10px; max-width: 1000px; margin: 0 auto; padding: 18px; box-sizing: border-box; border: 2px solid var(--cor-info); border-radius: 10px; background: #0a0a0f; color: #ddd; }
+.livro-entidade-pedidos { max-width: 1000px; margin: 0 auto; }
+.livro-entidade-pedidos:has(.pedidos-ficha) { margin-bottom: 14px; padding: 12px; border: 1px solid rgba(var(--cor-destaque-rgb), 0.6); border-radius: 10px; background: #0a0a0f; }
 @media (max-width: 600px) {
     .livro-entidade-fundo { padding: 8px; }
-    .livro-entidade-grimorio { padding: 12px; }
 }

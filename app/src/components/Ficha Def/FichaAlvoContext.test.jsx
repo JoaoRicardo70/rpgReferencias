@@ -1,13 +1,15 @@
 import React from 'react';
 import { render, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { FichaAlvoProvider, useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
+import { FichaAlvoProvider, useFichaAtiva, useCallSaveAtivo, useSalvarImediatoAtivo } from './FichaAlvoContext';
 import useStore from '../../stores/useStore';
 import {
     iniciarSincronizacaoFichaAlvo,
     pararSincronizacaoFichaAlvo,
     salvarFichaAlvoSilencioso,
     salvarFichaSilencioso,
+    salvarFichaAlvoImediato,
+    salvarFirebaseImediato,
 } from '../../services/firebase-sync';
 
 // ---------------------------------------------------------------------------
@@ -40,6 +42,8 @@ vi.mock('../../services/firebase-sync', () => ({
     pararSincronizacaoFichaAlvo: vi.fn(),
     salvarFichaAlvoSilencioso: vi.fn(),
     salvarFichaSilencioso: vi.fn(),
+    salvarFichaAlvoImediato: vi.fn(),
+    salvarFirebaseImediato: vi.fn(),
 }));
 
 let mockState;
@@ -58,7 +62,7 @@ function montarStore(overrides = {}) {
 
 let probe;
 function Harness() {
-    probe = { ...useFichaAtiva(), salvar: useCallSaveAtivo() };
+    probe = { ...useFichaAtiva(), salvar: useCallSaveAtivo(), salvarJa: useSalvarImediatoAtivo() };
     return null;
 }
 
@@ -142,5 +146,56 @@ describe('FichaAlvoProvider mirando OUTRA entidade (Grimório da Entidade) — c
 
         expect(salvarFichaAlvoSilencioso).toHaveBeenCalledWith('NPC Sombrio');
         expect(salvarFichaSilencioso).not.toHaveBeenCalled();
+    });
+});
+
+describe('useSalvarImediatoAtivo() — salvar JÁ (sem debounce) a ficha ativa', () => {
+    it('fora de qualquer Provider chama salvarFirebaseImediato() e devolve a Promise dele', async () => {
+        montarStore();
+        const promessa = Promise.resolve('ok');
+        salvarFirebaseImediato.mockReturnValue(promessa);
+        render(<Harness />);
+
+        const retorno = probe.salvarJa();
+
+        expect(salvarFirebaseImediato).toHaveBeenCalledTimes(1);
+        expect(salvarFichaAlvoImediato).not.toHaveBeenCalled();
+        expect(retorno).toBe(promessa);
+        await expect(retorno).resolves.toBe('ok');
+    });
+
+    it('Provider mirando o PRÓPRIO jogador (souEuMesmo) também cai em salvarFirebaseImediato()', () => {
+        montarStore();
+        render(<FichaAlvoProvider nome="Kiriya"><Harness /></FichaAlvoProvider>);
+
+        probe.salvarJa();
+
+        expect(salvarFirebaseImediato).toHaveBeenCalledTimes(1);
+        expect(salvarFichaAlvoImediato).not.toHaveBeenCalled();
+    });
+
+    it('Provider mirando OUTRA entidade chama salvarFichaAlvoImediato(nome) e devolve a Promise dele', async () => {
+        montarStore();
+        const promessa = Promise.resolve('alvo-ok');
+        salvarFichaAlvoImediato.mockReturnValue(promessa);
+        render(<FichaAlvoProvider nome="NPC Sombrio"><Harness /></FichaAlvoProvider>);
+
+        const retorno = probe.salvarJa();
+
+        expect(salvarFichaAlvoImediato).toHaveBeenCalledWith('NPC Sombrio');
+        expect(salvarFirebaseImediato).not.toHaveBeenCalled();
+        expect(retorno).toBe(promessa);
+        await expect(retorno).resolves.toBe('alvo-ok');
+    });
+
+    it('a função devolvida é estável entre renders com o mesmo alvo e muda quando o alvo muda', () => {
+        montarStore();
+        const refs = [];
+        function Captura() { refs.push(useSalvarImediatoAtivo()); return null; }
+        const { rerender } = render(<FichaAlvoProvider nome="NPC Sombrio"><Captura /></FichaAlvoProvider>);
+        rerender(<FichaAlvoProvider nome="NPC Sombrio"><Captura /></FichaAlvoProvider>);
+        expect(refs[0]).toBe(refs[refs.length - 1]);
+        rerender(<FichaAlvoProvider nome="Outro"><Captura /></FichaAlvoProvider>);
+        expect(refs[refs.length - 1]).not.toBe(refs[0]);
     });
 });

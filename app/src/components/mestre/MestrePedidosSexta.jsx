@@ -128,10 +128,9 @@ export function MestreNotificacoesPedidos() {
     );
 }
 
-// Pedidos de UM personagem para UMA aba do Grimório do Mestre (`aba`: 'habilidade' | 'poder' |
-// 'forma' | 'magias' | 'inventario', ver core/grimorioLeitura.js) — ou, sem `aba`, para uma
-// seção ('poderes' | 'magias' | 'inventario'). O pedido em foco (vindo do "Ver a Habilidade") fica
-// destacado e a janela rola até ele.
+// Pedidos de UM personagem: todos, ou só os de uma parte da ficha (`aba`: 'habilidade' | 'poder' |
+// 'forma' | 'magias' | 'inventario', ver core/grimorioLeitura.js; ou `secao`: 'poderes' | 'magias' |
+// 'inventario'). O pedido em foco (vindo do "Ver a Habilidade") fica destacado e a tela rola até ele.
 export function PedidosNaFicha({ nome, secao, aba, pedidoFocoId }) {
     const pendentes = useStore(s => s.sextaFeiraPendentes);
     const isMestre = useStore(s => s.isMestre);
@@ -144,7 +143,9 @@ export function PedidosNaFicha({ nome, secao, aba, pedidoFocoId }) {
         const alvo = sanitizarNome(nome || '');
         return ordenarPedidosPendentes(pendentes).filter(([, p]) =>
             sanitizarNome(p.alvo || p.solicitante) === alvo
-            && (aba ? abaDoPedido(p) === aba : descreverDestinoPedido(p.tipo, p.objeto).secao === secao));
+            && (aba ? abaDoPedido(p) === aba
+                : secao ? descreverDestinoPedido(p.tipo, p.objeto).secao === secao
+                    : true));
     }, [pendentes, nome, secao, aba]);
     const temFoco = pedidos.some(([id]) => id === pedidoFocoId);
 

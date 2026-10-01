@@ -4,14 +4,27 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import LivroEntidade from './LivroEntidade';
 import useStore from '../../stores/useStore';
 
-let mockFicha = {};
+// ---------------------------------------------------------------------------
+// QA — LivroEntidade.jsx (livro da entidade do Mestre): portal em document.body, FichaAlvoProvider,
+// dois botões (Ficha Definitiva / Grimório Místico), selo ⏳N no Grimório, aba inicial e troca de aba
+// por pedido em foco. Marcados, Grimorio, FichaAlvoContext e MestrePedidosSexta são mockados.
+// ---------------------------------------------------------------------------
+
 vi.mock('../Ficha Def/Marcados', () => ({ default: () => <div data-testid="marcados">MARCADOS</div> }));
+vi.mock('../Ficha Def/Grimorio', () => ({ default: () => <div data-testid="grimorio">GRIMORIO</div> }));
 vi.mock('../Ficha Def/FichaAlvoContext', () => ({
     FichaAlvoProvider: ({ children, nome }) => <div data-testid="provider" data-nome={nome}>{children}</div>,
-    useFichaAtiva: () => ({ ficha: mockFicha, nome: 'Ana' }),
 }));
 vi.mock('./MestrePedidosSexta', () => ({
-    PedidosNaFicha: (props) => <div data-testid="pedidos" data-nome={props.nome} data-aba={props.aba} data-foco={props.pedidoFocoId ?? ''} />,
+    PedidosNaFicha: (props) => (
+        <div
+            data-testid="pedidos"
+            data-nome={props.nome}
+            data-aba={props.aba === undefined ? 'indefinida' : props.aba}
+            data-secao={props.secao === undefined ? 'indefinida' : props.secao}
+            data-foco={props.pedidoFocoId ?? ''}
+        />
+    ),
 }));
 vi.mock('../../stores/useStore', async (importOriginal) => {
     const actual = await importOriginal();
@@ -19,218 +32,177 @@ vi.mock('../../stores/useStore', async (importOriginal) => {
 });
 
 const pedido = (tipo, objeto, extra = {}) => ({ tipo, objeto, solicitante: 'Ana', ...extra });
-function montar({ pendentes = {}, ficha = {}, nome = 'Ana', ...props } = {}) {
-    mockFicha = ficha;
+const pendentesPadrao = {
+    p1: pedido('poder', { nome: 'Golpe', categoria: 'habilidade' }),
+    p2: pedido('poder', { nome: 'Golpe 2', categoria: 'habilidade' }),
+    p3: pedido('magia', { nome: 'Bola', elemento: 'Fogo' }),
+    p4: pedido('item', { nome: 'Capa' }),
+    p5: pedido('poder', { nome: 'Alheio', categoria: 'habilidade' }, { solicitante: 'Beto' }),
+    p6: pedido('poder', { nome: 'Forma X', categoria: 'forma' }, { solicitante: 'Beto', alvo: 'Ana' }),
+};
+
+function montar({ pendentes = {}, nome = 'Ana', aoFechar = vi.fn(), pedidoFocoId } = {}) {
     const estado = { sextaFeiraPendentes: pendentes };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(estado) : estado));
-    return render(<LivroEntidade nome={nome} aoFechar={props.aoFechar || vi.fn()} pedidoFocoId={props.pedidoFocoId} />);
+    const retorno = render(<LivroEntidade nome={nome} aoFechar={aoFechar} pedidoFocoId={pedidoFocoId} />);
+    return { ...retorno, aoFechar };
 }
 const aba = (re) => screen.getByRole('tab', { name: re });
 
-afterEach(() => { cleanup(); vi.clearAllMocks(); mockFicha = {}; });
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('LivroEntidade > estrutura', () => {
-    it('não renderiza nada sem nome', () => {
-        const { container } = montar({ nome: '' });
-        expect(container.innerHTML).toBe('');
-        expect(screen.queryByRole('tablist')).toBeNull();
+    it('não renderiza nada sem nome (vazio ou null)', () => {
+        ['', null].forEach((nome) => {
+            const { container } = montar({ nome });
+            expect(container.innerHTML).toBe('');
+            expect(document.body.querySelector('.livro-entidade-fundo')).toBeNull();
+            cleanup();
+        });
     });
-    it('renderiza via portal em document.body, fora do container', () => {
+    it('renderiza via portal em document.body, fora do container do render', () => {
         const { container } = montar();
         expect(container.querySelector('.livro-entidade-fundo')).toBeNull();
         expect(document.body.querySelector('.livro-entidade-fundo')).not.toBeNull();
     });
-    it('envolve o conteúdo no FichaAlvoProvider com o nome', () => {
+    it('envolve o conteúdo no FichaAlvoProvider com o nome do personagem', () => {
         montar({ nome: 'Ana' });
         expect(screen.getByTestId('provider').getAttribute('data-nome')).toBe('Ana');
     });
-    it('mostra as seis abas', () => {
+    it('mostra exatamente dois botões, vindos de ABAS_LIVRO_ENTIDADE, com os rótulos esperados', () => {
         montar();
-        expect(screen.getAllByRole('tab')).toHaveLength(6);
-        ['Ficha Definitiva', 'Habilidades', 'Poderes', 'Formas', 'Técnicas Elementais', 'Inventário'].forEach(n => {
-            expect(aba(new RegExp(n))).toBeDefined();
-        });
+        const abas = screen.getAllByRole('tab');
+        expect(abas).toHaveLength(2);
+        expect(abas[0].textContent).toContain('📕 Ficha Definitiva');
+        expect(abas[1].textContent).toContain('📖 Grimório Místico (Poderes & Elementos)');
     });
-    it('abre na Ficha Definitiva (MarcadosPanel) por padrão', () => {
-        montar();
-        expect(screen.getByTestId('marcados')).toBeDefined();
-        expect(aba(/Ficha Definitiva/).getAttribute('aria-selected')).toBe('true');
+    it('o tablist tem o aria-label com o nome do personagem', () => {
+        montar({ nome: 'Ana' });
+        expect(screen.getByRole('tablist').getAttribute('aria-label')).toBe('Livro de Ana');
     });
-    it('FECHAR LIVRO chama aoFechar', () => {
-        const aoFechar = vi.fn();
-        montar({ aoFechar });
+    it('FECHAR LIVRO chama aoFechar uma vez', () => {
+        const { aoFechar } = montar();
         fireEvent.click(screen.getByRole('button', { name: /FECHAR LIVRO/ }));
         expect(aoFechar).toHaveBeenCalledTimes(1);
     });
-    it('trocar de aba esconde a Ficha Definitiva e mostra os pedidos da aba', () => {
+});
+
+describe('LivroEntidade > troca de botões', () => {
+    it('abre na Ficha Definitiva (MarcadosPanel) por padrão, sem Grimório nem pedidos', () => {
         montar();
-        fireEvent.click(aba(/Habilidades/));
+        expect(screen.getByTestId('marcados')).toBeDefined();
+        expect(screen.queryByTestId('grimorio')).toBeNull();
+        expect(screen.queryByTestId('pedidos')).toBeNull();
+        expect(aba(/Ficha Definitiva/).getAttribute('aria-selected')).toBe('true');
+        expect(aba(/Grimório Místico/).getAttribute('aria-selected')).toBe('false');
+    });
+    it('clicar no Grimório mostra PedidosNaFicha acima do GrimorioPanel e esconde a ficha', () => {
+        montar();
+        fireEvent.click(aba(/Grimório Místico/));
         expect(screen.queryByTestId('marcados')).toBeNull();
-        expect(screen.getByTestId('pedidos').getAttribute('data-aba')).toBe('habilidade');
-        expect(screen.getByTestId('pedidos').getAttribute('data-nome')).toBe('Ana');
+        const pedidos = screen.getByTestId('pedidos');
+        const grimorio = screen.getByTestId('grimorio');
+        expect(pedidos.compareDocumentPosition(grimorio) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(aba(/Grimório Místico/).getAttribute('aria-selected')).toBe('true');
+    });
+    it('PedidosNaFicha recebe nome e pedidoFocoId, e NÃO recebe aba nem secao', () => {
+        montar({ pendentes: pendentesPadrao, pedidoFocoId: 'p3' });
+        const p = screen.getByTestId('pedidos');
+        expect(p.getAttribute('data-nome')).toBe('Ana');
+        expect(p.getAttribute('data-foco')).toBe('p3');
+        expect(p.getAttribute('data-aba')).toBe('indefinida');
+        expect(p.getAttribute('data-secao')).toBe('indefinida');
+    });
+    it('dá pra voltar do Grimório para a Ficha Definitiva', () => {
+        montar();
+        fireEvent.click(aba(/Grimório Místico/));
         fireEvent.click(aba(/Ficha Definitiva/));
         expect(screen.getByTestId('marcados')).toBeDefined();
+        expect(screen.queryByTestId('grimorio')).toBeNull();
     });
 });
 
-describe('LivroEntidade > contagens e conteúdo', () => {
-    const ficha = {
-        poderes: [
-            { nome: 'Soco', categoria: 'habilidade', descricao: 'Forte' },
-            { nome: 'Raio', dadosQtd: 2, dadosFaces: 6 },
-            { nome: 'Raio 2' },
-            { nome: 'Fúria', categoria: 'forma', pasta: 'Bestas' },
-            { nome: 'Calma', categoria: 'forma' },
-        ],
-        ataquesElementais: [{ nome: 'Bola', elemento: 'Fogo' }, { nome: 'Jato', elemento: 'Água' }, { nome: 'Chama', elemento: 'Fogo' }],
-        inventario: [{ nome: 'Espada', equipado: true }, { nome: 'Poção' }],
-    };
-    it('mostra a contagem em cada aba (Ficha sem contagem)', () => {
-        montar({ ficha });
-        expect(aba(/Habilidades/).textContent).toContain('(1)');
-        expect(aba(/Poderes/).textContent).toContain('(2)');
-        expect(aba(/Formas/).textContent).toContain('(2)');
-        expect(aba(/Técnicas/).textContent).toContain('(3)');
-        expect(aba(/Inventário/).textContent).toContain('(2)');
-        expect(aba(/Ficha Definitiva/).textContent).not.toMatch(/\(\d+\)/);
+describe('LivroEntidade > selo ⏳N no Grimório', () => {
+    it('conta só os pedidos pendentes deste personagem (solicitante ou alvo)', () => {
+        montar({ pendentes: pendentesPadrao });
+        // p1, p2, p3, p4 (solicitante Ana) + p6 (alvo Ana) = 5; p5 é do Beto
+        expect(aba(/Grimório Místico/).textContent).toContain('⏳5');
     });
-    it('habilidades: cartão com nome e descrição, lista simples sem pasta', () => {
-        montar({ ficha });
-        fireEvent.click(aba(/Habilidades/));
-        expect(screen.getByText('Soco')).toBeDefined();
-        expect(screen.getByText(/Forte/)).toBeDefined();
-        expect(document.querySelector('.grimorio-pasta')).toBeNull();
-    });
-    it('poderes mostram dados 2d6', () => {
-        montar({ ficha });
-        fireEvent.click(aba(/Poderes/));
-        expect(screen.getByText(/2d6/)).toBeDefined();
-        expect(screen.getByText('Raio 2')).toBeDefined();
-    });
-    it('formas ficam agrupadas por pasta e a pasta é recolhível', () => {
-        montar({ ficha });
-        fireEvent.click(aba(/Formas/));
-        const pasta = screen.getByRole('button', { name: /Bestas/ });
-        expect(screen.getByRole('button', { name: /Sem Pasta/ })).toBeDefined();
-        expect(screen.getByText('Fúria')).toBeDefined();
-        fireEvent.click(pasta);
-        expect(screen.queryByText('Fúria')).toBeNull();
-        expect(pasta.getAttribute('aria-expanded')).toBe('false');
-        fireEvent.click(pasta);
-        expect(screen.getByText('Fúria')).toBeDefined();
-    });
-    it('técnicas agrupadas em "Pergaminhos de <elemento>"', () => {
-        montar({ ficha });
-        fireEvent.click(aba(/Técnicas/));
-        expect(screen.getByText(/Pergaminhos de Fogo/)).toBeDefined();
-        expect(screen.getByText(/Pergaminhos de Água/)).toBeDefined();
-        expect(screen.getByText('Bola')).toBeDefined();
-        expect(screen.getByText('Chama')).toBeDefined();
-    });
-    it('inventário mostra Equipado e Na mochila', () => {
-        montar({ ficha });
-        fireEvent.click(aba(/Inventário/));
-        expect(screen.getByText('Equipado')).toBeDefined();
-        expect(screen.getByText('Na mochila')).toBeDefined();
-    });
-    it('abas vazias mostram mensagem de vazio', () => {
-        montar({ ficha: {} });
-        fireEvent.click(aba(/Habilidades/));
-        expect(screen.getByText('Nenhuma Habilidade registrada.')).toBeDefined();
-        fireEvent.click(aba(/Poderes/));
-        expect(screen.getByText('Nenhum Poder registrado.')).toBeDefined();
-        fireEvent.click(aba(/Formas/));
-        expect(screen.getByText('Nenhuma Forma registrada.')).toBeDefined();
-        fireEvent.click(aba(/Técnicas/));
-        expect(screen.getByText('Nenhuma Técnica Elemental.')).toBeDefined();
-        fireEvent.click(aba(/Inventário/));
-        expect(screen.getByText(/inventário deste personagem está vazio/)).toBeDefined();
-    });
-    it('ficha nula não quebra', () => {
-        montar({ ficha: null });
-        fireEvent.click(aba(/Poderes/));
-        expect(screen.getByText('Nenhum Poder registrado.')).toBeDefined();
-    });
-});
-
-describe('LivroEntidade > ficha malformada', () => {
-    it('campos objeto no lugar de texto não derrubam as abas', () => {
-        const ficha = {
-            poderes: [{ nome: { x: 1 }, descricao: { y: 2 }, alcance: {}, elemento: {}, vertente: 'Elemental', efeitos: 'lixo' }],
-            ataquesElementais: [{ nome: {}, elemento: { a: 1 }, descricao: {}, bonusTipo: 'mult_dano', bonusValor: {} }],
-            inventario: [{ nome: {}, tipo: {}, raridade: {} }],
-        };
-        montar({ ficha });
-        ['Habilidades', 'Poderes', 'Formas', 'Técnicas', 'Inventário'].forEach(n => {
-            expect(() => fireEvent.click(aba(new RegExp(n)))).not.toThrow();
-        });
-        expect(screen.getByText('Item desconhecido')).toBeDefined();
-    });
-    it('poderes como string e inventário como número viram listas vazias', () => {
-        montar({ ficha: { poderes: 'texto', inventario: 5, ataquesElementais: 'x' } });
-        expect(aba(/Poderes/).textContent).toContain('(0)');
-        expect(aba(/Inventário/).textContent).toContain('(0)');
-        fireEvent.click(aba(/Poderes/));
-        expect(screen.getByText('Nenhum Poder registrado.')).toBeDefined();
-    });
-    it('listas vindas do Firebase como objeto indexado funcionam', () => {
-        montar({ ficha: { inventario: { 0: { nome: 'Adaga' }, 1: null } } });
-        expect(aba(/Inventário/).textContent).toContain('(1)');
-        fireEvent.click(aba(/Inventário/));
-        expect(screen.getByText('Adaga')).toBeDefined();
-    });
-});
-
-describe('LivroEntidade > pedidos pendentes', () => {
-    const pendentes = {
-        p1: pedido('poder', { nome: 'Golpe', categoria: 'habilidade' }),
-        p2: pedido('poder', { nome: 'Golpe 2', categoria: 'habilidade' }),
-        p3: pedido('magia', { nome: 'Bola', elemento: 'Fogo' }),
-        p4: pedido('item', { nome: 'Capa' }),
-        p5: pedido('poder', { nome: 'Alheio', categoria: 'habilidade' }, { solicitante: 'Beto' }),
-        p6: pedido('poder', { nome: 'Forma X', categoria: 'forma' }, { solicitante: 'Beto', alvo: 'Ana' }),
-    };
-    it('mostra o selo de pendentes por aba só com pedidos deste personagem', () => {
-        montar({ pendentes });
-        expect(aba(/Habilidades/).textContent).toContain('⏳2');
-        expect(aba(/Técnicas/).textContent).toContain('⏳1');
-        expect(aba(/Inventário/).textContent).toContain('⏳1');
-        expect(aba(/Formas/).textContent).toContain('⏳1');
-        expect(aba(/Poderes/).textContent).not.toContain('⏳');
+    it('a Ficha Definitiva nunca tem selo', () => {
+        montar({ pendentes: pendentesPadrao });
         expect(aba(/Ficha Definitiva/).textContent).not.toContain('⏳');
+        expect(document.querySelectorAll('.grimorio-mestre-aba-pedido')).toHaveLength(1);
     });
-    it('alvo tem prioridade sobre solicitante e o casamento usa sanitizarNome', () => {
+    it('alvo tem prioridade sobre solicitante', () => {
+        montar({ pendentes: { x: pedido('item', { nome: 'Capa' }, { solicitante: 'Ana', alvo: 'Beto' }) } });
+        expect(document.querySelector('.grimorio-mestre-aba-pedido')).toBeNull();
+        cleanup();
+        montar({ pendentes: { x: pedido('item', { nome: 'Capa' }, { solicitante: 'Beto', alvo: 'Ana' }) } });
+        expect(aba(/Grimório Místico/).textContent).toContain('⏳1');
+    });
+    it('o casamento de nomes usa sanitizarNome (caracteres inválidos do Firebase)', () => {
         montar({ nome: 'Ana.X ', pendentes: { x: pedido('item', { nome: 'Capa' }, { solicitante: 'Beto', alvo: 'Ana_X' }) } });
-        expect(aba(/Inventário/).textContent).toContain('⏳1');
+        expect(aba(/Grimório Místico/).textContent).toContain('⏳1');
     });
-    it('sem pendentes não há selo', () => {
+    it('sem pendentes (vazio ou null) não há selo e não quebra', () => {
         montar({ pendentes: {} });
         expect(document.querySelector('.grimorio-mestre-aba-pedido')).toBeNull();
-    });
-    it('pendentes nulo não quebra', () => {
+        cleanup();
         expect(() => montar({ pendentes: null })).not.toThrow();
+        expect(document.querySelector('.grimorio-mestre-aba-pedido')).toBeNull();
     });
-    it('pedidoFocoId abre na aba do pedido e repassa o foco a PedidosNaFicha', () => {
-        montar({ pendentes, pedidoFocoId: 'p3' });
-        expect(aba(/Técnicas/).getAttribute('aria-selected')).toBe('true');
-        expect(screen.getByTestId('pedidos').getAttribute('data-aba')).toBe('magias');
-        expect(screen.getByTestId('pedidos').getAttribute('data-foco')).toBe('p3');
+    it('só pedidos de outros jogadores: nenhum selo', () => {
+        montar({ pendentes: { p5: pendentesPadrao.p5 } });
+        expect(document.querySelector('.grimorio-mestre-aba-pedido')).toBeNull();
     });
-    it('pedidoFocoId de habilidade abre em Habilidades', () => {
-        montar({ pendentes, pedidoFocoId: 'p1' });
-        expect(aba(/Habilidades/).getAttribute('aria-selected')).toBe('true');
+    it('ignora pedidos inválidos (tipo desconhecido ou sem objeto)', () => {
+        montar({ pendentes: { a: { tipo: 'xyz', objeto: { nome: 'a' }, solicitante: 'Ana' }, b: { tipo: 'item', solicitante: 'Ana' } } });
+        expect(document.querySelector('.grimorio-mestre-aba-pedido')).toBeNull();
     });
-    it('pedidoFocoId desconhecido ou de outro jogador cai na ficha', () => {
-        montar({ pendentes, pedidoFocoId: 'nao-existe' });
+});
+
+describe('LivroEntidade > aba inicial e pedido em foco', () => {
+    it('pedidoFocoId deste jogador abre direto no Grimório', () => {
+        montar({ pendentes: pendentesPadrao, pedidoFocoId: 'p3' });
+        expect(aba(/Grimório Místico/).getAttribute('aria-selected')).toBe('true');
+        expect(screen.getByTestId('grimorio')).toBeDefined();
+        expect(screen.queryByTestId('marcados')).toBeNull();
+    });
+    it('pedido em foco com alvo = este jogador (solicitante outro) também abre no Grimório', () => {
+        montar({ pendentes: pendentesPadrao, pedidoFocoId: 'p6' });
+        expect(aba(/Grimório Místico/).getAttribute('aria-selected')).toBe('true');
+    });
+    it('pedidoFocoId inexistente ou de outro jogador abre na ficha', () => {
+        montar({ pendentes: pendentesPadrao, pedidoFocoId: 'nao-existe' });
         expect(aba(/Ficha Definitiva/).getAttribute('aria-selected')).toBe('true');
         cleanup();
-        montar({ pendentes, pedidoFocoId: 'p5' });
+        montar({ pendentes: pendentesPadrao, pedidoFocoId: 'p5' });
         expect(aba(/Ficha Definitiva/).getAttribute('aria-selected')).toBe('true');
     });
-    it('novo pedidoFocoId com o livro aberto muda de aba', () => {
+    it('sem pedidoFocoId abre na ficha mesmo com pendentes', () => {
+        montar({ pendentes: pendentesPadrao });
+        expect(aba(/Ficha Definitiva/).getAttribute('aria-selected')).toBe('true');
+    });
+    it('um novo pedido em foco com o livro aberto na ficha troca para o Grimório', () => {
         const aoFechar = vi.fn();
-        const { rerender } = montar({ pendentes, pedidoFocoId: 'p1', aoFechar });
+        const { rerender } = montar({ pendentes: pendentesPadrao, aoFechar });
+        expect(aba(/Ficha Definitiva/).getAttribute('aria-selected')).toBe('true');
+
         rerender(<LivroEntidade nome="Ana" pedidoFocoId="p4" aoFechar={aoFechar} />);
-        expect(aba(/Inventário/).getAttribute('aria-selected')).toBe('true');
+
+        expect(aba(/Grimório Místico/).getAttribute('aria-selected')).toBe('true');
+        expect(screen.getByTestId('pedidos').getAttribute('data-foco')).toBe('p4');
+    });
+    it('foco de outro jogador com o livro na ficha NÃO troca de aba', () => {
+        const aoFechar = vi.fn();
+        const { rerender } = montar({ pendentes: pendentesPadrao, aoFechar });
+        rerender(<LivroEntidade nome="Ana" pedidoFocoId="p5" aoFechar={aoFechar} />);
+        expect(aba(/Ficha Definitiva/).getAttribute('aria-selected')).toBe('true');
+    });
+    it('depois de abrir no Grimório o Mestre pode ir manualmente pra ficha', () => {
+        montar({ pendentes: pendentesPadrao, pedidoFocoId: 'p1' });
+        fireEvent.click(aba(/Ficha Definitiva/));
+        expect(aba(/Ficha Definitiva/).getAttribute('aria-selected')).toBe('true');
+        expect(screen.getByTestId('marcados')).toBeDefined();
     });
 });

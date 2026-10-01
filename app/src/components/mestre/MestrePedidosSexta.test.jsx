@@ -182,6 +182,35 @@ describe('PedidosNaFicha', () => {
         render(<PedidosNaFicha nome="Ana" secao="poderes" aba="inventario" />);
         expect(screen.getByText('Item da Ana')).toBeDefined();
     });
+    it('sem aba e sem secao mostra TODOS os pedidos pendentes do jogador (de qualquer tipo) e nenhum de outro', () => {
+        useStore.setState({ sextaFeiraPendentes: {
+            a: pedido({ objeto: { nome: 'Hab da Ana', categoria: 'habilidade' } }),
+            b: pedido({ tipo: 'magia', objeto: { nome: 'Magia da Ana' } }),
+            c: pedido({ tipo: 'item', objeto: { nome: 'Item da Ana' } }),
+            d: pedido({ alvo: 'Beto', solicitante: 'Beto', objeto: { nome: 'Poder do Beto' } }),
+        } });
+        const { container } = render(<PedidosNaFicha nome="Ana" />);
+        expect(container.querySelectorAll('.pedido-ficha')).toHaveLength(3);
+        expect(screen.getByText('Hab da Ana')).toBeDefined();
+        expect(screen.getByText('Magia da Ana')).toBeDefined();
+        expect(screen.getByText('Item da Ana')).toBeDefined();
+        expect(screen.queryByText('Poder do Beto')).toBeNull();
+    });
+    it('sem aba e sem secao casa pelo alvo (não pelo solicitante) quando os dois diferem', () => {
+        useStore.setState({ sextaFeiraPendentes: { a: pedido({ alvo: 'Ana', solicitante: 'Beto', objeto: { nome: 'Pedido do Beto pra Ana' } }) } });
+        render(<PedidosNaFicha nome="Ana" />);
+        expect(screen.getByText('Pedido do Beto pra Ana')).toBeDefined();
+    });
+    it('sem aba e sem secao e sem pedidos do jogador não renderiza nada', () => {
+        useStore.setState({ sextaFeiraPendentes: { d: pedido({ alvo: 'Beto', solicitante: 'Beto' }) } });
+        const { container } = render(<PedidosNaFicha nome="Ana" />);
+        expect(container.innerHTML).toBe('');
+    });
+    it('sem aba e sem secao o pedido em foco recebe em-foco', () => {
+        useStore.setState({ sextaFeiraPendentes: { a: pedido({ objeto: { nome: 'A' } }), b: pedido({ tipo: 'item', objeto: { nome: 'B' } }) } });
+        const { container } = render(<PedidosNaFicha nome="Ana" pedidoFocoId="b" />);
+        expect(container.querySelectorAll('.pedido-ficha.em-foco')).toHaveLength(1);
+    });
     it('aba sem pedidos não renderiza nada', () => {
         const { container } = render(<PedidosNaFicha nome="Ana" aba="forma" />);
         expect(container.innerHTML).toBe('');

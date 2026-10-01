@@ -522,9 +522,10 @@ export function MapaAtaquesSalvos() {
 // 🗡️ Troca rápida de arma: o sistema só permite UMA arma equipada por vez (equipar uma desequipa
 // a outra automaticamente, ver ArsenalFormContext.jsx > toggleEquiparItem — não existe "dual
 // wielding"), então "múltiplas Armas Salvas" na prática significa poder TROCAR de arma rápido sem
-// sair do Mapa pra ir na aba Arsenal. Lista todas as armas do inventário; clicar numa equipa ela
-// (reusa o MESMO toggleEquiparItem do Arsenal, incluindo o recálculo de vitais que ele já faz) —
-// a arma equipada aparece destacada e é a que o ATACAR/ROLAR DANO acima já usa.
+// sair do Mapa pra ir na aba Arsenal. Lista todas as armas do inventário; clicar numa equipa ela, e
+// clicar na que já está equipada a desequipa (reusa o MESMO toggleEquiparItem do Arsenal, incluindo
+// o recálculo de vitais que ele já faz) — a arma equipada aparece destacada e é a que o
+// ATACAR/ROLAR DANO acima já usa.
 export function MapaAtaqueArma() {
     const ataqueCtx = useAtaqueForm();
     const arsenalCtx = useArsenalForm();
@@ -549,8 +550,9 @@ export function MapaAtaqueArma() {
                         <button
                             key={arma.id}
                             className="btn-neon"
-                            onClick={() => { if (!arma.equipado) arsenalCtx.toggleEquiparItem(arma.id); }}
-                            title={arma.equipado ? 'Arma equipada atualmente' : 'Clique pra equipar (desequipa a arma atual)'}
+                            onClick={() => arsenalCtx.toggleEquiparItem(arma.id)}
+                            aria-pressed={!!arma.equipado}
+                            title={arma.equipado ? 'Arma equipada — clique pra desequipar' : 'Clique pra equipar (desequipa a arma atual)'}
                             style={{
                                 margin: 0, padding: '4px 12px', fontSize: '0.85em', fontWeight: 'bold', borderColor: '#f90',
                                 background: arma.equipado ? 'rgba(255,153,0,0.3)' : 'transparent',

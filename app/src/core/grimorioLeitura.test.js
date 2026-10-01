@@ -1,127 +1,77 @@
 import { describe, it, expect } from 'vitest';
-import {
-    SEM_PASTA, ABAS_LIVRO_ENTIDADE, listaDaFicha, categoriaDoPoder, separarPoderesPorCategoria,
-    agruparPorPasta, agruparTecnicasPorElemento, textoEfeito, abaDoPedido,
-} from './grimorioLeitura';
+import { ABAS_LIVRO_ENTIDADE, categoriaDoPoder, abaDoPedido } from './grimorioLeitura';
 import * as modulo from './grimorioLeitura';
 
 describe('ABAS_LIVRO_ENTIDADE', () => {
-    it('tem os ids na ordem esperada, com a Ficha Definitiva primeiro', () => {
-        expect(ABAS_LIVRO_ENTIDADE.map(a => a.id)).toEqual(['ficha', 'habilidade', 'poder', 'forma', 'magias', 'inventario']);
+    it('tem exatamente dois botões, na ordem: ficha e grimorio', () => {
+        expect(ABAS_LIVRO_ENTIDADE.map(a => a.id)).toEqual(['ficha', 'grimorio']);
     });
-    it('toda aba tem ícone e nome, e não existe aba de domínios', () => {
-        ABAS_LIVRO_ENTIDADE.forEach(a => { expect(a.icone).toBeTruthy(); expect(a.nome).toBeTruthy(); });
-        expect(ABAS_LIVRO_ENTIDADE.some(a => a.id === 'dominios')).toBe(false);
+    it('a Ficha Definitiva vem primeiro, com ícone 📕', () => {
+        expect(ABAS_LIVRO_ENTIDADE[0]).toEqual({ id: 'ficha', icone: '📕', nome: 'Ficha Definitiva' });
     });
-    it('a primeira aba é a Ficha Definitiva', () => {
-        expect(ABAS_LIVRO_ENTIDADE[0].nome).toBe('Ficha Definitiva');
+    it('o Grimório Místico vem em segundo, com ícone 📖 e o nome completo', () => {
+        expect(ABAS_LIVRO_ENTIDADE[1]).toEqual({ id: 'grimorio', icone: '📖', nome: 'Grimório Místico (Poderes & Elementos)' });
+    });
+    it('toda aba tem id, ícone e nome preenchidos e os ids são únicos', () => {
+        ABAS_LIVRO_ENTIDADE.forEach(a => { expect(a.id).toBeTruthy(); expect(a.icone).toBeTruthy(); expect(a.nome).toBeTruthy(); });
+        expect(new Set(ABAS_LIVRO_ENTIDADE.map(a => a.id)).size).toBe(ABAS_LIVRO_ENTIDADE.length);
+    });
+    it('não existem mais as abas antigas (habilidade, poder, forma, magias, inventario, dominios)', () => {
+        const ids = ABAS_LIVRO_ENTIDADE.map(a => a.id);
+        ['habilidade', 'poder', 'forma', 'magias', 'inventario', 'dominios'].forEach(id => expect(ids).not.toContain(id));
     });
 });
 
-describe('listaDaFicha', () => {
-    it('mantém array e descarta não objetos', () => {
-        expect(listaDaFicha([{ a: 1 }, null, 'x', 3, undefined, { b: 2 }])).toEqual([{ a: 1 }, { b: 2 }]);
+describe('exports do módulo', () => {
+    it('exporta somente ABAS_LIVRO_ENTIDADE, categoriaDoPoder e abaDoPedido', () => {
+        expect(Object.keys(modulo).sort()).toEqual(['ABAS_LIVRO_ENTIDADE', 'abaDoPedido', 'categoriaDoPoder']);
     });
-    it('converte objeto vindo do Firebase', () => {
-        expect(listaDaFicha({ 0: { n: 1 }, 1: null, 2: { n: 2 } })).toEqual([{ n: 1 }, { n: 2 }]);
-    });
-    it('string, número, null e undefined viram []', () => {
-        expect(listaDaFicha('lixo')).toEqual([]);
-        expect(listaDaFicha(5)).toEqual([]);
-        expect(listaDaFicha(null)).toEqual([]);
-        expect(listaDaFicha(undefined)).toEqual([]);
+    it('os helpers de leitura removidos não existem mais', () => {
+        ['SEM_PASTA', 'listaDaFicha', 'separarPoderesPorCategoria', 'agruparPorPasta', 'agruparTecnicasPorElemento', 'textoEfeito']
+            .forEach(nome => expect(modulo[nome]).toBeUndefined());
     });
 });
 
 describe('categoriaDoPoder', () => {
-    it('padrão e inválida viram poder', () => {
-        expect(categoriaDoPoder({})).toBe('poder');
-        expect(categoriaDoPoder(null)).toBe('poder');
-        expect(categoriaDoPoder({ categoria: 'xyz' })).toBe('poder');
-        expect(categoriaDoPoder({ categoria: 42 })).toBe('poder');
+    it('devolve a categoria quando é habilidade, poder ou forma', () => {
+        expect(categoriaDoPoder({ categoria: 'habilidade' })).toBe('habilidade');
+        expect(categoriaDoPoder({ categoria: 'poder' })).toBe('poder');
+        expect(categoriaDoPoder({ categoria: 'forma' })).toBe('forma');
     });
-    it('ignora maiúsculas', () => {
+    it('ignora maiúsculas/minúsculas', () => {
         expect(categoriaDoPoder({ categoria: 'FORMA' })).toBe('forma');
         expect(categoriaDoPoder({ categoria: 'Habilidade' })).toBe('habilidade');
     });
-});
-
-describe('separarPoderesPorCategoria', () => {
-    it('separa nas três categorias', () => {
-        const r = separarPoderesPorCategoria([{ categoria: 'habilidade' }, { categoria: 'forma' }, {}, { categoria: 'x' }, null]);
-        expect(r.habilidade).toHaveLength(1);
-        expect(r.forma).toHaveLength(1);
-        expect(r.poder).toHaveLength(2);
+    it('sem categoria, objeto vazio, null e undefined caem em poder', () => {
+        expect(categoriaDoPoder({})).toBe('poder');
+        expect(categoriaDoPoder(null)).toBe('poder');
+        expect(categoriaDoPoder(undefined)).toBe('poder');
+        expect(categoriaDoPoder({ categoria: '' })).toBe('poder');
     });
-    it('entrada inválida dá grupos vazios', () => {
-        expect(separarPoderesPorCategoria('texto')).toEqual({ habilidade: [], poder: [], forma: [] });
-    });
-});
-
-describe('agruparPorPasta', () => {
-    it('habilidade/poder sem pasta devolve null', () => {
-        expect(agruparPorPasta([{ nome: 'a' }, { nome: 'b', pasta: '  ' }], 'habilidade')).toBeNull();
-        expect(agruparPorPasta([{ nome: 'a' }], 'poder')).toBeNull();
-    });
-    it('forma sempre agrupa, mesmo sem pasta', () => {
-        const r = agruparPorPasta([{ nome: 'a' }], 'forma');
-        expect(r).toEqual([{ nome: SEM_PASTA, itens: [{ nome: 'a' }] }]);
-    });
-    it('agrupa com ordem pt-BR e Sem Pasta por último', () => {
-        const r = agruparPorPasta([{ nome: '1' }, { nome: '2', pasta: 'Zeta' }, { nome: '3', pasta: 'Água' }, { nome: '4', pasta: 'Zeta' }], 'poder');
-        expect(r.map(g => g.nome)).toEqual(['Água', 'Zeta', 'Sem Pasta']);
-        expect(r[1].itens).toHaveLength(2);
-    });
-    it('lista vazia: forma dá [], poder dá null', () => {
-        expect(agruparPorPasta([], 'forma')).toEqual([]);
-        expect(agruparPorPasta(null, 'poder')).toBeNull();
-    });
-});
-
-describe('agruparTecnicasPorElemento', () => {
-    it('padrão Neutro e ordem alfabética', () => {
-        const r = agruparTecnicasPorElemento([{ nome: 'a', elemento: 'Fogo' }, { nome: 'b' }, { nome: 'c', elemento: ' ' }, { nome: 'd', elemento: 'Água' }]);
-        expect(r.map(g => g.elemento)).toEqual(['Água', 'Fogo', 'Neutro']);
-        expect(r[2].itens).toHaveLength(2);
-    });
-    it('entradas inválidas dão []', () => {
-        expect(agruparTecnicasPorElemento(null)).toEqual([]);
-        expect(agruparTecnicasPorElemento('x')).toEqual([]);
-    });
-});
-
-describe('textoEfeito', () => {
-    it('formata atributo, propriedade e valor', () => {
-        expect(textoEfeito({ atributo: 'energia_esp', propriedade: 'mgeral', valor: 2 })).toBe('[ENERGIA ESP] MGERAL: +2');
-    });
-    it('faltando campos usa 0 e vazio', () => {
-        expect(textoEfeito({})).toBe('[] : +0');
-    });
-    it('não objeto devolve vazio', () => {
-        expect(textoEfeito(null)).toBe('');
-        expect(textoEfeito('x')).toBe('');
-    });
-});
-
-describe('exports removidos', () => {
-    it('listarDominios e ABAS_GRIMORIO_MESTRE não existem mais', () => {
-        expect(modulo.listarDominios).toBeUndefined();
-        expect(modulo.ABAS_GRIMORIO_MESTRE).toBeUndefined();
+    it('categoria desconhecida ou de tipo estranho cai em poder', () => {
+        expect(categoriaDoPoder({ categoria: 'xyz' })).toBe('poder');
+        expect(categoriaDoPoder({ categoria: 42 })).toBe('poder');
     });
 });
 
 describe('abaDoPedido', () => {
-    it('poder usa a categoria', () => {
+    it('pedido de poder usa a categoria do objeto', () => {
+        expect(abaDoPedido({ tipo: 'poder', objeto: { categoria: 'habilidade' } })).toBe('habilidade');
         expect(abaDoPedido({ tipo: 'poder', objeto: { categoria: 'forma' } })).toBe('forma');
+        expect(abaDoPedido({ tipo: 'poder', objeto: { categoria: 'poder' } })).toBe('poder');
+    });
+    it('pedido de poder sem categoria (ou sem objeto) cai em poder', () => {
         expect(abaDoPedido({ tipo: 'poder', objeto: {} })).toBe('poder');
         expect(abaDoPedido({ tipo: 'poder' })).toBe('poder');
     });
-    it('magia e item', () => {
+    it('magia vai para magias e item para inventario', () => {
         expect(abaDoPedido({ tipo: 'magia' })).toBe('magias');
         expect(abaDoPedido({ tipo: 'item' })).toBe('inventario');
     });
-    it('outro tipo ou nulo dá null', () => {
+    it('tipo desconhecido, null e undefined devolvem null', () => {
         expect(abaDoPedido({ tipo: 'outro' })).toBeNull();
+        expect(abaDoPedido({})).toBeNull();
         expect(abaDoPedido(null)).toBeNull();
+        expect(abaDoPedido(undefined)).toBeNull();
     });
 });

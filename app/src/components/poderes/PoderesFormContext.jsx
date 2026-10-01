@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes';
-import { salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync';
+import { uploadImagem } from '../../services/firebase-sync';
+import { useFichaAtiva, useCallSaveAtivo, useSalvarImediatoAtivo } from '../Ficha Def/FichaAlvoContext';
 // 🔥 CORREÇÃO: a matemática "segura" que substituiu capturarMaximosAtuais/rescalarVitaisProporcional
 // aqui na verdade misturava escalas -- comparava `ficha[v].atual` (SEMPRE guardado na escala
 // COMPRIMIDA de calcVitalScale) contra `getMaximo(ficha, v)` (escala BRUTA/descomprimida) pra tirar
@@ -29,16 +30,31 @@ export function usePoderesForm() {
 }
 
 export function PoderesFormProvider({ children }) {
-    const minhaFicha = useStore(s => s.minhaFicha);
-    const meuNome = useStore(s => s.meuNome);
+    // 🔥 GRIMÓRIO DA ENTIDADE: dentro de um FichaAlvoProvider mirando outro personagem (livro do
+    // Mestre, components/mestre/LivroEntidade.jsx) tudo aqui lê e grava a ficha DELE; fora disso é a
+    // minha ficha, exatamente como sempre (FichaAlvoContext.jsx > useFichaAtiva).
+    const { ficha: minhaFicha, updateFicha, nome: meuNome, souEuMesmo } = useFichaAtiva();
     const isMestre = useStore(s => s.isMestre);
-    const updateFicha = useStore(s => s.updateFicha);
-    const efeitosTemp = useStore(s => s.efeitosTemp);
-    const setEfeitosTemp = useStore(s => s.setEfeitosTemp);
-    const efeitosTempPassivos = useStore(s => s.efeitosTempPassivos);
-    const setEfeitosTempPassivos = useStore(s => s.setEfeitosTempPassivos);
-    const poderEditandoId = useStore(s => s.poderEditandoId);
-    const setPoderEditandoId = useStore(s => s.setPoderEditandoId);
+    const salvarFichaSilencioso = useCallSaveAtivo();
+    const salvarFirebaseImediato = useSalvarImediatoAtivo();
+
+    // O rascunho do editor (efeitos e "editando qual") mora na store pra MINHA ficha; para outro
+    // personagem fica local, pra não se misturar com o meu editor aberto na minha própria aba.
+    const efeitosTempGlobal = useStore(s => s.efeitosTemp);
+    const setEfeitosTempGlobal = useStore(s => s.setEfeitosTemp);
+    const efeitosTempPassivosGlobal = useStore(s => s.efeitosTempPassivos);
+    const setEfeitosTempPassivosGlobal = useStore(s => s.setEfeitosTempPassivos);
+    const poderEditandoIdGlobal = useStore(s => s.poderEditandoId);
+    const setPoderEditandoIdGlobal = useStore(s => s.setPoderEditandoId);
+    const [efeitosTempLocal, setEfeitosTempLocal] = useState([]);
+    const [efeitosTempPassivosLocal, setEfeitosTempPassivosLocal] = useState([]);
+    const [poderEditandoIdLocal, setPoderEditandoIdLocal] = useState(null);
+    const efeitosTemp = souEuMesmo ? efeitosTempGlobal : efeitosTempLocal;
+    const setEfeitosTemp = souEuMesmo ? setEfeitosTempGlobal : setEfeitosTempLocal;
+    const efeitosTempPassivos = souEuMesmo ? efeitosTempPassivosGlobal : efeitosTempPassivosLocal;
+    const setEfeitosTempPassivos = souEuMesmo ? setEfeitosTempPassivosGlobal : setEfeitosTempPassivosLocal;
+    const poderEditandoId = souEuMesmo ? poderEditandoIdGlobal : poderEditandoIdLocal;
+    const setPoderEditandoId = souEuMesmo ? setPoderEditandoIdGlobal : setPoderEditandoIdLocal;
 
     const [abaAtual, setAbaAtual] = useState('habilidade');
 
@@ -248,7 +264,7 @@ export function PoderesFormProvider({ children }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, cancelarEdicaoPoder]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, cancelarEdicaoPoder, salvarFirebaseImediato]);
 
     // 🔥 O ESCUDO ANTI-DRENAGEM (Resolve a perda acidental de energia ao Ligar a Forma) 🔥
     const togglePoder = useCallback((id) => {
@@ -268,7 +284,7 @@ export function PoderesFormProvider({ children }) {
         });
 
         salvarFichaSilencioso();
-    }, [updateFicha]);
+    }, [updateFicha, salvarFichaSilencioso]);
 
     const editarPoder = useCallback((id) => {
         const p = (minhaFicha?.poderes || []).find(po => po.id === id);
@@ -310,7 +326,7 @@ export function PoderesFormProvider({ children }) {
 
         updateFicha((ficha) => { ficha.poderes = (ficha.poderes || []).filter(po => po.id !== id); });
         salvarFichaSilencioso();
-    }, [minhaFicha, togglePoder, updateFicha]);
+    }, [minhaFicha, togglePoder, updateFicha, salvarFichaSilencioso]);
 
     const vincularArmaAoPoder = useCallback((poderId, armaId) => {
         updateFicha((ficha) => {
@@ -320,7 +336,7 @@ export function PoderesFormProvider({ children }) {
         });
         setVincularAberto(null);
         salvarFichaSilencioso();
-    }, [updateFicha]);
+    }, [updateFicha, salvarFichaSilencioso]);
 
     // 🔥 ESCUDOS ANTI-DRENAGEM NO EDITOR DE SUB-FORMAS 🔥
     const salvarFormaPoder = useCallback((poderId, forma) => {
@@ -341,7 +357,7 @@ export function PoderesFormProvider({ children }) {
             rescalarVitaisProporcional(ficha, oldM);
         });
         salvarFichaSilencioso();
-    }, [updateFicha]);
+    }, [updateFicha, salvarFichaSilencioso]);
 
     const deletarFormaPoder = useCallback((poderId, formaId) => {
         updateFicha((ficha) => {
@@ -356,7 +372,7 @@ export function PoderesFormProvider({ children }) {
             rescalarVitaisProporcional(ficha, oldM);
         });
         salvarFichaSilencioso();
-    }, [updateFicha]);
+    }, [updateFicha, salvarFichaSilencioso]);
 
     const ativarFormaPoder = useCallback((poderId, formaId) => {
         updateFicha((ficha) => {
@@ -370,7 +386,7 @@ export function PoderesFormProvider({ children }) {
             rescalarVitaisProporcional(ficha, oldM);
         });
         salvarFichaSilencioso();
-    }, [updateFicha]);
+    }, [updateFicha, salvarFichaSilencioso]);
 
     const armasEquipadas = useMemo(() => (minhaFicha?.inventario || []).filter(i => i.tipo === 'arma' && i.equipado), [minhaFicha]);
     const poderesGlobais = minhaFicha?.poderes || [];
@@ -417,7 +433,7 @@ export function PoderesFormProvider({ children }) {
             });
         });
         salvarFichaSilencioso();
-    }, [updateFicha]);
+    }, [updateFicha, salvarFichaSilencioso]);
 
     const relatorioAuditoria = useMemo(() => {
         const nomesProps = { mbase: 'MULT BASE (x)', mgeral: 'MULT GERAL (x)', mformas: 'MULT FORMA (x)', mabs: 'MULT ABSOLUTO (x)', munico: 'MULT UNICO (x)', base: 'VALOR BRUTO (+)' };
@@ -558,7 +574,7 @@ export function PoderesFormProvider({ children }) {
         alert(msg);
         setPoderPreparandoId(null);
         setOverchargeAtivo(false);
-    }, [overchargeAtivo, updateFicha, danoBruto, energiaElemental, mPotencial, minhaFicha]);
+    }, [overchargeAtivo, updateFicha, danoBruto, energiaElemental, mPotencial, minhaFicha, salvarFichaSilencioso]);
 
     const injetarJsonDaIA = useCallback((jsonString) => {
         try {
@@ -592,7 +608,7 @@ export function PoderesFormProvider({ children }) {
             alert("Erro no código da IA. Certifique-se de copiar o JSON completo.");
             return false;
         }
-    }, [updateFicha, abaAtual]);
+    }, [updateFicha, abaAtual, salvarFirebaseImediato]);
 
     const value = useMemo(() => ({
         minhaFicha, meuNome, isMestre, abaAtual, setAbaAtual,

@@ -389,7 +389,7 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
             expect(espada.equipado).toBe(false); // toggleEquiparItem desequipa a arma anterior automaticamente
         });
 
-        it('clicar na arma JÁ equipada não faz nada (não desequipa, não chama updateFicha de novo)', () => {
+        it('clicar na arma JÁ equipada a DESEQUIPA (chama updateFicha, nenhuma arma fica equipada, aria-pressed e title refletem o estado)', () => {
             const minhaFicha = {
                 poderes: [],
                 inventario: [{ id: 1, nome: 'Espada Longa', tipo: 'arma', equipado: true }],
@@ -399,11 +399,15 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
             const { getByText } = render(
                 <AtaqueFormProvider><ArsenalFormProvider><MapaAtaqueArma /></ArsenalFormProvider></AtaqueFormProvider>
             );
+            const botao = getByText('🗡️ Espada Longa');
+            expect(botao.getAttribute('aria-pressed')).toBe('true');
+            expect(botao.getAttribute('title')).toBe('Arma equipada — clique pra desequipar');
 
-            act(() => { getByText('🗡️ Espada Longa').click(); });
+            act(() => { botao.click(); });
 
-            expect(minhaFicha.inventario[0].equipado).toBe(true);
-            expect(updateFicha).not.toHaveBeenCalled();
+            expect(updateFicha).toHaveBeenCalledTimes(1);
+            expect(minhaFicha.inventario[0].equipado).toBe(false);
+            expect(minhaFicha.inventario.some(i => i.equipado)).toBe(false);
         });
 
         it('sem inventário nenhum, não mostra a lista de armas nem lança', () => {

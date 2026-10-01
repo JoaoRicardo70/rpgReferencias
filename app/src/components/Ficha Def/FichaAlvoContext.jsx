@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo } from 'react';
 import useStore, { sanitizarNome } from '../../stores/useStore';
-import { iniciarSincronizacaoFichaAlvo, pararSincronizacaoFichaAlvo, salvarFichaAlvoSilencioso, salvarFichaSilencioso } from '../../services/firebase-sync';
+import { iniciarSincronizacaoFichaAlvo, pararSincronizacaoFichaAlvo, salvarFichaAlvoSilencioso, salvarFichaSilencioso, salvarFichaAlvoImediato, salvarFirebaseImediato } from '../../services/firebase-sync';
 
 // 🔥 GRIMÓRIO DA ENTIDADE: envolve a Ficha Definitiva (Marcados.jsx) e seus painéis (Classificação/
 // Relicário/Pactos/Domínios) pra que TODOS os campos leiam e gravem na ficha de UMA ENTIDADE
@@ -71,5 +71,16 @@ export function useCallSaveAtivo() {
     return useCallback(() => {
         if (usandoAlvo) salvarFichaAlvoSilencioso(alvo.nome);
         else salvarFichaSilencioso();
+    }, [usandoAlvo, alvo?.nome]);
+}
+
+// Salvar JÁ (sem debounce) a ficha ativa — o "Gravar"/"Salvar" explícito das telas. Devolve a Promise
+// do save (a do alvo, dentro de um FichaAlvoProvider mirando outro personagem; a minha, por padrão).
+export function useSalvarImediatoAtivo() {
+    const alvo = useContext(FichaAlvoContext);
+    const usandoAlvo = !!alvo && !alvo.souEuMesmo;
+    return useCallback(() => {
+        if (usandoAlvo) return salvarFichaAlvoImediato(alvo.nome);
+        return salvarFirebaseImediato();
     }, [usandoAlvo, alvo?.nome]);
 }

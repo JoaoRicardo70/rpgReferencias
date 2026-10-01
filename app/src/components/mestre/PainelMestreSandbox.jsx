@@ -195,7 +195,7 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
             {/* 👑 LIVRO DA ENTIDADE (tela cheia): Ficha Definitiva + Habilidades/Poderes/Formas, Técnicas
                 Elementais e Inventário deste personagem (LivroEntidade.jsx). Na aba do Mestre ele é um só
                 (onAbrirLivro); sem essa prop, este painel abre o seu próprio. */}
-            {grimorioAberto && <LivroEntidade nome={personagemId} aoFechar={() => setGrimorioAberto(false)} />}
+            {grimorioAberto && <LivroEntidade key={personagemId} nome={personagemId} aoFechar={() => setGrimorioAberto(false)} />}
 
             <button 
                 onClick={() => setExpandido(!expandido)}
