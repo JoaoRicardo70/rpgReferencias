@@ -1942,3 +1942,43 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .limite-erro-btn.secundario { border-color: #888; color: #ccc; background: transparent; }
 .limite-erro-compacto { display: flex; align-items: center; gap: 10px; max-width: none; margin: 8px; padding: 8px 12px; font-size: 0.85em; }
 .limite-erro-compacto .limite-erro-btn { padding: 4px 10px; }
+
+/* ========== 🔔 PEDIDOS DA SEXTA-FEIRA NA ABA DO MESTRE (components/mestre/MestrePedidosSexta.jsx) ========== */
+.btn-macro.btn-macro-mestre { position: relative; }
+.sidebar-badge-pedidos { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 4px; box-sizing: border-box; border-radius: 9px; background: var(--cor-secundaria); color: #fff; font-size: 11px; font-weight: bold; line-height: 18px; text-align: center; box-shadow: 0 0 8px rgba(var(--cor-secundaria-rgb), 0.8); animation: pedido-pulsar 1.6s ease-in-out infinite; }
+.mestre-notificacoes { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid rgba(var(--cor-destaque-rgb), 0.6); border-left: 4px solid var(--cor-destaque); border-radius: 10px; background: rgba(40, 30, 0, 0.3); box-shadow: 0 0 18px rgba(var(--cor-destaque-rgb), 0.15); }
+.mestre-notificacoes-titulo { display: flex; align-items: center; gap: 8px; color: var(--cor-destaque); font-weight: bold; letter-spacing: 0.5px; }
+.mestre-notificacoes-sino { display: inline-block; animation: pedido-sino 2.4s ease-in-out infinite; }
+.mestre-notificacao { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid #3a3320; border-radius: 8px; background: rgba(0, 0, 0, 0.4); animation: pedido-entrar 0.35s ease-out; }
+.mestre-notificacao-cabecalho { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; color: #ddd; }
+.mestre-notificacao-cabecalho small { color: #888; font-size: 0.8em; }
+.mestre-notificacao-nome { color: #fff; font-size: 1.1em; font-weight: bold; }
+.mestre-notificacao-dados { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 0; font-size: 0.88em; }
+.mestre-notificacao-dados dt { color: #99a; text-transform: uppercase; font-size: 0.85em; letter-spacing: 0.5px; align-self: center; }
+.mestre-notificacao-dados dd { margin: 0; color: #dde; overflow-wrap: anywhere; }
+.mestre-notificacao-alerta { color: #ffb366; font-size: 0.88em; }
+.btn-neon.mestre-notificacao-ver { margin: 0; padding: 6px 14px; font-size: 0.9em; }
+.pedidos-ficha { display: flex; flex-direction: column; gap: 8px; }
+.pedido-ficha { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px dashed rgba(var(--cor-destaque-rgb), 0.7); border-radius: 6px; background: rgba(40, 30, 0, 0.35); }
+.pedido-ficha.em-foco { border-style: solid; border-color: var(--cor-destaque); box-shadow: 0 0 16px rgba(var(--cor-destaque-rgb), 0.45); animation: pedido-destacar 1.2s ease-out 2; }
+.pedido-ficha-topo { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.pedido-ficha-selo { color: var(--cor-destaque); font-size: 0.72em; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+.pedido-ficha-nome { color: #fff; }
+.pedido-ficha-meta { color: #99a; font-size: 0.8em; }
+.pedido-confirmar-texto { color: #ff8099; font-size: 0.85em; font-weight: bold; }
+.pedido-aviso { padding: 6px 10px; border-radius: 6px; font-size: 0.88em; animation: pedido-entrar 0.3s ease-out; }
+.pedido-aviso-ok { color: #00ff88; background: rgba(0, 255, 136, 0.08); border: 1px solid rgba(0, 255, 136, 0.4); }
+.pedido-aviso-erro { color: #ff8099; background: rgba(var(--cor-secundaria-rgb), 0.08); border: 1px solid rgba(var(--cor-secundaria-rgb), 0.4); }
+.grimorio-mestre-secao-elementos { color: #ff7a33; border-bottom: 1px solid #ff7a33; padding-bottom: 5px; }
+.grimorio-mestre-lista { display: flex; flex-direction: column; gap: 8px; margin-bottom: 25px; }
+.grimorio-mestre-item-elemento { display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; border-left: 3px solid #ff7a33; border-radius: 4px; background: rgba(255, 122, 51, 0.1); }
+.grimorio-mestre-item-elemento strong { color: #fff; }
+.grimorio-mestre-item-elemento span { color: #ffb38a; font-size: 0.9em; }
+.grimorio-mestre-vazio { color: #888; font-style: italic; }
+@keyframes pedido-pulsar { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
+@keyframes pedido-sino { 0%, 70%, 100% { transform: rotate(0); } 75% { transform: rotate(14deg); } 85% { transform: rotate(-12deg); } 95% { transform: rotate(6deg); } }
+@keyframes pedido-entrar { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes pedido-destacar { 0% { box-shadow: 0 0 0 rgba(var(--cor-destaque-rgb), 0); } 40% { box-shadow: 0 0 26px rgba(var(--cor-destaque-rgb), 0.8); } 100% { box-shadow: 0 0 16px rgba(var(--cor-destaque-rgb), 0.45); } }
+@media (prefers-reduced-motion: reduce) {
+    .sidebar-badge-pedidos, .mestre-notificacoes-sino, .mestre-notificacao, .pedido-ficha.em-foco, .pedido-aviso { animation: none; }
+}

@@ -44,6 +44,15 @@ export function MestreFormProvider({ children }) {
     const [dVisivelHp, setDVisivelHp] = useState('todos');
     const [dOculto, setDOculto] = useState(false);
 
+    // 🔔 "Ver a Habilidade" das notificações de pedidos da Sexta-Feira: abre o Grimório de quem pediu
+    // já no pedido. Um objeto novo a cada clique, pra reabrir mesmo se for o mesmo pedido.
+    const [pedidoEmFoco, setPedidoEmFoco] = useState(null);
+    const verPedidoNaFicha = useCallback((pedidoId, nome) => {
+        if (!pedidoId || !nome) return;
+        setPedidoEmFoco({ pedidoId, nome, em: Date.now() });
+    }, []);
+    const limparPedidoEmFoco = useCallback(() => setPedidoEmFoco(null), []);
+
     const enviarAviso = useCallback(() => {
         if (!msgSistema.trim()) return;
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: msgSistema.trim() });
@@ -180,11 +189,13 @@ export function MestreFormProvider({ children }) {
         jogadoresList,
         jogadoresComStats,
         fmt,
+        pedidoEmFoco, verPedidoNaFicha, limparPedidoEmFoco,
     }), [
         isMestre, meuNome, userLogado, mesaCriador, mesaMestres,
         msgSistema, dNome, dHp, dVit, dDefTipo, dDef, dVisivelHp, dOculto,
         enviarAviso, injetarDummie, handleApagarJogador, toggleCoMestre,
         jogadoresList, jogadoresComStats, fmt,
+        pedidoEmFoco, verPedidoNaFicha, limparPedidoEmFoco,
     ]);
 
     return (

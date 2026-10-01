@@ -10,7 +10,8 @@ import { resumoFichaDetalhado } from '../../core/sextaFeiraFerramentas';
 import { markdownParaTextoFalado } from '../../core/markdownSexta';
 import { configurarFalaSexta, juntarTextoFalado, mensagemErroMicrofone } from '../../core/vozSexta';
 import MarkdownSexta from './MarkdownSexta';
-import { resumirProposta, ROTULO_TIPO } from '../../core/sextaFeiraCriacao';
+import { ROTULO_TIPO } from '../../core/sextaFeiraCriacao';
+import DetalhesCriacao from './DetalhesCriacao';
 import { listarModelosGemini } from '../../services/sextaFeiraIA';
 import GravadorPanel from './GravadorPanel';
 import AIArvoreGenealogica from './AIArvoreGenealogica'; // <-- ADIÇÃO: Importando o novo componente
@@ -206,35 +207,6 @@ function BotaoOuvir({ texto }) {
         } catch (e) { /* sem voz */ }
     };
     return <button type="button" className="sexta-chip-btn" onClick={ouvir} title="Ouvir esta resposta" aria-label="Ouvir esta resposta">🔊</button>;
-}
-
-// 🛠️ Detalhes de uma criação (usado no cartão da resposta e nos pedidos pendentes do Mestre).
-function DetalhesCriacao({ tipo, objeto, avisos }) {
-    if (!objeto) return null;
-    const efeitos = [...(objeto.efeitos || []).map(e => ({ ...e, passivo: false })), ...(objeto.efeitosPassivos || []).map(e => ({ ...e, passivo: true }))];
-    return (
-        <div className="sexta-criacao-detalhes">
-            <div className="sexta-criacao-resumo">{resumirProposta(tipo, objeto)}</div>
-            {objeto.descricao && <p className="sexta-criacao-descricao">{objeto.descricao}</p>}
-            {efeitos.length > 0 && (
-                <ul className="sexta-criacao-efeitos">
-                    {efeitos.map((e, i) => (
-                        <li key={i}>{e.passivo ? '🛡️' : '⚡'} {e.nome}: <code>{e.atributo}</code> · <code>{e.propriedade}</code> = <strong>{e.valor}</strong></li>
-                    ))}
-                </ul>
-            )}
-            {tipo === 'tierlist' && (
-                <ul className="sexta-criacao-efeitos">
-                    {(objeto.ranks || []).map(r => <li key={r.nome}><strong>{r.rank}</strong> · {r.nome}</li>)}
-                </ul>
-            )}
-            {(avisos || []).length > 0 && (
-                <ul className="sexta-criacao-avisos">
-                    {avisos.map((a, i) => <li key={i}>⚠️ {a}</li>)}
-                </ul>
-            )}
-        </div>
-    );
 }
 
 const ESTADO_PROPOSTA = { aplicada: '✅ Aplicada', enviada: '⏳ Enviada ao Mestre', descartada: '🗑️ Descartada' };

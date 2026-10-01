@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useMestreForm } from './MestreFormContext';
 import { ref, set } from 'firebase/database';
 import { database } from '../../services/firebase-config';
@@ -10,8 +10,12 @@ import { calcularBarrasVida, getVitalMax, getVitalMaxEstavel, FATOR_EXIBICAO_VIT
 import { calcularFatorMultiplicadorForca, calcularPoderAtual } from '../../core/poder';
 import { formatarPoderCosmico } from '../../core/utils';
 import { iniciarArrastoTurno, lerArrastoTurno, encerrarArrastoTurno } from './MestreControleTurno';
+import { PedidosNaFicha } from './MestrePedidosSexta';
 
 const FALLBACK = <div style={{color:'#888',padding:10}}>Mestre provider não encontrado</div>;
+
+// Listas da ficha podem chegar do banco como objeto ({0: .., 1: ..}) em vez de array.
+const listaDaFicha = (v) => (Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : [])).filter(Boolean);
 
 // --- FUNÇÕES DE CÁLCULO DE STATUS ---
 function getStatusLimpo(ficha, chave, threshold) {
@@ -321,6 +325,17 @@ export function MestreVisorJogadores() {
     // ao vivo pelo listener do Firebase em MestreFormContext.jsx) o modal some/atualiza sozinho.
     const [nomeInspecionado, setNomeInspecionado] = useState(null);
 
+    // 🔔 "Ver a Habilidade" de uma notificação de pedido (MestrePedidosSexta.jsx): abre o Grimório de
+    // quem pediu, que rola até o pedido em destaque.
+    const pedidoEmFoco = ctx?.pedidoEmFoco;
+    useEffect(() => {
+        if (pedidoEmFoco?.nome) setNomeInspecionado(pedidoEmFoco.nome);
+    }, [pedidoEmFoco]);
+    // Estável (useCallback): os EntidadeCard são memoizados e recebem isto como prop.
+    const limparPedidoEmFoco = ctx?.limparPedidoEmFoco;
+    const abrirFicha = useCallback((nome) => { limparPedidoEmFoco?.(); setNomeInspecionado(nome); }, [limparPedidoEmFoco]);
+    const fecharFicha = useCallback(() => { limparPedidoEmFoco?.(); setNomeInspecionado(null); }, [limparPedidoEmFoco]);
+
     // 🔥 OTIMIZAÇÃO: a lista de condições customizadas (compêndio) é a mesma pra TODAS as entidades
     // da mesa -- calcular uma vez aqui em vez de dentro de cada PainelMestreSandbox evita repetir o
     // mesmo merge de overrides até 26+ vezes por render.
@@ -348,6 +363,7 @@ export function MestreVisorJogadores() {
     if (!ctx) return FALLBACK;
     const { jogadoresComStats, meuNome, userLogado, handleApagarJogador, fmt, toggleCoMestre, mesaCriador, mesaMestres } = ctx;
     const jogadorInspecionado = nomeInspecionado ? jogadoresComStats.find(j => j.nome === nomeInspecionado) : null;
+    const pedidoFocoId = pedidoEmFoco && pedidoEmFoco.nome === nomeInspecionado ? pedidoEmFoco.pedidoId : null;
 
     const togglePasta = (nomePasta) => setPastasAbertas(prev => ({...prev, [nomePasta]: !prev[nomePasta]}));
 
@@ -390,7 +406,7 @@ export function MestreVisorJogadores() {
             fmt={fmt}
             condicoesGlobais={condicoesGlobais}
             divisorPoderMesa={divisorPoderMesa}
-            onAbrirFicha={setNomeInspecionado}
+            onAbrirFicha={abrirFicha}
             onPromover={toggleCoMestre}
             onApagar={handleApagarJogador}
         />
@@ -475,7 +491,7 @@ export function MestreVisorJogadores() {
                         background: '#0a0a0f', border: '2px solid #0088ff', borderRadius: '10px', padding: '20px', position: 'relative',
                         boxShadow: '0 0 30px rgba(0,136,255,0.3)'
                     }}>
-                        <button onClick={() => setNomeInspecionado(null)} style={{ position: 'absolute', top: 15, right: 15, background: 'none', border: 'none', color: '#ff003c', fontSize: '1.5em', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+                        <button onClick={fecharFicha} style={{ position: 'absolute', top: 15, right: 15, background: 'none', border: 'none', color: '#ff003c', fontSize: '1.5em', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
                         
                         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px', borderBottom: '1px solid #333', paddingBottom: '15px' }}>
                             {jogadorInspecionado.ficha.avatar?.base ? (
@@ -521,6 +537,19 @@ export function MestreVisorJogadores() {
                                     <span style={{ color: '#ccc', fontSize: '0.9em', marginTop: '4px' }}>{pod.descricao || 'Sem descrição.'}</span>
                                 </div>
                             )) : null}
+                            <PedidosNaFicha nome={jogadorInspecionado.nome} secao="poderes" pedidoFocoId={pedidoFocoId} />
+                        </div>
+
+                        {/* Técnicas Elementais (aba Elementos) */}
+                        <h3 className="grimorio-mestre-secao-elementos">🔥 Técnicas Elementais</h3>
+                        <div className="grimorio-mestre-lista">
+                            {listaDaFicha(jogadorInspecionado.ficha.ataquesElementais).length > 0 ? listaDaFicha(jogadorInspecionado.ficha.ataquesElementais).map((magia, i) => (
+                                <div key={magia.id || `mag_${i}`} className="grimorio-mestre-item-elemento">
+                                    <strong>{magia.nome || 'Técnica sem nome'}</strong>
+                                    <span>{magia.elemento || 'Neutro'}</span>
+                                </div>
+                            )) : <div className="grimorio-mestre-vazio">Nenhuma Técnica Elemental.</div>}
+                            <PedidosNaFicha nome={jogadorInspecionado.nome} secao="magias" pedidoFocoId={pedidoFocoId} />
                         </div>
 
                         {/* Aba de Inventario */}
@@ -534,6 +563,7 @@ export function MestreVisorJogadores() {
                                     </span>
                                 </div>
                             )) : <div style={{ color: '#888', fontStyle: 'italic' }}>O relicário deste jogador está vazio.</div>}
+                            <PedidosNaFicha nome={jogadorInspecionado.nome} secao="inventario" pedidoFocoId={pedidoFocoId} />
                         </div>
                     </div>
                 </div>

@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import useStore from '../../stores/useStore';
+import { ordenarPedidosPendentes } from '../../core/sextaFeiraCriacao';
 
 export default function Sidebar({ onResetClick }) {
     const abaAtiva = useStore(s => s.abaAtiva);
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
     const isMestre = useStore(s => s.isMestre);
+    // 🔔 Pedidos de criação dos jogadores à Sexta-Feira esperando o Mestre (detalhes na aba do Mestre).
+    const qtdPedidos = useStore(s => (s.isMestre ? ordenarPedidosPendentes(s.sextaFeiraPendentes).length : 0));
 
     const [gavetaAberta, setGavetaAberta] = useState('entidade');
 
@@ -82,11 +85,11 @@ export default function Sidebar({ onResetClick }) {
             {isMestre && (
                 <div className="gaveta-container" style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '15px', marginBottom: '5px' }}>
                     <button
-                        title="Painel do Mestre"
-                        className={`btn-macro ${abaAtiva === 'aba-mestre' ? 'ativa' : ''}`}
+                        title={qtdPedidos > 0 ? `Painel do Mestre — ${qtdPedidos} pedido(s) aguardando aprovação` : 'Painel do Mestre'}
+                        className={`btn-macro btn-macro-mestre ${abaAtiva === 'aba-mestre' ? 'ativa' : ''}`}
                         onClick={() => { setAbaAtiva('aba-mestre'); setGavetaAberta(''); }}
                         style={abaAtiva === 'aba-mestre' ? { background: 'rgba(255,204,0,0.2)', borderColor: '#ffcc00', boxShadow: '0 0 15px rgba(255,204,0,0.4)' } : {}}
-                    >👑</button>
+                    >👑{qtdPedidos > 0 && <span className="sidebar-badge-pedidos" aria-label={`${qtdPedidos} pedido(s) aguardando aprovação`}>{qtdPedidos > 9 ? '9+' : qtdPedidos}</span>}</button>
                 </div>
             )}
 

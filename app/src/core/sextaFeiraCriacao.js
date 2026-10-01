@@ -51,6 +51,94 @@ export const IDS_RANKS = [
 // Onde cada tipo entra na ficha.
 export const CAMPO_FICHA_POR_TIPO = { poder: 'poderes', magia: 'ataquesElementais', item: 'inventario' };
 export const ROTULO_TIPO = { poder: 'Habilidade/Poder/Forma', magia: 'Técnica Elemental', item: 'Item do Arsenal', npc: 'NPC do Mapa', tierlist: 'Tier List' };
+// O que um jogador pode pedir pra própria ficha (o resto é só do Mestre).
+export const TIPOS_PEDIDO_JOGADOR = ['poder', 'magia', 'item'];
+
+// 🔔 Onde um pedido vai parar na ficha, pra notificação do Mestre e pro Grimório abrir no lugar certo.
+//   secao  — bloco do Grimório do Mestre: 'poderes' | 'magias' | 'inventario'
+//   pagina — aba da ficha (mesmos nomes do menu lateral)
+//   local  — onde dentro da aba (sub-aba, pasta, elemento)
+//   tipo   — o que é, em uma linha
+//   oQue / botaoVer — textos da notificação ("pediu uma Habilidade", "Ver a Habilidade")
+const CATEGORIA_PODER_TEXTO = { habilidade: 'Habilidade', poder: 'Poder', forma: 'Forma' };
+const ARTIGOS_PODER = { habilidade: ['uma', 'a'], poder: ['um', 'o'], forma: ['uma', 'a'] };
+const SUBABA_PODER_TEXTO = { habilidade: 'Habilidades', poder: 'Poderes', forma: 'Formas' };
+const TIPO_ITEM_TEXTO = { arma: 'Arma', armadura: 'Armadura', artefato: 'Artefato' };
+const MECANICA_MAGIA_TEXTO = { ataque: 'Ataque', saving: 'Teste de resistência', infusao: 'Infusão', suporte: 'Suporte' };
+
+export function descreverDestinoPedido(tipo, objeto) {
+    const o = objeto || {};
+    if (tipo === 'poder') {
+        const categoria = CATEGORIAS_PODER.includes(o.categoria) ? o.categoria : 'habilidade';
+        const pasta = String(o.pasta || '').trim();
+        const vertente = String(o.vertente || '').trim();
+        return {
+            secao: 'poderes',
+            pagina: 'Poderes Clássicos',
+            local: `${SUBABA_PODER_TEXTO[categoria]}${pasta ? ` › pasta "${pasta}"` : ''}`,
+            tipo: [CATEGORIA_PODER_TEXTO[categoria], vertente && `${vertente}${o.elemento ? ` (${o.elemento})` : ''}`].filter(Boolean).join(' · '),
+            oQue: `${ARTIGOS_PODER[categoria][0]} ${CATEGORIA_PODER_TEXTO[categoria]}`,
+            botaoVer: `Ver ${ARTIGOS_PODER[categoria][1]} ${CATEGORIA_PODER_TEXTO[categoria]}`,
+        };
+    }
+    if (tipo === 'magia') {
+        const elemento = String(o.elemento || '').trim() || 'Neutro';
+        return {
+            secao: 'magias',
+            pagina: 'Elementos',
+            local: `Pergaminhos de ${elemento}`,
+            tipo: `Técnica Elemental · ${MECANICA_MAGIA_TEXTO[o.tipoMecanica] || o.tipoMecanica || 'Ataque'}`,
+            oQue: 'uma Técnica Elemental',
+            botaoVer: 'Ver a Técnica',
+        };
+    }
+    if (tipo === 'item') {
+        return {
+            secao: 'inventario',
+            pagina: 'Inventário',
+            local: 'Mochila (não equipado)',
+            tipo: [TIPO_ITEM_TEXTO[o.tipo] || 'Item', o.armaTipo, o.raridade].filter(Boolean).join(' · '),
+            oQue: 'um Item',
+            botaoVer: 'Ver o Item',
+        };
+    }
+    return { secao: '', pagina: '', local: '', tipo: ROTULO_TIPO[tipo] || String(tipo || ''), oQue: 'uma criação', botaoVer: 'Ver o pedido' };
+}
+
+// Pedidos da fila prontos pra MOSTRAR, do mais novo pro mais antigo: [id, pedido][]. Qualquer um da
+// mesa consegue escrever na fila, então cada pedido sai normalizado (mesmo formato das telas, textos
+// como texto, avisos como lista): um pedido malformado nunca quebra a tela do Mestre. Gravar continua
+// passando pela validação própria (hooks/usePedidosCriacao.js), que relê o pedido do banco.
+export function ordenarPedidosPendentes(pendentes) {
+    if (!pendentes || typeof pendentes !== 'object') return [];
+    const lista = [];
+    Object.entries(pendentes).forEach(([id, p]) => {
+        if (!p || typeof p !== 'object' || !p.objeto || typeof p.objeto !== 'object' || !TIPOS_PEDIDO_JOGADOR.includes(p.tipo)) return;
+        const { objeto, valido } = normalizarProposta(p.tipo, p.objeto);
+        if (!valido) return;
+        lista.push([id, {
+            tipo: p.tipo,
+            objeto,
+            alvo: texto(p.alvo, 60),
+            solicitante: texto(p.solicitante, 60),
+            avisos: (Array.isArray(p.avisos) ? p.avisos : []).map(a => texto(a, 300)).filter(Boolean),
+            em: Number(p.em) || 0,
+        }]);
+    });
+    return lista.sort(([, a], [, b]) => b.em - a.em);
+}
+
+// "agora mesmo", "há 5 min", "há 2 h", "há 3 dias" (pra notificações).
+export function tempoDesde(em, agora = Date.now()) {
+    const ms = Number(agora) - Number(em);
+    if (!Number.isFinite(ms) || ms < 60000) return 'agora mesmo';
+    const min = Math.floor(ms / 60000);
+    if (min < 60) return `há ${min} min`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `há ${h} h`;
+    const dias = Math.floor(h / 24);
+    return `há ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
+}
 
 const texto = (v, max = 2000) => String(v ?? '').trim().substring(0, max);
 const numero = (v, padrao, min = -Infinity, max = Infinity) => {
