@@ -76,10 +76,15 @@ export const fichaPadrao = {
     }
 };
 
-export function sanitizarNome(n) { return !n ? '' : n.replace(/[.#$\[\]\/]/g, '_').trim(); }
+export function sanitizarNome(n) { return !n ? '' : String(n).replace(/[.#$\[\]\/]/g, '_').trim(); }
 function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
-const storedMesaId = localStorage.getItem('rpg_mesaId') || '';
+// Leitura do localStorage que nunca lança (armazenamento bloqueado/modo privado restrito).
+function lerLocal(chave) {
+    try { return localStorage.getItem(chave); } catch (e) { return null; }
+}
+
+const storedMesaId = lerLocal('rpg_mesaId') || '';
 
 // 🔥 REGISTROS AKÁSHICOS (Lore da Sexta-Feira): única fonte de verdade no Zustand,
 // para que o HUD do Mestre (MapaSextaFeira) e o painel do Oráculo (AIFormContext)
@@ -103,16 +108,16 @@ function migrarLoreParaArcos(salvoStr) {
 }
 
 function lerLoreLocal(chave, padrao) {
-    const migrado = migrarLoreParaArcos(localStorage.getItem(chave));
+    const migrado = migrarLoreParaArcos(lerLocal(chave));
     return migrado || padrao;
 }
 function lerLoreNumeroLocal(chave, padrao) {
-    return Number(localStorage.getItem(chave)) || padrao;
+    return Number(lerLocal(chave)) || padrao;
 }
 
 function getDivisorPoderMesaKey(mesaId) { return `rpg_divisorPoderMesa_${mesaId || 'semMesa'}`; }
 function lerDivisorPoderMesaLocal(mesaId) {
-    const raw = localStorage.getItem(getDivisorPoderMesaKey(mesaId));
+    const raw = lerLocal(getDivisorPoderMesaKey(mesaId));
     const val = parseFloat(raw);
     return (!isNaN(val) && val > 0) ? val : 1;
 }
@@ -135,8 +140,10 @@ const useStore = create(
         mesaId: storedMesaId,
         setMesaId: (id) => set(state => {
             state.mesaId = id;
-            if (id) localStorage.setItem('rpg_mesaId', id);
-            else localStorage.removeItem('rpg_mesaId');
+            try {
+                if (id) localStorage.setItem('rpg_mesaId', id);
+                else localStorage.removeItem('rpg_mesaId');
+            } catch (e) { /* sem localStorage */ }
             state.divisorPoderMesa = lerDivisorPoderMesaLocal(id);
         }),
         minhaFicha: deepClone(fichaPadrao),

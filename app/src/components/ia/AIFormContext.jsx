@@ -257,12 +257,15 @@ export function AIFormProvider({ children }) {
     }, [historico, mesaId, meuNome]);
 
     useEffect(() => {
-        localStorage.setItem('rpgSextaFeira_capitulos', JSON.stringify(capitulosPresente));
-        localStorage.setItem('rpgSextaFeira_capituloAtivo', capituloAtivoId);
-        localStorage.setItem('rpgSextaFeira_arcoAtivoPresente', arcoAtivoIdPresente);
-        localStorage.setItem('rpgSextaFeira_capitulosFuturo', JSON.stringify(capitulosFuturo));
-        localStorage.setItem('rpgSextaFeira_capFuturoAtivo', capFuturoAtivoId);
-        localStorage.setItem('rpgSextaFeira_arcoAtivoFuturo', arcoAtivoIdFuturo);
+        // Cópia local dos Registros: sem try, uma cota cheia (ex.: árvore com imagens) derrubava o app.
+        try {
+            localStorage.setItem('rpgSextaFeira_capitulos', JSON.stringify(capitulosPresente));
+            localStorage.setItem('rpgSextaFeira_capituloAtivo', capituloAtivoId);
+            localStorage.setItem('rpgSextaFeira_arcoAtivoPresente', arcoAtivoIdPresente);
+            localStorage.setItem('rpgSextaFeira_capitulosFuturo', JSON.stringify(capitulosFuturo));
+            localStorage.setItem('rpgSextaFeira_capFuturoAtivo', capFuturoAtivoId);
+            localStorage.setItem('rpgSextaFeira_arcoAtivoFuturo', arcoAtivoIdFuturo);
+        } catch (e) { /* sem espaço/acesso ao localStorage */ }
     }, [capitulosPresente, capituloAtivoId, arcoAtivoIdPresente, capitulosFuturo, capFuturoAtivoId, arcoAtivoIdFuturo]);
 
     const limparChat = useCallback(async () => {
@@ -809,7 +812,7 @@ export function AIFormProvider({ children }) {
             setRespostaParcial(null);
             setCarregando(false);
         }
-    }, [podeVerFuturo, capitulosPresente, capitulosFuturo, loreFoco, arcoAtivoObj, preferencias, meuNome, isMestre, mesaId, alvosMencao, sextaFeiraConfig]);
+    }, [podeVerFuturo, capitulosPresente, capitulosFuturo, loreFoco, arcoAtivoObj, capituloAtivoObj, preferencias, meuNome, isMestre, mesaId, alvosMencao, sextaFeiraConfig]);
 
     const avisarSemChave = useCallback(() => {
         setHistorico(prev => [...prev, { role: 'erro', texto: isMestre

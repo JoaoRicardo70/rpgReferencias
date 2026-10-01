@@ -549,13 +549,15 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
             
             if (tiposArmas.includes(armaAlvo)) {
                 bonusProfArma += (parseFloat(ef.valor) || 0);
-                if (!nomesProfArma.includes(armaAlvo)) nomesProfArma.push(ef.atributo.trim().toUpperCase());
+                const nomeProf = ef.atributo.trim().toUpperCase();
+                if (!nomesProfArma.includes(nomeProf)) nomesProfArma.push(nomeProf);
             }
         }
     }
 
     let atrNames = [];
-    for (let i = 0; i < sels.length; i++) atrNames.push(minhaFicha[sels[i]].nome || sels[i].toUpperCase());
+    // Ficha antiga pode não ter o atributo: cai no nome da chave em vez de quebrar a rolagem.
+    for (let i = 0; i < sels.length; i++) atrNames.push(minhaFicha[sels[i]]?.nome || sels[i].toUpperCase());
 
     let armaStr = nomesArmas.length ? ` equipado com <strong>${nomesArmas.join(' e ')}</strong>` : '';
 
@@ -642,7 +644,7 @@ export function calcularReducao({ energiaKey, perc, multBase, minhaFicha, itensE
         let redBase = (minhaFicha[e] && minhaFicha[e].reducaoCusto) ? parseFloat(minhaFicha[e].reducaoCusto) : 0;
         let red = Math.min(100, redBase + bEnergia.reducaoCusto);
         let cr = Math.floor(gt * (1 - (red / 100)));
-        if ((minhaFicha[e].atual || 0) < cr) return { erro: 'Sem energia!' };
+        if ((minhaFicha[e]?.atual || 0) < cr) return { erro: 'Sem energia!' };
         chk.push({ e: e, cr: cr, bb: gt });
     }
 
@@ -659,7 +661,7 @@ export function calcularReducao({ energiaKey, perc, multBase, minhaFicha, itensE
     let total = Math.floor(bBruto * multFinal);
     let pVit = Math.max(0, contarDigitos(total) - 8);
     let escRed = pVit > 0 ? Math.floor(total / Math.pow(10, pVit)) : total;
-    let nDef = energiaKey === 'poder' ? 'PODER TOTAL' : minhaFicha[energiaKey].nome;
+    let nDef = energiaKey === 'poder' ? 'PODER TOTAL' : (minhaFicha[energiaKey]?.nome || String(energiaKey).toUpperCase());
 
     let strArmadura = nomesArmaduras.length ? ` equipado com <strong>${nomesArmaduras.join(' e ')}</strong>` : '';
 

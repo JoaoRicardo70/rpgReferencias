@@ -8,10 +8,10 @@ const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Mapa provider não 
 
 export function MapaFerramentasMestre() {
     const ctx = useMapaForm();
-    if (!ctx) return FALLBACK;
-    
-    const { isMestre, isModoRP, mestreVendoRP } = ctx;
     const [abaMestre, setAbaMestre] = useState('');
+    if (!ctx) return FALLBACK;
+
+    const { isMestre, isModoRP, mestreVendoRP } = ctx;
 
     if (!isMestre) return null;
 
@@ -191,8 +191,7 @@ export function MapaMestreGeradorDummies() {
 
 export function MapaMestreDanoRapido() {
     const ctx = useMapaForm();
-    if (!ctx) return FALLBACK;
-    const { isMestre, isModoRP, mestreVendoRP, jogadores, dummies, cenaRenderId, aplicarDanoRapido } = ctx;
+    const { isMestre, isModoRP, mestreVendoRP, jogadores, dummies, cenaRenderId, aplicarDanoRapido } = ctx || {};
     const [alvoId, setAlvoId] = useState('');
     const [valorDano, setValorDano] = useState(10);
     // 🛡️ Elemento do dano (opcional): marcar o elemento aqui registra ficha.combate.
@@ -208,7 +207,6 @@ export function MapaMestreDanoRapido() {
     // Redução de Dano do alvo — um golpe vindo de um Domínio igual ou maior que o do alvo
     // atravessa sem nenhuma redução. Em branco = ataque comum, sem Domínio nenhum (0).
     const [nivelAtacanteDano, setNivelAtacanteDano] = useState('');
-    if (!isMestre || (isModoRP && !mestreVendoRP)) return null;
 
     // Mesmo filtro-por-cena de MapaIniciativaTracker (todasEntidades) — só mostra quem está
     // presente na cena que o Mestre está vendo agora, senão a lista ficaria cheia de gente/
@@ -223,6 +221,11 @@ export function MapaMestreDanoRapido() {
         const ds = Object.entries(dummies || {}).filter(([id, d]) => (d.cenaId || 'default') === cenaRenderId).map(([id, d]) => ({ id, nome: d.nome, ficha: d, isDummie: true }));
         return [...js, ...ds];
     }, [jogadores, dummies, cenaRenderId]);
+
+    // Os returns ficam DEPOIS de todos os hooks: o Mestre alterna o modo RP com o painel aberto,
+    // e um hook a menos entre renders derruba a tela.
+    if (!ctx) return FALLBACK;
+    if (!isMestre || (isModoRP && !mestreVendoRP)) return null;
 
     const alvoAtual = alvos.find(a => a.id === alvoId) || null;
 

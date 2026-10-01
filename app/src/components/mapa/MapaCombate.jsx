@@ -133,8 +133,7 @@ function DadoFisico3D({ isLanded, cor }) {
 
 export function MapaDadoAnimado() {
     const ctx = useMapaForm();
-    if (!ctx) return null;
-    const { dadoAnim, abaAtiva } = ctx;
+    const { dadoAnim, abaAtiva } = ctx || {};
 
     const painelMapa = document.querySelector('.mapa-panel');
     const mapaVisivel = painelMapa && (painelMapa.offsetWidth > 0 || painelMapa.offsetHeight > 0);
@@ -175,7 +174,7 @@ export function MapaDadoAnimado() {
         }
     }, [dadoAnim?.ativo, dadoAnim?.finalResult]);
 
-    if (!dadoAnim?.ativo || (!mapaVisivel && !isAbaMapa)) return null;
+    if (!ctx || !dadoAnim?.ativo || (!mapaVisivel && !isAbaMapa)) return null;
 
     const isLanded = !!dadoAnim.finalResult;
 
@@ -320,14 +319,12 @@ export function MapaEconomiaAcoes() {
 
 export function MapaIniciativaTracker() {
     const ctx = useMapaForm();
-    if (!ctx) return null;
-    
     const {
         minhaFicha, iniciativaInput, setIniciativaInput, isMestre, sairDoCombate, encerrarCombate, descansar,
         setMinhaIniciativa, avancarTurno, ordemIniciativa, turnoAtualIndex, jogadorHistory,
         setJogadorHistory, feedCombate, getAvatarInfo, fmt, jogadorDaVez, infoDaVez, cenario,
         jogadores, dummies, cenaRenderId
-    } = ctx;
+    } = ctx || {};
 
     const todasEntidades = useMemo(() => {
         // Jogador pode ter a posição no sistema novo (posicoes[cenaId]) ou no antigo (posicao.cenaId) —
@@ -342,6 +339,8 @@ export function MapaIniciativaTracker() {
         const ds = Object.entries(dummies || {}).filter(([id, d]) => (d.cenaId || 'default') === cenaRenderId).map(([id, d]) => ({ id, nome: d.nome, ficha: d, isDummie: true, init: d.iniciativa || 0 }));
         return [...js, ...ds].sort((a, b) => b.init - a.init);
     }, [jogadores, dummies, cenaRenderId]);
+
+    if (!ctx) return null;
 
     const toggleVisibilidadeToken = (e, idOuNome) => {
         e.stopPropagation();

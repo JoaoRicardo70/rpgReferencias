@@ -36,7 +36,7 @@ export default function AIArvoreGenealogica() {
             if (snap.exists()) {
                 const dadosNuvem = snap.val();
                 setFamilias(dadosNuvem);
-                localStorage.setItem('rpgSextaFeira_arvore', JSON.stringify(dadosNuvem));
+                try { localStorage.setItem('rpgSextaFeira_arvore', JSON.stringify(dadosNuvem)); } catch (e) { /* cota do localStorage: a nuvem continua valendo */ }
                 // Garante que a aba ativa continua válida
                 setFamiliaAtiva(prev => dadosNuvem[prev] ? prev : (Object.keys(dadosNuvem)[0] || null));
             }
@@ -46,7 +46,7 @@ export default function AIArvoreGenealogica() {
 
     // Preserva a gravação local como backup de segurança secundário
     useEffect(() => {
-        localStorage.setItem('rpgSextaFeira_arvore', JSON.stringify(familias));
+        try { localStorage.setItem('rpgSextaFeira_arvore', JSON.stringify(familias)); } catch (e) { /* cota do localStorage (imagens em base64): segue sem a cópia local */ }
     }, [familias]);
 
     const getIniciais = (nome) => {

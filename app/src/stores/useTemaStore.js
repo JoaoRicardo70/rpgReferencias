@@ -41,10 +41,16 @@ function obterVariaveisCSS() {
   return vars
 }
 
+// Leitura que nunca lança: com o armazenamento bloqueado, o store (criado no carregamento do
+// módulo) quebrava a abertura do app.
+function lerTemaSalvo() {
+  try { return localStorage.getItem('rpgTema') } catch (e) { return null }
+}
+
 const useTemaStore = create(
   immer((set, get) => ({
     // Estado
-    temaAtivo: localStorage.getItem('rpgTema') || 'neon-ciano',
+    temaAtivo: lerTemaSalvo() || 'neon-ciano',
     temasCustom: {},
 
     /**
@@ -140,7 +146,7 @@ const useTemaStore = create(
      * Inicia o tema salvo na inicialização
      */
     iniciarTema() {
-      const temaId = localStorage.getItem('rpgTema') || 'neon-ciano'
+      const temaId = lerTemaSalvo() || 'neon-ciano'
       const tema = get().obterTema(temaId)
 
       if (tema) {

@@ -20,7 +20,7 @@ export function iniciarSistemaDePresenca(mesaId, meuNome) {
 
     const unsub = onValue(connectedRef, (snap) => {
         if (snap.val() === true) {
-            onDisconnect(myConnectionsRef).remove().then(() => { set(myConnectionsRef, true); });
+            onDisconnect(myConnectionsRef).remove().then(() => set(myConnectionsRef, true)).catch(() => {});
         }
     });
     return unsub;
@@ -53,13 +53,13 @@ export function monitorarAuth(callback) {
             
             // 🔥 A MÁGICA: Injeta a identidade diretamente no Cérebro do Jogo
             useStore.getState().setMeuNome(nick); 
-            localStorage.setItem('rpgNome', nick); // Garante a retrocompatibilidade com a Web
+            try { localStorage.setItem('rpgNome', nick); } catch (e) { /* sem localStorage */ } // Garante a retrocompatibilidade com a Web
             
             callback(nick);
         }
         else {
             useStore.getState().setMeuNome('');
-            localStorage.removeItem('rpgNome');
+            try { localStorage.removeItem('rpgNome'); } catch (e) { /* sem localStorage */ }
             callback(null);
         }
     });
@@ -318,8 +318,7 @@ export function salvarFichaAlvoImediato(nome) {
     // sempre o listener da mesa (mesclarPersonagensRemotos), nunca este .then() -- senão um
     // snapshot concorrente (o próprio jogador editando esta ficha ao mesmo tempo) teria sua
     // baseline mais atual pisoteada por este envio, revertendo aquela mudança no próximo save.
-    return update(ref(db, `mesas/${mesaId}/personagens/${nome}`), alteracoes)
-        .catch((err) => { throw err; });
+    return update(ref(db, `mesas/${mesaId}/personagens/${chave}`), alteracoes);
 }
 
 export function salvarFichaAlvoSilencioso(nome) {

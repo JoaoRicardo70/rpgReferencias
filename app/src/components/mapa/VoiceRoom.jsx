@@ -75,7 +75,7 @@ export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamPara
         const saved = localStorage.getItem(`rpg_vol_${nome}`);
         return saved !== null ? parseFloat(saved) : 1; 
     });
-    useEffect(() => { localStorage.setItem(`rpg_vol_${nome}`, volume); }, [volume, nome]);
+    useEffect(() => { try { localStorage.setItem(`rpg_vol_${nome}`, volume); } catch (e) { /* sem localStorage */ } }, [volume, nome]);
     
     const [euEstouFalandoState, setEuEstouFalandoState] = useState(false);
 

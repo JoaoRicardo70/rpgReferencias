@@ -143,6 +143,8 @@ export function PoderesFormProvider({ children }) {
         setArmaVinculada('');
         setMaestriaPoder(0);
         setFadigaPorUsoPoder(15);
+        // Sem isto, a próxima Habilidade criada herdava a Maestria Requerida da última editada.
+        setMaestriaRequeridaPoder(0);
         setPastaPoder('');
         setEfeitosTemp([]);
         setEfeitosTempPassivos([]);
@@ -583,7 +585,7 @@ export function PoderesFormProvider({ children }) {
                     });
                 }
             });
-            salvarFirebaseImediato();
+            salvarFirebaseImediato().catch(() => {});
             alert(`Sincronização Concluída!\n\n🗡️ Injetados na aba atual: ${countP} habilidades.`);
             return true;
         } catch (e) {

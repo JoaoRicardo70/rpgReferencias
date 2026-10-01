@@ -19,7 +19,7 @@ export default function ModalConfirm({ className }) {
         deletarPersonagem(personagemParaDeletar);
         if (meuNome === personagemParaDeletar) {
             setMeuNome('Sem Nome');
-            localStorage.setItem('rpg_nome', 'Sem Nome');
+            try { localStorage.setItem('rpg_nome', 'Sem Nome'); } catch (e) { /* sem localStorage */ }
             resetFicha();
         }
         fecharModal();

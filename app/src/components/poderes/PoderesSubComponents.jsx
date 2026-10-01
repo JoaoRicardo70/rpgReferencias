@@ -351,6 +351,7 @@ const PLURAL_COM_ARTIGO = { habilidade: 'as Habilidades', forma: 'as Formas', po
 
 export function PoderesLista() {
     const ctx = usePoderesForm();
+    const [pastasFechadas, setPastasFechadas] = useState({});
     if (!ctx) return FALLBACK;
     const {
         abaAtual, itensFiltrados, poderPreparandoId, setPoderPreparandoId,
@@ -362,7 +363,6 @@ export function PoderesLista() {
         renomearPastaForma
     } = ctx;
 
-    const [pastasFechadas, setPastasFechadas] = useState({});
     // Namespaced por categoria (abaAtual::nome) — sem isso, recolher "Combos" na aba Habilidades
     // também recolheria uma pasta "Combos" de outra categoria que reusasse o mesmo nome.
     const toggleFechada = (nome) => setPastasFechadas(prev => ({ ...prev, [`${abaAtual}::${nome}`]: !prev[`${abaAtual}::${nome}`] }));

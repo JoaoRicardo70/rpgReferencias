@@ -146,6 +146,16 @@ export function formatarPoderCosmico(valor) {
     let strVal = String(valor).trim().toLowerCase();
     let baseNum = 0;
     let expoente = 0;
+    let sinal = '';
+
+    // Número com casas decimais (ex.: Poder dividido pelo Divisor): só a parte inteira conta
+    // para a escala — antes o ponto decimal era descartado junto com os não-dígitos e o valor
+    // aparecia 10x, 100x... maior ("12345678.5" virava "123,45 Milhões").
+    const numero = Number(valor);
+    if (Number.isFinite(numero)) {
+        if (numero < 0) sinal = '-';
+        strVal = String(Math.trunc(Math.abs(numero))).toLowerCase();
+    }
 
     if (strVal.includes('e')) {
         const parts = strVal.split('e');
@@ -183,7 +193,7 @@ export function formatarPoderCosmico(valor) {
             let formatado = valorFinal % 1 === 0 
                 ? valorFinal.toLocaleString('pt-BR') 
                 : valorFinal.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
-            return `${formatado}${sufixos[i].nome}`;
+            return `${sinal}${formatado}${sufixos[i].nome}`;
         }
     }
     return Number(valor).toLocaleString('pt-BR');

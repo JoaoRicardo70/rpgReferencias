@@ -86,11 +86,11 @@ export function StatusRadarChart({ isAtual }) {
 
 export function StatusAtributosLista({ isAtual }) {
     const ctx = useStatusForm();
-    if (!ctx) return FALLBACK;
-    const { ficha } = ctx;
-    if (!ficha) return null;
+    const ficha = ctx?.ficha;
 
-    const valores = useMemo(() => ATRIBUTOS_PRINCIPAIS.map(({ key, label }) => {
+    // O useMemo vem antes dos returns: a ficha costuma chegar depois do primeiro render, e um hook
+    // a mais entre renders derruba a tela.
+    const valores = useMemo(() => (!ficha ? [] : ATRIBUTOS_PRINCIPAIS.map(({ key, label }) => {
         let valor;
         if (isAtual) {
             // 🔥 CORREÇÃO: faltava o "Multiplicador de Força" de Ascensão/Prestígio-overflow que
@@ -104,7 +104,10 @@ export function StatusAtributosLista({ isAtual }) {
             valor = Math.floor(rawBase * mBase);
         }
         return { key, label, valor: Math.floor(valor / FATOR_EXIBICAO_STATUS) };
-    }), [ficha, isAtual]);
+    })), [ficha, isAtual]);
+
+    if (!ctx) return FALLBACK;
+    if (!ficha) return null;
 
     return (
         <div className="atributo-lista" style={{ marginTop: '20px' }}>

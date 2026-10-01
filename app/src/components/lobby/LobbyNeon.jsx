@@ -30,7 +30,7 @@ export default function LobbyNeon() {
     useEffect(() => {
         if (userLogado) {
             setMeuNome(userLogado);
-            localStorage.setItem('rpgNome', userLogado);
+            try { localStorage.setItem('rpgNome', userLogado); } catch (e) { /* sem localStorage */ }
         }
     }, [userLogado, setMeuNome]);
 
@@ -54,12 +54,14 @@ export default function LobbyNeon() {
 
     useEffect(() => {
         document.body.className = temaAtivo;
-        localStorage.setItem('rpg_tema', temaAtivo);
-        localStorage.setItem('rpg_fonte', fonteAtiva);
-        localStorage.setItem('rpg_brilho', brilho);
-        localStorage.setItem('rpg_volume', volumeGeral);
-        localStorage.setItem('rpg_desempenho', modoDesempenho);
-        localStorage.setItem('rpg_sfx', sfxAtivo);
+        try {
+            localStorage.setItem('rpg_tema', temaAtivo);
+            localStorage.setItem('rpg_fonte', fonteAtiva);
+            localStorage.setItem('rpg_brilho', brilho);
+            localStorage.setItem('rpg_volume', volumeGeral);
+            localStorage.setItem('rpg_desempenho', modoDesempenho);
+            localStorage.setItem('rpg_sfx', sfxAtivo);
+        } catch (e) { /* sem localStorage: as preferências valem só nesta sessão */ }
     }, [temaAtivo, fonteAtiva, brilho, volumeGeral, modoDesempenho, sfxAtivo]);
 
     const atualizarHistoricoNuvem = async (novaLista) => {
@@ -67,7 +69,7 @@ export default function LobbyNeon() {
         if (userLogado) {
             const nomeSanitizado = sanitizarNome(userLogado);
             const chaveLocalIsolada = `rpg_historico_mesas_${nomeSanitizado}`;
-            localStorage.setItem(chaveLocalIsolada, JSON.stringify(novaLista));
+            try { localStorage.setItem(chaveLocalIsolada, JSON.stringify(novaLista)); } catch (e) { /* sem localStorage */ }
             try { await set(ref(db, `usuarios/${nomeSanitizado}/historicoMesas`), novaLista); } catch(e){}
         }
     };
@@ -123,7 +125,7 @@ export default function LobbyNeon() {
                     }
                     
                     // Salva na NOVA gaveta isolada de forma definitiva
-                    localStorage.setItem(chaveLocalIsolada, JSON.stringify(listaUnificada));
+                    try { localStorage.setItem(chaveLocalIsolada, JSON.stringify(listaUnificada)); } catch (e) { /* sem localStorage */ }
                     
                     return listaUnificada;
                 });

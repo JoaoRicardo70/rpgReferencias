@@ -75,8 +75,8 @@ export function PerfilFormProvider({ children }) {
         const n = sanitizarNome(nomeCru);
         if (!n || (n === 'Jogador' && nomeCru.trim() === '')) return;
         
-        setMeuNome(n); 
-        localStorage.setItem('rpgNome', n); 
+        setMeuNome(n);
+        try { localStorage.setItem('rpgNome', n); } catch (e) { /* sem localStorage */ } 
         resetFicha();
 
         let precisaSalvarCarimbo = false;
@@ -114,7 +114,8 @@ export function PerfilFormProvider({ children }) {
 
         if (dadosFinais) {
             carregarDadosFicha(dadosFinais);
-            localStorage.setItem('rpgFicha_' + n, JSON.stringify(dadosFinais));
+            // Ficha com avatar em base64 pode estourar a cota: sem o try, o carimbo e a troca de aba abaixo nunca rodavam.
+            try { localStorage.setItem('rpgFicha_' + n, JSON.stringify(dadosFinais)); } catch (e) { /* cota do localStorage */ }
         } else {
             // 3. É um Personagem Novo! Já ganha o Carimbo da sua Conta.
             updateFicha(f => { f.donoDaFicha = contaId; });
@@ -138,7 +139,7 @@ export function PerfilFormProvider({ children }) {
 
     const toggleMestre = useCallback(() => {
         const novoVal = !isMestre;
-        setIsMestre(novoVal); localStorage.setItem('rpgIsMestre', novoVal ? 'sim' : 'nao');
+        setIsMestre(novoVal); try { localStorage.setItem('rpgIsMestre', novoVal ? 'sim' : 'nao'); } catch (e) { /* sem localStorage */ }
     }, [isMestre, setIsMestre]);
 
     const alterarAvatarBase = useCallback((e) => {

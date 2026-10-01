@@ -10,6 +10,7 @@ export default function useFirebase() {
     const carregarDadosFicha = useStore((s) => s.carregarDadosFicha);
     const setPersonagens = useStore((s) => s.setPersonagens);
     const addFeedEntry = useStore((s) => s.addFeedEntry);
+    const limparFeedStore = useStore((s) => s.limparFeedStore);
 
     useEffect(() => {
         let unsubFichaPropria = () => {};
@@ -55,6 +56,9 @@ export default function useFirebase() {
             setPersonagens(mesclarPersonagensRemotos(useStore.getState().personagens, personagens));
         });
 
+        // O listener do feed reenvia as últimas 50 entradas ao (re)conectar: limpa antes, senão
+        // trocar de personagem duplicava o feed inteiro na tela.
+        limparFeedStore();
         unsubFeed = iniciarListenerFeed((entry) => {
             if (!cancelled) addFeedEntry(entry);
         });
@@ -65,7 +69,7 @@ export default function useFirebase() {
             unsubPersonagens();
             unsubFeed();
         };
-    }, [meuNome, mesaId, carregarDadosFicha, setPersonagens, addFeedEntry]);
+    }, [meuNome, mesaId, carregarDadosFicha, setPersonagens, addFeedEntry, limparFeedStore]);
 
     return { loading };
 }

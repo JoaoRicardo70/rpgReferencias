@@ -107,6 +107,7 @@ export default function App() {
     const meuNome = useStore(s => s.meuNome);
     const setMeuNome = useStore(s => s.setMeuNome);
     const carregarDadosFicha = useStore(s => s.carregarDadosFicha);
+    const resetFicha = useStore(s => s.resetFicha);
     const abaAtiva = useStore(s => s.abaAtiva);
     
     const cenario = useStore(s => s.cenario);
@@ -169,12 +170,12 @@ export default function App() {
     }, [mesaId, userLogado, setIsMestre, setMesaInfo]);
 
     useEffect(() => {
-        if (!mesaId || !isMestre) return;
+        if (!mesaId || !isMestre || !db) return;
         // Os Registros Akáshicos (lore) agora sincronizam por useSextaFeiraMesa, em
         // mesas/{mesaId}/sextaFeira/registros.
         const unsubArvore = onValue(ref(db, `mesas/${mesaId}/arvore`), (snap) => {
             if (snap.exists()) {
-                localStorage.setItem('rpgSextaFeira_arvore', JSON.stringify(snap.val()));
+                try { localStorage.setItem('rpgSextaFeira_arvore', JSON.stringify(snap.val())); } catch (e) { /* cota do localStorage */ }
             }
         });
         return () => {
@@ -230,12 +231,22 @@ export default function App() {
         const nomeSanitizado = sanitizarNome(nome);
         const novaLista = [nomeSanitizado, ...meusPersonagens.filter(n => n !== nomeSanitizado)].slice(0, 5);
         setMeusPersonagens(novaLista);
-        localStorage.setItem('rpg_historico_personagens', JSON.stringify(novaLista));
-        localStorage.setItem('rpgNome', nomeSanitizado);
+        try {
+            localStorage.setItem('rpg_historico_personagens', JSON.stringify(novaLista));
+            localStorage.setItem('rpgNome', nomeSanitizado);
+        } catch (e) { /* sem localStorage */ }
+        // Começa da ficha padrão (mesmo fluxo da aba Perfil): sem isto, depois de "✏️ Trocar" o
+        // personagem novo herdava a ficha do anterior (e os campos que o Firebase não guarda, como
+        // listas vazias, "vazavam" de um personagem para o outro).
+        resetFicha();
         setMeuNome(nomeSanitizado);
         setPronto(true);
         try {
-            const dados = await carregarFichaDoFirebase(nomeSanitizado);
+            let dados = await carregarFichaDoFirebase(nomeSanitizado);
+            // Sem nada na nuvem (offline ou personagem só deste PC): usa a cópia local, se houver.
+            if (!(dados && Object.keys(dados).length > 2)) {
+                try { dados = JSON.parse(localStorage.getItem('rpgFicha_' + nomeSanitizado) || 'null'); } catch (e) { dados = null; }
+            }
             if (dados && Object.keys(dados).length > 2) {
                 carregarDadosFicha(dados);
                 // 🔥 Persiste imediatamente a migração de ficha.passivas -> ficha.poderes
@@ -251,7 +262,7 @@ export default function App() {
         e.stopPropagation();
         const novaLista = meusPersonagens.filter(n => n !== nomeParaRemover);
         setMeusPersonagens(novaLista);
-        localStorage.setItem('rpg_historico_personagens', JSON.stringify(novaLista));
+        try { localStorage.setItem('rpg_historico_personagens', JSON.stringify(novaLista)); } catch (e) { /* sem localStorage */ }
     };
 
     const criadorOn = jogadoresOnline.filter(j => j === mesaCriador);

@@ -243,12 +243,14 @@ export function MapaFormProvider({ children }) {
             const dData = storeState.dummies[idDummie];
             if (!dData) return;
             const acoes = dData.acoes ? JSON.parse(JSON.stringify(dData.acoes)) : { padrao: {max:1, atual:1}, bonus: {max:1, atual:1}, reacao: {max:1, atual:1} };
+            if (!acoes[tipo]) acoes[tipo] = { max: 1, atual: 1 };
             if (isAvailable) acoes[tipo].atual = Math.max(0, acoes[tipo].atual - 1);
             else acoes[tipo].atual = Math.min(acoes[tipo].max, acoes[tipo].atual + 1);
             salvarDummie(idDummie, { ...dData, acoes });
         } else if (entidadeNome === meuNome) {
             updateFicha(f => {
                 if (!f.acoes) f.acoes = { padrao: {max:1, atual:1}, bonus: {max:1, atual:1}, reacao: {max:1, atual:1} };
+                if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 };
                 if (isAvailable) f.acoes[tipo].atual = Math.max(0, f.acoes[tipo].atual - 1);
                 else f.acoes[tipo].atual = Math.min(f.acoes[tipo].max, f.acoes[tipo].atual + 1);
             });
@@ -365,7 +367,7 @@ export function MapaFormProvider({ children }) {
         novoCenario.ativa = id;
         salvarCenarioCompleto(novoCenario);
         setCenaVisualizadaId(null); 
-        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🗺️ O cenário mudou para: ${novoCenario.lista[id].nome}!` });
+        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🗺️ O cenário mudou para: ${novoCenario.lista?.[id]?.nome || id}!` });
     }, [cenario]);
 
     const deletarCena = useCallback((id) => {
@@ -571,7 +573,9 @@ export function MapaFormProvider({ children }) {
         let hitLog = [];
 
         const checkHit = (pos, nome, isDummie, idDummie, dData) => {
-            if ((pos?.cenaId || 'default') !== (zona.cenaId || 'default')) return;
+            if (!pos || pos.x === undefined) return;
+            const cenaDaEntidade = (isDummie ? (dData?.cenaId || pos.cenaId) : pos.cenaId) || 'default';
+            if (cenaDaEntidade !== (zona.cenaId || 'default')) return;
             if (zona.alvosFiltro === 'inimigos' && !isDummie) return;
             if (zona.alvosFiltro === 'aliados' && isDummie) return;
 
@@ -897,8 +901,9 @@ export function MapaFormProvider({ children }) {
     }, [isMestre, meuNome, updateFicha, minhaFicha]);
 
     const encerrarCombate = useCallback(() => {
-        if (!window.confirm(`Tem a certeza que deseja ZERAR A INICIATIVA DE TODOS OS JOGADORES E ENTIDADES presentes na cena "${cenaAtual.nome}"?`)) return;
-        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O COMBATE EM ${cenaAtual.nome.toUpperCase()} FOI ENCERRADO PELO MESTRE! ⚔️` });
+        const nomeCena = String(cenaAtual.nome || cenaRenderId);
+        if (!window.confirm(`Tem a certeza que deseja ZERAR A INICIATIVA DE TODOS OS JOGADORES E ENTIDADES presentes na cena "${nomeCena}"?`)) return;
+        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O COMBATE EM ${nomeCena.toUpperCase()} FOI ENCERRADO PELO MESTRE! ⚔️` });
         
         const nomesNaCena = ordemIniciativa.filter(j => !j.isDummie).map(j => j.nome);
         if (nomesNaCena.length > 0) zerarIniciativaGlobal(nomesNaCena);

@@ -110,7 +110,7 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
 
     useEffect(() => { conexoesRef.current = conexoes; }, [conexoes]);
     useEffect(() => { supressorAtivoRef.current = supressorAtivo; }, [supressorAtivo]);
-    useEffect(() => { localStorage.setItem('rpg_sensibilidade_voz_v2', sensibilidadeVoz); }, [sensibilidadeVoz]);
+    useEffect(() => { try { localStorage.setItem('rpg_sensibilidade_voz_v2', sensibilidadeVoz); } catch (e) { /* sem localStorage */ } }, [sensibilidadeVoz]);
     // O portão lê a sensibilidade por ref: arrastar o controle não recria o contexto de áudio.
     const sensibilidadeRef = useRef(sensibilidadeVoz);
     useEffect(() => { sensibilidadeRef.current = sensibilidadeVoz; }, [sensibilidadeVoz]);
