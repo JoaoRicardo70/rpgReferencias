@@ -1,12 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import {
-    SEM_PASTA, ABAS_GRIMORIO_MESTRE, listaDaFicha, categoriaDoPoder, separarPoderesPorCategoria,
-    agruparPorPasta, agruparTecnicasPorElemento, textoEfeito, listarDominios, abaDoPedido,
+    SEM_PASTA, ABAS_LIVRO_ENTIDADE, listaDaFicha, categoriaDoPoder, separarPoderesPorCategoria,
+    agruparPorPasta, agruparTecnicasPorElemento, textoEfeito, abaDoPedido,
 } from './grimorioLeitura';
+import * as modulo from './grimorioLeitura';
 
-describe('ABAS_GRIMORIO_MESTRE', () => {
-    it('tem os ids na ordem esperada', () => {
-        expect(ABAS_GRIMORIO_MESTRE.map(a => a.id)).toEqual(['habilidade', 'poder', 'forma', 'magias', 'inventario', 'dominios']);
+describe('ABAS_LIVRO_ENTIDADE', () => {
+    it('tem os ids na ordem esperada, com a Ficha Definitiva primeiro', () => {
+        expect(ABAS_LIVRO_ENTIDADE.map(a => a.id)).toEqual(['ficha', 'habilidade', 'poder', 'forma', 'magias', 'inventario']);
+    });
+    it('toda aba tem ícone e nome, e não existe aba de domínios', () => {
+        ABAS_LIVRO_ENTIDADE.forEach(a => { expect(a.icone).toBeTruthy(); expect(a.nome).toBeTruthy(); });
+        expect(ABAS_LIVRO_ENTIDADE.some(a => a.id === 'dominios')).toBe(false);
+    });
+    it('a primeira aba é a Ficha Definitiva', () => {
+        expect(ABAS_LIVRO_ENTIDADE[0].nome).toBe('Ficha Definitiva');
     });
 });
 
@@ -95,18 +103,10 @@ describe('textoEfeito', () => {
     });
 });
 
-describe('listarDominios', () => {
-    it('só entradas com nivel, ordenadas', () => {
-        const r = listarDominios({ Fogo: { nivel: 3, categoria: 'elemental' }, Água: { nivel: '2' }, lixo: { x: 1 }, nulo: null, str: 'a' });
-        expect(r).toEqual([
-            { nome: 'Água', nivel: 2, categoria: '' },
-            { nome: 'Fogo', nivel: 3, categoria: 'elemental' },
-        ]);
-    });
-    it('nivel inválido vira 0; entrada inválida dá []', () => {
-        expect(listarDominios({ A: { nivel: 'abc' } })[0].nivel).toBe(0);
-        expect(listarDominios(null)).toEqual([]);
-        expect(listarDominios('x')).toEqual([]);
+describe('exports removidos', () => {
+    it('listarDominios e ABAS_GRIMORIO_MESTRE não existem mais', () => {
+        expect(modulo.listarDominios).toBeUndefined();
+        expect(modulo.ABAS_GRIMORIO_MESTRE).toBeUndefined();
     });
 });
 

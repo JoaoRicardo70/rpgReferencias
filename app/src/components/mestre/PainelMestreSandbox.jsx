@@ -6,8 +6,7 @@ import { calcularFadigaAtual, calcularFadigaAjustada } from '../../core/fadiga';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularPoderAtual } from '../../core/poder';
 import { formatarPoderCosmico } from '../../core/utils';
-import MarcadosPanel from '../Ficha Def/Marcados';
-import { FichaAlvoProvider } from '../Ficha Def/FichaAlvoContext';
+import LivroEntidade from './LivroEntidade';
 
 export const TODAS_CONDICOES_BASE = [
     { id: 'sangrando', icone: '🩸', cor: '#ff003c', nome: 'Sangrando' },
@@ -37,7 +36,7 @@ export const TODAS_CONDICOES_BASE = [
 // calculado UMA vez pra todos os cards, e os `personagens` que os handlers abaixo ainda precisam
 // pra gravar (spread otimista) são lidos sob demanda via useStore.getState() -- sem assinar
 // re-renders por isso.
-export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlobais }) {
+export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlobais, onAbrirLivro }) {
     const mesaId = useStore(s => s.mesaId);
     const meuNome = useStore(s => s.meuNome);
     const setPersonagens = useStore(s => s.setPersonagens);
@@ -51,6 +50,12 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
 
     // 🔥 ESTADO DO MODAL DE TELA CHEIA PARA O GRIMÓRIO
     const [grimorioAberto, setGrimorioAberto] = useState(false);
+    // Na aba do Mestre o livro é um só (MestreVisorJogadores, via onAbrirLivro — prop estável, pra não
+    // re-renderizar todos os cards a cada mudança do contexto); sem ela, este painel abre o seu.
+    const abrirGrimorio = useCallback(() => {
+        if (onAbrirLivro) onAbrirLivro(personagemId);
+        else setGrimorioAberto(true);
+    }, [onAbrirLivro, personagemId]);
 
     // ⚡ Poder Calculado — mesma conta do Scouter na Ficha (core/poder.js > calcularPoderAtual),
     // pro Mestre ver a força da entidade sem precisar abrir o Grimório dela. Só calcula com o
@@ -187,31 +192,10 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
     return (
         <div style={{ marginTop: '15px', width: '100%' }}>
             
-            {/* 👑 MODAL DE TELA CHEIA DO GRIMÓRIO */}
-            {grimorioAberto && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.92)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px', backdropFilter: 'blur(5px)' }}>
-                    <div className="fade-in" style={{ width: '100%', maxWidth: '1400px', height: '95vh', overflowY: 'auto', position: 'relative' }}>
-                        
-                        <button 
-                            onClick={() => setGrimorioAberto(false)} 
-                            style={{ position: 'absolute', top: '10px', right: '30px', background: '#ff003c', color: '#fff', border: '3px solid #000', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2em', cursor: 'pointer', zIndex: 100, boxShadow: '4px 4px 0px rgba(0,0,0,0.5)', transition: 'transform 0.2s' }}
-                            onMouseEnter={e => e.target.style.transform = 'scale(1.05)'}
-                            onMouseLeave={e => e.target.style.transform = 'scale(1)'}
-                        >
-                            ❌ FECHAR LIVRO
-                        </button>
-                        
-                        {/* 🔥 GRIMÓRIO DA ENTIDADE: a MESMA Ficha Definitiva que o jogador usa, ao vivo, mirando
-                            este personagem em vez de "eu mesmo" (FichaAlvoContext.jsx) -- antes era uma cópia
-                            simplificada (DiarioNPC) com só uma fração dos campos/páginas da ficha real, que
-                            precisava ser mantida manualmente em dia; agora qualquer campo novo da Ficha
-                            Definitiva já aparece aqui sozinho, sem nenhum trabalho extra. */}
-                        <FichaAlvoProvider nome={personagemId}>
-                            <MarcadosPanel />
-                        </FichaAlvoProvider>
-                    </div>
-                </div>
-            )}
+            {/* 👑 LIVRO DA ENTIDADE (tela cheia): Ficha Definitiva + Habilidades/Poderes/Formas, Técnicas
+                Elementais e Inventário deste personagem (LivroEntidade.jsx). Na aba do Mestre ele é um só
+                (onAbrirLivro); sem essa prop, este painel abre o seu próprio. */}
+            {grimorioAberto && <LivroEntidade nome={personagemId} aoFechar={() => setGrimorioAberto(false)} />}
 
             <button 
                 onClick={() => setExpandido(!expandido)}
@@ -236,7 +220,7 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
 
                     {/* BOTÃO PARA ABRIR O GRIMÓRIO (TELA CHEIA) */}
                     <button 
-                        onClick={() => setGrimorioAberto(true)}
+                        onClick={abrirGrimorio}
                         style={{ width: '100%', background: 'linear-gradient(45deg, #aa00ff, #ff007f)', border: 'none', color: '#fff', padding: '15px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2em', marginBottom: '20px', boxShadow: '0 4px 15px rgba(170,0,255,0.4)', textShadow: '1px 1px 2px #000' }}
                     >
                         📖 ABRIR GRIMÓRIO DA ENTIDADE

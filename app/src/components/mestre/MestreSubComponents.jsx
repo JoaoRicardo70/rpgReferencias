@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useMestreForm } from './MestreFormContext';
 import { ref, set } from 'firebase/database';
 import { database } from '../../services/firebase-config';
@@ -10,7 +11,7 @@ import { calcularBarrasVida, getVitalMax, getVitalMaxEstavel, FATOR_EXIBICAO_VIT
 import { calcularFatorMultiplicadorForca, calcularPoderAtual } from '../../core/poder';
 import { formatarPoderCosmico } from '../../core/utils';
 import { iniciarArrastoTurno, lerArrastoTurno, encerrarArrastoTurno } from './MestreControleTurno';
-import GrimorioEntidade from './GrimorioEntidade';
+import LivroEntidade from './LivroEntidade';
 
 const FALLBACK = <div style={{color:'#888',padding:10}}>Mestre provider não encontrado</div>;
 
@@ -153,7 +154,7 @@ function ChipRecurso({ label, color, atual, max, fmt }) {
     );
 }
 
-const EntidadeCard = React.memo(function EntidadeCard({ jogador, meuNome, userLogado, mesaCriador, mesaMestres, fmt, condicoesGlobais, divisorPoderMesa, onAbrirFicha, onPromover, onApagar }) {
+const EntidadeCard = React.memo(function EntidadeCard({ jogador, meuNome, userLogado, mesaCriador, mesaMestres, fmt, condicoesGlobais, divisorPoderMesa, onAbrirFicha, onAbrirLivro, onPromover, onApagar }) {
     const { nome, ficha, classId, percHp } = jogador;
 
     const vida = getStatusLimpo(ficha, 'vida', 8);
@@ -294,7 +295,7 @@ const EntidadeCard = React.memo(function EntidadeCard({ jogador, meuNome, userLo
                 </button>
             </div>
 
-            <PainelMestreSandbox personagemId={nome} ficha={ficha} condicoesGlobais={condicoesGlobais} />
+            <PainelMestreSandbox personagemId={nome} ficha={ficha} condicoesGlobais={condicoesGlobais} onAbrirLivro={onAbrirLivro} />
         </div>
     );
 });
@@ -321,17 +322,6 @@ export function MestreVisorJogadores() {
     // relatado ("não é a versão atualizada"). Derivando de `jogadoresComStats` (que já é recalculado
     // ao vivo pelo listener do Firebase em MestreFormContext.jsx) o modal some/atualiza sozinho.
     const [nomeInspecionado, setNomeInspecionado] = useState(null);
-
-    // 🔔 "Ver a Habilidade" de uma notificação de pedido (MestrePedidosSexta.jsx): abre o Grimório de
-    // quem pediu, que rola até o pedido em destaque.
-    const pedidoEmFoco = ctx?.pedidoEmFoco;
-    useEffect(() => {
-        if (pedidoEmFoco?.nome) setNomeInspecionado(pedidoEmFoco.nome);
-    }, [pedidoEmFoco]);
-    // Estável (useCallback): os EntidadeCard são memoizados e recebem isto como prop.
-    const limparPedidoEmFoco = ctx?.limparPedidoEmFoco;
-    const abrirFicha = useCallback((nome) => { limparPedidoEmFoco?.(); setNomeInspecionado(nome); }, [limparPedidoEmFoco]);
-    const fecharFicha = useCallback(() => { limparPedidoEmFoco?.(); setNomeInspecionado(null); }, [limparPedidoEmFoco]);
 
     // 🔥 OTIMIZAÇÃO: a lista de condições customizadas (compêndio) é a mesma pra TODAS as entidades
     // da mesa -- calcular uma vez aqui em vez de dentro de cada PainelMestreSandbox evita repetir o
@@ -360,7 +350,6 @@ export function MestreVisorJogadores() {
     if (!ctx) return FALLBACK;
     const { jogadoresComStats, meuNome, userLogado, handleApagarJogador, fmt, toggleCoMestre, mesaCriador, mesaMestres } = ctx;
     const jogadorInspecionado = nomeInspecionado ? jogadoresComStats.find(j => j.nome === nomeInspecionado) : null;
-    const pedidoFocoId = pedidoEmFoco && pedidoEmFoco.nome === nomeInspecionado ? pedidoEmFoco.pedidoId : null;
 
     const togglePasta = (nomePasta) => setPastasAbertas(prev => ({...prev, [nomePasta]: !prev[nomePasta]}));
 
@@ -403,7 +392,8 @@ export function MestreVisorJogadores() {
             fmt={fmt}
             condicoesGlobais={condicoesGlobais}
             divisorPoderMesa={divisorPoderMesa}
-            onAbrirFicha={abrirFicha}
+            onAbrirFicha={setNomeInspecionado}
+            onAbrirLivro={ctx.abrirLivroEntidade}
             onPromover={toggleCoMestre}
             onApagar={handleApagarJogador}
         />
@@ -476,9 +466,87 @@ export function MestreVisorJogadores() {
                 </div>
             )}
 
-            {/* 📖 Grimório da Entidade: janela por cima da tela inteira (portal), com as abas da ficha */}
-            {jogadorInspecionado && (
-                <GrimorioEntidade key={jogadorInspecionado.nome} jogador={jogadorInspecionado} pedidoFocoId={pedidoFocoId} aoFechar={fecharFicha} />
+            {/* 🔥 O VISUALIZADOR INQUEBRÁVEL DA FICHA DO JOGADOR 🔥 (portal em document.body: o painel da aba usa
+                backdrop-filter, que prenderia o position: fixed no topo da aba em vez da tela) */}
+            {jogadorInspecionado && createPortal(
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+                    background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)',
+                    zIndex: 99999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px'
+                }}>
+                    <div className="fade-in" style={{
+                        width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto',
+                        background: '#0a0a0f', border: '2px solid #0088ff', borderRadius: '10px', padding: '20px', position: 'relative',
+                        boxShadow: '0 0 30px rgba(0,136,255,0.3)'
+                    }}>
+                        <button onClick={() => setNomeInspecionado(null)} style={{ position: 'absolute', top: 15, right: 15, background: 'none', border: 'none', color: '#ff003c', fontSize: '1.5em', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px', borderBottom: '1px solid #333', paddingBottom: '15px' }}>
+                            {jogadorInspecionado.ficha.avatar?.base ? (
+                                <img src={jogadorInspecionado.ficha.avatar.base} alt="Avatar" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #0088ff' }} />
+                            ) : (
+                                <div style={{ width: '80px', height: '80px', background: '#222', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>Sem Foto</div>
+                            )}
+                            <div>
+                                <h2 style={{ color: '#0088ff', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    📖 GRIMÓRIO: {jogadorInspecionado.nome}
+                                </h2>
+                                <span style={{ color: '#aaa', fontStyle: 'italic' }}>Classe: {jogadorInspecionado.classId?.toUpperCase() || 'MUNDANO'}</span>
+                            </div>
+                        </div>
+
+                        {/* Atributos Seguros */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '25px' }}>
+                            {['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].map(attr => (
+                                <div key={attr} style={{ background: 'rgba(255,255,255,0.05)', padding: '8px 12px', borderRadius: '5px', display: 'flex', justifyContent: 'space-between', border: '1px solid rgba(255,255,255,0.1)' }}>
+                                    <span style={{ color: '#aaa', textTransform: 'uppercase', fontWeight: 'bold' }}>{attr.substring(0,3)}</span>
+                                    <strong style={{ color: '#fff', fontSize: '1.1em' }}>{jogadorInspecionado.ficha[attr]?.base || 0}</strong>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        {/* Aba de Dominios/Poderes (Lê tanto a ficha antiga plana quanto a nova) */}
+                        <h3 style={{ color: '#ffcc00', borderBottom: '1px solid #ffcc00', paddingBottom: '5px' }}>⚡ Domínios Marcados & Poderes Antigos</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '25px' }}>
+                            {jogadorInspecionado.ficha.dominios && Object.keys(jogadorInspecionado.ficha.dominios).length > 0 ? Object.entries(jogadorInspecionado.ficha.dominios).map(([nomeDom, dadosDom]) => (
+                                <div key={nomeDom} style={{ background: 'rgba(255,204,0,0.1)', borderLeft: '3px solid #ffcc00', padding: '8px 12px', borderRadius: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                                    <strong style={{ color: '#fff' }}>{nomeDom}</strong>
+                                    <span>
+                                        <span style={{ color: '#ffcc00', fontWeight: 'bold', marginRight: '10px' }}>Nv {dadosDom?.nivel || 1}</span>
+                                        {dadosDom?.categoria && <span style={{ color: '#888', fontSize: '0.85em', textTransform: 'uppercase' }}>({dadosDom.categoria})</span>}
+                                    </span>
+                                </div>
+                            )) : <div style={{ color: '#888', fontStyle: 'italic' }}>Nenhum Domínio do Grimório novo encontrado.</div>}
+                            
+                            {/* Mostra também os poderes da aba de habilidades antiga para compatibilidade */}
+                            {jogadorInspecionado.ficha.poderes && jogadorInspecionado.ficha.poderes.length > 0 ? jogadorInspecionado.ficha.poderes.map((pod, i) => (
+                                <div key={`pod_${i}`} style={{ background: 'rgba(0,136,255,0.1)', borderLeft: '3px solid #0088ff', padding: '8px 12px', borderRadius: '4px', display: 'flex', flexDirection: 'column' }}>
+                                    <strong style={{ color: '#00ccff' }}>{pod.nome}</strong>
+                                    <span style={{ color: '#ccc', fontSize: '0.9em', marginTop: '4px' }}>{pod.descricao || 'Sem descrição.'}</span>
+                                </div>
+                            )) : null}
+                        </div>
+
+                        {/* Aba de Inventario */}
+                        <h3 style={{ color: '#00ff88', borderBottom: '1px solid #00ff88', paddingBottom: '5px' }}>🎒 Relicário & Inventário</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {jogadorInspecionado.ficha.inventario && jogadorInspecionado.ficha.inventario.length > 0 ? jogadorInspecionado.ficha.inventario.map((item, i) => (
+                                <div key={i} style={{ background: 'rgba(0,255,136,0.1)', borderLeft: '3px solid #00ff88', padding: '8px 12px', borderRadius: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                                    <strong style={{ color: '#fff' }}>{item.nome || 'Item Desconhecido'}</strong>
+                                    <span style={{ color: item.equipado ? '#00ff88' : '#888', fontSize: '0.9em', fontWeight: item.equipado ? 'bold' : 'normal' }}>
+                                        {item.equipado ? '(Equipado)' : '(Na mochila)'}
+                                    </span>
+                                </div>
+                            )) : <div style={{ color: '#888', fontStyle: 'italic' }}>O relicário deste jogador está vazio.</div>}
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* 📖 Livro da Entidade ("ABRIR GRIMÓRIO DA ENTIDADE" do Sandbox / "Ver a Habilidade" das notificações) */}
+            {ctx.livroAberto && (
+                <LivroEntidade key={ctx.livroAberto.nome} nome={ctx.livroAberto.nome} pedidoFocoId={ctx.livroAberto.pedidoId} aoFechar={ctx.fecharLivroEntidade} />
             )}
         </div>
     );

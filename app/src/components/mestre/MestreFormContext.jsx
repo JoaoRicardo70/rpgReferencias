@@ -44,14 +44,21 @@ export function MestreFormProvider({ children }) {
     const [dVisivelHp, setDVisivelHp] = useState('todos');
     const [dOculto, setDOculto] = useState(false);
 
-    // 🔔 "Ver a Habilidade" das notificações de pedidos da Sexta-Feira: abre o Grimório de quem pediu
-    // já no pedido. Um objeto novo a cada clique, pra reabrir mesmo se for o mesmo pedido.
-    const [pedidoEmFoco, setPedidoEmFoco] = useState(null);
+    // 📖 Livro da Entidade aberto ("ABRIR GRIMÓRIO DA ENTIDADE" do Sandbox, LivroEntidade.jsx): um só
+    // para a aba toda, pra que o "Ver a Habilidade" das notificações consiga abri-lo mesmo com o
+    // card do personagem fora da tela (busca, aba NPCs). { nome, pedidoId? }.
+    const [livroAberto, setLivroAberto] = useState(null);
+    const abrirLivroEntidade = useCallback((nome) => {
+        if (!nome) return;
+        setLivroAberto({ nome, pedidoId: null });
+    }, []);
+    // 🔔 "Ver a Habilidade" das notificações de pedidos da Sexta-Feira: abre o livro de quem pediu
+    // já na aba do pedido, com ele em destaque.
     const verPedidoNaFicha = useCallback((pedidoId, nome) => {
         if (!pedidoId || !nome) return;
-        setPedidoEmFoco({ pedidoId, nome, em: Date.now() });
+        setLivroAberto({ nome, pedidoId });
     }, []);
-    const limparPedidoEmFoco = useCallback(() => setPedidoEmFoco(null), []);
+    const fecharLivroEntidade = useCallback(() => setLivroAberto(null), []);
 
     const enviarAviso = useCallback(() => {
         if (!msgSistema.trim()) return;
@@ -189,13 +196,13 @@ export function MestreFormProvider({ children }) {
         jogadoresList,
         jogadoresComStats,
         fmt,
-        pedidoEmFoco, verPedidoNaFicha, limparPedidoEmFoco,
+        livroAberto, abrirLivroEntidade, verPedidoNaFicha, fecharLivroEntidade,
     }), [
         isMestre, meuNome, userLogado, mesaCriador, mesaMestres,
         msgSistema, dNome, dHp, dVit, dDefTipo, dDef, dVisivelHp, dOculto,
         enviarAviso, injetarDummie, handleApagarJogador, toggleCoMestre,
         jogadoresList, jogadoresComStats, fmt,
-        pedidoEmFoco, verPedidoNaFicha, limparPedidoEmFoco,
+        livroAberto, abrirLivroEntidade, verPedidoNaFicha, fecharLivroEntidade,
     ]);
 
     return (

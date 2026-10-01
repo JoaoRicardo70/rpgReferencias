@@ -1,5 +1,5 @@
 // ==========================================
-// GRIMÓRIO DA ENTIDADE (aba do Mestre) — organização da ficha de OUTRO personagem para leitura.
+// LIVRO DA ENTIDADE (Sandbox do Mestre) — organização da ficha de OUTRO personagem para leitura.
 // Lógica pura: separa Habilidades / Poderes / Formas (como a aba Poderes Clássicos), agrupa por
 // pasta (mesma regra de components/poderes/PoderesSubComponents.jsx > PoderesLista), agrupa as
 // Técnicas Elementais por elemento e decide em qual aba um pedido da Sexta-Feira aparece.
@@ -7,14 +7,15 @@
 
 export const SEM_PASTA = 'Sem Pasta';
 
-// Abas do Grimório do Mestre, na ordem em que aparecem.
-export const ABAS_GRIMORIO_MESTRE = [
+// Abas do livro da entidade (Sandbox do Mestre), na ordem em que aparecem. 'ficha' é a Ficha
+// Definitiva; as outras são as leituras desta ficha.
+export const ABAS_LIVRO_ENTIDADE = [
+    { id: 'ficha', icone: '📕', nome: 'Ficha Definitiva' },
     { id: 'habilidade', icone: '🌀', nome: 'Habilidades' },
     { id: 'poder', icone: '⚡', nome: 'Poderes' },
     { id: 'forma', icone: '🎭', nome: 'Formas' },
     { id: 'magias', icone: '🔥', nome: 'Técnicas Elementais' },
     { id: 'inventario', icone: '🎒', nome: 'Inventário' },
-    { id: 'dominios', icone: '📜', nome: 'Domínios' },
 ];
 
 // Listas da ficha podem chegar do banco como objeto ({0: .., 1: ..}) em vez de array.
@@ -66,16 +67,7 @@ export function textoEfeito(e) {
     return `[${String(e.atributo || '').replace('_', ' ').toUpperCase()}] ${String(e.propriedade || '').toUpperCase()}: +${e.valor || 0}`;
 }
 
-// Domínios reais da ficha (com .nivel), em ordem de nome: [{ nome, nivel, categoria }].
-export function listarDominios(dominios) {
-    if (!dominios || typeof dominios !== 'object') return [];
-    return Object.entries(dominios)
-        .filter(([, d]) => d && typeof d === 'object' && 'nivel' in d)
-        .map(([nome, d]) => ({ nome, nivel: Number(d.nivel) || 0, categoria: String(d.categoria || '') }))
-        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-}
-
-// Em qual aba do Grimório do Mestre um pedido da Sexta-Feira aparece.
+// Em qual aba do Livro da Entidade um pedido da Sexta-Feira aparece.
 export function abaDoPedido(pedido) {
     if (!pedido) return null;
     if (pedido.tipo === 'poder') return categoriaDoPoder(pedido.objeto);

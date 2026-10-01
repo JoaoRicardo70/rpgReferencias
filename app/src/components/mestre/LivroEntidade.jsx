@@ -2,27 +2,28 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import useStore, { sanitizarNome } from '../../stores/useStore';
 import { PedidosNaFicha } from './MestrePedidosSexta';
+import MarcadosPanel from '../Ficha Def/Marcados';
+import { FichaAlvoProvider, useFichaAtiva } from '../Ficha Def/FichaAlvoContext';
 import { emogis, cores, NIVEIS_DOMINIO } from '../arsenal/ElementosFormContext';
 import { getNivelDominio } from '../../core/dominios';
 import { ordenarPedidosPendentes } from '../../core/sextaFeiraCriacao';
 import {
-    ABAS_GRIMORIO_MESTRE, listaDaFicha, separarPoderesPorCategoria, agruparPorPasta,
-    agruparTecnicasPorElemento, textoEfeito, listarDominios, abaDoPedido,
+    ABAS_LIVRO_ENTIDADE, listaDaFicha, separarPoderesPorCategoria, agruparPorPasta,
+    agruparTecnicasPorElemento, textoEfeito, abaDoPedido,
 } from '../../core/grimorioLeitura';
 
-// 📖 GRIMÓRIO DA ENTIDADE (aba do Mestre): a ficha de outro personagem, só para leitura, com as
-// mesmas divisões das abas dele — Habilidades / Poderes / Formas (Poderes Clássicos), Técnicas
-// Elementais, Inventário e Domínios. Os pedidos da Sexta-Feira pendentes aparecem na aba onde vão
-// entrar (PedidosNaFicha), com Aprovar/Recusar.
+// 📖 LIVRO DA ENTIDADE ("ABRIR GRIMÓRIO DA ENTIDADE" no Sandbox do Mestre): a Ficha Definitiva do
+// personagem (a MESMA do jogador, ao vivo, via FichaAlvoProvider) + abas para o Mestre ver o
+// Grimório de Poderes Clássicos (Habilidades / Poderes / Formas), as Técnicas Elementais e o
+// Inventário desse personagem — só leitura. Pedidos da Sexta-Feira pendentes aparecem na aba onde
+// vão entrar (PedidosNaFicha), com Aprovar/Recusar; "Ver a Habilidade" abre o livro já nela.
 //
 // Vai num portal em document.body: o painel da aba usa backdrop-filter, que prende um
-// position: fixed dentro dele — sem o portal a janela abria no TOPO da aba, longe de quem clicou
+// position: fixed dentro dele — sem o portal o livro abria no TOPO da aba, longe de quem clicou
 // num card mais abaixo.
 
 // Campos de texto da ficha vêm do banco: um objeto no lugar de um texto não pode derrubar a tela.
 const txt = (v) => (typeof v === 'string' || typeof v === 'number' ? v : '');
-
-const ATRIBUTOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 
 function CartaoPoder({ p }) {
     const categoria = String(p.categoria || '').toLowerCase();
@@ -126,155 +127,128 @@ function ListaPoderes({ itens, categoria, vazio }) {
     ));
 }
 
-export default function GrimorioEntidade({ jogador, pedidoFocoId, aoFechar }) {
-    const pendentes = useStore(s => s.sextaFeiraPendentes);
-    const ficha = jogador?.ficha || {};
-    const nome = jogador?.nome || '';
 
+// Conteúdo das abas de leitura, lendo a ficha ao vivo do alvo do FichaAlvoProvider.
+function GrimorioLeitura({ aba, pedidoFocoId }) {
+    const { ficha: fichaAtiva, nome } = useFichaAtiva();
+    const ficha = fichaAtiva || {};
     const poderes = useMemo(() => separarPoderesPorCategoria(ficha.poderes), [ficha.poderes]);
     const tecnicas = useMemo(() => agruparTecnicasPorElemento(ficha.ataquesElementais), [ficha.ataquesElementais]);
     const inventario = useMemo(() => listaDaFicha(ficha.inventario), [ficha.inventario]);
-    const dominios = useMemo(() => listarDominios(ficha.dominios), [ficha.dominios]);
-
-    // Pedidos pendentes deste personagem por aba (selo "⏳" nas abas).
-    const pedidosPorAba = useMemo(() => {
-        const alvo = sanitizarNome(nome);
-        const contagem = {};
-        let abaDoFoco = null;
-        ordenarPedidosPendentes(pendentes).forEach(([id, p]) => {
-            if (sanitizarNome(p.alvo || p.solicitante) !== alvo) return;
-            const aba = abaDoPedido(p);
-            if (!aba) return;
-            contagem[aba] = (contagem[aba] || 0) + 1;
-            if (id === pedidoFocoId) abaDoFoco = aba;
-        });
-        return { contagem, abaDoFoco };
-    }, [pendentes, nome, pedidoFocoId]);
-
-    const abaInicial = () => pedidosPorAba.abaDoFoco
-        || ['habilidade', 'poder', 'forma'].find(c => poderes[c].length > 0)
-        || 'habilidade';
-    const [aba, setAba] = useState(abaInicial);
-
-    // "Ver a Habilidade" de outro pedido com a janela aberta: vai pra aba dele.
-    useEffect(() => {
-        if (pedidosPorAba.abaDoFoco) setAba(pedidosPorAba.abaDoFoco);
-    }, [pedidoFocoId, pedidosPorAba.abaDoFoco]);
-
-    // Esc fecha (a não ser que uma janela da Sexta-Feira esteja aberta por cima).
-    useEffect(() => {
-        const aoTeclar = (e) => {
-            if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('.sexta-modal-fundo')) return;
-            aoFechar?.();
-        };
-        document.addEventListener('keydown', aoTeclar);
-        return () => document.removeEventListener('keydown', aoTeclar);
-    }, [aoFechar]);
-
-    if (!jogador) return null;
-
-    const quantidade = {
-        habilidade: poderes.habilidade.length, poder: poderes.poder.length, forma: poderes.forma.length,
-        magias: tecnicas.reduce((t, g) => t + g.itens.length, 0), inventario: inventario.length, dominios: dominios.length,
-    };
-
     const pedidos = <PedidosNaFicha nome={nome} aba={aba} pedidoFocoId={pedidoFocoId} />;
 
-    const conteudo = (
-        <div className="grimorio-mestre-fundo" onMouseDown={(e) => { if (e.target === e.currentTarget) aoFechar?.(); }}>
-            <div className="grimorio-mestre fade-in" role="dialog" aria-modal="true" aria-label={`Grimório de ${nome}`}>
-                <button type="button" className="grimorio-mestre-fechar" onClick={aoFechar} aria-label="Fechar">✕</button>
+    return (
+        <div className="livro-entidade-grimorio" role="tabpanel">
+            {(aba === 'habilidade' || aba === 'poder' || aba === 'forma') && (
+                <>
+                    <ListaPoderes
+                        key={aba}
+                        itens={poderes[aba]}
+                        categoria={aba}
+                        vazio={aba === 'forma' ? 'Nenhuma Forma registrada.' : aba === 'poder' ? 'Nenhum Poder registrado.' : 'Nenhuma Habilidade registrada.'}
+                    />
+                    {pedidos}
+                </>
+            )}
 
-                <div className="grimorio-mestre-cabecalho">
-                    {typeof ficha.avatar?.base === 'string' && ficha.avatar.base
-                        ? <img src={ficha.avatar.base} alt="Avatar" className="grimorio-mestre-avatar" />
-                        : <div className="grimorio-mestre-avatar vazio">Sem Foto</div>}
-                    <div>
-                        <h2 className="grimorio-mestre-titulo">📖 GRIMÓRIO: {nome}</h2>
-                        <span className="grimorio-mestre-classe">Classe: {String(txt(jogador.classId)).toUpperCase() || 'MUNDANO'}</span>
-                    </div>
-                </div>
-
-                <div className="grimorio-mestre-atributos">
-                    {ATRIBUTOS.map(attr => (
-                        <div key={attr} className="grimorio-mestre-atributo">
-                            <span>{attr.substring(0, 3)}</span>
-                            <strong>{txt(ficha[attr]?.base) || 0}</strong>
+            {aba === 'magias' && (
+                <>
+                    {tecnicas.length === 0 && <div className="grimorio-vazio">Nenhuma Técnica Elemental.</div>}
+                    {tecnicas.map(({ elemento, itens }) => (
+                        <div key={elemento} className="grimorio-pasta">
+                            {/* Cor do elemento: valor dinâmico (mesma tabela da aba Elementos). */}
+                            <h4 className="grimorio-elemento-titulo" style={{ color: cores[elemento] || undefined }}>
+                                {emogis[elemento] || '✨'} Pergaminhos de {elemento} <small>({itens.length})</small>
+                            </h4>
+                            {itens.map((m, i) => <CartaoTecnica key={m.id || `${elemento}_${i}`} m={m} ficha={ficha} />)}
                         </div>
                     ))}
+                    {pedidos}
+                </>
+            )}
+
+            {aba === 'inventario' && (
+                <>
+                    {inventario.length === 0 && <div className="grimorio-vazio">O inventário deste personagem está vazio.</div>}
+                    {inventario.map((item, i) => <CartaoItem key={item.id || i} item={item} />)}
+                    {pedidos}
+                </>
+            )}
+        </div>
+    );
+}
+
+// Barra de abas: quantidade em cada uma e ⏳ com os pedidos pendentes deste personagem.
+function AbasLivro({ nome, aba, setAba, pedidosPorAba }) {
+    const { ficha: fichaAtiva } = useFichaAtiva();
+    const ficha = fichaAtiva || {};
+    const quantidade = useMemo(() => {
+        const poderes = separarPoderesPorCategoria(ficha.poderes);
+        return {
+            habilidade: poderes.habilidade.length, poder: poderes.poder.length, forma: poderes.forma.length,
+            magias: listaDaFicha(ficha.ataquesElementais).length, inventario: listaDaFicha(ficha.inventario).length,
+        };
+    }, [ficha.poderes, ficha.ataquesElementais, ficha.inventario]);
+    return (
+        <div className="livro-entidade-abas" role="tablist" aria-label={`Grimório de ${nome}`}>
+            {ABAS_LIVRO_ENTIDADE.map(a => (
+                <button
+                    key={a.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={aba === a.id}
+                    className={`grimorio-mestre-aba${aba === a.id ? ' ativa' : ''}`}
+                    onClick={() => setAba(a.id)}
+                >
+                    {a.icone} {a.nome}{a.id !== 'ficha' && <small> ({quantidade[a.id]})</small>}
+                    {pedidosPorAba[a.id] > 0 && <span className="grimorio-mestre-aba-pedido" title="Pedidos aguardando aprovação">⏳{pedidosPorAba[a.id]}</span>}
+                </button>
+            ))}
+        </div>
+    );
+}
+
+export default function LivroEntidade({ nome, pedidoFocoId, aoFechar }) {
+    const pendentes = useStore(s => s.sextaFeiraPendentes);
+
+    // Pedidos pendentes deste personagem por aba, e a aba do pedido em foco ("Ver a Habilidade").
+    const { pedidosPorAba, abaDoFoco } = useMemo(() => {
+        const alvo = sanitizarNome(nome || '');
+        const contagem = {};
+        let foco = null;
+        ordenarPedidosPendentes(pendentes).forEach(([id, p]) => {
+            if (sanitizarNome(p.alvo || p.solicitante) !== alvo) return;
+            const abaPedido = abaDoPedido(p);
+            if (!abaPedido) return;
+            contagem[abaPedido] = (contagem[abaPedido] || 0) + 1;
+            if (id === pedidoFocoId) foco = abaPedido;
+        });
+        return { pedidosPorAba: contagem, abaDoFoco: foco };
+    }, [pendentes, nome, pedidoFocoId]);
+
+    const [aba, setAba] = useState(() => abaDoFoco || 'ficha');
+    // Outro "Ver a Habilidade" com o livro já aberto: vai pra aba do novo pedido.
+    useEffect(() => { if (abaDoFoco) setAba(abaDoFoco); }, [pedidoFocoId, abaDoFoco]);
+
+    if (!nome) return null;
+
+    const conteudo = (
+        <div className="livro-entidade-fundo">
+            <FichaAlvoProvider nome={nome}>
+                <div className="livro-entidade-barra">
+                    <AbasLivro nome={nome} aba={aba} setAba={setAba} pedidosPorAba={pedidosPorAba} />
+                    <button type="button" className="livro-entidade-fechar" onClick={aoFechar}>❌ FECHAR LIVRO</button>
                 </div>
-
-                <div className="grimorio-mestre-abas" role="tablist">
-                    {ABAS_GRIMORIO_MESTRE.map(a => (
-                        <button
-                            key={a.id}
-                            type="button"
-                            role="tab"
-                            aria-selected={aba === a.id}
-                            className={`grimorio-mestre-aba${aba === a.id ? ' ativa' : ''}`}
-                            onClick={() => setAba(a.id)}
-                        >
-                            {a.icone} {a.nome} <small>({quantidade[a.id]})</small>
-                            {pedidosPorAba.contagem[a.id] > 0 && <span className="grimorio-mestre-aba-pedido" title="Pedidos aguardando aprovação">⏳{pedidosPorAba.contagem[a.id]}</span>}
-                        </button>
-                    ))}
+                <div className="livro-entidade-corpo fade-in">
+                    {/* A MESMA Ficha Definitiva que o jogador usa, ao vivo, mirando este personagem
+                        (FichaAlvoContext.jsx): qualquer campo novo da ficha já aparece aqui. */}
+                    {aba === 'ficha'
+                        ? <MarcadosPanel />
+                        : <GrimorioLeitura aba={aba} pedidoFocoId={pedidoFocoId} />}
                 </div>
-
-                <div className="grimorio-mestre-conteudo" role="tabpanel">
-                    {(aba === 'habilidade' || aba === 'poder' || aba === 'forma') && (
-                        <>
-                            <ListaPoderes
-                                key={aba}
-                                itens={poderes[aba]}
-                                categoria={aba}
-                                vazio={aba === 'forma' ? 'Nenhuma Forma registrada.' : aba === 'poder' ? 'Nenhum Poder registrado.' : 'Nenhuma Habilidade registrada.'}
-                            />
-                            {pedidos}
-                        </>
-                    )}
-
-                    {aba === 'magias' && (
-                        <>
-                            {tecnicas.length === 0 && <div className="grimorio-vazio">Nenhuma Técnica Elemental.</div>}
-                            {tecnicas.map(({ elemento, itens }) => (
-                                <div key={elemento} className="grimorio-pasta">
-                                    {/* Cor do elemento: valor dinâmico (mesma tabela da aba Elementos). */}
-                                    <h4 className="grimorio-elemento-titulo" style={{ color: cores[elemento] || undefined }}>
-                                        {emogis[elemento] || '✨'} Pergaminhos de {elemento} <small>({itens.length})</small>
-                                    </h4>
-                                    {itens.map((m, i) => <CartaoTecnica key={m.id || `${elemento}_${i}`} m={m} ficha={ficha} />)}
-                                </div>
-                            ))}
-                            {pedidos}
-                        </>
-                    )}
-
-                    {aba === 'inventario' && (
-                        <>
-                            {inventario.length === 0 && <div className="grimorio-vazio">O relicário deste personagem está vazio.</div>}
-                            {inventario.map((item, i) => <CartaoItem key={item.id || i} item={item} />)}
-                            {pedidos}
-                        </>
-                    )}
-
-                    {aba === 'dominios' && (
-                        dominios.length === 0
-                            ? <div className="grimorio-vazio">Nenhum Domínio registrado.</div>
-                            : dominios.map(d => (
-                                <div key={d.nome} className="grimorio-cartao grimorio-dominio">
-                                    <strong className="grimorio-cartao-nome">{d.nome}</strong>
-                                    <span>
-                                        <span className="grimorio-dominio-nivel">Nv {d.nivel}{NIVEIS_DOMINIO[d.nivel] ? ` — ${NIVEIS_DOMINIO[d.nivel].nome}` : ''}</span>
-                                        {d.categoria && <small> ({d.categoria})</small>}
-                                    </span>
-                                </div>
-                            ))
-                    )}
-                </div>
-            </div>
+            </FichaAlvoProvider>
         </div>
     );
 
     return typeof document !== 'undefined' && document.body ? createPortal(conteudo, document.body) : conteudo;
 }
-

@@ -1977,26 +1977,12 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
     .sidebar-badge-pedidos, .mestre-notificacoes-sino, .mestre-notificacao, .pedido-ficha.em-foco, .pedido-aviso { animation: none; }
 }
 
-/* ========== 📖 GRIMÓRIO DA ENTIDADE — aba do Mestre (components/mestre/GrimorioEntidade.jsx) ========== */
-.grimorio-mestre-fundo { position: fixed; inset: 0; z-index: 9995; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px); }
-.grimorio-mestre { position: relative; width: 100%; max-width: 900px; max-height: 90vh; overflow-y: auto; box-sizing: border-box; padding: 20px; border: 2px solid var(--cor-info); border-radius: 10px; background: #0a0a0f; box-shadow: 0 0 30px rgba(0, 136, 255, 0.3); color: #ddd; }
-.grimorio-mestre-fechar { position: absolute; top: 12px; right: 14px; background: none; border: none; color: var(--cor-secundaria); font-size: 1.5em; font-weight: bold; cursor: pointer; }
-.grimorio-mestre-cabecalho { display: flex; align-items: center; gap: 15px; margin-bottom: 18px; padding-bottom: 15px; border-bottom: 1px solid #333; }
-.grimorio-mestre-avatar { width: 80px; height: 80px; flex-shrink: 0; object-fit: cover; border-radius: 8px; border: 2px solid var(--cor-info); }
-.grimorio-mestre-avatar.vazio { display: flex; align-items: center; justify-content: center; background: #222; color: #555; border-color: #333; font-size: 0.8em; }
-.grimorio-mestre-titulo { margin: 0; color: var(--cor-info); overflow-wrap: anywhere; }
-.grimorio-mestre-classe { color: #aaa; font-style: italic; }
-.grimorio-mestre-atributos { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 18px; }
-.grimorio-mestre-atributo { display: flex; justify-content: space-between; padding: 7px 12px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 5px; background: rgba(255, 255, 255, 0.05); }
-.grimorio-mestre-atributo span { color: #aaa; text-transform: uppercase; font-weight: bold; }
-.grimorio-mestre-atributo strong { color: #fff; font-size: 1.1em; }
-.grimorio-mestre-abas { position: sticky; top: -20px; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 -20px 14px; padding: 10px 20px; background: #0a0a0f; border-bottom: 1px solid #333; }
+/* ========== 📖 LIVRO DA ENTIDADE — Sandbox do Mestre (components/mestre/LivroEntidade.jsx) ========== */
 .grimorio-mestre-aba { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border: 1px solid #333; border-radius: 16px; background: rgba(255, 255, 255, 0.04); color: #bbb; font-family: inherit; font-size: 0.9em; cursor: pointer; transition: all 0.2s; }
 .grimorio-mestre-aba small { opacity: 0.6; }
 .grimorio-mestre-aba:hover { color: #fff; border-color: #555; }
 .grimorio-mestre-aba.ativa { color: var(--cor-destaque); border-color: var(--cor-destaque); background: rgba(var(--cor-destaque-rgb), 0.1); box-shadow: 0 0 10px rgba(var(--cor-destaque-rgb), 0.25); }
 .grimorio-mestre-aba-pedido { padding: 0 6px; border-radius: 8px; background: rgba(var(--cor-destaque-rgb), 0.2); color: var(--cor-destaque); font-size: 0.85em; font-weight: bold; }
-.grimorio-mestre-conteudo { display: flex; flex-direction: column; gap: 10px; }
 .grimorio-pasta { display: flex; flex-direction: column; gap: 8px; }
 .grimorio-pasta-titulo { padding: 7px 12px; border: none; border-bottom: 1px dashed #444; background: none; color: #ddd; font-family: inherit; font-size: 1em; font-weight: bold; text-align: left; cursor: pointer; }
 .grimorio-pasta-titulo small, .grimorio-elemento-titulo small { opacity: 0.6; font-weight: normal; }
@@ -2014,11 +2000,15 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .grimorio-cartao-numeros b, .grimorio-cartao-mecanica b { color: #99a; font-weight: bold; }
 .grimorio-cartao-mecanica { padding-top: 5px; border-top: 1px dotted #333; color: #bbc; font-size: 0.82em; overflow-wrap: anywhere; }
 .grimorio-cartao-passivos { display: block; margin-top: 3px; font-style: italic; }
-.grimorio-dominio { flex-direction: row; justify-content: space-between; align-items: center; border-style: solid; border-left: 3px solid var(--cor-destaque); }
-.grimorio-dominio-nivel { color: var(--cor-destaque); font-weight: bold; }
 .grimorio-vazio { color: #888; font-style: italic; }
+.livro-entidade-fundo { position: fixed; inset: 0; z-index: 9995; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 20px 20px; box-sizing: border-box; background: rgba(0, 0, 0, 0.92); backdrop-filter: blur(5px); }
+.livro-entidade-barra { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; width: 100%; max-width: 1400px; }
+.livro-entidade-abas { display: flex; flex-wrap: wrap; gap: 6px; }
+.livro-entidade-fechar { padding: 8px 18px; border: 3px solid #000; border-radius: 8px; background: var(--cor-secundaria); color: #fff; font-family: inherit; font-size: 1.05em; font-weight: bold; cursor: pointer; box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.5); transition: transform 0.2s; }
+.livro-entidade-fechar:hover { transform: scale(1.05); }
+.livro-entidade-corpo { position: relative; flex: 1; min-height: 0; width: 100%; max-width: 1400px; overflow-y: auto; }
+.livro-entidade-grimorio { display: flex; flex-direction: column; gap: 10px; max-width: 1000px; margin: 0 auto; padding: 18px; box-sizing: border-box; border: 2px solid var(--cor-info); border-radius: 10px; background: #0a0a0f; color: #ddd; }
 @media (max-width: 600px) {
-    .grimorio-mestre-fundo { padding: 8px; }
-    .grimorio-mestre { padding: 14px; max-height: 94vh; }
-    .grimorio-mestre-abas { top: -14px; margin: 0 -14px 12px; padding: 8px 14px; }
+    .livro-entidade-fundo { padding: 8px; }
+    .livro-entidade-grimorio { padding: 12px; }
 }
