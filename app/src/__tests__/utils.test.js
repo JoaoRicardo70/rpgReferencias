@@ -21,12 +21,15 @@ describe('contarDigitos', () => {
         expect(contarDigitos(9.99e20)).toBe(21);
     });
 
-    it('returns 1 for zero, negative, NaN, Infinity', () => {
-        expect(contarDigitos(0)).toBe(1);
-        expect(contarDigitos(-5)).toBe(1);
-        expect(contarDigitos(NaN)).toBe(1);
-        expect(contarDigitos(Infinity)).toBe(1);
-        expect(contarDigitos(-Infinity)).toBe(1);
+    // Contrato atual: valores sem dígitos significativos (zero, negativo, NaN, falsy) contam 0 dígitos
+    // (antes retornavam 1). Infinity não é coberto: hoje devolve Infinity (ver relatório de QA).
+    it('returns 0 for zero, negative, NaN, -Infinity and falsy values', () => {
+        expect(contarDigitos(0)).toBe(0);
+        expect(contarDigitos(-5)).toBe(0);
+        expect(contarDigitos(NaN)).toBe(0);
+        expect(contarDigitos(-Infinity)).toBe(0);
+        expect(contarDigitos(null)).toBe(0);
+        expect(contarDigitos(undefined)).toBe(0);
     });
 });
 
@@ -71,8 +74,19 @@ describe('pegarDoisPrimeirosDigitos', () => {
 
     it('returns first two digits for larger numbers', () => {
         expect(pegarDoisPrimeirosDigitos(12345)).toBe(12);
-        expect(pegarDoisPrimeirosDigitos(987654)).toBe(98);
+        expect(pegarDoisPrimeirosDigitos(123)).toBe(12);
+        expect(pegarDoisPrimeirosDigitos(999)).toBe(99);
         expect(pegarDoisPrimeirosDigitos(100000)).toBe(100); // special case: starts with 100
+    });
+
+    // A partir de 1000 o valor escala linearmente (milhares): 21.000 = +21, 421.000 = +421
+    // (ver "FIM DO GARGALO DA EVASIVA" em core/utils.js). Antes pegava só os 2 primeiros dígitos.
+    it('from 1000 upwards returns the value in thousands (floor(n / 1000))', () => {
+        expect(pegarDoisPrimeirosDigitos(1000)).toBe(1);
+        expect(pegarDoisPrimeirosDigitos(21000)).toBe(21);
+        expect(pegarDoisPrimeirosDigitos(421000)).toBe(421);
+        expect(pegarDoisPrimeirosDigitos(987654)).toBe(987);
+        expect(pegarDoisPrimeirosDigitos(12345)).toBe(12);
     });
 
     it('returns 100 for exact 100', () => {

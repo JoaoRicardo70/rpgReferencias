@@ -234,7 +234,7 @@ describe('AppShell — default panels', () => {
 
     it('always renders Sidebar', () => {
         const { container } = renderShell();
-        const sidebar = container.querySelector('nav.sidebar');
+        const sidebar = container.querySelector('.sidebar-magica');
         expect(sidebar).not.toBeNull();
     });
 
@@ -522,9 +522,9 @@ describe('AppShell — className prop merging', () => {
 describe('AppShell — structural integrity', () => {
     beforeEach(() => { mockAbaAtiva = 'aba-status'; });
 
-    it('renders exactly one Sidebar nav element', () => {
+    it('renders exactly one Sidebar element', () => {
         const { container } = renderShell();
-        const sidebars = container.querySelectorAll('nav.sidebar');
+        const sidebars = container.querySelectorAll('.sidebar-magica');
         expect(sidebars.length).toBe(1);
     });
 
@@ -537,7 +537,7 @@ describe('AppShell — structural integrity', () => {
     it('Sidebar is a direct child of the root app-layout div', () => {
         const { container } = renderShell();
         const root = container.firstChild;
-        const sidebar = container.querySelector('nav.sidebar');
+        const sidebar = container.querySelector('.sidebar-magica');
         expect(root.contains(sidebar)).toBe(true);
     });
 
@@ -653,7 +653,7 @@ describe('AppShell — abaInicial prop', () => {
 
     it('still renders Sidebar and ModalConfirm when abaInicial is provided', () => {
         const { container } = renderShell({ abaInicial: 'aba-poderes' });
-        expect(container.querySelector('nav.sidebar')).not.toBeNull();
+        expect(container.querySelector('.sidebar-magica')).not.toBeNull();
         expect(screen.getByTestId('modal-confirm')).toBeTruthy();
     });
 

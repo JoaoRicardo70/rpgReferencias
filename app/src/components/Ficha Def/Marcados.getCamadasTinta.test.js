@@ -53,6 +53,30 @@ describe('getCamadasTinta — formato {modo1, op1, modo2, op2} fixo pra qualquer
         expect(() => getCamadasTinta('#zzz')).not.toThrow();
         expect(getCamadasTinta('#zzz')).toEqual({ modo1: 'color', op1: 0.85, modo2: 'multiply', op2: 0.5 });
     });
+
+    // Migrado de Marcados.getCamadaTinta.test.js (função singular removida: não há mais ramo por
+    // luminosidade/saturação nem opacidade proporcional; toda cor válida recebe as mesmas duas camadas).
+    it('cores saturadas da paleta (roxo, azul, vermelho, amarelo) recebem o mesmo formato fixo', () => {
+        ['#aa00ff', '#0088ff', '#ff003c', '#ffcc00'].forEach(cor => {
+            expect(getCamadasTinta(cor)).toEqual({ modo1: 'color', op1: 0.85, modo2: 'multiply', op2: 0.5 });
+        });
+    });
+
+    it('hex em maiúsculas dá o mesmo resultado que o equivalente em minúsculas', () => {
+        expect(getCamadasTinta('#AA00FF')).toEqual(getCamadasTinta('#aa00ff'));
+    });
+
+    it('hex abreviado "#fff" NÃO é tratado como branco (#ffffff): só a string exata "#ffffff" vira null', () => {
+        expect(getCamadasTinta('#fff')).not.toBeNull();
+        expect(getCamadasTinta('#fff')).toEqual({ modo1: 'color', op1: 0.85, modo2: 'multiply', op2: 0.5 });
+    });
+
+    it('retorna objeto novo a cada chamada (sem estado compartilhado mutável)', () => {
+        const a = getCamadasTinta('#00ffff');
+        const b = getCamadasTinta('#00ffff');
+        expect(a).toEqual(b);
+        expect(a).not.toBe(b);
+    });
 });
 
 describe('getCamadasTinta — módulo Marcados.jsx importa/parseia corretamente', () => {

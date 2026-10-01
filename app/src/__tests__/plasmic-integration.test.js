@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('firebase/database', () => ({
     ref: vi.fn((db, path) => ({ path })),
     set: vi.fn(() => Promise.resolve()),
+    update: vi.fn(() => Promise.resolve()),
     get: vi.fn(() => Promise.resolve({ exists: () => false, val: () => null })),
     push: vi.fn(() => Promise.resolve()),
     remove: vi.fn(() => Promise.resolve()),
@@ -229,16 +230,17 @@ describe('firebase-sync.js — setModoPlasmic guard', () => {
         expect(set).not.toHaveBeenCalled();
     });
 
-    it('allows salvarFirebaseImediato when Plasmic mode is off (name present)', async () => {
-        const { set } = await import('firebase/database');
-        set.mockClear();
+    it('allows salvarFirebaseImediato (partial update via update(), needs mesaId) when Plasmic mode is off', async () => {
+        const { update } = await import('firebase/database');
+        update.mockClear();
         mockGetState.mockReturnValue({
             meuNome: 'HeroiTeste',
+            mesaId: 'mesaTeste',
             minhaFicha: { vida: { atual: 80 } }
         });
         syncMod.setModoPlasmic(false);
         await syncMod.salvarFirebaseImediato();
-        expect(set).toHaveBeenCalled();
+        expect(update).toHaveBeenCalled();
     });
 
     // --- salvarFichaSilencioso ---
@@ -359,19 +361,20 @@ describe('firebase-sync.js — setModoPlasmic guard', () => {
 
     // --- toggle ---
     it('can toggle Plasmic mode on and off', async () => {
-        const { set } = await import('firebase/database');
-        set.mockClear();
+        const { update } = await import('firebase/database');
+        update.mockClear();
         mockGetState.mockReturnValue({
             meuNome: 'HeroiTeste',
+            mesaId: 'mesaTeste',
             minhaFicha: { vida: { atual: 80 } }
         });
 
         syncMod.setModoPlasmic(true);
         await syncMod.salvarFirebaseImediato();
-        expect(set).not.toHaveBeenCalled();
+        expect(update).not.toHaveBeenCalled();
 
         syncMod.setModoPlasmic(false);
         await syncMod.salvarFirebaseImediato();
-        expect(set).toHaveBeenCalled();
+        expect(update).toHaveBeenCalled();
     });
 });

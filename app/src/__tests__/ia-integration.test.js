@@ -1,5 +1,5 @@
 /**
- * Tests for AIFormContext.jsx: adicionarCapituloComTexto logic and the
+ * Tests for AIFormContext.jsx: salvarNoRegistro (novo_capitulo) logic and the
  * localStorage try/catch fallback for capitulos/arcos hydration.
  *
  * GravadorPanel.jsx no longer calls any cloud function — it records audio
@@ -150,165 +150,195 @@ async function renderAIFormContext() {
 }
 
 // ============================================================================
-// SECTION 1 — adicionarCapituloComTexto (AIFormContext)
+// SECTION 1 — salvarNoRegistro com destino 'novo_capitulo' (AIFormContext)
+// (substitui o antigo adicionarCapituloComTexto, removido: agora o capítulo
+// novo é criado por salvarNoRegistro, que pergunta Nome do Capítulo e do 1º Arco.
+// Sem DialogosProvider, o contexto usa window.prompt como fallback.)
 // ============================================================================
-describe('AIFormContext — adicionarCapituloComTexto', () => {
+describe('AIFormContext — salvarNoRegistro (novo_capitulo)', () => {
+    let promptSpy;
+
+    // Simula o usuário preenchendo "Nome do Capítulo" e "Nome do primeiro Arco"
+    const responderPrompts = (cap, arco = 'Arco 1') => {
+        promptSpy.mockReset();
+        promptSpy.mockReturnValueOnce(cap).mockReturnValueOnce(arco);
+    };
+    const lerSalvos = () => JSON.parse(localStorage.getItem('rpgSextaFeira_capitulos') || '[]');
+
     beforeEach(() => {
         vi.resetModules();
         localStorage.clear();
+        promptSpy = vi.spyOn(window, 'prompt').mockReturnValue(null);
     });
 
     afterEach(() => {
+        promptSpy.mockRestore();
         localStorage.clear();
     });
 
-    it('is exposed on the context value', async () => {
+    it('is exposed on the context value (adicionarCapituloComTexto foi removido)', async () => {
         const ctx = await renderAIFormContext();
         expect(ctx).not.toBeNull();
-        expect(typeof ctx.adicionarCapituloComTexto).toBe('function');
+        expect(typeof ctx.salvarNoRegistro).toBe('function');
+        expect(ctx.adicionarCapituloComTexto).toBeUndefined();
     });
 
     it('adds a new chapter to capitulosPresente with the given titulo and texto', async () => {
         const ctx = await renderAIFormContext();
-        const initialCount = ctx.capitulosPresente.length;
+        responderPrompts('Sessão 01/01/2026', 'Arco da Batalha');
 
+        let ok;
         await act(async () => {
-            ctx.adicionarCapituloComTexto('Sessão 01/01/2026', 'Resumo da batalha.');
+            ok = await ctx.salvarNoRegistro('Resumo da batalha.', 'Resumo', 'novo_capitulo');
         });
 
-        // Re-read context after state update
-        const { AIFormProvider, useAIForm } = await import('../components/ia/AIFormContext.jsx');
-        let updatedCtx = null;
-        function Captor2() { updatedCtx = useAIForm(); return null; }
-
-        await act(async () => {
-            render(
-                React.createElement(AIFormProvider, null,
-                    React.createElement(Captor2)
-                )
-            );
-        });
-
-        // The new chapter should be in localStorage (persisted by useEffect)
-        const salvo = JSON.parse(localStorage.getItem('rpgSextaFeira_capitulos') || '[]');
-        const novoCapitulo = salvo.find(c => c.titulo === 'Sessão 01/01/2026');
+        expect(ok).toBe(true);
+        const novoCapitulo = lerSalvos().find(c => c.titulo === 'Sessão 01/01/2026');
         expect(novoCapitulo).toBeDefined();
-        expect(novoCapitulo.texto).toBe('Resumo da batalha.');
+        // O texto agora vive no primeiro arco do capítulo
+        expect(novoCapitulo.arcos).toHaveLength(1);
+        expect(novoCapitulo.arcos[0].titulo).toBe('Arco da Batalha');
+        expect(novoCapitulo.arcos[0].texto).toBe('Resumo da batalha.');
         expect(Array.isArray(novoCapitulo.tierList)).toBe(true);
     });
 
     it('new chapter has a numeric id generated from Date.now()', async () => {
         const beforeCall = Date.now();
         const ctx = await renderAIFormContext();
+        responderPrompts('Novo Capítulo');
 
         await act(async () => {
-            ctx.adicionarCapituloComTexto('Novo Capítulo', 'Conteúdo aqui.');
+            await ctx.salvarNoRegistro('Conteúdo aqui.', 'T', 'novo_capitulo');
         });
 
-        const salvo = JSON.parse(localStorage.getItem('rpgSextaFeira_capitulos') || '[]');
-        const novoCapitulo = salvo.find(c => c.titulo === 'Novo Capítulo');
+        const novoCapitulo = lerSalvos().find(c => c.titulo === 'Novo Capítulo');
         expect(novoCapitulo).toBeDefined();
         expect(typeof novoCapitulo.id).toBe('number');
         expect(novoCapitulo.id).toBeGreaterThanOrEqual(beforeCall);
+        // O arco recebe id = id do capítulo + 1
+        expect(novoCapitulo.arcos[0].id).toBe(novoCapitulo.id + 1);
     });
 
     it('new chapter starts with an empty tierList array', async () => {
         const ctx = await renderAIFormContext();
+        responderPrompts('Cap TierList');
 
         await act(async () => {
-            ctx.adicionarCapituloComTexto('Cap TierList', 'Texto qualquer.');
+            await ctx.salvarNoRegistro('Texto qualquer.', 'T', 'novo_capitulo');
         });
 
-        const salvo = JSON.parse(localStorage.getItem('rpgSextaFeira_capitulos') || '[]');
-        const novoCapitulo = salvo.find(c => c.titulo === 'Cap TierList');
+        const novoCapitulo = lerSalvos().find(c => c.titulo === 'Cap TierList');
         expect(Array.isArray(novoCapitulo.tierList)).toBe(true);
         expect(novoCapitulo.tierList).toHaveLength(0);
     });
 
-    it('switches capituloAtivoId to the new chapter id', async () => {
+    it('switches capituloAtivoId and arcoAtivo to the new chapter/arc ids', async () => {
         const ctx = await renderAIFormContext();
+        responderPrompts('Capítulo Ativo Novo');
 
         await act(async () => {
-            ctx.adicionarCapituloComTexto('Capítulo Ativo Novo', 'Texto.');
+            await ctx.salvarNoRegistro('Texto.', 'T', 'novo_capitulo');
         });
 
-        const salvo = JSON.parse(localStorage.getItem('rpgSextaFeira_capitulos') || '[]');
-        const novoCapitulo = salvo.find(c => c.titulo === 'Capítulo Ativo Novo');
-        const capituloAtivoSalvo = Number(localStorage.getItem('rpgSextaFeira_capituloAtivo'));
-        expect(capituloAtivoSalvo).toBe(novoCapitulo.id);
+        const novoCapitulo = lerSalvos().find(c => c.titulo === 'Capítulo Ativo Novo');
+        expect(Number(localStorage.getItem('rpgSextaFeira_capituloAtivo'))).toBe(novoCapitulo.id);
+        expect(Number(localStorage.getItem('rpgSextaFeira_arcoAtivoPresente'))).toBe(novoCapitulo.arcos[0].id);
     });
 
     it('sets loreFoco to "presente" after adding chapter', async () => {
-        // The function always sets loreFoco to 'presente'
-        // We can verify by checking the context value type — function must call setLoreFoco('presente')
-        // Since loreFoco defaults to 'presente', we test that it stays 'presente'
-        const ctx = await renderAIFormContext();
-        expect(ctx.loreFoco).toBe('presente');
-
+        const { AIFormProvider, useAIForm } = await import('../components/ia/AIFormContext.jsx');
+        let capturedCtx = null;
+        function Captor() { capturedCtx = useAIForm(); return null; }
         await act(async () => {
-            ctx.setLoreFoco('futuro');
+            render(React.createElement(AIFormProvider, null, React.createElement(Captor)));
+        });
+        expect(capturedCtx.loreFoco).toBe('presente');
+
+        await act(async () => { capturedCtx.setLoreFoco('futuro'); });
+        expect(capturedCtx.loreFoco).toBe('futuro');
+
+        responderPrompts('Forçar Presente');
+        await act(async () => {
+            await capturedCtx.salvarNoRegistro('Texto.', 'T', 'novo_capitulo', 'presente');
         });
 
-        // After adicionarCapituloComTexto, loreFoco reverts to 'presente'
-        await act(async () => {
-            ctx.adicionarCapituloComTexto('Forçar Presente', 'Texto.');
-        });
-
-        // loreFoco is persisted via state; we can only inspect via new render
-        // Just verify the function executes without throwing
-        expect(true).toBe(true);
+        expect(capturedCtx.loreFoco).toBe('presente');
     });
 
     it('appends chapter (does not replace existing chapters)', async () => {
         const ctx = await renderAIFormContext();
         const initialCount = ctx.capitulosPresente.length;
+        responderPrompts('Extra A');
 
         await act(async () => {
-            ctx.adicionarCapituloComTexto('Extra A', 'Texto A.');
+            await ctx.salvarNoRegistro('Texto A.', 'T', 'novo_capitulo');
         });
 
-        const salvo = JSON.parse(localStorage.getItem('rpgSextaFeira_capitulos') || '[]');
-        expect(salvo.length).toBeGreaterThanOrEqual(initialCount + 1);
-
-        const extraA = salvo.find(c => c.titulo === 'Extra A');
-        expect(extraA).toBeDefined();
+        const salvo = lerSalvos();
+        expect(salvo.length).toBe(initialCount + 1);
+        expect(salvo.find(c => c.titulo === 'Extra A')).toBeDefined();
+        // O capítulo original continua presente
+        expect(salvo[0].titulo).toBe('Capítulo 1 - Reino de Faku');
     });
 
-    it('handles empty titulo gracefully', async () => {
+    it('returns false and adds nothing when user cancels the prompt', async () => {
         const ctx = await renderAIFormContext();
-        expect(() => {
-            act(() => {
-                ctx.adicionarCapituloComTexto('', '');
-            });
-        }).not.toThrow();
+        // promptSpy retorna null por padrão (cancelar)
+
+        let ok;
+        await act(async () => {
+            ok = await ctx.salvarNoRegistro('Texto.', 'T', 'novo_capitulo');
+        });
+
+        expect(ok).toBe(false);
+        expect(lerSalvos()).toHaveLength(1);
+    });
+
+    it('handles empty titulo gracefully (returns false, adds nothing)', async () => {
+        const ctx = await renderAIFormContext();
+        responderPrompts('', '');
+
+        let ok;
+        await act(async () => {
+            ok = await ctx.salvarNoRegistro('', '', 'novo_capitulo');
+        });
+
+        expect(ok).toBe(false);
+        expect(lerSalvos()).toHaveLength(1);
     });
 
     it('handles very long titulo and texto without error', async () => {
         const longTitle = 'T'.repeat(500);
         const longText = 'X'.repeat(10000);
         const ctx = await renderAIFormContext();
-        expect(() => {
-            act(() => {
-                ctx.adicionarCapituloComTexto(longTitle, longText);
-            });
-        }).not.toThrow();
+        responderPrompts(longTitle);
+
+        await act(async () => {
+            await ctx.salvarNoRegistro(longText, 'T', 'novo_capitulo');
+        });
+
+        const novo = lerSalvos().find(c => c.titulo === longTitle);
+        expect(novo).toBeDefined();
+        expect(novo.arcos[0].texto).toBe(longText);
     });
 
     it('calling twice creates two separate chapters with distinct ids', async () => {
         const ctx = await renderAIFormContext();
 
+        responderPrompts('Cap Alpha');
         await act(async () => {
-            ctx.adicionarCapituloComTexto('Cap Alpha', 'Texto Alpha.');
+            await ctx.salvarNoRegistro('Texto Alpha.', 'T', 'novo_capitulo');
         });
 
         // Small delay to ensure Date.now() produces a different value
         await new Promise(r => setTimeout(r, 5));
 
+        responderPrompts('Cap Beta');
         await act(async () => {
-            ctx.adicionarCapituloComTexto('Cap Beta', 'Texto Beta.');
+            await ctx.salvarNoRegistro('Texto Beta.', 'T', 'novo_capitulo');
         });
 
-        const salvo = JSON.parse(localStorage.getItem('rpgSextaFeira_capitulos') || '[]');
+        const salvo = lerSalvos();
         const alpha = salvo.find(c => c.titulo === 'Cap Alpha');
         const beta = salvo.find(c => c.titulo === 'Cap Beta');
         expect(alpha).toBeDefined();

@@ -222,7 +222,7 @@ describe('useTemaStore', () => {
       });
 
       store.setTema('custom-theme');
-      expect(store.temaAtivo).toBe('custom-theme');
+      expect(useTemaStore.getState().temaAtivo).toBe('custom-theme');
     });
 
     it('applies all CSS variables from theme', () => {
@@ -252,7 +252,8 @@ describe('useTemaStore', () => {
 
       useTemaStore.getState().setTema('neon-ciano');
 
-      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Erro ao salvar tema'));
+      // O código atual loga a mensagem + o erro original como 2º argumento
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Erro ao salvar tema'), expect.any(Error));
       setItemSpy.mockRestore();
       errorSpy.mockRestore();
     });
@@ -261,13 +262,13 @@ describe('useTemaStore', () => {
       const store = useTemaStore.getState();
 
       store.setTema('neon-ciano');
-      expect(store.temaAtivo).toBe('neon-ciano');
+      expect(useTemaStore.getState().temaAtivo).toBe('neon-ciano');
 
       store.setTema('sangue-crimsono');
-      expect(store.temaAtivo).toBe('sangue-crimsono');
+      expect(useTemaStore.getState().temaAtivo).toBe('sangue-crimsono');
 
       store.setTema('verde-mata');
-      expect(store.temaAtivo).toBe('verde-mata');
+      expect(useTemaStore.getState().temaAtivo).toBe('verde-mata');
     });
   });
 
@@ -319,10 +320,10 @@ describe('useTemaStore', () => {
       store.salvarTemaCustom('tema2', 'Tema Dois', '2️⃣', {});
       store.salvarTemaCustom('tema3', 'Tema Três', '3️⃣', {});
 
-      expect(Object.keys(store.temasCustom)).toHaveLength(3);
-      expect(store.temasCustom['tema1']).toBeDefined();
-      expect(store.temasCustom['tema2']).toBeDefined();
-      expect(store.temasCustom['tema3']).toBeDefined();
+      expect(Object.keys(useTemaStore.getState().temasCustom)).toHaveLength(3);
+      expect(useTemaStore.getState().temasCustom['tema1']).toBeDefined();
+      expect(useTemaStore.getState().temasCustom['tema2']).toBeDefined();
+      expect(useTemaStore.getState().temasCustom['tema3']).toBeDefined();
     });
 
     it('overwrites custom theme with same ID', () => {
@@ -336,19 +337,25 @@ describe('useTemaStore', () => {
         '--cor-primaria': '#00ff00'
       });
 
-      const tema = store.temasCustom['my-theme'];
+      const tema = useTemaStore.getState().temasCustom['my-theme'];
       expect(tema.nome).toBe('Version 2');
       expect(tema.emoji).toBe('🎯');
       expect(tema.vars['--cor-primaria']).toBe('#00ff00');
     });
 
     it('accepts null vars and uses default', () => {
-      // When window is undefined in test environment, obterVariaveisCSS returns {}
+      // O ambiente é jsdom (window existe) mas document está trocado por um mock sem Element real,
+      // então window.getComputedStyle é stubado para devolver as variáveis "atuais" do CSS.
+      const csSpy = vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+        getPropertyValue: (k) => (k === '--cor-primaria' ? ' #123456 ' : '')
+      });
       useTemaStore.getState().salvarTemaCustom('my-theme', 'My Theme', '🎨', null);
+      csSpy.mockRestore();
       const tema = useTemaStore.getState().temasCustom['my-theme'];
       expect(tema.vars).toBeDefined();
-      // In test environment (no window), it should be empty object
       expect(typeof tema.vars).toBe('object');
+      // vars nulo => usa as variáveis CSS atualmente aplicadas (com trim)
+      expect(tema.vars).toEqual({ '--cor-primaria': '#123456' });
     });
 
     it('stores provided vars object', () => {
@@ -370,18 +377,18 @@ describe('useTemaStore', () => {
       const store = useTemaStore.getState();
 
       store.salvarTemaCustom('to-remove', 'To Remove', '🗑️', {});
-      expect(store.temasCustom['to-remove']).toBeDefined();
+      expect(useTemaStore.getState().temasCustom['to-remove']).toBeDefined();
 
       store.removerTemaCustom('to-remove');
-      expect(store.temasCustom['to-remove']).toBeUndefined();
+      expect(useTemaStore.getState().temasCustom['to-remove']).toBeUndefined();
     });
 
     it('does nothing when removing non-existent theme', () => {
       const store = useTemaStore.getState();
-      const before = Object.keys(store.temasCustom).length;
+      const before = Object.keys(useTemaStore.getState().temasCustom).length;
 
       store.removerTemaCustom('non-existent');
-      const after = Object.keys(store.temasCustom).length;
+      const after = Object.keys(useTemaStore.getState().temasCustom).length;
 
       expect(before).toBe(after);
     });
@@ -393,16 +400,16 @@ describe('useTemaStore', () => {
       store.salvarTemaCustom('tema2', 'Tema Dois', '2️⃣', {});
       store.salvarTemaCustom('tema3', 'Tema Três', '3️⃣', {});
 
-      expect(store.temasCustom).toHaveProperty('tema1');
-      expect(store.temasCustom).toHaveProperty('tema2');
-      expect(store.temasCustom).toHaveProperty('tema3');
+      expect(useTemaStore.getState().temasCustom).toHaveProperty('tema1');
+      expect(useTemaStore.getState().temasCustom).toHaveProperty('tema2');
+      expect(useTemaStore.getState().temasCustom).toHaveProperty('tema3');
 
       store.removerTemaCustom('tema1');
       store.removerTemaCustom('tema3');
 
-      expect(store.temasCustom).not.toHaveProperty('tema1');
-      expect(store.temasCustom).toHaveProperty('tema2');
-      expect(store.temasCustom).not.toHaveProperty('tema3');
+      expect(useTemaStore.getState().temasCustom).not.toHaveProperty('tema1');
+      expect(useTemaStore.getState().temasCustom).toHaveProperty('tema2');
+      expect(useTemaStore.getState().temasCustom).not.toHaveProperty('tema3');
     });
 
     it('does not affect default themes', () => {
@@ -485,17 +492,17 @@ describe('useTemaStore', () => {
       };
 
       store.setTemasCustom(customTemas);
-      expect(store.temasCustom).toEqual(customTemas);
+      expect(useTemaStore.getState().temasCustom).toEqual(customTemas);
     });
 
     it('clears temasCustom when passed empty object', () => {
       const store = useTemaStore.getState();
 
       store.salvarTemaCustom('tema1', 'Tema Um', '1️⃣', {});
-      expect(store.temasCustom).toHaveProperty('tema1');
+      expect(useTemaStore.getState().temasCustom).toHaveProperty('tema1');
 
       store.setTemasCustom({});
-      expect(store.temasCustom).toEqual({});
+      expect(useTemaStore.getState().temasCustom).toEqual({});
     });
 
     it('sets to empty object when passed null', () => {
@@ -503,7 +510,7 @@ describe('useTemaStore', () => {
       store.salvarTemaCustom('tema1', 'Tema Um', '1️⃣', {});
 
       store.setTemasCustom(null);
-      expect(store.temasCustom).toEqual({});
+      expect(useTemaStore.getState().temasCustom).toEqual({});
     });
 
     it('sets to empty object when passed undefined', () => {
@@ -511,7 +518,7 @@ describe('useTemaStore', () => {
       store.salvarTemaCustom('tema1', 'Tema Um', '1️⃣', {});
 
       store.setTemasCustom(undefined);
-      expect(store.temasCustom).toEqual({});
+      expect(useTemaStore.getState().temasCustom).toEqual({});
     });
 
     it('replaces all existing custom themes', () => {
@@ -531,9 +538,9 @@ describe('useTemaStore', () => {
 
       store.setTemasCustom(newTemas);
 
-      expect(store.temasCustom).not.toHaveProperty('tema1');
-      expect(store.temasCustom).not.toHaveProperty('tema2');
-      expect(store.temasCustom).toHaveProperty('novo-tema');
+      expect(useTemaStore.getState().temasCustom).not.toHaveProperty('tema1');
+      expect(useTemaStore.getState().temasCustom).not.toHaveProperty('tema2');
+      expect(useTemaStore.getState().temasCustom).toHaveProperty('novo-tema');
     });
 
     it('allows getTodosOsTemas to include new custom themes', () => {
@@ -619,7 +626,7 @@ describe('useTemaStore', () => {
       localStorage.setItem('rpgTema', 'my-custom');
       store.iniciarTema();
 
-      expect(store.temaAtivo).toBe('my-custom');
+      expect(useTemaStore.getState().temaAtivo).toBe('my-custom');
     });
 
     it('updates temaAtivo state', () => {
@@ -634,13 +641,13 @@ describe('useTemaStore', () => {
       const store = useTemaStore.getState();
 
       store.iniciarTema();
-      expect(store.temaAtivo).toBe('nexo-violeta');
+      expect(useTemaStore.getState().temaAtivo).toBe('nexo-violeta');
 
       store.iniciarTema();
-      expect(store.temaAtivo).toBe('nexo-violeta');
+      expect(useTemaStore.getState().temaAtivo).toBe('nexo-violeta');
 
       store.iniciarTema();
-      expect(store.temaAtivo).toBe('nexo-violeta');
+      expect(useTemaStore.getState().temaAtivo).toBe('nexo-violeta');
     });
   });
 
@@ -655,7 +662,7 @@ describe('useTemaStore', () => {
 
       // Set it as active
       store.setTema('workflow-theme');
-      expect(store.temaAtivo).toBe('workflow-theme');
+      expect(useTemaStore.getState().temaAtivo).toBe('workflow-theme');
 
       // Retrieve it
       const tema = store.obterTema('workflow-theme');
@@ -671,17 +678,17 @@ describe('useTemaStore', () => {
       const store = useTemaStore.getState();
 
       store.setTema('neon-ciano');
-      expect(store.temaAtivo).toBe('neon-ciano');
+      expect(useTemaStore.getState().temaAtivo).toBe('neon-ciano');
 
       store.salvarTemaCustom('custom-1', 'Custom 1', '🎨', {});
       store.setTema('custom-1');
-      expect(store.temaAtivo).toBe('custom-1');
+      expect(useTemaStore.getState().temaAtivo).toBe('custom-1');
 
       store.setTema('sangue-crimsono');
-      expect(store.temaAtivo).toBe('sangue-crimsono');
+      expect(useTemaStore.getState().temaAtivo).toBe('sangue-crimsono');
 
       store.setTema('custom-1');
-      expect(store.temaAtivo).toBe('custom-1');
+      expect(useTemaStore.getState().temaAtivo).toBe('custom-1');
     });
 
     it('handles persistence workflow', () => {
@@ -694,7 +701,7 @@ describe('useTemaStore', () => {
 
       // Simulate app reload by initializing
       store.iniciarTema();
-      expect(store.temaAtivo).toBe('verde-mata');
+      expect(useTemaStore.getState().temaAtivo).toBe('verde-mata');
     });
 
     it('getTodosOsTemas includes all themes after various operations', () => {
@@ -752,7 +759,7 @@ describe('useTemaStore', () => {
 
       // Can set one as active
       store.setTema('firebase-theme-1');
-      expect(store.temaAtivo).toBe('firebase-theme-1');
+      expect(useTemaStore.getState().temaAtivo).toBe('firebase-theme-1');
     });
   });
 });

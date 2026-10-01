@@ -96,8 +96,10 @@ describe('fichaPadrao', () => {
         Object.values(fichaPadrao.divisores).forEach(v => expect(v).toBe(1));
     });
 
-    it('has default bio fields as empty strings', () => {
-        Object.values(fichaPadrao.bio).forEach(v => expect(v).toBe(''));
+    it('has default bio fields as empty strings (except nivel, which defaults to 0)', () => {
+        const { nivel, ...textos } = fichaPadrao.bio;
+        Object.values(textos).forEach(v => expect(v).toBe(''));
+        expect(nivel).toBe(0);
     });
 
     it('has compendioOverrides as an empty object', () => {

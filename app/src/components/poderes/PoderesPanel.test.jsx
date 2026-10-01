@@ -7,9 +7,12 @@ import { salvarFichaSilencioso } from '../../services/firebase-sync';
 
 // Mock das dependências externas
 vi.mock('../../stores/useStore');
-vi.mock('../../core/attributes', () => ({
-    getMaximo: vi.fn()
-}));
+// Mock parcial: mantém os exports reais (getMaximoSemFormas etc. usados pelo PoderesFormContext)
+// e só stuba getMaximo.
+vi.mock('../../core/attributes', async (importOriginal) => {
+    const actual = await importOriginal();
+    return { ...actual, getMaximo: vi.fn() };
+});
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn()
 }));
@@ -62,13 +65,13 @@ describe('PoderesPanel', () => {
 
     it('deve renderizar o painel e o poder existente', () => {
         render(<PoderesPanel />);
-        expect(screen.getByText(/Criar Habilidade/i)).toBeDefined();
+        expect(screen.getByText(/Criar Novo\(a\) Habilidade/i)).toBeDefined();
         expect(screen.getByText(/Modo Sábio/i)).toBeDefined();
     });
 
     it('deve alternar a ativação do poder e chamar o salvamento silencioso', () => {
         render(<PoderesPanel />);
-        const btnLigar = screen.getByText('DESLIGADO');
+        const btnLigar = screen.getByText('Desativada');
         fireEvent.click(btnLigar);
 
         expect(mockUpdateFicha).toHaveBeenCalled();

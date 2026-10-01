@@ -10,8 +10,10 @@
  */
 
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
+
+afterEach(cleanup);
 
 // ---------------------------------------------------------------------------
 // Global mocks — must be declared before any dynamic imports
@@ -98,16 +100,20 @@ vi.mock('../stores/useStore', () => {
 // To prevent actual file resolution errors we stub every heavy import.
 // ---------------------------------------------------------------------------
 
+// FichaPanel atual renderiza: Bio, Condições e Elementais, Seres Selados, Editor de Atributos,
+// Fúria Berserker, Multiplicadores de Dano, Domínios e Tabela de Prestígio (Reator/Distorção/Matriz/
+// Marcadores/Forja deixaram de ser montados direto pelo FichaPanel).
 vi.mock('../components/ficha/FichaSubComponents', () => ({
     FichaBioGroup: () => <div data-testid="ficha-bio-group" />,
+    FichaCondicoesEElementais: () => <div data-testid="ficha-condicoes-elementais" />,
+    FichaSeresSelados: () => <div data-testid="ficha-seres-selados" />,
     FichaEditorAtributos: () => <div data-testid="ficha-editor-atributos" />,
-    FichaReatorElemental: () => <div data-testid="ficha-reator-elemental" />,
-    FichaDistorcaoConceitual: () => <div data-testid="ficha-distorcao-conceitual" />,
-    FichaMatrizUtilitaria: () => <div data-testid="ficha-matriz-utilitaria" />,
     FichaFuriaBerserker: () => <div data-testid="ficha-furia-berserker" />,
-    FichaMarcadoresCena: () => <div data-testid="ficha-marcadores-cena" />,
-    FichaForjaCalamidade: () => <div data-testid="ficha-forja-calamidade" />,
     FichaMultiplicadoresDano: () => <div data-testid="ficha-multiplicadores-dano" />,
+}));
+
+vi.mock('../components/ficha/AbaDominios', () => ({
+    default: () => <div data-testid="aba-dominios" />,
 }));
 
 vi.mock('../components/ficha/TabelaPrestigio', () => ({
@@ -141,7 +147,12 @@ vi.mock('../core/attributes.js', async (importOriginal) => {
     };
 });
 
-vi.mock('../core/prestige.js', () => ({ calcularPrestigio: vi.fn(() => ({ rank: 'D', pts: 0 })) }));
+// Mock parcial: calcularPrestigio foi removido de core/prestige.js; mantém os exports reais
+// (getPrestigioReal, getRank, calcPAtual...) usados por FichaFormContext/StatusFormContext.
+vi.mock('../core/prestige.js', async (importOriginal) => {
+    const actual = await importOriginal();
+    return { ...actual };
+});
 
 // ============================================================================
 // Helper — render FichaPanel with all its heavy context deps stubbed
@@ -402,18 +413,17 @@ describe('FichaPanel — default sub-components vs. children slot', () => {
         expect(screen.getByTestId('tabela-prestigio')).toBeTruthy();
     });
 
-    it('renders all nine default sub-components', async () => {
+    it('renders all eight default sub-components', async () => {
         await renderFichaPanel();
         const ids = [
             'ficha-bio-group',
+            'ficha-condicoes-elementais',
+            'ficha-seres-selados',
             'ficha-editor-atributos',
-            'ficha-reator-elemental',
-            'ficha-distorcao-conceitual',
-            'ficha-matriz-utilitaria',
             'ficha-furia-berserker',
-            'ficha-marcadores-cena',
-            'ficha-forja-calamidade',
             'ficha-multiplicadores-dano',
+            'aba-dominios',
+            'tabela-prestigio',
         ];
         ids.forEach((id) => expect(screen.getByTestId(id)).toBeTruthy());
     });

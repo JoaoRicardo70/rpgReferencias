@@ -128,7 +128,9 @@ export function AcertoFormProvider({ children }) {
     const toggleStat = useCallback((value) => { setStatsSelecionados(prev => { if (prev.includes(value)) return prev.filter(v => v !== value); return [...prev, value]; }); }, []);
 
     const rolarAcerto = useCallback(() => {
-        if (isForaDeAlcance && origemArea !== 'self') { alert('Aviso: O alvo ou o Ponto de Explosão está fora do seu alcance!'); return; }
+        // Sem alvo escolhido é uma rolagem livre (o botão diz "ROLAR ACERTO LIVRE"): nada a medir.
+        const rolagemLivre = origemArea === 'alvo' && !alvoDummie;
+        if (isForaDeAlcance && origemArea !== 'self' && !rolagemLivre) { alert('Aviso: O alvo ou o Ponto de Explosão está fora do seu alcance!'); return; }
 
         const qD = parseInt(dados) || 1; const fD = parseInt(faces) || 20; const bon = parseInt(bonus) || 0; const prof = usarProficiencia ? profGlobal : 0;
         const v = parseInt(vantagens) || 0; const d = parseInt(desvantagens) || 0;
