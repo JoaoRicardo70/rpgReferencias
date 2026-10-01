@@ -495,7 +495,7 @@ export function PoderesFormProvider({ children }) {
         const overchargeGeraFadiga = isHabilidadeElemental && overchargeAtivo;
 
         if (isHabilidadeElemental) {
-            custoFinalPerc = overchargeAtivo ? (poder.custoPercentual * multOvercharge) : 0;
+            custoFinalPerc = overchargeAtivo ? ((parseFloat(poder.custoPercentual) || 0) * multOvercharge) : 0;
         }
 
         // 🎓 Maestria insuficiente gera Fadiga instantânea em Habilidades E Poderes (Poderes

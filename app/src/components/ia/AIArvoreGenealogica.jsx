@@ -197,6 +197,7 @@ export default function AIArvoreGenealogica() {
 
         novaFicha.poderes = [
             {
+                id: Date.now(),
                 nome: "📖 Linhagem & Lore",
                 ativa: true, dano: "0",
                 descricao: `Status: ${npcSelecionado.status || 'Vivo'}\nElemento Mágico: ${npcSelecionado.elemento || 'Nenhum'}\nClã / Panteão: ${npcSelecionado.afiliacao || familiaAtiva}\n\nHistória: ${npcSelecionado.lore || 'Sem registos.'}`

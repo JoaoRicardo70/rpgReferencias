@@ -103,6 +103,9 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
     const conexoesRef = useRef([]);
     const chamadasEmAndamento = useRef(new Set());
     const rtcLigado = useRef(false);
+    // Cada pedido de microfone ganha um número: um pedido antigo que só responde depois (saiu e
+    // voltou da Taverna rápido, desmontou, StrictMode) é descartado em vez de deixar o mic aberto.
+    const geracaoMicRef = useRef(0);
     const tentativasFalhasRef = useRef(0);
     const supressorAtivoRef = useRef(supressorAtivo);
 
@@ -221,21 +224,31 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
     // 2. LIGAR MICROFONE
     useEffect(() => {
         if (isPresenteNaTaverna && !rtcLigado.current) {
+            if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
+                setVoiceStatus('Microfone indisponível neste navegador');
+                return;
+            }
             rtcLigado.current = true;
             setVoiceStatus('A ligar Equipamentos...');
+            const geracao = ++geracaoMicRef.current;
 
             navigator.mediaDevices.getUserMedia({
                 audio: getAudioConstraints(null, supressorAtivoRef.current)
             }).then(async (stream) => {
+                if (geracao !== geracaoMicRef.current || !rtcLigado.current) { stream.getTracks().forEach(t => t.stop()); return; }
                 meuStreamRef.current = stream;
                 setMeuStream(stream);
                 
                 const track = stream.getAudioTracks()[0];
                 if (track) {
+                    // O clone (portão de ruído) nasce antes de mutar: um clone mudo deixaria o portão
+                    // em silêncio pra sempre depois de desmutar.
                     const cloneTrack = track.clone();
+                    // Entrou mutado: o microfone novo também começa mudo.
+                    if (mutadoRef.current) track.enabled = false;
                     setStreamAnalisador(new MediaStream([cloneTrack]));
                 }
-                
+
                 setVoiceStatus('Online na Taverna!');
 
                 const devices = await navigator.mediaDevices.enumerateDevices();
@@ -250,12 +263,14 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
                 if (audioOutputs.length > 0) setSelectedSpeaker(audioOutputs[0].deviceId);
 
             }).catch((err) => {
+                if (geracao !== geracaoMicRef.current) return;
                 setVoiceStatus('Microfone Bloqueado!');
                 rtcLigado.current = false;
             });
 
         } else if (!isPresenteNaTaverna && rtcLigado.current) {
             rtcLigado.current = false;
+            geracaoMicRef.current += 1;
             if (meuStreamRef.current) meuStreamRef.current.getTracks().forEach(t => t.stop());
             if (streamAnalisador) streamAnalisador.getTracks().forEach(t => t.stop());
 
@@ -266,6 +281,18 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
             setVoiceStatus('Fora da Taverna');
         }
     }, [isPresenteNaTaverna, supressorAtivo]);
+
+    // Ao sair da mesa o provedor de voz é desmontado: sem isto o microfone continuava gravando
+    // (indicador do navegador aceso) até recarregar a página.
+    const streamAnalisadorRef = useRef(null);
+    streamAnalisadorRef.current = streamAnalisador;
+    useEffect(() => () => {
+        rtcLigado.current = false;
+        geracaoMicRef.current += 1;
+        if (meuStreamRef.current) meuStreamRef.current.getTracks().forEach(t => t.stop());
+        if (streamAnalisadorRef.current) streamAnalisadorRef.current.getTracks().forEach(t => t.stop());
+        meuStreamRef.current = null;
+    }, []);
 
     // 3. AUTO-DIALER (CHAMADAS ATIVAS)
     const fazerChamada = useCallback((nomeDestino) => {
@@ -384,6 +411,15 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
                 audio: getAudioConstraints(deviceId, supressorAtivoRef.current)
             });
 
+            // Saiu da Taverna enquanto o navegador abria o microfone novo: descarta.
+            if (!rtcLigado.current) { newStream.getTracks().forEach(t => t.stop()); return; }
+
+            // Estando mutado, a trilha enviada nasce muda (antes o jogador voltava a ser ouvido). O
+            // clone do portão de ruído é tirado ANTES de mutar, pra ele não nascer mudo também.
+            const trilhaNova = newStream.getAudioTracks()[0];
+            const cloneParaPortao = trilhaNova ? trilhaNova.clone() : null;
+            if (mutadoRef.current && trilhaNova) trilhaNova.enabled = false;
+
             if (peerObj) {
                 Object.values(peerObj.connections).forEach(conns => {
                     conns.forEach(conn => {
@@ -401,11 +437,7 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
             meuStreamRef.current = newStream;
             setMeuStream(newStream);
             
-            const newTrack = newStream.getAudioTracks()[0];
-            if (newTrack) {
-                const newClone = newTrack.clone();
-                setStreamAnalisador(new MediaStream([newClone]));
-            }
+            if (cloneParaPortao) setStreamAnalisador(new MediaStream([cloneParaPortao]));
         } catch (err) { console.error("Erro ao trocar mic:", err); }
     }, [peerObj, streamAnalisador]);
 

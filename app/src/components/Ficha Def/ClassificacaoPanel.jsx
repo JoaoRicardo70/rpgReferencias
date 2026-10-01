@@ -429,7 +429,7 @@ function PaginaMarcadores() {
 
     const updateStack = (index, delta) => {
         updateFicha(f => {
-            if (!f.marcadores) return;
+            if (!f.marcadores || !f.marcadores[index]) return;
             f.marcadores[index].stacks = Math.max(0, f.marcadores[index].stacks + delta);
         });
         callSave();

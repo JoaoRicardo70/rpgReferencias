@@ -234,7 +234,7 @@ export default function GravadorPanel() {
             if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') mediaRecorderRef.current.stop();
             liberarRecursos();
             if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-            if (audioContextRef.current) audioContextRef.current.close();
+            if (audioContextRef.current) Promise.resolve(audioContextRef.current.close()).catch(() => {});
         };
     }, []);
 
@@ -339,7 +339,7 @@ export default function GravadorPanel() {
     const pararVisualizador = () => {
         if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         if (audioContextRef.current) {
-            audioContextRef.current.close();
+            Promise.resolve(audioContextRef.current.close()).catch(() => {});
             audioContextRef.current = null;
         }
         if (volumeBarRef.current) {

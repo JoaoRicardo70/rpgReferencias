@@ -484,7 +484,7 @@ let globalTimer = null;
 function callSaveMinhaFicha(fn) {
     if (globalTimer) clearTimeout(globalTimer);
     globalTimer = setTimeout(() => {
-        if (typeof salvarFirebaseImediato === 'function') salvarFirebaseImediato();
+        if (typeof salvarFirebaseImediato === 'function') Promise.resolve(salvarFirebaseImediato()).catch(() => {});
         else if (typeof salvarFichaSilencioso === 'function') salvarFichaSilencioso();
         if(fn) fn();
     }, 400);
@@ -2049,7 +2049,7 @@ export default function MarcadosPanel() {
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '15px', marginTop: '5px' }}>
-                                    <div style={{ flexS: 1, border: '2px solid currentColor', padding: '10px', borderRadius: '6px', background: 'rgba(255,255,255,0.2)' }}>
+                                    <div style={{ flex: 1, border: '2px solid currentColor', padding: '10px', borderRadius: '6px', background: 'rgba(255,255,255,0.2)' }}>
                                         <div style={{ fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}><LabelMagico valor={getLabel('lblMultV', 'Mult. de Vida (PV)')} onChange={(v) => setLabel('lblMultV', v)} /></div>
                                         <CampoMagico valor={minhaFicha.multiplicadorVida || 1} onChange={(v) => salvar('multiplicadorVida', v)} type="number" isNumber={true} styleExtra={{ width: '100%', borderBottom: '1px solid currentColor', marginTop: '5px' }} />
                                     </div>

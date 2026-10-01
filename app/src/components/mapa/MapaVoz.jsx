@@ -3,6 +3,7 @@ import { MapaOlhoSextaFeira } from './MapaSextaFeira';
 import { imagensDaFicha } from '../../core/avatar';
 import { useImagemQueCarrega } from '../../hooks/useImagemQueCarrega';
 import { VOLUME_MAXIMO_VOZ, lerVolumeVoz, salvarVolumeVoz } from '../../core/volumesVoz';
+import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import {
     FFT_SIZE, LIMIAR_FALA_REMOTA, NIVEL_MAXIMO_EXIBIDO, SENSIBILIDADE_MAX, SENSIBILIDADE_MIN, SENSIBILIDADE_PADRAO,
     estadoPortao, faixaDeVoz, medirNivelDeVoz
@@ -319,7 +320,7 @@ export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamPara
                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
                     <span style={{ color: '#ff003c', fontSize: '0.6em', fontWeight: 'bold', width: '15px' }}>HP</span>
                     <div style={{ flex: 1, background: '#300', height: 6, border: '1px solid #000', position: 'relative' }}><div style={{ width: '100%', height: '100%', background: '#ff003c', boxShadow: '0 0 5px #ff003c' }}></div></div>
-                    <span style={{ color: '#fff', fontSize: '0.6em', fontWeight: 'bold', minWidth: '35px', textAlign: 'right' }}>{fmt(ficha?.vida?.atual)}</span>
+                    <span style={{ color: '#fff', fontSize: '0.6em', fontWeight: 'bold', minWidth: '35px', textAlign: 'right' }}>{fmt(Math.floor((Number(ficha?.vida?.atual) || 0) / FATOR_EXIBICAO_VITAIS))}</span>
                 </div>
             </div>
         </div>
