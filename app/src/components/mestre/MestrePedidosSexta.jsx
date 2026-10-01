@@ -4,6 +4,7 @@ import { useMestreForm } from './MestreFormContext';
 import usePedidosCriacao from '../../hooks/usePedidosCriacao';
 import DetalhesCriacao from '../ia/DetalhesCriacao';
 import { descreverDestinoPedido, ordenarPedidosPendentes, resumirProposta, tempoDesde } from '../../core/sextaFeiraCriacao';
+import { abaDoPedido } from '../../core/grimorioLeitura';
 
 // 🔔 PEDIDOS DE CRIAÇÃO DA SEXTA-FEIRA NA ABA DO MESTRE
 // Quando um jogador pede à Sexta-Feira uma Habilidade/Técnica/Item e manda pra aprovação, o pedido
@@ -127,9 +128,11 @@ export function MestreNotificacoesPedidos() {
     );
 }
 
-// Pedidos de UM personagem para UMA seção do Grimório ('poderes' | 'magias' | 'inventario').
-// O pedido em foco (vindo do "Ver a Habilidade") fica destacado e a janela rola até ele.
-export function PedidosNaFicha({ nome, secao, pedidoFocoId }) {
+// Pedidos de UM personagem para UMA aba do Grimório do Mestre (`aba`: 'habilidade' | 'poder' |
+// 'forma' | 'magias' | 'inventario', ver core/grimorioLeitura.js) — ou, sem `aba`, para uma
+// seção ('poderes' | 'magias' | 'inventario'). O pedido em foco (vindo do "Ver a Habilidade") fica
+// destacado e a janela rola até ele.
+export function PedidosNaFicha({ nome, secao, aba, pedidoFocoId }) {
     const pendentes = useStore(s => s.sextaFeiraPendentes);
     const isMestre = useStore(s => s.isMestre);
     const [ocupado, setOcupado] = useState(null);
@@ -140,8 +143,9 @@ export function PedidosNaFicha({ nome, secao, pedidoFocoId }) {
     const pedidos = useMemo(() => {
         const alvo = sanitizarNome(nome || '');
         return ordenarPedidosPendentes(pendentes).filter(([, p]) =>
-            sanitizarNome(p.alvo || p.solicitante) === alvo && descreverDestinoPedido(p.tipo, p.objeto).secao === secao);
-    }, [pendentes, nome, secao]);
+            sanitizarNome(p.alvo || p.solicitante) === alvo
+            && (aba ? abaDoPedido(p) === aba : descreverDestinoPedido(p.tipo, p.objeto).secao === secao));
+    }, [pendentes, nome, secao, aba]);
     const temFoco = pedidos.some(([id]) => id === pedidoFocoId);
 
     useEffect(() => {

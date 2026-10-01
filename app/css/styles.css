@@ -1969,16 +1969,56 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .pedido-aviso { padding: 6px 10px; border-radius: 6px; font-size: 0.88em; animation: pedido-entrar 0.3s ease-out; }
 .pedido-aviso-ok { color: #00ff88; background: rgba(0, 255, 136, 0.08); border: 1px solid rgba(0, 255, 136, 0.4); }
 .pedido-aviso-erro { color: #ff8099; background: rgba(var(--cor-secundaria-rgb), 0.08); border: 1px solid rgba(var(--cor-secundaria-rgb), 0.4); }
-.grimorio-mestre-secao-elementos { color: #ff7a33; border-bottom: 1px solid #ff7a33; padding-bottom: 5px; }
-.grimorio-mestre-lista { display: flex; flex-direction: column; gap: 8px; margin-bottom: 25px; }
-.grimorio-mestre-item-elemento { display: flex; justify-content: space-between; gap: 10px; padding: 8px 12px; border-left: 3px solid #ff7a33; border-radius: 4px; background: rgba(255, 122, 51, 0.1); }
-.grimorio-mestre-item-elemento strong { color: #fff; }
-.grimorio-mestre-item-elemento span { color: #ffb38a; font-size: 0.9em; }
-.grimorio-mestre-vazio { color: #888; font-style: italic; }
 @keyframes pedido-pulsar { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.15); } }
 @keyframes pedido-sino { 0%, 70%, 100% { transform: rotate(0); } 75% { transform: rotate(14deg); } 85% { transform: rotate(-12deg); } 95% { transform: rotate(6deg); } }
 @keyframes pedido-entrar { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 @keyframes pedido-destacar { 0% { box-shadow: 0 0 0 rgba(var(--cor-destaque-rgb), 0); } 40% { box-shadow: 0 0 26px rgba(var(--cor-destaque-rgb), 0.8); } 100% { box-shadow: 0 0 16px rgba(var(--cor-destaque-rgb), 0.45); } }
 @media (prefers-reduced-motion: reduce) {
     .sidebar-badge-pedidos, .mestre-notificacoes-sino, .mestre-notificacao, .pedido-ficha.em-foco, .pedido-aviso { animation: none; }
+}
+
+/* ========== 📖 GRIMÓRIO DA ENTIDADE — aba do Mestre (components/mestre/GrimorioEntidade.jsx) ========== */
+.grimorio-mestre-fundo { position: fixed; inset: 0; z-index: 9995; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px); }
+.grimorio-mestre { position: relative; width: 100%; max-width: 900px; max-height: 90vh; overflow-y: auto; box-sizing: border-box; padding: 20px; border: 2px solid var(--cor-info); border-radius: 10px; background: #0a0a0f; box-shadow: 0 0 30px rgba(0, 136, 255, 0.3); color: #ddd; }
+.grimorio-mestre-fechar { position: absolute; top: 12px; right: 14px; background: none; border: none; color: var(--cor-secundaria); font-size: 1.5em; font-weight: bold; cursor: pointer; }
+.grimorio-mestre-cabecalho { display: flex; align-items: center; gap: 15px; margin-bottom: 18px; padding-bottom: 15px; border-bottom: 1px solid #333; }
+.grimorio-mestre-avatar { width: 80px; height: 80px; flex-shrink: 0; object-fit: cover; border-radius: 8px; border: 2px solid var(--cor-info); }
+.grimorio-mestre-avatar.vazio { display: flex; align-items: center; justify-content: center; background: #222; color: #555; border-color: #333; font-size: 0.8em; }
+.grimorio-mestre-titulo { margin: 0; color: var(--cor-info); overflow-wrap: anywhere; }
+.grimorio-mestre-classe { color: #aaa; font-style: italic; }
+.grimorio-mestre-atributos { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin-bottom: 18px; }
+.grimorio-mestre-atributo { display: flex; justify-content: space-between; padding: 7px 12px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 5px; background: rgba(255, 255, 255, 0.05); }
+.grimorio-mestre-atributo span { color: #aaa; text-transform: uppercase; font-weight: bold; }
+.grimorio-mestre-atributo strong { color: #fff; font-size: 1.1em; }
+.grimorio-mestre-abas { position: sticky; top: -20px; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 -20px 14px; padding: 10px 20px; background: #0a0a0f; border-bottom: 1px solid #333; }
+.grimorio-mestre-aba { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border: 1px solid #333; border-radius: 16px; background: rgba(255, 255, 255, 0.04); color: #bbb; font-family: inherit; font-size: 0.9em; cursor: pointer; transition: all 0.2s; }
+.grimorio-mestre-aba small { opacity: 0.6; }
+.grimorio-mestre-aba:hover { color: #fff; border-color: #555; }
+.grimorio-mestre-aba.ativa { color: var(--cor-destaque); border-color: var(--cor-destaque); background: rgba(var(--cor-destaque-rgb), 0.1); box-shadow: 0 0 10px rgba(var(--cor-destaque-rgb), 0.25); }
+.grimorio-mestre-aba-pedido { padding: 0 6px; border-radius: 8px; background: rgba(var(--cor-destaque-rgb), 0.2); color: var(--cor-destaque); font-size: 0.85em; font-weight: bold; }
+.grimorio-mestre-conteudo { display: flex; flex-direction: column; gap: 10px; }
+.grimorio-pasta { display: flex; flex-direction: column; gap: 8px; }
+.grimorio-pasta-titulo { padding: 7px 12px; border: none; border-bottom: 1px dashed #444; background: none; color: #ddd; font-family: inherit; font-size: 1em; font-weight: bold; text-align: left; cursor: pointer; }
+.grimorio-pasta-titulo small, .grimorio-elemento-titulo small { opacity: 0.6; font-weight: normal; }
+.grimorio-elemento-titulo { margin: 8px 0 0; padding-bottom: 4px; border-bottom: 1px solid currentColor; color: #ccc; text-transform: uppercase; letter-spacing: 1px; font-size: 0.95em; }
+.grimorio-cartao { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px dashed #444; border-radius: 6px; background: rgba(255, 255, 255, 0.02); }
+.grimorio-cartao.ativo { border: 1px solid rgba(0, 255, 136, 0.6); background: rgba(0, 255, 136, 0.04); }
+.grimorio-cartao-topo { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 8px; }
+.grimorio-cartao-nome { color: #fff; font-size: 1.1em; margin-right: 4px; }
+.grimorio-selo { padding: 1px 8px; border: 1px solid #555; border-radius: 10px; color: #aab; font-size: 0.75em; }
+.grimorio-selo.ativo, .grimorio-selo.verde { border-color: #00ff88; color: #00ff88; }
+.grimorio-selo.laranja { border-color: #ff8800; color: #ff8800; }
+.grimorio-cartao-descricao { margin: 0; color: #aab; font-size: 0.9em; font-style: italic; white-space: pre-wrap; }
+.grimorio-cartao-linha { margin: 0; color: #bbc; font-size: 0.85em; }
+.grimorio-cartao-numeros { display: flex; flex-wrap: wrap; gap: 4px 16px; color: #ccd; font-size: 0.85em; }
+.grimorio-cartao-numeros b, .grimorio-cartao-mecanica b { color: #99a; font-weight: bold; }
+.grimorio-cartao-mecanica { padding-top: 5px; border-top: 1px dotted #333; color: #bbc; font-size: 0.82em; overflow-wrap: anywhere; }
+.grimorio-cartao-passivos { display: block; margin-top: 3px; font-style: italic; }
+.grimorio-dominio { flex-direction: row; justify-content: space-between; align-items: center; border-style: solid; border-left: 3px solid var(--cor-destaque); }
+.grimorio-dominio-nivel { color: var(--cor-destaque); font-weight: bold; }
+.grimorio-vazio { color: #888; font-style: italic; }
+@media (max-width: 600px) {
+    .grimorio-mestre-fundo { padding: 8px; }
+    .grimorio-mestre { padding: 14px; max-height: 94vh; }
+    .grimorio-mestre-abas { top: -14px; margin: 0 -14px 12px; padding: 8px 14px; }
 }

@@ -10,12 +10,9 @@ import { calcularBarrasVida, getVitalMax, getVitalMaxEstavel, FATOR_EXIBICAO_VIT
 import { calcularFatorMultiplicadorForca, calcularPoderAtual } from '../../core/poder';
 import { formatarPoderCosmico } from '../../core/utils';
 import { iniciarArrastoTurno, lerArrastoTurno, encerrarArrastoTurno } from './MestreControleTurno';
-import { PedidosNaFicha } from './MestrePedidosSexta';
+import GrimorioEntidade from './GrimorioEntidade';
 
 const FALLBACK = <div style={{color:'#888',padding:10}}>Mestre provider não encontrado</div>;
-
-// Listas da ficha podem chegar do banco como objeto ({0: .., 1: ..}) em vez de array.
-const listaDaFicha = (v) => (Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : [])).filter(Boolean);
 
 // --- FUNÇÕES DE CÁLCULO DE STATUS ---
 function getStatusLimpo(ficha, chave, threshold) {
@@ -479,94 +476,9 @@ export function MestreVisorJogadores() {
                 </div>
             )}
 
-            {/* 🔥 O VISUALIZADOR INQUEBRÁVEL DA FICHA DO JOGADOR 🔥 */}
+            {/* 📖 Grimório da Entidade: janela por cima da tela inteira (portal), com as abas da ficha */}
             {jogadorInspecionado && (
-                <div style={{
-                    position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-                    background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(5px)',
-                    zIndex: 99999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px'
-                }}>
-                    <div className="fade-in" style={{
-                        width: '100%', maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto',
-                        background: '#0a0a0f', border: '2px solid #0088ff', borderRadius: '10px', padding: '20px', position: 'relative',
-                        boxShadow: '0 0 30px rgba(0,136,255,0.3)'
-                    }}>
-                        <button onClick={fecharFicha} style={{ position: 'absolute', top: 15, right: 15, background: 'none', border: 'none', color: '#ff003c', fontSize: '1.5em', cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
-                        
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '20px', borderBottom: '1px solid #333', paddingBottom: '15px' }}>
-                            {jogadorInspecionado.ficha.avatar?.base ? (
-                                <img src={jogadorInspecionado.ficha.avatar.base} alt="Avatar" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #0088ff' }} />
-                            ) : (
-                                <div style={{ width: '80px', height: '80px', background: '#222', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>Sem Foto</div>
-                            )}
-                            <div>
-                                <h2 style={{ color: '#0088ff', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    📖 GRIMÓRIO: {jogadorInspecionado.nome}
-                                </h2>
-                                <span style={{ color: '#aaa', fontStyle: 'italic' }}>Classe: {jogadorInspecionado.classId?.toUpperCase() || 'MUNDANO'}</span>
-                            </div>
-                        </div>
-
-                        {/* Atributos Seguros */}
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '25px' }}>
-                            {['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'].map(attr => (
-                                <div key={attr} style={{ background: 'rgba(255,255,255,0.05)', padding: '8px 12px', borderRadius: '5px', display: 'flex', justifyContent: 'space-between', border: '1px solid rgba(255,255,255,0.1)' }}>
-                                    <span style={{ color: '#aaa', textTransform: 'uppercase', fontWeight: 'bold' }}>{attr.substring(0,3)}</span>
-                                    <strong style={{ color: '#fff', fontSize: '1.1em' }}>{jogadorInspecionado.ficha[attr]?.base || 0}</strong>
-                                </div>
-                            ))}
-                        </div>
-                        
-                        {/* Aba de Dominios/Poderes (Lê tanto a ficha antiga plana quanto a nova) */}
-                        <h3 style={{ color: '#ffcc00', borderBottom: '1px solid #ffcc00', paddingBottom: '5px' }}>⚡ Domínios Marcados & Poderes Antigos</h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '25px' }}>
-                            {jogadorInspecionado.ficha.dominios && Object.keys(jogadorInspecionado.ficha.dominios).length > 0 ? Object.entries(jogadorInspecionado.ficha.dominios).map(([nomeDom, dadosDom]) => (
-                                <div key={nomeDom} style={{ background: 'rgba(255,204,0,0.1)', borderLeft: '3px solid #ffcc00', padding: '8px 12px', borderRadius: '4px', display: 'flex', justifyContent: 'space-between' }}>
-                                    <strong style={{ color: '#fff' }}>{nomeDom}</strong>
-                                    <span>
-                                        <span style={{ color: '#ffcc00', fontWeight: 'bold', marginRight: '10px' }}>Nv {dadosDom?.nivel || 1}</span>
-                                        {dadosDom?.categoria && <span style={{ color: '#888', fontSize: '0.85em', textTransform: 'uppercase' }}>({dadosDom.categoria})</span>}
-                                    </span>
-                                </div>
-                            )) : <div style={{ color: '#888', fontStyle: 'italic' }}>Nenhum Domínio do Grimório novo encontrado.</div>}
-                            
-                            {/* Mostra também os poderes da aba de habilidades antiga para compatibilidade */}
-                            {jogadorInspecionado.ficha.poderes && jogadorInspecionado.ficha.poderes.length > 0 ? jogadorInspecionado.ficha.poderes.map((pod, i) => (
-                                <div key={`pod_${i}`} style={{ background: 'rgba(0,136,255,0.1)', borderLeft: '3px solid #0088ff', padding: '8px 12px', borderRadius: '4px', display: 'flex', flexDirection: 'column' }}>
-                                    <strong style={{ color: '#00ccff' }}>{pod.nome}</strong>
-                                    <span style={{ color: '#ccc', fontSize: '0.9em', marginTop: '4px' }}>{pod.descricao || 'Sem descrição.'}</span>
-                                </div>
-                            )) : null}
-                            <PedidosNaFicha nome={jogadorInspecionado.nome} secao="poderes" pedidoFocoId={pedidoFocoId} />
-                        </div>
-
-                        {/* Técnicas Elementais (aba Elementos) */}
-                        <h3 className="grimorio-mestre-secao-elementos">🔥 Técnicas Elementais</h3>
-                        <div className="grimorio-mestre-lista">
-                            {listaDaFicha(jogadorInspecionado.ficha.ataquesElementais).length > 0 ? listaDaFicha(jogadorInspecionado.ficha.ataquesElementais).map((magia, i) => (
-                                <div key={magia.id || `mag_${i}`} className="grimorio-mestre-item-elemento">
-                                    <strong>{magia.nome || 'Técnica sem nome'}</strong>
-                                    <span>{magia.elemento || 'Neutro'}</span>
-                                </div>
-                            )) : <div className="grimorio-mestre-vazio">Nenhuma Técnica Elemental.</div>}
-                            <PedidosNaFicha nome={jogadorInspecionado.nome} secao="magias" pedidoFocoId={pedidoFocoId} />
-                        </div>
-
-                        {/* Aba de Inventario */}
-                        <h3 style={{ color: '#00ff88', borderBottom: '1px solid #00ff88', paddingBottom: '5px' }}>🎒 Relicário & Inventário</h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {jogadorInspecionado.ficha.inventario && jogadorInspecionado.ficha.inventario.length > 0 ? jogadorInspecionado.ficha.inventario.map((item, i) => (
-                                <div key={i} style={{ background: 'rgba(0,255,136,0.1)', borderLeft: '3px solid #00ff88', padding: '8px 12px', borderRadius: '4px', display: 'flex', justifyContent: 'space-between' }}>
-                                    <strong style={{ color: '#fff' }}>{item.nome || 'Item Desconhecido'}</strong>
-                                    <span style={{ color: item.equipado ? '#00ff88' : '#888', fontSize: '0.9em', fontWeight: item.equipado ? 'bold' : 'normal' }}>
-                                        {item.equipado ? '(Equipado)' : '(Na mochila)'}
-                                    </span>
-                                </div>
-                            )) : <div style={{ color: '#888', fontStyle: 'italic' }}>O relicário deste jogador está vazio.</div>}
-                            <PedidosNaFicha nome={jogadorInspecionado.nome} secao="inventario" pedidoFocoId={pedidoFocoId} />
-                        </div>
-                    </div>
-                </div>
+                <GrimorioEntidade key={jogadorInspecionado.nome} jogador={jogadorInspecionado} pedidoFocoId={pedidoFocoId} aoFechar={fecharFicha} />
             )}
         </div>
     );

@@ -159,6 +159,33 @@ describe('PedidosNaFicha', () => {
         expect(screen.queryByText('Poder do Beto')).toBeNull();
         expect(screen.queryByText('Magia da Ana')).toBeNull();
     });
+    it('com aba filtra pelo abaDoPedido (habilidade, poder, forma, magias, inventario)', () => {
+        useStore.setState({ sextaFeiraPendentes: {
+            a: pedido({ objeto: { nome: 'Hab da Ana', categoria: 'habilidade' } }),
+            b: pedido({ objeto: { nome: 'Poder da Ana', categoria: 'poder' } }),
+            c: pedido({ objeto: { nome: 'Forma da Ana', categoria: 'forma' } }),
+            d: pedido({ tipo: 'magia', objeto: { nome: 'Magia da Ana' } }),
+            e: pedido({ tipo: 'item', objeto: { nome: 'Item da Ana' } }),
+            f: pedido({ alvo: 'Beto', solicitante: 'Beto', objeto: { nome: 'Hab do Beto', categoria: 'habilidade' } }),
+        } });
+        const casos = { habilidade: 'Hab da Ana', poder: 'Poder da Ana', forma: 'Forma da Ana', magias: 'Magia da Ana', inventario: 'Item da Ana' };
+        for (const [aba, nome] of Object.entries(casos)) {
+            const { container, unmount } = render(<PedidosNaFicha nome="Ana" aba={aba} />);
+            expect(container.querySelectorAll('.pedido-ficha')).toHaveLength(1);
+            expect(within(container).getByText(nome)).toBeDefined();
+            expect(within(container).queryByText('Hab do Beto')).toBeNull();
+            unmount();
+        }
+    });
+    it('aba tem precedência sobre secao', () => {
+        useStore.setState({ sextaFeiraPendentes: { a: pedido({ tipo: 'item', objeto: { nome: 'Item da Ana' } }) } });
+        render(<PedidosNaFicha nome="Ana" secao="poderes" aba="inventario" />);
+        expect(screen.getByText('Item da Ana')).toBeDefined();
+    });
+    it('aba sem pedidos não renderiza nada', () => {
+        const { container } = render(<PedidosNaFicha nome="Ana" aba="forma" />);
+        expect(container.innerHTML).toBe('');
+    });
     it('seção sem pedidos não renderiza nada', () => {
         const { container } = render(<PedidosNaFicha nome="Ana" secao="inventario" />);
         expect(container.innerHTML).toBe('');
