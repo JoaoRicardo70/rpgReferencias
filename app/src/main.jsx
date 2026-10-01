@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
+import LimiteDeErro from './components/layout/LimiteDeErro'
 import '../css/styles.css'
 
 // 👇 INJEÇÃO DO PWA (A Ignição do Motor) 👇
@@ -25,6 +26,9 @@ function RootRouter() {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <RootRouter />
+    {/* Última camada: se algo fora das abas quebrar, aparece o aviso em vez da tela branca. */}
+    <LimiteDeErro area="O sistema">
+      <RootRouter />
+    </LimiteDeErro>
   </React.StrictMode>
 )

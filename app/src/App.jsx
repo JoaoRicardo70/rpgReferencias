@@ -40,6 +40,7 @@ import MestrePanel from './components/mestre/MestrePanel';
 import AuthScreen from './components/auth/AuthScreen';
 import LobbyNeon from './components/lobby/LobbyNeon';
 import TelaLoading from './components/layout/TelaLoading';
+import LimiteDeErro from './components/layout/LimiteDeErro';
 
 import {
     carregarFichaDoFirebase, iniciarListenerDummies,
@@ -78,8 +79,12 @@ function ProvedorDeVozGlobal({ meuNome, cenario, children }) {
         <VoiceContext.Provider value={chatCtx}>
             <ChatContext.Provider value={chats}>
                 {children}
-                <AudioVozGlobal tavernaAtivos={tavernaAtivos} />
-                <DockComunicacao />
+                <LimiteDeErro area="O áudio da chamada" compacto>
+                    <AudioVozGlobal tavernaAtivos={tavernaAtivos} />
+                </LimiteDeErro>
+                <LimiteDeErro area="A comunicação" compacto>
+                    <DockComunicacao />
+                </LimiteDeErro>
             </ChatContext.Provider>
         </VoiceContext.Provider>
     );

@@ -1930,3 +1930,15 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .sexta-pendente { display: flex; flex-direction: column; gap: 6px; background: rgba(0, 0, 0, 0.35); border: 1px solid #3a3320; border-radius: 6px; padding: 7px 8px; }
 .sexta-pendente-cabecalho { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; background: none; border: none; padding: 0; color: #eee; text-align: left; cursor: pointer; font-family: inherit; }
 .sexta-pendente-cabecalho small { color: #99a; font-size: 0.78em; }
+
+/* 🛡️ Rede de proteção contra tela branca (components/layout/LimiteDeErro.jsx) */
+.limite-erro { margin: 20px auto; max-width: 640px; padding: 20px 24px; border: 1px solid #ff003c; border-radius: 12px; background: rgba(40, 0, 10, 0.75); color: #ffd6de; box-shadow: 0 0 18px rgba(255, 0, 60, 0.25); }
+.limite-erro-titulo { margin: 0 0 8px; color: #ff4d6d; font-size: 1.15em; }
+.limite-erro-texto { margin: 0 0 12px; color: #e8c4cb; line-height: 1.5; }
+.limite-erro-detalhe { display: block; margin-bottom: 14px; padding: 8px 10px; border-radius: 6px; background: rgba(0, 0, 0, 0.45); color: #ff9aae; font-size: 0.85em; white-space: pre-wrap; word-break: break-word; }
+.limite-erro-acoes { display: flex; flex-wrap: wrap; gap: 10px; }
+.limite-erro-btn { padding: 8px 16px; border: 1px solid #00ffcc; border-radius: 8px; background: rgba(0, 255, 204, 0.08); color: #00ffcc; font-weight: bold; cursor: pointer; }
+.limite-erro-btn:hover { background: rgba(0, 255, 204, 0.18); }
+.limite-erro-btn.secundario { border-color: #888; color: #ccc; background: transparent; }
+.limite-erro-compacto { display: flex; align-items: center; gap: 10px; max-width: none; margin: 8px; padding: 8px 12px; font-size: 0.85em; }
+.limite-erro-compacto .limite-erro-btn { padding: 4px 10px; }
