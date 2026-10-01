@@ -262,6 +262,7 @@ export function StatusFormProvider({ children }) {
                 const regenBase = parseFloat(f[key]?.regeneracao) || 0;
                 const regenBuff = getBuffs(f, key).regeneracao || 0;
                 const regen = regenBase + regenBuff;
+                if (!f[key]) return;
                 if (regen > 0 && teto > 0 && (f[key].atual || 0) < teto) {
                     const antes = f[key].atual || 0;
                     f[key].atual = Math.min(teto, antes + regen);
@@ -280,9 +281,7 @@ export function StatusFormProvider({ children }) {
     const resetarTurno = useCallback(() => {
         updateFicha(f => {
             if (!f.acoes) return;
-            f.acoes.padrao.atual = f.acoes.padrao.max;
-            f.acoes.bonus.atual = f.acoes.bonus.max;
-            f.acoes.reacao.atual = f.acoes.reacao.max;
+            ['padrao', 'bonus', 'reacao'].forEach(t => { if (f.acoes[t]) f.acoes[t].atual = f.acoes[t].max; });
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
@@ -290,6 +289,7 @@ export function StatusFormProvider({ children }) {
     const changeActionMax = useCallback((tipo, delta) => {
         updateFicha(f => {
             if (!f.acoes) f.acoes = { padrao: { max: 1, atual: 1 }, bonus: { max: 1, atual: 1 }, reacao: { max: 1, atual: 1 } };
+            if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 };
             const newMax = Math.max(1, f.acoes[tipo].max + delta);
             f.acoes[tipo].max = newMax;
             if (f.acoes[tipo].atual > newMax) f.acoes[tipo].atual = newMax;
@@ -300,6 +300,7 @@ export function StatusFormProvider({ children }) {
     const toggleActionDot = useCallback((tipo, isAvailable) => {
         updateFicha(f => {
             if (!f.acoes) f.acoes = { padrao: { max: 1, atual: 1 }, bonus: { max: 1, atual: 1 }, reacao: { max: 1, atual: 1 } };
+            if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 };
             if (isAvailable) {
                 f.acoes[tipo].atual = Math.max(0, f.acoes[tipo].atual - 1);
             } else {

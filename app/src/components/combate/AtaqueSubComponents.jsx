@@ -387,7 +387,7 @@ export function AtaqueBotoesAcao() {
                     style={{ flex: 1, opacity: (podeRolarDano || ignorarTravaAcerto) ? 1 : 0.5 }}
                     disabled={!podeRolarDano && !ignorarTravaAcerto}
                 >
-                    {dummieAlvo ? ((podeRolarDano || ignorarTravaAcerto) ? `ATACAR ${dummieAlvo.nome.toUpperCase()}` : 'ACERTO NECESSARIO') : 'ROLAR DANO'}
+                    {dummieAlvo ? ((podeRolarDano || ignorarTravaAcerto) ? `ATACAR ${String(dummieAlvo.nome || 'alvo').toUpperCase()}` : 'ACERTO NECESSARIO') : 'ROLAR DANO'}
                 </button>
             </div>
         </>

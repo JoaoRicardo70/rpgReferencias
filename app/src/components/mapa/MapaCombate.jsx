@@ -572,7 +572,7 @@ export function MapaAtaqueArma() {
                 disabled={!podeAtacar}
                 style={{ width: '100%', margin: 0, opacity: podeAtacar ? 1 : 0.5 }}
             >
-                {dummieAlvo ? (podeAtacar ? `⚔️ ATACAR ${dummieAlvo.nome.toUpperCase()}` : 'ACERTO NECESSÁRIO PRIMEIRO') : '⚔️ ROLAR DANO'}
+                {dummieAlvo ? (podeAtacar ? `⚔️ ATACAR ${String(dummieAlvo.nome || 'alvo').toUpperCase()}` : 'ACERTO NECESSÁRIO PRIMEIRO') : '⚔️ ROLAR DANO'}
             </button>
             {!podeAtacar && (
                 <p style={{ color: '#f90', fontSize: '0.75em', margin: '4px 0 0 0', fontStyle: 'italic' }}>
@@ -937,7 +937,7 @@ export function MapaHologramaAcao() {
     else if (isFalha) { corImpacto = '#660000'; corHeader = '#660000'; corTextoHeader = '#ff003c'; tituloImpacto = '☠️ FALHA CRÍTICA ☠️'; }
     else if (acaoExibir) {
         corHeader = corImpacto; corTextoHeader = '#000';
-        if (acaoExibir.tipo === 'sistema' && acaoExibir.texto.includes('É a vez de')) {
+        if (acaoExibir.tipo === 'sistema' && String(acaoExibir.texto || '').includes('É a vez de')) {
             tituloImpacto = `⚡ TURNO DE ${nomeBase} ⚡`;
             corHeader = '#00ffcc';
             corImpacto = '#00ffcc';

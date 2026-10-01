@@ -483,7 +483,9 @@ export function AtaqueFormProvider({ children }) {
             meuUltimoAcerto.alvosArea.forEach(alvoHit => {
                 if (alvoHit.acertou) {
                     atingidos++;
-                    const dummieEntry = Object.entries(dummies).find(([id, d]) => d.nome === alvoHit.nome);
+                    const dummieEntry = alvoHit.dummieId
+                        ? (dummies[alvoHit.dummieId] ? [alvoHit.dummieId, dummies[alvoHit.dummieId]] : null)
+                        : Object.entries(dummies).find(([id, d]) => d.nome === alvoHit.nome);
                     if (dummieEntry) {
                         const [idD, dData] = dummieEntry;
                         salvarDummie(idD, { ...dData, hpAtual: Math.max(0, dData.hpAtual - result.dano) });

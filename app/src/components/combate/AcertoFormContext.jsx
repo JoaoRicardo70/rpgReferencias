@@ -106,7 +106,7 @@ export function AcertoFormProvider({ children }) {
         }
 
         if (origemArea === 'self') centro = minhaFicha?.posicao;
-        else if (origemArea === 'alvo') centro = alvoDummie?.posicao;
+        else if (origemArea === 'alvo') centro = alvoDummie?.posicao ? { ...alvoDummie.posicao, cenaId: alvoDummie.cenaId || alvoDummie.posicao.cenaId } : undefined;
         else if (origemArea === 'livre') centro = { x: parseInt(coordLivreX) || 0, y: parseInt(coordLivreY) || 0, z: 0, cenaId: cenaAtivaId };
 
         if (centro && minhaFicha?.posicao) {
@@ -141,27 +141,28 @@ export function AcertoFormProvider({ children }) {
         const escala = cenario?.lista?.[cenaAtivaId]?.escala || 1.5;
 
         if (maxArea > 0 && centroExplosao) {
-            const verificarHit = (posicao, valorDefesa, nomeAlvo) => {
+            const verificarHit = (posicao, valorDefesa, nomeAlvo, extras = {}) => {
                 const isSameScene = (posicao.cenaId || 'default') === (centroExplosao.cenaId || 'default');
                 if (isSameScene) {
                     const dX = Math.abs(posicao.x - centroExplosao.x);
                     const dY = Math.abs(posicao.y - centroExplosao.y);
                     const dZ = Math.floor(Math.abs((posicao.z || 0) - (centroExplosao.z || 0)) / escala);
                     if (Math.max(dX, dY, dZ) <= maxArea) {
-                        alvosAtingidos.push({ nome: nomeAlvo, defesa: valorDefesa, acertou: result.acertoTotal >= valorDefesa });
+                        alvosAtingidos.push({ nome: nomeAlvo, defesa: valorDefesa, acertou: result.acertoTotal >= valorDefesa, ...extras });
                     }
                 }
             };
 
             if (alvoFiltro === 'todos' || alvoFiltro === 'inimigos') {
-                Object.entries(dummies).forEach(([id, dummieObj]) => { if (dummieObj.posicao) verificarHit(dummieObj.posicao, dummieObj.valorDefesa, dummieObj.nome); });
+                // dummieId: o dano em área (AtaqueFormContext) acha o alvo pelo id, não pelo nome (NPCs repetidos).
+                Object.entries(dummies).forEach(([id, dummieObj]) => { if (dummieObj.posicao) verificarHit({ ...dummieObj.posicao, cenaId: dummieObj.cenaId || dummieObj.posicao.cenaId }, dummieObj.valorDefesa, dummieObj.nome, { dummieId: id }); });
             }
             if (alvoFiltro === 'todos' || alvoFiltro === 'aliados') {
                 if (minhaFicha.posicao && origemArea !== 'self') verificarHit(minhaFicha.posicao, calcularCA(minhaFicha, 'evasiva'), meuNome);
                 Object.entries(personagens || {}).forEach(([n, f]) => { if (f.posicao) verificarHit(f.posicao, calcularCA(f, 'evasiva'), n); });
             }
         } else if (alvoDummie) {
-            alvosAtingidos.push({ nome: alvoDummie.nome, defesa: alvoDummie.valorDefesa, acertou: result.acertoTotal >= alvoDummie.valorDefesa });
+            alvosAtingidos.push({ nome: alvoDummie.nome, defesa: alvoDummie.valorDefesa, acertou: result.acertoTotal >= alvoDummie.valorDefesa, dummieId: alvoSelecionado });
         }
 
         let idDaZonaCriada = null;

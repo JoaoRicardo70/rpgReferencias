@@ -354,7 +354,7 @@ export function MestreVisorJogadores() {
     // 🔍 Melhoria de visibilidade: com muitas entidades na mesa, buscar por nome é bem mais rápido
     // que rolar a tela procurando o card certo (Jogadores e NPCs filtram independente da aba ativa).
     const buscaNormalizada = busca.trim().toLowerCase();
-    const filtrarPorBusca = (lista) => buscaNormalizada ? lista.filter(j => j.nome.toLowerCase().includes(buscaNormalizada)) : lista;
+    const filtrarPorBusca = (lista) => buscaNormalizada ? lista.filter(j => String(j.nome || '').toLowerCase().includes(buscaNormalizada)) : lista;
 
     const herois = filtrarPorBusca(jogadoresComStats.filter(j => !j.ficha?.isNPC && j.ficha?.bio?.mesa !== 'npc'));
     const npcs = filtrarPorBusca(jogadoresComStats.filter(j => j.ficha?.isNPC || j.ficha?.bio?.mesa === 'npc'));
