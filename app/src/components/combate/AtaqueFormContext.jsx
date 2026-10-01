@@ -3,6 +3,7 @@ import useStore from '../../stores/useStore';
 import { getBuffs, getEfeitosDeClasse } from '../../core/attributes';
 import { getVitalMxDisplay, getVidaTotalMaxDisplay } from '../../core/vitals';
 import { calcularDano } from '../../core/engine';
+import { escalarEfeitosPorEstagio } from '../../core/estagios';
 import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
 
 const AtaqueFormContext = createContext(null);
@@ -129,7 +130,7 @@ export function AtaqueFormProvider({ children }) {
         };
 
         if (minhaFicha) {
-            (minhaFicha.poderes || []).forEach(p => { if (p && p.ativa) scanFuria(p.efeitos); scanFuria(p.efeitosPassivos); });
+            (minhaFicha.poderes || []).forEach(p => { if (p && p.ativa) scanFuria(escalarEfeitosPorEstagio(p.efeitos, p)); scanFuria(p?.efeitosPassivos); });
             (minhaFicha.inventario || []).forEach(i => { if (i && i.equipado) { scanFuria(i.efeitos); scanFuria(i.efeitosPassivos); } });
             (minhaFicha.passivas || []).forEach(p => scanFuria(p.efeitos));
             scanFuria(getEfeitosDeClasse(minhaFicha));
@@ -442,7 +443,7 @@ export function AtaqueFormProvider({ children }) {
         const configHabilidades = poderesAtivos.map(p => ({
             id: p.id, nome: p.nome, dadosQtd: p.dadosQtd || 0, dadosFaces: p.dadosFaces || 20, custoPercentual: p.custoPercentual || 0,
             armaVinculada: p.armaVinculada || '', statusUsados: skillConfigs[p.id]?.statusUsados || p.statusUsados || ['forca'],
-            energiaCombustao: skillConfigs[p.id]?.energiaCombustao || p.energiaCombustao || 'mana', efeitos: p.efeitos || [],
+            energiaCombustao: skillConfigs[p.id]?.energiaCombustao || p.energiaCombustao || 'mana', efeitos: escalarEfeitosPorEstagio(p.efeitos, p),
             vertente: p.vertente || '', elemento: p.elemento || '' 
         }));
 
@@ -533,7 +534,7 @@ export function AtaqueFormProvider({ children }) {
                             if (prop === 'letalidade') letalidadeBuffsOrig += parseFloat(e.valor) || 0;
                         });
                     };
-                    (minhaFicha.poderes || []).forEach(p => { if (p.ativa) scanBruto(p.efeitos); scanBruto(p.efeitosPassivos); });
+                    (minhaFicha.poderes || []).forEach(p => { if (p.ativa) scanBruto(escalarEfeitosPorEstagio(p.efeitos, p)); scanBruto(p.efeitosPassivos); });
                     (minhaFicha.inventario || []).forEach(i => { if (i.equipado) { scanBruto(i.efeitos); scanBruto(i.efeitosPassivos); } });
                     (minhaFicha.passivas || []).forEach(p => scanBruto(p.efeitos));
                     

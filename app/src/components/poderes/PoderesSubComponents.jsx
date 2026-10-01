@@ -2,6 +2,21 @@ import React, { useState } from 'react';
 import { usePoderesForm, SINGULAR } from './PoderesFormContext';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS } from '../../core/efeitos-constants';
 import FormasEditor from '../shared/FormasEditor';
+import EstagioControle from './EstagioControle';
+import { escalarEfeitosPorEstagio, ESTAGIOS_PADRAO } from '../../core/estagios';
+
+// 🪜 Prévia dos 3 primeiros estágios no editor ("1º x1 · 2º x2 · 3º x3"), com os números digitados.
+function resumoEstagios(cfg) {
+    const cresc = parseFloat(cfg.crescimento);
+    const fad = parseFloat(cfg.fadigaPorEstagio);
+    const c = Number.isFinite(cresc) ? Math.max(0, cresc) : ESTAGIOS_PADRAO.crescimento;
+    const f = Number.isFinite(fad) ? Math.max(0, fad) : ESTAGIOS_PADRAO.fadigaPorEstagio;
+    const max = parseInt(cfg.maximo, 10);
+    const ultimo = Number.isFinite(max) && max >= 1 ? max : Infinity;
+    const r = (v) => (Math.round(v * 100) / 100).toLocaleString('pt-BR');
+    const exemplos = [1, 2, 3].filter(n => n <= ultimo).map(n => `${n}º: efeitos x${r(1 + (n - 1) * c / 100)}, ${r(f * n)}% Fadiga/turno`);
+    return `${exemplos.join(' · ')}${ultimo === Infinity ? ' · … sem limite' : (ultimo > 3 ? ` · … até o ${ultimo}º` : '')}`;
+}
 
 const FALLBACK = <div style={{ opacity: 0.5, padding: 10 }}>Poderes provider não encontrado</div>;
 
@@ -132,6 +147,7 @@ export function PoderesFormEditor() {
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
         pastaPoder, setPastaPoder, pastasExistentes,
+        estagiosEditor, setEstagiosEditor,
         descricaoPoder, setDescricaoPoder,
         nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal,
         addEfeitoTemp, efeitosTemp, removerEfeitoTemp,
@@ -259,6 +275,52 @@ export function PoderesFormEditor() {
                 </div>
             </div>
 
+            {/* 🪜 ESTÁGIOS: Portões Internos (1º ao 10º), Kaioken (sem limite)... numa técnica só */}
+            <div className={`estagios-editor${estagiosEditor.habilitado ? ' ligado' : ''}`}>
+                <label className="estagios-editor-ligar">
+                    <input
+                        type="checkbox"
+                        checked={!!estagiosEditor.habilitado}
+                        onChange={e => setEstagiosEditor({ habilitado: e.target.checked })}
+                    />
+                    🪜 Esta técnica tem Estágios <span className="estagios-editor-dica">(ex.: Portões Internos, Kaioken)</span>
+                </label>
+                {estagiosEditor.habilitado && (
+                    <div className="fade-in">
+                        <p className="estagios-editor-explica">
+                            Os <strong>Efeitos Matemáticos Ativos</strong> abaixo valem para o 1º estágio. Cada estágio acima soma o crescimento sobre eles, e a Fadiga por turno no Mapa aumenta a cada estágio.
+                        </p>
+                        <div className="estagios-editor-campos">
+                            <label>
+                                <span>Nome do estágio</span>
+                                <input type="text" placeholder="Ex: Portão" value={estagiosEditor.rotulo} onChange={e => setEstagiosEditor({ rotulo: e.target.value })} />
+                            </label>
+                            <label title="0 = sem limite (ex.: Kaioken)">
+                                <span>Último estágio (0 = ∞)</span>
+                                <input type="number" min="0" value={estagiosEditor.maximo} onChange={e => setEstagiosEditor({ maximo: e.target.value })} />
+                            </label>
+                            <label title="Quanto dos efeitos do 1º estágio cada estágio acima soma. 100% = 2º dobra, 3º triplica.">
+                                <span>Crescimento por estágio (%)</span>
+                                <input type="number" min="0" value={estagiosEditor.crescimento} onChange={e => setEstagiosEditor({ crescimento: e.target.value })} />
+                            </label>
+                            <label title="Fadiga somada a cada início de turno no Mapa, multiplicada pelo estágio atual.">
+                                <span>😮‍💨 Fadiga por estágio (%/turno)</span>
+                                <input type="number" min="0" step="0.5" value={estagiosEditor.fadigaPorEstagio} onChange={e => setEstagiosEditor({ fadigaPorEstagio: e.target.value })} />
+                            </label>
+                        </div>
+                        <label className="estagios-editor-nomes">
+                            <span>Nome de cada estágio (opcional, um por linha)</span>
+                            <textarea
+                                placeholder={'Portão da Abertura\nPortão do Descanso\nPortão da Vida'}
+                                value={estagiosEditor.nomes}
+                                onChange={e => setEstagiosEditor({ nomes: e.target.value })}
+                            />
+                        </label>
+                        <p className="estagios-editor-resumo">{resumoEstagios(estagiosEditor)}</p>
+                    </div>
+                )}
+            </div>
+
             <textarea 
                 placeholder="Descrição / Efeito Narrativo..." 
                 value={descricaoPoder} 
@@ -360,7 +422,7 @@ export function PoderesLista() {
         editarPoder, deletarPoder, overchargeAtivo, curMana, curAura, curChakra,
         energiaElemental, mPotencial, danoBruto, dispararAtaque,
         salvarFormaPoder, deletarFormaPoder, ativarFormaPoder,
-        renomearPastaForma
+        renomearPastaForma, mudarEstagioPoder
     } = ctx;
 
     // Namespaced por categoria (abaAtual::nome) — sem isso, recolher "Combos" na aba Habilidades
@@ -381,7 +443,8 @@ export function PoderesLista() {
     const renderItem = (p) => {
             if (!p) return null;
                     const isEquipped = p.ativa;
-                    const txtArr = (p.efeitos || []).map(e => {
+                    // Valores já no estágio atual (técnicas com Estágios — core/estagios.js).
+                    const txtArr = escalarEfeitosPorEstagio(p.efeitos, p).map(e => {
                         if (!e) return '';
                         return `[${(e.atributo || '').replace('_', ' ').toUpperCase()}] ${(e.propriedade || '').toUpperCase()}: +${e.valor || 0}`;
                     }).filter(Boolean);
@@ -435,6 +498,8 @@ export function PoderesLista() {
                                         )}
                                     </h3>
                                     
+                                    <EstagioControle poder={p} onMudar={mudarEstagioPoder} />
+
                                     {p.descricao && (
                                         <p style={{ fontSize: '0.9em', fontStyle: 'italic', margin: '8px 0', opacity: 0.8 }}>
                                             "{p.descricao}"

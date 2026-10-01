@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { getMaximo, getMaximoSemFormas } from './attributes.js';
-import { capturarMaximosAtuais, rescalarVitaisProporcional } from './vitals.js';
+import { capturarMaximosAtuais, rescalarVitaisProporcional, calcVitalScale } from './vitals.js';
+import { calcularFatorMultiplicadorForca } from './poder.js';
 
 // ---------------------------------------------------------------------------
 // QA — REGRESSÃO DEFINITIVA do bug "ativar/desativar Formas drena Energia" (5ª e última causa
@@ -43,6 +44,13 @@ function oQueOJogadorVe(ficha, key) {
     let atual = ficha[key]?.atual ?? mxDisplay;
     if (atual > mxDisplay) atual = mxDisplay;
     return atual;
+}
+
+// Escala que a tela mostra COM o Multiplicador de Força do vital (mesma unidade de getTetoExibidoComFator
+// e de capturarMaximosAtuais/rescalarVitaisProporcional desde a 7ª rodada).
+function escalaComFator(ficha, key) {
+    const fator = calcularFatorMultiplicadorForca(ficha, key);
+    return { fator, ...calcVitalScale(getMaximo(ficha, key) * fator, key, getMaximoSemFormas(ficha, key) * fator) };
 }
 
 function simulaToggle(ficha, mutarFn, vitais) {
@@ -121,19 +129,19 @@ describe('core/vitals - REGRESSÃO: mudança de escala de notação (calcVitalSc
             poderes: [], inventario: [], passivas: [], seresSelados: [], combate: {}
         };
 
-        const rawEquivalenteAntes = ficha.mana.atual; // p=0, então atual já é raw-equivalente
+        const antes = escalaComFator(ficha, 'mana');
+        const rawEquivalenteAntes = ficha.mana.atual * Math.pow(10, antes.p); // quantidade absoluta (unidade com fator)
 
         // Simula um crescimento ESTÁVEL de verdade (não uma Forma) empurrando o base pra 10 dígitos.
         simulaToggle(ficha, f => { f.mana.base = 9999999990; }, ['mana']);
 
-        const rawMaxEstavelDepois = getMaximoSemFormas(ficha, 'mana');
-        const { p: pDepois } = calcVitalScaleLocal(getMaximo(ficha, 'mana'), 'mana', rawMaxEstavelDepois);
-        expect(pDepois).toBe(1); // confirma que a escala realmente mudou neste cenário (crescimento estável)
+        // Escala esperada = calcVitalScale(max*fator, key, estavel*fator).
+        const depois = escalaComFator(ficha, 'mana');
+        expect(depois.p).toBeGreaterThan(antes.p); // a escala realmente mudou (crescimento estável)
 
-        // atual (na nova escala, p=1) * 10^1 deve reconstituir a MESMA quantidade raw-equivalente
-        // de antes (dentro da margem de floor de calcVitalScale).
-        const rawEquivalenteDepois = ficha.mana.atual * Math.pow(10, pDepois);
-        expect(rawEquivalenteDepois).toBeCloseTo(rawEquivalenteAntes, -1); // tolerância de arredondamento de notação
+        // atual (na nova escala) * 10^p reconstitui a MESMA quantidade absoluta de antes (margem de floor).
+        const rawEquivalenteDepois = ficha.mana.atual * Math.pow(10, depois.p);
+        expect(Math.abs(rawEquivalenteDepois - rawEquivalenteAntes)).toBeLessThanOrEqual(Math.pow(10, depois.p));
     });
 
     it('sem cruzar fronteira de dígitos (números pequenos, sem compressão), comportamento idêntico ao já validado nas rodadas anteriores', () => {
@@ -172,23 +180,28 @@ describe('core/vitals - REGRESSÃO: mudança de escala de notação (calcVitalSc
             inventario: [], passivas: [], seresSelados: [], combate: {}
         };
 
-        const exibidoVidaAntes = oQueOJogadorVe(ficha, 'vida');
-        const exibidoManaAntes = oQueOJogadorVe(ficha, 'mana');
+        // Quantidade ABSOLUTA (exibido * 10^p) na unidade com Multiplicador de Força — a escala p é a de
+        // calcVitalScale(max*fator, key, estavel*fator), a mesma que a tela usa.
+        const absoluto = (key) => {
+            const { p, mxDisplay } = escalaComFator(ficha, key);
+            return Math.min(ficha[key].atual, mxDisplay) * Math.pow(10, p);
+        };
+        const margem = (key) => Math.pow(10, escalaComFator(ficha, key).p);
+
+        const vidaAntes = absoluto('vida');
+        const manaAntes = absoluto('mana');
 
         simulaToggle(ficha, f => { f.poderes[0].ativa = true; }, ['vida', 'mana']);
 
-        const exibidoVidaDepois = oQueOJogadorVe(ficha, 'vida');
-        const exibidoManaDepois = oQueOJogadorVe(ficha, 'mana');
-
-        // Nenhuma das duas cai por causa da mudança de notação, cada uma na sua própria escala.
-        expect(exibidoVidaDepois).toBeGreaterThanOrEqual(exibidoVidaAntes * 0.99);
-        expect(exibidoManaDepois).toBeGreaterThanOrEqual(exibidoManaAntes * 0.99);
+        // Nenhuma das duas perde quantidade por causa da mudança de notação, cada uma na sua própria escala.
+        expect(absoluto('vida')).toBeGreaterThanOrEqual(vidaAntes - margem('vida'));
+        expect(absoluto('mana')).toBeGreaterThanOrEqual(manaAntes - margem('mana'));
 
         simulaToggle(ficha, f => { f.poderes[0].ativa = false; }, ['vida', 'mana']);
 
-        // Ciclo completo (ativar+desativar) preserva a quantidade exibida final de AMBAS.
-        expect(oQueOJogadorVe(ficha, 'vida')).toBe(exibidoVidaAntes);
-        expect(oQueOJogadorVe(ficha, 'mana')).toBe(exibidoManaAntes);
+        // Ciclo completo (ativar+desativar) preserva a quantidade absoluta final de AMBAS (margem de floor).
+        expect(Math.abs(absoluto('vida') - vidaAntes)).toBeLessThanOrEqual(margem('vida'));
+        expect(Math.abs(absoluto('mana') - manaAntes)).toBeLessThanOrEqual(margem('mana'));
     });
 
     it('getMaximoSemFormas nunca lança e retorna 0 pra uma ficha vazia/sem o vital (fallback seguro pro cálculo de escala)', () => {

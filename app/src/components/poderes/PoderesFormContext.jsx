@@ -14,6 +14,10 @@ import { useFichaAtiva, useCallSaveAtivo, useSalvarImediatoAtivo } from '../Fich
 import { getVitalMxDisplay, capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 import { calcularGanhoFadigaOvercharge, calcularMultiplicadorOvercharge } from '../../core/dominios';
 import { calcularGanhoFadigaMaestriaInsuficiente } from '../../core/fadiga';
+import { ESTAGIOS_PADRAO, normalizarEstagios, temEstagios, limitarEstagio } from '../../core/estagios';
+
+// 🪜 Rascunho do bloco "Estágios" do editor — nomes ficam como texto (um por linha) enquanto edita.
+const estagiosEditorVazio = () => ({ ...ESTAGIOS_PADRAO, nomes: '' });
 
 export const SINGULAR = {
     'habilidade': 'Habilidade',
@@ -74,6 +78,8 @@ export function PoderesFormProvider({ children }) {
     const [fadigaPorUsoPoder, setFadigaPorUsoPoder] = useState(15);
     const [maestriaRequeridaPoder, setMaestriaRequeridaPoder] = useState(0);
     const [pastaPoder, setPastaPoder] = useState('');
+    const [estagiosEditor, setEstagiosEditorBruto] = useState(estagiosEditorVazio);
+    const setEstagiosEditor = useCallback((parcial) => setEstagiosEditorBruto(prev => ({ ...prev, ...parcial })), []);
     
     const [nomeEfeito, setNomeEfeito] = useState('');
     const [novoAtr, setNovoAtr] = useState('forca');
@@ -162,6 +168,7 @@ export function PoderesFormProvider({ children }) {
         // Sem isto, a próxima Habilidade criada herdava a Maestria Requerida da última editada.
         setMaestriaRequeridaPoder(0);
         setPastaPoder('');
+        setEstagiosEditorBruto(estagiosEditorVazio());
         setEfeitosTemp([]);
         setEfeitosTempPassivos([]);
         setNovoAtrPassivo('evasiva');
@@ -182,6 +189,17 @@ export function PoderesFormProvider({ children }) {
         const afetaSafe = elementosAfetados || "";
         const urlSafe = imagemUrl || "";
         const armaSafe = armaVinculada || "";
+        // 🪜 Estágios (core/estagios.js): só grava a config quando ligada; desligar apaga tudo.
+        const estagiosSalvos = estagiosEditor.habilitado ? normalizarEstagios(estagiosEditor) : null;
+        const aplicarEstagios = (poder) => {
+            if (estagiosSalvos) {
+                poder.estagios = estagiosSalvos;
+                poder.estagioAtual = limitarEstagio(poder, poder.estagioAtual ?? 1);
+            } else {
+                delete poder.estagios;
+                delete poder.estagioAtual;
+            }
+        };
 
         updateFicha((ficha) => {
             if (!ficha.poderes) ficha.poderes = [];
@@ -225,9 +243,10 @@ export function PoderesFormProvider({ children }) {
                     // Poderes), não só Formas — pedido do usuário pra organizar o Grimório inteiro
                     // (e, por tabela, a lista de Técnicas Rápidas do Mapa) em pastas.
                     ficha.poderes[ix].pasta = (pastaPoder || '').trim();
+                    aplicarEstagios(ficha.poderes[ix]);
                 }
             } else {
-                ficha.poderes.push({
+                const novoPoder = {
                     id: Date.now(),
                     nome: n,
                     descricao: descSafe, 
@@ -255,7 +274,9 @@ export function PoderesFormProvider({ children }) {
                         maestria: Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0)),
                         maestriaRequerida: Math.min(100, Math.max(0, parseFloat(maestriaRequeridaPoder) || 0))
                     } : {})
-                });
+                };
+                aplicarEstagios(novoPoder);
+                ficha.poderes.push(novoPoder);
             }
         });
 
@@ -264,7 +285,7 @@ export function PoderesFormProvider({ children }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, cancelarEdicaoPoder, salvarFirebaseImediato]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, cancelarEdicaoPoder, salvarFirebaseImediato]);
 
     // 🔥 O ESCUDO ANTI-DRENAGEM (Resolve a perda acidental de energia ao Ligar a Forma) 🔥
     const togglePoder = useCallback((id) => {
@@ -283,6 +304,21 @@ export function PoderesFormProvider({ children }) {
             rescalarVitaisProporcional(ficha, oldM);
         });
 
+        salvarFichaSilencioso();
+    }, [updateFicha, salvarFichaSilencioso]);
+
+    // 🪜 Sobe/desce o estágio (core/estagios.js). Ativa, a técnica muda os máximos na hora — mesmo
+    // travamento de vitais do liga/desliga, pra trocar de estágio nunca drenar Vida/Energia.
+    const mudarEstagioPoder = useCallback((id, novoEstagio) => {
+        updateFicha((ficha) => {
+            const p = (ficha.poderes || []).find(po => po.id === id);
+            if (!p || !temEstagios(p)) return;
+            const alvo = limitarEstagio(p, novoEstagio);
+            if (p.estagioAtual === alvo) return;
+            const oldM = capturarMaximosAtuais(ficha);
+            p.estagioAtual = alvo;
+            rescalarVitaisProporcional(ficha, oldM);
+        });
         salvarFichaSilencioso();
     }, [updateFicha, salvarFichaSilencioso]);
 
@@ -313,6 +349,12 @@ export function PoderesFormProvider({ children }) {
         setFadigaPorUsoPoder(p.fadigaPorUso !== undefined ? p.fadigaPorUso : 15);
         setMaestriaRequeridaPoder(p.maestriaRequerida || 0);
         setPastaPoder(p.pasta || '');
+        if (temEstagios(p)) {
+            const cfg = normalizarEstagios(p.estagios);
+            setEstagiosEditorBruto({ ...cfg, nomes: cfg.nomes.join('\n') });
+        } else {
+            setEstagiosEditorBruto(estagiosEditorVazio());
+        }
         setEfeitosTemp(JSON.parse(JSON.stringify(p.efeitos || [])));
         setEfeitosTempPassivos(JSON.parse(JSON.stringify(p.efeitosPassivos || [])));
 
@@ -621,6 +663,7 @@ export function PoderesFormProvider({ children }) {
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
         pastaPoder, setPastaPoder, pastasExistentes, renomearPastaForma,
+        estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal,
         nomeEfeitoPassivo, setNomeEfeitoPassivo, novoAtrPassivo, setNovoAtrPassivo,
         novoPropPassivo, setNovoPropPassivo, novoValPassivo, setNovoValPassivo,
@@ -640,6 +683,7 @@ export function PoderesFormProvider({ children }) {
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
         imagemUrl, dadosQtd, dadosFaces, custoPercentual, poderAlcance,
         poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma,
+        estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, novoAtr, novoProp, novoVal,
         nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, novoValPassivo,
         uploadingImg, vincularAberto, poderPreparandoId, overchargeAtivo,

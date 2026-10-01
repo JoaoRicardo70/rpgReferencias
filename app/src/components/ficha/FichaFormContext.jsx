@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import useStore from '../../stores/useStore';
 import { getMaximo, getBuffs, getEfeitosDeClasse } from '../../core/attributes.js';
 import { capturarMaximosAtuais, rescalarVitaisProporcional, getVidaTotalMaxDisplay } from '../../core/vitals.js';
+import { escalarEfeitosPorEstagio } from '../../core/estagios.js';
 import { salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync.js';
 
 export const STATS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
@@ -215,7 +216,7 @@ export function FichaFormProvider({ children }) {
     };
 
     if (minhaFicha) {
-        (minhaFicha.poderes || []).forEach(p => { if (p && p.ativa) scanFuria(p.efeitos); scanFuria(p.efeitosPassivos); });
+        (minhaFicha.poderes || []).forEach(p => { if (p && p.ativa) scanFuria(escalarEfeitosPorEstagio(p.efeitos, p)); scanFuria(p?.efeitosPassivos); });
         (minhaFicha.inventario || []).forEach(i => { if (i && i.equipado) { scanFuria(i.efeitos); scanFuria(i.efeitosPassivos); } });
         (minhaFicha.passivas || []).forEach(p => scanFuria(p.efeitos));
         (minhaFicha.seresSelados || []).forEach(s => { 

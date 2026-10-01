@@ -62,13 +62,28 @@ const VITAIS_PRINCIPAIS = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
 // (calcVitalScale já é definida mais abaixo neste arquivo, reaproveitada aqui por hoisting de
 // function declaration — mesma função que aplicarRegeneracaoDeTurno/descansarCompleto usam, pra
 // nunca haver duas cópias divergentes da mesma conta de notação dentro do próprio módulo.)
+//
+// 🔥 7ª RODADA (equipar/desequipar arma no Mapa drenava Vida e Energias): a Ficha Definitiva, o
+// Mapa, o Mestre e a Regeneração (getTetoExibidoComFator, mais abaixo) guardam e mostram "atual"
+// contra o teto MULTIPLICADO pelo Multiplicador de Força daquele vital (core/poder.js >
+// calcularFatorMultiplicadorForca — Ascensão/Prestígio-overflow). Este travamento clampava contra o
+// teto SEM esse fator — então, pra qualquer personagem com fator > 1, todo equipar/desequipar
+// (e todo liga/desliga de Forma) cortava "atual" pro teto menor. Agora o fator entra aqui também,
+// tanto no máximo capturado ANTES quanto no teto DEPOIS — a mesma unidade que o resto do app usa.
+// Efeito colateral aceito: esse fator considera o mFormas (é o que a tela mostra), então uma Forma
+// pode mudar a escala (p) de quem tem fator > 1 — sem perda, a conversão abaixo preserva o valor.
 // ==========================================
+
+// Máximo ESTÁVEL (sem Formas) já com o Multiplicador de Força do vital — a base de escala que a tela usa.
+function getMaximoEstavelComFator(ficha, k) {
+    return (getMaximoSemFormas(ficha, k) || 0) * getFatorVitalSeguro(k, ficha);
+}
 
 export function capturarMaximosAtuais(ficha, vitais = VITAIS_PRINCIPAIS) {
     const maximos = {};
     // valor ESTÁVEL (sem Formas) — é só isso que decide se a escala de notação (p) muda; nunca o
     // máximo completo, senão uma Forma temporária poderia cruzar uma fronteira de dígitos sozinha.
-    vitais.forEach(v => { maximos[v] = getMaximoSemFormas(ficha, v) || 1; });
+    vitais.forEach(v => { maximos[v] = getMaximoEstavelComFator(ficha, v) || 1; });
     return maximos;
 }
 
@@ -84,16 +99,17 @@ export function rescalarVitaisProporcional(ficha, maximosAntigosEstaveis, vitais
         // precisa ser RE-CLAMPADO pro novo teto (que pode crescer/encolher conforme o máximo
         // ESTÁVEL muda, ex.: ao ativar/desativar uma Forma).
         if (k === 'vida') {
-            const novoEstavel = getMaximoSemFormas(ficha, 'vida') || 1;
+            const novoEstavel = getMaximoEstavelComFator(ficha, 'vida') || 1;
             const novoTeto = getTetoVida(novoEstavel, 'vida');
             if (isNaN(atual)) atual = novoTeto;
             ficha[k].atual = Math.min(Math.max(0, atual), novoTeto || 1);
             return;
         }
 
-        const oldEstavel = (maximosAntigosEstaveis && maximosAntigosEstaveis[k]) || getMaximoSemFormas(ficha, k) || 1;
-        const novoEstavel = getMaximoSemFormas(ficha, k) || 1;
-        const novoRawCompleto = getMaximo(ficha, k) || 1; // COM Formas — é o que de fato aparece na tela
+        const fator = getFatorVitalSeguro(k, ficha);
+        const oldEstavel = (maximosAntigosEstaveis && maximosAntigosEstaveis[k]) || getMaximoEstavelComFator(ficha, k) || 1;
+        const novoEstavel = getMaximoEstavelComFator(ficha, k) || 1;
+        const novoRawCompleto = ((getMaximo(ficha, k) || 0) * fator) || 1; // COM Formas — é o que de fato aparece na tela
 
         const { p: pAntigo } = calcVitalScale(oldEstavel, k);
         // A escala (p) vem do estável; o numerador de mxDisplay vem do completo (com Formas).

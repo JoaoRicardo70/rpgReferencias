@@ -19,6 +19,7 @@
 // ==========================================
 import { getMaximo, getBuffs } from './attributes.js';
 import { getFracaoResistenciaElemental } from './dominios.js';
+import { getFadigaEstagiosAtivos } from './estagios.js';
 
 const ENERGIAS = ['mana', 'aura', 'chakra', 'corpo'];
 const EIXOS_FORMAS = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'];
@@ -224,8 +225,17 @@ export function calcularGanhoFadigaDinamico(ficha, { incluirEsforcoPoder = false
         const intensidade = incluirEsforcoPoder
             ? FRACAO_BASE_ESFORCO_PODER + (1 - FRACAO_BASE_ESFORCO_PODER) * severidade
             : severidade;
-        return Math.max(0, intensidade * pesoMax * fatorPoder);
-    } catch (e) { return 0; }
+        return Math.max(0, intensidade * pesoMax * fatorPoder) + getGanhoEstagiosSeguro(ficha, incluirEsforcoPoder);
+    } catch (e) { return getGanhoEstagiosSeguro(ficha, incluirEsforcoPoder); }
+}
+
+// 🪜 ESTÁGIOS (core/estagios.js): técnicas com estágios ativas cansam a cada INÍCIO de turno —
+// fadigaPorEstagio × estágio atual, fora da escala de Poder (o 5º Portão cansa mesmo com o Poder
+// suprimido). Não entra no ganho por golpe (Dano Rápido). Isolado no próprio try: um erro nos
+// outros fatores não pode apagar a Fadiga dos estágios, nem o contrário.
+function getGanhoEstagiosSeguro(ficha, incluirEsforcoPoder) {
+    if (!incluirEsforcoPoder) return 0;
+    try { return Math.max(0, getFadigaEstagiosAtivos(ficha) || 0); } catch (e) { return 0; }
 }
 
 // Fadiga Atual final (0-100%): combate.fadigaExtra (pontos dinâmicos + instantâneos já

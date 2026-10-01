@@ -6,6 +6,7 @@ import { alternarPresencaNaTaverna } from '../../core/chats';
 import { infoAvatarDaFicha } from '../../core/avatar';
 import { assinarFalhasDeImagem } from '../../core/imagemVerificada';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
+import { escalarEfeitosPorEstagio } from '../../core/estagios';
 import { getBuffs } from '../../core/attributes';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
@@ -540,7 +541,7 @@ export function MapaFormProvider({ children }) {
             });
         };
         
-        (fichaCaster.poderes || []).forEach(p => { if (p.ativa) scan(p.efeitos); scan(p.efeitosPassivos); });
+        (fichaCaster.poderes || []).forEach(p => { if (p.ativa) scan(escalarEfeitosPorEstagio(p.efeitos, p)); scan(p.efeitosPassivos); });
         (fichaCaster.inventario || []).forEach(i => { if (i.equipado) { scan(i.efeitos); scan(i.efeitosPassivos); } });
         (fichaCaster.passivas || []).forEach(p => scan(p.efeitos));
         

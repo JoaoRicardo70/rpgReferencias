@@ -1,8 +1,16 @@
+import { escalarEfeitosPorEstagio } from './estagios.js';
+
 /**
  * Resolve quais efeitos (ativos e passivos) estao realmente ativos
- * para uma entidade (poder ou item), considerando formas.
+ * para uma entidade (poder ou item), considerando formas e o estagio atual
+ * (core/estagios.js: os efeitos ATIVOS escalam com o estagio; passivos nao).
  */
 export function resolverEfeitosEntidade(entidade) {
+    const resolvido = resolverSemEstagio(entidade);
+    return { ...resolvido, efeitos: escalarEfeitosPorEstagio(resolvido.efeitos, entidade) };
+}
+
+function resolverSemEstagio(entidade) {
     if (!entidade) return { efeitos: [], efeitosPassivos: [] };
 
     const baseEfeitos = entidade.efeitos || [];

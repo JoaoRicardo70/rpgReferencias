@@ -1994,3 +1994,34 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 @media (max-width: 600px) {
     .livro-entidade-fundo { padding: 8px; }
 }
+
+/* ==========================================
+   🪜 ESTÁGIOS DE TÉCNICAS (Portões Internos, Kaioken...) — core/estagios.js
+   Herdam a cor da página (currentColor): seguem o tema do Grimório e do Mapa.
+   ========================================== */
+.estagios-editor { margin-top: 15px; padding: 10px 12px; border: 1px dotted currentColor; border-radius: 6px; }
+.estagios-editor.ligado { border-style: dashed; background: rgba(0, 0, 0, 0.04); }
+.estagios-editor-ligar { display: flex; align-items: center; gap: 8px; font-weight: bold; cursor: pointer; }
+.estagios-editor-ligar input { width: auto; margin: 0; }
+.estagios-editor-dica { font-weight: normal; opacity: 0.6; font-size: 0.9em; }
+.estagios-editor-explica { margin: 8px 0; font-size: 0.82em; opacity: 0.75; font-style: italic; }
+.estagios-editor-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.estagios-editor-campos label, .estagios-editor-nomes { display: flex; flex-direction: column; gap: 3px; font-size: 0.8em; opacity: 0.9; }
+.estagios-editor-campos input { width: 100%; text-align: center; box-sizing: border-box; }
+.estagios-editor-nomes { margin-top: 10px; }
+.estagios-editor-nomes textarea { width: 100%; min-height: 60px; resize: vertical; box-sizing: border-box; }
+.estagios-editor-resumo { margin: 8px 0 0; font-size: 0.8em; font-weight: bold; opacity: 0.85; }
+
+.estagio-controle { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; padding: 6px 8px; border: 1px dashed currentColor; border-radius: 6px; }
+.estagio-controle.ativa { border-style: solid; }
+.estagio-btn { min-width: 30px; padding: 2px 8px !important; margin: 0; font-size: 1.1em; font-weight: bold; line-height: 1.2; background: transparent; color: inherit; border: 1px solid currentColor; border-radius: 4px; cursor: pointer; }
+.estagio-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.estagio-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.estagio-nome { font-weight: bold; }
+.estagio-proprio { font-size: 0.85em; font-style: italic; opacity: 0.85; }
+.estagio-detalhe { font-size: 0.75em; opacity: 0.7; }
+.estagio-ir { width: 64px; margin: 0; text-align: center; }
+.estagio-controle.compacto { margin: 0; padding: 2px 4px; gap: 4px; border: none; color: #aa00ff; }
+.estagio-controle.compacto .estagio-info { flex: 0 1 auto; font-size: 0.8em; white-space: nowrap; }
+.estagio-controle.compacto .estagio-btn { min-width: 24px; font-size: 0.95em; }
+.mapa-tecnica-estagio { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-right: 4px; border: 1px dashed rgba(170, 0, 255, 0.5); border-radius: 6px; }

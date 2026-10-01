@@ -4,6 +4,8 @@ import useStore from '../../stores/useStore';
 import { useMapaForm, urlSeguraParaCss, calcularCA } from './MapaFormContext';
 import { useAtaqueForm } from '../combate/AtaqueFormContext';
 import { usePoderesForm } from '../poderes/PoderesFormContext';
+import EstagioControle from '../poderes/EstagioControle';
+import { temEstagios } from '../../core/estagios';
 import { useArsenalForm } from '../arsenal/ArsenalFormContext';
 import { useElementosForm, emogis as ELEMENTOS_EMOJIS, cores as ELEMENTOS_CORES } from '../arsenal/ElementosFormContext';
 import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
@@ -618,7 +620,7 @@ export function MapaTecnicasRapidas() {
     const pastasFechadas = useStore(s => s.pastasFechadasMapaTecnicas);
     const setPastasFechadasMapaTecnicas = useStore(s => s.setPastasFechadasMapaTecnicas);
     if (!poderesCtx) return null;
-    const { minhaFicha, togglePoder } = poderesCtx;
+    const { minhaFicha, togglePoder, mudarEstagioPoder } = poderesCtx;
     const poderes = minhaFicha?.poderes || [];
     const toggleFechada = (chave) => setPastasFechadasMapaTecnicas({ ...pastasFechadas, [chave]: !pastasFechadas[chave] });
 
@@ -633,7 +635,15 @@ export function MapaTecnicasRapidas() {
         );
     }
 
-    const renderChip = (p) => (
+    // 🪜 Técnica com Estágios (core/estagios.js): o chip ganha o seletor − 3º Portão + ao lado.
+    const renderChip = (p) => (temEstagios(p) ? (
+        <div key={p.id} className="mapa-tecnica-estagio">
+            {renderBotao(p)}
+            <EstagioControle poder={p} onMudar={mudarEstagioPoder} compacto />
+        </div>
+    ) : renderBotao(p));
+
+    const renderBotao = (p) => (
         <button
             key={p.id}
             className="btn-neon"
