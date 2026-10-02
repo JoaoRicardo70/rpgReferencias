@@ -82,7 +82,7 @@ describe('PoderesFormContext — salvarNovoPoder(): Estágios', () => {
         await act(async () => { probe.salvarNovoPoder(); });
 
         const novo = mockState.minhaFicha.poderes[0];
-        expect(novo.estagios).toEqual({ habilitado: true, maximo: 8, crescimento: 50, fadigaPorEstagio: 3, rotulo: 'Portão', nomes: ['Abertura', 'Descanso'] });
+        expect(novo.estagios).toEqual({ habilitado: true, maximo: 8, crescimento: 50, fadigaPorEstagio: 3, rotulo: 'Portão', nomes: ['Abertura', 'Descanso'], marcos: [] });
         expect(novo.estagioAtual).toBe(1);
     });
 
@@ -169,7 +169,7 @@ describe('PoderesFormContext — editarPoder() / cancelarEdicaoPoder(): Estágio
         render(<PoderesFormProvider><Harness /></PoderesFormProvider>);
         act(() => { probe.editarPoder(5); });
 
-        expect(probe.estagiosEditor).toEqual({ habilitado: true, maximo: 6, crescimento: 25, fadigaPorEstagio: 4, rotulo: 'Forma', nomes: 'A\nB\nC' });
+        expect(probe.estagiosEditor).toEqual({ habilitado: true, maximo: 6, crescimento: 25, fadigaPorEstagio: 4, rotulo: 'Forma', nomes: 'A\nB\nC', marcos: [] });
     });
 
     it('editarPoder de um poder SEM Estágios zera o rascunho (não herda o do anterior)', () => {
@@ -283,5 +283,43 @@ describe('PoderesFormContext — mudarEstagioPoder(id, n)', () => {
         act(() => { probe.mudarEstagioPoder(5, 1); });
         expect(p.estagioAtual).toBe(1);
         expect(ficha.mana.atual).toBe(500); // teto novo 1100 >= 500: intocado
+    });
+});
+
+describe('PoderesFormContext — marcos (mudanças em estágios específicos)', () => {
+    const MARCOS = [{ estagio: 7, efeitos: [{ nome: '', atributo: 'geral', propriedade: 'mgeral', valor: 120 }], crescimento: 0, fadigaPorEstagio: null }];
+
+    it('editarPoder carrega os marcos como rascunhos (números como texto, null vira vazio, com chave)', () => {
+        const p = poderEstagiado({ estagios: { ...CFG, marcos: MARCOS } });
+        montarStore({ minhaFicha: { poderes: [p] } });
+        render(<PoderesFormProvider><Harness /></PoderesFormProvider>);
+        act(() => { probe.editarPoder(5); });
+
+        const m = probe.estagiosEditor.marcos[0];
+        expect(m.estagio).toBe('7');
+        expect(m.crescimento).toBe('0');
+        expect(m.fadigaPorEstagio).toBe('');
+        expect(m.efeitos[0].valor).toBe(120);
+        expect(m.chave).toBeTruthy();
+    });
+
+    it('salvarNovoPoder grava marcos normalizados, sem a chave do rascunho e sem efeitos em branco', async () => {
+        montarStore();
+        render(<PoderesFormProvider><Harness /></PoderesFormProvider>);
+        act(() => {
+            probe.setDescricaoPoder('desc'); probe.setNomePoder('Portões Internos');
+            probe.setEstagiosEditor({
+                habilitado: true,
+                marcos: [
+                    { chave: 'a', estagio: '8', efeitos: [{ atributo: 'geral', propriedade: 'munico', valor: '2', fixo: true }, { atributo: 'geral', propriedade: 'mgeral', valor: '' }], crescimento: '', fadigaPorEstagio: '5' },
+                    { chave: 'b', estagio: '1', efeitos: [], crescimento: '', fadigaPorEstagio: '' },
+                ],
+            });
+        });
+        await act(async () => { probe.salvarNovoPoder(); });
+
+        const marcos = mockState.minhaFicha.poderes[0].estagios.marcos;
+        expect(marcos).toEqual([{ estagio: 8, efeitos: [{ nome: '', atributo: 'geral', propriedade: 'munico', valor: '2', fixo: true }], crescimento: null, fadigaPorEstagio: 5 }]);
+        expect(marcos[0]).not.toHaveProperty('chave');
     });
 });

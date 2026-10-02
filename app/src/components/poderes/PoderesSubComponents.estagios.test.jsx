@@ -78,12 +78,14 @@ describe('PoderesFormEditor (UI) — bloco de Estágios', () => {
     });
 
     it('a prévia reflete os números digitados (crescimento 50 => 3º estágio x2)', () => {
-        montarStore();
+        montarStore({ efeitosTemp: [{ atributo: 'forca', propriedade: 'base', valor: 10 }] });
         render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesFormEditor /></PoderesFormProvider>);
         fireEvent.click(screen.getByRole('checkbox', { name: /Esta técnica tem Estágios/ }));
         const input = screen.getByText(/Crescimento por estágio/).closest('label').querySelector('input');
         fireEvent.change(input, { target: { value: '50' } });
-        expect(screen.getByText(/3º: efeitos x2,/)).toBeTruthy();
+        const linha = screen.getByText('3º Estágio').closest('.estagios-previa-linha');
+        expect(linha.textContent).toContain('FORCA BASE 20');
+        expect(linha.textContent).toContain('6%/turno');
     });
 
     it('máximo 0 na prévia mostra "sem limite"', () => {
@@ -128,5 +130,51 @@ describe('PoderesLista (UI) — card com Estágios', () => {
         renderLista(p);
         fireEvent.click(screen.getByRole('button', { name: /Subir para o estágio 4/ }));
         expect(p.estagioAtual).toBe(4);
+    });
+});
+
+describe('PoderesFormEditor (UI) — marcos e prévia estágio a estágio', () => {
+    function abrirEditor(efeitosTemp = [{ atributo: 'geral', propriedade: 'mgeral', valor: 10 }]) {
+        montarStore({ efeitosTemp });
+        render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesFormEditor /></PoderesFormProvider>);
+        fireEvent.click(screen.getByRole('checkbox', { name: /Esta técnica tem Estágios/ }));
+    }
+
+    it('a prévia lista 10 linhas (máximo padrão), sem reticências', () => {
+        abrirEditor();
+        expect(document.querySelectorAll('.estagios-previa-linha')).toHaveLength(10);
+        expect(screen.queryByText(/até o/)).toBeNull();
+        expect(screen.queryByText(/e continua sem limite/)).toBeNull();
+    });
+
+    it('máximo 0: 12 linhas e "… e continua sem limite"', () => {
+        abrirEditor();
+        fireEvent.change(screen.getByText(/Último estágio/).closest('label').querySelector('input'), { target: { value: '0' } });
+        expect(document.querySelectorAll('.estagios-previa-linha')).toHaveLength(12);
+        expect(screen.getByText(/e continua sem limite/)).toBeTruthy();
+    });
+
+    it('máximo 20: 12 linhas e "… até o 20º"', () => {
+        abrirEditor();
+        fireEvent.change(screen.getByText(/Último estágio/).closest('label').querySelector('input'), { target: { value: '20' } });
+        expect(document.querySelectorAll('.estagios-previa-linha')).toHaveLength(12);
+        expect(screen.getByText(/até o 20º/)).toBeTruthy();
+    });
+
+    it('adicionar uma mudança no 2º marca a linha com ✦ e "(fixo)" aparece ao marcar o efeito', () => {
+        abrirEditor();
+        fireEvent.click(screen.getByText(/Adicionar mudança em um estágio/));
+        const linha = () => screen.getByText(/✦ 2º Estágio/).closest('.estagios-previa-linha');
+        expect(linha().classList.contains('marco')).toBe(true);
+        expect(linha().textContent).toContain('GERAL MGERAL 10');
+        expect(linha().textContent).not.toContain('(fixo)');
+        fireEvent.click(document.querySelector('.estagio-marco-fixo input'));
+        expect(linha().textContent).toContain('(fixo)');
+        expect(document.querySelectorAll('.estagios-previa-linha.marco')).toHaveLength(1);
+    });
+
+    it('sem efeitos base a prévia diz "sem efeitos ativos"', () => {
+        abrirEditor([]);
+        expect(screen.getAllByText('sem efeitos ativos')).toHaveLength(10);
     });
 });

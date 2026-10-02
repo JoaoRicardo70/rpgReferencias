@@ -14,7 +14,7 @@ import { useFichaAtiva, useCallSaveAtivo, useSalvarImediatoAtivo } from '../Fich
 import { getVitalMxDisplay, capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 import { calcularGanhoFadigaOvercharge, calcularMultiplicadorOvercharge } from '../../core/dominios';
 import { calcularGanhoFadigaMaestriaInsuficiente } from '../../core/fadiga';
-import { ESTAGIOS_PADRAO, normalizarEstagios, temEstagios, limitarEstagio } from '../../core/estagios';
+import { ESTAGIOS_PADRAO, normalizarEstagios, temEstagios, limitarEstagio, marcoParaRascunho } from '../../core/estagios';
 
 // 🪜 Rascunho do bloco "Estágios" do editor — nomes ficam como texto (um por linha) enquanto edita.
 const estagiosEditorVazio = () => ({ ...ESTAGIOS_PADRAO, nomes: '' });
@@ -351,7 +351,7 @@ export function PoderesFormProvider({ children }) {
         setPastaPoder(p.pasta || '');
         if (temEstagios(p)) {
             const cfg = normalizarEstagios(p.estagios);
-            setEstagiosEditorBruto({ ...cfg, nomes: cfg.nomes.join('\n') });
+            setEstagiosEditorBruto({ ...cfg, nomes: cfg.nomes.join('\n'), marcos: cfg.marcos.map(marcoParaRascunho) });
         } else {
             setEstagiosEditorBruto(estagiosEditorVazio());
         }

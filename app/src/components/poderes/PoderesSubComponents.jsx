@@ -3,19 +3,33 @@ import { usePoderesForm, SINGULAR } from './PoderesFormContext';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS } from '../../core/efeitos-constants';
 import FormasEditor from '../shared/FormasEditor';
 import EstagioControle from './EstagioControle';
-import { escalarEfeitosPorEstagio, ESTAGIOS_PADRAO } from '../../core/estagios';
+import EstagiosMarcosEditor from './EstagiosMarcosEditor';
+import { escalarEfeitosPorEstagio, previaEstagios, getMaximoEstagio, normalizarEstagios } from '../../core/estagios';
 
-// 🪜 Prévia dos 3 primeiros estágios no editor ("1º x1 · 2º x2 · 3º x3"), com os números digitados.
-function resumoEstagios(cfg) {
-    const cresc = parseFloat(cfg.crescimento);
-    const fad = parseFloat(cfg.fadigaPorEstagio);
-    const c = Number.isFinite(cresc) ? Math.max(0, cresc) : ESTAGIOS_PADRAO.crescimento;
-    const f = Number.isFinite(fad) ? Math.max(0, fad) : ESTAGIOS_PADRAO.fadigaPorEstagio;
-    const max = parseInt(cfg.maximo, 10);
-    const ultimo = Number.isFinite(max) && max >= 1 ? max : Infinity;
-    const r = (v) => (Math.round(v * 100) / 100).toLocaleString('pt-BR');
-    const exemplos = [1, 2, 3].filter(n => n <= ultimo).map(n => `${n}º: efeitos x${r(1 + (n - 1) * c / 100)}, ${r(f * n)}% Fadiga/turno`);
-    return `${exemplos.join(' · ')}${ultimo === Infinity ? ' · … sem limite' : (ultimo > 3 ? ` · … até o ${ultimo}º` : '')}`;
+const LIMITE_PREVIA_ESTAGIOS = 12;
+const fmtNumero = (v) => (typeof v === 'number' ? (Math.round(v * 10000) / 10000).toLocaleString('pt-BR') : v);
+const textoEfeito = (e) => `${(e.atributo || '').replace('_', ' ').toUpperCase()} ${(e.propriedade || '').toUpperCase()} ${fmtNumero(e.valor)}${e.fixo ? ' (fixo)' : ''}`;
+
+// 🔎 Tabela "estágio a estágio" no editor, com a config ainda em rascunho (core/estagios.js >
+// previaEstagios) — mostra exatamente o que cada estágio dá antes de gravar.
+function PreviaEstagios({ efeitosBase, estagiosEditor }) {
+    const linhas = previaEstagios(efeitosBase, estagiosEditor, LIMITE_PREVIA_ESTAGIOS);
+    const max = getMaximoEstagio({ estagios: normalizarEstagios(estagiosEditor) });
+    return (
+        <div className="estagios-previa">
+            <div className="estagios-marcos-titulo">🔎 Prévia estágio a estágio</div>
+            {linhas.map(l => (
+                <div key={l.estagio} className={`estagios-previa-linha${l.marco ? ' marco' : ''}`}>
+                    <span className="estagios-previa-nome">{l.marco ? '✦ ' : ''}{l.nome}</span>
+                    <span className="estagios-previa-efeitos">{l.efeitos.length ? l.efeitos.map(textoEfeito).join(' · ') : 'sem efeitos ativos'}</span>
+                    <span className="estagios-previa-fadiga">😮‍💨 {fmtNumero(l.fadiga)}%/turno</span>
+                </div>
+            ))}
+            {max > LIMITE_PREVIA_ESTAGIOS && (
+                <div className="estagios-previa-mais">… {max === Infinity ? 'e continua sem limite' : `até o ${max}º`}</div>
+            )}
+        </div>
+    );
 }
 
 const FALLBACK = <div style={{ opacity: 0.5, padding: 10 }}>Poderes provider não encontrado</div>;
@@ -316,7 +330,14 @@ export function PoderesFormEditor() {
                                 onChange={e => setEstagiosEditor({ nomes: e.target.value })}
                             />
                         </label>
-                        <p className="estagios-editor-resumo">{resumoEstagios(estagiosEditor)}</p>
+                        <EstagiosMarcosEditor
+                            estagiosEditor={estagiosEditor}
+                            setEstagiosEditor={setEstagiosEditor}
+                            efeitosBase={efeitosTemp}
+                            atributos={ATRIBUTOS_PODERES}
+                            propriedades={PROPRIEDADE_OPTIONS}
+                        />
+                        <PreviaEstagios efeitosBase={efeitosTemp} estagiosEditor={estagiosEditor} />
                     </div>
                 )}
             </div>

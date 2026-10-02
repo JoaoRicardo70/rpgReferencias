@@ -1,13 +1,19 @@
-import { escalarEfeitosPorEstagio } from './estagios.js';
+import { temEstagios, efeitosDoEstagio, fatorGeralDoEstagio, escalarPorFator } from './estagios.js';
 
 /**
  * Resolve quais efeitos (ativos e passivos) estao realmente ativos
  * para uma entidade (poder ou item), considerando formas e o estagio atual
- * (core/estagios.js: os efeitos ATIVOS escalam com o estagio; passivos nao).
+ * (core/estagios.js: os efeitos ATIVOS seguem o estagio -- os da tecnica, ou os da
+ * "mudanca" em vigor naquele estagio, com o crescimento; passivos nao mudam). Sub-formas
+ * da tecnica escalam pelo crescimento geral (nao tem lista propria por "mudanca").
  */
 export function resolverEfeitosEntidade(entidade) {
-    const resolvido = resolverSemEstagio(entidade);
-    return { ...resolvido, efeitos: escalarEfeitosPorEstagio(resolvido.efeitos, entidade) };
+    if (!temEstagios(entidade)) return resolverSemEstagio(entidade);
+    const fator = fatorGeralDoEstagio(entidade);
+    const formas = (fator !== 1 && Array.isArray(entidade.formas))
+        ? entidade.formas.map(f => (f ? { ...f, efeitos: escalarPorFator(f.efeitos, fator) } : f))
+        : entidade.formas;
+    return resolverSemEstagio({ ...entidade, efeitos: efeitosDoEstagio(entidade.efeitos, entidade), formas });
 }
 
 function resolverSemEstagio(entidade) {

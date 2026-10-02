@@ -12,7 +12,7 @@ function poder(cfg = {}, extra = {}) {
 describe('core/estagios — normalizarEstagios', () => {
     it('sem config devolve os padrões (desabilitado, máximo 10, crescimento 100)', () => {
         const n = normalizarEstagios(undefined);
-        expect(n).toEqual({ habilitado: false, maximo: 10, crescimento: 100, fadigaPorEstagio: 2, rotulo: 'Estágio', nomes: [] });
+        expect(n).toEqual({ habilitado: false, maximo: 10, crescimento: 100, fadigaPorEstagio: 2, rotulo: 'Estágio', nomes: [], marcos: [] });
         expect(normalizarEstagios(null).maximo).toBe(10);
         expect(normalizarEstagios('texto').habilitado).toBe(false);
     });

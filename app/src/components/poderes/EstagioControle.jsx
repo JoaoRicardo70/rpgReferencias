@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { temEstagios, getEstagioAtual, getMaximoEstagio, limitarEstagio, nomeDoEstagio, fatorDoEstagio, fadigaPorTurnoDoEstagio } from '../../core/estagios';
+import { temEstagios, getEstagioAtual, getMaximoEstagio, limitarEstagio, nomeDoEstagio, fatorDoEstagio, marcoVigente, fadigaPorTurnoDoEstagio } from '../../core/estagios';
 
 const fmtFator = (v) => (Math.round(v * 100) / 100).toLocaleString('pt-BR');
 
@@ -17,6 +17,7 @@ export default function EstagioControle({ poder, onMudar, compacto = false }) {
     const semLimite = max === Infinity;
     const nome = nomeDoEstagio(poder, atual);
     const fator = fatorDoEstagio(poder, atual);
+    const inicioRegra = marcoVigente(poder, atual).estagio;
     const fadiga = fadigaPorTurnoDoEstagio(poder, atual);
 
     // Acima do último estágio vai pro último; o campo sempre volta a mostrar o estágio real.
@@ -44,7 +45,7 @@ export default function EstagioControle({ poder, onMudar, compacto = false }) {
                 {!compacto && nome.proprio && <span className="estagio-proprio">{nome.proprio}</span>}
                 {!compacto && (
                     <span className="estagio-detalhe">
-                        Efeitos x{fmtFator(fator)} · 😮‍💨 {fmtFator(fadiga)}% Fadiga/turno{semLimite ? ' · ∞ sem limite' : ''}
+                        {inicioRegra > 1 ? `✦ Efeitos do ${inicioRegra}º` : 'Efeitos'} x{fmtFator(fator)} · 😮‍💨 {fmtFator(fadiga)}% Fadiga/turno{semLimite ? ' · ∞ sem limite' : ''}
                     </span>
                 )}
             </div>
