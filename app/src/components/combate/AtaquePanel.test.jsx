@@ -72,40 +72,125 @@ describe('AtaquePanel', () => {
         expect(mockAddFeedEntry).not.toHaveBeenCalled(); 
     });
 
-    describe('Magias Preparadas (removidas do painel)', () => {
+    describe('Habilidades Ativadas e Magias Preparadas (recolhidas)', () => {
         afterEach(() => cleanup());
-        const montarComMagia = () => {
-            const magia = { id: 'm1', nome: 'Bola de Fogo', elemento: 'Fogo', equipado: true, tipoMecanica: 'ofensiva', custoValor: 5 };
+        const magia = { id: 'm1', nome: 'Bola de Fogo', elemento: 'Fogo', equipado: true, tipoMecanica: 'ofensiva', custoValor: 5 };
+        const poder = { id: 'p1', nome: 'Golpe Solar', ativa: true, custoPercentual: 10 };
+        const montar = ({ poderes = [], magias = [] } = {}) => {
             const mockState = {
                 minhaFicha: {
                     ataqueConfig: { statusSelecionados: ['forca'] },
-                    poderes: [], inventario: [], ataquesElementais: [magia],
+                    poderes, inventario: [], ataquesElementais: magias,
                 },
                 meuNome: 'Herói', updateFicha: vi.fn(), setAbaAtiva: vi.fn(), addFeedEntry: vi.fn(),
                 feedCombate: [], alvoSelecionado: null, dummies: {}, ignorarTravaAcerto: false, setIgnorarTravaAcerto: vi.fn(),
             };
             useStore.mockImplementation(selector => selector ? selector(mockState) : mockState);
         };
+        const botao = () => screen.getByRole('button', { name: /Status das Habilidades Ativadas e Magias Preparadas/ });
 
-        it('nao mostra "Magias Preparadas" mesmo com magia ofensiva equipada', () => {
-            montarComMagia();
+        it('nao mostra os titulos das secoes com magia ofensiva equipada enquanto o toggle esta fechado', () => {
+            montar({ magias: [magia] });
             render(<AtaquePanel />);
-            expect(screen.queryByText(/Magias Preparadas/i)).toBeNull();
+            expect(screen.queryByText('🔮 Magias Preparadas')).toBeNull();
+            expect(screen.queryByText('✨ Habilidades Ativadas')).toBeNull();
             expect(screen.queryByText('Bola de Fogo')).toBeNull();
         });
 
-        it('nao mostra "Magias Preparadas" sem magias na ficha', () => {
+        it('nao mostra o toggle nem as secoes sem poderes ativos e sem magias na ficha', () => {
+            montar();
             render(<AtaquePanel />);
-            expect(screen.queryByText(/Magias Preparadas/i)).toBeNull();
+            expect(screen.queryByRole('button', { name: /Status das Habilidades Ativadas e Magias Preparadas/ })).toBeNull();
+            expect(screen.queryByText('🔮 Magias Preparadas')).toBeNull();
+            expect(screen.queryByText('✨ Habilidades Ativadas')).toBeNull();
         });
 
-        it('a magia ofensiva equipada continua entrando na rolagem de dano', () => {
-            montarComMagia();
+        it('ignora poderes inativos e magias nao equipadas ou de suporte (sem toggle)', () => {
+            montar({
+                poderes: [{ id: 'p2', nome: 'Dormindo', ativa: false }],
+                magias: [{ ...magia, equipado: false }, { ...magia, id: 'm2', tipoMecanica: 'suporte' }],
+            });
+            render(<AtaquePanel />);
+            expect(screen.queryByRole('button', { name: /Status das Habilidades/ })).toBeNull();
+        });
+
+        it('o toggle comeca fechado por padrao', () => {
+            montar({ poderes: [poder], magias: [magia] });
+            render(<AtaquePanel />);
+            const b = botao();
+            expect(b.getAttribute('aria-expanded')).toBe('false');
+            expect(b.getAttribute('aria-controls')).toBe('ataque-listas-conteudo');
+            expect(document.getElementById('ataque-listas-conteudo')).toBeNull();
+            expect(screen.queryByText('Golpe Solar')).toBeNull();
+        });
+
+        it('mostra no rotulo a soma de poderes ativos e magias ofensivas', () => {
+            montar({ poderes: [poder, { id: 'p3', nome: 'Outro', ativa: true }], magias: [magia] });
+            render(<AtaquePanel />);
+            expect(botao().textContent).toContain('Status das Habilidades Ativadas e Magias Preparadas (3)');
+        });
+
+        it('mostra contagem (1) com apenas uma magia ofensiva', () => {
+            montar({ magias: [magia] });
+            render(<AtaquePanel />);
+            expect(botao().textContent).toContain('(1)');
+        });
+
+        it('mostra contagem (1) com apenas um poder ativo', () => {
+            montar({ poderes: [poder] });
+            render(<AtaquePanel />);
+            expect(botao().textContent).toContain('(1)');
+        });
+
+        it('ao clicar abre o toggle, mostra as duas secoes e aria-expanded vira true', () => {
+            montar({ poderes: [poder], magias: [magia] });
+            render(<AtaquePanel />);
+            fireEvent.click(botao());
+            expect(botao().getAttribute('aria-expanded')).toBe('true');
+            const conteudo = document.getElementById('ataque-listas-conteudo');
+            expect(conteudo).not.toBeNull();
+            expect(conteudo.textContent).toContain('✨ Habilidades Ativadas');
+            expect(conteudo.textContent).toContain('Golpe Solar');
+            expect(conteudo.textContent).toContain('🔮 Magias Preparadas');
+            expect(conteudo.textContent).toContain('Bola de Fogo');
+        });
+
+        it('ao abrir com so magia, mostra Magias Preparadas e nao Habilidades Ativadas', () => {
+            montar({ magias: [magia] });
+            render(<AtaquePanel />);
+            fireEvent.click(botao());
+            expect(screen.getByText('🔮 Magias Preparadas')).toBeTruthy();
+            expect(screen.queryByText('✨ Habilidades Ativadas')).toBeNull();
+        });
+
+        it('clicar de novo fecha o toggle e aria-expanded volta a false', () => {
+            montar({ poderes: [poder], magias: [magia] });
+            render(<AtaquePanel />);
+            fireEvent.click(botao());
+            fireEvent.click(botao());
+            expect(botao().getAttribute('aria-expanded')).toBe('false');
+            expect(document.getElementById('ataque-listas-conteudo')).toBeNull();
+            expect(screen.queryByText('🔮 Magias Preparadas')).toBeNull();
+        });
+
+        it('a magia ofensiva equipada continua entrando na rolagem de dano com o toggle fechado', () => {
+            montar({ magias: [magia] });
             render(<AtaquePanel />);
             fireEvent.click(screen.getByText(/ROLAR DANO/i));
             expect(calcularDano).toHaveBeenCalled();
             const args = calcularDano.mock.calls.at(-1)[0];
             expect(args.configHabilidades.some(h => h.id === 'm1' && h.nome === 'Bola de Fogo')).toBe(true);
+        });
+
+        it('a habilidade ativa e a magia equipada entram juntas na rolagem com o toggle fechado', () => {
+            montar({ poderes: [poder], magias: [magia] });
+            render(<AtaquePanel />);
+            expect(botao().getAttribute('aria-expanded')).toBe('false');
+            fireEvent.click(screen.getByText(/ROLAR DANO/i));
+            const args = calcularDano.mock.calls.at(-1)[0];
+            expect(args.configHabilidades.some(h => h.id === 'p1')).toBe(true);
+            expect(args.configHabilidades.some(h => h.id === 'm1')).toBe(true);
+            expect(botao().getAttribute('aria-expanded')).toBe('false');
         });
     });
 });

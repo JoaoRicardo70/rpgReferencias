@@ -2097,3 +2097,7 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .gaveta-npc-info { display: flex; flex-direction: column; min-width: 0; color: #ddd; }
 .gaveta-npc-info span { font-size: 0.8em; color: #999; }
 .gaveta-npc-btn { margin: 0; padding: 4px 12px; font-size: 0.85em; }
+
+/* ⚙️ Aba Combate > Ataque: Habilidades Ativadas e Magias Preparadas recolhidas */
+.ataque-listas-recolhidas { margin: 10px 0; }
+.ataque-listas-toggle { width: 100%; margin: 0; padding: 8px 12px; text-align: left; font-size: 0.9em; }
