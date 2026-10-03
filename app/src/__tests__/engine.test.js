@@ -140,53 +140,60 @@ describe('calcularDano — novo sistema', () => {
         expect(result.dano).toBe(640);
     });
 
-    it('multipliers from ficha.dano are applied', () => {
-        // ficha.dano.mGeral=2 → totalGer=2
-        // danoArma=800, multTotal includes totalGer=2 → total=1600
+    it('multiplicadores de ficha.dano NAO sao aplicados (valem so no Poder Calculado)', () => {
+        const arma = makeArma({ dadosQtd: 2, dadosFaces: 6 });
+        const base = callCalcDano({ itensEquipados: [arma] }).dano;
         const ficha = buildFicha();
+        ficha.dano.mBase = 3.0;
         ficha.dano.mGeral = 2.0;
-        const arma = makeArma({ dadosQtd: 2, dadosFaces: 6 });
+        ficha.dano.mFormas = 2.0;
+        ficha.dano.mAbsoluto = 2.0;
 
         const result = callCalcDano({ itensEquipados: [arma], minhaFicha: ficha });
-        expect(result.dano).toBe(1600);
+        expect(result.dano).toBe(base);
+        expect(base).toBeGreaterThan(0);
     });
 
-    it('mPotencial from ficha.dano applied in global multTotal', () => {
-        // ficha.dano.mPotencial=2 → totalPot=2
-        // danoArma=800, multTotal includes totalPot=2 → total=1600
+    it('mPotencial de ficha.dano NAO multiplica o dano total', () => {
+        const arma = makeArma({ dadosQtd: 2, dadosFaces: 6 });
+        const base = callCalcDano({ itensEquipados: [arma] }).dano;
         const ficha = buildFicha();
         ficha.dano.mPotencial = 2.0;
-        const arma = makeArma({ dadosQtd: 2, dadosFaces: 6 });
 
         const result = callCalcDano({ itensEquipados: [arma], minhaFicha: ficha });
-        expect(result.dano).toBe(1600);
+        expect(result.dano).toBe(base);
     });
 
-    it('mPotencial does NOT multiply energy combustion in sub-calc', () => {
-        // With mPotencial=2, energy combustion in sub-calc should NOT be multiplied by pot
-        // hab: 2d6=8, custoPerc=20, mana max=50, combustao=10
-        // somaTermos = 100(forca)*1(uni) + 10(combustao)*1(uni) = 110 (NOT 10*1*2=20)
-        // dano = floor(8*110) = 880
-        // multTotal = 1*2*1*1*1*1*1 = 2 → total = floor(880*2) = 1760
-        const ficha = buildFicha();
-        ficha.dano.mPotencial = 2.0;
+    it('mPotencial nao altera o dano de habilidade com combustao de energia', () => {
         const hab = makeHabConfig({ dadosQtd: 2, dadosFaces: 6, custoPercentual: 20, energiaCombustao: 'mana' });
+        const base = callCalcDano({ configHabilidades: [hab] }).dano;
+        const ficha = buildFicha();
+        ficha.dano.mPotencial = 2.0;
 
         const result = callCalcDano({ minhaFicha: ficha, configHabilidades: [hab] });
-        expect(result.dano).toBe(1760);
+        expect(result.dano).toBe(base);
     });
 
-    it('mUnico from ficha.dano applied per-term and global', () => {
-        // ficha.dano.mUnico='2.0' → uniTotal=2
-        // somaTermos = 100*2 = 200, rolagemArma=8
-        // danoArma = floor(8*200)=1600
-        // multTotal includes uniTotal=2 → total=floor(1600*2)=3200
+    it('mUnico de ficha.dano NAO e aplicado nem por termo nem globalmente', () => {
+        const arma = makeArma({ dadosQtd: 2, dadosFaces: 6 });
+        const base = callCalcDano({ itensEquipados: [arma] }).dano;
         const ficha = buildFicha();
         ficha.dano.mUnico = '2.0';
-        const arma = makeArma({ dadosQtd: 2, dadosFaces: 6 });
 
         const result = callCalcDano({ itensEquipados: [arma], minhaFicha: ficha });
-        expect(result.dano).toBe(3200);
+        expect(result.dano).toBe(base);
+        expect(result.detalheConta).not.toContain('Uni(');
+    });
+
+    it('critico continua multiplicando o dano e os outros multiplicadores seguem ignorados', () => {
+        const arma = makeArma({ dadosQtd: 2, dadosFaces: 6 });
+        const ficha = buildFicha();
+        ficha.dano.mGeral = 5.0;
+        const normal = callCalcDano({ itensEquipados: [arma] }).dano;
+        const critico = callCalcDano({ itensEquipados: [arma], minhaFicha: ficha, isCriticoNormal: true }).dano;
+        const criticoSemMult = callCalcDano({ itensEquipados: [arma], isCriticoNormal: true }).dano;
+        expect(critico).toBeGreaterThan(normal);
+        expect(critico).toBe(criticoSemMult);
     });
 
     it('result contains expected keys', () => {
@@ -215,8 +222,9 @@ describe('calcularDano — novo sistema', () => {
     });
 
     it('letalidade reduces dano for 9+ digit totals', () => {
+        // Chega em 9+ digitos pelo atributo (sem multiplicadores, que nao existem mais no dano)
         const ficha = buildFicha();
-        ficha.dano.mGeral = 1e6;
+        ficha.forca.base = 1e9;
         const arma = makeArma({ dadosQtd: 2, dadosFaces: 6 });
 
         const result = callCalcDano({ itensEquipados: [arma], minhaFicha: ficha });
@@ -268,11 +276,20 @@ describe('calcularDano — edge cases', () => {
         expect(result.dano).toBe(1000);
     });
 
-    it('mult_dano from item multiplies final result', () => {
+    it('mult_dano de item NAO multiplica o dano final', () => {
         const arma = makeArma({ dadosQtd: 2, dadosFaces: 6 });
+        const base = callCalcDano({ itensEquipados: [arma] }).dano;
         const item = { tipo: 'acessorio', bonusTipo: 'mult_dano', bonusValor: '2', nome: 'Colar' };
         const result = callCalcDano({ itensEquipados: [arma, item] });
-        expect(result.dano).toBe(1600);
+        expect(result.dano).toBe(base);
+    });
+
+    it('mult_dano de magia equipada NAO multiplica o dano final', () => {
+        const arma = makeArma({ dadosQtd: 2, dadosFaces: 6 });
+        const base = callCalcDano({ itensEquipados: [arma] }).dano;
+        const ficha = buildFicha({ ataquesElementais: [{ nome: 'Bola', equipado: true, bonusTipo: 'mult_dano', bonusValor: '3' }] });
+        const result = callCalcDano({ itensEquipados: [arma], minhaFicha: ficha });
+        expect(result.dano).toBe(base);
     });
 
     it('letalidade bonus from item adds to letal count', () => {

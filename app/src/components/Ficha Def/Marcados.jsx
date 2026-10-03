@@ -9,7 +9,7 @@ import { getRank } from '../../core/prestige';
 import { formatarPoderCosmico } from '../../core/utils.js';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { calcularFadigaAtual } from '../../core/fadiga';
-import { getBaseEquivalenteAscensao, amortecerPoderBruto, getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder, aplicarEscalaPoderCalculado } from '../../core/poder';
+import { getGlobalMultipliers, getBaseEquivalenteAscensao, amortecerPoderBruto, getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder, aplicarEscalaPoderCalculado } from '../../core/poder';
 import { planejarAjustePrestigioStatus, aplicarAjustePrestigioStatus, recolherPontosAlocados, getTotalPontosAlocados } from '../../core/statusPool';
 import { getPontosPrestigioDisponiveis, getPontosDistribuidos, calcularBaseDoPrestigio, validarDistribuicaoPrestigio, registrarDistribuicaoPrestigio, podeAscender, prestigioAposAscensao, aplicarAscensao, CATEGORIAS_PRESTIGIO, PRESTIGIO_PARA_ASCENDER } from '../../core/prestigioDistribuicao';
 import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
@@ -82,146 +82,8 @@ function getEfetivoMFormas(ficha, k, ignorarPoderes = false) {
     return (v === 1.0 ? 0 : v) + b.mformas;
 }
 
-function getGlobalMultipliers(ficha) {
-    try {
-        if (!ficha) return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalUni: 1, totalDano: 1 };
-        
-        let grupos = { MBASE: {}, MGERAL: {}, MFORMAS: {}, MABS: {} };
-        let unicos = [];
-
-        const addManual = (val, type, sourceName) => {
-            let v = parseFloat(val);
-            if (!isNaN(v) && v > 0 && v !== 1) {
-                grupos[type][sourceName] = (grupos[type][sourceName] || 0) + v;
-            }
-        };
-
-        let d = ficha?.dano || {};
-        addManual(d.mBase, 'MBASE', 'Ficha_Manual');
-        addManual(d.mGeral, 'MGERAL', 'Ficha_Manual');
-        addManual(d.mAbsoluto, 'MABS', 'Ficha_Manual');
-        if (d.mUnico) {
-            String(d.mUnico).split(',').forEach(v => {
-                let n = parseFloat(v.trim());
-                if (!isNaN(n) && n > 0) unicos.push(n);
-            });
-        }
-
-        ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].forEach(k => {
-            const mF = getEfetivoMFormas(ficha, k, true);
-            if (!isNaN(mF) && mF > 1) {
-                grupos.MFORMAS[`Eixo_${k}`] = (grupos.MFORMAS[`Eixo_${k}`] || 0) + (mF - 1);
-            }
-        });
-
-        let b = safeGetBuffs(ficha, 'dano', true, true) || {};
-        if (b._hasBuff) {
-            if (b.mbase) addManual(b.mbase, 'MBASE', 'Buff_Sistema');
-            if (b.mgeral) addManual(b.mgeral, 'MGERAL', 'Buff_Sistema');
-            if (b.mabs) addManual(b.mabs, 'MABS', 'Buff_Sistema');
-            if (b.munico && Array.isArray(b.munico)) {
-                b.munico.forEach(n => { if (!isNaN(n) && n > 0) unicos.push(n); });
-            }
-        }
-
-        const scanCategory = (cat, flagAtivo = 'ativo', camposTexto = ['efeitos', 'desc']) => {
-            if (!ficha[cat]) return;
-            Object.values(ficha[cat]).forEach(item => {
-                if (item && item[flagAtivo] && !item.deletado) {
-                    const nomeSkill = String(item.nome || 'Desconhecido').trim().toUpperCase();
-                    const processText = (txt) => {
-                        if (!txt) return;
-                        const regex = /(MBASE|MGERAL|MFORMAS|MABS|MUNICO)\s*:\s*\+?\s*(-?\d+(?:[.,]\d+)?)/gi;
-                        let match;
-                        while ((match = regex.exec(txt)) !== null) {
-                            const tipo = match[1].toUpperCase();
-                            const val = parseFloat(match[2].replace(',', '.'));
-                            if (isNaN(val)) continue;
-
-                            if (tipo === 'MUNICO') {
-                                if (val > 0) unicos.push(val);
-                            } else if (grupos[tipo]) {
-                                grupos[tipo][nomeSkill] = (grupos[tipo][nomeSkill] || 0) + val;
-                            }
-                        }
-                    };
-                    camposTexto.forEach(campo => processText(item[campo]));
-                }
-            });
-        };
-        ['passivas', 'habilidades', 'transformacoes', 'magias', 'relicarios', 'itens'].forEach(cat => scanCategory(cat));
-        scanCategory('ataquesElementais', 'equipado', ['descricao', 'efeitos', 'desc']);
-
-        // 🔮 Relicário — Passivas/Runas POR ESTADO da Arma Espiritual (Base, Forma Verdadeira,
-        // Fantasma Nobre; ver Ficha Def/RelicarioPanel.jsx, Capítulo 2): só contam enquanto a Arma
-        // Espiritual estiver EQUIPADA (arma.equipada !== false -- campo ausente em fichas antigas
-        // conta como equipada, pra nunca mudar o comportamento de quem já tinha a arma valendo antes
-        // desta trava existir; ver botão "Equipar/Desequipar" no Altar da Relíquia, Capítulo 1). Os
-        // três estados são EXCLUDENTES (pedido do usuário): só as Passivas/Runas do estado ATIVO
-        // (armaEsp.estadoAtivo) contam -- ativar a Forma Verdadeira desliga as do Base, ativar o
-        // Fantasma Nobre desliga as de Base e Verdadeira. Se o acesso ao estado selecionado for
-        // revogado pelo Mestre depois (acessoVerdadeira/acessoFantasma), o cálculo cai um nível
-        // sozinho em vez de continuar contando um estado sem acesso. Enquanto equipada, sempre
-        // "ativas" (documentam a arma permanente da entidade, sem toggle "ativo" próprio por item
-        // como Poderes/Itens têm) — mesma convenção de tags MBASE/MGERAL/MFORMAS/MABS/MUNICO já usada
-        // em Poderes/Habilidades/Transformações/Magias/Itens, lida do campo "texto" de cada item.
-        const armaEsp = ficha.armaEspiritual || {};
-        if (armaEsp.equipada !== false) {
-            const acessoVerdadeira = armaEsp.acessoVerdadeira !== false;
-            const acessoFantasma = !!armaEsp.acessoFantasma;
-            let estadoEfetivo = armaEsp.estadoAtivo || 'base';
-            if (estadoEfetivo === 'fantasma' && !acessoFantasma) estadoEfetivo = 'verdadeira';
-            if (estadoEfetivo === 'verdadeira' && !acessoVerdadeira) estadoEfetivo = 'base';
-
-            const CAMPOS_POR_ESTADO = {
-                base: [['passivas', 'Passiva da Relíquia'], ['runas', 'Runa']],
-                verdadeira: [['passivasVerdadeira', 'Passiva da Forma Verdadeira'], ['runasVerdadeira', 'Runa da Forma Verdadeira']],
-                fantasma: [['passivasFantasma', 'Passiva do Fantasma Nobre'], ['runasFantasma', 'Runa do Fantasma Nobre']]
-            };
-            (CAMPOS_POR_ESTADO[estadoEfetivo] || CAMPOS_POR_ESTADO.base).forEach(([campo, rotulo]) => {
-                (armaEsp[campo] || []).forEach((item, i) => {
-                    if (!item || !item.texto) return;
-                    const nomeItem = `${rotulo} #${i + 1}`.toUpperCase();
-                    const regex = /(MBASE|MGERAL|MFORMAS|MABS|MUNICO)\s*:\s*\+?\s*(-?\d+(?:[.,]\d+)?)/gi;
-                    let match;
-                    while ((match = regex.exec(item.texto)) !== null) {
-                        const tipo = match[1].toUpperCase();
-                        const val = parseFloat(match[2].replace(',', '.'));
-                        if (isNaN(val)) continue;
-                        if (tipo === 'MUNICO') { if (val > 0) unicos.push(val); }
-                        else if (grupos[tipo]) grupos[tipo][nomeItem] = (grupos[tipo][nomeItem] || 0) + val;
-                    }
-                });
-            });
-        }
-
-        const calcTotal = (tipo) => {
-            let soma = 0;
-            Object.values(grupos[tipo]).forEach(v => { soma += v; });
-            return 1 + soma;
-        };
-
-        let finalB = calcTotal('MBASE');
-        let finalG = calcTotal('MGERAL');
-        let finalF = calcTotal('MFORMAS');
-        let finalA = calcTotal('MABS');
-        
-        let finalUni = 1.0;
-        unicos.forEach(n => { finalUni *= n; });
-
-        // 🔥 finalUni (mUnico) fica DE FORA de totalDano de propósito — é aplicado
-        // separadamente em poderGlobal, no MESMO estágio (pós-injeção de Ascensão)
-        // que multiplicadorPoderDireto (mUnicos de Poderes/poder_direto) e
-        // multiplicadorMunicoCrescente (mUnico Crescente por turno). Isso garante
-        // que TODO mUnico — não importa a fonte (Balança de Adaptação, buffs,
-        // texto de habilidades, Poderes ou mUnico Crescente) — sempre multiplica
-        // com qualquer outro mUnico, sem ser diluído pela injeção aditiva de
-        // Ascensão que fica no meio do caminho (ver getMunicoCrescenteMultiplier).
-        return { finalB, finalG, finalF, finalA, finalUni, totalDano: finalB * finalG * finalA };
-    } catch(e) {
-        return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalUni: 1, totalDano: 1 };
-    }
-}
+// getGlobalMultipliers vem de core/poder.js (a mesma do Mapa/Mestre): os antigos Multiplicadores
+// de Dano agora só valem no Poder Calculado, e duas cópias desse cálculo já divergiram antes.
 
 function getPoderDiretoMultiplier(ficha) {
     if (!ficha) return 1;

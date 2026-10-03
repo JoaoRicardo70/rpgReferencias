@@ -1,8 +1,12 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import useStore from '../../stores/useStore';
-import { calcularReducao, calcularCA } from '../../core/engine';
+import { calcularReducao, calcularCA, calcularMultiplicadorElemental } from '../../core/engine';
 import { salvarFichaSilencioso, enviarParaFeed } from '../../services/firebase-sync';
-import { calcularMultiplicadorElemental } from '../../core/engine'; 
+import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
+
+// "auto" = quem desferiu o último golpe do feed (que não fui eu).
+export const ATACANTE_AUTO = 'auto';
+export const ATACANTE_NENHUM = 'nenhum';
 
 const DefesaFormContext = createContext(null);
 
@@ -18,6 +22,9 @@ export function DefesaFormProvider({ children }) {
     const personagens = useStore(s => s.personagens); // 🔥 VARREDURA GLOBAL DE PERSONAGENS DA MESA
     const updateFicha = useStore(s => s.updateFicha);
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
+    const feedCombate = useStore(s => s.feedCombate);
+    const dummies = useStore(s => s.dummies);
+    const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
 
     const caEvasiva = calcularCA(minhaFicha, 'evasiva');
     const caResistencia = calcularCA(minhaFicha, 'resistencia');
@@ -38,6 +45,52 @@ export function DefesaFormProvider({ children }) {
     
     const [elementoInc, setElementoInc] = useState('fisico'); 
     const [danoRecebidoInc, setDanoRecebidoInc] = useState('');
+    // ⚖️ Quem desferiu o golpe: decide a Disputa de Poder (core/disputaPoder.js). Valores:
+    // ATACANTE_AUTO, ATACANTE_NENHUM, "p:<nome do personagem>" ou "d:<id da entidade>".
+    const [atacanteInc, setAtacanteInc] = useState(ATACANTE_AUTO);
+
+    const ultimoGolpeRecebido = useMemo(() => {
+        const feed = feedCombate || [];
+        for (let i = feed.length - 1; i >= 0; i--) {
+            const f = feed[i];
+            // Golpe com alvoNome foi numa entidade do Mapa (dummy), não em um jogador: não conta.
+            if (f && f.tipo === 'dano' && f.nome && f.nome !== meuNome && !f.alvoNome) return f;
+        }
+        return null;
+    }, [feedCombate, meuNome]);
+
+    const opcoesAtacante = useMemo(() => {
+        const jogadores = Object.keys(personagens || {})
+            .filter(n => n && n !== meuNome && personagens[n])
+            .map(n => ({ valor: `p:${n}`, nome: n, isDummie: false }));
+        const entidades = Object.entries(dummies || {})
+            .filter(([, d]) => d && getPoderDummie(d) !== null)
+            .map(([id, d]) => ({ valor: `d:${id}`, nome: d.nome || 'Entidade', isDummie: true }));
+        return [...jogadores, ...entidades];
+    }, [personagens, dummies, meuNome]);
+
+    // Resolve o atacante escolhido no Poder dele. Pra quem desferiu o último golpe recebido, usa o
+    // Poder gravado no feed no momento do golpe (poderAtacante); senão, o Poder Atual dele agora.
+    const disputaDefesa = useMemo(() => {
+        let nome = null;
+        let poder = null;
+        const escolha = atacanteInc === ATACANTE_AUTO ? (ultimoGolpeRecebido ? `p:${ultimoGolpeRecebido.nome}` : ATACANTE_NENHUM) : atacanteInc;
+        if (escolha.startsWith('p:')) {
+            nome = escolha.slice(2);
+            // Só o golpe mais recente que recebi traz o Poder do momento; outro nome = Poder de agora.
+            const golpe = ultimoGolpeRecebido && ultimoGolpeRecebido.nome === nome ? ultimoGolpeRecebido : null;
+            const gravado = golpe ? Number(golpe.poderAtacante) : NaN;
+            poder = (golpe && golpe.poderAtacante !== undefined && golpe.poderAtacante !== null && Number.isFinite(gravado))
+                ? gravado
+                : getPoderParaDisputa(personagens?.[nome], divisorPoderMesa);
+        } else if (escolha.startsWith('d:')) {
+            const d = dummies?.[escolha.slice(2)];
+            nome = d?.nome || 'Entidade';
+            poder = getPoderDummie(d);
+        }
+        if (!nome) return { nomeAtacante: null, disputa: null };
+        return { nomeAtacante: nome, disputa: calcularDisputaPoder(poder, getPoderParaDisputa(minhaFicha, divisorPoderMesa)) };
+    }, [atacanteInc, ultimoGolpeRecebido, personagens, dummies, minhaFicha, divisorPoderMesa]);
 
     // 🔥 LEITURA DINÂMICA DO COMPÊNDIO COM CORREÇÃO DE VARREDURA 🔥
     const overridesCompendio = useMemo(() => {
@@ -163,8 +216,10 @@ export function DefesaFormProvider({ children }) {
         const dano = parseInt(danoRecebidoInc) || 0;
         if (dano <= 0) return alert('Digite um valor de dano válido para receber.');
 
+        const { disputa, nomeAtacante } = disputaDefesa;
+        const danoDisputa = aplicarDisputaAoDano(dano, disputa);
         const mult = calcularMultiplicadorElemental(minhaFicha, elementoInc);
-        const danoFinal = Math.floor(dano * mult);
+        const danoFinal = Math.floor(danoDisputa * mult);
 
         updateFicha((ficha) => {
             if (ficha.vida) {
@@ -180,27 +235,32 @@ export function DefesaFormProvider({ children }) {
 
         const nomeElemento = elementosDinamicos.find(e => e.id === elementoInc)?.nome || elementoInc;
 
-        const texto = `Recebeu ${danoFinal} de dano! (Original: ${dano} de ${nomeElemento.toUpperCase()})${mensagemElemental}`;
+        const textoDisputa = disputa && disputa.ativa ? ` | ${descreverDisputa(disputa)}` : '';
+        const deQuem = nomeAtacante ? ` de ${nomeAtacante}` : '';
+        const texto = `Recebeu ${danoFinal} de dano${deQuem}! (Original: ${dano} de ${nomeElemento.toUpperCase()})${mensagemElemental}${textoDisputa}`;
 
         const feedData = { tipo: 'sistema', nome: meuNome, texto: texto };
         enviarParaFeed(feedData);
         
         setDanoRecebidoInc('');
         setElementoInc('fisico');
+        setAtacanteInc(ATACANTE_AUTO);
         setAbaAtiva('aba-log');
-    }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, updateFicha, setAbaAtiva, elementosDinamicos]);
+    }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, updateFicha, setAbaAtiva, elementosDinamicos, disputaDefesa]);
 
     const value = useMemo(() => ({
         evaDados, setEvaDados, evaFaces, setEvaFaces, evaProf, setEvaProf, evaBonus, setEvaBonus,
         resDados, setResDados, resFaces, setResFaces, resProf, setResProf, resBonus, setResBonus,
         redEnergia, setRedEnergia, redPerc, setRedPerc, redMult, setRedMult,
         elementoInc, setElementoInc, danoRecebidoInc, setDanoRecebidoInc,
+        atacanteInc, setAtacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa,
         caEvasiva, caResistencia,
         elementosDinamicos, 
         declararEvasiva, declararResistencia, declararReducao, sofrerDanoBruto
     }), [
         evaDados, evaFaces, evaProf, evaBonus, resDados, resFaces, resProf, resBonus,
         redEnergia, redPerc, redMult, elementoInc, danoRecebidoInc, caEvasiva, caResistencia,
+        atacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa,
         elementosDinamicos, declararEvasiva, declararResistencia, declararReducao, sofrerDanoBruto
     ]);
 

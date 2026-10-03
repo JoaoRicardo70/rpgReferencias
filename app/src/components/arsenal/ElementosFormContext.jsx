@@ -106,7 +106,7 @@ const ABAS_GRIMORIO_STATIC = {
 
 export const BONUS_OPTIONS = [
     { value: 'nenhum', label: 'Nenhum (Apenas Elemento)' },
-    { value: 'mult_dano', label: 'Mult Dano' },
+    { value: 'mult_dano', label: 'Mult Poder (ex-Mult Dano)' },
     { value: 'dano_bruto', label: 'Dano Bruto' },
     { value: 'letalidade', label: 'Letalidade' },
 ];

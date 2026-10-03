@@ -1,5 +1,6 @@
 import React from 'react';
-import { useDefesaForm } from './DefesaFormContext';
+import { useDefesaForm, ATACANTE_AUTO, ATACANTE_NENHUM } from './DefesaFormContext';
+import DisputaPoderResumo from './DisputaPoderResumo';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Defesa provider não encontrado</div>;
 
@@ -7,12 +8,25 @@ export function DefesaSofrerDanoBox() {
     const ctx = useDefesaForm();
     if (!ctx) return FALLBACK;
 
-    const { elementoInc, setElementoInc, danoRecebidoInc, setDanoRecebidoInc, sofrerDanoBruto, elementosDinamicos } = ctx;
+    const { elementoInc, setElementoInc, danoRecebidoInc, setDanoRecebidoInc, sofrerDanoBruto, elementosDinamicos, atacanteInc, setAtacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa } = ctx;
 
     return (
         <div className="def-box fade-in" style={{ marginBottom: 15, borderLeft: '4px solid #ff4444', background: 'rgba(255, 68, 68, 0.05)' }}>
             <h3 style={{ color: '#ff4444', marginBottom: 10, marginTop: 0 }}>🩸 Sofrer Dano (Redução de HP)</h3>
             <p style={{ color: '#aaa', fontSize: '0.85em', marginTop: 0 }}>Se falhou na esquiva/bloqueio, digite o dano que o inimigo mandou e selecione o elemento do ataque. O sistema calculará as suas vulnerabilidades automaticamente!</p>
+
+            {/* ⚖️ Disputa de Poder: o Poder de quem golpeou contra o seu ajusta o dano recebido */}
+            <div className="disputa-atacante">
+                <label htmlFor="defesa-atacante">Quem atacou?</label>
+                <select id="defesa-atacante" className="input-neon" value={atacanteInc} onChange={e => setAtacanteInc(e.target.value)}>
+                    <option value={ATACANTE_AUTO}>{ultimoGolpeRecebido ? `Último ataque: ${ultimoGolpeRecebido.nome}` : 'Último ataque (nenhum no feed)'}</option>
+                    {opcoesAtacante.map(o => <option key={o.valor} value={o.valor}>{o.isDummie ? '🤖 ' : '🧑 '}{o.nome}</option>)}
+                    <option value={ATACANTE_NENHUM}>Sem Disputa de Poder (x1)</option>
+                </select>
+            </div>
+            {disputaDefesa.disputa && (
+                <DisputaPoderResumo disputa={disputaDefesa.disputa} nomeAtacante={disputaDefesa.nomeAtacante} nomeDefensor="Você" />
+            )}
 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '15px' }}>
                 {elementosDinamicos.map(el => (

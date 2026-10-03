@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import useStore from '../../stores/useStore';
-import { getBuffs, getEfeitosDeClasse } from '../../core/attributes';
+import { getEfeitosDeClasse } from '../../core/attributes';
 import { getVitalMxDisplay, getVidaTotalMaxDisplay } from '../../core/vitals';
 import { calcularDano } from '../../core/engine';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
+import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, formatarFatorDisputa } from '../../core/disputaPoder';
 import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
 
 const AtaqueFormContext = createContext(null);
@@ -34,6 +35,7 @@ export function AtaqueFormProvider({ children }) {
     const feedCombate = useStore(s => s.feedCombate);
     const alvoSelecionado = useStore(s => s.alvoSelecionado);
     const dummies = useStore(s => s.dummies);
+    const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
     // 🔥 No store (não useState local) de propósito: o Mapa monta um AtaqueFormProvider PRÓPRIO,
     // separado do da aba Ataque, só enquanto a aba do Mapa está em foco (ver MapaPanel.jsx >
     // mapaEmFoco) — um useState local perderia esse valor (voltando a desmarcado) toda vez que o
@@ -157,6 +159,14 @@ export function AtaqueFormProvider({ children }) {
     }, [percEfetivoParaDisplay, multiplicadorFuriaClasse]);
 
     const dummieAlvo = alvoSelecionado && dummies[alvoSelecionado] ? dummies[alvoSelecionado] : null;
+
+    // ⚖️ Disputa de Poder (core/disputaPoder.js): o Poder Atual de quem ataca contra o do alvo
+    // decide quanto do dano chega. Prévia só quando há uma entidade como alvo (calcularPoderAtual é
+    // pesado: sem alvo não roda a cada mudança da ficha); os disparos calculam na hora do golpe.
+    const disputaAlvo = useMemo(
+        () => (dummieAlvo ? calcularDisputaPoder(getPoderParaDisputa(minhaFicha, divisorPoderMesa), getPoderDummie(dummieAlvo)) : null),
+        [dummieAlvo, minhaFicha, divisorPoderMesa]
+    );
 
     const armaEquipada = useMemo(() => (minhaFicha.inventario || []).find(i => i.equipado && i.tipo === 'arma'), [minhaFicha.inventario]);
     const poderesAtivos = useMemo(() => (minhaFicha.poderes || []).filter(p => p && p.ativa), [minhaFicha.poderes]);
@@ -394,15 +404,21 @@ export function AtaqueFormProvider({ children }) {
             detalheConta += `</div>`;
 
             let extraFeed = {};
+            const meuPoderDisputa = getPoderParaDisputa(minhaFicha, divisorPoderMesa);
             if (dummieAlvo && alvoSelecionado) {
+                const disputa = calcularDisputaPoder(meuPoderDisputa, getPoderDummie(dummieAlvo));
+                const danoNoAlvo = aplicarDisputaAoDano(danoReduzido, disputa);
                 const hpAnterior = dummieAlvo.hpAtual;
-                const novoHp = Math.max(0, hpAnterior - danoReduzido);
+                const novoHp = Math.max(0, hpAnterior - danoNoAlvo);
                 salvarDummie(alvoSelecionado, { ...dummieAlvo, hpAtual: novoHp });
-                extraFeed = { alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoReduzido > hpAnterior ? danoReduzido - hpAnterior : 0 };
+                extraFeed = {
+                    alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnterior ? danoNoAlvo - hpAnterior : 0,
+                    danoAplicado: danoNoAlvo, ...(disputa.ativa ? { fatorDisputa: disputa.fator, textoDisputa: descreverDisputa(disputa) } : {})
+                };
             }
 
             const feedData = {
-                tipo: 'dano', nome: meuNome, dano: Math.floor(danoReduzido), letalidade: letalidadeCalculada, 
+                tipo: 'dano', nome: meuNome, dano: Math.floor(danoReduzido), letalidade: letalidadeCalculada, poderAtacante: meuPoderDisputa, 
                 rolagem: `${rollsLog.length > 0 ? rollsLog.length + ' rolagem(ns)' : 'Cálculo Direto'}`, rolagemMagica: "",
                 atributosUsados: 'Manual', detalheEnergia: logEnergia ? `(${logEnergia})` : '',
                 armaStr: ' (Fórmula Livre)', detalheConta: detalheConta,
@@ -421,7 +437,7 @@ export function AtaqueFormProvider({ children }) {
         } catch (e) {
             alert('Erro ao calcular a fórmula matemática. Verifique se os parênteses fecham corretamente.');
         }
-    }, [customFormula, customLetalidade, customEnergiaTipo, customEnergiaCusto, meuNome, dummieAlvo, alvoSelecionado, setAbaAtiva, abaAtiva, updateFicha, minhaFicha, elementoAtivo]);
+    }, [customFormula, customLetalidade, customEnergiaTipo, customEnergiaCusto, meuNome, dummieAlvo, alvoSelecionado, setAbaAtiva, abaAtiva, updateFicha, minhaFicha, elementoAtivo, divisorPoderMesa]);
 
     const rolarDano = useCallback(() => {
         salvarConfigAtaque();
@@ -479,8 +495,13 @@ export function AtaqueFormProvider({ children }) {
         let extraFeed = {};
         let textoAlvos = "";
 
+        // ⚖️ Disputa de Poder por alvo: cada entidade atingida recebe o dano ajustado pelo próprio
+        // Poder contra o do atacante. Jogadores atingidos aplicam em si mesmos (aba Defesa >
+        // Receber Dano), lendo o poderAtacante gravado no feed abaixo.
+        const meuPoderNoGolpe = getPoderParaDisputa(minhaFicha, divisorPoderMesa);
         if (meuUltimoAcerto && meuUltimoAcerto.alvosArea && meuUltimoAcerto.alvosArea.length > 0) {
             let atingidos = 0;
+            const linhasDisputa = [];
             meuUltimoAcerto.alvosArea.forEach(alvoHit => {
                 if (alvoHit.acertou) {
                     atingidos++;
@@ -489,16 +510,25 @@ export function AtaqueFormProvider({ children }) {
                         : Object.entries(dummies).find(([id, d]) => d.nome === alvoHit.nome);
                     if (dummieEntry) {
                         const [idD, dData] = dummieEntry;
-                        salvarDummie(idD, { ...dData, hpAtual: Math.max(0, dData.hpAtual - result.dano) });
+                        const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dData));
+                        const danoNoAlvo = aplicarDisputaAoDano(result.dano, disputa);
+                        salvarDummie(idD, { ...dData, hpAtual: Math.max(0, dData.hpAtual - danoNoAlvo) });
+                        if (disputa.ativa) linhasDisputa.push(`${dData.nome}: ${danoNoAlvo.toLocaleString('pt-BR')} (x${formatarFatorDisputa(disputa.fator)})`);
                     }
                 }
             });
             textoAlvos = `<br/><span style="color:#0f0; font-weight:bold;">💥 Dano em Área aplicado a ${atingidos} alvo(s) que falharam na defesa!</span>`;
+            if (linhasDisputa.length > 0) textoAlvos += `<br/><span style="color:#ffcc00;">⚖️ Disputa de Poder: ${linhasDisputa.join(' · ')}</span>`;
         } else if (dummieAlvo) {
+            const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dummieAlvo));
+            const danoNoAlvo = aplicarDisputaAoDano(result.dano, disputa);
             const hpAnterior = dummieAlvo.hpAtual;
-            const novoHp = Math.max(0, hpAnterior - result.dano);
+            const novoHp = Math.max(0, hpAnterior - danoNoAlvo);
             salvarDummie(alvoSelecionado, { ...dummieAlvo, hpAtual: novoHp });
-            extraFeed = { alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: result.dano > hpAnterior ? result.dano - hpAnterior : 0 };
+            extraFeed = {
+                alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnterior ? danoNoAlvo - hpAnterior : 0,
+                danoAplicado: danoNoAlvo, ...(disputa.ativa ? { fatorDisputa: disputa.fator, textoDisputa: descreverDisputa(disputa) } : {})
+            };
         }
 
         if (meuUltimoAcerto && meuUltimoAcerto.zonaIdGerada) {
@@ -507,9 +537,6 @@ export function AtaqueFormProvider({ children }) {
                 const novoCenario = JSON.parse(JSON.stringify(cenarioAtual));
                 const zRef = novoCenario.zonas.find(z => z.id === meuUltimoAcerto.zonaIdGerada);
                 if (zRef) {
-                    const buffsAtuais = getBuffs(minhaFicha);
-                    const furiaM = multiplicadorFuriaVisor > 0 ? multiplicadorFuriaVisor : 1;
-                    const multOrig = (buffsAtuais?.mbase || 1) * (buffsAtuais?.mgeral || 1) * (buffsAtuais?.mformas || 1) * (buffsAtuais?.mabs || 1) * furiaM;
 
                     let keysUsadas = [];
                     todasHabilidades.forEach(h => { if(h.statusUsados) keysUsadas.push(...h.statusUsados); });
@@ -543,7 +570,9 @@ export function AtaqueFormProvider({ children }) {
 
                     zRef.danoOriginal = result.dano;
                     zRef.letalidadeOriginal = result.letalidade || 0; 
-                    zRef.multiplicadorOriginal = multOrig === 0 ? 1 : multOrig;
+                    // Sem Multiplicadores de Dano (agora só no Poder): a Zona guarda o dano puro, e a
+                    // Disputa de Poder é feita contra cada alvo quando ela castiga (MapaFormContext.jsx).
+                    zRef.multiplicadorOriginal = 1;
                     zRef.danoAplicado = result.dano;
                     
                     salvarCenarioCompleto(novoCenario);
@@ -553,7 +582,7 @@ export function AtaqueFormProvider({ children }) {
         }
 
         const feedData = {
-            tipo: 'dano', nome: meuNome, dano: result.dano, letalidade: result.letalidade,
+            tipo: 'dano', nome: meuNome, dano: result.dano, letalidade: result.letalidade, poderAtacante: meuPoderNoGolpe,
             rolagem: result.rolagem, rolagemMagica: result.rolagemMagica,
             atributosUsados: result.atributosUsados, detalheEnergia: result.detalheEnergia,
             armaStr: result.armaStr, detalheConta: result.detalheConta + textoAlvos,
@@ -567,7 +596,7 @@ export function AtaqueFormProvider({ children }) {
         updateFicha, armaStatusUsados, armaEnergiaCombustao, armaPercEnergia,
         critNormalMin, critNormalMax, critFatalMin, critFatalMax, skillConfigs,
         minhaFicha, forcarCritNormal, autoCritNormal, forcarCritFatal, autoCritFatal,
-        dummieAlvo, alvoSelecionado, meuNome, setAbaAtiva, poderesAtivos, magiasOfensivas, feedCombate, dummies, multiplicadorFuriaVisor, elementoAtivo
+        dummieAlvo, alvoSelecionado, meuNome, setAbaAtiva, poderesAtivos, magiasOfensivas, feedCombate, dummies, elementoAtivo, divisorPoderMesa
     ]);
 
     const value = useMemo(() => ({
@@ -577,7 +606,7 @@ export function AtaqueFormProvider({ children }) {
         forcarCritNormal, setForcarCritNormal, forcarCritFatal, setForcarCritFatal,
         ignorarTravaAcerto, setIgnorarTravaAcerto, skillConfigs, podeRolarDano, furiaAcalmadaMsg,
         multiplicadorFuriaClasse, multiplicadorFuriaVisor, percAtualLostFloor, percEfetivoParaDisplay,
-        dummieAlvo, armaEquipada, poderesAtivos, magiasOfensivas, minhaFicha,
+        dummieAlvo, disputaAlvo, armaEquipada, poderesAtivos, magiasOfensivas, minhaFicha,
         elementoAtivo, setElementoAtivo, elementosDinamicos, 
         customFormula, setCustomFormula, customLetalidade, setCustomLetalidade, 
         customEnergiaTipo, setCustomEnergiaTipo, customEnergiaCusto, setCustomEnergiaCusto,
@@ -587,7 +616,7 @@ export function AtaqueFormProvider({ children }) {
         armaStatusUsados, armaEnergiaCombustao, armaPercEnergia, critNormalMin, critNormalMax, critFatalMin, critFatalMax,
         autoCritNormal, autoCritFatal, forcarCritNormal, forcarCritFatal, ignorarTravaAcerto, skillConfigs, podeRolarDano, furiaAcalmadaMsg,
         multiplicadorFuriaClasse, multiplicadorFuriaVisor, percAtualLostFloor, percEfetivoParaDisplay,
-        dummieAlvo, armaEquipada, poderesAtivos, magiasOfensivas, minhaFicha, elementoAtivo, elementosDinamicos,
+        dummieAlvo, disputaAlvo, armaEquipada, poderesAtivos, magiasOfensivas, minhaFicha, elementoAtivo, elementosDinamicos,
         customFormula, customLetalidade, customEnergiaTipo, customEnergiaCusto, rolarDanoCustomizado, salvarFormula, deletarFormula,
         acalmarFuria, updateSkillConfig, toggleSkillStat, toggleArmaStat, salvarConfigAtaque, rolarDano,
     ]);

@@ -542,7 +542,6 @@ export function PoderesFormProvider({ children }) {
     const curAura = getAtualVital('aura');
     const curChakra = getAtualVital('chakra');
     const energiaElemental = curMana + curAura + curChakra;
-    const mPotencial = minhaFicha?.dano?.mPotencial || 1;
     const danoBruto = minhaFicha?.dano?.danoBruto || 0;
 
     const dispararAtaque = useCallback((poder) => {
@@ -598,8 +597,8 @@ export function PoderesFormProvider({ children }) {
             if (poder.elementosAfetados) msg += `🌊 Afeta/Consome: ${poder.elementosAfetados}\n`;
             if (overchargeAtivo) {
                 msg += `\n🔥 OVERCHARGE ATIVADO!\n`;
-                msg += `   ↳ Multiplicador Potencial Aplicado: x${mPotencial}\n`;
-                let danoTotalFlat = Math.floor((danoBruto + energiaElemental) * mPotencial);
+                // Sem Multiplicador Potencial: os Multiplicadores de Dano agora só valem no Poder Calculado.
+                let danoTotalFlat = Math.floor(danoBruto + energiaElemental);
                 msg += `💥 Dano Flat Estimado (Sem os dados): ${danoTotalFlat}\n`;
                 msg += `🔻 Custo Aplicado: ${custoFinalPerc.toFixed(1)}% drenado da Mana, Aura e Chakra (x${multOvercharge.toFixed(2)}, pelo seu Domínio de ${poder.elemento || '?'}).\n`;
             } else {
@@ -616,7 +615,7 @@ export function PoderesFormProvider({ children }) {
         alert(msg);
         setPoderPreparandoId(null);
         setOverchargeAtivo(false);
-    }, [overchargeAtivo, updateFicha, danoBruto, energiaElemental, mPotencial, minhaFicha, salvarFichaSilencioso]);
+    }, [overchargeAtivo, updateFicha, danoBruto, energiaElemental, minhaFicha, salvarFichaSilencioso]);
 
     const injetarJsonDaIA = useCallback((jsonString) => {
         try {
@@ -675,7 +674,7 @@ export function PoderesFormProvider({ children }) {
         togglePoder, deletarPoder, vincularArmaAoPoder, salvarFormaPoder,
         deletarFormaPoder, ativarFormaPoder,
         armasEquipadas, itensFiltrados, relatorioAuditoria,
-        curMana, curAura, curChakra, energiaElemental, mPotencial, danoBruto,
+        curMana, curAura, curChakra, energiaElemental, danoBruto,
         dispararAtaque, efeitosTemp, efeitosTempPassivos, poderEditandoId,
         injetarJsonDaIA
     }), [
@@ -692,7 +691,7 @@ export function PoderesFormProvider({ children }) {
         togglePoder, deletarPoder, vincularArmaAoPoder, salvarFormaPoder,
         deletarFormaPoder, ativarFormaPoder,
         armasEquipadas, itensFiltrados, relatorioAuditoria,
-        curMana, curAura, curChakra, energiaElemental, mPotencial, danoBruto,
+        curMana, curAura, curChakra, energiaElemental, danoBruto,
         dispararAtaque, efeitosTemp, efeitosTempPassivos, poderEditandoId, injetarJsonDaIA
     ]);
 

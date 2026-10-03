@@ -231,6 +231,8 @@ export function resumirEventoFeed(e) {
     if (e.total !== undefined) partes.push(`total: ${e.total}`);
     if (e.acertoTotal !== undefined) partes.push(`acerto: ${e.acertoTotal}`);
     if (e.dano !== undefined) partes.push(`dano: ${e.dano}`);
+    if (e.danoAplicado !== undefined && e.danoAplicado !== e.dano) partes.push(`no alvo: ${e.danoAplicado}`);
+    if (e.textoDisputa) partes.push(String(e.textoDisputa));
     if (e.acertouAlvo !== undefined) partes.push(e.acertouAlvo ? 'ACERTOU' : 'ERROU');
     return partes.join(' | ').substring(0, 300);
 }

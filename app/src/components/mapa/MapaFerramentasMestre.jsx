@@ -1,5 +1,8 @@
 import React, { useState, useMemo } from 'react';
+import useStore from '../../stores/useStore';
 import { useMapaForm } from './MapaFormContext';
+import { calcularDisputaPoder, getPoderDeEntidade } from '../../core/disputaPoder';
+import DisputaPoderResumo from '../combate/DisputaPoderResumo';
 import { salvarDummie } from '../../services/firebase-sync';
 import { ELEMENTOS_OPCOES } from '../poderes/PoderesSubComponents';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
@@ -168,6 +171,10 @@ export function MapaMestreGeradorDummies() {
                     <span style={{ color: '#0088ff', fontSize: '0.8em', fontWeight: 'bold' }}>CA:</span>
                     <input className="input-neon" type="number" id="dummieDef" defaultValue="10" style={{ width: 50, padding: 4, margin: 0 }} title="Classe de Armadura (5 + Base)"/>
                 </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#111', padding: '3px 8px', borderRadius: 5, border: '1px solid #444' }} title="Poder Calculado da entidade, na mesma escala do Scouter. Decide a Disputa de Poder contra quem a ataca ou é atacado por ela. Vazio = sem disputa (dano x1).">
+                    <span style={{ color: '#ffcc00', fontSize: '0.8em', fontWeight: 'bold' }}>⚡ Poder:</span>
+                    <input className="input-neon" type="number" min="0" step="any" id="dummiePoder" placeholder="vazio" style={{ width: 90, padding: 4, margin: 0 }} />
+                </div>
                 <select className="input-neon" id="dummieVisivel" style={{ width: 110, padding: 5 }} title="Visibilidade do HP">
                     <option value="todos">HP Visível</option><option value="mestre">HP Oculto</option>
                 </select>
@@ -181,8 +188,11 @@ export function MapaMestreGeradorDummies() {
                     const dt = document.getElementById('dummieDefTipo').value;
                     const dv = parseInt(document.getElementById('dummieDef').value) || 10;
                     const vHp = document.getElementById('dummieVisivel').value;
+                    const poderTxt = document.getElementById('dummiePoder').value;
+                    const poderNum = Number(poderTxt);
+                    const poder = (poderTxt === '' || !Number.isFinite(poderNum)) ? null : Math.max(0, poderNum);
                     const id = 'dummie_' + Date.now();
-                    salvarDummie(id, { nome: n, hpMax: h, hpAtual: h, tipoDefesa: dt, valorDefesa: dv, visibilidadeHp: vHp, cenaId: cenaRenderId, posicao: { x: 0, y: 0 } });
+                    salvarDummie(id, { nome: n, hpMax: h, hpAtual: h, tipoDefesa: dt, valorDefesa: dv, visibilidadeHp: vHp, cenaId: cenaRenderId, posicao: { x: 0, y: 0 }, ...(poder !== null ? { poderCalculado: poder } : {}) });
                 }} style={{ padding: '5px 15px', margin: 0 }}>+ Injetar na Cena</button>
             </div>
         </div>
@@ -207,6 +217,10 @@ export function MapaMestreDanoRapido() {
     // Redução de Dano do alvo — um golpe vindo de um Domínio igual ou maior que o do alvo
     // atravessa sem nenhuma redução. Em branco = ataque comum, sem Domínio nenhum (0).
     const [nivelAtacanteDano, setNivelAtacanteDano] = useState('');
+    // ⚖️ Quem desferiu o golpe (opcional): o dano passa pela Disputa de Poder entre ele e o alvo
+    // (core/disputaPoder.js). Vazio = sem disputa, o dano entra como digitado.
+    const [atacanteId, setAtacanteId] = useState('');
+    const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
 
     // Mesmo filtro-por-cena de MapaIniciativaTracker (todasEntidades) — só mostra quem está
     // presente na cena que o Mestre está vendo agora, senão a lista ficaria cheia de gente/
@@ -228,16 +242,20 @@ export function MapaMestreDanoRapido() {
     if (!isMestre || (isModoRP && !mestreVendoRP)) return null;
 
     const alvoAtual = alvos.find(a => a.id === alvoId) || null;
+    const atacanteAtual = alvos.find(a => a.id === atacanteId && a.id !== alvoId) || null;
+    const disputaPrevia = (alvoAtual && atacanteAtual)
+        ? calcularDisputaPoder(getPoderDeEntidade(atacanteAtual, divisorPoderMesa), getPoderDeEntidade(alvoAtual, divisorPoderMesa))
+        : null;
 
     const aplicar = () => {
         if (!alvoAtual) return alert('Escolha um alvo primeiro.');
-        aplicarDanoRapido(alvoAtual, valorDano, elementoDano || null, nivelDominioDano === '' ? null : nivelDominioDano, nivelAtacanteDano === '' ? 0 : nivelAtacanteDano);
+        aplicarDanoRapido(alvoAtual, valorDano, elementoDano || null, nivelDominioDano === '' ? null : nivelDominioDano, nivelAtacanteDano === '' ? 0 : nivelAtacanteDano, atacanteAtual);
     };
 
     return (
         <div className="fade-in" style={{ background: 'rgba(255, 0, 60, 0.1)', padding: 15, borderRadius: 5, border: '1px solid #ff003c' }}>
             <h3 style={{ color: '#ff003c', margin: 0 }}>⚔️ Dano Rápido</h3>
-            <p style={{ color: '#888', fontStyle: 'italic', margin: '5px 0 15px', fontSize: '0.85em' }}>Aplica dano direto na Vida de um jogador ou entidade nesta cena, sem precisar que o alvo digite nada. Marcar o Elemento (opcional) já reduz o próprio dano se o Domínio do alvo superar o de quem golpeou (campo "Golpe"), e desconta a Fadiga gerada por este golpe se o alvo tiver Domínio treinado sobre ele.</p>
+            <p style={{ color: '#888', fontStyle: 'italic', margin: '5px 0 15px', fontSize: '0.85em' }}>Aplica dano direto na Vida de um jogador ou entidade nesta cena, sem precisar que o alvo digite nada. Escolher quem golpeou aplica a Disputa de Poder entre ele e o alvo. Marcar o Elemento (opcional) já reduz o próprio dano se o Domínio do alvo superar o de quem golpeou (campo "Golpe"), e desconta a Fadiga gerada por este golpe se o alvo tiver Domínio treinado sobre ele.</p>
             {alvos.length === 0 ? (
                 <p style={{ color: '#888', fontSize: '0.85em' }}>Nenhum jogador ou entidade nesta cena.</p>
             ) : (
@@ -266,8 +284,21 @@ export function MapaMestreDanoRapido() {
                         <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold' }}>Domínio Golpe:</span>
                         <input className="input-neon" type="number" min="0" max="10" placeholder="0" value={nivelAtacanteDano} onChange={e => setNivelAtacanteDano(e.target.value)} style={{ width: 60, padding: 4, margin: 0 }} disabled={!elementoDano} />
                     </div>
+                    {/* ⚖️ Quem golpeou: aplica a Disputa de Poder (depois dos campos de Domínio pra não mudar a ordem dos seletores) */}
+                    <select className="input-neon" value={atacanteId} onChange={e => setAtacanteId(e.target.value)} style={{ padding: 5, minWidth: 140 }} title="Quem desferiu o golpe: aplica a Disputa de Poder entre ele e o alvo">
+                        <option value="">Golpe de: ninguém (sem Disputa)</option>
+                        {alvos.filter(a => a.id !== alvoId).map(a => <option key={a.id} value={a.id}>Golpe de {a.isDummie ? '🤖 ' : '🧑 '}{a.nome}</option>)}
+                    </select>
                     <button className="btn-neon btn-red" onClick={aplicar} disabled={!alvoAtual} style={{ padding: '5px 15px', margin: 0, opacity: alvoAtual ? 1 : 0.5 }}>💥 Aplicar Dano</button>
                 </div>
+            )}
+            {disputaPrevia && (
+                <DisputaPoderResumo
+                    disputa={disputaPrevia}
+                    nomeAtacante={atacanteAtual.nome}
+                    nomeDefensor={alvoAtual.nome}
+                    semPoderTexto="Um dos dois não tem Poder definido (entidades: defina o Poder no token): o dano entra como digitado."
+                />
             )}
         </div>
     );

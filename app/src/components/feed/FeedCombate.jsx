@@ -149,8 +149,10 @@ export default function FeedCombate({ className }) {
                         {d.alvoNome && (
                             <div style={{ marginTop: 8, padding: 5, background: 'rgba(0,0,0,0.5)', borderRadius: 4, borderLeft: `3px solid #ff003c` }}>
                                 <span style={{ color: '#ff003c', fontWeight: 'bold' }}>
-                                    🩸 Causou {d.dano.toLocaleString('pt-BR')} de dano em {d.alvoNome}! {d.alvoSobreviveu ? '' : '(💀 MORTO!)'}
+                                    🩸 Causou {(d.danoAplicado ?? d.dano ?? 0).toLocaleString('pt-BR')} de dano em {d.alvoNome}! {d.alvoSobreviveu ? '' : '(💀 MORTO!)'}
                                 </span>
+                                {/* ⚖️ Disputa de Poder (core/disputaPoder.js): quanto do golpe chegou no alvo */}
+                                {d.textoDisputa && <div className="feed-disputa-poder">{d.textoDisputa}</div>}
                                 {d.overkill > 0 && (
                                     <div style={{ color: '#ffcc00', fontSize: '0.9em', marginTop: 4, fontWeight: 'bold', textShadow: '0 0 5px #ffcc00' }}>
                                         💥 OVERKILL: +{d.overkill.toLocaleString('pt-BR')} de dano excedente!

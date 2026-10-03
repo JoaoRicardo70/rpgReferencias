@@ -31,6 +31,7 @@ describe('core/poder - calcularPoderAtual', () => {
         const resultado = calcularPoderAtual(null, 1);
         expect(resultado).toEqual({
             poderGlobal: 0,
+            poderExato: 0,
             vitalidadeGlobal: 0,
             supressao: 100,
             limiteSupressao: 1,

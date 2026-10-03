@@ -2055,3 +2055,25 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 @media (max-width: 600px) {
     .estagios-previa-linha { grid-template-columns: 1fr; gap: 2px; }
 }
+/* ⚖️ DISPUTA DE PODER (core/disputaPoder.js) — prévia no Ataque, Defesa e Dano Rápido do Mestre */
+.disputa-poder { margin: 10px 0; padding: 8px 10px; border-radius: 6px; border-left: 3px solid #888; background: rgba(255, 255, 255, 0.04); color: #ccc; font-size: 0.85em; }
+.disputa-poder--vantagem { border-left-color: #00ff88; background: rgba(0, 255, 136, 0.08); }
+.disputa-poder--desvantagem { border-left-color: #ffcc00; background: rgba(255, 204, 0, 0.08); }
+.disputa-poder--anulada { border-left-color: #ff003c; background: rgba(255, 0, 60, 0.1); }
+.disputa-poder-linha { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: bold; }
+.disputa-poder-fator { font-size: 1.15em; color: #fff; }
+.disputa-poder--vantagem .disputa-poder-fator { color: #00ff88; }
+.disputa-poder--desvantagem .disputa-poder-fator { color: #ffcc00; }
+.disputa-poder--anulada .disputa-poder-fator { color: #ff003c; }
+.disputa-poder-detalhe { margin-top: 3px; opacity: 0.85; word-break: break-word; }
+.disputa-atacante { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.disputa-atacante label { color: #aaa; font-size: 0.85em; font-weight: bold; }
+.disputa-atacante select { flex: 1 1 200px; min-width: 0; margin: 0; padding: 5px; }
+.feed-disputa-poder { margin-top: 4px; color: #ffcc00; font-size: 0.85em; }
+.dummie-poder { font-size: 8px; color: #ffcc00; font-weight: bold; background: rgba(0, 0, 0, 0.8); padding: 0 4px; border-radius: 4px; margin-top: 1px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.dummie-btn-poder { background: #ffcc00; color: #000; border: none; border-radius: 2px; font-size: 10px; cursor: pointer; padding: 2px 5px; font-weight: bold; }
+.injetor-poder { display: flex; flex-direction: column; gap: 4px; }
+.injetor-poder label { color: #ffcc00; font-size: 0.8em; font-weight: bold; }
+.injetor-poder input { width: 100%; border-color: #ffcc00; }
+.mult-poder-antigo { font-size: 0.6em; font-weight: normal; opacity: 0.6; }
+.mult-poder-explica { color: #888; font-size: 0.8em; margin: 0 0 10px; line-height: 1.4; }

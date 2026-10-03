@@ -122,9 +122,16 @@ function calcularAscensaoParaPoder(ficha) {
     return isNaN(geral) ? ascensaoBase : geral;
 }
 
-function getGlobalMultipliers(ficha) {
+// ⚖️ Os "Multiplicadores de Dano" não multiplicam mais o dano (core/engine.js > calcularDano):
+// TODA a lógica deles vale só aqui, no Poder Calculado — que por sua vez decide o dano pela
+// Disputa de Poder (core/disputaPoder.js). Por isso entram aqui também os que antes só iam pro
+// dano: mFormas/mPotencial manuais da aba Dano, efeitos de DANO das Passivas e o bônus "Mult
+// Dano" de itens/magias equipados. Os efeitos do Grimório (ficha.poderes) continuam de fora de
+// propósito (só PODER (Direto) mexe no Poder, ver getPoderDiretoMultiplier).
+// Usada também pelo Scouter (Ficha Def/Marcados.jsx), pra os dois nunca divergirem.
+export function getGlobalMultipliers(ficha) {
     try {
-        if (!ficha) return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalUni: 1, totalDano: 1 };
+        if (!ficha) return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalP: 1, finalUni: 1, totalDano: 1 };
 
         let grupos = { MBASE: {}, MGERAL: {}, MFORMAS: {}, MABS: {} };
         let unicos = [];
@@ -139,6 +146,9 @@ function getGlobalMultipliers(ficha) {
         let d = ficha?.dano || {};
         addManual(d.mBase, 'MBASE', 'Ficha_Manual');
         addManual(d.mGeral, 'MGERAL', 'Ficha_Manual');
+        // mFormas manual entra como os eixos do mesmo grupo (valor - 1): 2 = x2, igual era no dano.
+        const mFormasManual = parseFloat(d.mFormas);
+        if (!isNaN(mFormasManual) && mFormasManual > 1) grupos.MFORMAS.Ficha_Manual = mFormasManual - 1;
         addManual(d.mAbsoluto, 'MABS', 'Ficha_Manual');
         if (d.mUnico) {
             String(d.mUnico).split(',').forEach(v => {
@@ -146,6 +156,20 @@ function getGlobalMultipliers(ficha) {
                 if (!isNaN(n) && n > 0) unicos.push(n);
             });
         }
+        const potencial = parseFloat(d.mPotencial);
+        const finalP = (!isNaN(potencial) && potencial > 0) ? potencial : 1;
+
+        // "Mult Dano" de itens equipados e magias equipadas (bonusTipo) — multiplicativo, como era no dano.
+        (ficha.inventario || []).forEach(item => {
+            if (!item || !item.equipado || item.bonusTipo !== 'mult_dano') return;
+            const v = parseFloat(item.bonusValor);
+            if (!isNaN(v) && v > 0) unicos.push(v);
+        });
+        (ficha.ataquesElementais || []).forEach(atk => {
+            if (!atk || !atk.equipado || atk.bonusTipo !== 'mult_dano') return;
+            const v = parseFloat(atk.bonusValor);
+            if (!isNaN(v) && v > 0) unicos.push(v);
+        });
 
         ['vida', 'mana', 'aura', 'chakra', 'corpo', 'status'].forEach(k => {
             const mF = getEfetivoMFormas(ficha, k, true);
@@ -154,11 +178,14 @@ function getGlobalMultipliers(ficha) {
             }
         });
 
-        let b = getBuffs(ficha, 'dano', true, false, true) || {};
+        let b = getBuffs(ficha, 'dano', false, false, true) || {};
         if (b._hasBuff) {
-            if (b.mbase) addManual(b.mbase, 'MBASE', 'Buff_Sistema');
-            if (b.mgeral) addManual(b.mgeral, 'MGERAL', 'Buff_Sistema');
-            if (b.mabs) addManual(b.mabs, 'MABS', 'Buff_Sistema');
+            // Usa _hasBuff (não addManual, que pula o valor 1): um buff somando exatamente +1 é real,
+            // e o 1.0 "neutro" que getBuffs devolve sem buff já fica de fora pela flag.
+            const addBuff = (tem, val, tipo) => { const v = parseFloat(val); if (tem && !isNaN(v) && v > 0) grupos[tipo].Buff_Sistema = (grupos[tipo].Buff_Sistema || 0) + v; };
+            addBuff(b._hasBuff.mbase, b.mbase, 'MBASE');
+            addBuff(b._hasBuff.mgeral, b.mgeral, 'MGERAL');
+            addBuff(b._hasBuff.mabs, b.mabs, 'MABS');
             if (b.munico && Array.isArray(b.munico)) {
                 b.munico.forEach(n => { if (!isNaN(n) && n > 0) unicos.push(n); });
             }
@@ -255,9 +282,9 @@ function getGlobalMultipliers(ficha) {
         // separadamente em calcularPoderAtual, no MESMO estágio (pós-injeção de
         // Ascensão) que multiplicadorPoderDireto e multiplicadorMunicoCrescente.
         // Ver o mesmo comentário/motivo em Ficha Def/Marcados.jsx > poderGlobal.
-        return { finalB, finalG, finalF, finalA, finalUni, totalDano: finalB * finalG * finalA };
+        return { finalB, finalG, finalF, finalA, finalP, finalUni, totalDano: finalB * finalG * finalA * finalP };
     } catch (e) {
-        return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalUni: 1, totalDano: 1 };
+        return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalP: 1, finalUni: 1, totalDano: 1 };
     }
 }
 
@@ -397,7 +424,7 @@ export function injetarAscensaoNoPoder(poderMultiplicado, ascensao) {
 
 // Réplica exata do useMemo de `poderGlobal` em Ficha Def/Marcados.jsx.
 export function calcularPoderAtual(ficha, divisorPoderMesa) {
-    if (!ficha) return { poderGlobal: 0, vitalidadeGlobal: 0, supressao: 100, limiteSupressao: 1, temaScouter: getTemaScouter(100, 1) };
+    if (!ficha) return { poderGlobal: 0, poderExato: 0, vitalidadeGlobal: 0, supressao: 100, limiteSupressao: 1, temaScouter: getTemaScouter(100, 1) };
 
     let sup = parseFloat(ficha.supressaoPoder);
     if (isNaN(sup)) sup = 100;
@@ -465,5 +492,8 @@ export function calcularPoderAtual(ficha, divisorPoderMesa) {
         let exponent = parseInt(parts[1].replace('+', ''));
         if (!isNaN(exponent)) digitos = exponent + 1;
     }
-    return { poderGlobal: aplicarEscalaPoderCalculado(power), vitalidadeGlobal: Math.max(0, digitos - 8), supressao: sup, limiteSupressao: lim, temaScouter: tema };
+    // poderExato: o mesmo número do Scouter sem o arredondamento — usado pela Disputa de Poder
+    // (core/disputaPoder.js), pra um Poder exibido "0" ainda comparar com o valor real.
+    const poderExato = clampFinito(power / ESCALA_PODER_CALCULADO);
+    return { poderGlobal: aplicarEscalaPoderCalculado(power), poderExato, vitalidadeGlobal: Math.max(0, digitos - 8), supressao: sup, limiteSupressao: lim, temaScouter: tema };
 }

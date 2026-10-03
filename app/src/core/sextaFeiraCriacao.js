@@ -280,6 +280,9 @@ export function normalizarNpc(dados) {
         valorDefesa: numero(d.valorDefesa, 10, 0, 1e6),
         visibilidadeHp: escolher(d.visibilidadeHp, VISIBILIDADES_HP, 'todos', 'Visibilidade', avisos),
     };
+    // ⚡ Poder Calculado (Disputa de Poder, core/disputaPoder.js). Sem valor = sem disputa.
+    const poder = numero(d.poder, null, 0, 1e300);
+    if (poder !== null) objeto.poderCalculado = poder;
     const quantidade = inteiro(d.quantidade, 1, 1, 10);
     return { objeto, avisos, valido: true, quantidade };
 }
@@ -355,7 +358,7 @@ export function resumirProposta(tipo, objeto) {
     if (tipo === 'poder') return `${objeto.categoria} · ${objeto.dadosQtd ? `${objeto.dadosQtd}d${objeto.dadosFaces}` : 'sem dano'} · custo ${objeto.custoPercentual}% · ${(objeto.efeitos || []).length + (objeto.efeitosPassivos || []).length} efeito(s)`;
     if (tipo === 'magia') return `${objeto.elemento} · ${objeto.tipoMecanica} · ${objeto.dadosExtraQtd ? `${objeto.dadosExtraQtd}d${objeto.dadosExtraFaces}` : 'sem dados extras'} · custo ${objeto.custoValor}`;
     if (tipo === 'item') return `${objeto.tipo}${objeto.armaTipo ? ` (${objeto.armaTipo})` : ''} · ${objeto.raridade}${objeto.dadosQtd ? ` · ${objeto.dadosQtd}d${objeto.dadosFaces}` : ''}`;
-    if (tipo === 'npc') return `Vida ${Math.round(objeto.hpMax / FATOR_EXIBICAO_VITAIS).toLocaleString('pt-BR')} · ${objeto.tipoDefesa} ${objeto.valorDefesa}`;
+    if (tipo === 'npc') return `Vida ${Math.round(objeto.hpMax / FATOR_EXIBICAO_VITAIS).toLocaleString('pt-BR')} · ${objeto.tipoDefesa} ${objeto.valorDefesa}${objeto.poderCalculado !== undefined ? ` · Poder ${Math.round(objeto.poderCalculado).toLocaleString('pt-BR')}` : ''}`;
     if (tipo === 'tierlist') return `${(objeto.ranks || []).length} personagem(ns) classificados`;
     return '';
 }
@@ -449,6 +452,7 @@ export const DECLARACOES_CRIACAO = [
                 vida: { type: 'NUMBER', description: 'Vida máxima na escala mostrada na tela (a mesma do Mapa).' },
                 tipoDefesa: { type: 'STRING', enum: DEFESAS_NPC }, valorDefesa: { type: 'NUMBER' },
                 visibilidadeHp: { type: 'STRING', enum: VISIBILIDADES_HP },
+                poder: { type: 'NUMBER', description: 'Poder Calculado do NPC (escala do Scouter, a mesma de poder_do_grupo). O dano no combate segue a diferença de Poder: com o dobro de Poder ou mais, o mais fraco não causa dano.' },
                 quantidade: { type: 'INTEGER', description: '1 a 10 cópias.' },
             },
             required: ['nome', 'vida'],

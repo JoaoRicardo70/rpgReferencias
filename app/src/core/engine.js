@@ -1,7 +1,7 @@
 // ==========================================
 // ENGINE RPG — Cálculos de combate (dano, acerto, defesa)
 // ==========================================
-import { contarDigitos, tratarUnico, pegarDoisPrimeirosDigitos } from './utils.js';
+import { contarDigitos, pegarDoisPrimeirosDigitos } from './utils.js';
 import { getMaximo, getBuffs, getRawBase, getPoderesDefesa, getEfeitosDeClasse } from './attributes.js';
 import { getVitalMxDisplay } from './vitals.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
@@ -126,7 +126,10 @@ function formatarRolagem(qtd, faces, rolls, soma) {
     return `${qtd}d${faces}: [${rolls.slice(0, 30).join(', ')}... +${(rolls.length - 30).toLocaleString('pt-BR')} dados] = ${soma}`;
 }
 
-function calcularSubDano({ qtdDados, facesDados, sels, combustaoPorEnergia, combustoesMultiplas, minhaFicha, mUnico }) {
+// ⚖️ Sem Multiplicadores de Dano (mUnico e cia. agora só valem no Poder Calculado, core/poder.js):
+// cada termo entra com o valor puro; quem ajusta o dano contra o alvo é a Disputa de Poder
+// (core/disputaPoder.js), aplicada onde o golpe chega no alvo.
+function calcularSubDano({ qtdDados, facesDados, sels, combustaoPorEnergia, combustoesMultiplas, minhaFicha }) {
     if (qtdDados <= 0) return { dano: 0, rolagem: '', rolagemValor: 0, somaTermos: 0, detalhesTermos: [] };
 
     let { soma, rolls } = rolarDadosSimples(qtdDados, facesDados);
@@ -136,10 +139,9 @@ function calcularSubDano({ qtdDados, facesDados, sels, combustaoPorEnergia, comb
     for (let i = 0; i < sels.length; i++) {
         // 🔥 APLICA O PODER DE LUTA VERDADEIRO NO DANO 🔥
         let val = getPoderDeLutaStatus(minhaFicha, sels[i], false);
-        let termo = val * mUnico;
-        somaTermos += termo;
+        somaTermos += val;
         let nomeAttr = (minhaFicha[sels[i]] && minhaFicha[sels[i]].nome) || sels[i].toUpperCase();
-        detalhesTermos.push(`<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>×Uni(${mUnico})`);
+        detalhesTermos.push(`<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>`);
     }
 
     if (combustaoPorEnergia) {
@@ -148,9 +150,8 @@ function calcularSubDano({ qtdDados, facesDados, sels, combustaoPorEnergia, comb
             let key = energyKeys[i];
             let combustao = combustaoPorEnergia[key];
             if (combustao > 0) {
-                let termo = combustao * mUnico;
-                somaTermos += termo;
-                detalhesTermos.push(`<span style="color:#0ff">${key.toUpperCase()}(${combustao.toLocaleString('pt-BR')})</span>×Uni(${mUnico})`);
+                somaTermos += combustao;
+                detalhesTermos.push(`<span style="color:#0ff">${key.toUpperCase()}(${combustao.toLocaleString('pt-BR')})</span>`);
             }
         }
     }
@@ -161,9 +162,8 @@ function calcularSubDano({ qtdDados, facesDados, sels, combustaoPorEnergia, comb
             let key = mKeys[i];
             let combustao = combustoesMultiplas[key];
             if (combustao > 0) {
-                let termo = combustao * mUnico;
-                somaTermos += termo;
-                detalhesTermos.push(`<span style="color:#0ff">${key.toUpperCase()}(${combustao.toLocaleString('pt-BR')})</span>×Uni(${mUnico})`);
+                somaTermos += combustao;
+                detalhesTermos.push(`<span style="color:#0ff">${key.toUpperCase()}(${combustao.toLocaleString('pt-BR')})</span>`);
             }
         }
     }
@@ -175,7 +175,7 @@ function calcularSubDano({ qtdDados, facesDados, sels, combustaoPorEnergia, comb
 }
 
 export function calcularDano({ minhaFicha, configArma, configHabilidades, itensEquipados, isCriticoNormal, isCriticoFatal }) {
-    let iMultDano = 1.0, iDanoBruto = 0, iLetalidade = 0;
+    let iDanoBruto = 0, iLetalidade = 0;
     let elementosAtaque = [];
     let nomesArmas = [];
     
@@ -191,7 +191,6 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
 
     itensEquipados.forEach(item => {
         let v = parseFloat(item.bonusValor) || 0;
-        if (item.bonusTipo === 'mult_dano') iMultDano *= (v === 0 ? 1 : v);
         if (item.bonusTipo === 'dano_bruto') iDanoBruto += v;
         if (item.bonusTipo === 'letalidade') iLetalidade += Math.floor(v);
         if (item.tipo === 'arma' || item.tipo === 'artefato') {
@@ -204,32 +203,17 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     let magiasEquipadas = minhaFicha.ataquesElementais ? minhaFicha.ataquesElementais.filter(e => e.equipado) : [];
     magiasEquipadas.forEach(atk => {
         let v = parseFloat(atk.bonusValor) || 0;
-        if (atk.bonusTipo === 'mult_dano' && v > 0) iMultDano *= v;
         if (atk.bonusTipo === 'dano_bruto' && v > 0) iDanoBruto += v;
         if (atk.bonusTipo === 'letalidade' && v > 0) iLetalidade += Math.floor(v);
         if (atk.elemento && atk.elemento !== 'Neutro') elementosAtaque.push(formatElemSpan(atk.elemento));
         nomesMagias.push(atk.nome);
     });
 
-    let fichaD = minhaFicha.dano || {};
-    let bDano = getBuffs(minhaFicha, 'dano');
-
-    const calcAdd = (fichaVal, buffSum, hasBuff) => {
-        let v = parseFloat(fichaVal) || 1.0;
-        if (!hasBuff) return v;
-        return (v === 1.0 ? 0 : v) + buffSum;
-    };
-
-    let totalBas = calcAdd(fichaD.mBase, bDano.mbase, bDano._hasBuff.mbase);
-    let totalGer = calcAdd(fichaD.mGeral, bDano.mgeral, bDano._hasBuff.mgeral);
-    let totalFor = calcAdd(fichaD.mFormas, bDano.mformas, bDano._hasBuff.mformas);
-    let totalAbs = calcAdd(fichaD.mAbsoluto, bDano.mabs, bDano._hasBuff.mabs);
-    let totalPot = parseFloat(fichaD.mPotencial) || 1.0;
-
-    let u1 = tratarUnico(fichaD.mUnico || "1.0");
-    let uniTotal = 1.0;
-    for (let i = 0; i < u1.length; i++) uniTotal *= u1[i];
-    for (let i = 0; i < bDano.munico.length; i++) uniTotal *= bDano.munico[i];
+    // ⚖️ Multiplicadores de Dano EXTINTOS do dano (pedido do usuário — inflavam demais os números):
+    // MBase/MGeral/MFormas/MAbs/MPotencial/MÚnico da aba Dano, os efeitos de DANO/GERAL, a Fúria
+    // Berserker e o "Mult Dano" de itens/magias agora só multiplicam o Poder Calculado
+    // (core/poder.js > getGlobalMultipliers). O dano contra cada alvo é ajustado depois pela
+    // Disputa de Poder (core/disputaPoder.js). Só o Crítico continua multiplicando aqui.
 
     let drenosPorEnergia = {};
     let drenos = [];
@@ -344,7 +328,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
             let r = calcularSubDano({
                 qtdDados: hab.dadosQtd || 0, facesDados: hab.dadosFaces || 20,
                 sels: hab.statusUsados || ['forca'], combustaoPorEnergia, combustoesMultiplas,
-                minhaFicha, mUnico: uniTotal
+                minhaFicha
             });
             r.nome = hab.nome;
             somaHabVinc += r.dano;
@@ -359,15 +343,15 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         for (let i = 0; i < armaSels.length; i++) {
             // 🔥 APLICA O PODER DE LUTA VERDADEIRO NO DANO DA ARMA 🔥
             let val = getPoderDeLutaStatus(minhaFicha, armaSels[i], false);
-            somaTermosArma += val * uniTotal;
+            somaTermosArma += val;
             let nomeAttr = (minhaFicha[armaSels[i]] && minhaFicha[armaSels[i]].nome) || armaSels[i].toUpperCase();
-            detalhesArma.push(`<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>×Uni(${uniTotal})`);
+            detalhesArma.push(`<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>`);
         }
 
         if (armaCombustao > 0) {
-            somaTermosArma += armaCombustao * uniTotal;
+            somaTermosArma += armaCombustao;
             let engKey = configArma ? configArma.energiaCombustao : 'mana';
-            detalhesArma.push(`<span style="color:#0ff">${engKey.toUpperCase()}(${armaCombustao.toLocaleString('pt-BR')})</span>×Uni(${uniTotal})`);
+            detalhesArma.push(`<span style="color:#0ff">${engKey.toUpperCase()}(${armaCombustao.toLocaleString('pt-BR')})</span>`);
         }
 
         somaTermosArma += somaHabVinc;
@@ -399,7 +383,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         let r = calcularSubDano({
             qtdDados: hab.dadosQtd, facesDados: hab.dadosFaces || 20,
             sels: hab.statusUsados || ['forca'], combustaoPorEnergia, combustoesMultiplas,
-            minhaFicha, mUnico: uniTotal
+            minhaFicha
         });
         r.nome = hab.nome;
         resultadosHabLivres.push(r);
@@ -423,8 +407,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         nomeCritico = 'CRÍTICO NORMAL';
     }
 
-    let multTotal = totalBas * totalPot * totalFor * totalGer * totalAbs * uniTotal * iMultDano;
-    let multEfetivo = multTotal * multCritico; 
+    let multEfetivo = multCritico;
     
     let total = Math.floor(somaDanos * multEfetivo);
     if (isNaN(total)) total = 0;
@@ -447,15 +430,8 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     }
 
     let multArr = [];
-    if (totalBas !== 1) multArr.push(`x${totalBas.toFixed(2)}(Bas)`);
-    if (totalPot !== 1) multArr.push(`x${totalPot.toFixed(2)}(Pot)`);
-    if (totalFor !== 1) multArr.push(`x${totalFor.toFixed(2)}(For)`);
-    if (totalGer !== 1) multArr.push(`x${totalGer.toFixed(2)}(Ger)`);
-    if (totalAbs !== 1) multArr.push(`x${totalAbs.toFixed(2)}(Abs)`);
-    if (uniTotal !== 1) multArr.push(`x${uniTotal.toFixed(2)}(Uni)`);
-    if (iMultDano !== 1) multArr.push(`x${iMultDano.toFixed(2)}(Eqp)`);
     if (multCritico > 1) multArr.push(`<span style="color:#ffcc00">x${multCritico}(${nomeCritico})</span>`); 
-    let multStr = multArr.length > 0 ? multArr.join(' * ') : 'Nenhum (x1)';
+    let multStr = multArr.length > 0 ? multArr.join(' * ') : 'Nenhum (x1, os multiplicadores agora valem no Poder Calculado)';
 
     let detalheLinhas = [`<span style="color:#ffcc00; font-weight:bold;">[MÁQUINA DE CÁLCULO]</span>`];
 

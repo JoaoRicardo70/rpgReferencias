@@ -7,7 +7,7 @@ import { infoAvatarDaFicha } from '../../core/avatar';
 import { assinarFalhasDeImagem } from '../../core/imagemVerificada';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
-import { getBuffs } from '../../core/attributes';
+import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, formatarFatorDisputa } from '../../core/disputaPoder';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
@@ -522,20 +522,22 @@ export function MapaFormProvider({ children }) {
         return ordenarOrdemTurno(lista, cenario?.ordemTurnoManual?.[cenaRenderId]);
     }, [jogadores, dummies, cenaRenderId, cenario?.ordemTurnoManual]);
 
+    // ⚖️ Sem Multiplicadores de Dano (agora só no Poder Calculado): a Zona acompanha só o que
+    // muda o dano PURO do conjurador (Status, Dano Bruto, Letalidade). O Poder dele vai junto pra
+    // Disputa de Poder contra cada alvo atingido (aplicarDisputaDaZona abaixo).
     const getDanoDinamicoZona = useCallback((zona) => {
-        let baseResult = { dano: zona.danoOriginal || zona.danoAplicado || 0, letalidade: zona.letalidadeOriginal || 0 };
         const storeState = useStore.getState();
         const fichaCaster = (zona.conjurador === storeState.meuNome) ? storeState.minhaFicha : storeState.personagens?.[zona.conjurador];
+        const poderConjurador = fichaCaster ? getPoderParaDisputa(fichaCaster, storeState.divisorPoderMesa) : null;
+        let baseResult = { dano: zona.danoOriginal || zona.danoAplicado || 0, letalidade: zona.letalidadeOriginal || 0, poderConjurador };
         if (!fichaCaster) return baseResult;
-        
-        const buffs = getBuffs(fichaCaster);
-        let maxFuria = 0; let danoBrutoAtual = 0; let letalidadeAtual = 0;
-        
+
+        let danoBrutoAtual = 0; let letalidadeAtual = 0;
+
         const scan = (efs) => {
             (efs || []).forEach(e => {
                 if (!e) return;
                 const prop = (e.propriedade || '').toLowerCase().trim();
-                if (prop === 'furia_berserker') { const v = parseFloat(e.valor) || 0; if (v > maxFuria) maxFuria = v; }
                 if (prop === 'dano_bruto' || prop === 'dano_verdadeiro') danoBrutoAtual += parseFloat(e.valor) || 0;
                 if (prop === 'letalidade') letalidadeAtual += parseFloat(e.valor) || 0;
             });
@@ -545,8 +547,8 @@ export function MapaFormProvider({ children }) {
         (fichaCaster.inventario || []).forEach(i => { if (i.equipado) { scan(i.efeitos); scan(i.efeitosPassivos); } });
         (fichaCaster.passivas || []).forEach(p => scan(p.efeitos));
         
-        const furiaAtiva = maxFuria > 0 ? maxFuria : 1;
-        const multAtual = (buffs?.mbase || 1) * (buffs?.mgeral || 1) * (buffs?.mformas || 1) * (buffs?.mabs || 1) * furiaAtiva;
+        // Zonas antigas guardavam o dano já multiplicado (multiplicadorOriginal): divide pra voltar
+        // ao dano puro. Zonas novas gravam multiplicadorOriginal = 1.
         const baseMulti = zona.multiplicadorOriginal || 1;
         
         let somaStatusAtual = 0;
@@ -559,10 +561,15 @@ export function MapaFormProvider({ children }) {
         const diffBruto = danoBrutoAtual - (zona.danoBrutoOriginal || danoBrutoAtual);
         const diffLetalidade = letalidadeAtual - (zona.letalidadeOriginalBuffs || letalidadeAtual);
         
-        const novoDanoBase = (zona.danoOriginal / baseMulti) + diffStatus + diffBruto;
-        const novoDano = Math.floor(novoDanoBase * multAtual);
-        
-        return { dano: novoDano > 0 ? novoDano : zona.danoOriginal, letalidade: (zona.letalidadeOriginal || 0) + diffLetalidade };
+        const novoDano = Math.floor((zona.danoOriginal / baseMulti) + diffStatus + diffBruto);
+
+        return { dano: novoDano > 0 ? novoDano : zona.danoOriginal, letalidade: (zona.letalidadeOriginal || 0) + diffLetalidade, poderConjurador };
+    }, []);
+
+    // Dano da Zona contra UM alvo, com a Disputa de Poder (conjurador vs. alvo).
+    const aplicarDisputaDaZona = useCallback((din, poderAlvo) => {
+        const disputa = calcularDisputaPoder(din.poderConjurador, poderAlvo);
+        return { dano: aplicarDisputaAoDano(din.dano, disputa), disputa };
     }, []);
 
     const dispararEfeitoDaZona = useCallback((zona) => {
@@ -572,6 +579,7 @@ export function MapaFormProvider({ children }) {
         const danoAtual = din.dano;
         const letalAtual = din.letalidade;
         let hitLog = [];
+        let houveDisputa = false;
 
         const checkHit = (pos, nome, isDummie, idDummie, dData) => {
             if (!pos || pos.x === undefined) return;
@@ -585,12 +593,19 @@ export function MapaFormProvider({ children }) {
             const dZ = Math.floor(Math.abs((pos.z || 0) - (zona.z || 0)) / escala);
             
             if (Math.max(dX, dY, dZ) <= zona.raio) {
-                hitLog.push(nome);
                 if (isDummie && idDummie && dData) {
-                    salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, dData.hpAtual - danoAtual) });
+                    const { dano, disputa } = aplicarDisputaDaZona(din, getPoderDummie(dData));
+                    if (disputa.ativa) houveDisputa = true;
+                    hitLog.push(disputa.ativa ? `${nome} (${dano.toLocaleString('pt-BR')}, x${formatarFatorDisputa(disputa.fator)})` : nome);
+                    salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, dData.hpAtual - dano) });
                 } else if (nome === meuNome) {
-                    updateFicha(f => { if (f.vida) f.vida.atual = Math.max(0, f.vida.atual - danoAtual); });
+                    const { dano, disputa } = aplicarDisputaDaZona(din, getPoderParaDisputa(minhaFicha, useStore.getState().divisorPoderMesa));
+                    if (disputa.ativa) houveDisputa = true;
+                    hitLog.push(disputa.ativa ? `${nome} (${dano.toLocaleString('pt-BR')}, x${formatarFatorDisputa(disputa.fator)})` : nome);
+                    updateFicha(f => { if (f.vida) f.vida.atual = Math.max(0, f.vida.atual - dano); });
                     salvarFichaSilencioso();
+                } else {
+                    hitLog.push(nome);
                 }
             }
         };
@@ -602,9 +617,10 @@ export function MapaFormProvider({ children }) {
         
         if (hitLog.length > 0) {
             const letalStr = letalAtual > 0 ? ` (+${letalAtual} Letalidade)` : '';
-            enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🌪️ A Zona [${zona.nome}] castigou ${hitLog.join(', ')} com ${danoAtual} de Dano${letalStr}!` });
+            const textoDisputa = houveDisputa ? ' ⚖️ (entre parênteses: dano após a Disputa de Poder)' : '';
+            enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🌪️ A Zona [${zona.nome}] castigou ${hitLog.join(', ')} com ${danoAtual} de Dano${letalStr}!${textoDisputa}` });
         }
-    }, [cenario, getDanoDinamicoZona, dummies, minhaFicha, meuNome, updateFicha]);
+    }, [cenario, getDanoDinamicoZona, aplicarDisputaDaZona, dummies, minhaFicha, meuNome, updateFicha]);
 
     const processarEntradaNaZona = useCallback((oldPos, newX, newY, newZ, entidadeNome, isDummie, idDummie, dData) => {
         const cenaAtivaId = cenario?.ativa || 'default';
@@ -630,12 +646,16 @@ export function MapaFormProvider({ children }) {
 
             if (!estavaDentro && estaDentro) {
                 const din = getDanoDinamicoZona(zona);
-                const danoAtual = din.dano;
+                const poderAlvo = isDummie
+                    ? getPoderDummie(dData)
+                    : (entidadeNome === meuNome ? getPoderParaDisputa(useStore.getState().minhaFicha, useStore.getState().divisorPoderMesa) : null);
+                const { dano: danoAtual, disputa } = aplicarDisputaDaZona(din, poderAlvo);
                 const letalAtual = din.letalidade;
                 const letalStr = letalAtual > 0 ? ` (+${letalAtual} Letalidade)` : '';
-                
-                enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚠️ ${entidadeNome} pisou na área de [${zona.nome}] e sofreu ${danoAtual} de Dano${letalStr} imediatamente!` });
-                
+                const textoDisputa = disputa.ativa ? ` | ${descreverDisputa(disputa)}` : '';
+
+                enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚠️ ${entidadeNome} pisou na área de [${zona.nome}] e sofreu ${danoAtual} de Dano${letalStr} imediatamente!${textoDisputa}` });
+                                
                 if (isDummie && idDummie && dData) {
                     salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, dData.hpAtual - danoAtual) });
                 } else if (entidadeNome === meuNome) {
@@ -644,7 +664,7 @@ export function MapaFormProvider({ children }) {
                 }
             }
         });
-    }, [cenario, cenaRenderId, meuNome, updateFicha, getDanoDinamicoZona]);
+    }, [cenario, cenaRenderId, meuNome, updateFicha, getDanoDinamicoZona, aplicarDisputaDaZona]);
 
     // 🔥 SALVAMENTO ISOLADO DE POSIÇÕES POR CENA 🔥
     const handleCellClick = useCallback((x, y) => {
@@ -835,10 +855,21 @@ export function MapaFormProvider({ children }) {
     // de DANO de verdade (menos Vida perdida), diferente da Resistência Elemental de Fadiga
     // (getFracaoResistenciaElemental) que já existia — as duas convivem: o dano já sai menor, e
     // o pouco que passa ainda gera menos Fadiga se o alvo tiver Domínio ali.
-    const aplicarDanoRapido = useCallback((alvo, dano, elemento, nivelDominioOverride, nivelDominioAtacante) => {
+    //
+    // ⚖️ `atacante` (opcional, { nome, ficha, isDummie }): quem desferiu o golpe — o dano passa
+    // antes pela Disputa de Poder (core/disputaPoder.js) entre o Poder dele e o do alvo. Sem
+    // atacante, o dano entra como digitado (x1), igual antes.
+    const aplicarDanoRapido = useCallback((alvo, dano, elemento, nivelDominioOverride, nivelDominioAtacante, atacante) => {
         if (!isMestre || !alvo) return;
-        const valorBruto = Math.max(0, Math.floor(Number(dano)) || 0);
-        if (valorBruto <= 0) return;
+        const valorDigitado = Math.max(0, Math.floor(Number(dano)) || 0);
+        if (valorDigitado <= 0) return;
+
+        const divisorMesa = useStore.getState().divisorPoderMesa;
+        const fichaDoAlvo = alvo.isDummie ? alvo.ficha : (alvo.nome === meuNome ? minhaFicha : alvo.ficha);
+        const disputa = atacante
+            ? calcularDisputaPoder(getPoderDeEntidade(atacante, divisorMesa), getPoderDeEntidade({ ...alvo, ficha: fichaDoAlvo }, divisorMesa))
+            : null;
+        const valorBruto = aplicarDisputaAoDano(valorDigitado, disputa);
 
         const nivelOverride = (nivelDominioOverride === '' || nivelDominioOverride === undefined || nivelDominioOverride === null)
             ? null : nivelDominioOverride;
@@ -862,6 +893,13 @@ export function MapaFormProvider({ children }) {
         // isso, então um dano digitado na escala exibida praticamente não tirava HP nenhum dos
         // Máximos novos (na casa dos bilhões/trilhões).
         const valorRaw = valor * FATOR_EXIBICAO_VITAIS;
+
+        // ⚖️ Golpe anulado pela Disputa de Poder: só registra no feed — não mexe na Vida, não gera
+        // Fadiga nem troca o "último elemento recebido" do alvo.
+        if (disputa && disputa.ativa && valorBruto <= 0) {
+            enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O golpe de ${atacante.nome} em ${alvo.nome} não surtiu efeito! | ${descreverDisputa(disputa)} (digitado: ${valorDigitado})` });
+            return;
+        }
 
         if (alvo.isDummie) {
             const storeState = useStore.getState();
@@ -898,7 +936,9 @@ export function MapaFormProvider({ children }) {
         }
 
         const textoReducao = reducaoAplicada > 0 ? ` (Resistência Elemental descontou ${Math.round(reducaoAplicada * 100)}%, bruto era ${valorBruto})` : '';
-        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O Mestre aplicou ${valor} de dano em ${alvo.nome}!${textoReducao}` });
+        const textoDisputa = disputa && disputa.ativa ? ` | ${descreverDisputa(disputa)} (digitado: ${valorDigitado})` : '';
+        const deQuem = atacante ? ` (golpe de ${atacante.nome})` : '';
+        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O Mestre aplicou ${valor} de dano em ${alvo.nome}${deQuem}!${textoReducao}${textoDisputa}` });
     }, [isMestre, meuNome, updateFicha, minhaFicha]);
 
     const encerrarCombate = useCallback(() => {

@@ -538,7 +538,7 @@ function PaginaMarcadores() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px dotted currentColor', paddingBottom: '10px', position: 'relative', zIndex: 1 }}>
                     <div>
                         <h2 style={{ margin: 0, fontSize: '1.4em', display: 'flex', alignItems: 'center', gap: '10px', color: '#00ffcc' }}>⚖️ Balança de Adaptação (Batalha Atual)</h2>
-                        <span style={{ fontSize: '0.85em', opacity: 0.8, fontStyle: 'italic' }}>Absorva o dano sofrido na luta e converta a dor num Multiplicador Único de Dano.</span>
+                        <span style={{ fontSize: '0.85em', opacity: 0.8, fontStyle: 'italic' }}>Absorva o dano sofrido na luta e converta a dor num Multiplicador Único do Poder Calculado.</span>
                     </div>
                 </div>
 
@@ -729,7 +729,7 @@ function PaginaForja() {
                     <input type="checkbox" checked={forja.danoBruto} onChange={e => setForja({...forja, danoBruto: e.target.checked})} style={{ transform: 'scale(1.2)' }}/> Dano Bruto Flat (+)
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 'bold', gridColumn: 'span 2' }}>
-                    <input type="checkbox" checked={forja.multGeral} onChange={e => setForja({...forja, multGeral: e.target.checked})} style={{ transform: 'scale(1.2)' }}/> Multiplicador Geral de Dano (x)
+                    <input type="checkbox" checked={forja.multGeral} onChange={e => setForja({...forja, multGeral: e.target.checked})} style={{ transform: 'scale(1.2)' }}/> Multiplicador Geral do Poder (x)
                 </label>
             </div>
 

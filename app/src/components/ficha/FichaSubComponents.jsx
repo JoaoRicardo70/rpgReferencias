@@ -561,8 +561,9 @@ export function FichaMultiplicadoresDano() {
 
     return (
         <div className="def-box" style={{ marginTop: 15 }}>
-            <h3 style={{ color: '#ff003c', marginBottom: 10 }}>Multiplicadores de Dano</h3>
-            <p style={{ color: '#888', fontSize: '0.8em', margin: '0 0 10px' }}>Valores base. Habilidades ativas somam automaticamente.</p>
+            <h3 style={{ color: '#ff003c', marginBottom: 10 }}>Multiplicadores de Poder <span className="mult-poder-antigo">(antigos Multiplicadores de Dano)</span></h3>
+            {/* ⚖️ Não multiplicam mais o dano: só o Poder Calculado (core/poder.js), que decide o dano pela Disputa de Poder */}
+            <p className="mult-poder-explica">Estes multiplicadores não multiplicam mais o dano: entram só no <strong>Poder Calculado</strong> do Scouter. No combate, o dano é ajustado pela <strong>Disputa de Poder</strong>: com 10% a mais de Poder você causa 1,1x e recebe 0,9x; com o dobro, o mais fraco não causa dano. Itens, Pactos, Passivas e Classe somam aqui automaticamente; Habilidades/Formas/Poderes do Grimório só mexem no Poder pelo alvo PODER (Direto).</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                 <div>
                     <label style={{ color: '#aaa', fontSize: '0.85em' }}>Mult Base {buffsDano._hasBuff.mbase && <span style={{ color: '#0f0', fontSize: '0.8em' }}>(Buff: +{buffsDano.mbase.toFixed(2)})</span>}</label>

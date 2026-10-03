@@ -2,6 +2,7 @@ import React from 'react';
 import useStore from '../../stores/useStore';
 import { salvarDummie, deletarDummie } from '../../services/firebase-sync';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
+import { getPoderDummie, formatarPoderDisputa } from '../../core/disputaPoder';
 
 // 🔥 Formatador de Números Gigantes (K, M, B, T)
 const formatNum = (n) => {
@@ -34,6 +35,26 @@ export default function DummieToken({ className, id, dummie }) {
         salvarDummie(id, { ...dummie, hpAtual: dummie.hpMax });
     };
 
+    // ⚡ Poder Calculado da entidade (Disputa de Poder, core/disputaPoder.js). Vazio = sem disputa.
+    const editarPoder = (e) => {
+        e.stopPropagation();
+        const atual = getPoderDummie(dummie);
+        const resposta = window.prompt(`Poder Calculado de ${dummie.nome} (mesma escala do Scouter). Deixe vazio para tirar a Disputa de Poder desta entidade.`, atual === null ? '' : String(atual));
+        if (resposta === null) return;
+        // pt-BR: vírgula decimal e pontos de milhar ("1.000", "1.000.000,5" — como o token exibe);
+        // ponto seguido de algo que não sejam grupos de 3 dígitos é decimal ("1.5").
+        const bruto = resposta.trim();
+        const texto = (bruto.includes(',') || /^\d{1,3}(\.\d{3})+$/.test(bruto)) ? bruto.replace(/\./g, '').replace(',', '.') : bruto;
+        if (texto === '') {
+            const { poderCalculado, ...semPoder } = dummie;
+            salvarDummie(id, semPoder);
+            return;
+        }
+        const valor = Number(texto);
+        if (!Number.isFinite(valor) || valor < 0) { alert('Digite um número válido (0 ou mais).'); return; }
+        salvarDummie(id, { ...dummie, poderCalculado: valor });
+    };
+
     const removerDummie = (e) => {
         e.stopPropagation();
         if (window.confirm('Remover esta Entidade do mapa?')) {
@@ -43,6 +64,7 @@ export default function DummieToken({ className, id, dummie }) {
     };
 
     const pct = Math.max(0, Math.min(100, (dummie.hpAtual / dummie.hpMax) * 100));
+    const poderDummie = getPoderDummie(dummie);
     const colorAC = dummie.tipoDefesa === 'evasiva' ? '#0088ff' : '#ccc';
 
     return (
@@ -69,6 +91,9 @@ export default function DummieToken({ className, id, dummie }) {
                 <span style={{ fontSize: '9px', color: colorAC, fontWeight: 'bold', background: 'rgba(0,0,0,0.8)', padding: '0 4px', borderRadius: 4, marginTop: 1 }}>
                     🛡️ {dummie.valorDefesa}
                 </span>
+                {poderDummie !== null && hpVisivel && (
+                    <span className="dummie-poder" title="Poder Calculado (Disputa de Poder)">⚡ {formatarPoderDisputa(poderDummie)}</span>
+                )}
             </div>
 
             {/* 🔥 Nova Barra de HP Totalmente Visível (Flutuando abaixo do Token) */}
@@ -95,6 +120,7 @@ export default function DummieToken({ className, id, dummie }) {
             {(isMestre && isTarget) ? (
                 <div style={{ display: 'flex', gap: 2, position: 'absolute', top: '-25px', right: '-20px', background: '#000', padding: 2, borderRadius: 4, border: '1px solid #ffcc00', zIndex: 30 }}>
                     <button onClick={resetarVida} style={{ background: '#00ffcc', color: '#000', border: 'none', borderRadius: 2, fontSize: '10px', cursor: 'pointer', padding: '2px 5px', fontWeight: 'bold' }}>🔄 HP</button>
+                    <button onClick={editarPoder} className="dummie-btn-poder" title="Definir o Poder Calculado desta entidade (Disputa de Poder)">⚡</button>
                     <button onClick={removerDummie} style={{ background: '#ff003c', color: '#fff', border: 'none', borderRadius: 2, fontSize: '10px', cursor: 'pointer', padding: '2px 5px' }}>🗑️</button>
                 </div>
             ) : (isDead && isTarget) ? (

@@ -21,7 +21,7 @@ export const ATRIBUTO_OPTIONS = [
     { value: 'mana', label: 'Mana' }, { value: 'aura', label: 'Aura' }, { value: 'chakra', label: 'Chakra' }, { value: 'corpo', label: 'Corpo' },
     { value: 'pontosVitais', label: 'Pontos Vitais' }, { value: 'pontosMortais', label: 'Pontos Mortais' },
     { value: 'todos_status', label: 'TODOS OS STATUS' }, { value: 'todas_energias', label: 'TODAS AS ENERGIAS' },
-    { value: 'geral', label: 'GERAL (Todos)' }, { value: 'dano', label: 'Dano (Apenas Mult)' }, { value: 'especial', label: 'Especial / Mecânica' }
+    { value: 'geral', label: 'GERAL (Todos)' }, { value: 'dano', label: 'Dano (Mult do Poder Calculado)' }, { value: 'especial', label: 'Especial / Mecânica' }
 ];
 
 export const CLASSES_OPTIONS = [
@@ -341,7 +341,9 @@ export function FichaFormProvider({ children }) {
         setDanoBruto(d.danoBruto ?? 0); 
     }, [minhaFicha?.dano]);
 
-    const buffsDano = minhaFicha ? getBuffs(minhaFicha, 'dano') : { _hasBuff: {}, munico: [], fontesMgeral: [] };
+    // Sem o Grimório (ignorarPoderes): este painel mostra só o que entra no Poder Calculado
+    // (core/poder.js > getGlobalMultipliers) — efeitos de DANO do Grimório não mexem no Poder.
+    const buffsDano = minhaFicha ? getBuffs(minhaFicha, 'dano', false, false, true) : { _hasBuff: {}, munico: [], fontesMgeral: [] };
 
     const salvarMultiplicadores = useCallback(() => {
         updateFicha((ficha) => {

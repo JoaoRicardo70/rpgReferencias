@@ -83,7 +83,7 @@ export function CompendioClasseCard({ classe }) {
                                     <label style={{ fontSize: '0.7em', color: '#ffcc00', display: 'block', marginBottom: '3px' }}>Tipo de Poder</label>
                                     <select className="input-neon" value={ef.propriedade} onChange={e => handleEfMat(idx, 'propriedade', e.target.value)} style={{ width: '100%', padding: '6px', background: '#111', color: '#ffcc00', border: '1px solid #ffcc00', borderRadius: '4px' }}>
                                         <option value="">Selecione um Poder...</option>
-                                        <option value="munico">💥 Multiplicador Único (ex: Dano x10)</option>
+                                        <option value="munico">💥 Multiplicador Único (ex: x10)</option>
                                         <option value="mbase">📈 Multiplicador Base (ex: Status x2)</option>
                                         <option value="base">➕ Somar na Base (ex: Força +50)</option>
                                         <option value="bonus_acerto">🎯 Acerto Geral (Soma +X no d20)</option>

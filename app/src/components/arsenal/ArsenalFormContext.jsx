@@ -7,7 +7,7 @@ export const ARMA_TIPOS = ['espada', 'arco', 'lança', 'machado', 'adaga', 'caja
 export const RARIDADES = ['comum', 'rara', 'avançada', 'lendaria', 'lendaria (Longuinus)', 'espiritual', 'fantasma nobre'];
 
 export const BONUS_OPTIONS = [
-    { value: 'mult_dano', label: 'Mult Dano' },
+    { value: 'mult_dano', label: 'Mult Poder (ex-Mult Dano)' },
     { value: 'dano_bruto', label: 'Dano Bruto' },
     { value: 'letalidade', label: 'Letalidade' },
     { value: 'bonus_acerto', label: 'Bonus Acerto' },

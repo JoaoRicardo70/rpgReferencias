@@ -10,6 +10,7 @@ import { calcularCA } from '../../core/engine';
 import { calcularBarrasVida, getVitalMax, getVitalMaxEstavel, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularFatorMultiplicadorForca, calcularPoderAtual } from '../../core/poder';
 import { formatarPoderCosmico } from '../../core/utils';
+import { getPoderParaDisputa } from '../../core/disputaPoder';
 import { iniciarArrastoTurno, lerArrastoTurno, encerrarArrastoTurno } from './MestreControleTurno';
 import LivroEntidade from './LivroEntidade';
 
@@ -559,8 +560,9 @@ export function MestreInjetorEntidades() {
     const { 
         dNome, setDNome, dHp, setDHp, dVit, setDVit, 
         dDefTipo, setDDefTipo, dDef, setDDef, 
-        dVisivelHp, setDVisivelHp, dOculto, setDOculto, 
-        injetarDummie, jogadoresComStats 
+        dVisivelHp, setDVisivelHp, dOculto, setDOculto,
+        dPoder, setDPoder,
+        injetarDummie, jogadoresComStats
     } = ctx;
 
     const handleSelecionarEntidade = (e) => {
@@ -573,7 +575,10 @@ export function MestreInjetorEntidades() {
             setDHp(entidade.hpMax || 100);
             setDVit(0); 
             setDDefTipo('evasiva');
-            setDDef(entidade.evasiva || 10); 
+            setDDef(entidade.evasiva || 10);
+            // ⚡ Poder Atual da ficha carregada (Supressão/Fadiga/Formas como estão agora).
+            const poder = getPoderParaDisputa(entidade.ficha, useStore.getState().divisorPoderMesa);
+            setDPoder(poder === null ? '' : String(Math.round(poder * 100) / 100));
         }
     };
 
@@ -607,6 +612,10 @@ export function MestreInjetorEntidades() {
                 <div style={{ display: 'flex', gap: '10px' }}>
                     <div style={{ flex: 1 }}><label style={{ color: '#aaa', fontSize: '0.8em' }}>Defesa Alvo</label><select className="input-neon" value={dDefTipo} onChange={e => setDDefTipo(e.target.value)} style={{ width: '100%' }}><option value="evasiva">Evasiva</option><option value="resistencia">Resistência</option></select></div>
                     <div style={{ flex: 1 }}><label style={{ color: '#0088ff', fontSize: '0.8em' }}>Valor (CA)</label><input className="input-neon" type="number" value={dDef} onChange={e => setDDef(e.target.value)} style={{ width: '100%' }} /></div>
+                </div>
+                <div className="injetor-poder" title="Poder Calculado da entidade, na mesma escala do Scouter. Decide a Disputa de Poder no combate. Vazio = sem disputa (dano x1).">
+                    <label htmlFor="injetor-poder">⚡ Poder Calculado (Disputa de Poder)</label>
+                    <input id="injetor-poder" className="input-neon" type="number" min="0" step="any" placeholder="vazio = sem disputa" value={dPoder} onChange={e => setDPoder(e.target.value)} />
                 </div>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '5px' }}>
                     <select className="input-neon" value={dVisivelHp} onChange={e => setDVisivelHp(e.target.value)} style={{ flex: 1 }}><option value="todos">HP Visível para Todos</option><option value="mestre">HP Oculto</option></select>

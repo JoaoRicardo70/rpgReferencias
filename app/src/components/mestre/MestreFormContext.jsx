@@ -43,6 +43,8 @@ export function MestreFormProvider({ children }) {
     const [dDef, setDDef] = useState(10);
     const [dVisivelHp, setDVisivelHp] = useState('todos');
     const [dOculto, setDOculto] = useState(false);
+    // ⚡ Poder Calculado da entidade (escala do Scouter) pra Disputa de Poder — vazio = sem disputa.
+    const [dPoder, setDPoder] = useState('');
 
     // 📖 Livro da Entidade aberto ("ABRIR GRIMÓRIO DA ENTIDADE" do Sandbox, LivroEntidade.jsx): um só
     // para a aba toda, pra que o "Ver a Habilidade" das notificações consiga abri-lo mesmo com o
@@ -74,6 +76,8 @@ export function MestreFormProvider({ children }) {
         // dummy na mesma unidade bruta que calcularBarrasVidaDummy/MapaHologramaAcao esperam.
         const h = hBase * Math.pow(10, vit) * FATOR_EXIBICAO_VITAIS;
         const dv = parseInt(dDef) || 10;
+        const poderNum = Number(dPoder);
+        const poder = (String(dPoder).trim() === '' || !Number.isFinite(poderNum)) ? null : Math.max(0, poderNum);
         const id = 'dummie_' + Date.now();
 
         salvarDummie(id, {
@@ -84,11 +88,12 @@ export function MestreFormProvider({ children }) {
             valorDefesa: dv,
             visibilidadeHp: dVisivelHp,
             oculto: dOculto,
-            posicao: { x: 0, y: 0 }
+            posicao: { x: 0, y: 0 },
+            ...(poder !== null ? { poderCalculado: poder } : {})
         });
 
         alert(`${dNome} injetado no mapa! ${dOculto ? '(Invisivel)' : ''}`);
-    }, [dNome, dHp, dVit, dDef, dDefTipo, dVisivelHp, dOculto]);
+    }, [dNome, dHp, dVit, dDef, dDefTipo, dVisivelHp, dOculto, dPoder]);
 
     const handleApagarJogador = useCallback((nome) => {
         if (nome === meuNome) {
@@ -189,6 +194,7 @@ export function MestreFormProvider({ children }) {
         dDef, setDDef,
         dVisivelHp, setDVisivelHp,
         dOculto, setDOculto,
+        dPoder, setDPoder,
         enviarAviso,
         injetarDummie,
         handleApagarJogador,
@@ -199,7 +205,7 @@ export function MestreFormProvider({ children }) {
         livroAberto, abrirLivroEntidade, verPedidoNaFicha, fecharLivroEntidade,
     }), [
         isMestre, meuNome, userLogado, mesaCriador, mesaMestres,
-        msgSistema, dNome, dHp, dVit, dDefTipo, dDef, dVisivelHp, dOculto,
+        msgSistema, dNome, dHp, dVit, dDefTipo, dDef, dVisivelHp, dOculto, dPoder,
         enviarAviso, injetarDummie, handleApagarJogador, toggleCoMestre,
         jogadoresList, jogadoresComStats, fmt,
         livroAberto, abrirLivroEntidade, verPedidoNaFicha, fecharLivroEntidade,

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAtaqueForm, STATS_LIST, ENERGIA_LIST } from './AtaqueFormContext';
+import DisputaPoderResumo from './DisputaPoderResumo';
 
 const PROVIDER_FALLBACK = (
     <div style={{ color: '#888', padding: 10 }}>Ataque provider nao encontrado</div>
@@ -58,7 +59,7 @@ export function AtaqueFuriaDisplay() {
                     <span style={{ color: '#ff0000', fontSize: '1.2em', fontWeight: 'bold' }}>{percEfetivoParaDisplay}%</span>
                 </div>
             </div>
-            <p style={{ color: '#0f0', fontSize: '0.9em', marginTop: 10, marginBottom: 0 }}>↳ Bônus no Multiplicador Geral: <strong style={{ color: '#fff' }}>+{multiplicadorFuriaVisor}x</strong></p>
+            <p style={{ color: '#0f0', fontSize: '0.9em', marginTop: 10, marginBottom: 0 }}>↳ Bônus no Multiplicador Geral do Poder Calculado: <strong style={{ color: '#fff' }}>+{multiplicadorFuriaVisor}x</strong></p>
         </div>
     );
 }
@@ -368,10 +369,18 @@ export function AtaqueBotoesAcao() {
     const ctx = useAtaqueForm();
     if (!ctx) return PROVIDER_FALLBACK;
 
-    const { podeRolarDano, dummieAlvo, ignorarTravaAcerto, setIgnorarTravaAcerto, salvarConfigAtaque, rolarDano } = ctx;
+    const { podeRolarDano, dummieAlvo, disputaAlvo, ignorarTravaAcerto, setIgnorarTravaAcerto, salvarConfigAtaque, rolarDano } = ctx;
 
     return (
         <>
+            {dummieAlvo && (
+                <DisputaPoderResumo
+                    disputa={disputaAlvo}
+                    nomeAtacante="Você"
+                    nomeDefensor={dummieAlvo.nome || 'Alvo'}
+                    semPoderTexto="Esta entidade não tem Poder definido (o Mestre define no token): o dano entra inteiro (x1)."
+                />
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10, marginBottom: 5 }}>
                 <label style={{ color: '#aaa', fontSize: '0.85em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <input type="checkbox" checked={ignorarTravaAcerto} onChange={e => setIgnorarTravaAcerto(e.target.checked)} style={{ transform: 'scale(1.2)' }}/>

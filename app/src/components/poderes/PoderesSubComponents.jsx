@@ -37,8 +37,12 @@ const FALLBACK = <div style={{ opacity: 0.5, padding: 10 }}>Poderes provider nã
 // 🔥 Só nesta aba (Habilidades/Formas/Poderes do Grimório): "PODER (Direto)" multiplica o Poder do
 // Scouter diretamente, sem passar por nenhum Status/Energia/Vida — não existe em ArsenalPanel/
 // FormasEditor porque só o Grimório (ficha.poderes) é lido por getPoderDiretoMultiplier (Marcados.jsx).
+//
+// ⚖️ O alvo DANO fica de fora daqui: os Multiplicadores de Dano não multiplicam mais o dano (só o
+// Poder Calculado), e o Grimório só mexe no Poder pelo PODER (Direto) — um efeito de DANO aqui
+// não teria efeito nenhum. Efeitos antigos com DANO continuam salvos, só não aparecem pra escolha.
 const ATRIBUTOS_PODERES = [
-    ...ATRIBUTOS_AGRUPADOS,
+    ...ATRIBUTOS_AGRUPADOS.map(g => ({ ...g, options: g.options.filter(o => o !== 'dano') })).filter(g => g.options.length > 0),
     { label: '⚡ POTÊNCIA DO SCOUTER', options: ['poder_direto'] }
 ];
 
@@ -441,7 +445,7 @@ export function PoderesLista() {
         setOverchargeAtivo, togglePoder, vincularAberto, setVincularAberto,
         vincularRef, minhaFicha, armasEquipadas, vincularArmaAoPoder,
         editarPoder, deletarPoder, overchargeAtivo, curMana, curAura, curChakra,
-        energiaElemental, mPotencial, danoBruto, dispararAtaque,
+        energiaElemental, danoBruto, dispararAtaque,
         salvarFormaPoder, deletarFormaPoder, ativarFormaPoder,
         renomearPastaForma, mudarEstagioPoder
     } = ctx;
@@ -614,7 +618,7 @@ export function PoderesLista() {
                                                 <div>
                                                     <div style={{ fontWeight: 'bold' }}>🔥 MODO OVERCHARGE (Queimar Motor)</div>
                                                     <div style={{ fontSize: '0.8em' }}>
-                                                        Dobra a energia extraída (<strong>+{energiaOver}</strong> Dano Bruto) para aplicar o seu <strong>Multiplicador Potencial (x{mPotencial})</strong> ao Dano Total Estimado! <br/>
+                                                        Dobra a energia extraída (<strong>+{energiaOver}</strong> Dano Bruto)! <br/>
                                                         ⚠️ Mas você <strong>pagará {percBase * 2}%</strong> da sua Mana, Aura e Chakra atuais como custo!
                                                     </div>
                                                 </div>
