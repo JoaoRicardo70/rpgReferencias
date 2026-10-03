@@ -261,6 +261,14 @@ export const LIMIAR_BARRA_VIDA = 1000000000;
 // custo/dano; a divisão deve acontecer só no componente de UI, no momento de formatar o texto.
 export const FATOR_EXIBICAO_VITAIS = 1000;
 
+// Dano de combate (feed, Modo Deus, Zonas, "Sofrer Dano", Dano Rápido) é sempre um número na escala
+// EXIBIDA — a mesma da Vida na tela. Vida de jogador (vida.atual) e de dummy (hpAtual) são gravadas na
+// escala BRUTA: converter SEMPRE por aqui antes de subtrair, senão o golpe tira 1000x menos.
+export function danoExibidoParaBruto(dano) {
+    const v = Math.max(0, Number(dano) || 0) * FATOR_EXIBICAO_VITAIS;
+    return Number.isFinite(v) ? v : Number.MAX_VALUE;
+}
+
 // Vitalidade de Vida (2ª versão): 1 ponto pra CADA LIMIAR_BARRA_VIDA de Vida bruta ESTÁVEL (sem
 // Formas). Generaliza a Vitalidade antiga (que só subia ao cruzar uma ORDEM DE GRANDEZA inteira —
 // 1e8, 1e9, 1e10...) pra subir a CADA LIMIAR_BARRA_VIDA dentro desse intervalo também.

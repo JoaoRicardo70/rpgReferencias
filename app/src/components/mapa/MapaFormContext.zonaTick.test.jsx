@@ -75,14 +75,15 @@ describe('MapaFormContext - tick da zona em avancarTurno (dispararEfeitoDaZona)'
     it('dummie com d.cenaId = cena da zona (posicao sem cenaId) dentro do raio leva dano', () => {
         const dummies = {
             ...conjuradores(),
-            alvo: { nome: 'Alvo', iniciativa: 0, cenaId: 'cena_x', hpAtual: 100, posicao: { x: 5, y: 6, z: 0 } },
+            // hpAtual na escala bruta (x1000); o dano da zona (40) e o numero exibido.
+            alvo: { nome: 'Alvo', iniciativa: 0, cenaId: 'cena_x', hpAtual: 100 * 1000, posicao: { x: 5, y: 6, z: 0 } },
         };
         montar(estado(dummies));
         act(() => { probe.avancarTurno(); }); // index 0 (A) -> 1 (Conj), conjurador da zona
 
         const chamadasAlvo = salvarDummie.mock.calls.filter(c => c[0] === 'alvo');
         expect(chamadasAlvo).toHaveLength(1);
-        expect(chamadasAlvo[0][1].hpAtual).toBe(60);
+        expect(chamadasAlvo[0][1].hpAtual).toBe(60 * 1000);
         expect(enviarParaFeed.mock.calls.some(c => String(c[0].texto).includes('Alvo'))).toBe(true);
     });
 

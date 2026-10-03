@@ -166,7 +166,7 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
         montarStore({
             minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)),
             alvoSelecionado: 'goblin1',
-            dummies: { goblin1: { nome: 'Goblin', hpAtual: 50 } },
+            dummies: { goblin1: { nome: 'Goblin', hpAtual: 50 * 1000 } }, // Vida bruta (x1000)
             // meuUltimoAcerto contra o mesmo alvo -> useEffect de podeRolarDano libera o ataque.
             feedCombate: [{ nome: 'Heroi', tipo: 'acerto', alvoNome: 'Goblin', acertouAlvo: true }],
         });
@@ -178,7 +178,7 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
         act(() => { botao.click(); });
 
         // calcularDano está mockado no topo do arquivo pra sempre devolver dano:10.
-        expect(salvarDummie).toHaveBeenCalledWith('goblin1', expect.objectContaining({ hpAtual: 40 }));
+        expect(salvarDummie).toHaveBeenCalledWith('goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }));
         expect(enviarParaFeed).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'dano', dano: 10, alvoNome: 'Goblin' }));
     });
 
@@ -198,7 +198,7 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
         montarStore({
             minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)),
             alvoSelecionado: 'goblin1',
-            dummies: { goblin1: { nome: 'Goblin', hpAtual: 50 } },
+            dummies: { goblin1: { nome: 'Goblin', hpAtual: 50 * 1000 } }, // Vida bruta (x1000)
             feedCombate: [{ nome: 'Heroi', tipo: 'acerto', alvoNome: 'Goblin', acertouAlvo: true }],
         });
         const { getByText } = render(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
@@ -215,8 +215,8 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
         // acontecerem antes do dummie realmente sincronizar de volta pelo Firebase, o segundo
         // "dano" pode se perder (sobrescrito) ou, dependendo da ordem de chegada, duplicar o
         // efeito no feed de combate mesmo a vida do alvo não caindo duas vezes.
-        expect(salvarDummie).toHaveBeenNthCalledWith(1, 'goblin1', expect.objectContaining({ hpAtual: 40 }));
-        expect(salvarDummie).toHaveBeenNthCalledWith(2, 'goblin1', expect.objectContaining({ hpAtual: 40 }));
+        expect(salvarDummie).toHaveBeenNthCalledWith(1, 'goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }));
+        expect(salvarDummie).toHaveBeenNthCalledWith(2, 'goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }));
     });
 
     // -------------------------------------------------------------------------
@@ -238,7 +238,7 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
             montarStore({
                 minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)),
                 alvoSelecionado: 'goblin1',
-                dummies: { goblin1: { nome: 'Goblin', hpAtual: 50 } },
+                dummies: { goblin1: { nome: 'Goblin', hpAtual: 50 * 1000 } }, // Vida bruta (x1000)
                 // Nenhum Acerto no feed -> podeRolarDano começaria falso; só "Ignorar Trava" (já
                 // pré-marcada no store, simulando o jogador ter marcado antes) libera o botão.
                 feedCombate: [],
@@ -277,7 +277,7 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
             montarStore({
                 minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)),
                 alvoSelecionado: 'goblin1',
-                dummies: { goblin1: { nome: 'Goblin', hpAtual: 50 } },
+                dummies: { goblin1: { nome: 'Goblin', hpAtual: 50 * 1000 } }, // Vida bruta (x1000)
                 feedCombate: [],
                 ignorarTravaAcerto: true,
             });
@@ -285,7 +285,7 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
 
             act(() => { getByText('⚔️ ATACAR GOBLIN').click(); });
 
-            expect(salvarDummie).toHaveBeenCalledWith('goblin1', expect.objectContaining({ hpAtual: 40 }));
+            expect(salvarDummie).toHaveBeenCalledWith('goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }));
             expect(enviarParaFeed).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'dano', dano: 10, alvoNome: 'Goblin' }));
         });
 

@@ -7,7 +7,6 @@ import {
     AtaqueArmaEquipada,
     AtaqueArmaVazia,
     AtaqueHabilidadesAtivas,
-    AtaqueMagiasPreparadas,
     AtaqueDanoCustomizado,
     AtaqueBotoesAcao
 } from './AtaqueSubComponents';
@@ -28,7 +27,8 @@ export default function AtaquePanel({ className, children }) {
                         <AtaqueArmaEquipada />
                         <AtaqueArmaVazia />
                         <AtaqueHabilidadesAtivas />
-                        <AtaqueMagiasPreparadas />
+                        {/* Magias Preparadas saíram daqui (pedido da mesa: lista grande demais) — continuam
+                            em Arsenal > Elementos e as equipadas ofensivas seguem entrando no dano. */}
                         <AtaqueDanoCustomizado />
                         <AtaqueBotoesAcao />
                     </>

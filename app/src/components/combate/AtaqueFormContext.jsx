@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { getEfeitosDeClasse } from '../../core/attributes';
-import { getVitalMxDisplay, getVidaTotalMaxDisplay } from '../../core/vitals';
+import { getVitalMxDisplay, getVidaTotalMaxDisplay, danoExibidoParaBruto, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularDano } from '../../core/engine';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, formatarFatorDisputa } from '../../core/disputaPoder';
@@ -408,11 +408,13 @@ export function AtaqueFormProvider({ children }) {
             if (dummieAlvo && alvoSelecionado) {
                 const disputa = calcularDisputaPoder(meuPoderDisputa, getPoderDummie(dummieAlvo));
                 const danoNoAlvo = aplicarDisputaAoDano(danoReduzido, disputa);
-                const hpAnterior = dummieAlvo.hpAtual;
-                const novoHp = Math.max(0, hpAnterior - danoNoAlvo);
+                // Escala: dano exibido -> Vida bruta do dummy (core/vitals.js > danoExibidoParaBruto).
+                const hpAnterior = dummieAlvo.hpAtual || 0;
+                const novoHp = Math.max(0, hpAnterior - danoExibidoParaBruto(danoNoAlvo));
+                const hpAnteriorExibido = hpAnterior / FATOR_EXIBICAO_VITAIS;
                 salvarDummie(alvoSelecionado, { ...dummieAlvo, hpAtual: novoHp });
                 extraFeed = {
-                    alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnterior ? danoNoAlvo - hpAnterior : 0,
+                    alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0,
                     danoAplicado: danoNoAlvo, ...(disputa.ativa ? { fatorDisputa: disputa.fator, textoDisputa: descreverDisputa(disputa) } : {})
                 };
             }
@@ -512,7 +514,7 @@ export function AtaqueFormProvider({ children }) {
                         const [idD, dData] = dummieEntry;
                         const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dData));
                         const danoNoAlvo = aplicarDisputaAoDano(result.dano, disputa);
-                        salvarDummie(idD, { ...dData, hpAtual: Math.max(0, dData.hpAtual - danoNoAlvo) });
+                        salvarDummie(idD, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)) });
                         if (disputa.ativa) linhasDisputa.push(`${dData.nome}: ${danoNoAlvo.toLocaleString('pt-BR')} (x${formatarFatorDisputa(disputa.fator)})`);
                     }
                 }
@@ -522,11 +524,13 @@ export function AtaqueFormProvider({ children }) {
         } else if (dummieAlvo) {
             const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dummieAlvo));
             const danoNoAlvo = aplicarDisputaAoDano(result.dano, disputa);
-            const hpAnterior = dummieAlvo.hpAtual;
-            const novoHp = Math.max(0, hpAnterior - danoNoAlvo);
+            // Escala: dano exibido -> Vida bruta do dummy (core/vitals.js > danoExibidoParaBruto).
+            const hpAnterior = dummieAlvo.hpAtual || 0;
+            const novoHp = Math.max(0, hpAnterior - danoExibidoParaBruto(danoNoAlvo));
+            const hpAnteriorExibido = hpAnterior / FATOR_EXIBICAO_VITAIS;
             salvarDummie(alvoSelecionado, { ...dummieAlvo, hpAtual: novoHp });
             extraFeed = {
-                alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnterior ? danoNoAlvo - hpAnterior : 0,
+                alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0,
                 danoAplicado: danoNoAlvo, ...(disputa.ativa ? { fatorDisputa: disputa.fator, textoDisputa: descreverDisputa(disputa) } : {})
             };
         }

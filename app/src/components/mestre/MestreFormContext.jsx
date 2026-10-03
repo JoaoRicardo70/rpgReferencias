@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import useStore, { sanitizarNome } from '../../stores/useStore';
-import { enviarParaFeed, salvarDummie, apagarFicha } from '../../services/firebase-sync';
+import { enviarParaFeed, salvarDummie, apagarFicha, salvarCenarioCompleto } from '../../services/firebase-sync';
+import { cenarioComTokensOcultos } from '../../core/gavetaNpc';
 import { getMaximo } from '../../core/attributes';
 import { calcularCA } from '../../core/engine';
 import { getVitalMax, getVitalMaxEstavel, getTetoVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
@@ -91,6 +92,8 @@ export function MestreFormProvider({ children }) {
             posicao: { x: 0, y: 0 },
             ...(poder !== null ? { poderCalculado: poder } : {})
         });
+        // "oculto" no dummy não esconde nada no Mapa: a invisibilidade é por id em cenario.tokensOcultos.
+        if (dOculto) salvarCenarioCompleto(cenarioComTokensOcultos(useStore.getState().cenario, [id]));
 
         alert(`${dNome} injetado no mapa! ${dOculto ? '(Invisivel)' : ''}`);
     }, [dNome, dHp, dVit, dDef, dDefTipo, dVisivelHp, dOculto, dPoder]);

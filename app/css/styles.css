@@ -2077,3 +2077,23 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .injetor-poder input { width: 100%; border-color: #ffcc00; }
 .mult-poder-antigo { font-size: 0.6em; font-weight: normal; opacity: 0.6; }
 .mult-poder-explica { color: #888; font-size: 0.8em; margin: 0 0 10px; line-height: 1.4; }
+
+/* 📦 GAVETA DE TOKENS (Mapa > Mestre): NPCs da mesa viram tokens de combate (core/gavetaNpc.js) */
+.gaveta-tokens { background: rgba(0, 0, 0, 0.5); padding: 15px; border-radius: 5px; border: 1px solid #00ff88; }
+.gaveta-titulo { color: #00ff88; margin: 0; }
+.gaveta-explica { color: #888; font-size: 0.85em; margin: 5px 0 12px; }
+.gaveta-opcoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.gaveta-busca { flex: 1 1 200px; min-width: 0; margin: 0; padding: 6px; }
+.gaveta-campo { display: flex; align-items: center; gap: 5px; color: #aaa; font-size: 0.8em; }
+.gaveta-campo input { width: 60px; margin: 0; padding: 4px; }
+.gaveta-campo-select { margin: 0; padding: 5px; width: auto; }
+.gaveta-check { display: flex; align-items: center; gap: 5px; color: #aaa; font-size: 0.85em; cursor: pointer; }
+.gaveta-check input { width: auto; margin: 0; }
+.gaveta-vazia { color: #888; font-style: italic; font-size: 0.85em; margin: 0; }
+.gaveta-familia { margin-bottom: 6px; }
+.gaveta-familia-topo { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 8px 10px; background: rgba(0, 0, 0, 0.6); color: #ffcc00; font-weight: bold; border: 1px solid #333; border-left: 3px solid #ff003c; border-radius: 4px; cursor: pointer; text-align: left; }
+.gaveta-contador { background: #ff003c; color: #fff; border-radius: 10px; padding: 0 8px; font-size: 0.8em; }
+.gaveta-npc { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 10px 6px 18px; border-bottom: 1px dotted rgba(127, 127, 127, 0.3); }
+.gaveta-npc-info { display: flex; flex-direction: column; min-width: 0; color: #ddd; }
+.gaveta-npc-info span { font-size: 0.8em; color: #999; }
+.gaveta-npc-btn { margin: 0; padding: 4px 12px; font-size: 0.85em; }

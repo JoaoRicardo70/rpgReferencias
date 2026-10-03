@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import useStore from '../../stores/useStore';
 import { calcularReducao, calcularCA, calcularMultiplicadorElemental } from '../../core/engine';
 import { salvarFichaSilencioso, enviarParaFeed } from '../../services/firebase-sync';
+import { danoExibidoParaBruto } from '../../core/vitals';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
 
 // "auto" = quem desferiu o último golpe do feed (que não fui eu).
@@ -223,7 +224,8 @@ export function DefesaFormProvider({ children }) {
 
         updateFicha((ficha) => {
             if (ficha.vida) {
-                ficha.vida.atual = Math.max(0, (ficha.vida.atual || 0) - danoFinal);
+                // O dano digitado é o número EXIBIDO (feed/tela); vida.atual é bruta.
+                ficha.vida.atual = Math.max(0, (ficha.vida.atual || 0) - danoExibidoParaBruto(danoFinal));
             }
         });
         salvarFichaSilencioso();

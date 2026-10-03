@@ -8,7 +8,7 @@ import { assinarFalhasDeImagem } from '../../core/imagemVerificada';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
 import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, formatarFatorDisputa } from '../../core/disputaPoder';
-import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
+import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 import { ordenarOrdemTurno, chaveEntidadeTurno, moverChaveNaOrdem, recalcularIndiceTurno } from '../../core/turnos';
@@ -597,12 +597,12 @@ export function MapaFormProvider({ children }) {
                     const { dano, disputa } = aplicarDisputaDaZona(din, getPoderDummie(dData));
                     if (disputa.ativa) houveDisputa = true;
                     hitLog.push(disputa.ativa ? `${nome} (${dano.toLocaleString('pt-BR')}, x${formatarFatorDisputa(disputa.fator)})` : nome);
-                    salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, dData.hpAtual - dano) });
+                    salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(dano)) });
                 } else if (nome === meuNome) {
                     const { dano, disputa } = aplicarDisputaDaZona(din, getPoderParaDisputa(minhaFicha, useStore.getState().divisorPoderMesa));
                     if (disputa.ativa) houveDisputa = true;
                     hitLog.push(disputa.ativa ? `${nome} (${dano.toLocaleString('pt-BR')}, x${formatarFatorDisputa(disputa.fator)})` : nome);
-                    updateFicha(f => { if (f.vida) f.vida.atual = Math.max(0, f.vida.atual - dano); });
+                    updateFicha(f => { if (f.vida) f.vida.atual = Math.max(0, (f.vida.atual || 0) - danoExibidoParaBruto(dano)); });
                     salvarFichaSilencioso();
                 } else {
                     hitLog.push(nome);
@@ -657,9 +657,9 @@ export function MapaFormProvider({ children }) {
                 enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚠️ ${entidadeNome} pisou na área de [${zona.nome}] e sofreu ${danoAtual} de Dano${letalStr} imediatamente!${textoDisputa}` });
                                 
                 if (isDummie && idDummie && dData) {
-                    salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, dData.hpAtual - danoAtual) });
+                    salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoAtual)) });
                 } else if (entidadeNome === meuNome) {
-                    updateFicha(f => { if (f.vida) f.vida.atual = Math.max(0, f.vida.atual - danoAtual); });
+                    updateFicha(f => { if (f.vida) f.vida.atual = Math.max(0, (f.vida.atual || 0) - danoExibidoParaBruto(danoAtual)); });
                     salvarFichaSilencioso();
                 }
             }
@@ -892,7 +892,7 @@ export function MapaFormProvider({ children }) {
         // já multiplica de volta por FATOR_EXIBICAO_VITAIS antes de gravar — o Dano Rápido não fazia
         // isso, então um dano digitado na escala exibida praticamente não tirava HP nenhum dos
         // Máximos novos (na casa dos bilhões/trilhões).
-        const valorRaw = valor * FATOR_EXIBICAO_VITAIS;
+        const valorRaw = danoExibidoParaBruto(valor);
 
         // ⚖️ Golpe anulado pela Disputa de Poder: só registra no feed — não mexe na Vida, não gera
         // Fadiga nem troca o "último elemento recebido" do alvo.

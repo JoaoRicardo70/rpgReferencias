@@ -298,25 +298,25 @@ describe('Zona - dispararEfeitoDaZona (tick em avancarTurno) com Disputa de Pode
             ...extras,
         });
     }
-    const alvoDummie = (poder) => ({ nome: 'Alvo', iniciativa: 0, cenaId: 'cena_x', hpAtual: 1000, posicao: { x: 5, y: 6, z: 0 }, ...(poder !== undefined ? { poderCalculado: poder } : {}) });
+    const alvoDummie = (poder) => ({ nome: 'Alvo', iniciativa: 0, cenaId: 'cena_x', hpAtual: 1000 * FATOR_EXIBICAO_VITAIS, posicao: { x: 5, y: 6, z: 0 }, ...(poder !== undefined ? { poderCalculado: poder } : {}) });
 
     it('conjurador 1100 vs dummie 1000: dano da zona x1,1', () => {
         montar(estadoZona({ poderConjurador: 1100, dummies: { alvo: alvoDummie(1000) } }));
         act(() => { probe.avancarTurno(); });
-        expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe(1000 - 110);
+        expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe((1000 - 110) * FATOR_EXIBICAO_VITAIS);
         expect(textoFeedContendo('castigou')).toContain('Alvo (110, x1,1)');
         expect(textoFeedContendo('castigou')).toContain('Disputa de Poder');
     });
     it('conjurador 1000 vs dummie com o dobro do Poder: nao causa dano (hp inalterado)', () => {
         montar(estadoZona({ poderConjurador: 1000, dummies: { alvo: alvoDummie(2000) } }));
         act(() => { probe.avancarTurno(); });
-        expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe(1000);
+        expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe(1000 * FATOR_EXIBICAO_VITAIS);
         expect(textoFeedContendo('castigou')).toContain('Alvo (0, x0)');
     });
     it('dummie sem Poder: dano integral e feed sem anotacao de disputa', () => {
         montar(estadoZona({ poderConjurador: 1100, dummies: { alvo: alvoDummie() } }));
         act(() => { probe.avancarTurno(); });
-        expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe(900);
+        expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe(900 * FATOR_EXIBICAO_VITAIS);
         const t = textoFeedContendo('castigou');
         expect(t).toContain('castigou Alvo com 100 de Dano');
         expect(t).not.toContain('Disputa de Poder');
@@ -324,7 +324,7 @@ describe('Zona - dispararEfeitoDaZona (tick em avancarTurno) com Disputa de Pode
     it('conjurador sem ficha conhecida (fora de personagens): sem Poder, dano integral', () => {
         montar(estadoZona({ dummies: { alvo: alvoDummie(5) }, extras: { personagens: {} } }));
         act(() => { probe.avancarTurno(); });
-        expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe(900);
+        expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe(900 * FATOR_EXIBICAO_VITAIS);
     });
     it('dois dummies na zona: cada um recebe seu proprio fator', () => {
         montar(estadoZona({
@@ -332,8 +332,8 @@ describe('Zona - dispararEfeitoDaZona (tick em avancarTurno) com Disputa de Pode
             dummies: { fraco: { ...alvoDummie(500), nome: 'Fraco' }, forte: { ...alvoDummie(1250), nome: 'Forte' } },
         }));
         act(() => { probe.avancarTurno(); });
-        expect(salvarDummie.mock.calls.find(c => c[0] === 'fraco')[1].hpAtual).toBe(1000 - 200);
-        expect(salvarDummie.mock.calls.find(c => c[0] === 'forte')[1].hpAtual).toBe(1000 - 75);
+        expect(salvarDummie.mock.calls.find(c => c[0] === 'fraco')[1].hpAtual).toBe((1000 - 200) * FATOR_EXIBICAO_VITAIS);
+        expect(salvarDummie.mock.calls.find(c => c[0] === 'forte')[1].hpAtual).toBe((1000 - 75) * FATOR_EXIBICAO_VITAIS);
         expect(textoFeedContendo('castigou')).toContain('Fraco (200, x2)');
         expect(textoFeedContendo('castigou')).toContain('Forte (75, x0,75)');
     });
@@ -341,7 +341,7 @@ describe('Zona - dispararEfeitoDaZona (tick em avancarTurno) com Disputa de Pode
         const buffs = { __poder: 1000, poderes: [{ ativa: true, efeitos: [{ atributo: 'dano', propriedade: 'mgeral', valor: 5 }], efeitosPassivos: [] }] };
         montar(estadoZona({ dummies: { alvo: alvoDummie() }, extras: { personagens: { Conj: buffs } } }));
         act(() => { probe.avancarTurno(); });
-        expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe(900);
+        expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe(900 * FATOR_EXIBICAO_VITAIS);
     });
     it('Dano Bruto novo do conjurador ainda soma no dano da zona (antes da disputa)', () => {
         const caster = { __poder: 1000, poderes: [], inventario: [{ equipado: true, efeitos: [{ propriedade: 'dano_bruto', valor: 50 }] }] };
@@ -349,7 +349,7 @@ describe('Zona - dispararEfeitoDaZona (tick em avancarTurno) com Disputa de Pode
         state.cenario.zonas[0].danoBrutoOriginal = 10; // diffBruto = 50 - 10 = +40
         montar(state);
         act(() => { probe.avancarTurno(); });
-        expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe(1000 - 140);
+        expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe((1000 - 140) * FATOR_EXIBICAO_VITAIS);
     });
     it('zona antiga com multiplicadorOriginal guarda dano ja multiplicado: divide de volta ao dano puro', () => {
         const state = estadoZona({ dummies: { alvo: alvoDummie() }, extras: { personagens: { Conj: { __poder: 1000, poderes: [] } } } });
@@ -357,7 +357,7 @@ describe('Zona - dispararEfeitoDaZona (tick em avancarTurno) com Disputa de Pode
         state.cenario.zonas[0].multiplicadorOriginal = 4;
         montar(state);
         act(() => { probe.avancarTurno(); });
-        expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe(1000 - 100);
+        expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe((1000 - 100) * FATOR_EXIBICAO_VITAIS);
     });
     function textoFeedContendo(trecho) {
         const c = enviarParaFeed.mock.calls.map(x => x[0].texto).find(t => t.includes(trecho));
@@ -376,47 +376,47 @@ describe('Zona - processarEntradaNaZona (mover o token para dentro) com Disputa 
     }
 
     it('Mestre move dummie mais fraco (500) para dentro: dano x2 e feed com a disputa', () => {
-        const d = { nome: 'Alvo', cenaId: 'default', hpAtual: 1000, posicao: { x: 0, y: 0, z: 0 }, poderCalculado: 500 };
+        const d = { nome: 'Alvo', cenaId: 'default', hpAtual: 1000 * FATOR_EXIBICAO_VITAIS, posicao: { x: 0, y: 0, z: 0 }, poderCalculado: 500 };
         montar(estadoEntrada({ dummies: { alvo: d }, alvoSelecionado: 'alvo' }));
         act(() => { probe.handleCellClick(5, 5); });
 
         const hpFinal = salvarDummie.mock.calls.filter(c => c[0] === 'alvo').map(c => c[1].hpAtual);
-        expect(hpFinal).toContain(1000 - 200);
+        expect(hpFinal).toContain((1000 - 200) * FATOR_EXIBICAO_VITAIS);
         expect(textoFeed()).toContain('Alvo pisou na área de [Gelo] e sofreu 200 de Dano');
         expect(textoFeed()).toContain('Disputa de Poder');
     });
     it('dummie com o dobro do Poder: sofre 0 de dano', () => {
-        const d = { nome: 'Alvo', cenaId: 'default', hpAtual: 1000, posicao: { x: 0, y: 0, z: 0 }, poderCalculado: 2000 };
+        const d = { nome: 'Alvo', cenaId: 'default', hpAtual: 1000 * FATOR_EXIBICAO_VITAIS, posicao: { x: 0, y: 0, z: 0 }, poderCalculado: 2000 };
         montar(estadoEntrada({ dummies: { alvo: d }, alvoSelecionado: 'alvo' }));
         act(() => { probe.handleCellClick(5, 5); });
-        expect(salvarDummie.mock.calls.filter(c => c[0] === 'alvo').map(c => c[1].hpAtual)).toContain(1000);
+        expect(salvarDummie.mock.calls.filter(c => c[0] === 'alvo').map(c => c[1].hpAtual)).toContain(1000 * FATOR_EXIBICAO_VITAIS);
         expect(textoFeed()).toContain('sofreu 0 de Dano');
     });
     it('dummie sem Poder: dano integral e feed sem disputa', () => {
-        const d = { nome: 'Alvo', cenaId: 'default', hpAtual: 1000, posicao: { x: 0, y: 0, z: 0 } };
+        const d = { nome: 'Alvo', cenaId: 'default', hpAtual: 1000 * FATOR_EXIBICAO_VITAIS, posicao: { x: 0, y: 0, z: 0 } };
         montar(estadoEntrada({ dummies: { alvo: d }, alvoSelecionado: 'alvo' }));
         act(() => { probe.handleCellClick(5, 5); });
-        expect(salvarDummie.mock.calls.filter(c => c[0] === 'alvo').map(c => c[1].hpAtual)).toContain(900);
+        expect(salvarDummie.mock.calls.filter(c => c[0] === 'alvo').map(c => c[1].hpAtual)).toContain(900 * FATOR_EXIBICAO_VITAIS);
         expect(textoFeed()).not.toContain('Disputa de Poder');
     });
     it('o proprio jogador entra na zona: usa o Poder dele (minhaFicha) contra o do conjurador', () => {
         // posicoes[cena] e SUBSTITUIDO (nao mutado) por handleCellClick, entao oldPos continua valendo
-        const minhaFicha = { ...fichaVida(500, 100000), posicao: undefined, posicoes: { default: { x: 0, y: 0, z: 0, cenaId: 'default' } } };
+        const minhaFicha = { ...fichaVida(500, 100000000), posicao: undefined, posicoes: { default: { x: 0, y: 0, z: 0, cenaId: 'default' } } };
         const state = estadoEntrada({ minhaFicha, isMestre: false });
         montar(state);
         act(() => { probe.handleCellClick(5, 5); });
         // conjurador 1000 vs eu 500: x2 -> 200
-        expect(minhaFicha.vida.atual).toBe(100000 - 200);
+        expect(minhaFicha.vida.atual).toBe(100000000 - 200 * FATOR_EXIBICAO_VITAIS);
         expect(textoFeed()).toContain('Mestre pisou na área de [Gelo] e sofreu 200 de Dano');
     });
     it('quem ja estava dentro da zona nao recebe dano de novo', () => {
-        const d = { nome: 'Alvo', cenaId: 'default', hpAtual: 1000, posicao: { x: 5, y: 5, z: 0 }, poderCalculado: 500 };
+        const d = { nome: 'Alvo', cenaId: 'default', hpAtual: 1000 * FATOR_EXIBICAO_VITAIS, posicao: { x: 5, y: 5, z: 0 }, poderCalculado: 500 };
         montar(estadoEntrada({ dummies: { alvo: d }, alvoSelecionado: 'alvo' }));
         act(() => { probe.handleCellClick(5, 6); });
         expect(enviarParaFeed).not.toHaveBeenCalled();
     });
     it('mover para fora da zona nao causa dano', () => {
-        const d = { nome: 'Alvo', cenaId: 'default', hpAtual: 1000, posicao: { x: 0, y: 0, z: 0 }, poderCalculado: 500 };
+        const d = { nome: 'Alvo', cenaId: 'default', hpAtual: 1000 * FATOR_EXIBICAO_VITAIS, posicao: { x: 0, y: 0, z: 0 }, poderCalculado: 500 };
         montar(estadoEntrada({ dummies: { alvo: d }, alvoSelecionado: 'alvo' }));
         act(() => { probe.handleCellClick(1, 1); });
         expect(enviarParaFeed).not.toHaveBeenCalled();

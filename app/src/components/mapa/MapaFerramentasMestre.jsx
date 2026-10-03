@@ -1,9 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import useStore from '../../stores/useStore';
 import { useMapaForm } from './MapaFormContext';
-import { calcularDisputaPoder, getPoderDeEntidade } from '../../core/disputaPoder';
+import { calcularDisputaPoder, getPoderDeEntidade, formatarPoderDisputa } from '../../core/disputaPoder';
+import { agruparNpcsPorFamilia, montarDummieDeNpc, posicoesLivres, getVidaMaxBrutaNpc, cenarioComTokensOcultos } from '../../core/gavetaNpc';
 import DisputaPoderResumo from '../combate/DisputaPoderResumo';
-import { salvarDummie } from '../../services/firebase-sync';
+import { salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { ELEMENTOS_OPCOES } from '../poderes/PoderesSubComponents';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 
@@ -139,11 +140,115 @@ export function MapaMestreGerenciadorCenas() {
     );
 }
 
-export function MapaMestreGavetaTokens() {
+// Uma linha da Gaveta: Vida e Poder (cálculos pesados) só recalculam quando a ficha muda.
+const GavetaNpcLinha = React.memo(function GavetaNpcLinha({ nome, ficha, divisorPoderMesa, naCena, onColocar }) {
+    const vida = useMemo(() => getVidaMaxBrutaNpc(ficha) / FATOR_EXIBICAO_VITAIS, [ficha]);
+    const poder = useMemo(() => getPoderDeEntidade({ ficha, isDummie: false }, divisorPoderMesa), [ficha, divisorPoderMesa]);
+    const colocar = useCallback(() => onColocar(nome, ficha), [onColocar, nome, ficha]);
     return (
-        <div className="fade-in" style={{ background: 'rgba(0,0,0,0.5)', padding: 15, borderRadius: 5, border: '1px solid #00ff88' }}>
-            <h3 style={{ color: '#00ff88', margin: 0 }}>📦 Gaveta de Tokens</h3>
-            <p style={{ color: '#888', fontStyle: 'italic' }}>Componente da Gaveta preservado. Pronto para futuras atualizações!</p>
+        <div className="gaveta-npc">
+            <div className="gaveta-npc-info">
+                <strong>{nome}</strong>
+                <span>❤️ {Math.round(vida).toLocaleString('pt-BR')} · ⚡ {formatarPoderDisputa(poder)}{naCena ? ` · ${naCena} na cena` : ''}</span>
+            </div>
+            <button type="button" className="btn-neon btn-green gaveta-npc-btn" onClick={colocar}>⚔️ Ao combate</button>
+        </div>
+    );
+});
+
+// 📦 Gaveta de Tokens: os NPCs da mesa (os mesmos do Visor de Entidades > NPCs da aba Mestre)
+// entram em combate nesta cena como tokens de entidade, com Vida, Defesa e Poder da própria ficha
+// (core/gavetaNpc.js). Depois é só colocar na ordem de turno pelo painel de Iniciativa.
+export function MapaMestreGavetaTokens() {
+    const ctx = useMapaForm();
+    const { isMestre, isModoRP, mestreVendoRP, jogadores, dummies, cenaRenderId } = ctx || {};
+    const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
+    const [busca, setBusca] = useState('');
+    const [quantidade, setQuantidade] = useState(1);
+    const [oculto, setOculto] = useState(false);
+    const [visibilidadeHp, setVisibilidadeHp] = useState('todos');
+    const [aberta, setAberta] = useState({});
+
+    const grupos = useMemo(() => agruparNpcsPorFamilia(jogadores, busca), [jogadores, busca]);
+    const familias = useMemo(() => Object.keys(grupos).sort((a, b) => a.localeCompare(b, 'pt-BR')), [grupos]);
+    const naCena = useMemo(() => {
+        const contagem = {};
+        Object.values(dummies || {}).forEach(d => {
+            if (d && d.fichaOrigem && (d.cenaId || 'default') === cenaRenderId) contagem[d.fichaOrigem] = (contagem[d.fichaOrigem] || 0) + 1;
+        });
+        return contagem;
+    }, [dummies, cenaRenderId]);
+    // Maior "#n" já usado por cada NPC (em qualquer cena): a próxima cópia continua dali, mesmo
+    // que uma do meio tenha sido removida — dois tokens nunca ficam com o mesmo nome.
+    const maiorNumero = useMemo(() => {
+        const maior = {};
+        Object.values(dummies || {}).forEach(d => {
+            if (!d || !d.fichaOrigem) return;
+            const m = String(d.nome || '').match(/#(\d+)$/);
+            const n = m ? parseInt(m[1], 10) : 0;
+            if (n > (maior[d.fichaOrigem] || 0)) maior[d.fichaOrigem] = n;
+        });
+        return maior;
+    }, [dummies]);
+
+    const alternarFamilia = useCallback((familia) => setAberta(prev => ({ ...prev, [familia]: !prev[familia] })), []);
+
+    const colocarEmCombate = useCallback((nome, ficha) => {
+        const qtd = Math.min(10, Math.max(1, parseInt(quantidade, 10) || 1));
+        // Casas já ocupadas nesta cena (entidades e personagens), pra não empilhar tokens.
+        const ocupadas = [
+            ...Object.values(dummies || {}).filter(d => d && (d.cenaId || 'default') === cenaRenderId).map(d => d.posicao),
+            ...Object.values(jogadores || {}).map(f => f?.posicoes?.[cenaRenderId]),
+        ];
+        const livres = posicoesLivres(ocupadas, qtd);
+        const ultimoNumero = maiorNumero[nome] || 0;
+        const base = Date.now();
+        const ids = [];
+        for (let i = 0; i < qtd; i++) {
+            const id = `dummie_${base}_${i}`;
+            ids.push(id);
+            salvarDummie(id, montarDummieDeNpc(nome, ficha, { divisorPoderMesa, cenaId: cenaRenderId, posicao: livres[i], visibilidadeHp, numero: ultimoNumero + i + 1 }));
+        }
+        // Invisível de verdade: o Mapa esconde pelos ids em cenario.tokensOcultos.
+        if (oculto) salvarCenarioCompleto(cenarioComTokensOcultos(useStore.getState().cenario, ids));
+    }, [quantidade, dummies, jogadores, cenaRenderId, maiorNumero, divisorPoderMesa, oculto, visibilidadeHp]);
+
+    if (!ctx) return FALLBACK;
+    if (!isMestre || (isModoRP && !mestreVendoRP)) return null;
+
+    return (
+        <div className="fade-in gaveta-tokens">
+            <h3 className="gaveta-titulo">📦 Gaveta de Tokens</h3>
+            <p className="gaveta-explica">Seus NPCs (os do Visor de Entidades da aba Mestre) entram nesta cena como tokens de combate, com a Vida cheia, a Defesa e o Poder Calculado da ficha. Depois é só adicioná-los à ordem de turno.</p>
+
+            <div className="gaveta-opcoes">
+                <input className="input-neon gaveta-busca" type="text" placeholder="🔍 Buscar NPC..." value={busca} onChange={e => setBusca(e.target.value)} />
+                <label className="gaveta-campo" title="Quantas cópias entram de uma vez (1 a 10)">
+                    <span>Qtd.</span>
+                    <input className="input-neon" type="number" min="1" max="10" value={quantidade} onChange={e => setQuantidade(e.target.value)} />
+                </label>
+                <select className="input-neon gaveta-campo-select" value={visibilidadeHp} onChange={e => setVisibilidadeHp(e.target.value)} title="Quem vê a Vida e o Poder do token">
+                    <option value="todos">HP Visível</option>
+                    <option value="mestre">HP Oculto</option>
+                </select>
+                <label className="gaveta-check">
+                    <input type="checkbox" checked={oculto} onChange={e => setOculto(e.target.checked)} /> 👻 Token invisível
+                </label>
+            </div>
+
+            {familias.length === 0 ? (
+                <p className="gaveta-vazia">{busca ? 'Nenhum NPC com esse nome.' : 'Nenhum NPC na mesa. Crie NPCs na aba Mestre (ou pela Sexta-Feira) e eles aparecem aqui.'}</p>
+            ) : familias.map(familia => (
+                <div key={familia} className="gaveta-familia">
+                    <button type="button" className="gaveta-familia-topo" onClick={() => alternarFamilia(familia)}>
+                        <span>{(aberta[familia] || busca) ? '📂' : '📁'} {familia}</span>
+                        <span className="gaveta-contador">{grupos[familia].length}</span>
+                    </button>
+                    {(aberta[familia] || busca) && grupos[familia].map(({ nome, ficha }) => (
+                        <GavetaNpcLinha key={nome} nome={nome} ficha={ficha} divisorPoderMesa={divisorPoderMesa} naCena={naCena[nome] || 0} onColocar={colocarEmCombate} />
+                    ))}
+                </div>
+            ))}
         </div>
     );
 }

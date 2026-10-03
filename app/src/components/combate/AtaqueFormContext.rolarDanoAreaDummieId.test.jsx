@@ -42,7 +42,9 @@ function montar({ dummies = {}, alvosArea, alvoSelecionado = null }) {
     render(<AtaqueFormProvider><Harness /></AtaqueFormProvider>);
 }
 
-const goblin = (hp) => ({ nome: 'Goblin', hpAtual: hp, valorDefesa: 10 });
+// hp em unidades EXIBIDAS; hpAtual do dummy fica na escala bruta (x1000).
+const FATOR = 1000;
+const goblin = (hp) => ({ nome: 'Goblin', hpAtual: hp * FATOR, valorDefesa: 10 });
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -62,8 +64,8 @@ describe('AtaqueFormContext.rolarDano - dano em área por dummieId', () => {
         });
         act(() => { probe.rolarDano(); });
         expect(salvarDummie).toHaveBeenCalledTimes(2);
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 70 }));
-        expect(salvarDummie).toHaveBeenCalledWith('g2', expect.objectContaining({ hpAtual: 50 }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 70 * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g2', expect.objectContaining({ hpAtual: 50 * FATOR }));
         expect(enviarParaFeed).toHaveBeenCalledTimes(1);
     });
 
@@ -90,7 +92,7 @@ describe('AtaqueFormContext.rolarDano - dano em área por dummieId', () => {
         });
         act(() => { probe.rolarDano(); });
         expect(salvarDummie).toHaveBeenCalledTimes(1);
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 70 }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 70 * FATOR }));
     });
 
     it('dummieId que não existe mais é PULADO e não cai no lookup por nome', () => {
@@ -113,7 +115,7 @@ describe('AtaqueFormContext.rolarDano - dano em área por dummieId', () => {
         });
         act(() => { probe.rolarDano(); });
         expect(salvarDummie).toHaveBeenCalledTimes(1);
-        expect(salvarDummie).toHaveBeenCalledWith('g2', expect.objectContaining({ hpAtual: 50 }));
+        expect(salvarDummie).toHaveBeenCalledWith('g2', expect.objectContaining({ hpAtual: 50 * FATOR }));
     });
 
     it('entrada antiga SEM dummieId usa o lookup por nome (primeiro dummie com o nome)', () => {
@@ -123,7 +125,7 @@ describe('AtaqueFormContext.rolarDano - dano em área por dummieId', () => {
         });
         act(() => { probe.rolarDano(); });
         expect(salvarDummie).toHaveBeenCalledTimes(1);
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 70 }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 70 * FATOR }));
     });
 
     it('entrada antiga sem dummieId cujo nome não existe não lança nem salva', () => {
