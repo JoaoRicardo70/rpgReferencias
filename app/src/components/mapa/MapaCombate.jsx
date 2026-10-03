@@ -622,14 +622,33 @@ const MAPA_TECNICAS_SEM_PASTA = 'Sem Pasta';
 // um `useState({})` comum perderia todo o "fechei essas pastas" nesse meio-tempo (bug relatado:
 // fechar pastas, trocar de aba, voltar ao Mapa e ver tudo aberto de novo). O Zustand é um
 // singleton fora da árvore de React, então sobrevive ao desmonte/remonte por construção.
+// Acima disso as pastas nascem FECHADAS (quem tem muitas técnicas abre só a que precisa).
+const MAPA_TECNICAS_MUITAS = 12;
+
 export function MapaTecnicasRapidas() {
     const poderesCtx = usePoderesForm();
     const pastasFechadas = useStore(s => s.pastasFechadasMapaTecnicas);
     const setPastasFechadasMapaTecnicas = useStore(s => s.setPastasFechadasMapaTecnicas);
+    const [busca, setBusca] = useState('');
     if (!poderesCtx) return null;
     const { minhaFicha, togglePoder, mudarEstagioPoder } = poderesCtx;
     const poderes = minhaFicha?.poderes || [];
-    const toggleFechada = (chave) => setPastasFechadasMapaTecnicas({ ...pastasFechadas, [chave]: !pastasFechadas[chave] });
+    const termo = busca.trim().toLowerCase();
+    // 🔍 Busca por nome (e pasta): enquanto há busca, as pastas com resultado ficam abertas.
+    const filtrados = termo ? poderes.filter(p => p && (`${p.nome || ''} ${p.pasta || ''}`).toLowerCase().includes(termo)) : poderes;
+    const ativos = poderes.filter(p => p && p.ativa);
+    const padraoFechada = poderes.length > MAPA_TECNICAS_MUITAS;
+    const estaFechada = (chave) => (termo ? false : (chave in pastasFechadas ? !!pastasFechadas[chave] : padraoFechada));
+    // Durante a busca as pastas ficam abertas à força: o clique no cabeçalho não pode mexer no estado salvo.
+    const toggleFechada = (chave) => { if (termo) return; setPastasFechadasMapaTecnicas({ ...pastasFechadas, [chave]: !estaFechada(chave) }); };
+    const definirTodas = (fechar) => {
+        const todas = {};
+        poderes.forEach(p => {
+            if (!p) return;
+            todas[`${(p.categoria || 'poder').toLowerCase()}::${(p.pasta || '').trim() || MAPA_TECNICAS_SEM_PASTA}`] = fechar;
+        });
+        setPastasFechadasMapaTecnicas(todas);
+    };
 
     if (poderes.length === 0) {
         return (
@@ -653,9 +672,9 @@ export function MapaTecnicasRapidas() {
     const renderBotao = (p) => (
         <button
             key={p.id}
-            className="btn-neon"
+            className="btn-neon mapa-tecnica-chip"
             onClick={() => togglePoder(p.id)}
-            title={p.descricao || ''}
+            title={p.descricao || p.nome || ''}
             style={{
                 margin: 0, padding: '6px 14px', fontWeight: 'bold', borderColor: '#aa00ff',
                 background: p.ativa ? 'rgba(170,0,255,0.3)' : 'transparent',
@@ -669,8 +688,24 @@ export function MapaTecnicasRapidas() {
     return (
         <div className="def-box" style={{ marginTop: 15, padding: '8px 12px', border: '1px solid #aa00ff' }}>
             <h4 style={{ color: '#aa00ff', margin: '0 0 8px 0' }}>📖 Minhas Técnicas (Grimório)</h4>
+            {/* 🧭 Organização: busca, recolher/expandir tudo e a faixa das técnicas ligadas agora */}
+            <div className="mapa-tecnicas-barra">
+                <input
+                    type="search" className="input-neon mapa-tecnicas-busca" placeholder="🔍 Buscar técnica ou pasta..."
+                    value={busca} onChange={e => setBusca(e.target.value)} aria-label="Buscar técnica"
+                />
+                <button type="button" className="btn-neon mapa-tecnicas-mini" onClick={() => definirTodas(true)} title="Fecha todas as pastas">▶ Recolher tudo</button>
+                <button type="button" className="btn-neon mapa-tecnicas-mini" onClick={() => definirTodas(false)} title="Abre todas as pastas">▼ Expandir tudo</button>
+            </div>
+            {ativos.length > 0 && (
+                <div className="mapa-tecnicas-ativas">
+                    <div className="mapa-tecnicas-ativas-titulo">★ Ligadas agora ({ativos.length})</div>
+                    <div className="mapa-tecnicas-grade">{ativos.map(renderChip)}</div>
+                </div>
+            )}
+            {termo && filtrados.length === 0 && <p className="mapa-tecnicas-vazia">Nenhuma técnica com esse nome.</p>}
             {Object.keys(MAPA_TECNICAS_CATEGORIAS).map(cat => {
-                const itensCat = poderes.filter(p => p && ((p.categoria || 'poder').toLowerCase() === cat));
+                const itensCat = filtrados.filter(p => p && ((p.categoria || 'poder').toLowerCase() === cat));
                 if (itensCat.length === 0) return null;
                 const info = MAPA_TECNICAS_CATEGORIAS[cat];
 
@@ -694,7 +729,8 @@ export function MapaTecnicasRapidas() {
                         </div>
                         {grupos ? grupos.map(({ nome, itens }) => {
                             const chave = `${cat}::${nome}`;
-                            const fechada = !!pastasFechadas[chave];
+                            const fechada = estaFechada(chave);
+                            const ligadas = itens.filter(p => p.ativa).length;
                             return (
                                 <div key={nome} style={{ marginBottom: 8 }}>
                                     <button
@@ -702,16 +738,17 @@ export function MapaTecnicasRapidas() {
                                         style={{ background: 'none', border: 'none', color: info.cor, fontWeight: 'bold', fontSize: '0.8em', padding: '2px 0', cursor: 'pointer' }}
                                     >
                                         {fechada ? '▶' : '▼'} 📁 {nome} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>({itens.length})</span>
+                                        {ligadas > 0 && <span className="mapa-tecnicas-pasta-ligadas"> ★ {ligadas}</span>}
                                     </button>
                                     {!fechada && (
-                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
+                                        <div className="mapa-tecnicas-grade">
                                             {itens.map(renderChip)}
                                         </div>
                                     )}
                                 </div>
                             );
                         }) : (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                            <div className="mapa-tecnicas-grade">
                                 {itensCat.map(renderChip)}
                             </div>
                         )}

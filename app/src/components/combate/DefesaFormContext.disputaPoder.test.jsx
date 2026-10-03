@@ -49,6 +49,7 @@ function montar({ meuPoder = 1000, feed = [], personagens = {}, dummies = {}, vi
 
 const golpe = (extra = {}) => ({ tipo: 'dano', nome: 'Rival', dano: 500, poderAtacante: 1100, ...extra });
 const ultimoTexto = () => enviarParaFeed.mock.calls.at(-1)[0].texto;
+const ultimoTextoMestre = () => enviarParaFeed.mock.calls.at(-1)[0].textoMestre || '';
 
 function receber(dano, elemento) {
     act(() => { probe.setDanoRecebidoInc(String(dano)); });
@@ -131,7 +132,9 @@ describe('DefesaFormContext - sofrerDanoBruto com atacante "auto"', () => {
         expect(ficha.vida.atual).toBe(VIDA - (1100) * FATOR);
         expect(ultimoTexto()).toContain('de Rival');
         expect(ultimoTexto()).toContain('Recebeu 1100 de dano');
-        expect(ultimoTexto()).toContain('Disputa de Poder');
+        // Quem leva vantagem na Disputa de Poder é só do Mestre.
+        expect(ultimoTexto()).not.toContain('Disputa');
+        expect(ultimoTextoMestre()).toContain('Disputa de Poder');
     });
     it('atacante mais fraco (900 vs 1000): x0,9', () => {
         const ficha = montar({ meuPoder: 1000, feed: [golpe({ poderAtacante: 900 })] });
@@ -143,7 +146,8 @@ describe('DefesaFormContext - sofrerDanoBruto com atacante "auto"', () => {
         receber(500);
         expect(ficha.vida.atual).toBe(VIDA);
         expect(ultimoTexto()).toContain('Recebeu 0 de dano');
-        expect(ultimoTexto()).toContain('o golpe não surtiu efeito');
+        expect(ultimoTexto()).not.toContain('surtiu');
+        expect(ultimoTextoMestre()).toContain('o golpe não surtiu efeito');
     });
     it('golpe em entidade (alvoNome) NAO e usado: cai em sem atacante (dano x1)', () => {
         const ficha = montar({ meuPoder: 1000, feed: [golpe({ poderAtacante: 5000, alvoNome: 'Goblin' })] });

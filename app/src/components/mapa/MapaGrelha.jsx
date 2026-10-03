@@ -97,21 +97,34 @@ export function MapaVisao() {
     if (!ctx) return FALLBACK;
     const {
         modo3D, tamanhoCelula, cenaAtual, cells, tokenMap, dummyMap,
-        cenaRenderId, tokens3D, handleCellClick, getAvatarInfo,
+        cenaRenderId, tokens3D, pedirMovimento, movimentoPendente, confirmarMovimento, cancelarMovimento, getAvatarInfo,
         meuNome, corDoJogador, overridesCompendio, cenario, isMestre, inspecionar, inspecao, alvoSelecionado, dummies
     } = ctx;
 
     const zonasCena = (cenario?.zonas || []).filter(z => (z.cenaId || 'default') === cenaRenderId);
 
+    const barraConfirmacao = movimentoPendente ? (
+        <div className="movimento-pendente" role="alertdialog" aria-label="Confirmar movimento">
+            <span>📍 Mover <strong>{meuNome}</strong> para <strong>({movimentoPendente.x}, {movimentoPendente.y})</strong>?</span>
+            <button type="button" className="btn-neon btn-green movimento-pendente-btn" onClick={confirmarMovimento}>✅ Ir para lá</button>
+            <button type="button" className="btn-neon btn-red movimento-pendente-btn" onClick={cancelarMovimento}>✖ Ficar</button>
+        </div>
+    ) : null;
+
     if (modo3D) {
         return (
+            <>
+            {barraConfirmacao}
             <div className="fade-in" style={{ height: '60vh', background: '#000', borderRadius: 5, overflow: 'hidden', border: '2px solid #0088ff', boxShadow: '0 0 20px rgba(0, 136, 255, 0.4)' }}>
-                <Tabuleiro3D mapSize={MAP_SIZE} tokens={tokens3D} moverJogador={handleCellClick} mapUrl={cenaAtual.img} />
+                <Tabuleiro3D mapSize={MAP_SIZE} tokens={tokens3D} moverJogador={pedirMovimento} mapUrl={cenaAtual.img} />
             </div>
+            </>
         );
     }
 
     return (
+        <>
+        {barraConfirmacao}
         <div id="combat-grid" className="fade-in" style={{
             display: 'grid', gridTemplateColumns: `repeat(${MAP_SIZE}, ${tamanhoCelula}px)`, gap: 1,
             overflow: 'auto', maxHeight: '60vh', background: 'rgba(0,0,0,0.3)', padding: 5, borderRadius: 5,
@@ -151,7 +164,7 @@ export function MapaVisao() {
                 });
 
                 return (
-                    <div key={key} className="map-cell" data-x={cell.x} data-y={cell.y} onClick={() => handleCellClick(cell.x, cell.y)} style={{ width: tamanhoCelula, height: tamanhoCelula, border: '1px solid rgba(255,255,255,0.1)', position: 'relative', cursor: 'pointer' }}>
+                    <div key={key} className={`map-cell${movimentoPendente && movimentoPendente.x === cell.x && movimentoPendente.y === cell.y ? ' map-cell--pendente' : ''}`} data-x={cell.x} data-y={cell.y} onClick={() => pedirMovimento(cell.x, cell.y)} style={{ width: tamanhoCelula, height: tamanhoCelula, border: '1px solid rgba(255,255,255,0.1)', position: 'relative', cursor: 'pointer' }}>
                         
                         {cellDummies.map(([id, d]) => (
                             <div key={id} style={{ opacity: cenario?.tokensOcultos?.includes(id) ? 0.4 : 1 }}>
@@ -209,5 +222,6 @@ export function MapaVisao() {
                 );
             })}
         </div>
+        </>
     );
 }

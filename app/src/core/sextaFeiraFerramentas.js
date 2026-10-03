@@ -221,7 +221,8 @@ function resumoDummie(id, d, isMestre) {
     };
 }
 
-export function resumirEventoFeed(e) {
+// `verNumeros`: só o Mestre vê o dano recalculado pela Disputa de Poder (os jogadores sabem só a rolagem).
+export function resumirEventoFeed(e, verNumeros = false) {
     if (!e || typeof e !== 'object') return null;
     const partes = [`[${e.tipo || 'evento'}] ${e.nome || '?'}`];
     if (e.texto) partes.push(String(e.texto));
@@ -231,8 +232,9 @@ export function resumirEventoFeed(e) {
     if (e.total !== undefined) partes.push(`total: ${e.total}`);
     if (e.acertoTotal !== undefined) partes.push(`acerto: ${e.acertoTotal}`);
     if (e.dano !== undefined) partes.push(`dano: ${e.dano}`);
-    if (e.danoAplicado !== undefined && e.danoAplicado !== e.dano) partes.push(`no alvo: ${e.danoAplicado}`);
-    if (e.textoDisputa) partes.push(String(e.textoDisputa));
+    if (verNumeros && e.danoAplicado !== undefined && e.danoAplicado !== e.dano) partes.push(`no alvo: ${e.danoAplicado}`);
+    if (verNumeros && e.textoDisputa) partes.push(String(e.textoDisputa));
+    if (verNumeros && e.textoMestre) partes.push(String(e.textoMestre));
     if (e.acertouAlvo !== undefined) partes.push(e.acertouAlvo ? 'ACERTOU' : 'ERROU');
     return partes.join(' | ').substring(0, 300);
 }
@@ -361,7 +363,7 @@ export async function executarFerramenta(nomeFerramenta, args, estado, { carrega
             }
             case 'feed_recente': {
                 const qtd = Math.min(LIMITE_FEED, Math.max(1, Math.floor(num(a.quantidade)) || 15));
-                const eventos = lista(estado.feedCombate).slice(-qtd).map(resumirEventoFeed).filter(Boolean);
+                const eventos = lista(estado.feedCombate).slice(-qtd).map(ev => resumirEventoFeed(ev, !!estado.isMestre)).filter(Boolean);
                 return { eventos, total: eventos.length };
             }
             case 'buscar_lore': {

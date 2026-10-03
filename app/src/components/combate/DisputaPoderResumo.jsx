@@ -1,6 +1,7 @@
 import React from 'react';
 import useStore from '../../stores/useStore';
 import { formatarFatorDisputa, formatarPoderDisputa } from '../../core/disputaPoder';
+import { getPercepcaoPoder, enxergaEfetividade } from '../../core/percepcaoPoder';
 
 // ⚖️ Prévia da Disputa de Poder (core/disputaPoder.js), reaproveitada no Ataque (contra uma
 // entidade), na Defesa (Receber Dano) e no Dano Rápido do Mestre.
@@ -8,11 +9,20 @@ import { formatarFatorDisputa, formatarPoderDisputa } from '../../core/disputaPo
 // (core/percepcaoPoder.js), então a prévia mostra só o efeito (fator e diferença em %).
 export default function DisputaPoderResumo({ disputa, nomeAtacante = 'Atacante', nomeDefensor = 'Alvo', semPoderTexto }) {
     const isMestre = useStore(s => s.isMestre);
+    const minhaFicha = useStore(s => s.minhaFicha);
     if (!disputa) return null;
     if (!disputa.ativa) {
         return (
             <div className="disputa-poder disputa-poder--neutra">
                 ⚖️ {semPoderTexto || 'Sem Disputa de Poder: um dos lados não tem Poder definido, o dano entra inteiro (x1).'}
+            </div>
+        );
+    }
+    // Sem Percepção de Poder o jogador nem sabe quem leva vantagem: só que a Disputa vale.
+    if (!isMestre && !enxergaEfetividade(getPercepcaoPoder(minhaFicha))) {
+        return (
+            <div className="disputa-poder disputa-poder--neutra">
+                ⚖️ Disputa de Poder em vigor: o dano que chega no alvo é ajustado pelo Poder dos dois lados (só o Mestre vê o recálculo).
             </div>
         );
     }

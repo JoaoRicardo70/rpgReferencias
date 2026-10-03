@@ -610,6 +610,7 @@ export function MapaFormProvider({ children }) {
         const danoAtual = din.dano;
         const letalAtual = din.letalidade;
         let hitLog = [];
+        const hitLogMestre = [];
         let houveDisputa = false;
 
         const checkHit = (pos, nome, isDummie, idDummie, dData) => {
@@ -627,12 +628,14 @@ export function MapaFormProvider({ children }) {
                 if (isDummie && idDummie && dData) {
                     const { dano, disputa } = aplicarDisputaDaZona(din, getPoderDummie(dData));
                     if (disputa.ativa) houveDisputa = true;
-                    hitLog.push(disputa.ativa ? `${nome} (${dano.toLocaleString('pt-BR')})` : nome);
+                    hitLog.push(nome);
+                    if (disputa.ativa) hitLogMestre.push(`${nome}: ${dano.toLocaleString('pt-BR')}`);
                     salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(dano)) });
                 } else if (nome === meuNome) {
                     const { dano, disputa } = aplicarDisputaDaZona(din, getPoderParaDisputa(minhaFicha, useStore.getState().divisorPoderMesa));
                     if (disputa.ativa) houveDisputa = true;
-                    hitLog.push(disputa.ativa ? `${nome} (${dano.toLocaleString('pt-BR')})` : nome);
+                    hitLog.push(nome);
+                    if (disputa.ativa) hitLogMestre.push(`${nome}: ${dano.toLocaleString('pt-BR')}`);
                     updateFicha(f => { if (f.vida) f.vida.atual = Math.max(0, (f.vida.atual || 0) - danoExibidoParaBruto(dano)); });
                     salvarFichaSilencioso();
                 } else {
@@ -648,8 +651,8 @@ export function MapaFormProvider({ children }) {
         
         if (hitLog.length > 0) {
             const letalStr = letalAtual > 0 ? ` (+${letalAtual} Letalidade)` : '';
-            const textoDisputa = houveDisputa ? ' ⚖️ (entre parênteses: dano após a Disputa de Poder)' : '';
-            enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🌪️ A Zona [${zona.nome}] castigou ${hitLog.join(', ')} com ${danoAtual} de Dano${letalStr}!${textoDisputa}` });
+            // Quanto cada um realmente sofreu (Disputa de Poder) é só do Mestre: vai em textoMestre.
+            enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🌪️ A Zona [${zona.nome}] castigou ${hitLog.join(', ')} com ${danoAtual} de Dano${letalStr}!`, ...(houveDisputa ? { textoMestre: `⚖️ Dano após a Disputa de Poder: ${hitLogMestre.join(' · ')}` } : {}) });
         }
     }, [cenario, getDanoDinamicoZona, aplicarDisputaDaZona, dummies, minhaFicha, meuNome, updateFicha]);
 
@@ -685,7 +688,9 @@ export function MapaFormProvider({ children }) {
                 const letalStr = letalAtual > 0 ? ` (+${letalAtual} Letalidade)` : '';
                 const textoDisputa = disputa.ativa ? ` | ${descreverDisputa(disputa)}` : '';
 
-                enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚠️ ${entidadeNome} pisou na área de [${zona.nome}] e sofreu ${danoAtual} de Dano${letalStr} imediatamente!${textoDisputa}` });
+                // Entidades (inimigos): o dano recalculado pela Disputa de Poder é só do Mestre.
+                const escondeDano = isDummie && disputa.ativa;
+                enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: escondeDano ? `⚠️ ${entidadeNome} pisou na área de [${zona.nome}] e sofreu dano${letalStr} imediatamente!` : `⚠️ ${entidadeNome} pisou na área de [${zona.nome}] e sofreu ${danoAtual} de Dano${letalStr} imediatamente!`, ...(disputa.ativa ? { textoMestre: escondeDano ? `Dano após a Disputa de Poder: ${danoAtual}${textoDisputa}` : descreverDisputa(disputa) } : {}) });
                                 
                 if (isDummie && idDummie && dData) {
                     salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoAtual)) });
@@ -729,6 +734,25 @@ export function MapaFormProvider({ children }) {
             processarEntradaNaZona(oldPos, x, y, z, meuNome, false, null, null);
         }
     }, [isMestre, alvoSelecionado, dummies, cenaRenderId, altitudeInput, updateFicha, processarEntradaNaZona, meuNome, minhaFicha]);
+
+    // 📍 Mover o PRÓPRIO personagem pede confirmação: um clique na casa só marca o destino e o jogador
+    // escolhe "Ir para lá" ou "Ficar" — assim clicar perto de outro token (ou sem querer) não teleporta
+    // ninguém. O Mestre movendo o alvo (entidade) selecionado continua direto, sem perguntar.
+    const [movimentoPendente, setMovimentoPendente] = useState(null);
+    const pedirMovimento = useCallback((x, y) => {
+        if (isMestre && alvoSelecionado && dummies[alvoSelecionado]) { handleCellClick(x, y); return; }
+        const pos = minhaFicha?.posicoes?.[cenaRenderId] || ((minhaFicha?.posicao && (minhaFicha.posicao.cenaId || 'default') === cenaRenderId) ? minhaFicha.posicao : null);
+        // Mesma casa e mesma altitude: nada a confirmar (mudar só a altitude Z continua valendo como movimento).
+        if (pos && pos.x === x && pos.y === y && (pos.z || 0) === (parseInt(altitudeInput) || 0)) { setMovimentoPendente(null); return; }
+        setMovimentoPendente({ x, y });
+    }, [isMestre, alvoSelecionado, dummies, minhaFicha, cenaRenderId, handleCellClick, altitudeInput]);
+    const confirmarMovimento = useCallback(() => {
+        if (movimentoPendente) handleCellClick(movimentoPendente.x, movimentoPendente.y);
+        setMovimentoPendente(null);
+    }, [movimentoPendente, handleCellClick]);
+    const cancelarMovimento = useCallback(() => setMovimentoPendente(null), []);
+    // Trocar de cena (ou de alvo do Mestre) invalida o destino marcado.
+    useEffect(() => { setMovimentoPendente(null); }, [cenaRenderId, alvoSelecionado]);
 
     const alterarZoom = useCallback((direcao) => {
         setTamanhoCelula(prev => {
@@ -928,7 +952,7 @@ export function MapaFormProvider({ children }) {
         // ⚖️ Golpe anulado pela Disputa de Poder: só registra no feed — não mexe na Vida, não gera
         // Fadiga nem troca o "último elemento recebido" do alvo.
         if (disputa && disputa.ativa && valorBruto <= 0) {
-            enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O golpe de ${atacante.nome} em ${alvo.nome} não surtiu efeito! | ${descreverDisputa(disputa)} (digitado: ${valorDigitado})` });
+            enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O golpe de ${atacante.nome} em ${alvo.nome} não surtiu efeito!`, textoMestre: `${descreverDisputa(disputa)} (digitado: ${valorDigitado})` });
             return;
         }
 
@@ -967,9 +991,14 @@ export function MapaFormProvider({ children }) {
         }
 
         const textoReducao = reducaoAplicada > 0 ? ` (Resistência Elemental descontou ${Math.round(reducaoAplicada * 100)}%, bruto era ${valorBruto})` : '';
-        const textoDisputa = disputa && disputa.ativa ? ` | ${descreverDisputa(disputa)} (digitado: ${valorDigitado})` : '';
+        const houveDisputaRapida = !!(disputa && disputa.ativa);
         const deQuem = atacante ? ` (golpe de ${atacante.nome})` : '';
-        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O Mestre aplicou ${valor} de dano em ${alvo.nome}${deQuem}!${textoReducao}${textoDisputa}` });
+        // Com Disputa de Poder o número que chegou no alvo (e o digitado) é só do Mestre.
+        enviarParaFeed({
+            tipo: 'sistema', nome: 'SISTEMA',
+            texto: houveDisputaRapida ? `⚔️ O Mestre aplicou dano em ${alvo.nome}${deQuem}!` : `⚔️ O Mestre aplicou ${valor} de dano em ${alvo.nome}${deQuem}!${textoReducao}`,
+            ...(houveDisputaRapida ? { textoMestre: `Aplicado: ${valor} (digitado ${valorDigitado})${textoReducao} | ${descreverDisputa(disputa)}` } : {}),
+        });
     }, [isMestre, meuNome, updateFicha, minhaFicha]);
 
     const encerrarCombate = useCallback(() => {
@@ -1212,7 +1241,8 @@ export function MapaFormProvider({ children }) {
         cells, jogadores, playersNaTaverna, ordemIniciativa, handleCellClick,
         alterarZoom, setMinhaIniciativa, avancarTurno, sairDoCombate, encerrarCombate, descansar, aplicarDanoRapido,
         rolarAcertoRapido, tokenMap, dummyMap, tokens3D, jogadorDaVez, infoDaVez, fmt, deletarZona, toggleActionDot,
-        inspecao, inspecionar, limparInspecao, modoJogador
+        inspecao, inspecionar, limparInspecao, modoJogador,
+        movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento
     }), [
         minhaFicha, meuNome, personagens, feedCombate, isMestre, souCriador, dummies, alvoSelecionado, cenario, abaAtiva,
         fichaSegura, modo3D, tamanhoCelula, iniciativaInput, altitudeInput,
@@ -1226,7 +1256,8 @@ export function MapaFormProvider({ children }) {
         changeDesvantagem, handleUploadNovaCena, ativarCena, deletarCena, corDoJogador, descansar, aplicarDanoRapido,
         getAvatarInfo, handleCellClick, alterarZoom, setMinhaIniciativa, avancarTurno,
         sairDoCombate, encerrarCombate, rolarAcertoRapido, deletarZona, toggleActionDot,
-        inspecao, inspecionar, limparInspecao, modoJogador
+        inspecao, inspecionar, limparInspecao, modoJogador,
+        movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento
     ]);
 
     return (

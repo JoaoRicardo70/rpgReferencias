@@ -2130,3 +2130,23 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .moldura-condicao--grave { color: #ff8800; }
 .moldura-condicao--critica { color: #ff3030; }
 .moldura-condicao--desconhecida { color: #888; }
+
+/* 📍 Mapa: confirmação de movimento · feed: efetividade do golpe · lista de técnicas organizada */
+.movimento-pendente { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; padding: 8px 12px; background: rgba(0, 20, 40, 0.85); border: 1px solid #00ffcc; border-radius: 6px; color: #ddd; font-size: 0.9em; position: relative; z-index: 100; }
+.movimento-pendente-btn { margin: 0; padding: 4px 12px; font-size: 0.85em; }
+.map-cell--pendente { outline: 2px dashed #00ffcc; outline-offset: -2px; background: rgba(0, 255, 204, 0.18); }
+.feed-texto-mestre { margin-top: 6px; padding: 4px 8px; font-size: 0.8em; color: #ffcc00; background: rgba(255, 204, 0, 0.08); border-left: 3px solid #ffcc00; border-radius: 3px; }
+.feed-efetividade { margin-top: 4px; font-size: 0.85em; font-weight: bold; }
+.feed-efetividade--alta { color: #00ff88; }
+.feed-efetividade--normal { color: #ccc; }
+.feed-efetividade--reduzida { color: #ff8800; }
+.feed-efetividade--nula { color: #ff3030; }
+.mapa-tecnicas-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.mapa-tecnicas-busca { flex: 1 1 180px; min-width: 0; margin: 0; padding: 5px 8px; font-size: 0.9em; }
+.mapa-tecnicas-mini { margin: 0; padding: 4px 10px; font-size: 0.75em; white-space: nowrap; border-color: #aa00ff; color: #aa00ff; }
+.mapa-tecnicas-ativas { margin-bottom: 10px; padding: 6px 8px; background: rgba(170, 0, 255, 0.1); border: 1px solid rgba(170, 0, 255, 0.5); border-radius: 6px; }
+.mapa-tecnicas-ativas-titulo { color: #ffcc00; font-weight: bold; font-size: 0.8em; margin-bottom: 6px; }
+.mapa-tecnicas-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; margin-top: 4px; }
+.mapa-tecnicas-grade .mapa-tecnica-chip { width: 100%; font-size: 0.8em; padding: 6px 8px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
+.mapa-tecnicas-pasta-ligadas { color: #ffcc00; font-weight: bold; }
+.mapa-tecnicas-vazia { color: #888; font-style: italic; font-size: 0.85em; margin: 6px 0; }

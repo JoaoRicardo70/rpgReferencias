@@ -8,8 +8,10 @@ import { somarEfeitosDeAtributo } from '../../core/percepcaoPoder';
 
 vi.mock('../../stores/useStore');
 
-function renderComo(isMestre, disputa) {
-    useStore.mockImplementation((sel) => sel({ isMestre }));
+// percepcao: pontos de PERCEPCAO_PODER da ficha de quem olha (>= 30 mostra a efetividade ao jogador).
+function renderComo(isMestre, disputa, percepcao = 30) {
+    const minhaFicha = { passivas: [{ nome: 'Olho', efeitos: [{ atributo: 'percepcao_poder', propriedade: 'base', valor: percepcao }] }] };
+    useStore.mockImplementation((sel) => sel({ isMestre, minhaFicha }));
     return render(<DisputaPoderResumo disputa={disputa} nomeAtacante="Goku" nomeDefensor="Vegeta" />);
 }
 afterEach(() => cleanup());
@@ -27,6 +29,16 @@ describe('DisputaPoderResumo - numeros so para o Mestre', () => {
         expect(t).toContain('1.100');
         expect(t).toContain('1.000');
         expect(t).toContain('10% mais forte');
+    });
+    it('jogador SEM percepcao: nem sabe quem leva vantagem (texto neutro, sem numeros)', () => {
+        const { container } = renderComo(false, forte, 0);
+        const t = container.textContent;
+        expect(t).toContain('Disputa de Poder em vigor');
+        expect(t).not.toContain('Vantagem');
+        expect(t).not.toContain('Desvantagem');
+        expect(t).not.toContain('mais forte');
+        expect(t).not.toMatch(/[0-9]/);
+        expect(renderComo(false, zero, 29).container.textContent).not.toContain('Sem efeito');
     });
     it('jogador ve so texto qualitativo: Vantagem de Poder, sem numeros', () => {
         const { container } = renderComo(false, forte);

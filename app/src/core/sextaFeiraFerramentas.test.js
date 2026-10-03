@@ -625,3 +625,29 @@ describe('montarContextoInicial', () => {
         expect(txt).not.toContain('Ficha de quem fala');
     });
 });
+
+describe('feed_recente - numeros da Disputa de Poder so para o Mestre', () => {
+    const feedDisputa = [
+        { tipo: 'dano', nome: 'Ana', dano: 1000, danoAplicado: 2000, alvoNome: 'Goblin', textoDisputa: 'Disputa de Poder: atacante mais forte', textoMestre: 'Aplicado: 2000' },
+        { tipo: 'sistema', nome: 'SISTEMA', texto: 'O Mestre aplicou dano em Goblin!', textoMestre: 'Aplicado: 110 (digitado 100)' },
+    ];
+    it('jogador: nada de "no alvo", textoDisputa nem textoMestre', async () => {
+        const r = await chamar('feed_recente', {}, estadoBase({ isMestre: false, feedCombate: feedDisputa }));
+        const tudo = r.eventos.join(' | ');
+        expect(tudo).toContain('dano: 1000');
+        expect(tudo).not.toContain('no alvo');
+        expect(tudo).not.toContain('2000');
+        expect(tudo).not.toContain('Disputa');
+        expect(tudo).not.toContain('digitado');
+    });
+    it('Mestre: recebe os numeros recalculados e o textoMestre', async () => {
+        const r = await chamar('feed_recente', {}, estadoBase({ isMestre: true, feedCombate: feedDisputa }));
+        expect(r.eventos[0]).toContain('no alvo: 2000');
+        expect(r.eventos[0]).toContain('Disputa de Poder: atacante mais forte');
+        expect(r.eventos[1]).toContain('Aplicado: 110 (digitado 100)');
+    });
+    it('isMestre ausente/undefined e tratado como jogador (nao vaza)', async () => {
+        const r = await chamar('feed_recente', {}, estadoBase({ isMestre: undefined, feedCombate: feedDisputa }));
+        expect(r.eventos.join(' | ')).not.toContain('Aplicado');
+    });
+});

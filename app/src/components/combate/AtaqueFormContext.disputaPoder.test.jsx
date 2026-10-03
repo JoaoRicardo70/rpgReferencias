@@ -74,6 +74,7 @@ describe('AtaqueFormContext.rolarDano - alvo unico (dummie) com Disputa de Poder
         expect(feed.poderAtacante).toBe(1100);
         expect(feed.textoDisputa).toContain('atacante mais forte');
         expect(feed.textoDisputa).toContain('Disputa de Poder');
+        expect(feed.efetividade).toBe('alta');
         expect(feed.alvoNome).toBe('Goblin');
     });
     it('atacante 1000 vs dummie 1100: dano x0,9', () => {
@@ -81,6 +82,7 @@ describe('AtaqueFormContext.rolarDano - alvo unico (dummie) com Disputa de Poder
         act(() => { probe.rolarDano(); });
         expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (5000 - 900) * FATOR }));
         expect(feedEnviado().danoAplicado).toBe(900);
+        expect(feedEnviado().efetividade).toBe('reduzida');
     });
     it('dummie com o dobro do Poder: dano zero e o HP nao muda', () => {
         montar({ meuPoder: 1000, dummies: { g1: dummie(5000, 2000) }, alvoSelecionado: 'g1' });
@@ -89,6 +91,7 @@ describe('AtaqueFormContext.rolarDano - alvo unico (dummie) com Disputa de Poder
         const feed = feedEnviado();
         expect(feed.danoAplicado).toBe(0);
         expect(feed.textoDisputa).toContain('não surtiu efeito');
+        expect(feed.efetividade).toBe('nula');
         expect(feed.alvoSobreviveu).toBe(true);
     });
     it('Poder igual: x1, disputa registrada no feed', () => {
@@ -96,6 +99,7 @@ describe('AtaqueFormContext.rolarDano - alvo unico (dummie) com Disputa de Poder
         act(() => { probe.rolarDano(); });
         expect(feedEnviado().danoAplicado).toBe(1000);
         expect(feedEnviado().textoDisputa).toContain('equilibrado');
+        expect(feedEnviado().efetividade).toBe('normal');
     });
     it('dummie SEM poderCalculado: sem disputa, dano integral e sem fatorDisputa/textoDisputa no feed', () => {
         montar({ meuPoder: 1000, dummies: { g1: dummie(5000) }, alvoSelecionado: 'g1' });
@@ -105,6 +109,7 @@ describe('AtaqueFormContext.rolarDano - alvo unico (dummie) com Disputa de Poder
         expect(feed.danoAplicado).toBe(1000);
         expect('fatorDisputa' in feed).toBe(false);
         expect('textoDisputa' in feed).toBe(false);
+        expect('efetividade' in feed).toBe(false);
     });
     it('atacante sem Poder calculavel (null): sem disputa mesmo com dummie com Poder', () => {
         montar({ meuPoder: null, dummies: { g1: dummie(5000, 3000) }, alvoSelecionado: 'g1' });
@@ -158,18 +163,26 @@ describe('AtaqueFormContext.rolarDano - dano em area com Disputa de Poder por al
         expect(salvarDummie).toHaveBeenCalledWith('g3', expect.objectContaining({ hpAtual: 10000 * FATOR }));
         expect(salvarDummie).toHaveBeenCalledWith('g4', expect.objectContaining({ hpAtual: 9000 * FATOR }));
     });
-    it('o detalhe do feed lista as linhas de disputa so dos dummies com Poder', () => {
+    it('o recalculo por alvo sai do detalheConta publico e vai para detalheDisputa (Mestre) + efetividadeAlvos', () => {
         montar({
             meuPoder: 1000,
             dummies: { g1: dummie(10000, 500), g4: dummie(10000) },
             alvosArea: [{ nome: 'Goblin', acertou: true, dummieId: 'g1' }, { nome: 'Goblin', acertou: true, dummieId: 'g4' }],
         });
         act(() => { probe.rolarDano(); });
-        const detalhe = feedEnviado().detalheConta;
-        expect(detalhe).toContain('Disputa de Poder:');
+        const feed = feedEnviado();
+        // publico: nada de numero recalculado nem de disputa no detalhe da conta
+        expect(feed.detalheConta).not.toContain('Disputa de Poder');
+        expect(feed.detalheConta).not.toContain('2.000');
+        // Mestre: so o dummie com Poder entra, com o numero recalculado
+        const detalhe = feed.detalheDisputa;
+        expect(detalhe).toContain('Disputa de Poder');
         expect(detalhe).toContain('Goblin: 2.000');
         expect(detalhe).not.toMatch(/\(x\d/);
         expect(detalhe.match(/Goblin:/g)).toHaveLength(1);
+        // jogador com Percepcao: so a categoria, sem numero
+        expect(feed.efetividadeAlvos).toEqual([{ nome: 'Goblin', efetividade: 'alta' }]);
+        expect(JSON.stringify(feed.efetividadeAlvos)).not.toMatch(/[0-9]/);
         expect(feedEnviado().poderAtacante).toBe(1000);
     });
     it('area sem nenhum dummie com Poder nao inclui a linha de Disputa', () => {
@@ -179,6 +192,8 @@ describe('AtaqueFormContext.rolarDano - dano em area com Disputa de Poder por al
         });
         act(() => { probe.rolarDano(); });
         expect(feedEnviado().detalheConta).not.toContain('Disputa de Poder');
+        expect('detalheDisputa' in feedEnviado()).toBe(false);
+        expect('efetividadeAlvos' in feedEnviado()).toBe(false);
     });
     it('alvo que falhou na defesa (acertou:false) e ignorado', () => {
         montar({

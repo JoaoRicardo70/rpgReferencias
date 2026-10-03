@@ -120,6 +120,13 @@ function lerLoreNumeroLocal(chave, padrao) {
 
 // 🎭 Modo Jogador: o Mestre/Co-Mestre vê a mesa como um jogador (isMestre efetivo = false) sem perder
 // o poder real (souMestreReal) — a escolha fica salva no aparelho.
+function lerPastasMapaTecnicasLocal() {
+    try {
+        const v = JSON.parse(lerLocal('rpgPastasMapaTecnicas'));
+        return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+    } catch (e) { return {}; }
+}
+
 function getModoJogadorKey(mesaId) { return `rpgModoJogador_${mesaId || 'semMesa'}`; }
 function lerModoJogadorLocal(mesaId) {
     return lerLocal(getModoJogadorKey(mesaId)) === 'sim';
@@ -169,7 +176,7 @@ const useStore = create(
         entidadeInspecionada: null,
         
         ignorarTravaAcerto: false,
-        pastasFechadasMapaTecnicas: {},
+        pastasFechadasMapaTecnicas: lerPastasMapaTecnicasLocal(),
         cenario: { ativa: 'default', lista: { default: { nome: 'Cenário Inicial', img: '', escala: 1.5, unidade: 'm' } } },
         divisorPoderMesa: lerDivisorPoderMesaLocal(storedMesaId),
 
@@ -196,7 +203,10 @@ const useStore = create(
         setItemEditandoId: (id) => set((state) => { state.itemEditandoId = id; }),
         setElemEditandoId: (id) => set((state) => { state.elemEditandoId = id; }),
         setIgnorarTravaAcerto: (val) => set((state) => { state.ignorarTravaAcerto = val; }),
-        setPastasFechadasMapaTecnicas: (mapa) => set((state) => { state.pastasFechadasMapaTecnicas = mapa; }),
+        setPastasFechadasMapaTecnicas: (mapa) => set((state) => {
+            state.pastasFechadasMapaTecnicas = mapa;
+            try { localStorage.setItem('rpgPastasMapaTecnicas', JSON.stringify(mapa)); } catch (e) { /* sem localStorage */ }
+        }),
         setPersonagemParaDeletar: (nome) => set((state) => { state.personagemParaDeletar = nome; }),
         setAbaAtiva: (aba) => set((state) => { state.abaAtiva = aba; }),
         setPersonagens: (personagens) => set((state) => { state.personagens = personagens; }),

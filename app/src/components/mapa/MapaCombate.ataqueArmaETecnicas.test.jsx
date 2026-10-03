@@ -450,6 +450,7 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
 
         expect(getByText(/Nenhuma técnica criada ainda/i)).toBeTruthy();
         expect(queryAllByRole('button').length).toBe(0);
+        expect(queryAllByRole('searchbox').length).toBe(0);
     });
 
     it('lista um botão por poder/forma/habilidade, marcando visualmente os já ativos', () => {
@@ -461,10 +462,11 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
                 ],
             },
         });
-        const { getByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+        const { getByText, getAllByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
 
         expect(getByText('☆ Bola de Fogo')).toBeTruthy();
-        expect(getByText('★ Forma Berserker')).toBeTruthy();
+        // a tecnica ligada aparece na faixa "Ligadas agora" E na sua categoria (2 chips)
+        expect(getAllByText('★ Forma Berserker')).toHaveLength(2);
     });
 
     it('clicar num poder chama togglePoder(id) e alterna o estado ativa (mesma função da aba Poderes)', () => {
@@ -496,10 +498,10 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
             ({ getAllByRole } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>));
         }).not.toThrow();
 
-        const botoes = getAllByRole('button');
-        expect(botoes.length).toBe(2);
-        expect(botoes[0].textContent.trim()).toBe('☆ Sem nome');
-        expect(botoes[1].textContent.trim()).toBe('★ Sem nome');
+        // so os chips (a barra tem "Recolher/Expandir tudo" e a faixa "Ligadas agora" repete o ativo)
+        const botoes = getAllByRole('button').filter(b => b.classList.contains('mapa-tecnica-chip'));
+        expect(botoes.length).toBe(3);
+        expect(botoes.map(b => b.textContent.trim()).sort()).toEqual(['★ Sem nome', '★ Sem nome', '☆ Sem nome']);
     });
 
     it('alterna um poder normalmente mesmo com um alvo selecionado e podeRolarDano (Ataque) falso — toggle de Técnica não depende da trava de Acerto do Mapa', () => {

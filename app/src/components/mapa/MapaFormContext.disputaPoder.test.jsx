@@ -96,6 +96,7 @@ function montar(state) {
 const jogador = (nome, ficha) => ({ id: nome, nome, ficha, isDummie: false });
 const entidade = (id, d) => ({ id, nome: d.nome, ficha: d, isDummie: true });
 const textoFeed = () => enviarParaFeed.mock.calls.at(-1)[0].texto;
+const textoMestreFeed = () => enviarParaFeed.mock.calls.at(-1)[0].textoMestre || '';
 
 beforeEach(() => { vi.clearAllMocks(); window.alert = vi.fn(); });
 afterEach(() => cleanup());
@@ -110,9 +111,13 @@ describe('aplicarDanoRapido com atacante - alvo e dummie', () => {
         act(() => { probe.aplicarDanoRapido(entidade('orc', orc), 100, null, null, 0, entidade('boss', boss)); });
 
         expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 110 * FATOR_EXIBICAO_VITAIS }));
-        expect(textoFeed()).toContain('aplicou 110 de dano em Orc (golpe de Boss)');
-        expect(textoFeed()).toContain('(digitado: 100)');
-        expect(textoFeed()).toContain('Disputa de Poder');
+        // publico: sem o numero recalculado, sem o digitado e sem a disputa
+        expect(textoFeed()).toBe('⚔️ O Mestre aplicou dano em Orc (golpe de Boss)!');
+        expect(textoFeed()).not.toMatch(/110|100|digitado|Disputa/);
+        // so o Mestre le o recalculo
+        expect(textoMestreFeed()).toContain('Aplicado: 110');
+        expect(textoMestreFeed()).toContain('digitado 100');
+        expect(textoMestreFeed()).toContain('Disputa de Poder');
     });
     it('atacante mais fraco (1000 vs alvo 1250): x0,75', () => {
         const orc = dummieAlvo(1250);
@@ -149,8 +154,10 @@ describe('aplicarDanoRapido com atacante - alvo e dummie', () => {
         const boss = { nome: 'Boss', poderCalculado: 500 };
         montar(baseState({ dummies: { orc, boss } }));
         act(() => { probe.aplicarDanoRapido(entidade('orc', orc), 40, null, null, 0, entidade('boss', boss)); });
-        expect(textoFeed()).toContain('aplicou 40 de dano');
-        expect(textoFeed()).toContain('Poder equilibrado');
+        expect(textoFeed()).toContain('aplicou dano em Orc');
+        expect(textoFeed()).not.toMatch(/40|Poder equilibrado/);
+        expect(textoMestreFeed()).toContain('Aplicado: 40');
+        expect(textoMestreFeed()).toContain('Poder equilibrado');
     });
 });
 
@@ -163,8 +170,10 @@ describe('aplicarDanoRapido - anulado pela disputa (retorno antecipado)', () => 
 
         expect(salvarDummie).not.toHaveBeenCalled();
         expect(enviarParaFeed).toHaveBeenCalledTimes(1);
-        expect(textoFeed()).toContain('O golpe de Fraco em Orc não surtiu efeito');
-        expect(textoFeed()).toContain('(digitado: 100)');
+        expect(textoFeed()).toBe('⚔️ O golpe de Fraco em Orc não surtiu efeito!');
+        expect(textoFeed()).not.toMatch(/100|digitado|Disputa/);
+        expect(textoMestreFeed()).toContain('(digitado: 100)');
+        expect(textoMestreFeed()).toContain('Disputa de Poder');
     });
     it('alvo e a propria ficha do Mestre: nao mexe em vida, fadiga nem elemento (updateFicha e salvar nao chamados)', () => {
         const minhaFicha = fichaReal();
@@ -224,7 +233,10 @@ describe('aplicarDanoRapido com atacante - alvo e a ficha do proprio Mestre', ()
         // a ficha do alvo e a do store (minhaFicha), mesmo que o objeto "alvo" traga outra copia
         act(() => { probe.aplicarDanoRapido(jogador('Mestre', fichaReal({ ascensaoBase: 1 })), 100, null, null, 0, entidade('boss', boss)); });
         expect(minhaFicha.vida.atual).toBe(5000000 - 150 * FATOR_EXIBICAO_VITAIS);
-        expect(textoFeed()).toContain('aplicou 150 de dano em Mestre (golpe de Boss)');
+        expect(textoFeed()).toContain('aplicou dano em Mestre (golpe de Boss)');
+        expect(textoFeed()).not.toMatch(/150|100/);
+        expect(textoMestreFeed()).toContain('Aplicado: 150');
+        expect(textoMestreFeed()).toContain('digitado 100');
     });
 });
 
@@ -304,14 +316,17 @@ describe('Zona - dispararEfeitoDaZona (tick em avancarTurno) com Disputa de Pode
         montar(estadoZona({ poderConjurador: 1100, dummies: { alvo: alvoDummie(1000) } }));
         act(() => { probe.avancarTurno(); });
         expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe((1000 - 110) * FATOR_EXIBICAO_VITAIS);
-        expect(textoFeedContendo('castigou')).toContain('Alvo (110)');
-        expect(textoFeedContendo('castigou')).toContain('Disputa de Poder');
+        expect(textoFeedContendo('castigou')).toBe('🌪️ A Zona [Chamas] castigou Alvo com 100 de Dano!');
+        expect(textoFeedContendo('castigou')).not.toMatch(/110|Disputa/);
+        expect(textoMestreContendo('castigou')).toContain('Alvo: 110');
+        expect(textoMestreContendo('castigou')).toContain('Disputa de Poder');
     });
     it('conjurador 1000 vs dummie com o dobro do Poder: nao causa dano (hp inalterado)', () => {
         montar(estadoZona({ poderConjurador: 1000, dummies: { alvo: alvoDummie(2000) } }));
         act(() => { probe.avancarTurno(); });
         expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe(1000 * FATOR_EXIBICAO_VITAIS);
-        expect(textoFeedContendo('castigou')).toContain('Alvo (0)');
+        expect(textoFeedContendo('castigou')).not.toContain('Alvo (0)');
+        expect(textoMestreContendo('castigou')).toContain('Alvo: 0');
     });
     it('dummie sem Poder: dano integral e feed sem anotacao de disputa', () => {
         montar(estadoZona({ poderConjurador: 1100, dummies: { alvo: alvoDummie() } }));
@@ -320,6 +335,7 @@ describe('Zona - dispararEfeitoDaZona (tick em avancarTurno) com Disputa de Pode
         const t = textoFeedContendo('castigou');
         expect(t).toContain('castigou Alvo com 100 de Dano');
         expect(t).not.toContain('Disputa de Poder');
+        expect(textoMestreContendo('castigou')).toBe('');
     });
     it('conjurador sem ficha conhecida (fora de personagens): sem Poder, dano integral', () => {
         montar(estadoZona({ dummies: { alvo: alvoDummie(5) }, extras: { personagens: {} } }));
@@ -334,8 +350,11 @@ describe('Zona - dispararEfeitoDaZona (tick em avancarTurno) com Disputa de Pode
         act(() => { probe.avancarTurno(); });
         expect(salvarDummie.mock.calls.find(c => c[0] === 'fraco')[1].hpAtual).toBe((1000 - 200) * FATOR_EXIBICAO_VITAIS);
         expect(salvarDummie.mock.calls.find(c => c[0] === 'forte')[1].hpAtual).toBe((1000 - 75) * FATOR_EXIBICAO_VITAIS);
-        expect(textoFeedContendo('castigou')).toContain('Fraco (200)');
-        expect(textoFeedContendo('castigou')).toContain('Forte (75)');
+        // publico lista so os nomes; os numeros por alvo ficam no textoMestre
+        expect(textoFeedContendo('castigou')).toContain('castigou Fraco, Forte com 100 de Dano');
+        expect(textoFeedContendo('castigou')).not.toMatch(/200|75/);
+        expect(textoMestreContendo('castigou')).toContain('Fraco: 200');
+        expect(textoMestreContendo('castigou')).toContain('Forte: 75');
     });
     it('o dano da zona NAO usa mais os buffs multiplicadores do conjurador', () => {
         const buffs = { __poder: 1000, poderes: [{ ativa: true, efeitos: [{ atributo: 'dano', propriedade: 'mgeral', valor: 5 }], efeitosPassivos: [] }] };
@@ -359,6 +378,10 @@ describe('Zona - dispararEfeitoDaZona (tick em avancarTurno) com Disputa de Pode
         act(() => { probe.avancarTurno(); });
         expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe((1000 - 100) * FATOR_EXIBICAO_VITAIS);
     });
+    function textoMestreContendo(trecho) {
+        const c = enviarParaFeed.mock.calls.map(x => x[0]).find(e => (e.texto || '').includes(trecho));
+        return (c && c.textoMestre) || '';
+    }
     function textoFeedContendo(trecho) {
         const c = enviarParaFeed.mock.calls.map(x => x[0].texto).find(t => t.includes(trecho));
         return c || '';
@@ -382,15 +405,18 @@ describe('Zona - processarEntradaNaZona (mover o token para dentro) com Disputa 
 
         const hpFinal = salvarDummie.mock.calls.filter(c => c[0] === 'alvo').map(c => c[1].hpAtual);
         expect(hpFinal).toContain((1000 - 200) * FATOR_EXIBICAO_VITAIS);
-        expect(textoFeed()).toContain('Alvo pisou na área de [Gelo] e sofreu 200 de Dano');
-        expect(textoFeed()).toContain('Disputa de Poder');
+        expect(textoFeed()).toBe('⚠️ Alvo pisou na área de [Gelo] e sofreu dano imediatamente!');
+        expect(textoFeed()).not.toMatch(/200|Disputa/);
+        expect(textoMestreFeed()).toContain('Dano após a Disputa de Poder: 200');
+        expect(textoMestreFeed()).toContain('Disputa de Poder');
     });
     it('dummie com o dobro do Poder: sofre 0 de dano', () => {
         const d = { nome: 'Alvo', cenaId: 'default', hpAtual: 1000 * FATOR_EXIBICAO_VITAIS, posicao: { x: 0, y: 0, z: 0 }, poderCalculado: 2000 };
         montar(estadoEntrada({ dummies: { alvo: d }, alvoSelecionado: 'alvo' }));
         act(() => { probe.handleCellClick(5, 5); });
         expect(salvarDummie.mock.calls.filter(c => c[0] === 'alvo').map(c => c[1].hpAtual)).toContain(1000 * FATOR_EXIBICAO_VITAIS);
-        expect(textoFeed()).toContain('sofreu 0 de Dano');
+        expect(textoFeed()).toBe('⚠️ Alvo pisou na área de [Gelo] e sofreu dano imediatamente!');
+        expect(textoMestreFeed()).toContain('Disputa de Poder');
     });
     it('dummie sem Poder: dano integral e feed sem disputa', () => {
         const d = { nome: 'Alvo', cenaId: 'default', hpAtual: 1000 * FATOR_EXIBICAO_VITAIS, posicao: { x: 0, y: 0, z: 0 } };

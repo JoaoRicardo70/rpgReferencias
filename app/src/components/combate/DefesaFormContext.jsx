@@ -237,11 +237,11 @@ export function DefesaFormProvider({ children }) {
 
         const nomeElemento = elementosDinamicos.find(e => e.id === elementoInc)?.nome || elementoInc;
 
-        const textoDisputa = disputa && disputa.ativa ? ` | ${descreverDisputa(disputa)}` : '';
         const deQuem = nomeAtacante ? ` de ${nomeAtacante}` : '';
-        const texto = `Recebeu ${danoFinal} de dano${deQuem}! (Original: ${dano} de ${nomeElemento.toUpperCase()})${mensagemElemental}${textoDisputa}`;
+        const texto = `Recebeu ${danoFinal} de dano${deQuem}! (Original: ${dano} de ${nomeElemento.toUpperCase()})${mensagemElemental}`;
 
-        const feedData = { tipo: 'sistema', nome: meuNome, texto: texto };
+        // Quem leva vantagem na Disputa de Poder é informação do Mestre (textoMestre).
+        const feedData = { tipo: 'sistema', nome: meuNome, texto: texto, ...(disputa && disputa.ativa ? { textoMestre: descreverDisputa(disputa) } : {}) };
         enviarParaFeed(feedData);
         
         setDanoRecebidoInc('');

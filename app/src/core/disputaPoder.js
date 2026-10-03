@@ -71,6 +71,16 @@ export function aplicarDisputaAoDano(dano, disputa) {
     return Number.isFinite(r) ? r : Number.MAX_SAFE_INTEGER;
 }
 
+// Categoria QUALITATIVA do quanto o golpe rendeu (vai no feed no lugar do fator, que entregaria o
+// Poder do alvo): 'nula' | 'reduzida' | 'normal' | 'alta' — ou null se não houve disputa.
+export function classificarEfetividade(disputa) {
+    if (!disputa || !disputa.ativa) return null;
+    if (disputa.fator <= 0) return 'nula';
+    if (disputa.fator < 0.95) return 'reduzida';
+    if (disputa.fator > 1.05) return 'alta';
+    return 'normal';
+}
+
 export function formatarFatorDisputa(fator) {
     if (!Number.isFinite(fator)) return '∞';
     if (fator >= 1000) return Math.round(fator).toLocaleString('pt-BR');

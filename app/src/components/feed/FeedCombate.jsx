@@ -1,8 +1,11 @@
 import React from 'react';
 import useStore from '../../stores/useStore';
+import { getPercepcaoPoder, enxergaEfetividade, descreverEfetividade } from '../../core/percepcaoPoder';
 
 export default function FeedCombate({ className }) {
     const feedCombate = useStore(s => s.feedCombate);
+    const isMestre = useStore(s => s.isMestre);
+    const minhaFicha = useStore(s => s.minhaFicha);
 
     if (feedCombate.length === 0) {
         return (
@@ -15,6 +18,9 @@ export default function FeedCombate({ className }) {
     }
 
     const reversed = [...feedCombate].reverse();
+    // O dano recalculado pela Disputa de Poder é só do Mestre; o jogador vê a rolagem e, com
+    // Percepção de Poder suficiente, se o golpe foi efetivo (core/percepcaoPoder.js).
+    const veEfetividade = !isMestre && enxergaEfetividade(getPercepcaoPoder(minhaFicha));
 
     return (
         <div id="feed-combate" className={className}>
@@ -127,6 +133,7 @@ export default function FeedCombate({ className }) {
                     return (
                         <div key={idx} className="damage-log" style={{ borderLeftColor: '#ffcc00', background: 'rgba(255,204,0,0.1)', textAlign: 'center' }}>
                             <h3 style={{ color: '#ffcc00', margin: '10px 0', textShadow: '0 0 10px rgba(255,204,0,0.8)' }}>{d.texto}</h3>
+                            {isMestre && d.textoMestre && <div className="feed-texto-mestre">🔒 {d.textoMestre}</div>}
                         </div>
                     );
                 }
@@ -145,15 +152,31 @@ export default function FeedCombate({ className }) {
                             __html: `&#x1F3B2; Rolagem de Dados: ${d.rolagem || ''}${d.rolagemMagica || ''}${d.detalheEnergia || ''}${d.detalheConta || ''}`
                         }} />
 
+                        {/* ⚖️ Dano em área: o recalculo por alvo é do Mestre; o jogador só vê a efetividade, se perceber */}
+                        {isMestre && d.detalheDisputa && <div className="feed-disputa-poder">🔒 {d.detalheDisputa}</div>}
+                        {veEfetividade && Array.isArray(d.efetividadeAlvos) && d.efetividadeAlvos.map((a, i) => {
+                            const ef = descreverEfetividade(a.efetividade);
+                            return ef ? <div key={i} className={`feed-efetividade feed-efetividade--${ef.nivel}`}>{a.nome}: {ef.texto}</div> : null;
+                        })}
+
                         {/* 🔥 FEEDBACK VISUAL DO DANO E DO OVERKILL NO ALVO */}
                         {d.alvoNome && (
                             <div style={{ marginTop: 8, padding: 5, background: 'rgba(0,0,0,0.5)', borderRadius: 4, borderLeft: `3px solid #ff003c` }}>
                                 <span style={{ color: '#ff003c', fontWeight: 'bold' }}>
-                                    🩸 Causou {(d.danoAplicado ?? d.dano ?? 0).toLocaleString('pt-BR')} de dano em {d.alvoNome}! {d.alvoSobreviveu ? '' : '(💀 MORTO!)'}
+                                    {isMestre
+                                        ? `🩸 Causou ${(d.danoAplicado ?? d.dano ?? 0).toLocaleString('pt-BR')} de dano em ${d.alvoNome}!`
+                                        : `🩸 Golpe em ${d.alvoNome}!`} {d.alvoSobreviveu ? '' : '(💀 MORTO!)'}
                                 </span>
-                                {/* ⚖️ Disputa de Poder (core/disputaPoder.js): quanto do golpe chegou no alvo */}
-                                {d.textoDisputa && <div className="feed-disputa-poder">{d.textoDisputa}</div>}
-                                {d.overkill > 0 && (
+                                {/* ⚖️ Disputa de Poder (core/disputaPoder.js): o Mestre vê o recalculo; o jogador, só a efetividade (se perceber) */}
+                                {isMestre && d.textoDisputa && <div className="feed-disputa-poder">{d.textoDisputa}</div>}
+                                {isMestre && d.danoAplicado !== undefined && d.danoAplicado !== d.dano && (
+                                    <div className="feed-disputa-poder">🔒 Rolagem {(d.dano || 0).toLocaleString('pt-BR')} → aplicado {d.danoAplicado.toLocaleString('pt-BR')}</div>
+                                )}
+                                {veEfetividade && d.efetividade && (() => {
+                                    const ef = descreverEfetividade(d.efetividade);
+                                    return ef ? <div className={`feed-efetividade feed-efetividade--${ef.nivel}`}>{ef.texto}</div> : null;
+                                })()}
+                                {isMestre && d.overkill > 0 && (
                                     <div style={{ color: '#ffcc00', fontSize: '0.9em', marginTop: 4, fontWeight: 'bold', textShadow: '0 0 5px #ffcc00' }}>
                                         💥 OVERKILL: +{d.overkill.toLocaleString('pt-BR')} de dano excedente!
                                     </div>

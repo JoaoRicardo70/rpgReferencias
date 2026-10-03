@@ -27,6 +27,9 @@ export const ATRIBUTO_OCULTACAO_PODER = 'ocultacao_poder';
 export const INCERTEZA_BASE_PODER = 50;
 export const LIMITE_PODER_OCULTO = 150;
 export const OCULTACAO_MAXIMA = 100;
+// Percepção mínima pra o jogador saber, no feed de combate, se o SEU golpe foi efetivo ou não
+// (o número exato recalculado pela Disputa de Poder é só do Mestre).
+export const PERCEPCAO_VER_EFETIVIDADE = 30;
 // Classes que ocultam o Poder de nascença (id do Compêndio). Pretender/Alter Ego valem pela subclasse.
 export const CLASSES_OCULTACAO_TOTAL = ['assassin'];
 
@@ -186,6 +189,21 @@ export function estimarPoderDeEntidade(entidade, observador, divisorPoderMesa) {
     const poder = getPoderParaDisputa(entidade.ficha, divisorPoderMesa);
     if (poder === null) return null;
     return estimarPoder(poder, { ocultacao: getOcultacaoPoder(entidade.ficha), percepcao: getPercepcaoPoder(observador) });
+}
+
+export function enxergaEfetividade(percepcao) {
+    return (Number(percepcao) || 0) >= PERCEPCAO_VER_EFETIVIDADE;
+}
+
+// Frase da efetividade de um golpe (categoria de classificarEfetividade). `nivel` vira classe CSS.
+export function descreverEfetividade(categoria) {
+    switch (categoria) {
+        case 'alta': return { texto: 'Golpe muito efetivo', nivel: 'alta' };
+        case 'normal': return { texto: 'Golpe efetivo', nivel: 'normal' };
+        case 'reduzida': return { texto: 'Golpe pouco efetivo', nivel: 'reduzida' };
+        case 'nula': return { texto: 'Golpe sem efeito', nivel: 'nula' };
+        default: return null;
+    }
 }
 
 // Condição de saúde que QUALQUER um percebe a olho (sem números): fração de Vida de 0 a 1.
