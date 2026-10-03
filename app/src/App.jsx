@@ -126,6 +126,8 @@ export default function App() {
     
     const isMestre = useStore(s => s.isMestre);
     const setIsMestre = useStore(s => s.setIsMestre);
+    const modoJogador = useStore(s => s.modoJogador);
+    const souMestreReal = useStore(s => s.souMestreReal);
 
     const { loading } = useFirebase();
     useSextaFeiraMesa();
@@ -333,6 +335,7 @@ export default function App() {
                     <div style={{ borderLeft: '1px solid #444', height: '15px' }}></div>
 
                     <span style={{ color: '#00ffcc', fontSize: '0.8em', fontWeight: 'bold', letterSpacing: '1px' }}>SALA: {mesaId}</span>
+                    {modoJogador && souMestreReal && <span className="pill-modo-jogador" title="Você está vendo a mesa como um jogador. As ações automáticas do Mestre (efeitos de zona no turno, pedidos à Sexta-Feira) ficam pausadas neste aparelho. Para voltar a ser Mestre, clique no 🎭 da barra lateral.">🎭 MODO JOGADOR</span>}
                     
                     <div style={{ borderLeft: '1px solid #444', paddingLeft: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span style={{ color: '#aaa', fontSize: '0.85em', fontWeight: 'bold' }}>👤 {meuNome}</span>

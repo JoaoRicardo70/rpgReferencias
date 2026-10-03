@@ -143,7 +143,7 @@ describe('DefesaFormContext - sofrerDanoBruto com atacante "auto"', () => {
         receber(500);
         expect(ficha.vida.atual).toBe(VIDA);
         expect(ultimoTexto()).toContain('Recebeu 0 de dano');
-        expect(ultimoTexto()).toContain('o golpe não surte efeito');
+        expect(ultimoTexto()).toContain('o golpe não surtiu efeito');
     });
     it('golpe em entidade (alvoNome) NAO e usado: cai em sem atacante (dano x1)', () => {
         const ficha = montar({ meuPoder: 1000, feed: [golpe({ poderAtacante: 5000, alvoNome: 'Goblin' })] });

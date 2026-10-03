@@ -98,7 +98,7 @@ export function MapaVisao() {
     const {
         modo3D, tamanhoCelula, cenaAtual, cells, tokenMap, dummyMap,
         cenaRenderId, tokens3D, handleCellClick, getAvatarInfo,
-        meuNome, corDoJogador, overridesCompendio, cenario, isMestre
+        meuNome, corDoJogador, overridesCompendio, cenario, isMestre, inspecionar, inspecao, alvoSelecionado, dummies
     } = ctx;
 
     const zonasCena = (cenario?.zonas || []).filter(z => (z.cenaId || 'default') === cenaRenderId);
@@ -188,7 +188,18 @@ export function MapaVisao() {
                                 opacity: isOculto ? 0.4 : 1 
                             };
                             return (
-                                <div key={tk.nome} className={`player-token${isMe ? ' my-token' : ''}`} title={`${tk.nome} | Altura: ${altitude}m`} style={style}>
+                                <div
+                                    key={tk.nome}
+                                    className={`player-token${isMe ? ' my-token' : ''}${inspecao && !inspecao.isDummie && inspecao.id === tk.nome ? ' token-inspecionado' : ''}`}
+                                    title={`${tk.nome} | Altura: ${altitude}m — clique para ver o resumo`}
+                                    style={style}
+                                    onClick={(e) => {
+                                        // O Mestre com um alvo selecionado move o alvo clicando na casa: deixa o clique subir.
+                                        if (isMestre && alvoSelecionado && dummies?.[alvoSelecionado]) return;
+                                        e.stopPropagation();
+                                        inspecionar('jogador', tk.nome);
+                                    }}
+                                >
                                     {!info.img && tk.nome.charAt(0).toUpperCase()}
                                     {isFlying && <div style={{ position: 'absolute', bottom: '-15px', background: '#00ccff', color: '#000', fontSize: '0.8em', padding: '0 4px', borderRadius: '4px', fontWeight: 'bold' }}>{altitude}m</div>}
                                 </div>

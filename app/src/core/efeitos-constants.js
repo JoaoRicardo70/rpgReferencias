@@ -19,6 +19,13 @@ export const ATRIBUTOS_AGRUPADOS = [
     {
         label: 'ESPECIAIS (GLOBAIS)',
         options: ['todos_status', 'todas_energias', 'geral', 'especial']
+    },
+    // 👁️ Percepção/Ocultação de Poder (core/percepcaoPoder.js): use a propriedade BASE; o valor é em
+    // pontos. PERCEPCAO_PODER estreita a estimativa do Poder dos outros; OCULTACAO_PODER libera ao
+    // dono esconder o próprio Poder (o Assassino já nasce com 100).
+    {
+        label: '👁️ PERCEPÇÃO DE PODER',
+        options: ['percepcao_poder', 'ocultacao_poder']
     }
 ];
 

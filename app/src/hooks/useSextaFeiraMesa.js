@@ -200,7 +200,7 @@ export default function useSextaFeiraMesa() {
             // Não perde a última edição ao sair da aba/app, mas nunca grava depois de deixar de
             // ser Mestre nem na mesa errada (isMestre chega atrasado ao trocar de mesa).
             const s = useStore.getState();
-            if (s.isMestre && s.mesaId === mesaId) gravarAgora();
+            if ((s.souMestreReal || s.isMestre) && s.mesaId === mesaId) gravarAgora();
         };
     }, [mesaId, isMestre]);
 }

@@ -9,7 +9,7 @@ const pedidos = (n) => Object.fromEntries(Array.from({ length: n }, (_, i) => [`
 }]));
 const botaoMestre = () => screen.queryByRole('button', { name: /👑/ }) || document.querySelector('.btn-macro-mestre');
 
-beforeEach(() => useStore.setState({ isMestre: true, abaAtiva: 'aba-ficha', sextaFeiraPendentes: {} }));
+beforeEach(() => useStore.setState({ isMestre: true, souMestreReal: true, modoJogador: false, abaAtiva: 'aba-ficha', sextaFeiraPendentes: {} }));
 afterEach(() => cleanup());
 
 describe('Sidebar > badge de pedidos pendentes no 👑', () => {
@@ -39,7 +39,7 @@ describe('Sidebar > badge de pedidos pendentes no 👑', () => {
         expect(document.querySelector('.sidebar-badge-pedidos').textContent).toBe('9+');
     });
     it('não-Mestre não vê o botão 👑 nem badge', () => {
-        useStore.setState({ isMestre: false, sextaFeiraPendentes: pedidos(3) });
+        useStore.setState({ isMestre: false, souMestreReal: false, sextaFeiraPendentes: pedidos(3) });
         render(<Sidebar onResetClick={() => {}} />);
         expect(document.querySelector('.sidebar-badge-pedidos')).toBeNull();
         expect(document.querySelector('.btn-macro-mestre')).toBeNull();

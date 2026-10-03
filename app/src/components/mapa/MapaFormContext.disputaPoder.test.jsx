@@ -150,7 +150,7 @@ describe('aplicarDanoRapido com atacante - alvo e dummie', () => {
         montar(baseState({ dummies: { orc, boss } }));
         act(() => { probe.aplicarDanoRapido(entidade('orc', orc), 40, null, null, 0, entidade('boss', boss)); });
         expect(textoFeed()).toContain('aplicou 40 de dano');
-        expect(textoFeed()).toContain('Poder igual');
+        expect(textoFeed()).toContain('Poder equilibrado');
     });
 });
 
@@ -304,14 +304,14 @@ describe('Zona - dispararEfeitoDaZona (tick em avancarTurno) com Disputa de Pode
         montar(estadoZona({ poderConjurador: 1100, dummies: { alvo: alvoDummie(1000) } }));
         act(() => { probe.avancarTurno(); });
         expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe((1000 - 110) * FATOR_EXIBICAO_VITAIS);
-        expect(textoFeedContendo('castigou')).toContain('Alvo (110, x1,1)');
+        expect(textoFeedContendo('castigou')).toContain('Alvo (110)');
         expect(textoFeedContendo('castigou')).toContain('Disputa de Poder');
     });
     it('conjurador 1000 vs dummie com o dobro do Poder: nao causa dano (hp inalterado)', () => {
         montar(estadoZona({ poderConjurador: 1000, dummies: { alvo: alvoDummie(2000) } }));
         act(() => { probe.avancarTurno(); });
         expect(salvarDummie.mock.calls.find(c => c[0] === 'alvo')[1].hpAtual).toBe(1000 * FATOR_EXIBICAO_VITAIS);
-        expect(textoFeedContendo('castigou')).toContain('Alvo (0, x0)');
+        expect(textoFeedContendo('castigou')).toContain('Alvo (0)');
     });
     it('dummie sem Poder: dano integral e feed sem anotacao de disputa', () => {
         montar(estadoZona({ poderConjurador: 1100, dummies: { alvo: alvoDummie() } }));
@@ -334,8 +334,8 @@ describe('Zona - dispararEfeitoDaZona (tick em avancarTurno) com Disputa de Pode
         act(() => { probe.avancarTurno(); });
         expect(salvarDummie.mock.calls.find(c => c[0] === 'fraco')[1].hpAtual).toBe((1000 - 200) * FATOR_EXIBICAO_VITAIS);
         expect(salvarDummie.mock.calls.find(c => c[0] === 'forte')[1].hpAtual).toBe((1000 - 75) * FATOR_EXIBICAO_VITAIS);
-        expect(textoFeedContendo('castigou')).toContain('Fraco (200, x2)');
-        expect(textoFeedContendo('castigou')).toContain('Forte (75, x0,75)');
+        expect(textoFeedContendo('castigou')).toContain('Fraco (200)');
+        expect(textoFeedContendo('castigou')).toContain('Forte (75)');
     });
     it('o dano da zona NAO usa mais os buffs multiplicadores do conjurador', () => {
         const buffs = { __poder: 1000, poderes: [{ ativa: true, efeitos: [{ atributo: 'dano', propriedade: 'mgeral', valor: 5 }], efeitosPassivos: [] }] };

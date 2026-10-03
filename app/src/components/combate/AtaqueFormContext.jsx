@@ -4,7 +4,7 @@ import { getEfeitosDeClasse } from '../../core/attributes';
 import { getVitalMxDisplay, getVidaTotalMaxDisplay, danoExibidoParaBruto, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularDano } from '../../core/engine';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
-import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, formatarFatorDisputa } from '../../core/disputaPoder';
+import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
 import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
 
 const AtaqueFormContext = createContext(null);
@@ -415,7 +415,7 @@ export function AtaqueFormProvider({ children }) {
                 salvarDummie(alvoSelecionado, { ...dummieAlvo, hpAtual: novoHp });
                 extraFeed = {
                     alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0,
-                    danoAplicado: danoNoAlvo, ...(disputa.ativa ? { fatorDisputa: disputa.fator, textoDisputa: descreverDisputa(disputa) } : {})
+                    danoAplicado: danoNoAlvo, ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa) } : {})
                 };
             }
 
@@ -515,7 +515,7 @@ export function AtaqueFormProvider({ children }) {
                         const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dData));
                         const danoNoAlvo = aplicarDisputaAoDano(result.dano, disputa);
                         salvarDummie(idD, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)) });
-                        if (disputa.ativa) linhasDisputa.push(`${dData.nome}: ${danoNoAlvo.toLocaleString('pt-BR')} (x${formatarFatorDisputa(disputa.fator)})`);
+                        if (disputa.ativa) linhasDisputa.push(`${dData.nome}: ${danoNoAlvo.toLocaleString('pt-BR')}`);
                     }
                 }
             });
@@ -531,7 +531,7 @@ export function AtaqueFormProvider({ children }) {
             salvarDummie(alvoSelecionado, { ...dummieAlvo, hpAtual: novoHp });
             extraFeed = {
                 alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0,
-                danoAplicado: danoNoAlvo, ...(disputa.ativa ? { fatorDisputa: disputa.fator, textoDisputa: descreverDisputa(disputa) } : {})
+                danoAplicado: danoNoAlvo, ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa) } : {})
             };
         }
 

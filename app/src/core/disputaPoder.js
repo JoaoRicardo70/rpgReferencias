@@ -84,11 +84,13 @@ export function formatarPoderDisputa(poder) {
     return Math.round(v).toLocaleString('pt-BR');
 }
 
-// Frase curta pro feed / painéis: "⚖️ Disputa de Poder 1.100 vs 1.000 (+10%): dano x1,1".
+// Frase curta pro feed (visível pra TODA a mesa): "⚖️ Disputa de Poder: atacante mais forte".
+// De propósito NÃO traz números: cada jogador sabe o próprio Poder, então uma % ou um fator entregaria
+// o Poder exato do outro lado — que só o Mestre (e o dono) vê (os jogadores têm só estimativas,
+// core/percepcaoPoder.js). Os números exatos ficam na prévia do Mestre.
 export function descreverDisputa(disputa) {
     if (!disputa || !disputa.ativa) return '';
-    const pct = Number.isFinite(disputa.diferenca) ? `${Math.round(disputa.diferenca * 100).toLocaleString('pt-BR')}%` : '∞';
-    const sinal = disputa.fator === 1 ? 'Poder igual' : (disputa.atacanteMaisForte ? `atacante +${pct}` : `alvo +${pct}`);
-    const efeito = disputa.fator <= 0 ? 'o golpe não surte efeito' : `dano x${formatarFatorDisputa(disputa.fator)}`;
-    return `⚖️ Disputa de Poder ${formatarPoderDisputa(disputa.poderAtacante)} vs ${formatarPoderDisputa(disputa.poderDefensor)} (${sinal}): ${efeito}`;
+    if (disputa.fator <= 0) return '⚖️ Disputa de Poder: o golpe não surtiu efeito (alvo muito mais forte)';
+    if (disputa.fator === 1) return '⚖️ Disputa de Poder: Poder equilibrado';
+    return `⚖️ Disputa de Poder: ${disputa.atacanteMaisForte ? 'atacante' : 'alvo'} mais forte`;
 }

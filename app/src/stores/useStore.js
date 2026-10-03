@@ -57,6 +57,9 @@ export const fichaPadrao = {
 
     divisorPoder: 0,
     supressaoPoder: 100, limiteSupressao: 1,
+    // 🕶️ Ocultação de Poder (core/percepcaoPoder.js): quanto o personagem esconde o próprio Poder
+    // dos outros jogadores (0 a 100). Só vale até o teto da classe/efeitos (Assassino = 100).
+    ocultacaoPoder: 0,
 
     energiaForca: { atual: 0 },
 
@@ -115,6 +118,13 @@ function lerLoreNumeroLocal(chave, padrao) {
     return Number(lerLocal(chave)) || padrao;
 }
 
+// 🎭 Modo Jogador: o Mestre/Co-Mestre vê a mesa como um jogador (isMestre efetivo = false) sem perder
+// o poder real (souMestreReal) — a escolha fica salva no aparelho.
+function getModoJogadorKey(mesaId) { return `rpgModoJogador_${mesaId || 'semMesa'}`; }
+function lerModoJogadorLocal(mesaId) {
+    return lerLocal(getModoJogadorKey(mesaId)) === 'sim';
+}
+
 function getDivisorPoderMesaKey(mesaId) { return `rpg_divisorPoderMesa_${mesaId || 'semMesa'}`; }
 function lerDivisorPoderMesaLocal(mesaId) {
     const raw = lerLocal(getDivisorPoderMesaKey(mesaId));
@@ -145,12 +155,18 @@ const useStore = create(
                 else localStorage.removeItem('rpg_mesaId');
             } catch (e) { /* sem localStorage */ }
             state.divisorPoderMesa = lerDivisorPoderMesaLocal(id);
+            // O Modo Jogador vale só na mesa em que foi ligado.
+            state.modoJogador = lerModoJogadorLocal(id);
+            state.isMestre = state.souMestreReal && !state.modoJogador;
+            state.entidadeInspecionada = null;
         }),
         minhaFicha: deepClone(fichaPadrao),
-        meuNome: '', isMestre: false, abaAtiva: 'aba-ficha', personagens: {}, feedCombate: [],
+        meuNome: '', isMestre: false, souMestreReal: false, modoJogador: lerModoJogadorLocal(storedMesaId), abaAtiva: 'aba-ficha', personagens: {}, feedCombate: [],
         efeitosTemp: [], efeitosTempPassivos: [], efeitosTempArsenal: [], efeitosTempPassivosArsenal: [], efeitosTempForma: [], efeitosTempPassivosForma: [],
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
         dummies: {}, alvoSelecionado: null,
+        // 👁️ Personagem inspecionado na moldura do Mapa: { tipo: 'jogador' | 'dummie', id } ou null.
+        entidadeInspecionada: null,
         
         ignorarTravaAcerto: false,
         pastasFechadasMapaTecnicas: {},
@@ -159,7 +175,16 @@ const useStore = create(
 
         setMinhaFicha: (ficha) => set((state) => { state.minhaFicha = ficha; }),
         setMeuNome: (nome) => set((state) => { state.meuNome = nome; }),
-        setIsMestre: (val) => set((state) => { state.isMestre = val; }),
+        // isMestre é o papel EFETIVO da interface: o Mestre/Co-Mestre em Modo Jogador enxerga a mesa como
+        // jogador. souMestreReal guarda o papel verdadeiro (vem do Firebase) pra poder voltar.
+        setIsMestre: (val) => set((state) => { state.souMestreReal = !!val; state.isMestre = !!val && !state.modoJogador; }),
+        setModoJogador: (val) => set((state) => {
+            state.modoJogador = !!val;
+            state.isMestre = state.souMestreReal && !val;
+            state.entidadeInspecionada = null;
+            try { localStorage.setItem(getModoJogadorKey(state.mesaId), val ? 'sim' : 'nao'); } catch (e) { /* sem localStorage */ }
+        }),
+        setEntidadeInspecionada: (alvo) => set((state) => { state.entidadeInspecionada = alvo || null; }),
         setEfeitosTemp: (efeitos) => set((state) => { state.efeitosTemp = efeitos; }),
         setEfeitosTempPassivos: (efeitos) => set((state) => { state.efeitosTempPassivos = efeitos; }),
         setEfeitosTempArsenal: (efeitos) => set((state) => { state.efeitosTempArsenal = efeitos; }),

@@ -9,6 +9,7 @@ import { getRank } from '../../core/prestige';
 import { formatarPoderCosmico } from '../../core/utils.js';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { calcularFadigaAtual } from '../../core/fadiga';
+import { getTetoOcultacaoPoder, getOcultacaoPoder } from '../../core/percepcaoPoder';
 import { getGlobalMultipliers, getBaseEquivalenteAscensao, amortecerPoderBruto, getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder, aplicarEscalaPoderCalculado } from '../../core/poder';
 import { planejarAjustePrestigioStatus, aplicarAjustePrestigioStatus, recolherPontosAlocados, getTotalPontosAlocados } from '../../core/statusPool';
 import { getPontosPrestigioDisponiveis, getPontosDistribuidos, calcularBaseDoPrestigio, validarDistribuicaoPrestigio, registrarDistribuicaoPrestigio, podeAscender, prestigioAposAscensao, aplicarAscensao, CATEGORIAS_PRESTIGIO, PRESTIGIO_PARA_ASCENDER } from '../../core/prestigioDistribuicao';
@@ -1131,6 +1132,10 @@ export default function MarcadosPanel() {
     
     const mudarPagina = (nova) => { setAnimDirection(nova > paginaAtual ? 'next' : 'prev'); setPaginaAtual(nova); };
 
+    // 🕶️ Ocultação de Poder (core/percepcaoPoder.js): só aparece pra quem pode ocultar (Assassino ou efeito OCULTACAO_PODER).
+    const tetoOcultacaoPoder = getTetoOcultacaoPoder(minhaFicha);
+    const ocultacaoPoderAtual = getOcultacaoPoder(minhaFicha);
+
     const salvar = (caminho, valor) => {
         const valFinal = (valor === undefined || (isNaN(valor) && typeof valor === 'number')) ? null : valor;
         updateFicha(f => {
@@ -1699,6 +1704,27 @@ export default function MarcadosPanel() {
                                         <span style={{ color: temaScouter.cor, fontWeight: 'bold', fontSize: '1.1em' }}>%</span>
                                     </div>
                                 </div>
+
+                                {tetoOcultacaoPoder > 0 && (
+                                    <div className="ocultacao-poder-box">
+                                        <span className="ocultacao-poder-rotulo" title="Quanto você esconde o seu Poder Calculado dos outros jogadores. Eles só veem uma estimativa; com 100% o Poder fica totalmente oculto (a não ser pra quem tem Percepção de Poder). O Mestre sempre vê o valor exato.">🕶️ Ocultar Poder dos outros:</span>
+                                        <input
+                                            type="range" min="0" max={tetoOcultacaoPoder} step="1" value={ocultacaoPoderAtual}
+                                            onChange={e => { salvar('ocultacaoPoder', Number(e.target.value)); }}
+                                            aria-label="Ocultação de Poder"
+                                        />
+                                        <input
+                                            type="number" min="0" max={tetoOcultacaoPoder} step="1" value={ocultacaoPoderAtual}
+                                            onChange={e => {
+                                                let val = Number(e.target.value);
+                                                if (isNaN(val)) val = 0;
+                                                salvar('ocultacaoPoder', Math.min(tetoOcultacaoPoder, Math.max(0, val)));
+                                            }}
+                                            className="ocultacao-poder-num"
+                                        />
+                                        <span className="ocultacao-poder-pct">%</span>
+                                    </div>
+                                )}
 
                                 {isMestre && (
                                     <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255, 0, 60, 0.1)', padding: '8px', borderRadius: '6px', border: '1px dashed rgba(255, 0, 60, 0.5)' }}>

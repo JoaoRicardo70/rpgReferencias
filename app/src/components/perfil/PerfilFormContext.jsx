@@ -17,7 +17,6 @@ export function PerfilFormProvider({ children }) {
     const meuNome = useStore(s => s.meuNome);
     const setMeuNome = useStore(s => s.setMeuNome);
     const isMestre = useStore(s => s.isMestre);
-    const setIsMestre = useStore(s => s.setIsMestre);
     const resetFicha = useStore(s => s.resetFicha);
     const carregarDadosFicha = useStore(s => s.carregarDadosFicha);
     const setPersonagemParaDeletar = useStore(s => s.setPersonagemParaDeletar);
@@ -137,11 +136,6 @@ export function PerfilFormProvider({ children }) {
     const carregarPersonagemExistente = useCallback((n) => { setNomeInput(n); processarCarregamento(n); }, [processarCarregamento]);
     const abrirModalDelete = useCallback((n) => setPersonagemParaDeletar(n), [setPersonagemParaDeletar]);
 
-    const toggleMestre = useCallback(() => {
-        const novoVal = !isMestre;
-        setIsMestre(novoVal); try { localStorage.setItem('rpgIsMestre', novoVal ? 'sim' : 'nao'); } catch (e) { /* sem localStorage */ }
-    }, [isMestre, setIsMestre]);
-
     const alterarAvatarBase = useCallback((e) => {
         updateFicha(ficha => { if (!ficha.avatar) ficha.avatar = { base: "" }; ficha.avatar.base = e.target.value; });
         salvarFichaSilencioso();
@@ -158,6 +152,6 @@ export function PerfilFormProvider({ children }) {
         finally { setUploadingImg(false); }
     }, [meuNome, updateFicha]);
 
-    const value = useMemo(() => ({ minhaFicha, meuNome, isMestre, nomeInput, setNomeInput, listaLocal, uploadingImg, trocarPersonagem, carregarPersonagemExistente, abrirModalDelete, toggleMestre, alterarAvatarBase, handleImageUpload }), [ minhaFicha, meuNome, isMestre, nomeInput, listaLocal, uploadingImg, trocarPersonagem, carregarPersonagemExistente, abrirModalDelete, toggleMestre, alterarAvatarBase, handleImageUpload ]);
+    const value = useMemo(() => ({ minhaFicha, meuNome, isMestre, nomeInput, setNomeInput, listaLocal, uploadingImg, trocarPersonagem, carregarPersonagemExistente, abrirModalDelete, alterarAvatarBase, handleImageUpload }), [ minhaFicha, meuNome, isMestre, nomeInput, listaLocal, uploadingImg, trocarPersonagem, carregarPersonagemExistente, abrirModalDelete, alterarAvatarBase, handleImageUpload ]);
     return <PerfilFormContext.Provider value={value}>{children}</PerfilFormContext.Provider>;
 }

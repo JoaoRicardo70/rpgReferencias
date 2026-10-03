@@ -8,7 +8,7 @@ import { calcularDano } from '../../core/engine';
 
 // ---------------------------------------------------------------------------
 // QA - Disputa de Poder no Ataque: rolarDano (alvo unico e em area) e rolarDanoCustomizado
-// contra dummies. O feed leva poderAtacante, danoAplicado, fatorDisputa e textoDisputa.
+// contra dummies. O feed leva poderAtacante, danoAplicado e textoDisputa (sem fator: ele entregaria o Poder do alvo).
 // O Poder do atacante e controlado pelo mock de getPoderParaDisputa (campo __poder da ficha).
 // ---------------------------------------------------------------------------
 
@@ -72,7 +72,7 @@ describe('AtaqueFormContext.rolarDano - alvo unico (dummie) com Disputa de Poder
         expect(feed.dano).toBe(1000);
         expect(feed.danoAplicado).toBe(1100);
         expect(feed.poderAtacante).toBe(1100);
-        expect(feed.fatorDisputa).toBeCloseTo(1.1, 10);
+        expect(feed.textoDisputa).toContain('atacante mais forte');
         expect(feed.textoDisputa).toContain('Disputa de Poder');
         expect(feed.alvoNome).toBe('Goblin');
     });
@@ -88,14 +88,14 @@ describe('AtaqueFormContext.rolarDano - alvo unico (dummie) com Disputa de Poder
         expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 5000 * FATOR }));
         const feed = feedEnviado();
         expect(feed.danoAplicado).toBe(0);
-        expect(feed.fatorDisputa).toBe(0);
+        expect(feed.textoDisputa).toContain('não surtiu efeito');
         expect(feed.alvoSobreviveu).toBe(true);
     });
     it('Poder igual: x1, disputa registrada no feed', () => {
         montar({ meuPoder: 1000, dummies: { g1: dummie(5000, 1000) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
         expect(feedEnviado().danoAplicado).toBe(1000);
-        expect(feedEnviado().fatorDisputa).toBe(1);
+        expect(feedEnviado().textoDisputa).toContain('equilibrado');
     });
     it('dummie SEM poderCalculado: sem disputa, dano integral e sem fatorDisputa/textoDisputa no feed', () => {
         montar({ meuPoder: 1000, dummies: { g1: dummie(5000) }, alvoSelecionado: 'g1' });
@@ -167,7 +167,8 @@ describe('AtaqueFormContext.rolarDano - dano em area com Disputa de Poder por al
         act(() => { probe.rolarDano(); });
         const detalhe = feedEnviado().detalheConta;
         expect(detalhe).toContain('Disputa de Poder:');
-        expect(detalhe).toContain('x2');
+        expect(detalhe).toContain('Goblin: 2.000');
+        expect(detalhe).not.toMatch(/\(x\d/);
         expect(detalhe.match(/Goblin:/g)).toHaveLength(1);
         expect(feedEnviado().poderAtacante).toBe(1000);
     });

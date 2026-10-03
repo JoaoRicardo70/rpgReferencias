@@ -11,6 +11,9 @@ import { useElementosForm, emogis as ELEMENTOS_EMOJIS, cores as ELEMENTOS_CORES 
 import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { getClassIconById } from '../../core/classIcons';
 import { calcularPoderAtual, calcularFatorMultiplicadorForca } from '../../core/poder';
+import { calcularFadigaAtual } from '../../core/fadiga';
+import { getPoderDummie } from '../../core/disputaPoder';
+import { estimarPoderDeEntidade, descreverEstimativaPoder, rotuloPrecisaoPoder, descreverCondicaoVida, getOcultacaoPoder, getTetoOcultacaoPoder } from '../../core/percepcaoPoder';
 import { getVitalMax, getVitalMaxEstavel, calcVitalScale, calcularBarrasVida, calcularBarrasVidaDummy, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import BarrasVida from '../shared/BarrasVida';
 import { formatarPoderCosmico } from '../../core/utils';
@@ -325,7 +328,7 @@ export function MapaIniciativaTracker() {
         minhaFicha, iniciativaInput, setIniciativaInput, isMestre, sairDoCombate, encerrarCombate, descansar,
         setMinhaIniciativa, avancarTurno, ordemIniciativa, turnoAtualIndex, jogadorHistory,
         setJogadorHistory, feedCombate, getAvatarInfo, fmt, jogadorDaVez, infoDaVez, cenario,
-        jogadores, dummies, cenaRenderId
+        jogadores, dummies, cenaRenderId, inspecao, inspecionar
     } = ctx || {};
 
     const todasEntidades = useMemo(() => {
@@ -388,9 +391,13 @@ export function MapaIniciativaTracker() {
                         const isActive = isRolled && (ordemIniciativa || []).length > 0 && (ordemIniciativa[turnoAtualIndex % ordemIniciativa.length]?.nome === entidade.nome);
                         return (
                             <div key={entidade.id} style={{ position: 'relative' }}>
-                                <div onClick={() => setJogadorHistory(entidade.nome)} style={{ 
-                                    cursor: 'pointer', minWidth: 40, height: 40, borderRadius: '50%', 
-                                    border: isActive ? '3px solid #00ffcc' : (isRolled ? '2px solid #aaa' : '2px dashed #444'), 
+                                <div
+                                    onClick={() => { setJogadorHistory(entidade.nome); inspecionar(entidade.isDummie ? 'dummie' : 'jogador', entidade.id); }}
+                                    title={`${entidade.nome} — clique para ver o resumo`}
+                                    className={inspecao && inspecao.id === entidade.id && inspecao.isDummie === entidade.isDummie ? 'token-inspecionado' : undefined}
+                                    style={{
+                                    cursor: 'pointer', minWidth: 40, height: 40, borderRadius: '50%',
+                                    border: isActive ? '3px solid #00ffcc' : (isRolled ? '2px solid #aaa' : '2px dashed #444'),  
                                     opacity: isActive ? 1 : (isOculto ? 0.3 : (isRolled ? 0.8 : 0.5)), 
                                     backgroundImage: urlSeguraParaCss(info.img) || 'none', backgroundSize: 'cover', backgroundPosition: 'top center', 
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.7em', color: 'white', textShadow: '1px 1px 2px black' 
@@ -816,11 +823,43 @@ function BarraVital({ atual, maximo, cor, perigo = false }) {
     );
 }
 
+// ⚡ Linha de Poder da moldura: o Mestre (e o dono do personagem) vê o número exato; os outros jogadores
+// veem só a ESTIMATIVA ("entre X e Y"), que a Ocultação do alvo alarga e a Percepção de quem olha
+// estreita (core/percepcaoPoder.js).
+function MoldPoderLinha({ exato, poderExato, estimativa }) {
+    const precisao = exato ? '' : rotuloPrecisaoPoder(estimativa);
+    return (
+        <div className="moldura-poder-linha">
+            <span className="moldura-poder-rotulo">{exato ? '⚡ PODER' : '⚡ PODER ESTIMADO'}</span>
+            <span className="moldura-poder-valor">
+                {exato
+                    ? (poderExato === null ? '—' : formatarPoderCosmico(poderExato))
+                    : descreverEstimativaPoder(estimativa, formatarPoderCosmico)}
+                {precisao && <small className="moldura-poder-precisao" title="O quanto você consegue perceber do Poder deste personagem">{precisao}</small>}
+            </span>
+        </div>
+    );
+}
+
+// 🧭 Situação extra que só o Mestre (e o dono) vê: Fadiga, Supressão e Ocultação do Poder.
+function MoldSituacao({ ficha, supressao }) {
+    const fadiga = calcularFadigaAtual(ficha);
+    const teto = getTetoOcultacaoPoder(ficha);
+    const ocultacao = getOcultacaoPoder(ficha);
+    return (
+        <div className="moldura-situacao">
+            <span title="Fadiga de combate acumulada">😮‍💨 Fadiga {Math.round(fadiga * 10) / 10}%</span>
+            <span title="Supressão de Poder (Ocultar Presença)">🔇 Supressão {Math.round(supressao * 10) / 10}%</span>
+            {teto > 0 && <span title="Ocultação de Poder: o quanto os outros jogadores deixam de perceber">🕶️ Ocultação {Math.round(ocultacao)}%</span>}
+        </div>
+    );
+}
+
 export function MapaHologramaAcao() {
     const ctx = useMapaForm();
     const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
     if (!ctx) return null;
-    const { ordemIniciativa, feedCombate, feedIndexTurnoAtual, jogadorDaVez, jogadores, overridesCompendio, getAvatarInfo, fmt, meuNome, minhaFicha } = ctx;
+    const { ordemIniciativa, feedCombate, feedIndexTurnoAtual, jogadorDaVez, jogadores, overridesCompendio, getAvatarInfo, fmt, meuNome, minhaFicha, isMestre, inspecao, limparInspecao } = ctx;
 
     const feedSeguro = feedCombate || [];
     const ordemSegura = ordemIniciativa || [];
@@ -828,20 +867,37 @@ export function MapaHologramaAcao() {
 
     const acaoNovaNoTurno = feedSeguro.length > feedIndexTurnoAtual ? feedSeguro[feedSeguro.length - 1] : null;
     const acaoGeralForaDeCombate = feedSeguro.length > 0 ? feedSeguro[feedSeguro.length - 1] : null;
-    const acaoExibir = emCombate ? acaoNovaNoTurno : acaoGeralForaDeCombate;
+    // 👁️ Inspeção (clique num token ou na Ordem de Turno): a moldura mostra o resumo do personagem
+    // escolhido no lugar da ação do combate, até fecharem (✖) ou clicarem em outro.
+    const inspecionando = !!inspecao;
+    const acaoExibir = inspecionando ? null : (emCombate ? acaoNovaNoTurno : acaoGeralForaDeCombate);
 
-    if (!emCombate && !acaoExibir) {
+    if (!inspecionando && !emCombate && !acaoExibir) {
         return <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontStyle: 'italic', border: '2px dashed #333', borderRadius: 8 }}>O campo de batalha aguarda...</div>;
     }
 
-    let nomeBase = jogadorDaVez ? jogadorDaVez.nome : (acaoExibir ? acaoExibir.nome : '');
-    let fichaBase = jogadorDaVez ? jogadorDaVez.ficha : (acaoExibir ? jogadores[acaoExibir.nome] : null);
+    let nomeBase = inspecionando ? inspecao.nome : (jogadorDaVez ? jogadorDaVez.nome : (acaoExibir ? acaoExibir.nome : ''));
+    let fichaBase = inspecionando ? inspecao.ficha : (jogadorDaVez ? jogadorDaVez.ficha : (acaoExibir ? jogadores[acaoExibir.nome] : null));
     let infoBase = getAvatarInfo(fichaBase);
+    const ehDummieBase = inspecionando ? inspecao.isDummie : !!(jogadorDaVez && jogadorDaVez.isDummie);
+    const idBase = inspecionando ? inspecao.id : (jogadorDaVez ? jogadorDaVez.id : nomeBase);
+    // Quem vê tudo exato: o Mestre e o dono do personagem. Os outros jogadores só veem estimativa.
+    const verTudo = !!isMestre || (!ehDummieBase && nomeBase === meuNome);
 
     // 🔥 Poder Atual (o mesmo número do Scouter na ficha), pra saber a força do alvo sem sair do mapa
     // Nota: sem useMemo de propósito — este ponto do componente já vem depois de dois `return`
     // condicionais acima, então um hook aqui violaria a Regra dos Hooks (nº de hooks variável entre renders).
-    const poderAtualBase = fichaBase ? calcularPoderAtual(fichaBase, divisorPoderMesa).poderGlobal : 0;
+    const poderCalculadoBase = (fichaBase && !ehDummieBase) ? calcularPoderAtual(fichaBase, divisorPoderMesa) : null;
+    // Entidades do Mapa (dummies) não têm ficha: o Poder é o campo poderCalculado definido pelo Mestre.
+    const poderDummieBase = (fichaBase && ehDummieBase) ? getPoderDummie(fichaBase) : null;
+    const poderAtualBase = ehDummieBase ? poderDummieBase : (poderCalculadoBase ? poderCalculadoBase.poderGlobal : 0);
+    const estimativaPoderBase = (!verTudo && fichaBase)
+        ? estimarPoderDeEntidade({ isDummie: ehDummieBase, ficha: fichaBase, id: idBase, nome: nomeBase }, minhaFicha, divisorPoderMesa)
+        : null;
+    // HP Oculto do token vale também aqui: quem não é Mestre não vê a Vida/Energias dele.
+    const vitaisOcultos = !!(ehDummieBase && !isMestre && fichaBase && fichaBase.visibilidadeHp && fichaBase.visibilidadeHp !== 'todos');
+    // Jogador clicando em OUTRO personagem recebe a visão resumida (estimativa + condição), sem números.
+    const resumoReduzido = (inspecionando && !verTudo) || vitaisOcultos;
 
     // 🔥 Teto EXIBIDO de cada vital pras barrinhas de recurso — getVitalMxDisplay (core/vitals.js)
     // é a mesma "única fonte de verdade" que a própria Ficha Definitiva usa pra mostrar o Máximo
@@ -863,9 +919,8 @@ export function MapaHologramaAcao() {
     // calcularBarrasVida/calcularBarrasVidaDummy): também vale pros dummies/NPCs do Mapa, que não
     // têm ficha.vida (usam hpMax/hpAtual planos, sem Multiplicador de Força — daí o branch por
     // isDummie abaixo não precisar de fatorVida).
-    const isDummieDaVez = !!(jogadorDaVez && jogadorDaVez.isDummie);
     const vidaInfo = fichaBase
-        ? (isDummieDaVez
+        ? (ehDummieBase
             ? calcularBarrasVidaDummy(fichaBase.hpMax, fichaBase.hpAtual)
             : calcularBarrasVida(getVitalMax('vida', fichaBase) * fatorVida, 'vida', fichaBase.vida?.atual, getVitalMaxEstavel('vida', fichaBase) * fatorVida))
         : { atual: 0, totalMax: 0, barras: [] };
@@ -963,6 +1018,13 @@ export function MapaHologramaAcao() {
     } else {
         tituloImpacto = `⚡ TURNO DE ${nomeBase} ⚡`;
     }
+    if (inspecionando) { corImpacto = '#00ffcc'; corHeader = '#00ffcc'; corTextoHeader = '#000'; tituloImpacto = '👁️ RESUMO'; }
+
+    const fracaoVida = !fichaBase || vitaisOcultos ? null
+        : (ehDummieBase
+            ? (Number(fichaBase.hpMax) > 0 ? (Number(fichaBase.hpAtual) || 0) / Number(fichaBase.hpMax) : null)
+            : (vidaInfo.totalMax > 0 ? vidaInfo.atual / vidaInfo.totalMax : null));
+    const condicaoVida = descreverCondicaoVida(fracaoVida);
 
     return (
         <>
@@ -980,7 +1042,10 @@ export function MapaHologramaAcao() {
                 }
             `}} />
             <div key={feedSeguro.length} className="def-box holograma-impacto" style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', border: isGrand ? `3px solid #ffcc00` : (isCandidato ? `2px solid #00ccff` : `2px solid ${corImpacto}`), boxShadow: isGrand ? `0 0 30px rgba(255,0,60,0.6), inset 0 0 20px rgba(255,204,0,0.3)` : (isCandidato ? `0 0 20px rgba(0,204,255,0.4)` : `0 0 20px ${corImpacto}40`) }}>
-            <div style={{ background: corHeader, color: corTextoHeader, padding: '10px', textAlign: 'center', fontWeight: '900', letterSpacing: 2, fontSize: '1.2em', textTransform: 'uppercase' }}>{tituloImpacto}</div>
+            <div style={{ background: corHeader, color: corTextoHeader, padding: '10px', textAlign: 'center', fontWeight: '900', letterSpacing: 2, fontSize: '1.2em', textTransform: 'uppercase', position: 'relative' }}>
+                {tituloImpacto}
+                {inspecionando && <button type="button" className="moldura-fechar-inspecao" onClick={limparInspecao} title="Voltar à ação do combate" aria-label="Fechar o resumo e voltar à ação do combate">✖</button>}
+            </div>
             {acaoExibir?.tipo === 'sistema' && !acaoExibir.texto.includes('É a vez de') ? (
                  <div style={{ flex: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 30, textAlign: 'center', background: 'rgba(0,0,0,0.8)' }}>
                     <h2 style={{ color: '#ffcc00', textShadow: '0 0 20px #ffcc00' }}>{acaoExibir.texto}</h2>
@@ -1028,10 +1093,23 @@ export function MapaHologramaAcao() {
                             )}
                         </div>
                     )}
-                    {fichaBase && acaoExibir?.tipo !== 'sistema' && (
+                    {fichaBase && acaoExibir?.tipo !== 'sistema' && resumoReduzido && (
+                        <div style={{ padding: '15px', background: '#050505' }}>
+                            <div className="moldura-resumo-jogador">
+                                <MoldPoderLinha exato={false} estimativa={estimativaPoderBase} />
+                                <div className="moldura-condicao">
+                                    <span>🩺 CONDIÇÃO</span>
+                                    <strong className={`moldura-condicao-valor moldura-condicao--${condicaoVida.nivel}`}>{condicaoVida.texto}</strong>
+                                </div>
+                                <p className="moldura-resumo-dica">Você só percebe o que dá para ver de fora. Habilidades e Poderes de Percepção de Poder afinam a estimativa.</p>
+                            </div>
+                        </div>
+                    )}
+                    {fichaBase && acaoExibir?.tipo !== 'sistema' && !resumoReduzido && (
                         <div style={{ padding: '15px', background: '#050505' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(0,0,0,0.7)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ffcc00', fontWeight: 'bold', paddingBottom: 8, marginBottom: 2, borderBottom: '1px solid rgba(255,255,255,0.1)' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>⚡ PODER</span><span style={{ textShadow: '0 0 6px #ffcc00' }}>{formatarPoderCosmico(poderAtualBase)}</span></div>
+                                <MoldPoderLinha exato={verTudo} poderExato={poderAtualBase} estimativa={estimativaPoderBase} />
+                                {verTudo && poderCalculadoBase && <MoldSituacao ficha={fichaBase} supressao={poderCalculadoBase.supressao} />}
                                 <div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff4d4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>HP</span><span>{fmt(vidaInfo.atual / FATOR_EXIBICAO_VITAIS)}</span></div>
                                     {vidaInfo.barras.length > 1 ? (
@@ -1043,6 +1121,7 @@ export function MapaHologramaAcao() {
                                         <BarraVital atual={vidaInfo.barras[0].atual / FATOR_EXIBICAO_VITAIS} maximo={vidaInfo.barras[0].max / FATOR_EXIBICAO_VITAIS} cor="#ff4d4d" perigo />
                                     )}
                                 </div>
+                                {!ehDummieBase && (<>
                                 <div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4dffff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>MP</span><span>{fmt((fichaBase.mana?.atual || 0) / FATOR_EXIBICAO_VITAIS)}</span></div>
                                     <BarraVital atual={(fichaBase.mana?.atual || 0) / FATOR_EXIBICAO_VITAIS} maximo={manaMaxima} cor="#4dffff" />
@@ -1059,9 +1138,14 @@ export function MapaHologramaAcao() {
                                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff66ff', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>CP</span><span>{fmt((fichaBase.corpo?.atual || 0) / FATOR_EXIBICAO_VITAIS)}</span></div>
                                     <BarraVital atual={(fichaBase.corpo?.atual || 0) / FATOR_EXIBICAO_VITAIS} maximo={corpoMaximo} cor="#ff66ff" />
                                 </div>
+                                </>)}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                                {ehDummieBase ? (
+                                    <div style={{ color: fichaBase.tipoDefesa === 'evasiva' ? '#0088ff' : '#ccc', fontWeight: 'bold', fontSize: '0.9em' }}>🛡️ {fichaBase.tipoDefesa === 'evasiva' ? 'EVA' : 'RES'}: {fichaBase.valorDefesa}</div>
+                                ) : (<>
                                     <div style={{ color: '#0088ff', fontWeight: 'bold', fontSize: '0.9em', textShadow: '0 0 5px #0088ff' }}>🛡️ EVA: {calcularCA(fichaBase, 'evasiva')}</div>
                                     <div style={{ color: '#ccc', fontWeight: 'bold', fontSize: '0.9em', textShadow: '0 0 5px #ccc' }}>🛡️ RES: {calcularCA(fichaBase, 'resistencia')}</div>
+                                </>)}
                                 </div>
                             </div>
                         </div>

@@ -11,7 +11,8 @@ export function getEfeitosDeClasse(ficha) {
     let state = useStore.getState();
     let mestreOverrides = {};
     
-    if (state.isMestre && state.minhaFicha?.compendioOverrides) {
+    // souMestreReal (não isMestre): em Modo Jogador os overrides da classe continuam os do Mestre.
+    if ((state.souMestreReal || state.isMestre) && state.minhaFicha?.compendioOverrides) {
         mestreOverrides = state.minhaFicha.compendioOverrides;
     } else if (state.personagens) {
         for (let k of Object.keys(state.personagens)) {

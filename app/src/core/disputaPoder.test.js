@@ -215,23 +215,25 @@ describe('formatadores', () => {
     it('descreverDisputa para atacante mais forte', () => {
         const t = descreverDisputa(calcularDisputaPoder(1100, 1000));
         expect(t).toContain('Disputa de Poder');
-        expect(t).toContain('atacante +10%');
-        expect(t).toContain('dano x1,1');
+        expect(t).toBe('⚖️ Disputa de Poder: atacante mais forte');
+        expect(t).not.toMatch(/[0-9]/);
     });
     it('descreverDisputa para alvo mais forte', () => {
         const t = descreverDisputa(calcularDisputaPoder(1000, 1100));
-        expect(t).toContain('alvo +10%');
-        expect(t).toContain('dano x0,9');
+        expect(t).toBe('⚖️ Disputa de Poder: alvo mais forte');
+        expect(t).not.toMatch(/[0-9]/);
     });
     it('descreverDisputa para Poder igual', () => {
-        expect(descreverDisputa(calcularDisputaPoder(500, 500))).toContain('Poder igual');
+        expect(descreverDisputa(calcularDisputaPoder(500, 500))).toContain('Poder equilibrado');
     });
     it('descreverDisputa quando o golpe nao surte efeito', () => {
         const t = descreverDisputa(calcularDisputaPoder(1000, 2000));
-        expect(t).toContain('o golpe não surte efeito');
+        expect(t).toContain('o golpe não surtiu efeito (alvo muito mais forte)');
         expect(t).not.toContain('dano x');
     });
-    it('descreverDisputa com diferenca infinita mostra o simbolo de infinito', () => {
-        expect(descreverDisputa(calcularDisputaPoder(1000, 0))).toContain('+∞');
+    it('descreverDisputa com diferenca infinita continua sem numeros nem simbolos de valor', () => {
+        const t = descreverDisputa(calcularDisputaPoder(1000, 0));
+        expect(t).toContain('atacante mais forte');
+        expect(t).not.toContain('∞');
     });
 });

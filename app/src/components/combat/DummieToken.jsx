@@ -17,10 +17,13 @@ export default function DummieToken({ className, id, dummie }) {
     const isMestre = useStore(s => s.isMestre);
     const alvoSelecionado = useStore(s => s.alvoSelecionado);
     const setAlvoSelecionado = useStore(s => s.setAlvoSelecionado);
+    const entidadeInspecionada = useStore(s => s.entidadeInspecionada);
+    const setEntidadeInspecionada = useStore(s => s.setEntidadeInspecionada);
 
     if (!dummie) return null;
 
     const isTarget = alvoSelecionado === id;
+    const inspecionado = !!(entidadeInspecionada && entidadeInspecionada.tipo === 'dummie' && entidadeInspecionada.id === id);
     const isDead = dummie.hpAtual <= 0;
     
     const hpVisivel = dummie.visibilidadeHp === 'todos' || isMestre;
@@ -28,6 +31,9 @@ export default function DummieToken({ className, id, dummie }) {
     const handleSelecionar = (e) => {
         e.stopPropagation();
         setAlvoSelecionado(isTarget ? null : id);
+        // 👁️ O mesmo clique abre (ou fecha) o resumo do token na moldura do Mapa.
+        const jaInspecionado = entidadeInspecionada && entidadeInspecionada.tipo === 'dummie' && entidadeInspecionada.id === id;
+        setEntidadeInspecionada(jaInspecionado ? null : { tipo: 'dummie', id });
     };
 
     const resetarVida = (e) => {
@@ -69,7 +75,7 @@ export default function DummieToken({ className, id, dummie }) {
 
     return (
         <div
-            className={className}
+            className={[className, inspecionado ? 'token-inspecionado' : ''].filter(Boolean).join(' ') || undefined}
             onClick={handleSelecionar}
             title={isTarget ? 'Desmarcar Alvo' : 'Selecionar como Alvo'}
             style={{
@@ -91,7 +97,7 @@ export default function DummieToken({ className, id, dummie }) {
                 <span style={{ fontSize: '9px', color: colorAC, fontWeight: 'bold', background: 'rgba(0,0,0,0.8)', padding: '0 4px', borderRadius: 4, marginTop: 1 }}>
                     🛡️ {dummie.valorDefesa}
                 </span>
-                {poderDummie !== null && hpVisivel && (
+                {poderDummie !== null && isMestre && (
                     <span className="dummie-poder" title="Poder Calculado (Disputa de Poder)">⚡ {formatarPoderDisputa(poderDummie)}</span>
                 )}
             </div>

@@ -7,7 +7,7 @@ import { infoAvatarDaFicha } from '../../core/avatar';
 import { assinarFalhasDeImagem } from '../../core/imagemVerificada';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
-import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, formatarFatorDisputa } from '../../core/disputaPoder';
+import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
@@ -119,7 +119,11 @@ export function MapaFormProvider({ children }) {
     const feedCombate = useStore(s => s.feedCombate) || [];
     const isMestre = useStore(s => s.isMestre);
     const mesaCriador = useStore(s => s.mesaCriador);
-    const souCriador = !!meuNome && meuNome === mesaCriador;
+    const modoJogador = useStore(s => s.modoJogador);
+    // Em Modo Jogador o Criador também enxerga a mesa como jogador (sem as Cenas "só do Criador").
+    const souCriador = !!meuNome && meuNome === mesaCriador && !modoJogador;
+    const entidadeInspecionada = useStore(s => s.entidadeInspecionada);
+    const setEntidadeInspecionada = useStore(s => s.setEntidadeInspecionada);
     const dummies = useStore(s => s.dummies);
     const alvoSelecionado = useStore(s => s.alvoSelecionado);
     const cenario = useStore(s => s.cenario);
@@ -427,6 +431,33 @@ export function MapaFormProvider({ children }) {
         return result;
     }, [meuNome, minhaFicha, personagens]);
 
+    // 👁️ Personagem inspecionado (clique no token ou na Ordem de Turno) já resolvido pra uma entidade
+    // viva desta cena. Some sozinho se o token for removido, sair da cena ou o Mestre o ocultar de
+    // quem não é Mestre — a moldura volta ao normal, nunca mostra um personagem que o jogador não vê.
+    const inspecao = useMemo(() => {
+        if (!entidadeInspecionada) return null;
+        const { tipo, id } = entidadeInspecionada;
+        if (!isMestre && (cenario?.tokensOcultos || []).includes(id)) return null;
+        if (tipo === 'dummie') {
+            const d = dummies?.[id];
+            if (!d || (d.cenaId || 'default') !== cenaRenderId) return null;
+            return { id, nome: d.nome, ficha: d, isDummie: true };
+        }
+        const f = jogadores?.[id];
+        if (!f) return null;
+        // Mesma regra da Ordem de Turno: só quem está nesta cena (posição nova ou legada).
+        const naCena = !!(f.posicoes && f.posicoes[cenaRenderId]) || !!(f.posicao && (f.posicao.cenaId || 'default') === cenaRenderId);
+        if (!naCena) return null;
+        return { id, nome: id, ficha: f, isDummie: false };
+    }, [entidadeInspecionada, isMestre, cenario, dummies, jogadores, cenaRenderId]);
+
+    // Clicar de novo no mesmo personagem fecha a inspeção.
+    const inspecionar = useCallback((tipo, id) => {
+        const atual = useStore.getState().entidadeInspecionada;
+        setEntidadeInspecionada(atual && atual.tipo === tipo && atual.id === id ? null : { tipo, id });
+    }, [setEntidadeInspecionada]);
+    const limparInspecao = useCallback(() => setEntidadeInspecionada(null), [setEntidadeInspecionada]);
+
     const playersNaTaverna = useMemo(() => {
         return tavernaAtivos.map(nome => {
             const f = (nome === meuNome) ? minhaFicha : personagens?.[nome];
@@ -596,12 +627,12 @@ export function MapaFormProvider({ children }) {
                 if (isDummie && idDummie && dData) {
                     const { dano, disputa } = aplicarDisputaDaZona(din, getPoderDummie(dData));
                     if (disputa.ativa) houveDisputa = true;
-                    hitLog.push(disputa.ativa ? `${nome} (${dano.toLocaleString('pt-BR')}, x${formatarFatorDisputa(disputa.fator)})` : nome);
+                    hitLog.push(disputa.ativa ? `${nome} (${dano.toLocaleString('pt-BR')})` : nome);
                     salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(dano)) });
                 } else if (nome === meuNome) {
                     const { dano, disputa } = aplicarDisputaDaZona(din, getPoderParaDisputa(minhaFicha, useStore.getState().divisorPoderMesa));
                     if (disputa.ativa) houveDisputa = true;
-                    hitLog.push(disputa.ativa ? `${nome} (${dano.toLocaleString('pt-BR')}, x${formatarFatorDisputa(disputa.fator)})` : nome);
+                    hitLog.push(disputa.ativa ? `${nome} (${dano.toLocaleString('pt-BR')})` : nome);
                     updateFicha(f => { if (f.vida) f.vida.atual = Math.max(0, (f.vida.atual || 0) - danoExibidoParaBruto(dano)); });
                     salvarFichaSilencioso();
                 } else {
@@ -1180,7 +1211,8 @@ export function MapaFormProvider({ children }) {
         handleUploadNovaCena, ativarCena, deletarCena, corDoJogador, getAvatarInfo,
         cells, jogadores, playersNaTaverna, ordemIniciativa, handleCellClick,
         alterarZoom, setMinhaIniciativa, avancarTurno, sairDoCombate, encerrarCombate, descansar, aplicarDanoRapido,
-        rolarAcertoRapido, tokenMap, dummyMap, tokens3D, jogadorDaVez, infoDaVez, fmt, deletarZona, toggleActionDot
+        rolarAcertoRapido, tokenMap, dummyMap, tokens3D, jogadorDaVez, infoDaVez, fmt, deletarZona, toggleActionDot,
+        inspecao, inspecionar, limparInspecao, modoJogador
     }), [
         minhaFicha, meuNome, personagens, feedCombate, isMestre, souCriador, dummies, alvoSelecionado, cenario, abaAtiva,
         fichaSegura, modo3D, tamanhoCelula, iniciativaInput, altitudeInput,
@@ -1193,7 +1225,8 @@ export function MapaFormProvider({ children }) {
         jogadorDaVez, infoDaVez, fmt, toggleModoRP, togglePresencaTaverna, changeVantagem,
         changeDesvantagem, handleUploadNovaCena, ativarCena, deletarCena, corDoJogador, descansar, aplicarDanoRapido,
         getAvatarInfo, handleCellClick, alterarZoom, setMinhaIniciativa, avancarTurno,
-        sairDoCombate, encerrarCombate, rolarAcertoRapido, deletarZona, toggleActionDot
+        sairDoCombate, encerrarCombate, rolarAcertoRapido, deletarZona, toggleActionDot,
+        inspecao, inspecionar, limparInspecao, modoJogador
     ]);
 
     return (

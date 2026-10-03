@@ -2101,3 +2101,32 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 /* ⚙️ Aba Combate > Ataque: Habilidades Ativadas e Magias Preparadas recolhidas */
 .ataque-listas-recolhidas { margin: 10px 0; }
 .ataque-listas-toggle { width: 100%; margin: 0; padding: 8px 12px; text-align: left; font-size: 0.9em; }
+
+/* 👁️ Mapa: resumo do personagem inspecionado na moldura + Percepção/Ocultação de Poder + Modo Jogador */
+.token-inspecionado { outline: 2px solid #00ffcc; outline-offset: 2px; box-shadow: 0 0 12px rgba(0, 255, 204, 0.8); }
+.player-token { cursor: pointer; }
+.moldura-fechar-inspecao { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.6); background: rgba(0, 0, 0, 0.7); color: #00ffcc; font-size: 0.8em; font-weight: bold; line-height: 1; cursor: pointer; letter-spacing: 0; }
+.moldura-fechar-inspecao:hover { background: #000; color: #fff; }
+.moldura-poder-linha { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: #ffcc00; font-weight: bold; padding-bottom: 8px; margin-bottom: 2px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+.moldura-poder-rotulo { font-size: 0.8em; }
+.moldura-poder-valor { text-align: right; text-shadow: 0 0 6px #ffcc00; display: flex; flex-direction: column; align-items: flex-end; }
+.moldura-poder-precisao { font-size: 0.65em; color: #aaa; font-weight: normal; text-shadow: none; text-transform: uppercase; letter-spacing: 1px; }
+.moldura-situacao { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.8em; color: #ccc; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+.moldura-resumo-jogador { display: flex; flex-direction: column; gap: 10px; background: rgba(0, 0, 0, 0.7); padding: 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.1); }
+.moldura-condicao { display: flex; justify-content: space-between; align-items: center; color: #ccc; font-size: 0.85em; font-weight: bold; }
+.moldura-resumo-dica { margin: 0; color: #777; font-size: 0.75em; font-style: italic; }
+.ocultacao-poder-box { margin-top: 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; background: rgba(120, 120, 120, 0.12); padding: 8px; border-radius: 6px; border: 1px dashed rgba(200, 200, 200, 0.4); }
+.ocultacao-poder-rotulo { color: #ddd; font-size: 0.8em; font-weight: bold; text-transform: uppercase; cursor: help; }
+.ocultacao-poder-box input[type="range"] { flex: 1 1 120px; accent-color: #aaa; cursor: pointer; }
+.ocultacao-poder-num { width: 70px; background: rgba(0, 0, 0, 0.5); color: #eee; border: 1px solid #888; padding: 4px; border-radius: 4px; text-align: center; font-weight: bold; }
+.ocultacao-poder-pct { color: #ddd; font-weight: bold; }
+.btn-modo-jogador { background: transparent; border-color: rgba(255, 255, 255, 0.15); }
+.btn-modo-jogador.ativa { background: rgba(255, 0, 255, 0.2); border-color: #ff00ff; box-shadow: 0 0 15px rgba(255, 0, 255, 0.5); }
+.pill-modo-jogador { color: #ff00ff; background: rgba(255, 0, 255, 0.12); border: 1px solid #ff00ff; padding: 2px 8px; border-radius: 15px; font-size: 0.75em; font-weight: bold; letter-spacing: 1px; cursor: help; white-space: nowrap; }
+.moldura-condicao-valor { font-weight: bold; }
+.moldura-condicao--ileso { color: #00ff88; }
+.moldura-condicao--leve { color: #aaff00; }
+.moldura-condicao--media { color: #ffcc00; }
+.moldura-condicao--grave { color: #ff8800; }
+.moldura-condicao--critica { color: #ff3030; }
+.moldura-condicao--desconhecida { color: #888; }
