@@ -2156,3 +2156,12 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .mapa-tecnicas-pasta { margin-bottom: 8px; }
 .mapa-tecnicas-subpasta { margin-left: 14px; padding-left: 8px; border-left: 1px dashed rgba(170, 0, 255, 0.4); }
 .mapa-tecnicas-pasta-topo { background: none; border: none; font-weight: bold; font-size: 0.8em; padding: 2px 0; cursor: pointer; text-align: left; }
+
+/* 🎲 Dano proporcional à Vida · barra de técnicas · botão único */
+.mapa-tecnicas-barra .mapa-tecnicas-mini { width: auto; flex: 0 0 auto; }
+.mapa-tecnicas-mini--ativo { background: rgba(255, 204, 0, 0.2) !important; border-color: #ffcc00 !important; color: #ffcc00 !important; }
+.dano-escala { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 10px; font-size: 0.85em; color: #ccc; }
+.dano-de-dado-check { display: flex; align-items: center; gap: 6px; cursor: pointer; margin: 6px 0; color: #ccc; font-size: 0.85em; }
+.dano-de-dado-check input { width: auto; margin: 0; }
+.dano-escala-pontos { display: flex; align-items: center; gap: 6px; }
+.dano-escala-pontos input { width: 80px; margin: 0; padding: 3px 6px; }

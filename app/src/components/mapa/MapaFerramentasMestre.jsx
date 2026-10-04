@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import useStore from '../../stores/useStore';
 import { useMapaForm } from './MapaFormContext';
 import { calcularDisputaPoder, getPoderDeEntidade, formatarPoderDisputa } from '../../core/disputaPoder';
+import { getPontosVidaTotal } from '../../core/danoProporcional';
 import { agruparNpcsPorFamilia, montarDummieDeNpc, posicoesLivres, getVidaMaxBrutaNpc, cenarioComTokensOcultos } from '../../core/gavetaNpc';
 import DisputaPoderResumo from '../combate/DisputaPoderResumo';
 import { salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
@@ -325,6 +326,9 @@ export function MapaMestreDanoRapido() {
     // ⚖️ Quem desferiu o golpe (opcional): o dano passa pela Disputa de Poder entre ele e o alvo
     // (core/disputaPoder.js). Vazio = sem disputa, o dano entra como digitado.
     const [atacanteId, setAtacanteId] = useState('');
+    // 🎲 O número digitado é uma rolagem de dado: vira proporcional à Vida do alvo (core/danoProporcional.js).
+    const [ehDado, setEhDado] = useState(false);
+    const [pontosInput, setPontosInput] = useState('');
     const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
 
     // Mesmo filtro-por-cena de MapaIniciativaTracker (todasEntidades) — só mostra quem está
@@ -354,7 +358,19 @@ export function MapaMestreDanoRapido() {
 
     const aplicar = () => {
         if (!alvoAtual) return alert('Escolha um alvo primeiro.');
-        aplicarDanoRapido(alvoAtual, valorDano, elementoDano || null, nivelDominioDano === '' ? null : nivelDominioDano, nivelAtacanteDano === '' ? 0 : nivelAtacanteDano, atacanteAtual);
+        aplicarDanoRapido(alvoAtual, valorDano, elementoDano || null, nivelDominioDano === '' ? null : nivelDominioDano, nivelAtacanteDano === '' ? 0 : nivelAtacanteDano, atacanteAtual, ehDado);
+    };
+
+    // Escala da mesa: quantos pontos de dado equivalem à Vida inteira (padrão 200). Fica no cenário.
+    const pontosAtuais = getPontosVidaTotal(ctx && ctx.cenario);
+    const salvarPontos = () => {
+        const v = parseFloat(pontosInput);
+        setPontosInput('');
+        // Número finito e razoável (Firebase não aceita Infinity): de 1 a 1.000.000 pontos.
+        if (!Number.isFinite(v) || !(v >= 1) || v === pontosAtuais) return;
+        const novo = JSON.parse(JSON.stringify((ctx && ctx.cenario) || {}));
+        novo.pontosDanoVida = Math.min(v, 1000000);
+        salvarCenarioCompleto(novo);
     };
 
     return (
@@ -397,6 +413,20 @@ export function MapaMestreDanoRapido() {
                     <button className="btn-neon btn-red" onClick={aplicar} disabled={!alvoAtual} style={{ padding: '5px 15px', margin: 0, opacity: alvoAtual ? 1 : 0.5 }}>💥 Aplicar Dano</button>
                 </div>
             )}
+            <div className="dano-escala">
+                <label className="dano-de-dado-check" title="Marcado: o número vira proporcional à Vida máxima do alvo (1 ponto = Vida ÷ pontos da mesa). Desmarcado: entra exatamente como digitado.">
+                    <input type="checkbox" checked={ehDado} onChange={e => setEhDado(e.target.checked)} /> 🎲 É rolagem de dado (proporcional à Vida do alvo)
+                </label>
+                <label className="dano-escala-pontos" title="Quantos pontos de dado valem a Vida inteira de um alvo. Padrão 200: cada ponto = 0,5% da Vida. Vale pra toda a mesa.">
+                    <span>Escala da mesa: Vida total =</span>
+                    <input
+                        type="number" min="1" className="input-neon" placeholder={String(pontosAtuais)} value={pontosInput}
+                        onChange={e => setPontosInput(e.target.value)} onBlur={salvarPontos}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                    />
+                    <span>pontos de dado (atual: {pontosAtuais})</span>
+                </label>
+            </div>
             {disputaPrevia && (
                 <DisputaPoderResumo
                     disputa={disputaPrevia}

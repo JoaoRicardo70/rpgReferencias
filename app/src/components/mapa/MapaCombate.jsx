@@ -631,25 +631,35 @@ export function MapaTecnicasRapidas() {
     const pastasFechadas = useStore(s => s.pastasFechadasMapaTecnicas);
     const setPastasFechadasMapaTecnicas = useStore(s => s.setPastasFechadasMapaTecnicas);
     const [busca, setBusca] = useState('');
+    const [soLigadas, setSoLigadas] = useState(false);
     if (!poderesCtx) return null;
     const { minhaFicha, togglePoder, mudarEstagioPoder } = poderesCtx;
     const poderes = minhaFicha?.poderes || [];
     const termo = busca.trim().toLowerCase();
     // 🔍 Busca por nome (e pasta): enquanto há busca, as pastas com resultado ficam abertas.
-    const filtrados = termo ? poderes.filter(p => p && (`${p.nome || ''} ${p.pasta || ''}`).toLowerCase().includes(termo)) : poderes;
-    const ativos = poderes.filter(p => p && p.ativa);
+    // ★ "Só ligadas" filtra a lista (em vez de repetir as ligadas num bloco à parte): continuam nas suas pastas.
+    const baseLista = soLigadas ? poderes.filter(p => p && p.ativa) : poderes;
+    const filtrados = termo ? baseLista.filter(p => p && (`${p.nome || ''} ${p.pasta || ''}`).toLowerCase().includes(termo)) : baseLista;
+    const ligadasTotal = poderes.filter(p => p && p.ativa).length;
     const padraoFechada = poderes.length > MAPA_TECNICAS_MUITAS;
-    const estaFechada = (chave) => (termo ? false : (chave in pastasFechadas ? !!pastasFechadas[chave] : padraoFechada));
-    // Durante a busca as pastas ficam abertas à força: o clique no cabeçalho não pode mexer no estado salvo.
-    const toggleFechada = (chave) => { if (termo) return; setPastasFechadasMapaTecnicas({ ...pastasFechadas, [chave]: !estaFechada(chave) }); };
-    const definirTodas = (fechar) => {
-        const todas = {};
-        Object.keys(MAPA_TECNICAS_CATEGORIAS).forEach(cat => {
-            const doCat = poderes.filter(p => p && ((p.categoria || 'poder').toLowerCase() === cat));
-            // Inclui as pastas-mãe e as subpastas (core/pastas.js).
-            listarCaminhosPastas(doCat).forEach(caminho => { todas[`${cat}::${caminho}`] = fechar; });
-            if (doCat.some(p => segmentosPasta(p.pasta).length === 0)) todas[`${cat}::${MAPA_TECNICAS_SEM_PASTA}`] = fechar;
-        });
+    // Durante a busca / "só ligadas" as pastas ficam abertas à força: o clique no cabeçalho não pode mexer no estado salvo.
+    const forcaAberta = !!termo || soLigadas;
+    const fechadaSalva = (chave) => (chave in pastasFechadas ? !!pastasFechadas[chave] : padraoFechada);
+    const estaFechada = (chave) => (forcaAberta ? false : fechadaSalva(chave));
+    const toggleFechada = (chave) => { if (forcaAberta) return; setPastasFechadasMapaTecnicas({ ...pastasFechadas, [chave]: !estaFechada(chave) }); };
+    // Todas as chaves de pasta (inclui pastas-mãe e subpastas, core/pastas.js).
+    const todasChaves = [];
+    Object.keys(MAPA_TECNICAS_CATEGORIAS).forEach(cat => {
+        const doCat = poderes.filter(p => p && ((p.categoria || 'poder').toLowerCase() === cat));
+        listarCaminhosPastas(doCat).forEach(caminho => { todasChaves.push(`${cat}::${caminho}`); });
+        if (doCat.some(p => segmentosPasta(p.pasta).length === 0)) todasChaves.push(`${cat}::${MAPA_TECNICAS_SEM_PASTA}`);
+    });
+    // Um botão só: se existe alguma pasta aberta ele recolhe tudo; senão, expande tudo.
+    const algumaAberta = todasChaves.some(c => !fechadaSalva(c));
+    const alternarTodas = () => {
+        // Mantém o estado salvo de outras listas (ex.: grupos das Técnicas Elementais).
+        const todas = { ...pastasFechadas };
+        todasChaves.forEach(c => { todas[c] = algumaAberta; });
         setPastasFechadasMapaTecnicas(todas);
     };
 
@@ -697,16 +707,15 @@ export function MapaTecnicasRapidas() {
                     type="search" className="input-neon mapa-tecnicas-busca" placeholder="🔍 Buscar técnica ou pasta..."
                     value={busca} onChange={e => setBusca(e.target.value)} aria-label="Buscar técnica"
                 />
-                <button type="button" className="btn-neon mapa-tecnicas-mini" onClick={() => definirTodas(true)} title="Fecha todas as pastas">▶ Recolher tudo</button>
-                <button type="button" className="btn-neon mapa-tecnicas-mini" onClick={() => definirTodas(false)} title="Abre todas as pastas">▼ Expandir tudo</button>
+                <button
+                    type="button" className={`btn-neon mapa-tecnicas-mini${soLigadas ? ' mapa-tecnicas-mini--ativo' : ''}`}
+                    onClick={() => setSoLigadas(v => !v)} aria-pressed={soLigadas} title="Mostra só as técnicas ligadas agora (nas suas pastas)"
+                >★ Só ligadas ({ligadasTotal})</button>
+                <button type="button" className="btn-neon mapa-tecnicas-mini" onClick={alternarTodas} title={algumaAberta ? 'Fecha todas as pastas' : 'Abre todas as pastas'}>
+                    {algumaAberta ? '▶ Recolher tudo' : '▼ Expandir tudo'}
+                </button>
             </div>
-            {ativos.length > 0 && (
-                <div className="mapa-tecnicas-ativas">
-                    <div className="mapa-tecnicas-ativas-titulo">★ Ligadas agora ({ativos.length})</div>
-                    <div className="mapa-tecnicas-grade">{ativos.map(renderChip)}</div>
-                </div>
-            )}
-            {termo && filtrados.length === 0 && <p className="mapa-tecnicas-vazia">Nenhuma técnica com esse nome.</p>}
+            {(termo || soLigadas) && filtrados.length === 0 && <p className="mapa-tecnicas-vazia">{soLigadas && !termo ? 'Nenhuma técnica ligada.' : 'Nenhuma técnica com esse nome.'}</p>}
             {Object.keys(MAPA_TECNICAS_CATEGORIAS).map(cat => {
                 const itensCat = filtrados.filter(p => p && ((p.categoria || 'poder').toLowerCase() === cat));
                 if (itensCat.length === 0) return null;
@@ -775,9 +784,13 @@ export function MapaTecnicasRapidas() {
 // (Fogo/Água/Vento/...), reusando os mesmos emojis/cores já usados na aba Afinidades & Elementos.
 export function MapaMagiasElementais() {
     const elemCtx = useElementosForm();
+    const pastasFechadas = useStore(s => s.pastasFechadasMapaTecnicas);
+    const setPastasFechadasMapaTecnicas = useStore(s => s.setPastasFechadasMapaTecnicas);
+    const [busca, setBusca] = useState('');
+    const [soLigadas, setSoLigadas] = useState(false);
     if (!elemCtx) return null;
     const { minhaFicha, toggleEquiparElem } = elemCtx;
-    const magias = minhaFicha?.ataquesElementais || [];
+    const magias = (minhaFicha?.ataquesElementais || []).filter(Boolean);
 
     if (magias.length === 0) {
         return (
@@ -790,41 +803,81 @@ export function MapaMagiasElementais() {
         );
     }
 
+    // 🧭 Mesma organização das Técnicas do Grimório: busca, "só ligadas", um botão recolher/expandir
+    // e um grupo recolhível por elemento (estado salvo em pastasFechadasMapaTecnicas, chave elemental::<Elemento>).
+    const termo = busca.trim().toLowerCase();
+    const ligadasTotal = magias.filter(m => m.equipado).length;
+    const filtradas = magias.filter(m => (!soLigadas || m.equipado) && (!termo || `${m.nome || ''} ${m.elemento || ''}`.toLowerCase().includes(termo)));
     const grupos = {};
-    magias.forEach(m => {
-        if (!m) return;
+    filtradas.forEach(m => {
         const nome = m.elemento || 'Neutro';
         if (!grupos[nome]) grupos[nome] = [];
         grupos[nome].push(m);
     });
     const nomesElementos = Object.keys(grupos).sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
+    const chaveGrupo = (nomeEl) => `elemental::${nomeEl}`;
+    const padraoFechada = magias.length > MAPA_TECNICAS_MUITAS;
+    const forcaAberta = !!termo || soLigadas;
+    const fechadaSalva = (chave) => (chave in pastasFechadas ? !!pastasFechadas[chave] : padraoFechada);
+    const estaFechada = (chave) => (forcaAberta ? false : fechadaSalva(chave));
+    const todasChaves = Array.from(new Set(magias.map(m => chaveGrupo(m.elemento || 'Neutro'))));
+    const algumaAberta = todasChaves.some(c => !fechadaSalva(c));
+    const alternarTodas = () => {
+        const novo = { ...pastasFechadas };
+        todasChaves.forEach(c => { novo[c] = algumaAberta; });
+        setPastasFechadasMapaTecnicas(novo);
+    };
+    const toggleGrupo = (chave) => { if (forcaAberta) return; setPastasFechadasMapaTecnicas({ ...pastasFechadas, [chave]: !estaFechada(chave) }); };
+
     return (
         <div className="def-box" style={{ marginTop: 15, padding: '8px 12px', border: '1px solid #00ffcc' }}>
             <h4 style={{ color: '#00ffcc', margin: '0 0 8px 0' }}>🌪️ Técnicas Elementais</h4>
+            <div className="mapa-tecnicas-barra">
+                <input
+                    type="search" className="input-neon mapa-tecnicas-busca" placeholder="🔍 Buscar magia ou elemento..."
+                    value={busca} onChange={e => setBusca(e.target.value)} aria-label="Buscar técnica elemental"
+                />
+                <button
+                    type="button" className={`btn-neon mapa-tecnicas-mini${soLigadas ? ' mapa-tecnicas-mini--ativo' : ''}`}
+                    onClick={() => setSoLigadas(v => !v)} aria-pressed={soLigadas} title="Mostra só as magias memorizadas"
+                >★ Só ligadas ({ligadasTotal})</button>
+                <button type="button" className="btn-neon mapa-tecnicas-mini" onClick={alternarTodas} title={algumaAberta ? 'Fecha todos os grupos' : 'Abre todos os grupos'}>
+                    {algumaAberta ? '▶ Recolher tudo' : '▼ Expandir tudo'}
+                </button>
+            </div>
+            {(termo || soLigadas) && filtradas.length === 0 && <p className="mapa-tecnicas-vazia">{soLigadas && !termo ? 'Nenhuma magia memorizada.' : 'Nenhuma magia com esse nome.'}</p>}
             {nomesElementos.map(nomeEl => {
                 const cor = ELEMENTOS_CORES[nomeEl] || '#00ffcc';
                 const emoji = ELEMENTOS_EMOJIS[nomeEl] || '🌪️';
+                const chave = chaveGrupo(nomeEl);
+                const fechada = estaFechada(chave);
+                const ligadas = grupos[nomeEl].filter(m => m.equipado).length;
                 return (
-                    <div key={nomeEl} style={{ marginTop: 8 }}>
-                        <div style={{ color: cor, fontWeight: 'bold', fontSize: '0.8em', marginBottom: 4 }}>{emoji} {nomeEl}</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                            {grupos[nomeEl].map(m => (
-                                <button
-                                    key={m.id}
-                                    className="btn-neon"
-                                    onClick={() => toggleEquiparElem(m.id)}
-                                    title={m.descricao || ''}
-                                    style={{
-                                        margin: 0, padding: '6px 14px', fontWeight: 'bold', borderColor: cor,
-                                        background: m.equipado ? `${cor}40` : 'transparent',
-                                        color: m.equipado ? '#fff' : cor,
-                                    }}
-                                >
-                                    {m.equipado ? '★' : '☆'} {m.nome || 'Sem nome'}
-                                </button>
-                            ))}
-                        </div>
+                    <div key={nomeEl} className="mapa-tecnicas-pasta">
+                        <button type="button" className="mapa-tecnicas-pasta-topo" style={{ color: cor }} onClick={() => toggleGrupo(chave)}>
+                            {fechada ? '▶' : '▼'} {emoji} {nomeEl} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>({grupos[nomeEl].length})</span>
+                            {ligadas > 0 && <span className="mapa-tecnicas-pasta-ligadas"> ★ {ligadas}</span>}
+                        </button>
+                        {!fechada && (
+                            <div className="mapa-tecnicas-grade">
+                                {grupos[nomeEl].map(m => (
+                                    <button
+                                        key={m.id}
+                                        className="btn-neon mapa-tecnica-chip"
+                                        onClick={() => toggleEquiparElem(m.id)}
+                                        title={m.descricao || m.nome || ''}
+                                        style={{
+                                            margin: 0, padding: '6px 14px', fontWeight: 'bold', borderColor: cor,
+                                            background: m.equipado ? `${cor}40` : 'transparent',
+                                            color: m.equipado ? '#fff' : cor,
+                                        }}
+                                    >
+                                        {m.equipado ? '★' : '☆'} {m.nome || 'Sem nome'}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 );
             })}

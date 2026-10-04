@@ -6,9 +6,9 @@ import { PoderesFormProvider } from '../poderes/PoderesFormContext';
 import useStore from '../../stores/useStore';
 
 // ---------------------------------------------------------------------------
-// QA - Organizacao da lista de Tecnicas no Mapa: busca, recolher/expandir tudo, faixa
-// "Ligadas agora", contador de ativas na pasta, grade de chips e pastas FECHADAS por padrao
-// quando o Grimorio tem mais de 12 tecnicas (MAPA_TECNICAS_MUITAS).
+// QA - Organizacao da lista de Tecnicas no Mapa: busca, UM botao recolher/expandir tudo, botao
+// "★ Só ligadas (n)" (filtro, sem a antiga faixa duplicada), contador de ativas na pasta, grade de
+// chips e pastas FECHADAS por padrao quando o Grimorio tem mais de 12 tecnicas (MAPA_TECNICAS_MUITAS).
 // ---------------------------------------------------------------------------
 
 vi.mock('../../stores/useStore');
@@ -55,12 +55,36 @@ afterEach(() => cleanup());
 beforeEach(() => { vi.clearAllMocks(); window.alert = vi.fn(); });
 
 describe('MapaTecnicasRapidas - estrutura', () => {
-    it('mostra a caixa de busca (aria-label "Buscar técnica") e os botoes Recolher/Expandir tudo', () => {
+    it('mostra a caixa de busca (aria-label "Buscar técnica"), "★ Só ligadas (n)" e UM botao Recolher tudo (pastas abertas)', () => {
         montarStore({ minhaFicha: { poderes: gerar(4) } });
-        const { getByLabelText, getByText } = renderizar();
+        const { getByLabelText, getByText, queryByText } = renderizar();
         expect(getByLabelText('Buscar técnica')).toBeTruthy();
+        expect(getByText('★ Só ligadas (0)')).toBeTruthy();
         expect(getByText('▶ Recolher tudo')).toBeTruthy();
+        // o botao e UM so: nao existem os dois ao mesmo tempo
+        expect(queryByText('▼ Expandir tudo')).toBeNull();
+    });
+
+    it('com todas as pastas fechadas (14 tecnicas) o MESMO botao vira "▼ Expandir tudo"', () => {
+        montarStore({ minhaFicha: { poderes: gerar(14) } });
+        const { getByText, queryByText } = renderizar();
         expect(getByText('▼ Expandir tudo')).toBeTruthy();
+        expect(queryByText('▶ Recolher tudo')).toBeNull();
+    });
+
+    it('com pelo menos UMA pasta aberta o botao continua "Recolher tudo"', () => {
+        montarStore({ minhaFicha: { poderes: gerar(14) }, pastasFechadasMapaTecnicas: { 'habilidade::Fogo': false } });
+        const { getByText } = renderizar();
+        expect(getByText('▶ Recolher tudo')).toBeTruthy();
+    });
+
+    it('nao existe mais o botao separado "Expandir tudo" junto de "Recolher tudo" nem a faixa "Ligadas agora"', () => {
+        montarStore({ minhaFicha: { poderes: gerar(4, i => ({ ativa: i === 0 })) } });
+        const { container, queryByText } = renderizar();
+        expect(queryByText(/Ligadas agora/)).toBeNull();
+        expect(container.querySelector('.mapa-tecnicas-ativas')).toBeNull();
+        const textos = [...container.querySelectorAll('button')].map(b => b.textContent);
+        expect(textos.filter(t => /Recolher tudo|Expandir tudo/.test(t))).toHaveLength(1);
     });
 
     it('chips ficam dentro de uma .mapa-tecnicas-grade (com e sem pasta)', () => {
@@ -75,6 +99,7 @@ describe('MapaTecnicasRapidas - estrutura', () => {
         const { queryByLabelText, queryByText } = renderizar();
         expect(queryByLabelText('Buscar técnica')).toBeNull();
         expect(queryByText('▶ Recolher tudo')).toBeNull();
+        expect(queryByText(/Só ligadas/)).toBeNull();
     });
 });
 
@@ -165,43 +190,141 @@ describe('MapaTecnicasRapidas - busca', () => {
         expect(st.setPastasFechadasMapaTecnicas).not.toHaveBeenCalled();
     });
 
-    it('tecnica ligada que nao casa com a busca continua na faixa "Ligadas agora"', () => {
+    it('tecnica ligada que nao casa com a busca NAO aparece (nao ha mais faixa duplicada)', () => {
         montarStore({ minhaFicha: { poderes: [poder('a', 'Ligada X', { ativa: true }), poder('b', 'Outra')] } });
-        const { container, getByLabelText, getByText } = renderizar();
+        const { container, getByLabelText } = renderizar();
         fireEvent.change(getByLabelText('Buscar técnica'), { target: { value: 'outra' } });
-        expect(getByText('★ Ligadas agora (1)')).toBeTruthy();
-        expect(container.querySelector('.mapa-tecnicas-ativas').textContent).toContain('Ligada X');
+        expect(chips(container).map(c => c.textContent)).toEqual(['☆ Outra']);
+        expect(container.textContent).not.toContain('Ligada X');
+    });
+
+    it('busca + "Só ligadas" combinam (E): so ligadas que tambem casam com o texto', () => {
+        montarStore({ minhaFicha: { poderes: [
+            poder('a', 'Fogo Ligado', { ativa: true }), poder('b', 'Gelo Ligado', { ativa: true }), poder('c', 'Fogo Apagado'),
+        ] } });
+        const { container, getByLabelText, getByText } = renderizar();
+        fireEvent.click(getByText(/Só ligadas/));
+        fireEvent.change(getByLabelText('Buscar técnica'), { target: { value: 'fogo' } });
+        expect(chips(container).map(c => c.textContent)).toEqual(['★ Fogo Ligado']);
+    });
+
+    it('"Só ligadas" sem nenhuma ligada mostra "Nenhuma técnica ligada." e a busca sem resultado mostra a outra mensagem', () => {
+        montarStore({ minhaFicha: { poderes: gerar(4) } });
+        const { container, getByLabelText, getByText } = renderizar();
+        fireEvent.click(getByText(/Só ligadas/));
+        expect(getByText('Nenhuma técnica ligada.')).toBeTruthy();
+        expect(chips(container)).toHaveLength(0);
+        fireEvent.change(getByLabelText('Buscar técnica'), { target: { value: 'zzz' } });
+        expect(getByText('Nenhuma técnica com esse nome.')).toBeTruthy();
     });
 });
 
-describe('MapaTecnicasRapidas - faixa "Ligadas agora" e contador na pasta', () => {
-    it('sem tecnicas ativas nao mostra a faixa', () => {
-        montarStore({ minhaFicha: { poderes: gerar(4) } });
-        const { container, queryByText } = renderizar();
-        expect(container.querySelector('.mapa-tecnicas-ativas')).toBeNull();
-        expect(queryByText(/Ligadas agora/)).toBeNull();
+describe('MapaTecnicasRapidas - "★ Só ligadas (n)" e contador na pasta', () => {
+    const botaoLigadas = (container) => [...container.querySelectorAll('button')].find(b => /Só ligadas/.test(b.textContent));
+
+    it('uma tecnica ativa aparece UMA unica vez (sem a faixa duplicada)', () => {
+        montarStore({ minhaFicha: { poderes: gerar(6, i => ({ ativa: i === 1 })) } });
+        const { container } = renderizar();
+        expect(chips(container).filter(c => c.textContent === '★ Tec 1')).toHaveLength(1);
+        expect(chips(container)).toHaveLength(6);
     });
 
-    it('mostra "★ Ligadas agora (n)" com os chips das ativas', () => {
+    it('o botao mostra o total de ligadas e comeca com aria-pressed=false', () => {
         montarStore({ minhaFicha: { poderes: gerar(6, i => ({ ativa: i === 1 || i === 4 })) } });
         const { container, getByText } = renderizar();
-        expect(getByText('★ Ligadas agora (2)')).toBeTruthy();
-        const faixa = container.querySelector('.mapa-tecnicas-ativas');
-        expect([...faixa.querySelectorAll('.mapa-tecnica-chip')].map(c => c.textContent).sort()).toEqual(['★ Tec 1', '★ Tec 4']);
+        expect(getByText('★ Só ligadas (2)')).toBeTruthy();
+        expect(botaoLigadas(container).getAttribute('aria-pressed')).toBe('false');
+        expect(botaoLigadas(container).className).not.toContain('mapa-tecnicas-mini--ativo');
     });
 
-    it('a faixa aparece mesmo com TODAS as pastas fechadas, e clicar no chip dela alterna a tecnica', () => {
+    it('clicar liga o filtro: aria-pressed=true, classe --ativo e so as ativas continuam na lista', () => {
+        montarStore({ minhaFicha: { poderes: gerar(6, i => ({ ativa: i === 1 || i === 4 })) } });
+        const { container } = renderizar();
+        fireEvent.click(botaoLigadas(container));
+        expect(botaoLigadas(container).getAttribute('aria-pressed')).toBe('true');
+        expect(botaoLigadas(container).className).toContain('mapa-tecnicas-mini--ativo');
+        expect(chips(container).map(c => c.textContent).sort()).toEqual(['★ Tec 1', '★ Tec 4']);
+    });
+
+    it('as ativas continuam DENTRO das suas pastas', () => {
+        // gerar(6): Fogo = Tec 0..2, Gelo = Tec 3..5
+        montarStore({ minhaFicha: { poderes: gerar(6, i => ({ ativa: i === 1 || i === 4 })) } });
+        const { container } = renderizar();
+        fireEvent.click(botaoLigadas(container));
+        const fogo = botaoPasta(container, 'Fogo').closest('.mapa-tecnicas-pasta');
+        const gelo = botaoPasta(container, 'Gelo').closest('.mapa-tecnicas-pasta');
+        expect([...fogo.querySelectorAll('.mapa-tecnica-chip')].map(c => c.textContent)).toEqual(['★ Tec 1']);
+        expect([...gelo.querySelectorAll('.mapa-tecnica-chip')].map(c => c.textContent)).toEqual(['★ Tec 4']);
+    });
+
+    it('pasta sem nenhuma ativa some enquanto filtra', () => {
+        montarStore({ minhaFicha: { poderes: gerar(6, i => ({ ativa: i === 0 })) } });
+        const { container } = renderizar();
+        fireEvent.click(botaoLigadas(container));
+        expect(botaoPasta(container, 'Fogo')).toBeTruthy();
+        expect(botaoPasta(container, 'Gelo')).toBeUndefined();
+    });
+
+    it('segundo clique desliga o filtro e volta a lista inteira', () => {
+        montarStore({ minhaFicha: { poderes: gerar(6, i => ({ ativa: i === 1 })) } });
+        const { container } = renderizar();
+        fireEvent.click(botaoLigadas(container));
+        expect(chips(container)).toHaveLength(1);
+        fireEvent.click(botaoLigadas(container));
+        expect(chips(container)).toHaveLength(6);
+        expect(botaoLigadas(container).getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('com TODAS as pastas fechadas (14 tecnicas), filtrar abre as pastas a forca e clicar no chip alterna a tecnica', () => {
         const minhaFicha = { poderes: gerar(14, i => ({ ativa: i === 3 })) };
         montarStore({ minhaFicha });
         const { container } = renderizar();
-        const faixa = container.querySelector('.mapa-tecnicas-ativas');
-        expect(faixa.querySelectorAll('.mapa-tecnica-chip')).toHaveLength(1);
-        act(() => { faixa.querySelector('.mapa-tecnica-chip').click(); });
+        expect(chips(container)).toHaveLength(0);
+        fireEvent.click(botaoLigadas(container));
+        expect(chips(container)).toHaveLength(1);
+        act(() => { chips(container)[0].click(); });
         expect(minhaFicha.poderes[3].ativa).toBe(false);
     });
 
+    it('desligar a ultima ativa enquanto filtra mostra "Nenhuma técnica ligada." e o contador vira 0', () => {
+        const minhaFicha = { poderes: gerar(4, i => ({ ativa: i === 0 })) };
+        montarStore({ minhaFicha });
+        const { container, getByText, rerender } = renderizar();
+        fireEvent.click(botaoLigadas(container));
+        act(() => { chips(container)[0].click(); });
+        rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+        expect(getByText('Nenhuma técnica ligada.')).toBeTruthy();
+        expect(getByText('★ Só ligadas (0)')).toBeTruthy();
+    });
+
+    it('enquanto filtra, clicar no cabecalho da pasta e no-op (nao grava no store nem fecha)', () => {
+        const st = montarStore({ minhaFicha: { poderes: gerar(6, i => ({ ativa: i === 1 })) } });
+        const { container } = renderizar();
+        fireEvent.click(botaoLigadas(container));
+        act(() => { botaoPasta(container, 'Fogo').click(); });
+        expect(st.setPastasFechadasMapaTecnicas).not.toHaveBeenCalled();
+        expect(chips(container)).toHaveLength(1);
+    });
+
+    it('enquanto busca, clicar no cabecalho da pasta tambem e no-op', () => {
+        const st = montarStore({ minhaFicha: { poderes: gerar(6) } });
+        const { container, getByLabelText } = renderizar();
+        fireEvent.change(getByLabelText('Buscar técnica'), { target: { value: 'Tec 1' } });
+        act(() => { botaoPasta(container, 'Fogo').click(); });
+        expect(st.setPastasFechadasMapaTecnicas).not.toHaveBeenCalled();
+        expect(chips(container).map(c => c.textContent)).toEqual(['☆ Tec 1']);
+    });
+
+    it('ativar "Só ligadas" nao grava nada no store de pastas e, ao desligar, as pastas voltam ao estado salvo', () => {
+        const st = montarStore({ minhaFicha: { poderes: gerar(14, i => ({ ativa: i === 0 })) } });
+        const { container } = renderizar();
+        fireEvent.click(botaoLigadas(container));
+        expect(st.setPastasFechadasMapaTecnicas).not.toHaveBeenCalled();
+        fireEvent.click(botaoLigadas(container));
+        expect(chips(container)).toHaveLength(0); // voltaram a ficar fechadas (padrao com 14)
+    });
+
     it('cabecalho da pasta mostra "★ n" so quando ha ativas naquela pasta', () => {
-        // gerar(6): Fogo = Tec 0..2, Gelo = Tec 3..5; liga 2 em Fogo e 0 em Gelo
         montarStore({ minhaFicha: { poderes: gerar(6, i => ({ ativa: i === 0 || i === 2 })) } });
         const { container } = renderizar();
         expect(botaoPasta(container, 'Fogo').textContent).toContain('★ 2');
@@ -293,13 +416,33 @@ describe('MapaTecnicasRapidas - Recolher tudo / Expandir tudo', () => {
         });
     });
 
-    it('"Expandir tudo" grava false para as mesmas chaves', () => {
-        const st = montarStore({ minhaFicha: { poderes: poderesMistos }, pastasFechadasMapaTecnicas: { 'habilidade::Fogo': true } });
+    it('"Expandir tudo" (botao unico, aparece com TODAS fechadas) grava false para as mesmas chaves', () => {
+        const todasFechadas = { 'habilidade::Fogo': true, 'forma::Selos': true, 'habilidade::Sem Pasta': true, 'poder::Sem Pasta': true };
+        const st = montarStore({ minhaFicha: { poderes: poderesMistos }, pastasFechadasMapaTecnicas: todasFechadas });
         const { getByText } = renderizar();
         act(() => { getByText('▼ Expandir tudo').click(); });
         const arg = st.setPastasFechadasMapaTecnicas.mock.calls[0][0];
         expect(Object.values(arg).every(v => v === false)).toBe(true);
         expect(Object.keys(arg).sort()).toEqual(['forma::Selos', 'habilidade::Fogo', 'habilidade::Sem Pasta', 'poder::Sem Pasta']);
+    });
+
+    it('com so UMA pasta fechada o botao ainda e "Recolher tudo" (existe pasta aberta)', () => {
+        montarStore({ minhaFicha: { poderes: poderesMistos }, pastasFechadasMapaTecnicas: { 'habilidade::Fogo': true } });
+        const { getByText, queryByText } = renderizar();
+        expect(getByText('▶ Recolher tudo')).toBeTruthy();
+        expect(queryByText('▼ Expandir tudo')).toBeNull();
+    });
+
+    it('o rotulo alterna depois de clicar (Recolher -> Expandir -> Recolher) apos re-render', () => {
+        montarStore({ minhaFicha: { poderes: gerar(4) } });
+        const { getByText, queryByText, rerender } = renderizar();
+        act(() => { getByText('▶ Recolher tudo').click(); });
+        rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+        expect(getByText('▼ Expandir tudo')).toBeTruthy();
+        expect(queryByText('▶ Recolher tudo')).toBeNull();
+        act(() => { getByText('▼ Expandir tudo').click(); });
+        rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+        expect(getByText('▶ Recolher tudo')).toBeTruthy();
     });
 
     it('com 14 tecnicas, "Expandir tudo" faz os chips aparecerem apos re-render', () => {

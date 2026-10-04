@@ -170,7 +170,7 @@ export default function FeedCombate({ className }) {
                                 {/* ⚖️ Disputa de Poder (core/disputaPoder.js): o Mestre vê o recalculo; o jogador, só a efetividade (se perceber) */}
                                 {isMestre && d.textoDisputa && <div className="feed-disputa-poder">{d.textoDisputa}</div>}
                                 {isMestre && d.danoAplicado !== undefined && d.danoAplicado !== d.dano && (
-                                    <div className="feed-disputa-poder">🔒 Rolagem {(d.dano || 0).toLocaleString('pt-BR')} → aplicado {d.danoAplicado.toLocaleString('pt-BR')}</div>
+                                    <div className="feed-disputa-poder">🔒 Rolagem {(d.dano || 0).toLocaleString('pt-BR')}{d.fatorVida && d.fatorVida !== 1 ? ` × ${(Math.round(d.fatorVida * 100) / 100).toLocaleString('pt-BR')} (Vida do alvo)` : ''} → aplicado {d.danoAplicado.toLocaleString('pt-BR')}</div>
                                 )}
                                 {veEfetividade && d.efetividade && (() => {
                                     const ef = descreverEfetividade(d.efetividade);

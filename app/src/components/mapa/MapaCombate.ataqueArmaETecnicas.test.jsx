@@ -61,6 +61,8 @@ function montarStore(overrides = {}) {
         ...overrides,
     };
     useStore.mockImplementation((selector) => (typeof selector === 'function' ? selector(mockState) : mockState));
+    // rolarDano/rolarDanoCustomizado leem cenario/pontosDanoVida por useStore.getState() (dano de dado proporcional a Vida).
+    useStore.getState = () => mockState;
     return mockState;
 }
 
@@ -465,8 +467,8 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
         const { getByText, getAllByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
 
         expect(getByText('☆ Bola de Fogo')).toBeTruthy();
-        // a tecnica ligada aparece na faixa "Ligadas agora" E na sua categoria (2 chips)
-        expect(getAllByText('★ Forma Berserker')).toHaveLength(2);
+        // a tecnica ligada aparece UMA unica vez (a faixa "Ligadas agora" duplicada foi removida)
+        expect(getAllByText('★ Forma Berserker')).toHaveLength(1);
     });
 
     it('clicar num poder chama togglePoder(id) e alterna o estado ativa (mesma função da aba Poderes)', () => {
@@ -498,10 +500,10 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
             ({ getAllByRole } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>));
         }).not.toThrow();
 
-        // so os chips (a barra tem "Recolher/Expandir tudo" e a faixa "Ligadas agora" repete o ativo)
+        // so os chips (a barra tem "Só ligadas" e "Recolher tudo"); a ativa aparece uma vez so
         const botoes = getAllByRole('button').filter(b => b.classList.contains('mapa-tecnica-chip'));
-        expect(botoes.length).toBe(3);
-        expect(botoes.map(b => b.textContent.trim()).sort()).toEqual(['★ Sem nome', '★ Sem nome', '☆ Sem nome']);
+        expect(botoes.length).toBe(2);
+        expect(botoes.map(b => b.textContent.trim()).sort()).toEqual(['★ Sem nome', '☆ Sem nome']);
     });
 
     it('alterna um poder normalmente mesmo com um alvo selecionado e podeRolarDano (Ataque) falso — toggle de Técnica não depende da trava de Acerto do Mapa', () => {
@@ -856,8 +858,9 @@ describe('MapaMagiasElementais — memoriza/desmemoriza Técnicas Elementais do 
         });
         const { getByText } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>);
 
-        expect(getByText('🔥 Fogo')).toBeTruthy();
-        expect(getByText('💧 Agua')).toBeTruthy();
+        // o cabecalho do grupo agora traz seta, contagem e "★ n" (ex.: "▼ 💧 Agua (1) ★ 1")
+        expect(getByText(/🔥 Fogo/)).toBeTruthy();
+        expect(getByText(/💧 Agua/)).toBeTruthy();
         expect(getByText('☆ Bola de Fogo')).toBeTruthy();
         expect(getByText('★ Jato de Água')).toBeTruthy();
     });
@@ -916,7 +919,7 @@ describe('MapaMagiasElementais — memoriza/desmemoriza Técnicas Elementais do 
             ({ getByText, container } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>));
         }).not.toThrow();
 
-        expect(getByText('🌪️ ElementoInventado')).toBeTruthy();
+        expect(getByText(/🌪️ ElementoInventado/)).toBeTruthy();
         expect(getByText('☆ Magia Rara')).toBeTruthy();
         expect(container.textContent).not.toMatch(/undefined/);
     });
@@ -933,7 +936,7 @@ describe('MapaMagiasElementais — memoriza/desmemoriza Técnicas Elementais do 
         });
         const { getAllByText, getByText } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>);
 
-        expect(getAllByText('🔥 Fogo').length).toBe(1);
+        expect(getAllByText(/🔥 Fogo/).length).toBe(1);
         expect(getByText('☆ Bola de Fogo')).toBeTruthy();
         expect(getByText('☆ Lança Flamejante')).toBeTruthy();
         expect(getByText('★ Explosão Ígnea')).toBeTruthy();

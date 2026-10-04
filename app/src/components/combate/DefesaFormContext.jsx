@@ -3,6 +3,7 @@ import useStore from '../../stores/useStore';
 import { calcularReducao, calcularCA, calcularMultiplicadorElemental } from '../../core/engine';
 import { salvarFichaSilencioso, enviarParaFeed } from '../../services/firebase-sync';
 import { danoExibidoParaBruto } from '../../core/vitals';
+import { escalarDanoPelaVida, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
 
 // "auto" = quem desferiu o último golpe do feed (que não fui eu).
@@ -49,6 +50,8 @@ export function DefesaFormProvider({ children }) {
     // ⚖️ Quem desferiu o golpe: decide a Disputa de Poder (core/disputaPoder.js). Valores:
     // ATACANTE_AUTO, ATACANTE_NENHUM, "p:<nome do personagem>" ou "d:<id da entidade>".
     const [atacanteInc, setAtacanteInc] = useState(ATACANTE_AUTO);
+    // 🎲 O valor digitado é o número do dado (veio do feed)? Então ele pesa na MINHA Vida (core/danoProporcional.js).
+    const [danoDeDado, setDanoDeDado] = useState(true);
 
     const ultimoGolpeRecebido = useMemo(() => {
         const feed = feedCombate || [];
@@ -218,7 +221,10 @@ export function DefesaFormProvider({ children }) {
         if (dano <= 0) return alert('Digite um valor de dano válido para receber.');
 
         const { disputa, nomeAtacante } = disputaDefesa;
-        const danoDisputa = aplicarDisputaAoDano(dano, disputa);
+        const danoBase = danoDeDado
+            ? escalarDanoPelaVida(dano, getVidaMaxExibidaFicha(minhaFicha), getPontosVidaTotal(useStore.getState().cenario))
+            : dano;
+        const danoDisputa = aplicarDisputaAoDano(danoBase, disputa);
         const mult = calcularMultiplicadorElemental(minhaFicha, elementoInc);
         const danoFinal = Math.floor(danoDisputa * mult);
 
@@ -247,22 +253,24 @@ export function DefesaFormProvider({ children }) {
         setDanoRecebidoInc('');
         setElementoInc('fisico');
         setAtacanteInc(ATACANTE_AUTO);
+        // Volta ao padrão (dado): um dano fixo desmarcado vale só pra este golpe.
+        setDanoDeDado(true);
         setAbaAtiva('aba-log');
-    }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, updateFicha, setAbaAtiva, elementosDinamicos, disputaDefesa]);
+    }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, updateFicha, setAbaAtiva, elementosDinamicos, disputaDefesa, danoDeDado]);
 
     const value = useMemo(() => ({
         evaDados, setEvaDados, evaFaces, setEvaFaces, evaProf, setEvaProf, evaBonus, setEvaBonus,
         resDados, setResDados, resFaces, setResFaces, resProf, setResProf, resBonus, setResBonus,
         redEnergia, setRedEnergia, redPerc, setRedPerc, redMult, setRedMult,
         elementoInc, setElementoInc, danoRecebidoInc, setDanoRecebidoInc,
-        atacanteInc, setAtacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa,
+        atacanteInc, setAtacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa, danoDeDado, setDanoDeDado,
         caEvasiva, caResistencia,
         elementosDinamicos, 
         declararEvasiva, declararResistencia, declararReducao, sofrerDanoBruto
     }), [
         evaDados, evaFaces, evaProf, evaBonus, resDados, resFaces, resProf, resBonus,
         redEnergia, redPerc, redMult, elementoInc, danoRecebidoInc, caEvasiva, caResistencia,
-        atacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa,
+        atacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa, danoDeDado,
         elementosDinamicos, declararEvasiva, declararResistencia, declararReducao, sofrerDanoBruto
     ]);
 

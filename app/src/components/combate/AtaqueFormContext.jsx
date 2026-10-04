@@ -6,6 +6,7 @@ import { calcularDano } from '../../core/engine';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, classificarEfetividade } from '../../core/disputaPoder';
 import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
+import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getFatorVida, getPontosVidaTotal } from '../../core/danoProporcional';
 
 const AtaqueFormContext = createContext(null);
 
@@ -404,10 +405,15 @@ export function AtaqueFormProvider({ children }) {
             detalheConta += `</div>`;
 
             let extraFeed = {};
+            let fatorVidaAlvo = 1;
             const meuPoderDisputa = getPoderParaDisputa(minhaFicha, divisorPoderMesa);
             if (dummieAlvo && alvoSelecionado) {
                 const disputa = calcularDisputaPoder(meuPoderDisputa, getPoderDummie(dummieAlvo));
-                const danoNoAlvo = aplicarDisputaAoDano(danoReduzido, disputa);
+                // 🎲 Dano de dado proporcional à Vida do alvo (core/danoProporcional.js), depois a Disputa de Poder.
+                const vidaAlvo = getVidaMaxExibidaDummie(dummieAlvo);
+                const pontosVida = getPontosVidaTotal(useStore.getState().cenario);
+                fatorVidaAlvo = getFatorVida(vidaAlvo, pontosVida);
+                const danoNoAlvo = aplicarDisputaAoDano(escalarDanoPelaVida(danoReduzido, vidaAlvo, pontosVida), disputa);
                 // Escala: dano exibido -> Vida bruta do dummy (core/vitals.js > danoExibidoParaBruto).
                 const hpAnterior = dummieAlvo.hpAtual || 0;
                 const novoHp = Math.max(0, hpAnterior - danoExibidoParaBruto(danoNoAlvo));
@@ -415,7 +421,7 @@ export function AtaqueFormProvider({ children }) {
                 salvarDummie(alvoSelecionado, { ...dummieAlvo, hpAtual: novoHp });
                 extraFeed = {
                     alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0,
-                    danoAplicado: danoNoAlvo, ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
+                    danoAplicado: danoNoAlvo, fatorVida: fatorVidaAlvo, ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
                 };
             }
 
@@ -514,11 +520,12 @@ export function AtaqueFormProvider({ children }) {
                     if (dummieEntry) {
                         const [idD, dData] = dummieEntry;
                         const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dData));
-                        const danoNoAlvo = aplicarDisputaAoDano(result.dano, disputa);
+                        const danoEscalado = escalarDanoPelaVida(result.dano, getVidaMaxExibidaDummie(dData), getPontosVidaTotal(useStore.getState().cenario));
+                        const danoNoAlvo = aplicarDisputaAoDano(danoEscalado, disputa);
                         salvarDummie(idD, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)) });
-                        if (disputa.ativa) {
+                        if (disputa.ativa || danoNoAlvo !== Math.floor(result.dano)) {
                             linhasDisputa.push(`${dData.nome}: ${danoNoAlvo.toLocaleString('pt-BR')}`);
-                            efetividadeAlvos.push({ nome: dData.nome, efetividade: classificarEfetividade(disputa) });
+                            if (disputa.ativa) efetividadeAlvos.push({ nome: dData.nome, efetividade: classificarEfetividade(disputa) });
                         }
                     }
                 }
@@ -528,7 +535,11 @@ export function AtaqueFormProvider({ children }) {
             if (linhasDisputa.length > 0) extraFeed = { detalheDisputa: `⚖️ Disputa de Poder (dano em cada alvo): ${linhasDisputa.join(' · ')}`, efetividadeAlvos };
         } else if (dummieAlvo) {
             const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dummieAlvo));
-            const danoNoAlvo = aplicarDisputaAoDano(result.dano, disputa);
+            // 🎲 Dano de dado proporcional à Vida do alvo (core/danoProporcional.js), depois a Disputa de Poder.
+            const vidaAlvo = getVidaMaxExibidaDummie(dummieAlvo);
+            const pontosVida = getPontosVidaTotal(useStore.getState().cenario);
+            const fatorVidaAlvo = getFatorVida(vidaAlvo, pontosVida);
+            const danoNoAlvo = aplicarDisputaAoDano(escalarDanoPelaVida(result.dano, vidaAlvo, pontosVida), disputa);
             // Escala: dano exibido -> Vida bruta do dummy (core/vitals.js > danoExibidoParaBruto).
             const hpAnterior = dummieAlvo.hpAtual || 0;
             const novoHp = Math.max(0, hpAnterior - danoExibidoParaBruto(danoNoAlvo));
@@ -536,7 +547,7 @@ export function AtaqueFormProvider({ children }) {
             salvarDummie(alvoSelecionado, { ...dummieAlvo, hpAtual: novoHp });
             extraFeed = {
                 alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0,
-                danoAplicado: danoNoAlvo, ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
+                danoAplicado: danoNoAlvo, fatorVida: fatorVidaAlvo, ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
             };
         }
 
@@ -583,6 +594,8 @@ export function AtaqueFormProvider({ children }) {
                     // Disputa de Poder é feita contra cada alvo quando ela castiga (MapaFormContext.jsx).
                     zRef.multiplicadorOriginal = 1;
                     zRef.danoAplicado = result.dano;
+                    // 🎲 Dano que veio de dado: a Zona o torna proporcional à Vida de quem ela castiga.
+                    zRef.danoDeDados = true;
                     
                     salvarCenarioCompleto(novoCenario);
                     textoAlvos += `<br/><span style="color:#ff00ff; font-weight:bold;">🌪️ A Zona de Efeito absorveu o poder e castigará quem permanecer lá!</span>`;

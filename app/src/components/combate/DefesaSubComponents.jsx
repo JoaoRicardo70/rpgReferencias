@@ -8,7 +8,7 @@ export function DefesaSofrerDanoBox() {
     const ctx = useDefesaForm();
     if (!ctx) return FALLBACK;
 
-    const { elementoInc, setElementoInc, danoRecebidoInc, setDanoRecebidoInc, sofrerDanoBruto, elementosDinamicos, atacanteInc, setAtacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa } = ctx;
+    const { elementoInc, setElementoInc, danoRecebidoInc, setDanoRecebidoInc, sofrerDanoBruto, elementosDinamicos, atacanteInc, setAtacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa, danoDeDado, setDanoDeDado } = ctx;
 
     return (
         <div className="def-box fade-in" style={{ marginBottom: 15, borderLeft: '4px solid #ff4444', background: 'rgba(255, 68, 68, 0.05)' }}>
@@ -46,11 +46,15 @@ export function DefesaSofrerDanoBox() {
                 ))}
             </div>
 
+            {/* 🎲 Dano de dado é proporcional à Vida de quem recebe (core/danoProporcional.js) */}
+            <label className="dano-de-dado-check" title="Marcado: o número do dado pesa na sua Vida máxima (1 ponto = 0,5% da Vida, valor ajustável pelo Mestre). Desmarque se o dano é um valor fixo.">
+                <input type="checkbox" checked={danoDeDado} onChange={e => setDanoDeDado(e.target.checked)} /> 🎲 É o número de uma rolagem de dado (proporcional à minha Vida)
+            </label>
             <div style={{ display: 'flex', gap: '10px' }}>
-                <input 
-                    className="input-neon" 
-                    type="number" 
-                    placeholder="Valor do Dano Bruto (Ex: 25000)" 
+                <input
+                    className="input-neon"
+                    type="number"
+                    placeholder="Valor do Dano Bruto (Ex: 25000)"  
                     value={danoRecebidoInc} 
                     onChange={e => setDanoRecebidoInc(e.target.value)} 
                     style={{ flex: '1 1 200px', margin: 0, fontSize: '1.2em' }} 

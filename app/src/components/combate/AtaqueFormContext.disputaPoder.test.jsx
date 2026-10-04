@@ -51,7 +51,10 @@ function montar({ meuPoder = 1000, dummies = {}, alvoSelecionado = null, alvosAr
 
 // hp em unidades EXIBIDAS; hpAtual/hpMax do dummy ficam na escala bruta (x1000).
 const FATOR = 1000;
-const dummie = (hp, poderCalculado) => ({ nome: 'Goblin', hpAtual: hp * FATOR, hpMax: hp * FATOR, valorDefesa: 10, ...(poderCalculado !== undefined ? { poderCalculado } : {}) });
+// hpMax fixo em 200 (exibido) = pontos de dado padrao: fator de Vida 1, entao estes testes isolam so a Disputa de Poder.
+// A escala pela Vida tem testes proprios em AtaqueFormContext.danoProporcional.test.jsx.
+const HP_MAX_FATOR_1 = 200 * FATOR;
+const dummie = (hp, poderCalculado) => ({ nome: 'Goblin', hpAtual: hp * FATOR, hpMax: HP_MAX_FATOR_1, valorDefesa: 10, ...(poderCalculado !== undefined ? { poderCalculado } : {}) });
 const feedEnviado = () => enviarParaFeed.mock.calls.at(-1)[0];
 
 beforeEach(() => {

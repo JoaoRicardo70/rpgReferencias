@@ -174,8 +174,14 @@ describe('MapaTecnicasRapidas - pastas aninhadas: recolher/expandir', () => {
         });
     });
 
-    it('"Expandir tudo" grava false nas mesmas chaves', () => {
-        montarStore({ minhaFicha: fichaArvore() });
+    it('"Expandir tudo" (botao unico, so aparece com TODAS as pastas fechadas) grava false nas mesmas chaves', () => {
+        montarStore({
+            minhaFicha: fichaArvore(),
+            pastasFechadasMapaTecnicas: {
+                'habilidade::Ninjutsu': true, 'habilidade::Taijutsu': true, 'habilidade::Taijutsu/Portões': true,
+                'habilidade::Taijutsu/Portões/Extra': true, 'habilidade::Sem Pasta': true,
+            },
+        });
         const { getByText } = renderizar();
         fireEvent.click(getByText('▼ Expandir tudo'));
         const v = mockState.pastasFechadasMapaTecnicas;
