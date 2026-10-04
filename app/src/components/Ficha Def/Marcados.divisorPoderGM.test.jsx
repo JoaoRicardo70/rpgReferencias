@@ -336,13 +336,13 @@ describe('MarcadosPanel — os campos de Divisor de Poder são exclusivos do Mes
         cleanup();
     });
 
-    it('jogador comum (isMestre=false) NÃO vê os campos de Divisor de Poder nem o de Limite de Ocultação', () => {
+    it('jogador comum (isMestre=false) NÃO vê os campos de Divisor de Poder nem o de Limite de Restrição', () => {
         montarMockUseStore(fichaMinimaScouter(), { isMestre: false });
         render(<MarcadosPanel />);
 
         expect(screen.queryByText(/Divisor de Poder \(Este Personagem\)/i)).toBeNull();
         expect(screen.queryByText(/Divisor de Poder Padrão \(Todos os Jogadores\)/i)).toBeNull();
-        expect(screen.queryByText(/Controle do GM \(Limite de Ocultação\)/i)).toBeNull();
+        expect(screen.queryByText(/Controle do GM \(Limite de Restrição\)/i)).toBeNull();
     });
 
     it('Mestre (isMestre=true) VÊ os dois campos de Divisor de Poder', () => {

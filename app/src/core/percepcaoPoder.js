@@ -103,7 +103,10 @@ export function getTetoOcultacaoPoder(ficha) {
     if (!ficha) return 0;
     const deClasse = CLASSES_OCULTACAO_TOTAL.includes(getClasseEfetiva(ficha)) ? OCULTACAO_MAXIMA : 0;
     const deEfeitos = Math.max(0, somarEfeitosDeAtributo(ficha, ATRIBUTO_OCULTACAO_PODER));
-    return Math.min(OCULTACAO_MAXIMA, deClasse + deEfeitos);
+    // O Mestre decide quem mais pode Ocultar a Presença (ficha.permissaoOcultacao, 0–100).
+    const pm = parseFloat(ficha.permissaoOcultacao);
+    const doMestre = Number.isFinite(pm) ? Math.max(0, pm) : 0;
+    return Math.min(OCULTACAO_MAXIMA, deClasse + deEfeitos + doMestre);
 }
 
 // Quanto o personagem está ocultando agora (o controle da Ficha, limitado ao teto).

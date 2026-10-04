@@ -944,8 +944,8 @@ function MoldSituacao({ ficha, supressao }) {
     return (
         <div className="moldura-situacao">
             <span title="Fadiga de combate acumulada">😮‍💨 Fadiga {Math.round(fadiga * 10) / 10}%</span>
-            <span title="Supressão de Poder (Ocultar Presença)">🔇 Supressão {Math.round(supressao * 10) / 10}%</span>
-            {teto > 0 && <span title="Ocultação de Poder: o quanto os outros jogadores deixam de perceber">🕶️ Ocultação {Math.round(ocultacao)}%</span>}
+            <span title="Poder em uso (Restringir Poder): reduz Fadiga, não esconde o Poder de ninguém">🔇 Poder em uso {Math.round(supressao * 10) / 10}%</span>
+            {teto > 0 && <span title="Ocultar Presença: o quanto os outros jogadores deixam de sentir deste Poder">🕶️ Presença oculta {Math.round(ocultacao)}%</span>}
         </div>
     );
 }

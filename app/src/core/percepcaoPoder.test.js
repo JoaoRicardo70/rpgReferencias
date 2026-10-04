@@ -411,3 +411,38 @@ describe('estimarPoderDeEntidade', () => {
         expect(estimarPoderDeEntidade({ isDummie: true, ficha: { poderCalculado: 10, visibilidadeHp: 'todos' } }, null, 1).modo).toBe('faixa');
     });
 });
+
+describe('getTetoOcultacaoPoder - permissaoOcultacao (concedida pelo Mestre)', () => {
+    it('sem permissaoOcultacao, nao-assassino = 0', () => {
+        expect(getTetoOcultacaoPoder(fichaMinima())).toBe(0);
+    });
+    it('permissaoOcultacao 0 nao muda nada', () => {
+        expect(getTetoOcultacaoPoder(fichaMinima({ permissaoOcultacao: 0 }))).toBe(0);
+    });
+    it('Mestre concede 40 a quem nao tem nada -> teto 40', () => {
+        expect(getTetoOcultacaoPoder(fichaMinima({ permissaoOcultacao: 40 }))).toBe(40);
+    });
+    it('aceita string numerica', () => {
+        expect(getTetoOcultacaoPoder(fichaMinima({ permissaoOcultacao: '25' }))).toBe(25);
+    });
+    it('soma com efeitos de ocultacao_poder', () => {
+        const f = fichaMinima({ permissaoOcultacao: 30, passivas: [{ efeitos: [ef(O, 20)] }] });
+        expect(getTetoOcultacaoPoder(f)).toBe(50);
+    });
+    it('soma com assassino e e limitado a 100', () => {
+        expect(getTetoOcultacaoPoder(fichaMinima({ bio: { classe: 'assassin' }, permissaoOcultacao: 50 }))).toBe(100);
+    });
+    it('valor acima de 100 e limitado a 100', () => {
+        expect(getTetoOcultacaoPoder(fichaMinima({ permissaoOcultacao: 500 }))).toBe(100);
+    });
+    it.each([-10, NaN, 'abc', null, undefined, {}, ''])('valor invalido/negativo (%s) = 0', (v) => {
+        expect(getTetoOcultacaoPoder(fichaMinima({ permissaoOcultacao: v }))).toBe(0);
+    });
+    it('ficha nula = 0', () => {
+        expect(getTetoOcultacaoPoder(null)).toBe(0);
+    });
+    it('a permissao libera o controle: getOcultacaoPoder limita ao novo teto', () => {
+        expect(getOcultacaoPoder(fichaMinima({ permissaoOcultacao: 30, ocultacaoPoder: 80 }))).toBe(30);
+        expect(getOcultacaoPoder(fichaMinima({ ocultacaoPoder: 80 }))).toBe(0);
+    });
+});

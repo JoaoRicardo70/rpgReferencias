@@ -1684,7 +1684,7 @@ export default function MarcadosPanel() {
                                 </div>
 
                                 <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '15px', position: 'relative', zIndex: 1, borderTop: `1px solid rgba(255,255,255,0.05)`, paddingTop: '15px' }}>
-                                    <span style={{ color: '#fff', opacity: 0.7, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>Ocultar Presença:</span>
+                                    <span title="Restringir o Poder: quanto do seu Poder Calculado você está USANDO. Menos Poder em uso = menos Fadiga (ou 'pegar leve' com o adversário). Não esconde nada de ninguém." style={{ color: '#fff', opacity: 0.7, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>Restringir Poder:</span>
                                     <input 
                                         type="range" min={Math.min(limiteSupressao, 100)} max="100" step="0.1" value={supressao > 100 ? 100 : supressao}
                                         onChange={e => { salvar('supressaoPoder', e.target.value); }}
@@ -1707,7 +1707,7 @@ export default function MarcadosPanel() {
 
                                 {tetoOcultacaoPoder > 0 && (
                                     <div className="ocultacao-poder-box">
-                                        <span className="ocultacao-poder-rotulo" title="Quanto você esconde o seu Poder Calculado dos outros jogadores. Eles só veem uma estimativa; com 100% o Poder fica totalmente oculto (a não ser pra quem tem Percepção de Poder). O Mestre sempre vê o valor exato.">🕶️ Ocultar Poder dos outros:</span>
+                                        <span className="ocultacao-poder-rotulo" title="Esconder a sua presença: o Poder continua todo lá (você luta com ele inteiro), mas os outros não conseguem senti-lo. Eles só veem uma estimativa; com 100% fica totalmente oculto (a não ser pra quem tem Percepção de Poder). O Mestre sempre vê o valor exato.">🕶️ Ocultar Presença:</span>
                                         <input
                                             type="range" min="0" max={tetoOcultacaoPoder} step="1" value={ocultacaoPoderAtual}
                                             onChange={e => { salvar('ocultacaoPoder', Number(e.target.value)); }}
@@ -1728,10 +1728,22 @@ export default function MarcadosPanel() {
 
                                 {isMestre && (
                                     <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255, 0, 60, 0.1)', padding: '8px', borderRadius: '6px', border: '1px dashed rgba(255, 0, 60, 0.5)' }}>
-                                        <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>🔒 Controle do GM (Limite de Ocultação):</span>
+                                        <span title="Menor % do Poder que este personagem pode manter em uso ao Restringir o Poder." style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>🔒 Controle do GM (Limite de Restrição):</span>
                                         <input 
                                             type="number" min="0.000001" step="any" value={limiteSupressao}
                                             onChange={e => { salvar('limiteSupressao', e.target.value); }}
+                                            style={{ width: '80px', background: 'rgba(0,0,0,0.8)', color: '#ff003c', border: '1px solid #ff003c', padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }}
+                                        />
+                                        <span style={{ color: '#ff003c', fontWeight: 'bold', fontSize: '1em' }}>%</span>
+                                    </div>
+                                )}
+
+                                {isMestre && (
+                                    <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255, 0, 60, 0.1)', padding: '8px', borderRadius: '6px', border: '1px dashed rgba(255, 0, 60, 0.5)' }}>
+                                        <span title="Quanto da Presença este personagem pode ocultar além do que a classe (Assassino = 100%) e as Habilidades já permitem. 0 = só o que ele já tem." style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>🔒 Controle do GM (Ocultar Presença permitida):</span>
+                                        <input
+                                            type="number" min="0" max="100" step="1" value={parseFloat(minhaFicha.permissaoOcultacao) || 0}
+                                            onChange={e => { const v = Number(e.target.value); salvar('permissaoOcultacao', Math.min(100, Math.max(0, Number.isFinite(v) ? v : 0))); }}
                                             style={{ width: '80px', background: 'rgba(0,0,0,0.8)', color: '#ff003c', border: '1px solid #ff003c', padding: '4px', borderRadius: '4px', textAlign: 'center', fontWeight: 'bold', outline: 'none' }}
                                         />
                                         <span style={{ color: '#ff003c', fontWeight: 'bold', fontSize: '1em' }}>%</span>

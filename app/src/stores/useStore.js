@@ -59,7 +59,7 @@ export const fichaPadrao = {
     supressaoPoder: 100, limiteSupressao: 1,
     // 🕶️ Ocultação de Poder (core/percepcaoPoder.js): quanto o personagem esconde o próprio Poder
     // dos outros jogadores (0 a 100). Só vale até o teto da classe/efeitos (Assassino = 100).
-    ocultacaoPoder: 0,
+    ocultacaoPoder: 0, permissaoOcultacao: 0,
 
     energiaForca: { atual: 0 },
 

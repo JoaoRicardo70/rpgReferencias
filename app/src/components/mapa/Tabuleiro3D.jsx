@@ -4,7 +4,7 @@ import { OrbitControls, Grid, Html, Sky } from '@react-three/drei';
 import * as THREE from 'three';
 
 // 🔥 AGORA ELE RECEBE O "mapUrl" DIRETAMENTE DO PAINEL DO MESTRE
-export default function Tabuleiro3D({ mapSize, tokens, moverJogador, mapUrl }) {
+export default function Tabuleiro3D({ mapSize, tokens, moverJogador, mapUrl, inspecionarToken }) {
     const [mapTexture, setMapTexture] = useState(null);
     const [statusMundo, setStatusMundo] = useState('pronto');
 
@@ -97,7 +97,10 @@ export default function Tabuleiro3D({ mapSize, tokens, moverJogador, mapUrl }) {
                 const adjustedAltitude = displacementScale + 0.5 + posY; 
 
                 return (
-                    <mesh key={i} position={[posX, adjustedAltitude, posZ]} castShadow>
+                    <mesh
+                        key={i} position={[posX, adjustedAltitude, posZ]} castShadow
+                        onClick={(e) => { if (inspecionarToken) { e.stopPropagation(); inspecionarToken(tk.nome); } }}
+                    >
                         <cylinderGeometry args={[0.4, 0.4, 1, 32]} />
                         <meshStandardMaterial color={tk.cor} opacity={0.9} transparent />
                         <Html position={[0, 1, 0]} center style={{ pointerEvents: 'none' }}>

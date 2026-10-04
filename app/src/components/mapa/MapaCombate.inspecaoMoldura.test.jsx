@@ -191,7 +191,7 @@ describe('Moldura - inspecao de jogador', () => {
         expect(t).toContain('⚡ PODER');
         expect(t).not.toContain('PODER ESTIMADO');
         expect(t).toContain('Fadiga');
-        expect(t).toContain('Supressão');
+        expect(t).toContain('Poder em uso');
         expect(screen.getByText('HP')).toBeDefined();
         expect(screen.getByText('MP')).toBeDefined();
         expect(t).not.toContain('CONDIÇÃO');
@@ -200,7 +200,7 @@ describe('Moldura - inspecao de jogador', () => {
     it('Mestre ve Ocultacao quando o alvo pode ocultar (assassino)', () => {
         const ana = criarFicha({ bio: { classe: 'assassin' }, ocultacaoPoder: 70 });
         const { container } = renderMoldura(montarMockState({ isMestre: true, entidadeInspecionada: insp, personagens: { Ana: ana } }));
-        expect(texto(container)).toContain('Ocultação 70%');
+        expect(texto(container)).toContain('Presença oculta 70%');
     });
 
     it('Mestre nao ve a linha de Ocultacao quando o alvo nao pode ocultar', () => {
@@ -226,7 +226,7 @@ describe('Moldura - inspecao de jogador', () => {
         expect(t).toContain('CONDIÇÃO');
         expect(t).toContain('Gravemente ferido');
         expect(t).not.toContain('Fadiga');
-        expect(t).not.toContain('Supressão');
+        expect(t).not.toContain('Poder em uso');
         expect(t).not.toContain('Ocultação');
         expect(screen.queryByText('HP')).toBeNull();
         expect(screen.queryByText('MP')).toBeNull();

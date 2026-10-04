@@ -98,7 +98,7 @@ export function MapaVisao() {
     const {
         modo3D, tamanhoCelula, cenaAtual, cells, tokenMap, dummyMap,
         cenaRenderId, tokens3D, pedirMovimento, movimentoPendente, confirmarMovimento, cancelarMovimento, getAvatarInfo,
-        meuNome, corDoJogador, overridesCompendio, cenario, isMestre, inspecionar, inspecao, alvoSelecionado, dummies
+        meuNome, corDoJogador, overridesCompendio, cenario, isMestre, inspecionar, inspecao
     } = ctx;
 
     const zonasCena = (cenario?.zonas || []).filter(z => (z.cenaId || 'default') === cenaRenderId);
@@ -116,7 +116,7 @@ export function MapaVisao() {
             <>
             {barraConfirmacao}
             <div className="fade-in" style={{ height: '60vh', background: '#000', borderRadius: 5, overflow: 'hidden', border: '2px solid #0088ff', boxShadow: '0 0 20px rgba(0, 136, 255, 0.4)' }}>
-                <Tabuleiro3D mapSize={MAP_SIZE} tokens={tokens3D} moverJogador={pedirMovimento} mapUrl={cenaAtual.img} />
+                <Tabuleiro3D mapSize={MAP_SIZE} tokens={tokens3D} moverJogador={pedirMovimento} mapUrl={cenaAtual.img} inspecionarToken={(nome) => inspecionar('jogador', nome)} />
             </div>
             </>
         );
@@ -207,8 +207,7 @@ export function MapaVisao() {
                                     title={`${tk.nome} | Altura: ${altitude}m — clique para ver o resumo`}
                                     style={style}
                                     onClick={(e) => {
-                                        // O Mestre com um alvo selecionado move o alvo clicando na casa: deixa o clique subir.
-                                        if (isMestre && alvoSelecionado && dummies?.[alvoSelecionado]) return;
+                                        // Clicar num token SEMPRE abre a moldura dele (não move ninguém): pra mover, clique na casa.
                                         e.stopPropagation();
                                         inspecionar('jogador', tk.nome);
                                     }}

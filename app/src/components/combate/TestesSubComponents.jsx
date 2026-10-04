@@ -6,11 +6,16 @@ export function TestesModificadoresGlobais() {
     const ctx = useTestesForm();
     if (!ctx) return <div className="def-box" style={{ opacity: 0.5 }}>Modificadores Globais (sem contexto)</div>;
 
-    const { minhaFicha, dadosConfig, setDadosConfig, facesConfig, setFacesConfig, bonusConfig, setBonusConfig, updateFicha } = ctx;
+    const { minhaFicha, dadosConfig, setDadosConfig, facesConfig, setFacesConfig, bonusConfig, setBonusConfig, updateFicha, rolarD20Puro } = ctx;
 
     return (
         <div className="def-box" style={{ border: '1px solid #00ffcc', background: 'rgba(0, 255, 204, 0.05)' }}>
-            <h3 style={{ color: '#00ffcc', marginTop: 0, marginBottom: 10 }}>Modificadores Globais</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 10 }}>
+                <h3 style={{ color: '#00ffcc', margin: 0 }}>Modificadores Globais</h3>
+                <button type="button" className="btn-neon" onClick={rolarD20Puro} title="Rola 1d20 puro, sem atributo, proficiência nem bônus" style={{ margin: 0, padding: '6px 14px', fontWeight: 'bold' }}>
+                    🎲 Rolar d20 Puro
+                </button>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 15 }}>
 
                 <div style={{ background: 'rgba(255,204,0,0.1)', padding: '5px 10px', borderRadius: 5, borderLeft: '3px solid #ffcc00' }}>
