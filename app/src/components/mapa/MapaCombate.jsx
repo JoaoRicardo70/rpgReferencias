@@ -12,6 +12,7 @@ import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../.
 import { getClassIconById } from '../../core/classIcons';
 import { calcularPoderAtual, calcularFatorMultiplicadorForca } from '../../core/poder';
 import { calcularFadigaAtual } from '../../core/fadiga';
+import { construirArvorePastas, contarNaPasta, listarCaminhosPastas, segmentosPasta } from '../../core/pastas';
 import { getPoderDummie } from '../../core/disputaPoder';
 import { estimarPoderDeEntidade, descreverEstimativaPoder, rotuloPrecisaoPoder, descreverCondicaoVida, getOcultacaoPoder, getTetoOcultacaoPoder } from '../../core/percepcaoPoder';
 import { getVitalMax, getVitalMaxEstavel, calcVitalScale, calcularBarrasVida, calcularBarrasVidaDummy, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
@@ -643,9 +644,11 @@ export function MapaTecnicasRapidas() {
     const toggleFechada = (chave) => { if (termo) return; setPastasFechadasMapaTecnicas({ ...pastasFechadas, [chave]: !estaFechada(chave) }); };
     const definirTodas = (fechar) => {
         const todas = {};
-        poderes.forEach(p => {
-            if (!p) return;
-            todas[`${(p.categoria || 'poder').toLowerCase()}::${(p.pasta || '').trim() || MAPA_TECNICAS_SEM_PASTA}`] = fechar;
+        Object.keys(MAPA_TECNICAS_CATEGORIAS).forEach(cat => {
+            const doCat = poderes.filter(p => p && ((p.categoria || 'poder').toLowerCase() === cat));
+            // Inclui as pastas-mãe e as subpastas (core/pastas.js).
+            listarCaminhosPastas(doCat).forEach(caminho => { todas[`${cat}::${caminho}`] = fechar; });
+            if (doCat.some(p => segmentosPasta(p.pasta).length === 0)) todas[`${cat}::${MAPA_TECNICAS_SEM_PASTA}`] = fechar;
         });
         setPastasFechadasMapaTecnicas(todas);
     };
@@ -709,45 +712,47 @@ export function MapaTecnicasRapidas() {
                 if (itensCat.length === 0) return null;
                 const info = MAPA_TECNICAS_CATEGORIAS[cat];
 
-                let grupos = null;
-                if (cat === 'forma' || itensCat.some(p => (p.pasta || '').trim())) {
-                    const mapa = {};
-                    itensCat.forEach(p => {
-                        const nome = (p.pasta || '').trim() || MAPA_TECNICAS_SEM_PASTA;
-                        if (!mapa[nome]) mapa[nome] = [];
-                        mapa[nome].push(p);
-                    });
-                    const nomes = Object.keys(mapa).filter(n => n !== MAPA_TECNICAS_SEM_PASTA).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-                    if (mapa[MAPA_TECNICAS_SEM_PASTA]) nomes.push(MAPA_TECNICAS_SEM_PASTA);
-                    grupos = nomes.map(nome => ({ nome, itens: mapa[nome] }));
+                // 🗂️ Pastas aninhadas (core/pastas.js): "Taijutsu/Portões" é a pasta Portões dentro de Taijutsu.
+                let arvore = null;
+                if (cat === 'forma' || itensCat.some(p => segmentosPasta(p.pasta).length > 0)) {
+                    arvore = construirArvorePastas(itensCat);
                 }
+                const renderPasta = (no, nivel) => {
+                    const chave = `${cat}::${no.caminho}`;
+                    const fechada = estaFechada(chave);
+                    const ligadas = contarNaPasta(no);
+                    return (
+                        <div key={chave} className={nivel > 0 ? 'mapa-tecnicas-pasta mapa-tecnicas-subpasta' : 'mapa-tecnicas-pasta'}>
+                            <button
+                                type="button"
+                                onClick={() => toggleFechada(chave)}
+                                className="mapa-tecnicas-pasta-topo"
+                                style={{ color: info.cor }}
+                            >
+                                {fechada ? '▶' : '▼'} 📁 {no.nome} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>({no.total})</span>
+                                {ligadas > 0 && <span className="mapa-tecnicas-pasta-ligadas"> ★ {ligadas}</span>}
+                            </button>
+                            {!fechada && (
+                                <>
+                                    {no.itens.length > 0 && <div className="mapa-tecnicas-grade">{no.itens.map(renderChip)}</div>}
+                                    {no.filhos.map(f => renderPasta(f, nivel + 1))}
+                                </>
+                            )}
+                        </div>
+                    );
+                };
 
                 return (
                     <div key={cat} style={{ marginTop: 10 }}>
                         <div style={{ color: info.cor, fontWeight: 'bold', fontSize: '0.85em', marginBottom: 6, borderBottom: `1px dashed ${info.cor}`, paddingBottom: 4 }}>
                             {info.label}
                         </div>
-                        {grupos ? grupos.map(({ nome, itens }) => {
-                            const chave = `${cat}::${nome}`;
-                            const fechada = estaFechada(chave);
-                            const ligadas = itens.filter(p => p.ativa).length;
-                            return (
-                                <div key={nome} style={{ marginBottom: 8 }}>
-                                    <button
-                                        onClick={() => toggleFechada(chave)}
-                                        style={{ background: 'none', border: 'none', color: info.cor, fontWeight: 'bold', fontSize: '0.8em', padding: '2px 0', cursor: 'pointer' }}
-                                    >
-                                        {fechada ? '▶' : '▼'} 📁 {nome} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>({itens.length})</span>
-                                        {ligadas > 0 && <span className="mapa-tecnicas-pasta-ligadas"> ★ {ligadas}</span>}
-                                    </button>
-                                    {!fechada && (
-                                        <div className="mapa-tecnicas-grade">
-                                            {itens.map(renderChip)}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        }) : (
+                        {arvore ? (
+                            <>
+                                {arvore.pastas.map(no => renderPasta(no, 0))}
+                                {arvore.semPasta.length > 0 && renderPasta({ nome: MAPA_TECNICAS_SEM_PASTA, caminho: MAPA_TECNICAS_SEM_PASTA, itens: arvore.semPasta, filhos: [], total: arvore.semPasta.length }, 0)}
+                            </>
+                        ) : (
                             <div className="mapa-tecnicas-grade">
                                 {itensCat.map(renderChip)}
                             </div>

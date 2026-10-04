@@ -2150,3 +2150,9 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .mapa-tecnicas-grade .mapa-tecnica-chip { width: 100%; font-size: 0.8em; padding: 6px 8px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
 .mapa-tecnicas-pasta-ligadas { color: #ffcc00; font-weight: bold; }
 .mapa-tecnicas-vazia { color: #888; font-style: italic; font-size: 0.85em; margin: 6px 0; }
+
+/* 🗂️ Pastas aninhadas (Grimório e Mapa) */
+.pasta-no--sub { margin-left: 18px; padding-left: 10px; border-left: 1px dashed rgba(170, 0, 255, 0.4); }
+.mapa-tecnicas-pasta { margin-bottom: 8px; }
+.mapa-tecnicas-subpasta { margin-left: 14px; padding-left: 8px; border-left: 1px dashed rgba(170, 0, 255, 0.4); }
+.mapa-tecnicas-pasta-topo { background: none; border: none; font-weight: bold; font-size: 0.8em; padding: 2px 0; cursor: pointer; text-align: left; }

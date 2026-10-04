@@ -3,6 +3,7 @@ import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes';
 import { uploadImagem } from '../../services/firebase-sync';
 import { useFichaAtiva, useCallSaveAtivo, useSalvarImediatoAtivo } from '../Ficha Def/FichaAlvoContext';
+import { normalizarPasta, listarCaminhosPastas, renomearCaminhoPasta } from '../../core/pastas';
 // 🔥 CORREÇÃO: a matemática "segura" que substituiu capturarMaximosAtuais/rescalarVitaisProporcional
 // aqui na verdade misturava escalas -- comparava `ficha[v].atual` (SEMPRE guardado na escala
 // COMPRIMIDA de calcVitalScale) contra `getMaximo(ficha, v)` (escala BRUTA/descomprimida) pra tirar
@@ -242,7 +243,7 @@ export function PoderesFormProvider({ children }) {
                     // 🗂️ Pasta: hoje disponível pra QUALQUER categoria (Formas, Habilidades e
                     // Poderes), não só Formas — pedido do usuário pra organizar o Grimório inteiro
                     // (e, por tabela, a lista de Técnicas Rápidas do Mapa) em pastas.
-                    ficha.poderes[ix].pasta = (pastaPoder || '').trim();
+                    ficha.poderes[ix].pasta = normalizarPasta(pastaPoder);
                     aplicarEstagios(ficha.poderes[ix]);
                 }
             } else {
@@ -266,7 +267,7 @@ export function PoderesFormProvider({ children }) {
                     armaVinculada: armaSafe,
                     // 🗂️ Pasta: disponível pra QUALQUER categoria (ver comentário em cima, no
                     // ramo de edição) — sempre gravada, igual já era só pra Forma antes.
-                    pasta: (pastaPoder || '').trim(),
+                    pasta: normalizarPasta(pastaPoder),
                     ...(abaAtual === 'forma' ? {
                         maestria: Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0)),
                         fadigaPorUso: Math.max(0, parseFloat(fadigaPorUsoPoder) || 0),
@@ -446,13 +447,8 @@ export function PoderesFormProvider({ children }) {
     // poderes (Formas, Habilidades e Poderes), não só Formas, já que a Pasta deixou de ser
     // exclusiva de Forma (ver salvarNovoPoder acima).
     const pastasExistentes = useMemo(() => {
-        const set = new Set();
-        poderesGlobais.forEach(p => {
-            if (p && (p.pasta || '').trim()) {
-                set.add(p.pasta.trim());
-            }
-        });
-        return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+        // Inclui as pastas-mãe de cada caminho ("A/B" traz "A" e "A/B") — core/pastas.js.
+        return listarCaminhosPastas(poderesGlobais);
     }, [poderesGlobais]);
 
     // 🗂️ Renomeia (ou remove, se pastaNova vier vazia) uma pasta nos poderes que a usam — nome
@@ -463,15 +459,16 @@ export function PoderesFormProvider({ children }) {
     // que reusa o mesmo nome de pasta. Omitir `categoria` (ex: chamada direta em testes/scripts)
     // continua renomeando em TODAS as categorias, comportamento original desta função.
     const renomearPastaForma = useCallback((pastaAntiga, pastaNova, categoria) => {
-        const novaLimpa = (pastaNova || '').trim();
+        const novaLimpa = normalizarPasta(pastaNova);
         const catAlvo = categoria ? categoria.toLowerCase() : null;
         updateFicha((ficha) => {
             (ficha.poderes || []).forEach(p => {
                 if (!p) return;
                 if (catAlvo && (p.categoria || '').toLowerCase() !== catAlvo) return;
-                if ((p.pasta || '').trim() === pastaAntiga) {
-                    p.pasta = novaLimpa;
-                }
+                // Renomear/mover uma pasta leva as subpastas junto (core/pastas.js > renomearCaminhoPasta).
+                const atual = (p.pasta || '').trim();
+                const nova = renomearCaminhoPasta(atual, pastaAntiga, novaLimpa);
+                if (nova !== atual) p.pasta = nova;
             });
         });
         salvarFichaSilencioso();

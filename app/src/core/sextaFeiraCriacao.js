@@ -13,6 +13,7 @@
 //   npc (dummie do Mapa)   -> components/mapa/MapaFerramentasMestre.jsx (criar dummie)
 // ==========================================
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS } from './efeitos-constants.js';
+import { normalizarPasta } from './pastas.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 
 export const ATRIBUTOS_EFEITO = ATRIBUTOS_AGRUPADOS.flatMap(g => g.options);
@@ -197,7 +198,7 @@ export function normalizarPoder(dados) {
         alcance: alcance(d.alcance),
         area: numero(d.area, 0, 0, 10000),
         armaVinculada: '',
-        pasta: texto(d.pasta, 60),
+        pasta: normalizarPasta(texto(d.pasta, 120)),
     };
     if (categoria === 'forma') {
         objeto.maestria = numero(d.maestria, 0, 0, 100);

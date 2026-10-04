@@ -5,6 +5,7 @@ import FormasEditor from '../shared/FormasEditor';
 import EstagioControle from './EstagioControle';
 import EstagiosMarcosEditor from './EstagiosMarcosEditor';
 import { escalarEfeitosPorEstagio, previaEstagios, getMaximoEstagio, normalizarEstagios } from '../../core/estagios';
+import { construirArvorePastas, segmentosPasta } from '../../core/pastas';
 
 const LIMITE_PREVIA_ESTAGIOS = 12;
 const fmtNumero = (v) => (typeof v === 'number' ? (Math.round(v * 10000) / 10000).toLocaleString('pt-BR') : v);
@@ -281,9 +282,9 @@ export function PoderesFormEditor() {
                     </div>
                 )}
                 <div className="fade-in">
-                    <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }} title="Organize Formas, Habilidades e Poderes em pastas. Selecione uma existente ou digite um nome novo.">🗂️ Pasta (Opc.)</label>
+                    <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }} title="Organize Formas, Habilidades e Poderes em pastas. Selecione uma existente ou digite um nome novo. Use / para criar subpastas: Taijutsu/Portões coloca a pasta Portões dentro de Taijutsu.">🗂️ Pasta (Opc.) — use / para subpastas</label>
                     <input
-                        type="text" list="pastas-formas-datalist" placeholder="Sem pasta"
+                        type="text" list="pastas-formas-datalist" placeholder="Sem pasta  (ex.: Taijutsu/Portões)"
                         value={pastaPoder} onChange={e => setPastaPoder(e.target.value)}
                         style={{ width: '100%', textAlign: 'center' }}
                     />
@@ -458,7 +459,7 @@ export function PoderesLista() {
 
     const renomearOuRemoverPasta = (nomeAtual) => {
         const plural = PLURAL_COM_ARTIGO[abaAtual] || 'os itens';
-        const novo = window.prompt(`Renomear a pasta "${nomeAtual}" (deixe em branco pra remover a pasta e soltar ${plural} em "${SEM_PASTA}"):`, nomeAtual);
+        const novo = window.prompt(`Renomear ou MOVER a pasta "${nomeAtual}" (as subpastas vão junto).\nUse / para subpastas — ex.: Taijutsu/Portões coloca "Portões" dentro de "Taijutsu".\nDeixe em branco pra remover a pasta: ${plural} e as subpastas dela sobem pra pasta-mãe (ou ficam em "${SEM_PASTA}"):`, nomeAtual);
         if (novo === null) return;
         // Escopado só à categoria atual (abaAtual) — renomear uma pasta na aba Habilidades nunca
         // deve afetar sem querer uma Forma/Poder que reusa o mesmo nome de pasta.
@@ -685,43 +686,46 @@ export function PoderesLista() {
     // Poderes, que só ganharam Pasta agora, só entram em modo agrupado se ALGUM item da aba já
     // tiver uma pasta atribuída — senão continuam em lista simples, sem um "📁 Sem Pasta" boiando
     // sozinho pra quem nunca usou pastas nessas duas categorias.
-    let grupos = null;
-    if (abaAtual === 'forma' || itensFiltrados.some(p => p && (p.pasta || '').trim())) {
-        const mapa = {};
-        itensFiltrados.forEach(p => {
-            if (!p) return;
-            const nome = (p.pasta || '').trim() || SEM_PASTA;
-            if (!mapa[nome]) mapa[nome] = [];
-            mapa[nome].push(p);
-        });
-        const nomes = Object.keys(mapa).filter(n => n !== SEM_PASTA).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-        if (mapa[SEM_PASTA]) nomes.push(SEM_PASTA);
-        grupos = nomes.map(nome => ({ nome, itens: mapa[nome] }));
+    // 🗂️ Pastas aninhadas (core/pastas.js): "Taijutsu/Portões" é a pasta Portões dentro de Taijutsu.
+    let arvore = null;
+    if (abaAtual === 'forma' || itensFiltrados.some(p => p && segmentosPasta(p.pasta).length > 0)) {
+        arvore = construirArvorePastas(itensFiltrados);
     }
+
+    const renderPasta = (no, nivel) => {
+        const fechada = !!pastasFechadas[`${abaAtual}::${no.caminho}`];
+        const ehSemPasta = no.caminho === SEM_PASTA && nivel === 0 && no.semPastaVirtual;
+        return (
+            <div key={no.caminho} className={nivel > 0 ? 'pasta-no pasta-no--sub' : 'pasta-no'} style={{ marginTop: nivel > 0 ? 10 : 20 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px dashed currentColor', paddingBottom: 8 }}>
+                    <button onClick={() => toggleFechada(no.caminho)} style={{ flex: 1, textAlign: 'left', padding: '8px 12px', fontWeight: 'bold', fontSize: nivel > 0 ? '0.9em' : '1em' }}>
+                        {fechada ? '▶' : '▼'} 📁 {no.nome} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>({no.total})</span>
+                    </button>
+                    {!ehSemPasta && (
+                        <button onClick={() => renomearOuRemoverPasta(no.caminho)} style={{ padding: '6px 10px', fontSize: '0.8em', opacity: 0.7 }} title="Renomear, mover (use /) ou remover esta pasta">
+                            ✎ Renomear/Remover
+                        </button>
+                    )}
+                </div>
+                {!fechada && (
+                    <>
+                        {no.itens.map(p => renderItem(p))}
+                        {no.filhos.map(f => renderPasta(f, nivel + 1))}
+                    </>
+                )}
+            </div>
+        );
+    };
 
     return (
         <div style={{ marginTop: '20px' }}>
             {itensFiltrados.length === 0 ? (
                 <p style={{ opacity: 0.5, fontStyle: 'italic', textAlign: 'center' }}>Nenhum registo deste tipo na sua alma.</p>
-            ) : grupos ? (
-                grupos.map(({ nome, itens }) => {
-                    const fechada = !!pastasFechadas[`${abaAtual}::${nome}`];
-                    return (
-                        <div key={nome} style={{ marginTop: 20 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px dashed currentColor', paddingBottom: 8 }}>
-                                <button onClick={() => toggleFechada(nome)} style={{ flex: 1, textAlign: 'left', padding: '8px 12px', fontWeight: 'bold', fontSize: '1em' }}>
-                                    {fechada ? '▶' : '▼'} 📁 {nome} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>({itens.length})</span>
-                                </button>
-                                {nome !== SEM_PASTA && (
-                                    <button onClick={() => renomearOuRemoverPasta(nome)} style={{ padding: '6px 10px', fontSize: '0.8em', opacity: 0.7 }}>
-                                        ✎ Renomear/Remover
-                                    </button>
-                                )}
-                            </div>
-                            {!fechada && itens.map(p => renderItem(p))}
-                        </div>
-                    );
-                })
+            ) : arvore ? (
+                <>
+                    {arvore.pastas.map(no => renderPasta(no, 0))}
+                    {arvore.semPasta.length > 0 && renderPasta({ nome: SEM_PASTA, caminho: SEM_PASTA, itens: arvore.semPasta, filhos: [], total: arvore.semPasta.length, semPastaVirtual: true }, 0)}
+                </>
             ) : (
                 itensFiltrados.map(p => renderItem(p))
             )}
