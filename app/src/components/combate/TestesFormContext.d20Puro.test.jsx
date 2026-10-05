@@ -46,6 +46,22 @@ describe('getModificadorDoisDigitos - sem bonus de Ascensao', () => {
     });
 });
 
+describe('getModificadorDoisDigitos - dezena (modificadorDezena)', () => {
+    it('forca.base 120000 com ascensaoBase 2 => 12', () => {
+        setFicha({ ascensaoBase: 2, forca: { base: 120000 } });
+        const { result } = renderHook(() => useTestesForm(), { wrapper });
+        expect(result.current.getModificadorDoisDigitos('forca')).toBe(12);
+    });
+    it('128 e 120 => 12; 24 => 24; 5 => 5', () => {
+        setFicha({ forca: { base: 128 }, destreza: { base: 120 }, sabedoria: { base: 24 }, carisma: { base: 5 } });
+        const { result } = renderHook(() => useTestesForm(), { wrapper });
+        expect(result.current.getModificadorDoisDigitos('forca')).toBe(12);
+        expect(result.current.getModificadorDoisDigitos('destreza')).toBe(12);
+        expect(result.current.getModificadorDoisDigitos('sabedoria')).toBe(24);
+        expect(result.current.getModificadorDoisDigitos('carisma')).toBe(5);
+    });
+});
+
 describe('rolarD20Puro', () => {
     it.each([
         [0, 1], [0.5, 11], [0.9999, 20],

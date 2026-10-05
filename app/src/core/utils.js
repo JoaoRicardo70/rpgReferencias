@@ -18,6 +18,16 @@ export function tratarUnico(t) {
     return nums.length ? nums : [1.0];
 }
 
+// "Dezena" do atributo pros Testes de Perícia/Resistência: só os DOIS PRIMEIROS dígitos do valor
+// (120 -> 12, 128000 -> 12, 24 -> 24, 5 -> 5), pra o bônus do teste não estourar.
+export function modificadorDezena(v) {
+    const n = Math.floor(Math.abs(Number(v) || 0));
+    if (!Number.isFinite(n) || n === 0) return 0;
+    let str = String(n);
+    if (str.includes('e')) str = str.split('e')[0].replace('.', '');
+    return parseInt(str.substring(0, 2), 10) || 0;
+}
+
 export function pegarDoisPrimeirosDigitos(v) {
     let n = Math.floor(Math.abs(v || 0));
     if (n === 0) return 0;

@@ -650,7 +650,7 @@ input:focus, select:focus {
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    pointer-events: none;
+    pointer-events: auto;
     animation: pulsarToken 2s infinite alternate;
     position: relative;
     z-index: 2;
@@ -2165,3 +2165,7 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .dano-de-dado-check input { width: auto; margin: 0; }
 .dano-escala-pontos { display: flex; align-items: center; gap: 6px; }
 .dano-escala-pontos input { width: 80px; margin: 0; padding: 3px 6px; }
+
+.moldura-remover-token { position: absolute; top: 50%; left: 10px; transform: translateY(-50%); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.6); background: rgba(0, 0, 0, 0.7); color: #ff6680; font-size: 0.55em; font-weight: bold; letter-spacing: 0; text-transform: none; cursor: pointer; }
+.moldura-remover-token:hover { background: #000; color: #fff; }
+.mapa-entrar-dica { color: #00ffcc; font-size: 0.9em; font-style: italic; }

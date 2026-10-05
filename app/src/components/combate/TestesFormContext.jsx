@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import useStore from '../../stores/useStore';
 import { enviarParaFeed, salvarFichaSilencioso } from '../../services/firebase-sync';
 import { getRawBase } from '../../core/attributes';
-import { pegarDoisPrimeirosDigitos } from '../../core/utils';
+import { modificadorDezena } from '../../core/utils';
 
 export const SAVES = [
     { id: 'forca', label: 'Forca', attr: 'forca', cor: '#ff4d4d' },
@@ -80,11 +80,10 @@ export function TestesFormProvider({ children }) {
     // core/utils.js > pegarDoisPrimeirosDigitos: acima de 1000 ele usa n/1000, não os 2 primeiros
     // caracteres da string). Agora usa exatamente os mesmos dois helpers que calcularCA usa pra
     // Evasiva/Resistência (isRaw=true: base + Ascensão, sem outros buffs).
-    // 🩹 DE NOVO: a Ascensão (+100.000 por nível, oculta) estava entrando aqui e inflava todo teste
-    // (+220 em vez de +20). Teste de Perícia/Resistência usa só o valor do atributo; a Ascensão
-    // continua valendo nas rolagens de Acerto/Evasiva/Resistência de combate (core/engine.js).
+    // 🩹 Teste de Perícia/Resistência usa só a DEZENA do atributo (120 -> +12, 128 -> +12), sem a
+    // Ascensão oculta: o bônus não estoura. Acerto/Evasiva/Resistência de combate seguem em core/engine.js.
     const getModificadorDoisDigitos = useCallback((attrKey) => {
-        return pegarDoisPrimeirosDigitos(getRawBase(minhaFicha, attrKey));
+        return modificadorDezena(getRawBase(minhaFicha, attrKey));
     }, [minhaFicha]);
 
     // 🎲 d20 PURO: sem atributo, proficiência nem bônus — só o dado, direto no feed.

@@ -40,8 +40,10 @@ export function MapaControlesSuperiores() {
     const {
         modo3D, setModo3D, alterarZoom, tamanhoCelula, isMestre, souCriador,
         cenaVisualizadaId, cenaAtivaIdGlobal, cenaAtual,
-        altitudeInput, setAltitudeInput, cenario, ativarCena
+        altitudeInput, setAltitudeInput, cenario, ativarCena, estouNoMapa, removerTokenDoMapa, meuNome, alvoSelecionado, dummies
     } = ctx;
+    // O Mestre com uma Entidade selecionada move a Entidade ao clicar numa casa: a dica/botão do próprio personagem não se aplica.
+    const movendoEntidade = !!(isMestre && alvoSelecionado && dummies?.[alvoSelecionado]);
     
     return (
         <div style={{ display: 'flex', gap: 15, marginBottom: 10, alignItems: 'center', background: 'rgba(0,0,0,0.6)', padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', fontSize: '0.85em', flexWrap: 'wrap', position: 'relative', zIndex: 100 }}>
@@ -85,6 +87,11 @@ export function MapaControlesSuperiores() {
                 <input className="input-neon" type="number" value={altitudeInput} onChange={e => setAltitudeInput(e.target.value)} style={{ width: 50, padding: 2, height: 24, borderColor: '#00ccff', color: '#fff', margin: 0 }} title="Altitude" />
                 <span style={{ color: '#888' }}>m</span>
             </div>
+            {movendoEntidade ? null : estouNoMapa ? (
+                <button type="button" className="btn-neon" onClick={() => removerTokenDoMapa(meuNome)} style={{ padding: '2px 10px', margin: 0 }} title="Tira o seu personagem do Mapa (para voltar, clique numa casa)">🚪 Sair do Mapa</button>
+            ) : (
+                <span className="mapa-entrar-dica">📍 Clique numa casa para colocar o seu personagem</span>
+            )}
             <button className={`btn-neon ${modo3D ? 'btn-gold' : ''}`} onClick={() => setModo3D(!modo3D)} style={{ padding: '2px 10px', margin: 0, borderColor: modo3D ? '#ffcc00' : '#00ffcc' }}>
                 {modo3D ? '🌌 2D' : '🌌 3D'}
             </button>

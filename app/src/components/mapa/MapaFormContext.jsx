@@ -757,6 +757,32 @@ export function MapaFormProvider({ children }) {
         setMovimentoPendente(null);
     }, [movimentoPendente, handleCellClick]);
     const cancelarMovimento = useCallback(() => setMovimentoPendente(null), []);
+
+    // 🚪 Tirar um token de JOGADOR do Mapa (só desta cena): o Mestre tira qualquer um; cada jogador
+    // tira só o próprio (e volta clicando numa casa). Entidades/dummies têm a lixeira própria no token.
+    // Só conta se tem casa de verdade (a iniciativa pode criar posicoes[cena] só com cenaId, sem x/y).
+    const posNaCena = minhaFicha?.posicoes?.[cenaRenderId] || ((minhaFicha?.posicao && (minhaFicha.posicao.cenaId || 'default') === cenaRenderId) ? minhaFicha.posicao : null);
+    const estouNoMapa = !!(posNaCena && posNaCena.x !== undefined);
+    const removerTokenDoMapa = useCallback((nome) => {
+        if (!nome) return;
+        const ehMeu = nome === meuNome;
+        if (!ehMeu && !isMestre) return;
+        if (!window.confirm(ehMeu ? 'Retirar o seu personagem do Mapa? Para voltar, clique numa casa.' : `Remover ${nome} do Mapa?`)) return;
+        const campos = { [`posicoes/${cenaRenderId}`]: null };
+        if (ehMeu) {
+            updateFicha((ficha) => {
+                if (ficha.posicoes) delete ficha.posicoes[cenaRenderId];
+                if (ficha.posicao && (ficha.posicao.cenaId || 'default') === cenaRenderId) delete ficha.posicao;
+            });
+            salvarFichaSilencioso();
+        }
+        const ficha = ehMeu ? minhaFicha : jogadores[nome];
+        if (ficha?.posicao && (ficha.posicao.cenaId || 'default') === cenaRenderId) campos.posicao = null;
+        salvarCamposPersonagem(nome, campos);
+        setMovimentoPendente(null);
+        const atual = useStore.getState().entidadeInspecionada;
+        if (atual && atual.tipo === 'jogador' && atual.id === nome) setEntidadeInspecionada(null);
+    }, [isMestre, meuNome, cenaRenderId, minhaFicha, jogadores, updateFicha, setEntidadeInspecionada]);
     // Trocar de cena (ou de alvo do Mestre) invalida o destino marcado.
     useEffect(() => { setMovimentoPendente(null); }, [cenaRenderId, alvoSelecionado]);
 
@@ -1253,7 +1279,7 @@ export function MapaFormProvider({ children }) {
         alterarZoom, setMinhaIniciativa, avancarTurno, sairDoCombate, encerrarCombate, descansar, aplicarDanoRapido,
         rolarAcertoRapido, tokenMap, dummyMap, tokens3D, jogadorDaVez, infoDaVez, fmt, deletarZona, toggleActionDot,
         inspecao, inspecionar, limparInspecao, modoJogador,
-        movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento
+        movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento, removerTokenDoMapa, estouNoMapa
     }), [
         minhaFicha, meuNome, personagens, feedCombate, isMestre, souCriador, dummies, alvoSelecionado, cenario, abaAtiva,
         fichaSegura, modo3D, tamanhoCelula, iniciativaInput, altitudeInput,
@@ -1268,7 +1294,7 @@ export function MapaFormProvider({ children }) {
         getAvatarInfo, handleCellClick, alterarZoom, setMinhaIniciativa, avancarTurno,
         sairDoCombate, encerrarCombate, rolarAcertoRapido, deletarZona, toggleActionDot,
         inspecao, inspecionar, limparInspecao, modoJogador,
-        movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento
+        movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento, removerTokenDoMapa, estouNoMapa
     ]);
 
     return (

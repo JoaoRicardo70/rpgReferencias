@@ -954,7 +954,7 @@ export function MapaHologramaAcao() {
     const ctx = useMapaForm();
     const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
     if (!ctx) return null;
-    const { ordemIniciativa, feedCombate, feedIndexTurnoAtual, jogadorDaVez, jogadores, overridesCompendio, getAvatarInfo, fmt, meuNome, minhaFicha, isMestre, inspecao, limparInspecao } = ctx;
+    const { ordemIniciativa, feedCombate, feedIndexTurnoAtual, jogadorDaVez, jogadores, overridesCompendio, getAvatarInfo, fmt, meuNome, minhaFicha, isMestre, inspecao, limparInspecao, removerTokenDoMapa } = ctx;
 
     const feedSeguro = feedCombate || [];
     const ordemSegura = ordemIniciativa || [];
@@ -1139,6 +1139,11 @@ export function MapaHologramaAcao() {
             <div key={feedSeguro.length} className="def-box holograma-impacto" style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', border: isGrand ? `3px solid #ffcc00` : (isCandidato ? `2px solid #00ccff` : `2px solid ${corImpacto}`), boxShadow: isGrand ? `0 0 30px rgba(255,0,60,0.6), inset 0 0 20px rgba(255,204,0,0.3)` : (isCandidato ? `0 0 20px rgba(0,204,255,0.4)` : `0 0 20px ${corImpacto}40`) }}>
             <div style={{ background: corHeader, color: corTextoHeader, padding: '10px', textAlign: 'center', fontWeight: '900', letterSpacing: 2, fontSize: '1.2em', textTransform: 'uppercase', position: 'relative' }}>
                 {tituloImpacto}
+                {inspecionando && !inspecao.isDummie && (isMestre || inspecao.id === meuNome) && (
+                    <button type="button" className="moldura-remover-token" onClick={() => removerTokenDoMapa(inspecao.id)} title={inspecao.id === meuNome ? 'Retirar o seu personagem do Mapa' : 'Remover este personagem do Mapa'}>
+                        {inspecao.id === meuNome ? '🚪 Sair do Mapa' : '🗑️ Remover do Mapa'}
+                    </button>
+                )}
                 {inspecionando && <button type="button" className="moldura-fechar-inspecao" onClick={limparInspecao} title="Voltar à ação do combate" aria-label="Fechar o resumo e voltar à ação do combate">✖</button>}
             </div>
             {acaoExibir?.tipo === 'sistema' && !acaoExibir.texto.includes('É a vez de') ? (
