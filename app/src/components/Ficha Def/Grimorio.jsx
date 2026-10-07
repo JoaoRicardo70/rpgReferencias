@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import PoderesPanel from '../poderes/PoderesPanel';
 import ElementosPanel from '../arsenal/ElementosPanel';
+import { FichaFormProvider } from '../ficha/FichaFormContext';
+import { FichaCondicoesEElementais } from '../ficha/FichaSubComponents';
 import { uploadImagem } from '../../services/firebase-sync';
 import { useFichaAtiva, useCallSaveAtivo, useSalvarImediatoAtivo } from './FichaAlvoContext';
 
 export default function GrimorioPanel() {
     // 🔥 GRIMÓRIO DA ENTIDADE: dentro de um FichaAlvoProvider (livro do Mestre) é o Grimório de
     // OUTRO personagem — Poderes e Elementos abaixo também passam a mirar ele. Fora disso, o meu.
-    const { ficha: minhaFicha, updateFicha, nome: meuNome } = useFichaAtiva();
+    const { ficha: minhaFicha, updateFicha, nome: meuNome, souEuMesmo } = useFichaAtiva();
     const salvarFichaSilencioso = useCallSaveAtivo();
     const salvarFirebaseImediato = useSalvarImediatoAtivo();
     
@@ -238,13 +240,31 @@ export default function GrimorioPanel() {
                                 <ElementosPanel />
                             </div>
                         )}
+
+                        {paginaAtual === 3 && (
+                            <div className="grimorio-estilo-papel" style={{ flex: 1 }}>
+                                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                                    <h1 style={{ fontSize: '3em', fontStyle: 'italic', fontWeight: 'bold', margin: 0, paddingBottom: '10px', borderBottom: `2px dashed ${localCorTinta}` }}>
+                                        Estados, Afinidades & Reduções
+                                    </h1>
+                                </div>
+                                {/* Debuffs, Afinidades e Reduções de Dano (antes na aba Ficha). O editor grava na ficha do jogador logado. */}
+                                {souEuMesmo ? (
+                                    <FichaFormProvider>
+                                        <FichaCondicoesEElementais />
+                                    </FichaFormProvider>
+                                ) : (
+                                    <p className="grimorio-pagina-aviso">Os Estados, Afinidades e Reduções de Dano de {meuNome} só podem ser editados pelo próprio jogador, na página 3 do Grimório dele.</p>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* 🗂️ NAVEGAÇÃO PRINCIPAL DO LIVRO (Fundo da página) */}
                     <div style={{ position: 'absolute', bottom: '20px', left: '0', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', fontFamily: 'inherit', zIndex: 10 }}>
-                        <button onClick={() => mudarPagina(1)} disabled={paginaAtual === 1} style={{ background: 'transparent', border: 'none', fontSize: '1.2em', fontWeight: 'bold', cursor: paginaAtual === 1 ? 'default' : 'pointer', opacity: paginaAtual === 1 ? 0.3 : 1, fontFamily: 'inherit', color: 'currentColor' }}>⮜ Poderes</button>
-                        <span style={{ fontSize: '1.1em', fontWeight: 'bold', borderBottom: '2px solid currentColor', padding: '0 10px' }}>Página {paginaAtual} de 2</span>
-                        <button onClick={() => mudarPagina(2)} disabled={paginaAtual === 2} style={{ background: 'transparent', border: 'none', fontSize: '1.2em', fontWeight: 'bold', cursor: paginaAtual === 2 ? 'default' : 'pointer', opacity: paginaAtual === 2 ? 0.3 : 1, fontFamily: 'inherit', color: 'currentColor' }}>Elementos ⮞</button>
+                        <button onClick={() => mudarPagina(paginaAtual - 1)} disabled={paginaAtual === 1} style={{ background: 'transparent', border: 'none', fontSize: '1.2em', fontWeight: 'bold', cursor: paginaAtual === 1 ? 'default' : 'pointer', opacity: paginaAtual === 1 ? 0.3 : 1, fontFamily: 'inherit', color: 'currentColor' }}>{paginaAtual === 3 ? '⮜ Elementos' : '⮜ Poderes'}</button>
+                        <span style={{ fontSize: '1.1em', fontWeight: 'bold', borderBottom: '2px solid currentColor', padding: '0 10px' }}>Página {paginaAtual} de 3</span>
+                        <button onClick={() => mudarPagina(paginaAtual + 1)} disabled={paginaAtual === 3} style={{ background: 'transparent', border: 'none', fontSize: '1.2em', fontWeight: 'bold', cursor: paginaAtual === 3 ? 'default' : 'pointer', opacity: paginaAtual === 3 ? 0.3 : 1, fontFamily: 'inherit', color: 'currentColor' }}>{paginaAtual === 2 ? 'Estados ⮞' : 'Elementos ⮞'}</button>
                     </div>
 
                 </div>

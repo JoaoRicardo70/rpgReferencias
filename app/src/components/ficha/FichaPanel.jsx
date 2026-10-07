@@ -2,7 +2,6 @@ import React from 'react';
 import { FichaFormProvider } from './FichaFormContext';
 import { 
     FichaBioGroup, 
-    FichaCondicoesEElementais,
     FichaSeresSelados, 
     FichaEditorAtributos, 
     FichaFuriaBerserker, 
@@ -20,8 +19,7 @@ export default function FichaPanel({ className, children }) {
                     <>
                         <FichaBioGroup />
                         
-                        <FichaCondicoesEElementais /> 
-                        
+                        {/* Estados, Afinidades e Reduções de Dano agora vivem na página 3 do Grimório. */}
                         <FichaSeresSelados />
                         <FichaEditorAtributos />
                         <FichaFuriaBerserker />

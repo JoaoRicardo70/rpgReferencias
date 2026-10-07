@@ -413,11 +413,10 @@ describe('FichaPanel — default sub-components vs. children slot', () => {
         expect(screen.getByTestId('tabela-prestigio')).toBeTruthy();
     });
 
-    it('renders all eight default sub-components', async () => {
+    it('renders all seven default sub-components (Estados/Afinidades moved to the Grimório)', async () => {
         await renderFichaPanel();
         const ids = [
             'ficha-bio-group',
-            'ficha-condicoes-elementais',
             'ficha-seres-selados',
             'ficha-editor-atributos',
             'ficha-furia-berserker',

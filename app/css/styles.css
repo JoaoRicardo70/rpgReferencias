@@ -2181,3 +2181,5 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .reducao-dano-elemento { flex: 1 1 100px; min-width: 90px; }
 .reducao-dano-remover { padding: 2px 8px; }
 .reducao-dano-previa { margin-top: 8px; font-size: 0.75em; color: var(--neon-cyan, #00ffff); word-break: break-word; }
+
+.grimorio-pagina-aviso { text-align: center; font-style: italic; opacity: 0.8; padding: 30px 10px; }
