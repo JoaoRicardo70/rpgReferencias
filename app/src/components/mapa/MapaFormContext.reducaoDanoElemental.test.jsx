@@ -207,8 +207,8 @@ describe('MapaFormContext — aplicarDanoRapido(): redução de dano real (branc
         // FATOR_EXIBICAO_VITAIS (1000) pra virar o dano BRUTO de fato gravado em vida.atual (mesma
         // conversão aplicada dentro de aplicarDanoRapido desde a correção de escala). 399.000 bruto
         // < default de fichaVidaLimpa (1.000.000), não clampa -> fixture inalterado.
-        const reducao = calcularReducaoDanoElemental(8, 0);
-        const valorEsperado = Math.max(0, Math.floor(1000 * (1 - reducao)));
+        // 1000 reduzido em 60% = 400 (a conta sequencial tolera o erro de ponto flutuante de 0,6).
+        const valorEsperado = 400;
         expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 1000000 - valorEsperado * FATOR_EXIBICAO_VITAIS);
     });
 
@@ -273,7 +273,7 @@ describe('MapaFormContext — aplicarDanoRapido(): feed de combate inclui a redu
 
         const texto = enviarParaFeed.mock.calls[0][0].texto;
         expect(texto).toContain('75%');
-        expect(texto).toContain('bruto');
+        expect(texto).toContain('→'); // sequência das reduções: "1000 → −75% Domínio (Fogo) → 250"
         expect(texto).toContain('1000'); // valor bruto original
     });
 

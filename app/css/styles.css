@@ -2172,3 +2172,12 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 
 /* A Moldura fica abaixo da barra fixa do topo (sala / Trocar / Sair), senão o ✖ e o botão de remover ficam escondidos. */
 .mapa-moldura-coluna { flex: 1 1 30%; min-width: 300px; position: sticky; top: 10px; height: 85vh; padding-top: 52px; box-sizing: border-box; }
+
+/* 🛡️ Reduções de Dano em sequência (Ficha > Estados & Afinidades) */
+.reducao-dano-ajuda { color: #888; font-size: 0.72em; margin: 0 0 8px 0; }
+.reducao-dano-linha { display: flex; align-items: center; gap: 4px; margin-bottom: 4px; flex-wrap: wrap; }
+.reducao-dano-nome { flex: 1 1 90px; min-width: 70px; }
+.reducao-dano-pct { width: 58px; text-align: center; }
+.reducao-dano-elemento { flex: 1 1 100px; min-width: 90px; }
+.reducao-dano-remover { padding: 2px 8px; }
+.reducao-dano-previa { margin-top: 8px; font-size: 0.75em; color: var(--neon-cyan, #00ffff); word-break: break-word; }

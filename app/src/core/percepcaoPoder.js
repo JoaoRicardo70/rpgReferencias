@@ -44,15 +44,21 @@ export function getClasseEfetiva(ficha) {
 // (Grimório ativo/passivo, itens equipados e suas formas, Pactos sincronizados, Passivas e Classe).
 // Esses atributos não existem como Status, então não mexem em mais nada do Poder.
 export function somarEfeitosDeAtributo(ficha, atributo) {
-    if (!ficha) return 0;
-    let total = 0;
+    return listarEfeitosDeAtributo(ficha, atributo).reduce((t, e) => t + e.valor, 0);
+}
+
+// Mesma varredura, mas devolve CADA efeito separado ({ valor, nome }) — a Redução de Dano
+// (core/reducaoDano.js) aplica uma de cada vez, então não pode receber só a soma.
+export function listarEfeitosDeAtributo(ficha, atributo) {
+    const lista = [];
+    if (!ficha) return lista;
     const alvo = String(atributo).toLowerCase();
     const somar = (efeitos) => {
         if (!Array.isArray(efeitos)) return;
         efeitos.forEach(e => {
             if (!e || String(e.atributo || '').toLowerCase() !== alvo) return;
             const v = parseFloat(e.valor);
-            if (Number.isFinite(v)) total += v;
+            if (Number.isFinite(v)) lista.push({ valor: v, nome: String(e.nome || e.nomeEfeito || '').trim() });
         });
     };
     const somarForma = (dono) => {
@@ -89,7 +95,7 @@ export function somarEfeitosDeAtributo(ficha, atributo) {
     });
     (ficha.passivas || []).forEach(p => { if (p) somar(p.efeitos); });
     try { somar(getEfeitosDeClasse(ficha)); } catch (e) { /* sem classe registrada */ }
-    return total;
+    return lista;
 }
 
 // Pontos de percepção de quem OLHA (nunca negativo).

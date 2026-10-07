@@ -14,7 +14,8 @@ import { getGlobalMultipliers, getBaseEquivalenteAscensao, amortecerPoderBruto, 
 import { planejarAjustePrestigioStatus, aplicarAjustePrestigioStatus, recolherPontosAlocados, getTotalPontosAlocados } from '../../core/statusPool';
 import { getPontosPrestigioDisponiveis, getPontosDistribuidos, calcularBaseDoPrestigio, validarDistribuicaoPrestigio, registrarDistribuicaoPrestigio, podeAscender, prestigioAposAscensao, aplicarAscensao, CATEGORIAS_PRESTIGIO, PRESTIGIO_PARA_ASCENDER } from '../../core/prestigioDistribuicao';
 import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
-import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
+import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida, getTetoExibidoComFator, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
+import { getRegeneracaoManualPct, limitarRegeneracaoPct } from '../../core/regeneracao';
 
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel';
@@ -609,9 +610,12 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
     // Ficha > Editor de Atributos, mais o bônus de Poderes/Passivas/Itens ativos (getBuffs, ver
     // core/vitals.js > aplicarRegeneracaoDeTurno) que realmente entra na conta a cada turno/clique
     // em "Regenerar". Trazido pra cá pra não precisar trocar de aba só pra ver/ajustar isso.
-    const regenManual = parseFloat(ficha?.[vitalKey]?.regeneracao) || 0;
-    const regenBuff = safeGetBuffs(ficha, vitalKey, false, false)?.regeneracao || 0;
-    const regenTotal = regenManual + regenBuff;
+    // 💖 Agora em PORCENTAGEM do máximo por turno (core/regeneracao.js).
+    let regenTeto = 0;
+    try { regenTeto = getTetoExibidoComFator(vitalKey, ficha); } catch (e) { /* ficha incompleta */ }
+    const regenManual = Math.round(getRegeneracaoManualPct(ficha?.[vitalKey], regenTeto) * 100) / 100;
+    const regenBuff = Math.max(0, safeGetBuffs(ficha, vitalKey, false, false)?.regeneracao || 0);
+    const regenTotal = limitarRegeneracaoPct(regenManual + regenBuff);
 
     return (
         <div style={{ marginBottom: '15px' }}>
@@ -660,16 +664,16 @@ const LinhaVital = ({ labelKey, fallbackLabel, vitalKey, subItens, corBarra, cor
             )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', fontSize: '0.8em', opacity: 0.85 }}>
-                <span style={{ opacity: 0.7 }}>💖 Regen/turno:</span>
+                <span style={{ opacity: 0.7 }}>💖 Regen/turno (% do máx.):</span>
                 <input
-                    type="number" step="0.01" value={regenManual / FATOR_EXIBICAO_VITAIS}
-                    onChange={(e) => salvar(`${vitalKey}.regeneracao`, (parseFloat(e.target.value) || 0) * FATOR_EXIBICAO_VITAIS)}
+                    type="number" min="0" max="100" step="0.1" value={regenManual}
+                    onChange={(e) => salvar(`${vitalKey}.regeneracaoPct`, limitarRegeneracaoPct(e.target.value))}
                     style={{ width: '70px', background: 'rgba(0,0,0,0.3)', color: 'inherit', border: `1px solid ${corBarra}80`, borderRadius: '4px', padding: '2px 4px', textAlign: 'center' }}
-                    title="Regeneração manual/fixa deste vital"
+                    title="Regeneração manual deste vital, em % do máximo por turno"
                 />
                 {regenBuff > 0 && (
                     <span style={{ color: '#0f0', textShadow: '0 0 5px rgba(0,255,0,0.5)' }}>
-                        + {regenBuff / FATOR_EXIBICAO_VITAIS} (Poder/Passiva/Item) = <strong>{regenTotal / FATOR_EXIBICAO_VITAIS}</strong>/turno
+                        + {regenBuff}% (Poder/Passiva/Item) = <strong>{regenTotal}</strong>%/turno
                     </span>
                 )}
             </div>

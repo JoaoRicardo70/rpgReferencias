@@ -56,46 +56,43 @@ describe('Marcados (página 1, LinhaVital) — Regeneração de Corpo e Aura (vi
     afterEach(() => cleanup());
 
     it('Corpo mostra o campo de regeneração manual com o valor salvo em ficha.corpo.regeneracao', () => {
-        const ficha = fichaBase({ corpo: { base: 1000000, regeneracao: 250 } });
+        const ficha = fichaBase({ corpo: { base: 1000000, regeneracaoPct: 2.5 } });
         montarMockUseStore(ficha);
         render(<MarcadosPanel />);
 
-        // 🔥 Reformulação de Vida/Energias: exibido dividido por FATOR_EXIBICAO_VITAIS (250/1000=0,25).
+        // 💖 Regeneração em % do máximo por turno.
         const regenInput = linhaRegen('Corpo').querySelector('input[type="number"]');
-        expect(regenInput.value).toBe('0.25');
+        expect(regenInput.value).toBe('2.5');
     });
 
-    it('editar o campo manual de Corpo chama updateFicha e grava em ficha.corpo.regeneracao', () => {
+    it('editar o campo manual de Corpo chama updateFicha e grava em ficha.corpo.regeneracaoPct', () => {
         const ficha = fichaBase({ corpo: { base: 1000000, regeneracao: 0 } });
         const mockState = montarMockUseStore(ficha);
         render(<MarcadosPanel />);
 
-        // 🔥 Reformulação de Vida/Energias: "333" digitado é a escala EXIBIDA -- multiplicado de
-        // volta por FATOR_EXIBICAO_VITAIS antes de gravar o valor bruto.
         const regenInput = linhaRegen('Corpo').querySelector('input[type="number"]');
-        fireEvent.change(regenInput, { target: { value: '333' } });
+        fireEvent.change(regenInput, { target: { value: '33' } });
 
         expect(mockState.updateFicha).toHaveBeenCalled();
-        expect(ficha.corpo.regeneracao).toBe(333000);
+        expect(ficha.corpo.regeneracaoPct).toBe(33);
     });
 
     it('um Poder ATIVO com efeito propriedade="regeneracao" em "corpo" soma ao total exibido, sem vazar pra Aura', () => {
         const ficha = fichaBase({
-            corpo: { base: 1000000, regeneracao: 100 },
-            aura: { base: 1000000, regeneracao: 10 },
-            poderes: [{ id: 'p1', nome: 'Fortalecimento', categoria: 'passiva', ativa: true, efeitos: [{ atributo: 'corpo', propriedade: 'regeneracao', valor: 60 }] }],
+            corpo: { base: 1000000, regeneracaoPct: 1 },
+            aura: { base: 1000000, regeneracaoPct: 0.5 },
+            poderes: [{ id: 'p1', nome: 'Fortalecimento', categoria: 'passiva', ativa: true, efeitos: [{ atributo: 'corpo', propriedade: 'regeneracao', valor: 6 }] }],
         });
         montarMockUseStore(ficha);
         render(<MarcadosPanel />);
 
-        // 🔥 Reformulação de Vida/Energias: exibido dividido por FATOR_EXIBICAO_VITAIS
-        // (60/1000=0,06; total 160/1000=0,16; Aura 10/1000=0,01).
+        // 1% (manual) + 6% (buff) = 7% por turno; Aura segue só com os próprios 0,5%.
         const textoCorpo = linhaRegen('Corpo').textContent;
-        expect(textoCorpo).toMatch(/\+ 0\.06/);
-        expect(textoCorpo).toMatch(/0\.16/); // 0,1 (manual) + 0,06 (buff) = 0,16
+        expect(textoCorpo).toMatch(/\+ 6%/);
+        expect(textoCorpo).toMatch(/7%\/turno/);
 
         expect(linhaRegen('Aura').textContent).not.toMatch(/Poder\/Passiva\/Item/);
-        expect(linhaRegen('Aura').querySelector('input[type="number"]').value).toBe('0.01');
+        expect(linhaRegen('Aura').querySelector('input[type="number"]').value).toBe('0.5');
     });
 
     it('Aura sem regeneração manual definida (undefined) mostra o input com valor 0, sem lançar', () => {
@@ -119,8 +116,7 @@ describe('Marcados (página 1, LinhaVital) — Regeneração de Corpo e Aura (vi
         montarMockUseStore(ficha);
         render(<MarcadosPanel />);
 
-        // 🔥 Reformulação de Vida/Energias: exibido dividido por FATOR_EXIBICAO_VITAIS (40/1000=0,04).
         expect(linhaRegen('Corpo').textContent).not.toMatch(/Poder\/Passiva\/Item/);
-        expect(linhaRegen('Aura').textContent).toMatch(/\+ 0\.04/);
+        expect(linhaRegen('Aura').textContent).toMatch(/\+ 40%/);
     });
 });

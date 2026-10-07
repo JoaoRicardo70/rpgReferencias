@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import useStore from '../../stores/useStore';
-import { calcularReducao, calcularCA, calcularMultiplicadorElemental } from '../../core/engine';
+import { calcularReducao, calcularCA } from '../../core/engine';
+import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano';
 import { salvarFichaSilencioso, enviarParaFeed } from '../../services/firebase-sync';
 import { danoExibidoParaBruto } from '../../core/vitals';
 import { escalarDanoPelaVida, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
@@ -225,8 +226,9 @@ export function DefesaFormProvider({ children }) {
             ? escalarDanoPelaVida(dano, getVidaMaxExibidaFicha(minhaFicha), getPontosVidaTotal(useStore.getState().cenario))
             : dano;
         const danoDisputa = aplicarDisputaAoDano(danoBase, disputa);
-        const mult = calcularMultiplicadorElemental(minhaFicha, elementoInc);
-        const danoFinal = Math.floor(danoDisputa * mult);
+        // 🛡️ Reduções/Resistências aplicadas em SEQUÊNCIA, uma de cada vez (core/reducaoDano.js).
+        const reduzido = aplicarReducoesSequenciais(danoDisputa, getPassosReducaoDano(minhaFicha, elementoInc));
+        const danoFinal = reduzido.final;
 
         updateFicha((ficha) => {
             if (ficha.vida) {
@@ -236,10 +238,7 @@ export function DefesaFormProvider({ children }) {
         });
         salvarFichaSilencioso();
 
-        let mensagemElemental = '';
-        if (mult === 2.0) mensagemElemental = ' [VULNERÁVEL: Dano x2!]';
-        else if (mult === 0.5) mensagemElemental = ' [RESISTIU: Dano /2]';
-        else if (mult === 0.0) mensagemElemental = ' [IMUNE: 0 Dano!]';
+        const mensagemElemental = reduzido.detalhe.length > 0 ? ` [${descreverReducoes(reduzido)}]` : '';
 
         const nomeElemento = elementosDinamicos.find(e => e.id === elementoInc)?.nome || elementoInc;
 

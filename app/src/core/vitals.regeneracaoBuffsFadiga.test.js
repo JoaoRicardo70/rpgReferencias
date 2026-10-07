@@ -4,6 +4,9 @@ import { aplicarRegeneracaoDeTurno } from './vitals';
 // ---------------------------------------------------------------------------
 // QA — "Reimplementação" da Regeneração de Vida/Energias (pedido do usuário):
 //
+// ⚠️ A Regeneração agora é em PORCENTAGEM do teto por turno (core/regeneracao.js): o valor do campo
+// manual (regeneracaoPct) e do efeito 'regeneracao' é % — 5 = 5% do máximo (1e6 aqui = 50000).
+//
 // 1) Regeneração passa a somar ficha[vital].regeneracao (campo manual) COM o bônus de
 //    regeneração vindo de Poderes/Passivas/Itens ativos (getBuffs(ficha,vital).regeneracao —
 //    efeito com propriedade 'regeneracao'). Antes esse bônus era calculado (core/attributes.js
@@ -44,7 +47,7 @@ function fichaComPoderRegen(regenPoder, overrides = {}) {
 
 describe('core/vitals - aplicarRegeneracaoDeTurno: bônus de regeneração de Poderes/Passivas/Itens ativos', () => {
     it('soma o bônus de regeneração de um Poder ATIVO ao campo manual, mesmo com o campo manual em 0', () => {
-        const ficha = fichaComPoderRegen(50000);
+        const ficha = fichaComPoderRegen(5);
         aplicarRegeneracaoDeTurno(ficha);
         // vida: base=1e6, mult=1 -> maximo bruto=1e6 (7 dígitos, abaixo do limite de 8 -> sem compressão)
         // atual(100000) + regenBuff(50000) = 150000.
@@ -52,14 +55,14 @@ describe('core/vitals - aplicarRegeneracaoDeTurno: bônus de regeneração de Po
     });
 
     it('soma o campo manual COM o bônus do Poder (não um substitui o outro)', () => {
-        const ficha = fichaComPoderRegen(50000, { vida: { ...statBase(1000000), atual: 100000, regeneracao: 20000 } });
+        const ficha = fichaComPoderRegen(5, { vida: { ...statBase(1000000), atual: 100000, regeneracaoPct: 2 } });
         aplicarRegeneracaoDeTurno(ficha);
         // 100000 + 20000 (manual) + 50000 (buff) = 170000.
         expect(ficha.vida.atual).toBe(170000);
     });
 
     it('um Poder de regeneração INATIVO (ativa=false) não contribui nada', () => {
-        const ficha = fichaComPoderRegen(50000);
+        const ficha = fichaComPoderRegen(5);
         ficha.poderes[0].ativa = false;
         aplicarRegeneracaoDeTurno(ficha);
         expect(ficha.vida.atual).toBe(100000); // sem nenhuma regeneração
@@ -68,14 +71,14 @@ describe('core/vitals - aplicarRegeneracaoDeTurno: bônus de regeneração de Po
     it('um efeito de regeneração em efeitosPassivos conta mesmo com o Poder desativado (fonte PASSIVA de verdade)', () => {
         const ficha = fichaComPoderRegen(0);
         ficha.poderes[0].ativa = false;
-        ficha.poderes[0].efeitosPassivos = [{ atributo: 'vida', propriedade: 'regeneracao', valor: 30000 }];
+        ficha.poderes[0].efeitosPassivos = [{ atributo: 'vida', propriedade: 'regeneracao', valor: 3 }];
         aplicarRegeneracaoDeTurno(ficha);
         expect(ficha.vida.atual).toBe(130000); // 100000 + 30000 (passivo, independe de "ativa")
     });
 
     it('um item EQUIPADO com efeito de regeneração também contribui (fonte de item)', () => {
         const ficha = fichaComPoderRegen(0, {
-            inventario: [{ id: 'i1', nome: 'Anel de Vida', equipado: true, efeitos: [{ atributo: 'vida', propriedade: 'regeneracao', valor: 15000 }] }],
+            inventario: [{ id: 'i1', nome: 'Anel de Vida', equipado: true, efeitos: [{ atributo: 'vida', propriedade: 'regeneracao', valor: 1.5 }] }],
         });
         ficha.poderes[0].ativa = false;
         aplicarRegeneracaoDeTurno(ficha);
@@ -88,7 +91,7 @@ describe('core/vitals - aplicarRegeneracaoDeTurno: bônus de regeneração de Po
 // de 100 milhões), o teto continua sendo exatamente 1e6, igual sempre foi.
 describe('core/vitals - aplicarRegeneracaoDeTurno: desconto de Fadiga (combate.fadigaExtra) proporcional à cura', () => {
     it('regenerar um vital do zero ao teto (100% do teto exibido) desconta o peso máximo de Fadiga (10 pontos)', () => {
-        const ficha = fichaComPoderRegen(900000, { vida: { ...statBase(1000000), atual: 0, regeneracao: 0 } });
+        const ficha = fichaComPoderRegen(90, { vida: { ...statBase(1000000), atual: 0, regeneracao: 0 } });
         aplicarRegeneracaoDeTurno(ficha);
         expect(ficha.vida.atual).toBe(900000); // 90% do teto (1e6) curado
         // fração curada = 0.9 -> desconto = 0.9 * 10 = 9. fadigaExtra: 20 -> 11.
@@ -102,7 +105,7 @@ describe('core/vitals - aplicarRegeneracaoDeTurno: desconto de Fadiga (combate.f
     });
 
     it('o desconto nunca deixa a Fadiga negativa (clampa em 0)', () => {
-        const ficha = fichaComPoderRegen(900000, {
+        const ficha = fichaComPoderRegen(90, {
             vida: { ...statBase(1000000), atual: 0, regeneracao: 0 },
             combate: { fadigaExtra: 3 }, // menos do que o desconto calculado
         });
@@ -112,7 +115,7 @@ describe('core/vitals - aplicarRegeneracaoDeTurno: desconto de Fadiga (combate.f
     });
 
     it('ficha sem combate.fadigaExtra prévio não lança e não cria um valor negativo', () => {
-        const ficha = fichaComPoderRegen(900000, {
+        const ficha = fichaComPoderRegen(90, {
             vida: { ...statBase(1000000), atual: 0, regeneracao: 0 },
             combate: {},
         });
@@ -123,7 +126,7 @@ describe('core/vitals - aplicarRegeneracaoDeTurno: desconto de Fadiga (combate.f
 
 describe('core/vitals - aplicarRegeneracaoDeTurno: pisoFadigaExtra (regressão MapaFormContext — cura no mesmo tick não pode mascarar o ganho dinâmico daquele turno)', () => {
     it('sem piso (padrão, chamada direta como o botão "Regenerar"), o desconto pode zerar toda a Fadiga acumulada', () => {
-        const ficha = fichaComPoderRegen(900000, {
+        const ficha = fichaComPoderRegen(90, {
             vida: { ...statBase(1000000), atual: 0, regeneracao: 0 },
             combate: { fadigaExtra: 5 },
         });
@@ -132,7 +135,7 @@ describe('core/vitals - aplicarRegeneracaoDeTurno: pisoFadigaExtra (regressão M
     });
 
     it('com um piso maior que o desconto calculado, a Fadiga nunca cai abaixo do piso (protege o ganho dinâmico do mesmo turno em MapaFormContext.jsx)', () => {
-        const ficha = fichaComPoderRegen(900000, {
+        const ficha = fichaComPoderRegen(90, {
             vida: { ...statBase(1000000), atual: 0, regeneracao: 0 },
             combate: { fadigaExtra: 5 }, // ex.: 0 antes do turno + 5 de ganho dinâmico deste turno
         });
@@ -143,7 +146,7 @@ describe('core/vitals - aplicarRegeneracaoDeTurno: pisoFadigaExtra (regressão M
     });
 
     it('um piso menor que a Fadiga pós-desconto não força a Fadiga a SUBIR até o piso — só evita que caia abaixo dele', () => {
-        const ficha = fichaComPoderRegen(300000, {
+        const ficha = fichaComPoderRegen(30, {
             vida: { ...statBase(1000000), atual: 0, regeneracao: 0 },
             combate: { fadigaExtra: 20 },
         });

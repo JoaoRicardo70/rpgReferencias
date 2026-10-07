@@ -20,6 +20,12 @@ export const ATRIBUTOS_AGRUPADOS = [
         label: 'ESPECIAIS (GLOBAIS)',
         options: ['todos_status', 'todas_energias', 'geral', 'especial']
     },
+    // 🛡️ Redução de Dano (core/reducaoDano.js): use a propriedade BASE; o valor é a % de redução
+    // (20 = -20% do dano). Cada redução é aplicada em sequência, uma de cada vez.
+    {
+        label: '🛡️ REDUÇÃO DE DANO',
+        options: ['reducao_dano']
+    },
     // 👁️ Percepção/Ocultação de Poder (core/percepcaoPoder.js): use a propriedade BASE; o valor é em
     // pontos. PERCEPCAO_PODER estreita a estimativa do Poder dos outros; OCULTACAO_PODER libera ao
     // dono esconder o próprio Poder (o Assassino já nasce com 100).

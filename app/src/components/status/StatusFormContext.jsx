@@ -4,6 +4,7 @@ import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from '../../core/
 import { getPrestigioReal, getRank } from '../../core/prestige.js';
 import { calcularReducaoFadigaPorRegeneracao } from '../../core/fadiga.js';
 import { getTetoVida } from '../../core/vitals.js';
+import { getRegeneracaoTotalPct, calcularCuraRegeneracao } from '../../core/regeneracao.js';
 import { salvarFichaSilencioso } from '../../services/firebase-sync.js';
 
 const safeFn = (fn, fallback) => (...args) => {
@@ -259,9 +260,7 @@ export function StatusFormProvider({ children }) {
                 const { mxDisplay } = calcVitalScale(rawMx, key, rawMxEstavel);
                 // 🩸 Vida regenera até a SOMA de todas as barras (getTetoVida), não só uma.
                 const teto = key === 'vida' ? getTetoVida(rawMxEstavel, 'vida') : mxDisplay;
-                const regenBase = parseFloat(f[key]?.regeneracao) || 0;
-                const regenBuff = getBuffs(f, key).regeneracao || 0;
-                const regen = regenBase + regenBuff;
+                const regen = calcularCuraRegeneracao(teto, getRegeneracaoTotalPct(f[key], getBuffs(f, key).regeneracao, teto));
                 if (!f[key]) return;
                 if (regen > 0 && teto > 0 && (f[key].atual || 0) < teto) {
                     const antes = f[key].atual || 0;

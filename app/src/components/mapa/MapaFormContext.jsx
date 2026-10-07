@@ -12,6 +12,7 @@ import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisput
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
+import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano';
 import { ordenarOrdemTurno, chaveEntidadeTurno, moverChaveNaOrdem, recalcularIndiceTurno } from '../../core/turnos';
 
 export const MAP_SIZE = 30;
@@ -967,14 +968,17 @@ export function MapaFormProvider({ children }) {
             ? null : nivelDominioOverride;
         const nivelAtacante = parseFloat(nivelDominioAtacante) || 0;
 
-        let valor = valorBruto;
-        let reducaoAplicada = 0;
+        // 🛡️ Reduções/Resistências da ficha do alvo + Domínio elemental, aplicadas em SEQUÊNCIA,
+        // uma de cada vez (core/reducaoDano.js).
+        const fichaDoAlvoReducao = alvo.nome === meuNome && !alvo.isDummie ? minhaFicha : alvo.ficha;
+        const passosReducao = getPassosReducaoDano(fichaDoAlvoReducao, elemento);
         if (elemento && !alvo.isDummie) {
-            const fichaParaResistencia = alvo.nome === meuNome ? minhaFicha : alvo.ficha;
-            const nivelDefensor = nivelOverride !== null ? nivelOverride : getNivelDominio(fichaParaResistencia, elemento);
-            reducaoAplicada = calcularReducaoDanoElemental(nivelDefensor, nivelAtacante);
-            if (reducaoAplicada > 0) valor = Math.max(0, Math.floor(valorBruto * (1 - reducaoAplicada)));
+            const nivelDefensor = nivelOverride !== null ? nivelOverride : getNivelDominio(fichaDoAlvoReducao, elemento);
+            const reducaoDominio = calcularReducaoDanoElemental(nivelDefensor, nivelAtacante);
+            if (reducaoDominio > 0) passosReducao.push({ nome: `Domínio (${elemento})`, percentual: reducaoDominio * 100, origem: 'dominio' });
         }
+        const reduzido = aplicarReducoesSequenciais(valorBruto, passosReducao);
+        const valor = reduzido.final;
 
         // 🔥 CORREÇÃO: `valor`/`valorBruto` vêm do campo "Dano" da UI, na MESMA escala EXIBIDA da
         // barra de HP na tela (ex.: a mesma unidade do "HP: 46.000" mostrado no Holograma de Ação)
@@ -1027,7 +1031,7 @@ export function MapaFormProvider({ children }) {
             aplicarElementoNivelDireto(alvo.nome, nivelOverride);
         }
 
-        const textoReducao = reducaoAplicada > 0 ? ` (Resistência Elemental descontou ${Math.round(reducaoAplicada * 100)}%, bruto era ${valorBruto})` : '';
+        const textoReducao = reduzido.detalhe.length > 0 ? ` (${descreverReducoes(reduzido)})` : '';
         const houveDisputaRapida = !!(disputa && disputa.ativa) || !!danoDeDado;
         const deQuem = atacante ? ` (golpe de ${atacante.nome})` : '';
         // Com Disputa de Poder o número que chegou no alvo (e o digitado) é só do Mestre.

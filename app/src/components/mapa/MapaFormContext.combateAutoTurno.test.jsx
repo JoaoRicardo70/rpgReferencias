@@ -327,7 +327,7 @@ describe('MapaFormContext — Fadiga DINÂMICA (fadigaExtra) acumula ao chegar o
         // Vida bem baixa, MAS com regeneração enorme (>= o máximo calculado) -- se o cálculo
         // dinâmico rodasse DEPOIS da regeneração (ou lesse o estado pós-cura), o fator de "vida
         // perdida" cairia pra 0 e fadigaExtra ficaria zerado neste tick, o que seria o bug.
-        state.minhaFicha.vida = { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1, regeneracao: 99999999 };
+        state.minhaFicha.vida = { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1, regeneracaoPct: 50 };
         state.minhaFicha.combate = { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0 };
         montarComEstado(state);
 
@@ -337,7 +337,7 @@ describe('MapaFormContext — Fadiga DINÂMICA (fadigaExtra) acumula ao chegar o
         // inalterado)...
         // 🩸 Vida usa getTetoVida (Break Bars, core/vitals.js) -- o teto NUNCA é maior nem menor
         // que o bruto (base=1e8, exatamente o limiar) -- teto real de cura é o próprio 1e8.
-        expect(state.minhaFicha.vida.atual).toBe(100000000); // máximo calculado (teto real)
+        expect(state.minhaFicha.vida.atual).toBe(100000001); // 1 + 50% do teto (2e8) por turno
         // ...mas o ganho dinâmico já capturado ANTES da cura continua > 0 (não foi mascarado).
         expect(state.minhaFicha.combate.fadigaExtra).toBeGreaterThan(0);
     });

@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { getMaximo, getBuffs, getEfeitosDeClasse } from '../../core/attributes.js';
-import { capturarMaximosAtuais, rescalarVitaisProporcional, getVidaTotalMaxDisplay } from '../../core/vitals.js';
+import { capturarMaximosAtuais, rescalarVitaisProporcional, getVidaTotalMaxDisplay, getTetoExibidoComFator } from '../../core/vitals.js';
+import { getRegeneracaoManualPct, limitarRegeneracaoPct } from '../../core/regeneracao.js';
 import { escalarEfeitosPorEstagio } from '../../core/estagios.js';
 import { salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync.js';
 
@@ -127,6 +128,31 @@ export function FichaFormProvider({ children }) {
                 f.afinidades[categoria].push(elementoId);
             }
         });
+        salvarFichaSilencioso();
+    }, [updateFicha]);
+
+    // 🛡️ Reduções de Dano em % (core/reducaoDano.js) — cada uma é aplicada em sequência.
+    const adicionarReducaoDano = useCallback(() => {
+        updateFicha(f => {
+            if (!Array.isArray(f.reducoesDano)) f.reducoesDano = [];
+            f.reducoesDano.push({ id: 'rd_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), nome: '', percentual: 10, elemento: 'todos' });
+        });
+        salvarFichaSilencioso();
+    }, [updateFicha]);
+
+    const atualizarReducaoDano = useCallback((id, campo, valor) => {
+        updateFicha(f => {
+            const r = (f.reducoesDano || []).find(x => x && x.id === id);
+            if (!r) return;
+            if (campo === 'percentual') r.percentual = Math.min(100, Math.max(0, parseFloat(valor) || 0));
+            else if (campo === 'nome') r.nome = String(valor || '').slice(0, 60);
+            else if (campo === 'elemento') r.elemento = String(valor || 'todos');
+        });
+        salvarFichaSilencioso();
+    }, [updateFicha]);
+
+    const removerReducaoDano = useCallback((id) => {
+        updateFicha(f => { f.reducoesDano = (f.reducoesDano || []).filter(x => x && x.id !== id); });
         salvarFichaSilencioso();
     }, [updateFicha]);
 
@@ -293,7 +319,10 @@ export function FichaFormProvider({ children }) {
         if (!minhaFicha || !minhaFicha[k]) { setCampos({ base: 0, mBase: 1, regeneracao: 0 }); return; }
         const st = minhaFicha[k];
         const fator = (s === 'todos_status' || STATS.includes(k)) ? FATOR_EXIBICAO_STATUS : 1;
-        setCampos({ base: (st.base || 0) / fator, mBase: st.mBase || 1, regeneracao: (st.regeneracao || 0) / fator });
+        // 💖 Regeneração é % do máximo por turno (core/regeneracao.js) — sem o divisor de exibição.
+        let teto = 0;
+        try { teto = getTetoExibidoComFator(k, minhaFicha); } catch (e) { /* atributo sem teto */ }
+        setCampos({ base: (st.base || 0) / fator, mBase: st.mBase || 1, regeneracao: Math.round(getRegeneracaoManualPct(st, teto) * 100) / 100 });
     }, [selAtributo, minhaFicha]);
 
     useEffect(() => { carregarAtributoNaTela(); }, [carregarAtributoNaTela]);
@@ -314,7 +343,7 @@ export function FichaFormProvider({ children }) {
         else if (s === 'todas_energias') chs = [...ENERGIAS];
         else chs = [s];
         const fator = (s === 'todos_status' || STATS.includes(s)) ? FATOR_EXIBICAO_STATUS : 1;
-        const v = { b: (parseInt(campos.base) || 0) * fator, mb: parseFloat(campos.mBase) || 1, rg: (parseFloat(campos.regeneracao) || 0) * fator };
+        const v = { b: (parseInt(campos.base) || 0) * fator, mb: parseFloat(campos.mBase) || 1, rg: limitarRegeneracaoPct(campos.regeneracao) };
         updateFicha((ficha) => {
             const vitaisAfetados = chs.filter(c => ['vida', 'mana', 'aura', 'chakra', 'corpo', 'pontosVitais', 'pontosMortais'].includes(c));
             const oldM = vitaisAfetados.length > 0 ? capturarMaximosAtuais(ficha, vitaisAfetados) : null;
@@ -322,7 +351,7 @@ export function FichaFormProvider({ children }) {
             for (let i = 0; i < chs.length; i++) {
                 const c = chs[i];
                 if (!ficha[c]) ficha[c] = {};
-                ficha[c].base = v.b; ficha[c].mBase = v.mb; ficha[c].regeneracao = v.rg;
+                ficha[c].base = v.b; ficha[c].mBase = v.mb; ficha[c].regeneracaoPct = v.rg; ficha[c].regeneracao = 0;
             }
 
             if (vitaisAfetados.length > 0) rescalarVitaisProporcional(ficha, oldM, vitaisAfetados);
@@ -491,7 +520,7 @@ export function FichaFormProvider({ children }) {
         addSerEfeito, removeSerEfeito, addSerEfeitoPassivo, removeSerEfeitoPassivo,
         addSerSelado, editarSerSelado, removeSerSelado, toggleSerSelado, cancelarEdicaoSer,
         salvarFormaSer, deletarFormaSer, ativarFormaSer,
-        modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos
+        modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano
     }), [
         minhaFicha, updateFicha, personagens, meuNome, mesa, raca, classe, subClasse, alterEgoSlot1, alterEgoSerId, classesMemorizadas,
         idade, fisico, sangue, alinhamento, afiliacao, dinheiro, salvandoBio, overridesCompendio, grands, isGrand, grandIcone,
@@ -503,7 +532,7 @@ export function FichaFormProvider({ children }) {
         serNovoNomeEfeitoPassivo, serNovoAtrPassivo, serNovoPropPassivo, serNovoValPassivo,
         addSerEfeito, removeSerEfeito, addSerEfeitoPassivo, removeSerEfeitoPassivo,
         addSerSelado, editarSerSelado, removeSerSelado, toggleSerSelado, cancelarEdicaoSer,
-        salvarFormaSer, deletarFormaSer, ativarFormaSer, modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos
+        salvarFormaSer, deletarFormaSer, ativarFormaSer, modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano
     ]);
 
     return (

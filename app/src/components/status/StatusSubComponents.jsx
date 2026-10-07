@@ -10,6 +10,7 @@ import {
 } from './StatusFormContext';
 import { calcularBarrasVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularFatorMultiplicadorForca } from '../../core/poder';
+import { getRegeneracaoManualPct } from '../../core/regeneracao';
 import { salvarFichaSilencioso } from '../../services/firebase-sync.js';
 import BarrasVida from '../shared/BarrasVida';
 
@@ -163,8 +164,10 @@ export function StatusVitalBar({ vitalKey, label, color, borderC, isSpecial, gri
     const fatorExibicao = ['vida', 'mana', 'aura', 'chakra', 'corpo'].includes(vitalKey) ? FATOR_EXIBICAO_VITAIS : 1;
     const barrasExibidas = fatorExibicao === 1 ? barras : barras.map(b => ({ atual: b.atual / fatorExibicao, max: b.max / fatorExibicao }));
 
-    const regen = (parseFloat(ficha[vitalKey]?.regeneracao) || 0) / fatorExibicao;
-    const extra = regen > 0 ? `(+${regen}/turno)` : '';
+    // 💖 Regeneração em % do máximo por turno (core/regeneracao.js).
+    const regenTeto = barras.reduce((t, b) => t + (Number(b.max) || 0), 0);
+    const regen = Math.round(getRegeneracaoManualPct(ficha[vitalKey], regenTeto) * 100) / 100;
+    const extra = regen > 0 ? `(+${regen}%/turno)` : '';
 
     // 💔 BREAK BARS: 2+ barras (ver core/vitals.js > calcularBarrasVida/montarBarrasVida) usam o visual novo em
     // pílula com losangos e "quebra" animada ao esvaziar (pedido do usuário) — componente

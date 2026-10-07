@@ -1,6 +1,7 @@
 import React from 'react';
 import { useFichaForm, ATRIBUTO_OPTIONS, CLASSES_OPTIONS, STATS, ENERGIAS } from './FichaFormContext';
 import FormasEditor from '../shared/FormasEditor';
+import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano.js';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Ficha provider não encontrado</div>;
 
@@ -13,7 +14,7 @@ const PROPRIEDADE_OPTIONS = [
     { val: 'munico', lbl: 'Mult Único (x)' },
     { val: 'furia_berserker', lbl: 'Fúria Berserker (x)' },
     { val: 'reducaocusto', lbl: 'Redução Custo (%)' },
-    { val: 'regeneracao', lbl: 'Regeneração' },
+    { val: 'regeneracao', lbl: 'Regeneração (% do máx./turno)' },
     { val: 'elemento_inato', lbl: 'Inato (Zera Custo Elementos)' } 
 ];
 
@@ -153,7 +154,10 @@ export function FichaCondicoesEElementais() {
     const ctx = useFichaForm();
     if (!ctx) return null;
 
-    const { minhaFicha, modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos } = ctx;
+    const { minhaFicha, modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano } = ctx;
+    const reducoes = Array.isArray(minhaFicha.reducoesDano) ? minhaFicha.reducoesDano : [];
+    // Prévia: 100 de dano sem elemento passando pelas reduções gerais (+ efeitos), uma de cada vez.
+    const previaReducao = aplicarReducoesSequenciais(100, getPassosReducaoDano(minhaFicha, ''));
 
     const afinidades = minhaFicha.afinidades || { resistencias: [], vulnerabilidades: [], imunidades: [], absorcoes: [] };
     const condicoesAtivas = minhaFicha.condicoes || [];
@@ -227,6 +231,29 @@ export function FichaCondicoesEElementais() {
                         <span style={{ color: '#ffaa00' }}>● Vulnerável</span>
                         <span style={{ color: '#ffffff' }}>● Imune</span>
                     </div>
+                </div>
+
+                {/* COLUNA 3: REDUÇÕES DE DANO EM SEQUÊNCIA */}
+                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px', border: '1px solid #333' }}>
+                    <strong style={{ color: '#aaa', fontSize: '0.75em', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>🛡️ Reduções de Dano (em sequência)</strong>
+                    <p className="reducao-dano-ajuda">Cada redução é aplicada uma de cada vez sobre o dano que sobrou da anterior (20% e depois 30% = 44% no total, não 50%).</p>
+                    {reducoes.map(r => (
+                        <div key={r.id} className="reducao-dano-linha">
+                            <input className="input-neon reducao-dano-nome" type="text" placeholder="Nome" value={r.nome || ''} onChange={e => atualizarReducaoDano(r.id, 'nome', e.target.value)} />
+                            <input className="input-neon reducao-dano-pct" type="number" min="0" max="100" step="1" value={r.percentual} onChange={e => atualizarReducaoDano(r.id, 'percentual', e.target.value)} title="Percentual de dano reduzido" />
+                            <span>%</span>
+                            <select className="input-neon reducao-dano-elemento" value={r.elemento || 'todos'} onChange={e => atualizarReducaoDano(r.id, 'elemento', e.target.value)} title="Contra qual tipo de dano vale">
+                                <option value="todos">Todo dano</option>
+                                <option value="fisico">Físico</option>
+                                {elementosDinamicos.map(e => <option key={e.id} value={e.id}>{e.icone} {e.nome}</option>)}
+                            </select>
+                            <button className="btn-neon btn-red reducao-dano-remover" onClick={() => removerReducaoDano(r.id)} title="Remover redução">✖</button>
+                        </div>
+                    ))}
+                    <button className="btn-neon" onClick={adicionarReducaoDano} style={{ marginTop: 6, width: '100%' }}>+ Adicionar Redução</button>
+                    {previaReducao.detalhe.length > 0 && (
+                        <div className="reducao-dano-previa">Prévia (100 de dano, sem elemento): {descreverReducoes(previaReducao)}</div>
+                    )}
                 </div>
 
             </div>
@@ -376,8 +403,8 @@ export function FichaEditorAtributos() {
                     {buffsAtuais && renderBuffHolograma(campos.mBase, buffsAtuais.mbase, buffsAtuais._hasBuff.mbase, true)}
                 </div>
                 <div>
-                    <label style={{ color: '#aaa', fontSize: '0.85em' }}>Regeneração</label>
-                    <input className="input-neon" type="number" step="0.01" value={campos.regeneracao} onChange={e => handleCampo('regeneracao', e.target.value)} />
+                    <label style={{ color: '#aaa', fontSize: '0.85em' }}>Regeneração (% do máx./turno)</label>
+                    <input className="input-neon" type="number" min="0" max="100" step="0.1" value={campos.regeneracao} onChange={e => handleCampo('regeneracao', e.target.value)} />
                     {buffsAtuais && renderBuffHolograma(campos.regeneracao, buffsAtuais.regeneracao, false, false)}
                 </div>
             </div>

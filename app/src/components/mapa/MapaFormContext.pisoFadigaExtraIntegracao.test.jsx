@@ -85,7 +85,7 @@ describe('MapaFormContext — integração real do piso de Fadiga (pisoFadigaExt
             acoes: { padrao: { max: 1, atual: 0 }, bonus: { max: 1, atual: 0 }, reacao: { max: 1, atual: 0 } },
             // Vida bem baixa, mas com regeneração enorme (cura pro teto no mesmo tick) —
             // exatamente o cenário que a 3ª correção (piso) existe pra proteger.
-            vida: { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1, regeneracao: 99999999 },
+            vida: { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1, regeneracaoPct: 50 },
             poderes: [], inventario: [], passivas: [],
             combate: { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0 },
         };
@@ -97,7 +97,7 @@ describe('MapaFormContext — integração real do piso de Fadiga (pisoFadigaExt
         // A cura de fato aconteceu neste mesmo tick...
         // 🩸 Vida usa getTetoVida (Break Bars, core/vitals.js) -- o teto NUNCA é maior nem menor
         // que o bruto (base=1e8, exatamente o limiar) -- teto real de cura é o próprio 1e8.
-        expect(minhaFicha.vida.atual).toBe(100000000); // teto real
+        expect(minhaFicha.vida.atual).toBe(100000001); // 1 + 50% do teto (2e8) por turno
         // ...mas o ganho dinâmico calculado ANTES da cura não pode ter sido mascarado a 0 pelo
         // desconto de Fadiga por Regeneração que roda logo em seguida, no mesmo updateFicha.
         expect(minhaFicha.combate.fadigaExtra).toBeGreaterThan(0);

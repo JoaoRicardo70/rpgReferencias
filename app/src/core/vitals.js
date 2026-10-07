@@ -6,6 +6,7 @@
 import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from './attributes.js';
 import { getPrestigioReal } from './prestige.js';
 import { calcularReducaoFadigaPorRegeneracao } from './fadiga.js';
+import { getRegeneracaoTotalPct, calcularCuraRegeneracao } from './regeneracao.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
 
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
@@ -438,9 +439,8 @@ export function aplicarRegeneracaoDeTurno(ficha, pisoFadigaExtra = 0) {
             // 🩸 Vida pode ter várias barras — o teto de regeneração é a SOMA de todas (getTetoVida),
             // não só uma barra.
             const teto = getTetoExibidoComFator(key, ficha);
-            const regenBase = parseFloat(ficha[key].regeneracao) || 0;
-            const regenBuff = (getBuffs(ficha, key).regeneracao) || 0;
-            const regen = regenBase + regenBuff;
+            // 💖 Regeneração em PORCENTAGEM do teto por turno (core/regeneracao.js).
+            const regen = calcularCuraRegeneracao(teto, getRegeneracaoTotalPct(ficha[key], getBuffs(ficha, key).regeneracao, teto));
             if (regen > 0 && teto > 0 && (ficha[key].atual || 0) < teto) {
                 const antes = ficha[key].atual || 0;
                 ficha[key].atual = Math.min(teto, antes + regen);

@@ -1,0 +1,98 @@
+import { describe, it, expect } from 'vitest';
+import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes, limitarPercentualReducao } from './reducaoDano.js';
+
+describe('aplicarReducoesSequenciais', () => {
+    it('exemplo do pedido: 100 → -20% → 80 → -30% → 56', () => {
+        const r = aplicarReducoesSequenciais(100, [{ nome: 'Geral', percentual: 20 }, { nome: 'Fogo', percentual: 30 }]);
+        expect(r.final).toBe(56);
+        expect(r.detalhe.map(d => d.depois)).toEqual([80, 56]);
+    });
+
+    it('é sequencial, não soma: 50% + 50% deixa 25%, nunca zera', () => {
+        expect(aplicarReducoesSequenciais(1000, [{ percentual: 50 }, { percentual: 50 }]).final).toBe(250);
+        expect(aplicarReducoesSequenciais(1000, [{ percentual: 90 }, { percentual: 90 }, { percentual: 90 }]).final).toBe(1);
+    });
+
+    it('100% (imunidade) zera o dano', () => {
+        expect(aplicarReducoesSequenciais(500, [{ percentual: 20 }, { percentual: 100 }]).final).toBe(0);
+    });
+
+    it('percentual negativo (vulnerável) aumenta o dano', () => {
+        expect(aplicarReducoesSequenciais(100, [{ percentual: -100 }]).final).toBe(200);
+    });
+
+    it('sem passos devolve o dano e nenhum detalhe; entradas inválidas são ignoradas', () => {
+        expect(aplicarReducoesSequenciais(77, []).final).toBe(77);
+        expect(aplicarReducoesSequenciais(77, null).final).toBe(77);
+        expect(aplicarReducoesSequenciais(77, [null, { percentual: 'abc' }, { percentual: 0 }]).detalhe).toEqual([]);
+        expect(aplicarReducoesSequenciais(-5, [{ percentual: 10 }]).final).toBe(0);
+    });
+
+    it('arredonda para baixo só no fim', () => {
+        expect(aplicarReducoesSequenciais(10, [{ percentual: 25 }, { percentual: 25 }]).final).toBe(5);
+    });
+});
+
+describe('getPassosReducaoDano', () => {
+    const ficha = {
+        reducoesDano: [
+            { id: 'a', nome: 'Armadura', percentual: 20, elemento: 'todos' },
+            { id: 'b', nome: 'Pele de Magma', percentual: 30, elemento: 'fogo' },
+            { id: 'c', nome: 'Zerada', percentual: 0, elemento: 'todos' },
+        ],
+        afinidades: { resistencias: ['gelo'], vulnerabilidades: ['raio'], imunidades: ['luz'], absorcoes: [] },
+    };
+
+    it('contra fogo: Redução geral e depois a de Fogo, na ordem', () => {
+        const passos = getPassosReducaoDano(ficha, 'fogo');
+        expect(passos.map(p => p.nome)).toEqual(['Armadura', 'Pele de Magma']);
+        expect(aplicarReducoesSequenciais(100, passos).final).toBe(56);
+    });
+
+    it('contra dano físico/sem elemento: só as reduções gerais', () => {
+        expect(getPassosReducaoDano(ficha, '').map(p => p.nome)).toEqual(['Armadura']);
+        expect(getPassosReducaoDano(ficha, 'fisico').map(p => p.nome)).toEqual(['Armadura']);
+    });
+
+    it('redução marcada como Físico vale também quando o elemento chega vazio/null (Mapa)', () => {
+        const f = { reducoesDano: [{ id: 'x', nome: 'Pele', percentual: 40, elemento: 'fisico' }] };
+        expect(getPassosReducaoDano(f, null)).toHaveLength(1);
+        expect(getPassosReducaoDano(f, 'fogo')).toHaveLength(0);
+    });
+
+    it('afinidades entram como passos (50 / -100 / 100)', () => {
+        expect(getPassosReducaoDano(ficha, 'gelo').map(p => p.percentual)).toEqual([20, 50]);
+        expect(getPassosReducaoDano(ficha, 'raio').map(p => p.percentual)).toEqual([20, -100]);
+        expect(getPassosReducaoDano(ficha, 'luz').map(p => p.percentual)).toEqual([20, 100]);
+    });
+
+    it('efeitos ativos com REDUCAO_DANO viram um passo cada, e inativos não contam', () => {
+        const f = {
+            poderes: [
+                { id: 'p1', nome: 'Barreira', ativa: true, efeitos: [{ atributo: 'reducao_dano', propriedade: 'base', valor: 10, nome: 'Barreira' }] },
+                { id: 'p2', nome: 'Inativo', ativa: false, efeitos: [{ atributo: 'reducao_dano', propriedade: 'base', valor: 40 }] },
+            ],
+        };
+        const passos = getPassosReducaoDano(f, '');
+        expect(passos).toHaveLength(1);
+        expect(passos[0].percentual).toBe(10);
+    });
+
+    it('ficha ausente ou sem nada devolve lista vazia', () => {
+        expect(getPassosReducaoDano(null, 'fogo')).toEqual([]);
+        expect(getPassosReducaoDano({}, 'fogo')).toEqual([]);
+    });
+});
+
+describe('descreverReducoes / limitarPercentualReducao', () => {
+    it('monta o texto do feed', () => {
+        const r = aplicarReducoesSequenciais(100, [{ nome: 'A', percentual: 20 }, { nome: 'B', percentual: 30 }]);
+        expect(descreverReducoes(r)).toBe('100 → −20% A → 80 → −30% B → 56');
+        expect(descreverReducoes(aplicarReducoesSequenciais(100, []))).toBe('');
+    });
+
+    it('limita a 100 e trata lixo como 0', () => {
+        expect(limitarPercentualReducao(250)).toBe(100);
+        expect(limitarPercentualReducao('x')).toBe(0);
+    });
+});
