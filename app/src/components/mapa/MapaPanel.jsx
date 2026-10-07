@@ -58,7 +58,7 @@ export default function MapaPanel({ className, children }) {
                             )}
                         </div>
 
-                        <div style={{ flex: '1 1 30%', minWidth: '300px', position: 'sticky', top: 10, height: '85vh' }}>
+                        <div className="mapa-moldura-coluna">
                             <MapaHologramaAcao />
                         </div>
                     </>

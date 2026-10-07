@@ -2,8 +2,8 @@ import React, { createContext, useContext, useState, useRef, useCallback, useMem
 import useStore from '../../stores/useStore';
 import { enviarParaFeed } from '../../services/firebase-sync';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
-import { getPoderDeLutaStatus } from '../../core/engine';
-import { pegarDoisPrimeirosDigitos } from '../../core/utils';
+import { modificadorDezena } from '../../core/utils';
+import { getRawBase } from '../../core/attributes';
 
 // ============================================================================
 // 🔮 CONSTANTES MÁGICAS E REGRAS DO SISTEMA
@@ -170,15 +170,9 @@ export function ElementosFormProvider({ children }) {
     const formRef = useRef(null);
     const profGlobal = parseInt(minhaFicha?.proficienciaBase) || 2;
 
-    // 🔥 CORREÇÃO: recebia o valor CRU de `ficha[attr]?.base` e extraía os 2 primeiros dígitos "na
-    // unha" (substring) -- igual ao mesmo bug já corrigido em combate/TestesFormContext.jsx, isso
-    // (a) nunca somava o bônus oculto de Ascensão que a rolagem REAL de Acerto usa (core/engine.js
-    // > calcularAcerto/getPoderDeLutaStatus), fazendo o CD/Acerto exibido no card da magia divergir
-    // do que a rolagem real produz; e (b) divergia numericamente do algoritmo canônico pra valores
-    // de 3+ dígitos (core/utils.js > pegarDoisPrimeirosDigitos usa n/1000 acima de 1000, não os 2
-    // primeiros caracteres da string).
+    // Mesma regra do Acerto/Testes (core/engine.js > calcularAcerto): só a DEZENA do atributo (120 -> +12), sem a Ascensão oculta.
     const getModificadorDoisDigitos = useCallback((attrKey) => {
-        return pegarDoisPrimeirosDigitos(getPoderDeLutaStatus(minhaFicha, attrKey, true));
+        return modificadorDezena(getRawBase(minhaFicha, attrKey));
     }, [minhaFicha]);
 
     // 🔥 O MOTOR DE CAPÍTULOS DINÂMICOS (Adiciona os Customizados pelo Jogador) 🔥

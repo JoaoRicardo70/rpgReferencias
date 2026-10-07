@@ -1,7 +1,7 @@
 // ==========================================
 // ENGINE RPG — Cálculos de combate (dano, acerto, defesa)
 // ==========================================
-import { contarDigitos, pegarDoisPrimeirosDigitos } from './utils.js';
+import { contarDigitos, pegarDoisPrimeirosDigitos, modificadorDezena } from './utils.js';
 import { getMaximo, getBuffs, getRawBase, getPoderesDefesa, getEfeitosDeClasse } from './attributes.js';
 import { getVitalMxDisplay } from './vitals.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
@@ -505,9 +505,8 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
 
     let vSt = 0;
     for (let i = 0; i < sels.length; i++) {
-        // 🔥 APLICA O PODER DE LUTA VERDADEIRO NO ACERTO 🔥
-        let baseVal = getPoderDeLutaStatus(minhaFicha, sels[i], true);
-        vSt += pegarDoisPrimeirosDigitos(baseVal);
+        // O Acerto soma só a DEZENA do atributo (120 -> +12), sem a Ascensão oculta: o bônus não estoura.
+        vSt += modificadorDezena(getRawBase(minhaFicha, sels[i]));
     }
 
     let bp = getPoderesDefesa(minhaFicha, 'bonus_acerto');
