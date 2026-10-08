@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import useStore from '../../stores/useStore';
 import { salvarFichaSilencioso } from '../../services/firebase-sync.js';
+import { rotuloComPolaridade } from '../../core/polaridade';
 
 // 📜 REFERÊNCIA DE NÍVEIS
 const NIVEIS_INFO = {
@@ -151,7 +152,7 @@ export default function AbaDominios() {
                             <option value="">-- Escolher da Lore --</option>
                             {Object.entries(PREDEFINICOES[chave] || {}).map(([grupo, itens]) => (
                                 <optgroup key={grupo} label={`— ${grupo} —`} style={{ color: corBase, fontStyle: 'italic', background: '#111' }}>
-                                    {itens.map(p => <option key={p} value={p} style={{ color: '#fff', fontStyle: 'normal' }}>{p}</option>)}
+                                    {itens.map(p => <option key={p} value={p} style={{ color: '#fff', fontStyle: 'normal' }}>{rotuloComPolaridade(p)}</option>)}
                                 </optgroup>
                             ))}
                         </select>

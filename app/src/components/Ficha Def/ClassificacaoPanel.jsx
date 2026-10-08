@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes.js';
+import { rotuloComPolaridade } from '../../core/polaridade';
 import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
 
 // ==========================================
@@ -300,7 +301,7 @@ function PaginaRegistros() {
                                         <option value="" style={{ color: '#000' }}>Selecione a raiz elemental...</option>
                                         {ELEMENTOS_OPCOES.map(grupo => (
                                             <optgroup key={grupo.label} label={grupo.label} style={{ color: '#000' }}>
-                                                {grupo.opcoes.map(el => <option key={el} value={el}>{el}</option>)}
+                                                {grupo.opcoes.map(el => <option key={el} value={el}>{rotuloComPolaridade(el)}</option>)}
                                             </optgroup>
                                         ))}
                                     </select>
@@ -351,7 +352,7 @@ function PaginaRegistros() {
                                         <option value="" style={{ color: '#000' }}>Selecione a raiz elemental...</option>
                                         {ELEMENTOS_OPCOES.map(grupo => (
                                             <optgroup key={grupo.label} label={grupo.label} style={{ color: '#000' }}>
-                                                {grupo.opcoes.map(el => <option key={el} value={el}>{el}</option>)}
+                                                {grupo.opcoes.map(el => <option key={el} value={el}>{rotuloComPolaridade(el)}</option>)}
                                             </optgroup>
                                         ))}
                                     </select>

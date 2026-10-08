@@ -3,6 +3,7 @@ import useStore from '../../stores/useStore';
 import { useMapaForm } from './MapaFormContext';
 import { calcularDisputaPoder, getPoderDeEntidade, formatarPoderDisputa } from '../../core/disputaPoder';
 import { getPontosVidaTotal } from '../../core/danoProporcional';
+import { rotuloComPolaridade } from '../../core/polaridade';
 import { agruparNpcsPorFamilia, montarDummieDeNpc, posicoesLivres, getVidaMaxBrutaNpc, cenarioComTokensOcultos } from '../../core/gavetaNpc';
 import DisputaPoderResumo from '../combate/DisputaPoderResumo';
 import { salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
@@ -393,7 +394,7 @@ export function MapaMestreDanoRapido() {
                         <option value="">Elemento (Físico/Nenhum)</option>
                         {ELEMENTOS_OPCOES.map(grupo => (
                             <optgroup key={grupo.label} label={grupo.label}>
-                                {grupo.opcoes.map(el => <option key={el} value={el}>{el}</option>)}
+                                {grupo.opcoes.map(el => <option key={el} value={el}>{rotuloComPolaridade(el)}</option>)}
                             </optgroup>
                         ))}
                     </select>

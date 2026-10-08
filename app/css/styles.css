@@ -2183,3 +2183,9 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .reducao-dano-previa { margin-top: 8px; font-size: 0.75em; color: var(--neon-cyan, #00ffff); word-break: break-word; }
 
 .grimorio-pagina-aviso { text-align: center; font-style: italic; opacity: 0.8; padding: 30px 10px; }
+
+/* Selo de polaridade (Yin / Yang / Neutro) ao lado do nome do elemento */
+.polaridade-selo { margin-left: 6px; font-size: 0.85em; opacity: 0.9; }
+.polaridade-yang { filter: drop-shadow(0 0 2px #ffd966); }
+.polaridade-yin { filter: drop-shadow(0 0 2px #9966ff); }
+.polaridade-neutro { filter: drop-shadow(0 0 2px #cccccc); }

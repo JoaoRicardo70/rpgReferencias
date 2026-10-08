@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useElementosForm, emogis, cores, BONUS_OPTIONS, NIVEIS_DOMINIO } from './ElementosFormContext';
 import { getNivelDominio, getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
+import { getInfoPolaridade } from '../../core/polaridade';
 
 const FALLBACK = <div style={{ opacity: 0.5, padding: 10 }}>Elementos provider não encontrado...</div>;
 
@@ -146,6 +147,7 @@ export function ElementosGrimorio() {
                                 const nivelDom = getNivelDominio(minhaFicha, elem);
                                 const domTexto = nivelDom ? ` (Nv.${nivelDom})` : '';
                                 const corBase = cores[elem] || 'currentColor';
+                                const polaridade = getInfoPolaridade(elem);
                                 
                                 return (
                                     <button key={elem} onClick={() => selecionarElemento(elem)}
@@ -161,6 +163,7 @@ export function ElementosGrimorio() {
                                         }}>
                                         {emogis[elem] || '\u2728'} {elem}
                                         <span style={{ fontWeight: nivelDom ? 'bold' : 'normal', opacity: 0.9 }}>{domTexto}</span>
+                                        {polaridade && <span className={`polaridade-selo polaridade-${polaridade.id}`} title={`Polaridade: ${polaridade.nome}`}>{polaridade.icone}</span>}
                                     </button>
                                 );
                             })}

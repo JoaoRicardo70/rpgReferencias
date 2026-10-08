@@ -6,6 +6,7 @@ import EstagioControle from './EstagioControle';
 import EstagiosMarcosEditor from './EstagiosMarcosEditor';
 import { escalarEfeitosPorEstagio, previaEstagios, getMaximoEstagio, normalizarEstagios } from '../../core/estagios';
 import { construirArvorePastas, segmentosPasta } from '../../core/pastas';
+import { rotuloComPolaridade } from '../../core/polaridade';
 
 const LIMITE_PREVIA_ESTAGIOS = 12;
 const fmtNumero = (v) => (typeof v === 'number' ? (Math.round(v * 10000) / 10000).toLocaleString('pt-BR') : v);
@@ -204,7 +205,7 @@ export function PoderesFormEditor() {
                                 <option value="">Selecione a raiz elemental...</option>
                                 {ELEMENTOS_OPCOES.map(grupo => (
                                     <optgroup key={grupo.label} label={grupo.label}>
-                                        {grupo.opcoes.map(el => <option key={el} value={el}>{el}</option>)}
+                                        {grupo.opcoes.map(el => <option key={el} value={el}>{rotuloComPolaridade(el)}</option>)}
                                     </optgroup>
                                 ))}
                             </select>
