@@ -155,9 +155,9 @@ describe('FichaCondicoesEElementais - coluna Reducoes de Dano', () => {
 
     it('renderiza titulo, botao adicionar e nenhuma linha quando vazia', () => {
         montar({}, <Tela />);
-        expect(screen.getByText(/Habilidades de Redução de Dano \(em sequência\)/)).toBeTruthy();
+        expect(screen.getByText(/Habilidades de Redução de Dano/)).toBeTruthy();
         expect(screen.getByText('+ Criar Habilidade de Redução')).toBeTruthy();
-        expect(document.querySelectorAll('.reducao-dano-linha')).toHaveLength(0);
+        expect(document.querySelectorAll('.habilidade-card')).toHaveLength(0);
         expect(document.querySelector('.reducao-dano-previa')).toBeNull();
     });
 
@@ -166,12 +166,13 @@ describe('FichaCondicoesEElementais - coluna Reducoes de Dano', () => {
             { id: 'r1', nome: 'Armadura', percentual: 20, elemento: 'todos' },
             { id: 'r2', nome: 'Fogo', percentual: 30, elemento: 'fogo' },
         ] }, <Tela />);
-        expect(document.querySelectorAll('.reducao-dano-linha')).toHaveLength(2);
+        expect(document.querySelectorAll('.habilidade-card')).toHaveLength(2);
         expect(screen.getByDisplayValue('Armadura')).toBeTruthy();
         expect(screen.getByDisplayValue('20')).toBeTruthy();
-        const selects = document.querySelectorAll('.reducao-dano-elemento');
-        expect(selects[0].value).toBe('todos');
-        expect(selects[0].querySelector('option[value="fisico"]')).toBeTruthy();
+        const cartoes = document.querySelectorAll('.habilidade-card');
+        expect(cartoes[0].textContent).toContain('Todo dano');
+        expect(cartoes[1].textContent).toContain('Fogo');
+        expect(cartoes[1].querySelector('.habilidade-alvo-add option[value="madeira"]')).toBeTruthy();
     });
 
     it('previa mostra a sequencia das reducoes gerais (100 -> 80 -> 64)', () => {
@@ -193,5 +194,29 @@ describe('FichaCondicoesEElementais - coluna Reducoes de Dano', () => {
         fireEvent.click(document.querySelector('.reducao-dano-remover'));
         expect(ficha.reducoesDano.map(r => r.id)).not.toContain('r1');
         expect(ficha.reducoesDano).toHaveLength(1);
+    });
+
+    it('varios tipos: adicionar e remover chips grava em elementos', () => {
+        const ficha = montar({ reducoesDano: [{ id: 'r1', nome: 'Pele', percentual: 30, elementos: ['fogo'], elemento: 'fogo' }] }, <Tela />);
+        fireEvent.change(document.querySelector('.habilidade-alvo-add'), { target: { value: 'agua' } });
+        expect(ficha.reducoesDano[0].elementos).toEqual(['fogo', 'agua']);
+        fireEvent.change(document.querySelector('.habilidade-alvo-add'), { target: { value: 'pol:yin' } });
+        expect(ficha.reducoesDano[0].elementos).toEqual(['fogo', 'agua', 'pol:yin']);
+        fireEvent.click(document.querySelectorAll('.habilidade-alvo-remover')[0]);
+        expect(ficha.reducoesDano[0].elementos).toEqual(['agua', 'pol:yin']);
+    });
+
+    it('passivas e ativas ficam em grupos separados e o tipo pode ser trocado', () => {
+        const ficha = montar({ reducoesDano: [
+            { id: 'p', nome: 'Passiva', percentual: 10, tipo: 'passiva', elementos: ['todos'] },
+            { id: 'a', nome: 'Ativa', percentual: 10, elementos: ['todos'] },
+        ] }, <Tela />);
+        const grupos = document.querySelectorAll('.habilidade-grupo');
+        expect(grupos).toHaveLength(2);
+        expect(grupos[0].textContent).toContain('Passivas');
+        expect(grupos[0].querySelector('.habilidade-reducao-ativa')).toBeNull();
+        expect(grupos[1].querySelector('.habilidade-reducao-ativa')).toBeTruthy();
+        fireEvent.change(grupos[1].querySelector('.habilidade-card-tipo'), { target: { value: 'passiva' } });
+        expect(ficha.reducoesDano[1].tipo).toBe('passiva');
     });
 });

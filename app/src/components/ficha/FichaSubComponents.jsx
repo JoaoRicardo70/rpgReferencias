@@ -1,8 +1,9 @@
 import React from 'react';
 import { useFichaForm, ATRIBUTO_OPTIONS, CLASSES_OPTIONS, STATS, ENERGIAS } from './FichaFormContext';
 import FormasEditor from '../shared/FormasEditor';
-import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano.js';
-import { POLARIDADES } from '../../core/polaridade.js';
+import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes, getAlvosReducao, habilidadeEstaLigada, TIPO_HABILIDADE_ATIVA, TIPO_HABILIDADE_PASSIVA } from '../../core/reducaoDano.js';
+import { POLARIDADES, getInfoPolaridade } from '../../core/polaridade.js';
+import { agruparElementosPorCategoria, chaveElemento } from '../../core/elementos.js';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Ficha provider não encontrado</div>;
 
@@ -150,125 +151,181 @@ export function FichaBioGroup() {
     );
 }
 
-// 🔥 NOVO COMPONENTE: GESTOR DE ESTADOS NEGATIVOS E RESISTÊNCIAS (AGORA LÊ DO COMPÊNDIO!) 🔥
+// Rótulo de um alvo de redução: "Todo dano", "🌑 Yin" (polaridade) ou "🔥 Fogo" (elemento).
+function rotuloAlvoReducao(alvo, elementos) {
+    if (alvo === 'todos') return 'Todo dano';
+    if (alvo.startsWith('pol:')) {
+        const pol = POLARIDADES[alvo.slice(4)];
+        return pol ? `${pol.icone} Elemento ${pol.nome}` : alvo;
+    }
+    const el = elementos.find(e => chaveElemento(e.id) === chaveElemento(alvo));
+    return el ? `${el.icone} ${el.nome}` : alvo;
+}
+
+// Um cartão de Habilidade de Redução de Dano (nome, %, tipos de dano, passiva/ativa, descrição).
+function CartaoHabilidadeReducao({ r }) {
+    const { atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao, elementosDinamicos } = useFichaForm();
+    const passiva = r.tipo === TIPO_HABILIDADE_PASSIVA;
+    const desligada = !habilidadeEstaLigada(r);
+    const alvos = getAlvosReducao(r);
+    const grupos = agruparElementosPorCategoria(elementosDinamicos);
+
+    return (
+        <div className={`habilidade-card${desligada ? ' habilidade-card-off' : ''}${passiva ? ' habilidade-card-passiva' : ''}`}>
+            <div className="habilidade-card-topo">
+                <input className="input-neon habilidade-card-nome" type="text" placeholder="Nome da habilidade" value={r.nome || ''} onChange={e => atualizarReducaoDano(r.id, 'nome', e.target.value)} />
+                <input className="input-neon reducao-dano-pct" type="number" min="-100" max="100" step="1" value={r.percentual} onChange={e => atualizarReducaoDano(r.id, 'percentual', e.target.value)} title="Percentual de dano reduzido (negativo aumenta o dano)" />
+                <span>%</span>
+                <button className="btn-neon btn-red reducao-dano-remover" onClick={() => removerReducaoDano(r.id)} title="Remover habilidade">✖</button>
+            </div>
+
+            <div className="habilidade-card-modo">
+                <select className="input-neon habilidade-card-tipo" value={passiva ? TIPO_HABILIDADE_PASSIVA : TIPO_HABILIDADE_ATIVA} onChange={e => atualizarReducaoDano(r.id, 'tipo', e.target.value)} title="Passiva vale sempre; Ativa só quando ligada">
+                    <option value={TIPO_HABILIDADE_ATIVA}>⚡ Ativa (liga/desliga)</option>
+                    <option value={TIPO_HABILIDADE_PASSIVA}>🛡️ Passiva (sempre ligada)</option>
+                </select>
+                {!passiva && (
+                    <label className="habilidade-reducao-ativa" title="Ligar/desligar a habilidade">
+                        <input type="checkbox" checked={r.ativa !== false} onChange={e => atualizarReducaoDano(r.id, 'ativa', e.target.checked)} /> Ligada
+                    </label>
+                )}
+            </div>
+
+            <div className="habilidade-card-alvos">
+                {alvos.map(a => (
+                    <span key={a} className="habilidade-alvo-chip">
+                        {rotuloAlvoReducao(a, elementosDinamicos)}
+                        <button type="button" className="habilidade-alvo-remover" onClick={() => removerAlvoReducao(r.id, a)} title="Tirar este tipo">✖</button>
+                    </span>
+                ))}
+                <select className="input-neon habilidade-alvo-add" value="" onChange={e => { if (e.target.value) adicionarAlvoReducao(r.id, e.target.value); }} title="Adicionar um tipo de dano">
+                    <option value="">+ tipo de dano</option>
+                    <option value="todos">Todo dano</option>
+                    <optgroup label="Polaridade do elemento">
+                        {Object.values(POLARIDADES).map(pol => <option key={pol.id} value={`pol:${pol.id}`}>{pol.icone} Elemento {pol.nome}</option>)}
+                    </optgroup>
+                    {grupos.map(g => (
+                        <optgroup key={g.titulo} label={g.titulo}>
+                            {g.itens.map(e => <option key={e.id} value={e.id}>{e.icone} {e.nome}</option>)}
+                        </optgroup>
+                    ))}
+                </select>
+            </div>
+
+            <textarea className="input-neon habilidade-reducao-descricao" rows={2} placeholder="Descrição / como a habilidade funciona (opcional)" value={r.descricao || ''} onChange={e => atualizarReducaoDano(r.id, 'descricao', e.target.value)} />
+        </div>
+    );
+}
+
+// 🔥 GESTOR DE ESTADOS, AFINIDADES E HABILIDADES DE REDUÇÃO DE DANO (página 3 do Grimório) 🔥
 export function FichaCondicoesEElementais() {
     const ctx = useFichaForm();
     if (!ctx) return null;
 
-    const { minhaFicha, modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano } = ctx;
+    const { minhaFicha, modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano } = ctx;
     const reducoes = Array.isArray(minhaFicha.reducoesDano) ? minhaFicha.reducoesDano : [];
-    // Prévia: 100 de dano sem elemento passando pelas reduções gerais (+ efeitos), uma de cada vez.
+    const passivas = reducoes.filter(r => r && r.tipo === TIPO_HABILIDADE_PASSIVA);
+    const ativas = reducoes.filter(r => r && r.tipo !== TIPO_HABILIDADE_PASSIVA);
+    // Prévia: 100 de dano sem elemento passando pelas habilidades gerais (+ efeitos), uma de cada vez.
     const previaReducao = aplicarReducoesSequenciais(100, getPassosReducaoDano(minhaFicha, ''));
 
     const afinidades = minhaFicha.afinidades || { resistencias: [], vulnerabilidades: [], imunidades: [], absorcoes: [] };
     const condicoesAtivas = minhaFicha.condicoes || [];
+    const gruposElementos = agruparElementosPorCategoria(elementosDinamicos);
 
     return (
-        <div className="def-box fade-in" style={{ marginTop: 15, borderLeft: '4px solid #ff4444' }}>
-            <h3 style={{ color: '#ff4444', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                🩸 ESTADOS & AFINIDADES ELEMENTAIS
-            </h3>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
-                
-                {/* COLUNA 1: CONDIÇÕES DINÂMICAS */}
-                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px', border: '1px solid #333' }}>
-                    <strong style={{ color: '#aaa', fontSize: '0.75em', textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Debuffs Ativos (Stacks)</strong>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                        {condicoesDinamicas.map(c => {
-                            const ativa = condicoesAtivas.find(ca => ca.id === c.id);
-                            const corDefault = c.cor || '#ff4444';
-                            return (
-                                <div key={c.id} title={c.nome} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: ativa ? `${corDefault}15` : 'rgba(255,255,255,0.02)', border: `1px solid ${ativa ? corDefault : '#444'}`, padding: '5px', borderRadius: '6px', minWidth: '60px' }}>
-                                    <span style={{ fontSize: '1.2em' }}>{c.icone}</span>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '4px' }}>
-                                        <button onClick={() => modificarCondicao(c.id, -1)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '0 5px' }}>-</button>
-                                        <strong style={{ color: ativa ? corDefault : '#666', fontSize: '0.9em' }}>{ativa ? ativa.stacks : 0}</strong>
-                                        <button onClick={() => modificarCondicao(c.id, 1)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '0 5px' }}>+</button>
+        <div className="estados-pagina fade-in">
+            {/* SEÇÃO 1: ESTADOS E AFINIDADES */}
+            <section className="estados-secao">
+                <h3 className="estados-secao-titulo">🩸 Estados & Afinidades Elementais</h3>
+                <div className="estados-duo">
+                    {/* DEBUFFS ATIVOS */}
+                    <div className="estados-card">
+                        <strong className="estados-card-titulo">Debuffs Ativos (Stacks)</strong>
+                        <div className="estados-debuffs">
+                            {condicoesDinamicas.map(c => {
+                                const ativa = condicoesAtivas.find(ca => ca.id === c.id);
+                                const corDefault = c.cor || '#ff4444';
+                                return (
+                                    <div key={c.id} title={c.nome} className="estados-debuff" style={{ background: ativa ? `${corDefault}15` : undefined, borderColor: ativa ? corDefault : undefined }}>
+                                        <span className="estados-debuff-icone">{c.icone}</span>
+                                        <div className="estados-debuff-controle">
+                                            <button onClick={() => modificarCondicao(c.id, -1)}>-</button>
+                                            <strong style={{ color: ativa ? corDefault : '#666' }}>{ativa ? ativa.stacks : 0}</strong>
+                                            <button onClick={() => modificarCondicao(c.id, 1)}>+</button>
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-
-                {/* COLUNA 2: RESISTÊNCIAS DINÂMICAS */}
-                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px', border: '1px solid #333' }}>
-                    <strong style={{ color: '#aaa', fontSize: '0.75em', textTransform: 'uppercase', display: 'block', marginBottom: '10px' }}>Afinidades (Clique p/ Alternar)</strong>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
-                        {elementosDinamicos.map(e => {
-                            const isRes = afinidades.resistencias?.includes(e.id);
-                            const isVul = afinidades.vulnerabilidades?.includes(e.id);
-                            const isImu = afinidades.imunidades?.includes(e.id);
-                            
-                            let bColor = '#444'; let shadow = 'none';
-                            if (isRes) bColor = '#00ffcc';
-                            if (isVul) bColor = '#ffaa00';
-                            if (isImu) { bColor = '#ffffff'; shadow = '0 0 10px #fff'; }
-
-                            return (
-                                <button 
-                                    key={e.id}
-                                    onClick={() => {
-                                        if (!isRes && !isVul && !isImu) toggleAfinidade('resistencias', e.id);
-                                        else if (isRes) toggleAfinidade('vulnerabilidades', e.id);
-                                        else if (isVul) toggleAfinidade('imunidades', e.id);
-                                        else toggleAfinidade('imunidades', e.id); 
-                                    }}
-                                    title={`${e.nome.toUpperCase()}: Neutro -> Resistente -> Vulnerável -> Imune`}
-                                    style={{ 
-                                        width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                                        background: 'rgba(0,0,0,0.5)', border: `2px solid ${bColor}`, borderRadius: '4px',
-                                        cursor: 'pointer', fontSize: '1.2em', boxShadow: shadow
-                                    }}
-                                >
-                                    {e.icone}
-                                </button>
-                            );
-                        })}
-                    </div>
-                    <div style={{ marginTop: '10px', fontSize: '0.7em', display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                        <span style={{ color: '#00ffcc' }}>● Resistente</span>
-                        <span style={{ color: '#ffaa00' }}>● Vulnerável</span>
-                        <span style={{ color: '#ffffff' }}>● Imune</span>
-                    </div>
-                </div>
-
-                {/* HABILIDADES DE REDUÇÃO DE DANO (largura total): cada uma ativa vira um passo na conta do dano sofrido */}
-                <div className="habilidades-reducao">
-                    <strong className="habilidades-reducao-titulo">🛡️ Habilidades de Redução de Dano (em sequência)</strong>
-                    <p className="reducao-dano-ajuda">Crie habilidades de redução ou resistência. Cada uma ativa é aplicada uma de cada vez sobre o dano que sobrou da anterior (20% e depois 30% = 44% no total, não 50%). Escolha contra o quê vale: todo dano, físico, um elemento ou uma polaridade (Yin, Yang ou Neutro). Percentual negativo = vulnerabilidade.</p>
-                    {reducoes.map(r => (
-                        <div key={r.id} className={`habilidade-reducao-card${r.ativa === false ? ' habilidade-reducao-off' : ''}`}>
-                            <div className="reducao-dano-linha">
-                                <label className="habilidade-reducao-ativa" title="Ligar/desligar a habilidade">
-                                    <input type="checkbox" checked={r.ativa !== false} onChange={e => atualizarReducaoDano(r.id, 'ativa', e.target.checked)} /> Ativa
-                                </label>
-                                <input className="input-neon reducao-dano-nome" type="text" placeholder="Nome da habilidade" value={r.nome || ''} onChange={e => atualizarReducaoDano(r.id, 'nome', e.target.value)} />
-                                <input className="input-neon reducao-dano-pct" type="number" min="-100" max="100" step="1" value={r.percentual} onChange={e => atualizarReducaoDano(r.id, 'percentual', e.target.value)} title="Percentual de dano reduzido (negativo aumenta o dano)" />
-                                <span>%</span>
-                                <select className="input-neon reducao-dano-elemento" value={r.elemento || 'todos'} onChange={e => atualizarReducaoDano(r.id, 'elemento', e.target.value)} title="Contra qual dano vale">
-                                    <option value="todos">Todo dano</option>
-                                    <option value="fisico">Físico</option>
-                                    <optgroup label="Polaridade do elemento">
-                                        {Object.values(POLARIDADES).map(pol => <option key={pol.id} value={`pol:${pol.id}`}>{pol.icone} Elemento {pol.nome}</option>)}
-                                    </optgroup>
-                                    <optgroup label="Elemento específico">
-                                        {elementosDinamicos.map(e => <option key={e.id} value={e.id}>{e.icone} {e.nome}</option>)}
-                                    </optgroup>
-                                </select>
-                                <button className="btn-neon btn-red reducao-dano-remover" onClick={() => removerReducaoDano(r.id)} title="Remover habilidade">✖</button>
-                            </div>
-                            <textarea className="input-neon habilidade-reducao-descricao" rows={2} placeholder="Descrição / como a habilidade funciona (opcional)" value={r.descricao || ''} onChange={e => atualizarReducaoDano(r.id, 'descricao', e.target.value)} />
+                                );
+                            })}
                         </div>
-                    ))}
-                    <button className="btn-neon" onClick={adicionarReducaoDano} style={{ marginTop: 6, width: '100%' }}>+ Criar Habilidade de Redução</button>
-                    {previaReducao.detalhe.length > 0 && (
-                        <div className="reducao-dano-previa">Prévia (100 de dano, sem elemento): {descreverReducoes(previaReducao)}</div>
-                    )}
-                </div>
+                    </div>
 
-            </div>
+                    {/* AFINIDADES, AGRUPADAS POR CATEGORIA */}
+                    <div className="estados-card">
+                        <strong className="estados-card-titulo">Afinidades (clique p/ alternar)</strong>
+                        {gruposElementos.map(g => (
+                            <div key={g.titulo} className="afinidade-grupo">
+                                <span className="afinidade-grupo-titulo">{g.titulo}</span>
+                                <div className="afinidade-grupo-botoes">
+                                    {g.itens.map(e => {
+                                        const isRes = afinidades.resistencias?.includes(e.id);
+                                        const isVul = afinidades.vulnerabilidades?.includes(e.id);
+                                        const isImu = afinidades.imunidades?.includes(e.id);
+                                        const estado = isImu ? 'imune' : isVul ? 'vulneravel' : isRes ? 'resistente' : 'neutro';
+                                        const pol = getInfoPolaridade(e.id);
+                                        return (
+                                            <button
+                                                key={e.id}
+                                                className={`afinidade-btn afinidade-${estado}`}
+                                                onClick={() => {
+                                                    if (!isRes && !isVul && !isImu) toggleAfinidade('resistencias', e.id);
+                                                    else if (isRes) toggleAfinidade('vulnerabilidades', e.id);
+                                                    else if (isVul) toggleAfinidade('imunidades', e.id);
+                                                    else toggleAfinidade('imunidades', e.id);
+                                                }}
+                                                title={`${e.nome.toUpperCase()}${pol ? ` (${pol.nome})` : ''}: Neutro -> Resistente -> Vulnerável -> Imune`}
+                                            >
+                                                {e.icone}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                        <div className="afinidade-legenda">
+                            <span className="afinidade-leg-resistente">● Resistente</span>
+                            <span className="afinidade-leg-vulneravel">● Vulnerável</span>
+                            <span className="afinidade-leg-imune">● Imune</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* SEÇÃO 2: HABILIDADES DE REDUÇÃO DE DANO */}
+            <section className="estados-secao">
+                <h3 className="estados-secao-titulo">🛡️ Habilidades de Redução de Dano</h3>
+                <p className="reducao-dano-ajuda">Cada habilidade ligada é aplicada uma de cada vez sobre o dano que sobrou da anterior (20% e depois 30% = 44% no total, não 50%). Uma habilidade pode valer contra vários tipos de dano (ex.: Fogo e Água) e contra uma polaridade (Yin, Yang ou Neutro). Passivas valem sempre; Ativas só quando ligadas. Percentual negativo = vulnerabilidade.</p>
+                <button className="btn-neon habilidade-criar" onClick={adicionarReducaoDano}>+ Criar Habilidade de Redução</button>
+
+                {reducoes.length === 0 && <p className="habilidade-vazio">Nenhuma habilidade criada ainda.</p>}
+
+                {passivas.length > 0 && (
+                    <div className="habilidade-grupo">
+                        <h4 className="habilidade-grupo-titulo">🛡️ Passivas <span>({passivas.length}) — sempre ligadas</span></h4>
+                        <div className="habilidade-grade">{passivas.map(r => <CartaoHabilidadeReducao key={r.id} r={r} />)}</div>
+                    </div>
+                )}
+                {ativas.length > 0 && (
+                    <div className="habilidade-grupo">
+                        <h4 className="habilidade-grupo-titulo">⚡ Ativas <span>({ativas.length}) — liga/desliga</span></h4>
+                        <div className="habilidade-grade">{ativas.map(r => <CartaoHabilidadeReducao key={r.id} r={r} />)}</div>
+                    </div>
+                )}
+
+                {previaReducao.detalhe.length > 0 && (
+                    <div className="reducao-dano-previa">Prévia (100 de dano, sem elemento): {descreverReducoes(previaReducao)}</div>
+                )}
+            </section>
         </div>
     );
 }

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { ELEMENTOS_SISTEMA } from '../../core/elementos.js';
 import useStore from '../../stores/useStore';
 import { salvarFichaSilencioso, enviarParaFeed } from '../../services/firebase-sync';
 
@@ -44,7 +45,7 @@ const CONDICOES_BASE = [
     { id: 'provocado', nome: 'Provocado', icone: '💢', cor: '#ff5500', desc: '• O alvo foca apenas no ser que lhe Provocou.' }
 ];
 
-const ELEMENTOS_BASE = [
+const ELEMENTOS_BASE_CLASSICOS = [
     { id: 'fisico', nome: 'Cinético (Físico)', icone: '⚔️', cor: '#cccccc', desc: 'O bom e velho soco na cara ou corte de lâmina.'},
     { id: 'fogo', nome: 'Fogo', icone: '🔥', cor: '#ff4444', desc: 'Dano térmico abrasador. Altamente destrutivo.'},
     { id: 'agua', nome: 'Água', icone: '💧', cor: '#0088ff', desc: 'Dano de impacto fluido e adaptável.'},
@@ -52,6 +53,12 @@ const ELEMENTOS_BASE = [
     { id: 'gelo', nome: 'Gelo', icone: '❄️', cor: '#00ffff', desc: 'Dano térmico congelante. Causa Criogenia.'},
     { id: 'luz', nome: 'Luz / Divino', icone: '☀️', cor: '#fffbd6', desc: 'Dano celestial absoluto.'},
     { id: 'trevas', nome: 'Trevas', icone: '🌑', cor: '#8800ff', desc: 'Dano corrompido, causa Necrose.'}
+];
+
+// Elementos do sistema (core/elementos.js) que ainda não têm texto próprio aqui entram com a descrição vazia.
+const ELEMENTOS_BASE = [
+    ...ELEMENTOS_BASE_CLASSICOS,
+    ...ELEMENTOS_SISTEMA.filter(e => !ELEMENTOS_BASE_CLASSICOS.some(c => c.id === e.id)).map(e => ({ id: e.id, nome: e.nome, icone: e.icone, cor: e.cor, desc: '' }))
 ];
 
 const REGRAS_BASE = [

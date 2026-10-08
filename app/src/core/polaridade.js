@@ -33,7 +33,7 @@ export const POLARIDADE_POR_CATEGORIA = {
 };
 
 // Remove acentos caractere a caractere (faixa 0x0300-0x036F após NFD), sem embutir acentos no código.
-function normalizarNome(nome) {
+export function normalizarNome(nome) {
     const decomposto = String(nome || '').trim().toLowerCase().normalize('NFD');
     let resultado = '';
     for (let i = 0; i < decomposto.length; i++) {

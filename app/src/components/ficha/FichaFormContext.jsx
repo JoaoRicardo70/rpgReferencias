@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { ELEMENTOS_SISTEMA } from '../../core/elementos.js';
+import { alternarAlvoReducao, TIPO_HABILIDADE_ATIVA, TIPO_HABILIDADE_PASSIVA } from '../../core/reducaoDano.js';
 import useStore from '../../stores/useStore';
 import { getMaximo, getBuffs, getEfeitosDeClasse } from '../../core/attributes.js';
 import { capturarMaximosAtuais, rescalarVitaisProporcional, getVidaTotalMaxDisplay, getTetoExibidoComFator } from '../../core/vitals.js';
@@ -45,12 +47,7 @@ export const CONDICOES_BASE = [
     { id: 'charmado', icone: '💖', cor: '#ff66b2' }, { id: 'provocado', icone: '💢', cor: '#ff5500' }
 ];
 
-export const ELEMENTOS_BASE = [
-    { id: 'fisico', nome: 'Cinético', icone: '⚔️', cor: '#cccccc' }, { id: 'fogo', nome: 'Fogo', icone: '🔥', cor: '#ff4444' },
-    { id: 'agua', nome: 'Água', icone: '💧', cor: '#0088ff' }, { id: 'raio', nome: 'Raio', icone: '⚡', cor: '#ffcc00' },
-    { id: 'gelo', nome: 'Gelo', icone: '❄️', cor: '#00ffff' }, { id: 'luz', nome: 'Luz', icone: '☀️', cor: '#fffbd6' },
-    { id: 'trevas', nome: 'Trevas', icone: '🌑', cor: '#8800ff' }
-];
+export const ELEMENTOS_BASE = ELEMENTOS_SISTEMA;
 
 const FichaFormContext = createContext(null);
 
@@ -135,7 +132,7 @@ export function FichaFormProvider({ children }) {
     const adicionarReducaoDano = useCallback(() => {
         updateFicha(f => {
             if (!Array.isArray(f.reducoesDano)) f.reducoesDano = [];
-            f.reducoesDano.push({ id: 'rd_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), nome: '', descricao: '', ativa: true, percentual: 10, elemento: 'todos' });
+            f.reducoesDano.push({ id: 'rd_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), nome: '', descricao: '', tipo: TIPO_HABILIDADE_ATIVA, ativa: true, percentual: 10, elementos: ['todos'], elemento: 'todos' });
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
@@ -147,8 +144,32 @@ export function FichaFormProvider({ children }) {
             if (campo === 'percentual') r.percentual = Math.min(100, Math.max(-100, parseFloat(valor) || 0));
             else if (campo === 'descricao') r.descricao = String(valor || '').slice(0, 500);
             else if (campo === 'ativa') r.ativa = !!valor;
+            else if (campo === 'tipo') r.tipo = valor === TIPO_HABILIDADE_PASSIVA ? TIPO_HABILIDADE_PASSIVA : TIPO_HABILIDADE_ATIVA;
             else if (campo === 'nome') r.nome = String(valor || '').slice(0, 60);
-            else if (campo === 'elemento') r.elemento = String(valor || 'todos');
+            else if (campo === 'elemento') { r.elemento = String(valor || 'todos'); r.elementos = [r.elemento]; }
+        });
+        salvarFichaSilencioso();
+    }, [updateFicha]);
+
+    // Vários tipos de dano por habilidade: adiciona/remove um alvo ('todos', 'pol:yin', id de elemento...).
+    const adicionarAlvoReducao = useCallback((id, alvo) => {
+        updateFicha(f => {
+            const r = (f.reducoesDano || []).find(x => x && x.id === id);
+            if (!r) return;
+            const atuais = Array.isArray(r.elementos) && r.elementos.length ? r.elementos : [r.elemento || 'todos'];
+            r.elementos = alternarAlvoReducao(atuais, alvo, true);
+            r.elemento = r.elementos[0];
+        });
+        salvarFichaSilencioso();
+    }, [updateFicha]);
+
+    const removerAlvoReducao = useCallback((id, alvo) => {
+        updateFicha(f => {
+            const r = (f.reducoesDano || []).find(x => x && x.id === id);
+            if (!r) return;
+            const atuais = Array.isArray(r.elementos) && r.elementos.length ? r.elementos : [r.elemento || 'todos'];
+            r.elementos = alternarAlvoReducao(atuais, alvo, false);
+            r.elemento = r.elementos[0];
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
@@ -522,7 +543,7 @@ export function FichaFormProvider({ children }) {
         addSerEfeito, removeSerEfeito, addSerEfeitoPassivo, removeSerEfeitoPassivo,
         addSerSelado, editarSerSelado, removeSerSelado, toggleSerSelado, cancelarEdicaoSer,
         salvarFormaSer, deletarFormaSer, ativarFormaSer,
-        modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano
+        modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
     }), [
         minhaFicha, updateFicha, personagens, meuNome, mesa, raca, classe, subClasse, alterEgoSlot1, alterEgoSerId, classesMemorizadas,
         idade, fisico, sangue, alinhamento, afiliacao, dinheiro, salvandoBio, overridesCompendio, grands, isGrand, grandIcone,
@@ -534,7 +555,7 @@ export function FichaFormProvider({ children }) {
         serNovoNomeEfeitoPassivo, serNovoAtrPassivo, serNovoPropPassivo, serNovoValPassivo,
         addSerEfeito, removeSerEfeito, addSerEfeitoPassivo, removeSerEfeitoPassivo,
         addSerSelado, editarSerSelado, removeSerSelado, toggleSerSelado, cancelarEdicaoSer,
-        salvarFormaSer, deletarFormaSer, ativarFormaSer, modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano
+        salvarFormaSer, deletarFormaSer, ativarFormaSer, modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
     ]);
 
     return (

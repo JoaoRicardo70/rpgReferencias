@@ -2190,10 +2190,46 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .polaridade-yin { filter: drop-shadow(0 0 2px #9966ff); }
 .polaridade-neutro { filter: drop-shadow(0 0 2px #cccccc); }
 
-/* Habilidades de Redução de Dano (página 3 do Grimório) */
-.habilidades-reducao { grid-column: 1 / -1; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; border: 1px solid #333; }
-.habilidades-reducao-titulo { color: #aaa; font-size: 0.75em; text-transform: uppercase; display: block; margin-bottom: 6px; }
-.habilidade-reducao-card { border: 1px solid #333; border-radius: 6px; padding: 6px; margin-bottom: 6px; }
-.habilidade-reducao-off { opacity: 0.5; }
+/* Página 3 do Grimório: Estados, Afinidades e Habilidades de Redução de Dano */
+.estados-pagina { display: flex; flex-direction: column; gap: 18px; }
+.estados-secao { background: rgba(0,0,0,0.25); border: 1px solid #333; border-radius: 10px; padding: 14px; }
+.estados-secao-titulo { margin: 0 0 12px 0; font-size: 1.05em; color: #ff6b6b; letter-spacing: 1px; text-transform: uppercase; }
+.estados-duo { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(300px, 1.4fr); gap: 14px; }
+.estados-card { background: rgba(0,0,0,0.3); border: 1px solid #333; border-radius: 8px; padding: 10px; }
+.estados-card-titulo { display: block; color: #aaa; font-size: 0.75em; text-transform: uppercase; margin-bottom: 10px; }
+.estados-debuffs { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 8px; }
+.estados-debuff { display: flex; flex-direction: column; align-items: center; padding: 6px 4px; border: 1px solid #444; border-radius: 6px; background: rgba(255,255,255,0.02); }
+.estados-debuff-icone { font-size: 1.2em; }
+.estados-debuff-controle { display: flex; align-items: center; gap: 5px; margin-top: 4px; }
+.estados-debuff-controle button { background: none; border: none; color: #fff; cursor: pointer; padding: 0 5px; }
+.afinidade-grupo { margin-bottom: 10px; }
+.afinidade-grupo-titulo { display: block; font-size: 0.68em; color: #888; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px; }
+.afinidade-grupo-botoes { display: flex; flex-wrap: wrap; gap: 5px; }
+.afinidade-btn { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.5); border: 2px solid #444; border-radius: 4px; cursor: pointer; font-size: 1.15em; }
+.afinidade-resistente { border-color: #00ffcc; }
+.afinidade-vulneravel { border-color: #ffaa00; }
+.afinidade-imune { border-color: #ffffff; box-shadow: 0 0 10px #fff; }
+.afinidade-legenda { margin-top: 8px; font-size: 0.7em; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.afinidade-leg-resistente { color: #00ffcc; }
+.afinidade-leg-vulneravel { color: #ffaa00; }
+.afinidade-leg-imune { color: #ffffff; }
+.habilidade-criar { width: 100%; margin: 4px 0 10px 0; }
+.habilidade-vazio { text-align: center; color: #777; font-size: 0.85em; margin: 8px 0; }
+.habilidade-grupo { margin-top: 12px; }
+.habilidade-grupo-titulo { margin: 0 0 8px 0; font-size: 0.85em; color: var(--neon-cyan, #00ffff); border-bottom: 1px dashed #333; padding-bottom: 4px; }
+.habilidade-grupo-titulo span { color: #888; font-weight: normal; font-size: 0.85em; }
+.habilidade-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 10px; }
+.habilidade-card { border: 1px solid #333; border-radius: 8px; padding: 8px; background: rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 6px; }
+.habilidade-card-passiva { border-left: 3px solid #00ffcc; }
+.habilidade-card-off { opacity: 0.55; }
+.habilidade-card-topo { display: flex; align-items: center; gap: 4px; }
+.habilidade-card-nome { flex: 1 1 auto; min-width: 0; }
+.habilidade-card-modo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.habilidade-card-tipo { flex: 1 1 150px; }
+.habilidade-card-alvos { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.habilidade-alvo-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 1px solid #555; border-radius: 12px; font-size: 0.78em; background: rgba(255,255,255,0.05); }
+.habilidade-alvo-remover { background: none; border: none; color: #ff6b6b; cursor: pointer; padding: 0; font-size: 0.85em; }
+.habilidade-alvo-add { flex: 0 1 150px; font-size: 0.78em; }
 .habilidade-reducao-ativa { display: flex; align-items: center; gap: 4px; font-size: 0.8em; cursor: pointer; }
-.habilidade-reducao-descricao { width: 100%; box-sizing: border-box; resize: vertical; font-size: 0.8em; margin-top: 4px; }
+.habilidade-reducao-descricao { width: 100%; box-sizing: border-box; resize: vertical; font-size: 0.8em; }
+@media (max-width: 760px) { .estados-duo { grid-template-columns: 1fr; } .habilidade-grade { grid-template-columns: 1fr; } }

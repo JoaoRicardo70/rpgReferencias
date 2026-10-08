@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes, limitarPercentualReducao } from './reducaoDano.js';
+import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes, limitarPercentualReducao, alternarAlvoReducao } from './reducaoDano.js';
 
 describe('aplicarReducoesSequenciais', () => {
     it('exemplo do pedido: 100 → -20% → 80 → -30% → 56', () => {
@@ -129,5 +129,48 @@ describe('habilidades de redução por polaridade e ativa/desativada', () => {
     it('combina com redução geral em sequência (Yin 30% depois geral 20%)', () => {
         const f = { reducoesDano: [{ id: 'g', nome: 'Geral', percentual: 20, elemento: 'todos' }, ficha.reducoesDano[0]] };
         expect(aplicarReducoesSequenciais(100, getPassosReducaoDano(f, 'fogo')).final).toBe(56);
+    });
+});
+
+describe('vários tipos, passivas e elementos novos', () => {
+    it('uma habilidade com Fogo e Água vale contra os dois e não contra Terra', () => {
+        const f = { reducoesDano: [{ id: 'm', nome: 'Pele Úmida', percentual: 40, elementos: ['fogo', 'agua'] }] };
+        expect(getPassosReducaoDano(f, 'fogo')).toHaveLength(1);
+        expect(getPassosReducaoDano(f, 'Água')).toHaveLength(1);
+        expect(getPassosReducaoDano(f, 'Fogo Verdadeiro')).toHaveLength(1);
+        expect(getPassosReducaoDano(f, 'terra')).toHaveLength(0);
+    });
+
+    it('mistura polaridade e elemento na mesma habilidade', () => {
+        const f = { reducoesDano: [{ id: 'm', nome: 'Mista', percentual: 25, elementos: ['pol:yang', 'lava'] }] };
+        expect(getPassosReducaoDano(f, 'vento')).toHaveLength(1);
+        expect(getPassosReducaoDano(f, 'Elemento Lava')).toHaveLength(1);
+        expect(getPassosReducaoDano(f, 'fogo')).toHaveLength(0);
+    });
+
+    it('passiva vale sempre, mesmo com ativa:false; ativa desligada não vale', () => {
+        const f = { reducoesDano: [
+            { id: 'p', nome: 'P', percentual: 10, tipo: 'passiva', ativa: false },
+            { id: 'a', nome: 'A', percentual: 10, tipo: 'ativa', ativa: false },
+        ] };
+        expect(getPassosReducaoDano(f, 'fogo').map(p => p.nome)).toEqual(['P']);
+    });
+
+    it('formato antigo (elemento) continua valendo; elementos novos casam por nome e id', () => {
+        const f = { reducoesDano: [{ id: 'o', nome: 'Antiga', percentual: 10, elemento: 'madeira' }] };
+        expect(getPassosReducaoDano(f, 'Elemento Madeira')).toHaveLength(1);
+        expect(getPassosReducaoDano(f, 'madeira')).toHaveLength(1);
+    });
+
+    it('afinidades casam por chave (nome com acento/Verdadeiro)', () => {
+        const f = { afinidades: { resistencias: ['vacuo'], vulnerabilidades: [], imunidades: [], absorcoes: [] } };
+        expect(getPassosReducaoDano(f, 'Vácuo').map(p => p.nome)).toEqual(['RESISTENTE']);
+    });
+
+    it('alternarAlvoReducao: todos é exclusivo, sem duplicar, vazio volta a todos', () => {
+        expect(alternarAlvoReducao(['todos'], 'fogo', true)).toEqual(['fogo']);
+        expect(alternarAlvoReducao(['fogo'], 'fogo', true)).toEqual(['fogo']);
+        expect(alternarAlvoReducao(['fogo', 'agua'], 'todos', true)).toEqual(['todos']);
+        expect(alternarAlvoReducao(['fogo'], 'fogo', false)).toEqual(['todos']);
     });
 });

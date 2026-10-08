@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
+import { ELEMENTOS_SISTEMA } from '../../core/elementos';
 import useStore from '../../stores/useStore';
 import { calcularReducao, calcularCA } from '../../core/engine';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano';
@@ -117,15 +118,7 @@ export function DefesaFormProvider({ children }) {
     }, [minhaFicha, personagens]);
 
     const elementosDinamicos = useMemo(() => {
-        const baseArray = [
-            { id: 'fisico', nome: 'Cinético', icone: '⚔️', cor: '#cccccc' },
-            { id: 'fogo', nome: 'Fogo', icone: '🔥', cor: '#ff4444' },
-            { id: 'agua', nome: 'Água', icone: '💧', cor: '#0088ff' },
-            { id: 'raio', nome: 'Raio', icone: '⚡', cor: '#ffcc00' },
-            { id: 'gelo', nome: 'Gelo', icone: '❄️', cor: '#00ffff' },
-            { id: 'luz', nome: 'Luz', icone: '☀️', cor: '#fffbd6' },
-            { id: 'trevas', nome: 'Trevas', icone: '🌑', cor: '#8800ff' }
-        ];
+        const baseArray = ELEMENTOS_SISTEMA;
         const overridesObj = overridesCompendio['elementos'] || {};
         const map = {};
         baseArray.forEach(item => map[item.id] = { ...item });
