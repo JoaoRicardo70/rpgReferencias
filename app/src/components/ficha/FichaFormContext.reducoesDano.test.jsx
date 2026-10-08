@@ -73,10 +73,10 @@ describe('FichaFormContext - handlers de Reducoes de Dano', () => {
             act(() => { probe.atualizarReducaoDano('r1', 'percentual', 150); });
             expect(ficha.reducoesDano[0].percentual).toBe(100);
         });
-        it('percentual clampa em 0 no minimo (negativo)', () => {
+        it('percentual clampa em -100 no minimo (vulnerabilidade)', () => {
             const ficha = montar(base());
             act(() => { probe.atualizarReducaoDano('r1', 'percentual', -20); });
-            expect(ficha.reducoesDano[0].percentual).toBe(0);
+            expect(ficha.reducoesDano[0].percentual).toBe(-20);
         });
         it('percentual nao numerico ou vazio vira 0', () => {
             const ficha = montar(base());
@@ -155,8 +155,8 @@ describe('FichaCondicoesEElementais - coluna Reducoes de Dano', () => {
 
     it('renderiza titulo, botao adicionar e nenhuma linha quando vazia', () => {
         montar({}, <Tela />);
-        expect(screen.getByText(/Reduções de Dano \(em sequência\)/)).toBeTruthy();
-        expect(screen.getByText('+ Adicionar Redução')).toBeTruthy();
+        expect(screen.getByText(/Habilidades de Redução de Dano \(em sequência\)/)).toBeTruthy();
+        expect(screen.getByText('+ Criar Habilidade de Redução')).toBeTruthy();
         expect(document.querySelectorAll('.reducao-dano-linha')).toHaveLength(0);
         expect(document.querySelector('.reducao-dano-previa')).toBeNull();
     });
@@ -186,7 +186,7 @@ describe('FichaCondicoesEElementais - coluna Reducoes de Dano', () => {
 
     it('interacao via UI: adicionar, editar percentual (clamp) e remover pela linha', () => {
         const ficha = montar({ reducoesDano: [{ id: 'r1', nome: 'A', percentual: 10, elemento: 'todos' }] }, <Tela />);
-        fireEvent.click(screen.getByText('+ Adicionar Redução'));
+        fireEvent.click(screen.getByText('+ Criar Habilidade de Redução'));
         expect(ficha.reducoesDano).toHaveLength(2);
         fireEvent.change(document.querySelector('.reducao-dano-pct'), { target: { value: '999' } });
         expect(ficha.reducoesDano[0].percentual).toBe(100);

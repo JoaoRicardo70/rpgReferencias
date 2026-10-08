@@ -227,7 +227,7 @@ export function DefesaFormProvider({ children }) {
             : dano;
         const danoDisputa = aplicarDisputaAoDano(danoBase, disputa);
         // 🛡️ Reduções/Resistências aplicadas em SEQUÊNCIA, uma de cada vez (core/reducaoDano.js).
-        const reduzido = aplicarReducoesSequenciais(danoDisputa, getPassosReducaoDano(minhaFicha, elementoInc));
+        const reduzido = aplicarReducoesSequenciais(danoDisputa, getPassosReducaoDano(minhaFicha, elementoInc, elementosDinamicos.find(e => e.id === elementoInc)?.nome));
         const danoFinal = reduzido.final;
 
         updateFicha((ficha) => {

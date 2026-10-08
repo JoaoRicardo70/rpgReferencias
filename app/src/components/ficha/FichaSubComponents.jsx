@@ -2,6 +2,7 @@ import React from 'react';
 import { useFichaForm, ATRIBUTO_OPTIONS, CLASSES_OPTIONS, STATS, ENERGIAS } from './FichaFormContext';
 import FormasEditor from '../shared/FormasEditor';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano.js';
+import { POLARIDADES } from '../../core/polaridade.js';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Ficha provider não encontrado</div>;
 
@@ -233,24 +234,35 @@ export function FichaCondicoesEElementais() {
                     </div>
                 </div>
 
-                {/* COLUNA 3: REDUÇÕES DE DANO EM SEQUÊNCIA */}
-                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '8px', border: '1px solid #333' }}>
-                    <strong style={{ color: '#aaa', fontSize: '0.75em', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>🛡️ Reduções de Dano (em sequência)</strong>
-                    <p className="reducao-dano-ajuda">Cada redução é aplicada uma de cada vez sobre o dano que sobrou da anterior (20% e depois 30% = 44% no total, não 50%).</p>
+                {/* HABILIDADES DE REDUÇÃO DE DANO (largura total): cada uma ativa vira um passo na conta do dano sofrido */}
+                <div className="habilidades-reducao">
+                    <strong className="habilidades-reducao-titulo">🛡️ Habilidades de Redução de Dano (em sequência)</strong>
+                    <p className="reducao-dano-ajuda">Crie habilidades de redução ou resistência. Cada uma ativa é aplicada uma de cada vez sobre o dano que sobrou da anterior (20% e depois 30% = 44% no total, não 50%). Escolha contra o quê vale: todo dano, físico, um elemento ou uma polaridade (Yin, Yang ou Neutro). Percentual negativo = vulnerabilidade.</p>
                     {reducoes.map(r => (
-                        <div key={r.id} className="reducao-dano-linha">
-                            <input className="input-neon reducao-dano-nome" type="text" placeholder="Nome" value={r.nome || ''} onChange={e => atualizarReducaoDano(r.id, 'nome', e.target.value)} />
-                            <input className="input-neon reducao-dano-pct" type="number" min="0" max="100" step="1" value={r.percentual} onChange={e => atualizarReducaoDano(r.id, 'percentual', e.target.value)} title="Percentual de dano reduzido" />
-                            <span>%</span>
-                            <select className="input-neon reducao-dano-elemento" value={r.elemento || 'todos'} onChange={e => atualizarReducaoDano(r.id, 'elemento', e.target.value)} title="Contra qual tipo de dano vale">
-                                <option value="todos">Todo dano</option>
-                                <option value="fisico">Físico</option>
-                                {elementosDinamicos.map(e => <option key={e.id} value={e.id}>{e.icone} {e.nome}</option>)}
-                            </select>
-                            <button className="btn-neon btn-red reducao-dano-remover" onClick={() => removerReducaoDano(r.id)} title="Remover redução">✖</button>
+                        <div key={r.id} className={`habilidade-reducao-card${r.ativa === false ? ' habilidade-reducao-off' : ''}`}>
+                            <div className="reducao-dano-linha">
+                                <label className="habilidade-reducao-ativa" title="Ligar/desligar a habilidade">
+                                    <input type="checkbox" checked={r.ativa !== false} onChange={e => atualizarReducaoDano(r.id, 'ativa', e.target.checked)} /> Ativa
+                                </label>
+                                <input className="input-neon reducao-dano-nome" type="text" placeholder="Nome da habilidade" value={r.nome || ''} onChange={e => atualizarReducaoDano(r.id, 'nome', e.target.value)} />
+                                <input className="input-neon reducao-dano-pct" type="number" min="-100" max="100" step="1" value={r.percentual} onChange={e => atualizarReducaoDano(r.id, 'percentual', e.target.value)} title="Percentual de dano reduzido (negativo aumenta o dano)" />
+                                <span>%</span>
+                                <select className="input-neon reducao-dano-elemento" value={r.elemento || 'todos'} onChange={e => atualizarReducaoDano(r.id, 'elemento', e.target.value)} title="Contra qual dano vale">
+                                    <option value="todos">Todo dano</option>
+                                    <option value="fisico">Físico</option>
+                                    <optgroup label="Polaridade do elemento">
+                                        {Object.values(POLARIDADES).map(pol => <option key={pol.id} value={`pol:${pol.id}`}>{pol.icone} Elemento {pol.nome}</option>)}
+                                    </optgroup>
+                                    <optgroup label="Elemento específico">
+                                        {elementosDinamicos.map(e => <option key={e.id} value={e.id}>{e.icone} {e.nome}</option>)}
+                                    </optgroup>
+                                </select>
+                                <button className="btn-neon btn-red reducao-dano-remover" onClick={() => removerReducaoDano(r.id)} title="Remover habilidade">✖</button>
+                            </div>
+                            <textarea className="input-neon habilidade-reducao-descricao" rows={2} placeholder="Descrição / como a habilidade funciona (opcional)" value={r.descricao || ''} onChange={e => atualizarReducaoDano(r.id, 'descricao', e.target.value)} />
                         </div>
                     ))}
-                    <button className="btn-neon" onClick={adicionarReducaoDano} style={{ marginTop: 6, width: '100%' }}>+ Adicionar Redução</button>
+                    <button className="btn-neon" onClick={adicionarReducaoDano} style={{ marginTop: 6, width: '100%' }}>+ Criar Habilidade de Redução</button>
                     {previaReducao.detalhe.length > 0 && (
                         <div className="reducao-dano-previa">Prévia (100 de dano, sem elemento): {descreverReducoes(previaReducao)}</div>
                     )}

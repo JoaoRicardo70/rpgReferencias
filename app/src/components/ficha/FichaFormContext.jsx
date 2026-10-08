@@ -135,7 +135,7 @@ export function FichaFormProvider({ children }) {
     const adicionarReducaoDano = useCallback(() => {
         updateFicha(f => {
             if (!Array.isArray(f.reducoesDano)) f.reducoesDano = [];
-            f.reducoesDano.push({ id: 'rd_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), nome: '', percentual: 10, elemento: 'todos' });
+            f.reducoesDano.push({ id: 'rd_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), nome: '', descricao: '', ativa: true, percentual: 10, elemento: 'todos' });
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
@@ -144,7 +144,9 @@ export function FichaFormProvider({ children }) {
         updateFicha(f => {
             const r = (f.reducoesDano || []).find(x => x && x.id === id);
             if (!r) return;
-            if (campo === 'percentual') r.percentual = Math.min(100, Math.max(0, parseFloat(valor) || 0));
+            if (campo === 'percentual') r.percentual = Math.min(100, Math.max(-100, parseFloat(valor) || 0));
+            else if (campo === 'descricao') r.descricao = String(valor || '').slice(0, 500);
+            else if (campo === 'ativa') r.ativa = !!valor;
             else if (campo === 'nome') r.nome = String(valor || '').slice(0, 60);
             else if (campo === 'elemento') r.elemento = String(valor || 'todos');
         });

@@ -5,15 +5,19 @@
 //
 // Fontes de cada passo (percentual > 0 reduz, 100 = imune, negativo = vulnerável, −100 = dano x2):
 //   1. ficha.reducoesDano — lista editada na Ficha: { id, nome, percentual, elemento }, onde
-//      elemento = 'todos' (qualquer dano) ou o id de um elemento (só vale contra ele);
+//      elemento = 'todos' (qualquer dano), 'fisico', 'pol:yin' | 'pol:yang' | 'pol:neutro' (qualquer
+//      elemento daquela polaridade — ver core/polaridade.js) ou o id de um elemento (só vale contra ele).
+//      Cada uma é uma "Habilidade de Redução de Dano" (nome, descrição, ativa: false = desligada);
 //   2. efeitos ativos (Poderes/Itens/Passivas/Classe...) com o atributo REDUCAO_DANO — qualquer dano;
 //   3. Afinidades da Ficha contra o elemento do golpe: Resistente 50%, Imune 100%, Vulnerável −100%.
 // O Domínio elemental (core/dominios.js) entra por fora, como mais um passo (ver Mapa).
 // ==========================================
 import { listarEfeitosDeAtributo } from './percepcaoPoder.js';
+import { getPolaridadeElemento } from './polaridade.js';
 
 export const ATRIBUTO_REDUCAO_DANO = 'reducao_dano';
 export const ELEMENTO_TODOS = 'todos';
+export const PREFIXO_POLARIDADE = 'pol:';
 export const PERCENTUAL_MAX_REDUCAO = 100;
 export const PERCENTUAL_MIN_REDUCAO = -1000;
 
@@ -33,16 +37,18 @@ function inteiroSeguro(v) {
 }
 
 // Lista ORDENADA de passos que valem contra um golpe do `elemento` (vazio/'fisico' = sem elemento).
-export function getPassosReducaoDano(ficha, elemento) {
+export function getPassosReducaoDano(ficha, elemento, nomeElemento) {
     const passos = [];
     if (!ficha) return passos;
     // Golpe sem elemento (o Mapa manda null) é dano Físico.
     const el = normalizarElemento(elemento) || 'fisico';
 
     (Array.isArray(ficha.reducoesDano) ? ficha.reducoesDano : []).forEach((r) => {
-        if (!r) return;
+        if (!r || r.ativa === false) return;
         const alvo = normalizarElemento(r.elemento) || ELEMENTO_TODOS;
-        if (alvo !== ELEMENTO_TODOS && alvo !== el) return;
+        if (alvo.startsWith(PREFIXO_POLARIDADE)) {
+            if ((getPolaridadeElemento(elemento) || getPolaridadeElemento(nomeElemento)) !== alvo.slice(PREFIXO_POLARIDADE.length)) return;
+        } else if (alvo !== ELEMENTO_TODOS && alvo !== el) return;
         const p = limitarPercentualReducao(r.percentual);
         if (p === 0) return;
         passos.push({ nome: String(r.nome || '').trim() || (alvo === ELEMENTO_TODOS ? 'Redução de Dano' : 'Resistência'), percentual: p, origem: 'ficha' });

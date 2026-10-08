@@ -96,3 +96,38 @@ describe('descreverReducoes / limitarPercentualReducao', () => {
         expect(limitarPercentualReducao('x')).toBe(0);
     });
 });
+
+describe('habilidades de redução por polaridade e ativa/desativada', () => {
+    const ficha = {
+        reducoesDano: [
+            { id: 'a', nome: 'Véu Yin', percentual: 30, elemento: 'pol:yin' },
+            { id: 'b', nome: 'Escudo Yang', percentual: 50, elemento: 'pol:yang' },
+            { id: 'c', nome: 'Aguas Calmas', percentual: 10, elemento: 'pol:neutro' },
+            { id: 'd', nome: 'Desligada', percentual: 90, elemento: 'todos', ativa: false },
+        ],
+    };
+
+    it('vale só contra elementos da polaridade escolhida', () => {
+        expect(getPassosReducaoDano(ficha, 'fogo').map(p => p.nome)).toEqual(['Véu Yin']);
+        expect(getPassosReducaoDano(ficha, 'Raio Verdadeiro').map(p => p.nome)).toEqual(['Véu Yin']);
+        expect(getPassosReducaoDano(ficha, 'vento').map(p => p.nome)).toEqual(['Escudo Yang']);
+        expect(getPassosReducaoDano(ficha, 'Agua').map(p => p.nome)).toEqual(['Aguas Calmas']);
+    });
+
+    it('não vale contra físico, sem elemento ou elemento sem polaridade', () => {
+        expect(getPassosReducaoDano(ficha, '')).toEqual([]);
+        expect(getPassosReducaoDano(ficha, 'fisico')).toEqual([]);
+        expect(getPassosReducaoDano(ficha, 'Aura Pura')).toEqual([]);
+    });
+
+    it('habilidade com ativa:false é ignorada; sem o campo conta como ativa', () => {
+        expect(getPassosReducaoDano(ficha, 'fogo').some(p => p.nome === 'Desligada')).toBe(false);
+        const f = { reducoesDano: [{ id: 'x', nome: 'Antiga', percentual: 20, elemento: 'todos' }] };
+        expect(getPassosReducaoDano(f, 'fogo')).toHaveLength(1);
+    });
+
+    it('combina com redução geral em sequência (Yin 30% depois geral 20%)', () => {
+        const f = { reducoesDano: [{ id: 'g', nome: 'Geral', percentual: 20, elemento: 'todos' }, ficha.reducoesDano[0]] };
+        expect(aplicarReducoesSequenciais(100, getPassosReducaoDano(f, 'fogo')).final).toBe(56);
+    });
+});
