@@ -105,7 +105,7 @@ export function MapaVisao() {
     const {
         modo3D, tamanhoCelula, cenaAtual, cells, tokenMap, dummyMap,
         cenaRenderId, tokens3D, pedirMovimento, movimentoPendente, confirmarMovimento, cancelarMovimento, getAvatarInfo,
-        meuNome, corDoJogador, overridesCompendio, cenario, isMestre, inspecionar, inspecao
+        meuNome, corDoJogador, overridesCompendio, cenario, isMestre, inspecionar, inspecao, alvoSelecionado
     } = ctx;
 
     const zonasCena = (cenario?.zonas || []).filter(z => (z.cenaId || 'default') === cenaRenderId);
@@ -210,7 +210,7 @@ export function MapaVisao() {
                             return (
                                 <div
                                     key={tk.nome}
-                                    className={`player-token${isMe ? ' my-token' : ''}${inspecao && !inspecao.isDummie && inspecao.id === tk.nome ? ' token-inspecionado' : ''}`}
+                                    className={`player-token${isMe ? ' my-token' : ''}${inspecao && !inspecao.isDummie && inspecao.id === tk.nome ? ' token-inspecionado' : ''}${alvoSelecionado === `pj:${tk.nome}` ? ' token-alvo' : ''}`}
                                     title={`${tk.nome} | Altura: ${altitude}m — clique para ver o resumo`}
                                     style={style}
                                     onClick={(e) => {

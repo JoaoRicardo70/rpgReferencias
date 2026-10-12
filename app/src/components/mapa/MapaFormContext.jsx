@@ -13,6 +13,9 @@ import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATO
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano';
+import { calcularDanoRapido } from '../../core/danoRapido';
+import { gravarDanoEmPersonagem } from '../../services/danoAlvo';
+import { resolverAlvoCombate, idAlvoPersonagem, ehAlvoPersonagem } from '../../core/alvoCombate';
 import { ordenarOrdemTurno, chaveEntidadeTurno, moverChaveNaOrdem, recalcularIndiceTurno } from '../../core/turnos';
 
 export const MAP_SIZE = 30;
@@ -954,41 +957,16 @@ export function MapaFormProvider({ children }) {
         const valorDigitado = Math.max(0, Math.floor(Number(dano)) || 0);
         if (valorDigitado <= 0) return;
 
-        const divisorMesa = useStore.getState().divisorPoderMesa;
         const fichaDoAlvo = alvo.isDummie ? alvo.ficha : (alvo.nome === meuNome ? minhaFicha : alvo.ficha);
-        const disputa = atacante
-            ? calcularDisputaPoder(getPoderDeEntidade(atacante, divisorMesa), getPoderDeEntidade({ ...alvo, ficha: fichaDoAlvo }, divisorMesa))
-            : null;
-        const baseDano = danoDeDado
-            ? escalarDanoPelaVida(valorDigitado, alvo.isDummie ? getVidaMaxExibidaDummie(alvo.ficha) : getVidaMaxExibidaFicha(fichaDoAlvo), getPontosVidaTotal(useStore.getState().cenario))
-            : valorDigitado;
-        const valorBruto = aplicarDisputaAoDano(baseDano, disputa);
-
-        const nivelOverride = (nivelDominioOverride === '' || nivelDominioOverride === undefined || nivelDominioOverride === null)
-            ? null : nivelDominioOverride;
-        const nivelAtacante = parseFloat(nivelDominioAtacante) || 0;
-
-        // 🛡️ Reduções/Resistências da ficha do alvo + Domínio elemental, aplicadas em SEQUÊNCIA,
-        // uma de cada vez (core/reducaoDano.js).
-        const fichaDoAlvoReducao = alvo.nome === meuNome && !alvo.isDummie ? minhaFicha : alvo.ficha;
-        const passosReducao = getPassosReducaoDano(fichaDoAlvoReducao, elemento);
-        if (elemento && !alvo.isDummie) {
-            const nivelDefensor = nivelOverride !== null ? nivelOverride : getNivelDominio(fichaDoAlvoReducao, elemento);
-            const reducaoDominio = calcularReducaoDanoElemental(nivelDefensor, nivelAtacante);
-            if (reducaoDominio > 0) passosReducao.push({ nome: `Domínio (${elemento})`, percentual: reducaoDominio * 100, origem: 'dominio' });
-        }
-        const reduzido = aplicarReducoesSequenciais(valorBruto, passosReducao);
-        const valor = reduzido.final;
-
-        // 🔥 CORREÇÃO: `valor`/`valorBruto` vêm do campo "Dano" da UI, na MESMA escala EXIBIDA da
-        // barra de HP na tela (ex.: a mesma unidade do "HP: 46.000" mostrado no Holograma de Ação)
-        // — mas vida.atual/hpAtual são gravados na escala BRUTA, FATOR_EXIBICAO_VITAIS (1000x) maior
-        // (reformulação de Vida/Energias, core/vitals.js). Todo outro campo editável de Vida no app
-        // (CampoMagico em Marcados.jsx/DiarioNPC.jsx, criação de dummy em MapaFerramentasMestre.jsx)
-        // já multiplica de volta por FATOR_EXIBICAO_VITAIS antes de gravar — o Dano Rápido não fazia
-        // isso, então um dano digitado na escala exibida praticamente não tirava HP nenhum dos
-        // Máximos novos (na casa dos bilhões/trilhões).
-        const valorRaw = danoExibidoParaBruto(valor);
+        // O cálculo inteiro (dado proporcional → Disputa de Poder → reduções em sequência + Domínio) vive em
+        // core/danoRapido.js, o MESMO que alimenta a prévia do Mestre.
+        const calculo = calcularDanoRapido({
+            alvo, fichaDoAlvo, dano: valorDigitado, elemento, nivelDominioOverride, nivelDominioAtacante, atacante, danoDeDado,
+            divisorMesa: useStore.getState().divisorPoderMesa, pontosVida: getPontosVidaTotal(useStore.getState().cenario)
+        });
+        const { disputa, valorBruto, reduzido, valor, valorRaw, nivelOverride } = calculo;
+        // valor/valorBruto estão na escala EXIBIDA; vida.atual/hpAtual são gravados na escala BRUTA
+        // (FATOR_EXIBICAO_VITAIS maior): valorRaw já é o dano convertido (core/vitals.js > danoExibidoParaBruto).
 
         // ⚖️ Golpe anulado pela Disputa de Poder: só registra no feed — não mexe na Vida, não gera
         // Fadiga nem troca o "último elemento recebido" do alvo.
@@ -1012,23 +990,7 @@ export function MapaFormProvider({ children }) {
             });
             salvarFichaSilencioso();
         } else {
-            const fichaAlvo = alvo.ficha || {};
-            const novaVida = Math.max(0, (fichaAlvo.vida?.atual || 0) - valorRaw);
-            // Ficha "simulada" com a Vida já reduzida (e o elemento/nível deste golpe já
-            // registrados), só pra calcular o ganho de Fadiga deste golpe com o dado mais atual
-            // possível — nunca é gravada, só usada localmente aqui.
-            const fichaSimulada = {
-                ...fichaAlvo,
-                vida: { ...(fichaAlvo.vida || {}), atual: novaVida },
-                combate: { ...(fichaAlvo.combate || {}), ultimoElementoRecebido: elemento || null, ultimoElementoRecebidoNivel: nivelOverride }
-            };
-            const fadigaExtraAtual = Math.max(0, Number(fichaAlvo.combate?.fadigaExtra) || 0);
-            const novaFadigaExtra = fadigaExtraAtual + calcularGanhoFadigaDinamico(fichaSimulada);
-
-            aplicarDanoDireto(alvo.nome, novaVida);
-            aplicarFadigaDireta(alvo.nome, novaFadigaExtra);
-            aplicarElementoDireto(alvo.nome, elemento || null);
-            aplicarElementoNivelDireto(alvo.nome, nivelOverride);
+            gravarDanoEmPersonagem(alvo.nome, alvo.ficha, Math.max(0, ((alvo.ficha && alvo.ficha.vida && alvo.ficha.vida.atual) || 0) - valorRaw), { elemento, nivelOverride });
         }
 
         const textoReducao = reduzido.detalhe.length > 0 ? ` (${descreverReducoes(reduzido)})` : '';
@@ -1165,7 +1127,8 @@ export function MapaFormProvider({ children }) {
 
         let alvosAtingidos = [];
         let maxArea = 0;
-        const alvoDummie = alvoSelecionado && dummies[alvoSelecionado] ? dummies[alvoSelecionado] : null;
+        const estadoAtual = useStore.getState();
+        const alvoDummie = resolverAlvoCombate(alvoSelecionado, { dummies, personagens: estadoAtual.personagens, meuNome, divisorPoderMesa: estadoAtual.divisorPoderMesa });
 
         if (alvoDummie) {
             const armasEqMap = itensEq.filter(i => i.tipo === 'arma');
@@ -1183,6 +1146,10 @@ export function MapaFormProvider({ children }) {
                 const cenaAtivaId = cenario?.ativa || 'default';
                 const escala = cenario?.lista?.[cenaAtivaId]?.escala || 1.5;
 
+                // Alvo-personagem: ele mesmo entra no golpe em área (os Dummies vizinhos entram pelo laço abaixo).
+                if (alvoDummie.isPersonagem) {
+                    alvosAtingidos.push({ nome: alvoDummie.nome, defesa: alvoDummie.valorDefesa, acertou: result.acertoTotal >= alvoDummie.valorDefesa, dummieId: alvoSelecionado });
+                }
                 Object.entries(dummies).forEach(([id, dObj]) => {
                     const isSameScene = (dObj.cenaId || 'default') === (alvoDummie.cenaId || 'default');
                     if (isSameScene && dObj.posicao && alvoDummie.posicao) {

@@ -60,7 +60,8 @@ export function DefesaFormProvider({ children }) {
         for (let i = feed.length - 1; i >= 0; i--) {
             const f = feed[i];
             // Golpe com alvoNome foi numa entidade do Mapa (dummy), não em um jogador: não conta.
-            if (f && f.tipo === 'dano' && f.nome && f.nome !== meuNome && !f.alvoNome) return f;
+            // Golpe em área que já gravou o dano direto na minha ficha (alvosAplicados) também não conta.
+            if (f && f.tipo === 'dano' && f.nome && f.nome !== meuNome && !f.alvoNome && !(Array.isArray(f.alvosAplicados) && f.alvosAplicados.includes(meuNome))) return f;
         }
         return null;
     }, [feedCombate, meuNome]);

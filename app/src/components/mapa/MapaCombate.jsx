@@ -18,6 +18,7 @@ import { estimarPoderDeEntidade, descreverEstimativaPoder, rotuloPrecisaoPoder, 
 import { getVitalMax, getVitalMaxEstavel, calcVitalScale, calcularBarrasVida, calcularBarrasVidaDummy, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import BarrasVida from '../shared/BarrasVida';
 import { formatarPoderCosmico } from '../../core/utils';
+import { idAlvoPersonagem } from '../../core/alvoCombate';
 
 // 🔥 IMPORTAÇÕES PARA RENDERIZAR O DADO 3D FÍSICO 🔥
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -953,6 +954,8 @@ function MoldSituacao({ ficha, supressao }) {
 export function MapaHologramaAcao() {
     const ctx = useMapaForm();
     const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
+    const alvoSelecionado = useStore(s => s.alvoSelecionado);
+    const setAlvoSelecionado = useStore(s => s.setAlvoSelecionado);
     if (!ctx) return null;
     const { ordemIniciativa, feedCombate, feedIndexTurnoAtual, jogadorDaVez, jogadores, overridesCompendio, getAvatarInfo, fmt, meuNome, minhaFicha, isMestre, inspecao, limparInspecao, removerTokenDoMapa } = ctx;
 
@@ -1142,6 +1145,12 @@ export function MapaHologramaAcao() {
                 {inspecionando && !inspecao.isDummie && (isMestre || inspecao.id === meuNome) && (
                     <button type="button" className="moldura-remover-token" onClick={() => removerTokenDoMapa(inspecao.id)} title={inspecao.id === meuNome ? 'Retirar o seu personagem do Mapa' : 'Remover este personagem do Mapa'}>
                         {inspecao.id === meuNome ? '🚪 Sair do Mapa' : '🗑️ Remover do Mapa'}
+                    </button>
+                )}
+                {/* 🎯 Mirar neste personagem: vira o alvo dos seus ataques (acerto + dano na ficha dele), como um Dummie */}
+                {inspecionando && !inspecao.isDummie && inspecao.id !== meuNome && (
+                    <button type="button" className="moldura-alvo-token" onClick={() => setAlvoSelecionado(alvoSelecionado === idAlvoPersonagem(inspecao.id) ? null : idAlvoPersonagem(inspecao.id))} title="Escolher este personagem como alvo dos seus ataques">
+                        {alvoSelecionado === idAlvoPersonagem(inspecao.id) ? '🎯 Alvo (soltar)' : '🎯 Mirar'}
                     </button>
                 )}
                 {inspecionando && <button type="button" className="moldura-fechar-inspecao" onClick={limparInspecao} title="Voltar à ação do combate" aria-label="Fechar o resumo e voltar à ação do combate">✖</button>}

@@ -8,6 +8,7 @@ import useStore from '../../stores/useStore';
 import { calcularAcerto, calcularCA } from '../../core/engine';
 import { getPoderesDefesa, getEfeitosDeClasse } from '../../core/attributes';
 import { enviarParaFeed, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
+import { resolverAlvoCombate } from '../../core/alvoCombate';
 
 import { cores } from '../arsenal/ElementosFormContext';
 
@@ -68,7 +69,12 @@ export function AcertoFormProvider({ children }) {
         return { bonusMaestriaArma: bonus, nomesMaestriaArma: nomes };
     }, [efeitosClasse, tiposArmasEquipadas]);
 
-    const alvoDummie = alvoSelecionado && dummies?.[alvoSelecionado] ? dummies[alvoSelecionado] : null;
+    // 🎯 Alvo do golpe: Dummie do Mapa OU personagem de verdade ('pj:<nome>', core/alvoCombate.js).
+    const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
+    const alvoDummie = useMemo(
+        () => resolverAlvoCombate(alvoSelecionado, { dummies, personagens, meuNome, divisorPoderMesa }),
+        [alvoSelecionado, dummies, personagens, meuNome, divisorPoderMesa]
+    );
 
     useEffect(() => {
         const magiasEquipadas = (minhaFicha?.ataquesElementais || []).filter(m => m.equipado);

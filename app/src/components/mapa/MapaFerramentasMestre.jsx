@@ -3,6 +3,7 @@ import useStore from '../../stores/useStore';
 import { useMapaForm } from './MapaFormContext';
 import { calcularDisputaPoder, getPoderDeEntidade, formatarPoderDisputa } from '../../core/disputaPoder';
 import { getPontosVidaTotal } from '../../core/danoProporcional';
+import { calcularDanoRapido } from '../../core/danoRapido';
 import { rotuloComPolaridade } from '../../core/polaridade';
 import { agruparNpcsPorFamilia, montarDummieDeNpc, posicoesLivres, getVidaMaxBrutaNpc, cenarioComTokensOcultos } from '../../core/gavetaNpc';
 import DisputaPoderResumo from '../combate/DisputaPoderResumo';
@@ -306,6 +307,42 @@ export function MapaMestreGeradorDummies() {
     );
 }
 
+// 👁️ Prévia do Dano Rápido: mostra, passo a passo, quanto dano o alvo escolhido vai levar e quanto de Vida sobra.
+const fmtNum = (n) => Math.floor(Number(n) || 0).toLocaleString('pt-BR');
+
+function PreviaDanoRapido({ previa, nomeAlvo }) {
+    if (!previa) {
+        return <div className="dano-previa dano-previa-vazia">👁️ Escolha um alvo para ver a prévia do dano.</div>;
+    }
+    if (previa.valorDigitado <= 0) {
+        return <div className="dano-previa dano-previa-vazia">👁️ Digite um dano maior que zero para ver a prévia.</div>;
+    }
+    const passos = [];
+    passos.push(<li key="dig">Dano digitado: <strong>{fmtNum(previa.valorDigitado)}</strong></li>);
+    if (previa.baseDano !== previa.valorDigitado) passos.push(<li key="dado">🎲 Proporcional à Vida do alvo: <strong>{fmtNum(previa.baseDano)}</strong></li>);
+    if (previa.disputa && previa.disputa.ativa) passos.push(<li key="disp">⚖️ {previa.textoDisputa} → <strong>{fmtNum(previa.valorBruto)}</strong></li>);
+    previa.reduzido.detalhe.forEach((d, i) => (
+        passos.push(<li key={`red${i}`}>🛡️ {d.nome} ({d.percentual >= 0 ? `−${d.percentual}%` : `+${Math.abs(d.percentual)}%`}): {fmtNum(d.antes)} → <strong>{fmtNum(d.depois)}</strong></li>)
+    ));
+    return (
+        <div className="dano-previa">
+            <strong className="dano-previa-titulo">👁️ Prévia — {nomeAlvo}</strong>
+            <ul className="dano-previa-passos">{passos}</ul>
+            {previa.anulado ? (
+                <div className="dano-previa-final dano-previa-anulado">O golpe não surte efeito (anulado pela Disputa de Poder).</div>
+            ) : (
+                <div className="dano-previa-final">💥 Dano que entra: <strong>{fmtNum(previa.valor)}</strong></div>
+            )}
+            {previa.vidaAntes !== null && previa.vidaMax > 0 && (
+                <div className="dano-previa-vida">
+                    ❤️ Vida: {fmtNum(previa.vidaAntes)} → <strong>{fmtNum(previa.vidaDepois)}</strong> / {fmtNum(previa.vidaMax)}
+                    {previa.vidaDepois <= 0 && <span className="dano-previa-morto"> (💀 cai a 0)</span>}
+                </div>
+            )}
+        </div>
+    );
+}
+
 export function MapaMestreDanoRapido() {
     const ctx = useMapaForm();
     const { isMestre, isModoRP, mestreVendoRP, jogadores, dummies, cenaRenderId, aplicarDanoRapido } = ctx || {};
@@ -345,6 +382,24 @@ export function MapaMestreDanoRapido() {
         const ds = Object.entries(dummies || {}).filter(([id, d]) => (d.cenaId || 'default') === cenaRenderId).map(([id, d]) => ({ id, nome: d.nome, ficha: d, isDummie: true }));
         return [...js, ...ds];
     }, [jogadores, dummies, cenaRenderId]);
+
+    const minhaFichaCtx = ctx ? ctx.minhaFicha : null;
+    const meuNomeCtx = ctx ? ctx.meuNome : null;
+    const cenarioCtx = ctx ? ctx.cenario : null;
+
+    // 👁️ Prévia do dano: roda o MESMO cálculo do botão "Aplicar Dano" (core/danoRapido.js), sem gravar nada.
+    const previaDano = useMemo(() => {
+        const alvoPrev = alvos.find(a => a.id === alvoId) || null;
+        if (!alvoPrev) return null;
+        const atacantePrev = alvos.find(a => a.id === atacanteId && a.id !== alvoId) || null;
+        const fichaDoAlvo = alvoPrev.isDummie ? alvoPrev.ficha : (alvoPrev.nome === meuNomeCtx ? minhaFichaCtx : alvoPrev.ficha);
+        return calcularDanoRapido({
+            alvo: alvoPrev, fichaDoAlvo, dano: valorDano, elemento: elementoDano || null,
+            nivelDominioOverride: nivelDominioDano === '' ? null : nivelDominioDano,
+            nivelDominioAtacante: nivelAtacanteDano === '' ? 0 : nivelAtacanteDano,
+            atacante: atacantePrev, danoDeDado: ehDado, divisorMesa: divisorPoderMesa, pontosVida: getPontosVidaTotal(cenarioCtx)
+        });
+    }, [alvos, alvoId, atacanteId, valorDano, elementoDano, nivelDominioDano, nivelAtacanteDano, ehDado, divisorPoderMesa, minhaFichaCtx, meuNomeCtx, cenarioCtx]);
 
     // Os returns ficam DEPOIS de todos os hooks: o Mestre alterna o modo RP com o painel aberto,
     // e um hook a menos entre renders derruba a tela.
@@ -428,6 +483,7 @@ export function MapaMestreDanoRapido() {
                     <span>pontos de dado (atual: {pontosAtuais})</span>
                 </label>
             </div>
+            <PreviaDanoRapido previa={previaDano} nomeAlvo={alvoAtual ? alvoAtual.nome : ''} />
             {disputaPrevia && (
                 <DisputaPoderResumo
                     disputa={disputaPrevia}

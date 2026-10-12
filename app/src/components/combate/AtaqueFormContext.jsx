@@ -8,6 +8,9 @@ import { escalarEfeitosPorEstagio } from '../../core/estagios';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, classificarEfetividade } from '../../core/disputaPoder';
 import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getFatorVida, getPontosVidaTotal } from '../../core/danoProporcional';
+import { resolverAlvoCombate, reduzirDanoNoAlvo, ehAlvoPersonagem } from '../../core/alvoCombate';
+import { gravarVidaDoAlvo } from '../../services/danoAlvo';
+import { getNivelDominio } from '../../core/dominios';
 
 const AtaqueFormContext = createContext(null);
 
@@ -152,7 +155,11 @@ export function AtaqueFormProvider({ children }) {
         return 0;
     }, [percEfetivoParaDisplay, multiplicadorFuriaClasse]);
 
-    const dummieAlvo = alvoSelecionado && dummies[alvoSelecionado] ? dummies[alvoSelecionado] : null;
+    // 🎯 Alvo do golpe: um Dummie do Mapa OU um personagem de verdade (id 'pj:<nome>', core/alvoCombate.js).
+    const dummieAlvo = useMemo(
+        () => resolverAlvoCombate(alvoSelecionado, { dummies, personagens, meuNome, divisorPoderMesa }),
+        [alvoSelecionado, dummies, personagens, meuNome, divisorPoderMesa]
+    );
 
     // ⚖️ Disputa de Poder (core/disputaPoder.js): o Poder Atual de quem ataca contra o do alvo
     // decide quanto do dano chega. Prévia só quando há uma entidade como alvo (calcularPoderAtual é
@@ -406,15 +413,18 @@ export function AtaqueFormProvider({ children }) {
                 const vidaAlvo = getVidaMaxExibidaDummie(dummieAlvo);
                 const pontosVida = getPontosVidaTotal(useStore.getState().cenario);
                 fatorVidaAlvo = getFatorVida(vidaAlvo, pontosVida);
-                const danoNoAlvo = aplicarDisputaAoDano(escalarDanoPelaVida(danoReduzido, vidaAlvo, pontosVida), disputa);
+                const danoAposDisputa = aplicarDisputaAoDano(escalarDanoPelaVida(danoReduzido, vidaAlvo, pontosVida), disputa);
+                // 🛡️ Alvo-personagem: Reduções/Resistências/Domínio da ficha dele, em sequência.
+                const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo) });
+                const danoNoAlvo = reducaoAlvo.final;
                 // Escala: dano exibido -> Vida bruta do dummy (core/vitals.js > danoExibidoParaBruto).
                 const hpAnterior = dummieAlvo.hpAtual || 0;
                 const novoHp = Math.max(0, hpAnterior - danoExibidoParaBruto(danoNoAlvo));
                 const hpAnteriorExibido = hpAnterior / FATOR_EXIBICAO_VITAIS;
-                salvarDummie(alvoSelecionado, { ...dummieAlvo, hpAtual: novoHp });
+                gravarVidaDoAlvo(alvoSelecionado, dummieAlvo, novoHp, { elemento: elementoAtivo });
                 extraFeed = {
                     alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0,
-                    danoAplicado: danoNoAlvo, fatorVida: fatorVidaAlvo, ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
+                    danoAplicado: danoNoAlvo, fatorVida: fatorVidaAlvo, ...(reducaoAlvo.texto ? { textoReducao: reducaoAlvo.texto } : {}), ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
                 };
             }
 
@@ -504,18 +514,24 @@ export function AtaqueFormProvider({ children }) {
             let atingidos = 0;
             const linhasDisputa = [];
             const efetividadeAlvos = [];
+            // Personagens que já tiveram o dano gravado direto na ficha: a aba Defesa deles não deve oferecer o golpe de novo.
+            const alvosAplicados = [];
             meuUltimoAcerto.alvosArea.forEach(alvoHit => {
                 if (alvoHit.acertou) {
                     atingidos++;
-                    const dummieEntry = alvoHit.dummieId
-                        ? (dummies[alvoHit.dummieId] ? [alvoHit.dummieId, dummies[alvoHit.dummieId]] : null)
-                        : Object.entries(dummies).find(([id, d]) => d.nome === alvoHit.nome);
+                    const alvoPj = ehAlvoPersonagem(alvoHit.dummieId) ? resolverAlvoCombate(alvoHit.dummieId, { dummies, personagens, meuNome, divisorPoderMesa }) : null;
+                    const dummieEntry = alvoPj
+                        ? [alvoHit.dummieId, alvoPj]
+                        : alvoHit.dummieId
+                            ? (dummies[alvoHit.dummieId] ? [alvoHit.dummieId, dummies[alvoHit.dummieId]] : null)
+                            : Object.entries(dummies).find(([id, d]) => d.nome === alvoHit.nome);
                     if (dummieEntry) {
                         const [idD, dData] = dummieEntry;
                         const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dData));
                         const danoEscalado = escalarDanoPelaVida(result.dano, getVidaMaxExibidaDummie(dData), getPontosVidaTotal(useStore.getState().cenario));
-                        const danoNoAlvo = aplicarDisputaAoDano(danoEscalado, disputa);
-                        salvarDummie(idD, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)) });
+                        const danoNoAlvo = reduzirDanoNoAlvo(dData, aplicarDisputaAoDano(danoEscalado, disputa), elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo) }).final;
+                        gravarVidaDoAlvo(idD, dData, Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)), { elemento: elementoAtivo });
+                        if (dData.isPersonagem) alvosAplicados.push(dData.personagemNome);
                         if (disputa.ativa || danoNoAlvo !== Math.floor(result.dano)) {
                             linhasDisputa.push(`${dData.nome}: ${danoNoAlvo.toLocaleString('pt-BR')}`);
                             if (disputa.ativa) efetividadeAlvos.push({ nome: dData.nome, efetividade: classificarEfetividade(disputa) });
@@ -525,22 +541,26 @@ export function AtaqueFormProvider({ children }) {
             });
             textoAlvos = `<br/><span style="color:#0f0; font-weight:bold;">💥 Dano em Área aplicado a ${atingidos} alvo(s) que falharam na defesa!</span>`;
             // O dano recalculado por alvo é só do Mestre (detalheDisputa); os jogadores só veem a efetividade.
-            if (linhasDisputa.length > 0) extraFeed = { detalheDisputa: `⚖️ Disputa de Poder (dano em cada alvo): ${linhasDisputa.join(' · ')}`, efetividadeAlvos };
+            if (alvosAplicados.length > 0) extraFeed = { ...extraFeed, alvosAplicados };
+            if (linhasDisputa.length > 0) extraFeed = { ...extraFeed, detalheDisputa: `⚖️ Disputa de Poder (dano em cada alvo): ${linhasDisputa.join(' · ')}`, efetividadeAlvos };
         } else if (dummieAlvo) {
             const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dummieAlvo));
             // 🎲 Dano de dado proporcional à Vida do alvo (core/danoProporcional.js), depois a Disputa de Poder.
             const vidaAlvo = getVidaMaxExibidaDummie(dummieAlvo);
             const pontosVida = getPontosVidaTotal(useStore.getState().cenario);
             const fatorVidaAlvo = getFatorVida(vidaAlvo, pontosVida);
-            const danoNoAlvo = aplicarDisputaAoDano(escalarDanoPelaVida(result.dano, vidaAlvo, pontosVida), disputa);
+            const danoAposDisputa = aplicarDisputaAoDano(escalarDanoPelaVida(result.dano, vidaAlvo, pontosVida), disputa);
+            // 🛡️ Alvo-personagem: Reduções/Resistências/Domínio da ficha dele, em sequência.
+            const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo) });
+            const danoNoAlvo = reducaoAlvo.final;
             // Escala: dano exibido -> Vida bruta do dummy (core/vitals.js > danoExibidoParaBruto).
             const hpAnterior = dummieAlvo.hpAtual || 0;
             const novoHp = Math.max(0, hpAnterior - danoExibidoParaBruto(danoNoAlvo));
             const hpAnteriorExibido = hpAnterior / FATOR_EXIBICAO_VITAIS;
-            salvarDummie(alvoSelecionado, { ...dummieAlvo, hpAtual: novoHp });
+            gravarVidaDoAlvo(alvoSelecionado, dummieAlvo, novoHp, { elemento: elementoAtivo });
             extraFeed = {
                 alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0,
-                danoAplicado: danoNoAlvo, fatorVida: fatorVidaAlvo, ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
+                danoAplicado: danoNoAlvo, fatorVida: fatorVidaAlvo, ...(reducaoAlvo.texto ? { textoReducao: reducaoAlvo.texto } : {}), ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
             };
         }
 
@@ -611,7 +631,7 @@ export function AtaqueFormProvider({ children }) {
         updateFicha, armaStatusUsados, armaEnergiaCombustao, armaPercEnergia,
         critNormalMin, critNormalMax, critFatalMin, critFatalMax, skillConfigs,
         minhaFicha, forcarCritNormal, autoCritNormal, forcarCritFatal, autoCritFatal,
-        dummieAlvo, alvoSelecionado, meuNome, setAbaAtiva, poderesAtivos, magiasOfensivas, feedCombate, dummies, elementoAtivo, divisorPoderMesa
+        dummieAlvo, alvoSelecionado, meuNome, setAbaAtiva, poderesAtivos, magiasOfensivas, feedCombate, dummies, personagens, elementoAtivo, divisorPoderMesa
     ]);
 
     const value = useMemo(() => ({

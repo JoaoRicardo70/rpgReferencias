@@ -2233,3 +2233,16 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .habilidade-reducao-ativa { display: flex; align-items: center; gap: 4px; font-size: 0.8em; cursor: pointer; }
 .habilidade-reducao-descricao { width: 100%; box-sizing: border-box; resize: vertical; font-size: 0.8em; }
 @media (max-width: 760px) { .estados-duo { grid-template-columns: 1fr; } .habilidade-grade { grid-template-columns: 1fr; } }
+
+/* Mapa: alvo-personagem e prévia do Dano Rápido do Mestre */
+.token-alvo { outline: 2px dashed #ff003c; outline-offset: 2px; box-shadow: 0 0 12px rgba(255, 0, 60, 0.8); }
+.moldura-alvo-token { position: absolute; top: 50%; right: 46px; transform: translateY(-50%); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(0, 0, 0, 0.6); background: rgba(0, 0, 0, 0.7); color: #ff6680; font-size: 0.55em; font-weight: bold; letter-spacing: 0; text-transform: none; cursor: pointer; }
+.moldura-alvo-token:hover { background: #000; color: #fff; }
+.dano-previa { margin-top: 12px; padding: 10px; border: 1px dashed #ff003c; border-radius: 6px; background: rgba(0, 0, 0, 0.35); font-size: 0.85em; }
+.dano-previa-vazia { color: #888; font-style: italic; border-color: #444; }
+.dano-previa-titulo { color: #ff6680; display: block; margin-bottom: 6px; }
+.dano-previa-passos { margin: 0 0 6px 0; padding-left: 18px; color: #ccc; }
+.dano-previa-final { color: #fff; font-size: 1.05em; }
+.dano-previa-anulado { color: #ffaa00; }
+.dano-previa-vida { margin-top: 4px; color: #aaffcc; }
+.dano-previa-morto { color: #ff6680; font-weight: bold; }
