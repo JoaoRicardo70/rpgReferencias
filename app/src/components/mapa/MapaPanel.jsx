@@ -8,6 +8,7 @@ import { AtaqueFormProvider } from '../combate/AtaqueFormContext';
 import { PoderesFormProvider } from '../poderes/PoderesFormContext';
 import { ArsenalFormProvider } from '../arsenal/ArsenalFormContext';
 import { ElementosFormProvider } from '../arsenal/ElementosFormContext';
+import { MapaSeletorAtor, MapaModulosDoAtor } from './MapaAtorCombate';
 
 export default function MapaPanel({ className, children }) {
     const hasChildren = React.Children.count(children) > 0;
@@ -31,6 +32,7 @@ export default function MapaPanel({ className, children }) {
                         <div style={{ flex: '1 1 70%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                             {/* MÓDULO DO MESTRE (ZONAS, CENAS, DUMMIES) */}
                             <MapaFerramentasMestre />
+                            <MapaSeletorAtor />
                             
                             {/* MÓDULO VISUAL E COMUNICAÇÃO (GRELHA, 3D, VOZ E IA) */}
                             <MapaAreaCentral />
@@ -39,22 +41,20 @@ export default function MapaPanel({ className, children }) {
                             <MapaRolagemRapida />
                             <MapaIniciativaTracker />
                             {mapaEmFoco && (
-                                <AtaqueFormProvider>
-                                    <ArsenalFormProvider>
-                                        <MapaAtaqueArma />
-                                    </ArsenalFormProvider>
-                                    <MapaAtaquesSalvos />
-                                </AtaqueFormProvider>
-                            )}
-                            {mapaEmFoco && (
-                                <PoderesFormProvider>
-                                    <MapaTecnicasRapidas />
-                                </PoderesFormProvider>
-                            )}
-                            {mapaEmFoco && (
-                                <ElementosFormProvider>
-                                    <MapaMagiasElementais />
-                                </ElementosFormProvider>
+                                <MapaModulosDoAtor>
+                                    <AtaqueFormProvider>
+                                        <ArsenalFormProvider>
+                                            <MapaAtaqueArma />
+                                        </ArsenalFormProvider>
+                                        <MapaAtaquesSalvos />
+                                    </AtaqueFormProvider>
+                                    <PoderesFormProvider>
+                                        <MapaTecnicasRapidas />
+                                    </PoderesFormProvider>
+                                    <ElementosFormProvider>
+                                        <MapaMagiasElementais />
+                                    </ElementosFormProvider>
+                                </MapaModulosDoAtor>
                             )}
                         </div>
 

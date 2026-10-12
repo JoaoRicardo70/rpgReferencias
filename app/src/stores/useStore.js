@@ -172,7 +172,7 @@ const useStore = create(
         meuNome: '', isMestre: false, souMestreReal: false, modoJogador: lerModoJogadorLocal(storedMesaId), abaAtiva: 'aba-ficha', personagens: {}, feedCombate: [],
         efeitosTemp: [], efeitosTempPassivos: [], efeitosTempArsenal: [], efeitosTempPassivosArsenal: [], efeitosTempForma: [], efeitosTempPassivosForma: [],
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
-        dummies: {}, alvoSelecionado: null,
+        dummies: {}, alvoSelecionado: null, atorCombate: null,
         // 👁️ Personagem inspecionado na moldura do Mapa: { tipo: 'jogador' | 'dummie', id } ou null.
         entidadeInspecionada: null,
         
@@ -215,6 +215,8 @@ const useStore = create(
         limparFeedStore: () => set(state => { state.feedCombate = []; }),
         setDummies: (dummies) => set((state) => { state.dummies = dummies || {}; }),
         setAlvoSelecionado: (id) => set((state) => { state.alvoSelecionado = id; }),
+        // 🎭 Ator de combate do Mestre (core/atorCombate.js): { nome, dummieId? } do NPC em que ele está atuando, ou null.
+        setAtorCombate: (ator) => set((state) => { state.atorCombate = ator || null; }),
         setCenario: (dados) => set((state) => { state.cenario = dados; }),
 
         // ⏭️ CONTROLE DE TURNO FORA DO MAPA (aba Mestre): o MapaFormProvider (sempre montado, ver

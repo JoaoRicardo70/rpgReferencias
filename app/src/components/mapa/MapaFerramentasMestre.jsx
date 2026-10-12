@@ -4,6 +4,7 @@ import { useMapaForm } from './MapaFormContext';
 import { calcularDisputaPoder, getPoderDeEntidade, formatarPoderDisputa } from '../../core/disputaPoder';
 import { getPontosVidaTotal } from '../../core/danoProporcional';
 import { calcularDanoRapido } from '../../core/danoRapido';
+import { iconeTipoPersonagem } from '../../core/tipoPersonagem';
 import { rotuloComPolaridade } from '../../core/polaridade';
 import { agruparNpcsPorFamilia, montarDummieDeNpc, posicoesLivres, getVidaMaxBrutaNpc, cenarioComTokensOcultos } from '../../core/gavetaNpc';
 import DisputaPoderResumo from '../combate/DisputaPoderResumo';
@@ -439,7 +440,7 @@ export function MapaMestreDanoRapido() {
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     <select className="input-neon" value={alvoId} onChange={e => setAlvoId(e.target.value)} style={{ padding: 5, minWidth: 140 }}>
                         <option value="">Escolha o alvo...</option>
-                        {alvos.map(a => <option key={a.id} value={a.id}>{a.isDummie ? '🤖 ' : '🧑 '}{a.nome}</option>)}
+                        {alvos.map(a => <option key={a.id} value={a.id}>{a.isDummie ? '🤖 ' : `${iconeTipoPersonagem(a.ficha)} `}{a.nome}</option>)}
                     </select>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#111', padding: '3px 8px', borderRadius: 5, border: '1px solid #444' }}>
                         <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold' }}>Dano:</span>
@@ -464,7 +465,7 @@ export function MapaMestreDanoRapido() {
                     {/* ⚖️ Quem golpeou: aplica a Disputa de Poder (depois dos campos de Domínio pra não mudar a ordem dos seletores) */}
                     <select className="input-neon" value={atacanteId} onChange={e => setAtacanteId(e.target.value)} style={{ padding: 5, minWidth: 140 }} title="Quem desferiu o golpe: aplica a Disputa de Poder entre ele e o alvo">
                         <option value="">Golpe de: ninguém (sem Disputa)</option>
-                        {alvos.filter(a => a.id !== alvoId).map(a => <option key={a.id} value={a.id}>Golpe de {a.isDummie ? '🤖 ' : '🧑 '}{a.nome}</option>)}
+                        {alvos.filter(a => a.id !== alvoId).map(a => <option key={a.id} value={a.id}>Golpe de {a.isDummie ? '🤖 ' : `${iconeTipoPersonagem(a.ficha)} `}{a.nome}</option>)}
                     </select>
                     <button className="btn-neon btn-red" onClick={aplicar} disabled={!alvoAtual} style={{ padding: '5px 15px', margin: 0, opacity: alvoAtual ? 1 : 0.5 }}>💥 Aplicar Dano</button>
                 </div>

@@ -13,6 +13,7 @@ import { getPoderParaDisputa } from './disputaPoder.js';
 import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from './reducaoDano.js';
 import { getNivelDominio, calcularReducaoDanoElemental } from './dominios.js';
+import { ehNpc, getTipoPersonagem, TIPO_JOGADOR } from './tipoPersonagem.js';
 
 export const PREFIXO_ALVO_PERSONAGEM = 'pj:';
 
@@ -43,6 +44,7 @@ export function montarAlvoPersonagem(nome, ficha, divisorPoderMesa) {
     return {
         nome,
         isPersonagem: true,
+        tipoPersonagem: getTipoPersonagem(ficha),
         personagemNome: nome,
         ficha,
         hpMax,
@@ -56,14 +58,30 @@ export function montarAlvoPersonagem(nome, ficha, divisorPoderMesa) {
     };
 }
 
+// 🛡️ Regra de PvP: um JOGADOR só causa dano a outro JOGADOR durante um combate (os dois na ordem de
+// iniciativa, iniciativa > 0). O Mestre e os NPCs (como ator ou como alvo) nunca são limitados.
+// Devolve o motivo do bloqueio ou null se está liberado. `fichaAtor` ausente = sem checagem.
+export function motivoBloqueioAlvo({ fichaAtor, atorEhMestre = false, alvo }) {
+    if (!alvo || !alvo.isPersonagem || !fichaAtor || atorEhMestre) return null;
+    if (ehNpc(fichaAtor) || alvo.tipoPersonagem !== TIPO_JOGADOR) return null;
+    const atorEmCombate = Number(fichaAtor.iniciativa) > 0;
+    const alvoEmCombate = Number(alvo.ficha && alvo.ficha.iniciativa) > 0;
+    if (atorEmCombate && alvoEmCombate) return null;
+    return 'Jogadores só podem atacar outros jogadores durante um combate (os dois precisam estar na ordem de iniciativa).';
+}
+
 // Resolve o alvoSelecionado (id de Dummie ou 'pj:<nome>') no objeto do alvo, ou null. Nunca devolve
-// o próprio jogador logado (não dá pra mirar em si mesmo).
-export function resolverAlvoCombate(idAlvo, { dummies, personagens, meuNome, divisorPoderMesa } = {}) {
+// o próprio jogador logado (não dá pra mirar em si mesmo). Com `fichaAtor`, um alvo-personagem que
+// a regra de PvP não permite vem com `bloqueado` (texto do motivo): quem dispara o golpe deve parar.
+export function resolverAlvoCombate(idAlvo, { dummies, personagens, meuNome, divisorPoderMesa, fichaAtor, atorEhMestre } = {}) {
     if (!idAlvo) return null;
     if (ehAlvoPersonagem(idAlvo)) {
         const nome = nomeAlvoPersonagem(idAlvo);
         if (!nome || nome === meuNome) return null;
-        return montarAlvoPersonagem(nome, personagens ? personagens[nome] : null, divisorPoderMesa);
+        const alvo = montarAlvoPersonagem(nome, personagens ? personagens[nome] : null, divisorPoderMesa);
+        if (!alvo) return null;
+        const bloqueado = motivoBloqueioAlvo({ fichaAtor, atorEhMestre, alvo });
+        return bloqueado ? { ...alvo, bloqueado } : alvo;
     }
     return (dummies && dummies[idAlvo]) || null;
 }

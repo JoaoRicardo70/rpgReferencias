@@ -17,6 +17,7 @@ vi.mock('../../services/firebase-sync', () => ({
 const stat = (atual, base) => ({ atual, base, mBase: 1, mGeral: 1, mFormas: 1, mUnico: '1.0', mAbsoluto: 1, reducaoCusto: 0, regeneracao: 0 });
 function criarFicha() {
     const f = {
+        iniciativa: 10, // em combate (regra de PvP: jogador x jogador só em combate)
         posicoes: { default: { x: 1, y: 1 } },
         vida: stat(500000, 1000000), mana: stat(500, 100000), aura: stat(500, 100000), chakra: stat(500, 100000), corpo: stat(500, 100000),
         divisores: { vida: 1, status: 1, mana: 1, aura: 1, chakra: 1, corpo: 1 }, ascensaoBase: 1000000,

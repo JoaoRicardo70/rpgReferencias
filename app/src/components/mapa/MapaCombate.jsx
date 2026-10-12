@@ -18,7 +18,8 @@ import { estimarPoderDeEntidade, descreverEstimativaPoder, rotuloPrecisaoPoder, 
 import { getVitalMax, getVitalMaxEstavel, calcVitalScale, calcularBarrasVida, calcularBarrasVidaDummy, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import BarrasVida from '../shared/BarrasVida';
 import { formatarPoderCosmico } from '../../core/utils';
-import { idAlvoPersonagem } from '../../core/alvoCombate';
+import { idAlvoPersonagem, motivoBloqueioAlvo } from '../../core/alvoCombate';
+import { getTipoPersonagem, rotuloTipoPersonagem } from '../../core/tipoPersonagem';
 
 // 🔥 IMPORTAÇÕES PARA RENDERIZAR O DADO 3D FÍSICO 🔥
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -968,6 +969,10 @@ export function MapaHologramaAcao() {
     // 👁️ Inspeção (clique num token ou na Ordem de Turno): a moldura mostra o resumo do personagem
     // escolhido no lugar da ação do combate, até fecharem (✖) ou clicarem em outro.
     const inspecionando = !!inspecao;
+    // 🛡️ Regra de PvP: jogador só mira outro jogador durante um combate (core/alvoCombate.js).
+    const bloqueioMirar = (inspecionando && !inspecao.isDummie)
+        ? motivoBloqueioAlvo({ fichaAtor: minhaFicha, atorEhMestre: isMestre, alvo: { isPersonagem: true, tipoPersonagem: getTipoPersonagem(inspecao.ficha), ficha: inspecao.ficha } })
+        : null;
     const acaoExibir = inspecionando ? null : (emCombate ? acaoNovaNoTurno : acaoGeralForaDeCombate);
 
     if (!inspecionando && !emCombate && !acaoExibir) {
@@ -1149,7 +1154,7 @@ export function MapaHologramaAcao() {
                 )}
                 {/* 🎯 Mirar neste personagem: vira o alvo dos seus ataques (acerto + dano na ficha dele), como um Dummie */}
                 {inspecionando && !inspecao.isDummie && inspecao.id !== meuNome && (
-                    <button type="button" className="moldura-alvo-token" onClick={() => setAlvoSelecionado(alvoSelecionado === idAlvoPersonagem(inspecao.id) ? null : idAlvoPersonagem(inspecao.id))} title="Escolher este personagem como alvo dos seus ataques">
+                    <button type="button" className="moldura-alvo-token" disabled={!!bloqueioMirar && alvoSelecionado !== idAlvoPersonagem(inspecao.id)} onClick={() => setAlvoSelecionado(alvoSelecionado === idAlvoPersonagem(inspecao.id) ? null : idAlvoPersonagem(inspecao.id))} title={bloqueioMirar || `Escolher este ${inspecao.ficha ? rotuloTipoPersonagem(inspecao.ficha) : 'personagem'} como alvo dos seus ataques`}>
                         {alvoSelecionado === idAlvoPersonagem(inspecao.id) ? '🎯 Alvo (soltar)' : '🎯 Mirar'}
                     </button>
                 )}

@@ -40,11 +40,12 @@ const FATOR = 1000;
 const stat = (atual, base) => ({ atual, base, mBase: 1, mGeral: 1, mFormas: 1, mUnico: '1.0', mAbsoluto: 1 });
 
 function fichaAna(extra = {}) {
-    return { vida: stat(1000000, 1000000), reducoesDano: [], ...extra };
+    // iniciativa > 0: os dois jogadores estão em combate (regra de PvP, core/alvoCombate.js).
+    return { vida: stat(1000000, 1000000), reducoesDano: [], iniciativa: 10, ...extra };
 }
 
 function montar({ alvoSelecionado, personagens = {}, dummies = {} }) {
-    const minhaFicha = { poderes: [], inventario: [], passivas: [], ataquesElementais: [], hierarquia: {}, combate: {} };
+    const minhaFicha = { poderes: [], inventario: [], passivas: [], ataquesElementais: [], hierarquia: {}, combate: {}, iniciativa: 10 };
     mockState = {
         minhaFicha, meuNome: 'Heroi', personagens, dummies, alvoSelecionado,
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
@@ -117,6 +118,16 @@ describe('AtaqueFormContext - alvo-personagem (pj:<nome>)', () => {
         montar({ alvoSelecionado: 'pj:Fantasma', personagens: {} });
         act(() => { probe.rolarDano(); });
         expect(aplicarDanoDireto).not.toHaveBeenCalled();
+    });
+
+    it('PvP: jogador x jogador sem iniciativa => alert e nenhuma gravacao (rolarDano e rolarDanoCustomizado)', () => {
+        montar({ alvoSelecionado: 'pj:Ana', personagens: { Ana: fichaAna({ iniciativa: 0 }) } });
+        act(() => { probe.rolarDano(); });
+        act(() => { probe.rolarDanoCustomizado('1000'); });
+        expect(window.alert).toHaveBeenCalledTimes(2);
+        expect(aplicarDanoDireto).not.toHaveBeenCalled();
+        expect(salvarDummie).not.toHaveBeenCalled();
+        expect(enviarParaFeed).not.toHaveBeenCalled();
     });
 
     it('Dummie continua usando salvarDummie, nunca aplicarDanoDireto', () => {

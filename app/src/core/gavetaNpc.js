@@ -7,12 +7,12 @@ import { getTetoVida, getVitalMax, getVitalMaxEstavel, FATOR_EXIBICAO_VITAIS } f
 import { calcularFatorMultiplicadorForca } from './poder.js';
 import { calcularCA } from './engine.js';
 import { getPoderParaDisputa } from './disputaPoder.js';
+import { ehNpc } from './tipoPersonagem.js';
 
 export const FAMILIA_SEM_CLA = 'Sem Clã / Bestas Soltas';
 
-export function ehNpc(ficha) {
-    return !!(ficha && (ficha.isNPC || ficha.bio?.mesa === 'npc'));
-}
+// A regra de "quem é NPC" vive em core/tipoPersonagem.js (re-exportada aqui pra quem já importava daqui).
+export { ehNpc };
 
 // Mesma regra do Visor de Entidades (MestreSubComponents.jsx): afiliação da Bio ou o "Clã de
 // Origem" escrito no poder "📖 Linhagem & Lore".

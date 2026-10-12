@@ -6,7 +6,8 @@ import { getVitalMxDisplay, getVidaTotalMaxDisplay, danoExibidoParaBruto, FATOR_
 import { calcularDano } from '../../core/engine';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, classificarEfetividade } from '../../core/disputaPoder';
-import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
+import { enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
+import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getFatorVida, getPontosVidaTotal } from '../../core/danoProporcional';
 import { resolverAlvoCombate, reduzirDanoNoAlvo, ehAlvoPersonagem } from '../../core/alvoCombate';
 import { gravarVidaDoAlvo } from '../../services/danoAlvo';
@@ -31,10 +32,15 @@ export function useAtaqueForm() {
 }
 
 export function AtaqueFormProvider({ children }) {
-    const minhaFicha = useStore(s => s.minhaFicha);
-    const meuNome = useStore(s => s.meuNome);
+    // 🎭 Ficha, nome e save do ATOR: eu mesmo, ou o NPC em que o Mestre está atuando (FichaAlvoProvider do Mapa).
+    const { ficha: minhaFicha, updateFicha, nome: meuNome } = useFichaAtiva();
+    const salvarFichaSilencioso = useCallSaveAtivo();
+    // Nome que aparece no feed: atuando como um token da Gaveta (ex.: "Goblin #2"), o mesmo nome que o acerto do Mapa grava.
+    const meuNomeReal = useStore(s => s.meuNome);
+    const nomeTokenAtor = useStore(s => (s.isMestre && s.atorCombate && s.atorCombate.dummieId && s.dummies && s.dummies[s.atorCombate.dummieId]) ? s.dummies[s.atorCombate.dummieId].nome : null);
+    const nomeNoFeed = (meuNome !== meuNomeReal && nomeTokenAtor) ? nomeTokenAtor : meuNome;
+    const souMestre = useStore(s => s.isMestre);
     const personagens = useStore(s => s.personagens); 
-    const updateFicha = useStore(s => s.updateFicha);
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
     const abaAtiva = useStore(s => s.abaAtiva);
     const feedCombate = useStore(s => s.feedCombate);
@@ -157,8 +163,8 @@ export function AtaqueFormProvider({ children }) {
 
     // 🎯 Alvo do golpe: um Dummie do Mapa OU um personagem de verdade (id 'pj:<nome>', core/alvoCombate.js).
     const dummieAlvo = useMemo(
-        () => resolverAlvoCombate(alvoSelecionado, { dummies, personagens, meuNome, divisorPoderMesa }),
-        [alvoSelecionado, dummies, personagens, meuNome, divisorPoderMesa]
+        () => resolverAlvoCombate(alvoSelecionado, { dummies, personagens, meuNome, divisorPoderMesa, fichaAtor: minhaFicha, atorEhMestre: souMestre }),
+        [alvoSelecionado, dummies, personagens, meuNome, divisorPoderMesa, minhaFicha, souMestre]
     );
 
     // ⚖️ Disputa de Poder (core/disputaPoder.js): o Poder Atual de quem ataca contra o do alvo
@@ -185,7 +191,7 @@ export function AtaqueFormProvider({ children }) {
             setPodeRolarDano(true);
             return;
         }
-        const meuUltimoAcerto = [...feedCombate].reverse().find(f => f.nome === meuNome && f.tipo === 'acerto');
+        const meuUltimoAcerto = [...feedCombate].reverse().find(f => f.nome === nomeNoFeed && f.tipo === 'acerto');
 
         if (meuUltimoAcerto) {
             let acertou = false;
@@ -200,7 +206,7 @@ export function AtaqueFormProvider({ children }) {
         } else {
             setPodeRolarDano(false);
         }
-    }, [feedCombate, meuNome, dummieAlvo]);
+    }, [feedCombate, nomeNoFeed, dummieAlvo]);
 
     useEffect(() => {
         const ac2 = minhaFicha.ataqueConfig || {};
@@ -211,7 +217,7 @@ export function AtaqueFormProvider({ children }) {
     }, [minhaFicha.ataqueConfig]);
 
     useEffect(() => {
-        const lastAcerto = [...feedCombate].reverse().find(f => f.nome === meuNome && f.tipo === 'acerto');
+        const lastAcerto = [...feedCombate].reverse().find(f => f.nome === nomeNoFeed && f.tipo === 'acerto');
         if (lastAcerto && lastAcerto.rolagem) {
             let maxDado = 0;
             let regexStrong = /<strong>(\d+)<\/strong>/g;
@@ -234,7 +240,7 @@ export function AtaqueFormProvider({ children }) {
         } else {
             setAutoCritFatal(false); setAutoCritNormal(false);
         }
-    }, [feedCombate, meuNome, critNormalMin, critNormalMax, critFatalMin, critFatalMax]);
+    }, [feedCombate, nomeNoFeed, critNormalMin, critNormalMax, critFatalMin, critFatalMax]);
 
     useEffect(() => {
         const configs = {};
@@ -307,6 +313,8 @@ export function AtaqueFormProvider({ children }) {
     }, [updateFicha]);
 
     const rolarDanoCustomizado = useCallback((formulaOverride, letalidadeOverride, energiaTipoOverride, energiaCustoOverride) => {
+        // 🛡️ Regra de PvP (core/alvoCombate.js): jogador x jogador só em combate.
+        if (dummieAlvo && dummieAlvo.bloqueado) { alert(dummieAlvo.bloqueado); return; }
         const formAtiva = formulaOverride !== undefined ? formulaOverride : customFormula;
         const letalAtiva = letalidadeOverride !== undefined ? letalidadeOverride : customLetalidade;
         const tipoAtiva = energiaTipoOverride !== undefined ? energiaTipoOverride : customEnergiaTipo;
@@ -429,7 +437,7 @@ export function AtaqueFormProvider({ children }) {
             }
 
             const feedData = {
-                tipo: 'dano', nome: meuNome, dano: Math.floor(danoReduzido), letalidade: letalidadeCalculada, poderAtacante: meuPoderDisputa, 
+                tipo: 'dano', nome: nomeNoFeed, dano: Math.floor(danoReduzido), letalidade: letalidadeCalculada, poderAtacante: meuPoderDisputa, 
                 rolagem: `${rollsLog.length > 0 ? rollsLog.length + ' rolagem(ns)' : 'Cálculo Direto'}`, rolagemMagica: "",
                 atributosUsados: 'Manual', detalheEnergia: logEnergia ? `(${logEnergia})` : '',
                 armaStr: ' (Fórmula Livre)', detalheConta: detalheConta,
@@ -448,9 +456,11 @@ export function AtaqueFormProvider({ children }) {
         } catch (e) {
             alert('Erro ao calcular a fórmula matemática. Verifique se os parênteses fecham corretamente.');
         }
-    }, [customFormula, customLetalidade, customEnergiaTipo, customEnergiaCusto, meuNome, dummieAlvo, alvoSelecionado, setAbaAtiva, abaAtiva, updateFicha, minhaFicha, elementoAtivo, divisorPoderMesa]);
+    }, [customFormula, customLetalidade, customEnergiaTipo, customEnergiaCusto, meuNome, nomeNoFeed, dummieAlvo, alvoSelecionado, setAbaAtiva, abaAtiva, updateFicha, minhaFicha, elementoAtivo, divisorPoderMesa]);
 
     const rolarDano = useCallback(() => {
+        // 🛡️ Regra de PvP (core/alvoCombate.js): jogador x jogador só em combate.
+        if (dummieAlvo && dummieAlvo.bloqueado) { alert(dummieAlvo.bloqueado); return; }
         salvarConfigAtaque();
 
         const elementosInatos = [];
@@ -502,7 +512,7 @@ export function AtaqueFormProvider({ children }) {
 
         setForcarCritNormal(false); setForcarCritFatal(false); setIgnorarTravaAcerto(false);
 
-        const meuUltimoAcerto = [...feedCombate].reverse().find(f => f.nome === meuNome && f.tipo === 'acerto');
+        const meuUltimoAcerto = [...feedCombate].reverse().find(f => f.nome === nomeNoFeed && f.tipo === 'acerto');
         let extraFeed = {};
         let textoAlvos = "";
 
@@ -617,7 +627,7 @@ export function AtaqueFormProvider({ children }) {
         }
 
         const feedData = {
-            tipo: 'dano', nome: meuNome, dano: result.dano, letalidade: result.letalidade, poderAtacante: meuPoderNoGolpe,
+            tipo: 'dano', nome: nomeNoFeed, dano: result.dano, letalidade: result.letalidade, poderAtacante: meuPoderNoGolpe,
             rolagem: result.rolagem, rolagemMagica: result.rolagemMagica,
             atributosUsados: result.atributosUsados, detalheEnergia: result.detalheEnergia,
             armaStr: result.armaStr, detalheConta: result.detalheConta + textoAlvos,
@@ -631,7 +641,7 @@ export function AtaqueFormProvider({ children }) {
         updateFicha, armaStatusUsados, armaEnergiaCombustao, armaPercEnergia,
         critNormalMin, critNormalMax, critFatalMin, critFatalMax, skillConfigs,
         minhaFicha, forcarCritNormal, autoCritNormal, forcarCritFatal, autoCritFatal,
-        dummieAlvo, alvoSelecionado, meuNome, setAbaAtiva, poderesAtivos, magiasOfensivas, feedCombate, dummies, personagens, elementoAtivo, divisorPoderMesa
+        dummieAlvo, alvoSelecionado, meuNome, nomeNoFeed, setAbaAtiva, poderesAtivos, magiasOfensivas, feedCombate, dummies, personagens, elementoAtivo, divisorPoderMesa
     ]);
 
     const value = useMemo(() => ({

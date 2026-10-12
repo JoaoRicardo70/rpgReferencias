@@ -2246,3 +2246,12 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .dano-previa-anulado { color: #ffaa00; }
 .dano-previa-vida { margin-top: 4px; color: #aaffcc; }
 .dano-previa-morto { color: #ff6680; font-weight: bold; }
+
+/* Mapa: seletor "Atuar como" do Mestre (ator de combate) */
+.mapa-ator { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 8px 10px; border: 1px dashed #555; border-radius: 6px; background: rgba(0, 0, 0, 0.3); }
+.mapa-ator-ativo { border-color: #ff9900; background: rgba(255, 153, 0, 0.08); }
+.mapa-ator-rotulo { font-size: 0.85em; font-weight: bold; color: #ff9900; }
+.mapa-ator-select { min-width: 180px; padding: 4px; }
+.mapa-ator-banner { font-size: 0.8em; color: #ffcc66; }
+.mapa-ator-voltar { padding: 2px 10px; margin: 0; font-size: 0.8em; }
+.moldura-alvo-token:disabled { opacity: 0.5; cursor: not-allowed; }

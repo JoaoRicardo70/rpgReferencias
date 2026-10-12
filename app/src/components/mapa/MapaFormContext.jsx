@@ -14,6 +14,8 @@ import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano';
 import { calcularDanoRapido } from '../../core/danoRapido';
+import { resolverAtorCombate } from '../../core/atorCombate';
+import { getPosicaoEntidade, getAlcanceMaximo, verificarAlvoNoAlcance } from '../../core/alcance';
 import { gravarDanoEmPersonagem } from '../../services/danoAlvo';
 import { resolverAlvoCombate, idAlvoPersonagem, ehAlvoPersonagem } from '../../core/alvoCombate';
 import { ordenarOrdemTurno, chaveEntidadeTurno, moverChaveNaOrdem, recalcularIndiceTurno } from '../../core/turnos';
@@ -181,6 +183,13 @@ export function MapaFormProvider({ children }) {
     }, [cenaAtivaIdGlobal]);
 
     const cenaRenderId = (isMestre && cenaVisualizadaId) ? cenaVisualizadaId : cenaAtivaIdGlobal;
+
+    // 🎭 Ator de combate (core/atorCombate.js): o NPC em que o Mestre está atuando, ou null (= eu mesmo).
+    const atorCombateSel = useStore(s => s.atorCombate);
+    const atorAtivo = useMemo(
+        () => resolverAtorCombate(atorCombateSel, { personagens, dummies, isMestre, cenaId: cenaRenderId }),
+        [atorCombateSel, personagens, dummies, isMestre, cenaRenderId]
+    );
     const cenaAtual = cenario?.lista?.[cenaRenderId] || { nome: 'Desconhecido', img: '', escala: 1.5, unidade: 'm' };
 
     const isModoRP = cenario?.modoRP === true;
@@ -1113,31 +1122,48 @@ export function MapaFormProvider({ children }) {
     }, [isMestre, ordemIniciativa, updateFicha, gravarOrdemTurno]);
 
     const rolarAcertoRapido = useCallback(() => {
+        // Quem age: o NPC do Mestre (ficha dele) ou eu mesmo.
+        const fichaAcerto = atorAtivo ? atorAtivo.ficha : fichaSegura;
+        const nomeAcerto = atorAtivo ? atorAtivo.nomeExibido : meuNome;
         const qD = parseInt(mapQD) || 1;
         const fD = parseInt(mapFD) || 20;
         const bonus = parseInt(mapBonus) || 0;
         const prof = mapUsarProf ? profGlobal : 0;
         const sels = [mapStat]; 
-        const itensEq = fichaSegura?.inventario ? fichaSegura.inventario.filter(i => i.equipado) : [];
+        const itensEq = fichaAcerto?.inventario ? fichaAcerto.inventario.filter(i => i.equipado) : [];
 
         const result = calcularAcerto({ 
-            qD, fD, prof, bonus, sels, minhaFicha: fichaSegura, itensEquipados: itensEq, 
+            qD, fD, prof, bonus, sels, minhaFicha: fichaAcerto, itensEquipados: itensEq, 
             vantagens: mapVantagens, desvantagens: mapDesvantagens 
         });
 
         let alvosAtingidos = [];
         let maxArea = 0;
         const estadoAtual = useStore.getState();
-        const alvoDummie = resolverAlvoCombate(alvoSelecionado, { dummies, personagens: estadoAtual.personagens, meuNome, divisorPoderMesa: estadoAtual.divisorPoderMesa });
+        const alvoDummie = resolverAlvoCombate(alvoSelecionado, { dummies, personagens: estadoAtual.personagens, meuNome: atorAtivo ? atorAtivo.nomeFicha : meuNome, divisorPoderMesa: estadoAtual.divisorPoderMesa, fichaAtor: fichaAcerto, atorEhMestre: isMestre });
+
+        // 🛡️ Regra de PvP (jogador x jogador só em combate) e 🗺️ cena/alcance (core/alcance.js). A checagem de alcance
+        // só roda quando as DUAS posições são conhecidas e alguma arma/poder/magia declara alcance; sem esses
+        // dados o golpe segue liberado, pra uma falha de detecção nunca travar o combate.
+        if (alvoDummie && alvoDummie.bloqueado) { alert(alvoDummie.bloqueado); return; }
+        if (alvoDummie) {
+            const escalaCena = cenario?.lista?.[cenaRenderId]?.escala || 1.5;
+            // Posição do atacante só conta se ele está de fato NESTA cena (ficha sem token aqui, ex.: o Mestre, não é verificada).
+            const posAtorBruta = atorAtivo ? atorAtivo.posicao : getPosicaoEntidade(minhaFicha, cenaRenderId);
+            const posAtor = posAtorBruta && posAtorBruta.cenaId === cenaRenderId ? posAtorBruta : null;
+            const posAlvo = getPosicaoEntidade(alvoDummie.isPersonagem ? alvoDummie.ficha : alvoDummie, cenaRenderId);
+            const verificacao = verificarAlvoNoAlcance({ posAtor, posAlvo, alcance: getAlcanceMaximo(fichaAcerto, { padrao: null }), escala: escalaCena });
+            if (!verificacao.ok) { alert(verificacao.motivo); return; }
+        }
 
         if (alvoDummie) {
             const armasEqMap = itensEq.filter(i => i.tipo === 'arma');
             const maxAreaArmas = armasEqMap.length > 0 ? Math.max(...armasEqMap.map(a => a.areaQuad || a.area || 0)) : 0;
             
-            const podAtMap = (fichaSegura?.poderes || []).filter(p => p.ativa);
+            const podAtMap = (fichaAcerto?.poderes || []).filter(p => p.ativa);
             const maxAreaPoderes = podAtMap.length > 0 ? Math.max(...podAtMap.map(p => p.areaQuad || p.area || 0)) : 0;
             
-            const magiasEqMap = (fichaSegura?.ataquesElementais || []).filter(m => m.equipado);
+            const magiasEqMap = (fichaAcerto?.ataquesElementais || []).filter(m => m.equipado);
             const maxAreaMagias = magiasEqMap.length > 0 ? Math.max(...magiasEqMap.map(m => m.areaQuad || 0)) : 0;
 
             maxArea = Math.max(maxAreaArmas, maxAreaPoderes, maxAreaMagias);
@@ -1167,9 +1193,9 @@ export function MapaFormProvider({ children }) {
             }
         }
 
-        const feedData = { tipo: 'acerto', nome: meuNome, ...result, alvosArea: alvosAtingidos, areaEf: maxArea };
+        const feedData = { tipo: 'acerto', nome: nomeAcerto, ...result, alvosArea: alvosAtingidos, areaEf: maxArea };
         enviarParaFeed(feedData); 
-    }, [mapQD, mapFD, mapBonus, mapUsarProf, profGlobal, mapStat, fichaSegura, mapVantagens, mapDesvantagens, alvoSelecionado, dummies, meuNome, cenario]);
+    }, [mapQD, mapFD, mapBonus, mapUsarProf, profGlobal, mapStat, fichaSegura, mapVantagens, mapDesvantagens, alvoSelecionado, dummies, meuNome, cenario, atorAtivo, isMestre, cenaRenderId, minhaFicha]);
 
     const jogadorDaVez = ordemIniciativa.length > 0 ? ordemIniciativa[turnoAtualIndex % ordemIniciativa.length] : null;
     const infoDaVez = jogadorDaVez ? getAvatarInfo(jogadorDaVez.ficha) : null;

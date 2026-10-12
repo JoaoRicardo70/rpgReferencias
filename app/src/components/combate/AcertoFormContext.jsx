@@ -9,6 +9,7 @@ import { calcularAcerto, calcularCA } from '../../core/engine';
 import { getPoderesDefesa, getEfeitosDeClasse } from '../../core/attributes';
 import { enviarParaFeed, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { resolverAlvoCombate } from '../../core/alvoCombate';
+import { getPosicaoEntidade } from '../../core/alcance';
 
 import { cores } from '../arsenal/ElementosFormContext';
 
@@ -71,9 +72,10 @@ export function AcertoFormProvider({ children }) {
 
     // 🎯 Alvo do golpe: Dummie do Mapa OU personagem de verdade ('pj:<nome>', core/alvoCombate.js).
     const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
+    const souMestre = useStore(s => s.isMestre);
     const alvoDummie = useMemo(
-        () => resolverAlvoCombate(alvoSelecionado, { dummies, personagens, meuNome, divisorPoderMesa }),
-        [alvoSelecionado, dummies, personagens, meuNome, divisorPoderMesa]
+        () => resolverAlvoCombate(alvoSelecionado, { dummies, personagens, meuNome, divisorPoderMesa, fichaAtor: minhaFicha, atorEhMestre: souMestre }),
+        [alvoSelecionado, dummies, personagens, meuNome, divisorPoderMesa, minhaFicha, souMestre]
     );
 
     useEffect(() => {
@@ -122,6 +124,12 @@ export function AcertoFormProvider({ children }) {
             dQ = Math.max(dx, dy, dz);
             dR = dQ * escala;
             fora = dQ > mA;
+            // 🗺️ Alvo/ponto em OUTRA cena (só quando as duas cenas são conhecidas) também está fora de alcance.
+            if (origemArea === 'alvo' && alvoDummie) {
+                const posMinha = getPosicaoEntidade(minhaFicha, cenaAtivaId);
+                const posAlvo = getPosicaoEntidade(alvoDummie.isPersonagem ? alvoDummie.ficha : alvoDummie, cenaAtivaId);
+                if (posMinha && posAlvo && posMinha.cenaId === cenaAtivaId && posAlvo.cenaId !== posMinha.cenaId) fora = true;
+            }
         } else {
             fora = true;
         }
@@ -134,6 +142,8 @@ export function AcertoFormProvider({ children }) {
     const toggleStat = useCallback((value) => { setStatsSelecionados(prev => { if (prev.includes(value)) return prev.filter(v => v !== value); return [...prev, value]; }); }, []);
 
     const rolarAcerto = useCallback(() => {
+        // 🛡️ Regra de PvP (core/alvoCombate.js): jogador x jogador só em combate.
+        if (alvoDummie && alvoDummie.bloqueado) { alert(alvoDummie.bloqueado); return; }
         // Sem alvo escolhido é uma rolagem livre (o botão diz "ROLAR ACERTO LIVRE"): nada a medir.
         const rolagemLivre = origemArea === 'alvo' && !alvoDummie;
         if (isForaDeAlcance && origemArea !== 'self' && !rolagemLivre) { alert('Aviso: O alvo ou o Ponto de Explosão está fora do seu alcance!'); return; }
