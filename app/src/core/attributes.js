@@ -1,44 +1,46 @@
 import useStore from '../stores/useStore';
 import { isFisico, isEnergia, tratarUnico } from './utils.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
+import { getEfeitosFixosDeClasse, removerEfeitosLegados, ehBerserker, calcularGanhoBerserker } from './classesMecanicas.js';
+
+// 📖 Classes cadastradas no Compêndio da MESA INTEIRA — a mesma leitura que a tela do Compêndio faz
+// (todos os personagens, e por último os da própria ficha). Antes só valia UMA ficha (a do Mestre,
+// ou a primeira da mesa que tivesse override), então Ficha e Mapa podiam enxergar classes
+// diferentes. Em cache pela identidade dos objetos: getBuffs chama isso o tempo todo.
+let cacheClasses = { personagens: undefined, minha: undefined, valor: {} };
+
+function getClassesRegistradas(state) {
+    const minha = state.minhaFicha?.compendioOverrides;
+    if (cacheClasses.personagens === state.personagens && cacheClasses.minha === minha) return cacheClasses.valor;
+    const valor = {};
+    if (state.personagens) {
+        Object.values(state.personagens).forEach(p => {
+            if (p && p.compendioOverrides && p.compendioOverrides.classes) Object.assign(valor, p.compendioOverrides.classes);
+        });
+    }
+    if (minha && minha.classes) Object.assign(valor, minha.classes);
+    cacheClasses = { personagens: state.personagens, minha, valor };
+    return valor;
+}
 
 export function getEfeitosDeClasse(ficha) {
-    let classeHeroica = (ficha.bio && ficha.bio.classe) ? String(ficha.bio.classe).toLowerCase() : '';
-    let subClasse = (ficha.bio && ficha.bio.subClasse) ? String(ficha.bio.subClasse).toLowerCase() : '';
+    let classeHeroica = (ficha && ficha.bio && ficha.bio.classe) ? String(ficha.bio.classe).toLowerCase() : '';
+    let subClasse = (ficha && ficha.bio && ficha.bio.subClasse) ? String(ficha.bio.subClasse).toLowerCase() : '';
 
     if (!classeHeroica) return [];
 
-    let state = useStore.getState();
-    let mestreOverrides = {};
-    
-    // souMestreReal (não isMestre): em Modo Jogador os overrides da classe continuam os do Mestre.
-    if ((state.souMestreReal || state.isMestre) && state.minhaFicha?.compendioOverrides) {
-        mestreOverrides = state.minhaFicha.compendioOverrides;
-    } else if (state.personagens) {
-        for (let k of Object.keys(state.personagens)) {
-            if (state.personagens[k]?.compendioOverrides) {
-                mestreOverrides = state.personagens[k].compendioOverrides;
-                break;
-            }
-        }
-    }
+    const classesRegistradas = getClassesRegistradas(useStore.getState());
+    const dadosDe = (id) => { const d = classesRegistradas[id]; return (d && !d.deletado && Array.isArray(d.efeitosMatematicos)) ? removerEfeitosLegados(id, d.efeitosMatematicos) : []; };
 
-    let efeitos = [];
-    let classesRegistradas = mestreOverrides.classes || {};
-
-    let classData = classesRegistradas[classeHeroica];
-    if (classData && classData.efeitosMatematicos) {
-        efeitos = [...classData.efeitosMatematicos];
-    }
+    let efeitos = dadosDe(classeHeroica);
 
     if ((classeHeroica === 'alterego' || classeHeroica === 'pretender') && subClasse) {
-        let subClassData = classesRegistradas[subClasse];
-        if (subClassData && subClassData.efeitosMatematicos) {
-            efeitos = [...efeitos, ...subClassData.efeitosMatematicos];
-        }
+        efeitos = [...efeitos, ...dadosDe(subClasse)];
     }
-    
-    return efeitos;
+
+    // 🛡️ Mecânicas de classe em código (core/classesMecanicas.js): valem pra TODA ficha da classe,
+    // sem depender do Compêndio — a Ficha e o Mapa sempre enxergam o mesmo bônus.
+    return [...efeitos, ...getEfeitosFixosDeClasse(ficha)];
 }
 
 export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = false, ignorarPoderes = false) {
@@ -55,7 +57,9 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
     let isStatFisico = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaesp', 'carisma', 'stamina', 'constituicao'].includes(sK);
     let isStatEnergia = ['mana', 'aura', 'chakra', 'corpo'].includes(sK);
 
-    let maxFuriaVal = 0; 
+    let maxFuriaVal = 0;
+    // Fúria que vem da CLASSE Berserker (core/classesMecanicas.js): usa a escada própria dela.
+    let furiaDeClasse = false;
 
     const processarEfeitos = (efeitos, origemNome) => {
         if (!efeitos) return;
@@ -76,7 +80,8 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
 
             if (afeta) {
                 if (prop === 'furia_berserker') {
-                    if (val > maxFuriaVal) maxFuriaVal = val;
+                    if (e.origemClasse) furiaDeClasse = true;
+                    else if (val > maxFuriaVal) maxFuriaVal = val;
                 }
                 else if (prop === 'base') buffs.base += val;
                 else if (prop === 'mbase') { buffs.mbase += val; hasBuff.mbase = true; }
@@ -187,7 +192,7 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
 
     processarEfeitos(getEfeitosDeClasse(ficha), `Classe Mística`);
 
-    if (maxFuriaVal > 0 && !avoidLoop) {
+    if ((maxFuriaVal > 0 || furiaDeClasse) && !avoidLoop) {
         // 🩸 Vida pode ter várias "Break Bars" (ver core/vitals.js > getTetoVida/calcularBarrasVida),
         // mas o TOTAL de Vida (soma de todas as barras) é SEMPRE igual ao máximo ESTÁVEL bruto (sem
         // Formas, pra uma Forma temporária nunca fazer surgir/sumir uma barra sozinha) — a mecânica
@@ -206,7 +211,11 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
         let percEfetivo = Math.floor(Math.max(percLost, furiaMax));
         
         let multiplicadorGanho = 0;
-        if (percEfetivo === 1) {
+        if (furiaDeClasse && ehBerserker(ficha)) {
+            multiplicadorGanho = calcularGanhoBerserker(percEfetivo);
+            // Fúria de poder/item/pacto junto com a da classe: vale a maior.
+            if (maxFuriaVal > 0) multiplicadorGanho = Math.max(multiplicadorGanho, percEfetivo === 1 ? maxFuriaVal : (percEfetivo >= 2 ? percEfetivo : 0));
+        } else if (percEfetivo === 1) {
             multiplicadorGanho = maxFuriaVal; 
         } else if (percEfetivo >= 2) {
             multiplicadorGanho = percEfetivo; 

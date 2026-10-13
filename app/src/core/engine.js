@@ -4,6 +4,7 @@
 import { contarDigitos, pegarDoisPrimeirosDigitos, modificadorDezena } from './utils.js';
 import { getMaximo, getBuffs, getRawBase, getPoderesDefesa, getEfeitosDeClasse } from './attributes.js';
 import { getVitalMxDisplay } from './vitals.js';
+import { getVantagensDeClasse, getBonusAcertoDeClasse } from './classesMecanicas.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 
 // ==========================================
@@ -501,7 +502,9 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
         }
     });
 
-    let { sD, rolagemTexto } = rolarDadosComVantagem(qD, fD, vantagens, desvantagens);
+    // 🛡️ Vantagem de CLASSE (Saber/Lancer/Archer com a arma do tipo, Rider montado): soma às que o jogador marcou.
+    const vantagemClasse = getVantagensDeClasse(minhaFicha, tiposArmas);
+    let { sD, rolagemTexto } = rolarDadosComVantagem(qD, fD, (parseInt(vantagens) || 0) + vantagemClasse.vantagens, desvantagens);
 
     let vSt = 0;
     for (let i = 0; i < sels.length; i++) {
@@ -510,6 +513,7 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
     }
 
     let bp = getPoderesDefesa(minhaFicha, 'bonus_acerto');
+    const bonusClasse = getBonusAcertoDeClasse(minhaFicha);
     
     let bonusProfArma = 0;
     let nomesProfArma = [];
@@ -539,10 +543,12 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
     let profBonusTexto = 'Prof: +' + prof + ' | Bônus Fixo: +' + bonus + 
                          (bp > 0 ? ' | Forma: +' + bp : '') + 
                          (iAcerto > 0 ? ' | Arma: +' + iAcerto : '') +
-                         (bonusProfArma > 0 ? ` | Maestria (${nomesProfArma.join(', ')}): +${bonusProfArma}` : '');
+                         (bonusProfArma > 0 ? ` | Maestria (${nomesProfArma.join(', ')}): +${bonusProfArma}` : '') +
+                         (bonusClasse > 0 ? ` | Classe (Rider): +${bonusClasse}` : '') +
+                         (vantagemClasse.vantagens > 0 ? ` | ${vantagemClasse.motivos.join(' + ')}` : '');
 
     return {
-        acertoTotal: Math.floor(vSt + prof + bonus + bp + sD + iAcerto + bonusProfArma), 
+        acertoTotal: Math.floor(vSt + prof + bonus + bp + sD + iAcerto + bonusProfArma + bonusClasse), 
         rolagem: rolagemTexto,
         atributosUsados: atrNames.join(' + '),
         profBonusTexto: profBonusTexto,

@@ -15,6 +15,12 @@ import { getEfeitosDeClasse } from '../core/attributes.js';
 // `mestreOverrides.classes?.[id]`.
 // ---------------------------------------------------------------------------
 
+// As classes agora também têm mecânica em código (core/classesMecanicas.js, marcada com origemClasse):
+// estes testes cobrem só a leitura dos overrides do Compêndio.
+function soDoCompendio(ficha) {
+    return getEfeitosDeClasse(ficha).filter(e => !e.origemClasse);
+}
+
 function fichaComClasse(classe, subClasse) {
     return { bio: { classe, subClasse } };
 }
@@ -37,8 +43,8 @@ describe('getEfeitosDeClasse — overrides do Mestre (leitura aninhada em .class
     });
 
     it('retorna [] quando a ficha nao tem classe definida', () => {
-        expect(getEfeitosDeClasse(fichaComClasse(''))).toEqual([]);
-        expect(getEfeitosDeClasse({})).toEqual([]);
+        expect(soDoCompendio(fichaComClasse(''))).toEqual([]);
+        expect(soDoCompendio({})).toEqual([]);
     });
 
     it('BUG FIX: aplica os efeitos matematicos do Mestre quando aninhados em compendioOverrides.classes[id] (isMestre=true)', () => {
@@ -49,7 +55,7 @@ describe('getEfeitosDeClasse — overrides do Mestre (leitura aninhada em .class
         });
 
         const ficha = fichaComClasse('avenger');
-        expect(getEfeitosDeClasse(ficha)).toEqual(efeitos);
+        expect(soDoCompendio(ficha)).toEqual(efeitos);
     });
 
     it('a comparacao do id da classe e case-insensitive (classe salva com maiusculas)', () => {
@@ -59,7 +65,7 @@ describe('getEfeitosDeClasse — overrides do Mestre (leitura aninhada em .class
             f.compendioOverrides = { classes: { saber: { efeitosMatematicos: efeitos } } };
         });
 
-        expect(getEfeitosDeClasse(fichaComClasse('Saber'))).toEqual(efeitos);
+        expect(soDoCompendio(fichaComClasse('Saber'))).toEqual(efeitos);
     });
 
     it('BUG FIX: aplica tambem os efeitos da subClasse (alterego) quando aninhados em .classes', () => {
@@ -76,7 +82,7 @@ describe('getEfeitosDeClasse — overrides do Mestre (leitura aninhada em .class
         });
 
         const ficha = fichaComClasse('alterego', 'minha-sub-classe');
-        expect(getEfeitosDeClasse(ficha)).toEqual([...efeitosAlterego, ...efeitosSub]);
+        expect(soDoCompendio(ficha)).toEqual([...efeitosAlterego, ...efeitosSub]);
     });
 
     it('BUG FIX: aplica tambem os efeitos da subClasse (pretender) quando aninhados em .classes', () => {
@@ -93,7 +99,7 @@ describe('getEfeitosDeClasse — overrides do Mestre (leitura aninhada em .class
         });
 
         const ficha = fichaComClasse('pretender', 'outrasub');
-        expect(getEfeitosDeClasse(ficha)).toEqual([...efeitosPretender, ...efeitosSub]);
+        expect(soDoCompendio(ficha)).toEqual([...efeitosPretender, ...efeitosSub]);
     });
 
     it('subClasse NAO e aplicada quando a classe principal nao e alterego/pretender', () => {
@@ -108,14 +114,14 @@ describe('getEfeitosDeClasse — overrides do Mestre (leitura aninhada em .class
         });
 
         const ficha = fichaComClasse('saber', 'umaSub');
-        expect(getEfeitosDeClasse(ficha)).toEqual(efeitosFake('1'));
+        expect(soDoCompendio(ficha)).toEqual(efeitosFake('1'));
     });
 
     it('retorna [] com seguranca quando compendioOverrides e {} (sem crash)', () => {
         useStore.getState().setIsMestre(true);
         useStore.getState().updateFicha((f) => { f.compendioOverrides = {}; });
         expect(() => getEfeitosDeClasse(fichaComClasse('avenger'))).not.toThrow();
-        expect(getEfeitosDeClasse(fichaComClasse('avenger'))).toEqual([]);
+        expect(soDoCompendio(fichaComClasse('avenger'))).toEqual([]);
     });
 
     it('retorna [] com seguranca quando compendioOverrides.classes esta ausente (sem crash)', () => {
@@ -124,7 +130,7 @@ describe('getEfeitosDeClasse — overrides do Mestre (leitura aninhada em .class
             f.compendioOverrides = { grands: { algumaCoisa: true } };
         });
         expect(() => getEfeitosDeClasse(fichaComClasse('avenger'))).not.toThrow();
-        expect(getEfeitosDeClasse(fichaComClasse('avenger'))).toEqual([]);
+        expect(soDoCompendio(fichaComClasse('avenger'))).toEqual([]);
     });
 
     it('retorna [] com seguranca quando minhaFicha.compendioOverrides e undefined', () => {
@@ -133,7 +139,7 @@ describe('getEfeitosDeClasse — overrides do Mestre (leitura aninhada em .class
         // aqui forcamos undefined pra cobrir o optional chaining `state.minhaFicha?.compendioOverrides`.
         useStore.getState().updateFicha((f) => { delete f.compendioOverrides; });
         expect(() => getEfeitosDeClasse(fichaComClasse('avenger'))).not.toThrow();
-        expect(getEfeitosDeClasse(fichaComClasse('avenger'))).toEqual([]);
+        expect(soDoCompendio(fichaComClasse('avenger'))).toEqual([]);
     });
 
     it('REGRESSAO: uma estrutura FLAT antiga (sem .classes) NAO e mais lida — nao deve haver suporte a dois formatos', () => {
@@ -144,7 +150,7 @@ describe('getEfeitosDeClasse — overrides do Mestre (leitura aninhada em .class
             f.compendioOverrides = { avenger: { efeitosMatematicos: efeitosFake('999') } };
         });
 
-        expect(getEfeitosDeClasse(fichaComClasse('avenger'))).toEqual([]);
+        expect(soDoCompendio(fichaComClasse('avenger'))).toEqual([]);
     });
 
     it('BUG FIX: le overrides de state.personagens quando isMestre=false (ficha de outro jogador com compendioOverrides)', () => {
@@ -154,7 +160,7 @@ describe('getEfeitosDeClasse — overrides do Mestre (leitura aninhada em .class
             'Jogador Um': { compendioOverrides: { classes: { caster: { efeitosMatematicos: efeitos } } } },
         });
 
-        expect(getEfeitosDeClasse(fichaComClasse('caster'))).toEqual(efeitos);
+        expect(soDoCompendio(fichaComClasse('caster'))).toEqual(efeitos);
     });
 
     it('retorna [] quando nenhum personagem em state.personagens tem compendioOverrides', () => {
@@ -163,7 +169,7 @@ describe('getEfeitosDeClasse — overrides do Mestre (leitura aninhada em .class
             'Jogador Um': { bio: { classe: 'caster' } },
         });
 
-        expect(getEfeitosDeClasse(fichaComClasse('caster'))).toEqual([]);
+        expect(soDoCompendio(fichaComClasse('caster'))).toEqual([]);
     });
 
     it('classe sem efeitosMatematicos cadastrados retorna [] (override so tem nome/desc, por exemplo)', () => {
@@ -172,6 +178,6 @@ describe('getEfeitosDeClasse — overrides do Mestre (leitura aninhada em .class
             f.compendioOverrides = { classes: { saber: { nome: 'Saber', desc: 'texto' } } };
         });
 
-        expect(getEfeitosDeClasse(fichaComClasse('saber'))).toEqual([]);
+        expect(soDoCompendio(fichaComClasse('saber'))).toEqual([]);
     });
 });

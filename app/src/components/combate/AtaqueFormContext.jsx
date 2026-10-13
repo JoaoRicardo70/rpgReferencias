@@ -5,6 +5,7 @@ import { getEfeitosDeClasse } from '../../core/attributes';
 import { getVitalMxDisplay, getVidaTotalMaxDisplay, danoExibidoParaBruto, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularDano } from '../../core/engine';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
+import { golpeEquipado, ehBerserker, calcularGanhoBerserker } from '../../core/classesMecanicas';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, classificarEfetividade } from '../../core/disputaPoder';
 import { enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
@@ -155,11 +156,14 @@ export function AtaqueFormProvider({ children }) {
     const furiaMax = minhaFicha?.combate?.furiaMax || 0;
     const percEfetivoParaDisplay = Math.max(percAtualLostFloor, furiaMax);
 
+    const souBerserker = ehBerserker(minhaFicha);
     const multiplicadorFuriaVisor = useMemo(() => {
+        // Classe Berserker: escada própria (x1,5 a x20, core/classesMecanicas.js); o bônus mostrado é o ganho (fator - 1).
+        if (souBerserker) return Math.round(calcularGanhoBerserker(percEfetivoParaDisplay) * 1000) / 1000;
         if (percEfetivoParaDisplay === 1) return multiplicadorFuriaClasse;
         else if (percEfetivoParaDisplay >= 2) return percEfetivoParaDisplay;
         return 0;
-    }, [percEfetivoParaDisplay, multiplicadorFuriaClasse]);
+    }, [percEfetivoParaDisplay, multiplicadorFuriaClasse, souBerserker]);
 
     // 🎯 Alvo do golpe: um Dummie do Mapa OU um personagem de verdade (id 'pj:<nome>', core/alvoCombate.js).
     const dummieAlvo = useMemo(
@@ -171,7 +175,7 @@ export function AtaqueFormProvider({ children }) {
     // decide quanto do dano chega. Prévia só quando há uma entidade como alvo (calcularPoderAtual é
     // pesado: sem alvo não roda a cada mudança da ficha); os disparos calculam na hora do golpe.
     const disputaAlvo = useMemo(
-        () => (dummieAlvo ? calcularDisputaPoder(getPoderParaDisputa(minhaFicha, divisorPoderMesa), getPoderDummie(dummieAlvo)) : null),
+        () => (dummieAlvo ? calcularDisputaPoder(getPoderParaDisputa(minhaFicha, divisorPoderMesa, golpeEquipado(minhaFicha)), getPoderDummie(dummieAlvo)) : null),
         [dummieAlvo, minhaFicha, divisorPoderMesa]
     );
 
@@ -414,7 +418,7 @@ export function AtaqueFormProvider({ children }) {
 
             let extraFeed = {};
             let fatorVidaAlvo = 1;
-            const meuPoderDisputa = getPoderParaDisputa(minhaFicha, divisorPoderMesa);
+            const meuPoderDisputa = getPoderParaDisputa(minhaFicha, divisorPoderMesa, golpeEquipado(minhaFicha));
             if (dummieAlvo && alvoSelecionado) {
                 const disputa = calcularDisputaPoder(meuPoderDisputa, getPoderDummie(dummieAlvo));
                 // 🎲 Dano de dado proporcional à Vida do alvo (core/danoProporcional.js), depois a Disputa de Poder.
@@ -519,7 +523,8 @@ export function AtaqueFormProvider({ children }) {
         // ⚖️ Disputa de Poder por alvo: cada entidade atingida recebe o dano ajustado pelo próprio
         // Poder contra o do atacante. Jogadores atingidos aplicam em si mesmos (aba Defesa >
         // Receber Dano), lendo o poderAtacante gravado no feed abaixo.
-        const meuPoderNoGolpe = getPoderParaDisputa(minhaFicha, divisorPoderMesa);
+        // Classes (Caster em Conjuração, Assassin ocultado, Moon Cancer) multiplicam o Poder só neste golpe.
+        const meuPoderNoGolpe = getPoderParaDisputa(minhaFicha, divisorPoderMesa, golpeEquipado(minhaFicha));
         if (meuUltimoAcerto && meuUltimoAcerto.alvosArea && meuUltimoAcerto.alvosArea.length > 0) {
             let atingidos = 0;
             const linhasDisputa = [];

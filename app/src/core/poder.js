@@ -7,6 +7,7 @@ import { getBuffs, getEfetivoBase, getRawBase } from './attributes.js';
 import { getRank } from './prestige.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 import { calcularFadigaAtual } from './fadiga.js';
+import { getMultiplicadorBonusArma } from './classesMecanicas.js';
 
 const CATEGORIAS_VITAIS = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
@@ -163,7 +164,8 @@ export function getGlobalMultipliers(ficha) {
         (ficha.inventario || []).forEach(item => {
             if (!item || !item.equipado || item.bonusTipo !== 'mult_dano') return;
             const v = parseFloat(item.bonusValor);
-            if (!isNaN(v) && v > 0) unicos.push(v);
+            // 🛡️ Saber/Lancer/Archer: o "Mult Poder" da arma do tipo da classe vale o DOBRO (10x vira 20x).
+            if (!isNaN(v) && v > 0) unicos.push(v * getMultiplicadorBonusArma(ficha, item));
         });
         (ficha.ataquesElementais || []).forEach(atk => {
             if (!atk || !atk.equipado || atk.bonusTipo !== 'mult_dano') return;

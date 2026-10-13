@@ -12,16 +12,22 @@
 // recebe 1,1x. Poder igual = 1x pros dois.
 // ==========================================
 import { calcularPoderAtual } from './poder.js';
+import { getFatorPoderDoGolpe } from './classesMecanicas.js';
 
 // Teto do bônus do mais forte (evita Infinity contra um Poder 0, ex.: Fadiga 100%).
 export const FATOR_DISPUTA_MAXIMO = 1e6;
 
 // Poder Atual de um personagem, SEM o arredondamento do Scouter (mesma unidade do número exibido):
 // um personagem novo com Poder exibido "0" ainda tem um Poder real pra comparar.
-export function getPoderParaDisputa(ficha, divisorPoderMesa) {
+//
+// `golpe` (opcional, core/classesMecanicas.js > golpeEquipado): quando é o PODER DO ATACANTE num golpe
+// específico, as Classes que causam dano "como se o Poder fosse Nx maior" (Caster em Conjuração,
+// Assassin ocultado, Moon Cancer no que representa) multiplicam o Poder só nesta disputa.
+export function getPoderParaDisputa(ficha, divisorPoderMesa, golpe) {
     if (!ficha) return null;
     try {
-        const v = calcularPoderAtual(ficha, divisorPoderMesa).poderExato;
+        let v = calcularPoderAtual(ficha, divisorPoderMesa).poderExato;
+        if (golpe) v *= getFatorPoderDoGolpe(ficha, golpe).fator;
         return Number.isFinite(v) ? Math.max(0, v) : null;
     } catch (e) {
         return null;

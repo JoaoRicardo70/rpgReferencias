@@ -8,6 +8,7 @@ import { assinarFalhasDeImagem } from '../../core/imagemVerificada';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
 import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
+import { golpeEquipado } from '../../core/classesMecanicas';
 import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
@@ -573,7 +574,7 @@ export function MapaFormProvider({ children }) {
     const getDanoDinamicoZona = useCallback((zona) => {
         const storeState = useStore.getState();
         const fichaCaster = (zona.conjurador === storeState.meuNome) ? storeState.minhaFicha : storeState.personagens?.[zona.conjurador];
-        const poderConjurador = fichaCaster ? getPoderParaDisputa(fichaCaster, storeState.divisorPoderMesa) : null;
+        const poderConjurador = fichaCaster ? getPoderParaDisputa(fichaCaster, storeState.divisorPoderMesa, { conjuracao: true, textos: golpeEquipado(fichaCaster).textos }) : null;
         let baseResult = { dano: zona.danoOriginal || zona.danoAplicado || 0, letalidade: zona.letalidadeOriginal || 0, poderConjurador };
         if (!fichaCaster) return baseResult;
 
