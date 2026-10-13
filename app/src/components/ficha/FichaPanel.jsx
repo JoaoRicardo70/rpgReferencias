@@ -5,7 +5,6 @@ import {
     FichaSeresSelados, 
     FichaEditorAtributos, 
     FichaFuriaBerserker, 
-    FichaEstadoClasse,
     FichaMultiplicadoresDano 
 } from './FichaSubComponents';
 import TabelaPrestigio from './TabelaPrestigio';
@@ -24,7 +23,6 @@ export default function FichaPanel({ className, children }) {
                         <FichaSeresSelados />
                         <FichaEditorAtributos />
                         <FichaFuriaBerserker />
-                        <FichaEstadoClasse />
                         <FichaMultiplicadoresDano />
                         
                         <AbaDominios /> 

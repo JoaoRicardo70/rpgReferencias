@@ -19,7 +19,6 @@ import Sidebar from './components/layout/Sidebar';
 import TabPanel from './components/layout/TabPanel';
 import PerfilPanel from './components/perfil/PerfilPanel';
 import ModalConfirm from './components/perfil/ModalConfirm';
-import FichaPanel from './components/ficha/FichaPanel';
 import AtaquePanel from './components/combate/AtaquePanel';
 import AcertoPanel from './components/combate/AcertoPanel';
 import DefesaPanel from './components/combate/DefesaPanel';
@@ -403,7 +402,6 @@ export default function App() {
                     <TabPanel id="aba-ataque"><AtaquePanel /></TabPanel>
                     <TabPanel id="aba-acerto"><AcertoPanel /></TabPanel>
                     <TabPanel id="aba-defesa"><DefesaPanel /></TabPanel>
-                    <TabPanel id="aba-ficha"><FichaPanel /></TabPanel>
                     <TabPanel id="aba-poderes"><PoderesPanel /></TabPanel>
                     <TabPanel id="aba-arsenal"><ArsenalPanel /></TabPanel>
                     <TabPanel id="aba-elementos"><ElementosPanel /></TabPanel>

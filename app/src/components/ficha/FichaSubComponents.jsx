@@ -4,7 +4,6 @@ import FormasEditor from '../shared/FormasEditor';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes, getAlvosReducao, habilidadeEstaLigada, TIPO_HABILIDADE_ATIVA, TIPO_HABILIDADE_PASSIVA } from '../../core/reducaoDano.js';
 import { POLARIDADES, getInfoPolaridade } from '../../core/polaridade.js';
 import { agruparElementosPorCategoria, chaveElemento } from '../../core/elementos.js';
-import { MECANICA_CLASSE, getClasseAtivaId, racaDeDragao, ehBerserker } from '../../core/classesMecanicas.js';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Ficha provider não encontrado</div>;
 
@@ -579,49 +578,7 @@ export function FichaFuriaBerserker() {
                 </div>
             </div>
             <p style={{ color: '#0f0', fontSize: '0.9em', marginTop: 10, marginBottom: 0 }}>↳ Bônus no Multiplicador Geral: <strong style={{ color: '#fff' }}>+{multiplicadorFuriaVisor}x</strong></p>
-            <p style={{ color: '#aaa', fontSize: '0.75em', marginTop: 5, marginBottom: 0 }}><i className="fas fa-info-circle"></i> {ehBerserker(ctx.minhaFicha) ? MECANICA_CLASSE.berserker : `Com 1% de HP perdido ganha o bônus inicial (+${multiplicadorFuriaClasse}x). A partir de 2%, ganha +1x por cada 1% de HP perdido.`}</p>
-        </div>
-    );
-}
-
-// 🛡️ Mecânica da Classe ativa (core/classesMecanicas.js): o resumo do que ela faz e os estados que
-// o jogador marca na Ficha (Montaria do Rider, contato com o Vazio do Foreigner, arauto do Moon Cancer).
-export function FichaEstadoClasse() {
-    const ctx = useFichaForm();
-    if (!ctx) return FALLBACK;
-    const { minhaFicha, alternarEstadoClasse, mudarArauto } = ctx;
-    const classe = getClasseAtivaId(minhaFicha);
-    const resumo = MECANICA_CLASSE[classe];
-    if (!resumo) return null;
-    const rotulo = (CLASSES_OPTIONS.find(o => o.value === classe) || {}).label || classe;
-    const combate = (minhaFicha && minhaFicha.combate) || {};
-    return (
-        <div className="def-box fade-in classe-mecanica">
-            <h3 className="classe-mecanica-titulo">🛡️ Mecânica da Classe: {rotulo}</h3>
-            <p className="classe-mecanica-texto">{resumo}</p>
-            {classe === 'rider' && (
-                <label className="classe-mecanica-estado">
-                    <input type="checkbox" checked={!!combate.montariaPresente || racaDeDragao(minhaFicha)} disabled={racaDeDragao(minhaFicha)} onChange={() => alternarEstadoClasse('montariaPresente')} />
-                    {racaDeDragao(minhaFicha) ? ' 🐉 Dragão: benefício da Montaria passivo' : ' 🏇 Montaria no campo de batalha'}
-                </label>
-            )}
-            {classe === 'foreigner' && (
-                <label className="classe-mecanica-estado">
-                    <input type="checkbox" checked={!!combate.contatoVazio} onChange={() => alternarEstadoClasse('contatoVazio')} />
-                    {' 🕳️ Em contato com o VAZIO'}
-                </label>
-            )}
-            {classe === 'mooncancer' && (
-                <div className="classe-mecanica-arauto">
-                    <label className="classe-mecanica-rotulo" htmlFor="classe-arauto">🌕 Arauto de:</label>
-                    <input id="classe-arauto" className="input-neon" type="text" placeholder="Ex.: Fogo, Lua, Tempo..." value={(minhaFicha && minhaFicha.bio && minhaFicha.bio.arauto) || ''} onChange={e => mudarArauto(e.target.value)} />
-                    <label className="classe-mecanica-estado">
-                        <input type="checkbox" checked={!!combate.arautoAtivo} onChange={() => alternarEstadoClasse('arautoAtivo')} />
-                        {' Usando algo do que represento (vale pra qualquer golpe)'}
-                    </label>
-                    <p className="classe-mecanica-dica">Golpes cujo nome ou elemento contenham o arauto já contam sozinhos.</p>
-                </div>
-            )}
+            <p style={{ color: '#aaa', fontSize: '0.75em', marginTop: 5, marginBottom: 0 }}><i className="fas fa-info-circle"></i> Com 1% de HP perdido ganha o bônus inicial (+{multiplicadorFuriaClasse}x). A partir de 2%, ganha +1x por cada 1% de HP perdido.</p>
         </div>
     );
 }

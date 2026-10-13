@@ -2264,3 +2264,10 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .classe-mecanica-rotulo { color: #ffcc00; font-size: 0.85em; font-weight: bold; }
 .classe-mecanica-arauto { display: flex; flex-direction: column; gap: 6px; }
 .classe-mecanica-dica { margin: 0; color: #888; font-size: 0.75em; }
+
+/* Ficha Definitiva: foto e painel da Classe lado a lado */
+.avatar-com-classe { display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-start; }
+.avatar-coluna { flex: 0 0 auto; }
+.avatar-com-classe .classe-mecanica { flex: 1 1 240px; max-width: 460px; margin: 20px 0 0 0; padding: 14px; background: rgba(0, 0, 0, 0.6); border-radius: 8px; }
+.classe-mecanica-troca { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.classe-mecanica-descanso { align-self: flex-start; margin: 4px 0 0 0; }

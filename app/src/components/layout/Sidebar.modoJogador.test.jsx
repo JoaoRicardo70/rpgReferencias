@@ -62,7 +62,7 @@ describe('Sidebar - Modo Jogador', () => {
         useStore.setState({ abaAtiva: 'aba-mestre' });
         render(<Sidebar onResetClick={() => {}} />);
         fireEvent.click(botaoModo());
-        expect(st().abaAtiva).toBe('aba-ficha');
+        expect(st().abaAtiva).toBe('aba-Ficha Def');
     });
 
     it('ligar o Modo Jogador em outra aba NAO muda a aba', () => {

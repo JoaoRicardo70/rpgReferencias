@@ -6,8 +6,7 @@ import { getMaximo, getBuffs, getEfeitosDeClasse } from '../../core/attributes.j
 import { capturarMaximosAtuais, rescalarVitaisProporcional, getVidaTotalMaxDisplay, getTetoExibidoComFator } from '../../core/vitals.js';
 import { getRegeneracaoManualPct, limitarRegeneracaoPct } from '../../core/regeneracao.js';
 import { escalarEfeitosPorEstagio } from '../../core/estagios.js';
-import { ehBerserker, calcularGanhoBerserker } from '../../core/classesMecanicas.js';
-import { salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem, enviarParaFeed } from '../../services/firebase-sync.js';
+import { salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync.js';
 
 export const STATS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 export const ENERGIAS = ['mana', 'aura', 'chakra', 'corpo', 'pontosVitais', 'pontosMortais'];
@@ -253,27 +252,7 @@ export function FichaFormProvider({ children }) {
     }, [updateFicha, mesa, raca, classe, subClasse, alterEgoSlot1, alterEgoSerId, classesMemorizadas, idade, fisico, sangue, alinhamento, afiliacao, dinheiro]);
 
     const salvarBio = useCallback(() => { comitarBio(); setSalvandoBio(true); setTimeout(() => setSalvandoBio(false), 2000); }, [comitarBio]);
-    // 🎭 Alter Ego / Pretender: trocar a Classe vestida EM COMBATE gasta uma Ação Bônus (fora dele é livre).
-    const emCombate = (parseInt(minhaFicha?.iniciativa) || 0) > 0;
-    const mudarSubClasseDireto = useCallback((novaSub) => {
-        if (novaSub === subClasse) return;
-        if (emCombate) {
-            if (!window.confirm('Trocar de Classe em combate gasta uma Ação Bônus. Confirmar?')) return;
-            enviarParaFeed({ tipo: 'sistema', nome: meuNome, texto: `🎭 ${meuNome} gastou uma Ação Bônus para trocar de Classe.` });
-        }
-        setSubClasse(novaSub); comitarBio({ subClasse: novaSub });
-    }, [comitarBio, subClasse, emCombate, meuNome]);
-
-    // 🛡️ Estados de Classe marcados na Ficha (core/classesMecanicas.js): Montaria (Rider), contato com o Vazio
-    // (Foreigner) e "usando o que representa" (Moon Cancer); e o que o Moon Cancer representa (arauto).
-    const alternarEstadoClasse = useCallback((campo) => {
-        updateFicha(f => { if (!f.combate) f.combate = {}; f.combate[campo] = !f.combate[campo]; });
-        salvarFichaSilencioso();
-    }, [updateFicha]);
-    const mudarArauto = useCallback((texto) => {
-        updateFicha(f => { if (!f.bio) f.bio = {}; f.bio.arauto = texto; });
-        salvarFichaSilencioso();
-    }, [updateFicha]);
+    const mudarSubClasseDireto = useCallback((novaSub) => { setSubClasse(novaSub); comitarBio({ subClasse: novaSub }); }, [comitarBio]);
 
     let multiplicadorFuriaClasse = 0;
     const scanFuria = (efs) => {
@@ -313,9 +292,7 @@ export function FichaFormProvider({ children }) {
     const percEfetivoParaDisplay = Math.max(percAtualLostFloor, furiaMax);
 
     let multiplicadorFuriaVisor = 0;
-    // Classe Berserker: escada própria (x1,5 a x20, core/classesMecanicas.js); o bônus mostrado é o ganho (fator - 1).
-    if (ehBerserker(minhaFicha)) multiplicadorFuriaVisor = Math.round(calcularGanhoBerserker(percEfetivoParaDisplay) * 1000) / 1000;
-    else if (percEfetivoParaDisplay === 1) multiplicadorFuriaVisor = multiplicadorFuriaClasse;
+    if (percEfetivoParaDisplay === 1) multiplicadorFuriaVisor = multiplicadorFuriaClasse;
     else if (percEfetivoParaDisplay >= 2) multiplicadorFuriaVisor = percEfetivoParaDisplay;
 
     useEffect(() => {
@@ -549,7 +526,7 @@ export function FichaFormProvider({ children }) {
         alterEgoSlot1, setAlterEgoSlot1, alterEgoSerId, setAlterEgoSerId, classesMemorizadas, setClassesMemorizadas,
         idade, setIdade, fisico, setFisico, sangue, setSangue, alinhamento, setAlinhamento,
         afiliacao, setAfiliacao, dinheiro, setDinheiro, salvandoBio,
-        overridesCompendio, grands, isGrand, grandIcone, comitarBio, salvarBio, mudarSubClasseDireto, alternarEstadoClasse, mudarArauto,
+        overridesCompendio, grands, isGrand, grandIcone, comitarBio, salvarBio, mudarSubClasseDireto,
         multiplicadorFuriaClasse, rawMaxVida, maxVida, atualVida, percAtualLostFloor, furiaMax, percEfetivoParaDisplay,
         multiplicadorFuriaVisor, furiaAcalmadaMsg, acalmarFuria, toggleMemoriaPretender, descansoLongoPretender,
         selAtributo, setSelAtributo, campos, setCampos, handleCampo, carregarAtributoNaTela, salvarAtributo,
@@ -570,7 +547,7 @@ export function FichaFormProvider({ children }) {
     }), [
         minhaFicha, updateFicha, personagens, meuNome, mesa, raca, classe, subClasse, alterEgoSlot1, alterEgoSerId, classesMemorizadas,
         idade, fisico, sangue, alinhamento, afiliacao, dinheiro, salvandoBio, overridesCompendio, grands, isGrand, grandIcone,
-        comitarBio, salvarBio, mudarSubClasseDireto, alternarEstadoClasse, mudarArauto, multiplicadorFuriaClasse, rawMaxVida, maxVida, atualVida, percAtualLostFloor, furiaMax, percEfetivoParaDisplay,
+        comitarBio, salvarBio, mudarSubClasseDireto, multiplicadorFuriaClasse, rawMaxVida, maxVida, atualVida, percAtualLostFloor, furiaMax, percEfetivoParaDisplay,
         multiplicadorFuriaVisor, furiaAcalmadaMsg, acalmarFuria, toggleMemoriaPretender, descansoLongoPretender, selAtributo, campos, handleCampo, carregarAtributoNaTela, salvarAtributo,
         dmBase, dmPotencial, dmGeral, dmFormas, dmAbsoluto, dmUnico, danoBruto, salvandoMult, salvarMultiplicadores, buffsDano, sKeyForBuffs, buffsAtuais,
         seresSelados, serNome, serDescricao, serElemento, serClasse, serEditandoId, serZeraCusto,

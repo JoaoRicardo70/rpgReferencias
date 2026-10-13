@@ -169,7 +169,7 @@ const useStore = create(
             state.entidadeInspecionada = null;
         }),
         minhaFicha: deepClone(fichaPadrao),
-        meuNome: '', isMestre: false, souMestreReal: false, modoJogador: lerModoJogadorLocal(storedMesaId), abaAtiva: 'aba-ficha', personagens: {}, feedCombate: [],
+        meuNome: '', isMestre: false, souMestreReal: false, modoJogador: lerModoJogadorLocal(storedMesaId), abaAtiva: 'aba-Ficha Def', personagens: {}, feedCombate: [],
         efeitosTemp: [], efeitosTempPassivos: [], efeitosTempArsenal: [], efeitosTempPassivosArsenal: [], efeitosTempForma: [], efeitosTempPassivosForma: [],
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
         dummies: {}, alvoSelecionado: null, atorCombate: null,

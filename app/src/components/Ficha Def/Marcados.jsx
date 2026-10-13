@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import useStore from '../../stores/useStore';
+import ClasseMecanicaPainel from './ClasseMecanicaPainel';
 import { salvarFichaSilencioso, salvarFirebaseImediato, salvarDivisorPoderMesa, salvarFichaAlvoSilencioso, salvarFichaAlvoImediato } from '../../services/firebase-sync';
 import { lerImagemComoBase64 } from '../../services/firebase-storage';
 
@@ -1824,7 +1825,7 @@ export default function MarcadosPanel() {
                                         </div>
                                         <span style={{ fontWeight: 'bold', marginRight: '8px' }}>:</span>
                                         {item.k === 'classe' ? (
-                                            <select value={minhaFicha.bio?.classe || ''} onChange={(e) => { salvar('bio.classe', e.target.value); }}
+                                            <select value={minhaFicha.bio?.classe || ''} onChange={(e) => { const v = e.target.value; salvar('bio.classe', v); if (v !== 'alterego' && v !== 'pretender') salvar('bio.subClasse', ''); }}
                                                 style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px dotted currentColor', fontFamily: 'inherit', fontSize: 'inherit', color: 'inherit', fontWeight: 'inherit', outline: 'none', padding: '0 5px' }}>
                                                 {CLASSE_SELECT_OPTIONS.map(opt => <option key={opt.id} value={opt.id} style={{ color: '#000' }}>{opt.icone ? `${opt.icone} ${opt.nome}` : opt.nome}</option>)}
                                             </select>
@@ -1835,6 +1836,9 @@ export default function MarcadosPanel() {
                                 ))}
                             </div>
 
+                            {/* 🛡️ Foto + painel da Classe lado a lado (ClasseMecanicaPainel) */}
+                            <div className="avatar-com-classe">
+                            <div className="avatar-coluna">
                             {/* 🔥 AVATAR COM DUPLA CAMADA DE TINTA (MÁSCARAS OU SCREEN COM SUPORTE TOTAL AOS SLIDERS) 🔥 */}
                             <div style={{ 
                                 marginTop: '20px', position: 'relative', width: '320px', height: '480px', display: 'flex', flexDirection: 'column', 
@@ -1908,6 +1912,9 @@ export default function MarcadosPanel() {
                                 )}
                             </div>
                             {minhaFicha.avatar?.base && <button onClick={() => {if(window.confirm('Apagar?')) { updateFicha(f => {f.avatar.base = ""}); callSave(); } }} style={{ background: 'transparent', border: '1px dashed #ff003c', color: '#ff003c', marginTop: '10px', padding: '5px 15px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'inherit', width: 'fit-content' }}>🗑️ Remover Foto</button>}
+                            </div>
+                            <ClasseMecanicaPainel ficha={minhaFicha} salvar={salvar} meuNome={meuNome} opcoesClasses={CLASSE_SELECT_OPTIONS} />
+                            </div>
                         </div>
 
                         <div style={{ flex: '1 1 450px', display: 'flex', flexDirection: 'column' }}>

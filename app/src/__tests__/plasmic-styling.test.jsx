@@ -109,7 +109,6 @@ vi.mock('../components/ficha/FichaSubComponents', () => ({
     FichaSeresSelados: () => <div data-testid="ficha-seres-selados" />,
     FichaEditorAtributos: () => <div data-testid="ficha-editor-atributos" />,
     FichaFuriaBerserker: () => <div data-testid="ficha-furia-berserker" />,
-    FichaEstadoClasse: () => <div data-testid="ficha-estado-classe" />,
     FichaMultiplicadoresDano: () => <div data-testid="ficha-multiplicadores-dano" />,
 }));
 

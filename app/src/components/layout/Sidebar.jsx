@@ -20,7 +20,6 @@ export default function Sidebar({ onResetClick }) {
         {
             id: 'entidade', icone: '👤', nome: 'Entidade', cor: '#00ffcc', bg: 'rgba(0,255,204,0.15)',
             abas: [
-                { id: 'aba-ficha', icone: '📋', nome: 'Ficha' },
                 { id: 'aba-perfil', icone: '🆔', nome: 'Perfil' },
             ]
         },
@@ -65,7 +64,7 @@ export default function Sidebar({ onResetClick }) {
         const novo = !modoJogador;
         setModoJogador(novo);
         // A aba do Mestre some no Modo Jogador: leva pra Ficha em vez de deixar uma aba vazia.
-        if (novo && useStore.getState().abaAtiva === 'aba-mestre') setAbaAtiva('aba-ficha');
+        if (novo && useStore.getState().abaAtiva === 'aba-mestre') setAbaAtiva('aba-Ficha Def');
     }, [modoJogador, setModoJogador, setAbaAtiva]);
 
     const alternarGaveta = (id) => {
