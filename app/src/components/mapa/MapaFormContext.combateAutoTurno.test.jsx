@@ -161,7 +161,7 @@ describe('MapaFormContext — avancarTurno: Fadiga de Combate e Regeneração au
         const [nomeSalvo, campos] = firebaseSync.salvarCamposPersonagem.mock.calls[0];
         expect(nomeSalvo).toBe('Vilao');
         expect(campos['vida/atual']).toBe(5000001);
-        expect(campos['acoes/padrao/atual']).toBe(1);
+        expect(campos['acoes/padrao/atual']).toBe(2);
         expect(campos['combate/fadigaTurnos']).toBe(1);
     });
 
@@ -529,7 +529,7 @@ describe('MapaFormContext — avancarTurno: Regeneração automática também se
         // Regeneração real de core/vitals.js: vida.atual(1) + regeneracao(5_000_000).
         expect(dadosSalvos.vida.atual).toBe(5000001);
         // O reset de ações (comportamento já existente) continua funcionando junto.
-        expect(dadosSalvos.acoes.padrao.atual).toBe(1);
+        expect(dadosSalvos.acoes.padrao.atual).toBe(2);
     });
 
     it('não lança e não chama salvarDummie quando o próximo ator é um dummie sem NENHUM dado de vitais', () => {
@@ -577,7 +577,7 @@ describe('MapaFormContext — avancarTurno: Regeneração automática também se
         // Nenhum overheal: permanece exatamente no teto, nunca ultrapassa.
         expect(dadosSalvos.vida.atual).toBe(tetoVida);
         // O reset de ações continua acontecendo independentemente da regeneração ter sido um no-op.
-        expect(dadosSalvos.acoes.padrao.atual).toBe(1);
+        expect(dadosSalvos.acoes.padrao.atual).toBe(2);
     });
 
     // -------------------------------------------------------------------------

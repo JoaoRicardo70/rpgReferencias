@@ -9,6 +9,7 @@ import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
 import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
 import { golpeEquipado } from '../../core/classesMecanicas';
+import { alternarAcao, restaurarAcoes, criarAcoesIniciais } from '../../core/acoes';
 import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
@@ -73,10 +74,7 @@ export function calcularCA(ficha, tipo) {
 // ANTES de aplicarRegeneracaoDeTurno, senão a cura já aplicada no mesmo tick esconderia o quão
 // gasto o personagem estava entrando neste turno.
 function aplicarInicioDeTurno(ficha) {
-    if (!ficha.acoes) ficha.acoes = { padrao: { max: 1, atual: 1 }, bonus: { max: 1, atual: 1 }, reacao: { max: 1, atual: 1 } };
-    if (ficha.acoes.padrao) ficha.acoes.padrao.atual = ficha.acoes.padrao.max;
-    if (ficha.acoes.bonus) ficha.acoes.bonus.atual = ficha.acoes.bonus.max;
-    if (ficha.acoes.reacao) ficha.acoes.reacao.atual = ficha.acoes.reacao.max;
+    restaurarAcoes(ficha);
 
     if (!ficha.combate) ficha.combate = {};
     ficha.combate.fadigaTurnos = Math.max(0, (Number(ficha.combate.fadigaTurnos) || 0) + 1);
@@ -104,9 +102,11 @@ function camposDeInicioDeTurno(ficha) {
         if (ficha.combate.fadigaExtra !== undefined) campos['combate/fadigaExtra'] = ficha.combate.fadigaExtra;
     }
     if (ficha.acoes) {
-        if (ficha.acoes.padrao) campos['acoes/padrao/atual'] = ficha.acoes.padrao.atual;
-        if (ficha.acoes.bonus) campos['acoes/bonus/atual'] = ficha.acoes.bonus.atual;
-        if (ficha.acoes.reacao) campos['acoes/reacao/atual'] = ficha.acoes.reacao.atual;
+        ['padrao', 'bonus', 'reacao'].forEach((t) => {
+            if (!ficha.acoes[t]) return;
+            campos[`acoes/${t}/max`] = ficha.acoes[t].max;
+            campos[`acoes/${t}/atual`] = ficha.acoes[t].atual;
+        });
     }
     return campos;
 }
@@ -262,17 +262,14 @@ export function MapaFormProvider({ children }) {
             const storeState = useStore.getState();
             const dData = storeState.dummies[idDummie];
             if (!dData) return;
-            const acoes = dData.acoes ? JSON.parse(JSON.stringify(dData.acoes)) : { padrao: {max:1, atual:1}, bonus: {max:1, atual:1}, reacao: {max:1, atual:1} };
-            if (!acoes[tipo]) acoes[tipo] = { max: 1, atual: 1 };
+            const acoes = dData.acoes ? JSON.parse(JSON.stringify(dData.acoes)) : criarAcoesIniciais();
+            if (!acoes[tipo]) acoes[tipo] = { max: 2, atual: 2 };
             if (isAvailable) acoes[tipo].atual = Math.max(0, acoes[tipo].atual - 1);
             else acoes[tipo].atual = Math.min(acoes[tipo].max, acoes[tipo].atual + 1);
             salvarDummie(idDummie, { ...dData, acoes });
         } else if (entidadeNome === meuNome) {
             updateFicha(f => {
-                if (!f.acoes) f.acoes = { padrao: {max:1, atual:1}, bonus: {max:1, atual:1}, reacao: {max:1, atual:1} };
-                if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 };
-                if (isAvailable) f.acoes[tipo].atual = Math.max(0, f.acoes[tipo].atual - 1);
-                else f.acoes[tipo].atual = Math.min(f.acoes[tipo].max, f.acoes[tipo].atual + 1);
+                alternarAcao(f, tipo, isAvailable);
             });
             salvarFichaSilencioso();
         }

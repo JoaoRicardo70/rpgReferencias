@@ -33,60 +33,61 @@ beforeEach(() => { vi.clearAllMocks(); });
 afterEach(() => cleanup());
 
 describe('StatusFormContext - ações com ficha.acoes incompleta', () => {
-    it('resetarTurno não lança quando faltam tipos e restaura os existentes', () => {
+    // Máximo calculado (core/acoes.js): base 2 de cada, +ajuste manual/efeitos, teto 5.
+    it('resetarTurno não lança com tipos faltando e deixa os três no máximo (Ação com 3 antigo preservado)', () => {
         montar({ acoes: { padrao: { max: 3, atual: 0 } } });
         expect(() => act(() => { probe.resetarTurno(); })).not.toThrow();
-        expect(ficha.acoes.padrao.atual).toBe(3);
-        expect(ficha.acoes.bonus).toBeUndefined();
-        expect(ficha.acoes.reacao).toBeUndefined();
+        expect([ficha.acoes.padrao, ficha.acoes.bonus, ficha.acoes.reacao]).toMatchObject([{ max: 3, atual: 3 }, { max: 3, atual: 3 }, { max: 3, atual: 3 }]);
         expect(salvarFichaSilencioso).toHaveBeenCalled();
     });
 
     it('resetarTurno restaura os três tipos quando todos existem', () => {
-        montar({ acoes: { padrao: { max: 2, atual: 0 }, bonus: { max: 1, atual: 0 }, reacao: { max: 4, atual: 1 } } });
+        montar({ acoes: { padrao: { max: 2, atual: 0 }, bonus: { max: 2, atual: 0 }, reacao: { max: 2, atual: 1 } } });
         act(() => { probe.resetarTurno(); });
-        expect([ficha.acoes.padrao.atual, ficha.acoes.bonus.atual, ficha.acoes.reacao.atual]).toEqual([2, 1, 4]);
+        expect([ficha.acoes.padrao.atual, ficha.acoes.bonus.atual, ficha.acoes.reacao.atual]).toEqual([2, 2, 2]);
     });
 
-    it('resetarTurno sem ficha.acoes não lança nem cria acoes', () => {
+    it('resetarTurno sem ficha.acoes cria as Ações com o máximo base', () => {
         montar();
         expect(() => act(() => { probe.resetarTurno(); })).not.toThrow();
-        expect(ficha.acoes).toBeUndefined();
+        expect(ficha.acoes.padrao).toMatchObject({ max: 2, atual: 2 });
     });
 
-    it('changeActionMax cria o tipo ausente (max 1) e aplica o delta', () => {
-        montar({ acoes: { padrao: { max: 1, atual: 1 } } });
-        expect(() => act(() => { probe.changeActionMax('reacao', 2); })).not.toThrow();
-        expect(ficha.acoes.reacao.max).toBe(3);
+    it('changeActionMax mexe no ajuste manual: +2 de Reação vira max 4', () => {
+        montar({ acoes: { padrao: { max: 2, atual: 2 } } });
+        expect(() => act(() => { probe.changeActionMax('reacao', 1); probe.changeActionMax('reacao', 1); })).not.toThrow();
+        expect(ficha.acoes.reacao.max).toBe(4);
     });
 
-    it('changeActionMax nunca deixa o max abaixo de 1 e ajusta o atual', () => {
-        montar({ acoes: { padrao: { max: 3, atual: 3 } } });
-        act(() => { probe.changeActionMax('padrao', -10); });
-        expect(ficha.acoes.padrao).toEqual({ max: 1, atual: 1 });
-    });
-
-    it('changeActionMax sem ficha.acoes cria o objeto completo', () => {
+    it('changeActionMax não passa do teto de 5 nem desce da base 2', () => {
         montar();
-        act(() => { probe.changeActionMax('bonus', 1); });
+        act(() => { for (let i = 0; i < 8; i++) probe.changeActionMax('bonus', 1); });
+        expect(ficha.acoes.bonus.max).toBe(5);
+        act(() => { for (let i = 0; i < 8; i++) probe.changeActionMax('bonus', -1); });
         expect(ficha.acoes.bonus.max).toBe(2);
-        expect(ficha.acoes.padrao).toEqual({ max: 1, atual: 1 });
+        expect(ficha.acoes.bonus.atual).toBeLessThanOrEqual(2);
+    });
+
+    it('changeActionMax em Ação (padrão) também aumenta Bônus e Reação', () => {
+        montar();
+        act(() => { probe.changeActionMax('padrao', 1); });
+        expect([ficha.acoes.padrao.max, ficha.acoes.bonus.max, ficha.acoes.reacao.max]).toEqual([3, 3, 3]);
     });
 
     it('toggleActionDot cria o tipo ausente e consome um ponto', () => {
-        montar({ acoes: { padrao: { max: 1, atual: 1 } } });
+        montar({ acoes: { padrao: { max: 2, atual: 2 } } });
         expect(() => act(() => { probe.toggleActionDot('bonus', true); })).not.toThrow();
-        expect(ficha.acoes.bonus.atual).toBe(0);
+        expect(ficha.acoes.bonus.atual).toBe(1);
     });
 
     it('toggleActionDot recupera ponto no tipo ausente sem passar do max', () => {
-        montar({ acoes: { padrao: { max: 1, atual: 1 } } });
+        montar({ acoes: { padrao: { max: 2, atual: 2 } } });
         act(() => { probe.toggleActionDot('reacao', false); });
-        expect(ficha.acoes.reacao).toEqual({ max: 1, atual: 1 });
+        expect(ficha.acoes.reacao).toMatchObject({ max: 2, atual: 2 });
     });
 
     it('toggleActionDot nunca fica negativo', () => {
-        montar({ acoes: { padrao: { max: 1, atual: 0 } } });
+        montar({ acoes: { padrao: { max: 2, atual: 0 } } });
         act(() => { probe.toggleActionDot('padrao', true); });
         expect(ficha.acoes.padrao.atual).toBe(0);
     });

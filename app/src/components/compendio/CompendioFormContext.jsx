@@ -136,7 +136,8 @@ export function CompendioFormProvider({ children }) {
             } else if (map[k]) {
                 map[k] = { ...map[k], ...overridesObj[k] };
             } else {
-                map[k] = overridesObj[k];
+                // O editor salva o override sem id: sem isso a Classe vira um card sem id e aparece duplicada.
+                map[k] = { ...overridesObj[k], id: overridesObj[k].id || k };
             }
         });
         return Object.values(map);
@@ -152,8 +153,8 @@ export function CompendioFormProvider({ children }) {
         return { ...c, efeito: MECANICA_CLASSE[c.id], efeitoCandidato: candidato, efeitoGrand: grand, mecanicaEmCodigo: true };
     }, []);
 
-    const regulares = useMemo(() => mesclarComOverrides(CLASSES_REGULARES_BASE, 'classes').filter(c => CLASSES_REGULARES_BASE.find(b=>b.id===c.id) || !c.isExtra).map(comTextosDeCodigo), [mesclarComOverrides, comTextosDeCodigo]);
-    const extras = useMemo(() => mesclarComOverrides(CLASSES_EXTRA_BASE, 'classes').filter(c => CLASSES_EXTRA_BASE.find(b=>b.id===c.id) || c.isExtra).map(comTextosDeCodigo), [mesclarComOverrides, comTextosDeCodigo]);
+    const regulares = useMemo(() => mesclarComOverrides(CLASSES_REGULARES_BASE, 'classes').filter(c => CLASSES_REGULARES_BASE.some(b => b.id === c.id) || (!c.isExtra && !CLASSES_EXTRA_BASE.some(b => b.id === c.id))).map(comTextosDeCodigo), [mesclarComOverrides, comTextosDeCodigo]);
+    const extras = useMemo(() => mesclarComOverrides(CLASSES_EXTRA_BASE, 'classes').filter(c => CLASSES_EXTRA_BASE.some(b => b.id === c.id) || (c.isExtra && !CLASSES_REGULARES_BASE.some(b => b.id === c.id))).map(comTextosDeCodigo), [mesclarComOverrides, comTextosDeCodigo]);
     const todasClasses = useMemo(() => [...regulares, ...extras], [regulares, extras]);
     
     const condicoes = useMemo(() => mesclarComOverrides(CONDICOES_BASE, 'condicoes'), [mesclarComOverrides]);

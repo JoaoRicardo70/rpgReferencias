@@ -10,6 +10,7 @@ import { useArsenalForm } from '../arsenal/ArsenalFormContext';
 import { useElementosForm, emogis as ELEMENTOS_EMOJIS, cores as ELEMENTOS_CORES } from '../arsenal/ElementosFormContext';
 import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { getClassIconById } from '../../core/classIcons';
+import { getAcoesExibicao, criarAcoesIniciais, restaurarAcoes, ACOES_MAXIMO } from '../../core/acoes';
 import { calcularPoderAtual, calcularFatorMultiplicadorForca } from '../../core/poder';
 import { calcularFadigaAtual } from '../../core/fadiga';
 import { construirArvorePastas, contarNaPasta, listarCaminhosPastas, segmentosPasta } from '../../core/pastas';
@@ -266,11 +267,12 @@ export function MapaEconomiaAcoes() {
         }
     }
 
-    const acoes = targetEntidade.data?.acoes || { padrao: {max:1, atual:1}, bonus: {max:1, atual:1}, reacao: {max:1, atual:1} };
+    // Jogadores/NPCs de ficha: máximo calculado (core/acoes.js); Dummies: o que o Mestre gravou (base 2).
+    const acoes = targetEntidade.tipo === 'player' && targetEntidade.data ? getAcoesExibicao(targetEntidade.data) : (targetEntidade.data?.acoes || criarAcoesIniciais());
     const canEdit = targetEntidade.nome === meuNome || (isMestre && targetEntidade.tipo === 'dummie');
 
     const renderDots = (tipo, label, color) => {
-        const max = acoes[tipo]?.max || 1;
+        const max = Math.min(ACOES_MAXIMO, acoes[tipo]?.max ?? 2);
         const atual = acoes[tipo]?.atual || 0;
         const dots = [];
         for (let i = 0; i < max; i++) {
@@ -298,7 +300,7 @@ export function MapaEconomiaAcoes() {
                         if (targetEntidade.tipo === 'dummie') {
                             const dData = dummies[targetEntidade.id];
                             if(dData) {
-                                const nAcoes = dData.acoes ? JSON.parse(JSON.stringify(dData.acoes)) : { padrao: {max:1, atual:1}, bonus: {max:1, atual:1}, reacao: {max:1, atual:1} };
+                                const nAcoes = dData.acoes ? JSON.parse(JSON.stringify(dData.acoes)) : criarAcoesIniciais();
                                 if (nAcoes.padrao) nAcoes.padrao.atual = nAcoes.padrao.max;
                                 if (nAcoes.bonus) nAcoes.bonus.atual = nAcoes.bonus.max;
                                 if (nAcoes.reacao) nAcoes.reacao.atual = nAcoes.reacao.max;
@@ -306,10 +308,7 @@ export function MapaEconomiaAcoes() {
                             }
                         } else {
                             ctx.updateFicha(f => {
-                                if (!f.acoes) f.acoes = { padrao: {max:1, atual:1}, bonus: {max:1, atual:1}, reacao: {max:1, atual:1} };
-                                if (f.acoes.padrao) f.acoes.padrao.atual = f.acoes.padrao.max;
-                                if (f.acoes.bonus) f.acoes.bonus.atual = f.acoes.bonus.max;
-                                if (f.acoes.reacao) f.acoes.reacao.atual = f.acoes.reacao.max;
+                                restaurarAcoes(f);
                             });
                             salvarFichaSilencioso();
                         }

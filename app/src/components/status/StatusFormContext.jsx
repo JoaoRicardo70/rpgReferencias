@@ -4,6 +4,7 @@ import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from '../../core/
 import { getPrestigioReal, getRank } from '../../core/prestige.js';
 import { calcularReducaoFadigaPorRegeneracao } from '../../core/fadiga.js';
 import { getTetoVida } from '../../core/vitals.js';
+import { alternarAcao, restaurarAcoes, ajustarExtraManualAcao } from '../../core/acoes.js';
 import { getRegeneracaoTotalPct, calcularCuraRegeneracao } from '../../core/regeneracao.js';
 import { salvarFichaSilencioso } from '../../services/firebase-sync.js';
 
@@ -279,32 +280,22 @@ export function StatusFormProvider({ children }) {
 
     const resetarTurno = useCallback(() => {
         updateFicha(f => {
-            if (!f.acoes) return;
-            ['padrao', 'bonus', 'reacao'].forEach(t => { if (f.acoes[t]) f.acoes[t].atual = f.acoes[t].max; });
+            restaurarAcoes(f);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
 
     const changeActionMax = useCallback((tipo, delta) => {
         updateFicha(f => {
-            if (!f.acoes) f.acoes = { padrao: { max: 1, atual: 1 }, bonus: { max: 1, atual: 1 }, reacao: { max: 1, atual: 1 } };
-            if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 };
-            const newMax = Math.max(1, f.acoes[tipo].max + delta);
-            f.acoes[tipo].max = newMax;
-            if (f.acoes[tipo].atual > newMax) f.acoes[tipo].atual = newMax;
+            // O máximo é calculado (core/acoes.js): +/- mexe no ajuste manual, com o teto de 5.
+            ajustarExtraManualAcao(f, tipo, delta);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);
 
     const toggleActionDot = useCallback((tipo, isAvailable) => {
         updateFicha(f => {
-            if (!f.acoes) f.acoes = { padrao: { max: 1, atual: 1 }, bonus: { max: 1, atual: 1 }, reacao: { max: 1, atual: 1 } };
-            if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 };
-            if (isAvailable) {
-                f.acoes[tipo].atual = Math.max(0, f.acoes[tipo].atual - 1);
-            } else {
-                f.acoes[tipo].atual = Math.min(f.acoes[tipo].max, f.acoes[tipo].atual + 1);
-            }
+            alternarAcao(f, tipo, isAvailable);
         });
         salvarFichaSilencioso();
     }, [updateFicha]);

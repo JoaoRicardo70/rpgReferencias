@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import useStore from '../../stores/useStore';
+import { getAcoesExibicao } from '../../core/acoes';
 import {
     useStatusForm,
     VITALS_RADAR, VITALS_LABELS, ATRIBUTOS_PRINCIPAIS, COLOR_CONFIGS,
@@ -355,7 +356,7 @@ export function StatusEconomiaAcoes() {
     if (!ficha) return null;
 
     const renderDots = (tipo, color, label) => {
-        const data = ficha?.acoes?.[tipo] || { max: 1, atual: 1 };
+        const data = getAcoesExibicao(ficha)[tipo];
         const dots = [];
         for (let i = 0; i < data.max; i++) {
             const isAvailable = i < data.atual;

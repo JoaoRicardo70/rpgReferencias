@@ -22,6 +22,7 @@ import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel';
 import PactosPanel from './PactosPanel';
 import AjustesPanel from './AjustesPanel';
+import { getAcoesExibicao, alternarAcao, restaurarAcoes, ajustarExtraManualAcao, getExtraManualAcao, TIPOS_ACAO, ACOES_MAXIMO, ROTULO_ACAO } from '../../core/acoes';
 import BarrasVida from '../shared/BarrasVida';
 import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
 
@@ -1136,6 +1137,11 @@ export default function MarcadosPanel() {
     // definida (ficha sem classe, ou classe sem "cor" cadastrada) cai no ciano neon padrão do tema.
     const glowColor = classeInfo?.cor || '#00ffcc';
     
+    // ⚡ Ações de Turno: máximo calculado (base 2, +efeitos, teto 5) e quantas ainda restam.
+    const acoesExibicao = getAcoesExibicao(minhaFicha);
+    const alternarAcaoDeTurno = (tipo, disponivel) => { updateFicha(f => alternarAcao(f, tipo, disponivel)); callSave(); };
+    const ajustarAcaoExtra = (tipo, delta) => { updateFicha(f => ajustarExtraManualAcao(f, tipo, delta)); callSave(); };
+
     const mudarPagina = (nova) => { setAnimDirection(nova > paginaAtual ? 'next' : 'prev'); setPaginaAtual(nova); };
 
     // 🕶️ Ocultação de Poder (core/percepcaoPoder.js): só aparece pra quem pode ocultar (Assassino ou efeito OCULTACAO_PODER).
@@ -1441,7 +1447,7 @@ export default function MarcadosPanel() {
                 f[k] = { ...f[k], atual: teto || 0 };
             });
             f.pv = { ...f.pv, atual: pvMax || 0 }; f.pm = { ...f.pm, atual: pmMax || 0 }; f.energiaForca = { ...f.energiaForca, atual: forcaMax || 0 };
-            ['padrao', 'bonus', 'reacao'].forEach(tipo => { if (!f.acoes) f.acoes = {}; if (!f.acoes[tipo]) f.acoes[tipo] = { max: 1, atual: 1 }; f.acoes[tipo].atual = f.acoes[tipo].max; });
+            restaurarAcoes(f);
             if (f.combate) { f.combate.fadigaTurnos = 0; f.combate.fadigaExtra = 0; f.combate.municoTurnos = 0; }
         });
         callSave();
@@ -1984,15 +1990,21 @@ export default function MarcadosPanel() {
                                     <LabelMagico valor={getLabel('tituloTurno', 'Ações de Turno')} onChange={(v) => setLabel('tituloTurno', v)} />
                                 </span>
                                 <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'center', marginTop: '10px' }}>
-                                    {['padrao', 'bonus', 'reacao'].map(tipo => {
-                                        const acao = minhaFicha.acoes?.[tipo] || { max: 1, atual: 1 };
-                                        const maxValSeguro = Math.max(0, parseInt(acao.max) || 1);
+                                    {TIPOS_ACAO.map(tipo => {
+                                        const acao = acoesExibicao[tipo];
+                                        const maxValSeguro = acao.max;
                                         return (
                                             <div key={tipo} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                                                 <span style={{ fontSize: '1.1em' }}><LabelMagico valor={getLabel(`acao_${tipo}`, tipo.toUpperCase())} onChange={(v) => setLabel(`acao_${tipo}`, v)} /></span>
+                                                {/* ➕➖ Ajuste manual: Ações a mais (efeitos de Poderes/Formas/itens já somam sozinhos). Teto de 5. */}
+                                                <div className="acoes-ajuste">
+                                                    <button type="button" className="acoes-ajuste-botao" onClick={() => ajustarAcaoExtra(tipo, -1)} disabled={getExtraManualAcao(minhaFicha, tipo) <= 0} title={`Tirar 1 ${ROTULO_ACAO[tipo]} dado manualmente`}>-</button>
+                                                    <span className="acoes-ajuste-total" title={`Máximo calculado: base 2 + efeitos + ajuste manual (teto ${ACOES_MAXIMO})`}>{acao.atual}/{acao.max}</span>
+                                                    <button type="button" className="acoes-ajuste-botao" onClick={() => ajustarAcaoExtra(tipo, 1)} disabled={acao.max >= ACOES_MAXIMO} title={`Dar 1 ${ROTULO_ACAO[tipo]} a mais manualmente`}>+</button>
+                                                </div>
                                                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
                                                     {Array.from({ length: maxValSeguro }).map((_, i) => (
-                                                        <div key={i} onClick={() => { salvar(`acoes.${tipo}.atual`, i >= acao.atual ? acao.atual + 1 : acao.atual - 1); callSave(); }}
+                                                        <div key={i} onClick={() => alternarAcaoDeTurno(tipo, i < acao.atual)}
                                                             style={{ width: '25px', height: '25px', border: '2px solid currentColor', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '1.2em', color: '#ff003c', background: 'rgba(255,255,255,0.2)' }}>
                                                             {i >= acao.atual ? 'X' : ''}
                                                         </div>

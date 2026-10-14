@@ -33,7 +33,7 @@ export const fichaPadrao = {
     notas: [], // 🔥 CORRIGIDO: As notas agora nascem como um Array vazio e não dão conflito!
     
     posicao: { x: 0, y: 0, z: 0 }, iniciativa: 0,
-    acoes: { padrao: { max: 1, atual: 1 }, bonus: { max: 1, atual: 1 }, reacao: { max: 1, atual: 1 } },
+    acoes: { padrao: { max: 2, atual: 2, extra: 0 }, bonus: { max: 2, atual: 2, extra: 0 }, reacao: { max: 2, atual: 2, extra: 0 } },
     ataqueConfig: { armaStatusUsados: ['forca'], armaEnergiaCombustao: 'mana', armaPercEnergia: 0, criticoNormalMin: 16, criticoNormalMax: 18, criticoFatalMin: 19, criticoFatalMax: 20, vantagens: 0, desvantagens: 0 },
     dano: { base: 0, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mUnico: "1.0", mAbsoluto: 1.0, mPotencial: 1.0, reducaoCusto: 0, regeneracao: 0 },
     divisores: { vida: 1, status: 1, mana: 1, aura: 1, chakra: 1, corpo: 1 },

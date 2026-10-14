@@ -4,6 +4,7 @@ import { db } from './services/firebase-config';
 import useStore, { sanitizarNome } from './stores/useStore';
 import useFirebase from './hooks/useFirebase';
 import useSextaFeiraMesa from './hooks/useSextaFeiraMesa';
+import useSincronizarAcoes from './hooks/useSincronizarAcoes';
 
 // 🔥 IMPORTANDO O MOTOR DE VOZ PARA O TOPO DO APP 🔥
 import { useVoiceChat } from './hooks/useVoiceChat';
@@ -131,6 +132,8 @@ export default function App() {
     const { loading } = useFirebase();
     useSextaFeiraMesa();
     const [pronto, setPronto] = useState(false);
+    // ⚡ Mantém o máximo de Ações gravado na ficha igual ao calculado (core/acoes.js).
+    useSincronizarAcoes(pronto && !loading && !!meuNome);
     const [modalAberto, setModalAberto] = useState(false);
     const [themeReady, setThemeReady] = useState(false);
 

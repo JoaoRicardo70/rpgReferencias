@@ -26,6 +26,12 @@ export const ATRIBUTOS_AGRUPADOS = [
         label: '🛡️ REDUÇÃO DE DANO',
         options: ['reducao_dano']
     },
+    // ⚡ Ações de Turno (core/acoes.js): use a propriedade BASE; o valor é quantas a mais. Ganhar AÇÃO
+    // também dá +1 Ação Bônus e +1 Reação; Bônus e Reação não dão Ação. Teto de 5 de cada.
+    {
+        label: '⚡ AÇÕES DE TURNO',
+        options: ['acao_padrao', 'acao_bonus', 'acao_reacao']
+    },
     // 👁️ Percepção/Ocultação de Poder (core/percepcaoPoder.js): use a propriedade BASE; o valor é em
     // pontos. PERCEPCAO_PODER estreita a estimativa do Poder dos outros; OCULTACAO_PODER libera ao
     // dono esconder o próprio Poder (o Assassino já nasce com 100).
