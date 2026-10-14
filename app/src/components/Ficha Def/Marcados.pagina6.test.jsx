@@ -74,11 +74,11 @@ afterEach(() => {
 });
 
 describe('MarcadosPanel — paginação até a página 6 (PactosPanel / "Reino Interior")', () => {
-    it('a página inicial (1) mostra "Página 1 de 6" com "Anterior" desabilitado', () => {
+    it('a página inicial (1) mostra "Página 1 de 7" com "Anterior" desabilitado', () => {
         montarMockUseStore(fichaParaMarcados());
         render(<MarcadosPanel />);
 
-        expect(screen.getByText('Página 1 de 6')).toBeDefined();
+        expect(screen.getByText('Página 1 de 7')).toBeDefined();
         expect(screen.getByText('⮜ Anterior').disabled).toBe(true);
         expect(screen.getByText('Próxima ⮞').disabled).toBe(false);
     });
@@ -89,16 +89,16 @@ describe('MarcadosPanel — paginação até a página 6 (PactosPanel / "Reino I
 
         irParaPagina(6);
 
-        expect(screen.getByText('Página 6 de 6')).toBeDefined();
+        expect(screen.getByText('Página 6 de 7')).toBeDefined();
         expect(screen.getByText(/Reino Interior/)).toBeDefined();
         expect(screen.getByText(/Vincular Nova Entidade/)).toBeDefined();
     });
 
-    it('na página 6, o botão "Próxima" fica desabilitado (última página) e "Anterior" fica habilitado', () => {
+    it('na página 7 (Ajustes), o botão "Próxima" fica desabilitado (última página) e "Anterior" fica habilitado', () => {
         montarMockUseStore(fichaParaMarcados());
         render(<MarcadosPanel />);
 
-        irParaPagina(6);
+        irParaPagina(7);
 
         expect(screen.getByText('Próxima ⮞').disabled).toBe(true);
         expect(screen.getByText('⮜ Anterior').disabled).toBe(false);
@@ -110,7 +110,7 @@ describe('MarcadosPanel — paginação até a página 6 (PactosPanel / "Reino I
 
         irParaPagina(5);
 
-        expect(screen.getByText('Página 5 de 6')).toBeDefined();
+        expect(screen.getByText('Página 5 de 7')).toBeDefined();
         expect(screen.getByText('Próxima ⮞').disabled).toBe(false);
     });
 });

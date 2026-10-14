@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { ELEMENTOS_SISTEMA } from '../../core/elementos.js';
-import { MECANICA_CLASSE } from '../../core/classesMecanicas.js';
+import { MECANICA_CLASSE, MECANICA_CLASSE_CANDIDATO, MECANICA_CLASSE_GRAND } from '../../core/classesMecanicas.js';
 import useStore from '../../stores/useStore';
 import { salvarFichaSilencioso, enviarParaFeed } from '../../services/firebase-sync';
 
@@ -94,6 +94,7 @@ export function CompendioFormProvider({ children }) {
     const [tempEfeito, setTempEfeito] = useState('');
     const [tempIconeUrl, setTempIconeUrl] = useState('');
     const [tempEfeitosMat, setTempEfeitosMat] = useState([]);
+    const [tempHabilidadeGrand, setTempHabilidadeGrand] = useState('');
 
     const [editandoItemTipo, setEditandoItemTipo] = useState(null);
     const [tempItem, setTempItem] = useState({});
@@ -141,8 +142,18 @@ export function CompendioFormProvider({ children }) {
         return Object.values(map);
     }, [overridesCompendio]);
 
-    const regulares = useMemo(() => mesclarComOverrides(CLASSES_REGULARES_BASE, 'classes').filter(c => CLASSES_REGULARES_BASE.find(b=>b.id===c.id) || !c.isExtra), [mesclarComOverrides]);
-    const extras = useMemo(() => mesclarComOverrides(CLASSES_EXTRA_BASE, 'classes').filter(c => CLASSES_EXTRA_BASE.find(b=>b.id===c.id) || c.isExtra), [mesclarComOverrides]);
+    // O texto dos efeitos das Classes com mecânica em código vem SEMPRE do código (um "efeito" salvo
+    // antes como override do Compêndio ficaria desatualizado): comum, Candidato a Grand e Grand.
+    const comTextosDeCodigo = useCallback((c) => {
+        if (!c || !MECANICA_CLASSE[c.id]) return c;
+        // Classes sem número que cresça (Alter Ego/Pretender) não repetem o mesmo texto nos 3 níveis.
+        const candidato = MECANICA_CLASSE_CANDIDATO[c.id] !== MECANICA_CLASSE[c.id] ? MECANICA_CLASSE_CANDIDATO[c.id] : '';
+        const grand = MECANICA_CLASSE_GRAND[c.id] !== MECANICA_CLASSE[c.id] ? MECANICA_CLASSE_GRAND[c.id] : '';
+        return { ...c, efeito: MECANICA_CLASSE[c.id], efeitoCandidato: candidato, efeitoGrand: grand, mecanicaEmCodigo: true };
+    }, []);
+
+    const regulares = useMemo(() => mesclarComOverrides(CLASSES_REGULARES_BASE, 'classes').filter(c => CLASSES_REGULARES_BASE.find(b=>b.id===c.id) || !c.isExtra).map(comTextosDeCodigo), [mesclarComOverrides, comTextosDeCodigo]);
+    const extras = useMemo(() => mesclarComOverrides(CLASSES_EXTRA_BASE, 'classes').filter(c => CLASSES_EXTRA_BASE.find(b=>b.id===c.id) || c.isExtra).map(comTextosDeCodigo), [mesclarComOverrides, comTextosDeCodigo]);
     const todasClasses = useMemo(() => [...regulares, ...extras], [regulares, extras]);
     
     const condicoes = useMemo(() => mesclarComOverrides(CONDICOES_BASE, 'condicoes'), [mesclarComOverrides]);
@@ -222,18 +233,18 @@ export function CompendioFormProvider({ children }) {
     const iniciarEdicao = useCallback((classe) => {
         setEditandoId(classe.id); setTempNome(classe.nome || ''); setTempTitulo(classe.titulo || '');
         setTempPassiva(classe.passiva || ''); setTempDesc(classe.desc || ''); setTempEfeito(classe.efeito || '');
-        setTempIconeUrl(classe.iconeUrl || ''); setTempEfeitosMat(classe.efeitosMatematicos ? classe.efeitosMatematicos.map(ef => ({ ...ef })) : []);
+        setTempIconeUrl(classe.iconeUrl || ''); setTempHabilidadeGrand(classe.habilidadeGrand || ''); setTempEfeitosMat(classe.efeitosMatematicos ? classe.efeitosMatematicos.map(ef => ({ ...ef })) : []);
     }, []);
 
     const salvarEdicao = useCallback((id) => {
         updateFicha(f => {
             if (!f.compendioOverrides) f.compendioOverrides = {};
             if (!f.compendioOverrides.classes) f.compendioOverrides.classes = {};
-            f.compendioOverrides.classes[id] = { nome: tempNome, titulo: tempTitulo, passiva: tempPassiva, desc: tempDesc, efeito: tempEfeito, iconeUrl: tempIconeUrl, efeitosMatematicos: tempEfeitosMat };
+            f.compendioOverrides.classes[id] = { nome: tempNome, titulo: tempTitulo, passiva: tempPassiva, desc: tempDesc, efeito: tempEfeito, iconeUrl: tempIconeUrl, habilidadeGrand: tempHabilidadeGrand, efeitosMatematicos: tempEfeitosMat };
         });
         salvarFichaSilencioso(); setEditandoId(null);
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: '📜 O Mestre reescreveu os registos matemáticos do Compêndio!' });
-    }, [updateFicha, tempNome, tempTitulo, tempPassiva, tempDesc, tempEfeito, tempIconeUrl, tempEfeitosMat]);
+    }, [updateFicha, tempNome, tempTitulo, tempPassiva, tempDesc, tempEfeito, tempIconeUrl, tempHabilidadeGrand, tempEfeitosMat]);
 
     const cancelarEdicao = useCallback(() => setEditandoId(null), []);
 
@@ -307,14 +318,14 @@ export function CompendioFormProvider({ children }) {
     const value = useMemo(() => ({
         secaoAtiva, setSecaoAtiva, editandoId, tempNome, setTempNome, tempTitulo, setTempTitulo,
         tempPassiva, setTempPassiva, tempDesc, setTempDesc, tempEfeito, setTempEfeito, tempIconeUrl, setTempIconeUrl,
-        tempEfeitosMat, setTempEfeitosMat, mesaGrand, setMesaGrand, isMestre,
+        tempEfeitosMat, setTempEfeitosMat, tempHabilidadeGrand, setTempHabilidadeGrand, mesaGrand, setMesaGrand, isMestre,
         regulares, extras, todasClasses, grands, overridesCompendio, opcoesPersonagensPorMesa,
         condicoes, elementos, regras, 
         editandoItemTipo, tempItem, iniciarEdicaoItem, cancelarEdicaoItem, updateTempItem, salvarItem, deletarItem,
         handleDefinirGrand, handleAdicionarCandidato, handleRemoverCandidato, handleDefinirIconeGrand,
         limparIconeGrand, iniciarEdicao, salvarEdicao, cancelarEdicao, handleEfMat, addEfMat, removeEfMat, handleImageUpload
     }), [
-        secaoAtiva, editandoId, tempNome, tempTitulo, tempPassiva, tempDesc, tempEfeito, tempIconeUrl, tempEfeitosMat, mesaGrand, isMestre, regulares, extras, todasClasses, grands, overridesCompendio, opcoesPersonagensPorMesa, condicoes, elementos, regras, editandoItemTipo, tempItem, iniciarEdicaoItem, cancelarEdicaoItem, updateTempItem, salvarItem, deletarItem, handleDefinirGrand, handleAdicionarCandidato, handleRemoverCandidato, handleDefinirIconeGrand, limparIconeGrand, iniciarEdicao, salvarEdicao, cancelarEdicao, handleEfMat, addEfMat, removeEfMat, handleImageUpload
+        secaoAtiva, editandoId, tempNome, tempTitulo, tempPassiva, tempDesc, tempEfeito, tempIconeUrl, tempEfeitosMat, tempHabilidadeGrand, mesaGrand, isMestre, regulares, extras, todasClasses, grands, overridesCompendio, opcoesPersonagensPorMesa, condicoes, elementos, regras, editandoItemTipo, tempItem, iniciarEdicaoItem, cancelarEdicaoItem, updateTempItem, salvarItem, deletarItem, handleDefinirGrand, handleAdicionarCandidato, handleRemoverCandidato, handleDefinirIconeGrand, limparIconeGrand, iniciarEdicao, salvarEdicao, cancelarEdicao, handleEfMat, addEfMat, removeEfMat, handleImageUpload
     ]);
 
     return <CompendioFormContext.Provider value={value}>{children}</CompendioFormContext.Provider>;

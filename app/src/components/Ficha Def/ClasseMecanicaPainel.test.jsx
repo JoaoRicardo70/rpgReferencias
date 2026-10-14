@@ -28,7 +28,7 @@ describe('ClasseMecanicaPainel', () => {
     it('mostra o resumo da classe', () => {
         montar({ bio: { classe: 'saber' } });
         expect(screen.getByText(/Mecânica da Classe/)).toBeTruthy();
-        expect(screen.getByText(/DOBRO/)).toBeTruthy();
+        expect(screen.getByText(/Mult Poder da Espada/)).toBeTruthy();
     });
 
     it('Rider: marca a Montaria; Dragão fica marcado e travado', () => {

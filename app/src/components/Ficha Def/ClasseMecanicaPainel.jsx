@@ -1,5 +1,8 @@
 import React, { useCallback, useMemo } from 'react';
-import { MECANICA_CLASSE, getClasseAtivaId, normalizarTexto, racaDeDragao } from '../../core/classesMecanicas';
+import { getTextoMecanica, getClasseAtivaId, getNivelClasse, normalizarTexto, racaDeDragao, ehBerserker, calcularFatorBerserker, getEscalaClasse } from '../../core/classesMecanicas';
+import { getDadosClasseRegistrada } from '../../core/attributes';
+import { getVidaTotalMaxDisplay } from '../../core/vitals';
+import useStore from '../../stores/useStore';
 import { enviarParaFeed } from '../../services/firebase-sync';
 
 // 🛡️ Painel da Classe na Ficha Definitiva (ao lado da foto): o resumo do que a Classe faz em combate
@@ -7,6 +10,8 @@ import { enviarParaFeed } from '../../services/firebase-sync';
 // Vazio (Foreigner), arauto (Moon Cancer) e a troca de Classe do Alter Ego / Pretender, que em
 // combate gasta uma Ação Bônus. `salvar(caminho, valor)` é o salvar da própria Ficha Definitiva.
 export default function ClasseMecanicaPainel({ ficha, salvar, meuNome, opcoesClasses }) {
+    // Assina a mesa só pra re-renderizar quando o Mestre troca o Grand/Candidato (nível vem do Compêndio).
+    useStore(s => s.personagens);
     const classeAtiva = getClasseAtivaId(ficha);
     const classeBio = normalizarTexto(ficha?.bio?.classe);
     const subClasse = normalizarTexto(ficha?.bio?.subClasse);
@@ -57,8 +62,22 @@ export default function ClasseMecanicaPainel({ ficha, salvar, meuNome, opcoesCla
         salvar('bio.subClasse', '');
     }, [salvar]);
 
-    const resumo = MECANICA_CLASSE[classeAtiva] || MECANICA_CLASSE[classeBio];
+    // 🩸 Fúria do Berserker: Vida perdida agora x o máximo já atingido (que cura nenhuma tira).
+    const berserker = ehBerserker(ficha);
+    const percPerdido = (() => {
+        if (!berserker) return 0;
+        const maxVida = getVidaTotalMaxDisplay(ficha);
+        const atual = ficha?.vida?.atual ?? maxVida;
+        return Math.floor(maxVida > 0 ? Math.max(0, ((maxVida - atual) / maxVida) * 100) : 0);
+    })();
+    const furiaMax = Number(combate.furiaMax) || 0;
+    const percFuria = Math.max(percPerdido, furiaMax);
+    const acalmarFuria = useCallback(() => { salvar('combate.furiaMax', percPerdido); }, [salvar, percPerdido]);
+
+    const nivel = getNivelClasse(ficha);
+    const resumo = getTextoMecanica(classeAtiva, nivel) || getTextoMecanica(classeBio, nivel);
     if (!resumo) return null;
+    const habilidadeGrand = nivel === 'grand' ? ((getDadosClasseRegistrada(classeAtiva) || {}).habilidadeGrand || '') : '';
 
     const ehTroca = classeBio === 'alterego' || classeBio === 'pretender';
     const dragao = racaDeDragao(ficha);
@@ -67,7 +86,15 @@ export default function ClasseMecanicaPainel({ ficha, salvar, meuNome, opcoesCla
     return (
         <div className="classe-mecanica">
             <h3 className="classe-mecanica-titulo">🛡️ Mecânica da Classe: {rotuloClasse(classeAtiva || classeBio)}</h3>
+            {nivel !== 'comum' && (
+                <div className={`classe-mecanica-nivel classe-mecanica-nivel-${nivel}`}>
+                    {nivel === 'grand' ? `👑 GRAND ${rotuloClasse(classeAtiva || classeBio).toUpperCase()}` : '🌟 Candidato a Grand'}
+                </div>
+            )}
             <p className="classe-mecanica-texto">{resumo}</p>
+            {habilidadeGrand && (
+                <p className="classe-mecanica-grand"><strong>👑 Habilidade exclusiva do Grand:</strong> {habilidadeGrand}</p>
+            )}
 
             {ehTroca && (
                 <div className="classe-mecanica-troca">
@@ -109,6 +136,25 @@ export default function ClasseMecanicaPainel({ ficha, salvar, meuNome, opcoesCla
                     <input type="checkbox" checked={!!combate.montariaPresente || dragao} disabled={dragao} onChange={() => alternar('montariaPresente')} />
                     {dragao ? ' 🐉 Dragão: benefício da Montaria passivo' : ' 🏇 Montaria no campo de batalha'}
                 </label>
+            )}
+            {classeAtiva === 'ruler' && (
+                <label className="classe-mecanica-estado">
+                    <input type="checkbox" checked={!!combate.focoProtecao} onChange={() => alternar('focoProtecao')} />
+                    {' 🛡️ Em Foco de Proteção (só em combate, quando a circunstância permite)'}
+                </label>
+            )}
+            {classeAtiva === 'avenger' && (
+                <label className="classe-mecanica-estado">
+                    <input type="checkbox" checked={!!combate.focoOdio} onChange={() => alternar('focoOdio')} />
+                    {' 🔥 Em Foco de Ódio (só em combate, quando a circunstância permite)'}
+                </label>
+            )}
+            {berserker && (
+                <div className="classe-mecanica-furia">
+                    <span>🩸 Vida perdida: <strong>{percPerdido}%</strong></span>
+                    <span>Máximo atingido: <strong>{percFuria}%</strong> (x{Math.round(calcularFatorBerserker(percFuria, getEscalaClasse(ficha)) * 100) / 100})</span>
+                    <button type="button" className="btn-neon btn-small" onClick={acalmarFuria}>Acalmar Fúria</button>
+                </div>
             )}
             {classeAtiva === 'foreigner' && (
                 <label className="classe-mecanica-estado">

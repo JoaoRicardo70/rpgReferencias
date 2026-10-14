@@ -1,7 +1,7 @@
-import useStore from '../stores/useStore';
+import useStore, { sanitizarNome } from '../stores/useStore';
 import { isFisico, isEnergia, tratarUnico } from './utils.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
-import { getEfeitosFixosDeClasse, removerEfeitosLegados, ehBerserker, calcularGanhoBerserker } from './classesMecanicas.js';
+import { getEfeitosFixosDeClasse, removerEfeitosLegados, ehBerserker, calcularGanhoBerserker, registrarResolvedorNivelClasse, getEscalaClasse } from './classesMecanicas.js';
 
 // 📖 Classes cadastradas no Compêndio da MESA INTEIRA — a mesma leitura que a tela do Compêndio faz
 // (todos os personagens, e por último os da própria ficha). Antes só valia UMA ficha (a do Mestre,
@@ -21,6 +21,60 @@ function getClassesRegistradas(state) {
     if (minha && minha.classes) Object.assign(valor, minha.classes);
     cacheClasses = { personagens: state.personagens, minha, valor };
     return valor;
+}
+
+// 👑 Grands e Candidatos a Grand de cada Classe (Compêndio > Trono da Ascensão), também lidos da mesa
+// inteira: chaves `${classe}_${mesa}` (titular), `${classe}_${mesa}_candidatos` (lista de nomes).
+let cacheGrands = { personagens: undefined, minha: undefined, valor: {} };
+
+function getGrandsRegistrados(state) {
+    const minha = state.minhaFicha?.compendioOverrides;
+    if (cacheGrands.personagens === state.personagens && cacheGrands.minha === minha) return cacheGrands.valor;
+    const valor = {};
+    if (state.personagens) {
+        Object.values(state.personagens).forEach(p => {
+            if (p && p.compendioOverrides && p.compendioOverrides.grands) Object.assign(valor, p.compendioOverrides.grands);
+        });
+    }
+    if (minha && minha.grands) Object.assign(valor, minha.grands);
+    cacheGrands = { personagens: state.personagens, minha, valor };
+    return valor;
+}
+
+// A ficha não guarda o próprio nome: acha pelo dono (minha ficha) ou pela identidade na mesa.
+function getNomeDaFicha(ficha, state) {
+    if (!ficha) return null;
+    const mesmo = (outra) => !!outra && (outra === ficha || (!!ficha.bio && outra.bio === ficha.bio));
+    if (mesmo(state.minhaFicha)) return state.meuNome || null;
+    const entradas = state.personagens ? Object.entries(state.personagens) : [];
+    for (let i = 0; i < entradas.length; i++) { if (mesmo(entradas[i][1])) return entradas[i][0]; }
+    return null;
+}
+
+// 'grand' | 'candidato' | 'comum' da ficha na Classe `classeId`. NPC vale em qualquer mesa onde o
+// Mestre o tenha nomeado.
+export function getNivelDaFichaNaClasse(ficha, classeId) {
+    if (!ficha || !classeId) return 'comum';
+    const state = useStore.getState();
+    const grands = getGrandsRegistrados(state);
+    const nomeBruto = getNomeDaFicha(ficha, state);
+    if (!nomeBruto) return 'comum';
+    const nome = sanitizarNome(nomeBruto);
+    const mesaFicha = (ficha.bio && ficha.bio.mesa) || 'presente';
+    const mesas = mesaFicha === 'npc' ? ['presente', 'futuro', 'npc'] : [mesaFicha];
+    // Nomes do Compêndio vêm das chaves de personagens (já sanitizadas): compara dos dois lados sanitizado.
+    const mesmoNome = (outro) => typeof outro === 'string' && sanitizarNome(outro) === nome;
+    if (mesas.some(m => mesmoNome(grands[`${classeId}_${m}`]))) return 'grand';
+    if (mesas.some(m => (grands[`${classeId}_${m}_candidatos`] || []).some(mesmoNome))) return 'candidato';
+    return 'comum';
+}
+
+registrarResolvedorNivelClasse(getNivelDaFichaNaClasse);
+
+// Dados da Classe cadastrados/editados no Compêndio da mesa (ex.: habilidade exclusiva do Grand).
+export function getDadosClasseRegistrada(classeId) {
+    const d = getClassesRegistradas(useStore.getState())[classeId];
+    return d && !d.deletado ? d : null;
 }
 
 export function getEfeitosDeClasse(ficha) {
@@ -212,7 +266,7 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
         
         let multiplicadorGanho = 0;
         if (furiaDeClasse && ehBerserker(ficha)) {
-            multiplicadorGanho = calcularGanhoBerserker(percEfetivo);
+            multiplicadorGanho = calcularGanhoBerserker(percEfetivo, getEscalaClasse(ficha));
             // Fúria de poder/item/pacto junto com a da classe: vale a maior.
             if (maxFuriaVal > 0) multiplicadorGanho = Math.max(multiplicadorGanho, percEfetivo === 1 ? maxFuriaVal : (percEfetivo >= 2 ? percEfetivo : 0));
         } else if (percEfetivo === 1) {

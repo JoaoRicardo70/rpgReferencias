@@ -21,6 +21,7 @@ import { getRegeneracaoManualPct, limitarRegeneracaoPct } from '../../core/regen
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel';
 import PactosPanel from './PactosPanel';
+import AjustesPanel from './AjustesPanel';
 import BarrasVida from '../shared/BarrasVida';
 import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
 
@@ -1818,13 +1819,20 @@ export default function MarcadosPanel() {
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '1.2em' }}>
-                                {[{ k: 'idade', lbl: 'Idade' }, { k: 'aniversario', lbl: 'Aniversário' }, { k: 'alturaPeso', lbl: 'Altura / Peso' }, { k: 'raca', lbl: 'Raça' }, { k: 'alinhamento', lbl: 'Alinhamento' }, { k: 'afiliacao', lbl: 'Afiliação' }, { k: 'classe', lbl: 'Classe' }].map(item => (
+                                {[{ k: 'idade', lbl: 'Idade' }, { k: 'aniversario', lbl: 'Aniversário' }, { k: 'alturaPeso', lbl: 'Altura / Peso' }, { k: 'raca', lbl: 'Raça' }, { k: 'alinhamento', lbl: 'Alinhamento' }, { k: 'afiliacao', lbl: 'Afiliação' }, { k: 'fisico', lbl: 'Físico' }, { k: 'sangue', lbl: 'Tipo Sanguíneo' }, { k: 'dinheiro', lbl: 'Dinheiro' }, { k: 'mesa', lbl: 'Linha Temporal' }, { k: 'classe', lbl: 'Classe' }].map(item => (
                                     <div key={item.k} style={{ display: 'flex' }}>
                                         <div style={{ width: '140px', fontWeight: 'bold' }}>
                                             <LabelMagico valor={getLabel(`bio_${item.k}`, item.lbl)} onChange={(v) => setLabel(`bio_${item.k}`, v)} />
                                         </div>
                                         <span style={{ fontWeight: 'bold', marginRight: '8px' }}>:</span>
-                                        {item.k === 'classe' ? (
+                                        {item.k === 'mesa' ? (
+                                            <select value={minhaFicha.bio?.mesa || 'presente'} onChange={(e) => salvar('bio.mesa', e.target.value)}
+                                                style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px dotted currentColor', fontFamily: 'inherit', fontSize: 'inherit', color: 'inherit', fontWeight: 'inherit', outline: 'none', padding: '0 5px' }}>
+                                                <option value="presente" style={{ color: '#000' }}>⚔️ Lendas do Presente</option>
+                                                <option value="futuro" style={{ color: '#000' }}>🚀 Lendas do Futuro</option>
+                                                <option value="npc" style={{ color: '#000' }}>👹 NPC / Inimigo / Invocações</option>
+                                            </select>
+                                        ) : item.k === 'classe' ? (
                                             <select value={minhaFicha.bio?.classe || ''} onChange={(e) => { const v = e.target.value; salvar('bio.classe', v); if (v !== 'alterego' && v !== 'pretender') salvar('bio.subClasse', ''); }}
                                                 style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px dotted currentColor', fontFamily: 'inherit', fontSize: 'inherit', color: 'inherit', fontWeight: 'inherit', outline: 'none', padding: '0 5px' }}>
                                                 {CLASSE_SELECT_OPTIONS.map(opt => <option key={opt.id} value={opt.id} style={{ color: '#000' }}>{opt.icone ? `${opt.icone} ${opt.nome}` : opt.nome}</option>)}
@@ -2181,13 +2189,14 @@ export default function MarcadosPanel() {
                 {paginaAtual === 4 && ( <ClassificacaoPanel /> )}
                 {paginaAtual === 5 && ( <RelicarioPanel /> )}
                 {paginaAtual === 6 && ( <PactosPanel /> )}
+                {paginaAtual === 7 && ( <AjustesPanel /> )}
 
             </div>
 
             <div style={{ position: 'absolute', bottom: '20px', left: '0', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', fontFamily: 'inherit' }}>
                 <button onClick={() => mudarPagina(Math.max(1, paginaAtual - 1))} disabled={paginaAtual === 1} style={{ background: 'transparent', border: 'none', fontSize: '1.2em', fontWeight: 'bold', cursor: paginaAtual === 1 ? 'default' : 'pointer', opacity: paginaAtual === 1 ? 0.3 : 1, fontFamily: 'inherit', color: 'inherit' }}>⮜ Anterior</button>
-                <span style={{ fontSize: '1.1em', fontWeight: 'bold', borderBottom: '2px solid currentColor', padding: '0 10px' }}>Página {paginaAtual} de 6</span>
-                <button onClick={() => mudarPagina(Math.min(6, paginaAtual + 1))} disabled={paginaAtual === 6} style={{ background: 'transparent', border: 'none', fontSize: '1.2em', fontWeight: 'bold', cursor: paginaAtual === 6 ? 'default' : 'pointer', opacity: paginaAtual === 6 ? 0.3 : 1, fontFamily: 'inherit', color: 'inherit' }}>Próxima ⮞</button>
+                <span style={{ fontSize: '1.1em', fontWeight: 'bold', borderBottom: '2px solid currentColor', padding: '0 10px' }}>Página {paginaAtual} de 7</span>
+                <button onClick={() => mudarPagina(Math.min(7, paginaAtual + 1))} disabled={paginaAtual === 7} style={{ background: 'transparent', border: 'none', fontSize: '1.2em', fontWeight: 'bold', cursor: paginaAtual === 7 ? 'default' : 'pointer', opacity: paginaAtual === 7 ? 0.3 : 1, fontFamily: 'inherit', color: 'inherit' }}>Próxima ⮞</button>
             </div>
         </div>
     );

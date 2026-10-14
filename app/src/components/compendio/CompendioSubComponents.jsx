@@ -1,5 +1,6 @@
 import React from 'react';
 import { useCompendioForm } from './CompendioFormContext';
+import { DESCRICAO_NIVEIS_CLASSE } from '../../core/classesMecanicas';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Compendio provider nao encontrado</div>;
 
@@ -38,7 +39,7 @@ export function CompendioClasseCard({ classe }) {
         isMestre, editandoId, iniciarEdicao, cancelarEdicao, salvarEdicao,
         tempNome, setTempNome, tempTitulo, setTempTitulo,
         tempPassiva, setTempPassiva, tempDesc, setTempDesc,
-        tempEfeito, setTempEfeito, tempIconeUrl,
+        tempEfeito, setTempEfeito, tempHabilidadeGrand, setTempHabilidadeGrand, tempIconeUrl,
         tempEfeitosMat, handleEfMat, addEfMat, removeEfMat, handleImageUpload, editandoItemTipo
     } = ctx;
 
@@ -145,9 +146,19 @@ export function CompendioClasseCard({ classe }) {
                         <label style={{ fontSize: '0.8em', color: '#aaa' }}>Descrição (História / Lore):</label>
                         <textarea className="input-neon" value={tempDesc} onChange={(e) => setTempDesc(e.target.value)} style={{ width: '100%', padding: '5px', minHeight: '60px', borderColor: '#444', color: '#ccc', fontStyle: 'italic' }} />
                     </div>
+                    {classe.mecanicaEmCodigo ? (
+                        <div className="compendio-efeito-codigo">
+                            <strong>Efeitos da Classe (definidos pelo sistema):</strong> {classe.efeito}
+                        </div>
+                    ) : (
+                        <div>
+                            <label style={{ fontSize: '0.8em', color: '#00ffcc' }}>Efeitos Mecânicos (Regras Visuais):</label>
+                            <textarea className="input-neon" value={tempEfeito} onChange={(e) => setTempEfeito(e.target.value)} style={{ width: '100%', padding: '5px', minHeight: '60px', borderColor: '#00ffcc', color: '#fff' }} />
+                        </div>
+                    )}
                     <div>
-                        <label style={{ fontSize: '0.8em', color: '#00ffcc' }}>Efeitos Mecânicos (Regras Visuais):</label>
-                        <textarea className="input-neon" value={tempEfeito} onChange={(e) => setTempEfeito(e.target.value)} style={{ width: '100%', padding: '5px', minHeight: '60px', borderColor: '#00ffcc', color: '#fff' }} />
+                        <label style={{ fontSize: '0.8em', color: '#ffcc00' }}>👑 Habilidade exclusiva do Grand desta Classe:</label>
+                        <textarea className="input-neon" value={tempHabilidadeGrand} onChange={(e) => setTempHabilidadeGrand(e.target.value)} placeholder="Habilidade que só o Grand desta Classe possui (o texto fica visível a todos no Compêndio)." style={{ width: '100%', padding: '5px', minHeight: '60px', borderColor: '#ffcc00', color: '#fff' }} />
                     </div>
                     <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '5px' }}>
                         <button className="btn-neon btn-red btn-small" onClick={cancelarEdicao} style={{ margin: 0 }}>Cancelar</button>
@@ -164,6 +175,15 @@ export function CompendioClasseCard({ classe }) {
                     <div style={{ background: 'rgba(0, 255, 204, 0.05)', padding: '10px', borderRadius: '5px', border: '1px solid rgba(0, 255, 204, 0.3)', marginTop: '5px' }}>
                         <div style={{ color: '#00ffcc', fontSize: '0.75em', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '1px' }}>Efeitos da Classe</div>
                         <div style={{ color: '#fff', fontSize: '0.9em', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>⚔️ {classe.efeito}</div>
+                        {classe.efeitoCandidato && (
+                            <div className="compendio-efeito-nivel compendio-efeito-candidato"><strong>🌟 Candidato a Grand:</strong> {classe.efeitoCandidato}</div>
+                        )}
+                        {classe.efeitoGrand && (
+                            <div className="compendio-efeito-nivel compendio-efeito-grand"><strong>👑 Grand:</strong> {classe.efeitoGrand}</div>
+                        )}
+                        {classe.habilidadeGrand && (
+                            <div className="compendio-efeito-nivel compendio-efeito-grand"><strong>👑 Habilidade exclusiva do Grand:</strong> {classe.habilidadeGrand}</div>
+                        )}
                     </div>
                 </>
             )}
@@ -240,6 +260,13 @@ export function CompendioGrandCard({ classe }) {
                 )}
             </div>
 
+            {(classe.efeitoGrand || classe.habilidadeGrand) && (
+                <div className="compendio-efeito-nivel compendio-efeito-grand compendio-efeito-card">
+                    {classe.efeitoGrand && <div><strong>👑 Benefícios do Grand:</strong> {classe.efeitoGrand}</div>}
+                    {classe.habilidadeGrand && <div><strong>Habilidade exclusiva:</strong> {classe.habilidadeGrand}</div>}
+                </div>
+            )}
+
             <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(0, 136, 255, 0.1)', borderRadius: '5px', borderTop: '2px solid #0088ff' }}>
                 <div style={{ fontSize: '0.7em', color: '#0088ff', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', fontWeight: 'bold' }}>🌟 Candidatos ao Trono</div>
                 {candidatos.length === 0 ? (
@@ -253,6 +280,7 @@ export function CompendioGrandCard({ classe }) {
                         ))}
                     </div>
                 )}
+                {classe.efeitoCandidato && <div className="compendio-efeito-nivel compendio-efeito-candidato compendio-efeito-card"><strong>Benefícios do Candidato:</strong> {classe.efeitoCandidato}</div>}
                 {isMestre && disponiveisCandidatos.length > 0 && (
                     <select className="input-neon" onChange={(e) => { handleAdicionarCandidato(classe.id, e.target.value); e.target.value = ""; }} style={{ width: '100%', borderColor: '#0088ff', color: '#fff', marginTop: '10px', fontSize: '0.8em', padding: '4px' }} defaultValue="">
                         <option value="" disabled>+ Nomear Candidato...</option>
@@ -275,6 +303,8 @@ export function CompendioGrandsSecao() {
                 <h2 style={{ color: '#ffcc00', margin: 0, textShadow: '0 0 15px #ffcc00', letterSpacing: '2px' }}>🏛️ O Trono da Ascensão</h2>
                 {isMestre && <span style={{ color: '#ffcc00', fontStyle: 'italic', fontSize: '0.8em' }}>O Árbitro do Destino 👑</span>}
             </div>
+
+            <p className="compendio-regra-grand">{DESCRICAO_NIVEIS_CLASSE}</p>
 
             <div style={{ display: 'flex', gap: '10px', marginBottom: '30px' }}>
                 <button className={`btn-neon ${mesaGrand === 'presente' ? 'btn-gold' : ''}`} onClick={() => setMesaGrand('presente')} style={{ flex: 1, padding: '10px', fontSize: '1em', margin: 0 }}>⚔️ Lendas do Presente</button>

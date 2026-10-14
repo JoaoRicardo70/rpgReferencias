@@ -5,7 +5,7 @@ import { getEfeitosDeClasse } from '../../core/attributes';
 import { getVitalMxDisplay, getVidaTotalMaxDisplay, danoExibidoParaBruto, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularDano } from '../../core/engine';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
-import { golpeEquipado, ehBerserker, calcularGanhoBerserker } from '../../core/classesMecanicas';
+import { golpeEquipado, ehBerserker, calcularGanhoBerserker, getEscalaClasse } from '../../core/classesMecanicas';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, classificarEfetividade } from '../../core/disputaPoder';
 import { enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
@@ -159,11 +159,11 @@ export function AtaqueFormProvider({ children }) {
     const souBerserker = ehBerserker(minhaFicha);
     const multiplicadorFuriaVisor = useMemo(() => {
         // Classe Berserker: escada própria (x1,5 a x20, core/classesMecanicas.js); o bônus mostrado é o ganho (fator - 1).
-        if (souBerserker) return Math.round(calcularGanhoBerserker(percEfetivoParaDisplay) * 1000) / 1000;
+        if (souBerserker) return Math.round(calcularGanhoBerserker(percEfetivoParaDisplay, getEscalaClasse(minhaFicha)) * 1000) / 1000;
         if (percEfetivoParaDisplay === 1) return multiplicadorFuriaClasse;
         else if (percEfetivoParaDisplay >= 2) return percEfetivoParaDisplay;
         return 0;
-    }, [percEfetivoParaDisplay, multiplicadorFuriaClasse, souBerserker]);
+    }, [percEfetivoParaDisplay, multiplicadorFuriaClasse, souBerserker, minhaFicha, personagens]);
 
     // 🎯 Alvo do golpe: um Dummie do Mapa OU um personagem de verdade (id 'pj:<nome>', core/alvoCombate.js).
     const dummieAlvo = useMemo(
