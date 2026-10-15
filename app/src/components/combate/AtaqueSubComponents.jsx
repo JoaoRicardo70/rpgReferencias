@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAtaqueForm, STATS_LIST, ENERGIA_LIST } from './AtaqueFormContext';
 import DisputaPoderResumo from './DisputaPoderResumo';
+import { getMargemCusto, limitarPercComoPoder, podeConjurarComoPoder } from '../../core/custoPoder';
 
 const PROVIDER_FALLBACK = (
     <div style={{ color: '#888', padding: 10 }}>Ataque provider nao encontrado</div>
@@ -162,10 +163,36 @@ export function AtaqueArmaVazia() {
     );
 }
 
+// 🔋 "Conjurar como Poder": 0% de energia gasta, benefício de um Custo da margem [mín, máx] da habilidade.
+// Só aparece quando o Mestre liberou a capacidade na ficha e a habilidade não foi vetada.
+function ComoPoderControle({ hab, cfg, ficha, updateSkillConfig }) {
+    if (!podeConjurarComoPoder(ficha, hab)) return null;
+    const margem = getMargemCusto(hab);
+    if (margem.max <= 0) return null;
+    const perc = limitarPercComoPoder(hab, cfg.percComoPoder);
+    return (
+        <div className="como-poder-linha">
+            <label className="como-poder-marcador">
+                <input type="checkbox" checked={!!cfg.comoPoder} onChange={e => updateSkillConfig(hab.id, 'comoPoder', e.target.checked)} />
+                {' '}Conjurar como Poder (0% de energia)
+            </label>
+            {cfg.comoPoder && (
+                <label className="como-poder-perc">
+                    Custo do benefício ({margem.min}% a {margem.max}%):{' '}
+                    <input className="input-neon" type="number" min={margem.min} max={margem.max} step="any" value={cfg.percComoPoder ?? margem.max}
+                        onChange={e => updateSkillConfig(hab.id, 'percComoPoder', e.target.value === '' ? undefined : parseFloat(e.target.value))}
+                        onBlur={() => updateSkillConfig(hab.id, 'percComoPoder', perc)} />
+                    {' '}%
+                </label>
+            )}
+        </div>
+    );
+}
+
 export function AtaqueHabilidadesAtivas() {
     const ctx = useAtaqueForm();
     if (!ctx) return PROVIDER_FALLBACK;
-    const { poderesAtivos, skillConfigs, updateSkillConfig, toggleSkillStat, armaEquipada } = ctx;
+    const { poderesAtivos, skillConfigs, updateSkillConfig, toggleSkillStat, armaEquipada, minhaFicha } = ctx;
 
     if (!poderesAtivos || poderesAtivos.length === 0) return null;
 
@@ -192,6 +219,7 @@ export function AtaqueHabilidadesAtivas() {
                                     {ENERGIA_LIST.map(en => <option key={en.value} value={en.value}>{en.label}</option>)}
                                 </select>
                             </div>
+                            <ComoPoderControle hab={hab} cfg={cfg} ficha={minhaFicha} updateSkillConfig={updateSkillConfig} />
                         </div>
                     );
                 })}
@@ -203,7 +231,7 @@ export function AtaqueHabilidadesAtivas() {
 export function AtaqueMagiasPreparadas() {
     const ctx = useAtaqueForm();
     if (!ctx) return PROVIDER_FALLBACK;
-    const { magiasOfensivas, skillConfigs, updateSkillConfig, toggleSkillStat } = ctx;
+    const { magiasOfensivas, skillConfigs, updateSkillConfig, toggleSkillStat, minhaFicha } = ctx;
 
     if (!magiasOfensivas || magiasOfensivas.length === 0) return null;
 
@@ -232,6 +260,7 @@ export function AtaqueMagiasPreparadas() {
                                     <option value="livre">Livre</option>
                                 </select>
                             </div>
+                            <ComoPoderControle hab={mag} cfg={cfg} ficha={minhaFicha} updateSkillConfig={updateSkillConfig} />
                         </div>
                     );
                 })}

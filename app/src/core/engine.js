@@ -4,6 +4,7 @@
 import { contarDigitos, pegarDoisPrimeirosDigitos, modificadorDezena } from './utils.js';
 import { getMaximo, getBuffs, getRawBase, getPoderesDefesa, getEfeitosDeClasse } from './attributes.js';
 import { getVitalMxDisplay } from './vitals.js';
+import { ENERGIAS_COMO_PODER, getMargemCusto, limitarPercComoPoder, podeConjurarComoPoder, custoBrutoDeEnergia, somarCustosBrutos } from './custoPoder.js';
 import { getVantagensDeClasse, getBonusAcertoDeClasse } from './classesMecanicas.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 
@@ -130,7 +131,7 @@ function formatarRolagem(qtd, faces, rolls, soma) {
 // ⚖️ Sem Multiplicadores de Dano (mUnico e cia. agora só valem no Poder Calculado, core/poder.js):
 // cada termo entra com o valor puro; quem ajusta o dano contra o alvo é a Disputa de Poder
 // (core/disputaPoder.js), aplicada onde o golpe chega no alvo.
-function calcularSubDano({ qtdDados, facesDados, sels, combustaoPorEnergia, combustoesMultiplas, minhaFicha }) {
+function calcularSubDano({ qtdDados, facesDados, sels, minhaFicha }) {
     if (qtdDados <= 0) return { dano: 0, rolagem: '', rolagemValor: 0, somaTermos: 0, detalhesTermos: [] };
 
     let { soma, rolls } = rolarDadosSimples(qtdDados, facesDados);
@@ -145,29 +146,7 @@ function calcularSubDano({ qtdDados, facesDados, sels, combustaoPorEnergia, comb
         detalhesTermos.push(`<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>`);
     }
 
-    if (combustaoPorEnergia) {
-        let energyKeys = Object.keys(combustaoPorEnergia);
-        for (let i = 0; i < energyKeys.length; i++) {
-            let key = energyKeys[i];
-            let combustao = combustaoPorEnergia[key];
-            if (combustao > 0) {
-                somaTermos += combustao;
-                detalhesTermos.push(`<span style="color:#0ff">${key.toUpperCase()}(${combustao.toLocaleString('pt-BR')})</span>`);
-            }
-        }
-    }
-
-    if (combustoesMultiplas) {
-        let mKeys = Object.keys(combustoesMultiplas);
-        for (let i = 0; i < mKeys.length; i++) {
-            let key = mKeys[i];
-            let combustao = combustoesMultiplas[key];
-            if (combustao > 0) {
-                somaTermos += combustao;
-                detalhesTermos.push(`<span style="color:#0ff">${key.toUpperCase()}(${combustao.toLocaleString('pt-BR')})</span>`);
-            }
-        }
-    }
+    // 🔋 O Custo (energia gasta) NÃO entra mais no dano: ele aumenta o Poder do golpe (core/custoPoder.js).
 
     let dano = Math.floor(soma * somaTermos);
     let rolagem = formatarRolagem(qtdDados, facesDados, rolls, soma);
@@ -241,47 +220,48 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     }
 
     let armaEquipada = itensEquipados.find(i => i.tipo === 'arma');
-    let armaCombustao = 0;
+
+    // 🔋 Custos que viram Poder no golpe (core/custoPoder.js): [{ energia, bruto }].
+    let custosPoder = [];
+    const registrarCustoPoder = (energia, perc, aplicarReducao) => {
+        const bruto = custoBrutoDeEnergia(minhaFicha, energia, perc, aplicarReducao);
+        if (bruto > 0) custosPoder.push({ energia, bruto });
+    };
+    let comoPoderNames = [];
+
     if (armaEquipada && configArma && configArma.percEnergia > 0) {
-        let { dreno, combustao } = calcularDreno(configArma.energiaCombustao, configArma.percEnergia);
-        armaCombustao = combustao;
+        let { dreno } = calcularDreno(configArma.energiaCombustao, configArma.percEnergia);
+        registrarCustoPoder(configArma.energiaCombustao, configArma.percEnergia, true);
         if (dreno > 0) {
             if (!drenosPorEnergia[configArma.energiaCombustao]) drenosPorEnergia[configArma.energiaCombustao] = 0;
             drenosPorEnergia[configArma.energiaCombustao] += dreno;
         }
     }
 
-    let skillCombustoes = {};
     for (let i = 0; i < configHabilidades.length; i++) {
         let hab = configHabilidades[i];
         let isElemental = (hab.vertente || '').toLowerCase().includes('elemental');
+        let margem = getMargemCusto(hab);
+        let comoPoder = !!hab.comoPoder && podeConjurarComoPoder(minhaFicha, hab) && margem.max > 0;
 
-        if (hab.custoPercentual > 0) {
+        if (comoPoder) {
+            // 0% de energia gasta, benefício do Custo escolhido na margem, com Mana, Aura e Chakra juntas.
+            let perc = limitarPercComoPoder(hab, hab.percComoPoder);
+            ENERGIAS_COMO_PODER.forEach(e => registrarCustoPoder(e, perc, false));
+            comoPoderNames.push(`${hab.nome} ${perc}%`);
+        } else if (hab.custoPercentual > 0) {
             if (isElemental) {
-                let pDec = hab.custoPercentual / 100;
-                let mMana = minhaFicha.mana?.atual !== undefined ? minhaFicha.mana.atual : getMaximo(minhaFicha, 'mana');
-                let mAura = minhaFicha.aura?.atual !== undefined ? minhaFicha.aura.atual : getMaximo(minhaFicha, 'aura');
-                let mChakra = minhaFicha.chakra?.atual !== undefined ? minhaFicha.chakra.atual : getMaximo(minhaFicha, 'chakra');
-
-                skillCombustoes[hab.id] = {
-                    isElemental: true,
-                    combustoesMultiplas: {
-                        mana: Math.floor(mMana * pDec),
-                        aura: Math.floor(mAura * pDec),
-                        chakra: Math.floor(mChakra * pDec)
-                    }
-                };
+                // Ressonância Natural (Elemental inato): sem custo, e as três energias entram no Poder do golpe.
+                ENERGIAS_COMO_PODER.forEach(e => registrarCustoPoder(e, hab.custoPercentual, false));
                 innateNames.push(hab.nome);
             } else {
-                let { dreno, combustao } = calcularDreno(hab.energiaCombustao, hab.custoPercentual);
-                skillCombustoes[hab.id] = { energia: hab.energiaCombustao, combustao };
+                let { dreno } = calcularDreno(hab.energiaCombustao, hab.custoPercentual);
+                registrarCustoPoder(hab.energiaCombustao, hab.custoPercentual, true);
                 if (dreno > 0) {
                     if (!drenosPorEnergia[hab.energiaCombustao]) drenosPorEnergia[hab.energiaCombustao] = 0;
                     drenosPorEnergia[hab.energiaCombustao] += dreno;
                 }
             }
-        } else {
-            skillCombustoes[hab.id] = { energia: hab.energiaCombustao, combustao: 0 };
         }
     }
 
@@ -300,6 +280,9 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     if (innateNames.length > 0) {
         custoTxt.push(`<span style="color:#0f0; text-shadow: 0 0 5px #0f0;">ZERO (${innateNames.join(', ')} Inato)</span>`);
     }
+    if (comoPoderNames.length > 0) {
+        custoTxt.push(`<span style="color:#0f0; text-shadow: 0 0 5px #0f0;">ZERO (${comoPoderNames.join(', ')} como Poder)</span>`);
+    }
 
     let habsVinculadas = armaEquipada
         ? configHabilidades.filter(h => h.armaVinculada && String(h.armaVinculada) === String(armaEquipada.id))
@@ -316,19 +299,9 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         let somaHabVinc = 0;
         for (let i = 0; i < habsVinculadas.length; i++) {
             let hab = habsVinculadas[i];
-            let combData = skillCombustoes[hab.id] || { combustao: 0, energia: 'mana' };
-            
-            let combustaoPorEnergia = {};
-            let combustoesMultiplas = null;
-            if (combData.isElemental) {
-                combustoesMultiplas = combData.combustoesMultiplas;
-            } else if (combData.combustao > 0) {
-                combustaoPorEnergia[combData.energia] = combData.combustao;
-            }
-
             let r = calcularSubDano({
                 qtdDados: hab.dadosQtd || 0, facesDados: hab.dadosFaces || 20,
-                sels: hab.statusUsados || ['forca'], combustaoPorEnergia, combustoesMultiplas,
+                sels: hab.statusUsados || ['forca'],
                 minhaFicha
             });
             r.nome = hab.nome;
@@ -349,12 +322,6 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
             detalhesArma.push(`<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>`);
         }
 
-        if (armaCombustao > 0) {
-            somaTermosArma += armaCombustao;
-            let engKey = configArma ? configArma.energiaCombustao : 'mana';
-            detalhesArma.push(`<span style="color:#0ff">${engKey.toUpperCase()}(${armaCombustao.toLocaleString('pt-BR')})</span>`);
-        }
-
         somaTermosArma += somaHabVinc;
         let danoArma = Math.floor(rolagemArma * somaTermosArma);
 
@@ -371,19 +338,9 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         let hab = habsLivres[i];
         if ((hab.dadosQtd || 0) <= 0) continue;
 
-        let combData = skillCombustoes[hab.id] || { combustao: 0, energia: 'mana' };
-        
-        let combustaoPorEnergia = {};
-        let combustoesMultiplas = null;
-        if (combData.isElemental) {
-            combustoesMultiplas = combData.combustoesMultiplas;
-        } else if (combData.combustao > 0) {
-            combustaoPorEnergia[combData.energia] = combData.combustao;
-        }
-
         let r = calcularSubDano({
             qtdDados: hab.dadosQtd, facesDados: hab.dadosFaces || 20,
-            sels: hab.statusUsados || ['forca'], combustaoPorEnergia, combustoesMultiplas,
+            sels: hab.statusUsados || ['forca'],
             minhaFicha
         });
         r.nome = hab.nome;
@@ -454,6 +411,11 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     detalheLinhas.push(`<strong>Multiplicadores:</strong> ${multStr} = <strong style="color:#fff;">x${multEfetivo % 1 === 0 ? multEfetivo : multEfetivo.toFixed(2)}</strong>`);
     detalheLinhas.push(`<strong>Dano Total:</strong> ${somaDanos.toLocaleString('pt-BR')} x ${multEfetivo % 1 === 0 ? multEfetivo : multEfetivo.toFixed(2)} = <strong style="color:#ff003c; font-size:1.1em;">${total.toLocaleString('pt-BR')}</strong>`);
 
+    const custoPoderBruto = somarCustosBrutos(custosPoder);
+    if (custoPoderBruto > 0) {
+        detalheLinhas.push(`<strong style="color:#0ff">Custo no Poder:</strong> o Custo não entra no dano; ele aumenta o Poder deste golpe na Disputa de Poder.`);
+    }
+
     let detalheConta = `<div style="margin-top: 15px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 5px; border-left: 3px solid #ffcc00; font-family: monospace; font-size: 0.95em; color: #ccc;">
     ${detalheLinhas.join('<br>')}
     </div>`;
@@ -484,7 +446,8 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         rolagemMagica: "",
         atributosUsados: [...allAttrNames].join(' + '),
         detalheEnergia: txtEng, armaStr,
-        detalheConta, drenos, energiaDrenada: true
+        detalheConta, drenos, energiaDrenada: true,
+        custoPoderBruto, custosPoder
     };
 }
 

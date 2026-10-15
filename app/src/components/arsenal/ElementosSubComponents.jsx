@@ -190,7 +190,7 @@ export function ElementosFormMagia() {
         tipoMecanica, setTipoMecanica, savingAttr, setSavingAttr,
         energiaCombustao, setEnergiaCombustao, allowedEnergies, alcanceQuad, setAlcanceQuad, 
         areaQuad, setAreaQuad, alvosAfetados, setAlvosAfetados, duracaoZona, setDuracaoZona,
-        bonusTipo, setBonusTipo, bonusValor, setBonusValor, custoValor, setCustoValor, dadosQtd, setDadosQtd,
+        bonusTipo, setBonusTipo, bonusValor, setBonusValor, custoValor, setCustoValor, custoValorMax, setCustoValorMax, semComoPoder, setSemComoPoder, dadosQtd, setDadosQtd,
         dadosFaces, setDadosFaces, salvarNovoElem, cancelarEdicaoElem, formRef
     } = ctx;
 
@@ -261,6 +261,8 @@ export function ElementosFormMagia() {
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Atributo Bônus</label><select value={bonusTipo} onChange={e => setBonusTipo(e.target.value)} style={{width:'100%'}}>{BONUS_OPTIONS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}</select></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Valor Numérico</label><input type="text" value={bonusValor} onChange={e => setBonusValor(e.target.value)} disabled={bonusTipo === 'nenhum'} style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo (%)</label><input type="number" value={custoValor} onChange={e => setCustoValor(e.target.value)} disabled={energiaCombustao === 'livre'} style={{width:'100%', textAlign:'center'}} /></div>
+                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo Máx (%)</label><input type="number" min="0" value={custoValorMax} onChange={e => setCustoValorMax(e.target.value)} disabled={energiaCombustao === 'livre'} title="Margem de Custo: do Custo (%) até este máximo. Vale ao conjurar como Poder." style={{width:'100%', textAlign:'center'}} /></div>
+                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Como Poder</label><label style={{ fontSize: '0.8em' }}><input type="checkbox" checked={!!semComoPoder} onChange={e => setSemComoPoder(e.target.checked)} /> Vetar</label></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Extra (Qtd Dados)</label><input type="number" value={dadosQtd} onChange={e => setDadosQtd(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Extra (Faces)</label><input type="number" value={dadosFaces} onChange={e => setDadosFaces(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
             </div>

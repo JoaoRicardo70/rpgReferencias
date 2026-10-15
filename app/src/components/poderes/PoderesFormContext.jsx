@@ -72,6 +72,8 @@ export function PoderesFormProvider({ children }) {
     const [dadosQtd, setDadosQtd] = useState(0);
     const [dadosFaces, setDadosFaces] = useState(20);
     const [custoPercentual, setCustoPercentual] = useState(0);
+    const [custoPercentualMax, setCustoPercentualMax] = useState(0);
+    const [semComoPoder, setSemComoPoder] = useState(false);
     const [poderAlcance, setPoderAlcance] = useState(1);
     const [poderArea, setPoderArea] = useState(0);
     const [armaVinculada, setArmaVinculada] = useState('');
@@ -161,6 +163,8 @@ export function PoderesFormProvider({ children }) {
         setDadosQtd(0);
         setDadosFaces(20);
         setCustoPercentual(0);
+        setCustoPercentualMax(0);
+        setSemComoPoder(false);
         setPoderAlcance(1);
         setPoderArea(0); 
         setArmaVinculada('');
@@ -220,6 +224,8 @@ export function PoderesFormProvider({ children }) {
                     ficha.poderes[ix].dadosQtd = parseInt(dadosQtd) || 0;
                     ficha.poderes[ix].dadosFaces = parseInt(dadosFaces) || 20;
                     ficha.poderes[ix].custoPercentual = parseFloat(custoPercentual) || 0;
+                    ficha.poderes[ix].custoPercentualMax = parseFloat(custoPercentualMax) || 0;
+                    ficha.poderes[ix].semComoPoder = !!semComoPoder;
                     ficha.poderes[ix].alcance = parseFloat(poderAlcance) || 1;
                     ficha.poderes[ix].area = parseFloat(poderArea) || 0;
                     ficha.poderes[ix].armaVinculada = armaSafe;
@@ -262,6 +268,8 @@ export function PoderesFormProvider({ children }) {
                     dadosQtd: parseInt(dadosQtd) || 0,
                     dadosFaces: parseInt(dadosFaces) || 20,
                     custoPercentual: parseFloat(custoPercentual) || 0,
+                    custoPercentualMax: parseFloat(custoPercentualMax) || 0,
+                    semComoPoder: !!semComoPoder,
                     alcance: parseFloat(poderAlcance) || 1,
                     area: parseFloat(poderArea) || 0,
                     armaVinculada: armaSafe,
@@ -286,7 +294,7 @@ export function PoderesFormProvider({ children }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, cancelarEdicaoPoder, salvarFirebaseImediato]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, cancelarEdicaoPoder, salvarFirebaseImediato]);
 
     // 🔥 O ESCUDO ANTI-DRENAGEM (Resolve a perda acidental de energia ao Ligar a Forma) 🔥
     const togglePoder = useCallback((id) => {
@@ -343,6 +351,8 @@ export function PoderesFormProvider({ children }) {
         setDadosQtd(p.dadosQtd || 0);
         setDadosFaces(p.dadosFaces || 20);
         setCustoPercentual(p.custoPercentual || 0);
+        setCustoPercentualMax(p.custoPercentualMax || 0);
+        setSemComoPoder(!!p.semComoPoder);
         setPoderAlcance(p.alcance || 1);
         setPoderArea(p.area || 0);
         setArmaVinculada(p.armaVinculada || '');
@@ -654,7 +664,7 @@ export function PoderesFormProvider({ children }) {
         poderVertente, setPoderVertente, poderElemento, setPoderElemento,
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -677,7 +687,7 @@ export function PoderesFormProvider({ children }) {
     }), [
         minhaFicha, meuNome, isMestre, abaAtual,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
-        imagemUrl, dadosQtd, dadosFaces, custoPercentual, poderAlcance,
+        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, poderAlcance,
         poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma,
         estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, novoAtr, novoProp, novoVal,

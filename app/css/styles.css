@@ -2300,3 +2300,6 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .acoes-ajuste-botao { width: 22px; height: 22px; line-height: 1; padding: 0; background: transparent; border: 1px solid currentColor; border-radius: 50%; color: inherit; font-family: inherit; font-weight: bold; cursor: pointer; }
 .acoes-ajuste-botao:disabled { opacity: 0.3; cursor: default; }
 .acoes-ajuste-total { min-width: 36px; text-align: center; font-weight: bold; }
+.como-poder-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; font-size: 0.8em; color: #0ff; }
+.como-poder-perc input { width: 70px; padding: 2px; text-align: center; }
+.como-poder-permissao { display: flex; flex-direction: column; gap: 4px; }

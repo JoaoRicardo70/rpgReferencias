@@ -152,6 +152,26 @@ function MultiplicadoresPoder({ ficha, updateFicha, callSave }) {
     );
 }
 
+// 🔋 Capacidade rara (Poderes, Infinities, Singularidades): liberada pelo Mestre na ficha. Habilidades podem ser
+// conjuradas "como Poder" (0% de energia gasta, benefício de um Custo maior, ver core/custoPoder.js).
+function CapacidadesEspeciais({ ficha, updateFicha, callSave }) {
+    const alternar = useCallback((e) => {
+        const liberado = e.target.checked;
+        updateFicha((f) => { if (!f.combate) f.combate = {}; f.combate.conjuraComoPoder = liberado; });
+        callSave();
+    }, [updateFicha, callSave]);
+
+    return (
+        <section className="ajustes-bloco">
+            <h2 className="ajustes-titulo">🔋 Conjurar como Poder</h2>
+            <p className="ajustes-explica">Capacidade rara, vinda de Poderes, Infinities e Singularidades, e <strong>liberada pelo Mestre</strong>. Com ela, Habilidades e Técnicas Elementais podem ser conjuradas <strong>sem gastar energia (0%)</strong>, recebendo o benefício de um Custo maior (dentro da margem da habilidade) com Mana, Aura e Chakra somando no Poder do golpe. Cada habilidade pode ser vetada no próprio cadastro.</p>
+            <label className="ajustes-campo como-poder-permissao">
+                <span><input type="checkbox" checked={!!ficha?.combate?.conjuraComoPoder} onChange={alternar} /> Liberado para este personagem</span>
+            </label>
+        </section>
+    );
+}
+
 export default function AjustesPanel() {
     const { ficha, updateFicha } = useFichaAtiva();
     const callSave = useCallSaveAtivo();
@@ -161,6 +181,7 @@ export default function AjustesPanel() {
         <div className="ajustes-painel">
             <EditorAtributos ficha={ficha} updateFicha={updateFicha} callSave={callSave} />
             <MultiplicadoresPoder ficha={ficha} updateFicha={updateFicha} callSave={callSave} />
+            <CapacidadesEspeciais ficha={ficha} updateFicha={updateFicha} callSave={callSave} />
         </div>
     );
 }

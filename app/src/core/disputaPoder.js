@@ -13,6 +13,7 @@
 // ==========================================
 import { calcularPoderAtual } from './poder.js';
 import { getFatorPoderDoGolpe } from './classesMecanicas.js';
+import { fatorPoderPorCusto } from './custoPoder.js';
 
 // Teto do bônus do mais forte (evita Infinity contra um Poder 0, ex.: Fadiga 100%).
 export const FATOR_DISPUTA_MAXIMO = 1e6;
@@ -26,8 +27,11 @@ export const FATOR_DISPUTA_MAXIMO = 1e6;
 export function getPoderParaDisputa(ficha, divisorPoderMesa, golpe) {
     if (!ficha) return null;
     try {
-        let v = calcularPoderAtual(ficha, divisorPoderMesa).poderExato;
+        const { poderExato, poderBase } = calcularPoderAtual(ficha, divisorPoderMesa);
+        let v = poderExato;
         if (golpe) v *= getFatorPoderDoGolpe(ficha, golpe).fator;
+        // 🔋 O Custo do golpe (energia gasta ou "conjurado como Poder") soma na base do Poder só neste golpe.
+        if (golpe && golpe.custoBruto > 0) v *= fatorPoderPorCusto(poderBase, golpe.custoBruto);
         return Number.isFinite(v) ? Math.max(0, v) : null;
     } catch (e) {
         return null;

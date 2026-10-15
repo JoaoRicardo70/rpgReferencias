@@ -248,8 +248,8 @@ export function AtaqueFormProvider({ children }) {
 
     useEffect(() => {
         const configs = {};
-        poderesAtivos.forEach(p => { configs[p.id] = { statusUsados: p.statusUsados || ['forca'], energiaCombustao: p.energiaCombustao || 'mana' }; });
-        magiasOfensivas.forEach(m => { configs[m.id] = { statusUsados: m.statusUsados || ['inteligencia'], energiaCombustao: m.energiaCombustao || 'mana' }; });
+        poderesAtivos.forEach(p => { configs[p.id] = { statusUsados: p.statusUsados || ['forca'], energiaCombustao: p.energiaCombustao || 'mana', comoPoder: !!p.comoPoder, percComoPoder: p.percComoPoder }; });
+        magiasOfensivas.forEach(m => { configs[m.id] = { statusUsados: m.statusUsados || ['inteligencia'], energiaCombustao: m.energiaCombustao || 'mana', comoPoder: !!m.comoPoder, percComoPoder: m.percComoPoder }; });
         setSkillConfigs(configs);
     }, [minhaFicha.poderes, minhaFicha.ataquesElementais]);
 
@@ -282,8 +282,8 @@ export function AtaqueFormProvider({ children }) {
             ficha.ataqueConfig.criticoNormalMax = parseInt(critNormalMax) || 18; ficha.ataqueConfig.criticoFatalMin = parseInt(critFatalMin) || 19;
             ficha.ataqueConfig.criticoFatalMax = parseInt(critFatalMax) || 20;
 
-            if (ficha.poderes) ficha.poderes.forEach(p => { if (p && skillConfigs[p.id]) { p.statusUsados = skillConfigs[p.id].statusUsados; p.energiaCombustao = skillConfigs[p.id].energiaCombustao; } });
-            if (ficha.ataquesElementais) ficha.ataquesElementais.forEach(m => { if (m && skillConfigs[m.id]) { m.statusUsados = skillConfigs[m.id].statusUsados; m.energiaCombustao = skillConfigs[m.id].energiaCombustao; } });
+            if (ficha.poderes) ficha.poderes.forEach(p => { if (p && skillConfigs[p.id]) { p.statusUsados = skillConfigs[p.id].statusUsados; p.energiaCombustao = skillConfigs[p.id].energiaCombustao; p.comoPoder = !!skillConfigs[p.id].comoPoder; p.percComoPoder = skillConfigs[p.id].percComoPoder; } });
+            if (ficha.ataquesElementais) ficha.ataquesElementais.forEach(m => { if (m && skillConfigs[m.id]) { m.statusUsados = skillConfigs[m.id].statusUsados; m.energiaCombustao = skillConfigs[m.id].energiaCombustao; m.comoPoder = !!skillConfigs[m.id].comoPoder; m.percComoPoder = skillConfigs[m.id].percComoPoder; } });
         });
         salvarFichaSilencioso();
     }, [updateFicha, armaStatusUsados, armaEnergiaCombustao, armaPercEnergia, critNormalMin, critNormalMax, critFatalMin, critFatalMax, skillConfigs]);
@@ -483,6 +483,8 @@ export function AtaqueFormProvider({ children }) {
 
         const configHabilidades = poderesAtivos.map(p => ({
             id: p.id, nome: p.nome, dadosQtd: p.dadosQtd || 0, dadosFaces: p.dadosFaces || 20, custoPercentual: p.custoPercentual || 0,
+            custoPercentualMax: p.custoPercentualMax, semComoPoder: !!p.semComoPoder,
+            comoPoder: !!skillConfigs[p.id]?.comoPoder, percComoPoder: skillConfigs[p.id]?.percComoPoder,
             armaVinculada: p.armaVinculada || '', statusUsados: skillConfigs[p.id]?.statusUsados || p.statusUsados || ['forca'],
             energiaCombustao: skillConfigs[p.id]?.energiaCombustao || p.energiaCombustao || 'mana', efeitos: escalarEfeitosPorEstagio(p.efeitos, p),
             vertente: p.vertente || '', elemento: p.elemento || '' 
@@ -495,6 +497,8 @@ export function AtaqueFormProvider({ children }) {
             
             return {
                 id: m.id, nome: m.nome, dadosQtd: m.dadosExtraQtd || 0, dadosFaces: m.dadosExtraFaces || 20, custoPercentual: m.custoValor || 0,
+                custoPercentualMax: m.custoValorMax, semComoPoder: !!m.semComoPoder,
+                comoPoder: !!skillConfigs[m.id]?.comoPoder, percComoPoder: skillConfigs[m.id]?.percComoPoder,
                 armaVinculada: '', statusUsados: skillConfigs[m.id]?.statusUsados || m.statusUsados || ['inteligencia'],
                 energiaCombustao: skillConfigs[m.id]?.energiaCombustao || m.energiaCombustao || 'mana', efeitos: efs,
                 vertente: isInato ? 'elemental' : 'magia', elemento: m.elemento || 'Neutro'
@@ -524,7 +528,8 @@ export function AtaqueFormProvider({ children }) {
         // Poder contra o do atacante. Jogadores atingidos aplicam em si mesmos (aba Defesa >
         // Receber Dano), lendo o poderAtacante gravado no feed abaixo.
         // Classes (Caster em Conjuração, Assassin ocultado, Moon Cancer) multiplicam o Poder só neste golpe.
-        const meuPoderNoGolpe = getPoderParaDisputa(minhaFicha, divisorPoderMesa, golpeEquipado(minhaFicha));
+        // 🔋 O Custo do golpe (gasto ou "como Poder") soma no Poder só deste golpe (core/custoPoder.js).
+        const meuPoderNoGolpe = getPoderParaDisputa(minhaFicha, divisorPoderMesa, { ...golpeEquipado(minhaFicha), custoBruto: result.custoPoderBruto || 0 });
         if (meuUltimoAcerto && meuUltimoAcerto.alvosArea && meuUltimoAcerto.alvosArea.length > 0) {
             let atingidos = 0;
             const linhasDisputa = [];

@@ -497,5 +497,5 @@ export function calcularPoderAtual(ficha, divisorPoderMesa) {
     // poderExato: o mesmo número do Scouter sem o arredondamento — usado pela Disputa de Poder
     // (core/disputaPoder.js), pra um Poder exibido "0" ainda comparar com o valor real.
     const poderExato = clampFinito(power / ESCALA_PODER_CALCULADO);
-    return { poderGlobal: aplicarEscalaPoderCalculado(power), poderExato, vitalidadeGlobal: Math.max(0, digitos - 8), supressao: sup, limiteSupressao: lim, temaScouter: tema };
+    return { poderGlobal: aplicarEscalaPoderCalculado(power), poderExato, poderBase, vitalidadeGlobal: Math.max(0, digitos - 8), supressao: sup, limiteSupressao: lim, temaScouter: tema };
 }
