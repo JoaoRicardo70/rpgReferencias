@@ -66,9 +66,9 @@ describe('Níveis de Classe (Comum / Candidato a Grand / Grand)', () => {
 
     it('Foco, golpe, arma, acerto e vantagens também crescem com o nível', () => {
         registrarResolvedorNivelClasse(() => 'grand');
-        expect(valor(getEfeitosFixosDeClasse(ficha('ruler', { combate: { focoProtecao: true } })), 'dano', 'munico')).toEqual([20]);
-        expect(getFatorPoderDoGolpe(ficha('caster'), { conjuracao: true }).fator).toBe(20);
-        expect(getMultiplicadorBonusArma(ficha('saber'), { tipo: 'arma', armaTipo: 'espada' })).toBe(4);
+        expect(valor(getEfeitosFixosDeClasse(ficha('ruler', { combate: { focoProtecao: true } })), 'dano', 'munico')).toEqual([100]);
+        expect(getFatorPoderDoGolpe(ficha('caster'), { conjuracao: true }).fator).toBe(100);
+        expect(getMultiplicadorBonusArma(ficha('saber'), { tipo: 'arma', armaTipo: 'espada' })).toBe(10);
         expect(valor(getEfeitosFixosDeClasse(ficha('saber')), 'espada', 'proficiencia_arma')).toEqual([5]);
         expect(getBonusAcertoDeClasse(ficha('rider', { combate: { montariaPresente: true } }))).toBe(5);
         expect(getVantagensDeClasse(ficha('saber'), ['espada']).vantagens).toBe(2);
@@ -77,11 +77,14 @@ describe('Níveis de Classe (Comum / Candidato a Grand / Grand)', () => {
         expect(getBonusAcertoDeClasse(ficha('rider', { combate: { montariaPresente: true } }))).toBe(4);
     });
 
-    it('Berserker escala a escada e a redução do Caster respeita o teto', () => {
-        expect(calcularFatorBerserker(100, 2)).toBe(calcularFatorBerserker(100) * 2);
-        expect(calcularFatorBerserker(5, 2)).toBe(1);
+    it('Berserker sobe a escada por nível e o Caster reduz mais custo', () => {
+        expect(calcularFatorBerserker(100, 'candidato')).toBe(40);
+        expect(calcularFatorBerserker(100, 'grand')).toBe(100);
+        expect(calcularFatorBerserker(5)).toBe(1);
         registrarResolvedorNivelClasse(() => 'grand');
         expect(valor(getEfeitosFixosDeClasse(ficha('caster')), 'mana', 'reducaocusto')).toEqual([40]);
+        registrarResolvedorNivelClasse(() => 'candidato');
+        expect(valor(getEfeitosFixosDeClasse(ficha('caster')), 'mana', 'reducaocusto')).toEqual([30]);
     });
 
     it('o nível só vale na Classe ativa (sem Classe, Comum)', () => {
@@ -136,10 +139,10 @@ describe('getNivelDaFichaNaClasse (Compêndio da mesa)', () => {
         expect(getNivelDaFichaNaClasse(ficha('ruler'), '')).toBe('comum');
     });
 
-    it('integra: um Grand Avenger recebe o Poder x20 pelo resolvedor real', () => {
+    it('integra: um Grand Avenger recebe o Poder x100 pelo resolvedor real', () => {
         const ana = ficha('avenger');
         montarMesa({ avenger_presente: 'Ana' }, { Eu: ficha('saber'), Ana: ana });
-        expect(valor(getEfeitosFixosDeClasse(ana), 'dano', 'munico')).toEqual([20]);
+        expect(valor(getEfeitosFixosDeClasse(ana), 'dano', 'munico')).toEqual([100]);
     });
 });
 
@@ -147,8 +150,8 @@ describe('Textos por nível', () => {
     it('Ruler e Avenger citam o Foco e o Grand cita números maiores', () => {
         expect(MECANICA_CLASSE.ruler).toContain('Foco de Proteção');
         expect(MECANICA_CLASSE.avenger).toContain('Foco de Ódio');
-        expect(MECANICA_CLASSE_GRAND.avenger).toContain('x20');
-        expect(MECANICA_CLASSE_CANDIDATO.avenger).toContain('x15');
+        expect(MECANICA_CLASSE_GRAND.avenger).toContain('x100');
+        expect(MECANICA_CLASSE_CANDIDATO.avenger).toContain('x50');
     });
 
     it('getTextoMecanica cai no Comum quando falta o nível ou a Classe', () => {

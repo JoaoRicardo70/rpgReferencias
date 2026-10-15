@@ -93,10 +93,10 @@ describe('efeitos fixos de classe', () => {
         expect(getVantagensDeClasse(semMontaria, []).vantagens).toBe(0);
     });
 
-    it('Foreigner: x15 só em contato com o Vazio', () => {
+    it('Foreigner: x15 sempre (é um ser do Vazio, sempre em contato com ele)', () => {
         const base = calcularPoderAtual(fichaBase({}), 1).poderExato;
-        expect(calcularPoderAtual(fichaBase({ classe: 'foreigner' }), 1).poderExato / base).toBeCloseTo(1, 6);
-        expect(calcularPoderAtual(fichaBase({ classe: 'foreigner' }, { combate: { contatoVazio: true } }), 1).poderExato / base).toBeCloseTo(15, 6);
+        expect(calcularPoderAtual(fichaBase({ classe: 'foreigner' }), 1).poderExato / base).toBeCloseTo(15, 6);
+        expect(calcularPoderAtual(fichaBase({ classe: 'foreigner' }, { combate: { contatoVazio: false } }), 1).poderExato / base).toBeCloseTo(15, 6);
     });
 
     it('Caster: reduz o custo de Mana/Aura/Chakra', () => {

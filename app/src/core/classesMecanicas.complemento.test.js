@@ -13,13 +13,13 @@ const nivel = (n) => registrarResolvedorNivelClasse(() => n);
 afterEach(() => { registrarResolvedorNivelClasse(getNivelDaFichaNaClasse); });
 
 describe('Focos por nível', () => {
-    it.each([['comum', 10], ['candidato', 15], ['grand', 20]])('Avenger em Foco de Ódio (%s): Vida e Poder x%i', (n, v) => {
+    it.each([['comum', 10], ['candidato', 50], ['grand', 100]])('Avenger em Foco de Ódio (%s): Vida e Poder x%i', (n, v) => {
         nivel(n);
         const ef = getEfeitosFixosDeClasse(ficha('avenger', { combate: { focoOdio: true } }));
         expect(valor(ef, 'vida', 'munico')).toEqual([v]);
         expect(valor(ef, 'dano', 'munico')).toEqual([v]);
     });
-    it.each([['comum', 10], ['candidato', 15], ['grand', 20]])('Ruler em Foco de Protecao (%s): Vida e Poder x%i', (n, v) => {
+    it.each([['comum', 10], ['candidato', 50], ['grand', 100]])('Ruler em Foco de Protecao (%s): Vida e Poder x%i', (n, v) => {
         nivel(n);
         const ef = getEfeitosFixosDeClasse(ficha('ruler', { combate: { focoProtecao: true } }));
         expect(valor(ef, 'vida', 'munico')).toEqual([v]);
@@ -64,12 +64,14 @@ describe('Berserker nos limites', () => {
         let ant = 1;
         for (let p = 10; p <= 100; p += 10) { const f = calcularFatorBerserker(p); expect(f).toBeGreaterThan(ant); ant = f; }
     });
-    it('escala Candidato (1,5) e Grand (2) multiplicam; 0% continua 1', () => {
-        expect(calcularFatorBerserker(100, 1.5)).toBe(30);
-        expect(calcularFatorBerserker(100, 2)).toBe(40);
-        expect(calcularFatorBerserker(10, 2)).toBe(3);
-        expect(calcularFatorBerserker(0, 2)).toBe(1);
-        expect(calcularGanhoBerserker(100, 2)).toBe(39);
+    it('Candidato (x3 a x40, a cada 5%) e Grand (x5 a x100, a cada 5%); 0% continua 1', () => {
+        expect(calcularFatorBerserker(100, 'candidato')).toBe(40);
+        expect(calcularFatorBerserker(100, 'grand')).toBe(100);
+        expect(calcularFatorBerserker(5, 'candidato')).toBe(3);
+        expect(calcularFatorBerserker(5, 'grand')).toBe(5);
+        expect(calcularFatorBerserker(4.9, 'grand')).toBe(1);
+        expect(calcularFatorBerserker(0, 'grand')).toBe(1);
+        expect(calcularGanhoBerserker(100, 'grand')).toBe(99);
     });
     it('efeito fixo do Berserker e furia_berserker 1,5 em qualquer nivel', () => {
         nivel('grand');
@@ -79,7 +81,7 @@ describe('Berserker nos limites', () => {
 
 describe('Rider por nivel', () => {
     const montado = { combate: { montariaPresente: true } };
-    it.each([['comum', 3, 1, 10], ['candidato', 4, 1, 15], ['grand', 5, 2, 20]])('Rider montado (%s): acerto %i, vantagens %i, poder x%i', (n, ac, vant, poder) => {
+    it.each([['comum', 3, 1, 10], ['candidato', 4, 1, 50], ['grand', 5, 2, 100]])('Rider montado (%s): acerto %i, vantagens %i, poder x%i', (n, ac, vant, poder) => {
         nivel(n);
         const f = ficha('rider', montado);
         expect(getBonusAcertoDeClasse(f)).toBe(ac);
@@ -111,12 +113,12 @@ describe('Rider por nivel', () => {
 });
 
 describe('Textos alterego/pretender e niveis', () => {
-    it('Alter Ego e Pretender tem o mesmo texto nos 3 niveis', () => {
+    it('Alter Ego e Pretender: Candidato usa os benefícios de Candidato da Classe usada', () => {
         ['alterego', 'pretender'].forEach(id => {
             expect(MECANICA_CLASSE[id]).toBeTruthy();
-            expect(MECANICA_CLASSE_CANDIDATO[id]).toBe(MECANICA_CLASSE[id]);
-            expect(MECANICA_CLASSE_GRAND[id]).toBe(MECANICA_CLASSE[id]);
-            expect(getTextoMecanica(id, 'grand')).toBe(MECANICA_CLASSE[id]);
+            expect(MECANICA_CLASSE_CANDIDATO[id]).toContain('benefícios de Candidato da Classe');
+            expect(MECANICA_CLASSE_GRAND[id]).toContain('ainda a definir');
+            expect(getTextoMecanica(id, 'grand')).toBe(MECANICA_CLASSE_GRAND[id]);
             expect(MECANICA_CLASSE[id]).toContain('Ação Bônus');
         });
     });
@@ -128,10 +130,10 @@ describe('Textos alterego/pretender e niveis', () => {
     });
     it('Ruler/Avenger: numeros certos por nivel', () => {
         expect(MECANICA_CLASSE.ruler).toContain('Vida x10');
-        expect(MECANICA_CLASSE_CANDIDATO.ruler).toContain('Vida x15');
-        expect(MECANICA_CLASSE_GRAND.ruler).toContain('Vida x20');
-        expect(MECANICA_CLASSE_GRAND.ruler).toContain('Poder Calculado x20');
-        expect(MECANICA_CLASSE_GRAND.avenger).toContain('Vida x20');
+        expect(MECANICA_CLASSE_CANDIDATO.ruler).toContain('Vida x50');
+        expect(MECANICA_CLASSE_GRAND.ruler).toContain('Vida x100');
+        expect(MECANICA_CLASSE_GRAND.ruler).toContain('Poder Calculado x100');
+        expect(MECANICA_CLASSE_GRAND.avenger).toContain('Vida x100');
     });
     it('Rider cita Acerto e Vantagens por nivel', () => {
         expect(MECANICA_CLASSE.rider).toContain('+3 de Acerto');

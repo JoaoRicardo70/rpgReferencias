@@ -57,13 +57,13 @@ describe('Compendio: efeitos de Classe vem do codigo', () => {
         expect(document.body.textContent).toContain(MECANICA_CLASSE_GRAND.avenger);
     });
 
-    it('Alter Ego e Pretender nao repetem texto em Candidato/Grand', () => {
+    it('Alter Ego e Pretender: Candidato e Grand tem texto proprio', () => {
         montar({ bio: {} });
         renderizar(null);
         ['alterego', 'pretender'].forEach(id => {
             expect(classe(id).efeito).toBe(MECANICA_CLASSE[id]);
-            expect(classe(id).efeitoCandidato).toBe('');
-            expect(classe(id).efeitoGrand).toBe('');
+            expect(classe(id).efeitoCandidato).toContain('Candidato');
+            expect(classe(id).efeitoGrand).toContain('Grand');
         });
     });
 
@@ -113,12 +113,12 @@ describe('Compendio: CompendioGrandCard', () => {
         expect(document.body.textContent).toContain(MECANICA_CLASSE_GRAND.ruler);
     });
 
-    it('Alter Ego (sem texto por nivel) nao mostra blocos de beneficios', () => {
+    it('Alter Ego mostra os blocos de beneficios com o texto proprio', () => {
         montar({ bio: {} });
         function Pega() { const x = useCompendioForm(); return <CompendioGrandCard classe={x.todasClasses.find(k => k.id === 'alterego')} />; }
         render(<CompendioFormProvider><Pega /></CompendioFormProvider>);
-        expect(screen.queryByText(/Benefícios do Grand:/)).toBeNull();
-        expect(screen.queryByText(/Benefícios do Candidato:/)).toBeNull();
+        expect(screen.getByText(/Benefícios do Grand:/)).toBeDefined();
+        expect(screen.getByText(/Benefícios do Candidato:/)).toBeDefined();
         expect(screen.getByText('VAGO')).toBeDefined();
     });
 });

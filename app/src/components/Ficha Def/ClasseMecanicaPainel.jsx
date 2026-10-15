@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { getTextoMecanica, getClasseAtivaId, getNivelClasse, normalizarTexto, racaDeDragao, ehBerserker, calcularFatorBerserker, getEscalaClasse } from '../../core/classesMecanicas';
+import { getTextoMecanica, getClasseAtivaId, getNivelClasse, normalizarTexto, racaDeDragao, ehBerserker, calcularFatorBerserker } from '../../core/classesMecanicas';
 import { getDadosClasseRegistrada } from '../../core/attributes';
 import { getVidaTotalMaxDisplay } from '../../core/vitals';
 import useStore from '../../stores/useStore';
@@ -152,15 +152,12 @@ export default function ClasseMecanicaPainel({ ficha, salvar, meuNome, opcoesCla
             {berserker && (
                 <div className="classe-mecanica-furia">
                     <span>🩸 Vida perdida: <strong>{percPerdido}%</strong></span>
-                    <span>Máximo atingido: <strong>{percFuria}%</strong> (x{Math.round(calcularFatorBerserker(percFuria, getEscalaClasse(ficha)) * 100) / 100})</span>
+                    <span>Máximo atingido: <strong>{percFuria}%</strong> (x{Math.round(calcularFatorBerserker(percFuria, getNivelClasse(ficha)) * 100) / 100})</span>
                     <button type="button" className="btn-neon btn-small" onClick={acalmarFuria}>Acalmar Fúria</button>
                 </div>
             )}
             {classeAtiva === 'foreigner' && (
-                <label className="classe-mecanica-estado">
-                    <input type="checkbox" checked={!!combate.contatoVazio} onChange={() => alternar('contatoVazio')} />
-                    {' 🕳️ Em contato com o VAZIO'}
-                </label>
+                <p className="classe-mecanica-dica">🕳️ Foreigners são seres do Vazio (o Espaço): estão sempre em contato com ele, então o bônus está sempre ativo.</p>
             )}
             {classeAtiva === 'mooncancer' && (
                 <div className="classe-mecanica-arauto">

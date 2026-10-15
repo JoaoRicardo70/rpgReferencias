@@ -1,7 +1,7 @@
 import useStore, { sanitizarNome } from '../stores/useStore';
 import { isFisico, isEnergia, tratarUnico } from './utils.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
-import { getEfeitosFixosDeClasse, removerEfeitosLegados, ehBerserker, calcularGanhoBerserker, registrarResolvedorNivelClasse, getEscalaClasse } from './classesMecanicas.js';
+import { getEfeitosFixosDeClasse, removerEfeitosLegados, ehBerserker, calcularGanhoBerserker, registrarResolvedorNivelClasse, getNivelClasse } from './classesMecanicas.js';
 
 // 📖 Classes cadastradas no Compêndio da MESA INTEIRA — a mesma leitura que a tela do Compêndio faz
 // (todos os personagens, e por último os da própria ficha). Antes só valia UMA ficha (a do Mestre,
@@ -64,8 +64,19 @@ export function getNivelDaFichaNaClasse(ficha, classeId) {
     const mesas = mesaFicha === 'npc' ? ['presente', 'futuro', 'npc'] : [mesaFicha];
     // Nomes do Compêndio vêm das chaves de personagens (já sanitizadas): compara dos dois lados sanitizado.
     const mesmoNome = (outro) => typeof outro === 'string' && sanitizarNome(outro) === nome;
-    if (mesas.some(m => mesmoNome(grands[`${classeId}_${m}`]))) return 'grand';
-    if (mesas.some(m => (grands[`${classeId}_${m}_candidatos`] || []).some(mesmoNome))) return 'candidato';
+    const nivelEm = (id) => {
+        if (mesas.some(m => mesmoNome(grands[`${id}_${m}`]))) return 'grand';
+        if (mesas.some(m => (grands[`${id}_${m}_candidatos`] || []).some(mesmoNome))) return 'candidato';
+        return 'comum';
+    };
+    const nivel = nivelEm(classeId);
+    if (nivel !== 'comum') return nivel;
+    // Alter Ego / Pretender: o nível vem da PRÓPRIA Classe (alterego/pretender) e vale para a Classe vestida;
+    // o Grand deles ainda não tem benefícios próprios definidos, então usa os de Candidato.
+    const classeBase = String((ficha.bio && ficha.bio.classe) || '').toLowerCase();
+    if ((classeBase === 'alterego' || classeBase === 'pretender') && classeBase !== classeId) {
+        return nivelEm(classeBase) === 'comum' ? 'comum' : 'candidato';
+    }
     return 'comum';
 }
 
@@ -266,7 +277,7 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
         
         let multiplicadorGanho = 0;
         if (furiaDeClasse && ehBerserker(ficha)) {
-            multiplicadorGanho = calcularGanhoBerserker(percEfetivo, getEscalaClasse(ficha));
+            multiplicadorGanho = calcularGanhoBerserker(percEfetivo, getNivelClasse(ficha));
             // Fúria de poder/item/pacto junto com a da classe: vale a maior.
             if (maxFuriaVal > 0) multiplicadorGanho = Math.max(multiplicadorGanho, percEfetivo === 1 ? maxFuriaVal : (percEfetivo >= 2 ? percEfetivo : 0));
         } else if (percEfetivo === 1) {

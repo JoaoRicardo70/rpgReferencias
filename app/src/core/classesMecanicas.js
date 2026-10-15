@@ -22,7 +22,7 @@
 //   Moon Cancer: usando algo do que ele é "arauto", dano como se o Poder fosse x10.
 //   Foreigner:  em contato com o VAZIO, Poder x15.
 //   Níveis de Classe: Comum, Candidato a Grand e Grand (só 1 por Classe e por mesa). Quem tem o nível
-//               maior recebe os benefícios da própria Classe ampliados (ESCALA_NIVEL_CLASSE) e, no Grand,
+//               maior recebe os benefícios da própria Classe ampliados (ESCALA_NIVEL_CLASSE, MULT_ARMA_NIVEL, BERSERKER_NIVEL) e, no Grand,
 //               a habilidade exclusiva que o Mestre cadastra no Compêndio.
 //   Alter Ego / Pretender: usam a Classe de quem estão "vestindo" (bio.subClasse); trocar custa uma
 //               Ação Bônus (ver FichaFormContext > mudarSubClasseDireto).
@@ -46,7 +46,20 @@ export const REDUCAO_CUSTO_CASTER = 20;
 // Níveis de Classe (ainda em teste): quanto os multiplicadores da Classe crescem, e o que se soma
 // ao Acerto e às Vantagens. Candidato a Grand fica entre o Comum e o Grand.
 export const NIVEIS_CLASSE = ['comum', 'candidato', 'grand'];
-export const ESCALA_NIVEL_CLASSE = { comum: 1, candidato: 1.5, grand: 2 };
+// Multiplicador de 10x do Comum -> 50x (Candidato) -> 100x (Grand); vale para Poder e Vida de Avenger,
+// Ruler, Rider, Caster, Assassin, Moon Cancer, Foreigner (15x -> 75x -> 150x) e os Focos.
+export const ESCALA_NIVEL_CLASSE = { comum: 1, candidato: 5, grand: 10 };
+// Mult Poder da arma da Classe (Saber/Archer/Lancer): 2x -> 5x -> 10x.
+export const MULT_ARMA_NIVEL = { comum: 2, candidato: 5, grand: 10 };
+// Redução de custo de energia do Caster (%).
+export const REDUCAO_CASTER_NIVEL = { comum: 20, candidato: 30, grand: 40 };
+// Escada do Berserker: degrau (% de Vida perdida) e fator do 1º ao último degrau.
+//   Comum x1,5 a x20 (a cada 10%) -> Candidato x3 a x40 (a cada 5%) -> Grand x5 a x100 (a cada 5%).
+export const BERSERKER_NIVEL = {
+    comum: { passo: 10, min: 1.5, max: 20 },
+    candidato: { passo: 5, min: 3, max: 40 },
+    grand: { passo: 5, min: 5, max: 100 }
+};
 export const EXTRA_ACERTO_NIVEL = { comum: 0, candidato: 1, grand: 2 };
 export const EXTRA_VANTAGENS_NIVEL = { comum: 0, candidato: 0, grand: 1 };
 export const ROTULO_NIVEL_CLASSE = { comum: 'Comum', candidato: 'Candidato a Grand', grand: 'Grand' };
@@ -124,7 +137,7 @@ export function classeFavoreceArma(ficha, armaTipo) {
 // Quanto vale o "Mult Poder" (bonusTipo mult_dano) deste item: dobra pra a classe certa.
 export function getMultiplicadorBonusArma(ficha, item) {
     if (!item || item.tipo === 'armadura') return 1;
-    return classeFavoreceArma(ficha, item.armaTipo) ? MULT_BONUS_ARMA_DA_CLASSE * getEscalaClasse(ficha) : 1;
+    return classeFavoreceArma(ficha, item.armaTipo) ? MULT_ARMA_NIVEL[getNivelClasse(ficha)] : 1;
 }
 
 // ---------- Estados que o jogador/Mestre marca na Ficha ----------
@@ -148,8 +161,9 @@ export function rulerEmFocoProtecao(ficha) {
     return getClasseAtivaId(ficha) === 'ruler' && !!ficha?.combate?.focoProtecao;
 }
 
+// Foreigner é um ser do Vazio (o Espaço): está SEMPRE em contato com ele.
 export function foreignerNoVazio(ficha) {
-    return getClasseAtivaId(ficha) === 'foreigner' && !!ficha?.combate?.contatoVazio;
+    return getClasseAtivaId(ficha) === 'foreigner';
 }
 
 export function assassinOcultando(ficha) {
@@ -163,21 +177,22 @@ export function ehBerserker(ficha) {
 }
 
 // ---------- Berserker ----------
-// Degraus de BERSERKER_PASSO_PCT% de Vida perdida: o 1º vale x1,5 e o último (100%) x20, em escada.
-export function calcularFatorBerserker(percPerdido, escala = 1) {
+// Degraus de Vida perdida (BERSERKER_NIVEL: 10% no Comum, 5% no Candidato/Grand), em escada do fator mínimo ao máximo do nível.
+export function calcularFatorBerserker(percPerdido, nivel = 'comum') {
     const perc = Number(percPerdido);
     if (!Number.isFinite(perc) || perc <= 0) return 1;
-    const totalDegraus = Math.round(100 / BERSERKER_PASSO_PCT);
-    const degraus = Math.min(totalDegraus, Math.floor(perc / BERSERKER_PASSO_PCT));
+    const cfg = BERSERKER_NIVEL[nivel] || BERSERKER_NIVEL.comum;
+    const totalDegraus = Math.round(100 / cfg.passo);
+    const degraus = Math.min(totalDegraus, Math.floor(perc / cfg.passo));
     if (degraus <= 0) return 1;
-    if (totalDegraus <= 1) return BERSERKER_FATOR_MAXIMO * escala;
-    const passo = (BERSERKER_FATOR_MAXIMO - BERSERKER_FATOR_MINIMO) / (totalDegraus - 1);
-    return Math.round((BERSERKER_FATOR_MINIMO + passo * (degraus - 1)) * escala * 1000) / 1000;
+    if (totalDegraus <= 1) return cfg.max;
+    const passo = (cfg.max - cfg.min) / (totalDegraus - 1);
+    return Math.round((cfg.min + passo * (degraus - 1)) * 1000) / 1000;
 }
 
 // O que o getBuffs soma no mgeral (o fator "x" vira ganho = fator - 1).
-export function calcularGanhoBerserker(percPerdido, escala = 1) {
-    return calcularFatorBerserker(percPerdido, escala) - 1;
+export function calcularGanhoBerserker(percPerdido, nivel = 'comum') {
+    return calcularFatorBerserker(percPerdido, nivel) - 1;
 }
 
 // ---------- Efeitos fixos (entram no getEfeitosDeClasse, e dali em getBuffs/Poder/Acerto) ----------
@@ -198,7 +213,11 @@ export function getEfeitosFixosDeClasse(ficha) {
         add('dano', 'munico', MULT_RIDER_MONTADO * esc);
     }
     if (classe === 'foreigner' && foreignerNoVazio(ficha)) add('dano', 'munico', MULT_FOREIGNER_VAZIO * esc);
-    if (classe === 'caster') ['mana', 'aura', 'chakra'].forEach(k => add(k, 'reducaocusto', Math.min(90, REDUCAO_CUSTO_CASTER * esc)));
+    if (classe === 'caster') ['mana', 'aura', 'chakra'].forEach(k => add(k, 'reducaocusto', REDUCAO_CASTER_NIVEL[nivel]));
+    // Lancer: +1 Reação em qualquer nível. Candidato e Grand: "Mais Ações" (Candidato +1 Reação; Grand +1 Reação e +1 Ação Bônus).
+    if (classe === 'lancer') add('acao_reacao', 'base', 1);
+    if (nivel === 'candidato') add('acao_reacao', 'base', 1);
+    if (nivel === 'grand') { add('acao_reacao', 'base', 1); add('acao_bonus', 'base', 1); }
     if (classe === 'berserker') add('dano', 'furia_berserker', BERSERKER_FATOR_MINIMO);
     tiposDeArmaDaClasse(classe).forEach(tipo => add(tipo, 'proficiencia_arma', BONUS_ACERTO_CLASSE + EXTRA_ACERTO_NIVEL[nivel]));
     return efeitos;
@@ -274,29 +293,88 @@ export function getFatorPoderDoGolpe(ficha, golpe) {
 // ---------- Textos (Ficha e Compêndio mostram o MESMO resumo do que o código faz) ----------
 const num = (n) => String(Math.round(n * 100) / 100).replace('.', ',');
 
+// Efeitos extras por nível (além dos multiplicadores). O Candidato tem os do Comum e o Grand tem os
+// do Comum e do Candidato. [auto] = o código já aplica; os demais são descritos e o Mestre valida.
+const EXTRAS_COMUM = {
+    saber: 'Uma vez por combate, o golpe de Espada ignora parte da Resistência do alvo.',
+    archer: 'Mais alcance nas armas à distância e um tiro extra por combate, sem gastar Ação.',
+    lancer: 'Ganha +1 Reação (contra-ataque com a Lança).'
+};
+
+const EXTRAS_CANDIDATO = {
+    saber: 'Corte Absoluto: uma vez por turno, um golpe de Espada não pode ser reduzido nem desviado.',
+    archer: 'Mira Perfeita: uma vez por turno, o ataque à distância acerta automaticamente e conta como crítico.',
+    lancer: 'Golpe Predestinado: uma vez por turno, o golpe reduz a Vida atual do alvo em uma fração.',
+    rider: 'Montaria como escudo: parte do dano que o Rider recebe vai para uma barra de Vida própria da Montaria, que sai de campo se zerar.',
+    caster: 'Uma Conjuração por turno sem gastar energia.',
+    assassin: 'Golpe Silencioso: o primeiro golpe de cada turno não rompe a Presença Ocultada.',
+    berserker: 'Fúria Fina: os degraus da Fúria sobem a cada 5% de Vida perdida (em vez de 10%).',
+    ruler: 'O Foco de Proteção alcança os aliados próximos, que recebem parte do benefício.',
+    avenger: 'Em Foco de Ódio, ao derrubar um inimigo recupera parte da Vida.',
+    mooncancer: 'Falha de Sistema: uma vez por turno, ignora a resistência elemental de um alvo ao usar algo do seu arauto.',
+    foreigner: 'Espaço Dobrado: movimento dobrado e um deslocamento curto por turno sem gastar Ação.',
+    alterego: 'Usa os benefícios de Candidato da Classe que estiver usando.',
+    pretender: 'Usa os benefícios de Candidato da Classe que estiver usando.'
+};
+
+const EXTRAS_GRAND = {
+    saber: 'Lâmina Suprema: o Corte Absoluto vale também em Reação e ignora Vantagem de defesa.',
+    archer: 'Chuva de Flechas: a Mira Perfeita atinge todos os alvos em linha ou numa área, sem custo de Ação.',
+    lancer: 'Lança Inevitável: o Golpe Predestinado atinge mesmo que o alvo fuja ou se esconda, e a fração é maior.',
+    rider: 'Lenda Montada: a Montaria age como aliado com turno próprio, e a Investida Lendária (uma vez por turno) ataca depois de um deslocamento sem Reação do alvo.',
+    caster: 'Território Soberano: uma vez por combate, cria um território onde suas magias custam zero e as dos inimigos custam o dobro.',
+    assassin: 'Alvo Marcado: marca um alvo no combate; contra ele a ocultação nunca falha e os golpes causam dano como se o Poder fosse o dobro.',
+    berserker: 'Último Suspiro: ao chegar a 0 de Vida, age um turno completo antes de cair.',
+    ruler: 'Decreto: uma vez por combate, impõe uma regra a um alvo por 1 turno (ex.: Desvantagem nos ataques). O alvo pode resistir com um teste e o Mestre valida.',
+    avenger: 'Vingança Eterna: devolve parte do dano ao agressor, e o dano que o derrubaria o deixa com 1 de Vida, uma vez por combate.',
+    mooncancer: 'Corrupção: os Poderes e itens do alvo ligados ao arauto ficam desativados por 1 turno.',
+    foreigner: 'Distância Anulada: ataques sem penalidade de alcance e que ignoram barreiras físicas.',
+    alterego: '(Efeito exclusivo de Grand ainda a definir.)',
+    pretender: '(Efeito exclusivo de Grand ainda a definir.)'
+};
+
+const GERAL_CANDIDATO = 'Mais Ações: +1 Reação.';
+const GERAL_GRAND = 'Mais Ações: +1 Reação e +1 Ação Bônus. Presença de Grand: inimigos de Poder menor fazem um teste para não ficar Amedrontados na primeira vez que o enfrentam.';
+
 // Resumo das mecânicas de cada Classe para um nível (comum / candidato / grand).
-function montarTextos(nivel) {
+function montarBase(nivel) {
     const e = ESCALA_NIVEL_CLASSE[nivel];
     const acerto = BONUS_ACERTO_CLASSE + EXTRA_ACERTO_NIVEL[nivel];
     const vant = VANTAGENS_DE_CLASSE + EXTRA_VANTAGENS_NIVEL[nivel];
     const vantTxt = vant > 1 ? `${vant} Vantagens` : 'Vantagem';
-    const dobro = MULT_BONUS_ARMA_DA_CLASSE * e;
-    const arma = (nome, plural) => `${plural}: o Mult Poder da ${nome} equipada vale ${num(dobro)}x o normal (10x vira ${num(10 * dobro)}x). +${acerto} de Acerto e ${vantTxt} nos ataques com ${plural}.`;
+    const multArma = MULT_ARMA_NIVEL[nivel];
+    const arma = (nome, plural) => `${plural}: o Mult Poder da ${nome} equipada vale ${num(multArma)}x o normal (10x vira ${num(10 * multArma)}x). +${acerto} de Acerto e ${vantTxt} nos ataques com ${plural}.`;
+    const ber = BERSERKER_NIVEL[nivel];
     return {
         saber: arma('Espada', 'Espadas'),
         archer: arma('arma à distância', 'Armas à Distância'),
         lancer: arma('Lança', 'Lanças'),
         rider: `Com a Montaria no campo de batalha: Poder Calculado x${num(MULT_RIDER_MONTADO * e)}, +${acerto} de Acerto e ${vantTxt} nos ataques. Dragões (e raças similares) têm isso de forma passiva.`,
-        caster: `Gasta menos Mana, Aura e Chakra (-${num(Math.min(90, REDUCAO_CUSTO_CASTER * e))}% de custo). Cada golpe de Conjuração (magia) causa dano como se o Poder Calculado fosse x${num(MULT_GOLPE_CASTER * e)}.`,
+        caster: `Gasta menos Mana, Aura e Chakra (-${num(REDUCAO_CASTER_NIVEL[nivel])}% de custo). Cada golpe de Conjuração (magia) causa dano como se o Poder Calculado fosse x${num(MULT_GOLPE_CASTER * e)}.`,
         assassin: `Com a Presença Ocultada, o dano sai como se o Poder Calculado fosse x${num(MULT_GOLPE_ASSASSIN * e)} (além de poder Ocultar a Presença por completo).`,
-        berserker: `A cada ${BERSERKER_PASSO_PCT}% de Vida perdida o Poder Calculado sobe (de x${num(BERSERKER_FATOR_MINIMO * e)} a x${num(BERSERKER_FATOR_MAXIMO * e)}). Curar NÃO tira o ganho: só crescendo com um dano maior que o já recebido.`,
+        berserker: `A cada ${ber.passo}% de Vida perdida o Poder Calculado sobe (de x${num(ber.min)} a x${num(ber.max)}). Curar NÃO tira o ganho: só crescendo com um dano maior que o já recebido.`,
         ruler: `Vida x${num(MULT_RULER_VIDA * e)}. Foco de Proteção (estado de combate, quando a circunstância permite): Poder Calculado x${num(MULT_FOCO_PROTECAO * e)}.`,
         avenger: `Poder Calculado x${num(MULT_AVENGER * e)}. Foco de Ódio (estado de combate, quando a circunstância permite): Vida x${num(MULT_FOCO_ODIO * e)}.`,
         mooncancer: `Todo Moon Cancer é arauto de algo. Usando algo relacionado ao que representa, o dano sai como se o Poder Calculado fosse x${num(MULT_GOLPE_MOON_CANCER * e)}.`,
-        foreigner: `Em contato com o VAZIO, Poder Calculado x${num(MULT_FOREIGNER_VAZIO * e)}.`,
+        foreigner: `Está sempre em contato com o VAZIO (o Espaço): Poder Calculado x${num(MULT_FOREIGNER_VAZIO * e)}.`,
         alterego: 'Tem a Classe própria e a de um Ser Selado/Espírito/Pacto. Trocar a Classe equipada em combate gasta uma Ação Bônus.',
         pretender: 'Até um descanso longo, pode usar qualquer Classe que encontrou no dia. Trocar a Classe em combate gasta uma Ação Bônus.'
     };
+}
+
+function montarTextos(nivel) {
+    const base = montarBase(nivel);
+    const resultado = {};
+    Object.keys(base).forEach((id) => {
+        const partes = [base[id]];
+        if (EXTRAS_COMUM[id]) partes.push(EXTRAS_COMUM[id]);
+        if (nivel !== 'comum' && EXTRAS_CANDIDATO[id]) partes.push(`Candidato: ${EXTRAS_CANDIDATO[id]}`);
+        if (nivel === 'grand' && EXTRAS_GRAND[id]) partes.push(`Grand: ${EXTRAS_GRAND[id]}`);
+        if (nivel === 'candidato') partes.push(GERAL_CANDIDATO);
+        if (nivel === 'grand') partes.push(GERAL_GRAND);
+        resultado[id] = partes.join(' ');
+    });
+    return resultado;
 }
 
 export const MECANICA_CLASSE = montarTextos('comum');
@@ -309,4 +387,4 @@ export function getTextoMecanica(classeId, nivel = 'comum') {
     return tabela[classeId] || MECANICA_CLASSE[classeId] || '';
 }
 
-export const DESCRICAO_NIVEIS_CLASSE = 'Só pode haver 1 Grand por Classe (em cada mesa). O Grand é o ápice da Classe: benefícios ainda maiores e habilidades exclusivas. O Candidato a Grand é poderoso o bastante para ter o potencial, mas ainda não chegou lá: benefícios acima do comum e abaixo do Grand; pode haver vários.';
+export const DESCRICAO_NIVEIS_CLASSE = 'Só pode haver 1 Grand por Classe (em cada mesa). O Grand é o ápice da Classe: tem tudo do Comum e do Candidato, em capacidades ainda melhores, e habilidades exclusivas. O Candidato a Grand é poderoso o bastante para ter o potencial, mas ainda não chegou lá: benefícios acima do comum e abaixo do Grand; pode haver vários.';

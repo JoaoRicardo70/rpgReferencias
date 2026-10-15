@@ -42,12 +42,12 @@ describe('ClasseMecanicaPainel', () => {
         expect(cb.disabled).toBe(true);
     });
 
-    it('Foreigner e Moon Cancer: Vazio, arauto e marcação manual', () => {
-        let salvar = montar({ bio: { classe: 'foreigner' } });
-        fireEvent.click(screen.getByRole('checkbox'));
-        expect(salvar).toHaveBeenCalledWith('combate.contatoVazio', true);
+    it('Foreigner não tem caixa de Vazio (sempre em contato); Moon Cancer: arauto e marcação manual', () => {
+        montar({ bio: { classe: 'foreigner' } });
+        expect(screen.queryByRole('checkbox')).toBeNull();
+        expect(screen.getAllByText(/sempre em contato/).length).toBeGreaterThan(0);
         cleanup();
-        salvar = montar({ bio: { classe: 'mooncancer', arauto: 'Fogo' } });
+        const salvar = montar({ bio: { classe: 'mooncancer', arauto: 'Fogo' } });
         fireEvent.change(screen.getByPlaceholderText(/Fogo, Lua/), { target: { value: 'Lua' } });
         expect(salvar).toHaveBeenCalledWith('bio.arauto', 'Lua');
         fireEvent.click(screen.getByRole('checkbox'));

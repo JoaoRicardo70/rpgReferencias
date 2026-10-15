@@ -47,15 +47,15 @@ describe('ClasseMecanicaPainel — Grand e Candidato', () => {
         mesa(ficha, { avenger_presente_candidatos: ['Ana'] });
         montar(ficha);
         expect(screen.getByText('🌟 Candidato a Grand')).toBeTruthy();
-        expect(screen.getByText(/Poder Calculado x15/)).toBeTruthy();
+        expect(screen.getByText(/Poder Calculado x50/)).toBeTruthy();
     });
 
-    it('Grand: selo, texto x20 e habilidade exclusiva cadastrada no Compêndio', () => {
+    it('Grand: selo, texto x100 e habilidade exclusiva cadastrada no Compêndio', () => {
         const ficha = { bio: { classe: 'avenger', mesa: 'presente' }, combate: {} };
         mesa(ficha, { avenger_presente: 'Ana' }, { avenger: { habilidadeGrand: 'Vingança Absoluta' } });
         montar(ficha);
         expect(screen.getByText(/👑 GRAND/)).toBeTruthy();
-        expect(screen.getByText(/Poder Calculado x20/)).toBeTruthy();
+        expect(screen.getByText(/Poder Calculado x100/)).toBeTruthy();
         expect(screen.getByText(/Vingança Absoluta/)).toBeTruthy();
     });
 
