@@ -406,3 +406,27 @@ describe('DECLARACOES_CRIACAO / constantes', () => {
         expect(new Set(ELEMENTOS_CONHECIDOS).size).toBe(ELEMENTOS_CONHECIDOS.length);
     });
 });
+
+describe('normalizarMagia - limite de dados do elemento', () => {
+    it('corta dados acima do limite (Fogo 50: 10d10 -> 5d10) e avisa', () => {
+        const r = normalizarMagia({ nome: 'Chama', elemento: 'Fogo', dadosExtraQtd: 10, dadosExtraFaces: 10 });
+        expect(r.objeto.dadosExtraQtd).toBe(5);
+        expect(r.objeto.dadosExtraFaces).toBe(10);
+        expect(r.avisos.some(a => /limite do elemento/.test(a))).toBe(true);
+        expect(r.valido).toBe(true);
+    });
+    it('no limite exato nao corta nem avisa', () => {
+        const r = normalizarMagia({ nome: 'Chama', elemento: 'fogo', dadosExtraQtd: 5, dadosExtraFaces: 10 });
+        expect(r.objeto.dadosExtraQtd).toBe(5);
+        expect(r.avisos).toEqual([]);
+    });
+    it('elemento sem limite (Neutro) fica intacto', () => {
+        const r = normalizarMagia({ nome: 'Soco', elemento: 'Neutro', dadosExtraQtd: 500, dadosExtraFaces: 20 });
+        expect(r.objeto.dadosExtraQtd).toBe(500);
+        expect(r.avisos.some(a => /limite do elemento/.test(a))).toBe(false);
+    });
+    it('elemento de nivel alto (Vida 2500) comporta mais dados', () => {
+        const r = normalizarMagia({ nome: 'Onda', elemento: 'Vida', dadosExtraQtd: 100, dadosExtraFaces: 20 });
+        expect(r.objeto.dadosExtraQtd).toBe(100);
+    });
+});

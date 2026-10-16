@@ -1,3 +1,4 @@
+import { getLimiteDadosTecnica, danoMaximoDosDados } from '../../core/limiteDados';
 import React, { useState } from 'react';
 import { useElementosForm, emogis, cores, BONUS_OPTIONS, NIVEIS_DOMINIO } from './ElementosFormContext';
 import { getNivelDominio, getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
@@ -191,8 +192,11 @@ export function ElementosFormMagia() {
         energiaCombustao, setEnergiaCombustao, allowedEnergies, alcanceQuad, setAlcanceQuad, 
         areaQuad, setAreaQuad, alvosAfetados, setAlvosAfetados, duracaoZona, setDuracaoZona,
         bonusTipo, setBonusTipo, bonusValor, setBonusValor, custoValor, setCustoValor, custoValorMax, setCustoValorMax, semComoPoder, setSemComoPoder, dadosQtd, setDadosQtd,
-        dadosFaces, setDadosFaces, salvarNovoElem, cancelarEdicaoElem, formRef
+        dadosFaces, setDadosFaces, salvarNovoElem, cancelarEdicaoElem, formRef, limiteDados, setLimiteDados, elemSelecionado
     } = ctx;
+    // 🎲 Limite de dados do nível do elemento (core/limiteDados.js).
+    const limiteAtual = getLimiteDadosTecnica({ elemento: elemSelecionado, limiteDados });
+    const dadosAtuais = danoMaximoDosDados(dadosQtd, dadosFaces);
 
     return (
         <div ref={formRef} style={{ border: '1px dashed currentColor', padding: '20px', borderRadius: '8px', background: 'rgba(0,0,0,0.03)' }}>
@@ -265,8 +269,12 @@ export function ElementosFormMagia() {
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Como Poder</label><label style={{ fontSize: '0.8em' }}><input type="checkbox" checked={!!semComoPoder} onChange={e => setSemComoPoder(e.target.checked)} /> Vetar</label></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Extra (Qtd Dados)</label><input type="number" value={dadosQtd} onChange={e => setDadosQtd(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Extra (Faces)</label><input type="number" value={dadosFaces} onChange={e => setDadosFaces(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
+                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Limite de Dados (dano)</label><input type="number" min="0" value={limiteDados} onChange={e => setLimiteDados(e.target.value)} placeholder={limiteAtual ? String(limiteAtual) : 'sem limite'} title="Dano máximo vindo só dos dados (qtd x faces). Vazio usa o padrão do nível do elemento." style={{width:'100%', textAlign:'center'}} /></div>
+
             </div>
             
+            {limiteAtual ? (<p className="limite-dados-aviso" data-excedeu={dadosAtuais > limiteAtual ? 'sim' : 'nao'}>🎲 Dados: {dadosAtuais} de {limiteAtual} de dano máximo{dadosAtuais > limiteAtual ? ' — acima do limite, os dados excedentes serão cortados.' : '.'}</p>) : null}
+
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
                 <button onClick={salvarNovoElem} style={{ flex: 1, padding: '10px' }}>{elemEditandoId ? '✍️ Concluir Revisão' : '📜 Gravar no Grimório'}</button>
                 {elemEditandoId && <button onClick={cancelarEdicaoElem} style={{ padding: '10px', width: '100px', opacity: 0.8 }}>Cancelar</button>}

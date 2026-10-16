@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAtaqueForm, STATS_LIST, ENERGIA_LIST } from './AtaqueFormContext';
 import DisputaPoderResumo from './DisputaPoderResumo';
+import { formulaDesatualizada } from '../../core/ataquesSalvos';
 import { getMargemCusto, limitarPercComoPoder, podeConjurarComoPoder } from '../../core/custoPoder';
 
 const PROVIDER_FALLBACK = (
@@ -365,7 +366,7 @@ export function AtaqueDanoCustomizado() {
                                 style={{ background: 'none', border: 'none', color: '#fff', padding: '4px 10px', fontSize: '0.85em', cursor: 'pointer', fontWeight: 'bold' }}
                                 title={`Fórmula: ${f.formula} | Letalidade: +${f.letalidade || 0}${f.energiaTipo && f.energiaTipo !== 'nenhum' && f.energiaCusto ? ` | Custo: ${f.energiaCusto}% ${f.energiaTipo}` : ''}`}
                             >
-                                ▶ {f.nome}
+                                ▶ {f.nome}{formulaDesatualizada(f) ? <span className="ataque-salvo-aviso" title="Salva antes da mudança de números: a fórmula tem os valores antigos. Refaça com 💾 Salvar Ataque."> ⚠️ antiga</span> : null}
                             </button>
                             <button 
                                 onClick={() => { 
@@ -394,11 +395,31 @@ export function AtaqueDanoCustomizado() {
     );
 }
 
+// 💾 Ataques Salvos (configuração): executam recalculando com as regras atuais (core/ataquesSalvos.js).
+export function AtaquesSalvosChips({ comExcluir = true }) {
+    const ctx = useAtaqueForm();
+    if (!ctx) return null;
+    const { minhaFicha, rolarAtaqueSalvo, deletarAtaqueSalvo, podeRolarDano, ignorarTravaAcerto } = ctx;
+    const salvos = minhaFicha?.ataqueConfig?.ataquesSalvos || [];
+    if (salvos.length === 0) return null;
+    const liberado = podeRolarDano || ignorarTravaAcerto;
+    return (
+        <div className="ataques-salvos-chips">
+            {salvos.map(a => (
+                <div key={a.id} className="ataque-salvo-chip">
+                    <button className="ataque-salvo-rolar" disabled={!liberado} onClick={() => rolarAtaqueSalvo(a)} title="Executa com a configuração salva e o cálculo atual">▶ {a.nome}</button>
+                    {comExcluir && <button className="ataque-salvo-apagar" onClick={() => deletarAtaqueSalvo(a.id)} title="Apagar">✕</button>}
+                </div>
+            ))}
+        </div>
+    );
+}
+
 export function AtaqueBotoesAcao() {
     const ctx = useAtaqueForm();
     if (!ctx) return PROVIDER_FALLBACK;
 
-    const { podeRolarDano, dummieAlvo, disputaAlvo, ignorarTravaAcerto, setIgnorarTravaAcerto, salvarConfigAtaque, rolarDano } = ctx;
+    const { podeRolarDano, dummieAlvo, disputaAlvo, ignorarTravaAcerto, setIgnorarTravaAcerto, salvarConfigAtaque, rolarDano, salvarAtaque } = ctx;
 
     return (
         <>
@@ -419,6 +440,7 @@ export function AtaqueBotoesAcao() {
 
             <div style={{ display: 'flex', gap: 10, marginTop: 5 }}>
                 <button className="btn-neon btn-gold" onClick={salvarConfigAtaque} style={{ flex: 1 }}>Salvar Config</button>
+                <button className="btn-neon btn-blue" onClick={salvarAtaque} title="Salvar este ataque montado (arma, habilidades e magias ativas) para executar rápido" style={{ flex: 1 }}>💾 Salvar Ataque</button>
                 <button
                     className={`btn-neon ${(podeRolarDano || ignorarTravaAcerto) ? 'btn-red' : ''}`}
                     onClick={rolarDano}
@@ -428,6 +450,7 @@ export function AtaqueBotoesAcao() {
                     {dummieAlvo ? ((podeRolarDano || ignorarTravaAcerto) ? `ATACAR ${String(dummieAlvo.nome || 'alvo').toUpperCase()}` : 'ACERTO NECESSARIO') : 'ROLAR DANO'}
                 </button>
             </div>
+            <AtaquesSalvosChips />
         </>
     );
 }

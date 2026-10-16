@@ -5,6 +5,8 @@ import { getEfeitosDeClasse } from '../../core/attributes';
 import { getVitalMxDisplay, getVidaTotalMaxDisplay, danoExibidoParaBruto, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularDano } from '../../core/engine';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
+import { dadosLimitadosDaTecnica } from '../../core/limiteDados';
+import { montarAtaqueSalvo, resolverAtaqueSalvo, VERSAO_ATAQUE_SALVO } from '../../core/ataquesSalvos';
 import { golpeEquipado, ehBerserker, calcularGanhoBerserker, getNivelClasse } from '../../core/classesMecanicas';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, classificarEfetividade } from '../../core/disputaPoder';
 import { enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
@@ -297,6 +299,7 @@ export function AtaqueFormProvider({ children }) {
             if (!ficha.ataqueConfig.formulasSalvas) ficha.ataqueConfig.formulasSalvas = [];
             ficha.ataqueConfig.formulasSalvas.push({
                 id: Date.now(),
+                versao: VERSAO_ATAQUE_SALVO,
                 nome: nomeForm.trim(),
                 formula: customFormula,
                 letalidade: parseInt(customLetalidade) || 0,
@@ -462,10 +465,18 @@ export function AtaqueFormProvider({ children }) {
         }
     }, [customFormula, customLetalidade, customEnergiaTipo, customEnergiaCusto, meuNome, nomeNoFeed, dummieAlvo, alvoSelecionado, setAbaAtiva, abaAtiva, updateFicha, minhaFicha, elementoAtivo, divisorPoderMesa]);
 
-    const rolarDano = useCallback(() => {
+    // 💾 `salvo` (opcional): ataque salvo (core/ataquesSalvos.js). Roda com a configuração guardada, mas SEMPRE
+    // recalculado pela engine de hoje; sem `salvo` usa o que está montado na tela.
+    const executarRolarDano = useCallback((salvo) => {
         // 🛡️ Regra de PvP (core/alvoCombate.js): jogador x jogador só em combate.
         if (dummieAlvo && dummieAlvo.bloqueado) { alert(dummieAlvo.bloqueado); return; }
-        salvarConfigAtaque();
+        const salvoResolvido = salvo ? resolverAtaqueSalvo(salvo, { poderesAtivos, magiasOfensivas }) : null;
+        if (salvo && !salvoResolvido) { alert('Este ataque salvo está incompleto. Salve-o de novo.'); return; }
+        if (salvoResolvido && salvoResolvido.faltando > 0 && !window.confirm(`${salvoResolvido.faltando} habilidade(s)/magia(s) deste ataque não estão mais ativas. Executar assim mesmo, sem elas?`)) return;
+        if (!salvoResolvido) salvarConfigAtaque();
+        const skillCfg = salvoResolvido ? salvoResolvido.skillConfigs : skillConfigs;
+        const poderesDoGolpe = salvoResolvido ? salvoResolvido.poderes : poderesAtivos;
+        const magiasDoGolpe = salvoResolvido ? salvoResolvido.magias : magiasOfensivas;
 
         const elementosInatos = [];
         (minhaFicha.poderes || []).forEach(p => {
@@ -481,32 +492,36 @@ export function AtaqueFormProvider({ children }) {
             elementosInatos.push(h.infinityElemento.toLowerCase().trim());
         }
 
-        const configHabilidades = poderesAtivos.map(p => ({
+        const configHabilidades = poderesDoGolpe.map(p => ({
             id: p.id, nome: p.nome, dadosQtd: p.dadosQtd || 0, dadosFaces: p.dadosFaces || 20, custoPercentual: p.custoPercentual || 0,
             custoPercentualMax: p.custoPercentualMax, semComoPoder: !!p.semComoPoder,
-            comoPoder: !!skillConfigs[p.id]?.comoPoder, percComoPoder: skillConfigs[p.id]?.percComoPoder,
-            armaVinculada: p.armaVinculada || '', statusUsados: skillConfigs[p.id]?.statusUsados || p.statusUsados || ['forca'],
-            energiaCombustao: skillConfigs[p.id]?.energiaCombustao || p.energiaCombustao || 'mana', efeitos: escalarEfeitosPorEstagio(p.efeitos, p),
+            comoPoder: !!skillCfg[p.id]?.comoPoder, percComoPoder: skillCfg[p.id]?.percComoPoder,
+            armaVinculada: p.armaVinculada || '', statusUsados: skillCfg[p.id]?.statusUsados || p.statusUsados || ['forca'],
+            energiaCombustao: skillCfg[p.id]?.energiaCombustao || p.energiaCombustao || 'mana', efeitos: escalarEfeitosPorEstagio(p.efeitos, p),
             vertente: p.vertente || '', elemento: p.elemento || '' 
         }));
 
-        const configMagias = magiasOfensivas.map(m => {
+        const configMagias = magiasDoGolpe.map(m => {
             const efs = [];
             if (m.bonusTipo && m.bonusTipo !== 'nenhum') efs.push({ atributo: 'todos_status', propriedade: m.bonusTipo, valor: m.bonusValor });
             const isInato = elementosInatos.includes((m.elemento || 'Neutro').toLowerCase().trim());
+            // 🎲 Limite de dados do nível do elemento (core/limiteDados.js): passou do limite, os dados excedentes não rolam.
+            const dadosM = dadosLimitadosDaTecnica(m, m.dadosExtraQtd, m.dadosExtraFaces || 20);
             
             return {
-                id: m.id, nome: m.nome, dadosQtd: m.dadosExtraQtd || 0, dadosFaces: m.dadosExtraFaces || 20, custoPercentual: m.custoValor || 0,
+                id: m.id, nome: m.nome, dadosQtd: dadosM.qtd, dadosFaces: dadosM.faces || 20, custoPercentual: m.custoValor || 0,
                 custoPercentualMax: m.custoValorMax, semComoPoder: !!m.semComoPoder,
-                comoPoder: !!skillConfigs[m.id]?.comoPoder, percComoPoder: skillConfigs[m.id]?.percComoPoder,
-                armaVinculada: '', statusUsados: skillConfigs[m.id]?.statusUsados || m.statusUsados || ['inteligencia'],
-                energiaCombustao: skillConfigs[m.id]?.energiaCombustao || m.energiaCombustao || 'mana', efeitos: efs,
+                comoPoder: !!skillCfg[m.id]?.comoPoder, percComoPoder: skillCfg[m.id]?.percComoPoder,
+                armaVinculada: '', statusUsados: skillCfg[m.id]?.statusUsados || m.statusUsados || ['inteligencia'],
+                energiaCombustao: skillCfg[m.id]?.energiaCombustao || m.energiaCombustao || 'mana', efeitos: efs,
                 vertente: isInato ? 'elemental' : 'magia', elemento: m.elemento || 'Neutro'
             };
         });
 
         const todasHabilidades = configHabilidades.concat(configMagias);
-        const configArma = { statusUsados: armaStatusUsados, energiaCombustao: armaEnergiaCombustao, percEnergia: parseFloat(armaPercEnergia) || 0 };
+        const configArma = salvoResolvido
+            ? { statusUsados: salvoResolvido.armaStatusUsados, energiaCombustao: salvoResolvido.armaEnergiaCombustao, percEnergia: salvoResolvido.armaPercEnergia }
+            : { statusUsados: armaStatusUsados, energiaCombustao: armaEnergiaCombustao, percEnergia: parseFloat(armaPercEnergia) || 0 };
         const isCriticoNormal = forcarCritNormal || autoCritNormal; const isCriticoFatal = forcarCritFatal || autoCritFatal;
 
         const result = calcularDano({ minhaFicha, configArma, configHabilidades: todasHabilidades, itensEquipados: (minhaFicha.inventario || []).filter(i => i.equipado), isCriticoNormal, isCriticoFatal });
@@ -654,6 +669,31 @@ export function AtaqueFormProvider({ children }) {
         dummieAlvo, alvoSelecionado, meuNome, nomeNoFeed, setAbaAtiva, poderesAtivos, magiasOfensivas, feedCombate, dummies, personagens, elementoAtivo, divisorPoderMesa
     ]);
 
+    const rolarDano = useCallback(() => { executarRolarDano(null); }, [executarRolarDano]);
+    const rolarAtaqueSalvo = useCallback((salvo) => { executarRolarDano(salvo); }, [executarRolarDano]);
+
+    // 💾 Salva o ataque como CONFIGURAÇÃO (core/ataquesSalvos.js): ao executar, o dano é recalculado com as regras atuais.
+    const salvarAtaque = useCallback(() => {
+        const nomeAtaque = window.prompt('Como deseja nomear este ataque salvo?');
+        if (!nomeAtaque || !nomeAtaque.trim()) return;
+        const registro = montarAtaqueSalvo({ nome: nomeAtaque, armaStatusUsados, armaEnergiaCombustao, armaPercEnergia, poderesAtivos, magiasOfensivas, skillConfigs });
+        updateFicha(ficha => {
+            if (!ficha.ataqueConfig) ficha.ataqueConfig = {};
+            if (!ficha.ataqueConfig.ataquesSalvos) ficha.ataqueConfig.ataquesSalvos = [];
+            ficha.ataqueConfig.ataquesSalvos.push(registro);
+        });
+        salvarFichaSilencioso();
+    }, [armaStatusUsados, armaEnergiaCombustao, armaPercEnergia, poderesAtivos, magiasOfensivas, skillConfigs, updateFicha]);
+
+    const deletarAtaqueSalvo = useCallback((id) => {
+        updateFicha(ficha => {
+            if (ficha.ataqueConfig && ficha.ataqueConfig.ataquesSalvos) {
+                ficha.ataqueConfig.ataquesSalvos = ficha.ataqueConfig.ataquesSalvos.filter(a => a.id !== id);
+            }
+        });
+        salvarFichaSilencioso();
+    }, [updateFicha]);
+
     const value = useMemo(() => ({
         armaStatusUsados, setArmStatusUsados: setArmaStatusUsados, armaEnergiaCombustao, setArmaEnergiaCombustao,
         armaPercEnergia, setArmaPercEnergia, critNormalMin, setCritNormalMin, critNormalMax, setCritNormalMax,
@@ -666,14 +706,14 @@ export function AtaqueFormProvider({ children }) {
         customFormula, setCustomFormula, customLetalidade, setCustomLetalidade, 
         customEnergiaTipo, setCustomEnergiaTipo, customEnergiaCusto, setCustomEnergiaCusto,
         rolarDanoCustomizado, salvarFormula, deletarFormula,
-        acalmarFuria, updateSkillConfig, toggleSkillStat, toggleArmaStat, salvarConfigAtaque, rolarDano,
+        acalmarFuria, updateSkillConfig, toggleSkillStat, toggleArmaStat, salvarConfigAtaque, rolarDano, rolarAtaqueSalvo, salvarAtaque, deletarAtaqueSalvo,
     }), [
         armaStatusUsados, armaEnergiaCombustao, armaPercEnergia, critNormalMin, critNormalMax, critFatalMin, critFatalMax,
         autoCritNormal, autoCritFatal, forcarCritNormal, forcarCritFatal, ignorarTravaAcerto, skillConfigs, podeRolarDano, furiaAcalmadaMsg,
         multiplicadorFuriaClasse, multiplicadorFuriaVisor, percAtualLostFloor, percEfetivoParaDisplay,
         dummieAlvo, disputaAlvo, armaEquipada, poderesAtivos, magiasOfensivas, minhaFicha, elementoAtivo, elementosDinamicos,
         customFormula, customLetalidade, customEnergiaTipo, customEnergiaCusto, rolarDanoCustomizado, salvarFormula, deletarFormula,
-        acalmarFuria, updateSkillConfig, toggleSkillStat, toggleArmaStat, salvarConfigAtaque, rolarDano,
+        acalmarFuria, updateSkillConfig, toggleSkillStat, toggleArmaStat, salvarConfigAtaque, rolarDano, rolarAtaqueSalvo, salvarAtaque, deletarAtaqueSalvo,
     ]);
 
     return <AtaqueFormContext.Provider value={value}>{children}</AtaqueFormContext.Provider>;

@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import useStore from '../../stores/useStore';
 import { useMapaForm, urlSeguraParaCss, calcularCA } from './MapaFormContext';
 import { useAtaqueForm } from '../combate/AtaqueFormContext';
+import { AtaquesSalvosChips } from '../combate/AtaqueSubComponents';
+import { formulaDesatualizada } from '../../core/ataquesSalvos';
 import { usePoderesForm } from '../poderes/PoderesFormContext';
 import EstagioControle from '../poderes/EstagioControle';
 import { temEstagios } from '../../core/estagios';
@@ -501,7 +503,8 @@ export function MapaAtaquesSalvos() {
                 </span>
             </div>
 
-            {formulasSalvas.length === 0 ? (
+            <AtaquesSalvosChips comExcluir={false} />
+            {formulasSalvas.length === 0 && !(minhaFicha?.ataqueConfig?.ataquesSalvos || []).length ? (
                 <p style={{ color: '#888', fontSize: '0.8em', margin: '8px 0 0 0' }}>
                     Nenhum ataque salvo ainda. Vá na aba <strong>Ataque</strong> → Modo Deus, monte sua fórmula e clique em 💾 pra poder disparar ela direto por aqui.
                 </p>
@@ -515,7 +518,7 @@ export function MapaAtaquesSalvos() {
                             title={`Fórmula: ${f.formula} | Letalidade: +${f.letalidade || 0}${f.energiaTipo && f.energiaTipo !== 'nenhum' && f.energiaCusto ? ` | Custo: ${f.energiaCusto}% ${f.energiaTipo}` : ''}`}
                             style={{ margin: 0, padding: '6px 14px', background: 'rgba(255,0,255,0.15)', borderColor: '#ff00ff', color: '#ff00ff', fontWeight: 'bold' }}
                         >
-                            ▶ {f.nome}
+                            ▶ {f.nome}{formulaDesatualizada(f) ? <span className="ataque-salvo-aviso" title="Salva antes da mudança de números: refaça com 💾 Salvar Ataque."> ⚠️ antiga</span> : null}
                         </button>
                     ))}
                 </div>

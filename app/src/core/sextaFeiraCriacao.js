@@ -12,6 +12,7 @@
 //   item                   -> components/arsenal/ArsenalFormContext.jsx (salvarNovoItem)
 //   npc (dummie do Mapa)   -> components/mapa/MapaFerramentasMestre.jsx (criar dummie)
 // ==========================================
+import { dadosLimitadosDaTecnica } from './limiteDados.js';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS } from './efeitos-constants.js';
 import { normalizarPasta } from './pastas.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
@@ -238,6 +239,12 @@ export function normalizarMagia(dados) {
     const conhecido = ELEMENTOS_CONHECIDOS.find(e => semAcento(e) === semAcento(objeto.elemento));
     if (conhecido) objeto.elemento = conhecido;
     else if (!/^Elemento |Magia|Truque/i.test(objeto.elemento)) avisos.push(`Elemento "${objeto.elemento}" não tem aba própria nas Técnicas Elementais (vai para "Pergaminhos Perdidos").`);
+    // 🎲 Limite de dados do nível do elemento (core/limiteDados.js): a Sexta-Feira não propõe dados acima dele.
+    const dadosLimitados = dadosLimitadosDaTecnica(objeto, objeto.dadosExtraQtd, objeto.dadosExtraFaces);
+    if (dadosLimitados.limitado) {
+        avisos.push(`Dados acima do limite do elemento (${dadosLimitados.limite} de dano): reduzidos de ${objeto.dadosExtraQtd}d${objeto.dadosExtraFaces} para ${dadosLimitados.qtd}d${dadosLimitados.faces}.`);
+        objeto.dadosExtraQtd = dadosLimitados.qtd;
+    }
     if (!objeto.nome) avisos.push('Falta o nome.');
     return { objeto, avisos, valido: !!objeto.nome };
 }

@@ -2303,3 +2303,11 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .como-poder-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; font-size: 0.8em; color: #0ff; }
 .como-poder-perc input { width: 70px; padding: 2px; text-align: center; }
 .como-poder-permissao { display: flex; flex-direction: column; gap: 4px; }
+.ataques-salvos-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.ataque-salvo-chip { display: flex; align-items: center; background: rgba(0,0,0,0.5); border: 1px solid #00aaff; border-radius: 20px; overflow: hidden; }
+.ataque-salvo-rolar { background: none; border: none; color: #fff; padding: 4px 10px; font-size: 0.85em; cursor: pointer; font-weight: bold; }
+.ataque-salvo-rolar:disabled { opacity: 0.4; cursor: default; }
+.ataque-salvo-apagar { background: rgba(255,0,0,0.2); border: none; border-left: 1px solid #444; color: #ff003c; padding: 4px 8px; font-size: 0.85em; cursor: pointer; }
+.ataque-salvo-aviso { color: #ffcc00; font-size: 0.8em; font-weight: normal; }
+.limite-dados-aviso { margin: 10px 0 0 0; font-size: 0.85em; color: #0ff; }
+.limite-dados-aviso[data-excedeu="sim"] { color: #ffcc00; font-weight: bold; }
