@@ -1,7 +1,7 @@
 import React from 'react';
 import useStore from '../../stores/useStore';
 import { MapaFormProvider } from './MapaFormContext';
-import { MapaDadoAnimado, MapaRolagemRapida, MapaIniciativaTracker, MapaHologramaAcao, MapaAtaquesSalvos, MapaAtaqueArma, MapaTecnicasRapidas, MapaMagiasElementais } from './MapaCombate';
+import { MapaDadoAnimado, MapaRolagemRapida, MapaIniciativaTracker, MapaHologramaAcao, MapaAtaquesSalvos, MapaAtalhoAtaques, MapaAtaqueArma, MapaTecnicasRapidas, MapaMagiasElementais } from './MapaCombate';
 import { MapaFerramentasMestre } from './MapaFerramentasMestre';
 import { MapaAreaCentral } from './MapaGrelha';
 import { AtaqueFormProvider } from '../combate/AtaqueFormContext';
@@ -47,6 +47,7 @@ export default function MapaPanel({ className, children }) {
                                             <MapaAtaqueArma />
                                         </ArsenalFormProvider>
                                         <MapaAtaquesSalvos />
+                                        <MapaAtalhoAtaques />
                                     </AtaqueFormProvider>
                                     <PoderesFormProvider>
                                         <MapaTecnicasRapidas />
