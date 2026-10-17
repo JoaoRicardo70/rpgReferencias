@@ -117,7 +117,7 @@ describe('MapaAtalhoAtaques - ordem e limite de slots', () => {
         montar({ ataquesSalvos: salvos(9), formulasSalvas: [{ id: 50, nome: 'Decima', formula: '2d6', letalidade: 1 }] });
         expect(screen.getByTitle('Atalho dos Ataques Salvos').textContent).toContain('10');
         abrir();
-        const slots = document.querySelectorAll('.atalho-ataques-slot');
+        const slots = document.querySelectorAll('.atalho-livro-carta');
         expect(slots.length).toBe(10);
         expect(document.querySelectorAll('.atalho-ataques-tecla').length).toBe(9);
         expect(slots[9].querySelector('.atalho-ataques-tecla')).toBeNull();

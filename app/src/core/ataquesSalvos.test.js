@@ -74,3 +74,36 @@ describe('formulaDesatualizada', () => {
         expect(formulaDesatualizada(null)).toBe(false);
     });
 });
+
+import { descreverAtaqueSalvo } from './ataquesSalvos.js';
+
+describe('descreverAtaqueSalvo', () => {
+    const ficha = { poderes: [{ id: 'p1', nome: 'Golpe' }], ataquesElementais: [{ id: 'm1', nome: 'Bola de Fogo' }] };
+    const salvo = montarAtaqueSalvo({
+        nome: 'Combo', armaStatusUsados: ['forca', 'destreza'], poderesAtivos: [{ id: 'p1' }], magiasOfensivas: [{ id: 'm1' }],
+        skillConfigs: { m1: { comoPoder: true } }
+    });
+
+    it('lista arma, atributos e itens com o nome da ficha', () => {
+        const r = descreverAtaqueSalvo(salvo, { ficha, poderesAtivos: [{ id: 'p1' }], magiasOfensivas: [{ id: 'm1' }], armaEquipada: { nome: 'Espada' } });
+        expect(r.arma).toEqual({ nome: 'Espada', atributos: ['Força', 'Destreza'] });
+        expect(r.itens).toEqual([
+            { id: 'p1', tipo: 'habilidade', nome: 'Golpe', ativo: true, comoPoder: false },
+            { id: 'm1', tipo: 'tecnica', nome: 'Bola de Fogo', ativo: true, comoPoder: true }
+        ]);
+        expect(r.faltando).toBe(0);
+    });
+
+    it('marca o que não está mais ativo ou foi removido e conta faltando', () => {
+        const r = descreverAtaqueSalvo(salvo, { ficha: { poderes: [], ataquesElementais: [{ id: 'm1', nome: 'Bola de Fogo' }] }, poderesAtivos: [], magiasOfensivas: [] });
+        expect(r.arma).toBeNull();
+        expect(r.itens[0]).toMatchObject({ nome: 'Habilidade removida', ativo: false });
+        expect(r.itens[1]).toMatchObject({ nome: 'Bola de Fogo', ativo: false });
+        expect(r.faltando).toBe(2);
+    });
+
+    it('sem configuração devolve null; entradas vazias não quebram', () => {
+        expect(descreverAtaqueSalvo({ nome: 'velho' })).toBeNull();
+        expect(descreverAtaqueSalvo(salvo).itens.length).toBe(2);
+    });
+});

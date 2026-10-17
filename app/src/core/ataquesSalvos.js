@@ -65,3 +65,29 @@ export function resolverAtaqueSalvo(salvo, { poderesAtivos, magiasOfensivas }) {
 export function formulaDesatualizada(formula) {
     return !!formula && !formula.versao;
 }
+
+const ROTULO_STATUS = { forca: 'Força', destreza: 'Destreza', inteligencia: 'Inteligência', sabedoria: 'Sabedoria', energiaEsp: 'Energia Esp.', carisma: 'Carisma', stamina: 'Stamina', constituicao: 'Constituição' };
+
+// Resumo legível de um ataque salvo para a tela do Mapa (só leitura): o que ele usa e o que não está mais ativo.
+// `ficha` dá os nomes (poderes/ataquesElementais por id); poderesAtivos/magiasOfensivas dizem o que está ativo agora.
+export function descreverAtaqueSalvo(salvo, { ficha, poderesAtivos, magiasOfensivas, armaEquipada } = {}) {
+    const cfg = salvo?.config;
+    if (!cfg) return null;
+    const ativosP = new Set((poderesAtivos || []).map(p => p.id));
+    const ativosM = new Set((magiasOfensivas || []).map(m => m.id));
+    const cfgs = cfg.skillConfigs || {};
+    const nomeDe = (lista, id) => ((lista || []).find(x => x && x.id === id) || {}).nome || 'Habilidade removida';
+    const montar = (ids, lista, ativos, tipo) => (ids || []).map(id => ({
+        id, tipo,
+        nome: nomeDe(lista, id),
+        ativo: ativos.has(id),
+        comoPoder: !!(cfgs[id] && cfgs[id].comoPoder)
+    }));
+    const itens = [...montar(cfg.poderesIds, ficha?.poderes, ativosP, 'habilidade'), ...montar(cfg.magiasIds, ficha?.ataquesElementais, ativosM, 'tecnica')];
+    const status = (cfg.armaStatusUsados || []).map(s => ROTULO_STATUS[s] || s);
+    return {
+        arma: armaEquipada ? { nome: armaEquipada.nome, atributos: status } : null,
+        itens,
+        faltando: itens.filter(i => !i.ativo).length
+    };
+}

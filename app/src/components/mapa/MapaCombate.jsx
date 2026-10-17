@@ -4,7 +4,7 @@ import useStore from '../../stores/useStore';
 import { useMapaForm, urlSeguraParaCss, calcularCA } from './MapaFormContext';
 import { useAtaqueForm } from '../combate/AtaqueFormContext';
 import { AtaquesSalvosChips } from '../combate/AtaqueSubComponents';
-import { formulaDesatualizada } from '../../core/ataquesSalvos';
+import { formulaDesatualizada, descreverAtaqueSalvo } from '../../core/ataquesSalvos';
 import { usePoderesForm } from '../poderes/PoderesFormContext';
 import EstagioControle from '../poderes/EstagioControle';
 import { temEstagios } from '../../core/estagios';
@@ -527,18 +527,22 @@ export function MapaAtaquesSalvos() {
     );
 }
 
-// ⚔️ Atalho flutuante dos Ataques Salvos, estilo "inventário": um botão pequeno no canto inferior
-// esquerdo (position: fixed, não ocupa espaço no layout do Mapa) que abre uma grade de slots. Clique no slot
-// (ou a tecla 1-9 com a grade aberta) para executar. Reusa o mesmo rolarAtaqueSalvo/rolarDanoCustomizado dos
-// "Meus Ataques Salvos" — mesmo cálculo, mesmo alvo, mesma trava de Acerto.
+const SEM_ATAQUES = [];
+
+// 📖 Atalho dos Ataques Salvos no Mapa, no estilo do Livro da Entidade do Mestre (components/mestre/LivroEntidade.jsx):
+// um botão pequeno e fixo no canto inferior esquerdo (não ocupa espaço no layout do Mapa) abre o "Livro" em tela
+// cheia, com a barra de abas e "FECHAR LIVRO" e uma carta por ataque salvo mostrando o que ele usa. É SÓ PARA USAR:
+// nada de criar ou editar técnicas aqui (isso continua nas abas Ataque/Grimório). Clique na carta (ou a tecla 1-9)
+// executa com o mesmo rolarAtaqueSalvo/rolarDanoCustomizado do AtaqueFormContext: mesmo cálculo, alvo e trava de Acerto.
+// Tudo vai em portal no body: o painel da aba usa backdrop-filter, que prenderia o position: fixed dentro dele.
 export function MapaAtalhoAtaques() {
     const ataqueCtx = useAtaqueForm();
     const [aberto, setAberto] = useState(false);
-    const raizRef = useRef(null);
+    const livroRef = useRef(null);
 
     const minhaFicha = ataqueCtx ? ataqueCtx.minhaFicha : null;
-    const salvos = (minhaFicha && minhaFicha.ataqueConfig && minhaFicha.ataqueConfig.ataquesSalvos) || [];
-    const formulas = (minhaFicha && minhaFicha.ataqueConfig && minhaFicha.ataqueConfig.formulasSalvas) || [];
+    const salvos = (minhaFicha && minhaFicha.ataqueConfig && minhaFicha.ataqueConfig.ataquesSalvos) || SEM_ATAQUES;
+    const formulas = (minhaFicha && minhaFicha.ataqueConfig && minhaFicha.ataqueConfig.formulasSalvas) || SEM_ATAQUES;
     const slots = useMemo(() => [
         ...salvos.map(a => ({ chave: 'a' + a.id, nome: a.nome, antiga: false, registro: a })),
         ...formulas.map(f => ({ chave: 'f' + f.id, nome: f.nome, antiga: formulaDesatualizada(f), formula: f }))
@@ -548,6 +552,10 @@ export function MapaAtalhoAtaques() {
     const rolarAtaqueSalvo = ataqueCtx ? ataqueCtx.rolarAtaqueSalvo : null;
     const rolarDanoCustomizado = ataqueCtx ? ataqueCtx.rolarDanoCustomizado : null;
 
+    // Se o último ataque salvo some com o livro aberto, ele fecha (não reaparece sozinho depois).
+    const temSlots = slots.length > 0;
+    useEffect(() => { if (!temSlots) setAberto(false); }, [temSlots]);
+
     const usar = useCallback((slot) => {
         if (!slot) return;
         if (slot.registro) rolarAtaqueSalvo(slot.registro);
@@ -555,7 +563,7 @@ export function MapaAtalhoAtaques() {
         setAberto(false);
     }, [rolarAtaqueSalvo, rolarDanoCustomizado]);
 
-    // Fecha com Esc ou clicando fora; teclas 1-9 usam o slot (ignora digitação em campos).
+    // Fecha com Esc ou clicando fora do livro; teclas 1-9 usam o slot (ignora digitação em campos e modificadores).
     useEffect(() => {
         if (!aberto) return undefined;
         const aoTecla = (e) => {
@@ -565,43 +573,69 @@ export function MapaAtalhoAtaques() {
             if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.tagName === 'SELECT' || alvo.isContentEditable)) return;
             if (/^[1-9]$/.test(e.key) && liberado) usar(slots[Number(e.key) - 1]);
         };
-        const aoClicarFora = (e) => { if (raizRef.current && !raizRef.current.contains(e.target)) setAberto(false); };
+        // Clique no fundo vazio do livro (fora da barra e do corpo) fecha; clique em qualquer outra coisa fora dele também.
+        const aoClicarFora = (e) => { if (livroRef.current && (e.target === livroRef.current || !livroRef.current.contains(e.target))) setAberto(false); };
         document.addEventListener('keydown', aoTecla);
         document.addEventListener('mousedown', aoClicarFora);
         return () => { document.removeEventListener('keydown', aoTecla); document.removeEventListener('mousedown', aoClicarFora); };
     }, [aberto, slots, liberado, usar]);
 
-    if (!ataqueCtx || slots.length === 0) return null;
+    if (!ataqueCtx || slots.length === 0 || typeof document === 'undefined' || !document.body) return null;
     const alvo = ataqueCtx.dummieAlvo;
 
-    // Portal no body: o painel da aba usa backdrop-filter, que prenderia o position: fixed dentro dele.
     return createPortal(
-        <div className="atalho-ataques" ref={raizRef}>
+        <>
+            <div className="atalho-ataques">
+                <button className="atalho-ataques-botao" onClick={() => setAberto(v => !v)} aria-expanded={aberto} title="Atalho dos Ataques Salvos">
+                    ⚔️ {slots.length}
+                </button>
+            </div>
             {aberto && (
-                <div className="atalho-ataques-painel" role="dialog" aria-label="Ataques salvos">
-                    <div className="atalho-ataques-cabecalho">
-                        <strong>⚔️ Ataques Salvos</strong>
-                        <span className={alvo ? 'atalho-ataques-alvo' : 'atalho-ataques-sem-alvo'}>{alvo ? '🎯 ' + alvo.nome : 'Sem alvo'}</span>
+                <div className="livro-entidade-fundo" ref={livroRef} role="dialog" aria-label="Livro dos Ataques Salvos">
+                    <div className="livro-entidade-barra">
+                        <div className="livro-entidade-abas" role="tablist" aria-label="Ataques salvos">
+                            <button type="button" role="tab" aria-selected="true" className="grimorio-mestre-aba ativa">⚔️ Ataques Salvos <small>{slots.length}</small></button>
+                        </div>
+                        <button type="button" className="livro-entidade-fechar" onClick={() => setAberto(false)}>❌ FECHAR LIVRO</button>
                     </div>
-                    <div className="atalho-ataques-grade">
-                        {slots.map((s, i) => (
-                            <button key={s.chave} className="atalho-ataques-slot" disabled={!liberado} onClick={() => usar(s)} title={s.antiga ? 'Fórmula antiga (números antigos): refaça com 💾 Salvar Ataque' : 'Executar com o cálculo atual'}>
-                                {i < 9 && <span className="atalho-ataques-tecla">{i + 1}</span>}
-                                <span className="atalho-ataques-nome">{s.nome}</span>
-                                {s.antiga && <span className="atalho-ataques-antiga">⚠️</span>}
-                            </button>
-                        ))}
+                    <div className="livro-entidade-corpo atalho-livro-corpo fade-in" role="tabpanel">
+                        <div className="atalho-livro-topo">
+                            <span className={alvo ? 'atalho-ataques-alvo' : 'atalho-ataques-sem-alvo'}>{alvo ? '🎯 ' + alvo.nome : 'Sem alvo'}</span>
+                            {!liberado && <span className="atalho-ataques-aviso">Acerto necessário antes de rolar o dano.</span>}
+                            <span className="atalho-livro-dica">Clique numa carta ou aperte 1-9 para usar.</span>
+                        </div>
+                        <div className="atalho-livro-grade">
+                            {slots.map((s, i) => {
+                                const resumo = s.registro ? descreverAtaqueSalvo(s.registro, { ficha: minhaFicha, poderesAtivos: ataqueCtx.poderesAtivos, magiasOfensivas: ataqueCtx.magiasOfensivas, armaEquipada: ataqueCtx.armaEquipada }) : null;
+                                return (
+                                    <button key={s.chave} className="atalho-livro-carta" disabled={!liberado} onClick={() => usar(s)} title={s.antiga ? 'Fórmula antiga (números antigos): refaça com 💾 Salvar Ataque' : 'Executar com o cálculo atual'}>
+                                        {i < 9 && <span className="atalho-ataques-tecla">{i + 1}</span>}
+                                        <span className="atalho-ataques-nome">{s.nome}</span>
+                                        {s.antiga && <span className="atalho-ataques-antiga">⚠️</span>}
+                                        {resumo && (
+                                            <span className="atalho-livro-detalhes">
+                                                {resumo.arma && <span>🗡️ {resumo.arma.nome}{resumo.arma.atributos.length > 0 ? ' (' + resumo.arma.atributos.join(' + ') + ')' : ''}</span>}
+                                                {resumo.itens.map(it => (
+                                                    <span key={it.tipo + it.id} className={it.ativo ? '' : 'atalho-livro-inativo'}>
+                                                        {it.tipo === 'tecnica' ? '🔮' : '✨'} {it.nome}{it.comoPoder ? ' · como Poder' : ''}{it.ativo ? '' : ' (inativa)'}
+                                                    </span>
+                                                ))}
+                                            </span>
+                                        )}
+                                        {s.antiga && <span className="atalho-livro-detalhes"><span>Fórmula de texto antiga</span></span>}
+                                        <span className="atalho-livro-usar">▶ USAR</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
-                    {!liberado && <p className="atalho-ataques-aviso">Acerto necessário antes de rolar o dano.</p>}
                 </div>
             )}
-            <button className="atalho-ataques-botao" onClick={() => setAberto(v => !v)} aria-expanded={aberto} title="Atalho dos Ataques Salvos">
-                ⚔️ {slots.length}
-            </button>
-        </div>,
+        </>,
         document.body
     );
 }
+
 
 // 🔥 Ataque com a Arma equipada, direto do Mapa — reusa o MESMO rolarDano (AtaqueFormContext.jsx)
 // e a MESMA trava de Acerto (podeRolarDano/ignorarTravaAcerto) que o botão "ATACAR"/"ROLAR DANO"
