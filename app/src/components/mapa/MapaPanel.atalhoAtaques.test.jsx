@@ -17,10 +17,10 @@ vi.mock('./MapaCombate', () => {
 vi.mock('./MapaFerramentasMestre', () => ({ MapaFerramentasMestre: () => null }));
 vi.mock('./MapaGrelha', () => ({ MapaAreaCentral: () => null }));
 vi.mock('./MapaAtorCombate', () => ({ MapaSeletorAtor: () => null, MapaModulosDoAtor: ({ children }) => <>{children}</> }));
-vi.mock('../combate/AtaqueFormContext', () => ({ AtaqueFormProvider: ({ children }) => <>{children}</> }));
-vi.mock('../poderes/PoderesFormContext', () => ({ PoderesFormProvider: ({ children }) => <>{children}</> }));
+vi.mock('../combate/AtaqueFormContext', () => ({ AtaqueFormProvider: ({ children }) => <div data-testid="prov-ataque">{children}</div> }));
+vi.mock('../poderes/PoderesFormContext', () => ({ PoderesFormProvider: ({ children }) => <div data-testid="prov-poderes">{children}</div> }));
 vi.mock('../arsenal/ArsenalFormContext', () => ({ ArsenalFormProvider: ({ children }) => <>{children}</> }));
-vi.mock('../arsenal/ElementosFormContext', () => ({ ElementosFormProvider: ({ children }) => <>{children}</> }));
+vi.mock('../arsenal/ElementosFormContext', () => ({ ElementosFormProvider: ({ children }) => <div data-testid="prov-elem">{children}</div> }));
 
 const mockar = (abaAtiva) => useStore.mockImplementation((sel) => sel({ abaAtiva }));
 
@@ -47,6 +47,19 @@ describe('MapaPanel - montagem do MapaAtalhoAtaques', () => {
         mockar('aba-mapa');
         render(<MapaPanel><span>x</span></MapaPanel>);
         expect(screen.queryByTestId('atalho')).toBeNull();
+    });
+
+    it('monta o atalho dentro de AtaqueFormProvider > PoderesFormProvider > ElementosFormProvider', () => {
+        mockar('aba-mapa');
+        render(<MapaPanel />);
+        const atalho = screen.getByTestId('atalho');
+        const ataque = screen.getByTestId('prov-ataque');
+        const poderes = screen.getByTestId('prov-poderes');
+        const elem = screen.getByTestId('prov-elem');
+        expect(ataque.contains(poderes)).toBe(true);
+        expect(poderes.contains(elem)).toBe(true);
+        expect(elem.contains(atalho)).toBe(true);
+        ['salvos', 'tec', 'magias'].forEach(id => expect(elem.contains(screen.getByTestId(id))).toBe(true));
     });
 
     it('desmonta o atalho ao sair da aba do Mapa', () => {

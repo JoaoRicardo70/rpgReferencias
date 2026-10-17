@@ -43,18 +43,19 @@ export default function MapaPanel({ className, children }) {
                             {mapaEmFoco && (
                                 <MapaModulosDoAtor>
                                     <AtaqueFormProvider>
-                                        <ArsenalFormProvider>
-                                            <MapaAtaqueArma />
-                                        </ArsenalFormProvider>
-                                        <MapaAtaquesSalvos />
-                                        <MapaAtalhoAtaques />
+                                        <PoderesFormProvider>
+                                            <ElementosFormProvider>
+                                                <ArsenalFormProvider>
+                                                    <MapaAtaqueArma />
+                                                </ArsenalFormProvider>
+                                                <MapaAtaquesSalvos />
+                                                <MapaTecnicasRapidas />
+                                                <MapaMagiasElementais />
+                                                {/* Atalho flutuante (Livro): ataques salvos, técnicas e elementais num só lugar */}
+                                                <MapaAtalhoAtaques />
+                                            </ElementosFormProvider>
+                                        </PoderesFormProvider>
                                     </AtaqueFormProvider>
-                                    <PoderesFormProvider>
-                                        <MapaTecnicasRapidas />
-                                    </PoderesFormProvider>
-                                    <ElementosFormProvider>
-                                        <MapaMagiasElementais />
-                                    </ElementosFormProvider>
                                 </MapaModulosDoAtor>
                             )}
                         </div>

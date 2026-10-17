@@ -538,6 +538,11 @@ const SEM_ATAQUES = [];
 export function MapaAtalhoAtaques() {
     const ataqueCtx = useAtaqueForm();
     const [aberto, setAberto] = useState(false);
+    // Abas do Livro: ataques salvos, Habilidades/Formas/Poderes e Técnicas Elementais (as duas últimas são as mesmas
+    // listas do Mapa — ligar/desligar e memorizar —, sem criar nem editar nada).
+    const [aba, setAba] = useState('ataques');
+    const poderesCtx = usePoderesForm();
+    const elemCtx = useElementosForm();
     const livroRef = useRef(null);
 
     const minhaFicha = ataqueCtx ? ataqueCtx.minhaFicha : null;
@@ -552,9 +557,18 @@ export function MapaAtalhoAtaques() {
     const rolarAtaqueSalvo = ataqueCtx ? ataqueCtx.rolarAtaqueSalvo : null;
     const rolarDanoCustomizado = ataqueCtx ? ataqueCtx.rolarDanoCustomizado : null;
 
-    // Se o último ataque salvo some com o livro aberto, ele fecha (não reaparece sozinho depois).
-    const temSlots = slots.length > 0;
-    useEffect(() => { if (!temSlots) setAberto(false); }, [temSlots]);
+    const poderes = ((minhaFicha && minhaFicha.poderes) || SEM_ATAQUES).filter(Boolean);
+    const magias = ((minhaFicha && minhaFicha.ataquesElementais) || SEM_ATAQUES).filter(Boolean);
+    const abasLivro = [
+        slots.length > 0 && { id: 'ataques', rotulo: '⚔️ Ataques Salvos', total: slots.length },
+        poderesCtx && poderes.length > 0 && { id: 'tecnicas', rotulo: '✨ Habilidades · Formas · Poderes', total: poderes.length, ligadas: poderes.filter(p => p && p.ativa).length },
+        elemCtx && magias.length > 0 && { id: 'elementais', rotulo: '🌪️ Técnicas Elementais', total: magias.length, ligadas: magias.filter(m => m && m.equipado).length }
+    ].filter(Boolean);
+    const temConteudo = abasLivro.length > 0;
+    // Se a aba escolhida some (ex.: o último ataque salvo foi apagado), cai na primeira que existe.
+    const abaEfetiva = (abasLivro.find(a => a.id === aba) || abasLivro[0] || {}).id;
+    // Se não sobra nada com o livro aberto, ele fecha (não reaparece sozinho depois).
+    useEffect(() => { if (!temConteudo) setAberto(false); }, [temConteudo]);
 
     const usar = useCallback((slot) => {
         if (!slot) return;
@@ -571,34 +585,39 @@ export function MapaAtalhoAtaques() {
             if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
             const alvo = e.target;
             if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.tagName === 'SELECT' || alvo.isContentEditable)) return;
-            if (/^[1-9]$/.test(e.key) && liberado) usar(slots[Number(e.key) - 1]);
+            if (abaEfetiva === 'ataques' && /^[1-9]$/.test(e.key) && liberado) usar(slots[Number(e.key) - 1]);
         };
         // Clique no fundo vazio do livro (fora da barra e do corpo) fecha; clique em qualquer outra coisa fora dele também.
         const aoClicarFora = (e) => { if (livroRef.current && (e.target === livroRef.current || !livroRef.current.contains(e.target))) setAberto(false); };
         document.addEventListener('keydown', aoTecla);
         document.addEventListener('mousedown', aoClicarFora);
         return () => { document.removeEventListener('keydown', aoTecla); document.removeEventListener('mousedown', aoClicarFora); };
-    }, [aberto, slots, liberado, usar]);
+    }, [aberto, slots, liberado, usar, abaEfetiva]);
 
-    if (!ataqueCtx || slots.length === 0 || typeof document === 'undefined' || !document.body) return null;
+    if (!ataqueCtx || !temConteudo || typeof document === 'undefined' || !document.body) return null;
     const alvo = ataqueCtx.dummieAlvo;
 
     return createPortal(
         <>
             <div className="atalho-ataques">
                 <button className="atalho-ataques-botao" onClick={() => setAberto(v => !v)} aria-expanded={aberto} title="Atalho dos Ataques Salvos">
-                    ⚔️ {slots.length}
+                    ⚔️{slots.length > 0 ? ' ' + slots.length : ''}
                 </button>
             </div>
             {aberto && (
                 <div className="livro-entidade-fundo" ref={livroRef} role="dialog" aria-label="Livro dos Ataques Salvos">
                     <div className="livro-entidade-barra">
                         <div className="livro-entidade-abas" role="tablist" aria-label="Ataques salvos">
-                            <button type="button" role="tab" aria-selected="true" className="grimorio-mestre-aba ativa">⚔️ Ataques Salvos <small>{slots.length}</small></button>
+                            {abasLivro.map(a => (
+                                <button key={a.id} type="button" role="tab" aria-selected={abaEfetiva === a.id} className={`grimorio-mestre-aba${abaEfetiva === a.id ? ' ativa' : ''}`} onClick={() => setAba(a.id)}>
+                                    {a.rotulo} <small>{a.ligadas !== undefined ? `★ ${a.ligadas}/${a.total}` : a.total}</small>
+                                </button>
+                            ))}
                         </div>
                         <button type="button" className="livro-entidade-fechar" onClick={() => setAberto(false)}>❌ FECHAR LIVRO</button>
                     </div>
                     <div className="livro-entidade-corpo atalho-livro-corpo fade-in" role="tabpanel">
+                        {abaEfetiva === 'ataques' && (<>
                         <div className="atalho-livro-topo">
                             <span className={alvo ? 'atalho-ataques-alvo' : 'atalho-ataques-sem-alvo'}>{alvo ? '🎯 ' + alvo.nome : 'Sem alvo'}</span>
                             {!liberado && <span className="atalho-ataques-aviso">Acerto necessário antes de rolar o dano.</span>}
@@ -628,6 +647,9 @@ export function MapaAtalhoAtaques() {
                                 );
                             })}
                         </div>
+                        </>)}
+                        {abaEfetiva === 'tecnicas' && <div className="atalho-livro-modulo"><MapaTecnicasRapidas /></div>}
+                        {abaEfetiva === 'elementais' && <div className="atalho-livro-modulo"><MapaMagiasElementais /></div>}
                     </div>
                 </div>
             )}

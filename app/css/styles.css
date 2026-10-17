@@ -2329,3 +2329,5 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .atalho-livro-detalhes { display: flex; flex-direction: column; gap: 2px; font-size: 0.78em; color: #bbb; }
 .atalho-livro-inativo { color: #ffcc00; font-style: italic; }
 .atalho-livro-usar { margin-top: auto; align-self: flex-end; font-size: 0.8em; font-weight: bold; color: var(--cor-destaque); }
+.atalho-livro-modulo { max-width: 1000px; margin: 0 auto; }
+.atalho-livro-modulo .def-box { margin-top: 0 !important; }
