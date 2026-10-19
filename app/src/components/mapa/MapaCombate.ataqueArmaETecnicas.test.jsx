@@ -9,6 +9,9 @@ import { ElementosFormProvider } from '../arsenal/ElementosFormContext';
 import useStore from '../../stores/useStore';
 import { salvarDummie, enviarParaFeed } from '../../services/firebase-sync';
 
+// O cabeçalho da pasta/grupo agora separa seta, ícone, nome e total em spans (tema do Livro): casa pelo texto do botão inteiro.
+const cab = (re) => (_conteudo, el) => el.tagName === 'BUTTON' && el.classList.contains('mapa-tecnicas-pasta-topo') && re.test(el.textContent);
+
 // ---------------------------------------------------------------------------
 // QA — MapaAtaqueArma e MapaTecnicasRapidas (MapaCombate.jsx): acesso rápido, direto do Mapa,
 // ao ataque com a Arma equipada (reusa rolarDano de AtaqueFormContext, mesma trava de Acerto da
@@ -580,7 +583,7 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
             });
             const { getAllByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
 
-            const cabecalhos = getAllByText(/📁/).map(el => el.textContent);
+            const cabecalhos = getAllByText(cab(/📁/)).map(el => el.textContent);
             expect(cabecalhos[0]).toContain('Alpha');
             expect(cabecalhos[1]).toContain('Zulu');
         });
@@ -594,7 +597,7 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
             const { getByText, queryByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
 
             expect(getByText('☆ Golpe Rápido')).toBeTruthy();
-            expect(queryByText(/📁/)).toBeNull();
+            expect(queryByText(cab(/📁/))).toBeNull();
         });
 
         it('Habilidades passam a agrupar por pasta assim que alguma delas tiver uma pasta atribuída', () => {
@@ -608,7 +611,7 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
             });
             const { getByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
 
-            expect(getByText(/📁 Combos/)).toBeTruthy();
+            expect(getByText(cab(/📁 Combos/))).toBeTruthy();
             expect(getByText(/Sem Pasta/)).toBeTruthy();
         });
 
@@ -665,7 +668,7 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
             const { getByText, queryByText, rerender } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
 
             expect(getByText('☆ Bankai')).toBeTruthy();
-            act(() => { getByText(/📁 Transformações/).click(); });
+            act(() => { getByText(cab(/📁 Transformações/)).click(); });
             // pastasFechadas agora vive no Zustand (useStore.js) — o mock de useStore não é
             // reativo sozinho, então precisamos re-renderizar pra reler o valor atualizado.
             rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
@@ -693,7 +696,7 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
             });
             const { getByText, queryByText, rerender } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
 
-            act(() => { getByText(/📁 Transformações/).click(); });
+            act(() => { getByText(cab(/📁 Transformações/)).click(); });
             rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
 
             // Depois de fechar SÓ "Transformações": o mapa tem uma única chave, "Selados" nem
@@ -702,7 +705,7 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
             expect(queryByText('☆ Bankai')).toBeNull();
             expect(getByText('☆ Ego')).toBeTruthy();
 
-            act(() => { getByText(/📁 Selados/).click(); });
+            act(() => { getByText(cab(/📁 Selados/)).click(); });
             rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
 
             // As DUAS chaves convivem no mesmo mapa agora — fechar "Selados" não reescreveu nem
@@ -715,7 +718,7 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
             expect(queryByText('☆ Ego')).toBeNull();
 
             // Reabrindo só "Transformações" de volta: a chave de "Selados" continua true, intocada.
-            act(() => { getByText(/📁 Transformações/).click(); });
+            act(() => { getByText(cab(/📁 Transformações/)).click(); });
             rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
 
             expect(mockState.pastasFechadasMapaTecnicas).toEqual({
@@ -743,7 +746,7 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
             const { getByText, queryByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
 
             expect(queryByText('☆ Bankai')).toBeNull();
-            expect(getByText(/▶ 📁 Selo Eterno/)).toBeTruthy();
+            expect(getByText(cab(/▶ 📁 Selo Eterno/))).toBeTruthy();
         });
 
         // -----------------------------------------------------------------------
@@ -765,7 +768,7 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
             });
             const { getByText, queryByText, rerender, unmount } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
 
-            act(() => { getByText(/📁 Selo Eterno/).click(); });
+            act(() => { getByText(cab(/📁 Selo Eterno/)).click(); });
             rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
             expect(queryByText('☆ Bankai')).toBeNull();
 
@@ -778,7 +781,7 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
 
             // A pasta continua fechada — não voltou a abrir sozinha.
             expect(segundaMontagem.queryByText('☆ Bankai')).toBeNull();
-            expect(segundaMontagem.getByText(/▶ 📁 Selo Eterno/)).toBeTruthy();
+            expect(segundaMontagem.getByText(cab(/▶ 📁 Selo Eterno/))).toBeTruthy();
         });
     });
 });
@@ -859,8 +862,8 @@ describe('MapaMagiasElementais — memoriza/desmemoriza Técnicas Elementais do 
         const { getByText } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>);
 
         // o cabecalho do grupo agora traz seta, contagem e "★ n" (ex.: "▼ 💧 Agua (1) ★ 1")
-        expect(getByText(/🔥 Fogo/)).toBeTruthy();
-        expect(getByText(/💧 Agua/)).toBeTruthy();
+        expect(getByText(cab(/🔥 Fogo/))).toBeTruthy();
+        expect(getByText(cab(/💧 Agua/))).toBeTruthy();
         expect(getByText('☆ Bola de Fogo')).toBeTruthy();
         expect(getByText('★ Jato de Água')).toBeTruthy();
     });
@@ -919,7 +922,7 @@ describe('MapaMagiasElementais — memoriza/desmemoriza Técnicas Elementais do 
             ({ getByText, container } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>));
         }).not.toThrow();
 
-        expect(getByText(/🌪️ ElementoInventado/)).toBeTruthy();
+        expect(getByText(cab(/🌪️ ElementoInventado/))).toBeTruthy();
         expect(getByText('☆ Magia Rara')).toBeTruthy();
         expect(container.textContent).not.toMatch(/undefined/);
     });
@@ -936,7 +939,7 @@ describe('MapaMagiasElementais — memoriza/desmemoriza Técnicas Elementais do 
         });
         const { getAllByText, getByText } = render(<ElementosFormProvider><MapaMagiasElementais /></ElementosFormProvider>);
 
-        expect(getAllByText(/🔥 Fogo/).length).toBe(1);
+        expect(getAllByText(cab(/🔥 Fogo/)).length).toBe(1);
         expect(getByText('☆ Bola de Fogo')).toBeTruthy();
         expect(getByText('☆ Lança Flamejante')).toBeTruthy();
         expect(getByText('★ Explosão Ígnea')).toBeTruthy();

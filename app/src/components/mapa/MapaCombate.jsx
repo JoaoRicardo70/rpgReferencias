@@ -878,10 +878,11 @@ export function MapaTecnicasRapidas() {
                             <button
                                 type="button"
                                 onClick={() => toggleFechada(chave)}
+                                aria-expanded={!fechada}
                                 className="mapa-tecnicas-pasta-topo"
                                 style={{ color: info.cor }}
                             >
-                                {fechada ? '▶' : '▼'} 📁 {no.nome} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>({no.total})</span>
+                                <span className="mapa-pasta-seta" aria-hidden="true">{fechada ? '▶' : '▼'}</span> <span className="mapa-pasta-icone" aria-hidden="true">📁</span> <span className="mapa-pasta-nome">{no.nome}</span> <span className="mapa-pasta-total" style={{ opacity: 0.6, fontWeight: 'normal' }}>({no.total})</span>
                                 {ligadas > 0 && <span className="mapa-tecnicas-pasta-ligadas"> ★ {ligadas}</span>}
                             </button>
                             {!fechada && (
@@ -998,8 +999,8 @@ export function MapaMagiasElementais() {
                 const ligadas = grupos[nomeEl].filter(m => m.equipado).length;
                 return (
                     <div key={nomeEl} className="mapa-tecnicas-pasta">
-                        <button type="button" className="mapa-tecnicas-pasta-topo" style={{ color: cor }} onClick={() => toggleGrupo(chave)}>
-                            {fechada ? '▶' : '▼'} {emoji} {nomeEl} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>({grupos[nomeEl].length})</span>
+                        <button type="button" className="mapa-tecnicas-pasta-topo" aria-expanded={!fechada} style={{ color: cor }} onClick={() => toggleGrupo(chave)}>
+                            <span className="mapa-pasta-seta" aria-hidden="true">{fechada ? '▶' : '▼'}</span> <span className="mapa-pasta-icone" aria-hidden="true">{emoji}</span> <span className="mapa-pasta-nome">{nomeEl}</span> <span className="mapa-pasta-total" style={{ opacity: 0.6, fontWeight: 'normal' }}>({grupos[nomeEl].length})</span>
                             {ligadas > 0 && <span className="mapa-tecnicas-pasta-ligadas"> ★ {ligadas}</span>}
                         </button>
                         {!fechada && (
