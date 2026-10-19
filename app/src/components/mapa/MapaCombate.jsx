@@ -828,7 +828,7 @@ export function MapaTecnicasRapidas() {
     const renderBotao = (p) => (
         <button
             key={p.id}
-            className="btn-neon mapa-tecnica-chip"
+            className={`btn-neon mapa-tecnica-chip${p.ativa ? ' mapa-tecnica-chip--ligada' : ''}`}
             onClick={() => togglePoder(p.id)}
             title={p.descricao || p.nome || ''}
             style={{
@@ -896,7 +896,7 @@ export function MapaTecnicasRapidas() {
 
                 return (
                     <div key={cat} style={{ marginTop: 10 }}>
-                        <div style={{ color: info.cor, fontWeight: 'bold', fontSize: '0.85em', marginBottom: 6, borderBottom: `1px dashed ${info.cor}`, paddingBottom: 4 }}>
+                        <div className="mapa-tecnicas-categoria" style={{ color: info.cor, fontWeight: 'bold', fontSize: '0.85em', marginBottom: 6, borderBottom: `1px dashed ${info.cor}`, paddingBottom: 4 }}>
                             {info.label}
                         </div>
                         {arvore ? (
@@ -1007,7 +1007,7 @@ export function MapaMagiasElementais() {
                                 {grupos[nomeEl].map(m => (
                                     <button
                                         key={m.id}
-                                        className="btn-neon mapa-tecnica-chip"
+                                        className={`btn-neon mapa-tecnica-chip${m.equipado ? ' mapa-tecnica-chip--ligada' : ''}`}
                                         onClick={() => toggleEquiparElem(m.id)}
                                         title={m.descricao || m.nome || ''}
                                         style={{
