@@ -1,7 +1,7 @@
 import React from 'react';
 import useStore from '../../stores/useStore';
 import { MapaFormProvider } from './MapaFormContext';
-import { MapaDadoAnimado, MapaRolagemRapida, MapaIniciativaTracker, MapaHologramaAcao, MapaAtaquesSalvos, MapaAtalhoAtaques, MapaAtaqueArma, MapaTecnicasRapidas, MapaMagiasElementais } from './MapaCombate';
+import { MapaDadoAnimado, MapaRolagemRapida, MapaIniciativaTracker, MapaHologramaAcao, MapaAtalhoAtaques, MapaAtaqueArma } from './MapaCombate';
 import { MapaFerramentasMestre } from './MapaFerramentasMestre';
 import { MapaAreaCentral } from './MapaGrelha';
 import { AtaqueFormProvider } from '../combate/AtaqueFormContext';
@@ -48,10 +48,7 @@ export default function MapaPanel({ className, children }) {
                                                 <ArsenalFormProvider>
                                                     <MapaAtaqueArma />
                                                 </ArsenalFormProvider>
-                                                <MapaAtaquesSalvos />
-                                                <MapaTecnicasRapidas />
-                                                <MapaMagiasElementais />
-                                                {/* Atalho flutuante (Livro): ataques salvos, técnicas e elementais num só lugar */}
+                                                {/* Atalho flutuante (Livro de Combate): ataques salvos, Habilidades/Formas/Poderes e Técnicas Elementais — substitui os blocos que ficavam na tela do Mapa */}
                                                 <MapaAtalhoAtaques />
                                             </ElementosFormProvider>
                                         </PoderesFormProvider>

@@ -790,6 +790,9 @@ export function MapaTecnicasRapidas() {
     const fechadaSalva = (chave) => (chave in pastasFechadas ? !!pastasFechadas[chave] : padraoFechada);
     const estaFechada = (chave) => (forcaAberta ? false : fechadaSalva(chave));
     const toggleFechada = (chave) => { if (forcaAberta) return; setPastasFechadasMapaTecnicas({ ...pastasFechadas, [chave]: !estaFechada(chave) }); };
+    // Categorias (Formas/Habilidades/Poderes) nascem abertas; recolhê-las esconde todas as pastas e técnicas dela.
+    const categoriaFechada = (cat) => (forcaAberta ? false : !!pastasFechadas[`categoria::${cat}`]);
+    const toggleCategoria = (cat) => { if (forcaAberta) return; setPastasFechadasMapaTecnicas({ ...pastasFechadas, [`categoria::${cat}`]: !categoriaFechada(cat) }); };
     // Todas as chaves de pasta (inclui pastas-mãe e subpastas, core/pastas.js).
     const todasChaves = [];
     Object.keys(MAPA_TECNICAS_CATEGORIAS).forEach(cat => {
@@ -895,12 +898,13 @@ export function MapaTecnicasRapidas() {
                     );
                 };
 
+                const catFechada = categoriaFechada(cat);
                 return (
                     <div key={cat} style={{ marginTop: 10 }}>
-                        <div className="mapa-tecnicas-categoria" style={{ color: info.cor, fontWeight: 'bold', fontSize: '0.85em', marginBottom: 6, borderBottom: `1px dashed ${info.cor}`, paddingBottom: 4 }}>
-                            {info.label}
-                        </div>
-                        {arvore ? (
+                        <button type="button" className="mapa-tecnicas-categoria" aria-expanded={!catFechada} onClick={() => toggleCategoria(cat)} title={catFechada ? 'Abrir categoria' : 'Recolher categoria'} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottom: `1px dashed ${info.cor}`, cursor: 'pointer', color: info.cor, fontWeight: 'bold', fontSize: '0.85em', marginBottom: 6, paddingBottom: 4, paddingLeft: 0, paddingRight: 0 }}>
+                            <span className="mapa-categoria-seta" aria-hidden="true">{catFechada ? '▶' : '▼'}</span> {info.label} <span className="mapa-categoria-total" style={{ opacity: 0.6, fontWeight: 'normal' }}>({itensCat.length})</span>
+                        </button>
+                        {!catFechada && (arvore ? (
                             <>
                                 {arvore.pastas.map(no => renderPasta(no, 0))}
                                 {arvore.semPasta.length > 0 && renderPasta({ nome: MAPA_TECNICAS_SEM_PASTA, caminho: MAPA_TECNICAS_SEM_PASTA, itens: arvore.semPasta, filhos: [], total: arvore.semPasta.length }, 0)}
@@ -909,7 +913,7 @@ export function MapaTecnicasRapidas() {
                             <div className="mapa-tecnicas-grade">
                                 {itensCat.map(renderChip)}
                             </div>
-                        )}
+                        ))}
                     </div>
                 );
             })}
@@ -999,7 +1003,7 @@ export function MapaMagiasElementais() {
                 const ligadas = grupos[nomeEl].filter(m => m.equipado).length;
                 return (
                     <div key={nomeEl} className="mapa-tecnicas-pasta">
-                        <button type="button" className="mapa-tecnicas-pasta-topo" aria-expanded={!fechada} style={{ color: cor }} onClick={() => toggleGrupo(chave)}>
+                        <button type="button" className="mapa-tecnicas-pasta-topo mapa-tecnicas-pasta-topo--elemento" aria-expanded={!fechada} style={{ color: cor, '--cor-elemento': cor }} onClick={() => toggleGrupo(chave)}>
                             <span className="mapa-pasta-seta" aria-hidden="true">{fechada ? '▶' : '▼'}</span> <span className="mapa-pasta-icone" aria-hidden="true">{emoji}</span> <span className="mapa-pasta-nome">{nomeEl}</span> <span className="mapa-pasta-total" style={{ opacity: 0.6, fontWeight: 'normal' }}>({grupos[nomeEl].length})</span>
                             {ligadas > 0 && <span className="mapa-tecnicas-pasta-ligadas"> ★ {ligadas}</span>}
                         </button>
@@ -1008,11 +1012,11 @@ export function MapaMagiasElementais() {
                                 {grupos[nomeEl].map(m => (
                                     <button
                                         key={m.id}
-                                        className={`btn-neon mapa-tecnica-chip${m.equipado ? ' mapa-tecnica-chip--ligada' : ''}`}
+                                        className={`btn-neon mapa-tecnica-chip mapa-tecnica-chip--elemento${m.equipado ? ' mapa-tecnica-chip--ligada' : ''}`}
                                         onClick={() => toggleEquiparElem(m.id)}
                                         title={m.descricao || m.nome || ''}
                                         style={{
-                                            margin: 0, padding: '6px 14px', fontWeight: 'bold', borderColor: cor,
+                                            margin: 0, padding: '6px 14px', fontWeight: 'bold', borderColor: cor, '--cor-elemento': cor,
                                             background: m.equipado ? `${cor}40` : 'transparent',
                                             color: m.equipado ? '#fff' : cor,
                                         }}

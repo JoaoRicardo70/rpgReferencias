@@ -2391,3 +2391,16 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .atalho-livro-modulo .mapa-tecnicas-grade .mapa-tecnica-chip.mapa-tecnica-chip--ligada, .atalho-livro-modulo .mapa-tecnica-chip.mapa-tecnica-chip--ligada { font-weight: bold; color: #4a0f18 !important; background: linear-gradient(transparent 58%, rgba(201, 162, 77, 0.65) 58%) !important; }
 .atalho-livro-modulo .mapa-tecnica-chip { break-inside: avoid; overflow: visible !important; }
 .atalho-livro-modulo .mapa-tecnicas-pasta-topo:focus-visible, .atalho-livro-modulo .mapa-tecnica-chip:focus-visible { outline: 2px solid #8b1e2d; outline-offset: 2px; }
+
+/* ---- Categoria recolhível e cores de elemento no Livro ---- */
+.atalho-livro-modulo button.mapa-tecnicas-categoria { display: block; width: 100%; background: none !important; border-left: none !important; border-right: none !important; border-top: none !important; cursor: pointer; position: relative; }
+.atalho-livro-modulo .mapa-tecnicas-categoria .mapa-categoria-seta { position: absolute; left: 4px; top: 50%; transform: translateY(-62%); font-size: 0.6em; color: #7a5a2a; letter-spacing: 0; }
+.atalho-livro-modulo .mapa-tecnicas-categoria .mapa-categoria-total { font-size: 0.65em; letter-spacing: 0; text-transform: none; color: #6b4a22; }
+.atalho-livro-modulo .mapa-tecnicas-categoria:hover { color: #7a1424 !important; }
+.atalho-livro-modulo .mapa-tecnicas-categoria:focus-visible { outline: 2px solid #8b1e2d; outline-offset: 2px; }
+/* Elementos: a cor do elemento, escurecida para ler bem como tinta sobre o pergaminho */
+.atalho-livro-modulo .mapa-tecnicas-pasta-topo.mapa-tecnicas-pasta-topo--elemento { color: color-mix(in srgb, var(--cor-elemento, #4a2610) 30%, #2b1a0a) !important; border-bottom-color: color-mix(in srgb, var(--cor-elemento, #6b4a22) 70%, #5a3a14); }
+.atalho-livro-modulo .mapa-tecnicas-grade .mapa-tecnica-chip.mapa-tecnica-chip--elemento { color: color-mix(in srgb, var(--cor-elemento, #3b2410) 26%, #2b1a0a) !important; }
+.atalho-livro-modulo .mapa-tecnicas-grade .mapa-tecnica-chip.mapa-tecnica-chip--elemento.mapa-tecnica-chip--ligada { color: color-mix(in srgb, var(--cor-elemento, #3b2410) 20%, #240f05) !important; }
+.atalho-livro-modulo button.mapa-tecnicas-categoria { text-align: center !important; padding-left: 20px !important; padding-right: 20px !important; }
+.atalho-livro-modulo .mapa-tecnicas-grade .mapa-tecnica-chip.mapa-tecnica-chip--elemento:hover { color: #7a1424 !important; }

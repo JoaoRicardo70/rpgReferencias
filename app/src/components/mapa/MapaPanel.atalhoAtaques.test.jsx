@@ -32,14 +32,12 @@ describe('MapaPanel - montagem do MapaAtalhoAtaques', () => {
         mockar('aba-mapa');
         render(<MapaPanel />);
         expect(screen.getByTestId('atalho')).toBeTruthy();
-        expect(screen.getByTestId('salvos')).toBeTruthy();
     });
 
     it.each([['aba-ataque'], ['aba-ficha'], [undefined], [null], ['']])('NAO monta o atalho com abaAtiva=%s', (aba) => {
         mockar(aba);
         render(<MapaPanel />);
         expect(screen.queryByTestId('atalho')).toBeNull();
-        expect(screen.queryByTestId('salvos')).toBeNull();
         expect(screen.getByTestId('holo')).toBeTruthy();
     });
 
@@ -59,7 +57,13 @@ describe('MapaPanel - montagem do MapaAtalhoAtaques', () => {
         expect(ataque.contains(poderes)).toBe(true);
         expect(poderes.contains(elem)).toBe(true);
         expect(elem.contains(atalho)).toBe(true);
-        ['salvos', 'tec', 'magias'].forEach(id => expect(elem.contains(screen.getByTestId(id))).toBe(true));
+        // Os blocos que ficavam na tela do Mapa (ataques salvos, técnicas, elementais) agora só existem dentro do Livro.
+    });
+
+    it('a tela do Mapa não mostra mais os blocos de Ataques Salvos, Técnicas e Técnicas Elementais (ficam no Livro)', () => {
+        mockar('aba-mapa');
+        render(<MapaPanel />);
+        ['salvos', 'tec', 'magias'].forEach(id => expect(screen.queryByTestId(id)).toBeNull());
     });
 
     it('desmonta o atalho ao sair da aba do Mapa', () => {
