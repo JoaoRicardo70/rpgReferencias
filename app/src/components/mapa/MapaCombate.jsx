@@ -605,18 +605,22 @@ export function MapaAtalhoAtaques() {
                 </button>
             </div>
             {aberto && (
-                <div className="livro-entidade-fundo" ref={livroRef} role="dialog" aria-label="Livro dos Ataques Salvos">
-                    <div className="livro-entidade-barra">
-                        <div className="livro-entidade-abas" role="tablist" aria-label="Ataques salvos">
+                <div className="livro-entidade-fundo atalho-livro-fundo" ref={livroRef} role="dialog" aria-label="Livro dos Ataques Salvos">
+                    {/* Capa de couro: marcadores de fita (abas), duas páginas com lombada e o rodapé */}
+                    <div className="atalho-livro-capa">
+                    <div className="livro-entidade-barra atalho-livro-barra">
+                        <div className="livro-entidade-abas atalho-livro-marcadores" role="tablist" aria-label="Ataques salvos">
                             {abasLivro.map(a => (
-                                <button key={a.id} type="button" role="tab" aria-selected={abaEfetiva === a.id} className={`grimorio-mestre-aba${abaEfetiva === a.id ? ' ativa' : ''}`} onClick={() => setAba(a.id)}>
+                                <button key={a.id} type="button" role="tab" aria-selected={abaEfetiva === a.id} className={`grimorio-mestre-aba atalho-livro-marcador${abaEfetiva === a.id ? ' ativa' : ''}`} onClick={() => setAba(a.id)}>
                                     {a.rotulo} <small>{a.ligadas !== undefined ? `★ ${a.ligadas}/${a.total}` : a.total}</small>
                                 </button>
                             ))}
                         </div>
+                        <h2 className="atalho-livro-titulo">📖 Livro de Combate</h2>
                         <button type="button" className="livro-entidade-fechar" onClick={() => setAberto(false)}>❌ FECHAR LIVRO</button>
                     </div>
-                    <div className="livro-entidade-corpo atalho-livro-corpo fade-in" role="tabpanel">
+                    <div className="atalho-livro-miolo">
+                    <div className="livro-entidade-corpo atalho-livro-corpo atalho-livro-paginas" role="tabpanel">
                         {abaEfetiva === 'ataques' && (<>
                         <div className="atalho-livro-topo">
                             <span className={alvo ? 'atalho-ataques-alvo' : 'atalho-ataques-sem-alvo'}>{alvo ? '🎯 ' + alvo.nome : 'Sem alvo'}</span>
@@ -650,6 +654,9 @@ export function MapaAtalhoAtaques() {
                         </>)}
                         {abaEfetiva === 'tecnicas' && <div className="atalho-livro-modulo"><MapaTecnicasRapidas /></div>}
                         {abaEfetiva === 'elementais' && <div className="atalho-livro-modulo"><MapaMagiasElementais /></div>}
+                    </div>
+                    </div>
+                    <div className="atalho-livro-rodape" aria-hidden="true">✦ ✦ ✦</div>
                     </div>
                 </div>
             )}
