@@ -6,6 +6,7 @@ import { getVitalMxDisplay, getVidaTotalMaxDisplay, danoExibidoParaBruto, FATOR_
 import { calcularDano } from '../../core/engine';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
 import { dadosLimitadosDaTecnica } from '../../core/limiteDados';
+import { tiposRastreadosDe, acoesEmFalta, gastarAcoes } from '../../core/acoesTecnica';
 import { montarAtaqueSalvo, resolverAtaqueSalvo, VERSAO_ATAQUE_SALVO } from '../../core/ataquesSalvos';
 import { golpeEquipado, ehBerserker, calcularGanhoBerserker, getNivelClasse } from '../../core/classesMecanicas';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, classificarEfetividade } from '../../core/disputaPoder';
@@ -469,10 +470,10 @@ export function AtaqueFormProvider({ children }) {
     // recalculado pela engine de hoje; sem `salvo` usa o que está montado na tela.
     const executarRolarDano = useCallback((salvo) => {
         // 🛡️ Regra de PvP (core/alvoCombate.js): jogador x jogador só em combate.
-        if (dummieAlvo && dummieAlvo.bloqueado) { alert(dummieAlvo.bloqueado); return; }
+        if (dummieAlvo && dummieAlvo.bloqueado) { alert(dummieAlvo.bloqueado); return false; }
         const salvoResolvido = salvo ? resolverAtaqueSalvo(salvo, { poderesAtivos, magiasOfensivas }) : null;
-        if (salvo && !salvoResolvido) { alert('Este ataque salvo está incompleto. Salve-o de novo.'); return; }
-        if (salvoResolvido && salvoResolvido.faltando > 0 && !window.confirm(`${salvoResolvido.faltando} habilidade(s)/magia(s) deste ataque não estão mais ativas. Executar assim mesmo, sem elas?`)) return;
+        if (salvo && !salvoResolvido) { alert('Este ataque salvo está incompleto. Salve-o de novo.'); return false; }
+        if (salvoResolvido && salvoResolvido.faltando > 0 && !window.confirm(`${salvoResolvido.faltando} habilidade(s)/magia(s) deste ataque não estão mais ativas. Executar assim mesmo, sem elas?`)) return false;
         if (!salvoResolvido) salvarConfigAtaque();
         const skillCfg = salvoResolvido ? salvoResolvido.skillConfigs : skillConfigs;
         const poderesDoGolpe = salvoResolvido ? salvoResolvido.poderes : poderesAtivos;
@@ -526,7 +527,16 @@ export function AtaqueFormProvider({ children }) {
 
         const result = calcularDano({ minhaFicha, configArma, configHabilidades: todasHabilidades, itensEquipados: (minhaFicha.inventario || []).filter(i => i.equipado), isCriticoNormal, isCriticoFatal });
 
-        if (result.erro) { alert(result.erro); return; }
+        if (result.erro) { alert(result.erro); return false; }
+
+        // ⏱️ Ação gasta pelas Técnicas Elementais do golpe (core/acoesTecnica.js): uma por tipo de Ação distinto.
+        const tiposAcaoGolpe = tiposRastreadosDe(magiasDoGolpe);
+        if (tiposAcaoGolpe.length > 0) {
+            const faltando = acoesEmFalta(minhaFicha, tiposAcaoGolpe);
+            if (faltando.length > 0 && !window.confirm(`Sem ${faltando.join(' e ')} disponível. Atacar mesmo assim?`)) return false;
+            updateFicha(ficha => gastarAcoes(ficha, tiposAcaoGolpe));
+            salvarFichaSilencioso();
+        }
 
         if (result.drenos) {
             updateFicha((ficha) => { for (let i = 0; i < result.drenos.length; i++) { if (ficha[result.drenos[i].key]) { ficha[result.drenos[i].key].atual -= result.drenos[i].valor; } } });
@@ -662,6 +672,7 @@ export function AtaqueFormProvider({ children }) {
 
         enviarParaFeed(feedData);
         setAbaAtiva('aba-log');
+        return true;
     }, [
         updateFicha, armaStatusUsados, armaEnergiaCombustao, armaPercEnergia,
         critNormalMin, critNormalMax, critFatalMin, critFatalMax, skillConfigs,
@@ -669,8 +680,8 @@ export function AtaqueFormProvider({ children }) {
         dummieAlvo, alvoSelecionado, meuNome, nomeNoFeed, setAbaAtiva, poderesAtivos, magiasOfensivas, feedCombate, dummies, personagens, elementoAtivo, divisorPoderMesa
     ]);
 
-    const rolarDano = useCallback(() => { executarRolarDano(null); }, [executarRolarDano]);
-    const rolarAtaqueSalvo = useCallback((salvo) => { executarRolarDano(salvo); }, [executarRolarDano]);
+    const rolarDano = useCallback(() => executarRolarDano(null), [executarRolarDano]);
+    const rolarAtaqueSalvo = useCallback((salvo) => executarRolarDano(salvo), [executarRolarDano]);
 
     // 💾 Salva o ataque como CONFIGURAÇÃO (core/ataquesSalvos.js): ao executar, o dano é recalculado com as regras atuais.
     const salvarAtaque = useCallback(() => {

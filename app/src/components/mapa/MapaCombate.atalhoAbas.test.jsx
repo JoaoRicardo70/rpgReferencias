@@ -58,9 +58,13 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('abas do Livro - visibilidade e contador', () => {
-    it('mostra as tres abas quando ha ataques, tecnicas e elementais', () => {
+    it('mostra as quatro abas (Arma, Ataques Salvos, Habilidades, Elementais) quando ha ataques, tecnicas e elementais', () => {
         montar(); abrir();
-        expect(abas()).toHaveLength(3);
+        expect(abas()).toHaveLength(4);
+        expect(abas().map(a => a.textContent)).toEqual([
+            expect.stringContaining('Arma'), expect.stringContaining('Ataques Salvos'),
+            expect.stringContaining('Habilidades'), expect.stringContaining('Técnicas Elementais')
+        ]);
         expect(aba('Ataques Salvos')).toBeTruthy();
         expect(aba('Habilidades')).toBeTruthy();
         expect(aba('Técnicas Elementais')).toBeTruthy();
@@ -75,14 +79,15 @@ describe('abas do Livro - visibilidade e contador', () => {
 
     it('sem ataques salvos some a aba de ataques', () => {
         montar({ salvos: [] }); abrir();
-        expect(abas()).toHaveLength(2);
+        expect(abas()).toHaveLength(3);
+        expect(aba('Arma')).toBeTruthy();
         expect(aba('Ataques Salvos')).toBeUndefined();
     });
 
     it('sem tecnicas some a aba de tecnicas', () => {
         montar({ poderes: [] }); abrir();
         expect(aba('Habilidades')).toBeUndefined();
-        expect(abas()).toHaveLength(2);
+        expect(abas()).toHaveLength(3);
     });
 
     it('sem elementais some a aba de elementais', () => {
@@ -106,6 +111,25 @@ describe('abas do Livro - visibilidade e contador', () => {
         montar({ poderes: [null, PODERES[0]], magias: [null, MAGIAS[0]] }); abrir();
         expect(aba('Habilidades').querySelector('small').textContent).toBe('★ 1/1');
         expect(aba('Técnicas Elementais').querySelector('small').textContent).toBe('★ 1/1');
+    });
+
+    it('contador da aba Arma mostra o total de armas do inventario (0 sem armas)', () => {
+        montar(); abrir();
+        expect(aba('Arma').querySelector('small').textContent).toBe('0');
+        cleanup();
+        aplicarFicha({ ...fichaDe([SALVO], PODERES, MAGIAS), inventario: [{ id: 'a1', tipo: 'arma' }, { id: 'a2', tipo: 'arma' }, { id: 'i1', tipo: 'item' }, null] });
+        render(<MapaAtalhoAtaques />); abrir();
+        expect(aba('Arma').querySelector('small').textContent).toBe('2');
+    });
+
+    it('a aba Defesas so aparece (por ultimo) quando a ficha tem Habilidades de Reducao', () => {
+        montar(); abrir();
+        expect(aba('Defesas')).toBeUndefined();
+        cleanup();
+        aplicarFicha({ ...fichaDe([SALVO], PODERES, MAGIAS), reducoesDano: [{ id: 'r1', nome: 'Pele', tipo: 'passiva' }] });
+        render(<MapaAtalhoAtaques />); abrir();
+        expect(aba('Defesas')).toBeTruthy();
+        expect(abas()[abas().length - 1]).toBe(aba('Defesas'));
     });
 
     it('abre na aba de ataques por padrao (aria-selected)', () => {
@@ -194,19 +218,23 @@ describe('abas do Livro - teclas 1-9', () => {
 });
 
 describe('botao flutuante sem ataques salvos', () => {
-    it('existe so com tecnicas, sem contagem, e abre direto na aba de tecnicas', () => {
+    it('so com tecnicas, sem contagem, abre na aba Arma (primeira) e a de tecnicas mostra as tecnicas', () => {
         montar({ salvos: [], magias: [] });
         expect(botao()).not.toBeNull();
         expect(botao().textContent.trim()).toBe('⚔️');
         abrir();
-        expect(abas()).toHaveLength(1);
-        expect(aba('Habilidades').getAttribute('aria-selected')).toBe('true');
+        expect(abas()).toHaveLength(2);
+        expect(aba('Arma').getAttribute('aria-selected')).toBe('true');
+        expect(aba('Habilidades').getAttribute('aria-selected')).toBe('false');
+        fireEvent.click(aba('Habilidades'));
         expect(screen.getByText(/Escudo Etereo/)).toBeTruthy();
     });
 
-    it('existe so com elementais e abre direto na aba de elementais', () => {
+    it('so com elementais abre na aba Arma e a de elementais mostra as tecnicas elementais', () => {
         montar({ salvos: [], poderes: [] });
         abrir();
+        expect(aba('Arma').getAttribute('aria-selected')).toBe('true');
+        fireEvent.click(aba('Técnicas Elementais'));
         expect(aba('Técnicas Elementais').getAttribute('aria-selected')).toBe('true');
         expect(screen.getByText(/Bola de Fogo/)).toBeTruthy();
     });
@@ -216,13 +244,19 @@ describe('botao flutuante sem ataques salvos', () => {
         expect(botao().textContent).toContain('1');
     });
 
-    it('sem nenhum conteudo o botao nao existe', () => {
+    it('sem salvos, tecnicas nem elementais o botao existe (aba Arma) e abre so com a aba Arma', () => {
         montar({ salvos: [], poderes: [], magias: [] });
-        expect(botao()).toBeNull();
+        expect(botao()).not.toBeNull();
+        abrir();
+        expect(abas()).toHaveLength(1);
+        expect(aba('Arma').getAttribute('aria-selected')).toBe('true');
     });
 
-    it('sem ataques e sem contexto de Poderes/Elementos nao renderiza nada', () => {
+    it('sem contexto de ataque o botao nao existe', () => {
         montar({ salvos: [], comPoderesCtx: false, comElemCtx: false });
+        cleanup();
+        ataqueCtx = null;
+        render(<MapaAtalhoAtaques />);
         expect(botao()).toBeNull();
     });
 });
@@ -234,30 +268,40 @@ describe('aba ativa que some', () => {
         aplicarFicha(fichaDe([SALVO], [], MAGIAS));
         rerender(<MapaAtalhoAtaques />);
         expect(aba('Habilidades')).toBeUndefined();
-        expect(aba('Ataques Salvos').getAttribute('aria-selected')).toBe('true');
-        expect(screen.getByText(/USAR/)).toBeTruthy();
+        expect(aba('Ataques Salvos')).toBeTruthy();
+        expect(aba('Ataques Salvos').getAttribute('aria-selected')).toBe('false');
+        expect(aba('Arma').getAttribute('aria-selected')).toBe('true');
     });
 
-    it('sem ataques, cai de tecnicas para a primeira restante (elementais)', () => {
+    it('sem ataques, cai de tecnicas para a primeira restante (Arma)', () => {
         const { rerender } = montar({ salvos: [] }); abrir();
         fireEvent.click(aba('Habilidades'));
         aplicarFicha(fichaDe([], [], MAGIAS));
         rerender(<MapaAtalhoAtaques />);
-        expect(abas()).toHaveLength(1);
+        expect(abas()).toHaveLength(2);
+        expect(aba('Habilidades')).toBeUndefined();
+        expect(aba('Arma').getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('a aba escolhida continua selecionada se ainda existe depois de re-renderizar', () => {
+        const { rerender } = montar(); abrir();
+        fireEvent.click(aba('Técnicas Elementais'));
+        aplicarFicha(fichaDe([SALVO], [], MAGIAS));
+        rerender(<MapaAtalhoAtaques />);
         expect(aba('Técnicas Elementais').getAttribute('aria-selected')).toBe('true');
     });
 
-    it('o livro fecha quando nao sobra conteudo', () => {
+    it('o livro fecha quando o contexto de ataque some (nao sobra conteudo)', () => {
         const { rerender } = montar(); abrir();
-        aplicarFicha(fichaDe([], [], []));
+        ataqueCtx = null;
         rerender(<MapaAtalhoAtaques />);
         expect(fundo()).toBeNull();
         expect(botao()).toBeNull();
     });
 
-    it('apos o conteudo voltar o livro nao reabre sozinho', () => {
+    it('apos o contexto voltar o livro nao reabre sozinho', () => {
         const { rerender } = montar(); abrir();
-        aplicarFicha(fichaDe([], [], []));
+        ataqueCtx = null;
         rerender(<MapaAtalhoAtaques />);
         aplicarFicha(fichaDe([SALVO], PODERES, MAGIAS));
         rerender(<MapaAtalhoAtaques />);

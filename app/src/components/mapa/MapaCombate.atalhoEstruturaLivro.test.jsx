@@ -61,17 +61,21 @@ describe('estrutura do Livro', () => {
 
     it('(b) marcador ativo tem classe ativa e aria-selected; trocar move a classe', () => {
         const marcadores = screen.getAllByRole('tab');
-        expect(marcadores).toHaveLength(3);
+        expect(marcadores).toHaveLength(4);
         marcadores.forEach(m => {
             expect(m.classList.contains('atalho-livro-marcador')).toBe(true);
             expect(m.parentElement.classList.contains('atalho-livro-marcadores')).toBe(true);
         });
         const estado = () => marcadores.map(m => [m.classList.contains('ativa'), m.getAttribute('aria-selected')]);
-        expect(estado()).toEqual([[true, 'true'], [false, 'false'], [false, 'false']]);
+        const F = [false, 'false'], T = [true, 'true'];
+        // ordem: Arma, Ataques Salvos, Habilidades, Elementais (abre em Ataques Salvos)
+        expect(estado()).toEqual([F, T, F, F]);
         fireEvent.click(aba('Habilidades'));
-        expect(estado()).toEqual([[false, 'false'], [true, 'true'], [false, 'false']]);
+        expect(estado()).toEqual([F, F, T, F]);
         fireEvent.click(aba('Técnicas Elementais'));
-        expect(estado()).toEqual([[false, 'false'], [false, 'false'], [true, 'true']]);
+        expect(estado()).toEqual([F, F, F, T]);
+        fireEvent.click(aba('Arma'));
+        expect(estado()).toEqual([T, F, F, F]);
         expect(document.querySelectorAll('.atalho-livro-marcador.ativa')).toHaveLength(1);
     });
 

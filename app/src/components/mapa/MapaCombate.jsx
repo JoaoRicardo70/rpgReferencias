@@ -5,6 +5,11 @@ import { useMapaForm, urlSeguraParaCss, calcularCA } from './MapaFormContext';
 import { useAtaqueForm } from '../combate/AtaqueFormContext';
 import { AtaquesSalvosChips } from '../combate/AtaqueSubComponents';
 import { formulaDesatualizada, descreverAtaqueSalvo } from '../../core/ataquesSalvos';
+import { getRotuloAcaoTecnica } from '../../core/acoesTecnica';
+import { habilidadeEstaLigada, TIPO_HABILIDADE_PASSIVA } from '../../core/reducaoDano';
+import { descreverAlvosReducao } from '../../core/reducaoRotulos';
+import useGastarAcao from '../../hooks/useGastarAcao';
+import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { usePoderesForm } from '../poderes/PoderesFormContext';
 import EstagioControle from '../poderes/EstagioControle';
 import { temEstagios } from '../../core/estagios';
@@ -529,6 +534,55 @@ export function MapaAtaquesSalvos() {
 
 const SEM_ATAQUES = [];
 
+// 🛡️ Aba "Defesas" do Livro: as Habilidades de Redução de Dano da ficha. Ativas ligam/desligam (cobrando a Ação que
+// custam, core/acoesTecnica.js); Passivas valem sempre e só aparecem. Criar/editar continua na página do Grimório.
+function MapaLivroDefesas() {
+    const { ficha, updateFicha } = useFichaAtiva();
+    const salvar = useCallSaveAtivo();
+    const gastarAcao = useGastarAcao();
+    const reducoes = ((ficha && ficha.reducoesDano) || SEM_ATAQUES).filter(Boolean);
+    const passivas = reducoes.filter(r => r.tipo === TIPO_HABILIDADE_PASSIVA);
+    const ativas = reducoes.filter(r => r.tipo !== TIPO_HABILIDADE_PASSIVA);
+
+    const alternar = (r) => {
+        const ligando = !habilidadeEstaLigada(r);
+        if (ligando && !gastarAcao(r)) return;
+        updateFicha(f => { const x = (f.reducoesDano || []).find(i => i && i.id === r.id); if (x) x.ativa = ligando; });
+        salvar();
+    };
+    const detalhe = (r) => [ (Number(r.percentual) || 0) + '%', descreverAlvosReducao(r), getRotuloAcaoTecnica(r.tipoAcao) ].filter(Boolean).join(' · ');
+
+    return (
+        <div className="def-box">
+            <h4>🛡️ Habilidades de Redução de Dano</h4>
+            {reducoes.length === 0 && <p className="mapa-tecnicas-vazia">Nenhuma habilidade de redução criada ainda. Crie no Grimório (Estados, Afinidades & Reduções).</p>}
+            {passivas.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                    <div className="mapa-tecnicas-categoria">🛡️ Passivas <span className="mapa-categoria-total">({passivas.length}) — sempre ligadas</span></div>
+                    <div className="mapa-tecnicas-grade">
+                        {passivas.map(r => <span key={r.id} className="mapa-defesa-passiva" title={r.descricao || ''}>✦ {r.nome || 'Sem nome'} <span className="mapa-chip-acao">· {detalhe(r)}</span></span>)}
+                    </div>
+                </div>
+            )}
+            {ativas.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                    <div className="mapa-tecnicas-categoria">⚡ Ativas <span className="mapa-categoria-total">({ativas.length}) — liga/desliga</span></div>
+                    <div className="mapa-tecnicas-grade">
+                        {ativas.map(r => {
+                            const ligada = habilidadeEstaLigada(r);
+                            return (
+                                <button key={r.id} className={`btn-neon mapa-tecnica-chip${ligada ? ' mapa-tecnica-chip--ligada' : ''}`} aria-pressed={ligada} onClick={() => alternar(r)} title={r.descricao || ''}>
+                                    {ligada ? '★' : '☆'} {r.nome || 'Sem nome'}<span className="mapa-chip-acao"> · {detalhe(r)}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // 📖 Atalho dos Ataques Salvos no Mapa, no estilo do Livro da Entidade do Mestre (components/mestre/LivroEntidade.jsx):
 // um botão pequeno e fixo no canto inferior esquerdo (não ocupa espaço no layout do Mapa) abre o "Livro" em tela
 // cheia, com a barra de abas e "FECHAR LIVRO" e uma carta por ataque salvo mostrando o que ele usa. É SÓ PARA USAR:
@@ -559,10 +613,14 @@ export function MapaAtalhoAtaques() {
 
     const poderes = ((minhaFicha && minhaFicha.poderes) || SEM_ATAQUES).filter(Boolean);
     const magias = ((minhaFicha && minhaFicha.ataquesElementais) || SEM_ATAQUES).filter(Boolean);
+    const armasInv = ((minhaFicha && minhaFicha.inventario) || SEM_ATAQUES).filter(i => i && i.tipo === 'arma');
+    const reducoesFicha = ((minhaFicha && minhaFicha.reducoesDano) || SEM_ATAQUES).filter(Boolean);
     const abasLivro = [
+        ataqueCtx && { id: 'arma', rotulo: '🗡️ Arma', total: armasInv.length },
         slots.length > 0 && { id: 'ataques', rotulo: '⚔️ Ataques Salvos', total: slots.length },
         poderesCtx && poderes.length > 0 && { id: 'tecnicas', rotulo: '✨ Habilidades · Formas · Poderes', total: poderes.length, ligadas: poderes.filter(p => p && p.ativa).length },
-        elemCtx && magias.length > 0 && { id: 'elementais', rotulo: '🌪️ Técnicas Elementais', total: magias.length, ligadas: magias.filter(m => m && m.equipado).length }
+        elemCtx && magias.length > 0 && { id: 'elementais', rotulo: '🌪️ Técnicas Elementais', total: magias.length, ligadas: magias.filter(m => m && m.equipado).length },
+        reducoesFicha.length > 0 && { id: 'defesas', rotulo: '🛡️ Defesas', total: reducoesFicha.length, ligadas: reducoesFicha.filter(r => habilidadeEstaLigada(r)).length }
     ].filter(Boolean);
     const temConteudo = abasLivro.length > 0;
     // Se a aba escolhida some (ex.: o último ataque salvo foi apagado), cai na primeira que existe.
@@ -572,9 +630,9 @@ export function MapaAtalhoAtaques() {
 
     const usar = useCallback((slot) => {
         if (!slot) return;
-        if (slot.registro) rolarAtaqueSalvo(slot.registro);
-        else rolarDanoCustomizado(slot.formula.formula, slot.formula.letalidade, slot.formula.energiaTipo, slot.formula.energiaCusto);
-        setAberto(false);
+        // Só fecha o Livro se o ataque realmente rolou (erro/alerta ou confirmação cancelada deixam aberto).
+        const rolou = slot.registro ? rolarAtaqueSalvo(slot.registro) : rolarDanoCustomizado(slot.formula.formula, slot.formula.letalidade, slot.formula.energiaTipo, slot.formula.energiaCusto);
+        if (rolou !== false) setAberto(false);
     }, [rolarAtaqueSalvo, rolarDanoCustomizado]);
 
     // Fecha com Esc ou clicando fora do livro; teclas 1-9 usam o slot (ignora digitação em campos e modificadores).
@@ -621,6 +679,8 @@ export function MapaAtalhoAtaques() {
                     </div>
                     <div className="atalho-livro-miolo">
                     <div className="livro-entidade-corpo atalho-livro-corpo atalho-livro-paginas" role="tabpanel">
+                        {abaEfetiva === 'arma' && <div className="atalho-livro-modulo"><MapaAtaqueArma aoRolar={() => setAberto(false)} /></div>}
+                        {abaEfetiva === 'defesas' && <div className="atalho-livro-modulo"><MapaLivroDefesas /></div>}
                         {abaEfetiva === 'ataques' && (<>
                         <div className="atalho-livro-topo">
                             <span className={alvo ? 'atalho-ataques-alvo' : 'atalho-ataques-sem-alvo'}>{alvo ? '🎯 ' + alvo.nome : 'Sem alvo'}</span>
@@ -679,38 +739,32 @@ export function MapaAtalhoAtaques() {
 // clicar na que já está equipada a desequipa (reusa o MESMO toggleEquiparItem do Arsenal, incluindo
 // o recálculo de vitais que ele já faz) — a arma equipada aparece destacada e é a que o
 // ATACAR/ROLAR DANO acima já usa.
-export function MapaAtaqueArma() {
+export function MapaAtaqueArma({ aoRolar }) {
     const ataqueCtx = useAtaqueForm();
     const arsenalCtx = useArsenalForm();
     if (!ataqueCtx) return null;
     const { armaEquipada, podeRolarDano, ignorarTravaAcerto, setIgnorarTravaAcerto, rolarDano, dummieAlvo, minhaFicha } = ataqueCtx;
     const podeAtacar = podeRolarDano || ignorarTravaAcerto;
     const armas = (minhaFicha?.inventario || []).filter(i => i.tipo === 'arma');
+    // Fecha o Livro só se a rolagem aconteceu (alerta de erro ou confirmação cancelada deixam o Livro aberto).
+    const rolar = () => { if (rolarDano() !== false && aoRolar) aoRolar(); };
 
     return (
-        <div className="def-box" style={{ marginTop: 15, padding: '8px 12px', border: '1px solid #f90' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-                <h4 style={{ color: '#f90', margin: 0 }}>🗡️ Ataque com Arma</h4>
-                <label style={{ color: '#aaa', fontSize: '0.75em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }} title="Use pra Saving Throws ou ataques em Área, que não passam pela trava normal de Acerto">
-                    <input type="checkbox" checked={ignorarTravaAcerto} onChange={e => setIgnorarTravaAcerto(e.target.checked)} />
-                    Ignorar Trava de Acerto (P/ Saving Throws ou Área)
-                </label>
-            </div>
+        <div className="def-box livro-arma">
+            <h4 className="livro-arma-titulo">🗡️ Ataque com Arma</h4>
+            <p className="livro-arma-info">
+                {armaEquipada ? `Arma equipada: ${armaEquipada.nome}` : 'Nenhuma arma equipada — role assim mesmo com a config de dano atual da aba Ataque.'}
+            </p>
 
             {arsenalCtx && armas.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '8px 0' }}>
+                <div className="mapa-tecnicas-grade livro-arma-lista">
                     {armas.map(arma => (
                         <button
                             key={arma.id}
-                            className="btn-neon"
+                            className={`btn-neon mapa-tecnica-chip${arma.equipado ? ' mapa-tecnica-chip--ligada' : ''}`}
                             onClick={() => arsenalCtx.toggleEquiparItem(arma.id)}
                             aria-pressed={!!arma.equipado}
                             title={arma.equipado ? 'Arma equipada — clique pra desequipar' : 'Clique pra equipar (desequipa a arma atual)'}
-                            style={{
-                                margin: 0, padding: '4px 12px', fontSize: '0.85em', fontWeight: 'bold', borderColor: '#f90',
-                                background: arma.equipado ? 'rgba(255,153,0,0.3)' : 'transparent',
-                                color: arma.equipado ? '#fff' : '#f90',
-                            }}
                         >
                             {arma.equipado ? '🗡️' : '⚪'} {arma.nome || 'Sem nome'}
                         </button>
@@ -718,19 +772,16 @@ export function MapaAtaqueArma() {
                 </div>
             )}
 
-            <p style={{ color: '#888', fontSize: '0.8em', margin: '4px 0 8px 0' }}>
-                {armaEquipada ? `Arma equipada: ${armaEquipada.nome}` : 'Nenhuma arma equipada — role assim mesmo com a config de dano atual da aba Ataque.'}
-            </p>
-            <button
-                className={`btn-neon ${podeAtacar ? 'btn-red' : ''}`}
-                onClick={rolarDano}
-                disabled={!podeAtacar}
-                style={{ width: '100%', margin: 0, opacity: podeAtacar ? 1 : 0.5 }}
-            >
+            <label className="livro-arma-ignorar" title="Use pra Saving Throws ou ataques em Área, que não passam pela trava de Acerto">
+                <input type="checkbox" checked={ignorarTravaAcerto} onChange={e => setIgnorarTravaAcerto(e.target.checked)} />
+                Ignorar Trava de Acerto (P/ Saving Throws ou Área)
+            </label>
+
+            <button className="livro-arma-rolar" onClick={rolar} disabled={!podeAtacar}>
                 {dummieAlvo ? (podeAtacar ? `⚔️ ATACAR ${String(dummieAlvo.nome || 'alvo').toUpperCase()}` : 'ACERTO NECESSÁRIO PRIMEIRO') : '⚔️ ROLAR DANO'}
             </button>
             {!podeAtacar && (
-                <p style={{ color: '#f90', fontSize: '0.75em', margin: '4px 0 0 0', fontStyle: 'italic' }}>
+                <p className="livro-arma-aviso">
                     Role um Acerto contra este alvo na aba Acerto primeiro, ou marque "Ignorar Trava" acima.
                 </p>
             )}
@@ -775,9 +826,12 @@ export function MapaTecnicasRapidas() {
     const setPastasFechadasMapaTecnicas = useStore(s => s.setPastasFechadasMapaTecnicas);
     const [busca, setBusca] = useState('');
     const [soLigadas, setSoLigadas] = useState(false);
+    const gastarAcao = useGastarAcao();
     if (!poderesCtx) return null;
     const { minhaFicha, togglePoder, mudarEstagioPoder } = poderesCtx;
     const poderes = minhaFicha?.poderes || [];
+    // ⏱️ Ligar a técnica cobra a Ação que ela custa (core/acoesTecnica.js); desligar não cobra nada.
+    const alternarTecnica = (p) => { if (!p.ativa && !gastarAcao(p)) return; togglePoder(p.id); };
     const termo = busca.trim().toLowerCase();
     // 🔍 Busca por nome (e pasta): enquanto há busca, as pastas com resultado ficam abertas.
     // ★ "Só ligadas" filtra a lista (em vez de repetir as ligadas num bloco à parte): continuam nas suas pastas.
@@ -832,7 +886,7 @@ export function MapaTecnicasRapidas() {
         <button
             key={p.id}
             className={`btn-neon mapa-tecnica-chip${p.ativa ? ' mapa-tecnica-chip--ligada' : ''}`}
-            onClick={() => togglePoder(p.id)}
+            onClick={() => alternarTecnica(p)}
             title={p.descricao || p.nome || ''}
             style={{
                 margin: 0, padding: '6px 14px', fontWeight: 'bold', borderColor: '#aa00ff',
@@ -840,7 +894,7 @@ export function MapaTecnicasRapidas() {
                 color: p.ativa ? '#fff' : '#aa00ff',
             }}
         >
-            {p.ativa ? '★' : '☆'} {p.nome || 'Sem nome'}
+            {p.ativa ? '★' : '☆'} {p.nome || 'Sem nome'}{p.tipoAcao ? <span className="mapa-chip-acao"> · {getRotuloAcaoTecnica(p.tipoAcao)}</span> : null}
         </button>
     );
 
@@ -1021,7 +1075,7 @@ export function MapaMagiasElementais() {
                                             color: m.equipado ? '#fff' : cor,
                                         }}
                                     >
-                                        {m.equipado ? '★' : '☆'} {m.nome || 'Sem nome'}
+                                        {m.equipado ? '★' : '☆'} {m.nome || 'Sem nome'}{m.tipoAcao ? <span className="mapa-chip-acao"> · {getRotuloAcaoTecnica(m.tipoAcao)}</span> : null}
                                     </button>
                                 ))}
                             </div>

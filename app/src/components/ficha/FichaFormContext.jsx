@@ -1,3 +1,4 @@
+import { normalizarTipoAcao } from '../../core/acoesTecnica';
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { ELEMENTOS_SISTEMA } from '../../core/elementos.js';
 import { alternarAlvoReducao, TIPO_HABILIDADE_ATIVA, TIPO_HABILIDADE_PASSIVA } from '../../core/reducaoDano.js';
@@ -146,6 +147,7 @@ export function FichaFormProvider({ children }) {
             else if (campo === 'ativa') r.ativa = !!valor;
             else if (campo === 'tipo') r.tipo = valor === TIPO_HABILIDADE_PASSIVA ? TIPO_HABILIDADE_PASSIVA : TIPO_HABILIDADE_ATIVA;
             else if (campo === 'nome') r.nome = String(valor || '').slice(0, 60);
+            else if (campo === 'tipoAcao') r.tipoAcao = normalizarTipoAcao(valor);
             else if (campo === 'elemento') { r.elemento = String(valor || 'todos'); r.elementos = [r.elemento]; }
         });
         salvarFichaSilencioso();

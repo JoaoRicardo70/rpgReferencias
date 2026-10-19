@@ -46,8 +46,11 @@ describe('MapaAtalhoAtaques livro - estrutura (so para usar)', () => {
         expect(fundo()).toBeNull();
         abrir();
         expect(fundo()).not.toBeNull();
-        const aba = screen.getByRole('tab');
-        expect(aba.textContent).toContain('Ataques Salvos');
+        const abas = screen.getAllByRole('tab');
+        expect(abas).toHaveLength(2);
+        expect(abas[0].textContent).toContain('Arma');
+        const aba = abas.find(a => a.textContent.includes('Ataques Salvos'));
+        expect(aba).toBeTruthy();
         expect(aba.getAttribute('aria-selected')).toBe('true');
         expect(document.querySelector('.livro-entidade-barra')).not.toBeNull();
         expect(document.querySelector('.livro-entidade-corpo')).not.toBeNull();
@@ -69,8 +72,8 @@ describe('MapaAtalhoAtaques livro - estrutura (so para usar)', () => {
         expect(livro.querySelectorAll('input, textarea, select').length).toBe(0);
         const textos = [...livro.querySelectorAll('button')].map(b => b.textContent);
         for (const t of textos) expect(t).not.toMatch(/criar|nova|novo|editar|apagar|excluir|salvar|deletar|🗑|✏|➕/i);
-        // botoes: aba, fechar, e uma carta por ataque
-        expect(livro.querySelectorAll('button').length).toBe(2 + 2);
+        // botoes: 2 abas (Arma e Ataques Salvos), fechar, e uma carta por ataque
+        expect(livro.querySelectorAll('button').length).toBe(2 + 1 + 2);
     });
 
     it('usar uma carta executa e fecha o livro', () => {
@@ -183,17 +186,25 @@ describe('MapaAtalhoAtaques livro - clique no fundo', () => {
 });
 
 describe('MapaAtalhoAtaques livro - ataques salvos somem', () => {
-    it('fecha quando os salvos somem e NAO reaparece quando voltam', () => {
+    it('quando os salvos somem o livro segue aberto na aba Arma; fecha sem contexto de ataque e NAO reaparece quando volta', () => {
         const { rerender } = montar({ ataquesSalvos: [salvoCompleto] });
         abrir();
         expect(fundo()).not.toBeNull();
 
         ctx = { ...ctx, minhaFicha: { ...FICHA_BASE, ataqueConfig: { ataquesSalvos: [] } } };
         rerender(<MapaAtalhoAtaques />);
+        expect(fundo()).not.toBeNull();
+        expect(screen.getAllByRole('tab')).toHaveLength(1);
+        expect(screen.getByRole('tab').textContent).toContain('Arma');
+        expect(screen.getByRole('tab').getAttribute('aria-selected')).toBe('true');
+
+        const guardado = ctx;
+        ctx = null;
+        rerender(<MapaAtalhoAtaques />);
         expect(fundo()).toBeNull();
         expect(document.querySelector('.atalho-ataques')).toBeNull();
 
-        ctx = { ...ctx, minhaFicha: { ...FICHA_BASE, ataqueConfig: { ataquesSalvos: [salvoCompleto] } } };
+        ctx = { ...guardado, minhaFicha: { ...FICHA_BASE, ataqueConfig: { ataquesSalvos: [salvoCompleto] } } };
         rerender(<MapaAtalhoAtaques />);
         expect(fundo()).toBeNull();
         expect(screen.getByTitle('Atalho dos Ataques Salvos')).toBeTruthy();
@@ -202,8 +213,18 @@ describe('MapaAtalhoAtaques livro - ataques salvos somem', () => {
         expect(fundo()).not.toBeNull();
     });
 
-    it('sem nenhum ataque salvo nada e renderizado', () => {
+    it('sem nenhum ataque salvo o botao existe (aba Arma) e o livro abre so com ela', () => {
         montar({});
+        expect(document.querySelector('.atalho-ataques')).not.toBeNull();
+        expect(fundo()).toBeNull();
+        abrir();
+        expect(screen.getAllByRole('tab')).toHaveLength(1);
+        expect(screen.getByRole('tab').textContent).toContain('Arma');
+    });
+
+    it('sem contexto de ataque nada e renderizado', () => {
+        ctx = null;
+        render(<MapaAtalhoAtaques />);
         expect(document.querySelector('.atalho-ataques')).toBeNull();
         expect(fundo()).toBeNull();
     });

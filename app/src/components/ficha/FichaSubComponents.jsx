@@ -1,6 +1,7 @@
 import React from 'react';
 import { useFichaForm, ATRIBUTO_OPTIONS, CLASSES_OPTIONS, STATS, ENERGIAS } from './FichaFormContext';
 import FormasEditor from '../shared/FormasEditor';
+import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes, getAlvosReducao, habilidadeEstaLigada, TIPO_HABILIDADE_ATIVA, TIPO_HABILIDADE_PASSIVA } from '../../core/reducaoDano.js';
 import { POLARIDADES, getInfoPolaridade } from '../../core/polaridade.js';
 import { agruparElementosPorCategoria, chaveElemento } from '../../core/elementos.js';
@@ -183,6 +184,9 @@ function CartaoHabilidadeReducao({ r }) {
                 <select className="input-neon habilidade-card-tipo" value={passiva ? TIPO_HABILIDADE_PASSIVA : TIPO_HABILIDADE_ATIVA} onChange={e => atualizarReducaoDano(r.id, 'tipo', e.target.value)} title="Passiva vale sempre; Ativa só quando ligada">
                     <option value={TIPO_HABILIDADE_ATIVA}>⚡ Ativa (liga/desliga)</option>
                     <option value={TIPO_HABILIDADE_PASSIVA}>🛡️ Passiva (sempre ligada)</option>
+                </select>
+                <select className="input-neon habilidade-card-acao" value={r.tipoAcao || ''} onChange={e => atualizarReducaoDano(r.id, 'tipoAcao', e.target.value)} title="Que tipo de Ação custa ligar esta habilidade (o sistema desconta Ação, Ação Bônus e Reação)">
+                    {TIPOS_ACAO_TECNICA.map(t => <option key={t.id} value={t.id}>{t.id ? `Ação: ${t.rotulo}` : 'Ação: não controla'}</option>)}
                 </select>
                 {!passiva && (
                     <label className="habilidade-reducao-ativa" title="Ligar/desligar a habilidade">
