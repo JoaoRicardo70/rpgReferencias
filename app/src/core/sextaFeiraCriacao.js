@@ -13,12 +13,13 @@
 //   npc (dummie do Mapa)   -> components/mapa/MapaFerramentasMestre.jsx (criar dummie)
 // ==========================================
 import { dadosLimitadosDaTecnica } from './limiteDados.js';
-import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS } from './efeitos-constants.js';
+import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, PROPRIEDADES_REACAO } from './efeitos-constants.js';
 import { normalizarPasta } from './pastas.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 
-export const ATRIBUTOS_EFEITO = ATRIBUTOS_AGRUPADOS.flatMap(g => g.options);
-export const PROPRIEDADES_EFEITO = [...PROPRIEDADE_OPTIONS];
+// Inclui as Reações (efeito reacao_<gatilho> + propriedade do efeito): a Sexta-Feira não pode rebaixá-las a efeito numérico comum.
+export const ATRIBUTOS_EFEITO = [...ATRIBUTOS_AGRUPADOS.flatMap(g => g.options), ...GRUPO_REACOES.options];
+export const PROPRIEDADES_EFEITO = [...PROPRIEDADE_OPTIONS, ...PROPRIEDADES_REACAO];
 export const CATEGORIAS_PODER = ['habilidade', 'poder', 'forma'];
 export const VERTENTES_PODER = ['', 'Acumulativo', 'Elemental', 'Conceitual', 'Utilitario'];
 export const TIPOS_MECANICA_MAGIA = ['ataque', 'saving', 'infusao', 'suporte'];

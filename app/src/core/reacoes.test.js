@@ -1,15 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import {
     GATILHOS_REACAO, EFEITOS_REACAO, OPCAO_UNIVERSAL, normalizarGatilho, normalizarEfeito, normalizarValorReacao,
-    efeitoUsaValor, getRotuloEfeito, getReacaoDaTecnica, opcoesDeReacao, aplicarReacoesAoDano,
+    efeitoUsaValor, getRotuloEfeito, getReacaoDaTecnica, getReacoesDosEfeitos, opcoesDeReacao, aplicarReacoesAoDano,
     VALIDADE_REACAO_MS, reacaoPendenteValida, reacoesPendentesValidas, reacaoAguardandoDano
 } from './reacoes.js';
 
 const tec = (id, nome, gatilho, efeito, valor, over = {}) => ({ id, nome, tipoAcao: 'reacao', reacaoGatilho: gatilho, reacaoEfeito: efeito, reacaoValor: valor, ...over });
-const instintoSuperior = tec(1, 'Instinto Superior', 'errou', 'atacar_atacante', 0, { ativa: true });
-const instintoBestial = tec(2, 'Instinto Bestial', 'acertou', 'contra_ataque', 0, { ativa: true });
-const assassin = tec(3, 'Assassin', 'sempre', 'reduzir_dano', 50, { ativa: true });
-const ajuda = tec(4, 'Proteger', 'aliado', 'aumentar_ca', 3, { ativa: true });
+// Poder/Forma/Habilidade: a Reacao e um EFEITO (atributo reacao_<gatilho> + propriedade = o que faz + valor).
+const efR = (gatilho, efeito, valor) => ({ atributo: `reacao_${gatilho}`, propriedade: efeito, valor });
+const pod = (id, nome, ef, over = {}) => ({ id, nome, categoria: 'poder', ativa: true, efeitos: [ef], efeitosPassivos: [], ...over });
+const instintoSuperior = pod(1, 'Instinto Superior', null, {
+    efeitos: [{ atributo: 'mgeral', propriedade: 'munico', valor: 40, tipo: 'poder_direto' }, efR('errou', 'atacar_atacante', 0)]
+});
+const instintoBestial = pod(2, 'Instinto Bestial', efR('acertou', 'contra_ataque', 0));
+const assassin = pod(3, 'Assassin', efR('sempre', 'reduzir_dano', 50));
+const ajuda = pod(4, 'Proteger', efR('aliado', 'aumentar_ca', 3));
 
 describe('normalizacao', () => {
     it('normalizarGatilho aceita ids conhecidos, resto vira vazio', () => {
@@ -47,16 +52,56 @@ describe('normalizacao', () => {
 });
 
 describe('getReacaoDaTecnica', () => {
+    const elementalAssassin = tec(3, 'Assassin', 'sempre', 'reduzir_dano', 50);
     it('devolve a configuracao completa', () => {
-        expect(getReacaoDaTecnica(assassin)).toEqual({ gatilho: 'sempre', efeito: 'reduzir_dano', valor: 50 });
+        expect(getReacaoDaTecnica(elementalAssassin)).toEqual({ gatilho: 'sempre', efeito: 'reduzir_dano', valor: 50 });
     });
     it('exige tipoAcao reacao, gatilho e efeito', () => {
-        expect(getReacaoDaTecnica({ ...assassin, tipoAcao: 'acao' })).toBeNull();
-        expect(getReacaoDaTecnica({ ...assassin, tipoAcao: undefined })).toBeNull();
-        expect(getReacaoDaTecnica({ ...assassin, reacaoGatilho: '' })).toBeNull();
-        expect(getReacaoDaTecnica({ ...assassin, reacaoEfeito: 'x' })).toBeNull();
+        expect(getReacaoDaTecnica({ ...elementalAssassin, tipoAcao: 'acao' })).toBeNull();
+        expect(getReacaoDaTecnica({ ...elementalAssassin, tipoAcao: undefined })).toBeNull();
+        expect(getReacaoDaTecnica({ ...elementalAssassin, reacaoGatilho: '' })).toBeNull();
+        expect(getReacaoDaTecnica({ ...elementalAssassin, reacaoEfeito: 'x' })).toBeNull();
         expect(getReacaoDaTecnica(null)).toBeNull();
         expect(getReacaoDaTecnica(undefined)).toBeNull();
+    });
+});
+
+describe('getReacoesDosEfeitos', () => {
+    it('efeito passivo vale sempre', () => {
+        const t = { ativa: false, efeitosPassivos: [efR('sempre', 'reduzir_dano', 30)] };
+        expect(getReacoesDosEfeitos(t)).toEqual([{ indice: 0, gatilho: 'sempre', efeito: 'reduzir_dano', valor: 30 }]);
+    });
+    it('efeito ativo so com a tecnica ligada (ativa === true)', () => {
+        const ef = [efR('acertou', 'contra_ataque', 0)];
+        expect(getReacoesDosEfeitos({ ativa: true, efeitos: ef })).toHaveLength(1);
+        [false, undefined, 'true', 1].forEach(a => expect(getReacoesDosEfeitos({ ativa: a, efeitos: ef })).toEqual([]));
+    });
+    it('indice: passivos primeiro, depois ativos', () => {
+        const t = { ativa: true, efeitosPassivos: [efR('errou', 'contra_ataque', 0)], efeitos: [{ atributo: 'forca', propriedade: 'base', valor: 1 }, efR('sempre', 'reduzir_dano', 10)] };
+        expect(getReacoesDosEfeitos(t).map(r => r.indice)).toEqual([0, 2]);
+    });
+    it('atributo reacao_ com gatilho ou propriedade invalidos e ignorado', () => {
+        const t = { ativa: true, efeitos: [efR('xx', 'reduzir_dano', 1), efR('sempre', 'base', 1), efR('sempre', undefined, 1), { atributo: 'reacao_', propriedade: 'reduzir_dano' }, null, { propriedade: 'reduzir_dano' }, { atributo: 5 }] };
+        expect(getReacoesDosEfeitos(t)).toEqual([]);
+    });
+    it('valor de reduzir_dano limitado a 0-100; aumentar_ca nunca negativo', () => {
+        const t = { ativa: true, efeitos: [efR('sempre', 'reduzir_dano', 250), efR('sempre', 'reduzir_dano', -5), efR('sempre', 'aumentar_ca', -3), efR('sempre', 'aumentar_ca', '4')] };
+        expect(getReacoesDosEfeitos(t).map(r => r.valor)).toEqual([100, 0, 0, 4]);
+    });
+    it('nulo, sem listas ou listas nao-array devolvem vazio', () => {
+        expect(getReacoesDosEfeitos(null)).toEqual([]);
+        expect(getReacoesDosEfeitos({})).toEqual([]);
+        expect(getReacoesDosEfeitos({ ativa: true, efeitos: 'x', efeitosPassivos: {} })).toEqual([]);
+    });
+    it('exemplos: Instinto Superior, Bestial, Assassin e ajuda', () => {
+        expect(getReacoesDosEfeitos(instintoSuperior)).toEqual([{ indice: 1, gatilho: 'errou', efeito: 'atacar_atacante', valor: 0 }]);
+        expect(getReacoesDosEfeitos(instintoBestial)[0]).toMatchObject({ gatilho: 'acertou', efeito: 'contra_ataque' });
+        expect(getReacoesDosEfeitos(assassin)[0]).toMatchObject({ gatilho: 'sempre', efeito: 'reduzir_dano', valor: 50 });
+        expect(getReacoesDosEfeitos(ajuda)[0]).toMatchObject({ gatilho: 'aliado', efeito: 'aumentar_ca', valor: 3 });
+    });
+    it('Instinto Superior mantem o Poder Direto MGERAL 40 sem virar reacao', () => {
+        expect(instintoSuperior.efeitos[0]).toMatchObject({ atributo: 'mgeral', valor: 40 });
+        expect(getReacoesDosEfeitos(instintoSuperior)).toHaveLength(1);
     });
 });
 
@@ -79,11 +124,12 @@ describe('opcoesDeReacao', () => {
         const ops = opcoesDeReacao(ficha, { acertou: false });
         expect(ops.map(o => o.nome)).toEqual(['Instinto Superior', 'Assassin']);
         expect(ops[0].efeito).toBe('atacar_atacante');
+        expect(ops[0].id).toBe('poder:1:1');
     });
     it('acertou: universal, Instinto Bestial (contra_ataque) e Assassin', () => {
         const ops = opcoesDeReacao(ficha, { acertou: true });
         expect(ops.map(o => o.nome)).toEqual(['Atacar o ataque', 'Instinto Bestial', 'Assassin']);
-        expect(ops[1]).toMatchObject({ efeito: 'contra_ataque', origem: 'poder', id: 'poder:2' });
+        expect(ops[1]).toMatchObject({ efeito: 'contra_ataque', origem: 'poder', id: 'poder:2:0' });
         expect(ops[2]).toMatchObject({ efeito: 'reduzir_dano', valor: 50 });
     });
     it('aliado: so tecnicas de gatilho aliado, sem universal', () => {
@@ -93,9 +139,19 @@ describe('opcoesDeReacao', () => {
     it('gatilho aliado nao aparece quando o alvo sou eu', () => {
         expect(opcoesDeReacao(ficha, { acertou: true }).map(o => o.nome)).not.toContain('Proteger');
     });
-    it('tecnica desligada nao aparece (poder ativa !== true)', () => {
+    it('tecnica desligada nao aparece (efeito ativo com ativa !== true)', () => {
         const f = { poderes: [{ ...assassin, ativa: false }, { ...instintoBestial, ativa: undefined }, { ...instintoSuperior, ativa: 'true' }] };
         expect(opcoesDeReacao(f, { acertou: false })).toEqual([]);
+    });
+    it('efeito PASSIVO vale mesmo com a tecnica desligada; indice conta passivos primeiro', () => {
+        const p = { id: 7, nome: 'Passiva', ativa: false, efeitosPassivos: [{ atributo: 'forca', propriedade: 'base', valor: 1 }, efR('sempre', 'reduzir_dano', 20)], efeitos: [efR('errou', 'contra_ataque', 0)] };
+        const ops = opcoesDeReacao({ poderes: [p] }, { acertou: false });
+        expect(ops).toHaveLength(1);
+        expect(ops[0]).toMatchObject({ id: 'poder:7:1', origem: 'poder', efeito: 'reduzir_dano', valor: 20 });
+    });
+    it('poder com a config antiga (tipoAcao reacao + reacaoGatilho) NAO gera opcao', () => {
+        const antigo = { id: 8, nome: 'Antigo', ativa: true, tipoAcao: 'reacao', reacaoGatilho: 'sempre', reacaoEfeito: 'reduzir_dano', reacaoValor: 50, efeitos: [], efeitosPassivos: [] };
+        expect(opcoesDeReacao({ poderes: [antigo] }, { acertou: false })).toEqual([]);
     });
     it('tecnica elemental so se equipada', () => {
         const el = tec(9, 'Escudo Elemental', 'sempre', 'reduzir_dano', 30, { equipado: true });
@@ -104,8 +160,13 @@ describe('opcoesDeReacao', () => {
         expect(ops).toHaveLength(1);
         expect(ops[0]).toMatchObject({ id: 'tecnica:9', origem: 'tecnica', valor: 30 });
     });
-    it('tecnica ligada mas sem tipoAcao reacao ou sem configuracao nao aparece', () => {
-        const f = { poderes: [{ ...assassin, tipoAcao: 'bonus' }, { ...assassin, id: 5, reacaoEfeito: '' }] };
+    it('tecnica elemental sem tipoAcao reacao ou sem configuracao nao aparece', () => {
+        const el = tec(9, 'E', 'sempre', 'reduzir_dano', 30, { equipado: true });
+        const f = { ataquesElementais: [{ ...el, tipoAcao: 'bonus' }, { ...el, id: 5, reacaoEfeito: '' }] };
+        expect(opcoesDeReacao(f, { acertou: true }).map(o => o.id)).toEqual(['universal']);
+    });
+    it('poder ligado com efeito reacao_ de gatilho/propriedade invalidos nao aparece', () => {
+        const f = { poderes: [pod(5, 'X', { atributo: 'reacao_xx', propriedade: 'reduzir_dano', valor: 1 }), pod(6, 'Y', { atributo: 'reacao_sempre', propriedade: 'base', valor: 1 })] };
         expect(opcoesDeReacao(f, { acertou: true }).map(o => o.id)).toEqual(['universal']);
     });
     it('listas ausentes, nao-array ou entradas nulas nao quebram; sem nome vira "Sem nome"', () => {

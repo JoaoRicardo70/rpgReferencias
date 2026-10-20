@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS } from '../../core/efeitos-constants';
+import { ATRIBUTOS_AGRUPADOS, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 
 export default function FormasEditor({ className, itemRaridade, formas, formaAtivaId, configAtivaId, onSalvarForma, onDeletarForma, onAtivarForma }) {
     const [mostrarFormas, setMostrarFormas] = useState(false);
@@ -283,11 +283,11 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
                                     {/* 🔥 LAYOUT GRID ATUALIZADO: Com campo para o Nome do Efeito 🔥 */}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 60px auto', gap: 6, marginBottom: 5 }}>
                                         <input className="input-neon" type="text" placeholder="Nome (Ex: Vento)" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tNomeA || ''} onChange={e => handleConfigChange(cIdx, 'tNomeA', e.target.value)} />
-                                        <select className="input-neon" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tAtrA || 'forca'} onChange={e => handleConfigChange(cIdx, 'tAtrA', e.target.value)}>
+                                        <select className="input-neon" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tAtrA || 'forca'} onChange={e => { handleConfigChange(cIdx, 'tAtrA', e.target.value); handleConfigChange(cIdx, 'tPropA', ajustarPropriedade(e.target.value, cfg.tPropA || 'base')); }}>
                                             {ATRIBUTOS_AGRUPADOS.map(g => <optgroup key={g.label} label={g.label}>{g.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}</optgroup>)}
                                         </select>
                                         <select className="input-neon" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tPropA || 'base'} onChange={e => handleConfigChange(cIdx, 'tPropA', e.target.value)}>
-                                            {PROPRIEDADE_OPTIONS.map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
+                                            {getPropriedadesDoAtributo(cfg.tAtrA || 'forca').map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
                                         </select>
                                         <input className="input-neon" type="text" placeholder="Val" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tValA || ''} onChange={e => handleConfigChange(cIdx, 'tValA', e.target.value)} />
                                         <button className="btn-neon btn-blue" onClick={() => addEfeitoToConfig(cIdx, true)} style={{ padding: '4px 10px', margin: 0 }}>+</button>
@@ -305,11 +305,11 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
                                     {/* 🔥 LAYOUT GRID ATUALIZADO 🔥 */}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 60px auto', gap: 6, marginBottom: 5 }}>
                                         <input className="input-neon" type="text" placeholder="Nome (Ex: Aura)" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tNomeP || ''} onChange={e => handleConfigChange(cIdx, 'tNomeP', e.target.value)} />
-                                        <select className="input-neon" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tAtrP || 'forca'} onChange={e => handleConfigChange(cIdx, 'tAtrP', e.target.value)}>
+                                        <select className="input-neon" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tAtrP || 'forca'} onChange={e => { handleConfigChange(cIdx, 'tAtrP', e.target.value); handleConfigChange(cIdx, 'tPropP', ajustarPropriedade(e.target.value, cfg.tPropP || 'base')); }}>
                                             {ATRIBUTOS_AGRUPADOS.map(g => <optgroup key={g.label} label={g.label}>{g.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}</optgroup>)}
                                         </select>
                                         <select className="input-neon" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tPropP || 'base'} onChange={e => handleConfigChange(cIdx, 'tPropP', e.target.value)}>
-                                            {PROPRIEDADE_OPTIONS.map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
+                                            {getPropriedadesDoAtributo(cfg.tAtrP || 'forca').map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
                                         </select>
                                         <input className="input-neon" type="text" placeholder="Val" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tValP || ''} onChange={e => handleConfigChange(cIdx, 'tValP', e.target.value)} />
                                         <button className="btn-neon" onClick={() => addEfeitoToConfig(cIdx, false)} style={{ padding: '4px 10px', margin: 0, borderColor: '#f0f', color: '#f0f' }}>+</button>

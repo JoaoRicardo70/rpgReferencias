@@ -44,3 +44,28 @@ export const ATRIBUTOS_AGRUPADOS = [
 export const PROPRIEDADE_OPTIONS = [
     'base', 'mbase', 'mgeral', 'mformas', 'mabs', 'munico', 'furia_berserker', 'reducaocusto', 'regeneracao', 'elemento_inato', 'bonus_acerto'
 ];
+
+// ↩️ Reações (core/reacoes.js): a capacidade de reagir é um EFEITO da técnica, ao lado dos demais (Poder Direto, passivas...).
+// O ATRIBUTO diz QUANDO a Reação pode ser usada e a PROPRIEDADE diz O QUE ela faz; o valor é a % (reduzir_dano) ou o +N (aumentar_ca).
+export const GRUPO_REACOES = {
+    label: '↩️ REAÇÕES (quando usar)',
+    options: ['reacao_errou', 'reacao_acertou', 'reacao_sempre', 'reacao_aliado']
+};
+export const PROPRIEDADES_REACAO = ['contra_ataque', 'atacar_atacante', 'atacar_ataque', 'reduzir_dano', 'aumentar_ca'];
+
+// Atributos que só fazem sentido com a propriedade BASE (o valor é a quantidade/porcentagem).
+const SO_BASE = new Set(['reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder']);
+
+// Propriedades que fazem sentido para o atributo escolhido (Ação/Reação não têm Multiplicador; Reação escolhe o efeito).
+export function getPropriedadesDoAtributo(atributo) {
+    const a = String(atributo || '');
+    if (a.startsWith('reacao_')) return PROPRIEDADES_REACAO;
+    if (SO_BASE.has(a)) return ['base'];
+    return PROPRIEDADE_OPTIONS;
+}
+
+// Mantém a propriedade atual se ela vale para o atributo; senão cai na primeira opção válida.
+export function ajustarPropriedade(atributo, propriedadeAtual) {
+    const opcoes = getPropriedadesDoAtributo(atributo);
+    return opcoes.includes(propriedadeAtual) ? propriedadeAtual : opcoes[0];
+}

@@ -14,9 +14,10 @@ vi.mock('../../services/firebase-sync', () => ({ enviarParaFeed: vi.fn(), salvar
 
 let state; let ficha;
 const acoes = (r) => ({ padrao: { max: 2, atual: 2, extra: 0 }, bonus: { max: 2, atual: 2, extra: 0 }, reacao: { max: 2, atual: r, extra: 0 } });
-const assassin = { id: 3, nome: 'Assassin', tipoAcao: 'reacao', reacaoGatilho: 'sempre', reacaoEfeito: 'reduzir_dano', reacaoValor: 50, ativa: true };
-const bestial = { id: 2, nome: 'Instinto Bestial', tipoAcao: 'reacao', reacaoGatilho: 'acertou', reacaoEfeito: 'contra_ataque', reacaoValor: 0, ativa: true };
-const protetor = { id: 4, nome: 'Protetor', tipoAcao: 'reacao', reacaoGatilho: 'aliado', reacaoEfeito: 'aumentar_ca', reacaoValor: 3, ativa: true };
+// Poderes: a Reacao e um efeito reacao_<gatilho> + propriedade (o que faz) + valor.
+const assassin = { id: 3, nome: 'Assassin', ativa: true, efeitosPassivos: [], efeitos: [{ atributo: 'reacao_sempre', propriedade: 'reduzir_dano', valor: 50 }] };
+const bestial = { id: 2, nome: 'Instinto Bestial', ativa: true, efeitosPassivos: [], efeitos: [{ atributo: 'reacao_acertou', propriedade: 'contra_ataque', valor: 0 }] };
+const protetor = { id: 4, nome: 'Protetor', ativa: true, efeitosPassivos: [], efeitos: [{ atributo: 'reacao_aliado', propriedade: 'aumentar_ca', valor: 3 }] };
 
 const acerto = (over = {}) => ({ tipo: 'acerto', nome: 'Vilao', ts: Date.now(), alvosArea: [{ nome: 'Heroi', acertou: true }], ...over });
 

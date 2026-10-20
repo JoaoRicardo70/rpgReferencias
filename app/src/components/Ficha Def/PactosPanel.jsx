@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
-import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS } from '../../core/efeitos-constants';
+import { ATRIBUTOS_AGRUPADOS, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 import { CLASSES_OPTIONS } from '../ficha/FichaFormContext';
 import FormasEditor from '../shared/FormasEditor';
 import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
@@ -52,11 +52,11 @@ const EditorEfeitos = ({ titulo, cor, isAtivo, draftBuffs, novo, setNovo, addEfe
         <h5 style={{ color: cor, margin: '0 0 5px 0', fontSize: '0.85em' }}>{titulo}</h5>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 70px auto', gap: 5, marginBottom: 8 }}>
             <CampoMagico valor={novo.nome} onChange={v => setNovo(n => ({ ...n, nome: v }))} placeholder="Nome do Efeito" styleExtra={{ fontSize: '0.85em' }} />
-            <select value={novo.atributo} onChange={e => setNovo(n => ({ ...n, atributo: e.target.value }))} style={{ background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dashed currentColor', outline: 'none', fontFamily: 'inherit', fontSize: '0.85em' }}>
+            <select value={novo.atributo} onChange={e => setNovo(n => ({ ...n, atributo: e.target.value, propriedade: ajustarPropriedade(e.target.value, n.propriedade) }))} style={{ background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dashed currentColor', outline: 'none', fontFamily: 'inherit', fontSize: '0.85em' }}>
                 {ATRIBUTOS_PACTOS.map(g => <optgroup key={g.label} label={g.label} style={{ color: '#000' }}>{g.options.map(a => <option key={a} value={a} style={{ color: '#000' }}>{a.replace('_', ' ').toUpperCase()}</option>)}</optgroup>)}
             </select>
             <select value={novo.propriedade} onChange={e => setNovo(n => ({ ...n, propriedade: e.target.value }))} style={{ background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dashed currentColor', outline: 'none', fontFamily: 'inherit', fontSize: '0.85em' }}>
-                {PROPRIEDADE_OPTIONS.map(p => <option key={p} value={p} style={{ color: '#000' }}>{p.toUpperCase()}</option>)}
+                {getPropriedadesDoAtributo(novo.atributo).map(p => <option key={p} value={p} style={{ color: '#000' }}>{p.toUpperCase()}</option>)}
             </select>
             <CampoMagico valor={novo.valor} onChange={v => setNovo(n => ({ ...n, valor: v }))} placeholder="Valor" styleExtra={{ fontSize: '0.85em', textAlign: 'center' }} />
             <button onClick={() => addEfeito(isAtivo)} style={{ background: 'transparent', border: `1px solid ${cor}`, color: cor, cursor: 'pointer', fontWeight: 'bold', borderRadius: 4 }}>+</button>

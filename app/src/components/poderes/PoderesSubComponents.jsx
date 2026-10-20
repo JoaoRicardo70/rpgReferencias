@@ -1,8 +1,7 @@
 import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
-import { GATILHOS_REACAO, EFEITOS_REACAO, efeitoUsaValor } from '../../core/reacoes';
 import React, { useState } from 'react';
 import { usePoderesForm, SINGULAR } from './PoderesFormContext';
-import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS } from '../../core/efeitos-constants';
+import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 import FormasEditor from '../shared/FormasEditor';
 import EstagioControle from './EstagioControle';
 import EstagiosMarcosEditor from './EstagiosMarcosEditor';
@@ -47,7 +46,8 @@ const FALLBACK = <div style={{ opacity: 0.5, padding: 10 }}>Poderes provider nã
 // não teria efeito nenhum. Efeitos antigos com DANO continuam salvos, só não aparecem pra escolha.
 const ATRIBUTOS_PODERES = [
     ...ATRIBUTOS_AGRUPADOS.map(g => ({ ...g, options: g.options.filter(o => o !== 'dano') })).filter(g => g.options.length > 0),
-    { label: '⚡ POTÊNCIA DO SCOUTER', options: ['poder_direto'] }
+    { label: '⚡ POTÊNCIA DO SCOUTER', options: ['poder_direto'] },
+    GRUPO_REACOES
 ];
 
 // Exportada pra reuso no seletor "Elemento do Dano" do Dano Rápido do Mestre (ver
@@ -164,7 +164,7 @@ export function PoderesFormEditor() {
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, uploadingImg, handleImageUpload,
         dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, tipoAcao, setTipoAcao, reacaoGatilho, setReacaoGatilho, reacaoEfeito, setReacaoEfeito, reacaoValor, setReacaoValor, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, tipoAcao, setTipoAcao, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -236,11 +236,6 @@ export function PoderesFormEditor() {
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo Máx (%)</label><input type="number" min="0" value={custoPercentualMax} onChange={e => setCustoPercentualMax(e.target.value)} title="Margem de Custo: do Custo (%) até este máximo. Vale ao conjurar como Poder." style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Como Poder</label><label style={{ fontSize: '0.8em' }}><input type="checkbox" checked={!!semComoPoder} onChange={e => setSemComoPoder(e.target.checked)} /> Vetar</label></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Ação gasta</label><select value={tipoAcao} onChange={e => setTipoAcao(e.target.value)} title="Que tipo de Ação custa usar esta técnica (o sistema desconta Ação, Ação Bônus e Reação)" style={{ width: '100%' }}>{TIPOS_ACAO_TECNICA.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}</select></div>
-                {tipoAcao === 'reacao' && (<>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Reação: quando</label><select value={reacaoGatilho} onChange={ev => setReacaoGatilho(ev.target.value)} title="Quando esta Reação pode ser usada" style={{ width: '100%' }}>{GATILHOS_REACAO.map(x => <option key={x.id} value={x.id}>{x.rotulo}</option>)}</select></div>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Reação: efeito</label><select value={reacaoEfeito} onChange={ev => setReacaoEfeito(ev.target.value)} title="O que a Reação faz" style={{ width: '100%' }}>{EFEITOS_REACAO.map(x => <option key={x.id} value={x.id}>{x.rotulo}</option>)}</select></div>
-                {efeitoUsaValor(reacaoEfeito) && <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Valor ({reacaoEfeito === 'reduzir_dano' ? '%' : '+CA'})</label><input type="number" min="0" value={reacaoValor} onChange={ev => setReacaoValor(ev.target.value)} style={{ width: '100%', textAlign: 'center' }} /></div>}
-                </>)}
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Alcance (Q)</label><input type="number" min="0" step="0.5" value={poderAlcance} onChange={e => setPoderAlcance(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Área (Q)</label><input type="number" min="0" step="0.5" value={poderArea} onChange={e => setPoderArea(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div>
@@ -350,7 +345,7 @@ export function PoderesFormEditor() {
                             estagiosEditor={estagiosEditor}
                             setEstagiosEditor={setEstagiosEditor}
                             efeitosBase={efeitosTemp}
-                            atributos={ATRIBUTOS_PODERES}
+                            atributos={ATRIBUTOS_PODERES.filter(g => g !== GRUPO_REACOES)}
                             propriedades={PROPRIEDADE_OPTIONS}
                         />
                         <PreviaEstagios efeitosBase={efeitosTemp} estagiosEditor={estagiosEditor} />
@@ -372,10 +367,10 @@ export function PoderesFormEditor() {
                 que ela representa, e desligue depois, pra não ficar somando em outros ataques. Some-se
                 com o de outras Habilidades que também estejam Ativas ao mesmo tempo (ver
                 core/attributes.js > getPoderesDefesa), então mantenha só a do ataque em uso ligada. */}
-            <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic', marginBottom: 8 }}>Dica: use a propriedade BONUS_ACERTO pra um bônus de Acerto que só vale enquanto esta Habilidade estiver "★ Ativada" (ligue antes do ataque, desligue depois).</div>
+            <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic', marginBottom: 8 }}>Dica: use a propriedade BONUS_ACERTO pra um bônus de Acerto que só vale enquanto esta Habilidade estiver "★ Ativada" (ligue antes do ataque, desligue depois). Para dar uma Reação à técnica, escolha um atributo ↩️ REAÇÕES (quando usar) e, em propriedade, o que ela faz; o valor é a % (REDUZIR_DANO) ou o +N (AUMENTAR_CA), nos outros use 0. Efeito Passivo vale sempre; Ativo só com a técnica ligada.</div>
             <input type="text" placeholder="Nome do Efeito" value={nomeEfeito} onChange={e => setNomeEfeito(e.target.value)} style={{ width: '100%', marginBottom: 10 }} />
             <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                <select value={novoAtr} onChange={e => setNovoAtr(e.target.value)} style={{ flex: 1 }}>
+                <select value={novoAtr} onChange={e => { setNovoAtr(e.target.value); setNovoProp(ajustarPropriedade(e.target.value, novoProp)); }} style={{ flex: 1 }}>
                     {ATRIBUTOS_PODERES.map(grupo => (
                         <optgroup key={grupo.label} label={grupo.label}>
                             {grupo.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}
@@ -383,7 +378,7 @@ export function PoderesFormEditor() {
                     ))}
                 </select>
                 <select value={novoProp} onChange={e => setNovoProp(e.target.value)} style={{ flex: 1 }}>
-                    {PROPRIEDADE_OPTIONS.map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
+                    {getPropriedadesDoAtributo(novoAtr).map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
                 </select>
                 <input type="text" placeholder="Valor" value={novoVal} onChange={e => setNovoVal(e.target.value)} style={{ width: '80px', textAlign: 'center' }} />
                 <button onClick={addEfeitoTemp} style={{ padding: '8px' }}>+</button>
@@ -405,7 +400,7 @@ export function PoderesFormEditor() {
             <h4 style={{ marginTop: 25, marginBottom: 10, fontSize: '1em', opacity: 0.8, borderBottom: '1px dotted currentColor', paddingBottom: '5px' }}>🛡️ Efeitos Passivos (Sempre Ligados)</h4>
             <input type="text" placeholder="Nome do Efeito Passivo" value={nomeEfeitoPassivo} onChange={e => setNomeEfeitoPassivo(e.target.value)} style={{ width: '100%', marginBottom: 10 }} />
             <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                <select value={novoAtrPassivo} onChange={e => setNovoAtrPassivo(e.target.value)} style={{ flex: 1 }}>
+                <select value={novoAtrPassivo} onChange={e => { setNovoAtrPassivo(e.target.value); setNovoPropPassivo(ajustarPropriedade(e.target.value, novoPropPassivo)); }} style={{ flex: 1 }}>
                     {ATRIBUTOS_PODERES.map(grupo => (
                         <optgroup key={grupo.label} label={grupo.label}>
                             {grupo.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}
@@ -413,7 +408,7 @@ export function PoderesFormEditor() {
                     ))}
                 </select>
                 <select value={novoPropPassivo} onChange={e => setNovoPropPassivo(e.target.value)} style={{ flex: 1 }}>
-                    {PROPRIEDADE_OPTIONS.map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
+                    {getPropriedadesDoAtributo(novoAtrPassivo).map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
                 </select>
                 <input type="text" placeholder="Valor" value={novoValPassivo} onChange={e => setNovoValPassivo(e.target.value)} style={{ width: '80px', textAlign: 'center' }} />
                 <button onClick={addEfeitoPassivoTemp} style={{ padding: '8px' }}>+</button>

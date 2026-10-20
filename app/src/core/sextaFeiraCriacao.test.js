@@ -43,6 +43,20 @@ describe('normalizarPoder', () => {
         expect(r.avisos.some(a => a.includes('Efeito ativo 2') && a.includes('lixo'))).toBe(true);
         expect(r.avisos.some(a => a.includes('Efeito passivo 1') && a.includes('zzz'))).toBe(true);
     });
+    it('efeito de Reacao (reacao_errou + contra_ataque) e aceito sem rebaixar, ativo e passivo', () => {
+        const { objeto, avisos } = normalizarPoder({
+            nome: 'Instinto',
+            efeitos: [{ nome: 'Reagir', atributo: 'reacao_errou', propriedade: 'contra_ataque', valor: 0 }],
+            efeitosPassivos: [{ nome: 'Assassin', atributo: 'reacao_sempre', propriedade: 'reduzir_dano', valor: 50 }],
+        });
+        expect(objeto.efeitos[0]).toEqual({ nome: 'Reagir', atributo: 'reacao_errou', propriedade: 'contra_ataque', valor: '0' });
+        expect(objeto.efeitosPassivos[0]).toMatchObject({ atributo: 'reacao_sempre', propriedade: 'reduzir_dano', valor: '50' });
+        expect(avisos).toEqual([]);
+    });
+    it('ATRIBUTOS_EFEITO/PROPRIEDADES_EFEITO incluem todas as reacoes (e o schema da IA tambem)', () => {
+        ['reacao_errou', 'reacao_acertou', 'reacao_sempre', 'reacao_aliado'].forEach(a => expect(ATRIBUTOS_EFEITO).toContain(a));
+        ['contra_ataque', 'atacar_atacante', 'atacar_ataque', 'reduzir_dano', 'aumentar_ca'].forEach(p => expect(PROPRIEDADES_EFEITO).toContain(p));
+    });
     it('atributo e propriedade aceitam caixa diferente', () => {
         const { objeto, avisos } = normalizarPoder({ nome: 'X', efeitos: [{ atributo: 'FORCA', propriedade: 'MGERAL', valor: 1 }] });
         expect(objeto.efeitos[0]).toMatchObject({ atributo: 'forca', propriedade: 'mgeral' });

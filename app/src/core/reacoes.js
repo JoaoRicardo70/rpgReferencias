@@ -6,13 +6,15 @@
 // 1) Reação UNIVERSAL ("Atacar o ataque"): qualquer um pode, quando o ataque ACERTA. Não há rolagem de Acerto:
 //    quem reage rola o seu Dano contra o Dano que receberia. Se o Dano da reação passa o recebido, não toma nada;
 //    senão toma só a diferença (Dano do atacante − Dano de quem reagiu).
-// 2) Reações de TÉCNICA: uma técnica (Poder/Forma/Habilidade ou Técnica Elemental) com Ação gasta = Reação e uma
-//    configuração de reação (reacaoGatilho + reacaoEfeito + reacaoValor) aparece como opção quando o gatilho bate:
+// 2) Reações de TÉCNICA. Num Poder/Forma/Habilidade a Reação é um EFEITO como qualquer outro (ao lado de Poder Direto,
+//    passivas etc.): atributo reacao_<gatilho> + propriedade = o efeito + valor. Na Técnica Elemental (que não tem lista de
+//    efeitos) é a configuração da própria técnica (Ação gasta = Reação + reacaoGatilho/Efeito/Valor). Aparece como opção
+//    quando o gatilho bate:
 //      errou  = o ataque contra mim erra        (ex.: Instinto Superior: ataca o oponente, Dano direto)
 //      acertou = o ataque contra mim acerta     (ex.: Instinto Bestial: contra-ataque)
 //      sempre = acerte ou erre                  (ex.: Assassin: reduz em 50% o Dano de um ataque)
 //      aliado = um aliado é atacado             (ajudar: subir a CA dele, atacar o ataque/o atacante)
-//    A técnica precisa estar LIGADA (Poder/Forma/Habilidade ativa, Técnica Elemental equipada).
+//    Efeito PASSIVO vale sempre; efeito ATIVO só com a técnica LIGADA; Técnica Elemental só equipada.
 // Efeitos: reduzir_dano (%) e atacar_ataque entram sozinhos no Dano recebido (Defesa > Receber Dano); contra_ataque,
 // atacar_atacante e aumentar_ca são registrados no feed e quem reagiu rola/aplica normalmente (a Reação já foi gasta).
 // ==========================================
@@ -50,7 +52,7 @@ export function normalizarValorReacao(efeito, valor) {
     return normalizarEfeito(efeito) === 'reduzir_dano' ? Math.min(100, n) : n;
 }
 
-// A reação configurada na técnica, ou null se ela não é uma técnica de Reação completa.
+// A reação configurada na técnica (Técnica Elemental: tipoAcao 'reacao' + gatilho + efeito), ou null.
 export function getReacaoDaTecnica(t) {
     if (!t || t.tipoAcao !== 'reacao') return null;
     const gatilho = normalizarGatilho(t.reacaoGatilho);
@@ -59,8 +61,24 @@ export function getReacaoDaTecnica(t) {
     return { gatilho, efeito, valor: normalizarValorReacao(efeito, t.reacaoValor) };
 }
 
-// A técnica de Reação está "ligada" (pronta para usar)?
-function tecnicaLigada(t, origem) { return origem === 'tecnica' ? !!t.equipado : t.ativa === true; }
+// Reações que um EFEITO de Poder/Forma/Habilidade dá: atributo reacao_<gatilho> + propriedade = o que faz + valor.
+// Efeitos Passivos valem sempre; Efeitos Ativos só com a técnica ligada.
+export function getReacoesDosEfeitos(t) {
+    if (!t) return [];
+    const fonte = [
+        ...(Array.isArray(t.efeitosPassivos) ? t.efeitosPassivos.map(e => ({ e })) : []),
+        ...(Array.isArray(t.efeitos) && t.ativa === true ? t.efeitos.map(e => ({ e })) : [])
+    ];
+    const reacoes = [];
+    fonte.forEach(({ e }, i) => {
+        if (!e || typeof e.atributo !== 'string' || !e.atributo.startsWith('reacao_')) return;
+        const gatilho = normalizarGatilho(e.atributo.slice('reacao_'.length));
+        const efeito = normalizarEfeito(e.propriedade);
+        if (!gatilho || !efeito) return;
+        reacoes.push({ indice: i, gatilho, efeito, valor: normalizarValorReacao(efeito, e.valor) });
+    });
+    return reacoes;
+}
 
 function gatilhoBate(gatilho, { acertou, alvoEhAliado }) {
     if (gatilho === 'aliado') return !!alvoEhAliado;
@@ -75,15 +93,18 @@ function gatilhoBate(gatilho, { acertou, alvoEhAliado }) {
 export function opcoesDeReacao(ficha, contexto = {}) {
     const opcoes = [];
     if (!contexto.alvoEhAliado && contexto.acertou) opcoes.push({ ...OPCAO_UNIVERSAL });
-    const fonte = [
-        ...(Array.isArray(ficha?.poderes) ? ficha.poderes.map(t => ({ t, origem: 'poder' })) : []),
-        ...(Array.isArray(ficha?.ataquesElementais) ? ficha.ataquesElementais.map(t => ({ t, origem: 'tecnica' })) : [])
-    ];
-    fonte.forEach(({ t, origem }) => {
-        if (!t || !tecnicaLigada(t, origem)) return;
+    const adicionar = (t, origem, r, sufixo) => {
+        if (!gatilhoBate(r.gatilho, contexto)) return;
+        opcoes.push({ id: `${origem}:${t.id}${sufixo}`, origem, nome: t.nome || 'Sem nome', efeito: r.efeito, valor: r.valor, gatilho: r.gatilho });
+    };
+    (Array.isArray(ficha?.poderes) ? ficha.poderes : []).forEach(t => {
+        if (!t) return;
+        getReacoesDosEfeitos(t).forEach(r => adicionar(t, 'poder', r, `:${r.indice}`));
+    });
+    (Array.isArray(ficha?.ataquesElementais) ? ficha.ataquesElementais : []).forEach(t => {
+        if (!t || !t.equipado) return;
         const r = getReacaoDaTecnica(t);
-        if (!r || !gatilhoBate(r.gatilho, contexto)) return;
-        opcoes.push({ id: `${origem}:${t.id}`, origem, nome: t.nome || 'Sem nome', efeito: r.efeito, valor: r.valor, gatilho: r.gatilho });
+        if (r) adicionar(t, 'tecnica', r, '');
     });
     return opcoes;
 }
