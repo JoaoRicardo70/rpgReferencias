@@ -6,6 +6,7 @@ import { useAtaqueForm } from '../combate/AtaqueFormContext';
 import { AtaquesSalvosChips } from '../combate/AtaqueSubComponents';
 import { formulaDesatualizada, descreverAtaqueSalvo } from '../../core/ataquesSalvos';
 import { getRotuloAcaoTecnica } from '../../core/acoesTecnica';
+import { getReacaoDaTecnica } from '../../core/reacoes';
 import { habilidadeEstaLigada, TIPO_HABILIDADE_PASSIVA } from '../../core/reducaoDano';
 import { descreverAlvosReducao } from '../../core/reducaoRotulos';
 import useGastarAcao from '../../hooks/useGastarAcao';
@@ -831,7 +832,8 @@ export function MapaTecnicasRapidas() {
     const { minhaFicha, togglePoder, mudarEstagioPoder } = poderesCtx;
     const poderes = minhaFicha?.poderes || [];
     // ⏱️ Ligar a técnica cobra a Ação que ela custa (core/acoesTecnica.js); desligar não cobra nada.
-    const alternarTecnica = (p) => { if (!p.ativa && !gastarAcao(p)) return; togglePoder(p.id); };
+    // Técnica de Reação configurada (Instinto Superior etc.) só cobra a Reação quando você REAGE (components/combate/ReacaoPrompt.jsx).
+    const alternarTecnica = (p) => { if (!p.ativa && !getReacaoDaTecnica(p) && !gastarAcao(p)) return; togglePoder(p.id); };
     const termo = busca.trim().toLowerCase();
     // 🔍 Busca por nome (e pasta): enquanto há busca, as pastas com resultado ficam abertas.
     // ★ "Só ligadas" filtra a lista (em vez de repetir as ligadas num bloco à parte): continuam nas suas pastas.

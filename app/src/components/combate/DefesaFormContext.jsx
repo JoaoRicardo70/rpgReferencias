@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import { ELEMENTOS_SISTEMA } from '../../core/elementos';
 import useStore from '../../stores/useStore';
 import { calcularReducao, calcularCA } from '../../core/engine';
+import { aplicarReacoesAoDano, reacoesPendentesValidas } from '../../core/reacoes';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano';
 import { salvarFichaSilencioso, enviarParaFeed } from '../../services/firebase-sync';
 import { danoExibidoParaBruto } from '../../core/vitals';
@@ -212,8 +213,16 @@ export function DefesaFormProvider({ children }) {
     }, [redEnergia, redPerc, redMult, minhaFicha, meuNome, updateFicha, setAbaAtiva]);
 
     const sofrerDanoBruto = useCallback(() => {
-        const dano = parseInt(danoRecebidoInc) || 0;
-        if (dano <= 0) return alert('Digite um valor de dano válido para receber.');
+        const danoDigitado = parseInt(danoRecebidoInc) || 0;
+        if (danoDigitado <= 0) return alert('Digite um valor de dano válido para receber.');
+        // ↩️ Reações já usadas contra este ataque (core/reacoes.js): "atacar o ataque" e redução de Dano entram aqui.
+        // Só valem reações recentes (core/reacoes.js > reacoesPendentesValidas): uma esquecida não pesa em Danos futuros.
+        const reacoesPendentes = reacoesPendentesValidas(minhaFicha);
+        const completas = aplicarReacoesAoDano(danoDigitado, reacoesPendentes);
+        if (completas.faltaDanoReacao && !window.confirm('Você escolheu "Atacar o ataque", mas ainda não rolou o seu Dano de reação (aba Ataque ou Livro de Combate). Receber o Dano inteiro mesmo assim?')) return;
+        // Sem o Dano da reação rolado, só entram as reduções em % (a "atacar o ataque" fica de fora).
+        const aplicadas = completas.faltaDanoReacao ? aplicarReacoesAoDano(danoDigitado, reacoesPendentes.filter(r => r.efeito !== 'atacar_ataque')) : completas;
+        const dano = aplicadas.final;
 
         const { disputa, nomeAtacante } = disputaDefesa;
         const danoBase = danoDeDado
@@ -225,6 +234,7 @@ export function DefesaFormProvider({ children }) {
         const danoFinal = reduzido.final;
 
         updateFicha((ficha) => {
+            if (ficha.combate && Array.isArray(ficha.combate.reacoesPendentes) && ficha.combate.reacoesPendentes.length > 0) ficha.combate.reacoesPendentes = [];
             if (ficha.vida) {
                 // O dano digitado é o número EXIBIDO (feed/tela); vida.atual é bruta.
                 ficha.vida.atual = Math.max(0, (ficha.vida.atual || 0) - danoExibidoParaBruto(danoFinal));
@@ -232,12 +242,12 @@ export function DefesaFormProvider({ children }) {
         });
         salvarFichaSilencioso();
 
-        const mensagemElemental = reduzido.detalhe.length > 0 ? ` [${descreverReducoes(reduzido)}]` : '';
+        const mensagemElemental = (reduzido.detalhe.length > 0 ? ` [${descreverReducoes(reduzido)}]` : '') + (aplicadas.detalhes.length > 0 ? ` ↩️ [${aplicadas.detalhes.join(' · ')}]` : '');
 
         const nomeElemento = elementosDinamicos.find(e => e.id === elementoInc)?.nome || elementoInc;
 
         const deQuem = nomeAtacante ? ` de ${nomeAtacante}` : '';
-        const texto = `Recebeu ${danoFinal} de dano${deQuem}! (Original: ${dano} de ${nomeElemento.toUpperCase()})${mensagemElemental}`;
+        const texto = `Recebeu ${danoFinal} de dano${deQuem}! (Original: ${danoDigitado} de ${nomeElemento.toUpperCase()})${mensagemElemental}`;
 
         // Quem leva vantagem na Disputa de Poder é informação do Mestre (textoMestre).
         const feedData = { tipo: 'sistema', nome: meuNome, texto: texto, ...(disputa && disputa.ativa ? { textoMestre: descreverDisputa(disputa) } : {}) };

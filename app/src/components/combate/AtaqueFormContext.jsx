@@ -6,7 +6,8 @@ import { getVitalMxDisplay, getVidaTotalMaxDisplay, danoExibidoParaBruto, FATOR_
 import { calcularDano } from '../../core/engine';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
 import { dadosLimitadosDaTecnica } from '../../core/limiteDados';
-import { tiposRastreadosDe, acoesEmFalta, gastarAcoes } from '../../core/acoesTecnica';
+import { tiposRastreadosDe, acoesEmFalta, gastarAcoes, avisosDoGasto } from '../../core/acoesTecnica';
+import { reacaoAguardandoDano, getReacaoDaTecnica } from '../../core/reacoes';
 import { montarAtaqueSalvo, resolverAtaqueSalvo, VERSAO_ATAQUE_SALVO } from '../../core/ataquesSalvos';
 import { golpeEquipado, ehBerserker, calcularGanhoBerserker, getNivelClasse } from '../../core/classesMecanicas';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, classificarEfetividade } from '../../core/disputaPoder';
@@ -529,11 +530,31 @@ export function AtaqueFormProvider({ children }) {
 
         if (result.erro) { alert(result.erro); return false; }
 
+        // ↩️ Reação "Atacar o ataque" (core/reacoes.js): com uma pendente esperando Dano, este Dano pode ser a REAÇÃO contra o
+        // Dano que vou receber (não atinge o alvo e não cobra Ação de novo: a Reação já foi gasta). Pergunta antes; recusar
+        // segue o ataque normal.
+        const reacaoEsperando = salvoResolvido ? null : reacaoAguardandoDano(minhaFicha);
+        if (reacaoEsperando && window.confirm(`Usar este Dano (${Math.floor(result.dano).toLocaleString('pt-BR')}) como a sua REAÇÃO contra o ataque de ${reacaoEsperando.atacante || 'seu oponente'}?\n\nOK = reação (não ataca o alvo). Cancelar = ataque normal.`)) {
+            const danoReacao = Math.floor(result.dano);
+            updateFicha(ficha => {
+                if (result.drenos) result.drenos.forEach(d => { if (ficha[d.key]) ficha[d.key].atual -= d.valor; });
+                const r = ((ficha.combate && ficha.combate.reacoesPendentes) || []).find(x => x && x.id === reacaoEsperando.id && x.criadoEm === reacaoEsperando.criadoEm && !Number.isFinite(Number(x.danoReacao)));
+                if (r) r.danoReacao = danoReacao;
+            });
+            salvarFichaSilencioso();
+            setForcarCritNormal(false); setForcarCritFatal(false); setIgnorarTravaAcerto(false);
+            enviarParaFeed({ tipo: 'sistema', nome: nomeNoFeed, texto: `↩️ ${nomeNoFeed} reagiu atacando o ataque: Dano ${danoReacao.toLocaleString('pt-BR')} (será descontado do Dano recebido).`, ts: Date.now() });
+            useStore.getState().adicionarAviso?.(`Dano da Reação: ${danoReacao.toLocaleString('pt-BR')}. Será descontado quando você receber o Dano.`, 'info');
+            return true;
+        }
+
         // ⏱️ Ação gasta pelas Técnicas Elementais do golpe (core/acoesTecnica.js): uma por tipo de Ação distinto.
-        const tiposAcaoGolpe = tiposRastreadosDe(magiasDoGolpe);
+        // Técnica elemental de REAÇÃO configurada (core/reacoes.js) não cobra aqui: a Reação já foi gasta ao reagir.
+        const tiposAcaoGolpe = tiposRastreadosDe(magiasDoGolpe.filter(m => !getReacaoDaTecnica(m)));
         if (tiposAcaoGolpe.length > 0) {
             const faltando = acoesEmFalta(minhaFicha, tiposAcaoGolpe);
             if (faltando.length > 0 && !window.confirm(`Sem ${faltando.join(' e ')} disponível. Atacar mesmo assim?`)) return false;
+            avisosDoGasto(minhaFicha, tiposAcaoGolpe).forEach(a => useStore.getState().adicionarAviso?.(a.texto, a.tipo));
             updateFicha(ficha => gastarAcoes(ficha, tiposAcaoGolpe));
             salvarFichaSilencioso();
         }

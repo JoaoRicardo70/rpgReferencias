@@ -1191,7 +1191,7 @@ export function MapaFormProvider({ children }) {
             }
         }
 
-        const feedData = { tipo: 'acerto', nome: nomeAcerto, ...result, alvosArea: alvosAtingidos, areaEf: maxArea };
+        const feedData = { tipo: 'acerto', ts: Date.now(), nome: nomeAcerto, ...result, alvosArea: alvosAtingidos, areaEf: maxArea };
         enviarParaFeed(feedData); 
     }, [mapQD, mapFD, mapBonus, mapUsarProf, profGlobal, mapStat, fichaSegura, mapVantagens, mapDesvantagens, alvoSelecionado, dummies, meuNome, cenario, atorAtivo, isMestre, cenaRenderId, minhaFicha]);
 

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useMemo } from 'react';
 import { dadosLimitadosDaTecnica } from '../../core/limiteDados';
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
+import { normalizarGatilho, normalizarEfeito, normalizarValorReacao } from '../../core/reacoes';
 import useStore from '../../stores/useStore';
 import { enviarParaFeed } from '../../services/firebase-sync';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
@@ -161,6 +162,9 @@ export function ElementosFormProvider({ children }) {
     const [semComoPoder, setSemComoPoder] = useState(false);
     const [limiteDados, setLimiteDados] = useState('');
     const [tipoAcao, setTipoAcao] = useState('');
+    const [reacaoGatilho, setReacaoGatilho] = useState('');
+    const [reacaoEfeito, setReacaoEfeito] = useState('');
+    const [reacaoValor, setReacaoValor] = useState('');
     const [dadosQtd, setDadosQtd] = useState(0);
     const [dadosFaces, setDadosFaces] = useState(20);
     
@@ -359,7 +363,7 @@ export function ElementosFormProvider({ children }) {
         setEnergiaCombustao(abasFlexiveis.includes(abaAtual) ? 'flexivel' : 'mana');
         setTipoMecanica('ataque'); setAlcanceQuad(1); setAreaQuad(0);
         setAlvosAfetados('todos'); setDuracaoZona(0);
-        setCustoValorMax(0); setSemComoPoder(false); setLimiteDados(''); setTipoAcao('');
+        setCustoValorMax(0); setSemComoPoder(false); setLimiteDados(''); setTipoAcao(''); setReacaoGatilho(''); setReacaoEfeito(''); setReacaoValor('');
     }, [setElemEditandoId, abaAtual]);
 
     const salvarNovoElem = useCallback(() => {
@@ -372,7 +376,7 @@ export function ElementosFormProvider({ children }) {
             if (!ficha.ataquesElementais) ficha.ataquesElementais = [];
             const novaMagia = {
                 nome: n, descricao: descricaoElem, elemento: elemSelecionado, elementosAfetados, 
-                bonusTipo, bonusValor, custoValor: parseFloat(custoValor) || 0, custoValorMax: parseFloat(custoValorMax) || 0, semComoPoder: !!semComoPoder, tipoAcao: normalizarTipoAcao(tipoAcao), 
+                bonusTipo, bonusValor, custoValor: parseFloat(custoValor) || 0, custoValorMax: parseFloat(custoValorMax) || 0, semComoPoder: !!semComoPoder, tipoAcao: normalizarTipoAcao(tipoAcao), reacaoGatilho: normalizarGatilho(reacaoGatilho), reacaoEfeito: normalizarEfeito(reacaoEfeito), reacaoValor: normalizarValorReacao(reacaoEfeito, reacaoValor), 
                 dadosExtraQtd: dadosFinais.qtd, dadosExtraFaces: dadosFinais.faces || 20, limiteDados: parseFloat(limiteDados) > 0 ? parseFloat(limiteDados) : undefined,
                 energiaCombustao, tipoMecanica, savingAttr, alcanceQuad: parseFloat(alcanceQuad) || 1, 
                 areaQuad: parseFloat(areaQuad) || 0, alvosAfetados, duracaoZona: parseInt(duracaoZona) || 0,
@@ -394,7 +398,7 @@ export function ElementosFormProvider({ children }) {
         });
         cancelarEdicaoElem();
         salvarFichaSilencioso();
-    }, [nomeElem, descricaoElem, elemSelecionado, elementosAfetados, bonusTipo, bonusValor, custoValor, custoValorMax, semComoPoder, limiteDados, tipoAcao, dadosQtd, dadosFaces, energiaCombustao, tipoMecanica, savingAttr, alcanceQuad, areaQuad, alvosAfetados, duracaoZona, elemEditandoId, updateFicha, cancelarEdicaoElem, salvarFichaSilencioso]);
+    }, [nomeElem, descricaoElem, elemSelecionado, elementosAfetados, bonusTipo, bonusValor, custoValor, custoValorMax, semComoPoder, limiteDados, tipoAcao, reacaoGatilho, reacaoEfeito, reacaoValor, dadosQtd, dadosFaces, energiaCombustao, tipoMecanica, savingAttr, alcanceQuad, areaQuad, alvosAfetados, duracaoZona, elemEditandoId, updateFicha, cancelarEdicaoElem, salvarFichaSilencioso]);
 
     const editarElem = useCallback((id) => {
         const p = (minhaFicha.ataquesElementais || []).find(i => i.id === id);
@@ -418,7 +422,7 @@ export function ElementosFormProvider({ children }) {
         }
         setAbaAtual(foundAba);
         setElemEditandoId(p.id); setNomeElem(p.nome); setDescricaoElem(p.descricao || ''); setElementosAfetados(p.elementosAfetados || ''); 
-        setBonusTipo(p.bonusTipo || 'nenhum'); setBonusValor(p.bonusValor || ''); setCustoValor(p.custoValor || 0); setCustoValorMax(p.custoValorMax || 0); setSemComoPoder(!!p.semComoPoder); setLimiteDados(p.limiteDados || ''); setTipoAcao(normalizarTipoAcao(p.tipoAcao)); 
+        setBonusTipo(p.bonusTipo || 'nenhum'); setBonusValor(p.bonusValor || ''); setCustoValor(p.custoValor || 0); setCustoValorMax(p.custoValorMax || 0); setSemComoPoder(!!p.semComoPoder); setLimiteDados(p.limiteDados || ''); setTipoAcao(normalizarTipoAcao(p.tipoAcao)); setReacaoGatilho(normalizarGatilho(p.reacaoGatilho)); setReacaoEfeito(normalizarEfeito(p.reacaoEfeito)); setReacaoValor(p.reacaoValor || ''); 
         setDadosQtd(p.dadosExtraQtd || 0); setDadosFaces(p.dadosExtraFaces || 20); 
         setEnergiaCombustao(p.energiaCombustao || 'mana'); setTipoMecanica(p.tipoMecanica || 'ataque'); 
         setSavingAttr(p.savingAttr || 'destreza'); setAlcanceQuad(p.alcanceQuad || 1); 
@@ -503,7 +507,7 @@ export function ElementosFormProvider({ children }) {
         abaAtual, setAbaAtual, elemSelecionado, setElemSelecionado,
         nomeElem, setNomeElem, descricaoElem, setDescricaoElem, elementosAfetados, setElementosAfetados, 
         bonusTipo, setBonusTipo, bonusValor, setBonusValor,
-        custoValor, setCustoValor, custoValorMax, setCustoValorMax, semComoPoder, setSemComoPoder, limiteDados, setLimiteDados, tipoAcao, setTipoAcao, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
+        custoValor, setCustoValor, custoValorMax, setCustoValorMax, semComoPoder, setSemComoPoder, limiteDados, setLimiteDados, tipoAcao, setTipoAcao, reacaoGatilho, setReacaoGatilho, reacaoEfeito, setReacaoEfeito, reacaoValor, setReacaoValor, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
         energiaCombustao, setEnergiaCombustao, tipoMecanica, setTipoMecanica,
         savingAttr, setSavingAttr, alcanceQuad, setAlcanceQuad, areaQuad, setAreaQuad,
         alvosAfetados, setAlvosAfetados, duracaoZona, setDuracaoZona,
@@ -512,7 +516,7 @@ export function ElementosFormProvider({ children }) {
         deletarElem, conjurarMagia, magiasDoGrupo, magiasConjuradasOutros, elemEditandoId, minhaFicha,
         elementosInatos, injetarJsonDaIA, abasDinamicas, criarElementoCustomizado 
     }), [
-        abaAtual, elemSelecionado, nomeElem, descricaoElem, elementosAfetados, bonusTipo, bonusValor, custoValor, custoValorMax, semComoPoder, limiteDados, tipoAcao, dadosQtd, dadosFaces,
+        abaAtual, elemSelecionado, nomeElem, descricaoElem, elementosAfetados, bonusTipo, bonusValor, custoValor, custoValorMax, semComoPoder, limiteDados, tipoAcao, reacaoGatilho, reacaoEfeito, reacaoValor, dadosQtd, dadosFaces,
         energiaCombustao, tipoMecanica, savingAttr, alcanceQuad, areaQuad, alvosAfetados, duracaoZona, profGlobal, getModificadorDoisDigitos, allowedEnergies,
         selecionarElemento, salvarNovoElem, editarElem, cancelarEdicaoElem, toggleEquiparElem, deletarElem, conjurarMagia, magiasDoGrupo, magiasConjuradasOutros, elemEditandoId, minhaFicha, elementosInatos, injetarJsonDaIA, abasDinamicas, criarElementoCustomizado
     ]);

@@ -2418,3 +2418,22 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .livro-arma-rolar:disabled { opacity: 0.5; cursor: default; }
 .livro-arma-aviso { margin: 6px 0 0 0; font-size: 0.8em; font-style: italic; color: #8a3b00; text-align: center; }
 .habilidade-card-acao { max-width: 200px; }
+
+/* ---- ⏱️ Avisos de Ação e ↩️ Aviso de Reação ---- */
+.avisos-acao { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 10002; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; max-width: min(92vw, 460px); }
+.aviso-acao { pointer-events: auto; cursor: pointer; padding: 8px 16px; border-radius: 20px; font-size: 0.9em; font-weight: bold; text-align: center; background: rgba(10, 10, 20, 0.95); border: 1px solid #00ffcc; color: #00ffcc; box-shadow: 0 0 14px rgba(0, 255, 204, 0.3); animation: aviso-acao-entra 0.2s ease-out; }
+.aviso-acao-alerta { border-color: #ffcc00; color: #ffcc00; box-shadow: 0 0 14px rgba(255, 204, 0, 0.3); }
+@keyframes aviso-acao-entra { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.reacao-fundo { position: fixed; inset: 0; z-index: 10001; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(3px); }
+.reacao-caixa { width: min(520px, 100%); max-height: 90vh; overflow-y: auto; padding: 18px; border-radius: 12px; background: #0b0b14; border: 2px solid #ff00ff; box-shadow: 0 0 30px rgba(255, 0, 255, 0.35); color: #eee; }
+.reacao-titulo { margin: 0 0 6px 0; color: #ff00ff; }
+.reacao-contexto { margin: 0 0 12px 0; font-size: 0.95em; color: #ccc; }
+.reacao-opcoes { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.reacao-opcao { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; row-gap: 2px; align-items: center; padding: 8px 10px; border-radius: 8px; border: 1px solid #444; cursor: pointer; }
+.reacao-opcao.marcada { border-color: #ff00ff; background: rgba(255, 0, 255, 0.12); }
+.reacao-opcao-nome { font-weight: bold; }
+.reacao-opcao-efeito { grid-column: 2; font-size: 0.8em; color: #aaa; }
+.reacao-botoes { display: flex; gap: 10px; }
+.reacao-reagir { flex: 1; padding: 10px; font-weight: bold; cursor: pointer; border-radius: 8px; border: 2px solid #ff00ff; background: rgba(255, 0, 255, 0.25); color: #fff; }
+.reacao-reagir:disabled { opacity: 0.4; cursor: default; }
+.reacao-recusar { padding: 10px 16px; cursor: pointer; border-radius: 8px; border: 1px solid #666; background: transparent; color: #ccc; }

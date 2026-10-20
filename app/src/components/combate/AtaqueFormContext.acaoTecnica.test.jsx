@@ -123,12 +123,25 @@ describe('executarRolarDano - Acao das Tecnicas Elementais', () => {
     });
 
     it('rolarAtaqueSalvo devolve false quando o confirm de Acao e cancelado', () => {
+        // Sem Bonus E sem Acao (a Bonus cairia na Acao): ai sim pergunta.
+        montar({ magias: [magia('m1', 'bonus')], acoesIniciais: acoes(0, 0, 2) });
+        window.confirm = vi.fn(() => false);
+        let r;
+        act(() => { r = probe.rolarAtaqueSalvo(SALVO_M1); });
+        expect(window.confirm).toHaveBeenCalled();
+        expect(r).toBe(false);
+        expect(enviarParaFeed).not.toHaveBeenCalled();
+    });
+
+    it('rolarAtaqueSalvo com Bonus zerada mas com Acao sobrando gasta 1 Acao, sem perguntar', () => {
         montar({ magias: [magia('m1', 'bonus')], acoesIniciais: acoes(2, 0, 2) });
         window.confirm = vi.fn(() => false);
         let r;
         act(() => { r = probe.rolarAtaqueSalvo(SALVO_M1); });
-        expect(r).toBe(false);
-        expect(enviarParaFeed).not.toHaveBeenCalled();
+        expect(window.confirm).not.toHaveBeenCalled();
+        expect(r).toBe(true);
+        expect(ficha.acoes.padrao.atual).toBe(1);
+        expect(ficha.acoes.bonus.atual).toBe(0);
     });
 
     it('ficha sem acoes (legada) usa o maximo base e cria a estrutura ao gastar', () => {

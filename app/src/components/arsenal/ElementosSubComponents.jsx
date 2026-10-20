@@ -1,5 +1,6 @@
 import { getLimiteDadosTecnica, danoMaximoDosDados } from '../../core/limiteDados';
 import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
+import { GATILHOS_REACAO, EFEITOS_REACAO, efeitoUsaValor } from '../../core/reacoes';
 import React, { useState } from 'react';
 import { useElementosForm, emogis, cores, BONUS_OPTIONS, NIVEIS_DOMINIO } from './ElementosFormContext';
 import { getNivelDominio, getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
@@ -193,7 +194,7 @@ export function ElementosFormMagia() {
         energiaCombustao, setEnergiaCombustao, allowedEnergies, alcanceQuad, setAlcanceQuad, 
         areaQuad, setAreaQuad, alvosAfetados, setAlvosAfetados, duracaoZona, setDuracaoZona,
         bonusTipo, setBonusTipo, bonusValor, setBonusValor, custoValor, setCustoValor, custoValorMax, setCustoValorMax, semComoPoder, setSemComoPoder, dadosQtd, setDadosQtd,
-        dadosFaces, setDadosFaces, salvarNovoElem, cancelarEdicaoElem, formRef, limiteDados, setLimiteDados, tipoAcao, setTipoAcao, elemSelecionado
+        dadosFaces, setDadosFaces, salvarNovoElem, cancelarEdicaoElem, formRef, limiteDados, setLimiteDados, tipoAcao, setTipoAcao, reacaoGatilho, setReacaoGatilho, reacaoEfeito, setReacaoEfeito, reacaoValor, setReacaoValor, elemSelecionado
     } = ctx;
     // 🎲 Limite de dados do nível do elemento (core/limiteDados.js).
     const limiteAtual = getLimiteDadosTecnica({ elemento: elemSelecionado, limiteDados });
@@ -269,6 +270,11 @@ export function ElementosFormMagia() {
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo Máx (%)</label><input type="number" min="0" value={custoValorMax} onChange={e => setCustoValorMax(e.target.value)} disabled={energiaCombustao === 'livre'} title="Margem de Custo: do Custo (%) até este máximo. Vale ao conjurar como Poder." style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Como Poder</label><label style={{ fontSize: '0.8em' }}><input type="checkbox" checked={!!semComoPoder} onChange={e => setSemComoPoder(e.target.checked)} /> Vetar</label></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Ação gasta</label><select value={tipoAcao} onChange={e => setTipoAcao(e.target.value)} title="Que tipo de Ação custa usar esta técnica (o sistema desconta Ação, Ação Bônus e Reação)" style={{ width: '100%' }}>{TIPOS_ACAO_TECNICA.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}</select></div>
+                {tipoAcao === 'reacao' && (<>
+                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Reação: quando</label><select value={reacaoGatilho} onChange={ev => setReacaoGatilho(ev.target.value)} title="Quando esta Reação pode ser usada" style={{ width: '100%' }}>{GATILHOS_REACAO.map(x => <option key={x.id} value={x.id}>{x.rotulo}</option>)}</select></div>
+                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Reação: efeito</label><select value={reacaoEfeito} onChange={ev => setReacaoEfeito(ev.target.value)} title="O que a Reação faz" style={{ width: '100%' }}>{EFEITOS_REACAO.map(x => <option key={x.id} value={x.id}>{x.rotulo}</option>)}</select></div>
+                {efeitoUsaValor(reacaoEfeito) && <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Valor ({reacaoEfeito === 'reduzir_dano' ? '%' : '+CA'})</label><input type="number" min="0" value={reacaoValor} onChange={ev => setReacaoValor(ev.target.value)} style={{ width: '100%', textAlign: 'center' }} /></div>}
+                </>)}
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Extra (Qtd Dados)</label><input type="number" value={dadosQtd} onChange={e => setDadosQtd(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Extra (Faces)</label><input type="number" value={dadosFaces} onChange={e => setDadosFaces(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Limite de Dados (dano)</label><input type="number" min="0" value={limiteDados} onChange={e => setLimiteDados(e.target.value)} placeholder={limiteAtual ? String(limiteAtual) : 'sem limite'} title="Dano máximo vindo só dos dados (qtd x faces). Vazio usa o padrão do nível do elemento." style={{width:'100%', textAlign:'center'}} /></div>

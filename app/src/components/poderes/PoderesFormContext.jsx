@@ -1,4 +1,5 @@
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
+import { normalizarGatilho, normalizarEfeito, normalizarValorReacao } from '../../core/reacoes';
 import React, { createContext, useContext, useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes';
@@ -75,6 +76,9 @@ export function PoderesFormProvider({ children }) {
     const [custoPercentual, setCustoPercentual] = useState(0);
     const [custoPercentualMax, setCustoPercentualMax] = useState(0);
     const [tipoAcao, setTipoAcao] = useState('');
+    const [reacaoGatilho, setReacaoGatilho] = useState('');
+    const [reacaoEfeito, setReacaoEfeito] = useState('');
+    const [reacaoValor, setReacaoValor] = useState('');
     const [semComoPoder, setSemComoPoder] = useState(false);
     const [poderAlcance, setPoderAlcance] = useState(1);
     const [poderArea, setPoderArea] = useState(0);
@@ -168,6 +172,7 @@ export function PoderesFormProvider({ children }) {
         setCustoPercentualMax(0);
         setSemComoPoder(false);
         setTipoAcao('');
+        setReacaoGatilho(''); setReacaoEfeito(''); setReacaoValor('');
         setPoderAlcance(1);
         setPoderArea(0); 
         setArmaVinculada('');
@@ -230,6 +235,9 @@ export function PoderesFormProvider({ children }) {
                     ficha.poderes[ix].custoPercentualMax = parseFloat(custoPercentualMax) || 0;
                     ficha.poderes[ix].semComoPoder = !!semComoPoder;
                     ficha.poderes[ix].tipoAcao = normalizarTipoAcao(tipoAcao);
+                    ficha.poderes[ix].reacaoGatilho = normalizarGatilho(reacaoGatilho);
+                    ficha.poderes[ix].reacaoEfeito = normalizarEfeito(reacaoEfeito);
+                    ficha.poderes[ix].reacaoValor = normalizarValorReacao(reacaoEfeito, reacaoValor);
                     ficha.poderes[ix].alcance = parseFloat(poderAlcance) || 1;
                     ficha.poderes[ix].area = parseFloat(poderArea) || 0;
                     ficha.poderes[ix].armaVinculada = armaSafe;
@@ -275,6 +283,9 @@ export function PoderesFormProvider({ children }) {
                     custoPercentualMax: parseFloat(custoPercentualMax) || 0,
                     semComoPoder: !!semComoPoder,
                     tipoAcao: normalizarTipoAcao(tipoAcao),
+                    reacaoGatilho: normalizarGatilho(reacaoGatilho),
+                    reacaoEfeito: normalizarEfeito(reacaoEfeito),
+                    reacaoValor: normalizarValorReacao(reacaoEfeito, reacaoValor),
                     alcance: parseFloat(poderAlcance) || 1,
                     area: parseFloat(poderArea) || 0,
                     armaVinculada: armaSafe,
@@ -299,7 +310,7 @@ export function PoderesFormProvider({ children }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, cancelarEdicaoPoder, salvarFirebaseImediato]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, reacaoGatilho, reacaoEfeito, reacaoValor, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, cancelarEdicaoPoder, salvarFirebaseImediato]);
 
     // 🔥 O ESCUDO ANTI-DRENAGEM (Resolve a perda acidental de energia ao Ligar a Forma) 🔥
     const togglePoder = useCallback((id) => {
@@ -359,6 +370,7 @@ export function PoderesFormProvider({ children }) {
         setCustoPercentualMax(p.custoPercentualMax || 0);
         setSemComoPoder(!!p.semComoPoder);
         setTipoAcao(normalizarTipoAcao(p.tipoAcao));
+        setReacaoGatilho(normalizarGatilho(p.reacaoGatilho)); setReacaoEfeito(normalizarEfeito(p.reacaoEfeito)); setReacaoValor(p.reacaoValor || '');
         setPoderAlcance(p.alcance || 1);
         setPoderArea(p.area || 0);
         setArmaVinculada(p.armaVinculada || '');
@@ -670,7 +682,7 @@ export function PoderesFormProvider({ children }) {
         poderVertente, setPoderVertente, poderElemento, setPoderElemento,
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, tipoAcao, setTipoAcao, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, tipoAcao, setTipoAcao, reacaoGatilho, setReacaoGatilho, reacaoEfeito, setReacaoEfeito, reacaoValor, setReacaoValor, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -693,7 +705,7 @@ export function PoderesFormProvider({ children }) {
     }), [
         minhaFicha, meuNome, isMestre, abaAtual,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
-        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance,
+        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, reacaoGatilho, reacaoEfeito, reacaoValor, poderAlcance,
         poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma,
         estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, novoAtr, novoProp, novoVal,

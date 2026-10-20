@@ -12,6 +12,8 @@ import { VoiceContext } from './hooks/VoiceContext';
 import { ChatContext } from './hooks/ChatContext';
 import { useChats } from './hooks/useChats';
 import DockComunicacao from './components/comunicacao/DockComunicacao';
+import AvisosAcao from './components/combate/AvisosAcao';
+import ReacaoPrompt from './components/combate/ReacaoPrompt';
 import AudioVozGlobal from './components/comunicacao/AudioVozGlobal';
 import ComunicacaoPanel from './components/comunicacao/ComunicacaoPanel';
 
@@ -84,6 +86,10 @@ function ProvedorDeVozGlobal({ meuNome, cenario, children }) {
                 </LimiteDeErro>
                 <LimiteDeErro area="A comunicação" compacto>
                     <DockComunicacao />
+                </LimiteDeErro>
+                <LimiteDeErro area="Os avisos de Ação" compacto>
+                    <AvisosAcao />
+                    <ReacaoPrompt />
                 </LimiteDeErro>
             </ChatContext.Provider>
         </VoiceContext.Provider>

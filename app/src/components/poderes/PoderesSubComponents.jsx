@@ -1,4 +1,5 @@
 import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
+import { GATILHOS_REACAO, EFEITOS_REACAO, efeitoUsaValor } from '../../core/reacoes';
 import React, { useState } from 'react';
 import { usePoderesForm, SINGULAR } from './PoderesFormContext';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS } from '../../core/efeitos-constants';
@@ -163,7 +164,7 @@ export function PoderesFormEditor() {
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, uploadingImg, handleImageUpload,
         dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, tipoAcao, setTipoAcao, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, tipoAcao, setTipoAcao, reacaoGatilho, setReacaoGatilho, reacaoEfeito, setReacaoEfeito, reacaoValor, setReacaoValor, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -235,6 +236,11 @@ export function PoderesFormEditor() {
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo Máx (%)</label><input type="number" min="0" value={custoPercentualMax} onChange={e => setCustoPercentualMax(e.target.value)} title="Margem de Custo: do Custo (%) até este máximo. Vale ao conjurar como Poder." style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Como Poder</label><label style={{ fontSize: '0.8em' }}><input type="checkbox" checked={!!semComoPoder} onChange={e => setSemComoPoder(e.target.checked)} /> Vetar</label></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Ação gasta</label><select value={tipoAcao} onChange={e => setTipoAcao(e.target.value)} title="Que tipo de Ação custa usar esta técnica (o sistema desconta Ação, Ação Bônus e Reação)" style={{ width: '100%' }}>{TIPOS_ACAO_TECNICA.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}</select></div>
+                {tipoAcao === 'reacao' && (<>
+                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Reação: quando</label><select value={reacaoGatilho} onChange={ev => setReacaoGatilho(ev.target.value)} title="Quando esta Reação pode ser usada" style={{ width: '100%' }}>{GATILHOS_REACAO.map(x => <option key={x.id} value={x.id}>{x.rotulo}</option>)}</select></div>
+                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Reação: efeito</label><select value={reacaoEfeito} onChange={ev => setReacaoEfeito(ev.target.value)} title="O que a Reação faz" style={{ width: '100%' }}>{EFEITOS_REACAO.map(x => <option key={x.id} value={x.id}>{x.rotulo}</option>)}</select></div>
+                {efeitoUsaValor(reacaoEfeito) && <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Valor ({reacaoEfeito === 'reduzir_dano' ? '%' : '+CA'})</label><input type="number" min="0" value={reacaoValor} onChange={ev => setReacaoValor(ev.target.value)} style={{ width: '100%', textAlign: 'center' }} /></div>}
+                </>)}
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Alcance (Q)</label><input type="number" min="0" step="0.5" value={poderAlcance} onChange={e => setPoderAlcance(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Área (Q)</label><input type="number" min="0" step="0.5" value={poderArea} onChange={e => setPoderArea(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div>

@@ -173,6 +173,8 @@ const useStore = create(
         efeitosTemp: [], efeitosTempPassivos: [], efeitosTempArsenal: [], efeitosTempPassivosArsenal: [], efeitosTempForma: [], efeitosTempPassivosForma: [],
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
         dummies: {}, alvoSelecionado: null, atorCombate: null,
+        // ⏱️ Avisos curtos (toasts) sobre Ações/Reações: [{ id, texto, tipo: 'info' | 'alerta' }]; somem sozinhos (components/combate/AvisosAcao.jsx).
+        avisosAcao: [],
         // 👁️ Personagem inspecionado na moldura do Mapa: { tipo: 'jogador' | 'dummie', id } ou null.
         entidadeInspecionada: null,
         
@@ -212,6 +214,8 @@ const useStore = create(
         setAbaAtiva: (aba) => set((state) => { state.abaAtiva = aba; }),
         setPersonagens: (personagens) => set((state) => { state.personagens = personagens; }),
         addFeedEntry: (entry) => set((state) => { state.feedCombate.push(entry); }),
+        adicionarAviso: (texto, tipo = 'info') => set((state) => { state.avisosAcao.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, texto: String(texto || ''), tipo }); if (state.avisosAcao.length > 5) state.avisosAcao.shift(); }),
+        removerAviso: (id) => set((state) => { state.avisosAcao = state.avisosAcao.filter(a => a.id !== id); }),
         limparFeedStore: () => set(state => { state.feedCombate = []; }),
         setDummies: (dummies) => set((state) => { state.dummies = dummies || {}; }),
         setAlvoSelecionado: (id) => set((state) => { state.alvoSelecionado = id; }),

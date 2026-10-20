@@ -215,7 +215,7 @@ export function AcertoFormProvider({ children }) {
             salvarCenarioCompleto(novoCenario);
         }
 
-        const feedData = { tipo: 'acerto', nome: meuNome, ...result, alvosArea: alvosAtingidos, areaEf: maxArea, zonaIdGerada: idDaZonaCriada };
+        const feedData = { tipo: 'acerto', ts: Date.now(), nome: meuNome, ...result, alvosArea: alvosAtingidos, areaEf: maxArea, zonaIdGerada: idDaZonaCriada };
         enviarParaFeed(feedData);
         setAbaAtiva('aba-log');
 

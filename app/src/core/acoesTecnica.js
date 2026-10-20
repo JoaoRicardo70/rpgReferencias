@@ -11,7 +11,7 @@
 //   • Técnica Elemental: ao ATACAR com ela (AtaqueFormContext > executarRolarDano), uma vez por tipo de Ação distinto.
 // Sem a Ação disponível o app pergunta se quer usar mesmo assim (o contador nunca fica negativo).
 // ==========================================
-import { getAcoesExibicao, alternarAcao, ROTULO_ACAO } from './acoes.js';
+import { getAcoesExibicao, alternarAcao, resolverTipoAGastar, ROTULO_ACAO } from './acoes.js';
 
 export const TIPOS_ACAO_TECNICA = [
     { id: '', rotulo: 'Não controla Ação', rastreada: null },
@@ -48,14 +48,47 @@ export function tiposRastreadosDe(tecnicas) {
     return [...vistos];
 }
 
-// Dos tipos pedidos, quais NÃO têm mais Ação disponível agora (lista de rótulos, ex.: ['Reação']).
-export function acoesEmFalta(ficha, tiposRastreados) {
-    if (!tiposRastreados || tiposRastreados.length === 0) return [];
+// Ação Bônus por último: só cai para a Ação se, depois de pagar as outras, ainda sobrou Ação.
+const ordenarTipos = (tipos) => [...(tipos || [])].sort((a, b) => (a === 'bonus') - (b === 'bonus'));
+
+// Simula o gasto, um tipo de cada vez (o mesmo caminho de gastarAcoes): [{ tipo, efetivo, semAcao, restam }].
+function simularGasto(ficha, tiposRastreados) {
     const exib = getAcoesExibicao(ficha);
-    return tiposRastreados.filter(t => !exib[t] || exib[t].atual <= 0).map(t => ROTULO_ACAO[t]);
+    const cont = { padrao: exib.padrao.atual, bonus: exib.bonus.atual, reacao: exib.reacao.atual };
+    return ordenarTipos(tiposRastreados).map(tipo => {
+        const efetivo = (tipo === 'bonus' && cont.bonus <= 0 && cont.padrao > 0) ? 'padrao' : tipo;
+        const semAcao = (cont[efetivo] || 0) <= 0;
+        if (!semAcao) cont[efetivo] -= 1;
+        return { tipo, efetivo, semAcao, restam: Math.max(0, cont[efetivo] || 0) };
+    });
 }
 
-// Desconta 1 de cada tipo (muta o rascunho Immer da ficha; nunca abaixo de 0).
+// Dos tipos pedidos, quais NÃO têm Ação disponível para pagar (lista de rótulos, ex.: ['Reação']).
+export function acoesEmFalta(ficha, tiposRastreados) {
+    if (!tiposRastreados || tiposRastreados.length === 0) return [];
+    return simularGasto(ficha, tiposRastreados).filter(p => p.semAcao).map(p => ROTULO_ACAO[p.tipo]);
+}
+
+// Desconta 1 de cada tipo (muta o rascunho Immer da ficha; nunca abaixo de 0). Bônus sem Bônus sobrando paga com uma Ação.
 export function gastarAcoes(ficha, tiposRastreados) {
-    (tiposRastreados || []).forEach(t => alternarAcao(ficha, t, true));
+    ordenarTipos(tiposRastreados).forEach(t => alternarAcao(ficha, resolverTipoAGastar(ficha, t), true));
+}
+
+const PLURAL_ACAO = { padrao: 'Ações', bonus: 'Ações Bônus', reacao: 'Reações' };
+
+// Tipos pedidos que vão ser pagos com OUTRA Ação (Ação Bônus sem Bônus sobrando → Ação): lista de rótulos.
+export function substituicoesDeAcao(ficha, tiposRastreados) {
+    return simularGasto(ficha, tiposRastreados).filter(p => p.efetivo !== p.tipo && !p.semAcao).map(p => ROTULO_ACAO[p.tipo]);
+}
+
+// Avisos curtos sobre o gasto que VAI acontecer (use antes de gastar, com a ficha de antes): [{ texto, tipo }].
+export function avisosDoGasto(ficha, tiposRastreados) {
+    const avisos = [];
+    simularGasto(ficha, tiposRastreados).forEach(p => {
+        if (p.semAcao) { avisos.push({ texto: `Sem ${ROTULO_ACAO[p.tipo]} disponível: usado mesmo assim.`, tipo: 'alerta' }); return; }
+        if (p.efetivo !== p.tipo) avisos.push({ texto: `Sem ${ROTULO_ACAO[p.tipo]} sobrando: usando 1 ${ROTULO_ACAO[p.efetivo]} no lugar (restam ${p.restam}).`, tipo: 'info' });
+        else avisos.push({ texto: `Gastou 1 ${ROTULO_ACAO[p.tipo]} (restam ${p.restam}).`, tipo: 'info' });
+        if (p.restam === 0) avisos.push({ texto: `Suas ${PLURAL_ACAO[p.efetivo]} acabaram.`, tipo: 'alerta' });
+    });
+    return avisos;
 }

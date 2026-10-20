@@ -109,6 +109,8 @@ export function alternarAcao(ficha, tipo, disponivel) {
 export function restaurarAcoes(ficha) {
     if (!ficha) return;
     sincronizarAcoes(ficha);
+    // Reações usadas no round anterior (core/reacoes.js) não passam para o próximo turno.
+    if (ficha.combate && Array.isArray(ficha.combate.reacoesPendentes)) ficha.combate.reacoesPendentes = [];
     TIPOS_ACAO.forEach(t => { ficha.acoes[t].atual = ficha.acoes[t].max; });
 }
 
@@ -122,4 +124,12 @@ export function ajustarExtraManualAcao(ficha, tipo, delta) {
     if (delta > 0 && antes >= ACOES_MAXIMO) return;
     ficha.acoes[tipo].extra = novo;
     sincronizarAcoes(ficha);
+}
+
+// Ação Bônus sem nenhuma Ação Bônus sobrando: o personagem pode gastar uma AÇÃO no lugar (regra do sistema).
+// Devolve o tipo que de fato vai ser gasto ('bonus' normalmente; 'padrao' quando não sobrou Bônus mas sobrou Ação).
+export function resolverTipoAGastar(ficha, tipo) {
+    if (tipo !== 'bonus') return tipo;
+    const exib = getAcoesExibicao(ficha);
+    return (exib.bonus.atual <= 0 && exib.padrao.atual > 0) ? 'padrao' : 'bonus';
 }
