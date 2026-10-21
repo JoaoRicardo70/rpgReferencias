@@ -17,6 +17,7 @@ import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getFatorVida, getPontosVi
 import { resolverAlvoCombate, reduzirDanoNoAlvo, ehAlvoPersonagem } from '../../core/alvoCombate';
 import { gravarVidaDoAlvo } from '../../services/danoAlvo';
 import { getNivelDominio } from '../../core/dominios';
+import { classificarAtaque, energiasDoGolpe } from '../../core/identificacao';
 
 const AtaqueFormContext = createContext(null);
 
@@ -445,8 +446,10 @@ export function AtaqueFormProvider({ children }) {
                 };
             }
 
+            const energiasManual = (tipoAtiva && tipoAtiva !== 'nenhum' && percNum > 0) ? [tipoAtiva] : [];
             const feedData = {
-                tipo: 'dano', nome: nomeNoFeed, dano: Math.floor(danoReduzido), letalidade: letalidadeCalculada, poderAtacante: meuPoderDisputa, 
+                tipo: 'dano', ts: Date.now(), nome: nomeNoFeed, dano: Math.floor(danoReduzido), letalidade: letalidadeCalculada, poderAtacante: meuPoderDisputa, 
+                tipoAtaque: classificarAtaque({ elemento: elementoAtivo, energias: energiasManual }).rotulo, energiasUsadas: energiasManual,
                 rolagem: `${rollsLog.length > 0 ? rollsLog.length + ' rolagem(ns)' : 'Cálculo Direto'}`, rolagemMagica: "",
                 atributosUsados: 'Manual', detalheEnergia: logEnergia ? `(${logEnergia})` : '',
                 armaStr: ' (Fórmula Livre)', detalheConta: detalheConta,
@@ -682,8 +685,10 @@ export function AtaqueFormProvider({ children }) {
             }
         }
 
+        const energiasGolpe = energiasDoGolpe(result.drenos, result.custosPoder);
         const feedData = {
-            tipo: 'dano', nome: nomeNoFeed, dano: result.dano, letalidade: result.letalidade, poderAtacante: meuPoderNoGolpe,
+            tipo: 'dano', ts: Date.now(), nome: nomeNoFeed, dano: result.dano, letalidade: result.letalidade, poderAtacante: meuPoderNoGolpe,
+            tipoAtaque: classificarAtaque({ elemento: elementoAtivo, energias: energiasGolpe }).rotulo, energiasUsadas: energiasGolpe,
             rolagem: result.rolagem, rolagemMagica: result.rolagemMagica,
             atributosUsados: result.atributosUsados, detalheEnergia: result.detalheEnergia,
             armaStr: result.armaStr, detalheConta: result.detalheConta + textoAlvos,

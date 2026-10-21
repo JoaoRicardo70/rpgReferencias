@@ -1,7 +1,7 @@
 import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
 import React, { useState } from 'react';
 import { usePoderesForm, SINGULAR } from './PoderesFormContext';
-import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
+import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, GRUPO_IDENTIFICACAO, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 import FormasEditor from '../shared/FormasEditor';
 import EstagioControle from './EstagioControle';
 import EstagiosMarcosEditor from './EstagiosMarcosEditor';
@@ -47,7 +47,8 @@ const FALLBACK = <div style={{ opacity: 0.5, padding: 10 }}>Poderes provider nã
 const ATRIBUTOS_PODERES = [
     ...ATRIBUTOS_AGRUPADOS.map(g => ({ ...g, options: g.options.filter(o => o !== 'dano') })).filter(g => g.options.length > 0),
     { label: '⚡ POTÊNCIA DO SCOUTER', options: ['poder_direto'] },
-    GRUPO_REACOES
+    GRUPO_REACOES,
+    GRUPO_IDENTIFICACAO
 ];
 
 // Exportada pra reuso no seletor "Elemento do Dano" do Dano Rápido do Mestre (ver
@@ -345,7 +346,7 @@ export function PoderesFormEditor() {
                             estagiosEditor={estagiosEditor}
                             setEstagiosEditor={setEstagiosEditor}
                             efeitosBase={efeitosTemp}
-                            atributos={ATRIBUTOS_PODERES.filter(g => g !== GRUPO_REACOES)}
+                            atributos={ATRIBUTOS_PODERES.filter(g => g !== GRUPO_REACOES && g !== GRUPO_IDENTIFICACAO)}
                             propriedades={PROPRIEDADE_OPTIONS}
                         />
                         <PreviaEstagios efeitosBase={efeitosTemp} estagiosEditor={estagiosEditor} />
@@ -367,7 +368,7 @@ export function PoderesFormEditor() {
                 que ela representa, e desligue depois, pra não ficar somando em outros ataques. Some-se
                 com o de outras Habilidades que também estejam Ativas ao mesmo tempo (ver
                 core/attributes.js > getPoderesDefesa), então mantenha só a do ataque em uso ligada. */}
-            <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic', marginBottom: 8 }}>Dica: use a propriedade BONUS_ACERTO pra um bônus de Acerto que só vale enquanto esta Habilidade estiver "★ Ativada" (ligue antes do ataque, desligue depois). Para dar uma Reação à técnica, escolha um atributo ↩️ REAÇÕES (quando usar) e, em propriedade, o que ela faz; o valor é a % (REDUZIR_DANO) ou o +N (AUMENTAR_CA), nos outros use 0. Efeito Passivo vale sempre; Ativo só com a técnica ligada.</div>
+            <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic', marginBottom: 8 }}>Dica: use a propriedade BONUS_ACERTO pra um bônus de Acerto que só vale enquanto esta Habilidade estiver "★ Ativada" (ligue antes do ataque, desligue depois). Para dar uma Reação à técnica, escolha um atributo ↩️ REAÇÕES (quando usar) e, em propriedade, o que ela faz; o valor é a % (REDUZIR_DANO) ou o +N (AUMENTAR_CA), nos outros use 0. Efeito Passivo vale sempre; Ativo só com a técnica ligada. Os atributos 🔍 IDENTIFICAÇÃO (propriedade BASE, valor 0) fazem a técnica revelar o tipo do ataque recebido (Físico/Energético/Elemento) e a Energia gasta nele.</div>
             <input type="text" placeholder="Nome do Efeito" value={nomeEfeito} onChange={e => setNomeEfeito(e.target.value)} style={{ width: '100%', marginBottom: 10 }} />
             <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                 <select value={novoAtr} onChange={e => { setNovoAtr(e.target.value); setNovoProp(ajustarPropriedade(e.target.value, novoProp)); }} style={{ flex: 1 }}>

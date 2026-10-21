@@ -51,10 +51,15 @@ export const GRUPO_REACOES = {
     label: '↩️ REAÇÕES (quando usar)',
     options: ['reacao_errou', 'reacao_acertou', 'reacao_sempre', 'reacao_aliado']
 };
+// 🔍 Identificação (core/identificacao.js): perceber o tipo do ataque recebido (Físico/Energético/Elemento) e/ou a Energia gasta nele.
+export const GRUPO_IDENTIFICACAO = {
+    label: '🔍 IDENTIFICAÇÃO (em combate)',
+    options: ['identificar_tipo_ataque', 'identificar_energia']
+};
 export const PROPRIEDADES_REACAO = ['contra_ataque', 'atacar_atacante', 'atacar_ataque', 'reduzir_dano', 'aumentar_ca'];
 
 // Atributos que só fazem sentido com a propriedade BASE (o valor é a quantidade/porcentagem).
-const SO_BASE = new Set(['reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder']);
+const SO_BASE = new Set(['reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder', 'identificar_tipo_ataque', 'identificar_energia']);
 
 // Propriedades que fazem sentido para o atributo escolhido (Ação/Reação não têm Multiplicador; Reação escolhe o efeito).
 export function getPropriedadesDoAtributo(atributo) {
