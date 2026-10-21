@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { migrarPassivasParaPoderes } from '../core/utils.js';
+import { temAcessoArmaEspiritual } from '../core/acessoArmaEspiritual.js';
 
 export const fichaPadrao = {
     donoDaFicha: "", 
@@ -19,7 +20,10 @@ export const fichaPadrao = {
         // acessoVerdadeira nasce liberado (progressão comum) e acessoFantasma nasce travado (ápice,
         // só pra poucos) -- o Mestre/Co-Mestre libera pelo Altar da Relíquia, Capítulo 1.
         passivasVerdadeira: [], runasVerdadeira: [], passivasFantasma: [], runasFantasma: [],
-        estadoAtivo: 'base', acessoVerdadeira: true, acessoFantasma: false
+        estadoAtivo: 'base', acessoVerdadeira: true, acessoFantasma: false,
+        // 🔒 Acesso à Arma Espiritual/Fantasma Nobre como um todo (core/acessoArmaEspiritual.js): sem ele o
+        // jogador nem vê os capítulos dela na Ficha Definitiva. Só o Mestre/Co-Mestre concede.
+        acessoArma: false
     },
     
     hierarquia: { poder: false, infinity: false, singularidade: '', poderNome: '', poderDesc: '', infinityNome: '', infinityDesc: '', singularidadeNome: '', singularidadeDesc: '' },
@@ -356,7 +360,11 @@ const useStore = create(
 
             // 🔥 A MEMÓRIA DA ARMA ESPIRITUAL E NOTAS FOI RESTAURADA 🔥
             if (dados.armaEspiritual) {
-                state.minhaFicha.armaEspiritual = dados.armaEspiritual;
+                // Cópia rasa: `dados` pode vir congelado (snapshot da store), então nunca é mutado.
+                const armaCarregada = { ...dados.armaEspiritual };
+                // Ficha antiga (sem a flag de acesso): quem já tinha Arma montada mantém o acesso, quem não, não.
+                if (typeof armaCarregada.acessoArma !== 'boolean') armaCarregada.acessoArma = temAcessoArmaEspiritual(dados);
+                state.minhaFicha.armaEspiritual = armaCarregada;
             } else {
                 state.minhaFicha.armaEspiritual = deepClone(fichaPadrao.armaEspiritual);
             }

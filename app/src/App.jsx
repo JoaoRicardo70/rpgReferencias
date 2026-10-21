@@ -14,6 +14,7 @@ import { useChats } from './hooks/useChats';
 import DockComunicacao from './components/comunicacao/DockComunicacao';
 import AvisosAcao from './components/combate/AvisosAcao';
 import ReacaoPrompt from './components/combate/ReacaoPrompt';
+import TrocaRapidaMestre from './components/layout/TrocaRapidaMestre';
 import AudioVozGlobal from './components/comunicacao/AudioVozGlobal';
 import ComunicacaoPanel from './components/comunicacao/ComunicacaoPanel';
 
@@ -348,6 +349,7 @@ export default function App() {
                     <div style={{ borderLeft: '1px solid #444', paddingLeft: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span style={{ color: '#aaa', fontSize: '0.85em', fontWeight: 'bold' }}>👤 {meuNome}</span>
                         <button onClick={() => { if(window.confirm('Deseja sair desta ficha e escolher outro personagem?')) { localStorage.removeItem('rpgNome'); localStorage.removeItem('rpg_nome'); setMeuNome(''); setPronto(false); } }} style={{ background: 'none', border: 'none', color: '#ffcc00', cursor: 'pointer', fontSize: '0.8em', padding: '0', display: 'flex', alignItems: 'center', gap: '4px' }} title="Mudar o nome/ficha atual sem sair da mesa">✏️ Trocar</button>
+                        <TrocaRapidaMestre />
                     </div>
 
                     {isMestre && (

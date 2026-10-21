@@ -3,6 +3,7 @@ import useStore from '../../stores/useStore';
 import { lerImagemComoBase64 } from '../../services/firebase-storage';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
+import { temAcessoArmaEspiritual, podeVerArmaEspiritual, filtrarCapitulos, resolverAbaVisivel } from '../../core/acessoArmaEspiritual';
 
 // ==========================================
 // 🎲 CONSTANTES DE RPG (ITENS E ARMAS)
@@ -70,7 +71,11 @@ export function RelicarioProvider({ children }) {
     // 🔥 GRIMÓRIO DA ENTIDADE: ver o mesmo comentário em Marcados.jsx > MarcadosPanel.
     const { ficha: minhaFicha, updateFicha, nome: meuNome } = useFichaAtiva();
     const isMestre = useStore(s => s.isMestre);
-    const [abaAtual, setAbaAtual] = useState('altar');
+    const [abaEscolhida, setAbaAtual] = useState('altar');
+    // 🔒 Sem acesso à Arma Espiritual, o jogador só vê Arsenal Místico e Suprimentos (o Mestre vê tudo).
+    const podeVerArma = podeVerArmaEspiritual(minhaFicha, isMestre);
+    const capitulos = filtrarCapitulos(CAPITULOS, CAPITULOS_ARMA_ESPIRITUAL, podeVerArma);
+    const abaAtual = resolverAbaVisivel(abaEscolhida, capitulos);
 
     const callSave = useCallSaveAtivo();
 
@@ -82,12 +87,17 @@ export function RelicarioProvider({ children }) {
                     avatarHumano: '', avatarArma: '',
                     passivas: [], runas: [], formas: [], formasVerdadeiras: [],
                     passivasVerdadeira: [], runasVerdadeira: [], passivasFantasma: [], runasFantasma: [],
-                    estadoAtivo: 'base', acessoVerdadeira: true, acessoFantasma: false
+                    estadoAtivo: 'base', acessoVerdadeira: true, acessoFantasma: false, acessoArma: false
                 };
             });
             callSave();
+        } else if (isMestre && minhaFicha && minhaFicha.armaEspiritual && typeof minhaFicha.armaEspiritual.acessoArma !== 'boolean') {
+            // Ficha antiga sem a flag: grava o valor derivado, pra preparar a Arma não liberar o acesso sem querer.
+            const derivado = temAcessoArmaEspiritual(minhaFicha);
+            updateFicha(f => { if (f.armaEspiritual) f.armaEspiritual.acessoArma = derivado; });
+            callSave();
         }
-    }, [minhaFicha, updateFicha, callSave]);
+    }, [minhaFicha, updateFicha, callSave, isMestre]);
 
     const handleArrayItem = useCallback((chave, acao, index, campo, valor, subIndex = null, subCampo = null) => {
         updateFicha((ficha) => {
@@ -165,8 +175,16 @@ export function RelicarioProvider({ children }) {
         callSave();
     }, [updateFicha, callSave]);
 
+    const toggleAcessoArma = useCallback(() => {
+        updateFicha(f => {
+            if (!f.armaEspiritual) f.armaEspiritual = {};
+            f.armaEspiritual.acessoArma = !temAcessoArmaEspiritual(f);
+        });
+        callSave();
+    }, [updateFicha, callSave]);
+
     const value = { 
-        minhaFicha, updateFicha, isMestre, meuNome, abaAtual, setAbaAtual, callSave, handleArrayItem,
+        minhaFicha, updateFicha, isMestre, meuNome, abaAtual, setAbaAtual, callSave, handleArrayItem, capitulos, podeVerArma, toggleAcessoArma,
         updateItemById, removeItemById, toggleEquiparById, addItem 
     };
     return <RelicarioContext.Provider value={value}>{children}</RelicarioContext.Provider>;
@@ -248,19 +266,19 @@ const ImageUploader = ({ valorAtual, onUploadComplete, placeholder, disabled = f
 };
 
 function RelicarioNavegacao() {
-    const { abaAtual, setAbaAtual } = useRelicario();
-    const indexAtual = CAPITULOS.findIndex(c => c.id === abaAtual);
-    const total = CAPITULOS.length;
-    const dadosAba = CAPITULOS[indexAtual];
+    const { abaAtual, setAbaAtual, capitulos } = useRelicario();
+    const indexAtual = Math.max(0, capitulos.findIndex(c => c.id === abaAtual));
+    const total = capitulos.length;
+    const dadosAba = capitulos[indexAtual];
 
-    const irPara = (novoIndex) => { if (novoIndex >= 0 && novoIndex < total) setAbaAtual(CAPITULOS[novoIndex].id); };
+    const irPara = (novoIndex) => { if (novoIndex >= 0 && novoIndex < total) setAbaAtual(capitulos[novoIndex].id); };
 
     return (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px dashed currentColor', paddingBottom: '15px', marginBottom: '20px' }}>
             <button onClick={() => irPara(indexAtual - 1)} disabled={indexAtual === 0} style={{ background: 'transparent', border: 'none', color: 'inherit', fontSize: '1.2em', cursor: indexAtual === 0 ? 'default' : 'pointer', opacity: indexAtual === 0 ? 0.3 : 1, fontWeight: 'bold' }}>⮜ FOLHEAR</button>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 <select value={abaAtual} onChange={(e) => setAbaAtual(e.target.value)} style={{ background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dotted currentColor', fontSize: '0.9em', textTransform: 'uppercase', letterSpacing: '1px', outline: 'none', cursor: 'pointer', textAlign: 'center', opacity: 0.8 }}>
-                    {CAPITULOS.map((c, i) => <option key={c.id} value={c.id} style={{ background: '#1e1423', color: '#e6d5b8' }}>CAPÍTULO {i + 1}: {c.label.toUpperCase()}</option>)}
+                    {capitulos.map((c, i) => <option key={c.id} value={c.id} style={{ background: '#1e1423', color: '#e6d5b8' }}>CAPÍTULO {i + 1}: {c.label.toUpperCase()}</option>)}
                 </select>
                 <h2 style={{ margin: '5px 0 0 0', fontSize: '1.8em', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '10px' }}><span>{dadosAba.icon}</span> {dadosAba.label}</h2>
             </div>
@@ -778,10 +796,23 @@ export default function RelicarioPanel() {
     return (
         <RelicarioProvider>
             <div className="grimorio-estilo-papel" style={{ width: '100%', paddingBottom: '30px' }}>
+                <AcessoArmaMestre />
                 <RelicarioNavegacao />
                 <ConteudoDinamico />
             </div>
         </RelicarioProvider>
+    );
+}
+
+// 🔒 Só o Mestre/Co-Mestre: concede ou retira o acesso do jogador à Arma Espiritual/Fantasma Nobre.
+function AcessoArmaMestre() {
+    const { isMestre, minhaFicha, toggleAcessoArma } = useRelicario();
+    if (!isMestre) return null;
+    return (
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '15px', padding: '8px 12px', border: '1px dashed currentColor', borderRadius: '6px', fontSize: '0.85em', cursor: 'pointer' }} title="Sem acesso, o jogador não vê os capítulos da Arma Espiritual/Fantasma Nobre (só Arsenal Místico e Suprimentos).">
+            <input type="checkbox" checked={temAcessoArmaEspiritual(minhaFicha)} onChange={toggleAcessoArma} />
+            🔓 Este personagem tem acesso à Arma Espiritual / Fantasma Nobre
+        </label>
     );
 }
 
