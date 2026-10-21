@@ -28,7 +28,7 @@ import BarrasVida from '../shared/BarrasVida';
 import { formatarPoderCosmico } from '../../core/utils';
 import { idAlvoPersonagem, motivoBloqueioAlvo } from '../../core/alvoCombate';
 import { getTipoPersonagem, rotuloTipoPersonagem } from '../../core/tipoPersonagem';
-import { NIVEIS_ROLAGEM } from '../../core/rolagemDado';
+import { NIVEIS_ROLAGEM, indiceFaceDoDado, textoDaFace } from '../../core/rolagemDado';
 
 // 🔥 IMPORTAÇÕES PARA RENDERIZAR O DADO 3D FÍSICO 🔥
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -37,112 +37,159 @@ import * as THREE from 'three';
 // ============================================================================
 // 🎲 MOTOR 3D DO DADO D20 (REFATORADO PARA ALTO REALISMO)
 // ============================================================================
-function DadoFisico3D({ isLanded, cor }) {
+function DadoFisico3D({ isLanded, cor, valor }) {
     const meshRef = useRef();
+    const alvoRef = useRef(new THREE.Quaternion());
+    const isCritFatal = cor === '#ff003c';
+    const isCritNormal = cor === '#ffcc00';
+    const glowIntensity = isCritFatal ? 1.8 : isCritNormal ? 1.0 : 0.3;
+    const indiceAlvo = indiceFaceDoDado(valor);
+    const textoAlvo = textoDaFace(valor);
+    const numeroForaDaFaixa = !(Number.isInteger(Number(valor)) && Number(valor) >= 1 && Number(valor) <= 20);
 
-    // Gera uma textura procedimental de relevo (Bump Map) para simular microimperfeições,
-    // granulação de resina pesada e pequenos arranhões de impacto físico na superfície.
+    // Geometria do d20 + uma "etiqueta" (plano com o número) colada em cada uma das 20 faces, como num dado de verdade.
+    // Cada face tem uma orientação própria (z = normal, y = "para cima" do número): para pousar mostrando o resultado
+    // basta girar o dado pelo inverso da orientação da face sorteada.
+    const faces = useMemo(() => {
+        const geo = new THREE.IcosahedronGeometry(2.8, 0);
+        const pos = geo.getAttribute('position');
+        const lista = [];
+        for (let i = 0; i < 20; i++) {
+            const v0 = new THREE.Vector3().fromBufferAttribute(pos, i * 3);
+            const v1 = new THREE.Vector3().fromBufferAttribute(pos, i * 3 + 1);
+            const v2 = new THREE.Vector3().fromBufferAttribute(pos, i * 3 + 2);
+            const centro = new THREE.Vector3().add(v0).add(v1).add(v2).divideScalar(3);
+            const normal = centro.clone().normalize();
+            const cima = v0.clone().sub(centro).normalize();
+            const direita = new THREE.Vector3().crossVectors(cima, normal).normalize();
+            const orientacao = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(direita, cima, normal));
+            lista.push({ centro, normal, orientacao });
+        }
+        return { geo, lista };
+    }, []);
+
+    // Uma textura de número por face (canvas); a face do resultado é redesenhada quando o valor não cabe em 1-20.
+    const texturas = useMemo(() => {
+        return Array.from({ length: 20 }, (_, i) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.anisotropy = 4;
+            tex.colorSpace = THREE.SRGBColorSpace;
+            return { canvas, tex, i };
+        });
+    }, []);
+
+    const desenharFace = useCallback((item, texto) => {
+        const c = item.canvas.getContext('2d');
+        if (!c) return;
+        c.clearRect(0, 0, 256, 256);
+        const tamanho = texto.length >= 4 ? 84 : texto.length === 3 ? 108 : 150;
+        c.font = '900 ' + tamanho + 'px sans-serif';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.lineJoin = 'round';
+        c.lineWidth = 14;
+        c.strokeStyle = 'rgba(0,0,0,0.85)';
+        c.strokeText(texto, 128, 136);
+        c.fillStyle = '#ffffff';
+        c.fillText(texto, 128, 136);
+        // 6 e 9 ganham um traço embaixo pra não serem confundidos de cabeça pra baixo.
+        if (texto === '6' || texto === '9') c.fillRect(88, 214, 80, 12);
+        item.tex.needsUpdate = true;
+    }, []);
+
+    useEffect(() => {
+        texturas.forEach((t, i) => desenharFace(t, String(i + 1)));
+    }, [texturas, desenharFace]);
+
+    // Resultado fora de 1-20: a face do 20 passa a mostrar o número real.
+    useEffect(() => {
+        if (!isLanded) { desenharFace(texturas[19], '20'); return; }
+        if (numeroForaDaFaixa) desenharFace(texturas[19], textoAlvo);
+    }, [isLanded, numeroForaDaFaixa, textoAlvo, texturas, desenharFace]);
+
+    // Orientação final: a face do resultado de frente pra câmera, número em pé, com uma leve inclinação pra dar volume.
+    useEffect(() => {
+        const inversa = faces.lista[indiceAlvo].orientacao.clone().invert();
+        const inclinacao = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.14, 0.18, 0));
+        alvoRef.current.copy(inclinacao).multiply(inversa);
+    }, [faces, indiceAlvo]);
+
+    // Textura de relevo (micro-ranhuras) do corpo do dado.
     const bumpTexture = useMemo(() => {
         const canvas = document.createElement('canvas');
         canvas.width = 512;
         canvas.height = 512;
         const ctx = canvas.getContext('2d');
-        
-        // Base cinza neutra (sem alteração de relevo profundo)
-        ctx.fillStyle = '#808080';
-        ctx.fillRect(0, 0, 512, 512);
-        
-        // Adiciona microgranulação de alta frequência textura de metal/resina áspera
-        for (let i = 0; i < 4000; i++) {
-            const x = Math.random() * 512;
-            const y = Math.random() * 512;
-            const tomCinza = Math.floor(Math.random() * 30) + 110;
-            ctx.fillStyle = `rgb(${tomCinza},${tomCinza},${tomCinza})`;
-            ctx.fillRect(x, y, 1, 1);
+        if (ctx) {
+            ctx.fillStyle = '#808080';
+            ctx.fillRect(0, 0, 512, 512);
+            for (let i = 0; i < 4000; i++) {
+                const tomCinza = Math.floor(Math.random() * 30) + 110;
+                ctx.fillStyle = 'rgb(' + tomCinza + ',' + tomCinza + ',' + tomCinza + ')';
+                ctx.fillRect(Math.random() * 512, Math.random() * 512, 1, 1);
+            }
         }
-        
-        // Adiciona micro-ranhuras lineares para simular desgaste e marcas de combate
-        for (let i = 0; i < 35; i++) {
-            ctx.strokeStyle = `rgba(255, 255, 255, ${Math.random() * 0.15})`;
-            ctx.lineWidth = Math.random() * 1.5 + 0.5;
-            ctx.beginPath();
-            const x = Math.random() * 512;
-            const y = Math.random() * 512;
-            ctx.moveTo(x, y);
-            ctx.lineTo(x + (Math.random() - 0.5) * 40, y + (Math.random() - 0.5) * 40);
-            ctx.stroke();
-        }
-        
         const tex = new THREE.CanvasTexture(canvas);
         tex.wrapS = THREE.RepeatWrapping;
         tex.wrapT = THREE.RepeatWrapping;
         return tex;
     }, []);
 
+    // Libera a memória da GPU quando o dado some (o componente monta a cada rolagem).
+    useEffect(() => () => {
+        faces.geo.dispose();
+        texturas.forEach(t => t.tex.dispose());
+        bumpTexture.dispose();
+    }, [faces, texturas, bumpTexture]);
+
     useFrame((state, delta) => {
         if (!meshRef.current) return;
         if (!isLanded) {
-            // Rotação tridimensional caótica simétrica durante o voo de arremesso
+            // Giro caótico durante o arremesso.
             meshRef.current.rotation.x += delta * 13;
             meshRef.current.rotation.y += delta * 17;
             meshRef.current.rotation.z += delta * 9;
         } else {
-            // Assentamento físico suave e inclinação estética realista ao parar
-            meshRef.current.rotation.x = THREE.MathUtils.lerp(meshRef.current.rotation.x, 0.38, 0.08);
-            meshRef.current.rotation.y = THREE.MathUtils.lerp(meshRef.current.rotation.y, 0.48, 0.08);
-            meshRef.current.rotation.z = THREE.MathUtils.lerp(meshRef.current.rotation.z, 0.02, 0.08);
+            // Desacelera até assentar com a face do resultado virada pra câmera.
+            meshRef.current.quaternion.slerp(alvoRef.current, 1 - Math.exp(-delta * 7));
         }
     });
 
-    const isCritFatal = cor === '#ff003c';
-    const isCritNormal = cor === '#ffcc00';
-    const glowIntensity = isCritFatal ? 1.8 : isCritNormal ? 1.0 : 0.3;
-
     return (
         <group>
-            {/* 💡 ESTÚDIO DE ILUMINAÇÃO DE TRÊS PONTOS (MÁXIMO DESTAQUE DE FACETAS) */}
-            <ambientLight intensity={0.25} />
-            
-            {/* Luz Direcional Principal (Key Light) - Cria brilhos intensos e sombras vincadas */}
-            <directionalLight position={[12, 20, 10]} intensity={3.8} castShadow />
-            
-            {/* Luz de Preenchimento (Fill Light) - Suaviza contrastes sem perder o tom sombrio */}
-            <directionalLight position={[-12, 6, -6]} intensity={1.5} color="#484d6d" />
-            
-            {/* Luz de Contra-Borda (Rim Light) - Desenha o contorno do dado contra o cenário de fundo */}
+            <ambientLight intensity={0.6} />
+            <directionalLight position={[8, 12, 14]} intensity={3.2} />
+            <directionalLight position={[-12, 6, 8]} intensity={1.4} color="#484d6d" />
             <directionalLight position={[0, -15, -12]} intensity={2.2} color={cor} />
-            
-            {/* Ponto de Luz Interno (Núcleo de Energia) - Vazamento luminoso de relíquia pelas fendas */}
-            <pointLight position={[0, 0, 0]} intensity={glowIntensity * 4} color={cor} distance={10} />
-            
-            <mesh ref={meshRef} castShadow receiveShadow>
-                {/* Geometria Base do d20 */}
-                <icosahedronGeometry args={[2.8, 0]} />
-                
-                {/* Material Físico Premium (Estilo Aço Balístico / Polímero Obsidiana) */}
-                <meshPhysicalMaterial 
-                    color="#08080c"                     // Base escura de altíssima absorção de luz
-                    emissive={cor}                      // Reação cromática dinâmica baseada no resultado
-                    emissiveIntensity={glowIntensity}
-                    roughness={0.16}                    // Base altamente polida para refletir focos de luz
-                    metalness={0.96}                    // Comportamento estritamente reflexivo e metálico
-                    bumpMap={bumpTexture}               // Injeção física de micro-ranhuras e texturas de uso
-                    bumpScale={0.012}                   // Relevo sutil perceptível apenas sob luz direta
-                    clearcoat={1.0}                     // Camada espessa de verniz vítreo automotivo por cima
-                    clearcoatRoughness={0.02}           // Brilho externo espelhado sem imperfeições na resina
-                    reflectivity={1.0}
+            <pointLight position={[0, 0, 6]} intensity={glowIntensity * 3} color={cor} distance={14} />
+
+            <mesh ref={meshRef}>
+                <primitive object={faces.geo} attach="geometry" />
+                <meshPhysicalMaterial
+                    color="#0a0a12"
+                    emissive={cor}
+                    emissiveIntensity={glowIntensity * 0.55}
+                    roughness={0.22}
+                    metalness={0.9}
+                    bumpMap={bumpTexture}
+                    bumpScale={0.012}
+                    clearcoat={1.0}
+                    clearcoatRoughness={0.05}
                 />
-                
-                {/* Arestas Volumétricas Sincronizadas - Substitui linhas retas por uma malha de brilho tridimensional */}
+                {/* Arestas luminosas do dado */}
                 <mesh scale={[1.003, 1.003, 1.003]}>
                     <icosahedronGeometry args={[2.8, 0]} />
-                    <meshBasicMaterial 
-                        color={cor} 
-                        wireframe 
-                        transparent 
-                        opacity={isCritFatal ? 0.85 : isCritNormal ? 0.6 : 0.35} 
-                    />
+                    <meshBasicMaterial color={cor} wireframe transparent opacity={isCritFatal ? 0.85 : isCritNormal ? 0.6 : 0.4} />
                 </mesh>
+                {/* Números impressos nas faces */}
+                {faces.lista.map((f, i) => (
+                    <mesh key={i} position={f.centro.clone().addScaledVector(f.normal, 0.02)} quaternion={f.orientacao}>
+                        <planeGeometry args={[1.7, 1.7]} />
+                        <meshBasicMaterial map={texturas[i].tex} transparent toneMapped={false} depthWrite={false} polygonOffset polygonOffsetFactor={-2} />
+                    </mesh>
+                ))}
             </mesh>
         </group>
     );
@@ -158,7 +205,7 @@ export function MapaDadoAnimado() {
 
     if (!ctx || !dadoAnim?.ativo || (!mapaVisivel && !isAbaMapa)) return null;
 
-    const isLanded = !!dadoAnim.finalResult;
+    const isLanded = dadoAnim.finalResult != null;
     const nivel = dadoAnim.nivel || 'normal';
     const info = NIVEIS_ROLAGEM[nivel] || NIVEIS_ROLAGEM.normal;
     const comRaios = isLanded && (nivel === 'fatal' || nivel === 'critico');
@@ -175,11 +222,8 @@ export function MapaDadoAnimado() {
             <div className="dado-palco">
                 <div className="dado-canvas">
                     <Canvas camera={{ position: [0, 0, 8], fov: 50 }} style={{ width: '100%', height: '100%' }}>
-                        <DadoFisico3D isLanded={isLanded} cor={dadoAnim.cor} />
+                        <DadoFisico3D isLanded={isLanded} cor={dadoAnim.cor} valor={dadoAnim.finalResult} />
                     </Canvas>
-                </div>
-                <div className="dado-medalhao">
-                    <span className="dado-numero">{dadoAnim.numero}</span>
                 </div>
             </div>
 

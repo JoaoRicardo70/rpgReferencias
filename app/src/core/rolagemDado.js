@@ -12,6 +12,20 @@ export const NIVEIS_ROLAGEM = {
     normal: { nivel: 'normal', cor: '#0088ff', corTexto: '#7cc4ff', rotulo: 'ROLADO!', icone: '🎲', duracaoMs: 1800 }
 };
 
+// Face do d20 (0 a 19) que mostra o resultado: valores de 1 a 20 caem na própria face; fora disso (dano, d100...)
+// usa a face do 20 e o número real é desenhado nela.
+export function indiceFaceDoDado(valor) {
+    const v = Number(valor);
+    return Number.isInteger(v) && v >= 1 && v <= 20 ? v - 1 : 19;
+}
+
+// Texto impresso na face: o número real (notação exponencial se for enorme), "?" se não for número.
+export function textoDaFace(valor) {
+    const v = Number(valor);
+    if (!Number.isFinite(v)) return '?';
+    return Math.abs(v) >= 1e6 ? v.toExponential(0) : String(Math.trunc(v));
+}
+
 export function classificarRolagem({ valor, tipo, armaStr } = {}) {
     if (tipo === 'dano') {
         const texto = String(armaStr || '');

@@ -4,9 +4,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaDadoAnimado } from './MapaCombate';
 import { useMapaForm } from './MapaFormContext';
 
+const canvasProps = vi.hoisted(() => []);
 vi.mock('../../stores/useStore');
 vi.mock('@react-three/fiber', () => ({
-    Canvas: () => <div data-testid="canvas-mock" />,
+    Canvas: ({ children }) => {
+        const filho = React.Children.toArray(children)[0];
+        canvasProps.push(filho?.props || {});
+        return <div data-testid="canvas-mock" />;
+    },
     useFrame: vi.fn()
 }));
 vi.mock('./MapaFormContext', () => ({
@@ -24,7 +29,7 @@ const mockar = (dadoAnim, extra = {}) => useMapaForm.mockReturnValue({ abaAtiva:
 const base = { ativo: true, numero: 17, cor: '#0088ff', quemRolou: 'Kenji' };
 const limpar = () => { cleanup(); document.body.innerHTML = ''; };
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); canvasProps.length = 0; });
 afterEach(() => limpar());
 
 describe('MapaDadoAnimado', () => {
@@ -44,12 +49,16 @@ describe('MapaDadoAnimado', () => {
         render(<MapaDadoAnimado />);
         expect(q('.dado-cena')).toBeNull();
     });
-    it('no ar: dado-no-ar, numero, "esta rolando..." e sem rotulo', () => {
+    it('no ar: dado-no-ar, sem medalhao HTML, valor undefined no Canvas, "esta rolando..." e sem rotulo', () => {
         mockar({ ...base, nivel: 'normal' });
         render(<MapaDadoAnimado />);
         expect(q('.dado-cena').classList.contains('dado-no-ar')).toBe(true);
         expect(q('.dado-cena').classList.contains('dado-pousou')).toBe(false);
-        expect(q('.dado-numero').textContent).toBe('17');
+        expect(q('.dado-medalhao')).toBeNull();
+        expect(q('.dado-numero')).toBeNull();
+        const ultimo = canvasProps[canvasProps.length - 1];
+        expect(ultimo.valor).toBeUndefined();
+        expect(ultimo.isLanded).toBe(false);
         expect(q('.dado-quem').textContent).toContain('está rolando...');
         expect(q('.dado-rotulo')).toBeNull();
         expect(q('.dado-onda')).toBeNull();
@@ -69,6 +78,24 @@ describe('MapaDadoAnimado', () => {
         expect(document.body.querySelectorAll('.dado-fagulha').length).toBe(16);
         expect(q('.dado-quem').textContent).toContain('rolou');
         expect(q('.dado-quem').textContent).not.toContain('está rolando');
+    });
+    it('pousado: Canvas recebe valor = finalResult e isLanded true, sem medalhao', () => {
+        mockar({ ...base, nivel: 'normal', finalResult: 17 });
+        render(<MapaDadoAnimado />);
+        const ultimo = canvasProps[canvasProps.length - 1];
+        expect(ultimo.valor).toBe(17);
+        expect(ultimo.isLanded).toBe(true);
+        expect(q('.dado-medalhao')).toBeNull();
+        expect(q('.dado-numero')).toBeNull();
+    });
+    it('finalResult 0 conta como pousado (usa != null)', () => {
+        mockar({ ...base, nivel: 'normal', finalResult: 0 });
+        render(<MapaDadoAnimado />);
+        const ultimo = canvasProps[canvasProps.length - 1];
+        expect(ultimo.valor).toBe(0);
+        expect(ultimo.isLanded).toBe(true);
+        expect(q('.dado-cena').classList.contains('dado-pousou')).toBe(true);
+        expect(q('.dado-rotulo').textContent).toContain('ROLADO!');
     });
     it('pousado critico: rotulo e raios, sem clarao', () => {
         mockar({ ...base, numero: 19, cor: '#ffcc00', nivel: 'critico', finalResult: 19 });
