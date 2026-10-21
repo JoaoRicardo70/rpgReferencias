@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useMemo, useRef, useEffect,
 import useStore from '../../stores/useStore';
 import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto, salvarCamposPersonagem } from '../../services/firebase-sync';
 import { calcularAcerto } from '../../core/engine';
+import { classificarRolagem } from '../../core/rolagemDado';
 import { alternarPresencaNaTaverna } from '../../core/chats';
 import { infoAvatarDaFicha } from '../../core/avatar';
 import { assinarFalhasDeImagem } from '../../core/imagemVerificada';
@@ -301,24 +302,17 @@ export function MapaFormProvider({ children }) {
                         }
                     }
                     if (rawRoll > 0) {
-                        let corFinal = '#0088ff'; 
-                        if (newItem.tipo === 'dano') {
-                            if (newItem.armaStr?.includes('FATAL')) corFinal = '#ff003c'; 
-                            else if (newItem.armaStr?.includes('CRÍTICO')) corFinal = '#ffcc00'; 
-                        } else {
-                            if (rawRoll === 20) corFinal = '#ff003c'; 
-                            else if (rawRoll >= 18) corFinal = '#ffcc00'; 
-                            else if (rawRoll === 1) corFinal = '#660000'; 
-                        }
-                        setDadoAnim({ ativo: true, numero: Math.floor(Math.random() * 20) + 1, finalResult: null, cor: '#00ffcc', quemRolou: newItem.nome });
+                        const resultadoRolagem = classificarRolagem({ valor: rawRoll, tipo: newItem.tipo, armaStr: newItem.armaStr });
+                        const corFinal = resultadoRolagem.cor;
+                        setDadoAnim({ ativo: true, numero: Math.floor(Math.random() * 20) + 1, finalResult: null, cor: '#00ffcc', nivel: 'normal', quemRolou: newItem.nome });
                         let intervalos = 0;
                         const tempoGiro = setInterval(() => {
                             setDadoAnim(prev => ({ ...prev, numero: Math.floor(Math.random() * 20) + 1 }));
                             intervalos++;
                             if (intervalos > 15) {
                                 clearInterval(tempoGiro);
-                                setDadoAnim({ ativo: true, numero: rawRoll, finalResult: rawRoll, cor: corFinal, quemRolou: newItem.nome });
-                                setTimeout(() => { setDadoAnim({ ativo: false, numero: 20, finalResult: null, cor: '#00ffcc', quemRolou: '' }); }, 2000);
+                                setDadoAnim({ ativo: true, numero: rawRoll, finalResult: rawRoll, cor: corFinal, nivel: resultadoRolagem.nivel, quemRolou: newItem.nome });
+                                setTimeout(() => { setDadoAnim({ ativo: false, numero: 20, finalResult: null, cor: '#00ffcc', nivel: 'normal', quemRolou: '' }); }, resultadoRolagem.duracaoMs);
                             }
                         }, 80);
                     }

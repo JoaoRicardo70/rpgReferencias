@@ -28,6 +28,7 @@ import BarrasVida from '../shared/BarrasVida';
 import { formatarPoderCosmico } from '../../core/utils';
 import { idAlvoPersonagem, motivoBloqueioAlvo } from '../../core/alvoCombate';
 import { getTipoPersonagem, rotuloTipoPersonagem } from '../../core/tipoPersonagem';
+import { NIVEIS_ROLAGEM } from '../../core/rolagemDado';
 
 // 🔥 IMPORTAÇÕES PARA RENDERIZAR O DADO 3D FÍSICO 🔥
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -155,101 +156,47 @@ export function MapaDadoAnimado() {
     const mapaVisivel = painelMapa && (painelMapa.offsetWidth > 0 || painelMapa.offsetHeight > 0);
     const isAbaMapa = String(abaAtiva || '').toLowerCase().includes('map');
 
-    const [pos, setPos] = useState({ x: -1000, y: -1000 });
-    const requestRef = useRef();
-    const vel = useRef({ 
-        vx: (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random() * 15), 
-        vy: (Math.random() > 0.5 ? 1 : -1) * (15 + Math.random() * 15) 
-    });
-
-    useEffect(() => {
-        if (dadoAnim?.ativo && !dadoAnim.finalResult) {
-            let currentX = window.innerWidth / 2;
-            let currentY = window.innerHeight / 2;
-
-            const animate = () => {
-                currentX += vel.current.vx;
-                currentY += vel.current.vy;
-                const size = 150; 
-                
-                if (currentX <= 0 || currentX >= window.innerWidth - size) {
-                    vel.current.vx *= -1; 
-                    currentX = Math.max(0, Math.min(currentX, window.innerWidth - size));
-                }
-                if (currentY <= 0 || currentY >= window.innerHeight - size) {
-                    vel.current.vy *= -1; 
-                    currentY = Math.max(0, Math.min(currentY, window.innerHeight - size));
-                }
-
-                setPos({ x: currentX, y: currentY });
-                requestRef.current = requestAnimationFrame(animate);
-            };
-            requestRef.current = requestAnimationFrame(animate);
-
-            return () => cancelAnimationFrame(requestRef.current);
-        }
-    }, [dadoAnim?.ativo, dadoAnim?.finalResult]);
-
     if (!ctx || !dadoAnim?.ativo || (!mapaVisivel && !isAbaMapa)) return null;
 
     const isLanded = !!dadoAnim.finalResult;
+    const nivel = dadoAnim.nivel || 'normal';
+    const info = NIVEIS_ROLAGEM[nivel] || NIVEIS_ROLAGEM.normal;
+    const comRaios = isLanded && (nivel === 'fatal' || nivel === 'critico');
 
     return createPortal(
-        <>
-            <style dangerouslySetInnerHTML={{__html: `
-                .dado-wrapper {
-                    position: fixed;
-                    width: 150px;
-                    height: 150px;
-                    z-index: 999999;
-                    pointer-events: none;
-                    transition: ${isLanded ? 'all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275)' : 'none'};
-                }
-                .dado-landed-text {
-                    position: fixed;
-                    top: 65%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    z-index: 999999;
-                    animation: zoomInTexto 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-                }
-                @keyframes zoomInTexto {
-                    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
-                    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-                }
-            `}} />
-            
-            {isLanded && <div style={{ position: 'fixed', inset: 0, background: 'rgba(2,2,4,0.75)', backdropFilter: 'blur(3px)', zIndex: 999998 }} />}
+        <div className={`dado-cena dado-nivel-${nivel}${isLanded ? ' dado-pousou' : ' dado-no-ar'}`} style={{ '--cor-dado': dadoAnim.cor, '--cor-texto-dado': info.corTexto }} aria-live="polite">
+            <div className="dado-fundo" />
+            {comRaios && <div className="dado-raios" />}
+            {isLanded && <div className="dado-onda" />}
+            {isLanded && nivel === 'fatal' && <div className="dado-clarao" />}
 
-            <div 
-                className="dado-wrapper"
-                style={{ 
-                    left: isLanded ? '50%' : `${pos.x}px`, 
-                    top: isLanded ? '50%' : `${pos.y}px`,
-                    transform: isLanded ? 'translate(-50%, -50%) scale(1.65)' : 'none',
-                    filter: `drop-shadow(0 0 ${isLanded ? '50px' : '20px'} ${dadoAnim.cor})`
-                }}
-            >
-                <Canvas camera={{ position: [0, 0, 8], fov: 50 }} style={{ width: '100%', height: '100%' }}>
-                    <DadoFisico3D isLanded={isLanded} cor={dadoAnim.cor} />
-                </Canvas>
-                
-                <div style={{
-                    position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                    color: '#fff', fontSize: '46px', fontWeight: '900', fontFamily: 'sans-serif',
-                    textShadow: `0 0 12px ${dadoAnim.cor}, 2px 2px 0 #000, -2px -2px 0 #000`,
-                    pointerEvents: 'none', zIndex: 10
-                }}>
-                    {dadoAnim.numero}
+            {dadoAnim.quemRolou && <div className="dado-quem">{dadoAnim.quemRolou} {isLanded ? 'rolou' : 'está rolando...'}</div>}
+
+            <div className="dado-palco">
+                <div className="dado-canvas">
+                    <Canvas camera={{ position: [0, 0, 8], fov: 50 }} style={{ width: '100%', height: '100%' }}>
+                        <DadoFisico3D isLanded={isLanded} cor={dadoAnim.cor} />
+                    </Canvas>
+                </div>
+                <div className="dado-medalhao">
+                    <span className="dado-numero">{dadoAnim.numero}</span>
                 </div>
             </div>
 
-            {isLanded && (
-                <div className="dado-landed-text" style={{ color: dadoAnim.cor, fontSize: '3em', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '3px', textShadow: `0 0 30px ${dadoAnim.cor}` }}>
-                    {dadoAnim.cor === '#ff003c' ? 'CRÍTICO FATAL!' : dadoAnim.cor === '#ffcc00' ? 'CRÍTICO!' : dadoAnim.cor === '#660000' ? 'FALHA CRÍTICA' : 'ROLADO!'}
+            {isLanded && comRaios && (
+                <div className="dado-fagulhas" aria-hidden="true">
+                    {Array.from({ length: 16 }, (_, i) => (
+                        <span key={i} className="dado-fagulha" style={{ '--ang': `${i * 22.5}deg`, '--dist': `${150 + (i % 3) * 45}px`, '--atraso': `${(i % 4) * 40}ms` }} />
+                    ))}
                 </div>
             )}
-        </>,
+
+            {isLanded && (
+                <div className="dado-rotulo">
+                    <span className="dado-rotulo-icone">{info.icone}</span> {info.rotulo}
+                </div>
+            )}
+        </div>,
         document.body
     );
 }
