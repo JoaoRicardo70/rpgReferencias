@@ -3,14 +3,15 @@ import useStore from '../../stores/useStore'
 import LimiteDeErro from './LimiteDeErro'
 
 // descarregarAoSair: a aba só existe enquanto está na tela (o padrão continua sendo mantê-la montada e escondida).
-export default function TabPanel({ className, id, children, descarregarAoSair = false }) {
+// sempreVisivel: continua na tela mesmo sem ser a aba ativa (modo Mesa: o Mapa fica ao fundo, as outras abas abrem num painel ao lado).
+export default function TabPanel({ className, id, children, descarregarAoSair = false, sempreVisivel = false }) {
     const abaAtiva = useStore(s => s.abaAtiva)
     if (descarregarAoSair && abaAtiva !== id) return null
     
     // O segredo: se não for a aba ativa, escondemos com display: none, 
     // mas MANTEMOS o HTML lá para o app.js antigo não quebrar!
     const estilo = {
-        display: abaAtiva === id ? 'block' : 'none',
+        display: (abaAtiva === id || sempreVisivel) ? 'block' : 'none',
         height: '100%',
         width: '100%'
     }

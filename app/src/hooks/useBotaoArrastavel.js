@@ -9,12 +9,12 @@ function medirJanela() {
 // Uso: const { pos, aoPressionar, consumirArrasto } = useBotaoArrastavel(chave, { largura, altura, topoReservado });
 //  - style={{ left: pos.x, top: pos.y }} no elemento fixo, onPointerDown={aoPressionar} no que se arrasta;
 //  - no onClick: if (consumirArrasto()) return;  (o clique que termina um arrasto não conta como clique).
-export default function useBotaoArrastavel(chave, { largura = 64, altura = 38, topoReservado = 0 } = {}) {
+export default function useBotaoArrastavel(chave, { largura = 64, altura = 38, topoReservado = 0, fracaoY = 0.4 } = {}) {
     const tamanho = { largura, altura };
     const [pos, setPos] = useState(() => {
         const janela = medirJanela();
         const salva = lerPosicaoSalva(chave);
-        return salva ? limitarPosicao(salva, janela, tamanho, topoReservado) : posicaoInicial(janela, tamanho, topoReservado);
+        return salva ? limitarPosicao(salva, janela, tamanho, topoReservado) : posicaoInicial(janela, tamanho, topoReservado, fracaoY);
     });
     const posRef = useRef(pos);
     posRef.current = pos;

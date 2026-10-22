@@ -81,7 +81,7 @@ describe('App.jsx layout CSS classes', () => {
     const content = readFileSync(APP_JSX, 'utf-8');
 
     it('uses app-layout class on the root container', () => {
-        expect(content).toContain('className="app-layout"');
+        expect(content).toMatch(/className=("app-layout"|{`app-layout[ `])/);
     });
 
     it('uses main-content class on the main content div', () => {
@@ -93,6 +93,9 @@ describe('App.jsx layout CSS classes', () => {
         // not carry an inline style attribute.  The pattern would be:
         //   <div className="app-layout" style={{...}}>
         expect(content).not.toMatch(/className="app-layout"[^>]*style=\{\{/);
+        // Com a classe dinamica, so variaveis CSS (--altura-barra, --largura-gaveta) podem ir inline.
+        const m = content.match(/className=\{`app-layout[^`]*`\}[^>]*style=\{\{([^}]*)\}\}/);
+        if (m) expect(m[1].replace(/'--[\w-]+':\s*[^,]+,?/g, '').trim()).toBe('');
     });
 });
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ref, get, set, onValue } from 'firebase/database';
+import { ref, onValue } from 'firebase/database';
 import { db } from './services/firebase-config';
 import useStore, { sanitizarNome } from './stores/useStore';
 import useFirebase from './hooks/useFirebase';
@@ -15,13 +15,17 @@ import DockComunicacao from './components/comunicacao/DockComunicacao';
 import AvisosAcao from './components/combate/AvisosAcao';
 import ReacaoPrompt from './components/combate/ReacaoPrompt';
 import IdentificacaoAtaque from './components/combate/IdentificacaoAtaque';
-import TrocaRapidaMestre from './components/layout/TrocaRapidaMestre';
 import AudioVozGlobal from './components/comunicacao/AudioVozGlobal';
 
 // 📂 Import de Layout e Componentes
 import Sidebar from './components/layout/Sidebar';
 import AbaCarregavel from './components/layout/AbaCarregavel';
 import PaletaNavegacao from './components/layout/PaletaNavegacao';
+import SessaoInfo from './components/layout/SessaoInfo';
+import OrbeNavegacao from './components/layout/OrbeNavegacao';
+import HubNavegacao, { BarraModoHub } from './components/layout/HubNavegacao';
+import GavetaMesa from './components/layout/GavetaMesa';
+import { ABA_HUB, cssLarguraGaveta } from './core/modoNavegacao';
 import lazyComRetry, { importarComRetry } from './components/layout/lazyComRetry';
 import EfeitosDeFundo from './components/combate/EfeitosDeFundo';
 import { lerTemaSalvo, aplicarTemaNoBody } from './core/temasApp';
@@ -41,6 +45,7 @@ const ComunicacaoPanel = lazyComRetry(() => import('./components/comunicacao/Com
 const MarcadosPanel = lazyComRetry(() => import('./components/Ficha Def/Marcados'));
 const GrimorioPanel = lazyComRetry(() => import('./components/Ficha Def/Grimorio'));
 const MestrePanel = lazyComRetry(() => import('./components/mestre/MestrePanel'));
+const PainelCombate = lazyComRetry(() => import('./components/combate/PainelCombate'));
 
 // Em tempo ocioso, baixa os pedaços das abas que ainda não foram abertas (a 1ª visita não espera a rede).
 const IMPORTADORES_DAS_ABAS = [
@@ -48,6 +53,7 @@ const IMPORTADORES_DAS_ABAS = [
     () => import('./components/Ficha Def/Grimorio'),
     () => import('./components/combate/AtaquePanel'),
     () => import('./components/combate/DefesaPanel'),
+    () => import('./components/combate/PainelCombate'),
     () => import('./components/perfil/PerfilPanel'),
     () => import('./components/feed/FeedCombate'),
     () => import('./components/mestre/MestrePanel'),
@@ -127,11 +133,8 @@ export default function App() {
     const setUserLogado = useStore(s => s.setUserLogado);
     const [authVerificada, setAuthVerificada] = useState(false);
 
-    const jogadoresOnline = useStore(s => s.jogadoresOnline);
     const setJogadoresOnline = useStore(s => s.setJogadoresOnline);
     
-    const mesaCriador = useStore(s => s.mesaCriador);
-    const mesaMestres = useStore(s => s.mesaMestres);
     const setMesaInfo = useStore(s => s.setMesaInfo);
 
     const meuNome = useStore(s => s.meuNome);
@@ -139,6 +142,8 @@ export default function App() {
     const carregarDadosFicha = useStore(s => s.carregarDadosFicha);
     const resetFicha = useStore(s => s.resetFicha);
     const abaAtiva = useStore(s => s.abaAtiva);
+    const modoNavegacao = useStore(s => s.modoNavegacao);
+    const larguraGaveta = useStore(s => s.larguraGaveta);
     
     const cenario = useStore(s => s.cenario);
     const setCenario = useStore(s => s.setCenario);
@@ -151,8 +156,6 @@ export default function App() {
     
     const isMestre = useStore(s => s.isMestre);
     const setIsMestre = useStore(s => s.setIsMestre);
-    const modoJogador = useStore(s => s.modoJogador);
-    const souMestreReal = useStore(s => s.souMestreReal);
 
     const { loading } = useFirebase();
     useSextaFeiraMesa();
@@ -302,15 +305,6 @@ export default function App() {
         try { localStorage.setItem('rpg_historico_personagens', JSON.stringify(novaLista)); } catch (e) { /* sem localStorage */ }
     };
 
-    const criadorOn = jogadoresOnline.filter(j => j === mesaCriador);
-    const coMestresOn = jogadoresOnline.filter(j => j !== mesaCriador && mesaMestres[j]);
-    const playersOn = jogadoresOnline.filter(j => !mesaMestres[j]);
-
-    let tooltipOnline = "🌟 CONTAS ONLINE NA SALA:\n\n";
-    if (criadorOn.length > 0) tooltipOnline += `👑 MESTRE SUPREMO:\n- ${criadorOn.join(', ')}\n\n`;
-    if (coMestresOn.length > 0) tooltipOnline += `🛡️ CO-MESTRES:\n- ${coMestresOn.join(', ')}\n\n`;
-    if (playersOn.length > 0) tooltipOnline += `⚔️ AVENTUREIROS:\n- ${playersOn.join(', ')}`;
-    if (jogadoresOnline.length === 0) tooltipOnline += "Ninguém online no momento.";
 
     if (!authVerificada) return <TelaLoading texto="Verificando as chaves do Multiverso..." />;
     if (!userLogado) return <AuthScreen />;
@@ -349,103 +343,46 @@ export default function App() {
         );
     }
 
-    const isMapMode = abaAtiva === 'aba-mapa';
+    const modoMesa = modoNavegacao === 'mesa';
+    const isMapMode = abaAtiva === 'aba-mapa' || modoMesa;
+    const gavetaAberta = modoMesa && abaAtiva !== 'aba-mapa';
+    // Altura que a navegação ocupa no topo (a barra clássica; a faixa do hub dentro de um modo; nada nos outros).
+    const alturaNavegacao = modoNavegacao === 'barra' ? '54px' : (modoNavegacao === 'hub' && abaAtiva !== ABA_HUB ? '40px' : '0px');
+    const trocarPersonagem = () => { try { localStorage.removeItem('rpgNome'); localStorage.removeItem('rpg_nome'); } catch (e) { /* sem localStorage */ } setMeuNome(''); setPronto(false); };
+    // O Modo Jogador (Mestre) mora na barra clássica; nos outros modos ele vem junto da sessão (menu do orbe / tela do hub).
+    const sessao = <SessaoInfo aoTrocarPersonagem={trocarPersonagem} mostrarModoJogador={modoNavegacao !== 'barra'} />;
+    // Fora do modo Mesa as abas abrem em tela cheia; no modo Mesa tudo (menos o Mapa) abre no painel ao lado.
+    const classeAba = (id) => (modoMesa && id !== 'aba-mapa' ? 'painel-gaveta' : undefined);
 
     // 🔥 O GUARDIÃO ENVOLVE TODO O SISTEMA AQUI 🔥
     return (
         <ProvedorDeVozGlobal meuNome={meuNome} cenario={cenario}>
-            <div className="app-layout">
-                <Sidebar onResetClick={() => setModalAberto(true)}>
-                    {/* Informações da sessão (sala, conta, trocar, sair): agora na própria barra de navegação, sem flutuar sobre o conteúdo */}
-                    <div className="barra-sessao">
-                    
-                    <div title={tooltipOnline} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0, 255, 170, 0.1)', border: '1px solid #00ffaa', padding: '2px 8px', borderRadius: '15px', cursor: 'help', whiteSpace: 'pre-wrap' }}>
-                        <span style={{ width: '8px', height: '8px', background: '#00ffaa', borderRadius: '50%', boxShadow: '0 0 8px #00ffaa' }}></span>
-                        <span style={{ color: '#00ffaa', fontSize: '0.75em', fontWeight: 'bold' }}>{jogadoresOnline.length} ON</span>
-                    </div>
-
-                    <div style={{ borderLeft: '1px solid #444', height: '15px' }}></div>
-
-                    <span style={{ color: '#00ffcc', fontSize: '0.8em', fontWeight: 'bold', letterSpacing: '1px' }}>SALA: {mesaId}</span>
-                    {modoJogador && souMestreReal && <span className="pill-modo-jogador" title="Você está vendo a mesa como um jogador. As ações automáticas do Mestre (efeitos de zona no turno, pedidos à Sexta-Feira) ficam pausadas neste aparelho. Para voltar a ser Mestre, clique no 🎭 da barra de navegação.">🎭 MODO JOGADOR</span>}
-                    
-                    <div style={{ borderLeft: '1px solid #444', paddingLeft: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ color: '#aaa', fontSize: '0.85em', fontWeight: 'bold' }}>👤 {meuNome}</span>
-                        <button onClick={() => { if(window.confirm('Deseja sair desta ficha e escolher outro personagem?')) { localStorage.removeItem('rpgNome'); localStorage.removeItem('rpg_nome'); setMeuNome(''); setPronto(false); } }} style={{ background: 'none', border: 'none', color: '#ffcc00', cursor: 'pointer', fontSize: '0.8em', padding: '0', display: 'flex', alignItems: 'center', gap: '4px' }} title="Mudar o nome/ficha atual sem sair da mesa">✏️ Trocar</button>
-                        <TrocaRapidaMestre />
-                    </div>
-
-                    {isMestre && (
-                        <button onClick={async () => {
-                                const matrizId = localStorage.getItem('rpg_mesa_principal') || 'Nenhuma';
-                                if (!matrizId || matrizId === 'Nenhuma') {
-                                    return alert('⚠️ MESTRE: Defina primeiro o ID da sua Mesa Matriz usando o botão de lápis (✏️) no Hub Cósmico!');
-                                }
-                                if(!window.confirm(`⚠️ MESTRE: Deseja tentar copiar as estruturas da mesa matriz [${matrizId}] para a sala atual [${mesaId}]?\n\nNota: Se não for o Mestre Criador da Matriz, o Firebase pode bloquear a importação por segurança.`)) return;
-                                
-                                try {
-                                    const oldPers = await get(ref(db, `mesas/${matrizId}/personagens`));
-                                    if (oldPers.exists()) { 
-                                        const data = oldPers.val(); 
-                                        for (const key in data) {
-                                            await set(ref(db, `mesas/${mesaId}/personagens/${key}`), data[key]).catch(() => {}); 
-                                        }
-                                    }
-                                } catch (err) { 
-                                    console.warn("Leitura de personagens bloqueada pelo sandbox:", err.message); 
-                                }
-                                
-                                try {
-                                    const oldArvore = await get(ref(db, `mesas/${matrizId}/arvore`));
-                                    if (oldArvore.exists()) {
-                                        await set(ref(db, `mesas/${mesaId}/arvore`), oldArvore.val());
-                                        localStorage.setItem('rpgSextaFeira_arvore', JSON.stringify(oldArvore.val()));
-                                        alert(`✅ SUCESSO SUPREMO! Dados copiados da nuvem da Matriz com sucesso! Atualize a página (F5).`);
-                                    } else {
-                                        throw new Error("Nó vazio");
-                                    }
-                                } catch (err) { 
-                                    console.warn("Acesso à nuvem da matriz negado. Tentando cache local de segurança...");
-                                    
-                                    const arvorePonte = localStorage.getItem('rpgSextaFeira_arvore_MatrizBackup');
-                                    if (arvorePonte && arvorePonte !== '{}') {
-                                        try {
-                                            await set(ref(db, `mesas/${mesaId}/arvore`), JSON.parse(arvorePonte));
-                                            localStorage.setItem('rpgSextaFeira_arvore', arvorePonte);
-                                            alert(`✅ PONTE LOCAL ATIVADA! O Firebase bloqueou a leitura externa, mas a árvore foi forjada a partir do seu cache local de segurança! Atualize a página (F5).`);
-                                        } catch (writeErr) {
-                                            alert(`❌ ACESSO NEGADO: O Firebase bloqueou a gravação da árvore para a sua conta nesta sala.\n\nDica: Peça ao dono da Matriz para fazer o resgate e selar as permissões!`);
-                                        }
-                                    } else {
-                                        alert(`❌ ACESSO BLOQUEADO: O Firebase protege salas externas contra leitura. Como o seu navegador não possui o cache original da Matriz, o resgate foi cancelado com segurança.\n\n👉 Peça ao dono da Matriz para fazer o resgate!`);
-                                    }
-                                }
-                            }} style={{ marginLeft: '5px', background: '#0088ff', border: '1px solid #fff', color: '#fff', fontSize: '0.7em', padding: '4px 8px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>🧲 RESGATAR TUDO</button>
-                    )}
-                    
-                    <button onClick={() => { if(window.confirm('Tem a certeza que deseja sair da mesa?')) { limparFeedStore(); setMesaId(''); } }} style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#ff003c', cursor: 'pointer', fontSize: '0.9em', fontWeight: 'bold', padding: 0 }} title="Desconectar do Servidor da Mesa">Sair 🚪</button>
-                </div>
-                </Sidebar>
+            <div className={`app-layout nav-${modoNavegacao}${gavetaAberta ? ' gaveta-aberta' : ''}`} style={{ '--altura-barra': alturaNavegacao, '--largura-gaveta': cssLarguraGaveta(larguraGaveta) }}>
+                {modoNavegacao === 'barra' && <Sidebar onResetClick={() => setModalAberto(true)}>{sessao}</Sidebar>}
+                {modoNavegacao === 'hub' && <BarraModoHub />}
+                {(modoNavegacao === 'orbe' || modoMesa) && <OrbeNavegacao sessao={sessao} />}
                 <PaletaNavegacao />
-                
+                {gavetaAberta && <GavetaMesa />}
+
                 <div className={`main-content${isMapMode ? ' modo-mapa' : ''}`}>
-                    {!isMapMode && <h1 className="title">RPG Anime System</h1>}
-                    <AbaCarregavel id="aba-perfil"><PerfilPanel /></AbaCarregavel>
-                    <AbaCarregavel id="aba-mestre"><MestrePanel /></AbaCarregavel>
-                    <AbaCarregavel id="aba-testes"><TestesPanel /></AbaCarregavel>
-                    <AbaCarregavel id="aba-ataque"><AtaquePanel /></AbaCarregavel>
-                    <AbaCarregavel id="aba-acerto"><AcertoPanel /></AbaCarregavel>
-                    <AbaCarregavel id="aba-defesa"><DefesaPanel /></AbaCarregavel>
-                    <AbaCarregavel id="aba-log"><FeedCombate /></AbaCarregavel>
-                    <AbaCarregavel id="aba-mapa"><MapaPanel /></AbaCarregavel>
-                    <AbaCarregavel id="aba-compendio"><CompendioPanel /></AbaCarregavel>
-                    <AbaCarregavel id="aba-oraculo"><AIPanel /></AbaCarregavel>
-                    <AbaCarregavel id="aba-comunicacao"><ComunicacaoPanel /></AbaCarregavel>
-                    <AbaCarregavel id="aba-Ficha Def"><MarcadosPanel /></AbaCarregavel>
-                    <AbaCarregavel id="aba-grimorio"><GrimorioPanel /></AbaCarregavel>
+                    {!isMapMode && modoNavegacao === 'barra' && <h1 className="title">RPG Anime System</h1>}
+                    <AbaCarregavel id="aba-perfil" className={classeAba('aba-perfil')}><PerfilPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-mestre" className={classeAba('aba-mestre')}><MestrePanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-combate" className={classeAba('aba-combate')}><PainelCombate /></AbaCarregavel>
+                    <AbaCarregavel id="aba-testes" className={classeAba('aba-testes')}><TestesPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-ataque" className={classeAba('aba-ataque')}><AtaquePanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-acerto" className={classeAba('aba-acerto')}><AcertoPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-defesa" className={classeAba('aba-defesa')}><DefesaPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-log" className={classeAba('aba-log')}><FeedCombate /></AbaCarregavel>
+                    <AbaCarregavel id="aba-mapa" sempreVisivel={modoMesa}><MapaPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-compendio" className={classeAba('aba-compendio')}><CompendioPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-oraculo" className={classeAba('aba-oraculo')}><AIPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-comunicacao" className={classeAba('aba-comunicacao')}><ComunicacaoPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-Ficha Def" className={classeAba('aba-Ficha Def')}><MarcadosPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-grimorio" className={classeAba('aba-grimorio')}><GrimorioPanel /></AbaCarregavel>
+                    {modoNavegacao === 'hub' && <AbaCarregavel id={ABA_HUB}><HubNavegacao sessao={sessao} /></AbaCarregavel>}
                 </div>
-                
-                <ModalConfirm isOpen={modalAberto} onClose={() => setModalAberto(false)} />
+                                <ModalConfirm isOpen={modalAberto} onClose={() => setModalAberto(false)} />
             </div>
         </ProvedorDeVozGlobal>
     );

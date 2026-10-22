@@ -1,4 +1,6 @@
 import React, { useState, useCallback } from 'react';
+import useStore from '../../stores/useStore';
+import { MODOS_NAVEGACAO } from '../../core/modoNavegacao';
 import { TEMAS_APP, lerTemaSalvo, aplicarTemaNoBody, salvarTema } from '../../core/temasApp';
 import { NIVEIS_ROLAGEM } from '../../core/rolagemDado';
 import { NIVEIS_COLORIVEIS, coresPadraoDoDado, lerCoresDado, salvarCoresDado, clarearCor } from '../../core/coresDado';
@@ -8,6 +10,8 @@ const ROTULOS_DADO = { normal: 'Comum', critico: 'Crítico', fatal: 'Crítico Fa
 // 🎨 Aparência: estilo visual do app (Medieval, Moderno, Futurista, Mescla e os clássicos) e as cores do dado.
 // Preferências só deste aparelho: cada jogador escolhe o que prefere sem mudar a tela dos outros.
 export default function AparenciaPanel() {
+    const modoNavegacao = useStore(s => s.modoNavegacao);
+    const setModoNavegacao = useStore(s => s.setModoNavegacao);
     const [tema, setTema] = useState(() => lerTemaSalvo());
     const [coresDado, setCoresDado] = useState(() => lerCoresDado());
 
@@ -43,7 +47,18 @@ export default function AparenciaPanel() {
     return (
         <div className="def-box aparencia-panel">
             <h3 className="aparencia-titulo">🎨 Aparência</h3>
-            <p className="aparencia-nota">Vale só para este aparelho: cada jogador escolhe o visual que prefere.</p>
+            <p className="aparencia-nota">Vale só para este aparelho: cada jogador escolhe a navegação e o visual que prefere. Ctrl+K abre a busca "Ir para..." em qualquer modo.</p>
+
+            <div className="aparencia-subtitulo">🧭 Navegação</div>
+            <div className="aparencia-nav">
+                {MODOS_NAVEGACAO.map(m => (
+                    <button key={m.id} type="button" className={`aparencia-tema${modoNavegacao === m.id ? ' ativo' : ''}`} aria-pressed={modoNavegacao === m.id} onClick={() => setModoNavegacao(m.id)}>
+                        <span className="aparencia-tema-emoji">{m.emoji}</span>
+                        <span className="aparencia-tema-nome">{m.nome}</span>
+                        <span className="aparencia-tema-desc">{m.descricao}</span>
+                    </button>
+                ))}
+            </div>
 
             {grupo('estilo', 'Estilo visual')}
             {grupo('classico', 'Temas clássicos')}

@@ -20,6 +20,7 @@ export const GRUPOS_NAVEGACAO = [
     {
         id: 'combate', nome: 'Combate',
         abas: [
+            { id: 'aba-combate', icone: '⚔️', nome: 'Combate (tudo junto)', curto: 'Combate' },
             { id: 'aba-testes', icone: '🎲', nome: 'Testes' },
             { id: 'aba-ataque', icone: '🗡️', nome: 'Ataque' },
             { id: 'aba-acerto', icone: '🎯', nome: 'Acerto' },
@@ -39,6 +40,7 @@ export const GRUPOS_NAVEGACAO = [
 ];
 
 export const ABA_MESTRE = { id: 'aba-mestre', icone: '👑', nome: 'Painel do Mestre' };
+export const DESTINO_HUB = { id: 'aba-hub', icone: '🏠', nome: 'Mesa (tela inicial)', curto: 'Mesa', grupo: 'hub', grupoNome: 'Hub' };
 
 // Abas que continuam montadas (escondidas) mesmo fora de uso: têm efeitos de fundo (Mapa: animação do dado e ações do Mestre;
 // Comunicação: chamada de voz). As demais só existem enquanto estão na tela — navegar fica leve.
@@ -49,8 +51,9 @@ export function abaPrecisaFicarMontada(id) {
 }
 
 // Lista plana na ordem da barra, com o grupo de cada aba. O Painel do Mestre só entra pra quem é Mestre.
-export function listarDestinos({ isMestre = false } = {}) {
+export function listarDestinos({ isMestre = false, modo = '' } = {}) {
     const lista = [];
+    if (modo === 'hub') lista.push({ ...DESTINO_HUB });
     if (isMestre) lista.push({ ...ABA_MESTRE, grupo: 'mestre', grupoNome: 'Mestre' });
     GRUPOS_NAVEGACAO.forEach(g => g.abas.forEach(a => lista.push({ ...a, grupo: g.id, grupoNome: g.nome })));
     return lista;
@@ -83,4 +86,11 @@ export function destinoDoAtalho(destinos, numero) {
     const n = parseInt(numero, 10);
     if (!Number.isInteger(n) || n < 1 || n > 9) return null;
     return destinos[n - 1] || null;
+}
+
+// Posição (x, y em px, relativa ao centro) do item `i` de `n` num círculo de raio `raio`, começando no topo e girando no sentido horário.
+export function posicaoNoCirculo(i, n, raio) {
+    const total = Math.max(1, n);
+    const angulo = (-Math.PI / 2) + (2 * Math.PI * i) / total;
+    return { x: Math.round(raio * Math.cos(angulo)), y: Math.round(raio * Math.sin(angulo)) };
 }

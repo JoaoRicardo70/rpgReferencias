@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { migrarPassivasParaPoderes } from '../core/utils.js';
 import { temAcessoArmaEspiritual } from '../core/acessoArmaEspiritual.js';
+import { lerModoNavegacao, salvarModoNavegacao, lerLarguraGaveta, CHAVE_LARGURA_GAVETA, ABA_COMBATE, ABA_HUB } from '../core/modoNavegacao.js';
 
 export const fichaPadrao = {
     donoDaFicha: "", 
@@ -173,7 +174,7 @@ const useStore = create(
             state.entidadeInspecionada = null;
         }),
         minhaFicha: deepClone(fichaPadrao),
-        meuNome: '', isMestre: false, souMestreReal: false, modoJogador: lerModoJogadorLocal(storedMesaId), abaAtiva: 'aba-Ficha Def', personagens: {}, feedCombate: [],
+        meuNome: '', isMestre: false, souMestreReal: false, modoJogador: lerModoJogadorLocal(storedMesaId), abaAtiva: lerModoNavegacao() === 'hub' ? ABA_HUB : (lerModoNavegacao() === 'mesa' ? 'aba-mapa' : 'aba-Ficha Def'), modoNavegacao: lerModoNavegacao(), larguraGaveta: lerLarguraGaveta(), personagens: {}, feedCombate: [],
         efeitosTemp: [], efeitosTempPassivos: [], efeitosTempArsenal: [], efeitosTempPassivosArsenal: [], efeitosTempForma: [], efeitosTempPassivosForma: [],
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
         dummies: {}, alvoSelecionado: null, atorCombate: null,
@@ -215,7 +216,21 @@ const useStore = create(
             try { localStorage.setItem('rpgPastasMapaTecnicas', JSON.stringify(mapa)); } catch (e) { /* sem localStorage */ }
         }),
         setPersonagemParaDeletar: (nome) => set((state) => { state.personagemParaDeletar = nome; }),
-        setAbaAtiva: (aba) => set((state) => { state.abaAtiva = aba; }),
+        // O painel de Combate já mostra o Feed ao lado: depois de rolar não precisa pular pra aba do Feed (tiraria você de lá).
+        setAbaAtiva: (aba) => set((state) => { if (aba === 'aba-log' && state.abaAtiva === ABA_COMBATE) return; state.abaAtiva = aba; }),
+        // 🧭 Modo de navegação (core/modoNavegacao.js). Sair do hub estando na tela do hub leva pra Ficha (a tela do hub só existe nele).
+        setModoNavegacao: (modo) => set((state) => {
+            if (!salvarModoNavegacao(modo) || modo === state.modoNavegacao) return;
+            state.modoNavegacao = modo;
+            // Cada modo começa no lugar que faz sentido: o hub na tela Mesa, o modo Mesa no Mapa.
+            if (modo === 'hub') state.abaAtiva = ABA_HUB;
+            else if (modo === 'mesa') state.abaAtiva = 'aba-mapa';
+            else if (state.abaAtiva === ABA_HUB) state.abaAtiva = 'aba-Ficha Def';
+        }),
+        setLarguraGaveta: (id) => set((state) => {
+            state.larguraGaveta = id;
+            try { localStorage.setItem(CHAVE_LARGURA_GAVETA, id); } catch (e) { /* sem localStorage */ }
+        }),
         setPersonagens: (personagens) => set((state) => { state.personagens = personagens; }),
         addFeedEntry: (entry) => set((state) => { state.feedCombate.push(entry); }),
         adicionarAviso: (texto, tipo = 'info') => set((state) => { state.avisosAcao.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, texto: String(texto || ''), tipo }); if (state.avisosAcao.length > 5) state.avisosAcao.shift(); }),

@@ -16,6 +16,8 @@ export default function MapaPanel({ className, children }) {
     // <AtaqueFormProvider> aqui rodaria PERMANENTEMENTE, dobrando efeitos de fundo do Ataque. Só monta este aqui quando
     // o Mapa realmente está em foco.
     const abaAtiva = useStore(s => s.abaAtiva);
+    // (No modo Mesa, com um painel aberto ao lado, o Livro de Combate do Mapa fica de fora: os providers dele dobrariam os efeitos
+    // do Ataque/Arsenal que o painel lateral já monta. Feche o painel pra voltar a usar o Livro.)
     const mapaEmFoco = abaAtiva === 'aba-mapa';
 
     return (

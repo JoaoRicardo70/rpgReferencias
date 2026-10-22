@@ -4,10 +4,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import AparenciaPanel from './AparenciaPanel';
 import { TEMAS_APP } from '../../core/temasApp';
 import { coresPadraoDoDado } from '../../core/coresDado';
+import { MODOS_NAVEGACAO } from '../../core/modoNavegacao';
+import useStore from '../../stores/useStore';
 
 const NIVEIS = ['normal', 'critico', 'fatal', 'falha'];
 
-beforeEach(() => { localStorage.clear(); document.body.className = ''; });
+beforeEach(() => { localStorage.clear(); document.body.className = ''; useStore.setState({ modoNavegacao: 'orbe', abaAtiva: 'aba-Ficha Def' }); });
 afterEach(() => { cleanup(); document.body.className = ''; });
 
 const cores = () => JSON.parse(localStorage.getItem('rpg_dado_cores'));
@@ -15,7 +17,8 @@ const cores = () => JSON.parse(localStorage.getItem('rpg_dado_cores'));
 describe('AparenciaPanel - temas', () => {
     it('renderiza 8 temas em 2 grupos', () => {
         const { container } = render(<AparenciaPanel />);
-        expect(container.querySelectorAll('.aparencia-tema')).toHaveLength(8);
+        // Os botoes de navegacao tambem usam .aparencia-tema; os de tema ficam so dentro de .aparencia-temas.
+        expect(container.querySelectorAll('.aparencia-temas .aparencia-tema')).toHaveLength(8);
         expect(container.querySelectorAll('.aparencia-temas')).toHaveLength(2);
         const [g1, g2] = container.querySelectorAll('.aparencia-temas');
         expect(g1.querySelectorAll('.aparencia-tema')).toHaveLength(4);
@@ -26,7 +29,7 @@ describe('AparenciaPanel - temas', () => {
     });
     it('sem tema salvo marca Cyber-Neon como pressionado', () => {
         const { container } = render(<AparenciaPanel />);
-        const marcados = container.querySelectorAll('[aria-pressed="true"]');
+        const marcados = container.querySelectorAll('.aparencia-temas [aria-pressed="true"]');
         expect(marcados).toHaveLength(1);
         expect(marcados[0].textContent).toContain('Cyber-Neon');
     });
@@ -53,6 +56,45 @@ describe('AparenciaPanel - temas', () => {
         fireEvent.click(screen.getByText(nome).closest('button'));
         expect(document.body.classList.contains(id)).toBe(true);
         expect(localStorage.getItem('rpg_tema')).toBe(id);
+    });
+});
+
+describe('AparenciaPanel - navegacao', () => {
+    const botoesNav = (container) => container.querySelectorAll('.aparencia-nav .aparencia-tema');
+    it('lista os 4 modos de navegacao', () => {
+        const { container } = render(<AparenciaPanel />);
+        expect(botoesNav(container)).toHaveLength(4);
+        MODOS_NAVEGACAO.forEach(m => expect(screen.getByText(m.nome)).toBeTruthy());
+    });
+    it('o modo ativo vem do store', () => {
+        useStore.setState({ modoNavegacao: 'hub' });
+        const { container } = render(<AparenciaPanel />);
+        const marcados = container.querySelectorAll('.aparencia-nav [aria-pressed="true"]');
+        expect(marcados).toHaveLength(1);
+        expect(marcados[0].textContent).toContain('Hub por modos');
+    });
+    it('clicar chama setModoNavegacao, grava e marca aria-pressed', () => {
+        render(<AparenciaPanel />);
+        const btn = screen.getByText('Barra no topo').closest('button');
+        expect(btn.getAttribute('aria-pressed')).toBe('false');
+        fireEvent.click(btn);
+        expect(useStore.getState().modoNavegacao).toBe('barra');
+        expect(localStorage.getItem('rpg_navegacao')).toBe('barra');
+        expect(btn.getAttribute('aria-pressed')).toBe('true');
+        expect(btn.className).toContain('ativo');
+        expect(screen.getByText('Orbe radial').closest('button').getAttribute('aria-pressed')).toBe('false');
+    });
+    it('escolher Hub leva a aba-hub', () => {
+        render(<AparenciaPanel />);
+        fireEvent.click(screen.getByText('Hub por modos').closest('button'));
+        expect(useStore.getState().abaAtiva).toBe('aba-hub');
+    });
+    it('trocar de navegacao nao altera o tema', () => {
+        render(<AparenciaPanel />);
+        fireEvent.click(screen.getByText('Medieval').closest('button'));
+        fireEvent.click(screen.getByText('Mesa com painéis').closest('button'));
+        expect(localStorage.getItem('rpg_tema')).toBe('theme-medieval');
+        expect(screen.getByText('Medieval').closest('button').getAttribute('aria-pressed')).toBe('true');
     });
 });
 

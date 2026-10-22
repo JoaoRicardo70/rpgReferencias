@@ -17,6 +17,7 @@ export default function PaletaNavegacao() {
     const abaAtiva = useStore(s => s.abaAtiva);
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
     const isMestre = useStore(s => s.isMestre);
+    const modoNavegacao = useStore(s => s.modoNavegacao);
 
     const [aberta, setAberta] = useState(false);
     const [busca, setBusca] = useState('');
@@ -24,7 +25,7 @@ export default function PaletaNavegacao() {
     const [recentes, setRecentes] = useState(lerRecentes);
     const inputRef = useRef(null);
 
-    const destinos = useMemo(() => listarDestinos({ isMestre }), [isMestre]);
+    const destinos = useMemo(() => listarDestinos({ isMestre, modo: modoNavegacao }), [isMestre, modoNavegacao]);
 
     // Registra cada aba visitada.
     useEffect(() => {

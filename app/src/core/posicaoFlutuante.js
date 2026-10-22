@@ -17,9 +17,9 @@ export function limitarPosicao(pos, janela, tamanho = { largura: 60, altura: 36 
 }
 
 // Lugar inicial: encostado na borda esquerda, no meio da altura (longe dos botões de baixo e da barra do topo).
-export function posicaoInicial(janela, tamanho, topoReservado = 0) {
+export function posicaoInicial(janela, tamanho, topoReservado = 0, fracaoY = 0.4) {
     const altura = Number(janela?.altura) || 0;
-    return limitarPosicao({ x: MARGEM_FLUTUANTE, y: topoReservado + (altura - topoReservado) * 0.4 }, janela, tamanho, topoReservado);
+    return limitarPosicao({ x: MARGEM_FLUTUANTE, y: topoReservado + (altura - topoReservado) * fracaoY }, janela, tamanho, topoReservado);
 }
 
 export function lerPosicaoSalva(chave, storage) {
