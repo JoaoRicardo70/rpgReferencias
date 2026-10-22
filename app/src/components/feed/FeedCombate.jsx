@@ -148,6 +148,13 @@ export default function FeedCombate({ className }) {
                         <p className="lethality">
                             LETALIDADE: {d.letalidade > 0 ? '+' + d.letalidade : '0'}
                         </p>
+                        {/* 📖 Como o golpe foi executado (descrições do jogador + o que estava ativo) */}
+                        {d.narrativa && (
+                            <div className="feed-narrativa">
+                                <p className="feed-narrativa-texto">📖 {d.narrativa}</p>
+                                {d.narrativaComplemento && <small className="feed-narrativa-complemento">{d.narrativaComplemento}</small>}
+                            </div>
+                        )}
                         <div className="log-details" dangerouslySetInnerHTML={{
                             __html: `&#x1F3B2; Rolagem de Dados: ${d.rolagem || ''}${d.rolagemMagica || ''}${d.detalheEnergia || ''}${d.detalheConta || ''}`
                         }} />

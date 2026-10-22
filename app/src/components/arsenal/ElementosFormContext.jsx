@@ -389,6 +389,8 @@ export function ElementosFormProvider({ children }) {
                     novaMagia.equipado = ficha.ataquesElementais[ix].equipado;
                     novaMagia.comoPoder = ficha.ataquesElementais[ix].comoPoder;
                     novaMagia.percComoPoder = ficha.ataquesElementais[ix].percComoPoder;
+                    // Descrições do ataque ("Como executo") são editadas na lista, não neste formulário: preserva.
+                    if (ficha.ataquesElementais[ix].descricoesAtaque) novaMagia.descricoesAtaque = ficha.ataquesElementais[ix].descricoesAtaque;
                     ficha.ataquesElementais[ix] = novaMagia;
                 }
             } else {

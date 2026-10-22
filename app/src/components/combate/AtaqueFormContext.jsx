@@ -18,6 +18,7 @@ import { resolverAlvoCombate, reduzirDanoNoAlvo, ehAlvoPersonagem } from '../../
 import { gravarVidaDoAlvo } from '../../services/danoAlvo';
 import { getNivelDominio } from '../../core/dominios';
 import { classificarAtaque, energiasDoGolpe } from '../../core/identificacao';
+import { montarNarrativa } from '../../core/descricaoAtaque';
 
 const AtaqueFormContext = createContext(null);
 
@@ -686,6 +687,21 @@ export function AtaqueFormProvider({ children }) {
         }
 
         const energiasGolpe = energiasDoGolpe(result.drenos, result.custosPoder);
+        // 📖 Descrição do golpe: as descrições escritas pelo jogador (arma e técnicas em uso) + o que estava ativo (core/descricaoAtaque.js).
+        const textoArma = String(result.armaStr || '');
+        const narrativa = montarNarrativa({
+            atacante: nomeNoFeed,
+            alvo: dummieAlvo ? dummieAlvo.nome : '',
+            fontes: [
+                ...(armaEquipada ? [{ nome: armaEquipada.nome, tipo: 'arma', descricoes: armaEquipada.descricoesAtaque }] : []),
+                ...poderesDoGolpe.map(p => ({ nome: p.nome, descricoes: p.descricoesAtaque })),
+                ...magiasDoGolpe.map(m => ({ nome: m.nome, descricoes: m.descricoesAtaque }))
+            ],
+            ativos: poderesDoGolpe,
+            elemento: elementoAtivo,
+            energias: energiasGolpe,
+            critico: textoArma.includes('FATAL') ? 'fatal' : (textoArma.includes('CRÍTICO') ? 'critico' : '')
+        });
         const feedData = {
             tipo: 'dano', ts: Date.now(), nome: nomeNoFeed, dano: result.dano, letalidade: result.letalidade, poderAtacante: meuPoderNoGolpe,
             tipoAtaque: classificarAtaque({ elemento: elementoAtivo, energias: energiasGolpe }).rotulo, energiasUsadas: energiasGolpe,
@@ -693,6 +709,7 @@ export function AtaqueFormProvider({ children }) {
             atributosUsados: result.atributosUsados, detalheEnergia: result.detalheEnergia,
             armaStr: result.armaStr, detalheConta: result.detalheConta + textoAlvos,
             elemento: elementoAtivo, 
+            ...(narrativa ? { narrativa: narrativa.texto, narrativaComplemento: narrativa.complemento } : {}),
             ...extraFeed
         };
 
@@ -703,7 +720,7 @@ export function AtaqueFormProvider({ children }) {
         updateFicha, armaStatusUsados, armaEnergiaCombustao, armaPercEnergia,
         critNormalMin, critNormalMax, critFatalMin, critFatalMax, skillConfigs,
         minhaFicha, forcarCritNormal, autoCritNormal, forcarCritFatal, autoCritFatal,
-        dummieAlvo, alvoSelecionado, meuNome, nomeNoFeed, setAbaAtiva, poderesAtivos, magiasOfensivas, feedCombate, dummies, personagens, elementoAtivo, divisorPoderMesa
+        dummieAlvo, alvoSelecionado, meuNome, nomeNoFeed, setAbaAtiva, poderesAtivos, magiasOfensivas, armaEquipada, feedCombate, dummies, personagens, elementoAtivo, divisorPoderMesa
     ]);
 
     const rolarDano = useCallback(() => executarRolarDano(null), [executarRolarDano]);

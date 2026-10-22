@@ -1,4 +1,5 @@
 import React from 'react';
+import DescricoesAtaqueEditor from '../shared/DescricoesAtaqueEditor';
 import { useArsenalForm, ARMA_TIPOS, RARIDADES, BONUS_OPTIONS } from './ArsenalFormContext';
 import { ATRIBUTOS_AGRUPADOS, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 import FormasEditor from '../shared/FormasEditor';
@@ -288,6 +289,7 @@ export function ArsenalInventarioList() {
                                 <label className="arsenal-item-extra">Kg <input type="number" min="0" step="0.1" className="input-neon" value={p.peso ?? 0} onChange={e => atualizarCampoItem(p.id, 'peso', e.target.value === '' ? '' : (parseFloat(e.target.value) || 0))} /></label>
                                 <textarea className="input-neon arsenal-item-desc" rows={2} placeholder="Descrição do item..." value={p.desc || ''} onChange={e => atualizarCampoItem(p.id, 'desc', e.target.value)} />
                             </div>
+                            {p.tipo === 'arma' && <DescricoesAtaqueEditor colecao="inventario" itemId={p.id} />}
                             {p.tipo === 'arma' && (
                                 <FormasEditor
                                     itemRaridade={p.raridade}

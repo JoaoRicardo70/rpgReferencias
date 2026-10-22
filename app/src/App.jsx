@@ -355,7 +355,9 @@ export default function App() {
     return (
         <ProvedorDeVozGlobal meuNome={meuNome} cenario={cenario}>
             <div className="app-layout">
-                <div style={{ position: 'absolute', top: '10px', right: '15px', zIndex: 9999, display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(0,0,0,0.8)', padding: '5px 15px', borderRadius: '20px', border: '1px solid #333', boxShadow: '0 0 10px rgba(0,0,0,0.5)' }}>
+                <Sidebar onResetClick={() => setModalAberto(true)}>
+                    {/* Informações da sessão (sala, conta, trocar, sair): agora na própria barra de navegação, sem flutuar sobre o conteúdo */}
+                    <div className="barra-sessao">
                     
                     <div title={tooltipOnline} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0, 255, 170, 0.1)', border: '1px solid #00ffaa', padding: '2px 8px', borderRadius: '15px', cursor: 'help', whiteSpace: 'pre-wrap' }}>
                         <span style={{ width: '8px', height: '8px', background: '#00ffaa', borderRadius: '50%', boxShadow: '0 0 8px #00ffaa' }}></span>
@@ -365,7 +367,7 @@ export default function App() {
                     <div style={{ borderLeft: '1px solid #444', height: '15px' }}></div>
 
                     <span style={{ color: '#00ffcc', fontSize: '0.8em', fontWeight: 'bold', letterSpacing: '1px' }}>SALA: {mesaId}</span>
-                    {modoJogador && souMestreReal && <span className="pill-modo-jogador" title="Você está vendo a mesa como um jogador. As ações automáticas do Mestre (efeitos de zona no turno, pedidos à Sexta-Feira) ficam pausadas neste aparelho. Para voltar a ser Mestre, clique no 🎭 da barra lateral.">🎭 MODO JOGADOR</span>}
+                    {modoJogador && souMestreReal && <span className="pill-modo-jogador" title="Você está vendo a mesa como um jogador. As ações automáticas do Mestre (efeitos de zona no turno, pedidos à Sexta-Feira) ficam pausadas neste aparelho. Para voltar a ser Mestre, clique no 🎭 da barra de navegação.">🎭 MODO JOGADOR</span>}
                     
                     <div style={{ borderLeft: '1px solid #444', paddingLeft: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span style={{ color: '#aaa', fontSize: '0.85em', fontWeight: 'bold' }}>👤 {meuNome}</span>
@@ -423,8 +425,7 @@ export default function App() {
                     
                     <button onClick={() => { if(window.confirm('Tem a certeza que deseja sair da mesa?')) { limparFeedStore(); setMesaId(''); } }} style={{ marginLeft: '10px', background: 'none', border: 'none', color: '#ff003c', cursor: 'pointer', fontSize: '0.9em', fontWeight: 'bold', padding: 0 }} title="Desconectar do Servidor da Mesa">Sair 🚪</button>
                 </div>
-
-                <Sidebar onResetClick={() => setModalAberto(true)} />
+                </Sidebar>
                 <PaletaNavegacao />
                 
                 <div className={`main-content${isMapMode ? ' modo-mapa' : ''}`}>

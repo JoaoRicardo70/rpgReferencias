@@ -1,4 +1,5 @@
 import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
+import DescricoesAtaqueEditor from '../shared/DescricoesAtaqueEditor';
 import React, { useState } from 'react';
 import { usePoderesForm, SINGULAR } from './PoderesFormContext';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, GRUPO_IDENTIFICACAO, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
@@ -606,6 +607,8 @@ export function PoderesLista() {
                                 </div>
                             </div>
                             
+                            <DescricoesAtaqueEditor colecao="poderes" itemId={p.id} />
+
                             {/* CAIXA DE DISPARO */}
                             {poderPreparandoId === p.id && (
                                 <div className="fade-in" style={{ width: '100%', marginTop: '15px', background: 'rgba(0, 0, 0, 0.05)', borderTop: '2px dashed currentColor', paddingTop: '15px' }}>

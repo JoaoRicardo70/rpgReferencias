@@ -29,6 +29,7 @@ import { formatarPoderCosmico } from '../../core/utils';
 import { idAlvoPersonagem, motivoBloqueioAlvo } from '../../core/alvoCombate';
 import { getTipoPersonagem, rotuloTipoPersonagem } from '../../core/tipoPersonagem';
 import { NIVEIS_ROLAGEM, indiceFaceDoDado, textoDaFace } from '../../core/rolagemDado';
+import useBotaoArrastavel from '../../hooks/useBotaoArrastavel';
 
 // 🔥 IMPORTAÇÕES PARA RENDERIZAR O DADO 3D FÍSICO 🔥
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -581,6 +582,8 @@ function MapaLivroDefesas() {
 // executa com o mesmo rolarAtaqueSalvo/rolarDanoCustomizado do AtaqueFormContext: mesmo cálculo, alvo e trava de Acerto.
 // Tudo vai em portal no body: o painel da aba usa backdrop-filter, que prenderia o position: fixed dentro dele.
 export function MapaAtalhoAtaques() {
+    // O botão do Livro é arrastável (e lembra o lugar): o jogador o tira da frente de qualquer outro botão do Mapa.
+    const flutuante = useBotaoArrastavel('rpg_livro_combate_pos', { largura: 64, altura: 38, topoReservado: 60 });
     const ataqueCtx = useAtaqueForm();
     const [aberto, setAberto] = useState(false);
     // Abas do Livro: ataques salvos, Habilidades/Formas/Poderes e Técnicas Elementais (as duas últimas são as mesmas
@@ -648,8 +651,8 @@ export function MapaAtalhoAtaques() {
 
     return createPortal(
         <>
-            <div className="atalho-ataques">
-                <button className="atalho-ataques-botao" onClick={() => setAberto(v => !v)} aria-expanded={aberto} title="Atalho dos Ataques Salvos">
+            <div className="atalho-ataques" style={{ left: flutuante.pos.x, top: flutuante.pos.y }}>
+                <button className="atalho-ataques-botao" onPointerDown={flutuante.aoPressionar} onClick={() => { if (flutuante.consumirArrasto()) return; setAberto(v => !v); }} aria-expanded={aberto} title="Atalho dos Ataques Salvos">
                     ⚔️{slots.length > 0 ? ' ' + slots.length : ''}
                 </button>
             </div>

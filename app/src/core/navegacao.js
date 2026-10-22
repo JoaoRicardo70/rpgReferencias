@@ -13,8 +13,8 @@ export const GRUPOS_NAVEGACAO = [
     {
         id: 'diarios', nome: 'Diários',
         abas: [
-            { id: 'aba-Ficha Def', icone: '📝', nome: 'Ficha Definitiva' },
-            { id: 'aba-grimorio', icone: '📖', nome: 'O Grimório Místico' }
+            { id: 'aba-Ficha Def', icone: '📝', nome: 'Ficha Definitiva', curto: 'Ficha' },
+            { id: 'aba-grimorio', icone: '📖', nome: 'O Grimório Místico', curto: 'Grimório' }
         ]
     },
     {
@@ -30,10 +30,10 @@ export const GRUPOS_NAVEGACAO = [
         id: 'mundo', nome: 'Multiverso',
         abas: [
             { id: 'aba-mapa', icone: '🗺️', nome: 'Mapa' },
-            { id: 'aba-comunicacao', icone: '💬', nome: 'Comunicação (Chat, Voz e Mesa de Som)' },
-            { id: 'aba-log', icone: '📜', nome: 'Feed e Log' },
-            { id: 'aba-compendio', icone: '📚', nome: 'Lore do Mundo' },
-            { id: 'aba-oraculo', icone: '🤖', nome: 'Oráculo (IA)' }
+            { id: 'aba-comunicacao', icone: '💬', nome: 'Comunicação (Chat, Voz e Mesa de Som)', curto: 'Comunicação' },
+            { id: 'aba-log', icone: '📜', nome: 'Feed e Log', curto: 'Feed' },
+            { id: 'aba-compendio', icone: '📚', nome: 'Lore do Mundo', curto: 'Lore' },
+            { id: 'aba-oraculo', icone: '🤖', nome: 'Oráculo (IA)', curto: 'Oráculo' }
         ]
     }
 ];
