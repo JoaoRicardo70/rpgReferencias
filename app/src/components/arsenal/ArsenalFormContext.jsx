@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useRef, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso } from '../../services/firebase-sync';
+import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 
 export const ARMA_TIPOS = ['espada', 'arco', 'lança', 'machado', 'adaga', 'cajado', 'arma de fogo', 'manopla', 'foice', 'chicote', 'martelo', 'escudo'];
@@ -25,8 +25,9 @@ export function useArsenalForm() {
 }
 
 export function ArsenalFormProvider({ children }) {
-    const minhaFicha = useStore(s => s.minhaFicha);
-    const updateFicha = useStore(s => s.updateFicha);
+    // Ficha ativa: a minha, ou a da entidade que o Mestre está vendo (Ficha Definitiva / Mapa), pelo mesmo mecanismo do Grimório.
+    const { ficha: minhaFicha, updateFicha, nome: nomeAlvo } = useFichaAtiva();
+    const callSave = useCallSaveAtivo();
     const itemEditandoId = useStore(s => s.itemEditandoId);
     const setItemEditandoId = useStore(s => s.setItemEditandoId);
     const efeitosTempArsenal = useStore(s => s.efeitosTempArsenal);
@@ -92,6 +93,10 @@ export function ArsenalFormProvider({ children }) {
         setEfeitosTempPassivosArsenal([]);
     }, [setItemEditandoId, setEfeitosTempArsenal, setEfeitosTempPassivosArsenal]);
 
+    // O item em edição e os efeitos temporários vivem no store (globais): ao fechar o painel ou trocar de ficha em foco
+    // eles não podem "grudar" e cair numa forja de outro personagem.
+    useEffect(() => () => { cancelarEdicaoItem(); }, [nomeAlvo, cancelarEdicaoItem]);
+
     const toggleEquiparItem = useCallback((id) => {
         updateFicha((ficha) => {
             if (!ficha.inventario) return;
@@ -115,8 +120,8 @@ export function ArsenalFormProvider({ children }) {
 
             rescalarVitaisProporcional(ficha, oldM);
         });
-        salvarFichaSilencioso();
-    }, [updateFicha]);
+        callSave();
+    }, [updateFicha, callSave]);
 
     const salvarNovoItem = useCallback(() => {
         const n = nomeItem.trim();
@@ -181,8 +186,8 @@ export function ArsenalFormProvider({ children }) {
         cancelarEdicaoItem();
         setNomeItem('');
         setBonusValor('');
-        salvarFichaSilencioso();
-    }, [nomeItem, minhaFicha, itemEditandoId, tipoItem, bonusTipo, bonusValor, armaTipo, raridade, armaDadosQtd, armaDadosFaces, armaAlcance, efeitosTempArsenal, efeitosTempPassivosArsenal, updateFicha, cancelarEdicaoItem]);
+        callSave();
+    }, [nomeItem, minhaFicha, itemEditandoId, tipoItem, bonusTipo, bonusValor, armaTipo, raridade, armaDadosQtd, armaDadosFaces, armaAlcance, efeitosTempArsenal, efeitosTempPassivosArsenal, updateFicha, callSave, cancelarEdicaoItem]);
 
     const editarItem = useCallback((id) => {
         const p = (minhaFicha?.inventario || []).find(i => i.id === id);
@@ -214,8 +219,8 @@ export function ArsenalFormProvider({ children }) {
             ficha.inventario = (ficha.inventario || []).filter(i => i.id !== id);
             rescalarVitaisProporcional(ficha, oldM);
         });
-        salvarFichaSilencioso();
-    }, [updateFicha]);
+        callSave();
+    }, [updateFicha, callSave]);
 
     const salvarFormaItem = useCallback((itemId, forma) => {
         updateFicha((ficha) => {
@@ -229,8 +234,8 @@ export function ArsenalFormProvider({ children }) {
                 item.formas.push(forma);
             }
         });
-        salvarFichaSilencioso();
-    }, [updateFicha]);
+        callSave();
+    }, [updateFicha, callSave]);
 
     const deletarFormaItem = useCallback((itemId, formaId) => {
         updateFicha((ficha) => {
@@ -244,8 +249,8 @@ export function ArsenalFormProvider({ children }) {
             }
             rescalarVitaisProporcional(ficha, oldM);
         });
-        salvarFichaSilencioso();
-    }, [updateFicha]);
+        callSave();
+    }, [updateFicha, callSave]);
 
     const ativarFormaItem = useCallback((itemId, formaId, configId = null) => {
         updateFicha((ficha) => {
@@ -258,8 +263,17 @@ export function ArsenalFormProvider({ children }) {
 
             rescalarVitaisProporcional(ficha, oldM);
         });
-        salvarFichaSilencioso();
-    }, [updateFicha]);
+        callSave();
+    }, [updateFicha, callSave]);
+
+    // Qtd, Kg e Descrição do item direto na lista (campos de texto: grava no estado e salva com debounce).
+    const atualizarCampoItem = useCallback((id, campo, valor) => {
+        updateFicha((ficha) => {
+            const item = (ficha.inventario || []).find(i => i.id === id);
+            if (item) item[campo] = valor;
+        });
+        callSave();
+    }, [updateFicha, callSave]);
 
     const inventario = minhaFicha?.inventario || [];
 
@@ -298,6 +312,7 @@ export function ArsenalFormProvider({ children }) {
         salvarFormaItem,
         deletarFormaItem,
         ativarFormaItem,
+        atualizarCampoItem,
     }), [
         nomeItem, tipoItem, bonusTipo, bonusValor,
         armaDadosQtd, armaDadosFaces, armaAlcance, armaTipo, raridade,
@@ -306,7 +321,7 @@ export function ArsenalFormProvider({ children }) {
         itemEditandoId, efeitosTempArsenal, efeitosTempPassivosArsenal, inventario,
         addEfeitoTemp, removerEfeitoTemp, addEfeitoPassivoTemp, removerEfeitoPassivoTemp,
         salvarNovoItem, editarItem, cancelarEdicaoItem, toggleEquiparItem,
-        deletarItem, salvarFormaItem, deletarFormaItem, ativarFormaItem,
+        deletarItem, salvarFormaItem, deletarFormaItem, ativarFormaItem, atualizarCampoItem,
     ]);
 
     return (

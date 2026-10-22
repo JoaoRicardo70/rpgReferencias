@@ -240,7 +240,9 @@ export function ArsenalForjarButton() {
 export function ArsenalInventarioList() {
     const ctx = useArsenalForm();
     if (!ctx) return FALLBACK;
-    const { inventario, toggleEquiparItem, editarItem, deletarItem, salvarFormaItem, deletarFormaItem, ativarFormaItem } = ctx;
+    const { inventario: inventarioCompleto, toggleEquiparItem, editarItem, deletarItem, salvarFormaItem, deletarFormaItem, ativarFormaItem, atualizarCampoItem } = ctx;
+    // Consumíveis e itens mundanos têm a própria página (Suprimentos); aqui só equipamentos.
+    const inventario = inventarioCompleto.filter(i => i && i.tipo !== 'consumivel' && i.tipo !== 'mundano');
 
     return (
         <div id="lista-inventario-salvos" style={{ marginTop: 15 }}>
@@ -280,6 +282,11 @@ export function ArsenalInventarioList() {
                                     <button className="btn-neon btn-blue" style={{ padding: '5px 15px', fontSize: '1em', margin: 0 }} onClick={() => editarItem(p.id)}>EDITAR</button>
                                     <button className="btn-neon btn-red" style={{ padding: '5px 15px', fontSize: '1em', margin: 0 }} onClick={() => deletarItem(p.id)}>APAGAR</button>
                                 </div>
+                            </div>
+                            <div className="arsenal-item-extras">
+                                <label className="arsenal-item-extra">Qtd <input type="number" min="0" className="input-neon" value={p.quantidade ?? 1} onChange={e => atualizarCampoItem(p.id, 'quantidade', e.target.value === '' ? '' : (parseFloat(e.target.value) || 0))} /></label>
+                                <label className="arsenal-item-extra">Kg <input type="number" min="0" step="0.1" className="input-neon" value={p.peso ?? 0} onChange={e => atualizarCampoItem(p.id, 'peso', e.target.value === '' ? '' : (parseFloat(e.target.value) || 0))} /></label>
+                                <textarea className="input-neon arsenal-item-desc" rows={2} placeholder="Descrição do item..." value={p.desc || ''} onChange={e => atualizarCampoItem(p.id, 'desc', e.target.value)} />
                             </div>
                             {p.tipo === 'arma' && (
                                 <FormasEditor

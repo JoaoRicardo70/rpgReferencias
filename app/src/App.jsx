@@ -28,9 +28,6 @@ import AtaquePanel from './components/combate/AtaquePanel';
 import AcertoPanel from './components/combate/AcertoPanel';
 import DefesaPanel from './components/combate/DefesaPanel';
 import TestesPanel from './components/combate/TestesPanel';
-import PoderesPanel from './components/poderes/PoderesPanel';
-import ArsenalPanel from './components/arsenal/ArsenalPanel';
-import ElementosPanel from './components/arsenal/ElementosPanel';
 import FeedCombate from './components/feed/FeedCombate';
 import MapaPanel from './components/mapa/MapaPanel';
 import CompendioPanel from './components/compendio/CompendioPanel';
@@ -415,9 +412,6 @@ export default function App() {
                     <TabPanel id="aba-ataque"><AtaquePanel /></TabPanel>
                     <TabPanel id="aba-acerto"><AcertoPanel /></TabPanel>
                     <TabPanel id="aba-defesa"><DefesaPanel /></TabPanel>
-                    <TabPanel id="aba-poderes"><PoderesPanel /></TabPanel>
-                    <TabPanel id="aba-arsenal"><ArsenalPanel /></TabPanel>
-                    <TabPanel id="aba-elementos"><ElementosPanel /></TabPanel>
                     <TabPanel id="aba-log"><FeedCombate /></TabPanel>
                     <TabPanel id="aba-mapa"><MapaPanel /></TabPanel>
                     <TabPanel id="aba-compendio"><CompendioPanel /></TabPanel>

@@ -52,6 +52,10 @@ function montarMockUseStore(minhaFicha) {
         updateFicha: vi.fn((callback) => callback(minhaFicha)),
         meuNome: 'Testador',
         importarDaAbaStatus: vi.fn(),
+        // campos do Arsenal (RelicarioPanel > ArsenalFormProvider)
+        itemEditandoId: null, setItemEditandoId: vi.fn(),
+        efeitosTempArsenal: [], setEfeitosTempArsenal: vi.fn(),
+        efeitosTempPassivosArsenal: [], setEfeitosTempPassivosArsenal: vi.fn(),
     };
     useStore.mockImplementation((selector) => (selector ? selector(mockState) : mockState));
     return mockState;

@@ -41,14 +41,6 @@ export default function Sidebar({ onResetClick }) {
             ]
         },
         {
-            id: 'arsenal', icone: '🎒', nome: 'Arsenal e Oculto', cor: '#ffcc00', bg: 'rgba(255,204,0,0.15)',
-            abas: [
-                { id: 'aba-poderes', icone: '🌀', nome: 'Poderes Clássicos' },
-                { id: 'aba-arsenal', icone: '🎒', nome: 'Inventário' },
-                { id: 'aba-elementos', icone: '🔥', nome: 'Elementos' },
-            ]
-        },
-        {
             id: 'mundo', icone: '🌌', nome: 'Multiverso', cor: '#0088ff', bg: 'rgba(0,136,255,0.15)',
             abas: [
                 { id: 'aba-mapa', icone: '🗺️', nome: 'Mapa' },

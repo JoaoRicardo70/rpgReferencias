@@ -40,6 +40,10 @@ function montarStore(overrides = {}) {
         meuNome: 'Heroi',
         isMestre: true,
         updateFicha: vi.fn((callback) => callback(mockState.minhaFicha)),
+        // campos do Arsenal (ArsenalFormProvider, capítulo 5)
+        itemEditandoId: null, setItemEditandoId: vi.fn(),
+        efeitosTempArsenal: [], setEfeitosTempArsenal: vi.fn(),
+        efeitosTempPassivosArsenal: [], setEfeitosTempPassivosArsenal: vi.fn(),
         ...overrides,
     };
     useStore.mockImplementation((selector) => (typeof selector === 'function' ? selector(mockState) : mockState));
@@ -216,13 +220,13 @@ describe('RelicarioPanel — Capítulos 1-4 (Arma Espiritual) ficam bloqueados p
 });
 
 describe('RelicarioPanel — Capítulos 5 e 6 (Arsenal Místico / Suprimentos & Notas) NUNCA são bloqueados, mesmo com isMestre=false', () => {
-    it.each([true, false])('Capítulo 5 (Arsenal Místico) com isMestre=%s: campos habilitados e "+ Guardar Nova Arma"/"✖" presentes', (isMestre) => {
+    it.each([true, false])('Capítulo 5 (Arsenal Místico) com isMestre=%s: campos habilitados e "Forjar Equipamento"/"APAGAR" presentes', (isMestre) => {
         montarStore({ isMestre });
         const { container } = render(<RelicarioPanel />);
         irParaAba(container, 'arsenal');
 
-        expect(screen.getByText('+ Guardar Nova Arma')).toBeDefined();
-        expect(screen.getAllByText('✖').length).toBeGreaterThan(0);
+        expect(screen.getByText('Forjar Equipamento')).toBeDefined();
+        expect(screen.getAllByText('APAGAR').length).toBeGreaterThan(0);
         const inputs = inputsDeTexto(container);
         expect(inputs.length).toBeGreaterThan(0);
         inputs.forEach(input => expect(input.disabled).toBe(false));

@@ -18,6 +18,10 @@ function montarStore({ isMestre, acessoArma, semFlag = false, conteudo = false }
         minhaFicha: { inventario: [], notas: [], armaEspiritual: arma },
         meuNome: 'Heroi', isMestre,
         updateFicha: vi.fn((cb) => cb(mockState.minhaFicha)),
+        // campos do Arsenal (ArsenalFormProvider, capítulo 5)
+        itemEditandoId: null, setItemEditandoId: vi.fn(),
+        efeitosTempArsenal: [], setEfeitosTempArsenal: vi.fn(),
+        efeitosTempPassivosArsenal: [], setEfeitosTempPassivosArsenal: vi.fn(),
     };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(mockState) : mockState));
 }
@@ -38,7 +42,7 @@ describe('RelicarioPanel > acesso à Arma Espiritual', () => {
         expect(o.join('|')).not.toContain('ALTAR DA RELÍQUIA');
         expect(container.textContent).not.toContain('Exclusivo da');
         expect(checkbox(container)).toBeNull();
-        expect(container.textContent).toContain('+ Guardar Nova Arma');
+        expect(container.textContent).toContain('Forjar Equipamento');
     });
 
     it('jogador com acesso vê os 6 capítulos, sem checkbox', () => {

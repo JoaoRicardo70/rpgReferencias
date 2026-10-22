@@ -3,6 +3,7 @@ import useStore from '../../stores/useStore';
 import { lerImagemComoBase64 } from '../../services/firebase-storage';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
+import ArsenalPanel from '../arsenal/ArsenalPanel';
 import { temAcessoArmaEspiritual, podeVerArmaEspiritual, filtrarCapitulos, resolverAbaVisivel } from '../../core/acessoArmaEspiritual';
 
 // ==========================================
@@ -29,8 +30,6 @@ const TIPOS_SUPRIMENTO = [
     { value: 'consumivel', label: '🧪 Consumível / Poção' },
     { value: 'mundano', label: '🎒 Item Mundano / Recurso' }
 ];
-
-const TIPOS_DANO = ['Cortante', 'Perfurante', 'Impacto', 'Mágico', 'Elemental', 'Verdadeiro', 'Conceitual', 'Espiritual', 'Nenhum'];
 
 const CAPITULOS = [
     { id: 'altar', label: 'Altar da Relíquia', icon: '🗡️' },
@@ -650,68 +649,12 @@ function PaginaFormasVerdadeiras() {
 // ⚔️ PÁGINA 5: ARSENAL MÍSTICO
 // ==========================================
 function PaginaArsenal() {
-    const { minhaFicha, updateItemById, removeItemById, toggleEquiparById, addItem, callSave } = useRelicario();
-    const inventario = minhaFicha?.inventario || [];
-    
-    const arsenal = inventario.filter(i => ['arma', 'armadura', 'acessorio'].includes(i.tipo));
-
+    // O Arsenal completo (forja de equipamentos com efeitos, Bônus, dados de dano, Formas e equipar) mora aqui desde que a
+    // aba Inventário saiu do menu; grava na ficha da entidade em foco (Mestre vendo o Grimório de alguém inclusive).
     return (
-        <div className="fade-in" style={{ border: '2px solid currentColor', padding: '20px', borderRadius: '8px', background: 'rgba(0,0,0,0.02)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px dotted currentColor', paddingBottom: '10px' }}>
-                <div>
-                    <h2 style={{ margin: 0, fontSize: '1.5em' }}>⚔️ Arsenal Místico & Relíquias</h2>
-                    <span style={{ fontSize: '0.85em', opacity: 0.7, fontStyle: 'italic' }}>Armas equipadas aqui podem ser vinculadas a Habilidades na Página 1.</span>
-                </div>
-                <button onClick={() => addItem('arma')} style={{ padding: '8px 15px', background: 'transparent', border: '1px solid currentColor', color: 'inherit', fontWeight: 'bold', cursor: 'pointer' }}>+ Guardar Nova Arma</button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {arsenal.map(item => {
-                    const rData = RARIDADES[item.raridade] || RARIDADES['comum'];
-                    return (
-                        <div key={item.id} style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: item.equipado ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.03)', padding: '15px', borderRadius: '6px', borderLeft: `4px solid ${rData.cor}`, border: item.equipado ? `2px solid ${rData.cor}` : `1px dashed ${rData.cor}80` }}>
-                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                <CampoMagico valor={item.nome} onChange={v => updateItemById(item.id, 'nome', v)} placeholder="Nome do Item" styleExtra={{ flex: '1 1 200px', fontWeight: 'bold', fontSize: '1.2em', color: rData.cor }} />
-                                
-                                <select value={item.tipo || 'arma'} onChange={e => { updateItemById(item.id, 'tipo', e.target.value); callSave(); }} style={{ background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dotted currentColor', outline: 'none', fontFamily: 'inherit' }}>
-                                    {TIPOS_ARSENAL.map(opt => <option key={opt.value} value={opt.value} style={{color: '#000'}}>{opt.label}</option>)}
-                                </select>
-
-                                <select value={item.raridade || 'comum'} onChange={e => { updateItemById(item.id, 'raridade', e.target.value); callSave(); }} style={{ background: 'transparent', color: rData.cor, border: 'none', borderBottom: '1px dotted currentColor', outline: 'none', fontWeight: 'bold', fontFamily: 'inherit' }}>
-                                    {Object.entries(RARIDADES).map(([k, v]) => <option key={k} value={k} style={{color: '#000'}}>{v.label}</option>)}
-                                </select>
-                                
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Qtd:</span><CampoMagico valor={item.quantidade} onChange={v => updateItemById(item.id, 'quantidade', v)} isNumber={true} type="number" styleExtra={{ width: '50px', textAlign: 'center' }} /></div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><span style={{ fontSize: '0.8em', opacity: 0.7 }}>Kg:</span><CampoMagico valor={item.peso} onChange={v => updateItemById(item.id, 'peso', v)} isNumber={true} type="number" step="0.1" styleExtra={{ width: '50px', textAlign: 'center' }} /></div>
-                                <button onClick={() => removeItemById(item.id)} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2em' }}>✖</button>
-                            </div>
-
-                            <div style={{ display: 'flex', gap: '15px', alignItems: 'center', borderTop: '1px dashed currentColor', paddingTop: '10px', marginTop: '5px' }}>
-                                {item.tipo === 'arma' && (
-                                    <>
-                                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                            <span style={{ fontSize: '0.8em', opacity: 0.7, fontWeight: 'bold' }}>Dano:</span>
-                                            <CampoMagico valor={item.dano} onChange={v => updateItemById(item.id, 'dano', v)} placeholder="Ex: 2d8+5" styleExtra={{ flex: 1 }} />
-                                        </div>
-                                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                            <span style={{ fontSize: '0.8em', opacity: 0.7, fontWeight: 'bold' }}>Tipo:</span>
-                                            <select value={item.tipoDano || 'Cortante'} onChange={e => { updateItemById(item.id, 'tipoDano', e.target.value); callSave(); }} style={{ background: 'transparent', color: 'inherit', border: 'none', borderBottom: '1px dashed currentColor', outline: 'none', fontFamily: 'inherit', flex: 1 }}>
-                                                {TIPOS_DANO.map(d => <option key={d} value={d} style={{color: '#000'}}>{d}</option>)}
-                                            </select>
-                                        </div>
-                                    </>
-                                )}
-                                <button onClick={() => toggleEquiparById(item.id)} style={{ padding: '5px 15px', background: item.equipado ? rData.cor : 'transparent', color: item.equipado ? '#000' : 'inherit', border: `1px solid ${rData.cor}`, borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', marginLeft: 'auto' }}>
-                                    {item.equipado ? '★ EQUIPADO' : 'Equipar'}
-                                </button>
-                            </div>
-                            
-                            <AreaMagica valor={item.desc} onChange={v => updateItemById(item.id, 'desc', v)} placeholder="Descrição e bônus da arma/armadura..." styleExtra={{ minHeight: '30px', fontSize: '0.85em', marginTop: '5px' }} />
-                        </div>
-                    );
-                })}
-                {arsenal.length === 0 && <div style={{ textAlign: 'center', opacity: 0.5, fontStyle: 'italic', padding: '20px' }}>O seu arsenal está vazio.</div>}
-            </div>
+        <div className="fade-in">
+            <p className="relicario-arsenal-dica">⚔️ Arsenal Místico & Relíquias — armas equipadas aqui podem ser vinculadas a Habilidades na Página 1.</p>
+            <ArsenalPanel />
         </div>
     );
 }

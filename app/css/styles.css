@@ -2494,3 +2494,10 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
     .dado-no-ar .dado-palco, .dado-pousou .dado-palco, .dado-nivel-falha.dado-pousou .dado-palco, .dado-onda, .dado-nivel-fatal .dado-onda, .dado-raios, .dado-nivel-fatal .dado-raios, .dado-clarao, .dado-fagulha, .dado-nivel-fatal.dado-pousou { animation: none; }
     .dado-nivel-fatal .dado-rotulo, .dado-nivel-falha .dado-rotulo { animation: dado-rotulo-entra 0.3s ease-out both; }
 }
+
+/* Arsenal dentro da Ficha Definitiva (Relicário > Arsenal Místico) */
+.relicario-arsenal-dica { margin: 0 0 12px 0; font-size: 0.85em; font-style: italic; opacity: 0.75; text-align: center; }
+.arsenal-item-extras { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+.arsenal-item-extra { display: flex; align-items: center; gap: 5px; font-size: 0.85em; color: #aaa; }
+.arsenal-item-extra .input-neon { width: 70px; padding: 4px; margin: 0; text-align: center; }
+.arsenal-item-desc { flex: 1 1 240px; padding: 4px 8px; margin: 0; font-size: 0.85em; }

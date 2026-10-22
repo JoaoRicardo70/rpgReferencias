@@ -25,6 +25,9 @@ function mockarStore(estado) {
         isMestre: false, mesaCriador: null, dummies: {}, alvoSelecionado: null, cenario: {},
         abaAtiva: 'aba-mapa', pastasFechadasMapaTecnicas: {}, setPastasFechadasMapaTecnicas: vi.fn(),
         divisorPoderMesa: 1,
+        itemEditandoId: null, setItemEditandoId: vi.fn(),
+        efeitosTempArsenal: [], setEfeitosTempArsenal: vi.fn(),
+        efeitosTempPassivosArsenal: [], setEfeitosTempPassivosArsenal: vi.fn(),
         ...estado
     };
     useStore.mockImplementation((selector) => (selector ? selector(state) : state));
