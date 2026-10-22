@@ -37,11 +37,11 @@ import * as THREE from 'three';
 // ============================================================================
 // 🎲 MOTOR 3D DO DADO D20 (REFATORADO PARA ALTO REALISMO)
 // ============================================================================
-function DadoFisico3D({ isLanded, cor, valor }) {
+function DadoFisico3D({ isLanded, cor, valor, nivel }) {
     const meshRef = useRef();
     const alvoRef = useRef(new THREE.Quaternion());
-    const isCritFatal = cor === '#ff003c';
-    const isCritNormal = cor === '#ffcc00';
+    const isCritFatal = nivel === 'fatal';
+    const isCritNormal = nivel === 'critico';
     const glowIntensity = isCritFatal ? 1.8 : isCritNormal ? 1.0 : 0.3;
     const indiceAlvo = indiceFaceDoDado(valor);
     const textoAlvo = textoDaFace(valor);
@@ -211,7 +211,7 @@ export function MapaDadoAnimado() {
     const comRaios = isLanded && (nivel === 'fatal' || nivel === 'critico');
 
     return createPortal(
-        <div className={`dado-cena dado-nivel-${nivel}${isLanded ? ' dado-pousou' : ' dado-no-ar'}`} style={{ '--cor-dado': dadoAnim.cor, '--cor-texto-dado': info.corTexto }} aria-live="polite">
+        <div className={`dado-cena dado-nivel-${nivel}${isLanded ? ' dado-pousou' : ' dado-no-ar'}`} style={{ '--cor-dado': dadoAnim.cor, '--cor-texto-dado': dadoAnim.corTexto || info.corTexto }} aria-live="polite">
             <div className="dado-fundo" />
             {comRaios && <div className="dado-raios" />}
             {isLanded && <div className="dado-onda" />}
@@ -222,7 +222,7 @@ export function MapaDadoAnimado() {
             <div className="dado-palco">
                 <div className="dado-canvas">
                     <Canvas camera={{ position: [0, 0, 8], fov: 50 }} style={{ width: '100%', height: '100%' }}>
-                        <DadoFisico3D isLanded={isLanded} cor={dadoAnim.cor} valor={dadoAnim.finalResult} />
+                        <DadoFisico3D isLanded={isLanded} cor={dadoAnim.cor} valor={dadoAnim.finalResult} nivel={nivel} />
                     </Canvas>
                 </div>
             </div>

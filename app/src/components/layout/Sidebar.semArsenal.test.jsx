@@ -14,7 +14,7 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Sidebar - sem as abas de Arsenal/Poderes/Elementos', () => {
-    it.each([false, true])('isMestre=%s: nenhuma aba-poderes/aba-arsenal/aba-elementos nem a gaveta "Arsenal e Oculto"', (isMestre) => {
+    it.each([false, true])('isMestre=%s: nenhuma aba-poderes/aba-arsenal/aba-elementos nem o grupo "Arsenal e Oculto"', (isMestre) => {
         useStore.setState({ isMestre, souMestreReal: isMestre });
         render(<Sidebar onResetClick={() => {}} />);
         const t = titulos();
@@ -27,7 +27,7 @@ describe('Sidebar - sem as abas de Arsenal/Poderes/Elementos', () => {
         expect(document.body.innerHTML).not.toContain('aba-elementos');
     });
 
-    it('as demais gavetas continuam presentes', () => {
+    it('as demais abas continuam presentes', () => {
         render(<Sidebar onResetClick={() => {}} />);
         const t = titulos();
         expect(t).toContain('Ficha Definitiva');
@@ -35,9 +35,9 @@ describe('Sidebar - sem as abas de Arsenal/Poderes/Elementos', () => {
         expect(t).toContain('Mapa');
     });
 
-    it('clicar em todas as sub-abas nunca leva a aba-poderes/arsenal/elementos', () => {
+    it('clicar em todos os itens da barra nunca leva a aba-poderes/arsenal/elementos', () => {
         render(<Sidebar onResetClick={() => {}} />);
-        document.querySelectorAll('.btn-micro').forEach(b => {
+        document.querySelectorAll('.nav-item').forEach(b => {
             b.click();
             expect(['aba-poderes', 'aba-arsenal', 'aba-elementos']).not.toContain(useStore.getState().abaAtiva);
         });

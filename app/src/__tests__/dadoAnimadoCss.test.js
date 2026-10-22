@@ -6,7 +6,7 @@ import { resolve, dirname } from 'node:path';
 const css = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../css/styles.css'), 'utf8');
 
 describe('CSS da animacao do dado', () => {
-    it.each(['dado-cena', 'dado-medalhao', 'dado-rotulo'])('define a classe .%s', (c) => {
+    it.each(['dado-cena', 'dado-rotulo'])('define a classe .%s', (c) => {
         expect(css).toMatch(new RegExp(`\\.${c}\\s*[{,.:\\s]`));
     });
     it('todo @keyframes dado-* referenciado em animation esta definido', () => {

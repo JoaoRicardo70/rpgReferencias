@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { TEMAS_APP, aplicarTemaNoBody } from '../../core/temasApp';
 import { ref, set, get } from 'firebase/database';
 import { db } from '../../services/firebase-config';
 import useStore, { sanitizarNome } from '../../stores/useStore';
@@ -53,7 +54,7 @@ export default function LobbyNeon() {
     }, []);
 
     useEffect(() => {
-        document.body.className = temaAtivo;
+        aplicarTemaNoBody(temaAtivo);
         try {
             localStorage.setItem('rpg_tema', temaAtivo);
             localStorage.setItem('rpg_fonte', fonteAtiva);
@@ -226,6 +227,9 @@ export default function LobbyNeon() {
                                     <button onClick={() => setTemaAtivo('theme-blood')} className={`btn-neon ${temaAtivo === 'theme-blood' ? 'btn-red' : ''}`} style={{ padding: '10px', fontSize: '0.85em' }}>🩸 SANGUE</button>
                                     <button onClick={() => setTemaAtivo('theme-glass')} className={`btn-neon ${temaAtivo === 'theme-glass' ? 'btn-gold' : ''}`} style={{ padding: '10px', fontSize: '0.85em' }}>⚔️ AÇO</button>
                                     <button onClick={() => setTemaAtivo('theme-arcane')} className={`btn-neon ${temaAtivo === 'theme-arcane' ? 'btn-purple' : ''}`} style={{ padding: '10px', fontSize: '0.85em', borderColor: '#aa00ff', color: temaAtivo === 'theme-arcane' ? '#fff' : '#aa00ff', background: temaAtivo === 'theme-arcane' ? 'rgba(170,0,255,0.3)' : 'transparent' }}>💜 ARCANO</button>
+                                    {TEMAS_APP.filter(t => t.grupo === 'estilo').map(t => (
+                                        <button key={t.id} onClick={() => setTemaAtivo(t.id)} className={`btn-neon ${temaAtivo === t.id ? 'btn-gold' : ''}`} style={{ padding: '10px', fontSize: '0.85em' }} title={t.descricao}>{t.emoji} {t.nome.toUpperCase()}</button>
+                                    ))}
                                 </div>
                             </div>
 

@@ -995,18 +995,7 @@ export function AIFormProvider({ children }) {
         atualizarProposta(msgIdx, propostaId, { estado: 'descartada' });
     }, [atualizarProposta]);
 
-    // 🔔 O jogador é avisado quando o Mestre decide um pedido dele (só decisões novas).
-    const sextaFeiraDecisoes = useStore(s => s.sextaFeiraDecisoes);
-    const montadoEmRef = useRef(Date.now());
-    const decisoesVistasRef = useRef(new Set());
-    useEffect(() => {
-        Object.entries(sextaFeiraDecisoes || {}).forEach(([id, d]) => {
-            if (!d || decisoesVistasRef.current.has(id)) return;
-            decisoesVistasRef.current.add(id);
-            if (Number(d.em) < montadoEmRef.current || sanitizarNome(d.solicitante || '') !== sanitizarNome(meuNome || '')) return;
-            dialogos.avisar(d.aprovado ? `✅ O Mestre aprovou "${d.nomeCriacao}". Já está na sua ficha.` : `❌ O Mestre recusou "${d.nomeCriacao}".`, d.aprovado ? 'ok' : 'erro');
-        });
-    }, [sextaFeiraDecisoes, meuNome, dialogos]);
+    // 🔔 O aviso "o Mestre aprovou/recusou seu pedido" vive em components/combate/EfeitosDeFundo.jsx (aparece em qualquer aba).
 
     // ⚙️ Config da Sexta-Feira na mesa (só Mestre/Co-Mestre). Lida por hooks/useSextaFeiraMesa.js.
     const salvarConfigSextaFeira = useCallback(async ({ chaveGemini, modelo }) => {

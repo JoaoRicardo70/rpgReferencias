@@ -139,6 +139,30 @@ describe('MapaDadoAnimado', () => {
         render(<MapaDadoAnimado />);
         expect(q('.dado-quem')).toBeNull();
     });
+    it('a prop nivel chega ao DadoFisico3D (Canvas)', () => {
+        mockar({ ...base, nivel: 'critico', finalResult: 19 });
+        render(<MapaDadoAnimado />);
+        expect(canvasProps[canvasProps.length - 1].nivel).toBe('critico');
+        canvasProps.length = 0;
+        limpar();
+        mockar({ ...base, finalResult: 5 });
+        render(<MapaDadoAnimado />);
+        expect(canvasProps[canvasProps.length - 1].nivel).toBe('normal');
+    });
+    it('rotulo usa dadoAnim.corTexto em --cor-texto-dado', () => {
+        mockar({ ...base, nivel: 'critico', finalResult: 19, corTexto: '#123456' });
+        render(<MapaDadoAnimado />);
+        expect(q('.dado-cena').style.getPropertyValue('--cor-texto-dado')).toBe('#123456');
+    });
+    it('sem dadoAnim.corTexto cai no corTexto do nivel', () => {
+        mockar({ ...base, nivel: 'critico', finalResult: 19 });
+        render(<MapaDadoAnimado />);
+        expect(q('.dado-cena').style.getPropertyValue('--cor-texto-dado')).toBe('#ffe066');
+        limpar();
+        mockar({ ...base, nivel: 'falha', finalResult: 1 });
+        render(<MapaDadoAnimado />);
+        expect(q('.dado-cena').style.getPropertyValue('--cor-texto-dado')).toBe('#c9b6e4');
+    });
     it('passa a cor para a variavel CSS e renderiza o Canvas mockado', () => {
         mockar({ ...base, cor: '#ffcc00', nivel: 'critico' });
         render(<MapaDadoAnimado />);

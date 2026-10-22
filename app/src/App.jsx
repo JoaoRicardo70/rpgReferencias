@@ -17,27 +17,45 @@ import ReacaoPrompt from './components/combate/ReacaoPrompt';
 import IdentificacaoAtaque from './components/combate/IdentificacaoAtaque';
 import TrocaRapidaMestre from './components/layout/TrocaRapidaMestre';
 import AudioVozGlobal from './components/comunicacao/AudioVozGlobal';
-import ComunicacaoPanel from './components/comunicacao/ComunicacaoPanel';
 
 // 📂 Import de Layout e Componentes
 import Sidebar from './components/layout/Sidebar';
-import TabPanel from './components/layout/TabPanel';
-import PerfilPanel from './components/perfil/PerfilPanel';
+import AbaCarregavel from './components/layout/AbaCarregavel';
+import PaletaNavegacao from './components/layout/PaletaNavegacao';
+import lazyComRetry, { importarComRetry } from './components/layout/lazyComRetry';
+import EfeitosDeFundo from './components/combate/EfeitosDeFundo';
+import { lerTemaSalvo, aplicarTemaNoBody } from './core/temasApp';
 import ModalConfirm from './components/perfil/ModalConfirm';
-import AtaquePanel from './components/combate/AtaquePanel';
-import AcertoPanel from './components/combate/AcertoPanel';
-import DefesaPanel from './components/combate/DefesaPanel';
-import TestesPanel from './components/combate/TestesPanel';
-import FeedCombate from './components/feed/FeedCombate';
-import MapaPanel from './components/mapa/MapaPanel';
-import CompendioPanel from './components/compendio/CompendioPanel';
-import AIPanel from './components/ia/AIPanel';
-import MarcadosPanel from './components/Ficha Def/Marcados';
 
-// IMPORTAÇÃO DO NOVO GRIMÓRIO!
-import GrimorioPanel from './components/Ficha Def/Grimorio';
+// 🚀 Cada aba é carregada sob demanda (1ª visita): o app abre mais rápido e o código pesado não pesa na entrada.
+const PerfilPanel = lazyComRetry(() => import('./components/perfil/PerfilPanel'));
+const AtaquePanel = lazyComRetry(() => import('./components/combate/AtaquePanel'));
+const AcertoPanel = lazyComRetry(() => import('./components/combate/AcertoPanel'));
+const DefesaPanel = lazyComRetry(() => import('./components/combate/DefesaPanel'));
+const TestesPanel = lazyComRetry(() => import('./components/combate/TestesPanel'));
+const FeedCombate = lazyComRetry(() => import('./components/feed/FeedCombate'));
+const MapaPanel = lazyComRetry(() => import('./components/mapa/MapaPanel'));
+const CompendioPanel = lazyComRetry(() => import('./components/compendio/CompendioPanel'));
+const AIPanel = lazyComRetry(() => import('./components/ia/AIPanel'));
+const ComunicacaoPanel = lazyComRetry(() => import('./components/comunicacao/ComunicacaoPanel'));
+const MarcadosPanel = lazyComRetry(() => import('./components/Ficha Def/Marcados'));
+const GrimorioPanel = lazyComRetry(() => import('./components/Ficha Def/Grimorio'));
+const MestrePanel = lazyComRetry(() => import('./components/mestre/MestrePanel'));
 
-import MestrePanel from './components/mestre/MestrePanel';
+// Em tempo ocioso, baixa os pedaços das abas que ainda não foram abertas (a 1ª visita não espera a rede).
+const IMPORTADORES_DAS_ABAS = [
+    () => import('./components/Ficha Def/Marcados'),
+    () => import('./components/Ficha Def/Grimorio'),
+    () => import('./components/combate/AtaquePanel'),
+    () => import('./components/combate/DefesaPanel'),
+    () => import('./components/perfil/PerfilPanel'),
+    () => import('./components/feed/FeedCombate'),
+    () => import('./components/mestre/MestrePanel'),
+];
+function preCarregarAbas() {
+    const agendar = typeof window !== 'undefined' && window.requestIdleCallback ? (fn) => window.requestIdleCallback(fn, { timeout: 4000 }) : (fn) => setTimeout(fn, 2000);
+    IMPORTADORES_DAS_ABAS.forEach((imp, i) => agendar(() => setTimeout(() => { importarComRetry(imp, 0).catch(() => {}); }, i * 400)));
+}
 import AuthScreen from './components/auth/AuthScreen';
 import LobbyNeon from './components/lobby/LobbyNeon';
 import TelaLoading from './components/layout/TelaLoading';
@@ -90,6 +108,7 @@ function ProvedorDeVozGlobal({ meuNome, cenario, children }) {
                     <AvisosAcao />
                     <ReacaoPrompt />
                     <IdentificacaoAtaque />
+                    <EfeitosDeFundo />
                 </LimiteDeErro>
             </ChatContext.Provider>
         </VoiceContext.Provider>
@@ -149,6 +168,9 @@ export default function App() {
     });
 
     useEffect(() => { setTimeout(() => setThemeReady(true), 50); }, []);
+    useEffect(() => { preCarregarAbas(); }, []);
+    // O estilo visual escolhido (Perfil > Aparência, ou o Lobby) vale já na abertura, não só quando o Lobby aparece.
+    useEffect(() => { aplicarTemaNoBody(lerTemaSalvo()); }, []);
 
     // ATALHO SECRETO (F5 / CTRL+R) PARA ATUALIZAR O APP
     useEffect(() => {
@@ -403,23 +425,23 @@ export default function App() {
                 </div>
 
                 <Sidebar onResetClick={() => setModalAberto(true)} />
+                <PaletaNavegacao />
                 
                 <div className={`main-content${isMapMode ? ' modo-mapa' : ''}`}>
                     {!isMapMode && <h1 className="title">RPG Anime System</h1>}
-                    <TabPanel id="aba-perfil"><PerfilPanel /></TabPanel>
-                    <TabPanel id="aba-mestre"><MestrePanel /></TabPanel>
-                    <TabPanel id="aba-testes"><TestesPanel /></TabPanel>
-                    <TabPanel id="aba-ataque"><AtaquePanel /></TabPanel>
-                    <TabPanel id="aba-acerto"><AcertoPanel /></TabPanel>
-                    <TabPanel id="aba-defesa"><DefesaPanel /></TabPanel>
-                    <TabPanel id="aba-log"><FeedCombate /></TabPanel>
-                    <TabPanel id="aba-mapa"><MapaPanel /></TabPanel>
-                    <TabPanel id="aba-compendio"><CompendioPanel /></TabPanel>
-                    <TabPanel id="aba-oraculo"><AIPanel /></TabPanel>
-                    <TabPanel id="aba-comunicacao"><ComunicacaoPanel /></TabPanel>
-                    {/* 🔥 AS DUAS ABAS ÉPICAS! */}
-                    <TabPanel id="aba-Ficha Def"><MarcadosPanel /></TabPanel>
-                    <TabPanel id="aba-grimorio"><GrimorioPanel /></TabPanel>
+                    <AbaCarregavel id="aba-perfil"><PerfilPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-mestre"><MestrePanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-testes"><TestesPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-ataque"><AtaquePanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-acerto"><AcertoPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-defesa"><DefesaPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-log"><FeedCombate /></AbaCarregavel>
+                    <AbaCarregavel id="aba-mapa"><MapaPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-compendio"><CompendioPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-oraculo"><AIPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-comunicacao"><ComunicacaoPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-Ficha Def"><MarcadosPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-grimorio"><GrimorioPanel /></AbaCarregavel>
                 </div>
                 
                 <ModalConfirm isOpen={modalAberto} onClose={() => setModalAberto(false)} />

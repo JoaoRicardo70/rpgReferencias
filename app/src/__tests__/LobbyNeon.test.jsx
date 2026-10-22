@@ -447,3 +447,42 @@ describe('LobbyNeon — edge cases', () => {
         await waitFor(() => expect(verificarMesaExistenteMock).toHaveBeenCalledWith('MESA-Z9'));
     });
 });
+
+// ===========================================================================
+// SECTION 10 — Estilos visuais novos (Medieval, Moderno, Futurista, Mescla)
+// ===========================================================================
+describe('LobbyNeon — estilos visuais novos', () => {
+    async function openSettings() {
+        renderLobby();
+        fireEvent.click(await screen.findByText(/CONFIGURA/i));
+        await screen.findByText(/CALIBRAÇÃO DO SISTEMA/);
+    }
+
+    afterEach(() => { document.body.className = ''; });
+
+    it.each([
+        ['MEDIEVAL', 'theme-medieval'],
+        ['MODERNO', 'theme-moderno'],
+        ['FUTURISTA', 'theme-futurista'],
+        ['MESCLA', 'theme-mescla'],
+    ])('botao %s aparece e aplica %s no body e no localStorage', async (rotulo, classe) => {
+        await openSettings();
+        fireEvent.click(screen.getByText(new RegExp(rotulo)));
+        await waitFor(() => expect(document.body.classList.contains(classe)).toBe(true));
+        expect(localStorage.getItem('rpg_tema')).toBe(classe);
+    });
+
+    it('trocar de estilo remove o theme-* anterior e preserva outras classes do body', async () => {
+        document.body.classList.add('outra-classe');
+        await openSettings();
+        await waitFor(() => expect(document.body.classList.contains('theme-cyber')).toBe(true));
+        fireEvent.click(screen.getByText(/MEDIEVAL/));
+        await waitFor(() => expect(document.body.classList.contains('theme-medieval')).toBe(true));
+        expect(document.body.classList.contains('theme-cyber')).toBe(false);
+        expect(document.body.classList.contains('outra-classe')).toBe(true);
+        fireEvent.click(screen.getByText(/FUTURISTA/));
+        await waitFor(() => expect(document.body.classList.contains('theme-futurista')).toBe(true));
+        expect(document.body.classList.contains('theme-medieval')).toBe(false);
+        expect(document.body.classList.contains('outra-classe')).toBe(true);
+    });
+});

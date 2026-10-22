@@ -98,13 +98,9 @@ describe('DockComunicacao FAB por aba', () => {
 });
 
 describe('Sidebar Comunicacao', () => {
-    it('botao dentro da gaveta Multiverso define abaAtiva', () => {
+    it('botao direto na barra (sem gaveta) define abaAtiva', () => {
         render(<Sidebar onResetClick={() => {}} />);
-        fireEvent.click(screen.getByTitle('Multiverso'));
-        const botao = screen.getByTitle('Comunicação (Chat, Voz e Mesa de Som)');
-        expect(botao.closest('.sub-abas-wrapper').className).toContain('aberta');
-        expect(botao.closest('.gaveta-container').querySelector('[title="Multiverso"]')).toBeTruthy();
-        fireEvent.click(botao);
+        fireEvent.click(screen.getByTitle('Comunicação (Chat, Voz e Mesa de Som)'));
         expect(useStore.getState().abaAtiva).toBe('aba-comunicacao');
     });
 });

@@ -2,8 +2,10 @@ import React from 'react'
 import useStore from '../../stores/useStore'
 import LimiteDeErro from './LimiteDeErro'
 
-export default function TabPanel({ className, id, children }) {
+// descarregarAoSair: a aba só existe enquanto está na tela (o padrão continua sendo mantê-la montada e escondida).
+export default function TabPanel({ className, id, children, descarregarAoSair = false }) {
     const abaAtiva = useStore(s => s.abaAtiva)
+    if (descarregarAoSair && abaAtiva !== id) return null
     
     // O segredo: se não for a aba ativa, escondemos com display: none, 
     // mas MANTEMOS o HTML lá para o app.js antigo não quebrar!

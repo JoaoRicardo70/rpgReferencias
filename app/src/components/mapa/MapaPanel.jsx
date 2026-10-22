@@ -12,10 +12,8 @@ import { MapaSeletorAtor, MapaModulosDoAtor } from './MapaAtorCombate';
 
 export default function MapaPanel({ className, children }) {
     const hasChildren = React.Children.count(children) > 0;
-    // 🔥 Todas as abas ficam sempre montadas (ver TabPanel.jsx, display:none em vez de
-    // desmontar) — então um <AtaqueFormProvider> aqui rodaria PERMANENTEMENTE em paralelo com a
-    // instância que já vive, sempre montada, na aba Ataque (dobrando efeitos dela, como a Fúria
-    // automática que salva no Firebase, pra todo mundo o tempo todo). Só monta este aqui quando
+    // 🔥 O Mapa fica montado (escondido) mesmo fora de foco (core/navegacao.js > ABAS_SEMPRE_MONTADAS), então um
+    // <AtaqueFormProvider> aqui rodaria PERMANENTEMENTE, dobrando efeitos de fundo do Ataque. Só monta este aqui quando
     // o Mapa realmente está em foco.
     const abaAtiva = useStore(s => s.abaAtiva);
     const mapaEmFoco = abaAtiva === 'aba-mapa';

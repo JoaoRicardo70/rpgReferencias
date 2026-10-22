@@ -500,37 +500,4 @@ describe('recusarPendente', () => {
     });
 });
 
-describe('aviso de decisoes para o jogador', () => {
-    const decisao = (over = {}) => ({ solicitante: 'Ana', nomeCriacao: 'Raio', aprovado: true, em: Date.now() + 5000, ...over });
-    beforeEach(() => useStore.setState({ isMestre: false, meuNome: 'Ana', minhaFicha: fichaBase() }));
-
-    it('decisao nova para mim: aprovada (ok) e recusada (erro)', async () => {
-        montar();
-        act(() => useStore.setState({ sextaFeiraDecisoes: { d1: decisao() } }));
-        expect(dialogos.avisar).toHaveBeenCalledWith(expect.stringContaining('aprovou "Raio"'), 'ok');
-        act(() => useStore.setState({ sextaFeiraDecisoes: { d1: decisao(), d2: decisao({ nomeCriacao: 'Escudo', aprovado: false }) } }));
-        expect(dialogos.avisar).toHaveBeenCalledWith(expect.stringContaining('recusou "Escudo"'), 'erro');
-        expect(dialogos.avisar).toHaveBeenCalledTimes(2);
-    });
-    it('nao repete aviso da mesma decisao em re-renders', () => {
-        montar();
-        act(() => useStore.setState({ sextaFeiraDecisoes: { d1: decisao() } }));
-        act(() => useStore.setState({ sextaFeiraDecisoes: { d1: decisao() }, meuNome: 'Ana' }));
-        expect(dialogos.avisar).toHaveBeenCalledTimes(1);
-    });
-    it('decisoes antigas (antes de montar) nao geram aviso', () => {
-        useStore.setState({ sextaFeiraDecisoes: { d0: decisao({ em: 1 }) } });
-        montar();
-        expect(dialogos.avisar).not.toHaveBeenCalled();
-    });
-    it('decisao endereçada a outro jogador nao gera aviso', () => {
-        montar();
-        act(() => useStore.setState({ sextaFeiraDecisoes: { d1: decisao({ solicitante: 'Bruno' }) } }));
-        expect(dialogos.avisar).not.toHaveBeenCalled();
-    });
-    it('entrada nula nao quebra', () => {
-        montar();
-        act(() => useStore.setState({ sextaFeiraDecisoes: { d1: null } }));
-        expect(dialogos.avisar).not.toHaveBeenCalled();
-    });
-});
+// O aviso de decisao do Mestre agora vive em components/combate/EfeitosDeFundo (ver EfeitosDeFundo.test.jsx).
