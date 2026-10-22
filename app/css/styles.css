@@ -2772,3 +2772,15 @@ body.theme-mescla ::-webkit-scrollbar-thumb { background: linear-gradient(var(--
 
 /* Perfil > Aparência: escolha do modo de navegação */
 .aparencia-nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+
+/* Ficha Definitiva > página 8 (Combate) */
+.combate-ficha-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 12px; margin-bottom: 14px; border-bottom: 2px dashed currentColor; }
+.combate-ficha-folhear { background: transparent; border: none; color: inherit; font: inherit; font-weight: bold; cursor: pointer; }
+.combate-ficha-folhear:disabled { opacity: 0.3; cursor: default; }
+.combate-ficha-capitulos { display: flex; flex-wrap: wrap; gap: 6px; }
+.combate-ficha-capitulo { padding: 5px 14px; background: transparent; border: 1px dotted currentColor; border-radius: 4px; color: inherit; font: inherit; cursor: pointer; opacity: 0.7; }
+.combate-ficha-capitulo.ativo { opacity: 1; font-weight: bold; border-style: solid; background: rgba(0, 0, 0, 0.12); }
+.combate-ficha-titulo { margin: 0 0 14px 0; font-style: italic; }
+.combate-ficha-feed { margin-top: 22px; padding-top: 12px; border-top: 2px dashed currentColor; }
+.combate-ficha-feed-titulo { margin: 0 0 8px 0; font-style: italic; }
+.combate-ficha-feed-corpo { max-height: 50vh; overflow: auto; }

@@ -4,6 +4,8 @@
 // ==========================================
 
 export const MAX_RECENTES_NAVEGACAO = 5;
+// Total de páginas da Ficha Definitiva (a 8ª é o Combate: Testes, Acerto, Ataque e Defesa).
+export const TOTAL_PAGINAS_FICHA = 8;
 
 export const GRUPOS_NAVEGACAO = [
     {
@@ -20,11 +22,7 @@ export const GRUPOS_NAVEGACAO = [
     {
         id: 'combate', nome: 'Combate',
         abas: [
-            { id: 'aba-combate', icone: '⚔️', nome: 'Combate (tudo junto)', curto: 'Combate' },
-            { id: 'aba-testes', icone: '🎲', nome: 'Testes' },
-            { id: 'aba-ataque', icone: '🗡️', nome: 'Ataque' },
-            { id: 'aba-acerto', icone: '🎯', nome: 'Acerto' },
-            { id: 'aba-defesa', icone: '🛡️', nome: 'Defesa' }
+            { id: 'aba-combate', icone: '⚔️', nome: 'Combate (tudo junto)', curto: 'Combate' }
         ]
     },
     {

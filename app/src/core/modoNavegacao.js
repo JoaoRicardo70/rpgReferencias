@@ -68,7 +68,7 @@ export function cssLarguraGaveta(id) {
 // ----- Hub: os "modos" agrupam as abas -----
 export const MODOS_HUB = [
     { id: 'ficha', nome: 'Ficha', icone: '📝', cor: 'diarios', descricao: 'Ficha Definitiva e Grimório', abas: ['aba-Ficha Def', 'aba-grimorio'] },
-    { id: 'combate', nome: 'Combate', icone: '⚔️', cor: 'combate', descricao: 'Testes, Ataque, Acerto e Defesa', abas: [ABA_COMBATE, 'aba-testes', 'aba-ataque', 'aba-acerto', 'aba-defesa'] },
+    { id: 'combate', nome: 'Combate', icone: '⚔️', cor: 'combate', descricao: 'Acerto, Ataque, Defesa e Testes numa tela só', abas: [ABA_COMBATE] },
     { id: 'mapa', nome: 'Mapa', icone: '🗺️', cor: 'mundo', descricao: 'A mesa de jogo', abas: ['aba-mapa'] },
     { id: 'social', nome: 'Social', icone: '💬', cor: 'mundo', descricao: 'Comunicação e Feed', abas: ['aba-comunicacao', 'aba-log'] },
     { id: 'lore', nome: 'Lore', icone: '📚', cor: 'mundo', descricao: 'Lore do Mundo e Oráculo', abas: ['aba-compendio', 'aba-oraculo'] },

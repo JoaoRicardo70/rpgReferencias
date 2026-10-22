@@ -4,6 +4,7 @@ import AtaquePanel from './AtaquePanel';
 import AcertoPanel from './AcertoPanel';
 import DefesaPanel from './DefesaPanel';
 import FeedCombate from '../feed/FeedCombate';
+import useStore from '../../stores/useStore';
 
 // ⚔️ Combate (tudo junto): Acerto, Ataque, Defesa, Testes e o Feed ao vivo numa tela só, em colunas — rola o Acerto, rola o
 // Dano e vê o resultado no Feed sem trocar de aba. Cada seção recolhe (lembra a escolha neste aparelho).
@@ -26,6 +27,9 @@ function lerFechadas() {
 
 export default function PainelCombate() {
     const [fechadas, setFechadas] = useState(lerFechadas);
+    const setCombateNaTela = useStore(s => s.setCombateNaTela);
+    // Enquanto esta tela está aberta, rolar não pula pro Feed (ele está aqui do lado).
+    React.useEffect(() => { setCombateNaTela(true); return () => setCombateNaTela(false); }, [setCombateNaTela]);
 
     const alternar = useCallback((id) => {
         setFechadas(atual => ({ ...atual, [id]: !atual[id] }));

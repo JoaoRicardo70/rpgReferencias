@@ -42,7 +42,8 @@ describe('filtrarDestinos', () => {
     });
     it('filtra pelo nome do grupo', () => {
         const ids = filtrarDestinos(d, 'combate').map(x => x.id);
-        expect(ids).toEqual(expect.arrayContaining(['aba-testes', 'aba-ataque', 'aba-acerto', 'aba-defesa']));
+        expect(ids).toContain('aba-combate');
+        ['aba-testes', 'aba-ataque', 'aba-acerto', 'aba-defesa'].forEach(removida => expect(ids).not.toContain(removida));
         expect(filtrarDestinos(d, 'diarios').map(x => x.id)).toEqual(['aba-Ficha Def', 'aba-grimorio']);
         expect(filtrarDestinos(d, 'mestre').map(x => x.id)).toContain('aba-mestre');
     });

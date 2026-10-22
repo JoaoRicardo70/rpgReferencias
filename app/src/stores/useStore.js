@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { migrarPassivasParaPoderes } from '../core/utils.js';
 import { temAcessoArmaEspiritual } from '../core/acessoArmaEspiritual.js';
-import { lerModoNavegacao, salvarModoNavegacao, lerLarguraGaveta, CHAVE_LARGURA_GAVETA, ABA_COMBATE, ABA_HUB } from '../core/modoNavegacao.js';
+import { lerModoNavegacao, salvarModoNavegacao, lerLarguraGaveta, CHAVE_LARGURA_GAVETA, ABA_HUB } from '../core/modoNavegacao.js';
 
 export const fichaPadrao = {
     donoDaFicha: "", 
@@ -174,7 +174,7 @@ const useStore = create(
             state.entidadeInspecionada = null;
         }),
         minhaFicha: deepClone(fichaPadrao),
-        meuNome: '', isMestre: false, souMestreReal: false, modoJogador: lerModoJogadorLocal(storedMesaId), abaAtiva: lerModoNavegacao() === 'hub' ? ABA_HUB : (lerModoNavegacao() === 'mesa' ? 'aba-mapa' : 'aba-Ficha Def'), modoNavegacao: lerModoNavegacao(), larguraGaveta: lerLarguraGaveta(), personagens: {}, feedCombate: [],
+        meuNome: '', isMestre: false, souMestreReal: false, modoJogador: lerModoJogadorLocal(storedMesaId), abaAtiva: lerModoNavegacao() === 'hub' ? ABA_HUB : (lerModoNavegacao() === 'mesa' ? 'aba-mapa' : 'aba-Ficha Def'), modoNavegacao: lerModoNavegacao(), larguraGaveta: lerLarguraGaveta(), fichaPaginaPedida: null, combateNaTela: false, personagens: {}, feedCombate: [],
         efeitosTemp: [], efeitosTempPassivos: [], efeitosTempArsenal: [], efeitosTempPassivosArsenal: [], efeitosTempForma: [], efeitosTempPassivosForma: [],
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
         dummies: {}, alvoSelecionado: null, atorCombate: null,
@@ -216,8 +216,13 @@ const useStore = create(
             try { localStorage.setItem('rpgPastasMapaTecnicas', JSON.stringify(mapa)); } catch (e) { /* sem localStorage */ }
         }),
         setPersonagemParaDeletar: (nome) => set((state) => { state.personagemParaDeletar = nome; }),
-        // O painel de Combate já mostra o Feed ao lado: depois de rolar não precisa pular pra aba do Feed (tiraria você de lá).
-        setAbaAtiva: (aba) => set((state) => { if (aba === 'aba-log' && state.abaAtiva === ABA_COMBATE) return; state.abaAtiva = aba; }),
+        // Quando uma tela de Combate que já mostra o Feed ao vivo está aberta (aba Combate ou a página de Combate da Ficha, inclusive no
+        // Livro do Mestre), rolar não precisa pular pra aba do Feed: tiraria você de lá. Elas avisam com setCombateNaTela.
+        setAbaAtiva: (aba) => set((state) => { if (aba === 'aba-log' && state.combateNaTela) return; state.abaAtiva = aba; }),
+        setCombateNaTela: (aberto) => set((state) => { state.combateNaTela = !!aberto; }),
+        // Abre a Ficha Definitiva já numa página (e capítulo, se a página tiver); a Ficha consome o pedido ao montar.
+        abrirFichaNaPagina: (pagina, capitulo = null) => set((state) => { state.fichaPaginaPedida = { pagina, capitulo }; state.abaAtiva = 'aba-Ficha Def'; }),
+        limparFichaPaginaPedida: () => set((state) => { state.fichaPaginaPedida = null; }),
         // 🧭 Modo de navegação (core/modoNavegacao.js). Sair do hub estando na tela do hub leva pra Ficha (a tela do hub só existe nele).
         setModoNavegacao: (modo) => set((state) => {
             if (!salvarModoNavegacao(modo) || modo === state.modoNavegacao) return;

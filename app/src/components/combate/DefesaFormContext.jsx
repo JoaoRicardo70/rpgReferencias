@@ -4,7 +4,8 @@ import useStore from '../../stores/useStore';
 import { calcularReducao, calcularCA } from '../../core/engine';
 import { aplicarReacoesAoDano, reacoesPendentesValidas } from '../../core/reacoes';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano';
-import { salvarFichaSilencioso, enviarParaFeed } from '../../services/firebase-sync';
+import { enviarParaFeed } from '../../services/firebase-sync';
+import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { danoExibidoParaBruto } from '../../core/vitals';
 import { escalarDanoPelaVida, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
@@ -22,10 +23,10 @@ export function useDefesaForm() {
 }
 
 export function DefesaFormProvider({ children }) {
-    const minhaFicha = useStore(s => s.minhaFicha);
-    const meuNome = useStore(s => s.meuNome);
+    // Ficha em foco: a minha, ou a da entidade que o Mestre está vendo na Ficha Definitiva.
+    const { ficha: minhaFicha, updateFicha, nome: meuNome } = useFichaAtiva();
+    const salvarFichaSilencioso = useCallSaveAtivo();
     const personagens = useStore(s => s.personagens); // 🔥 VARREDURA GLOBAL DE PERSONAGENS DA MESA
-    const updateFicha = useStore(s => s.updateFicha);
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
     const feedCombate = useStore(s => s.feedCombate);
     const dummies = useStore(s => s.dummies);
@@ -210,7 +211,7 @@ export function DefesaFormProvider({ children }) {
         const feedData = { tipo: 'escudo', nome: meuNome, ...result };
         enviarParaFeed(feedData);
         setAbaAtiva('aba-log');
-    }, [redEnergia, redPerc, redMult, minhaFicha, meuNome, updateFicha, setAbaAtiva]);
+    }, [redEnergia, redPerc, redMult, minhaFicha, meuNome, updateFicha, salvarFichaSilencioso, setAbaAtiva]);
 
     const sofrerDanoBruto = useCallback(() => {
         const danoDigitado = parseInt(danoRecebidoInc) || 0;
@@ -259,7 +260,7 @@ export function DefesaFormProvider({ children }) {
         // Volta ao padrão (dado): um dano fixo desmarcado vale só pra este golpe.
         setDanoDeDado(true);
         setAbaAtiva('aba-log');
-    }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, updateFicha, setAbaAtiva, elementosDinamicos, disputaDefesa, danoDeDado]);
+    }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, updateFicha, salvarFichaSilencioso, setAbaAtiva, elementosDinamicos, disputaDefesa, danoDeDado]);
 
     const value = useMemo(() => ({
         evaDados, setEvaDados, evaFaces, setEvaFaces, evaProf, setEvaProf, evaBonus, setEvaBonus,

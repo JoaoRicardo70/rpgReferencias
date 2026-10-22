@@ -40,7 +40,7 @@ describe('Sidebar - todas as abas visiveis', () => {
         const mapa = screen.getByRole('button', { name: 'Mapa' });
         expect(mapa.className).toContain('ativa');
         expect(mapa.getAttribute('aria-current')).toBe('page');
-        const ataque = screen.getByRole('button', { name: 'Ataque' });
+        const ataque = screen.getByRole('button', { name: /Combate/ });
         expect(ataque.className).not.toContain('ativa');
         expect(ataque.getAttribute('aria-current')).toBeNull();
     });

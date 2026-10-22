@@ -140,7 +140,7 @@ export function ElementosFormProvider({ children }) {
     // Mestre) lê e grava a ficha DELE; fora disso é a minha, como sempre (FichaAlvoContext.jsx).
     const { ficha: fichaAtiva, updateFicha, nome: meuNome, souEuMesmo } = useFichaAtiva();
     const minhaFicha = fichaAtiva || {};
-    const setAbaAtiva = useStore(s => s.setAbaAtiva);
+    const abrirFichaNaPagina = useStore(s => s.abrirFichaNaPagina);
     const salvarFichaSilencioso = useCallSaveAtivo();
 
     // "Editando qual magia" mora na store pra MINHA ficha; para outro personagem fica local.
@@ -453,8 +453,8 @@ export function ElementosFormProvider({ children }) {
         // troca a aba de quem está olhando.
         if (!souEuMesmo) return;
         enviarParaFeed({ tipo: 'sistema', nome: meuNome, texto: `Atenção: A conjuração direta pelo Grimório foi desativada. Equipe a magia e use o painel principal!` });
-        setAbaAtiva('aba-ataque');
-    }, [meuNome, setAbaAtiva, souEuMesmo]);
+        abrirFichaNaPagina(8, 'ataque');
+    }, [meuNome, souEuMesmo, abrirFichaNaPagina]);
 
     const injetarJsonDaIA = useCallback((jsonString) => {
         try {

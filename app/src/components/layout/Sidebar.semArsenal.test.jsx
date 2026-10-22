@@ -31,7 +31,7 @@ describe('Sidebar - sem as abas de Arsenal/Poderes/Elementos', () => {
         render(<Sidebar onResetClick={() => {}} />);
         const t = titulos();
         expect(t).toContain('Ficha Definitiva');
-        expect(t).toContain('Ataque');
+        expect(t).toContain('Combate (tudo junto)');
         expect(t).toContain('Mapa');
     });
 

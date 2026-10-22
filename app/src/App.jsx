@@ -33,10 +33,6 @@ import ModalConfirm from './components/perfil/ModalConfirm';
 
 // 🚀 Cada aba é carregada sob demanda (1ª visita): o app abre mais rápido e o código pesado não pesa na entrada.
 const PerfilPanel = lazyComRetry(() => import('./components/perfil/PerfilPanel'));
-const AtaquePanel = lazyComRetry(() => import('./components/combate/AtaquePanel'));
-const AcertoPanel = lazyComRetry(() => import('./components/combate/AcertoPanel'));
-const DefesaPanel = lazyComRetry(() => import('./components/combate/DefesaPanel'));
-const TestesPanel = lazyComRetry(() => import('./components/combate/TestesPanel'));
 const FeedCombate = lazyComRetry(() => import('./components/feed/FeedCombate'));
 const MapaPanel = lazyComRetry(() => import('./components/mapa/MapaPanel'));
 const CompendioPanel = lazyComRetry(() => import('./components/compendio/CompendioPanel'));
@@ -51,8 +47,6 @@ const PainelCombate = lazyComRetry(() => import('./components/combate/PainelComb
 const IMPORTADORES_DAS_ABAS = [
     () => import('./components/Ficha Def/Marcados'),
     () => import('./components/Ficha Def/Grimorio'),
-    () => import('./components/combate/AtaquePanel'),
-    () => import('./components/combate/DefesaPanel'),
     () => import('./components/combate/PainelCombate'),
     () => import('./components/perfil/PerfilPanel'),
     () => import('./components/feed/FeedCombate'),
@@ -369,10 +363,6 @@ export default function App() {
                     <AbaCarregavel id="aba-perfil" className={classeAba('aba-perfil')}><PerfilPanel /></AbaCarregavel>
                     <AbaCarregavel id="aba-mestre" className={classeAba('aba-mestre')}><MestrePanel /></AbaCarregavel>
                     <AbaCarregavel id="aba-combate" className={classeAba('aba-combate')}><PainelCombate /></AbaCarregavel>
-                    <AbaCarregavel id="aba-testes" className={classeAba('aba-testes')}><TestesPanel /></AbaCarregavel>
-                    <AbaCarregavel id="aba-ataque" className={classeAba('aba-ataque')}><AtaquePanel /></AbaCarregavel>
-                    <AbaCarregavel id="aba-acerto" className={classeAba('aba-acerto')}><AcertoPanel /></AbaCarregavel>
-                    <AbaCarregavel id="aba-defesa" className={classeAba('aba-defesa')}><DefesaPanel /></AbaCarregavel>
                     <AbaCarregavel id="aba-log" className={classeAba('aba-log')}><FeedCombate /></AbaCarregavel>
                     <AbaCarregavel id="aba-mapa" sempreVisivel={modoMesa}><MapaPanel /></AbaCarregavel>
                     <AbaCarregavel id="aba-compendio" className={classeAba('aba-compendio')}><CompendioPanel /></AbaCarregavel>

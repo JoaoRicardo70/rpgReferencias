@@ -7,7 +7,8 @@ import useStore from '../../stores/useStore';
 // agora faz o mesmo, em vez de divergir.
 import { calcularAcerto, calcularCA } from '../../core/engine';
 import { getPoderesDefesa, getEfeitosDeClasse } from '../../core/attributes';
-import { enviarParaFeed, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
+import { enviarParaFeed, salvarCenarioCompleto } from '../../services/firebase-sync';
+import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { resolverAlvoCombate } from '../../core/alvoCombate';
 import { getPosicaoEntidade } from '../../core/alcance';
 
@@ -28,11 +29,11 @@ export function useAcertoForm() {
 }
 
 export function AcertoFormProvider({ children }) {
-    const minhaFicha = useStore(s => s.minhaFicha);
-    const meuNome = useStore(s => s.meuNome);
+    // Ficha em foco: a minha, ou a da entidade que o Mestre está vendo na Ficha Definitiva.
+    const { ficha: minhaFicha, updateFicha, nome: meuNome } = useFichaAtiva();
+    const salvarFichaSilencioso = useCallSaveAtivo();
     const personagens = useStore(s => s.personagens);
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
-    const updateFicha = useStore(s => s.updateFicha);
     const alvoSelecionado = useStore(s => s.alvoSelecionado);
     const dummies = useStore(s => s.dummies);
     const cenario = useStore(s => s.cenario);
@@ -137,8 +138,8 @@ export function AcertoFormProvider({ children }) {
         return { distQuadrados: dQ, distReal: dR, maxAlcance: mA, maxArea: mArea, isForaDeAlcance: fora, unidadeEscala: unidade, centroExplosao: centro, duracaoZonaEfeito: duracao, elementoZona: elemZ };
     }, [alvoDummie, minhaFicha?.posicao, minhaFicha?.poderes, minhaFicha?.ataquesElementais, cenario, armasEquipadas, origemArea, coordLivreX, coordLivreY]);
 
-    const changeVantagem = useCallback((e) => { updateFicha(f => { if (!f.ataqueConfig) f.ataqueConfig = {}; f.ataqueConfig.vantagens = parseInt(e.target.value) || 0; }); salvarFichaSilencioso(); }, [updateFicha]);
-    const changeDesvantagem = useCallback((e) => { updateFicha(f => { if (!f.ataqueConfig) f.ataqueConfig = {}; f.ataqueConfig.desvantagens = parseInt(e.target.value) || 0; }); salvarFichaSilencioso(); }, [updateFicha]);
+    const changeVantagem = useCallback((e) => { updateFicha(f => { if (!f.ataqueConfig) f.ataqueConfig = {}; f.ataqueConfig.vantagens = parseInt(e.target.value) || 0; }); salvarFichaSilencioso(); }, [updateFicha, salvarFichaSilencioso]);
+    const changeDesvantagem = useCallback((e) => { updateFicha(f => { if (!f.ataqueConfig) f.ataqueConfig = {}; f.ataqueConfig.desvantagens = parseInt(e.target.value) || 0; }); salvarFichaSilencioso(); }, [updateFicha, salvarFichaSilencioso]);
     const toggleStat = useCallback((value) => { setStatsSelecionados(prev => { if (prev.includes(value)) return prev.filter(v => v !== value); return [...prev, value]; }); }, []);
 
     const rolarAcerto = useCallback(() => {

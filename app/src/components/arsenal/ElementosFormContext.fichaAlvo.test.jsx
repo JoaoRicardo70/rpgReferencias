@@ -34,7 +34,7 @@ function montarStore(overrides = {}) {
         meuNome: 'Heroi',
         updateFicha: vi.fn((cb) => cb(mockState.minhaFicha)),
         updateFichaAlvo: vi.fn((nome, cb) => cb(mockState.personagens[nome])),
-        setAbaAtiva: vi.fn(),
+        abrirFichaNaPagina: vi.fn(),
         elemEditandoId: null,
         setElemEditandoId: vi.fn(),
         ...overrides,
@@ -96,7 +96,7 @@ describe('ElementosFormContext FORA de FichaAlvoProvider — comportamento de se
         expect(state.setElemEditandoId).toHaveBeenCalledWith(1);
     });
 
-    it('conjurarMagia continua mandando o aviso ao feed (nome = meuNome) e trocando a aba pra aba-ataque', () => {
+    it('conjurarMagia continua mandando o aviso ao feed (nome = meuNome) e abrindo a Ficha na página 8 (Ataque)', () => {
         const state = montarStore();
         render(<ElementosFormProvider><Harness /></ElementosFormProvider>);
 
@@ -104,7 +104,7 @@ describe('ElementosFormContext FORA de FichaAlvoProvider — comportamento de se
 
         expect(enviarParaFeed).toHaveBeenCalledTimes(1);
         expect(enviarParaFeed).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'sistema', nome: 'Heroi' }));
-        expect(state.setAbaAtiva).toHaveBeenCalledWith('aba-ataque');
+        expect(state.abrirFichaNaPagina).toHaveBeenCalledWith(8, 'ataque');
     });
 
     it('conjurarMagia com Provider mirando o PRÓPRIO jogador também faz as duas coisas', () => {
@@ -114,7 +114,7 @@ describe('ElementosFormContext FORA de FichaAlvoProvider — comportamento de se
         act(() => { probe.conjurarMagia({ nome: 'x' }); });
 
         expect(enviarParaFeed).toHaveBeenCalledTimes(1);
-        expect(state.setAbaAtiva).toHaveBeenCalledWith('aba-ataque');
+        expect(state.abrirFichaNaPagina).toHaveBeenCalledWith(8, 'ataque');
     });
 });
 
@@ -180,7 +180,7 @@ describe('ElementosFormContext DENTRO de <FichaAlvoProvider nome="Outro"> — mi
         expect(state.setElemEditandoId).not.toHaveBeenCalled();
     });
 
-    it('conjurarMagia não faz nada: sem enviarParaFeed e sem setAbaAtiva', () => {
+    it('conjurarMagia não faz nada: sem enviarParaFeed e sem abrirFichaNaPagina', () => {
         const state = montarStore();
         montar();
 
@@ -188,6 +188,6 @@ describe('ElementosFormContext DENTRO de <FichaAlvoProvider nome="Outro"> — mi
         act(() => { probe.conjurarMagia(state.personagens.Outro.ataquesElementais[0], 50); });
 
         expect(enviarParaFeed).not.toHaveBeenCalled();
-        expect(state.setAbaAtiva).not.toHaveBeenCalled();
+        expect(state.abrirFichaNaPagina).not.toHaveBeenCalled();
     });
 });

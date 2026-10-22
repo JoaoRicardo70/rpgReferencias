@@ -21,6 +21,8 @@ import { getRegeneracaoManualPct, limitarRegeneracaoPct } from '../../core/regen
 import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel';
 import PactosPanel from './PactosPanel';
+import CombateFichaPanel from './CombateFichaPanel';
+import { TOTAL_PAGINAS_FICHA } from '../../core/navegacao';
 import AjustesPanel from './AjustesPanel';
 import { getAcoesExibicao, alternarAcao, restaurarAcoes, ajustarExtraManualAcao, getExtraManualAcao, TIPOS_ACAO, ACOES_MAXIMO, ROTULO_ACAO } from '../../core/acoes';
 import BarrasVida from '../shared/BarrasVida';
@@ -921,7 +923,15 @@ export default function MarcadosPanel() {
 
     const [uploadingImg, setUploadingImg] = useState(false);
     const [modalEstilo, setModalEstilo] = useState(false);
-    const [paginaAtual, setPaginaAtual] = useState(1);
+    // Quem manda abrir a Ficha numa página (ex.: conjurar → Combate) deixa o pedido no store.
+    const pedidoPagina = useStore(s => s.fichaPaginaPedida);
+    const [paginaAtual, setPaginaAtual] = useState(() => {
+        const p0 = pedidoPagina;
+        return p0 && p0.pagina >= 1 && p0.pagina <= TOTAL_PAGINAS_FICHA ? p0.pagina : 1;
+    });
+    useEffect(() => {
+        if (pedidoPagina && pedidoPagina.pagina >= 1 && pedidoPagina.pagina <= TOTAL_PAGINAS_FICHA) setPaginaAtual(pedidoPagina.pagina);
+    }, [pedidoPagina]);
     // 🔥 Correção: "Guardar Ficha" mostrava "✅ Guardado!" na hora do clique, ANTES da gravação no
     // Firebase sequer começar (o antigo callSave não aguardava salvarFirebaseImediato) — se o
     // jogador saísse da página logo depois, a gravação podia nunca terminar e ele não teria como
@@ -2202,13 +2212,14 @@ export default function MarcadosPanel() {
                 {paginaAtual === 5 && ( <RelicarioPanel /> )}
                 {paginaAtual === 6 && ( <PactosPanel /> )}
                 {paginaAtual === 7 && ( <AjustesPanel /> )}
+                {paginaAtual === 8 && ( <CombateFichaPanel /> )}
 
             </div>
 
             <div style={{ position: 'absolute', bottom: '20px', left: '0', width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', fontFamily: 'inherit' }}>
                 <button onClick={() => mudarPagina(Math.max(1, paginaAtual - 1))} disabled={paginaAtual === 1} style={{ background: 'transparent', border: 'none', fontSize: '1.2em', fontWeight: 'bold', cursor: paginaAtual === 1 ? 'default' : 'pointer', opacity: paginaAtual === 1 ? 0.3 : 1, fontFamily: 'inherit', color: 'inherit' }}>⮜ Anterior</button>
-                <span style={{ fontSize: '1.1em', fontWeight: 'bold', borderBottom: '2px solid currentColor', padding: '0 10px' }}>Página {paginaAtual} de 7</span>
-                <button onClick={() => mudarPagina(Math.min(7, paginaAtual + 1))} disabled={paginaAtual === 7} style={{ background: 'transparent', border: 'none', fontSize: '1.2em', fontWeight: 'bold', cursor: paginaAtual === 7 ? 'default' : 'pointer', opacity: paginaAtual === 7 ? 0.3 : 1, fontFamily: 'inherit', color: 'inherit' }}>Próxima ⮞</button>
+                <span style={{ fontSize: '1.1em', fontWeight: 'bold', borderBottom: '2px solid currentColor', padding: '0 10px' }}>Página {paginaAtual} de {TOTAL_PAGINAS_FICHA}</span>
+                <button onClick={() => mudarPagina(Math.min(TOTAL_PAGINAS_FICHA, paginaAtual + 1))} disabled={paginaAtual === TOTAL_PAGINAS_FICHA} style={{ background: 'transparent', border: 'none', fontSize: '1.2em', fontWeight: 'bold', cursor: paginaAtual === TOTAL_PAGINAS_FICHA ? 'default' : 'pointer', opacity: paginaAtual === TOTAL_PAGINAS_FICHA ? 0.3 : 1, fontFamily: 'inherit', color: 'inherit' }}>Próxima ⮞</button>
             </div>
         </div>
     );

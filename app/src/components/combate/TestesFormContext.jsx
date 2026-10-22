@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import useStore from '../../stores/useStore';
-import { enviarParaFeed, salvarFichaSilencioso } from '../../services/firebase-sync';
+import { enviarParaFeed } from '../../services/firebase-sync';
+import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { getRawBase } from '../../core/attributes';
 import { modificadorDezena } from '../../core/utils';
 
@@ -60,10 +61,10 @@ export function useTestesForm() {
 }
 
 export function TestesFormProvider({ children }) {
-    const minhaFicha = useStore(s => s.minhaFicha);
-    const meuNome = useStore(s => s.meuNome);
+    // Ficha em foco: a minha, ou a da entidade que o Mestre está vendo na Ficha Definitiva.
+    const { ficha: minhaFicha, updateFicha, nome: meuNome } = useFichaAtiva();
+    const salvarFichaSilencioso = useCallSaveAtivo();
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
-    const updateFicha = useStore(s => s.updateFicha);
 
     const [dadosConfig, setDadosConfig] = useState(1);
     const [facesConfig, setFacesConfig] = useState(20);
@@ -121,7 +122,7 @@ export function TestesFormProvider({ children }) {
             f.proficiencias[id] = (cur + 1) % 3;
         });
         salvarFichaSilencioso();
-    }, [updateFicha]);
+    }, [updateFicha, salvarFichaSilencioso]);
 
     const getProfLevel = useCallback((id) => {
         return minhaFicha.proficiencias?.[id] || 0;

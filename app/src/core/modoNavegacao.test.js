@@ -71,8 +71,9 @@ describe('largura da gaveta', () => {
 
 describe('modoHubDaAba / MODOS_HUB', () => {
     it('acha o modo da aba', () => {
-        expect(modoHubDaAba('aba-ataque').id).toBe('combate');
+        expect(modoHubDaAba('aba-ataque')).toBeNull(); // abas removidas: moraram na Ficha (pagina 8)
         expect(modoHubDaAba('aba-combate').id).toBe('combate');
+        expect(MODOS_HUB.find(m => m.id === 'combate').abas).toEqual(['aba-combate']);
         expect(modoHubDaAba('aba-grimorio').id).toBe('ficha');
         expect(modoHubDaAba('aba-log').id).toBe('social');
         expect(modoHubDaAba('aba-perfil').id).toBe('perfil');

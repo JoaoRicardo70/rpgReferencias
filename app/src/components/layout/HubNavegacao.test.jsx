@@ -52,16 +52,15 @@ describe('HubNavegacao', () => {
     it('chips abrem a aba especifica', () => {
         render(<HubNavegacao />);
         const chip = (c, re) => within(cartao(c)).getAllByRole('button').find(b => b.classList.contains('hub-chip') && re.test(b.textContent));
-        fireEvent.click(chip('Combate', /Defesa/));
-        expect(useStore.getState().abaAtiva).toBe('aba-defesa');
         fireEvent.click(chip('Ficha', /Grimório/));
         expect(useStore.getState().abaAtiva).toBe('aba-grimorio');
     });
-    it('modos de uma aba so (Mapa, Perfil) nao tem chips', () => {
+    it('modos de uma aba so (Combate, Mapa, Perfil) nao tem chips', () => {
         render(<HubNavegacao />);
         expect(cartao('Mapa').querySelector('.hub-cartao-chips')).toBeNull();
         expect(cartao('Perfil').querySelector('.hub-cartao-chips')).toBeNull();
-        expect(cartao('Combate').querySelectorAll('.hub-chip')).toHaveLength(5);
+        expect(cartao('Combate').querySelector('.hub-cartao-chips')).toBeNull();
+        expect(cartao('Ficha').querySelectorAll('.hub-chip')).toHaveLength(2);
     });
     it('renderiza o bloco sessao quando recebido', () => {
         render(<HubNavegacao sessao={<span>SESSAO-X</span>} />);
@@ -75,21 +74,26 @@ describe('BarraModoHub', () => {
         expect(container.firstChild).toBeNull();
     });
     it('botao Mesa leva ao hub', () => {
-        useStore.setState({ abaAtiva: 'aba-ataque' });
+        useStore.setState({ abaAtiva: 'aba-combate' });
         render(<BarraModoHub />);
         fireEvent.click(screen.getByText('🏠 Mesa'));
         expect(useStore.getState().abaAtiva).toBe('aba-hub');
     });
     it('mostra as subabas do modo atual e marca a ativa', () => {
-        useStore.setState({ abaAtiva: 'aba-ataque' });
+        useStore.setState({ abaAtiva: 'aba-Ficha Def' });
         render(<BarraModoHub />);
-        expect(document.querySelectorAll('.hub-subaba')).toHaveLength(5);
-        expect(document.querySelector('.hub-modo-nome').textContent).toContain('Combate');
+        expect(document.querySelectorAll('.hub-subaba')).toHaveLength(2);
+        expect(document.querySelector('.hub-modo-nome').textContent).toContain('Ficha');
         const ativa = document.querySelector('.hub-subaba.ativa');
-        expect(ativa.textContent).toContain('Ataque');
         expect(ativa.getAttribute('aria-current')).toBe('page');
-        fireEvent.click(screen.getByText(/Testes/));
-        expect(useStore.getState().abaAtiva).toBe('aba-testes');
+        fireEvent.click(screen.getByText(/Grimório/));
+        expect(useStore.getState().abaAtiva).toBe('aba-grimorio');
+    });
+    it('modo Combate (aba unica) nao tem subabas', () => {
+        useStore.setState({ abaAtiva: 'aba-combate' });
+        render(<BarraModoHub />);
+        expect(document.querySelector('.hub-subabas')).toBeNull();
+        expect(document.querySelector('.hub-modo-nome').textContent).toContain('Combate');
     });
     it('modo de aba unica (Mapa) nao tem subabas', () => {
         useStore.setState({ abaAtiva: 'aba-mapa' });

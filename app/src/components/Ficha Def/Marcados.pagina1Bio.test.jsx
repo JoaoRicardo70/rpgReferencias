@@ -118,9 +118,9 @@ describe('MarcadosPanel pagina 1: campos de bio (Fisico, Sangue, Dinheiro, Linha
         expect(ficha.bio.sangue).toBe('A+');
     });
 
-    it('rodape mostra Pagina 1 de 7', () => {
+    it('rodape mostra Pagina 1 de 8', () => {
         montar(fichaBase());
         render(<MarcadosPanel />);
-        expect(screen.getByText('Página 1 de 7')).toBeDefined();
+        expect(screen.getByText('Página 1 de 8')).toBeDefined();
     });
 });

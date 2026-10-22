@@ -212,7 +212,7 @@ describe('PaletaNavegacao - recentes', () => {
     });
     it('limita a 5 no storage', () => {
         render(<PaletaNavegacao />);
-        ['aba-mapa', 'aba-log', 'aba-testes', 'aba-ataque', 'aba-acerto', 'aba-defesa'].forEach(id => act(() => st().setAbaAtiva(id)));
+        ['aba-mapa', 'aba-log', 'aba-combate', 'aba-perfil', 'aba-Ficha Def', 'aba-grimorio'].forEach(id => act(() => st().setAbaAtiva(id)));
         expect(JSON.parse(localStorage.getItem('rpgNavRecentes'))).toHaveLength(5);
     });
     it('recentes salvos vem no topo da lista, sem a aba atual', () => {
