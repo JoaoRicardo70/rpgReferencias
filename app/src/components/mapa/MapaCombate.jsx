@@ -11,6 +11,7 @@ import { descreverAlvosReducao } from '../../core/reducaoRotulos';
 import useGastarAcao from '../../hooks/useGastarAcao';
 import SegurarAcao from '../combate/SegurarAcao';
 import { tipoAcaoAoLigar } from '../../core/acaoPoder';
+import { eventoCombina } from '../../core/atalhos';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { usePoderesForm } from '../poderes/PoderesFormContext';
 import EstagioControle from '../poderes/EstagioControle';
@@ -651,6 +652,18 @@ export function MapaAtalhoAtaques() {
         document.addEventListener('mousedown', aoClicarFora);
         return () => { document.removeEventListener('keydown', aoTecla); document.removeEventListener('mousedown', aoClicarFora); };
     }, [aberto, slots, liberado, usar, abaEfetiva]);
+
+    // Tecla de atalho (⚙️ Configurações; padrão Alt+L) abre/fecha o Livro de Combate.
+    useEffect(() => {
+        if (!temConteudo) return undefined;
+        const aoTecla = (e) => {
+            if (e.repeat || !eventoCombina(e, 'livroCombate')) return;
+            e.preventDefault();
+            setAberto(v => !v);
+        };
+        window.addEventListener('keydown', aoTecla);
+        return () => window.removeEventListener('keydown', aoTecla);
+    }, [temConteudo]);
 
     if (!ataqueCtx || !temConteudo || typeof document === 'undefined' || !document.body) return null;
     const alvo = ataqueCtx.dummieAlvo;

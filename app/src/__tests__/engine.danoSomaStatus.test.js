@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { calcularDano } from '../core/engine.js';
 
 // Dano = (soma dos dados das técnicas e/ou armas) + (Status relacionados a elas). Nada de dado x status.
-// O Status entra com a Ascensão oculta (+100.000 por Ascensão em Força/Destreza/Inteligência).
-const FORCA = 100100;
-const INTELIGENCIA = 100050;
+// O Status entra com o valor da ficha (sem o bônus oculto de Ascensão do Poder de Luta).
+const FORCA = 100;
+const INTELIGENCIA = 50;
 
 const atributo = (nome, base) => ({ base, nome, mBase: 1, mGeral: 1, mFormas: 1, mAbsoluto: 1, mUnico: '1.0', reducaoCusto: 0, regeneracao: 0 });
 

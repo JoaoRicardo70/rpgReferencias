@@ -9,6 +9,7 @@ import { ModalSexta } from './DialogosSexta';
 import { resumoFichaDetalhado } from '../../core/sextaFeiraFerramentas';
 import { markdownParaTextoFalado } from '../../core/markdownSexta';
 import { configurarFalaSexta, juntarTextoFalado, mensagemErroMicrofone } from '../../core/vozSexta';
+import { fracaoVolumeSexta } from '../../core/configuracoes';
 import MarkdownSexta from './MarkdownSexta';
 import { ROTULO_TIPO } from '../../core/sextaFeiraCriacao';
 import DetalhesCriacao from './DetalhesCriacao';
@@ -202,7 +203,7 @@ function BotaoOuvir({ texto }) {
         try {
             window.speechSynthesis.cancel();
             const fala = new window.SpeechSynthesisUtterance(markdownParaTextoFalado(texto));
-            configurarFalaSexta(fala, window.speechSynthesis.getVoices?.() || []);
+            configurarFalaSexta(fala, window.speechSynthesis.getVoices?.() || [], fracaoVolumeSexta());
             window.speechSynthesis.speak(fala);
         } catch (e) { /* sem voz */ }
     };

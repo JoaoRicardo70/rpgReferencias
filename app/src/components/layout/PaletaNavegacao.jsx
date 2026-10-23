@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import useStore from '../../stores/useStore';
 import { listarDestinos, filtrarDestinos, registrarVisita, recentesValidos, destinoDoAtalho } from '../../core/navegacao';
+import { eventoCombina, digitoDaAba } from '../../core/atalhos';
 
 const CHAVE_RECENTES = 'rpgNavRecentes';
 
@@ -52,10 +53,10 @@ export default function PaletaNavegacao() {
         fechar();
     }, [setAbaAtiva, fechar]);
 
-    // Atalhos globais: Ctrl/Cmd+K abre/fecha; Alt+1..9 vai direto; evento do botão 🔎 da barra.
+    // Atalhos globais (configuráveis em ⚙️ Configurações; padrão Ctrl/Cmd+K abre/fecha e Alt+1..9 vai direto); evento do botão 🔎 da barra.
     useEffect(() => {
         const tecla = (e) => {
-            if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && String(e.key).toLowerCase() === 'k') {
+            if (eventoCombina(e, 'paleta')) {
                 e.preventDefault();
                 if (document.activeElement && typeof document.activeElement.blur === 'function') document.activeElement.blur();
                 setAberta(a => !a);
@@ -63,10 +64,10 @@ export default function PaletaNavegacao() {
                 setIndice(0);
                 return;
             }
-            // e.code (Digit1..9): funciona também no Mac, onde Option+número muda o caractere de e.key.
-            const tecla9 = /^Digit([1-9])$/.exec(e.code || '');
-            if (e.altKey && !e.ctrlKey && !e.metaKey && tecla9) {
-                const d = destinoDoAtalho(destinos, tecla9[1]);
+            // O modificador (Alt por padrão) vem das Configurações; o número é lido pelo código físico (funciona no Mac).
+            const digito = digitoDaAba(e);
+            if (digito) {
+                const d = destinoDoAtalho(destinos, digito);
                 if (d) {
                     e.preventDefault();
                     if (document.activeElement && typeof document.activeElement.blur === 'function') document.activeElement.blur();

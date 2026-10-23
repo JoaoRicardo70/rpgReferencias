@@ -53,12 +53,12 @@ describe('calcularDano — novo sistema', () => {
 
     it('arma 2d6 only, no skills, no energy', () => {
         // d6 roll = floor(0.5*6)+1 = 4, 2d6 = 8
-        // Dano = soma dos dados + Status: 8 + Forca (com a Ascensao oculta, 100.100) = 100.108 (nada de dado x status)
+        // Dano = soma dos dados + Status: 8 + Forca (100) = 108 (nada de dado x status)
         const arma = makeArma({ dadosQtd: 2, dadosFaces: 6 });
         const result = callCalcDano({ itensEquipados: [arma] });
 
         expect(result.erro).toBeUndefined();
-        expect(result.dano).toBe(100108);
+        expect(result.dano).toBe(108);
         expect(result.letalidade).toBe(0);
         expect(result.drenos).toEqual([]);
     });
@@ -74,7 +74,7 @@ describe('calcularDano — novo sistema', () => {
         });
 
         expect(result.erro).toBeUndefined();
-        expect(result.dano).toBe(100123);
+        expect(result.dano).toBe(123);
     });
 
     it('arma 2d6 + habilidade livre 1d10', () => {
@@ -88,7 +88,7 @@ describe('calcularDano — novo sistema', () => {
         });
 
         expect(result.erro).toBeUndefined();
-        expect(result.dano).toBe(100114);
+        expect(result.dano).toBe(114);
     });
 
     it('no weapon, only free skill with dice', () => {
@@ -97,7 +97,7 @@ describe('calcularDano — novo sistema', () => {
         const result = callCalcDano({ configHabilidades: [hab] });
 
         expect(result.erro).toBeUndefined();
-        expect(result.dano).toBe(100108);
+        expect(result.dano).toBe(108);
     });
 
     it('weapon energy combustion', () => {
@@ -110,7 +110,7 @@ describe('calcularDano — novo sistema', () => {
             configArma: { statusUsados: ['forca'], energiaCombustao: 'mana', percEnergia: 10 },
         });
 
-        expect(result.dano).toBe(100108);
+        expect(result.dano).toBe(108);
         expect(result.drenos).toEqual([{ key: 'mana', valor: 5 }]);
     });
 
@@ -121,7 +121,7 @@ describe('calcularDano — novo sistema', () => {
         const hab = makeHabConfig({ dadosQtd: 2, dadosFaces: 6, custoPercentual: 20, energiaCombustao: 'mana' });
         const result = callCalcDano({ configHabilidades: [hab] });
 
-        expect(result.dano).toBe(100108);
+        expect(result.dano).toBe(108);
         expect(result.drenos).toEqual([{ key: 'mana', valor: 10 }]);
     });
 
@@ -132,7 +132,7 @@ describe('calcularDano — novo sistema', () => {
         const hab = makeHabConfig({ dadosQtd: 2, dadosFaces: 6, statusUsados: ['destreza'] });
         const result = callCalcDano({ configHabilidades: [hab] });
 
-        expect(result.dano).toBe(100088);
+        expect(result.dano).toBe(88);
     });
 
     it('multiplicadores de ficha.dano NAO sao aplicados (valem so no Poder Calculado)', () => {
@@ -251,7 +251,7 @@ describe('calcularDano — edge cases', () => {
         const hab = makeHabConfig({ dadosQtd: 0 });
         const result = callCalcDano({ itensEquipados: [arma], configHabilidades: [hab] });
         // Only weapon contributes: 8 + 100 = 108
-        expect(result.dano).toBe(100108);
+        expect(result.dano).toBe(108);
     });
 
     it('returns error when energy insufficient', () => {
@@ -268,7 +268,7 @@ describe('calcularDano — edge cases', () => {
         const arma = makeArma({ dadosQtd: 2, dadosFaces: 6 });
         const item = { tipo: 'acessorio', bonusTipo: 'dano_bruto', bonusValor: '200', nome: 'Anel' };
         const result = callCalcDano({ itensEquipados: [arma, item] });
-        expect(result.dano).toBe(100308);
+        expect(result.dano).toBe(308);
     });
 
     it('mult_dano de item NAO multiplica o dano final', () => {
@@ -299,7 +299,7 @@ describe('calcularDano — edge cases', () => {
         const hab = makeHabConfig({ dadosQtd: 3, dadosFaces: 8, armaVinculada: 'arma1' });
         const result = callCalcDano({ itensEquipados: [arma], configHabilidades: [hab] });
         // dados 8+15 = 23, Forca uma vez = 100
-        expect(result.dano).toBe(100123);
+        expect(result.dano).toBe(123);
     });
 
     it('skill linked to different weapon stays as free', () => {
@@ -307,7 +307,7 @@ describe('calcularDano — edge cases', () => {
         const hab = makeHabConfig({ dadosQtd: 1, dadosFaces: 10, armaVinculada: 'arma2' });
         const result = callCalcDano({ itensEquipados: [arma], configHabilidades: [hab] });
         // dados 8+6 = 14, Forca uma vez = 100
-        expect(result.dano).toBe(100114);
+        expect(result.dano).toBe(114);
     });
 
     it('zero dice result does not produce NaN', () => {

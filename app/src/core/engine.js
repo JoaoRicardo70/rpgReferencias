@@ -146,7 +146,8 @@ function somarStatusDasFontes(fontes, minhaFicha) {
     fontes.forEach(f => f.sels.forEach(k => {
         if (vistos.has(k)) return;
         vistos.add(k);
-        const val = getPoderDeLutaStatus(minhaFicha, k, false);
+        // O Status do dano é o valor que aparece na ficha (240), sem o bônus oculto de Ascensão do Poder de Luta (+100.000).
+        const val = Number(getMaximo(minhaFicha, k)) || 0;
         soma += val;
         const nomeAttr = (minhaFicha[k] && minhaFicha[k].nome) || String(k).toUpperCase();
         detalhes.push(`<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>`);

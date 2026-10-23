@@ -72,7 +72,7 @@ export const MODOS_HUB = [
     { id: 'mapa', nome: 'Mapa', icone: '🗺️', cor: 'mundo', descricao: 'A mesa de jogo', abas: ['aba-mapa'] },
     { id: 'social', nome: 'Social', icone: '💬', cor: 'mundo', descricao: 'Comunicação e Feed', abas: ['aba-comunicacao', 'aba-log'] },
     { id: 'lore', nome: 'Lore', icone: '📚', cor: 'mundo', descricao: 'Lore do Mundo e Oráculo', abas: ['aba-compendio', 'aba-oraculo'] },
-    { id: 'perfil', nome: 'Perfil', icone: '🆔', cor: 'entidade', descricao: 'Personagem e Aparência', abas: ['aba-perfil'] }
+    { id: 'perfil', nome: 'Perfil', icone: '🆔', cor: 'entidade', descricao: 'Personagem e Configurações (volume, atalhos, estilo)', abas: ['aba-perfil', 'aba-config'] }
 ];
 
 export function modoHubDaAba(abaId) {

@@ -34,8 +34,10 @@ export function escolherVozFeminina(vozes) {
 }
 
 // Aplica a voz feminina numa fala; sem voz feminina, deixa o tom mais agudo.
-export function configurarFalaSexta(fala, vozes) {
+export function configurarFalaSexta(fala, vozes, volume = 1) {
     fala.lang = 'pt-BR';
+    // Volume escolhido nas Configurações (0 a 1).
+    fala.volume = Math.min(1, Math.max(0, Number.isFinite(Number(volume)) ? Number(volume) : 1));
     const voz = escolherVozFeminina(vozes);
     if (voz) { fala.voice = voz; fala.lang = voz.lang; } else fala.pitch = TOM_SEM_VOZ_FEMININA;
     return fala;

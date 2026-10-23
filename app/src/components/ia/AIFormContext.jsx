@@ -11,6 +11,7 @@ import {
 } from '../../core/sextaFeira';
 import { markdownParaTextoFalado } from '../../core/markdownSexta';
 import { configurarFalaSexta } from '../../core/vozSexta';
+import { fracaoVolumeSexta } from '../../core/configuracoes';
 import { useDialogosSexta } from './DialogosSexta';
 import usePedidosCriacao from '../../hooks/usePedidosCriacao';
 import { chamarGemini } from '../../services/sextaFeiraIA';
@@ -62,7 +63,7 @@ function falarTexto(texto) {
         if (!falado) return;
         window.speechSynthesis.cancel();
         const fala = new window.SpeechSynthesisUtterance(falado);
-        configurarFalaSexta(fala, window.speechSynthesis.getVoices?.() || []);
+        configurarFalaSexta(fala, window.speechSynthesis.getVoices?.() || [], fracaoVolumeSexta());
         window.speechSynthesis.speak(fala);
     } catch (e) { /* sem voz */ }
 }

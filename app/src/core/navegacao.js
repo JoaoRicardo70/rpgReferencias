@@ -7,6 +7,8 @@ export const MAX_RECENTES_NAVEGACAO = 5;
 // Total de páginas da Ficha Definitiva (a 8ª é o Combate: Testes, Acerto, Ataque e Defesa).
 export const TOTAL_PAGINAS_FICHA = 8;
 
+export const ABA_CONFIG = { id: 'aba-config', icone: '⚙️', nome: 'Configurações', curto: 'Config' };
+
 export const GRUPOS_NAVEGACAO = [
     {
         id: 'entidade', nome: 'Entidade',
@@ -34,6 +36,11 @@ export const GRUPOS_NAVEGACAO = [
             { id: 'aba-compendio', icone: '📚', nome: 'Lore do Mundo', curto: 'Lore' },
             { id: 'aba-oraculo', icone: '🤖', nome: 'Oráculo (IA)', curto: 'Oráculo' }
         ]
+    },
+    // Fica por último para não deslocar os atalhos Alt+1..9 das outras abas.
+    {
+        id: 'ajustes', nome: 'Ajustes',
+        abas: [ABA_CONFIG]
     }
 ];
 

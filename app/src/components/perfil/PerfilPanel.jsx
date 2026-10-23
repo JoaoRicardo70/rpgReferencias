@@ -1,7 +1,6 @@
 import React from 'react';
 import { PerfilFormProvider } from './PerfilFormContext';
 import { PerfilJogadorEditor, PerfilPersonagensSalvos, PerfilMestreToggle } from './PerfilSubComponents';
-import AparenciaPanel from './AparenciaPanel';
 
 export default function PerfilPanel({ className, children }) {
     const hasChildren = React.Children.count(children) > 0
@@ -12,7 +11,6 @@ export default function PerfilPanel({ className, children }) {
                     <>
                         <PerfilJogadorEditor />
                         <PerfilPersonagensSalvos />
-                        <AparenciaPanel />
                         <PerfilMestreToggle />
                     </>
                 )}

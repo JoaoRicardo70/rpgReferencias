@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { enviarParaJukebox, iniciarListenerJukebox } from '../../services/firebase-sync';
+import { lerVolumeMusica, salvarVolumeMusica, assinarVolumeMusica } from '../../core/configuracoes';
 
 let ytApiReady = false;
 let ytApiLoading = false;
@@ -32,15 +33,7 @@ function carregarYouTubeApi() {
 }
 
 // Volume da música é só seu (não vai para os outros): fica guardado neste computador.
-const CHAVE_VOLUME_MUSICA = 'rpg_volume_musica';
-
-function lerVolumeMusica() {
-    try {
-        const salvo = parseInt(localStorage.getItem(CHAVE_VOLUME_MUSICA), 10);
-        if (Number.isFinite(salvo)) return Math.min(100, Math.max(0, salvo));
-    } catch (e) { /* sem localStorage */ }
-    return 60;
-}
+// (a leitura/gravação fica em core/configuracoes.js, que a tela de Configurações também usa)
 
 export default function Jukebox({ className }) {
     const [inputUrl, setInputUrl] = useState('');
@@ -49,6 +42,8 @@ export default function Jukebox({ className }) {
     const [pausado, setPausado] = useState(false);
     const [volume, setVolume] = useState(lerVolumeMusica);
     const volumeRef = useRef(volume);
+    // A tela de Configurações também mexe neste volume.
+    useEffect(() => assinarVolumeMusica(v => setVolume(v)), []);
 
     const playerRef = useRef(null);
     const containerRef = useRef(null);
@@ -62,7 +57,7 @@ export default function Jukebox({ className }) {
     // é ajustado aqui, por fora, e reaplicado sempre que um player novo é criado.
     useEffect(() => {
         volumeRef.current = volume;
-        try { localStorage.setItem(CHAVE_VOLUME_MUSICA, String(volume)); } catch (e) { /* sem localStorage */ }
+        salvarVolumeMusica(volume);
         const player = playerRef.current;
         if (player && typeof player.setVolume === 'function') {
             try {

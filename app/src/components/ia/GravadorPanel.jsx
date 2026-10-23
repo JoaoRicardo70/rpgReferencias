@@ -6,6 +6,7 @@ import {
     OPCOES_DURACAO_CLIPE, extensaoDoTipo, extrairCabecalho, montarClipe, nomeArquivoClipe, podarChunks
 } from '../../core/clipes';
 import { criarPipelineDeVideo } from '../../core/pipelineVideo';
+import { eventoCombina } from '../../core/atalhos';
 
 function sanitizarNomeArquivo(nome) {
     return (nome || 'Anonimo').replace(/[^a-zA-Z0-9_-]+/g, '_');
@@ -388,7 +389,7 @@ export default function GravadorPanel() {
     // Atalho Alt+C: salva o clipe de qualquer aba do app (o gravador continua montado em segundo plano).
     useEffect(() => {
         const aoTeclar = (e) => {
-            if (e.repeat || !e.altKey || e.ctrlKey || e.metaKey || (e.key !== 'c' && e.key !== 'C')) return;
+            if (e.repeat || !eventoCombina(e, 'gravarClipe')) return;
             // Só "engole" o atalho quando há algo sendo gravado.
             if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') return;
             e.preventDefault();

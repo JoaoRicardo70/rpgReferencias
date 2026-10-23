@@ -18,11 +18,10 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-describe('PerfilPanel - aparencia', () => {
-    it('mostra o painel de Aparencia', () => {
+describe('PerfilPanel - aparencia (agora em Configuracoes)', () => {
+    it('nao mostra mais o painel de Aparencia (foi para a aba Configuracoes)', () => {
         const { container } = render(<PerfilPanel />);
-        expect(container.querySelector('.aparencia-panel')).not.toBeNull();
-        expect(screen.getByText(/Aparência/)).toBeTruthy();
+        expect(container.querySelector('.aparencia-panel')).toBeNull();
     });
     it('com children customizados nao mostra o painel', () => {
         const { container } = render(<PerfilPanel><div>custom</div></PerfilPanel>);

@@ -29,10 +29,12 @@ import { ABA_HUB, cssLarguraGaveta } from './core/modoNavegacao';
 import lazyComRetry, { importarComRetry } from './components/layout/lazyComRetry';
 import EfeitosDeFundo from './components/combate/EfeitosDeFundo';
 import { lerTemaSalvo, aplicarTemaNoBody } from './core/temasApp';
+import { lerConfig, aplicarConfigVisual } from './core/configuracoes';
 import ModalConfirm from './components/perfil/ModalConfirm';
 
 // 🚀 Cada aba é carregada sob demanda (1ª visita): o app abre mais rápido e o código pesado não pesa na entrada.
 const PerfilPanel = lazyComRetry(() => import('./components/perfil/PerfilPanel'));
+const ConfiguracoesPanel = lazyComRetry(() => import('./components/perfil/ConfiguracoesPanel'));
 const FeedCombate = lazyComRetry(() => import('./components/feed/FeedCombate'));
 const MapaPanel = lazyComRetry(() => import('./components/mapa/MapaPanel'));
 const CompendioPanel = lazyComRetry(() => import('./components/compendio/CompendioPanel'));
@@ -168,6 +170,8 @@ export default function App() {
     useEffect(() => { preCarregarAbas(); }, []);
     // O estilo visual escolhido (Perfil > Aparência, ou o Lobby) vale já na abertura, não só quando o Lobby aparece.
     useEffect(() => { aplicarTemaNoBody(lerTemaSalvo()); }, []);
+    // Tamanho da interface e animações reduzidas (⚙️ Configurações) também valem já na abertura.
+    useEffect(() => { aplicarConfigVisual(lerConfig()); }, []);
 
     // ATALHO SECRETO (F5 / CTRL+R) PARA ATUALIZAR O APP
     useEffect(() => {
@@ -361,6 +365,7 @@ export default function App() {
                 <div className={`main-content${isMapMode ? ' modo-mapa' : ''}`}>
                     {!isMapMode && modoNavegacao === 'barra' && <h1 className="title">RPG Anime System</h1>}
                     <AbaCarregavel id="aba-perfil" className={classeAba('aba-perfil')}><PerfilPanel /></AbaCarregavel>
+                    <AbaCarregavel id="aba-config" className={classeAba('aba-config')}><ConfiguracoesPanel /></AbaCarregavel>
                     <AbaCarregavel id="aba-mestre" className={classeAba('aba-mestre')}><MestrePanel /></AbaCarregavel>
                     <AbaCarregavel id="aba-combate" className={classeAba('aba-combate')}><PainelCombate /></AbaCarregavel>
                     <AbaCarregavel id="aba-log" className={classeAba('aba-log')}><FeedCombate /></AbaCarregavel>

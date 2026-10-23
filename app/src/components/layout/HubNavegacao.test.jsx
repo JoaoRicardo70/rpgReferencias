@@ -55,10 +55,10 @@ describe('HubNavegacao', () => {
         fireEvent.click(chip('Ficha', /Grimório/));
         expect(useStore.getState().abaAtiva).toBe('aba-grimorio');
     });
-    it('modos de uma aba so (Combate, Mapa, Perfil) nao tem chips', () => {
+    it('modos de uma aba so (Combate, Mapa) nao tem chips; Perfil tem Perfil e Configuracoes', () => {
         render(<HubNavegacao />);
         expect(cartao('Mapa').querySelector('.hub-cartao-chips')).toBeNull();
-        expect(cartao('Perfil').querySelector('.hub-cartao-chips')).toBeNull();
+        expect(cartao('Perfil').querySelectorAll('.hub-chip')).toHaveLength(2);
         expect(cartao('Combate').querySelector('.hub-cartao-chips')).toBeNull();
         expect(cartao('Ficha').querySelectorAll('.hub-chip')).toHaveLength(2);
     });
