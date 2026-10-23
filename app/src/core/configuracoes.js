@@ -11,7 +11,18 @@ export const PADROES_CONFIG = {
     volumeVozes: 100,     // % aplicado por cima do volume individual de cada jogador (0-100)
     volumeSexta: 100,     // % da voz da Sexta-Feira (0-100)
     tamanhoInterface: 100, // % de zoom do app (80-130)
-    reduzirAnimacoes: false
+    reduzirAnimacoes: false,
+    // 🎲 Animação do dado: física (cai, quica e rola), simples (arremesso fixo) ou desligada.
+    dadoModo: 'fisica',
+    // Efeitos nos resultados especiais (crítico, fatal, falha): intensos (tremor, faíscas, brasas), suaves ou desligados.
+    dadoEfeitos: 'intensos',
+    // Lançar o dado com a mão: arrastar e soltar (senão ele é lançado sozinho).
+    dadoMao: false
+};
+
+export const OPCOES_ENUM_CONFIG = {
+    dadoModo: ['fisica', 'simples', 'desligado'],
+    dadoEfeitos: ['intensos', 'suaves', 'desligados']
 };
 
 export const LIMITES_CONFIG = {
@@ -32,6 +43,8 @@ function normalizar(bruto, base = PADROES_CONFIG) {
         if (bruto[k] !== undefined && bruto[k] !== null && bruto[k] !== '' && Number.isFinite(n)) saida[k] = limitar(Math.round(n), LIMITES_CONFIG[k]);
     });
     if (typeof bruto.reduzirAnimacoes === 'boolean') saida.reduzirAnimacoes = bruto.reduzirAnimacoes;
+    if (typeof bruto.dadoMao === 'boolean') saida.dadoMao = bruto.dadoMao;
+    Object.keys(OPCOES_ENUM_CONFIG).forEach(k => { if (OPCOES_ENUM_CONFIG[k].includes(bruto[k])) saida[k] = bruto[k]; });
     return saida;
 }
 
@@ -99,4 +112,11 @@ export function aplicarConfigVisual(config, doc) {
     // `zoom` escala a página inteira (fontes, caixas, imagens) sem refazer o layout.
     d.documentElement.style.zoom = c.tamanhoInterface === 100 ? '' : String(c.tamanhoInterface / 100);
     if (d.body) d.body.classList.toggle('reduzir-animacoes', !!c.reduzirAnimacoes);
+}
+
+// Configuração efetiva da animação do dado. "Reduzir animações" vence: dado simples, sem efeitos e sem lançar com a mão.
+export function getConfigDado(config) {
+    const c = config || lerConfig();
+    if (c.reduzirAnimacoes) return { modo: c.dadoModo === 'desligado' ? 'desligado' : 'simples', efeitos: 'desligados', mao: false };
+    return { modo: c.dadoModo, efeitos: c.dadoEfeitos, mao: !!c.dadoMao && c.dadoModo === 'fisica' };
 }

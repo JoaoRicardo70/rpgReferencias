@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import ConfiguracoesPanel from './ConfiguracoesPanel';
 import useStore from '../../stores/useStore';
@@ -72,7 +72,51 @@ describe('ConfiguracoesPanel - volumes', () => {
     });
     it('botao Testar nao quebra sem speechSynthesis', () => {
         render(<ConfiguracoesPanel />);
-        expect(() => fireEvent.click(screen.getByText(/Testar/))).not.toThrow();
+        const secaoVolume = screen.getByText(/Volume/, { selector: 'h3' }).closest('.config-secao');
+        expect(() => fireEvent.click(within(secaoVolume).getByRole('button', { name: /Testar/ }))).not.toThrow();
+    });
+});
+
+describe('ConfiguracoesPanel - animacao do dado', () => {
+    it('mostra a secao com os padroes (fisica, intensos, sem mao)', () => {
+        render(<ConfiguracoesPanel />);
+        expect(screen.getByText(/Animação do dado/, { selector: 'h3' })).toBeTruthy();
+        expect(screen.getByLabelText('Modo da animação do dado').value).toBe('fisica');
+        expect(screen.getByLabelText('Efeitos nos resultados especiais do dado').value).toBe('intensos');
+        expect(screen.getByLabelText(/Lançar o dado com a mão/).checked).toBe(false);
+    });
+    it('select de modo grava dadoModo', () => {
+        render(<ConfiguracoesPanel />);
+        fireEvent.change(screen.getByLabelText('Modo da animação do dado'), { target: { value: 'simples' } });
+        expect(config().dadoModo).toBe('simples');
+    });
+    it('select de efeitos grava dadoEfeitos', () => {
+        render(<ConfiguracoesPanel />);
+        fireEvent.change(screen.getByLabelText('Efeitos nos resultados especiais do dado'), { target: { value: 'suaves' } });
+        expect(config().dadoEfeitos).toBe('suaves');
+    });
+    it('checkbox da mao grava dadoMao e fica desabilitado fora do modo fisica', () => {
+        render(<ConfiguracoesPanel />);
+        const cb = screen.getByLabelText(/Lançar o dado com a mão/);
+        fireEvent.click(cb);
+        expect(config().dadoMao).toBe(true);
+        fireEvent.change(screen.getByLabelText('Modo da animação do dado'), { target: { value: 'desligado' } });
+        expect(screen.getByLabelText(/Lançar o dado com a mão/).disabled).toBe(true);
+    });
+    it('aviso aparece quando "Reduzir animacoes" esta ligado', () => {
+        localStorage.setItem('rpg_config', JSON.stringify({ reduzirAnimacoes: true }));
+        render(<ConfiguracoesPanel />);
+        expect(screen.getByText(/Reduzir animações" está ligado/)).toBeTruthy();
+    });
+    it.each([['Comum', 'normal'], ['Crítico', 'critico'], ['Fatal', 'fatal'], ['Falha', 'falha']])('botao %s dispara rpg-testar-dado com nivel %s', (nome, nivel) => {
+        const ouvinte = vi.fn();
+        window.addEventListener('rpg-testar-dado', ouvinte);
+        try {
+            render(<ConfiguracoesPanel />);
+            fireEvent.click(screen.getByRole('button', { name: new RegExp(nome) }));
+            expect(ouvinte).toHaveBeenCalledTimes(1);
+            expect(ouvinte.mock.calls[0][0].detail).toEqual({ nivel });
+        } finally { window.removeEventListener('rpg-testar-dado', ouvinte); }
     });
 });
 

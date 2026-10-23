@@ -119,6 +119,47 @@ function SecaoTela({ config }) {
     );
 }
 
+// 🎲 Animação do dado: modo (física / simples / desligada), efeitos nos resultados especiais e lançar com a mão.
+function SecaoDado({ config }) {
+    const testar = (nivel) => window.dispatchEvent(new CustomEvent('rpg-testar-dado', { detail: { nivel } }));
+    const reduzido = config.reduzirAnimacoes;
+    return (
+        <div className="def-box config-secao">
+            <h3 className="config-titulo">🎲 Animação do dado</h3>
+            {reduzido && <p className="config-aviso">"Reduzir animações" está ligado: o dado usa o modo simples, sem efeitos.</p>}
+            <label className="config-linha">
+                <span className="config-rotulo">Modo</span>
+                <select className="input-neon config-select" value={config.dadoModo} onChange={e => salvarConfig({ dadoModo: e.target.value })} aria-label="Modo da animação do dado">
+                    <option value="fisica">Física: o dado cai, quica e rola</option>
+                    <option value="simples">Simples: arremesso fixo</option>
+                    <option value="desligado">Desligada: só o resultado no Feed</option>
+                </select>
+            </label>
+            <label className="config-linha">
+                <span className="config-rotulo">Efeitos especiais</span>
+                <select className="input-neon config-select" value={config.dadoEfeitos} onChange={e => salvarConfig({ dadoEfeitos: e.target.value })} aria-label="Efeitos nos resultados especiais do dado">
+                    <option value="intensos">Intensos: tremor, brasas, faíscas e rachaduras</option>
+                    <option value="suaves">Suaves: poucas partículas, sem tremor nem clarão</option>
+                    <option value="desligados">Desligados</option>
+                </select>
+                <span className="config-dica">Valem para Crítico, Crítico Fatal e Falha Crítica.</span>
+            </label>
+            <label className="config-linha config-linha-check">
+                <input type="checkbox" checked={config.dadoMao} disabled={config.dadoModo !== 'fisica'} onChange={e => salvarConfig({ dadoMao: e.target.checked })} />
+                <span className="config-rotulo">Lançar o dado com a mão</span>
+                <span className="config-dica">Você arrasta o dado e solta para lançar (só no modo Física, nas suas rolagens). Sem mexer por uns segundos, ele é lançado sozinho.</span>
+            </label>
+            <div className="config-linha">
+                <span className="config-rotulo">Testar</span>
+                <button type="button" className="btn-neon config-botao" onClick={() => testar('normal')}>🎲 Comum</button>
+                <button type="button" className="btn-neon config-botao" onClick={() => testar('critico')}>⚡ Crítico</button>
+                <button type="button" className="btn-neon config-botao" onClick={() => testar('fatal')}>🔥 Fatal</button>
+                <button type="button" className="btn-neon config-botao" onClick={() => testar('falha')}>💀 Falha</button>
+            </div>
+        </div>
+    );
+}
+
 export default function ConfiguracoesPanel({ className }) {
     const [config, setConfig] = useState(() => lerConfig());
     useEffect(() => assinarConfig(c => { setConfig(c); aplicarConfigVisual(c); }), []);
@@ -146,6 +187,7 @@ export default function ConfiguracoesPanel({ className }) {
             <SecaoAudio key={`a${versao}`} config={config} />
             <SecaoAtalhos key={`k${versao}`} />
             <SecaoTela config={config} />
+            <SecaoDado config={config} />
             <AparenciaPanel />
             <div className="config-rodape">
                 <button type="button" className="btn-neon btn-red config-botao" onClick={restaurarTudo}>↺ Restaurar configurações</button>

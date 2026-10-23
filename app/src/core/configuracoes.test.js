@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
     CHAVE_CONFIG, CHAVE_VOLUME_MUSICA, PADROES_CONFIG, lerConfig, salvarConfig, restaurarConfig, assinarConfig,
-    lerVolumeMusica, salvarVolumeMusica, assinarVolumeMusica, aplicarConfigVisual, fracaoVolumeVozes, fracaoVolumeSexta
+    lerVolumeMusica, salvarVolumeMusica, assinarVolumeMusica, aplicarConfigVisual, fracaoVolumeVozes, fracaoVolumeSexta,
+    OPCOES_ENUM_CONFIG, getConfigDado
 } from './configuracoes';
 
 beforeEach(() => {
@@ -27,7 +28,7 @@ describe('lerConfig', () => {
     });
     it('le valores validos', () => {
         localStorage.setItem(CHAVE_CONFIG, JSON.stringify({ volumeVozes: 40, volumeSexta: 10, tamanhoInterface: 110, reduzirAnimacoes: true }));
-        expect(lerConfig()).toEqual({ volumeVozes: 40, volumeSexta: 10, tamanhoInterface: 110, reduzirAnimacoes: true });
+        expect(lerConfig()).toEqual({ ...PADROES_CONFIG, volumeVozes: 40, volumeSexta: 10, tamanhoInterface: 110, reduzirAnimacoes: true });
     });
     it('storage injetado', () => {
         expect(lerConfig({ getItem: () => JSON.stringify({ volumeVozes: 5 }) }).volumeVozes).toBe(5);
@@ -66,7 +67,7 @@ describe('limites e normalizacao', () => {
     });
     it('valores ruins ja gravados sao normalizados na leitura', () => {
         localStorage.setItem(CHAVE_CONFIG, JSON.stringify({ volumeVozes: 900, volumeSexta: 'lixo', tamanhoInterface: 1, reduzirAnimacoes: 'x' }));
-        expect(lerConfig()).toEqual({ volumeVozes: 100, volumeSexta: 100, tamanhoInterface: 80, reduzirAnimacoes: false });
+        expect(lerConfig()).toEqual({ ...PADROES_CONFIG, volumeVozes: 100, volumeSexta: 100, tamanhoInterface: 80, reduzirAnimacoes: false });
     });
     it('campos desconhecidos nao sao persistidos', () => {
         salvarConfig({ hack: 1 });
@@ -230,5 +231,70 @@ describe('aplicarConfigVisual', () => {
         aplicarConfigVisual({ tamanhoInterface: 90, reduzirAnimacoes: true }, doc);
         expect(doc.documentElement.style.zoom).toBe('0.9');
         expect(() => aplicarConfigVisual({ tamanhoInterface: 90 }, {})).not.toThrow();
+    });
+});
+
+describe('animacao do dado: padroes e normalizacao', () => {
+    it('padroes: fisica, efeitos intensos, sem mao', () => {
+        expect(PADROES_CONFIG.dadoModo).toBe('fisica');
+        expect(PADROES_CONFIG.dadoEfeitos).toBe('intensos');
+        expect(PADROES_CONFIG.dadoMao).toBe(false);
+        expect(OPCOES_ENUM_CONFIG.dadoModo).toEqual(['fisica', 'simples', 'desligado']);
+        expect(OPCOES_ENUM_CONFIG.dadoEfeitos).toEqual(['intensos', 'suaves', 'desligados']);
+    });
+    it.each(['fisica', 'simples', 'desligado'])('dadoModo %s e aceito', (m) => {
+        expect(salvarConfig({ dadoModo: m }).dadoModo).toBe(m);
+        expect(lerConfig().dadoModo).toBe(m);
+    });
+    it.each(['intensos', 'suaves', 'desligados'])('dadoEfeitos %s e aceito', (m) => {
+        expect(salvarConfig({ dadoEfeitos: m }).dadoEfeitos).toBe(m);
+    });
+    it.each([['turbo'], [''], [null], [undefined], [3], [{}], ['FISICA']])('dadoModo invalido %s e ignorado e mantem o salvo', (ruim) => {
+        salvarConfig({ dadoModo: 'simples' });
+        expect(salvarConfig({ dadoModo: ruim }).dadoModo).toBe('simples');
+        expect(lerConfig().dadoModo).toBe('simples');
+    });
+    it.each([['forte'], [true], [null], ['desligado']])('dadoEfeitos invalido %s e ignorado e mantem o salvo', (ruim) => {
+        salvarConfig({ dadoEfeitos: 'suaves' });
+        expect(salvarConfig({ dadoEfeitos: ruim }).dadoEfeitos).toBe('suaves');
+    });
+    it('dadoMao so aceita booleano', () => {
+        expect(salvarConfig({ dadoMao: true }).dadoMao).toBe(true);
+        expect(salvarConfig({ dadoMao: 'nao' }).dadoMao).toBe(true);
+        expect(salvarConfig({ dadoMao: 0 }).dadoMao).toBe(true);
+        expect(salvarConfig({ dadoMao: false }).dadoMao).toBe(false);
+    });
+    it('valores ruins ja gravados no storage caem nos padroes na leitura', () => {
+        localStorage.setItem(CHAVE_CONFIG, JSON.stringify({ dadoModo: 'x', dadoEfeitos: 7, dadoMao: 'sim' }));
+        const c = lerConfig();
+        expect(c.dadoModo).toBe('fisica');
+        expect(c.dadoEfeitos).toBe('intensos');
+        expect(c.dadoMao).toBe(false);
+    });
+    it('salvar outro campo preserva os campos do dado', () => {
+        salvarConfig({ dadoModo: 'simples', dadoEfeitos: 'suaves', dadoMao: true });
+        salvarConfig({ volumeVozes: 10 });
+        expect(lerConfig()).toMatchObject({ dadoModo: 'simples', dadoEfeitos: 'suaves', dadoMao: true, volumeVozes: 10 });
+    });
+});
+
+describe('getConfigDado', () => {
+    it('padrao: fisica, intensos, sem mao', () => {
+        expect(getConfigDado()).toEqual({ modo: 'fisica', efeitos: 'intensos', mao: false });
+    });
+    it('le do storage quando nao recebe config', () => {
+        salvarConfig({ dadoModo: 'simples', dadoEfeitos: 'suaves' });
+        expect(getConfigDado()).toEqual({ modo: 'simples', efeitos: 'suaves', mao: false });
+    });
+    it('mao so vale no modo fisica', () => {
+        expect(getConfigDado({ ...PADROES_CONFIG, dadoMao: true }).mao).toBe(true);
+        expect(getConfigDado({ ...PADROES_CONFIG, dadoMao: true, dadoModo: 'simples' }).mao).toBe(false);
+        expect(getConfigDado({ ...PADROES_CONFIG, dadoMao: true, dadoModo: 'desligado' }).mao).toBe(false);
+    });
+    it('reduzirAnimacoes forca simples, sem efeitos e sem mao', () => {
+        expect(getConfigDado({ ...PADROES_CONFIG, reduzirAnimacoes: true, dadoMao: true })).toEqual({ modo: 'simples', efeitos: 'desligados', mao: false });
+    });
+    it('reduzirAnimacoes respeita o modo desligado', () => {
+        expect(getConfigDado({ ...PADROES_CONFIG, reduzirAnimacoes: true, dadoModo: 'desligado' }).modo).toBe('desligado');
     });
 });

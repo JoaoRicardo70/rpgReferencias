@@ -120,7 +120,7 @@ describe('salvarAtalho / restaurarAtalhos', () => {
     it('modificador de abas invalido e recusado', () => {
         const r = salvarAtalho('abas', 'Alt+K');
         expect(r.ok).toBe(false);
-        expect(r.motivo).toMatch(/Ctrl, Alt e\/ou Shift/);
+        expect(r.motivo).toMatch(/Escolha um modificador com Ctrl ou Alt/);
     });
     it('modificador de abas valido e salvo', () => {
         expect(salvarAtalho('abas', 'Ctrl+Shift').ok).toBe(true);

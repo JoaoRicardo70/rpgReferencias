@@ -75,7 +75,8 @@ describe('MapaDadoAnimado', () => {
         expect(q('.dado-raios')).not.toBeNull();
         expect(q('.dado-clarao')).not.toBeNull();
         expect(q('.dado-onda')).not.toBeNull();
-        expect(document.body.querySelectorAll('.dado-fagulha').length).toBe(16);
+        expect(cena.classList.contains('dado-sacode')).toBe(true);
+        expect(q('canvas.dado-particulas')).not.toBeNull();
         expect(q('.dado-quem').textContent).toContain('rolou');
         expect(q('.dado-quem').textContent).not.toContain('está rolando');
     });
@@ -103,7 +104,9 @@ describe('MapaDadoAnimado', () => {
         expect(q('.dado-rotulo').textContent).toContain('CRÍTICO!');
         expect(q('.dado-raios')).not.toBeNull();
         expect(q('.dado-clarao')).toBeNull();
-        expect(document.body.querySelectorAll('.dado-fagulha').length).toBe(16);
+        expect(q('.dado-cena').classList.contains('dado-sacode-leve')).toBe(true);
+        expect(q('.dado-cena').classList.contains('dado-sacode')).toBe(false);
+        expect(q('canvas.dado-particulas')).not.toBeNull();
     });
     it('pousado falha: FALHA CRÍTICA sem raios nem fagulhas', () => {
         mockar({ ...base, numero: 1, nivel: 'falha', finalResult: 1 });
@@ -111,6 +114,8 @@ describe('MapaDadoAnimado', () => {
         expect(q('.dado-rotulo').textContent).toContain('FALHA CRÍTICA');
         expect(q('.dado-raios')).toBeNull();
         expect(q('.dado-fagulhas')).toBeNull();
+        expect(q('svg.dado-rachaduras')).not.toBeNull();
+        expect(q('.dado-cena').classList.contains('dado-sacode')).toBe(false);
     });
     it('pousado normal: ROLADO! sem raios', () => {
         mockar({ ...base, nivel: 'normal', finalResult: 17 });
@@ -168,5 +173,63 @@ describe('MapaDadoAnimado', () => {
         render(<MapaDadoAnimado />);
         expect(q('.dado-cena').style.getPropertyValue('--cor-dado')).toBe('#ffcc00');
         expect(q('[data-testid="canvas-mock"]')).not.toBeNull();
+    });
+    it('modo fisico: so conta como pousado quando dadoAnim.pousou', () => {
+        mockar({ ...base, fisica: true, id: 'a1', finalResult: 17, pousou: false, nivel: 'critico', cor: '#ffcc00' });
+        render(<MapaDadoAnimado />);
+        expect(q('.dado-cena').classList.contains('dado-fisica')).toBe(true);
+        expect(q('.dado-cena').classList.contains('dado-no-ar')).toBe(true);
+        expect(q('.dado-rotulo')).toBeNull();
+        expect(q('.dado-raios')).toBeNull();
+        expect(q('canvas.dado-particulas')).toBeNull();
+        expect(q('.dado-quem').textContent).toContain('está rolando');
+        const ultimo = canvasProps[canvasProps.length - 1];
+        expect(typeof ultimo.fisica.aoPousar).toBe('function');
+        limpar();
+        mockar({ ...base, fisica: true, id: 'a1', finalResult: 17, pousou: true, nivel: 'critico', cor: '#ffcc00' });
+        render(<MapaDadoAnimado />);
+        expect(q('.dado-cena').classList.contains('dado-pousou')).toBe(true);
+        expect(q('.dado-rotulo').textContent).toContain('CRÍTICO!');
+        expect(q('canvas.dado-particulas')).not.toBeNull();
+    });
+    it('modo fisico segurando: dica, classe e texto "vai lancar"', () => {
+        mockar({ ...base, fisica: true, id: 'a2', finalResult: 17, pousou: false, segurando: true });
+        render(<MapaDadoAnimado />);
+        expect(q('.dado-cena').classList.contains('dado-segurando')).toBe(true);
+        expect(q('.dado-dica-mao')).not.toBeNull();
+        expect(q('.dado-quem').textContent).toContain('vai lançar o dado');
+    });
+    it('efeitos suaves: sem tremor, sem clarao, mas com particulas e raios', () => {
+        mockar({ ...base, numero: 20, nivel: 'fatal', finalResult: 20, efeitos: 'suaves' });
+        render(<MapaDadoAnimado />);
+        expect(q('.dado-cena').classList.contains('dado-sacode')).toBe(false);
+        expect(q('.dado-clarao')).toBeNull();
+        expect(q('.dado-raios')).not.toBeNull();
+        expect(q('canvas.dado-particulas')).not.toBeNull();
+    });
+    it('efeitos desligados: so o rotulo (sem raios, onda, particulas ou tremor)', () => {
+        mockar({ ...base, numero: 20, nivel: 'fatal', finalResult: 20, efeitos: 'desligados' });
+        render(<MapaDadoAnimado />);
+        expect(q('.dado-rotulo')).not.toBeNull();
+        expect(q('.dado-raios')).toBeNull();
+        expect(q('.dado-onda')).toBeNull();
+        expect(q('.dado-clarao')).toBeNull();
+        expect(q('canvas.dado-particulas')).toBeNull();
+        expect(q('.dado-cena').classList.contains('dado-sacode')).toBe(false);
+    });
+    it('modo fisico pousado: fecha a cena apos duracaoMs, so se for o mesmo dado', () => {
+        vi.useFakeTimers();
+        try {
+            const setDadoAnim = vi.fn();
+            mockar({ ...base, fisica: true, id: 'a3', finalResult: 17, pousou: true, duracaoMs: 1500 }, { setDadoAnim });
+            render(<MapaDadoAnimado />);
+            expect(setDadoAnim).not.toHaveBeenCalled();
+            vi.advanceTimersByTime(1500);
+            expect(setDadoAnim).toHaveBeenCalledTimes(1);
+            const atualiza = setDadoAnim.mock.calls[0][0];
+            expect(atualiza({ id: 'a3', ativo: true }).ativo).toBe(false);
+            const outro = { id: 'outro', ativo: true };
+            expect(atualiza(outro)).toBe(outro);
+        } finally { vi.useRealTimers(); }
     });
 });

@@ -7,10 +7,9 @@ import { salvarDummie, enviarParaFeed, salvarCenarioCompleto } from '../../servi
 import { calcularDano } from '../../core/engine';
 
 // ---------------------------------------------------------------------------
-// QA - Dano de dado proporcional a Vida do alvo no Ataque (core/danoProporcional.js):
-// primeiro a escala pela Vida maxima do dummie (1 ponto = Vida / pontosDanoVida, padrao 200),
-// DEPOIS o fator da Disputa de Poder. Cobre rolarDano (alvo unico e area), rolarDanoCustomizado
-// (Modo Deus) e a marca danoDeDados na Zona gerada.
+// QA - Dano proporcional a Vida. O Dano de Ataque (calcularDano = dados + Status) NAO e mais reescalado
+// pela Vida do alvo: segue Disputa de Poder -> Reducoes/Resistencias -> Vida. So a formula livre
+// (rolarDanoCustomizado) continua proporcional a Vida (core/danoProporcional.js). A Zona gerada nasce danoDeDados=false.
 // ---------------------------------------------------------------------------
 
 vi.mock('../../stores/useStore');
@@ -20,6 +19,10 @@ vi.mock('../../services/firebase-sync', () => ({
     enviarParaFeed: vi.fn(),
     salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
+    aplicarDanoDireto: vi.fn(),
+    aplicarFadigaDireta: vi.fn(),
+    aplicarElementoDireto: vi.fn(),
+    aplicarElementoNivelDireto: vi.fn(),
 }));
 vi.mock('../../core/disputaPoder', async (importOriginal) => {
     const real = await importOriginal();
@@ -69,77 +72,72 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-describe('rolarDano - alvo unico: dado proporcional a Vida', () => {
-    it('35 de rolagem contra Vida 200.000 = 35.000 aplicados (exemplo da regra)', () => {
+describe('rolarDano - alvo unico: dano de Ataque (calcularDano) NAO e reescalado pela Vida', () => {
+    it('35 de dano contra Vida 200.000 = 35 aplicados (fatorVida 1)', () => {
         montar({ dummies: { g1: dummie(200000) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
-        expect(feedEnviado().danoAplicado).toBe(35000);
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 35000) * FATOR }));
+        expect(feedEnviado().danoAplicado).toBe(35);
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 35) * FATOR }));
     });
-    it('feed: dano continua a rolagem crua e fatorVida = Vida / 200', () => {
+    it('feed: dano e danoAplicado iguais e fatorVida = 1', () => {
         montar({ dummies: { g1: dummie(200000) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
         const feed = feedEnviado();
         expect(feed.tipo).toBe('dano');
         expect(feed.dano).toBe(35);
-        expect(feed.danoAplicado).toBe(35000);
-        expect(feed.fatorVida).toBe(1000);
+        expect(feed.danoAplicado).toBe(35);
+        expect(feed.fatorVida).toBe(1);
     });
-    it('Vida 200 (= pontos padrao): fator 1, dano igual a rolagem', () => {
+    it('Vida 200: dano igual a rolagem', () => {
         montar({ dummies: { g1: dummie(200) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
         expect(feedEnviado().danoAplicado).toBe(35);
         expect(feedEnviado().fatorVida).toBe(1);
     });
-    it('Vida menor que 200: dano diminui (fator < 1), arredondado para baixo', () => {
+    it('Vida menor que 200: dano NAO diminui', () => {
         montar({ dummies: { g1: dummie(100) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
-        expect(feedEnviado().fatorVida).toBe(0.5);
-        expect(feedEnviado().danoAplicado).toBe(17); // 17,5
+        expect(feedEnviado().fatorVida).toBe(1);
+        expect(feedEnviado().danoAplicado).toBe(35);
     });
-    it('pontosDanoVida da mesa muda a escala (100 pontos = Vida inteira)', () => {
+    it('pontosDanoVida da mesa nao afeta o dano de Ataque', () => {
         montar({ dummies: { g1: dummie(200000) }, alvoSelecionado: 'g1', cenario: { zonas: [], pontosDanoVida: 100 } });
         act(() => { probe.rolarDano(); });
-        expect(feedEnviado().danoAplicado).toBe(70000);
-        expect(feedEnviado().fatorVida).toBe(2000);
+        expect(feedEnviado().danoAplicado).toBe(35);
+        expect(feedEnviado().fatorVida).toBe(1);
     });
-    it('pontosDanoVida invalido (0) cai no padrao 200', () => {
-        montar({ dummies: { g1: dummie(200000) }, alvoSelecionado: 'g1', cenario: { zonas: [], pontosDanoVida: 0 } });
-        act(() => { probe.rolarDano(); });
-        expect(feedEnviado().danoAplicado).toBe(35000);
-    });
-    it('dummie sem hpMax: Vida desconhecida, dano como veio e fatorVida 1', () => {
+    it('dummie sem hpMax: dano como veio e fatorVida 1', () => {
         montar({ dummies: { g1: { nome: 'Goblin', hpAtual: 5000000, valorDefesa: 10 } }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
         expect(feedEnviado().danoAplicado).toBe(35);
         expect(feedEnviado().fatorVida).toBe(1);
     });
-    it('escala PRIMEIRO, Disputa DEPOIS: 35 x 1000 x 1,1 = 38.500', () => {
+    it('Disputa direta sobre o dano: 35 x 1,1 = 38 (sem escala pela Vida)', () => {
         montar({ meuPoder: 1100, dummies: { g1: dummie(200000, { poder: 1000 }) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
         const feed = feedEnviado();
         expect(feed.dano).toBe(35);
-        expect(feed.danoAplicado).toBe(38500);
-        expect(feed.fatorVida).toBe(1000);
+        expect(feed.danoAplicado).toBe(38);
+        expect(feed.fatorVida).toBe(1);
         expect(feed.efetividade).toBe('alta');
     });
-    it('Disputa reduzindo: 35 x 1000 x 0,5 = 17.500', () => {
+    it('Disputa reduzindo: 35 x 0,5 = 17', () => {
         montar({ meuPoder: 1000, dummies: { g1: dummie(200000, { poder: 1500 }) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
-        expect(feedEnviado().danoAplicado).toBe(17500);
+        expect(feedEnviado().danoAplicado).toBe(17);
     });
-    it('Disputa que anula (dobro do Poder) continua dando 0 mesmo com escala', () => {
+    it('Disputa que anula (dobro do Poder) continua dando 0', () => {
         montar({ meuPoder: 1000, dummies: { g1: dummie(200000, { poder: 2000 }) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
         expect(feedEnviado().danoAplicado).toBe(0);
         expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 200000 * FATOR }));
     });
-    it('overkill e alvoSobreviveu usam o dano ja escalado', () => {
-        montar({ dummies: { g1: dummie(200000, { hpAtual: 30000 }) }, alvoSelecionado: 'g1' });
+    it('overkill e alvoSobreviveu usam o dano aplicado', () => {
+        montar({ dummies: { g1: dummie(200000, { hpAtual: 30 }) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
         const feed = feedEnviado();
-        expect(feed.danoAplicado).toBe(35000);
-        expect(feed.overkill).toBe(5000);
+        expect(feed.danoAplicado).toBe(35);
+        expect(feed.overkill).toBe(5);
         expect(feed.alvoSobreviveu).toBe(false);
         expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 0 }));
     });
@@ -158,80 +156,116 @@ describe('rolarDano - alvo unico: dado proporcional a Vida', () => {
     });
 });
 
-describe('rolarDano - area: cada dummie escala pela PROPRIA Vida', () => {
+describe('rolarDano - alvo com Vida 10.000 (fator 50 na regra antiga): dano 1.228 segue direto', () => {
+    const alvo10k = (extra = {}) => dummie(10000, extra);
+    it('aplica 1.228 (e NAO 61.400)', () => {
+        setDano(1228);
+        montar({ dummies: { g1: alvo10k() }, alvoSelecionado: 'g1' });
+        act(() => { probe.rolarDano(); });
+        const feed = feedEnviado();
+        expect(feed.danoAplicado).toBe(1228);
+        expect(feed.danoAplicado).not.toBe(61400);
+        expect(feed.fatorVida).toBe(1);
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (10000 - 1228) * FATOR }));
+    });
+    it('Disputa de Poder 6,5M vs 6M aplica fator ~1,083 (1.228 -> 1.330)', () => {
+        setDano(1228);
+        montar({ meuPoder: 6500000, dummies: { g1: alvo10k({ poder: 6000000 }) }, alvoSelecionado: 'g1' });
+        act(() => { probe.rolarDano(); });
+        const feed = feedEnviado();
+        expect(feed.danoAplicado).toBeGreaterThanOrEqual(1329);
+        expect(feed.danoAplicado).toBeLessThanOrEqual(1331);
+        expect(feed.efetividade).toBe('alta');
+    });
+    it('Reducao de Dano da ficha do alvo (50% a tudo) reduz o dano pos-Disputa', () => {
+        setDano(1228);
+        const alvoPj = {
+            ...alvo10k({ poder: 6000000 }), isPersonagem: true, personagemNome: 'Goblin',
+            ficha: { reducoesDano: [{ nome: 'Pele de Aco', percentual: 50, alvos: ['todos'], ligada: true, ativo: true }] },
+        };
+        montar({ meuPoder: 6500000, dummies: { g1: alvoPj }, alvoSelecionado: 'g1' });
+        act(() => { probe.rolarDano(); });
+        const feed = feedEnviado();
+        expect(feed.danoAplicado).toBeLessThan(1329);
+        expect(feed.danoAplicado).toBeGreaterThan(0);
+        expect(feed.fatorVida).toBe(1);
+    });
+});
+
+describe('rolarDano - area: dano de Ataque igual para todos (sem escala pela Vida)', () => {
     const area = (...ids) => ids.map(id => ({ nome: 'Goblin', acertou: true, dummieId: id }));
 
-    it('dummies com Vidas diferentes recebem danos diferentes', () => {
+    it('dummies com Vidas diferentes perdem o MESMO dano', () => {
         montar({
             dummies: { g1: dummie(200000), g2: dummie(2000), g3: dummie(200) },
             alvosArea: area('g1', 'g2', 'g3'),
         });
         act(() => { probe.rolarDano(); });
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 35000) * FATOR }));
-        expect(salvarDummie).toHaveBeenCalledWith('g2', expect.objectContaining({ hpAtual: (2000 - 350) * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 35) * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g2', expect.objectContaining({ hpAtual: (2000 - 35) * FATOR }));
         expect(salvarDummie).toHaveBeenCalledWith('g3', expect.objectContaining({ hpAtual: (200 - 35) * FATOR }));
     });
-    it('Disputa por alvo vem DEPOIS da escala', () => {
+    it('Disputa por alvo aplica direto sobre o dano', () => {
         montar({
             meuPoder: 1000,
             dummies: { g1: dummie(200000, { poder: 500 }), g2: dummie(2000, { poder: 1000 }) },
             alvosArea: area('g1', 'g2'),
         });
         act(() => { probe.rolarDano(); });
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 70000) * FATOR }));
-        expect(salvarDummie).toHaveBeenCalledWith('g2', expect.objectContaining({ hpAtual: (2000 - 350) * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 70) * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g2', expect.objectContaining({ hpAtual: (2000 - 35) * FATOR }));
     });
-    it('detalheDisputa (so Mestre) lista tambem dummie cujo dano mudou SO pela escala', () => {
+    it('detalheDisputa (so Mestre) lista o dummie com Disputa ativa, com o dano ajustado', () => {
         montar({
-            dummies: { g1: dummie(200000) },
+            meuPoder: 1000,
+            dummies: { g1: dummie(200000, { poder: 500 }) },
             alvosArea: area('g1'),
         });
         act(() => { probe.rolarDano(); });
         const feed = feedEnviado();
-        expect(feed.detalheDisputa).toContain('Goblin: 35.000');
-        // sem disputa ativa: nenhuma efetividade
-        expect(feed.efetividadeAlvos).toEqual([]);
-        // o publico (detalheConta) nao vaza o numero
-        expect(feed.detalheConta).not.toContain('35.000');
+        expect(feed.detalheDisputa).toContain('Goblin: 70');
+        expect(feed.efetividadeAlvos).toHaveLength(1);
+        expect(feed.detalheConta).not.toContain('70');
         expect(feed.dano).toBe(35);
     });
-    it('dummie com fator 1 e sem Poder fica fora do detalheDisputa', () => {
-        montar({ dummies: { g1: dummie(200) }, alvosArea: area('g1') });
+    it('dummie sem Poder e sem reducao fica fora do detalheDisputa, qualquer que seja a Vida', () => {
+        montar({ dummies: { g1: dummie(200000), g2: dummie(200) }, alvosArea: area('g1', 'g2') });
         act(() => { probe.rolarDano(); });
         expect('detalheDisputa' in feedEnviado()).toBe(false);
         expect('efetividadeAlvos' in feedEnviado()).toBe(false);
     });
-    it('mistura: so quem mudou aparece no detalhe', () => {
+    it('mistura: so quem tem Disputa aparece no detalhe', () => {
         montar({
-            dummies: { g1: dummie(200000, { nome: 'Chefe' }), g2: dummie(200, { nome: 'Rato' }) },
+            meuPoder: 1000,
+            dummies: { g1: dummie(200000, { nome: 'Chefe', poder: 500 }), g2: dummie(200, { nome: 'Rato' }) },
             alvosArea: area('g1', 'g2'),
         });
         act(() => { probe.rolarDano(); });
         const d = feedEnviado().detalheDisputa;
-        expect(d).toContain('Chefe: 35.000');
+        expect(d).toContain('Chefe: 70');
         expect(d).not.toContain('Rato');
     });
-    it('alvo que falhou na defesa nao recebe dano nem escala', () => {
+    it('alvo que falhou na defesa nao recebe dano', () => {
         montar({ dummies: { g1: dummie(200000) }, alvosArea: [{ nome: 'Goblin', acertou: false, dummieId: 'g1' }] });
         act(() => { probe.rolarDano(); });
         expect(salvarDummie).not.toHaveBeenCalled();
     });
-    it('pontosDanoVida da mesa vale tambem na area', () => {
+    it('pontosDanoVida da mesa nao afeta a area', () => {
         montar({ dummies: { g1: dummie(200000) }, alvosArea: area('g1'), cenario: { zonas: [], pontosDanoVida: 1000 } });
         act(() => { probe.rolarDano(); });
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 7000) * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 35) * FATOR }));
     });
 });
 
 describe('rolarDano - Zona criada pelo ataque', () => {
-    it('a Zona gerada nasce marcada danoDeDados = true e guarda o dano CRU', () => {
+    it('a Zona gerada nasce com danoDeDados = false e guarda o dano CRU', () => {
         const cenario = { zonas: [{ id: 'z1', nome: 'Fogo', raio: 2 }, { id: 'z2', nome: 'Outra' }] };
         montar({ zonaIdGerada: 'z1', cenario });
         act(() => { probe.rolarDano(); });
         expect(salvarCenarioCompleto).toHaveBeenCalledTimes(1);
         const salvo = salvarCenarioCompleto.mock.calls[0][0];
         const z1 = salvo.zonas.find(z => z.id === 'z1');
-        expect(z1.danoDeDados).toBe(true);
+        expect(z1.danoDeDados).toBe(false);
         expect(z1.danoAplicado).toBe(35);
         expect(z1.danoOriginal).toBe(35);
         expect(z1.multiplicadorOriginal).toBe(1);

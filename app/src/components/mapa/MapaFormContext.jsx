@@ -4,6 +4,7 @@ import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salv
 import { calcularAcerto } from '../../core/engine';
 import { classificarRolagem } from '../../core/rolagemDado';
 import { aplicarCoresDado, lerCoresDado } from '../../core/coresDado';
+import { getConfigDado } from '../../core/configuracoes';
 import { alternarPresencaNaTaverna } from '../../core/chats';
 import { infoAvatarDaFicha } from '../../core/avatar';
 import { assinarFalhasDeImagem } from '../../core/imagemVerificada';
@@ -66,6 +67,35 @@ export function calcularCA(ficha, tipo) {
     });
 
     return Math.floor(base + bonus);
+}
+
+const DADO_FECHADO = { ativo: false, numero: 20, finalResult: null, cor: '#00ffcc', nivel: 'normal', quemRolou: '' };
+
+// 🎲 Começa a animação do dado conforme o que o jogador escolheu em ⚙️ Configurações (core/configuracoes.js > getConfigDado):
+//   desligado = nada (o resultado já está no Feed); simples = o arremesso de sempre; física = o dado cai, quica e rola
+//   (components/mapa/MapaCombate.jsx > MapaDadoAnimado; quem avisa que pousou é o próprio dado 3D).
+export function iniciarAnimacaoDado(setDadoAnim, { rawRoll, quemRolou, resultadoRolagem, souQuemRolou = false, forcar = false }) {
+    const cfg = getConfigDado();
+    if (cfg.modo === 'desligado') return;
+    if (cfg.modo === 'fisica') {
+        setDadoAnim({
+            ativo: true, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, fisica: true, numero: rawRoll, finalResult: rawRoll,
+            pousou: false, segurando: cfg.mao && souQuemRolou, efeitos: cfg.efeitos, cor: resultadoRolagem.cor, corTexto: resultadoRolagem.corTexto,
+            nivel: resultadoRolagem.nivel, duracaoMs: resultadoRolagem.duracaoMs, quemRolou, forcar
+        });
+        return;
+    }
+    setDadoAnim({ ativo: true, numero: Math.floor(Math.random() * 20) + 1, finalResult: null, cor: '#00ffcc', nivel: 'normal', quemRolou, forcar });
+    let intervalos = 0;
+    const tempoGiro = setInterval(() => {
+        setDadoAnim(prev => ({ ...prev, numero: Math.floor(Math.random() * 20) + 1 }));
+        intervalos++;
+        if (intervalos > 15) {
+            clearInterval(tempoGiro);
+            setDadoAnim({ ativo: true, numero: rawRoll, finalResult: rawRoll, cor: resultadoRolagem.cor, corTexto: resultadoRolagem.corTexto, nivel: resultadoRolagem.nivel, quemRolou, forcar, efeitos: cfg.efeitos });
+            setTimeout(() => { setDadoAnim(DADO_FECHADO); }, resultadoRolagem.duracaoMs);
+        }
+    }, 80);
 }
 
 // 🔥 Início de turno (reset de Ações + Fadiga de Combate dinâmica + Regeneração automática) — a
@@ -280,6 +310,18 @@ export function MapaFormProvider({ children }) {
         }
     }, [isMestre, meuNome, updateFicha]);
 
+    // 🎲 Botão "Testar" da tela de Configurações: rola um dado de mentira (nível: normal, critico, fatal ou falha) em qualquer aba.
+    useEffect(() => {
+        const aoTestar = (e) => {
+            const nivel = (e && e.detail && e.detail.nivel) || 'normal';
+            const valor = { normal: 13, critico: 19, fatal: 20, falha: 1 }[nivel] || 13;
+            const resultado = aplicarCoresDado(classificarRolagem({ valor, tipo: 'acerto' }), lerCoresDado());
+            iniciarAnimacaoDado(setDadoAnim, { rawRoll: valor, quemRolou: meuNome || 'Você', resultadoRolagem: resultado, souQuemRolou: true, forcar: true });
+        };
+        window.addEventListener('rpg-testar-dado', aoTestar);
+        return () => window.removeEventListener('rpg-testar-dado', aoTestar);
+    }, [meuNome]);
+
     useEffect(() => {
         if (feedCombate.length > prevFeedLen.current) {
             const newItem = feedCombate[feedCombate.length - 1];
@@ -308,23 +350,13 @@ export function MapaFormProvider({ children }) {
                     if (rawRoll > 0) {
                         const resultadoRolagem = aplicarCoresDado(classificarRolagem({ valor: rawRoll, tipo: newItem.tipo, armaStr: newItem.armaStr }), lerCoresDado());
                         const corFinal = resultadoRolagem.cor;
-                        setDadoAnim({ ativo: true, numero: Math.floor(Math.random() * 20) + 1, finalResult: null, cor: '#00ffcc', nivel: 'normal', quemRolou: newItem.nome });
-                        let intervalos = 0;
-                        const tempoGiro = setInterval(() => {
-                            setDadoAnim(prev => ({ ...prev, numero: Math.floor(Math.random() * 20) + 1 }));
-                            intervalos++;
-                            if (intervalos > 15) {
-                                clearInterval(tempoGiro);
-                                setDadoAnim({ ativo: true, numero: rawRoll, finalResult: rawRoll, cor: corFinal, corTexto: resultadoRolagem.corTexto, nivel: resultadoRolagem.nivel, quemRolou: newItem.nome });
-                                setTimeout(() => { setDadoAnim({ ativo: false, numero: 20, finalResult: null, cor: '#00ffcc', nivel: 'normal', quemRolou: '' }); }, resultadoRolagem.duracaoMs);
-                            }
-                        }, 80);
+                        iniciarAnimacaoDado(setDadoAnim, { rawRoll, quemRolou: newItem.nome, resultadoRolagem, souQuemRolou: newItem.nome === meuNome });
                     }
                 }
             }
         }
         prevFeedLen.current = feedCombate.length;
-    }, [feedCombate, abaAtiva]);
+    }, [feedCombate, abaAtiva, meuNome]);
 
     useEffect(() => {
         setMapVantagens(fichaSegura.ataqueConfig?.vantagens || 0);

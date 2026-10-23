@@ -55,7 +55,8 @@ export function DefesaFormProvider({ children }) {
     // ATACANTE_AUTO, ATACANTE_NENHUM, "p:<nome do personagem>" ou "d:<id da entidade>".
     const [atacanteInc, setAtacanteInc] = useState(ATACANTE_AUTO);
     // 🎲 O valor digitado é o número do dado (veio do feed)? Então ele pesa na MINHA Vida (core/danoProporcional.js).
-    const [danoDeDado, setDanoDeDado] = useState(true);
+    // O dano que chega de um Ataque (dados + Status) já está na escala da Vida; só a fórmula livre de dados puros pede a proporção.
+    const [danoDeDado, setDanoDeDado] = useState(false);
 
     const ultimoGolpeRecebido = useMemo(() => {
         const feed = feedCombate || [];
@@ -257,8 +258,8 @@ export function DefesaFormProvider({ children }) {
         setDanoRecebidoInc('');
         setElementoInc('fisico');
         setAtacanteInc(ATACANTE_AUTO);
-        // Volta ao padrão (dado): um dano fixo desmarcado vale só pra este golpe.
-        setDanoDeDado(true);
+        // Volta ao padrão (dano já na escala da Vida): a caixa marcada vale só pra este golpe.
+        setDanoDeDado(false);
         setAbaAtiva('aba-log');
     }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, updateFicha, salvarFichaSilencioso, setAbaAtiva, elementosDinamicos, disputaDefesa, danoDeDado]);
 

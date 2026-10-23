@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { useMapaForm, urlSeguraParaCss } from './MapaFormContext';
 import { salvarCenarioCompleto, uploadImagem } from '../../services/firebase-sync';
@@ -16,6 +16,7 @@ import gabaritoAguas from '../../assets/gabarito-aguas.png';
 import gabaritoIlha from '../../assets/gabarito-ilha.png';
 import gabaritoIonia from '../../assets/gabarito-ionia.png';
 import mapaCosmologia from '../../assets/mapa-cosmologia.png';
+import { segmentosDoOito, amostrarTrilha, escolherFases, atrasoDaFase } from '../../core/orbitasUniverso';
 
 export default function MapaMundi({ children }) {
     const cenario = useStore(s => s.cenario);
@@ -112,15 +113,15 @@ export default function MapaMundi({ children }) {
         { "id": "orichalcosA", "tipo": "estrela", "nome": "Orichalcos A", "top": "250px", "left": "250px", "size": "180px" },
         { "id": "orichalcosB", "tipo": "estrela", "nome": "Orichalcos B", "top": "250px", "left": "750px", "size": "180px" },
         { "id": "vegeta", "tipo": "planeta", "nome": "Vegeta", "color1": "#ff6666", "color2": "#990000", "shadow": "rgba(255,0,0,0.5)", "size": "45px", "tempo": "40s", "delay": "-5s", "pathIdx": 1 },
-        { "id": "namekusei", "tipo": "planeta", "nome": "Namekusei", "color1": "#66ff66", "color2": "#006600", "shadow": "rgba(0,255,0,0.5)", "size": "50px", "tempo": "50s", "delay": "-20s", "pathIdx": 2 },
-        { "id": "desconhecido", "tipo": "planeta", "nome": "Desconhecido", "color1": "#66b3ff", "color2": "#000066", "shadow": "rgba(0,100,255,0.5)", "size": "40px", "tempo": "60s", "delay": "-45s", "pathIdx": 3 },
-        { "id": "terra0", "tipo": "terra", "nome": "Terra 0", "size": "110px", "tempo": "30s", "delay": "0s", "pathIdx": 0 }
+        { "id": "namekusei", "tipo": "planeta", "nome": "Namekusei", "color1": "#66ff66", "color2": "#006600", "shadow": "rgba(0,255,0,0.5)", "size": "50px", "tempo": "40s", "delay": "-20s", "pathIdx": 2 },
+        { "id": "desconhecido", "tipo": "planeta", "nome": "Desconhecido", "color1": "#66b3ff", "color2": "#000066", "shadow": "rgba(0,100,255,0.5)", "size": "40px", "tempo": "40s", "delay": "-45s", "pathIdx": 3 },
+        { "id": "terra0", "tipo": "terra", "nome": "Terra 0", "size": "110px", "tempo": "40s", "delay": "0s", "pathIdx": 0 }
     ]);
 
     const [configOrbitas, setConfigOrbitas] = useState({
-        "terra0": { rx: 150, ry: 200 },
+        "terra0": { rx: 160, ry: 245 },
         "vegeta": { rx: 200, ry: 250 },
-        "namekusei": { rx: 100, ry: 150 },
+        "namekusei": { rx: 130, ry: 200 },
         "desconhecido": { rx: 250, ry: 300 }
     });
 
@@ -155,6 +156,27 @@ export default function MapaMundi({ children }) {
         "namekusei": getPathCaminho(configOrbitas.namekusei.rx, configOrbitas.namekusei.ry),
         "desconhecido": getPathCaminho(configOrbitas.desconhecido.rx, configOrbitas.desconhecido.ry)
     };
+
+    // 🪐 Órbitas organizadas (core/orbitasUniverso.js): todos giram no mesmo ritmo e cada astro parte do ponto da trilha que o
+    // mantém mais longe dos outros durante a volta toda; nada se cruza no centro do "oito" nem passa por dentro de outro astro.
+    const atrasosOrbitais = useMemo(() => {
+        const starA = elementosSolar.find(e => e.id === 'orichalcosA');
+        const starB = elementosSolar.find(e => e.id === 'orichalcosB');
+        const cx = (parseInt(starA.left) + parseInt(starB.left)) / 2;
+        const cy = (parseInt(starA.top) + parseInt(starB.top)) / 2;
+        const distEstrelas = Math.abs(parseInt(starB.left) - parseInt(starA.left)) / 2;
+        const corpos = elementosSolar.filter(e => e.tipo !== 'estrela' && configOrbitas[e.id]).map(e => ({
+            id: e.id,
+            trilha: amostrarTrilha(segmentosDoOito(cx, cy, distEstrelas + configOrbitas[e.id].rx, configOrbitas[e.id].ry)),
+            periodo: e.tempo,
+            // A Terra conta com o anel das luas (raio ~ 110% do tamanho dela).
+            raio: e.tipo === 'terra' ? parseInt(e.size) * 1.15 : (parseInt(e.size) || 40) / 2
+        }));
+        const fases = escolherFases(corpos, { candidatos: 96 });
+        const porId = {};
+        corpos.forEach(c => { porId[c.id] = atrasoDaFase(fases[c.id] || 0, c.periodo); });
+        return porId;
+    }, [elementosSolar, configOrbitas]);
 
     // SISTEMA DE NAVEGAÇÃO / VOO
     const iniciarViagem = (nomeDestino, acao) => {
@@ -409,7 +431,7 @@ export default function MapaMundi({ children }) {
                             if (el.tipo === 'planeta') {
                                 return (
                                     <div key={el.id} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', transformStyle: 'preserve-3d' }}>
-                                        <div style={{ position: 'absolute', top: 0, left: 0, width: el.size, height: el.size, zIndex: voandoPara === el.nome ? 9999 : 10, offsetPath: `path("${caminhosGerados[el.id]}")`, offsetRotate: '0deg', animation: `orbitaSempre ${el.tempo} linear infinite`, animationDelay: el.delay, transformStyle: 'preserve-3d', pointerEvents: 'auto' }}>
+                                        <div style={{ position: 'absolute', top: 0, left: 0, width: el.size, height: el.size, zIndex: voandoPara === el.nome ? 9999 : 10, offsetPath: `path("${caminhosGerados[el.id]}")`, offsetRotate: '0deg', animation: `orbitaSempre ${el.tempo} linear infinite`, animationDelay: atrasosOrbitais[el.id] || el.delay, transformStyle: 'preserve-3d', pointerEvents: 'auto' }}>
                                             <div style={{ width: '100%', height: '100%', transform: voandoPara === el.nome ? `${billboardTransform} scale(40)` : billboardTransform, transition: voandoPara === el.nome ? 'all 1.5s cubic-bezier(0.4, 0, 0.2, 1)' : 'none', opacity: voandoPara && voandoPara !== el.nome ? 0 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', transformStyle: 'preserve-3d' }}>
                                                 <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: `radial-gradient(circle at 30% 30%, ${el.color1}, ${el.color2})`, boxShadow: `inset -15px -15px 25px rgba(0,0,0,0.9), inset 5px 5px 15px rgba(255,255,255,0.4), 0 0 20px ${el.shadow}`, zIndex: 10, cursor: 'pointer' }} onClick={() => iniciarViagem(el.nome, null)} />
                                                 <div style={{ position: 'absolute', width: '140%', height: '140%', borderRadius: '50%', border: '2px dashed rgba(255,255,255,0.2)', pointerEvents: 'none', zIndex: 5, transform: 'rotateX(65deg)', opacity: voandoPara === el.nome ? 0 : 1, transition: 'opacity 0.5s' }}></div>
@@ -422,7 +444,7 @@ export default function MapaMundi({ children }) {
                             if (el.tipo === 'terra') {
                                 return (
                                     <div key={el.id} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', transformStyle: 'preserve-3d' }}>
-                                        <div style={{ position: 'absolute', top: 0, left: 0, width: el.size, height: el.size, zIndex: voandoPara === 'Terra 0' ? 9999 : 20, offsetPath: `path("${caminhosGerados[el.id]}")`, offsetRotate: '0deg', animation: `orbitaSempre ${el.tempo} linear infinite`, animationDelay: el.delay, transformStyle: 'preserve-3d', pointerEvents: 'auto' }}>
+                                        <div style={{ position: 'absolute', top: 0, left: 0, width: el.size, height: el.size, zIndex: voandoPara === 'Terra 0' ? 9999 : 20, offsetPath: `path("${caminhosGerados[el.id]}")`, offsetRotate: '0deg', animation: `orbitaSempre ${el.tempo} linear infinite`, animationDelay: atrasosOrbitais[el.id] || el.delay, transformStyle: 'preserve-3d', pointerEvents: 'auto' }}>
                                             <div style={{ width: '100%', height: '100%', transform: voandoPara === 'Terra 0' ? `${billboardTransform} scale(40)` : billboardTransform, transition: voandoPara === 'Terra 0' ? 'all 1.5s cubic-bezier(0.4, 0, 0.2, 1)' : 'none', opacity: voandoPara && voandoPara !== 'Terra 0' ? 0 : 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', transformStyle: 'preserve-3d' }}>
                                                 <div onClick={() => iniciarViagem('Terra 0', 'globo')} style={{ width: '100%', height: '100%', borderRadius: '50%', background: 'radial-gradient(circle at 30% 30%, #4db8ff, #002244)', boxShadow: 'inset -20px -20px 40px rgba(0,0,0,0.9), inset 10px 10px 20px rgba(255,255,255,0.4), 0 0 40px rgba(0,150,255,0.6)', border: '1px solid rgba(255,255,255,0.2)', zIndex: 10, cursor: 'pointer' }} />
                                                 <div style={{ position: 'absolute', width: '220%', height: '220%', transform: 'rotateX(75deg)', pointerEvents: 'none', zIndex: 5, transformStyle: 'preserve-3d', opacity: voandoPara === 'Terra 0' ? 0 : 1, transition: 'opacity 0.5s' }}>

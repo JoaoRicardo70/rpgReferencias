@@ -35,15 +35,34 @@ import { NIVEIS_ROLAGEM, indiceFaceDoDado, textoDaFace } from '../../core/rolage
 import useBotaoArrastavel from '../../hooks/useBotaoArrastavel';
 
 // 🔥 IMPORTAÇÕES PARA RENDERIZAR O DADO 3D FÍSICO 🔥
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import ParticulasDado from './ParticulasDado';
+import { simularLancamento, quadroEm, velocidadeDoGesto } from '../../core/fisicaDado';
 import * as THREE from 'three';
 
 // ============================================================================
 // 🎲 MOTOR 3D DO DADO D20 (REFATORADO PARA ALTO REALISMO)
 // ============================================================================
-function DadoFisico3D({ isLanded, cor, valor, nivel }) {
+// 🎲 `fisica` (opcional): { segurando, aoLancar, aoPousar(px) }. Com ele o dado cai, quica e rola de verdade (core/fisicaDado.js) e
+// termina com a face do resultado virada pra câmera; `segurando` espera o jogador arrastar e soltar o dado para lançá-lo.
+const ESCALA_FISICA = 0.4;
+const RAIO_INSCRITO = 2.8 * 0.7947;
+
+function DadoFisico3D({ isLanded, cor, valor, nivel, fisica }) {
     const meshRef = useRef();
+    const sombraRef = useRef();
     const alvoRef = useRef(new THREE.Quaternion());
+    const { gl, viewport, size } = useThree();
+    const viewportRef = useRef(viewport);
+    viewportRef.current = viewport;
+    const faseRef = useRef(fisica && fisica.segurando ? 'segurando' : 'iniciando');
+    const simRef = useRef(null);
+    const tRef = useRef(0);
+    const posSegurandoRef = useRef([0, 0]);
+    const amostrasRef = useRef([]);
+    const arrastandoRef = useRef(false);
+    const fisicaRef = useRef(fisica);
+    fisicaRef.current = fisica;
     const isCritFatal = nivel === 'fatal';
     const isCritNormal = nivel === 'critico';
     const glowIntensity = isCritFatal ? 1.8 : isCritNormal ? 1.0 : 0.3;
@@ -148,8 +167,119 @@ function DadoFisico3D({ isLanded, cor, valor, nivel }) {
         bumpTexture.dispose();
     }, [faces, texturas, bumpTexture]);
 
+    // Arena em unidades da cena: o chão fica no terço de baixo da tela e as paredes nas bordas.
+    const arena = () => {
+        const v = viewportRef.current;
+        const apoio = RAIO_INSCRITO * ESCALA_FISICA;
+        return { meiaLargura: Math.max(2, v.width / 2 - apoio * 1.3), piso: -v.height * 0.3 - apoio * 0.3, apoio, topo: v.height * 0.42 };
+    };
+
+    const lancar = (inicio, velocidade, centrar) => {
+        const a = arena();
+        const q = alvoRef.current;
+        simRef.current = simularLancamento({
+            inicio, velocidade, arena: a, alvo: [q.x, q.y, q.z, q.w], centrar,
+            qInicial: [Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5, 1]
+        });
+        tRef.current = 0;
+        faseRef.current = 'voando';
+        if (fisicaRef.current && fisicaRef.current.aoLancar) fisicaRef.current.aoLancar();
+    };
+
+    // Lançamento automático: de cima, do lado esquerdo, caindo e quicando até o centro.
+    useEffect(() => {
+        if (!fisica || fisica.segurando) return;
+        const a = arena();
+        lancar([-a.meiaLargura * 0.85, a.topo * 0.6], [9, 5], true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- lança uma vez por dado (o componente remonta a cada rolagem)
+    }, []);
+
+    // Segurando: arrastar e soltar. Sem mexer por um tempo, o dado é lançado sozinho.
+    useEffect(() => {
+        if (!fisica || !fisica.segurando) return undefined;
+        const el = gl.domElement;
+        const mundo = (ev) => {
+            const r = el.getBoundingClientRect();
+            const v = viewportRef.current;
+            const a = arena();
+            const x = ((ev.clientX - r.left) / r.width - 0.5) * v.width;
+            const y = (0.5 - (ev.clientY - r.top) / r.height) * v.height;
+            return [Math.max(-a.meiaLargura, Math.min(a.meiaLargura, x)), Math.max(a.piso + a.apoio, Math.min(a.topo, y))];
+        };
+        const aoApertar = (ev) => {
+            if (faseRef.current !== 'segurando') return;
+            arrastandoRef.current = true;
+            try { el.setPointerCapture(ev.pointerId); } catch (e) { /* sem captura */ }
+            posSegurandoRef.current = mundo(ev);
+            amostrasRef.current = [{ x: posSegurandoRef.current[0], y: posSegurandoRef.current[1], t: performance.now() }];
+        };
+        const aoMover = (ev) => {
+            if (!arrastandoRef.current) return;
+            posSegurandoRef.current = mundo(ev);
+            amostrasRef.current.push({ x: posSegurandoRef.current[0], y: posSegurandoRef.current[1], t: performance.now() });
+            if (amostrasRef.current.length > 12) amostrasRef.current.shift();
+        };
+        const aoSoltar = () => {
+            if (!arrastandoRef.current) return;
+            arrastandoRef.current = false;
+            const v = velocidadeDoGesto(amostrasRef.current);
+            const parado = Math.hypot(v[0], v[1]) < 4;
+            // Soltou sem impulso (clique): joga pra frente com uma força padrão.
+            lancar(posSegurandoRef.current, parado ? [8, 6] : v, parado);
+        };
+        const sozinho = setTimeout(() => { if (faseRef.current === 'segurando' && !arrastandoRef.current) lancar(posSegurandoRef.current, [8, 6], true); }, 7000);
+        el.addEventListener('pointerdown', aoApertar);
+        el.addEventListener('pointermove', aoMover);
+        el.addEventListener('pointerup', aoSoltar);
+        el.addEventListener('pointercancel', aoSoltar);
+        return () => {
+            clearTimeout(sozinho);
+            el.removeEventListener('pointerdown', aoApertar);
+            el.removeEventListener('pointermove', aoMover);
+            el.removeEventListener('pointerup', aoSoltar);
+            el.removeEventListener('pointercancel', aoSoltar);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- registra uma vez por dado
+    }, []);
+
     useFrame((state, delta) => {
         if (!meshRef.current) return;
+        if (fisica) {
+            const m = meshRef.current;
+            m.scale.setScalar(ESCALA_FISICA);
+            const a = arena();
+            let altura = 0;
+            if (faseRef.current === 'segurando') {
+                // Paira no ar, girando devagar; segue o dedo/mouse enquanto é arrastado.
+                const alvoPos = arrastandoRef.current ? posSegurandoRef.current : [0, a.piso + a.apoio + (a.topo - a.piso) * 0.25 + Math.sin(state.clock.elapsedTime * 2.2) * 0.12];
+                if (!arrastandoRef.current) posSegurandoRef.current = alvoPos;
+                m.position.set(alvoPos[0], alvoPos[1], 0);
+                m.rotation.x += delta * 1.4; m.rotation.y += delta * 2.1;
+                altura = alvoPos[1] - (a.piso + a.apoio);
+            } else if (faseRef.current === 'voando' && simRef.current) {
+                tRef.current += delta;
+                const f = quadroEm(simRef.current, tRef.current);
+                m.position.set(f.p[0], f.p[1], 0);
+                m.quaternion.set(f.q[0], f.q[1], f.q[2], f.q[3]);
+                altura = f.p[1] - (a.piso + a.apoio);
+                if (tRef.current >= simRef.current.duracao) {
+                    faseRef.current = 'pousado';
+                    const v = viewportRef.current;
+                    const px = (f.p[0] / v.width + 0.5) * size.width;
+                    const py = (0.5 - f.p[1] / v.height) * size.height;
+                    if (fisicaRef.current && fisicaRef.current.aoPousar) fisicaRef.current.aoPousar({ x: px, y: py });
+                }
+            } else if (faseRef.current === 'pousado') {
+                m.quaternion.copy(alvoRef.current);
+            }
+            if (sombraRef.current) {
+                const esc = Math.max(0.35, 1.25 - altura * 0.18);
+                sombraRef.current.position.set(m.position.x, a.piso + 0.02, -0.4);
+                sombraRef.current.scale.set(esc * 1.5, esc * 0.45, 1);
+                sombraRef.current.material.opacity = Math.max(0.12, 0.62 - altura * 0.12);
+            }
+            return;
+        }
         if (!isLanded) {
             // Giro caótico durante o arremesso.
             meshRef.current.rotation.x += delta * 13;
@@ -169,6 +299,12 @@ function DadoFisico3D({ isLanded, cor, valor, nivel }) {
             <directionalLight position={[0, -15, -12]} intensity={2.2} color={cor} />
             <pointLight position={[0, 0, 6]} intensity={glowIntensity * 3} color={cor} distance={14} />
 
+            {fisica && (
+                <mesh ref={sombraRef}>
+                    <circleGeometry args={[1, 32]} />
+                    <meshBasicMaterial color="#000000" transparent opacity={0.5} depthWrite={false} />
+                </mesh>
+            )}
             <mesh ref={meshRef}>
                 <primitive object={faces.geo} attach="geometry" />
                 <meshPhysicalMaterial
@@ -199,44 +335,81 @@ function DadoFisico3D({ isLanded, cor, valor, nivel }) {
     );
 }
 
+const DADO_FECHADO = { ativo: false, numero: 20, finalResult: null, cor: '#00ffcc', nivel: 'normal', quemRolou: '' };
+
 export function MapaDadoAnimado() {
     const ctx = useMapaForm();
-    const { dadoAnim, abaAtiva } = ctx || {};
+    const { dadoAnim, abaAtiva, setDadoAnim } = ctx || {};
+
+    // 🎲 Dado físico: quando ele avisa que pousou, o resultado aparece e, passado o tempo do nível, a cena fecha.
+    const idFisico = dadoAnim && dadoAnim.fisica ? dadoAnim.id : null;
+    const pousou = !!(dadoAnim && dadoAnim.fisica && dadoAnim.pousou);
+    const duracaoMs = (dadoAnim && dadoAnim.duracaoMs) || 2000;
+    useEffect(() => {
+        if (!idFisico || !pousou || !setDadoAnim) return undefined;
+        const t = setTimeout(() => setDadoAnim(prev => (prev && prev.id === idFisico ? DADO_FECHADO : prev)), duracaoMs);
+        return () => clearTimeout(t);
+    }, [idFisico, pousou, duracaoMs, setDadoAnim]);
+
+    // Trava de segurança: se o dado nunca avisar que pousou (WebGL indisponível, aba trocada no meio do voo), a cena fecha sozinha.
+    useEffect(() => {
+        if (!idFisico || !setDadoAnim) return undefined;
+        const t = setTimeout(() => setDadoAnim(prev => (prev && prev.id === idFisico ? DADO_FECHADO : prev)), 15000);
+        return () => clearTimeout(t);
+    }, [idFisico, setDadoAnim]);
 
     const painelMapa = document.querySelector('.mapa-panel');
     const mapaVisivel = painelMapa && (painelMapa.offsetWidth > 0 || painelMapa.offsetHeight > 0);
     const isAbaMapa = String(abaAtiva || '').toLowerCase().includes('map');
 
-    if (!ctx || !dadoAnim?.ativo || (!mapaVisivel && !isAbaMapa)) return null;
+    if (!ctx || !dadoAnim?.ativo || (!mapaVisivel && !isAbaMapa && !dadoAnim.forcar)) return null;
 
-    const isLanded = dadoAnim.finalResult != null;
+    const fisica = !!dadoAnim.fisica;
+    const isLanded = fisica ? !!dadoAnim.pousou : dadoAnim.finalResult != null;
     const nivel = dadoAnim.nivel || 'normal';
     const info = NIVEIS_ROLAGEM[nivel] || NIVEIS_ROLAGEM.normal;
-    const comRaios = isLanded && (nivel === 'fatal' || nivel === 'critico');
+    // Efeitos especiais (⚙️ Configurações): intensos (padrão), suaves ou desligados.
+    const efeitos = dadoAnim.efeitos || 'intensos';
+    const comEfeitos = efeitos !== 'desligados';
+    const intensos = efeitos === 'intensos';
+    const comRaios = isLanded && comEfeitos && (nivel === 'fatal' || nivel === 'critico');
+    const segurando = fisica && !!dadoAnim.segurando;
+    const classes = ['dado-cena', 'dado-nivel-' + nivel, isLanded ? 'dado-pousou' : 'dado-no-ar'];
+    if (fisica) classes.push('dado-fisica');
+    if (segurando) classes.push('dado-segurando');
+    if (isLanded && intensos && nivel === 'fatal') classes.push('dado-sacode');
+    else if (isLanded && intensos && nivel === 'critico') classes.push('dado-sacode-leve');
+    const posicaoPouso = dadoAnim.pouso || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+
+    const aoLancar = () => setDadoAnim(prev => (prev && prev.id === dadoAnim.id ? { ...prev, segurando: false } : prev));
+    const aoPousar = (px) => setDadoAnim(prev => (prev && prev.id === dadoAnim.id ? { ...prev, pousou: true, segurando: false, pouso: px } : prev));
 
     return createPortal(
-        <div className={`dado-cena dado-nivel-${nivel}${isLanded ? ' dado-pousou' : ' dado-no-ar'}`} style={{ '--cor-dado': dadoAnim.cor, '--cor-texto-dado': dadoAnim.corTexto || info.corTexto }} aria-live="polite">
+        <div className={classes.join(' ')} style={{ '--cor-dado': dadoAnim.cor, '--cor-texto-dado': dadoAnim.corTexto || info.corTexto }} aria-live="polite">
             <div className="dado-fundo" />
             {comRaios && <div className="dado-raios" />}
-            {isLanded && <div className="dado-onda" />}
-            {isLanded && nivel === 'fatal' && <div className="dado-clarao" />}
+            {isLanded && comEfeitos && <div className="dado-onda" />}
+            {isLanded && comEfeitos && intensos && nivel === 'fatal' && <div className="dado-clarao" />}
 
-            {dadoAnim.quemRolou && <div className="dado-quem">{dadoAnim.quemRolou} {isLanded ? 'rolou' : 'está rolando...'}</div>}
+            {dadoAnim.quemRolou && <div className="dado-quem">{dadoAnim.quemRolou} {isLanded ? 'rolou' : (segurando ? 'vai lançar o dado' : 'está rolando...')}</div>}
 
             <div className="dado-palco">
                 <div className="dado-canvas">
                     <Canvas camera={{ position: [0, 0, 8], fov: 50 }} style={{ width: '100%', height: '100%' }}>
-                        <DadoFisico3D isLanded={isLanded} cor={dadoAnim.cor} valor={dadoAnim.finalResult} nivel={nivel} />
+                        <DadoFisico3D
+                            key={dadoAnim.id || 'simples'}
+                            isLanded={fisica ? true : isLanded}
+                            cor={dadoAnim.cor} valor={dadoAnim.finalResult} nivel={nivel}
+                            fisica={fisica ? { segurando, aoLancar, aoPousar } : undefined}
+                        />
                     </Canvas>
                 </div>
             </div>
 
-            {isLanded && comRaios && (
-                <div className="dado-fagulhas" aria-hidden="true">
-                    {Array.from({ length: 16 }, (_, i) => (
-                        <span key={i} className="dado-fagulha" style={{ '--ang': `${i * 22.5}deg`, '--dist': `${150 + (i % 3) * 45}px`, '--atraso': `${(i % 4) * 40}ms` }} />
-                    ))}
-                </div>
+            {segurando && <div className="dado-dica-mao">✋ Arraste o dado e solte para lançar!</div>}
+
+            {isLanded && comEfeitos && (
+                <ParticulasDado nivel={nivel} intensidade={intensos ? 'intensos' : 'suaves'} x={posicaoPouso.x} y={posicaoPouso.y} cor={dadoAnim.cor} />
             )}
 
             {isLanded && (

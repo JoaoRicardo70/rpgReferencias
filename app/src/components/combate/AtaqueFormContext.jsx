@@ -598,7 +598,8 @@ export function AtaqueFormProvider({ children }) {
                     if (dummieEntry) {
                         const [idD, dData] = dummieEntry;
                         const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dData));
-                        const danoEscalado = escalarDanoPelaVida(result.dano, getVidaMaxExibidaDummie(dData), getPontosVidaTotal(useStore.getState().cenario));
+                        // Dano de Ataque (dados + Status) já está na escala da Vida: não é reescalado pela Vida do alvo.
+                        const danoEscalado = result.dano;
                         const danoNoAlvo = reduzirDanoNoAlvo(dData, aplicarDisputaAoDano(danoEscalado, disputa), elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo) }).final;
                         gravarVidaDoAlvo(idD, dData, Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)), { elemento: elementoAtivo });
                         if (dData.isPersonagem) alvosAplicados.push(dData.personagemNome);
@@ -615,11 +616,10 @@ export function AtaqueFormProvider({ children }) {
             if (linhasDisputa.length > 0) extraFeed = { ...extraFeed, detalheDisputa: `⚖️ Disputa de Poder (dano em cada alvo): ${linhasDisputa.join(' · ')}`, efetividadeAlvos };
         } else if (dummieAlvo) {
             const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dummieAlvo));
-            // 🎲 Dano de dado proporcional à Vida do alvo (core/danoProporcional.js), depois a Disputa de Poder.
-            const vidaAlvo = getVidaMaxExibidaDummie(dummieAlvo);
-            const pontosVida = getPontosVidaTotal(useStore.getState().cenario);
-            const fatorVidaAlvo = getFatorVida(vidaAlvo, pontosVida);
-            const danoAposDisputa = aplicarDisputaAoDano(escalarDanoPelaVida(result.dano, vidaAlvo, pontosVida), disputa);
+            // O Dano do Ataque (soma dos dados + Status) já é um número na escala da Vida: segue direto para a Disputa de Poder,
+            // Reduções/Resistências/Fraquezas e então desconta da Vida do alvo. (Só a fórmula livre de dados puros é proporcional à Vida.)
+            const fatorVidaAlvo = 1;
+            const danoAposDisputa = aplicarDisputaAoDano(result.dano, disputa);
             // 🛡️ Alvo-personagem: Reduções/Resistências/Domínio da ficha dele, em sequência.
             const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo) });
             const danoNoAlvo = reducaoAlvo.final;
@@ -678,7 +678,7 @@ export function AtaqueFormProvider({ children }) {
                     zRef.multiplicadorOriginal = 1;
                     zRef.danoAplicado = result.dano;
                     // 🎲 Dano que veio de dado: a Zona o torna proporcional à Vida de quem ela castiga.
-                    zRef.danoDeDados = true;
+                    zRef.danoDeDados = false;
                     
                     salvarCenarioCompleto(novoCenario);
                     textoAlvos += `<br/><span style="color:#ff00ff; font-weight:bold;">🌪️ A Zona de Efeito absorveu o poder e castigará quem permanecer lá!</span>`;
