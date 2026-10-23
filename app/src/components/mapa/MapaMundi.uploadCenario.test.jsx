@@ -66,7 +66,7 @@ vi.mock('./MapaFormContext', () => ({
 }));
 
 function renderNaTelaReino() {
-    mockCtx = { cenaRenderId: 'cena-x', cenaAtual: { nome: 'Sala do Trono', img: '' } };
+    mockCtx = { isMestre: true, cenaRenderId: 'cena-x', cenaAtual: { nome: 'Sala do Trono', img: '' } };
     return render(
         <MapaMundi>
             <div data-testid="grelha-de-batalha">GRELHA</div>

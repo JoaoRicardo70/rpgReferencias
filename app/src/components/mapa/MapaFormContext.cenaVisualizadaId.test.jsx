@@ -156,16 +156,24 @@ describe('MapaFormContext - bugfix: cenaVisualizadaId presa quando cenaAtivaIdGl
         expect(probe.cenaRenderId).toBe('cena-b');
     });
 
-    it('Edge Case: jogador comum (isMestre=false) nunca usa cenaVisualizadaId — cenaRenderId é sempre a cenaAtivaIdGlobal mesmo que o estado local seja setado', () => {
+    it('jogador comum só abre uma Cena que tem acesso: liberada pra todos ele abre; restrita a outros personagens ele não abre (fica na publicada)', () => {
         mockUseStore(baseState({ isMestre: false }));
         render(<Tree />);
 
         act(() => {
             probe.setCenaVisualizadaId('cena-b');
         });
-
-        // cenaVisualizadaId até fica setado no estado local, mas cenaRenderId ignora (isMestre é false)
         expect(probe.cenaVisualizadaId).toBe('cena-b');
+        expect(probe.cenaRenderId).toBe('cena-b');
+
+        mockUseStore(baseState({
+            isMestre: false,
+            cenario: { ativa: 'cena-a', lista: { 'cena-a': { nome: 'Cena A' }, 'cena-b': { nome: 'Cena B', restrita: true, acessoNomes: ['Outro'] } } },
+        }));
+        render(<Tree />);
+        act(() => {
+            probe.setCenaVisualizadaId('cena-b');
+        });
         expect(probe.cenaRenderId).toBe('cena-a');
     });
 

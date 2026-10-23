@@ -6,6 +6,7 @@ import { classificarRolagem } from '../../core/rolagemDado';
 import { aplicarCoresDado, lerCoresDado } from '../../core/coresDado';
 import { getConfigDado } from '../../core/configuracoes';
 import { alternarPresencaNaTaverna } from '../../core/chats';
+import { podeAcessarCena, cenarioComAcessoDaCena } from '../../core/cenasRegiao';
 import { infoAvatarDaFicha } from '../../core/avatar';
 import { assinarFalhasDeImagem } from '../../core/imagemVerificada';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
@@ -221,7 +222,10 @@ export function MapaFormProvider({ children }) {
         }
     }, [cenaAtivaIdGlobal]);
 
-    const cenaRenderId = (isMestre && cenaVisualizadaId) ? cenaVisualizadaId : cenaAtivaIdGlobal;
+    // Mestre/Co-Mestre pode olhar qualquer Cena em segredo; jogador só abre (pelo menu da região do Mapa) uma Cena
+    // que existe e que ele tem acesso — se ela for apagada ou o acesso for retirado, volta pra Cena publicada.
+    const jogadorPodeVerVisualizada = !!cenaVisualizadaId && podeAcessarCena(cenario?.lista?.[cenaVisualizadaId], cenaVisualizadaId, { ehMestre: false, souCriador, meuNome, ativaId: cenaAtivaIdGlobal });
+    const cenaRenderId = (cenaVisualizadaId && (isMestre || jogadorPodeVerVisualizada)) ? cenaVisualizadaId : cenaAtivaIdGlobal;
 
     // 🎭 Ator de combate (core/atorCombate.js): o NPC em que o Mestre está atuando, ou null (= eu mesmo).
     const atorCombateSel = useStore(s => s.atorCombate);
@@ -381,6 +385,7 @@ export function MapaFormProvider({ children }) {
     }, [updateFicha]);
 
     const handleUploadNovaCena = useCallback(async (e) => {
+        if (!isMestre) return;
         const file = e.target.files[0];
         if (!file) return;
         if (!novaCenaNome.trim()) return alert('Por favor, dê um nome à cena antes de anexar o mapa!');
@@ -410,7 +415,7 @@ export function MapaFormProvider({ children }) {
         } finally {
             setUploadingMap(false);
         }
-    }, [novaCenaNome, novaCenaEscala, novaCenaUnidade, novaCenaApenasCriador, souCriador, cenario]);
+    }, [novaCenaNome, novaCenaEscala, novaCenaUnidade, novaCenaApenasCriador, souCriador, cenario, isMestre]);
 
     const ativarCena = useCallback((id) => {
         const novoCenario = JSON.parse(JSON.stringify(cenario));
@@ -429,6 +434,12 @@ export function MapaFormProvider({ children }) {
         salvarCenarioCompleto(novoCenario);
         if(cenaVisualizadaId === id) setCenaVisualizadaId(null);
     }, [cenario, cenaVisualizadaId]);
+
+    // Quem entra na Cena: nomes = null libera todos; uma lista restringe a esses personagens (Mestre/Co-Mestre sempre entram).
+    const definirAcessoCena = useCallback((id, nomes) => {
+        if (!isMestre) return;
+        salvarCenarioCompleto(cenarioComAcessoDaCena(JSON.parse(JSON.stringify(cenario)), id, nomes));
+    }, [cenario, isMestre]);
 
     const coresJogadoresRef = useRef({});
     const corIndexRef = useRef(0);
@@ -1302,7 +1313,7 @@ export function MapaFormProvider({ children }) {
         cenaAtivaIdGlobal, cenaRenderId, cenaAtual, isModoRP, mestreVendoRP, setMestreVendoRP,
         tavernaAtivos, isPresenteNaTaverna, overridesCompendio,
         toggleModoRP, togglePresencaTaverna, changeVantagem, changeDesvantagem,
-        handleUploadNovaCena, ativarCena, deletarCena, corDoJogador, getAvatarInfo,
+        handleUploadNovaCena, ativarCena, deletarCena, definirAcessoCena, corDoJogador, getAvatarInfo,
         cells, jogadores, playersNaTaverna, ordemIniciativa, handleCellClick,
         alterarZoom, setMinhaIniciativa, avancarTurno, sairDoCombate, encerrarCombate, descansar, aplicarDanoRapido,
         rolarAcertoRapido, tokenMap, dummyMap, tokens3D, jogadorDaVez, infoDaVez, fmt, deletarZona, toggleActionDot,
@@ -1318,7 +1329,7 @@ export function MapaFormProvider({ children }) {
         mestreVendoRP, tavernaAtivos, isPresenteNaTaverna, overridesCompendio,
         cells, jogadores, playersNaTaverna, ordemIniciativa, tokenMap, dummyMap, tokens3D,
         jogadorDaVez, infoDaVez, fmt, toggleModoRP, togglePresencaTaverna, changeVantagem,
-        changeDesvantagem, handleUploadNovaCena, ativarCena, deletarCena, corDoJogador, descansar, aplicarDanoRapido,
+        changeDesvantagem, handleUploadNovaCena, ativarCena, deletarCena, definirAcessoCena, corDoJogador, descansar, aplicarDanoRapido,
         getAvatarInfo, handleCellClick, alterarZoom, setMinhaIniciativa, avancarTurno,
         sairDoCombate, encerrarCombate, rolarAcertoRapido, deletarZona, toggleActionDot,
         inspecao, inspecionar, limparInspecao, modoJogador,

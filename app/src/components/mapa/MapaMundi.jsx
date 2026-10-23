@@ -17,6 +17,8 @@ import gabaritoIlha from '../../assets/gabarito-ilha.png';
 import gabaritoIonia from '../../assets/gabarito-ionia.png';
 import mapaCosmologia from '../../assets/mapa-cosmologia.png';
 import { CSS_ASTROS } from './astrosCss';
+import { cenasDaRegiao, nomeDaCenaNaRegiao, regiaoDaCena, cenarioComCenaDeRegiao, cenasPendentesDoAtlasLocal } from '../../core/cenasRegiao';
+import CenaAcesso from './CenaAcesso';
 import { segmentosDoOito, amostrarTrilha, escolherFases, atrasoDaFase } from '../../core/orbitasUniverso';
 
 export default function MapaMundi({ children }) {
@@ -44,26 +46,14 @@ export default function MapaMundi({ children }) {
         setNivelVisao('reino');
     }, [ctxMapa?.cenaRenderId]);
 
-    // 🔥 O NOVO CÉREBRO LOCAL (BLINDADO CONTRA ERROS DE MEMÓRIA) 🔥
-    const [atlas, setAtlas] = useState(() => {
-        try {
-            const salvo = localStorage.getItem('rpg_atlas_mundi');
-            return salvo ? JSON.parse(salvo) : {};
-        } catch (e) {
-            console.error("Erro ao ler o Atlas do Mundo", e);
-            return {};
-        }
-    });
-
-    const salvarAtlas = (novoAtlas) => {
-        try {
-            localStorage.setItem('rpg_atlas_mundi', JSON.stringify(novoAtlas));
-            setAtlas(novoAtlas);
-        } catch (e) {
-            alert("⚠️ ERRO DE MEMÓRIA: A imagem que você fez upload é muito pesada para o navegador salvar. Por favor, cole a URL (Link) da imagem na Opção 2 em vez de enviar o arquivo do PC!");
-            console.error("Erro de Quota Excedida", e);
-        }
-    };
+    // 🔥 As Cenas de cada região do mapa moram em `cenario.lista` (Firebase). Antes ficavam num "Atlas" só no
+    // localStorage deste navegador (rpg_atlas_mundi) — por isso as Cenas criadas por um Mestre nunca apareciam pros outros.
+    const meuNome = useStore(s => s.meuNome);
+    const mesaId = useStore(s => s.mesaId);
+    const souMestre = !!ctxMapa?.isMestre;
+    const souCriador = !!ctxMapa?.souCriador;
+    const contextoCenas = useMemo(() => ({ ehMestre: souMestre, souCriador, meuNome, ativaId: cenario?.ativa || 'default' }), [souMestre, souCriador, meuNome, cenario?.ativa]);
+    const nomesJogadores = Object.keys(ctxMapa?.jogadores || {});
 
     const [reinoSelecionado, setReinoSelecionado] = useState(null);
     const [modoEdicaoMapa, setModoEdicaoMapa] = useState(false);
@@ -314,52 +304,57 @@ export default function MapaMundi({ children }) {
 
     const confirmarNovoMapa = () => {
         const nome = novoMapaNome.trim();
-        if (nome !== "") {
-            const novoMapa = { id: `mapa_${Date.now()}`, nome, img: '' };
-            const reinoMapas = atlas[reinoSelecionado] || [];
-            salvarAtlas({ ...atlas, [reinoSelecionado]: [...reinoMapas, novoMapa] });
+        // Só Mestre/Co-Mestre cria Cenas (a tela nem mostra o botão pros outros; isto barra qualquer outro caminho).
+        if (nome !== "" && souMestre && reinoSelecionado) {
+            const id = `cena_${Date.now()}`;
+            salvarCenarioCompleto(cenarioComCenaDeRegiao(cenario, id, { reino: reinoSelecionado, nome, criadoPor: meuNome })).then((ok) => {
+                if (!ok) alert('⚠️ Não foi possível salvar esta Cena no servidor — ela pode não aparecer para os outros. Verifique sua conexão e tente de novo.');
+            });
         }
         setCriandoMapa(false);
         setNovoMapaNome('');
     };
 
-    const abrirMenuReino = (nomeReino) => setReinoSelecionado(nomeReino);
+    // Mapas que o Mestre criou nas versões antigas existiam só neste navegador: sobe pro Firebase pra todos verem.
+    const migrarAtlasLocal = () => {
+        try {
+            // O Atlas antigo é do navegador, não da mesa: sobe uma única vez por mesa pra não misturar mesas diferentes.
+            const marca = `rpg_atlas_migrado_${mesaId || 'sem-mesa'}`;
+            const bruto = localStorage.getItem('rpg_atlas_mundi');
+            if (!bruto || localStorage.getItem(marca)) return;
+            const pendentes = cenasPendentesDoAtlasLocal(JSON.parse(bruto), cenario?.lista);
+            if (pendentes.length === 0) return;
+            let novo = cenario;
+            pendentes.forEach(p => { novo = cenarioComCenaDeRegiao(novo, p.id, { reino: p.reino, nome: p.nome, img: p.img, criadoPor: meuNome }); });
+            Promise.resolve(salvarCenarioCompleto(novo)).then((ok) => { if (ok) localStorage.setItem(marca, '1'); });
+        } catch (e) {
+            console.warn('Atlas antigo ilegível, ignorado.', e);
+        }
+    };
 
-    const entrarNoMapaDeBatalha = (mapa) => {
-        setLocalAtual({ ...localAtual, reino: reinoSelecionado, mapaId: mapa.id, mapaNome: mapa.nome });
+    const abrirMenuReino = (nomeReino) => {
+        setReinoSelecionado(nomeReino);
+        if (souMestre) migrarAtlasLocal();
+    };
+
+    // Entrar numa Cena é só ABRIR a Cena pra quem entrou (não muda a Cena publicada da mesa toda — pra isso o Mestre
+    // usa "Publicar para Todos"). Assim uma Cena restrita não vaza e um jogador não troca o mapa dos outros.
+    const entrarNoMapaDeBatalha = (id, cena) => {
+        if (!ctxMapa?.setCenaVisualizadaId) return;
+        setLocalAtual({ ...localAtual, reino: reinoSelecionado, mapaId: id, mapaNome: nomeDaCenaNaRegiao(cena) });
         setReinoSelecionado(null);
         setNivelVisao('reino');
-        
-        // 🔥 A MÁGICA: Força a Grelha a ler esta Cena! 🔥
-        // Precisa ir por salvarCenarioCompleto (grava no Firebase) — setCenario() sozinho só muda
-        // o estado local deste navegador, então a Cena nunca aparecia pra mais ninguém na mesa.
-        // Checar o retorno é essencial aqui: sem isso, uma escrita que falhasse (payload grande
-        // demais, conexão instável, regra de segurança) passava batido — a tela mudava pro Mestre,
-        // mas a Cena nunca chegava a existir de verdade no Firebase, então ninguém mais a via.
-        const cenasLista = { ...cenario.lista };
-        cenasLista[mapa.id] = cenasLista[mapa.id]
-            ? { ...cenasLista[mapa.id], img: mapa.img || cenasLista[mapa.id].img }
-            : { nome: `[${reinoSelecionado}] ${mapa.nome}`, img: mapa.img || '', escala: 1.5, unidade: 'm' };
-        salvarCenarioCompleto({ ...cenario, ativa: mapa.id, lista: cenasLista }).then((ok) => {
-            if (!ok) alert('⚠️ Não foi possível salvar este mapa no servidor — ele pode não aparecer para os outros jogadores. Verifique sua conexão e tente de novo.');
-        });
+        ctxMapa.setCenaVisualizadaId(id);
     };
 
     const atualizarImagemMapa = (imgUrl) => {
-        const reino = localAtual.reino;
+        if (!souMestre) return Promise.resolve(false);
         const id = localAtual.mapaId;
-
-        // Atualiza Atlas Local
-        const reinoMapas = atlas[reino] || [];
-        const novosMapas = reinoMapas.map(m => m.id === id ? { ...m, img: imgUrl } : m);
-        salvarAtlas({ ...atlas, [reino]: novosMapas });
-
-        // Atualiza Cena Global (para a Grelha ver a imagem IMEDIATAMENTE)
         const novasCenas = { ...cenario.lista };
         novasCenas[id] = novasCenas[id]
             ? { ...novasCenas[id], img: imgUrl }
-            : { nome: `[${reino}] ${localAtual.mapaNome}`, img: imgUrl, escala: 1.5, unidade: 'm' };
-        return salvarCenarioCompleto({ ...cenario, ativa: id, lista: novasCenas }).then((ok) => {
+            : { nome: localAtual.mapaNome, img: imgUrl, escala: 1.5, unidade: 'm' };
+        return salvarCenarioCompleto({ ...cenario, lista: novasCenas }).then((ok) => {
             if (ok) {
                 setModoEdicaoMapa(false);
             } else {
@@ -542,7 +537,7 @@ export default function MapaMundi({ children }) {
     // 🗺️ TELA 3: O CONTINENTE
     // ==========================================
     if (nivelVisao === 'continente') {
-        const mapasSalvosNoAtlas = atlas[reinoSelecionado] || [];
+        const cenasDoReino = cenasDaRegiao(cenario?.lista, reinoSelecionado, contextoCenas);
 
         return (
             <div className="fade-in" style={{ width: '100%', height: '85vh', background: '#050508', borderRadius: '10px', border: '1px solid #0088ff', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
@@ -576,14 +571,18 @@ export default function MapaMundi({ children }) {
                         <div style={{ background: '#111', border: '2px solid #0088ff', borderRadius: '20px', padding: '30px', width: '380px', textAlign: 'center', position: 'relative' }}>
                             <button onClick={() => setReinoSelecionado(null)} style={{ position: 'absolute', top: '15px', right: '20px', background: 'none', border: 'none', color: '#ff4444', fontSize: '22px', cursor: 'pointer', fontWeight: 'bold' }}>X</button>
                             <h2 style={{ color: '#ffcc00', margin: '0 0 10px 0', textTransform: 'uppercase' }}>{reinoSelecionado}</h2>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '25px', maxHeight: '200px', overflowY: 'auto' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '25px', maxHeight: '260px', overflowY: 'auto' }}>
                                 
-                                {/* LÊ DO ATLAS LOCAL */}
-                                {mapasSalvosNoAtlas.map(mapa => (
-                                    <button key={mapa.id} onClick={() => entrarNoMapaDeBatalha(mapa)} style={{ background: '#1a1a1a', border: '1px solid #333', color: '#fff', padding: '14px', borderRadius: '10px', cursor: 'pointer', textAlign: 'left' }}>🗺️ {mapa.nome}</button>
+                                {/* CENAS DA REGIÃO (compartilhadas via Firebase) */}
+                                {cenasDoReino.length === 0 && <p className="cena-regiao-vazia">{souMestre ? 'Ainda não há Cenas nesta região.' : 'Nenhuma Cena liberada para você nesta região.'}</p>}
+                                {cenasDoReino.map(({ id, cena }) => (
+                                    <div key={id} className="cena-regiao-linha">
+                                        <button className="cena-regiao-entrar" onClick={() => entrarNoMapaDeBatalha(id, cena)}>🗺️ {nomeDaCenaNaRegiao(cena)}{cena.restrita ? ' 🔒' : ''}</button>
+                                        {souMestre && ctxMapa?.definirAcessoCena && <CenaAcesso cena={cena} jogadores={nomesJogadores} onSalvar={(nomes) => ctxMapa.definirAcessoCena(id, nomes)} />}
+                                    </div>
                                 ))}
                             </div>
-                            <button onClick={criarNovoMapa} style={{ width: '100%', background: 'linear-gradient(to right, #0088ff, #00ffcc)', color: '#000', padding: '14px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>➕ CRIAR NOVO MAPA</button>
+                            {souMestre && <button onClick={criarNovoMapa} style={{ width: '100%', background: 'linear-gradient(to right, #0088ff, #00ffcc)', color: '#000', padding: '14px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>➕ CRIAR NOVO MAPA</button>}
                         </div>
                     </div>
                 )}
@@ -615,7 +614,7 @@ export default function MapaMundi({ children }) {
     // ⚔️ TELA 4: MAPA DE BATALHA (O REINO)
     // ==========================================
     if (nivelVisao === 'reino') {
-        const mapaAtivoObj = (atlas[localAtual.reino] || []).find(m => m.id === localAtual.mapaId);
+        const mapaAtivoObj = cenario?.lista?.[localAtual.mapaId];
         // Cenas publicadas/visualizadas via Gerenciador de Cenas não têm entrada no Atlas local
         // (localAtual.reino fica null nesse caso) — cai pra imagem já sincronizada da própria Cena.
         const backgroundUrl = mapaAtivoObj ? mapaAtivoObj.img : (ctxMapa?.cenaAtual?.img || '');
@@ -625,9 +624,9 @@ export default function MapaMundi({ children }) {
                 <div style={{ background: '#111', padding: '12px 20px', borderRadius: '10px 10px 0 0', border: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
                     <div style={{ display: 'flex', gap: '15px' }}>
                         <button onClick={voltarCamera} style={{ background: '#ff4444', color: '#fff', border: 'none', padding: '7px 18px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>⬅ SAIR</button>
-                        <button onClick={() => { setUrlInput(backgroundUrl || ''); setSalvandoCenario(false); setModoEdicaoMapa(true); }} style={{ background: 'transparent', color: '#0088ff', border: '1px solid #0088ff', padding: '7px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>⚙️ EDITAR CENÁRIO</button>
+                        {souMestre && <button onClick={() => { setUrlInput(backgroundUrl || ''); setSalvandoCenario(false); setModoEdicaoMapa(true); }} style={{ background: 'transparent', color: '#0088ff', border: '1px solid #0088ff', padding: '7px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>⚙️ EDITAR CENÁRIO</button>}
                     </div>
-                    <span style={{ color: '#ffcc00', fontWeight: 'bold', textTransform: 'uppercase' }}>{localAtual.reino ? `${localAtual.reino} : ` : ''}{localAtual.mapaNome}</span>
+                    <span style={{ color: '#ffcc00', fontWeight: 'bold', textTransform: 'uppercase' }}>{(localAtual.reino || regiaoDaCena(ctxMapa?.cenaAtual)) ? `${localAtual.reino || regiaoDaCena(ctxMapa?.cenaAtual)} : ` : ''}{localAtual.mapaNome || nomeDaCenaNaRegiao(ctxMapa?.cenaAtual)}</span>
                 </div>
                 
                 <div className="fade-in" style={{ flex: 1, position: 'relative', backgroundColor: '#050508', backgroundImage: urlSeguraParaCss(backgroundUrl) || 'none', backgroundSize: 'cover', backgroundPosition: 'center', border: '1px solid #333', borderTop: 'none', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>

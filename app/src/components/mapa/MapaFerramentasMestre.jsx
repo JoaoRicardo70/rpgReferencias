@@ -11,6 +11,8 @@ import DisputaPoderResumo from '../combate/DisputaPoderResumo';
 import { salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { ELEMENTOS_OPCOES } from '../poderes/PoderesSubComponents';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
+import { nomeDaCenaNaRegiao, regiaoDaCena } from '../../core/cenasRegiao';
+import CenaAcesso from './CenaAcesso';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Mapa provider não encontrado</div>;
 
@@ -94,7 +96,7 @@ export function MapaMestreCenaVisualizada() {
 export function MapaMestreGerenciadorCenas() {
     const ctx = useMapaForm();
     if (!ctx) return FALLBACK;
-    const { isMestre, souCriador, isModoRP, mestreVendoRP, cenario, cenaAtivaIdGlobal, cenaRenderId, setCenaVisualizadaId, ativarCena, deletarCena, novaCenaNome, setNovaCenaNome, novaCenaEscala, setNovaCenaEscala, novaCenaUnidade, setNovaCenaUnidade, novaCenaApenasCriador, setNovaCenaApenasCriador, uploadingMap, handleUploadNovaCena } = ctx;
+    const { isMestre, souCriador, isModoRP, mestreVendoRP, cenario, cenaAtivaIdGlobal, cenaRenderId, setCenaVisualizadaId, ativarCena, deletarCena, definirAcessoCena, jogadores, novaCenaNome, setNovaCenaNome, novaCenaEscala, setNovaCenaEscala, novaCenaUnidade, setNovaCenaUnidade, novaCenaApenasCriador, setNovaCenaApenasCriador, uploadingMap, handleUploadNovaCena } = ctx;
     if (!isMestre || (isModoRP && !mestreVendoRP)) return null;
     // 🔥 Cena marcada "apenasCriador" só existe pro Mestre Supremo enquanto não for publicada pra
     // mesa toda — Co-Mestres nem sabem que ela existe até o Criador dar "Publicar para Todos"
@@ -110,9 +112,11 @@ export function MapaMestreGerenciadorCenas() {
                     return (
                         <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 5, background: isAtivaGlobal ? 'rgba(0, 255, 136, 0.2)' : isVisualizada ? 'rgba(0, 136, 255, 0.2)' : '#222', border: `1px solid ${isAtivaGlobal ? '#00ff88' : isVisualizada ? '#0088ff' : '#555'}`, padding: '5px 10px', borderRadius: 4, flexWrap: 'wrap' }}>
                             {cena.apenasCriador && <span title="Só o Mestre Supremo vê esta Cena" style={{ fontSize: '0.9em' }}>🔒</span>}
-                            <span style={{ color: isAtivaGlobal ? '#00ff88' : isVisualizada ? '#0088ff' : '#fff', fontWeight: 'bold' }}>{cena.nome}</span>
+                            <span style={{ color: isAtivaGlobal ? '#00ff88' : isVisualizada ? '#0088ff' : '#fff', fontWeight: 'bold' }}>{nomeDaCenaNaRegiao(cena)}</span>
+                            {regiaoDaCena(cena) && <span className="cena-regiao-chip" title="Região do Mapa a que esta Cena pertence">📍 {regiaoDaCena(cena)}</span>}
                             {isAtivaGlobal && <span style={{ fontSize: '0.6em', background: '#00ff88', color: '#000', padding: '2px 4px', borderRadius: 3, fontWeight: 'bold', marginLeft: 4 }}>🌍 PUBLICA</span>}
                             {isVisualizada && !isAtivaGlobal && <span style={{ fontSize: '0.6em', background: '#0088ff', color: '#fff', padding: '2px 4px', borderRadius: 3, fontWeight: 'bold', marginLeft: 4 }}>👁️ VENDO</span>}
+                            {definirAcessoCena && <CenaAcesso cena={cena} jogadores={Object.keys(jogadores || {})} onSalvar={(nomes) => definirAcessoCena(id, nomes)} />}
                             {!isVisualizada && <button className="btn-neon btn-blue btn-small" onClick={() => setCenaVisualizadaId(id)} style={{ padding: '2px 8px', fontSize: '0.8em', margin: '0 0 0 5px' }}>Ver Cena Oculta</button>}
                             {!isAtivaGlobal && <button className="btn-neon btn-green btn-small" onClick={() => ativarCena(id)} style={{ padding: '2px 8px', fontSize: '0.8em', margin: '0 0 0 5px' }}>Publicar para Todos</button>}
                             <button className="btn-neon btn-red btn-small" onClick={() => deletarCena(id)} style={{ padding: '2px 8px', fontSize: '0.8em', margin: 0 }}>X</button>

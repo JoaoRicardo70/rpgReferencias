@@ -76,7 +76,7 @@ describe('MapaMundi - sincronização com Cena publicada/visualizada (ctxMapa)',
     });
 
     it('pula direto para a tela de batalha (children) quando useMapaForm() já retorna uma cenaRenderId', () => {
-        mockCtx = { cenaRenderId: 'cena-x', cenaAtual: { nome: 'Sala do Trono', img: '' } };
+        mockCtx = { isMestre: true, cenaRenderId: 'cena-x', cenaAtual: { nome: 'Sala do Trono', img: '' } };
 
         render(
             <MapaMundi>
