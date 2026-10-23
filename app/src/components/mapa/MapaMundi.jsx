@@ -119,10 +119,10 @@ export default function MapaMundi({ children }) {
     ]);
 
     const [configOrbitas, setConfigOrbitas] = useState({
-        "terra0": { rx: 160, ry: 245 },
-        "vegeta": { rx: 200, ry: 250 },
-        "namekusei": { rx: 130, ry: 200 },
-        "desconhecido": { rx: 250, ry: 300 }
+        "terra0": { rx: 205, ry: 330 },
+        "vegeta": { rx: 235, ry: 335 },
+        "namekusei": { rx: 175, ry: 260 },
+        "desconhecido": { rx: 270, ry: 340 }
     });
 
     const posicoesPings = [

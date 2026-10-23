@@ -78,7 +78,10 @@ export function iniciarAnimacaoDado(setDadoAnim, { rawRoll, quemRolou, resultado
     const cfg = getConfigDado();
     if (cfg.modo === 'desligado') return;
     if (cfg.modo === 'fisica') {
+        // Até o dado pousar ele usa a cor de uma rolagem comum: a cor do resultado (crítico, fatal, falha) só aparece junto com o número.
+        const neutra = aplicarCoresDado(classificarRolagem({ valor: 10, tipo: 'acerto' }), lerCoresDado());
         setDadoAnim({
+            corNeutra: neutra.cor, corTextoNeutra: neutra.corTexto,
             ativo: true, id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, fisica: true, numero: rawRoll, finalResult: rawRoll,
             pousou: false, segurando: cfg.mao && souQuemRolou, efeitos: cfg.efeitos, cor: resultadoRolagem.cor, corTexto: resultadoRolagem.corTexto,
             nivel: resultadoRolagem.nivel, duracaoMs: resultadoRolagem.duracaoMs, quemRolou, forcar

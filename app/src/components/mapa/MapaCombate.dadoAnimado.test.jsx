@@ -174,6 +174,22 @@ describe('MapaDadoAnimado', () => {
         expect(q('.dado-cena').style.getPropertyValue('--cor-dado')).toBe('#ffcc00');
         expect(q('[data-testid="canvas-mock"]')).not.toBeNull();
     });
+    it('modo fisico: a cor do resultado so aparece depois que o dado pousa', () => {
+        mockar({ ...base, fisica: true, id: 'c1', finalResult: 20, pousou: false, nivel: 'fatal', cor: '#ff003c', corNeutra: '#0088ff', corTextoNeutra: '#7cc4ff' });
+        render(<MapaDadoAnimado />);
+        expect(q('.dado-cena').style.getPropertyValue('--cor-dado')).toBe('#0088ff');
+        expect(q('.dado-cena').classList.contains('dado-nivel-normal')).toBe(true);
+        expect(q('.dado-cena').classList.contains('dado-nivel-fatal')).toBe(false);
+        const voando = canvasProps[canvasProps.length - 1];
+        expect(voando.cor).toBe('#0088ff');
+        expect(voando.nivel).toBe('normal');
+        limpar(); canvasProps.length = 0;
+        mockar({ ...base, fisica: true, id: 'c1', finalResult: 20, pousou: true, nivel: 'fatal', cor: '#ff003c', corNeutra: '#0088ff' });
+        render(<MapaDadoAnimado />);
+        expect(q('.dado-cena').style.getPropertyValue('--cor-dado')).toBe('#ff003c');
+        expect(q('.dado-cena').classList.contains('dado-nivel-fatal')).toBe(true);
+        expect(canvasProps[canvasProps.length - 1].cor).toBe('#ff003c');
+    });
     it('modo fisico: so conta como pousado quando dadoAnim.pousou', () => {
         mockar({ ...base, fisica: true, id: 'a1', finalResult: 17, pousou: false, nivel: 'critico', cor: '#ffcc00' });
         render(<MapaDadoAnimado />);

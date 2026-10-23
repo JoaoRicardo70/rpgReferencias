@@ -366,7 +366,11 @@ export function MapaDadoAnimado() {
 
     const fisica = !!dadoAnim.fisica;
     const isLanded = fisica ? !!dadoAnim.pousou : dadoAnim.finalResult != null;
-    const nivel = dadoAnim.nivel || 'normal';
+    // No dado físico, nada do resultado vaza antes de ele pousar: cor, brilho e nível ficam neutros até lá.
+    const esconderResultado = fisica && !isLanded;
+    const nivel = esconderResultado ? 'normal' : (dadoAnim.nivel || 'normal');
+    const corDado = esconderResultado ? (dadoAnim.corNeutra || NIVEIS_ROLAGEM.normal.cor) : dadoAnim.cor;
+    const corTextoDado = esconderResultado ? (dadoAnim.corTextoNeutra || NIVEIS_ROLAGEM.normal.corTexto) : dadoAnim.corTexto;
     const info = NIVEIS_ROLAGEM[nivel] || NIVEIS_ROLAGEM.normal;
     // Efeitos especiais (⚙️ Configurações): intensos (padrão), suaves ou desligados.
     const efeitos = dadoAnim.efeitos || 'intensos';
@@ -385,7 +389,7 @@ export function MapaDadoAnimado() {
     const aoPousar = (px) => setDadoAnim(prev => (prev && prev.id === dadoAnim.id ? { ...prev, pousou: true, segurando: false, pouso: px } : prev));
 
     return createPortal(
-        <div className={classes.join(' ')} style={{ '--cor-dado': dadoAnim.cor, '--cor-texto-dado': dadoAnim.corTexto || info.corTexto }} aria-live="polite">
+        <div className={classes.join(' ')} style={{ '--cor-dado': corDado, '--cor-texto-dado': corTextoDado || info.corTexto }} aria-live="polite">
             <div className="dado-fundo" />
             {comRaios && <div className="dado-raios" />}
             {isLanded && comEfeitos && <div className="dado-onda" />}
@@ -399,7 +403,7 @@ export function MapaDadoAnimado() {
                         <DadoFisico3D
                             key={dadoAnim.id || 'simples'}
                             isLanded={fisica ? true : isLanded}
-                            cor={dadoAnim.cor} valor={dadoAnim.finalResult} nivel={nivel}
+                            cor={corDado} valor={dadoAnim.finalResult} nivel={nivel}
                             fisica={fisica ? { segurando, aoLancar, aoPousar } : undefined}
                         />
                     </Canvas>
