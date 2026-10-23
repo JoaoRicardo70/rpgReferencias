@@ -16,6 +16,7 @@ import gabaritoAguas from '../../assets/gabarito-aguas.png';
 import gabaritoIlha from '../../assets/gabarito-ilha.png';
 import gabaritoIonia from '../../assets/gabarito-ionia.png';
 import mapaCosmologia from '../../assets/mapa-cosmologia.png';
+import { CSS_ASTROS } from './astrosCss';
 import { segmentosDoOito, amostrarTrilha, escolherFases, atrasoDaFase } from '../../core/orbitasUniverso';
 
 export default function MapaMundi({ children }) {
@@ -112,17 +113,17 @@ export default function MapaMundi({ children }) {
     const [elementosSolar, setElementosSolar] = useState([
         { "id": "orichalcosA", "tipo": "estrela", "nome": "Orichalcos A", "top": "250px", "left": "250px", "size": "180px" },
         { "id": "orichalcosB", "tipo": "estrela", "nome": "Orichalcos B", "top": "250px", "left": "750px", "size": "180px" },
-        { "id": "vegeta", "tipo": "planeta", "nome": "Vegeta", "color1": "#ff6666", "color2": "#990000", "shadow": "rgba(255,0,0,0.5)", "size": "45px", "tempo": "60s", "delay": "-5s", "pathIdx": 1 },
-        { "id": "namekusei", "tipo": "planeta", "nome": "Namekusei", "color1": "#66ff66", "color2": "#006600", "shadow": "rgba(0,255,0,0.5)", "size": "50px", "tempo": "60s", "delay": "-20s", "pathIdx": 2 },
-        { "id": "desconhecido", "tipo": "planeta", "nome": "Desconhecido", "color1": "#66b3ff", "color2": "#000066", "shadow": "rgba(0,100,255,0.5)", "size": "40px", "tempo": "60s", "delay": "-45s", "pathIdx": 3 },
-        { "id": "terra0", "tipo": "terra", "nome": "Terra 0", "size": "110px", "tempo": "60s", "delay": "0s", "pathIdx": 0 }
+        { "id": "vegeta", "tipo": "planeta", "nome": "Vegeta", "color1": "#ff6666", "color2": "#990000", "shadow": "rgba(255,0,0,0.5)", "size": "45px", "tempo": "70s", "delay": "-5s", "pathIdx": 1 },
+        { "id": "namekusei", "tipo": "planeta", "nome": "Namekusei", "color1": "#66ff66", "color2": "#006600", "shadow": "rgba(0,255,0,0.5)", "size": "50px", "tempo": "70s", "delay": "-20s", "pathIdx": 2 },
+        { "id": "desconhecido", "tipo": "planeta", "nome": "Desconhecido", "color1": "#66b3ff", "color2": "#000066", "shadow": "rgba(0,100,255,0.5)", "size": "40px", "tempo": "70s", "delay": "-45s", "pathIdx": 3 },
+        { "id": "terra0", "tipo": "terra", "nome": "Terra 0", "size": "110px", "tempo": "70s", "delay": "0s", "pathIdx": 0 }
     ]);
 
     const [configOrbitas, setConfigOrbitas] = useState({
-        "terra0": { rx: 270, ry: 360 },
-        "vegeta": { rx: 325, ry: 400 },
-        "namekusei": { rx: 215, ry: 300 },
-        "desconhecido": { rx: 380, ry: 440 }
+        "terra0": { rx: 285, ry: 520 },
+        "vegeta": { rx: 340, ry: 600 },
+        "namekusei": { rx: 230, ry: 430 },
+        "desconhecido": { rx: 395, ry: 680 }
     });
 
     const posicoesPings = [
@@ -467,26 +468,7 @@ export default function MapaMundi({ children }) {
                 </div>
                 <div style={{ position: 'absolute', inset: 0, background: '#fff', opacity: flashBranco ? 1 : 0, pointerEvents: 'none', zIndex: 999999, transition: 'opacity 0.2s ease-out' }} />
                 <style dangerouslySetInnerHTML={{__html: `
-                    /* Texturas dos astros: camadas translúcidas que giram devagar por cima do degradê de cada esfera */
-                    .astro-esfera, .astro-estrela { position: relative; overflow: hidden; }
-                    .astro-textura { position: absolute; top: 0; left: 0; width: 200%; height: 100%; background-repeat: repeat-x; background-size: 50% 100%; pointer-events: none; mix-blend-mode: soft-light; animation: astroGira var(--giro, 70s) linear infinite; }
-                    @keyframes astroGira { to { transform: translateX(-50%); } }
-                    .astro-borda { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; background: radial-gradient(circle at 32% 30%, rgba(255,255,255,0.16) 0%, transparent 38%), radial-gradient(circle at 70% 72%, transparent 52%, rgba(0,0,0,0.5) 100%); box-shadow: inset 0 0 14px 2px var(--atm, rgba(140,190,255,0.45)); }
-                    .astro-borda-estrela { background: radial-gradient(circle at 32% 30%, rgba(255,255,255,0.25) 0%, transparent 40%); box-shadow: inset 0 0 30px 6px rgba(255,120,0,0.55); }
-                    .astro-granulos { --giro: 160s; mix-blend-mode: overlay; background-image: radial-gradient(circle at 12% 22%, rgba(255,255,190,0.7) 0 2.6%, transparent 3.4%), radial-gradient(circle at 34% 64%, rgba(255,120,0,0.55) 0 3.4%, transparent 4.4%), radial-gradient(circle at 58% 28%, rgba(255,255,170,0.65) 0 2.2%, transparent 3%), radial-gradient(circle at 78% 70%, rgba(255,90,0,0.55) 0 3%, transparent 4%), radial-gradient(circle at 90% 40%, rgba(255,240,160,0.6) 0 2.4%, transparent 3.2%), radial-gradient(circle at 47% 86%, rgba(255,230,150,0.55) 0 2.2%, transparent 3%); }
-                    .astro-manchas { --giro: 220s; mix-blend-mode: multiply; background-image: radial-gradient(ellipse at 28% 46%, rgba(150,45,0,0.6) 0 3.5%, rgba(255,120,0,0.2) 4.5% 7%, transparent 8%), radial-gradient(ellipse at 74% 36%, rgba(140,40,0,0.5) 0 2.6%, transparent 4.5%), radial-gradient(ellipse at 56% 74%, rgba(160,60,0,0.45) 0 2%, transparent 3.6%); }
-                    .astro-corona { position: absolute; inset: -42%; border-radius: 50%; pointer-events: none; background: repeating-conic-gradient(from 0deg, rgba(255,190,40,0.14) 0deg 4deg, transparent 4deg 15deg); -webkit-mask-image: radial-gradient(circle, #000 34%, transparent 70%); mask-image: radial-gradient(circle, #000 34%, transparent 70%); animation: astroCoronaGira 90s linear infinite, astroCoronaPulsa 6s ease-in-out infinite alternate; }
-                    @keyframes astroCoronaGira { to { rotate: 360deg; } }
-                    @keyframes astroCoronaPulsa { from { opacity: 0.55; scale: 0.97; } to { opacity: 1; scale: 1.05; } }
-                    .astro-vegeta .astro-superficie { --giro: 90s; mix-blend-mode: multiply; background-image: radial-gradient(circle at 18% 30%, rgba(40,0,0,0.65) 0 7%, transparent 8%), radial-gradient(circle at 62% 62%, rgba(40,0,0,0.6) 0 9%, transparent 10%), radial-gradient(circle at 82% 24%, rgba(40,0,0,0.55) 0 5%, transparent 6%), radial-gradient(circle at 40% 80%, rgba(40,0,0,0.55) 0 6%, transparent 7%), linear-gradient(95deg, transparent 0 28%, rgba(60,0,0,0.35) 34%, transparent 42% 68%, rgba(60,0,0,0.3) 74%, transparent 82%); }
-                    .astro-vegeta .astro-nuvens { --giro: 60s; mix-blend-mode: screen; background-image: radial-gradient(circle at 18% 30%, transparent 0 7%, rgba(255,190,150,0.5) 8%, transparent 10%), radial-gradient(circle at 62% 62%, transparent 0 9%, rgba(255,190,150,0.45) 10%, transparent 12%), radial-gradient(ellipse at 48% 46%, rgba(255,150,90,0.22) 0 30%, transparent 42%); }
-                    .astro-namekusei .astro-superficie { --giro: 110s; mix-blend-mode: multiply; background-image: radial-gradient(ellipse at 25% 40%, rgba(0,70,20,0.75) 0 20%, transparent 24%), radial-gradient(ellipse at 72% 62%, rgba(0,60,25,0.7) 0 22%, transparent 26%), radial-gradient(ellipse at 52% 18%, rgba(0,80,30,0.55) 0 12%, transparent 16%); }
-                    .astro-namekusei .astro-nuvens { --giro: 45s; mix-blend-mode: screen; background-image: radial-gradient(ellipse at 20% 62%, rgba(220,255,220,0.5) 0 12%, transparent 17%), radial-gradient(ellipse at 66% 30%, rgba(220,255,230,0.45) 0 14%, transparent 19%), radial-gradient(ellipse at 83% 72%, rgba(210,255,210,0.4) 0 9%, transparent 13%); }
-                    .astro-desconhecido .astro-superficie { --giro: 40s; mix-blend-mode: overlay; background-image: radial-gradient(ellipse at 62% 60%, rgba(255,255,255,0.8) 0 6%, rgba(0,40,140,0.65) 8% 13%, transparent 15%), repeating-linear-gradient(0deg, rgba(255,255,255,0.35) 0 5%, rgba(0,0,90,0.5) 5% 13%, rgba(120,170,255,0.3) 13% 20%, rgba(0,0,60,0.4) 20% 27%); }
-                    .astro-desconhecido .astro-nuvens { --giro: 28s; mix-blend-mode: soft-light; background-image: repeating-linear-gradient(8deg, rgba(255,255,255,0.28) 0 3%, transparent 3% 11%, rgba(0,0,70,0.3) 11% 15%, transparent 15% 22%); }
-                    .astro-terra0 .astro-superficie { --giro: 80s; mix-blend-mode: normal; background-image: linear-gradient(180deg, rgba(255,255,255,0.7) 0 5%, transparent 11% 90%, rgba(255,255,255,0.65) 95%), radial-gradient(ellipse at 28% 44%, rgba(60,140,70,0.85) 0 15%, rgba(120,110,60,0.6) 17% 20%, transparent 22%), radial-gradient(ellipse at 52% 36%, rgba(70,150,75,0.8) 0 11%, rgba(130,115,60,0.55) 13% 16%, transparent 18%), radial-gradient(ellipse at 74% 62%, rgba(55,130,65,0.85) 0 16%, rgba(125,105,55,0.6) 18% 21%, transparent 23%), radial-gradient(ellipse at 40% 78%, rgba(60,135,70,0.7) 0 7%, transparent 10%); }
-                    .astro-terra0 .astro-nuvens { --giro: 50s; mix-blend-mode: screen; background-image: radial-gradient(ellipse at 20% 30%, rgba(255,255,255,0.4) 0 7%, transparent 11%), radial-gradient(ellipse at 40% 58%, rgba(255,255,255,0.36) 0 9%, transparent 13%), radial-gradient(ellipse at 66% 26%, rgba(255,255,255,0.36) 0 7%, transparent 11%), radial-gradient(ellipse at 82% 68%, rgba(255,255,255,0.32) 0 8%, transparent 12%), radial-gradient(ellipse at 56% 84%, rgba(255,255,255,0.3) 0 6%, transparent 9%); }
-                    @media (prefers-reduced-motion: reduce) { .astro-textura, .astro-corona { animation: none; } }
+                    ${CSS_ASTROS}
                     .fade-in { animation: fadeIn 0.8s ease-in-out; }
                     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
                     .moon-orbit-flat { animation: spinFlat 15s linear infinite; }
