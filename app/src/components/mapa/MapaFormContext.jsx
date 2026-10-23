@@ -102,6 +102,9 @@ function camposDeInicioDeTurno(ficha) {
     if (ficha.combate) {
         if (ficha.combate.fadigaTurnos !== undefined) campos['combate/fadigaTurnos'] = ficha.combate.fadigaTurnos;
         if (ficha.combate.fadigaExtra !== undefined) campos['combate/fadigaExtra'] = ficha.combate.fadigaExtra;
+        // ⏳ Ações seguradas expiram no começo do turno de quem segurou (core/acoes.js > restaurarAcoes).
+        if (ficha.combate.acoesSeguradas !== undefined) campos['combate/acoesSeguradas'] = ficha.combate.acoesSeguradas;
+        if (ficha.combate.acaoSeguradaCredito !== undefined) campos['combate/acaoSeguradaCredito'] = ficha.combate.acaoSeguradaCredito;
     }
     if (ficha.acoes) {
         ['padrao', 'bonus', 'reacao'].forEach((t) => {

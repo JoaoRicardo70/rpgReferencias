@@ -2784,3 +2784,25 @@ body.theme-mescla ::-webkit-scrollbar-thumb { background: linear-gradient(var(--
 .combate-ficha-feed { margin-top: 22px; padding-top: 12px; border-top: 2px dashed currentColor; }
 .combate-ficha-feed-titulo { margin: 0 0 8px 0; font-style: italic; }
 .combate-ficha-feed-corpo { max-height: 50vh; overflow: auto; }
+
+/* ⏳ Segurar Ação (Hold Action) */
+.segurar-acao { margin-top: 18px; padding: 10px 14px; border: 1px dashed currentColor; border-radius: 8px; display: flex; flex-direction: column; gap: 8px; }
+.segurar-acao-cabecalho { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.segurar-acao-titulo { font-size: 0.95em; }
+.segurar-acao-contagem { padding: 1px 8px; border: 1px solid currentColor; border-radius: 10px; font-size: 0.8em; opacity: 0.8; }
+.segurar-acao-credito { font-size: 0.8em; font-weight: bold; }
+.segurar-acao-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.segurar-acao-item { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.segurar-acao-gatilho { flex: 1 1 160px; font-size: 0.9em; font-style: italic; }
+.segurar-acao-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.segurar-acao-input { flex: 1 1 220px; margin: 0; }
+.segurar-acao-botao { margin: 0; padding: 5px 12px; font-size: 0.85em; }
+.segurar-acao-soltar { background: none; border: 1px solid currentColor; border-radius: 4px; cursor: pointer; color: inherit; opacity: 0.7; padding: 2px 8px; }
+.segurar-acao-dica { margin: 0; font-size: 0.75em; opacity: 0.65; }
+.segurar-acao-mestre { display: flex; align-items: center; gap: 8px; font-size: 0.8em; opacity: 0.9; }
+.segurar-acao-limite { width: 70px; margin: 0; padding: 4px; text-align: center; }
+.mestre-segurar-acao { padding: 12px 16px; border: 1px solid #ffcc00; border-radius: 8px; background: rgba(0, 0, 0, 0.35); }
+.mestre-segurar-acao-titulo { margin: 0 0 8px 0; color: #ffcc00; }
+.mestre-segurar-acao-campo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mestre-segurar-acao-input { width: 70px; margin: 0; padding: 4px; text-align: center; }
+.mestre-segurar-acao-dica { margin: 8px 0 0 0; font-size: 0.8em; opacity: 0.7; }

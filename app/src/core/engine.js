@@ -128,30 +128,30 @@ function formatarRolagem(qtd, faces, rolls, soma) {
     return `${qtd}d${faces}: [${rolls.slice(0, 30).join(', ')}... +${(rolls.length - 30).toLocaleString('pt-BR')} dados] = ${soma}`;
 }
 
-// ⚖️ Sem Multiplicadores de Dano (mUnico e cia. agora só valem no Poder Calculado, core/poder.js):
-// cada termo entra com o valor puro; quem ajusta o dano contra o alvo é a Disputa de Poder
-// (core/disputaPoder.js), aplicada onde o golpe chega no alvo.
-function calcularSubDano({ qtdDados, facesDados, sels, minhaFicha }) {
-    if (qtdDados <= 0) return { dano: 0, rolagem: '', rolagemValor: 0, somaTermos: 0, detalhesTermos: [] };
+// ⚖️ Fórmula base do Dano: (soma dos dados das técnicas e/ou armas envolvidas) + (Status relacionados a elas).
+// Nada de dado × status. O Custo (energia gasta) não entra aqui: ele aumenta o Poder Calculado só no momento
+// do Dano (core/custoPoder.js), e quem ajusta o dano contra o alvo é a Disputa de Poder (core/disputaPoder.js).
+// Cada fonte (arma, habilidade vinculada, habilidade livre, técnica) rola os próprios dados; os Status de todas elas
+// entram uma vez cada (se duas fontes usam Força, a Força soma uma vez só).
+function rolarFonteDeDano({ nome, tipo, qtdDados, facesDados, sels }) {
+    const { soma, rolls } = rolarDadosSimples(qtdDados, facesDados);
+    return { nome, tipo, soma, rolagem: formatarRolagem(qtdDados, facesDados, rolls, soma), sels: Array.isArray(sels) ? sels : ['forca'] };
+}
 
-    let { soma, rolls } = rolarDadosSimples(qtdDados, facesDados);
-    let somaTermos = 0;
-    let detalhesTermos = [];
-
-    for (let i = 0; i < sels.length; i++) {
-        // 🔥 APLICA O PODER DE LUTA VERDADEIRO NO DANO 🔥
-        let val = getPoderDeLutaStatus(minhaFicha, sels[i], false);
-        somaTermos += val;
-        let nomeAttr = (minhaFicha[sels[i]] && minhaFicha[sels[i]].nome) || sels[i].toUpperCase();
-        detalhesTermos.push(`<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>`);
-    }
-
-    // 🔋 O Custo (energia gasta) NÃO entra mais no dano: ele aumenta o Poder do golpe (core/custoPoder.js).
-
-    let dano = Math.floor(soma * somaTermos);
-    let rolagem = formatarRolagem(qtdDados, facesDados, rolls, soma);
-
-    return { dano, rolagem, rolagemValor: soma, somaTermos, detalhesTermos };
+// Soma os Status distintos das fontes (cada um conta uma vez).
+function somarStatusDasFontes(fontes, minhaFicha) {
+    const vistos = new Set();
+    let soma = 0;
+    const detalhes = [];
+    fontes.forEach(f => f.sels.forEach(k => {
+        if (vistos.has(k)) return;
+        vistos.add(k);
+        const val = getPoderDeLutaStatus(minhaFicha, k, false);
+        soma += val;
+        const nomeAttr = (minhaFicha[k] && minhaFicha[k].nome) || String(k).toUpperCase();
+        detalhes.push(`<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>`);
+    }));
+    return { soma, detalhes };
 }
 
 export function calcularDano({ minhaFicha, configArma, configHabilidades, itensEquipados, isCriticoNormal, isCriticoFatal }) {
@@ -284,74 +284,24 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         custoTxt.push(`<span style="color:#0f0; text-shadow: 0 0 5px #0f0;">ZERO (${comoPoderNames.join(', ')} como Poder)</span>`);
     }
 
-    let habsVinculadas = armaEquipada
-        ? configHabilidades.filter(h => h.armaVinculada && String(h.armaVinculada) === String(armaEquipada.id))
-        : [];
-    let habsLivres = configHabilidades.filter(h => {
-        if (!h.armaVinculada) return true;
-        if (!armaEquipada) return true;
-        return String(h.armaVinculada) !== String(armaEquipada.id);
-    });
-
-    let resultadoArma = null;
+    // 🎲 Fontes de dano: a arma equipada com dados, as habilidades vinculadas a ela e as livres/técnicas com dados.
+    const fontes = [];
     if (armaEquipada && (armaEquipada.dadosQtd || 0) > 0) {
-        let habVincResults = [];
-        let somaHabVinc = 0;
-        for (let i = 0; i < habsVinculadas.length; i++) {
-            let hab = habsVinculadas[i];
-            let r = calcularSubDano({
-                qtdDados: hab.dadosQtd || 0, facesDados: hab.dadosFaces || 20,
-                sels: hab.statusUsados || ['forca'],
-                minhaFicha
-            });
-            r.nome = hab.nome;
-            somaHabVinc += r.dano;
-            habVincResults.push(r);
-        }
-
-        let { soma: rolagemArma, rolls: rollsArma } = rolarDadosSimples(armaEquipada.dadosQtd, armaEquipada.dadosFaces || 20);
-        let somaTermosArma = 0;
-        let detalhesArma = [];
-        let armaSels = configArma ? configArma.statusUsados || ['forca'] : ['forca'];
-
-        for (let i = 0; i < armaSels.length; i++) {
-            // 🔥 APLICA O PODER DE LUTA VERDADEIRO NO DANO DA ARMA 🔥
-            let val = getPoderDeLutaStatus(minhaFicha, armaSels[i], false);
-            somaTermosArma += val;
-            let nomeAttr = (minhaFicha[armaSels[i]] && minhaFicha[armaSels[i]].nome) || armaSels[i].toUpperCase();
-            detalhesArma.push(`<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>`);
-        }
-
-        somaTermosArma += somaHabVinc;
-        let danoArma = Math.floor(rolagemArma * somaTermosArma);
-
-        resultadoArma = {
-            dano: danoArma,
-            rolagem: formatarRolagem(armaEquipada.dadosQtd, armaEquipada.dadosFaces || 20, rollsArma, rolagemArma),
-            rolagemValor: rolagemArma, nome: armaEquipada.nome,
-            habVincResults, detalhesArma, somaTermosArma, somaHabVinc
-        };
+        fontes.push(rolarFonteDeDano({ nome: armaEquipada.nome, tipo: 'arma', qtdDados: armaEquipada.dadosQtd, facesDados: armaEquipada.dadosFaces || 20, sels: configArma ? configArma.statusUsados : null }));
     }
-
-    let resultadosHabLivres = [];
-    for (let i = 0; i < habsLivres.length; i++) {
-        let hab = habsLivres[i];
+    for (let i = 0; i < configHabilidades.length; i++) {
+        const hab = configHabilidades[i];
         if ((hab.dadosQtd || 0) <= 0) continue;
-
-        let r = calcularSubDano({
-            qtdDados: hab.dadosQtd, facesDados: hab.dadosFaces || 20,
-            sels: hab.statusUsados || ['forca'],
-            minhaFicha
-        });
-        r.nome = hab.nome;
-        resultadosHabLivres.push(r);
+        const vinculada = !!armaEquipada && !!hab.armaVinculada && String(hab.armaVinculada) === String(armaEquipada.id);
+        fontes.push(rolarFonteDeDano({ nome: hab.nome, tipo: vinculada ? 'vinculada' : 'habilidade', qtdDados: hab.dadosQtd, facesDados: hab.dadosFaces || 20, sels: hab.statusUsados }));
     }
 
-    let somaDanos = (resultadoArma ? resultadoArma.dano : 0);
-    for (let i = 0; i < resultadosHabLivres.length; i++) somaDanos += resultadosHabLivres[i].dano;
+    const somaDados = fontes.reduce((s, f) => s + f.soma, 0);
+    const status = somarStatusDasFontes(fontes, minhaFicha);
+    let somaDanos = fontes.length > 0 ? somaDados + status.soma : 0;
     somaDanos += iDanoBruto;
 
-    if (!resultadoArma && resultadosHabLivres.length === 0 && somaDanos === 0) {
+    if (fontes.length === 0 && somaDanos === 0) {
         return { erro: 'Nenhuma fonte de dano! Equipe uma arma com dados ou ative habilidades com dados de dano.' };
     }
 
@@ -393,18 +343,15 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
 
     let detalheLinhas = [`<span style="color:#ffcc00; font-weight:bold;">[MÁQUINA DE CÁLCULO]</span>`];
 
-    if (resultadoArma) {
-        let habVincTxt = '';
-        if (resultadoArma.habVincResults.length > 0) {
-            let habParts = resultadoArma.habVincResults.map(h => `<span style="color:#f0f">${h.nome}(${h.dano.toLocaleString('pt-BR')})</span>`);
-            habVincTxt = ` + Habs: ${habParts.join(' + ')}`;
-        }
-        detalheLinhas.push(`<strong style="color:#0f0">Dano de Arma [${resultadoArma.nome}]:</strong> <span style="color:#0f0">${resultadoArma.rolagem}</span> x (${resultadoArma.detalhesArma.join(' + ')}${habVincTxt}) = <strong style="color:#0f0">${resultadoArma.dano.toLocaleString('pt-BR')}</strong>`);
-    }
-
-    for (let i = 0; i < resultadosHabLivres.length; i++) {
-        let h = resultadosHabLivres[i];
-        detalheLinhas.push(`<strong style="color:#f0f">Dano de Habilidade [${h.nome}]:</strong> <span style="color:#f0f">${h.rolagem}</span> x (${h.detalhesTermos.join(' + ')}) = <strong style="color:#f0f">${h.dano.toLocaleString('pt-BR')}</strong>`);
+    fontes.forEach(f => {
+        const cor = f.tipo === 'arma' ? '#0f0' : '#f0f';
+        const rotulo = f.tipo === 'arma' ? 'Dados da Arma' : (f.tipo === 'vinculada' ? 'Dados da Habilidade (vinculada à arma)' : 'Dados da Habilidade');
+        detalheLinhas.push(`<strong style="color:${cor}">${rotulo} [${f.nome}]:</strong> <span style="color:${cor}">${f.rolagem}</span>`);
+    });
+    if (fontes.length > 0) {
+        detalheLinhas.push(`<strong>Soma dos Dados:</strong> ${somaDados.toLocaleString('pt-BR')}`);
+        detalheLinhas.push(`<strong>Status:</strong> ${status.detalhes.join(' + ')} = <strong style="color:#ff003c">${status.soma.toLocaleString('pt-BR')}</strong>`);
+        detalheLinhas.push(`<strong>Dano Base:</strong> ${somaDados.toLocaleString('pt-BR')} (dados) + ${status.soma.toLocaleString('pt-BR')} (status) = ${(somaDados + status.soma).toLocaleString('pt-BR')}`);
     }
 
     detalheLinhas.push(`<strong>Soma:</strong> ${somaDanos.toLocaleString('pt-BR')}${iDanoBruto > 0 ? ` (inclui +${iDanoBruto.toLocaleString('pt-BR')} bruto)` : ''}`);
@@ -420,12 +367,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     ${detalheLinhas.join('<br>')}
     </div>`;
 
-    let rolagemTextoFinal = '';
-    if (resultadoArma) rolagemTextoFinal += `Arma: ${resultadoArma.rolagem}`;
-    for (let i = 0; i < resultadosHabLivres.length; i++) {
-        if (rolagemTextoFinal) rolagemTextoFinal += ' | ';
-        rolagemTextoFinal += `${resultadosHabLivres[i].nome}: ${resultadosHabLivres[i].rolagem}`;
-    }
+    const rolagemTextoFinal = fontes.map(f => `${f.tipo === 'arma' ? 'Arma' : f.nome}: ${f.rolagem}`).join(' | ');
 
     let allAttrNames = new Set();
     if (configArma) (configArma.statusUsados || []).forEach(s => allAttrNames.add((minhaFicha[s] && minhaFicha[s].nome) || s.toUpperCase()));

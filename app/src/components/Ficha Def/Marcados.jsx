@@ -24,6 +24,7 @@ import PactosPanel from './PactosPanel';
 import CombateFichaPanel from './CombateFichaPanel';
 import { TOTAL_PAGINAS_FICHA } from '../../core/navegacao';
 import AjustesPanel from './AjustesPanel';
+import SegurarAcao from '../combate/SegurarAcao';
 import { getAcoesExibicao, alternarAcao, restaurarAcoes, ajustarExtraManualAcao, getExtraManualAcao, TIPOS_ACAO, ACOES_MAXIMO, ROTULO_ACAO } from '../../core/acoes';
 import BarrasVida from '../shared/BarrasVida';
 import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
@@ -1706,7 +1707,7 @@ export default function MarcadosPanel() {
                                 </div>
 
                                 <div style={{ marginTop: '20px', display: 'flex', alignItems: 'center', gap: '15px', position: 'relative', zIndex: 1, borderTop: `1px solid rgba(255,255,255,0.05)`, paddingTop: '15px' }}>
-                                    <span title="Restringir o Poder: quanto do seu Poder Calculado você está USANDO. Menos Poder em uso = menos Fadiga (ou 'pegar leve' com o adversário). Não esconde nada de ninguém." style={{ color: '#fff', opacity: 0.7, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>Restringir Poder:</span>
+                                    <span title="Restringir o Poder: quanto do seu Poder Calculado você está USANDO (de 0% a 100%). Menos Poder em uso = menos Fadiga (ou 'pegar leve' com o adversário). Não esconde nada de ninguém. É uma AÇÃO LIVRE: dá pra mudar a qualquer momento, até fora do seu turno, sem gastar nada." style={{ color: '#fff', opacity: 0.7, fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase' }}>Restringir Poder:</span>
                                     <input 
                                         type="range" min={Math.min(limiteSupressao, 100)} max="100" step="0.1" value={supressao > 100 ? 100 : supressao}
                                         onChange={e => { salvar('supressaoPoder', e.target.value); }}
@@ -2024,6 +2025,7 @@ export default function MarcadosPanel() {
                                         );
                                     })}
                                 </div>
+                                <SegurarAcao />
                             </div>
                         </div>
                     </>

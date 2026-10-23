@@ -3,6 +3,7 @@ import DescricoesAtaqueEditor from '../shared/DescricoesAtaqueEditor';
 import { useArsenalForm, ARMA_TIPOS, RARIDADES, BONUS_OPTIONS } from './ArsenalFormContext';
 import { ATRIBUTOS_AGRUPADOS, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 import FormasEditor from '../shared/FormasEditor';
+import { afetaPoderCalculado, normalizarAcaoEquipar, ACOES_EQUIPAR_ITEM } from '../../core/acaoPoder';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Arsenal provider não encontrado</div>;
 
@@ -288,6 +289,14 @@ export function ArsenalInventarioList() {
                                 <label className="arsenal-item-extra">Qtd <input type="number" min="0" className="input-neon" value={p.quantidade ?? 1} onChange={e => atualizarCampoItem(p.id, 'quantidade', e.target.value === '' ? '' : (parseFloat(e.target.value) || 0))} /></label>
                                 <label className="arsenal-item-extra">Kg <input type="number" min="0" step="0.1" className="input-neon" value={p.peso ?? 0} onChange={e => atualizarCampoItem(p.id, 'peso', e.target.value === '' ? '' : (parseFloat(e.target.value) || 0))} /></label>
                                 <textarea className="input-neon arsenal-item-desc" rows={2} placeholder="Descrição do item..." value={p.desc || ''} onChange={e => atualizarCampoItem(p.id, 'desc', e.target.value)} />
+                                {afetaPoderCalculado(p, { incluirPassivos: true }) && (
+                                    <label className="arsenal-item-extra" title="Este item eleva o Poder Calculado. Equipá-lo é uma Ação Livre ou gasta uma Reação?">
+                                        ⚡ Ao equipar
+                                        <select className="input-neon" value={normalizarAcaoEquipar(p.equiparAcao)} onChange={e => atualizarCampoItem(p.id, 'equiparAcao', e.target.value)}>
+                                            {ACOES_EQUIPAR_ITEM.map(a => <option key={a.id} value={a.id}>{a.rotulo}</option>)}
+                                        </select>
+                                    </label>
+                                )}
                             </div>
                             {p.tipo === 'arma' && <DescricoesAtaqueEditor colecao="inventario" itemId={p.id} />}
                             {p.tipo === 'arma' && (

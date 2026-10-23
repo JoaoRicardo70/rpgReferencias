@@ -11,10 +11,11 @@
 //   • Técnica Elemental: ao ATACAR com ela (AtaqueFormContext > executarRolarDano), uma vez por tipo de Ação distinto.
 // Sem a Ação disponível o app pergunta se quer usar mesmo assim (o contador nunca fica negativo).
 // ==========================================
-import { getAcoesExibicao, alternarAcao, resolverTipoAGastar, ROTULO_ACAO } from './acoes.js';
+import { getAcoesExibicao, alternarAcao, resolverTipoAGastar, getCreditoAcaoSegurada, ROTULO_ACAO } from './acoes.js';
 
 export const TIPOS_ACAO_TECNICA = [
-    { id: '', rotulo: 'Não controla Ação', rastreada: null },
+    // Automático: não controla Ação, exceto Poder/Forma/Habilidade que eleva o Poder Calculado (gasta Reação ao ligar, core/acaoPoder.js).
+    { id: '', rotulo: 'Automático (Reação se elevar o Poder)', rastreada: null },
     { id: 'acao', rotulo: 'Ação', rastreada: 'padrao' },
     { id: 'bonus', rotulo: 'Ação Bônus', rastreada: 'bonus' },
     { id: 'reacao', rotulo: 'Reação', rastreada: 'reacao' },
@@ -54,7 +55,8 @@ const ordenarTipos = (tipos) => [...(tipos || [])].sort((a, b) => (a === 'bonus'
 // Simula o gasto, um tipo de cada vez (o mesmo caminho de gastarAcoes): [{ tipo, efetivo, semAcao, restam }].
 function simularGasto(ficha, tiposRastreados) {
     const exib = getAcoesExibicao(ficha);
-    const cont = { padrao: exib.padrao.atual, bonus: exib.bonus.atual, reacao: exib.reacao.atual };
+    // Uma Ação segurada em uso paga a próxima Ação (core/segurarAcao.js).
+    const cont = { padrao: exib.padrao.atual + getCreditoAcaoSegurada(ficha), bonus: exib.bonus.atual, reacao: exib.reacao.atual };
     return ordenarTipos(tiposRastreados).map(tipo => {
         const efetivo = (tipo === 'bonus' && cont.bonus <= 0 && cont.padrao > 0) ? 'padrao' : tipo;
         const semAcao = (cont[efetivo] || 0) <= 0;

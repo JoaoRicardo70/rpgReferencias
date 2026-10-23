@@ -22,6 +22,10 @@ export const TIPOS_ACAO = ['padrao', 'bonus', 'reacao'];
 export const ATRIBUTO_ACAO = { padrao: 'acao_padrao', bonus: 'acao_bonus', reacao: 'acao_reacao' };
 export const ROTULO_ACAO = { padrao: 'Ação', bonus: 'Ação Bônus', reacao: 'Reação' };
 
+// ⏳ Ação segurada (core/segurarAcao.js): ao usar uma, a PRÓXIMA Ação gasta sai dela (crédito) em vez do contador do turno.
+export const CAMPO_CREDITO_SEGURADA = 'acaoSeguradaCredito';
+export const getCreditoAcaoSegurada = (ficha) => Math.max(0, Math.trunc(Number(ficha?.combate?.[CAMPO_CREDITO_SEGURADA])) || 0);
+
 const limitar = (n) => Math.max(0, Math.min(ACOES_MAXIMO, n));
 const inteiroNaoNegativo = (v) => { const n = Math.trunc(Number(v)); return Number.isFinite(n) && n > 0 ? n : 0; };
 
@@ -100,6 +104,9 @@ export function sincronizarAcoes(ficha) {
 // Gasta (disponivel = true) ou recupera uma Ação do tipo.
 export function alternarAcao(ficha, tipo, disponivel) {
     if (!ficha || !TIPOS_ACAO.includes(tipo)) return;
+    // Gastar uma Ação com uma Ação segurada em uso: ela paga, o contador do turno não mexe.
+    const credito = getCreditoAcaoSegurada(ficha);
+    if (disponivel && tipo === 'padrao' && credito > 0) { ficha.combate[CAMPO_CREDITO_SEGURADA] = credito - 1; return; }
     sincronizarAcoes(ficha);
     const g = ficha.acoes[tipo];
     g.atual = disponivel ? Math.max(0, g.atual - 1) : Math.min(g.max, g.atual + 1);
@@ -111,6 +118,8 @@ export function restaurarAcoes(ficha) {
     sincronizarAcoes(ficha);
     // Reações usadas no round anterior (core/reacoes.js) não passam para o próximo turno.
     if (ficha.combate && Array.isArray(ficha.combate.reacoesPendentes)) ficha.combate.reacoesPendentes = [];
+    // ⏳ Ações seguradas valem até o começo do próximo turno de quem segurou (core/segurarAcao.js).
+    if (ficha.combate) { ficha.combate.acoesSeguradas = []; ficha.combate[CAMPO_CREDITO_SEGURADA] = 0; }
     TIPOS_ACAO.forEach(t => { ficha.acoes[t].atual = ficha.acoes[t].max; });
 }
 
@@ -131,5 +140,5 @@ export function ajustarExtraManualAcao(ficha, tipo, delta) {
 export function resolverTipoAGastar(ficha, tipo) {
     if (tipo !== 'bonus') return tipo;
     const exib = getAcoesExibicao(ficha);
-    return (exib.bonus.atual <= 0 && exib.padrao.atual > 0) ? 'padrao' : 'bonus';
+    return (exib.bonus.atual <= 0 && exib.padrao.atual + getCreditoAcaoSegurada(ficha) > 0) ? 'padrao' : 'bonus';
 }

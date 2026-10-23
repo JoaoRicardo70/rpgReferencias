@@ -8,6 +8,7 @@ import {
     MestreForjaNPC // Adicionámos a importação aqui!
 } from './MestreSubComponents';
 import MestreControleTurno from './MestreControleTurno';
+import MestreSegurarAcao from './MestreSegurarAcao';
 import { MestreNotificacoesPedidos } from './MestrePedidosSexta';
 
 function MestreConteudoSeguro() {
@@ -26,6 +27,9 @@ function MestreConteudoSeguro() {
 
             {/* Controle de Turnos do combate (mesma ação do "Passar Turno" do Mapa) */}
             <MestreControleTurno />
+
+            {/* ⏳ Quantas Ações cada um pode segurar (Hold Action) */}
+            <MestreSegurarAcao />
 
             {/* Primeira linha: Visor, Injetor Rápido e Voz do Sistema */}
             <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>

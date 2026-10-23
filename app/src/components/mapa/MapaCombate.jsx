@@ -9,6 +9,8 @@ import { getRotuloAcaoTecnica } from '../../core/acoesTecnica';
 import { habilidadeEstaLigada, TIPO_HABILIDADE_PASSIVA } from '../../core/reducaoDano';
 import { descreverAlvosReducao } from '../../core/reducaoRotulos';
 import useGastarAcao from '../../hooks/useGastarAcao';
+import SegurarAcao from '../combate/SegurarAcao';
+import { tipoAcaoAoLigar } from '../../core/acaoPoder';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { usePoderesForm } from '../poderes/PoderesFormContext';
 import EstagioControle from '../poderes/EstagioControle';
@@ -291,6 +293,7 @@ export function MapaEconomiaAcoes() {
     };
 
     return (
+        <>
         <div style={{ marginTop: 15, padding: '10px 15px', background: 'rgba(0,0,0,0.6)', border: '1px solid #333', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 15 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ color: '#fff', fontSize: '0.85em', fontWeight: 'bold' }}>⚡ Ações de: <span style={{ color: '#00ffcc' }}>{targetEntidade.nome}</span>{!canEdit && <span style={{ fontSize: '0.7em', color: '#888', marginLeft: 8 }}>(Apenas Visão)</span>}</span>
@@ -320,6 +323,9 @@ export function MapaEconomiaAcoes() {
                 {renderDots('reacao', 'Reação', '#ff00ff')}
             </div>
         </div>
+        {/* ⏳ Segurar Ação (Hold Action): só pra mim mesmo; dos outros o Feed já avisa. */}
+        {targetEntidade.tipo === 'player' && targetEntidade.nome === meuNome && <SegurarAcao />}
+        </>
     );
 }
 
@@ -888,7 +894,7 @@ export function MapaTecnicasRapidas() {
                 color: p.ativa ? '#fff' : '#aa00ff',
             }}
         >
-            {p.ativa ? '★' : '☆'} {p.nome || 'Sem nome'}{p.tipoAcao ? <span className="mapa-chip-acao"> · {getRotuloAcaoTecnica(p.tipoAcao)}</span> : null}
+            {p.ativa ? '★' : '☆'} {p.nome || 'Sem nome'}{tipoAcaoAoLigar(p) ? <span className="mapa-chip-acao"> · {getRotuloAcaoTecnica(tipoAcaoAoLigar(p))}</span> : null}
         </button>
     );
 

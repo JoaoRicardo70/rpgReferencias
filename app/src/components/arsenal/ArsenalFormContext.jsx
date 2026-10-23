@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useRef, useCallback, useMem
 import useStore from '../../stores/useStore';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
+import { equiparCobraReacao } from '../../core/acaoPoder';
+import useGastarAcao from '../../hooks/useGastarAcao';
 
 export const ARMA_TIPOS = ['espada', 'arco', 'lança', 'machado', 'adaga', 'cajado', 'arma de fogo', 'manopla', 'foice', 'chicote', 'martelo', 'escudo'];
 export const RARIDADES = ['comum', 'rara', 'avançada', 'lendaria', 'lendaria (Longuinus)', 'espiritual', 'fantasma nobre'];
@@ -97,7 +99,11 @@ export function ArsenalFormProvider({ children }) {
     // eles não podem "grudar" e cair numa forja de outro personagem.
     useEffect(() => () => { cancelarEdicaoItem(); }, [nomeAlvo, cancelarEdicaoItem]);
 
+    const gastarAcao = useGastarAcao();
     const toggleEquiparItem = useCallback((id) => {
+        // Equipar item que eleva o Poder Calculado e foi marcado como Reação gasta uma Reação (core/acaoPoder.js).
+        const alvoItem = (minhaFicha?.inventario || []).find(i => i.id === id);
+        if (alvoItem && !alvoItem.equipado && equiparCobraReacao(alvoItem) && !gastarAcao({ tipoAcao: 'reacao' })) return;
         updateFicha((ficha) => {
             if (!ficha.inventario) return;
             const itemIndex = ficha.inventario.findIndex(i => i.id === id);
@@ -121,7 +127,7 @@ export function ArsenalFormProvider({ children }) {
             rescalarVitaisProporcional(ficha, oldM);
         });
         callSave();
-    }, [updateFicha, callSave]);
+    }, [updateFicha, callSave, minhaFicha, gastarAcao]);
 
     const salvarNovoItem = useCallback(() => {
         const n = nomeItem.trim();
