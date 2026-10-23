@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { calcularDano } from '../core/engine.js';
 
 // Dano = (soma dos dados das técnicas e/ou armas) + (Status relacionados a elas). Nada de dado x status.
-// O Status entra com o valor da ficha (sem o bônus oculto de Ascensão do Poder de Luta).
+// O Status entra com o MESMO número que a Ficha Definitiva mostra (valor bruto / 1000, vezes o fator de Ascensão), sem o bônus oculto do Poder de Luta.
 const FORCA = 100;
 const INTELIGENCIA = 50;
 
@@ -10,8 +10,8 @@ const atributo = (nome, base) => ({ base, nome, mBase: 1, mGeral: 1, mFormas: 1,
 
 function buildFicha() {
     return {
-        forca: atributo('Força', 100),
-        inteligencia: atributo('Inteligência', 50),
+        forca: atributo('Força', 100000),
+        inteligencia: atributo('Inteligência', 50000),
         mana: { ...atributo('Mana', 50), atual: 1000 },
         aura: { ...atributo('Aura', 50), atual: 1000 },
         dano: { base: 0, mBase: 1, mGeral: 1, mFormas: 1, mAbsoluto: 1, mPotencial: 1, mUnico: '1.0' },
@@ -74,6 +74,13 @@ describe('calcularDano: soma dos dados + Status', () => {
         const normal = calc({ configHabilidades: [tecnica()] }).dano;
         const fatal = calc({ configHabilidades: [tecnica()], isCriticoFatal: true }).dano;
         expect(fatal).toBe(normal * 4);
+    });
+
+    it('usa o valor exibido na ficha (240), nao o bruto 240.000 nem o Poder de Luta', () => {
+        const f = buildFicha();
+        f.inteligencia.base = 240000;
+        const r = calc({ minhaFicha: f, configHabilidades: [tecnica()] });
+        expect(r.dano).toBe(24 + 240);
     });
 
     it('mostra a conta: dados, Status e Dano Base', () => {

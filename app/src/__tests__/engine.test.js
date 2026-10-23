@@ -7,8 +7,8 @@ import { calcularDano, rolarDadosComVantagem } from '../core/engine.js';
 
 function buildFicha({ poderes = [], inventario = [], ataquesElementais = [] } = {}) {
     return {
-        forca: { base: 100, nome: 'Forca', mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', reducaoCusto: 0, regeneracao: 0 },
-        destreza: { base: 80, nome: 'Destreza', mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', reducaoCusto: 0, regeneracao: 0 },
+        forca: { base: 100000, nome: 'Forca', mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', reducaoCusto: 0, regeneracao: 0 },
+        destreza: { base: 80000, nome: 'Destreza', mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', reducaoCusto: 0, regeneracao: 0 },
         mana: { base: 50, nome: 'Mana', atual: 1000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', reducaoCusto: 0, regeneracao: 0 },
         aura: { base: 50, nome: 'Aura', atual: 1000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', reducaoCusto: 0, regeneracao: 0 },
         dano: { base: 0, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mPotencial: 1.0, mUnico: '1.0', reducaoCusto: 0, regeneracao: 0 },
@@ -219,7 +219,7 @@ describe('calcularDano — novo sistema', () => {
     it('letalidade reduces dano for 9+ digit totals', () => {
         // Chega em 9+ digitos pelo atributo (sem multiplicadores, que nao existem mais no dano)
         const ficha = buildFicha();
-        ficha.forca.base = 1e9;
+        ficha.forca.base = 1e12;
         const arma = makeArma({ dadosQtd: 2, dadosFaces: 6 });
 
         const result = callCalcDano({ itensEquipados: [arma], minhaFicha: ficha });

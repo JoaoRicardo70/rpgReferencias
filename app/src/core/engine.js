@@ -7,6 +7,10 @@ import { getVitalMxDisplay } from './vitals.js';
 import { ENERGIAS_COMO_PODER, getMargemCusto, limitarPercComoPoder, podeConjurarComoPoder, custoBrutoDeEnergia, somarCustosBrutos } from './custoPoder.js';
 import { getVantagensDeClasse, getBonusAcertoDeClasse } from './classesMecanicas.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
+import { calcularFatorMultiplicadorForca } from './poder.js';
+
+// Status são gravados 1000x maiores que o número exibido na Ficha (core: Marcados.jsx > FATOR_EXIBICAO_STATUS).
+const FATOR_EXIBICAO_STATUS = 1000;
 
 // ==========================================
 // 👻 O RESET FANTASMA DA ASCENSÃO 👻
@@ -146,8 +150,10 @@ function somarStatusDasFontes(fontes, minhaFicha) {
     fontes.forEach(f => f.sels.forEach(k => {
         if (vistos.has(k)) return;
         vistos.add(k);
-        // O Status do dano é o valor que aparece na ficha (240), sem o bônus oculto de Ascensão do Poder de Luta (+100.000).
-        const val = Number(getMaximo(minhaFicha, k)) || 0;
+        // O Status do dano é o MESMO número que a Ficha Definitiva mostra na coluna Atual (ex.: 240): o valor bruto vem em escala
+        // 1000x maior e passa pelo fator de Ascensão/Prestígio (core/poder.js > calcularFatorMultiplicadorForca), igual à exibição.
+        const bruto = Number(getMaximo(minhaFicha, k)) || 0;
+        const val = Math.floor((bruto * calcularFatorMultiplicadorForca(minhaFicha, 'status')) / FATOR_EXIBICAO_STATUS);
         soma += val;
         const nomeAttr = (minhaFicha[k] && minhaFicha[k].nome) || String(k).toUpperCase();
         detalhes.push(`<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>`);
