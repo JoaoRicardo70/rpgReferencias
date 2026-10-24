@@ -90,17 +90,17 @@ export default function MapaMundi({ children }) {
 
     // POSIÇÕES DA COSMOLOGIA 
     const [zonasCosmologia, setZonasCosmologia] = useState([
-        { "nome": "Terra 0 (Runeterra)", "top": "44.3%", "left": "49.3%", "width": "10%", "height": "16.6%", "cor": "#ffffff", "isCircle": true, "isPlanet": true },
-        { "nome": "Plano da Ordem", "top": "40.6%", "left": "13.2%", "width": "13%", "height": "22%", "cor": "#DDA0DD", "isCircle": true },
+        { "nome": "Terra 0 (Runeterra)", "top": "41.7%", "left": "49%", "width": "10%", "height": "16.7%", "cor": "#ffffff", "isCircle": true, "isPlanet": true },
+        { "nome": "Plano da Ordem", "top": "41%", "left": "6.4%", "width": "11%", "height": "18%", "cor": "#DDA0DD", "isCircle": true },
         { "nome": "Plano Astral", "top": "0%", "left": "0%", "width": "100%", "height": "100%", "cor": "#6a4cff", "isCircle": true, "zIndex": 1 },
-        { "nome": "Plano do Vento", "top": "28.2%", "left": "33.4%", "width": "12%", "height": "20%", "cor": "#2E8B57", "isCircle": true },
-        { "nome": "Plano do Fogo", "top": "55.2%", "left": "34.1%", "width": "12%", "height": "20%", "cor": "#DC143C", "isCircle": true },
-        { "nome": "Plano da Água", "top": "26.6%", "left": "62.4%", "width": "12%", "height": "20%", "cor": "#4169E1", "isCircle": true },
-        { "nome": "Plano da Terra", "top": "56.7%", "left": "63.6%", "width": "12%", "height": "20%", "cor": "#8B4513", "isCircle": true },
-        { "nome": "Céus", "top": "4.5%", "left": "47.2%", "width": "11.5%", "height": "18%", "cor": "#FCE883", "isCircle": true },
-        { "nome": "Inferno", "top": "80.5%", "left": "45.5%", "width": "18%", "height": "14%", "cor": "#FF4500", "isCircle": false },
-        { "nome": "Plano das Fadas", "top": "32.4%", "left": "50.3%", "width": "7%", "height": "9%", "cor": "#32CD32", "isCircle": true },
-        { "nome": "Plano do Éter", "top": "64.7%", "left": "50.7%", "width": "7%", "height": "9%", "cor": "#9400D3", "isCircle": true },
+        { "nome": "Plano do Vento", "top": "30%", "left": "34.5%", "width": "11%", "height": "18.3%", "cor": "#2E8B57", "isCircle": true },
+        { "nome": "Plano do Fogo", "top": "51.7%", "left": "34.5%", "width": "11%", "height": "18.3%", "cor": "#DC143C", "isCircle": true },
+        { "nome": "Plano da Água", "top": "30%", "left": "62.5%", "width": "11%", "height": "18.3%", "cor": "#4169E1", "isCircle": true },
+        { "nome": "Plano da Terra", "top": "51.7%", "left": "62.5%", "width": "11%", "height": "18.3%", "cor": "#8B4513", "isCircle": true },
+        { "nome": "Céus", "top": "3.5%", "left": "6%", "width": "88%", "height": "93%", "cor": "#FCE883", "isCircle": true, "zIndex": 2 },
+        { "nome": "Inferno", "top": "3.5%", "left": "6%", "width": "88%", "height": "93%", "cor": "#FF4500", "isCircle": true, "zIndex": 2 },
+        { "nome": "Plano das Fadas", "top": "25.8%", "left": "50.5%", "width": "7%", "height": "11.7%", "cor": "#32CD32", "isCircle": true },
+        { "nome": "Plano do Éter", "top": "62.5%", "left": "50.5%", "width": "7%", "height": "11.7%", "cor": "#9400D3", "isCircle": true },
         { "nome": "Plano do Caos", "top": "1%", "left": "80%", "width": "19%", "height": "8%", "cor": "#800000", "isCircle": false },
         { "nome": "Plano do Caos Inferior", "top": "90%", "left": "1%", "width": "16%", "height": "8%", "cor": "#800000", "isCircle": false }
     ]);
@@ -507,6 +507,8 @@ export default function MapaMundi({ children }) {
                     </div>
                     {/* REINO CENTRAL: calmo, cercado pela fronteira dourada */}
                     <div className="planos-reino" onMouseEnter={() => !modoAjuste && setPlanoHover(null)} />
+                    <span className="planos-divisa" />
+                    <div className="planos-aro-fundo" onMouseEnter={() => !modoAjuste && setPlanoHover(null)} />
                     <svg className="planos-anel" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
                         <ellipse cx="50" cy="50" rx="49" ry="49" className="planos-anel-area" />
                         <ellipse cx="50" cy="50" rx="49" ry="49" strokeWidth="2" />

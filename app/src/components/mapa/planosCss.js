@@ -70,18 +70,20 @@ export const CSS_PLANOS = `
 .pz-plano-astral::before { content: "PLANO ASTRAL"; left: 1.4%; transform: translateY(-50%) rotate(180deg); }
 .pz-plano-astral::after { content: "PLANO ASTRAL"; right: 1.4%; transform: translateY(-50%); }
 .pz-plano-astral.plano-ajuste { background: transparent; }
-.planos-palco:has(.plano-ajuste) .planos-reino { pointer-events: none; }
+.planos-palco:has(.plano-ajuste) .planos-reino, .planos-palco:has(.plano-ajuste) .planos-aro-fundo { pointer-events: none; }
 
 /* REINO DENTRO DO ASTRAL: Céus, Inferno, Ordem e o aro dos Planos Internos */
 .planos-reino { position: absolute; left: 6%; top: 3.5%; width: 88%; height: 93%; border-radius: 50%; z-index: 2; background: radial-gradient(circle at 54% 52%, rgba(125, 75, 210, 0.34) 0%, transparent 46%), radial-gradient(1.5px 1.5px at 12% 28%, #fff, transparent), radial-gradient(1px 1px at 22% 66%, #fff, transparent), radial-gradient(1.5px 1.5px at 38% 14%, #fff, transparent), radial-gradient(1px 1px at 47% 88%, #fff, transparent), radial-gradient(1.5px 1.5px at 68% 18%, #fff, transparent), radial-gradient(1px 1px at 80% 72%, #fff, transparent), radial-gradient(1.5px 1.5px at 90% 40%, #fff, transparent), radial-gradient(1px 1px at 60% 94%, #fff, transparent), radial-gradient(ellipse at 50% 50%, #1b1240 0%, #0e0a2a 62%, #060418 100%); box-shadow: 0 0 22px 4px rgba(255, 215, 130, 0.5), inset 0 0 40px rgba(255, 200, 90, 0.2); border: 1.5px solid rgba(255, 224, 150, 0.85); }
-.planos-anel { position: absolute; left: 28%; top: 23%; width: 52%; height: 59%; pointer-events: none; overflow: visible; z-index: 3; }
+.planos-aro-fundo { position: absolute; left: 26%; top: 17%; width: 56%; height: 66%; border-radius: 50%; z-index: 3; background: radial-gradient(ellipse at 50% 50%, rgba(95, 60, 175, 0.55) 0%, rgba(22, 14, 58, 0.97) 62%, #0b0728 100%); box-shadow: 0 0 22px 4px rgba(150, 110, 255, 0.35); }
+.planos-divisa { position: absolute; left: 6%; width: 88%; top: 50%; height: 2px; z-index: 3; pointer-events: none; background: linear-gradient(90deg, rgba(255, 245, 200, 0.95), rgba(255, 245, 200, 0.55) 40%, rgba(255, 120, 60, 0.55) 60%, rgba(255, 150, 80, 0.95)); box-shadow: 0 0 10px 2px rgba(255, 220, 160, 0.5); }
+.planos-anel { position: absolute; left: 26%; top: 17%; width: 56%; height: 66%; pointer-events: none; overflow: visible; z-index: 4; }
 .planos-anel ellipse { fill: none; stroke: rgba(255, 215, 130, 0.9); vector-effect: non-scaling-stroke; }
-.planos-anel .planos-anel-area { fill: rgba(150, 110, 255, 0.1); stroke: none; }
+.planos-anel .planos-anel-area { fill: none; stroke: none; }
 .planos-anel .planos-anel-runas { stroke-width: 6; stroke: rgba(255, 215, 130, 0.35); stroke-dasharray: 2 5; animation: planoFluxo 30s linear infinite; }
 @keyframes planoFluxo { to { stroke-dashoffset: -350; } }
-.planos-faixa-rotulo { position: absolute; z-index: 3; transform: translateX(-50%); font-size: clamp(7px, 1.05cqw, 11px); font-weight: bold; letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; pointer-events: none; text-shadow: 0 0 6px #000; }
-.planos-faixa-internos { left: 54%; top: 78.2%; color: rgba(255, 224, 150, 0.95); }
-.planos-faixa-externos { left: 14%; top: 66%; color: rgba(190, 170, 255, 0.95); }
+.planos-faixa-rotulo { position: absolute; z-index: 4; transform: translateX(-50%); font-size: clamp(7px, 1.05cqw, 11px); font-weight: bold; letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; pointer-events: none; text-shadow: 0 0 6px #000; }
+.planos-faixa-internos { left: 54%; top: 83.6%; color: rgba(255, 224, 150, 0.95); }
+.planos-faixa-externos { left: 15%; top: 62%; color: rgba(190, 170, 255, 0.95); }
 
 /* ZONAS CLICÁVEIS (posições vêm de zonasCosmologia em MapaMundi.jsx). Cada plano tem 3 camadas de textura que giram, mais a sombra/atmosfera da esfera. */
 .plano-zona { box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
@@ -134,19 +136,25 @@ export const CSS_PLANOS = `
 .pz-plano-da-ordem .pl-a { --giro: 200s; mix-blend-mode: overlay; background-image: ${T.ordemBrilho}; }
 .pz-plano-da-ordem .pl-b { --giro: 90s; mix-blend-mode: soft-light; background-image: repeating-linear-gradient(60deg, rgba(255, 255, 255, 0.5) 0 2px, transparent 2px 22px), repeating-linear-gradient(-60deg, rgba(255, 255, 255, 0.35) 0 2px, transparent 2px 22px); }
 .pz-plano-da-ordem .pl-c { animation: planoPulsa 5s ease-in-out infinite; left: 24%; top: 24%; width: 52%; height: 52%; mix-blend-mode: screen; background: linear-gradient(135deg, rgba(255, 255, 255, 0.6), rgba(170, 140, 255, 0.1)); border: 2px solid rgba(255, 255, 255, 0.85); rotate: 45deg; }
-/* Céus: disco dourado com nuvens e raios */
-.pz-ceus .plano-orbe { --atm: rgba(255, 235, 150, 0.8); background: radial-gradient(circle at 40% 34%, #fffbe0 0%, #f6d760 46%, #a87414 100%); }
-.pz-ceus .pl-a { --giro: 90s; mix-blend-mode: soft-light; background-image: ${T.ceusOuro}; }
-.pz-ceus .pl-b { --giro: 60s; mix-blend-mode: screen; opacity: 0.8; background-image: ${T.ceusNuvens}; }
-.pz-ceus .pl-c { left: 0; width: 100%; background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.28) 0deg 5deg, transparent 5deg 18deg); mix-blend-mode: overlay; animation: planoGira 80s linear infinite; }
-/* Inferno: vulcão de rocha escura cortada por rios de lava */
-.pz-inferno { filter: drop-shadow(0 0 10px rgba(255, 90, 0, 0.85)); }
-.pz-inferno .plano-orbe { border-radius: 0; clip-path: polygon(0 100%, 26% 46%, 36% 56%, 52% 6%, 68% 46%, 80% 38%, 100% 100%); background: linear-gradient(180deg, #b8300c 0%, #6a1a0a 45%, #240806 100%); box-shadow: none; }
-.pz-inferno .pl-a { --giro: 160s; mix-blend-mode: normal; opacity: 0.95; background-image: ${T.infernoRocha}; }
-.pz-inferno .pl-b { mix-blend-mode: screen; background-image: linear-gradient(0deg, rgba(255, 90, 10, 0.9), transparent 55%), ${T.infernoLava}; animation: planoTexGira 160s linear infinite, planoBrilha 2.4s ease-in-out infinite alternate; }
-.pz-inferno .pl-c { left: 38%; width: 24%; top: 0; height: 30%; background: radial-gradient(ellipse at 50% 100%, rgba(255, 210, 90, 0.95), rgba(255, 90, 0, 0.6) 45%, transparent 75%); mix-blend-mode: screen; animation: planoBrilha 1.4s ease-in-out infinite alternate; }
-.pz-inferno .pl-borda { display: none; }
-.pz-inferno.plano-ativo .plano-orbe { box-shadow: none; }
+/* Céus: toda a metade de cima do reino (fora do aro). Céu dourado com nuvens, raios e o sol no alto */
+.pz-ceus { clip-path: inset(0 0 50% 0); }
+.pz-ceus .plano-orbe { box-shadow: none; background: linear-gradient(180deg, #fff6c8 0%, #ffd96a 14%, #a9c8ff 32%, #5a7fd8 44%, #2c3a90 50%); }
+.pz-ceus .plano-orbe::before { content: ""; position: absolute; top: 1.5%; left: 50%; width: 15%; aspect-ratio: 1; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle, #ffffff 0%, #fff0a0 38%, rgba(255, 220, 110, 0.55) 62%, transparent 72%); box-shadow: 0 0 40px 14px rgba(255, 230, 140, 0.55); }
+.pz-ceus .pl-a { --giro: 140s; mix-blend-mode: soft-light; background-image: ${T.ceusOuro}; }
+.pz-ceus .pl-b { --giro: 90s; mix-blend-mode: screen; opacity: 0.75; background-image: ${T.ceusNuvens}; }
+.pz-ceus .pl-c { left: 0; width: 100%; background: repeating-conic-gradient(from 160deg at 50% -4%, rgba(255, 255, 255, 0.3) 0deg 3deg, transparent 3deg 10deg); mix-blend-mode: overlay; animation: planoBrilha 4s ease-in-out infinite alternate; }
+.pz-ceus .pl-borda, .pz-inferno .pl-borda { display: none; }
+.pz-ceus .plano-rotulo, .pz-inferno .plano-rotulo { position: absolute; left: 50%; transform: translateX(-50%); font-size: clamp(10px, 2cqw, 20px); letter-spacing: 6px; }
+.pz-ceus .plano-rotulo { top: 9%; color: #3a2a00; text-shadow: 0 0 8px rgba(255, 255, 255, 0.9); }
+/* Inferno: toda a metade de baixo do reino. Rocha negra, rios de lava e cordilheira vulcânica */
+.pz-inferno { clip-path: inset(50% 0 0 0); }
+.pz-inferno .plano-orbe { box-shadow: none; background: linear-gradient(0deg, #ff8a2a 0%, #d8300a 5%, #5a0e08 18%, #1f0605 34%, #0d0202 50%); }
+.pz-inferno .plano-orbe::before { content: ""; position: absolute; left: 0; bottom: 0; width: 100%; height: 26%; clip-path: polygon(0 100%, 0 64%, 7% 50%, 13% 60%, 21% 32%, 29% 54%, 37% 42%, 45% 18%, 51% 38%, 59% 30%, 67% 54%, 75% 38%, 83% 58%, 91% 46%, 100% 62%, 100% 100%); background: linear-gradient(180deg, #4a1208 0%, #120302 70%); }
+.pz-inferno .plano-orbe::after { content: ""; position: absolute; left: 44%; bottom: 17%; width: 12%; height: 12%; background: radial-gradient(ellipse at 50% 100%, rgba(255, 220, 110, 0.95), rgba(255, 90, 0, 0.6) 45%, transparent 75%); animation: planoBrilha 1.4s ease-in-out infinite alternate; }
+.pz-inferno .pl-a { --giro: 200s; mix-blend-mode: normal; opacity: 0.95; background-image: ${T.infernoRocha}; }
+.pz-inferno .pl-b { mix-blend-mode: screen; opacity: 0.4; background-image: linear-gradient(0deg, rgba(255, 90, 10, 0.55), transparent 45%), ${T.infernoLava}; animation: planoTexGira 200s linear infinite, planoBrilha 2.4s ease-in-out infinite alternate; }
+.pz-inferno .pl-c { --giro: 80s; mix-blend-mode: screen; opacity: 0.5; background-image: ${T.fogoBrilho}; }
+.pz-inferno .plano-rotulo { bottom: 5%; color: #ffd9b0; text-shadow: 0 0 10px #ff4a0a, 0 0 4px #000; }
 .pz-plano-do-caos .plano-orbe, .pz-plano-do-caos-inferior .plano-orbe { border-radius: 14px; background: none; box-shadow: none; }
 .pz-plano-do-caos .pl-tex, .pz-plano-do-caos .pl-borda, .pz-plano-do-caos-inferior .pl-tex, .pz-plano-do-caos-inferior .pl-borda { display: none; }
 .pz-plano-do-caos .plano-rotulo, .pz-plano-do-caos-inferior .plano-rotulo { font-size: clamp(9px, 1.9cqw, 19px); letter-spacing: 3px; background: linear-gradient(180deg, #ffe08a, #ff5a1a); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 0 6px rgba(255, 70, 0, 0.85)) drop-shadow(0 2px 3px #000); }
