@@ -41,14 +41,29 @@ const T = {
     nuvem: svgRuido({ fx: 0.01, fy: 0.04, oct: 5, seed: 31, rgb: [1, 1, 1], alfa: [3, -1.45] })
 };
 
-// Castelo de silhueta (torres, ameias, janelas e portão). `nuvens` põe uma base de nuvens (castelo flutuante do Céu).
-function svgCastelo({ corpo, borda, janela, nuvens = false }) {
-    const ameias = Array.from({ length: 10 }, (_, i) => `<rect x='${18 + i * 16.4}' y='66' width='8' height='4'/>`).join('');
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 100' preserveAspectRatio='xMidYMax meet'>${nuvens ? "<g fill='white' opacity='0.92'><ellipse cx='100' cy='94' rx='98' ry='7'/><ellipse cx='46' cy='90' rx='34' ry='8'/><ellipse cx='156' cy='91' rx='36' ry='8'/></g>" : ''}<g fill='${corpo}' stroke='${borda}' stroke-width='0.8' stroke-linejoin='round'><rect x='18' y='70' width='164' height='20'/>${ameias}<rect x='20' y='56' width='18' height='34'/><polygon points='17,56 29,32 41,56'/><rect x='162' y='56' width='18' height='34'/><polygon points='159,56 171,32 183,56'/><rect x='48' y='44' width='20' height='46'/><polygon points='45,44 58,16 71,44'/><rect x='132' y='44' width='20' height='46'/><polygon points='129,44 142,16 155,44'/><rect x='82' y='28' width='36' height='62'/><polygon points='78,28 100,2 122,28'/></g><g fill='${janela}'><rect x='96' y='38' width='8' height='14' rx='4'/><rect x='54' y='56' width='8' height='10'/><rect x='138' y='56' width='8' height='10'/><rect x='26' y='66' width='6' height='8'/><rect x='168' y='66' width='6' height='8'/><rect x='88' y='58' width='6' height='8'/><rect x='106' y='58' width='6' height='8'/><path d='M92 90v-10a8 8 0 0 1 16 0v10z'/></g></svg>`;
+// Castelo imponente de silhueta (torre mestra com bandeira, torres altas, contrafortes, muralha com ameias, janelas acesas,
+// rosácea e portão). Gradiente de cima pra baixo dá volume; as torres do fundo ficam mais apagadas. `cenario`: 'nuvens' (Céus) ou 'rocha' (Inferno).
+function svgCastelo({ topo, base, borda, janela, cenario }) {
+    const torre = (x, w, yTopo, alt) => `<rect x='${x}' y='${yTopo}' width='${w}' height='${90 - yTopo}'/><polygon points='${x - 2.5},${yTopo} ${x + w / 2},${yTopo - alt} ${x + w + 2.5},${yTopo}'/>`;
+    const arco = (cx, y, w, h) => `<path d='M${cx - w / 2} ${y + h}V${y + w / 2}a${w / 2} ${w / 2} 0 0 1 ${w} 0V${y + h}z'/>`;
+    const ameias = Array.from({ length: 17 }, (_, i) => `<rect x='${14 + i * 7.4}' y='66' width='4' height='4'/>`).join('');
+    const fundo = [torre(1, 10, 52, 16), torre(139, 10, 52, 16), torre(24, 9, 46, 20), torre(117, 9, 46, 20)].join('');
+    const frente = [torre(13, 14, 56, 20), torre(123, 14, 56, 20), torre(33, 16, 44, 24), torre(101, 16, 44, 24)].join('');
+    const janelas = [arco(75, 40, 7, 14), arco(40, 52, 5, 10), arco(108, 52, 5, 10), arco(20, 62, 4, 8), arco(130, 62, 4, 8), arco(66, 56, 4, 8), arco(84, 56, 4, 8), arco(75, 26, 5, 8), arco(42, 70, 4, 7), arco(108, 70, 4, 7)].join('');
+    const baseDoCenario = cenario === 'nuvens'
+        ? "<g fill='white' opacity='0.95'><ellipse cx='75' cy='96' rx='74' ry='7'/><ellipse cx='26' cy='92' rx='28' ry='7'/><ellipse cx='124' cy='93' rx='30' ry='7'/><ellipse cx='75' cy='90' rx='42' ry='5'/></g>"
+        : `<polygon points='0,100 0,92 10,87 18,92 30,86 42,92 56,89 75,94 94,89 108,92 120,86 132,92 140,87 150,92 150,100' fill='#0d0206' stroke='${borda}' stroke-width='0.8'/><path d='M18 96l8-3 6 3M96 97l9-4 8 3' stroke='${janela}' stroke-width='1' fill='none'/>`;
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 150 100' preserveAspectRatio='xMidYMax meet'><defs><linearGradient id='g' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='${topo}'/><stop offset='1' stop-color='${base}'/></linearGradient><filter id='b'><feGaussianBlur stdDeviation='1.3'/></filter></defs>`
+        + `<g fill='url(#g)' stroke='${borda}' stroke-width='0.7' stroke-linejoin='round' opacity='0.6'>${fundo}</g>`
+        + `<g fill='url(#g)' stroke='${borda}' stroke-width='0.8' stroke-linejoin='round'><rect x='14' y='70' width='122' height='20'/>${ameias}<polygon points='49,52 59,40 59,64'/><polygon points='101,52 91,40 91,64'/>${frente}<rect x='58' y='34' width='34' height='56'/><rect x='63' y='22' width='24' height='14'/><polygon points='60,22 75,8 90,22'/><rect x='56' y='33' width='38' height='3'/></g>`
+        + `<path d='M75 8V1' stroke='${borda}' stroke-width='0.8'/><polygon points='75,1 84,3.5 75,6' fill='${janela}'/>`
+        + `<g fill='${janela}' filter='url(#b)'>${janelas}</g><g fill='${janela}'>${janelas}<path d='M69 90V80a6 6 0 0 1 12 0V90z' fill='#000' opacity='0.85'/></g>`
+        + `<circle cx='75' cy='64' r='4' fill='none' stroke='${janela}' stroke-width='0.9'/><path d='M71 64h8M75 60v8' stroke='${janela}' stroke-width='0.6'/>`
+        + baseDoCenario + '</svg>';
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
-T.casteloLuz = svgCastelo({ corpo: '#fff8e6', borda: '#e8c25a', janela: '#ffc83a', nuvens: true });
-T.casteloTrevas = svgCastelo({ corpo: '#09020c', borda: '#6a0c28', janela: '#ff2244' });
+T.casteloLuz = svgCastelo({ topo: '#ffffff', base: '#e9d9a8', borda: '#c99a2a', janela: '#ffb81c', cenario: 'nuvens' });
+T.casteloTrevas = svgCastelo({ topo: '#2a0a18', base: '#07010a', borda: '#7a0f2e', janela: '#ff2244', cenario: 'rocha' });
 T.infernoVeias = svgRuido({ fx: 0.03, fy: 0.05, oct: 5, seed: 122, rgb: [1, 0.08, 0.22], alfa: [8, -4.4] });
 
 export const CSS_PLANOS = `
@@ -58,12 +73,15 @@ export const CSS_PLANOS = `
 /* PLANO DO CAOS: tudo que está fora das fronteiras */
 .planos-caos { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 50%, #0b0316 0%, #26060f 52%, #4a0d06 100%); }
 .planos-caos-camada { position: absolute; inset: 0; mix-blend-mode: screen; pointer-events: none; -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent 30%, #000 78%); mask-image: radial-gradient(ellipse at 50% 50%, transparent 30%, #000 78%); }
-.planos-caos-fogo { background-image: ${T.fogo}; background-size: 420px 420px; opacity: 0.6; animation: planoDeriva 80s linear infinite; }
-.planos-caos-brasa { background-image: ${T.brasa}; background-size: 260px 260px; opacity: 0.45; animation: planoDeriva 55s linear infinite reverse; }
-.planos-caos-sombra { background-image: ${T.sombra}; background-size: 480px 480px; mix-blend-mode: multiply; opacity: 0.8; animation: planoDeriva 140s linear infinite; }
-.planos-caos-raios { position: absolute; inset: -30%; background: conic-gradient(from var(--planoAng), transparent 0%, rgba(255, 110, 0, 0.35) 8%, transparent 18%, rgba(190, 0, 50, 0.3) 38%, transparent 52%, rgba(255, 150, 20, 0.35) 72%, transparent 86%); mix-blend-mode: screen; pointer-events: none; animation: planoAng 100s linear infinite; -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent 38%, #000 80%); mask-image: radial-gradient(ellipse at 50% 50%, transparent 38%, #000 80%); }
+.planos-caos-fogo { --tile: 420px; background-image: ${T.fogo}; background-size: 420px 420px; opacity: 0.6; animation: planoDeriva 80s steps(320) infinite; }
+.planos-caos-brasa { --tile: 260px; background-image: ${T.brasa}; background-size: 260px 260px; opacity: 0.45; animation: planoDeriva 55s steps(220) infinite reverse; }
+.planos-caos-sombra { --tile: 480px; background-image: ${T.sombra}; background-size: 480px 480px; mix-blend-mode: multiply; opacity: 0.8; animation: planoDeriva 140s steps(280) infinite; }
+.planos-caos-raios { position: absolute; inset: -30%; background: conic-gradient(from var(--planoAng), transparent 0%, rgba(255, 110, 0, 0.35) 8%, transparent 18%, rgba(190, 0, 50, 0.3) 38%, transparent 52%, rgba(255, 150, 20, 0.35) 72%, transparent 86%); mix-blend-mode: screen; pointer-events: none; animation: planoAng 100s steps(300) infinite; -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent 38%, #000 80%); mask-image: radial-gradient(ellipse at 50% 50%, transparent 38%, #000 80%); }
 .planos-brasa-ponto { position: absolute; bottom: -4%; width: 0.5%; aspect-ratio: 1; border-radius: 50%; background: #ffb347; box-shadow: 0 0 8px 2px rgba(255, 120, 20, 0.9); opacity: 0; pointer-events: none; animation: planoBrasa 9s ease-in infinite; }
-@keyframes planoDeriva { to { background-position: 420px 260px; } }
+@keyframes planoDeriva { to { background-position: var(--tile) var(--tile); } }
+@keyframes planoTexDeriva { to { background-position-x: var(--tile, 800px); } }
+/* Planos Externos (Astral, Céus, Inferno): camadas do tamanho do palco. Em vez de mover uma camada gigante com transform + blend (que o Chrome acaba rasterizando errado depois de muito tempo), a textura anda por background-position em passos. */
+.pz-plano-astral .pl-tex, .pz-ceus .pl-tex, .pz-inferno .pl-tex { --tile: 800px; width: 100%; background-size: 800px 100%; background-repeat: repeat; animation: planoTexDeriva var(--giro, 120s) steps(240) infinite; }
 @keyframes planoAng { to { --planoAng: 360deg; } }
 @keyframes planoBrasa { 0% { transform: translateY(0) scale(1); opacity: 0; } 12% { opacity: 1; } 100% { transform: translateY(-520%) translateX(40%) scale(0.3); opacity: 0; } }
 .planos-legenda { position: absolute; right: 2.5%; bottom: 2%; max-width: 30%; text-align: right; font-size: clamp(8px, 1.15cqw, 12px); font-style: italic; letter-spacing: 1px; color: rgba(255, 190, 150, 0.8); text-shadow: 0 0 6px #000; pointer-events: none; }
@@ -74,7 +92,7 @@ export const CSS_PLANOS = `
 .pz-plano-astral .plano-orbe { background: radial-gradient(ellipse at 50% 50%, #0a0630 0%, #170f52 55%, #2b1a78 100%); box-shadow: inset 0 0 50px 10px rgba(150, 110, 255, 0.55), inset 0 0 8px 2px rgba(255, 210, 120, 0.8); }
 .pz-plano-astral .pl-a { --giro: 90s; background-image: ${T.astralVioleta}; mix-blend-mode: screen; opacity: 0.9; }
 .pz-plano-astral .pl-b { --giro: 140s; background-image: ${T.astralOuro}; mix-blend-mode: screen; opacity: 0.75; }
-.pz-plano-astral .pl-c { --giro: 200s; background-image: ${T.estrelas}, ${T.astralAzul}; background-size: 25% 100%, 50% 100%; mix-blend-mode: screen; }
+.pz-plano-astral .pl-c { --giro: 200s; background-image: ${T.estrelas}, ${T.astralAzul}; background-size: 400px 100%, 800px 100%; mix-blend-mode: screen; }
 .pz-plano-astral .pl-borda, .pz-plano-astral .plano-rotulo { display: none; }
 .pz-plano-astral::before, .pz-plano-astral::after { position: absolute; top: 50%; writing-mode: vertical-rl; font-size: clamp(8px, 1.3cqw, 14px); font-weight: bold; letter-spacing: 6px; color: rgba(255, 230, 170, 0.95); text-shadow: 0 0 8px #6a3cff, 0 0 4px #000; pointer-events: none; z-index: 2; }
 .pz-plano-astral::before { content: "PLANO ASTRAL"; left: 1.4%; transform: translateY(-50%) rotate(180deg); }
@@ -93,7 +111,7 @@ export const CSS_PLANOS = `
 @keyframes planoFluxo { to { stroke-dashoffset: -350; } }
 .planos-faixa-rotulo { position: absolute; z-index: 4; transform: translateX(-50%); font-size: clamp(7px, 1.05cqw, 11px); font-weight: bold; letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; pointer-events: none; text-shadow: 0 0 6px #000; }
 .planos-faixa-internos { left: 54%; top: 83.6%; color: rgba(255, 224, 150, 0.95); }
-.planos-faixa-externos { left: 15%; top: 62%; color: rgba(190, 170, 255, 0.95); }
+.planos-faixa-externos { left: 22%; top: 81%; color: rgba(190, 170, 255, 0.95); }
 
 /* ZONAS CLICÁVEIS (posições vêm de zonasCosmologia em MapaMundi.jsx). Cada plano tem 3 camadas de textura que giram, mais a sombra/atmosfera da esfera. */
 .plano-zona { box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
@@ -104,8 +122,8 @@ export const CSS_PLANOS = `
 .pz-terra-0-runeterra { filter: drop-shadow(0 0 3px #fff) drop-shadow(0 0 14px rgba(255, 255, 255, 0.75)) drop-shadow(0 0 32px rgba(170, 220, 255, 0.55)); }
 .plano-zona.plano-ativo { filter: drop-shadow(0 0 14px var(--cor, #fff)) brightness(1.25) saturate(1.2); }
 .plano-zona.plano-ativo.pz-ceus, .plano-zona.plano-ativo.pz-inferno, .plano-zona.plano-ativo.pz-plano-astral { filter: brightness(1.12); }
-.pl-tex { position: absolute; top: 0; left: 0; width: 200%; height: 100%; background-repeat: repeat-x; background-size: 50% 100%; mix-blend-mode: soft-light; animation: planoTexGira var(--giro, 60s) linear infinite; }
-@keyframes planoTexGira { to { transform: translateX(-50%); } }
+/* As texturas andam por background-position em passos (nada de camadas compostas gigantes com transform + blend, que o Chrome rasteriza errado depois de muito tempo). --tile = largura do ladrilho em px. */
+.pl-tex { --tile: 120px; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-repeat: repeat; background-size: 120px 100%; mix-blend-mode: soft-light; animation: planoTexDeriva var(--giro, 60s) steps(120) infinite; }
 .pl-borda { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 30% 26%, rgba(255, 255, 255, 0.34) 0%, transparent 34%), radial-gradient(circle at 50% 50%, transparent 50%, rgba(0, 0, 12, 0.55) 100%), linear-gradient(120deg, transparent 40%, rgba(0, 0, 16, 0.5) 86%); box-shadow: inset 0 0 14px 2px var(--atm, rgba(160, 200, 255, 0.4)); }
 .plano-rotulo { position: relative; z-index: 3; text-align: center; white-space: pre-line; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; font-size: clamp(7px, 1.25cqw, 13px); line-height: 1.15; color: #fff; text-shadow: 0 0 5px #000, 0 0 10px #000, 0 1px 2px #000; }
 .plano-ajuste { background: rgba(255, 255, 255, 0.2); border: 2px dashed var(--cor, #fff); }
@@ -123,7 +141,7 @@ export const CSS_PLANOS = `
 /* Fogo: crosta escura rachada com veias de lava e brilho interno */
 .pz-plano-do-fogo .plano-orbe { --atm: rgba(255, 130, 40, 0.6); background: radial-gradient(circle at 40% 36%, #ff9a40 0%, #d22a0a 48%, #4a0604 100%); }
 .pz-plano-do-fogo .pl-a { --giro: 70s; mix-blend-mode: multiply; background-image: ${T.fogoCrosta}; }
-.pz-plano-do-fogo .pl-b { mix-blend-mode: screen; background-image: ${T.fogoVeias}; animation: planoTexGira 70s linear infinite, planoBrilha 2.8s ease-in-out infinite alternate; }
+.pz-plano-do-fogo .pl-b { mix-blend-mode: screen; background-image: ${T.fogoVeias}; animation: planoTexDeriva 70s steps(120) infinite, planoBrilha 2.8s ease-in-out infinite alternate; }
 .pz-plano-do-fogo .pl-c { --giro: 45s; mix-blend-mode: screen; opacity: 0.6; background-image: ${T.fogoBrilho}; }
 @keyframes planoBrilha { from { opacity: 0.7; } to { opacity: 1; } }
 /* Terra: rocha com crateras, areia e picos claros */
@@ -134,13 +152,13 @@ export const CSS_PLANOS = `
 /* Fadas: mundo de floresta com luzes que piscam */
 .pz-plano-das-fadas .plano-orbe { --atm: rgba(190, 255, 120, 0.7); background: radial-gradient(circle at 40% 36%, #d8ff9a 0%, #5cc83a 48%, #0f4a14 100%); }
 .pz-plano-das-fadas .pl-a { --giro: 70s; mix-blend-mode: multiply; background-image: ${T.fadasFloresta}; }
-.pz-plano-das-fadas .pl-b { mix-blend-mode: screen; background-image: ${T.fadasLuz}; animation: planoTexGira 70s linear infinite, planoBrilha 1.6s ease-in-out infinite alternate; }
-.pz-plano-das-fadas .pl-c { --giro: 36s; mix-blend-mode: screen; opacity: 0.7; background-image: ${T.estrelas}; background-size: 25% 100%; }
+.pz-plano-das-fadas .pl-b { mix-blend-mode: screen; background-image: ${T.fadasLuz}; animation: planoTexDeriva 70s steps(120) infinite, planoBrilha 1.6s ease-in-out infinite alternate; }
+.pz-plano-das-fadas .pl-c { --giro: 36s; mix-blend-mode: screen; opacity: 0.7; background-image: ${T.estrelas}; background-size: 60px 100%; }
 /* Éter: nebulosa violeta com estrelas */
 .pz-plano-do-eter .plano-orbe { --atm: rgba(210, 130, 255, 0.7); background: radial-gradient(circle at 40% 36%, #e4b8ff 0%, #8a2be2 46%, #1c0646 100%); }
 .pz-plano-do-eter .pl-a { --giro: 60s; mix-blend-mode: multiply; background-image: ${T.eterProfundo}; }
 .pz-plano-do-eter .pl-b { --giro: 44s; mix-blend-mode: screen; background-image: ${T.eterNebulosa}; }
-.pz-plano-do-eter .pl-c { --giro: 80s; mix-blend-mode: screen; background-image: ${T.estrelas}; background-size: 25% 100%; }
+.pz-plano-do-eter .pl-c { --giro: 80s; mix-blend-mode: screen; background-image: ${T.estrelas}; background-size: 60px 100%; }
 /* Terra 0: planeta azul com continentes, nuvens e a coroa branca de eclipse */
 .pz-terra-0-runeterra .plano-orbe { --atm: rgba(110, 190, 255, 0.8); background: radial-gradient(circle at 34% 30%, #d4f0ff 0%, #5fb4f4 32%, #1f6fc8 64%, #082a62 100%); }
 .pz-terra-0-runeterra .pl-a { --giro: 80s; mix-blend-mode: normal; background-image: ${T.terra0Altas}, ${T.terra0Continentes}; }
@@ -152,12 +170,12 @@ export const CSS_PLANOS = `
 .pz-plano-da-ordem .pl-c { animation: planoPulsa 5s ease-in-out infinite; left: 24%; top: 24%; width: 52%; height: 52%; mix-blend-mode: screen; background: linear-gradient(135deg, rgba(255, 255, 255, 0.6), rgba(170, 140, 255, 0.1)); border: 2px solid rgba(255, 255, 255, 0.85); rotate: 45deg; }
 /* Céus: toda a metade de cima do reino (fora do aro). Céu dourado com nuvens, raios e o sol no alto */
 .pz-ceus { clip-path: inset(0 0 50% 0); }
-.pz-ceus .plano-orbe::after { content: ""; position: absolute; left: 10.5%; top: 20%; width: 18.2%; aspect-ratio: 2 / 1; background: ${T.casteloLuz} center bottom / contain no-repeat; filter: drop-shadow(0 0 10px rgba(255, 224, 130, 0.95)); animation: planoFlutua 9s ease-in-out infinite alternate; }
+.pz-ceus .plano-orbe::after { content: ""; position: absolute; left: 5.7%; top: 15.6%; width: 22.7%; aspect-ratio: 3 / 2; background: ${T.casteloLuz} center bottom / contain no-repeat; filter: drop-shadow(0 0 14px rgba(255, 224, 130, 0.95)); }
 .pz-ceus .plano-orbe { box-shadow: none; background: linear-gradient(180deg, #fff6c8 0%, #ffd96a 14%, #a9c8ff 32%, #5a7fd8 44%, #2c3a90 50%); }
 .pz-ceus .plano-orbe::before { content: ""; position: absolute; top: 1.5%; left: 50%; width: 15%; aspect-ratio: 1; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle, #ffffff 0%, #fff0a0 38%, rgba(255, 220, 110, 0.55) 62%, transparent 72%); box-shadow: 0 0 40px 14px rgba(255, 230, 140, 0.55); }
 .pz-ceus .pl-a { --giro: 140s; mix-blend-mode: soft-light; background-image: ${T.ceusOuro}; }
 .pz-ceus .pl-b { --giro: 90s; mix-blend-mode: screen; opacity: 0.75; background-image: ${T.ceusNuvens}; }
-.pz-ceus .pl-c { left: 0; width: 100%; background: repeating-conic-gradient(from 160deg at 50% -4%, rgba(255, 255, 255, 0.3) 0deg 3deg, transparent 3deg 10deg); mix-blend-mode: overlay; animation: planoBrilha 4s ease-in-out infinite alternate; }
+.pz-ceus .pl-c { left: 0; width: 100%; background: repeating-conic-gradient(from 160deg at 50% -4%, rgba(255, 255, 255, 0.3) 0deg 3deg, transparent 3deg 10deg); mix-blend-mode: overlay; animation: none; }
 .pz-ceus .pl-borda, .pz-inferno .pl-borda { display: none; }
 .pz-ceus .plano-rotulo, .pz-inferno .plano-rotulo { position: absolute; left: 50%; transform: translateX(-50%); font-size: clamp(10px, 2cqw, 20px); letter-spacing: 6px; }
 .pz-ceus .plano-rotulo { top: 9%; color: #3a2a00; text-shadow: 0 0 8px rgba(255, 255, 255, 0.9); }
@@ -165,9 +183,9 @@ export const CSS_PLANOS = `
 .pz-inferno { clip-path: inset(50% 0 0 0); }
 .pz-inferno .plano-orbe { box-shadow: none; background: radial-gradient(ellipse at 50% 100%, #5a0a22 0%, #2a0616 32%, #10030c 60%, #05010a 100%); }
 .pz-inferno .plano-orbe::before { content: ""; position: absolute; left: 0; bottom: 0; width: 100%; height: 26%; clip-path: polygon(0 100%, 0 64%, 7% 50%, 13% 60%, 21% 32%, 29% 54%, 37% 42%, 45% 18%, 51% 38%, 59% 30%, 67% 54%, 75% 38%, 83% 58%, 91% 46%, 100% 62%, 100% 100%); background: linear-gradient(180deg, #ff2a55 0%, #5a0a24 4%, #1a0410 16%, #07010a 60%); }
-.pz-inferno .plano-orbe::after { content: ""; position: absolute; left: 71%; bottom: 18.8%; width: 18.2%; aspect-ratio: 2 / 1; background: ${T.casteloTrevas} center bottom / contain no-repeat; filter: drop-shadow(0 0 8px rgba(255, 40, 80, 0.85)); }
+.pz-inferno .plano-orbe::after { content: ""; position: absolute; left: 8%; bottom: 19.9%; width: 22.7%; aspect-ratio: 3 / 2; background: ${T.casteloTrevas} center bottom / contain no-repeat; filter: drop-shadow(0 0 12px rgba(255, 40, 80, 0.9)); }
 .pz-inferno .pl-a { --giro: 200s; mix-blend-mode: normal; opacity: 0.9; background-image: ${T.infernoRocha}; }
-.pz-inferno .pl-b { mix-blend-mode: screen; opacity: 0.5; background-image: linear-gradient(0deg, rgba(255, 30, 70, 0.5), transparent 45%), ${T.infernoVeias}; animation: planoTexGira 200s linear infinite, planoBrilha 2.4s ease-in-out infinite alternate; }
+.pz-inferno .pl-b { mix-blend-mode: screen; opacity: 0.5; background-image: linear-gradient(0deg, rgba(255, 30, 70, 0.5), transparent 45%), ${T.infernoVeias}; animation: planoTexDeriva 200s steps(240) infinite; }
 .pz-inferno .pl-c { --giro: 120s; mix-blend-mode: multiply; opacity: 0.7; background-image: ${T.sombra}; }
 .pz-inferno .plano-rotulo { bottom: 5%; color: #ffc9d4; text-shadow: 0 0 10px #ff2244, 0 0 4px #000; }
 .pz-plano-do-caos .plano-orbe, .pz-plano-do-caos-inferior .plano-orbe { border-radius: 14px; clip-path: none; background: none; box-shadow: none; }
