@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { CONTINENTES_RUNETERRA, ILHAS_RUNETERRA, pontosDoCaminho, costaOrganica, sorteadorComSemente } from '../../core/globoTerra';
+import { CONTINENTES_RUNETERRA, ILHAS_RUNETERRA, ALTURA_MAPA, LARGURA_MAPA, pontosDoCaminho, costaOrganica, sorteadorComSemente } from '../../core/globoTerra';
 
 // ==========================================
 // 🌍 GLOBO 3D DA TERRA 0: esfera de verdade (WebGL) com relevo, nuvens, luz vinda do alto à esquerda e brilho de atmosfera.
@@ -11,10 +11,10 @@ import { CONTINENTES_RUNETERRA, ILHAS_RUNETERRA, pontosDoCaminho, costaOrganica,
 
 const LARGURA = 2048;
 const ALTURA = 1024;
-const ESCALA = 3.9;                   // mesma escala nos dois eixos (o mapa 200x200 ocupa cerca de 1/3 da volta)
-const DESLOCA_X = LARGURA / 2 - 100 * ESCALA; // mundo centralizado na textura
-const DESLOCA_Y = (ALTURA - 200 * ESCALA) / 2;
-const CENTRO_U = (DESLOCA_X + 95 * ESCALA) / LARGURA; // por onde a câmera "entra" no mundo
+const ESCALA = 2.7;                   // mesma escala nos dois eixos (o mapa inteiro ocupa cerca de 1/4 da volta)
+const DESLOCA_X = LARGURA / 2 - (LARGURA_MAPA / 2) * ESCALA; // mundo centralizado na textura
+const DESLOCA_Y = (ALTURA - ALTURA_MAPA * ESCALA) / 2;
+const CENTRO_U = 0.5; // por onde a câmera "entra" no mundo
 
 function novoCanvas(largura, altura) {
     const c = document.createElement('canvas');
@@ -35,7 +35,7 @@ function tracarPoligono(ctx, pontos) {
 
 function terrasDoMundo() {
     const sorteio = sorteadorComSemente(7);
-    const poligonos = CONTINENTES_RUNETERRA.map(c => costaOrganica(pontosDoCaminho(c), sorteio));
+    const poligonos = CONTINENTES_RUNETERRA.map(c => costaOrganica(pontosDoCaminho(c), sorteio, { niveis: 2, amplitude: 0.1 }));
     ILHAS_RUNETERRA.forEach(([cx, cy, rx, ry]) => {
         const aro = [];
         for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; aro.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]); }
@@ -70,7 +70,7 @@ function desenharTexturas() {
     poligonos.forEach(p => { tracarPoligono(c, p); c.clip(); });
     for (let i = 0; i < 700; i++) {
         c.fillStyle = sorteio() > 0.45 ? 'rgba(90,170,235,0.16)' : 'rgba(5,40,110,0.18)';
-        c.beginPath(); c.ellipse(DESLOCA_X + sorteio() * 200 * ESCALA, sorteio() * ALTURA, 8 + sorteio() * 40, 5 + sorteio() * 22, sorteio() * 3, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.ellipse(DESLOCA_X + sorteio() * LARGURA_MAPA * ESCALA, sorteio() * ALTURA, 8 + sorteio() * 40, 5 + sorteio() * 22, sorteio() * 3, 0, Math.PI * 2); c.fill();
     }
     c.restore();
     c.strokeStyle = 'rgba(200,240,255,0.85)'; c.lineWidth = 3;
@@ -84,7 +84,7 @@ function desenharTexturas() {
     h.filter = 'none';
     for (let i = 0; i < 900; i++) {
         h.fillStyle = `rgba(255,255,255,${0.06 + sorteio() * 0.1})`;
-        h.beginPath(); h.ellipse(DESLOCA_X + sorteio() * 200 * ESCALA, sorteio() * ALTURA, 6 + sorteio() * 26, 4 + sorteio() * 14, sorteio() * 3, 0, Math.PI * 2); h.fill();
+        h.beginPath(); h.ellipse(DESLOCA_X + sorteio() * LARGURA_MAPA * ESCALA, sorteio() * ALTURA, 6 + sorteio() * 26, 4 + sorteio() * 14, sorteio() * 3, 0, Math.PI * 2); h.fill();
     }
     return { cor, alto };
 }

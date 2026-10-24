@@ -4,12 +4,12 @@
 // nuvens e atmosfera brilhante. As texturas giram devagar e acompanham o arrastar do mouse (longitude/latitude).
 // ==========================================
 import { svgRuido } from './astrosCss';
-import { CONTINENTES_RUNETERRA as CONTINENTES } from '../../core/globoTerra';
+import { CONTINENTES_RUNETERRA as CONTINENTES, ILHAS_RUNETERRA } from '../../core/globoTerra';
 
 function svgContinentes() {
     const caminhos = CONTINENTES.map(d => `<path d='${d}'/>`).join('');
-    const ilhas = `<ellipse cx='8' cy='110' rx='5' ry='3'/><ellipse cx='172' cy='96' rx='6' ry='4'/><ellipse cx='20' cy='150' rx='4' ry='2.5'/><ellipse cx='160' cy='140' rx='7' ry='3'/><ellipse cx='88' cy='42' rx='3' ry='2'/>`;
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='800' height='800' viewBox='0 0 200 200' preserveAspectRatio='none'><defs><filter id='c' x='-5%' y='-5%' width='110%' height='110%'><feTurbulence type='fractalNoise' baseFrequency='0.05' numOctaves='3' seed='7' stitchTiles='stitch' result='n'/><feDisplacementMap in='SourceGraphic' in2='n' scale='9' xChannelSelector='R' yChannelSelector='G'/></filter></defs><g filter='url(#c)'><g fill='#1c64b8' stroke='#9fdcff' stroke-width='1.6' stroke-linejoin='round'>${caminhos}${ilhas}</g><g fill='#2f86d6' opacity='0.8' transform='translate(0 0)'>${caminhos}</g></g></svg>`;
+    const ilhas = ILHAS_RUNETERRA.map(([cx, cy, rx, ry]) => `<ellipse cx='${cx}' cy='${cy}' rx='${rx}' ry='${ry}'/>`).join('');
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='800' height='800' viewBox='0 -36.5 200 200' preserveAspectRatio='none'><defs><filter id='c' x='-5%' y='-5%' width='110%' height='110%'><feTurbulence type='fractalNoise' baseFrequency='0.05' numOctaves='3' seed='7' stitchTiles='stitch' result='n'/><feDisplacementMap in='SourceGraphic' in2='n' scale='9' xChannelSelector='R' yChannelSelector='G'/></filter></defs><g filter='url(#c)'><g fill='#1c64b8' stroke='#9fdcff' stroke-width='1.6' stroke-linejoin='round'>${caminhos}${ilhas}</g><g fill='#2f86d6' opacity='0.8' transform='translate(0 0)'>${caminhos}</g></g></svg>`;
     return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 

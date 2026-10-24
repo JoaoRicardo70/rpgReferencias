@@ -1,17 +1,32 @@
 // ==========================================
 // 🌍 GEOMETRIA DO GLOBO DA TERRA 0 (components/mapa/GloboTerra3D.jsx e globoCss.js)
-// Silhuetas dos continentes de Runeterra (caixa 200x200) e as contas puras pra desenhá-los: ler o caminho,
+// Silhuetas dos continentes de Runeterra (caixa 200x127) e as contas puras pra desenhá-los: ler o caminho,
 // deixar a costa orgânica (deslocamento do ponto médio com sorteio fixo) e descobrir se o navegador tem WebGL.
 // ==========================================
 
+// Silhuetas traçadas sobre o mapa de Runeterra (imagem de 1208x768 px) e convertidas pra uma caixa de 200 x 127.
+const PX = 200 / 1208;
+const emCaixa = (pontos) => pontos.map(([x, y]) => [Number((x * PX).toFixed(1)), Number((y * PX).toFixed(1))]);
+const paraCaminho = (pontos) => `M ${emCaixa(pontos).map(([x, y]) => `${x} ${y}`).join(' L ')} Z`;
+
+export const LARGURA_MAPA = 200;
+export const ALTURA_MAPA = 127;
+
 export const CONTINENTES_RUNETERRA = [
-    'M 12 55 L 18 45 L 30 38 L 42 35 L 55 30 L 70 28 L 85 25 L 100 28 L 115 32 L 125 30 L 135 38 L 142 42 L 140 52 L 132 58 L 122 56 L 115 65 L 105 72 L 95 68 L 82 72 L 68 80 L 52 75 L 40 82 L 25 72 L 15 75 Z',
-    'M 45 92 L 58 85 L 75 82 L 95 84 L 110 88 L 118 82 L 128 92 L 138 105 L 132 120 L 142 135 L 135 148 L 125 152 L 115 168 L 105 160 L 92 168 L 75 162 L 62 152 L 48 142 L 38 125 L 42 108 L 40 98 Z',
-    'M 152 28 L 162 20 L 175 18 L 182 25 L 185 38 L 178 50 L 182 62 L 172 72 L 160 75 L 150 65 L 148 50 L 145 38 Z'
+    // Continente do norte (Freljord, Demacia, Noxus, Piltover e Zaun) com a península do leste
+    paraCaminho([[10, 150], [45, 120], [85, 100], [135, 95], [175, 85], [215, 70], [255, 60], [295, 35], [325, 10], [385, 5], [445, 0], [468, 35], [502, 80], [542, 112], [556, 152], [592, 215], [627, 230], [662, 235], [702, 262], [747, 300], [777, 330], [783, 375], [771, 402], [745, 395], [716, 356], [682, 343], [642, 333], [602, 331], [566, 346], [541, 381], [516, 401], [496, 413], [479, 391], [466, 361], [431, 339], [396, 336], [361, 356], [331, 351], [291, 346], [241, 351], [191, 336], [156, 316], [141, 298], [147, 275], [125, 252], [80, 240], [35, 235], [8, 215], [0, 185], [0, 165]]),
+    // Continente do sul (Shurima, Targon, Ixtal)
+    paraCaminho([[342, 520], [350, 490], [372, 462], [410, 445], [440, 432], [465, 445], [490, 455], [520, 448], [545, 452], [575, 465], [615, 462], [650, 450], [675, 440], [700, 425], [730, 422], [765, 440], [790, 455], [812, 470], [800, 500], [790, 540], [805, 575], [800, 605], [765, 615], [730, 605], [712, 630], [735, 665], [750, 690], [725, 715], [700, 725], [690, 700], [668, 660], [640, 650], [600, 665], [560, 670], [520, 690], [490, 730], [465, 745], [445, 715], [440, 680], [410, 640], [380, 610], [355, 585], [332, 575], [340, 545]]),
+    // Ionia (arquipélago do nordeste)
+    paraCaminho([[735, 140], [750, 105], [790, 70], [830, 50], [870, 55], [895, 45], [925, 60], [950, 100], [930, 140], [960, 170], [975, 200], [945, 215], [940, 250], [915, 290], [905, 262], [915, 230], [895, 205], [865, 190], [835, 200], [805, 185], [770, 190], [740, 170]]),
+    paraCaminho([[940, 292], [975, 282], [1000, 292], [995, 322], [960, 328], [945, 310]]),
+    // Ilha das Sombras
+    paraCaminho([[1005, 545], [1030, 535], [1060, 545], [1082, 570], [1075, 600], [1050, 612], [1020, 610], [1000, 585]])
 ];
 
-// Ilhas soltas: [centroX, centroY, raioX, raioY] na mesma caixa 200x200.
-export const ILHAS_RUNETERRA = [[8, 110, 5, 3], [172, 96, 6, 4], [20, 150, 4, 2.5], [160, 140, 7, 3], [88, 42, 3, 2]];
+// Ilhas soltas: [centroX, centroY, raioX, raioY] na mesma caixa (200 x 127).
+export const ILHAS_RUNETERRA = [[800, 328, 12, 6], [823, 342, 8, 5], [65, 437, 32, 8], [28, 525, 10, 26], [355, 462, 10, 8], [660, 218, 6, 4], [75, 305, 6, 12], [355, 400, 14, 5]]
+    .map(([cx, cy, rx, ry]) => [Number((cx * PX).toFixed(1)), Number((cy * PX).toFixed(1)), Number((rx * PX).toFixed(1)), Number((ry * PX).toFixed(1))]);
 
 // "M x y L x y ... Z" -> [[x, y], ...]
 export function pontosDoCaminho(caminho) {
