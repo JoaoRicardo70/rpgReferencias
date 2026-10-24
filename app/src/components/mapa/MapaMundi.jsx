@@ -15,11 +15,12 @@ import gabaritoIxtal from '../../assets/gabarito-ixtal.png';
 import gabaritoAguas from '../../assets/gabarito-aguas.png';
 import gabaritoIlha from '../../assets/gabarito-ilha.png';
 import gabaritoIonia from '../../assets/gabarito-ionia.png';
-import mapaCosmologia from '../../assets/mapa-cosmologia.png';
 import { CSS_ASTROS } from './astrosCss';
 import { cenasDaRegiao, nomeDaCenaNaRegiao, regiaoDaCena, cenarioComCenaDeRegiao, cenasPendentesDoAtlasLocal } from '../../core/cenasRegiao';
 import CenaAcesso from './CenaAcesso';
 import { CSS_GLOBO } from './globoCss';
+import { CSS_PLANOS } from './planosCss';
+import { slugDoPlano, rotuloDoPlano } from '../../core/planos';
 import { webglDisponivel } from '../../core/globoTerra';
 import { segmentosDoOito, amostrarTrilha, escolherFases, atrasoDaFase } from '../../core/orbitasUniverso';
 
@@ -492,14 +493,34 @@ export default function MapaMundi({ children }) {
                 <PainelModoDeus />
                 <button onClick={() => iniciarViagem('Espaço Sideral', 'sistema_solar')} style={{ position: 'absolute', top: '20px', left: '20px', background: 'transparent', border: '1px solid #fff', color: '#fff', padding: '8px 18px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', zIndex: 100, opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }}>⬅ VOLTAR AO ESPAÇO</button>
 
-                <div ref={containerRef} onMouseMove={handleDragMoveCosmo} onMouseUp={handleDragEndCosmo} onMouseLeave={handleDragEndCosmo} onTouchMove={handleDragMoveCosmo} onTouchEnd={handleDragEndCosmo} style={{ position: 'relative', width: '1000px', height: '600px', borderRadius: '15px', overflow: 'hidden', marginTop: '50px' }}>
-                    <img src={mapaCosmologia} alt="Cosmologia" style={{ width: '100%', height: '100%', objectFit: 'fill', filter: 'drop-shadow(0 0 20px rgba(255,255,255,0.1))', pointerEvents: 'none', opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }} />
+                <style dangerouslySetInnerHTML={{ __html: CSS_PLANOS }} />
+                <div ref={containerRef} className="planos-palco" onMouseMove={handleDragMoveCosmo} onMouseUp={handleDragEndCosmo} onMouseLeave={handleDragEndCosmo} onTouchMove={handleDragMoveCosmo} onTouchEnd={handleDragEndCosmo} style={{ opacity: voandoPara && voandoPara !== 'Terra 0 (Runeterra)' ? 0 : 1, transition: 'opacity 1s' }}>
+                    {/* PLANO DO CAOS: o fundo inteiro. Tudo que está fora das fronteiras douradas é Caos */}
+                    <div className="planos-caos" onMouseEnter={() => !modoAjuste && setPlanoHover('Plano do Caos')} onMouseLeave={() => !modoAjuste && setPlanoHover(null)} onClick={() => iniciarViagem('Plano do Caos', null)} style={{ cursor: modoAjuste ? 'default' : 'pointer' }}>
+                        <span className="planos-caos-camada planos-caos-sombra" />
+                        <span className="planos-caos-camada planos-caos-fogo" />
+                        <span className="planos-caos-camada planos-caos-brasa" />
+                        <span className="planos-caos-raios" />
+                        {Array.from({ length: 18 }, (_, i) => <span key={i} className="planos-brasa-ponto" style={{ left: `${(i * 37 + 8) % 97}%`, animationDelay: `${(i * 1.7) % 9}s`, animationDuration: `${7 + (i % 5)}s` }} />)}
+                        <span className="planos-titulo-canto">Runeterra Expandida</span>
+                        <span className="planos-legenda">Tudo o que está além das fronteiras dos Planos é o Plano do Caos</span>
+                    </div>
+                    {/* REINO CENTRAL: calmo, cercado pela fronteira dourada */}
+                    <div className="planos-reino" onMouseEnter={() => !modoAjuste && setPlanoHover(null)} />
+                    <svg className="planos-anel" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                        <ellipse cx="50" cy="50" rx="49" ry="49" strokeWidth="2" />
+                        <ellipse cx="50" cy="50" rx="47" ry="47" className="planos-anel-runas" />
+                        <ellipse cx="50" cy="50" rx="45" ry="45" strokeWidth="1" />
+                    </svg>
                     {zonasCosmologia.map((zona, index) => (
-                        <div key={`${zona.nome}-${index}`} onMouseEnter={() => !modoAjuste && setPlanoHover(zona.nome)} onMouseLeave={() => !modoAjuste && setPlanoHover(null)} onMouseDown={(e) => handleDragStartCosmo(e, index)} onTouchStart={(e) => handleDragStartCosmo(e, index)} onClick={() => iniciarViagem(zona.nome, zona.isPlanet ? 'globo' : null)}
+                        <div key={`${zona.nome}-${index}`} className={`plano-zona pz-${slugDoPlano(zona.nome)}${modoAjuste ? ' plano-ajuste' : ''}${!modoAjuste && planoHover === zona.nome ? ' plano-ativo' : ''}`} onMouseEnter={() => !modoAjuste && setPlanoHover(zona.nome)} onMouseLeave={() => !modoAjuste && setPlanoHover(null)} onMouseDown={(e) => handleDragStartCosmo(e, index)} onTouchStart={(e) => handleDragStartCosmo(e, index)} role="button" tabIndex={0} aria-label={zona.nome} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); iniciarViagem(zona.nome, zona.isPlanet ? 'globo' : null); } }} onClick={(e) => { e.stopPropagation(); iniciarViagem(zona.nome, zona.isPlanet ? 'globo' : null); }}
                             style={{
-                                position: 'absolute', top: zona.top, left: zona.left, width: zona.width, height: zona.height, borderRadius: zona.isCircle ? '50%' : '15px', cursor: modoAjuste ? 'grab' : 'pointer', zIndex: voandoPara === zona.nome ? 9999 : (zona.zIndex || 10), border: modoAjuste || planoHover === zona.nome ? `2px dashed ${zona.cor}` : '2px solid transparent', boxShadow: modoAjuste || planoHover === zona.nome ? `0 0 15px ${zona.cor}, inset 0 0 10px ${zona.cor}` : 'none', background: modoAjuste ? 'rgba(255,255,255,0.2)' : (planoHover === zona.nome ? 'rgba(255,255,255,0.15)' : 'transparent'), transform: voandoPara === zona.nome ? 'scale(30)' : 'scale(1)', transition: voandoPara === zona.nome ? 'all 1.5s cubic-bezier(0.4, 0, 0.2, 1)' : (dragIndexCosmo === index ? 'none' : '0.2s ease-in-out'), opacity: voandoPara && voandoPara !== zona.nome ? 0 : 1,
+                                position: 'absolute', top: zona.top, left: zona.left, width: zona.width, height: zona.height, borderRadius: zona.isCircle ? '50%' : '15px', cursor: modoAjuste ? 'grab' : 'pointer', zIndex: voandoPara === zona.nome ? 9999 : (zona.zIndex || 10), '--cor': zona.cor, transform: voandoPara === zona.nome ? 'scale(30)' : 'scale(1)', transition: voandoPara === zona.nome ? 'all 1.5s cubic-bezier(0.4, 0, 0.2, 1)' : (dragIndexCosmo === index ? 'none' : '0.2s ease-in-out'), opacity: voandoPara && voandoPara !== zona.nome ? 0 : 1,
                             }}
-                        />
+                        >
+                            <span className="plano-orbe" />
+                            <span className="plano-rotulo">{rotuloDoPlano(zona.nome)}</span>
+                        </div>
                     ))}
                 </div>
                 {!modoAjuste && (
