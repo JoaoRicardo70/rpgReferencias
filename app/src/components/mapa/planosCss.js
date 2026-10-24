@@ -6,6 +6,34 @@
 import { svgRuido } from './astrosCss';
 
 const T = {
+    ventoBandas: svgRuido({ fx: 0.004, fy: 0.09, oct: 4, seed: 41, rgb: [0.75, 1, 0.8], alfa: [3.4, -1.35] }),
+    ventoTempestade: svgRuido({ fx: 0.006, fy: 0.05, oct: 4, seed: 43, rgb: [0, 0.22, 0.08], alfa: [3, -1.3] }),
+    ventoFiapos: svgRuido({ fx: 0.012, fy: 0.07, oct: 5, seed: 44, rgb: [1, 1, 1], alfa: [3.4, -1.6] }),
+    aguaOndas: svgRuido({ fx: 0.02, fy: 0.03, oct: 5, seed: 51, rgb: [0.7, 0.92, 1], alfa: [3, -1.45] }),
+    aguaFundo: svgRuido({ fx: 0.01, fy: 0.02, oct: 4, seed: 53, rgb: [0, 0.04, 0.3], alfa: [2.6, -0.9] }),
+    aguaEspuma: svgRuido({ fx: 0.05, fy: 0.07, oct: 4, seed: 54, rgb: [1, 1, 1], alfa: [7, -4] }),
+    fogoCrosta: svgRuido({ fx: 0.03, oct: 5, seed: 61, rgb: [0.06, 0, 0], alfa: [3.4, -1.15] }),
+    fogoVeias: svgRuido({ fx: 0.025, fy: 0.04, oct: 5, seed: 62, rgb: [1, 0.55, 0.05], alfa: [8, -4.2] }),
+    fogoBrilho: svgRuido({ fx: 0.012, oct: 3, seed: 63, rgb: [1, 0.2, 0], alfa: [2, -0.55] }),
+    terraRochas: svgRuido({ fx: 0.05, oct: 6, seed: 71, rgb: [0.1, 0.06, 0.02], alfa: [3, -1.1] }),
+    terraAreia: svgRuido({ fx: 0.02, fy: 0.03, oct: 5, seed: 72, rgb: [0.9, 0.7, 0.45], alfa: [2.8, -1.15] }),
+    terraAltas: svgRuido({ fx: 0.03, oct: 5, seed: 73, rgb: [0.95, 0.9, 0.85], alfa: [8, -4.6] }),
+    fadasFloresta: svgRuido({ fx: 0.03, oct: 5, seed: 81, rgb: [0.04, 0.32, 0.08], alfa: [3.2, -1.15] }),
+    fadasLuz: svgRuido({ fx: 0.07, oct: 3, seed: 82, rgb: [0.9, 1, 0.5], alfa: [8, -4.6] }),
+    eterNebulosa: svgRuido({ fx: 0.01, fy: 0.02, oct: 5, seed: 91, rgb: [0.88, 0.4, 1], alfa: [3.4, -1.2] }),
+    eterProfundo: svgRuido({ fx: 0.015, fy: 0.01, oct: 5, seed: 92, rgb: [0.2, 0.05, 0.5], alfa: [3, -0.95] }),
+    estrelas: svgRuido({ fx: 0.2, oct: 1, seed: 93, rgb: [1, 1, 1], alfa: [14, -10.4] }),
+    terra0Continentes: svgRuido({ fx: 0.012, fy: 0.02, oct: 5, seed: 11, rgb: [0.2, 0.5, 0.22], alfa: [11, -5.2] }),
+    terra0Altas: svgRuido({ fx: 0.012, fy: 0.02, oct: 5, seed: 11, rgb: [0.55, 0.45, 0.28], alfa: [16, -8.8] }),
+    terra0Nuvens: svgRuido({ fx: 0.008, fy: 0.03, oct: 5, seed: 23, rgb: [1, 1, 1], alfa: [3.4, -1.3] }),
+    ordemBrilho: svgRuido({ fx: 0.02, oct: 3, seed: 101, rgb: [1, 0.95, 1], alfa: [2.4, -1.05] }),
+    ceusNuvens: svgRuido({ fx: 0.01, fy: 0.035, oct: 5, seed: 111, rgb: [1, 1, 0.96], alfa: [3.4, -1.35] }),
+    ceusOuro: svgRuido({ fx: 0.02, oct: 4, seed: 112, rgb: [1, 0.78, 0.2], alfa: [2.6, -0.9] }),
+    infernoRocha: svgRuido({ fx: 0.04, oct: 6, seed: 121, rgb: [0.07, 0.02, 0.01], alfa: [3.4, -1.05] }),
+    infernoLava: svgRuido({ fx: 0.03, fy: 0.05, oct: 5, seed: 122, rgb: [1, 0.45, 0], alfa: [8, -4.2] }),
+    astralOuro: svgRuido({ fx: 0.008, fy: 0.015, oct: 5, seed: 131, rgb: [1, 0.75, 0.3], alfa: [3, -1.4] }),
+    astralVioleta: svgRuido({ fx: 0.01, fy: 0.012, oct: 5, seed: 132, rgb: [0.5, 0.3, 1], alfa: [3.2, -1.15] }),
+    astralAzul: svgRuido({ fx: 0.014, fy: 0.01, oct: 4, seed: 134, rgb: [0.2, 0.5, 1], alfa: [2.8, -1.1] }),
     fogo: svgRuido({ fx: 0.012, fy: 0.02, oct: 5, seed: 4, rgb: [1, 0.3, 0.04], alfa: [3.4, -1.2] }),
     brasa: svgRuido({ fx: 0.03, fy: 0.05, oct: 4, seed: 12, rgb: [1, 0.78, 0.2], alfa: [3.6, -1.7] }),
     sombra: svgRuido({ fx: 0.02, fy: 0.02, oct: 4, seed: 9, rgb: [0.1, 0, 0.12], alfa: [2.4, -0.8] }),
@@ -31,45 +59,99 @@ export const CSS_PLANOS = `
 .planos-legenda { position: absolute; right: 2.5%; bottom: 2%; max-width: 30%; text-align: right; font-size: clamp(8px, 1.15cqw, 12px); font-style: italic; letter-spacing: 1px; color: rgba(255, 190, 150, 0.8); text-shadow: 0 0 6px #000; pointer-events: none; }
 .planos-titulo-canto { position: absolute; left: 2.5%; top: 2.5%; font-size: clamp(9px, 1.5cqw, 15px); letter-spacing: 3px; font-weight: bold; text-transform: uppercase; color: rgba(255, 210, 180, 0.8); text-shadow: 0 0 8px #000; pointer-events: none; }
 
-/* REINO CENTRAL: o Multiverso cercado pela fronteira dourada */
-.planos-reino { position: absolute; left: 5%; top: 4%; width: 90%; height: 90%; border-radius: 50%; background: radial-gradient(circle at 54% 50%, rgba(125, 75, 210, 0.38) 0%, transparent 46%), radial-gradient(1.5px 1.5px at 12% 28%, #fff, transparent), radial-gradient(1px 1px at 22% 66%, #fff, transparent), radial-gradient(1.5px 1.5px at 38% 14%, #fff, transparent), radial-gradient(1px 1px at 47% 84%, #fff, transparent), radial-gradient(1.5px 1.5px at 66% 20%, #fff, transparent), radial-gradient(1px 1px at 78% 72%, #fff, transparent), radial-gradient(1.5px 1.5px at 88% 38%, #fff, transparent), radial-gradient(1px 1px at 58% 92%, #fff, transparent), radial-gradient(ellipse at 50% 50%, #1b1240 0%, #0e0a2a 62%, #060418 100%); box-shadow: 0 0 36px 8px rgba(255, 200, 90, 0.45), inset 0 0 50px rgba(255, 200, 90, 0.28); border: 2px solid rgba(255, 220, 140, 0.9); }
-.planos-reino::after { content: ""; position: absolute; inset: -13px; border-radius: 50%; pointer-events: none; background: conic-gradient(from var(--planoAng), #ffe9a8, #ff8a1f, #ffd77a, #ff5a00, #ffe9a8); -webkit-mask-image: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 9px), transparent 100%); mask-image: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 9px), transparent 100%); filter: blur(1.6px); opacity: 1; animation: planoAng 24s linear infinite; }
-.planos-anel { position: absolute; left: 29%; top: 10%; width: 50%; height: 80%; pointer-events: none; overflow: visible; }
-.planos-anel ellipse { fill: none; stroke: rgba(255, 215, 130, 0.85); vector-effect: non-scaling-stroke; }
+/* PLANO ASTRAL: a faixa que separa o Caos dos demais planos (zona 'Plano Astral' em zonasCosmologia, por baixo do reino) */
+.pz-plano-astral { box-shadow: 0 0 26px 6px rgba(255, 130, 40, 0.5); }
+.pz-plano-astral .plano-orbe { background: radial-gradient(ellipse at 50% 50%, #0a0630 0%, #170f52 55%, #2b1a78 100%); box-shadow: inset 0 0 50px 10px rgba(150, 110, 255, 0.55), inset 0 0 8px 2px rgba(255, 210, 120, 0.8); }
+.pz-plano-astral .pl-a { --giro: 90s; background-image: ${T.astralVioleta}; mix-blend-mode: screen; opacity: 0.9; }
+.pz-plano-astral .pl-b { --giro: 140s; background-image: ${T.astralOuro}; mix-blend-mode: screen; opacity: 0.75; }
+.pz-plano-astral .pl-c { --giro: 200s; background-image: ${T.estrelas}, ${T.astralAzul}; background-size: 25% 100%, 50% 100%; mix-blend-mode: screen; }
+.pz-plano-astral .pl-borda, .pz-plano-astral .plano-rotulo { display: none; }
+.pz-plano-astral::before, .pz-plano-astral::after { position: absolute; top: 50%; writing-mode: vertical-rl; font-size: clamp(8px, 1.3cqw, 14px); font-weight: bold; letter-spacing: 6px; color: rgba(255, 230, 170, 0.95); text-shadow: 0 0 8px #6a3cff, 0 0 4px #000; pointer-events: none; z-index: 2; }
+.pz-plano-astral::before { content: "PLANO ASTRAL"; left: 1.4%; transform: translateY(-50%) rotate(180deg); }
+.pz-plano-astral::after { content: "PLANO ASTRAL"; right: 1.4%; transform: translateY(-50%); }
+.pz-plano-astral.plano-ajuste { background: transparent; }
+.planos-palco:has(.plano-ajuste) .planos-reino { pointer-events: none; }
+
+/* REINO DENTRO DO ASTRAL: Céus, Inferno, Ordem e o aro dos Planos Internos */
+.planos-reino { position: absolute; left: 6%; top: 3.5%; width: 88%; height: 93%; border-radius: 50%; z-index: 2; background: radial-gradient(circle at 54% 52%, rgba(125, 75, 210, 0.34) 0%, transparent 46%), radial-gradient(1.5px 1.5px at 12% 28%, #fff, transparent), radial-gradient(1px 1px at 22% 66%, #fff, transparent), radial-gradient(1.5px 1.5px at 38% 14%, #fff, transparent), radial-gradient(1px 1px at 47% 88%, #fff, transparent), radial-gradient(1.5px 1.5px at 68% 18%, #fff, transparent), radial-gradient(1px 1px at 80% 72%, #fff, transparent), radial-gradient(1.5px 1.5px at 90% 40%, #fff, transparent), radial-gradient(1px 1px at 60% 94%, #fff, transparent), radial-gradient(ellipse at 50% 50%, #1b1240 0%, #0e0a2a 62%, #060418 100%); box-shadow: 0 0 22px 4px rgba(255, 215, 130, 0.5), inset 0 0 40px rgba(255, 200, 90, 0.2); border: 1.5px solid rgba(255, 224, 150, 0.85); }
+.planos-anel { position: absolute; left: 28%; top: 23%; width: 52%; height: 59%; pointer-events: none; overflow: visible; z-index: 3; }
+.planos-anel ellipse { fill: none; stroke: rgba(255, 215, 130, 0.9); vector-effect: non-scaling-stroke; }
+.planos-anel .planos-anel-area { fill: rgba(150, 110, 255, 0.1); stroke: none; }
 .planos-anel .planos-anel-runas { stroke-width: 6; stroke: rgba(255, 215, 130, 0.35); stroke-dasharray: 2 5; animation: planoFluxo 30s linear infinite; }
 @keyframes planoFluxo { to { stroke-dashoffset: -350; } }
+.planos-faixa-rotulo { position: absolute; z-index: 3; transform: translateX(-50%); font-size: clamp(7px, 1.05cqw, 11px); font-weight: bold; letter-spacing: 3px; text-transform: uppercase; white-space: nowrap; pointer-events: none; text-shadow: 0 0 6px #000; }
+.planos-faixa-internos { left: 54%; top: 78.2%; color: rgba(255, 224, 150, 0.95); }
+.planos-faixa-externos { left: 14%; top: 66%; color: rgba(190, 170, 255, 0.95); }
 
-/* ZONAS CLICÁVEIS (as posições vêm de zonasCosmologia em MapaMundi.jsx) */
+/* ZONAS CLICÁVEIS (posições vêm de zonasCosmologia em MapaMundi.jsx). Cada plano tem 3 camadas de textura que giram, mais a sombra/atmosfera da esfera. */
 .plano-zona { box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
 .plano-zona > * { pointer-events: none; }
 .plano-orbe { position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 14px 2px var(--cor, #fff); overflow: hidden; transition: filter 0.25s, box-shadow 0.25s; }
-.plano-ativo .plano-orbe { filter: brightness(1.3) saturate(1.2); box-shadow: 0 0 26px 7px var(--cor, #fff); }
-.plano-rotulo { position: relative; z-index: 2; text-align: center; white-space: pre-line; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; font-size: clamp(7px, 1.25cqw, 13px); line-height: 1.15; color: #fff; text-shadow: 0 0 5px #000, 0 0 10px #000, 0 1px 2px #000; }
+.plano-ativo .plano-orbe { filter: brightness(1.25) saturate(1.2); box-shadow: 0 0 26px 7px var(--cor, #fff); }
+.pl-tex { position: absolute; top: 0; left: 0; width: 200%; height: 100%; background-repeat: repeat-x; background-size: 50% 100%; mix-blend-mode: soft-light; animation: planoTexGira var(--giro, 60s) linear infinite; will-change: transform; }
+@keyframes planoTexGira { to { transform: translateX(-50%); } }
+.pl-borda { position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 30% 26%, rgba(255, 255, 255, 0.34) 0%, transparent 34%), radial-gradient(circle at 50% 50%, transparent 50%, rgba(0, 0, 12, 0.55) 100%), linear-gradient(120deg, transparent 40%, rgba(0, 0, 16, 0.5) 86%); box-shadow: inset 0 0 14px 2px var(--atm, rgba(160, 200, 255, 0.4)); }
+.plano-rotulo { position: relative; z-index: 3; text-align: center; white-space: pre-line; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; font-size: clamp(7px, 1.25cqw, 13px); line-height: 1.15; color: #fff; text-shadow: 0 0 5px #000, 0 0 10px #000, 0 1px 2px #000; }
 .plano-ajuste { background: rgba(255, 255, 255, 0.2); border: 2px dashed var(--cor, #fff); }
 
-.pz-plano-do-vento .plano-orbe { background: radial-gradient(circle, rgba(8, 40, 24, 0.9) 0%, transparent 38%), conic-gradient(from 0deg, #1f7a4a, #84e8a8, #1f7a4a, #0c3a28, #4ac27c, #1f7a4a); }
-.pz-plano-do-vento .plano-orbe::after, .pz-plano-da-agua .plano-orbe::after, .pz-plano-do-fogo .plano-orbe::after { content: ""; position: absolute; inset: -20%; background: inherit; mix-blend-mode: overlay; animation: planoGira 16s linear infinite; }
-.pz-plano-da-agua .plano-orbe { background: radial-gradient(circle, rgba(5, 20, 70, 0.9) 0%, transparent 38%), conic-gradient(from 0deg, #2a5cd6, #8fc8ff, #2a5cd6, #0c2468, #4f95f0, #2a5cd6); }
-.pz-plano-do-fogo .plano-orbe { background: radial-gradient(circle, rgba(60, 0, 0, 0.9) 0%, transparent 36%), conic-gradient(from 0deg, #c01818, #ffa030, #c01818, #5a0808, #ff6a1a, #c01818); }
-.pz-plano-da-terra .plano-orbe { background: ${T.rocha}, radial-gradient(circle at 34% 30%, #b78a5a 0%, #7a5232 45%, #3a2412 100%); background-size: 120px, auto; }
-.pz-plano-das-fadas .plano-orbe { background: radial-gradient(circle at 40% 36%, #e8ffb0 0%, #7be84a 40%, #1c7a1c 100%); animation: planoPulsa 3.5s ease-in-out infinite; }
-.pz-plano-do-eter .plano-orbe { background: radial-gradient(circle at 40% 36%, #e4b8ff 0%, #8a2be2 45%, #2a0a5a 100%); animation: planoPulsa 4.5s ease-in-out infinite; }
-.pz-terra-0-runeterra .plano-orbe { background: radial-gradient(circle at 34% 30%, #cdeeff 0%, #5fb4f4 34%, #1f6fc8 66%, #0a2f6a 100%); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 0 24px 8px rgba(255, 255, 255, 0.7), 0 0 60px 18px rgba(170, 220, 255, 0.45); }
-.pz-terra-0-runeterra .plano-orbe::after { content: ""; position: absolute; top: 0; left: 0; width: 200%; height: 100%; background: radial-gradient(ellipse at 18% 40%, rgba(30, 100, 60, 0.85) 0 14%, transparent 15%), radial-gradient(ellipse at 40% 66%, rgba(30, 100, 60, 0.8) 0 12%, transparent 13%), radial-gradient(ellipse at 66% 36%, rgba(30, 100, 60, 0.8) 0 15%, transparent 16%), radial-gradient(ellipse at 88% 62%, rgba(30, 100, 60, 0.8) 0 11%, transparent 12%); animation: planoDeslize 40s linear infinite; }
-.pz-plano-da-ordem .plano-orbe { background: radial-gradient(circle at 40% 34%, #c9b8ff 0%, #6a54b8 52%, #2a2050 100%); }
-.pz-plano-da-ordem .plano-orbe::before { content: ""; position: absolute; left: 24%; top: 24%; width: 52%; height: 52%; transform: rotate(45deg); background: linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(180, 150, 255, 0.15)); border: 2px solid rgba(255, 255, 255, 0.8); animation: planoPulsa 5s ease-in-out infinite; }
-.pz-plano-astral .plano-orbe { background: radial-gradient(circle, #0b0830 0%, #1a1450 55%, #3b2a8a 100%); }
-.pz-plano-astral .plano-orbe::after { content: ""; position: absolute; inset: -25%; background: conic-gradient(from 0deg, transparent, rgba(255, 190, 70, 0.6), transparent 25%, rgba(255, 110, 30, 0.5) 50%, transparent 75%); animation: planoGira 12s linear infinite; }
-.pz-ceus .plano-orbe { background: radial-gradient(circle at 40% 34%, #fff7d0 0%, #f6d760 45%, #b8861a 100%); }
-.pz-ceus .plano-orbe::before { content: ""; position: absolute; inset: 8%; border-radius: 50%; border: 2px dashed rgba(120, 80, 0, 0.75); animation: planoGira 40s linear infinite; }
-.pz-inferno .plano-orbe { border-radius: 0; clip-path: polygon(0 100%, 28% 42%, 40% 52%, 54% 8%, 70% 44%, 82% 36%, 100% 100%); background: repeating-linear-gradient(112deg, transparent 0 9px, rgba(255, 120, 20, 0.7) 9px 11px, transparent 11px 20px), linear-gradient(180deg, #ff6a1a 0%, #8a1006 38%, #1a0504 100%); box-shadow: none; animation: planoChama 3s ease-in-out infinite; }
+/* Vento: gigante gasoso verde com faixas, tempestade e fiapos de nuvem */
+.pz-plano-do-vento .plano-orbe { --atm: rgba(120, 255, 170, 0.5); background: radial-gradient(circle at 40% 36%, #6fe0a0 0%, #1f8a55 50%, #0a3a24 100%); }
+.pz-plano-do-vento .pl-a { --giro: 40s; mix-blend-mode: overlay; background-image: radial-gradient(ellipse at 62% 62%, rgba(255, 255, 255, 0.7) 0 5%, rgba(0, 60, 30, 0.7) 7% 12%, transparent 14%), ${T.ventoTempestade}, ${T.ventoBandas}; }
+.pz-plano-do-vento .pl-b { --giro: 24s; mix-blend-mode: screen; opacity: 0.6; background-image: ${T.ventoFiapos}; }
+.pz-plano-do-vento .pl-c { --giro: 55s; mix-blend-mode: multiply; opacity: 0.6; background-image: ${T.ventoTempestade}; }
+/* Água: oceano profundo com ondas, espuma e um redemoinho */
+.pz-plano-da-agua .plano-orbe { --atm: rgba(130, 200, 255, 0.55); background: radial-gradient(circle at 40% 36%, #5aa8ff 0%, #1f55c8 52%, #08226a 100%); }
+.pz-plano-da-agua .pl-a { --giro: 50s; mix-blend-mode: multiply; background-image: ${T.aguaFundo}; }
+.pz-plano-da-agua .pl-b { --giro: 34s; mix-blend-mode: overlay; background-image: radial-gradient(ellipse at 30% 58%, rgba(255, 255, 255, 0.6) 0 4%, rgba(0, 30, 120, 0.6) 6% 12%, transparent 14%), ${T.aguaOndas}; }
+.pz-plano-da-agua .pl-c { --giro: 28s; mix-blend-mode: screen; opacity: 0.55; background-image: ${T.aguaEspuma}; }
+/* Fogo: crosta escura rachada com veias de lava e brilho interno */
+.pz-plano-do-fogo .plano-orbe { --atm: rgba(255, 130, 40, 0.6); background: radial-gradient(circle at 40% 36%, #ff9a40 0%, #d22a0a 48%, #4a0604 100%); }
+.pz-plano-do-fogo .pl-a { --giro: 70s; mix-blend-mode: multiply; background-image: ${T.fogoCrosta}; }
+.pz-plano-do-fogo .pl-b { mix-blend-mode: screen; background-image: ${T.fogoVeias}; animation: planoTexGira 70s linear infinite, planoBrilha 2.8s ease-in-out infinite alternate; }
+.pz-plano-do-fogo .pl-c { --giro: 45s; mix-blend-mode: screen; opacity: 0.6; background-image: ${T.fogoBrilho}; }
+@keyframes planoBrilha { from { opacity: 0.7; } to { opacity: 1; } }
+/* Terra: rocha com crateras, areia e picos claros */
+.pz-plano-da-terra .plano-orbe { --atm: rgba(210, 160, 110, 0.4); background: radial-gradient(circle at 36% 32%, #c49a68 0%, #7e5634 48%, #2e1a0c 100%); }
+.pz-plano-da-terra .pl-a { --giro: 120s; mix-blend-mode: multiply; background-image: radial-gradient(circle at 24% 34%, rgba(20, 8, 0, 0.7) 0 6%, rgba(255, 220, 170, 0.35) 7% 8%, transparent 9%), radial-gradient(circle at 70% 60%, rgba(20, 8, 0, 0.7) 0 8%, rgba(255, 220, 170, 0.35) 9% 10%, transparent 11%), radial-gradient(circle at 46% 80%, rgba(20, 8, 0, 0.65) 0 5%, transparent 6%), ${T.terraRochas}; }
+.pz-plano-da-terra .pl-b { --giro: 120s; mix-blend-mode: soft-light; background-image: ${T.terraAreia}; }
+.pz-plano-da-terra .pl-c { --giro: 120s; mix-blend-mode: screen; opacity: 0.55; background-image: ${T.terraAltas}; }
+/* Fadas: mundo de floresta com luzes que piscam */
+.pz-plano-das-fadas .plano-orbe { --atm: rgba(190, 255, 120, 0.7); background: radial-gradient(circle at 40% 36%, #d8ff9a 0%, #5cc83a 48%, #0f4a14 100%); }
+.pz-plano-das-fadas .pl-a { --giro: 70s; mix-blend-mode: multiply; background-image: ${T.fadasFloresta}; }
+.pz-plano-das-fadas .pl-b { mix-blend-mode: screen; background-image: ${T.fadasLuz}; animation: planoTexGira 70s linear infinite, planoBrilha 1.6s ease-in-out infinite alternate; }
+.pz-plano-das-fadas .pl-c { --giro: 36s; mix-blend-mode: screen; opacity: 0.7; background-image: ${T.estrelas}; background-size: 25% 100%; }
+/* Éter: nebulosa violeta com estrelas */
+.pz-plano-do-eter .plano-orbe { --atm: rgba(210, 130, 255, 0.7); background: radial-gradient(circle at 40% 36%, #e4b8ff 0%, #8a2be2 46%, #1c0646 100%); }
+.pz-plano-do-eter .pl-a { --giro: 60s; mix-blend-mode: multiply; background-image: ${T.eterProfundo}; }
+.pz-plano-do-eter .pl-b { --giro: 44s; mix-blend-mode: screen; background-image: ${T.eterNebulosa}; }
+.pz-plano-do-eter .pl-c { --giro: 80s; mix-blend-mode: screen; background-image: ${T.estrelas}; background-size: 25% 100%; }
+/* Terra 0: planeta azul com continentes, nuvens e a coroa branca de eclipse */
+.pz-terra-0-runeterra .plano-orbe { --atm: rgba(110, 190, 255, 0.8); background: radial-gradient(circle at 34% 30%, #d4f0ff 0%, #5fb4f4 32%, #1f6fc8 64%, #082a62 100%); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 0 24px 8px rgba(255, 255, 255, 0.7), 0 0 60px 18px rgba(170, 220, 255, 0.45); }
+.pz-terra-0-runeterra .pl-a { --giro: 80s; mix-blend-mode: normal; background-image: ${T.terra0Altas}, ${T.terra0Continentes}; }
+.pz-terra-0-runeterra .pl-b { --giro: 50s; mix-blend-mode: normal; opacity: 0.8; background-image: ${T.terra0Nuvens}; }
+/* Ordem: cristal facetado com núcleo geométrico */
+.pz-plano-da-ordem .plano-orbe { --atm: rgba(200, 180, 255, 0.7); background: conic-gradient(from 20deg, #d9ccff, #7a62c8, #f4eeff, #5a46a6, #c4b4ff, #6a54b8, #e6dcff, #4a3892, #d9ccff); }
+.pz-plano-da-ordem .pl-a { --giro: 200s; mix-blend-mode: overlay; background-image: ${T.ordemBrilho}; }
+.pz-plano-da-ordem .pl-b { --giro: 90s; mix-blend-mode: soft-light; background-image: repeating-linear-gradient(60deg, rgba(255, 255, 255, 0.5) 0 2px, transparent 2px 22px), repeating-linear-gradient(-60deg, rgba(255, 255, 255, 0.35) 0 2px, transparent 2px 22px); }
+.pz-plano-da-ordem .pl-c { animation: planoPulsa 5s ease-in-out infinite; left: 24%; top: 24%; width: 52%; height: 52%; mix-blend-mode: screen; background: linear-gradient(135deg, rgba(255, 255, 255, 0.6), rgba(170, 140, 255, 0.1)); border: 2px solid rgba(255, 255, 255, 0.85); rotate: 45deg; }
+/* Céus: disco dourado com nuvens e raios */
+.pz-ceus .plano-orbe { --atm: rgba(255, 235, 150, 0.8); background: radial-gradient(circle at 40% 34%, #fffbe0 0%, #f6d760 46%, #a87414 100%); }
+.pz-ceus .pl-a { --giro: 90s; mix-blend-mode: soft-light; background-image: ${T.ceusOuro}; }
+.pz-ceus .pl-b { --giro: 60s; mix-blend-mode: screen; opacity: 0.8; background-image: ${T.ceusNuvens}; }
+.pz-ceus .pl-c { left: 0; width: 100%; background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.28) 0deg 5deg, transparent 5deg 18deg); mix-blend-mode: overlay; animation: planoGira 80s linear infinite; }
+/* Inferno: vulcão de rocha escura cortada por rios de lava */
+.pz-inferno { filter: drop-shadow(0 0 10px rgba(255, 90, 0, 0.85)); }
+.pz-inferno .plano-orbe { border-radius: 0; clip-path: polygon(0 100%, 26% 46%, 36% 56%, 52% 6%, 68% 46%, 80% 38%, 100% 100%); background: linear-gradient(180deg, #b8300c 0%, #6a1a0a 45%, #240806 100%); box-shadow: none; }
+.pz-inferno .pl-a { --giro: 160s; mix-blend-mode: normal; opacity: 0.95; background-image: ${T.infernoRocha}; }
+.pz-inferno .pl-b { mix-blend-mode: screen; background-image: linear-gradient(0deg, rgba(255, 90, 10, 0.9), transparent 55%), ${T.infernoLava}; animation: planoTexGira 160s linear infinite, planoBrilha 2.4s ease-in-out infinite alternate; }
+.pz-inferno .pl-c { left: 38%; width: 24%; top: 0; height: 30%; background: radial-gradient(ellipse at 50% 100%, rgba(255, 210, 90, 0.95), rgba(255, 90, 0, 0.6) 45%, transparent 75%); mix-blend-mode: screen; animation: planoBrilha 1.4s ease-in-out infinite alternate; }
+.pz-inferno .pl-borda { display: none; }
 .pz-inferno.plano-ativo .plano-orbe { box-shadow: none; }
 .pz-plano-do-caos .plano-orbe, .pz-plano-do-caos-inferior .plano-orbe { border-radius: 14px; background: none; box-shadow: none; }
+.pz-plano-do-caos .pl-tex, .pz-plano-do-caos .pl-borda, .pz-plano-do-caos-inferior .pl-tex, .pz-plano-do-caos-inferior .pl-borda { display: none; }
 .pz-plano-do-caos .plano-rotulo, .pz-plano-do-caos-inferior .plano-rotulo { font-size: clamp(9px, 1.9cqw, 19px); letter-spacing: 3px; background: linear-gradient(180deg, #ffe08a, #ff5a1a); -webkit-background-clip: text; background-clip: text; color: transparent; text-shadow: none; filter: drop-shadow(0 0 6px rgba(255, 70, 0, 0.85)) drop-shadow(0 2px 3px #000); }
 @keyframes planoGira { to { transform: rotate(360deg); } }
 @keyframes planoPulsa { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
-@keyframes planoDeslize { to { transform: translateX(-50%); } }
-@keyframes planoChama { 0%, 100% { filter: brightness(1) drop-shadow(0 0 8px rgba(255, 90, 0, 0.8)); } 50% { filter: brightness(1.25) drop-shadow(0 0 16px rgba(255, 140, 0, 0.95)); } }
-@media (prefers-reduced-motion: reduce) { .planos-caos-camada, .planos-caos-raios, .planos-reino::after, .planos-brasa-ponto, .planos-anel-runas, .plano-orbe, .plano-orbe::before, .plano-orbe::after { animation: none; } }
-body.reduzir-animacoes .planos-caos-camada, body.reduzir-animacoes .planos-caos-raios, body.reduzir-animacoes .planos-reino::after, body.reduzir-animacoes .planos-brasa-ponto, body.reduzir-animacoes .planos-anel-runas, body.reduzir-animacoes .plano-orbe, body.reduzir-animacoes .plano-orbe::before, body.reduzir-animacoes .plano-orbe::after { animation: none; }
+@media (prefers-reduced-motion: reduce) { .planos-caos-camada, .planos-caos-raios, .planos-brasa-ponto, .planos-anel-runas, .plano-orbe, .pl-tex, .plano-zona .pl-tex, .plano-zona .pl-c, .plano-zona .plano-orbe { animation: none !important; } }
+body.reduzir-animacoes .planos-caos-camada, body.reduzir-animacoes .planos-caos-raios, body.reduzir-animacoes .planos-brasa-ponto, body.reduzir-animacoes .planos-anel-runas, body.reduzir-animacoes .plano-orbe, body.reduzir-animacoes .pl-tex, body.reduzir-animacoes .plano-zona .pl-c { animation: none !important; }
 `;

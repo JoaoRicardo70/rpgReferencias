@@ -92,17 +92,17 @@ export default function MapaMundi({ children }) {
     const [zonasCosmologia, setZonasCosmologia] = useState([
         { "nome": "Terra 0 (Runeterra)", "top": "44.3%", "left": "49.3%", "width": "10%", "height": "16.6%", "cor": "#ffffff", "isCircle": true, "isPlanet": true },
         { "nome": "Plano da Ordem", "top": "40.6%", "left": "13.2%", "width": "13%", "height": "22%", "cor": "#DDA0DD", "isCircle": true },
-        { "nome": "Plano Astral", "top": "38.7%", "left": "81.9%", "width": "13%", "height": "22%", "cor": "#483D8B", "isCircle": true },
+        { "nome": "Plano Astral", "top": "0%", "left": "0%", "width": "100%", "height": "100%", "cor": "#6a4cff", "isCircle": true, "zIndex": 1 },
         { "nome": "Plano do Vento", "top": "28.2%", "left": "33.4%", "width": "12%", "height": "20%", "cor": "#2E8B57", "isCircle": true },
         { "nome": "Plano do Fogo", "top": "55.2%", "left": "34.1%", "width": "12%", "height": "20%", "cor": "#DC143C", "isCircle": true },
         { "nome": "Plano da Água", "top": "26.6%", "left": "62.4%", "width": "12%", "height": "20%", "cor": "#4169E1", "isCircle": true },
         { "nome": "Plano da Terra", "top": "56.7%", "left": "63.6%", "width": "12%", "height": "20%", "cor": "#8B4513", "isCircle": true },
-        { "nome": "Céus", "top": "2.4%", "left": "47.0%", "width": "12%", "height": "18%", "cor": "#FCE883", "isCircle": true },
-        { "nome": "Inferno", "top": "79.2%", "left": "46.7%", "width": "16%", "height": "14%", "cor": "#FF4500", "isCircle": false },
+        { "nome": "Céus", "top": "4.5%", "left": "47.2%", "width": "11.5%", "height": "18%", "cor": "#FCE883", "isCircle": true },
+        { "nome": "Inferno", "top": "80.5%", "left": "45.5%", "width": "18%", "height": "14%", "cor": "#FF4500", "isCircle": false },
         { "nome": "Plano das Fadas", "top": "32.4%", "left": "50.3%", "width": "7%", "height": "9%", "cor": "#32CD32", "isCircle": true },
         { "nome": "Plano do Éter", "top": "64.7%", "left": "50.7%", "width": "7%", "height": "9%", "cor": "#9400D3", "isCircle": true },
-        { "nome": "Plano do Caos", "top": "2.1%", "left": "77.5%", "width": "22%", "height": "10%", "cor": "#800000", "isCircle": false },
-        { "nome": "Plano do Caos Inferior", "top": "84%", "left": "8%", "width": "22%", "height": "10%", "cor": "#800000", "isCircle": false }
+        { "nome": "Plano do Caos", "top": "1%", "left": "80%", "width": "19%", "height": "8%", "cor": "#800000", "isCircle": false },
+        { "nome": "Plano do Caos Inferior", "top": "90%", "left": "1%", "width": "16%", "height": "8%", "cor": "#800000", "isCircle": false }
     ]);
 
     // ESTRELAS E PLANETAS 
@@ -503,22 +503,25 @@ export default function MapaMundi({ children }) {
                         <span className="planos-caos-raios" />
                         {Array.from({ length: 18 }, (_, i) => <span key={i} className="planos-brasa-ponto" style={{ left: `${(i * 37 + 8) % 97}%`, animationDelay: `${(i * 1.7) % 9}s`, animationDuration: `${7 + (i % 5)}s` }} />)}
                         <span className="planos-titulo-canto">Runeterra Expandida</span>
-                        <span className="planos-legenda">Tudo o que está além das fronteiras dos Planos é o Plano do Caos</span>
+                        <span className="planos-legenda">O Plano Astral separa o Caos dos demais planos; tudo além dele é o Plano do Caos</span>
                     </div>
                     {/* REINO CENTRAL: calmo, cercado pela fronteira dourada */}
                     <div className="planos-reino" onMouseEnter={() => !modoAjuste && setPlanoHover(null)} />
                     <svg className="planos-anel" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                        <ellipse cx="50" cy="50" rx="49" ry="49" className="planos-anel-area" />
                         <ellipse cx="50" cy="50" rx="49" ry="49" strokeWidth="2" />
                         <ellipse cx="50" cy="50" rx="47" ry="47" className="planos-anel-runas" />
                         <ellipse cx="50" cy="50" rx="45" ry="45" strokeWidth="1" />
                     </svg>
+                    <span className="planos-faixa-rotulo planos-faixa-internos">Planos Internos</span>
+                    <span className="planos-faixa-rotulo planos-faixa-externos">Planos Externos</span>
                     {zonasCosmologia.map((zona, index) => (
                         <div key={`${zona.nome}-${index}`} className={`plano-zona pz-${slugDoPlano(zona.nome)}${modoAjuste ? ' plano-ajuste' : ''}${!modoAjuste && planoHover === zona.nome ? ' plano-ativo' : ''}`} onMouseEnter={() => !modoAjuste && setPlanoHover(zona.nome)} onMouseLeave={() => !modoAjuste && setPlanoHover(null)} onMouseDown={(e) => handleDragStartCosmo(e, index)} onTouchStart={(e) => handleDragStartCosmo(e, index)} role="button" tabIndex={0} aria-label={zona.nome} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); iniciarViagem(zona.nome, zona.isPlanet ? 'globo' : null); } }} onClick={(e) => { e.stopPropagation(); iniciarViagem(zona.nome, zona.isPlanet ? 'globo' : null); }}
                             style={{
                                 position: 'absolute', top: zona.top, left: zona.left, width: zona.width, height: zona.height, borderRadius: zona.isCircle ? '50%' : '15px', cursor: modoAjuste ? 'grab' : 'pointer', zIndex: voandoPara === zona.nome ? 9999 : (zona.zIndex || 10), '--cor': zona.cor, transform: voandoPara === zona.nome ? 'scale(30)' : 'scale(1)', transition: voandoPara === zona.nome ? 'all 1.5s cubic-bezier(0.4, 0, 0.2, 1)' : (dragIndexCosmo === index ? 'none' : '0.2s ease-in-out'), opacity: voandoPara && voandoPara !== zona.nome ? 0 : 1,
                             }}
                         >
-                            <span className="plano-orbe" />
+                            <span className="plano-orbe"><span className="pl-tex pl-a" /><span className="pl-tex pl-b" /><span className="pl-tex pl-c" /><span className="pl-borda" /></span>
                             <span className="plano-rotulo">{rotuloDoPlano(zona.nome)}</span>
                         </div>
                     ))}
