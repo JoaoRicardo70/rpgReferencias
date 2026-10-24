@@ -4,12 +4,7 @@
 // nuvens e atmosfera brilhante. As texturas giram devagar e acompanham o arrastar do mouse (longitude/latitude).
 // ==========================================
 import { svgRuido } from './astrosCss';
-
-const CONTINENTES = [
-    'M 12 55 L 18 45 L 30 38 L 42 35 L 55 30 L 70 28 L 85 25 L 100 28 L 115 32 L 125 30 L 135 38 L 142 42 L 140 52 L 132 58 L 122 56 L 115 65 L 105 72 L 95 68 L 82 72 L 68 80 L 52 75 L 40 82 L 25 72 L 15 75 Z',
-    'M 45 92 L 58 85 L 75 82 L 95 84 L 110 88 L 118 82 L 128 92 L 138 105 L 132 120 L 142 135 L 135 148 L 125 152 L 115 168 L 105 160 L 92 168 L 75 162 L 62 152 L 48 142 L 38 125 L 42 108 L 40 98 Z',
-    'M 152 28 L 162 20 L 175 18 L 182 25 L 185 38 L 178 50 L 182 62 L 172 72 L 160 75 L 150 65 L 148 50 L 145 38 Z'
-];
+import { CONTINENTES_RUNETERRA as CONTINENTES } from '../../core/globoTerra';
 
 function svgContinentes() {
     const caminhos = CONTINENTES.map(d => `<path d='${d}'/>`).join('');
@@ -29,6 +24,9 @@ export const CSS_GLOBO = `
 .globo-terra-area::before { content: ""; position: absolute; top: 50%; left: 50%; width: 760px; height: 760px; max-width: 150vw; transform: translate(-50%, -62%); border-radius: 50%; background: radial-gradient(circle, rgba(60,150,255,0.22) 0%, rgba(20,80,200,0.1) 45%, transparent 70%); pointer-events: none; }
 .globo-terra { user-select: none; touch-action: none; position: relative; width: min(480px, 72vw); aspect-ratio: 1; cursor: grab; transition: opacity 1s; }
 .globo-arrastando { cursor: grabbing; }
+.globo-3d { position: absolute; inset: -14%; touch-action: none; cursor: grab; }
+.globo-3d:active { cursor: grabbing; }
+.globo-3d canvas { display: block; }
 .globo-terra-voando { transform: scale(10); transition: transform 1.5s cubic-bezier(0.4, 0, 0.2, 1); }
 .globo-esfera { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; background: radial-gradient(circle at 32% 26%, #d6f3ff 0%, #8fdcff 22%, #4eb2f3 52%, #2377d4 80%, #0e4aa0 100%); box-shadow: inset 0 0 50px rgba(200,235,255,0.55), inset -40px -50px 90px rgba(5,40,110,0.6); }
 .globo-atmosfera { position: absolute; inset: -3%; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, transparent 62%, rgba(150,215,255,0.55) 70%, rgba(110,190,255,0.18) 80%, transparent 90%); filter: blur(5px); }
@@ -39,7 +37,7 @@ export const CSS_GLOBO = `
 .globo-continentes { background-image: ${T.continentes}; filter: drop-shadow(0 0 5px rgba(5,40,110,0.55)); }
 .globo-nuvens { background-image: ${T.nuvens}; opacity: 0.6; animation-duration: 110s; }
 .globo-borda { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; background: radial-gradient(circle at 30% 26%, rgba(255,255,255,0.45) 0%, transparent 32%), radial-gradient(circle at 50% 50%, transparent 52%, rgba(6,50,130,0.55) 100%), linear-gradient(120deg, transparent 45%, rgba(2,20,70,0.45) 86%); }
-.globo-entrar { background: rgba(10,40,100,0.55); border: 2px solid #9fdcff; color: #e6f7ff; padding: 12px 28px; border-radius: 30px; cursor: pointer; font-weight: bold; font-size: 0.95em; letter-spacing: 2px; backdrop-filter: blur(5px); box-shadow: 0 0 22px rgba(110,190,255,0.5); transition: opacity 1s, box-shadow 0.2s, background 0.2s; }
+.globo-entrar { position: relative; z-index: 2; background: rgba(10,40,100,0.55); border: 2px solid #9fdcff; color: #e6f7ff; padding: 12px 28px; border-radius: 30px; cursor: pointer; font-weight: bold; font-size: 0.95em; letter-spacing: 2px; backdrop-filter: blur(5px); box-shadow: 0 0 22px rgba(110,190,255,0.5); transition: opacity 1s, box-shadow 0.2s, background 0.2s; }
 .globo-entrar:hover { background: rgba(30,90,190,0.7); box-shadow: 0 0 34px rgba(150,215,255,0.8); }
 /* A altura de 116% e o top (-8% -/+ 7%) cobrem a esfera enquanto a latitude fica limitada a +/-70 graus em MapaMundi.jsx. */
 @media (prefers-reduced-motion: reduce) { .globo-textura { animation: none; } }

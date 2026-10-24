@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
 import useStore from '../../stores/useStore';
 import { useMapaForm, urlSeguraParaCss } from './MapaFormContext';
 import { salvarCenarioCompleto, uploadImagem } from '../../services/firebase-sync';
@@ -20,7 +20,11 @@ import { CSS_ASTROS } from './astrosCss';
 import { cenasDaRegiao, nomeDaCenaNaRegiao, regiaoDaCena, cenarioComCenaDeRegiao, cenasPendentesDoAtlasLocal } from '../../core/cenasRegiao';
 import CenaAcesso from './CenaAcesso';
 import { CSS_GLOBO } from './globoCss';
+import { webglDisponivel } from '../../core/globoTerra';
 import { segmentosDoOito, amostrarTrilha, escolherFases, atrasoDaFase } from '../../core/orbitasUniverso';
+
+// O globo 3D (three.js) só é baixado quando a tela do globo abre.
+const GloboTerra3D = lazy(() => import('./GloboTerra3D'));
 
 export default function MapaMundi({ children }) {
     const cenario = useStore(s => s.cenario);
@@ -512,6 +516,19 @@ export default function MapaMundi({ children }) {
     // 🌍 TELA 2: O GLOBO
     // ==========================================
     if (nivelVisao === 'globo') {
+        // Esfera 3D de verdade (WebGL); sem WebGL (ou enquanto baixa) fica o globo desenhado em CSS.
+        const usar3D = webglDisponivel();
+        const esferaCss = (
+            <>
+                <span className="globo-atmosfera" />
+            <div className="globo-esfera">
+                <span className="globo-textura globo-oceano" style={{ left: `${-(((rotacaoGlobo.x * 0.4) % 100 + 100) % 100)}%`, top: `${-8 - rotacaoGlobo.y * 0.1}%` }} />
+                <span className="globo-textura globo-continentes" style={{ left: `${-(((rotacaoGlobo.x * 0.4) % 100 + 100) % 100)}%`, top: `${-8 - rotacaoGlobo.y * 0.1}%` }} />
+                <span className="globo-textura globo-nuvens" style={{ left: `${-(((rotacaoGlobo.x * 0.4) % 100 + 100) % 100)}%`, top: `${-8 - rotacaoGlobo.y * 0.1}%` }} />
+                <span className="globo-borda" />
+            </div>
+            </>
+        );
         return (
             <div className="fade-in" style={{ width: '100%', height: '85vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#050508', borderRadius: '10px', border: '1px solid #0088ff', position: 'relative', overflow: 'hidden' }} onMouseMove={handleGloboDragMove} onMouseUp={handleGloboDragEnd} onMouseLeave={handleGloboDragEnd} onTouchMove={handleGloboDragMove} onTouchEnd={handleGloboDragEnd}>
                 <div style={{ position: 'absolute', top: '20px', left: '20px', display: 'flex', gap: '10px', zIndex: 30, opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }}>
@@ -521,14 +538,8 @@ export default function MapaMundi({ children }) {
                 <div style={{ position: 'absolute', top: '20px', textAlign: 'center', zIndex: 10, pointerEvents: 'none', opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }}><h2 style={{ color: '#00ffcc', margin: 0, textTransform: 'uppercase', letterSpacing: '3px', textShadow: '0 0 10px #00ffcc' }}>Visão Orbital: Terra 0</h2></div>
                 <style dangerouslySetInnerHTML={{ __html: CSS_GLOBO }} />
                 <div className="globo-terra-area">
-                    <div className={`globo-terra${voandoPara === 'Runeterra' ? ' globo-terra-voando' : ''}${isDragging ? ' globo-arrastando' : ''}`} onMouseDown={handleGloboDragStart} onTouchStart={handleGloboDragStart} style={{ opacity: voandoPara && voandoPara !== 'Runeterra' ? 0 : 1 }}>
-                        <span className="globo-atmosfera" />
-                        <div className="globo-esfera">
-                            <span className="globo-textura globo-oceano" style={{ left: `${-(((rotacaoGlobo.x * 0.4) % 100 + 100) % 100)}%`, top: `${-8 - rotacaoGlobo.y * 0.1}%` }} />
-                            <span className="globo-textura globo-continentes" style={{ left: `${-(((rotacaoGlobo.x * 0.4) % 100 + 100) % 100)}%`, top: `${-8 - rotacaoGlobo.y * 0.1}%` }} />
-                            <span className="globo-textura globo-nuvens" style={{ left: `${-(((rotacaoGlobo.x * 0.4) % 100 + 100) % 100)}%`, top: `${-8 - rotacaoGlobo.y * 0.1}%` }} />
-                            <span className="globo-borda" />
-                        </div>
+                    <div className={`globo-terra${voandoPara === 'Runeterra' ? ' globo-terra-voando' : ''}${isDragging ? ' globo-arrastando' : ''}`} onMouseDown={usar3D ? undefined : handleGloboDragStart} onTouchStart={usar3D ? undefined : handleGloboDragStart} style={{ opacity: voandoPara && voandoPara !== 'Runeterra' ? 0 : 1 }}>
+                        {usar3D ? <Suspense fallback={esferaCss}><GloboTerra3D /></Suspense> : esferaCss}
                     </div>
                     <button className="globo-entrar" style={{ opacity: voandoPara ? 0 : 1 }} onClick={() => iniciarViagem('Runeterra', () => { setLocalAtual({ continente: 'Runeterra', reino: null, mapaId: null, plano: 'Material' }); setNivelVisao('continente'); })}>🌍 ENTRAR EM RUNETERRA</button>
                 </div>
