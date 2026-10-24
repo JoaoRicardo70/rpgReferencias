@@ -2868,3 +2868,31 @@ body.reduzir-animacoes *, body.reduzir-animacoes *::before, body.reduzir-animaco
 .cena-acesso-opcao { display: flex; align-items: center; gap: 6px; color: #ddd; font-size: 0.85em; cursor: pointer; }
 .cena-acesso-todos { color: #00ff88; font-weight: bold; }
 .cena-acesso-vazio { color: #888; font-size: 0.8em; }
+/* Painel de Cenas da região (estilo lista de missões): cards em faixa à direita do mapa */
+.cenas-regiao-overlay { position: absolute; inset: 0; z-index: 30; display: flex; justify-content: flex-end; background: linear-gradient(90deg, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.55) 45%, rgba(0,0,0,0.8) 100%); }
+.cenas-regiao-painel { width: min(580px, 94%); height: 100%; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; background: linear-gradient(180deg, rgba(10,16,38,0.93), rgba(4,7,20,0.97)); border-left: 2px solid #0088ff; box-shadow: -10px 0 40px rgba(0,0,0,0.6); animation: cenasPainelEntra 0.35s ease-out; }
+@keyframes cenasPainelEntra { from { transform: translateX(60px); opacity: 0; } to { transform: none; opacity: 1; } }
+.cenas-regiao-topo { display: flex; align-items: center; gap: 14px; padding-bottom: 10px; border-bottom: 1px solid #1d3a66; }
+.cenas-regiao-voltar { background: none; border: none; color: #ff4444; font-size: 22px; font-weight: bold; cursor: pointer; padding: 0 6px; }
+.cenas-regiao-nome { margin: 0; flex: 1; color: #ffcc00; text-transform: uppercase; letter-spacing: 2px; font-size: 1.3em; text-shadow: 0 0 10px rgba(255,204,0,0.45); }
+.cenas-regiao-contagem { color: #9fc4ff; font-size: 0.85em; }
+.cenas-regiao-lista { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding: 4px 10px 4px 2px; }
+.cenas-regiao-lista::-webkit-scrollbar { width: 10px; }
+.cenas-regiao-lista::-webkit-scrollbar-track { background: rgba(255,255,255,0.08); border-radius: 6px; }
+.cenas-regiao-lista::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #fff, #9fc4ff); border-radius: 6px; }
+.cenas-regiao-nova { background: linear-gradient(to right, #0088ff, #00ffcc); color: #000; padding: 14px; border-radius: 10px; font-weight: bold; border: none; cursor: pointer; }
+.cena-card { position: relative; flex: 0 0 auto; border-radius: 6px; overflow: hidden; border: 2px solid #f6dc8e; background: linear-gradient(135deg, #e9b94a 0%, #c98a1e 55%, #f1cd6c 100%); box-shadow: 0 4px 14px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.35); animation: cenaCardEntra 0.4s ease-out both; animation-delay: calc(var(--i, 0) * 60ms); }
+.cena-card:nth-child(3n+2) { border-color: #c9baff; background: linear-gradient(135deg, #7c5cff 0%, #4a35c9 55%, #9a86ff 100%); }
+.cena-card:nth-child(3n) { border-color: #9ff0e0; background: linear-gradient(135deg, #1fb59a 0%, #0f7f84 55%, #4fd9c4 100%); }
+@keyframes cenaCardEntra { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.cena-card:hover { filter: brightness(1.12); }
+.cena-card-corpo { display: flex; align-items: stretch; width: 100%; min-height: 100px; padding: 0; background: none; border: none; color: #fff; text-align: left; cursor: pointer; }
+.cena-card-info { flex: 1; min-width: 0; padding: 12px 14px; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+.cena-card-titulo { font-size: 1.1em; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,0.85); overflow-wrap: anywhere; }
+.cena-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.8em; color: rgba(255,255,255,0.92); text-shadow: 0 1px 2px rgba(0,0,0,0.7); }
+.cena-card-selo { background: #00ff88; color: #000; padding: 1px 6px; border-radius: 3px; font-weight: bold; text-shadow: none; }
+.cena-card-miniatura { flex: 0 0 140px; border-left: 2px solid rgba(255,255,255,0.75); background-color: rgba(0,0,0,0.4); background-size: cover; background-position: center; }
+.cena-card-novo { position: absolute; top: 3px; left: 10px; z-index: 1; font-weight: 900; font-style: italic; color: #ffe36a; text-shadow: 0 0 6px rgba(0,0,0,0.9), 1px 1px 0 #7a3a00; pointer-events: none; }
+.cena-card-rodape { padding: 6px 10px; background: rgba(0,0,0,0.45); border-top: 1px solid rgba(255,255,255,0.25); }
+@media (max-width: 520px) { .cena-card-miniatura { flex-basis: 90px; } }
+body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel { animation: none; }

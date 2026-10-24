@@ -19,6 +19,7 @@ import mapaCosmologia from '../../assets/mapa-cosmologia.png';
 import { CSS_ASTROS } from './astrosCss';
 import { cenasDaRegiao, nomeDaCenaNaRegiao, regiaoDaCena, cenarioComCenaDeRegiao, cenasPendentesDoAtlasLocal } from '../../core/cenasRegiao';
 import CenaAcesso from './CenaAcesso';
+import { CSS_GLOBO } from './globoCss';
 import { segmentosDoOito, amostrarTrilha, escolherFases, atrasoDaFase } from '../../core/orbitasUniverso';
 
 export default function MapaMundi({ children }) {
@@ -518,15 +519,18 @@ export default function MapaMundi({ children }) {
                     <button onClick={() => iniciarViagem('Multiverso', 'cosmologia')} style={{ background: 'rgba(72, 61, 139, 0.4)', border: '1px solid #DDA0DD', color: '#DDA0DD', padding: '8px 18px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>🌌 MULTIVERSO</button>
                 </div>
                 <div style={{ position: 'absolute', top: '20px', textAlign: 'center', zIndex: 10, pointerEvents: 'none', opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }}><h2 style={{ color: '#00ffcc', margin: 0, textTransform: 'uppercase', letterSpacing: '3px', textShadow: '0 0 10px #00ffcc' }}>Visão Orbital: Terra 0</h2></div>
-                <div style={{ position: 'relative', width: '350px', height: '350px', perspective: '1000px' }}>
-                    <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', backgroundColor: '#000814', border: '2px solid #0088ff', pointerEvents: 'none', boxShadow: '0 0 50px rgba(0, 136, 255, 0.2)', opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }}></div>
-                    <div onMouseDown={handleGloboDragStart} onTouchStart={handleGloboDragStart} style={{ position: 'absolute', inset: 0, transformStyle: 'preserve-3d', transform: voandoPara === 'Runeterra' ? `scale(10)` : `rotateX(${rotacaoGlobo.y}deg) rotateY(${rotacaoGlobo.x}deg)`, cursor: isDragging ? 'grabbing' : 'grab', transition: voandoPara === 'Runeterra' ? 'transform 1.5s cubic-bezier(0.4, 0, 0.2, 1)' : (isDragging ? 'none' : 'transform 0.5s ease-out') }}>
-                        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '1px solid rgba(0,255,204,0.15)', transform: 'rotateX(90deg)', opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }}></div><div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '1px solid rgba(0,255,204,0.15)', transform: 'rotateY(90deg)', opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }}></div><div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '1px solid rgba(0,255,204,0.15)', transform: 'rotateZ(45deg) rotateX(90deg)', opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }}></div>
-                        <div style={{ position: 'absolute', inset: 0, transform: 'translateZ(160px)', backfaceVisibility: 'hidden', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                            <svg viewBox="0 0 200 200" style={{ position: 'absolute', width: '140px', height: '140px', filter: 'drop-shadow(0 0 3px rgba(0,255,204,0.8))', opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }}><path d="M 12 55 L 18 45 L 30 38 L 42 35 L 55 30 L 70 28 L 85 25 L 100 28 L 115 32 L 125 30 L 135 38 L 142 42 L 140 52 L 132 58 L 122 56 L 115 65 L 105 72 L 95 68 L 82 72 L 68 80 L 52 75 L 40 82 L 25 72 L 15 75 Z" fill="rgba(0,255,204,0.08)" stroke="#00ffcc" strokeWidth="1" strokeLinejoin="round" /><path d="M 45 92 L 58 85 L 75 82 L 95 84 L 110 88 L 118 82 L 128 92 L 138 105 L 132 120 L 142 135 L 135 148 L 125 152 L 115 168 L 105 160 L 92 168 L 75 162 L 62 152 L 48 142 L 38 125 L 42 108 L 40 98 Z" fill="rgba(0,255,204,0.08)" stroke="#00ffcc" strokeWidth="1" strokeLinejoin="round" /><path d="M 152 28 L 162 20 L 175 18 L 182 25 L 185 38 L 178 50 L 182 62 L 172 72 L 160 75 L 150 65 L 148 50 L 145 38 Z" fill="rgba(0,255,204,0.08)" stroke="#00ffcc" strokeWidth="1" strokeLinejoin="round" /><circle cx="162" cy="85" r="2" fill="#00ffcc" /><line x1="105" y1="72" x2="110" y2="88" stroke="#ffcc00" strokeWidth="1.5" /></svg>
-                            <button onClick={() => iniciarViagem('Runeterra', () => { setLocalAtual({ continente: 'Runeterra', reino: null, mapaId: null, plano: 'Material' }); setNivelVisao('continente'); })} style={{ pointerEvents: 'auto', background: 'rgba(0,255,204,0.1)', border: '2px solid #00ffcc', color: '#00ffcc', padding: '12px 24px', borderRadius: '30px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9em', letterSpacing: '2px', backdropFilter: 'blur(5px)', boxShadow: '0 0 20px rgba(0,255,204,0.4)', zIndex: 10, opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }}>🌍 ENTRAR EM RUNETERRA</button>
+                <style dangerouslySetInnerHTML={{ __html: CSS_GLOBO }} />
+                <div className="globo-terra-area">
+                    <div className={`globo-terra${voandoPara === 'Runeterra' ? ' globo-terra-voando' : ''}${isDragging ? ' globo-arrastando' : ''}`} onMouseDown={handleGloboDragStart} onTouchStart={handleGloboDragStart} style={{ opacity: voandoPara && voandoPara !== 'Runeterra' ? 0 : 1 }}>
+                        <span className="globo-atmosfera" />
+                        <div className="globo-esfera">
+                            <span className="globo-textura globo-oceano" style={{ left: `${-(((rotacaoGlobo.x * 0.4) % 100 + 100) % 100)}%`, top: `${-8 - rotacaoGlobo.y * 0.1}%` }} />
+                            <span className="globo-textura globo-continentes" style={{ left: `${-(((rotacaoGlobo.x * 0.4) % 100 + 100) % 100)}%`, top: `${-8 - rotacaoGlobo.y * 0.1}%` }} />
+                            <span className="globo-textura globo-nuvens" style={{ left: `${-(((rotacaoGlobo.x * 0.4) % 100 + 100) % 100)}%`, top: `${-8 - rotacaoGlobo.y * 0.1}%` }} />
+                            <span className="globo-borda" />
                         </div>
                     </div>
+                    <button className="globo-entrar" style={{ opacity: voandoPara ? 0 : 1 }} onClick={() => iniciarViagem('Runeterra', () => { setLocalAtual({ continente: 'Runeterra', reino: null, mapaId: null, plano: 'Material' }); setNivelVisao('continente'); })}>🌍 ENTRAR EM RUNETERRA</button>
                 </div>
                 <div style={{ position: 'absolute', inset: 0, background: '#fff', opacity: flashBranco ? 1 : 0, pointerEvents: 'none', zIndex: 999999, transition: 'opacity 0.2s ease-out' }} />
             </div>
@@ -567,23 +571,43 @@ export default function MapaMundi({ children }) {
                 </div>
 
                 {reinoSelecionado && (
-                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 30, display: 'flex', justifyContent: 'center', alignItems: 'center', backdropFilter: 'blur(6px)' }}>
-                        <div style={{ background: '#111', border: '2px solid #0088ff', borderRadius: '20px', padding: '30px', width: '380px', textAlign: 'center', position: 'relative' }}>
-                            <button onClick={() => setReinoSelecionado(null)} style={{ position: 'absolute', top: '15px', right: '20px', background: 'none', border: 'none', color: '#ff4444', fontSize: '22px', cursor: 'pointer', fontWeight: 'bold' }}>X</button>
-                            <h2 style={{ color: '#ffcc00', margin: '0 0 10px 0', textTransform: 'uppercase' }}>{reinoSelecionado}</h2>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '25px', maxHeight: '260px', overflowY: 'auto' }}>
-                                
+                    <div className="cenas-regiao-overlay" onClick={() => setReinoSelecionado(null)}>
+                        <aside className="cenas-regiao-painel" onClick={(e) => e.stopPropagation()}>
+                            <header className="cenas-regiao-topo">
+                                <button className="cenas-regiao-voltar" onClick={() => setReinoSelecionado(null)} title="Voltar ao mapa" aria-label="Voltar ao mapa">X</button>
+                                <h2 className="cenas-regiao-nome">{reinoSelecionado}</h2>
+                                <span className="cenas-regiao-contagem">{cenasDoReino.length} {cenasDoReino.length === 1 ? 'cena' : 'cenas'}</span>
+                            </header>
+                            <div className="cenas-regiao-lista">
                                 {/* CENAS DA REGIÃO (compartilhadas via Firebase) */}
                                 {cenasDoReino.length === 0 && <p className="cena-regiao-vazia">{souMestre ? 'Ainda não há Cenas nesta região.' : 'Nenhuma Cena liberada para você nesta região.'}</p>}
-                                {cenasDoReino.map(({ id, cena }) => (
-                                    <div key={id} className="cena-regiao-linha">
-                                        <button className="cena-regiao-entrar" onClick={() => entrarNoMapaDeBatalha(id, cena)}>🗺️ {nomeDaCenaNaRegiao(cena)}{cena.restrita ? ' 🔒' : ''}</button>
-                                        {souMestre && ctxMapa?.definirAcessoCena && <CenaAcesso cena={cena} jogadores={nomesJogadores} onSalvar={(nomes) => ctxMapa.definirAcessoCena(id, nomes)} />}
-                                    </div>
-                                ))}
+                                {cenasDoReino.map(({ id, cena }, i) => {
+                                    const criadaEm = Number((/^cena_(\d+)$/.exec(id) || [])[1]) || 0;
+                                    const ehNova = criadaEm > 0 && Date.now() - criadaEm < 3 * 24 * 3600 * 1000;
+                                    return (
+                                        <div key={id} className="cena-card" style={{ '--i': i }}>
+                                            {ehNova && <span className="cena-card-novo">NEW!</span>}
+                                            <button className="cena-card-corpo cena-regiao-entrar" onClick={() => entrarNoMapaDeBatalha(id, cena)}>
+                                                <span className="cena-card-info">
+                                                    <span className="cena-card-titulo">🗺️ {nomeDaCenaNaRegiao(cena)}{cena.restrita ? ' 🔒' : ''}</span>
+                                                    <span className="cena-card-meta">
+                                                        {cenario?.ativa === id && <span className="cena-card-selo">🌍 PÚBLICA</span>}
+                                                        <span>Escala {cena.escala || 1.5} {cena.unidade || 'm'}</span>
+                                                    </span>
+                                                </span>
+                                                <span className="cena-card-miniatura" style={{ backgroundImage: urlSeguraParaCss(cena.img) || 'none' }} />
+                                            </button>
+                                            {souMestre && ctxMapa?.definirAcessoCena && (
+                                                <div className="cena-card-rodape cena-regiao-linha">
+                                                    <CenaAcesso cena={cena} jogadores={nomesJogadores} onSalvar={(nomes) => ctxMapa.definirAcessoCena(id, nomes)} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
-                            {souMestre && <button onClick={criarNovoMapa} style={{ width: '100%', background: 'linear-gradient(to right, #0088ff, #00ffcc)', color: '#000', padding: '14px', borderRadius: '10px', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}>➕ CRIAR NOVO MAPA</button>}
-                        </div>
+                            {souMestre && <button className="cenas-regiao-nova" onClick={criarNovoMapa}>➕ CRIAR NOVO MAPA</button>}
+                        </aside>
                     </div>
                 )}
 
