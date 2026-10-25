@@ -39,3 +39,41 @@ export function recentesValidos(recentes, personagens, nomeAtual) {
     if (!Array.isArray(recentes)) return [];
     return recentes.filter(n => n !== nomeAtual && personagens && personagens[n] && typeof personagens[n] === 'object');
 }
+
+// ==========================================
+// 🤝 NPC COMPARTILHADO — o Mestre pode liberar um NPC (ficha com `acessoJogadores`) para jogadores específicos, em casos
+// especiais (um NPC colado no personagem do jogador, um pet...). Quem foi liberado enxerga o NPC na troca rápida e age como ele.
+// ==========================================
+
+const nomeSeguro = (n) => (!n ? '' : String(n).replace(/[.#$[\]/]/g, '_').trim());
+
+// Nomes (sanitizados) dos jogadores liberados num NPC. O Firebase devolve lista como array ou como objeto indexado.
+export function nomesComAcessoAoNpc(ficha) {
+    const bruto = ficha && ficha.acessoJogadores;
+    const lista = Array.isArray(bruto) ? bruto : (bruto && typeof bruto === 'object' ? Object.values(bruto) : []);
+    return lista.filter(n => typeof n === 'string' && n).map(nomeSeguro);
+}
+
+// NPCs da mesa liberados para este jogador: [{ nome, ficha }] em ordem alfabética.
+export function npcsLiberadosParaJogador(personagens, meuNome) {
+    const eu = nomeSeguro(meuNome);
+    if (!eu) return [];
+    return Object.entries(personagens || {})
+        .filter(([nome, ficha]) => nome && ficha && typeof ficha === 'object' && ehNpc(ficha) && nomesComAcessoAoNpc(ficha).includes(eu))
+        .map(([nome, ficha]) => ({ nome, ficha }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+// Marca/desmarca um nome numa lista (sem repetir).
+export function alternarNomeNaLista(lista, nome) {
+    const base = Array.isArray(lista) ? lista : [];
+    return base.includes(nome) ? base.filter(n => n !== nome) : [...base, nome];
+}
+
+// Nomes dos personagens JOGADORES da mesa (sem NPCs), em ordem alfabética.
+export function jogadoresDaMesa(personagens) {
+    return Object.entries(personagens || {})
+        .filter(([nome, ficha]) => nome && ficha && typeof ficha === 'object' && !ehNpc(ficha))
+        .map(([nome]) => nome)
+        .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+}

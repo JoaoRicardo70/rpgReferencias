@@ -31,7 +31,7 @@ async function lerDesde(caminho, desdeMs, limite) {
 export async function carregarEventosFeedDesde(mesaId, desdeMs) {
     if (!db || !mesaId) return [];
     const itens = await lerDesde(`mesas/${mesaId}/feed_combate`, desdeMs, LIMITE_EVENTOS_SESSAO);
-    return itens.map(i => ({ chave: i.chave, evento: i.valor }));
+    return itens.filter(i => !(i.valor && i.valor.privado)).map(i => ({ chave: i.chave, evento: i.valor }));
 }
 
 // Falas desde `desdeMs`. Também lê o nó antigo (sexta_feira_transcricao), se as regras deixarem

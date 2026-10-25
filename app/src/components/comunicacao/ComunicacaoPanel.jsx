@@ -4,6 +4,7 @@ import { VoiceContext } from '../../hooks/VoiceContext';
 import { ChatContext } from '../../hooks/ChatContext';
 import { salvarCenarioCompleto } from '../../services/firebase-sync';
 import { alternarPresencaNaTaverna } from '../../core/chats';
+import { ehNpc } from '../../core/tipoPersonagem';
 import { AbaChats, AbaVoz } from './DockComunicacao';
 import Jukebox from '../jukebox/Jukebox';
 import GravadorPanel from '../ia/GravadorPanel';
@@ -33,7 +34,7 @@ export default function ComunicacaoPanel() {
 
     const naTaverna = useMemo(() => (Array.isArray(cenario?.tavernaAtivos) ? cenario.tavernaAtivos : []), [cenario]);
     const estouNaCall = naTaverna.includes(meuNome);
-    const candidatos = useMemo(() => Object.keys(personagens || {}).filter(n => n && n !== meuNome).sort((a, b) => a.localeCompare(b)), [personagens, meuNome]);
+    const candidatos = useMemo(() => Object.keys(personagens || {}).filter(n => n && n !== meuNome && !ehNpc(personagens[n])).sort((a, b) => a.localeCompare(b)), [personagens, meuNome]);
 
     const alternarPresenca = useCallback(() => {
         salvarCenarioCompleto(alternarPresencaNaTaverna(cenario, meuNome));

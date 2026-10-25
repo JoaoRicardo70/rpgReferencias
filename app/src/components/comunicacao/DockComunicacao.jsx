@@ -12,6 +12,7 @@ import AvatarPersonagem from './AvatarPersonagem';
 import { AvatarCardVoz, CalibradorDeVoz } from '../mapa/MapaVoz';
 import { infoAvatarDaFicha } from '../../core/avatar';
 import { idDeVoz } from '../../core/volumesVoz';
+import { ehNpc } from '../../core/tipoPersonagem';
 import { useBufferLigado } from '../../core/estadoBuffer';
 import FeedCombate from '../feed/FeedCombate';
 
@@ -302,7 +303,7 @@ export function PainelComunicacao({ onFechar, className = '' }) {
 
     const naTaverna = useMemo(() => (Array.isArray(cenario?.tavernaAtivos) ? cenario.tavernaAtivos : []), [cenario]);
     const estouNaCall = naTaverna.includes(meuNome);
-    const candidatos = useMemo(() => Object.keys(personagens || {}).filter(n => n && n !== meuNome).sort((a, b) => a.localeCompare(b)), [personagens, meuNome]);
+    const candidatos = useMemo(() => Object.keys(personagens || {}).filter(n => n && n !== meuNome && !ehNpc(personagens[n])).sort((a, b) => a.localeCompare(b)), [personagens, meuNome]);
 
     const alternarPresenca = useCallback(() => {
         salvarCenarioCompleto(alternarPresencaNaTaverna(cenario, meuNome));

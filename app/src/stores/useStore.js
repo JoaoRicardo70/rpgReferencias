@@ -238,6 +238,11 @@ const useStore = create(
         }),
         setPersonagens: (personagens) => set((state) => { state.personagens = personagens; }),
         addFeedEntry: (entry) => set((state) => { state.feedCombate.push(entry); }),
+        // Entrada que mudou no Firebase (ex.: rolagem privada revelada): troca a que já existe (pela chave) ou acrescenta.
+        atualizarFeedEntry: (entry) => set((state) => {
+            const i = entry && entry._chave ? state.feedCombate.findIndex(e => e && e._chave === entry._chave) : -1;
+            if (i >= 0) state.feedCombate[i] = entry; else state.feedCombate.push(entry);
+        }),
         adicionarAviso: (texto, tipo = 'info') => set((state) => { state.avisosAcao.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, texto: String(texto || ''), tipo }); if (state.avisosAcao.length > 5) state.avisosAcao.shift(); }),
         removerAviso: (id) => set((state) => { state.avisosAcao = state.avisosAcao.filter(a => a.id !== id); }),
         limparFeedStore: () => set(state => { state.feedCombate = []; }),

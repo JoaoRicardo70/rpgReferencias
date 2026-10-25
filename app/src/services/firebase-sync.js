@@ -1,9 +1,10 @@
-import { ref, set, update, get, push, remove, onValue, onChildAdded, limitToLast, query, onDisconnect } from 'firebase/database';
+import { ref, set, update, get, push, remove, onValue, onChildAdded, onChildChanged, limitToLast, query, onDisconnect } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from './firebase-config';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import useStore, { sanitizarNome } from '../stores/useStore';
 import { calcularDiffFirebase, mesclarComRemoto } from '../core/utils.js';
+import { deveSerPrivada, lerDadosMestrePrivados } from '../core/dadosMestre.js';
 
 let _modoPlasmic = false;
 export function setModoPlasmic(ativo) { _modoPlasmic = ativo; }
@@ -352,21 +353,46 @@ export function mesclarPersonagensRemotos(personagensLocais, personagensRemotos)
 // ==========================================
 // 🔥 OUTROS SISTEMAS DE MESA 🔥
 // ==========================================
-export function iniciarListenerFeed(callback) {
+// Cada entrada chega com `_chave` (a chave no Firebase), que o Mestre usa pra revelar uma rolagem privada.
+// `aoAlterar` roda quando uma entrada já existente muda (ex.: o Mestre revelou uma rolagem privada).
+export function iniciarListenerFeed(callback, aoAlterar) {
     if (isInPlasmicCanvas()) return () => {};
     const { mesaId } = useStore.getState();
     if (!db || !mesaId) return () => {};
     const feedRef = query(ref(db, `mesas/${mesaId}/feed_combate`), limitToLast(50));
-    return onChildAdded(feedRef, (snapshot) => {
+    const cancelaNovas = onChildAdded(feedRef, (snapshot) => {
         const entry = snapshot.val();
-        if (entry && callback) callback(entry);
+        if (entry && callback) callback({ ...entry, _chave: snapshot.key });
     });
+    let cancelaAlteradas = null;
+    if (aoAlterar) {
+        try {
+            cancelaAlteradas = onChildChanged(feedRef, (snapshot) => {
+                const entry = snapshot.val();
+                if (entry) aoAlterar({ ...entry, _chave: snapshot.key });
+            });
+        } catch (e) { cancelaAlteradas = null; }
+    }
+    return () => {
+        if (typeof cancelaNovas === 'function') cancelaNovas();
+        if (typeof cancelaAlteradas === 'function') cancelaAlteradas();
+    };
 }
+// 🎲 Dados do Mestre: as rolagens de quem está como Mestre vão como `privado: true` (só Mestre/Co-Mestre veem) a não ser que
+// ele desligue o padrão ou a entrada já traga `privado` definido. Narrações do sistema nunca são privadas.
 export function enviarParaFeed(d) {
     if (isInPlasmicCanvas()) return;
-    const { mesaId } = useStore.getState();
+    const { mesaId, isMestre } = useStore.getState();
     if (!db || !mesaId) return;
-    push(ref(db, `mesas/${mesaId}/feed_combate`), d).catch(() => {});
+    const privado = deveSerPrivada(d, { ehMestre: isMestre, privadosPorPadrao: lerDadosMestrePrivados() });
+    push(ref(db, `mesas/${mesaId}/feed_combate`), privado ? { ...d, privado: true } : d).catch(() => {});
+}
+// Torna pública uma rolagem privada do Mestre (ela aparece, com a animação, no feed dos jogadores).
+export function revelarEntradaFeed(chave) {
+    if (isInPlasmicCanvas() || !chave) return Promise.resolve(false);
+    const { mesaId } = useStore.getState();
+    if (!db || !mesaId) return Promise.resolve(false);
+    return update(ref(db, `mesas/${mesaId}/feed_combate/${chave}`), { privado: false }).then(() => true).catch(() => false);
 }
 export async function deletarPersonagem(nome) {
     if (isInPlasmicCanvas()) return;

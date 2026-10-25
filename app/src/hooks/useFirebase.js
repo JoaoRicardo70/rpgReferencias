@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import useStore from '../stores/useStore';
+import { entradaVisivel } from '../core/dadosMestre';
 import { db } from '../services/firebase-config';
 import { iniciarListenerFichaPropria, iniciarListenerPersonagens, iniciarListenerFeed, salvarFirebaseImediato, resetSincronizacaoFicha, mesclarPersonagensRemotos } from '../services/firebase-sync';
 
@@ -10,12 +11,13 @@ export default function useFirebase() {
     const carregarDadosFicha = useStore((s) => s.carregarDadosFicha);
     const setPersonagens = useStore((s) => s.setPersonagens);
     const addFeedEntry = useStore((s) => s.addFeedEntry);
+    const atualizarFeedEntry = useStore((s) => s.atualizarFeedEntry);
     const limparFeedStore = useStore((s) => s.limparFeedStore);
+    const ehMestreAgora = useStore((s) => s.isMestre);
 
     useEffect(() => {
         let unsubFichaPropria = () => {};
         let unsubPersonagens = () => {};
-        let unsubFeed = () => {};
         let cancelled = false;
 
         resetSincronizacaoFicha();
@@ -56,20 +58,27 @@ export default function useFirebase() {
             setPersonagens(mesclarPersonagensRemotos(useStore.getState().personagens, personagens));
         });
 
-        // O listener do feed reenvia as últimas 50 entradas ao (re)conectar: limpa antes, senão
-        // trocar de personagem duplicava o feed inteiro na tela.
-        limparFeedStore();
-        unsubFeed = iniciarListenerFeed((entry) => {
-            if (!cancelled) addFeedEntry(entry);
-        });
-
         return () => {
             cancelled = true;
             unsubFichaPropria();
             unsubPersonagens();
-            unsubFeed();
         };
-    }, [meuNome, mesaId, carregarDadosFicha, setPersonagens, addFeedEntry, limparFeedStore]);
+    }, [meuNome, mesaId, carregarDadosFicha, setPersonagens]);
+
+    // O listener do feed reenvia as últimas 50 entradas ao (re)conectar: limpa antes, senão trocar de personagem duplicava
+    // o feed inteiro na tela. Rolagens privadas do Mestre nunca entram no feed de quem não é Mestre (nem animam o dado dele);
+    // quando o Mestre revela uma, o Firebase avisa que a entrada mudou e ela passa a valer pra todos. Entrar ou sair do Modo
+    // Jogador refaz a assinatura, então nada privado fica no store de quem deixou de ser Mestre.
+    useEffect(() => {
+        if (!mesaId) return undefined;
+        let cancelado = false;
+        limparFeedStore();
+        const unsubFeed = iniciarListenerFeed(
+            (entry) => { if (!cancelado && entradaVisivel(entry, ehMestreAgora)) addFeedEntry(entry); },
+            (entry) => { if (!cancelado && entradaVisivel(entry, ehMestreAgora)) atualizarFeedEntry(entry); }
+        );
+        return () => { cancelado = true; unsubFeed(); };
+    }, [meuNome, mesaId, ehMestreAgora, addFeedEntry, atualizarFeedEntry, limparFeedStore]);
 
     return { loading };
 }

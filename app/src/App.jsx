@@ -62,6 +62,7 @@ import AuthScreen from './components/auth/AuthScreen';
 import LobbyNeon from './components/lobby/LobbyNeon';
 import TelaLoading from './components/layout/TelaLoading';
 import LimiteDeErro from './components/layout/LimiteDeErro';
+import { transferirPresencaNaTaverna, marcarMestreNaTaverna } from './core/chats';
 
 import {
     carregarFichaDoFirebase, iniciarListenerDummies,
@@ -73,6 +74,8 @@ import {
 // 🔥 CRIANDO O CONTEXTO GLOBAL DA VOZ 🔥
 export { VoiceContext };
 
+const ID_DESTE_APARELHO = `ap_${Math.random().toString(36).slice(2, 9)}`;
+
 // 🛡️ O GUARDIÃO DO RÁDIO: Só liga depois de você escolher o seu nome!
 function ProvedorDeVozGlobal({ meuNome, cenario, children }) {
     const tavernaAtivos = Array.isArray(cenario?.tavernaAtivos) ? cenario.tavernaAtivos : [];
@@ -83,8 +86,9 @@ function ProvedorDeVozGlobal({ meuNome, cenario, children }) {
     const mesaId = useStore(s => s.mesaId);
     const chats = useChats(mesaId, meuNome);
 
-    // Ao trocar de personagem (ex.: do criado com o nome da conta para o de jogo), o personagem anterior não pode
-    // ficar "sentado" na Sala da Party: os outros veriam um fantasma tentando ligar para um rádio que não existe.
+    // Ao trocar de personagem (ex.: do nome da conta para o de jogo, ou o Mestre usando "Controlar"), o personagem anterior
+    // não pode ficar "sentado" na Sala da Party (os outros veriam um fantasma): a vaga passa para o personagem novo, então
+    // quem estava na call continua na call.
     const anteriorRef = useRef({ nome: meuNome, mesaId });
     useEffect(() => {
         if (!meuNome) return;
@@ -92,9 +96,24 @@ function ProvedorDeVozGlobal({ meuNome, cenario, children }) {
         anteriorRef.current = { nome: meuNome, mesaId };
         if (!anterior.nome || anterior.nome === meuNome || anterior.mesaId !== mesaId) return;
         if (!tavernaAtivos.includes(anterior.nome)) return;
-        salvarCenarioCompleto({ ...(cenario || {}), tavernaAtivos: tavernaAtivos.filter(n => n !== anterior.nome) });
+        salvarCenarioCompleto(transferirPresencaNaTaverna(cenario, anterior.nome, meuNome));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- só reage à troca de personagem/mesa, não a cada mudança do cenário
     }, [meuNome, mesaId]);
+
+    // 👑 Destaque do Mestre na Sala da Party: quem está na call como Mestre (e não em Modo Jogador) fica marcado em
+    // `cenario.tavernaMestres`; ao entrar em Modo Jogador, sair da call ou trocar de personagem a marca sai.
+    const isMestre = useStore(s => s.isMestre);
+    const souMestreReal = useStore(s => s.souMestreReal);
+    // Só aparelhos de Mestre escrevem a marca e cada um só tira a que ele mesmo pôs (o valor é o id do aparelho): assim o
+    // jogador de verdade, ou outra aba em Modo Jogador, nunca apaga a marca do Mestre e os dois não ficam brigando.
+    const marcaMestre = cenario && cenario.tavernaMestres ? cenario.tavernaMestres[meuNome] : undefined;
+    useEffect(() => {
+        if (!meuNome || !cenario || !souMestreReal) return;
+        const deveEstar = !!isMestre && isPresenteNaTaverna;
+        if (deveEstar && !marcaMestre) salvarCenarioCompleto(marcarMestreNaTaverna(cenario, meuNome, true, ID_DESTE_APARELHO));
+        else if (!deveEstar && marcaMestre === ID_DESTE_APARELHO) salvarCenarioCompleto(marcarMestreNaTaverna(cenario, meuNome, false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reage ao estado do Mestre/da call, não a cada mudança do cenário
+    }, [meuNome, souMestreReal, isMestre, isPresenteNaTaverna, marcaMestre]);
 
     return (
         <VoiceContext.Provider value={chatCtx}>

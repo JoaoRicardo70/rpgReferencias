@@ -2922,3 +2922,23 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .sala-party-feed-lista .damage-log { padding: 12px; }
 .sala-party-feed-lista .damage-number { font-size: 2em; }
 @media (max-width: 900px) { .sala-party-corpo.com-feed { grid-template-columns: minmax(0, 1fr); } .sala-party-feed { max-height: 360px; } }
+
+/* Destaque do Mestre no cartão da Sala da Party */
+.avatar-card-mestre::after { content: ""; position: absolute; inset: 0; border: 3px solid #ffcc00; border-radius: 6px; box-shadow: inset 0 0 22px rgba(255, 204, 0, 0.45), 0 0 18px rgba(255, 204, 0, 0.6); pointer-events: none; z-index: 5; }
+.avatar-card-mestre-selo { position: absolute; top: 10px; left: 10px; z-index: 6; padding: 3px 10px; border-radius: 999px; background: linear-gradient(135deg, #ffe08a, #ff9d00); color: #2a1800; font-size: 0.72em; font-weight: 900; letter-spacing: 1.5px; box-shadow: 0 0 12px rgba(255, 190, 0, 0.8); pointer-events: none; }
+
+/* Dados do Mestre: rolagens privadas no feed + opção de revelar */
+.feed-privado-toggle { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 10px; border: 1px dashed #8a6d00; border-radius: 6px; color: #ffcc00; font-size: 0.8em; cursor: pointer; }
+.feed-privado { border: 1px solid #8a6d00; border-radius: 6px; padding: 4px; background: rgba(255, 204, 0, 0.05); }
+.feed-privado-barra { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 4px 8px; font-size: 0.8em; color: #ffcc00; }
+.feed-privado-revelar { background: rgba(0, 255, 136, 0.12); border: 1px solid #00ff88; color: #00ff88; border-radius: 999px; padding: 3px 12px; cursor: pointer; font-weight: bold; font-size: 0.95em; }
+.feed-privado-revelar:hover:not(:disabled) { background: rgba(0, 255, 136, 0.25); }
+.feed-privado-revelar:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* NPC liberado para jogadores (troca rápida) */
+.troca-rapida-linha { display: flex; flex-wrap: wrap; gap: 4px; align-items: stretch; }
+.troca-rapida-linha .troca-rapida-item { flex: 1; min-width: 0; }
+.troca-rapida-acesso { background: rgba(255, 255, 255, 0.05); border: 1px solid #444; color: #aaa; border-radius: 5px; padding: 0 8px; cursor: pointer; font-size: 0.85em; }
+.troca-rapida-acesso.ativo { border-color: #00ff88; color: #00ff88; }
+.troca-rapida-acesso-painel { flex-basis: 100%; display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; background: rgba(0, 0, 0, 0.5); border: 1px solid #333; border-radius: 5px; color: #ccc; font-size: 0.85em; }
+.troca-rapida-acesso-opcao { display: flex; align-items: center; gap: 6px; cursor: pointer; }

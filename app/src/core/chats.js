@@ -116,6 +116,31 @@ export function alternarPresencaNaTaverna(cenario, meuNome) {
     return novo;
 }
 
+// Troca de personagem (ex.: o Mestre usando "Controlar"): quem estava na call com o nome antigo continua na call com o nome
+// novo, em vez de ser derrubado. Se o nome novo já estava na call, só sai o antigo. Sem o antigo na call, nada muda.
+export function transferirPresencaNaTaverna(cenario, anterior, novo) {
+    const base = JSON.parse(JSON.stringify(cenario || {}));
+    const lista = Array.isArray(base.tavernaAtivos) ? base.tavernaAtivos : [];
+    if (!anterior || !novo || anterior === novo || !lista.includes(anterior)) return base;
+    base.tavernaAtivos = lista.filter(n => n !== anterior);
+    if (!base.tavernaAtivos.includes(novo)) base.tavernaAtivos.push(novo);
+    if (base.tavernaMestres && typeof base.tavernaMestres === 'object') delete base.tavernaMestres[anterior];
+    return base;
+}
+
+// Quem está na call como Mestre (destaque no cartão da Sala da Party): `tavernaMestres[nome] = true`. Em Modo Jogador o
+// Mestre sai desse mapa e perde o destaque. Devolve o mesmo cenário se nada muda.
+export function marcarMestreNaTaverna(cenario, nome, ehMestre, dono = true) {
+    if (!nome) return cenario;
+    const atual = cenario && cenario.tavernaMestres ? cenario.tavernaMestres[nome] : undefined;
+    if (ehMestre ? atual === dono : !atual) return cenario;
+    const novo = JSON.parse(JSON.stringify(cenario || {}));
+    const mapa = novo.tavernaMestres && typeof novo.tavernaMestres === 'object' ? novo.tavernaMestres : {};
+    if (ehMestre) mapa[nome] = dono; else delete mapa[nome];
+    novo.tavernaMestres = mapa;
+    return novo;
+}
+
 // Texto amigável para o motivo de uma falha do Firebase nos chats.
 export function descreverErroChat(erro) {
     if (!erro) return 'Não foi possível enviar. Verifique a conexão.';

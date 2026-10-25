@@ -1,15 +1,37 @@
 import React from 'react';
 import useStore from '../../stores/useStore';
 import { getPercepcaoPoder, enxergaEfetividade, descreverEfetividade } from '../../core/percepcaoPoder';
+import { entradaVisivel } from '../../core/dadosMestre';
+import { revelarEntradaFeed } from '../../services/firebase-sync';
+import useDadosMestrePrivados from '../../hooks/useDadosMestre';
 
 export default function FeedCombate({ className }) {
     const feedCombate = useStore(s => s.feedCombate);
     const isMestre = useStore(s => s.isMestre);
     const minhaFicha = useStore(s => s.minhaFicha);
+    const [dadosPrivados, definirDadosPrivados] = useDadosMestrePrivados();
 
-    if (feedCombate.length === 0) {
+    // Rolagens privadas do Mestre (core/dadosMestre.js): só ele as vê, com a opção de revelar aos jogadores.
+    const visiveis = feedCombate.filter(e => entradaVisivel(e, isMestre));
+    const cabecalho = isMestre ? (
+        <label className="feed-privado-toggle" title="Quando ligado, seus testes, saving throws e defesas como Mestre só aparecem para Mestre/Co-Mestre e você revela aos jogadores quando quiser. Ataques contra jogadores continuam visíveis, pra eles poderem reagir.">
+            <input type="checkbox" checked={dadosPrivados} onChange={e => definirDadosPrivados(e.target.checked)} /> 🎲 Dados do Mestre privados
+        </label>
+    ) : null;
+    const comBarraPrivada = (d, idx, el) => (d.privado && isMestre ? (
+        <div key={`priv-${d._chave || idx}`} className="feed-privado">
+            <div className="feed-privado-barra">
+                <span>🔒 Rolagem do Mestre: só você vê</span>
+                <button type="button" className="feed-privado-revelar" disabled={!d._chave} onClick={() => revelarEntradaFeed(d._chave)}>📢 Revelar aos jogadores</button>
+            </div>
+            {el}
+        </div>
+    ) : el);
+
+    if (visiveis.length === 0) {
         return (
             <div id="feed-combate" className={className}>
+                {cabecalho}
                 <p style={{ color: '#888', textAlign: 'center', fontStyle: 'italic' }}>
                     Aguardando acoes de combate...
                 </p>
@@ -17,15 +39,16 @@ export default function FeedCombate({ className }) {
         );
     }
 
-    const reversed = [...feedCombate].reverse();
+    const reversed = [...visiveis].reverse();
     // O dano recalculado pela Disputa de Poder é só do Mestre; o jogador vê a rolagem e, com
     // Percepção de Poder suficiente, se o golpe foi efetivo (core/percepcaoPoder.js).
     const veEfetividade = !isMestre && enxergaEfetividade(getPercepcaoPoder(minhaFicha));
 
     return (
         <div id="feed-combate" className={className}>
-            {reversed.map((d, idx) => {
-                
+            {cabecalho}
+            {reversed.map((d, idx) => comBarraPrivada(d, idx, ((d, idx) => {
+
                 // 🔥 NOVO: TRATAMENTO DE ÁREA DE EFEITO (AoE) 🔥
                 const alvosArray = d.alvosArea || (d.alvoNome ? [{ nome: d.alvoNome, defesa: d.alvoDefesa, acertou: d.acertouAlvo }] : []);
 
@@ -194,7 +217,7 @@ export default function FeedCombate({ className }) {
                         )}
                     </div>
                 );
-            })}
+            })(d, idx)))}
         </div>
     );
 }

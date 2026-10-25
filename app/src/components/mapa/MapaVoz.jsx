@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import useStore from '../../stores/useStore';
 import { MapaOlhoSextaFeira } from './MapaSextaFeira';
 import { imagensDaFicha } from '../../core/avatar';
 import { useImagemQueCarrega } from '../../hooks/useImagemQueCarrega';
@@ -225,6 +226,8 @@ export function CalibradorDeVoz({ stream, sensibilidade, setSensibilidade }) {
 
 export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamParaTocar, iceState, streamAnalisador, mutado, surdo, fazerChamada, cardSize, fmt, selectedSpeaker }) {
     const [isSpeakingRemote, setIsSpeakingRemote] = useState(false);
+    // 👑 Quem está na call como Mestre ganha moldura e selo dourados (some em Modo Jogador: ver App.jsx).
+    const ehMestreNaCall = useStore(s => !!(s.cenario && s.cenario.tavernaMestres && s.cenario.tavernaMestres[nome]));
     // Usa a primeira imagem que carrega (Forma/poder/base): um link quebrado não deixa mais o cartão preto.
     const imagemDoCartao = useImagemQueCarrega(ficha ? imagensDaFicha(ficha) : (info && info.img ? [info.img] : []));
     const [volume, setVolumeLocal] = useState(() => lerVolumeVoz(nome));
@@ -297,9 +300,10 @@ export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamPara
     } else if (!isMe) { borderCard = '2px dashed #444'; boxShadowCard = 'none'; iconMic = '🔄'; }
 
     return (
-        <div className="fade-in" style={{ position: 'relative', width: cardSize, aspectRatio: '4/3', background: '#111', border: borderCard, borderRadius: 6, overflow: 'hidden', backgroundImage: urlSeguraParaCss(imagemDoCartao) || 'none', backgroundSize: 'cover', backgroundPosition: 'top center', boxShadow: boxShadowCard, transition: 'all 0.15s ease-out' }}>
+        <div className={`fade-in${ehMestreNaCall ? ' avatar-card-mestre' : ''}`} style={{ position: 'relative', width: cardSize, aspectRatio: '4/3', background: '#111', border: borderCard, borderRadius: 6, overflow: 'hidden', backgroundImage: urlSeguraParaCss(imagemDoCartao) || 'none', backgroundSize: 'cover', backgroundPosition: 'top center', boxShadow: boxShadowCard, transition: 'all 0.15s ease-out' }}>
             <div title={tituloMic || undefined} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.8)', borderRadius: '50%', padding: '5px 8px', fontSize: '1.2em', border: borderCard }}>{iconMic}</div>
             
+            {ehMestreNaCall && <span className="avatar-card-mestre-selo" title="Mestre da Sessão">👑 MESTRE</span>}
             {!isConnected && !isMe && (
                 <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 10 }}>
                     <button className="btn-neon btn-blue" onClick={(e) => { e.stopPropagation(); fazerChamada(nome); }} style={{ padding: '8px 15px', fontSize: '0.9em', fontWeight: 'bold', boxShadow: '0 0 10px #0088ff' }}>📞 FORÇAR LIGAÇÃO</button>
