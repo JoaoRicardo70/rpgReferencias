@@ -13,6 +13,7 @@ import { AvatarCardVoz, CalibradorDeVoz } from '../mapa/MapaVoz';
 import { infoAvatarDaFicha } from '../../core/avatar';
 import { idDeVoz } from '../../core/volumesVoz';
 import { useBufferLigado } from '../../core/estadoBuffer';
+import FeedCombate from '../feed/FeedCombate';
 
 function JanelaDoChat({ chat, meuNome, mensagens, onEnviar, onVoltar, onSair }) {
     const [texto, setTexto] = useState('');
@@ -176,65 +177,115 @@ export function AbaChats({ chat, candidatos, naTaverna }) {
 
 const fmtNumero = (n) => Number(n || 0).toLocaleString('pt-BR');
 
-// Sala da Party: cartões grandes com a imagem do personagem (como no Mapa), quem fala acende,
-// controles de microfone/saída e calibrador. O áudio dos outros toca no player global (AudioVozGlobal).
+const CHAVE_FEED_SALA = 'rpg_sala_party_feed';
+function lerFeedVisivel() {
+    try { return localStorage.getItem(CHAVE_FEED_SALA) !== '0'; } catch (e) { return true; }
+}
+
+// Sala da Party: cartões grandes com a imagem do personagem (como no Mapa), quem fala acende, barra de controles
+// estilo chamada (microfone, fone, ajustes, entrar/sair) e, na aba Comunicação, o Feed de Dados ao lado — que dá pra ocultar.
+// O áudio dos outros toca no player global (AudioVozGlobal).
 export function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome, compacto }) {
     const minhaFicha = useStore(s => s.minhaFicha);
     const personagens = useStore(s => s.personagens);
+    const [ajustesAbertos, setAjustesAbertos] = useState(true);
+    const [feedVisivel, setFeedVisivel] = useState(lerFeedVisivel);
     const tamanhoCartao = compacto ? '100%' : (naTaverna.length === 1 ? '400px' : naTaverna.length === 2 ? '350px' : '280px');
     const mics = voz.mics || [];
     const speakers = voz.speakers || [];
+    const comAviso = voz.voiceStatus.startsWith('⚠️');
+    const mostrarFeed = !compacto && feedVisivel;
+
+    const alternarFeed = useCallback(() => {
+        setFeedVisivel(v => {
+            const novo = !v;
+            try { localStorage.setItem(CHAVE_FEED_SALA, novo ? '1' : '0'); } catch (e) { /* sem localStorage: vale só nesta sessão */ }
+            return novo;
+        });
+    }, []);
 
     return (
-        <div className="dock-com-voz sala-party">
-            <div className="sala-party-barra">
-                <div className={`dock-com-voz-status${voz.voiceStatus.startsWith('⚠️') ? ' gravador-aviso' : ''}`} role={voz.voiceStatus.startsWith('⚠️') ? 'alert' : undefined}>📡 {voz.voiceStatus}</div>
-                <div className="dock-com-voz-botoes">
-                    <button type="button" className={`dock-com-redondo${voz.mutado ? ' ativo' : ''}`} disabled={!estouNaCall} onClick={voz.toggleMute} title={voz.mutado ? 'Ativar microfone' : 'Silenciar microfone'}>{voz.mutado ? '🔇' : '🎙️'}</button>
-                    <button type="button" className={`dock-com-redondo${voz.surdo ? ' ativo' : ''}`} disabled={!estouNaCall} onClick={voz.toggleDeafen} title={voz.surdo ? 'Voltar a ouvir' : 'Ensurdecer'}>{voz.surdo ? '🔕' : '🎧'}</button>
-                    <button type="button" className={`btn-neon ${estouNaCall ? 'btn-red' : 'btn-green'}`} onClick={alternarPresenca}>{estouNaCall ? 'Sair da call' : 'Entrar na call'}</button>
+        <div className={`dock-com-voz sala-party${compacto ? ' sala-party-compacta' : ''}`}>
+            <div className="sala-party-cabecalho">
+                <div className={`dock-com-voz-status sala-party-status${comAviso ? ' gravador-aviso' : (estouNaCall ? ' ao-vivo' : '')}`} role={comAviso ? 'alert' : undefined}>
+                    <span className="sala-party-ponto" aria-hidden="true" />📡 {voz.voiceStatus}
                 </div>
-                {estouNaCall && (
-                    <div className="sala-party-ajustes">
-                        {mics.length > 0 && (
-                            <label className="sala-party-campo">🎙️
-                                <select className="input-neon" value={voz.selectedMic} onChange={e => voz.trocarMicrofone(e.target.value)} aria-label="Microfone">
-                                    {mics.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Mic ${m.deviceId.substring(0, 4)}`}</option>)}
-                                </select>
-                            </label>
-                        )}
-                        {speakers.length > 0 && (
-                            <label className="sala-party-campo">🎧
-                                <select className="input-neon" value={voz.selectedSpeaker} onChange={e => voz.trocarSpeaker(e.target.value)} aria-label="Saída de áudio">
-                                    {speakers.map(s => <option key={s.deviceId} value={s.deviceId}>{s.label || `Saída ${s.deviceId.substring(0, 4)}`}</option>)}
-                                </select>
-                            </label>
-                        )}
-                        <label className="sala-party-campo">
-                            <input type="checkbox" checked={!!voz.supressorAtivo} onChange={e => voz.setSupressorAtivo(e.target.checked)} /> Filtro de Eco
-                        </label>
-                        {voz.streamAnalisador && <CalibradorDeVoz stream={voz.streamAnalisador} sensibilidade={voz.sensibilidadeVoz} setSensibilidade={voz.setSensibilidadeVoz} />}
-                    </div>
+                {!compacto && (
+                    <button type="button" className={`sala-party-feed-toggle${feedVisivel ? ' ativo' : ''}`} onClick={alternarFeed} aria-pressed={feedVisivel} title={feedVisivel ? 'Ocultar o feed de dados' : 'Mostrar o feed de dados'}>
+                        🎲 {feedVisivel ? 'Ocultar feed de dados' : 'Mostrar feed de dados'}
+                    </button>
                 )}
             </div>
 
-            <div className="sala-party-titulo">Na Sala da Party ({naTaverna.length})</div>
-            {naTaverna.length === 0 && <div className="dock-com-vazio">Ninguém na call agora. Clique em "Entrar na call" para sentar na mesa.</div>}
-            <div className={`sala-party-grade${compacto ? ' compacta' : ''}`}>
-                {naTaverna.map(nome => {
-                    const souEu = nome === meuNome;
-                    const ficha = souEu ? (minhaFicha || personagens?.[nome]) : personagens?.[nome];
-                    const conexao = (voz.conexoes || []).find(c => c.id === idDeVoz(nome));
-                    return (
-                        <AvatarCardVoz
-                            key={nome} nome={nome} info={infoAvatarDaFicha(ficha)} ficha={ficha} isMe={souEu}
-                            isConnected={souEu || !!conexao} streamParaTocar={conexao?.stream} iceState={conexao?.iceState}
-                            streamAnalisador={souEu ? voz.streamAnalisador : null}
-                            mutado={voz.mutado} surdo={voz.surdo} fazerChamada={voz.fazerChamada}
-                            cardSize={tamanhoCartao} fmt={fmtNumero} selectedSpeaker={voz.selectedSpeaker}
-                        />
-                    );
-                })}
+            <div className={`sala-party-corpo${mostrarFeed ? ' com-feed' : ''}`}>
+                <section className="sala-party-palco" aria-label="Participantes da call">
+                    <div className="sala-party-titulo">Na Sala da Party ({naTaverna.length})</div>
+                    {naTaverna.length === 0 && (
+                        <div className="dock-com-vazio sala-party-vazio">
+                            <span className="sala-party-vazio-icone" aria-hidden="true">🛋️</span>
+                            Ninguém na call agora. Clique em "Entrar na call" para sentar na mesa.
+                        </div>
+                    )}
+                    <div className={`sala-party-grade${compacto ? ' compacta' : ''}`}>
+                        {naTaverna.map(nome => {
+                            const souEu = nome === meuNome;
+                            const ficha = souEu ? (minhaFicha || personagens?.[nome]) : personagens?.[nome];
+                            const conexao = (voz.conexoes || []).find(c => c.id === idDeVoz(nome));
+                            return (
+                                <AvatarCardVoz
+                                    key={nome} nome={nome} info={infoAvatarDaFicha(ficha)} ficha={ficha} isMe={souEu}
+                                    isConnected={souEu || !!conexao} streamParaTocar={conexao?.stream} iceState={conexao?.iceState}
+                                    streamAnalisador={souEu ? voz.streamAnalisador : null}
+                                    mutado={voz.mutado} surdo={voz.surdo} fazerChamada={voz.fazerChamada}
+                                    cardSize={tamanhoCartao} fmt={fmtNumero} selectedSpeaker={voz.selectedSpeaker}
+                                />
+                            );
+                        })}
+                    </div>
+
+                    <div className="sala-party-barra">
+                        <div className="dock-com-voz-botoes sala-party-controles">
+                            <button type="button" className={`dock-com-redondo${voz.mutado ? ' ativo' : ''}`} disabled={!estouNaCall} onClick={voz.toggleMute} title={voz.mutado ? 'Ativar microfone' : 'Silenciar microfone'} aria-label={voz.mutado ? 'Ativar microfone' : 'Silenciar microfone'} aria-pressed={!!voz.mutado}>{voz.mutado ? '🔇' : '🎙️'}</button>
+                            <button type="button" className={`dock-com-redondo${voz.surdo ? ' ativo' : ''}`} disabled={!estouNaCall} onClick={voz.toggleDeafen} title={voz.surdo ? 'Voltar a ouvir' : 'Ensurdecer'} aria-label={voz.surdo ? 'Voltar a ouvir' : 'Ensurdecer'} aria-pressed={!!voz.surdo}>{voz.surdo ? '🔕' : '🎧'}</button>
+                            {estouNaCall && (
+                                <button type="button" className={`dock-com-redondo${ajustesAbertos ? ' ativo' : ''}`} onClick={() => setAjustesAbertos(a => !a)} aria-expanded={ajustesAbertos} title="Ajustes de áudio" aria-label="Ajustes de áudio">⚙️</button>
+                            )}
+                            <button type="button" className={`btn-neon ${estouNaCall ? 'btn-red' : 'btn-green'}`} onClick={alternarPresenca}>{estouNaCall ? 'Sair da call' : 'Entrar na call'}</button>
+                        </div>
+                        {estouNaCall && ajustesAbertos && (
+                            <div className="sala-party-ajustes">
+                                {mics.length > 0 && (
+                                    <label className="sala-party-campo">🎙️
+                                        <select className="input-neon" value={voz.selectedMic} onChange={e => voz.trocarMicrofone(e.target.value)} aria-label="Microfone">
+                                            {mics.map(m => <option key={m.deviceId} value={m.deviceId}>{m.label || `Mic ${m.deviceId.substring(0, 4)}`}</option>)}
+                                        </select>
+                                    </label>
+                                )}
+                                {speakers.length > 0 && (
+                                    <label className="sala-party-campo">🎧
+                                        <select className="input-neon" value={voz.selectedSpeaker} onChange={e => voz.trocarSpeaker(e.target.value)} aria-label="Saída de áudio">
+                                            {speakers.map(s => <option key={s.deviceId} value={s.deviceId}>{s.label || `Saída ${s.deviceId.substring(0, 4)}`}</option>)}
+                                        </select>
+                                    </label>
+                                )}
+                                <label className="sala-party-campo">
+                                    <input type="checkbox" checked={!!voz.supressorAtivo} onChange={e => voz.setSupressorAtivo(e.target.checked)} /> Filtro de Eco
+                                </label>
+                                {voz.streamAnalisador && <CalibradorDeVoz stream={voz.streamAnalisador} sensibilidade={voz.sensibilidadeVoz} setSensibilidade={voz.setSensibilidadeVoz} />}
+                            </div>
+                        )}
+                    </div>
+                </section>
+
+                {mostrarFeed && (
+                    <aside className="sala-party-feed" aria-label="Feed de dados">
+                        <div className="sala-party-feed-topo">
+                            <span>🎲 Feed de Dados</span>
+                            <button type="button" className="sala-party-feed-fechar" onClick={alternarFeed} title="Ocultar o feed de dados" aria-label="Ocultar o feed de dados">✕</button>
+                        </div>
+                        <FeedCombate className="sala-party-feed-lista" />
+                    </aside>
+                )}
             </div>
         </div>
     );

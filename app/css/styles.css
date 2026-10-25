@@ -1557,7 +1557,7 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 
 /* Painel de comunicação compartilhado (dock + aba dedicada) */
 .painel-com { display: flex; flex-direction: column; background: rgba(8, 10, 22, 0.97); border: 1px solid rgba(0, 255, 204, 0.5); border-radius: 12px; overflow: hidden; }
-.painel-com-aba { width: 100%; max-width: 900px; height: calc(100vh - 170px); min-height: 360px; margin: 0 auto; }
+.painel-com-aba { width: 100%; max-width: 1280px; height: calc(100vh - 170px); min-height: 360px; margin: 0 auto; }
 .comunicacao-aba { padding: 10px 16px; }
 .comunicacao-aba-titulo { color: #00ffcc; margin: 0 0 12px; text-align: center; }
 .comunicacao-aba-secao { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; }
@@ -2896,3 +2896,29 @@ body.reduzir-animacoes *, body.reduzir-animacoes *::before, body.reduzir-animaco
 .cena-card-rodape { padding: 6px 10px; background: rgba(0,0,0,0.45); border-top: 1px solid rgba(255,255,255,0.25); }
 @media (max-width: 520px) { .cena-card-miniatura { flex-basis: 90px; } }
 body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel { animation: none; }
+/* Sala da Party redesenhada: cabeçalho de status, palco com os participantes, barra de controles estilo chamada e Feed de Dados ao lado (ocultável) */
+.sala-party-cabecalho { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.sala-party-status { display: inline-flex; align-items: center; gap: 8px; background: rgba(0, 0, 0, 0.5); border: 1px solid #333; border-radius: 999px; padding: 6px 14px; }
+.sala-party-status.ao-vivo { border-color: #00ff88; color: #00ff88; box-shadow: 0 0 12px rgba(0, 255, 136, 0.25); }
+.sala-party-status.gravador-aviso { border-color: #ffcc00; }
+.sala-party-ponto { width: 9px; height: 9px; border-radius: 50%; background: #666; flex: 0 0 auto; }
+.sala-party-status.ao-vivo .sala-party-ponto { background: #00ff88; box-shadow: 0 0 8px #00ff88; animation: pulse 1.8s infinite; }
+.sala-party-feed-toggle { background: rgba(0, 0, 0, 0.5); border: 1px solid #555; color: #ccc; border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: 0.85em; transition: border-color 0.2s, color 0.2s; }
+.sala-party-feed-toggle:hover, .sala-party-feed-toggle.ativo { border-color: #ffcc00; color: #ffcc00; }
+.sala-party-corpo { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; flex: 1; min-height: 0; }
+.sala-party-corpo.com-feed { grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); }
+.sala-party-palco { position: relative; display: flex; flex-direction: column; align-items: center; gap: 16px; min-height: 380px; padding: 18px 14px 14px; border: 1px solid #1d3a3a; border-radius: 12px; background: radial-gradient(ellipse at 50% 30%, rgba(0, 255, 204, 0.07), transparent 60%), linear-gradient(180deg, rgba(10, 14, 28, 0.9), rgba(4, 6, 14, 0.95)); }
+.sala-party-palco .sala-party-grade { flex: 1; align-content: center; }
+.sala-party-vazio { display: flex; flex-direction: column; align-items: center; gap: 10px; max-width: 360px; margin: auto; text-align: center; line-height: 1.5; }
+.sala-party-vazio-icone { font-size: 3.2em; opacity: 0.55; filter: drop-shadow(0 0 12px rgba(0, 255, 204, 0.4)); }
+.sala-party-barra { margin-top: auto; align-self: center; max-width: 100%; flex-direction: column; align-items: center; gap: 10px; background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(6px); border: 1px solid #2c4a4a; border-radius: 999px; padding: 8px 18px; }
+.sala-party-barra:has(.sala-party-ajustes) { border-radius: 18px; }
+.sala-party-controles { justify-content: center; }
+.sala-party-feed { display: flex; flex-direction: column; min-height: 0; max-height: calc(100vh - 250px); border: 1px solid #4a3d12; border-radius: 12px; background: rgba(12, 10, 4, 0.8); overflow: hidden; }
+.sala-party-feed-topo { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid #4a3d12; color: #ffcc00; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; font-size: 0.85em; }
+.sala-party-feed-fechar { background: none; border: none; color: #888; cursor: pointer; font-size: 1em; }
+.sala-party-feed-fechar:hover { color: #ff4444; }
+#feed-combate.sala-party-feed-lista { margin: 0; padding: 10px; overflow-y: auto; flex: 1; gap: 10px; }
+.sala-party-feed-lista .damage-log { padding: 12px; }
+.sala-party-feed-lista .damage-number { font-size: 2em; }
+@media (max-width: 900px) { .sala-party-corpo.com-feed { grid-template-columns: minmax(0, 1fr); } .sala-party-feed { max-height: 360px; } }

@@ -515,6 +515,8 @@ export default function MapaMundi({ children }) {
                         <ellipse cx="50" cy="50" rx="47" ry="47" className="planos-anel-runas" />
                         <ellipse cx="50" cy="50" rx="45" ry="45" strokeWidth="1" />
                     </svg>
+                    <span className="planos-castelo planos-castelo-ceus" aria-hidden="true" />
+                    <span className="planos-castelo planos-castelo-inferno" aria-hidden="true" />
                     <span className="planos-faixa-rotulo planos-faixa-internos">Planos Internos</span>
                     <span className="planos-faixa-rotulo planos-faixa-externos">Planos Externos</span>
                     {zonasCosmologia.map((zona, index) => (
