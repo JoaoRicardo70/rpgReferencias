@@ -182,6 +182,11 @@ const fmtNumero = (n) => Number(n || 0).toLocaleString('pt-BR');
 const CHAVE_FEED_SALA = 'rpg_sala_party_feed';
 const CHAVE_MIDIA_SALA = 'rpg_sala_party_midia';
 const CHAVE_LADOS_SALA = 'rpg_sala_party_lados';
+const CHAVE_JUNTO_SALA = 'rpg_sala_party_junto';
+// Mídia e feed no MESMO lado: '' (separados, padrão) ou o que aparece na coluna única: 'midia', 'feed' ou 'ambos' (empilhados).
+function lerJunto() {
+    try { const v = localStorage.getItem(CHAVE_JUNTO_SALA); return ['midia', 'feed', 'ambos'].includes(v) ? v : ''; } catch (e) { return ''; }
+}
 function lerFeedVisivel() {
     try { return localStorage.getItem(CHAVE_FEED_SALA) !== '0'; } catch (e) { return true; }
 }
@@ -203,6 +208,7 @@ export function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome,
     const [feedVisivel, setFeedVisivel] = useState(lerFeedVisivel);
     const [midiaVisivel, setMidiaVisivel] = useState(lerMidiaVisivel);
     const [lados, setLados] = useState(lerLados);
+    const [junto, setJunto] = useState(lerJunto);
     const tamanhoCartao = compacto ? '100%' : (naTaverna.length === 1 ? '400px' : naTaverna.length === 2 ? '350px' : '280px');
     const mics = voz.mics || [];
     const speakers = voz.speakers || [];
@@ -225,6 +231,10 @@ export function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome,
             return novo;
         });
     }, []);
+    const escolherJunto = useCallback((valor) => {
+        setJunto(valor);
+        try { localStorage.setItem(CHAVE_JUNTO_SALA, valor); } catch (e) { /* sem localStorage: vale só nesta sessão */ }
+    }, []);
     const trocarLados = useCallback(() => {
         setLados(l => {
             const novo = l === 'midia-esq' ? 'feed-esq' : 'midia-esq';
@@ -243,8 +253,26 @@ export function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome,
         </aside>
     ) : null;
     const painelMidia = mostrarMidia ? <PainelMidia onFechar={alternarMidia} /> : null;
-    const painelEsquerdo = lados === 'midia-esq' ? painelMidia : painelFeed;
-    const painelDireito = lados === 'midia-esq' ? painelFeed : painelMidia;
+    // Modo "juntos": uma coluna só, com abas para alternar entre mídia e feed (ou ver os dois empilhados).
+    const vistaJunta = painelMidia && painelFeed ? junto : (painelMidia ? 'midia' : 'feed');
+    const painelJunto = junto && (painelMidia || painelFeed) ? (
+        <div className="sala-party-junto">
+            {painelMidia && painelFeed && (
+                <div className="sala-party-junto-abas" role="tablist" aria-label="Mídia e feed de dados">
+                    {[['midia', '🖼️ Mídia'], ['feed', '🎲 Feed'], ['ambos', '◫ Ambos']].map(([id, rotulo]) => (
+                        <button key={id} type="button" role="tab" aria-selected={vistaJunta === id} className={`sala-party-junto-aba${vistaJunta === id ? ' ativo' : ''}`} onClick={() => escolherJunto(id)}>{rotulo}</button>
+                    ))}
+                </div>
+            )}
+            <div className={`sala-party-junto-corpo vista-${vistaJunta}`}>
+                {vistaJunta !== 'feed' && painelMidia}
+                {vistaJunta !== 'midia' && painelFeed}
+            </div>
+        </div>
+    ) : null;
+    const juntoEsquerda = lados === 'feed-esq';
+    const painelEsquerdo = junto ? (juntoEsquerda ? painelJunto : null) : (lados === 'midia-esq' ? painelMidia : painelFeed);
+    const painelDireito = junto ? (juntoEsquerda ? null : painelJunto) : (lados === 'midia-esq' ? painelFeed : painelMidia);
 
     return (
         <div className={`dock-com-voz sala-party${compacto ? ' sala-party-compacta' : ''}`}>
@@ -258,7 +286,12 @@ export function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome,
                             🖼️ {midiaVisivel ? 'Ocultar mídia' : 'Mostrar mídia'}
                         </button>
                         {(mostrarFeed || mostrarMidia) && (
-                            <button type="button" className="sala-party-painel-toggle sala-party-lados-toggle" onClick={trocarLados} title="Trocar de lado o chat de mídia e o feed de dados">⇄ Trocar lados</button>
+                            <button type="button" className="sala-party-painel-toggle sala-party-lados-toggle" onClick={trocarLados} title={junto ? 'Mudar a coluna de mídia e feed para o outro lado' : 'Trocar de lado o chat de mídia e o feed de dados'}>⇄ Trocar lados</button>
+                        )}
+                        {mostrarFeed && mostrarMidia && (
+                            <button type="button" className={`sala-party-painel-toggle sala-party-junto-toggle${junto ? ' ativo' : ''}`} onClick={() => escolherJunto(junto ? '' : 'ambos')} aria-pressed={!!junto} title={junto ? 'Separar de novo: mídia de um lado e feed do outro' : 'Juntar mídia e feed no mesmo lado'}>
+                                {junto ? '↔ Separar' : '⧉ Juntar no mesmo lado'}
+                            </button>
                         )}
                         <button type="button" className={`sala-party-feed-toggle${feedVisivel ? ' ativo' : ''}`} onClick={alternarFeed} aria-pressed={feedVisivel} title={feedVisivel ? 'Ocultar o feed de dados' : 'Mostrar o feed de dados'}>
                             🎲 {feedVisivel ? 'Ocultar feed de dados' : 'Mostrar feed de dados'}

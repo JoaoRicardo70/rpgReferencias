@@ -136,8 +136,8 @@ export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamPara
             <div style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.8)', borderRadius: '50%', padding: '5px 8px', fontSize: '1.2em', border: borderCard, transition: 'all 0.15s ease-out' }}>{iconMic}</div>
             
             {!isConnected && !isMe && (
-                <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 10 }}>
-                    <button className="btn-neon btn-blue" onClick={(e) => { e.stopPropagation(); fazerChamada(nome); }} style={{ padding: '8px 15px', fontSize: '0.9em', fontWeight: 'bold', boxShadow: '0 0 10px #0088ff' }}>📞 FORÇAR LIGAÇÃO</button>
+                <div className="avatar-card-conectando-caixa">
+                    <span className="avatar-card-conectando" role="status">🔄 Conectando...</span>
                 </div>
             )}
             

@@ -389,20 +389,18 @@ describe('DockComunicacao', () => {
             expect(screen.queryByText(/Filtro de Eco/)).toBeNull();
         });
 
-        it('FORÇAR LIGAÇÃO aparece para remoto sem conexao e chama fazerChamada(nome)', () => {
+        it('não há mais botão FORÇAR LIGAÇÃO: o remoto sem conexão só mostra "Conectando..."', () => {
             setTaverna(['Ana', 'Bob']);
             const voz = fakeVoz({ fazerChamada: vi.fn() });
             abrirTab(voz);
-            const botoes = screen.getAllByText(/FORÇAR LIGAÇÃO/);
-            expect(botoes).toHaveLength(1);
-            fireEvent.click(botoes[0]);
-            expect(voz.fazerChamada).toHaveBeenCalledWith('Bob');
+            expect(screen.queryByText(/FORÇAR LIGAÇÃO/)).toBeNull();
+            expect(screen.getAllByText(/Conectando.../)).toHaveLength(1);
         });
 
-        it('sem FORÇAR LIGAÇÃO para mim nem para remoto ja conectado', () => {
+        it('sem "Conectando..." para mim nem para remoto já conectado', () => {
             setTaverna(['Ana', 'Bob']);
             abrirTab(fakeVoz({ conexoes: [{ id: 'anime-rpg-bob', stream: null }], fazerChamada: vi.fn() }));
-            expect(screen.queryByText(/FORÇAR LIGAÇÃO/)).toBeNull();
+            expect(screen.queryByText(/Conectando.../)).toBeNull();
         });
     });
 });

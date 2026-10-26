@@ -305,8 +305,8 @@ export function AvatarCardVoz({ nome, info, ficha, isMe, isConnected, streamPara
             
             {ehMestreNaCall && <span className="avatar-card-mestre-selo" title="Mestre da Sessão">👑 MESTRE</span>}
             {!isConnected && !isMe && (
-                <div style={{ position: 'absolute', top: '40%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 10 }}>
-                    <button className="btn-neon btn-blue" onClick={(e) => { e.stopPropagation(); fazerChamada(nome); }} style={{ padding: '8px 15px', fontSize: '0.9em', fontWeight: 'bold', boxShadow: '0 0 10px #0088ff' }}>📞 FORÇAR LIGAÇÃO</button>
+                <div className="avatar-card-conectando-caixa">
+                    <span className="avatar-card-conectando" role="status">🔄 Conectando...</span>
                 </div>
             )}
             

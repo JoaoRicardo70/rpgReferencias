@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Peer from 'peerjs';
 import { montarIceServers, temTurnConfigurado } from '../core/iceServers';
+import { idDeVoz } from '../core/volumesVoz';
+import { ESPERA_ATENDER_MS, avaliarSaudeDaChamada, deveDiscar, ligacoesSemDono } from '../core/saudeChamada';
 import {
     FFT_SIZE, SENSIBILIDADE_PADRAO, criarPortaoDeVoz, estadoPortao, faixaDeVoz, medirNivelDeVoz
 } from '../core/audioVoz';
@@ -102,6 +104,10 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
     const meuStreamRef = useRef(null);
     const conexoesRef = useRef([]);
     const chamadasEmAndamento = useRef(new Set());
+    // Ligação ativa de cada amigo (id -> call): é por aqui que se derruba uma ligação morta ou antiga.
+    const chamadasRef = useRef(new Map());
+    const ruimDesdeRef = useRef(new Map());     // id -> quando a ligação passou a ficar ruim
+    const semConexaoDesdeRef = useRef(new Map()); // id -> desde quando o amigo está na sala sem ligação nossa
     const rtcLigado = useRef(false);
     // Cada pedido de microfone ganha um número: um pedido antigo que só responde depois (saiu e
     // voltou da Taverna rápido, desmontou, StrictMode) é descartado em vez de deixar o mic aberto.
@@ -126,6 +132,46 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
         // applyConstraints substitui o conjunto inteiro: reenvia o cancelamento de eco junto.
         Promise.resolve(trilha.applyConstraints({ echoCancellation: true, noiseSuppression: supressorAtivo, autoGainControl: !supressorAtivo, voiceIsolation: supressorAtivo })).catch(() => {});
     }, [supressorAtivo]);
+
+    // Derruba a ligação de um amigo (se ainda for a mesma) e limpa tudo dele, para o discador poder refazê-la.
+    const derrubarChamada = useCallback((id, call) => {
+        const atual = chamadasRef.current.get(id);
+        if (call && atual && atual !== call) { try { call.close(); } catch (e) { /* já fechada */ } return; }
+        const alvo = call || atual;
+        chamadasRef.current.delete(id);
+        chamadasEmAndamento.current.delete(id);
+        ruimDesdeRef.current.delete(id);
+        setConexoes(prev => (prev.some(c => c.id === id) ? prev.filter(c => c.id !== id) : prev));
+        if (alvo) { try { alvo.close(); } catch (e) { /* já fechada */ } }
+    }, []);
+
+    // Liga os eventos de uma ligação (nossa ou recebida). Uma ligação NOVA do mesmo amigo substitui a antiga (ele saiu e voltou),
+    // e uma que não recebe áudio a tempo é descartada: antes ela ficava pendente para sempre e bloqueava novas tentativas.
+    const registrarChamada = useCallback((call, id, nome) => {
+        const anterior = chamadasRef.current.get(id);
+        chamadasRef.current.set(id, call);
+        ruimDesdeRef.current.delete(id);
+        if (anterior && anterior !== call) { try { anterior.close(); } catch (e) { /* já fechada */ } }
+        let recebeuAudio = false;
+        const pararVigiaIce = vigiarConexao(call, nome, id, setVoiceStatus, setConexoes, () => rtcLigado.current);
+        const temporizador = setTimeout(() => { if (!recebeuAudio && chamadasRef.current.get(id) === call) derrubarChamada(id, call); }, ESPERA_ATENDER_MS);
+        const encerrar = () => { clearTimeout(temporizador); pararVigiaIce(); derrubarChamada(id, call); };
+
+        call.on('stream', (remoteStream) => {
+            recebeuAudio = true;
+            clearTimeout(temporizador);
+            chamadasEmAndamento.current.delete(id);
+            if (chamadasRef.current.get(id) !== call) return; // ligação antiga que já foi substituída
+            const iceState = (call.peerConnection && call.peerConnection.iceConnectionState) || 'new';
+            setConexoes(prev => {
+                const existente = prev.find(c => c.id === id);
+                if (existente && existente.stream === remoteStream) return prev;
+                return [...prev.filter(c => c.id !== id), { id, stream: remoteStream, iceState }];
+            });
+        });
+        call.on('close', encerrar);
+        call.on('error', (err) => { console.error(`[VOZ] Erro na chamada de ${id}:`, err); encerrar(); });
+    }, [derrubarChamada]);
 
     // 1. INICIALIZA A ANTENA PEERJS
     useEffect(() => {
@@ -167,22 +213,10 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
                 if (meuStreamRef.current) {
                     console.log(`[VOZ] A atender chamada de ${call.peer}...`);
                     call.answer(meuStreamRef.current);
-                    const pararVigiaIce = vigiarConexao(call, call.peer.replace(/^anime-rpg-/, ''), call.peer, setVoiceStatus, setConexoes, () => rtcLigado.current);
-
-                    call.on('stream', (remoteStream) => {
-                        const iceState = (call.peerConnection && call.peerConnection.iceConnectionState) || 'new';
-                        setConexoes(prev => {
-                            const exists = prev.find(c => c.id === call.peer);
-                            if (exists && exists.stream && exists.stream.active) return prev;
-                            return [...prev.filter(c => c.id !== call.peer), { id: call.peer, stream: remoteStream, iceState }];
-                        });
-                    });
-
-                    call.on('close', () => { pararVigiaIce(); chamadasEmAndamento.current.delete(call.peer); setConexoes(prev => prev.filter(c => c.id !== call.peer)); });
-                    call.on('error', (err) => { pararVigiaIce(); chamadasEmAndamento.current.delete(call.peer); console.error(`[VOZ] Erro na chamada de ${call.peer}:`, err); });
+                    registrarChamada(call, call.peer, call.peer.replace(/^anime-rpg-/, ''));
                 } else {
                     if (tentativas < 10) setTimeout(() => attemptAnswer(tentativas + 1), 500);
-                    else chamadasEmAndamento.current.delete(call.peer);
+                    else { chamadasEmAndamento.current.delete(call.peer); try { call.close(); } catch (e) { /* já fechada */ } }
                 }
             };
             attemptAnswer();
@@ -218,6 +252,9 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
             setPeerObj(null);
             setConexoes([]);
             chamadasEmAndamento.current.clear();
+            chamadasRef.current.clear();
+            ruimDesdeRef.current.clear();
+            semConexaoDesdeRef.current.clear();
         };
     }, [meuIDTelefone, tentativaPeer]);
 
@@ -277,6 +314,12 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
             meuStreamRef.current = null;
             setMeuStream(null);
             setStreamAnalisador(null);
+            // Fecha as ligações: sem isso os amigos continuavam com uma ligação morta comigo e não refaziam quando eu voltava.
+            Array.from(chamadasRef.current.values()).forEach(c => { try { c.close(); } catch (e) { /* já fechada */ } });
+            chamadasRef.current.clear();
+            chamadasEmAndamento.current.clear();
+            ruimDesdeRef.current.clear();
+            semConexaoDesdeRef.current.clear();
             setConexoes([]);
             setVoiceStatus('Fora da Taverna');
         }
@@ -297,7 +340,7 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
     // 3. AUTO-DIALER (CHAMADAS ATIVAS)
     const fazerChamada = useCallback((nomeDestino) => {
         if (!peerObj || !meuStreamRef.current || !nomeDestino) return;
-        const idFormatado = `anime-rpg-${(nomeDestino || '').toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+        const idFormatado = idDeVoz(nomeDestino);
         
         // Bloqueia tanto uma chamada já em andamento (nossa ou recebida dele, ver novoPeer.on('call'))
         // quanto um amigo já conectado: sem isso, "FORÇAR LIGAÇÃO" clicado enquanto a ligação dele já
@@ -308,41 +351,50 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
 
         const call = peerObj.call(idFormatado, meuStreamRef.current);
         if (!call) { chamadasEmAndamento.current.delete(idFormatado); return; }
-        const pararVigiaIce = vigiarConexao(call, nomeDestino, idFormatado, setVoiceStatus, setConexoes, () => rtcLigado.current);
-
-        call.on('stream', (remoteStream) => {
-            const iceState = (call.peerConnection && call.peerConnection.iceConnectionState) || 'new';
-            setConexoes(prev => {
-                const exists = prev.find(c => c.id === idFormatado);
-                if (exists && exists.stream && exists.stream.active) return prev;
-                return [...prev.filter(c => c.id !== idFormatado), { id: idFormatado, stream: remoteStream, iceState }];
-            });
-            chamadasEmAndamento.current.delete(idFormatado);
-        });
-        
-        call.on('close', () => { pararVigiaIce(); setConexoes(prev => prev.filter(c => c.id !== idFormatado)); chamadasEmAndamento.current.delete(idFormatado); });
-        call.on('error', () => { pararVigiaIce(); setConexoes(prev => prev.filter(c => c.id !== idFormatado)); chamadasEmAndamento.current.delete(idFormatado); });
-    }, [peerObj]);
+        registrarChamada(call, idFormatado, nomeDestino);
+    }, [peerObj, registrarChamada]);
 
     useEffect(() => {
         if (!peerObj || !isPresenteNaTaverna) return;
         const interval = setInterval(() => {
+            const agora = Date.now();
             const ativosAmigos = Array.isArray(tavernaAtivos) ? tavernaAtivos : [];
+            const meuId = idDeVoz(meuNome);
+            const idsNaSala = ativosAmigos.map(idDeVoz);
+
+            // 1) Ligações de quem já saiu da sala (ou ficou morta) são derrubadas: o amigo que volta entra com ligação nova.
+            ligacoesSemDono(Array.from(chamadasRef.current.keys()), idsNaSala, meuId).forEach(id => derrubarChamada(id));
+            chamadasRef.current.forEach((call, id) => {
+                const pc = call.peerConnection;
+                const conexao = conexoesRef.current.find(c => c.id === id);
+                const trilhas = conexao && conexao.stream && typeof conexao.stream.getAudioTracks === 'function' ? conexao.stream.getAudioTracks() : [];
+                const estadoIce = pc ? pc.iceConnectionState : undefined;
+                const ruim = estadoIce === 'disconnected';
+                if (ruim && !ruimDesdeRef.current.has(id)) ruimDesdeRef.current.set(id, agora);
+                if (!ruim) ruimDesdeRef.current.delete(id);
+                const veredito = avaliarSaudeDaChamada({
+                    estadoIce,
+                    todasTrilhasEncerradas: trilhas.length > 0 && trilhas.every(t => t.readyState === 'ended'),
+                    ruimHaMs: ruimDesdeRef.current.has(id) ? agora - ruimDesdeRef.current.get(id) : 0
+                });
+                if (veredito === 'refazer') { console.log(`[VOZ] Refazendo a ligação com ${id} (estado ${estadoIce})`); derrubarChamada(id, call); }
+            });
+
+            Array.from(semConexaoDesdeRef.current.keys()).forEach(id => { if (!idsNaSala.includes(id)) semConexaoDesdeRef.current.delete(id); });
+
+            // 2) Quem não tem ligação com um amigo na sala liga (o lado "menor" na hora; o outro só depois de um tempo sem resposta).
             ativosAmigos.forEach(nomeAmigo => {
                 if (!nomeAmigo || nomeAmigo === meuNome) return;
-                const meuId = `anime-rpg-${(meuNome || '').toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-                const amigoId = `anime-rpg-${(nomeAmigo || '').toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-
-                if (meuId < amigoId) {
-                    const exists = conexoesRef.current.find(c => c.id === amigoId);
-                    if (!exists && !chamadasEmAndamento.current.has(amigoId)) {
-                        fazerChamada(nomeAmigo);
-                    }
-                }
+                const amigoId = idDeVoz(nomeAmigo);
+                const conectado = conexoesRef.current.some(c => c.id === amigoId);
+                if (conectado) { semConexaoDesdeRef.current.delete(amigoId); return; }
+                if (!semConexaoDesdeRef.current.has(amigoId)) semConexaoDesdeRef.current.set(amigoId, agora);
+                if (chamadasEmAndamento.current.has(amigoId)) return;
+                if (deveDiscar({ meuId, amigoId, semConexaoHaMs: agora - semConexaoDesdeRef.current.get(amigoId) })) fazerChamada(nomeAmigo);
             });
         }, 4000); 
         return () => clearInterval(interval);
-    }, [tavernaAtivos, peerObj, isPresenteNaTaverna, meuNome, fazerChamada]);
+    }, [tavernaAtivos, peerObj, isPresenteNaTaverna, meuNome, fazerChamada, derrubarChamada]);
 
     // 4. PORTÃO DE RUÍDO: abre o microfone só quando a FAIXA DA VOZ passa do piso de ruído da sala mais
     // uma margem (com histerese e tempo de espera), em vez de comparar a média de todas as frequências

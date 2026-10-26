@@ -2947,6 +2947,13 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .feed-acerto-oculto { margin: 4px 0 0; color: #ffcc66; font-size: 0.8em; font-style: italic; text-align: center; }
 
 /* Chat de mídia da Sala da Party (components/comunicacao/PainelMidia.jsx) */
+.sala-party-junto { display: flex; flex-direction: column; gap: 8px; min-height: 0; height: calc(100vh - 250px); min-height: 420px; }
+.sala-party-junto-abas { display: flex; gap: 6px; }
+.sala-party-junto-aba { flex: 1; background: rgba(0, 0, 0, 0.5); border: 1px solid #555; color: #ccc; border-radius: 999px; padding: 6px 8px; cursor: pointer; font-size: 0.8em; transition: border-color 0.2s, color 0.2s; }
+.sala-party-junto-aba:hover, .sala-party-junto-aba.ativo { border-color: #ffcc00; color: #ffcc00; }
+.sala-party-junto-corpo { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.sala-party-junto-corpo.vista-ambos { display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+.sala-party-junto-corpo > .sala-party-feed, .sala-party-junto-corpo > .sala-party-midia { max-height: none; flex: 1; min-height: 0; }
 .sala-party-cabecalho-botoes { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .sala-party-midia { display: flex; flex-direction: column; min-height: 0; max-height: calc(100vh - 250px); border: 1px solid #1d3a66; border-radius: 12px; background: rgba(4, 8, 18, 0.85); overflow: hidden; outline: none; }
 .sala-party-midia.arrastando { border-color: #00ffcc; box-shadow: 0 0 18px rgba(0, 255, 204, 0.4); }
@@ -2971,3 +2978,7 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .midia-visualizador-rodape { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; justify-content: center; color: #ddd; }
 .midia-npc-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: center; width: 100%; }
 .midia-npc-form .input-neon { max-width: 260px; margin: 0; }
+
+/* 📞 Cartão da Sala da Party de quem ainda não conectou: a ligação é refeita sozinha (não há mais botão de forçar). */
+.avatar-card-conectando-caixa { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 10; }
+.avatar-card-conectando { display: inline-block; padding: 6px 12px; border-radius: 999px; font-size: 0.8em; font-weight: bold; letter-spacing: 0.5px; color: var(--neon-yellow, #ffcc00); background: rgba(0, 0, 0, 0.7); border: 1px dashed currentColor; }

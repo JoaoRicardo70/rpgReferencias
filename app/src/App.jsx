@@ -5,6 +5,7 @@ import useStore, { sanitizarNome } from './stores/useStore';
 import useFirebase from './hooks/useFirebase';
 import useSextaFeiraMesa from './hooks/useSextaFeiraMesa';
 import useSincronizarAcoes from './hooks/useSincronizarAcoes';
+import { usePreferenciasDaConta } from './hooks/usePreferenciasDaConta';
 
 // 🔥 IMPORTANDO O MOTOR DE VOZ PARA O TOPO DO APP 🔥
 import { useVoiceChat } from './hooks/useVoiceChat';
@@ -174,6 +175,8 @@ export default function App() {
 
     const { loading } = useFirebase();
     useSextaFeiraMesa();
+    // Estilo, atalhos, volumes e layout acompanham a conta (não só este navegador).
+    usePreferenciasDaConta(meuNome);
     const [pronto, setPronto] = useState(false);
     // ⚡ Mantém o máximo de Ações gravado na ficha igual ao calculado (core/acoes.js).
     useSincronizarAcoes(pronto && !loading && !!meuNome);

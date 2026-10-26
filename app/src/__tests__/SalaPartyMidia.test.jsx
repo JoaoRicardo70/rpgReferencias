@@ -106,3 +106,73 @@ describe('AbaVoz - mídia e lados', () => {
         expect(ordem()).toEqual(['palco']);
     });
 });
+
+describe('AbaVoz - mídia e feed no mesmo lado', () => {
+    const CH_JUNTO = 'rpg_sala_party_junto';
+    const juntos = () => document.querySelector('.sala-party-junto');
+    beforeEach(() => {
+        localStorage.clear();
+        useStore.setState({ meuNome: 'Ana', minhaFicha: null, personagens: { Ana: {} } });
+    });
+    afterEach(() => { cleanup(); localStorage.clear(); });
+
+    it('"Juntar no mesmo lado" põe os dois numa coluna só (à direita por padrão) com abas, mostrando os dois', () => {
+        montar();
+        fireEvent.click(screen.getByText(/Juntar no mesmo lado/));
+        expect(juntos()).toBeTruthy();
+        expect(Array.from(document.querySelector('.sala-party-corpo').children)).toHaveLength(2);
+        expect(document.querySelector('.sala-party-corpo').lastElementChild).toBe(juntos());
+        expect(juntos().contains(midia())).toBe(true);
+        expect(juntos().contains(feed())).toBe(true);
+        expect(localStorage.getItem(CH_JUNTO)).toBe('ambos');
+        expect(screen.getByRole('tab', { name: /Ambos/ }).getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('as abas alternam entre só mídia, só feed e ambos', () => {
+        montar();
+        fireEvent.click(screen.getByText(/Juntar no mesmo lado/));
+        fireEvent.click(screen.getByRole('tab', { name: /Feed/ }));
+        expect(midia()).toBeNull();
+        expect(feed()).toBeTruthy();
+        expect(localStorage.getItem(CH_JUNTO)).toBe('feed');
+        fireEvent.click(screen.getByRole('tab', { name: /Mídia/ }));
+        expect(midia()).toBeTruthy();
+        expect(feed()).toBeNull();
+        fireEvent.click(screen.getByRole('tab', { name: /Ambos/ }));
+        expect(midia()).toBeTruthy();
+        expect(feed()).toBeTruthy();
+    });
+
+    it('"Trocar lados" muda a coluna junta de lado', () => {
+        montar();
+        fireEvent.click(screen.getByText(/Juntar no mesmo lado/));
+        fireEvent.click(screen.getByText(/Trocar lados/));
+        expect(document.querySelector('.sala-party-corpo').firstElementChild).toBe(juntos());
+    });
+
+    it('"Separar" volta ao layout de dois lados', () => {
+        montar();
+        fireEvent.click(screen.getByText(/Juntar no mesmo lado/));
+        fireEvent.click(screen.getByText(/Separar/));
+        expect(juntos()).toBeNull();
+        expect(ordem()).toEqual(['midia', 'palco', 'feed']);
+        expect(localStorage.getItem(CH_JUNTO)).toBe('');
+    });
+
+    it('lembra o modo junto (e a aba) pelo localStorage', () => {
+        localStorage.setItem(CH_JUNTO, 'feed');
+        montar();
+        expect(juntos()).toBeTruthy();
+        expect(midia()).toBeNull();
+        expect(feed()).toBeTruthy();
+    });
+
+    it('com um dos painéis oculto não há abas nem botão de juntar', () => {
+        localStorage.setItem(CH_JUNTO, 'ambos');
+        montar();
+        fireEvent.click(screen.getByText(/Ocultar mídia/));
+        expect(screen.queryByRole('tab')).toBeNull();
+        expect(screen.queryByText(/Separar|Juntar no mesmo lado/)).toBeNull();
+        expect(feed()).toBeTruthy();
+    });
+});
