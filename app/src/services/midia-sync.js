@@ -1,18 +1,19 @@
 import { ref, push, set, update, remove, get, onValue, limitToLast, query } from 'firebase/database';
-import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref as storageRef, deleteObject } from 'firebase/storage';
 import { db, storage } from './firebase-config';
 import useStore, { sanitizarNome } from '../stores/useStore';
-import { LIMITE_MIDIA, LIMITE_STORAGE, LADO_MAX_PADRAO, MENSAGEM_IMAGEM_INVALIDA, ehImagemValida, listarMidia, tamanhoReduzido, urlDeMidiaSegura } from '../core/midia';
+import { LIMITE_MIDIA, LADO_MAX_PADRAO, MENSAGEM_IMAGEM_INVALIDA, ehImagemValida, ehDataUrlDeImagem, listarMidia, tamanhoReduzido, urlDeMidiaSegura } from '../core/midia';
 
 // ==========================================
 // 🖼️ CHAT DE MÍDIA — envio e leitura. Metadados em `mesas/{mesaId}/midia/{id}` ({ autor, url, ts, nome }) e o arquivo no
-// Firebase Storage em `mesas/{mesaId}/midia/...`. Imagens são reduzidas antes de subir (menos custo de armazenamento/banda).
+// imagem vai como data URL dentro do próprio registro (o Storage não é confiável em produção; avatares seguem o mesmo padrão).
+// Imagens são reduzidas no navegador antes de enviar.
 // ==========================================
 
 const caminhoMidia = (mesaId) => `mesas/${mesaId}/midia`;
 
 // Reduz e recomprime a imagem no navegador. Se algo falhar (ou se já é pequena), devolve o arquivo original.
-export async function reduzirImagem(arquivo, { ladoMax = LADO_MAX_PADRAO, qualidade = 0.82 } = {}) {
+export async function reduzirImagem(arquivo, { ladoMax = LADO_MAX_PADRAO, qualidade = 0.72 } = {}) {
     try {
         if (!arquivo || arquivo.type === 'image/gif') return arquivo; // GIF: mantém (a animação se perderia)
         const bitmap = await createImageBitmap(arquivo);
@@ -39,20 +40,29 @@ export function iniciarListenerMidia(callback, aoErro) {
     return onValue(consulta, (snap) => callback(listarMidia(snap.val(), LIMITE_MIDIA, mesaId)), (erro) => { if (aoErro) aoErro(erro); });
 }
 
-// Sobe a imagem e registra no chat. Devolve { ok: true, id } ou { ok: false, erro }.
+function lerComoDataUrl(arquivo) {
+    return new Promise((resolve, reject) => {
+        const leitor = new FileReader();
+        leitor.onload = () => resolve(String(leitor.result || ''));
+        leitor.onerror = () => reject(leitor.error || new Error('Falha ao ler a imagem.'));
+        leitor.readAsDataURL(arquivo);
+    });
+}
+
+// Reduz a imagem, grava o data URL no chat. Devolve { ok: true, id } ou { ok: false, erro }.
 export async function enviarImagemMidia(arquivo, autor) {
     const { mesaId } = useStore.getState();
-    if (!db || !storage || !mesaId) return { ok: false, erro: { motivo: 'Sem conexão com a mesa.' } };
+    if (!db || !mesaId) return { ok: false, erro: { motivo: 'Sem conexão com a mesa.' } };
     if (!ehImagemValida(arquivo)) return { ok: false, erro: { motivo: MENSAGEM_IMAGEM_INVALIDA } };
     try {
-        const pronta = await reduzirImagem(arquivo);
-        // O Storage recusa 5 MB ou mais: melhor avisar antes de gastar o envio.
-        if (pronta.size >= LIMITE_STORAGE) return { ok: false, erro: { motivo: MENSAGEM_IMAGEM_INVALIDA } };
-        const ext = ({ 'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif' })[pronta.type] || 'img';
-        const nomeUnico = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${ext}`;
-        const destino = storageRef(storage, `${caminhoMidia(mesaId)}/${nomeUnico}`);
-        await uploadBytes(destino, pronta);
-        const url = await getDownloadURL(destino);
+        let pronta = await reduzirImagem(arquivo);
+        let url = await lerComoDataUrl(pronta);
+        // Ainda grande (foto pesada): tenta de novo, menor e mais comprimida.
+        if (!ehDataUrlDeImagem(url) && pronta.type !== 'image/gif') {
+            pronta = await reduzirImagem(arquivo, { ladoMax: 640, qualidade: 0.55 });
+            url = await lerComoDataUrl(pronta);
+        }
+        if (!ehDataUrlDeImagem(url)) return { ok: false, erro: { motivo: MENSAGEM_IMAGEM_INVALIDA } };
         const nova = push(ref(db, caminhoMidia(mesaId)));
         await set(nova, { autor: String(autor || '').slice(0, 50), url, ts: Date.now(), nome: String(arquivo.name || '').slice(0, 60) });
         return { ok: true, id: nova.key };
@@ -63,7 +73,7 @@ export async function enviarImagemMidia(arquivo, autor) {
 
 // Só apaga arquivo da pasta de mídia desta mesa (a URL vem do banco e qualquer usuário escreve lá).
 async function apagarArquivo(url, mesaId) {
-    if (!urlDeMidiaSegura(url, mesaId)) return;
+    if (ehDataUrlDeImagem(url) || !urlDeMidiaSegura(url, mesaId)) return; // data URL não tem arquivo a apagar
     try { await deleteObject(storageRef(storage, url)); } catch (e) { /* já apagado ou fora do alcance: segue */ }
 }
 

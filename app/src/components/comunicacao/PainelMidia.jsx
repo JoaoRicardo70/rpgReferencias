@@ -124,7 +124,7 @@ export default function PainelMidia({ onFechar }) {
         if (!window.confirm('Limpar o chat de mídia? TODAS as imagens serão apagadas para todos (o espaço no armazenamento é liberado).')) return;
         const r = await limparMidia();
         if (!r.ok) setErro('Não foi possível limpar o chat de mídia.');
-        else adicionarAviso(`Chat de mídia limpo (${r.apagadas} ${r.apagadas === 1 ? 'arquivo apagado' : 'arquivos apagados'}${r.mantidas ? `; ${r.mantidas} mantido(s) por já serem avatar de NPC` : ''}).`, 'info');
+        else adicionarAviso(`Chat de mídia limpo (${r.apagadas} ${r.apagadas === 1 ? 'imagem apagada' : 'imagens apagadas'}${r.mantidas ? `; ${r.mantidas} mantido(s) por já serem avatar de NPC` : ''}).`, 'info');
     };
 
     return (

@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
     enviarImagemMidia, apagarImagemMidia, limparMidia, marcarImagemUsada, criarPersonagemNaMesa, iniciarListenerMidia, personagemExiste,
 } from './midia-sync';
 import useStore from '../stores/useStore';
 import { push, set, update, remove, get, onValue } from 'firebase/database';
-import { uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { deleteObject } from 'firebase/storage';
 
 const URL_OK = vi.hoisted(() => (n, mesa = 'mesa1') =>
     `https://firebasestorage.googleapis.com/v0/b/bkt.appspot.com/o/mesas%2F${mesa}%2Fmidia%2F${n}?alt=media&token=t`);
@@ -22,8 +22,6 @@ vi.mock('firebase/database', () => ({
 }));
 vi.mock('firebase/storage', () => ({
     ref: vi.fn((st, path) => ({ path })),
-    uploadBytes: vi.fn(() => Promise.resolve()),
-    getDownloadURL: vi.fn(() => Promise.resolve(URL_OK('novo.gif'))),
     deleteObject: vi.fn(() => Promise.resolve()),
 }));
 vi.mock('./firebase-config', () => ({ db: {}, storage: {} }));
@@ -32,7 +30,7 @@ vi.mock('../stores/useStore', () => ({
     sanitizarNome: vi.fn((n) => String(n).replace(/[.#$[\]/]/g, '_')),
 }));
 
-const arquivo = (over = {}) => ({ name: 'foto.gif', type: 'image/gif', size: 1000, ...over });
+const arquivo = (over = {}) => new File(['GIF89a'], over.name || 'foto.gif', { type: over.type || 'image/gif' });
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -40,51 +38,39 @@ beforeEach(() => {
 });
 
 describe('enviarImagemMidia', () => {
-    it('rejeita arquivo inválido sem subir nada', async () => {
+    it('rejeita arquivo inválido sem gravar nada', async () => {
         const r = await enviarImagemMidia(arquivo({ type: 'application/pdf' }), 'Ana');
         expect(r.ok).toBe(false);
         expect(r.erro.motivo).toMatch(/imagem/i);
-        expect(uploadBytes).not.toHaveBeenCalled();
         expect(set).not.toHaveBeenCalled();
     });
     it('arquivo gigante ou nulo também é rejeitado', async () => {
-        expect((await enviarImagemMidia(arquivo({ size: 13 * 1024 * 1024 }), 'Ana')).ok).toBe(false);
+        const gigante = arquivo();
+        Object.defineProperty(gigante, 'size', { value: 13 * 1024 * 1024 });
+        expect((await enviarImagemMidia(gigante, 'Ana')).ok).toBe(false);
         expect((await enviarImagemMidia(null, 'Ana')).ok).toBe(false);
-        expect(uploadBytes).not.toHaveBeenCalled();
+        expect(set).not.toHaveBeenCalled();
     });
     it('sem mesa não envia', async () => {
         useStore.getState.mockReturnValue({ mesaId: '' });
         const r = await enviarImagemMidia(arquivo(), 'Ana');
         expect(r.ok).toBe(false);
-        expect(uploadBytes).not.toHaveBeenCalled();
+        expect(set).not.toHaveBeenCalled();
     });
-    it('sobe o arquivo e grava { autor, url, ts, nome } em mesas/{mesaId}/midia', async () => {
-        const f = arquivo();
-        const r = await enviarImagemMidia(f, 'Ana');
+    it('grava { autor, url (data URL), ts, nome } em mesas/{mesaId}/midia, sem usar o Storage', async () => {
+        const r = await enviarImagemMidia(arquivo(), 'Ana');
         expect(r).toEqual({ ok: true, id: 'novoId' });
-        expect(uploadBytes).toHaveBeenCalledTimes(1);
-        expect(uploadBytes.mock.calls[0][0].path).toMatch(/^mesas\/mesa1\/midia\/\d+_[a-z0-9]+\.gif$/);
-        expect(uploadBytes.mock.calls[0][1]).toBe(f); // GIF não é recomprimido
         expect(push).toHaveBeenCalledWith('mesas/mesa1/midia');
         const [alvo, dados] = set.mock.calls[0];
         expect(alvo).toEqual({ key: 'novoId' });
-        expect(dados).toEqual({ autor: 'Ana', url: URL_OK('novo.gif'), ts: expect.any(Number), nome: 'foto.gif' });
+        expect(dados).toEqual({ autor: 'Ana', url: expect.stringMatching(/^data:image\/gif;base64,/), ts: expect.any(Number), nome: 'foto.gif' });
     });
-    it('recusa quando a imagem (já reduzida) tem 5 MB ou mais, sem subir', async () => {
-        const r = await enviarImagemMidia(arquivo({ size: 5 * 1024 * 1024 }), 'Ana');
+    it('recusa imagem que continua grande demais depois de reduzida', async () => {
+        const grande = new File(['x'.repeat(320000)], 'g.gif', { type: 'image/gif' });
+        const r = await enviarImagemMidia(grande, 'Ana');
         expect(r.ok).toBe(false);
-        expect(r.erro.motivo).toMatch(/5 MB/);
-        expect(uploadBytes).not.toHaveBeenCalled();
-    });
-    it('a extensão vem do tipo do arquivo (png, jpg, img desconhecido)', async () => {
-        // createImageBitmap não existe no jsdom: reduzirImagem devolve o arquivo original.
-        await enviarImagemMidia(arquivo({ name: 'a.png', type: 'image/png' }), 'Ana');
-        await enviarImagemMidia(arquivo({ name: 'a.jpeg', type: 'image/jpeg' }), 'Ana');
-        await enviarImagemMidia(arquivo({ name: 'a.bmp', type: 'image/bmp' }), 'Ana');
-        const caminhos = uploadBytes.mock.calls.map(c => c[0].path);
-        expect(caminhos[0]).toMatch(/\.png$/);
-        expect(caminhos[1]).toMatch(/\.jpg$/);
-        expect(caminhos[2]).toMatch(/\.img$/);
+        expect(r.erro.motivo).toMatch(/imagem/i);
+        expect(set).not.toHaveBeenCalled();
     });
     it('trunca autor (50) e nome (60)', async () => {
         await enviarImagemMidia(arquivo({ name: 'n'.repeat(100) + '.gif' }), 'a'.repeat(80));
@@ -92,23 +78,11 @@ describe('enviarImagemMidia', () => {
         expect(dados.autor).toHaveLength(50);
         expect(dados.nome).toHaveLength(60);
     });
-    it('falha do Storage devolve { ok:false, erro } e não grava no banco', async () => {
-        const err = { code: 'storage/unauthorized' };
-        uploadBytes.mockRejectedValueOnce(err);
-        const r = await enviarImagemMidia(arquivo(), 'Ana');
-        expect(r).toEqual({ ok: false, erro: err });
-        expect(set).not.toHaveBeenCalled();
-    });
     it('falha ao gravar no banco devolve erro', async () => {
         set.mockRejectedValueOnce({ code: 'PERMISSION_DENIED' });
         const r = await enviarImagemMidia(arquivo(), 'Ana');
         expect(r.ok).toBe(false);
         expect(r.erro.code).toBe('PERMISSION_DENIED');
-    });
-    it('falha ao obter a URL devolve erro', async () => {
-        getDownloadURL.mockRejectedValueOnce(new Error('x'));
-        expect((await enviarImagemMidia(arquivo(), 'Ana')).ok).toBe(false);
-        expect(set).not.toHaveBeenCalled();
     });
 });
 
@@ -247,6 +221,113 @@ describe('criarPersonagemNaMesa', () => {
     it('erro de gravação => false', async () => {
         set.mockRejectedValueOnce(new Error('x'));
         await expect(criarPersonagemNaMesa('X', {})).resolves.toBe(false);
+    });
+});
+
+const DATA_URL = 'data:image/png;base64,iVBORw0KGgo=';
+
+describe('data URL e arquivos antigos do Storage', () => {
+    it('apagarImagemMidia com data URL remove o registro e nunca chama deleteObject', async () => {
+        await expect(apagarImagemMidia({ id: 'd1', url: DATA_URL })).resolves.toBe(true);
+        expect(remove).toHaveBeenCalledWith('mesas/mesa1/midia/d1');
+        expect(deleteObject).not.toHaveBeenCalled();
+    });
+    it('limparMidia com data URL misturado a URL antiga do Storage: deleteObject só na URL do Storage', async () => {
+        get.mockResolvedValue({
+            exists: () => true,
+            val: () => ({
+                a: { url: DATA_URL }, b: { url: URL_OK('velha.png') }, c: { url: DATA_URL, usadaEmFicha: true },
+                d: { url: 'data:text/html;base64,AAAA' },
+            }),
+        });
+        const r = await limparMidia();
+        expect(r).toEqual({ ok: true, apagadas: 3, mantidas: 1 });
+        expect(deleteObject).toHaveBeenCalledTimes(1);
+        expect(deleteObject.mock.calls[0][0].path).toBe(URL_OK('velha.png'));
+        expect(remove).toHaveBeenCalledWith('mesas/mesa1/midia');
+    });
+    it('limparMidia só com data URLs não chama deleteObject', async () => {
+        get.mockResolvedValue({ exists: () => true, val: () => ({ a: { url: DATA_URL }, b: { url: DATA_URL } }) });
+        expect(await limparMidia()).toEqual({ ok: true, apagadas: 2, mantidas: 0 });
+        expect(deleteObject).not.toHaveBeenCalled();
+    });
+    it('falha em um deleteObject do Storage não derruba limparMidia', async () => {
+        get.mockResolvedValue({ exists: () => true, val: () => ({ a: { url: URL_OK('a.png') }, b: { url: URL_OK('b.png') } }) });
+        deleteObject.mockRejectedValueOnce(new Error('404'));
+        const r = await limparMidia();
+        expect(r.ok).toBe(true);
+        expect(deleteObject).toHaveBeenCalledTimes(2);
+    });
+    it('listener aceita data URL válido e descarta data URL inválido', () => {
+        onValue.mockReturnValue(vi.fn());
+        const cb = vi.fn();
+        iniciarListenerMidia(cb);
+        onValue.mock.calls[0][1]({ val: () => ({
+            a: { url: DATA_URL, ts: 1 }, b: { url: 'data:image/svg+xml;base64,AAAA', ts: 2 }, c: { url: 'javascript:alert(1)', ts: 3 },
+        }) });
+        expect(cb).toHaveBeenCalledWith([{ id: 'a', url: DATA_URL, ts: 1 }]);
+    });
+});
+
+describe('enviarImagemMidia: reduzirImagem e retry', () => {
+    let bitmapMock, qualidades, tamanhosBlob;
+    const png = (n) => new File(['x'.repeat(n)], 'foto.png', { type: 'image/png' });
+    beforeEach(() => {
+        qualidades = [];
+        tamanhosBlob = [];
+        bitmapMock = vi.fn(async () => ({ width: 2000, height: 1000, close: vi.fn() }));
+        vi.stubGlobal('createImageBitmap', bitmapMock);
+        vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: vi.fn() });
+        vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (cb, tipo, q) {
+            qualidades.push(q);
+            cb(new Blob(['y'.repeat(tamanhosBlob.shift() ?? 10)], { type: tipo }));
+        });
+    });
+    afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+    it('primeira redução já cabe: não faz retry e grava webp', async () => {
+        tamanhosBlob = [100];
+        const r = await enviarImagemMidia(png(5000), 'Ana');
+        expect(r.ok).toBe(true);
+        expect(bitmapMock).toHaveBeenCalledTimes(1);
+        expect(qualidades).toEqual([0.72]);
+        expect(set.mock.calls[0][1].url).toMatch(/^data:image\/webp;base64,/);
+    });
+    it('primeira redução ainda grande: refaz com qualidade 0.55 e grava', async () => {
+        tamanhosBlob = [250000, 100];
+        const r = await enviarImagemMidia(png(260000), 'Ana');
+        expect(r.ok).toBe(true);
+        expect(bitmapMock).toHaveBeenCalledTimes(2);
+        expect(qualidades).toEqual([0.72, 0.55]);
+        expect(set).toHaveBeenCalledTimes(1);
+        expect(set.mock.calls[0][1].url).toMatch(/^data:image\/webp;base64,/);
+    });
+    it('retry também grande demais: erro e nada gravado', async () => {
+        tamanhosBlob = [250000, 240000];
+        const r = await enviarImagemMidia(png(260000), 'Ana');
+        expect(r.ok).toBe(false);
+        expect(r.erro.motivo).toMatch(/imagem/i);
+        expect(bitmapMock).toHaveBeenCalledTimes(2);
+        expect(set).not.toHaveBeenCalled();
+    });
+    it('createImageBitmap falha: usa o original (sem quebrar) e recusa se grande', async () => {
+        bitmapMock.mockRejectedValue(new Error('decode'));
+        expect((await enviarImagemMidia(png(1000), 'Ana')).ok).toBe(true);
+        expect(set.mock.calls[0][1].url).toMatch(/^data:image\/png;base64,/);
+        set.mockClear();
+        expect((await enviarImagemMidia(png(260000), 'Ana')).ok).toBe(false);
+        expect(set).not.toHaveBeenCalled();
+    });
+    it('toBlob devolve null: usa o original', async () => {
+        HTMLCanvasElement.prototype.toBlob.mockImplementation((cb) => cb(null));
+        const r = await enviarImagemMidia(png(1000), 'Ana');
+        expect(r.ok).toBe(true);
+        expect(set.mock.calls[0][1].url).toMatch(/^data:image\/png;base64,/);
+    });
+    it('GIF grande não faz retry', async () => {
+        const gif = new File(['x'.repeat(260000)], 'g.gif', { type: 'image/gif' });
+        expect((await enviarImagemMidia(gif, 'Ana')).ok).toBe(false);
+        expect(bitmapMock).not.toHaveBeenCalled();
     });
 });
 

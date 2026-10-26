@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     ehImagemValida, tamanhoReduzido, listarMidia, podeApagarMidia, nomeDeNpcValido,
-    montarFichaNpcDeImagem, descreverErroMidia, urlDeMidiaSegura, LIMITE_STORAGE, MENSAGEM_IMAGEM_INVALIDA, LIMITE_MIDIA, TAMANHO_MAX_ORIGINAL, LIMITE_NOME_NPC,
+    montarFichaNpcDeImagem, descreverErroMidia, urlDeMidiaSegura, LIMITE_DATA_URL, ehDataUrlDeImagem, MENSAGEM_IMAGEM_INVALIDA, LIMITE_MIDIA, TAMANHO_MAX_ORIGINAL, LIMITE_NOME_NPC,
 } from './midia';
 
 describe('ehImagemValida', () => {
@@ -31,10 +31,10 @@ describe('ehImagemValida', () => {
 describe('tamanhoReduzido', () => {
     it('não amplia imagens pequenas', () => {
         expect(tamanhoReduzido(800, 600)).toEqual({ largura: 800, altura: 600 });
-        expect(tamanhoReduzido(1280, 1280)).toEqual({ largura: 1280, altura: 1280 });
+        expect(tamanhoReduzido(960, 960)).toEqual({ largura: 960, altura: 960 });
     });
     it('reduz mantendo a proporção (lado maior vira o limite)', () => {
-        expect(tamanhoReduzido(2560, 1280)).toEqual({ largura: 1280, altura: 640 });
+        expect(tamanhoReduzido(1920, 960)).toEqual({ largura: 960, altura: 480 });
         expect(tamanhoReduzido(1000, 4000, 1000)).toEqual({ largura: 250, altura: 1000 });
     });
     it('nunca devolve lado menor que 1', () => {
@@ -174,21 +174,62 @@ describe('listarMidia com mesaId e constantes novas', () => {
     it('sem mesaId não filtra por URL', () => {
         expect(listarMidia({ b: { url: 'https://qualquer/x.png', ts: 2 } }).map(x => x.id)).toEqual(['b']);
     });
-    it('LIMITE_STORAGE é 5 MB e a mensagem cita 5 MB', () => {
-        expect(LIMITE_STORAGE).toBe(5 * 1024 * 1024);
-        expect(MENSAGEM_IMAGEM_INVALIDA).toMatch(/5 MB/);
+    it('data URL de imagem pequena é aceito; grande, SVG ou lixo não', () => {
+        const ok = 'data:image/webp;base64,AAAA';
+        expect(ehDataUrlDeImagem(ok)).toBe(true);
+        expect(urlDeMidiaSegura(ok, 'm1')).toBe(true);
+        expect(ehDataUrlDeImagem('data:image/svg+xml;base64,AAAA')).toBe(false);
+        expect(ehDataUrlDeImagem('data:text/html;base64,AAAA')).toBe(false);
+        expect(ehDataUrlDeImagem('data:image/png;base64,' + 'A'.repeat(LIMITE_DATA_URL))).toBe(false);
+        expect(ehDataUrlDeImagem(null)).toBe(false);
+    });
+});
+
+describe('ehDataUrlDeImagem / urlDeMidiaSegura: lacunas', () => {
+    it('aceita png, jpg, jpeg, webp e gif; recusa avif/bmp/svg e esquema em maiúsculas', () => {
+        for (const t of ['png', 'jpg', 'jpeg', 'webp', 'gif']) expect(ehDataUrlDeImagem(`data:image/${t};base64,AAAA`)).toBe(true);
+        for (const t of ['avif', 'bmp', 'svg+xml']) expect(ehDataUrlDeImagem(`data:image/${t};base64,AAAA`)).toBe(false);
+        expect(ehDataUrlDeImagem('DATA:image/png;base64,AAAA')).toBe(false);
+    });
+    it('recusa base64 vazio, com espaço/quebra de linha, sem base64 e não-string', () => {
+        expect(ehDataUrlDeImagem('data:image/png;base64,')).toBe(false);
+        expect(ehDataUrlDeImagem('data:image/png;base64,AA AA')).toBe(false);
+        expect(ehDataUrlDeImagem('data:image/png;base64,AAAA\n')).toBe(false);
+        expect(ehDataUrlDeImagem('data:image/png,AAAA')).toBe(false);
+        expect(ehDataUrlDeImagem(123)).toBe(false);
+        expect(ehDataUrlDeImagem(undefined)).toBe(false);
+    });
+    it('limite exato: LIMITE_DATA_URL caracteres passa, +1 não', () => {
+        const base = 'data:image/png;base64,';
+        expect(ehDataUrlDeImagem(base + 'A'.repeat(LIMITE_DATA_URL - base.length))).toBe(true);
+        expect(ehDataUrlDeImagem(base + 'A'.repeat(LIMITE_DATA_URL - base.length + 1))).toBe(false);
+    });
+    it('urlDeMidiaSegura aceita data URL mesmo sem mesaId; recusa data URL inválido e javascript:', () => {
+        expect(urlDeMidiaSegura('data:image/png;base64,AAAA', '')).toBe(true);
+        expect(urlDeMidiaSegura('data:image/svg+xml;base64,AAAA', 'm1')).toBe(false);
+        expect(urlDeMidiaSegura('javascript:alert(1)', 'm1')).toBe(false);
+    });
+});
+
+describe('descreverErroMidia: lacunas', () => {
+    it('permission tem prioridade sobre motivo; detalhe longo é truncado em 120', () => {
+        expect(descreverErroMidia({ code: 'PERMISSION_DENIED', motivo: 'x' })).toMatch(/permission_denied/);
+        const msg = descreverErroMidia({ message: 'm'.repeat(300) });
+        expect(msg).toContain('m'.repeat(120));
+        expect(msg).not.toContain('m'.repeat(121));
+        expect(descreverErroMidia(undefined)).not.toMatch(/\(\)/);
     });
 });
 
 describe('descreverErroMidia', () => {
     it('permission_denied', () => expect(descreverErroMidia({ code: 'PERMISSION_DENIED' })).toMatch(/permission_denied/));
     it('storage/unauthorized', () => {
-        expect(descreverErroMidia({ code: 'storage/unauthorized' })).toMatch(/armazenamento/);
+        expect(descreverErroMidia({ code: 'storage/unauthorized' })).toMatch(/armazenamento.*storage\/unauthorized/);
         expect(descreverErroMidia({ codigo: 'storage/quota-exceeded' })).toMatch(/armazenamento/);
     });
     it('usa o motivo', () => expect(descreverErroMidia({ motivo: 'Sem conexão com a mesa.' })).toBe('Sem conexão com a mesa.'));
     it('genérico para o resto', () => {
         expect(descreverErroMidia(null)).toMatch(/Não foi possível enviar/);
-        expect(descreverErroMidia(new Error('x'))).toMatch(/Não foi possível enviar/);
+        expect(descreverErroMidia(new Error('x'))).toMatch(/Não foi possível enviar.*\(x\)/);
     });
 });

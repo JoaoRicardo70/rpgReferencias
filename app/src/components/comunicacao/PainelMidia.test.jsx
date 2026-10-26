@@ -98,7 +98,7 @@ describe('PainelMidia - limpar', () => {
         fireEvent.click(screen.getByText('🧹 Limpar'));
         expect(window.confirm).toHaveBeenCalledTimes(1);
         await waitFor(() => expect(limparMidia).toHaveBeenCalledTimes(1));
-        await waitFor(() => expect(adicionarAviso).toHaveBeenCalledWith('Chat de mídia limpo (2 arquivos apagados).', 'info'));
+        await waitFor(() => expect(adicionarAviso).toHaveBeenCalledWith('Chat de mídia limpo (2 imagens apagadas).', 'info'));
     });
     it('singular quando 1 arquivo e informa os mantidos por serem avatar de NPC', async () => {
         vi.spyOn(window, 'confirm').mockReturnValue(true);
@@ -106,7 +106,7 @@ describe('PainelMidia - limpar', () => {
         montar({ isMestre: true });
         fireEvent.click(screen.getByText('🧹 Limpar'));
         await waitFor(() => expect(adicionarAviso).toHaveBeenCalledWith(
-            'Chat de mídia limpo (1 arquivo apagado; 2 mantido(s) por já serem avatar de NPC).', 'info'
+            'Chat de mídia limpo (1 imagem apagada; 2 mantido(s) por já serem avatar de NPC).', 'info'
         ));
     });
     it('cancelar a confirmação não limpa', () => {
