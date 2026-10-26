@@ -1483,7 +1483,7 @@ export function MapaHologramaAcao() {
     if (acaoExibir) {
         switch (acaoExibir.tipo) {
             case 'dano': corImpacto = '#ff003c'; tituloImpacto = 'DANO'; valorImpacto = acaoExibir.dano; break;
-            case 'acerto': corImpacto = '#f90'; tituloImpacto = 'ACERTO'; valorImpacto = acaoExibir.acertoTotal; break;
+            case 'acerto': corImpacto = '#f90'; tituloImpacto = 'ACERTO'; valorImpacto = acaoExibir.valorOculto && acaoExibir.acertoTotal === undefined ? '?' : acaoExibir.acertoTotal; break;
             case 'evasiva': corImpacto = '#0088ff'; tituloImpacto = 'ESQUIVA'; valorImpacto = acaoExibir.total; break;
             case 'resistencia': corImpacto = '#ccc'; tituloImpacto = 'BLOQUEIO'; valorImpacto = acaoExibir.total; break;
             case 'escudo': corImpacto = '#f0f'; tituloImpacto = 'ESCUDO'; valorImpacto = acaoExibir.escudoReduzido; break;
@@ -1580,7 +1580,7 @@ export function MapaHologramaAcao() {
                                 <h2 style={{ margin: '15px 0', color: '#ffcc00', textShadow: '0 0 10px #ffcc00' }}>{acaoExibir.texto}</h2>
                             ) : (
                                 <>
-                                    <h1 style={{ margin: 0, fontSize: '4em', color: corImpacto, textShadow: `0 0 20px ${corImpacto}` }}>{fmt(valorImpacto)}</h1>
+                                    <h1 style={{ margin: 0, fontSize: '4em', color: corImpacto, textShadow: `0 0 20px ${corImpacto}` }}>{typeof valorImpacto === 'string' ? valorImpacto : fmt(valorImpacto)}</h1>
                                     {acaoExibir.tipo === 'dano' && acaoExibir.letalidade !== undefined && <div style={{ color: '#ffcc00', fontSize: '1.2em', fontWeight: 'bold', marginTop: '10px', textShadow: '0 0 5px #ffcc00' }}>LETALIDADE: +{acaoExibir.letalidade}</div>}
                                 </>
                             )}

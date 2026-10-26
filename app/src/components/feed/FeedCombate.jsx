@@ -3,20 +3,26 @@ import useStore from '../../stores/useStore';
 import { getPercepcaoPoder, enxergaEfetividade, descreverEfetividade } from '../../core/percepcaoPoder';
 import { entradaVisivel } from '../../core/dadosMestre';
 import { revelarEntradaFeed } from '../../services/firebase-sync';
-import useDadosMestrePrivados from '../../hooks/useDadosMestre';
+import useDadosMestrePrivados, { useAcertoOculto } from '../../hooks/useDadosMestre';
 
 export default function FeedCombate({ className }) {
     const feedCombate = useStore(s => s.feedCombate);
     const isMestre = useStore(s => s.isMestre);
     const minhaFicha = useStore(s => s.minhaFicha);
     const [dadosPrivados, definirDadosPrivados] = useDadosMestrePrivados();
+    const [acertoOculto, definirAcertoOculto] = useAcertoOculto();
 
     // Rolagens privadas do Mestre (core/dadosMestre.js): só ele as vê, com a opção de revelar aos jogadores.
     const visiveis = feedCombate.filter(e => entradaVisivel(e, isMestre));
     const cabecalho = isMestre ? (
+        <>
+        <label className="feed-privado-toggle" title="Quando ligado, o número do seu Dado de Acerto como Mestre fica escondido dos jogadores; eles continuam vendo se foram atingidos, então Reações e Defesas funcionam normalmente. O Dano continua público.">
+            <input type="checkbox" checked={acertoOculto} onChange={e => definirAcertoOculto(e.target.checked)} /> 🎯 Esconder o valor do meu Acerto
+        </label>
         <label className="feed-privado-toggle" title="Quando ligado, seus testes, saving throws e defesas como Mestre só aparecem para Mestre/Co-Mestre e você revela aos jogadores quando quiser. Ataques contra jogadores continuam visíveis, pra eles poderem reagir.">
             <input type="checkbox" checked={dadosPrivados} onChange={e => definirDadosPrivados(e.target.checked)} /> 🎲 Dados do Mestre privados
         </label>
+        </>
     ) : null;
     const comBarraPrivada = (d, idx, el) => (d.privado && isMestre ? (
         <div key={`priv-${d._chave || idx}`} className="feed-privado">
@@ -89,10 +95,11 @@ export default function FeedCombate({ className }) {
                                 <span dangerouslySetInnerHTML={{ __html: `&#x1F3AF; <strong>${d.nome}</strong> rolou Acerto usando <strong>${d.atributosUsados}</strong>${d.armaStr || ''}:` }} />
                             </p>
                             <h1 className="damage-number" style={{ color: '#f90', textShadow: '0 0 20px rgba(255,153,0,0.8)' }}>
-                                {d.acertoTotal}
+                                {d.valorOculto && !isMestre ? '🎲 ?' : d.acertoTotal}
                             </h1>
-                            <p className="lethality" style={{ color: '#fff' }}>{d.profBonusTexto}</p>
-                            <div className="log-details" dangerouslySetInnerHTML={{ __html: `&#x1F3B2; Rolagem Base: ${d.rolagem}` }} />
+                            {d.valorOculto && <p className="feed-acerto-oculto">{isMestre ? '🙈 Valor escondido dos jogadores' : 'Valor do acerto escondido pelo Mestre'}</p>}
+                            {!(d.valorOculto && !isMestre) && <p className="lethality" style={{ color: '#fff' }}>{d.profBonusTexto}</p>}
+                            {!(d.valorOculto && !isMestre) && <div className="log-details" dangerouslySetInnerHTML={{ __html: `&#x1F3B2; Rolagem Base: ${d.rolagem}` }} />}
                             
                             {/* 🔥 FEEDBACK VISUAL PARA MÚLTIPLOS ALVOS E ÁREA 🔥 */}
                             {alvosArray.length > 0 && (

@@ -4,7 +4,7 @@ import { auth, db, storage } from './firebase-config';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import useStore, { sanitizarNome } from '../stores/useStore';
 import { calcularDiffFirebase, mesclarComRemoto } from '../core/utils.js';
-import { deveSerPrivada, lerDadosMestrePrivados } from '../core/dadosMestre.js';
+import { deveSerPrivada, lerDadosMestrePrivados, acertoDeveFicarOculto, lerAcertoOculto } from '../core/dadosMestre.js';
 
 let _modoPlasmic = false;
 export function setModoPlasmic(ativo) { _modoPlasmic = ativo; }
@@ -385,7 +385,10 @@ export function enviarParaFeed(d) {
     const { mesaId, isMestre } = useStore.getState();
     if (!db || !mesaId) return;
     const privado = deveSerPrivada(d, { ehMestre: isMestre, privadosPorPadrao: lerDadosMestrePrivados() });
-    push(ref(db, `mesas/${mesaId}/feed_combate`), privado ? { ...d, privado: true } : d).catch(() => {});
+    // O Acerto do Mestre continua público (o jogador alvo precisa saber se foi atingido), mas pode sair sem o valor do dado.
+    const valorOculto = acertoDeveFicarOculto(d, { ehMestre: isMestre, ocultarPorPadrao: lerAcertoOculto() });
+    const entrada = { ...d, ...(privado ? { privado: true } : {}), ...(valorOculto ? { valorOculto: true } : {}) };
+    push(ref(db, `mesas/${mesaId}/feed_combate`), privado || valorOculto ? entrada : d).catch(() => {});
 }
 // Torna pública uma rolagem privada do Mestre (ela aparece, com a animação, no feed dos jogadores).
 export function revelarEntradaFeed(chave) {

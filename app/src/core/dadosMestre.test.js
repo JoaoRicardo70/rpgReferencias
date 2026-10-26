@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import {
     ehRolagem, deveSerPrivada, entradaVisivel,
     lerDadosMestrePrivados, gravarDadosMestrePrivados, assinarDadosMestre,
+    acertoDeveFicarOculto, ocultarValorDoAcerto, lerAcertoOculto, gravarAcertoOculto, CAMPOS_VALOR_DO_ACERTO,
 } from './dadosMestre';
 
 beforeEach(() => localStorage.clear());
@@ -100,6 +101,88 @@ describe('ler/gravar/assinar', () => {
         const cb = vi.fn();
         const cancelar = assinarDadosMestre(cb);
         expect(() => gravarDadosMestrePrivados(false)).not.toThrow();
+        expect(cb).toHaveBeenCalledTimes(1);
+        cancelar();
+    });
+});
+
+describe('acertoDeveFicarOculto', () => {
+    it('Mestre com opção ligada oculta o acerto', () => {
+        expect(acertoDeveFicarOculto({ tipo: 'acerto' }, { ehMestre: true, ocultarPorPadrao: true })).toBe(true);
+    });
+    it('padrões: ehMestre=false e ocultarPorPadrao=true', () => {
+        expect(acertoDeveFicarOculto({ tipo: 'acerto' })).toBe(false);
+        expect(acertoDeveFicarOculto({ tipo: 'acerto' }, { ehMestre: true })).toBe(true);
+    });
+    it('opção desligada ou jogador não oculta', () => {
+        expect(acertoDeveFicarOculto({ tipo: 'acerto' }, { ehMestre: true, ocultarPorPadrao: false })).toBe(false);
+        expect(acertoDeveFicarOculto({ tipo: 'acerto' }, { ehMestre: false, ocultarPorPadrao: true })).toBe(false);
+    });
+    it('valorOculto explícito vence', () => {
+        expect(acertoDeveFicarOculto({ tipo: 'acerto', valorOculto: true }, { ehMestre: false })).toBe(true);
+        expect(acertoDeveFicarOculto({ tipo: 'acerto', valorOculto: false }, { ehMestre: true, ocultarPorPadrao: true })).toBe(false);
+    });
+    it('outros tipos e entradas inválidas nunca', () => {
+        expect(acertoDeveFicarOculto({ tipo: 'dano' }, { ehMestre: true })).toBe(false);
+        expect(acertoDeveFicarOculto({ tipo: 'dano', valorOculto: true }, { ehMestre: true })).toBe(false);
+        expect(acertoDeveFicarOculto(null)).toBe(false);
+        expect(acertoDeveFicarOculto('acerto')).toBe(false);
+    });
+});
+
+describe('ocultarValorDoAcerto', () => {
+    const base = { tipo: 'acerto', nome: 'X', acertoTotal: 18, rolagem: 15, profBonusTexto: '+3', valorOculto: true, alvos: ['A'] };
+    it('remove os campos do valor e mantém o resto', () => {
+        const r = ocultarValorDoAcerto(base);
+        CAMPOS_VALOR_DO_ACERTO.forEach(k => expect(r).not.toHaveProperty(k));
+        expect(r).toEqual({ tipo: 'acerto', nome: 'X', valorOculto: true, alvos: ['A'] });
+    });
+    it('não muta a entrada original', () => {
+        const copia = JSON.parse(JSON.stringify(base));
+        const r = ocultarValorDoAcerto(base);
+        expect(base).toEqual(copia);
+        expect(r).not.toBe(base);
+    });
+    it('devolve a mesma entrada quando não há o que esconder', () => {
+        const a = { tipo: 'acerto', acertoTotal: 5 };
+        expect(ocultarValorDoAcerto(a)).toBe(a);
+        const b = { tipo: 'acerto', acertoTotal: 5, valorOculto: false };
+        expect(ocultarValorDoAcerto(b)).toBe(b);
+        const c = { tipo: 'dano', dano: 5, valorOculto: true };
+        expect(ocultarValorDoAcerto(c)).toBe(c);
+        expect(ocultarValorDoAcerto(null)).toBe(null);
+        expect(ocultarValorDoAcerto(undefined)).toBe(undefined);
+    });
+});
+
+describe('lerAcertoOculto / gravarAcertoOculto', () => {
+    it('padrão é ligado', () => expect(lerAcertoOculto()).toBe(true));
+    it('grava e lê', () => {
+        gravarAcertoOculto(false);
+        expect(localStorage.getItem('rpg_acerto_mestre_oculto')).toBe('0');
+        expect(lerAcertoOculto()).toBe(false);
+        gravarAcertoOculto(true);
+        expect(localStorage.getItem('rpg_acerto_mestre_oculto')).toBe('1');
+        expect(lerAcertoOculto()).toBe(true);
+    });
+    it('"0" manual desliga', () => {
+        localStorage.setItem('rpg_acerto_mestre_oculto', '0');
+        expect(lerAcertoOculto()).toBe(false);
+    });
+    it('dispara o evento ao gravar', () => {
+        const cb = vi.fn();
+        const cancelar = assinarDadosMestre(cb);
+        gravarAcertoOculto(false);
+        expect(cb).toHaveBeenCalledTimes(1);
+        cancelar();
+    });
+    it('localStorage lançando: ler devolve true, gravar não lança e dispara evento', () => {
+        vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('x'); });
+        vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('x'); });
+        expect(lerAcertoOculto()).toBe(true);
+        const cb = vi.fn();
+        const cancelar = assinarDadosMestre(cb);
+        expect(() => gravarAcertoOculto(false)).not.toThrow();
         expect(cb).toHaveBeenCalledTimes(1);
         cancelar();
     });

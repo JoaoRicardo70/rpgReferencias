@@ -15,6 +15,7 @@ import { idDeVoz } from '../../core/volumesVoz';
 import { ehNpc } from '../../core/tipoPersonagem';
 import { useBufferLigado } from '../../core/estadoBuffer';
 import FeedCombate from '../feed/FeedCombate';
+import PainelMidia from './PainelMidia';
 
 function JanelaDoChat({ chat, meuNome, mensagens, onEnviar, onVoltar, onSair }) {
     const [texto, setTexto] = useState('');
@@ -179,8 +180,17 @@ export function AbaChats({ chat, candidatos, naTaverna }) {
 const fmtNumero = (n) => Number(n || 0).toLocaleString('pt-BR');
 
 const CHAVE_FEED_SALA = 'rpg_sala_party_feed';
+const CHAVE_MIDIA_SALA = 'rpg_sala_party_midia';
+const CHAVE_LADOS_SALA = 'rpg_sala_party_lados';
 function lerFeedVisivel() {
     try { return localStorage.getItem(CHAVE_FEED_SALA) !== '0'; } catch (e) { return true; }
+}
+function lerMidiaVisivel() {
+    try { return localStorage.getItem(CHAVE_MIDIA_SALA) !== '0'; } catch (e) { return true; }
+}
+// 'midia-esq' (padrão): chat de mídia à esquerda do palco e feed de dados à direita; 'feed-esq' troca os lados.
+function lerLados() {
+    try { return localStorage.getItem(CHAVE_LADOS_SALA) === 'feed-esq' ? 'feed-esq' : 'midia-esq'; } catch (e) { return 'midia-esq'; }
 }
 
 // Sala da Party: cartões grandes com a imagem do personagem (como no Mapa), quem fala acende, barra de controles
@@ -191,11 +201,14 @@ export function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome,
     const personagens = useStore(s => s.personagens);
     const [ajustesAbertos, setAjustesAbertos] = useState(true);
     const [feedVisivel, setFeedVisivel] = useState(lerFeedVisivel);
+    const [midiaVisivel, setMidiaVisivel] = useState(lerMidiaVisivel);
+    const [lados, setLados] = useState(lerLados);
     const tamanhoCartao = compacto ? '100%' : (naTaverna.length === 1 ? '400px' : naTaverna.length === 2 ? '350px' : '280px');
     const mics = voz.mics || [];
     const speakers = voz.speakers || [];
     const comAviso = voz.voiceStatus.startsWith('⚠️');
     const mostrarFeed = !compacto && feedVisivel;
+    const mostrarMidia = !compacto && midiaVisivel;
 
     const alternarFeed = useCallback(() => {
         setFeedVisivel(v => {
@@ -205,6 +218,34 @@ export function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome,
         });
     }, []);
 
+    const alternarMidia = useCallback(() => {
+        setMidiaVisivel(v => {
+            const novo = !v;
+            try { localStorage.setItem(CHAVE_MIDIA_SALA, novo ? '1' : '0'); } catch (e) { /* sem localStorage: vale só nesta sessão */ }
+            return novo;
+        });
+    }, []);
+    const trocarLados = useCallback(() => {
+        setLados(l => {
+            const novo = l === 'midia-esq' ? 'feed-esq' : 'midia-esq';
+            try { localStorage.setItem(CHAVE_LADOS_SALA, novo); } catch (e) { /* sem localStorage: vale só nesta sessão */ }
+            return novo;
+        });
+    }, []);
+
+    const painelFeed = mostrarFeed ? (
+        <aside className="sala-party-feed" aria-label="Feed de dados">
+            <div className="sala-party-feed-topo">
+                <span>🎲 Feed de Dados</span>
+                <button type="button" className="sala-party-feed-fechar" onClick={alternarFeed} title="Ocultar o feed de dados" aria-label="Ocultar o feed de dados">✕</button>
+            </div>
+            <FeedCombate className="sala-party-feed-lista" />
+        </aside>
+    ) : null;
+    const painelMidia = mostrarMidia ? <PainelMidia onFechar={alternarMidia} /> : null;
+    const painelEsquerdo = lados === 'midia-esq' ? painelMidia : painelFeed;
+    const painelDireito = lados === 'midia-esq' ? painelFeed : painelMidia;
+
     return (
         <div className={`dock-com-voz sala-party${compacto ? ' sala-party-compacta' : ''}`}>
             <div className="sala-party-cabecalho">
@@ -212,13 +253,22 @@ export function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome,
                     <span className="sala-party-ponto" aria-hidden="true" />📡 {voz.voiceStatus}
                 </div>
                 {!compacto && (
-                    <button type="button" className={`sala-party-feed-toggle${feedVisivel ? ' ativo' : ''}`} onClick={alternarFeed} aria-pressed={feedVisivel} title={feedVisivel ? 'Ocultar o feed de dados' : 'Mostrar o feed de dados'}>
-                        🎲 {feedVisivel ? 'Ocultar feed de dados' : 'Mostrar feed de dados'}
-                    </button>
+                    <div className="sala-party-cabecalho-botoes">
+                        <button type="button" className={`sala-party-painel-toggle sala-party-midia-toggle${midiaVisivel ? ' ativo' : ''}`} onClick={alternarMidia} aria-pressed={midiaVisivel} title={midiaVisivel ? 'Ocultar o chat de mídia' : 'Mostrar o chat de mídia'}>
+                            🖼️ {midiaVisivel ? 'Ocultar mídia' : 'Mostrar mídia'}
+                        </button>
+                        {(mostrarFeed || mostrarMidia) && (
+                            <button type="button" className="sala-party-painel-toggle sala-party-lados-toggle" onClick={trocarLados} title="Trocar de lado o chat de mídia e o feed de dados">⇄ Trocar lados</button>
+                        )}
+                        <button type="button" className={`sala-party-feed-toggle${feedVisivel ? ' ativo' : ''}`} onClick={alternarFeed} aria-pressed={feedVisivel} title={feedVisivel ? 'Ocultar o feed de dados' : 'Mostrar o feed de dados'}>
+                            🎲 {feedVisivel ? 'Ocultar feed de dados' : 'Mostrar feed de dados'}
+                        </button>
+                    </div>
                 )}
             </div>
 
-            <div className={`sala-party-corpo${mostrarFeed ? ' com-feed' : ''}`}>
+            <div className={`sala-party-corpo${mostrarFeed ? ' com-feed' : ''}${painelEsquerdo ? ' tem-esq' : ''}${painelDireito ? ' tem-dir' : ''}`}>
+                {painelEsquerdo}
                 <section className="sala-party-palco" aria-label="Participantes da call">
                     <div className="sala-party-titulo">Na Sala da Party ({naTaverna.length})</div>
                     {naTaverna.length === 0 && (
@@ -278,15 +328,7 @@ export function AbaVoz({ voz, estouNaCall, naTaverna, alternarPresenca, meuNome,
                     </div>
                 </section>
 
-                {mostrarFeed && (
-                    <aside className="sala-party-feed" aria-label="Feed de dados">
-                        <div className="sala-party-feed-topo">
-                            <span>🎲 Feed de Dados</span>
-                            <button type="button" className="sala-party-feed-fechar" onClick={alternarFeed} title="Ocultar o feed de dados" aria-label="Ocultar o feed de dados">✕</button>
-                        </div>
-                        <FeedCombate className="sala-party-feed-lista" />
-                    </aside>
-                )}
+                {painelDireito}
             </div>
         </div>
     );

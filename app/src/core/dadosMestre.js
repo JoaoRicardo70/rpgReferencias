@@ -42,3 +42,34 @@ export function entradaVisivel(entrada, ehMestre) {
     if (!entrada || typeof entrada !== 'object') return false;
     return !entrada.privado || !!ehMestre;
 }
+
+// ==========================================
+// 🎯 VALOR DO ACERTO — o Mestre pode esconder só o NÚMERO do Dado de Acerto dele. A entrada continua pública (o jogador alvo
+// precisa saber se foi atingido pra Reações e Defesa), mas o valor sai do que chega no feed de quem não é Mestre.
+// ==========================================
+const CHAVE_ACERTO = 'rpg_acerto_mestre_oculto';
+export const CAMPOS_VALOR_DO_ACERTO = ['acertoTotal', 'rolagem', 'profBonusTexto'];
+
+export function lerAcertoOculto() {
+    try { return localStorage.getItem(CHAVE_ACERTO) !== '0'; } catch (e) { return true; }
+}
+
+export function gravarAcertoOculto(oculto) {
+    try { localStorage.setItem(CHAVE_ACERTO, oculto ? '1' : '0'); } catch (e) { /* sem localStorage: vale só nesta sessão */ }
+    try { window.dispatchEvent(new Event(EVENTO)); } catch (e) { /* fora do navegador */ }
+}
+
+// Esta entrada de Acerto deve sair com o valor oculto? (`valorOculto` explícito vence; senão vale a opção do Mestre.)
+export function acertoDeveFicarOculto(entrada, { ehMestre = false, ocultarPorPadrao = true } = {}) {
+    if (!entrada || typeof entrada !== 'object' || entrada.tipo !== 'acerto') return false;
+    if (typeof entrada.valorOculto === 'boolean') return entrada.valorOculto;
+    return !!ehMestre && !!ocultarPorPadrao;
+}
+
+// Cópia da entrada sem o valor do Acerto (o que um jogador recebe). Devolve a mesma entrada se não há o que esconder.
+export function ocultarValorDoAcerto(entrada) {
+    if (!entrada || entrada.tipo !== 'acerto' || !entrada.valorOculto) return entrada;
+    const copia = { ...entrada };
+    CAMPOS_VALOR_DO_ACERTO.forEach(k => { delete copia[k]; });
+    return copia;
+}

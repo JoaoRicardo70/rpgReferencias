@@ -12,6 +12,7 @@ import { db } from './firebase-config';
 import { sanitizarNome } from '../stores/useStore';
 import { chaveFirebaseDoInstante } from '../core/sextaFeiraSessao';
 import { anexarNaLista } from '../core/sextaFeiraCriacao';
+import { ocultarValorDoAcerto } from '../core/dadosMestre';
 
 export const LIMITE_EVENTOS_SESSAO = 1500;
 export const LIMITE_MENSAGENS_CHAT_SALVAS = 60;
@@ -31,7 +32,8 @@ async function lerDesde(caminho, desdeMs, limite) {
 export async function carregarEventosFeedDesde(mesaId, desdeMs) {
     if (!db || !mesaId) return [];
     const itens = await lerDesde(`mesas/${mesaId}/feed_combate`, desdeMs, LIMITE_EVENTOS_SESSAO);
-    return itens.filter(i => !(i.valor && i.valor.privado)).map(i => ({ chave: i.chave, evento: i.valor }));
+    // Rolagens privadas ficam de fora e o número de um Acerto escondido nunca sai daqui (o resumo vai pros Registros, que todos leem).
+    return itens.filter(i => !(i.valor && i.valor.privado)).map(i => ({ chave: i.chave, evento: ocultarValorDoAcerto(i.valor) }));
 }
 
 // Falas desde `desdeMs`. Também lê o nó antigo (sexta_feira_transcricao), se as regras deixarem

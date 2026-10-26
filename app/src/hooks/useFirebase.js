@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import useStore from '../stores/useStore';
-import { entradaVisivel } from '../core/dadosMestre';
+import { entradaVisivel, ocultarValorDoAcerto } from '../core/dadosMestre';
 import { db } from '../services/firebase-config';
 import { iniciarListenerFichaPropria, iniciarListenerPersonagens, iniciarListenerFeed, salvarFirebaseImediato, resetSincronizacaoFicha, mesclarPersonagensRemotos } from '../services/firebase-sync';
 
@@ -74,8 +74,8 @@ export default function useFirebase() {
         let cancelado = false;
         limparFeedStore();
         const unsubFeed = iniciarListenerFeed(
-            (entry) => { if (!cancelado && entradaVisivel(entry, ehMestreAgora)) addFeedEntry(entry); },
-            (entry) => { if (!cancelado && entradaVisivel(entry, ehMestreAgora)) atualizarFeedEntry(entry); }
+            (entry) => { if (!cancelado && entradaVisivel(entry, ehMestreAgora)) addFeedEntry(ehMestreAgora ? entry : ocultarValorDoAcerto(entry)); },
+            (entry) => { if (!cancelado && entradaVisivel(entry, ehMestreAgora)) atualizarFeedEntry(ehMestreAgora ? entry : ocultarValorDoAcerto(entry)); }
         );
         return () => { cancelado = true; unsubFeed(); };
     }, [meuNome, mesaId, ehMestreAgora, addFeedEntry, atualizarFeedEntry, limparFeedStore]);

@@ -128,3 +128,31 @@ describe('iniciarListenerFeed', () => {
         expect(onChildAdded).not.toHaveBeenCalled();
     });
 });
+
+describe('enviarParaFeed - valor do acerto oculto', () => {
+    it('acerto do Mestre sai com valorOculto: true por padrão e continua público', () => {
+        enviarParaFeed({ tipo: 'acerto', nome: 'X', acertoTotal: 17 });
+        expect(push).toHaveBeenCalledWith('mesas/mesa1/feed_combate', { tipo: 'acerto', nome: 'X', acertoTotal: 17, valorOculto: true });
+        expect(push.mock.calls[0][1]).not.toHaveProperty('privado');
+    });
+    it('opção desligada: sem valorOculto', () => {
+        localStorage.setItem('rpg_acerto_mestre_oculto', '0');
+        enviarParaFeed({ tipo: 'acerto', nome: 'X' });
+        expect(push.mock.calls[0][1]).not.toHaveProperty('valorOculto');
+    });
+    it('jogador: sem valorOculto', () => {
+        estado(false);
+        enviarParaFeed({ tipo: 'acerto', nome: 'X' });
+        expect(push.mock.calls[0][1]).toEqual({ tipo: 'acerto', nome: 'X' });
+    });
+    it('dano do Mestre continua sem privado e sem valorOculto', () => {
+        enviarParaFeed({ tipo: 'dano', nome: 'X' });
+        expect(push.mock.calls[0][1]).not.toHaveProperty('privado');
+        expect(push.mock.calls[0][1]).not.toHaveProperty('valorOculto');
+    });
+    it('não muta o objeto original do acerto', () => {
+        const d = { tipo: 'acerto' };
+        enviarParaFeed(d);
+        expect(d).toEqual({ tipo: 'acerto' });
+    });
+});
