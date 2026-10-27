@@ -41,9 +41,9 @@ const T = {
     nuvem: svgRuido({ fx: 0.01, fy: 0.04, oct: 5, seed: 31, rgb: [1, 1, 1], alfa: [3, -1.45] })
 };
 
-// Cidadelas do Mapa dos Planos (desenhadas em SVG, em primeiro plano e sem cobrir nada: cada uma cabe na área livre do reino).
-// Céus: cidadela branca e dourada sobre uma ilha flutuante (larga em cima, estreita embaixo, como o espaço livre à esquerda do aro).
-// Inferno: fortaleza de obsidiana em degraus descendo uma montanha vulcânica (base larga embaixo, como o espaço livre embaixo à esquerda).
+// Cidadelas do Mapa dos Planos (desenhadas em SVG; cada uma cabe na área livre do reino, sem cobrir planos, aro ou rótulos).
+// Céus: cidadela branca e dourada sobre uma ilha flutuante; a torre maior fica à direita, onde o céu é mais alto.
+// Inferno: fortaleza de obsidiana em degraus numa montanha vulcânica; o pico fica à esquerda e a encosta desce acompanhando o aro.
 function ameiasEm(x, y, w, passo = 4.4, lado = 2.4) {
     return Array.from({ length: Math.max(1, Math.floor(w / passo)) }, (_, i) => `<rect x='${(x + 0.8 + i * passo).toFixed(1)}' y='${y - 2.4}' width='${lado}' height='2.4'/>`).join('');
 }
@@ -63,37 +63,37 @@ function encaixar(svg) {
 function svgCidadelaCeus() {
     const corpo = 'url(#h)', borda = '#c99a2a', janela = '#ffb81c';
     const torres = [
-        [30, 10, 26, 40, 10], [18, 9, 34, 40, 22], [8, 8, 40, 48, 31], [62, 7, 30, 48, 17], [41, 4, 30, 48, 22], [59, 4, 32, 48, 24]
+        [46, 9, 26, 50, 17], [84, 8, 32, 50, 23], [30, 9, 34, 50, 25], [14, 8, 38, 50, 30], [53, 5, 34, 50, 29], [22, 4, 40, 50, 35]
     ].map(([x, w, t, b, a]) => torreComTelhado(x, w, t, b, a)).join('');
-    const janelas = [arcoJanela(52, 26, 4, 10), arcoJanela(48, 38, 3, 7), arcoJanela(56, 38, 3, 7), arcoJanela(35, 32, 3, 7), arcoJanela(22, 38, 2.8, 6), arcoJanela(12, 43, 2.4, 5), arcoJanela(65, 36, 2.4, 6), arcoJanela(30, 43, 2.6, 5), arcoJanela(44, 43, 2.6, 5), arcoJanela(60, 43, 2.6, 5), arcoJanela(52, 14, 3, 5)].join('');
-    const rocha = "<polygon points='8,48 12,56 20,66 28,76 36,84 40,85 46,84 52,76 56,66 62,58 70,50 70,48' fill='url(#r)' stroke='#8a6a3a' stroke-width='0.6' stroke-linejoin='round'/><path d='M14 54L24 72M26 56L34 80M40 50L40 82M52 52L46 78M64 52L56 70' stroke='#6a4e2a' stroke-width='0.5' fill='none' opacity='0.7'/><g fill='#9fe8ff' filter='url(#b)'><polygon points='38,84 40,85 42,84 40,89'/><polygon points='30,74 32,72 33,76'/><polygon points='50,74 52,72 53,76'/></g>";
-    const nuvens = "<g fill='white' opacity='0.97'><ellipse cx='39' cy='49' rx='36' ry='3.6'/><ellipse cx='12' cy='52' rx='9' ry='4'/><ellipse cx='67' cy='52' rx='8' ry='4'/><ellipse cx='26' cy='56' rx='7' ry='3'/><ellipse cx='55' cy='58' rx='7' ry='3'/></g>";
-    return encaixar(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 85' preserveAspectRatio='xMidYMid meet'><defs><linearGradient id='h' x1='0' y1='0' x2='1' y2='0'><stop offset='0' stop-color='#ffffff'/><stop offset='0.6' stop-color='#f6ebc8'/><stop offset='1' stop-color='#cdb98a'/></linearGradient><linearGradient id='r' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#cdb98a'/><stop offset='1' stop-color='#5a4630'/></linearGradient><radialGradient id='a' cx='0.5' cy='0.5' r='0.5'><stop offset='0' stop-color='#fff6c0' stop-opacity='0.85'/><stop offset='1' stop-color='#fff6c0' stop-opacity='0'/></radialGradient><filter id='b'><feGaussianBlur stdDeviation='1.1'/></filter></defs>`
-        + `<ellipse cx='42' cy='30' rx='46' ry='32' fill='url(#a)'/>${rocha}`
-        + `<g fill='${corpo}' stroke='${borda}' stroke-width='0.5' stroke-linejoin='round'><rect x='8' y='40' width='61' height='8'/>${ameiasEm(8, 40, 61)}${torres}<rect x='44' y='18' width='16' height='30'/><rect x='46' y='10' width='12' height='9'/><polygon points='45,10 52,0.5 59,10'/><rect x='43' y='17' width='18' height='2'/><polygon points='41,36 44,28 44,40'/><polygon points='63,36 60,28 60,40'/></g>`
-        + bandeiraEm(52, 0.5, '#ffc83a', borda) + bandeiraEm(35, 10, '#ffc83a', borda) + bandeiraEm(65.5, 17, '#ffc83a', borda)
-        + `<g fill='${janela}' filter='url(#b)'>${janelas}</g><g fill='${janela}'>${janelas}<path d='M49.5 48V43a2.5 2.5 0 0 1 5 0V48z' fill='#3a2a00'/></g>`
-        + `<circle cx='52' cy='33' r='2.6' fill='none' stroke='${janela}' stroke-width='0.6'/><path d='M49.4 33h5.2M52 30.4v5.2' stroke='${janela}' stroke-width='0.4'/>`
+    const janelas = [arcoJanela(73, 28, 4, 9), arcoJanela(73, 19, 3, 4), arcoJanela(66.5, 38, 3, 7), arcoJanela(79.5, 38, 3, 7), arcoJanela(50.5, 32, 3, 8), arcoJanela(88, 38, 3, 7), arcoJanela(34.5, 40, 3, 6), arcoJanela(18, 42, 2.6, 5), arcoJanela(60, 43, 2.6, 5), arcoJanela(8, 44, 2, 4)].join('');
+    const rocha = "<polygon points='6,50 10,57 17,64 25,70 33,75 41,79 47,80 53,76 62,70 71,62 80,56 88,52 94,50' fill='url(#r)' stroke='#8a6a3a' stroke-width='0.6' stroke-linejoin='round'/><path d='M14 54L24 70M26 56L36 76M42 52L44 78M56 52L50 74M70 52L62 68M84 52L74 62' stroke='#6a4e2a' stroke-width='0.5' fill='none' opacity='0.7'/><g fill='#9fe8ff' filter='url(#b)'><polygon points='44,77 47,78 50,77 47,79.5'/><polygon points='33,72 35,70 36,74'/><polygon points='58,70 60,68 61,72'/></g>";
+    const nuvens = "<g fill='white' opacity='0.97'><ellipse cx='50' cy='51' rx='46' ry='3.4'/><ellipse cx='14' cy='55' rx='9' ry='3.6'/><ellipse cx='86' cy='55' rx='8' ry='3.6'/><ellipse cx='30' cy='59' rx='7' ry='2.8'/><ellipse cx='70' cy='60' rx='7' ry='2.8'/></g>";
+    return encaixar("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 80' preserveAspectRatio='xMidYMid meet'><defs><linearGradient id='h' x1='0' y1='0' x2='1' y2='0'><stop offset='0' stop-color='#ffffff'/><stop offset='0.6' stop-color='#f6ebc8'/><stop offset='1' stop-color='#cdb98a'/></linearGradient><linearGradient id='r' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#cdb98a'/><stop offset='1' stop-color='#5a4630'/></linearGradient><radialGradient id='a' cx='0.5' cy='0.5' r='0.5'><stop offset='0' stop-color='#fff6c0' stop-opacity='0.85'/><stop offset='1' stop-color='#fff6c0' stop-opacity='0'/></radialGradient><filter id='b'><feGaussianBlur stdDeviation='1.1'/></filter></defs>"
+        + "<ellipse cx='55' cy='34' rx='48' ry='32' fill='url(#a)'/>" + rocha
+        + "<g fill='" + corpo + "' stroke='" + borda + "' stroke-width='0.5' stroke-linejoin='round'><rect x='8' y='42' width='84' height='8'/>" + ameiasEm(8, 42, 84) + torres
+        + "<rect x='62' y='24' width='22' height='26'/><rect x='66' y='17' width='14' height='8'/><polygon points='65.4,17 73,7 80.6,17'/><rect x='61' y='23' width='24' height='2'/><polygon points='59,40 62,32 62,44'/><polygon points='87,40 84,32 84,44'/></g>"
+        + bandeiraEm(73, 7, '#ffc83a', borda) + bandeiraEm(50.5, 17, '#ffc83a', borda) + bandeiraEm(88, 23, '#ffc83a', borda)
+        + "<g fill='" + janela + "' filter='url(#b)'>" + janelas + "</g><g fill='" + janela + "'>" + janelas + "<path d='M38.5 50V45.5a2.5 2.5 0 0 1 5 0V50z' fill='#3a2a00'/></g>"
+        + "<circle cx='73' cy='44' r='2.4' fill='none' stroke='" + janela + "' stroke-width='0.6'/><path d='M70.6 44h4.8M73 41.6v4.8' stroke='" + janela + "' stroke-width='0.4'/>"
         + nuvens + '</svg>');
 }
 
 function svgFortalezaInferno() {
-    const borda = '#8a1236', janela = '#ff2244', lava = '#ff3a1c';
-    const montanha = "<polygon points='0,73 0,40 4,30 10,18 16,9 22,3 28,9 31,20 37,31 47,42 62,53 86,64 98,70 100,73' fill='url(#m)' stroke='#4a0a1c' stroke-width='0.6' stroke-linejoin='round'/>";
-    const degraus = [[8, 26, 28, 12], [2, 40, 54, 12], [0, 54, 80, 10], [0, 64, 94, 9]];
-    const muros = degraus.map(([x, y, w, h]) => `<rect x='${x}' y='${y}' width='${w}' height='${h}'/>${ameiasEm(x, y, w)}`).join('');
+    const borda = '#d0245a', janela = '#ff3355', lava = '#ff3a1c';
+    const montanha = "<polygon points='42,60 33,53 24,47 16,40 11,33 13,26 17,20 23,14 29,8 34,3 38,1 42,5 48,11 56,18 66,26 78,35 90,45 100,53 100,60' fill='url(#m)' stroke='#c0204e' stroke-width='0.8' stroke-linejoin='round'/>";
+    const degraus = [[24, 38, 60, 10], [40, 48, 60, 10]];
+    const muros = degraus.map(([x, y, w, h]) => "<rect x='" + x + "' y='" + y + "' width='" + w + "' height='" + h + "'/>" + ameiasEm(x, y, w)).join('');
     const torres = [
-        [14, 16, 12, 26, 3], [17, 10, 6, 13, 0.5], [4, 7, 30, 40, 16], [29, 6, 28, 40, 14],
-        [0, 8, 36, 52, 26], [22, 8, 34, 52, 22], [38, 7, 42, 54, 33], [12, 9, 48, 64, 38], [46, 8, 56, 64, 48], [2, 9, 58, 73, 50], [66, 8, 58, 70, 52]
+        [16, 8, 26, 48, 15], [50, 8, 24, 48, 13], [60, 7, 32, 48, 21], [34, 7, 40, 58, 31], [66, 8, 40, 58, 30], [80, 7, 44, 58, 35], [92, 6, 48, 58, 41], [48, 8, 46, 58, 36]
     ].map(([x, w, t, b, a]) => torreComTelhado(x, w, t, b, a)).join('');
-    const janelas = [arcoJanela(22, 14, 3, 7), arcoJanela(20, 28, 2.6, 6), arcoJanela(10, 32, 2.4, 5), arcoJanela(32, 32, 2.4, 5), arcoJanela(12, 44, 2.6, 5), arcoJanela(30, 44, 2.6, 5), arcoJanela(46, 44, 2.6, 5), arcoJanela(8, 56, 2.6, 5), arcoJanela(26, 56, 2.6, 5), arcoJanela(44, 56, 2.6, 5), arcoJanela(62, 56, 2.6, 5), arcoJanela(14, 66, 2.6, 5), arcoJanela(70, 66, 2.6, 5), arcoJanela(30, 40, 2.4, 4), arcoJanela(8, 45, 2.4, 4)].join('');
-    const rio = `<path d='M22 26V33H14V44H34V54H20V64H46V70' stroke='${lava}' stroke-width='2' fill='none' stroke-linejoin='round' opacity='0.95'/><path d='M22 26V33H14V44H34V54H20V64H46V70' stroke='#ffd0a0' stroke-width='0.7' fill='none' stroke-linejoin='round' opacity='0.9'/>`;
-    const lago = `<ellipse cx='50' cy='72' rx='50' ry='3' fill='${lava}' opacity='0.9'/><ellipse cx='50' cy='72' rx='34' ry='1.4' fill='#ffd0a0' opacity='0.8'/>`;
-    return encaixar(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 73' preserveAspectRatio='xMidYMax meet'><defs><linearGradient id='m' x1='0' y1='0' x2='1' y2='0'><stop offset='0' stop-color='#3a1226'/><stop offset='1' stop-color='#0a0206'/></linearGradient><linearGradient id='h' x1='0' y1='0' x2='1' y2='0'><stop offset='0' stop-color='#4a1a34'/><stop offset='0.5' stop-color='#1a0614'/><stop offset='1' stop-color='#07010a'/></linearGradient><radialGradient id='a' cx='0.3' cy='0.4' r='0.7'><stop offset='0' stop-color='#ff2a55' stop-opacity='0.55'/><stop offset='1' stop-color='#ff2a55' stop-opacity='0'/></radialGradient><filter id='b'><feGaussianBlur stdDeviation='1.1'/></filter></defs>`
-        + `<ellipse cx='28' cy='30' rx='42' ry='32' fill='url(#a)'/>${montanha}`
-        + `<g fill='url(#h)' stroke='${borda}' stroke-width='0.5' stroke-linejoin='round'>${muros}${torres}<rect x='14' y='12' width='16' height='14'/><rect x='17' y='6' width='10' height='7'/><polygon points='15,6 22,0 29,6'/></g>`
-        + rio + lago + bandeiraEm(22, 0.4, '#d4143a', borda)
-        + `<g fill='${janela}' filter='url(#b)'>${janelas}</g><g fill='${janela}'>${janelas}<path d='M42 73V67a4 4 0 0 1 8 0V73z' fill='#000' opacity='0.9'/></g>`
+    const janelas = [arcoJanela(38, 20, 4, 9), arcoJanela(38, 10, 2.6, 4), arcoJanela(33, 28, 2.6, 6), arcoJanela(43, 28, 2.6, 6), arcoJanela(20, 31, 2.6, 6), arcoJanela(54, 28, 2.8, 7), arcoJanela(63.5, 36, 2.4, 5), arcoJanela(37.5, 45, 2.4, 5), arcoJanela(69.5, 46, 2.6, 6), arcoJanela(83.5, 48, 2.4, 5), arcoJanela(95, 51, 2.2, 4), arcoJanela(52, 50, 2.6, 5), arcoJanela(28, 41, 2.2, 3), arcoJanela(74, 41, 2.2, 3)].join('');
+    const rio = "<path d='M38 38V48H46V58' stroke='" + lava + "' stroke-width='2' fill='none' stroke-linejoin='round' opacity='0.95'/><path d='M38 38V48H46V58' stroke='#ffd0a0' stroke-width='0.7' fill='none' stroke-linejoin='round' opacity='0.9'/>";
+    const lago = "<ellipse cx='70' cy='59' rx='30' ry='2.2' fill='" + lava + "' opacity='0.9'/><ellipse cx='70' cy='59' rx='20' ry='1' fill='#ffd0a0' opacity='0.8'/>";
+    return encaixar("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 60' preserveAspectRatio='xMidYMax meet'><defs><linearGradient id='m' x1='0' y1='0' x2='1' y2='0'><stop offset='0' stop-color='#6a2040'/><stop offset='1' stop-color='#1a0612'/></linearGradient><linearGradient id='h' x1='0' y1='0' x2='1' y2='0'><stop offset='0' stop-color='#6a2448'/><stop offset='0.5' stop-color='#2a0a20'/><stop offset='1' stop-color='#0c0210'/></linearGradient><radialGradient id='a' cx='0.35' cy='0.4' r='0.7'><stop offset='0' stop-color='#ff2a55' stop-opacity='0.55'/><stop offset='1' stop-color='#ff2a55' stop-opacity='0'/></radialGradient><filter id='b'><feGaussianBlur stdDeviation='1.1'/></filter></defs>"
+        + "<ellipse cx='42' cy='28' rx='44' ry='30' fill='url(#a)'/>" + montanha
+        + "<g fill='url(#h)' stroke='" + borda + "' stroke-width='0.6' stroke-linejoin='round'>" + muros + torres + "<rect x='28' y='16' width='20' height='22'/><rect x='31' y='8' width='14' height='9'/><polygon points='30,8 38,0.8 46,8'/><rect x='27' y='15' width='22' height='2'/></g>"
+        + rio + lago + bandeiraEm(54, 13, '#ff2a55', borda) + bandeiraEm(20, 15, '#ff2a55', borda)
+        + "<g fill='" + janela + "' filter='url(#b)'>" + janelas + "</g><g fill='" + janela + "'>" + janelas + "<path d='M35 38V33a3 3 0 0 1 6 0V38z' fill='#000' opacity='0.9'/></g>"
         + '</svg>');
 }
 T.casteloLuz = svgCidadelaCeus();
@@ -202,10 +202,10 @@ export const CSS_PLANOS = `
 .pz-plano-da-ordem .pl-a { --giro: 200s; mix-blend-mode: overlay; background-image: ${T.ordemBrilho}; }
 .pz-plano-da-ordem .pl-b { --giro: 90s; mix-blend-mode: soft-light; background-image: repeating-linear-gradient(60deg, rgba(255, 255, 255, 0.5) 0 2px, transparent 2px 22px), repeating-linear-gradient(-60deg, rgba(255, 255, 255, 0.35) 0 2px, transparent 2px 22px); }
 .pz-plano-da-ordem .pl-c { animation: planoPulsa 5s ease-in-out infinite; left: 24%; top: 24%; width: 52%; height: 52%; mix-blend-mode: screen; background: linear-gradient(135deg, rgba(255, 255, 255, 0.6), rgba(170, 140, 255, 0.1)); border: 2px solid rgba(255, 255, 255, 0.85); rotate: 45deg; }
-/* Cidadelas em primeiro plano: elementos próprios por cima do aro (z 5), sem receber o mouse, cada uma dentro da área livre do reino */
+/* Cidadelas: ficam só na área livre do reino (Céus: entre a borda e o aro, acima da Ordem; Inferno: abaixo da Ordem e fora do aro), sem cobrir planos nem rótulos */
 .planos-castelo { position: absolute; z-index: 5; pointer-events: none; background-repeat: no-repeat; background-position: center bottom; background-size: 100% 100%; }
-.planos-castelo-ceus { left: 12%; top: 11%; width: 26%; height: 38%; background-image: ${T.casteloLuz}; filter: drop-shadow(0 0 12px rgba(255, 226, 140, 0.9)); }
-.planos-castelo-inferno { left: 17.5%; top: 51.5%; width: 26%; height: 32%; background-image: ${T.casteloTrevas}; filter: drop-shadow(0 0 12px rgba(255, 40, 80, 0.9)); }
+.planos-castelo-ceus { left: 11.8%; top: 14.2%; width: 18.7%; height: 25.1%; background-image: ${T.casteloLuz}; filter: drop-shadow(0 0 12px rgba(255, 226, 140, 0.9)); }
+.planos-castelo-inferno { left: 9.4%; top: 59.7%; width: 22.7%; height: 22.8%; background-image: ${T.casteloTrevas}; filter: drop-shadow(0 0 12px rgba(255, 40, 80, 0.9)); }
 /* Céus: toda a metade de cima do reino (fora do aro). Céu dourado com nuvens, raios e o sol no alto */
 .pz-ceus { clip-path: inset(0 0 50% 0); }
 .pz-ceus .plano-orbe { box-shadow: none; background: linear-gradient(180deg, #fff6c8 0%, #ffd96a 14%, #a9c8ff 32%, #5a7fd8 44%, #2c3a90 50%); }
