@@ -150,9 +150,9 @@ export const CSS_PLANOS = `
 .pz-plano-da-ordem .pl-b { --giro: 90s; mix-blend-mode: soft-light; background-image: repeating-linear-gradient(60deg, rgba(255, 255, 255, 0.5) 0 2px, transparent 2px 22px), repeating-linear-gradient(-60deg, rgba(255, 255, 255, 0.35) 0 2px, transparent 2px 22px); }
 .pz-plano-da-ordem .pl-c { animation: planoPulsa 5s ease-in-out infinite; left: 24%; top: 24%; width: 52%; height: 52%; mix-blend-mode: screen; background: linear-gradient(135deg, rgba(255, 255, 255, 0.6), rgba(170, 140, 255, 0.1)); border: 2px solid rgba(255, 255, 255, 0.85); rotate: 45deg; }
 /* Cidadelas: ficam só na área livre do reino (Céus: entre a borda e o aro, acima da Ordem; Inferno: abaixo da Ordem e fora do aro), sem cobrir planos nem rótulos */
-.planos-castelo { position: absolute; z-index: 5; pointer-events: none; background-repeat: no-repeat; background-position: center bottom; background-size: 100% 100%; }
-.planos-castelo-ceus { left: 14.1%; top: 12%; width: 18.2%; height: 28.5%; background-image: ${T.casteloLuz}; filter: drop-shadow(0 0 12px rgba(255, 226, 140, 0.9)); }
-.planos-castelo-inferno { left: 11.5%; top: 60%; width: 26%; height: 26%; background-image: ${T.casteloTrevas}; filter: drop-shadow(0 0 12px rgba(255, 40, 80, 0.9)); }
+.planos-castelo { position: absolute; z-index: 3; pointer-events: none; background-repeat: no-repeat; background-position: center bottom; background-size: 100% 100%; }
+.planos-castelo-ceus { left: 18%; top: 14%; width: 18.2%; height: 28.5%; background-image: ${T.casteloLuz}; filter: drop-shadow(0 0 12px rgba(255, 226, 140, 0.9)); }
+.planos-castelo-inferno { left: 13.5%; top: 53%; width: 26%; height: 26%; background-image: ${T.casteloTrevas}; filter: drop-shadow(0 0 12px rgba(255, 40, 80, 0.9)); }
 /* Céus: toda a metade de cima do reino (fora do aro). Céu dourado com nuvens, raios e o sol no alto */
 .pz-ceus { clip-path: inset(0 0 50% 0); }
 .pz-ceus .plano-orbe { box-shadow: none; background: linear-gradient(180deg, #fff6c8 0%, #ffd96a 14%, #a9c8ff 32%, #5a7fd8 44%, #2c3a90 50%); }

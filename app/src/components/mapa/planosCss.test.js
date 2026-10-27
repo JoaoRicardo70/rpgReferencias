@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { CSS_PLANOS } from './planosCss';
 
 // As cidadelas ficam só na área livre do reino: não podem cobrir a Ordem (esquerda), o aro dos Planos Internos nem os rótulos.
@@ -10,26 +11,40 @@ function caixa(classe) {
 }
 
 // Plano da Ordem no mapa: left 6.4%, top 41%, 11% x 18%.
-const ORDEM = { topo: 41, base: 59 };
+const ORDEM = { topo: 41, base: 59, dir: 17.4 };
+const DIVISA = 50;
 
 describe('cidadelas do Mapa dos Planos', () => {
+    it('ficam atrás do aro dos Planos Internos (parte escondida, nada na frente)', () => {
+        const z = (sel) => parseInt(new RegExp(`\\.${sel} \\{[^}]*z-index: (\\d+)`).exec(CSS_PLANOS)[1], 10);
+        // acima das zonas Céus/Inferno (camada 2); no mesmo nível do aro, mas antes dele no DOM (MapaMundi.jsx)
+        expect(z('planos-castelo')).toBeGreaterThan(z('planos-reino'));
+        expect(z('planos-castelo')).toBeLessThanOrEqual(z('planos-aro-fundo'));
+        const jsx = readFileSync('src/components/mapa/MapaMundi.jsx', 'utf8');
+        expect(jsx.indexOf('planos-castelo-ceus')).toBeLessThan(jsx.indexOf('planos-aro-fundo'));
+        expect(jsx.indexOf('planos-castelo-inferno')).toBeLessThan(jsx.indexOf('planos-aro-fundo'));
+    });
+
     it('os dois castelos existem como imagem SVG', () => {
         expect(CSS_PLANOS).toMatch(/\.planos-castelo-ceus \{[^}]*background-image: url\("data:image\/svg\+xml/);
         expect(CSS_PLANOS).toMatch(/\.planos-castelo-inferno \{[^}]*background-image: url\("data:image\/svg\+xml/);
     });
 
-    it('Céus: termina acima do Plano da Ordem e não chega ao aro (lado direito)', () => {
+    it('Céus: fica acima da divisa, à direita da Ordem e não passa do centro do aro', () => {
         const c = caixa('planos-castelo-ceus');
-        expect(c.topo + c.alt).toBeLessThanOrEqual(ORDEM.topo);
-        expect(c.esq + c.larg).toBeLessThanOrEqual(32.5);
+        expect(c.topo + c.alt).toBeLessThanOrEqual(DIVISA);
+        expect(c.esq + c.larg).toBeLessThanOrEqual(46);
         expect(c.topo).toBeGreaterThanOrEqual(10);
+        expect(c.esq).toBeGreaterThanOrEqual(ORDEM.dir);
     });
 
-    it('Inferno: começa abaixo do Plano da Ordem, fica à esquerda do aro e acima do rótulo "Inferno"', () => {
+    it('Inferno: começa abaixo da divisa, sem tocar a Ordem, e termina acima do rótulo "Inferno"', () => {
         const c = caixa('planos-castelo-inferno');
-        expect(c.topo).toBeGreaterThanOrEqual(ORDEM.base);
-        expect(c.esq + c.larg).toBeLessThanOrEqual(38);
+        expect(c.topo).toBeGreaterThan(DIVISA);
+        expect(c.esq + c.larg).toBeLessThanOrEqual(46);
         expect(c.topo + c.alt).toBeLessThanOrEqual(87);
+        // a caixa invade a faixa da Ordem, mas o desenho começa ~10% dentro dela (montanha), sem tocar o planeta
+        expect(c.esq + c.larg * 0.1).toBeGreaterThanOrEqual(ORDEM.dir - 2);
     });
 
     it('as caixas respeitam a proporção do desenho (nada é esticado)', () => {

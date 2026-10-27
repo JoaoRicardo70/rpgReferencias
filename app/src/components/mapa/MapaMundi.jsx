@@ -507,6 +507,9 @@ export default function MapaMundi({ children }) {
                     </div>
                     {/* REINO CENTRAL: calmo, cercado pela fronteira dourada */}
                     <div className="planos-reino" onMouseEnter={() => !modoAjuste && setPlanoHover(null)} />
+                    {/* Cidadelas: acima do reino e das zonas, mas ATRÁS do aro dos Planos Internos (mesma camada, vêm antes no DOM) */}
+                    <span className="planos-castelo planos-castelo-ceus" aria-hidden="true" />
+                    <span className="planos-castelo planos-castelo-inferno" aria-hidden="true" />
                     <span className="planos-divisa" />
                     <div className="planos-aro-fundo" onMouseEnter={() => !modoAjuste && setPlanoHover(null)} />
                     <svg className="planos-anel" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -515,8 +518,6 @@ export default function MapaMundi({ children }) {
                         <ellipse cx="50" cy="50" rx="47" ry="47" className="planos-anel-runas" />
                         <ellipse cx="50" cy="50" rx="45" ry="45" strokeWidth="1" />
                     </svg>
-                    <span className="planos-castelo planos-castelo-ceus" aria-hidden="true" />
-                    <span className="planos-castelo planos-castelo-inferno" aria-hidden="true" />
                     <span className="planos-faixa-rotulo planos-faixa-internos">Planos Internos</span>
                     <span className="planos-faixa-rotulo planos-faixa-externos">Planos Externos</span>
                     {zonasCosmologia.map((zona, index) => (
