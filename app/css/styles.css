@@ -2982,3 +2982,9 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 /* 📞 Cartão da Sala da Party de quem ainda não conectou: a ligação é refeita sozinha (não há mais botão de forçar). */
 .avatar-card-conectando-caixa { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 10; }
 .avatar-card-conectando { display: inline-block; padding: 6px 12px; border-radius: 999px; font-size: 0.8em; font-weight: bold; letter-spacing: 0.5px; color: var(--neon-yellow, #ffcc00); background: rgba(0, 0, 0, 0.7); border: 1px dashed currentColor; }
+
+
+/* 🗺️ Botão que alterna o Mapa da Terra 0 entre o estilo clássico e o realista. */
+.mapa-estilo-caixa { min-width: 120px; display: flex; justify-content: flex-end; }
+.mapa-estilo-botao { background: rgba(0, 136, 255, 0.15); color: #bfe3ff; border: 1px solid #0088ff; border-radius: 6px; padding: 6px 14px; font-size: 0.82em; font-weight: bold; cursor: pointer; white-space: nowrap; transition: background 0.2s, box-shadow 0.2s; }
+.mapa-estilo-botao:hover, .mapa-estilo-botao:focus-visible { background: rgba(0, 136, 255, 0.35); box-shadow: 0 0 10px rgba(0, 136, 255, 0.6); outline: none; }

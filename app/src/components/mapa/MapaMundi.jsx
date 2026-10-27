@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import useStore from '../../stores/useStore';
 import { useMapaForm, urlSeguraParaCss } from './MapaFormContext';
 import { salvarCenarioCompleto, uploadImagem } from '../../services/firebase-sync';
 
 // 🔥 AS IMAGENS DO MUNDO MATERIAL 🔥
 import mapaClean from '../../assets/runeterra-clean.jpg';
+import mapaRealista from '../../assets/runeterra-realista.jpg';
 import gabaritoFreljord from '../../assets/gabarito-freijord.png';
 import gabaritoDemacia from '../../assets/gabarito-demacia.png';
 import gabaritoNoxus from '../../assets/gabarito-noxus.png';
@@ -22,7 +23,12 @@ import { CSS_GLOBO } from './globoCss';
 import { CSS_PLANOS } from './planosCss';
 import { slugDoPlano, rotuloDoPlano } from '../../core/planos';
 import { webglDisponivel } from '../../core/globoTerra';
+import { ESTILO_REALISTA, lerEstiloMapa, gravarEstiloMapa, alternarEstiloMapa, realceDaRegiao } from '../../core/estiloMapa';
 import { segmentosDoOito, amostrarTrilha, escolherFases, atrasoDaFase } from '../../core/orbitasUniverso';
+
+// Realces de hover do mapa realista (um por região, gerados junto com a imagem).
+const REALCES_REALISTAS = Object.fromEntries(Object.entries(import.meta.glob('../../assets/mapa-realista/hover-*.png', { eager: true, import: 'default' }))
+    .map(([caminho, url]) => [caminho.replace(/^.*hover-/, '').replace(/.png$/, ''), url]));
 
 // O globo 3D (three.js) só é baixado quando a tela do globo abre.
 const GloboTerra3D = lazy(() => import('./GloboTerra3D'));
@@ -36,6 +42,12 @@ export default function MapaMundi({ children }) {
     const ctxMapa = useMapaForm();
 
     const [nivelVisao, setNivelVisao] = useState('sistema_solar');
+    const [estiloMapa, setEstiloMapa] = useState(() => lerEstiloMapa(typeof localStorage !== 'undefined' ? localStorage : null));
+    const alternarEstilo = useCallback(() => {
+        const novo = alternarEstiloMapa(estiloMapa);
+        gravarEstiloMapa(typeof localStorage !== 'undefined' ? localStorage : null, novo);
+        setEstiloMapa(novo);
+    }, [estiloMapa]);
     const [localAtual, setLocalAtual] = useState({ continente: null, reino: null, mapaId: null, plano: 'Material' });
 
     // 🔥 Sincroniza com a Cena publicada/visualizada pelo Mestre: sem isso, "Publicar para Todos"
@@ -588,15 +600,17 @@ export default function MapaMundi({ children }) {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.85)', padding: '12px 25px', borderBottom: '1px solid #222', zIndex: 10, opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }}>
                     <button onClick={() => iniciarViagem('Globo', 'globo')} style={{ background: '#ff4444', color: '#fff', border: 'none', padding: '6px 18px', borderRadius: '5px', fontSize: '0.85em', cursor: 'pointer', fontWeight: 'bold' }}>⬅ VOLTAR AO GLOBO</button>
                     <h2 style={{ color: '#0088ff', margin: 0, textTransform: 'uppercase', letterSpacing: '3px', textShadow: '0 0 10px #0088ff' }}>{reinoHover || localAtual.continente}</h2>
-                    <div style={{ width: '120px' }}></div>
+                    <div className="mapa-estilo-caixa">
+                        <button type="button" className="mapa-estilo-botao" onClick={alternarEstilo} aria-pressed={estiloMapa === ESTILO_REALISTA} title="Alternar entre o mapa clássico e o mapa realista">{estiloMapa === ESTILO_REALISTA ? '🗺️ Mapa clássico' : '🏔️ Mapa realista'}</button>
+                    </div>
                 </div>
                 
                 <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', position: 'relative', width: '100%' }}>
                     <div style={{ position: 'relative', display: 'inline-block', height: '100%', maxHeight: 'calc(85vh - 70px)' }}>
-                        <img src={mapaClean} alt="Mapa Base" style={{ display: 'block', height: '100%', width: 'auto', objectFit: 'contain', opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }} />
+                        <img src={estiloMapa === ESTILO_REALISTA ? mapaRealista : mapaClean} alt={estiloMapa === ESTILO_REALISTA ? 'Mapa Base (realista)' : 'Mapa Base'} style={{ display: 'block', height: '100%', width: 'auto', objectFit: 'contain', opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }} />
                         
                         {posicoesPings.map((reino) => (
-                            reino.img ? <img key={`mask-${reino.nome}`} src={reino.img} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2, mixBlendMode: 'screen', opacity: voandoPara ? 0 : (reinoHover === reino.nome ? 1 : 0), transition: 'opacity 0.3s ease-out' }} alt={`Mascara ${reino.nome}`} /> : null
+                            realceDaRegiao(estiloMapa, reino.nome, reino.img, REALCES_REALISTAS) ? <img key={`mask-${reino.nome}`} src={realceDaRegiao(estiloMapa, reino.nome, reino.img, REALCES_REALISTAS)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2, mixBlendMode: 'screen', opacity: voandoPara ? 0 : (reinoHover === reino.nome ? 1 : 0), transition: 'opacity 0.3s ease-out' }} alt={`Mascara ${reino.nome}`} /> : null
                         ))}
 
                         {posicoesPings.map((reino) => (
