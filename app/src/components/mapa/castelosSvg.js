@@ -74,13 +74,13 @@ export function svgCidadelaCeus() {
 </defs>`;
 
     // Torres ao fundo (névoa), depois as de trás, o portão, o torreão principal e as da frente.
-    const nevoa = [[84, 10, 34, 18], [160, 10, 40, 24], [30, 9, 52, 38], [186, 8, 54, 42]]
+    const nevoa = [[84, 10, 34, 18], [160, 10, 40, 24], [34, 9, 52, 38]]
         .map(([x, w, t, a]) => `<path d='M${x - 1.5} ${t}L${n1(x + w / 2)} ${a}L${x + w + 1.5} ${t}V100H${x - 1.5}z' fill='#eef2fb' opacity='0.5'/>`).join('');
-    const traseiras = [{ x: 22, w: 14, top: 62, apex: 42 }, { x: 44, w: 16, top: 54, apex: 32 }, { x: 96, w: 14, top: 44, apex: 26 }, { x: 150, w: 14, top: 52, apex: 32 }, { x: 170, w: 14, top: 68, apex: 50 }].map(torreCeus);
-    const frente = [{ x: 62, w: 10, top: 60, apex: 46 }, { x: 82, w: 10, top: 60, apex: 46 }, { x: 8, w: 12, top: 74, apex: 60 }, { x: 180, w: 12, top: 74, apex: 60 }, { x: 111, w: 7, top: 30, base: 58, apex: 20 }, { x: 138, w: 7, top: 30, base: 58, apex: 20 }].map(torreCeus);
+    const traseiras = [{ x: 30, w: 14, top: 62, apex: 42 }, { x: 50, w: 16, top: 54, apex: 32 }, { x: 96, w: 14, top: 44, apex: 26 }, { x: 150, w: 14, top: 52, apex: 32 }].map(torreCeus);
+    const frente = [{ x: 62, w: 10, top: 60, apex: 46 }, { x: 82, w: 10, top: 60, apex: 46 }, { x: 24, w: 12, top: 74, apex: 60 }, { x: 166, w: 12, top: 74, apex: 60 }, { x: 111, w: 7, top: 30, base: 58, apex: 20 }, { x: 138, w: 7, top: 30, base: 58, apex: 20 }].map(torreCeus);
     const topo = torreCeus({ x: 121, w: 14, top: 24, base: 40, apex: 10 });
-    const muralha = `<rect x='12' y='84' width='176' height='16' fill='url(#cil)'/><rect x='12' y='84' width='176' height='16' fill='url(#blk)'/>${cachorros(12, 84, 176, '#a8946a')}`
-        + ameias(12, 84, 176, 'url(#cil)', 6) + `<rect x='12' y='84' width='176' height='1.4' fill='#8a7040' opacity='0.6'/>`;
+    const muralha = `<rect x='24' y='84' width='154' height='16' fill='url(#cil)'/><rect x='24' y='84' width='154' height='16' fill='url(#blk)'/>${cachorros(24, 84, 154, '#a8946a')}`
+        + ameias(24, 84, 154, 'url(#cil)', 6) + `<rect x='24' y='84' width='154' height='1.4' fill='#8a7040' opacity='0.6'/>`;
     const portao = `<rect x='64' y='66' width='26' height='34' fill='url(#cil)'/><rect x='64' y='66' width='26' height='34' fill='url(#blk)'/>${ameias(64, 66, 26, 'url(#cil)', 5.2)}`;
     const torreao = `<rect x='108' y='58' width='40' height='42' fill='url(#cil)'/><rect x='108' y='58' width='40' height='42' fill='url(#blk)'/>${ameias(108, 58, 40, 'url(#cil)', 5.6)}`
         + `<rect x='114' y='40' width='28' height='20' fill='url(#cil)'/><rect x='114' y='40' width='28' height='20' fill='url(#blk)'/>${ameias(114, 40, 28, 'url(#cil)', 5.6)}`
@@ -88,26 +88,25 @@ export function svgCidadelaCeus() {
     const rosa = `<circle cx='128' cy='49' r='4.6' fill='url(#luz)' stroke='#7a5a1a' stroke-width='0.6'/><path d='M128 44.4V53.6M123.4 49H132.6M124.8 45.8L131.2 52.2M131.2 45.8L124.8 52.2' stroke='#7a5a1a' stroke-width='0.4'/>`;
     const todasJanelas = [...traseiras, ...frente, topo].flatMap(t => t.wins);
     const jan = janelas([...todasJanelas, [118, 64, 4, 10], [128, 64, 4, 10], [138, 64, 4, 10], [128, 26, 3, 7], [128, 86, 3.4, 8]], 'url(#luz)', '#7a5a1a')
-        + janelas([[77, 76, 3.2, 7], [38, 90, 2.8, 6], [160, 90, 2.8, 6], [20, 90, 2.8, 6], [180, 90, 2.8, 6], [96, 90, 2.8, 6]], 'url(#luz)', '#7a5a1a');
+        + janelas([[77, 76, 3.2, 7], [44, 90, 2.8, 6], [160, 90, 2.8, 6], [96, 90, 2.8, 6]], 'url(#luz)', '#7a5a1a');
     const arcoPortao = `<path d='M71 100V91a6 6 0 0 1 12 0V100z' fill='#2a1a06'/><path d='M71 100V91a6 6 0 0 1 12 0V100z' fill='url(#luz)' opacity='0.5'/><path d='M73 100V92M77 100V90M81 100V92M71 95H83' stroke='#6a4a10' stroke-width='0.4'/>`;
-    const bandeiras = bandeira(128, 10, '#ffc83a', '#8a5a0a') + bandeira(114, 20, '#ffffff', '#b89a4a') + bandeira(141, 20, '#ffffff', '#b89a4a') + bandeira(51, 32, '#ffc83a', '#8a5a0a') + bandeira(103, 26, '#ffc83a', '#8a5a0a');
+    const bandeiras = bandeira(128, 10, '#ffc83a', '#8a5a0a') + bandeira(114, 20, '#ffffff', '#b89a4a') + bandeira(141, 20, '#ffffff', '#b89a4a') + bandeira(58, 32, '#ffc83a', '#8a5a0a') + bandeira(103, 26, '#ffc83a', '#8a5a0a');
 
     // Ilha flutuante: rocha irregular com estratos, relva na borda, cachoeira e névoa.
-    const ilha = `<g filter='url(#rocha)'><path d='M8 99C12 110 24 121 38 130C52 139 66 147 82 151C90 153 98 152 104 147C118 140 134 131 148 120C162 111 178 106 192 99Z' fill='url(#ros)'/></g>`
+    const ilha = `<g transform='translate(100 99) scale(0.76 0.92) translate(-100 -99)'><g filter='url(#rocha)'><path d='M8 99C12 110 24 121 38 130C52 139 66 147 82 151C90 153 98 152 104 147C118 140 134 131 148 120C162 111 178 106 192 99Z' fill='url(#ros)'/></g>`
         + `<path d='M16 108C40 114 70 112 100 118C130 114 160 112 186 106M28 120C56 124 84 122 112 130M54 136C76 140 96 138 112 142' stroke='#3a2c1c' stroke-opacity='0.45' stroke-width='0.8' fill='none'/>`
         + `<path d='M8 99C40 96 80 98 100 97C130 98 160 96 192 99L192 103C160 107 130 104 100 106C70 105 40 108 8 103Z' fill='url(#relva)'/>`
         + `<path d='M38 126C37 134 35 142 36 150' stroke='url(#agua)' stroke-width='3.2' fill='none' stroke-linecap='round'/><path d='M43 128C43 136 42 144 43 150' stroke='url(#agua)' stroke-width='1.6' fill='none' stroke-linecap='round'/>`
         + `<ellipse cx='39' cy='150' rx='10' ry='2.4' fill='#ffffff' opacity='0.55' filter='url(#neblina)'/>`
-        + `<g fill='#9fe8ff' filter='url(#brilho)'><polygon points='96,147 100,151 104,147 100,155'/><polygon points='70,138 73,135 75,141'/><polygon points='128,133 131,130 133,136'/></g>`;
-    const pinheiros = [[14, 99, 7], [22, 99, 5.4], [182, 99, 7], [174, 99, 5.2]].map(([x, y, h]) => `<path d='M${x} ${y - h * 1.7}L${x + h * 0.45} ${y - h * 0.5}H${x + h * 0.2}L${x + h * 0.55} ${y}H${x - h * 0.55}L${x - h * 0.2} ${y - h * 0.5}H${x - h * 0.45}z' fill='#2f6b2a'/>`).join('');
-    const nuvens = `<g fill='#ffffff' opacity='0.96' filter='url(#nuvem)'><ellipse cx='100' cy='103' rx='96' ry='5'/><ellipse cx='26' cy='107' rx='20' ry='6'/><ellipse cx='176' cy='107' rx='20' ry='6'/><ellipse cx='62' cy='112' rx='15' ry='4.4'/><ellipse cx='144' cy='113' rx='15' ry='4.4'/></g>`;
+        + `<g fill='#9fe8ff' filter='url(#brilho)'><polygon points='96,147 100,151 104,147 100,155'/><polygon points='70,138 73,135 75,141'/><polygon points='128,133 131,130 133,136'/></g></g>`;
+    const nuvens = `<g transform='translate(100 99) scale(0.76 1) translate(-100 -99)'><g fill='#ffffff' opacity='0.96' filter='url(#nuvem)'><ellipse cx='100' cy='103' rx='96' ry='5'/><ellipse cx='26' cy='107' rx='20' ry='6'/><ellipse cx='176' cy='107' rx='20' ry='6'/><ellipse cx='62' cy='112' rx='15' ry='4.4'/><ellipse cx='144' cy='113' rx='15' ry='4.4'/></g></g>`;
 
-    return encaixarSvg(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 160' preserveAspectRatio='xMidYMid meet'>${defs}`
-        + `<ellipse cx='110' cy='62' rx='100' ry='62' fill='url(#aura)'/>`
+    return encaixarSvg(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='20 0 160 150' preserveAspectRatio='xMidYMid meet'>${defs}`
+        + `<ellipse cx='104' cy='60' rx='80' ry='58' fill='url(#aura)'/>`
         + nevoa + ilha
         + `<g filter='url(#pedra)'>${traseiras.map(t => t.corpo).join('')}${muralha}${portao}${torreao}${frente.map(t => t.corpo).join('')}${topo.corpo}</g>`
         + `${[...traseiras, ...frente, topo].map(t => t.telhado).join('')}`
-        + pinheiros + arcoPortao + rosa + jan + bandeiras + nuvens + '</svg>');
+        + arcoPortao + rosa + jan + bandeiras + nuvens + '</svg>');
 }
 
 // ------------------------------------------
@@ -143,7 +142,7 @@ export function svgFortalezaInferno() {
 <filter id='rocha' x='-6%' y='-6%' width='112%' height='112%'><feTurbulence type='fractalNoise' baseFrequency='0.05' numOctaves='4' seed='21' result='d'/><feDisplacementMap in='SourceGraphic' in2='d' scale='4' xChannelSelector='R' yChannelSelector='G' result='r'/><feTurbulence type='fractalNoise' baseFrequency='0.28' numOctaves='3' seed='4' result='n'/><feDiffuseLighting in='n' surfaceScale='2.6' diffuseConstant='1.3' lighting-color='#ffc0d4' result='l'><feDistantLight azimuth='225' elevation='42'/></feDiffuseLighting><feComposite in='r' in2='l' operator='arithmetic' k1='1.4' k2='0' k3='0' k4='0' result='t'/><feComposite in='t' in2='r' operator='in'/></filter>
 </defs>`;
 
-    const montanha = `<g filter='url(#rocha)'><path d='M84 120L66 106L48 94L32 80L22 66L26 52L34 40L46 28L58 16L68 6L76 2L84 10L96 22L112 36L132 52L156 70L180 90L200 106V120Z' fill='url(#rocI)'/><path d='M34 112C60 104 120 106 200 102V120H48Z' fill='url(#rocI)'/></g>`;
+    const montanha = `<g filter='url(#rocha)'><path d='M84 120L66 106L48 94L32 80L22 66L26 52L34 40L46 28L58 16L68 6L76 2L84 10L96 22L112 36L132 52L156 70L180 90L200 106V120Z' fill='url(#rocI)'/><path d='M76 112C96 105 130 106 200 102V120H70Z' fill='url(#rocI)'/></g>`;
     const veias = `<g fill='none' stroke-linecap='round'><path d='M30 78C40 84 46 90 58 92C70 96 78 104 90 108M112 40C120 50 130 58 140 66C152 76 164 86 176 96M70 20C74 34 70 46 76 58' stroke='#ff5a20' stroke-width='1.4' opacity='0.85' filter='url(#brilhoLava)'/><path d='M30 78C40 84 46 90 58 92C70 96 78 104 90 108M112 40C120 50 130 58 140 66C152 76 164 86 176 96' stroke='#ffd0a0' stroke-width='0.5' opacity='0.9'/></g>`;
     const muros = `<rect x='48' y='80' width='120' height='16' fill='url(#cilI)'/><rect x='48' y='80' width='120' height='16' fill='url(#blkI)'/><rect x='48' y='80' width='120' height='16' fill='url(#brasaV)'/>${cachorros(48, 80, 120, '#2a0e22')}${ameias(48, 80, 120, 'url(#cilI)', 6)}`
         + `<rect x='80' y='96' width='112' height='20' fill='url(#cilI)'/><rect x='80' y='96' width='112' height='20' fill='url(#blkI)'/><rect x='80' y='96' width='112' height='20' fill='url(#brasaV)'/>${cachorros(80, 96, 112, '#2a0e22')}${ameias(80, 96, 112, 'url(#cilI)', 6)}`;

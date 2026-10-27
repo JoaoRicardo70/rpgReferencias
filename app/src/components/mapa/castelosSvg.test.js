@@ -9,7 +9,7 @@ describe('castelosSvg', () => {
     });
 
     it.each([
-        ['Céus', svgCidadelaCeus, '0 0 200 160'],
+        ['Céus', svgCidadelaCeus, '20 0 160 150'],
         ['Inferno', svgFortalezaInferno, '0 0 200 120']
     ])('%s: SVG bem formado com o viewBox da caixa e filtros de relevo/luz', (_, gerar, viewBox) => {
         const svg = decodificar(gerar());
@@ -32,6 +32,6 @@ describe('castelosSvg', () => {
     it('os números do desenho ficam dentro do viewBox horizontal (nada sai pela lateral)', () => {
         const svg = decodificar(svgCidadelaCeus());
         const xs = Array.from(svg.matchAll(/<rect x='(-?[0-9.]+)' y='[-0-9.]+' width='([0-9.]+)'/g), m => [parseFloat(m[1]), parseFloat(m[2])]);
-        xs.forEach(([x, w]) => { expect(x).toBeGreaterThanOrEqual(-1); expect(x + w).toBeLessThanOrEqual(201); });
+        xs.forEach(([x, w]) => { expect(x).toBeGreaterThanOrEqual(19); expect(x + w).toBeLessThanOrEqual(181); });
     });
 });

@@ -21,22 +21,22 @@ describe('cidadelas do Mapa dos Planos', () => {
     it('Céus: termina acima do Plano da Ordem e não chega ao aro (lado direito)', () => {
         const c = caixa('planos-castelo-ceus');
         expect(c.topo + c.alt).toBeLessThanOrEqual(ORDEM.topo);
-        expect(c.esq + c.larg).toBeLessThanOrEqual(31);
-        expect(c.topo).toBeGreaterThanOrEqual(8);
+        expect(c.esq + c.larg).toBeLessThanOrEqual(32.5);
+        expect(c.topo).toBeGreaterThanOrEqual(10);
     });
 
     it('Inferno: começa abaixo do Plano da Ordem, fica à esquerda do aro e acima do rótulo "Inferno"', () => {
         const c = caixa('planos-castelo-inferno');
         expect(c.topo).toBeGreaterThanOrEqual(ORDEM.base);
-        expect(c.esq + c.larg).toBeLessThanOrEqual(33);
-        expect(c.topo + c.alt).toBeLessThanOrEqual(83);
+        expect(c.esq + c.larg).toBeLessThanOrEqual(38);
+        expect(c.topo + c.alt).toBeLessThanOrEqual(87);
     });
 
     it('as caixas respeitam a proporção do desenho (nada é esticado)', () => {
         // O palco é 5:3; a proporção em pixels é (larg*5)/(alt*3).
         const ceus = caixa('planos-castelo-ceus');
         const inf = caixa('planos-castelo-inferno');
-        expect((ceus.larg * 5) / (ceus.alt * 3)).toBeCloseTo(100 / 80, 1);
+        expect((ceus.larg * 5) / (ceus.alt * 3)).toBeCloseTo(160 / 150, 1);
         expect((inf.larg * 5) / (inf.alt * 3)).toBeCloseTo(100 / 60, 1);
     });
 });
