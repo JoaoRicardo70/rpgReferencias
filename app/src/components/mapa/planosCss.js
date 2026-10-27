@@ -4,6 +4,7 @@
 // douradas do Multiverso recortam um reino calmo no meio, onde ficam os demais planos. Mesmo esquema de astrosCss.js/globoCss.js.
 // ==========================================
 import { svgRuido } from './astrosCss';
+import { svgCidadelaCeus, svgFortalezaInferno } from './castelosSvg';
 
 const T = {
     ventoBandas: svgRuido({ fx: 0.004, fy: 0.09, oct: 4, seed: 41, rgb: [0.75, 1, 0.8], alfa: [3.4, -1.35] }),
@@ -41,61 +42,7 @@ const T = {
     nuvem: svgRuido({ fx: 0.01, fy: 0.04, oct: 5, seed: 31, rgb: [1, 1, 1], alfa: [3, -1.45] })
 };
 
-// Cidadelas do Mapa dos Planos (desenhadas em SVG; cada uma cabe na área livre do reino, sem cobrir planos, aro ou rótulos).
-// Céus: cidadela branca e dourada sobre uma ilha flutuante; a torre maior fica à direita, onde o céu é mais alto.
-// Inferno: fortaleza de obsidiana em degraus numa montanha vulcânica; o pico fica à esquerda e a encosta desce acompanhando o aro.
-function ameiasEm(x, y, w, passo = 4.4, lado = 2.4) {
-    return Array.from({ length: Math.max(1, Math.floor(w / passo)) }, (_, i) => `<rect x='${(x + 0.8 + i * passo).toFixed(1)}' y='${y - 2.4}' width='${lado}' height='2.4'/>`).join('');
-}
-function arcoJanela(cx, y, w, h) {
-    return `<path d='M${cx - w / 2} ${y + h}V${y + w / 2}a${w / 2} ${w / 2} 0 0 1 ${w} 0V${y + h}z'/>`;
-}
-function torreComTelhado(x, w, yTopo, yBase, apice) {
-    return `<rect x='${x}' y='${yTopo}' width='${w}' height='${yBase - yTopo}'/><polygon points='${x - 1.6},${yTopo} ${x + w / 2},${apice} ${x + w + 1.6},${yTopo}'/><rect x='${x - 1}' y='${yTopo - 0.4}' width='${w + 2}' height='1.6'/>`;
-}
-function bandeiraEm(x, y, cor, estroke) {
-    return `<path d='M${x} ${y}v-6' stroke='${estroke}' stroke-width='0.5'/><polygon points='${x},${y - 6} ${x + 5.5},${y - 4.4} ${x},${y - 2.8}' fill='${cor}'/>`;
-}
-function encaixar(svg) {
-    return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
-}
-
-function svgCidadelaCeus() {
-    const corpo = 'url(#h)', borda = '#c99a2a', janela = '#ffb81c';
-    const torres = [
-        [46, 9, 26, 50, 17], [84, 8, 32, 50, 23], [30, 9, 34, 50, 25], [14, 8, 38, 50, 30], [53, 5, 34, 50, 29], [22, 4, 40, 50, 35]
-    ].map(([x, w, t, b, a]) => torreComTelhado(x, w, t, b, a)).join('');
-    const janelas = [arcoJanela(73, 28, 4, 9), arcoJanela(73, 19, 3, 4), arcoJanela(66.5, 38, 3, 7), arcoJanela(79.5, 38, 3, 7), arcoJanela(50.5, 32, 3, 8), arcoJanela(88, 38, 3, 7), arcoJanela(34.5, 40, 3, 6), arcoJanela(18, 42, 2.6, 5), arcoJanela(60, 43, 2.6, 5), arcoJanela(8, 44, 2, 4)].join('');
-    const rocha = "<polygon points='6,50 10,57 17,64 25,70 33,75 41,79 47,80 53,76 62,70 71,62 80,56 88,52 94,50' fill='url(#r)' stroke='#8a6a3a' stroke-width='0.6' stroke-linejoin='round'/><path d='M14 54L24 70M26 56L36 76M42 52L44 78M56 52L50 74M70 52L62 68M84 52L74 62' stroke='#6a4e2a' stroke-width='0.5' fill='none' opacity='0.7'/><g fill='#9fe8ff' filter='url(#b)'><polygon points='44,77 47,78 50,77 47,79.5'/><polygon points='33,72 35,70 36,74'/><polygon points='58,70 60,68 61,72'/></g>";
-    const nuvens = "<g fill='white' opacity='0.97'><ellipse cx='50' cy='51' rx='46' ry='3.4'/><ellipse cx='14' cy='55' rx='9' ry='3.6'/><ellipse cx='86' cy='55' rx='8' ry='3.6'/><ellipse cx='30' cy='59' rx='7' ry='2.8'/><ellipse cx='70' cy='60' rx='7' ry='2.8'/></g>";
-    return encaixar("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 80' preserveAspectRatio='xMidYMid meet'><defs><linearGradient id='h' x1='0' y1='0' x2='1' y2='0'><stop offset='0' stop-color='#ffffff'/><stop offset='0.6' stop-color='#f6ebc8'/><stop offset='1' stop-color='#cdb98a'/></linearGradient><linearGradient id='r' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#cdb98a'/><stop offset='1' stop-color='#5a4630'/></linearGradient><radialGradient id='a' cx='0.5' cy='0.5' r='0.5'><stop offset='0' stop-color='#fff6c0' stop-opacity='0.85'/><stop offset='1' stop-color='#fff6c0' stop-opacity='0'/></radialGradient><filter id='b'><feGaussianBlur stdDeviation='1.1'/></filter></defs>"
-        + "<ellipse cx='55' cy='34' rx='48' ry='32' fill='url(#a)'/>" + rocha
-        + "<g fill='" + corpo + "' stroke='" + borda + "' stroke-width='0.5' stroke-linejoin='round'><rect x='8' y='42' width='84' height='8'/>" + ameiasEm(8, 42, 84) + torres
-        + "<rect x='62' y='24' width='22' height='26'/><rect x='66' y='17' width='14' height='8'/><polygon points='65.4,17 73,7 80.6,17'/><rect x='61' y='23' width='24' height='2'/><polygon points='59,40 62,32 62,44'/><polygon points='87,40 84,32 84,44'/></g>"
-        + bandeiraEm(73, 7, '#ffc83a', borda) + bandeiraEm(50.5, 17, '#ffc83a', borda) + bandeiraEm(88, 23, '#ffc83a', borda)
-        + "<g fill='" + janela + "' filter='url(#b)'>" + janelas + "</g><g fill='" + janela + "'>" + janelas + "<path d='M38.5 50V45.5a2.5 2.5 0 0 1 5 0V50z' fill='#3a2a00'/></g>"
-        + "<circle cx='73' cy='44' r='2.4' fill='none' stroke='" + janela + "' stroke-width='0.6'/><path d='M70.6 44h4.8M73 41.6v4.8' stroke='" + janela + "' stroke-width='0.4'/>"
-        + nuvens + '</svg>');
-}
-
-function svgFortalezaInferno() {
-    const borda = '#d0245a', janela = '#ff3355', lava = '#ff3a1c';
-    const montanha = "<polygon points='42,60 33,53 24,47 16,40 11,33 13,26 17,20 23,14 29,8 34,3 38,1 42,5 48,11 56,18 66,26 78,35 90,45 100,53 100,60' fill='url(#m)' stroke='#c0204e' stroke-width='0.8' stroke-linejoin='round'/>";
-    const degraus = [[24, 38, 60, 10], [40, 48, 60, 10]];
-    const muros = degraus.map(([x, y, w, h]) => "<rect x='" + x + "' y='" + y + "' width='" + w + "' height='" + h + "'/>" + ameiasEm(x, y, w)).join('');
-    const torres = [
-        [16, 8, 26, 48, 15], [50, 8, 24, 48, 13], [60, 7, 32, 48, 21], [34, 7, 40, 58, 31], [66, 8, 40, 58, 30], [80, 7, 44, 58, 35], [92, 6, 48, 58, 41], [48, 8, 46, 58, 36]
-    ].map(([x, w, t, b, a]) => torreComTelhado(x, w, t, b, a)).join('');
-    const janelas = [arcoJanela(38, 20, 4, 9), arcoJanela(38, 10, 2.6, 4), arcoJanela(33, 28, 2.6, 6), arcoJanela(43, 28, 2.6, 6), arcoJanela(20, 31, 2.6, 6), arcoJanela(54, 28, 2.8, 7), arcoJanela(63.5, 36, 2.4, 5), arcoJanela(37.5, 45, 2.4, 5), arcoJanela(69.5, 46, 2.6, 6), arcoJanela(83.5, 48, 2.4, 5), arcoJanela(95, 51, 2.2, 4), arcoJanela(52, 50, 2.6, 5), arcoJanela(28, 41, 2.2, 3), arcoJanela(74, 41, 2.2, 3)].join('');
-    const rio = "<path d='M38 38V48H46V58' stroke='" + lava + "' stroke-width='2' fill='none' stroke-linejoin='round' opacity='0.95'/><path d='M38 38V48H46V58' stroke='#ffd0a0' stroke-width='0.7' fill='none' stroke-linejoin='round' opacity='0.9'/>";
-    const lago = "<ellipse cx='70' cy='59' rx='30' ry='2.2' fill='" + lava + "' opacity='0.9'/><ellipse cx='70' cy='59' rx='20' ry='1' fill='#ffd0a0' opacity='0.8'/>";
-    return encaixar("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 60' preserveAspectRatio='xMidYMax meet'><defs><linearGradient id='m' x1='0' y1='0' x2='1' y2='0'><stop offset='0' stop-color='#6a2040'/><stop offset='1' stop-color='#1a0612'/></linearGradient><linearGradient id='h' x1='0' y1='0' x2='1' y2='0'><stop offset='0' stop-color='#6a2448'/><stop offset='0.5' stop-color='#2a0a20'/><stop offset='1' stop-color='#0c0210'/></linearGradient><radialGradient id='a' cx='0.35' cy='0.4' r='0.7'><stop offset='0' stop-color='#ff2a55' stop-opacity='0.55'/><stop offset='1' stop-color='#ff2a55' stop-opacity='0'/></radialGradient><filter id='b'><feGaussianBlur stdDeviation='1.1'/></filter></defs>"
-        + "<ellipse cx='42' cy='28' rx='44' ry='30' fill='url(#a)'/>" + montanha
-        + "<g fill='url(#h)' stroke='" + borda + "' stroke-width='0.6' stroke-linejoin='round'>" + muros + torres + "<rect x='28' y='16' width='20' height='22'/><rect x='31' y='8' width='14' height='9'/><polygon points='30,8 38,0.8 46,8'/><rect x='27' y='15' width='22' height='2'/></g>"
-        + rio + lago + bandeiraEm(54, 13, '#ff2a55', borda) + bandeiraEm(20, 15, '#ff2a55', borda)
-        + "<g fill='" + janela + "' filter='url(#b)'>" + janelas + "</g><g fill='" + janela + "'>" + janelas + "<path d='M35 38V33a3 3 0 0 1 6 0V38z' fill='#000' opacity='0.9'/></g>"
-        + '</svg>');
-}
+// Cidadelas do Mapa dos Planos: ilustrações em castelosSvg.js (cada uma cabe na área livre do reino, sem cobrir planos, aro ou rótulos).
 T.casteloLuz = svgCidadelaCeus();
 T.casteloTrevas = svgFortalezaInferno();
 T.infernoVeias = svgRuido({ fx: 0.03, fy: 0.05, oct: 5, seed: 122, rgb: [1, 0.08, 0.22], alfa: [8, -4.4] });
