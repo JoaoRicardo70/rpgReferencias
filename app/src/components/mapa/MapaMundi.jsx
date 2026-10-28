@@ -23,6 +23,9 @@ import { CSS_GLOBO } from './globoCss';
 import { CSS_PLANOS } from './planosCss';
 import { slugDoPlano, rotuloDoPlano } from '../../core/planos';
 import { webglDisponivel } from '../../core/globoTerra';
+import CamadaFronteiras from './CamadaFronteiras';
+import EditorFronteiras from './EditorFronteiras';
+import { facoesDeFirebase, facoesParaFirebase, gradeDeFirebase, gradeParaFirebase, lerTerritoriosVisiveis, gravarTerritoriosVisiveis } from '../../core/fronteiras';
 import { ESTILO_REALISTA, lerEstiloMapa, gravarEstiloMapa, alternarEstiloMapa, realceDaRegiao } from '../../core/estiloMapa';
 import { segmentosDoOito, amostrarTrilha, escolherFases, atrasoDaFase } from '../../core/orbitasUniverso';
 
@@ -43,6 +46,58 @@ export default function MapaMundi({ children }) {
 
     const [nivelVisao, setNivelVisao] = useState('sistema_solar');
     const [estiloMapa, setEstiloMapa] = useState(() => lerEstiloMapa(typeof localStorage !== 'undefined' ? localStorage : null));
+    // ⚔️ Fronteiras: territórios pintados pelo Mestre (cenario.fronteiras). Durante a edição o estado fica local e é salvo com debounce.
+    const setCenario = useStore(s => s.setCenario);
+    const [editandoFronteiras, setEditandoFronteiras] = useState(false);
+    const [fronteirasLocal, setFronteirasLocal] = useState(null);
+    const [territoriosVisiveis, setTerritoriosVisiveis] = useState(() => lerTerritoriosVisiveis(typeof localStorage !== 'undefined' ? localStorage : null));
+    const timerFronteiras = useRef(null);
+    const pendenteFronteiras = useRef(null);
+    const cenarioRef = useRef(cenario);
+    cenarioRef.current = cenario;
+    const fronteirasRemotas = useMemo(() => {
+        const facoes = facoesDeFirebase(cenario?.fronteiras?.facoes);
+        return { facoes, grade: gradeDeFirebase(cenario?.fronteiras?.linhas, facoes) };
+    }, [cenario?.fronteiras]);
+    const fronteiras = fronteirasLocal || fronteirasRemotas;
+    const gravarFronteiras = useCallback((estado) => {
+        const novo = { ...(cenarioRef.current || {}), fronteiras: { facoes: facoesParaFirebase(estado.facoes), linhas: gradeParaFirebase(estado.grade) } };
+        if (setCenario) setCenario(novo);
+        Promise.resolve(salvarCenarioCompleto(novo)).then((ok) => {
+            if (ok === false) alert('Não foi possível salvar as fronteiras. Confira a conexão e tente de novo.');
+        });
+    }, [setCenario]);
+    const descarregarFronteiras = useCallback(() => {
+        clearTimeout(timerFronteiras.current);
+        const pendente = pendenteFronteiras.current;
+        pendenteFronteiras.current = null;
+        if (pendente) gravarFronteiras(pendente);
+    }, [gravarFronteiras]);
+    const mudarFronteiras = useCallback((estado) => {
+        setFronteirasLocal(estado);
+        pendenteFronteiras.current = estado;
+        clearTimeout(timerFronteiras.current);
+        timerFronteiras.current = setTimeout(descarregarFronteiras, 500);
+    }, [descarregarFronteiras]);
+    const abrirEditorFronteiras = () => { setFronteirasLocal(fronteirasRemotas); setEditandoFronteiras(true); };
+    const fecharEditorFronteiras = useCallback(() => {
+        descarregarFronteiras();
+        setEditandoFronteiras(false);
+        setFronteirasLocal(null);
+    }, [descarregarFronteiras]);
+    useEffect(() => { if (nivelVisao !== 'continente' && editandoFronteiras) fecharEditorFronteiras(); }, [nivelVisao, editandoFronteiras, fecharEditorFronteiras]);
+    useEffect(() => {
+        const salvarAoSair = () => { clearTimeout(timerFronteiras.current); if (pendenteFronteiras.current) { gravarFronteiras(pendenteFronteiras.current); pendenteFronteiras.current = null; } };
+        window.addEventListener('pagehide', salvarAoSair);
+        return () => { window.removeEventListener('pagehide', salvarAoSair); salvarAoSair(); };
+    }, [gravarFronteiras]);
+    const ehMestreAgora = !!ctxMapa?.isMestre;
+    useEffect(() => { if (!ehMestreAgora && editandoFronteiras) fecharEditorFronteiras(); }, [ehMestreAgora, editandoFronteiras, fecharEditorFronteiras]);
+    const alternarTerritorios = () => {
+        gravarTerritoriosVisiveis(typeof localStorage !== 'undefined' ? localStorage : null, !territoriosVisiveis);
+        setTerritoriosVisiveis(!territoriosVisiveis);
+    };
+
     const alternarEstilo = useCallback(() => {
         const novo = alternarEstiloMapa(estiloMapa);
         gravarEstiloMapa(typeof localStorage !== 'undefined' ? localStorage : null, novo);
@@ -601,6 +656,8 @@ export default function MapaMundi({ children }) {
                     <button onClick={() => iniciarViagem('Globo', 'globo')} style={{ background: '#ff4444', color: '#fff', border: 'none', padding: '6px 18px', borderRadius: '5px', fontSize: '0.85em', cursor: 'pointer', fontWeight: 'bold' }}>⬅ VOLTAR AO GLOBO</button>
                     <h2 style={{ color: '#0088ff', margin: 0, textTransform: 'uppercase', letterSpacing: '3px', textShadow: '0 0 10px #0088ff' }}>{reinoHover || localAtual.continente}</h2>
                     <div className="mapa-estilo-caixa">
+                        {souMestre && <button type="button" className="mapa-estilo-botao" onClick={editandoFronteiras ? fecharEditorFronteiras : abrirEditorFronteiras} aria-pressed={editandoFronteiras} title="O Mestre pinta quem controla cada território">⚔️ Fronteiras</button>}
+                        {(souMestre || fronteirasRemotas.facoes.length > 0) && <button type="button" className="mapa-estilo-botao" onClick={alternarTerritorios} aria-pressed={territoriosVisiveis} title="Mostrar ou esconder os territórios">{territoriosVisiveis ? '👁 Territórios' : '🚫 Territórios'}</button>}
                         <button type="button" className="mapa-estilo-botao" onClick={alternarEstilo} aria-pressed={estiloMapa === ESTILO_REALISTA} title="Alternar entre o mapa clássico e o mapa realista">{estiloMapa === ESTILO_REALISTA ? '🗺️ Mapa clássico' : '🏔️ Mapa realista'}</button>
                     </div>
                 </div>
@@ -613,6 +670,13 @@ export default function MapaMundi({ children }) {
                             realceDaRegiao(estiloMapa, reino.nome, reino.img, REALCES_REALISTAS) ? <img key={`mask-${reino.nome}`} src={realceDaRegiao(estiloMapa, reino.nome, reino.img, REALCES_REALISTAS)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2, mixBlendMode: 'screen', opacity: voandoPara ? 0 : (reinoHover === reino.nome ? 1 : 0), transition: 'opacity 0.3s ease-out' }} alt={`Mascara ${reino.nome}`} /> : null
                         ))}
 
+                        {(territoriosVisiveis || editandoFronteiras) && <CamadaFronteiras grade={fronteiras.grade} facoes={fronteiras.facoes} />}
+                        {editandoFronteiras && <EditorFronteiras facoes={fronteiras.facoes} grade={fronteiras.grade} onMudar={mudarFronteiras} onFechar={fecharEditorFronteiras} />}
+                        {!editandoFronteiras && territoriosVisiveis && fronteiras.facoes.length > 0 && (
+                            <ul className="fronteiras-legenda" aria-label="Legenda dos territórios">
+                                {fronteiras.facoes.map((f) => <li key={f.id}><span className="fronteiras-legenda-cor" style={{ background: f.cor }} />{f.nome}</li>)}
+                            </ul>
+                        )}
                         {posicoesPings.map((reino) => (
                             <div key={reino.nome} className={`ping-wrapper ${reinoHover === reino.nome ? 'active' : ''}`} style={{ top: reino.top, left: reino.left, pointerEvents: 'auto', cursor: 'pointer', position: 'absolute', transform: voandoPara === reino.nome ? 'translate(-50%, -50%) scale(40)' : (reinoHover === reino.nome ? 'translate(-50%, -50%) scale(1.1)' : 'translate(-50%, -50%) scale(1)'), display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: voandoPara === reino.nome ? 9999 : 5, padding: '10px', opacity: voandoPara && voandoPara !== reino.nome ? 0 : 1, transition: voandoPara === reino.nome ? 'all 1.5s cubic-bezier(0.4, 0, 0.2, 1)' : 'all 0.3s ease-out' }} onMouseEnter={() => setReinoHover(reino.nome)} onMouseLeave={() => setReinoHover(null)} onClick={(e) => { e.stopPropagation(); iniciarViagem(reino.nome, () => abrirMenuReino(reino.nome)); }}>
                                 <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#000', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: '0.3s', boxShadow: '0 0 15px rgba(0,0,0,0.9)', borderWidth: '2px', borderStyle: 'solid', borderColor: reinoHover === reino.nome ? '#fff' : reino.cor, opacity: voandoPara === reino.nome ? 0 : 1 }}>

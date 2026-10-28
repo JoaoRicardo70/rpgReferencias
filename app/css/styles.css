@@ -2988,3 +2988,33 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .mapa-estilo-caixa { min-width: 120px; display: flex; justify-content: flex-end; }
 .mapa-estilo-botao { background: rgba(0, 136, 255, 0.15); color: #bfe3ff; border: 1px solid #0088ff; border-radius: 6px; padding: 6px 14px; font-size: 0.82em; font-weight: bold; cursor: pointer; white-space: nowrap; transition: background 0.2s, box-shadow 0.2s; }
 .mapa-estilo-botao:hover, .mapa-estilo-botao:focus-visible { background: rgba(0, 136, 255, 0.35); box-shadow: 0 0 10px rgba(0, 136, 255, 0.6); outline: none; }
+
+/* ⚔️ Fronteiras do Mapa da Terra 0: camada de territórios, editor do Mestre e legenda. */
+.mapa-estilo-caixa { gap: 8px; align-items: center; flex-wrap: wrap; }
+.mapa-estilo-botao[aria-pressed="true"] { background: rgba(0, 136, 255, 0.4); box-shadow: 0 0 10px rgba(0, 136, 255, 0.6); }
+.fronteiras-camada { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
+.fronteiras-superficie { position: absolute; inset: 0; z-index: 50; cursor: crosshair; touch-action: none; }
+.fronteiras-superficie-bloqueada { cursor: not-allowed; }
+.fronteiras-pincel { position: absolute; transform: translate(-50%, -50%); border: 2px solid #fff; border-radius: 50%; pointer-events: none; box-shadow: 0 0 6px rgba(0, 0, 0, 0.8); }
+.fronteiras-pincel-apagar { border-style: dashed; }
+.fronteiras-painel { position: absolute; left: 10px; bottom: 10px; z-index: 60; width: 270px; max-height: 80%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px; background: rgba(5, 8, 20, 0.93); border: 1px solid #0088ff; border-radius: 8px; box-shadow: 0 0 18px rgba(0, 136, 255, 0.35); color: #e6f2ff; font-size: 0.85em; }
+.fronteiras-painel-topo { display: flex; justify-content: space-between; align-items: center; }
+.fronteiras-painel-topo h3 { margin: 0; font-size: 1em; color: #7cc4ff; }
+.fronteiras-fechar { background: transparent; color: #fff; border: 1px solid #555; border-radius: 4px; cursor: pointer; padding: 2px 8px; }
+.fronteiras-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fronteiras-faccao { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 6px; border: 1px solid transparent; }
+.fronteiras-faccao-ativa { border-color: #0088ff; background: rgba(0, 136, 255, 0.12); }
+.fronteiras-cor { width: 28px; height: 24px; padding: 0; border: none; background: none; cursor: pointer; }
+.fronteiras-nome { flex: 1; min-width: 0; margin: 0; padding: 3px 6px; }
+.fronteiras-area { min-width: 34px; text-align: right; opacity: 0.8; font-size: 0.85em; }
+.fronteiras-remover { background: transparent; border: none; cursor: pointer; color: #ff6b6b; }
+.fronteiras-vazio { opacity: 0.7; font-style: italic; }
+.fronteiras-ferramentas, .fronteiras-acoes { display: flex; gap: 6px; }
+.fronteiras-ferramenta { flex: 1; background: rgba(255, 255, 255, 0.06); color: #e6f2ff; border: 1px solid #335; border-radius: 6px; padding: 5px 8px; cursor: pointer; }
+.fronteiras-ferramenta.ativa { border-color: #0088ff; background: rgba(0, 136, 255, 0.3); }
+.fronteiras-ferramenta:disabled { opacity: 0.4; cursor: default; }
+.fronteiras-raio { display: flex; flex-direction: column; gap: 4px; }
+.fronteiras-dica { margin: 0; opacity: 0.65; font-size: 0.8em; }
+.fronteiras-legenda { position: absolute; left: 10px; bottom: 10px; z-index: 6; list-style: none; margin: 0; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; background: rgba(5, 8, 20, 0.78); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 8px; color: #fff; font-size: 0.78em; font-weight: bold; pointer-events: none; }
+.fronteiras-legenda li { display: flex; align-items: center; gap: 6px; }
+.fronteiras-legenda-cor { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(255, 255, 255, 0.6); }

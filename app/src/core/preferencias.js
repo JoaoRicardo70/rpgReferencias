@@ -10,7 +10,7 @@ export const CHAVES_PREFERENCIAS = [
     'rpg_sensibilidade_voz_v2', 'rpg_dado_cores', 'rpg_fonte', 'rpg_brilho', 'rpg_desempenho', 'rpg_volume', 'rpg_sfx',
     'rpg_clipe_buffer_auto', 'rpg_clipe_duracao',
     'rpg_sala_party_feed', 'rpg_sala_party_midia', 'rpg_sala_party_lados', 'rpg_sala_party_junto',
-    'rpg_dados_mestre_privados', 'rpg_acerto_mestre_oculto', 'rpg_mapa_terra0_estilo'
+    'rpg_dados_mestre_privados', 'rpg_acerto_mestre_oculto', 'rpg_mapa_terra0_estilo', 'rpg_mapa_fronteiras_visivel'
 ];
 export const PREFIXOS_PREFERENCIAS = ['rpg_vol2_'];
 
