@@ -43,6 +43,9 @@ function irAteMenuNoxus(container) {
     avancar();
     fireEvent.click(screen.getAllByText('Noxus')[0]);
     avancar();
+    // a região aproxima o mapa; as Cenas sem ponto de interesse ficam neste atalho
+    const semPonto = screen.queryByLabelText(/Cenas sem ponto de interesse/);
+    if (semPonto) fireEvent.click(semPonto);
 }
 
 beforeEach(() => {
@@ -87,10 +90,10 @@ describe('MapaMundi - painel lateral de Cenas da regiao', () => {
         expect(container.querySelector('.cenas-regiao-contagem').textContent).toBe('1 cena');
     });
 
-    it('0 cenas mostra contagem e mensagem de vazio', () => {
+    it('sem Cenas liberadas a região em foco mostra a mensagem de vazio e nenhum painel', () => {
         const { container } = montar({ lista: {} });
         irAteMenuNoxus(container);
-        expect(container.querySelector('.cenas-regiao-contagem').textContent).toBe('0 cenas');
+        expect(container.querySelector('.cenas-regiao-contagem')).toBeNull();
         expect(screen.getByText('Nenhuma Cena liberada para você nesta região.')).toBeDefined();
     });
 

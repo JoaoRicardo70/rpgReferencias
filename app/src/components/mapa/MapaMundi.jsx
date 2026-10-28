@@ -17,7 +17,10 @@ import gabaritoAguas from '../../assets/gabarito-aguas.png';
 import gabaritoIlha from '../../assets/gabarito-ilha.png';
 import gabaritoIonia from '../../assets/gabarito-ionia.png';
 import { CSS_ASTROS } from './astrosCss';
-import { cenasDaRegiao, nomeDaCenaNaRegiao, regiaoDaCena, cenarioComCenaDeRegiao, cenasPendentesDoAtlasLocal } from '../../core/cenasRegiao';
+import { nomeDaCenaNaRegiao, regiaoDaCena, cenarioComCenaDeRegiao, cenasPendentesDoAtlasLocal } from '../../core/cenasRegiao';
+import { pontosValidos, pontosDaRegiao, cenasDoPonto, cenasSemPonto, cenarioComPonto, cenarioSemPonto, cenarioComCenaNoPonto, caixaDaRegiao, vistaDeFoco } from '../../core/pontosInteresse';
+import PontosDaRegiao from './PontosDaRegiao';
+import FormPonto from './FormPonto';
 import CenaAcesso from './CenaAcesso';
 import { CSS_GLOBO } from './globoCss';
 import { CSS_PLANOS } from './planosCss';
@@ -130,6 +133,20 @@ export default function MapaMundi({ children }) {
     const nomesJogadores = Object.keys(ctxMapa?.jogadores || {});
 
     const [reinoSelecionado, setReinoSelecionado] = useState(null);
+    // 📍 Região em foco (reinoSelecionado): o mapa aproxima dela e mostra os pontos de interesse. painelAberto = ponto
+    // cujas Cenas estão abertas ('__sem' = Cenas da região que não estão em ponto nenhum).
+    const [painelAberto, setPainelAberto] = useState(null);
+    const [editandoPontos, setEditandoPontos] = useState(false);
+    const [formPonto, setFormPonto] = useState(null);
+    const pontosTodos = useMemo(() => pontosValidos(cenario?.pontos), [cenario?.pontos]);
+    const vistaFoco = useMemo(() => vistaDeFoco(caixaDaRegiao(reinoSelecionado)), [reinoSelecionado]);
+    const salvarCenarioPontos = useCallback((novo) => {
+        if (setCenario) setCenario(novo);
+        Promise.resolve(salvarCenarioCompleto(novo)).then((ok) => {
+            if (ok === false) alert('⚠️ Não foi possível salvar no servidor — a mudança pode não aparecer para os outros. Verifique sua conexão e tente de novo.');
+        });
+    }, [setCenario]);
+    const sairDoFoco = useCallback(() => { setReinoSelecionado(null); setPainelAberto(null); setEditandoPontos(false); setFormPonto(null); }, []);
     const [modoEdicaoMapa, setModoEdicaoMapa] = useState(false);
     const [criandoMapa, setCriandoMapa] = useState(false);
     const [novoMapaNome, setNovoMapaNome] = useState('');
@@ -381,7 +398,7 @@ export default function MapaMundi({ children }) {
         // Só Mestre/Co-Mestre cria Cenas (a tela nem mostra o botão pros outros; isto barra qualquer outro caminho).
         if (nome !== "" && souMestre && reinoSelecionado) {
             const id = `cena_${Date.now()}`;
-            salvarCenarioCompleto(cenarioComCenaDeRegiao(cenario, id, { reino: reinoSelecionado, nome, criadoPor: meuNome })).then((ok) => {
+            salvarCenarioCompleto(cenarioComCenaDeRegiao(cenario, id, { reino: reinoSelecionado, nome, criadoPor: meuNome, ponto: painelAberto && painelAberto !== '__sem' ? painelAberto : '' })).then((ok) => {
                 if (!ok) alert('⚠️ Não foi possível salvar esta Cena no servidor — ela pode não aparecer para os outros. Verifique sua conexão e tente de novo.');
             });
         }
@@ -416,7 +433,7 @@ export default function MapaMundi({ children }) {
     const entrarNoMapaDeBatalha = (id, cena) => {
         if (!ctxMapa?.setCenaVisualizadaId) return;
         setLocalAtual({ ...localAtual, reino: reinoSelecionado, mapaId: id, mapaNome: nomeDaCenaNaRegiao(cena) });
-        setReinoSelecionado(null);
+        sairDoFoco();
         setNivelVisao('reino');
         ctxMapa.setCenaVisualizadaId(id);
     };
@@ -649,33 +666,63 @@ export default function MapaMundi({ children }) {
     // 🗺️ TELA 3: O CONTINENTE
     // ==========================================
     if (nivelVisao === 'continente') {
-        const cenasDoReino = cenasDaRegiao(cenario?.lista, reinoSelecionado, contextoCenas);
+        const semPonto = reinoSelecionado ? cenasSemPonto(cenario?.lista, pontosTodos, reinoSelecionado, contextoCenas) : [];
+        const pontosDisponiveis = reinoSelecionado ? Object.entries(pontosTodos).filter(([, p]) => p.reino === reinoSelecionado) : [];
+        const cenasDoReino = painelAberto === '__sem' ? semPonto : cenasDoPonto(cenario?.lista, painelAberto, contextoCenas);
+        const pontoDoPainel = painelAberto && painelAberto !== '__sem' ? pontosTodos[painelAberto] : null;
+        const pontoEmEdicao = formPonto?.id ? pontosTodos[formPonto.id] : null;
 
         return (
             <div className="fade-in" style={{ width: '100%', height: '85vh', background: '#050508', borderRadius: '10px', border: '1px solid #0088ff', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.85)', padding: '12px 25px', borderBottom: '1px solid #222', zIndex: 10, opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }}>
-                    <button onClick={() => iniciarViagem('Globo', 'globo')} style={{ background: '#ff4444', color: '#fff', border: 'none', padding: '6px 18px', borderRadius: '5px', fontSize: '0.85em', cursor: 'pointer', fontWeight: 'bold' }}>⬅ VOLTAR AO GLOBO</button>
-                    <h2 style={{ color: '#0088ff', margin: 0, textTransform: 'uppercase', letterSpacing: '3px', textShadow: '0 0 10px #0088ff' }}>{reinoHover || localAtual.continente}</h2>
+                    {reinoSelecionado
+                        ? <button onClick={sairDoFoco} style={{ background: '#ff4444', color: '#fff', border: 'none', padding: '6px 18px', borderRadius: '5px', fontSize: '0.85em', cursor: 'pointer', fontWeight: 'bold' }}>⬅ VOLTAR AO MAPA</button>
+                        : <button onClick={() => iniciarViagem('Globo', 'globo')} style={{ background: '#ff4444', color: '#fff', border: 'none', padding: '6px 18px', borderRadius: '5px', fontSize: '0.85em', cursor: 'pointer', fontWeight: 'bold' }}>⬅ VOLTAR AO GLOBO</button>}
+                    <h2 style={{ color: '#0088ff', margin: 0, textTransform: 'uppercase', letterSpacing: '3px', textShadow: '0 0 10px #0088ff' }}>{reinoSelecionado || reinoHover || localAtual.continente}</h2>
+                    {reinoSelecionado ? (
+                        <div className="mapa-estilo-caixa">
+                            {souMestre && <button type="button" className="mapa-estilo-botao" onClick={() => { setEditandoPontos(!editandoPontos); setFormPonto(null); setPainelAberto(null); }} aria-pressed={editandoPontos} title="Marcar, mover e editar os pontos de interesse desta região">✏️ Editar pontos</button>}
+                        </div>
+                    ) : (
                     <div className="mapa-estilo-caixa">
                         {souMestre && <button type="button" className="mapa-estilo-botao" onClick={editandoFronteiras ? fecharEditorFronteiras : abrirEditorFronteiras} aria-pressed={editandoFronteiras} title="O Mestre pinta quem controla cada território">⚔️ Fronteiras</button>}
                         {(souMestre || fronteirasRemotas.facoes.length > 0) && <button type="button" className="mapa-estilo-botao" onClick={alternarTerritorios} aria-pressed={territoriosVisiveis} title="Mostrar ou esconder os territórios">{territoriosVisiveis ? '👁 Territórios' : '🚫 Territórios'}</button>}
                         <button type="button" className="mapa-estilo-botao" onClick={alternarEstilo} aria-pressed={estiloMapa === ESTILO_REALISTA} title="Alternar entre o mapa clássico e o mapa realista">{estiloMapa === ESTILO_REALISTA ? '🗺️ Mapa clássico' : '🏔️ Mapa realista'}</button>
                     </div>
+                    )}
                 </div>
                 
                 <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', position: 'relative', width: '100%' }}>
-                    <div ref={janelaMapaRef} className={editandoFronteiras ? 'mapa-zoom-janela' : undefined} style={{ position: 'relative', display: 'inline-block', height: '100%', maxHeight: 'calc(85vh - 70px)' }}>
-                        <div className={vistaFronteiras.escala > 1.5 ? 'mapa-zoom-aproximado' : undefined} style={{ position: 'relative', height: '100%', ...(editandoFronteiras ? { transformOrigin: '0 0', transform: `translate(${vistaFronteiras.x}px, ${vistaFronteiras.y}px) scale(${vistaFronteiras.escala})` } : null) }}>
+                    <div ref={janelaMapaRef} className={editandoFronteiras || reinoSelecionado ? 'mapa-zoom-janela' : undefined} style={{ position: 'relative', display: 'inline-block', height: '100%', maxHeight: 'calc(85vh - 70px)' }}>
+                        <div className={vistaFronteiras.escala > 1.5 || reinoSelecionado ? 'mapa-zoom-aproximado' : undefined} style={{ position: 'relative', height: '100%', '--zoom': editandoFronteiras ? vistaFronteiras.escala : vistaFoco.escala, ...(editandoFronteiras ? { transformOrigin: '0 0', transform: `translate(${vistaFronteiras.x}px, ${vistaFronteiras.y}px) scale(${vistaFronteiras.escala})` } : { transformOrigin: '0 0', transition: 'transform 1.1s cubic-bezier(0.4, 0, 0.2, 1)', transform: reinoSelecionado ? `translate(${vistaFoco.x}%, ${vistaFoco.y}%) scale(${vistaFoco.escala})` : 'none' }) }}>
                         <img src={estiloMapa === ESTILO_REALISTA ? mapaRealista : mapaClean} alt={estiloMapa === ESTILO_REALISTA ? 'Mapa Base (realista)' : 'Mapa Base'} style={{ display: 'block', height: '100%', width: 'auto', objectFit: 'contain', opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }} />
                         
                         {posicoesPings.map((reino) => (
                             realceDaRegiao(estiloMapa, reino.nome, reino.img, REALCES_REALISTAS) ? <img key={`mask-${reino.nome}`} src={realceDaRegiao(estiloMapa, reino.nome, reino.img, REALCES_REALISTAS)} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 2, mixBlendMode: 'screen', opacity: voandoPara ? 0 : (reinoHover === reino.nome ? 1 : 0), transition: 'opacity 0.3s ease-out' }} alt={`Mascara ${reino.nome}`} /> : null
                         ))}
 
-                        {(territoriosVisiveis || editandoFronteiras) && <CamadaFronteiras grade={fronteiras.grade} facoes={fronteiras.facoes} />}
+                        {reinoSelecionado && (
+                            <>
+                                {/* tudo escurece, só a região escolhida fica acesa (a silhueta vem dos realces do mapa realista, que valem para os dois estilos) */}
+                                <div className="mapa-foco-escuro" />
+                                {realceDaRegiao(ESTILO_REALISTA, reinoSelecionado, null, REALCES_REALISTAS) && (
+                                    <img className="mapa-foco-brilho" alt="" aria-hidden="true" src={estiloMapa === ESTILO_REALISTA ? mapaRealista : mapaClean}
+                                        style={{ WebkitMaskImage: `url("${realceDaRegiao(ESTILO_REALISTA, reinoSelecionado, null, REALCES_REALISTAS)}")`, maskImage: `url("${realceDaRegiao(ESTILO_REALISTA, reinoSelecionado, null, REALCES_REALISTAS)}")` }} />
+                                )}
+                                <PontosDaRegiao
+                                    pontos={pontosDaRegiao(pontosTodos, cenario?.lista, reinoSelecionado, contextoCenas)}
+                                    editando={editandoPontos && souMestre}
+                                    onAbrir={(id) => setPainelAberto(id)}
+                                    onEditar={(id) => setFormPonto({ id })}
+                                    onMover={(id, x, y) => { if (souMestre && pontosTodos[id]) salvarCenarioPontos(cenarioComPonto(cenarioRef.current, id, { ...pontosTodos[id], x, y })); }}
+                                    onColocar={(x, y) => setFormPonto({ id: null, x, y })}
+                                />
+                            </>
+                        )}
+                        {!reinoSelecionado && (territoriosVisiveis || editandoFronteiras) && <CamadaFronteiras grade={fronteiras.grade} facoes={fronteiras.facoes} />}
                         {editandoFronteiras && <EditorFronteiras facoes={fronteiras.facoes} grade={fronteiras.grade} onMudar={mudarFronteiras} onFechar={fecharEditorFronteiras} vista={vistaFronteiras} onVista={setVistaFronteiras} janelaRef={janelaMapaRef} />}
                         {posicoesPings.map((reino) => (
-                            <div key={reino.nome} className={`ping-wrapper ${reinoHover === reino.nome ? 'active' : ''}`} style={{ top: reino.top, left: reino.left, pointerEvents: 'auto', cursor: 'pointer', position: 'absolute', transform: voandoPara === reino.nome ? 'translate(-50%, -50%) scale(40)' : (reinoHover === reino.nome ? 'translate(-50%, -50%) scale(1.1)' : 'translate(-50%, -50%) scale(1)'), display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: voandoPara === reino.nome ? 9999 : 5, padding: '10px', opacity: voandoPara && voandoPara !== reino.nome ? 0 : 1, transition: voandoPara === reino.nome ? 'all 1.5s cubic-bezier(0.4, 0, 0.2, 1)' : 'all 0.3s ease-out' }} onMouseEnter={() => setReinoHover(reino.nome)} onMouseLeave={() => setReinoHover(null)} onClick={(e) => { e.stopPropagation(); iniciarViagem(reino.nome, () => abrirMenuReino(reino.nome)); }}>
+                            <div key={reino.nome} className={`ping-wrapper ${reinoHover === reino.nome ? 'active' : ''}`} style={{ top: reino.top, left: reino.left, pointerEvents: 'auto', cursor: 'pointer', position: 'absolute', transform: voandoPara === reino.nome ? 'translate(-50%, -50%) scale(40)' : (reinoHover === reino.nome ? 'translate(-50%, -50%) scale(1.1)' : 'translate(-50%, -50%) scale(1)'), display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: voandoPara === reino.nome ? 9999 : 5, padding: '10px', opacity: voandoPara && voandoPara !== reino.nome ? 0 : 1, transition: voandoPara === reino.nome ? 'all 1.5s cubic-bezier(0.4, 0, 0.2, 1)' : 'all 0.3s ease-out' }} onMouseEnter={() => setReinoHover(reino.nome)} onMouseLeave={() => setReinoHover(null)} onClick={(e) => { e.stopPropagation(); abrirMenuReino(reino.nome); }}>
                                 <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#000', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: '0.3s', boxShadow: '0 0 15px rgba(0,0,0,0.9)', borderWidth: '2px', borderStyle: 'solid', borderColor: reinoHover === reino.nome ? '#fff' : reino.cor, opacity: voandoPara === reino.nome ? 0 : 1 }}>
                                     <div style={{ width: '10px', height: '10px', borderRadius: '50%', transition: '0.3s', background: reinoHover === reino.nome ? '#fff' : reino.cor }} />
                                 </div>
@@ -683,7 +730,7 @@ export default function MapaMundi({ children }) {
                             </div>
                         ))}
                         </div>
-                        {!editandoFronteiras && territoriosVisiveis && fronteiras.facoes.length > 0 && (
+                        {!reinoSelecionado && !editandoFronteiras && territoriosVisiveis && fronteiras.facoes.length > 0 && (
                             <ul className="fronteiras-legenda" aria-label="Legenda dos territórios">
                                 {fronteiras.facoes.map((f) => <li key={f.id}><span className="fronteiras-legenda-cor" style={{ background: f.cor }} />{f.nome}</li>)}
                             </ul>
@@ -692,16 +739,47 @@ export default function MapaMundi({ children }) {
                 </div>
 
                 {reinoSelecionado && (
-                    <div className="cenas-regiao-overlay" onClick={() => setReinoSelecionado(null)}>
+                    <div className="pontos-rodape">
+                        {editandoPontos && souMestre && <span className="pontos-dica">Clique no mapa para marcar um ponto novo. Arraste um pino para mover; clique nele para editar.</span>}
+                        {!editandoPontos && pontosDaRegiao(pontosTodos, cenario?.lista, reinoSelecionado, contextoCenas).length === 0 && semPonto.length === 0 && (
+                            <span className="pontos-dica">{souMestre ? 'Nenhum ponto de interesse ainda. Use "Editar pontos" para marcar o primeiro.' : 'Nenhuma Cena liberada para você nesta região.'}</span>
+                        )}
+                        {(souMestre || semPonto.length > 0) && !editandoPontos && (
+                            <button type="button" className="pontos-sem-ponto" onClick={() => setPainelAberto('__sem')} aria-label={`Cenas sem ponto de interesse (${semPonto.length})`}>📂 Cenas sem ponto ({semPonto.length})</button>
+                        )}
+                    </div>
+                )}
+
+                {formPonto && souMestre && reinoSelecionado && (!formPonto.id || pontoEmEdicao) && (
+                    <FormPonto
+                        regiao={reinoSelecionado}
+                        ponto={pontoEmEdicao}
+                        onFechar={() => setFormPonto(null)}
+                        onSalvar={({ nome, icone }) => {
+                            const id = formPonto.id || `ponto_${Date.now()}`;
+                            const base = formPonto.id ? pontosTodos[formPonto.id] : { reino: reinoSelecionado, x: formPonto.x, y: formPonto.y };
+                            salvarCenarioPontos(cenarioComPonto(cenarioRef.current, id, { ...base, nome, icone }));
+                            setFormPonto(null);
+                        }}
+                        onExcluir={() => {
+                            if (!window.confirm('Excluir este ponto de interesse? As Cenas dele não são apagadas: passam para "Cenas sem ponto".')) return;
+                            salvarCenarioPontos(cenarioSemPonto(cenarioRef.current, formPonto.id));
+                            setFormPonto(null);
+                        }}
+                    />
+                )}
+
+                {reinoSelecionado && painelAberto && (
+                    <div className="cenas-regiao-overlay" onClick={() => setPainelAberto(null)}>
                         <aside className="cenas-regiao-painel" onClick={(e) => e.stopPropagation()}>
                             <header className="cenas-regiao-topo">
-                                <button className="cenas-regiao-voltar" onClick={() => setReinoSelecionado(null)} title="Voltar ao mapa" aria-label="Voltar ao mapa">X</button>
-                                <h2 className="cenas-regiao-nome">{reinoSelecionado}</h2>
+                                <button className="cenas-regiao-voltar" onClick={() => setPainelAberto(null)} title="Voltar ao mapa" aria-label="Voltar ao mapa">X</button>
+                                <h2 className="cenas-regiao-nome">{pontoDoPainel ? pontoDoPainel.nome : reinoSelecionado}{painelAberto === '__sem' ? ' · sem ponto' : ''}</h2>
                                 <span className="cenas-regiao-contagem">{cenasDoReino.length} {cenasDoReino.length === 1 ? 'cena' : 'cenas'}</span>
                             </header>
                             <div className="cenas-regiao-lista">
                                 {/* CENAS DA REGIÃO (compartilhadas via Firebase) */}
-                                {cenasDoReino.length === 0 && <p className="cena-regiao-vazia">{souMestre ? 'Ainda não há Cenas nesta região.' : 'Nenhuma Cena liberada para você nesta região.'}</p>}
+                                {cenasDoReino.length === 0 && <p className="cena-regiao-vazia">{souMestre ? (pontoDoPainel ? 'Ainda não há Cenas neste ponto.' : 'Ainda não há Cenas nesta região.') : 'Nenhuma Cena liberada para você aqui.'}</p>}
                                 {cenasDoReino.map(({ id, cena }, i) => {
                                     const criadaEm = Number((/^cena_(\d+)$/.exec(id) || [])[1]) || 0;
                                     const ehNova = criadaEm > 0 && Date.now() - criadaEm < 3 * 24 * 3600 * 1000;
@@ -721,12 +799,17 @@ export default function MapaMundi({ children }) {
                                             {souMestre && ctxMapa?.definirAcessoCena && (
                                                 <div className="cena-card-rodape cena-regiao-linha">
                                                     <CenaAcesso cena={cena} jogadores={nomesJogadores} onSalvar={(nomes) => ctxMapa.definirAcessoCena(id, nomes)} />
+                                                    <select className="cena-card-ponto" value={cena.ponto && pontosTodos[cena.ponto] ? cena.ponto : ''} aria-label={`Ponto de interesse de ${nomeDaCenaNaRegiao(cena)}`} onChange={(e) => salvarCenarioPontos(cenarioComCenaNoPonto(cenarioRef.current, id, e.target.value || null))}>
+                                                        <option value="">Sem ponto</option>
+                                                        {pontosDisponiveis.map(([pid, p]) => <option key={pid} value={pid}>{p.nome}</option>)}
+                                                    </select>
                                                 </div>
                                             )}
                                         </div>
                                     );
                                 })}
                             </div>
+                            {souMestre && pontoDoPainel && <button type="button" className="cenas-regiao-editar-ponto" onClick={() => { setFormPonto({ id: painelAberto }); setPainelAberto(null); }}>✏️ Editar este ponto</button>}
                             {souMestre && <button className="cenas-regiao-nova" onClick={criarNovoMapa}>➕ CRIAR NOVO MAPA</button>}
                         </aside>
                     </div>

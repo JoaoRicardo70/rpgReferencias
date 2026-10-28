@@ -5,6 +5,7 @@
 //   restrita     — true: só entra quem estiver em `acessoNomes` (o Mestre/Co-Mestre sempre entra); ausente: todos entram
 //   acessoNomes  — nomes (sanitizados) dos personagens liberados quando `restrita`
 //   apenasCriador— já existente: só o Mestre Supremo enxerga
+//   ponto        — ponto de interesse da região onde a Cena fica (ver core/pontosInteresse.js); ausente: "sem ponto"
 // Só Mestre/Co-Mestre cria Cenas; esta lógica é pura e serve de base pra tela do Mapa e pro Gerenciador.
 // ==========================================
 
@@ -52,9 +53,10 @@ export function cenasDaRegiao(lista, reino, contexto = {}) {
         .sort((a, b) => nomeDaCenaNaRegiao(a.cena).localeCompare(nomeDaCenaNaRegiao(b.cena), 'pt-BR'));
 }
 
-export function novaCenaDeRegiao({ reino, nome, img = '', criadoPor = '' }) {
+export function novaCenaDeRegiao({ reino, nome, img = '', criadoPor = '', ponto = '' }) {
     return {
         nome: String(nome || '').trim(), img, escala: 1.5, unidade: 'm', reino,
+        ...(ponto ? { ponto } : {}),
         ...(criadoPor ? { criadoPor } : {})
     };
 }

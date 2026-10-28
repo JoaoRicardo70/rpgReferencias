@@ -49,6 +49,9 @@ function irAteMenuNoxus(container) {
     avancar();
     fireEvent.click(screen.getAllByText('Noxus')[0]);
     avancar();
+    // a região aproxima o mapa; as Cenas sem ponto de interesse ficam neste atalho
+    const semPonto = screen.queryByLabelText(/Cenas sem ponto de interesse/);
+    if (semPonto) fireEvent.click(semPonto);
 }
 
 describe('MapaMundi - Cenas por regiao (menu da regiao)', () => {
