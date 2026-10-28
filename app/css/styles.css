@@ -2995,6 +2995,12 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .fronteiras-camada { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
 .fronteiras-superficie { position: absolute; inset: 0; z-index: 50; cursor: crosshair; touch-action: none; }
 .fronteiras-superficie-bloqueada { cursor: not-allowed; }
+.fronteiras-superficie-mover { cursor: grab; }
+.fronteiras-superficie-mover:active { cursor: grabbing; }
+.mapa-zoom-janela { overflow: hidden; }
+.mapa-zoom-aproximado .ping-wrapper { opacity: 0 !important; pointer-events: none !important; }
+.fronteiras-pinceis, .fronteiras-zoom { display: flex; gap: 6px; align-items: center; }
+.fronteiras-zoom-valor { flex: 1; text-align: center; font-size: 0.9em; }
 .fronteiras-pincel { position: absolute; transform: translate(-50%, -50%); border: 2px solid #fff; border-radius: 50%; pointer-events: none; box-shadow: 0 0 6px rgba(0, 0, 0, 0.8); }
 .fronteiras-pincel-apagar { border-style: dashed; }
 .fronteiras-painel { position: absolute; left: 10px; bottom: 10px; z-index: 60; width: 270px; max-height: 80%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px; background: rgba(5, 8, 20, 0.93); border: 1px solid #0088ff; border-radius: 8px; box-shadow: 0 0 18px rgba(0, 136, 255, 0.35); color: #e6f2ff; font-size: 0.85em; }

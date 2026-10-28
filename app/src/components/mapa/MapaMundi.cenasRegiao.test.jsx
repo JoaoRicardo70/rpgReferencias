@@ -47,7 +47,7 @@ function irAteMenuNoxus(container) {
     avancar();
     fireEvent.click(screen.getByText(/ENTRAR EM RUNETERRA/));
     avancar();
-    fireEvent.click(screen.getByText('Noxus'));
+    fireEvent.click(screen.getAllByText('Noxus')[0]);
     avancar();
 }
 

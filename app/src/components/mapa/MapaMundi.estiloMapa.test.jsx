@@ -44,7 +44,7 @@ describe('MapaMundi - estilo do mapa da Terra 0', () => {
         const realista = screen.getByAltText('Mapa Base (realista)');
         expect(realista.getAttribute('src')).not.toBe(classico);
         ['Freljord', 'Demacia', 'Noxus', 'Piltover e Zaun', 'Shurima', 'Targon', 'Ixtal', 'Águas de Sentina', 'Ilha das Sombras', 'Ionia']
-            .forEach((nome) => expect(screen.getByText(nome)).toBeTruthy());
+            .forEach((nome) => expect(screen.getAllByText(nome)[0]).toBeTruthy());
         expect(localStorage.getItem('rpg_mapa_terra0_estilo')).toBe('realista');
         expect(screen.getByRole('button', { name: /Mapa clássico/ })).toBeTruthy();
     });

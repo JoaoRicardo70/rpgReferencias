@@ -51,8 +51,8 @@ describe('fronteiras - grade', () => {
     });
 
     it('o raio é limitado ao máximo', () => {
-        const a = pintarCirculo(gradeVazia(), 80, 50, 99, '1');
-        const b = pintarCirculo(gradeVazia(), 80, 50, 12, '1');
+        const a = pintarCirculo(gradeVazia(), 160, 100, 99, '1');
+        const b = pintarCirculo(gradeVazia(), 160, 100, 40, '1');
         expect(total(a)).toBe(total(b));
     });
 

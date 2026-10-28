@@ -41,7 +41,7 @@ function irAteMenuNoxus(container) {
     irAteGlobo(container);
     fireEvent.click(screen.getByText(/ENTRAR EM RUNETERRA/));
     avancar();
-    fireEvent.click(screen.getByText('Noxus'));
+    fireEvent.click(screen.getAllByText('Noxus')[0]);
     avancar();
 }
 
@@ -170,7 +170,7 @@ describe('MapaMundi - tela do Globo', () => {
         expect(container.querySelector('.globo-terra-voando')).not.toBeNull();
         avancar();
         expect(container.querySelector('.globo-terra')).toBeNull();
-        expect(screen.getByText('Noxus')).toBeDefined();
+        expect(screen.getAllByText('Noxus')[0]).toBeDefined();
     });
 
     function estilos(container) {

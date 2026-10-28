@@ -1,23 +1,33 @@
 // ==========================================
 // ⚔️ FRONTEIRAS DO MAPA DA TERRA 0 (components/mapa/CamadaFronteiras.jsx e EditorFronteiras.jsx)
 // O Mestre pinta no mapa quem controla cada pedaço de terra (disputas de território). O mapa é uma grade de
-// GRADE_L x GRADE_A células; cada célula guarda o id (1-9) da facção que a controla, ou 0 se ninguém.
-// No Firebase (cenario.fronteiras): { facoes: { '1': { nome, cor } }, linhas: { l12: '0001100...' } }
+// GRADE_L x GRADE_A células; cada célula guarda o id (1-9 ou a-c) da facção que a controla, ou 0 se ninguém.
+// No Firebase (cenario.fronteiras): { personalizado: true, facoes: { '1': { nome, cor } }, linhas: { l12: '0001100...' } }
+// Enquanto o Mestre não mexe, vale o desenho padrão (fronteirasPadrao.js); o "personalizado" marca que ele já editou.
 // — uma string por linha da grade, e linhas sem nenhuma célula pintada nem são guardadas (a mudança de uma pincelada
 // só reescreve as linhas que ela tocou).
 // ==========================================
 
-export const GRADE_L = 160;
-export const GRADE_A = 102;
-export const MAX_FACCOES = 9;
+export const GRADE_L = 320;
+export const GRADE_A = 204;
+export const MAX_FACCOES = 12;
 export const NOME_MAX = 30;
 export const RAIO_MIN = 1;
-export const RAIO_MAX = 12;
-export const CORES_FACCOES = ['#e53935', '#1e88e5', '#fdd835', '#43a047', '#8e24aa', '#fb8c00', '#00acc1', '#d81b60', '#8d6e63'];
+export const RAIO_MAX = 40;
+export const RAIO_PADRAO = 8;
+// Pincéis prontos (raio em células da grade; a grade tem 320 células de largura).
+export const PINCEIS = [{ nome: 'P', raio: 2 }, { nome: 'M', raio: 5 }, { nome: 'G', raio: 10 }, { nome: 'GG', raio: 20 }, { nome: 'XG', raio: 36 }];
+export const ZOOM_MIN = 1;
+export const ZOOM_MAX = 8;
+
+// Cada facção tem um id de um caractere (1-9, a-c), na mesma ordem das cores abaixo.
+const IDS = '123456789abc';
+export const CORES_FACCOES = ['#4fc3f7', '#e0d6b8', '#e53935', '#fdd835', '#fb8c00', '#8e24aa', '#43a047', '#00acc1', '#d81b60', '#546e7a', '#9ccc65', '#8d6e63'];
 
 const LINHA_VAZIA = '0'.repeat(GRADE_L);
 const COR_VALIDA = /^#[0-9a-fA-F]{6}$/;
-const ID_VALIDO = /^[1-9]$/;
+const ID_VALIDO = /^[1-9a-c]$/;
+const corPadraoDe = (id) => CORES_FACCOES[IDS.indexOf(id)] || CORES_FACCOES[0];
 
 export function gradeVazia() {
     return Array.from({ length: GRADE_A }, () => LINHA_VAZIA);
@@ -40,7 +50,7 @@ export function facoesDeFirebase(bruto) {
         .map((id) => ({
             id,
             nome: nomeDeFaccaoValido(bruto[id].nome) || `Facção ${id}`,
-            cor: corValida(bruto[id].cor) ? bruto[id].cor : CORES_FACCOES[Number(id) - 1]
+            cor: corValida(bruto[id].cor) ? bruto[id].cor : corPadraoDe(id)
         }));
 }
 
@@ -48,7 +58,7 @@ export function facoesParaFirebase(facoes) {
     const saida = {};
     (facoes || []).slice(0, MAX_FACCOES).forEach((f) => {
         if (!ID_VALIDO.test(f.id)) return;
-        saida[f.id] = { nome: nomeDeFaccaoValido(f.nome) || `Facção ${f.id}`, cor: corValida(f.cor) ? f.cor : CORES_FACCOES[Number(f.id) - 1] };
+        saida[f.id] = { nome: nomeDeFaccaoValido(f.nome) || `Facção ${f.id}`, cor: corValida(f.cor) ? f.cor : corPadraoDe(f.id) };
     });
     return saida;
 }
@@ -131,14 +141,33 @@ export function contarCelulas(grade) {
 
 export function proximoIdLivre(facoes) {
     const usados = new Set((facoes || []).map((f) => f.id));
-    for (let i = 1; i <= MAX_FACCOES; i++) if (!usados.has(String(i))) return String(i);
+    for (const id of IDS) if (!usados.has(id)) return id;
     return null;
 }
 
 export function novaFaccao(facoes) {
     const id = proximoIdLivre(facoes);
     if (!id) return null;
-    return { id, nome: `Facção ${id}`, cor: CORES_FACCOES[Number(id) - 1] };
+    return { id, nome: `Facção ${id}`, cor: corPadraoDe(id) };
+}
+
+// Zoom do editor: { escala, x, y } — o mapa é ampliado a partir do canto superior esquerdo e deslocado por (x, y) pixels
+// (x e y nunca positivos, para a borda do mapa não se afastar da borda da janela).
+export const VISTA_INICIAL = { escala: 1, x: 0, y: 0 };
+
+export function limitarVista(vista, largura, altura) {
+    const escala = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number.isFinite(vista.escala) ? vista.escala : 1));
+    const x = Math.min(0, Math.max(largura * (1 - escala), Number.isFinite(vista.x) ? vista.x : 0));
+    const y = Math.min(0, Math.max(altura * (1 - escala), Number.isFinite(vista.y) ? vista.y : 0));
+    return { escala, x, y };
+}
+
+// Muda o zoom mantendo o ponto (px, py) da janela parado debaixo do cursor.
+export function zoomNoPonto(vista, novaEscala, px, py, largura, altura) {
+    const escala = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, novaEscala));
+    const mx = (px - vista.x) / vista.escala;
+    const my = (py - vista.y) / vista.escala;
+    return limitarVista({ escala, x: px - mx * escala, y: py - my * escala }, largura, altura);
 }
 
 export const CHAVE_TERRITORIOS_VISIVEIS = 'rpg_mapa_fronteiras_visivel';

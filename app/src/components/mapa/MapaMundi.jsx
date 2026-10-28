@@ -25,7 +25,8 @@ import { slugDoPlano, rotuloDoPlano } from '../../core/planos';
 import { webglDisponivel } from '../../core/globoTerra';
 import CamadaFronteiras from './CamadaFronteiras';
 import EditorFronteiras from './EditorFronteiras';
-import { facoesDeFirebase, facoesParaFirebase, gradeDeFirebase, gradeParaFirebase, lerTerritoriosVisiveis, gravarTerritoriosVisiveis } from '../../core/fronteiras';
+import { facoesParaFirebase, gradeParaFirebase, lerTerritoriosVisiveis, gravarTerritoriosVisiveis, VISTA_INICIAL } from '../../core/fronteiras';
+import { fronteirasDoCenario } from '../../core/fronteirasPadrao';
 import { ESTILO_REALISTA, lerEstiloMapa, gravarEstiloMapa, alternarEstiloMapa, realceDaRegiao } from '../../core/estiloMapa';
 import { segmentosDoOito, amostrarTrilha, escolherFases, atrasoDaFase } from '../../core/orbitasUniverso';
 
@@ -55,13 +56,12 @@ export default function MapaMundi({ children }) {
     const pendenteFronteiras = useRef(null);
     const cenarioRef = useRef(cenario);
     cenarioRef.current = cenario;
-    const fronteirasRemotas = useMemo(() => {
-        const facoes = facoesDeFirebase(cenario?.fronteiras?.facoes);
-        return { facoes, grade: gradeDeFirebase(cenario?.fronteiras?.linhas, facoes) };
-    }, [cenario?.fronteiras]);
+    const [vistaFronteiras, setVistaFronteiras] = useState(VISTA_INICIAL);
+    const janelaMapaRef = useRef(null);
+    const fronteirasRemotas = useMemo(() => fronteirasDoCenario(cenario?.fronteiras), [cenario?.fronteiras]);
     const fronteiras = fronteirasLocal || fronteirasRemotas;
     const gravarFronteiras = useCallback((estado) => {
-        const novo = { ...(cenarioRef.current || {}), fronteiras: { facoes: facoesParaFirebase(estado.facoes), linhas: gradeParaFirebase(estado.grade) } };
+        const novo = { ...(cenarioRef.current || {}), fronteiras: { personalizado: true, facoes: facoesParaFirebase(estado.facoes), linhas: gradeParaFirebase(estado.grade) } };
         if (setCenario) setCenario(novo);
         Promise.resolve(salvarCenarioCompleto(novo)).then((ok) => {
             if (ok === false) alert('Não foi possível salvar as fronteiras. Confira a conexão e tente de novo.');
@@ -79,11 +79,12 @@ export default function MapaMundi({ children }) {
         clearTimeout(timerFronteiras.current);
         timerFronteiras.current = setTimeout(descarregarFronteiras, 500);
     }, [descarregarFronteiras]);
-    const abrirEditorFronteiras = () => { setFronteirasLocal(fronteirasRemotas); setEditandoFronteiras(true); };
+    const abrirEditorFronteiras = () => { setFronteirasLocal(fronteirasRemotas); setVistaFronteiras(VISTA_INICIAL); setEditandoFronteiras(true); };
     const fecharEditorFronteiras = useCallback(() => {
         descarregarFronteiras();
         setEditandoFronteiras(false);
         setFronteirasLocal(null);
+        setVistaFronteiras(VISTA_INICIAL);
     }, [descarregarFronteiras]);
     useEffect(() => { if (nivelVisao !== 'continente' && editandoFronteiras) fecharEditorFronteiras(); }, [nivelVisao, editandoFronteiras, fecharEditorFronteiras]);
     useEffect(() => {
@@ -663,7 +664,8 @@ export default function MapaMundi({ children }) {
                 </div>
                 
                 <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', position: 'relative', width: '100%' }}>
-                    <div style={{ position: 'relative', display: 'inline-block', height: '100%', maxHeight: 'calc(85vh - 70px)' }}>
+                    <div ref={janelaMapaRef} className={editandoFronteiras ? 'mapa-zoom-janela' : undefined} style={{ position: 'relative', display: 'inline-block', height: '100%', maxHeight: 'calc(85vh - 70px)' }}>
+                        <div className={vistaFronteiras.escala > 1.5 ? 'mapa-zoom-aproximado' : undefined} style={{ position: 'relative', height: '100%', ...(editandoFronteiras ? { transformOrigin: '0 0', transform: `translate(${vistaFronteiras.x}px, ${vistaFronteiras.y}px) scale(${vistaFronteiras.escala})` } : null) }}>
                         <img src={estiloMapa === ESTILO_REALISTA ? mapaRealista : mapaClean} alt={estiloMapa === ESTILO_REALISTA ? 'Mapa Base (realista)' : 'Mapa Base'} style={{ display: 'block', height: '100%', width: 'auto', objectFit: 'contain', opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }} />
                         
                         {posicoesPings.map((reino) => (
@@ -671,12 +673,7 @@ export default function MapaMundi({ children }) {
                         ))}
 
                         {(territoriosVisiveis || editandoFronteiras) && <CamadaFronteiras grade={fronteiras.grade} facoes={fronteiras.facoes} />}
-                        {editandoFronteiras && <EditorFronteiras facoes={fronteiras.facoes} grade={fronteiras.grade} onMudar={mudarFronteiras} onFechar={fecharEditorFronteiras} />}
-                        {!editandoFronteiras && territoriosVisiveis && fronteiras.facoes.length > 0 && (
-                            <ul className="fronteiras-legenda" aria-label="Legenda dos territórios">
-                                {fronteiras.facoes.map((f) => <li key={f.id}><span className="fronteiras-legenda-cor" style={{ background: f.cor }} />{f.nome}</li>)}
-                            </ul>
-                        )}
+                        {editandoFronteiras && <EditorFronteiras facoes={fronteiras.facoes} grade={fronteiras.grade} onMudar={mudarFronteiras} onFechar={fecharEditorFronteiras} vista={vistaFronteiras} onVista={setVistaFronteiras} janelaRef={janelaMapaRef} />}
                         {posicoesPings.map((reino) => (
                             <div key={reino.nome} className={`ping-wrapper ${reinoHover === reino.nome ? 'active' : ''}`} style={{ top: reino.top, left: reino.left, pointerEvents: 'auto', cursor: 'pointer', position: 'absolute', transform: voandoPara === reino.nome ? 'translate(-50%, -50%) scale(40)' : (reinoHover === reino.nome ? 'translate(-50%, -50%) scale(1.1)' : 'translate(-50%, -50%) scale(1)'), display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: voandoPara === reino.nome ? 9999 : 5, padding: '10px', opacity: voandoPara && voandoPara !== reino.nome ? 0 : 1, transition: voandoPara === reino.nome ? 'all 1.5s cubic-bezier(0.4, 0, 0.2, 1)' : 'all 0.3s ease-out' }} onMouseEnter={() => setReinoHover(reino.nome)} onMouseLeave={() => setReinoHover(null)} onClick={(e) => { e.stopPropagation(); iniciarViagem(reino.nome, () => abrirMenuReino(reino.nome)); }}>
                                 <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#000', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: '0.3s', boxShadow: '0 0 15px rgba(0,0,0,0.9)', borderWidth: '2px', borderStyle: 'solid', borderColor: reinoHover === reino.nome ? '#fff' : reino.cor, opacity: voandoPara === reino.nome ? 0 : 1 }}>
@@ -685,6 +682,12 @@ export default function MapaMundi({ children }) {
                                 <div style={{ marginTop: '6px', background: reinoHover === reino.nome ? '#fff' : 'rgba(0,0,0,0.9)', padding: '5px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 'bold', color: reinoHover === reino.nome ? '#000' : '#fff', textTransform: 'uppercase', letterSpacing: '1.5px', border: `1px solid ${reinoHover === reino.nome ? '#fff' : 'transparent'}`, whiteSpace: 'nowrap', transition: '0.3s', opacity: voandoPara === reino.nome ? 0 : 1 }}>{reino.nome}</div>
                             </div>
                         ))}
+                        </div>
+                        {!editandoFronteiras && territoriosVisiveis && fronteiras.facoes.length > 0 && (
+                            <ul className="fronteiras-legenda" aria-label="Legenda dos territórios">
+                                {fronteiras.facoes.map((f) => <li key={f.id}><span className="fronteiras-legenda-cor" style={{ background: f.cor }} />{f.nome}</li>)}
+                            </ul>
+                        )}
                     </div>
                 </div>
 
