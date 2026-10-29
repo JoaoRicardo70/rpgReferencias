@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     novoPonto, pontosValidos, cenasDoPonto, cenasSemPonto, pontosDaRegiao, cenarioComPonto, cenarioSemPonto, cenarioComCenaNoPonto,
-    caixaDaRegiao, caixaDaFaccao, vistaDeFoco, VISTA_SEM_FOCO, emojiDoIcone, NOME_PONTO_MAX, filtrarPontos, zoomVistaFoco, moverVistaFoco, ZOOM_FOCO_MAX
+    caixaDaRegiao, caixaDaFaccao, vistaDeFoco, VISTA_SEM_FOCO, emojiDoIcone, NOME_PONTO_MAX, filtrarPontos, contarPorFiltro, filtroDeIcone, ICONES_PONTO, zoomVistaFoco, moverVistaFoco, ZOOM_FOCO_MAX
 } from '../core/pontosInteresse';
 import { novaCenaDeRegiao } from '../core/cenasRegiao';
 
@@ -114,6 +114,19 @@ describe('pontos de interesse - categorias e filtro', () => {
         expect(novoPonto({ reino: 'Noxus', nome: 'A', x: 1, y: 1, categoria: 'dungeon' }).categoria).toBe('dungeon');
         expect(novoPonto({ reino: 'Noxus', nome: 'A', x: 1, y: 1, categoria: 'xyz' }).categoria).toBe('local');
         expect(pontosValidos({ a: { reino: 'Noxus', nome: 'A', x: 1, y: 1, categoria: 'dungeon' } }).a.categoria).toBe('dungeon');
+    });
+
+    it('filtra por tipo de ícone e conta todos os tipos, mesmo os vazios', () => {
+        const lista = [
+            { id: 'a', ponto: { categoria: 'local', icone: 'cidade' } },
+            { id: 'b', ponto: { categoria: 'dungeon', icone: 'masmorra' } },
+            { id: 'c', ponto: { categoria: 'local', icone: 'cidade' } }
+        ];
+        expect(filtrarPontos(lista, filtroDeIcone('cidade')).map((p) => p.id)).toEqual(['a', 'c']);
+        expect(filtrarPontos(lista, filtroDeIcone('porto'))).toEqual([]);
+        const c = contarPorFiltro(lista);
+        expect(c).toMatchObject({ todos: 3, local: 2, dungeon: 1, 'icone:cidade': 2, 'icone:masmorra': 1, 'icone:porto': 0 });
+        ICONES_PONTO.forEach((i) => expect(c).toHaveProperty(filtroDeIcone(i.id)));
     });
 
     it('filtrarPontos separa por categoria e "todos" não filtra', () => {

@@ -18,7 +18,7 @@ import gabaritoIlha from '../../assets/gabarito-ilha.png';
 import gabaritoIonia from '../../assets/gabarito-ionia.png';
 import { CSS_ASTROS } from './astrosCss';
 import { nomeDaCenaNaRegiao, regiaoDaCena, cenarioComCenaDeRegiao, cenasPendentesDoAtlasLocal } from '../../core/cenasRegiao';
-import { pontosValidos, pontosDaRegiao, cenasDoPonto, cenasSemPonto, cenarioComPonto, cenarioSemPonto, cenarioComCenaNoPonto, caixaDaRegiao, vistaDeFoco, filtrarPontos, zoomVistaFoco, moverVistaFoco, CATEGORIAS_PONTO, FILTRO_TODOS } from '../../core/pontosInteresse';
+import { pontosValidos, pontosDaRegiao, cenasDoPonto, cenasSemPonto, cenarioComPonto, cenarioSemPonto, cenarioComCenaNoPonto, caixaDaRegiao, vistaDeFoco, filtrarPontos, contarPorFiltro, filtroDeIcone, zoomVistaFoco, moverVistaFoco, CATEGORIAS_PONTO, ICONES_PONTO, FILTRO_TODOS } from '../../core/pontosInteresse';
 import { idDaRegiao } from '../../core/fronteirasPadrao';
 import { mascaraDaFaccao } from './mascaraFoco';
 import PontosDaRegiao from './PontosDaRegiao';
@@ -710,6 +710,7 @@ export default function MapaMundi({ children }) {
         const urlMascaraFoco = mascaraFoco || realceDaRegiao(ESTILO_REALISTA, reinoSelecionado, null, REALCES_REALISTAS);
         const pontosDaRegiaoTodos = reinoSelecionado ? pontosDaRegiao(pontosTodos, cenario?.lista, reinoSelecionado, contextoCenas) : [];
         // no modo edição aparecem todos (um pino escondido pelo filtro confundiria quem está editando)
+        const contagemFiltros = contarPorFiltro(pontosDaRegiaoTodos);
         const pontosNoMapa = editandoPontos && souMestre ? pontosDaRegiaoTodos : filtrarPontos(pontosDaRegiaoTodos, filtroPontos);
 
         return (
@@ -775,10 +776,18 @@ export default function MapaMundi({ children }) {
                         {reinoSelecionado && (
                             <>
                                 <div className="pontos-filtro" role="group" aria-label="Filtrar pontos">
-                                    <button type="button" className={`pontos-filtro-botao${filtroPontos === FILTRO_TODOS ? ' ativo' : ''}`} onClick={() => setFiltroPontos(FILTRO_TODOS)} aria-pressed={filtroPontos === FILTRO_TODOS}>Todos ({pontosDaRegiaoTodos.length})</button>
+                                    <button type="button" className={`pontos-filtro-botao${filtroPontos === FILTRO_TODOS ? ' ativo' : ''}`} onClick={() => setFiltroPontos(FILTRO_TODOS)} aria-pressed={filtroPontos === FILTRO_TODOS}>Todos ({contagemFiltros[FILTRO_TODOS]})</button>
                                     {CATEGORIAS_PONTO.map((c) => (
-                                        <button key={c.id} type="button" className={`pontos-filtro-botao${filtroPontos === c.id ? ' ativo' : ''}`} onClick={() => setFiltroPontos(c.id)} aria-pressed={filtroPontos === c.id}>{c.emoji} {c.nome} ({pontosDaRegiaoTodos.filter((p) => p.ponto.categoria === c.id).length})</button>
+                                        <button key={c.id} type="button" className={`pontos-filtro-botao${filtroPontos === c.id ? ' ativo' : ''}`} onClick={() => setFiltroPontos(c.id)} aria-pressed={filtroPontos === c.id}>{c.emoji} {c.nome} ({contagemFiltros[c.id]})</button>
                                     ))}
+                                    <div className="pontos-filtro-tipos" role="group" aria-label="Filtrar por tipo de ponto">
+                                        {ICONES_PONTO.map((i) => {
+                                            const chave = filtroDeIcone(i.id);
+                                            return (
+                                                <button key={i.id} type="button" className={`pontos-filtro-tipo${filtroPontos === chave ? ' ativo' : ''}${contagemFiltros[chave] ? '' : ' vazio'}`} onClick={() => setFiltroPontos(filtroPontos === chave ? FILTRO_TODOS : chave)} aria-pressed={filtroPontos === chave} aria-label={`${i.nome} (${contagemFiltros[chave]})`} title={`${i.nome} (${contagemFiltros[chave]})`}>{i.emoji}<span className="pontos-filtro-tipo-n">{contagemFiltros[chave]}</span></button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                                 <div className="pontos-zoom" role="group" aria-label="Zoom do mapa">
                                     <button type="button" onClick={() => mudarVistaFoco(zoomVistaFoco(vistaAtualRef.current, vistaAtualRef.current.escala * 1.4))} aria-label="Aproximar o mapa">➕</button>

@@ -188,6 +188,18 @@ describe('MapaMundi - região em foco e pontos de interesse', () => {
         expect(screen.getAllByRole('button', { name: /Cripta Antiga|Capital Noxiana|Porto Vazio/ })).toHaveLength(3);
     });
 
+    it('o filtro por tipo de ícone mostra só os pontos daquele tipo e clicar de novo desfaz', () => {
+        abrirNoxus({ isMestre: true });
+        fireEvent.click(screen.getByRole('button', { name: 'Porto (1)' }));
+        expect(screen.getByRole('button', { name: /Porto Vazio/ })).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /Capital Noxiana/ })).toBeNull();
+        expect(screen.queryByRole('button', { name: /Cripta Antiga/ })).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: 'Templo (0)' }));
+        expect(screen.queryByRole('button', { name: /Porto Vazio/ })).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: 'Templo (0)' }));
+        expect(screen.getAllByRole('button', { name: /Cripta Antiga|Capital Noxiana|Porto Vazio/ })).toHaveLength(3);
+    });
+
     it('o pino de dungeon tem destaque próprio e no modo edição o filtro não esconde nada', () => {
         const container = abrirNoxus({ isMestre: true });
         expect(container.querySelectorAll('.ponto-pin-dungeon')).toHaveLength(1);

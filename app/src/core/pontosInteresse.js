@@ -33,6 +33,9 @@ export const CATEGORIAS_PONTO = [
 ];
 export const CATEGORIA_PADRAO = 'local';
 export const FILTRO_TODOS = 'todos';
+// Filtro por tipo de ícone (cidade, vila, porto...): 'icone:<id do ícone>'.
+const PREFIXO_FILTRO_ICONE = 'icone:';
+export const filtroDeIcone = (iconeId) => PREFIXO_FILTRO_ICONE + iconeId;
 
 export function emojiDoIcone(icone) {
     return (ICONES_PONTO.find((i) => i.id === icone) || ICONES_PONTO[0]).emoji;
@@ -94,9 +97,26 @@ export function pontosDaRegiao(pontos, lista, reino, contexto = {}) {
         .sort((a, b) => a.ponto.nome.localeCompare(b.ponto.nome, 'pt-BR'));
 }
 
-// Filtro do mapa: 'todos' ou o id de uma categoria.
+// Filtro do mapa: 'todos', o id de uma categoria ('local'/'dungeon') ou um tipo de ícone ('icone:cidade').
+function casaComFiltro(ponto, filtro) {
+    return filtro.startsWith(PREFIXO_FILTRO_ICONE) ? ponto.icone === filtro.slice(PREFIXO_FILTRO_ICONE.length) : ponto.categoria === filtro;
+}
+
 export function filtrarPontos(pontos, filtro) {
-    return !filtro || filtro === FILTRO_TODOS ? pontos : pontos.filter((p) => p.ponto.categoria === filtro);
+    return !filtro || filtro === FILTRO_TODOS ? pontos : pontos.filter((p) => casaComFiltro(p.ponto, filtro));
+}
+
+// Quantos pontos cada filtro mostraria: { todos, local, dungeon, 'icone:cidade': n, ... } (todos os tipos aparecem, mesmo com 0).
+export function contarPorFiltro(pontos) {
+    const contagem = { [FILTRO_TODOS]: pontos.length };
+    CATEGORIAS_PONTO.forEach((c) => { contagem[c.id] = 0; });
+    ICONES_PONTO.forEach((i) => { contagem[filtroDeIcone(i.id)] = 0; });
+    pontos.forEach((p) => {
+        contagem[p.ponto.categoria] = (contagem[p.ponto.categoria] || 0) + 1;
+        const chave = filtroDeIcone(p.ponto.icone);
+        contagem[chave] = (contagem[chave] || 0) + 1;
+    });
+    return contagem;
 }
 
 // Todas as funções abaixo devolvem um cenário NOVO (o original não muda), pronto para salvarCenarioCompleto.

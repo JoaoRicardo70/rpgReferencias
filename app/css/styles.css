@@ -3058,6 +3058,11 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .pontos-filtro { position: absolute; left: 12px; top: 12px; z-index: 12; display: flex; gap: 6px; flex-wrap: wrap; max-width: 70%; }
 .pontos-filtro-botao { padding: 5px 12px; background: rgba(5, 8, 20, 0.85); color: #e6f2ff; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 14px; cursor: pointer; font-size: 0.8em; font-weight: bold; }
 .pontos-filtro-botao.ativo { background: rgba(0, 136, 255, 0.45); border-color: #0088ff; }
+.pontos-filtro-tipos { flex-basis: 100%; display: flex; gap: 4px; flex-wrap: wrap; }
+.pontos-filtro-tipo { display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px; background: rgba(5, 8, 20, 0.85); color: #e6f2ff; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 12px; cursor: pointer; font-size: 0.85em; }
+.pontos-filtro-tipo.ativo { background: rgba(0, 136, 255, 0.45); border-color: #0088ff; }
+.pontos-filtro-tipo.vazio { opacity: 0.45; }
+.pontos-filtro-tipo-n { font-size: 0.75em; font-weight: bold; opacity: 0.85; }
 .pontos-zoom { position: absolute; right: 12px; bottom: 14px; z-index: 12; display: flex; flex-direction: column; gap: 6px; }
 .pontos-zoom button { width: 34px; height: 34px; background: rgba(5, 8, 20, 0.9); color: #fff; border: 1px solid rgba(255, 255, 255, 0.4); border-radius: 8px; cursor: pointer; }
 .pontos-zoom button:disabled { opacity: 0.4; cursor: default; }
