@@ -124,9 +124,9 @@ const REGIOES = ['freljord', 'demacia', 'noxus', 'piltover', 'shurima', 'targon'
 const R = Object.fromEntries(REGIOES.map((n, i) => [n, i]));
 // alt: soerguimento base; cord: peso das cordilheiras; amp: relevo suave; neve: altitude da linha de neve; umid; arid; arv: tendência a florestas
 const PARAM = {
-    freljord: { alt: 0.34, cord: 0.95, amp: 0.55, neve: 0.40, umid: 0.45, arid: 0.0, arv: -0.10, c1: [150, 156, 130], c2: [116, 132, 112], rocha: [122, 124, 132], arvore: [30, 66, 54] },
+    freljord: { alt: 0.34, cord: 0.95, amp: 0.55, neve: 0.26, umid: 0.45, arid: 0.0, arv: -0.60, c1: [176, 180, 178], c2: [150, 156, 156], rocha: [122, 124, 132], arvore: [30, 66, 54] },
     demacia: { alt: 0.10, cord: 0.18, amp: 0.38, neve: 9, umid: 0.70, arid: 0.0, arv: 0.00, c1: [118, 168, 70], c2: [160, 180, 82], rocha: [130, 122, 108], arvore: [40, 100, 42] },
-    noxus: { alt: 0.30, cord: 0.70, amp: 0.55, neve: 1.10, umid: 0.30, arid: 0.40, arv: -0.06, c1: [166, 120, 66], c2: [138, 98, 58], rocha: [118, 98, 88], arvore: [44, 76, 46] },
+    noxus: { alt: 0.30, cord: 0.70, amp: 0.55, neve: 1.10, umid: 0.42, arid: 0.12, arv: 0.14, c1: [158, 124, 70], c2: [124, 106, 60], rocha: [118, 98, 88], arvore: [44, 76, 46] },
     piltover: { alt: 0.05, cord: 0.05, amp: 0.20, neve: 9, umid: 0.55, arid: 0.10, arv: -0.10, c1: [128, 156, 96], c2: [150, 156, 118], rocha: [132, 128, 122], arvore: [50, 96, 52] },
     shurima: { alt: 0.10, cord: 0.30, amp: 0.30, neve: 9, umid: 0.00, arid: 1.00, arv: -0.60, c1: [228, 190, 118], c2: [240, 208, 142], rocha: [176, 126, 88], arvore: [92, 124, 48] },
     targon: { alt: 0.52, cord: 1.00, amp: 0.45, neve: 0.78, umid: 0.20, arid: 0.15, arv: -0.20, c1: [128, 122, 132], c2: [152, 140, 136], rocha: [110, 98, 122], arvore: [56, 84, 60] },
@@ -302,18 +302,21 @@ async function principal() {
             const p = pai[i]; if (p < 0) continue;
             const cx = i % rw, cy = (i / rw) | 0;
             const arid = fatorArid[(cy * RS + 2) * W + cx * RS + 2];
-            const limiar = 420 * (1 + arid * 5);
+            const limiar = 650 * (1 + arid * 5);
             if (acum[i] < limiar) continue;
             segs.push([acum[i], i, p]);
         }
         segs.sort((a, b) => a[0] - b[0]);
-        const jit = (cx, cy) => [(cx + 0.5) * RS + ruidoA(cx * 0.7 + 3.1, cy * 0.7) * RS * 0.9, (cy + 0.5) * RS + ruidoB(cx * 0.7, cy * 0.7 + 5.3) * RS * 0.9];
+        const jit = (c) => { const cx = c % rw, cy = (c / rw) | 0; return [(cx + 0.5) * RS + ruidoA(cx * 0.5 + 3.1, cy * 0.5) * RS * 1.4, (cy + 0.5) * RS + ruidoB(cx * 0.5, cy * 0.5 + 5.3) * RS * 1.4]; };
+        const meio = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
         ctx.strokeStyle = cor;
         for (const [a, i, p] of segs) {
-            const [x0, y0] = jit(i % rw, (i / rw) | 0), [x1, y1] = jit(p % rw, (p / rw) | 0);
+            const pi = jit(i), pp = jit(p);
+            const m0 = meio(pi, pp);
+            const prox = pai[p] >= 0 && terraB[pai[p]] ? meio(pp, jit(pai[p])) : pp;
             ctx.globalAlpha = alfa;
-            ctx.lineWidth = largMais + 0.8 + Math.sqrt(a / 420) * 0.7;
-            ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+            ctx.lineWidth = largMais + 0.5 + Math.sqrt(a / 650) * 0.45;
+            ctx.beginPath(); ctx.moveTo(pi[0], pi[1]); ctx.lineTo(m0[0], m0[1]); ctx.moveTo(m0[0], m0[1]); ctx.quadraticCurveTo(pp[0], pp[1], prox[0], prox[1]); ctx.stroke();
         }
         ctx.globalAlpha = 1;
     }
@@ -411,8 +414,10 @@ async function principal() {
             const baseF = fbm(ruidoA, x * 0.0075 + 20, y * 0.0075, 5);
             const bosque = suave(0.52 - arv * 0.30 - umid * 0.10 + arid * 0.15, 0.60 - arv * 0.30 - umid * 0.10 + arid * 0.15, baseF + (ruidoB(x * 0.06, y * 0.06)) * 0.04);
             const semNeve = suave(lim + 0.05, lim - 0.06, h);
-            let floresta = bosque * suave(0.78, 0.46, h) * suave(0.7, 0.35, inclin[i]) * semNeve * suave(1, 5, dc) * (1 - suave(0.4, 0.8, lagoSuave[i]));
-            floresta = Math.max(floresta, clamp(rip * 1.4, 0, 1) * (0.55 + 0.4 * umid) * suave(0.7, 0.2, inclin[i]) * semNeve * (arid > 0.5 ? 0.9 : 0.55));
+            let limiteFrio = 1;
+            if (regiao[i] === R.freljord) limiteFrio = suave(0.04, 0.34, Math.max(amostra(camposB2[R.demacia], LW, LH, x / W, y / H), amostra(camposB2[R.noxus], LW, LH, x / W, y / H)));
+            let floresta = limiteFrio * bosque * suave(0.78, 0.46, h) * suave(0.7, 0.35, inclin[i]) * semNeve * suave(1, 5, dc) * (1 - suave(0.4, 0.8, lagoSuave[i]));
+            floresta = Math.max(floresta, limiteFrio * clamp(rip * 1.4, 0, 1) * (0.55 + 0.4 * umid) * suave(0.7, 0.2, inclin[i]) * semNeve * (arid > 0.5 ? 0.9 : 0.55));
             florestaMasc[i] = Math.round(clamp(floresta, 0, 1) * 255);
             r = lerp(r, ar_ * 1.05, floresta * 0.82); g = lerp(g, ag * 1.05, floresta * 0.82); b = lerp(b, ab * 1.05, floresta * 0.82);
             // rochas nas encostas e nos altos
@@ -492,8 +497,8 @@ async function principal() {
     log(`${arvores.length} árvores`);
 
     // ---- rios por cima ----
-    tracarRios(ctx, 'rgba(14,52,84,1)', 1.3, 0.55);
-    tracarRios(ctx, '#4aa0cc', 0, 0.95);
+    tracarRios(ctx, 'rgba(18,50,66,1)', 0.9, 0.28);
+    tracarRios(ctx, '#5b97ad', 0, 0.72);
 
     // ---- fronteiras entre regiões ----
     const borda = new Float32Array(N);

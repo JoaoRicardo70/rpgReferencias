@@ -57,6 +57,14 @@ function iniciarAtualizador(getJanela) {
   setInterval(checar, INTERVALO_CHECAGEM_ATUALIZACAO_MS);
 }
 
+// Tecla -> o que fazer com o zoom: 0.5 aumenta, -0.5 diminui, 0 restaura, null não é de zoom.
+function acaoDeZoom(tecla, codigo) {
+  if (tecla === '+' || tecla === '=' || codigo === 'NumpadAdd' || codigo === 'Equal') return 0.5;
+  if (tecla === '-' || tecla === '_' || codigo === 'NumpadSubtract' || codigo === 'Minus') return -0.5;
+  if (tecla === '0' || codigo === 'Numpad0' || codigo === 'Digit0') return 0;
+  return null;
+}
+
 let janelaPrincipal = null;
 
 function createWindow() {
@@ -96,6 +104,24 @@ function createWindow() {
     // duplicado aqui: o áudio capturado só alimenta o arquivo gravado, nunca é reenviado a ninguém.
     callback({ video: request.frame, audio: request.frame, enableLocalEcho: true });
   }, { useSystemPicker: false });
+
+  // 🔍 Zoom da janela por teclado. O atalho padrão do menu do Electron ("Ctrl + Plus") só dispara com Shift e,
+  // em vários teclados (ABNT2, por exemplo), Ctrl + "+" / "=" não aumenta nada, enquanto Ctrl + "-" diminui:
+  // a pessoa dava zoom out sem conseguir voltar. Aqui Ctrl + "+", "=" ou "+" do teclado numérico aumenta,
+  // Ctrl + "-" diminui e Ctrl + 0 volta ao tamanho normal. O nível fica entre -3 e +5.
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || !(input.control || input.meta) || input.alt) return;
+    const passo = acaoDeZoom(input.key, input.code);
+    if (passo === null) return;
+    event.preventDefault();
+    const wc = win.webContents;
+    wc.setZoomLevel(passo === 0 ? 0 : Math.min(5, Math.max(-3, wc.getZoomLevel() + passo)));
+  });
+  // Ctrl + roda do mouse também funciona no Chromium, mas guardamos o mesmo limite.
+  win.webContents.on('zoom-changed', (event, direcao) => {
+    const wc = win.webContents;
+    wc.setZoomLevel(Math.min(5, Math.max(-3, wc.getZoomLevel() + (direcao === 'in' ? 0.5 : -0.5))));
+  });
 
   win.webContents.session.clearCache();
   win.webContents.session.clearStorageData({ storages: ['serviceworkers'] });
