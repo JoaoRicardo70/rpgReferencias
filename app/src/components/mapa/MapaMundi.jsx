@@ -18,7 +18,9 @@ import gabaritoIlha from '../../assets/gabarito-ilha.png';
 import gabaritoIonia from '../../assets/gabarito-ionia.png';
 import { CSS_ASTROS } from './astrosCss';
 import { nomeDaCenaNaRegiao, regiaoDaCena, cenarioComCenaDeRegiao, cenasPendentesDoAtlasLocal } from '../../core/cenasRegiao';
-import { pontosValidos, pontosDaRegiao, cenasDoPonto, cenasSemPonto, cenarioComPonto, cenarioSemPonto, cenarioComCenaNoPonto, caixaDaRegiao, vistaDeFoco } from '../../core/pontosInteresse';
+import { pontosValidos, pontosDaRegiao, cenasDoPonto, cenasSemPonto, cenarioComPonto, cenarioSemPonto, cenarioComCenaNoPonto, caixaDaRegiao, vistaDeFoco, filtrarPontos, zoomVistaFoco, moverVistaFoco, CATEGORIAS_PONTO, FILTRO_TODOS } from '../../core/pontosInteresse';
+import { idDaRegiao } from '../../core/fronteirasPadrao';
+import { mascaraDaFaccao } from './mascaraFoco';
 import PontosDaRegiao from './PontosDaRegiao';
 import FormPonto from './FormPonto';
 import CenaAcesso from './CenaAcesso';
@@ -139,7 +141,41 @@ export default function MapaMundi({ children }) {
     const [editandoPontos, setEditandoPontos] = useState(false);
     const [formPonto, setFormPonto] = useState(null);
     const pontosTodos = useMemo(() => pontosValidos(cenario?.pontos), [cenario?.pontos]);
-    const vistaFoco = useMemo(() => vistaDeFoco(caixaDaRegiao(reinoSelecionado)), [reinoSelecionado]);
+    // A região em foco segue o território ATUAL (com as fronteiras que o Mestre pintou), não o desenho de fábrica.
+    const gradeFronteiras = fronteirasRemotas.grade;
+    const vistaFoco = useMemo(() => vistaDeFoco(caixaDaRegiao(reinoSelecionado, gradeFronteiras)), [reinoSelecionado, gradeFronteiras]);
+    // Zoom livre por cima do enquadramento da região (roda do mouse, botões e arrastar); null = só o enquadramento.
+    // (guarda a região junto: ao fechar ou trocar de região a vista antiga deixa de valer na hora, sem esperar um efeito)
+    const [vistaUsuarioEstado, setVistaUsuarioEstado] = useState(null);
+    const vistaFocoUsuario = vistaUsuarioEstado && vistaUsuarioEstado.reino === reinoSelecionado ? vistaUsuarioEstado.vista : null;
+    const setVistaFocoUsuario = useCallback((vista) => setVistaUsuarioEstado(vista ? { reino: reinoSelecionado, vista } : null), [reinoSelecionado]);
+    const vistaAtual = vistaFocoUsuario || vistaFoco;
+    const vistaAtualRef = useRef(vistaAtual);
+    vistaAtualRef.current = vistaAtual;
+    const mudarVistaFoco = useCallback((nova) => { vistaAtualRef.current = nova; setVistaFocoUsuario(nova); }, [setVistaFocoUsuario]);
+    const [filtroPontos, setFiltroPontos] = useState(FILTRO_TODOS);
+    const [mascaraEstado, setMascaraEstado] = useState(null);
+    const mascaraFoco = mascaraEstado && mascaraEstado.reino === reinoSelecionado ? mascaraEstado.url : null;
+    useEffect(() => {
+        let vivo = true;
+        // a silhueta anterior fica até a nova chegar (sem piscar quando a grade muda)
+        if (reinoSelecionado) mascaraDaFaccao(gradeFronteiras, idDaRegiao(reinoSelecionado)).then((url) => { if (vivo) setMascaraEstado({ reino: reinoSelecionado, url }); }).catch(() => {});
+        return () => { vivo = false; };
+    }, [reinoSelecionado, gradeFronteiras]);
+    useEffect(() => {
+        const janela = janelaMapaRef.current;
+        if (!reinoSelecionado || nivelVisao !== 'continente' || !janela) return undefined;
+        const aoRodar = (e) => {
+            if (e.target.closest && e.target.closest('.cenas-regiao-overlay')) return;
+            e.preventDefault();
+            const r = janela.getBoundingClientRect();
+            if (!(r.width > 0) || !(r.height > 0)) return;
+            const v = vistaAtualRef.current;
+            mudarVistaFoco(zoomVistaFoco(v, v.escala * (e.deltaY < 0 ? 1.25 : 0.8), (e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height));
+        };
+        janela.addEventListener('wheel', aoRodar, { passive: false });
+        return () => janela.removeEventListener('wheel', aoRodar);
+    }, [reinoSelecionado, nivelVisao, mudarVistaFoco]);
     const salvarCenarioPontos = useCallback((novo) => {
         if (setCenario) setCenario(novo);
         Promise.resolve(salvarCenarioCompleto(novo)).then((ok) => {
@@ -671,6 +707,10 @@ export default function MapaMundi({ children }) {
         const cenasDoReino = painelAberto === '__sem' ? semPonto : cenasDoPonto(cenario?.lista, painelAberto, contextoCenas);
         const pontoDoPainel = painelAberto && painelAberto !== '__sem' ? pontosTodos[painelAberto] : null;
         const pontoEmEdicao = formPonto?.id ? pontosTodos[formPonto.id] : null;
+        const urlMascaraFoco = mascaraFoco || realceDaRegiao(ESTILO_REALISTA, reinoSelecionado, null, REALCES_REALISTAS);
+        const pontosDaRegiaoTodos = reinoSelecionado ? pontosDaRegiao(pontosTodos, cenario?.lista, reinoSelecionado, contextoCenas) : [];
+        // no modo edição aparecem todos (um pino escondido pelo filtro confundiria quem está editando)
+        const pontosNoMapa = editandoPontos && souMestre ? pontosDaRegiaoTodos : filtrarPontos(pontosDaRegiaoTodos, filtroPontos);
 
         return (
             <div className="fade-in" style={{ width: '100%', height: '85vh', background: '#050508', borderRadius: '10px', border: '1px solid #0088ff', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
@@ -694,7 +734,7 @@ export default function MapaMundi({ children }) {
                 
                 <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', overflow: 'hidden', position: 'relative', width: '100%' }}>
                     <div ref={janelaMapaRef} className={editandoFronteiras || reinoSelecionado ? 'mapa-zoom-janela' : undefined} style={{ position: 'relative', display: 'inline-block', height: '100%', maxHeight: 'calc(85vh - 70px)' }}>
-                        <div className={vistaFronteiras.escala > 1.5 || reinoSelecionado ? 'mapa-zoom-aproximado' : undefined} style={{ position: 'relative', height: '100%', '--zoom': editandoFronteiras ? vistaFronteiras.escala : vistaFoco.escala, ...(editandoFronteiras ? { transformOrigin: '0 0', transform: `translate(${vistaFronteiras.x}px, ${vistaFronteiras.y}px) scale(${vistaFronteiras.escala})` } : { transformOrigin: '0 0', transition: 'transform 1.1s cubic-bezier(0.4, 0, 0.2, 1)', transform: reinoSelecionado ? `translate(${vistaFoco.x}%, ${vistaFoco.y}%) scale(${vistaFoco.escala})` : 'none' }) }}>
+                        <div className={vistaFronteiras.escala > 1.5 || reinoSelecionado ? 'mapa-zoom-aproximado' : undefined} style={{ position: 'relative', height: '100%', '--zoom': editandoFronteiras ? vistaFronteiras.escala : vistaAtual.escala, ...(editandoFronteiras ? { transformOrigin: '0 0', transform: `translate(${vistaFronteiras.x}px, ${vistaFronteiras.y}px) scale(${vistaFronteiras.escala})` } : { transformOrigin: '0 0', transition: vistaFocoUsuario ? 'none' : 'transform 1.1s cubic-bezier(0.4, 0, 0.2, 1)', transform: reinoSelecionado ? `translate(${vistaAtual.x}%, ${vistaAtual.y}%) scale(${vistaAtual.escala})` : 'none' }) }}>
                         <img src={estiloMapa === ESTILO_REALISTA ? mapaRealista : mapaClean} alt={estiloMapa === ESTILO_REALISTA ? 'Mapa Base (realista)' : 'Mapa Base'} style={{ display: 'block', height: '100%', width: 'auto', objectFit: 'contain', opacity: voandoPara ? 0 : 1, transition: 'opacity 1s' }} />
                         
                         {posicoesPings.map((reino) => (
@@ -705,12 +745,14 @@ export default function MapaMundi({ children }) {
                             <>
                                 {/* tudo escurece, só a região escolhida fica acesa (a silhueta vem dos realces do mapa realista, que valem para os dois estilos) */}
                                 <div className="mapa-foco-escuro" />
-                                {realceDaRegiao(ESTILO_REALISTA, reinoSelecionado, null, REALCES_REALISTAS) && (
+                                {urlMascaraFoco && (
                                     <img className="mapa-foco-brilho" alt="" aria-hidden="true" src={estiloMapa === ESTILO_REALISTA ? mapaRealista : mapaClean}
-                                        style={{ WebkitMaskImage: `url("${realceDaRegiao(ESTILO_REALISTA, reinoSelecionado, null, REALCES_REALISTAS)}")`, maskImage: `url("${realceDaRegiao(ESTILO_REALISTA, reinoSelecionado, null, REALCES_REALISTAS)}")` }} />
+                                        style={{ WebkitMaskImage: `url("${urlMascaraFoco}")`, maskImage: `url("${urlMascaraFoco}")` }} />
                                 )}
                                 <PontosDaRegiao
-                                    pontos={pontosDaRegiao(pontosTodos, cenario?.lista, reinoSelecionado, contextoCenas)}
+                                    pontos={pontosNoMapa}
+                                    janelaRef={janelaMapaRef}
+                                    onPanorama={(dfx, dfy) => mudarVistaFoco(moverVistaFoco(vistaAtualRef.current, dfx, dfy))}
                                     editando={editandoPontos && souMestre}
                                     onAbrir={(id) => setPainelAberto(id)}
                                     onEditar={(id) => setFormPonto({ id })}
@@ -730,6 +772,21 @@ export default function MapaMundi({ children }) {
                             </div>
                         ))}
                         </div>
+                        {reinoSelecionado && (
+                            <>
+                                <div className="pontos-filtro" role="group" aria-label="Filtrar pontos">
+                                    <button type="button" className={`pontos-filtro-botao${filtroPontos === FILTRO_TODOS ? ' ativo' : ''}`} onClick={() => setFiltroPontos(FILTRO_TODOS)} aria-pressed={filtroPontos === FILTRO_TODOS}>Todos ({pontosDaRegiaoTodos.length})</button>
+                                    {CATEGORIAS_PONTO.map((c) => (
+                                        <button key={c.id} type="button" className={`pontos-filtro-botao${filtroPontos === c.id ? ' ativo' : ''}`} onClick={() => setFiltroPontos(c.id)} aria-pressed={filtroPontos === c.id}>{c.emoji} {c.nome} ({pontosDaRegiaoTodos.filter((p) => p.ponto.categoria === c.id).length})</button>
+                                    ))}
+                                </div>
+                                <div className="pontos-zoom" role="group" aria-label="Zoom do mapa">
+                                    <button type="button" onClick={() => mudarVistaFoco(zoomVistaFoco(vistaAtualRef.current, vistaAtualRef.current.escala * 1.4))} aria-label="Aproximar o mapa">➕</button>
+                                    <button type="button" onClick={() => mudarVistaFoco(zoomVistaFoco(vistaAtualRef.current, vistaAtualRef.current.escala / 1.4))} aria-label="Afastar o mapa">➖</button>
+                                    <button type="button" onClick={() => setVistaFocoUsuario(null)} aria-label="Centralizar na região" disabled={!vistaFocoUsuario}>🎯</button>
+                                </div>
+                            </>
+                        )}
                         {!reinoSelecionado && !editandoFronteiras && territoriosVisiveis && fronteiras.facoes.length > 0 && (
                             <ul className="fronteiras-legenda" aria-label="Legenda dos territórios">
                                 {fronteiras.facoes.map((f) => <li key={f.id}><span className="fronteiras-legenda-cor" style={{ background: f.cor }} />{f.nome}</li>)}
@@ -741,7 +798,7 @@ export default function MapaMundi({ children }) {
                 {reinoSelecionado && (
                     <div className="pontos-rodape">
                         {editandoPontos && souMestre && <span className="pontos-dica">Clique no mapa para marcar um ponto novo. Arraste um pino para mover; clique nele para editar.</span>}
-                        {!editandoPontos && pontosDaRegiao(pontosTodos, cenario?.lista, reinoSelecionado, contextoCenas).length === 0 && semPonto.length === 0 && (
+                        {!editandoPontos && pontosDaRegiaoTodos.length === 0 && semPonto.length === 0 && (
                             <span className="pontos-dica">{souMestre ? 'Nenhum ponto de interesse ainda. Use "Editar pontos" para marcar o primeiro.' : 'Nenhuma Cena liberada para você nesta região.'}</span>
                         )}
                         {(souMestre || semPonto.length > 0) && !editandoPontos && (
@@ -755,10 +812,10 @@ export default function MapaMundi({ children }) {
                         regiao={reinoSelecionado}
                         ponto={pontoEmEdicao}
                         onFechar={() => setFormPonto(null)}
-                        onSalvar={({ nome, icone }) => {
+                        onSalvar={({ nome, icone, categoria }) => {
                             const id = formPonto.id || `ponto_${Date.now()}`;
                             const base = formPonto.id ? pontosTodos[formPonto.id] : { reino: reinoSelecionado, x: formPonto.x, y: formPonto.y };
-                            salvarCenarioPontos(cenarioComPonto(cenarioRef.current, id, { ...base, nome, icone }));
+                            salvarCenarioPontos(cenarioComPonto(cenarioRef.current, id, { ...base, nome, icone, categoria }));
                             setFormPonto(null);
                         }}
                         onExcluir={() => {

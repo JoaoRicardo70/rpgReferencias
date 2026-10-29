@@ -23,6 +23,11 @@ export function gradePadrao() {
     return gradeEmCache;
 }
 
+// Facção que nasceu como o território de uma região (a ligação é pelo id: continua valendo se o Mestre renomear a facção).
+export function idDaRegiao(nomeRegiao) {
+    return FACCOES_PADRAO.find((f) => f.nome === nomeRegiao)?.id || null;
+}
+
 export function fronteirasPadrao() {
     return { facoes: FACCOES_PADRAO, grade: gradePadrao() };
 }

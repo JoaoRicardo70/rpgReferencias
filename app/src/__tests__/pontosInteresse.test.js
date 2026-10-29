@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     novoPonto, pontosValidos, cenasDoPonto, cenasSemPonto, pontosDaRegiao, cenarioComPonto, cenarioSemPonto, cenarioComCenaNoPonto,
-    caixaDaRegiao, vistaDeFoco, VISTA_SEM_FOCO, emojiDoIcone, NOME_PONTO_MAX
+    caixaDaRegiao, caixaDaFaccao, vistaDeFoco, VISTA_SEM_FOCO, emojiDoIcone, NOME_PONTO_MAX, filtrarPontos, zoomVistaFoco, moverVistaFoco, ZOOM_FOCO_MAX
 } from '../core/pontosInteresse';
 import { novaCenaDeRegiao } from '../core/cenasRegiao';
 
@@ -105,5 +105,49 @@ describe('pontos de interesse - aproximação na região', () => {
             expect(v.x).toBeLessThanOrEqual(0); expect(v.x).toBeGreaterThanOrEqual((1 - v.escala) * 100 - 0.001);
             expect(v.y).toBeLessThanOrEqual(0); expect(v.y).toBeGreaterThanOrEqual((1 - v.escala) * 100 - 0.001);
         });
+    });
+});
+
+describe('pontos de interesse - categorias e filtro', () => {
+    it('a categoria padrão é "local" e valores inválidos voltam a ela', () => {
+        expect(novoPonto({ reino: 'Noxus', nome: 'A', x: 1, y: 1 }).categoria).toBe('local');
+        expect(novoPonto({ reino: 'Noxus', nome: 'A', x: 1, y: 1, categoria: 'dungeon' }).categoria).toBe('dungeon');
+        expect(novoPonto({ reino: 'Noxus', nome: 'A', x: 1, y: 1, categoria: 'xyz' }).categoria).toBe('local');
+        expect(pontosValidos({ a: { reino: 'Noxus', nome: 'A', x: 1, y: 1, categoria: 'dungeon' } }).a.categoria).toBe('dungeon');
+    });
+
+    it('filtrarPontos separa por categoria e "todos" não filtra', () => {
+        const lista = [{ id: 'a', ponto: { categoria: 'local' } }, { id: 'b', ponto: { categoria: 'dungeon' } }];
+        expect(filtrarPontos(lista, 'todos')).toHaveLength(2);
+        expect(filtrarPontos(lista, 'dungeon').map((p) => p.id)).toEqual(['b']);
+        expect(filtrarPontos(lista, 'local').map((p) => p.id)).toEqual(['a']);
+    });
+});
+
+describe('pontos de interesse - território atual e zoom livre', () => {
+    it('a caixa usa a grade atual e cai no padrão quando a facção da região não tem mais território', () => {
+        const grade = Array.from({ length: 204 }, () => '0'.repeat(320));
+        grade[100] = '0'.repeat(300) + '3'.repeat(10) + '0'.repeat(10);
+        const c = caixaDaRegiao('Noxus', grade);
+        expect(c.x0).toBeGreaterThan(0.9);
+        expect(caixaDaRegiao('Noxus', Array.from({ length: 204 }, () => '0'.repeat(320))).x0).toBeLessThan(0.6);
+        expect(caixaDaFaccao(null, '3')).toBeNull();
+    });
+
+    it('zoomVistaFoco mantém o ponto sob o cursor e respeita os limites', () => {
+        const v0 = { escala: 2, x: -50, y: -50 };
+        const v1 = zoomVistaFoco(v0, 4, 0.5, 0.5);
+        expect((0.5 - v1.x / 100) / v1.escala).toBeCloseTo((0.5 - v0.x / 100) / v0.escala);
+        expect(zoomVistaFoco(v0, 99).escala).toBe(ZOOM_FOCO_MAX);
+        expect(zoomVistaFoco(v0, 0.1)).toEqual({ escala: 1, x: 0, y: 0 });
+        const borda = zoomVistaFoco({ escala: 1, x: 0, y: 0 }, 3, 0, 0);
+        expect(borda.x).toBe(0); expect(borda.y).toBe(0);
+    });
+
+    it('moverVistaFoco desloca sem sair do mapa', () => {
+        const v = { escala: 3, x: -100, y: -100 };
+        expect(moverVistaFoco(v, 0.1, 0.05)).toEqual({ escala: 3, x: -90, y: -95 });
+        expect(moverVistaFoco(v, 5, 5)).toEqual({ escala: 3, x: 0, y: 0 });
+        expect(moverVistaFoco(v, -5, -5)).toEqual({ escala: 3, x: -200, y: -200 });
     });
 });
