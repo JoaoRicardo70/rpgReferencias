@@ -143,6 +143,8 @@ body::before {
     grid-template-rows: auto 1fr; 
     overflow-y: auto !important; /* Barra de rolagem apenas AQUI */
     overflow-x: hidden !important; /* Proíbe o site de rolar para os lados */
+    /* Uma coluna que nunca passa da largura da tela: sem isto (coluna "auto") um conteúdo largo empurrava a moldura do Mapa para fora e o overflow-x a cortava. */
+    grid-template-columns: minmax(0, 1fr);
     scroll-behavior: smooth; 
 }
 
@@ -2171,7 +2173,12 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .mapa-entrar-dica { color: #00ffcc; font-size: 0.9em; font-style: italic; }
 
 /* A Moldura fica abaixo da barra fixa do topo (sala / Trocar / Sair), senão o ✖ e o botão de remover ficam escondidos. */
-.mapa-moldura-coluna { flex: 1 1 30%; min-width: 300px; position: sticky; top: 10px; height: 85vh; padding-top: 52px; box-sizing: border-box; }
+.mapa-moldura-coluna { flex: 1 1 30%; min-width: 300px; position: sticky; top: 10px; height: 85vh; padding-top: 52px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; }
+.mapa-moldura-coluna[hidden] { display: none; }
+.mapa-moldura-conteudo { flex: 1 1 auto; min-height: 0; }
+.mapa-moldura-alternar { align-self: flex-end; flex: 0 0 auto; padding: 3px 10px; font-size: 0.75em; font-weight: bold; color: #e6f2ff; background: rgba(5, 8, 20, 0.85); border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 12px; cursor: pointer; }
+.mapa-moldura-alternar:hover { border-color: #0088ff; background: rgba(0, 136, 255, 0.35); }
+.mapa-moldura-alternar.flutuante { position: fixed; right: 12px; top: 64px; z-index: 60; }
 
 /* 🛡️ Reduções de Dano em sequência (Ficha > Estados & Afinidades) */
 .reducao-dano-ajuda { color: #888; font-size: 0.72em; margin: 0 0 8px 0; }

@@ -131,13 +131,13 @@ const PARAM = {
     shurima: { alt: 0.10, cord: 0.30, amp: 0.30, neve: 9, umid: 0.00, arid: 1.00, arv: -0.60, c1: [228, 190, 118], c2: [240, 208, 142], rocha: [176, 126, 88], arvore: [92, 124, 48] },
     targon: { alt: 0.52, cord: 1.00, amp: 0.45, neve: 0.78, umid: 0.20, arid: 0.15, arv: -0.20, c1: [128, 122, 132], c2: [152, 140, 136], rocha: [110, 98, 122], arvore: [56, 84, 60] },
     ixtal: { alt: 0.10, cord: 0.14, amp: 0.36, neve: 9, umid: 1.00, arid: 0.0, arv: 0.50, c1: [40, 116, 56], c2: [28, 98, 52], rocha: [84, 94, 72], arvore: [16, 76, 38] },
-    aguas: { alt: 0.02, cord: 0.00, amp: 0.12, neve: 9, umid: 0.90, arid: 0.0, arv: -0.05, c1: [90, 102, 70], c2: [72, 88, 72], rocha: [90, 92, 86], arvore: [46, 70, 48] },
+    aguas: { alt: 0.10, cord: 0.30, amp: 0.30, neve: 9, umid: 0.80, arid: 0.0, arv: 0.10, c1: [96, 130, 72], c2: [72, 108, 64], rocha: [108, 98, 86], arvore: [32, 92, 50] },
     ilha: { alt: 0.10, cord: 0.55, amp: 0.30, neve: 9, umid: 0.30, arid: 0.1, arv: -0.10, c1: [66, 84, 80], c2: [50, 66, 68], rocha: [66, 72, 80], arvore: [30, 50, 52] },
     ionia: { alt: 0.14, cord: 0.30, amp: 0.42, neve: 9, umid: 0.85, arid: 0.0, arv: 0.18, c1: [96, 174, 84], c2: [130, 188, 100], rocha: [132, 126, 118], arvore: [34, 112, 56] },
     neutro: { alt: 0.10, cord: 0.20, amp: 0.30, neve: 9, umid: 0.55, arid: 0.1, arv: 0.00, c1: [120, 158, 82], c2: [142, 162, 94], rocha: [126, 120, 110], arvore: [44, 98, 48] }
 };
 const P = REGIOES.map((n) => PARAM[n]);
-const CONIFERAS = new Set([R.freljord, R.noxus, R.targon, R.aguas]);
+const CONIFERAS = new Set([R.freljord, R.noxus, R.targon]);
 
 async function lerAlfa(arquivo) {
     const img = await loadImage(arquivo);
@@ -499,6 +499,152 @@ async function principal() {
     // ---- rios por cima ----
     tracarRios(ctx, 'rgba(18,50,66,1)', 0.9, 0.28);
     tracarRios(ctx, '#5b97ad', 0, 0.72);
+
+    // ---- Piltover (cidade steampunk), Zaun (bairro largado) e o arquipélago pirata de Sentina ----
+    const sorteio = (a, b) => a + rnd() * (b - a);
+    const naRegiao = (x, y, reg, folga) => { const xi = Math.round(x), yi = Math.round(y); if (xi < 2 || yi < 2 || xi >= W - 2 || yi >= H - 2) return false; const i = yi * W + xi; return terra[i] === 1 && regiao[i] === reg && dMar[i] > folga; };
+    const ehZaun = (x, y) => x < 1345 && y > 926 + ruidoC(x * 0.02, y * 0.02) * 14;
+    const cor3 = (c, f) => `rgb(${clamp(c[0] * f, 0, 255) | 0},${clamp(c[1] * f, 0, 255) | 0},${clamp(c[2] * f, 0, 255) | 0})`;
+    function bloco(x, y, w, d, ang, sx, sy, cor, f) {
+        const ca = Math.cos(ang), sa = Math.sin(ang);
+        ctx.setTransform(ca, sa, -sa, ca, x + sx, y + sy); ctx.fillStyle = 'rgba(14,12,10,0.38)'; ctx.fillRect(-w / 2, -d / 2, w, d);
+        ctx.setTransform(ca, sa, -sa, ca, x, y); ctx.fillStyle = cor3(cor, f); ctx.fillRect(-w / 2, -d / 2, w, d);
+        ctx.fillStyle = 'rgba(255,248,224,0.22)'; ctx.fillRect(-w / 2, -d / 2, w, 0.9); ctx.fillRect(-w / 2, -d / 2, 0.9, d);
+        ctx.fillStyle = 'rgba(0,0,0,0.20)'; ctx.fillRect(-w / 2, d / 2 - 0.9, w, 0.9); ctx.fillRect(w / 2 - 0.9, -d / 2, 0.9, d);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    function docas(reg, quantidade, comp, folgaMin, cor) {
+        const cand = [];
+        for (let y = 4; y < H - 4; y += 2) for (let x = 4; x < W - 4; x += 2) { const i = y * W + x; if (terra[i] && regiao[i] === reg && dMar[i] > 0.8 && dMar[i] < 1.9) cand.push([x, y]); }
+        const esc = [];
+        for (let t = 0; t < 4000 && esc.length < quantidade && cand.length; t++) {
+            const [x, y] = cand[(rnd() * cand.length) | 0];
+            if (esc.some(([a, b]) => Math.hypot(a - x, b - y) < folgaMin)) continue;
+            const gx = dMar[y * W + x + 3] - dMar[y * W + x - 3], gy = dMar[(y + 3) * W + x] - dMar[(y - 3) * W + x];
+            const n = Math.hypot(gx, gy); if (n < 0.5) continue;
+            esc.push([x, y, -gx / n, -gy / n]);
+        }
+        for (const [x, y, dx, dy] of esc) {
+            const L = comp * sorteio(0.7, 1.3);
+            ctx.lineCap = 'butt';
+            ctx.strokeStyle = 'rgba(10,20,30,0.35)'; ctx.lineWidth = 3.2; ctx.beginPath(); ctx.moveTo(x + 1.5, y + 1.8); ctx.lineTo(x + dx * L + 1.5, y + dy * L + 1.8); ctx.stroke();
+            ctx.strokeStyle = cor; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + dx * L, y + dy * L); ctx.stroke();
+            ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(40,24,12,0.7)';
+            for (let k = 2; k < L; k += 3) { ctx.beginPath(); ctx.moveTo(x + dx * k - dy * 1.6, y + dy * k + dx * 1.6); ctx.lineTo(x + dx * k + dy * 1.6, y + dy * k - dx * 1.6); ctx.stroke(); }
+            ctx.strokeStyle = cor; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(x + dx * L - dy * 3, y + dy * L + dx * 3); ctx.lineTo(x + dx * L + dy * 3, y + dy * L - dx * 3); ctx.stroke();
+        }
+        return esc;
+    }
+
+    // chão da cidade (calçamento claro em Piltover; terra escura e suja em Zaun)
+    {
+        let bx0 = W, by0 = H, bx1 = 0, by1 = 0;
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (terra[y * W + x] && regiao[y * W + x] === R.piltover) { if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
+        if (bx1 > bx0) {
+            const bw = bx1 - bx0 + 1, bh = by1 - by0 + 1;
+            const reg = ctx.getImageData(bx0, by0, bw, bh); const q = reg.data;
+            for (let y = by0; y <= by1; y++) for (let x = bx0; x <= bx1; x++) {
+                const i = y * W + x; if (!(terra[i] && regiao[i] === R.piltover) || dMar[i] < 1.2) continue;
+                const zn = ehZaun(x, y); const s = clamp(sombraTotal[i], 0.55, 1.2); const n = ruidoA(x * 0.15, y * 0.15) * 0.5 + 0.5;
+                const base = zn ? [82 + n * 16, 84 + n * 10, 64 + n * 6] : [188 + n * 16, 174 + n * 14, 148 + n * 10];
+                const k = clamp((dMar[i] - 1.2) / 3, 0, 1) * 0.88; const o = ((y - by0) * bw + (x - bx0)) * 4;
+                q[o] = lerp(q[o], base[0] * s, k); q[o + 1] = lerp(q[o + 1], base[1] * s, k); q[o + 2] = lerp(q[o + 2], base[2] * s, k);
+            }
+            ctx.putImageData(reg, bx0, by0);
+            // Piltover: quarteirões alinhados, torres altas e jardins
+            const ang = -0.22, ca = Math.cos(ang), sa = Math.sin(ang);
+            const telhados = [[168, 146, 108], [150, 152, 144], [190, 178, 150], [112, 134, 124], [146, 116, 96], [200, 190, 166]];
+            for (let v = -400; v < 400; v += 11) for (let u = -900; u < 900; u += 11) {
+                const x = (bx0 + bx1) / 2 + u * ca - v * sa, y = (by0 + by1) / 2 + u * sa + v * ca;
+                if (!naRegiao(x, y, R.piltover, 3.2) || ehZaun(x, y)) continue;
+                const r = rnd();
+                if (r < 0.1) { ctx.fillStyle = cor3([70, 132, 62], 0.9 + rnd() * 0.2); ctx.beginPath(); ctx.arc(x, y, 3.2, 0, 7); ctx.fill(); continue; }
+                const alto = rnd() < 0.12 ? 1.5 : 1;
+                bloco(x + sorteio(-1, 1), y + sorteio(-1, 1), sorteio(6.5, 9) * alto, sorteio(5.5, 8) * alto, ang, 2 * alto, 2.2 * alto, telhados[(rnd() * telhados.length) | 0], sorteio(0.8, 1.0));
+                if (rnd() < 0.3) { ctx.fillStyle = 'rgba(40,52,60,0.55)'; ctx.fillRect(x - 1, y - 1, 2, 2); }
+            }
+            // torres e cúpulas
+            const torres = [];
+            for (let t = 0; t < 5000 && torres.length < 7; t++) {
+                const x = sorteio(bx0, bx1), y = sorteio(by0, by1);
+                if (naRegiao(x, y, R.piltover, 6) && !ehZaun(x, y) && torres.every(([a, b]) => Math.hypot(a - x, b - y) > 26)) torres.push([x, y]);
+            }
+            for (const [x, y] of torres) {
+                bloco(x, y, 11, 11, ang, 4.5, 5, [196, 170, 112], 1.05);
+                ctx.fillStyle = 'rgb(224,188,96)'; ctx.beginPath(); ctx.arc(x - 1, y - 1, 3.4, 0, 7); ctx.fill();
+                ctx.fillStyle = 'rgba(255,244,200,0.7)'; ctx.beginPath(); ctx.arc(x - 2, y - 2, 1.2, 0, 7); ctx.fill();
+            }
+            // brilho hextech em dois pontos
+            for (const [x, y] of torres.slice(0, 2)) { const g = ctx.createRadialGradient(x, y, 0, x, y, 12); g.addColorStop(0, 'rgba(120,230,255,0.55)'); g.addColorStop(1, 'rgba(120,230,255,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 12, 0, 7); ctx.fill(); }
+            docas(R.piltover, 8, 14, 22, 'rgb(150,116,80)');
+
+            // Zaun: casebres amontoados, chaminés, canos, poças tóxicas e fumaça
+            const ferrugem = [[110, 76, 54], [84, 78, 68], [124, 96, 62], [66, 82, 62], [98, 62, 48]];
+            const zb = [];
+            for (let y = by0; y < by1; y += 6.2) for (let x = bx0; x < bx1; x += 6.2) {
+                const px = x + sorteio(-2, 2), py = y + sorteio(-2, 2);
+                if (!naRegiao(px, py, R.piltover, 2.5) || !ehZaun(px, py) || rnd() < 0.12) continue;
+                bloco(px, py, sorteio(4, 8), sorteio(3.5, 7), sorteio(-0.8, 0.8), 1.7, 1.9, ferrugem[(rnd() * ferrugem.length) | 0], sorteio(0.78, 1.05));
+                zb.push([px, py]);
+            }
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            for (let t = 0; t < 26 && zb.length > 4; t++) {
+                const a = zb[(rnd() * zb.length) | 0]; const b = zb.find((p) => p !== a && Math.hypot(p[0] - a[0], p[1] - a[1]) > 10 && Math.hypot(p[0] - a[0], p[1] - a[1]) < 26);
+                if (!b) continue;
+                ctx.strokeStyle = 'rgba(40,44,42,0.75)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+                ctx.strokeStyle = 'rgba(150,158,150,0.45)'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(a[0], a[1] - 0.5); ctx.lineTo(b[0], a[1] - 0.5); ctx.lineTo(b[0] - 0.5, b[1]); ctx.stroke();
+            }
+            for (let t = 0; t < 16 && zb.length; t++) {
+                const [x, y] = zb[(rnd() * zb.length) | 0];
+                ctx.fillStyle = 'rgb(46,44,42)'; ctx.beginPath(); ctx.arc(x, y, 2, 0, 7); ctx.fill();
+                for (let k = 1; k <= 4; k++) { ctx.fillStyle = `rgba(150,170,140,${0.2 - k * 0.035})`; ctx.beginPath(); ctx.arc(x + k * 2.6, y - k * 3, 2.5 + k * 1.7, 0, 7); ctx.fill(); }
+            }
+            for (let t = 0; t < 9; t++) {
+                const x = sorteio(bx0, bx1), y = sorteio(by0, by1);
+                if (!naRegiao(x, y, R.piltover, 4) || !ehZaun(x, y)) continue;
+                const rr = sorteio(3, 6.5);
+                const g = ctx.createRadialGradient(x, y, 0, x, y, rr * 2.4); g.addColorStop(0, 'rgba(130,255,100,0.55)'); g.addColorStop(1, 'rgba(130,255,100,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rr * 2.4, 0, 7); ctx.fill();
+                ctx.fillStyle = 'rgb(40,70,34)'; ctx.beginPath(); ctx.ellipse(x, y, rr + 1, rr * 0.7 + 1, 0.4, 0, 7); ctx.fill();
+                ctx.fillStyle = 'rgb(138,236,98)'; ctx.beginPath(); ctx.ellipse(x, y, rr, rr * 0.7, 0.4, 0, 7); ctx.fill();
+            }
+            for (let t = 0; t < 46; t++) {
+                const x = sorteio(bx0 - 10, bx1 + 10), y = sorteio(by0 - 10, by1 + 10);
+                if (!ehZaun(x, y) || !naRegiao(x, y, R.piltover, 0)) continue;
+                const rr = sorteio(14, 30); const g = ctx.createRadialGradient(x, y, 0, x, y, rr);
+                g.addColorStop(0, 'rgba(112,170,86,0.16)'); g.addColorStop(1, 'rgba(112,170,86,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rr, 0, 7); ctx.fill();
+            }
+        }
+    }
+
+    // Águas de Sentina: portos de piratas, cabanas, fogueiras e navios
+    {
+        const docasS = docas(R.aguas, 30, 12, 24, 'rgb(112,80,52)');
+        for (const [x, y, dx, dy] of docasS) {
+            const hx = x - dx * 6 + sorteio(-1.5, 1.5), hy = y - dy * 6 + sorteio(-1.5, 1.5);
+            if (!naRegiao(hx, hy, R.aguas, 3)) continue;
+            bloco(hx, hy, sorteio(4.5, 6.5), sorteio(3.5, 5), sorteio(-0.6, 0.6), 1.4, 1.6, [132, 96, 62], 1);
+            ctx.fillStyle = 'rgba(255,170,60,0.9)'; ctx.beginPath(); ctx.arc(hx + 4, hy + 3, 1.1, 0, 7); ctx.fill();
+            const g = ctx.createRadialGradient(hx + 4, hy + 3, 0, hx + 4, hy + 3, 6); g.addColorStop(0, 'rgba(255,170,60,0.35)'); g.addColorStop(1, 'rgba(255,170,60,0)'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(hx + 4, hy + 3, 6, 0, 7); ctx.fill();
+        }
+        const navios = [];
+        for (let t = 0; t < 8000 && navios.length < 11; t++) {
+            const x = sorteio(1750, 2200), y = sorteio(600, 1130); const i = (y | 0) * W + (x | 0);
+            if (terra[i] || dTerra[i] < 13 || dTerra[i] > 44 || navios.some(([a, b]) => Math.hypot(a - x, b - y) < 64)) continue;
+            if (amostra(camposB2[R.aguas], LW, LH, x / W, y / H) < 0.1) continue;
+            navios.push([x, y, sorteio(0, 6.28)]);
+        }
+        for (const [x, y, a] of navios) {
+            const ca = Math.cos(a), sa = Math.sin(a);
+            ctx.setTransform(ca, sa, -sa, ca, x, y);
+            ctx.fillStyle = 'rgba(235,248,250,0.30)'; ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(-30, -4); ctx.lineTo(-30, 4); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = 'rgba(6,16,26,0.35)'; ctx.beginPath(); ctx.ellipse(3, 3, 11, 4.2, 0, 0, 7); ctx.fill();
+            ctx.fillStyle = 'rgb(72,46,28)'; ctx.beginPath(); ctx.moveTo(-9, -3.4); ctx.quadraticCurveTo(0, -5.6, 11, 0); ctx.quadraticCurveTo(0, 5.6, -9, 3.4); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = 'rgb(138,102,66)'; ctx.fillRect(-7, -1.6, 13, 3.2);
+            ctx.fillStyle = rnd() < 0.7 ? 'rgb(34,30,36)' : 'rgb(226,216,190)';
+            for (const mx of [-3, 3]) { ctx.beginPath(); ctx.moveTo(mx, -1.2); ctx.lineTo(mx + 5, -6.5); ctx.lineTo(mx + 5, 6.5); ctx.lineTo(mx, 1.2); ctx.closePath(); ctx.fill(); }
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+        }
+    }
 
     // ---- fronteiras entre regiões ----
     const borda = new Float32Array(N);

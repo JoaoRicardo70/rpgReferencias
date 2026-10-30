@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import useStore from '../../stores/useStore';
+import { lerMolduraOculta, gravarMolduraOculta } from '../../core/molduraMapa';
 import { MapaFormProvider } from './MapaFormContext';
 import { MapaDadoAnimado, MapaRolagemRapida, MapaIniciativaTracker, MapaHologramaAcao, MapaAtalhoAtaques } from './MapaCombate';
 import { MapaFerramentasMestre } from './MapaFerramentasMestre';
@@ -19,6 +20,9 @@ export default function MapaPanel({ className, children }) {
     // (No modo Mesa, com um painel aberto ao lado, o Livro de Combate do Mapa fica de fora: os providers dele dobrariam os efeitos
     // do Ataque/Arsenal que o painel lateral já monta. Feche o painel pra voltar a usar o Livro.)
     const mapaEmFoco = abaAtiva === 'aba-mapa';
+    // Quem quiser ver o mapa sem a moldura ao lado a esconde; a escolha fica guardada neste navegador.
+    const [molduraOculta, setMolduraOculta] = useState(lerMolduraOculta);
+    const alternarMoldura = useCallback(() => { gravarMolduraOculta(!molduraOculta); setMolduraOculta(!molduraOculta); }, [molduraOculta]);
 
     return (
         <MapaFormProvider>
@@ -56,9 +60,14 @@ export default function MapaPanel({ className, children }) {
                             )}
                         </div>
 
-                        <div className="mapa-moldura-coluna">
-                            <MapaHologramaAcao />
+                        {/* A moldura continua montada quando oculta (só some da tela), para não perder o que ela acompanha */}
+                        <div className="mapa-moldura-coluna" hidden={molduraOculta}>
+                            <button type="button" className="mapa-moldura-alternar" onClick={alternarMoldura} title="Esconder a moldura para ver o mapa com mais clareza" aria-label="Ocultar a moldura">▶ Ocultar moldura</button>
+                            <div className="mapa-moldura-conteudo"><MapaHologramaAcao /></div>
                         </div>
+                        {molduraOculta && (
+                            <button type="button" className="mapa-moldura-alternar flutuante" onClick={alternarMoldura} title="Mostrar a moldura de novo" aria-label="Mostrar a moldura">◀ Moldura</button>
+                        )}
                     </>
                 )}
             </div>
