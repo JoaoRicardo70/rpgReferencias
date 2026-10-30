@@ -126,7 +126,7 @@ const R = Object.fromEntries(REGIOES.map((n, i) => [n, i]));
 const PARAM = {
     freljord: { alt: 0.34, cord: 0.95, amp: 0.55, neve: 0.26, umid: 0.45, arid: 0.0, arv: -0.60, c1: [176, 180, 178], c2: [150, 156, 156], rocha: [122, 124, 132], arvore: [30, 66, 54] },
     demacia: { alt: 0.10, cord: 0.18, amp: 0.38, neve: 9, umid: 0.70, arid: 0.0, arv: 0.00, c1: [118, 168, 70], c2: [160, 180, 82], rocha: [130, 122, 108], arvore: [40, 100, 42] },
-    noxus: { alt: 0.30, cord: 0.70, amp: 0.55, neve: 1.10, umid: 0.42, arid: 0.12, arv: 0.14, c1: [158, 124, 70], c2: [124, 106, 60], rocha: [118, 98, 88], arvore: [44, 76, 46] },
+    noxus: { alt: 0.22, cord: 0.80, amp: 0.40, neve: 9, umid: 0.42, arid: 0.12, arv: 0.14, c1: [158, 124, 70], c2: [124, 106, 60], rocha: [118, 98, 88], arvore: [44, 76, 46] },
     piltover: { alt: 0.05, cord: 0.05, amp: 0.20, neve: 9, umid: 0.55, arid: 0.10, arv: -0.10, c1: [128, 156, 96], c2: [150, 156, 118], rocha: [132, 128, 122], arvore: [50, 96, 52] },
     shurima: { alt: 0.10, cord: 0.30, amp: 0.30, neve: 9, umid: 0.00, arid: 1.00, arv: -0.60, c1: [228, 190, 118], c2: [240, 208, 142], rocha: [176, 126, 88], arvore: [92, 124, 48] },
     targon: { alt: 0.52, cord: 1.00, amp: 0.45, neve: 0.78, umid: 0.20, arid: 0.15, arv: -0.20, c1: [128, 122, 132], c2: [152, 140, 136], rocha: [110, 98, 122], arvore: [56, 84, 60] },
@@ -213,13 +213,17 @@ async function principal() {
         fatorArid[i] = ar;
         const dc = dMar[i];
         const interior = suave(0, 150, dc);
-        const perfil = 0.10 + 0.90 * Math.pow(interior, 0.85);
+        // Noxus é o contrário das outras terras: as cadeias de montanhas ficam na costa e o centro é um planalto baixo
+        const wNox = peso[R.noxus][i] / 255;
+        const costeira = Math.exp(-Math.pow((dc - 55) / 75, 2));
+        const falhas = suave(0.34, 0.56, fbm(ruidoB, x * 0.0065 + 11, y * 0.0065, 3)); // as cadeias têm passagens por onde a água escoa
+        const perfil = lerp(0.10 + 0.90 * Math.pow(interior, 0.85), 0.34 + 0.66 * costeira * (0.25 + 0.75 * falhas), wNox);
         const wx = x + (fbm(ruidoB, x * 0.004, y * 0.004, 3) - 0.5) * 120;
         const wy = y + (fbm(ruidoC, x * 0.004 + 9, y * 0.004, 3) - 0.5) * 120;
         const grande = fbm(ruidoA, wx * 0.0042, wy * 0.0042, 6);
         const cord = cordilheira(ruidoD, wx * 0.0068 + (ruidoA(x * 0.004, y * 0.004) * 0.25), wy * 0.0068 + (ruidoB(x * 0.004, y * 0.004) * 0.25), 8);
         const detalhe = (fbm(ruidoB, x * 0.03, y * 0.03, 4) - 0.5);
-        let h = perfil * (a + m * 0.5 * grande + c * 0.85 * cord * (0.35 + 0.65 * interior)) + detalhe * 0.035 * (0.4 + c);
+        let h = perfil * (a + m * 0.5 * grande + c * 0.85 * cord * lerp(0.35 + 0.65 * interior, 0.1 + 0.9 * costeira * falhas, wNox)) + detalhe * 0.035 * (0.4 + c);
         // dunas: cristas alongadas que giram devagar
         if (ar > 0.3) {
             const ang = 0.9 + (fbm(ruidoC, x * 0.002, y * 0.002, 2) - 0.5) * 1.6;
@@ -291,7 +295,7 @@ async function principal() {
 
     // lagos: depressões que a inundação preencheu
     const lagoB = new Float32Array(rw * rh);
-    for (let i = 0; i < rw * rh; i++) if (terraB[i] && cheio[i] - hs[i] > 0.13 && regiao[((((i / rw) | 0) * RS + 2) * W) + (i % rw) * RS + 2] !== R.shurima) lagoB[i] = 1;
+    for (let i = 0; i < rw * rh; i++) if (terraB[i] && cheio[i] - hs[i] > 0.16 && regiao[((((i / rw) | 0) * RS + 2) * W) + (i % rw) * RS + 2] !== R.shurima) lagoB[i] = 1;
 
     const cvRio = createCanvas(W, H); const rx = cvRio.getContext('2d');
     function tracarRios(ctx, cor, largMais, alfa) {
