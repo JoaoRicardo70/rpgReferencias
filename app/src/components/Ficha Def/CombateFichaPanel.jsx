@@ -4,6 +4,7 @@ import TestesPanel from '../combate/TestesPanel';
 import AcertoPanel from '../combate/AcertoPanel';
 import AtaquePanel from '../combate/AtaquePanel';
 import DefesaPanel from '../combate/DefesaPanel';
+import CombosPanel from '../combos/CombosPanel';
 import FeedCombate from '../feed/FeedCombate';
 import { useFichaAtiva } from './FichaAlvoContext';
 
@@ -13,7 +14,8 @@ export const CAPITULOS_COMBATE = [
     { id: 'testes', label: 'Testes', icon: '🎲', Painel: TestesPanel },
     { id: 'acerto', label: 'Acerto', icon: '🎯', Painel: AcertoPanel },
     { id: 'ataque', label: 'Ataque', icon: '🗡️', Painel: AtaquePanel },
-    { id: 'defesa', label: 'Defesa', icon: '🛡️', Painel: DefesaPanel }
+    { id: 'defesa', label: 'Defesa', icon: '🛡️', Painel: DefesaPanel },
+    { id: 'combos', label: 'Combos', icon: '🥋', Painel: CombosPanel }
 ];
 
 export default function CombateFichaPanel() {

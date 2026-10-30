@@ -11,10 +11,13 @@ function medirJanela() {
 //  - no onClick: if (consumirArrasto()) return;  (o clique que termina um arrasto não conta como clique).
 export default function useBotaoArrastavel(chave, { largura = 64, altura = 38, topoReservado = 0, fracaoY = 0.4 } = {}) {
     const tamanho = { largura, altura };
+    // Lugar "de verdade" (o salvo, sem encolher): a janela pode abrir pequena ao ligar o PC e crescer depois; o botão só é
+    // encolhido para caber na tela, e volta ao lugar salvo quando a janela cresce.
+    const idealRef = useRef(null);
+    if (idealRef.current === null) idealRef.current = lerPosicaoSalva(chave);
     const [pos, setPos] = useState(() => {
         const janela = medirJanela();
-        const salva = lerPosicaoSalva(chave);
-        return salva ? limitarPosicao(salva, janela, tamanho, topoReservado) : posicaoInicial(janela, tamanho, topoReservado, fracaoY);
+        return idealRef.current ? limitarPosicao(idealRef.current, janela, tamanho, topoReservado) : posicaoInicial(janela, tamanho, topoReservado, fracaoY);
     });
     const posRef = useRef(pos);
     posRef.current = pos;
@@ -22,7 +25,7 @@ export default function useBotaoArrastavel(chave, { largura = 64, altura = 38, t
 
     // A janela mudou de tamanho: puxa o botão de volta pra dentro da tela.
     useEffect(() => {
-        const aoRedimensionar = () => setPos(p => limitarPosicao(p, medirJanela(), tamanho, topoReservado));
+        const aoRedimensionar = () => setPos(p => limitarPosicao(idealRef.current || p, medirJanela(), tamanho, topoReservado));
         window.addEventListener('resize', aoRedimensionar);
         return () => window.removeEventListener('resize', aoRedimensionar);
         // eslint-disable-next-line react-hooks/exhaustive-deps -- tamanho é constante por chamada
@@ -38,7 +41,10 @@ export default function useBotaoArrastavel(chave, { largura = 64, altura = 38, t
             const atual = { x: ev.clientX, y: ev.clientY };
             if (!arrastouRef.current && !movimentoEhArrasto(inicio, atual)) return;
             arrastouRef.current = true;
-            setPos(limitarPosicao({ x: posInicial.x + (atual.x - inicio.x), y: posInicial.y + (atual.y - inicio.y) }, medirJanela(), tamanho, topoReservado));
+            const nova = limitarPosicao({ x: posInicial.x + (atual.x - inicio.x), y: posInicial.y + (atual.y - inicio.y) }, medirJanela(), tamanho, topoReservado);
+            posRef.current = nova; // já vale para o "soltar", mesmo antes de o React redesenhar
+            idealRef.current = nova;
+            setPos(nova);
         };
         const soltar = () => {
             window.removeEventListener('pointermove', mover);

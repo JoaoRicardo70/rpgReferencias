@@ -52,7 +52,7 @@ export default function ComboPrompt() {
             vistos.current.add(chave); // vale também sem Combos: um golpe de antes de criar o primeiro Combo não vira aviso depois
             if (!usaCombos || f.ts < montadoEm.current - FOLGA_RELOGIO_MS) continue;
             if (!acertou(f)) {
-                if (estadoDeCombo(minhaFicha).ativo) adicionarAviso('O golpe errou. Se o Combo foi quebrado, interrompa em Combate > Combos.', 'alerta');
+                if (estadoDeCombo(minhaFicha).ativo) adicionarAviso('O golpe errou. Se o Combo foi quebrado, interrompa na Ficha > Combate > Combos.', 'alerta');
                 continue;
             }
             const o = opcoesDeCombo(minhaFicha);

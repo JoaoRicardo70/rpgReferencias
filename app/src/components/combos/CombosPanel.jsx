@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import useStore from '../../stores/useStore';
-import { enviarParaFeed, salvarFichaSilencioso } from '../../services/firebase-sync';
+import { enviarParaFeed } from '../../services/firebase-sync';
+import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import {
     combosDaFicha, followUpsDaFicha, estadoDeCombo, efeitosDeCombos, proximoGolpeDoCombo, interromperCombo, zerarEstadoDeCombo,
     ajustarNivelFollowUp, nivelDoFollowUp, normalizarCombo, normalizarFollowUp, normalizarGolpe, exportarCombos, importarCombos,
@@ -13,9 +14,9 @@ import EditorFollowUp from './EditorFollowUp';
 // 🥋 Combos e Follow Ups (core/combos.js): onde o jogador monta os Combos, vê em que ponto está e usa os Follow Ups.
 // É opcional: sem nenhum Combo criado nada muda no resto do app. O aviso de escolha depois de um golpe que acerta é o ComboPrompt.
 export default function CombosPanel() {
-    const minhaFicha = useStore(s => s.minhaFicha);
-    const meuNome = useStore(s => s.meuNome);
-    const updateFicha = useStore(s => s.updateFicha);
+    // A ficha em foco: a minha, ou a do personagem que o Mestre abriu na Ficha Definitiva.
+    const { ficha: minhaFicha, updateFicha, nome: meuNome } = useFichaAtiva();
+    const salvarAtivo = useCallSaveAtivo();
     const adicionarAviso = useStore(s => s.adicionarAviso);
     const [edicao, setEdicao] = useState(null);
     const [textoImportar, setTextoImportar] = useState('');
@@ -29,7 +30,7 @@ export default function CombosPanel() {
     const buffsAtivos = useMemo(() => efeitosDeCombos(minhaFicha), [minhaFicha]);
     const comboAtivo = estado.ativo ? combos.find(c => c.id === estado.ativo.comboId) : null;
 
-    const gravar = useCallback((fn) => { updateFicha(fn); salvarFichaSilencioso(); }, [updateFicha]);
+    const gravar = useCallback((fn) => { updateFicha(fn); salvarAtivo(); }, [updateFicha, salvarAtivo]);
 
     const salvarCombo = useCallback(() => {
         const c = normalizarCombo(edicao.dados);

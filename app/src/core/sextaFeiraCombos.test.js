@@ -59,7 +59,7 @@ describe('Sexta-Feira cria Combos e Follow Ups', () => {
     });
 
     it('o destino do pedido aponta para a seção Combos', () => {
-        expect(descreverDestinoPedido('combo', {})).toMatchObject({ pagina: 'Combate', oQue: 'um Combo' });
+        expect(descreverDestinoPedido('combo', {})).toMatchObject({ pagina: 'Ficha Definitiva', oQue: 'um Combo' });
         expect(descreverDestinoPedido('followup', {})).toMatchObject({ oQue: 'um Follow Up' });
     });
 

@@ -246,14 +246,14 @@ export default function MapaMundi({ children }) {
     const posicoesPings = [
         { nome: 'Freljord', img: gabaritoFreljord, top: '15%', left: '28%', cor: '#00b5e2' },
         { nome: 'Demacia', img: gabaritoDemacia, top: '40%', left: '21%', cor: '#d3c29e' },
-        { nome: 'Noxus', img: gabaritoNoxus, top: '28%', left: '48%', cor: '#c62828' }, 
+        { nome: 'Noxus', img: gabaritoNoxus, top: '37%', left: '41.5%', cor: '#c62828' }, 
         { nome: 'Piltover e Zaun', img: gabaritoPiltover, top: '54%', left: '51%', cor: '#d4a017' },
         { nome: 'Shurima', img: gabaritoShurima, top: '75%', left: '43%', cor: '#c59b0d' },
         { nome: 'Targon', img: gabaritoTargon, top: '78%', left: '26%', cor: '#5e35b1' },
         { nome: 'Ixtal', img: gabaritoIxtal, top: '67%', left: '63%', cor: '#2e7d32' },
         { nome: 'Águas de Sentina', img: gabaritoAguas, top: '57%', left: '72%', cor: '#d84315' },
-        { nome: 'Ilha das Sombras', img: gabaritoIlha, top: '86%', left: '85%', cor: '#00838f' },
-        { nome: 'Ionia', img: gabaritoIonia, top: '30%', left: '82%', cor: '#43a047' }
+        { nome: 'Ilha das Sombras', img: gabaritoIlha, top: '77%', left: '86.4%', cor: '#00838f' },
+        { nome: 'Ionia', img: gabaritoIonia, top: '25%', left: '72%', cor: '#43a047' }
     ];
 
     // GERADOR MATEMÁTICO DA RODOVIA CÓSMICA

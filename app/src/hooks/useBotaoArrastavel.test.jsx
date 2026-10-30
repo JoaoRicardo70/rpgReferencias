@@ -113,4 +113,46 @@ describe('useBotaoArrastavel', () => {
         act(() => { window.dispatchEvent(ev('pointercancel', 0, 0)); });
         expect(localStorage.getItem('pos_teste')).not.toBeNull();
     });
+    it('janela pequena ao abrir não faz o botão esquecer o lugar salvo: ao crescer, ele volta', () => {
+        localStorage.setItem('pos_teste', JSON.stringify({ x: 900, y: 600 }));
+        window.innerWidth = 500; window.innerHeight = 400;
+        render(<Teste />);
+        expect(api.pos.x).toBeLessThan(900);
+        act(() => { window.innerWidth = 1000; window.innerHeight = 800; window.dispatchEvent(new Event('resize')); });
+        expect(api.pos).toEqual({ x: 900, y: 600 });
+    });
+    it('encolhe e cresce várias vezes sem perder o lugar salvo', () => {
+        localStorage.setItem('pos_teste', JSON.stringify({ x: 900, y: 600 }));
+        render(<Teste />);
+        const redimensionar = (w, h) => act(() => { window.innerWidth = w; window.innerHeight = h; window.dispatchEvent(new Event('resize')); });
+        redimensionar(500, 400);
+        redimensionar(300, 300);
+        expect(api.pos.x).toBe(300 - 64 - 8);
+        redimensionar(1000, 800);
+        expect(api.pos).toEqual({ x: 900, y: 600 });
+    });
+    it('arrastar com a janela encolhida passa a ser o novo lugar de verdade', () => {
+        localStorage.setItem('pos_teste', JSON.stringify({ x: 900, y: 600 }));
+        window.innerWidth = 500; window.innerHeight = 400;
+        render(<Teste />);
+        pressionar(100, 100); mover(90, 90); soltar();
+        const nova = { ...api.pos };
+        act(() => { window.innerWidth = 1000; window.innerHeight = 800; window.dispatchEvent(new Event('resize')); });
+        expect(api.pos).toEqual(nova);
+        expect(JSON.parse(localStorage.getItem('pos_teste'))).toEqual(nova);
+    });
+    it('sem posição salva, resize mantém o botão dentro da tela', () => {
+        render(<Teste />);
+        act(() => { window.innerWidth = 200; window.innerHeight = 200; window.dispatchEvent(new Event('resize')); });
+        expect(api.pos.x).toBeLessThanOrEqual(200 - 64 - 8);
+        expect(api.pos.y).toBeLessThanOrEqual(200 - 38 - 8);
+    });
+    it('soltar logo após o último movimento salva o lugar final', () => {
+        render(<Teste />);
+        const ini = { ...api.pos };
+        pressionar(100, 100);
+        mover(200, 160);
+        soltar();
+        expect(JSON.parse(localStorage.getItem('pos_teste'))).toEqual({ x: ini.x + 100, y: ini.y + 60 });
+    });
 });

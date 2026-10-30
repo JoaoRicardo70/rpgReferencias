@@ -6,7 +6,7 @@ import { FichaAlvoProvider } from './FichaAlvoContext';
 import useStore from '../../stores/useStore';
 
 // ---------------------------------------------------------------------------
-// QA - CombateFichaPanel (pagina 8 da Ficha Definitiva): 4 capitulos (Testes/Acerto/Ataque/Defesa) + Feed ao vivo.
+// QA - CombateFichaPanel (pagina 8 da Ficha Definitiva): 5 capitulos (Testes/Acerto/Ataque/Defesa/Combos) + Feed ao vivo.
 // Store real (Zustand); paineis filhos e Feed mockados.
 // ---------------------------------------------------------------------------
 
@@ -14,6 +14,7 @@ vi.mock('../combate/TestesPanel', () => ({ default: () => <div data-testid="pain
 vi.mock('../combate/AcertoPanel', () => ({ default: () => <div data-testid="painel-acerto">ACERTO</div> }));
 vi.mock('../combate/AtaquePanel', () => ({ default: () => <div data-testid="painel-ataque">ATAQUE</div> }));
 vi.mock('../combate/DefesaPanel', () => ({ default: () => <div data-testid="painel-defesa">DEFESA</div> }));
+vi.mock('../combos/CombosPanel', () => ({ default: () => <div data-testid="painel-combos">COMBOS</div> }));
 vi.mock('../feed/FeedCombate', () => ({ default: () => <div data-testid="feed-mock">FEED</div> }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
@@ -25,7 +26,7 @@ vi.mock('../../services/firebase-sync', () => ({
     enviarParaFeed: vi.fn(),
 }));
 
-const IDS = ['testes', 'acerto', 'ataque', 'defesa'];
+const IDS = ['testes', 'acerto', 'ataque', 'defesa', 'combos'];
 const painelVisivel = () => IDS.filter(id => screen.queryByTestId(`painel-${id}`));
 const aba = (nome) => screen.getByRole('tab', { name: new RegExp(nome) });
 
@@ -38,14 +39,14 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('CombateFichaPanel - estrutura', () => {
-    it('exporta 4 capitulos na ordem Testes, Acerto, Ataque, Defesa', () => {
+    it('exporta 5 capitulos na ordem Testes, Acerto, Ataque, Defesa, Combos', () => {
         expect(CAPITULOS_COMBATE.map(c => c.id)).toEqual(IDS);
     });
 
-    it('renderiza as 4 abas de capitulo, o Feed ao vivo e SO o painel do capitulo aberto', () => {
+    it('renderiza as 5 abas de capitulo, o Feed ao vivo e SO o painel do capitulo aberto', () => {
         render(<CombateFichaPanel />);
-        expect(screen.getAllByRole('tab')).toHaveLength(4);
-        ['Testes', 'Acerto', 'Ataque', 'Defesa'].forEach(n => expect(aba(n)).toBeDefined());
+        expect(screen.getAllByRole('tab')).toHaveLength(5);
+        ['Testes', 'Acerto', 'Ataque', 'Defesa', 'Combos'].forEach(n => expect(aba(n)).toBeDefined());
         expect(screen.getByText(/Feed ao vivo/)).toBeDefined();
         expect(screen.getByTestId('feed-mock')).toBeDefined();
         expect(painelVisivel()).toEqual(['acerto']);
@@ -78,9 +79,11 @@ describe('CombateFichaPanel - FOLHEAR', () => {
         expect(painelVisivel()).toEqual(['ataque']);
         fireEvent.click(proximo());
         expect(painelVisivel()).toEqual(['defesa']);
+        fireEvent.click(proximo());
+        expect(painelVisivel()).toEqual(['combos']);
         expect(proximo().disabled).toBe(true);
         fireEvent.click(proximo());
-        expect(painelVisivel()).toEqual(['defesa']);
+        expect(painelVisivel()).toEqual(['combos']);
     });
 
     it('⮜ FOLHEAR volta e fica desabilitado no primeiro (Testes)', () => {
@@ -178,7 +181,7 @@ describe('CombateFichaPanel - FichaAlvoProvider de personagem ainda nao carregad
         useStore.setState({ personagens: { Outro: { vida: { base: 1 } } } });
         render(<FichaAlvoProvider nome="Outro"><CombateFichaPanel /></FichaAlvoProvider>);
         expect(screen.queryByText('Abrindo a ficha...')).toBeNull();
-        expect(screen.getAllByRole('tab')).toHaveLength(4);
+        expect(screen.getAllByRole('tab')).toHaveLength(5);
     });
 
     it('um pedido pendente e consumido mesmo enquanto a ficha nao carregou', () => {

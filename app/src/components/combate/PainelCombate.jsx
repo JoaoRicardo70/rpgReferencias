@@ -4,7 +4,6 @@ import AtaquePanel from './AtaquePanel';
 import AcertoPanel from './AcertoPanel';
 import DefesaPanel from './DefesaPanel';
 import FeedCombate from '../feed/FeedCombate';
-import CombosPanel from '../combos/CombosPanel';
 import useStore from '../../stores/useStore';
 
 // ⚔️ Combate (tudo junto): Acerto, Ataque, Defesa, Testes e o Feed ao vivo numa tela só, em colunas — rola o Acerto, rola o
@@ -16,7 +15,6 @@ const SECOES = [
     { id: 'ataque', titulo: '🗡️ Ataque', Painel: AtaquePanel },
     { id: 'defesa', titulo: '🛡️ Defesa', Painel: DefesaPanel },
     { id: 'testes', titulo: '🎲 Testes', Painel: TestesPanel },
-    { id: 'combos', titulo: '🥋 Combos', Painel: CombosPanel },
     { id: 'feed', titulo: '📜 Feed ao vivo', Painel: FeedCombate }
 ];
 

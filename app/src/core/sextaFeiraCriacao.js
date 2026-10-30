@@ -108,7 +108,7 @@ export function descreverDestinoPedido(tipo, objeto) {
     }
     if (tipo === 'combo' || tipo === 'followup') {
         const combo = tipo === 'combo';
-        return { secao: 'combos', pagina: 'Combate', local: `Seção Combos › ${combo ? 'Meus Combos' : 'Follow Ups'}`, tipo: combo ? 'Combo' : 'Follow Up', oQue: combo ? 'um Combo' : 'um Follow Up', botaoVer: combo ? 'Ver o Combo' : 'Ver o Follow Up' };
+        return { secao: 'combos', pagina: 'Ficha Definitiva', local: `Combate › Combos › ${combo ? 'Meus Combos' : 'Follow Ups'}`, tipo: combo ? 'Combo' : 'Follow Up', oQue: combo ? 'um Combo' : 'um Follow Up', botaoVer: combo ? 'Ver o Combo' : 'Ver o Follow Up' };
     }
     return { secao: '', pagina: '', local: '', tipo: ROTULO_TIPO[tipo] || String(tipo || ''), oQue: 'uma criação', botaoVer: 'Ver o pedido' };
 }
