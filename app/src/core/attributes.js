@@ -1,6 +1,7 @@
 import useStore, { sanitizarNome } from '../stores/useStore';
 import { isFisico, isEnergia, tratarUnico } from './utils.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
+import { efeitosDeCombos } from './combos.js';
 import { getEfeitosFixosDeClasse, removerEfeitosLegados, ehBerserker, calcularGanhoBerserker, registrarResolvedorNivelClasse, getNivelClasse } from './classesMecanicas.js';
 
 // 📖 Classes cadastradas no Compêndio da MESA INTEIRA — a mesma leitura que a tela do Compêndio faz
@@ -89,10 +90,12 @@ export function getDadosClasseRegistrada(classeId) {
 }
 
 export function getEfeitosDeClasse(ficha) {
+    // 🥋 Buffs de Combos/Follow Ups (core/combos.js) entram aqui para valer em tudo que lê os efeitos da ficha (dano, acerto, CA, Ações...), com ou sem classe.
+    const efeitosCombo = efeitosDeCombos(ficha);
     let classeHeroica = (ficha && ficha.bio && ficha.bio.classe) ? String(ficha.bio.classe).toLowerCase() : '';
     let subClasse = (ficha && ficha.bio && ficha.bio.subClasse) ? String(ficha.bio.subClasse).toLowerCase() : '';
 
-    if (!classeHeroica) return [];
+    if (!classeHeroica) return efeitosCombo;
 
     const classesRegistradas = getClassesRegistradas(useStore.getState());
     const dadosDe = (id) => { const d = classesRegistradas[id]; return (d && !d.deletado && Array.isArray(d.efeitosMatematicos)) ? removerEfeitosLegados(id, d.efeitosMatematicos) : []; };
@@ -105,7 +108,7 @@ export function getEfeitosDeClasse(ficha) {
 
     // 🛡️ Mecânicas de classe em código (core/classesMecanicas.js): valem pra TODA ficha da classe,
     // sem depender do Compêndio — a Ficha e o Mapa sempre enxergam o mesmo bônus.
-    return [...efeitos, ...getEfeitosFixosDeClasse(ficha)];
+    return [...efeitos, ...getEfeitosFixosDeClasse(ficha), ...efeitosCombo];
 }
 
 export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = false, ignorarPoderes = false) {

@@ -3078,3 +3078,33 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .ponto-form-categorias { display: flex; gap: 6px; }
 .ponto-form-categoria { flex: 1; padding: 7px 8px; background: rgba(255, 255, 255, 0.06); color: #fff; border: 1px solid #335; border-radius: 8px; cursor: pointer; font-size: 0.85em; }
 .ponto-form-categoria.ativo { border-color: #b388ff; background: rgba(160, 100, 255, 0.25); }
+
+/* 🥋 Combos e Follow Ups (components/combos) */
+.combos-painel { display: flex; flex-direction: column; gap: 14px; }
+.combos-painel h4 { margin: 0 0 6px 0; color: var(--cor-primaria, #00ffff); }
+.combo-vazio { color: #8a97a8; font-size: 0.85em; font-style: italic; }
+.combo-rotulo { display: block; font-size: 0.78em; color: #9fb4cc; margin: 4px 0; letter-spacing: 0.5px; }
+.combo-status, .combo-editor { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid rgba(0, 255, 255, 0.25); border-radius: 8px; background: rgba(0, 0, 0, 0.35); }
+.combo-golpe { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 6px; }
+.combo-linha { display: flex; gap: 6px; flex-wrap: wrap; }
+.combo-linha > * { flex: 1 1 130px; min-width: 0; }
+.combo-passo { display: flex; flex-direction: column; gap: 6px; padding: 8px; border-left: 3px solid var(--cor-primaria, #00ffff); background: rgba(255, 255, 255, 0.03); }
+.combo-passo-topo { display: flex; justify-content: space-between; align-items: center; }
+.combo-buffs { display: flex; flex-direction: column; gap: 4px; }
+.combo-buff { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 3px 8px; border-radius: 12px; background: rgba(0, 255, 136, 0.1); border: 1px solid rgba(0, 255, 136, 0.35); font-size: 0.82em; }
+.combo-buff-novo { display: flex; gap: 6px; flex-wrap: wrap; }
+.combo-buff-novo > * { flex: 1 1 90px; min-width: 0; }
+.combo-mini { padding: 2px 8px; background: rgba(5, 8, 20, 0.85); color: #e6f2ff; border: 1px solid rgba(255, 255, 255, 0.3); border-radius: 10px; cursor: pointer; }
+.combo-mini:disabled { opacity: 0.4; cursor: default; }
+.combo-mini-botao { flex: 0 0 auto; }
+.combo-acoes { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.combo-cancelar { border-color: #ff6680; color: #ff6680; }
+.combo-cartao { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: center; padding: 8px; margin-bottom: 6px; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 8px; }
+.combo-resumo { display: block; font-size: 0.78em; color: #9fb4cc; }
+.combo-nivel { display: inline-flex; gap: 4px; margin-left: 6px; }
+.combo-contagem { margin: 0; font-size: 0.85em; }
+.combo-fieldset { display: flex; flex-wrap: wrap; gap: 10px; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 6px; font-size: 0.85em; }
+.combo-campo { display: flex; flex-direction: column; gap: 3px; font-size: 0.85em; }
+.combo-texto { width: 100%; font-family: monospace; font-size: 0.8em; }
+.combo-aviso { color: #ffcc00; font-size: 0.82em; margin: 2px 0; }
+.combo-custo { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; font-size: 0.85em; }

@@ -66,7 +66,7 @@ describe('AIFormContext - ferramentas do Gemini', () => {
         // Jogador: consulta + propor_habilidade/magia/item (sem as so-Mestre).
         expect(arg.ferramentas.declaracoes).toStrictEqual([
             ...DECLARACOES_FERRAMENTAS,
-            ...DECLARACOES_CRIACAO.filter(d => ['propor_habilidade', 'propor_magia', 'propor_item'].includes(d.name)),
+            ...DECLARACOES_CRIACAO.filter(d => ['propor_habilidade', 'propor_magia', 'propor_item', 'propor_combo', 'propor_follow_up'].includes(d.name)),
         ]);
         expect(typeof arg.ferramentas.executar).toBe('function');
     });

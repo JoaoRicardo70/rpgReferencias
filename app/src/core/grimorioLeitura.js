@@ -22,5 +22,6 @@ export function abaDoPedido(pedido) {
     if (pedido.tipo === 'poder') return categoriaDoPoder(pedido.objeto);
     if (pedido.tipo === 'magia') return 'magias';
     if (pedido.tipo === 'item') return 'inventario';
+    if (pedido.tipo === 'combo' || pedido.tipo === 'followup') return 'combos';
     return null;
 }

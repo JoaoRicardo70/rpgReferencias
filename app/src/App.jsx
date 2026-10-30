@@ -15,6 +15,7 @@ import { useChats } from './hooks/useChats';
 import DockComunicacao from './components/comunicacao/DockComunicacao';
 import AvisosAcao from './components/combate/AvisosAcao';
 import ReacaoPrompt from './components/combate/ReacaoPrompt';
+import ComboPrompt from './components/combos/ComboPrompt';
 import IdentificacaoAtaque from './components/combate/IdentificacaoAtaque';
 import AudioVozGlobal from './components/comunicacao/AudioVozGlobal';
 
@@ -129,6 +130,7 @@ function ProvedorDeVozGlobal({ meuNome, cenario, children }) {
                 <LimiteDeErro area="Os avisos de Ação" compacto>
                     <AvisosAcao />
                     <ReacaoPrompt />
+                    <ComboPrompt />
                     <IdentificacaoAtaque />
                     <EfeitosDeFundo />
                 </LimiteDeErro>

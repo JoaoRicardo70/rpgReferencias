@@ -7,6 +7,7 @@ vi.mock('./AtaquePanel', () => ({ default: () => <div data-testid="p-ataque" /> 
 vi.mock('./AcertoPanel', () => ({ default: () => <div data-testid="p-acerto" /> }));
 vi.mock('./DefesaPanel', () => ({ default: () => <div data-testid="p-defesa" /> }));
 vi.mock('../feed/FeedCombate', () => ({ default: () => <div data-testid="p-feed" /> }));
+vi.mock('../combos/CombosPanel', () => ({ default: () => <div data-testid="p-combos" /> }));
 
 import PainelCombate from './PainelCombate';
 
@@ -17,10 +18,10 @@ beforeEach(() => localStorage.clear());
 afterEach(() => cleanup());
 
 describe('PainelCombate', () => {
-    it('renderiza as 5 secoes com seus paineis', () => {
+    it('renderiza as 6 secoes com seus paineis', () => {
         render(<PainelCombate />);
-        expect(document.querySelectorAll('.combate-secao')).toHaveLength(5);
-        ['acerto', 'ataque', 'defesa', 'testes', 'feed'].forEach(id => expect(screen.getByTestId(`p-${id}`)).toBeTruthy());
+        expect(document.querySelectorAll('.combate-secao')).toHaveLength(6);
+        ['acerto', 'ataque', 'defesa', 'testes', 'combos', 'feed'].forEach(id => expect(screen.getByTestId(`p-${id}`)).toBeTruthy());
         expect(screen.getByText('📜 Feed ao vivo')).toBeTruthy();
     });
     it('clicar no titulo recolhe e grava; clicar de novo expande', () => {
@@ -54,7 +55,7 @@ describe('PainelCombate', () => {
     it.each(['{lixo', 'null', '"texto"', '[]'])('valor salvo invalido (%s) nao quebra', (v) => {
         localStorage.setItem(CHAVE, v);
         render(<PainelCombate />);
-        expect(document.querySelectorAll('.combate-secao')).toHaveLength(5);
+        expect(document.querySelectorAll('.combate-secao')).toHaveLength(6);
         expect(screen.getByTestId('p-acerto')).toBeTruthy();
     });
 });

@@ -22,7 +22,7 @@ import { DECLARACOES_FERRAMENTAS } from '../../core/sextaFeiraFerramentas';
 import { DECLARACOES_CRIACAO } from '../../core/sextaFeiraCriacao';
 
 // Jogadores recebem as ferramentas de consulta + as propor_* de personagem (sem npc/tier list/poder_do_grupo).
-const DECLARACOES_JOGADOR = [...DECLARACOES_FERRAMENTAS, ...DECLARACOES_CRIACAO.filter(d => ['propor_habilidade', 'propor_magia', 'propor_item'].includes(d.name))];
+const DECLARACOES_JOGADOR = [...DECLARACOES_FERRAMENTAS, ...DECLARACOES_CRIACAO.filter(d => ['propor_habilidade', 'propor_magia', 'propor_item', 'propor_combo', 'propor_follow_up'].includes(d.name))];
 import { chaveFirebaseDoInstante } from '../../core/sextaFeiraSessao';
 
 const CHAVE_PREF = 'rpgSextaFeira_preferencias';

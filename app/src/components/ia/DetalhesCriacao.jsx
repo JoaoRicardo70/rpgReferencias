@@ -17,6 +17,20 @@ export default function DetalhesCriacao({ tipo, objeto, avisos }) {
                     ))}
                 </ul>
             )}
+            {tipo === 'combo' && (
+                <ol className="sexta-criacao-efeitos">
+                    {[objeto.iniciador, ...(objeto.passos || [])].map((g, i) => (
+                        <li key={i}>{i === 0 ? '⚡' : '➡️'} <strong>{g.nome}</strong> ({g.acao}){(g.buffs || []).map((b, j) => <span key={j}> · <code>{b.atributo}</code> {b.propriedade} = <strong>{b.valor}</strong></span>)}</li>
+                    ))}
+                </ol>
+            )}
+            {tipo === 'followup' && (
+                <ol className="sexta-criacao-efeitos">
+                    {(objeto.niveis || []).map((n, i) => (
+                        <li key={i}>Nível {i + 1} (a partir de {n.combos} Combos){(n.buffs || []).map((b, j) => <span key={j}> · <code>{b.atributo}</code> {b.propriedade} = <strong>{b.valor}</strong></span>)}</li>
+                    ))}
+                </ol>
+            )}
             {tipo === 'tierlist' && (
                 <ul className="sexta-criacao-efeitos">
                     {(objeto.ranks || []).map(r => <li key={r.nome}><strong>{r.rank}</strong> · {r.nome}</li>)}

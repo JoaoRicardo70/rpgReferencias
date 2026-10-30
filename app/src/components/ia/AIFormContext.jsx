@@ -921,7 +921,7 @@ export function AIFormProvider({ children }) {
 
     // Grava de fato uma criação já validada (usado pelo Mestre, direto ou ao aprovar um pedido).
     const gravarCriacao = useCallback(async ({ tipo, objeto, alvo, quantidade, cenaId: cenaProposta, foco: focoProposta, capituloId: capituloProposta }) => {
-        if (tipo === 'poder' || tipo === 'magia' || tipo === 'item') {
+        if (tipo === 'poder' || tipo === 'magia' || tipo === 'item' || tipo === 'combo' || tipo === 'followup') {
             await gravarNaFicha({ tipo, objeto, alvo });
             return;
         }

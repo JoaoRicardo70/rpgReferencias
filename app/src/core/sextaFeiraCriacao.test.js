@@ -377,7 +377,7 @@ describe('resumirProposta', () => {
 describe('DECLARACOES_CRIACAO / constantes', () => {
     it('nomes esperados, sem duplicatas', () => {
         const nomes = DECLARACOES_CRIACAO.map(d => d.name);
-        expect(nomes).toEqual(['propor_habilidade', 'propor_magia', 'propor_item', 'propor_npc', 'poder_do_grupo', 'propor_tier_list']);
+        expect(nomes).toEqual(['propor_habilidade', 'propor_combo', 'propor_follow_up', 'propor_magia', 'propor_item', 'propor_npc', 'poder_do_grupo', 'propor_tier_list']);
         expect(new Set(nomes).size).toBe(nomes.length);
     });
     it('todas tem description e parameters OBJECT; required existe em properties', () => {
@@ -409,7 +409,7 @@ describe('DECLARACOES_CRIACAO / constantes', () => {
     it('TIPO_POR_FERRAMENTA cobre todas as propor_* e TIPOS_SO_MESTRE', () => {
         DECLARACOES_CRIACAO.filter(d => d.name.startsWith('propor_')).forEach(d => expect(TIPO_POR_FERRAMENTA[d.name]).toBeTruthy());
         expect(TIPOS_SO_MESTRE).toEqual(['npc', 'tierlist']);
-        expect(CAMPO_FICHA_POR_TIPO).toEqual({ poder: 'poderes', magia: 'ataquesElementais', item: 'inventario' });
+        expect(CAMPO_FICHA_POR_TIPO).toEqual({ poder: 'poderes', magia: 'ataquesElementais', item: 'inventario', combo: 'combos', followup: 'followUps' });
     });
     it('IDS_RANKS: sem duplicatas, 19 + 14*3 = 61 ranks', () => {
         expect(new Set(IDS_RANKS).size).toBe(IDS_RANKS.length);

@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { descreverDestinoPedido, tempoDesde, ordenarPedidosPendentes, TIPOS_PEDIDO_JOGADOR } from './sextaFeiraCriacao';
 
 describe('TIPOS_PEDIDO_JOGADOR', () => {
-    it('contém só poder, magia e item', () => {
-        expect(TIPOS_PEDIDO_JOGADOR).toEqual(['poder', 'magia', 'item']);
+    it('contém poder, magia, item, combo e followup', () => {
+        expect(TIPOS_PEDIDO_JOGADOR).toEqual(['poder', 'magia', 'item', 'combo', 'followup']);
     });
 });
 

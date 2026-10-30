@@ -219,7 +219,7 @@ function CartaoProposta({ proposta, msgIdx }) {
     const { isMestre } = ctx;
     const titulo = proposta.tipo === 'tierlist' ? 'Tier List' : (proposta.objeto?.nome || 'Sem nome');
     const executar = async (fn) => { setOcupado(true); try { await fn(msgIdx, proposta.id); } finally { setOcupado(false); } };
-    const podeEnviar = !isMestre && ['poder', 'magia', 'item'].includes(proposta.tipo);
+    const podeEnviar = !isMestre && ['poder', 'magia', 'item', 'combo', 'followup'].includes(proposta.tipo);
     return (
         <div className={`sexta-criacao sexta-criacao-${proposta.estado || 'nova'}`}>
             <div className="sexta-criacao-topo">

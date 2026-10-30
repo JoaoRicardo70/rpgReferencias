@@ -261,7 +261,7 @@ async function executarProposta(tipo, a, estado, registrarProposta) {
         delete dados.alvo;
         let alvo = null;
         let fichaAlvo = null;
-        if (tipo === 'poder' || tipo === 'magia' || tipo === 'item') {
+        if (tipo === 'poder' || tipo === 'magia' || tipo === 'item' || tipo === 'combo' || tipo === 'followup') {
             const achado = resolverPersonagem(estado, a.alvo);
             if (!achado) return { erro: `Não encontrei o personagem "${a.alvo || 'de quem pede'}". Use listar_personagens.` };
             if (!podeVerDetalhes(estado, achado.nome)) return { erro: 'Jogadores só podem pedir criações para o próprio personagem.' };

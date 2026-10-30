@@ -16,6 +16,7 @@ import { dadosLimitadosDaTecnica } from './limiteDados.js';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, GRUPO_IDENTIFICACAO, PROPRIEDADES_REACAO } from './efeitos-constants.js';
 import { normalizarPasta } from './pastas.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
+import { normalizarCombo, normalizarFollowUp, resumirCombo, TIPOS_GOLPE, ACOES_GOLPE, QUANDO_FOLLOW_UP, LIMITES as LIMITES_COMBO } from './combos.js';
 
 // Inclui as Reações (efeito reacao_<gatilho> + propriedade do efeito): a Sexta-Feira não pode rebaixá-las a efeito numérico comum.
 export const ATRIBUTOS_EFEITO = [...ATRIBUTOS_AGRUPADOS.flatMap(g => g.options), ...GRUPO_REACOES.options, ...GRUPO_IDENTIFICACAO.options];
@@ -52,10 +53,10 @@ export const IDS_RANKS = [
 ];
 
 // Onde cada tipo entra na ficha.
-export const CAMPO_FICHA_POR_TIPO = { poder: 'poderes', magia: 'ataquesElementais', item: 'inventario' };
-export const ROTULO_TIPO = { poder: 'Habilidade/Poder/Forma', magia: 'Técnica Elemental', item: 'Item do Arsenal', npc: 'NPC do Mapa', tierlist: 'Tier List' };
+export const CAMPO_FICHA_POR_TIPO = { poder: 'poderes', magia: 'ataquesElementais', item: 'inventario', combo: 'combos', followup: 'followUps' };
+export const ROTULO_TIPO = { poder: 'Habilidade/Poder/Forma', magia: 'Técnica Elemental', item: 'Item do Arsenal', npc: 'NPC do Mapa', tierlist: 'Tier List', combo: 'Combo', followup: 'Follow Up' };
 // O que um jogador pode pedir pra própria ficha (o resto é só do Mestre).
-export const TIPOS_PEDIDO_JOGADOR = ['poder', 'magia', 'item'];
+export const TIPOS_PEDIDO_JOGADOR = ['poder', 'magia', 'item', 'combo', 'followup'];
 
 // 🔔 Onde um pedido vai parar na ficha, pra notificação do Mestre e pro Grimório abrir no lugar certo.
 //   secao  — bloco do Grimório do Mestre: 'poderes' | 'magias' | 'inventario'
@@ -104,6 +105,10 @@ export function descreverDestinoPedido(tipo, objeto) {
             oQue: 'um Item',
             botaoVer: 'Ver o Item',
         };
+    }
+    if (tipo === 'combo' || tipo === 'followup') {
+        const combo = tipo === 'combo';
+        return { secao: 'combos', pagina: 'Combate', local: `Seção Combos › ${combo ? 'Meus Combos' : 'Follow Ups'}`, tipo: combo ? 'Combo' : 'Follow Up', oQue: combo ? 'um Combo' : 'um Follow Up', botaoVer: combo ? 'Ver o Combo' : 'Ver o Follow Up' };
     }
     return { secao: '', pagina: '', local: '', tipo: ROTULO_TIPO[tipo] || String(tipo || ''), oQue: 'uma criação', botaoVer: 'Ver o pedido' };
 }
@@ -314,8 +319,47 @@ export function normalizarTierList(dados, nomesConhecidos = []) {
     return { objeto: { ranks }, avisos, valido: ranks.length > 0 };
 }
 
+
+// ---------- 🥋 Combos e Follow Ups (core/combos.js) ----------
+function contarBuffs(golpes) { return golpes.reduce((s, g) => s + (Array.isArray(g?.buffs) ? g.buffs.length : 0), 0); }
+
+export function normalizarComboProposta(dados) {
+    const avisos = [];
+    const entrada = dados && typeof dados === 'object' ? dados : {};
+    const brutoGolpes = [entrada.iniciador, ...(Array.isArray(entrada.passos) ? entrada.passos : [])];
+    const combo = normalizarCombo({ ...entrada, id: undefined });
+    const antes = contarBuffs(brutoGolpes);
+    const depois = contarBuffs([combo.iniciador, ...combo.passos]);
+    if (depois < antes) avisos.push(`${antes - depois} buff(s) inválido(s) ou acima do limite foram descartados.`);
+    if ((Array.isArray(entrada.passos) ? entrada.passos.length : 0) > combo.passos.length) avisos.push(`O Combo aceita até ${LIMITES_COMBO.passos} golpes depois do iniciador; o resto foi cortado.`);
+    const { id, ...objeto } = combo;
+    const valido = !!(objeto.nome && objeto.iniciador.nome && objeto.passos.length > 0 && objeto.passos.every(p => p.nome));
+    if (!valido) avisos.push('Um Combo precisa de nome, de um iniciador com nome e de ao menos um golpe com nome depois dele.');
+    return { objeto, avisos, valido };
+}
+
+export function normalizarFollowUpProposta(dados) {
+    const avisos = [];
+    const entrada = dados && typeof dados === 'object' ? dados : {};
+    const fu = normalizarFollowUp({ ...entrada, id: undefined, combosIds: [] });
+    const antes = (Array.isArray(entrada.niveis) ? entrada.niveis : []).reduce((s, n) => s + (Array.isArray(n?.buffs) ? n.buffs.length : 0), 0);
+    const depois = fu.niveis.reduce((s, n) => s + n.buffs.length, 0);
+    if (depois < antes) avisos.push(`${antes - depois} buff(s) inválido(s) ou acima do limite foram descartados.`);
+    const { id, ...objeto } = fu;
+    return { objeto, avisos, valido: !!objeto.nome };
+}
+
+const SCHEMA_GOLPE = {
+    nome: { type: 'STRING' },
+    tipo: { type: 'STRING', enum: TIPOS_GOLPE.map(t => t.id), description: 'livre = golpe sem vínculo; arma; habilidade; tecnica (Técnica Elemental); magia.' },
+    acao: { type: 'STRING', enum: ACOES_GOLPE.map(a => a.id), description: 'Ação gasta pelo golpe: padrao (Ação), bonus (Ação Bônus) ou reacao.' },
+    descricao: { type: 'STRING' },
+};
+
 export function normalizarProposta(tipo, dados, extras = {}) {
     switch (tipo) {
+        case 'combo': return normalizarComboProposta(dados);
+        case 'followup': return normalizarFollowUpProposta(dados);
         case 'poder': return normalizarPoder(dados);
         case 'magia': return normalizarMagia(dados);
         case 'item': return normalizarItem(dados);
@@ -369,6 +413,8 @@ export function resumirProposta(tipo, objeto) {
     if (tipo === 'item') return `${objeto.tipo}${objeto.armaTipo ? ` (${objeto.armaTipo})` : ''} · ${objeto.raridade}${objeto.dadosQtd ? ` · ${objeto.dadosQtd}d${objeto.dadosFaces}` : ''}`;
     if (tipo === 'npc') return `Vida ${Math.round(objeto.hpMax / FATOR_EXIBICAO_VITAIS).toLocaleString('pt-BR')} · ${objeto.tipoDefesa} ${objeto.valorDefesa}${objeto.poderCalculado !== undefined ? ` · Poder ${Math.round(objeto.poderCalculado).toLocaleString('pt-BR')}` : ''}`;
     if (tipo === 'tierlist') return `${(objeto.ranks || []).length} personagem(ns) classificados`;
+    if (tipo === 'combo') return `${resumirCombo(objeto)} · ${objeto.passos.length + 1} golpes`;
+    if (tipo === 'followup') return `${objeto.niveis.length} nível(is) · ${objeto.acoesPermitidas.map(a => (ACOES_GOLPE.find(x => x.id === a) || {}).rotulo).join('/')} · ${objeto.quando === 'combo' ? 'durante um Combo' : 'a qualquer momento'}`;
     return '';
 }
 
@@ -410,6 +456,40 @@ export const DECLARACOES_CRIACAO = [
                 efeitos: EFEITOS_SCHEMA, efeitosPassivos: EFEITOS_SCHEMA,
             },
             required: ['nome', 'categoria'],
+        },
+    },
+    {
+        name: 'propor_combo',
+        description: 'Prepara um COMBO (estilo de luta em sequência): um golpe INICIADOR e uma fila fixa de golpes seguintes. Cada golpe dá buffs (mesmos efeitos de uma Habilidade) que SOMAM aos dos golpes anteriores enquanto o Combo avança e ficam no máximo ao concluir. Serve para transcrever um Combo que o jogador descreveu em texto. NÃO grava: vira um cartão de confirmação. Ações gastas: padrao, bonus ou reacao.',
+        parameters: {
+            type: 'OBJECT',
+            properties: {
+                alvo: ALVO_SCHEMA,
+                nome: { type: 'STRING' },
+                descricao: { type: 'STRING' },
+                iniciador: { type: 'OBJECT', description: 'O golpe que, ao acertar, inicia o Combo.', properties: { ...SCHEMA_GOLPE, buffs: EFEITOS_SCHEMA }, required: ['nome'] },
+                passos: { type: 'ARRAY', description: 'Os golpes seguintes, em ordem (golpe 2, 3...).', items: { type: 'OBJECT', properties: { ...SCHEMA_GOLPE, buffs: EFEITOS_SCHEMA }, required: ['nome'] } },
+            },
+            required: ['nome', 'iniciador', 'passos'],
+        },
+    },
+    {
+        name: 'propor_follow_up',
+        description: 'Prepara um FOLLOW UP: golpe usável dentro de Combos (ou a qualquer momento) e fora do turno, pagando Reação, Ação Bônus ou Ação segurada, com NÍVEIS de buff que sobem conforme o número de Combos finalizados no combate. NÃO grava: vira um cartão de confirmação.',
+        parameters: {
+            type: 'OBJECT',
+            properties: {
+                alvo: ALVO_SCHEMA,
+                ...{ nome: { type: 'STRING' }, tipo: SCHEMA_GOLPE.tipo, acao: SCHEMA_GOLPE.acao, descricao: SCHEMA_GOLPE.descricao },
+                quando: { type: 'STRING', enum: QUANDO_FOLLOW_UP.map(q => q.id), description: 'combo = só durante um Combo; qualquer = a qualquer momento do combate.' },
+                acoesPermitidas: { type: 'ARRAY', description: 'Ações que podem pagar o Follow Up.', items: { type: 'STRING', enum: ACOES_GOLPE.map(a => a.id) } },
+                niveis: {
+                    type: 'ARRAY',
+                    description: 'Níveis de buff em ordem crescente. "combos" = quantos Combos finalizados no combate são necessários (o primeiro nível costuma ser 0).',
+                    items: { type: 'OBJECT', properties: { combos: { type: 'INTEGER' }, descricao: { type: 'STRING' }, buffs: EFEITOS_SCHEMA }, required: ['combos'] },
+                },
+            },
+            required: ['nome'],
         },
     },
     {
@@ -489,6 +569,6 @@ export const DECLARACOES_CRIACAO = [
 ];
 
 export const TIPO_POR_FERRAMENTA = {
-    propor_habilidade: 'poder', propor_magia: 'magia', propor_item: 'item', propor_npc: 'npc', propor_tier_list: 'tierlist',
+    propor_habilidade: 'poder', propor_magia: 'magia', propor_item: 'item', propor_npc: 'npc', propor_tier_list: 'tierlist', propor_combo: 'combo', propor_follow_up: 'followup',
 };
 export const TIPOS_SO_MESTRE = ['npc', 'tierlist'];

@@ -7,6 +7,7 @@ import { getVitalMxDisplay } from './vitals.js';
 import { ENERGIAS_COMO_PODER, getMargemCusto, limitarPercComoPoder, podeConjurarComoPoder, custoBrutoDeEnergia, somarCustosBrutos } from './custoPoder.js';
 import { getVantagensDeClasse, getBonusAcertoDeClasse } from './classesMecanicas.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
+import { efeitosDeCombos } from './combos.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
 
 // Status são gravados 1000x maiores que o número exibido na Ficha (core: Marcados.jsx > FATOR_EXIBICAO_STATUS).
@@ -58,6 +59,7 @@ export function calcularCA(ficha, tipo) {
         somarBonus(resolved.efeitosPassivos);
     });
     (ficha.passivas || []).forEach(p => { somarBonus(p.efeitos); });
+    somarBonus(efeitosDeCombos(ficha)); // 🥋 Combos/Follow Ups (core/combos.js)
     (ficha.inventario || []).filter(i => i.equipado).forEach(i => {
         let resolved = resolverEfeitosEntidade(i);
         somarBonus(resolved.efeitos);
