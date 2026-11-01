@@ -5,6 +5,7 @@ import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes, getAlvosReducao, habilidadeEstaLigada, TIPO_HABILIDADE_ATIVA, TIPO_HABILIDADE_PASSIVA } from '../../core/reducaoDano.js';
 import { POLARIDADES, getInfoPolaridade } from '../../core/polaridade.js';
 import { agruparElementosPorCategoria, chaveElemento } from '../../core/elementos.js';
+import { resumoDosEstados } from '../../core/condicoes.js';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Ficha provider não encontrado</div>;
 
@@ -235,6 +236,8 @@ export function FichaCondicoesEElementais() {
 
     const afinidades = minhaFicha.afinidades || { resistencias: [], vulnerabilidades: [], imunidades: [], absorcoes: [] };
     const condicoesAtivas = minhaFicha.condicoes || [];
+    // 🩸 O que os estados estão causando agora (core/condicoes.js): as mesmas contas que Acerto, Defesa, Testes e Turno usam.
+    const resumoEstados = resumoDosEstados(minhaFicha);
     const gruposElementos = agruparElementosPorCategoria(elementosDinamicos);
 
     return (
@@ -262,6 +265,11 @@ export function FichaCondicoesEElementais() {
                                 );
                             })}
                         </div>
+                        {resumoEstados.length > 0 && (
+                            <ul className="estados-efeitos" aria-label="O que os estados estão causando">
+                                {resumoEstados.map((t, i) => <li key={i}>{t}</li>)}
+                            </ul>
+                        )}
                     </div>
 
                     {/* AFINIDADES, AGRUPADAS POR CATEGORIA */}

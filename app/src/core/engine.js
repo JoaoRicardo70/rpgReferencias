@@ -9,6 +9,7 @@ import { getVantagensDeClasse, getBonusAcertoDeClasse } from './classesMecanicas
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 import { efeitosDeCombos } from './combos.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
+import { modificadoresDeEstados } from './condicoes.js';
 
 // Status são gravados 1000x maiores que o número exibido na Ficha (core: Marcados.jsx > FATOR_EXIBICAO_STATUS).
 const FATOR_EXIBICAO_STATUS = 1000;
@@ -418,7 +419,9 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
 
     // 🛡️ Vantagem de CLASSE (Saber/Lancer/Archer com a arma do tipo, Rider montado): soma às que o jogador marcou.
     const vantagemClasse = getVantagensDeClasse(minhaFicha, tiposArmas);
-    let { sD, rolagemTexto } = rolarDadosComVantagem(qD, fD, (parseInt(vantagens) || 0) + vantagemClasse.vantagens, desvantagens);
+    // 🩸 Estados negativos (Exaustão 3+, Cego/Surdo...) somam desvantagens a todo ataque (core/condicoes.js).
+    const desvantagemEstados = modificadoresDeEstados(minhaFicha).desvAtaque;
+    let { sD, rolagemTexto } = rolarDadosComVantagem(qD, fD, (parseInt(vantagens) || 0) + vantagemClasse.vantagens, (parseInt(desvantagens) || 0) + desvantagemEstados);
 
     let vSt = 0;
     for (let i = 0; i < sels.length; i++) {
@@ -535,7 +538,8 @@ export function calcularReducao({ energiaKey, perc, multBase, minhaFicha, itensE
         // bruto de getMaximo, então o gasto calculado sobre o bruto ficava desproporcional ao
         // comparar/subtrair contra "atual".
         let mMax = getVitalMxDisplay(e, minhaFicha);
-        let gt = Math.floor(mMax * (perc / 100));
+        // 🩸 Queimado/Sangrando encarecem a Energia gasta para se defender (core/condicoes.js).
+        let gt = Math.floor(mMax * (perc / 100) * modificadoresDeEstados(minhaFicha).custoDefesaMult);
         let redBase = (minhaFicha[e] && minhaFicha[e].reducaoCusto) ? parseFloat(minhaFicha[e].reducaoCusto) : 0;
         let red = Math.min(100, redBase + bEnergia.reducaoCusto);
         let cr = Math.floor(gt * (1 - (red / 100)));
@@ -579,20 +583,14 @@ function formatElemSpan(elemento) {
     return `<span class="${cls}">${elemento.toUpperCase()}</span>`;
 }
 
+// 🩸 Estados negativos (core/condicoes.js): Evasiva zera parado/incapacitado e cai pela metade com Lento; Resistência cai pela metade Vulnerável.
 export function processarDefesaComCondicoes(ficha, tipoDefesa, caBaseCalculado) {
     if (!ficha || !ficha.condicoes) return caBaseCalculado;
-    let caFinal = caBaseCalculado;
-    const tem = (id) => ficha.condicoes.some(c => c.id === id);
-    const stacks = (id) => { const c = ficha.condicoes.find(x => x.id === id); return c ? c.stacks : 0; };
-
-    if (tipoDefesa === 'evasiva') {
-        if (tem('imobilizado') || tem('incapacitado') || tem('petrificado') || stacks('exausto') >= 5) return 0;
-        if (tem('lento') || stacks('exausto') >= 2 || stacks('criogenia') >= 3) caFinal = Math.floor(caFinal / 2);
-    }
-    if (tipoDefesa === 'resistencia') {
-        if (tem('vulneravel') || stacks('queimado') >= 4) caFinal = Math.floor(caFinal / 2);
-    }
-    return caFinal;
+    const m = modificadoresDeEstados(ficha);
+    // Multiplicador 1 devolve o valor como veio (sem arredondar).
+    if (tipoDefesa === 'evasiva') return m.evasivaMult === 1 ? caBaseCalculado : Math.floor(caBaseCalculado * m.evasivaMult);
+    if (tipoDefesa === 'resistencia') return m.resistenciaMult === 1 ? caBaseCalculado : Math.floor(caBaseCalculado * m.resistenciaMult);
+    return caBaseCalculado;
 }
 
 export function calcularMultiplicadorElemental(ficha, elementoAtaque) {
@@ -607,20 +605,7 @@ export function calcularMultiplicadorElemental(ficha, elementoAtaque) {
 export function calcularEficaciaCura(ficha) {
     if (!ficha) return 1.0;
     
-    let multFinal = 1.0; 
-
-    if (ficha.condicoes) {
-        ficha.condicoes.forEach(c => {
-            if (c.id === 'sangrando' || c.id === 'queimado' || c.id === 'criogenia') {
-                for(let i = 0; i < c.stacks; i++) {
-                    multFinal *= 0.5; 
-                }
-            }
-            if (c.id === 'exausto' && c.stacks >= 4) {
-                multFinal *= 0.5;
-            }
-        });
-    }
+    const multFinal = modificadoresDeEstados(ficha).curaMult;
 
     let bonusBuffs = 0;
     const scanCura = (efeitos) => {

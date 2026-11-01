@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { AtaqueFormProvider, useAtaqueForm } from './AtaqueFormContext';
+import { EstadosAtaqueLivre } from '../shared/EstadosGolpeEditor';
 import {
     AtaqueFuriaDisplay,
     AtaqueCriticoConfig,
@@ -53,6 +54,7 @@ export default function AtaquePanel({ className, children }) {
                         {/* Habilidades Ativadas e Magias Preparadas ficam recolhidas (pedido da mesa: listas
                             grandes demais). Continuam entrando no dano; abrir só pra trocar os Status/Energia. */}
                         <AtaqueListasRecolhidas />
+                        <EstadosAtaqueLivre />
                         <AtaqueDanoCustomizado />
                         <AtaqueBotoesAcao />
                     </>

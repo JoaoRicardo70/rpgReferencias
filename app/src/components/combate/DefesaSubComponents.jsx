@@ -8,7 +8,7 @@ export function DefesaSofrerDanoBox() {
     const ctx = useDefesaForm();
     if (!ctx) return FALLBACK;
 
-    const { elementoInc, setElementoInc, danoRecebidoInc, setDanoRecebidoInc, sofrerDanoBruto, elementosDinamicos, atacanteInc, setAtacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa, danoDeDado, setDanoDeDado } = ctx;
+    const { elementoInc, setElementoInc, danoRecebidoInc, setDanoRecebidoInc, sofrerDanoBruto, elementosDinamicos, atacanteInc, setAtacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa, danoDeDado, setDanoDeDado, reflexoEscolhido, setReflexoEscolhido, reflexosUsaveis } = ctx;
 
     return (
         <div className="def-box fade-in" style={{ marginBottom: 15, borderLeft: '4px solid #ff4444', background: 'rgba(255, 68, 68, 0.05)' }}>
@@ -50,6 +50,15 @@ export function DefesaSofrerDanoBox() {
             <label className="dano-de-dado-check" title="Marcado: o número do dado pesa na sua Vida máxima (1 ponto = 0,5% da Vida, valor ajustável pelo Mestre). Desmarque se o dano é um valor fixo.">
                 <input type="checkbox" checked={danoDeDado} onChange={e => setDanoDeDado(e.target.checked)} /> 🎲 É só o número de dados puros, da fórmula livre (proporcional à minha Vida)
             </label>
+            {Array.isArray(reflexosUsaveis) && reflexosUsaveis.length > 0 && (
+                <label className="reflexo-escolha" title="Devolve o ataque que você vai receber (Poder Ativo ou Técnica Equipada com Reflexo).">
+                    ↩️ Reflexo neste Dano:{' '}
+                    <select className="input-neon" aria-label="Reflexo neste Dano" value={reflexoEscolhido} onChange={e => setReflexoEscolhido(e.target.value)}>
+                        <option value="">Nenhum</option>
+                        {reflexosUsaveis.map(r => <option key={`${r.origem}:${r.id}`} value={`${r.origem}:${r.id}`}>{r.nome}</option>)}
+                    </select>
+                </label>
+            )}
             <div style={{ display: 'flex', gap: '10px' }}>
                 <input
                     className="input-neon"

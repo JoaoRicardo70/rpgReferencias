@@ -391,6 +391,9 @@ export function ElementosFormProvider({ children }) {
                     novaMagia.percComoPoder = ficha.ataquesElementais[ix].percComoPoder;
                     // Descrições do ataque ("Como executo") são editadas na lista, não neste formulário: preserva.
                     if (ficha.ataquesElementais[ix].descricoesAtaque) novaMagia.descricoesAtaque = ficha.ataquesElementais[ix].descricoesAtaque;
+                    // Estados e Reflexo também são editados na lista (EstadosGolpeEditor): preserva.
+                    if (ficha.ataquesElementais[ix].aplicaEstados) novaMagia.aplicaEstados = ficha.ataquesElementais[ix].aplicaEstados;
+                    if (ficha.ataquesElementais[ix].reflexo) novaMagia.reflexo = ficha.ataquesElementais[ix].reflexo;
                     ficha.ataquesElementais[ix] = novaMagia;
                 }
             } else {

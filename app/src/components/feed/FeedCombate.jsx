@@ -197,6 +197,7 @@ export default function FeedCombate({ className }) {
                         })}
 
                         {/* 🔥 FEEDBACK VISUAL DO DANO E DO OVERKILL NO ALVO */}
+                        {Array.isArray(d.textoPosGolpe) && d.textoPosGolpe.map((t, i) => <div key={i} className="feed-pos-golpe">{t}</div>)}
                         {d.alvoNome && (
                             <div style={{ marginTop: 8, padding: 5, background: 'rgba(0,0,0,0.5)', borderRadius: 4, borderLeft: `3px solid #ff003c` }}>
                                 <span style={{ color: '#ff003c', fontWeight: 'bold' }}>

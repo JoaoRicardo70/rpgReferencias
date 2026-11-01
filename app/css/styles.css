@@ -3108,3 +3108,15 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .combo-texto { width: 100%; font-family: monospace; font-size: 0.8em; }
 .combo-aviso { color: #ffcc00; font-size: 0.82em; margin: 2px 0; }
 .combo-custo { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; font-size: 0.85em; }
+
+/* 🩸 Estados e Reflexo (EstadosGolpeEditor, Ficha > Estados) */
+.estados-golpe-lista { display: flex; flex-direction: column; gap: 6px; }
+.estados-golpe-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.estados-golpe-linha .input-neon { margin: 0; width: auto; }
+.estados-golpe-num { max-width: 70px; }
+.estados-golpe-check { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85em; }
+.estados-golpe-reflexo { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.estados-efeitos { margin: 8px 0 0; padding-left: 18px; font-size: 0.85em; display: flex; flex-direction: column; gap: 3px; }
+.reflexo-escolha { display: flex; align-items: center; gap: 8px; font-size: 0.9em; margin: 6px 0; }
+.reflexo-escolha .input-neon { margin: 0; width: auto; }
+.feed-pos-golpe { margin-top: 6px; padding: 5px; font-size: 0.9em; border-left: 3px solid #ff00ff; background: rgba(0, 0, 0, 0.4); }

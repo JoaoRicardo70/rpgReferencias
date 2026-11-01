@@ -1,5 +1,6 @@
 import { getLimiteDadosTecnica, danoMaximoDosDados } from '../../core/limiteDados';
 import DescricoesAtaqueEditor from '../shared/DescricoesAtaqueEditor';
+import EstadosGolpeEditor from '../shared/EstadosGolpeEditor';
 import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
 import { GATILHOS_REACAO, EFEITOS_REACAO, efeitoUsaValor } from '../../core/reacoes';
 import React, { useState } from 'react';
@@ -422,6 +423,7 @@ export function ElementosMagiaCard({ magia }) {
                 </div>
             </div>
             <DescricoesAtaqueEditor colecao="ataquesElementais" itemId={magia.id} />
+            <EstadosGolpeEditor colecao="ataquesElementais" itemId={magia.id} comReflexo />
         </div>
     );
 }

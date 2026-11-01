@@ -14,8 +14,10 @@ import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDispu
 import { enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getFatorVida, getPontosVidaTotal } from '../../core/danoProporcional';
-import { resolverAlvoCombate, reduzirDanoNoAlvo, ehAlvoPersonagem } from '../../core/alvoCombate';
+import { resolverAlvoCombate, reduzirDanoNoAlvo, ehAlvoPersonagem, montarAlvoPersonagem } from '../../core/alvoCombate';
 import { gravarVidaDoAlvo } from '../../services/danoAlvo';
+import { criarPosGolpe } from '../../services/posGolpe';
+import { coletarEstadosDoGolpe } from '../../core/estadosGolpe';
 import { getNivelDominio } from '../../core/dominios';
 import { classificarAtaque, energiasDoGolpe } from '../../core/identificacao';
 import { montarNarrativa } from '../../core/descricaoAtaque';
@@ -426,6 +428,7 @@ export function AtaqueFormProvider({ children }) {
             let extraFeed = {};
             let fatorVidaAlvo = 1;
             const meuPoderDisputa = getPoderParaDisputa(minhaFicha, divisorPoderMesa, golpeEquipado(minhaFicha));
+            const posGolpeLivre = criarPosGolpe({ estados: coletarEstadosDoGolpe({ extras: minhaFicha.ataqueConfig && minhaFicha.ataqueConfig.estadosGolpe }), danoOriginal: danoReduzido, nomeAtacante: nomeNoFeed });
             if (dummieAlvo && alvoSelecionado) {
                 const disputa = calcularDisputaPoder(meuPoderDisputa, getPoderDummie(dummieAlvo));
                 // 🎲 Dano de dado proporcional à Vida do alvo (core/danoProporcional.js), depois a Disputa de Poder.
@@ -435,18 +438,19 @@ export function AtaqueFormProvider({ children }) {
                 const danoAposDisputa = aplicarDisputaAoDano(escalarDanoPelaVida(danoReduzido, vidaAlvo, pontosVida), disputa);
                 // 🛡️ Alvo-personagem: Reduções/Resistências/Domínio da ficha dele, em sequência.
                 const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo) });
-                const danoNoAlvo = reducaoAlvo.final;
+                const danoNoAlvo = posGolpeLivre.aplicar(alvoSelecionado, dummieAlvo, reducaoAlvo.final);
                 // Escala: dano exibido -> Vida bruta do dummy (core/vitals.js > danoExibidoParaBruto).
                 const hpAnterior = dummieAlvo.hpAtual || 0;
                 const novoHp = Math.max(0, hpAnterior - danoExibidoParaBruto(danoNoAlvo));
                 const hpAnteriorExibido = hpAnterior / FATOR_EXIBICAO_VITAIS;
-                gravarVidaDoAlvo(alvoSelecionado, dummieAlvo, novoHp, { elemento: elementoAtivo });
+                gravarVidaDoAlvo(alvoSelecionado, posGolpeLivre.alvoParaGravar(alvoSelecionado, dummieAlvo), novoHp, { elemento: elementoAtivo });
                 extraFeed = {
                     alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0,
                     danoAplicado: danoNoAlvo, fatorVida: fatorVidaAlvo, ...(reducaoAlvo.texto ? { textoReducao: reducaoAlvo.texto } : {}), ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
                 };
             }
 
+            extraFeed = { ...extraFeed, ...finalizarPosGolpe(posGolpeLivre) };
             const energiasManual = (tipoAtiva && tipoAtiva !== 'nenhum' && percNum > 0) ? [tipoAtiva] : [];
             const feedData = {
                 tipo: 'dano', ts: Date.now(), nome: nomeNoFeed, dano: Math.floor(danoReduzido), letalidade: letalidadeCalculada, poderAtacante: meuPoderDisputa, 
@@ -470,6 +474,20 @@ export function AtaqueFormProvider({ children }) {
             alert('Erro ao calcular a fórmula matemática. Verifique se os parênteses fecham corretamente.');
         }
     }, [customFormula, customLetalidade, customEnergiaTipo, customEnergiaCusto, meuNome, nomeNoFeed, dummieAlvo, alvoSelecionado, setAbaAtiva, abaAtiva, updateFicha, minhaFicha, elementoAtivo, divisorPoderMesa]);
+
+    // 🩸↩️ Fecha o pós-golpe (services/posGolpe.js): o Dano que o Reflexo de alguém devolveu cai em MIM (com as minhas Reduções) e os
+    // textos de estados/reflexo vão para o Feed. Devolve os campos extras do Feed.
+    const finalizarPosGolpe = (pg) => {
+        const { textos, danoAtacante } = pg.resultado();
+        if (danoAtacante > 0) {
+            const eu = montarAlvoPersonagem(meuNome, minhaFicha, divisorPoderMesa);
+            const dano = eu ? reduzirDanoNoAlvo(eu, danoAtacante, elementoAtivo).final : danoAtacante;
+            updateFicha(ficha => { if (ficha.vida) ficha.vida.atual = Math.max(0, (ficha.vida.atual || 0) - danoExibidoParaBruto(dano)); });
+            salvarFichaSilencioso();
+            textos.push(`💥 O Reflexo devolveu ${Math.floor(dano).toLocaleString('pt-BR')} de dano em ${nomeNoFeed}!`);
+        }
+        return textos.length > 0 ? { textoPosGolpe: textos } : {};
+    };
 
     // 💾 `salvo` (opcional): ataque salvo (core/ataquesSalvos.js). Roda com a configuração guardada, mas SEMPRE
     // recalculado pela engine de hoje; sem `salvo` usa o que está montado na tela.
@@ -570,6 +588,14 @@ export function AtaqueFormProvider({ children }) {
 
         setForcarCritNormal(false); setForcarCritFatal(false); setIgnorarTravaAcerto(false);
 
+        // 🩸 Estados que o golpe aplica (Poderes, Técnicas, arma, itens e Ataque livre) e Reflexo de quem for atingido.
+        // Quem defende pela aba Defesa (sem alvo marcado) recebe os mesmos estados pelo Feed (estadosGolpe).
+        const estadosParaDefensor = coletarEstadosDoGolpe({
+            armas: armaEquipada ? [armaEquipada] : [],
+            fontes: [...poderesDoGolpe, ...magiasDoGolpe, ...(minhaFicha.inventario || []).filter(i => i && i.equipado && i.tipo !== 'arma')],
+            extras: minhaFicha.ataqueConfig && minhaFicha.ataqueConfig.estadosGolpe
+        });
+        const posGolpe = criarPosGolpe({ estados: estadosParaDefensor, critico: isCriticoNormal || isCriticoFatal, danoOriginal: result.dano, nomeAtacante: nomeNoFeed });
         const meuUltimoAcerto = [...feedCombate].reverse().find(f => f.nome === nomeNoFeed && f.tipo === 'acerto');
         let extraFeed = {};
         let textoAlvos = "";
@@ -600,8 +626,8 @@ export function AtaqueFormProvider({ children }) {
                         const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dData));
                         // Dano de Ataque (dados + Status) já está na escala da Vida: não é reescalado pela Vida do alvo.
                         const danoEscalado = result.dano;
-                        const danoNoAlvo = reduzirDanoNoAlvo(dData, aplicarDisputaAoDano(danoEscalado, disputa), elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo) }).final;
-                        gravarVidaDoAlvo(idD, dData, Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)), { elemento: elementoAtivo });
+                        const danoNoAlvo = posGolpe.aplicar(idD, dData, reduzirDanoNoAlvo(dData, aplicarDisputaAoDano(danoEscalado, disputa), elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo) }).final);
+                        gravarVidaDoAlvo(idD, posGolpe.alvoParaGravar(idD, dData), Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)), { elemento: elementoAtivo });
                         if (dData.isPersonagem) alvosAplicados.push(dData.personagemNome);
                         if (disputa.ativa || danoNoAlvo !== Math.floor(result.dano)) {
                             linhasDisputa.push(`${dData.nome}: ${danoNoAlvo.toLocaleString('pt-BR')}`);
@@ -622,17 +648,19 @@ export function AtaqueFormProvider({ children }) {
             const danoAposDisputa = aplicarDisputaAoDano(result.dano, disputa);
             // 🛡️ Alvo-personagem: Reduções/Resistências/Domínio da ficha dele, em sequência.
             const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo) });
-            const danoNoAlvo = reducaoAlvo.final;
+            const danoNoAlvo = posGolpe.aplicar(alvoSelecionado, dummieAlvo, reducaoAlvo.final);
             // Escala: dano exibido -> Vida bruta do dummy (core/vitals.js > danoExibidoParaBruto).
             const hpAnterior = dummieAlvo.hpAtual || 0;
             const novoHp = Math.max(0, hpAnterior - danoExibidoParaBruto(danoNoAlvo));
             const hpAnteriorExibido = hpAnterior / FATOR_EXIBICAO_VITAIS;
-            gravarVidaDoAlvo(alvoSelecionado, dummieAlvo, novoHp, { elemento: elementoAtivo });
+            gravarVidaDoAlvo(alvoSelecionado, posGolpe.alvoParaGravar(alvoSelecionado, dummieAlvo), novoHp, { elemento: elementoAtivo });
             extraFeed = {
                 alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0,
                 danoAplicado: danoNoAlvo, fatorVida: fatorVidaAlvo, ...(reducaoAlvo.texto ? { textoReducao: reducaoAlvo.texto } : {}), ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
             };
         }
+
+        extraFeed = { ...extraFeed, ...finalizarPosGolpe(posGolpe) };
 
         if (meuUltimoAcerto && meuUltimoAcerto.zonaIdGerada) {
             const cenarioAtual = useStore.getState().cenario;
@@ -709,6 +737,7 @@ export function AtaqueFormProvider({ children }) {
             atributosUsados: result.atributosUsados, detalheEnergia: result.detalheEnergia,
             armaStr: result.armaStr, detalheConta: result.detalheConta + textoAlvos,
             elemento: elementoAtivo, 
+            ...(estadosParaDefensor.length > 0 ? { estadosGolpe: estadosParaDefensor, golpeCritico: !!(isCriticoNormal || isCriticoFatal) } : {}),
             ...(narrativa ? { narrativa: narrativa.texto, narrativaComplemento: narrativa.complemento } : {}),
             ...extraFeed
         };

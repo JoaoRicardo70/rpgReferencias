@@ -4,6 +4,8 @@ import { enviarParaFeed } from '../../services/firebase-sync';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { getRawBase } from '../../core/attributes';
 import { modificadorDezena } from '../../core/utils';
+import { rolarDadosComVantagem } from '../../core/engine';
+import { modificadoresDeEstados } from '../../core/condicoes';
 
 export const SAVES = [
     { id: 'forca', label: 'Forca', attr: 'forca', cor: '#ff4d4d' },
@@ -138,20 +140,29 @@ export function TestesFormProvider({ children }) {
         const profNivel = getProfLevel(skillId);
         const valorProficiencia = profNivel * profGlobal;
 
-        const rolagem = rolarDado(qD, fD);
+        // 🩸 Estados negativos (Exausto, Imobilizado, Vulnerável, Lento, Cego/Surdo...) dão desvantagem em testes (core/condicoes.js).
+        const estados = modificadoresDeEstados(minhaFicha);
+        const desvEstado = estados.desvTestes + ((estados.desvPorAtributo && estados.desvPorAtributo[tipoAttr]) || 0);
+        let rolagem = rolarDado(qD, fD);
+        let textoDesv = '';
+        if (desvEstado > 0) {
+            const r = rolarDadosComVantagem(qD, fD, 0, desvEstado);
+            rolagem = { sum: r.sD, details: [r.rolagemTexto] };
+            textoDesv = ` <br/> 🩸 ${desvEstado} desvantagem(ns) por estado negativo`;
+        }
         const total = rolagem.sum + modBase + valorProficiencia + bonusFixo;
 
         const tipoFeed = isSavingThrow ? 'saving' : 'skill';
 
-        let stringDados = `[${rolagem.details.join(', ')}]`;
-        if (qD === 1) {
+        let stringDados = desvEstado > 0 ? rolagem.details[0] : `[${rolagem.details.join(", ")}]`;
+        if (qD === 1 && desvEstado === 0) {
             if (rolagem.sum === 20 && fD === 20) stringDados = `[<strong>20</strong>] (CRITICO!)`;
             if (rolagem.sum === 1 && fD === 20) stringDados = `[<strong style="color:#ff003c;">1</strong>] (FALHA CRITICA!)`;
         }
 
         let detalheProf = profNivel === 2 ? `Expertise (+${valorProficiencia})` : profNivel === 1 ? `Proficiente (+${valorProficiencia})` : `S/ Prof (+0)`;
 
-        const detalheCalc = `Dados: ${stringDados} <br/> Mod. ${tipoAttr.toUpperCase()} (${modBase}) + ${detalheProf} + Bonus (${bonusFixo})`;
+        const detalheCalc = `Dados: ${stringDados} <br/> Mod. ${tipoAttr.toUpperCase()} (${modBase}) + ${detalheProf} + Bonus (${bonusFixo})${textoDesv}`;
 
         enviarParaFeed({
             tipo: tipoFeed,

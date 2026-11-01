@@ -6,6 +6,7 @@ import useStore from '../../stores/useStore';
 // `combate/DefesaFormContext.jsx` já importa a versão canônica direto de `core/engine.js`; esta tela
 // agora faz o mesmo, em vez de divergir.
 import { calcularAcerto, calcularCA } from '../../core/engine';
+import { modificadoresDeEstados } from '../../core/condicoes';
 import { getPoderesDefesa, getEfeitosDeClasse } from '../../core/attributes';
 import { enviarParaFeed, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
@@ -150,7 +151,9 @@ export function AcertoFormProvider({ children }) {
         if (isForaDeAlcance && origemArea !== 'self' && !rolagemLivre) { alert('Aviso: O alvo ou o Ponto de Explosão está fora do seu alcance!'); return; }
 
         const qD = parseInt(dados) || 1; const fD = parseInt(faces) || 20; const bon = parseInt(bonus) || 0; const prof = usarProficiencia ? profGlobal : 0;
-        const v = parseInt(vantagens) || 0; const d = parseInt(desvantagens) || 0;
+        // 🩸 Alvo Imobilizado/Incapacitado: quem ataca ganha vantagem (core/condicoes.js). Vale para alvo único; em área cada alvo tem o seu estado.
+        const vantagemDoEstado = !(maxArea > 0 && centroExplosao) && alvoDummie ? modificadoresDeEstados(alvoDummie.isPersonagem ? alvoDummie.ficha : alvoDummie).vantagemContraEle : 0;
+        const v = (parseInt(vantagens) || 0) + vantagemDoEstado; const d = parseInt(desvantagens) || 0;
         const sels = statsSelecionados.length > 0 ? statsSelecionados : ['destreza'];
 
         const result = calcularAcerto({ qD, fD, prof, bonus: bon, sels, minhaFicha, itensEquipados, vantagens: v, desvantagens: d });

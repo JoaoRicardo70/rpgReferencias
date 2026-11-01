@@ -17,6 +17,7 @@ import { alternarAcao, restaurarAcoes, criarAcoesIniciais } from '../../core/aco
 import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
+import { danoDeEstadosNoTurno, descreverDanoDeEstados } from '../../core/condicoes';
 import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano';
 import { calcularDanoRapido } from '../../core/danoRapido';
@@ -109,7 +110,7 @@ export function iniciarAnimacaoDado(setDadoAnim, { rawRoll, quemRolou, resultado
 // Immer OU um clone solto, tanto faz). A ordem importa: calcularGanhoFadigaDinamico precisa rodar
 // ANTES de aplicarRegeneracaoDeTurno, senão a cura já aplicada no mesmo tick esconderia o quão
 // gasto o personagem estava entrando neste turno.
-function aplicarInicioDeTurno(ficha) {
+function aplicarInicioDeTurno(ficha, ehDummie = false) {
     restaurarAcoes(ficha);
 
     if (!ficha.combate) ficha.combate = {};
@@ -119,6 +120,19 @@ function aplicarInicioDeTurno(ficha) {
     ficha.combate.fadigaExtra = Math.max(0, (Number(ficha.combate.fadigaExtra) || 0) + ganhoDinamicoDoTurno);
 
     aplicarRegeneracaoDeTurno(ficha, ganhoDinamicoDoTurno);
+    return aplicarDanoDeEstadosNoTurno(ficha, ehDummie);
+}
+
+// 🩸 Estados negativos (core/condicoes.js): Queimado/Sangrando/Criogenia causam dano por stack no começo do turno de quem está
+// afetado. Dano direto (sem Reduções): tira da Vida bruta da ficha (vida.atual) ou do Dummie (hpAtual). Devolve o texto para o feed ('' sem dano).
+function aplicarDanoDeEstadosNoTurno(ficha, ehDummie) {
+    const r = danoDeEstadosNoTurno(ficha);
+    if (r.total <= 0) return '';
+    const bruto = danoExibidoParaBruto(r.total);
+    if (ehDummie) ficha.hpAtual = Math.max(0, (Number(ficha.hpAtual) || 0) - bruto);
+    else if (ficha.vida) ficha.vida.atual = Math.max(0, (Number(ficha.vida.atual) || 0) - bruto);
+    else return '';
+    return descreverDanoDeEstados(r);
 }
 
 // 🔥 Recorta de uma ficha só os campos que aplicarInicioDeTurno pode ter mudado, no formato de
@@ -914,14 +928,17 @@ export function MapaFormProvider({ children }) {
             const dData = storeState.dummies[nextPlayer.id];
             if (dData) {
                 const dDataAtualizado = JSON.parse(JSON.stringify(dData));
-                aplicarInicioDeTurno(dDataAtualizado);
+                const textoEstados = aplicarInicioDeTurno(dDataAtualizado, true);
                 salvarDummie(nextPlayer.id, dDataAtualizado);
+                if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
             }
         } else if (nextPlayer.nome === storeState.meuNome) {
             // Sou eu mesmo quem começa o turno: aplica local (fonte de verdade imediata, sem
             // esperar o Firebase) e deixa o debounce de sempre sincronizar.
-            updateFicha(f => { aplicarInicioDeTurno(f); });
+            let textoEstados = '';
+            updateFicha(f => { textoEstados = aplicarInicioDeTurno(f); });
             salvarFichaSilencioso();
+            if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
         } else {
             // Outro jogador começa o turno: nunca posso mutar a ficha dele localmente
             // (`updateFicha` só mexe na MINHA), então calculo em cima da cópia mais recente que
@@ -939,8 +956,9 @@ export function MapaFormProvider({ children }) {
             const fichaAlvo = storeState.personagens?.[nextPlayer.nome];
             if (fichaAlvo) {
                 const rascunho = JSON.parse(JSON.stringify(fichaAlvo));
-                aplicarInicioDeTurno(rascunho);
+                const textoEstados = aplicarInicioDeTurno(rascunho);
                 salvarCamposPersonagem(nextPlayer.nome, camposDeInicioDeTurno(rascunho));
+                if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
             }
         }
     }, [ordemIniciativa, cenario, feedCombate.length, dispararEfeitoDaZona, isMestre, updateFicha]);

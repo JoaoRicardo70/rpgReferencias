@@ -5,6 +5,13 @@ import { calcularReducao, calcularCA } from '../../core/engine';
 import { aplicarReacoesAoDano, reacoesPendentesValidas } from '../../core/reacoes';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano';
 import { enviarParaFeed } from '../../services/firebase-sync';
+import { gastarAcoes } from '../../core/acoesTecnica';
+import { montarAlvoPersonagem, reduzirDanoNoAlvo } from '../../core/alvoCombate';
+import { gravarVidaDoAlvo } from '../../services/danoAlvo';
+import { reflexosDisponiveis, calcularReflexo, descreverReflexo } from '../../core/reflexo';
+import { resolverEstadosNoAlvo, descreverResolucao, juntarAplicados } from '../../core/estadosGolpe';
+import { aplicarEstadoNaFicha } from '../../core/condicoes';
+import { getVitalMxDisplay } from '../../core/vitals';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { danoExibidoParaBruto } from '../../core/vitals';
 import { escalarDanoPelaVida, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
@@ -57,6 +64,9 @@ export function DefesaFormProvider({ children }) {
     // 🎲 O valor digitado é o número do dado (veio do feed)? Então ele pesa na MINHA Vida (core/danoProporcional.js).
     // O dano que chega de um Ataque (dados + Status) já está na escala da Vida; só a fórmula livre de dados puros pede a proporção.
     const [danoDeDado, setDanoDeDado] = useState(false);
+    // ↩️ Reflexo (core/reflexo.js) que vou usar neste Dano: '' (nenhum) ou 'poder:<id>' / 'tecnica:<id>'.
+    const [reflexoEscolhido, setReflexoEscolhido] = useState('');
+    const reflexosUsaveis = useMemo(() => reflexosDisponiveis(minhaFicha), [minhaFicha]);
 
     const ultimoGolpeRecebido = useMemo(() => {
         const feed = feedCombate || [];
@@ -233,9 +243,56 @@ export function DefesaFormProvider({ children }) {
         const danoDisputa = aplicarDisputaAoDano(danoBase, disputa);
         // 🛡️ Reduções/Resistências aplicadas em SEQUÊNCIA, uma de cada vez (core/reducaoDano.js).
         const reduzido = aplicarReducoesSequenciais(danoDisputa, getPassosReducaoDano(minhaFicha, elementoInc, elementosDinamicos.find(e => e.id === elementoInc)?.nome));
-        const danoFinal = reduzido.final;
+        let danoFinal = reduzido.final;
+
+        // ↩️ Reflexo escolhido: devolve (ou divide) o Dano com quem me atacou. Precisa saber quem foi e ter como pagar.
+        let textoReflexo = '';
+        let aplicarNoAtacante = null;
+        let custoPago = 0;
+        const usado = reflexoEscolhido ? reflexosUsaveis.find(r => `${r.origem}:${r.id}` === reflexoEscolhido) : null;
+        if (usado) {
+            const escolhaAtacante = atacanteInc === ATACANTE_AUTO ? (ultimoGolpeRecebido ? `p:${ultimoGolpeRecebido.nome}` : ATACANTE_NENHUM) : atacanteInc;
+            const perc = usado.reflexo.custoPercentual;
+            const k = usado.reflexo.energia;
+            const custo = perc > 0 ? Math.floor(getVitalMxDisplay(k, minhaFicha) * (perc / 100)) : 0;
+            if (escolhaAtacante === ATACANTE_NENHUM || (!escolhaAtacante.startsWith('p:') && !escolhaAtacante.startsWith('d:'))) {
+                if (!window.confirm('Não sei quem te atacou, então o Reflexo não tem para quem voltar. Receber o Dano inteiro mesmo assim?')) return;
+            } else if (custo > 0 && (Number(minhaFicha[k] && minhaFicha[k].atual) || 0) < custo) {
+                if (!window.confirm(`Sem ${k.toUpperCase()} para pagar o Reflexo (${custo.toLocaleString('pt-BR')}). Receber o Dano inteiro mesmo assim?`)) return;
+            } else {
+                const calculo = calcularReflexo(usado.reflexo, { danoChega: danoFinal, danoOriginal: danoDigitado });
+                danoFinal = calculo.danoNoDefensor;
+                const idAtacante = escolhaAtacante.startsWith('d:') ? escolhaAtacante.slice(2) : `pj:${escolhaAtacante.slice(2)}`;
+                const alvoAtacante = escolhaAtacante.startsWith('d:')
+                    ? (dummies || {})[idAtacante]
+                    : montarAlvoPersonagem(escolhaAtacante.slice(2), (personagens || {})[escolhaAtacante.slice(2)], divisorPoderMesa);
+                textoReflexo = descreverReflexo(usado, calculo, nomeAtacante || 'o atacante');
+                aplicarNoAtacante = () => {
+                    if (!alvoAtacante || calculo.danoNoAtacante <= 0) return;
+                    const final = reduzirDanoNoAlvo(alvoAtacante, calculo.danoNoAtacante, elementoInc).final;
+                    gravarVidaDoAlvo(idAtacante, alvoAtacante, Math.max(0, (Number(alvoAtacante.hpAtual) || 0) - danoExibidoParaBruto(final)), { elemento: elementoInc });
+                };
+                custoPago = custo;
+            }
+        }
+
+        // 🩸 Estados do golpe (feed.estadosGolpe) que ainda não entraram em mim: só se este Dano é o deste golpe e ele não foi devolvido por completo.
+        const golpeDoDano = ultimoGolpeRecebido && ultimoGolpeRecebido.nome === nomeAtacante ? ultimoGolpeRecebido : null;
+        const jaRecebi = golpeDoDano && minhaFicha.combate && minhaFicha.combate.estadosDoGolpeTs === golpeDoDano.ts;
+        const resolucao = golpeDoDano && Array.isArray(golpeDoDano.estadosGolpe) && golpeDoDano.estadosGolpe.length > 0 && !jaRecebi && !(usado && danoFinal === 0 && textoReflexo)
+            ? resolverEstadosNoAlvo(golpeDoDano.estadosGolpe, minhaFicha, { critico: !!golpeDoDano.golpeCritico })
+            : null;
 
         updateFicha((ficha) => {
+            if (resolucao) {
+                juntarAplicados(resolucao.aplicados).forEach(a => aplicarEstadoNaFicha(ficha, a.id, a.stacks, nomeAtacante || ''));
+                if (!ficha.combate) ficha.combate = {};
+                ficha.combate.estadosDoGolpeTs = golpeDoDano.ts;
+            }
+            if (usado && textoReflexo) {
+                if (custoPago > 0 && ficha[usado.reflexo.energia]) ficha[usado.reflexo.energia].atual = Math.max(0, (ficha[usado.reflexo.energia].atual || 0) - custoPago);
+                if (usado.reflexo.gastaReacao) gastarAcoes(ficha, ['reacao']);
+            }
             if (ficha.combate && Array.isArray(ficha.combate.reacoesPendentes) && ficha.combate.reacoesPendentes.length > 0) ficha.combate.reacoesPendentes = [];
             if (ficha.vida) {
                 // O dano digitado é o número EXIBIDO (feed/tela); vida.atual é bruta.
@@ -249,7 +306,9 @@ export function DefesaFormProvider({ children }) {
         const nomeElemento = elementosDinamicos.find(e => e.id === elementoInc)?.nome || elementoInc;
 
         const deQuem = nomeAtacante ? ` de ${nomeAtacante}` : '';
-        const texto = `Recebeu ${danoFinal} de dano${deQuem}! (Original: ${danoDigitado} de ${nomeElemento.toUpperCase()})${mensagemElemental}`;
+        const textoEstados = resolucao ? descreverResolucao(resolucao, meuNome) : '';
+        const texto = `Recebeu ${danoFinal} de dano${deQuem}! (Original: ${danoDigitado} de ${nomeElemento.toUpperCase()})${mensagemElemental}${textoReflexo ? ` ${textoReflexo}` : ''}${textoEstados ? ` 🩸 ${textoEstados}` : ''}`;
+        if (aplicarNoAtacante) aplicarNoAtacante();
 
         // Quem leva vantagem na Disputa de Poder é informação do Mestre (textoMestre).
         const feedData = { tipo: 'sistema', nome: meuNome, texto: texto, ...(disputa && disputa.ativa ? { textoMestre: descreverDisputa(disputa) } : {}) };
@@ -260,8 +319,9 @@ export function DefesaFormProvider({ children }) {
         setAtacanteInc(ATACANTE_AUTO);
         // Volta ao padrão (dano já na escala da Vida): a caixa marcada vale só pra este golpe.
         setDanoDeDado(false);
+        setReflexoEscolhido('');
         setAbaAtiva('aba-log');
-    }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, updateFicha, salvarFichaSilencioso, setAbaAtiva, elementosDinamicos, disputaDefesa, danoDeDado]);
+    }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, updateFicha, salvarFichaSilencioso, setAbaAtiva, elementosDinamicos, disputaDefesa, danoDeDado, reflexoEscolhido, reflexosUsaveis, atacanteInc, ultimoGolpeRecebido, dummies, personagens, divisorPoderMesa]);
 
     const value = useMemo(() => ({
         evaDados, setEvaDados, evaFaces, setEvaFaces, evaProf, setEvaProf, evaBonus, setEvaBonus,
@@ -269,13 +329,14 @@ export function DefesaFormProvider({ children }) {
         redEnergia, setRedEnergia, redPerc, setRedPerc, redMult, setRedMult,
         elementoInc, setElementoInc, danoRecebidoInc, setDanoRecebidoInc,
         atacanteInc, setAtacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa, danoDeDado, setDanoDeDado,
+        reflexoEscolhido, setReflexoEscolhido, reflexosUsaveis,
         caEvasiva, caResistencia,
         elementosDinamicos, 
         declararEvasiva, declararResistencia, declararReducao, sofrerDanoBruto
     }), [
         evaDados, evaFaces, evaProf, evaBonus, resDados, resFaces, resProf, resBonus,
         redEnergia, redPerc, redMult, elementoInc, danoRecebidoInc, caEvasiva, caResistencia,
-        atacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa, danoDeDado,
+        atacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa, danoDeDado, reflexoEscolhido, reflexosUsaveis,
         elementosDinamicos, declararEvasiva, declararResistencia, declararReducao, sofrerDanoBruto
     ]);
 
