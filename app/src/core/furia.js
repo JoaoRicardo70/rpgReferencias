@@ -5,6 +5,7 @@
 import { getEfeitosDeClasse } from './attributes';
 import { getVidaTotalMaxDisplay } from './vitals';
 import { escalarEfeitosPorEstagio } from './estagios';
+import { efeitosAtivosDoItem } from './efeitosItem';
 
 // Maior valor de "furia_berserker" entre os efeitos que valem agora (Poderes ligados e passivos, itens equipados, passivas, Classe).
 export function calcularMultiplicadorFuriaClasse(ficha) {
@@ -22,7 +23,7 @@ export function calcularMultiplicadorFuriaClasse(ficha) {
     };
     if (ficha) {
         (ficha.poderes || []).forEach(p => { if (p && p.ativa) scanFuria(escalarEfeitosPorEstagio(p.efeitos, p)); scanFuria(p?.efeitosPassivos); });
-        (ficha.inventario || []).forEach(i => { if (i && i.equipado) { scanFuria(i.efeitos); scanFuria(i.efeitosPassivos); } });
+        (ficha.inventario || []).forEach(i => { if (i && i.equipado) { scanFuria(efeitosAtivosDoItem(i)); scanFuria(i.efeitosPassivos); } });
         (ficha.passivas || []).forEach(p => scanFuria(p.efeitos));
         scanFuria(getEfeitosDeClasse(ficha));
     }

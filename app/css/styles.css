@@ -3120,3 +3120,17 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .reflexo-escolha { display: flex; align-items: center; gap: 8px; font-size: 0.9em; margin: 6px 0; }
 .reflexo-escolha .input-neon { margin: 0; width: auto; }
 .feed-pos-golpe { margin-top: 6px; padding: 5px; font-size: 0.9em; border-left: 3px solid #ff00ff; background: rgba(0, 0, 0, 0.4); }
+
+/* 💖 Regeneração por turno (Ficha Definitiva, página 1 — RegeneracaoResumo) */
+.regen-resumo { margin: 10px 0; padding: 10px; border: 1px solid var(--border-primary); border-radius: 8px; background: var(--bg-panel); }
+.regen-resumo-titulo { margin: 0 0 8px 0; color: var(--cor-primaria); font-size: 1em; }
+.regen-tabela { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+.regen-tabela th, .regen-tabela td { padding: 3px 6px; text-align: right; border-bottom: 1px solid var(--border-primary); }
+.regen-tabela th:first-child, .regen-tabela td:first-child { text-align: left; }
+.regen-vital { margin-top: 6px; font-size: 0.85em; }
+.regen-vital > summary { cursor: pointer; color: var(--cor-primaria); }
+.regen-lista { list-style: none; margin: 4px 0 0; padding-left: 12px; display: flex; flex-direction: column; gap: 2px; }
+.regen-mais { color: var(--cor-sucesso); }
+.regen-menos { color: var(--cor-secundaria); }
+.regen-aviso { color: var(--cor-destaque); font-size: 0.9em; }
+.regen-total { font-weight: bold; }

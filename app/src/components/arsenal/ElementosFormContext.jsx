@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useMemo } from 'react';
+import { efeitosAtivosDoItem } from '../../core/efeitosItem';
 import { dadosLimitadosDaTecnica } from '../../core/limiteDados';
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
 import { normalizarGatilho, normalizarEfeito, normalizarValorReacao } from '../../core/reacoes';
@@ -302,7 +303,7 @@ export function ElementosFormProvider({ children }) {
         if (minhaFicha.inventario) {
             minhaFicha.inventario.forEach(item => {
                 if (item.equipado) {
-                    lerInatosDosEfeitos(item.efeitos);
+                    lerInatosDosEfeitos(efeitosAtivosDoItem(item));
                     lerInatosDosEfeitos(item.efeitosPassivos);
                 }
             });

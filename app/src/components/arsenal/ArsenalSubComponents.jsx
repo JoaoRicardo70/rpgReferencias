@@ -2,6 +2,7 @@ import React from 'react';
 import DescricoesAtaqueEditor from '../shared/DescricoesAtaqueEditor';
 import EstadosGolpeEditor from '../shared/EstadosGolpeEditor';
 import SuporteEditor from '../shared/SuporteEditor';
+import ToggleEfeitosAtivos from './ToggleEfeitosAtivos';
 import { useArsenalForm, ARMA_TIPOS, RARIDADES, BONUS_OPTIONS } from './ArsenalFormContext';
 import { ATRIBUTOS_AGRUPADOS, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 import FormasEditor from '../shared/FormasEditor';
@@ -132,12 +133,12 @@ export function ArsenalDadosDano() {
 export function ArsenalEfeitosAtivos() {
     const ctx = useArsenalForm();
     if (!ctx) return FALLBACK;
-    const { tipoItem, nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal, efeitosTempArsenal, addEfeitoTemp, removerEfeitoTemp } = ctx;
-
-    if (tipoItem !== 'arma') return null;
+    const { nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal, efeitosTempArsenal, addEfeitoTemp, removerEfeitoTemp } = ctx;
 
     return (
         <>
+            <h4 style={{ color: '#0ff', marginTop: 15, marginBottom: 4, fontSize: '0.95em' }}>Efeitos Ativos</h4>
+            <p style={{ color: '#888', fontSize: '0.8em', margin: '0 0 6px' }}>Só valem com o toggle "Efeitos ativos" ligado no item equipado.</p>
             <input className="input-neon" type="text" placeholder="Nome do Efeito" value={nomeEfeito} onChange={e => setNomeEfeito(e.target.value)} style={{ marginTop: 10 }} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, marginTop: 5 }}>
                 <select className="input-neon" value={novoAtr} onChange={e => { setNovoAtr(e.target.value); setNovoProp(ajustarPropriedade(e.target.value, novoProp)); }}>
@@ -178,13 +179,12 @@ export function ArsenalEfeitosAtivos() {
 export function ArsenalEfeitosPassivos() {
     const ctx = useArsenalForm();
     if (!ctx) return FALLBACK;
-    const { tipoItem, nomeEfeitoPassivo, setNomeEfeitoPassivo, novoAtrPassivo, setNovoAtrPassivo, novoPropPassivo, setNovoPropPassivo, novoValPassivo, setNovoValPassivo, efeitosTempPassivosArsenal, addEfeitoPassivoTemp, removerEfeitoPassivoTemp } = ctx;
-
-    if (tipoItem !== 'arma') return null;
+    const { nomeEfeitoPassivo, setNomeEfeitoPassivo, novoAtrPassivo, setNovoAtrPassivo, novoPropPassivo, setNovoPropPassivo, novoValPassivo, setNovoValPassivo, efeitosTempPassivosArsenal, addEfeitoPassivoTemp, removerEfeitoPassivoTemp } = ctx;
 
     return (
         <>
-            <h4 style={{ color: '#f0f', marginTop: 15, marginBottom: 8, fontSize: '0.95em' }}>Efeitos Passivos</h4>
+            <h4 style={{ color: '#f0f', marginTop: 15, marginBottom: 4, fontSize: '0.95em' }}>Efeitos Passivos</h4>
+            <p style={{ color: '#888', fontSize: '0.8em', margin: '0 0 6px' }}>Valem sempre que o item está equipado.</p>
             <input className="input-neon" type="text" placeholder="Nome do Efeito Passivo" value={nomeEfeitoPassivo} onChange={e => setNomeEfeitoPassivo(e.target.value)} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, marginTop: 5 }}>
                 <select className="input-neon" value={novoAtrPassivo} onChange={e => { setNovoAtrPassivo(e.target.value); setNovoPropPassivo(ajustarPropriedade(e.target.value, novoPropPassivo)); }}>
@@ -300,6 +300,7 @@ export function ArsenalInventarioList() {
                                     </label>
                                 )}
                             </div>
+                            <ToggleEfeitosAtivos itemId={p.id} />
                             {p.tipo === 'arma' && <DescricoesAtaqueEditor colecao="inventario" itemId={p.id} />}
                             <EstadosGolpeEditor colecao="inventario" itemId={p.id} />
                             <SuporteEditor colecao="inventario" itemId={p.id} />

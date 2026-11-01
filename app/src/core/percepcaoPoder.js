@@ -20,6 +20,7 @@
 // ==========================================
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 import { getEfeitosDeClasse } from './attributes.js';
+import { efeitosAtivosDoItem } from './efeitosItem.js';
 import { getPoderParaDisputa, getPoderDummie } from './disputaPoder.js';
 
 export const ATRIBUTO_PERCEPCAO_PODER = 'percepcao_poder';
@@ -81,7 +82,7 @@ export function listarEfeitosDeAtributo(ficha, atributo) {
         if (!item || !item.equipado) return;
         const forma = item.formaAtivaId && Array.isArray(item.formas) ? item.formas.find(f => f && f.id === item.formaAtivaId) : null;
         if (!(forma && forma.acumulaFormaBase === false)) {
-            somar(item.efeitos);
+            somar(efeitosAtivosDoItem(item));
             somar(item.efeitosPassivos);
         }
         somarForma(item);

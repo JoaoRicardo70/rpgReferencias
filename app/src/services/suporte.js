@@ -15,6 +15,7 @@ import { gastarAcoes, acoesEmFalta } from '../core/acoesTecnica';
 export function planejarUsoSuporte({ item, meuNome, fichas, aliados = [], agora = Date.now(), rolar }) {
     const s = normalizarSuporte(item && item.suporte);
     if (!s) return { erro: 'Este item não tem Cura nem Buffs configurados.' };
+    if (s.modo === 'passivo') return { erro: 'Este suporte é passivo: ele já está ligado enquanto o Poder/Item estiver em uso.' };
     const dest = destinatariosPermitidos(s, aliados);
     const nomes = [...(dest.eu ? [meuNome] : []), ...dest.aliados.filter(n => n !== meuNome)];
     if (nomes.length === 0) return { erro: s.alvos === 'si' ? 'Sem destinatário.' : 'Escolha pelo menos um aliado.' };
@@ -34,7 +35,7 @@ export function planejarUsoSuporte({ item, meuNome, fichas, aliados = [], agora 
             }
         }
         if (s.buffs.length > 0) {
-            r.buffsNovos = somarBuffTemporario(ficha.buffsTemporarios, { id: `${item.id}_${agora}_${i}`, nome: item.nome, fonte: meuNome, efeitos: s.buffs, duracao: s.duracao });
+            r.buffsNovos = somarBuffTemporario(ficha.buffsTemporarios, { id: `${item.id}_${agora}_${i}`, nome: item.nome, fonte: meuNome, efeitos: s.buffs, duracao: s.duracao, duracaoModo: s.duracaoModo });
         }
         receptores.push(r);
     });
@@ -47,7 +48,7 @@ export function descreverUsoSuporte(plano, nomeItem, meuNome) {
     const partes = plano.receptores.map((r) => {
         const o = [];
         if (r.cura) o.push(`curou ${r.cura.total.toLocaleString('pt-BR')}`);
-        if (r.buffsNovos && plano.suporte.buffs.length > 0) o.push(`buffs (${plano.suporte.buffs.map(descreverBuff).join('; ')})${plano.suporte.duracao > 0 ? ` por ${plano.suporte.duracao} turno(s)` : ''}`);
+        if (r.buffsNovos && plano.suporte.buffs.length > 0) o.push(`buffs (${plano.suporte.buffs.map(descreverBuff).join('; ')})${plano.suporte.duracao > 0 ? ` por ${plano.suporte.duracao} turno(s)` : (plano.suporte.duracaoModo === 'combate' ? ' até o fim do combate' : '')}`);
         return `${r.nome}: ${o.join(' + ') || 'nada'}`;
     });
     return `✨ ${meuNome} usou ${nomeItem}! ${partes.join(' · ')}`;

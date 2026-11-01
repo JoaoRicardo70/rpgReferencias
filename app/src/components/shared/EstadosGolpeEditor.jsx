@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { ESTADOS, MAX_STACKS } from '../../core/condicoes';
 import { normalizarAplicaEstados, ATRIBUTOS_TESTE, ROTULO_ATRIBUTO, LIMITES_ESTADOS, estadoDoTipoDeArma } from '../../core/estadosGolpe';
+import { lerAlvoDeEditor, acharAlvoParaGravar } from './alvoDeEditor';
 import { MODOS_REFLEXO, MODOS_CUSTO_REFLEXO, ENERGIAS_REFLEXO, normalizarReflexo } from '../../core/reflexo';
 
 // 🩸 Lista de "estados que este golpe aplica" (core/estadosGolpe.js): estado, stacks, teste de resistência opcional e "só em crítico".
@@ -69,21 +70,21 @@ export function CamposReflexo({ reflexo, onChange }) {
 
 // Editor no card de um item da ficha (Poder, Técnica elemental ou Item/Arma): grava direto nele.
 // colecao: 'poderes' | 'ataquesElementais' | 'inventario'. comReflexo: só Poderes e Técnicas.
-export default function EstadosGolpeEditor({ colecao, itemId, comReflexo = false }) {
+export default function EstadosGolpeEditor({ colecao, itemId, estado = 'base', comReflexo = false }) {
     const { ficha, updateFicha } = useFichaAtiva();
     const callSave = useCallSaveAtivo();
     const [aberto, setAberto] = useState(false);
-    const item = ((ficha && ficha[colecao]) || []).find(i => i && String(i.id) === String(itemId));
+    const item = lerAlvoDeEditor(ficha, colecao, itemId, estado);
 
     const gravar = useCallback((campo, valor) => {
         updateFicha((f) => {
-            const alvo = (f[colecao] || []).find(i => i && String(i.id) === String(itemId));
+            const alvo = acharAlvoParaGravar(f, colecao, itemId, estado);
             if (!alvo) return;
             if (campo === 'reflexo') { if (valor) alvo.reflexo = normalizarReflexo(valor); else delete alvo.reflexo; }
             else alvo.aplicaEstados = normalizarAplicaEstados(valor);
         });
         callSave();
-    }, [updateFicha, callSave, colecao, itemId]);
+    }, [updateFicha, callSave, colecao, itemId, estado]);
 
     if (!item) return null;
     const estados = Array.isArray(item.aplicaEstados) ? item.aplicaEstados : [];

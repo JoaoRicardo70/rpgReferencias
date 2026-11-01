@@ -133,18 +133,6 @@ export function ArsenalFormProvider({ children }) {
         const n = nomeItem.trim();
         if (!n) { alert('Falta o nome do Equipamento!'); return; }
 
-        const inventarioAtual = minhaFicha?.inventario || [];
-        let deveLimparEfeitos = true;
-        if (itemEditandoId && tipoItem !== 'arma') {
-            const itemExistente = inventarioAtual.find(i => i.id === itemEditandoId);
-            if (itemExistente) {
-                const tinhaEfeitos = (itemExistente.efeitos || []).length > 0 || (itemExistente.efeitosPassivos || []).length > 0;
-                if (tinhaEfeitos && !window.confirm('Este item tinha efeitos de arma. Mudar o tipo vai remover todos os efeitos. Continuar?')) {
-                    deveLimparEfeitos = false;
-                }
-            }
-        }
-
         updateFicha((ficha) => {
             if (!ficha.inventario) ficha.inventario = [];
 
@@ -162,12 +150,10 @@ export function ArsenalFormProvider({ children }) {
                         ficha.inventario[ix].dadosQtd = parseInt(armaDadosQtd) || 1;
                         ficha.inventario[ix].dadosFaces = parseInt(armaDadosFaces) || 20;
                         ficha.inventario[ix].alcance = parseFloat(armaAlcance) || 1;
-                        ficha.inventario[ix].efeitos = JSON.parse(JSON.stringify(efeitosTempArsenal));
-                        ficha.inventario[ix].efeitosPassivos = JSON.parse(JSON.stringify(efeitosTempPassivosArsenal));
-                    } else if (deveLimparEfeitos) {
-                        ficha.inventario[ix].efeitos = [];
-                        ficha.inventario[ix].efeitosPassivos = [];
                     }
+                    // Qualquer tipo de item pode ter efeitos ativos e passivos
+                    ficha.inventario[ix].efeitos = JSON.parse(JSON.stringify(efeitosTempArsenal));
+                    ficha.inventario[ix].efeitosPassivos = JSON.parse(JSON.stringify(efeitosTempPassivosArsenal));
                 }
             } else {
                 ficha.inventario.push({
@@ -182,8 +168,8 @@ export function ArsenalFormProvider({ children }) {
                     dadosQtd: tipoItem === 'arma' ? (parseInt(armaDadosQtd) || 1) : 0,
                     dadosFaces: tipoItem === 'arma' ? (parseInt(armaDadosFaces) || 20) : 0,
                     alcance: tipoItem === 'arma' ? (parseFloat(armaAlcance) || 1) : 0,
-                    efeitos: tipoItem === 'arma' ? JSON.parse(JSON.stringify(efeitosTempArsenal)) : [],
-                    efeitosPassivos: tipoItem === 'arma' ? JSON.parse(JSON.stringify(efeitosTempPassivosArsenal)) : [],
+                    efeitos: JSON.parse(JSON.stringify(efeitosTempArsenal)),
+                    efeitosPassivos: JSON.parse(JSON.stringify(efeitosTempPassivosArsenal)),
                     equipado: false
                 });
             }
@@ -193,7 +179,7 @@ export function ArsenalFormProvider({ children }) {
         setNomeItem('');
         setBonusValor('');
         callSave();
-    }, [nomeItem, minhaFicha, itemEditandoId, tipoItem, bonusTipo, bonusValor, armaTipo, raridade, armaDadosQtd, armaDadosFaces, armaAlcance, efeitosTempArsenal, efeitosTempPassivosArsenal, updateFicha, callSave, cancelarEdicaoItem]);
+    }, [nomeItem, itemEditandoId, tipoItem, bonusTipo, bonusValor, armaTipo, raridade, armaDadosQtd, armaDadosFaces, armaAlcance, efeitosTempArsenal, efeitosTempPassivosArsenal, updateFicha, callSave, cancelarEdicaoItem]);
 
     const editarItem = useCallback((id) => {
         const p = (minhaFicha?.inventario || []).find(i => i.id === id);

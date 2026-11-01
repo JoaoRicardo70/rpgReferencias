@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
 import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto, salvarCamposPersonagem } from '../../services/firebase-sync';
-import { calcularAcerto } from '../../core/engine';
+import { calcularAcerto, calcularEficaciaCura } from '../../core/engine';
 import { classificarRolagem } from '../../core/rolagemDado';
 import { aplicarCoresDado, lerCoresDado } from '../../core/coresDado';
 import { getConfigDado } from '../../core/configuracoes';
@@ -11,6 +11,7 @@ import { infoAvatarDaFicha } from '../../core/avatar';
 import { assinarFalhasDeImagem } from '../../core/imagemVerificada';
 import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
+import { efeitosAtivosDoItem } from '../../core/efeitosItem';
 import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
 import { golpeEquipado } from '../../core/classesMecanicas';
 import { alternarAcao, restaurarAcoes, criarAcoesIniciais } from '../../core/acoes';
@@ -18,7 +19,8 @@ import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisput
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { danoDeEstadosNoTurno, descreverDanoDeEstados } from '../../core/condicoes';
-import { passarTurnoDosBuffs } from '../../core/suporte';
+import { passarTurnoDosBuffs, curaPassivaDoTurno } from '../../core/suporte';
+import { getVidaMaxBrutaNpc } from '../../core/gavetaNpc';
 import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano';
 import { calcularDanoRapido } from '../../core/danoRapido';
@@ -64,7 +66,7 @@ export function calcularCA(ficha, tipo) {
     });
     (ficha.passivas || []).forEach(p => { somarBonus(p.efeitos); });
     (ficha.inventario || []).filter(i => i.equipado).forEach(i => {
-        let resolved = resolverEfeitosEntidade(i);
+        let resolved = resolverEfeitosEntidade({ ...i, efeitos: efeitosAtivosDoItem(i) });
         somarBonus(resolved.efeitos);
         somarBonus(resolved.efeitosPassivos);
     });
@@ -123,7 +125,23 @@ function aplicarInicioDeTurno(ficha, ehDummie = false) {
     aplicarRegeneracaoDeTurno(ficha, ganhoDinamicoDoTurno);
     // ✨ Buffs temporários de Suporte (core/suporte.js) perdem 1 turno no começo do turno do dono; os que acabam saem.
     if (Array.isArray(ficha.buffsTemporarios) && ficha.buffsTemporarios.length > 0) ficha.buffsTemporarios = passarTurnoDosBuffs(ficha).lista;
-    return aplicarDanoDeEstadosNoTurno(ficha, ehDummie);
+    const cura = ehDummie ? '' : aplicarCuraPassivaNoTurno(ficha);
+    return { estados: aplicarDanoDeEstadosNoTurno(ficha, ehDummie), cura };
+}
+
+// ✨ Suporte passivo (core/suporte.js): a Cura de Poderes/Técnicas/Itens/Arma sempre ligados cai na Vida no começo do turno do dono,
+// já com os cortes de cura dos estados. Nunca baixa a Vida de quem está acima do teto. Devolve o texto para o Feed ('' sem cura).
+function aplicarCuraPassivaNoTurno(ficha) {
+    if (!ficha.vida) return '';
+    const maxBruto = getVidaMaxBrutaNpc(ficha);
+    const atual = Number(ficha.vida.atual);
+    if (!(maxBruto > 0) || !Number.isFinite(atual)) return '';
+    const r = curaPassivaDoTurno(ficha, { vidaMaxExibida: maxBruto / FATOR_EXIBICAO_VITAIS });
+    if (r.total <= 0) return '';
+    const total = Math.floor(r.total * calcularEficaciaCura(ficha));
+    if (total <= 0) return '';
+    ficha.vida.atual = Math.max(atual, Math.min(maxBruto, atual + danoExibidoParaBruto(total)));
+    return r.partes.map(p => p.nome).join(', ') + ': +' + total.toLocaleString('pt-BR');
 }
 
 // 🩸 Estados negativos (core/condicoes.js): Queimado/Sangrando/Criogenia causam dano por stack no começo do turno de quem está
@@ -649,7 +667,7 @@ export function MapaFormProvider({ children }) {
         };
         
         (fichaCaster.poderes || []).forEach(p => { if (p.ativa) scan(escalarEfeitosPorEstagio(p.efeitos, p)); scan(p.efeitosPassivos); });
-        (fichaCaster.inventario || []).forEach(i => { if (i.equipado) { scan(i.efeitos); scan(i.efeitosPassivos); } });
+        (fichaCaster.inventario || []).forEach(i => { if (i.equipado) { scan(efeitosAtivosDoItem(i)); scan(i.efeitosPassivos); } });
         (fichaCaster.passivas || []).forEach(p => scan(p.efeitos));
         
         // Zonas antigas guardavam o dano já multiplicado (multiplicadorOriginal): divide pra voltar
@@ -932,7 +950,7 @@ export function MapaFormProvider({ children }) {
             const dData = storeState.dummies[nextPlayer.id];
             if (dData) {
                 const dDataAtualizado = JSON.parse(JSON.stringify(dData));
-                const textoEstados = aplicarInicioDeTurno(dDataAtualizado, true);
+                const textoEstados = aplicarInicioDeTurno(dDataAtualizado, true).estados;
                 salvarDummie(nextPlayer.id, dDataAtualizado);
                 if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
             }
@@ -940,9 +958,11 @@ export function MapaFormProvider({ children }) {
             // Sou eu mesmo quem começa o turno: aplica local (fonte de verdade imediata, sem
             // esperar o Firebase) e deixa o debounce de sempre sincronizar.
             let textoEstados = '';
-            updateFicha(f => { textoEstados = aplicarInicioDeTurno(f); });
+            let textoCura = '';
+            updateFicha(f => { const r = aplicarInicioDeTurno(f); textoEstados = r.estados; textoCura = r.cura; });
             salvarFichaSilencioso();
             if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
+            if (textoCura) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `✨ ${nextPlayer.nome} se cura (passivo): ${textoCura}` });
         } else {
             // Outro jogador começa o turno: nunca posso mutar a ficha dele localmente
             // (`updateFicha` só mexe na MINHA), então calculo em cima da cópia mais recente que
@@ -960,9 +980,10 @@ export function MapaFormProvider({ children }) {
             const fichaAlvo = storeState.personagens?.[nextPlayer.nome];
             if (fichaAlvo) {
                 const rascunho = JSON.parse(JSON.stringify(fichaAlvo));
-                const textoEstados = aplicarInicioDeTurno(rascunho);
+                const { estados: textoEstados, cura: textoCura } = aplicarInicioDeTurno(rascunho);
                 salvarCamposPersonagem(nextPlayer.nome, camposDeInicioDeTurno(rascunho));
                 if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
+                if (textoCura) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `✨ ${nextPlayer.nome} se cura (passivo): ${textoCura}` });
             }
         }
     }, [ordemIniciativa, cenario, feedCombate.length, dispararEfeitoDaZona, isMestre, updateFicha]);

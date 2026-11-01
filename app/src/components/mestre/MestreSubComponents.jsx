@@ -6,6 +6,7 @@ import { database } from '../../services/firebase-config';
 import useStore, { sanitizarNome } from '../../stores/useStore';
 import PainelMestreSandbox, { TODAS_CONDICOES_BASE } from './PainelMestreSandbox';
 import { getMaximo } from '../../core/attributes';
+import { efeitosAtivosDoItem } from '../../core/efeitosItem';
 import { calcularCA } from '../../core/engine';
 import { calcularBarrasVida, getVitalMax, getVitalMaxEstavel, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularFatorMultiplicadorForca, calcularPoderAtual } from '../../core/poder';
@@ -88,7 +89,7 @@ function getEnergiasSupremas(ficha) {
             });
         };
         (ficha.inventario || []).filter(i => i.equipado).forEach(i => {
-            processarEfeitos(i.efeitos);
+            processarEfeitos(efeitosAtivosDoItem(i));
             if (i.formaAtivaId && i.formas) {
                 let activeForm = i.formas.find(f => f.id === i.formaAtivaId);
                 if (activeForm && activeForm.acumulaFormaBase !== false) {

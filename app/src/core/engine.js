@@ -8,9 +8,11 @@ import { ENERGIAS_COMO_PODER, getMargemCusto, limitarPercComoPoder, podeConjurar
 import { getVantagensDeClasse, getBonusAcertoDeClasse } from './classesMecanicas.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 import { efeitosDeCombos } from './combos.js';
+import { efeitosAtivosDoItem } from './efeitosItem.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
 import { modificadoresDeEstados } from './condicoes.js';
-import { efeitosDeBuffsTemporarios } from './suporte.js';
+import { efeitosDeBuffsTemporarios, efeitosDeSuportePassivo } from './suporte.js';
+import { efeitosDaArmaEspiritual } from './armaEspiritualEfeitos.js';
 
 // Status são gravados 1000x maiores que o número exibido na Ficha (core: Marcados.jsx > FATOR_EXIBICAO_STATUS).
 const FATOR_EXIBICAO_STATUS = 1000;
@@ -63,8 +65,10 @@ export function calcularCA(ficha, tipo) {
     (ficha.passivas || []).forEach(p => { somarBonus(p.efeitos); });
     somarBonus(efeitosDeCombos(ficha)); // 🥋 Combos/Follow Ups (core/combos.js)
     somarBonus(efeitosDeBuffsTemporarios(ficha)); // ✨ Buffs temporários de Suporte (core/suporte.js)
+    somarBonus(efeitosDeSuportePassivo(ficha)); // ✨ Suporte passivo (sempre ligado)
+    somarBonus(efeitosDaArmaEspiritual(ficha)); // ⚔️ Buffs do estado em vigor da Arma Espiritual
     (ficha.inventario || []).filter(i => i.equipado).forEach(i => {
-        let resolved = resolverEfeitosEntidade(i);
+        let resolved = resolverEfeitosEntidade({ ...i, efeitos: efeitosAtivosDoItem(i) });
         somarBonus(resolved.efeitos);
         somarBonus(resolved.efeitosPassivos);
     });
@@ -623,7 +627,7 @@ export function calcularEficaciaCura(ficha) {
     };
 
     (ficha.poderes || []).forEach(p => { if(p.ativa) scanCura(p.efeitos); scanCura(p.efeitosPassivos); });
-    (ficha.inventario || []).forEach(i => { if(i.equipado) { scanCura(i.efeitos); scanCura(i.efeitosPassivos); } });
+    (ficha.inventario || []).forEach(i => { if(i.equipado) { scanCura(efeitosAtivosDoItem(i)); scanCura(i.efeitosPassivos); } });
     (ficha.passivas || []).forEach(p => scanCura(p.efeitos));
 
     return multFinal * (1 + bonusBuffs);

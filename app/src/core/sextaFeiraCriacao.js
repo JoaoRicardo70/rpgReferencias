@@ -384,11 +384,11 @@ export function normalizarItem(dados) {
         dadosQtd: arma ? inteiro(d.dadosQtd, 1, 1, 1000) : 0,
         dadosFaces: arma ? inteiro(d.dadosFaces, 20, 1, 1000) : 0,
         alcance: arma ? alcance(d.alcance) : 0,
-        efeitos: arma ? normalizarEfeitos(d.efeitos, 'forca', avisos, 'Efeito ativo') : [],
-        efeitosPassivos: arma ? normalizarEfeitos(d.efeitosPassivos, 'evasiva', avisos, 'Efeito passivo') : [],
+        // Qualquer tipo de item guarda efeitos: os ATIVOS só valem com o toggle ligado, os PASSIVOS sempre que equipado.
+        efeitos: normalizarEfeitos(d.efeitos, 'forca', avisos, 'Efeito ativo'),
+        efeitosPassivos: normalizarEfeitos(d.efeitosPassivos, 'evasiva', avisos, 'Efeito passivo'),
         equipado: false,
     };
-    if (!arma && ((d.efeitos || []).length || (d.efeitosPassivos || []).length)) avisos.push('Só armas guardam efeitos no Arsenal; os efeitos foram ignorados.');
     anexarEstadosReflexoSuporte(objeto, d, avisos, { reflexo: false });
     if (!objeto.nome) avisos.push('Falta o nome.');
     return { objeto, avisos, valido: !!objeto.nome };

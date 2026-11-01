@@ -21,6 +21,7 @@ export const fichaPadrao = {
         // acessoVerdadeira nasce liberado (progressão comum) e acessoFantasma nasce travado (ápice,
         // só pra poucos) -- o Mestre/Co-Mestre libera pelo Altar da Relíquia, Capítulo 1.
         passivasVerdadeira: [], runasVerdadeira: [], passivasFantasma: [], runasFantasma: [],
+        efeitosEstados: {},
         estadoAtivo: 'base', acessoVerdadeira: true, acessoFantasma: false,
         // 🔒 Acesso à Arma Espiritual/Fantasma Nobre como um todo (core/acessoArmaEspiritual.js): sem ele o
         // jogador nem vê os capítulos dela na Ficha Definitiva. Só o Mestre/Co-Mestre concede.

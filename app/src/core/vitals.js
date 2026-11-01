@@ -7,6 +7,7 @@ import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from './attribute
 import { getPrestigioReal } from './prestige.js';
 import { calcularReducaoFadigaPorRegeneracao } from './fadiga.js';
 import { getRegeneracaoTotalPct, calcularCuraRegeneracao } from './regeneracao.js';
+import { modificadoresDeEstados } from './condicoes.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
 
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
@@ -440,7 +441,9 @@ export function aplicarRegeneracaoDeTurno(ficha, pisoFadigaExtra = 0) {
             // não só uma barra.
             const teto = getTetoExibidoComFator(key, ficha);
             // 💖 Regeneração em PORCENTAGEM do teto por turno (core/regeneracao.js).
-            const regen = calcularCuraRegeneracao(teto, getRegeneracaoTotalPct(ficha[key], getBuffs(ficha, key).regeneracao, teto));
+            // 🩸 Estados que cortam a cura (Sangrando, Queimado, Criogenia, Exaustão 4+) também cortam a Regeneração da Vida.
+            const cortePorEstados = key === 'vida' ? modificadoresDeEstados(ficha).curaMult : 1;
+            const regen = calcularCuraRegeneracao(teto, getRegeneracaoTotalPct(ficha[key], getBuffs(ficha, key).regeneracao, teto)) * cortePorEstados;
             if (regen > 0 && teto > 0 && (ficha[key].atual || 0) < teto) {
                 const antes = ficha[key].atual || 0;
                 ficha[key].atual = Math.min(teto, antes + regen);

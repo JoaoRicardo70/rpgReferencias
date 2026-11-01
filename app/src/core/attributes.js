@@ -2,7 +2,9 @@ import useStore, { sanitizarNome } from '../stores/useStore';
 import { isFisico, isEnergia, tratarUnico } from './utils.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 import { efeitosDeCombos } from './combos.js';
-import { efeitosDeBuffsTemporarios } from './suporte.js';
+import { efeitosDeBuffsTemporarios, efeitosDeSuportePassivo } from './suporte.js';
+import { efeitosDaArmaEspiritual } from './armaEspiritualEfeitos.js';
+import { efeitosAtivosDoItem } from './efeitosItem.js';
 import { getEfeitosFixosDeClasse, removerEfeitosLegados, ehBerserker, calcularGanhoBerserker, registrarResolvedorNivelClasse, getNivelClasse } from './classesMecanicas.js';
 
 // 📖 Classes cadastradas no Compêndio da MESA INTEIRA — a mesma leitura que a tela do Compêndio faz
@@ -93,7 +95,8 @@ export function getDadosClasseRegistrada(classeId) {
 export function getEfeitosDeClasse(ficha) {
     // 🥋 Buffs de Combos/Follow Ups (core/combos.js) entram aqui para valer em tudo que lê os efeitos da ficha (dano, acerto, CA, Ações...), com ou sem classe.
     // ✨ Buffs temporários de Suporte (core/suporte.js) entram junto: valem em tudo que lê os efeitos da ficha.
-    const efeitosCombo = [...efeitosDeCombos(ficha), ...efeitosDeBuffsTemporarios(ficha)];
+    // ⚔️ Buffs do estado em vigor da Arma Espiritual e ✨ buffs de Suporte passivo (sempre ligados) entram junto.
+    const efeitosCombo = [...efeitosDeCombos(ficha), ...efeitosDeBuffsTemporarios(ficha), ...efeitosDeSuportePassivo(ficha), ...efeitosDaArmaEspiritual(ficha)];
     let classeHeroica = (ficha && ficha.bio && ficha.bio.classe) ? String(ficha.bio.classe).toLowerCase() : '';
     let subClasse = (ficha && ficha.bio && ficha.bio.subClasse) ? String(ficha.bio.subClasse).toLowerCase() : '';
 
@@ -194,7 +197,7 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
                 }
 
                 if (applyBase) {
-                    if (item.efeitos) processarEfeitos(item.efeitos, `Item: ${item.nome}`);
+                    processarEfeitos(efeitosAtivosDoItem(item), `Item: ${item.nome}`);
                     if (item.efeitosPassivos) processarEfeitos(item.efeitosPassivos, `Item(Pass): ${item.nome}`);
                 }
 

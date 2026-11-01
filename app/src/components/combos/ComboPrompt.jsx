@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import useStore from '../../stores/useStore';
 import { enviarParaFeed, salvarFichaSilencioso } from '../../services/firebase-sync';
 import { temCombos, opcoesDeCombo, estadoDeCombo, zerarEstadoDeCombo, rotuloAcaoGolpe, resumirCombo, descreverBuff, ACOES_GOLPE } from '../../core/combos';
+import { removerBuffsDoCombate } from '../../core/suporte';
 import { aplicarEscolhaCombo, acaoFaltando, definirEstadoDeCombo } from './aplicarCombo';
 
 // 🥋 Aviso de Combo (mesmo jeito do aviso de Reação, components/combate/ReacaoPrompt.jsx): quando um golpe SEU acerta, pergunta o que foi:
@@ -70,10 +71,18 @@ export default function ComboPrompt() {
         const antes = iniciativaAnterior.current.nome === meuNome ? Number(iniciativaAnterior.current.valor) || 0 : 0;
         const agora = Number(minhaFicha?.iniciativa) || 0;
         iniciativaAnterior.current = { nome: meuNome, valor: minhaFicha?.iniciativa };
-        if (antes > 0 && agora === 0 && JSON.stringify(estadoDeCombo(minhaFicha)) !== JSON.stringify(zerarEstadoDeCombo())) {
-            updateFicha((f) => { definirEstadoDeCombo(f, zerarEstadoDeCombo()); });
-            salvarFichaSilencioso();
-            adicionarAviso('Combate encerrado: Combos zerados.', 'info');
+        if (antes > 0 && agora === 0) {
+            const temCombos = JSON.stringify(estadoDeCombo(minhaFicha)) !== JSON.stringify(zerarEstadoDeCombo());
+            // ✨ Buffs de Suporte "até o fim do combate" (core/suporte.js) saem junto.
+            const temBuffsDoCombate = (minhaFicha.buffsTemporarios || []).some(b => b && b.ateFimCombate);
+            if (temCombos || temBuffsDoCombate) {
+                updateFicha((f) => {
+                    if (temCombos) definirEstadoDeCombo(f, zerarEstadoDeCombo());
+                    if (temBuffsDoCombate) f.buffsTemporarios = removerBuffsDoCombate(f.buffsTemporarios);
+                });
+                salvarFichaSilencioso();
+                adicionarAviso(temCombos ? 'Combate encerrado: Combos zerados.' : 'Combate encerrado: buffs do combate removidos.', 'info');
+            }
         }
     }, [minhaFicha, meuNome, updateFicha, adicionarAviso]);
 

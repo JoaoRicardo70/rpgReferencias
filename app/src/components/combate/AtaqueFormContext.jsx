@@ -5,6 +5,7 @@ import { getEfeitosDeClasse } from '../../core/attributes';
 import { getVitalMxDisplay, getVidaTotalMaxDisplay, danoExibidoParaBruto, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularDano } from '../../core/engine';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
+import { efeitosAtivosDoItem } from '../../core/efeitosItem';
 import { dadosLimitadosDaTecnica } from '../../core/limiteDados';
 import { tiposRastreadosDe, acoesEmFalta, gastarAcoes, avisosDoGasto } from '../../core/acoesTecnica';
 import { reacaoAguardandoDano, getReacaoDaTecnica } from '../../core/reacoes';
@@ -18,6 +19,7 @@ import { resolverAlvoCombate, reduzirDanoNoAlvo, ehAlvoPersonagem, montarAlvoPer
 import { gravarVidaDoAlvo } from '../../services/danoAlvo';
 import { criarPosGolpe } from '../../services/posGolpe';
 import { coletarEstadosDoGolpe } from '../../core/estadosGolpe';
+import { fonteDeEstadosDaArma } from '../../core/armaEspiritualEfeitos';
 import { getNivelDominio } from '../../core/dominios';
 import { classificarAtaque, energiasDoGolpe } from '../../core/identificacao';
 import { montarNarrativa } from '../../core/descricaoAtaque';
@@ -145,7 +147,7 @@ export function AtaqueFormProvider({ children }) {
 
         if (minhaFicha) {
             (minhaFicha.poderes || []).forEach(p => { if (p && p.ativa) scanFuria(escalarEfeitosPorEstagio(p.efeitos, p)); scanFuria(p?.efeitosPassivos); });
-            (minhaFicha.inventario || []).forEach(i => { if (i && i.equipado) { scanFuria(i.efeitos); scanFuria(i.efeitosPassivos); } });
+            (minhaFicha.inventario || []).forEach(i => { if (i && i.equipado) { scanFuria(efeitosAtivosDoItem(i)); scanFuria(i.efeitosPassivos); } });
             (minhaFicha.passivas || []).forEach(p => scanFuria(p.efeitos));
             scanFuria(getEfeitosDeClasse(minhaFicha));
         }
@@ -590,9 +592,10 @@ export function AtaqueFormProvider({ children }) {
 
         // 🩸 Estados que o golpe aplica (Poderes, Técnicas, arma, itens e Ataque livre) e Reflexo de quem for atingido.
         // Quem defende pela aba Defesa (sem alvo marcado) recebe os mesmos estados pelo Feed (estadosGolpe).
+        const fonteArmaEspiritual = fonteDeEstadosDaArma(minhaFicha); // a Arma Espiritual em uso (estado em vigor) aplica os debuffs dela
         const estadosParaDefensor = coletarEstadosDoGolpe({
             armas: armaEquipada ? [armaEquipada] : [],
-            fontes: [...poderesDoGolpe, ...magiasDoGolpe, ...(minhaFicha.inventario || []).filter(i => i && i.equipado && i.tipo !== 'arma')],
+            fontes: [...poderesDoGolpe, ...magiasDoGolpe, ...(minhaFicha.inventario || []).filter(i => i && i.equipado && i.tipo !== 'arma'), ...(fonteArmaEspiritual ? [fonteArmaEspiritual] : [])],
             extras: minhaFicha.ataqueConfig && minhaFicha.ataqueConfig.estadosGolpe
         });
         const posGolpe = criarPosGolpe({ estados: estadosParaDefensor, critico: isCriticoNormal || isCriticoFatal, danoOriginal: result.dano, nomeAtacante: nomeNoFeed, custoGolpeTotal: result.custoCheioTotal || 0 });
@@ -693,7 +696,7 @@ export function AtaqueFormProvider({ children }) {
                         });
                     };
                     (minhaFicha.poderes || []).forEach(p => { if (p.ativa) scanBruto(escalarEfeitosPorEstagio(p.efeitos, p)); scanBruto(p.efeitosPassivos); });
-                    (minhaFicha.inventario || []).forEach(i => { if (i.equipado) { scanBruto(i.efeitos); scanBruto(i.efeitosPassivos); } });
+                    (minhaFicha.inventario || []).forEach(i => { if (i.equipado) { scanBruto(efeitosAtivosDoItem(i)); scanBruto(i.efeitosPassivos); } });
                     (minhaFicha.passivas || []).forEach(p => scanBruto(p.efeitos));
                     
                     zRef.danoBrutoOriginal = danoBrutoOrig;

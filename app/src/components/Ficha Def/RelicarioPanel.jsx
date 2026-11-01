@@ -4,6 +4,13 @@ import { lerImagemComoBase64 } from '../../services/firebase-storage';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
 import ArsenalPanel from '../arsenal/ArsenalPanel';
+import EditorBuffs from '../combos/EditorBuffs';
+import EstadosGolpeEditor from '../shared/EstadosGolpeEditor';
+import SuporteEditor from '../shared/SuporteEditor';
+import { acharAlvoParaGravar } from '../shared/alvoDeEditor';
+import { blocoDoEstado } from '../../core/armaEspiritualEfeitos';
+import { normalizarSuporte } from '../../core/suporte';
+import { descreverBuff } from '../../core/combos';
 import { temAcessoArmaEspiritual, podeVerArmaEspiritual, filtrarCapitulos, resolverAbaVisivel } from '../../core/acessoArmaEspiritual';
 
 // ==========================================
@@ -543,6 +550,48 @@ function PaginaPassivas() {
                     </div>
                 </div>
             </div>
+            <BlocoEfeitosReais estado={abaEstado} />
+        </div>
+    );
+}
+
+// ⚔️ Buffs e Debuffs reais de um estado da arma (ficha.armaEspiritual.efeitosEstados[estado], ver core/armaEspiritualEfeitos.js):
+// só o estado em vigor vale, com a arma equipada. Mestre edita; jogador só lê.
+function BlocoEfeitosReais({ estado }) {
+    const { minhaFicha, updateFicha, callSave, isMestre } = useRelicario();
+    const info = ESTADOS_ARMA.find(e => e.id === estado) || ESTADOS_ARMA[0];
+    const bloco = blocoDoEstado(minhaFicha, estado);
+    const buffs = Array.isArray(bloco.efeitos) ? bloco.efeitos : [];
+    const aplica = Array.isArray(bloco.aplicaEstados) ? bloco.aplicaEstados : [];
+    const suporte = normalizarSuporte(bloco.suporte);
+
+    const gravarBuffs = useCallback((lista) => {
+        updateFicha((f) => {
+            const alvo = acharAlvoParaGravar(f, 'armaEspiritual', null, estado);
+            alvo.efeitos = lista;
+        });
+        callSave();
+    }, [updateFicha, callSave, estado]);
+
+    return (
+        <div data-testid="bloco-efeitos-reais" style={{ border: `1px dashed ${info.cor}`, padding: '20px', borderRadius: '8px', background: 'rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h2 style={{ margin: 0, fontSize: '1.3em', color: info.cor }}>⚔️ Buffs e Debuffs reais ({info.label})</h2>
+            <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic' }}>
+                Valem de verdade (dano, acerto, CA...) enquanto a arma está equipada e "{info.label}" é o estado em vigor.
+            </div>
+            {isMestre ? (
+                <>
+                    <EditorBuffs buffs={buffs} onChange={gravarBuffs} rotulo="Buffs enquanto equipada" />
+                    <EstadosGolpeEditor colecao="armaEspiritual" estado={estado} />
+                    <SuporteEditor colecao="armaEspiritual" estado={estado} />
+                </>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div><strong>Buffs:</strong> {buffs.length ? buffs.map(b => descreverBuff(b)).join(' • ') : 'nenhum'}</div>
+                    <div><strong>Estados que aplica ao acertar:</strong> {aplica.length ? aplica.map(e => `${e.id} x${e.stacks || 1}`).join(' • ') : 'nenhum'}</div>
+                    <div><strong>Cura e Buffs de suporte:</strong> {suporte ? `${suporte.modo === 'passivo' ? 'passivo' : 'de uso'}${suporte.buffs && suporte.buffs.length ? ` — ${suporte.buffs.map(b => descreverBuff(b)).join(' • ')}` : ''}` : 'nenhum'}</div>
+                </div>
+            )}
         </div>
     );
 }

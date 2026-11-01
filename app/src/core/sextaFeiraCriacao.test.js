@@ -175,20 +175,22 @@ describe('normalizarItem', () => {
         const { objeto } = normalizarItem({ nome: 'Faca' });
         expect(objeto).toMatchObject({ tipo: 'arma', armaTipo: 'espada', raridade: 'comum', dadosQtd: 1, dadosFaces: 20, alcance: 1 });
     });
-    it.each(['armadura', 'artefato'])('%s: dados/alcance 0, efeitos [] e aviso se efeitos foram dados', (tipo) => {
+    it.each(['armadura', 'artefato'])('%s: dados/alcance 0 e os efeitos ativos/passivos são mantidos', (tipo) => {
         const r = normalizarItem({
             nome: 'Peitoral', tipo, dadosQtd: 5, dadosFaces: 10, alcance: 3, armaTipo: 'espada',
             efeitos: [{ atributo: 'forca', propriedade: 'base', valor: 1 }],
         });
-        expect(r.objeto).toMatchObject({ tipo, dadosQtd: 0, dadosFaces: 0, alcance: 0, efeitos: [], efeitosPassivos: [], armaTipo: '' });
-        expect(r.avisos.some(a => a.includes('Só armas guardam efeitos'))).toBe(true);
+        expect(r.objeto).toMatchObject({ tipo, dadosQtd: 0, dadosFaces: 0, alcance: 0, efeitosPassivos: [], armaTipo: '' });
+        expect(r.objeto.efeitos).toHaveLength(1);
+        expect(r.avisos.some(a => a.includes('Só armas guardam efeitos'))).toBe(false);
     });
     it('armadura sem efeitos: sem aviso', () => {
         expect(normalizarItem({ nome: 'X', tipo: 'armadura' }).avisos).toEqual([]);
     });
-    it('efeitosPassivos dados a armadura tambem geram aviso', () => {
+    it('efeitosPassivos dados a artefato são mantidos, sem aviso', () => {
         const r = normalizarItem({ nome: 'X', tipo: 'artefato', efeitosPassivos: [{ atributo: 'forca', propriedade: 'base', valor: 1 }] });
-        expect(r.avisos.some(a => a.includes('Só armas'))).toBe(true);
+        expect(r.objeto.efeitosPassivos).toHaveLength(1);
+        expect(r.avisos.some(a => a.includes('Só armas'))).toBe(false);
     });
     it('enums invalidos: padrao e aviso', () => {
         const r = normalizarItem({ nome: 'X', tipo: 'grimorio', raridade: 'mitica', bonusTipo: 'nada', armaTipo: 'laser' });
