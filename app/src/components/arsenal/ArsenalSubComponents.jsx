@@ -1,6 +1,7 @@
 import React from 'react';
 import DescricoesAtaqueEditor from '../shared/DescricoesAtaqueEditor';
 import EstadosGolpeEditor from '../shared/EstadosGolpeEditor';
+import SuporteEditor from '../shared/SuporteEditor';
 import { useArsenalForm, ARMA_TIPOS, RARIDADES, BONUS_OPTIONS } from './ArsenalFormContext';
 import { ATRIBUTOS_AGRUPADOS, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 import FormasEditor from '../shared/FormasEditor';
@@ -301,6 +302,7 @@ export function ArsenalInventarioList() {
                             </div>
                             {p.tipo === 'arma' && <DescricoesAtaqueEditor colecao="inventario" itemId={p.id} />}
                             <EstadosGolpeEditor colecao="inventario" itemId={p.id} />
+                            <SuporteEditor colecao="inventario" itemId={p.id} />
                             {p.tipo === 'arma' && (
                                 <FormasEditor
                                     itemRaridade={p.raridade}

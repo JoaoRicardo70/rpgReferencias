@@ -18,6 +18,7 @@ import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisput
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { danoDeEstadosNoTurno, descreverDanoDeEstados } from '../../core/condicoes';
+import { passarTurnoDosBuffs } from '../../core/suporte';
 import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano';
 import { calcularDanoRapido } from '../../core/danoRapido';
@@ -120,6 +121,8 @@ function aplicarInicioDeTurno(ficha, ehDummie = false) {
     ficha.combate.fadigaExtra = Math.max(0, (Number(ficha.combate.fadigaExtra) || 0) + ganhoDinamicoDoTurno);
 
     aplicarRegeneracaoDeTurno(ficha, ganhoDinamicoDoTurno);
+    // ✨ Buffs temporários de Suporte (core/suporte.js) perdem 1 turno no começo do turno do dono; os que acabam saem.
+    if (Array.isArray(ficha.buffsTemporarios) && ficha.buffsTemporarios.length > 0) ficha.buffsTemporarios = passarTurnoDosBuffs(ficha).lista;
     return aplicarDanoDeEstadosNoTurno(ficha, ehDummie);
 }
 
@@ -154,6 +157,7 @@ function camposDeInicioDeTurno(ficha) {
         if (ficha.combate.acoesSeguradas !== undefined) campos['combate/acoesSeguradas'] = ficha.combate.acoesSeguradas;
         if (ficha.combate.acaoSeguradaCredito !== undefined) campos['combate/acaoSeguradaCredito'] = ficha.combate.acaoSeguradaCredito;
     }
+    if (ficha.buffsTemporarios !== undefined) campos.buffsTemporarios = ficha.buffsTemporarios;
     if (ficha.acoes) {
         ['padrao', 'bonus', 'reacao'].forEach((t) => {
             if (!ficha.acoes[t]) return;

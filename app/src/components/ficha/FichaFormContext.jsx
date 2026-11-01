@@ -98,6 +98,12 @@ export function FichaFormProvider({ children }) {
     const [serNovoPropPassivo, setSerNovoPropPassivo] = useState('base');
     const [serNovoValPassivo, setSerNovoValPassivo] = useState('');
 
+    // ✨ Tira um buff temporário de Suporte da ficha (core/suporte.js).
+    const removerBuffTemporario = useCallback((id) => {
+        updateFicha(f => { f.buffsTemporarios = (f.buffsTemporarios || []).filter(b => String(b.id) !== String(id)); });
+        salvarFichaSilencioso();
+    }, [updateFicha]);
+
     const modificarCondicao = useCallback((condId, delta) => {
         updateFicha(f => {
             if (!f.condicoes) f.condicoes = [];
@@ -545,7 +551,7 @@ export function FichaFormProvider({ children }) {
         addSerEfeito, removeSerEfeito, addSerEfeitoPassivo, removeSerEfeitoPassivo,
         addSerSelado, editarSerSelado, removeSerSelado, toggleSerSelado, cancelarEdicaoSer,
         salvarFormaSer, deletarFormaSer, ativarFormaSer,
-        modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
+        modificarCondicao, removerBuffTemporario, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
     }), [
         minhaFicha, updateFicha, personagens, meuNome, mesa, raca, classe, subClasse, alterEgoSlot1, alterEgoSerId, classesMemorizadas,
         idade, fisico, sangue, alinhamento, afiliacao, dinheiro, salvandoBio, overridesCompendio, grands, isGrand, grandIcone,
@@ -557,7 +563,7 @@ export function FichaFormProvider({ children }) {
         serNovoNomeEfeitoPassivo, serNovoAtrPassivo, serNovoPropPassivo, serNovoValPassivo,
         addSerEfeito, removeSerEfeito, addSerEfeitoPassivo, removeSerEfeitoPassivo,
         addSerSelado, editarSerSelado, removeSerSelado, toggleSerSelado, cancelarEdicaoSer,
-        salvarFormaSer, deletarFormaSer, ativarFormaSer, modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
+        salvarFormaSer, deletarFormaSer, ativarFormaSer, modificarCondicao, removerBuffTemporario, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
     ]);
 
     return (

@@ -1,6 +1,7 @@
 import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
 import DescricoesAtaqueEditor from '../shared/DescricoesAtaqueEditor';
 import EstadosGolpeEditor from '../shared/EstadosGolpeEditor';
+import SuporteEditor from '../shared/SuporteEditor';
 import React, { useState } from 'react';
 import { usePoderesForm, SINGULAR } from './PoderesFormContext';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, GRUPO_IDENTIFICACAO, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
@@ -610,6 +611,7 @@ export function PoderesLista() {
                             
                             <DescricoesAtaqueEditor colecao="poderes" itemId={p.id} />
                             <EstadosGolpeEditor colecao="poderes" itemId={p.id} comReflexo />
+                            <SuporteEditor colecao="poderes" itemId={p.id} />
 
                             {/* CAIXA DE DISPARO */}
                             {poderPreparandoId === p.id && (

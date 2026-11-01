@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { ESTADOS, MAX_STACKS } from '../../core/condicoes';
 import { normalizarAplicaEstados, ATRIBUTOS_TESTE, ROTULO_ATRIBUTO, LIMITES_ESTADOS, estadoDoTipoDeArma } from '../../core/estadosGolpe';
-import { MODOS_REFLEXO, ENERGIAS_REFLEXO, normalizarReflexo } from '../../core/reflexo';
+import { MODOS_REFLEXO, MODOS_CUSTO_REFLEXO, ENERGIAS_REFLEXO, normalizarReflexo } from '../../core/reflexo';
 
 // 🩸 Lista de "estados que este golpe aplica" (core/estadosGolpe.js): estado, stacks, teste de resistência opcional e "só em crítico".
 export function ListaAplicaEstados({ lista, onChange }) {
@@ -48,6 +48,12 @@ export function CamposReflexo({ reflexo, onChange }) {
                 <button type="button" className="descricoes-ataque-remover" aria-label="Remover Reflexo" onClick={() => onChange(null)}>✖</button>
             </div>
             <p className="descricoes-ataque-dica">{modo ? modo.dica : ''} Vale com o Poder Ativo / a Técnica Equipada.</p>
+            <div className="estados-golpe-linha">
+                <select className="input-neon" aria-label="Como o Reflexo cobra o custo" value={r.custoModo} onChange={e => alterar({ custoModo: e.target.value })}>
+                    {MODOS_CUSTO_REFLEXO.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                </select>
+                <label className="estados-golpe-check" title="Se a sua ficha pode conjurar como Poder, o Reflexo não gasta energia e o efeito continua igual."><input type="checkbox" checked={r.comoPoder} onChange={e => alterar({ comoPoder: e.target.checked })} /> conjurar como Poder (sem custo)</label>
+            </div>
             <div className="estados-golpe-linha">
                 <label className="estados-golpe-check">Custo <input className="input-neon estados-golpe-num" type="number" min="0" max="100" aria-label="Custo do Reflexo em porcentagem" value={r.custoPercentual} onChange={e => alterar({ custoPercentual: parseFloat(e.target.value) || 0 })} />% de
                     <select className="input-neon" aria-label="Energia do Reflexo" value={r.energia} onChange={e => alterar({ energia: e.target.value })}>

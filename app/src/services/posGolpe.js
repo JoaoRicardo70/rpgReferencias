@@ -6,8 +6,7 @@
 import { salvarCamposPersonagem } from './firebase-sync';
 import { somarEstado } from '../core/condicoes';
 import { resolverEstadosNoAlvo, descreverResolucao, juntarAplicados } from '../core/estadosGolpe';
-import { reflexosDisponiveis, calcularReflexo, descreverReflexo } from '../core/reflexo';
-import { getVitalMxDisplay } from '../core/vitals';
+import { reflexosDisponiveis, calcularReflexo, descreverReflexo, custoDoReflexo } from '../core/reflexo';
 
 // Soma os estados já resolvidos na lista de condições do alvo e grava. `fonte` = quem causou (para Amedrontado/Charmado/Provocado).
 // Lista de condições do alvo depois de somar os estados (não grava nada).
@@ -36,20 +35,19 @@ export function aplicarEstadosDoGolpe({ idAlvo, alvo, estados, critico = false, 
 
 // Reflexo AUTOMÁTICO do alvo-personagem: o primeiro com `automatico` que ele consiga pagar. Cobra o custo dele e devolve
 // { danoNoAlvo, danoNoAtacante, texto }. Sem reflexo, devolve o Dano como veio. Quem chama grava o Dano no atacante.
-export function resolverReflexoAutomatico({ alvo, danoNoAlvo, danoOriginal, nomeAtacante }) {
+export function resolverReflexoAutomatico({ alvo, danoNoAlvo, danoOriginal, nomeAtacante, custoGolpeTotal = 0 }) {
     const neutro = { danoNoAlvo, danoNoAtacante: 0, texto: '' };
     if (!alvo || !alvo.isPersonagem || !alvo.ficha) return neutro;
     const ficha = alvo.ficha;
     const candidatos = reflexosDisponiveis(ficha).filter(r => r.reflexo.automatico);
     for (const item of candidatos) {
-        const perc = item.reflexo.custoPercentual;
+        const { energia: k, valor: custo, comoPoder } = custoDoReflexo(ficha, item, custoGolpeTotal);
+        const temCusto = !comoPoder && (item.reflexo.custoModo === 'igual' || item.reflexo.custoPercentual > 0);
         const campos = {};
-        if (perc > 0) {
-            const k = item.reflexo.energia;
-            const custo = Math.floor(getVitalMxDisplay(k, ficha) * (perc / 100));
+        if (temCusto) {
             const atual = Number(ficha[k] && ficha[k].atual);
-            if (!Number.isFinite(atual) || atual < custo) continue; // sem energia para pagar: tenta o próximo
-            campos[`${k}/atual`] = atual - custo;
+            if (!Number.isFinite(custo) || !Number.isFinite(atual) || atual < custo) continue; // sem energia para pagar: tenta o próximo
+            if (custo > 0) campos[`${k}/atual`] = atual - custo;
         }
         const calculo = calcularReflexo(item.reflexo, { danoChega: danoNoAlvo, danoOriginal });
         if (Object.keys(campos).length > 0) salvarCamposPersonagem(alvo.personagemNome, campos);
@@ -60,7 +58,7 @@ export function resolverReflexoAutomatico({ alvo, danoNoAlvo, danoOriginal, nome
 
 // Um por golpe: reúne o que acontece em CADA alvo atingido (Reflexo automático, depois os estados) e soma o Dano que volta
 // para o atacante. `aplicar(idAlvo, alvo, dano)` devolve o Dano que o alvo realmente sofre (0 se o Reflexo devolveu tudo).
-export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0, nomeAtacante = '' } = {}) {
+export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0, nomeAtacante = '', custoGolpeTotal = 0 } = {}) {
     const textos = [];
     const comEstados = new Map(); // Dummies: alvo com as condições novas, para o chamador gravar junto com o Dano
     let danoAtacante = 0;
@@ -70,7 +68,7 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
             let dano = danoNoAlvo;
             let devolveu = false;
             if (alvo.isPersonagem) {
-                const r = resolverReflexoAutomatico({ alvo, danoNoAlvo: dano, danoOriginal, nomeAtacante });
+                const r = resolverReflexoAutomatico({ alvo, danoNoAlvo: dano, danoOriginal, nomeAtacante, custoGolpeTotal });
                 if (r.texto) { dano = r.danoNoAlvo; danoAtacante += r.danoNoAtacante; textos.push(r.texto); devolveu = true; }
             }
             if (estados.length > 0 && (devolveu ? dano > 0 : true)) {

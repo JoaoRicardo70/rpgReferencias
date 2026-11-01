@@ -6,6 +6,7 @@ import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes, ge
 import { POLARIDADES, getInfoPolaridade } from '../../core/polaridade.js';
 import { agruparElementosPorCategoria, chaveElemento } from '../../core/elementos.js';
 import { resumoDosEstados } from '../../core/condicoes.js';
+import { buffsTemporariosDaFicha } from '../../core/suporte.js';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Ficha provider não encontrado</div>;
 
@@ -227,7 +228,7 @@ export function FichaCondicoesEElementais() {
     const ctx = useFichaForm();
     if (!ctx) return null;
 
-    const { minhaFicha, modificarCondicao, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano } = ctx;
+    const { minhaFicha, modificarCondicao, removerBuffTemporario, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano } = ctx;
     const reducoes = Array.isArray(minhaFicha.reducoesDano) ? minhaFicha.reducoesDano : [];
     const passivas = reducoes.filter(r => r && r.tipo === TIPO_HABILIDADE_PASSIVA);
     const ativas = reducoes.filter(r => r && r.tipo !== TIPO_HABILIDADE_PASSIVA);
@@ -238,6 +239,7 @@ export function FichaCondicoesEElementais() {
     const condicoesAtivas = minhaFicha.condicoes || [];
     // 🩸 O que os estados estão causando agora (core/condicoes.js): as mesmas contas que Acerto, Defesa, Testes e Turno usam.
     const resumoEstados = resumoDosEstados(minhaFicha);
+    const buffsAtivos = buffsTemporariosDaFicha(minhaFicha);
     const gruposElementos = agruparElementosPorCategoria(elementosDinamicos);
 
     return (
@@ -265,6 +267,14 @@ export function FichaCondicoesEElementais() {
                                 );
                             })}
                         </div>
+                        {buffsAtivos.length > 0 && (
+                            <ul className="estados-efeitos" aria-label="Buffs temporários">
+                                {buffsAtivos.map(b => (
+                                    <li key={b.id}>✨ {b.nome}{b.fonte ? ` (de ${b.fonte})` : ''} · {b.efeitos.length} efeito(s) · {b.restantes > 0 ? `${b.restantes} turno(s)` : 'sem prazo'}{' '}
+                                        <button type="button" className="combo-mini" aria-label={`Remover o buff ${b.nome}`} onClick={() => removerBuffTemporario(b.id)}>✕</button></li>
+                                ))}
+                            </ul>
+                        )}
                         {resumoEstados.length > 0 && (
                             <ul className="estados-efeitos" aria-label="O que os estados estão causando">
                                 {resumoEstados.map((t, i) => <li key={i}>{t}</li>)}

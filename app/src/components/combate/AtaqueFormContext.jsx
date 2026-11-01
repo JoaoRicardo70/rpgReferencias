@@ -595,7 +595,7 @@ export function AtaqueFormProvider({ children }) {
             fontes: [...poderesDoGolpe, ...magiasDoGolpe, ...(minhaFicha.inventario || []).filter(i => i && i.equipado && i.tipo !== 'arma')],
             extras: minhaFicha.ataqueConfig && minhaFicha.ataqueConfig.estadosGolpe
         });
-        const posGolpe = criarPosGolpe({ estados: estadosParaDefensor, critico: isCriticoNormal || isCriticoFatal, danoOriginal: result.dano, nomeAtacante: nomeNoFeed });
+        const posGolpe = criarPosGolpe({ estados: estadosParaDefensor, critico: isCriticoNormal || isCriticoFatal, danoOriginal: result.dano, nomeAtacante: nomeNoFeed, custoGolpeTotal: result.custoCheioTotal || 0 });
         const meuUltimoAcerto = [...feedCombate].reverse().find(f => f.nome === nomeNoFeed && f.tipo === 'acerto');
         let extraFeed = {};
         let textoAlvos = "";
@@ -738,6 +738,7 @@ export function AtaqueFormProvider({ children }) {
             armaStr: result.armaStr, detalheConta: result.detalheConta + textoAlvos,
             elemento: elementoAtivo, 
             ...(estadosParaDefensor.length > 0 ? { estadosGolpe: estadosParaDefensor, golpeCritico: !!(isCriticoNormal || isCriticoFatal) } : {}),
+            ...(result.custoCheioTotal > 0 ? { custoGolpeTotal: Math.floor(result.custoCheioTotal) } : {}),
             ...(narrativa ? { narrativa: narrativa.texto, narrativaComplemento: narrativa.complemento } : {}),
             ...extraFeed
         };

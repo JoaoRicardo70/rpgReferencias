@@ -1,15 +1,21 @@
 import React from 'react';
-import { resumirProposta } from '../../core/sextaFeiraCriacao';
+import { resumirProposta, descreverExtrasProposta } from '../../core/sextaFeiraCriacao';
 
 // 🛠️ Detalhes de uma criação: cartão da resposta da Sexta-Feira, pedidos pendentes no painel dela e
 // pedido em destaque no Grimório da aba do Mestre.
 export default function DetalhesCriacao({ tipo, objeto, avisos }) {
     if (!objeto) return null;
+    const extras = descreverExtrasProposta(objeto);
     const efeitos = [...(objeto.efeitos || []).map(e => ({ ...e, passivo: false })), ...(objeto.efeitosPassivos || []).map(e => ({ ...e, passivo: true }))];
     return (
         <div className="sexta-criacao-detalhes">
-            <div className="sexta-criacao-resumo">{resumirProposta(tipo, objeto)}</div>
+            <div className="sexta-criacao-resumo">{resumirProposta(tipo, objeto, { extras: false })}</div>
             {objeto.descricao && <p className="sexta-criacao-descricao">{objeto.descricao}</p>}
+            {extras.length > 0 && (
+                <ul className="sexta-criacao-efeitos">
+                    {extras.map((linha, i) => <li key={i}>{linha}</li>)}
+                </ul>
+            )}
             {efeitos.length > 0 && (
                 <ul className="sexta-criacao-efeitos">
                     {efeitos.map((e, i) => (

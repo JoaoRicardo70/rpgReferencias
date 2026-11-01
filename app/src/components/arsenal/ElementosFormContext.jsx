@@ -394,6 +394,7 @@ export function ElementosFormProvider({ children }) {
                     // Estados e Reflexo também são editados na lista (EstadosGolpeEditor): preserva.
                     if (ficha.ataquesElementais[ix].aplicaEstados) novaMagia.aplicaEstados = ficha.ataquesElementais[ix].aplicaEstados;
                     if (ficha.ataquesElementais[ix].reflexo) novaMagia.reflexo = ficha.ataquesElementais[ix].reflexo;
+                    if (ficha.ataquesElementais[ix].suporte) novaMagia.suporte = ficha.ataquesElementais[ix].suporte;
                     ficha.ataquesElementais[ix] = novaMagia;
                 }
             } else {

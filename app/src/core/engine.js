@@ -10,6 +10,7 @@ import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 import { efeitosDeCombos } from './combos.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
 import { modificadoresDeEstados } from './condicoes.js';
+import { efeitosDeBuffsTemporarios } from './suporte.js';
 
 // Status são gravados 1000x maiores que o número exibido na Ficha (core: Marcados.jsx > FATOR_EXIBICAO_STATUS).
 const FATOR_EXIBICAO_STATUS = 1000;
@@ -61,6 +62,7 @@ export function calcularCA(ficha, tipo) {
     });
     (ficha.passivas || []).forEach(p => { somarBonus(p.efeitos); });
     somarBonus(efeitosDeCombos(ficha)); // 🥋 Combos/Follow Ups (core/combos.js)
+    somarBonus(efeitosDeBuffsTemporarios(ficha)); // ✨ Buffs temporários de Suporte (core/suporte.js)
     (ficha.inventario || []).filter(i => i.equipado).forEach(i => {
         let resolved = resolverEfeitosEntidade(i);
         somarBonus(resolved.efeitos);
@@ -238,6 +240,8 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         if (bruto > 0) custosPoder.push({ energia, bruto });
     };
     let comoPoderNames = [];
+    // ↩️ Custo CHEIO do golpe (para o Reflexo que cobra o mesmo valor): o que foi gasto + o que "como Poder" teria gasto sem ser Poder.
+    let custoCheioExtra = 0;
 
     if (armaEquipada && configArma && configArma.percEnergia > 0) {
         let { dreno } = calcularDreno(configArma.energiaCombustao, configArma.percEnergia);
@@ -259,6 +263,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
             let perc = limitarPercComoPoder(hab, hab.percComoPoder);
             ENERGIAS_COMO_PODER.forEach(e => registrarCustoPoder(e, perc, false));
             comoPoderNames.push(`${hab.nome} ${perc}%`);
+            if (hab.custoPercentual > 0 && !isElemental) custoCheioExtra += calcularDreno(hab.energiaCombustao, hab.custoPercentual).dreno;
         } else if (hab.custoPercentual > 0) {
             if (isElemental) {
                 // Ressonância Natural (Elemental inato): sem custo, e as três energias entram no Poder do golpe.
@@ -399,7 +404,8 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         atributosUsados: [...allAttrNames].join(' + '),
         detalheEnergia: txtEng, armaStr,
         detalheConta, drenos, energiaDrenada: true,
-        custoPoderBruto, custosPoder
+        custoPoderBruto, custosPoder,
+        custoCheioTotal: drenos.reduce((s, d) => s + (Number(d.valor) || 0), 0) + custoCheioExtra
     };
 }
 

@@ -22,7 +22,9 @@ export const CUSTO_DEFESA_POR_STACK = 0.1;
 export const DANO_POR_TURNO = {
     queimado: { qtd: 8, faces: 4 },
     sangrando: { qtd: 5, faces: 4 },
-    criogenia: { qtd: 5, faces: 4 }
+    criogenia: { qtd: 5, faces: 4 },
+    envenenado: { qtd: 5, faces: 4 },
+    necrosado: { qtd: 8, faces: 4 }
 };
 
 export const ESTADOS = [
@@ -114,8 +116,9 @@ export function resumoDosEstados(ficha) {
     const m = modificadoresDeEstados(ficha);
     const linhas = [];
     condicoesDaFicha(ficha).forEach((c) => {
-        if (c.id === 'envenenado') linhas.push('🤢 Envenenado: cada acerto com veneno fica mais eficaz (conta do Mestre).');
-        if (c.id === 'enlouquecido' || c.id === 'necrosado') linhas.push(`${iconeDoEstado(c.id)} ${nomeDoEstado(c.id)}: sem regra automática, o Mestre define.`);
+        if (c.id === 'envenenado') linhas.push(`🤢 Envenenado: ${5 * c.stacks}d4 de dano no começo do turno (cada acerto com veneno também fica mais eficaz, conta do Mestre).`);
+        if (c.id === 'necrosado') linhas.push(`💀 Necrosado: ${8 * c.stacks}d4 de dano no começo do turno.`);
+        if (c.id === 'enlouquecido') linhas.push('🌀 Enlouquecido: sem regra automática, o Mestre define.');
         if (c.id === 'amedrontado') linhas.push(`👻 Amedrontado: não ataca${c.fonte ? ` ${c.fonte}` : ' a fonte do medo'} e só se afasta dela.`);
         if (c.id === 'charmado') linhas.push(`💖 Charmado: não ataca${c.fonte ? ` ${c.fonte}` : ' quem o charmou'} e o defende.`);
         if (c.id === 'provocado') linhas.push(`💢 Provocado: só foca${c.fonte ? ` ${c.fonte}` : ' em quem o provocou'}.`);

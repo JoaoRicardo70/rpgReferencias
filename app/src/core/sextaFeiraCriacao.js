@@ -16,6 +16,10 @@ import { dadosLimitadosDaTecnica } from './limiteDados.js';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, GRUPO_IDENTIFICACAO, PROPRIEDADES_REACAO } from './efeitos-constants.js';
 import { normalizarPasta } from './pastas.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
+import { normalizarAplicaEstados, ATRIBUTOS_TESTE, ROTULO_ATRIBUTO, LIMITES_ESTADOS } from './estadosGolpe.js';
+import { ESTADOS, nomeDoEstado, iconeDoEstado, MAX_STACKS } from './condicoes.js';
+import { normalizarReflexo, MODOS_REFLEXO, ENERGIAS_REFLEXO } from './reflexo.js';
+import { normalizarSuporte, MODOS_ALVO_SUPORTE, ACOES_SUPORTE, LIMITES_SUPORTE } from './suporte.js';
 import { normalizarCombo, normalizarFollowUp, resumirCombo, TIPOS_GOLPE, ACOES_GOLPE, QUANDO_FOLLOW_UP, LIMITES as LIMITES_COMBO } from './combos.js';
 
 // Inclui as Reações (efeito reacao_<gatilho> + propriedade do efeito): a Sexta-Feira não pode rebaixá-las a efeito numérico comum.
@@ -183,6 +187,113 @@ function normalizarEfeitos(lista, padraoAtributo, avisos, rotulo) {
     });
 }
 
+// ---------- 🩸 Estados, ↩️ Reflexo e ✨ Suporte (campos opcionais das criações) ----------
+// O campo só entra no objeto se o normalizado não for vazio/nulo; o que for descartado vira aviso.
+function anexarEstadosReflexoSuporte(objeto, d, avisos, { reflexo = true } = {}) {
+    if (Array.isArray(d.aplicaEstados) && d.aplicaEstados.length) {
+        const estados = normalizarAplicaEstados(d.aplicaEstados);
+        if (estados.length < d.aplicaEstados.length) avisos.push(`${d.aplicaEstados.length - estados.length} estado(s) inválido(s) ou acima do limite foram descartados.`);
+        if (estados.length) objeto.aplicaEstados = estados;
+    }
+    if (d.reflexo !== undefined && d.reflexo !== null) {
+        if (!reflexo) avisos.push('Só Poderes e Técnicas têm Reflexo; o Reflexo foi ignorado.');
+        else {
+            const r = normalizarReflexo(d.reflexo);
+            if (r) objeto.reflexo = r;
+            else avisos.push('Reflexo inválido (use o modo devolver, compartilhar ou contra); foi ignorado.');
+        }
+    }
+    if (d.suporte !== undefined && d.suporte !== null) {
+        const su = normalizarSuporte(d.suporte);
+        const buffsBrutos = Array.isArray(d.suporte?.buffs) ? d.suporte.buffs.length : 0;
+        if (!su) avisos.push('Suporte vazio ou inválido (sem cura e sem buffs válidos); foi ignorado.');
+        else {
+            if (su.buffs.length < buffsBrutos) avisos.push(`${buffsBrutos - su.buffs.length} buff(s) de Suporte com atributo/propriedade inválido ou acima do limite foram descartados.`);
+            objeto.suporte = su;
+        }
+    }
+}
+
+const ROTULO_ACAO_SUPORTE = { nenhuma: 'sem custo de Ação', padrao: 'Ação', bonus: 'Ação Bônus', reacao: 'Reação' };
+const ROTULO_ALVOS_SUPORTE = { aliados: 'aliados', ambos: 'si e aliados' };
+
+// Linhas curtas do que a criação aplica/devolve/cura/bufa (resumo e cartão de confirmação).
+export function descreverExtrasProposta(objeto) {
+    const linhas = [];
+    if (!objeto) return linhas;
+    (objeto.aplicaEstados || []).forEach((e) => {
+        const teste = e.teste ? `teste de ${ROTULO_ATRIBUTO[e.teste.atributo] || e.teste.atributo} CD ${e.teste.cd}` : '';
+        const extra = [teste, e.apenasCritico ? 'só em crítico' : ''].filter(Boolean).join(', ');
+        linhas.push(`${iconeDoEstado(e.id)} Aplica ${nomeDoEstado(e.id)} x${e.stacks}${extra ? ` (${extra})` : ''}`);
+    });
+    if (objeto.reflexo) {
+        const modo = { devolver: 'Devolver', compartilhar: 'Compartilhar', contra: 'Contra-golpe' }[objeto.reflexo.modo] || objeto.reflexo.modo;
+        linhas.push(`↩️ Reflexo: ${modo} ${objeto.reflexo.mult}%${objeto.reflexo.automatico ? ' · automático' : ''}${objeto.reflexo.gastaReacao ? ' · gasta Reação' : ''}`);
+    }
+    const su = objeto.suporte;
+    if (su) {
+        const partes = [];
+        if (su.cura) {
+            const c = su.cura;
+            partes.push(`Cura ${[c.dadosQtd ? `${c.dadosQtd}d${c.dadosFaces}` : '', c.fixo ? String(c.fixo) : '', c.percVida ? `${c.percVida}% da Vida` : ''].filter(Boolean).join('+')}`);
+        }
+        if (su.buffs.length) {
+            const prazo = su.duracao > 0 ? `por ${su.duracao} turno${su.duracao === 1 ? '' : 's'}` : 'sem prazo';
+            partes.push(`Buffs: ${su.buffs.map(b => `${b.atributo} ${b.propriedade} ${b.valor > 0 ? '+' : ''}${b.valor}`).join(', ')} ${prazo}`);
+        }
+        const alvos = su.alvos === 'si' ? 'só em si' : `${ROTULO_ALVOS_SUPORTE[su.alvos]} (até ${su.maxAlvos})`;
+        linhas.push(`✨ ${partes.join(' · ')} · ${alvos} · ${ROTULO_ACAO_SUPORTE[su.acao]}${su.custoPercentual ? ` · custo ${su.custoPercentual}% de ${su.energia}` : ''}`);
+    }
+    return linhas;
+}
+
+const ESTADOS_SCHEMA = {
+    type: 'ARRAY',
+    description: `Estados negativos que a criação aplica em quem for atingido (máx. ${LIMITES_ESTADOS.porFonte}). Use só quando ela deve debilitar o alvo (sangramento, queimadura, lentidão...). stacks 1-${MAX_STACKS}; "teste" deixa o alvo resistir (d20 + atributo contra a CD); apenasCritico = só em golpe crítico. Ids: ${ESTADOS.map(e => e.id).join(', ')}. Ex.: [{"id":"sangrando","stacks":2,"teste":{"atributo":"constituicao","cd":15},"apenasCritico":true}]`,
+    items: {
+        type: 'OBJECT',
+        properties: {
+            id: { type: 'STRING', enum: ESTADOS.map(e => e.id) },
+            stacks: { type: 'INTEGER', description: `1 a ${MAX_STACKS}.` },
+            teste: { type: 'OBJECT', description: 'Opcional: o alvo pode resistir.', properties: { atributo: { type: 'STRING', enum: ATRIBUTOS_TESTE }, cd: { type: 'INTEGER', description: `Dificuldade (1 a ${LIMITES_ESTADOS.cdMax}).` } } },
+            apenasCritico: { type: 'BOOLEAN' },
+        },
+        required: ['id'],
+    },
+};
+
+const REFLEXO_SCHEMA = {
+    type: 'OBJECT',
+    description: 'RARO: só para criações que devolvem/espelham o ataque recebido (barreira refletora, contra-golpe). devolver = defensor não sofre e o atacante recebe o dano; compartilhar = ambos sofrem; contra = contra-golpe com o dano original x mult. Vale só com o Poder Ativo / a Técnica Equipada. Ex.: {"modo":"devolver","mult":100,"gastaReacao":true}',
+    properties: {
+        modo: { type: 'STRING', enum: MODOS_REFLEXO.map(m => m.id) },
+        mult: { type: 'INTEGER', description: '% do dano devolvido (10 a 1000; padrão 100, contra 150).' },
+        automatico: { type: 'BOOLEAN', description: 'Dispara sozinho ao receber dano direto.' },
+        gastaReacao: { type: 'BOOLEAN' },
+        custoModo: { type: 'STRING', enum: ['fixo', 'igual'], description: 'fixo = custoPercentual da energia; igual = igual ao custo do ataque devolvido.' },
+        comoPoder: { type: 'BOOLEAN' },
+        custoPercentual: { type: 'NUMBER' },
+        energia: { type: 'STRING', enum: ENERGIAS_REFLEXO },
+        descricao: { type: 'STRING' },
+    },
+    required: ['modo'],
+};
+
+const SUPORTE_SCHEMA = {
+    type: 'OBJECT',
+    description: 'Cura e/ou buffs dados a quem usa e/ou a aliados (criação de apoio). Use quando a criação cura ou fortalece, não para dano. Ex.: {"cura":{"dadosQtd":3,"dadosFaces":8,"fixo":10},"buffs":[{"atributo":"forca","propriedade":"base","valor":5}],"duracao":3,"alvos":"aliados","maxAlvos":3,"acao":"padrao"}',
+    properties: {
+        cura: { type: 'OBJECT', description: 'Cura = dados + valor fixo + % da Vida máxima do alvo.', properties: { dadosQtd: { type: 'INTEGER' }, dadosFaces: { type: 'INTEGER' }, fixo: { type: 'NUMBER' }, percVida: { type: 'NUMBER' } } },
+        buffs: { type: 'ARRAY', description: 'Buffs temporários no mesmo formato dos efeitos.', items: { type: 'OBJECT', properties: { atributo: { type: 'STRING', enum: ATRIBUTOS_EFEITO }, propriedade: { type: 'STRING', enum: PROPRIEDADES_EFEITO }, valor: { type: 'NUMBER' } }, required: ['atributo', 'propriedade', 'valor'] } },
+        duracao: { type: 'INTEGER', description: `Turnos dos buffs (0 = sem prazo, máx. ${LIMITES_SUPORTE.duracaoMax}).` },
+        alvos: { type: 'STRING', enum: MODOS_ALVO_SUPORTE.map(m => m.id), description: 'si = só quem usa; aliados; ambos.' },
+        maxAlvos: { type: 'INTEGER', description: `Aliados atingidos (1 a ${LIMITES_SUPORTE.maxAlvos}).` },
+        custoPercentual: { type: 'NUMBER', description: '% de energia gasta.' },
+        energia: { type: 'STRING', enum: ENERGIAS_REFLEXO },
+        acao: { type: 'STRING', enum: ACOES_SUPORTE.map(a => a.id), description: 'Ação gasta ao usar.' },
+    },
+};
+
 export function normalizarPoder(dados) {
     const d = dados || {};
     const avisos = [];
@@ -214,6 +325,7 @@ export function normalizarPoder(dados) {
         objeto.maestria = numero(d.maestria, 0, 0, 100);
         objeto.maestriaRequerida = numero(d.maestriaRequerida, 0, 0, 100);
     }
+    anexarEstadosReflexoSuporte(objeto, d, avisos);
     if (!objeto.nome) avisos.push('Falta o nome.');
     return { objeto, avisos, valido: !!objeto.nome };
 }
@@ -251,6 +363,7 @@ export function normalizarMagia(dados) {
         avisos.push(`Dados acima do limite do elemento (${dadosLimitados.limite} de dano): reduzidos de ${objeto.dadosExtraQtd}d${objeto.dadosExtraFaces} para ${dadosLimitados.qtd}d${dadosLimitados.faces}.`);
         objeto.dadosExtraQtd = dadosLimitados.qtd;
     }
+    anexarEstadosReflexoSuporte(objeto, d, avisos);
     if (!objeto.nome) avisos.push('Falta o nome.');
     return { objeto, avisos, valido: !!objeto.nome };
 }
@@ -276,6 +389,7 @@ export function normalizarItem(dados) {
         equipado: false,
     };
     if (!arma && ((d.efeitos || []).length || (d.efeitosPassivos || []).length)) avisos.push('Só armas guardam efeitos no Arsenal; os efeitos foram ignorados.');
+    anexarEstadosReflexoSuporte(objeto, d, avisos, { reflexo: false });
     if (!objeto.nome) avisos.push('Falta o nome.');
     return { objeto, avisos, valido: !!objeto.nome };
 }
@@ -406,7 +520,14 @@ export function anexarNaLista(atual, objeto) {
 }
 
 // Resumo curto pra cartões e pra lista de pendências do Mestre.
-export function resumirProposta(tipo, objeto) {
+export function resumirProposta(tipo, objeto, { extras: comExtras = true } = {}) {
+    const base = resumirBase(tipo, objeto);
+    if (!comExtras) return base;
+    const extras = descreverExtrasProposta(objeto);
+    return extras.length ? `${base} · ${extras.join(' · ')}` : base;
+}
+
+function resumirBase(tipo, objeto) {
     if (!objeto) return '';
     if (tipo === 'poder') return `${objeto.categoria} · ${objeto.dadosQtd ? `${objeto.dadosQtd}d${objeto.dadosFaces}` : 'sem dano'} · custo ${objeto.custoPercentual}% · ${(objeto.efeitos || []).length + (objeto.efeitosPassivos || []).length} efeito(s)`;
     if (tipo === 'magia') return `${objeto.elemento} · ${objeto.tipoMecanica} · ${objeto.dadosExtraQtd ? `${objeto.dadosExtraQtd}d${objeto.dadosExtraFaces}` : 'sem dados extras'} · custo ${objeto.custoValor}`;
@@ -454,6 +575,7 @@ export const DECLARACOES_CRIACAO = [
                 alcance: { type: 'NUMBER' }, area: { type: 'NUMBER' },
                 maestria: { type: 'NUMBER' }, maestriaRequerida: { type: 'NUMBER' }, fadigaPorUso: { type: 'NUMBER', description: 'Só Formas.' },
                 efeitos: EFEITOS_SCHEMA, efeitosPassivos: EFEITOS_SCHEMA,
+                aplicaEstados: ESTADOS_SCHEMA, reflexo: REFLEXO_SCHEMA, suporte: SUPORTE_SCHEMA,
             },
             required: ['nome', 'categoria'],
         },
@@ -509,6 +631,7 @@ export const DECLARACOES_CRIACAO = [
                 dadosExtraQtd: { type: 'INTEGER' }, dadosExtraFaces: { type: 'INTEGER' },
                 alcanceQuad: { type: 'NUMBER' }, areaQuad: { type: 'NUMBER' },
                 alvosAfetados: { type: 'STRING', enum: ALVOS_MAGIA }, duracaoZona: { type: 'INTEGER' },
+                aplicaEstados: ESTADOS_SCHEMA, reflexo: REFLEXO_SCHEMA, suporte: SUPORTE_SCHEMA,
             },
             required: ['nome', 'elemento'],
         },
@@ -527,6 +650,7 @@ export const DECLARACOES_CRIACAO = [
                 bonusTipo: { type: 'STRING', enum: BONUS_ITEM }, bonusValor: { type: 'NUMBER' },
                 dadosQtd: { type: 'INTEGER' }, dadosFaces: { type: 'INTEGER' }, alcance: { type: 'NUMBER' },
                 efeitos: EFEITOS_SCHEMA, efeitosPassivos: EFEITOS_SCHEMA,
+                aplicaEstados: ESTADOS_SCHEMA, suporte: SUPORTE_SCHEMA,
             },
             required: ['nome', 'tipo'],
         },

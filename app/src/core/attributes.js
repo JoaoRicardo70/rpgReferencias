@@ -2,6 +2,7 @@ import useStore, { sanitizarNome } from '../stores/useStore';
 import { isFisico, isEnergia, tratarUnico } from './utils.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 import { efeitosDeCombos } from './combos.js';
+import { efeitosDeBuffsTemporarios } from './suporte.js';
 import { getEfeitosFixosDeClasse, removerEfeitosLegados, ehBerserker, calcularGanhoBerserker, registrarResolvedorNivelClasse, getNivelClasse } from './classesMecanicas.js';
 
 // 📖 Classes cadastradas no Compêndio da MESA INTEIRA — a mesma leitura que a tela do Compêndio faz
@@ -91,7 +92,8 @@ export function getDadosClasseRegistrada(classeId) {
 
 export function getEfeitosDeClasse(ficha) {
     // 🥋 Buffs de Combos/Follow Ups (core/combos.js) entram aqui para valer em tudo que lê os efeitos da ficha (dano, acerto, CA, Ações...), com ou sem classe.
-    const efeitosCombo = efeitosDeCombos(ficha);
+    // ✨ Buffs temporários de Suporte (core/suporte.js) entram junto: valem em tudo que lê os efeitos da ficha.
+    const efeitosCombo = [...efeitosDeCombos(ficha), ...efeitosDeBuffsTemporarios(ficha)];
     let classeHeroica = (ficha && ficha.bio && ficha.bio.classe) ? String(ficha.bio.classe).toLowerCase() : '';
     let subClasse = (ficha && ficha.bio && ficha.bio.subClasse) ? String(ficha.bio.subClasse).toLowerCase() : '';
 

@@ -10,7 +10,7 @@ describe('reflexo - normalizarReflexo', () => {
         expect(normalizarReflexo({ modo: 'xyz' })).toBeNull();
     });
     it('padroes: mult 100 (150 em contra), mana, sem custo', () => {
-        expect(normalizarReflexo({ modo: 'devolver' })).toEqual({ modo: 'devolver', mult: 100, automatico: false, gastaReacao: false, custoPercentual: 0, energia: 'mana', descricao: '' });
+        expect(normalizarReflexo({ modo: 'devolver' })).toEqual({ modo: 'devolver', mult: 100, automatico: false, gastaReacao: false, custoModo: 'fixo', comoPoder: false, custoPercentual: 0, energia: 'mana', descricao: '' });
         expect(normalizarReflexo({ modo: 'contra' }).mult).toBe(150);
     });
     it('mult limitado entre 10 e 1000; 0 e texto caem no padrao', () => {

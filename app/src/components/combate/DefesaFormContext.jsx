@@ -8,10 +8,9 @@ import { enviarParaFeed } from '../../services/firebase-sync';
 import { gastarAcoes } from '../../core/acoesTecnica';
 import { montarAlvoPersonagem, reduzirDanoNoAlvo } from '../../core/alvoCombate';
 import { gravarVidaDoAlvo } from '../../services/danoAlvo';
-import { reflexosDisponiveis, calcularReflexo, descreverReflexo } from '../../core/reflexo';
+import { reflexosDisponiveis, calcularReflexo, descreverReflexo, custoDoReflexo } from '../../core/reflexo';
 import { resolverEstadosNoAlvo, descreverResolucao, juntarAplicados } from '../../core/estadosGolpe';
 import { aplicarEstadoNaFicha } from '../../core/condicoes';
-import { getVitalMxDisplay } from '../../core/vitals';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { danoExibidoParaBruto } from '../../core/vitals';
 import { escalarDanoPelaVida, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
@@ -252,9 +251,8 @@ export function DefesaFormProvider({ children }) {
         const usado = reflexoEscolhido ? reflexosUsaveis.find(r => `${r.origem}:${r.id}` === reflexoEscolhido) : null;
         if (usado) {
             const escolhaAtacante = atacanteInc === ATACANTE_AUTO ? (ultimoGolpeRecebido ? `p:${ultimoGolpeRecebido.nome}` : ATACANTE_NENHUM) : atacanteInc;
-            const perc = usado.reflexo.custoPercentual;
-            const k = usado.reflexo.energia;
-            const custo = perc > 0 ? Math.floor(getVitalMxDisplay(k, minhaFicha) * (perc / 100)) : 0;
+            const golpeDoReflexo = ultimoGolpeRecebido && escolhaAtacante === `p:${ultimoGolpeRecebido.nome}` ? ultimoGolpeRecebido : null;
+            const { energia: k, valor: custo } = custoDoReflexo(minhaFicha, usado, golpeDoReflexo ? golpeDoReflexo.custoGolpeTotal : 0);
             if (escolhaAtacante === ATACANTE_NENHUM || (!escolhaAtacante.startsWith('p:') && !escolhaAtacante.startsWith('d:'))) {
                 if (!window.confirm('Não sei quem te atacou, então o Reflexo não tem para quem voltar. Receber o Dano inteiro mesmo assim?')) return;
             } else if (custo > 0 && (Number(minhaFicha[k] && minhaFicha[k].atual) || 0) < custo) {
