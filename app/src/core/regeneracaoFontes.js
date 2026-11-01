@@ -151,6 +151,11 @@ export function detalharRegeneracaoVital(ficha, key) {
         pontosPorTurno,
         curaPassiva,
         totalPontos: pontosPorTurno + curaPassiva.total,
+        // Cura TOTAL do turno em % do teto: Regeneração (já cortada pelos estados) + cura passiva das Habilidades/Itens/Arma.
+        pctTotalComCura: tetoExibido > 0 ? arred(((pontosPorTurno + curaPassiva.total) / tetoExibido) * 100) : 0,
+        // Regeneração em % do teto JÁ com o corte dos estados (é a parte que, somada à cura passiva, dá o total).
+        pctRegenCortada: tetoExibido > 0 ? arred((pontosPorTurno / tetoExibido) * 100) : 0,
+        pctCuraPassiva: tetoExibido > 0 ? arred((curaPassiva.total / tetoExibido) * 100) : 0,
         avisos
     };
 }

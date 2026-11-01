@@ -17,7 +17,7 @@ export default function RegeneracaoResumo() {
             <h4 className="regen-resumo-titulo">💖 Regeneração por turno</h4>
             <table className="regen-tabela">
                 <thead>
-                    <tr><th>Vital</th><th>% do teto</th><th>Pontos/turno</th></tr>
+                    <tr><th>Vital</th><th>Regeneração</th><th>Cura passiva</th><th>Total (% do teto)</th><th>Pontos/turno</th></tr>
                 </thead>
                 <tbody>
                     {chaves.map((k) => {
@@ -25,7 +25,9 @@ export default function RegeneracaoResumo() {
                         return (
                             <tr key={k}>
                                 <td>{ROTULOS[k] || k}</td>
-                                <td>{fmt(d.pctTotal)}%</td>
+                                <td>{fmt(d.pctRegenCortada)}%</td>
+                                <td>{d.curaPassiva.total > 0 ? `+${fmt(d.pctCuraPassiva)}%` : '—'}</td>
+                                <td><strong>{fmt(d.pctTotalComCura)}%</strong></td>
                                 <td>{fmt(d.totalPontos)}</td>
                             </tr>
                         );
@@ -37,7 +39,7 @@ export default function RegeneracaoResumo() {
                 const estados = d.corteEstados && d.corteEstados.estados.length > 0 ? d.corteEstados : null;
                 return (
                     <details key={k} className="regen-vital">
-                        <summary>{ROTULOS[k] || k}: {fmt(d.pctTotal)}% de {fmt(d.tetoExibido)} = {fmt(d.pontosPorTurno)}/turno</summary>
+                        <summary>{ROTULOS[k] || k}: {fmt(d.pctTotalComCura)}% de {fmt(d.tetoExibido)} = {fmt(d.totalPontos)}/turno{d.curaPassiva.total > 0 ? ` (Regeneração ${fmt(d.pctRegenCortada)}% + Cura passiva ${fmt(d.pctCuraPassiva)}%)` : ''}</summary>
                         <ul className="regen-lista">
                             <li>Manual: {fmt(d.manualPct)}%</li>
                             {d.fontes.map((f, i) => (
@@ -56,11 +58,11 @@ export default function RegeneracaoResumo() {
                             )}
                             {k === 'vida' && d.curaPassiva.total > 0 && (
                                 <li className="regen-mais">
-                                    + Cura passiva (média por turno): {fmt(d.curaPassiva.total)} ({d.curaPassiva.partes.map(p => `${p.nome} ${fmt(p.valor)}`).join(', ')})
+                                    + Cura passiva (média por turno): {fmt(d.curaPassiva.total)} = {fmt(d.pctCuraPassiva)}% do teto ({d.curaPassiva.partes.map(p => `${p.nome} ${fmt(p.valor)}`).join(', ')})
                                 </li>
                             )}
                             {d.avisos.map((a, i) => <li key={i} className="regen-aviso">{a}</li>)}
-                            <li className="regen-total">Total: {fmt(d.totalPontos)} por turno</li>
+                            <li className="regen-total">Total: {fmt(d.pctTotalComCura)}% do teto = {fmt(d.totalPontos)} por turno</li>
                         </ul>
                     </details>
                 );

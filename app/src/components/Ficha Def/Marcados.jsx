@@ -1955,12 +1955,12 @@ export default function MarcadosPanel() {
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                                 <LinhaVital labelKey="lblVida" fallbackLabel="Vida (HP)" vitalKey="vida" corBarra="#ff0000" ficha={minhaFicha} supressao={supressao} temaScouter={temaScouter} salvar={salvar} getLabel={getLabel} setLabel={setLabel} fator={fatoresVitaisAtual.vida} />
+                                {/* 💖 Regeneração + cura passiva por turno, logo abaixo da Barra de Vida */}
+                                <RegeneracaoResumo />
                                 <LinhaVital labelKey="lblMana" fallbackLabel="Mana" vitalKey="mana" corBarra="#0000ff" ficha={minhaFicha} supressao={supressao} temaScouter={temaScouter} salvar={salvar} getLabel={getLabel} setLabel={setLabel} fator={fatoresVitaisAtual.mana} subItens={[ { labelKey: 'lblInt', fallbackLabel: 'Inteligência', key: 'inteligencia' }, { labelKey: 'lblSab', fallbackLabel: 'Sabedoria', key: 'sabedoria' } ]} />
                                 <LinhaVital labelKey="lblAura" fallbackLabel="Aura" vitalKey="aura" corBarra="#aa00ff" ficha={minhaFicha} supressao={supressao} temaScouter={temaScouter} salvar={salvar} getLabel={getLabel} setLabel={setLabel} fator={fatoresVitaisAtual.aura} subItens={[ { labelKey: 'lblEsp', fallbackLabel: 'Energia Espiritual', key: 'energiaEsp' }, { labelKey: 'lblCar', fallbackLabel: 'Carisma', key: 'carisma' } ]} />
                                 <LinhaVital labelKey="lblChakra" fallbackLabel="Chakra" vitalKey="chakra" corBarra="#00cc00" ficha={minhaFicha} supressao={supressao} temaScouter={temaScouter} salvar={salvar} getLabel={getLabel} setLabel={setLabel} fator={fatoresVitaisAtual.chakra} subItens={[ { labelKey: 'lblSta', fallbackLabel: 'Stamina', key: 'stamina' }, { labelKey: 'lblCon', fallbackLabel: 'Constituição', key: 'constituicao' } ]} />
                                 <LinhaVital labelKey="lblCorpo" fallbackLabel="Corpo" vitalKey="corpo" corBarra="#000000" corTextoBarra="#fff" ficha={minhaFicha} supressao={supressao} temaScouter={temaScouter} salvar={salvar} getLabel={getLabel} setLabel={setLabel} fator={fatoresVitaisAtual.corpo} subItens={[ { labelKey: 'lblDes', fallbackLabel: 'Destreza', key: 'destreza' }, { labelKey: 'lblFor', fallbackLabel: 'Força', key: 'forca' } ]} />
-                                {/* 💖 Regeneração total por turno, com o que aumenta e diminui */}
-                                <RegeneracaoResumo />
                                 <div style={{ marginBottom: '15px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', fontSize: '1.2em' }}>

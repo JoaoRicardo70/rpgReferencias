@@ -60,4 +60,36 @@ describe('detalharRegeneracao', () => {
             expect(real[k].atual / FATOR_EXIBICAO_VITAIS).toBeCloseTo(d[k].pontosPorTurno, 4);
         });
     });
+
+    it('cura passiva soma na cura TOTAL em % do teto, junto da Regeneração', () => {
+        const f = fichaBase({
+            vida: { base: 1000000, atual: 0, regeneracaoPct: 5 },
+            poderes: [{ nome: 'Benção', ativa: true, efeitos: [], suporte: { modo: 'passivo', cura: { fixo: 1000 } } }]
+        });
+        const v = detalharRegeneracao(f).vida;
+        expect(v.pctTotal).toBe(5);
+        expect(v.curaPassiva.total).toBe(1000);
+        expect(v.pctCuraPassiva).toBeCloseTo((1000 / v.tetoExibido) * 100, 1);
+        expect(v.pctTotalComCura).toBeCloseTo(5 + (1000 / v.tetoExibido) * 100, 1);
+        expect(v.totalPontos).toBeCloseTo(v.pontosPorTurno + 1000, 4);
+    });
+    it('com estado cortando a cura, Regeneração (cortada) + cura passiva = total', () => {
+        const f = fichaBase({
+            vida: { base: 1000000, atual: 0, regeneracaoPct: 10 },
+            poderes: [{ nome: 'Benção', ativa: true, efeitos: [], suporte: { modo: 'passivo', cura: { fixo: 1000 } } }],
+            condicoes: [{ id: 'sangrando', stacks: 1 }]
+        });
+        const v = detalharRegeneracao(f).vida;
+        expect(v.pctRegenCortada).toBeCloseTo(5, 1);
+        expect(v.pctTotalComCura).toBeCloseTo(v.pctRegenCortada + v.pctCuraPassiva, 1);
+    });
+    it('teto 0: cura total 0, sem divisão por zero', () => {
+        const v = detalharRegeneracao(fichaBase({ vida: { base: 0, atual: 0 } })).vida;
+        expect(v.pctTotalComCura).toBe(0);
+    });
+    it('sem cura passiva a cura total é só a Regeneração', () => {
+        const v = detalharRegeneracao(fichaBase({ vida: { base: 1000000, atual: 0, regeneracaoPct: 4 } })).vida;
+        expect(v.pctTotalComCura).toBeCloseTo(4, 1);
+        expect(v.pctCuraPassiva).toBe(0);
+    });
 });

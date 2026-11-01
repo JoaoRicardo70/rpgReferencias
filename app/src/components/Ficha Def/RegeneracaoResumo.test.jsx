@@ -29,6 +29,7 @@ describe('RegeneracaoResumo', () => {
         expect(screen.getByText('💖 Regeneração por turno')).toBeTruthy();
         expect(screen.getAllByText(/Cura Lunar/).length).toBeGreaterThan(0);
         expect(screen.getByText(/Estados cortando a cura/)).toBeTruthy();
-        expect(screen.getAllByText('8%').length).toBeGreaterThan(0);
+        // 5% manual + 3% da habilidade = 8%, cortado pela metade por 1 Sangrando = 4% na tabela
+        expect(screen.getAllByText('4%').length).toBeGreaterThan(0);
     });
 });
