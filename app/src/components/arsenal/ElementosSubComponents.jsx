@@ -1,5 +1,7 @@
 import { getLimiteDadosTecnica, danoMaximoDosDados } from '../../core/limiteDados';
 import DescricoesAtaqueEditor from '../shared/DescricoesAtaqueEditor';
+import EnsinarBotao from '../shared/EnsinarBotao';
+import EnsinamentosRecebidos from '../shared/EnsinamentosRecebidos';
 import EstadosGolpeEditor from '../shared/EstadosGolpeEditor';
 import SuporteEditor from '../shared/SuporteEditor';
 import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
@@ -421,6 +423,7 @@ export function ElementosMagiaCard({ magia }) {
                         <button style={{ flex: 1, padding: '4px', fontSize: '0.8em' }} onClick={() => editarElem(magia.id)}>Reescrever</button>
                         <button style={{ flex: 1, padding: '4px', fontSize: '0.8em', opacity: 0.6 }} onClick={() => deletarElem(magia.id)}>Rasgar</button>
                     </div>
+                    <EnsinarBotao tipo="tecnica" item={magia} />
                 </div>
             </div>
             <DescricoesAtaqueEditor colecao="ataquesElementais" itemId={magia.id} />

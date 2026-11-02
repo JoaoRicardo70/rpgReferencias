@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useRef, useCallback, useMem
 import { efeitosAtivosDoItem } from '../../core/efeitosItem';
 import { dadosLimitadosDaTecnica } from '../../core/limiteDados';
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
+import { extrairJson } from '../../core/importadorIA';
 import { normalizarGatilho, normalizarEfeito, normalizarValorReacao } from '../../core/reacoes';
 import useStore from '../../stores/useStore';
 import { enviarParaFeed } from '../../services/firebase-sync';
@@ -463,7 +464,7 @@ export function ElementosFormProvider({ children }) {
 
     const injetarJsonDaIA = useCallback((jsonString) => {
         try {
-            const dados = JSON.parse(jsonString);
+            const dados = JSON.parse(extrairJson(jsonString) || jsonString);
             let countE = 0;
             updateFicha(f => {
                 const time = Date.now();

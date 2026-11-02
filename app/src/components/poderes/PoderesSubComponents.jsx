@@ -11,6 +11,9 @@ import EstagiosMarcosEditor from './EstagiosMarcosEditor';
 import { escalarEfeitosPorEstagio, previaEstagios, getMaximoEstagio, normalizarEstagios } from '../../core/estagios';
 import { construirArvorePastas, segmentosPasta } from '../../core/pastas';
 import { rotuloComPolaridade } from '../../core/polaridade';
+import { montarPromptImportacao } from '../../core/importadorIA';
+import EnsinarBotao from '../shared/EnsinarBotao';
+import EnsinamentosRecebidos from '../shared/EnsinamentosRecebidos';
 
 const LIMITE_PREVIA_ESTAGIOS = 12;
 const fmtNumero = (v) => (typeof v === 'number' ? (Math.round(v * 10000) / 10000).toLocaleString('pt-BR') : v);
@@ -76,29 +79,19 @@ export function PoderesImportadorIA() {
     const [aberto, setAberto] = useState(false);
     const [textoDocs, setTextoDocs] = useState('');
     const [jsonResposta, setJsonResposta] = useState('');
-    const [fase, setFase] = useState(1); 
+    const [fase, setFase] = useState(1);
+    const [promptGerado, setPromptGerado] = useState('');
 
     if (!ctx) return null;
-    const { injetarJsonDaIA } = ctx;
+    const { injetarJsonDaIA, abaAtual } = ctx;
 
-    const gerarPrompt = () => {
+    const gerarPrompt = async () => {
         if (!textoDocs.trim()) return alert("Cole o texto primeiro!");
-        
-        const prompt = `Atue como extrator de dados de RPG.
-Transforme TODAS as habilidades descritas no texto abaixo em itens dentro do array "poderes". 
-Mesmo que a habilidade use fogo, gelo ou magia, COLOQUE-A EM "poderes", pois o usuário quer registrá-la nesta aba específica.
-Extraia o dano (ex: "15d6" vira danoQtd: 15 e danoFaces: 6).
-Se houver efeitos complexos de paralisia ou condições, coloque no campo "notasIA".
-
-TEXTO:
-${textoDocs}
-
-RETORNE EXATAMENTE UM JSON PURO:
-{
-  "poderes": [{ "nome": "X", "descricao": "Y", "danoQtd": 0, "danoFaces": 0, "notasIA": "" }]
-}`;
-        navigator.clipboard.writeText(prompt);
-        alert("Instrução copiada! Cole na sua IA e traga o JSON gerado.");
+        const prompt = montarPromptImportacao(textoDocs, abaAtual);
+        setPromptGerado(prompt);
+        let copiou = false;
+        try { await navigator.clipboard.writeText(prompt); copiou = true; } catch (e) { copiou = false; }
+        alert(copiou ? "Instrução copiada! Cole na sua IA e traga o JSON gerado." : "Não consegui copiar sozinho: copie a instrução que apareceu na caixa e cole na sua IA.");
         setFase(2);
     };
 
@@ -116,6 +109,7 @@ RETORNE EXATAMENTE UM JSON PURO:
                         </>
                     ) : (
                         <>
+                            <textarea readOnly value={promptGerado} onFocus={e => e.target.select()} aria-label="Instrução para a IA" style={{ width: '100%', height: '60px', background: 'transparent', padding: '10px', marginBottom: '10px', fontSize: '0.8em', opacity: 0.7 }} />
                             <textarea value={jsonResposta} onChange={e => setJsonResposta(e.target.value)} placeholder="Cole o Código Arcano (JSON) devolvido pela IA..." style={{ width: '100%', height: '120px', background: 'transparent', fontFamily: 'monospace', padding: '10px', resize: 'vertical' }} />
                             <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                                 <button onClick={() => setFase(1)} style={{ flex: 1, padding: '8px' }}>Voltar</button>
@@ -606,6 +600,7 @@ export function PoderesLista() {
                                         <button style={{ flex: 1, padding: '4px', fontSize: '0.8em' }} onClick={() => editarPoder(p.id)}>Reescrever</button>
                                         <button style={{ flex: 1, padding: '4px', fontSize: '0.8em', opacity: 0.6 }} onClick={() => deletarPoder(p.id)}>Rasgar</button>
                                     </div>
+                                    <EnsinarBotao tipo="poder" item={p} />
                                 </div>
                             </div>
                             
@@ -767,6 +762,7 @@ export function PoderesAreaCentral() {
     return (
         <div style={{ width: '100%' }}>
             <PoderesNavegacaoLivro />
+            <EnsinamentosRecebidos tipo="poder" />
             <PoderesImportadorIA />
             <PoderesFormEditor />
             <PoderesLista />

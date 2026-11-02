@@ -1,4 +1,5 @@
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
+import { lerRespostaDaIA, montarPoderImportado } from '../../core/importadorIA';
 import React, { createContext, useContext, useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes';
@@ -635,37 +636,19 @@ export function PoderesFormProvider({ children }) {
     }, [overchargeAtivo, updateFicha, danoBruto, energiaElemental, minhaFicha, salvarFichaSilencioso]);
 
     const injetarJsonDaIA = useCallback((jsonString) => {
-        try {
-            const dados = JSON.parse(jsonString);
-            let countP = 0;
-            updateFicha(f => {
-                const time = Date.now();
-                if (dados.poderes && Array.isArray(dados.poderes)) {
-                    if (!f.poderes) f.poderes = [];
-                    dados.poderes.forEach((p, i) => {
-                        f.poderes.push({
-                            id: 'pw_ia_' + time + i,
-                            nome: p.nome || 'Poder sem Nome',
-                            descricao: p.descricao || '',
-                            dadosQtd: parseInt(p.danoQtd) || 0,
-                            dadosFaces: parseInt(p.danoFaces) || 0,
-                            vertente: 'Físico',
-                            categoria: abaAtual, 
-                            ativa: false,
-                            isForma: false,
-                            notasIA: p.notasIA || '' 
-                        });
-                        countP++;
-                    });
-                }
-            });
-            salvarFirebaseImediato().catch(() => {});
-            alert(`Sincronização Concluída!\n\n🗡️ Injetados na aba atual: ${countP} habilidades.`);
-            return true;
-        } catch (e) {
-            alert("Erro no código da IA. Certifique-se de copiar o JSON completo.");
+        const lido = lerRespostaDaIA(jsonString);
+        if (!lido.ok) {
+            alert(lido.erro);
             return false;
         }
+        const time = Date.now();
+        updateFicha(f => {
+            if (!f.poderes) f.poderes = [];
+            lido.itens.forEach((p, i) => { f.poderes.push(montarPoderImportado(p, abaAtual, time + i)); });
+        });
+        salvarFirebaseImediato().catch(() => {});
+        alert(`Sincronização Concluída!\n\n🗡️ Inscritos na aba atual: ${lido.itens.length}.`);
+        return true;
     }, [updateFicha, abaAtual, salvarFirebaseImediato]);
 
     const value = useMemo(() => ({

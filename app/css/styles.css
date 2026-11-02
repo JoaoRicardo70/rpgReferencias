@@ -3142,3 +3142,13 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .backup-ficha-subtitulo { color: #ffcc00; margin: 10px 0 6px; font-size: 0.95em; }
 .backup-ficha-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
 .backup-ficha-lista li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 4px 8px; border: 1px dashed rgba(255, 204, 0, 0.35); border-radius: 4px; font-size: 0.9em; }
+/* 🎓 Ensinar: botão com caixa de alunos/nível e ofertas recebidas */
+.ensinar { position: relative; }
+.ensinar-caixa { margin-top: 6px; padding: 8px; border: 1px dashed currentColor; border-radius: 6px; display: flex; flex-direction: column; gap: 6px; font-size: 0.85em; }
+.ensinar-alunos { display: flex; flex-direction: column; gap: 2px; max-height: 120px; overflow-y: auto; }
+.ensinar-aluno { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.ensinar-nivel { display: flex; flex-direction: column; gap: 2px; }
+.ensinar-dica { margin: 0; opacity: 0.7; font-size: 0.9em; }
+.ensinamentos-recebidos { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.ensinamento-oferta { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 10px; border: 1px solid #ffcc00; border-radius: 6px; background: rgba(255, 204, 0, 0.08); }
+.ensinamento-botoes { display: flex; gap: 6px; }

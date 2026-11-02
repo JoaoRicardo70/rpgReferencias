@@ -637,16 +637,17 @@ export function aplicarDanoDireto(nome, novoValorVidaAtual) {
 // nunca a ficha inteira, só os caminhos passados em `campos` (ex: `{'vida/atual': 500}`), pra não
 // apagar edições concorrentes que o dono real daquela ficha ainda não sincronizou de volta.
 export function salvarCamposPersonagem(nome, campos) {
-    if (isInPlasmicCanvas()) return;
+    if (isInPlasmicCanvas()) return Promise.resolve(false);
     const { mesaId } = useStore.getState();
-    if (!db || !mesaId || !nome || !campos) return;
+    if (!db || !mesaId || !nome || !campos) return Promise.resolve(false);
     const nomeSanitizado = sanitizarNome(nome);
     const updates = {};
     Object.keys(campos).forEach((caminho) => {
         updates[`mesas/${mesaId}/personagens/${nomeSanitizado}/${caminho}`] = campos[caminho];
     });
-    if (Object.keys(updates).length === 0) return;
-    update(ref(db), updates).catch(() => {});
+    if (Object.keys(updates).length === 0) return Promise.resolve(false);
+    // Devolve uma promessa (true = gravou, false = o servidor recusou); quem não precisa do resultado pode ignorar.
+    return update(ref(db), updates).then(() => true).catch(() => false);
 }
 // 🔥 Mesmo esquema de aplicarDanoDireto acima, só que pro contador combate/fadigaExtra — usado
 // pelo Dano Rápido do Mestre (ver MapaFormContext.jsx > aplicarDanoRapido) pra que o dano que o
