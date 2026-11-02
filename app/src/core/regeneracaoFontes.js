@@ -9,7 +9,7 @@ import { efeitosAtivosDoItem } from './efeitosItem.js';
 import { getRegeneracaoManualPct, limitarRegeneracaoPct, REGENERACAO_PCT_MAX } from './regeneracao.js';
 import { getTetoExibidoComFator, FATOR_EXIBICAO_VITAIS } from './vitals.js';
 import { modificadoresDeEstados, stacksDe, nomeDoEstado } from './condicoes.js';
-import { curaPassivaDoTurno } from './suporte.js';
+import { curaPassivaDoTurno, curaEnergiasPassivaDoTurno } from './suporte.js';
 import { calcularEficaciaCura } from './engine.js';
 
 export const VITAIS_DETALHE_REGEN = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
@@ -136,6 +136,12 @@ export function detalharRegeneracaoVital(ficha, key) {
             const c = curaPassivaDoTurno(ficha, { vidaMaxExibida: tetoExibido, rolar: (faces) => (faces + 1) / 2 });
             const eficacia = calcularEficaciaCura(ficha);
             curaPassiva = { total: Math.floor((c.total || 0) * eficacia), partes: c.partes || [], estimativa: true, eficacia };
+        } catch (e) { /* sem suporte passivo */ }
+    } else if (ENERGIAS.includes(key)) {
+        try {
+            // Energia: % do máximo por turno (escala do teto), sem corte de Eficácia de Cura (só a Vida sofre).
+            const en = curaEnergiasPassivaDoTurno(ficha).porEnergia[key];
+            if (en && teto > 0) curaPassiva = { total: (teto * (en.pct / 100)) / FATOR_EXIBICAO_VITAIS, partes: en.fontes.map(x => ({ nome: x.nome, valor: (teto * (x.pct / 100)) / FATOR_EXIBICAO_VITAIS, pct: x.pct })), pct: en.pct };
         } catch (e) { /* sem suporte passivo */ }
     }
 

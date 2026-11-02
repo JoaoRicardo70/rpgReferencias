@@ -403,9 +403,10 @@ export function FichaSeresSelados() {
                                 <FormasEditor
                                     formas={ser.formas || []}
                                     formaAtivaId={ser.formaAtivaId || null}
+                                    configAtivaId={ser.configAtivaId || null}
                                     onSalvarForma={(forma) => salvarFormaSer(ser.id, forma)}
                                     onDeletarForma={(formaId) => deletarFormaSer(ser.id, formaId)}
-                                    onAtivarForma={(formaId) => ativarFormaSer(ser.id, formaId)}
+                                    onAtivarForma={(formaId, configId) => ativarFormaSer(ser.id, formaId, configId)}
                                 />
                             </div>
                         </div>

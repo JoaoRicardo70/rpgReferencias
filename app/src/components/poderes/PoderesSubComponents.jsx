@@ -687,9 +687,10 @@ export function PoderesLista() {
                             <FormasEditor
                                 formas={p.formas || []}
                                 formaAtivaId={p.formaAtivaId || null}
+                                configAtivaId={p.configAtivaId || null}
                                 onSalvarForma={(forma) => salvarFormaPoder(p.id, forma)}
                                 onDeletarForma={(formaId) => deletarFormaPoder(p.id, formaId)}
-                                onAtivarForma={(formaId) => ativarFormaPoder(p.id, formaId)}
+                                onAtivarForma={(formaId, configId) => ativarFormaPoder(p.id, formaId, configId)}
                             />
                         </div>
             );

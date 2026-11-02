@@ -12,6 +12,7 @@ import useGastarAcao from '../../hooks/useGastarAcao';
 import SegurarAcao from '../combate/SegurarAcao';
 import { tipoAcaoAoLigar } from '../../core/acaoPoder';
 import { eventoCombina } from '../../core/atalhos';
+import { temAcessoArmaEspiritual } from '../../core/acessoArmaEspiritual';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { usePoderesForm } from '../poderes/PoderesFormContext';
 import EstagioControle from '../poderes/EstagioControle';
@@ -932,10 +933,16 @@ export function MapaAtalhoAtaques() {
 export function MapaAtaqueArma({ aoRolar }) {
     const ataqueCtx = useAtaqueForm();
     const arsenalCtx = useArsenalForm();
+    const isMestre = useStore(s => s.isMestre);
     if (!ataqueCtx) return null;
     const { armaEquipada, podeRolarDano, ignorarTravaAcerto, setIgnorarTravaAcerto, rolarDano, dummieAlvo, minhaFicha } = ataqueCtx;
     const podeAtacar = podeRolarDano || ignorarTravaAcerto;
     const armas = (minhaFicha?.inventario || []).filter(i => i.tipo === 'arma');
+    // ⚔️ Arma Espiritual: opção de arma equipável (mesmo flag do Altar da Relíquia); só aparece com acesso a ela.
+    const armaEsp = minhaFicha?.armaEspiritual;
+    const temEA = temAcessoArmaEspiritual(minhaFicha);
+    const eaEquipada = !!armaEsp && armaEsp.equipada !== false;
+    const eaTrancada = !!armaEsp?.trancadaParaJogador && !isMestre;
     // Fecha o Livro só se a rolagem aconteceu (alerta de erro ou confirmação cancelada deixam o Livro aberto).
     const rolar = () => { if (rolarDano() !== false && aoRolar) aoRolar(); };
 
@@ -946,9 +953,20 @@ export function MapaAtaqueArma({ aoRolar }) {
                 {armaEquipada ? `Arma equipada: ${armaEquipada.nome}` : 'Nenhuma arma equipada — role assim mesmo com a config de dano atual da aba Ataque.'}
             </p>
 
-            {arsenalCtx && armas.length > 0 && (
+            {((arsenalCtx && armas.length > 0) || temEA) && (
                 <div className="mapa-tecnicas-grade livro-arma-lista">
-                    {armas.map(arma => (
+                    {temEA && (
+                        <button
+                            className={`btn-neon mapa-tecnica-chip${eaEquipada ? ' mapa-tecnica-chip--ligada' : ''}`}
+                            onClick={ataqueCtx.alternarArmaEspiritual}
+                            disabled={eaTrancada}
+                            aria-pressed={eaEquipada}
+                            title={eaTrancada ? 'O Mestre travou este controle.' : (eaEquipada ? 'Arma Espiritual equipada — clique pra desequipar (soma ao dano da arma comum)' : 'Clique pra equipar a Arma Espiritual (soma ao dano da arma comum)')}
+                        >
+                            {eaEquipada ? '🗡️' : '⚪'} {armaEsp?.nome || 'Arma Espiritual'} (EA)
+                        </button>
+                    )}
+                    {arsenalCtx && armas.map(arma => (
                         <button
                             key={arma.id}
                             className={`btn-neon mapa-tecnica-chip${arma.equipado ? ' mapa-tecnica-chip--ligada' : ''}`}

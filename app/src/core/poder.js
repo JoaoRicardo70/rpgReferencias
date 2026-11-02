@@ -6,6 +6,7 @@
 import { getBuffs, getEfetivoBase, getRawBase } from './attributes.js';
 import { getRank } from './prestige.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
+import { efeitosAtivosDoItem, efeitosPassivosDoItem, efeitosDaConfigAtiva } from './efeitosItem.js';
 import { calcularFadigaAtual } from './fadiga.js';
 import { getMultiplicadorBonusArma } from './classesMecanicas.js';
 
@@ -290,7 +291,10 @@ export function getGlobalMultipliers(ficha) {
     }
 }
 
-function getPoderDiretoMultiplier(ficha) {
+// Multiplicador do "PODER (Direto)": Poderes (com a Config da Forma ativa), Pactos sincronizados e
+// Itens equipados (ativos só com o toggle ligado, passivos sempre, e a Forma/Config ativa do item).
+// Única cópia: Ficha Def/Marcados.jsx importa esta.
+export function getPoderDiretoMultiplier(ficha) {
     if (!ficha) return 1;
     try {
         let grupos = { mbase: 0, mgeral: 0, mformas: 0, mabs: 0 };
@@ -313,6 +317,8 @@ function getPoderDiretoMultiplier(ficha) {
             const resolved = resolverEfeitosEntidade(p);
             if (p.ativa) processar(resolved.efeitos);
             processar(resolved.efeitosPassivos);
+            const cfg = efeitosDaConfigAtiva(p);
+            if (cfg) { processar(cfg.efeitos); processar(cfg.efeitosPassivos); }
         });
 
         // 🔥 Pactos/Entidades Seladas (ficha.seresSelados) também podem carregar um
@@ -323,6 +329,23 @@ function getPoderDiretoMultiplier(ficha) {
             const resolved = resolverEfeitosEntidade(ser);
             processar(resolved.efeitos);
             processar(resolved.efeitosPassivos);
+            const cfg = efeitosDaConfigAtiva(ser);
+            if (cfg) { processar(cfg.efeitos); processar(cfg.efeitosPassivos); }
+        });
+
+        // 🎒 Itens equipados: mesma regra do getBuffs (core/attributes.js).
+        (ficha.inventario || []).forEach(item => {
+            if (!item || !item.equipado) return;
+            const forma = item.formaAtivaId && Array.isArray(item.formas) ? item.formas.find(f => f && f.id === item.formaAtivaId) : null;
+            if (!(forma && forma.acumulaFormaBase === false)) {
+                processar(efeitosAtivosDoItem(item));
+                processar(efeitosPassivosDoItem(item));
+            }
+            if (forma) {
+                const cfg = efeitosDaConfigAtiva(item);
+                if (cfg) { processar(cfg.efeitos); processar(cfg.efeitosPassivos); }
+                else { processar(forma.efeitos); processar(forma.efeitosPassivos); }
+            }
         });
 
         let finalUni = 1.0;

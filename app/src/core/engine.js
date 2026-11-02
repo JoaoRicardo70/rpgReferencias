@@ -13,6 +13,7 @@ import { calcularFatorMultiplicadorForca } from './poder.js';
 import { modificadoresDeEstados } from './condicoes.js';
 import { efeitosDeBuffsTemporarios, efeitosDeSuportePassivo } from './suporte.js';
 import { efeitosDaArmaEspiritual } from './armaEspiritualEfeitos.js';
+import { armaVirtualDaArmaEspiritual } from './armaEspiritualDano.js';
 
 // Status são gravados 1000x maiores que o número exibido na Ficha (core: Marcados.jsx > FATOR_EXIBICAO_STATUS).
 const FATOR_EXIBICAO_STATUS = 1000;
@@ -151,6 +152,12 @@ function rolarFonteDeDano({ nome, tipo, qtdDados, facesDados, sels }) {
     return { nome, tipo, soma, rolagem: formatarRolagem(qtdDados, facesDados, rolls, soma), sels: Array.isArray(sels) ? sels : ['forca'] };
 }
 
+// Valor do Status como a Ficha Definitiva exibe (coluna Atual), usado no dano.
+function valorStatusExibido(minhaFicha, k) {
+    const bruto = Number(getMaximo(minhaFicha, k)) || 0;
+    return Math.floor((bruto * calcularFatorMultiplicadorForca(minhaFicha, 'status')) / FATOR_EXIBICAO_STATUS);
+}
+
 // Soma os Status distintos das fontes (cada um conta uma vez).
 function somarStatusDasFontes(fontes, minhaFicha) {
     const vistos = new Set();
@@ -161,8 +168,7 @@ function somarStatusDasFontes(fontes, minhaFicha) {
         vistos.add(k);
         // O Status do dano é o MESMO número que a Ficha Definitiva mostra na coluna Atual (ex.: 240): o valor bruto vem em escala
         // 1000x maior e passa pelo fator de Ascensão/Prestígio (core/poder.js > calcularFatorMultiplicadorForca), igual à exibição.
-        const bruto = Number(getMaximo(minhaFicha, k)) || 0;
-        const val = Math.floor((bruto * calcularFatorMultiplicadorForca(minhaFicha, 'status')) / FATOR_EXIBICAO_STATUS);
+        const val = valorStatusExibido(minhaFicha, k);
         soma += val;
         const nomeAttr = (minhaFicha[k] && minhaFicha[k].nome) || String(k).toUpperCase();
         detalhes.push(`<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>`);
@@ -236,6 +242,9 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     }
 
     let armaEquipada = itensEquipados.find(i => i.tipo === 'arma');
+    // ⚔️ Arma Espiritual EQUIPADA: fonte de dano à parte (core/armaEspiritualDano.js); desequipada ou sem acesso = null.
+    const armaEsp = armaVirtualDaArmaEspiritual(minhaFicha);
+    if (armaEsp) nomesArmas.push(armaEsp.nome);
 
     // 🔋 Custos que viram Poder no golpe (core/custoPoder.js): [{ energia, bruto }].
     let custosPoder = [];
@@ -307,6 +316,24 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     const fontes = [];
     if (armaEquipada && (armaEquipada.dadosQtd || 0) > 0) {
         fontes.push(rolarFonteDeDano({ nome: armaEquipada.nome, tipo: 'arma', qtdDados: armaEquipada.dadosQtd, facesDados: armaEquipada.dadosFaces || 20, sels: configArma ? configArma.statusUsados : null }));
+    }
+    if (armaEsp && armaEsp.dadosQtd > 0) {
+        // Atributos sem "multiplica" somam (como os Status da arma); com "multiplica" multiplicam os dados da EA.
+        const fonteEA = rolarFonteDeDano({ nome: armaEsp.nome, tipo: 'arma', qtdDados: armaEsp.dadosQtd, facesDados: armaEsp.dadosFaces, sels: armaEsp.danoAtributos.filter(a => !a.multiplica).map(a => a.atributo) });
+        const multiplicadores = armaEsp.danoAtributos.filter(a => a.multiplica);
+        if (multiplicadores.length > 0) {
+            const partes = [];
+            let fator = 1;
+            multiplicadores.forEach(a => {
+                const v = valorStatusExibido(minhaFicha, a.atributo) * (a.fator || 1);
+                fator *= v;
+                partes.push(`${(minhaFicha[a.atributo] && minhaFicha[a.atributo].nome) || a.atributo.toUpperCase()} x${v.toLocaleString('pt-BR')}`);
+            });
+            fonteEA.soma = Math.floor(fonteEA.soma * fator);
+            if (!Number.isFinite(fonteEA.soma)) fonteEA.soma = Number.MAX_SAFE_INTEGER; // valores absurdos não viram NaN no cálculo de dígitos
+            fonteEA.rolagem += ` (${partes.join(' · ')}) = ${fonteEA.soma.toLocaleString('pt-BR')}`;
+        }
+        fontes.push(fonteEA);
     }
     for (let i = 0; i < configHabilidades.length; i++) {
         const hab = configHabilidades[i];
@@ -391,6 +418,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     let allAttrNames = new Set();
     if (configArma) (configArma.statusUsados || []).forEach(s => allAttrNames.add((minhaFicha[s] && minhaFicha[s].nome) || s.toUpperCase()));
     configHabilidades.forEach(h => (h.statusUsados || []).forEach(s => allAttrNames.add((minhaFicha[s] && minhaFicha[s].nome) || s.toUpperCase())));
+    if (armaEsp) armaEsp.danoAtributos.forEach(a => allAttrNames.add((minhaFicha[a.atributo] && minhaFicha[a.atributo].nome) || a.atributo.toUpperCase()));
 
     let armaStr = "";
     let combinados = nomesArmas.concat(nomesMagias);
@@ -426,6 +454,12 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
             tiposArmas.push(itemStr);
         }
     });
+    // ⚔️ Arma Espiritual equipada conta como arma no Acerto (nome e tipo).
+    const armaEspAcerto = armaVirtualDaArmaEspiritual(minhaFicha);
+    if (armaEspAcerto) {
+        nomesArmas.push(armaEspAcerto.nome);
+        tiposArmas.push(String(armaEspAcerto.armaTipo || '').toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+    }
 
     // 🛡️ Vantagem de CLASSE (Saber/Lancer/Archer com a arma do tipo, Rider montado): soma às que o jogador marcou.
     const vantagemClasse = getVantagensDeClasse(minhaFicha, tiposArmas);

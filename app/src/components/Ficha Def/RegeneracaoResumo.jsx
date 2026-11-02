@@ -61,6 +61,11 @@ export default function RegeneracaoResumo() {
                                     + Cura passiva (média por turno): {fmt(d.curaPassiva.total)} = {fmt(d.pctCuraPassiva)}% do teto ({d.curaPassiva.partes.map(p => `${p.nome} ${fmt(p.valor)}`).join(', ')})
                                 </li>
                             )}
+                            {k !== 'vida' && d.curaPassiva.total > 0 && (
+                                <li className="regen-mais">
+                                    + Cura passiva: {fmt(d.pctCuraPassiva)}% ({d.curaPassiva.partes.map(p => p.nome).join(', ')})
+                                </li>
+                            )}
                             {d.avisos.map((a, i) => <li key={i} className="regen-aviso">{a}</li>)}
                             <li className="regen-total">Total: {fmt(d.pctTotalComCura)}% do teto = {fmt(d.totalPontos)} por turno</li>
                         </ul>

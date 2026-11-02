@@ -4,7 +4,7 @@ import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 import { efeitosDeCombos } from './combos.js';
 import { efeitosDeBuffsTemporarios, efeitosDeSuportePassivo } from './suporte.js';
 import { efeitosDaArmaEspiritual } from './armaEspiritualEfeitos.js';
-import { efeitosAtivosDoItem } from './efeitosItem.js';
+import { efeitosAtivosDoItem, efeitosDaConfigAtiva } from './efeitosItem.js';
 import { getEfeitosFixosDeClasse, removerEfeitosLegados, ehBerserker, calcularGanhoBerserker, registrarResolvedorNivelClasse, getNivelClasse } from './classesMecanicas.js';
 
 // 📖 Classes cadastradas no Compêndio da MESA INTEIRA — a mesma leitura que a tela do Compêndio faz
@@ -179,6 +179,12 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
             let resolved = resolverEfeitosEntidade(p);
             if (p.ativa) processarEfeitos(resolved.efeitos, `Poder: ${p.nome}`);
             processarEfeitos(resolved.efeitosPassivos, `Poder(Pass): ${p.nome}`);
+            // Modo (Config) da Forma Mística ativa do Poder; sem Forma ativa não entra nada.
+            const cfgForma = efeitosDaConfigAtiva(p);
+            if (cfgForma) {
+                processarEfeitos(cfgForma.efeitos, `[Forma] ${p.nome}`);
+                processarEfeitos(cfgForma.efeitosPassivos, `[Forma Passiva] ${p.nome}`);
+            }
         }
     }
 

@@ -9,6 +9,7 @@ import EstadosGolpeEditor from '../shared/EstadosGolpeEditor';
 import SuporteEditor from '../shared/SuporteEditor';
 import { acharAlvoParaGravar } from '../shared/alvoDeEditor';
 import { blocoDoEstado } from '../../core/armaEspiritualEfeitos';
+import { parseDadoDano } from '../../core/armaEspiritualDano';
 import { normalizarSuporte } from '../../core/suporte';
 import { descreverBuff } from '../../core/combos';
 import { temAcessoArmaEspiritual, podeVerArmaEspiritual, filtrarCapitulos, resolverAbaVisivel } from '../../core/acessoArmaEspiritual';
@@ -26,6 +27,12 @@ const RARIDADES = {
     'divino': { label: '✨ Divino', cor: '#ffffcc' },
     'singular': { label: '🌌 Singularidade', cor: '#ff00ff' }
 };
+
+const ATRIBUTOS_DANO = [
+    { value: 'forca', label: 'Força' }, { value: 'destreza', label: 'Destreza' }, { value: 'inteligencia', label: 'Inteligência' },
+    { value: 'sabedoria', label: 'Sabedoria' }, { value: 'energiaEsp', label: 'Energia Espiritual' }, { value: 'carisma', label: 'Carisma' },
+    { value: 'stamina', label: 'Stamina' }, { value: 'constituicao', label: 'Constituição' }
+];
 
 const TIPOS_ARSENAL = [
     { value: 'arma', label: '⚔️ Arma' },
@@ -309,6 +316,41 @@ function PaginaAltar() {
     };
     const bloqueado = !isMestre;
 
+    // Atributos que entram na fórmula do dano da EA (soma ou multiplica os dados). Mestre edita; jogador só lê.
+    // (função de render, não componente: assim os inputs não remontam a cada digitação)
+    const renderDanoAtributos = ({ campoAtributos, lista, dica }) => {
+        const itens = Array.isArray(lista) ? lista : [];
+        const gravar = (nova) => { updateArma(campoAtributos, nova); callSave(); };
+        const usados = itens.map(a => a.atributo);
+        const livres = ATRIBUTOS_DANO.filter(a => !usados.includes(a.value));
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px' }}>
+                {itens.map((a, i) => (
+                    <div key={a.atributo} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '0.85em' }}>
+                        <strong>{(ATRIBUTOS_DANO.find(x => x.value === a.atributo) || {}).label || a.atributo}</strong>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: bloqueado ? 'default' : 'pointer' }}>
+                            <input type="checkbox" checked={!!a.multiplica} disabled={bloqueado} onChange={e => gravar(itens.map((x, j) => (j === i ? { ...x, multiplica: e.target.checked } : x)))} />
+                            multiplica o dano
+                        </label>
+                        {a.multiplica && (
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                x<input className="input-neon" type="number" min="0" step="any" value={a.fator ?? 1} disabled={bloqueado} style={{ width: 60, padding: 2 }} onChange={e => gravar(itens.map((x, j) => (j === i ? { ...x, fator: parseFloat(e.target.value) || 1 } : x)))} />
+                            </label>
+                        )}
+                        {isMestre && <button onClick={() => gravar(itens.filter((_, j) => j !== i))} style={{ background: 'transparent', border: 'none', color: '#ff003c', cursor: 'pointer', fontWeight: 'bold' }} title="Remover atributo">✖</button>}
+                    </div>
+                ))}
+                {isMestre && livres.length > 0 && (
+                    <select className="input-neon" value="" onChange={e => { if (e.target.value) gravar([...itens, { atributo: e.target.value, multiplica: false }]); }} style={{ padding: 4, maxWidth: 220 }}>
+                        <option value="">+ Adicionar atributo</option>
+                        {livres.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+                    </select>
+                )}
+                {dica && <div style={{ fontSize: '0.7em', opacity: 0.6, fontStyle: 'italic' }}>{dica}</div>}
+            </div>
+        );
+    };
+
     // 🔥 EQUIPAR/DESEQUIPAR A ARMA ESPIRITUAL (pedido do usuário): campos ausentes (fichas
     // antigas, de antes desta funcionalidade) são tratados como "equipada" e "destravada" -- nunca
     // muda o comportamento de ninguém que já tinha a arma valendo os multiplicadores. Só quando
@@ -451,7 +493,22 @@ function PaginaAltar() {
                     </div>
                     <div style={{ border: '2px solid currentColor', padding: '15px', borderRadius: '8px', background: 'rgba(0,0,0,0.05)' }}>
                         <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1em', color: '#ff003c' }}>💥 Dano Base da Relíquia</h3>
-                        <CampoMagico valor={arma.danoBase} onChange={v => updateArma('danoBase', v)} placeholder="Ex: 250d8 + Des x2 + Energia Espiritual x2" disabled={bloqueado} styleExtra={{ fontSize: '1.3em', fontWeight: 'bold' }} />
+                        <CampoMagico valor={arma.danoBase} onChange={v => updateArma('danoBase', v)} placeholder="Ex: 250d8" disabled={bloqueado} styleExtra={{ fontSize: '1.3em', fontWeight: 'bold' }} />
+                        <div style={{ fontSize: '0.75em', opacity: 0.7, fontStyle: 'italic', margin: '6px 0 10px' }}>
+                            Só o dado vale (ex.: 250d8) e só com a arma equipada. Atributos extras, abaixo.
+                            {parseDadoDano(arma.danoBase)?.ignorouResto && <span style={{ color: '#ffaa00' }}> O texto além do dado é ignorado; use os atributos.</span>}
+                        </div>
+                        {renderDanoAtributos({ campoAtributos: 'danoAtributos', lista: arma.danoAtributos })}
+                        {[{ sufixo: 'Verdadeira', id: 'verdadeira' }, { sufixo: 'Fantasma', id: 'fantasma' }].map(({ sufixo, id }) => {
+                            const info = ESTADOS_ARMA.find(e => e.id === id);
+                            return (
+                                <div key={id} style={{ marginTop: '12px', paddingTop: '10px', borderTop: `1px dotted ${info.cor}` }}>
+                                    <div style={{ fontSize: '0.85em', fontWeight: 'bold', color: info.cor, marginBottom: '4px' }}>{info.icon} Dano da {info.label}</div>
+                                    <CampoMagico valor={arma['danoBase' + sufixo]} onChange={v => updateArma('danoBase' + sufixo, v)} placeholder="vazio = usa o da Base" disabled={bloqueado} />
+                                    {renderDanoAtributos({ campoAtributos: 'danoAtributos' + sufixo, lista: arma['danoAtributos' + sufixo], dica: 'vazio = usa os atributos da Base' })}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '15px' }}>

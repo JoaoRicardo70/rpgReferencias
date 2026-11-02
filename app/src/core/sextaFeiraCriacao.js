@@ -235,7 +235,9 @@ export function descreverExtrasProposta(objeto) {
         const partes = [];
         if (su.cura) {
             const c = su.cura;
-            partes.push(`Cura ${[c.dadosQtd ? `${c.dadosQtd}d${c.dadosFaces}` : '', c.fixo ? String(c.fixo) : '', c.percVida ? `${c.percVida}% da Vida` : ''].filter(Boolean).join('+')}`);
+            const cv = [c.dadosQtd ? `${c.dadosQtd}d${c.dadosFaces}` : '', c.fixo ? String(c.fixo) : '', c.percVida ? `${c.percVida}% da Vida` : ''].filter(Boolean).join('+');
+            if (cv) partes.push(`Cura ${cv}`);
+            if (c.energias) partes.push(`Regenera ${Object.keys(c.energias).map(k => `${c.energias[k]}% ${k}`).join(', ')} por turno`);
         }
         if (su.buffs.length) {
             const prazo = su.duracao > 0 ? `por ${su.duracao} turno${su.duracao === 1 ? '' : 's'}` : 'sem prazo';
@@ -283,8 +285,9 @@ const SUPORTE_SCHEMA = {
     type: 'OBJECT',
     description: 'Cura e/ou buffs dados a quem usa e/ou a aliados (criação de apoio). Use quando a criação cura ou fortalece, não para dano. Ex.: {"cura":{"dadosQtd":3,"dadosFaces":8,"fixo":10},"buffs":[{"atributo":"forca","propriedade":"base","valor":5}],"duracao":3,"alvos":"aliados","maxAlvos":3,"acao":"padrao"}',
     properties: {
-        cura: { type: 'OBJECT', description: 'Cura = dados + valor fixo + % da Vida máxima do alvo.', properties: { dadosQtd: { type: 'INTEGER' }, dadosFaces: { type: 'INTEGER' }, fixo: { type: 'NUMBER' }, percVida: { type: 'NUMBER' } } },
+        cura: { type: 'OBJECT', description: 'Cura = dados + valor fixo + % da Vida máxima do alvo. No modo passivo, energias = % do máximo de cada energia recuperado por turno (0-100).', properties: { dadosQtd: { type: 'INTEGER' }, dadosFaces: { type: 'INTEGER' }, fixo: { type: 'NUMBER' }, percVida: { type: 'NUMBER' }, energias: { type: 'OBJECT', properties: { mana: { type: 'NUMBER' }, aura: { type: 'NUMBER' }, chakra: { type: 'NUMBER' }, corpo: { type: 'NUMBER' } } } } },
         buffs: { type: 'ARRAY', description: 'Buffs temporários no mesmo formato dos efeitos.', items: { type: 'OBJECT', properties: { atributo: { type: 'STRING', enum: ATRIBUTOS_EFEITO }, propriedade: { type: 'STRING', enum: PROPRIEDADES_EFEITO }, valor: { type: 'NUMBER' } }, required: ['atributo', 'propriedade', 'valor'] } },
+        modo: { type: 'STRING', enum: ['uso', 'passivo'], description: 'uso = ativo; passivo = sempre ligado enquanto o Poder/Item estiver em uso (só em quem usa).' },
         duracao: { type: 'INTEGER', description: `Turnos dos buffs (0 = sem prazo, máx. ${LIMITES_SUPORTE.duracaoMax}).` },
         alvos: { type: 'STRING', enum: MODOS_ALVO_SUPORTE.map(m => m.id), description: 'si = só quem usa; aliados; ambos.' },
         maxAlvos: { type: 'INTEGER', description: `Aliados atingidos (1 a ${LIMITES_SUPORTE.maxAlvos}).` },

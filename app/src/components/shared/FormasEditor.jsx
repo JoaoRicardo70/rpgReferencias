@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ATRIBUTOS_AGRUPADOS, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
+import { ATRIBUTOS_AGRUPADOS_ITEM, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 
 export default function FormasEditor({ className, itemRaridade, formas, formaAtivaId, configAtivaId, onSalvarForma, onDeletarForma, onAtivarForma }) {
     const [mostrarFormas, setMostrarFormas] = useState(false);
@@ -284,7 +284,7 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 60px auto', gap: 6, marginBottom: 5 }}>
                                         <input className="input-neon" type="text" placeholder="Nome (Ex: Vento)" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tNomeA || ''} onChange={e => handleConfigChange(cIdx, 'tNomeA', e.target.value)} />
                                         <select className="input-neon" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tAtrA || 'forca'} onChange={e => { handleConfigChange(cIdx, 'tAtrA', e.target.value); handleConfigChange(cIdx, 'tPropA', ajustarPropriedade(e.target.value, cfg.tPropA || 'base')); }}>
-                                            {ATRIBUTOS_AGRUPADOS.map(g => <optgroup key={g.label} label={g.label}>{g.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}</optgroup>)}
+                                            {ATRIBUTOS_AGRUPADOS_ITEM.map(g => <optgroup key={g.label} label={g.label}>{g.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}</optgroup>)}
                                         </select>
                                         <select className="input-neon" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tPropA || 'base'} onChange={e => handleConfigChange(cIdx, 'tPropA', e.target.value)}>
                                             {getPropriedadesDoAtributo(cfg.tAtrA || 'forca').map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
@@ -306,7 +306,7 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 60px auto', gap: 6, marginBottom: 5 }}>
                                         <input className="input-neon" type="text" placeholder="Nome (Ex: Aura)" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tNomeP || ''} onChange={e => handleConfigChange(cIdx, 'tNomeP', e.target.value)} />
                                         <select className="input-neon" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tAtrP || 'forca'} onChange={e => { handleConfigChange(cIdx, 'tAtrP', e.target.value); handleConfigChange(cIdx, 'tPropP', ajustarPropriedade(e.target.value, cfg.tPropP || 'base')); }}>
-                                            {ATRIBUTOS_AGRUPADOS.map(g => <optgroup key={g.label} label={g.label}>{g.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}</optgroup>)}
+                                            {ATRIBUTOS_AGRUPADOS_ITEM.map(g => <optgroup key={g.label} label={g.label}>{g.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}</optgroup>)}
                                         </select>
                                         <select className="input-neon" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tPropP || 'base'} onChange={e => handleConfigChange(cIdx, 'tPropP', e.target.value)}>
                                             {getPropriedadesDoAtributo(cfg.tAtrP || 'forca').map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}

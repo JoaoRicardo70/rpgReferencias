@@ -93,3 +93,19 @@ describe('detalharRegeneracao', () => {
         expect(v.pctCuraPassiva).toBe(0);
     });
 });
+
+describe('detalharRegeneracao: cura passiva de energias', () => {
+    it('energia ganha % do suporte passivo no total e nos pontos; Vida nao muda', () => {
+        const f = fichaBase({
+            mana: { base: 1000000, atual: 0, regeneracaoPct: 2 },
+            poderes: [{ nome: 'Fonte', ativa: true, efeitos: [], suporte: { modo: 'passivo', cura: { energias: { mana: 5 } } } }]
+        });
+        const d = detalharRegeneracao(f);
+        expect(d.mana.pctCuraPassiva).toBeCloseTo(5, 1);
+        expect(d.mana.curaPassiva.partes.map(p => p.nome)).toEqual(['Fonte']);
+        expect(d.mana.pctTotalComCura).toBeCloseTo(7, 1);
+        expect(d.mana.totalPontos).toBeCloseTo(d.mana.pontosPorTurno + d.mana.curaPassiva.total, 4);
+        expect(d.aura.pctCuraPassiva).toBe(0);
+        expect(d.vida.curaPassiva.total).toBe(0);
+    });
+});

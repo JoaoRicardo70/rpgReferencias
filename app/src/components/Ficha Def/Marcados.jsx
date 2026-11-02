@@ -8,10 +8,9 @@ import { lerImagemComoBase64 } from '../../services/firebase-storage';
 import * as AtributosCore from '../../core/attributes';
 import { getRank } from '../../core/prestige';
 import { formatarPoderCosmico } from '../../core/utils.js';
-import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { calcularFadigaAtual } from '../../core/fadiga';
 import { getTetoOcultacaoPoder, getOcultacaoPoder } from '../../core/percepcaoPoder';
-import { getGlobalMultipliers, getBaseEquivalenteAscensao, amortecerPoderBruto, getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder, aplicarEscalaPoderCalculado } from '../../core/poder';
+import { getGlobalMultipliers, getPoderDiretoMultiplier, getBaseEquivalenteAscensao, amortecerPoderBruto, getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder, aplicarEscalaPoderCalculado } from '../../core/poder';
 import { planejarAjustePrestigioStatus, aplicarAjustePrestigioStatus, recolherPontosAlocados, getTotalPontosAlocados } from '../../core/statusPool';
 import { getPontosPrestigioDisponiveis, getPontosDistribuidos, calcularBaseDoPrestigio, validarDistribuicaoPrestigio, registrarDistribuicaoPrestigio, podeAscender, prestigioAposAscensao, aplicarAscensao, CATEGORIAS_PRESTIGIO, PRESTIGIO_PARA_ASCENDER } from '../../core/prestigioDistribuicao';
 import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
@@ -94,49 +93,7 @@ function getEfetivoMFormas(ficha, k, ignorarPoderes = false) {
 // getGlobalMultipliers vem de core/poder.js (a mesma do Mapa/Mestre): os antigos Multiplicadores
 // de Dano agora só valem no Poder Calculado, e duas cópias desse cálculo já divergiram antes.
 
-function getPoderDiretoMultiplier(ficha) {
-    if (!ficha) return 1;
-    try {
-        let grupos = { mbase: 0, mgeral: 0, mformas: 0, mabs: 0 };
-        let unicos = [];
-
-        const processar = (efeitos) => {
-            if (!efeitos) return;
-            efeitos.forEach(e => {
-                if (!e || (e.atributo || '').toLowerCase() !== 'poder_direto') return;
-                const prop = (e.propriedade || '').toLowerCase();
-                const val = parseFloat(e.valor);
-                if (isNaN(val)) return;
-                if (prop === 'munico') { if (val > 0) unicos.push(val); }
-                else if (grupos.hasOwnProperty(prop)) grupos[prop] += val;
-            });
-        };
-
-        (ficha.poderes || []).forEach(p => {
-            if (!p) return;
-            const resolved = resolverEfeitosEntidade(p);
-            if (p.ativa) processar(resolved.efeitos);
-            processar(resolved.efeitosPassivos);
-        });
-
-        // 🔥 Pactos/Entidades Seladas (ficha.seresSelados) também podem carregar um
-        // efeito "poder_direto" — só conta enquanto o Pacto estiver Sincronizado
-        // (ser.ativo), igual a todo o resto dos buffs dele (ver core/attributes.js).
-        (ficha.seresSelados || []).forEach(ser => {
-            if (!ser || !ser.ativo) return;
-            const resolved = resolverEfeitosEntidade(ser);
-            processar(resolved.efeitos);
-            processar(resolved.efeitosPassivos);
-        });
-
-        let finalUni = 1.0;
-        unicos.forEach(n => { finalUni *= n; });
-
-        return (1 + grupos.mbase) * (1 + grupos.mgeral) * (1 + grupos.mformas) * (1 + grupos.mabs) * finalUni;
-    } catch (e) {
-        return 1;
-    }
-}
+// getPoderDiretoMultiplier vem de core/poder.js (Poderes, Pactos e Itens equipados + Formas).
 
 // ♾️ mUnico Crescente (Infinities tipo Adaptação): cresce automaticamente a cada
 // turno de combate (mesmo padrão de contador da Fadiga, só que aumenta o Poder em

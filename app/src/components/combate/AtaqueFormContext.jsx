@@ -20,6 +20,7 @@ import { gravarVidaDoAlvo } from '../../services/danoAlvo';
 import { criarPosGolpe } from '../../services/posGolpe';
 import { coletarEstadosDoGolpe } from '../../core/estadosGolpe';
 import { fonteDeEstadosDaArma } from '../../core/armaEspiritualEfeitos';
+import { armaVirtualDaArmaEspiritual } from '../../core/armaEspiritualDano';
 import { getNivelDominio } from '../../core/dominios';
 import { classificarAtaque, energiasDoGolpe } from '../../core/identificacao';
 import { montarNarrativa } from '../../core/descricaoAtaque';
@@ -189,7 +190,10 @@ export function AtaqueFormProvider({ children }) {
         [dummieAlvo, minhaFicha, divisorPoderMesa]
     );
 
-    const armaEquipada = useMemo(() => (minhaFicha.inventario || []).find(i => i.equipado && i.tipo === 'arma'), [minhaFicha.inventario]);
+    const armaInventario = useMemo(() => (minhaFicha.inventario || []).find(i => i.equipado && i.tipo === 'arma'), [minhaFicha.inventario]);
+    // ⚔️ A Arma Espiritual equipada (virtual) também conta como arma; ela rola à parte no calcularDano.
+    const armaEspiritualEquipada = useMemo(() => armaVirtualDaArmaEspiritual(minhaFicha), [minhaFicha]);
+    const armaEquipada = armaInventario || armaEspiritualEquipada || undefined;
     const poderesAtivos = useMemo(() => (minhaFicha.poderes || []).filter(p => p && p.ativa), [minhaFicha.poderes]);
     const magiasOfensivas = useMemo(() => (minhaFicha.ataquesElementais || []).filter(m => m && m.equipado && m.tipoMecanica !== 'suporte'), [minhaFicha.ataquesElementais]);
 
@@ -276,6 +280,15 @@ export function AtaqueFormProvider({ children }) {
             return { ...prev, [id]: { ...prev[id], statusUsados: updated.length > 0 ? updated : ['forca'] } };
         });
     }, []);
+
+    // ⚔️ Equipar/desequipar a Arma Espiritual pelo Livro: o MESMO flag do Altar da Relíquia (armaEspiritual.equipada).
+    const alternarArmaEspiritual = useCallback(() => {
+        updateFicha(f => {
+            if (!f.armaEspiritual) f.armaEspiritual = {};
+            f.armaEspiritual.equipada = !(f.armaEspiritual.equipada !== false);
+        });
+        salvarFichaSilencioso();
+    }, [updateFicha, salvarFichaSilencioso]);
 
     const toggleArmaStat = useCallback((statValue) => {
         setArmaStatusUsados(prev => {
@@ -793,14 +806,14 @@ export function AtaqueFormProvider({ children }) {
         customFormula, setCustomFormula, customLetalidade, setCustomLetalidade, 
         customEnergiaTipo, setCustomEnergiaTipo, customEnergiaCusto, setCustomEnergiaCusto,
         rolarDanoCustomizado, salvarFormula, deletarFormula,
-        acalmarFuria, updateSkillConfig, toggleSkillStat, toggleArmaStat, salvarConfigAtaque, rolarDano, rolarAtaqueSalvo, salvarAtaque, deletarAtaqueSalvo,
+        acalmarFuria, updateSkillConfig, toggleSkillStat, toggleArmaStat, alternarArmaEspiritual, salvarConfigAtaque, rolarDano, rolarAtaqueSalvo, salvarAtaque, deletarAtaqueSalvo,
     }), [
         armaStatusUsados, armaEnergiaCombustao, armaPercEnergia, critNormalMin, critNormalMax, critFatalMin, critFatalMax,
         autoCritNormal, autoCritFatal, forcarCritNormal, forcarCritFatal, ignorarTravaAcerto, skillConfigs, podeRolarDano, furiaAcalmadaMsg,
         multiplicadorFuriaClasse, multiplicadorFuriaVisor, percAtualLostFloor, percEfetivoParaDisplay,
         dummieAlvo, disputaAlvo, armaEquipada, poderesAtivos, magiasOfensivas, minhaFicha, elementoAtivo, elementosDinamicos,
         customFormula, customLetalidade, customEnergiaTipo, customEnergiaCusto, rolarDanoCustomizado, salvarFormula, deletarFormula,
-        acalmarFuria, updateSkillConfig, toggleSkillStat, toggleArmaStat, salvarConfigAtaque, rolarDano, rolarAtaqueSalvo, salvarAtaque, deletarAtaqueSalvo,
+        acalmarFuria, updateSkillConfig, toggleSkillStat, toggleArmaStat, alternarArmaEspiritual, salvarConfigAtaque, rolarDano, rolarAtaqueSalvo, salvarAtaque, deletarAtaqueSalvo,
     ]);
 
     return <AtaqueFormContext.Provider value={value}>{children}</AtaqueFormContext.Provider>;

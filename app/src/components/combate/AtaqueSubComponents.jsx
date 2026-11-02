@@ -121,6 +121,19 @@ export function AtaqueArmaEquipada() {
 
     if (!armaEquipada) return null;
 
+    // A Arma Espiritual tem os atributos e o dado definidos no Relicário (Capítulo 1); aqui só se mostra.
+    if (armaEquipada.virtual) {
+        return (
+            <div className="def-box" style={{ marginBottom: 15, borderLeft: '3px solid #0f0' }}>
+                <h3 style={{ color: '#0f0', margin: '0 0 10px 0' }}>⚔️ Arma Espiritual Equipada: {armaEquipada.nome}</h3>
+                <div style={{ color: '#aaa', fontSize: '0.85em' }}>
+                    {armaEquipada.dadosQtd > 0 ? `Dano: ${armaEquipada.dadosQtd}d${armaEquipada.dadosFaces}` : 'Sem dado de dano válido (ex.: 250d8) no Relicário.'}
+                    {armaEquipada.danoAtributos.length > 0 && ` + ${armaEquipada.danoAtributos.map(a => `${a.atributo}${a.multiplica ? ' (multiplica)' : ''}`).join(', ')}`}
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="def-box" style={{ marginBottom: 15, borderLeft: '3px solid #0f0' }}>
             <h3 style={{ color: '#0f0', margin: '0 0 10px 0' }}>⚔️ Arma Equipada: {armaEquipada.nome}</h3>

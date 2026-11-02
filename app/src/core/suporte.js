@@ -1,7 +1,7 @@
 // ==========================================
 // ✨ SUPORTE — Cura e Buffs que um Poder, Habilidade, Técnica ou Item dá a quem usa e/ou a vários aliados (mesmo desenho dos
 // estados que o golpe aplica, core/estadosGolpe.js, só que para o lado bom). Lógica pura; as escritas ficam em services/suporte.js.
-//   suporte: { cura?: { dadosQtd, dadosFaces, fixo, percVida }, buffs: [{ atributo, propriedade, valor }], duracao,
+//   suporte: { cura?: { dadosQtd, dadosFaces, fixo, percVida, energias?: { mana, aura, chakra, corpo } (% do máx. por turno, só passivo) }, buffs: [{ atributo, propriedade, valor }], duracao,
 //              alvos: 'si' | 'aliados' | 'ambos', maxAlvos, custoPercentual, energia, acao }
 // Cura: dados + valor fixo + % da Vida máxima do alvo (escala exibida), vezes a Eficácia de Cura dele (estados cortam a cura).
 // Buffs: efeitos no mesmo formato de sempre ({ atributo, propriedade, valor }); ficam em ficha.buffsTemporarios por `duracao`
@@ -23,6 +23,8 @@ export const ACOES_SUPORTE = [
     { id: 'nenhuma', nome: 'Sem custo de Ação' }, { id: 'padrao', nome: 'Ação' }, { id: 'bonus', nome: 'Ação Bônus' }, { id: 'reacao', nome: 'Reação' }
 ];
 const ENERGIAS = ['mana', 'aura', 'chakra'];
+// Energias que o suporte PASSIVO pode regenerar por turno (% do máximo de cada uma).
+export const ENERGIAS_REGENERAVEIS_SUPORTE = ['mana', 'aura', 'chakra', 'corpo'];
 
 const inteiro = (v, min, max, padrao = 0) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : padrao; };
 const numero = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
@@ -41,7 +43,13 @@ export function normalizarSuporte(s) {
         dadosQtd: inteiro(s.cura.dadosQtd, 0, LIMITES_SUPORTE.dadosQtd), dadosFaces: inteiro(s.cura.dadosFaces, 2, LIMITES_SUPORTE.dadosFaces, 20),
         fixo: Math.max(0, numero(s.cura.fixo)), percVida: Math.max(0, Math.min(1000, numero(s.cura.percVida)))
     } : null;
-    const temCura = cura && (cura.dadosQtd > 0 || cura.fixo > 0 || cura.percVida > 0);
+    // Energias (% do máximo por turno) só valem no passivo; zeros e valores inválidos saem.
+    if (cura && s.modo === 'passivo' && s.cura.energias && typeof s.cura.energias === 'object') {
+        const energias = {};
+        ENERGIAS_REGENERAVEIS_SUPORTE.forEach((k) => { const v = Math.min(100, numero(s.cura.energias[k])); if (v > 0) energias[k] = v; });
+        if (Object.keys(energias).length > 0) cura.energias = energias;
+    }
+    const temCura = cura && (cura.dadosQtd > 0 || cura.fixo > 0 || cura.percVida > 0 || !!cura.energias);
     const buffs = (Array.isArray(s.buffs) ? s.buffs : []).filter(buffValido).slice(0, LIMITES_SUPORTE.buffs)
         .map(b => ({ atributo: b.atributo, propriedade: b.propriedade, valor: numero(b.valor), ...(b.nome ? { nome: String(b.nome).slice(0, 60) } : {}) }));
     if (!temCura && buffs.length === 0) return null;
@@ -167,4 +175,22 @@ export function curaPassivaDoTurno(ficha, { vidaMaxExibida = 0, rolar } = {}) {
         return { nome: f.nome, valor: c.total, detalhe: c.detalhe };
     }).filter(p => p.valor > 0);
     return { total: partes.reduce((s, p) => s + p.valor, 0), partes };
+}
+
+// Energias que o suporte passivo regenera no começo do turno do dono: % do máximo de cada uma (soma das fontes).
+// { porEnergia: { mana: { pct, fontes: [{ nome, pct }] } }, vazio } — só entram as energias com pct > 0.
+export function curaEnergiasPassivaDoTurno(ficha) {
+    const porEnergia = {};
+    suportesPassivos(ficha).forEach((f) => {
+        const en = f.suporte.cura && f.suporte.cura.energias;
+        if (!en) return;
+        ENERGIAS_REGENERAVEIS_SUPORTE.forEach((k) => {
+            const pct = Number(en[k]) || 0;
+            if (pct <= 0) return;
+            if (!porEnergia[k]) porEnergia[k] = { pct: 0, fontes: [] };
+            porEnergia[k].pct += pct;
+            porEnergia[k].fontes.push({ nome: f.nome, pct });
+        });
+    });
+    return { porEnergia, vazio: Object.keys(porEnergia).length === 0 };
 }

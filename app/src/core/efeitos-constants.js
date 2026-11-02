@@ -41,6 +41,16 @@ export const ATRIBUTOS_AGRUPADOS = [
     }
 ];
 
+// ⚡ Poder Direto multiplica o Poder Calculado do Scouter sem passar por Status/Energia (core/poder.js >
+// getPoderDiretoMultiplier: Poderes, Pactos, Itens equipados e Formas). Fica FORA de ATRIBUTOS_AGRUPADOS
+// porque Combos/Suporte validam buffs contra essa lista e lá ele não faria nada.
+export const GRUPO_PODER_DIRETO = {
+    label: '⚡ POTÊNCIA DO SCOUTER',
+    options: ['poder_direto']
+};
+// Lista dos lugares onde o Poder Direto funciona (Itens do Arsenal e Formas Místicas).
+export const ATRIBUTOS_AGRUPADOS_ITEM = [...ATRIBUTOS_AGRUPADOS, GRUPO_PODER_DIRETO];
+
 export const PROPRIEDADE_OPTIONS = [
     'base', 'mbase', 'mgeral', 'mformas', 'mabs', 'munico', 'furia_berserker', 'reducaocusto', 'regeneracao', 'elemento_inato', 'bonus_acerto'
 ];

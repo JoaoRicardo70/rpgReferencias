@@ -77,6 +77,12 @@ export default function SuporteEditor({ colecao, itemId, estado = 'base' }) {
                         <label className="estados-golpe-check">+ <input className="input-neon estados-golpe-num" type="number" min="0" aria-label="Cura fixa" value={form.cura.fixo} onChange={e => alterarCura({ fixo: parseFloat(e.target.value) || 0 })} /></label>
                         <label className="estados-golpe-check">+ <input className="input-neon estados-golpe-num" type="number" min="0" max="1000" aria-label="Cura em porcentagem da Vida" value={form.cura.percVida} onChange={e => alterarCura({ percVida: parseFloat(e.target.value) || 0 })} />% da Vida</label>
                     </div>
+                    {passivo && <div className="estados-golpe-linha">
+                        <span className="estados-golpe-check">Regenera energias (% do máximo por turno):</span>
+                        {[['mana', 'Mana'], ['aura', 'Aura'], ['chakra', 'Chakra'], ['corpo', 'Corpo']].map(([k, rotulo]) => (
+                            <label key={k} className="estados-golpe-check">{rotulo} <input className="input-neon estados-golpe-num" type="number" min="0" max="100" aria-label={`Regenera ${rotulo} (% do máximo por turno)`} value={(form.cura.energias && form.cura.energias[k]) || 0} onChange={e => alterarCura({ energias: { ...(form.cura.energias || {}), [k]: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) } })} /></label>
+                        ))}
+                    </div>}
                     <EditorBuffs buffs={form.buffs} onChange={(b) => alterar({ buffs: b })} rotulo="Buffs temporários" />
                     {!passivo && <div className="estados-golpe-linha">
                         <select className="input-neon" aria-label="Quem recebe" value={form.alvos} onChange={e => alterar({ alvos: e.target.value })}>

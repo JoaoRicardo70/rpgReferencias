@@ -16,10 +16,10 @@ import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getVidaMaxExibidaFicha, g
 import { golpeEquipado } from '../../core/classesMecanicas';
 import { alternarAcao, restaurarAcoes, criarAcoesIniciais } from '../../core/acoes';
 import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
-import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto } from '../../core/vitals';
+import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto, getTetoExibidoComFator } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { danoDeEstadosNoTurno, descreverDanoDeEstados } from '../../core/condicoes';
-import { passarTurnoDosBuffs, curaPassivaDoTurno } from '../../core/suporte';
+import { passarTurnoDosBuffs, curaPassivaDoTurno, curaEnergiasPassivaDoTurno } from '../../core/suporte';
 import { getVidaMaxBrutaNpc } from '../../core/gavetaNpc';
 import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from '../../core/reducaoDano';
@@ -132,6 +132,15 @@ function aplicarInicioDeTurno(ficha, ehDummie = false) {
 // ✨ Suporte passivo (core/suporte.js): a Cura de Poderes/Técnicas/Itens/Arma sempre ligados cai na Vida no começo do turno do dono,
 // já com os cortes de cura dos estados. Nunca baixa a Vida de quem está acima do teto. Devolve o texto para o Feed ('' sem cura).
 function aplicarCuraPassivaNoTurno(ficha) {
+    const textos = [];
+    const vida = aplicarCuraPassivaDaVida(ficha);
+    if (vida) textos.push(vida);
+    const energias = aplicarCuraPassivaDeEnergias(ficha);
+    if (energias) textos.push(energias);
+    return textos.join(' | ');
+}
+
+function aplicarCuraPassivaDaVida(ficha) {
     if (!ficha.vida) return '';
     const maxBruto = getVidaMaxBrutaNpc(ficha);
     const atual = Number(ficha.vida.atual);
@@ -142,6 +151,26 @@ function aplicarCuraPassivaNoTurno(ficha) {
     if (total <= 0) return '';
     ficha.vida.atual = Math.max(atual, Math.min(maxBruto, atual + danoExibidoParaBruto(total)));
     return r.partes.map(p => p.nome).join(', ') + ': +' + total.toLocaleString('pt-BR');
+}
+
+// Energias do suporte passivo: % do teto de cada uma por turno (mesmo teto da regeneração), sem corte de Eficácia de Cura;
+// nunca passa do teto nem baixa quem está acima dele.
+function aplicarCuraPassivaDeEnergias(ficha) {
+    const { porEnergia } = curaEnergiasPassivaDoTurno(ficha);
+    const partes = [];
+    Object.keys(porEnergia).forEach((k) => {
+        try {
+            if (!ficha[k]) return;
+            const teto = getTetoExibidoComFator(k, ficha);
+            const atual = Number(ficha[k].atual) || 0;
+            if (!(teto > 0) || atual >= teto) return;
+            const novo = Math.max(atual, Math.min(teto, atual + teto * (porEnergia[k].pct / 100)));
+            ficha[k].atual = novo;
+            const ganho = Math.floor((novo - atual) / FATOR_EXIBICAO_VITAIS);
+            if (ganho > 0) partes.push(`${k} +${ganho.toLocaleString('pt-BR')} (${porEnergia[k].fontes.map(f => f.nome).join(', ')})`);
+        } catch (e) { /* pula só esta energia */ }
+    });
+    return partes.join(', ');
 }
 
 // 🩸 Estados negativos (core/condicoes.js): Queimado/Sangrando/Criogenia causam dano por stack no começo do turno de quem está

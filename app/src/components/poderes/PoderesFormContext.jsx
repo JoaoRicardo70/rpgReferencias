@@ -433,14 +433,18 @@ export function PoderesFormProvider({ children }) {
         salvarFichaSilencioso();
     }, [updateFicha, salvarFichaSilencioso]);
 
-    const ativarFormaPoder = useCallback((poderId, formaId) => {
+    // formaId null = desativa a Forma (e zera o modo); configId escolhe o modo ativo.
+    const ativarFormaPoder = useCallback((poderId, formaId, configId = null) => {
         updateFicha((ficha) => {
             const p = (ficha.poderes || []).find(po => po.id === poderId);
             if (!p) return;
 
             const oldM = capturarMaximosAtuais(ficha);
 
-            p.formaAtivaId = formaId;
+            // Pedir a MESMA forma (e configuração) já ativa desliga; `formaId` nulo também desliga.
+            const jaAtiva = formaId && p.formaAtivaId === formaId && (!configId || (p.configAtivaId || null) === configId);
+            p.formaAtivaId = jaAtiva ? null : (formaId || null);
+            p.configAtivaId = p.formaAtivaId ? (configId || null) : null;
 
             rescalarVitaisProporcional(ficha, oldM);
         });

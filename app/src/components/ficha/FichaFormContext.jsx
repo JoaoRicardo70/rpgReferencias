@@ -517,12 +517,16 @@ export function FichaFormProvider({ children }) {
         salvarFichaSilencioso();
     }, [updateFicha]);
 
-    const ativarFormaSer = useCallback((serId, formaId) => {
+    // formaId null = desativa a Forma (o botão DESATIVAR MODO do FormasEditor manda null).
+    const ativarFormaSer = useCallback((serId, formaId, configId = null) => {
         updateFicha(f => {
             const s = (f.seresSelados || []).find(x => x.id === serId);
             if (!s) return;
             const oldM = capturarMaximosAtuais(f);
-            s.formaAtivaId = s.formaAtivaId === formaId ? null : formaId;
+            // Pedir a MESMA forma (e configuração) já ativa desliga; `formaId` nulo também desliga.
+            const jaAtiva = formaId && s.formaAtivaId === formaId && (!configId || (s.configAtivaId || null) === configId);
+            s.formaAtivaId = jaAtiva ? null : (formaId || null);
+            s.configAtivaId = s.formaAtivaId ? (configId || null) : null;
             if (s.formaAtivaId && !s.ativo) s.ativo = true;
             rescalarVitaisProporcional(f, oldM);
         });
