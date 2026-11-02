@@ -3134,3 +3134,11 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .regen-menos { color: var(--cor-secundaria); }
 .regen-aviso { color: var(--cor-destaque); font-size: 0.9em; }
 .regen-total { font-weight: bold; }
+
+/* 💾 Backup da ficha (Perfil) */
+.backup-ficha-dica { color: #aaa; font-size: 0.85em; margin: 4px 0 10px; }
+.backup-ficha-erro { color: #ff6666; font-size: 0.85em; margin: 4px 0 10px; }
+.backup-ficha-botoes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.backup-ficha-subtitulo { color: #ffcc00; margin: 10px 0 6px; font-size: 0.95em; }
+.backup-ficha-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
+.backup-ficha-lista li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 4px 8px; border: 1px dashed rgba(255, 204, 0, 0.35); border-radius: 4px; font-size: 0.9em; }

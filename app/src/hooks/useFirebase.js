@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import useStore from '../stores/useStore';
 import { entradaVisivel, ocultarValorDoAcerto } from '../core/dadosMestre';
 import { db } from '../services/firebase-config';
+import { garantirBackupDiario } from '../services/backup-ficha';
 import { iniciarListenerFichaPropria, iniciarListenerPersonagens, iniciarListenerFeed, salvarFirebaseImediato, resetSincronizacaoFicha, mesclarPersonagensRemotos } from '../services/firebase-sync';
 
 export default function useFirebase() {
@@ -35,6 +36,8 @@ export default function useFirebase() {
                 if (cancelled || !primeiraCarga) return;
                 if (dados) {
                     carregarDadosFicha(dados);
+                    // 💾 Cópia diária da ficha (a que veio do servidor); nunca lança e não atrasa o carregamento.
+                    garantirBackupDiario(meuNome, dados).catch(() => {});
                     // 🔥 Persiste imediatamente a migração de ficha.passivas -> ficha.poderes
                     // (ver migrarPassivasParaPoderes), para não repeti-la a cada recarregamento.
                     if (Array.isArray(dados.passivas) && dados.passivas.length > 0) {
