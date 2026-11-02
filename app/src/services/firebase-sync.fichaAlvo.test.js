@@ -6,6 +6,7 @@ import {
     salvarFichaAlvoSilencioso,
     mesclarPersonagensRemotos,
     resetSincronizacaoFicha,
+    confirmarLeituraRemota,
 } from './firebase-sync';
 import useStore from '../stores/useStore';
 import { update } from 'firebase/database';
@@ -91,6 +92,7 @@ describe('salvarFichaAlvoImediato — cross-talk safety de persistência', () =>
             personagens: { 'Kiriya': { vida: { atual: 999 } } },
         });
 
+        confirmarLeituraRemota(null); // a própria ficha só é enviada depois de o servidor ter sido lido
         await salvarFichaAlvoImediato('Kiriya');
 
         expect(update).toHaveBeenCalledTimes(1);

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import useStore, { sanitizarNome } from '../../stores/useStore';
-import { carregarFichaDoFirebase, salvarFirebaseImediato, salvarCamposPersonagem } from '../../services/firebase-sync';
+import { lerFichaDoFirebaseSeguro, resetSincronizacaoFicha, salvarFirebaseImediato, salvarCamposPersonagem } from '../../services/firebase-sync';
 import {
     listarPersonagensParaTroca, registrarRecente, recentesValidos,
     nomesComAcessoAoNpc, npcsLiberadosParaJogador, alternarNomeNaLista, jogadoresDaMesa
@@ -82,9 +82,11 @@ export default function TrocaRapidaMestre() {
             // 1. Grava o que estava sendo editado na ficha atual (sem debounce) antes de largar ela.
             try { await salvarFirebaseImediato(); } catch (e) { /* sem rede: a cópia local já foi feita */ }
             // 2. Busca a ficha mais nova (cai pro snapshot da mesa, depois pra cópia local).
-            let dados = await carregarFichaDoFirebase(n);
-            if (!(dados && Object.keys(dados).length > 2)) dados = personagens ? personagens[n] : null;
-            if (!(dados && Object.keys(dados).length > 2)) {
+            const leitura = await lerFichaDoFirebaseSeguro(n);
+            let dados = leitura.dados;
+            // A nuvem respondeu COM uma ficha: ela manda. Cópia local só se a nuvem disse que não há ficha ou a leitura falhou.
+            if (!(leitura.ok && dados && Object.keys(dados).length > 2)) dados = personagens ? personagens[n] : null;
+            if (!(dados && Object.keys(dados).length > 2) && !(leitura.ok && leitura.dados)) {
                 try { dados = JSON.parse(localStorage.getItem('rpgFicha_' + n) || 'null'); } catch (e) { dados = null; }
             }
             if (!(dados && Object.keys(dados).length > 2)) {
@@ -98,6 +100,8 @@ export default function TrocaRapidaMestre() {
             if (useStore.getState().meuNome !== nomeAnterior) return;
             const fichaAnterior = clonar(useStore.getState().minhaFicha);
             try {
+                // 🔒 Derruba a confirmação do personagem anterior e cancela salvamento agendado antes de trocar.
+                resetSincronizacaoFicha();
                 resetFicha();
                 setMeuNome(n);
                 carregarDadosFicha(clonar(dados));

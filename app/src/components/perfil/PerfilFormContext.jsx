@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import useStore, { sanitizarNome } from '../../stores/useStore';
-import { carregarFichaDoFirebase, salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync';
+import { lerFichaDoFirebaseSeguro, confirmarLeituraRemota, resetSincronizacaoFicha, salvarFichaSilencioso, salvarFirebaseImediato, uploadImagem } from '../../services/firebase-sync';
 import { auth } from '../../services/firebase-config';
 
 const PerfilFormContext = createContext(null);
@@ -74,6 +74,8 @@ export function PerfilFormProvider({ children }) {
         const n = sanitizarNome(nomeCru);
         if (!n || (n === 'Jogador' && nomeCru.trim() === '')) return;
         
+        // 🔒 Derruba a confirmação do personagem anterior e cancela salvamento agendado ANTES de trocar o nome e limpar a ficha.
+        resetSincronizacaoFicha();
         setMeuNome(n);
         try { localStorage.setItem('rpgNome', n); } catch (e) { /* sem localStorage */ } 
         resetFicha();
@@ -82,9 +84,13 @@ export function PerfilFormProvider({ children }) {
         let dadosFinais = null;
 
         // 1. Busca Direto na Tabela do Firebase
-        const dadosNuven = await carregarFichaDoFirebase(n);
+        const leituraNuvem = await lerFichaDoFirebaseSeguro(n);
+        const dadosNuven = leituraNuvem.dados;
+        // 🔒 Só libera o envio da ficha se o servidor RESPONDEU (com a ficha ou dizendo que não existe).
+        if (leituraNuvem.ok) confirmarLeituraRemota(leituraNuvem.dados, n);
         
-        if (dadosNuven && Object.keys(dadosNuven).length > 2) {
+        // A nuvem respondeu COM uma ficha: ela manda e a cópia local nunca entra. Cópia local só se o servidor disse que não há ficha ou a leitura falhou (aí nada é enviado).
+        if (leituraNuvem.ok && dadosNuven) {
             dadosFinais = dadosNuven;
             // Se o personagem existe na nuvem mas ainda não tem a sua assinatura, ELE GANHA!
             if (contaId && dadosFinais.donoDaFicha !== contaId) {
@@ -122,7 +128,8 @@ export function PerfilFormProvider({ children }) {
         }
 
         // Força a atualização no banco de dados para marcar território
-        if (precisaSalvarCarimbo) {
+        // Cópia local usada porque a leitura da nuvem falhou: não grava nada (a ficha antiga poderia sobrescrever a da nuvem).
+        if (precisaSalvarCarimbo && leituraNuvem.ok) {
             setTimeout(() => {
                 if (typeof salvarFirebaseImediato === 'function') salvarFirebaseImediato();
                 else salvarFichaSilencioso();

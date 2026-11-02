@@ -136,6 +136,53 @@ export function salvarFichaSilencioso() {
 // sincronizou nada nesta sessão/personagem.
 let ultimoEstadoSincronizado = null;
 
+// 🔒 TRAVA CONTRA SOBRESCREVER A FICHA COM UMA CÓPIA VELHA. O app abre com a cópia local do computador (que pode ter semanas) antes
+// de falar com o Firebase; um salvamento nessa janela, ou depois de uma leitura que falhou, gravava a ficha INTEIRA velha por cima da
+// ficha da nuvem (a baseline ainda era null, então o "diff" era a ficha toda). Agora NENHUM envio da própria ficha sai enquanto o app não
+// tiver LIDO o servidor nesta sessão para este personagem:
+//   'desconhecido' = ainda não leu (ou a leitura falhou) → envio bloqueado;
+//   'existe'       = leu e a ficha existe na nuvem (a baseline é o que veio de lá);
+//   'inexistente'  = o servidor respondeu que ainda não há ficha (personagem novo) → pode criar.
+let confirmacaoRemota = 'desconhecido';
+// A confirmação vale SÓ para uma mesa + personagem (chave "mesa/nome"): trocar de nome ou de mesa a invalida na hora, sem esperar o efeito do React
+// rodar, e uma leitura que demora e termina depois da troca não libera o personagem novo.
+let confirmadoPara = '';
+let ultimoAvisoBloqueio = 0;
+
+function chaveDaFicha(nome) {
+    const { mesaId, meuNome } = useStore.getState();
+    const n = sanitizarNome(nome !== undefined && nome !== null && nome !== '' ? nome : (meuNome || ''));
+    return mesaId && n ? `${mesaId}/${n}` : '';
+}
+
+// Confirmada PARA a ficha em uso agora (mesa + personagem atuais)?
+export function remotoConfirmado() {
+    return confirmacaoRemota !== 'desconhecido' && confirmadoPara !== '' && confirmadoPara === chaveDaFicha();
+}
+
+// Chamada por quem acabou de ler o servidor com SUCESSO (listener em tempo real ou leitura direta no login).
+// `dados` = o que veio da nuvem (null/vazio = o servidor respondeu que não há ficha).
+// `nome` = de quem é a leitura (padrão: o personagem em uso agora). Leitura de OUTRO personagem que não o atual é ignorada.
+export function confirmarLeituraRemota(dados, nome) {
+    const chave = chaveDaFicha(nome);
+    if (!chave || chave !== chaveDaFicha()) return; // leitura atrasada de um personagem/mesa que já não é o atual
+    const existe = !!dados && typeof dados === 'object' && Object.keys(dados).length > 0;
+    confirmacaoRemota = existe ? 'existe' : 'inexistente';
+    confirmadoPara = chave;
+    // Sem baseline ainda: a leitura vira a baseline (o próximo envio manda só o que mudou em cima do que está na nuvem).
+    if (existe && ultimoEstadoSincronizado === null) ultimoEstadoSincronizado = JSON.parse(JSON.stringify(dados));
+}
+
+function avisarEnvioBloqueado() {
+    const agora = Date.now();
+    if (agora - ultimoAvisoBloqueio < 20000) return;
+    ultimoAvisoBloqueio = agora;
+    try {
+        const adicionar = useStore.getState().adicionarAviso;
+        if (typeof adicionar === 'function') adicionar('⚠️ A ficha ainda não sincronizou com o servidor, então a alteração NÃO foi enviada (isso evita sobrescrever a ficha da nuvem com uma cópia antiga). Espere conectar e repita.', 'alerta');
+    } catch (e) { /* sem store: só não avisa */ }
+}
+
 // 🔥 Reseta a baseline de sincronização — precisa ser chamado sempre que o
 // jogador troca de mesa ou de personagem, senão o diff/merge do personagem
 // NOVO seria calculado contra o estado do personagem ANTERIOR. Também cancela
@@ -143,6 +190,9 @@ let ultimoEstadoSincronizado = null;
 // podia disparar depois da troca e gravar a ficha errada no personagem NOVO.
 export function resetSincronizacaoFicha() {
     ultimoEstadoSincronizado = null;
+    confirmacaoRemota = 'desconhecido';
+    confirmadoPara = '';
+    ultimoAvisoBloqueio = 0;
     clearTimeout(debounceTimer);
     debounceTimer = null;
 }
@@ -166,6 +216,9 @@ export function salvarFirebaseImediato() {
     } catch (err) {}
 
     if (!db) return Promise.resolve();
+
+    // 🔒 Sem leitura confirmada do servidor, nada é enviado (a cópia local acima continua sendo salva).
+    if (!remotoConfirmado()) { avisarEnvioBloqueado(); return Promise.resolve(); }
 
     // 🔥 ATUALIZAÇÃO PARCIAL (não mais `set()` da ficha inteira): manda pro
     // Firebase só os campos que mudaram desde a última sincronização. Isso
@@ -197,6 +250,18 @@ export async function carregarFichaDoFirebase(nome) {
         const snapshot = await get(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}`));
         return snapshot.exists() ? snapshot.val() : null;
     } catch (err) { return null; }
+}
+// Igual a carregarFichaDoFirebase, mas distingue "o servidor respondeu que não há ficha" ({ ok: true, dados: null }) de "não consegui
+// ler" ({ ok: false }: sem rede, sem mesa, erro). Só com ok === true vale confirmar a leitura e deixar a ficha ser enviada depois.
+export async function lerFichaDoFirebaseSeguro(nome) {
+    if (isInPlasmicCanvas()) return { ok: false, dados: null };
+    const nomeSanitizado = sanitizarNome(nome);
+    const { mesaId } = useStore.getState();
+    if (!nomeSanitizado || !db || !mesaId) return { ok: false, dados: null };
+    try {
+        const snapshot = await get(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}`));
+        return { ok: true, dados: snapshot.exists() ? snapshot.val() : null };
+    } catch (err) { return { ok: false, dados: null }; }
 }
 // 🔥 ESCUTA ATIVA (real-time) da PRÓPRIA ficha: antes, a ficha do jogador só
 // era carregada uma vez (get único) ao montar o app — qualquer mudança feita
@@ -231,6 +296,9 @@ export function iniciarListenerFichaPropria(nome, callback) {
                 dadosJaRecebidos = true;
                 ultimoEstadoSincronizado = JSON.parse(JSON.stringify(dados));
             }
+            // 🔒 O servidor respondeu (com a ficha ou dizendo que ela não existe): a partir daqui o envio é liberado.
+            confirmacaoRemota = dados ? 'existe' : 'inexistente';
+            confirmadoPara = `${mesaId}/${nomeSanitizado}`;
             if (callback) callback(dados, true);
             return;
         }

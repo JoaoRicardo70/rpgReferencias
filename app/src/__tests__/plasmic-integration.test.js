@@ -239,6 +239,7 @@ describe('firebase-sync.js — setModoPlasmic guard', () => {
             minhaFicha: { vida: { atual: 80 } }
         });
         syncMod.setModoPlasmic(false);
+        syncMod.confirmarLeituraRemota(null); // o envio só sai depois de ler o servidor
         await syncMod.salvarFirebaseImediato();
         expect(update).toHaveBeenCalled();
     });
@@ -374,6 +375,7 @@ describe('firebase-sync.js — setModoPlasmic guard', () => {
         expect(update).not.toHaveBeenCalled();
 
         syncMod.setModoPlasmic(false);
+        syncMod.confirmarLeituraRemota(null); // o envio só sai depois de ler o servidor
         await syncMod.salvarFirebaseImediato();
         expect(update).toHaveBeenCalled();
     });

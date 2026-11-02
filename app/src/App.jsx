@@ -67,7 +67,7 @@ import LimiteDeErro from './components/layout/LimiteDeErro';
 import { transferirPresencaNaTaverna, marcarMestreNaTaverna } from './core/chats';
 
 import {
-    carregarFichaDoFirebase, iniciarListenerDummies,
+    carregarFichaDoFirebase, lerFichaDoFirebaseSeguro, confirmarLeituraRemota, resetSincronizacaoFicha, iniciarListenerDummies,
     iniciarListenerCenario, resetSincronizacaoCenario, monitorarAuth,
     iniciarSistemaDePresenca, iniciarListenerPresenca, removerPresencaImediata,
     iniciarListenerMestres, salvarFirebaseImediato, iniciarListenerDivisorPoderMesa, salvarCenarioCompleto
@@ -300,20 +300,26 @@ export default function App() {
         // Começa da ficha padrão (mesmo fluxo da aba Perfil): sem isto, depois de "✏️ Trocar" o
         // personagem novo herdava a ficha do anterior (e os campos que o Firebase não guarda, como
         // listas vazias, "vazavam" de um personagem para o outro).
+        // 🔒 Antes de limpar a ficha: derruba a confirmação do personagem anterior e cancela qualquer salvamento agendado.
+        resetSincronizacaoFicha();
         resetFicha();
         setMeuNome(nomeSanitizado);
         setPronto(true);
         try {
-            let dados = await carregarFichaDoFirebase(nomeSanitizado);
-            // Sem nada na nuvem (offline ou personagem só deste PC): usa a cópia local, se houver.
-            if (!(dados && Object.keys(dados).length > 2)) {
+            const leitura = await lerFichaDoFirebaseSeguro(nomeSanitizado);
+            let dados = leitura.dados;
+            // 🔒 Só confirma (e libera o envio) se o servidor RESPONDEU; se a leitura falhou, a cópia local abaixo é só para ver e nada é enviado.
+            if (leitura.ok) confirmarLeituraRemota(leitura.dados, nomeSanitizado);
+            // A nuvem respondeu COM uma ficha: ela manda e a cópia local nunca entra (nem que a nuvem esteja pequena).
+            // Cópia local só quando o servidor disse que não há ficha (personagem só deste PC) ou a leitura falhou (aí nada é enviado).
+            if (!(leitura.ok && dados)) {
                 try { dados = JSON.parse(localStorage.getItem('rpgFicha_' + nomeSanitizado) || 'null'); } catch (e) { dados = null; }
             }
             if (dados && Object.keys(dados).length > 2) {
                 carregarDadosFicha(dados);
                 // 🔥 Persiste imediatamente a migração de ficha.passivas -> ficha.poderes
                 // (ver migrarPassivasParaPoderes), para não repeti-la a cada login.
-                if (Array.isArray(dados.passivas) && dados.passivas.length > 0) {
+                if (leitura.ok && Array.isArray(dados.passivas) && dados.passivas.length > 0) {
                     salvarFirebaseImediato().catch(() => {});
                 }
             }

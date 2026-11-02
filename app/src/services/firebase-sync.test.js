@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { salvarFirebaseImediato, resetSincronizacaoFicha, iniciarListenerFichaPropria } from './firebase-sync';
+import { salvarFirebaseImediato, resetSincronizacaoFicha, iniciarListenerFichaPropria, confirmarLeituraRemota, remotoConfirmado, lerFichaDoFirebaseSeguro } from './firebase-sync';
 import useStore from '../stores/useStore';
-import { update, onValue } from 'firebase/database';
+import { update, onValue, get } from 'firebase/database';
 
 // Mocks rigorosos para não quebrar CI/CD
 vi.mock('firebase/database', () => ({
@@ -30,6 +30,130 @@ vi.mock('../stores/useStore', () => ({
 
 function fazerSnapshot(dados) { return { val: () => dados }; }
 
+// 🔒 Trava contra sobrescrever a ficha da nuvem com uma cópia velha (o app abre com a cópia local antes de ler o servidor).
+describe('Firebase Sync Service - trava de leitura confirmada', () => {
+    let estadoAtual;
+    beforeEach(() => {
+        vi.clearAllMocks();
+        resetSincronizacaoFicha();
+        estadoAtual = {
+            meuNome: 'Natsu', mesaId: 'mesa1',
+            minhaFicha: { poderes: [{ id: 1, nome: 'Antigo' }], vida: { atual: 5 } },
+            setMinhaFicha: vi.fn((f) => { estadoAtual.minhaFicha = f; }),
+            adicionarAviso: vi.fn(),
+        };
+        useStore.getState.mockImplementation(() => estadoAtual);
+    });
+
+    it('sem ter lido o servidor, NENHUM envio sai (nem a ficha inteira velha) e o usuário é avisado', async () => {
+        expect(remotoConfirmado()).toBe(false);
+        await salvarFirebaseImediato();
+        expect(update).not.toHaveBeenCalled();
+        expect(estadoAtual.adicionarAviso).toHaveBeenCalledTimes(1);
+    });
+
+    it('o aviso não se repete a cada tentativa (anti-spam)', async () => {
+        await salvarFirebaseImediato();
+        await salvarFirebaseImediato();
+        await salvarFirebaseImediato();
+        expect(estadoAtual.adicionarAviso).toHaveBeenCalledTimes(1);
+    });
+
+    it('a cópia local continua sendo salva mesmo com o envio bloqueado', async () => {
+        await salvarFirebaseImediato();
+        expect(JSON.parse(localStorage.getItem('rpgFicha_Natsu'))).toMatchObject({ vida: { atual: 5 } });
+    });
+
+    it('leitura confirmada com a ficha da nuvem: a baseline passa a ser a nuvem e só o que MUDOU sai', async () => {
+        confirmarLeituraRemota({ poderes: [{ id: 1, nome: 'Antigo' }, { id: 2, nome: 'Novo da nuvem' }], vida: { atual: 5 } });
+        expect(remotoConfirmado()).toBe(true);
+        estadoAtual.minhaFicha = { poderes: [{ id: 1, nome: 'Antigo' }, { id: 2, nome: 'Novo da nuvem' }], vida: { atual: 9 } };
+        await salvarFirebaseImediato();
+        expect(update).toHaveBeenCalledTimes(1);
+        expect(update.mock.calls[0][1]).toEqual({ 'vida/atual': 9 });
+    });
+
+    it('servidor respondeu que não há ficha (personagem novo): o primeiro envio é liberado', async () => {
+        confirmarLeituraRemota(null);
+        await salvarFirebaseImediato();
+        expect(update).toHaveBeenCalledTimes(1);
+    });
+
+    it('trocar de personagem/mesa (reset) volta a exigir uma nova leitura', async () => {
+        confirmarLeituraRemota(null);
+        resetSincronizacaoFicha();
+        expect(remotoConfirmado()).toBe(false);
+        await salvarFirebaseImediato();
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('o listener em tempo real confirma na primeira resposta: com a ficha existente', async () => {
+        iniciarListenerFichaPropria('Natsu', vi.fn());
+        const handler = onValue.mock.calls[onValue.mock.calls.length - 1][1];
+        handler(fazerSnapshot({ vida: { atual: 5 }, poderes: [{ id: 1, nome: 'Antigo' }] }));
+        expect(remotoConfirmado()).toBe(true);
+    });
+
+    it('o listener em tempo real confirma na primeira resposta: sem ficha (nova)', async () => {
+        iniciarListenerFichaPropria('Natsu', vi.fn());
+        const handler = onValue.mock.calls[onValue.mock.calls.length - 1][1];
+        handler(fazerSnapshot(null));
+        expect(remotoConfirmado()).toBe(true);
+    });
+
+    it('lerFichaDoFirebaseSeguro distingue "não existe" de "falhou ao ler"', async () => {
+        get.mockResolvedValueOnce({ exists: () => false, val: () => null });
+        expect(await lerFichaDoFirebaseSeguro('Natsu')).toEqual({ ok: true, dados: null });
+        get.mockResolvedValueOnce({ exists: () => true, val: () => ({ vida: { atual: 1 } }) });
+        expect(await lerFichaDoFirebaseSeguro('Natsu')).toEqual({ ok: true, dados: { vida: { atual: 1 } } });
+        get.mockRejectedValueOnce(new Error('offline'));
+        expect(await lerFichaDoFirebaseSeguro('Natsu')).toEqual({ ok: false, dados: null });
+    });
+
+    it('a confirmação vale SÓ para o personagem lido: trocar o nome na hora invalida (sem esperar o React)', async () => {
+        confirmarLeituraRemota({ vida: { atual: 5 } }); // Natsu
+        expect(remotoConfirmado()).toBe(true);
+        estadoAtual.meuNome = 'Outro'; // setMeuNome acontece antes do efeito que reseta a sincronização
+        expect(remotoConfirmado()).toBe(false);
+        await salvarFirebaseImediato();
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('leitura que demora e termina DEPOIS da troca de personagem não libera o personagem novo', async () => {
+        estadoAtual.meuNome = 'Novo';
+        confirmarLeituraRemota({ vida: { atual: 5 } }, 'Natsu'); // leitura atrasada do personagem anterior
+        expect(remotoConfirmado()).toBe(false);
+    });
+
+    it('trocar de mesa também invalida', async () => {
+        confirmarLeituraRemota({ vida: { atual: 5 } });
+        estadoAtual.mesaId = 'mesa2';
+        expect(remotoConfirmado()).toBe(false);
+    });
+
+    it('reset + salvamento imediato (reentrar no mesmo nome) não envia ficha em branco por cima da nuvem', async () => {
+        confirmarLeituraRemota({ vida: { atual: 5 }, poderes: [{ id: 1 }] });
+        resetSincronizacaoFicha();
+        estadoAtual.minhaFicha = { vida: { atual: 0 } }; // ficha em branco depois do resetFicha()
+        await salvarFirebaseImediato();
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('primeira resposta do listener é para o personagem do listener (chave mesa/nome)', async () => {
+        iniciarListenerFichaPropria('Natsu', vi.fn());
+        const handler = onValue.mock.calls[onValue.mock.calls.length - 1][1];
+        handler(fazerSnapshot({ vida: { atual: 5 } }));
+        expect(remotoConfirmado()).toBe(true);
+        estadoAtual.meuNome = 'Outro';
+        expect(remotoConfirmado()).toBe(false);
+    });
+
+    it('sem mesa selecionada a leitura NÃO conta como confirmada', async () => {
+        estadoAtual.mesaId = '';
+        expect(await lerFichaDoFirebaseSeguro('Natsu')).toEqual({ ok: false, dados: null });
+    });
+});
+
 describe('Firebase Sync Service', () => {
     let estadoAtual;
 
@@ -48,6 +172,7 @@ describe('Firebase Sync Service', () => {
 
     it('deve criar um clone profundo e enviar para o Firebase sem erro de Read Only', async () => {
         estadoAtual.minhaFicha = Object.freeze({ status: 'vivo', atributos: { forca: 10 } });
+        confirmarLeituraRemota(null); // o servidor respondeu que o personagem ainda não existe
         await salvarFirebaseImediato();
 
         // Sem baseline anterior (primeiro save), cada chave de topo ausente no

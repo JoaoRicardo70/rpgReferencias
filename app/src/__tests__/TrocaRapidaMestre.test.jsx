@@ -3,11 +3,12 @@ import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/re
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import useStore from '../stores/useStore';
 import TrocaRapidaMestre from '../components/layout/TrocaRapidaMestre';
-import { salvarFirebaseImediato, carregarFichaDoFirebase } from '../services/firebase-sync';
+import { salvarFirebaseImediato, lerFichaDoFirebaseSeguro } from '../services/firebase-sync';
 
 vi.mock('../services/firebase-sync', () => ({
     salvarFirebaseImediato: vi.fn(() => Promise.resolve()),
-    carregarFichaDoFirebase: vi.fn(() => Promise.resolve(null)),
+    lerFichaDoFirebaseSeguro: vi.fn(() => Promise.resolve({ ok: true, dados: null })),
+    resetSincronizacaoFicha: vi.fn(),
 }));
 
 function congelarProfundo(o) {
@@ -31,7 +32,7 @@ function montar({ isMestre = true, personagens } = {}) {
 beforeEach(() => {
     vi.clearAllMocks();
     salvarFirebaseImediato.mockImplementation(() => Promise.resolve());
-    carregarFichaDoFirebase.mockImplementation(() => Promise.resolve(null));
+    lerFichaDoFirebaseSeguro.mockImplementation(() => Promise.resolve({ ok: true, dados: null }));
     localStorage.clear();
     useStore.getState().resetFicha();
 });
@@ -74,12 +75,12 @@ describe('TrocaRapidaMestre', () => {
     });
 
     it('clicar troca meuNome, carrega a ficha do Firebase, salva antes e registra recente', async () => {
-        carregarFichaDoFirebase.mockImplementation(() => Promise.resolve(fichaDe({ isNPC: true, ascensaoBase: 9 })));
+        lerFichaDoFirebaseSeguro.mockImplementation(() => Promise.resolve({ ok: true, dados: fichaDe({ isNPC: true, ascensaoBase: 9 }) }));
         montar();
         fireEvent.click(screen.getByText(/Controlar/));
         fireEvent.click(screen.getByText('Goblin'));
         await waitFor(() => expect(useStore.getState().meuNome).toBe('Goblin'));
-        expect(carregarFichaDoFirebase).toHaveBeenCalledWith('Goblin');
+        expect(lerFichaDoFirebaseSeguro).toHaveBeenCalledWith('Goblin');
         expect(salvarFirebaseImediato).toHaveBeenCalled();
         expect(useStore.getState().minhaFicha.ascensaoBase).toBe(9);
         expect(localStorage.getItem('rpgNome')).toBe('Goblin');
