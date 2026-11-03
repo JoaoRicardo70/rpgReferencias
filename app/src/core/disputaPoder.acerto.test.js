@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    BONUS_ACERTO_PODER_MAXIMO, bonusAcertoPorDisputa, resolverAcertoNoAlvo, marcaPoderAcerto,
+    BONUS_ACERTO_PODER_MAXIMO, bonusAcertoPorDisputa, resolverAcertoNoAlvo, marcaPoderAcerto, marcaNaturalAcerto,
     calcularDisputaPoder,
 } from './disputaPoder.js';
 
@@ -223,5 +223,82 @@ describe('marcaPoderAcerto: extras', () => {
     it('integra com resolverAcertoNoAlvo', () => {
         expect(marcaPoderAcerto(acerto({ acertoTotal: 17, poderAtacante: 2000, poderAlvo: 1000 }))).toContain('a favor');
         expect(marcaPoderAcerto(acerto({ poderAtacante: 5, poderAlvo: 5 }))).toBe('');
+    });
+});
+
+describe('resolverAcertoNoAlvo: naturalD20', () => {
+    it('20 natural acerta sempre, mesmo muito abaixo da defesa e com Poder contra', () => {
+        expect(acerto({ acertoTotal: 0, defesa: 9999, naturalD20: 20 }).acertou).toBe(true);
+        expect(acerto({ acertoTotal: 0, defesa: 100, poderAtacante: 1, poderAlvo: 1e9, naturalD20: 20 }).acertou).toBe(true);
+        expect(acerto({ acertoTotal: 'abc', defesa: Infinity, naturalD20: 20 }).acertou).toBe(true);
+    });
+    it('1 natural erra sempre, mesmo muito acima da defesa e com Poder a favor', () => {
+        expect(acerto({ acertoTotal: 9999, defesa: 0, naturalD20: 1 }).acertou).toBe(false);
+        expect(acerto({ acertoTotal: 9999, defesa: 1, poderAtacante: 1e9, poderAlvo: 1, naturalD20: 1 }).acertou).toBe(false);
+        expect(acerto({ acertoTotal: Infinity, defesa: 0, naturalD20: 1 }).acertou).toBe(false);
+    });
+    it('o item ganha natural: 20 ou 1', () => {
+        expect(acerto({ naturalD20: 20 }).natural).toBe(20);
+        expect(acerto({ naturalD20: 1 }).natural).toBe(1);
+    });
+    it('sem natural (ausente, null, outro valor) vale a regra normal e nao ha chave natural', () => {
+        for (const n of [undefined, null, 0, 19, 2, 5, '20', NaN]) {
+            const r = acerto({ acertoTotal: 20, defesa: 20, naturalD20: n });
+            expect(r.acertou).toBe(true);
+            expect('natural' in r).toBe(false);
+            const r2 = acerto({ acertoTotal: 19, defesa: 20, naturalD20: n });
+            expect(r2.acertou).toBe(false);
+            expect('natural' in r2).toBe(false);
+        }
+    });
+    it('sem natural o bonus de Poder ainda soma (17+3 >= 20)', () => {
+        expect(acerto({ acertoTotal: 17, poderAtacante: 2000, poderAlvo: 1000 })).toMatchObject({ acertou: true, poderAcerto: 'favor' });
+    });
+    it('natural convive com poderAcerto e extras', () => {
+        const r = acerto({ acertoTotal: 0, defesa: 50, poderAtacante: 2000, poderAlvo: 1000, naturalD20: 20, extras: { dummieId: 'd1' } });
+        expect(r).toMatchObject({ acertou: true, natural: 20, poderAcerto: 'favor', dummieId: 'd1' });
+    });
+    it('natural 1 com Poder contra marca os dois', () => {
+        const r = acerto({ acertoTotal: 99, defesa: 1, poderAtacante: 1000, poderAlvo: 2000, naturalD20: 1 });
+        expect(r).toMatchObject({ acertou: false, natural: 1, poderAcerto: 'contra' });
+    });
+    it('extras.natural nao sobrescreve o natural real', () => {
+        expect(acerto({ naturalD20: 20, extras: { natural: 1 } }).natural).toBe(20);
+    });
+    it('JSON round-trip identico e sem undefined com natural', () => {
+        for (const n of [20, 1]) {
+            const r = acerto({ naturalD20: n, poderAtacante: 2000, poderAlvo: 1000 });
+            expect(JSON.parse(JSON.stringify(r))).toEqual(r);
+            for (const v of Object.values(r)) expect(v).not.toBeUndefined();
+        }
+    });
+    it('nao revela os valores de Poder', () => {
+        const txt = JSON.stringify(acerto({ naturalD20: 20, poderAtacante: 123456789, poderAlvo: 987654321 }));
+        expect(txt).not.toContain('123456789');
+        expect(txt).not.toContain('987654321');
+    });
+});
+
+describe('marcaNaturalAcerto', () => {
+    it('20 e 1 natural', () => {
+        expect(marcaNaturalAcerto({ natural: 20 })).toBe(' 🎲 20 natural!');
+        expect(marcaNaturalAcerto({ natural: 1 })).toBe(' 🎲 1 natural!');
+    });
+    it('vazio quando nao ha natural ou item invalido', () => {
+        expect(marcaNaturalAcerto({})).toBe('');
+        expect(marcaNaturalAcerto({ natural: 0 })).toBe('');
+        expect(marcaNaturalAcerto({ natural: null })).toBe('');
+        expect(marcaNaturalAcerto(undefined)).toBe('');
+        expect(marcaNaturalAcerto(null)).toBe('');
+    });
+    it('integra com resolverAcertoNoAlvo', () => {
+        expect(marcaNaturalAcerto(acerto({ naturalD20: 20 }))).toBe(' 🎲 20 natural!');
+        expect(marcaNaturalAcerto(acerto({ naturalD20: 1 }))).toBe(' 🎲 1 natural!');
+        expect(marcaNaturalAcerto(acerto({}))).toBe('');
+    });
+    it('independe de marcaPoderAcerto', () => {
+        const r = acerto({ naturalD20: 20, poderAtacante: 2000, poderAlvo: 1000 });
+        expect(marcaPoderAcerto(r)).toContain('a favor');
+        expect(marcaNaturalAcerto(r)).not.toContain('Poder');
     });
 });

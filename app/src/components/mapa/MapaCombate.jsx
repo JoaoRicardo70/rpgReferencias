@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import useStore from '../../stores/useStore';
-import { useMapaForm, urlSeguraParaCss, calcularCA } from './MapaFormContext';
+import { useMapaForm, urlSeguraParaCss } from './MapaFormContext';
+import { calcularCA } from '../../core/engine';
 import { useAtaqueForm } from '../combate/AtaqueFormContext';
 import { AtaquesSalvosChips } from '../combate/AtaqueSubComponents';
 import { formulaDesatualizada, descreverAtaqueSalvo } from '../../core/ataquesSalvos';
@@ -25,7 +26,7 @@ import { getAcoesExibicao, criarAcoesIniciais, restaurarAcoes, ACOES_MAXIMO } fr
 import { calcularPoderAtual, calcularFatorMultiplicadorForca } from '../../core/poder';
 import { calcularFadigaAtual } from '../../core/fadiga';
 import { construirArvorePastas, contarNaPasta, listarCaminhosPastas, segmentosPasta } from '../../core/pastas';
-import { getPoderDummie, marcaPoderAcerto } from '../../core/disputaPoder';
+import { getPoderDummie, marcaPoderAcerto, marcaNaturalAcerto } from '../../core/disputaPoder';
 import { getPercepcaoPoder, enxergaEfetividade, estimarPoderDeEntidade, descreverEstimativaPoder, rotuloPrecisaoPoder, descreverCondicaoVida, getOcultacaoPoder, getTetoOcultacaoPoder } from '../../core/percepcaoPoder';
 import { getVitalMax, getVitalMaxEstavel, calcVitalScale, calcularBarrasVida, calcularBarrasVidaDummy, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import BarrasVida from '../shared/BarrasVida';
@@ -1608,7 +1609,7 @@ export function MapaHologramaAcao() {
                                     {acaoExibir.areaEf > 0 && <div style={{ color: '#00ccff', fontSize: '0.85em', marginBottom: 6, fontWeight: 'bold', textTransform: 'uppercase' }}>💥 Explosão atingiu {acaoExibir.alvosArea.length} alvo(s):</div>}
                                     {acaoExibir.alvosArea.map((a, i) => (
                                         <div key={i} style={{ color: a.acertou ? '#0f0' : '#f00', fontWeight: 'bold', fontSize: '0.9em', marginBottom: 2 }}>
-                                            {a.acertou ? `🎯 Superou ${a.nome} (Def: ${a.defesa})!` : `❌ Falhou vs ${a.nome} (Def: ${a.defesa})!`}{(isMestre || enxergaEfetividade(getPercepcaoPoder(minhaFicha))) && marcaPoderAcerto(a)}
+                                            {a.acertou ? `🎯 Superou ${a.nome} (Def: ${a.defesa})!` : `❌ Falhou vs ${a.nome} (Def: ${a.defesa})!`}{(isMestre || enxergaEfetividade(getPercepcaoPoder(minhaFicha))) && marcaPoderAcerto(a)}{marcaNaturalAcerto(a)}
                                         </div>
                                     ))}
                                 </div>

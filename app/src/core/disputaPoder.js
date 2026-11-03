@@ -107,10 +107,12 @@ export function bonusAcertoPorDisputa(disputa) {
 // Resolve o acerto contra UM alvo: o Acerto total (já com todos os bônus) + o bônus de Poder contra a defesa.
 // Devolve o item do feed ({ nome, defesa, acertou, poderAcerto?, ...extras }). `poderAcerto` é só QUALITATIVO
 // ('favor' | 'contra'): o feed não entrega o Poder de ninguém (mesma regra de descreverDisputa).
-export function resolverAcertoNoAlvo({ nome, defesa, acertoTotal, poderAtacante, poderAlvo, extras = {} }) {
+export function resolverAcertoNoAlvo({ nome, defesa, acertoTotal, poderAtacante, poderAlvo, naturalD20 = null, extras = {} }) {
     const bonus = bonusAcertoPorDisputa(calcularDisputaPoder(poderAtacante, poderAlvo));
-    const acertou = (Number(acertoTotal) || 0) + bonus >= defesa;
+    // 🎲 20 natural sempre acerta e 1 natural sempre falha, seja qual for a defesa e o Poder.
+    const acertou = naturalD20 === 20 ? true : naturalD20 === 1 ? false : (Number(acertoTotal) || 0) + bonus >= defesa;
     const item = { nome, defesa, acertou, ...extras };
+    if (naturalD20 === 20 || naturalD20 === 1) item.natural = naturalD20;
     if (bonus > 0) item.poderAcerto = 'favor';
     else if (bonus < 0) item.poderAcerto = 'contra';
     return item;
@@ -120,6 +122,12 @@ export function resolverAcertoNoAlvo({ nome, defesa, acertoTotal, poderAtacante,
 export function marcaPoderAcerto(item) {
     if (!item || !item.poderAcerto) return '';
     return item.poderAcerto === 'favor' ? ' ⚖️ Poder a favor' : ' ⚖️ Poder contra';
+}
+
+// Marca do 20/1 natural (a rolagem já é pública no feed, então não precisa de Percepção).
+export function marcaNaturalAcerto(item) {
+    if (!item || !item.natural) return '';
+    return item.natural === 20 ? ' 🎲 20 natural!' : ' 🎲 1 natural!';
 }
 
 // Categoria QUALITATIVA do quanto o golpe rendeu (vai no feed no lugar do fator, que entregaria o

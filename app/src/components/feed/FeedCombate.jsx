@@ -4,7 +4,7 @@ import { getPercepcaoPoder, enxergaEfetividade, descreverEfetividade } from '../
 import { entradaVisivel } from '../../core/dadosMestre';
 import { revelarEntradaFeed } from '../../services/firebase-sync';
 import useDadosMestrePrivados, { useAcertoOculto } from '../../hooks/useDadosMestre';
-import { marcaPoderAcerto } from '../../core/disputaPoder';
+import { marcaPoderAcerto, marcaNaturalAcerto } from '../../core/disputaPoder';
 
 export default function FeedCombate({ className }) {
     const feedCombate = useStore(s => s.feedCombate);
@@ -108,7 +108,7 @@ export default function FeedCombate({ className }) {
                                     {d.areaEf > 0 && <div style={{ color: '#00ccff', fontSize: '0.85em', marginBottom: 6, fontWeight: 'bold', textTransform: 'uppercase' }}>💥 Explosão em Área ({d.areaEf} Quadrados) atingiu {alvosArray.length} alvo(s):</div>}
                                     {alvosArray.map((a, i) => (
                                         <div key={i} style={{ color: a.acertou ? '#0f0' : '#f00', fontWeight: 'bold', fontSize: '0.9em', marginBottom: 2 }}>
-                                            {a.acertou ? `🎯 Superou ${a.nome} (Def: ${a.defesa})!` : `❌ Falhou vs ${a.nome} (Def: ${a.defesa})!`}{(isMestre || veEfetividade) && marcaPoderAcerto(a)}
+                                            {a.acertou ? `🎯 Superou ${a.nome} (Def: ${a.defesa})!` : `❌ Falhou vs ${a.nome} (Def: ${a.defesa})!`}{(isMestre || veEfetividade) && marcaPoderAcerto(a)}{marcaNaturalAcerto(a)}
                                         </div>
                                     ))}
                                 </div>

@@ -1,7 +1,7 @@
 // ==========================================
 // ENGINE RPG — Cálculos de combate (dano, acerto, defesa)
 // ==========================================
-import { contarDigitos, pegarDoisPrimeirosDigitos, modificadorDezena } from './utils.js';
+import { contarDigitos, bonusDeAtributo } from './utils.js';
 import { getMaximo, getBuffs, getRawBase, getPoderesDefesa, getEfeitosDeClasse } from './attributes.js';
 import { getVitalMxDisplay } from './vitals.js';
 import { ENERGIAS_COMO_PODER, getMargemCusto, limitarPercComoPoder, podeConjurarComoPoder, custoBrutoDeEnergia, somarCustosBrutos } from './custoPoder.js';
@@ -48,10 +48,10 @@ export function calcularCA(ficha, tipo) {
     if (!ficha) return 10;
     let base = 5;
     
-    // Atributo SEM a Ascensão: o nível de poder pesa pela diferença de Poder Calculado (core/disputaPoder.js > bonusAcertoPorDisputa),
-    // não aqui. Somar a Ascensão (+100 de CA cada) inflava a CA para centenas.
-    if (tipo === 'evasiva') base += pegarDoisPrimeirosDigitos(getRawBase(ficha, 'destreza'));
-    if (tipo === 'resistencia') base += pegarDoisPrimeirosDigitos(getRawBase(ficha, 'forca'));
+    // Atributo SEM a Ascensão e na mesma escala do Acerto (core/utils.js > bonusDeAtributo): o nível de poder pesa pela
+    // diferença de Poder Calculado (core/disputaPoder.js > bonusAcertoPorDisputa), não por um atributo gigante.
+    if (tipo === 'evasiva') base += bonusDeAtributo(getRawBase(ficha, 'destreza'));
+    if (tipo === 'resistencia') base += bonusDeAtributo(getRawBase(ficha, 'forca'));
 
     let bonus = 0;
     const somarBonus = (efeitos) => {
@@ -123,7 +123,7 @@ export function rolarDadosComVantagem(qD, fD, vantagens = 0, desvantagens = 0) {
         ? `${prefix}[${finalTexts.join(', ')}] = 🎲(${sD})`
         : `${prefix}[${finalTexts.slice(0, 30).join(', ')}... e mais ${(totalDice - 30).toLocaleString('pt-BR')} dados] = 🎲(${sD})`;
 
-    return { sD, rolagemTexto };
+    return { sD, rolagemTexto, mantidos: kept };
 }
 
 function rolarDadosSimples(qtd, faces) {
@@ -467,13 +467,15 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
     const vantagemClasse = getVantagensDeClasse(minhaFicha, tiposArmas);
     // 🩸 Estados negativos (Exaustão 3+, Cego/Surdo...) somam desvantagens a todo ataque (core/condicoes.js).
     const desvantagemEstados = modificadoresDeEstados(minhaFicha).desvAtaque;
-    let { sD, rolagemTexto } = rolarDadosComVantagem(qD, fD, (parseInt(vantagens) || 0) + vantagemClasse.vantagens, (parseInt(desvantagens) || 0) + desvantagemEstados);
+    let { sD, rolagemTexto, mantidos } = rolarDadosComVantagem(qD, fD, (parseInt(vantagens) || 0) + vantagemClasse.vantagens, (parseInt(desvantagens) || 0) + desvantagemEstados);
 
-    let vSt = 0;
-    for (let i = 0; i < sels.length; i++) {
-        // O Acerto soma só a DEZENA do atributo (120 -> +12), sem a Ascensão oculta: o bônus não estoura.
-        vSt += modificadorDezena(getRawBase(minhaFicha, sels[i]));
-    }
+    // Mesma conta da CA (bonusDeAtributo), sem a Ascensão oculta. Com vários atributos escolhidos vale a MÉDIA: somar
+    // logaritmos dobraria o bônus e desequilibraria o Acerto contra a CA, que usa um atributo só.
+    const bonusAtributos = sels.map(s => bonusDeAtributo(getRawBase(minhaFicha, s)));
+    const vSt = bonusAtributos.length ? Math.round(bonusAtributos.reduce((a, b) => a + b, 0) / bonusAtributos.length) : 0;
+
+    // 🎲 20 natural sempre acerta e 1 natural sempre falha (um único d20; vale o dado que ficou após vantagem/desvantagem).
+    const naturalD20 = (qD === 1 && fD === 20 && mantidos && mantidos.length === 1 && (mantidos[0] === 20 || mantidos[0] === 1)) ? mantidos[0] : null;
 
     let bp = getPoderesDefesa(minhaFicha, 'bonus_acerto');
     const bonusClasse = getBonusAcertoDeClasse(minhaFicha);
@@ -511,7 +513,8 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
                          (vantagemClasse.vantagens > 0 ? ` | ${vantagemClasse.motivos.join(' + ')}` : '');
 
     return {
-        acertoTotal: Math.floor(vSt + prof + bonus + bp + sD + iAcerto + bonusProfArma + bonusClasse), 
+        acertoTotal: Math.floor(vSt + prof + bonus + bp + sD + iAcerto + bonusProfArma + bonusClasse),
+        ...(naturalD20 ? { naturalD20 } : {}),
         rolagem: rolagemTexto,
         atributosUsados: atrNames.join(' + '),
         profBonusTexto: profBonusTexto,
@@ -527,9 +530,8 @@ export function calcularEvasiva({ prof, bonus, minhaFicha, itensEquipados }) {
         if (item.tipo === 'armadura') nomesArmaduras.push(item.nome);
     });
 
-    // Sem a Ascensão (ver calcularCA): o nível de poder entra pela diferença de Poder Calculado.
-    let baseVal = getRawBase(minhaFicha, 'destreza');
-    let baseD = pegarDoisPrimeirosDigitos(baseVal);
+    // Sem a Ascensão e na mesma escala do Acerto (ver calcularCA).
+    let baseD = bonusDeAtributo(getRawBase(minhaFicha, 'destreza'));
     let bp = getPoderesDefesa(minhaFicha, 'bonus_evasiva');
 
     let strArmadura = nomesArmaduras.length ? ` equipado com <strong>${nomesArmaduras.join(' e ')}</strong>` : '';
@@ -549,9 +551,8 @@ export function calcularResistencia({ prof, bonus, minhaFicha, itensEquipados })
         if (item.tipo === 'armadura') nomesArmaduras.push(item.nome);
     });
 
-    // Sem a Ascensão (ver calcularCA): o nível de poder entra pela diferença de Poder Calculado.
-    let baseVal = getRawBase(minhaFicha, 'forca');
-    let baseD = pegarDoisPrimeirosDigitos(baseVal);
+    // Sem a Ascensão e na mesma escala do Acerto (ver calcularCA).
+    let baseD = bonusDeAtributo(getRawBase(minhaFicha, 'forca'));
     let bp = getPoderesDefesa(minhaFicha, 'bonus_resistencia');
 
     let strArmadura = nomesArmaduras.length ? ` equipado com <strong>${nomesArmaduras.join(' e ')}</strong>` : '';

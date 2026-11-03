@@ -9,7 +9,6 @@ import { alternarPresencaNaTaverna } from '../../core/chats';
 import { podeAcessarCena, cenarioComAcessoDaCena } from '../../core/cenasRegiao';
 import { infoAvatarDaFicha } from '../../core/avatar';
 import { assinarFalhasDeImagem } from '../../core/imagemVerificada';
-import { resolverEfeitosEntidade } from '../../core/efeitos-resolver';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
 import { efeitosAtivosDoItem } from '../../core/efeitosItem';
 import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
@@ -38,40 +37,6 @@ export function urlSeguraParaCss(url) {
     const trimmed = url.trim();
     if (!/^https?:\/\//i.test(trimmed) && !/^data:image\//i.test(trimmed)) return '';
     return `url("${trimmed.replace(/["\\]/g, '').replace(/\)/g, '%29')}")`;
-}
-
-export function calcularCA(ficha, tipo) {
-    if (!ficha) return 10;
-    const getDoisDigitos = (valor) => {
-        if (!valor) return 0;
-        const strVal = String(valor).replace(/[^0-9]/g, '');
-        if (!strVal) return 0;
-        return parseInt(strVal.substring(0, 2), 10);
-    };
-    let base = 5;
-    if (tipo === 'evasiva') base += getDoisDigitos(ficha.destreza?.base);
-    if (tipo === 'resistencia') base += getDoisDigitos(ficha.forca?.base);
-
-    let bonus = 0;
-    const somarBonus = (efeitos) => {
-        (efeitos || []).forEach(e => {
-            if (e && e.atributo === tipo && e.propriedade === 'base') bonus += parseFloat(e.valor) || 0;
-        });
-    };
-
-    (ficha.poderes || []).forEach(p => {
-        let resolved = resolverEfeitosEntidade(p);
-        if (p.ativa) somarBonus(resolved.efeitos);
-        somarBonus(resolved.efeitosPassivos);
-    });
-    (ficha.passivas || []).forEach(p => { somarBonus(p.efeitos); });
-    (ficha.inventario || []).filter(i => i.equipado).forEach(i => {
-        let resolved = resolverEfeitosEntidade({ ...i, efeitos: efeitosAtivosDoItem(i) });
-        somarBonus(resolved.efeitos);
-        somarBonus(resolved.efeitosPassivos);
-    });
-
-    return Math.floor(base + bonus);
 }
 
 const DADO_FECHADO = { ativo: false, numero: 20, finalResult: null, cor: '#00ffcc', nivel: 'normal', quemRolou: '' };
@@ -1273,7 +1238,7 @@ export function MapaFormProvider({ children }) {
         if (alvoDummie) {
             // ⚖️ A diferença de Poder soma ao Acerto por último (core/disputaPoder.js); mesmo Poder do dano, sem o custo do golpe.
             const poderAtacante = getPoderParaDisputa(fichaAcerto, estadoAtual.divisorPoderMesa, golpeEquipado(fichaAcerto));
-            const resolverAlvo = (nome, defesa, poderAlvo, extras) => resolverAcertoNoAlvo({ nome, defesa, acertoTotal: result.acertoTotal, poderAtacante, poderAlvo, extras });
+            const resolverAlvo = (nome, defesa, poderAlvo, extras) => resolverAcertoNoAlvo({ nome, defesa, acertoTotal: result.acertoTotal, naturalD20: result.naturalD20 || null, poderAtacante, poderAlvo, extras });
             const armasEqMap = itensEq.filter(i => i.tipo === 'arma');
             const maxAreaArmas = armasEqMap.length > 0 ? Math.max(...armasEqMap.map(a => a.areaQuad || a.area || 0)) : 0;
             

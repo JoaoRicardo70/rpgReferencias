@@ -48,7 +48,7 @@ export function entradaVisivel(entrada, ehMestre) {
 // precisa saber se foi atingido pra Reações e Defesa), mas o valor sai do que chega no feed de quem não é Mestre.
 // ==========================================
 const CHAVE_ACERTO = 'rpg_acerto_mestre_oculto';
-export const CAMPOS_VALOR_DO_ACERTO = ['acertoTotal', 'rolagem', 'profBonusTexto'];
+export const CAMPOS_VALOR_DO_ACERTO = ['acertoTotal', 'rolagem', 'profBonusTexto', 'naturalD20'];
 
 export function lerAcertoOculto() {
     try { return localStorage.getItem(CHAVE_ACERTO) !== '0'; } catch (e) { return true; }
