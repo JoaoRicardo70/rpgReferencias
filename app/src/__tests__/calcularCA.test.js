@@ -69,10 +69,10 @@ describe('calcularCA — valor base a partir de atributos', () => {
         expect(calcularCA(ficha, 'evasiva')).toBe(90);
     });
 
-    it('resistencia: base = 5 + dois primeiros digitos de forca.base', () => {
+    it('resistencia: base = 5 + valor de forca.base (ate 100 vale o proprio numero)', () => {
         const ficha = makeFicha({ forcaBase: 100 });
-        // dois primeiros digitos de 100 = 10 → base = 5 + 10 = 15
-        expect(calcularCA(ficha, 'resistencia')).toBe(15);
+        // pegarDoisPrimeirosDigitos: n <= 100 → n → base = 5 + 100 = 105
+        expect(calcularCA(ficha, 'resistencia')).toBe(105);
     });
 
     it('evasiva: ficha sem destreza resulta em base = 5', () => {
@@ -120,10 +120,10 @@ describe('calcularCA — extração de dois primeiros dígitos', () => {
         expect(calcularCA(ficha, 'evasiva')).toBe(40);
     });
 
-    it('valor de 4 digitos usa apenas os dois primeiros', () => {
+    it('a partir de 1000 o atributo e dividido por 1000', () => {
         const ficha = makeFicha({ forcaBase: 1500 });
-        // "1500" → substring(0,2) = "15" → base = 5 + 15 = 20
-        expect(calcularCA(ficha, 'resistencia')).toBe(20);
+        // floor(1500 / 1000) = 1 → base = 5 + 1 = 6
+        expect(calcularCA(ficha, 'resistencia')).toBe(6);
     });
 
     it('valor como string numerica e aceito', () => {
@@ -452,9 +452,9 @@ describe('calcularCA — valores de borda', () => {
         expect(calcularCA(ficha, 'evasiva')).toBe(104);
     });
 
-    it('destreza.base = 9999 → getDoisDigitos = 99 → base = 104', () => {
+    it('destreza.base = 9999 → floor(9999 / 1000) = 9 → base = 14', () => {
         const ficha = makeFicha({ destrezaBase: 9999 });
-        expect(calcularCA(ficha, 'evasiva')).toBe(104);
+        expect(calcularCA(ficha, 'evasiva')).toBe(14);
     });
 
     it('bonus flutuante e truncado por Math.floor', () => {
@@ -534,5 +534,18 @@ describe('calcularCA — entradas inválidas', () => {
 
     it('ficha = string vazia (falsy) retorna 10', () => {
         expect(calcularCA('', 'evasiva')).toBe(10);
+    });
+});
+
+describe('calcularCA — Ascensao nao entra na CA', () => {
+    it('Ascensao e multiplicador de Ascensao nao mudam Evasiva nem Resistencia', () => {
+        const semAsc = makeFicha({ destrezaBase: 50, forcaBase: 40 });
+        const comAsc = makeFicha({ destrezaBase: 50, forcaBase: 40 });
+        comAsc.ascensaoBase = 8;
+        comAsc.multiplicadorForcaAscensao = 3;
+        expect(calcularCA(comAsc, 'evasiva')).toBe(calcularCA(semAsc, 'evasiva'));
+        expect(calcularCA(comAsc, 'resistencia')).toBe(calcularCA(semAsc, 'resistencia'));
+        expect(calcularCA(comAsc, 'evasiva')).toBe(55);
+        expect(calcularCA(comAsc, 'resistencia')).toBe(45);
     });
 });

@@ -20,7 +20,8 @@ const FATOR_EXIBICAO_STATUS = 1000;
 
 // ==========================================
 // 👻 O RESET FANTASMA DA ASCENSÃO 👻
-// Adiciona o valor oculto da Ascensão a todas as rolagens da Engine!
+// Valor de luta do atributo com a Ascensão oculta somada. NÃO entra mais em CA/Evasiva/Resistência nem no Acerto:
+// o nível de poder pesa só pela diferença de Poder Calculado (core/disputaPoder.js).
 // ==========================================
 export function getPoderDeLutaStatus(ficha, statKey, isRaw = false) {
     let val = isRaw ? getRawBase(ficha, statKey) : getMaximo(ficha, statKey);
@@ -47,9 +48,10 @@ export function calcularCA(ficha, tipo) {
     if (!ficha) return 10;
     let base = 5;
     
-    // 🔥 Lê o poder verdadeiro (já com a Ascensão)
-    if (tipo === 'evasiva') base += pegarDoisPrimeirosDigitos(getPoderDeLutaStatus(ficha, 'destreza', true));
-    if (tipo === 'resistencia') base += pegarDoisPrimeirosDigitos(getPoderDeLutaStatus(ficha, 'forca', true));
+    // Atributo SEM a Ascensão: o nível de poder pesa pela diferença de Poder Calculado (core/disputaPoder.js > bonusAcertoPorDisputa),
+    // não aqui. Somar a Ascensão (+100 de CA cada) inflava a CA para centenas.
+    if (tipo === 'evasiva') base += pegarDoisPrimeirosDigitos(getRawBase(ficha, 'destreza'));
+    if (tipo === 'resistencia') base += pegarDoisPrimeirosDigitos(getRawBase(ficha, 'forca'));
 
     let bonus = 0;
     const somarBonus = (efeitos) => {
@@ -525,8 +527,8 @@ export function calcularEvasiva({ prof, bonus, minhaFicha, itensEquipados }) {
         if (item.tipo === 'armadura') nomesArmaduras.push(item.nome);
     });
 
-    // 🔥 APLICA O PODER DE LUTA VERDADEIRO NA EVASIVA 🔥
-    let baseVal = getPoderDeLutaStatus(minhaFicha, 'destreza', true);
+    // Sem a Ascensão (ver calcularCA): o nível de poder entra pela diferença de Poder Calculado.
+    let baseVal = getRawBase(minhaFicha, 'destreza');
     let baseD = pegarDoisPrimeirosDigitos(baseVal);
     let bp = getPoderesDefesa(minhaFicha, 'bonus_evasiva');
 
@@ -547,8 +549,8 @@ export function calcularResistencia({ prof, bonus, minhaFicha, itensEquipados })
         if (item.tipo === 'armadura') nomesArmaduras.push(item.nome);
     });
 
-    // 🔥 APLICA O PODER DE LUTA VERDADEIRO NA RESISTÊNCIA 🔥
-    let baseVal = getPoderDeLutaStatus(minhaFicha, 'forca', true);
+    // Sem a Ascensão (ver calcularCA): o nível de poder entra pela diferença de Poder Calculado.
+    let baseVal = getRawBase(minhaFicha, 'forca');
     let baseD = pegarDoisPrimeirosDigitos(baseVal);
     let bp = getPoderesDefesa(minhaFicha, 'bonus_resistencia');
 

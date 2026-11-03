@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcularAcerto, calcularEvasiva } from './engine';
+import { calcularAcerto, calcularEvasiva, calcularResistencia } from './engine';
 
 // qD=0: sem dados, resultado determinístico.
 const ficha = (extra = {}) => ({
@@ -59,15 +59,19 @@ describe('calcularAcerto - modificador por dezena', () => {
     });
 });
 
-describe('calcularEvasiva - inalterada (mantém Ascensão)', () => {
+describe('calcularEvasiva - sem Ascensão (o nível de poder entra pela diferença de Poder)', () => {
     it('retorna total numérico finito e usa Destreza', () => {
         const r = calcularEvasiva({ prof: 2, bonus: 1, minhaFicha: ficha(), itensEquipados: [] });
         expect(Number.isFinite(r.total)).toBe(true);
         expect(r.baseCalc).toContain('Base(Destreza)');
     });
-    it('Ascensão em destreza aumenta ou mantém a evasiva (não é ignorada como no Acerto)', () => {
-        const sem = calcularEvasiva({ prof: 0, bonus: 0, minhaFicha: ficha(), itensEquipados: [] });
-        const com = calcularEvasiva({ prof: 0, bonus: 0, minhaFicha: ficha({ destreza: { base: 24000, nome: 'Destreza', ascensaoBase: 3 } }), itensEquipados: [] });
-        expect(com.total).toBeGreaterThanOrEqual(sem.total);
+    it('Ascensão da ficha não muda a evasiva nem a resistência', () => {
+        const base = { prof: 0, bonus: 0, itensEquipados: [] };
+        const sem = ficha();
+        const com = ficha();
+        com.ascensaoBase = 8;
+        com.multiplicadorForcaAscensao = 3;
+        expect(calcularEvasiva({ ...base, minhaFicha: com }).total).toBe(calcularEvasiva({ ...base, minhaFicha: sem }).total);
+        expect(calcularResistencia({ ...base, minhaFicha: com }).total).toBe(calcularResistencia({ ...base, minhaFicha: sem }).total);
     });
 });
