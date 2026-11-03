@@ -81,6 +81,47 @@ export function aplicarDisputaAoDano(dano, disputa) {
     return Number.isFinite(r) ? r : Number.MAX_SAFE_INTEGER;
 }
 
+// ==========================================
+// 🎯 ACERTO — a diferença de Poder também pesa em acertar. Entra POR ÚLTIMO, depois de todos os outros bônus
+// (atributo, Prof, arma, Forma, Classe...), como a Disputa no dano: soma ao Acerto total de quem ataca antes de
+// comparar com a defesa do alvo. A escala é logarítmica (cada 10x de Poder vale +10) e limitada, então só a
+// razão importa: os números absolutos podem crescer à vontade sem inflar o acerto, e empilhar multiplicadores
+// de Poder não quebra nada.
+// ==========================================
+export const BONUS_ACERTO_PODER_MAXIMO = 15;
+
+// Bônus (positivo ou negativo, inteiro) que a disputa soma ao Acerto de quem ataca. Sem disputa ativa = 0.
+export function bonusAcertoPorDisputa(disputa) {
+    if (!disputa || !disputa.ativa) return 0;
+    const a = disputa.poderAtacante;
+    const d = disputa.poderDefensor;
+    if (a === d) return 0;
+    if (a > d && !(d > 0)) return BONUS_ACERTO_PODER_MAXIMO; // alvo sem Poder
+    if (a < d && !(a > 0)) return -BONUS_ACERTO_PODER_MAXIMO; // atacante sem Poder
+    // Diferença de logs (e não log da razão): a / d estoura para Infinity/0 com Poderes gigantes.
+    const bruto = Math.round(10 * (Math.log10(a) - Math.log10(d)));
+    if (!Number.isFinite(bruto)) return 0;
+    return Math.max(-BONUS_ACERTO_PODER_MAXIMO, Math.min(BONUS_ACERTO_PODER_MAXIMO, bruto)) || 0;
+}
+
+// Resolve o acerto contra UM alvo: o Acerto total (já com todos os bônus) + o bônus de Poder contra a defesa.
+// Devolve o item do feed ({ nome, defesa, acertou, poderAcerto?, ...extras }). `poderAcerto` é só QUALITATIVO
+// ('favor' | 'contra'): o feed não entrega o Poder de ninguém (mesma regra de descreverDisputa).
+export function resolverAcertoNoAlvo({ nome, defesa, acertoTotal, poderAtacante, poderAlvo, extras = {} }) {
+    const bonus = bonusAcertoPorDisputa(calcularDisputaPoder(poderAtacante, poderAlvo));
+    const acertou = (Number(acertoTotal) || 0) + bonus >= defesa;
+    const item = { nome, defesa, acertou, ...extras };
+    if (bonus > 0) item.poderAcerto = 'favor';
+    else if (bonus < 0) item.poderAcerto = 'contra';
+    return item;
+}
+
+// Marca curta pro feed ao lado do resultado do alvo.
+export function marcaPoderAcerto(item) {
+    if (!item || !item.poderAcerto) return '';
+    return item.poderAcerto === 'favor' ? ' ⚖️ Poder a favor' : ' ⚖️ Poder contra';
+}
+
 // Categoria QUALITATIVA do quanto o golpe rendeu (vai no feed no lugar do fator, que entregaria o
 // Poder do alvo): 'nula' | 'reduzida' | 'normal' | 'alta' — ou null se não houve disputa.
 export function classificarEfetividade(disputa) {

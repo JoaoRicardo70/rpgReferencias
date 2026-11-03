@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     FATOR_DISPUTA_MAXIMO, getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisputaPoder,
     aplicarDisputaAoDano, formatarFatorDisputa, formatarPoderDisputa, descreverDisputa,
+    BONUS_ACERTO_PODER_MAXIMO, bonusAcertoPorDisputa, resolverAcertoNoAlvo, marcaPoderAcerto,
 } from './disputaPoder';
 import { calcularPoderAtual } from './poder';
 
@@ -235,5 +236,61 @@ describe('formatadores', () => {
         const t = descreverDisputa(calcularDisputaPoder(1000, 0));
         expect(t).toContain('atacante mais forte');
         expect(t).not.toContain('∞');
+    });
+});
+
+describe('Acerto: bônus da diferença de Poder', () => {
+    const disp = (a, d) => calcularDisputaPoder(a, d);
+
+    it('sem disputa ativa ou poder igual não mexe no acerto', () => {
+        expect(bonusAcertoPorDisputa(null)).toBe(0);
+        expect(bonusAcertoPorDisputa(disp(null, 100))).toBe(0);
+        expect(bonusAcertoPorDisputa(disp(100, 100))).toBe(0);
+        expect(bonusAcertoPorDisputa(disp(0, 0))).toBe(0);
+    });
+
+    it('escala logarítmica: cada 10x vale +10, 2x vale +3, e é simétrica', () => {
+        expect(bonusAcertoPorDisputa(disp(2000, 1000))).toBe(3);
+        expect(bonusAcertoPorDisputa(disp(1000, 2000))).toBe(-3);
+        expect(bonusAcertoPorDisputa(disp(10000, 1000))).toBe(10);
+        expect(bonusAcertoPorDisputa(disp(1000, 10000))).toBe(-10);
+        expect(bonusAcertoPorDisputa(disp(1100, 1000))).toBe(0);
+    });
+
+    it('limitado a ±15 e independe da grandeza absoluta', () => {
+        expect(bonusAcertoPorDisputa(disp(1e9, 10))).toBe(BONUS_ACERTO_PODER_MAXIMO);
+        expect(bonusAcertoPorDisputa(disp(10, 1e9))).toBe(-BONUS_ACERTO_PODER_MAXIMO);
+        expect(bonusAcertoPorDisputa(disp(5e12, 1e12))).toBe(bonusAcertoPorDisputa(disp(5, 1)));
+    });
+
+    it('Poder 0 num dos lados vai direto ao limite, sem Infinity/NaN', () => {
+        expect(bonusAcertoPorDisputa(disp(100, 0))).toBe(BONUS_ACERTO_PODER_MAXIMO);
+        expect(bonusAcertoPorDisputa(disp(0, 100))).toBe(-BONUS_ACERTO_PODER_MAXIMO);
+    });
+
+    it('resolverAcertoNoAlvo soma o bônus por último e só marca o lado de forma qualitativa', () => {
+        const base = { nome: 'Goblin', defesa: 20, acertoTotal: 18 };
+        const sem = resolverAcertoNoAlvo({ ...base, poderAtacante: 1000, poderAlvo: 1000 });
+        expect(sem.acertou).toBe(false);
+        expect(sem.poderAcerto).toBeUndefined();
+        const favor = resolverAcertoNoAlvo({ ...base, poderAtacante: 10000, poderAlvo: 1000 });
+        expect(favor).toMatchObject({ nome: 'Goblin', defesa: 20, acertou: true, poderAcerto: 'favor' });
+        const contra = resolverAcertoNoAlvo({ ...base, acertoTotal: 25, poderAtacante: 1000, poderAlvo: 10000, extras: { dummieId: 'd1' } });
+        expect(contra).toMatchObject({ acertou: false, poderAcerto: 'contra', dummieId: 'd1' });
+        expect(JSON.stringify(favor)).not.toContain('1000');
+    });
+
+    it('alvo sem Poder definido: acerto comum, sem bônus', () => {
+        const r = resolverAcertoNoAlvo({ nome: 'X', defesa: 10, acertoTotal: 10, poderAtacante: 5000, poderAlvo: null });
+        expect(r.acertou).toBe(true);
+        expect(r.poderAcerto).toBeUndefined();
+        expect(resolverAcertoNoAlvo({ nome: 'X', defesa: 11, acertoTotal: 10, poderAtacante: null, poderAlvo: 5 }).acertou).toBe(false);
+    });
+
+    it('marcaPoderAcerto', () => {
+        expect(marcaPoderAcerto({})).toBe('');
+        expect(marcaPoderAcerto(null)).toBe('');
+        expect(marcaPoderAcerto({ poderAcerto: 'favor' })).toContain('a favor');
+        expect(marcaPoderAcerto({ poderAcerto: 'contra' })).toContain('contra');
     });
 });

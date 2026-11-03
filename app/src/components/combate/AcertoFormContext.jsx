@@ -12,6 +12,8 @@ import { enviarParaFeed, salvarCenarioCompleto } from '../../services/firebase-s
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { resolverAlvoCombate } from '../../core/alvoCombate';
 import { getPosicaoEntidade } from '../../core/alcance';
+import { getPoderParaDisputa, getPoderDummie, resolverAcertoNoAlvo } from '../../core/disputaPoder';
+import { golpeEquipado } from '../../core/classesMecanicas';
 
 import { cores } from '../arsenal/ElementosFormContext';
 
@@ -161,30 +163,33 @@ export function AcertoFormProvider({ children }) {
         let alvosAtingidos = [];
         const cenaAtivaId = cenario?.ativa || 'default';
         const escala = cenario?.lista?.[cenaAtivaId]?.escala || 1.5;
+        // ⚖️ A diferença de Poder soma ao Acerto por último (core/disputaPoder.js). Mesmo Poder do dano, sem o custo do golpe (ainda não conhecido aqui).
+        const poderAtacante = getPoderParaDisputa(minhaFicha, divisorPoderMesa, golpeEquipado(minhaFicha));
+        const resolverAlvo = (nome, defesa, poderAlvo, extras) => resolverAcertoNoAlvo({ nome, defesa, acertoTotal: result.acertoTotal, poderAtacante, poderAlvo, extras });
 
         if (maxArea > 0 && centroExplosao) {
-            const verificarHit = (posicao, valorDefesa, nomeAlvo, extras = {}) => {
+            const verificarHit = (posicao, valorDefesa, nomeAlvo, poderAlvo, extras = {}) => {
                 const isSameScene = (posicao.cenaId || 'default') === (centroExplosao.cenaId || 'default');
                 if (isSameScene) {
                     const dX = Math.abs(posicao.x - centroExplosao.x);
                     const dY = Math.abs(posicao.y - centroExplosao.y);
                     const dZ = Math.floor(Math.abs((posicao.z || 0) - (centroExplosao.z || 0)) / escala);
                     if (Math.max(dX, dY, dZ) <= maxArea) {
-                        alvosAtingidos.push({ nome: nomeAlvo, defesa: valorDefesa, acertou: result.acertoTotal >= valorDefesa, ...extras });
+                        alvosAtingidos.push(resolverAlvo(nomeAlvo, valorDefesa, poderAlvo, extras));
                     }
                 }
             };
 
             if (alvoFiltro === 'todos' || alvoFiltro === 'inimigos') {
                 // dummieId: o dano em área (AtaqueFormContext) acha o alvo pelo id, não pelo nome (NPCs repetidos).
-                Object.entries(dummies).forEach(([id, dummieObj]) => { if (dummieObj.posicao) verificarHit({ ...dummieObj.posicao, cenaId: dummieObj.cenaId || dummieObj.posicao.cenaId }, dummieObj.valorDefesa, dummieObj.nome, { dummieId: id }); });
+                Object.entries(dummies).forEach(([id, dummieObj]) => { if (dummieObj.posicao) verificarHit({ ...dummieObj.posicao, cenaId: dummieObj.cenaId || dummieObj.posicao.cenaId }, dummieObj.valorDefesa, dummieObj.nome, getPoderDummie(dummieObj), { dummieId: id }); });
             }
             if (alvoFiltro === 'todos' || alvoFiltro === 'aliados') {
-                if (minhaFicha.posicao && origemArea !== 'self') verificarHit(minhaFicha.posicao, calcularCA(minhaFicha, 'evasiva'), meuNome);
-                Object.entries(personagens || {}).forEach(([n, f]) => { if (f.posicao) verificarHit(f.posicao, calcularCA(f, 'evasiva'), n); });
+                if (minhaFicha.posicao && origemArea !== 'self') verificarHit(minhaFicha.posicao, calcularCA(minhaFicha, 'evasiva'), meuNome, getPoderParaDisputa(minhaFicha, divisorPoderMesa));
+                Object.entries(personagens || {}).forEach(([n, f]) => { if (f.posicao) verificarHit(f.posicao, calcularCA(f, 'evasiva'), n, getPoderParaDisputa(f, divisorPoderMesa)); });
             }
         } else if (alvoDummie) {
-            alvosAtingidos.push({ nome: alvoDummie.nome, defesa: alvoDummie.valorDefesa, acertou: result.acertoTotal >= alvoDummie.valorDefesa, dummieId: alvoSelecionado });
+            alvosAtingidos.push(resolverAlvo(alvoDummie.nome, alvoDummie.valorDefesa, getPoderDummie(alvoDummie), { dummieId: alvoSelecionado }));
         }
 
         let idDaZonaCriada = null;
@@ -223,7 +228,7 @@ export function AcertoFormProvider({ children }) {
         enviarParaFeed(feedData);
         setAbaAtiva('aba-log');
 
-    }, [isForaDeAlcance, origemArea, dados, faces, bonus, usarProficiencia, profGlobal, vantagens, desvantagens, statsSelecionados, minhaFicha, itensEquipados, maxArea, centroExplosao, alvoFiltro, dummies, personagens, meuNome, alvoDummie, duracaoZonaEfeito, elementoZona, cenario, setAbaAtiva]);
+    }, [isForaDeAlcance, origemArea, dados, faces, bonus, usarProficiencia, profGlobal, vantagens, desvantagens, statsSelecionados, minhaFicha, itensEquipados, maxArea, centroExplosao, alvoFiltro, dummies, personagens, meuNome, alvoDummie, duracaoZonaEfeito, elementoZona, cenario, setAbaAtiva, divisorPoderMesa]);
 
     const value = useMemo(() => ({
         dados, setDados, faces, setFaces, usarProficiencia, setUsarProficiencia, bonus, setBonus,

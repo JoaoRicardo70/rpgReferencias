@@ -15,7 +15,7 @@ import { efeitosAtivosDoItem } from '../../core/efeitosItem';
 import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
 import { golpeEquipado } from '../../core/classesMecanicas';
 import { alternarAcao, restaurarAcoes, criarAcoesIniciais } from '../../core/acoes';
-import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
+import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, resolverAcertoNoAlvo } from '../../core/disputaPoder';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto, getTetoExibidoComFator } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { danoDeEstadosNoTurno, descreverDanoDeEstados } from '../../core/condicoes';
@@ -1271,6 +1271,9 @@ export function MapaFormProvider({ children }) {
         }
 
         if (alvoDummie) {
+            // ⚖️ A diferença de Poder soma ao Acerto por último (core/disputaPoder.js); mesmo Poder do dano, sem o custo do golpe.
+            const poderAtacante = getPoderParaDisputa(fichaAcerto, estadoAtual.divisorPoderMesa, golpeEquipado(fichaAcerto));
+            const resolverAlvo = (nome, defesa, poderAlvo, extras) => resolverAcertoNoAlvo({ nome, defesa, acertoTotal: result.acertoTotal, poderAtacante, poderAlvo, extras });
             const armasEqMap = itensEq.filter(i => i.tipo === 'arma');
             const maxAreaArmas = armasEqMap.length > 0 ? Math.max(...armasEqMap.map(a => a.areaQuad || a.area || 0)) : 0;
             
@@ -1288,7 +1291,7 @@ export function MapaFormProvider({ children }) {
 
                 // Alvo-personagem: ele mesmo entra no golpe em área (os Dummies vizinhos entram pelo laço abaixo).
                 if (alvoDummie.isPersonagem) {
-                    alvosAtingidos.push({ nome: alvoDummie.nome, defesa: alvoDummie.valorDefesa, acertou: result.acertoTotal >= alvoDummie.valorDefesa, dummieId: alvoSelecionado });
+                    alvosAtingidos.push(resolverAlvo(alvoDummie.nome, alvoDummie.valorDefesa, getPoderDummie(alvoDummie), { dummieId: alvoSelecionado }));
                 }
                 Object.entries(dummies).forEach(([id, dObj]) => {
                     const isSameScene = (dObj.cenaId || 'default') === (alvoDummie.cenaId || 'default');
@@ -1298,12 +1301,12 @@ export function MapaFormProvider({ children }) {
                         const dZ = Math.floor(Math.abs((dObj.posicao.z || 0) - (alvoDummie.posicao.z || 0)) / escala);
                         
                         if (Math.max(dX, dY, dZ) <= maxArea) {
-                            alvosAtingidos.push({ nome: dObj.nome, defesa: dObj.valorDefesa, acertou: result.acertoTotal >= dObj.valorDefesa, dummieId: id });
+                            alvosAtingidos.push(resolverAlvo(dObj.nome, dObj.valorDefesa, getPoderDummie(dObj), { dummieId: id }));
                         }
                     }
                 });
             } else {
-                alvosAtingidos.push({ nome: alvoDummie.nome, defesa: alvoDummie.valorDefesa, acertou: result.acertoTotal >= alvoDummie.valorDefesa, dummieId: alvoSelecionado });
+                alvosAtingidos.push(resolverAlvo(alvoDummie.nome, alvoDummie.valorDefesa, getPoderDummie(alvoDummie), { dummieId: alvoSelecionado }));
             }
         }
 
