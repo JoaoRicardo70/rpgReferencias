@@ -28,15 +28,17 @@ export function modificadorDezena(v) {
     return parseInt(str.substring(0, 2), 10) || 0;
 }
 
-// 📐 Bônus que um atributo dá ao Acerto, à CA, à Evasiva e à Resistência: 10 × log10(atributo).
+// 📐 Bônus que um atributo dá ao Acerto, à CA, à Evasiva e à Resistência: MULTIPLICADOR_ATRIBUTO × log10(atributo).
 // A MESMA conta nos dois lados, contínua (sem saltos entre 99.999 e 100.000) e que cresce devagar: cada 10x no atributo
-// vale +10 (100 -> +20, 1.000 -> +30, 100.000 -> +50, 1.000.000 -> +60). O nível de poder entre dois personagens pesa pela
+// vale +4 (100 -> +8, 1.000 -> +12, 100.000 -> +20, 1.000.000 -> +24). O nível de poder entre dois personagens pesa pela
 // diferença de Poder Calculado (core/disputaPoder.js), não por um atributo gigante. Sem a Ascensão oculta.
+export const MULTIPLICADOR_ATRIBUTO = 4;
+
 export function bonusDeAtributo(v) {
     let n = Math.abs(Number(v) || 0);
     if (Number.isNaN(n) || n < 1) return 0;
     if (n === Infinity) n = Number.MAX_VALUE;
-    return Math.round(10 * Math.log10(n));
+    return Math.round(MULTIPLICADOR_ATRIBUTO * Math.log10(n));
 }
 
 export function pegarDoisPrimeirosDigitos(v) {

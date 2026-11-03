@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { bonusDeAtributo } from './utils';
 import { calcularAcerto, calcularEvasiva, calcularResistencia, rolarDadosComVantagem } from './engine';
 
 // qD=0: sem dados, resultado determinístico.
@@ -11,35 +12,40 @@ const ficha = (extra = {}) => ({
 const acerto = (sels, minhaFicha, extra = {}) =>
     calcularAcerto({ qD: 0, fD: 20, prof: 0, bonus: 0, sels, minhaFicha, itensEquipados: [], ...extra });
 
-describe('calcularAcerto - bonus continuo de atributo (10*log10)', () => {
-    it('forca 120000 => +51 (round(10*log10(120000)))', () => {
-        expect(acerto(['forca'], ficha()).acertoTotal).toBe(51);
+it('ancoras: 120000 => 20 e 24000 => 18 na regra vigente', () => {
+    expect(bonusDeAtributo(120000)).toBe(20);
+    expect(bonusDeAtributo(24000)).toBe(18);
+});
+
+describe('calcularAcerto - bonus continuo de atributo (MULTIPLICADOR_ATRIBUTO*log10)', () => {
+    it('forca 120000 => +20 (round(MULT*log10(120000)))', () => {
+        expect(acerto(['forca'], ficha()).acertoTotal).toBe(20);
     });
     it('Ascensão não altera o resultado', () => {
         const sem = ficha({ forca: { base: 120000, nome: 'Força' } });
         const com = ficha({ forca: { base: 120000, nome: 'Força', ascensaoBase: 3 } });
         const muita = ficha({ forca: { base: 120000, nome: 'Força', ascensaoBase: 9 } });
-        expect(acerto(['forca'], sem).acertoTotal).toBe(51);
-        expect(acerto(['forca'], com).acertoTotal).toBe(51);
-        expect(acerto(['forca'], muita).acertoTotal).toBe(51);
+        expect(acerto(['forca'], sem).acertoTotal).toBe(20);
+        expect(acerto(['forca'], com).acertoTotal).toBe(20);
+        expect(acerto(['forca'], muita).acertoTotal).toBe(20);
     });
-    it('dois atributos usam a media arredondada (51 e 44 => 48)', () => {
-        expect(acerto(['forca', 'destreza'], ficha()).acertoTotal).toBe(48);
+    it('dois atributos usam a media arredondada (20 e 18 => 19)', () => {
+        expect(acerto(['forca', 'destreza'], ficha()).acertoTotal).toBe(19);
     });
     it('atributo ausente conta 0 na media, sem lançar', () => {
         expect(acerto(['inexistente'], ficha()).acertoTotal).toBe(0);
-        expect(acerto(['forca', 'inexistente'], ficha()).acertoTotal).toBe(26);
+        expect(acerto(['forca', 'inexistente'], ficha()).acertoTotal).toBe(10);
     });
     it('sels vazio => só prof + bonus', () => {
         expect(acerto([], ficha(), { prof: 2, bonus: 3 }).acertoTotal).toBe(5);
     });
     it('soma prof e bônus fixo', () => {
-        expect(acerto(['forca'], ficha(), { prof: 4, bonus: 5 }).acertoTotal).toBe(60);
+        expect(acerto(['forca'], ficha(), { prof: 4, bonus: 5 }).acertoTotal).toBe(29);
     });
     it('soma bônus de arma equipada', () => {
         const itens = [{ tipo: 'arma', nome: 'Espada', bonusTipo: 'bonus_acerto', bonusValor: '3' }];
         const r = acerto(['forca'], ficha(), { itensEquipados: itens });
-        expect(r.acertoTotal).toBe(54);
+        expect(r.acertoTotal).toBe(23);
         expect(r.profBonusTexto).toContain('Arma: +3');
     });
     it('rolagem com dado fixo soma ao total', () => {
@@ -47,15 +53,15 @@ describe('calcularAcerto - bonus continuo de atributo (10*log10)', () => {
         Math.random = () => 0.5; // d20 => 11
         try {
             const r = calcularAcerto({ qD: 1, fD: 20, prof: 0, bonus: 0, sels: ['forca'], minhaFicha: ficha(), itensEquipados: [] });
-            expect(r.acertoTotal).toBe(51 + 11);
+            expect(r.acertoTotal).toBe(20 + 11);
         } finally { Math.random = orig; }
     });
     it('atributosUsados lista os nomes', () => {
         expect(acerto(['forca', 'destreza'], ficha()).atributosUsados).toBe('Força + Destreza');
     });
-    it('valor 45 => +17 e base 0 => 0; media arredondada (8,5 => 9)', () => {
+    it('valor 45 => +7 e base 0 => 0; media arredondada (3,5 => 4)', () => {
         const f = ficha({ forca: { base: 45, nome: 'Força' }, destreza: { base: 0, nome: 'Destreza' } });
-        expect(acerto(['forca', 'destreza'], f).acertoTotal).toBe(9);
+        expect(acerto(['forca', 'destreza'], f).acertoTotal).toBe(4);
     });
 });
 
@@ -91,13 +97,13 @@ describe('calcularAcerto - naturalD20', () => {
         sequencia(0.999);
         const r = rolar();
         expect(r.naturalD20).toBe(20);
-        expect(r.acertoTotal).toBe(51 + 20);
+        expect(r.acertoTotal).toBe(20 + 20);
     });
     it('1d20 que cai 1 => naturalD20 = 1', () => {
         sequencia(0);
         const r = rolar();
         expect(r.naturalD20).toBe(1);
-        expect(r.acertoTotal).toBe(51 + 1);
+        expect(r.acertoTotal).toBe(20 + 1);
     });
     it('valores intermediarios (2, 11, 19) => chave naturalD20 ausente', () => {
         for (const rnd of [0.05, 0.5, 0.9]) {
