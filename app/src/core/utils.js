@@ -28,7 +28,7 @@ export function modificadorDezena(v) {
     return parseInt(str.substring(0, 2), 10) || 0;
 }
 
-// 📐 Bônus que um atributo dá ao Acerto, à CA, à Evasiva e à Resistência: MULTIPLICADOR_ATRIBUTO × log10(atributo).
+// 📐 A REDUÇÃO de atributo/bônus de Acerto, CA, Evasiva e Resistência: MULTIPLICADOR_ATRIBUTO × log10(valor). Vale sobre o TOTAL (ver reduzirValor).
 // A MESMA conta nos dois lados, contínua (sem saltos entre 99.999 e 100.000) e que cresce devagar: cada 10x no atributo
 // vale +4 (100 -> +8, 1.000 -> +12, 100.000 -> +20, 1.000.000 -> +24). O nível de poder entre dois personagens pesa pela
 // diferença de Poder Calculado (core/disputaPoder.js), não por um atributo gigante. Sem a Ascensão oculta.
@@ -39,6 +39,13 @@ export function bonusDeAtributo(v) {
     if (Number.isNaN(n) || n < 1) return 0;
     if (n === Infinity) n = Number.MAX_VALUE;
     return Math.round(MULTIPLICADOR_ATRIBUTO * Math.log10(n));
+}
+
+// A REDUÇÃO aplicada ao TOTAL (atributo + bônus) de CA e Acerto, antes da Proficiência e da Diferença de Poder (que não são
+// reduzidas, por isso pesam mais). Mesma conta de bonusDeAtributo, mas preservando o sinal: penalidades podem deixar o total negativo.
+export function reduzirValor(v) {
+    const n = Number(v) || 0;
+    return (n < 0 ? -1 : 1) * bonusDeAtributo(n) || 0;
 }
 
 export function pegarDoisPrimeirosDigitos(v) {

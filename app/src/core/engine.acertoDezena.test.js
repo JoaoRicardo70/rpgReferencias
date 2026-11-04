@@ -17,7 +17,7 @@ it('ancoras: 120000 => 20 e 24000 => 18 na regra vigente', () => {
     expect(bonusDeAtributo(24000)).toBe(18);
 });
 
-describe('calcularAcerto - bonus continuo de atributo (MULTIPLICADOR_ATRIBUTO*log10)', () => {
+describe('calcularAcerto - reducao do total atributo+bonus (MULTIPLICADOR_ATRIBUTO*log10)', () => {
     it('forca 120000 => +20 (round(MULT*log10(120000)))', () => {
         expect(acerto(['forca'], ficha()).acertoTotal).toBe(20);
     });
@@ -29,23 +29,24 @@ describe('calcularAcerto - bonus continuo de atributo (MULTIPLICADOR_ATRIBUTO*lo
         expect(acerto(['forca'], com).acertoTotal).toBe(20);
         expect(acerto(['forca'], muita).acertoTotal).toBe(20);
     });
-    it('dois atributos usam a media arredondada (20 e 18 => 19)', () => {
-        expect(acerto(['forca', 'destreza'], ficha()).acertoTotal).toBe(19);
+    it('dois atributos SOMAM os valores brutos antes da reducao (120000+24000 => 21)', () => {
+        expect(acerto(['forca', 'destreza'], ficha()).acertoTotal).toBe(21);
     });
-    it('atributo ausente conta 0 na media, sem lançar', () => {
+    it('atributo ausente conta 0 na soma, sem lançar', () => {
         expect(acerto(['inexistente'], ficha()).acertoTotal).toBe(0);
-        expect(acerto(['forca', 'inexistente'], ficha()).acertoTotal).toBe(10);
+        expect(acerto(['forca', 'inexistente'], ficha()).acertoTotal).toBe(20);
     });
-    it('sels vazio => só prof + bonus', () => {
-        expect(acerto([], ficha(), { prof: 2, bonus: 3 }).acertoTotal).toBe(5);
+    it('sels vazio => prof + reduzirValor(bonus)', () => {
+        // reduzirValor(3) = round(4*log10(3)) = 2; prof 2 fica inteira
+        expect(acerto([], ficha(), { prof: 2, bonus: 3 }).acertoTotal).toBe(4);
     });
-    it('soma prof e bônus fixo', () => {
-        expect(acerto(['forca'], ficha(), { prof: 4, bonus: 5 }).acertoTotal).toBe(29);
+    it('prof soma inteira e o bônus fixo entra na reducao (120005 continua 20)', () => {
+        expect(acerto(['forca'], ficha(), { prof: 4, bonus: 5 }).acertoTotal).toBe(24);
     });
-    it('soma bônus de arma equipada', () => {
+    it('bônus de arma equipada entra na reducao (120003 continua 20), mas aparece no texto', () => {
         const itens = [{ tipo: 'arma', nome: 'Espada', bonusTipo: 'bonus_acerto', bonusValor: '3' }];
         const r = acerto(['forca'], ficha(), { itensEquipados: itens });
-        expect(r.acertoTotal).toBe(23);
+        expect(r.acertoTotal).toBe(20);
         expect(r.profBonusTexto).toContain('Arma: +3');
     });
     it('rolagem com dado fixo soma ao total', () => {
@@ -59,9 +60,9 @@ describe('calcularAcerto - bonus continuo de atributo (MULTIPLICADOR_ATRIBUTO*lo
     it('atributosUsados lista os nomes', () => {
         expect(acerto(['forca', 'destreza'], ficha()).atributosUsados).toBe('Força + Destreza');
     });
-    it('valor 45 => +7 e base 0 => 0; media arredondada (3,5 => 4)', () => {
+    it('45 + 0 somam 45 => reduzirValor(45) = 7 (sem media)', () => {
         const f = ficha({ forca: { base: 45, nome: 'Força' }, destreza: { base: 0, nome: 'Destreza' } });
-        expect(acerto(['forca', 'destreza'], f).acertoTotal).toBe(4);
+        expect(acerto(['forca', 'destreza'], f).acertoTotal).toBe(7);
     });
 });
 
@@ -69,7 +70,7 @@ describe('calcularEvasiva - sem Ascensão (o nível de poder entra pela diferen�
     it('retorna total numérico finito e usa Destreza', () => {
         const r = calcularEvasiva({ prof: 2, bonus: 1, minhaFicha: ficha(), itensEquipados: [] });
         expect(Number.isFinite(r.total)).toBe(true);
-        expect(r.baseCalc).toContain('Base(Destreza)');
+        expect(r.baseCalc).toContain('Destreza + bônus (reduzido)');
     });
     it('Ascensão da ficha não muda a evasiva nem a resistência', () => {
         const base = { prof: 0, bonus: 0, itensEquipados: [] };

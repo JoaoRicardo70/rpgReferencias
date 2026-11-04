@@ -222,13 +222,15 @@ describe('getEfeitosDeClasse e calcularCA enxergam o suporte passivo', () => {
     });
     it('calcularCA sobe pelo valor do buff passivo e volta ao desligar', () => {
         const base = calcularCA(mk(false), 'evasiva');
-        expect(calcularCA(mk(true), 'evasiva')).toBe(base + 7);
+        expect(base).toBe(3); // reduzirValor(5)
+        expect(calcularCA(mk(true), 'evasiva')).toBe(4); // reduzirValor(5 + 7) = 4
     });
     it('buff temporario tambem entra na CA', () => {
         const f = mk(false);
         const base = calcularCA(f, 'evasiva');
         f.buffsTemporarios = somarBuffTemporario([], { id: 'x', nome: 'T', fonte: 'Y', efeitos, duracaoModo: 'combate' });
-        expect(calcularCA(f, 'evasiva')).toBe(base + 7);
+        expect(base).toBe(3);
+        expect(calcularCA(f, 'evasiva')).toBe(4); // reduzirValor(5 + 7)
     });
 });
 

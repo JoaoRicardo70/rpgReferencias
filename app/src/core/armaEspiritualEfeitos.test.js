@@ -55,12 +55,15 @@ describe('efeitos só do estado efetivo', () => {
         expect(semArma.base).toBe(0);
     });
 
-    it('calcularCA soma só o buff do estado em vigor', () => {
-        const sem = calcularCA(fichaCom({}), 'evasiva');
-        const base = calcularCA(fichaCom({ efeitosEstados, estadoAtivo: 'base' }), 'evasiva');
-        const verd = calcularCA(fichaCom({ efeitosEstados, estadoAtivo: 'verdadeira' }), 'evasiva');
+    it('calcularCA soma só o buff do estado em vigor (entra no total reduzido)', () => {
+        // Destreza baixa: o buff +9 precisa pesar dentro da redução (reduzirValor(5+5)=4; reduzirValor(5+5+9)=5)
+        const ca = (arma) => calcularCA({ ...fichaCom(arma), destreza: { base: 5 } }, 'evasiva');
+        const sem = ca({});
+        const base = ca({ efeitosEstados, estadoAtivo: 'base' });
+        const verd = ca({ efeitosEstados, estadoAtivo: 'verdadeira' });
+        expect(sem).toBe(4);
         expect(base).toBe(sem);
-        expect(verd).toBe(sem + 9);
+        expect(verd).toBe(5);
     });
 });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bonusDeAtributo, MULTIPLICADOR_ATRIBUTO } from './utils.js';
+import { bonusDeAtributo, reduzirValor, MULTIPLICADOR_ATRIBUTO } from './utils.js';
 
 describe('bonusDeAtributo: valores de referencia (round(MULTIPLICADOR_ATRIBUTO*log10(|v|)))', () => {
     const esperadoPor = (n) => Math.round(MULTIPLICADOR_ATRIBUTO * Math.log10(n));
@@ -96,5 +96,35 @@ describe('bonusDeAtributo: entradas de borda', () => {
     it('booleanos => 0', () => {
         expect(bonusDeAtributo(true)).toBe(0);
         expect(bonusDeAtributo(false)).toBe(0);
+    });
+});
+
+describe('reduzirValor: bonusDeAtributo preservando o sinal', () => {
+    it('positivos iguais a bonusDeAtributo', () => {
+        [1, 5, 7, 42, 105, 100005, 120000].forEach(v => expect(reduzirValor(v)).toBe(bonusDeAtributo(v)));
+        expect(reduzirValor(100005)).toBe(20);
+        expect(reduzirValor(55)).toBe(7);
+    });
+    it('negativos espelham o positivo (sinal preservado)', () => {
+        expect(reduzirValor(-40)).toBe(-6);
+        expect(reduzirValor(-100005)).toBe(-20);
+        expect(reduzirValor(-40)).toBe(-reduzirValor(40));
+    });
+    it('0 e valores com |v| < 1 dão 0, nunca -0', () => {
+        [0, -0, 0.5, -0.5, -0.99].forEach(v => expect(Object.is(reduzirValor(v), 0)).toBe(true));
+    });
+    it('NaN, undefined, null, string vazia e texto não numérico dão 0', () => {
+        [NaN, undefined, null, '', 'abc', {}].forEach(v => expect(Object.is(reduzirValor(v), 0)).toBe(true));
+    });
+    it('string numérica é aceita, inclusive negativa', () => {
+        expect(reduzirValor('55')).toBe(7);
+        expect(reduzirValor('-55')).toBe(-7);
+    });
+    it('Infinity: documenta o comportamento atual (não lança)', () => {
+        expect(() => reduzirValor(Infinity)).not.toThrow();
+        expect(() => reduzirValor(-Infinity)).not.toThrow();
+        // contrato esperado: nunca NaN
+        expect(Number.isNaN(reduzirValor(Infinity))).toBe(false);
+        expect(Number.isNaN(reduzirValor(-Infinity))).toBe(false);
     });
 });

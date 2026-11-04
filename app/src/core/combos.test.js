@@ -197,10 +197,12 @@ describe('combos - a engine enxerga os buffs (sem lógica de dano paralela)', ()
     });
 
     it('a CA sobe com o buff de evasiva do Combo concluído', () => {
-        const combo = comboExemplo();
+        // buff grande o bastante para pesar dentro da redução do total: reduzirValor(5) = 3 -> reduzirValor(5 + 40) = 7
+        const combo = normalizarCombo({ id: 'cmb1', nome: 'C', iniciador: { nome: 'I', buffs: [buff('evasiva', 40)] }, passos: [] });
         const antes = calcularCA({ ...base(), combos: [combo] }, 'evasiva');
         const depois = calcularCA({ ...base(), combos: [combo], combate: { comboEstado: { concluidos: ['cmb1'], finalizados: 1 } } }, 'evasiva');
-        expect(depois - antes).toBe(2);
+        expect(antes).toBe(3);
+        expect(depois).toBe(7);
     });
 
     it('buffs de Ação Bônus aumentam o máximo de Ações', () => {

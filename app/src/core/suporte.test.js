@@ -286,9 +286,11 @@ describe('integração: engine enxerga os buffs temporários', () => {
     });
 
     it('calcularCA soma o buff temporário', () => {
-        const sem = calcularCA({ destreza: { base: 85 }, poderes: [], inventario: [] }, 'evasiva');
-        const com = calcularCA({ destreza: { base: 85 }, poderes: [], inventario: [], buffsTemporarios: buffs }, 'evasiva');
-        expect(com - sem).toBe(7);
+        const sem = calcularCA({ destreza: { base: 5 }, poderes: [], inventario: [] }, 'evasiva');
+        const com = calcularCA({ destreza: { base: 5 }, poderes: [], inventario: [], buffsTemporarios: buffs }, 'evasiva');
+        // o +7 entra no total reduzido: reduzirValor(5+5)=4 -> reduzirValor(5+5+7)=5
+        expect(sem).toBe(4);
+        expect(com).toBe(5);
     });
 
     it('calcularCA não soma buff de outro tipo de defesa', () => {
