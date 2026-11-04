@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { bonusDeAtributo } from './utils';
+import { bonusDeAtributo, reduzirComBonus } from './utils';
 import { calcularAcerto, calcularEvasiva, calcularResistencia, rolarDadosComVantagem } from './engine';
 
 // qD=0: sem dados, resultado determinístico.
@@ -36,17 +36,18 @@ describe('calcularAcerto - reducao do total atributo+bonus (MULTIPLICADOR_ATRIBU
         expect(acerto(['inexistente'], ficha()).acertoTotal).toBe(0);
         expect(acerto(['forca', 'inexistente'], ficha()).acertoTotal).toBe(20);
     });
-    it('sels vazio => prof + reduzirValor(bonus)', () => {
-        // reduzirValor(3) = round(4*log10(3)) = 2; prof 2 fica inteira
-        expect(acerto([], ficha(), { prof: 2, bonus: 3 }).acertoTotal).toBe(4);
+    it('sels vazio => prof + reduzirComBonus(0, bonus)', () => {
+        // reduzirComBonus(0, 3) = round(4*log10(1+9)) = 4; prof 2 fica inteira
+        expect(reduzirComBonus(0, 3)).toBe(4);
+        expect(acerto([], ficha(), { prof: 2, bonus: 3 }).acertoTotal).toBe(6);
     });
-    it('prof soma inteira e o bônus fixo entra na reducao (120005 continua 20)', () => {
-        expect(acerto(['forca'], ficha(), { prof: 4, bonus: 5 }).acertoTotal).toBe(24);
+    it('prof soma inteira e o bônus fixo entra na reducao (120000 com +5 sobe de 20 para 25)', () => {
+        expect(acerto(['forca'], ficha(), { prof: 4, bonus: 5 }).acertoTotal).toBe(25 + 4);
     });
-    it('bônus de arma equipada entra na reducao (120003 continua 20), mas aparece no texto', () => {
+    it('bônus de arma equipada entra na reducao (120000 com +3 sobe de 20 para 24) e aparece no texto', () => {
         const itens = [{ tipo: 'arma', nome: 'Espada', bonusTipo: 'bonus_acerto', bonusValor: '3' }];
         const r = acerto(['forca'], ficha(), { itensEquipados: itens });
-        expect(r.acertoTotal).toBe(20);
+        expect(r.acertoTotal).toBe(24);
         expect(r.profBonusTexto).toContain('Arma: +3');
     });
     it('rolagem com dado fixo soma ao total', () => {
@@ -60,7 +61,7 @@ describe('calcularAcerto - reducao do total atributo+bonus (MULTIPLICADOR_ATRIBU
     it('atributosUsados lista os nomes', () => {
         expect(acerto(['forca', 'destreza'], ficha()).atributosUsados).toBe('Força + Destreza');
     });
-    it('45 + 0 somam 45 => reduzirValor(45) = 7 (sem media)', () => {
+    it('45 + 0 somam 45 => reduzirComBonus(45, 0) = 7 (sem media)', () => {
         const f = ficha({ forca: { base: 45, nome: 'Força' }, destreza: { base: 0, nome: 'Destreza' } });
         expect(acerto(['forca', 'destreza'], f).acertoTotal).toBe(7);
     });

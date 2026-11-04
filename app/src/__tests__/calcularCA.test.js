@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calcularCA } from '../core/engine.js';
+import { reduzirComBonus } from '../core/utils.js';
 
 // ==========================================
 // Helpers
@@ -63,35 +64,35 @@ describe('calcularCA — ficha nula ou indefinida', () => {
 // ==========================================
 
 describe('calcularCA — valor base a partir de atributos', () => {
-    it('evasiva: CA = reduzirValor(5 + destreza.base)', () => {
+    it('evasiva: CA = reduzirComBonus(5 + destreza.base, 0)', () => {
         const ficha = makeFicha({ destrezaBase: 85 });
-        // reduzirValor(90) = round(4*log10(90)) = 8
+        // reduzirComBonus(90, 0) = round(4*log10(90)) = 8
         expect(calcularCA(ficha, 'evasiva')).toBe(8);
     });
 
-    it('resistencia: CA = reduzirValor(5 + forca.base)', () => {
+    it('resistencia: CA = reduzirComBonus(5 + forca.base, 0)', () => {
         const ficha = makeFicha({ forcaBase: 100 });
-        // reduzirValor(105) = 8
+        // reduzirComBonus(105, 0) = 8
         expect(calcularCA(ficha, 'resistencia')).toBe(8);
     });
 
-    it('evasiva: ficha sem destreza resulta em reduzirValor(5) = 3', () => {
+    it('evasiva: ficha sem destreza resulta em reduzirComBonus(5, 0) = 3', () => {
         const ficha = makeFicha({ destrezaBase: null });
         expect(calcularCA(ficha, 'evasiva')).toBe(3);
     });
 
-    it('resistencia: ficha sem forca resulta em reduzirValor(5) = 3', () => {
+    it('resistencia: ficha sem forca resulta em reduzirComBonus(5, 0) = 3', () => {
         const ficha = makeFicha({ forcaBase: null });
         expect(calcularCA(ficha, 'resistencia')).toBe(3);
     });
 
     it('evasiva ignora forca, resistencia ignora destreza', () => {
         const fichaAltoForca = makeFicha({ forcaBase: 99, destrezaBase: 10 });
-        expect(calcularCA(fichaAltoForca, 'evasiva')).toBe(5);    // reduzirValor(5 + 10) = reduzirValor(15) = 5
-        expect(calcularCA(fichaAltoForca, 'resistencia')).toBe(8); // reduzirValor(5 + 99) = reduzirValor(104) = 8
+        expect(calcularCA(fichaAltoForca, 'evasiva')).toBe(5);    // reduzirComBonus(5 + 10, 0) = reduzirComBonus(15, 0) = 5
+        expect(calcularCA(fichaAltoForca, 'resistencia')).toBe(8); // reduzirComBonus(5 + 99, 0) = reduzirComBonus(104, 0) = 8
     });
 
-    it('tipo desconhecido produz apenas reduzirValor(5) = 3 sem atributo', () => {
+    it('tipo desconhecido produz apenas reduzirComBonus(5, 0) = 3 sem atributo', () => {
         const ficha = makeFicha({ forcaBase: 99, destrezaBase: 99 });
         // nenhum if de tipo casa → só o 5 entra na redução, sem bonus de poderes
         expect(calcularCA(ficha, 'defesa_magica')).toBe(3);
@@ -103,33 +104,33 @@ describe('calcularCA — valor base a partir de atributos', () => {
 // ==========================================
 
 describe('calcularCA — redução contínua do total (MULTIPLICADOR_ATRIBUTO*log10)', () => {
-    it('valor de 1 digito (7) => reduzirValor(12) = 4', () => {
+    it('valor de 1 digito (7) => reduzirComBonus(12, 0) = 4', () => {
         const ficha = makeFicha({ destrezaBase: 7 });
         expect(calcularCA(ficha, 'evasiva')).toBe(4);
     });
 
-    it('valor de 2 digitos (42) => reduzirValor(47) = 7', () => {
+    it('valor de 2 digitos (42) => reduzirComBonus(47, 0) = 7', () => {
         const ficha = makeFicha({ destrezaBase: 42 });
         expect(calcularCA(ficha, 'evasiva')).toBe(7);
     });
 
-    it('valor de 3 digitos (350) => reduzirValor(355) = 10', () => {
+    it('valor de 3 digitos (350) => reduzirComBonus(355, 0) = 10', () => {
         const ficha = makeFicha({ destrezaBase: 350 });
         expect(calcularCA(ficha, 'evasiva')).toBe(10);
     });
 
     it('valores acima de 1000 seguem a mesma curva logaritmica (sem divisao por 1000)', () => {
         const ficha = makeFicha({ forcaBase: 1500 });
-        // reduzirValor(1505) = 13
+        // reduzirComBonus(1505, 0) = 13
         expect(calcularCA(ficha, 'resistencia')).toBe(13);
     });
 
     it('valor como string numerica e aceito', () => {
         const ficha = makeFicha({ destrezaBase: '75' });
-        expect(calcularCA(ficha, 'evasiva')).toBe(8); // reduzirValor(80)
+        expect(calcularCA(ficha, 'evasiva')).toBe(8); // reduzirComBonus(80, 0)
     });
 
-    it('valor zero resulta em reduzirValor(5) = 3', () => {
+    it('valor zero resulta em reduzirComBonus(5, 0) = 3', () => {
         const ficha = makeFicha({ destrezaBase: 0 });
         expect(calcularCA(ficha, 'evasiva')).toBe(3);
     });
@@ -146,8 +147,8 @@ describe('calcularCA — bônus de poderes', () => {
             efeitos: [makeEfeito('evasiva', 'base', 10)],
         });
         const ficha = makeFicha({ destrezaBase: 0, poderes: [poder] });
-        // base = 5 + 7 = 12, bonus = 10 → total = 22
-        expect(calcularCA(ficha, 'evasiva')).toBe(5);
+        // reduzirComBonus(5, 10) = 9 (sem bônus seria 3)
+        expect(calcularCA(ficha, 'evasiva')).toBe(9);
     });
 
     it('poder passivo (ativa=false) nao soma efeitos ativos', () => {
@@ -167,7 +168,7 @@ describe('calcularCA — bônus de poderes', () => {
         });
         const ficha = makeFicha({ destrezaBase: 0, poderes: [poder] });
         // efeitosPassivos são sempre somados
-        expect(calcularCA(ficha, 'evasiva')).toBe(4); // 12 + 8
+        expect(calcularCA(ficha, 'evasiva')).toBe(8); // reduzirComBonus(5, 8)
     });
 
     it('poder ativo soma tanto efeitos quanto efeitosPassivos', () => {
@@ -177,8 +178,8 @@ describe('calcularCA — bônus de poderes', () => {
             efeitosPassivos: [makeEfeito('evasiva', 'base', 3)],
         });
         const ficha = makeFicha({ destrezaBase: 0, poderes: [poder] });
-        // 12 + 5 + 3 = 20
-        expect(calcularCA(ficha, 'evasiva')).toBe(4);
+        // bônus 5 + 3 = 8 => reduzirComBonus(5, 8) = 8
+        expect(calcularCA(ficha, 'evasiva')).toBe(8);
     });
 
     it('efeito de atributo diferente do tipo nao e somado', () => {
@@ -204,8 +205,8 @@ describe('calcularCA — bônus de poderes', () => {
         const p1 = makePoder({ ativa: true, efeitos: [makeEfeito('resistencia', 'base', 5)] });
         const p2 = makePoder({ ativa: true, efeitos: [makeEfeito('resistencia', 'base', 7)] });
         const ficha = makeFicha({ forcaBase: 0, poderes: [p1, p2] });
-        // base = 5 + 8 = 13, bonus = 5 + 7 = 12 → 25
-        expect(calcularCA(ficha, 'resistencia')).toBe(5);
+        // bônus 5 + 7 = 12 => reduzirComBonus(5, 12) = 9
+        expect(calcularCA(ficha, 'resistencia')).toBe(9);
     });
 });
 
@@ -217,7 +218,7 @@ describe('calcularCA — bônus de passivas', () => {
     it('passiva com efeito correto soma bonus', () => {
         const passiva = { efeitos: [makeEfeito('evasiva', 'base', 6)] };
         const ficha = makeFicha({ destrezaBase: 0, passivas: [passiva] });
-        expect(calcularCA(ficha, 'evasiva')).toBe(4); // 12 + 6
+        expect(calcularCA(ficha, 'evasiva')).toBe(8); // reduzirComBonus(5, 6)
     });
 
     it('passiva com atributo diferente nao soma', () => {
@@ -230,7 +231,7 @@ describe('calcularCA — bônus de passivas', () => {
         const p1 = { efeitos: [makeEfeito('evasiva', 'base', 4)] };
         const p2 = { efeitos: [makeEfeito('evasiva', 'base', 6)] };
         const ficha = makeFicha({ destrezaBase: 0, passivas: [p1, p2] });
-        expect(calcularCA(ficha, 'evasiva')).toBe(5); // 12 + 4 + 6
+        expect(calcularCA(ficha, 'evasiva')).toBe(9); // reduzirComBonus(5, 10)
     });
 });
 
@@ -242,7 +243,7 @@ describe('calcularCA — bônus de inventário equipado', () => {
     it('item equipado com efeito correto soma bonus', () => {
         const item = makeItem({ equipado: true, efeitos: [makeEfeito('evasiva', 'base', 12)] });
         const ficha = makeFicha({ destrezaBase: 0, inventario: [item] });
-        expect(calcularCA(ficha, 'evasiva')).toBe(5); // 12 + 12
+        expect(calcularCA(ficha, 'evasiva')).toBe(9); // reduzirComBonus(5, 12)
     });
 
     it('item nao equipado nao soma bonus', () => {
@@ -254,8 +255,8 @@ describe('calcularCA — bônus de inventário equipado', () => {
     it('efeitosPassivos de item equipado somam', () => {
         const item = makeItem({ equipado: true, efeitosPassivos: [makeEfeito('resistencia', 'base', 9)] });
         const ficha = makeFicha({ forcaBase: 0, inventario: [item] });
-        // base = 5 + 8 = 13, bonus = 9 → 22
-        expect(calcularCA(ficha, 'resistencia')).toBe(5);
+        // reduzirComBonus(5, 9) = 9
+        expect(calcularCA(ficha, 'resistencia')).toBe(9);
     });
 
     it('item equipado com atributo diferente nao soma', () => {
@@ -285,8 +286,8 @@ describe('calcularCA — combinação de múltiplas fontes de bônus', () => {
             passivas: [passiva],
             inventario: [item],
         });
-        // base = 12, bonus = 5 + 3 + 4 + 6 = 18 → total = 30
-        expect(calcularCA(ficha, 'evasiva')).toBe(5);
+        // bônus = 5 + 3 + 4 + 6 = 18 => reduzirComBonus(5, 18) = 10
+        expect(calcularCA(ficha, 'evasiva')).toBe(10);
     });
 });
 
@@ -308,9 +309,8 @@ describe('calcularCA — formas em poderes e inventário', () => {
             formaAtivaId: 1,
         });
         const ficha = makeFicha({ destrezaBase: 0, poderes: [poder] });
-        // resolved.efeitos = [base(5), forma(10)], p.ativa = true → bonus = 15
-        // base = 12 + 15 = 27
-        expect(calcularCA(ficha, 'evasiva')).toBe(5);
+        // resolved.efeitos = [base(5), forma(10)], p.ativa = true → bonus = 15 => reduzirComBonus(5, 15) = 9
+        expect(calcularCA(ficha, 'evasiva')).toBe(9);
     });
 
     it('poder ativo com forma substituta usa apenas efeitos da forma', () => {
@@ -327,8 +327,8 @@ describe('calcularCA — formas em poderes e inventário', () => {
         });
         const ficha = makeFicha({ destrezaBase: 0, poderes: [poder] });
         // resolved.efeitos = [forma(20)] apenas → bonus = 20
-        // base = 12 + 20 = 32
-        expect(calcularCA(ficha, 'evasiva')).toBe(6);
+        // reduzirComBonus(5, 20) = 10 (com acumulação seria 9 só para 15)
+        expect(calcularCA(ficha, 'evasiva')).toBe(10);
     });
 
     it('item equipado com forma acumuladora usa base + forma', () => {
@@ -345,8 +345,8 @@ describe('calcularCA — formas em poderes e inventário', () => {
         });
         const ficha = makeFicha({ forcaBase: 0, inventario: [item] });
         // resolved.efeitos = [base(3), forma(7)] → bonus = 10
-        // base = 5 + 8 = 13 + 10 = 23
-        expect(calcularCA(ficha, 'resistencia')).toBe(5);
+        // reduzirComBonus(5, 10) = 9
+        expect(calcularCA(ficha, 'resistencia')).toBe(9);
     });
 });
 
@@ -355,28 +355,28 @@ describe('calcularCA — formas em poderes e inventário', () => {
 // ==========================================
 
 describe('calcularCA — edge cases de sub-campos', () => {
-    it('ficha com destreza = undefined usa reduzirValor(5) = 3 para evasiva', () => {
+    it('ficha com destreza = undefined usa reduzirComBonus(5, 0) = 3 para evasiva', () => {
         const ficha = { forca: undefined, destreza: undefined, poderes: [], passivas: [], inventario: [] };
         expect(calcularCA(ficha, 'evasiva')).toBe(3);
     });
 
-    it('ficha com forca = undefined usa reduzirValor(5) = 3 para resistencia', () => {
+    it('ficha com forca = undefined usa reduzirComBonus(5, 0) = 3 para resistencia', () => {
         const ficha = { forca: undefined, destreza: undefined, poderes: [], passivas: [], inventario: [] };
         expect(calcularCA(ficha, 'resistencia')).toBe(3);
     });
 
-    it('destreza.base = null → bonus 0 → reduzirValor(5) = 3', () => {
+    it('destreza.base = null → bonus 0 → reduzirComBonus(5, 0) = 3', () => {
         const ficha = makeFicha({ destrezaBase: null });
         ficha.destreza = { base: null };
         expect(calcularCA(ficha, 'evasiva')).toBe(3);
     });
 
-    it('destreza.base = string vazia → reduzirValor(5) = 3', () => {
+    it('destreza.base = string vazia → reduzirComBonus(5, 0) = 3', () => {
         const ficha = { ...makeFicha(), destreza: { base: '' } };
         expect(calcularCA(ficha, 'evasiva')).toBe(3);
     });
 
-    it('destreza.base = string nao numerica → reduzirValor(5) = 3', () => {
+    it('destreza.base = string nao numerica → reduzirComBonus(5, 0) = 3', () => {
         const ficha = { ...makeFicha(), destreza: { base: 'abc' } };
         expect(calcularCA(ficha, 'evasiva')).toBe(3);
     });
@@ -439,29 +439,30 @@ describe('calcularCA — edge cases de sub-campos', () => {
 // ==========================================
 
 describe('calcularCA — valores de borda', () => {
-    it('destreza.base = 1 → reduzirValor(6) = 3', () => {
+    it('destreza.base = 1 → reduzirComBonus(6, 0) = 3', () => {
         const ficha = makeFicha({ destrezaBase: 1 });
         expect(calcularCA(ficha, 'evasiva')).toBe(3);
     });
 
-    it('destreza.base = 99 → reduzirValor(104) = 8', () => {
+    it('destreza.base = 99 → reduzirComBonus(104, 0) = 8', () => {
         const ficha = makeFicha({ destrezaBase: 99 });
         expect(calcularCA(ficha, 'evasiva')).toBe(8);
     });
 
-    it('destreza.base = 9999 → reduzirValor(10004) = 16', () => {
+    it('destreza.base = 9999 → reduzirComBonus(10004, 0) = 16', () => {
         const ficha = makeFicha({ destrezaBase: 9999 });
         expect(calcularCA(ficha, 'evasiva')).toBe(16);
     });
 
-    it('bonus flutuante e truncado por Math.floor', () => {
+    it('bonus flutuante entra sem truncar', () => {
         const poder = makePoder({
             ativa: true,
-            efeitos: [makeEfeito('evasiva', 'base', '3.9')],
+            efeitos: [makeEfeito('evasiva', 'base', '1.9')],
         });
         const ficha = makeFicha({ destrezaBase: 5, poderes: [poder] });
-        // floor(5 + 5 + 3.9) = 13 → reduzirValor(13) = 4 (sem o floor, 13.9 daria 5)
-        expect(calcularCA(ficha, 'evasiva')).toBe(4);
+        // reduzirComBonus(10, 1.9) = 7 (truncado para 1 daria 6)
+        expect(calcularCA(ficha, 'evasiva')).toBe(7);
+        expect(calcularCA(ficha, 'evasiva')).toBe(reduzirComBonus(10, 1.9));
     });
 
     it('bonus negativo reduz o valor final', () => {
@@ -470,11 +471,12 @@ describe('calcularCA — valores de borda', () => {
             efeitos: [makeEfeito('evasiva', 'base', -40)],
         });
         const ficha = makeFicha({ destrezaBase: 50, poderes: [poder] });
-        // 5 + 50 - 40 = 15 → reduzirValor(15) = 5 (sem o bônus negativo seria 7)
-        expect(calcularCA(ficha, 'evasiva')).toBe(5);
+        // reduzirComBonus(55, -40) = -1 (sem o bônus negativo seria 7)
+        expect(calcularCA(ficha, 'evasiva')).toBe(reduzirComBonus(55, -40));
+        expect(calcularCA(ficha, 'evasiva')).toBe(-1);
     });
 
-    it('sem poderes, passivas ou inventario retorna apenas reduzirValor(5 + atributo)', () => {
+    it('sem poderes, passivas ou inventario retorna apenas reduzirComBonus(5 + atributo, 0)', () => {
         const ficha = makeFicha({ destrezaBase: 60 });
         expect(calcularCA(ficha, 'evasiva')).toBe(7); // 5 + 7
     });
@@ -544,5 +546,38 @@ describe('calcularCA — Ascensao nao entra na CA', () => {
         expect(calcularCA(comAsc, 'resistencia')).toBe(calcularCA(semAsc, 'resistencia'));
         expect(calcularCA(comAsc, 'evasiva')).toBe(7);
         expect(calcularCA(comAsc, 'resistencia')).toBe(10);
+    });
+});
+
+describe('calcularCA — bônus pesa em proporção ao atributo (decisão do usuário)', () => {
+    const passivaPoder = (atributo, valor) => makePoder({ ativa: false, efeitosPassivos: [makeEfeito(atributo, 'base', valor)] });
+
+    it('destreza ~316000 com bônus +5 em evasiva: CA 27 (sem bônus: 22)', () => {
+        const sem = makeFicha({ destrezaBase: 316000 });
+        const com = makeFicha({ destrezaBase: 316000, poderes: [passivaPoder('evasiva', 5)] });
+        expect(calcularCA(sem, 'evasiva')).toBe(22);
+        expect(calcularCA(com, 'evasiva')).toBe(27);
+    });
+
+    it('efeitos passivos EVASIVA +50 base e RESISTENCIA +50 base mudam a CA de 22 para 31', () => {
+        const poderes = [passivaPoder('evasiva', 50), passivaPoder('resistencia', 50)];
+        const sem = makeFicha({ destrezaBase: 316000, forcaBase: 316000 });
+        const com = makeFicha({ destrezaBase: 316000, forcaBase: 316000, poderes });
+        expect(calcularCA(sem, 'evasiva')).toBe(22);
+        expect(calcularCA(sem, 'resistencia')).toBe(22);
+        expect(calcularCA(com, 'evasiva')).toBe(31);
+        expect(calcularCA(com, 'resistencia')).toBe(31);
+    });
+
+    it('o bônus de uma defesa não vaza para a outra', () => {
+        const f = makeFicha({ destrezaBase: 316000, forcaBase: 316000, poderes: [passivaPoder('evasiva', 50)] });
+        expect(calcularCA(f, 'evasiva')).toBe(31);
+        expect(calcularCA(f, 'resistencia')).toBe(22);
+    });
+
+    it('o mesmo bônus soma o mesmo tanto com atributo fraco e forte', () => {
+        const ganho = (attr) => calcularCA(makeFicha({ destrezaBase: attr, poderes: [passivaPoder('evasiva', 50)] }), 'evasiva')
+            - calcularCA(makeFicha({ destrezaBase: attr }), 'evasiva');
+        expect(ganho(1e7 - 5)).toBe(ganho(995));
     });
 });

@@ -1,7 +1,7 @@
 // ==========================================
 // ENGINE RPG — Cálculos de combate (dano, acerto, defesa)
 // ==========================================
-import { contarDigitos, reduzirValor } from './utils.js';
+import { contarDigitos, reduzirComBonus } from './utils.js';
 import { getMaximo, getBuffs, getRawBase, getPoderesDefesa, getEfeitosDeClasse } from './attributes.js';
 import { getVitalMxDisplay } from './vitals.js';
 import { ENERGIAS_COMO_PODER, getMargemCusto, limitarPercComoPoder, podeConjurarComoPoder, custoBrutoDeEnergia, somarCustosBrutos } from './custoPoder.js';
@@ -46,8 +46,8 @@ export function getPoderDeLutaStatus(ficha, statKey, isRaw = false) {
 
 export function calcularCA(ficha, tipo) {
     if (!ficha) return 10;
-    // CA = REDUÇÃO(5 + atributo + bônus de CA) (+ Diferença de Poder, somada a quem ataca em core/disputaPoder.js).
-    // Atributo SEM a Ascensão; a redução (core/utils.js > reduzirValor) vale sobre o TOTAL, então o nível de poder pesa
+    // CA = REDUÇÃO((5 + atributo) × (1 + 3 × bônus de CA)) (+ Diferença de Poder, somada a quem ataca em core/disputaPoder.js).
+    // Atributo SEM a Ascensão; a redução (core/utils.js > reduzirComBonus) pesa o bônus em proporção ao atributo, e o nível de poder pesa
     // pela diferença de Poder Calculado, não por um atributo ou bônus gigante.
     let base = 5;
     if (tipo === 'evasiva') base += getRawBase(ficha, 'destreza');
@@ -76,7 +76,7 @@ export function calcularCA(ficha, tipo) {
         somarBonus(resolved.efeitosPassivos);
     });
 
-    const totalReduzido = reduzirValor(Math.floor(base + bonus));
+    const totalReduzido = reduzirComBonus(base, bonus);
     return processarDefesaComCondicoes(ficha, tipo, totalReduzido);
 }
 
@@ -503,10 +503,10 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
 
     let armaStr = nomesArmas.length ? ` equipado com <strong>${nomesArmas.join(' e ')}</strong>` : '';
 
-    // ACERTO = REDUÇÃO(atributo + bônus de Acerto) + dado + Proficiência (+ Diferença de Poder, somada em core/disputaPoder.js).
+    // ACERTO = REDUÇÃO(atributo × (1 + 3 × bônus de Acerto)) + dado + Proficiência (+ Diferença de Poder, somada em core/disputaPoder.js).
     // Bônus de Acerto reduzidos: Bônus Fixo, Forma, Arma e Classe. Fora da redução: Prof e Maestria de arma (Proficiências).
     const bonusReduzidos = bonus + bp + iAcerto + bonusClasse;
-    const atributoEBonus = reduzirValor(atributosBrutos + bonusReduzidos);
+    const atributoEBonus = reduzirComBonus(atributosBrutos, bonusReduzidos);
 
     const comSinal = (n) => (n >= 0 ? '+' : '') + n;
     let profBonusTexto = 'Atributo + bônus (reduzido): ' + comSinal(atributoEBonus) + ' | Prof: +' + prof +
@@ -535,9 +535,9 @@ export function calcularEvasiva({ prof, bonus, minhaFicha, itensEquipados }) {
         if (item.tipo === 'armadura') nomesArmaduras.push(item.nome);
     });
 
-    // Mesma ordem da CA: REDUÇÃO(atributo + bônus) e só depois a Proficiência (sem a Ascensão).
+    // Mesma ordem da CA: REDUÇÃO(atributo × (1 + 3 × bônus)) e só depois a Proficiência (sem a Ascensão).
     let bp = getPoderesDefesa(minhaFicha, 'bonus_evasiva');
-    const baseD = reduzirValor(getRawBase(minhaFicha, 'destreza') + bonus + bp + iEvasiva);
+    const baseD = reduzirComBonus(getRawBase(minhaFicha, 'destreza'), bonus + bp + iEvasiva);
 
     let strArmadura = nomesArmaduras.length ? ` equipado com <strong>${nomesArmaduras.join(' e ')}</strong>` : '';
 
@@ -556,9 +556,9 @@ export function calcularResistencia({ prof, bonus, minhaFicha, itensEquipados })
         if (item.tipo === 'armadura') nomesArmaduras.push(item.nome);
     });
 
-    // Mesma ordem da CA: REDUÇÃO(atributo + bônus) e só depois a Proficiência (sem a Ascensão).
+    // Mesma ordem da CA: REDUÇÃO(atributo × (1 + 3 × bônus)) e só depois a Proficiência (sem a Ascensão).
     let bp = getPoderesDefesa(minhaFicha, 'bonus_resistencia');
-    const baseD = reduzirValor(getRawBase(minhaFicha, 'forca') + bonus + bp + iResistencia);
+    const baseD = reduzirComBonus(getRawBase(minhaFicha, 'forca'), bonus + bp + iResistencia);
 
     let strArmadura = nomesArmaduras.length ? ` equipado com <strong>${nomesArmaduras.join(' e ')}</strong>` : '';
 

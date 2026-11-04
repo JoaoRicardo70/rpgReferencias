@@ -28,7 +28,7 @@ export function modificadorDezena(v) {
     return parseInt(str.substring(0, 2), 10) || 0;
 }
 
-// 📐 A REDUÇÃO de atributo/bônus de Acerto, CA, Evasiva e Resistência: MULTIPLICADOR_ATRIBUTO × log10(valor). Vale sobre o TOTAL (ver reduzirValor).
+// 📐 A REDUÇÃO de atributo/bônus de Acerto, CA, Evasiva e Resistência: MULTIPLICADOR_ATRIBUTO × log10(valor). O bônus entra na redução em proporção ao atributo (ver reduzirComBonus).
 // A MESMA conta nos dois lados, contínua (sem saltos entre 99.999 e 100.000) e que cresce devagar: cada 10x no atributo
 // vale +4 (100 -> +8, 1.000 -> +12, 100.000 -> +20, 1.000.000 -> +24). O nível de poder entre dois personagens pesa pela
 // diferença de Poder Calculado (core/disputaPoder.js), não por um atributo gigante. Sem a Ascensão oculta.
@@ -41,11 +41,21 @@ export function bonusDeAtributo(v) {
     return Math.round(MULTIPLICADOR_ATRIBUTO * Math.log10(n));
 }
 
-// A REDUÇÃO aplicada ao TOTAL (atributo + bônus) de CA e Acerto, antes da Proficiência e da Diferença de Poder (que não são
-// reduzidas, por isso pesam mais). Mesma conta de bonusDeAtributo, mas preservando o sinal: penalidades podem deixar o total negativo.
-export function reduzirValor(v) {
-    const n = Number(v) || 0;
-    return (n < 0 ? -1 : 1) * bonusDeAtributo(n) || 0;
+// Força de cada ponto de BÔNUS (buffs, itens, Formas, Classe) na redução: cada +1 vale FORCA_BONUS_REDUCAO vezes o atributo.
+export const FORCA_BONUS_REDUCAO = 3;
+
+// A REDUÇÃO de CA e Acerto: redução( base × (1 + FORCA_BONUS_REDUCAO × bônus) ), antes da Proficiência e da Diferença de Poder
+// (que não são reduzidas, por isso pesam mais). `base` = atributo (+5 na CA); `bonus` = soma dos bônus de outras fontes.
+// Escrita como redução(base) ± MULTIPLICADOR × log10(1 + K × |bônus|): igual à fórmula para bônus positivo, e uma penalidade
+// (bônus negativo) tira o mesmo tanto que um buff soma, sem inverter o sinal. O bônus pesa em proporção ao atributo, igual
+// para fraco e para forte, e ainda conta com atributo 0. O resultado pode ser negativo (penalidade maior que a base).
+export function reduzirComBonus(base, bonus) {
+    const b = Number(base) || 0;
+    const x = Number(bonus) || 0;
+    const parteBase = b >= 1 ? MULTIPLICADOR_ATRIBUTO * Math.log10(Math.min(b, Number.MAX_VALUE)) : 0;
+    const parteBonus = x === 0 ? 0 : Math.sign(x) * MULTIPLICADOR_ATRIBUTO * Math.log10(1 + FORCA_BONUS_REDUCAO * Math.min(Math.abs(x), Number.MAX_VALUE / 4));
+    const total = Math.round(parteBase + parteBonus);
+    return Number.isFinite(total) ? total || 0 : 0;
 }
 
 export function pegarDoisPrimeirosDigitos(v) {

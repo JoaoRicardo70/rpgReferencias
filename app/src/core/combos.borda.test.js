@@ -365,9 +365,9 @@ describe('Borda - integracao com engine', () => {
     it('calcularCA soma buffs de combo e ignora estado quebrado', () => {
         const base = calcularCA({}, 'evasiva');
         const ficha = { combos: [normalizarCombo({ id: 'a', nome: 'a', iniciador: { nome: 'i', buffs: [b(40, 'evasiva')] }, passos: [] })], combate: { comboEstado: { concluidos: ['a'] } } };
-        // o buff entra no total reduzido: reduzirValor(5) = 3 -> reduzirValor(5 + 40) = 7
+        // o buff entra no total reduzido: reduzirComBonus(5, 0) = 3 -> reduzirComBonus(5, 40) = 11
         expect(base).toBe(3);
-        expect(calcularCA(ficha, 'evasiva')).toBe(7);
+        expect(calcularCA(ficha, 'evasiva')).toBe(11);
         expect(() => calcularCA({ combate: { comboEstado: 'lixo' }, combos: 'x' }, 'evasiva')).not.toThrow();
         expect(calcularCA(null, 'evasiva')).toBe(10);
     });

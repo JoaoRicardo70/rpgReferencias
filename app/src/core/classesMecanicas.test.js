@@ -212,10 +212,10 @@ describe('Acerto e Vantagem de classe', () => {
 
 describe('Rider: Acerto', () => {
     it('montado soma o bônus de Acerto de classe (dentro da redução do total); sem Montaria não', () => {
-        // Destreza baixa para o +3 pesar: reduzirValor(5)=3 sem bônus, reduzirValor(5+3)=4 com bônus.
+        // Destreza baixa para o +3 pesar: reduzirComBonus(5, 0)=3 sem bônus, reduzirComBonus(5, 3)=7 com bônus (+4).
         const rolar = (f) => calcularAcerto({ qD: 1, fD: 1, prof: 0, bonus: 0, sels: ['destreza'], minhaFicha: f, itensEquipados: [] });
         const sem = rolar(fichaBase({}, { destreza: { base: 5 } }));
-        expect(rolar(fichaBase({ classe: 'rider' }, { destreza: { base: 5 }, combate: { montariaPresente: true } })).acertoTotal - sem.acertoTotal).toBe(1);
+        expect(rolar(fichaBase({ classe: 'rider' }, { destreza: { base: 5 }, combate: { montariaPresente: true } })).acertoTotal - sem.acertoTotal).toBe(4);
         expect(rolar(fichaBase({ classe: 'rider' }, { destreza: { base: 5 } })).acertoTotal).toBe(sem.acertoTotal);
     });
 });

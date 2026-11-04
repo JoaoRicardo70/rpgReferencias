@@ -182,7 +182,7 @@ export function ElementosFormProvider({ children }) {
     const formRef = useRef(null);
     const profGlobal = parseInt(minhaFicha?.proficienciaBase) || 2;
 
-    // Regra dos Testes de Perícia: só a DEZENA do atributo (120 -> +12), sem a Ascensão oculta. O Acerto/CA de combate usam a redução do total (core/utils.js > reduzirValor).
+    // Regra dos Testes de Perícia: só a DEZENA do atributo (120 -> +12), sem a Ascensão oculta. O Acerto/CA de combate usam a redução do total (core/utils.js > reduzirComBonus).
     const getModificadorDoisDigitos = useCallback((attrKey) => {
         return modificadorDezena(getRawBase(minhaFicha, attrKey));
     }, [minhaFicha]);

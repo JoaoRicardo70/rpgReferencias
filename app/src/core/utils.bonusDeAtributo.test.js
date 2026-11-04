@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { bonusDeAtributo, reduzirValor, MULTIPLICADOR_ATRIBUTO } from './utils.js';
+import { bonusDeAtributo, reduzirComBonus, FORCA_BONUS_REDUCAO, MULTIPLICADOR_ATRIBUTO } from './utils.js';
 
 describe('bonusDeAtributo: valores de referencia (round(MULTIPLICADOR_ATRIBUTO*log10(|v|)))', () => {
     const esperadoPor = (n) => Math.round(MULTIPLICADOR_ATRIBUTO * Math.log10(n));
@@ -99,32 +99,97 @@ describe('bonusDeAtributo: entradas de borda', () => {
     });
 });
 
-describe('reduzirValor: bonusDeAtributo preservando o sinal', () => {
-    it('positivos iguais a bonusDeAtributo', () => {
-        [1, 5, 7, 42, 105, 100005, 120000].forEach(v => expect(reduzirValor(v)).toBe(bonusDeAtributo(v)));
-        expect(reduzirValor(100005)).toBe(20);
-        expect(reduzirValor(55)).toBe(7);
+describe('reduzirComBonus: valores de referência', () => {
+    it('constantes', () => {
+        expect(FORCA_BONUS_REDUCAO).toBe(3);
+        expect(MULTIPLICADOR_ATRIBUTO).toBe(4);
     });
-    it('negativos espelham o positivo (sinal preservado)', () => {
-        expect(reduzirValor(-40)).toBe(-6);
-        expect(reduzirValor(-100005)).toBe(-20);
-        expect(reduzirValor(-40)).toBe(-reduzirValor(40));
+    it.each([
+        [316005, 0, 22], [316005, 5, 27], [316005, 50, 31], [316005, 1, 24], [316005, 3, 26],
+        [316005, -5, 17], [105, 0, 8], [105, 5, 13], [0, 5, 5], [0, 0, 0], [55, -50, -2],
+    ])('reduzirComBonus(%s, %s) = %s', (base, bonus, esperado) => {
+        expect(reduzirComBonus(base, bonus)).toBe(esperado);
     });
-    it('0 e valores com |v| < 1 dão 0, nunca -0', () => {
-        [0, -0, 0.5, -0.5, -0.99].forEach(v => expect(Object.is(reduzirValor(v), 0)).toBe(true));
+    it('sem bônus equivale a bonusDeAtributo', () => {
+        [1, 5, 42, 105, 1000, 120000].forEach(v => expect(reduzirComBonus(v, 0)).toBe(bonusDeAtributo(v)));
     });
-    it('NaN, undefined, null, string vazia e texto não numérico dão 0', () => {
-        [NaN, undefined, null, '', 'abc', {}].forEach(v => expect(Object.is(reduzirValor(v), 0)).toBe(true));
+    it('bônus positivo equivale a redução de base*(1+3*bônus)', () => {
+        [[1000, 5], [316005, 50], [105, 2]].forEach(([b, x]) => {
+            expect(Math.abs(reduzirComBonus(b, x) - bonusDeAtributo(b * (1 + FORCA_BONUS_REDUCAO * x)))).toBeLessThanOrEqual(0);
+        });
     });
-    it('string numérica é aceita, inclusive negativa', () => {
-        expect(reduzirValor('55')).toBe(7);
-        expect(reduzirValor('-55')).toBe(-7);
+});
+
+describe('reduzirComBonus: proporcionalidade, simetria, monotonia', () => {
+    it('o mesmo bônus soma o mesmo tanto para atributo fraco e forte', () => {
+        for (const x of [1, 5, 10, 50]) {
+            const fraco = reduzirComBonus(1000, x) - reduzirComBonus(1000, 0);
+            const forte = reduzirComBonus(1e7, x) - reduzirComBonus(1e7, 0);
+            expect(fraco).toBe(forte);
+            expect(fraco).toBeGreaterThan(0);
+        }
     });
-    it('Infinity: documenta o comportamento atual (não lança)', () => {
-        expect(() => reduzirValor(Infinity)).not.toThrow();
-        expect(() => reduzirValor(-Infinity)).not.toThrow();
-        // contrato esperado: nunca NaN
-        expect(Number.isNaN(reduzirValor(Infinity))).toBe(false);
-        expect(Number.isNaN(reduzirValor(-Infinity))).toBe(false);
+    it('atributo alto não absorve o bônus: 316005 com +5 sobe de 22 para 27', () => {
+        expect(reduzirComBonus(316005, 5) - reduzirComBonus(316005, 0)).toBe(5);
+    });
+    it('penalidade -x subtrai o mesmo que o buff +x soma (tolerância de 1 por arredondamento)', () => {
+        for (const b of [0, 1000, 316005]) {
+            for (const x of [1, 5, 50]) {
+                const buff = reduzirComBonus(b, x) - reduzirComBonus(b, 0);
+                const pen = reduzirComBonus(b, -x) - reduzirComBonus(b, 0);
+                expect(Math.abs(pen + buff)).toBeLessThanOrEqual(1);
+            }
+        }
+        expect(reduzirComBonus(0, -5)).toBe(-reduzirComBonus(0, 5));
+        expect(reduzirComBonus(0, -50)).toBe(-reduzirComBonus(0, 50));
+    });
+    it('base 0 com bônus: só a parte do bônus conta; penalidade dá negativo', () => {
+        expect(reduzirComBonus(0, 5)).toBe(5);
+        expect(reduzirComBonus(0, -5)).toBe(-5);
+        expect(reduzirComBonus(0, 0)).toBe(0);
+    });
+    it('monotonia no bônus (não decresce)', () => {
+        for (const b of [0, 5, 105, 316005]) {
+            let ant = reduzirComBonus(b, -200);
+            for (let x = -199; x <= 200; x++) {
+                const v = reduzirComBonus(b, x);
+                expect(v).toBeGreaterThanOrEqual(ant);
+                ant = v;
+            }
+        }
+    });
+    it('monotonia na base', () => {
+        let ant = reduzirComBonus(0, 7);
+        for (let b = 1; b <= 3000; b++) {
+            const v = reduzirComBonus(b, 7);
+            expect(v).toBeGreaterThanOrEqual(ant);
+            ant = v;
+        }
+    });
+});
+
+describe('reduzirComBonus: entradas de borda', () => {
+    const ok = (v) => Number.isFinite(v) && !Object.is(v, -0);
+    it('0, NaN, undefined, null, string, objeto: sem NaN nem -0', () => {
+        const entradas = [0, -0, NaN, undefined, null, '', 'abc', {}, [], 0.5, -0.5];
+        for (const a of entradas) for (const b of entradas) expect(ok(reduzirComBonus(a, b))).toBe(true);
+        expect(reduzirComBonus()).toBe(0);
+        expect(Object.is(reduzirComBonus(0, 0), 0)).toBe(true);
+    });
+    it('strings numéricas são aceitas', () => {
+        expect(reduzirComBonus('316005', '5')).toBe(27);
+        expect(reduzirComBonus('55', '-50')).toBe(-2);
+    });
+    it('Infinity e -Infinity não geram NaN, Infinity nem -0', () => {
+        for (const a of [Infinity, -Infinity, 0, 105]) for (const b of [Infinity, -Infinity, 0, 5]) {
+            expect(ok(reduzirComBonus(a, b))).toBe(true);
+        }
+    });
+    it('base negativa vale como 0 na parte base', () => {
+        expect(reduzirComBonus(-100, 5)).toBe(reduzirComBonus(0, 5));
+    });
+    it('pode ser negativo e devolve inteiro', () => {
+        expect(reduzirComBonus(55, -50)).toBeLessThan(0);
+        [[1, 1], [37, 3], [316005, 7], [10, -4]].forEach(([a, b]) => expect(Number.isInteger(reduzirComBonus(a, b))).toBe(true));
     });
 });
