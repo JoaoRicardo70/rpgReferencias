@@ -8,7 +8,7 @@ import { ENERGIAS_COMO_PODER, getMargemCusto, limitarPercComoPoder, podeConjurar
 import { getVantagensDeClasse, getBonusAcertoDeClasse } from './classesMecanicas.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 import { efeitosDeCombos } from './combos.js';
-import { efeitosAtivosDoItem } from './efeitosItem.js';
+import { efeitosAtivosDoItem, efeitosDaConfigAtiva } from './efeitosItem.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
 import { modificadoresDeEstados } from './condicoes.js';
 import { efeitosDeBuffsTemporarios, efeitosDeSuportePassivo } from './suporte.js';
@@ -53,31 +53,55 @@ export function calcularCA(ficha, tipo) {
     if (tipo === 'evasiva') base += getRawBase(ficha, 'destreza');
     if (tipo === 'resistencia') base += getRawBase(ficha, 'forca');
 
+    const totalReduzido = reduzirComBonus(base, somarBonusBase(ficha, tipo));
+    return processarDefesaComCondicoes(ficha, tipo, totalReduzido);
+}
+
+// Soma dos efeitos com propriedade BASE de um atributo de combate ('evasiva', 'resistencia' ou 'acerto') vindos de TODAS as fontes:
+// Poderes (ativos e passivos), Passivas, Combos, Suporte, Arma Espiritual, Itens equipados e Pactos (Entidades Seladas
+// sincronizadas). É o "bônus de outras fontes" que entra na redução de CA e Acerto.
+// resolverEfeitosEntidade já embute a Forma ativa (ou a substitui quando acumulaFormaBase === false); a Configuração (modo) da
+// Forma é somada à parte, uma vez, por efeitosDaConfigAtiva, como em core/attributes.js > getBuffs.
+export function somarBonusBase(ficha, atributo) {
+    if (!ficha) return 0;
     let bonus = 0;
     const somarBonus = (efeitos) => {
         (efeitos || []).forEach(e => {
-            if (e && e.atributo === tipo && e.propriedade === 'base') bonus += parseFloat(e.valor) || 0;
+            if (e && e.atributo === atributo && e.propriedade === 'base') bonus += parseFloat(e.valor) || 0;
         });
+    };
+    const somarConfigDaForma = (entidade) => {
+        const cfg = efeitosDaConfigAtiva(entidade);
+        if (cfg) { somarBonus(cfg.efeitos); somarBonus(cfg.efeitosPassivos); }
     };
 
     (ficha.poderes || []).forEach(p => {
+        if (!p) return;
         let resolved = resolverEfeitosEntidade(p);
         if (p.ativa) somarBonus(resolved.efeitos);
         somarBonus(resolved.efeitosPassivos);
+        somarConfigDaForma(p);
     });
     (ficha.passivas || []).forEach(p => { somarBonus(p.efeitos); });
     somarBonus(efeitosDeCombos(ficha)); // 🥋 Combos/Follow Ups (core/combos.js)
     somarBonus(efeitosDeBuffsTemporarios(ficha)); // ✨ Buffs temporários de Suporte (core/suporte.js)
     somarBonus(efeitosDeSuportePassivo(ficha)); // ✨ Suporte passivo (sempre ligado)
     somarBonus(efeitosDaArmaEspiritual(ficha)); // ⚔️ Buffs do estado em vigor da Arma Espiritual
-    (ficha.inventario || []).filter(i => i.equipado).forEach(i => {
+    (ficha.inventario || []).filter(i => i && i.equipado).forEach(i => {
         let resolved = resolverEfeitosEntidade({ ...i, efeitos: efeitosAtivosDoItem(i) });
         somarBonus(resolved.efeitos);
         somarBonus(resolved.efeitosPassivos);
+        somarConfigDaForma(i);
     });
-
-    const totalReduzido = reduzirComBonus(base, bonus);
-    return processarDefesaComCondicoes(ficha, tipo, totalReduzido);
+    // 🔮 Pactos/Entidades Seladas sincronizadas (campos "Buffs Ativos" e "Buffs Passivos" do Reino Interior), com a Forma ativa.
+    (ficha.seresSelados || []).forEach(ser => {
+        if (!ser || !ser.ativo) return;
+        let resolved = resolverEfeitosEntidade(ser);
+        somarBonus(resolved.efeitos);
+        somarBonus(resolved.efeitosPassivos);
+        somarConfigDaForma(ser);
+    });
+    return bonus;
 }
 
 export function rolarDadosComVantagem(qD, fD, vantagens = 0, desvantagens = 0) {
@@ -504,14 +528,17 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
     let armaStr = nomesArmas.length ? ` equipado com <strong>${nomesArmas.join(' e ')}</strong>` : '';
 
     // ACERTO = REDUÇÃO(atributo × (1 + 3 × bônus de Acerto)) + dado + Proficiência (+ Diferença de Poder, somada em core/disputaPoder.js).
-    // Bônus de Acerto reduzidos: Bônus Fixo, Forma, Arma e Classe. Fora da redução: Prof e Maestria de arma (Proficiências).
-    const bonusReduzidos = bonus + bp + iAcerto + bonusClasse;
+    // Bônus de Acerto reduzidos: Bônus Fixo, Forma, Efeitos (ACERTO + BASE), Arma e Classe. Fora da redução: Prof e Maestria de arma (Proficiências).
+    // `bonusEfeitos`: efeitos ACERTO + BASE de Habilidades/Poderes/Formas, Passivas, Combos, Suporte, Itens e Pactos (somarBonusBase).
+    const bonusEfeitos = somarBonusBase(minhaFicha, 'acerto');
+    const bonusReduzidos = bonus + bp + iAcerto + bonusClasse + bonusEfeitos;
     const atributoEBonus = reduzirComBonus(atributosBrutos, bonusReduzidos);
 
     const comSinal = (n) => (n >= 0 ? '+' : '') + n;
     let profBonusTexto = 'Atributo + bônus (reduzido): ' + comSinal(atributoEBonus) + ' | Prof: +' + prof +
                          (bonus !== 0 ? ' | Bônus Fixo: ' + comSinal(bonus) : '') +
                          (bp > 0 ? ' | Forma: +' + bp : '') +
+                         (bonusEfeitos !== 0 ? ' | Efeitos: ' + comSinal(bonusEfeitos) : '') +
                          (iAcerto > 0 ? ' | Arma: +' + iAcerto : '') +
                          (bonusProfArma > 0 ? ` | Maestria (${nomesProfArma.join(', ')}): +${bonusProfArma}` : '') +
                          (bonusClasse > 0 ? ` | Classe (Rider): +${bonusClasse}` : '') +

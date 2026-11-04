@@ -8,9 +8,10 @@ export const ATRIBUTOS_AGRUPADOS = [
         label: 'VITAIS & ENERGIAS',
         options: ['vida', 'mana', 'aura', 'chakra', 'corpo']
     },
+    // ACERTO + BASE: soma ao Acerto de quem ataca (entra na redução junto com o atributo, core/engine.js > calcularAcerto).
     {
         label: 'COMBATE',
-        options: ['dano']
+        options: ['dano', 'acerto']
     },
     {
         label: 'DEFESA (CA)',
@@ -69,7 +70,7 @@ export const GRUPO_IDENTIFICACAO = {
 export const PROPRIEDADES_REACAO = ['contra_ataque', 'atacar_atacante', 'atacar_ataque', 'reduzir_dano', 'aumentar_ca'];
 
 // Atributos que só fazem sentido com a propriedade BASE (o valor é a quantidade/porcentagem).
-const SO_BASE = new Set(['reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder', 'identificar_tipo_ataque', 'identificar_energia']);
+const SO_BASE = new Set(['acerto', 'reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder', 'identificar_tipo_ataque', 'identificar_energia']);
 
 // Propriedades que fazem sentido para o atributo escolhido (Ação/Reação não têm Multiplicador; Reação escolhe o efeito).
 export function getPropriedadesDoAtributo(atributo) {
