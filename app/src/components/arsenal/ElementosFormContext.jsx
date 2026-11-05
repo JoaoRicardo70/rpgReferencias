@@ -397,6 +397,8 @@ export function ElementosFormProvider({ children }) {
                     if (ficha.ataquesElementais[ix].aplicaEstados) novaMagia.aplicaEstados = ficha.ataquesElementais[ix].aplicaEstados;
                     if (ficha.ataquesElementais[ix].reflexo) novaMagia.reflexo = ficha.ataquesElementais[ix].reflexo;
                     if (ficha.ataquesElementais[ix].suporte) novaMagia.suporte = ficha.ataquesElementais[ix].suporte;
+                    // "Ao acertar" (core/aoAcertar.js) também é editado na lista (AoAcertarEditor): preserva.
+                    if (ficha.ataquesElementais[ix].aoAcertar) novaMagia.aoAcertar = ficha.ataquesElementais[ix].aoAcertar;
                     ficha.ataquesElementais[ix] = novaMagia;
                 }
             } else {

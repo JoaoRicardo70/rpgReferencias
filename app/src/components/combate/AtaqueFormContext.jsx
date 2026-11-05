@@ -25,6 +25,7 @@ import { getNivelDominio } from '../../core/dominios';
 import { classificarAtaque, energiasDoGolpe } from '../../core/identificacao';
 import { montarNarrativa } from '../../core/descricaoAtaque';
 import { calcularFaixasCritico, classificarCritico, maiorDadoDaRolagem } from '../../core/critico';
+import { coletarAoAcertar, aplicarAoAcertarNoRascunho } from '../../core/aoAcertar';
 import { valoresDeEfeitos, menorValorDeEfeitos, montarContextoDeCombate } from '../../core/efeitosCondicionais';
 
 const AtaqueFormContext = createContext(null);
@@ -496,7 +497,13 @@ export function AtaqueFormProvider({ children }) {
     // 🩸↩️ Fecha o pós-golpe (services/posGolpe.js): o Dano que o Reflexo de alguém devolveu cai em MIM (com as minhas Reduções) e os
     // textos de estados/reflexo vão para o Feed. Devolve os campos extras do Feed.
     const finalizarPosGolpe = (pg) => {
-        const { textos, danoAtacante } = pg.resultado();
+        const { textos, danoAtacante, aoAcertar, critico } = pg.resultado();
+        // 💚 Ao acertar (core/aoAcertar.js): cura/energia de quem acertou, UMA vez por golpe e só se algum alvo sofreu Dano.
+        if (aoAcertar && aoAcertar.length > 0) {
+            let frases = [];
+            updateFicha(ficha => { frases = aplicarAoAcertarNoRascunho(ficha, aoAcertar, { critico }); });
+            if (frases.length > 0) { salvarFichaSilencioso(); frases.forEach(t => textos.push(t)); }
+        }
         if (danoAtacante > 0) {
             const eu = montarAlvoPersonagem(meuNome, minhaFicha, divisorPoderMesa);
             const dano = eu ? reduzirDanoNoAlvo(eu, danoAtacante, elementoAtivo).final : danoAtacante;
@@ -614,7 +621,9 @@ export function AtaqueFormProvider({ children }) {
             fontes: [...poderesDoGolpe, ...magiasDoGolpe, ...(minhaFicha.inventario || []).filter(i => i && i.equipado && i.tipo !== 'arma'), ...(fonteArmaEspiritual ? [fonteArmaEspiritual] : [])],
             extras: minhaFicha.ataqueConfig && minhaFicha.ataqueConfig.estadosGolpe
         });
-        const posGolpe = criarPosGolpe({ estados: estadosParaDefensor, critico: isCriticoNormal || isCriticoFatal, danoOriginal: result.dano, nomeAtacante: nomeNoFeed, custoGolpeTotal: result.custoCheioTotal || 0 });
+        // Só o que ATACA: Poderes e Técnicas em uso e a arma equipada (armadura/acessório não curam em todo golpe).
+        const aoAcertarDoGolpe = coletarAoAcertar({ fontes: [...poderesDoGolpe, ...magiasDoGolpe, ...(armaEquipada ? [armaEquipada] : [])] });
+        const posGolpe = criarPosGolpe({ estados: estadosParaDefensor, critico: isCriticoNormal || isCriticoFatal, danoOriginal: result.dano, nomeAtacante: nomeNoFeed, custoGolpeTotal: result.custoCheioTotal || 0, aoAcertar: aoAcertarDoGolpe });
         const meuUltimoAcerto = [...feedCombate].reverse().find(f => f.nome === nomeNoFeed && f.tipo === 'acerto');
         let extraFeed = {};
         let textoAlvos = "";

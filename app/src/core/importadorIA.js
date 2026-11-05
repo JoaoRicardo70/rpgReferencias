@@ -37,6 +37,7 @@ CAMPOS DE CADA ITEM
   Cada efeito: {"nome": "...", "atributo": "...", "propriedade": "...", "valor": 0}. "valor" é SEMPRE um número puro.
 - "aplicaEstados": estados que a habilidade causa em quem ela atinge: [{"id": "...", "stacks": 1}]. Ids válidos: ${ESTADOS.map(e => e.id).join(', ')}.
 - "usosMax" e "usosPor": se o texto limita os usos ("1 vez por cena", "3 usos por descanso"), coloque o número em "usosMax" e "cena" ou "descanso" em "usosPor". Sem limite, omita os dois.
+- "aoAcertar": o que acontece com QUEM ACERTOU quando o golpe atinge e causa dano ("recupera 200 de energia por ataque", "cura X% da vida a cada ataque"): [{"tipo":"curarAtacante" ou "energiaAtacante","modo":"fixo" | "percAtual" | "percMax","valor":N,"energia":"mana" | "aura" | "chakra" | "corpo" (só em energiaAtacante)}]. "fixo" = número na mesma escala do dano; "percMax" = % do máximo; "percAtual" = % do valor atual. Debuffs no alvo (-3 CA no inimigo, drenar a energia dele) NÃO existem ainda: vão para "naoAplicado".
 - "notasIA": regras que NÃO cabem nos campos acima (condições, gatilhos, usos por cena, testes, requisitos), em frases curtas, uma por linha.
 - "naoAplicado": lista de frases curtas com tudo que o texto diz e que você NÃO conseguiu colocar em nenhum campo.
 

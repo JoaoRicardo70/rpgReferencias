@@ -3,6 +3,7 @@ import DescricoesAtaqueEditor from '../shared/DescricoesAtaqueEditor';
 import EnsinarBotao from '../shared/EnsinarBotao';
 import EnsinamentosRecebidos from '../shared/EnsinamentosRecebidos';
 import EstadosGolpeEditor from '../shared/EstadosGolpeEditor';
+import AoAcertarEditor from '../shared/AoAcertarEditor';
 import SuporteEditor from '../shared/SuporteEditor';
 import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
 import { GATILHOS_REACAO, EFEITOS_REACAO, efeitoUsaValor } from '../../core/reacoes';
@@ -429,6 +430,7 @@ export function ElementosMagiaCard({ magia }) {
             <DescricoesAtaqueEditor colecao="ataquesElementais" itemId={magia.id} />
             <EstadosGolpeEditor colecao="ataquesElementais" itemId={magia.id} comReflexo />
             <SuporteEditor colecao="ataquesElementais" itemId={magia.id} />
+            <AoAcertarEditor colecao="ataquesElementais" itemId={magia.id} />
         </div>
     );
 }

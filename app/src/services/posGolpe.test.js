@@ -162,7 +162,7 @@ describe('posGolpe - criarPosGolpe', () => {
     it('sem alvo devolve o dano', () => {
         const p = criarPosGolpe();
         expect(p.aplicar('x', null, 77)).toBe(77);
-        expect(p.resultado()).toEqual({ textos: [], danoAtacante: 0 });
+        expect(p.resultado()).toEqual({ textos: [], danoAtacante: 0, aoAcertar: [], critico: false });
     });
     it('sem estados nem reflexo: dano inalterado, nada escrito', () => {
         const p = criarPosGolpe({ nomeAtacante: 'V' });

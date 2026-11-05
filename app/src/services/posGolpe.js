@@ -58,10 +58,12 @@ export function resolverReflexoAutomatico({ alvo, danoNoAlvo, danoOriginal, nome
 
 // Um por golpe: reúne o que acontece em CADA alvo atingido (Reflexo automático, depois os estados) e soma o Dano que volta
 // para o atacante. `aplicar(idAlvo, alvo, dano)` devolve o Dano que o alvo realmente sofre (0 se o Reflexo devolveu tudo).
-export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0, nomeAtacante = '', custoGolpeTotal = 0 } = {}) {
+// `aoAcertar` (core/aoAcertar.js): o que o ATACANTE ganha ao acertar; vale uma vez por golpe, só se algum alvo sofreu Dano (resultado()).
+export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0, nomeAtacante = '', custoGolpeTotal = 0, aoAcertar = [] } = {}) {
     const textos = [];
     const comEstados = new Map(); // Dummies: alvo com as condições novas, para o chamador gravar junto com o Dano
     let danoAtacante = 0;
+    let atingiuComDano = false;
     return {
         aplicar(idAlvo, alvo, danoNoAlvo) {
             if (!alvo) return danoNoAlvo;
@@ -76,10 +78,11 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
                 if (r.texto) textos.push(r.texto);
                 if (r.alvo !== alvo) comEstados.set(idAlvo, r.alvo);
             }
+            if (dano > 0) atingiuComDano = true;
             return dano;
         },
         // Use no lugar do alvo ao gravar o Dano (gravarVidaDoAlvo): leva junto as condições novas do Dummie.
         alvoParaGravar(idAlvo, alvo) { return comEstados.get(idAlvo) || alvo; },
-        resultado() { return { textos: [...textos], danoAtacante }; }
+        resultado() { return { textos: [...textos], danoAtacante, aoAcertar: atingiuComDano ? aoAcertar : [], critico }; }
     };
 }

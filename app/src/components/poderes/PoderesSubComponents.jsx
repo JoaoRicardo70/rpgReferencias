@@ -1,6 +1,7 @@
 import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
 import DescricoesAtaqueEditor from '../shared/DescricoesAtaqueEditor';
 import EstadosGolpeEditor from '../shared/EstadosGolpeEditor';
+import AoAcertarEditor from '../shared/AoAcertarEditor';
 import SuporteEditor from '../shared/SuporteEditor';
 import React, { useState } from 'react';
 import { usePoderesForm, SINGULAR } from './PoderesFormContext';
@@ -648,6 +649,7 @@ export function PoderesLista() {
                             <DescricoesAtaqueEditor colecao="poderes" itemId={p.id} />
                             <EstadosGolpeEditor colecao="poderes" itemId={p.id} comReflexo />
                             <SuporteEditor colecao="poderes" itemId={p.id} />
+                            <AoAcertarEditor colecao="poderes" itemId={p.id} />
 
                             {/* CAIXA DE DISPARO */}
                             {poderPreparandoId === p.id && (

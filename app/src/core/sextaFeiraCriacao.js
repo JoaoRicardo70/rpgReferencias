@@ -17,6 +17,7 @@ import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, GRUPO_IDENTIFI
 import { normalizarPasta } from './pastas.js';
 import { normalizarTipoAcao } from './acoesTecnica.js';
 import { normalizarUsos } from './usosPoder.js';
+import { normalizarAoAcertar } from './aoAcertar.js';
 import { normalizarQuando, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO } from './efeitosCondicionais.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 import { normalizarAplicaEstados, ATRIBUTOS_TESTE, ROTULO_ATRIBUTO, LIMITES_ESTADOS } from './estadosGolpe.js';
@@ -357,6 +358,9 @@ export function normalizarPoder(dados) {
     // 🔁 Usos limitados (core/usosPoder.js): só grava quando há limite (usosMax > 0).
     const usos = normalizarUsos(d.usosMax, d.usosPor);
     if (usos) { objeto.usosMax = usos.max; objeto.usosPor = usos.por; }
+    // 💚 Ao acertar (core/aoAcertar.js): cura/energia de quem acertou; só grava o que for válido.
+    const aoAcertar = normalizarAoAcertar(d.aoAcertar);
+    if (aoAcertar.length > 0) objeto.aoAcertar = aoAcertar;
     anexarEstadosReflexoSuporte(objeto, d, avisos);
     if (!objeto.nome) avisos.push('Falta o nome.');
     return { objeto, avisos, valido: !!objeto.nome };
@@ -609,6 +613,7 @@ export const DECLARACOES_CRIACAO = [
                 alcance: { type: 'NUMBER' }, area: { type: 'NUMBER' },
                 tipoAcao: { type: 'STRING', enum: ['acao', 'bonus', 'reacao', 'movimento', 'livre'], description: 'Ação gasta ao usar (vazio = automático).' },
                 notasIA: { type: 'STRING', description: 'Regras que não cabem nos campos (condições, usos, gatilhos), em frases curtas.' },
+                aoAcertar: { type: 'ARRAY', description: 'O que acontece com QUEM ACERTOU quando o golpe atinge e causa Dano (até 6). Ex.: [{"tipo":"curarAtacante","modo":"percMax","valor":5}].', items: { type: 'OBJECT', properties: { tipo: { type: 'STRING', enum: ['curarAtacante', 'energiaAtacante'] }, modo: { type: 'STRING', enum: ['fixo', 'percAtual', 'percMax'], description: 'fixo = valor na escala exibida (como o Dano); percAtual = % do valor atual; percMax = % do máximo.' }, valor: { type: 'NUMBER' }, energia: { type: 'STRING', enum: ['mana', 'aura', 'chakra', 'corpo'], description: 'Só com energiaAtacante.' }, apenasCritico: { type: 'BOOLEAN' } }, required: ['tipo', 'valor'] } },
                 usosMax: { type: 'INTEGER', description: 'Quantas vezes pode ser ligada (1 a 99). Omita se for ilimitada.' },
                 usosPor: { type: 'STRING', enum: ['cena', 'descanso'], description: 'Quando os usos renovam: cena (ao trocar de cena ou descansar) ou descanso. Só com usosMax.' },
                 maestria: { type: 'NUMBER' }, maestriaRequerida: { type: 'NUMBER' }, fadigaPorUso: { type: 'NUMBER', description: 'Só Formas.' },
