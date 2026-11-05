@@ -83,22 +83,58 @@ export function extrairJson(texto, aPartirDe = 0) {
     return null;
 }
 
+const CHAVES_DE_LISTA = ['poderes', 'habilidades', 'formas', 'itens', 'poder', 'habilidade', 'forma', 'items', 'abilities'];
+const ehObjeto = (v) => v && typeof v === 'object' && !Array.isArray(v);
+
+// A IA nem sempre obedece ao formato: aceita a lista na raiz, sob qualquer chave conhecida (ou qualquer lista de objetos), um poder
+// solto (objeto com "nome") e um mapa { "Nome": { ... } }. Devolve a lista ou null.
+function acharListaDePoderes(dados) {
+    if (Array.isArray(dados)) return dados;
+    if (!ehObjeto(dados)) return null;
+    // Uma chave conhecida vazia não pode vencer outra preenchida ({"poderes":[], "habilidades":[...]}).
+    const conhecida = CHAVES_DE_LISTA.find(chave => Array.isArray(dados[chave]) && dados[chave].length > 0);
+    if (conhecida) return dados[conhecida];
+    if (typeof dados.nome === 'string') return [dados];
+    // Só vale lista de objetos COM nome: senão a lista de efeitos de um poder solto (sem "nome") seria tomada por poderes.
+    const listaQualquer = Object.values(dados).find(v => Array.isArray(v) && v.some(o => ehObjeto(o) && typeof o.nome === 'string'));
+    if (listaQualquer) return listaQualquer;
+    const mapa = Object.values(dados).filter(v => ehObjeto(v) && typeof v.nome === 'string');
+    return mapa.length ? mapa : null;
+}
+
 // Lê a resposta da IA. Devolve { ok: true, itens: [objetos] } ou { ok: false, erro }.
 export function lerRespostaDaIA(texto) {
+    // A instrução gerada traz exemplos de JSON: se ela for colada no lugar da resposta, o leitor tolerante os tomaria por poderes.
+    if (/Atue como extrator/i.test(String(texto || ''))) return { ok: false, erro: 'Você colou a instrução (o prompt) em vez da resposta da IA. Leve a instrução à IA e cole aqui o JSON que ela devolver.' };
     const limpo = String(texto || '').replace(/```(?:json|JSON)?/g, ' ');
-    let bruto = extrairJson(texto);
-    if (!bruto) return { ok: false, erro: 'Não achei um JSON na resposta. Cole a resposta completa da IA.' };
-    let dados;
-    // Texto solto antes do JSON (ex.: "veja [1]"): tenta o próximo { ou [ até um parsear.
-    for (let pos = limpo.indexOf(bruto); bruto; pos += 1) {
-        try { dados = JSON.parse(bruto); break; } catch (e) { bruto = extrairJson(limpo, pos + 1); pos = bruto ? limpo.indexOf(bruto, pos) - 1 : pos; }
+    // Varre os blocos de JSON do texto, do primeiro ao último. Texto solto antes da resposta ("veja [1]", "[nota]") não pode
+    // esconder a resposta de verdade: um bloco que não parseia é tentado de novo um caractere adiante; um bloco que parseia mas
+    // não rende itens é PULADO (nunca se entra nele, senão a lista de efeitos de um poder viraria "poderes").
+    let pos = 0;
+    let acheiBloco = false;
+    let primeiroLido;
+    let listaVazia = false;
+    for (;;) {
+        const bruto = extrairJson(limpo, pos);
+        if (!bruto) break;
+        acheiBloco = true;
+        const inicio = limpo.indexOf(bruto, pos);
+        let dados;
+        try { dados = JSON.parse(bruto); } catch (e) { pos = inicio + 1; continue; }
+        if (primeiroLido === undefined) primeiroLido = dados;
+        const lista = acharListaDePoderes(dados);
+        if (Array.isArray(lista)) {
+            const itens = lista.filter(ehObjeto);
+            if (itens.length) return { ok: true, itens };
+            listaVazia = true;
+        }
+        pos = inicio + bruto.length;
     }
-    if (dados === undefined) return { ok: false, erro: 'O JSON está incompleto ou com erro. Peça à IA para devolver de novo, só o JSON.' };
-    const lista = Array.isArray(dados) ? dados : (dados && (dados.poderes || dados.habilidades || dados.formas || dados.itens));
-    if (!Array.isArray(lista)) return { ok: false, erro: 'O JSON não tem a lista "poderes".' };
-    const itens = lista.filter(p => p && typeof p === 'object' && !Array.isArray(p));
-    if (itens.length === 0) return { ok: false, erro: 'A lista "poderes" veio vazia.' };
-    return { ok: true, itens };
+    if (!acheiBloco) return { ok: false, erro: 'Não achei um JSON na resposta. Cole a resposta completa da IA.' };
+    if (primeiroLido === undefined) return { ok: false, erro: 'O JSON está incompleto ou com erro. Peça à IA para devolver de novo, só o JSON.' };
+    if (listaVazia) return { ok: false, erro: 'A lista "poderes" veio vazia.' };
+    const chaves = ehObjeto(primeiroLido) ? Object.keys(primeiroLido).slice(0, 8).join(', ') : '';
+    return { ok: false, erro: `O JSON foi lido, mas não achei nele a lista de habilidades${chaves ? ` (chaves encontradas: ${chaves})` : ''}. Peça à IA para devolver {"poderes": [ ... ]}.` };
 }
 
 const num = (v, padrao = 0) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : padrao; };
