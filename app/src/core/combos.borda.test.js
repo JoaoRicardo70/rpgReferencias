@@ -365,11 +365,11 @@ describe('Borda - integracao com engine', () => {
     it('calcularCA soma buffs de combo e ignora estado quebrado', () => {
         const base = calcularCA({}, 'evasiva');
         const ficha = { combos: [normalizarCombo({ id: 'a', nome: 'a', iniciador: { nome: 'i', buffs: [b(40, 'evasiva')] }, passos: [] })], combate: { comboEstado: { concluidos: ['a'] } } };
-        // o buff entra no total reduzido: reduzirComBonus(5, 0) = 3 -> reduzirComBonus(5, 40) = 11
-        expect(base).toBe(3);
-        expect(calcularCA(ficha, 'evasiva')).toBe(11);
+        // o buff entra na reducao: 12 + reduzirComBonus(0, 0) = 12 -> 12 + reduzirComBonus(0, 40) = 12 + 8 = 20
+        expect(base).toBe(12);
+        expect(calcularCA(ficha, 'evasiva')).toBe(20);
         expect(() => calcularCA({ combate: { comboEstado: 'lixo' }, combos: 'x' }, 'evasiva')).not.toThrow();
-        expect(calcularCA(null, 'evasiva')).toBe(10);
+        expect(calcularCA(null, 'evasiva')).toBe(12);
     });
     it('buffs invalidos na ficha crua nao contaminam a CA', () => {
         const ficha = { combos: [{ id: 'a', nome: 'a', iniciador: { nome: 'i', buffs: [{ atributo: 'evasiva', propriedade: 'base', valor: 'Infinity' }, { atributo: 'evasiva', propriedade: 'base', valor: NaN }] }, passos: [] }], combate: { comboEstado: { concluidos: ['a'] } } };

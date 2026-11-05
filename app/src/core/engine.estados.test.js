@@ -41,7 +41,7 @@ describe('engine - calcularCA com estados', () => {
         expect(calcularCA(base([c('petrificado', 4)]), 'evasiva')).toBe(0);
     });
     it('ficha nula e condicoes vazias', () => {
-        expect(calcularCA(null, 'evasiva')).toBe(10);
+        expect(calcularCA(null, 'evasiva')).toBe(12);
         expect(calcularCA(base([]), 'evasiva')).toBe(evBase);
     });
     it('processarDefesaComCondicoes: tipo desconhecido nao muda e sem condicoes devolve o valor', () => {

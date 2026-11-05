@@ -11,6 +11,7 @@ vi.mock('./disputaPoder.js', () => ({
     getPoderParaDisputa: vi.fn((ficha) => (ficha && ficha.__poder !== undefined ? ficha.__poder : null)),
 }));
 vi.mock('./engine.js', () => ({
+    BASE_CA: 12,
     calcularCA: vi.fn((ficha, tipo) => {
         if (ficha && ficha.__erroCA) throw new Error('falha');
         const v = tipo === 'evasiva' ? ficha?.__evasiva : ficha?.__resistencia;
@@ -311,14 +312,14 @@ describe('montarDummieDeNpc', () => {
         expect(d.tipoDefesa).toBe('evasiva');
         expect(d.valorDefesa).toBe(20);
     });
-    it('Defesa: calcularCA lancando erro cai na CA padrao 10 (evasiva)', () => {
+    it('Defesa: calcularCA lancando erro cai na CA padrao BASE_CA = 12 (evasiva)', () => {
         const d = montarDummieDeNpc('G', ficha({ __erroCA: true }), opts());
         expect(d.tipoDefesa).toBe('evasiva');
-        expect(d.valorDefesa).toBe(10);
+        expect(d.valorDefesa).toBe(12);
     });
-    it('Defesa: valor 0 cai em 10 (nunca defesa zerada)', () => {
+    it('Defesa: valor 0 cai em BASE_CA = 12 (nunca defesa zerada)', () => {
         const d = montarDummieDeNpc('G', ficha({ __evasiva: 0, __resistencia: 0 }), opts());
-        expect(d.valorDefesa).toBe(10);
+        expect(d.valorDefesa).toBe(12);
     });
     it('poderCalculado existe quando o Poder e conhecido, arredondado a 2 casas', () => {
         expect(montarDummieDeNpc('G', ficha(), opts()).poderCalculado).toBe(1234.57);

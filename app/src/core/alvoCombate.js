@@ -9,6 +9,7 @@
 // sobre o dano (core/reducaoDano.js), e a Vida é gravada na ficha dele (services/danoAlvo.js).
 // ==========================================
 import { calcularCA } from './engine.js';
+import { BASE_CA } from './utils.js';
 import { getPoderParaDisputa } from './disputaPoder.js';
 import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from './reducaoDano.js';
@@ -33,8 +34,8 @@ export function nomeAlvoPersonagem(id) {
 // (mesma regra da Gaveta de NPCs). Devolve null sem ficha.
 export function montarAlvoPersonagem(nome, ficha, divisorPoderMesa) {
     if (!ficha) return null;
-    let evasiva = 10;
-    let resistencia = 10;
+    let evasiva = BASE_CA;
+    let resistencia = BASE_CA;
     try { evasiva = calcularCA(ficha, 'evasiva'); resistencia = calcularCA(ficha, 'resistencia'); } catch (e) { /* CA padrão */ }
     const usaResistencia = (Number(resistencia) || 0) > (Number(evasiva) || 0);
     const hpMax = getVidaMaxBrutaNpc(ficha) || 0;
@@ -50,7 +51,7 @@ export function montarAlvoPersonagem(nome, ficha, divisorPoderMesa) {
         hpMax,
         hpAtual: Number.isFinite(atual) ? atual : hpMax,
         tipoDefesa: usaResistencia ? 'resistencia' : 'evasiva',
-        valorDefesa: (usaResistencia ? Number(resistencia) : Number(evasiva)) || 10,
+        valorDefesa: (usaResistencia ? Number(resistencia) : Number(evasiva)) || BASE_CA,
         visibilidadeHp: 'todos',
         cenaId: (posicao && posicao.cenaId) || 'default',
         posicao,

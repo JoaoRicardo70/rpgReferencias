@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcularAcerto, calcularEvasiva, calcularResistencia, calcularCA } from './engine.js';
+import { calcularAcerto, calcularEvasiva, calcularResistencia, calcularCA, BASE_CA } from './engine.js';
 import { reduzirComBonus } from './utils.js';
 
 // Regra: reduzirComBonus(base, bônus) = round(4*log10(base) +- 4*log10(1+3*|bônus|)): o bônus pesa em proporção ao atributo; Proficiência, Maestria de arma e Diferença de Poder ficam fora.
@@ -14,35 +14,39 @@ const acerto = (sels, minhaFicha, extra = {}) =>
 const poderComEfeito = (propriedade, valor) => ({ nome: 'P', ativa: true, efeitos: [{ atributo: 'x', propriedade, valor: String(valor) }] });
 const passivaCA = (atributo, valor) => ({ efeitos: [{ atributo, propriedade: 'base', valor: String(valor) }] });
 
-describe('CA - ordem nova: reduz o total (5 + atributo + bônus) e só depois condições', () => {
-    it('exemplos do enunciado: destreza 100000 => 20; destreza 50 => 7', () => {
-        expect(calcularCA(ficha({ destreza: 100000 }), 'evasiva')).toBe(20);
-        expect(calcularCA(ficha({ destreza: 50 }), 'evasiva')).toBe(7);
+describe('CA - BASE_CA (12) fora da redução: CA = 12 + reduz(atributo + bônus), e só depois condições', () => {
+    it('exemplos: destreza 100000 => 12 + 20 = 32; destreza 50 => 12 + 7 = 19', () => {
+        expect(calcularCA(ficha({ destreza: 100000 }), 'evasiva')).toBe(32);
+        expect(calcularCA(ficha({ destreza: 50 }), 'evasiva')).toBe(19);
     });
-    it('bônus pesa em proporção ao atributo alto (destreza 100000 + 3 sobe de 20 para 24)', () => {
+    it('bônus pesa em proporção ao atributo alto (destreza 100000 + 3 sobe de 32 para 36)', () => {
         const f = ficha({ destreza: 100000 }, { passivas: [passivaCA('evasiva', 3)] });
-        expect(calcularCA(ficha({ destreza: 100000 }), 'evasiva')).toBe(20);
-        expect(calcularCA(f, 'evasiva')).toBe(24);
+        expect(calcularCA(ficha({ destreza: 100000 }), 'evasiva')).toBe(32);
+        expect(calcularCA(f, 'evasiva')).toBe(36);
     });
-    it('o mesmo bônus também importa com atributo baixo (destreza 5: +10 sobe de 4 para 10)', () => {
+    it('o mesmo bônus também importa com atributo baixo (destreza 5: +10 sobe de 15 para 21)', () => {
         const sem = ficha({ destreza: 5 });
         const com = ficha({ destreza: 5 }, { passivas: [passivaCA('evasiva', 10)] });
-        expect(calcularCA(sem, 'evasiva')).toBe(4); // reduzirComBonus(10, 0)
-        expect(calcularCA(com, 'evasiva')).toBe(10); // reduzirComBonus(10, 10)
-        expect(calcularCA(com, 'evasiva')).toBe(reduzirComBonus(5 + 5, 10));
+        expect(calcularCA(sem, 'evasiva')).toBe(15); // 12 + reduzirComBonus(5, 0) = 12 + 3
+        expect(calcularCA(com, 'evasiva')).toBe(21); // 12 + reduzirComBonus(5, 10) = 12 + 9
+        expect(calcularCA(com, 'evasiva')).toBe(BASE_CA + reduzirComBonus(5, 10));
     });
-    it('o 5 base entra na redução: sem atributo, CA = reduzirComBonus(5, 0) = 3', () => {
-        expect(calcularCA(ficha(), 'evasiva')).toBe(3);
+    it('sem atributo, CA = BASE_CA = 12 (o 5 saiu da redução)', () => {
+        expect(calcularCA(ficha(), 'evasiva')).toBe(12);
     });
-    it('penalidade grande deixa o total negativo: CA negativa, nunca NaN', () => {
-        const f = ficha({ destreza: 0 }, { passivas: [passivaCA('evasiva', -45)] });
+    it('penalidade enorme deixa a CA negativa (mesmo somando os 12), nunca NaN', () => {
+        const f = ficha({ destreza: 0 }, { passivas: [passivaCA('evasiva', -1e9)] });
         const r = calcularCA(f, 'evasiva');
-        expect(r).toBe(reduzirComBonus(5, -45));
-        expect(r).toBe(-6);
+        expect(r).toBe(BASE_CA + reduzirComBonus(0, -1e9));
+        expect(r).toBeLessThan(0);
         expect(Number.isNaN(r)).toBe(false);
     });
-    it('resultado 0 com penalidade (base 5, bônus -1) => 0 e não -0', () => {
-        const f = ficha({}, { passivas: [passivaCA('evasiva', -1)] });
+    it('penalidade moderada (-45) com atributo 0 não zera a CA: 12 - 9 = 3', () => {
+        const f = ficha({ destreza: 0 }, { passivas: [passivaCA('evasiva', -45)] });
+        expect(calcularCA(f, 'evasiva')).toBe(3);
+    });
+    it('resultado 0 com penalidade (bônus -333 => reducao -12, 12 - 12) => 0 e não -0', () => {
+        const f = ficha({}, { passivas: [passivaCA('evasiva', -333)] });
         expect(Object.is(calcularCA(f, 'evasiva'), 0)).toBe(true);
     });
 });

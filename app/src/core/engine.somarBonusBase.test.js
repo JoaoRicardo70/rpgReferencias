@@ -134,14 +134,14 @@ describe('somarBonusBase - entradas invalidas', () => {
 });
 
 describe('fluxo do usuario - CA', () => {
-    it('Pacto com efeito passivo EVASIVA+BASE 50 leva CA de 22 para 31', () => {
-        expect(calcularCA(ficha(), 'evasiva')).toBe(22);
+    it('Pacto com efeito passivo EVASIVA+BASE 50 leva CA de 34 para 43', () => {
+        expect(calcularCA(ficha(), 'evasiva')).toBe(34);
         const f = ficha({ seresSelados: [{ ativo: true, efeitosPassivos: [ef('evasiva', 50)] }] });
-        expect(calcularCA(f, 'evasiva')).toBe(31);
+        expect(calcularCA(f, 'evasiva')).toBe(43);
     });
     it('Pacto inativo nao muda a CA', () => {
         const f = ficha({ seresSelados: [{ ativo: false, efeitosPassivos: [ef('evasiva', 50)] }] });
-        expect(calcularCA(f, 'evasiva')).toBe(22);
+        expect(calcularCA(f, 'evasiva')).toBe(34);
     });
 });
 

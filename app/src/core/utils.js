@@ -34,6 +34,10 @@ export function modificadorDezena(v) {
 // diferença de Poder Calculado (core/disputaPoder.js), não por um atributo gigante. Sem a Ascensão oculta.
 export const MULTIPLICADOR_ATRIBUTO = 4;
 
+// Base fixa da CA, SOMADA DEPOIS da redução (como a Proficiência no Acerto). Sem ela a CA seria só a redução do atributo e quem
+// ataca, que ainda soma o d20, acertaria quase sempre; com +12 e atributos iguais o acerto fica perto de 55% (Prof 2).
+export const BASE_CA = 12;
+
 export function bonusDeAtributo(v) {
     let n = Math.abs(Number(v) || 0);
     if (Number.isNaN(n) || n < 1) return 0;
@@ -45,7 +49,7 @@ export function bonusDeAtributo(v) {
 export const FORCA_BONUS_REDUCAO = 3;
 
 // A REDUÇÃO de CA e Acerto: redução( base × (1 + FORCA_BONUS_REDUCAO × bônus) ), antes da Proficiência e da Diferença de Poder
-// (que não são reduzidas, por isso pesam mais). `base` = atributo (+5 na CA); `bonus` = soma dos bônus de outras fontes.
+// (que não são reduzidas, por isso pesam mais). `base` = atributo (a CA soma BASE_CA fora da redução); `bonus` = soma dos bônus de outras fontes.
 // Escrita como redução(base) ± MULTIPLICADOR × log10(1 + K × |bônus|): igual à fórmula para bônus positivo, e uma penalidade
 // (bônus negativo) tira o mesmo tanto que um buff soma, sem inverter o sinal. O bônus pesa em proporção ao atributo, igual
 // para fraco e para forte, e ainda conta com atributo 0. O resultado pode ser negativo (penalidade maior que a base).

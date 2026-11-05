@@ -1,7 +1,7 @@
 // ==========================================
 // ENGINE RPG — Cálculos de combate (dano, acerto, defesa)
 // ==========================================
-import { contarDigitos, reduzirComBonus } from './utils.js';
+import { contarDigitos, reduzirComBonus, BASE_CA } from './utils.js';
 import { getMaximo, getBuffs, getRawBase, getPoderesDefesa, getEfeitosDeClasse } from './attributes.js';
 import { getVitalMxDisplay } from './vitals.js';
 import { ENERGIAS_COMO_PODER, getMargemCusto, limitarPercComoPoder, podeConjurarComoPoder, custoBrutoDeEnergia, somarCustosBrutos } from './custoPoder.js';
@@ -44,17 +44,20 @@ export function getPoderDeLutaStatus(ficha, statKey, isRaw = false) {
     return val + bonusAscensao;
 }
 
-export function calcularCA(ficha, tipo) {
-    if (!ficha) return 10;
-    // CA = REDUÇÃO((5 + atributo) × (1 + 3 × bônus de CA)) (+ Diferença de Poder, somada a quem ataca em core/disputaPoder.js).
-    // Atributo SEM a Ascensão; a redução (core/utils.js > reduzirComBonus) pesa o bônus em proporção ao atributo, e o nível de poder pesa
-    // pela diferença de Poder Calculado, não por um atributo ou bônus gigante.
-    let base = 5;
-    if (tipo === 'evasiva') base += getRawBase(ficha, 'destreza');
-    if (tipo === 'resistencia') base += getRawBase(ficha, 'forca');
+// Base fixa da CA (core/utils.js > BASE_CA), SOMADA DEPOIS da redução, como a Proficiência no Acerto.
+export { BASE_CA };
 
-    const totalReduzido = reduzirComBonus(base, somarBonusBase(ficha, tipo));
-    return processarDefesaComCondicoes(ficha, tipo, totalReduzido);
+export function calcularCA(ficha, tipo) {
+    if (!ficha) return BASE_CA;
+    // CA = BASE_CA + REDUÇÃO(atributo × (1 + 3 × bônus de CA)) (+ Diferença de Poder, somada a quem ataca em core/disputaPoder.js).
+    // Atributo SEM a Ascensão; a redução (core/utils.js > reduzirComBonus) pesa o bônus em proporção ao atributo, e o nível de poder pesa
+    // pela diferença de Poder Calculado, não por um atributo ou bônus gigante. Condições (Cego etc.) multiplicam a CA inteira.
+    let atributo = 0;
+    if (tipo === 'evasiva') atributo = getRawBase(ficha, 'destreza');
+    if (tipo === 'resistencia') atributo = getRawBase(ficha, 'forca');
+
+    const total = BASE_CA + reduzirComBonus(atributo, somarBonusBase(ficha, tipo));
+    return processarDefesaComCondicoes(ficha, tipo, total);
 }
 
 // Soma dos efeitos com propriedade BASE de um atributo de combate ('evasiva', 'resistencia' ou 'acerto') vindos de TODAS as fontes:
@@ -562,7 +565,7 @@ export function calcularEvasiva({ prof, bonus, minhaFicha, itensEquipados }) {
         if (item.tipo === 'armadura') nomesArmaduras.push(item.nome);
     });
 
-    // Mesma ordem da CA: REDUÇÃO(atributo × (1 + 3 × bônus)) e só depois a Proficiência (sem a Ascensão).
+    // REDUÇÃO(atributo × (1 + 3 × bônus)) e só depois a Proficiência (sem a Ascensão). Sem a base fixa BASE_CA: aqui é a rolagem de defesa.
     let bp = getPoderesDefesa(minhaFicha, 'bonus_evasiva');
     const baseD = reduzirComBonus(getRawBase(minhaFicha, 'destreza'), bonus + bp + iEvasiva);
 
@@ -583,7 +586,7 @@ export function calcularResistencia({ prof, bonus, minhaFicha, itensEquipados })
         if (item.tipo === 'armadura') nomesArmaduras.push(item.nome);
     });
 
-    // Mesma ordem da CA: REDUÇÃO(atributo × (1 + 3 × bônus)) e só depois a Proficiência (sem a Ascensão).
+    // REDUÇÃO(atributo × (1 + 3 × bônus)) e só depois a Proficiência (sem a Ascensão). Sem a base fixa BASE_CA: aqui é a rolagem de defesa.
     let bp = getPoderesDefesa(minhaFicha, 'bonus_resistencia');
     const baseD = reduzirComBonus(getRawBase(minhaFicha, 'forca'), bonus + bp + iResistencia);
 
