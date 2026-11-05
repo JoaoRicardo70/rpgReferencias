@@ -4,7 +4,7 @@ import { ESTADOS, resumoDosEstados, modificadoresDeEstados, ehEstadoValido } fro
 import { normalizarPoder } from './sextaFeiraCriacao.js';
 import { CAMPOS_VALOR_DO_ACERTO, ocultarValorDoAcerto } from './dadosMestre.js';
 
-const NOVOS = ['vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico'];
+const NOVOS = ['vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa'];
 
 describe('efeitos-constants: grupo ROLAGENS E CRITICO', () => {
     it('existe um unico grupo com os 8 atributos novos', () => {

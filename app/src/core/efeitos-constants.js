@@ -19,9 +19,10 @@ export const ATRIBUTOS_AGRUPADOS = [
     //   iniciativa — bônus da rolagem de Iniciativa (1d20 + este bônus, mais nada)
     //   margem_critico / margem_critico_fatal — o Crítico / o Crítico Fatal começa em N (vale o menor N)
     //   critico_automatico / critico_fatal_automatico — todo acerto vira Crítico / Crítico Fatal (use com 'quando')
+    //   imune_surpresa — valor maior que 0 = não pode ficar Surpreso (golpes não aplicam; marcar à mão pede confirmação)
     {
         label: '🎲 ROLAGENS E CRÍTICO',
-        options: ['vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico']
+        options: ['vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa']
     },
     {
         label: 'DEFESA (CA)',
@@ -80,7 +81,7 @@ export const GRUPO_IDENTIFICACAO = {
 export const PROPRIEDADES_REACAO = ['contra_ataque', 'atacar_atacante', 'atacar_ataque', 'reduzir_dano', 'aumentar_ca'];
 
 // Atributos que só fazem sentido com a propriedade BASE (o valor é a quantidade/porcentagem).
-const SO_BASE = new Set(['acerto', 'vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder', 'identificar_tipo_ataque', 'identificar_energia']);
+const SO_BASE = new Set(['acerto', 'imune_surpresa', 'vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder', 'identificar_tipo_ataque', 'identificar_energia']);
 
 // Propriedades que fazem sentido para o atributo escolhido (Ação/Reação não têm Multiplicador; Reação escolhe o efeito).
 export function getPropriedadesDoAtributo(atributo) {

@@ -93,7 +93,7 @@ export function normalizarQuando(valor) {
 // um efeito "dano +10 quando empunhando espada" valeria sempre. Condição nesses atributos descarta o efeito (falha fechada).
 export const ATRIBUTOS_COM_QUANDO = [
     'acerto', 'evasiva', 'resistencia', 'iniciativa', 'vantagem', 'desvantagem', 'piso_d20',
-    'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico',
+    'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa',
 ];
 // Atributos em que o escopo (a que rolagem vale) faz sentido.
 export const ATRIBUTOS_COM_ESCOPO = ['vantagem', 'desvantagem', 'piso_d20'];
@@ -201,6 +201,16 @@ export function valoresDeEfeitos(ficha, atributo, { contexto = {}, rolagem = nul
 // Soma dos efeitos BASE de um atributo (acerto, evasiva, resistencia, iniciativa...) que passam na condição.
 export function somarEfeitosBase(ficha, atributo, contexto = {}) {
     return valoresDeEfeitos(ficha, atributo, { contexto }).reduce((s, v) => s + v, 0);
+}
+
+// 🛡️ Imunidade a estados por efeito: o atributo do efeito (valor > 0) protege contra o estado. Só Surpreso por enquanto.
+const IMUNIDADE_DE_ESTADO = { surpreso: 'imune_surpresa' };
+
+// A ficha é imune a este estado por algum efeito (Poder, Passiva, Item, Pacto...)? Ficha vazia/Dummie (null) nunca é.
+export function imuneAoEstado(ficha, estadoId) {
+    const atributo = IMUNIDADE_DE_ESTADO[estadoId];
+    if (!ficha || !atributo) return false;
+    return somarEfeitosBase(ficha, atributo, montarContextoDeCombate(ficha)) > 0;
 }
 
 // Menor valor entre os efeitos (para "o crítico começa em N": vale o menor N). null se nenhum efeito vale.

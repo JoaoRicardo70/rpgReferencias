@@ -6,7 +6,7 @@ import { efeitosDeBuffsTemporarios } from './suporte.js';
 import { efeitosDaArmaEspiritual } from './armaEspiritualEfeitos.js';
 import { escalarPorFator } from './estagios.js';
 
-const NAO_ESCALAM = ['vantagem', 'desvantagem', 'piso_d20', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico'];
+const NAO_ESCALAM = ['vantagem', 'desvantagem', 'piso_d20', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa'];
 
 describe('ATRIBUTOS_COM_QUANDO / ATRIBUTOS_COM_ESCOPO', () => {
     it('listas exatas', () => {
@@ -127,6 +127,9 @@ describe('estagios.escalarPorFator: atributos de rolagem nao escalam', () => {
     it.each(NAO_ESCALAM)('%s mantem o valor com fator 3', (atributo) => {
         const e = { atributo, propriedade: 'base', valor: 2 };
         expect(escalarPorFator([e], 3)[0].valor).toBe(2);
+    });
+    it('imune_surpresa mantem o valor com fator 0 e 2 (imunidade nao some)', () => {
+        [0, 2].forEach(f => expect(escalarPorFator([{ atributo: 'imune_surpresa', propriedade: 'base', valor: 1 }], f)[0].valor).toBe(1));
     });
     it('os demais escalam como antes (acerto, evasiva, forca)', () => {
         ['acerto', 'evasiva', 'forca', 'iniciativa'].forEach(atributo => {

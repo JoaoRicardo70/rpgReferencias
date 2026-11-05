@@ -7,6 +7,7 @@
 import { ehEstadoValido, MAX_STACKS, nomeDoEstado, iconeDoEstado } from './condicoes.js';
 import { getRawBase } from './attributes.js';
 import { modificadorDezena } from './utils.js';
+import { imuneAoEstado } from './efeitosCondicionais.js';
 
 export const ATRIBUTOS_TESTE = ['forca', 'destreza', 'constituicao', 'stamina', 'sabedoria', 'inteligencia', 'energiaEsp', 'carisma'];
 export const ROTULO_ATRIBUTO = {
@@ -66,17 +67,19 @@ const d20 = () => Math.floor(Math.random() * 20) + 1;
 // Resolve o que realmente entra no alvo. `fichaAlvo` = ficha de personagem (null para Dummie: sem teste).
 // Devolve { aplicados: [{ id, stacks, origem }], resistidos: [{ id, origem, total, cd, atributo }], pulados: n }.
 export function resolverEstadosNoAlvo(estados, fichaAlvo, { critico = false, rolar = d20 } = {}) {
-    const aplicados = []; const resistidos = []; let pulados = 0;
+    const aplicados = []; const resistidos = []; const imunes = []; let pulados = 0;
     (estados || []).forEach((e) => {
         if (!e || !ehEstadoValido(e.id)) return;
         if (e.apenasCritico && !critico) { pulados++; return; }
+        // 🛡️ Imunidade por efeito (ex.: imune_surpresa): o estado nem entra, sem teste.
+        if (fichaAlvo && imuneAoEstado(fichaAlvo, e.id)) { imunes.push({ id: e.id, origem: e.origem || '' }); return; }
         if (e.teste && fichaAlvo) {
             const total = rolar() + modificadorDezena(getRawBase(fichaAlvo, e.teste.atributo));
             if (total >= e.teste.cd) { resistidos.push({ id: e.id, origem: e.origem || '', total, cd: e.teste.cd, atributo: e.teste.atributo }); return; }
         }
         aplicados.push({ id: e.id, stacks: e.stacks, origem: e.origem || '' });
     });
-    return { aplicados, resistidos, pulados };
+    return { aplicados, resistidos, pulados, ...(imunes.length ? { imunes } : {}) };
 }
 
 // Junta o mesmo estado vindo de várias fontes (soma os stacks, até 6).
@@ -93,5 +96,7 @@ export function descreverResolucao(r, nomeAlvo = '') {
     const texto = [];
     if (partes.length) texto.push(`${nomeAlvo ? `${nomeAlvo} ficou com` : 'Aplicou'}: ${partes.join(', ')}`);
     if (resistiu.length) texto.push(`resistiu a ${resistiu.join(', ')}`);
+    const imune = (r.imunes || []).map(x => `${iconeDoEstado(x.id)} ${nomeDoEstado(x.id)}`);
+    if (imune.length) texto.push(`é imune a ${imune.join(', ')}`);
     return texto.join(' · ');
 }

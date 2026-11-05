@@ -1,3 +1,5 @@
+import { imuneAoEstado } from '../../core/efeitosCondicionais';
+import { nomeDoEstado } from '../../core/condicoes';
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { ELEMENTOS_SISTEMA } from '../../core/elementos.js';
@@ -106,6 +108,8 @@ export function FichaFormProvider({ children }) {
     }, [updateFicha]);
 
     const modificarCondicao = useCallback((condId, delta) => {
+        // 🛡️ Imunidade por efeito (ex.: imune_surpresa): marcar o estado à mão pede confirmação (quem decide é o Mestre).
+        if (delta > 0 && imuneAoEstado(minhaFicha, condId) && !window.confirm(`Esta ficha tem um efeito de imunidade a ${nomeDoEstado(condId)}. Marcar mesmo assim?`)) return;
         updateFicha(f => {
             if (!f.condicoes) f.condicoes = [];
             const index = f.condicoes.findIndex(c => c.id === condId);
@@ -118,7 +122,7 @@ export function FichaFormProvider({ children }) {
             }
         });
         salvarFichaSilencioso();
-    }, [updateFicha]);
+    }, [updateFicha, minhaFicha]);
 
     const toggleAfinidade = useCallback((categoria, elementoId) => {
         updateFicha(f => {

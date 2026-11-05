@@ -1,3 +1,5 @@
+import { imuneAoEstado } from '../../core/efeitosCondicionais';
+import { nomeDoEstado } from '../../core/condicoes';
 import React, { useState, useCallback } from 'react';
 import useStore, { sanitizarNome } from '../../stores/useStore';
 import { getDatabase, ref, update } from 'firebase/database';
@@ -120,6 +122,8 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
     };
 
     const modificarCondicaoSandbox = (condId, delta) => {
+        // 🛡️ Imunidade por efeito (ex.: imune_surpresa): marcar o estado à mão pede confirmação.
+        if (delta > 0 && imuneAoEstado(ficha, condId) && !window.confirm(`Esta ficha tem um efeito de imunidade a ${nomeDoEstado(condId)}. Marcar mesmo assim?`)) return;
         let condicoesAtuais = ficha?.condicoes ? JSON.parse(JSON.stringify(ficha.condicoes)) : [];
         const index = condicoesAtuais.findIndex(c => c.id === condId);
 
