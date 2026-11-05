@@ -14,6 +14,7 @@ import { rotuloComPolaridade } from '../../core/polaridade';
 import { montarPromptImportacao } from '../../core/importadorIA';
 import ImportadorPrevia from './ImportadorPrevia';
 import CondicaoDoEfeito from '../shared/CondicaoDoEfeito';
+import { descreverUsos } from '../../core/usosPoder';
 import EnsinarBotao from '../shared/EnsinarBotao';
 import EnsinamentosRecebidos from '../shared/EnsinamentosRecebidos';
 
@@ -197,7 +198,7 @@ export function PoderesFormEditor() {
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, uploadingImg, handleImageUpload,
         dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, tipoAcao, setTipoAcao, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, tipoAcao, setTipoAcao, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -270,6 +271,7 @@ export function PoderesFormEditor() {
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo Máx (%)</label><input type="number" min="0" value={custoPercentualMax} onChange={e => setCustoPercentualMax(e.target.value)} title="Margem de Custo: do Custo (%) até este máximo. Vale ao conjurar como Poder." style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Como Poder</label><label style={{ fontSize: '0.8em' }}><input type="checkbox" checked={!!semComoPoder} onChange={e => setSemComoPoder(e.target.checked)} /> Vetar</label></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Ação gasta</label><select value={tipoAcao} onChange={e => setTipoAcao(e.target.value)} title="Que tipo de Ação custa usar esta técnica (o sistema desconta Ação, Ação Bônus e Reação). Automático: se a técnica eleva o Poder Calculado, ligar gasta uma Reação; escolha Ação Livre para ligar de graça." style={{ width: '100%' }}>{TIPOS_ACAO_TECNICA.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}</select></div>
+                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Usos</label><div className="usos-poder-campo"><input type="number" min="0" max="99" placeholder="∞" aria-label="Usos máximos (vazio = ilimitado)" value={usosMaxPoder} onChange={e => setUsosMaxPoder(e.target.value)} title="Quantas vezes pode ser ligada. Vazio ou 0 = ilimitado." /><select aria-label="Os usos renovam" value={usosPorPoder} onChange={e => setUsosPorPoder(e.target.value)} title="Quando os usos renovam: ao trocar de cena (ou descansar) ou só ao descansar."><option value="cena">por cena</option><option value="descanso">por descanso</option></select></div></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Alcance (Q)</label><input type="number" min="0" step="0.5" value={poderAlcance} onChange={e => setPoderAlcance(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Área (Q)</label><input type="number" min="0" step="0.5" value={poderArea} onChange={e => setPoderArea(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div>
@@ -486,7 +488,7 @@ export function PoderesLista() {
     const {
         abaAtual, itensFiltrados, poderPreparandoId, setPoderPreparandoId,
         setOverchargeAtivo, togglePoder, vincularAberto, setVincularAberto,
-        vincularRef, minhaFicha, armasEquipadas, vincularArmaAoPoder,
+        vincularRef, minhaFicha, cenaAtivaId, armasEquipadas, vincularArmaAoPoder,
         editarPoder, deletarPoder, overchargeAtivo, curMana, curAura, curChakra,
         energiaElemental, danoBruto, dispararAtaque,
         salvarFormaPoder, deletarFormaPoder, ativarFormaPoder,
@@ -601,6 +603,7 @@ export function PoderesLista() {
                                     >
                                         {isEquipped ? '★ ATIVADA' : 'Desativada'}
                                     </button>
+                                    {descreverUsos(minhaFicha, p, cenaAtivaId) && <span className="usos-poder-selo" title="Usos restantes desta técnica">🔁 {descreverUsos(minhaFicha, p, cenaAtivaId)}</span>}
 
                                     {/* BOTÃO DISPARAR/PREPARAR MODO */}
                                     <button 

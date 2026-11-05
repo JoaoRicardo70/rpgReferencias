@@ -12,6 +12,7 @@ import { descreverAlvosReducao } from '../../core/reducaoRotulos';
 import useGastarAcao from '../../hooks/useGastarAcao';
 import SegurarAcao from '../combate/SegurarAcao';
 import { tipoAcaoAoLigar } from '../../core/acaoPoder';
+import { podeUsar, descreverUsos, limiteDeUsos } from '../../core/usosPoder';
 import { eventoCombina } from '../../core/atalhos';
 import { temAcessoArmaEspiritual } from '../../core/acessoArmaEspiritual';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
@@ -1041,7 +1042,14 @@ export function MapaTecnicasRapidas() {
     const { minhaFicha, togglePoder, mudarEstagioPoder } = poderesCtx;
     const poderes = minhaFicha?.poderes || [];
     // ⏱️ Ligar a técnica cobra a Ação que ela custa (core/acoesTecnica.js); desligar não cobra nada.
-    const alternarTecnica = (p) => { if (!p.ativa && !gastarAcao(p)) return; togglePoder(p.id); };
+    // 🔁 Sem usos restantes (core/usosPoder.js) a técnica nem liga: avisa ANTES de gastar a Ação.
+    const alternarTecnica = (p) => {
+        if (!p.ativa) {
+            if (!podeUsar(minhaFicha, p, poderesCtx.cenaAtivaId)) { alert(`"${p.nome}" já usou todos os usos (${descreverUsos(minhaFicha, p, poderesCtx.cenaAtivaId)}). Eles voltam ao ${limiteDeUsos(p).por === 'cena' ? 'trocar de cena ou descansar' : 'descansar'}.`); return; }
+            if (!gastarAcao(p)) return;
+        }
+        togglePoder(p.id);
+    };
     const termo = busca.trim().toLowerCase();
     // 🔍 Busca por nome (e pasta): enquanto há busca, as pastas com resultado ficam abertas.
     // ★ "Só ligadas" filtra a lista (em vez de repetir as ligadas num bloco à parte): continuam nas suas pastas.

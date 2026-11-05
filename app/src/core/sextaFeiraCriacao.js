@@ -16,6 +16,7 @@ import { dadosLimitadosDaTecnica } from './limiteDados.js';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, GRUPO_IDENTIFICACAO, PROPRIEDADES_REACAO } from './efeitos-constants.js';
 import { normalizarPasta } from './pastas.js';
 import { normalizarTipoAcao } from './acoesTecnica.js';
+import { normalizarUsos } from './usosPoder.js';
 import { normalizarQuando, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO } from './efeitosCondicionais.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 import { normalizarAplicaEstados, ATRIBUTOS_TESTE, ROTULO_ATRIBUTO, LIMITES_ESTADOS } from './estadosGolpe.js';
@@ -353,6 +354,9 @@ export function normalizarPoder(dados) {
         objeto.maestria = numero(d.maestria, 0, 0, 100);
         objeto.maestriaRequerida = numero(d.maestriaRequerida, 0, 0, 100);
     }
+    // 🔁 Usos limitados (core/usosPoder.js): só grava quando há limite (usosMax > 0).
+    const usos = normalizarUsos(d.usosMax, d.usosPor);
+    if (usos) { objeto.usosMax = usos.max; objeto.usosPor = usos.por; }
     anexarEstadosReflexoSuporte(objeto, d, avisos);
     if (!objeto.nome) avisos.push('Falta o nome.');
     return { objeto, avisos, valido: !!objeto.nome };
@@ -605,6 +609,8 @@ export const DECLARACOES_CRIACAO = [
                 alcance: { type: 'NUMBER' }, area: { type: 'NUMBER' },
                 tipoAcao: { type: 'STRING', enum: ['acao', 'bonus', 'reacao', 'movimento', 'livre'], description: 'Ação gasta ao usar (vazio = automático).' },
                 notasIA: { type: 'STRING', description: 'Regras que não cabem nos campos (condições, usos, gatilhos), em frases curtas.' },
+                usosMax: { type: 'INTEGER', description: 'Quantas vezes pode ser ligada (1 a 99). Omita se for ilimitada.' },
+                usosPor: { type: 'STRING', enum: ['cena', 'descanso'], description: 'Quando os usos renovam: cena (ao trocar de cena ou descansar) ou descanso. Só com usosMax.' },
                 maestria: { type: 'NUMBER' }, maestriaRequerida: { type: 'NUMBER' }, fadigaPorUso: { type: 'NUMBER', description: 'Só Formas.' },
                 efeitos: EFEITOS_SCHEMA, efeitosPassivos: EFEITOS_SCHEMA,
                 aplicaEstados: ESTADOS_SCHEMA, reflexo: REFLEXO_SCHEMA, suporte: SUPORTE_SCHEMA,

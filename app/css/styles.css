@@ -3176,3 +3176,8 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .condicao-efeito { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; font-size: 0.8em; opacity: 0.9; }
 .condicao-efeito-campo { display: flex; align-items: center; gap: 6px; }
 .condicao-efeito input[type="number"] { width: 70px; }
+
+/* Usos limitados de uma Habilidade (core/usosPoder.js) */
+.usos-poder-campo { display: flex; gap: 4px; }
+.usos-poder-campo input { width: 52px; text-align: center; }
+.usos-poder-selo { align-self: center; padding: 2px 8px; border: 1px solid var(--cor-destaque); border-radius: 10px; font-size: 0.8em; color: var(--cor-destaque); white-space: nowrap; }

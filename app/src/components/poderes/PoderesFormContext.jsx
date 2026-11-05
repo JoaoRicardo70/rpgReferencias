@@ -1,6 +1,7 @@
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
 import { lerRespostaDaIA, prepararImportacao, montarPoderFinal } from '../../core/importadorIA';
 import { normalizarQuando, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO } from '../../core/efeitosCondicionais';
+import { normalizarUsos, limiteDeUsos, podeUsar, gastarUso, descreverUsos } from '../../core/usosPoder';
 import React, { createContext, useContext, useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes';
@@ -77,6 +78,10 @@ export function PoderesFormProvider({ children }) {
     const [custoPercentual, setCustoPercentual] = useState(0);
     const [custoPercentualMax, setCustoPercentualMax] = useState(0);
     const [tipoAcao, setTipoAcao] = useState('');
+    // 🔁 Usos limitados (core/usosPoder.js): vazio/0 = ilimitado.
+    const [usosMaxPoder, setUsosMaxPoder] = useState('');
+    const [usosPorPoder, setUsosPorPoder] = useState('cena');
+    const cenaAtivaId = useStore(s => s.cenario?.ativa) || 'default';
     const [semComoPoder, setSemComoPoder] = useState(false);
     const [poderAlcance, setPoderAlcance] = useState(1);
     const [poderArea, setPoderArea] = useState(0);
@@ -195,6 +200,8 @@ export function PoderesFormProvider({ children }) {
         setCustoPercentualMax(0);
         setSemComoPoder(false);
         setTipoAcao('');
+        setUsosMaxPoder('');
+        setUsosPorPoder('cena');
         setPoderAlcance(1);
         setPoderArea(0); 
         setArmaVinculada('');
@@ -225,6 +232,7 @@ export function PoderesFormProvider({ children }) {
         const urlSafe = imagemUrl || "";
         const armaSafe = armaVinculada || "";
         // 🪜 Estágios (core/estagios.js): só grava a config quando ligada; desligar apaga tudo.
+        const limiteUsos = normalizarUsos(usosMaxPoder, usosPorPoder);
         const estagiosSalvos = estagiosEditor.habilitado ? normalizarEstagios(estagiosEditor) : null;
         const aplicarEstagios = (poder) => {
             if (estagiosSalvos) {
@@ -257,6 +265,8 @@ export function PoderesFormProvider({ children }) {
                     ficha.poderes[ix].custoPercentualMax = parseFloat(custoPercentualMax) || 0;
                     ficha.poderes[ix].semComoPoder = !!semComoPoder;
                     ficha.poderes[ix].tipoAcao = normalizarTipoAcao(tipoAcao);
+                    if (limiteUsos) { ficha.poderes[ix].usosMax = limiteUsos.max; ficha.poderes[ix].usosPor = limiteUsos.por; }
+                    else { delete ficha.poderes[ix].usosMax; delete ficha.poderes[ix].usosPor; }
                     ficha.poderes[ix].alcance = parseFloat(poderAlcance) || 1;
                     ficha.poderes[ix].area = parseFloat(poderArea) || 0;
                     ficha.poderes[ix].armaVinculada = armaSafe;
@@ -302,6 +312,7 @@ export function PoderesFormProvider({ children }) {
                     custoPercentualMax: parseFloat(custoPercentualMax) || 0,
                     semComoPoder: !!semComoPoder,
                     tipoAcao: normalizarTipoAcao(tipoAcao),
+                    ...(limiteUsos ? { usosMax: limiteUsos.max, usosPor: limiteUsos.por } : {}),
                     alcance: parseFloat(poderAlcance) || 1,
                     area: parseFloat(poderArea) || 0,
                     armaVinculada: armaSafe,
@@ -326,10 +337,16 @@ export function PoderesFormProvider({ children }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, cancelarEdicaoPoder, salvarFirebaseImediato]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, cancelarEdicaoPoder, salvarFirebaseImediato]);
 
     // 🔥 O ESCUDO ANTI-DRENAGEM (Resolve a perda acidental de energia ao Ligar a Forma) 🔥
     const togglePoder = useCallback((id) => {
+        // 🔁 Usos limitados (core/usosPoder.js): ligar uma técnica sem usos restantes é barrado; ligar gasta 1 uso. Desligar não gasta.
+        const atual = (minhaFicha.poderes || []).find(po => po && po.id === id);
+        if (atual && !atual.ativa && !podeUsar(minhaFicha, atual, cenaAtivaId)) {
+            alert(`"${atual.nome}" já usou todos os usos (${descreverUsos(minhaFicha, atual, cenaAtivaId)}). Eles voltam ao ${limiteDeUsos(atual).por === 'cena' ? 'trocar de cena ou descansar' : 'descansar'}.`);
+            return;
+        }
         updateFicha((ficha) => {
             if (!ficha.poderes) return;
             const p = ficha.poderes.find(po => po.id === id);
@@ -338,15 +355,19 @@ export function PoderesFormProvider({ children }) {
             // 1. Antes de ligar/desligar, capturamos os Máximos ESTÁVEIS de cada barra.
             const oldM = capturarMaximosAtuais(ficha);
 
+            // 🔁 Confere os usos também no RASCUNHO: o check de fora usa o último render e pode estar desatualizado (clique duplo, snapshot remoto).
+            if (!p.ativa && !podeUsar(ficha, p, cenaAtivaId)) return;
+
             // 2. Mudamos o status da forma (o que engatilha o novo Máximo de Status)
             p.ativa = !p.ativa;
+            if (p.ativa) gastarUso(ficha, p, cenaAtivaId);
 
             // 3. Re-escala "atual" de cada barra pra manter a MESMA % no novo Máximo. (Nada se gasta!)
             rescalarVitaisProporcional(ficha, oldM);
         });
 
         salvarFichaSilencioso();
-    }, [updateFicha, salvarFichaSilencioso]);
+    }, [minhaFicha, cenaAtivaId, updateFicha, salvarFichaSilencioso]);
 
     // 🪜 Sobe/desce o estágio (core/estagios.js). Ativa, a técnica muda os máximos na hora — mesmo
     // travamento de vitais do liga/desliga, pra trocar de estágio nunca drenar Vida/Energia.
@@ -386,6 +407,8 @@ export function PoderesFormProvider({ children }) {
         setCustoPercentualMax(p.custoPercentualMax || 0);
         setSemComoPoder(!!p.semComoPoder);
         setTipoAcao(normalizarTipoAcao(p.tipoAcao));
+        setUsosMaxPoder(p.usosMax || '');
+        setUsosPorPoder(p.usosPor || 'cena');
         setPoderAlcance(p.alcance || 1);
         setPoderArea(p.area || 0);
         setArmaVinculada(p.armaVinculada || '');
@@ -699,7 +722,7 @@ export function PoderesFormProvider({ children }) {
         poderVertente, setPoderVertente, poderElemento, setPoderElemento,
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, tipoAcao, setTipoAcao, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, tipoAcao, setTipoAcao, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -723,7 +746,7 @@ export function PoderesFormProvider({ children }) {
     }), [
         minhaFicha, meuNome, isMestre, abaAtual,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
-        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance,
+        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, usosMaxPoder, usosPorPoder, cenaAtivaId, poderAlcance,
         poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma,
         estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo, novoQuandoPassivo, novoEscopoPassivo,

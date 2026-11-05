@@ -9,6 +9,7 @@ import { calcularReducaoFadigaPorRegeneracao } from './fadiga.js';
 import { getRegeneracaoTotalPct, calcularCuraRegeneracao } from './regeneracao.js';
 import { modificadoresDeEstados } from './condicoes.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
+import { restaurarUsos } from './usosPoder.js';
 
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 export const VITAIS_REGENERAVEIS = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'pv', 'pm'];
@@ -483,4 +484,6 @@ export function descansarCompleto(ficha) {
     ficha.combate.municoTurnos = 0;
     delete ficha.combate.ultimoElementoRecebido;
     delete ficha.combate.ultimoElementoRecebidoNivel;
+    // 🔁 Descansar renova os usos limitados "por cena" e "por descanso" das Habilidades (core/usosPoder.js).
+    restaurarUsos(ficha);
 }
