@@ -112,7 +112,7 @@ export function buffsTemporariosDaFicha(ficha) {
 // Efeitos de todos os buffs ativos (para getEfeitosDeClasse).
 export function efeitosDeBuffsTemporarios(ficha) {
     if (!ficha || !Array.isArray(ficha.buffsTemporarios) || ficha.buffsTemporarios.length === 0) return [];
-    return buffsTemporariosDaFicha(ficha).flatMap(b => b.efeitos.map(e => ({ atributo: e.atributo, propriedade: e.propriedade, valor: e.valor, nome: e.nome || b.nome })));
+    return buffsTemporariosDaFicha(ficha).flatMap(b => b.efeitos.map(e => ({ atributo: e.atributo, propriedade: e.propriedade, valor: e.valor, nome: e.nome || b.nome, ...(e.quando ? { quando: e.quando } : {}), ...(e.escopo ? { escopo: e.escopo } : {}) })));
 }
 
 // Soma um buff novo à lista (mesma origem + mesmo nome renova em vez de empilhar). Devolve a lista NOVA.

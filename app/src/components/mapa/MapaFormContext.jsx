@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
 import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto, salvarCamposPersonagem } from '../../services/firebase-sync';
-import { calcularAcerto, calcularEficaciaCura } from '../../core/engine';
+import { calcularAcerto, calcularEficaciaCura, somarBonusBase } from '../../core/engine';
+import { montarContextoDeCombate } from '../../core/efeitosCondicionais';
 import { classificarRolagem } from '../../core/rolagemDado';
 import { aplicarCoresDado, lerCoresDado } from '../../core/coresDado';
 import { getConfigDado } from '../../core/configuracoes';
@@ -891,6 +892,23 @@ export function MapaFormProvider({ children }) {
         setFeedIndexTurnoAtual(feedCombate.length); 
     }, [iniciativaInput, cenaRenderId, updateFicha, feedCombate.length]);
 
+    // 🎲 Rola a Iniciativa: 1d20 + SÓ os bônus de efeitos INICIATIVA (atributo, Proficiência e outros bônus não entram). Mínimo 1,
+    // porque iniciativa 0 significa "fora de combate". Grava como a Iniciativa digitada e avisa no feed.
+    const rolarMinhaIniciativa = useCallback(() => {
+        const bonus = Math.floor(somarBonusBase(minhaFicha, 'iniciativa', { ...montarContextoDeCombate(minhaFicha), emCombate: true }));
+        const dado = Math.floor(Math.random() * 20) + 1;
+        const total = Math.max(1, dado + bonus);
+        updateFicha((ficha) => {
+            ficha.iniciativa = total;
+            if (!ficha.posicoes) ficha.posicoes = {};
+            ficha.posicoes[cenaRenderId] = { ...ficha.posicoes[cenaRenderId], cenaId: cenaRenderId };
+        });
+        setIniciativaInput(total);
+        salvarFichaSilencioso();
+        setFeedIndexTurnoAtual(feedCombate.length);
+        enviarParaFeed({ tipo: 'sistema', nome: meuNome, texto: `🎲 ${meuNome} rolou Iniciativa: d20 (${dado})${bonus ? ` ${bonus > 0 ? '+' : '-'} ${Math.abs(bonus)}` : ''} = ${total}` });
+    }, [minhaFicha, meuNome, cenaRenderId, updateFicha, feedCombate.length]);
+
     // 🔥 Trava contra duplo-clique: "Passar Turno" agora aplica ações/fadiga/regeneração de forma
     // SÍNCRONA aqui dentro (ver comentário mais abaixo), não mais só reativamente num efeito
     // protegido por uma transição de índice já observada — sem essa trava, dois cliques rápidos no
@@ -1211,15 +1229,16 @@ export function MapaFormProvider({ children }) {
         const sels = [mapStat]; 
         const itensEq = fichaAcerto?.inventario ? fichaAcerto.inventario.filter(i => i.equipado) : [];
 
+        // O alvo é resolvido ANTES da rolagem: as condições dos efeitos (alvo com estado, vida abaixo de...) são checadas nele.
+        const estadoAtual = useStore.getState();
+        const alvoDummie = resolverAlvoCombate(alvoSelecionado, { dummies, personagens: estadoAtual.personagens, meuNome: atorAtivo ? atorAtivo.nomeFicha : meuNome, divisorPoderMesa: estadoAtual.divisorPoderMesa, fichaAtor: fichaAcerto, atorEhMestre: isMestre });
         const result = calcularAcerto({ 
             qD, fD, prof, bonus, sels, minhaFicha: fichaAcerto, itensEquipados: itensEq, 
-            vantagens: mapVantagens, desvantagens: mapDesvantagens 
+            vantagens: mapVantagens, desvantagens: mapDesvantagens, alvo: alvoDummie 
         });
 
         let alvosAtingidos = [];
         let maxArea = 0;
-        const estadoAtual = useStore.getState();
-        const alvoDummie = resolverAlvoCombate(alvoSelecionado, { dummies, personagens: estadoAtual.personagens, meuNome: atorAtivo ? atorAtivo.nomeFicha : meuNome, divisorPoderMesa: estadoAtual.divisorPoderMesa, fichaAtor: fichaAcerto, atorEhMestre: isMestre });
 
         // 🛡️ Regra de PvP (jogador x jogador só em combate) e 🗺️ cena/alcance (core/alcance.js). A checagem de alcance
         // só roda quando as DUAS posições são conhecidas e alguma arma/poder/magia declara alcance; sem esses
@@ -1355,7 +1374,7 @@ export function MapaFormProvider({ children }) {
         toggleModoRP, togglePresencaTaverna, changeVantagem, changeDesvantagem,
         handleUploadNovaCena, ativarCena, deletarCena, definirAcessoCena, corDoJogador, getAvatarInfo,
         cells, jogadores, playersNaTaverna, ordemIniciativa, handleCellClick,
-        alterarZoom, setMinhaIniciativa, avancarTurno, sairDoCombate, encerrarCombate, descansar, aplicarDanoRapido,
+        alterarZoom, setMinhaIniciativa, rolarMinhaIniciativa, avancarTurno, sairDoCombate, encerrarCombate, descansar, aplicarDanoRapido,
         rolarAcertoRapido, tokenMap, dummyMap, tokens3D, jogadorDaVez, infoDaVez, fmt, deletarZona, toggleActionDot,
         inspecao, inspecionar, limparInspecao, modoJogador,
         movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento, removerTokenDoMapa, estouNoMapa
@@ -1370,7 +1389,7 @@ export function MapaFormProvider({ children }) {
         cells, jogadores, playersNaTaverna, ordemIniciativa, tokenMap, dummyMap, tokens3D,
         jogadorDaVez, infoDaVez, fmt, toggleModoRP, togglePresencaTaverna, changeVantagem,
         changeDesvantagem, handleUploadNovaCena, ativarCena, deletarCena, definirAcessoCena, corDoJogador, descansar, aplicarDanoRapido,
-        getAvatarInfo, handleCellClick, alterarZoom, setMinhaIniciativa, avancarTurno,
+        getAvatarInfo, handleCellClick, alterarZoom, setMinhaIniciativa, rolarMinhaIniciativa, avancarTurno,
         sairDoCombate, encerrarCombate, rolarAcertoRapido, deletarZona, toggleActionDot,
         inspecao, inspecionar, limparInspecao, modoJogador,
         movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento, removerTokenDoMapa, estouNoMapa

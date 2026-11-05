@@ -13,11 +13,14 @@ import { construirArvorePastas, segmentosPasta } from '../../core/pastas';
 import { rotuloComPolaridade } from '../../core/polaridade';
 import { montarPromptImportacao } from '../../core/importadorIA';
 import ImportadorPrevia from './ImportadorPrevia';
+import CondicaoDoEfeito from '../shared/CondicaoDoEfeito';
 import EnsinarBotao from '../shared/EnsinarBotao';
 import EnsinamentosRecebidos from '../shared/EnsinamentosRecebidos';
 
 const LIMITE_PREVIA_ESTAGIOS = 12;
 const fmtNumero = (v) => (typeof v === 'number' ? (Math.round(v * 10000) / 10000).toLocaleString('pt-BR') : v);
+// Texto da condição e do escopo de um efeito na lista (vazio se não tiver nenhum).
+const textoCondicaoEfeito = (e) => [e.quando ? ` · quando: ${e.quando.replace(':', ' ')}` : '', e.escopo ? ` · vale em: ${e.escopo.replace(':', ' ')}` : ''].join('');
 const textoEfeito = (e) => `${(e.atributo || '').replace('_', ' ').toUpperCase()} ${(e.propriedade || '').toUpperCase()} ${fmtNumero(e.valor)}${e.fixo ? ' (fixo)' : ''}`;
 
 // 🔎 Tabela "estágio a estágio" no editor, com a config ainda em rascunho (core/estagios.js >
@@ -202,6 +205,7 @@ export function PoderesFormEditor() {
         estagiosEditor, setEstagiosEditor,
         descricaoPoder, setDescricaoPoder,
         nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal,
+        novoQuando, setNovoQuando, novoEscopo, setNovoEscopo, novoQuandoPassivo, setNovoQuandoPassivo, novoEscopoPassivo, setNovoEscopoPassivo,
         addEfeitoTemp, efeitosTemp, removerEfeitoTemp,
         nomeEfeitoPassivo, setNomeEfeitoPassivo, novoAtrPassivo, setNovoAtrPassivo,
         novoPropPassivo, setNovoPropPassivo, novoValPassivo, setNovoValPassivo,
@@ -413,13 +417,14 @@ export function PoderesFormEditor() {
                 <input type="text" placeholder="Valor" value={novoVal} onChange={e => setNovoVal(e.target.value)} style={{ width: '80px', textAlign: 'center' }} />
                 <button onClick={addEfeitoTemp} style={{ padding: '8px' }}>+</button>
             </div>
+            <CondicaoDoEfeito atributo={novoAtr} quando={novoQuando} onQuando={setNovoQuando} escopo={novoEscopo} onEscopo={setNovoEscopo} />
 
             <div style={{ marginTop: 10 }}>
                 {efeitosTemp.map((e, i) => {
                     const isMult = ['mbase', 'mgeral', 'mformas', 'mabs', 'munico'].includes((e.propriedade || '').toLowerCase());
                     return (
                         <div key={i} style={{ fontSize: '0.9em', marginBottom: 5, padding: '5px 10px', borderLeft: '2px solid currentColor', display: 'flex', justifyContent: 'space-between', opacity: 0.9 }}>
-                            <span><strong>{e.nome || '(Sem nome)'}</strong> [{(e.atributo || '').replace('_', ' ').toUpperCase()}] - [{(e.propriedade || '').toUpperCase()}]: <strong>{isMult ? '(x)' : '(+)'} {e.valor}</strong></span>
+                            <span><strong>{e.nome || '(Sem nome)'}</strong> [{(e.atributo || '').replace('_', ' ').toUpperCase()}] - [{(e.propriedade || '').toUpperCase()}]: <strong>{isMult ? '(x)' : '(+)'} {e.valor}</strong>{textoCondicaoEfeito(e)}</span>
                             <button onClick={() => removerEfeitoTemp(i)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', opacity: 0.6 }}>✖</button>
                         </div>
                     );
@@ -443,13 +448,14 @@ export function PoderesFormEditor() {
                 <input type="text" placeholder="Valor" value={novoValPassivo} onChange={e => setNovoValPassivo(e.target.value)} style={{ width: '80px', textAlign: 'center' }} />
                 <button onClick={addEfeitoPassivoTemp} style={{ padding: '8px' }}>+</button>
             </div>
+            <CondicaoDoEfeito atributo={novoAtrPassivo} quando={novoQuandoPassivo} onQuando={setNovoQuandoPassivo} escopo={novoEscopoPassivo} onEscopo={setNovoEscopoPassivo} />
 
             <div style={{ marginTop: 10 }}>
                 {efeitosTempPassivos.map((e, i) => {
                     const isMult = ['mbase', 'mgeral', 'mformas', 'mabs', 'munico'].includes((e.propriedade || '').toLowerCase());
                     return (
                         <div key={i} style={{ fontSize: '0.9em', marginBottom: 5, padding: '5px 10px', borderLeft: '2px solid currentColor', display: 'flex', justifyContent: 'space-between', opacity: 0.8 }}>
-                            <span>[PASSIVO] <strong>{e.nome || '(Sem nome)'}</strong> [{(e.atributo || '').replace('_', ' ').toUpperCase()}] - [{(e.propriedade || '').toUpperCase()}]: <strong>{isMult ? '(x)' : '(+)'} {e.valor}</strong></span>
+                            <span>[PASSIVO] <strong>{e.nome || '(Sem nome)'}</strong> [{(e.atributo || '').replace('_', ' ').toUpperCase()}] - [{(e.propriedade || '').toUpperCase()}]: <strong>{isMult ? '(x)' : '(+)'} {e.valor}</strong>{textoCondicaoEfeito(e)}</span>
                             <button onClick={() => removerEfeitoPassivoTemp(i)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', opacity: 0.6 }}>✖</button>
                         </div>
                     );

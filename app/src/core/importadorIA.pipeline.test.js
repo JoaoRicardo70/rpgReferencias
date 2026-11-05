@@ -23,7 +23,7 @@ const RESPOSTA = `Claro! Aqui está o JSON:
         { "nome": "Aura", "atributo": "todos_status", "propriedade": "mbase", "valor": 50 },
         { "nome": "CA", "atributo": "evasiva", "propriedade": "base", "valor": 60 },
         { "nome": "CA", "atributo": "resistencia", "propriedade": "base", "valor": 60 },
-        { "nome": "Rapidez", "atributo": "iniciativa", "propriedade": "base", "valor": 5 },
+        { "nome": "Rapidez", "atributo": "velocidade_da_luz", "propriedade": "base", "valor": 5 },
         { "nome": "Forca", "atributo": "forca", "propriedade": "base", "valor": "x40" },
         { "nome": "Dano puro", "atributo": "dano", "propriedade": "base", "valor": 10 }
       ],
@@ -70,7 +70,7 @@ describe('importador v2 - pipeline completo', () => {
         const [f] = pipeline();
         expect(attrs(f.objeto.efeitosPassivos).filter(a => a === 'evasiva')).toHaveLength(1);
         expect(f.objeto.efeitosPassivos.some(e => e.nome === 'Rapidez')).toBe(false);
-        expect(f.naoAplicado.some(n => /iniciativa/.test(n))).toBe(true);
+        expect(f.naoAplicado.some(n => /velocidade_da_luz/.test(n))).toBe(true);
     });
 
     it('multiplicadores, dano e valor não numérico vão para naoAplicado e para as notas', () => {

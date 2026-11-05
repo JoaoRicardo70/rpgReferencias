@@ -16,6 +16,7 @@ import { dadosLimitadosDaTecnica } from './limiteDados.js';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, GRUPO_IDENTIFICACAO, PROPRIEDADES_REACAO } from './efeitos-constants.js';
 import { normalizarPasta } from './pastas.js';
 import { normalizarTipoAcao } from './acoesTecnica.js';
+import { normalizarQuando, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO } from './efeitosCondicionais.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 import { normalizarAplicaEstados, ATRIBUTOS_TESTE, ROTULO_ATRIBUTO, LIMITES_ESTADOS } from './estadosGolpe.js';
 import { ESTADOS, nomeDoEstado, iconeDoEstado, MAX_STACKS } from './condicoes.js';
@@ -184,9 +185,29 @@ function normalizarEfeitos(lista, padraoAtributo, avisos, rotulo) {
             // O app guarda o valor como texto digitado.
             valor: String(numero(e?.valor, 0)),
         };
+        // Condição ("quando") e escopo (a que rolagem vale) são opcionais (core/efeitosCondicionais.js). Um que o sistema não reconhece
+        // DESCARTA o efeito: deixá-lo valer sempre (ou em outra rolagem) daria a vantagem/bônus onde ele nunca deveria valer.
+        const quando = normalizarQuando(e?.quando);
+        const escopo = normalizarEscopo(e?.escopo);
+        if (quando === null || escopo === null) {
+            avisosEfeito.push(quando === null ? `Condição "${e.quando}" não existe no sistema; o efeito foi descartado.` : `Escopo "${e.escopo}" não existe no sistema; o efeito foi descartado.`);
+            avisosEfeito.forEach(a => avisos.push(`${rotulo} ${i + 1}: ${a}`));
+            return null;
+        }
+        // Condição só vale nos atributos que a leem (ATRIBUTOS_COM_QUANDO); nos outros o efeito seria incondicional: descarta.
+        if (quando && !ATRIBUTOS_COM_QUANDO.includes(efeito.atributo)) {
+            avisosEfeito.push(`O atributo "${efeito.atributo}" ainda não aceita condição ("${quando}"); o efeito foi descartado.`);
+            avisosEfeito.forEach(a => avisos.push(`${rotulo} ${i + 1}: ${a}`));
+            return null;
+        }
+        if (quando) efeito.quando = quando;
+        if (escopo) {
+            if (ATRIBUTOS_COM_ESCOPO.includes(efeito.atributo)) efeito.escopo = escopo;
+            else avisosEfeito.push(`O atributo "${efeito.atributo}" não usa escopo; ele foi ignorado.`);
+        }
         avisosEfeito.forEach(a => avisos.push(`${rotulo} ${i + 1}: ${a}`));
         return efeito;
-    });
+    }).filter(Boolean);
 }
 
 // ---------- 🩸 Estados, ↩️ Reflexo e ✨ Suporte (campos opcionais das criações) ----------
@@ -557,6 +578,8 @@ const EFEITOS_SCHEMA = {
             atributo: { type: 'STRING', enum: ATRIBUTOS_EFEITO },
             propriedade: { type: 'STRING', enum: PROPRIEDADES_EFEITO, description: 'base = soma fixa; mbase/mgeral/mformas/mabs/munico = multiplicadores; reducaocusto; regeneracao; bonus_acerto; elemento_inato; furia_berserker.' },
             valor: { type: 'NUMBER' },
+            quando: { type: 'STRING', description: 'Opcional: condição para o efeito valer. sempre (padrão), em_combate, empunhando_arma, empunhando_arma:<tipo, ex.: espada>, alvo_com_estado:<id do estado, ex.: surpreso>, alvo_vida_abaixo:<%>.' },
+            escopo: { type: 'STRING', description: 'Opcional, para vantagem/desvantagem/piso_d20: ataque, teste, teste:<perícia ou atributo, ex.: intuicao> ou tudo.' },
         },
         required: ['atributo', 'propriedade', 'valor'],
     },

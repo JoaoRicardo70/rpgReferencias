@@ -36,7 +36,7 @@ export function efeitosDaArmaEspiritual(ficha) {
     const nome = (ficha && ficha.armaEspiritual && ficha.armaEspiritual.nome) || 'Arma Espiritual';
     return (Array.isArray(bloco.efeitos) ? bloco.efeitos : [])
         .filter(e => e && typeof e.atributo === 'string' && typeof e.propriedade === 'string' && Number.isFinite(parseFloat(e.valor)))
-        .map(e => ({ atributo: e.atributo, propriedade: e.propriedade, valor: parseFloat(e.valor), nome: e.nome || nome }));
+        .map(e => ({ atributo: e.atributo, propriedade: e.propriedade, valor: parseFloat(e.valor), nome: e.nome || nome, ...(e.quando ? { quando: e.quando } : {}), ...(e.escopo ? { escopo: e.escopo } : {}) }));
 }
 
 // Fonte para o pós-golpe: a arma aplica estados quando está em uso.

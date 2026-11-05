@@ -24,6 +24,8 @@ import { armaVirtualDaArmaEspiritual } from '../../core/armaEspiritualDano';
 import { getNivelDominio } from '../../core/dominios';
 import { classificarAtaque, energiasDoGolpe } from '../../core/identificacao';
 import { montarNarrativa } from '../../core/descricaoAtaque';
+import { calcularFaixasCritico, classificarCritico, maiorDadoDaRolagem } from '../../core/critico';
+import { valoresDeEfeitos, menorValorDeEfeitos, montarContextoDeCombate } from '../../core/efeitosCondicionais';
 
 const AtaqueFormContext = createContext(null);
 
@@ -234,31 +236,32 @@ export function AtaqueFormProvider({ children }) {
         setCritFatalMax(ac2.criticoFatalMax || 20);
     }, [minhaFicha.ataqueConfig]);
 
+    // 💥 Crítico e Crítico Fatal (core/critico.js): faixas da ficha abaixadas pelos efeitos MARGEM_CRITICO / MARGEM_CRITICO_FATAL (o menor N
+    // vale) e Crítico automático por efeito (ex.: contra alvo Surpreso, com a condição do efeito checada no alvo escolhido).
+    const contextoCritico = useMemo(() => montarContextoDeCombate(minhaFicha, dummieAlvo), [minhaFicha, dummieAlvo]);
+    const faixasCritico = useMemo(() => calcularFaixasCritico(
+        { normalMin: critNormalMin, normalMax: critNormalMax, fatalMin: critFatalMin, fatalMax: critFatalMax },
+        menorValorDeEfeitos(minhaFicha, 'margem_critico', contextoCritico),
+        menorValorDeEfeitos(minhaFicha, 'margem_critico_fatal', contextoCritico)
+    ), [minhaFicha, contextoCritico, critNormalMin, critNormalMax, critFatalMin, critFatalMax]);
+    const criticoPorEfeito = useMemo(() => {
+        const soma = (atributo) => valoresDeEfeitos(minhaFicha, atributo, { contexto: contextoCritico }).reduce((s, v) => s + v, 0);
+        return { normal: soma('critico_automatico') > 0, fatal: soma('critico_fatal_automatico') > 0 };
+    }, [minhaFicha, contextoCritico]);
+
     useEffect(() => {
         const lastAcerto = [...feedCombate].reverse().find(f => f.nome === nomeNoFeed && f.tipo === 'acerto');
-        if (lastAcerto && lastAcerto.rolagem) {
-            let maxDado = 0;
-            let regexStrong = /<strong>(\d+)<\/strong>/g;
-            let match;
-            while ((match = regexStrong.exec(lastAcerto.rolagem)) !== null) {
-                let v = parseInt(match[1]);
-                if (v > maxDado) maxDado = v;
-            }
-            if (maxDado === 0) {
-                let regexArr = /\[(.*?)\]/;
-                let mArr = regexArr.exec(lastAcerto.rolagem);
-                if (mArr) {
-                    let clean = mArr[1].replace(/<[^>]*>?/gm, '');
-                    let nums = clean.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
-                    if (nums.length > 0) maxDado = Math.max(...nums);
-                }
-            }
-            setAutoCritFatal(maxDado >= critFatalMin && maxDado <= critFatalMax);
-            setAutoCritNormal(maxDado >= critNormalMin && maxDado <= critNormalMax);
+        if (lastAcerto && (lastAcerto.dadoNatural || lastAcerto.rolagem)) {
+            // O dado natural vem pronto do Acerto; entradas antigas do feed (sem ele) ainda têm o texto da rolagem lido pelo formato antigo.
+            const natural = Number(lastAcerto.dadoNatural);
+            const dado = Number.isFinite(natural) && natural > 0 ? natural : maiorDadoDaRolagem(lastAcerto.rolagem);
+            const crit = classificarCritico(dado, faixasCritico);
+            setAutoCritFatal(crit === 'fatal');
+            setAutoCritNormal(crit === 'normal');
         } else {
             setAutoCritFatal(false); setAutoCritNormal(false);
         }
-    }, [feedCombate, nomeNoFeed, critNormalMin, critNormalMax, critFatalMin, critFatalMax]);
+    }, [feedCombate, nomeNoFeed, faixasCritico]);
 
     useEffect(() => {
         const configs = {};
@@ -561,7 +564,7 @@ export function AtaqueFormProvider({ children }) {
         const configArma = salvoResolvido
             ? { statusUsados: salvoResolvido.armaStatusUsados, energiaCombustao: salvoResolvido.armaEnergiaCombustao, percEnergia: salvoResolvido.armaPercEnergia }
             : { statusUsados: armaStatusUsados, energiaCombustao: armaEnergiaCombustao, percEnergia: parseFloat(armaPercEnergia) || 0 };
-        const isCriticoNormal = forcarCritNormal || autoCritNormal; const isCriticoFatal = forcarCritFatal || autoCritFatal;
+        const isCriticoNormal = forcarCritNormal || autoCritNormal || criticoPorEfeito.normal; const isCriticoFatal = forcarCritFatal || autoCritFatal || criticoPorEfeito.fatal;
 
         const result = calcularDano({ minhaFicha, configArma, configHabilidades: todasHabilidades, itensEquipados: (minhaFicha.inventario || []).filter(i => i.equipado), isCriticoNormal, isCriticoFatal });
 
@@ -765,7 +768,7 @@ export function AtaqueFormProvider({ children }) {
     }, [
         updateFicha, armaStatusUsados, armaEnergiaCombustao, armaPercEnergia,
         critNormalMin, critNormalMax, critFatalMin, critFatalMax, skillConfigs,
-        minhaFicha, forcarCritNormal, autoCritNormal, forcarCritFatal, autoCritFatal,
+        minhaFicha, forcarCritNormal, autoCritNormal, forcarCritFatal, autoCritFatal, criticoPorEfeito,
         dummieAlvo, alvoSelecionado, meuNome, nomeNoFeed, setAbaAtiva, poderesAtivos, magiasOfensivas, armaEquipada, feedCombate, dummies, personagens, elementoAtivo, divisorPoderMesa
     ]);
 

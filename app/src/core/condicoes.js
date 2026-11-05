@@ -35,7 +35,9 @@ export const ESTADOS = [
     { id: 'vulneravel', nome: 'Vulnerável', icone: '🛡️' }, { id: 'amedrontado', nome: 'Amedrontado', icone: '👻' },
     { id: 'enlouquecido', nome: 'Enlouquecido', icone: '🌀' }, { id: 'necrosado', nome: 'Necrosado', icone: '💀' },
     { id: 'cegosurdo', nome: 'Cego/Surdo', icone: '🙈' }, { id: 'petrificado', nome: 'Petrificado', icone: '🗿' },
-    { id: 'charmado', nome: 'Charmado', icone: '💖' }, { id: 'provocado', nome: 'Provocado', icone: '💢' }
+    { id: 'charmado', nome: 'Charmado', icone: '💖' }, { id: 'provocado', nome: 'Provocado', icone: '💢' },
+    // 😲 Marcado à mão pelo Mestre (por enquanto): não muda conta nenhuma, mas habilita efeitos "contra alvo Surpreso" (ex.: crítico automático).
+    { id: 'surpreso', nome: 'Surpreso', icone: '😲' }
 ];
 const IDS = new Set(ESTADOS.map(e => e.id));
 export const ehEstadoValido = (id) => typeof id === 'string' && IDS.has(id);
@@ -122,6 +124,7 @@ export function resumoDosEstados(ficha) {
         if (c.id === 'amedrontado') linhas.push(`👻 Amedrontado: não ataca${c.fonte ? ` ${c.fonte}` : ' a fonte do medo'} e só se afasta dela.`);
         if (c.id === 'charmado') linhas.push(`💖 Charmado: não ataca${c.fonte ? ` ${c.fonte}` : ' quem o charmou'} e o defende.`);
         if (c.id === 'provocado') linhas.push(`💢 Provocado: só foca${c.fonte ? ` ${c.fonte}` : ' em quem o provocou'}.`);
+        if (c.id === 'surpreso') linhas.push('😲 Surpreso: pego desprevenido; habilidades "contra alvo Surpreso" (ex.: crítico automático) passam a valer contra ele.');
     });
     if (m.incapacitado) linhas.push('☠️ Incapacitado: sem Formas, todos atacam com dupla vantagem.');
     else if (m.imobilizado) linhas.push('⛓️ Imobilizado: 0 de movimento, quem ataca tem vantagem.');

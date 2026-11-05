@@ -6,6 +6,7 @@ import { getRawBase } from '../../core/attributes';
 import { modificadorDezena } from '../../core/utils';
 import { rolarDadosComVantagem } from '../../core/engine';
 import { modificadoresDeEstados } from '../../core/condicoes';
+import { valoresDeEfeitos, montarContextoDeCombate } from '../../core/efeitosCondicionais';
 
 export const SAVES = [
     { id: 'forca', label: 'Forca', attr: 'forca', cor: '#ff4d4d' },
@@ -143,19 +144,39 @@ export function TestesFormProvider({ children }) {
         // 🩸 Estados negativos (Exausto, Imobilizado, Vulnerável, Lento, Cego/Surdo...) dão desvantagem em testes (core/condicoes.js).
         const estados = modificadoresDeEstados(minhaFicha);
         const desvEstado = estados.desvTestes + ((estados.desvPorAtributo && estados.desvPorAtributo[tipoAttr]) || 0);
+        // 🎲 Efeitos VANTAGEM/DESVANTAGEM e PISO_D20 com escopo de teste (core/efeitosCondicionais.js): 'teste' vale em todo teste e
+        // 'teste:<perícia ou atributo>' só naquele. Vantagem/desvantagem sem escopo valem só em ataque; o piso sem escopo vale em todo teste.
+        const contextoTeste = montarContextoDeCombate(minhaFicha);
+        const rolagemTeste = { tipo: 'teste', ids: [skillId, tipoAttr] };
+        const somaEfeitos = (atributo, escopoPadrao) => Math.max(0, Math.floor(valoresDeEfeitos(minhaFicha, atributo, { contexto: contextoTeste, rolagem: rolagemTeste, escopoPadrao }).reduce((acc, v) => acc + v, 0)));
+        const vantEfeito = somaEfeitos('vantagem', 'ataque');
+        const desvEfeito = somaEfeitos('desvantagem', 'ataque');
+        const pisoD20 = Math.max(0, ...valoresDeEfeitos(minhaFicha, 'piso_d20', { contexto: contextoTeste, rolagem: rolagemTeste, escopoPadrao: 'teste' }).map(v => Math.floor(v)));
+        const desvTotal = desvEstado + desvEfeito;
+        const usaVantDesv = vantEfeito > 0 || desvTotal > 0;
         let rolagem = rolarDado(qD, fD);
         let textoDesv = '';
-        if (desvEstado > 0) {
-            const r = rolarDadosComVantagem(qD, fD, 0, desvEstado);
+        let dadoMantido = null;
+        if (usaVantDesv) {
+            const r = rolarDadosComVantagem(qD, fD, vantEfeito, desvTotal);
             rolagem = { sum: r.sD, details: [r.rolagemTexto] };
-            textoDesv = ` <br/> 🩸 ${desvEstado} desvantagem(ns) por estado negativo`;
+            dadoMantido = r.mantidos && r.mantidos.length === 1 ? r.mantidos[0] : null;
+            if (desvEstado > 0) textoDesv += ` <br/> 🩸 ${desvEstado} desvantagem(ns) por estado negativo`;
+            if (vantEfeito > 0) textoDesv += ` <br/> 🎲 ${vantEfeito} vantagem(ns) por efeito`;
+            if (desvEfeito > 0) textoDesv += ` <br/> 🎲 ${desvEfeito} desvantagem(ns) por efeito`;
         }
-        const total = rolagem.sum + modBase + valorProficiencia + bonusFixo;
+        // Piso do d20 ("7 ou menos vale 8"): só com um único d20.
+        let ajustePiso = 0;
+        if (pisoD20 > 0 && qD === 1 && fD === 20) {
+            const dado = dadoMantido !== null ? dadoMantido : rolagem.sum;
+            if (dado < pisoD20) { ajustePiso = pisoD20 - dado; textoDesv += ` <br/> 🎲 Piso do d20: ${dado} vale ${pisoD20}`; }
+        }
+        const total = rolagem.sum + ajustePiso + modBase + valorProficiencia + bonusFixo;
 
         const tipoFeed = isSavingThrow ? 'saving' : 'skill';
 
-        let stringDados = desvEstado > 0 ? rolagem.details[0] : `[${rolagem.details.join(", ")}]`;
-        if (qD === 1 && desvEstado === 0) {
+        let stringDados = usaVantDesv ? rolagem.details[0] : `[${rolagem.details.join(", ")}]`;
+        if (qD === 1 && !usaVantDesv && ajustePiso === 0) {
             if (rolagem.sum === 20 && fD === 20) stringDados = `[<strong>20</strong>] (CRITICO!)`;
             if (rolagem.sum === 1 && fD === 20) stringDados = `[<strong style="color:#ff003c;">1</strong>] (FALHA CRITICA!)`;
         }

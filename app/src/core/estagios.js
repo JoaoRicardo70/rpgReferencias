@@ -194,11 +194,15 @@ export function marcoParaRascunho(m) {
 
 // Multiplica o valor numérico de cada efeito. Valores não numéricos e efeitos marcados como
 // `fixo` (ex.: um MÚnico 1.5x que não cresce com o estágio) ficam como estão.
+// Efeitos de rolagem/crítico (core/efeitosCondicionais.js, core/critico.js) NÃO escalam com o estágio: o valor deles é um número do dado
+// ou um limiar (crítico a partir de 14, piso 8, +1 vantagem), e multiplicá-lo por 1,5 não faria sentido.
+const ATRIBUTOS_QUE_NAO_ESCALAM = ['vantagem', 'desvantagem', 'piso_d20', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico'];
+
 export function escalarPorFator(efeitos, fator) {
     const lista = efeitos || [];
     if (fator === 1) return lista;
     return lista.map(e => {
-        if (!e || e.fixo) return e;
+        if (!e || e.fixo || ATRIBUTOS_QUE_NAO_ESCALAM.includes(e.atributo)) return e;
         const v = parseFloat(e.valor);
         if (!Number.isFinite(v)) return e;
         return { ...e, valor: Math.round(v * fator * 10000) / 10000 };

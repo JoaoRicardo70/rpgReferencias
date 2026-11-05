@@ -1,5 +1,6 @@
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
 import { lerRespostaDaIA, prepararImportacao, montarPoderFinal } from '../../core/importadorIA';
+import { normalizarQuando, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO } from '../../core/efeitosCondicionais';
 import React, { createContext, useContext, useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes';
@@ -91,11 +92,15 @@ export function PoderesFormProvider({ children }) {
     const [novoAtr, setNovoAtr] = useState('forca');
     const [novoProp, setNovoProp] = useState('base');
     const [novoVal, setNovoVal] = useState('');
+    const [novoQuando, setNovoQuando] = useState('');
+    const [novoEscopo, setNovoEscopo] = useState('');
     
     const [nomeEfeitoPassivo, setNomeEfeitoPassivo] = useState('');
     const [novoAtrPassivo, setNovoAtrPassivo] = useState('evasiva');
     const [novoPropPassivo, setNovoPropPassivo] = useState('base');
     const [novoValPassivo, setNovoValPassivo] = useState('');
+    const [novoQuandoPassivo, setNovoQuandoPassivo] = useState('');
+    const [novoEscopoPassivo, setNovoEscopoPassivo] = useState('');
 
     const [uploadingImg, setUploadingImg] = useState(false);
     const [vincularAberto, setVincularAberto] = useState(null);
@@ -117,12 +122,29 @@ export function PoderesFormProvider({ children }) {
         return () => document.removeEventListener('mousedown', handler);
     }, [vincularAberto]);
 
+    // Monta o efeito com a condição ("quando") e o escopo opcionais; devolve null (e avisa) se algum estiver incompleto.
+    // Condição e escopo só valem nos atributos que os leem; valores que sobraram de outro atributo escolhido antes são ignorados.
+    const montarEfeitoNovo = useCallback((nome, atributo, propriedade, valor, quando, escopo) => {
+        const q = ATRIBUTOS_COM_QUANDO.includes(atributo) ? normalizarQuando(quando) : '';
+        if (q === null) { alert('A condição do efeito está incompleta: escolha o estado, o tipo de arma ou o %.'); return null; }
+        let esc = '';
+        if (ATRIBUTOS_COM_ESCOPO.includes(atributo)) {
+            esc = normalizarEscopo(escopo);
+            if (esc === null || escopo === 'teste:') { alert('O escopo do efeito está incompleto: escolha qual teste.'); return null; }
+        }
+        return { nome, atributo, propriedade, valor, ...(q ? { quando: q } : {}), ...(esc ? { escopo: esc } : {}) };
+    }, []);
+
     const addEfeitoTemp = useCallback(() => {
         if (!novoVal || !nomeEfeito.trim()) { alert('Preencha o nome e o valor do efeito!'); return; }
-        setEfeitosTemp([...efeitosTemp, { nome: nomeEfeito.trim(), atributo: novoAtr, propriedade: novoProp, valor: novoVal }]);
+        const efeito = montarEfeitoNovo(nomeEfeito.trim(), novoAtr, novoProp, novoVal, novoQuando, novoEscopo);
+        if (!efeito) return;
+        setEfeitosTemp([...efeitosTemp, efeito]);
         setNovoVal('');
         setNomeEfeito('');
-    }, [novoVal, nomeEfeito, novoAtr, novoProp, efeitosTemp, setEfeitosTemp]);
+        setNovoQuando('');
+        setNovoEscopo('');
+    }, [novoVal, nomeEfeito, novoAtr, novoProp, novoQuando, novoEscopo, efeitosTemp, setEfeitosTemp, montarEfeitoNovo]);
 
     const removerEfeitoTemp = useCallback((index) => {
         setEfeitosTemp(efeitosTemp.filter((_, i) => i !== index));
@@ -130,10 +152,14 @@ export function PoderesFormProvider({ children }) {
 
     const addEfeitoPassivoTemp = useCallback(() => {
         if (!novoValPassivo || !nomeEfeitoPassivo.trim()) { alert('Preencha o nome e o valor do efeito passivo!'); return; }
-        setEfeitosTempPassivos([...efeitosTempPassivos, { nome: nomeEfeitoPassivo.trim(), atributo: novoAtrPassivo, propriedade: novoPropPassivo, valor: novoValPassivo }]);
+        const efeito = montarEfeitoNovo(nomeEfeitoPassivo.trim(), novoAtrPassivo, novoPropPassivo, novoValPassivo, novoQuandoPassivo, novoEscopoPassivo);
+        if (!efeito) return;
+        setEfeitosTempPassivos([...efeitosTempPassivos, efeito]);
         setNovoValPassivo('');
         setNomeEfeitoPassivo('');
-    }, [novoValPassivo, nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, efeitosTempPassivos, setEfeitosTempPassivos]);
+        setNovoQuandoPassivo('');
+        setNovoEscopoPassivo('');
+    }, [novoValPassivo, nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, novoQuandoPassivo, novoEscopoPassivo, efeitosTempPassivos, setEfeitosTempPassivos, montarEfeitoNovo]);
 
     const removerEfeitoPassivoTemp = useCallback((index) => {
         setEfeitosTempPassivos(efeitosTempPassivos.filter((_, i) => i !== index));
@@ -680,6 +706,7 @@ export function PoderesFormProvider({ children }) {
         pastaPoder, setPastaPoder, pastasExistentes, renomearPastaForma,
         estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal,
+        novoQuando, setNovoQuando, novoEscopo, setNovoEscopo, novoQuandoPassivo, setNovoQuandoPassivo, novoEscopoPassivo, setNovoEscopoPassivo,
         nomeEfeitoPassivo, setNomeEfeitoPassivo, novoAtrPassivo, setNovoAtrPassivo,
         novoPropPassivo, setNovoPropPassivo, novoValPassivo, setNovoValPassivo,
         uploadingImg, setUploadingImg, vincularAberto, setVincularAberto,
@@ -699,7 +726,7 @@ export function PoderesFormProvider({ children }) {
         imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance,
         poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma,
         estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
-        nomeEfeito, novoAtr, novoProp, novoVal,
+        nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo, novoQuandoPassivo, novoEscopoPassivo,
         nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, novoValPassivo,
         uploadingImg, vincularAberto, poderPreparandoId, overchargeAtivo,
         addEfeitoTemp, removerEfeitoTemp, addEfeitoPassivoTemp, removerEfeitoPassivoTemp,

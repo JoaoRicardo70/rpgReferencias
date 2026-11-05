@@ -513,7 +513,7 @@ export function MapaIniciativaTracker() {
     const ctx = useMapaForm();
     const {
         minhaFicha, iniciativaInput, setIniciativaInput, isMestre, sairDoCombate, encerrarCombate, descansar,
-        setMinhaIniciativa, avancarTurno, ordemIniciativa, turnoAtualIndex, jogadorHistory,
+        setMinhaIniciativa, rolarMinhaIniciativa, avancarTurno, ordemIniciativa, turnoAtualIndex, jogadorHistory,
         setJogadorHistory, feedCombate, getAvatarInfo, fmt, jogadorDaVez, infoDaVez, cenario,
         jogadores, dummies, cenaRenderId, inspecao, inspecionar
     } = ctx || {};
@@ -553,7 +553,8 @@ export function MapaIniciativaTracker() {
                     <h3 style={{ color: '#00ffcc', margin: 0, fontSize: '1.1em' }}>⚡ Iniciativa & Entidades</h3>
                     <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
                         <input className="input-neon" type="number" value={iniciativaInput} onChange={e => setIniciativaInput(e.target.value)} style={{ width: 50, padding: 4, height: 26, margin: 0 }} />
-                        <button className="btn-neon btn-gold" onClick={setMinhaIniciativa} style={{ padding: '2px 8px', fontSize: '0.8em', margin: 0 }}>Rolar</button>
+                        <button className="btn-neon btn-gold" onClick={setMinhaIniciativa} title="Usar o número digitado como Iniciativa" style={{ padding: '2px 8px', fontSize: '0.8em', margin: 0 }}>Definir</button>
+                        <button className="btn-neon btn-gold" onClick={rolarMinhaIniciativa} title="1d20 + bônus de efeitos de Iniciativa (nada mais)" style={{ padding: '2px 8px', fontSize: '0.8em', margin: 0 }}>🎲 Rolar</button>
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>

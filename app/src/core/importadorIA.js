@@ -6,6 +6,7 @@
 // ==========================================
 import { ESTADOS } from './condicoes';
 import { ATRIBUTOS_EFEITO, PROPRIEDADES_EFEITO, CATEGORIAS_PODER, normalizarPoder, resumirProposta } from './sextaFeiraCriacao';
+import { ATRIBUTOS_COM_QUANDO } from './efeitosCondicionais';
 
 export const ROTULO_CATEGORIA = { habilidade: 'Habilidades', forma: 'Formas', poder: 'Poderes' };
 
@@ -48,6 +49,11 @@ COMO TRADUZIR
 - "reduz o dano em X%": {"atributo":"reducao_dano","propriedade":"base","valor":X}.
 - Reação que reduz o dano de um ataque que acertou você em X% (ex.: "pela metade" = 50): {"atributo":"reacao_acertou","propriedade":"reduzir_dano","valor":X}.
 - "+N ações/ações bônus/reações por turno": atributo acao_padrao, acao_bonus ou acao_reacao, propriedade "base".
+- "+N na Iniciativa": {"atributo":"iniciativa","propriedade":"base","valor":N}.
+- "vantagem nas jogadas de ataque": {"atributo":"vantagem","propriedade":"base","valor":1,"escopo":"ataque"}. "vantagem em testes de Percepção": {"atributo":"vantagem","propriedade":"base","valor":1,"escopo":"teste:percepcao"} (escopo: "teste" = todos os testes; "teste:<perícia ou atributo>" = um só, ex.: intuicao, percepcao, procurar, furtividade, acrobacia, atletismo, trapacear, diplomacia, sentir_motiv, forca, destreza; "tudo" = ataques e testes). "desvantagem": mesmo formato com atributo "desvantagem".
+- "trate um resultado de 7 ou menos no d20 como 8" (em testes de Intuição): {"atributo":"piso_d20","propriedade":"base","valor":8,"escopo":"teste:intuicao"}.
+- Crítico: "Crítico a partir de 14": {"atributo":"margem_critico","propriedade":"base","valor":14}. "Crítico FATAL a partir de 19": {"atributo":"margem_critico_fatal","propriedade":"base","valor":19}. Crítico e Crítico Fatal são DIFERENTES: não troque um pelo outro. "Todo acerto contra um alvo surpreso é crítico": {"atributo":"critico_automatico","propriedade":"base","valor":1,"quando":"alvo_com_estado:surpreso"} (use "critico_fatal_automatico" se o texto disser Crítico Fatal).
+- CONDIÇÃO ("quando", opcional): só use se o texto condicionar o efeito. Valores: "em_combate", "empunhando_arma" ou "empunhando_arma:<tipo, ex.: espada>", "alvo_com_estado:<id do estado>", "alvo_vida_abaixo:<%>". Sem condição, não escreva o campo. O "quando" SÓ pode ser usado nestes atributos: ${ATRIBUTOS_COM_QUANDO.join(', ')}. Para qualquer outro atributo (forca, dano, vida...), NÃO escreva "quando": o efeito condicional vai para "naoAplicado".
 NÃO CONVERTA multiplicadores (xN no dano, xN em status, xN em poder direto, "dobra", "triplica"...): não crie efeito para eles. Coloque cada um em "naoAplicado" (ex.: "x40 em todo dano").
 Se não existir um atributo exato para o que o texto pede, NÃO invente: coloque em "naoAplicado" e em "notasIA".
 
@@ -169,6 +175,11 @@ function separarEfeitosImportaveis(lista, naoAplicado) {
         }
         if (PROPRIEDADES_NAO_IMPORTADAS.includes(minusculo(e.propriedade))) {
             naoAplicado.push(`Multiplicador não importado (${descreverEfeito(e)})`);
+            return false;
+        }
+        const condicao = String(e.quando ?? '').trim();
+        if (condicao && minusculo(condicao) !== 'sempre' && !ATRIBUTOS_COM_QUANDO.includes(minusculo(e.atributo))) {
+            naoAplicado.push(`Efeito condicional que o sistema ainda não suporta nesse atributo, não importado (${descreverEfeito(e)}; quando: ${condicao})`);
             return false;
         }
         if (ATRIBUTOS_NAO_IMPORTADOS.includes(minusculo(e.atributo))) {

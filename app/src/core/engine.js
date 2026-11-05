@@ -6,13 +6,10 @@ import { getMaximo, getBuffs, getRawBase, getPoderesDefesa, getEfeitosDeClasse }
 import { getVitalMxDisplay } from './vitals.js';
 import { ENERGIAS_COMO_PODER, getMargemCusto, limitarPercComoPoder, podeConjurarComoPoder, custoBrutoDeEnergia, somarCustosBrutos } from './custoPoder.js';
 import { getVantagensDeClasse, getBonusAcertoDeClasse } from './classesMecanicas.js';
-import { resolverEfeitosEntidade } from './efeitos-resolver.js';
-import { efeitosDeCombos } from './combos.js';
-import { efeitosAtivosDoItem, efeitosDaConfigAtiva } from './efeitosItem.js';
+import { efeitosAtivosDoItem } from './efeitosItem.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
 import { modificadoresDeEstados } from './condicoes.js';
-import { efeitosDeBuffsTemporarios, efeitosDeSuportePassivo } from './suporte.js';
-import { efeitosDaArmaEspiritual } from './armaEspiritualEfeitos.js';
+import { somarEfeitosBase, valoresDeEfeitos, montarContextoDeCombate } from './efeitosCondicionais.js';
 import { armaVirtualDaArmaEspiritual } from './armaEspiritualDano.js';
 
 // Status são gravados 1000x maiores que o número exibido na Ficha (core: Marcados.jsx > FATOR_EXIBICAO_STATUS).
@@ -56,55 +53,15 @@ export function calcularCA(ficha, tipo) {
     if (tipo === 'evasiva') atributo = getRawBase(ficha, 'destreza');
     if (tipo === 'resistencia') atributo = getRawBase(ficha, 'forca');
 
-    const total = BASE_CA + reduzirComBonus(atributo, somarBonusBase(ficha, tipo));
+    const total = BASE_CA + reduzirComBonus(atributo, somarBonusBase(ficha, tipo, montarContextoDeCombate(ficha)));
     return processarDefesaComCondicoes(ficha, tipo, total);
 }
 
-// Soma dos efeitos com propriedade BASE de um atributo de combate ('evasiva', 'resistencia' ou 'acerto') vindos de TODAS as fontes:
-// Poderes (ativos e passivos), Passivas, Combos, Suporte, Arma Espiritual, Itens equipados e Pactos (Entidades Seladas
-// sincronizadas). É o "bônus de outras fontes" que entra na redução de CA e Acerto.
-// resolverEfeitosEntidade já embute a Forma ativa (ou a substitui quando acumulaFormaBase === false); a Configuração (modo) da
-// Forma é somada à parte, uma vez, por efeitosDaConfigAtiva, como em core/attributes.js > getBuffs.
-export function somarBonusBase(ficha, atributo) {
-    if (!ficha) return 0;
-    let bonus = 0;
-    const somarBonus = (efeitos) => {
-        (efeitos || []).forEach(e => {
-            if (e && e.atributo === atributo && e.propriedade === 'base') bonus += parseFloat(e.valor) || 0;
-        });
-    };
-    const somarConfigDaForma = (entidade) => {
-        const cfg = efeitosDaConfigAtiva(entidade);
-        if (cfg) { somarBonus(cfg.efeitos); somarBonus(cfg.efeitosPassivos); }
-    };
-
-    (ficha.poderes || []).forEach(p => {
-        if (!p) return;
-        let resolved = resolverEfeitosEntidade(p);
-        if (p.ativa) somarBonus(resolved.efeitos);
-        somarBonus(resolved.efeitosPassivos);
-        somarConfigDaForma(p);
-    });
-    (ficha.passivas || []).forEach(p => { somarBonus(p.efeitos); });
-    somarBonus(efeitosDeCombos(ficha)); // 🥋 Combos/Follow Ups (core/combos.js)
-    somarBonus(efeitosDeBuffsTemporarios(ficha)); // ✨ Buffs temporários de Suporte (core/suporte.js)
-    somarBonus(efeitosDeSuportePassivo(ficha)); // ✨ Suporte passivo (sempre ligado)
-    somarBonus(efeitosDaArmaEspiritual(ficha)); // ⚔️ Buffs do estado em vigor da Arma Espiritual
-    (ficha.inventario || []).filter(i => i && i.equipado).forEach(i => {
-        let resolved = resolverEfeitosEntidade({ ...i, efeitos: efeitosAtivosDoItem(i) });
-        somarBonus(resolved.efeitos);
-        somarBonus(resolved.efeitosPassivos);
-        somarConfigDaForma(i);
-    });
-    // 🔮 Pactos/Entidades Seladas sincronizadas (campos "Buffs Ativos" e "Buffs Passivos" do Reino Interior), com a Forma ativa.
-    (ficha.seresSelados || []).forEach(ser => {
-        if (!ser || !ser.ativo) return;
-        let resolved = resolverEfeitosEntidade(ser);
-        somarBonus(resolved.efeitos);
-        somarBonus(resolved.efeitosPassivos);
-        somarConfigDaForma(ser);
-    });
-    return bonus;
+// Soma dos efeitos com propriedade BASE de um atributo de combate ('evasiva', 'resistencia', 'acerto', 'iniciativa'...) vindos de TODAS as
+// fontes (core/efeitosCondicionais.js > coletarEfeitos). É o "bônus de outras fontes" que entra na redução de CA e Acerto. Efeitos com
+// condição ("quando") só valem quando o contexto de combate (montarContextoDeCombate) a cumpre; sem contexto, só os sem condição.
+export function somarBonusBase(ficha, atributo, contexto = {}) {
+    return somarEfeitosBase(ficha, atributo, contexto);
 }
 
 export function rolarDadosComVantagem(qD, fD, vantagens = 0, desvantagens = 0) {
@@ -470,7 +427,8 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     };
 }
 
-export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEquipados, vantagens = 0, desvantagens = 0 }) {
+// `alvo` (opcional): ficha ou Dummie atingido; é com ele que as condições "alvo com estado / vida abaixo de" dos efeitos são checadas.
+export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEquipados, vantagens = 0, desvantagens = 0, alvo = null }) {
     let iAcerto = 0;
     let nomesArmas = [];
     let tiposArmas = []; 
@@ -494,13 +452,28 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
     const vantagemClasse = getVantagensDeClasse(minhaFicha, tiposArmas);
     // 🩸 Estados negativos (Exaustão 3+, Cego/Surdo...) somam desvantagens a todo ataque (core/condicoes.js).
     const desvantagemEstados = modificadoresDeEstados(minhaFicha).desvAtaque;
-    let { sD, rolagemTexto, mantidos } = rolarDadosComVantagem(qD, fD, (parseInt(vantagens) || 0) + vantagemClasse.vantagens, (parseInt(desvantagens) || 0) + desvantagemEstados);
+    // 🎲 Efeitos VANTAGEM/DESVANTAGEM (escopo ataque) e PISO_D20 (só vale em ataque se o escopo disser 'ataque' ou 'tudo'), core/efeitosCondicionais.js.
+    const contexto = montarContextoDeCombate(minhaFicha, alvo);
+    const rolagemAtaque = { tipo: 'ataque', ids: [] };
+    const somaEfeitos = (atributo, escopoPadrao) => Math.max(0, Math.floor(valoresDeEfeitos(minhaFicha, atributo, { contexto, rolagem: rolagemAtaque, escopoPadrao }).reduce((s, v) => s + v, 0)));
+    const vantagemEfeitos = somaEfeitos('vantagem', 'ataque');
+    const desvantagemEfeitos = somaEfeitos('desvantagem', 'ataque');
+    const pisoD20 = Math.max(0, ...valoresDeEfeitos(minhaFicha, 'piso_d20', { contexto, rolagem: rolagemAtaque, escopoPadrao: 'teste' }).map(v => Math.floor(v)));
+    let { sD, rolagemTexto, mantidos } = rolarDadosComVantagem(qD, fD, (parseInt(vantagens) || 0) + vantagemClasse.vantagens + vantagemEfeitos, (parseInt(desvantagens) || 0) + desvantagemEstados + desvantagemEfeitos);
+    // Piso do d20 ("7 ou menos vale 8"): só com um único d20; vale ANTES de decidir o 20/1 natural (um 1 que vira 8 não é falha crítica).
+    if (pisoD20 > 0 && qD === 1 && fD === 20 && mantidos && mantidos.length === 1 && mantidos[0] < pisoD20) {
+        sD += pisoD20 - mantidos[0];
+        mantidos = [pisoD20];
+        rolagemTexto += ` (mínimo ${pisoD20})`;
+    }
 
     // Atributos escolhidos (somados), sem a Ascensão oculta. A redução vem depois, sobre o total com os bônus.
     const atributosBrutos = sels.reduce((soma, s) => soma + getRawBase(minhaFicha, s), 0);
 
     // 🎲 20 natural sempre acerta e 1 natural sempre falha (um único d20; vale o dado que ficou após vantagem/desvantagem).
     const naturalD20 = (qD === 1 && fD === 20 && mantidos && mantidos.length === 1 && (mantidos[0] === 20 || mantidos[0] === 1)) ? mantidos[0] : null;
+    // O d20 que ficou (2 a 19 também): é ele que decide Crítico e Crítico Fatal (core/critico.js), sem ler o texto da rolagem.
+    const dadoNatural = (qD === 1 && fD === 20 && mantidos && mantidos.length === 1) ? mantidos[0] : null;
 
     let bp = getPoderesDefesa(minhaFicha, 'bonus_acerto');
     const bonusClasse = getBonusAcertoDeClasse(minhaFicha);
@@ -533,7 +506,7 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
     // ACERTO = REDUÇÃO(atributo × (1 + 3 × bônus de Acerto)) + dado + Proficiência (+ Diferença de Poder, somada em core/disputaPoder.js).
     // Bônus de Acerto reduzidos: Bônus Fixo, Forma, Efeitos (ACERTO + BASE), Arma e Classe. Fora da redução: Prof e Maestria de arma (Proficiências).
     // `bonusEfeitos`: efeitos ACERTO + BASE de Habilidades/Poderes/Formas, Passivas, Combos, Suporte, Itens e Pactos (somarBonusBase).
-    const bonusEfeitos = somarBonusBase(minhaFicha, 'acerto');
+    const bonusEfeitos = somarBonusBase(minhaFicha, 'acerto', contexto);
     const bonusReduzidos = bonus + bp + iAcerto + bonusClasse + bonusEfeitos;
     const atributoEBonus = reduzirComBonus(atributosBrutos, bonusReduzidos);
 
@@ -550,6 +523,7 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
     return {
         acertoTotal: Math.floor(atributoEBonus + sD + prof + bonusProfArma),
         ...(naturalD20 ? { naturalD20 } : {}),
+        ...(dadoNatural ? { dadoNatural } : {}),
         rolagem: rolagemTexto,
         atributosUsados: atrNames.join(' + '),
         profBonusTexto: profBonusTexto,

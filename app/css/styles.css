@@ -3171,3 +3171,8 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .importacao-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
 .importacao-acoes button { flex: 1 1 120px; padding: 8px; cursor: pointer; }
 .importacao-confirmar { flex: 2 1 160px; }
+
+/* Condição e escopo opcionais de um efeito (components/shared/CondicaoDoEfeito.jsx) */
+.condicao-efeito { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; font-size: 0.8em; opacity: 0.9; }
+.condicao-efeito-campo { display: flex; align-items: center; gap: 6px; }
+.condicao-efeito input[type="number"] { width: 70px; }
