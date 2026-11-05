@@ -1,5 +1,5 @@
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
-import { lerRespostaDaIA, montarPoderImportado } from '../../core/importadorIA';
+import { lerRespostaDaIA, prepararImportacao, montarPoderFinal } from '../../core/importadorIA';
 import React, { createContext, useContext, useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes';
@@ -635,21 +635,37 @@ export function PoderesFormProvider({ children }) {
         setOverchargeAtivo(false);
     }, [overchargeAtivo, updateFicha, danoBruto, energiaElemental, minhaFicha, salvarFichaSilencioso]);
 
-    const injetarJsonDaIA = useCallback((jsonString) => {
+    // 1) Lê a resposta da IA e devolve a PRÉVIA ({ ok, itens } com avisos e o que não foi aplicado); nada é gravado.
+    const lerImportacao = useCallback((jsonString, chaveInicial = 1) => {
         const lido = lerRespostaDaIA(jsonString);
+        if (!lido.ok) return lido;
+        return { ok: true, itens: prepararImportacao(lido.itens, abaAtual, chaveInicial) };
+    }, [abaAtual]);
+
+    // 2) Grava na ficha só os itens da prévia que o jogador deixou marcados. Devolve quantos entraram.
+    const confirmarImportacao = useCallback((itensPrevia) => {
+        const lista = (Array.isArray(itensPrevia) ? itensPrevia : []).filter(it => it && it.marcado && it.valido && it.objeto && String(it.objeto.nome || '').trim());
+        if (lista.length === 0) return 0;
+        const time = Date.now();
+        updateFicha(f => {
+            if (!f.poderes) f.poderes = [];
+            lista.forEach((it, i) => { f.poderes.push(montarPoderFinal(it.objeto, time + i)); });
+        });
+        salvarFirebaseImediato().catch(() => {});
+        return lista.length;
+    }, [updateFicha, salvarFirebaseImediato]);
+
+    // Atalho de uma etapa só (sem prévia): lê e grava tudo o que for válido.
+    const injetarJsonDaIA = useCallback((jsonString) => {
+        const lido = lerImportacao(jsonString);
         if (!lido.ok) {
             alert(lido.erro);
             return false;
         }
-        const time = Date.now();
-        updateFicha(f => {
-            if (!f.poderes) f.poderes = [];
-            lido.itens.forEach((p, i) => { f.poderes.push(montarPoderImportado(p, abaAtual, time + i)); });
-        });
-        salvarFirebaseImediato().catch(() => {});
-        alert(`Sincronização Concluída!\n\n🗡️ Inscritos na aba atual: ${lido.itens.length}.`);
-        return true;
-    }, [updateFicha, abaAtual, salvarFirebaseImediato]);
+        const total = confirmarImportacao(lido.itens);
+        alert(`Sincronização Concluída!\n\n🗡️ Inscritos: ${total}.`);
+        return total > 0;
+    }, [lerImportacao, confirmarImportacao]);
 
     const value = useMemo(() => ({
         minhaFicha, meuNome, isMestre, abaAtual, setAbaAtual,
@@ -676,7 +692,7 @@ export function PoderesFormProvider({ children }) {
         armasEquipadas, itensFiltrados, relatorioAuditoria,
         curMana, curAura, curChakra, energiaElemental, danoBruto,
         dispararAtaque, efeitosTemp, efeitosTempPassivos, poderEditandoId,
-        injetarJsonDaIA
+        injetarJsonDaIA, lerImportacao, confirmarImportacao
     }), [
         minhaFicha, meuNome, isMestre, abaAtual,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
@@ -692,7 +708,7 @@ export function PoderesFormProvider({ children }) {
         deletarFormaPoder, ativarFormaPoder,
         armasEquipadas, itensFiltrados, relatorioAuditoria,
         curMana, curAura, curChakra, energiaElemental, danoBruto,
-        dispararAtaque, efeitosTemp, efeitosTempPassivos, poderEditandoId, injetarJsonDaIA
+        dispararAtaque, efeitosTemp, efeitosTempPassivos, poderEditandoId, injetarJsonDaIA, lerImportacao, confirmarImportacao
     ]);
 
     return (

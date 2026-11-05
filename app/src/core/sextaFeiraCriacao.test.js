@@ -13,7 +13,7 @@ describe('normalizarPoder', () => {
         expect(r.objeto).toEqual({
             nome: 'Golpe', descricao: '', vertente: '', elemento: '', elementosAfetados: '', categoria: 'habilidade', ativa: false,
             efeitos: [], efeitosPassivos: [], imagemUrl: '', dadosQtd: 2, dadosFaces: 6, custoPercentual: 10, alcance: 3, area: 0,
-            armaVinculada: '', pasta: '', maestria: 5, maestriaRequerida: 20,
+            armaVinculada: '', pasta: '', maestria: 5, maestriaRequerida: 20, tipoAcao: '', notasIA: '',
         });
     });
     it('poder tambem usa maestria + maestriaRequerida', () => {

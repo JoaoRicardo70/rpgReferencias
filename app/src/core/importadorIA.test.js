@@ -32,7 +32,7 @@ describe('importadorIA', () => {
 
     it('sem dano usa d20 de padrão; tipoAcao inválido vira automático; forma ganha maestria/fadiga', () => {
         const p = montarPoderImportado({ nome: '', danoQtd: -3, tipoAcao: 'xyz' }, 'forma', 1);
-        expect(p).toMatchObject({ nome: 'Sem nome', dadosQtd: 0, dadosFaces: 20, tipoAcao: '', maestria: 0, fadigaPorUso: 0 });
+        expect(p).toMatchObject({ dadosQtd: 0, dadosFaces: 20, tipoAcao: '', maestria: 0, fadigaPorUso: 0 });
         expect(p.maestriaRequerida).toBeUndefined();
     });
 });
@@ -72,13 +72,14 @@ describe('importadorIA (bordas)', () => {
         expect(p).toMatchObject({ dadosQtd: 3, dadosFaces: 8, alcance: 1, area: 2.5, custoPercentual: 0, maestria: 0, maestriaRequerida: 0 });
         const q = montarPoderImportado({ nome: 'B', alcance: '6' }, 'habilidade', 2);
         expect(q.alcance).toBe(6);
-        expect(montarPoderImportado({ nome: null, descricao: null, notasIA: null }, 'poder', 3)).toMatchObject({ nome: 'Sem nome', descricao: '', notasIA: '' });
+        expect(montarPoderImportado({ nome: null, descricao: null, notasIA: null }, 'poder', 3)).toMatchObject({ descricao: '', notasIA: '' });
         expect(montarPoderImportado({ danoQtd: 2.9 }, 'poder', 4).dadosQtd).toBe(2);
     });
 
-    it('categoria desconhecida não ganha maestria', () => {
+    it('categoria desconhecida cai em habilidade (normalizarPoder) e fica inativa', () => {
         const p = montarPoderImportado({ nome: 'x' }, 'outra', 1);
-        expect(p.maestria).toBeUndefined();
+        expect(p.categoria).toBe('habilidade');
+        expect(p.fadigaPorUso).toBeUndefined();
         expect(p.ativa).toBe(false);
     });
 });

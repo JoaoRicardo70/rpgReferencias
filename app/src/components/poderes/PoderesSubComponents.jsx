@@ -12,6 +12,7 @@ import { escalarEfeitosPorEstagio, previaEstagios, getMaximoEstagio, normalizarE
 import { construirArvorePastas, segmentosPasta } from '../../core/pastas';
 import { rotuloComPolaridade } from '../../core/polaridade';
 import { montarPromptImportacao } from '../../core/importadorIA';
+import ImportadorPrevia from './ImportadorPrevia';
 import EnsinarBotao from '../shared/EnsinarBotao';
 import EnsinamentosRecebidos from '../shared/EnsinamentosRecebidos';
 
@@ -81,9 +82,30 @@ export function PoderesImportadorIA() {
     const [jsonResposta, setJsonResposta] = useState('');
     const [fase, setFase] = useState(1);
     const [promptGerado, setPromptGerado] = useState('');
+    const [previa, setPrevia] = useState([]);
 
     if (!ctx) return null;
-    const { injetarJsonDaIA, abaAtual } = ctx;
+    const { lerImportacao, confirmarImportacao, abaAtual } = ctx;
+
+    // Lê a resposta da IA e abre a prévia (várias respostas podem ser somadas antes de gravar).
+    const lerResposta = () => {
+        const proxima = previa.reduce((m, it) => Math.max(m, it.chave), 0) + 1;
+        const r = lerImportacao(jsonResposta, proxima);
+        if (!r.ok) { alert(r.erro); return; }
+        setPrevia(atual => [...atual, ...r.itens]);
+        setJsonResposta('');
+        setFase(3);
+    };
+    const gravarPrevia = () => {
+        const total = confirmarImportacao(previa);
+        if (total === 0) { alert('Nenhum item marcado para gravar.'); return; }
+        alert(`Sincronização Concluída!\n\n🗡️ Inscritos: ${total}. Cada um foi para a aba da sua categoria.`);
+        setPrevia([]);
+        setTextoDocs('');
+        setPromptGerado('');
+        setFase(1);
+        setAberto(false);
+    };
 
     const gerarPrompt = async () => {
         if (!textoDocs.trim()) return alert("Cole o texto primeiro!");
@@ -107,13 +129,23 @@ export function PoderesImportadorIA() {
                             <textarea value={textoDocs} onChange={e => setTextoDocs(e.target.value)} placeholder="Cole aqui os textos longos..." style={{ width: '100%', height: '120px', background: 'transparent', padding: '10px', resize: 'vertical' }} />
                             <button onClick={gerarPrompt} style={{ width: '100%', marginTop: '10px', padding: '8px' }}>1. Copiar Feitiço de Extração (Prompt)</button>
                         </>
+                    ) : fase === 3 ? (
+                        <ImportadorPrevia
+                            itens={previa}
+                            onAtualizar={(chave, novo) => setPrevia(atual => atual.map(it => (it.chave === chave ? novo : it)))}
+                            onRemover={(chave) => { const resto = previa.filter(it => it.chave !== chave); setPrevia(resto); if (resto.length === 0) setFase(2); }}
+                            onConfirmar={gravarPrevia}
+                            onVoltar={() => setFase(2)}
+                            onAdicionarOutra={() => setFase(2)}
+                        />
                     ) : (
                         <>
                             <textarea readOnly value={promptGerado} onFocus={e => e.target.select()} aria-label="Instrução para a IA" style={{ width: '100%', height: '60px', background: 'transparent', padding: '10px', marginBottom: '10px', fontSize: '0.8em', opacity: 0.7 }} />
                             <textarea value={jsonResposta} onChange={e => setJsonResposta(e.target.value)} placeholder="Cole o Código Arcano (JSON) devolvido pela IA..." style={{ width: '100%', height: '120px', background: 'transparent', fontFamily: 'monospace', padding: '10px', resize: 'vertical' }} />
                             <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                                 <button onClick={() => setFase(1)} style={{ flex: 1, padding: '8px' }}>Voltar</button>
-                                <button onClick={() => { if(injetarJsonDaIA(jsonResposta)) setAberto(false); }} style={{ flex: 2, padding: '8px' }}>2. Transcrever para o Grimório</button>
+                                {previa.length > 0 && <button onClick={() => setFase(3)} style={{ flex: 1, padding: '8px' }}>Ver prévia ({previa.length})</button>}
+                                <button onClick={lerResposta} style={{ flex: 2, padding: '8px' }}>2. Ler resposta e ver a prévia</button>
                             </div>
                         </>
                     )}
