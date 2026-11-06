@@ -73,10 +73,13 @@ describe('importador v2 - pipeline completo', () => {
         expect(f.naoAplicado.some(n => /velocidade_da_luz/.test(n))).toBe(true);
     });
 
-    it('multiplicadores, dano e valor não numérico vão para naoAplicado e para as notas', () => {
+    it('multiplicador valido vira pendente; atributo inexistente, dano base e valor não numérico vão para naoAplicado e para as notas', () => {
         const [f] = pipeline();
-        expect(f.naoAplicado.some(n => /mgeral/.test(n))).toBe(true);
-        expect(f.naoAplicado.some(n => /mbase/.test(n))).toBe(true);
+        expect(f.objeto.efeitosIncertos).toEqual([
+            expect.objectContaining({ multiplicador: true, atributo: 'poder_direto', propriedade: 'mgeral', valor: 40, destino: 'passivo' }),
+            expect.objectContaining({ multiplicador: true, atributo: 'todos_status', propriedade: 'mbase', valor: 50, destino: 'passivo' }),
+        ]);
+        expect(f.naoAplicado.some(n => /mgeral/.test(n))).toBe(false);
         expect(f.naoAplicado.some(n => /Dano puro/.test(n) && /dano base 10/.test(n))).toBe(true);
         expect(f.naoAplicado.some(n => /x40/.test(n) && /forca/.test(n))).toBe(true);
         expect(f.naoAplicado).toContain('x40 em todo dano');
@@ -112,6 +115,12 @@ describe('importador v2 - pipeline completo', () => {
         const final = montarPoderFinal(f.objeto, 99);
         expect(final).not.toHaveProperty('naoAplicado');
         expect(final.id).toBe(99);
+        // x40 Geral passivo grava 39 (motor soma a 1) e some do campo de incertos
+        expect(final).not.toHaveProperty('efeitosIncertos');
+        expect(final.efeitosPassivos.at(-2)).toMatchObject({ atributo: 'poder_direto', propriedade: 'mgeral', valor: 39 });
+        expect(final.efeitosPassivos.at(-1)).toMatchObject({ atributo: 'todos_status', propriedade: 'mbase', valor: 49 });
+        final.efeitosPassivos.slice(-2).forEach(e => { expect(e).not.toHaveProperty('multiplicador'); expect(e).not.toHaveProperty('destino'); });
+        final.efeitosPassivos.splice(-2);
         expect(final.efeitosPassivos).toEqual(f.objeto.efeitosPassivos);
         expect(final.efeitosPassivos).not.toBe(f.objeto.efeitosPassivos);
         expect(final.efeitosPassivos[0]).not.toBe(f.objeto.efeitosPassivos[0]);
@@ -212,8 +221,10 @@ describe('importador v2 - prompt', () => {
         expect(p).toContain('"atributo":"acerto"');
         expect(p).toContain('reduzir_dano');
     });
-    it('manda NÃO converter multiplicadores e usar naoAplicado', () => {
-        expect(p).toMatch(/NÃO CONVERTA multiplicadores/);
+    it('explica MULTIPLICADORES e traz "multiplicadores" no exemplo, mantendo naoAplicado', () => {
+        expect(p).toContain('MULTIPLICADORES (');
+        expect(p).not.toMatch(/NÃO CONVERTA multiplicadores/);
+        expect(p).toContain('"multiplicadores": []');
         expect(p).toContain('naoAplicado');
     });
     it('categoria padrão entra no exemplo de retorno', () => {

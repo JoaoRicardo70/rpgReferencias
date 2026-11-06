@@ -109,7 +109,8 @@ describe('ImportadorPrevia - sub-habilidades e incertos', () => {
         const its = itens();
         its[0].objeto = decidirTodosOsIncertos(its[0].objeto, 'passivo');
         montar(its);
-        screen.getAllByText('🛡️ Sempre (passivo)').forEach(b => expect(b.getAttribute('aria-pressed')).toBe('true'));
+        screen.getAllByText('✔ 🛡️ Sempre (passivo)').forEach(b => expect(b.getAttribute('aria-pressed')).toBe('true'));
+        expect(screen.queryByText('🛡️ Sempre (passivo)')).toBeNull();
         screen.getAllByText('⚡ Só ao ativar').forEach(b => expect(b.getAttribute('aria-pressed')).toBe('false'));
     });
 

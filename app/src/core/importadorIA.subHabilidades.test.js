@@ -56,13 +56,15 @@ describe('prepararItemImportado - subHabilidades e incertos', () => {
         expect(objeto.formas).toBeUndefined();
     });
 
-    it('efeito invalido e multiplicador na sub vao para naoAplicado da sub', () => {
+    it('efeito invalido vai para naoAplicado da sub; multiplicador na sub vira pendente da sub', () => {
         const { objeto } = prepararItemImportado({ nome: 'X', subHabilidades: [{ nome: 'S',
             efeitos: [{ atributo: 'dano', propriedade: 'mgeral', valor: 50 }, { atributo: 'inexistente', propriedade: 'base', valor: 1 }, ef('acerto', 'abc'), ef('acerto', '7')] }] });
         const sub = objeto.formas[0];
         expect(sub.configs[0].efeitos).toHaveLength(1);
         expect(sub.configs[0].efeitos[0].valor).toBe(7);
-        expect(sub.naoAplicado.length).toBe(3);
+        expect(sub.naoAplicado.length).toBe(2);
+        expect(sub.configs[0].efeitosIncertos).toEqual([expect.objectContaining({ multiplicador: true, atributo: 'poder_direto', propriedade: 'mgeral', valor: 50, destino: 'ativo' })]);
+        expect(contarPendentes(objeto)).toBe(0);
     });
 
     it('listas nao-array e nulos nao quebram', () => {

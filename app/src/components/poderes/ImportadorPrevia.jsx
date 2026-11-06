@@ -1,5 +1,5 @@
 import React from 'react';
-import { resumirItemImportado, mudarCategoriaImportada, listarEfeitosIncertos, contarPendentes, decidirEfeitoIncerto, decidirTodosOsIncertos } from '../../core/importadorIA';
+import { resumirItemImportado, mudarCategoriaImportada, listarEfeitosIncertos, contarPendentes, faltaResponder, decidirEfeitoIncerto, decidirTodosOsIncertos, definirTipoMultiplicador, TIPOS_MULTIPLICADOR } from '../../core/importadorIA';
 import { trocarElementoDaPrevia } from '../../core/importadorTecnicas';
 
 const CATEGORIAS = [
@@ -8,7 +8,9 @@ const CATEGORIAS = [
     { id: 'forma', rotulo: 'Forma' },
 ];
 
-const textoEfeito = (e) => `${String(e.atributo || '').replace('_', ' ').toUpperCase()} ${String(e.propriedade || '').toUpperCase()} ${e.valor}`;
+const textoEfeito = (e) => (e.multiplicador
+    ? `x${e.valor} em ${String(e.atributo || '').replace('_', ' ').toUpperCase()}`
+    : `${String(e.atributo || '').replace('_', ' ').toUpperCase()} ${String(e.propriedade || '').toUpperCase()} ${e.valor}`);
 
 function ListaEfeitos({ titulo, efeitos }) {
     if (!efeitos || efeitos.length === 0) return null;
@@ -30,6 +32,7 @@ export default function ImportadorPrevia({ itens, onAtualizar, onRemover, onConf
     const pendentes = itens.filter(it => it.marcado && it.valido).reduce((soma, it) => soma + contarPendentes(it.objeto), 0);
 
     const decidir = (it, onde, indice, destino) => onAtualizar(it.chave, { ...it, objeto: decidirEfeitoIncerto(it.objeto, onde, indice, destino) });
+    const escolherTipo = (it, onde, indice, tipo) => onAtualizar(it.chave, { ...it, objeto: definirTipoMultiplicador(it.objeto, onde, indice, tipo) });
     const decidirTodos = (it, destino) => onAtualizar(it.chave, { ...it, objeto: decidirTodosOsIncertos(it.objeto, destino) });
     const tirarSub = (it, indice) => onAtualizar(it.chave, { ...it, objeto: { ...it.objeto, formas: it.objeto.formas.filter((_, i) => i !== indice) } });
 
@@ -82,12 +85,21 @@ export default function ImportadorPrevia({ itens, onAtualizar, onRemover, onConf
                     )}
                     {listarEfeitosIncertos(it.objeto).length > 0 && (
                         <div className="importacao-incertos" role="group" aria-label="Efeitos sem ativação clara">
-                            <div className="importacao-efeitos-titulo">❓ O texto não diz se estes efeitos valem sempre ou só com a habilidade ligada. Como aplicar?</div>
+                            <div className="importacao-efeitos-titulo">❓ O texto não diz se estes efeitos valem sempre ou só com a habilidade ligada (e, nos multiplicadores, de que tipo são). Como aplicar?</div>
                             {listarEfeitosIncertos(it.objeto).map(({ onde, indice, efeito }) => (
-                                <div key={`${onde}_${indice}`} className="importacao-incerto">
+                                <div key={`${onde}_${indice}`} className={`importacao-incerto${faltaResponder(efeito) ? '' : ' respondido'}`}>
+                                    <span className="importacao-incerto-estado" aria-hidden="true">{faltaResponder(efeito) ? '❓' : '✔'}</span>
                                     <span className="importacao-chip" title={efeito.nome || ''}>{onde === 'pai' ? '' : `${it.objeto.formas[onde].nome}: `}{efeito.nome ? `${efeito.nome} · ` : ''}{textoEfeito(efeito)}</span>
-                                    <button type="button" className={`importacao-opcao${efeito.destino === 'ativo' ? ' escolhida' : ''}`} aria-pressed={efeito.destino === 'ativo'} onClick={() => decidir(it, onde, indice, 'ativo')}>⚡ Só ao ativar</button>
-                                    <button type="button" className={`importacao-opcao${efeito.destino === 'passivo' ? ' escolhida' : ''}`} aria-pressed={efeito.destino === 'passivo'} onClick={() => decidir(it, onde, indice, 'passivo')}>🛡️ Sempre (passivo)</button>
+                                    <button type="button" className={`importacao-opcao${efeito.destino === 'ativo' ? ' escolhida' : ''}`} aria-pressed={efeito.destino === 'ativo'} onClick={() => decidir(it, onde, indice, 'ativo')}>{efeito.destino === 'ativo' ? '✔ ' : ''}⚡ Só ao ativar</button>
+                                    <button type="button" className={`importacao-opcao${efeito.destino === 'passivo' ? ' escolhida' : ''}`} aria-pressed={efeito.destino === 'passivo'} onClick={() => decidir(it, onde, indice, 'passivo')}>{efeito.destino === 'passivo' ? '✔ ' : ''}🛡️ Sempre (passivo)</button>
+                                    {efeito.multiplicador && (
+                                        <span className="importacao-tipos" role="group" aria-label="Tipo de multiplicador">
+                                            <span className="importacao-efeitos-titulo">Tipo:</span>
+                                            {TIPOS_MULTIPLICADOR.map(t => (
+                                                <button key={t.id} type="button" className={`importacao-opcao${efeito.propriedade === t.id ? ' escolhida' : ''}`} aria-pressed={efeito.propriedade === t.id} onClick={() => escolherTipo(it, onde, indice, t.id)}>{efeito.propriedade === t.id ? '✔ ' : ''}{t.rotulo}</button>
+                                            ))}
+                                        </span>
+                                    )}
                                 </div>
                             ))}
                             <div className="importacao-incerto-todos">

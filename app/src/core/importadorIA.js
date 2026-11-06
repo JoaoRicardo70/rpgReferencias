@@ -35,7 +35,7 @@ CAMPOS DE CADA ITEM
 - "efeitos": efeitos que valem enquanto a habilidade está LIGADA (ativa): o texto diz "ao usar", "ao ativar", "enquanto ativo".
 - "efeitosPassivos": efeitos que valem SEMPRE, SOMENTE se o texto disser isso com todas as letras (seção "Passivas", "passivo", "sempre ativo", "permanente", "sem precisar ativar"). NUNCA coloque aqui um bônus só porque o texto o lista.
 - "efeitosIncertos": bônus que o texto lista mas NÃO deixa claro se valem sempre ou só com a habilidade ligada (ex.: uma lista solta "Aumenta a rolagem de ataque em +10"). NA DÚVIDA, use este campo: o jogador decide depois. Mesmo formato dos outros efeitos.
-- "subHabilidades": quando o texto tem uma habilidade PRINCIPAL (um título, ex.: "Rinnegan Supremo (Olho esquerdo):") e, abaixo dela, itens com nome próprio que são habilidades DELA (ex.: "- Limbo: ...", "- Izanagi: ..."), crie UM item só para a principal e ponha esses itens aqui, SEM criar itens separados para eles: [{"nome","descricao","tipoAcao","usosMax","usosPor","efeitos","efeitosPassivos","efeitosIncertos","naoAplicado"}] (mesmas regras dos campos acima). Observações soltas da principal (ex.: "x800 em todo dano") ficam na principal, em "naoAplicado". Textos de prints seguidos sobre a mesma habilidade principal são UM item só. Sem sub-habilidades, use [].
+- "subHabilidades": quando o texto tem uma habilidade PRINCIPAL (um título, ex.: "Rinnegan Supremo (Olho esquerdo):") e, abaixo dela, itens com nome próprio que são habilidades DELA (ex.: "- Limbo: ...", "- Izanagi: ..."), crie UM item só para a principal e ponha esses itens aqui, SEM criar itens separados para eles: [{"nome","descricao","tipoAcao","usosMax","usosPor","efeitos","efeitosPassivos","efeitosIncertos","multiplicadores","naoAplicado"}] (mesmas regras dos campos acima). Observações soltas da principal (ex.: "x800 em todo dano") ficam na principal, em "naoAplicado". Textos de prints seguidos sobre a mesma habilidade principal são UM item só. Sem sub-habilidades, use [].
   Cada efeito: {"nome": "...", "atributo": "...", "propriedade": "...", "valor": 0}. "valor" é SEMPRE um número puro.
 - "aplicaEstados": estados que a habilidade causa em quem ela atinge: [{"id": "...", "stacks": 1}]. Ids válidos: ${ESTADOS.map(e => e.id).join(', ')}.
 - "usosMax" e "usosPor": se o texto limita os usos ("1 vez por cena", "3 usos por descanso"), coloque o número em "usosMax" e "cena" ou "descanso" em "usosPor". Sem limite, omita os dois.
@@ -59,7 +59,7 @@ COMO TRADUZIR
 - "trate um resultado de 7 ou menos no d20 como 8" (em testes de Intuição): {"atributo":"piso_d20","propriedade":"base","valor":8,"escopo":"teste:intuicao"}.
 - Crítico: "Crítico a partir de 14": {"atributo":"margem_critico","propriedade":"base","valor":14}. "Crítico FATAL a partir de 19": {"atributo":"margem_critico_fatal","propriedade":"base","valor":19}. Crítico e Crítico Fatal são DIFERENTES: não troque um pelo outro. "Todo acerto contra um alvo surpreso é crítico": {"atributo":"critico_automatico","propriedade":"base","valor":1,"quando":"alvo_com_estado:surpreso"} (use "critico_fatal_automatico" se o texto disser Crítico Fatal).
 - CONDIÇÃO ("quando", opcional): só use se o texto condicionar o efeito. Valores: "em_combate", "empunhando_arma" ou "empunhando_arma:<tipo, ex.: espada>", "alvo_com_estado:<id do estado>", "alvo_vida_abaixo:<%>". Sem condição, não escreva o campo. O "quando" SÓ pode ser usado nestes atributos: ${ATRIBUTOS_COM_QUANDO.join(', ')}. Para qualquer outro atributo (forca, dano, vida...), NÃO escreva "quando": o efeito condicional vai para "naoAplicado".
-NÃO CONVERTA multiplicadores (xN no dano, xN em status, xN em poder direto, "dobra", "triplica"...): não crie efeito para eles. Coloque cada um em "naoAplicado" (ex.: "x40 em todo dano").
+MULTIPLICADORES (xN no dano, xN em status, xN em poder direto, "dobra", "triplica"...): NÃO os coloque em "efeitos". Use "multiplicadores": [{"nome":"...","atributo":"poder_direto" (dano e poder também valem poder_direto; ou o atributo, ex.: forca),"valor":N (x800 = 800),"tipo":"base" | "geral" | "formas" | "absoluto" | "unico" (SÓ se o texto disser, ex.: "dano Geral" = geral; senão "")}]. O jogador decide depois se vale sempre ou só ao ativar e confirma o tipo.
 Se não existir um atributo exato para o que o texto pede, NÃO invente: coloque em "naoAplicado" e em "notasIA".
 
 TEXTO:
@@ -67,7 +67,7 @@ ${String(texto || '').trim()}
 
 RETORNE SOMENTE UM JSON PURO, sem explicações:
 {
-  "poderes": [{ "nome": "X", "descricao": "Y", "categoria": "${padrao}", "danoQtd": 0, "danoFaces": 0, "custoPercentual": 0, "alcance": 0, "area": 0, "tipoAcao": "", "efeitos": [], "efeitosPassivos": [], "efeitosIncertos": [{ "nome": "Pele dura", "atributo": "evasiva", "propriedade": "base", "valor": 5 }], "subHabilidades": [], "aplicaEstados": [], "notasIA": "", "naoAplicado": [] }]
+  "poderes": [{ "nome": "X", "descricao": "Y", "categoria": "${padrao}", "danoQtd": 0, "danoFaces": 0, "custoPercentual": 0, "alcance": 0, "area": 0, "tipoAcao": "", "efeitos": [], "efeitosPassivos": [], "efeitosIncertos": [{ "nome": "Pele dura", "atributo": "evasiva", "propriedade": "base", "valor": 5 }], "multiplicadores": [], "subHabilidades": [], "aplicaEstados": [], "notasIA": "", "naoAplicado": [] }]
 }`;
 }
 
@@ -199,6 +199,51 @@ function separarEfeitosImportaveis(lista, naoAplicado) {
     }).map(e => ({ ...e, valor: num(e.valor) }));
 }
 
+// Tipos de multiplicador do sistema (propriedade do efeito) que o jogador escolhe na prévia.
+export const TIPOS_MULTIPLICADOR = [
+    { id: 'mbase', rotulo: 'Base' },
+    { id: 'mgeral', rotulo: 'Geral' },
+    { id: 'mformas', rotulo: 'Forma' },
+    { id: 'mabs', rotulo: 'Absoluto' },
+    { id: 'munico', rotulo: 'Único' },
+];
+const TIPO_POR_NOME = { base: 'mbase', mbase: 'mbase', geral: 'mgeral', mgeral: 'mgeral', forma: 'mformas', formas: 'mformas', mformas: 'mformas', absoluto: 'mabs', abs: 'mabs', mabs: 'mabs', unico: 'munico', munico: 'munico' };
+const ATRIBUTO_COMO_PODER_DIRETO = ['dano', 'poder', 'poder_direto', 'poder direto', 'poderdireto'];
+const ehMultiplicador = (e) => !!e && typeof e === 'object' && PROPRIEDADES_NAO_IMPORTADAS.includes(minusculo(e.propriedade));
+const semMultiplicadores = (lista) => (Array.isArray(lista) ? lista : []).filter(e => !ehMultiplicador(e));
+export const ehTipoMultiplicador = (v) => TIPOS_MULTIPLICADOR.some(t => t.id === v);
+
+// Multiplicador da IA -> item pendente da prévia { nome, atributo, propriedade: tipo ou '', valor, destino, multiplicador: true }.
+// 'dano' e 'poder' viram Poder Direto (o multiplicador de dano das fichas antigas virou aumento do Poder Calculado).
+function prepararMultiplicador(bruto, destinoInicial, naoAplicado) {
+    if (!bruto || typeof bruto !== 'object') return null;
+    const valor = parseFloat(String(bruto.valor ?? '').replace(',', '.'));
+    const atributoBruto = minusculo(bruto.atributo) || 'poder_direto';
+    const atributo = ATRIBUTO_COMO_PODER_DIRETO.includes(atributoBruto) ? 'poder_direto' : (ATRIBUTOS_EFEITO.find(a => minusculo(a) === atributoBruto) || '');
+    if (!Number.isFinite(valor) || valor <= 0 || !atributo) {
+        naoAplicado.push(`Multiplicador não importado (${bruto.nome ? `${bruto.nome}: ` : ''}${bruto.atributo || '?'} x${bruto.valor ?? '?'})`);
+        return null;
+    }
+    const tipo = TIPO_POR_NOME[minusculo(bruto.tipo ?? bruto.propriedade)] || '';
+    return { nome: String(bruto.nome ?? '').trim(), atributo, propriedade: tipo, valor, destino: destinoInicial || '', multiplicador: true };
+}
+
+// Todos os multiplicadores de um item da IA (campo "multiplicadores" e efeitos com propriedade de multiplicador).
+// Quem veio de "efeitos"/"efeitosPassivos" já traz a ativação que a IA decidiu; os demais esperam o jogador.
+function colherMultiplicadores(p, naoAplicado) {
+    const lista = [];
+    const adiciona = (fonte, destino) => (Array.isArray(fonte) ? fonte : []).forEach(m => {
+        if (destino !== undefined && !ehMultiplicador(m)) return;
+        const r = prepararMultiplicador(m, destino, naoAplicado);
+        if (r) lista.push(r);
+    });
+    adiciona(p.multiplicadores, undefined);
+    adiciona(p.efeitos, 'ativo');
+    adiciona(p.efeitosPassivos, 'passivo');
+    adiciona(p.efeitosIncertos, '');
+    return lista;
+}
+
 // Valida UM item vindo da IA e devolve { objeto, avisos, naoAplicado, valido }. `objeto` já está no formato do Grimório (sem id).
 export function prepararItemImportado(bruto, categoriaPadrao = 'habilidade') {
     const p = bruto && typeof bruto === 'object' ? bruto : {};
@@ -213,9 +258,10 @@ export function prepararItemImportado(bruto, categoriaPadrao = 'habilidade') {
         alcance: num(p.alcance),
         area: num(p.area),
         fadigaPorUso: num(p.fadigaPorUso),
-        efeitos: separarEfeitosImportaveis(p.efeitos, naoAplicado),
-        efeitosPassivos: separarEfeitosImportaveis(p.efeitosPassivos, naoAplicado),
+        efeitos: separarEfeitosImportaveis(semMultiplicadores(p.efeitos), naoAplicado),
+        efeitosPassivos: separarEfeitosImportaveis(semMultiplicadores(p.efeitosPassivos), naoAplicado),
     };
+    const multiplicadores = colherMultiplicadores(p, naoAplicado);
     if (p.suporte && typeof p.suporte === 'object' && Array.isArray(p.suporte.buffs)) {
         dados.suporte = { ...p.suporte, buffs: separarEfeitosImportaveis(p.suporte.buffs, naoAplicado) };
     }
@@ -223,8 +269,8 @@ export function prepararItemImportado(bruto, categoriaPadrao = 'habilidade') {
     objeto.custoPercentualMax = 0;
     objeto.semComoPoder = false;
     // Efeitos sem ativação clara esperam o jogador decidir (Ao ativar x Sempre) na prévia: nada é aplicado antes disso.
-    const incertos = separarEfeitosImportaveis(p.efeitosIncertos, naoAplicado);
-    if (incertos.length) objeto.efeitosIncertos = incertos.map(e => ({ ...e, destino: '' }));
+    const incertos = [...separarEfeitosImportaveis(semMultiplicadores(p.efeitosIncertos), naoAplicado).map(e => ({ ...e, destino: '' })), ...multiplicadores];
+    if (incertos.length) objeto.efeitosIncertos = incertos;
     // Sub-habilidades: viram Formas Místicas do próprio Poder (id definido só na hora de gravar).
     const subs = (Array.isArray(p.subHabilidades) ? p.subHabilidades : []).map(s => prepararSubHabilidade(s)).filter(Boolean);
     if (subs.length) objeto.formas = subs;
@@ -239,9 +285,9 @@ function prepararSubHabilidade(bruto) {
     const nome = String(s && s.nome ? s.nome : '').trim();
     if (!nome) return null;
     const naoAplicado = textoLista(s.naoAplicado);
-    const efeitos = separarEfeitosImportaveis(s.efeitos, naoAplicado);
-    const efeitosPassivos = separarEfeitosImportaveis(s.efeitosPassivos, naoAplicado);
-    const incertos = separarEfeitosImportaveis(s.efeitosIncertos, naoAplicado).map(e => ({ ...e, destino: '' }));
+    const efeitos = separarEfeitosImportaveis(semMultiplicadores(s.efeitos), naoAplicado);
+    const efeitosPassivos = separarEfeitosImportaveis(semMultiplicadores(s.efeitosPassivos), naoAplicado);
+    const incertos = [...separarEfeitosImportaveis(semMultiplicadores(s.efeitosIncertos), naoAplicado).map(e => ({ ...e, destino: '' })), ...colherMultiplicadores(s, naoAplicado)];
     const detalhes = [];
     const acao = String(s.tipoAcao ?? '').trim();
     if (acao) detalhes.push(`Ação: ${acao}`);
@@ -267,14 +313,25 @@ export function listarEfeitosIncertos(objeto) {
     return lista;
 }
 
-export const contarPendentes = (objeto) => listarEfeitosIncertos(objeto).filter(i => i.efeito.destino !== 'ativo' && i.efeito.destino !== 'passivo').length;
+// Falta responder: a ativação (Só ao ativar / Sempre) e, nos multiplicadores, também o tipo.
+export const faltaResponder = (efeito) => !efeito || (efeito.destino !== 'ativo' && efeito.destino !== 'passivo') || (!!efeito.multiplicador && !ehTipoMultiplicador(efeito.propriedade));
+export const contarPendentes = (objeto) => listarEfeitosIncertos(objeto).filter(i => faltaResponder(i.efeito)).length;
+
+function alterarIncerto(objeto, onde, indice, alterar) {
+    const copia = JSON.parse(JSON.stringify(objeto || {}));
+    const lista = onde === 'pai' ? copia.efeitosIncertos : (copia.formas && copia.formas[onde] && copia.formas[onde].configs && copia.formas[onde].configs[0].efeitosIncertos);
+    if (lista && lista[indice]) alterar(lista[indice]);
+    return copia;
+}
 
 // Grava a escolha ('ativo' | 'passivo' | '' para desfazer) de um efeito incerto. Devolve um objeto novo.
 export function decidirEfeitoIncerto(objeto, onde, indice, destino) {
-    const copia = JSON.parse(JSON.stringify(objeto || {}));
-    const lista = onde === 'pai' ? copia.efeitosIncertos : (copia.formas && copia.formas[onde] && copia.formas[onde].configs[0].efeitosIncertos);
-    if (lista && lista[indice]) lista[indice].destino = destino === 'ativo' || destino === 'passivo' ? destino : '';
-    return copia;
+    return alterarIncerto(objeto, onde, indice, (e) => { e.destino = destino === 'ativo' || destino === 'passivo' ? destino : ''; });
+}
+
+// Escolhe o tipo ('mbase' | 'mgeral' | 'mformas' | 'mabs' | 'munico') de um multiplicador pendente. Devolve um objeto novo.
+export function definirTipoMultiplicador(objeto, onde, indice, tipo) {
+    return alterarIncerto(objeto, onde, indice, (e) => { if (e.multiplicador) e.propriedade = ehTipoMultiplicador(tipo) ? tipo : ''; });
 }
 
 // Decide todos os incertos de uma vez ('ativo' | 'passivo').
@@ -285,13 +342,26 @@ export function decidirTodosOsIncertos(objeto, destino) {
 }
 
 // Move os incertos decididos para efeitos / efeitosPassivos. Sem decisão (atalho sem prévia) vale 'ativo': só funciona com o poder ligado, nunca de graça.
+// Multiplicador sem tipo escolhido (só no atalho sem prévia) NÃO é aplicado: devolve o texto para a nota.
 function resolverIncertos(alvo) {
     const incertos = alvo.efeitosIncertos || [];
     delete alvo.efeitosIncertos;
-    incertos.forEach(({ destino, ...efeito }) => {
+    const naoAplicados = [];
+    incertos.forEach(({ destino, multiplicador, ...bruto }) => {
+        let efeito = bruto;
+        if (multiplicador) {
+            const rotulo = `${efeito.nome ? `${efeito.nome}: ` : ''}${efeito.atributo} x${efeito.valor}`;
+            if (!ehTipoMultiplicador(efeito.propriedade)) { naoAplicados.push(`Multiplicador sem tipo escolhido, não aplicado (${rotulo})`); return; }
+            // No motor Base/Geral/Forma/Absoluto SOMAM a 1 ((1+Σ)): "x800" grava 799. Só o Único é fator puro.
+            if (efeito.propriedade !== 'munico') {
+                if (efeito.valor <= 1) { naoAplicados.push(`Multiplicador x${efeito.valor} não muda nada nesse tipo, não aplicado (${rotulo})`); return; }
+                efeito = { ...efeito, valor: efeito.valor - 1 };
+            }
+        }
         if (destino === 'passivo') alvo.efeitosPassivos = [...(alvo.efeitosPassivos || []), efeito];
         else alvo.efeitos = [...(alvo.efeitos || []), efeito];
     });
+    return naoAplicados;
 }
 
 // Notas finais do poder: o que a IA escreveu + o que não foi aplicado, para nada se perder.
@@ -335,14 +405,16 @@ export function resumirItemImportado(objeto) {
 export function montarPoderFinal(objeto, id) {
     const copia = JSON.parse(JSON.stringify(objeto || {}));
     delete copia.naoAplicado;
-    resolverIncertos(copia);
+    const semTipo = resolverIncertos(copia);
+    if (semTipo.length) copia.notasIA = [copia.notasIA, ...semTipo].filter(Boolean).join('\n');
     if (Array.isArray(copia.formas)) {
         // Ids únicos dentro do Poder: a Forma e o seu Modo.
         copia.formas = copia.formas.map((forma, i) => {
             const { naoAplicado, ...resto } = forma;
             const formaId = typeof id === 'number' && Number.isFinite(id) ? id * 100 + i * 2 + 1 : `${id}_f${i + 1}`;
             const config = { ...(resto.configs && resto.configs[0] ? resto.configs[0] : {}), id: typeof formaId === 'number' ? formaId + 1 : `${formaId}_m1` };
-            resolverIncertos(config);
+            const semTipoSub = resolverIncertos(config);
+            if (semTipoSub.length) resto.descricao = [resto.descricao, ...semTipoSub].filter(Boolean).join('\n');
             return { ...resto, id: formaId, configs: [config] };
         });
     }

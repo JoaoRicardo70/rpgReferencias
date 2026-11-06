@@ -121,9 +121,11 @@ describe('ImportadorPrevia', () => {
         expect(screen.getByText('Passivos:')).toBeTruthy();
         expect(screen.getByText('Ativos:')).toBeTruthy();
         expect(screen.getByText(/x50 em tudo/)).toBeTruthy();
-        expect(screen.getByText(/Multiplicador não importado/)).toBeTruthy();
         expect(screen.getAllByText(/Não aplicado automaticamente/).length).toBeGreaterThan(0);
         expect(screen.queryByText('DANO MGERAL 40')).toBeNull();
+        // o multiplicador agora é pendente: aparece como chip xN, não como "não importado"
+        expect(screen.queryByText(/Multiplicador não importado/)).toBeNull();
+        expect(screen.getByText(/x40 em PODER DIRETO/)).toBeTruthy();
     });
 
     it('mostra avisos do normalizarPoder', () => {
