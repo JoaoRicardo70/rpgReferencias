@@ -7,6 +7,8 @@ import { POLARIDADES, getInfoPolaridade } from '../../core/polaridade.js';
 import { agruparElementosPorCategoria, chaveElemento } from '../../core/elementos.js';
 import { resumoDosEstados } from '../../core/condicoes.js';
 import { buffsTemporariosDaFicha } from '../../core/suporte.js';
+import { listaDeContadores, LIMITE_CONTADORES } from '../../core/contadores.js';
+import { temEstagios } from '../../core/estagios.js';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Ficha provider não encontrado</div>;
 
@@ -228,7 +230,9 @@ export function FichaCondicoesEElementais() {
     const ctx = useFichaForm();
     if (!ctx) return null;
 
-    const { minhaFicha, modificarCondicao, removerBuffTemporario, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano } = ctx;
+    const { minhaFicha, modificarCondicao, removerBuffTemporario, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, adicionarContadorFicha, removerContadorFicha, atualizarContadorFicha, mudarContadorFicha } = ctx;
+    const contadores = listaDeContadores(minhaFicha);
+    const poderesComEstagios = (Array.isArray(minhaFicha.poderes) ? minhaFicha.poderes : []).filter(p => p && temEstagios(p));
     const reducoes = Array.isArray(minhaFicha.reducoesDano) ? minhaFicha.reducoesDano : [];
     const passivas = reducoes.filter(r => r && r.tipo === TIPO_HABILIDADE_PASSIVA);
     const ativas = reducoes.filter(r => r && r.tipo !== TIPO_HABILIDADE_PASSIVA);
@@ -244,6 +248,30 @@ export function FichaCondicoesEElementais() {
 
     return (
         <div className="estados-pagina fade-in">
+            {/* SEÇÃO 0: CONTADORES MANUAIS (core/contadores.js) */}
+            <section className="estados-secao">
+                <h3 className="estados-secao-titulo">🔢 Contadores</h3>
+                <p className="contador-dica">Marcadores manuais (stacks, marcos, acúmulos). Ligado a um Poder com Estágios, o valor define o estágio dele: valor 0 = estágio 1, valor 1 = estágio 2…</p>
+                {contadores.map(c => (
+                    <div key={c.id} className="contador-linha">
+                        <input className="input-neon contador-nome" aria-label="Nome do contador" defaultValue={c.nome} key={`n_${c.id}_${c.nome}`} maxLength={40} onBlur={e => { if (e.target.value !== c.nome) atualizarContadorFicha(c.id, { nome: e.target.value }); }} />
+                        <button type="button" className="combo-mini" aria-label={`Diminuir ${c.nome}`} onClick={() => mudarContadorFicha(c.id, -1)} disabled={c.valor <= c.min}>−</button>
+                        <strong className="contador-valor" aria-label={`Valor de ${c.nome}`}>{c.valor}</strong>
+                        <button type="button" className="combo-mini" aria-label={`Aumentar ${c.nome}`} onClick={() => mudarContadorFicha(c.id, 1)} disabled={c.valor >= c.max}>+</button>
+                        <label className="contador-limite">mín <input className="input-neon estados-golpe-num" type="number" aria-label={`Mínimo de ${c.nome}`} defaultValue={c.min} key={`mi_${c.id}_${c.min}`} onBlur={e => atualizarContadorFicha(c.id, { min: e.target.value })} /></label>
+                        <label className="contador-limite">máx <input className="input-neon estados-golpe-num" type="number" aria-label={`Máximo de ${c.nome}`} defaultValue={c.max} key={`ma_${c.id}_${c.max}`} onBlur={e => atualizarContadorFicha(c.id, { max: e.target.value })} /></label>
+                        <select className="input-neon" aria-label={`Poder ligado a ${c.nome}`} value={c.poderId ?? ''} onChange={e => atualizarContadorFicha(c.id, { poderId: e.target.value })}>
+                            <option value="">sem Poder</option>
+                            {poderesComEstagios.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                        </select>
+                        <button type="button" className="combo-mini" aria-label={`Remover o contador ${c.nome}`} onClick={() => removerContadorFicha(c.id)}>✕</button>
+                    </div>
+                ))}
+                {contadores.length < LIMITE_CONTADORES && (
+                    <button type="button" className="descricoes-ataque-adicionar" onClick={adicionarContadorFicha}>+ Contador</button>
+                )}
+            </section>
+
             {/* SEÇÃO 1: ESTADOS E AFINIDADES */}
             <section className="estados-secao">
                 <h3 className="estados-secao-titulo">🩸 Estados & Afinidades Elementais</h3>

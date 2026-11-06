@@ -1,3 +1,4 @@
+import { adicionarContador, removerContador, atualizarContador, mudarContador } from '../../core/contadores';
 import { imuneAoEstado } from '../../core/efeitosCondicionais';
 import { nomeDoEstado } from '../../core/condicoes';
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
@@ -106,6 +107,12 @@ export function FichaFormProvider({ children }) {
         updateFicha(f => { f.buffsTemporarios = (f.buffsTemporarios || []).filter(b => String(b.id) !== String(id)); });
         salvarFichaSilencioso();
     }, [updateFicha]);
+
+    // 🔢 Contadores manuais (core/contadores.js): ligados a um Poder com Estágios, comandam o estágio dele.
+    const adicionarContadorFicha = useCallback(() => { updateFicha(f => { adicionarContador(f, {}); }); salvarFichaSilencioso(); }, [updateFicha]);
+    const removerContadorFicha = useCallback((id) => { updateFicha(f => { removerContador(f, id); }); salvarFichaSilencioso(); }, [updateFicha]);
+    const atualizarContadorFicha = useCallback((id, patch) => { updateFicha(f => { atualizarContador(f, id, patch); }); salvarFichaSilencioso(); }, [updateFicha]);
+    const mudarContadorFicha = useCallback((id, delta) => { updateFicha(f => { mudarContador(f, id, delta); }); salvarFichaSilencioso(); }, [updateFicha]);
 
     const modificarCondicao = useCallback((condId, delta) => {
         // 🛡️ Imunidade por efeito (ex.: imune_surpresa): marcar o estado à mão pede confirmação (quem decide é o Mestre).
@@ -560,7 +567,7 @@ export function FichaFormProvider({ children }) {
         addSerEfeito, removeSerEfeito, addSerEfeitoPassivo, removeSerEfeitoPassivo,
         addSerSelado, editarSerSelado, removeSerSelado, toggleSerSelado, cancelarEdicaoSer,
         salvarFormaSer, deletarFormaSer, ativarFormaSer,
-        modificarCondicao, removerBuffTemporario, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
+        modificarCondicao, removerBuffTemporario, adicionarContadorFicha, removerContadorFicha, atualizarContadorFicha, mudarContadorFicha, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
     }), [
         minhaFicha, updateFicha, personagens, meuNome, mesa, raca, classe, subClasse, alterEgoSlot1, alterEgoSerId, classesMemorizadas,
         idade, fisico, sangue, alinhamento, afiliacao, dinheiro, salvandoBio, overridesCompendio, grands, isGrand, grandIcone,
@@ -572,7 +579,7 @@ export function FichaFormProvider({ children }) {
         serNovoNomeEfeitoPassivo, serNovoAtrPassivo, serNovoPropPassivo, serNovoValPassivo,
         addSerEfeito, removeSerEfeito, addSerEfeitoPassivo, removeSerEfeitoPassivo,
         addSerSelado, editarSerSelado, removeSerSelado, toggleSerSelado, cancelarEdicaoSer,
-        salvarFormaSer, deletarFormaSer, ativarFormaSer, modificarCondicao, removerBuffTemporario, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
+        salvarFormaSer, deletarFormaSer, ativarFormaSer, modificarCondicao, removerBuffTemporario, adicionarContadorFicha, removerContadorFicha, atualizarContadorFicha, mudarContadorFicha, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
     ]);
 
     return (

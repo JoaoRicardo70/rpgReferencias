@@ -3181,3 +3181,10 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .usos-poder-campo { display: flex; gap: 4px; }
 .usos-poder-campo input { width: 52px; text-align: center; }
 .usos-poder-selo { align-self: center; padding: 2px 8px; border: 1px solid var(--cor-destaque); border-radius: 10px; font-size: 0.8em; color: var(--cor-destaque); white-space: nowrap; }
+
+/* 🔢 Contadores manuais (Grimório, página 3) */
+.contador-dica { margin: 0 0 10px 0; font-size: 0.85em; opacity: 0.75; }
+.contador-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.contador-nome { flex: 1 1 140px; min-width: 120px; }
+.contador-valor { min-width: 2ch; text-align: center; font-size: 1.2em; }
+.contador-limite { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85em; }

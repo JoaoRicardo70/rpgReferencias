@@ -19,6 +19,7 @@ import { normalizarPasta, listarCaminhosPastas, renomearCaminhoPasta } from '../
 import { getVitalMxDisplay, capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 import { calcularGanhoFadigaOvercharge, calcularMultiplicadorOvercharge } from '../../core/dominios';
 import { calcularGanhoFadigaMaestriaInsuficiente } from '../../core/fadiga';
+import { definirEstagio } from '../../core/contadores';
 import { ESTAGIOS_PADRAO, normalizarEstagios, temEstagios, limitarEstagio, marcoParaRascunho } from '../../core/estagios';
 
 // 🪜 Rascunho do bloco "Estágios" do editor — nomes ficam como texto (um por linha) enquanto edita.
@@ -372,15 +373,7 @@ export function PoderesFormProvider({ children }) {
     // 🪜 Sobe/desce o estágio (core/estagios.js). Ativa, a técnica muda os máximos na hora — mesmo
     // travamento de vitais do liga/desliga, pra trocar de estágio nunca drenar Vida/Energia.
     const mudarEstagioPoder = useCallback((id, novoEstagio) => {
-        updateFicha((ficha) => {
-            const p = (ficha.poderes || []).find(po => po.id === id);
-            if (!p || !temEstagios(p)) return;
-            const alvo = limitarEstagio(p, novoEstagio);
-            if (p.estagioAtual === alvo) return;
-            const oldM = capturarMaximosAtuais(ficha);
-            p.estagioAtual = alvo;
-            rescalarVitaisProporcional(ficha, oldM);
-        });
+        updateFicha((ficha) => { definirEstagio(ficha, id, novoEstagio); });
         salvarFichaSilencioso();
     }, [updateFicha, salvarFichaSilencioso]);
 
