@@ -24,7 +24,7 @@ const energia = (extra) => ({ tipo: 'energiaAtacante', modo: 'fixo', valor: 1, e
 describe('aoAcertar - constantes', () => {
     it('expoe limites, tipos, modos e energias', () => {
         expect(LIMITE_AO_ACERTAR).toBe(6);
-        expect(TIPOS_AO_ACERTAR.map(t => t.id)).toEqual(['curarAtacante', 'energiaAtacante']);
+        expect(TIPOS_AO_ACERTAR.map(t => t.id)).toEqual(['curarAtacante', 'energiaAtacante', 'drenarEnergiaAlvo', 'debuffAlvo']);
         expect(MODOS_AO_ACERTAR.map(m => m.id)).toEqual(['fixo', 'percAtual', 'percMax']);
         expect(ENERGIAS_AO_ACERTAR).toEqual(['mana', 'aura', 'chakra', 'corpo']);
     });

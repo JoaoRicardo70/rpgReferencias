@@ -3,10 +3,12 @@
 // Reflexo automático de quem estava defendendo. Regras puras em core/estadosGolpe.js, core/condicoes.js e core/reflexo.js; aqui
 // ficam só as escritas no Firebase (nunca a ficha inteira: só o campo que mudou).
 // ==========================================
+import useStore from '../stores/useStore';
 import { salvarCamposPersonagem } from './firebase-sync';
 import { somarEstado } from '../core/condicoes';
 import { resolverEstadosNoAlvo, descreverResolucao, juntarAplicados } from '../core/estadosGolpe';
 import { reflexosDisponiveis, calcularReflexo, descreverReflexo, custoDoReflexo } from '../core/reflexo';
+import { entradasNoAlvo, resolverAoAcertarNoAlvo } from '../core/aoAcertar';
 
 // Soma os estados já resolvidos na lista de condições do alvo e grava. `fonte` = quem causou (para Amedrontado/Charmado/Provocado).
 // Lista de condições do alvo depois de somar os estados (não grava nada).
@@ -64,6 +66,9 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
     const comEstados = new Map(); // Dummies: alvo com as condições novas, para o chamador gravar junto com o Dano
     let danoAtacante = 0;
     let atingiuComDano = false;
+    // 🕳️ Efeitos 'Ao acertar' que mexem no ALVO (dreno de energia, debuff): valem em cada alvo-personagem que sofreu Dano.
+    const noAlvo = entradasNoAlvo(aoAcertar);
+    let avisouSemFicha = false;
     return {
         aplicar(idAlvo, alvo, danoNoAlvo) {
             if (!alvo) return danoNoAlvo;
@@ -77,6 +82,19 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
                 const r = aplicarEstadosDoGolpe({ idAlvo, alvo, estados, critico, fonte: nomeAtacante });
                 if (r.texto) textos.push(r.texto);
                 if (r.alvo !== alvo) comEstados.set(idAlvo, r.alvo);
+            }
+            if (dano > 0 && noAlvo.length > 0) {
+                if (alvo.isPersonagem && alvo.ficha) {
+                    // Ficha MAIS RECENTE do alvo no store (a do `alvo` é a do momento do clique): reduz a janela de sobrescrever buffs/energia novos.
+                    const fichaFresca = (useStore.getState().personagens || {})[alvo.personagemNome] || alvo.ficha;
+                    const r = resolverAoAcertarNoAlvo(noAlvo, fichaFresca, { critico, nomeAtacante });
+                    const campos = { ...r.campos, ...(r.buffs ? { buffsTemporarios: r.buffs } : {}) };
+                    if (Object.keys(campos).length > 0) salvarCamposPersonagem(alvo.personagemNome, campos);
+                    r.textos.forEach(t => textos.push(`${alvo.nome}: ${t}`));
+                } else if (!avisouSemFicha) {
+                    avisouSemFicha = true;
+                    textos.push('ℹ️ Entidade do Mapa não tem ficha: dreno de energia e debuff (Ao acertar) não se aplicam a ela.');
+                }
             }
             if (dano > 0) atingiuComDano = true;
             return dano;

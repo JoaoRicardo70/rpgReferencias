@@ -1,20 +1,31 @@
 // ==========================================
 // 💚 AO ACERTAR — lógica pura. Uma Habilidade/Poder/Técnica pode declarar o que acontece com QUEM ACERTOU quando o golpe atinge
-// um alvo e causa Dano: curar a si mesmo ou restaurar uma energia, em valor fixo, % do atual ou % do máximo.
-//   aoAcertar: [{ tipo: 'curarAtacante' | 'energiaAtacante', modo: 'fixo' | 'percAtual' | 'percMax', valor, energia?, apenasCritico? }]
-// Vale UMA vez por golpe (mesmo em área) e só se algum alvo sofreu Dano. Valor fixo é na escala exibida (como o Dano); o armazenado é
+// um alvo e causa Dano:
+//   em quem acertou — curar a Vida (curarAtacante) ou restaurar uma energia (energiaAtacante), em valor fixo, % do atual ou % do máximo;
+//   no alvo (só personagens com ficha) — drenar a energia dele (drenarEnergiaAlvo) ou enfraquecê-lo (debuffAlvo: -N de Evasiva/Resistência/
+//   Acerto por alguns turnos dele, como um buff temporário negativo do Suporte).
+//   aoAcertar: [{ tipo, modo: 'fixo' | 'percAtual' | 'percMax', valor, energia?, atributo?, duracao?, empilha?, apenasCritico? }]
+// Em quem acertou vale UMA vez por golpe (mesmo em área) e só se algum alvo sofreu Dano; no alvo, em CADA alvo atingido que sofreu Dano. Valor fixo é na escala exibida (como o Dano); o armazenado é
 // bruto (core/vitals.js > FATOR_EXIBICAO_VITAIS). Cura e restauração nunca passam do máximo nem diminuem o que já está acima dele.
 // ==========================================
 import { danoExibidoParaBruto, FATOR_EXIBICAO_VITAIS, getTetoExibidoComFator } from './vitals.js';
 import { calcularEficaciaCura } from './engine.js';
 import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
+import { somarBuffTemporario } from './suporte.js';
 
 export const LIMITE_AO_ACERTAR = 6;
 
 export const TIPOS_AO_ACERTAR = [
     { id: 'curarAtacante', rotulo: '💚 Cura quem acertou (Vida)' },
     { id: 'energiaAtacante', rotulo: '🔋 Restaura energia de quem acertou' },
+    { id: 'drenarEnergiaAlvo', rotulo: '🕳️ Drena energia do alvo' },
+    { id: 'debuffAlvo', rotulo: '⬇️ Enfraquece o alvo (CA/Acerto)' },
 ];
+// Tipos que mexem no ALVO (só personagens com ficha; entidades do Mapa não têm ficha).
+export const TIPOS_NO_ALVO = ['drenarEnergiaAlvo', 'debuffAlvo'];
+// Atributos que o debuff pode reduzir (todos lidos como bônus BASE na CA/Acerto) e a duração máxima, em turnos do alvo.
+export const ATRIBUTOS_DEBUFF_AO_ACERTAR = ['evasiva', 'resistencia', 'acerto'];
+export const LIMITE_DURACAO_DEBUFF = 20;
 export const MODOS_AO_ACERTAR = [
     { id: 'fixo', rotulo: 'valor fixo' },
     { id: 'percAtual', rotulo: '% do valor atual' },
@@ -38,7 +49,16 @@ export function normalizarAoAcertar(lista) {
         if (!Number.isFinite(bruto) || bruto <= 0) return;
         const valor = Math.min(modo === 'fixo' ? MAX_FIXO : MAX_PERCENTUAL, bruto);
         const item = { tipo: e.tipo, modo, valor };
-        if (e.tipo === 'energiaAtacante') item.energia = ENERGIAS_AO_ACERTAR.includes(e.energia) ? e.energia : 'mana';
+        if (e.tipo === 'energiaAtacante' || e.tipo === 'drenarEnergiaAlvo') item.energia = ENERGIAS_AO_ACERTAR.includes(e.energia) ? e.energia : 'mana';
+        if (e.tipo === 'debuffAlvo') {
+            // O valor é o tamanho da redução (em pontos); o modo não se aplica.
+            item.modo = 'fixo';
+            item.valor = Math.min(MAX_PERCENTUAL, bruto);
+            item.atributo = ATRIBUTOS_DEBUFF_AO_ACERTAR.includes(e.atributo) ? e.atributo : 'evasiva';
+            const dur = Math.floor(Number(e.duracao));
+            item.duracao = Number.isFinite(dur) ? Math.max(1, Math.min(LIMITE_DURACAO_DEBUFF, dur)) : 3;
+            if (e.empilha) item.empilha = true;
+        }
         if (e.apenasCritico) item.apenasCritico = true;
         saida.push(item);
     });
@@ -94,4 +114,53 @@ export function aplicarAoAcertarNoRascunho(ficha, entradas, { critico = false } 
         }
     });
     return textos;
+}
+
+// ---------- No ALVO ----------
+
+// Entre as entradas, as que mexem no alvo (vale também para decidir se há algo a dizer sobre entidades sem ficha).
+export const entradasNoAlvo = (entradas) => (Array.isArray(entradas) ? entradas : []).filter(e => e && TIPOS_NO_ALVO.includes(e.tipo));
+
+// Calcula o que gravar na ficha do alvo-personagem (sem alterar nada): { campos, buffs, textos }.
+//   campos — mudanças por caminho para salvarCamposPersonagem, ex.: { 'mana/atual': 1234 };
+//   buffs  — a lista NOVA de buffsTemporarios do alvo (ou null se nada mudou).
+// O dreno nunca leva a energia abaixo de 0. O debuff é um buff temporário de valor NEGATIVO (core/suporte.js): vale por turnos do alvo e
+// sai sozinho; "empilha" dá um buff novo a cada golpe (até o limite de buffs da ficha), sem isso o mesmo debuff só renova o prazo.
+export function resolverAoAcertarNoAlvo(entradas, fichaAlvo, { critico = false, nomeAtacante = '', agora = Date.now() } = {}) {
+    const resultado = { campos: {}, buffs: null, textos: [] };
+    if (!fichaAlvo) return resultado;
+    let lista = Array.isArray(fichaAlvo.buffsTemporarios) ? fichaAlvo.buffsTemporarios : [];
+    let n = 0;
+    entradasNoAlvo(entradas).forEach((e) => {
+        if (e.apenasCritico && !critico) return;
+        const quem = e.origem ? `${e.origem}: ` : '';
+        if (e.tipo === 'drenarEnergiaAlvo') {
+            const k = e.energia;
+            if (!k || !fichaAlvo[k]) return;
+            // Vários drenos no mesmo golpe somam em sequência (usa o valor já reduzido).
+            const atual = Number.isFinite(resultado.campos[`${k}/atual`]) ? resultado.campos[`${k}/atual`] : (Number(fichaAlvo[k].atual) || 0);
+            const max = getTetoExibidoComFator(k, fichaAlvo);
+            const tirar = ganhoBruto(e, atual, max);
+            const novo = Math.max(0, atual - tirar);
+            if (novo >= atual) return;
+            resultado.campos[`${k}/atual`] = novo;
+            resultado.textos.push(`🕳️ ${quem}-${fmt((atual - novo) / FATOR_EXIBICAO_VITAIS)} de ${k} do alvo`);
+        } else if (e.tipo === 'debuffAlvo') {
+            const atributo = ATRIBUTOS_DEBUFF_AO_ACERTAR.includes(e.atributo) ? e.atributo : 'evasiva';
+            const rotulo = { evasiva: 'Evasiva', resistencia: 'Resistência', acerto: 'Acerto' }[atributo];
+            const fonteBuff = nomeAtacante || e.origem || 'Ao acertar';
+            const prefixo = `Enfraquecido (${rotulo})`;
+            // Os buffs expiram em ordem: o próximo número é o MAIOR #n vivo + 1 (contar quantos existem repetiria um nome vivo e só renovaria).
+            const maiorN = lista.filter(b => b && String(b.fonte) === String(fonteBuff) && String(b.nome).startsWith(prefixo))
+                .reduce((m, b) => { const mm = /#(\d+)$/.exec(String(b.nome)); return Math.max(m, mm ? parseInt(mm[1], 10) : 0); }, 0);
+            const nome = e.empilha ? `${prefixo} #${maiorN + 1}` : prefixo;
+            lista = somarBuffTemporario(lista, {
+                id: `ao_${agora}_${n++}`, nome, fonte: fonteBuff,
+                efeitos: [{ nome, atributo, propriedade: 'base', valor: -e.valor }], duracao: e.duracao, duracaoModo: 'turnos'
+            });
+            resultado.buffs = lista;
+            resultado.textos.push(`⬇️ ${quem}-${e.valor} de ${rotulo} por ${e.duracao} turno(s) do alvo`);
+        }
+    });
+    return resultado;
 }
