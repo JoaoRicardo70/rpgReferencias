@@ -1,5 +1,6 @@
 import React from 'react';
 import { resumirItemImportado, mudarCategoriaImportada } from '../../core/importadorIA';
+import { trocarElementoDaPrevia } from '../../core/importadorTecnicas';
 
 const CATEGORIAS = [
     { id: 'habilidade', rotulo: 'Habilidade' },
@@ -21,13 +22,16 @@ function ListaEfeitos({ titulo, efeitos }) {
 
 // 🔎 Prévia da importação: cada item que a IA devolveu, já validado pelo sistema, para o jogador conferir, trocar nome/categoria,
 // desmarcar ou tirar antes de gravar no Grimório. Nada é gravado aqui: quem grava é o `onConfirmar`.
-export default function ImportadorPrevia({ itens, onAtualizar, onRemover, onConfirmar, onVoltar, onAdicionarOutra }) {
+// Técnicas Elementais: passe `elementos` (nomes do Grimório) e `resumir`; o seletor de categoria dá lugar ao de elemento.
+export default function ImportadorPrevia({ itens, onAtualizar, onRemover, onConfirmar, onVoltar, onAdicionarOutra, elementos, resumir }) {
+    const modoTecnica = Array.isArray(elementos);
     const marcados = itens.filter(it => it.marcado && it.valido).length;
 
     const trocarNome = (it, nome) => {
         const valido = nome.trim().length > 0;
         onAtualizar(it.chave, { ...it, objeto: { ...it.objeto, nome }, valido, marcado: valido ? it.marcado : false });
     };
+    const trocarElemento = (it, elemento) => onAtualizar(it.chave, trocarElementoDaPrevia(it, elemento));
     const trocarCategoria = (it, categoria) => onAtualizar(it.chave, { ...it, objeto: mudarCategoriaImportada(it.objeto, categoria) });
 
     return (
@@ -38,12 +42,18 @@ export default function ImportadorPrevia({ itens, onAtualizar, onRemover, onConf
                     <div className="importacao-item-topo">
                         <input type="checkbox" checked={!!it.marcado} disabled={!it.valido} aria-label={`Importar ${it.objeto.nome || 'item sem nome'}`} onChange={e => onAtualizar(it.chave, { ...it, marcado: e.target.checked })} />
                         <input className="importacao-nome" value={it.objeto.nome} placeholder="Nome (obrigatório)" aria-label="Nome" onChange={e => trocarNome(it, e.target.value)} />
-                        <select value={it.objeto.categoria} aria-label="Categoria" onChange={e => trocarCategoria(it, e.target.value)}>
-                            {CATEGORIAS.map(c => <option key={c.id} value={c.id}>{c.rotulo}</option>)}
-                        </select>
+                        {modoTecnica ? (
+                            <select value={it.objeto.elemento} aria-label="Elemento" onChange={e => trocarElemento(it, e.target.value)}>
+                                {(elementos.includes(it.objeto.elemento) ? elementos : [it.objeto.elemento, ...elementos]).map(el => <option key={el} value={el}>{el}</option>)}
+                            </select>
+                        ) : (
+                            <select value={it.objeto.categoria} aria-label="Categoria" onChange={e => trocarCategoria(it, e.target.value)}>
+                                {CATEGORIAS.map(c => <option key={c.id} value={c.id}>{c.rotulo}</option>)}
+                            </select>
+                        )}
                         <button type="button" className="importacao-remover" title="Tirar da lista" aria-label="Tirar da lista" onClick={() => onRemover(it.chave)}>✕</button>
                     </div>
-                    <div className="importacao-resumo">{resumirItemImportado(it.objeto)}{it.objeto.tipoAcao ? ` · ação: ${it.objeto.tipoAcao}` : ''}</div>
+                    <div className="importacao-resumo">{(resumir || resumirItemImportado)(it.objeto)}{it.objeto.tipoAcao ? ` · ação: ${it.objeto.tipoAcao}` : ''}</div>
                     <ListaEfeitos titulo="Ativos:" efeitos={it.objeto.efeitos} />
                     <ListaEfeitos titulo="Passivos:" efeitos={it.objeto.efeitosPassivos} />
                     {it.avisos.map((a, i) => <div key={`a${i}`} className="importacao-aviso">⚠️ {a}</div>)}

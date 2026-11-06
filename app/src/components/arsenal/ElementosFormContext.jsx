@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useRef, useCallback, useMem
 import { efeitosAtivosDoItem } from '../../core/efeitosItem';
 import { dadosLimitadosDaTecnica } from '../../core/limiteDados';
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
-import { extrairJson } from '../../core/importadorIA';
+import { lerRespostaTecnicas, prepararImportacaoTecnicas, montarTecnicaFinal } from '../../core/importadorTecnicas';
 import { normalizarGatilho, normalizarEfeito, normalizarValorReacao } from '../../core/reacoes';
 import useStore from '../../stores/useStore';
 import { enviarParaFeed } from '../../services/firebase-sync';
@@ -464,50 +464,38 @@ export function ElementosFormProvider({ children }) {
         abrirFichaNaPagina(8, 'ataque');
     }, [meuNome, souEuMesmo, abrirFichaNaPagina]);
 
+    // Nomes de elemento que o Grimório conhece (abas fixas + criados por mim): a IA só pode usar estes.
+    const nomesElementos = useMemo(() => [...new Set(Object.values(abasDinamicas).flatMap(aba => aba.categorias.flatMap(c => c.itens)))], [abasDinamicas]);
+
+    // 1) Lê a resposta da IA e devolve a PRÉVIA ({ ok, itens } com avisos e o que não foi aplicado); nada é gravado.
+    const lerImportacao = useCallback((jsonString, chaveInicial = 1) => {
+        const lido = lerRespostaTecnicas(jsonString);
+        if (!lido.ok) return lido;
+        return { ok: true, itens: prepararImportacaoTecnicas(lido.itens, { elementos: nomesElementos, elementoPadrao: elemSelecionado }, chaveInicial) };
+    }, [nomesElementos, elemSelecionado]);
+
+    // 2) Grava na ficha só os itens da prévia que o jogador deixou marcados. Devolve quantos entraram.
+    const confirmarImportacao = useCallback((itensPrevia) => {
+        const lista = (Array.isArray(itensPrevia) ? itensPrevia : []).filter(it => it && it.marcado && it.valido && it.objeto && String(it.objeto.nome || '').trim());
+        if (lista.length === 0) return 0;
+        const time = Date.now();
+        updateFicha((f) => {
+            if (!f.ataquesElementais) f.ataquesElementais = [];
+            lista.forEach((it, i) => { f.ataquesElementais.push(montarTecnicaFinal(it.objeto, 'ia_el_' + time + '_' + i)); });
+        });
+        salvarFichaSilencioso();
+        return lista.length;
+    }, [updateFicha, salvarFichaSilencioso]);
+
+    // Atalho de uma etapa só (sem prévia): lê e grava tudo o que for válido.
     const injetarJsonDaIA = useCallback((jsonString) => {
-        try {
-            const dados = JSON.parse(extrairJson(jsonString) || jsonString);
-            let countE = 0;
-            updateFicha(f => {
-                const time = Date.now();
-                if (dados.ataquesElementais && Array.isArray(dados.ataquesElementais)) {
-                    if (!f.ataquesElementais) f.ataquesElementais = [];
-                    dados.ataquesElementais.forEach((el, i) => {
-                        const elementoIA = el.elemento || elemSelecionado;
-                        const dadosIA = dadosLimitadosDaTecnica({ elemento: elementoIA }, parseInt(el.danoQtd) || 0, parseInt(el.danoFaces) || 0);
-                        f.ataquesElementais.push({
-                            id: 'ia_el_' + time + i,
-                            nome: el.nome || 'Magia sem Nome',
-                            descricao: el.descricao || '',
-                            elemento: el.elemento || elemSelecionado, 
-                            elementosAfetados: el.elementosAfetados || '',
-                            dadosExtraQtd: dadosIA.qtd,
-                            dadosExtraFaces: parseInt(el.danoFaces) || 0,
-                            custoValor: parseFloat(el.custoPercentual) || 0,
-                            energiaCombustao: el.energiaCombustao || 'mana',
-                            tipoMecanica: el.tipoMecanica || 'ataque',
-                            savingAttr: el.savingAttr || 'destreza',
-                            alcanceQuad: parseFloat(el.alcance) || 1,
-                            areaQuad: parseFloat(el.area) || 0,
-                            alvosAfetados: 'todos',
-                            duracaoZona: 0,
-                            bonusTipo: 'nenhum',
-                            equipado: false,
-                            notasIA: el.notasIA || ''
-                        });
-                        countE++;
-                    });
-                }
-            });
-            salvarFichaSilencioso();
-            alert(`Grimório Atualizado!\n\n🌪️ Foram inscritos ${countE} novos pergaminhos mágicos com sucesso.`);
-            return true;
-        } catch (e) {
-            console.error(e);
-            alert("Erro no código da IA. Certifique-se de copiar o JSON completo.");
-            return false;
-        }
-    }, [updateFicha, elemSelecionado, salvarFichaSilencioso]);
+        const lido = lerImportacao(jsonString);
+        if (!lido.ok) { alert(lido.erro); return false; }
+        const total = confirmarImportacao(lido.itens);
+        if (total === 0) { alert('Nenhuma técnica válida na resposta (confira se todas têm nome).'); return false; }
+        alert(`Grimório Atualizado!\n\n🌪️ Foram inscritos ${total} novos pergaminhos mágicos com sucesso.`);
+        return total > 0;
+    }, [lerImportacao, confirmarImportacao]);
 
     const ataquesElementais = minhaFicha.ataquesElementais || [];
     const magiasDoGrupo = useMemo(() => ataquesElementais.filter(e => (e.elemento || 'Neutro') === elemSelecionado), [ataquesElementais, elemSelecionado]);
@@ -524,11 +512,11 @@ export function ElementosFormProvider({ children }) {
         formRef, profGlobal, getModificadorDoisDigitos, allowedEnergies,
         selecionarElemento, salvarNovoElem, editarElem, cancelarEdicaoElem, toggleEquiparElem,
         deletarElem, conjurarMagia, magiasDoGrupo, magiasConjuradasOutros, elemEditandoId, minhaFicha,
-        elementosInatos, injetarJsonDaIA, abasDinamicas, criarElementoCustomizado 
+        elementosInatos, injetarJsonDaIA, lerImportacao, confirmarImportacao, nomesElementos, abasDinamicas, criarElementoCustomizado
     }), [
         abaAtual, elemSelecionado, nomeElem, descricaoElem, elementosAfetados, bonusTipo, bonusValor, custoValor, custoValorMax, semComoPoder, limiteDados, tipoAcao, reacaoGatilho, reacaoEfeito, reacaoValor, dadosQtd, dadosFaces,
         energiaCombustao, tipoMecanica, savingAttr, alcanceQuad, areaQuad, alvosAfetados, duracaoZona, profGlobal, getModificadorDoisDigitos, allowedEnergies,
-        selecionarElemento, salvarNovoElem, editarElem, cancelarEdicaoElem, toggleEquiparElem, deletarElem, conjurarMagia, magiasDoGrupo, magiasConjuradasOutros, elemEditandoId, minhaFicha, elementosInatos, injetarJsonDaIA, abasDinamicas, criarElementoCustomizado
+        selecionarElemento, salvarNovoElem, editarElem, cancelarEdicaoElem, toggleEquiparElem, deletarElem, conjurarMagia, magiasDoGrupo, magiasConjuradasOutros, elemEditandoId, minhaFicha, elementosInatos, injetarJsonDaIA, lerImportacao, confirmarImportacao, nomesElementos, elemSelecionado, abasDinamicas, criarElementoCustomizado
     ]);
 
     return <ElementosFormContext.Provider value={value}>{children}</ElementosFormContext.Provider>;

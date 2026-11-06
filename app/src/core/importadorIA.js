@@ -92,7 +92,7 @@ export function extrairJson(texto, aPartirDe = 0) {
     return null;
 }
 
-const CHAVES_DE_LISTA = ['poderes', 'habilidades', 'formas', 'itens', 'poder', 'habilidade', 'forma', 'items', 'abilities'];
+const CHAVES_DE_LISTA = ['poderes', 'habilidades', 'formas', 'itens', 'poder', 'habilidade', 'forma', 'items', 'abilities', 'ataquesElementais', 'ataqueselementais', 'tecnicas', 'tecnicasElementais', 'magias', 'feiticos'];
 const ehObjeto = (v) => v && typeof v === 'object' && !Array.isArray(v);
 
 // A IA nem sempre obedece ao formato: aceita a lista na raiz, sob qualquer chave conhecida (ou qualquer lista de objetos), um poder

@@ -8,6 +8,8 @@ import SuporteEditor from '../shared/SuporteEditor';
 import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
 import { GATILHOS_REACAO, EFEITOS_REACAO, efeitoUsaValor } from '../../core/reacoes';
 import React, { useState } from 'react';
+import ImportadorPrevia from '../poderes/ImportadorPrevia';
+import { montarPromptTecnicas, resumirTecnicaImportada } from '../../core/importadorTecnicas';
 import { useElementosForm, emogis, cores, BONUS_OPTIONS, NIVEIS_DOMINIO } from './ElementosFormContext';
 import { getNivelDominio, getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 import { getInfoPolaridade } from '../../core/polaridade';
@@ -19,30 +21,40 @@ export function ElementosImportadorIA() {
     const [aberto, setAberto] = useState(false);
     const [textoDocs, setTextoDocs] = useState('');
     const [jsonResposta, setJsonResposta] = useState('');
-    const [fase, setFase] = useState(1); 
+    const [fase, setFase] = useState(1);
+    const [promptGerado, setPromptGerado] = useState('');
+    const [previa, setPrevia] = useState([]);
 
     if (!ctx) return null;
-    const { injetarJsonDaIA } = ctx;
+    const { lerImportacao, confirmarImportacao, nomesElementos, elemSelecionado } = ctx;
 
-    const gerarPrompt = () => {
+    // Lê a resposta da IA e abre a prévia (várias respostas podem ser somadas antes de gravar).
+    const lerResposta = () => {
+        const proxima = previa.reduce((m, it) => Math.max(m, it.chave), 0) + 1;
+        const r = lerImportacao(jsonResposta, proxima);
+        if (!r.ok) { alert(r.erro); return; }
+        setPrevia(atual => [...atual, ...r.itens]);
+        setJsonResposta('');
+        setFase(3);
+    };
+    const gravarPrevia = () => {
+        const total = confirmarImportacao(previa);
+        if (total === 0) { alert('Nenhum item marcado para gravar.'); return; }
+        alert(`Grimório Atualizado!\n\n🌪️ Foram inscritos ${total} novos pergaminhos mágicos. Cada um está no capítulo do seu elemento.`);
+        setPrevia([]);
+        setTextoDocs('');
+        setPromptGerado('');
+        setFase(1);
+        setAberto(false);
+    };
+
+    const gerarPrompt = async () => {
         if (!textoDocs.trim()) return alert("Cole o texto dos pergaminhos primeiro!");
-        const prompt = `Atue como extrator de dados de RPG.
-Transforme TODAS as magias, técnicas e feitiços descritos no texto abaixo em itens dentro do array "ataquesElementais".
-Tente deduzir o "elemento" a que pertencem (Ex: Fogo, Agua, Magia de Osso, Magias de 1º Ciclo, Aura Pura). Se não souber, use "Neutro".
-Extraia o dano (ex: "15d6" vira danoQtd: 15 e danoFaces: 6).
-Extraia o custo de energia se houver (ex: "Custa 10%" vira custoPercentual: 10).
-Tente deduzir a "energiaCombustao" (mana, aura, chakra, corpo, livre). Se for indeciso, use "flexivel".
-Se houver efeitos de status, paralisia, condições ou buffs complexos, coloque TUDO no campo "notasIA".
-
-TEXTO:
-${textoDocs}
-
-RETORNE EXATAMENTE UM JSON PURO:
-{
-  "ataquesElementais": [{ "nome": "X", "descricao": "Y", "elemento": "Fogo", "energiaCombustao": "mana", "danoQtd": 0, "danoFaces": 0, "custoPercentual": 0, "alcance": 1, "area": 0, "notasIA": "" }]
-}`;
-        navigator.clipboard.writeText(prompt);
-        alert("Instrução mágica copiada! Envie para a sua IA e traga o código resultante.");
+        const prompt = montarPromptTecnicas(textoDocs, nomesElementos, elemSelecionado);
+        setPromptGerado(prompt);
+        let copiou = false;
+        try { await navigator.clipboard.writeText(prompt); copiou = true; } catch (e) { copiou = false; }
+        alert(copiou ? "Instrução mágica copiada! Envie para a sua IA e traga o código resultante." : "Não consegui copiar sozinho: copie a instrução que apareceu na caixa e cole na sua IA.");
         setFase(2);
     };
 
@@ -58,12 +70,25 @@ RETORNE EXATAMENTE UM JSON PURO:
                             <textarea value={textoDocs} onChange={e => setTextoDocs(e.target.value)} placeholder="Cole aqui os manuscritos, feitiços e grimórios extensos..." style={{ width: '100%', height: '120px', background: 'transparent', padding: '10px', resize: 'vertical' }} />
                             <button onClick={gerarPrompt} style={{ width: '100%', marginTop: '10px', padding: '8px' }}>1. Copiar Feitiço de Extração (Prompt)</button>
                         </>
+                    ) : fase === 3 ? (
+                        <ImportadorPrevia
+                            itens={previa}
+                            elementos={nomesElementos}
+                            resumir={resumirTecnicaImportada}
+                            onAtualizar={(chave, novo) => setPrevia(atual => atual.map(it => (it.chave === chave ? novo : it)))}
+                            onRemover={(chave) => { const resto = previa.filter(it => it.chave !== chave); setPrevia(resto); if (resto.length === 0) setFase(2); }}
+                            onConfirmar={gravarPrevia}
+                            onVoltar={() => setFase(2)}
+                            onAdicionarOutra={() => setFase(2)}
+                        />
                     ) : (
                         <>
+                            <textarea readOnly value={promptGerado} onFocus={e => e.target.select()} aria-label="Instrução para a IA" style={{ width: '100%', height: '60px', background: 'transparent', padding: '10px', marginBottom: '10px', fontSize: '0.8em', opacity: 0.7 }} />
                             <textarea value={jsonResposta} onChange={e => setJsonResposta(e.target.value)} placeholder="Cole o Código Arcano (JSON) devolvido pela IA..." style={{ width: '100%', height: '120px', background: 'transparent', fontFamily: 'monospace', padding: '10px', resize: 'vertical' }} />
                             <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
                                 <button onClick={() => setFase(1)} style={{ flex: 1, padding: '8px' }}>Voltar</button>
-                                <button onClick={() => { if(injetarJsonDaIA(jsonResposta)) setAberto(false); }} style={{ flex: 2, padding: '8px' }}>2. Transcrever para o Grimório</button>
+                                {previa.length > 0 && <button onClick={() => setFase(3)} style={{ flex: 1, padding: '8px' }}>Ver prévia ({previa.length})</button>}
+                                <button onClick={lerResposta} style={{ flex: 2, padding: '8px' }}>2. Ler resposta e ver a prévia</button>
                             </div>
                         </>
                     )}
