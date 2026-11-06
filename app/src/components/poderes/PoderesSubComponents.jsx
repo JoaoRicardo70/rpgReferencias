@@ -14,6 +14,8 @@ import { construirArvorePastas, segmentosPasta } from '../../core/pastas';
 import { rotuloComPolaridade } from '../../core/polaridade';
 import { montarPromptImportacao } from '../../core/importadorIA';
 import ImportadorPrevia from './ImportadorPrevia';
+import LerDeImagemIA from '../shared/LerDeImagemIA';
+import { TEXTO_DAS_IMAGENS } from '../../core/imagemIA';
 import CondicaoDoEfeito from '../shared/CondicaoDoEfeito';
 import { descreverUsos } from '../../core/usosPoder';
 import EnsinarBotao from '../shared/EnsinarBotao';
@@ -93,13 +95,15 @@ export function PoderesImportadorIA() {
     const { lerImportacao, confirmarImportacao, abaAtual } = ctx;
 
     // Lê a resposta da IA e abre a prévia (várias respostas podem ser somadas antes de gravar).
-    const lerResposta = () => {
+    const lerResposta = (texto) => {
+        const fonte = typeof texto === 'string' ? texto : jsonResposta;
         const proxima = previa.reduce((m, it) => Math.max(m, it.chave), 0) + 1;
-        const r = lerImportacao(jsonResposta, proxima);
-        if (!r.ok) { alert(r.erro); return; }
+        const r = lerImportacao(fonte, proxima);
+        if (!r.ok) { alert(r.erro); return false; }
         setPrevia(atual => [...atual, ...r.itens]);
         setJsonResposta('');
         setFase(3);
+        return true;
     };
     const gravarPrevia = () => {
         const total = confirmarImportacao(previa);
@@ -133,6 +137,7 @@ export function PoderesImportadorIA() {
                         <>
                             <textarea value={textoDocs} onChange={e => setTextoDocs(e.target.value)} placeholder="Cole aqui os textos longos..." style={{ width: '100%', height: '120px', background: 'transparent', padding: '10px', resize: 'vertical' }} />
                             <button onClick={gerarPrompt} style={{ width: '100%', marginTop: '10px', padding: '8px' }}>1. Copiar Feitiço de Extração (Prompt)</button>
+                            <LerDeImagemIA montarPrompt={() => montarPromptImportacao(TEXTO_DAS_IMAGENS, abaAtual)} onResposta={(texto) => { setJsonResposta(texto); const ok = lerResposta(texto); if (!ok) setFase(2); return ok; }} />
                         </>
                     ) : fase === 3 ? (
                         <ImportadorPrevia

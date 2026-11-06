@@ -9,6 +9,8 @@ import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
 import { GATILHOS_REACAO, EFEITOS_REACAO, efeitoUsaValor } from '../../core/reacoes';
 import React, { useState } from 'react';
 import ImportadorPrevia from '../poderes/ImportadorPrevia';
+import LerDeImagemIA from '../shared/LerDeImagemIA';
+import { TEXTO_DAS_IMAGENS } from '../../core/imagemIA';
 import { montarPromptTecnicas, resumirTecnicaImportada } from '../../core/importadorTecnicas';
 import { useElementosForm, emogis, cores, BONUS_OPTIONS, NIVEIS_DOMINIO } from './ElementosFormContext';
 import { getNivelDominio, getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
@@ -29,13 +31,15 @@ export function ElementosImportadorIA() {
     const { lerImportacao, confirmarImportacao, nomesElementos, elemSelecionado } = ctx;
 
     // Lê a resposta da IA e abre a prévia (várias respostas podem ser somadas antes de gravar).
-    const lerResposta = () => {
+    const lerResposta = (texto) => {
+        const fonte = typeof texto === 'string' ? texto : jsonResposta;
         const proxima = previa.reduce((m, it) => Math.max(m, it.chave), 0) + 1;
-        const r = lerImportacao(jsonResposta, proxima);
-        if (!r.ok) { alert(r.erro); return; }
+        const r = lerImportacao(fonte, proxima);
+        if (!r.ok) { alert(r.erro); return false; }
         setPrevia(atual => [...atual, ...r.itens]);
         setJsonResposta('');
         setFase(3);
+        return true;
     };
     const gravarPrevia = () => {
         const total = confirmarImportacao(previa);
@@ -69,6 +73,7 @@ export function ElementosImportadorIA() {
                         <>
                             <textarea value={textoDocs} onChange={e => setTextoDocs(e.target.value)} placeholder="Cole aqui os manuscritos, feitiços e grimórios extensos..." style={{ width: '100%', height: '120px', background: 'transparent', padding: '10px', resize: 'vertical' }} />
                             <button onClick={gerarPrompt} style={{ width: '100%', marginTop: '10px', padding: '8px' }}>1. Copiar Feitiço de Extração (Prompt)</button>
+                            <LerDeImagemIA montarPrompt={() => montarPromptTecnicas(TEXTO_DAS_IMAGENS, nomesElementos, elemSelecionado)} onResposta={(texto) => { setJsonResposta(texto); const ok = lerResposta(texto); if (!ok) setFase(2); return ok; }} />
                         </>
                     ) : fase === 3 ? (
                         <ImportadorPrevia

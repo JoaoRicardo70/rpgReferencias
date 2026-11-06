@@ -3188,3 +3188,11 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .contador-nome { flex: 1 1 140px; min-width: 120px; }
 .contador-valor { min-width: 2ch; text-align: center; font-size: 1.2em; }
 .contador-limite { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85em; }
+
+/* 📷 Ler prints com a Sexta-Feira (importadores) */
+.importacao-imagens { margin-top: 12px; padding-top: 10px; border-top: 1px dotted currentColor; display: flex; flex-direction: column; gap: 8px; }
+.importacao-imagens-titulo { font-weight: bold; font-size: 0.9em; }
+.importacao-imagens-input { display: none; }
+.importacao-imagens-lista { margin: 0; padding-left: 18px; font-size: 0.85em; }
+.importacao-imagens-botao { padding: 8px; }
+.importacao-imagens-dica { font-size: 0.75em; opacity: 0.7; }
