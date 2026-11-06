@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { DefesaFormProvider, useDefesaForm } from './DefesaFormContext';
 import { FichaAlvoProvider } from '../Ficha Def/FichaAlvoContext';
 import useStore from '../../stores/useStore';
+import { calcularCA } from '../../core/engine';
 import { salvarFichaSilencioso, salvarFichaAlvoSilencioso, enviarParaFeed } from '../../services/firebase-sync';
 
 // QA - DefesaFormContext dentro/fora de um FichaAlvoProvider (Mestre vendo a Ficha de outro personagem na pagina 8):
@@ -22,10 +23,10 @@ vi.mock('../../services/firebase-sync', () => ({
     pararSincronizacaoFichaAlvo: vi.fn(),
     enviarParaFeed: vi.fn(),
 }));
-// CA identifica a ficha: cada uma carrega o proprio "caTeste".
+// CA identifica a ficha: cada uma carrega o proprio "caTeste". O mock soma bonus*10 para provar que o Bonus Extra e repassado a calcularCA (entra na reducao).
 vi.mock('../../core/engine', async (importOriginal) => {
     const real = await importOriginal();
-    return { ...real, calcularCA: vi.fn((f) => f?.caTeste ?? 0) };
+    return { ...real, calcularCA: vi.fn((f, _tipo, bonus = 0) => (f?.caTeste ?? 0) + (Number(bonus) || 0) * 10) };
 });
 vi.mock('../../core/disputaPoder', async (importOriginal) => {
     const real = await importOriginal();
@@ -98,13 +99,34 @@ describe('DefesaFormContext DENTRO de FichaAlvoProvider mirando outro personagem
         expect(state.setAbaAtiva).toHaveBeenCalledWith('aba-log');
     });
 
-    it('declararResistencia usa a CA DELE e soma prof/bonus', () => {
+    it('declararResistencia usa a CA DELE (Bonus Extra dentro da CA) e soma so a prof por fora', () => {
         montarStore();
         renderAlvo();
         act(() => { probe.setResProf(3); });
         act(() => { probe.setResBonus(2); });
         act(() => { probe.declararResistencia(); });
-        expect(ultimoFeed()).toMatchObject({ tipo: 'resistencia', nome: 'Outro', total: 77 + 3 + 2 });
+        expect(calcularCA).toHaveBeenLastCalledWith(state.personagens.Outro, 'resistencia', 2);
+        expect(ultimoFeed()).toMatchObject({ tipo: 'resistencia', nome: 'Outro', total: (77 + 2 * 10) + 3 });
+        expect(ultimoFeed().baseCalc).toContain('CA Resistência (97, já com Bónus Extra 2) + Prof (3)');
+        expect(ultimoFeed().baseCalc).not.toContain('+ Bónus Extra');
+    });
+
+    it('declararResistencia com bonus 0 equivale ao comportamento antigo (CA + prof)', () => {
+        montarStore();
+        renderAlvo();
+        act(() => { probe.setResProf(3); });
+        act(() => { probe.declararResistencia(); });
+        expect(ultimoFeed()).toMatchObject({ nome: 'Outro', total: 77 + 3 });
+    });
+
+    it('declararEvasiva repassa o Bonus Extra a calcularCA na ficha DELE', () => {
+        montarStore();
+        renderAlvo();
+        act(() => { probe.setEvaBonus(4); });
+        act(() => { probe.declararEvasiva(); });
+        expect(calcularCA).toHaveBeenLastCalledWith(state.personagens.Outro, 'evasiva', 4);
+        expect(ultimoFeed()).toMatchObject({ tipo: 'evasiva', nome: 'Outro', total: 77 + 40 });
+        expect(ultimoFeed().baseCalc).toContain('CA Evasiva (117, já com Bónus Extra 4) + Prof (0)');
     });
 
     it('sofrerDanoBruto tira vida da ficha DELE (updateFichaAlvo), salva via salvarFichaAlvoSilencioso e assina com o nome DELE', () => {

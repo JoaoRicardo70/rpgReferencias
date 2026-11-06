@@ -44,7 +44,8 @@ export function getPoderDeLutaStatus(ficha, statKey, isRaw = false) {
 // Base fixa da CA (core/utils.js > BASE_CA), SOMADA DEPOIS da redução, como a Proficiência no Acerto.
 export { BASE_CA };
 
-export function calcularCA(ficha, tipo) {
+// `bonusExtra`: bônus avulso (ex.: o "Bônus Extra" digitado na tela de Defesa) que entra DENTRO da redução, como qualquer bônus fixo.
+export function calcularCA(ficha, tipo, bonusExtra = 0) {
     if (!ficha) return BASE_CA;
     // CA = BASE_CA + REDUÇÃO(atributo × (1 + 3 × bônus de CA)) (+ Diferença de Poder, somada a quem ataca em core/disputaPoder.js).
     // Atributo SEM a Ascensão; a redução (core/utils.js > reduzirComBonus) pesa o bônus em proporção ao atributo, e o nível de poder pesa
@@ -53,7 +54,7 @@ export function calcularCA(ficha, tipo) {
     if (tipo === 'evasiva') atributo = getRawBase(ficha, 'destreza');
     if (tipo === 'resistencia') atributo = getRawBase(ficha, 'forca');
 
-    const total = BASE_CA + reduzirComBonus(atributo, somarBonusBase(ficha, tipo, montarContextoDeCombate(ficha)));
+    const total = BASE_CA + reduzirComBonus(atributo, somarBonusBase(ficha, tipo, montarContextoDeCombate(ficha)) + (Number(bonusExtra) || 0));
     return processarDefesaComCondicoes(ficha, tipo, total);
 }
 

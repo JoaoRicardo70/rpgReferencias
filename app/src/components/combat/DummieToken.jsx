@@ -3,6 +3,7 @@ import useStore from '../../stores/useStore';
 import { salvarDummie, deletarDummie } from '../../services/firebase-sync';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { getPoderDummie, formatarPoderDisputa } from '../../core/disputaPoder';
+import { recalcularDefesaDoDummie, definirDefesaManualDoDummie } from '../../core/gavetaNpc';
 
 // 🔥 Formatador de Números Gigantes (K, M, B, T)
 const formatNum = (n) => {
@@ -39,6 +40,20 @@ export default function DummieToken({ className, id, dummie }) {
     const resetarVida = (e) => {
         e.stopPropagation();
         salvarDummie(id, { ...dummie, hpAtual: dummie.hpMax });
+    };
+
+    // 🛡️ Atualiza a CA (Dummies salvos antes da CA nova guardam o valor antigo): pela ficha do NPC de origem, ou digitada pelo Mestre.
+    const atualizarDefesa = (e) => {
+        e.stopPropagation();
+        const personagens = useStore.getState().personagens || {};
+        const fichaOrigem = dummie.fichaOrigem ? personagens[dummie.fichaOrigem] : null;
+        const daFicha = recalcularDefesaDoDummie(dummie, fichaOrigem);
+        if (daFicha) { salvarDummie(id, daFicha); return; }
+        const resposta = window.prompt(`CA de ${dummie.nome} (atual: ${dummie.valorDefesa}). ${dummie.fichaOrigem ? 'A ficha de origem não existe mais' : 'Esta entidade não tem ficha de origem'}, então digite o valor.`, String(dummie.valorDefesa ?? ''));
+        if (resposta === null) return;
+        const r = definirDefesaManualDoDummie(dummie, resposta);
+        if (!r.ok) { alert(r.erro); return; }
+        salvarDummie(id, r.dummie);
     };
 
     // ⚡ Poder Calculado da entidade (Disputa de Poder, core/disputaPoder.js). Vazio = sem disputa.
@@ -126,6 +141,7 @@ export default function DummieToken({ className, id, dummie }) {
             {(isMestre && isTarget) ? (
                 <div style={{ display: 'flex', gap: 2, position: 'absolute', top: '-25px', right: '-20px', background: '#000', padding: 2, borderRadius: 4, border: '1px solid #ffcc00', zIndex: 30 }}>
                     <button onClick={resetarVida} style={{ background: '#00ffcc', color: '#000', border: 'none', borderRadius: 2, fontSize: '10px', cursor: 'pointer', padding: '2px 5px', fontWeight: 'bold' }}>🔄 HP</button>
+                    <button onClick={atualizarDefesa} className="dummie-btn-poder" title="Atualizar a CA desta entidade (recalcula pela ficha do NPC, ou digite o valor)">🛡️</button>
                     <button onClick={editarPoder} className="dummie-btn-poder" title="Definir o Poder Calculado desta entidade (Disputa de Poder)">⚡</button>
                     <button onClick={removerDummie} style={{ background: '#ff003c', color: '#fff', border: 'none', borderRadius: 2, fontSize: '10px', cursor: 'pointer', padding: '2px 5px' }}>🗑️</button>
                 </div>

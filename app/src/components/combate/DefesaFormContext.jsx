@@ -168,13 +168,15 @@ export function DefesaFormProvider({ children }) {
             diceStr = `\u{1F3B2} +Dados: ${r.str} | `;
         }
 
-        const total = caEvasiva + diceTotal + prof + bonus;
-        const baseCalc = `${diceStr}CA Evasiva (${caEvasiva}) + Prof (${prof}) + B\u00f3nus Extra (${bonus})`;
+        // O Bônus Extra entra DENTRO da redução da CA (como todo bônus), não somado solto no fim.
+        const caComBonus = calcularCA(minhaFicha, 'evasiva', bonus);
+        const total = caComBonus + diceTotal + prof;
+        const baseCalc = `${diceStr}CA Evasiva (${caComBonus}, j\u00e1 com B\u00f3nus Extra ${bonus}) + Prof (${prof})`;
 
         const feedData = { tipo: 'evasiva', nome: meuNome, total, baseCalc };
         enviarParaFeed(feedData);
         setAbaAtiva('aba-log');
-    }, [evaDados, evaFaces, evaProf, evaBonus, caEvasiva, meuNome, setAbaAtiva, rolar]);
+    }, [evaDados, evaFaces, evaProf, evaBonus, minhaFicha, meuNome, setAbaAtiva, rolar]);
 
     const declararResistencia = useCallback(() => {
         const qD = parseInt(resDados) || 0;
@@ -190,13 +192,14 @@ export function DefesaFormProvider({ children }) {
             diceStr = `\u{1F3B2} +Dados: ${r.str} | `;
         }
 
-        const total = caResistencia + diceTotal + prof + bonus;
-        const baseCalc = `${diceStr}CA Resist\u00eancia (${caResistencia}) + Prof (${prof}) + B\u00f3nus Extra (${bonus})`;
+        const caComBonus = calcularCA(minhaFicha, 'resistencia', bonus);
+        const total = caComBonus + diceTotal + prof;
+        const baseCalc = `${diceStr}CA Resist\u00eancia (${caComBonus}, j\u00e1 com B\u00f3nus Extra ${bonus}) + Prof (${prof})`;
 
         const feedData = { tipo: 'resistencia', nome: meuNome, total, baseCalc };
         enviarParaFeed(feedData);
         setAbaAtiva('aba-log');
-    }, [resDados, resFaces, resProf, resBonus, caResistencia, meuNome, setAbaAtiva, rolar]);
+    }, [resDados, resFaces, resProf, resBonus, minhaFicha, meuNome, setAbaAtiva, rolar]);
 
     const declararReducao = useCallback(() => {
         const k = redEnergia;
