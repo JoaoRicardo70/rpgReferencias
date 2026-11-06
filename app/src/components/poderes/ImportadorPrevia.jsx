@@ -1,5 +1,5 @@
 import React from 'react';
-import { resumirItemImportado, mudarCategoriaImportada } from '../../core/importadorIA';
+import { resumirItemImportado, mudarCategoriaImportada, listarEfeitosIncertos, contarPendentes, decidirEfeitoIncerto, decidirTodosOsIncertos } from '../../core/importadorIA';
 import { trocarElementoDaPrevia } from '../../core/importadorTecnicas';
 
 const CATEGORIAS = [
@@ -26,6 +26,12 @@ function ListaEfeitos({ titulo, efeitos }) {
 export default function ImportadorPrevia({ itens, onAtualizar, onRemover, onConfirmar, onVoltar, onAdicionarOutra, elementos, resumir }) {
     const modoTecnica = Array.isArray(elementos);
     const marcados = itens.filter(it => it.marcado && it.valido).length;
+    // Efeitos sem ativação clara: o jogador precisa responder antes de gravar (só nos itens marcados).
+    const pendentes = itens.filter(it => it.marcado && it.valido).reduce((soma, it) => soma + contarPendentes(it.objeto), 0);
+
+    const decidir = (it, onde, indice, destino) => onAtualizar(it.chave, { ...it, objeto: decidirEfeitoIncerto(it.objeto, onde, indice, destino) });
+    const decidirTodos = (it, destino) => onAtualizar(it.chave, { ...it, objeto: decidirTodosOsIncertos(it.objeto, destino) });
+    const tirarSub = (it, indice) => onAtualizar(it.chave, { ...it, objeto: { ...it.objeto, formas: it.objeto.formas.filter((_, i) => i !== indice) } });
 
     const trocarNome = (it, nome) => {
         const valido = nome.trim().length > 0;
@@ -56,6 +62,40 @@ export default function ImportadorPrevia({ itens, onAtualizar, onRemover, onConf
                     <div className="importacao-resumo">{(resumir || resumirItemImportado)(it.objeto)}{it.objeto.tipoAcao ? ` · ação: ${it.objeto.tipoAcao}` : ''}</div>
                     <ListaEfeitos titulo="Ativos:" efeitos={it.objeto.efeitos} />
                     <ListaEfeitos titulo="Passivos:" efeitos={it.objeto.efeitosPassivos} />
+                    {Array.isArray(it.objeto.formas) && it.objeto.formas.length > 0 && (
+                        <div className="importacao-subs">
+                            <div className="importacao-efeitos-titulo">🔱 Habilidades dentro deste Poder (viram Formas Místicas dele):</div>
+                            {it.objeto.formas.map((forma, i) => {
+                                const cfg = (forma.configs && forma.configs[0]) || {};
+                                return (
+                                    <div key={`s${i}`} className="importacao-sub">
+                                        <div className="importacao-sub-topo">
+                                            <strong>{forma.nome}</strong>
+                                            <button type="button" className="importacao-remover" title="Não importar esta habilidade" aria-label={`Tirar ${forma.nome}`} onClick={() => tirarSub(it, i)}>✕</button>
+                                        </div>
+                                        <ListaEfeitos titulo="Ativos:" efeitos={cfg.efeitos} />
+                                        <ListaEfeitos titulo="Passivos:" efeitos={cfg.efeitosPassivos} />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                    {listarEfeitosIncertos(it.objeto).length > 0 && (
+                        <div className="importacao-incertos" role="group" aria-label="Efeitos sem ativação clara">
+                            <div className="importacao-efeitos-titulo">❓ O texto não diz se estes efeitos valem sempre ou só com a habilidade ligada. Como aplicar?</div>
+                            {listarEfeitosIncertos(it.objeto).map(({ onde, indice, efeito }) => (
+                                <div key={`${onde}_${indice}`} className="importacao-incerto">
+                                    <span className="importacao-chip" title={efeito.nome || ''}>{onde === 'pai' ? '' : `${it.objeto.formas[onde].nome}: `}{efeito.nome ? `${efeito.nome} · ` : ''}{textoEfeito(efeito)}</span>
+                                    <button type="button" className={`importacao-opcao${efeito.destino === 'ativo' ? ' escolhida' : ''}`} aria-pressed={efeito.destino === 'ativo'} onClick={() => decidir(it, onde, indice, 'ativo')}>⚡ Só ao ativar</button>
+                                    <button type="button" className={`importacao-opcao${efeito.destino === 'passivo' ? ' escolhida' : ''}`} aria-pressed={efeito.destino === 'passivo'} onClick={() => decidir(it, onde, indice, 'passivo')}>🛡️ Sempre (passivo)</button>
+                                </div>
+                            ))}
+                            <div className="importacao-incerto-todos">
+                                <button type="button" className="importacao-opcao" onClick={() => decidirTodos(it, 'ativo')}>Todos só ao ativar</button>
+                                <button type="button" className="importacao-opcao" onClick={() => decidirTodos(it, 'passivo')}>Todos sempre</button>
+                            </div>
+                        </div>
+                    )}
                     {it.avisos.map((a, i) => <div key={`a${i}`} className="importacao-aviso">⚠️ {a}</div>)}
                     {it.naoAplicado.length > 0 && (
                         <div className="importacao-nao-aplicado">
@@ -68,7 +108,8 @@ export default function ImportadorPrevia({ itens, onAtualizar, onRemover, onConf
             <div className="importacao-acoes">
                 <button type="button" onClick={onVoltar}>Voltar</button>
                 <button type="button" onClick={onAdicionarOutra}>+ Colar outra resposta</button>
-                <button type="button" className="importacao-confirmar" disabled={marcados === 0} onClick={onConfirmar}>Gravar {marcados} no Grimório</button>
+                <button type="button" className="importacao-confirmar" disabled={marcados === 0 || pendentes > 0} title={pendentes > 0 ? 'Responda como aplicar os efeitos marcados com ❓' : ''} onClick={onConfirmar}>Gravar {marcados} no Grimório</button>
+                {pendentes > 0 && <div className="importacao-aviso" role="status">❓ Falta responder {pendentes} efeito(s): só ao ativar ou sempre?</div>}
             </div>
         </div>
     );

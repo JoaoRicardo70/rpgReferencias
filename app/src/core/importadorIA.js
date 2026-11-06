@@ -32,8 +32,10 @@ CAMPOS DE CADA ITEM
 - "danoQtd" e "danoFaces": "15d6" vira 15 e 6. Sem dano: 0 e 0.
 - "custoPercentual": custo em % das energias, se o texto disser (senão 0). "alcance" e "area": em quadrados (senão 0).
 - "tipoAcao": "acao", "bonus", "reacao", "movimento", "livre" ou "" se não estiver claro.
-- "efeitos": efeitos que valem enquanto a habilidade está LIGADA (ativa).
-- "efeitosPassivos": efeitos que valem SEMPRE (seções "Passivas", "sempre ativo", "você recebe..."). Se a habilidade só tem passivas, use só este campo.
+- "efeitos": efeitos que valem enquanto a habilidade está LIGADA (ativa): o texto diz "ao usar", "ao ativar", "enquanto ativo".
+- "efeitosPassivos": efeitos que valem SEMPRE, SOMENTE se o texto disser isso com todas as letras (seção "Passivas", "passivo", "sempre ativo", "permanente", "sem precisar ativar"). NUNCA coloque aqui um bônus só porque o texto o lista.
+- "efeitosIncertos": bônus que o texto lista mas NÃO deixa claro se valem sempre ou só com a habilidade ligada (ex.: uma lista solta "Aumenta a rolagem de ataque em +10"). NA DÚVIDA, use este campo: o jogador decide depois. Mesmo formato dos outros efeitos.
+- "subHabilidades": quando o texto tem uma habilidade PRINCIPAL (um título, ex.: "Rinnegan Supremo (Olho esquerdo):") e, abaixo dela, itens com nome próprio que são habilidades DELA (ex.: "- Limbo: ...", "- Izanagi: ..."), crie UM item só para a principal e ponha esses itens aqui, SEM criar itens separados para eles: [{"nome","descricao","tipoAcao","usosMax","usosPor","efeitos","efeitosPassivos","efeitosIncertos","naoAplicado"}] (mesmas regras dos campos acima). Observações soltas da principal (ex.: "x800 em todo dano") ficam na principal, em "naoAplicado". Textos de prints seguidos sobre a mesma habilidade principal são UM item só. Sem sub-habilidades, use [].
   Cada efeito: {"nome": "...", "atributo": "...", "propriedade": "...", "valor": 0}. "valor" é SEMPRE um número puro.
 - "aplicaEstados": estados que a habilidade causa em quem ela atinge: [{"id": "...", "stacks": 1}]. Ids válidos: ${ESTADOS.map(e => e.id).join(', ')}.
 - "usosMax" e "usosPor": se o texto limita os usos ("1 vez por cena", "3 usos por descanso"), coloque o número em "usosMax" e "cena" ou "descanso" em "usosPor". Sem limite, omita os dois.
@@ -65,7 +67,7 @@ ${String(texto || '').trim()}
 
 RETORNE SOMENTE UM JSON PURO, sem explicações:
 {
-  "poderes": [{ "nome": "X", "descricao": "Y", "categoria": "${padrao}", "danoQtd": 0, "danoFaces": 0, "custoPercentual": 0, "alcance": 0, "area": 0, "tipoAcao": "", "efeitos": [], "efeitosPassivos": [{ "nome": "Pele dura", "atributo": "evasiva", "propriedade": "base", "valor": 5 }], "aplicaEstados": [], "notasIA": "", "naoAplicado": [] }]
+  "poderes": [{ "nome": "X", "descricao": "Y", "categoria": "${padrao}", "danoQtd": 0, "danoFaces": 0, "custoPercentual": 0, "alcance": 0, "area": 0, "tipoAcao": "", "efeitos": [], "efeitosPassivos": [], "efeitosIncertos": [{ "nome": "Pele dura", "atributo": "evasiva", "propriedade": "base", "valor": 5 }], "subHabilidades": [], "aplicaEstados": [], "notasIA": "", "naoAplicado": [] }]
 }`;
 }
 
@@ -220,9 +222,76 @@ export function prepararItemImportado(bruto, categoriaPadrao = 'habilidade') {
     const { objeto, avisos, valido } = normalizarPoder(dados);
     objeto.custoPercentualMax = 0;
     objeto.semComoPoder = false;
+    // Efeitos sem ativação clara esperam o jogador decidir (Ao ativar x Sempre) na prévia: nada é aplicado antes disso.
+    const incertos = separarEfeitosImportaveis(p.efeitosIncertos, naoAplicado);
+    if (incertos.length) objeto.efeitosIncertos = incertos.map(e => ({ ...e, destino: '' }));
+    // Sub-habilidades: viram Formas Místicas do próprio Poder (id definido só na hora de gravar).
+    const subs = (Array.isArray(p.subHabilidades) ? p.subHabilidades : []).map(s => prepararSubHabilidade(s)).filter(Boolean);
+    if (subs.length) objeto.formas = subs;
     objeto.naoAplicado = naoAplicado;
     objeto.notasIA = juntarNotas(objeto.notasIA, naoAplicado);
     return { objeto, avisos, naoAplicado, valido };
+}
+
+// Uma sub-habilidade da IA -> Forma Mística com um Modo ("Padrão") que carrega os efeitos. Ação e usos entram no texto do Modo.
+function prepararSubHabilidade(bruto) {
+    const s = bruto && typeof bruto === 'object' ? bruto : null;
+    const nome = String(s && s.nome ? s.nome : '').trim();
+    if (!nome) return null;
+    const naoAplicado = textoLista(s.naoAplicado);
+    const efeitos = separarEfeitosImportaveis(s.efeitos, naoAplicado);
+    const efeitosPassivos = separarEfeitosImportaveis(s.efeitosPassivos, naoAplicado);
+    const incertos = separarEfeitosImportaveis(s.efeitosIncertos, naoAplicado).map(e => ({ ...e, destino: '' }));
+    const detalhes = [];
+    const acao = String(s.tipoAcao ?? '').trim();
+    if (acao) detalhes.push(`Ação: ${acao}`);
+    const usos = Math.floor(num(s.usosMax));
+    if (usos > 0) detalhes.push(`Usos: ${usos} por ${minusculo(s.usosPor) === 'cena' ? 'cena' : 'descanso'}`);
+    const descricao = String(s.descricao ?? '').trim();
+    const notas = juntarNotas('', naoAplicado);
+    const texto = [descricao, detalhes.join(' · '), notas].filter(Boolean).join('\n\n');
+    return {
+        nome, descricao: texto, imagemUrl: '', acumulaFormaBase: true, efeitos: [], efeitosPassivos: [],
+        configs: [{ nome: 'Padrão', descricao: '', imagemUrl: '', efeitos, efeitosPassivos, efeitosIncertos: incertos }],
+        naoAplicado,
+    };
+}
+
+// Efeitos à espera de decisão: [{ onde: 'pai' | índice da forma, indice, efeito }]. A prévia usa para perguntar ao jogador.
+export function listarEfeitosIncertos(objeto) {
+    const lista = [];
+    ((objeto && objeto.efeitosIncertos) || []).forEach((efeito, indice) => lista.push({ onde: 'pai', indice, efeito }));
+    ((objeto && objeto.formas) || []).forEach((forma, f) => {
+        ((forma.configs && forma.configs[0] && forma.configs[0].efeitosIncertos) || []).forEach((efeito, indice) => lista.push({ onde: f, indice, efeito }));
+    });
+    return lista;
+}
+
+export const contarPendentes = (objeto) => listarEfeitosIncertos(objeto).filter(i => i.efeito.destino !== 'ativo' && i.efeito.destino !== 'passivo').length;
+
+// Grava a escolha ('ativo' | 'passivo' | '' para desfazer) de um efeito incerto. Devolve um objeto novo.
+export function decidirEfeitoIncerto(objeto, onde, indice, destino) {
+    const copia = JSON.parse(JSON.stringify(objeto || {}));
+    const lista = onde === 'pai' ? copia.efeitosIncertos : (copia.formas && copia.formas[onde] && copia.formas[onde].configs[0].efeitosIncertos);
+    if (lista && lista[indice]) lista[indice].destino = destino === 'ativo' || destino === 'passivo' ? destino : '';
+    return copia;
+}
+
+// Decide todos os incertos de uma vez ('ativo' | 'passivo').
+export function decidirTodosOsIncertos(objeto, destino) {
+    let atual = objeto;
+    listarEfeitosIncertos(objeto).forEach(i => { atual = decidirEfeitoIncerto(atual, i.onde, i.indice, destino); });
+    return atual;
+}
+
+// Move os incertos decididos para efeitos / efeitosPassivos. Sem decisão (atalho sem prévia) vale 'ativo': só funciona com o poder ligado, nunca de graça.
+function resolverIncertos(alvo) {
+    const incertos = alvo.efeitosIncertos || [];
+    delete alvo.efeitosIncertos;
+    incertos.forEach(({ destino, ...efeito }) => {
+        if (destino === 'passivo') alvo.efeitosPassivos = [...(alvo.efeitosPassivos || []), efeito];
+        else alvo.efeitos = [...(alvo.efeitos || []), efeito];
+    });
 }
 
 // Notas finais do poder: o que a IA escreveu + o que não foi aplicado, para nada se perder.
@@ -266,6 +335,17 @@ export function resumirItemImportado(objeto) {
 export function montarPoderFinal(objeto, id) {
     const copia = JSON.parse(JSON.stringify(objeto || {}));
     delete copia.naoAplicado;
+    resolverIncertos(copia);
+    if (Array.isArray(copia.formas)) {
+        // Ids únicos dentro do Poder: a Forma e o seu Modo.
+        copia.formas = copia.formas.map((forma, i) => {
+            const { naoAplicado, ...resto } = forma;
+            const formaId = typeof id === 'number' && Number.isFinite(id) ? id * 100 + i * 2 + 1 : `${id}_f${i + 1}`;
+            const config = { ...(resto.configs && resto.configs[0] ? resto.configs[0] : {}), id: typeof formaId === 'number' ? formaId + 1 : `${formaId}_m1` };
+            resolverIncertos(config);
+            return { ...resto, id: formaId, configs: [config] };
+        });
+    }
     return { ...copia, id };
 }
 
