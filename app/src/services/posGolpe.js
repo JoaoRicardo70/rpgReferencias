@@ -9,6 +9,7 @@ import { somarEstado } from '../core/condicoes';
 import { resolverEstadosNoAlvo, descreverResolucao, juntarAplicados } from '../core/estadosGolpe';
 import { reflexosDisponiveis, calcularReflexo, descreverReflexo, custoDoReflexo } from '../core/reflexo';
 import { entradasNoAlvo, resolverAoAcertarNoAlvo } from '../core/aoAcertar';
+import { absorverEmPersonagem } from './danoAlvo';
 
 // Soma os estados já resolvidos na lista de condições do alvo e grava. `fonte` = quem causou (para Amedrontado/Charmado/Provocado).
 // Lista de condições do alvo depois de somar os estados (não grava nada).
@@ -93,10 +94,15 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
                     r.textos.forEach(t => textos.push(`${alvo.nome}: ${t}`));
                 } else if (!avisouSemFicha) {
                     avisouSemFicha = true;
-                    textos.push('ℹ️ Entidade do Mapa não tem ficha: dreno de energia e debuff (Ao acertar) não se aplicam a ela.');
+                    textos.push('ℹ️ Entidade do Mapa não tem ficha: dreno de energia, debuff e cura reduzida (Ao acertar) não se aplicam a ela.');
                 }
             }
             if (dano > 0) atingiuComDano = true;
+            // 🛡️ Por último: escudos/Vida temporária do alvo-personagem absorvem o Dano final (efeitos 'Ao acertar' valem mesmo que o escudo absorva tudo).
+            if (dano > 0 && alvo.isPersonagem && alvo.personagemNome) {
+                const a = absorverEmPersonagem(alvo.personagemNome, alvo.ficha, dano, alvo.nome);
+                if (a.texto) { dano = a.restante; textos.push(a.texto); }
+            }
             return dano;
         },
         // Use no lugar do alvo ao gravar o Dano (gravarVidaDoAlvo): leva junto as condições novas do Dummie.

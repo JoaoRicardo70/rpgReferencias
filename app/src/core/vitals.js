@@ -11,6 +11,8 @@ import { modificadoresDeEstados } from './condicoes.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
 import { restaurarUsos } from './usosPoder.js';
 import { zerarRecargas } from './recargaPoder.js';
+import { limparEscudosNoDescanso } from './escudos.js';
+import { menorFatorCuraReduzida } from './suporte.js';
 
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 export const VITAIS_REGENERAVEIS = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'pv', 'pm'];
@@ -444,7 +446,7 @@ export function aplicarRegeneracaoDeTurno(ficha, pisoFadigaExtra = 0) {
             const teto = getTetoExibidoComFator(key, ficha);
             // 💖 Regeneração em PORCENTAGEM do teto por turno (core/regeneracao.js).
             // 🩸 Estados que cortam a cura (Sangrando, Queimado, Criogenia, Exaustão 4+) também cortam a Regeneração da Vida.
-            const cortePorEstados = key === 'vida' ? modificadoresDeEstados(ficha).curaMult : 1;
+            const cortePorEstados = key === 'vida' ? modificadoresDeEstados(ficha).curaMult * menorFatorCuraReduzida(ficha) : 1;
             const regen = calcularCuraRegeneracao(teto, getRegeneracaoTotalPct(ficha[key], getBuffs(ficha, key).regeneracao, teto)) * cortePorEstados;
             if (regen > 0 && teto > 0 && (ficha[key].atual || 0) < teto) {
                 const antes = ficha[key].atual || 0;
@@ -489,4 +491,6 @@ export function descansarCompleto(ficha) {
     restaurarUsos(ficha);
     // ⏳ Também zera as recargas em turnos em andamento (core/recargaPoder.js).
     zerarRecargas(ficha);
+    // 🛡️ Vida temporária e escudos de Poder somem; escudos manuais permanecem (core/escudos.js).
+    limparEscudosNoDescanso(ficha);
 }

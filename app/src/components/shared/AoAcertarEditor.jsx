@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
-import { TIPOS_AO_ACERTAR, MODOS_AO_ACERTAR, ENERGIAS_AO_ACERTAR, ATRIBUTOS_DEBUFF_AO_ACERTAR, LIMITE_DURACAO_DEBUFF, LIMITE_AO_ACERTAR, normalizarAoAcertar } from '../../core/aoAcertar';
+import { TIPOS_AO_ACERTAR, FATOR_CURA_MIN, FATOR_CURA_MAX, MODOS_AO_ACERTAR, ENERGIAS_AO_ACERTAR, ATRIBUTOS_DEBUFF_AO_ACERTAR, LIMITE_DURACAO_DEBUFF, LIMITE_AO_ACERTAR, normalizarAoAcertar, lerFatorCura } from '../../core/aoAcertar';
 import { lerAlvoDeEditor, acharAlvoParaGravar } from './alvoDeEditor';
 
 const ROTULO_ATRIBUTO_DEBUFF = { evasiva: 'Evasiva (CA)', resistencia: 'Resistência (CA)', acerto: 'Acerto' };
@@ -16,7 +16,7 @@ export function ListaAoAcertar({ lista, onChange, onDigitar }) {
         <div className="estados-golpe-lista">
             {itens.map((e, i) => (
                 <div key={i} className="estados-golpe-linha">
-                    <select className="input-neon" aria-label="O que acontece" value={e.tipo} onChange={ev => alterar(i, { tipo: ev.target.value })}>
+                    <select className="input-neon" aria-label="O que acontece" value={e.tipo} onChange={ev => alterar(i, ev.target.value === 'reduzirCuraAlvo' ? { tipo: 'reduzirCuraAlvo', fator: lerFatorCura(e.fator) ?? 0.5, duracao: e.duracao ?? 1 } : { tipo: ev.target.value })}>
                         {TIPOS_AO_ACERTAR.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}
                     </select>
                     {(e.tipo === 'energiaAtacante' || e.tipo === 'drenarEnergiaAlvo') && (
@@ -24,11 +24,18 @@ export function ListaAoAcertar({ lista, onChange, onDigitar }) {
                             {ENERGIAS_AO_ACERTAR.map(k => <option key={k} value={k}>{k}</option>)}
                         </select>
                     )}
+                    {e.tipo === 'reduzirCuraAlvo' ? (
+                        <label className="estados-golpe-check">cura x <input className="input-neon estados-golpe-num" type="number" min={FATOR_CURA_MIN} max={FATOR_CURA_MAX} step="0.05" aria-label="Fator da cura do alvo" title="0.5 = a cura do alvo cai pela metade; 0.33 = 1/3" value={e.fator ?? 0.5} onChange={ev => digitar(i, 'fator', ev.target.value)} onBlur={() => onChange(itens)} /></label>
+                    ) : (
                     <input className="input-neon estados-golpe-num" type="number" min="0" aria-label="Valor" title={e.tipo === 'debuffAlvo' ? 'Quantos pontos o alvo perde (ex.: 3 = -3)' : 'Valor fixo na escala exibida (como o Dano) ou a porcentagem'} value={e.valor} onChange={ev => digitar(i, 'valor', ev.target.value)} onBlur={() => onChange(itens)} />
-                    {e.tipo !== 'debuffAlvo' && (
+                    )}
+                    {e.tipo !== 'debuffAlvo' && e.tipo !== 'reduzirCuraAlvo' && (
                         <select className="input-neon" aria-label="Como o valor é medido" value={e.modo} onChange={ev => alterar(i, { modo: ev.target.value })}>
                             {MODOS_AO_ACERTAR.map(m => <option key={m.id} value={m.id}>{m.rotulo}</option>)}
                         </select>
+                    )}
+                    {e.tipo === 'reduzirCuraAlvo' && (
+                        <label className="estados-golpe-check">por <input className="input-neon estados-golpe-num" type="number" min="1" max={LIMITE_DURACAO_DEBUFF} aria-label="Duração em turnos do alvo" title="Turnos do alvo" value={e.duracao ?? 1} onChange={ev => digitar(i, 'duracao', ev.target.value)} onBlur={() => onChange(itens)} /> turno(s)</label>
                     )}
                     {e.tipo === 'debuffAlvo' && (
                         <>
@@ -83,7 +90,7 @@ export default function AoAcertarEditor({ colecao, itemId }) {
             </button>
             {aberto && (
                 <div className="descricoes-ataque-corpo">
-                    <p className="descricoes-ataque-dica">O que acontece quando este golpe atinge um alvo e causa Dano, com alvo marcado. Em quem acertou (💚 🔋): vale uma vez por golpe, mesmo em área, e nunca passa do máximo. No alvo (🕳️ ⬇️): vale em cada alvo atingido, só se for um personagem com ficha (entidades do Mapa não têm).</p>
+                    <p className="descricoes-ataque-dica">O que acontece quando este golpe atinge um alvo e causa Dano, com alvo marcado. Em quem acertou (💚 🔋): vale uma vez por golpe, mesmo em área, e nunca passa do máximo. No alvo (🕳️ ⬇️ 🩹): vale em cada alvo atingido, só se for um personagem com ficha (entidades do Mapa não têm).</p>
                     <ListaAoAcertar lista={lista} onChange={gravar} onDigitar={setLocal} />
                 </div>
             )}

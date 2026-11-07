@@ -9,6 +9,7 @@ import { getVantagensDeClasse, getBonusAcertoDeClasse } from './classesMecanicas
 import { efeitosAtivosDoItem } from './efeitosItem.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
 import { modificadoresDeEstados } from './condicoes.js';
+import { menorFatorCuraReduzida } from './suporte.js';
 import { somarEfeitosBase, valoresDeEfeitos, montarContextoDeCombate, desvantagemImpostaAoAtacante, temAcertoAutomatico, multiplicadoresCriticoExtra } from './efeitosCondicionais.js';
 import { armaVirtualDaArmaEspiritual } from './armaEspiritualDano.js';
 
@@ -691,5 +692,5 @@ export function calcularEficaciaCura(ficha) {
     (ficha.inventario || []).forEach(i => { if(i.equipado) { scanCura(efeitosAtivosDoItem(i)); scanCura(i.efeitosPassivos); } });
     (ficha.passivas || []).forEach(p => scanCura(p.efeitos));
 
-    return multFinal * (1 + bonusBuffs);
+    return multFinal * (1 + bonusBuffs) * menorFatorCuraReduzida(ficha);
 }

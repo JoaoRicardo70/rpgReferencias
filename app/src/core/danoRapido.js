@@ -10,6 +10,7 @@ import { getNivelDominio, calcularReducaoDanoElemental } from './dominios.js';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes, ehDanoVerdadeiro } from './reducaoDano.js';
 import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
 import { FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto } from './vitals.js';
+import { absorverDano } from './escudos.js';
 
 // Vida atual/máxima do alvo na escala EXIBIDA (a da barra de HP na tela). Dummie: hpAtual/hpMax;
 // jogador/NPC: vida.atual e o teto de Vida da ficha.
@@ -59,7 +60,9 @@ export function calcularDanoRapido({ alvo, fichaDoAlvo, dano, elemento = null, n
 
     const anulado = !!(disputa && disputa.ativa && valorBruto <= 0);
     const vida = getVidaDoAlvoExibida(alvo, fichaDoAlvo);
-    const vidaDepois = vida.atual === null ? null : Math.max(0, vida.atual - valor);
+    // 🛡️ Escudos/Vida temporária do alvo-personagem absorvem antes da Vida (core/escudos.js): a prévia bate com o resultado real.
+    const absorvidoEscudo = alvo.isDummie || anulado ? 0 : absorverDano(fichaDoAlvo, valor).absorvido;
+    const vidaDepois = vida.atual === null ? null : Math.max(0, vida.atual - (valor - absorvidoEscudo));
 
     return {
         valorDigitado, baseDano, valorBruto, disputa, nivelOverride, nivelAtacante,
@@ -67,6 +70,6 @@ export function calcularDanoRapido({ alvo, fichaDoAlvo, dano, elemento = null, n
         verdadeiro: ehVerdadeiro,
         textoReducao: ehVerdadeiro ? ' (Dano Verdadeiro)' : (reduzido.detalhe.length > 0 ? ` (${descreverReducoes(reduzido)})` : ''),
         textoDisputa: disputa && disputa.ativa ? descreverDisputa(disputa) : '',
-        vidaAntes: vida.atual, vidaDepois, vidaMax: vida.max,
+        vidaAntes: vida.atual, vidaDepois, vidaMax: vida.max, absorvidoEscudo,
     };
 }

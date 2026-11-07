@@ -13,6 +13,7 @@ import { resolverEstadosNoAlvo, descreverResolucao, juntarAplicados } from '../.
 import { aplicarEstadoNaFicha } from '../../core/condicoes';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { danoExibidoParaBruto } from '../../core/vitals';
+import { absorverNoRascunho } from '../../core/escudos';
 import { escalarDanoPelaVida, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
 
@@ -286,6 +287,7 @@ export function DefesaFormProvider({ children }) {
             ? resolverEstadosNoAlvo(golpeDoDano.estadosGolpe, minhaFicha, { critico: !!golpeDoDano.golpeCritico })
             : null;
 
+        let textoEscudo = '';
         updateFicha((ficha) => {
             if (resolucao) {
                 juntarAplicados(resolucao.aplicados).forEach(a => aplicarEstadoNaFicha(ficha, a.id, a.stacks, nomeAtacante || ''));
@@ -299,7 +301,10 @@ export function DefesaFormProvider({ children }) {
             if (ficha.combate && Array.isArray(ficha.combate.reacoesPendentes) && ficha.combate.reacoesPendentes.length > 0) ficha.combate.reacoesPendentes = [];
             if (ficha.vida) {
                 // O dano digitado é o número EXIBIDO (feed/tela); vida.atual é bruta.
-                ficha.vida.atual = Math.max(0, (ficha.vida.atual || 0) - danoExibidoParaBruto(danoFinal));
+                // 🛡️ Escudos e Vida temporária absorvem antes (core/escudos.js); o que sobra vai para a Vida.
+                const abs = absorverNoRascunho(ficha, danoFinal, meuNome);
+                textoEscudo = abs.texto;
+                ficha.vida.atual = Math.max(0, (ficha.vida.atual || 0) - danoExibidoParaBruto(abs.restante));
             }
         });
         salvarFichaSilencioso();
@@ -310,7 +315,7 @@ export function DefesaFormProvider({ children }) {
 
         const deQuem = nomeAtacante ? ` de ${nomeAtacante}` : '';
         const textoEstados = resolucao ? descreverResolucao(resolucao, meuNome) : '';
-        const texto = `Recebeu ${danoFinal} de dano${deQuem}! (Original: ${danoDigitado} de ${nomeElemento.toUpperCase()})${mensagemElemental}${textoReflexo ? ` ${textoReflexo}` : ''}${textoEstados ? ` 🩸 ${textoEstados}` : ''}`;
+        const texto = `Recebeu ${danoFinal} de dano${deQuem}! (Original: ${danoDigitado} de ${nomeElemento.toUpperCase()})${mensagemElemental}${textoReflexo ? ` ${textoReflexo}` : ''}${textoEstados ? ` 🩸 ${textoEstados}` : ''}${textoEscudo ? ` 🛡️ ${textoEscudo}` : ''}`;
         if (aplicarNoAtacante) aplicarNoAtacante();
 
         // Quem leva vantagem na Disputa de Poder é informação do Mestre (textoMestre).

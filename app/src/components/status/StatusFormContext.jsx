@@ -4,6 +4,7 @@ import { getMaximo, getMaximoSemFormas, getRawBase, getBuffs } from '../../core/
 import { getPrestigioReal, getRank } from '../../core/prestige.js';
 import { calcularReducaoFadigaPorRegeneracao } from '../../core/fadiga.js';
 import { getTetoVida } from '../../core/vitals.js';
+import { menorFatorCuraReduzida } from '../../core/suporte.js';
 import { alternarAcao, restaurarAcoes, ajustarExtraManualAcao } from '../../core/acoes.js';
 import { getRegeneracaoTotalPct, calcularCuraRegeneracao } from '../../core/regeneracao.js';
 import { salvarFichaSilencioso } from '../../services/firebase-sync.js';
@@ -261,7 +262,8 @@ export function StatusFormProvider({ children }) {
                 const { mxDisplay } = calcVitalScale(rawMx, key, rawMxEstavel);
                 // 🩸 Vida regenera até a SOMA de todas as barras (getTetoVida), não só uma.
                 const teto = key === 'vida' ? getTetoVida(rawMxEstavel, 'vida') : mxDisplay;
-                const regen = calcularCuraRegeneracao(teto, getRegeneracaoTotalPct(f[key], getBuffs(f, key).regeneracao, teto));
+                // 🩹 Cura reduzida (ao acertar) corta a regeneração da Vida.
+                const regen = calcularCuraRegeneracao(teto, getRegeneracaoTotalPct(f[key], getBuffs(f, key).regeneracao, teto)) * (key === 'vida' ? menorFatorCuraReduzida(f) : 1);
                 if (!f[key]) return;
                 if (regen > 0 && teto > 0 && (f[key].atual || 0) < teto) {
                     const antes = f[key].atual || 0;

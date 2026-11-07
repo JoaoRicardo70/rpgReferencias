@@ -25,6 +25,7 @@ import { getNivelDominio } from '../../core/dominios';
 import { classificarAtaque, energiasDoGolpe } from '../../core/identificacao';
 import { montarNarrativa } from '../../core/descricaoAtaque';
 import { calcularFaixasCritico, classificarCritico, maiorDadoDaRolagem } from '../../core/critico';
+import { absorverNoRascunho } from '../../core/escudos';
 import { coletarAoAcertar, aplicarAoAcertarNoRascunho } from '../../core/aoAcertar';
 import { valoresDeEfeitos, menorValorDeEfeitos, montarContextoDeCombate } from '../../core/efeitosCondicionais';
 
@@ -511,8 +512,11 @@ export function AtaqueFormProvider({ children }) {
         if (danoAtacante > 0) {
             const eu = montarAlvoPersonagem(meuNome, minhaFicha, divisorPoderMesa);
             const dano = eu ? reduzirDanoNoAlvo(eu, danoAtacante, elementoAtivo, { verdadeiro: danoVerdadeiro }).final : danoAtacante;
-            updateFicha(ficha => { if (ficha.vida) ficha.vida.atual = Math.max(0, (ficha.vida.atual || 0) - danoExibidoParaBruto(dano)); });
+            // 🛡️ O Reflexo devolvido passa pelo escudo de quem atacou antes da Vida.
+            let textoEscudo = '';
+            updateFicha(ficha => { if (ficha.vida) { const abs = absorverNoRascunho(ficha, dano, nomeNoFeed); textoEscudo = abs.texto; ficha.vida.atual = Math.max(0, (ficha.vida.atual || 0) - danoExibidoParaBruto(abs.restante)); } });
             salvarFichaSilencioso();
+            if (textoEscudo) textos.push(`🛡️ ${textoEscudo}`);
             textos.push(`💥 O Reflexo devolveu ${Math.floor(dano).toLocaleString('pt-BR')} de dano em ${nomeNoFeed}!`);
         }
         return textos.length > 0 ? { textoPosGolpe: textos } : {};

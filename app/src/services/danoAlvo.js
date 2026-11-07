@@ -3,8 +3,20 @@
 // Vida, Fadiga dinâmica do golpe e o último elemento recebido (que alimenta a Resistência/Domínio
 // elemental do alvo). Usado pelo Dano Rápido do Mestre e pelo Ataque contra um alvo-personagem.
 // ==========================================
-import { aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto, salvarDummie } from './firebase-sync';
+import useStore from '../stores/useStore';
+import { aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto, salvarDummie, salvarCamposPersonagem } from './firebase-sync';
+import { absorverDano, descreverAbsorcao } from '../core/escudos';
 import { calcularGanhoFadigaDinamico } from '../core/fadiga';
+
+// 🛡️ Escudos e Vida Temporária (core/escudos.js) de OUTRO personagem: tira do escudo dele o que der do Dano FINAL (escala exibida) e grava só
+// o campo `escudos` (null apaga). Usa a ficha mais recente do store. Devolve { restante, absorvido, texto }; sem escudos, nada é gravado.
+export function absorverEmPersonagem(nome, ficha, danoExibido, nomeNoFeed = '') {
+    const fresca = (useStore.getState().personagens || {})[nome] || ficha;
+    const r = absorverDano(fresca, danoExibido);
+    if (!(r.absorvido > 0)) return { restante: Math.max(0, Number(danoExibido) || 0), absorvido: 0, texto: '' };
+    salvarCamposPersonagem(nome, { escudos: r.escudosNovos.length > 0 ? r.escudosNovos : null });
+    return { restante: r.restante, absorvido: r.absorvido, texto: descreverAbsorcao(nomeNoFeed || nome, r) };
+}
 
 // `ficha` = ficha ATUAL do alvo; `vidaFinalBruta` = Vida já reduzida, na escala bruta gravada.
 export function gravarDanoEmPersonagem(nome, ficha, vidaFinalBruta, { elemento = null, nivelOverride = null } = {}) {

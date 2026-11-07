@@ -3213,3 +3213,12 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .importacao-imagens-dica { font-size: 0.75em; opacity: 0.7; }
 
 .dano-verdadeiro-check { color: var(--cor-secundaria); font-weight: bold; }
+
+/* 🛡️ Escudos e Vida Temporária (Ficha, core/escudos.js) */
+.escudo-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.escudo-nome { flex: 1 1 140px; min-width: 120px; }
+.escudo-nome-input { flex: 1 1 160px; min-width: 120px; }
+.escudo-valor { max-width: 110px; }
+.escudo-tipo { font-size: 1.1em; }
+.escudo-poder-campo { display: flex; flex-wrap: wrap; gap: 6px; }
+.escudo-poder-campo input[type="number"] { max-width: 90px; }

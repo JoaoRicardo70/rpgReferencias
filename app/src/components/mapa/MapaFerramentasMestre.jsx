@@ -341,6 +341,7 @@ function PreviaDanoRapido({ previa, nomeAlvo }) {
             {previa.vidaAntes !== null && previa.vidaMax > 0 && (
                 <div className="dano-previa-vida">
                     ❤️ Vida: {fmtNum(previa.vidaAntes)} → <strong>{fmtNum(previa.vidaDepois)}</strong> / {fmtNum(previa.vidaMax)}
+                    {previa.absorvidoEscudo > 0 && <span> (🛡️ escudo absorve {fmtNum(previa.absorvidoEscudo)})</span>}
                     {previa.vidaDepois <= 0 && <span className="dano-previa-morto"> (💀 cai a 0)</span>}
                 </div>
             )}

@@ -6,6 +6,7 @@
 // Sem energia suficiente o Poder desliga (mesmo caminho do togglePoder: os máximos voltam e os vitais mantêm a mesma %),
 // sem pagar nada e SEM disparar o "ao desligar" (core/aoDesligar.js), que é só do desligar manual.
 // ==========================================
+import { removerEscudosDoPoder } from './escudos.js';
 import { FATOR_EXIBICAO_VITAIS, getTetoExibidoComFator, capturarMaximosAtuais, rescalarVitaisProporcional } from './vitals.js';
 
 export const ENERGIAS_CUSTO = ['mana', 'aura', 'chakra', 'corpo'];
@@ -75,6 +76,8 @@ export function desligarPoderNoRascunho(ficha, id) {
     const antes = capturarMaximosAtuais(ficha);
     p.ativa = false;
     rescalarVitaisProporcional(ficha, antes);
+    // 🛡️ O escudo que o Poder criou ao ligar (escudoAoLigar) some junto.
+    removerEscudosDoPoder(ficha, p.id);
     return true;
 }
 

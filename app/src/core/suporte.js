@@ -194,3 +194,23 @@ export function curaEnergiasPassivaDoTurno(ficha) {
     });
     return { porEnergia, vazio: Object.keys(porEnergia).length === 0 };
 }
+
+// ---------- Cura reduzida (efeito "ao acertar" reduzirCuraAlvo) ----------
+
+// Buff temporário de cura reduzida: efeito { atributo: 'cura', propriedade: 'cura_reduzida', valor: fator 0.01..1 }. Não mexe em nenhum atributo
+// (getBuffs ignora a propriedade desconhecida); só calcularEficaciaCura lê.
+export const NOME_BUFF_CURA_REDUZIDA = 'Cura reduzida';
+export const PROPRIEDADE_CURA_REDUZIDA = 'cura_reduzida';
+
+export function fatorDeBuffCura(buff) {
+    const ef = buff && Array.isArray(buff.efeitos) ? buff.efeitos.find(e => e && e.propriedade === PROPRIEDADE_CURA_REDUZIDA) : null;
+    const f = ef ? Number(ef.valor) : NaN;
+    return Number.isFinite(f) && f > 0 && f <= 1 ? f : null;
+}
+
+// Menor fator entre os buffs de cura reduzida vigentes (1 = sem redução). Fatores de fontes diferentes NÃO se multiplicam.
+export function menorFatorCuraReduzida(ficha) {
+    let menor = 1;
+    buffsTemporariosDaFicha(ficha).forEach((b) => { const f = fatorDeBuffCura(b); if (f !== null && f < menor) menor = f; });
+    return menor;
+}

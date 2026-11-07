@@ -37,7 +37,7 @@ describe('AoAcertarEditor - efeitos no alvo', () => {
     it('opcoes de tipo incluem dreno e debuff', () => {
         preparar();
         const valores = Array.from(screen.getByLabelText('O que acontece').querySelectorAll('option')).map(o => o.value);
-        expect(valores).toEqual(['curarAtacante', 'energiaAtacante', 'drenarEnergiaAlvo', 'debuffAlvo']);
+        expect(valores).toEqual(['curarAtacante', 'energiaAtacante', 'drenarEnergiaAlvo', 'debuffAlvo', 'reduzirCuraAlvo']);
     });
 
     it('Drena energia do alvo mostra energia e modo; grava energia padrao mana', () => {

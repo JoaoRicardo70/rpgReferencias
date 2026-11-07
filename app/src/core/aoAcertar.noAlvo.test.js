@@ -21,7 +21,7 @@ const buffVivo = (nome, fonte = 'V', restantes = 3) => ({ id: nome, nome, fonte,
 
 describe('normalizarAoAcertar - tipos no alvo', () => {
     it('constantes', () => {
-        expect(TIPOS_NO_ALVO).toEqual(['drenarEnergiaAlvo', 'debuffAlvo']);
+        expect(TIPOS_NO_ALVO).toEqual(['drenarEnergiaAlvo', 'debuffAlvo', 'reduzirCuraAlvo']);
         expect(ATRIBUTOS_DEBUFF_AO_ACERTAR).toEqual(['evasiva', 'resistencia', 'acerto']);
         expect(LIMITE_DURACAO_DEBUFF).toBe(20);
     });

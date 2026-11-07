@@ -19,6 +19,7 @@ import { normalizarTipoAcao } from './acoesTecnica.js';
 import { normalizarUsos } from './usosPoder.js';
 import { normalizarAoAcertar } from './aoAcertar.js';
 import { lerCustoPorTurno } from './custoPorTurno.js';
+import { normalizarEscudoAoLigar } from './escudos.js';
 import { normalizarRecarga, LIMITE_RECARGA } from './recargaPoder.js';
 import { normalizarAoDesligar } from './aoDesligar.js';
 import { normalizarQuando, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from './efeitosCondicionais.js';
@@ -369,6 +370,10 @@ export function normalizarPoder(dados) {
     const recarga = normalizarRecarga(d.recargaTurnos);
     if (recarga > 0) objeto.recargaTurnos = recarga;
     if (Number(d.recargaTurnos) > LIMITE_RECARGA) avisos.push(`Recarga acima de ${LIMITE_RECARGA} turnos: reduzida para ${LIMITE_RECARGA}.`);
+    // 🛡️ Escudo que o Poder cria ao ligar (core/escudos.js); inválido não grava nada.
+    const escudoLigar = normalizarEscudoAoLigar(d.escudoAoLigar);
+    if (escudoLigar) objeto.escudoAoLigar = escudoLigar;
+    else if (d.escudoAoLigar) avisos.push('Escudo ao ligar ignorado: precisa de nome e valor maior que 0.');
     // 💥 Efeito ao desligar à mão (core/aoDesligar.js): dados de dano em si; inválido é ignorado com aviso.
     if (d.aoDesligar !== undefined && d.aoDesligar !== null && d.aoDesligar !== '') {
         const aoDesligar = normalizarAoDesligar(d.aoDesligar);
@@ -629,9 +634,10 @@ export const DECLARACOES_CRIACAO = [
                 alcance: { type: 'NUMBER' }, area: { type: 'NUMBER' },
                 tipoAcao: { type: 'STRING', enum: ['acao', 'bonus', 'reacao', 'movimento', 'livre'], description: 'Ação gasta ao usar (vazio = automático).' },
                 notasIA: { type: 'STRING', description: 'Regras que não cabem nos campos (condições, usos, gatilhos), em frases curtas.' },
-                aoAcertar: { type: 'ARRAY', description: 'O que acontece quando o golpe atinge e causa Dano (até 6): em QUEM ACERTOU (curarAtacante, energiaAtacante) ou no ALVO personagem (drenarEnergiaAlvo; debuffAlvo = reduz Evasiva/Resistência/Acerto do alvo por alguns turnos dele). Ex.: [{"tipo":"curarAtacante","modo":"percMax","valor":5},{"tipo":"debuffAlvo","atributo":"evasiva","valor":3,"duracao":2,"empilha":true}].', items: { type: 'OBJECT', properties: { tipo: { type: 'STRING', enum: ['curarAtacante', 'energiaAtacante', 'drenarEnergiaAlvo', 'debuffAlvo'] }, atributo: { type: 'STRING', enum: ['evasiva', 'resistencia', 'acerto'], description: 'Só debuffAlvo: o que o alvo perde. valor = pontos perdidos.' }, duracao: { type: 'INTEGER', description: 'Só debuffAlvo: turnos do alvo (1 a 20).' }, empilha: { type: 'BOOLEAN', description: 'Só debuffAlvo: cada golpe soma um debuff novo.' }, modo: { type: 'STRING', enum: ['fixo', 'percAtual', 'percMax'], description: 'fixo = valor na escala exibida (como o Dano); percAtual = % do valor atual; percMax = % do máximo.' }, valor: { type: 'NUMBER' }, energia: { type: 'STRING', enum: ['mana', 'aura', 'chakra', 'corpo'], description: 'Só com energiaAtacante e drenarEnergiaAlvo.' }, apenasCritico: { type: 'BOOLEAN' } }, required: ['tipo', 'valor'] } },
+                aoAcertar: { type: 'ARRAY', description: 'O que acontece quando o golpe atinge e causa Dano (até 6): em QUEM ACERTOU (curarAtacante, energiaAtacante) ou no ALVO personagem (drenarEnergiaAlvo; debuffAlvo = reduz Evasiva/Resistência/Acerto do alvo por alguns turnos dele). Ex.: [{"tipo":"curarAtacante","modo":"percMax","valor":5},{"tipo":"debuffAlvo","atributo":"evasiva","valor":3,"duracao":2,"empilha":true}].', items: { type: 'OBJECT', properties: { tipo: { type: 'STRING', enum: ['curarAtacante', 'energiaAtacante', 'drenarEnergiaAlvo', 'debuffAlvo', 'reduzirCuraAlvo'] }, fator: { type: 'NUMBER', description: 'Só reduzirCuraAlvo: fator da cura do alvo (0.01 a 1; 0.5 = metade). Use duracao (turnos do alvo). valor pode ficar fora.' }, atributo: { type: 'STRING', enum: ['evasiva', 'resistencia', 'acerto'], description: 'Só debuffAlvo: o que o alvo perde. valor = pontos perdidos.' }, duracao: { type: 'INTEGER', description: 'Só debuffAlvo: turnos do alvo (1 a 20).' }, empilha: { type: 'BOOLEAN', description: 'Só debuffAlvo: cada golpe soma um debuff novo.' }, modo: { type: 'STRING', enum: ['fixo', 'percAtual', 'percMax'], description: 'fixo = valor na escala exibida (como o Dano); percAtual = % do valor atual; percMax = % do máximo.' }, valor: { type: 'NUMBER' }, energia: { type: 'STRING', enum: ['mana', 'aura', 'chakra', 'corpo'], description: 'Só com energiaAtacante e drenarEnergiaAlvo.' }, apenasCritico: { type: 'BOOLEAN' } }, required: ['tipo'] } },
                 usosMax: { type: 'INTEGER', description: 'Quantas vezes pode ser ligada (1 a 99). Omita se for ilimitada.' },
                 custoPorTurno: { type: 'OBJECT', description: 'Energia cobrada no início de cada turno enquanto o Poder está ligado. Omita se não houver.', properties: { modo: { type: 'STRING', enum: ['fixo', 'percMax'] }, valor: { type: 'NUMBER' }, energia: { type: 'STRING', enum: ['mana', 'aura', 'chakra', 'corpo'] } } },
+                escudoAoLigar: { type: 'OBJECT', description: 'Barreira/escudo/vida temporária que o Poder cria ao ser ligado e some ao desligar (ex.: Domo Gélido com 1600). Omita se não houver.', properties: { nome: { type: 'STRING' }, valor: { type: 'NUMBER', description: 'Pontos de vida da barreira (escala do dano).' }, tipo: { type: 'STRING', enum: ['escudo', 'vidaTemporaria'] } }, required: ['nome', 'valor'] },
                 recargaTurnos: { type: 'INTEGER', description: 'Turnos do dono a esperar para usar de novo (1 a 99). Omita se não houver recarga.' },
                 aoDesligar: { type: 'OBJECT', description: 'Dano em si quando desligado à mão. Omita se não houver.', properties: { dadosQtd: { type: 'INTEGER' }, dadosFaces: { type: 'INTEGER' }, texto: { type: 'STRING' } } },
                 usosPor: { type: 'STRING', enum: ['cena', 'descanso'], description: 'Quando os usos renovam: cena (ao trocar de cena ou descansar) ou descanso. Só com usosMax.' },

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useFichaForm, ATRIBUTO_OPTIONS, CLASSES_OPTIONS, STATS, ENERGIAS } from './FichaFormContext';
 import FormasEditor from '../shared/FormasEditor';
 import { TIPOS_ACAO_TECNICA } from '../../core/acoesTecnica';
@@ -9,6 +9,7 @@ import { resumoDosEstados } from '../../core/condicoes.js';
 import { buffsTemporariosDaFicha } from '../../core/suporte.js';
 import { listaDeContadores, LIMITE_CONTADORES } from '../../core/contadores.js';
 import { temEstagios } from '../../core/estagios.js';
+import { listaDeEscudos, totalDeEscudos, TIPOS_ESCUDO, LIMITE_ESCUDOS } from '../../core/escudos.js';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Ficha provider não encontrado</div>;
 
@@ -225,6 +226,47 @@ function CartaoHabilidadeReducao({ r }) {
     );
 }
 
+// 🛡️ Escudos e Vida Temporária (core/escudos.js): barreiras que absorvem o Dano antes da Vida. Valores na escala do Dano.
+export function FichaEscudos() {
+    const ctx = useFichaForm();
+    const [nome, setNome] = useState('');
+    const [valor, setValor] = useState('');
+    const [tipo, setTipo] = useState('escudo');
+    if (!ctx || !ctx.minhaFicha) return null;
+    const { minhaFicha, adicionarEscudoFicha, removerEscudoFicha, atualizarEscudoFicha } = ctx;
+    const escudos = listaDeEscudos(minhaFicha);
+    const podeAdicionar = nome.trim() !== '' && Number(valor) > 0 && escudos.length < LIMITE_ESCUDOS;
+    const adicionar = () => {
+        if (!podeAdicionar || !adicionarEscudoFicha) return;
+        adicionarEscudoFicha({ nome, valor, tipo });
+        setNome(''); setValor('');
+    };
+    return (
+        <section className="estados-secao">
+            <h3 className="estados-secao-titulo">🛡️ Escudos e Vida Temporária</h3>
+            <p className="contador-dica">Absorvem o Dano (inclusive Dano Verdadeiro) antes da Vida: primeiro os escudos, depois a Vida temporária, do mais antigo ao mais novo. Total: {totalDeEscudos(minhaFicha).toLocaleString('pt-BR')}. Ao descansar, a Vida temporária e os escudos de Poderes somem.</p>
+            {escudos.map(e => (
+                <div key={e.id} className="escudo-linha">
+                    <span className="escudo-tipo" title={e.tipo === 'vidaTemporaria' ? 'Vida temporária' : 'Escudo'}>{e.tipo === 'vidaTemporaria' ? '💗' : '🛡️'}</span>
+                    <strong className="escudo-nome">{e.nome}{e.poderId !== undefined ? ' (Poder)' : ''}</strong>
+                    <label className="contador-limite">valor <input className="input-neon escudo-valor" type="number" min="0" aria-label={`Valor de ${e.nome}`} defaultValue={e.valor} key={`v_${e.id}_${e.valor}`} onBlur={ev => { if (String(ev.target.value) !== String(e.valor) && atualizarEscudoFicha) atualizarEscudoFicha(e.id, { valor: ev.target.value }); }} /></label>
+                    <button type="button" className="combo-mini" aria-label={`Remover o escudo ${e.nome}`} onClick={() => removerEscudoFicha && removerEscudoFicha(e.id)}>✕</button>
+                </div>
+            ))}
+            {escudos.length < LIMITE_ESCUDOS && (
+                <div className="escudo-linha">
+                    <input className="input-neon escudo-nome-input" aria-label="Nome do escudo" placeholder="Nome (ex.: Domo Gélido)" maxLength={40} value={nome} onChange={e => setNome(e.target.value)} />
+                    <input className="input-neon escudo-valor" type="number" min="1" aria-label="Valor do escudo" placeholder="Valor" value={valor} onChange={e => setValor(e.target.value)} />
+                    <select className="input-neon" aria-label="Tipo do escudo" value={tipo} onChange={e => setTipo(e.target.value)}>
+                        {TIPOS_ESCUDO.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}
+                    </select>
+                    <button type="button" className="descricoes-ataque-adicionar" disabled={!podeAdicionar} onClick={adicionar}>+ Escudo</button>
+                </div>
+            )}
+        </section>
+    );
+}
+
 // 🔥 GESTOR DE ESTADOS, AFINIDADES E HABILIDADES DE REDUÇÃO DE DANO (página 3 do Grimório) 🔥
 export function FichaCondicoesEElementais() {
     const ctx = useFichaForm();
@@ -271,6 +313,9 @@ export function FichaCondicoesEElementais() {
                     <button type="button" className="descricoes-ataque-adicionar" onClick={adicionarContadorFicha}>+ Contador</button>
                 )}
             </section>
+
+            {/* SEÇÃO 0b: ESCUDOS E VIDA TEMPORÁRIA (core/escudos.js) */}
+            <FichaEscudos />
 
             {/* SEÇÃO 1: ESTADOS E AFINIDADES */}
             <section className="estados-secao">

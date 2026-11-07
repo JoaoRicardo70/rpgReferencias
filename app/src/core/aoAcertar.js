@@ -11,7 +11,7 @@
 import { danoExibidoParaBruto, FATOR_EXIBICAO_VITAIS, getTetoExibidoComFator } from './vitals.js';
 import { calcularEficaciaCura } from './engine.js';
 import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
-import { somarBuffTemporario } from './suporte.js';
+import { somarBuffTemporario, NOME_BUFF_CURA_REDUZIDA, PROPRIEDADE_CURA_REDUZIDA, fatorDeBuffCura, menorFatorCuraReduzida } from './suporte.js';
 
 export const LIMITE_AO_ACERTAR = 6;
 
@@ -20,9 +20,13 @@ export const TIPOS_AO_ACERTAR = [
     { id: 'energiaAtacante', rotulo: '🔋 Restaura energia de quem acertou' },
     { id: 'drenarEnergiaAlvo', rotulo: '🕳️ Drena energia do alvo' },
     { id: 'debuffAlvo', rotulo: '⬇️ Enfraquece o alvo (CA/Acerto)' },
+    { id: 'reduzirCuraAlvo', rotulo: '🩹 Reduz a cura do alvo' },
 ];
 // Tipos que mexem no ALVO (só personagens com ficha; entidades do Mapa não têm ficha).
-export const TIPOS_NO_ALVO = ['drenarEnergiaAlvo', 'debuffAlvo'];
+export const TIPOS_NO_ALVO = ['drenarEnergiaAlvo', 'debuffAlvo', 'reduzirCuraAlvo'];
+// Cura reduzida: fator da eficácia de cura do alvo (0.5 = metade). Limites do fator.
+export const FATOR_CURA_MIN = 0.01;
+export const FATOR_CURA_MAX = 1;
 // Atributos que o debuff pode reduzir (todos lidos como bônus BASE na CA/Acerto) e a duração máxima, em turnos do alvo.
 export const ATRIBUTOS_DEBUFF_AO_ACERTAR = ['evasiva', 'resistencia', 'acerto'];
 export const LIMITE_DURACAO_DEBUFF = 20;
@@ -38,6 +42,31 @@ const IDS_MODO = new Set(MODOS_AO_ACERTAR.map(m => m.id));
 const MAX_FIXO = 1e15;
 const MAX_PERCENTUAL = 1000;
 
+// Fator de cura: número 0.01..1, ou texto "1/2", "50%", "0,5". Inválido (ou fora do intervalo) = null.
+export function lerFatorCura(v) {
+    let n;
+    if (typeof v === 'number') n = v;
+    else {
+        const t = String(v ?? '').trim().replace(',', '.');
+        const frac = /^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/.exec(t);
+        if (frac) n = parseFloat(frac[1]) / parseFloat(frac[2]);
+        else if (t.endsWith('%')) n = parseFloat(t) / 100;
+        else n = parseFloat(t);
+    }
+    if (!Number.isFinite(n) || n < FATOR_CURA_MIN || n > FATOR_CURA_MAX) return null;
+    return n;
+}
+
+function normalizarReduzirCura(e) {
+    const fator = lerFatorCura(e.fator);
+    if (fator === null) return null;
+    const dur = Math.floor(Number(e.duracao));
+    // `valor` espelha o fator só para o item passar pelos mesmos filtros (valor > 0) dos outros tipos.
+    const item = { tipo: 'reduzirCuraAlvo', modo: 'fixo', valor: fator, fator, duracao: Number.isFinite(dur) ? Math.max(1, Math.min(LIMITE_DURACAO_DEBUFF, dur)) : 1 };
+    if (e.apenasCritico) item.apenasCritico = true;
+    return item;
+}
+
 // Lista limpa (tipo e modo válidos, valor > 0 dentro dos limites, no máximo LIMITE_AO_ACERTAR); o que for inválido é descartado.
 export function normalizarAoAcertar(lista) {
     const saida = [];
@@ -45,6 +74,7 @@ export function normalizarAoAcertar(lista) {
         if (!e || typeof e !== 'object' || saida.length >= LIMITE_AO_ACERTAR) return;
         if (!IDS_TIPO.has(e.tipo)) return;
         const modo = IDS_MODO.has(e.modo) ? e.modo : 'fixo';
+        if (e.tipo === 'reduzirCuraAlvo') { const r = normalizarReduzirCura(e); if (r) saida.push(r); return; }
         const bruto = parseFloat(String(e.valor ?? '').replace(',', '.'));
         if (!Number.isFinite(bruto) || bruto <= 0) return;
         const valor = Math.min(modo === 'fixo' ? MAX_FIXO : MAX_PERCENTUAL, bruto);
@@ -74,6 +104,8 @@ export function coletarAoAcertar({ fontes = [] } = {}) {
     });
     return saida;
 }
+
+const fmtPerc = (f) => Math.round(f * 1000) / 10;
 
 // Ganho na escala exibida: inteiro quando >= 1, senão com até 2 casas (nunca '+0').
 const fmt = (n) => (n >= 1 ? Math.floor(n).toLocaleString('pt-BR') : n.toLocaleString('pt-BR', { maximumFractionDigits: 2 }));
@@ -160,6 +192,21 @@ export function resolverAoAcertarNoAlvo(entradas, fichaAlvo, { critico = false, 
             });
             resultado.buffs = lista;
             resultado.textos.push(`⬇️ ${quem}-${e.valor} de ${rotulo} por ${e.duracao} turno(s) do alvo`);
+        } else if (e.tipo === 'reduzirCuraAlvo') {
+            const fator = lerFatorCura(e.fator);
+            if (fator === null) return;
+            const fonteBuff = nomeAtacante || e.origem || 'Ao acertar';
+            // Um único buff por alvo e fonte (nome fixo): golpes seguidos só renovam o prazo. O fator vigente é o MENOR entre o que já está
+            // lá e o novo (cura reduzida nunca "afrouxa" por um golpe mais fraco); fatores não se multiplicam.
+            const existente = lista.find(b => b && String(b.fonte) === String(fonteBuff) && b.nome === NOME_BUFF_CURA_REDUZIDA);
+            const fatorAnterior = existente ? fatorDeBuffCura(existente) : null;
+            const fatorFinal = fatorAnterior !== null ? Math.min(fatorAnterior, fator) : fator;
+            lista = somarBuffTemporario(lista, {
+                id: `ao_${agora}_${n++}`, nome: NOME_BUFF_CURA_REDUZIDA, fonte: fonteBuff,
+                efeitos: [{ nome: NOME_BUFF_CURA_REDUZIDA, atributo: 'cura', propriedade: PROPRIEDADE_CURA_REDUZIDA, valor: fatorFinal }], duracao: e.duracao, duracaoModo: 'turnos'
+            });
+            resultado.buffs = lista;
+            resultado.textos.push(`🩹 ${quem}cura do alvo reduzida a ${fmtPerc(menorFatorCuraReduzida({ buffsTemporarios: lista }))}% por ${e.duracao} turno(s)`);
         }
     });
     return resultado;

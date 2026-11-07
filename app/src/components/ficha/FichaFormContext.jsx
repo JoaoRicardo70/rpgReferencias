@@ -1,3 +1,4 @@
+import { adicionarEscudo, removerEscudo, atualizarEscudo } from '../../core/escudos';
 import { adicionarContador, removerContador, atualizarContador, mudarContador } from '../../core/contadores';
 import { imuneAoEstado } from '../../core/efeitosCondicionais';
 import { nomeDoEstado } from '../../core/condicoes';
@@ -112,6 +113,10 @@ export function FichaFormProvider({ children }) {
     const adicionarContadorFicha = useCallback(() => { updateFicha(f => { adicionarContador(f, {}); }); salvarFichaSilencioso(); }, [updateFicha]);
     const removerContadorFicha = useCallback((id) => { updateFicha(f => { removerContador(f, id); }); salvarFichaSilencioso(); }, [updateFicha]);
     const atualizarContadorFicha = useCallback((id, patch) => { updateFicha(f => { atualizarContador(f, id, patch); }); salvarFichaSilencioso(); }, [updateFicha]);
+    // 🛡️ Escudos e Vida Temporária (core/escudos.js).
+    const adicionarEscudoFicha = useCallback((dados) => { updateFicha(f => { adicionarEscudo(f, dados); }); salvarFichaSilencioso(); }, [updateFicha]);
+    const removerEscudoFicha = useCallback((id) => { updateFicha(f => { removerEscudo(f, id); }); salvarFichaSilencioso(); }, [updateFicha]);
+    const atualizarEscudoFicha = useCallback((id, patch) => { updateFicha(f => { atualizarEscudo(f, id, patch); }); salvarFichaSilencioso(); }, [updateFicha]);
     const mudarContadorFicha = useCallback((id, delta) => { updateFicha(f => { mudarContador(f, id, delta); }); salvarFichaSilencioso(); }, [updateFicha]);
 
     const modificarCondicao = useCallback((condId, delta) => {
@@ -567,7 +572,7 @@ export function FichaFormProvider({ children }) {
         addSerEfeito, removeSerEfeito, addSerEfeitoPassivo, removeSerEfeitoPassivo,
         addSerSelado, editarSerSelado, removeSerSelado, toggleSerSelado, cancelarEdicaoSer,
         salvarFormaSer, deletarFormaSer, ativarFormaSer,
-        modificarCondicao, removerBuffTemporario, adicionarContadorFicha, removerContadorFicha, atualizarContadorFicha, mudarContadorFicha, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
+        modificarCondicao, removerBuffTemporario, adicionarContadorFicha, removerContadorFicha, atualizarContadorFicha, mudarContadorFicha, adicionarEscudoFicha, removerEscudoFicha, atualizarEscudoFicha, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
     }), [
         minhaFicha, updateFicha, personagens, meuNome, mesa, raca, classe, subClasse, alterEgoSlot1, alterEgoSerId, classesMemorizadas,
         idade, fisico, sangue, alinhamento, afiliacao, dinheiro, salvandoBio, overridesCompendio, grands, isGrand, grandIcone,
@@ -579,7 +584,7 @@ export function FichaFormProvider({ children }) {
         serNovoNomeEfeitoPassivo, serNovoAtrPassivo, serNovoPropPassivo, serNovoValPassivo,
         addSerEfeito, removeSerEfeito, addSerEfeitoPassivo, removeSerEfeitoPassivo,
         addSerSelado, editarSerSelado, removeSerSelado, toggleSerSelado, cancelarEdicaoSer,
-        salvarFormaSer, deletarFormaSer, ativarFormaSer, modificarCondicao, removerBuffTemporario, adicionarContadorFicha, removerContadorFicha, atualizarContadorFicha, mudarContadorFicha, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
+        salvarFormaSer, deletarFormaSer, ativarFormaSer, modificarCondicao, removerBuffTemporario, adicionarContadorFicha, removerContadorFicha, atualizarContadorFicha, mudarContadorFicha, adicionarEscudoFicha, removerEscudoFicha, atualizarEscudoFicha, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
     ]);
 
     return (
