@@ -7,7 +7,7 @@
 import { ehEstadoValido, MAX_STACKS, nomeDoEstado, iconeDoEstado } from './condicoes.js';
 import { getRawBase } from './attributes.js';
 import { modificadorDezena } from './utils.js';
-import { imuneAoEstado } from './efeitosCondicionais.js';
+import { imuneAoEstado, resisteAoEstado } from './efeitosCondicionais.js';
 
 export const ATRIBUTOS_TESTE = ['forca', 'destreza', 'constituicao', 'stamina', 'sabedoria', 'inteligencia', 'energiaEsp', 'carisma'];
 export const ROTULO_ATRIBUTO = {
@@ -74,7 +74,8 @@ export function resolverEstadosNoAlvo(estados, fichaAlvo, { critico = false, rol
         // 🛡️ Imunidade por efeito (ex.: imune_surpresa): o estado nem entra, sem teste.
         if (fichaAlvo && imuneAoEstado(fichaAlvo, e.id)) { imunes.push({ id: e.id, origem: e.origem || '' }); return; }
         if (e.teste && fichaAlvo) {
-            const total = rolar() + modificadorDezena(getRawBase(fichaAlvo, e.teste.atributo));
+            const dado = resisteAoEstado(fichaAlvo, e.id) ? Math.max(rolar(), rolar()) : rolar();
+            const total = dado + modificadorDezena(getRawBase(fichaAlvo, e.teste.atributo));
             if (total >= e.teste.cd) { resistidos.push({ id: e.id, origem: e.origem || '', total, cd: e.teste.cd, atributo: e.teste.atributo }); return; }
         }
         aplicados.push({ id: e.id, stacks: e.stacks, origem: e.origem || '' });

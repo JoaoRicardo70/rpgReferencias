@@ -63,6 +63,8 @@ export function DefesaFormProvider({ children }) {
     // 🎲 O valor digitado é o número do dado (veio do feed)? Então ele pesa na MINHA Vida (core/danoProporcional.js).
     // O dano que chega de um Ataque (dados + Status) já está na escala da Vida; só a fórmula livre de dados puros pede a proporção.
     const [danoDeDado, setDanoDeDado] = useState(false);
+    // 💀 Dano Verdadeiro (simulado pelo Mestre): ignora Reduções, Resistências, Imunidades e Domínio.
+    const [danoVerdadeiro, setDanoVerdadeiro] = useState(false);
     // ↩️ Reflexo (core/reflexo.js) que vou usar neste Dano: '' (nenhum) ou 'poder:<id>' / 'tecnica:<id>'.
     const [reflexoEscolhido, setReflexoEscolhido] = useState('');
     const reflexosUsaveis = useMemo(() => reflexosDisponiveis(minhaFicha), [minhaFicha]);
@@ -244,7 +246,7 @@ export function DefesaFormProvider({ children }) {
             : dano;
         const danoDisputa = aplicarDisputaAoDano(danoBase, disputa);
         // 🛡️ Reduções/Resistências aplicadas em SEQUÊNCIA, uma de cada vez (core/reducaoDano.js).
-        const reduzido = aplicarReducoesSequenciais(danoDisputa, getPassosReducaoDano(minhaFicha, elementoInc, elementosDinamicos.find(e => e.id === elementoInc)?.nome));
+        const reduzido = aplicarReducoesSequenciais(danoDisputa, danoVerdadeiro ? [] : getPassosReducaoDano(minhaFicha, elementoInc, elementosDinamicos.find(e => e.id === elementoInc)?.nome));
         let danoFinal = reduzido.final;
 
         // ↩️ Reflexo escolhido: devolve (ou divide) o Dano com quem me atacou. Precisa saber quem foi e ter como pagar.
@@ -270,7 +272,7 @@ export function DefesaFormProvider({ children }) {
                 textoReflexo = descreverReflexo(usado, calculo, nomeAtacante || 'o atacante');
                 aplicarNoAtacante = () => {
                     if (!alvoAtacante || calculo.danoNoAtacante <= 0) return;
-                    const final = reduzirDanoNoAlvo(alvoAtacante, calculo.danoNoAtacante, elementoInc).final;
+                    const final = reduzirDanoNoAlvo(alvoAtacante, calculo.danoNoAtacante, elementoInc, { verdadeiro: danoVerdadeiro }).final;
                     gravarVidaDoAlvo(idAtacante, alvoAtacante, Math.max(0, (Number(alvoAtacante.hpAtual) || 0) - danoExibidoParaBruto(final)), { elemento: elementoInc });
                 };
                 custoPago = custo;
@@ -302,7 +304,7 @@ export function DefesaFormProvider({ children }) {
         });
         salvarFichaSilencioso();
 
-        const mensagemElemental = (reduzido.detalhe.length > 0 ? ` [${descreverReducoes(reduzido)}]` : '') + (aplicadas.detalhes.length > 0 ? ` ↩️ [${aplicadas.detalhes.join(' · ')}]` : '');
+        const mensagemElemental = (danoVerdadeiro ? ' [💀 Dano Verdadeiro: ignora reduções, resistências e imunidades]' : '') + (reduzido.detalhe.length > 0 ? ` [${descreverReducoes(reduzido)}]` : '') + (aplicadas.detalhes.length > 0 ? ` ↩️ [${aplicadas.detalhes.join(' · ')}]` : '');
 
         const nomeElemento = elementosDinamicos.find(e => e.id === elementoInc)?.nome || elementoInc;
 
@@ -320,16 +322,17 @@ export function DefesaFormProvider({ children }) {
         setAtacanteInc(ATACANTE_AUTO);
         // Volta ao padrão (dano já na escala da Vida): a caixa marcada vale só pra este golpe.
         setDanoDeDado(false);
+        setDanoVerdadeiro(false);
         setReflexoEscolhido('');
         setAbaAtiva('aba-log');
-    }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, updateFicha, salvarFichaSilencioso, setAbaAtiva, elementosDinamicos, disputaDefesa, danoDeDado, reflexoEscolhido, reflexosUsaveis, atacanteInc, ultimoGolpeRecebido, dummies, personagens, divisorPoderMesa]);
+    }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, updateFicha, salvarFichaSilencioso, setAbaAtiva, elementosDinamicos, disputaDefesa, danoDeDado, danoVerdadeiro, reflexoEscolhido, reflexosUsaveis, atacanteInc, ultimoGolpeRecebido, dummies, personagens, divisorPoderMesa]);
 
     const value = useMemo(() => ({
         evaDados, setEvaDados, evaFaces, setEvaFaces, evaProf, setEvaProf, evaBonus, setEvaBonus,
         resDados, setResDados, resFaces, setResFaces, resProf, setResProf, resBonus, setResBonus,
         redEnergia, setRedEnergia, redPerc, setRedPerc, redMult, setRedMult,
         elementoInc, setElementoInc, danoRecebidoInc, setDanoRecebidoInc,
-        atacanteInc, setAtacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa, danoDeDado, setDanoDeDado,
+        atacanteInc, setAtacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa, danoDeDado, setDanoDeDado, danoVerdadeiro, setDanoVerdadeiro,
         reflexoEscolhido, setReflexoEscolhido, reflexosUsaveis,
         caEvasiva, caResistencia,
         elementosDinamicos, 
@@ -337,7 +340,7 @@ export function DefesaFormProvider({ children }) {
     }), [
         evaDados, evaFaces, evaProf, evaBonus, resDados, resFaces, resProf, resBonus,
         redEnergia, redPerc, redMult, elementoInc, danoRecebidoInc, caEvasiva, caResistencia,
-        atacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa, danoDeDado, reflexoEscolhido, reflexosUsaveis,
+        atacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa, danoDeDado, danoVerdadeiro, reflexoEscolhido, reflexosUsaveis,
         elementosDinamicos, declararEvasiva, declararResistencia, declararReducao, sofrerDanoBruto
     ]);
 

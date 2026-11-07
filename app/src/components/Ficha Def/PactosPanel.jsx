@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
-import { ATRIBUTOS_AGRUPADOS, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
+import { ATRIBUTOS_AGRUPADOS_SEM_ESTADO, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 import { CLASSES_OPTIONS } from '../ficha/FichaFormContext';
 import FormasEditor from '../shared/FormasEditor';
 import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
@@ -16,12 +16,12 @@ import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
 // 🔥 "PODER DIRETO" aumenta o Poder Calculado do Scouter diretamente (core/poder.js
 // > getPoderDiretoMultiplier), sem passar por nenhum Status/Energia/Vida — mesmo
 // grupo extra que já existe só pra Poderes Clássicos (PoderesSubComponents.jsx).
-// Fica de fora de ATRIBUTOS_AGRUPADOS (a lista compartilhada) de propósito: só
+// Fica de fora de ATRIBUTOS_AGRUPADOS_SEM_ESTADO (a lista compartilhada) de propósito: só
 // ficha.poderes e ficha.seresSelados são lidos por getPoderDiretoMultiplier, então
 // oferecer essa opção em Arsenal/Formas criaria um buff que pareceria funcionar
 // na UI mas nunca faria nada.
 const ATRIBUTOS_PACTOS = [
-    ...ATRIBUTOS_AGRUPADOS,
+    ...ATRIBUTOS_AGRUPADOS_SEM_ESTADO,
     { label: '⚡ POTÊNCIA DO SCOUTER', options: ['poder_direto'] }
 ];
 

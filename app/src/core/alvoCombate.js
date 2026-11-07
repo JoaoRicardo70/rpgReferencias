@@ -12,7 +12,7 @@ import { calcularCA } from './engine.js';
 import { BASE_CA } from './utils.js';
 import { getPoderParaDisputa } from './disputaPoder.js';
 import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
-import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from './reducaoDano.js';
+import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes, ehDanoVerdadeiro, TEXTO_DANO_VERDADEIRO } from './reducaoDano.js';
 import { getNivelDominio, calcularReducaoDanoElemental } from './dominios.js';
 import { ehNpc, getTipoPersonagem, TIPO_JOGADOR } from './tipoPersonagem.js';
 
@@ -89,8 +89,9 @@ export function resolverAlvoCombate(idAlvo, { dummies, personagens, meuNome, div
 
 // Reduções/Resistências do PERSONAGEM atingido (ficha) + Domínio elemental, em sequência.
 // Dummie (ou sem redução nenhuma) devolve o dano como veio. nivelAtacante = Domínio de quem golpeou.
-export function reduzirDanoNoAlvo(alvo, dano, elemento, { nivelAtacante = 0, nivelDefensorOverride = null } = {}) {
+export function reduzirDanoNoAlvo(alvo, dano, elemento, { nivelAtacante = 0, nivelDefensorOverride = null, verdadeiro = false } = {}) {
     const inicial = Math.max(0, Number(dano) || 0);
+    if (ehDanoVerdadeiro(verdadeiro)) return { final: inicial, detalhe: [], texto: TEXTO_DANO_VERDADEIRO };
     if (!alvo || !alvo.isPersonagem) return { final: inicial, detalhe: [], texto: '' };
     const passos = getPassosReducaoDano(alvo.ficha, elemento);
     if (elemento) {

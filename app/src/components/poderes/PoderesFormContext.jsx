@@ -1,6 +1,6 @@
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
 import { lerRespostaDaIA, prepararImportacao, montarPoderFinal } from '../../core/importadorIA';
-import { normalizarQuando, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO } from '../../core/efeitosCondicionais';
+import { normalizarQuando, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from '../../core/efeitosCondicionais';
 import { normalizarUsos, limiteDeUsos, podeUsar, gastarUso, descreverUsos } from '../../core/usosPoder';
 import React, { createContext, useContext, useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
@@ -137,6 +137,10 @@ export function PoderesFormProvider({ children }) {
         if (ATRIBUTOS_COM_ESCOPO.includes(atributo)) {
             esc = normalizarEscopo(escopo);
             if (esc === null || escopo === 'teste:') { alert('O escopo do efeito está incompleto: escolha qual teste.'); return null; }
+        }
+        if (ATRIBUTOS_COM_ESCOPO_ESTADO.includes(atributo)) {
+            esc = normalizarEscopo(escopo, atributo);
+            if (!esc) { alert('Escolha a qual estado o efeito se aplica (ou "Todos os estados").'); return null; }
         }
         return { nome, atributo, propriedade, valor, ...(q ? { quando: q } : {}), ...(esc ? { escopo: esc } : {}) };
     }, []);

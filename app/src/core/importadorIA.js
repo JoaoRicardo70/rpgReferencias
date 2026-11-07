@@ -54,6 +54,7 @@ COMO TRADUZIR
 - Reação que reduz o dano de um ataque que acertou você em X% (ex.: "pela metade" = 50): {"atributo":"reacao_acertou","propriedade":"reduzir_dano","valor":X}.
 - "+N ações/ações bônus/reações por turno": atributo acao_padrao, acao_bonus ou acao_reacao, propriedade "base".
 - "+N na Iniciativa": {"atributo":"iniciativa","propriedade":"base","valor":N}.
+- "imune a <condição>" / "não pode ficar <condição>": {"atributo":"imune_estado","propriedade":"base","valor":1,"escopo":"<id do estado>"} (ids: ${ESTADOS.map(e => e.id).join(', ')}; "escopo":"todos" = imune a todas as condições). Condição que não existe nessa lista vai para "naoAplicado". "Vantagem para resistir a <condição>": o mesmo, com "atributo":"resiste_estado".
 - "Não pode ser surpreendido" (imunidade ao estado Surpreso): {"atributo":"imune_surpresa","propriedade":"base","valor":1}.
 - "vantagem nas jogadas de ataque": {"atributo":"vantagem","propriedade":"base","valor":1,"escopo":"ataque"}. "vantagem em testes de Percepção": {"atributo":"vantagem","propriedade":"base","valor":1,"escopo":"teste:percepcao"} (escopo: "teste" = todos os testes; "teste:<perícia ou atributo>" = um só, ex.: intuicao, percepcao, procurar, furtividade, acrobacia, atletismo, trapacear, diplomacia, sentir_motiv, forca, destreza; "tudo" = ataques e testes). "desvantagem": mesmo formato com atributo "desvantagem".
 - "trate um resultado de 7 ou menos no d20 como 8" (em testes de Intuição): {"atributo":"piso_d20","propriedade":"base","valor":8,"escopo":"teste:intuicao"}.

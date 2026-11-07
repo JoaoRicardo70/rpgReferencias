@@ -3207,3 +3207,5 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .importacao-imagens-lista { margin: 0; padding-left: 18px; font-size: 0.85em; }
 .importacao-imagens-botao { padding: 8px; }
 .importacao-imagens-dica { font-size: 0.75em; opacity: 0.7; }
+
+.dano-verdadeiro-check { color: var(--cor-secundaria); font-weight: bold; }

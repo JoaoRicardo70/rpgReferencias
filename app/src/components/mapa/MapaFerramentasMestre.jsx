@@ -371,6 +371,7 @@ export function MapaMestreDanoRapido() {
     const [atacanteId, setAtacanteId] = useState('');
     // 🎲 O número digitado é uma rolagem de dado: vira proporcional à Vida do alvo (core/danoProporcional.js).
     const [ehDado, setEhDado] = useState(false);
+    const [danoVerdadeiro, setDanoVerdadeiro] = useState(false);
     const [pontosInput, setPontosInput] = useState('');
     const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
 
@@ -402,9 +403,9 @@ export function MapaMestreDanoRapido() {
             alvo: alvoPrev, fichaDoAlvo, dano: valorDano, elemento: elementoDano || null,
             nivelDominioOverride: nivelDominioDano === '' ? null : nivelDominioDano,
             nivelDominioAtacante: nivelAtacanteDano === '' ? 0 : nivelAtacanteDano,
-            atacante: atacantePrev, danoDeDado: ehDado, divisorMesa: divisorPoderMesa, pontosVida: getPontosVidaTotal(cenarioCtx)
+            atacante: atacantePrev, danoDeDado: ehDado, verdadeiro: danoVerdadeiro, divisorMesa: divisorPoderMesa, pontosVida: getPontosVidaTotal(cenarioCtx)
         });
-    }, [alvos, alvoId, atacanteId, valorDano, elementoDano, nivelDominioDano, nivelAtacanteDano, ehDado, divisorPoderMesa, minhaFichaCtx, meuNomeCtx, cenarioCtx]);
+    }, [alvos, alvoId, atacanteId, valorDano, elementoDano, nivelDominioDano, nivelAtacanteDano, ehDado, danoVerdadeiro, divisorPoderMesa, minhaFichaCtx, meuNomeCtx, cenarioCtx]);
 
     // Os returns ficam DEPOIS de todos os hooks: o Mestre alterna o modo RP com o painel aberto,
     // e um hook a menos entre renders derruba a tela.
@@ -419,7 +420,8 @@ export function MapaMestreDanoRapido() {
 
     const aplicar = () => {
         if (!alvoAtual) return alert('Escolha um alvo primeiro.');
-        aplicarDanoRapido(alvoAtual, valorDano, elementoDano || null, nivelDominioDano === '' ? null : nivelDominioDano, nivelAtacanteDano === '' ? 0 : nivelAtacanteDano, atacanteAtual, ehDado);
+        aplicarDanoRapido(alvoAtual, valorDano, elementoDano || null, nivelDominioDano === '' ? null : nivelDominioDano, nivelAtacanteDano === '' ? 0 : nivelAtacanteDano, atacanteAtual, ehDado, danoVerdadeiro);
+        setDanoVerdadeiro(false);
     };
 
     // Escala da mesa: quantos pontos de dado equivalem à Vida inteira (padrão 200). Fica no cenário.
@@ -477,6 +479,10 @@ export function MapaMestreDanoRapido() {
             <div className="dano-escala">
                 <label className="dano-de-dado-check" title="Marcado: o número vira proporcional à Vida máxima do alvo (1 ponto = Vida ÷ pontos da mesa). Desmarcado: entra exatamente como digitado.">
                     <input type="checkbox" checked={ehDado} onChange={e => setEhDado(e.target.checked)} /> 🎲 É rolagem de dado (proporcional à Vida do alvo)
+                </label>
+                {/* 💀 Dano Verdadeiro: ignora Reduções, Resistências, Imunidades e Domínio */}
+                <label className="dano-de-dado-check dano-verdadeiro-check" title="Dano Verdadeiro ignora QUAISQUER resistências e imunidades do alvo.">
+                    <input type="checkbox" checked={danoVerdadeiro} onChange={e => setDanoVerdadeiro(e.target.checked)} /> 💀 Dano Verdadeiro
                 </label>
                 <label className="dano-escala-pontos" title="Quantos pontos de dado valem a Vida inteira de um alvo. Padrão 200: cada ponto = 0,5% da Vida. Vale pra toda a mesa.">
                     <span>Escala da mesa: Vida total =</span>

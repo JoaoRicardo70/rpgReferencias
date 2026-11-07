@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { ATRIBUTOS_AGRUPADOS, getPropriedadesDoAtributo } from '../../core/efeitos-constants';
+import { ATRIBUTOS_AGRUPADOS_SEM_ESTADO, getPropriedadesDoAtributo } from '../../core/efeitos-constants';
 import { normalizarBuff, descreverBuff, LIMITES } from '../../core/combos';
 
 // Lista de buffs (os mesmos efeitos das Habilidades/Poderes: atributo + propriedade + valor) de um golpe ou de um nível de Follow Up.
@@ -34,7 +34,7 @@ export default function EditorBuffs({ buffs, onChange, rotulo = 'Buffs' }) {
             ))}
             <div className="combo-buff-novo">
                 <select className="input-neon" aria-label="Atributo do buff" value={atributo} onChange={(e) => trocarAtributo(e.target.value)}>
-                    {ATRIBUTOS_AGRUPADOS.map(g => (
+                    {ATRIBUTOS_AGRUPADOS_SEM_ESTADO.map(g => (
                         <optgroup key={g.label} label={g.label}>{g.options.map(o => <option key={o} value={o}>{o}</option>)}</optgroup>
                     ))}
                 </select>

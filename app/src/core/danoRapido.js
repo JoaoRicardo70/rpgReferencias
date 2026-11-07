@@ -7,7 +7,7 @@
 import { calcularDisputaPoder, getPoderDeEntidade, aplicarDisputaAoDano, descreverDisputa } from './disputaPoder.js';
 import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getVidaMaxExibidaFicha } from './danoProporcional.js';
 import { getNivelDominio, calcularReducaoDanoElemental } from './dominios.js';
-import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } from './reducaoDano.js';
+import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes, ehDanoVerdadeiro } from './reducaoDano.js';
 import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
 import { FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto } from './vitals.js';
 
@@ -29,7 +29,7 @@ export function getVidaDoAlvoExibida(alvo, fichaDoAlvo) {
 //            danoDeDado, divisorMesa, pontosVida }
 // `alvo` = { nome, isDummie, ficha } (como na lista do Dano Rápido); `fichaDoAlvo` = a ficha mais
 // atual do alvo (a minha, se o alvo sou eu); `atacante` opcional, mesmo formato de `alvo`.
-export function calcularDanoRapido({ alvo, fichaDoAlvo, dano, elemento = null, nivelDominioOverride = null, nivelDominioAtacante = 0, atacante = null, danoDeDado = false, divisorMesa, pontosVida }) {
+export function calcularDanoRapido({ alvo, fichaDoAlvo, dano, elemento = null, nivelDominioOverride = null, nivelDominioAtacante = 0, verdadeiro = false, atacante = null, danoDeDado = false, divisorMesa, pontosVida }) {
     const valorDigitado = Math.max(0, Math.floor(Number(dano)) || 0);
     if (!alvo) return null;
 
@@ -47,8 +47,9 @@ export function calcularDanoRapido({ alvo, fichaDoAlvo, dano, elemento = null, n
 
     // 🛡️ Reduções/Resistências da ficha do alvo + Domínio elemental, em SEQUÊNCIA (core/reducaoDano.js).
     const fichaReducao = alvo.isDummie ? alvo.ficha : fichaDoAlvo;
-    const passos = getPassosReducaoDano(fichaReducao, elemento);
-    if (elemento && !alvo.isDummie) {
+    const ehVerdadeiro = ehDanoVerdadeiro(verdadeiro);
+    const passos = ehVerdadeiro ? [] : getPassosReducaoDano(fichaReducao, elemento);
+    if (elemento && !alvo.isDummie && !ehVerdadeiro) {
         const nivelDefensor = nivelOverride !== null ? nivelOverride : getNivelDominio(fichaReducao, elemento);
         const reducaoDominio = calcularReducaoDanoElemental(nivelDefensor, nivelAtacante);
         if (reducaoDominio > 0) passos.push({ nome: `Domínio (${elemento})`, percentual: reducaoDominio * 100, origem: 'dominio' });
@@ -63,7 +64,8 @@ export function calcularDanoRapido({ alvo, fichaDoAlvo, dano, elemento = null, n
     return {
         valorDigitado, baseDano, valorBruto, disputa, nivelOverride, nivelAtacante,
         reduzido, valor, valorRaw: danoExibidoParaBruto(valor), anulado,
-        textoReducao: reduzido.detalhe.length > 0 ? ` (${descreverReducoes(reduzido)})` : '',
+        verdadeiro: ehVerdadeiro,
+        textoReducao: ehVerdadeiro ? ' (Dano Verdadeiro)' : (reduzido.detalhe.length > 0 ? ` (${descreverReducoes(reduzido)})` : ''),
         textoDisputa: disputa && disputa.ativa ? descreverDisputa(disputa) : '',
         vidaAntes: vida.atual, vidaDepois, vidaMax: vida.max,
     };

@@ -21,6 +21,12 @@ import { chaveElemento } from './elementos.js';
 
 export const ATRIBUTO_REDUCAO_DANO = 'reducao_dano';
 export const ELEMENTO_TODOS = 'todos';
+export const TEXTO_DANO_VERDADEIRO = 'Dano Verdadeiro: ignora reduções, resistências, imunidades e Domínio';
+
+// Dano Verdadeiro (SÓ o boolean true) ignora QUAISQUER resistências e imunidades.
+export function ehDanoVerdadeiro(v) {
+    return v === true;
+}
 export const PREFIXO_POLARIDADE = 'pol:';
 export const PERCENTUAL_MAX_REDUCAO = 100;
 export const PERCENTUAL_MIN_REDUCAO = -1000;
@@ -83,7 +89,7 @@ function inteiroSeguro(v) {
 // Lista ORDENADA de passos que valem contra um golpe do `elemento` (vazio/'fisico' = sem elemento).
 export function getPassosReducaoDano(ficha, elemento, nomeElemento) {
     const passos = [];
-    if (!ficha) return passos;
+    if (!ficha || ehDanoVerdadeiro(elemento)) return passos;
     // Golpe sem elemento (o Mapa manda null) é dano Físico.
     const el = chaveElemento(elemento) || 'fisico';
     const elementoComPolaridade = getPolaridadeElemento(elemento) ? elemento : (nomeElemento || elemento);

@@ -4,7 +4,7 @@ import EstadosGolpeEditor from '../shared/EstadosGolpeEditor';
 import SuporteEditor from '../shared/SuporteEditor';
 import ToggleEfeitosAtivos from './ToggleEfeitosAtivos';
 import { useArsenalForm, ARMA_TIPOS, RARIDADES, BONUS_OPTIONS } from './ArsenalFormContext';
-import { ATRIBUTOS_AGRUPADOS_ITEM, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
+import { ATRIBUTOS_AGRUPADOS_ITEM_SEM_ESTADO, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 import FormasEditor from '../shared/FormasEditor';
 import { afetaPoderCalculado, normalizarAcaoEquipar, ACOES_EQUIPAR_ITEM } from '../../core/acaoPoder';
 
@@ -142,7 +142,7 @@ export function ArsenalEfeitosAtivos() {
             <input className="input-neon" type="text" placeholder="Nome do Efeito" value={nomeEfeito} onChange={e => setNomeEfeito(e.target.value)} style={{ marginTop: 10 }} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, marginTop: 5 }}>
                 <select className="input-neon" value={novoAtr} onChange={e => { setNovoAtr(e.target.value); setNovoProp(ajustarPropriedade(e.target.value, novoProp)); }}>
-                    {ATRIBUTOS_AGRUPADOS_ITEM.map(grupo => (
+                    {ATRIBUTOS_AGRUPADOS_ITEM_SEM_ESTADO.map(grupo => (
                         <optgroup key={grupo.label} label={grupo.label} style={{ background: '#051010', color: '#0ff' }}>
                             {grupo.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}
                         </optgroup>
@@ -188,7 +188,7 @@ export function ArsenalEfeitosPassivos() {
             <input className="input-neon" type="text" placeholder="Nome do Efeito Passivo" value={nomeEfeitoPassivo} onChange={e => setNomeEfeitoPassivo(e.target.value)} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, marginTop: 5 }}>
                 <select className="input-neon" value={novoAtrPassivo} onChange={e => { setNovoAtrPassivo(e.target.value); setNovoPropPassivo(ajustarPropriedade(e.target.value, novoPropPassivo)); }}>
-                    {ATRIBUTOS_AGRUPADOS_ITEM.map(grupo => (
+                    {ATRIBUTOS_AGRUPADOS_ITEM_SEM_ESTADO.map(grupo => (
                         <optgroup key={grupo.label} label={grupo.label} style={{ background: '#051010', color: '#f0f' }}>
                             {grupo.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}
                         </optgroup>

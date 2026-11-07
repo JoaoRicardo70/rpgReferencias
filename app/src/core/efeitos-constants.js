@@ -24,6 +24,13 @@ export const ATRIBUTOS_AGRUPADOS = [
         label: '🎲 ROLAGENS E CRÍTICO',
         options: ['vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa']
     },
+    // 🛡️ Estados (core/efeitosCondicionais.js, core/estadosGolpe.js): propriedade BASE, valor 1, e o ESCOPO é o estado (ou 'todos').
+    //   imune_estado — não recebe o estado de golpe/marcação ("imune a Queimado")
+    //   resiste_estado — vantagem no teste para resistir ao estado
+    {
+        label: '🛡️ IMUNIDADE A ESTADOS',
+        options: ['imune_estado', 'resiste_estado']
+    },
     {
         label: 'DEFESA (CA)',
         options: ['evasiva', 'resistencia']
@@ -63,6 +70,12 @@ export const GRUPO_PODER_DIRETO = {
 // Lista dos lugares onde o Poder Direto funciona (Itens do Arsenal e Formas Místicas).
 export const ATRIBUTOS_AGRUPADOS_ITEM = [...ATRIBUTOS_AGRUPADOS, GRUPO_PODER_DIRETO];
 
+// Os efeitos imune_estado/resiste_estado precisam do campo de escopo (qual estado), que só o editor de Poderes tem
+// (components/shared/CondicaoDoEfeito.jsx). Os outros editores usam estas listas, sem o grupo de estados.
+export const GRUPO_ESTADOS_LABEL = '🛡️ IMUNIDADE A ESTADOS';
+export const ATRIBUTOS_AGRUPADOS_SEM_ESTADO = ATRIBUTOS_AGRUPADOS.filter(g => g.label !== GRUPO_ESTADOS_LABEL);
+export const ATRIBUTOS_AGRUPADOS_ITEM_SEM_ESTADO = [...ATRIBUTOS_AGRUPADOS_SEM_ESTADO, GRUPO_PODER_DIRETO];
+
 export const PROPRIEDADE_OPTIONS = [
     'base', 'mbase', 'mgeral', 'mformas', 'mabs', 'munico', 'furia_berserker', 'reducaocusto', 'regeneracao', 'elemento_inato', 'bonus_acerto'
 ];
@@ -81,7 +94,7 @@ export const GRUPO_IDENTIFICACAO = {
 export const PROPRIEDADES_REACAO = ['contra_ataque', 'atacar_atacante', 'atacar_ataque', 'reduzir_dano', 'aumentar_ca'];
 
 // Atributos que só fazem sentido com a propriedade BASE (o valor é a quantidade/porcentagem).
-const SO_BASE = new Set(['acerto', 'imune_surpresa', 'vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder', 'identificar_tipo_ataque', 'identificar_energia']);
+const SO_BASE = new Set(['acerto', 'imune_surpresa', 'imune_estado', 'resiste_estado', 'vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder', 'identificar_tipo_ataque', 'identificar_energia']);
 
 // Propriedades que fazem sentido para o atributo escolhido (Ação/Reação não têm Multiplicador; Reação escolhe o efeito).
 export function getPropriedadesDoAtributo(atributo) {

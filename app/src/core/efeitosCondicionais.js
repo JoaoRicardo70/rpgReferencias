@@ -93,10 +93,14 @@ export function normalizarQuando(valor) {
 // um efeito "dano +10 quando empunhando espada" valeria sempre. Condição nesses atributos descarta o efeito (falha fechada).
 export const ATRIBUTOS_COM_QUANDO = [
     'acerto', 'evasiva', 'resistencia', 'iniciativa', 'vantagem', 'desvantagem', 'piso_d20',
-    'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa',
+    'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa', 'imune_estado', 'resiste_estado',
 ];
 // Atributos em que o escopo (a que rolagem vale) faz sentido.
 export const ATRIBUTOS_COM_ESCOPO = ['vantagem', 'desvantagem', 'piso_d20'];
+// Atributos cujo escopo é UM ESTADO (id de core/condicoes.js > ESTADOS) ou 'todos': imune_estado (não recebe o estado) e
+// resiste_estado (vantagem no teste de resistência contra o estado).
+export const ATRIBUTOS_COM_ESCOPO_ESTADO = ['imune_estado', 'resiste_estado'];
+export const ESCOPO_TODOS_OS_ESTADOS = 'todos';
 
 // O contexto de combate: { emCombate, armaTipos: [tipos normalizados], temArma, alvoEstados: [ids], alvoVidaPct }.
 // A condição guardada é normalizada aqui também (dado gravado à mão como 'Em_Combate' vale); inválida nunca vale.
@@ -163,7 +167,11 @@ export const OPCOES_ESCOPO = [
 ];
 
 // Devolve o escopo em forma canônica ('' = padrão) ou null se for inválido.
-export function normalizarEscopo(valor) {
+export function normalizarEscopo(valor, atributo) {
+    if (ATRIBUTOS_COM_ESCOPO_ESTADO.includes(atributo)) {
+        const id = semAcento(valor);
+        return id === ESCOPO_TODOS_OS_ESTADOS || IDS_ESTADOS.has(id) ? id : null;
+    }
     const bruto = String(valor ?? '').trim();
     if (!bruto) return '';
     const [baseBruta, ...resto] = bruto.split(':');
@@ -203,14 +211,31 @@ export function somarEfeitosBase(ficha, atributo, contexto = {}) {
     return valoresDeEfeitos(ficha, atributo, { contexto }).reduce((s, v) => s + v, 0);
 }
 
-// 🛡️ Imunidade a estados por efeito: o atributo do efeito (valor > 0) protege contra o estado. Só Surpreso por enquanto.
+// 🛡️ Imunidade a estados por efeito (valor > 0): `imune_estado` com escopo = id do estado (ou 'todos') e, por compatibilidade,
+// `imune_surpresa` (= imune ao Surpreso).
 const IMUNIDADE_DE_ESTADO = { surpreso: 'imune_surpresa' };
+
+// Há algum efeito válido (valor > 0, condição ok) de `atributo` cujo escopo é o estado (ou 'todos')?
+function temEfeitoDeEstado(ficha, atributo, estadoId) {
+    const contexto = montarContextoDeCombate(ficha);
+    return coletarEfeitos(ficha).some((e) => {
+        if (e.atributo !== atributo || e.propriedade !== 'base' || !(parseFloat(e.valor) > 0) || !passaQuando(e, contexto)) return false;
+        const escopo = semAcento(e.escopo);
+        return escopo === ESCOPO_TODOS_OS_ESTADOS || escopo === estadoId;
+    });
+}
+
+// Vantagem (2 d20, vale o maior) no teste para resistir a este estado: efeito `resiste_estado`.
+export function resisteAoEstado(ficha, estadoId) {
+    return !!ficha && temEfeitoDeEstado(ficha, 'resiste_estado', estadoId);
+}
 
 // A ficha é imune a este estado por algum efeito (Poder, Passiva, Item, Pacto...)? Ficha vazia/Dummie (null) nunca é.
 export function imuneAoEstado(ficha, estadoId) {
+    if (!ficha) return false;
+    if (temEfeitoDeEstado(ficha, 'imune_estado', estadoId)) return true;
     const atributo = IMUNIDADE_DE_ESTADO[estadoId];
-    if (!ficha || !atributo) return false;
-    return somarEfeitosBase(ficha, atributo, montarContextoDeCombate(ficha)) > 0;
+    return !!atributo && somarEfeitosBase(ficha, atributo, montarContextoDeCombate(ficha)) > 0;
 }
 
 // Menor valor entre os efeitos (para "o crítico começa em N": vale o menor N). null se nenhum efeito vale.

@@ -1,5 +1,5 @@
 import React from 'react';
-import { OPCOES_QUANDO, OPCOES_ESCOPO, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO } from '../../core/efeitosCondicionais';
+import { OPCOES_QUANDO, OPCOES_ESCOPO, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO, ESCOPO_TODOS_OS_ESTADOS } from '../../core/efeitosCondicionais';
 import { ESTADOS } from '../../core/condicoes';
 import { SKILLS, SAVES } from '../combate/TestesFormContext';
 
@@ -16,6 +16,7 @@ export default function CondicaoDoEfeito({ atributo, quando, onQuando, escopo, o
     const baseQuando = q.base || 'sempre';
     const baseEscopo = e.base || '';
     const comEscopo = ATRIBUTOS_COM_ESCOPO.includes(atributo);
+    const comEscopoEstado = ATRIBUTOS_COM_ESCOPO_ESTADO.includes(atributo);
     // Só os atributos que leem a condição mostram o "Quando" (nos outros ela seria ignorada).
     if (!ATRIBUTOS_COM_QUANDO.includes(atributo)) return null;
     const idDoTeste = [...SKILLS, ...SAVES].find(t => t.id.toLowerCase() === e.arg.toLowerCase());
@@ -52,6 +53,16 @@ export default function CondicaoDoEfeito({ atributo, quando, onQuando, escopo, o
                     <span>Vale em</span>
                     <select value={e.temArg ? 'teste:' : baseEscopo} aria-label="Escopo do efeito" onChange={ev => trocarEscopo(ev.target.value)}>
                         {OPCOES_ESCOPO.map(o => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
+                    </select>
+                </label>
+            )}
+            {comEscopoEstado && (
+                <label className="condicao-efeito-campo">
+                    <span>Estado</span>
+                    <select value={String(escopo || '')} aria-label="Estado do efeito" onChange={ev => onEscopo(ev.target.value)}>
+                        <option value="">Escolha o estado…</option>
+                        <option value={ESCOPO_TODOS_OS_ESTADOS}>Todos os estados</option>
+                        {ESTADOS.map(st => <option key={st.id} value={st.id}>{st.icone} {st.nome}</option>)}
                     </select>
                 </label>
             )}

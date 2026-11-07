@@ -18,7 +18,7 @@ import { normalizarPasta } from './pastas.js';
 import { normalizarTipoAcao } from './acoesTecnica.js';
 import { normalizarUsos } from './usosPoder.js';
 import { normalizarAoAcertar } from './aoAcertar.js';
-import { normalizarQuando, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO } from './efeitosCondicionais.js';
+import { normalizarQuando, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from './efeitosCondicionais.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 import { normalizarAplicaEstados, ATRIBUTOS_TESTE, ROTULO_ATRIBUTO, LIMITES_ESTADOS } from './estadosGolpe.js';
 import { ESTADOS, nomeDoEstado, iconeDoEstado, MAX_STACKS } from './condicoes.js';
@@ -190,9 +190,9 @@ function normalizarEfeitos(lista, padraoAtributo, avisos, rotulo) {
         // Condição ("quando") e escopo (a que rolagem vale) são opcionais (core/efeitosCondicionais.js). Um que o sistema não reconhece
         // DESCARTA o efeito: deixá-lo valer sempre (ou em outra rolagem) daria a vantagem/bônus onde ele nunca deveria valer.
         const quando = normalizarQuando(e?.quando);
-        const escopo = normalizarEscopo(e?.escopo);
+        const escopo = normalizarEscopo(e?.escopo, efeito.atributo);
         if (quando === null || escopo === null) {
-            avisosEfeito.push(quando === null ? `Condição "${e.quando}" não existe no sistema; o efeito foi descartado.` : `Escopo "${e.escopo}" não existe no sistema; o efeito foi descartado.`);
+            avisosEfeito.push(quando === null ? `Condição "${e.quando}" não existe no sistema; o efeito foi descartado.` : (ATRIBUTOS_COM_ESCOPO_ESTADO.includes(efeito.atributo) ? `O atributo "${efeito.atributo}" precisa do escopo com o id de um estado (ou "todos"); recebi "${e.escopo ?? ''}"; o efeito foi descartado.` : `Escopo "${e.escopo}" não existe no sistema; o efeito foi descartado.`));
             avisosEfeito.forEach(a => avisos.push(`${rotulo} ${i + 1}: ${a}`));
             return null;
         }
@@ -204,7 +204,7 @@ function normalizarEfeitos(lista, padraoAtributo, avisos, rotulo) {
         }
         if (quando) efeito.quando = quando;
         if (escopo) {
-            if (ATRIBUTOS_COM_ESCOPO.includes(efeito.atributo)) efeito.escopo = escopo;
+            if (ATRIBUTOS_COM_ESCOPO.includes(efeito.atributo) || ATRIBUTOS_COM_ESCOPO_ESTADO.includes(efeito.atributo)) efeito.escopo = escopo;
             else avisosEfeito.push(`O atributo "${efeito.atributo}" não usa escopo; ele foi ignorado.`);
         }
         avisosEfeito.forEach(a => avisos.push(`${rotulo} ${i + 1}: ${a}`));

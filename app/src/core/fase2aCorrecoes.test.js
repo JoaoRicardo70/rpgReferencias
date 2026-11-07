@@ -10,7 +10,7 @@ const NAO_ESCALAM = ['vantagem', 'desvantagem', 'piso_d20', 'margem_critico', 'm
 
 describe('ATRIBUTOS_COM_QUANDO / ATRIBUTOS_COM_ESCOPO', () => {
     it('listas exatas', () => {
-        expect([...ATRIBUTOS_COM_QUANDO].sort()).toEqual(['acerto', 'evasiva', 'resistencia', 'iniciativa', ...NAO_ESCALAM].sort());
+        expect([...ATRIBUTOS_COM_QUANDO].sort()).toEqual(['acerto', 'evasiva', 'resistencia', 'iniciativa', 'imune_estado', 'resiste_estado', ...NAO_ESCALAM].sort());
         expect(ATRIBUTOS_COM_ESCOPO).toEqual(['vantagem', 'desvantagem', 'piso_d20']);
     });
     it('todo atributo com escopo tambem aceita quando', () => {
@@ -47,7 +47,7 @@ describe('normalizarPoder: quando/escopo por atributo', () => {
         expect(avisos.some(a => /ainda não aceita condição/.test(a))).toBe(true);
     });
     it.each(ATRIBUTOS_COM_QUANDO)('quando em %s e preservado', (atributo) => {
-        const { objeto, avisos } = poder([{ nome: 'x', atributo, propriedade: 'base', valor: 1, quando: 'em_combate' }]);
+        const { objeto, avisos } = poder([{ nome: 'x', atributo, propriedade: 'base', valor: 1, quando: 'em_combate', ...(atributo.endsWith('_estado') ? { escopo: 'todos' } : {}) }]);
         expect(objeto.efeitos).toHaveLength(1);
         expect(objeto.efeitos[0].quando).toBe('em_combate');
         expect(avisos).toEqual([]);

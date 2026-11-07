@@ -11,7 +11,7 @@ const PROVIDER_FALLBACK = (
 export function AtaqueElementoSelector() {
     const ctx = useAtaqueForm();
     if (!ctx) return null;
-    const { elementoAtivo, setElementoAtivo, elementosDinamicos } = ctx;
+    const { elementoAtivo, setElementoAtivo, elementosDinamicos, danoVerdadeiro, setDanoVerdadeiro } = ctx;
 
     return (
         <div className="def-box fade-in" style={{ marginBottom: 15, borderLeft: '4px solid #00ffcc' }}>
@@ -33,6 +33,10 @@ export function AtaqueElementoSelector() {
                     </button>
                 ))}
             </div>
+            {/* 💀 Dano Verdadeiro: ignora Reduções, Resistências, Imunidades e Domínio (core/reducaoDano.js) */}
+            <label className="dano-de-dado-check dano-verdadeiro-check" title="Dano Verdadeiro ignora QUAISQUER resistências e imunidades do alvo.">
+                <input type="checkbox" checked={!!danoVerdadeiro} onChange={e => setDanoVerdadeiro(e.target.checked)} /> 💀 Dano Verdadeiro (ignora resistências e imunidades)
+            </label>
         </div>
     );
 }

@@ -1058,7 +1058,7 @@ export function MapaFormProvider({ children }) {
     // atacante, o dano entra como digitado (x1), igual antes.
     // 🎲 `danoDeDado` (opcional, 7º argumento): o número digitado é uma rolagem de dado — vira proporcional
     // à Vida máxima do alvo (core/danoProporcional.js) antes da Disputa de Poder. Sem ele, entra como digitado.
-    const aplicarDanoRapido = useCallback((alvo, dano, elemento, nivelDominioOverride, nivelDominioAtacante, atacante, danoDeDado) => {
+    const aplicarDanoRapido = useCallback((alvo, dano, elemento, nivelDominioOverride, nivelDominioAtacante, atacante, danoDeDado, danoVerdadeiro) => {
         if (!isMestre || !alvo) return;
         const valorDigitado = Math.max(0, Math.floor(Number(dano)) || 0);
         if (valorDigitado <= 0) return;
@@ -1067,7 +1067,7 @@ export function MapaFormProvider({ children }) {
         // O cálculo inteiro (dado proporcional → Disputa de Poder → reduções em sequência + Domínio) vive em
         // core/danoRapido.js, o MESMO que alimenta a prévia do Mestre.
         const calculo = calcularDanoRapido({
-            alvo, fichaDoAlvo, dano: valorDigitado, elemento, nivelDominioOverride, nivelDominioAtacante, atacante, danoDeDado,
+            alvo, fichaDoAlvo, dano: valorDigitado, elemento, nivelDominioOverride, nivelDominioAtacante, atacante, danoDeDado, verdadeiro: danoVerdadeiro === true,
             divisorMesa: useStore.getState().divisorPoderMesa, pontosVida: getPontosVidaTotal(useStore.getState().cenario)
         });
         const { disputa, valorBruto, reduzido, valor, valorRaw, nivelOverride } = calculo;
@@ -1099,7 +1099,7 @@ export function MapaFormProvider({ children }) {
             gravarDanoEmPersonagem(alvo.nome, alvo.ficha, Math.max(0, ((alvo.ficha && alvo.ficha.vida && alvo.ficha.vida.atual) || 0) - valorRaw), { elemento, nivelOverride });
         }
 
-        const textoReducao = reduzido.detalhe.length > 0 ? ` (${descreverReducoes(reduzido)})` : '';
+        const textoReducao = calculo.verdadeiro ? ' (Dano Verdadeiro)' : reduzido.detalhe.length > 0 ? ` (${descreverReducoes(reduzido)})` : '';
         const houveDisputaRapida = !!(disputa && disputa.ativa) || !!danoDeDado;
         const deQuem = atacante ? ` (golpe de ${atacante.nome})` : '';
         // Com Disputa de Poder o número que chegou no alvo (e o digitado) é só do Mestre.

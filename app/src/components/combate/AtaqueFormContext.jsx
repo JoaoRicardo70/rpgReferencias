@@ -86,6 +86,8 @@ export function AtaqueFormProvider({ children }) {
     const [forcarCritFatal, setForcarCritFatal] = useState(false);
     
     const [elementoAtivo, setElementoAtivo] = useState('fisico');
+    // 💀 Dano Verdadeiro: ignora Reduções, Resistências, Imunidades e Domínio do alvo (core/reducaoDano.js).
+    const [danoVerdadeiro, setDanoVerdadeiro] = useState(false);
 
     const [skillConfigs, setSkillConfigs] = useState({});
     const [podeRolarDano, setPodeRolarDano] = useState(true);
@@ -456,7 +458,7 @@ export function AtaqueFormProvider({ children }) {
                 fatorVidaAlvo = getFatorVida(vidaAlvo, pontosVida);
                 const danoAposDisputa = aplicarDisputaAoDano(escalarDanoPelaVida(danoReduzido, vidaAlvo, pontosVida), disputa);
                 // 🛡️ Alvo-personagem: Reduções/Resistências/Domínio da ficha dele, em sequência.
-                const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo) });
+                const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: danoVerdadeiro });
                 const danoNoAlvo = posGolpeLivre.aplicar(alvoSelecionado, dummieAlvo, reducaoAlvo.final);
                 // Escala: dano exibido -> Vida bruta do dummy (core/vitals.js > danoExibidoParaBruto).
                 const hpAnterior = dummieAlvo.hpAtual || 0;
@@ -488,11 +490,13 @@ export function AtaqueFormProvider({ children }) {
             // MapaCombate.jsx > MapaAtaquesSalvos, que reusa esta MESMA função pra rolar
             // fórmulas salvas direto do Mapa) seria uma navegação indesejada.
             if (abaAtiva !== 'aba-mapa') setAbaAtiva('aba-log');
+            // O Dano Verdadeiro vale só para este golpe.
+            setDanoVerdadeiro(false);
             if (formulaOverride === undefined) { setCustomFormula(''); }
         } catch (e) {
             alert('Erro ao calcular a fórmula matemática. Verifique se os parênteses fecham corretamente.');
         }
-    }, [customFormula, customLetalidade, customEnergiaTipo, customEnergiaCusto, meuNome, nomeNoFeed, dummieAlvo, alvoSelecionado, setAbaAtiva, abaAtiva, updateFicha, minhaFicha, elementoAtivo, divisorPoderMesa]);
+    }, [customFormula, customLetalidade, customEnergiaTipo, customEnergiaCusto, meuNome, nomeNoFeed, dummieAlvo, alvoSelecionado, setAbaAtiva, abaAtiva, updateFicha, minhaFicha, elementoAtivo, divisorPoderMesa, danoVerdadeiro]);
 
     // 🩸↩️ Fecha o pós-golpe (services/posGolpe.js): o Dano que o Reflexo de alguém devolveu cai em MIM (com as minhas Reduções) e os
     // textos de estados/reflexo vão para o Feed. Devolve os campos extras do Feed.
@@ -506,7 +510,7 @@ export function AtaqueFormProvider({ children }) {
         }
         if (danoAtacante > 0) {
             const eu = montarAlvoPersonagem(meuNome, minhaFicha, divisorPoderMesa);
-            const dano = eu ? reduzirDanoNoAlvo(eu, danoAtacante, elementoAtivo).final : danoAtacante;
+            const dano = eu ? reduzirDanoNoAlvo(eu, danoAtacante, elementoAtivo, { verdadeiro: danoVerdadeiro }).final : danoAtacante;
             updateFicha(ficha => { if (ficha.vida) ficha.vida.atual = Math.max(0, (ficha.vida.atual || 0) - danoExibidoParaBruto(dano)); });
             salvarFichaSilencioso();
             textos.push(`💥 O Reflexo devolveu ${Math.floor(dano).toLocaleString('pt-BR')} de dano em ${nomeNoFeed}!`);
@@ -654,7 +658,7 @@ export function AtaqueFormProvider({ children }) {
                         const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dData));
                         // Dano de Ataque (dados + Status) já está na escala da Vida: não é reescalado pela Vida do alvo.
                         const danoEscalado = result.dano;
-                        const danoNoAlvo = posGolpe.aplicar(idD, dData, reduzirDanoNoAlvo(dData, aplicarDisputaAoDano(danoEscalado, disputa), elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo) }).final);
+                        const danoNoAlvo = posGolpe.aplicar(idD, dData, reduzirDanoNoAlvo(dData, aplicarDisputaAoDano(danoEscalado, disputa), elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: danoVerdadeiro }).final);
                         gravarVidaDoAlvo(idD, posGolpe.alvoParaGravar(idD, dData), Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)), { elemento: elementoAtivo });
                         if (dData.isPersonagem) alvosAplicados.push(dData.personagemNome);
                         if (disputa.ativa || danoNoAlvo !== Math.floor(result.dano)) {
@@ -675,7 +679,7 @@ export function AtaqueFormProvider({ children }) {
             const fatorVidaAlvo = 1;
             const danoAposDisputa = aplicarDisputaAoDano(result.dano, disputa);
             // 🛡️ Alvo-personagem: Reduções/Resistências/Domínio da ficha dele, em sequência.
-            const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo) });
+            const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: danoVerdadeiro });
             const danoNoAlvo = posGolpe.aplicar(alvoSelecionado, dummieAlvo, reducaoAlvo.final);
             // Escala: dano exibido -> Vida bruta do dummy (core/vitals.js > danoExibidoParaBruto).
             const hpAnterior = dummieAlvo.hpAtual || 0;
@@ -773,12 +777,14 @@ export function AtaqueFormProvider({ children }) {
 
         enviarParaFeed(feedData);
         setAbaAtiva('aba-log');
+        // O Dano Verdadeiro vale só para este golpe.
+        setDanoVerdadeiro(false);
         return true;
     }, [
         updateFicha, armaStatusUsados, armaEnergiaCombustao, armaPercEnergia,
         critNormalMin, critNormalMax, critFatalMin, critFatalMax, skillConfigs,
         minhaFicha, forcarCritNormal, autoCritNormal, forcarCritFatal, autoCritFatal, criticoPorEfeito,
-        dummieAlvo, alvoSelecionado, meuNome, nomeNoFeed, setAbaAtiva, poderesAtivos, magiasOfensivas, armaEquipada, feedCombate, dummies, personagens, elementoAtivo, divisorPoderMesa
+        dummieAlvo, alvoSelecionado, meuNome, nomeNoFeed, setAbaAtiva, poderesAtivos, magiasOfensivas, armaEquipada, feedCombate, dummies, personagens, elementoAtivo, divisorPoderMesa, danoVerdadeiro
     ]);
 
     const rolarDano = useCallback(() => executarRolarDano(null), [executarRolarDano]);
@@ -814,7 +820,7 @@ export function AtaqueFormProvider({ children }) {
         ignorarTravaAcerto, setIgnorarTravaAcerto, skillConfigs, podeRolarDano, furiaAcalmadaMsg,
         multiplicadorFuriaClasse, multiplicadorFuriaVisor, percAtualLostFloor, percEfetivoParaDisplay,
         dummieAlvo, disputaAlvo, armaEquipada, poderesAtivos, magiasOfensivas, minhaFicha,
-        elementoAtivo, setElementoAtivo, elementosDinamicos, 
+        elementoAtivo, setElementoAtivo, elementosDinamicos, danoVerdadeiro, setDanoVerdadeiro,
         customFormula, setCustomFormula, customLetalidade, setCustomLetalidade, 
         customEnergiaTipo, setCustomEnergiaTipo, customEnergiaCusto, setCustomEnergiaCusto,
         rolarDanoCustomizado, salvarFormula, deletarFormula,
@@ -823,7 +829,7 @@ export function AtaqueFormProvider({ children }) {
         armaStatusUsados, armaEnergiaCombustao, armaPercEnergia, critNormalMin, critNormalMax, critFatalMin, critFatalMax,
         autoCritNormal, autoCritFatal, forcarCritNormal, forcarCritFatal, ignorarTravaAcerto, skillConfigs, podeRolarDano, furiaAcalmadaMsg,
         multiplicadorFuriaClasse, multiplicadorFuriaVisor, percAtualLostFloor, percEfetivoParaDisplay,
-        dummieAlvo, disputaAlvo, armaEquipada, poderesAtivos, magiasOfensivas, minhaFicha, elementoAtivo, elementosDinamicos,
+        dummieAlvo, disputaAlvo, armaEquipada, poderesAtivos, magiasOfensivas, minhaFicha, elementoAtivo, elementosDinamicos, danoVerdadeiro,
         customFormula, customLetalidade, customEnergiaTipo, customEnergiaCusto, rolarDanoCustomizado, salvarFormula, deletarFormula,
         acalmarFuria, updateSkillConfig, toggleSkillStat, toggleArmaStat, alternarArmaEspiritual, salvarConfigAtaque, rolarDano, rolarAtaqueSalvo, salvarAtaque, deletarAtaqueSalvo,
     ]);

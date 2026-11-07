@@ -8,7 +8,7 @@ export function DefesaSofrerDanoBox() {
     const ctx = useDefesaForm();
     if (!ctx) return FALLBACK;
 
-    const { elementoInc, setElementoInc, danoRecebidoInc, setDanoRecebidoInc, sofrerDanoBruto, elementosDinamicos, atacanteInc, setAtacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa, danoDeDado, setDanoDeDado, reflexoEscolhido, setReflexoEscolhido, reflexosUsaveis } = ctx;
+    const { elementoInc, setElementoInc, danoRecebidoInc, setDanoRecebidoInc, sofrerDanoBruto, elementosDinamicos, atacanteInc, setAtacanteInc, opcoesAtacante, ultimoGolpeRecebido, disputaDefesa, danoDeDado, setDanoDeDado, danoVerdadeiro, setDanoVerdadeiro, reflexoEscolhido, setReflexoEscolhido, reflexosUsaveis } = ctx;
 
     return (
         <div className="def-box fade-in" style={{ marginBottom: 15, borderLeft: '4px solid #ff4444', background: 'rgba(255, 68, 68, 0.05)' }}>
@@ -46,6 +46,10 @@ export function DefesaSofrerDanoBox() {
                 ))}
             </div>
 
+            {/* 💀 Dano Verdadeiro: ignora Reduções, Resistências, Imunidades e Domínio (core/reducaoDano.js) */}
+            <label className="dano-de-dado-check dano-verdadeiro-check" title="Dano Verdadeiro ignora QUAISQUER resistências e imunidades do alvo.">
+                <input type="checkbox" checked={!!danoVerdadeiro} onChange={e => setDanoVerdadeiro(e.target.checked)} /> 💀 Dano Verdadeiro (ignora resistências e imunidades)
+            </label>
             {/* 🎲 Dano de dado é proporcional à Vida de quem recebe (core/danoProporcional.js) */}
             <label className="dano-de-dado-check" title="Marcado: o número do dado pesa na sua Vida máxima (1 ponto = 0,5% da Vida, valor ajustável pelo Mestre). Desmarque se o dano é um valor fixo.">
                 <input type="checkbox" checked={danoDeDado} onChange={e => setDanoDeDado(e.target.checked)} /> 🎲 É só o número de dados puros, da fórmula livre (proporcional à minha Vida)
