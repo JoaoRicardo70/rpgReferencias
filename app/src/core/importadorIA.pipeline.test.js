@@ -115,10 +115,10 @@ describe('importador v2 - pipeline completo', () => {
         const final = montarPoderFinal(f.objeto, 99);
         expect(final).not.toHaveProperty('naoAplicado');
         expect(final.id).toBe(99);
-        // x40 Geral passivo grava 39 (motor soma a 1) e some do campo de incertos
+        // x40 Geral poder_direto grava 39 (motor soma a 1); todos_status x50 grava 50 e some do campo de incertos
         expect(final).not.toHaveProperty('efeitosIncertos');
         expect(final.efeitosPassivos.at(-2)).toMatchObject({ atributo: 'poder_direto', propriedade: 'mgeral', valor: 39 });
-        expect(final.efeitosPassivos.at(-1)).toMatchObject({ atributo: 'todos_status', propriedade: 'mbase', valor: 49 });
+        expect(final.efeitosPassivos.at(-1)).toMatchObject({ atributo: 'todos_status', propriedade: 'mbase', valor: 50 });
         final.efeitosPassivos.slice(-2).forEach(e => { expect(e).not.toHaveProperty('multiplicador'); expect(e).not.toHaveProperty('destino'); });
         final.efeitosPassivos.splice(-2);
         expect(final.efeitosPassivos).toEqual(f.objeto.efeitosPassivos);

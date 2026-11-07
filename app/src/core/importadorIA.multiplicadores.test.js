@@ -189,6 +189,47 @@ describe('multiplicadores - montarPoderFinal', () => {
         expect(f).not.toHaveProperty('efeitosIncertos');
     });
 
+    it.each([['mbase'], ['mgeral'], ['mformas'], ['mabs']])('atributo forca %s: x800 grava 800 (fator puro)', (tipo) => {
+        const f = final({ multiplicadores: [mult({ atributo: 'forca' })] }, 'ativo', tipo);
+        expect(f.efeitos).toEqual([{ nome: 'Rinnegan', atributo: 'forca', propriedade: tipo, valor: 800 }]);
+    });
+
+    it('atributo vida munico x800 grava 800', () => {
+        const f = final({ multiplicadores: [mult({ atributo: 'vida' })] }, 'ativo', 'munico');
+        expect(f.efeitos[0]).toMatchObject({ atributo: 'vida', propriedade: 'munico', valor: 800 });
+    });
+
+    it('atributo nao poder_direto com N=1 aditivo e aplicado (nao recusa)', () => {
+        const f = final({ multiplicadores: [mult({ atributo: 'forca', valor: 1 })] }, 'ativo', 'mgeral');
+        expect(f.efeitos[0]).toMatchObject({ atributo: 'forca', propriedade: 'mgeral', valor: 1 });
+    });
+
+    it('poder_direto x800 mgeral grava 799', () => {
+        const f = final({ multiplicadores: [mult({ atributo: 'poder_direto' })] }, 'ativo', 'mgeral');
+        expect(f.efeitos[0]).toMatchObject({ atributo: 'poder_direto', propriedade: 'mgeral', valor: 799 });
+    });
+
+    it("atributo 'geral' vira poder_direto, sugere mgeral e grava 799", () => {
+        const { objeto } = prep({ multiplicadores: [mult({ atributo: 'geral' })] });
+        expect(objeto.efeitosIncertos[0]).toMatchObject({ atributo: 'poder_direto', propriedade: 'mgeral' });
+        const f = final({ multiplicadores: [mult({ atributo: 'geral' })] }, 'ativo');
+        expect(f.efeitos[0]).toMatchObject({ atributo: 'poder_direto', propriedade: 'mgeral', valor: 799 });
+    });
+
+    it("tipo explicito 'formas' com atributo 'geral' vence: mformas", () => {
+        const { objeto } = prep({ multiplicadores: [mult({ atributo: 'geral', tipo: 'formas' })] });
+        expect(objeto.efeitosIncertos[0]).toMatchObject({ atributo: 'poder_direto', propriedade: 'mformas' });
+    });
+
+    it("atributo 'GERAL' (caixa alta) tambem normaliza", () => {
+        const { objeto } = prep({ multiplicadores: [mult({ atributo: 'GERAL' })] });
+        expect(objeto.efeitosIncertos[0]).toMatchObject({ atributo: 'poder_direto', propriedade: 'mgeral' });
+    });
+
+    it('prompt explica que Geral/Base/Forma/Absoluto/Unico sao o TIPO, nunca o atributo', () => {
+        expect(montarPromptImportacao('x')).toMatch(/Geral\/Base\/Forma\/Absoluto\/Único são o TIPO, nunca o atributo/);
+    });
+
     it('munico grava N sem subtrair', () => {
         const f = final({ multiplicadores: [mult()] }, 'ativo', 'munico');
         expect(f.efeitos[0]).toMatchObject({ propriedade: 'munico', valor: 800 });

@@ -59,7 +59,7 @@ COMO TRADUZIR
 - "trate um resultado de 7 ou menos no d20 como 8" (em testes de Intuição): {"atributo":"piso_d20","propriedade":"base","valor":8,"escopo":"teste:intuicao"}.
 - Crítico: "Crítico a partir de 14": {"atributo":"margem_critico","propriedade":"base","valor":14}. "Crítico FATAL a partir de 19": {"atributo":"margem_critico_fatal","propriedade":"base","valor":19}. Crítico e Crítico Fatal são DIFERENTES: não troque um pelo outro. "Todo acerto contra um alvo surpreso é crítico": {"atributo":"critico_automatico","propriedade":"base","valor":1,"quando":"alvo_com_estado:surpreso"} (use "critico_fatal_automatico" se o texto disser Crítico Fatal).
 - CONDIÇÃO ("quando", opcional): só use se o texto condicionar o efeito. Valores: "em_combate", "empunhando_arma" ou "empunhando_arma:<tipo, ex.: espada>", "alvo_com_estado:<id do estado>", "alvo_vida_abaixo:<%>". Sem condição, não escreva o campo. O "quando" SÓ pode ser usado nestes atributos: ${ATRIBUTOS_COM_QUANDO.join(', ')}. Para qualquer outro atributo (forca, dano, vida...), NÃO escreva "quando": o efeito condicional vai para "naoAplicado".
-MULTIPLICADORES (xN no dano, xN em status, xN em poder direto, "dobra", "triplica"...): NÃO os coloque em "efeitos". Use "multiplicadores": [{"nome":"...","atributo":"poder_direto" (dano e poder também valem poder_direto; ou o atributo, ex.: forca),"valor":N (x800 = 800),"tipo":"base" | "geral" | "formas" | "absoluto" | "unico" (SÓ se o texto disser, ex.: "dano Geral" = geral; senão "")}]. O jogador decide depois se vale sempre ou só ao ativar e confirma o tipo.
+MULTIPLICADORES (xN no dano, xN em status, xN em poder direto, "dobra", "triplica"...): NÃO os coloque em "efeitos". Use "multiplicadores": [{"nome":"...","atributo":"poder_direto" (dano e poder também valem poder_direto; ou o atributo, ex.: forca; "dano Geral" = atributo poder_direto com tipo geral: Geral/Base/Forma/Absoluto/Único são o TIPO, nunca o atributo),"valor":N (x800 = 800),"tipo":"base" | "geral" | "formas" | "absoluto" | "unico" (SÓ se o texto disser, ex.: "dano Geral" = geral; senão "")}]. O jogador decide depois se vale sempre ou só ao ativar e confirma o tipo.
 Se não existir um atributo exato para o que o texto pede, NÃO invente: coloque em "naoAplicado" e em "notasIA".
 
 TEXTO:
@@ -208,7 +208,8 @@ export const TIPOS_MULTIPLICADOR = [
     { id: 'munico', rotulo: 'Único' },
 ];
 const TIPO_POR_NOME = { base: 'mbase', mbase: 'mbase', geral: 'mgeral', mgeral: 'mgeral', forma: 'mformas', formas: 'mformas', mformas: 'mformas', absoluto: 'mabs', abs: 'mabs', mabs: 'mabs', unico: 'munico', munico: 'munico' };
-const ATRIBUTO_COMO_PODER_DIRETO = ['dano', 'poder', 'poder_direto', 'poder direto', 'poderdireto'];
+// 'geral' aqui é o TIPO ("dano Geral"), não o atributo "geral" (que multiplicaria todos os status): vira Poder Direto.
+const ATRIBUTO_COMO_PODER_DIRETO = ['dano', 'poder', 'poder_direto', 'poder direto', 'poderdireto', 'geral'];
 const ehMultiplicador = (e) => !!e && typeof e === 'object' && PROPRIEDADES_NAO_IMPORTADAS.includes(minusculo(e.propriedade));
 const semMultiplicadores = (lista) => (Array.isArray(lista) ? lista : []).filter(e => !ehMultiplicador(e));
 export const ehTipoMultiplicador = (v) => TIPOS_MULTIPLICADOR.some(t => t.id === v);
@@ -224,7 +225,8 @@ function prepararMultiplicador(bruto, destinoInicial, naoAplicado) {
         naoAplicado.push(`Multiplicador não importado (${bruto.nome ? `${bruto.nome}: ` : ''}${bruto.atributo || '?'} x${bruto.valor ?? '?'})`);
         return null;
     }
-    const tipo = TIPO_POR_NOME[minusculo(bruto.tipo ?? bruto.propriedade)] || '';
+    // Sem tipo explícito, "geral" no atributo ("dano Geral") indica o tipo Geral.
+    const tipo = TIPO_POR_NOME[minusculo(bruto.tipo ?? bruto.propriedade)] || (atributoBruto === 'geral' ? 'mgeral' : '');
     return { nome: String(bruto.nome ?? '').trim(), atributo, propriedade: tipo, valor, destino: destinoInicial || '', multiplicador: true };
 }
 
@@ -352,8 +354,9 @@ function resolverIncertos(alvo) {
         if (multiplicador) {
             const rotulo = `${efeito.nome ? `${efeito.nome}: ` : ''}${efeito.atributo} x${efeito.valor}`;
             if (!ehTipoMultiplicador(efeito.propriedade)) { naoAplicados.push(`Multiplicador sem tipo escolhido, não aplicado (${rotulo})`); return; }
-            // No motor Base/Geral/Forma/Absoluto SOMAM a 1 ((1+Σ)): "x800" grava 799. Só o Único é fator puro.
-            if (efeito.propriedade !== 'munico') {
+            // Só no Poder Direto Base/Geral/Forma/Absoluto SOMAM a 1 ((1+Σ), core/poder.js): "x800" grava 799.
+            // Nos demais atributos (core/attributes.js getBuffs) e no Único o valor já é o fator: "x800" grava 800.
+            if (efeito.atributo === 'poder_direto' && efeito.propriedade !== 'munico') {
                 if (efeito.valor <= 1) { naoAplicados.push(`Multiplicador x${efeito.valor} não muda nada nesse tipo, não aplicado (${rotulo})`); return; }
                 efeito = { ...efeito, valor: efeito.valor - 1 };
             }
