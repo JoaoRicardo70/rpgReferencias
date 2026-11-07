@@ -187,3 +187,16 @@ describe('lerAcertoOculto / gravarAcertoOculto', () => {
         cancelar();
     });
 });
+
+describe('ocultarValorDoAcerto: efeitos de ataque (desvantagem_atacante, acerto_automatico)', () => {
+    it('os campos novos fazem parte dos campos do valor e somem', () => {
+        ['desvantagemDoAlvo', 'acertoAutomatico', 'acertoAutomaticoGeral'].forEach(k => expect(CAMPOS_VALOR_DO_ACERTO).toContain(k));
+        const r = ocultarValorDoAcerto({ tipo: 'acerto', valorOculto: true, acertoTotal: 9, desvantagemDoAlvo: 2, acertoAutomatico: true, acertoAutomaticoGeral: true });
+        expect(r).toEqual({ tipo: 'acerto', valorOculto: true });
+    });
+    it('a marca de acerto automatico por alvo sai, mas acertou/defesa ficam', () => {
+        const r = ocultarValorDoAcerto({ tipo: 'acerto', valorOculto: true, alvosArea: [{ nome: 'A', defesa: 50, acertou: true, automatico: true }, { nome: 'B', defesa: 5, acertou: false }] });
+        expect(r.alvosArea[0]).toEqual({ nome: 'A', defesa: 50, acertou: true });
+        expect(r.alvosArea[1]).toEqual({ nome: 'B', defesa: 5, acertou: false });
+    });
+});

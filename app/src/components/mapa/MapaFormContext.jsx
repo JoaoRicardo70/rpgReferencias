@@ -1232,13 +1232,21 @@ export function MapaFormProvider({ children }) {
         // O alvo é resolvido ANTES da rolagem: as condições dos efeitos (alvo com estado, vida abaixo de...) são checadas nele.
         const estadoAtual = useStore.getState();
         const alvoDummie = resolverAlvoCombate(alvoSelecionado, { dummies, personagens: estadoAtual.personagens, meuNome: atorAtivo ? atorAtivo.nomeFicha : meuNome, divisorPoderMesa: estadoAtual.divisorPoderMesa, fichaAtor: fichaAcerto, atorEhMestre: isMestre });
+        // Área do golpe (maior entre armas, poderes e magias), calculada antes da rolagem: em área o d20 é um só, então a desvantagem imposta pelo alvo escolhido não vale.
+        const armasEqArea = itensEq.filter(i => i.tipo === 'arma');
+        const poderesAtivosArea = (fichaAcerto?.poderes || []).filter(p => p.ativa);
+        const magiasEqArea = (fichaAcerto?.ataquesElementais || []).filter(m => m.equipado);
+        const maxArea = Math.max(
+            armasEqArea.length > 0 ? Math.max(...armasEqArea.map(a => a.areaQuad || a.area || 0)) : 0,
+            poderesAtivosArea.length > 0 ? Math.max(...poderesAtivosArea.map(p => p.areaQuad || p.area || 0)) : 0,
+            magiasEqArea.length > 0 ? Math.max(...magiasEqArea.map(m => m.areaQuad || 0)) : 0
+        );
         const result = calcularAcerto({ 
             qD, fD, prof, bonus, sels, minhaFicha: fichaAcerto, itensEquipados: itensEq, 
-            vantagens: mapVantagens, desvantagens: mapDesvantagens, alvo: alvoDummie 
+            vantagens: mapVantagens, desvantagens: mapDesvantagens, alvo: alvoDummie, aplicarDesvantagemDoAlvo: !(maxArea > 0) 
         });
 
         let alvosAtingidos = [];
-        let maxArea = 0;
 
         // 🛡️ Regra de PvP (jogador x jogador só em combate) e 🗺️ cena/alcance (core/alcance.js). A checagem de alcance
         // só roda quando as DUAS posições são conhecidas e alguma arma/poder/magia declara alcance; sem esses
@@ -1257,17 +1265,8 @@ export function MapaFormProvider({ children }) {
         if (alvoDummie) {
             // ⚖️ A diferença de Poder soma ao Acerto por último (core/disputaPoder.js); mesmo Poder do dano, sem o custo do golpe.
             const poderAtacante = getPoderParaDisputa(fichaAcerto, estadoAtual.divisorPoderMesa, golpeEquipado(fichaAcerto));
-            const resolverAlvo = (nome, defesa, poderAlvo, extras) => resolverAcertoNoAlvo({ nome, defesa, acertoTotal: result.acertoTotal, naturalD20: result.naturalD20 || null, poderAtacante, poderAlvo, extras });
-            const armasEqMap = itensEq.filter(i => i.tipo === 'arma');
-            const maxAreaArmas = armasEqMap.length > 0 ? Math.max(...armasEqMap.map(a => a.areaQuad || a.area || 0)) : 0;
-            
-            const podAtMap = (fichaAcerto?.poderes || []).filter(p => p.ativa);
-            const maxAreaPoderes = podAtMap.length > 0 ? Math.max(...podAtMap.map(p => p.areaQuad || p.area || 0)) : 0;
-            
-            const magiasEqMap = (fichaAcerto?.ataquesElementais || []).filter(m => m.equipado);
-            const maxAreaMagias = magiasEqMap.length > 0 ? Math.max(...magiasEqMap.map(m => m.areaQuad || 0)) : 0;
-
-            maxArea = Math.max(maxAreaArmas, maxAreaPoderes, maxAreaMagias);
+            // O alvo escolhido usa o acerto automático dele ('quando' checado nele); os vizinhos de um golpe em área, só o que não depende de alvo.
+            const resolverAlvo = (nome, defesa, poderAlvo, extras) => resolverAcertoNoAlvo({ nome, defesa, acertoTotal: result.acertoTotal, naturalD20: result.naturalD20 || null, acertoAutomatico: !!(extras && extras.dummieId === alvoSelecionado ? result.acertoAutomatico : result.acertoAutomaticoGeral), poderAtacante, poderAlvo, extras });
 
             if (maxArea > 0) {
                 const cenaAtivaId = cenario?.ativa || 'default';

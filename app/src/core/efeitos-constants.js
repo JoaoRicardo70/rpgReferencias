@@ -19,10 +19,13 @@ export const ATRIBUTOS_AGRUPADOS = [
     //   iniciativa — bônus da rolagem de Iniciativa (1d20 + este bônus, mais nada)
     //   margem_critico / margem_critico_fatal — o Crítico / o Crítico Fatal começa em N (vale o menor N)
     //   critico_automatico / critico_fatal_automatico — todo acerto vira Crítico / Crítico Fatal (use com 'quando')
+    //   mult_critico / mult_critico_fatal — SOMA N ao multiplicador do Crítico (x2) / do Crítico Fatal (x4); aceita fração, 0 a 100
+    //   acerto_automatico — o golpe conta como acerto sem comparar com a defesa do alvo (valor 1; aceita 'quando')
+    //   desvantagem_atacante — quem ataca o dono do efeito rola com N dados de desvantagem a mais (2 = dupla desvantagem)
     //   imune_surpresa — valor maior que 0 = não pode ficar Surpreso (golpes não aplicam; marcar à mão pede confirmação)
     {
         label: '🎲 ROLAGENS E CRÍTICO',
-        options: ['vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa']
+        options: ['vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'mult_critico', 'mult_critico_fatal', 'acerto_automatico', 'desvantagem_atacante', 'imune_surpresa']
     },
     // 🛡️ Estados (core/efeitosCondicionais.js, core/estadosGolpe.js): propriedade BASE, valor 1, e o ESCOPO é o estado (ou 'todos').
     //   imune_estado — não recebe o estado de golpe/marcação ("imune a Queimado")
@@ -94,7 +97,7 @@ export const GRUPO_IDENTIFICACAO = {
 export const PROPRIEDADES_REACAO = ['contra_ataque', 'atacar_atacante', 'atacar_ataque', 'reduzir_dano', 'aumentar_ca'];
 
 // Atributos que só fazem sentido com a propriedade BASE (o valor é a quantidade/porcentagem).
-const SO_BASE = new Set(['acerto', 'imune_surpresa', 'imune_estado', 'resiste_estado', 'vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder', 'identificar_tipo_ataque', 'identificar_energia']);
+const SO_BASE = new Set(['acerto', 'imune_surpresa', 'imune_estado', 'resiste_estado', 'vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'mult_critico', 'mult_critico_fatal', 'acerto_automatico', 'desvantagem_atacante', 'reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder', 'identificar_tipo_ataque', 'identificar_energia']);
 
 // Propriedades que fazem sentido para o atributo escolhido (Ação/Reação não têm Multiplicador; Reação escolhe o efeito).
 export function getPropriedadesDoAtributo(atributo) {

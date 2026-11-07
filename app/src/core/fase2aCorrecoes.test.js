@@ -10,7 +10,7 @@ const NAO_ESCALAM = ['vantagem', 'desvantagem', 'piso_d20', 'margem_critico', 'm
 
 describe('ATRIBUTOS_COM_QUANDO / ATRIBUTOS_COM_ESCOPO', () => {
     it('listas exatas', () => {
-        expect([...ATRIBUTOS_COM_QUANDO].sort()).toEqual(['acerto', 'evasiva', 'resistencia', 'iniciativa', 'imune_estado', 'resiste_estado', ...NAO_ESCALAM].sort());
+        expect([...ATRIBUTOS_COM_QUANDO].sort()).toEqual(['acerto', 'evasiva', 'resistencia', 'iniciativa', 'imune_estado', 'resiste_estado', 'desvantagem_atacante', 'acerto_automatico', ...NAO_ESCALAM].sort());
         expect(ATRIBUTOS_COM_ESCOPO).toEqual(['vantagem', 'desvantagem', 'piso_d20']);
     });
     it('todo atributo com escopo tambem aceita quando', () => {

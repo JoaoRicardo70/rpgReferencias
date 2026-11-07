@@ -196,7 +196,7 @@ export function marcoParaRascunho(m) {
 // `fixo` (ex.: um MÚnico 1.5x que não cresce com o estágio) ficam como estão.
 // Efeitos de rolagem/crítico/imunidade (core/efeitosCondicionais.js, core/critico.js) NÃO escalam com o estágio: o valor deles é um número do dado
 // ou um limiar (crítico a partir de 14, piso 8, +1 vantagem), e multiplicá-lo por 1,5 não faria sentido.
-const ATRIBUTOS_QUE_NAO_ESCALAM = ['vantagem', 'desvantagem', 'piso_d20', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_estado', 'resiste_estado', 'imune_surpresa'];
+const ATRIBUTOS_QUE_NAO_ESCALAM = ['vantagem', 'desvantagem', 'piso_d20', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'mult_critico', 'mult_critico_fatal', 'acerto_automatico', 'desvantagem_atacante', 'imune_estado', 'resiste_estado', 'imune_surpresa'];
 
 export function escalarPorFator(efeitos, fator) {
     const lista = efeitos || [];

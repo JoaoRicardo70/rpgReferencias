@@ -9,7 +9,7 @@ import { getVantagensDeClasse, getBonusAcertoDeClasse } from './classesMecanicas
 import { efeitosAtivosDoItem } from './efeitosItem.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
 import { modificadoresDeEstados } from './condicoes.js';
-import { somarEfeitosBase, valoresDeEfeitos, montarContextoDeCombate } from './efeitosCondicionais.js';
+import { somarEfeitosBase, valoresDeEfeitos, montarContextoDeCombate, desvantagemImpostaAoAtacante, temAcertoAutomatico, multiplicadoresCriticoExtra } from './efeitosCondicionais.js';
 import { armaVirtualDaArmaEspiritual } from './armaEspiritualDano.js';
 
 // Status são gravados 1000x maiores que o número exibido na Ficha (core: Marcados.jsx > FATOR_EXIBICAO_STATUS).
@@ -338,13 +338,15 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         return { erro: 'Nenhuma fonte de dano! Equipe uma arma com dados ou ative habilidades com dados de dano.' };
     }
 
+    // 💥 MULT_CRITICO / MULT_CRITICO_FATAL somam ao multiplicador base (x2 / x4; Assassin x3 / x5).
+    const extraCritico = multiplicadoresCriticoExtra(minhaFicha);
     let multCritico = 1;
     let nomeCritico = '';
     if (isCriticoFatal) {
-        multCritico = modCriticoBaseFatal;
+        multCritico = modCriticoBaseFatal + extraCritico.fatal;
         nomeCritico = 'CRÍTICO FATAL';
     } else if (isCriticoNormal) {
-        multCritico = modCriticoBaseNormal;
+        multCritico = modCriticoBaseNormal + extraCritico.normal;
         nomeCritico = 'CRÍTICO NORMAL';
     }
 
@@ -371,7 +373,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     }
 
     let multArr = [];
-    if (multCritico > 1) multArr.push(`<span style="color:#ffcc00">x${multCritico}(${nomeCritico})</span>`); 
+    if (multCritico > 1) multArr.push(`<span style="color:#ffcc00">x${Math.round(multCritico * 100) / 100}(${nomeCritico})</span>`); 
     let multStr = multArr.length > 0 ? multArr.join(' * ') : 'Nenhum (x1, os multiplicadores agora valem no Poder Calculado)';
 
     let detalheLinhas = [`<span style="color:#ffcc00; font-weight:bold;">[MÁQUINA DE CÁLCULO]</span>`];
@@ -429,7 +431,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
 }
 
 // `alvo` (opcional): ficha ou Dummie atingido; é com ele que as condições "alvo com estado / vida abaixo de" dos efeitos são checadas.
-export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEquipados, vantagens = 0, desvantagens = 0, alvo = null }) {
+export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEquipados, vantagens = 0, desvantagens = 0, alvo = null, aplicarDesvantagemDoAlvo = true }) {
     let iAcerto = 0;
     let nomesArmas = [];
     let tiposArmas = []; 
@@ -458,7 +460,10 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
     const rolagemAtaque = { tipo: 'ataque', ids: [] };
     const somaEfeitos = (atributo, escopoPadrao) => Math.max(0, Math.floor(valoresDeEfeitos(minhaFicha, atributo, { contexto, rolagem: rolagemAtaque, escopoPadrao }).reduce((s, v) => s + v, 0)));
     const vantagemEfeitos = somaEfeitos('vantagem', 'ataque');
-    const desvantagemEfeitos = somaEfeitos('desvantagem', 'ataque');
+    // 🛡️ Alvo-personagem com o efeito DESVANTAGEM_ATACANTE impõe dados de desvantagem a quem o ataca (Dummie sem ficha não tem efeitos).
+    const fichaDoAlvo = alvo && typeof alvo === 'object' ? (alvo.isPersonagem && alvo.ficha ? alvo.ficha : null) : null;
+    const desvantagemDoAlvo = aplicarDesvantagemDoAlvo ? desvantagemImpostaAoAtacante(fichaDoAlvo, minhaFicha) : 0;
+    const desvantagemEfeitos = somaEfeitos('desvantagem', 'ataque') + desvantagemDoAlvo;
     const pisoD20 = Math.max(0, ...valoresDeEfeitos(minhaFicha, 'piso_d20', { contexto, rolagem: rolagemAtaque, escopoPadrao: 'teste' }).map(v => Math.floor(v)));
     let { sD, rolagemTexto, mantidos } = rolarDadosComVantagem(qD, fD, (parseInt(vantagens) || 0) + vantagemClasse.vantagens + vantagemEfeitos, (parseInt(desvantagens) || 0) + desvantagemEstados + desvantagemEfeitos);
     // Piso do d20 ("7 ou menos vale 8"): só com um único d20; vale ANTES de decidir o 20/1 natural (um 1 que vira 8 não é falha crítica).
@@ -508,6 +513,10 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
     // Bônus de Acerto reduzidos: Bônus Fixo, Forma, Efeitos (ACERTO + BASE), Arma e Classe. Fora da redução: Prof e Maestria de arma (Proficiências).
     // `bonusEfeitos`: efeitos ACERTO + BASE de Habilidades/Poderes/Formas, Passivas, Combos, Suporte, Itens e Pactos (somarBonusBase).
     const bonusEfeitos = somarBonusBase(minhaFicha, 'acerto', contexto);
+    // 🎯 ACERTO_AUTOMATICO: o golpe conta como acerto contra o alvo sem olhar a defesa (core/disputaPoder.js > resolverAcertoNoAlvo). A versão "Geral" ignora
+    // o alvo e vale para os outros atingidos de um golpe em área (um 'quando' sobre o alvo escolhido não vale para eles).
+    const acertoAutomaticoGeral = temAcertoAutomatico(minhaFicha, null);
+    const acertoAutomatico = alvo ? temAcertoAutomatico(minhaFicha, alvo) : acertoAutomaticoGeral;
     const bonusReduzidos = bonus + bp + iAcerto + bonusClasse + bonusEfeitos;
     const atributoEBonus = reduzirComBonus(atributosBrutos, bonusReduzidos);
 
@@ -519,12 +528,17 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
                          (iAcerto > 0 ? ' | Arma: +' + iAcerto : '') +
                          (bonusProfArma > 0 ? ` | Maestria (${nomesProfArma.join(', ')}): +${bonusProfArma}` : '') +
                          (bonusClasse > 0 ? ` | Classe (Rider): +${bonusClasse}` : '') +
-                         (vantagemClasse.vantagens > 0 ? ` | ${vantagemClasse.motivos.join(' + ')}` : '');
+                         (vantagemClasse.vantagens > 0 ? ` | ${vantagemClasse.motivos.join(' + ')}` : '') +
+                         (desvantagemDoAlvo > 0 ? ` | ${alvo.nome || 'Alvo'} impõe ${desvantagemDoAlvo} dado(s) de desvantagem` : '') +
+                         (acertoAutomatico ? ' | acerto automático' : '');
 
     return {
         acertoTotal: Math.floor(atributoEBonus + sD + prof + bonusProfArma),
         ...(naturalD20 ? { naturalD20 } : {}),
         ...(dadoNatural ? { dadoNatural } : {}),
+        ...(desvantagemDoAlvo > 0 ? { desvantagemDoAlvo } : {}),
+        ...(acertoAutomatico ? { acertoAutomatico: true } : {}),
+        ...(acertoAutomaticoGeral ? { acertoAutomaticoGeral: true } : {}),
         rolagem: rolagemTexto,
         atributosUsados: atrNames.join(' + '),
         profBonusTexto: profBonusTexto,

@@ -167,7 +167,9 @@ export function AcertoFormProvider({ children }) {
         const escala = cenario?.lista?.[cenaAtivaId]?.escala || 1.5;
         // ⚖️ A diferença de Poder soma ao Acerto por último (core/disputaPoder.js). Mesmo Poder do dano, sem o custo do golpe (ainda não conhecido aqui).
         const poderAtacante = getPoderParaDisputa(minhaFicha, divisorPoderMesa, golpeEquipado(minhaFicha));
-        const resolverAlvo = (nome, defesa, poderAlvo, extras) => resolverAcertoNoAlvo({ nome, defesa, acertoTotal: result.acertoTotal, naturalD20: result.naturalD20 || null, poderAtacante, poderAlvo, extras });
+        // Alvo único usa o acerto automático dele (com o 'quando' checado no alvo); em área, só o que não depende de um alvo escolhido.
+        const automaticoDoGolpe = alvoDaCondicao ? !!result.acertoAutomatico : !!result.acertoAutomaticoGeral;
+        const resolverAlvo = (nome, defesa, poderAlvo, extras) => resolverAcertoNoAlvo({ nome, defesa, acertoTotal: result.acertoTotal, naturalD20: result.naturalD20 || null, acertoAutomatico: automaticoDoGolpe, poderAtacante, poderAlvo, extras });
 
         if (maxArea > 0 && centroExplosao) {
             const verificarHit = (posicao, valorDefesa, nomeAlvo, poderAlvo, extras = {}) => {

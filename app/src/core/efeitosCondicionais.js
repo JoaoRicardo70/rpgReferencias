@@ -93,7 +93,7 @@ export function normalizarQuando(valor) {
 // um efeito "dano +10 quando empunhando espada" valeria sempre. Condição nesses atributos descarta o efeito (falha fechada).
 export const ATRIBUTOS_COM_QUANDO = [
     'acerto', 'evasiva', 'resistencia', 'iniciativa', 'vantagem', 'desvantagem', 'piso_d20',
-    'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa', 'imune_estado', 'resiste_estado',
+    'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa', 'imune_estado', 'resiste_estado', 'desvantagem_atacante', 'acerto_automatico',
 ];
 // Atributos em que o escopo (a que rolagem vale) faz sentido.
 export const ATRIBUTOS_COM_ESCOPO = ['vantagem', 'desvantagem', 'piso_d20'];
@@ -242,4 +242,38 @@ export function imuneAoEstado(ficha, estadoId) {
 export function menorValorDeEfeitos(ficha, atributo, contexto = {}) {
     const valores = valoresDeEfeitos(ficha, atributo, { contexto }).filter(v => v > 0);
     return valores.length ? Math.min(...valores) : null;
+}
+
+// ---------- 🎯 Efeitos que mexem no golpe dos OUTROS ou garantem o acerto ----------
+
+export const LIMITE_DESVANTAGEM_IMPOSTA = 10;
+export const LIMITE_MULT_CRITICO_EXTRA = 100;
+
+// Soma só os valores finitos e positivos (negativo ou lixo é ignorado).
+const somaPositivos = (valores) => valores.filter(v => Number.isFinite(v) && v > 0).reduce((s, v) => s + v, 0);
+
+// 🛡️ `desvantagem_atacante`: quantos dados de desvantagem a ficha DEFENSORA impõe a quem a ataca (2 = "dupla desvantagem").
+// Vem dos efeitos da própria ficha defensora (Poder ativo/passivo, Item equipado, Forma, Pacto...). Dummie sem ficha = 0.
+// A condição "quando" é checada do ponto de vista do defensor; o "alvo" do contexto é o atacante (se informado).
+export function desvantagemImpostaAoAtacante(fichaDefensor, fichaAtacante = null) {
+    if (!fichaDefensor || typeof fichaDefensor !== 'object') return 0;
+    const contexto = montarContextoDeCombate(fichaDefensor, fichaAtacante);
+    const total = Math.floor(somaPositivos(valoresDeEfeitos(fichaDefensor, 'desvantagem_atacante', { contexto })));
+    return Math.min(LIMITE_DESVANTAGEM_IMPOSTA, total);
+}
+
+// 🎯 `acerto_automatico` (valor > 0): o golpe de quem tem o efeito conta como acerto sem comparar com a defesa. `alvo` (opcional) checa o "quando".
+export function temAcertoAutomatico(ficha, alvo = null) {
+    if (!ficha || typeof ficha !== 'object') return false;
+    const contexto = montarContextoDeCombate(ficha, alvo);
+    return somaPositivos(valoresDeEfeitos(ficha, 'acerto_automatico', { contexto })) > 0;
+}
+
+// 💥 `mult_critico` / `mult_critico_fatal`: quanto SOMAR ao multiplicador do Crítico (base x2) e do Crítico Fatal (base x4).
+// Valores negativos são ignorados; o total de cada um fica entre 0 e 100.
+export function multiplicadoresCriticoExtra(ficha) {
+    if (!ficha || typeof ficha !== 'object') return { normal: 0, fatal: 0 };
+    const contexto = montarContextoDeCombate(ficha);
+    const soma = (atributo) => Math.min(LIMITE_MULT_CRITICO_EXTRA, somaPositivos(valoresDeEfeitos(ficha, atributo, { contexto })));
+    return { normal: soma('mult_critico'), fatal: soma('mult_critico_fatal') };
 }

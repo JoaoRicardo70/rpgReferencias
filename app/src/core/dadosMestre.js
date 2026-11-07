@@ -48,7 +48,7 @@ export function entradaVisivel(entrada, ehMestre) {
 // precisa saber se foi atingido pra Reações e Defesa), mas o valor sai do que chega no feed de quem não é Mestre.
 // ==========================================
 const CHAVE_ACERTO = 'rpg_acerto_mestre_oculto';
-export const CAMPOS_VALOR_DO_ACERTO = ['acertoTotal', 'rolagem', 'profBonusTexto', 'naturalD20', 'dadoNatural'];
+export const CAMPOS_VALOR_DO_ACERTO = ['acertoTotal', 'rolagem', 'profBonusTexto', 'naturalD20', 'dadoNatural', 'desvantagemDoAlvo', 'acertoAutomatico', 'acertoAutomaticoGeral'];
 
 export function lerAcertoOculto() {
     try { return localStorage.getItem(CHAVE_ACERTO) !== '0'; } catch (e) { return true; }
@@ -71,5 +71,7 @@ export function ocultarValorDoAcerto(entrada) {
     if (!entrada || entrada.tipo !== 'acerto' || !entrada.valorOculto) return entrada;
     const copia = { ...entrada };
     CAMPOS_VALOR_DO_ACERTO.forEach(k => { delete copia[k]; });
+    // A marca "acerto automático" de cada alvo (core/disputaPoder.js > marcaNaturalAcerto) também entregaria o efeito: sai junto; acertou/errou fica.
+    if (Array.isArray(copia.alvosArea)) copia.alvosArea = copia.alvosArea.map(a => { if (!a || !a.automatico) return a; const { automatico, ...resto } = a; return resto; });
     return copia;
 }

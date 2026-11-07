@@ -10,7 +10,10 @@ describe('efeitos-constants: grupo ROLAGENS E CRITICO', () => {
     it('existe um unico grupo com os 8 atributos novos', () => {
         const grupos = ATRIBUTOS_AGRUPADOS.filter(g => /ROLAGENS/.test(g.label));
         expect(grupos).toHaveLength(1);
-        expect(grupos[0].options).toEqual(NOVOS);
+        // Os 8 da Fase 2A + os 4 de ataque (core/efeitosAtaque.test.js), cada um uma unica vez.
+        expect(grupos[0].options).toEqual(expect.arrayContaining(NOVOS));
+        expect(grupos[0].options).toEqual(expect.arrayContaining(['mult_critico', 'mult_critico_fatal', 'acerto_automatico', 'desvantagem_atacante']));
+        expect(new Set(grupos[0].options).size).toBe(grupos[0].options.length);
     });
     it.each(NOVOS)('%s so aceita a propriedade base', (a) => {
         expect(getPropriedadesDoAtributo(a)).toEqual(['base']);
