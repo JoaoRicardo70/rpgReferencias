@@ -10,6 +10,7 @@ import { getRegeneracaoTotalPct, calcularCuraRegeneracao } from './regeneracao.j
 import { modificadoresDeEstados } from './condicoes.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
 import { restaurarUsos } from './usosPoder.js';
+import { zerarRecargas } from './recargaPoder.js';
 
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 export const VITAIS_REGENERAVEIS = ['vida', 'mana', 'aura', 'chakra', 'corpo', 'pv', 'pm'];
@@ -486,4 +487,6 @@ export function descansarCompleto(ficha) {
     delete ficha.combate.ultimoElementoRecebidoNivel;
     // 🔁 Descansar renova os usos limitados "por cena" e "por descanso" das Habilidades (core/usosPoder.js).
     restaurarUsos(ficha);
+    // ⏳ Também zera as recargas em turnos em andamento (core/recargaPoder.js).
+    zerarRecargas(ficha);
 }

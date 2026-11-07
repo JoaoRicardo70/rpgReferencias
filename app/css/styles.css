@@ -3192,6 +3192,10 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .usos-poder-campo { display: flex; gap: 4px; }
 .usos-poder-campo input { width: 52px; text-align: center; }
 .usos-poder-selo { align-self: center; padding: 2px 8px; border: 1px solid var(--cor-destaque); border-radius: 10px; font-size: 0.8em; color: var(--cor-destaque); white-space: nowrap; }
+.custo-turno-campo { display: flex; gap: 4px; }
+.custo-turno-campo input { width: 64px; text-align: center; }
+.custo-turno-selo, .recarga-poder-selo { align-self: center; padding: 2px 8px; border: 1px solid var(--cor-destaque); border-radius: 10px; font-size: 0.8em; color: var(--cor-destaque); white-space: nowrap; }
+.recarga-poder-selo.em-recarga { opacity: 0.85; border-style: dashed; }
 
 /* 🔢 Contadores manuais (Grimório, página 3) */
 .contador-dica { margin: 0 0 10px 0; font-size: 0.85em; opacity: 0.75; }

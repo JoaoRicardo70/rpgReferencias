@@ -5,6 +5,7 @@
 // o mesmo normalizarPoder da Sexta-Feira e prepara a PRÉVIA que o jogador revisa antes de gravar.
 // ==========================================
 import { ESTADOS } from './condicoes';
+import { lerCustoPorTurno } from './custoPorTurno';
 import { ATRIBUTOS_EFEITO, PROPRIEDADES_EFEITO, CATEGORIAS_PODER, normalizarPoder, resumirProposta } from './sextaFeiraCriacao';
 import { ATRIBUTOS_COM_QUANDO } from './efeitosCondicionais';
 
@@ -35,10 +36,13 @@ CAMPOS DE CADA ITEM
 - "efeitos": efeitos que valem enquanto a habilidade está LIGADA (ativa): o texto diz "ao usar", "ao ativar", "enquanto ativo".
 - "efeitosPassivos": efeitos que valem SEMPRE, SOMENTE se o texto disser isso com todas as letras (seção "Passivas", "passivo", "sempre ativo", "permanente", "sem precisar ativar"). NUNCA coloque aqui um bônus só porque o texto o lista.
 - "efeitosIncertos": bônus que o texto lista mas NÃO deixa claro se valem sempre ou só com a habilidade ligada (ex.: uma lista solta "Aumenta a rolagem de ataque em +10"). NA DÚVIDA, use este campo: o jogador decide depois. Mesmo formato dos outros efeitos.
-- "subHabilidades": quando o texto tem uma habilidade PRINCIPAL (um título, ex.: "Rinnegan Supremo (Olho esquerdo):") e, abaixo dela, itens com nome próprio que são habilidades DELA (ex.: "- Limbo: ...", "- Izanagi: ..."), crie UM item só para a principal e ponha esses itens aqui, SEM criar itens separados para eles: [{"nome","descricao","tipoAcao","usosMax","usosPor","efeitos","efeitosPassivos","efeitosIncertos","multiplicadores","naoAplicado"}] (mesmas regras dos campos acima). Observações soltas da principal (ex.: "x800 em todo dano") ficam na principal, em "naoAplicado". Textos de prints seguidos sobre a mesma habilidade principal são UM item só. Sem sub-habilidades, use [].
+- "subHabilidades": quando o texto tem uma habilidade PRINCIPAL (um título, ex.: "Rinnegan Supremo (Olho esquerdo):") e, abaixo dela, itens com nome próprio que são habilidades DELA (ex.: "- Limbo: ...", "- Izanagi: ..."), crie UM item só para a principal e ponha esses itens aqui, SEM criar itens separados para eles: [{"nome","descricao","tipoAcao","usosMax","usosPor","recargaTurnos","custoPorTurno","efeitos","efeitosPassivos","efeitosIncertos","multiplicadores","naoAplicado"}] (mesmas regras dos campos acima). Observações soltas da principal (ex.: "x800 em todo dano") ficam na principal, em "naoAplicado". Textos de prints seguidos sobre a mesma habilidade principal são UM item só. Sem sub-habilidades, use [].
   Cada efeito: {"nome": "...", "atributo": "...", "propriedade": "...", "valor": 0}. "valor" é SEMPRE um número puro.
 - "aplicaEstados": estados que a habilidade causa em quem ela atinge: [{"id": "...", "stacks": 1}]. Ids válidos: ${ESTADOS.map(e => e.id).join(', ')}.
 - "usosMax" e "usosPor": se o texto limita os usos ("1 vez por cena", "3 usos por descanso"), coloque o número em "usosMax" e "cena" ou "descanso" em "usosPor". Sem limite, omita os dois.
+- "custoPorTurno": se o texto cobra energia A CADA TURNO enquanto a habilidade está ligada ("5% de chakra por turno", "12 de mana por turno", "5 de aura por turno"): {"modo":"fixo" (número) ou "percMax" (% do máximo da energia),"valor":N,"energia":"mana" | "aura" | "chakra" | "corpo"}. Sem custo por turno, omita.
+- "recargaTurnos": se o texto manda esperar turnos para usar de novo ("1 vez a cada 2 turnos", "espere 3 turnos para usar de novo", "reutilizável após 3 turnos"), o número inteiro de turnos (1 a 99). Sem recarga, omita.
+- "aoDesligar": se desligar a habilidade causa dano em quem a usava ("ao desativar, sofre 238d6 de dano"): {"dadosQtd":238,"dadosFaces":6,"texto":"opcional"}. Sem isso, omita.
 - "aoAcertar": o que acontece com QUEM ACERTOU quando o golpe atinge e causa dano ("recupera 200 de energia por ataque", "cura X% da vida a cada ataque"): [{"tipo":"curarAtacante" ou "energiaAtacante","modo":"fixo" | "percAtual" | "percMax","valor":N,"energia":"mana" | "aura" | "chakra" | "corpo" (só em energiaAtacante e drenarEnergiaAlvo)}]. "fixo" = número na mesma escala do dano; "percMax" = % do máximo; "percAtual" = % do valor atual. No ALVO: {"tipo":"drenarEnergiaAlvo","energia":"mana","modo":"fixo","valor":N} ("corta 100 de energia do alvo") e {"tipo":"debuffAlvo","atributo":"evasiva" | "resistencia" | "acerto","valor":N,"duracao":turnos do alvo (1 a 20),"empilha":true se soma a cada golpe} ("reduz em 3 a CA do inimigo a cada ataque" = valor 3, atributo evasiva, empilha true; use também resistencia se o texto falar da CA em geral). Outros debuffs (cura do alvo pela metade, etc.) vão para "naoAplicado".
 - "notasIA": regras que NÃO cabem nos campos acima (condições, gatilhos, usos por cena, testes, requisitos), em frases curtas, uma por linha.
 - "naoAplicado": lista de frases curtas com tudo que o texto diz e que você NÃO conseguiu colocar em nenhum campo.
@@ -299,6 +303,10 @@ function prepararSubHabilidade(bruto) {
     if (acao) detalhes.push(`Ação: ${acao}`);
     const usos = Math.floor(num(s.usosMax));
     if (usos > 0) detalhes.push(`Usos: ${usos} por ${minusculo(s.usosPor) === 'cena' ? 'cena' : 'descanso'}`);
+    const recargaSub = Math.floor(num(s.recargaTurnos));
+    if (recargaSub > 0) detalhes.push(`Recarga: ${recargaSub} turno(s)`);
+    const custoSub = lerCustoPorTurno(s.custoPorTurno).custo;
+    if (custoSub) detalhes.push(`Custo por turno: ${custoSub.valor}${custoSub.modo === 'percMax' ? '%' : ''} de ${custoSub.energia}`);
     const descricao = String(s.descricao ?? '').trim();
     const notas = juntarNotas('', naoAplicado);
     const texto = [descricao, detalhes.join(' · '), notas].filter(Boolean).join('\n\n');

@@ -13,6 +13,7 @@ import useGastarAcao from '../../hooks/useGastarAcao';
 import SegurarAcao from '../combate/SegurarAcao';
 import { tipoAcaoAoLigar } from '../../core/acaoPoder';
 import { podeUsar, descreverUsos, limiteDeUsos } from '../../core/usosPoder';
+import { emRecarga, mensagemRecarga } from '../../core/recargaPoder';
 import { eventoCombina } from '../../core/atalhos';
 import { temAcessoArmaEspiritual } from '../../core/acessoArmaEspiritual';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
@@ -1046,6 +1047,8 @@ export function MapaTecnicasRapidas() {
     const alternarTecnica = (p) => {
         if (!p.ativa) {
             if (!podeUsar(minhaFicha, p, poderesCtx.cenaAtivaId)) { alert(`"${p.nome}" já usou todos os usos (${descreverUsos(minhaFicha, p, poderesCtx.cenaAtivaId)}). Eles voltam ao ${limiteDeUsos(p).por === 'cena' ? 'trocar de cena ou descansar' : 'descansar'}.`); return; }
+            // ⏳ Em recarga (core/recargaPoder.js): barra antes de gastar a Ação.
+            if (emRecarga(p)) { alert(mensagemRecarga(p)); return; }
             if (!gastarAcao(p)) return;
         }
         togglePoder(p.id);

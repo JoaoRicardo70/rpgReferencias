@@ -18,6 +18,9 @@ import { normalizarPasta } from './pastas.js';
 import { normalizarTipoAcao } from './acoesTecnica.js';
 import { normalizarUsos } from './usosPoder.js';
 import { normalizarAoAcertar } from './aoAcertar.js';
+import { lerCustoPorTurno } from './custoPorTurno.js';
+import { normalizarRecarga, LIMITE_RECARGA } from './recargaPoder.js';
+import { normalizarAoDesligar } from './aoDesligar.js';
 import { normalizarQuando, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from './efeitosCondicionais.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 import { normalizarAplicaEstados, ATRIBUTOS_TESTE, ROTULO_ATRIBUTO, LIMITES_ESTADOS } from './estadosGolpe.js';
@@ -358,6 +361,19 @@ export function normalizarPoder(dados) {
     // 🔁 Usos limitados (core/usosPoder.js): só grava quando há limite (usosMax > 0).
     const usos = normalizarUsos(d.usosMax, d.usosPor);
     if (usos) { objeto.usosMax = usos.max; objeto.usosPor = usos.por; }
+    // 🔋 Custo por turno enquanto ligado (core/custoPorTurno.js): inválido é ignorado com aviso; sem custo não grava nada.
+    const custoTurno = lerCustoPorTurno(d.custoPorTurno);
+    if (custoTurno.custo) objeto.custoPorTurno = custoTurno.custo;
+    if (custoTurno.aviso) avisos.push(custoTurno.aviso);
+    // ⏳ Recarga em turnos (core/recargaPoder.js): inteiro 1 a 99; 0/ausente não grava.
+    const recarga = normalizarRecarga(d.recargaTurnos);
+    if (recarga > 0) objeto.recargaTurnos = recarga;
+    if (Number(d.recargaTurnos) > LIMITE_RECARGA) avisos.push(`Recarga acima de ${LIMITE_RECARGA} turnos: reduzida para ${LIMITE_RECARGA}.`);
+    // 💥 Efeito ao desligar à mão (core/aoDesligar.js): dados de dano em si; inválido é ignorado com aviso.
+    if (d.aoDesligar !== undefined && d.aoDesligar !== null && d.aoDesligar !== '') {
+        const aoDesligar = normalizarAoDesligar(d.aoDesligar);
+        if (aoDesligar) objeto.aoDesligar = aoDesligar; else avisos.push('Efeito ao desligar ignorado: precisa de dadosQtd e dadosFaces maiores que zero.');
+    }
     // 💚 Ao acertar (core/aoAcertar.js): cura/energia de quem acertou; só grava o que for válido.
     const aoAcertar = normalizarAoAcertar(d.aoAcertar);
     if (aoAcertar.length > 0) objeto.aoAcertar = aoAcertar;
@@ -615,6 +631,9 @@ export const DECLARACOES_CRIACAO = [
                 notasIA: { type: 'STRING', description: 'Regras que não cabem nos campos (condições, usos, gatilhos), em frases curtas.' },
                 aoAcertar: { type: 'ARRAY', description: 'O que acontece quando o golpe atinge e causa Dano (até 6): em QUEM ACERTOU (curarAtacante, energiaAtacante) ou no ALVO personagem (drenarEnergiaAlvo; debuffAlvo = reduz Evasiva/Resistência/Acerto do alvo por alguns turnos dele). Ex.: [{"tipo":"curarAtacante","modo":"percMax","valor":5},{"tipo":"debuffAlvo","atributo":"evasiva","valor":3,"duracao":2,"empilha":true}].', items: { type: 'OBJECT', properties: { tipo: { type: 'STRING', enum: ['curarAtacante', 'energiaAtacante', 'drenarEnergiaAlvo', 'debuffAlvo'] }, atributo: { type: 'STRING', enum: ['evasiva', 'resistencia', 'acerto'], description: 'Só debuffAlvo: o que o alvo perde. valor = pontos perdidos.' }, duracao: { type: 'INTEGER', description: 'Só debuffAlvo: turnos do alvo (1 a 20).' }, empilha: { type: 'BOOLEAN', description: 'Só debuffAlvo: cada golpe soma um debuff novo.' }, modo: { type: 'STRING', enum: ['fixo', 'percAtual', 'percMax'], description: 'fixo = valor na escala exibida (como o Dano); percAtual = % do valor atual; percMax = % do máximo.' }, valor: { type: 'NUMBER' }, energia: { type: 'STRING', enum: ['mana', 'aura', 'chakra', 'corpo'], description: 'Só com energiaAtacante e drenarEnergiaAlvo.' }, apenasCritico: { type: 'BOOLEAN' } }, required: ['tipo', 'valor'] } },
                 usosMax: { type: 'INTEGER', description: 'Quantas vezes pode ser ligada (1 a 99). Omita se for ilimitada.' },
+                custoPorTurno: { type: 'OBJECT', description: 'Energia cobrada no início de cada turno enquanto o Poder está ligado. Omita se não houver.', properties: { modo: { type: 'STRING', enum: ['fixo', 'percMax'] }, valor: { type: 'NUMBER' }, energia: { type: 'STRING', enum: ['mana', 'aura', 'chakra', 'corpo'] } } },
+                recargaTurnos: { type: 'INTEGER', description: 'Turnos do dono a esperar para usar de novo (1 a 99). Omita se não houver recarga.' },
+                aoDesligar: { type: 'OBJECT', description: 'Dano em si quando desligado à mão. Omita se não houver.', properties: { dadosQtd: { type: 'INTEGER' }, dadosFaces: { type: 'INTEGER' }, texto: { type: 'STRING' } } },
                 usosPor: { type: 'STRING', enum: ['cena', 'descanso'], description: 'Quando os usos renovam: cena (ao trocar de cena ou descansar) ou descanso. Só com usosMax.' },
                 maestria: { type: 'NUMBER' }, maestriaRequerida: { type: 'NUMBER' }, fadigaPorUso: { type: 'NUMBER', description: 'Só Formas.' },
                 efeitos: EFEITOS_SCHEMA, efeitosPassivos: EFEITOS_SCHEMA,

@@ -18,6 +18,8 @@ import { alternarAcao, restaurarAcoes, criarAcoesIniciais } from '../../core/aco
 import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, resolverAcertoNoAlvo } from '../../core/disputaPoder';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto, getTetoExibidoComFator } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
+import { aplicarCustosPorTurno, fotoDosPoderes, camposDePoderesAlterados } from '../../core/custoPorTurno';
+import { passarTurnoDasRecargas } from '../../core/recargaPoder';
 import { danoDeEstadosNoTurno, descreverDanoDeEstados } from '../../core/condicoes';
 import { passarTurnoDosBuffs, curaPassivaDoTurno, curaEnergiasPassivaDoTurno } from '../../core/suporte';
 import { getVidaMaxBrutaNpc } from '../../core/gavetaNpc';
@@ -92,7 +94,10 @@ function aplicarInicioDeTurno(ficha, ehDummie = false) {
     // ✨ Buffs temporários de Suporte (core/suporte.js) perdem 1 turno no começo do turno do dono; os que acabam saem.
     if (Array.isArray(ficha.buffsTemporarios) && ficha.buffsTemporarios.length > 0) ficha.buffsTemporarios = passarTurnoDosBuffs(ficha).lista;
     const cura = ehDummie ? '' : aplicarCuraPassivaNoTurno(ficha);
-    return { estados: aplicarDanoDeEstadosNoTurno(ficha, ehDummie), cura };
+    // 🔋 Poderes ligados com custo por turno pagam a energia (ou desligam sem ela) e ⏳ as recargas em turnos perdem 1 (core/custoPorTurno.js, core/recargaPoder.js).
+    const custos = ehDummie ? { textos: [], desligados: 0 } : aplicarCustosPorTurno(ficha);
+    const recargasMudaram = ehDummie ? 0 : passarTurnoDasRecargas(ficha);
+    return { estados: aplicarDanoDeEstadosNoTurno(ficha, ehDummie), cura, custos: custos.textos, poderesAlterados: custos.desligados > 0 || recargasMudaram > 0 };
 }
 
 // ✨ Suporte passivo (core/suporte.js): a Cura de Poderes/Técnicas/Itens/Arma sempre ligados cai na Vida no começo do turno do dono,
@@ -158,7 +163,7 @@ function aplicarDanoDeEstadosNoTurno(ficha, ehDummie) {
 // vitais aqui à mão de novo já causou, numa rodada anterior desta correção, o mesmo bug que ela
 // tentava consertar (pv/pm regenerando na hora só pra depois nunca serem escritos no Firebase de
 // outro jogador).
-function camposDeInicioDeTurno(ficha) {
+function camposDeInicioDeTurno(ficha, camposPoderes = {}) {
     const campos = {};
     VITAIS_REGENERAVEIS.forEach((k) => {
         if (ficha[k] && ficha[k].atual !== undefined) campos[`${k}/atual`] = ficha[k].atual;
@@ -171,6 +176,8 @@ function camposDeInicioDeTurno(ficha) {
         if (ficha.combate.acaoSeguradaCredito !== undefined) campos['combate/acaoSeguradaCredito'] = ficha.combate.acaoSeguradaCredito;
     }
     if (ficha.buffsTemporarios !== undefined) campos.buffsTemporarios = ficha.buffsTemporarios;
+    // ⏳🔋 Poderes: só os caminhos poderes/{i}/campo que mudaram (core/custoPorTurno.js > camposDePoderesAlterados), nunca o array inteiro.
+    Object.assign(campos, camposPoderes);
     if (ficha.acoes) {
         ['padrao', 'bonus', 'reacao'].forEach((t) => {
             if (!ficha.acoes[t]) return;
@@ -971,10 +978,12 @@ export function MapaFormProvider({ children }) {
             // esperar o Firebase) e deixa o debounce de sempre sincronizar.
             let textoEstados = '';
             let textoCura = '';
-            updateFicha(f => { const r = aplicarInicioDeTurno(f); textoEstados = r.estados; textoCura = r.cura; });
+            let textosCustos = [];
+            updateFicha(f => { const r = aplicarInicioDeTurno(f); textoEstados = r.estados; textoCura = r.cura; textosCustos = r.custos; });
             salvarFichaSilencioso();
             if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
             if (textoCura) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `✨ ${nextPlayer.nome} se cura (passivo): ${textoCura}` });
+            textosCustos.forEach(t => enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔋 ${t}` }));
         } else {
             // Outro jogador começa o turno: nunca posso mutar a ficha dele localmente
             // (`updateFicha` só mexe na MINHA), então calculo em cima da cópia mais recente que
@@ -992,8 +1001,12 @@ export function MapaFormProvider({ children }) {
             const fichaAlvo = storeState.personagens?.[nextPlayer.nome];
             if (fichaAlvo) {
                 const rascunho = JSON.parse(JSON.stringify(fichaAlvo));
-                const { estados: textoEstados, cura: textoCura } = aplicarInicioDeTurno(rascunho);
-                salvarCamposPersonagem(nextPlayer.nome, camposDeInicioDeTurno(rascunho));
+                const fotoAntes = fotoDosPoderes(rascunho);
+                const { estados: textoEstados, cura: textoCura, custos: textosCustos } = aplicarInicioDeTurno(rascunho);
+                // Poderes: só os campos tocados, com o índice achado pelo id na ficha mais fresca (nunca o array inteiro).
+                const frescos = useStore.getState().personagens?.[nextPlayer.nome]?.poderes || fichaAlvo.poderes;
+                salvarCamposPersonagem(nextPlayer.nome, camposDeInicioDeTurno(rascunho, camposDePoderesAlterados(fotoAntes, fotoDosPoderes(rascunho), frescos)));
+                textosCustos.forEach(t => enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔋 ${t}` }));
                 if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
                 if (textoCura) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `✨ ${nextPlayer.nome} se cura (passivo): ${textoCura}` });
             }

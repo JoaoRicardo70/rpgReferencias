@@ -18,6 +18,8 @@ import LerDeImagemIA from '../shared/LerDeImagemIA';
 import { TEXTO_DAS_IMAGENS } from '../../core/imagemIA';
 import CondicaoDoEfeito from '../shared/CondicaoDoEfeito';
 import { descreverUsos } from '../../core/usosPoder';
+import { ENERGIAS_CUSTO, descreverCustoPorTurno } from '../../core/custoPorTurno';
+import { descreverRecarga } from '../../core/recargaPoder';
 import EnsinarBotao from '../shared/EnsinarBotao';
 import EnsinamentosRecebidos from '../shared/EnsinamentosRecebidos';
 
@@ -204,7 +206,7 @@ export function PoderesFormEditor() {
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, uploadingImg, handleImageUpload,
         dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, tipoAcao, setTipoAcao, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, tipoAcao, setTipoAcao, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -278,6 +280,8 @@ export function PoderesFormEditor() {
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Como Poder</label><label style={{ fontSize: '0.8em' }}><input type="checkbox" checked={!!semComoPoder} onChange={e => setSemComoPoder(e.target.checked)} /> Vetar</label></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Ação gasta</label><select value={tipoAcao} onChange={e => setTipoAcao(e.target.value)} title="Que tipo de Ação custa usar esta técnica (o sistema desconta Ação, Ação Bônus e Reação). Automático: se a técnica eleva o Poder Calculado, ligar gasta uma Reação; escolha Ação Livre para ligar de graça." style={{ width: '100%' }}>{TIPOS_ACAO_TECNICA.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}</select></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Usos</label><div className="usos-poder-campo"><input type="number" min="0" max="99" placeholder="∞" aria-label="Usos máximos (vazio = ilimitado)" value={usosMaxPoder} onChange={e => setUsosMaxPoder(e.target.value)} title="Quantas vezes pode ser ligada. Vazio ou 0 = ilimitado." /><select aria-label="Os usos renovam" value={usosPorPoder} onChange={e => setUsosPorPoder(e.target.value)} title="Quando os usos renovam: ao trocar de cena (ou descansar) ou só ao descansar."><option value="cena">por cena</option><option value="descanso">por descanso</option></select></div></div>
+                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo por turno ligado</label><div className="custo-turno-campo"><input type="number" min="0" placeholder="0" aria-label="Custo por turno (vazio = sem custo)" value={custoTurnoPoder.valor} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, valor: e.target.value })} title="Energia cobrada no início de cada turno enquanto o Poder está ligado. Vazio ou 0 = sem custo. Sem energia, o Poder desliga." /><select aria-label="Modo do custo por turno" value={custoTurnoPoder.modo} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, modo: e.target.value })}><option value="fixo">fixo</option><option value="percMax">% do máx.</option></select><select aria-label="Energia do custo por turno" value={custoTurnoPoder.energia} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, energia: e.target.value })}>{ENERGIAS_CUSTO.map(en => <option key={en} value={en}>{en}</option>)}</select></div></div>
+                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Recarga (turnos)</label><input type="number" min="0" max="99" placeholder="0" aria-label="Recarga em turnos (0 = sem recarga)" value={recargaTurnosPoder} onChange={e => setRecargaTurnosPoder(e.target.value)} title="Turnos do dono a esperar depois de ligar antes de poder ligar de novo. Vazio ou 0 = sem recarga." /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Alcance (Q)</label><input type="number" min="0" step="0.5" value={poderAlcance} onChange={e => setPoderAlcance(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Área (Q)</label><input type="number" min="0" step="0.5" value={poderArea} onChange={e => setPoderArea(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div>
@@ -610,6 +614,8 @@ export function PoderesLista() {
                                         {isEquipped ? '★ ATIVADA' : 'Desativada'}
                                     </button>
                                     {descreverUsos(minhaFicha, p, cenaAtivaId) && <span className="usos-poder-selo" title="Usos restantes desta técnica">🔁 {descreverUsos(minhaFicha, p, cenaAtivaId)}</span>}
+                                    {descreverCustoPorTurno(p) && <span className="custo-turno-selo" title="Energia cobrada no início de cada turno enquanto ligada">🔋 {descreverCustoPorTurno(p)}</span>}
+                                    {descreverRecarga(p) && <span className={`recarga-poder-selo${p.recargaRestante > 0 ? ' em-recarga' : ''}`} title="Recarga em turnos antes de ligar de novo">{descreverRecarga(p)}</span>}
 
                                     {/* BOTÃO DISPARAR/PREPARAR MODO */}
                                     <button 
