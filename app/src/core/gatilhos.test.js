@@ -117,8 +117,8 @@ describe('avaliarGatilhos - danoQueZeraria (Negar morte)', () => {
         expect(avaliarGatilhos({ tipo: 'danoQueZeraria' }, { ...ctx(500, -10), profundidade: PROFUNDIDADE_MAX_GATILHOS }, f()).acoes).toEqual([]);
         expect(avaliarGatilhos({ tipo: 'danoQueZeraria' }, { ...ctx(500, -10), jaDisparados: ['p1:nm'] }, f()).acoes).toEqual([]);
     });
-    it('modo opcional não dispara na Fase 1', () => {
-        const ff = ficha({ poderes: [poder([{ ...negarMorte, modo: 'opcional', armado: true }])] });
+    it('modo opcional DESARMADO não dispara', () => {
+        const ff = ficha({ poderes: [poder([{ ...negarMorte, modo: 'opcional', armado: false }])] });
         expect(avaliarGatilhos({ tipo: 'danoQueZeraria' }, ctx(500, -10), ff).acoes).toEqual([]);
     });
 });

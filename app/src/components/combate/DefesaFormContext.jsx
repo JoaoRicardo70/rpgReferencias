@@ -13,7 +13,8 @@ import { resolverEstadosNoAlvo, descreverResolucao, juntarAplicados } from '../.
 import { aplicarEstadoNaFicha } from '../../core/condicoes';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { danoExibidoParaBruto } from '../../core/vitals';
-import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, novoEventoId } from '../../services/danoVida';
+import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, novoEventoId, perguntarGatilhosDeDano } from '../../services/danoVida';
+import { aplicarExternosDeGatilhos } from '../../services/gatilhosEventos';
 import { temImunidadeTotal } from '../../core/gatilhosAplicar';
 import { escalarDanoPelaVida, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
@@ -32,7 +33,7 @@ export function useDefesaForm() {
 
 export function DefesaFormProvider({ children }) {
     // Ficha em foco: a minha, ou a da entidade que o Mestre está vendo na Ficha Definitiva.
-    const { ficha: minhaFicha, updateFicha, nome: meuNome } = useFichaAtiva();
+    const { ficha: minhaFicha, updateFicha, nome: meuNome, souEuMesmo } = useFichaAtiva();
     const salvarFichaSilencioso = useCallSaveAtivo();
     const personagens = useStore(s => s.personagens); // 🔥 VARREDURA GLOBAL DE PERSONAGENS DA MESA
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
@@ -297,8 +298,17 @@ export function DefesaFormProvider({ children }) {
         const nivelDoGolpe = golpeDoDano && ['normal', 'critico', 'fatal'].includes(golpeDoDano.golpeNivel) ? golpeDoDano.golpeNivel : (golpeDoDano && golpeDoDano.golpeCritico ? 'critico' : 'normal');
         let textoEscudo = '';
         let textoGatilhos = '';
+        let externosDano = [];
+        // 🔔 Quem me atacou (só personagem com ficha): habilita a ação "dano no atacante" dos gatilhos. Dummie ou desconhecido = sem atacante.
+        const escolhaDoGolpe = atacanteInc === ATACANTE_AUTO ? (ultimoGolpeRecebido ? `p:${ultimoGolpeRecebido.nome}` : ATACANTE_NENHUM) : atacanteInc;
+        const nomeAtacanteFicha = escolhaDoGolpe.startsWith('p:') && (personagens || {})[escolhaDoGolpe.slice(2)] ? escolhaDoGolpe.slice(2) : '';
         // Cada clique em "Receber dano" é uma aplicação distinta: id único, gerado FORA do produtor Immer (o ts do feed é do último golpe, igual entre cliques).
         const eventoIdClique = novoEventoId();
+        const ctxDano = { nome: meuNome, nomeEscudo: meuNome, eventoId: eventoIdClique, golpe: { nivel: nivelDoGolpe }, ...(nomeAtacanteFicha ? { atacante: { nome: nomeAtacanteFicha } } : {}) };
+        // 🔔 Modo opcional com "perguntar": o dano é aplicado AQUI, no cliente do dono; pergunta antes de gravar (Não = não dispara e não gasta o limite).
+        // Só pergunta no cliente do PRÓPRIO dono: o Mestre aplicando dano na ficha de outro jogador (souEuMesmo falso) não decide por ele; vale só `armado`.
+        // A pergunta cobre apenas dano na Vida; a previsão usa rng 0, então gatilhos disparados por OUTRAS linhas de uma tabela de dado valem pelo `armado`.
+        const decisoesGatilhos = imune || souEuMesmo === false ? {} : perguntarGatilhosDeDano(minhaFicha, danoFinal, ctxDano);
         updateFicha((ficha) => {
             if (resolucao) {
                 juntarAplicados(resolucao.aplicados).forEach(a => aplicarEstadoNaFicha(ficha, a.id, a.stacks, nomeAtacante || ''));
@@ -314,8 +324,9 @@ export function DefesaFormProvider({ children }) {
                 // O dano digitado é o número EXIBIDO (feed/tela); vida.atual é bruta.
                 // 🛡️ Escudos e Vida temporária absorvem antes (core/escudos.js); o que sobra vai para a Vida.
                 // 🔔 Ponto único de dano na Vida (core/danoVida.js): Imunidade total, escudo, gatilhos de morte e de faixas de Vida.
-                const r = aplicarDanoNaVidaDaFicha(ficha, danoFinal, { nome: meuNome, nomeEscudo: meuNome, eventoId: eventoIdClique, golpe: { nivel: nivelDoGolpe } });
+                const r = aplicarDanoNaVidaDaFicha(ficha, danoFinal, { ...ctxDano, decisoes: decisoesGatilhos });
                 textoEscudo = r.textoEscudo;
+                externosDano = r.externos || [];
                 textoGatilhos = textoDosGatilhos(r);
             }
         });
@@ -335,6 +346,9 @@ export function DefesaFormProvider({ children }) {
             setDanoRecebidoInc(''); setElementoInc('fisico'); setAtacanteInc(ATACANTE_AUTO); setDanoDeDado(false); setDanoVerdadeiro(false);
             return;
         }
+        // Ordem: primeiro o Reflexo (aplicarNoAtacante, acima), depois os efeitos de gatilhos no atacante: o Reflexo é a reação já escolhida ao golpe e o gatilho é consequência de a Vida ter sido tocada.
+        // 🔔 Efeitos de gatilhos na ficha do atacante (ex.: a Volta das cinzas devolve o dano). Cada falha fica isolada: nunca trava o fluxo de dano.
+        if (externosDano.length > 0) { try { aplicarExternosDeGatilhos(externosDano).forEach(t => enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${t}` })); } catch (e) { console.error('Gatilho externo falhou', e); } }
         if (textosGatilhosAtacante.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${nomeAtacante || 'O atacante'}: ${textosGatilhosAtacante.join(' · ')}` });
 
         // Quem leva vantagem na Disputa de Poder é informação do Mestre (textoMestre).
@@ -349,7 +363,7 @@ export function DefesaFormProvider({ children }) {
         setDanoVerdadeiro(false);
         setReflexoEscolhido('');
         setAbaAtiva('aba-log');
-    }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, updateFicha, salvarFichaSilencioso, setAbaAtiva, elementosDinamicos, disputaDefesa, danoDeDado, danoVerdadeiro, reflexoEscolhido, reflexosUsaveis, atacanteInc, ultimoGolpeRecebido, dummies, personagens, divisorPoderMesa]);
+    }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, souEuMesmo, updateFicha, salvarFichaSilencioso, setAbaAtiva, elementosDinamicos, disputaDefesa, danoDeDado, danoVerdadeiro, reflexoEscolhido, reflexosUsaveis, atacanteInc, ultimoGolpeRecebido, dummies, personagens, divisorPoderMesa]);
 
     const value = useMemo(() => ({
         evaDados, setEvaDados, evaFaces, setEvaFaces, evaProf, setEvaProf, evaBonus, setEvaBonus,

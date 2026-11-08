@@ -26,7 +26,7 @@ import { getNivelDominio } from '../../core/dominios';
 import { classificarAtaque, energiasDoGolpe } from '../../core/identificacao';
 import { montarNarrativa } from '../../core/descricaoAtaque';
 import { calcularFaixasCritico, classificarCritico, maiorDadoDaRolagem } from '../../core/critico';
-import { aplicarDanoNaVidaDaFicha, textoDosGatilhos } from '../../services/danoVida';
+import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, perguntarGatilhosDeDano } from '../../services/danoVida';
 import { dispararEventoMeu } from '../../services/gatilhosEventos';
 import { coletarAoAcertar, aplicarAoAcertarNoRascunho } from '../../core/aoAcertar';
 import { valoresDeEfeitos, menorValorDeEfeitos, montarContextoDeCombate } from '../../core/efeitosCondicionais';
@@ -51,7 +51,7 @@ export function useAtaqueForm() {
 
 export function AtaqueFormProvider({ children }) {
     // 🎭 Ficha, nome e save do ATOR: eu mesmo, ou o NPC em que o Mestre está atuando (FichaAlvoProvider do Mapa).
-    const { ficha: minhaFicha, updateFicha, nome: meuNome } = useFichaAtiva();
+    const { ficha: minhaFicha, updateFicha, nome: meuNome, souEuMesmo } = useFichaAtiva();
     const salvarFichaSilencioso = useCallSaveAtivo();
     // Nome que aparece no feed: atuando como um token da Gaveta (ex.: "Goblin #2"), o mesmo nome que o acerto do Mapa grava.
     const meuNomeReal = useStore(s => s.meuNome);
@@ -521,7 +521,9 @@ export function AtaqueFormProvider({ children }) {
             const dano = eu ? reduzirDanoNoAlvo(eu, danoAtacante, elementoAtivo, { verdadeiro: danoVerdadeiro }).final : danoAtacante;
             // 🛡️ O Reflexo devolvido passa pelo escudo de quem atacou antes da Vida.
             let textoEscudo = ''; let textoGatilhosReflexo = '';
-            updateFicha(ficha => { if (ficha.vida) { const r = aplicarDanoNaVidaDaFicha(ficha, dano, { nome: nomeNoFeed, nomeEscudo: nomeNoFeed }); textoEscudo = r.textoEscudo; textoGatilhosReflexo = textoDosGatilhos(r); } });
+            // (Reflexo: o atacante-personagem não é conhecido aqui, então "dano no atacante" é ignorado com aviso.)
+            const decisoesReflexo = souEuMesmo === false ? {} : perguntarGatilhosDeDano(minhaFicha, dano, { nome: nomeNoFeed, nomeEscudo: nomeNoFeed }); // só o dono é perguntado
+            updateFicha(ficha => { if (ficha.vida) { const r = aplicarDanoNaVidaDaFicha(ficha, dano, { nome: nomeNoFeed, nomeEscudo: nomeNoFeed, decisoes: decisoesReflexo }); textoEscudo = r.textoEscudo; textoGatilhosReflexo = textoDosGatilhos(r); } });
             salvarFichaSilencioso();
             if (textoEscudo) textos.push(`🛡️ ${textoEscudo}`);
             if (textoGatilhosReflexo) textos.push(textoGatilhosReflexo);

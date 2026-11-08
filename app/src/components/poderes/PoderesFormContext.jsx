@@ -25,7 +25,7 @@ import { calcularGanhoFadigaMaestriaInsuficiente } from '../../core/fadiga';
 import { definirEstagio } from '../../core/contadores';
 import { sincronizarEscudoDoPoder, normalizarEscudoAoLigar } from '../../core/escudos';
 import { normalizarGatilhos } from '../../core/gatilhos';
-import { dispararEventoNaFicha } from '../../core/gatilhosAplicar';
+import { dispararEventoNaFicha, forcarGatilhoNaFicha, rngPreSorteado } from '../../core/gatilhosAplicar';
 import { ESTAGIOS_PADRAO, normalizarEstagios, temEstagios, limitarEstagio, marcoParaRascunho } from '../../core/estagios';
 
 // 🪜 Rascunho do bloco "Estágios" do editor — nomes ficam como texto (um por linha) enquanto edita.
@@ -448,6 +448,33 @@ export function PoderesFormProvider({ children }) {
         salvarFichaSilencioso();
     }, [isMestre, updateFicha, salvarFichaSilencioso]);
 
+    // 🔔 Modo opcional: o DONO e o MESTRE armam/desarmam um gatilho (campo `armado` NO PRÓPRIO gatilho do Poder; persiste, o descanso não mexe).
+    // updateFicha do useFichaAtiva já roteia para a ficha que o Mestre abriu.
+    const alternarArmadoGatilho = useCallback((poderId, gatilhoId) => {
+        updateFicha((ficha) => {
+            const p = (ficha.poderes || []).find(po => po && po.id === poderId);
+            const g = p && Array.isArray(p.gatilhos) ? p.gatilhos.find(x => x && x.id === gatilhoId) : null;
+            if (!g || g.modo !== 'opcional') return;
+            g.armado = g.armado !== true;
+        });
+        salvarFichaSilencioso();
+    }, [updateFicha, salvarFichaSilencioso]);
+
+    // 🔔 O Mestre FORÇA o gatilho agora: executa as ações ignorando evento, condições, armado e o limite de usos (não gasta o limite). O feed diz "forçado pelo Mestre".
+    const forcarGatilhoMestre = useCallback((poderId, gatilhoId) => {
+        if (!isMestre) return;
+        const p = (minhaFicha?.poderes || []).find(po => po && po.id === poderId);
+        const g = p && Array.isArray(p.gatilhos) ? p.gatilhos.find(x => x && x.id === gatilhoId) : null;
+        if (!g) return;
+        if (!window.confirm(`Forçar o disparo de "${g.nome}" agora? Ele ignora as condições e o limite de usos.`)) return;
+        const rng = rngPreSorteado();
+        let r = null;
+        try { updateFicha((ficha) => { rng.reiniciar(); r = forcarGatilhoNaFicha(ficha, poderId, gatilhoId, { cenaId: cenaAtivaId, nome: meuNome, rng }); }); } catch (e) { console.error('Forçar gatilho falhou', e); return; }
+        if (!r || !r.achou) return;
+        salvarFichaSilencioso();
+        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${r.textos.join(' · ')}` });
+    }, [isMestre, minhaFicha, updateFicha, salvarFichaSilencioso, cenaAtivaId, meuNome]);
+
     const mudarEstagioPoder = useCallback((id, novoEstagio) => {
         updateFicha((ficha) => { definirEstagio(ficha, id, novoEstagio); });
         salvarFichaSilencioso();
@@ -799,7 +826,7 @@ export function PoderesFormProvider({ children }) {
         poderVertente, setPoderVertente, poderElemento, setPoderElemento,
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, alternarGatilhoMestre, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -823,7 +850,7 @@ export function PoderesFormProvider({ children }) {
     }), [
         minhaFicha, meuNome, isMestre, abaAtual,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
-        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao, gatilhosPoder, alternarGatilhoMestre, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, cenaAtivaId, poderAlcance,
+        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao, gatilhosPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, cenaAtivaId, poderAlcance,
         poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma,
         estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo, novoQuandoPassivo, novoEscopoPassivo,

@@ -43,7 +43,7 @@ const EXTRAS = [
     { poderes: [{ id: 'p', nome: 'P', ativa: true, gatilhos: [] }] },
     { poderes: [{ id: 'p', nome: 'P', ativa: false, gatilhos: [NEGAR] }] }, // poder desligado
     { poderes: [{ id: 'p', nome: 'P', ativa: true, gatilhos: [{ ...NEGAR, mestreDesligou: true }] }] },
-    { poderes: [{ id: 'p', nome: 'P', ativa: true, gatilhos: [{ ...NEGAR, modo: 'opcional' }] }] }, // entra no caminho "com gatilhos" mas nada dispara
+    { poderes: [{ id: 'p', nome: 'P', ativa: true, gatilhos: [{ ...NEGAR, modo: 'opcional', armado: false }] }] }, // (opcional desarmado) entra no caminho "com gatilhos" mas nada dispara
     { poderes: [{ id: 'p', nome: 'P', ativa: true, gatilhos: [{ nome: 'lixo', evento: { tipo: 'zzz' }, acoes: [] }, null, 7] }] },
     { inventario: [{ id: 'i', nome: 'Espada', equipado: false, gatilhos: [NEGAR] }] },
     { inventario: [{ id: 'i', nome: 'Espada', equipado: true, efeitosAtivos: false, gatilhos: [NEGAR] }] },
@@ -583,8 +583,8 @@ describe('Quais gatilhos valem (coletarGatilhos) e idempotencia / laco', () => {
         const r = dano(f, 1e9);
         expect(r.textos.findIndex(t => t.startsWith('B:'))).toBeLessThan(r.textos.findIndex(t => t.startsWith('A:')));
     });
-    it('fase antes: um uso por golpe mesmo com dois danoQueZeraria; opcional nao dispara', () => {
-        const f = base({ poderes: [poder([{ ...NEGAR, modo: 'opcional', armado: true }])] });
+    it('fase antes: um uso por golpe mesmo com dois danoQueZeraria; opcional DESARMADO nao dispara', () => {
+        const f = base({ poderes: [poder([{ ...NEGAR, modo: 'opcional', armado: false }])] });
         dano(f, 1e9);
         expect(f.vida.atual).toBe(0);
     });

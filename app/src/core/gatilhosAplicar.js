@@ -16,6 +16,7 @@ import { calcularEficaciaCura } from './engine.js';
 import { adicionarEscudo, removerEscudo } from './escudos.js';
 import { gastarUso } from './usosPoder.js';
 import { somarBuffTemporario } from './suporte.js';
+import { chaveDoGatilhoDoPoder, normalizarGatilhos } from './gatilhos.js';
 
 const fmtN = (n) => Math.floor(Number(n) || 0).toLocaleString('pt-BR');
 
@@ -53,6 +54,9 @@ export function zerarUsosPorTurno(ficha) {
     if (mudou && Object.keys(usos).length === 0) delete ficha.combate.usosPoderes;
     return mudou;
 }
+
+// O que a cadeia de gatilhos herda do contexto: rng (testes), decisões/lista de perguntas do modo opcional e o atacante do golpe.
+const herdar = (ctx) => ({ rng: ctx.rng, decisoes: ctx.decisoes, perguntas: ctx.perguntas, atacante: ctx.atacante, danoRecebido: ctx.danoRecebido });
 
 // Registra no rascunho que estes gatilhos dispararam: gasta o uso do limite (por turno/cena/descanso) e guarda o evento (idempotência).
 export function registrarDisparos(ficha, disparados, { eventoId, cenaId = 'default' } = {}) {
@@ -98,11 +102,13 @@ function caminhosDoLigarDesligar(ficha, id) {
     return lista;
 }
 
-// Executa as ações (já avaliadas) no rascunho. ctx: { vidaMaxBruta?, eventoId?, cenaId?, disparados?, jaDisparados?, profundidade?, nome?, rng? }.
+// Executa as ações (já avaliadas) no rascunho. ctx: { vidaMaxBruta?, eventoId?, cenaId?, disparados?, jaDisparados?, profundidade?, nome?, rng?,
+//   atacante?: { nome } (personagem que causou o golpe), danoRecebido? (dano exibido do golpe), decisoes?, perguntas? }.
+// Devolve também `externos`: efeitos em OUTRA ficha que quem chamou precisa aplicar depois ({ tipo: 'danoNoAtacante', atacante, dano, gatilhoNome }).
 // Ações que mexem em contadores e Poderes geram eventos derivados (contadorAtingiu, poderLigou, poderDesligou) tratados em cadeia (profundidade + 1).
 export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
     const textos = []; const caminhos = new Set(); let anulado = false;
-    const derivados = [];
+    const derivados = []; const externos = [];
     const chavesDisparadas = (ctx.disparados || []).map(d => d.chave);
     const chavesNaCadeia = [...(Array.isArray(ctx.jaDisparados) ? ctx.jaDisparados : []), ...chavesDisparadas];
     if (!ficha || !Array.isArray(acoes)) return { textos, anulado, caminhos: [] };
@@ -241,10 +247,36 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                 danoExibido = Math.floor(danoExibido);
                 if (!(danoExibido > 0)) break;
                 // Ponto único de dano (core/danoVida.js), direto na Vida (sem escudo): God Mode zera; gatilhos de Vida podem disparar (cadeia + 1).
-                const r = aplicarDanoNaVida(ficha, danoExibido, { nome: ctx.nome || '', semEscudo: true, cenaId: ctx.cenaId, vidaMaxBruta: vidaMax, profundidade: (Number(ctx.profundidade) || 0) + 1, jaDisparados: chavesNaCadeia });
+                const r = aplicarDanoNaVida(ficha, danoExibido, { nome: ctx.nome || '', semEscudo: true, cenaId: ctx.cenaId, vidaMaxBruta: vidaMax, profundidade: (Number(ctx.profundidade) || 0) + 1, jaDisparados: chavesNaCadeia, rng: ctx.rng, decisoes: ctx.decisoes, perguntas: ctx.perguntas });
                 r.caminhos.forEach(p => caminhos.add(p));
+                (r.externos || []).forEach(e => externos.push(e));
                 if (!r.imune && !r.anulado) textos.push(`${nome} custou ${fmtN(danoExibido)} de vida`);
                 r.textos.forEach(t => textos.push(t));
+                break;
+            }
+            case 'danoNoAtacante': {
+                // Só com o atacante-personagem conhecido; o dano é aplicado por quem chamou (na ficha dele, pelo ponto único de dano dele).
+                if (!ctx.atacante || !ctx.atacante.nome) { textos.push(`${nome}: dano no atacante ignorado (atacante desconhecido ou sem ficha)`); break; }
+                const dano = Math.floor(a.modo === 'fixo' ? a.valor : (Number(ctx.danoRecebido) || 0) * (a.valor / 100));
+                if (!(dano > 0)) break;
+                externos.push({ tipo: 'danoNoAtacante', atacante: ctx.atacante, dano, gatilhoNome: nome });
+                textos.push(`${nome}: ${fmtN(dano)} de dano volta para ${ctx.atacante.nome}`);
+                break;
+            }
+            case 'rolarTabela': {
+                // Um rolar por aplicação (rng injetável). Sem linha correspondente: nada acontece. As ações da linha passam por este mesmo executor (um nível mais fundo).
+                const rolado = rolarSorteio(a.dado, ctx.rng);
+                const linha = (a.resultados || []).find(r => r.ate >= rolado);
+                const dadoTxt = /^1d/i.test(a.dado) ? a.dado.slice(1) : a.dado;
+                textos.push(`${nome} rolou ${rolado} (${dadoTxt})${linha ? (linha.texto ? `: ${linha.texto}` : '') : ': nada acontece'}`);
+                if (!linha) break;
+                const aninhadas = linha.acoes.map(x => ({ ...x, gatilhoId: a.gatilhoId, gatilhoNome: a.gatilhoNome, fase: a.fase, chave: a.chave, fonte: a.fonte }));
+                const r = aplicarAcoesNoRascunho(ficha, aninhadas, { ...herdar(ctx), cenaId: ctx.cenaId, nome: ctx.nome, vidaMaxBruta: vidaMax, eventoId: ctx.eventoId ? `${ctx.eventoId}:tab` : undefined, jaDisparados: chavesNaCadeia, profundidade: (Number(ctx.profundidade) || 0) + 1 });
+                if (r.anulado) anulado = true;
+                r.textos.forEach(t => textos.push(t));
+                r.caminhos.forEach(c => caminhos.add(c));
+                (r.externos || []).forEach(e => externos.push(e));
+                (r.chaves || []).forEach((k) => { chavesNaCadeia.push(k); chavesDisparadas.push(k); });
                 break;
             }
             default: break;
@@ -253,12 +285,13 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
 
     // Eventos derivados (contador atingiu N, Poder ligou/desligou): mesma ficha, um nível mais fundo; o gatilho que já disparou na cadeia não repete.
     derivados.forEach((ev) => {
-        const sub = dispararEventoNaFicha(ficha, ev, { cenaId: ctx.cenaId, nome: ctx.nome, rng: ctx.rng, profundidade: (Number(ctx.profundidade) || 0) + 1, jaDisparados: chavesNaCadeia, ...(ctx.eventoId ? { eventoId: `${ctx.eventoId}:${ev.tipo}` } : {}) });
+        const sub = dispararEventoNaFicha(ficha, ev, { cenaId: ctx.cenaId, nome: ctx.nome, ...herdar(ctx), profundidade: (Number(ctx.profundidade) || 0) + 1, jaDisparados: chavesNaCadeia, ...(ctx.eventoId ? { eventoId: `${ctx.eventoId}:${ev.tipo}` } : {}) });
         sub.textos.forEach(t => textos.push(t));
         sub.caminhos.forEach(c => caminhos.add(c));
+        (sub.externos || []).forEach(e => externos.push(e));
         sub.chaves.forEach((k) => { chavesNaCadeia.push(k); chavesDisparadas.push(k); });
     });
-    return { textos, anulado, caminhos: [...caminhos], chaves: chavesDisparadas };
+    return { textos, anulado, caminhos: [...caminhos], chaves: chavesDisparadas, ...(externos.length > 0 ? { externos } : {}) };
 }
 
 // Dispara um evento NO RASCUNHO da ficha (use dentro de updateFicha ou numa cópia): avalia os gatilhos automáticos que casam, executa as
@@ -279,9 +312,10 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
         const coletados = coletarGatilhos(ficha, evento.tipo === 'poderDesligou' ? { tambemLigado: evento.poderId } : {}).filter(c => c.gatilho.evento.tipo === evento.tipo);
         if (coletados.length > 0) {
             const jaDisparados = Array.isArray(ctx.jaDisparados) ? ctx.jaDisparados : [];
-            const av = avaliarGatilhos(evento, { eventoId: ctx.eventoId, cenaId, profundidade, jaDisparados }, ficha, { coletados });
+            const av = avaliarGatilhos(evento, { eventoId: ctx.eventoId, cenaId, profundidade, jaDisparados, decisoes: ctx.decisoes, perguntas: ctx.perguntas }, ficha, { coletados });
             if (av.acoes.length > 0) {
-                const r = aplicarAcoesNoRascunho(ficha, av.acoes, { cenaId, eventoId: ctx.eventoId, disparados: av.disparados, jaDisparados, profundidade, nome: ctx.nome, rng: ctx.rng });
+                const r = aplicarAcoesNoRascunho(ficha, av.acoes, { cenaId, eventoId: ctx.eventoId, disparados: av.disparados, jaDisparados, profundidade, nome: ctx.nome, ...herdar(ctx) });
+                (r.externos || []).forEach(e => { if (!res.externos) res.externos = []; res.externos.push(e); });
                 r.textos.forEach(t => res.textos.push(t));
                 r.caminhos.forEach(c => caminhos.add(c));
                 res.chaves = r.chaves;
@@ -291,6 +325,34 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
     }
     res.caminhos = [...caminhos];
     return res;
+}
+
+// 🔔 O MESTRE força um gatilho de um Poder (botão "Forçar disparo"): executa as ações AGORA, ignorando evento, condições, armado, desligado pelo
+// Mestre e o LIMITE de usos (e sem gastá-lo nem marcar o evento). God Mode e as travas das próprias ações (usos/recarga ao ligar Poder etc.) continuam valendo.
+// ctx: { cenaId?, nome?, rng?, atacante?, danoRecebido? }. Devolve { achou, textos, caminhos, externos }; os textos já dizem "forçado pelo Mestre".
+export function forcarGatilhoNaFicha(ficha, poderId, gatilhoId, ctx = {}) {
+    const vazio = { achou: false, textos: [], caminhos: [], externos: [] };
+    const poder = ficha && Array.isArray(ficha.poderes) ? ficha.poderes.find(p => p && String(p.id) === String(poderId)) : null;
+    const bruto = poder && Array.isArray(poder.gatilhos) ? poder.gatilhos.find(g => g && g.id === gatilhoId) : null;
+    if (!bruto) return vazio;
+    const g = normalizarGatilhos([bruto], { persistir: false }).gatilhos[0];
+    if (!g) return vazio;
+    const chave = chaveDoGatilhoDoPoder(poder.id, g.id);
+    const fonte = { tipo: 'poder', id: String(poder.id), nome: String(poder.nome || 'Poder') };
+    const acoes = g.acoes.map(a => ({ ...a, gatilhoId: g.id, gatilhoNome: g.nome, fase: g.fase, chave, fonte }));
+    try {
+        const r = aplicarAcoesNoRascunho(ficha, acoes, { cenaId: ctx.cenaId || 'default', nome: ctx.nome, rng: ctx.rng, atacante: ctx.atacante, danoRecebido: ctx.danoRecebido, vidaMaxBruta: ctx.vidaMaxBruta });
+        return { achou: true, textos: [`${g.nome} forçado pelo Mestre`, ...r.textos], caminhos: r.caminhos, externos: r.externos || [] };
+    } catch (e) { console.error('Forçar gatilho falhou', e); return { achou: true, textos: [`${g.nome} forçado pelo Mestre, mas falhou`], caminhos: [], externos: [] }; }
+}
+
+// Sorteia ANTES (fora do produtor Immer) uma sequência de números para o `rng` de um gatilho: se o produtor rodar de novo, `reiniciar()` repete as mesmas rolagens.
+export function rngPreSorteado(n = 24) {
+    const valores = Array.from({ length: n }, () => Math.random());
+    let i = 0;
+    const rng = () => valores[(i++) % n];
+    rng.reiniciar = () => { i = 0; };
+    return rng;
 }
 
 // Valores atuais dos caminhos tocados, prontos para salvarCamposPersonagem (undefined vira null = apaga a chave).

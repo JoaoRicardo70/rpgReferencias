@@ -2,7 +2,7 @@
 // 🔔 GATILHOS — lógica pura. Um gatilho é DADO (poder.gatilhos[], também em formas, itens equipados e passivas):
 //   { id, nome, notas?, passivo?, mestreDesligou?, evento: { tipo, de?, ate? }, condicoes: [], limite?: { max, por },
 //     modo: 'automatico' | 'opcional', armado?, prioridade, fase, acoes: [ { tipo, ...params } ] }
-// Fase 1 e 2 (só o modo automático; 'opcional' fica no modelo mas NÃO dispara ainda):
+// Fase 1 e 2 (modo automático) + Fase 3 (modo opcional: dispara só com `armado === true` (consentimento explícito: ausente ou não booleano = DESARMADO); `perguntar` pede ao dono antes quando o dano é aplicado no cliente dele):
 //   eventos: danoQueZeraria (fase 'antes': o dano final, já depois de Reduções e escudo, levaria a Vida a 0) e
 //            vidaAbaixoDe {de, ate} (fase 'depois': a Vida terminou dentro da faixa [ate, de] % da Vida máxima BRUTA, vindo de fora dela).
 //   Fase 2: acertou {nivel: normal|critico|fatal|qualquer} (no cliente do atacante, depois de o golpe causar dano; em área conta UMA vez),
@@ -15,6 +15,11 @@
 //            não existe, ignora em silêncio; com sorteio o valor vira a soma dos dados e `valor` só dá o SINAL), aplicarEstado {estado, stacks} (respeita
 //            imunidade a estado), removerEstado {estado}, ligarPoder {poderId} (passa pelas travas de usos e recarga) / desligarPoder {poderId},
 //            danoEmSi {modo: fixo|percMax|percAtual, valor} (ponto único de dano; God Mode zera).
+//   Fase 3: rolarTabela {dado: 'NdM', resultados: [{ ate, texto?, acoes: [...] }]} (até 12 linhas, `ate` estritamente crescente; vale a PRIMEIRA linha com
+//            ate >= rolado; sem linha correspondente nada acontece; ações aninhadas seguem as regras das ações comuns, sem rolarTabela dentro de rolarTabela)
+//            e danoNoAtacante {modo: 'percDanoRecebido'|'fixo', valor} (só atua quando o atacante-personagem é conhecido no contexto; senão avisa e ignora).
+//   Modo: 'automatico' (sempre vale; ignora `armado`) | 'opcional' (`armado` guardado NO PRÓPRIO gatilho; dono e Mestre alternam; `perguntar: true` pede confirmação
+//            ao dono quando o dano é aplicado no cliente dele; "Não" = não dispara e NÃO gasta o limite; em outro cliente/dono offline vale só `armado`).
 //   ganhoPermanente (somar ao valor base da ficha) NÃO foi implementado: use um contador (ver PROGRESSO).
 //   Gatilho disparado dentro de outro gatilho respeita profundidade máx. 3 e o mesmo gatilho não dispara 2x na cadeia.
 // Faixas de Vida: o percentual é arredondado PARA BAIXO ao inteiro antes de comparar (6,9% conta como 6); a faixa é inclusiva nas duas pontas.
@@ -40,6 +45,8 @@ export const LIMITE_VALOR_GATILHO = 1e15;
 export const LIMITE_TURNOS_IMUNIDADE = 10;
 export const LIMITE_DURACAO_BUFF_GATILHO = 20;
 export const LIMITE_CONTADOR_GATILHO = 9999;
+export const LIMITE_LINHAS_TABELA = 12;
+export const LIMITE_ATE_TABELA = 100000;
 export const NIVEIS_ACERTO = ['qualquer', 'normal', 'critico', 'fatal'];
 export const OPS_CONTADOR_ACAO = ['somar', 'definir', 'zerar', 'dividir'];
 export const OPS_CONTADOR_EVENTO = ['>=', '=='];
@@ -73,6 +80,8 @@ export const ACOES_GATILHO = [
     { id: 'ligarPoder', rotulo: 'Ligar um Poder' },
     { id: 'desligarPoder', rotulo: 'Desligar um Poder' },
     { id: 'danoEmSi', rotulo: 'Sofrer dano' },
+    { id: 'rolarTabela', rotulo: 'Rolar tabela' },
+    { id: 'danoNoAtacante', rotulo: 'Dano no atacante' },
 ];
 export const PERIODOS_GATILHO = [
     { id: 'turno', rotulo: 'por turno' },
@@ -82,6 +91,7 @@ export const PERIODOS_GATILHO = [
 export const MODOS_GATILHO = ['automatico', 'opcional'];
 export const MODOS_CURA = ['fixo', 'percMax', 'percAtual'];
 export const MODOS_DANO_EM_SI = ['fixo', 'percMax', 'percAtual'];
+export const MODOS_DANO_NO_ATACANTE = ['percDanoRecebido', 'fixo'];
 
 const ID_EVENTO = new Set(EVENTOS_GATILHO.map(e => e.id));
 const ID_ACAO = new Set(ACOES_GATILHO.map(a => a.id));
@@ -107,10 +117,11 @@ export function normalizarSorteio(bruto) {
 }
 
 // Ação limpa ou null (desconhecida ou com valor inválido). Nenhum campo `undefined`.
-export function normalizarAcaoGatilho(bruta) {
+// opcoes: { eventoTipo?, dentroDeTabela? } — dentro de uma tabela não cabe outra tabela e 'anularDano' só vale em danoQueZeraria.
+export function normalizarAcaoGatilho(bruta, opcoes = {}) {
     if (!bruta || typeof bruta !== 'object' || !ID_ACAO.has(bruta.tipo)) return null;
     switch (bruta.tipo) {
-        case 'anularDano': return { tipo: 'anularDano' };
+        case 'anularDano': return opcoes.dentroDeTabela && opcoes.eventoTipo !== 'danoQueZeraria' ? null : { tipo: 'anularDano' };
         case 'limparCondicoes': return { tipo: 'limparCondicoes' };
         case 'definirVida': {
             const valor = numero(bruta.valor);
@@ -179,6 +190,34 @@ export function normalizarAcaoGatilho(bruta) {
             if (valor === null || valor <= 0) return null;
             return { tipo: 'danoEmSi', modo, valor: limitar(valor, 0, modo === 'fixo' ? LIMITE_VALOR_GATILHO : 100) };
         }
+        case 'danoNoAtacante': {
+            const modo = bruta.modo === 'fixo' ? 'fixo' : 'percDanoRecebido';
+            const valor = numero(bruta.valor);
+            if (valor === null || valor <= 0) return null;
+            return { tipo: 'danoNoAtacante', modo, valor: limitar(valor, 0, modo === 'fixo' ? LIMITE_VALOR_GATILHO : 1000) };
+        }
+        case 'rolarTabela': {
+            if (opcoes.dentroDeTabela) return null;
+            const dado = normalizarSorteio(bruta.dado);
+            const linhas = Array.isArray(bruta.resultados) ? bruta.resultados : [];
+            if (!dado || linhas.length === 0 || linhas.length > LIMITE_LINHAS_TABELA) return null;
+            const resultados = []; let anterior = 0;
+            for (const r of linhas) {
+                if (!r || typeof r !== 'object') return null;
+                const ate = numero(r.ate);
+                if (ate === null || r.ate === '' || r.ate === null) return null;
+                const ateInt = Math.floor(limitar(ate, 0, LIMITE_ATE_TABELA));
+                if (ateInt <= anterior) return null; // crescente (estrito)
+                anterior = ateInt;
+                const brutas = Array.isArray(r.acoes) ? r.acoes.slice(0, LIMITE_ACOES_POR_GATILHO + 1) : [];
+                if (brutas.length === 0 || brutas.length > LIMITE_ACOES_POR_GATILHO) return null;
+                const acoes = brutas.map(a => normalizarAcaoGatilho(a, { eventoTipo: opcoes.eventoTipo, dentroDeTabela: true }));
+                if (acoes.some(a => !a)) return null;
+                const t = texto(r.texto, 120);
+                resultados.push({ ate: ateInt, ...(t ? { texto: t } : {}), acoes });
+            }
+            return { tipo: 'rolarTabela', dado, resultados };
+        }
         default: return null;
     }
 }
@@ -239,7 +278,7 @@ export function normalizarGatilhos(lista, { persistir = true } = {}) {
         if (!evento) { descartados.push({ nome, motivo: g.evento && g.evento.tipo === 'contadorAtingiu' ? 'escolha o contador e o valor' : 'evento desconhecido' }); return; }
         if (evento.tipo !== 'danoQueZeraria' && Array.isArray(g.acoes) && g.acoes.some(a => a && a.tipo === 'anularDano')) { descartados.push({ nome, motivo: "'anular o dano' só vale em 'golpe me levaria a 0'" }); return; }
         const acoesBrutas = Array.isArray(g.acoes) ? g.acoes.slice(0, LIMITE_ACOES_POR_GATILHO) : [];
-        const acoes = acoesBrutas.map(normalizarAcaoGatilho);
+        const acoes = acoesBrutas.map(a => normalizarAcaoGatilho(a, { eventoTipo: evento.tipo }));
         if (acoes.length === 0 || acoes.some(a => !a)) { descartados.push({ nome, motivo: acoes.length === 0 ? 'sem ações' : 'ação desconhecida ou inválida' }); return; }
         const condicoes = [];
         for (const c of (Array.isArray(g.condicoes) ? g.condicoes : [])) {
@@ -269,7 +308,9 @@ export function normalizarGatilhos(lista, { persistir = true } = {}) {
         const notas = texto(g.notas, 300);
         if (notas) saida.notas = notas;
         if (limite) saida.limite = limite;
-        if (g.armado === true || g.armado === false) saida.armado = g.armado;
+        if (saida.modo === 'opcional') saida.armado = g.armado === true; // consentimento nunca vale por omissão
+        else if (g.armado === true || g.armado === false) saida.armado = g.armado;
+        if (saida.modo === 'opcional' && g.perguntar === true) saida.perguntar = true;
         if (g.passivo === true) saida.passivo = true;
         if (g.mestreDesligou === true) saida.mestreDesligou = true;
         gatilhos.push(saida);
@@ -401,6 +442,8 @@ const dentroDaFaixa = (pct, de, ate) => Number.isFinite(pct) && Math.floor(pct +
 //     danoQueZeraria: vidaAntes e vidaDepois = a Vida antes e a que ficaria sem o gatilho (vidaDepois <= 0 dispara; vidaAntes precisa ser > 0)
 //     vidaAbaixoDe:   vidaAntes e vidaDepois = a Vida antes e depois do dano
 //     acertou/atingido: nivel ('normal'|'critico'|'fatal'); poderLigou/poderDesligou: poderId; contadorAtingiu: contadorId, valorAntes, valorDepois
+//     decisoes: { [chave]: true|false } (respostas do dono ao `perguntar`; false = o gatilho não dispara e não gasta o limite; sem decisão = vale `armado`)
+//     perguntas: array opcional; recebe { chave, nome, fonte } dos gatilhos com `perguntar` que disparariam sem decisão (para a UI perguntar antes de gravar)
 //   opcoes: { coletados } (lista já coletada) | { contextoCombate }
 // `acoes` vem na ordem (prioridade desc., depois a ordem da lista) com { gatilhoId, gatilhoNome, chave, fonte, ...ação }.
 // `disparados`: [{ chave, gatilho, fonte }]. `bloqueados`: [{ chave, nome, motivo }]. Não muta nada.
@@ -419,7 +462,8 @@ export function avaliarGatilhos(evento, contexto = {}, ficha = null, opcoes = {}
 
     ordenados.forEach(({ gatilho: g, fonte, chave }) => {
         const bloquear = (motivo) => resultado.bloqueados.push({ chave, nome: g.nome, motivo });
-        if (g.modo !== 'automatico') return bloquear('modo opcional ainda não é executado');
+        // Opcional: só dispara com armado === true (ausente = desarmado). Automático ignora `armado`.
+        if (g.modo === 'opcional' && g.armado !== true) return bloquear('desarmado');
         if (profundidade >= PROFUNDIDADE_MAX_GATILHOS) return bloquear('profundidade máxima');
         if (ja.has(chave)) return bloquear('já disparou nesta cadeia');
         if (contexto.eventoId && registros[chave] && registros[chave].ultimoEvento === contexto.eventoId) return bloquear('evento já tratado');
@@ -440,6 +484,11 @@ export function avaliarGatilhos(evento, contexto = {}, ficha = null, opcoes = {}
         const vidaDaCondicao = g.fase === 'antes' ? antes : depois;
         if (!g.condicoes.every(c => condicaoPassa(c, ficha, vidaDaCondicao, ctxCombate))) return bloquear('condição não atendida');
 
+        if (g.modo === 'opcional' && g.perguntar === true) {
+            const d = contexto.decisoes ? contexto.decisoes[chave] : undefined;
+            if (d === false) return bloquear('recusado pelo dono');
+            if (d === undefined && Array.isArray(contexto.perguntas)) contexto.perguntas.push({ chave, nome: g.nome, fonte: fonte.nome });
+        }
         ja.add(chave);
         resultado.disparados.push({ chave, gatilho: g, fonte });
         resultado.textos.push(`🔔 ${g.nome} disparou`);
@@ -447,6 +496,16 @@ export function avaliarGatilhos(evento, contexto = {}, ficha = null, opcoes = {}
     });
     return resultado;
 }
+
+// Quais gatilhos com `perguntar` DISPARARIAM neste evento (sem aplicar nada): [{ chave, nome, fonte }]. Os que já têm decisão em contexto.decisoes saem da lista.
+export function preverGatilhos(evento, contexto = {}, ficha = null, opcoes = {}) {
+    const perguntas = [];
+    avaliarGatilhos(evento, { ...contexto, perguntas }, ficha, opcoes);
+    return perguntas;
+}
+
+// Chave de um gatilho na lista de um Poder (a mesma de coletarGatilhos): usada para decisões e por quem age sobre um gatilho específico.
+export const chaveDoGatilhoDoPoder = (poderId, gatilhoId) => chaveSegura(`${poderId}:${gatilhoId}`);
 
 // ---------- 💬 Frase legível (cartão do Poder, editor) ----------
 
@@ -486,9 +545,23 @@ export function descreverAcaoGatilho(a, ctx = null) {
         case 'removerEstado': return `remover ${nomeDoEstado(a.estado)}`;
         case 'ligarPoder': return `ligar ${nomeDoPoder(a.poderId, ctx)}`;
         case 'desligarPoder': return `desligar ${nomeDoPoder(a.poderId, ctx)}`;
+        case 'danoNoAtacante': return a.modo === 'fixo' ? `causar ${fmtN(a.valor)} de dano no atacante` : `devolver ${a.valor}% do dano recebido (antes do escudo) ao atacante`;
+        case 'rolarTabela': return descreverTabela(a, ctx);
         case 'danoEmSi': return a.modo === 'fixo' ? `sofrer ${fmtN(a.valor)} de dano` : `sofrer dano de ${a.valor}% da Vida ${a.modo === 'percMax' ? 'máxima' : 'atual'}`;
         default: return '';
     }
+}
+
+// "rola 1d4: 1→curar 10%; 2-3→…" (a linha vale do número seguinte ao da anterior até o seu).
+export function descreverTabela(a, ctx = null) {
+    let de = 1;
+    const linhas = (a.resultados || []).map((r) => {
+        const faixa = r.ate <= de ? String(r.ate) : `${de}-${r.ate}`;
+        de = r.ate + 1;
+        const o = (r.acoes || []).map(x => descreverAcaoGatilho(x, ctx)).filter(Boolean).join(' + ');
+        return `${faixa}→${r.texto ? `"${r.texto}" ` : ''}${o}`;
+    });
+    return `rola ${a.dado}: ${linhas.join('; ')}`;
 }
 
 export function descreverEventoGatilho(ev, ctx = null) {
@@ -520,5 +593,6 @@ export function descreverGatilho(g, ctx = null) {
     const lim = g.limite ? ` (${g.limite.max}x ${(PERIODOS_GATILHO.find(p => p.id === g.limite.por) || { rotulo: g.limite.por }).rotulo})` : '';
     // Em 'golpe me levaria a 0', ficar com N de vida já anula o golpe.
     const frases = (g.acoes || []).map(a => descreverAcaoGatilho(a, ctx) + (g.evento.tipo === 'danoQueZeraria' && a.tipo === 'definirVida' ? ' (já anula o golpe)' : ''));
-    return `${quando}${cond.length ? ` e ${cond.join(', ')}` : ''}: ${frases.join(', ')}${lim}`;
+    const modo = g.modo === 'opcional' ? (g.armado !== true ? ' (opcional, desarmado)' : ` (opcional, armado${g.perguntar ? ', pergunta antes' : ''})`) : '';
+    return `${quando}${cond.length ? ` e ${cond.join(', ')}` : ''}: ${frases.join(', ')}${lim}${modo}`;
 }

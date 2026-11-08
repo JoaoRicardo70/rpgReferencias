@@ -508,7 +508,7 @@ export function PoderesLista() {
         editarPoder, deletarPoder, overchargeAtivo, curMana, curAura, curChakra,
         energiaElemental, danoBruto, dispararAtaque,
         salvarFormaPoder, deletarFormaPoder, ativarFormaPoder,
-        renomearPastaForma, mudarEstagioPoder, isMestre, alternarGatilhoMestre
+        renomearPastaForma, mudarEstagioPoder, isMestre, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre
     } = ctx;
 
     // Namespaced por categoria (abaAtual::nome) — sem isso, recolher "Combos" na aba Habilidades
@@ -597,6 +597,8 @@ export function PoderesLista() {
                                             {p.gatilhos.map(g => (
                                                 <div key={g.id} className={"gatilho-poder-linha" + (g.mestreDesligou ? ' desligado-mestre' : '')}>
                                                     <span>🔔 {descreverGatilho(g, { contadores: minhaFicha?.contadores, poderes: minhaFicha?.poderes })}{g.mestreDesligou ? ' (desligado pelo Mestre)' : ''}</span>
+                                                    {g.modo === 'opcional' && <button type="button" className={"btn-neon btn-gatilho-armado" + (g.armado !== true ? ' desarmado' : '')} aria-pressed={g.armado === true} onClick={() => alternarArmadoGatilho(p.id, g.id)} title="Opcional: só dispara armado. O dono e o Mestre podem alternar.">{g.armado !== true ? '🔕 Desarmado' : '🔔 Armado'}</button>}
+                                                    {isMestre && <button type="button" className="btn-neon" onClick={() => forcarGatilhoMestre(p.id, g.id)} title="Executa as ações agora, ignorando condições e limite (só o Mestre)">Forçar disparo</button>}
                                                     {isMestre && <button type="button" className="btn-neon" onClick={() => alternarGatilhoMestre(p.id, g.id)} title="Liga ou desliga este gatilho (só o Mestre)">{g.mestreDesligou ? 'Religar' : 'Desligar'}</button>}
                                                 </div>
                                             ))}

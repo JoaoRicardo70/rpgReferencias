@@ -414,8 +414,8 @@ describe('Bordas - lacos, cadeia, ids, fontes', () => {
         disparar(f, { tipo: 'acertou', nivel: 'normal' });
         expect(valor(f, 'n')).toBe(0);
     });
-    it('modo opcional nao dispara (Fase 3)', () => {
-        const f = ficha({ poderes: [poder([G({ modo: 'opcional', evento: { tipo: 'acertou' }, acoes: [{ tipo: 'contador', id: 'n', op: 'somar', valor: 1 }] })])], contadores: [ct('n')] });
+    it('modo opcional DESARMADO nao dispara (Fase 3)', () => {
+        const f = ficha({ poderes: [poder([G({ modo: 'opcional', armado: false, evento: { tipo: 'acertou' }, acoes: [{ tipo: 'contador', id: 'n', op: 'somar', valor: 1 }] })])], contadores: [ct('n')] });
         const r = disparar(f, { tipo: 'acertou', nivel: 'normal' });
         expect(valor(f, 'n')).toBe(0); expect(r.disparou).toBe(false);
     });

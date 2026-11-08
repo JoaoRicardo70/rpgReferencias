@@ -9,7 +9,9 @@ import useStore from '../stores/useStore';
 import { salvarFichaSilencioso, salvarCamposPersonagem } from './firebase-sync';
 import { coletarGatilhos } from '../core/gatilhos';
 import { dispararEventoNaFicha, camposParaGravar } from '../core/gatilhosAplicar';
-import { cenaAtualDaMesa } from './danoVida';
+import { cenaAtualDaMesa, aplicarDanoNaVidaDaFicha } from './danoVida';
+import { aplicarDanoEmPersonagem } from './danoAlvo';
+import { danoExibidoParaBruto } from '../core/vitals';
 
 // Congelado: ninguém altera este objeto compartilhado (os chamadores só leem).
 const SEM_EFEITO = Object.freeze({ textos: Object.freeze([]), caminhos: Object.freeze([]), chaves: Object.freeze([]), disparou: false });
@@ -43,6 +45,35 @@ export function dispararEventoEmPersonagem(nome, evento, ctx = {}) {
         if (r.caminhos.length > 0) salvarCamposPersonagem(nome, camposParaGravar(clone, r.caminhos));
         return r;
     } catch (e) { console.error('Gatilho falhou', e); return SEM_EFEITO; }
+}
+
+// Efeitos de gatilhos em OUTRA ficha (`externos` de aplicarDanoNaVida / dispararEvento...): hoje só 'danoNoAtacante' (dano pelo ponto único de dano do atacante:
+// God Mode dele zera, escudo dele absorve, gatilhos dele podem disparar). Atacante sem ficha (Dummie / desconhecido) é ignorado com aviso. Devolve textos do feed.
+export function aplicarExternosDeGatilhos(externos) {
+    const textos = [];
+    (Array.isArray(externos) ? externos : []).forEach((e) => {
+        if (!e || e.tipo !== 'danoNoAtacante') return;
+        const nome = e.atacante && e.atacante.nome;
+        const dano = Math.floor(Number(e.dano) || 0);
+        if (!nome || dano <= 0) return;
+        try {
+            const st = useStore.getState();
+            if (nome === st.meuNome) {
+                let r = null;
+                st.updateFicha((f) => { if (f.vida) r = aplicarDanoNaVidaDaFicha(f, dano, { nome, nomeEscudo: nome }); });
+                salvarFichaSilencioso();
+                textos.push(r && r.imune ? `${nome} está com Imunidade total: o dano devolvido não surtiu efeito` : `${nome} sofreu ${dano.toLocaleString('pt-BR')} de dano devolvido por ${e.gatilhoNome || 'um gatilho'}`);
+                if (r && r.textos.length > 0 && !r.imune) r.textos.forEach(t => textos.push(t));
+                return;
+            }
+            const fresca = (st.personagens || {})[nome];
+            if (!fresca || !fresca.vida) { textos.push(`${e.gatilhoNome || 'Gatilho'}: ${nome} não tem ficha, o dano devolvido foi ignorado`); return; }
+            const r = aplicarDanoEmPersonagem(nome, fresca, dano, danoExibidoParaBruto(dano), {});
+            textos.push(r.texto || `${nome} sofreu ${dano.toLocaleString('pt-BR')} de dano devolvido por ${e.gatilhoNome || 'um gatilho'}`);
+            r.textos.forEach(t => textos.push(`${nome}: ${t}`));
+        } catch (err) { console.error('Efeito externo de gatilho falhou', err); }
+    });
+    return textos;
 }
 
 // Frase única para o feed ('' se nada disparou).

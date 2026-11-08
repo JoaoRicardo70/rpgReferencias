@@ -13,6 +13,21 @@ import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
 
 export { camposParaGravar } from './gatilhosAplicar.js';
 
+// Quais gatilhos com `perguntar` (modo opcional) DISPARARIAM com este dano, sem tocar na ficha: simula numa cópia com todos "sim" (rng fixo) e
+// devolve [{ chave, nome, fonte }]. `decisoes` já dadas ficam de fora. Rápido: sem nenhum gatilho opcional com `perguntar` nem clona.
+export function preverPerguntasDeDano(ficha, danoExibido, ctx = {}) {
+    if (!ficha || !ficha.vida) return [];
+    const coletados = coletarGatilhos(ficha);
+    if (!coletados.some(c => c.gatilho.modo === 'opcional' && c.gatilho.perguntar === true && c.gatilho.armado === true)) return [];
+    try {
+        const clone = JSON.parse(JSON.stringify(ficha));
+        const perguntas = [];
+        aplicarDanoNaVida(clone, danoExibido, { ...ctx, perguntas, rng: () => 0 });
+        const vistos = new Set();
+        return perguntas.filter(p => (vistos.has(p.chave) ? false : vistos.add(p.chave)));
+    } catch (e) { console.error('Prever gatilhos falhou', e); return []; }
+}
+
 // Gera um id de evento (um por golpe/aplicação). Fora do Immer, para não mudar se o produtor for reexecutado de propósito.
 export const novoEventoId = () => `ev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -20,6 +35,8 @@ export const novoEventoId = () => `ev_${Date.now().toString(36)}_${Math.random()
 //   danoExibido: dano na escala da tela (já depois de Reduções). ctx: { nome, nomeEscudo, semEscudo, jaAbsorvido, eventoId, cenaId, vidaMaxBruta }
 //   semEscudo: dano direto (aoDesligar); jaAbsorvido: o escudo já foi consumido antes (Ataque em outro jogador) e danoExibido é o que sobrou.
 //   profundidade/jaDisparados: cadeia de gatilhos (danoEmSi). golpe: { nivel } = dano de um GOLPE (Ataque/Defesa): depois do dano dispara o evento `atingido`.
+//   Fase 3: ctx.decisoes { [chave]: bool } / ctx.perguntas [] (modo opcional + `perguntar`), ctx.atacante { nome } e ctx.rng. Devolve também `externos`
+//   (ex.: dano no atacante, que quem chamou aplica na ficha do atacante) e `perguntas` (quando ctx.perguntas é dado, é o próprio array preenchido).
 //   `textos` = frases dos gatilhos/imunidade para o feed; `textoEscudo` = a frase da absorção (como sempre foi).
 export function aplicarDanoNaVida(ficha, danoExibido, ctx = {}) {
     const res = { vidaAntes: 0, vidaNova: 0, restante: 0, textoEscudo: '', textos: [], caminhos: [], imune: false, anulado: false };
@@ -57,7 +74,7 @@ export function aplicarDanoNaVida(ficha, danoExibido, ctx = {}) {
     const cenaId = ctx.cenaId || 'default';
     const vidaMaxBruta = Number(ctx.vidaMaxBruta) > 0 ? Number(ctx.vidaMaxBruta) : getVidaMaxBrutaNpc(ficha);
     const profundidade = Number(ctx.profundidade) || 0;
-    const base = { eventoId, cenaId, vidaMaxBruta, profundidade, nome };
+    const base = { eventoId, cenaId, vidaMaxBruta, profundidade, nome, rng: ctx.rng, decisoes: ctx.decisoes, perguntas: ctx.perguntas, atacante: ctx.atacante, danoRecebido: dano };
     const jaDisparados = Array.isArray(ctx.jaDisparados) ? [...ctx.jaDisparados] : [];
     const aplicar = (avaliacao) => {
         if (avaliacao.acoes.length === 0) return { anulado: false };
@@ -65,6 +82,7 @@ export function aplicarDanoNaVida(ficha, danoExibido, ctx = {}) {
         const r = aplicarAcoesNoRascunho(ficha, avaliacao.acoes, { ...base, disparados: avaliacao.disparados, jaDisparados: [...jaDisparados] });
         r.textos.forEach(t => res.textos.push(t));
         r.caminhos.forEach(c => caminhos.add(c));
+        (r.externos || []).forEach(e => { if (!res.externos) res.externos = []; res.externos.push(e); });
         return { anulado: r.anulado };
     };
 
@@ -83,9 +101,10 @@ export function aplicarDanoNaVida(ficha, danoExibido, ctx = {}) {
     }
     // 🎯 Golpe que causou dano (God Mode já saiu antes): evento `atingido` de quem sofreu, com o nível do golpe.
     if (ctx.golpe && danoBruto > 0 && !anulado) {
-        const g = dispararEventoNaFicha(ficha, { tipo: 'atingido', nivel: ctx.golpe.nivel || 'normal' }, { cenaId, nome, eventoId: eventoId ? `${eventoId}:atingido` : undefined, profundidade, jaDisparados });
+        const g = dispararEventoNaFicha(ficha, { tipo: 'atingido', nivel: ctx.golpe.nivel || 'normal' }, { cenaId, nome, eventoId: eventoId ? `${eventoId}:atingido` : undefined, profundidade, jaDisparados, rng: ctx.rng, decisoes: ctx.decisoes, perguntas: ctx.perguntas, atacante: ctx.atacante, danoRecebido: dano });
         g.textos.forEach(t => res.textos.push(t));
         g.caminhos.forEach(c => caminhos.add(c));
+        (g.externos || []).forEach(e => { if (!res.externos) res.externos = []; res.externos.push(e); });
     }
     res.anulado = anulado; res.vidaNova = ficha.vida.atual; res.caminhos = [...caminhos];
     return res;

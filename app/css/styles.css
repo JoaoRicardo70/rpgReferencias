@@ -3241,4 +3241,9 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .gatilhos-poder-lista { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
 .gatilho-poder-linha { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.85em; color: var(--cor-destaque); }
 .gatilho-poder-linha.desligado-mestre { opacity: 0.5; text-decoration: line-through; }
+.btn-gatilho-armado.desarmado { opacity: 0.6; color: var(--cor-secundaria); }
+.gatilho-tabela { display: flex; flex-direction: column; gap: 6px; padding: 6px; border: 1px dashed var(--border-primary); border-radius: 8px; }
+.gatilho-tabela-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.85em; }
+.gatilho-tabela-linha input[type="number"] { width: 70px; text-align: center; }
+.gatilho-modo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.85em; }
 .gatilho-dica { font-size: 0.8em; opacity: 0.75; }
