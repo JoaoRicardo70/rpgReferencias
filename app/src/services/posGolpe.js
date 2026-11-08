@@ -10,6 +10,7 @@ import { resolverEstadosNoAlvo, descreverResolucao, juntarAplicados } from '../c
 import { reflexosDisponiveis, calcularReflexo, descreverReflexo, custoDoReflexo } from '../core/reflexo';
 import { entradasNoAlvo, resolverAoAcertarNoAlvo } from '../core/aoAcertar';
 import { absorverEmPersonagem } from './danoAlvo';
+import { temImunidadeTotal } from '../core/gatilhosAplicar';
 
 // Soma os estados já resolvidos na lista de condições do alvo e grava. `fonte` = quem causou (para Amedrontado/Charmado/Provocado).
 // Lista de condições do alvo depois de somar os estados (não grava nada).
@@ -65,6 +66,7 @@ export function resolverReflexoAutomatico({ alvo, danoNoAlvo, danoOriginal, nome
 export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0, nomeAtacante = '', custoGolpeTotal = 0, aoAcertar = [] } = {}) {
     const textos = [];
     const comEstados = new Map(); // Dummies: alvo com as condições novas, para o chamador gravar junto com o Dano
+    const escudosPosAbsorcao = new Map(); // alvo-personagem: lista de escudos gravada após a absorção
     let danoAtacante = 0;
     let atingiuComDano = false;
     // 🕳️ Efeitos 'Ao acertar' que mexem no ALVO (dreno de energia, debuff): valem em cada alvo-personagem que sofreu Dano.
@@ -73,6 +75,12 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
     return {
         aplicar(idAlvo, alvo, danoNoAlvo) {
             if (!alvo) return danoNoAlvo;
+            // 🛡️ God Mode (Imunidade total do alvo-personagem): ignora TUDO — nada de Reflexo, estados do golpe, 'Ao acertar' no alvo, escudo
+            // gasto nem efeitos no atacante que dependem de ter causado Dano (atingiuComDano continua falso). Sem Imunidade nada muda.
+            if (alvo.isPersonagem && alvo.personagemNome) {
+                const fresca = (useStore.getState().personagens || {})[alvo.personagemNome] || alvo.ficha;
+                if (temImunidadeTotal(fresca)) { textos.push(`${alvo.nome} está com Imunidade total: o golpe não surtiu efeito`); return 0; }
+            }
             let dano = danoNoAlvo;
             let devolveu = false;
             if (alvo.isPersonagem) {
@@ -102,11 +110,15 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
             if (dano > 0 && alvo.isPersonagem && alvo.personagemNome) {
                 const a = absorverEmPersonagem(alvo.personagemNome, alvo.ficha, dano, alvo.nome);
                 if (a.texto) { dano = a.restante; textos.push(a.texto); }
+                if (a.escudosNovos) escudosPosAbsorcao.set(idAlvo, a.escudosNovos);
             }
             return dano;
         },
         // Use no lugar do alvo ao gravar o Dano (gravarVidaDoAlvo): leva junto as condições novas do Dummie.
-        alvoParaGravar(idAlvo, alvo) { return comEstados.get(idAlvo) || alvo; },
+        // Leva junto os escudos pós-absorção do alvo-personagem (para os gatilhos dele partirem da lista certa).
+        alvoParaGravar(idAlvo, alvo) { const base = comEstados.get(idAlvo) || alvo; return escudosPosAbsorcao.has(idAlvo) ? { ...base, escudosNovos: escudosPosAbsorcao.get(idAlvo) } : base; },
+        // 🔔 Frases dos gatilhos do alvo (Negar morte etc.), vindas de gravarVidaDoAlvo, entram no resumo do golpe.
+        adicionarTextos(r) { ((r && r.textos) || []).forEach(t => textos.push(`🔔 ${t}`)); },
         resultado() { return { textos: [...textos], danoAtacante, aoAcertar: atingiuComDano ? aoAcertar : [], critico }; }
     };
 }

@@ -4,7 +4,7 @@
 // O dano cai direto na Vida do dono (sem Reduções, como o dano de estados), só números: não existe regra de morte aqui.
 // Desligamento automático (sem energia, core/custoPorTurno.js), exclusão e edição NÃO disparam.
 // ==========================================
-import { danoExibidoParaBruto } from './vitals.js';
+import { aplicarDanoNaVida } from './danoVida.js';
 
 export const LIMITE_DADOS_AO_DESLIGAR = 1000;
 
@@ -29,10 +29,13 @@ export function rolarAoDesligar(poder, rng = Math.random) {
 }
 
 // Tira o dano (escala exibida) da Vida no rascunho. Devolve o dano aplicado. Nunca passa de zero.
-export function aplicarDanoEmSiMesmo(ficha, danoExibido) {
+// Passa pelo ponto único de dano (core/danoVida.js) SEM escudo (dano direto): com Imunidade total vira 0 (devolve 0) e gatilhos podem disparar.
+// ctx opcional: { nome, cenaId, textos: [] } — as frases dos gatilhos/imunidade entram em ctx.textos.
+export function aplicarDanoEmSiMesmo(ficha, danoExibido, ctx = {}) {
     if (!ficha || !ficha.vida || !(danoExibido > 0)) return 0;
-    ficha.vida.atual = Math.max(0, (Number(ficha.vida.atual) || 0) - danoExibidoParaBruto(danoExibido));
-    return danoExibido;
+    const r = aplicarDanoNaVida(ficha, danoExibido, { ...ctx, semEscudo: true });
+    if (Array.isArray(ctx.textos)) r.textos.forEach(t => ctx.textos.push(t));
+    return r.imune || r.anulado ? 0 : danoExibido; // valor realmente aplicado (Imunidade total ou gatilho que anulou = 0)
 }
 
 export function descreverAoDesligar(poder) {

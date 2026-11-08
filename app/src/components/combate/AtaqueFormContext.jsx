@@ -26,7 +26,7 @@ import { getNivelDominio } from '../../core/dominios';
 import { classificarAtaque, energiasDoGolpe } from '../../core/identificacao';
 import { montarNarrativa } from '../../core/descricaoAtaque';
 import { calcularFaixasCritico, classificarCritico, maiorDadoDaRolagem } from '../../core/critico';
-import { absorverNoRascunho } from '../../core/escudos';
+import { aplicarDanoNaVidaDaFicha, textoDosGatilhos } from '../../services/danoVida';
 import { coletarAoAcertar, aplicarAoAcertarNoRascunho } from '../../core/aoAcertar';
 import { valoresDeEfeitos, menorValorDeEfeitos, montarContextoDeCombate } from '../../core/efeitosCondicionais';
 
@@ -466,9 +466,12 @@ export function AtaqueFormProvider({ children }) {
                 const hpAnterior = dummieAlvo.hpAtual || 0;
                 const novoHp = Math.max(0, hpAnterior - danoExibidoParaBruto(danoNoAlvo));
                 const hpAnteriorExibido = hpAnterior / FATOR_EXIBICAO_VITAIS;
-                gravarVidaDoAlvo(alvoSelecionado, posGolpeLivre.alvoParaGravar(alvoSelecionado, dummieAlvo), novoHp, { elemento: elementoAtivo });
+                const resGravacao = gravarVidaDoAlvo(alvoSelecionado, posGolpeLivre.alvoParaGravar(alvoSelecionado, dummieAlvo), novoHp, { elemento: elementoAtivo });
+                posGolpeLivre.adicionarTextos(resGravacao);
+                // Se um gatilho do alvo (Negar morte etc.) mudou o desfecho, o feed usa a Vida FINAL (sem gatilhos: idêntico ao cálculo de antes).
+                const hpFinal = resGravacao && resGravacao.textos && resGravacao.textos.length > 0 && Number.isFinite(resGravacao.vidaFinalBruta) ? resGravacao.vidaFinalBruta : novoHp;
                 extraFeed = {
-                    alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0,
+                    alvoNome: dummieAlvo.nome, alvoSobreviveu: hpFinal > 0, overkill: hpFinal > 0 ? 0 : (danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0),
                     danoAplicado: danoNoAlvo, fatorVida: fatorVidaAlvo, ...(reducaoAlvo.texto ? { textoReducao: reducaoAlvo.texto } : {}), ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
                 };
             }
@@ -514,10 +517,11 @@ export function AtaqueFormProvider({ children }) {
             const eu = montarAlvoPersonagem(meuNome, minhaFicha, divisorPoderMesa);
             const dano = eu ? reduzirDanoNoAlvo(eu, danoAtacante, elementoAtivo, { verdadeiro: danoVerdadeiro }).final : danoAtacante;
             // 🛡️ O Reflexo devolvido passa pelo escudo de quem atacou antes da Vida.
-            let textoEscudo = '';
-            updateFicha(ficha => { if (ficha.vida) { const abs = absorverNoRascunho(ficha, dano, nomeNoFeed); textoEscudo = abs.texto; ficha.vida.atual = Math.max(0, (ficha.vida.atual || 0) - danoExibidoParaBruto(abs.restante)); } });
+            let textoEscudo = ''; let textoGatilhosReflexo = '';
+            updateFicha(ficha => { if (ficha.vida) { const r = aplicarDanoNaVidaDaFicha(ficha, dano, { nome: nomeNoFeed, nomeEscudo: nomeNoFeed }); textoEscudo = r.textoEscudo; textoGatilhosReflexo = textoDosGatilhos(r); } });
             salvarFichaSilencioso();
             if (textoEscudo) textos.push(`🛡️ ${textoEscudo}`);
+            if (textoGatilhosReflexo) textos.push(textoGatilhosReflexo);
             textos.push(`💥 O Reflexo devolveu ${Math.floor(dano).toLocaleString('pt-BR')} de dano em ${nomeNoFeed}!`);
         }
         return textos.length > 0 ? { textoPosGolpe: textos } : {};
@@ -666,7 +670,7 @@ export function AtaqueFormProvider({ children }) {
                         // Dano de Ataque (dados + Status) já está na escala da Vida: não é reescalado pela Vida do alvo.
                         const danoEscalado = result.dano;
                         const danoNoAlvo = posGolpe.aplicar(idD, dData, reduzirDanoNoAlvo(dData, aplicarDisputaAoDano(danoEscalado, disputa), elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: golpeVerdadeiro.verdadeiro }).final);
-                        gravarVidaDoAlvo(idD, posGolpe.alvoParaGravar(idD, dData), Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)), { elemento: elementoAtivo });
+                        posGolpe.adicionarTextos(gravarVidaDoAlvo(idD, posGolpe.alvoParaGravar(idD, dData), Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)), { elemento: elementoAtivo }));
                         if (dData.isPersonagem) alvosAplicados.push(dData.personagemNome);
                         if (disputa.ativa || danoNoAlvo !== Math.floor(result.dano)) {
                             linhasDisputa.push(`${dData.nome}: ${danoNoAlvo.toLocaleString('pt-BR')}`);
@@ -693,9 +697,12 @@ export function AtaqueFormProvider({ children }) {
             const hpAnterior = dummieAlvo.hpAtual || 0;
             const novoHp = Math.max(0, hpAnterior - danoExibidoParaBruto(danoNoAlvo));
             const hpAnteriorExibido = hpAnterior / FATOR_EXIBICAO_VITAIS;
-            gravarVidaDoAlvo(alvoSelecionado, posGolpe.alvoParaGravar(alvoSelecionado, dummieAlvo), novoHp, { elemento: elementoAtivo });
+            const resGravacao = gravarVidaDoAlvo(alvoSelecionado, posGolpe.alvoParaGravar(alvoSelecionado, dummieAlvo), novoHp, { elemento: elementoAtivo });
+            posGolpe.adicionarTextos(resGravacao);
+            // Se um gatilho do alvo (Negar morte etc.) mudou o desfecho, o feed usa a Vida FINAL (sem gatilhos: idêntico ao cálculo de antes).
+            const hpFinal = resGravacao && resGravacao.textos && resGravacao.textos.length > 0 && Number.isFinite(resGravacao.vidaFinalBruta) ? resGravacao.vidaFinalBruta : novoHp;
             extraFeed = {
-                alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0,
+                alvoNome: dummieAlvo.nome, alvoSobreviveu: hpFinal > 0, overkill: hpFinal > 0 ? 0 : (danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0),
                 danoAplicado: danoNoAlvo, fatorVida: fatorVidaAlvo, ...(reducaoAlvo.texto ? { textoReducao: golpeVerdadeiro.nomePoder && golpeVerdadeiro.verdadeiro ? textoDanoVerdadeiroDoPoder(golpeVerdadeiro.nomePoder) : reducaoAlvo.texto } : {}), ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
             };
         }

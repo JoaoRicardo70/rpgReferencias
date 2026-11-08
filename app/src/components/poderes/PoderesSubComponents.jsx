@@ -22,6 +22,8 @@ import { TIPOS_ESCUDO } from '../../core/escudos';
 import { ENERGIAS_CUSTO, descreverCustoPorTurno } from '../../core/custoPorTurno';
 import { descreverRecarga } from '../../core/recargaPoder';
 import EnsinarBotao from '../shared/EnsinarBotao';
+import GatilhosEditor from './GatilhosEditor';
+import { descreverGatilho } from '../../core/gatilhos';
 import EnsinamentosRecebidos from '../shared/EnsinamentosRecebidos';
 
 const LIMITE_PREVIA_ESTAGIOS = 12;
@@ -207,7 +209,7 @@ export function PoderesFormEditor() {
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, uploadingImg, handleImageUpload,
         dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -285,6 +287,7 @@ export function PoderesFormEditor() {
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo por turno ligado</label><div className="custo-turno-campo"><input type="number" min="0" placeholder="0" aria-label="Custo por turno (vazio = sem custo)" value={custoTurnoPoder.valor} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, valor: e.target.value })} title="Energia cobrada no início de cada turno enquanto o Poder está ligado. Vazio ou 0 = sem custo. Sem energia, o Poder desliga." /><select aria-label="Modo do custo por turno" value={custoTurnoPoder.modo} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, modo: e.target.value })}><option value="fixo">fixo</option><option value="percMax">% do máx.</option></select><select aria-label="Energia do custo por turno" value={custoTurnoPoder.energia} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, energia: e.target.value })}>{ENERGIAS_CUSTO.map(en => <option key={en} value={en}>{en}</option>)}</select></div></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Recarga (turnos)</label><input type="number" min="0" max="99" placeholder="0" aria-label="Recarga em turnos (0 = sem recarga)" value={recargaTurnosPoder} onChange={e => setRecargaTurnosPoder(e.target.value)} title="Turnos do dono a esperar depois de ligar antes de poder ligar de novo. Vazio ou 0 = sem recarga." /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Escudo ao ligar</label><div className="escudo-poder-campo"><input type="text" maxLength={40} placeholder="Nome (ex.: Domo Gélido)" aria-label="Nome do escudo que o Poder cria ao ligar" value={escudoPoder.nome} onChange={e => setEscudoPoder({ ...escudoPoder, nome: e.target.value })} /><input type="number" min="0" placeholder="0" aria-label="Valor do escudo (vazio = sem escudo)" value={escudoPoder.valor} onChange={e => setEscudoPoder({ ...escudoPoder, valor: e.target.value })} title="Barreira criada ao ligar e removida ao desligar. Vazio ou 0 = sem escudo." /><select aria-label="Tipo do escudo" value={escudoPoder.tipo} onChange={e => setEscudoPoder({ ...escudoPoder, tipo: e.target.value })}>{TIPOS_ESCUDO.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}</select></div></div>
+                <div className="gatilhos-editor-celula"><GatilhosEditor gatilhos={gatilhosPoder} onChange={setGatilhosPoder} descartados={gatilhosDescartados} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Alcance (Q)</label><input type="number" min="0" step="0.5" value={poderAlcance} onChange={e => setPoderAlcance(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Área (Q)</label><input type="number" min="0" step="0.5" value={poderArea} onChange={e => setPoderArea(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div>
@@ -505,7 +508,7 @@ export function PoderesLista() {
         editarPoder, deletarPoder, overchargeAtivo, curMana, curAura, curChakra,
         energiaElemental, danoBruto, dispararAtaque,
         salvarFormaPoder, deletarFormaPoder, ativarFormaPoder,
-        renomearPastaForma, mudarEstagioPoder
+        renomearPastaForma, mudarEstagioPoder, isMestre, alternarGatilhoMestre
     } = ctx;
 
     // Namespaced por categoria (abaAtual::nome) — sem isso, recolher "Combos" na aba Habilidades
@@ -589,6 +592,17 @@ export function PoderesLista() {
                                         </p>
                                     )}
                                     
+                                    {Array.isArray(p.gatilhos) && p.gatilhos.length > 0 && (
+                                        <div className="gatilhos-poder-lista">
+                                            {p.gatilhos.map(g => (
+                                                <div key={g.id} className={"gatilho-poder-linha" + (g.mestreDesligou ? ' desligado-mestre' : '')}>
+                                                    <span>🔔 {descreverGatilho(g)}{g.mestreDesligou ? ' (desligado pelo Mestre)' : ''}</span>
+                                                    {isMestre && <button type="button" className="btn-neon" onClick={() => alternarGatilhoMestre(p.id, g.id)} title="Liga ou desliga este gatilho (só o Mestre)">{g.mestreDesligou ? 'Religar' : 'Desligar'}</button>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
                                     {p.elementosAfetados && (
                                         <p style={{ fontSize: '0.85em', margin: '4px 0', fontWeight: 'bold', opacity: 0.9 }}>
                                             🌊 Consome/Afeta: {p.elementosAfetados}

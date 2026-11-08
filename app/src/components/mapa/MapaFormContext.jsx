@@ -28,8 +28,9 @@ import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes } f
 import { calcularDanoRapido } from '../../core/danoRapido';
 import { resolverAtorCombate } from '../../core/atorCombate';
 import { getPosicaoEntidade, getAlcanceMaximo, verificarAlvoNoAlcance } from '../../core/alcance';
-import { gravarDanoEmPersonagem, absorverEmPersonagem } from '../../services/danoAlvo';
-import { absorverNoRascunho } from '../../core/escudos';
+import { aplicarDanoEmPersonagem } from '../../services/danoAlvo';
+import { aplicarDanoNaVidaDaFicha, textoDosGatilhos } from '../../services/danoVida';
+import { passarTurnoDaImunidadeTotal, camposDeGatilhosAlterados } from '../../core/gatilhosAplicar';
 import { resolverAlvoCombate, idAlvoPersonagem, ehAlvoPersonagem } from '../../core/alvoCombate';
 import { ordenarOrdemTurno, chaveEntidadeTurno, moverChaveNaOrdem, recalcularIndiceTurno } from '../../core/turnos';
 
@@ -82,8 +83,10 @@ export function iniciarAnimacaoDado(setDadoAnim, { rawRoll, quemRolou, resultado
 // Immer OU um clone solto, tanto faz). A ordem importa: calcularGanhoFadigaDinamico precisa rodar
 // ANTES de aplicarRegeneracaoDeTurno, senão a cura já aplicada no mesmo tick esconderia o quão
 // gasto o personagem estava entrando neste turno.
-function aplicarInicioDeTurno(ficha, ehDummie = false) {
+export function aplicarInicioDeTurno(ficha, ehDummie = false, nome = '') {
     restaurarAcoes(ficha);
+    // 🔔 A Imunidade total (core/gatilhosAplicar.js) perde 1 turno no começo do turno do dono, antes de qualquer dano deste turno.
+    if (!ehDummie) passarTurnoDaImunidadeTotal(ficha);
 
     if (!ficha.combate) ficha.combate = {};
     ficha.combate.fadigaTurnos = Math.max(0, (Number(ficha.combate.fadigaTurnos) || 0) + 1);
@@ -98,7 +101,7 @@ function aplicarInicioDeTurno(ficha, ehDummie = false) {
     // 🔋 Poderes ligados com custo por turno pagam a energia (ou desligam sem ela) e ⏳ as recargas em turnos perdem 1 (core/custoPorTurno.js, core/recargaPoder.js).
     const custos = ehDummie ? { textos: [], desligados: 0 } : aplicarCustosPorTurno(ficha);
     const recargasMudaram = ehDummie ? 0 : passarTurnoDasRecargas(ficha);
-    return { estados: aplicarDanoDeEstadosNoTurno(ficha, ehDummie), cura, custos: custos.textos, poderesAlterados: custos.desligados > 0 || recargasMudaram > 0 };
+    return { estados: aplicarDanoDeEstadosNoTurno(ficha, ehDummie, nome), cura, custos: custos.textos, poderesAlterados: custos.desligados > 0 || recargasMudaram > 0 };
 }
 
 // ✨ Suporte passivo (core/suporte.js): a Cura de Poderes/Técnicas/Itens/Arma sempre ligados cai na Vida no começo do turno do dono,
@@ -147,7 +150,7 @@ function aplicarCuraPassivaDeEnergias(ficha) {
 
 // 🩸 Estados negativos (core/condicoes.js): Queimado/Sangrando/Criogenia causam dano por stack no começo do turno de quem está
 // afetado. Dano direto (sem Reduções): tira da Vida bruta da ficha (vida.atual) ou do Dummie (hpAtual). Devolve o texto para o feed ('' sem dano).
-export function aplicarDanoDeEstadosNoTurno(ficha, ehDummie) {
+export function aplicarDanoDeEstadosNoTurno(ficha, ehDummie, nome = '') {
     const r = danoDeEstadosNoTurno(ficha);
     if (r.total <= 0) return '';
     const bruto = danoExibidoParaBruto(r.total);
@@ -155,9 +158,12 @@ export function aplicarDanoDeEstadosNoTurno(ficha, ehDummie) {
     if (ehDummie) ficha.hpAtual = Math.max(0, (Number(ficha.hpAtual) || 0) - bruto);
     else if (ficha.vida) {
         // 🛡️ Escudos/Vida temporária absorvem o dano dos estados (sem Reduções); Dummies não têm.
-        const abs = absorverNoRascunho(ficha, r.total, 'Escudo');
-        if (abs.texto) extra = ` | 🛡️ ${abs.texto}`;
-        ficha.vida.atual = Math.max(0, (Number(ficha.vida.atual) || 0) - danoExibidoParaBruto(abs.restante));
+        // 🔔 Ponto único de dano na Vida (core/danoVida.js): Imunidade total, escudo e gatilhos.
+        const vr = aplicarDanoNaVidaDaFicha(ficha, r.total, { nome, nomeEscudo: 'Escudo' });
+        // Imunidade total: o dano dos estados não foi sofrido, então o texto não lista dano.
+        if (vr.imune) return vr.textos.join(' | ');
+        if (vr.textoEscudo) extra = ` | 🛡️ ${vr.textoEscudo}`;
+        if (vr.textos.length > 0) extra += ` | ${textoDosGatilhos(vr)}`;
     } else return '';
     return descreverDanoDeEstados(r) + extra;
 }
@@ -742,10 +748,11 @@ export function MapaFormProvider({ children }) {
                     if (disputa.ativa || escalado) houveDisputa = true;
                     hitLog.push(nome);
                     if (disputa.ativa || escalado) hitLogMestre.push(`${nome}: ${dano.toLocaleString('pt-BR')}`);
-                    let textoEscudoZona = '';
-                    updateFicha(f => { if (f.vida) { const abs = absorverNoRascunho(f, dano, nome); textoEscudoZona = abs.texto; f.vida.atual = Math.max(0, (f.vida.atual || 0) - danoExibidoParaBruto(abs.restante)); } });
+                    let textoEscudoZona = ''; let textoGatilhosZona = '';
+                    updateFicha(f => { if (f.vida) { const r = aplicarDanoNaVidaDaFicha(f, dano, { nome, nomeEscudo: nome }); textoEscudoZona = r.textoEscudo; textoGatilhosZona = textoDosGatilhos(r); } });
                     salvarFichaSilencioso();
                     if (textoEscudoZona) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🛡️ ${textoEscudoZona}` });
+                    if (textoGatilhosZona) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: textoGatilhosZona });
                 } else {
                     hitLog.push(nome);
                 }
@@ -804,10 +811,11 @@ export function MapaFormProvider({ children }) {
                 if (isDummie && idDummie && dData) {
                     salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoAtual)) });
                 } else if (entidadeNome === meuNome) {
-                    let textoEscudoPisar = '';
-                    updateFicha(f => { if (f.vida) { const abs = absorverNoRascunho(f, danoAtual, entidadeNome); textoEscudoPisar = abs.texto; f.vida.atual = Math.max(0, (f.vida.atual || 0) - danoExibidoParaBruto(abs.restante)); } });
+                    let textoEscudoPisar = ''; let textoGatilhosPisar = '';
+                    updateFicha(f => { if (f.vida) { const r = aplicarDanoNaVidaDaFicha(f, danoAtual, { nome: entidadeNome, nomeEscudo: entidadeNome }); textoEscudoPisar = r.textoEscudo; textoGatilhosPisar = textoDosGatilhos(r); } });
                     salvarFichaSilencioso();
                     if (textoEscudoPisar) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🛡️ ${textoEscudoPisar}` });
+                    if (textoGatilhosPisar) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: textoGatilhosPisar });
                 }
             }
         });
@@ -991,7 +999,7 @@ export function MapaFormProvider({ children }) {
             let textoEstados = '';
             let textoCura = '';
             let textosCustos = [];
-            updateFicha(f => { const r = aplicarInicioDeTurno(f); textoEstados = r.estados; textoCura = r.cura; textosCustos = r.custos; });
+            updateFicha(f => { const r = aplicarInicioDeTurno(f, false, nextPlayer.nome); textoEstados = r.estados; textoCura = r.cura; textosCustos = r.custos; });
             salvarFichaSilencioso();
             if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
             if (textoCura) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `✨ ${nextPlayer.nome} se cura (passivo): ${textoCura}` });
@@ -1014,10 +1022,10 @@ export function MapaFormProvider({ children }) {
             if (fichaAlvo) {
                 const rascunho = JSON.parse(JSON.stringify(fichaAlvo));
                 const fotoAntes = fotoDosPoderes(rascunho);
-                const { estados: textoEstados, cura: textoCura, custos: textosCustos } = aplicarInicioDeTurno(rascunho);
+                const { estados: textoEstados, cura: textoCura, custos: textosCustos } = aplicarInicioDeTurno(rascunho, false, nextPlayer.nome);
                 // Poderes: só os campos tocados, com o índice achado pelo id na ficha mais fresca (nunca o array inteiro).
                 const frescos = useStore.getState().personagens?.[nextPlayer.nome]?.poderes || fichaAlvo.poderes;
-                salvarCamposPersonagem(nextPlayer.nome, camposDeInicioDeTurno(rascunho, camposDePoderesAlterados(fotoAntes, fotoDosPoderes(rascunho), frescos), JSON.stringify(rascunho.escudos) !== JSON.stringify(fichaAlvo.escudos)));
+                salvarCamposPersonagem(nextPlayer.nome, { ...camposDeInicioDeTurno(rascunho, camposDePoderesAlterados(fotoAntes, fotoDosPoderes(rascunho), frescos), JSON.stringify(rascunho.escudos) !== JSON.stringify(fichaAlvo.escudos)), ...camposDeGatilhosAlterados(fichaAlvo, rascunho) });
                 textosCustos.forEach(t => enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔋 ${t}` }));
                 if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
                 if (textoCura) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `✨ ${nextPlayer.nome} se cura (passivo): ${textoCura}` });
@@ -1106,7 +1114,7 @@ export function MapaFormProvider({ children }) {
             return;
         }
 
-        let textoEscudo = '';
+        let textoEscudo = ''; let textoGatilhos = '';
         if (alvo.isDummie) {
             const storeState = useStore.getState();
             const dData = storeState.dummies[alvo.id];
@@ -1115,9 +1123,9 @@ export function MapaFormProvider({ children }) {
         } else if (alvo.nome === meuNome) {
             updateFicha(f => {
                 // 🛡️ Escudos e Vida temporária absorvem antes (core/escudos.js); o que sobra vai para a Vida.
-                const abs = absorverNoRascunho(f, valor, alvo.nome);
-                textoEscudo = abs.texto;
-                if (f.vida) f.vida.atual = Math.max(0, (f.vida.atual || 0) - (abs.absorvido > 0 ? danoExibidoParaBruto(abs.restante) : valorRaw));
+                // 🔔 Ponto único de dano na Vida (core/danoVida.js): Imunidade total, escudo e gatilhos.
+                const r = aplicarDanoNaVidaDaFicha(f, valor, { nome: alvo.nome, nomeEscudo: alvo.nome });
+                textoEscudo = r.textoEscudo; textoGatilhos = textoDosGatilhos(r);
                 if (!f.combate) f.combate = {};
                 f.combate.ultimoElementoRecebido = elemento || null;
                 f.combate.ultimoElementoRecebidoNivel = nivelOverride;
@@ -1126,10 +1134,9 @@ export function MapaFormProvider({ children }) {
             salvarFichaSilencioso();
         } else {
             // 🛡️ Escudos e Vida temporária do alvo absorvem antes (services/danoAlvo.js).
-            const abs = absorverEmPersonagem(alvo.nome, alvo.ficha, valor, alvo.nome);
-            textoEscudo = abs.texto;
-            const rawFinal = abs.absorvido > 0 ? danoExibidoParaBruto(abs.restante) : valorRaw;
-            gravarDanoEmPersonagem(alvo.nome, alvo.ficha, Math.max(0, ((alvo.ficha && alvo.ficha.vida && alvo.ficha.vida.atual) || 0) - rawFinal), { elemento, nivelOverride });
+            const r = aplicarDanoEmPersonagem(alvo.nome, alvo.ficha, valor, valorRaw, { elemento, nivelOverride });
+            textoEscudo = r.texto;
+            if (r.textos.length > 0) textoGatilhos = `🔔 ${r.textos.join(' · ')}`;
         }
 
         const textoReducao = calculo.verdadeiro ? ' (Dano Verdadeiro)' : reduzido.detalhe.length > 0 ? ` (${descreverReducoes(reduzido)})` : '';
@@ -1138,7 +1145,7 @@ export function MapaFormProvider({ children }) {
         // Com Disputa de Poder o número que chegou no alvo (e o digitado) é só do Mestre.
         enviarParaFeed({
             tipo: 'sistema', nome: 'SISTEMA',
-            texto: (houveDisputaRapida ? `⚔️ O Mestre aplicou dano em ${alvo.nome}${deQuem}!` : `⚔️ O Mestre aplicou ${valor} de dano em ${alvo.nome}${deQuem}!${textoReducao}`) + (textoEscudo ? ` 🛡️ ${textoEscudo}` : ''),
+            texto: (houveDisputaRapida ? `⚔️ O Mestre aplicou dano em ${alvo.nome}${deQuem}!` : `⚔️ O Mestre aplicou ${valor} de dano em ${alvo.nome}${deQuem}!${textoReducao}`) + (textoEscudo ? ` 🛡️ ${textoEscudo}` : '') + (textoGatilhos ? ` ${textoGatilhos}` : ''),
             ...(houveDisputaRapida ? { textoMestre: `Aplicado: ${valor} (digitado ${valorDigitado})${textoReducao}${disputa && disputa.ativa ? ` | ${descreverDisputa(disputa)}` : ''}` } : {}),
         });
     }, [isMestre, meuNome, updateFicha, minhaFicha]);
@@ -1157,7 +1164,9 @@ export function MapaFormProvider({ children }) {
             if (dData) salvarDummie(d.id, { ...dData, iniciativa: 0 });
         });
 
-        updateFicha(ficha => { ficha.iniciativa = 0; });
+        // Cada cena conta como um combate: a Imunidade total (core/gatilhosAplicar.js) termina com ele, em mim e nos jogadores que a têm.
+        nomesNaCena.forEach((n) => { if (n !== meuNome && storeState.personagens?.[n]?.combate?.imunidadeTotal) salvarCamposPersonagem(n, { 'combate/imunidadeTotal': null }); });
+        updateFicha(ficha => { ficha.iniciativa = 0; if (ficha.combate) delete ficha.combate.imunidadeTotal; });
         setIniciativaInput(0);
         salvarFichaSilencioso();
         setJogadorHistory(null);
@@ -1168,7 +1177,7 @@ export function MapaFormProvider({ children }) {
         if (novoCenario.ordemTurnoManual?.[cenaRenderId]) novoCenario.ordemTurnoManual[cenaRenderId] = null;
         salvarCenarioCompleto(novoCenario);
 
-    }, [cenaAtual.nome, ordemIniciativa, updateFicha, cenaRenderId]);
+    }, [cenaAtual.nome, ordemIniciativa, updateFicha, cenaRenderId, meuNome]);
 
     // 🔀 ORDEM DE TURNO MANUAL (Mestre/Co-Mestre, pela aba Mestre — MestreControleTurno.jsx):
     // grava a nova ordem em cenario.ordemTurnoManual[cena] e corrige turnoAtualIndex no MESMO

@@ -13,7 +13,8 @@ import { resolverEstadosNoAlvo, descreverResolucao, juntarAplicados } from '../.
 import { aplicarEstadoNaFicha } from '../../core/condicoes';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { danoExibidoParaBruto } from '../../core/vitals';
-import { absorverNoRascunho } from '../../core/escudos';
+import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, novoEventoId } from '../../services/danoVida';
+import { temImunidadeTotal } from '../../core/gatilhosAplicar';
 import { escalarDanoPelaVida, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
 
@@ -253,8 +254,11 @@ export function DefesaFormProvider({ children }) {
         // ↩️ Reflexo escolhido: devolve (ou divide) o Dano com quem me atacou. Precisa saber quem foi e ter como pagar.
         let textoReflexo = '';
         let aplicarNoAtacante = null;
+        let textosGatilhosAtacante = [];
         let custoPago = 0;
-        const usado = reflexoEscolhido ? reflexosUsaveis.find(r => `${r.origem}:${r.id}` === reflexoEscolhido) : null;
+        // 🛡️ God Mode (Imunidade total): ignora TUDO, inclusive Reflexo (e a cobrança dele) e os estados do golpe. Só o aviso entra no feed.
+        const imune = temImunidadeTotal(minhaFicha);
+        const usado = reflexoEscolhido && !imune ? reflexosUsaveis.find(r => `${r.origem}:${r.id}` === reflexoEscolhido) : null;
         if (usado) {
             const escolhaAtacante = atacanteInc === ATACANTE_AUTO ? (ultimoGolpeRecebido ? `p:${ultimoGolpeRecebido.nome}` : ATACANTE_NENHUM) : atacanteInc;
             const golpeDoReflexo = ultimoGolpeRecebido && escolhaAtacante === `p:${ultimoGolpeRecebido.nome}` ? ultimoGolpeRecebido : null;
@@ -274,7 +278,8 @@ export function DefesaFormProvider({ children }) {
                 aplicarNoAtacante = () => {
                     if (!alvoAtacante || calculo.danoNoAtacante <= 0) return;
                     const final = reduzirDanoNoAlvo(alvoAtacante, calculo.danoNoAtacante, elementoInc, { verdadeiro: danoVerdadeiro }).final;
-                    gravarVidaDoAlvo(idAtacante, alvoAtacante, Math.max(0, (Number(alvoAtacante.hpAtual) || 0) - danoExibidoParaBruto(final)), { elemento: elementoInc });
+                    const gv = gravarVidaDoAlvo(idAtacante, alvoAtacante, Math.max(0, (Number(alvoAtacante.hpAtual) || 0) - danoExibidoParaBruto(final)), { elemento: elementoInc });
+                    textosGatilhosAtacante = (gv && gv.textos) || [];
                 };
                 custoPago = custo;
             }
@@ -283,11 +288,14 @@ export function DefesaFormProvider({ children }) {
         // 🩸 Estados do golpe (feed.estadosGolpe) que ainda não entraram em mim: só se este Dano é o deste golpe e ele não foi devolvido por completo.
         const golpeDoDano = ultimoGolpeRecebido && ultimoGolpeRecebido.nome === nomeAtacante ? ultimoGolpeRecebido : null;
         const jaRecebi = golpeDoDano && minhaFicha.combate && minhaFicha.combate.estadosDoGolpeTs === golpeDoDano.ts;
-        const resolucao = golpeDoDano && Array.isArray(golpeDoDano.estadosGolpe) && golpeDoDano.estadosGolpe.length > 0 && !jaRecebi && !(usado && danoFinal === 0 && textoReflexo)
+        const resolucao = !imune && golpeDoDano && Array.isArray(golpeDoDano.estadosGolpe) && golpeDoDano.estadosGolpe.length > 0 && !jaRecebi && !(usado && danoFinal === 0 && textoReflexo)
             ? resolverEstadosNoAlvo(golpeDoDano.estadosGolpe, minhaFicha, { critico: !!golpeDoDano.golpeCritico })
             : null;
 
         let textoEscudo = '';
+        let textoGatilhos = '';
+        // Cada clique em "Receber dano" é uma aplicação distinta: id único, gerado FORA do produtor Immer (o ts do feed é do último golpe, igual entre cliques).
+        const eventoIdClique = novoEventoId();
         updateFicha((ficha) => {
             if (resolucao) {
                 juntarAplicados(resolucao.aplicados).forEach(a => aplicarEstadoNaFicha(ficha, a.id, a.stacks, nomeAtacante || ''));
@@ -302,9 +310,10 @@ export function DefesaFormProvider({ children }) {
             if (ficha.vida) {
                 // O dano digitado é o número EXIBIDO (feed/tela); vida.atual é bruta.
                 // 🛡️ Escudos e Vida temporária absorvem antes (core/escudos.js); o que sobra vai para a Vida.
-                const abs = absorverNoRascunho(ficha, danoFinal, meuNome);
-                textoEscudo = abs.texto;
-                ficha.vida.atual = Math.max(0, (ficha.vida.atual || 0) - danoExibidoParaBruto(abs.restante));
+                // 🔔 Ponto único de dano na Vida (core/danoVida.js): Imunidade total, escudo, gatilhos de morte e de faixas de Vida.
+                const r = aplicarDanoNaVidaDaFicha(ficha, danoFinal, { nome: meuNome, nomeEscudo: meuNome, eventoId: eventoIdClique });
+                textoEscudo = r.textoEscudo;
+                textoGatilhos = textoDosGatilhos(r);
             }
         });
         salvarFichaSilencioso();
@@ -315,8 +324,9 @@ export function DefesaFormProvider({ children }) {
 
         const deQuem = nomeAtacante ? ` de ${nomeAtacante}` : '';
         const textoEstados = resolucao ? descreverResolucao(resolucao, meuNome) : '';
-        const texto = `Recebeu ${danoFinal} de dano${deQuem}! (Original: ${danoDigitado} de ${nomeElemento.toUpperCase()})${mensagemElemental}${textoReflexo ? ` ${textoReflexo}` : ''}${textoEstados ? ` 🩸 ${textoEstados}` : ''}${textoEscudo ? ` 🛡️ ${textoEscudo}` : ''}`;
+        const texto = `Recebeu ${danoFinal} de dano${deQuem}! (Original: ${danoDigitado} de ${nomeElemento.toUpperCase()})${mensagemElemental}${textoReflexo ? ` ${textoReflexo}` : ''}${textoEstados ? ` 🩸 ${textoEstados}` : ''}${textoEscudo ? ` 🛡️ ${textoEscudo}` : ''}${textoGatilhos ? ` ${textoGatilhos}` : ''}`;
         if (aplicarNoAtacante) aplicarNoAtacante();
+        if (textosGatilhosAtacante.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${nomeAtacante || 'O atacante'}: ${textosGatilhosAtacante.join(' · ')}` });
 
         // Quem leva vantagem na Disputa de Poder é informação do Mestre (textoMestre).
         const feedData = { tipo: 'sistema', nome: meuNome, texto: texto, ...(disputa && disputa.ativa ? { textoMestre: descreverDisputa(disputa) } : {}) };

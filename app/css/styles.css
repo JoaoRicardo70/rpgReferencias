@@ -3224,3 +3224,21 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .escudo-poder-campo input[type="number"] { max-width: 90px; }
 .prof-energia-campo label { display: block; color: var(--cor-destaque); font-size: 0.85em; font-weight: bold; }
 .prof-energia-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(60px, 1fr)); gap: 6px; }
+
+/* 🔔 Gatilhos de um Poder (components/poderes/GatilhosEditor.jsx, core/gatilhos.js) */
+.gatilhos-editor-celula { grid-column: 1 / -1; }
+.gatilhos-editor { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px dashed var(--border-primary); border-radius: 8px; }
+.gatilhos-editor-titulo { font-weight: bold; color: var(--cor-destaque); }
+.gatilhos-editor-vazio { font-size: 0.8em; opacity: 0.7; }
+.gatilho-item, .gatilho-acao-item { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.85em; }
+.gatilho-item-texto { flex: 1 1 220px; }
+.gatilho-form { display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 1px solid var(--border-primary); border-radius: 8px; }
+.gatilho-faixa, .gatilho-condicao { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 0.85em; }
+.gatilho-faixa input, .gatilho-condicao input { width: 70px; text-align: center; }
+.gatilho-acoes-lista { display: flex; flex-direction: column; gap: 4px; }
+.gatilho-acao-form, .gatilho-form-botoes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.gatilho-erro { color: var(--cor-secundaria); font-size: 0.85em; }
+.gatilhos-poder-lista { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
+.gatilho-poder-linha { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.85em; color: var(--cor-destaque); }
+.gatilho-poder-linha.desligado-mestre { opacity: 0.5; text-decoration: line-through; }
+.gatilho-dica { font-size: 0.8em; opacity: 0.75; }

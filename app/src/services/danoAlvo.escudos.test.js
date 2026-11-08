@@ -21,7 +21,7 @@ beforeEach(() => {
 describe('absorverEmPersonagem', () => {
     it('absorve, grava so o campo escudos e devolve o texto do feed', () => {
         const r = absorverEmPersonagem('Ana', { escudos: [esc('a', 'Domo', 100)] }, 40, 'Ana');
-        expect(r).toEqual({ restante: 0, absorvido: 40, texto: 'Ana absorveu 40 (restam 60)' });
+        expect(r).toEqual({ restante: 0, absorvido: 40, texto: 'Ana absorveu 40 (restam 60)', escudosNovos: [expect.objectContaining({ valor: 60 })] });
         expect(salvarCamposPersonagem).toHaveBeenCalledWith('Ana', { escudos: [expect.objectContaining({ valor: 60 })] });
     });
     it('usa a ficha mais recente do store quando existe', () => {

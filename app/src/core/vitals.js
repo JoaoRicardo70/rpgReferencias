@@ -493,4 +493,7 @@ export function descansarCompleto(ficha) {
     zerarRecargas(ficha);
     // 🛡️ Vida temporária e escudos de Poder somem; escudos manuais permanecem (core/escudos.js).
     limparEscudosNoDescanso(ficha);
+    // 🔔 Gatilhos (core/gatilhos.js): some o registro de eventos tratados e a Imunidade total em andamento.
+    delete ficha.combate.gatilhos;
+    delete ficha.combate.imunidadeTotal;
 }
