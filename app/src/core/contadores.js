@@ -1,8 +1,9 @@
 // ==========================================
 // 🔢 CONTADORES — lógica pura. Um contador manual da ficha (ex.: "Arco de Conversão" 0–5, "Poeira acumulada", stacks próprios):
-//   ficha.contadores = [{ id, nome, valor, min, max, poderId? }]
+//   ficha.contadores = [{ id, nome, valor, min, max, poderId?, reset? }]
+// reset: 'cena' = volta ao mínimo ao fim do combate/cena (fimDeLuta, descansar); ausente = permanente (padrão; sem campo no Firebase).
 // Com `poderId` apontando para um Poder com Estágios, o valor comanda o estágio dele: estágio = valor + 1 (valor 0 = estágio 1).
-// Só muda quando a pessoa mexe (sem gatilhos automáticos).
+// Muda quando a pessoa mexe e também por gatilhos automáticos (core/gatilhos.js, ação `contador`) e pelo reset de cena.
 // ==========================================
 import { temEstagios, limitarEstagio } from './estagios.js';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from './vitals.js';
@@ -10,6 +11,10 @@ import { capturarMaximosAtuais, rescalarVitaisProporcional } from './vitals.js';
 export const LIMITE_CONTADORES = 12;
 export const LIMITE_VALOR_CONTADOR = 9999;
 const LIMITE_NOME = 40;
+export const RESETS_CONTADOR = [
+    { id: 'permanente', rotulo: 'Permanente' },
+    { id: 'cena', rotulo: 'Zera ao fim da cena/combate' },
+];
 
 const inteiro = (v, padrao) => {
     const n = Math.trunc(Number(v));
@@ -26,6 +31,7 @@ export function normalizarContador(c) {
     const valor = Math.max(min, Math.min(max, preso(inteiro(c.valor, min))));
     const saida = { id: String(c.id ?? ''), nome: String(c.nome ?? '').trim().slice(0, LIMITE_NOME) || 'Contador', valor, min, max };
     if (c.poderId !== undefined && c.poderId !== null && c.poderId !== '') saida.poderId = c.poderId;
+    if (c.reset === 'cena') saida.reset = 'cena';
     return saida;
 }
 
@@ -92,4 +98,17 @@ export function mudarContador(ficha, id, delta) {
     const novoValor = Math.max(c.min, Math.min(c.max, inteiro(c.valor, c.min) + inteiro(delta, 0)));
     if (novoValor === c.valor) return false;
     return atualizarContador(ficha, id, { valor: novoValor });
+}
+
+// Fim da cena/combate: os contadores com reset 'cena' voltam ao mínimo; os permanentes ficam. Trabalha no RASCUNHO e devolve os ÍNDICES alterados.
+export function resetarContadoresDeCena(ficha) {
+    const indices = [];
+    if (!ficha || !Array.isArray(ficha.contadores)) return indices;
+    ficha.contadores.forEach((c, i) => {
+        if (!c || c.reset !== 'cena') return;
+        const minimo = inteiro(c.min, 0);
+        if (inteiro(c.valor, minimo) === minimo) return;
+        if (atualizarContador(ficha, c.id, { valor: minimo })) indices.push(i);
+    });
+    return indices;
 }

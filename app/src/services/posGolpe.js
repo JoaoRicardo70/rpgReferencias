@@ -63,7 +63,7 @@ export function resolverReflexoAutomatico({ alvo, danoNoAlvo, danoOriginal, nome
 // Um por golpe: reúne o que acontece em CADA alvo atingido (Reflexo automático, depois os estados) e soma o Dano que volta
 // para o atacante. `aplicar(idAlvo, alvo, dano)` devolve o Dano que o alvo realmente sofre (0 se o Reflexo devolveu tudo).
 // `aoAcertar` (core/aoAcertar.js): o que o ATACANTE ganha ao acertar; vale uma vez por golpe, só se algum alvo sofreu Dano (resultado()).
-export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0, nomeAtacante = '', custoGolpeTotal = 0, aoAcertar = [] } = {}) {
+export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0, nomeAtacante = '', custoGolpeTotal = 0, aoAcertar = [], nivel = 'normal' } = {}) {
     const textos = [];
     const comEstados = new Map(); // Dummies: alvo com as condições novas, para o chamador gravar junto com o Dano
     const escudosPosAbsorcao = new Map(); // alvo-personagem: lista de escudos gravada após a absorção
@@ -117,8 +117,12 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
         // Use no lugar do alvo ao gravar o Dano (gravarVidaDoAlvo): leva junto as condições novas do Dummie.
         // Leva junto os escudos pós-absorção do alvo-personagem (para os gatilhos dele partirem da lista certa).
         alvoParaGravar(idAlvo, alvo) { const base = comEstados.get(idAlvo) || alvo; return escudosPosAbsorcao.has(idAlvo) ? { ...base, escudosNovos: escudosPosAbsorcao.get(idAlvo) } : base; },
+        // Nível do golpe (normal|critico|fatal) para o evento `atingido` do alvo-personagem: passe a gravarVidaDoAlvo({ golpe }).
+        golpe() { return { nivel }; },
         // 🔔 Frases dos gatilhos do alvo (Negar morte etc.), vindas de gravarVidaDoAlvo, entram no resumo do golpe.
         adicionarTextos(r) { ((r && r.textos) || []).forEach(t => textos.push(`🔔 ${t}`)); },
-        resultado() { return { textos: [...textos], danoAtacante, aoAcertar: atingiuComDano ? aoAcertar : [], critico }; }
+        resultado() { return { textos: [...textos], danoAtacante, aoAcertar: atingiuComDano ? aoAcertar : [], critico }; },
+        // 🔔 Algum alvo sofreu Dano? (dispara o evento `acertou` do atacante) e o nível do golpe.
+        causouDano() { return atingiuComDano; },
     };
 }

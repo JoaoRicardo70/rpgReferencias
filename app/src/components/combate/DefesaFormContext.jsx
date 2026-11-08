@@ -293,6 +293,8 @@ export function DefesaFormProvider({ children }) {
             ? resolverEstadosNoAlvo(golpeDoDano.estadosGolpe, minhaFicha, { critico: !!golpeDoDano.golpeCritico })
             : null;
 
+        // Nível do golpe para o evento `atingido`: golpeNivel (feed novo), senão golpeCritico (feed antigo), senão normal.
+        const nivelDoGolpe = golpeDoDano && ['normal', 'critico', 'fatal'].includes(golpeDoDano.golpeNivel) ? golpeDoDano.golpeNivel : (golpeDoDano && golpeDoDano.golpeCritico ? 'critico' : 'normal');
         let textoEscudo = '';
         let textoGatilhos = '';
         // Cada clique em "Receber dano" é uma aplicação distinta: id único, gerado FORA do produtor Immer (o ts do feed é do último golpe, igual entre cliques).
@@ -312,7 +314,7 @@ export function DefesaFormProvider({ children }) {
                 // O dano digitado é o número EXIBIDO (feed/tela); vida.atual é bruta.
                 // 🛡️ Escudos e Vida temporária absorvem antes (core/escudos.js); o que sobra vai para a Vida.
                 // 🔔 Ponto único de dano na Vida (core/danoVida.js): Imunidade total, escudo, gatilhos de morte e de faixas de Vida.
-                const r = aplicarDanoNaVidaDaFicha(ficha, danoFinal, { nome: meuNome, nomeEscudo: meuNome, eventoId: eventoIdClique });
+                const r = aplicarDanoNaVidaDaFicha(ficha, danoFinal, { nome: meuNome, nomeEscudo: meuNome, eventoId: eventoIdClique, golpe: { nivel: nivelDoGolpe } });
                 textoEscudo = r.textoEscudo;
                 textoGatilhos = textoDosGatilhos(r);
             }

@@ -25,6 +25,7 @@ import { calcularGanhoFadigaMaestriaInsuficiente } from '../../core/fadiga';
 import { definirEstagio } from '../../core/contadores';
 import { sincronizarEscudoDoPoder, normalizarEscudoAoLigar } from '../../core/escudos';
 import { normalizarGatilhos } from '../../core/gatilhos';
+import { dispararEventoNaFicha } from '../../core/gatilhosAplicar';
 import { ESTAGIOS_PADRAO, normalizarEstagios, temEstagios, limitarEstagio, marcoParaRascunho } from '../../core/estagios';
 
 // 🪜 Rascunho do bloco "Estágios" do editor — nomes ficam como texto (um por linha) enquanto edita.
@@ -420,6 +421,11 @@ export function PoderesFormProvider({ children }) {
             // 3. Re-escala "atual" de cada barra pra manter a MESMA % no novo Máximo. (Nada se gasta!)
             rescalarVitaisProporcional(ficha, oldM);
             if (danoAoDesligar > 0 && !p.ativa) danoAplicado = aplicarDanoEmSiMesmo(ficha, danoAoDesligar, { nome: meuNome, cenaId: cenaAtivaId, textos: textosGatilhosDesligar });
+            // 🔔 Gatilhos poderLigou / poderDesligou (core/gatilhos.js).
+            // Desligar por edição/exclusão (semAoDesligar) não é um desligar "de verdade": não dispara gatilhos.
+            if (p.ativa || !(opcoes && opcoes.semAoDesligar)) {
+                try { dispararEventoNaFicha(ficha, { tipo: p.ativa ? 'poderLigou' : 'poderDesligou', poderId: String(id) }, { cenaId: cenaAtivaId, nome: meuNome }).textos.forEach(t => textosGatilhosDesligar.push(t)); } catch (e) { console.error('Gatilho de Poder falhou', e); }
+            }
         });
 
         salvarFichaSilencioso();

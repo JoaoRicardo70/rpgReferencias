@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
+import { dispararResultadoDoAcerto } from '../../services/gatilhosEventos';
 import useStore from '../../stores/useStore';
 // 🔥 CORREÇÃO: `calcularCA` vinha de `../mapa/MapaFormContext`, uma cópia própria e desatualizada
 // (sem o bônus de Ascensão de `getPoderDeLutaStatus` e sem os penalizantes/bônus de condições de
@@ -230,6 +231,9 @@ export function AcertoFormProvider({ children }) {
 
         const feedData = { tipo: 'acerto', ts: Date.now(), nome: meuNome, ...result, alvosArea: alvosAtingidos, areaEf: maxArea, zonaIdGerada: idDaZonaCriada };
         enviarParaFeed(feedData);
+        // 🔔 Gatilhos errou / inimigoErrou (core/gatilhos.js).
+        const textosErro = dispararResultadoDoAcerto(alvosAtingidos, { atacanteSouEu: true, nomeAtacante: meuNome });
+        if (textosErro.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${textosErro.join(' · ')}` });
         setAbaAtiva('aba-log');
 
     }, [isForaDeAlcance, origemArea, dados, faces, bonus, usarProficiencia, profGlobal, vantagens, desvantagens, statsSelecionados, minhaFicha, itensEquipados, maxArea, centroExplosao, alvoFiltro, dummies, personagens, meuNome, alvoDummie, duracaoZonaEfeito, elementoZona, cenario, setAbaAtiva, divisorPoderMesa]);

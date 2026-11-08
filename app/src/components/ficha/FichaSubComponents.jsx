@@ -7,7 +7,7 @@ import { POLARIDADES, getInfoPolaridade } from '../../core/polaridade.js';
 import { agruparElementosPorCategoria, chaveElemento } from '../../core/elementos.js';
 import { resumoDosEstados } from '../../core/condicoes.js';
 import { buffsTemporariosDaFicha } from '../../core/suporte.js';
-import { listaDeContadores, LIMITE_CONTADORES } from '../../core/contadores.js';
+import { listaDeContadores, LIMITE_CONTADORES, RESETS_CONTADOR } from '../../core/contadores.js';
 import { temEstagios } from '../../core/estagios.js';
 import { listaDeEscudos, totalDeEscudos, TIPOS_ESCUDO, LIMITE_ESCUDOS } from '../../core/escudos.js';
 
@@ -305,6 +305,9 @@ export function FichaCondicoesEElementais() {
                         <select className="input-neon" aria-label={`Poder ligado a ${c.nome}`} value={c.poderId ?? ''} onChange={e => atualizarContadorFicha(c.id, { poderId: e.target.value })}>
                             <option value="">sem Poder</option>
                             {poderesComEstagios.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                        </select>
+                        <select className="input-neon" aria-label={`Reinício de ${c.nome}`} value={c.reset === 'cena' ? 'cena' : 'permanente'} onChange={e => atualizarContadorFicha(c.id, { reset: e.target.value })}>
+                            {RESETS_CONTADOR.map(r => <option key={r.id} value={r.id}>{r.rotulo}</option>)}
                         </select>
                         <button type="button" className="combo-mini" aria-label={`Remover o contador ${c.nome}`} onClick={() => removerContadorFicha(c.id)}>✕</button>
                     </div>

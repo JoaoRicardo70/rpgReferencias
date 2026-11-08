@@ -672,8 +672,9 @@ describe('normalizarGatilhos - valores invalidos e limites', () => {
         expect(um({ acoes: 'x' }).descartados[0].motivo).toBe('sem ações');
         expect(um({ acoes: undefined }).gatilhos).toEqual([]);
     });
-    it('limite: periodo turno/luta descartado; max 0 ou invalido = sem limite; max cortado em 99', () => {
-        expect(um({ limite: { max: 1, por: 'turno' } }).descartados[0].motivo).toContain('turno');
+    it('limite: periodo luta descartado; turno aceito; max 0 ou invalido = sem limite; max cortado em 99', () => {
+        expect(um({ limite: { max: 1, por: 'luta' } }).descartados[0].motivo).toContain('luta');
+        expect(um({ limite: { max: 2, por: 'turno' } }).gatilhos[0].limite).toEqual({ max: 2, por: 'turno' });
         expect(um({ limite: { max: 1, por: 'luta' } }).gatilhos).toEqual([]);
         expect(um({ limite: { max: 1 } }).gatilhos).toEqual([]);
         expect(um({ limite: { max: 0, por: 'turno' } }).gatilhos[0].limite).toBeUndefined();

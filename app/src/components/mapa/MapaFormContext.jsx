@@ -29,8 +29,9 @@ import { calcularDanoRapido } from '../../core/danoRapido';
 import { resolverAtorCombate } from '../../core/atorCombate';
 import { getPosicaoEntidade, getAlcanceMaximo, verificarAlvoNoAlcance } from '../../core/alcance';
 import { aplicarDanoEmPersonagem } from '../../services/danoAlvo';
-import { aplicarDanoNaVidaDaFicha, textoDosGatilhos } from '../../services/danoVida';
-import { passarTurnoDaImunidadeTotal, camposDeGatilhosAlterados } from '../../core/gatilhosAplicar';
+import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, cenaAtualDaMesa } from '../../services/danoVida';
+import { passarTurnoDaImunidadeTotal, camposDeGatilhosAlterados, camposParaGravar, dispararEventoNaFicha } from '../../core/gatilhosAplicar';
+import { dispararEventoMeu, dispararEventoEmPersonagem, dispararResultadoDoAcerto } from '../../services/gatilhosEventos';
 import { resolverAlvoCombate, idAlvoPersonagem, ehAlvoPersonagem } from '../../core/alvoCombate';
 import { ordenarOrdemTurno, chaveEntidadeTurno, moverChaveNaOrdem, recalcularIndiceTurno } from '../../core/turnos';
 
@@ -101,7 +102,20 @@ export function aplicarInicioDeTurno(ficha, ehDummie = false, nome = '') {
     // 🔋 Poderes ligados com custo por turno pagam a energia (ou desligam sem ela) e ⏳ as recargas em turnos perdem 1 (core/custoPorTurno.js, core/recargaPoder.js).
     const custos = ehDummie ? { textos: [], desligados: 0 } : aplicarCustosPorTurno(ficha);
     const recargasMudaram = ehDummie ? 0 : passarTurnoDasRecargas(ficha);
-    return { estados: aplicarDanoDeEstadosNoTurno(ficha, ehDummie, nome), cura, custos: custos.textos, poderesAlterados: custos.desligados > 0 || recargasMudaram > 0 };
+    const estados = aplicarDanoDeEstadosNoTurno(ficha, ehDummie, nome);
+    // 🔔 Gatilhos de turno (core/gatilhos.js): poderDesligou (Poder desligado por falta de energia) e turnoInicio do dono. Os usos 'por turno' voltam aqui.
+    const gatilhos = { textos: [], caminhos: [] };
+    if (!ehDummie) {
+        const cenaId = cenaAtualDaMesa();
+        const juntar = (r) => { r.textos.forEach(t => gatilhos.textos.push(t)); r.caminhos.forEach(c => { if (!gatilhos.caminhos.includes(c)) gatilhos.caminhos.push(c); }); };
+        // turnoInicio PRIMEIRO (ele devolve os usos 'por turno'); depois os poderDesligou, para não apagarem o uso que acabaram de gastar.
+        // Um gatilho que falha nunca impede o turno de começar.
+        try {
+            juntar(dispararEventoNaFicha(ficha, { tipo: 'turnoInicio' }, { cenaId, nome }));
+            (custos.ids || []).forEach(id => juntar(dispararEventoNaFicha(ficha, { tipo: 'poderDesligou', poderId: String(id) }, { cenaId, nome })));
+        } catch (e) { console.error('Gatilhos do início do turno falharam', e); }
+    }
+    return { estados, cura, custos: custos.textos, gatilhos, poderesAlterados: custos.desligados > 0 || recargasMudaram > 0 };
 }
 
 // ✨ Suporte passivo (core/suporte.js): a Cura de Poderes/Técnicas/Itens/Arma sempre ligados cai na Vida no começo do turno do dono,
@@ -953,6 +967,15 @@ export function MapaFormProvider({ children }) {
 
         const nextPlayer = ordemIniciativa[nextIndex];
 
+        // 🔔 Gatilhos `turnoFim` de quem ACABA o turno (core/gatilhos.js): na ficha dele (a minha, ou a de outro jogador por caminhos).
+        const quemAcaba = ordemIniciativa[(cenario?.turnoAtualIndex || 0) % ordemIniciativa.length];
+        if (quemAcaba && !quemAcaba.isDummie && quemAcaba.nome) {
+            // Um gatilho NUNCA pode impedir a passagem de turno: qualquer erro é só registrado.
+            let fim = { textos: [] };
+            try { fim = dispararEventoEmPersonagem(quemAcaba.nome, { tipo: 'turnoFim' }); } catch (e) { console.error('Gatilho turnoFim falhou', e); }
+            if (fim.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${quemAcaba.nome}: ${fim.textos.join(' · ')}` });
+        }
+
         setFeedIndexTurnoAtual(feedCombate.length);
         setJogadorHistory(null);
 
@@ -999,11 +1022,13 @@ export function MapaFormProvider({ children }) {
             let textoEstados = '';
             let textoCura = '';
             let textosCustos = [];
-            updateFicha(f => { const r = aplicarInicioDeTurno(f, false, nextPlayer.nome); textoEstados = r.estados; textoCura = r.cura; textosCustos = r.custos; });
+            let textosGatilhosTurno = [];
+            updateFicha(f => { const r = aplicarInicioDeTurno(f, false, nextPlayer.nome); textoEstados = r.estados; textoCura = r.cura; textosCustos = r.custos; textosGatilhosTurno = r.gatilhos.textos; });
             salvarFichaSilencioso();
             if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
             if (textoCura) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `✨ ${nextPlayer.nome} se cura (passivo): ${textoCura}` });
             textosCustos.forEach(t => enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔋 ${t}` }));
+            if (textosGatilhosTurno.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${nextPlayer.nome}: ${textosGatilhosTurno.join(' · ')}` });
         } else {
             // Outro jogador começa o turno: nunca posso mutar a ficha dele localmente
             // (`updateFicha` só mexe na MINHA), então calculo em cima da cópia mais recente que
@@ -1022,10 +1047,11 @@ export function MapaFormProvider({ children }) {
             if (fichaAlvo) {
                 const rascunho = JSON.parse(JSON.stringify(fichaAlvo));
                 const fotoAntes = fotoDosPoderes(rascunho);
-                const { estados: textoEstados, cura: textoCura, custos: textosCustos } = aplicarInicioDeTurno(rascunho, false, nextPlayer.nome);
+                const { estados: textoEstados, cura: textoCura, custos: textosCustos, gatilhos: gatilhosTurno } = aplicarInicioDeTurno(rascunho, false, nextPlayer.nome);
                 // Poderes: só os campos tocados, com o índice achado pelo id na ficha mais fresca (nunca o array inteiro).
                 const frescos = useStore.getState().personagens?.[nextPlayer.nome]?.poderes || fichaAlvo.poderes;
-                salvarCamposPersonagem(nextPlayer.nome, { ...camposDeInicioDeTurno(rascunho, camposDePoderesAlterados(fotoAntes, fotoDosPoderes(rascunho), frescos), JSON.stringify(rascunho.escudos) !== JSON.stringify(fichaAlvo.escudos)), ...camposDeGatilhosAlterados(fichaAlvo, rascunho) });
+                salvarCamposPersonagem(nextPlayer.nome, { ...camposDeInicioDeTurno(rascunho, camposDePoderesAlterados(fotoAntes, fotoDosPoderes(rascunho), frescos), JSON.stringify(rascunho.escudos) !== JSON.stringify(fichaAlvo.escudos)), ...camposDeGatilhosAlterados(fichaAlvo, rascunho), ...camposParaGravar(rascunho, gatilhosTurno.caminhos) });
+                if (gatilhosTurno.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${nextPlayer.nome}: ${gatilhosTurno.textos.join(' · ')}` });
                 textosCustos.forEach(t => enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔋 ${t}` }));
                 if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
                 if (textoCura) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `✨ ${nextPlayer.nome} se cura (passivo): ${textoCura}` });
@@ -1048,6 +1074,9 @@ export function MapaFormProvider({ children }) {
         if (!window.confirm('Recuperar toda a Vida/Energias e zerar a Fadiga e o mUnico Crescente acumulados?')) return;
         updateFicha(f => { descansarCompleto(f); });
         salvarFichaSilencioso();
+        // 🔔 Descansar também encerra a luta: contadores 'cena' zeram e gatilhos fimDeLuta disparam.
+        const fimDescanso = dispararEventoMeu({ tipo: 'fimDeLuta' }, { nome: meuNome });
+        if (fimDescanso.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${meuNome}: ${fimDescanso.textos.join(' · ')}` });
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `💖 ${meuNome} descansou e recuperou as forças!` });
     }, [updateFicha, meuNome]);
 
@@ -1170,6 +1199,11 @@ export function MapaFormProvider({ children }) {
         setIniciativaInput(0);
         salvarFichaSilencioso();
         setJogadorHistory(null);
+        // 🔔 fimDeLuta (core/gatilhos.js): zera contadores com reset 'cena' e dispara os gatilhos de quem estava na cena (cada cena conta como um combate).
+        nomesNaCena.forEach((n) => {
+            const fim = dispararEventoEmPersonagem(n, { tipo: 'fimDeLuta' });
+            if (fim.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${n}: ${fim.textos.join(' · ')}` });
+        });
         
         const novoCenario = JSON.parse(JSON.stringify(storeState.cenario || {}));
         novoCenario.turnoAtualIndex = 0;
@@ -1337,6 +1371,9 @@ export function MapaFormProvider({ children }) {
 
         const feedData = { tipo: 'acerto', ts: Date.now(), nome: nomeAcerto, ...result, alvosArea: alvosAtingidos, areaEf: maxArea };
         enviarParaFeed(feedData); 
+        // 🔔 Gatilhos errou / inimigoErrou (core/gatilhos.js); o Mestre agindo por um NPC não dispara o `errou` na própria ficha.
+        const textosErro = dispararResultadoDoAcerto(alvosAtingidos, { atacanteSouEu: !atorAtivo, nomeAtacante: nomeAcerto });
+        if (textosErro.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${textosErro.join(' · ')}` });
     }, [mapQD, mapFD, mapBonus, mapUsarProf, profGlobal, mapStat, fichaSegura, mapVantagens, mapDesvantagens, alvoSelecionado, dummies, meuNome, cenario, atorAtivo, isMestre, cenaRenderId, minhaFicha]);
 
     const jogadorDaVez = ordemIniciativa.length > 0 ? ordemIniciativa[turnoAtualIndex % ordemIniciativa.length] : null;

@@ -35,12 +35,12 @@ describe('normalizarGatilhos', () => {
         expect(gatilhos[0]).toMatchObject({ id: 'nm', fase: 'antes', modo: 'automatico', prioridade: 0, limite: { max: 1, por: 'cena' }, condicoes: ['vida_maior_que:1'] });
         expect(semUndefined(gatilhos)).toBe(true);
     });
-    it('descarta evento ou ação desconhecida, condição inválida e período turno', () => {
+    it('descarta evento ou ação desconhecida, condição inválida e período luta', () => {
         const r = normalizarGatilhos([
             { nome: 'a', evento: { tipo: 'xyz' }, acoes: [{ tipo: 'anularDano' }] },
             { nome: 'b', evento: { tipo: 'danoQueZeraria' }, acoes: [{ tipo: 'explodir' }] },
             { nome: 'c', evento: { tipo: 'danoQueZeraria' }, condicoes: ['lua_cheia'], acoes: [{ tipo: 'anularDano' }] },
-            { nome: 'd', evento: { tipo: 'danoQueZeraria' }, limite: { max: 1, por: 'turno' }, acoes: [{ tipo: 'anularDano' }] },
+            { nome: 'd', evento: { tipo: 'danoQueZeraria' }, limite: { max: 1, por: 'luta' }, acoes: [{ tipo: 'anularDano' }] },
             { nome: 'e', evento: { tipo: 'danoQueZeraria' }, acoes: [] },
         ]);
         expect(r.gatilhos).toEqual([]);

@@ -27,6 +27,7 @@ import { classificarAtaque, energiasDoGolpe } from '../../core/identificacao';
 import { montarNarrativa } from '../../core/descricaoAtaque';
 import { calcularFaixasCritico, classificarCritico, maiorDadoDaRolagem } from '../../core/critico';
 import { aplicarDanoNaVidaDaFicha, textoDosGatilhos } from '../../services/danoVida';
+import { dispararEventoMeu } from '../../services/gatilhosEventos';
 import { coletarAoAcertar, aplicarAoAcertarNoRascunho } from '../../core/aoAcertar';
 import { valoresDeEfeitos, menorValorDeEfeitos, montarContextoDeCombate } from '../../core/efeitosCondicionais';
 
@@ -466,7 +467,7 @@ export function AtaqueFormProvider({ children }) {
                 const hpAnterior = dummieAlvo.hpAtual || 0;
                 const novoHp = Math.max(0, hpAnterior - danoExibidoParaBruto(danoNoAlvo));
                 const hpAnteriorExibido = hpAnterior / FATOR_EXIBICAO_VITAIS;
-                const resGravacao = gravarVidaDoAlvo(alvoSelecionado, posGolpeLivre.alvoParaGravar(alvoSelecionado, dummieAlvo), novoHp, { elemento: elementoAtivo });
+                const resGravacao = gravarVidaDoAlvo(alvoSelecionado, posGolpeLivre.alvoParaGravar(alvoSelecionado, dummieAlvo), novoHp, { elemento: elementoAtivo, golpe: posGolpeLivre.golpe() });
                 posGolpeLivre.adicionarTextos(resGravacao);
                 // Se um gatilho do alvo (Negar morte etc.) mudou o desfecho, o feed usa a Vida FINAL (sem gatilhos: idêntico ao cálculo de antes).
                 const hpFinal = resGravacao && resGravacao.textos && resGravacao.textos.length > 0 && Number.isFinite(resGravacao.vidaFinalBruta) ? resGravacao.vidaFinalBruta : novoHp;
@@ -507,6 +508,8 @@ export function AtaqueFormProvider({ children }) {
     // textos de estados/reflexo vão para o Feed. Devolve os campos extras do Feed.
     const finalizarPosGolpe = (pg) => {
         const { textos, danoAtacante, aoAcertar, critico } = pg.resultado();
+        // 🔔 Gatilhos `acertou` (core/gatilhos.js): UMA vez por golpe (também em área), só se algum alvo sofreu Dano.
+        if (pg.causouDano()) { const g = dispararEventoMeu({ tipo: 'acertou', nivel: pg.golpe().nivel }, { nome: nomeNoFeed }); g.textos.forEach(t => textos.push(`🔔 ${t}`)); }
         // 💚 Ao acertar (core/aoAcertar.js): cura/energia de quem acertou, UMA vez por golpe e só se algum alvo sofreu Dano.
         if (aoAcertar && aoAcertar.length > 0) {
             let frases = [];
@@ -638,7 +641,7 @@ export function AtaqueFormProvider({ children }) {
         });
         // Só o que ATACA: Poderes e Técnicas em uso e a arma equipada (armadura/acessório não curam em todo golpe).
         const aoAcertarDoGolpe = coletarAoAcertar({ fontes: [...poderesDoGolpe, ...magiasDoGolpe, ...(armaEquipada ? [armaEquipada] : [])] });
-        const posGolpe = criarPosGolpe({ estados: estadosParaDefensor, critico: isCriticoNormal || isCriticoFatal, danoOriginal: result.dano, nomeAtacante: nomeNoFeed, custoGolpeTotal: result.custoCheioTotal || 0, aoAcertar: aoAcertarDoGolpe });
+        const posGolpe = criarPosGolpe({ estados: estadosParaDefensor, critico: isCriticoNormal || isCriticoFatal, danoOriginal: result.dano, nomeAtacante: nomeNoFeed, custoGolpeTotal: result.custoCheioTotal || 0, aoAcertar: aoAcertarDoGolpe, nivel: isCriticoFatal ? 'fatal' : (isCriticoNormal ? 'critico' : 'normal') });
         const meuUltimoAcerto = [...feedCombate].reverse().find(f => f.nome === nomeNoFeed && f.tipo === 'acerto');
         let extraFeed = {};
         let textoAlvos = "";
@@ -670,7 +673,7 @@ export function AtaqueFormProvider({ children }) {
                         // Dano de Ataque (dados + Status) já está na escala da Vida: não é reescalado pela Vida do alvo.
                         const danoEscalado = result.dano;
                         const danoNoAlvo = posGolpe.aplicar(idD, dData, reduzirDanoNoAlvo(dData, aplicarDisputaAoDano(danoEscalado, disputa), elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: golpeVerdadeiro.verdadeiro }).final);
-                        posGolpe.adicionarTextos(gravarVidaDoAlvo(idD, posGolpe.alvoParaGravar(idD, dData), Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)), { elemento: elementoAtivo }));
+                        posGolpe.adicionarTextos(gravarVidaDoAlvo(idD, posGolpe.alvoParaGravar(idD, dData), Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)), { elemento: elementoAtivo, golpe: posGolpe.golpe() }));
                         if (dData.isPersonagem) alvosAplicados.push(dData.personagemNome);
                         if (disputa.ativa || danoNoAlvo !== Math.floor(result.dano)) {
                             linhasDisputa.push(`${dData.nome}: ${danoNoAlvo.toLocaleString('pt-BR')}`);
@@ -697,7 +700,7 @@ export function AtaqueFormProvider({ children }) {
             const hpAnterior = dummieAlvo.hpAtual || 0;
             const novoHp = Math.max(0, hpAnterior - danoExibidoParaBruto(danoNoAlvo));
             const hpAnteriorExibido = hpAnterior / FATOR_EXIBICAO_VITAIS;
-            const resGravacao = gravarVidaDoAlvo(alvoSelecionado, posGolpe.alvoParaGravar(alvoSelecionado, dummieAlvo), novoHp, { elemento: elementoAtivo });
+            const resGravacao = gravarVidaDoAlvo(alvoSelecionado, posGolpe.alvoParaGravar(alvoSelecionado, dummieAlvo), novoHp, { elemento: elementoAtivo, golpe: posGolpe.golpe() });
             posGolpe.adicionarTextos(resGravacao);
             // Se um gatilho do alvo (Negar morte etc.) mudou o desfecho, o feed usa a Vida FINAL (sem gatilhos: idêntico ao cálculo de antes).
             const hpFinal = resGravacao && resGravacao.textos && resGravacao.textos.length > 0 && Number.isFinite(resGravacao.vidaFinalBruta) ? resGravacao.vidaFinalBruta : novoHp;
@@ -785,6 +788,8 @@ export function AtaqueFormProvider({ children }) {
             armaStr: result.armaStr, detalheConta: result.detalheConta + textoAlvos,
             elemento: elementoAtivo, 
             ...(estadosParaDefensor.length > 0 ? { estadosGolpe: estadosParaDefensor, golpeCritico: !!(isCriticoNormal || isCriticoFatal) } : {}),
+            // Nível do golpe (para o evento `atingido` de quem defende pela aba Defesa); feed antigo sem este campo cai no golpeCritico.
+            golpeNivel: isCriticoFatal ? 'fatal' : (isCriticoNormal ? 'critico' : 'normal'),
             ...(result.custoCheioTotal > 0 ? { custoGolpeTotal: Math.floor(result.custoCheioTotal) } : {}),
             ...(narrativa ? { narrativa: narrativa.texto, narrativaComplemento: narrativa.complemento } : {}),
             ...extraFeed

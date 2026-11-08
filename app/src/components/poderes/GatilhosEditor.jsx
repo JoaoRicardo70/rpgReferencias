@@ -1,8 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { normalizarGatilhos, descreverGatilho, descreverAcaoGatilho, EVENTOS_GATILHO, LIMITE_GATILHOS_POR_FONTE, LIMITE_ACOES_POR_GATILHO } from '../../core/gatilhos';
+import { normalizarGatilhos, descreverGatilho, descreverAcaoGatilho, EVENTOS_GATILHO, NIVEIS_ACERTO, LIMITE_GATILHOS_POR_FONTE, LIMITE_ACOES_POR_GATILHO } from '../../core/gatilhos';
+import { ESTADOS } from '../../core/condicoes';
 import { TIPOS_ESCUDO } from '../../core/escudos';
 
-// 🔔 Editor de Gatilhos de um Poder (core/gatilhos.js, Fase 1: só modo automático).
+// 🔔 Editor de Gatilhos de um Poder (core/gatilhos.js, Fases 1 e 2: só modo automático).
+// `contadores` e `poderes` (da ficha) alimentam as listas de contador e de Poder; sem eles os campos ficam sem opções.
 // Recebe a lista atual e devolve a lista nova por onChange; a lista é validada por normalizarGatilhos ao salvar o Poder.
 
 const ACOES_DO_FORMULARIO = [
@@ -13,14 +15,23 @@ const ACOES_DO_FORMULARIO = [
     { id: 'limparCondicoes', rotulo: 'Limpar condições' },
     { id: 'imunidadeTotal', rotulo: 'Imunidade total por N turnos' },
     { id: 'mensagem', rotulo: 'Mensagem no feed' },
+    { id: 'contador', rotulo: 'Mexer num contador' },
+    { id: 'aplicarEstado', rotulo: 'Aplicar um estado em mim' },
+    { id: 'removerEstado', rotulo: 'Remover um estado' },
+    { id: 'ligarPoder', rotulo: 'Ligar um Poder' },
+    { id: 'desligarPoder', rotulo: 'Desligar um Poder' },
+    { id: 'danoEmSi', rotulo: 'Sofrer dano' },
 ];
+const ROTULO_NIVEL = { qualquer: 'qualquer golpe', normal: 'golpe normal', critico: 'golpe crítico', fatal: 'golpe crítico fatal' };
+const OPS_CONTADOR = [{ id: 'somar', rotulo: 'somar' }, { id: 'definir', rotulo: 'definir para' }, { id: 'zerar', rotulo: 'zerar' }, { id: 'dividir', rotulo: 'dividir por' }];
 
-const FORMULARIO_VAZIO = { id: '', nome: '', evento: 'danoQueZeraria', de: '10', ate: '1', vidaMaiorQue: '', limite: '', acoes: [], mestreDesligou: false };
-const ACAO_VAZIA = { tipo: 'anularDano', valor: '', nome: '', tipoEscudo: 'escudo', texto: '' };
+const FORMULARIO_VAZIO = { id: '', nome: '', evento: 'danoQueZeraria', de: '10', ate: '1', nivel: 'qualquer', poderEvento: '', contadorEvento: '', opEvento: '>=', valorEvento: '', vidaMaiorQue: '', limite: '', acoes: [], mestreDesligou: false };
+const ACAO_VAZIA = { tipo: 'anularDano', valor: '', nome: '', tipoEscudo: 'escudo', texto: '', contadorId: '', op: 'somar', sorteio: '', estado: 'queimado', poderId: '', modoDano: 'fixo' };
 
 function formularioDe(g) {
     return {
         id: g.id, nome: g.nome, evento: g.evento.tipo, de: String(g.evento.de ?? '10'), ate: String(g.evento.ate ?? '1'),
+        nivel: g.evento.nivel || 'qualquer', poderEvento: g.evento.poderId || '', contadorEvento: g.evento.contadorId || '', opEvento: g.evento.op || '>=', valorEvento: g.evento.valor !== undefined ? String(g.evento.valor) : '',
         vidaMaiorQue: ((g.condicoes || []).find(c => c.startsWith('vida_maior_que:')) || '').split(':')[1] || '',
         limite: g.limite ? `${g.limite.max}:${g.limite.por}` : '',
         acoes: g.acoes, mestreDesligou: g.mestreDesligou === true,
@@ -29,6 +40,16 @@ function formularioDe(g) {
         // Condições que o formulário não edita seguem junto.
         outrasCondicoes: (g.condicoes || []).filter(c => !c.startsWith('vida_maior_que:')),
     };
+}
+
+function eventoDe(f) {
+    switch (f.evento) {
+        case 'vidaAbaixoDe': return { tipo: 'vidaAbaixoDe', de: f.de, ate: f.ate };
+        case 'acertou': case 'atingido': return { tipo: f.evento, nivel: f.nivel };
+        case 'poderLigou': case 'poderDesligou': return { tipo: f.evento, poderId: f.poderEvento };
+        case 'contadorAtingiu': return { tipo: 'contadorAtingiu', contadorId: f.contadorEvento, op: f.opEvento, valor: f.valorEvento };
+        default: return { tipo: f.evento };
+    }
 }
 
 function gatilhoDe(f) {
@@ -40,7 +61,7 @@ function gatilhoDe(f) {
     return {
         modo: 'automatico', ...base,
         id: f.id || `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`, nome: f.nome.trim() || 'Gatilho',
-        evento: f.evento === 'vidaAbaixoDe' ? { tipo: 'vidaAbaixoDe', de: f.de, ate: f.ate } : { tipo: 'danoQueZeraria' },
+        evento: eventoDe(f),
         condicoes, acoes: f.acoes,
         ...(max ? { limite: { max, por } } : {}),
         ...(f.mestreDesligou ? { mestreDesligou: true } : {}),
@@ -54,11 +75,17 @@ function acaoDe(a) {
         case 'escudo': return { tipo: 'escudo', nome: a.nome, valor: a.valor, tipoEscudo: a.tipoEscudo };
         case 'imunidadeTotal': return { tipo: 'imunidadeTotal', duracaoTurnos: a.valor || 1 };
         case 'mensagem': return { tipo: 'mensagem', texto: a.texto };
+        case 'contador': return { tipo: 'contador', id: a.contadorId, op: a.op, valor: a.valor, sorteio: a.sorteio };
+        case 'aplicarEstado': return { tipo: 'aplicarEstado', estado: a.estado, stacks: a.valor || 1 };
+        case 'removerEstado': return { tipo: 'removerEstado', estado: a.estado };
+        case 'ligarPoder': case 'desligarPoder': return { tipo: a.tipo, poderId: a.poderId };
+        case 'danoEmSi': return { tipo: 'danoEmSi', modo: a.modoDano, valor: a.valor };
         default: return { tipo: a.tipo };
     }
 }
 
-export default function GatilhosEditor({ gatilhos, onChange, descartados = [] }) {
+export default function GatilhosEditor({ gatilhos, onChange, descartados = [], contadores = [], poderes = [] }) {
+    const nomes = { contadores: Array.isArray(contadores) ? contadores : [], poderes: Array.isArray(poderes) ? poderes : [] };
     const lista = Array.isArray(gatilhos) ? gatilhos : [];
     const [form, setForm] = useState(null);
     const [acao, setAcao] = useState(ACAO_VAZIA);
@@ -76,6 +103,7 @@ export default function GatilhosEditor({ gatilhos, onChange, descartados = [] })
 
     const salvar = () => {
         if (form.acoes.length === 0) { setErro('Adicione pelo menos uma ação.'); return; }
+        if (form.evento === 'contadorAtingiu' && !form.contadorEvento) { setErro('Escolha o contador.'); return; }
         const r = normalizarGatilhos([gatilhoDe(form)]);
         if (r.gatilhos.length === 0) { setErro(`Gatilho inválido (${r.descartados[0] ? r.descartados[0].motivo : 'confira os campos'}).`); return; }
         const novo = r.gatilhos[0];
@@ -94,7 +122,7 @@ export default function GatilhosEditor({ gatilhos, onChange, descartados = [] })
             {lista.length === 0 && !form && <div className="gatilhos-editor-vazio">Nenhum gatilho. Gatilhos agem sozinhos quando o evento acontece (ex.: segurar a morte).</div>}
             {lista.map(g => (
                 <div key={g.id} className="gatilho-item">
-                    <span className="gatilho-item-texto"><strong>{g.nome}</strong> — {descreverGatilho(g)}</span>
+                    <span className="gatilho-item-texto"><strong>{g.nome}</strong> — {descreverGatilho(g, nomes)}</span>
                     <button type="button" className="btn-neon" onClick={() => abrir(g)} aria-label={`Editar gatilho ${g.nome}`}>✏️</button>
                     <button type="button" className="btn-neon" onClick={() => remover(g.id)} aria-label={`Remover gatilho ${g.nome}`}>🗑️</button>
                 </div>
@@ -111,19 +139,47 @@ export default function GatilhosEditor({ gatilhos, onChange, descartados = [] })
                             até <input type="number" min="0" max="100" aria-label="Faixa de Vida: até (%)" value={form.ate} onChange={e => setForm({ ...form, ate: e.target.value })} />% da Vida máxima
                         </span>
                     )}
+                    {(form.evento === 'acertou' || form.evento === 'atingido') && (
+                        <select aria-label="Nível do golpe" value={form.nivel} onChange={e => setForm({ ...form, nivel: e.target.value })}>
+                            {NIVEIS_ACERTO.map(n => <option key={n} value={n}>{ROTULO_NIVEL[n]}</option>)}
+                        </select>
+                    )}
+                    {(form.evento === 'poderLigou' || form.evento === 'poderDesligou') && (
+                        <select aria-label="Qual Poder" value={form.poderEvento} onChange={e => setForm({ ...form, poderEvento: e.target.value })}>
+                            <option value="">Este Poder</option>
+                            <option value="qualquer">Qualquer Poder</option>
+                            {nomes.poderes.map(p => <option key={String(p.id)} value={String(p.id)}>{p.nome}</option>)}
+                        </select>
+                    )}
+                    {form.evento === 'contadorAtingiu' && (
+                        <span className="gatilho-faixa">
+                            <select aria-label="Contador do evento" value={form.contadorEvento} onChange={e => setForm({ ...form, contadorEvento: e.target.value })}>
+                                <option value="">(escolha o contador)</option>
+                                {nomes.contadores.map(c => <option key={String(c.id)} value={String(c.id)}>{c.nome}</option>)}
+                            </select>
+                            <select aria-label="Comparação do contador" value={form.opEvento} onChange={e => setForm({ ...form, opEvento: e.target.value })}>
+                                <option value=">=">chegar a pelo menos</option>
+                                <option value="==">chegar exatamente a</option>
+                            </select>
+                            <input type="number" aria-label="Valor do contador" value={form.valorEvento} onChange={e => setForm({ ...form, valorEvento: e.target.value })} />
+                        </span>
+                    )}
                     {form.evento === 'vidaAbaixoDe' && <div className="gatilho-dica">A faixa usa o % arredondado para baixo: Vida entre 0 e 1% (ainda viva) não cai numa faixa "5–1". Para o caso 0%, use "Quando um golpe me levaria a 0 de vida".</div>}
+                    {form.evento === 'atingido' && <div className="gatilho-dica">Conta só quando o golpe tira Vida: se o escudo absorver tudo, ou com Imunidade total, não dispara.</div>}
+                    {form.evento === 'contadorAtingiu' && <div className="gatilho-dica">Só dispara quando um gatilho muda o contador (não quando você o altera à mão na ficha) e só na hora em que ele passa a valer.</div>}
                     {form.evento === 'danoQueZeraria' && <div className="gatilho-dica">"Ficar com N de vida" já anula o golpe. "Curar" cura antes do dano e, se ainda assim a Vida zerar, não salva.</div>}
                     <label className="gatilho-condicao">Só se a Vida for maior que <input type="number" min="0" aria-label="Só se a Vida for maior que" placeholder="(sem condição)" value={form.vidaMaiorQue} onChange={e => setForm({ ...form, vidaMaiorQue: e.target.value })} /></label>
                     <select aria-label="Limite de usos do gatilho" value={form.limite} onChange={e => setForm({ ...form, limite: e.target.value })}>
                         <option value="">Sem limite</option>
+                        <option value="1:turno">1 vez por turno</option>
                         <option value="1:cena">1 vez por cena</option>
                         <option value="1:descanso">1 vez por descanso</option>
-                        {form.limite && !['1:cena', '1:descanso'].includes(form.limite) && <option value={form.limite}>{`${form.limite.split(':')[0]} vezes ${form.limite.split(':')[1] === 'cena' ? 'por cena' : 'por descanso'}`}</option>}
+                        {form.limite && !['1:turno', '1:cena', '1:descanso'].includes(form.limite) && <option value={form.limite}>{`${form.limite.split(':')[0]} vezes ${{ turno: 'por turno', cena: 'por cena', descanso: 'por descanso' }[form.limite.split(':')[1]] || ''}`}</option>}
                     </select>
                     <div className="gatilho-acoes-lista">
                         {form.acoes.map((a, i) => (
                             <div key={i} className="gatilho-acao-item">
-                                <span>{i + 1}. {descreverAcaoGatilho(a)}</span>
+                                <span>{i + 1}. {descreverAcaoGatilho(a, nomes)}</span>
                                 <button type="button" className="btn-neon" aria-label={`Remover ação ${i + 1}`} onClick={() => setForm({ ...form, acoes: form.acoes.filter((_, j) => j !== i) })}>✖</button>
                             </div>
                         ))}
@@ -132,14 +188,45 @@ export default function GatilhosEditor({ gatilhos, onChange, descartados = [] })
                         <select aria-label="Tipo da ação" value={acao.tipo} onChange={e => setAcao({ ...ACAO_VAZIA, tipo: e.target.value })}>
                             {ACOES_DO_FORMULARIO.filter(a => a.id !== 'anularDano' || form.evento === 'danoQueZeraria').map(a => <option key={a.id} value={a.id}>{a.rotulo}</option>)}
                         </select>
-                        {['definirVida', 'curar', 'escudo', 'imunidadeTotal'].includes(acao.tipo) && (
-                            <input type="number" min="0" aria-label="Valor da ação" placeholder={acao.tipo === 'curar' ? '% da Vida' : acao.tipo === 'imunidadeTotal' ? 'turnos' : 'valor'} value={acao.valor} onChange={e => setAcao({ ...acao, valor: e.target.value })} />
+                        {['definirVida', 'curar', 'escudo', 'imunidadeTotal', 'danoEmSi', 'aplicarEstado'].includes(acao.tipo) && (
+                            <input type="number" min="0" aria-label="Valor da ação" placeholder={acao.tipo === 'curar' ? '% da Vida' : acao.tipo === 'imunidadeTotal' ? 'turnos' : acao.tipo === 'aplicarEstado' ? 'stacks' : 'valor'} value={acao.valor} onChange={e => setAcao({ ...acao, valor: e.target.value })} />
                         )}
                         {acao.tipo === 'escudo' && (
                             <>
                                 <input type="text" maxLength={40} aria-label="Nome do escudo" placeholder="Nome do escudo" value={acao.nome} onChange={e => setAcao({ ...acao, nome: e.target.value })} />
                                 <select aria-label="Tipo do escudo" value={acao.tipoEscudo} onChange={e => setAcao({ ...acao, tipoEscudo: e.target.value })}>{TIPOS_ESCUDO.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}</select>
                             </>
+                        )}
+                        {acao.tipo === 'danoEmSi' && (
+                            <select aria-label="Tipo do dano em si" value={acao.modoDano} onChange={e => setAcao({ ...acao, modoDano: e.target.value })}>
+                                <option value="fixo">pontos fixos</option>
+                                <option value="percMax">% da Vida máxima</option>
+                                <option value="percAtual">% da Vida atual</option>
+                            </select>
+                        )}
+                        {acao.tipo === 'contador' && (
+                            <>
+                                <select aria-label="Contador da ação" value={acao.contadorId} onChange={e => setAcao({ ...acao, contadorId: e.target.value })}>
+                                    <option value="">(escolha o contador)</option>
+                                    {nomes.contadores.map(c => <option key={String(c.id)} value={String(c.id)}>{c.nome}</option>)}
+                                </select>
+                                <select aria-label="Operação no contador" value={acao.op} onChange={e => setAcao({ ...acao, op: e.target.value })}>
+                                    {OPS_CONTADOR.map(o => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
+                                </select>
+                                {acao.op !== 'zerar' && <input type="number" aria-label="Valor para o contador" placeholder="valor (negativo diminui)" value={acao.valor} onChange={e => setAcao({ ...acao, valor: e.target.value })} />}
+                                {(acao.op === 'somar' || acao.op === 'definir') && <input type="text" maxLength={8} aria-label="Sorteio de dados (opcional)" placeholder="sorteio ex.: 1d3" value={acao.sorteio} onChange={e => setAcao({ ...acao, sorteio: e.target.value })} />}
+                            </>
+                        )}
+                        {(acao.tipo === 'aplicarEstado' || acao.tipo === 'removerEstado') && (
+                            <select aria-label="Estado" value={acao.estado} onChange={e => setAcao({ ...acao, estado: e.target.value })}>
+                                {ESTADOS.map(est => <option key={est.id} value={est.id}>{est.icone} {est.nome}</option>)}
+                            </select>
+                        )}
+                        {(acao.tipo === 'ligarPoder' || acao.tipo === 'desligarPoder') && (
+                            <select aria-label="Poder da ação" value={acao.poderId} onChange={e => setAcao({ ...acao, poderId: e.target.value })}>
+                                <option value="">(escolha o Poder)</option>
+                                {nomes.poderes.map(p => <option key={String(p.id)} value={String(p.id)}>{p.nome}</option>)}
+                            </select>
                         )}
                         {acao.tipo === 'mensagem' && <input type="text" maxLength={300} aria-label="Texto da mensagem" placeholder="Texto" value={acao.texto} onChange={e => setAcao({ ...acao, texto: e.target.value })} />}
                         <button type="button" className="btn-neon" onClick={adicionarAcao}>+ Ação</button>

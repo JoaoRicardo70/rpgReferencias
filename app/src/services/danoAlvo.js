@@ -26,7 +26,7 @@ export function absorverEmPersonagem(nome, ficha, danoExibido, nomeNoFeed = '') 
 }
 
 // `ficha` = ficha ATUAL do alvo; `vidaFinalBruta` = Vida já reduzida, na escala bruta gravada.
-export function gravarDanoEmPersonagem(nome, ficha, vidaFinalBruta, { elemento = null, nivelOverride = null, nomeNoFeed = '', escudosNovos, eventoId } = {}) {
+export function gravarDanoEmPersonagem(nome, ficha, vidaFinalBruta, { elemento = null, nivelOverride = null, nomeNoFeed = '', escudosNovos, eventoId, golpe } = {}) {
     // 🔔 Alvo com Imunidade total ou gatilhos: quem grava o dano executa os gatilhos dele, sobre a ficha mais fresca, e grava só os campos tocados.
     const fresca = (useStore.getState().personagens || {})[nome] || ficha;
     const danoBruto = (Number(fresca && fresca.vida && fresca.vida.atual) || 0) - Math.max(0, vidaFinalBruta);
@@ -35,7 +35,7 @@ export function gravarDanoEmPersonagem(nome, ficha, vidaFinalBruta, { elemento =
         // A absorção já foi gravada à parte: o clone parte da lista de escudos PÓS-absorção, para o escudo de um gatilho somar a ela (e não desfazê-la).
         if (Array.isArray(escudosNovos)) { if (escudosNovos.length > 0) clone.escudos = JSON.parse(JSON.stringify(escudosNovos)); else delete clone.escudos; }
         // O escudo já foi consumido antes (absorverEmPersonagem): aqui só o dano que sobrou, em escala exibida.
-        const r = aplicarDanoNaVidaDaFicha(clone, danoBruto / FATOR_EXIBICAO_VITAIS, { nome: nomeNoFeed || nome, jaAbsorvido: true, ...(eventoId ? { eventoId } : {}) });
+        const r = aplicarDanoNaVidaDaFicha(clone, danoBruto / FATOR_EXIBICAO_VITAIS, { nome: nomeNoFeed || nome, jaAbsorvido: true, ...(eventoId ? { eventoId } : {}), ...(golpe ? { golpe } : {}) });
         const campos = camposParaGravar(clone, r.caminhos.filter(c => c !== 'vida/atual'));
         if (Object.keys(campos).length > 0) salvarCamposPersonagem(nome, campos);
         gravarEfeitosDoDano(nome, clone, clone.vida.atual, { elemento, nivelOverride });
@@ -75,10 +75,10 @@ export function aplicarDanoEmPersonagem(nome, ficha, danoExibido, valorRaw, { el
 }
 
 // Grava a Vida do alvo de um Ataque: Dummie (salvarDummie) ou personagem (gravarDanoEmPersonagem). Devolve { textos } dos gatilhos do alvo.
-export function gravarVidaDoAlvo(idAlvo, alvo, novoHpBruto, { elemento = null } = {}) {
+export function gravarVidaDoAlvo(idAlvo, alvo, novoHpBruto, { elemento = null, golpe } = {}) {
     if (!alvo) return { textos: [] };
     if (alvo.isPersonagem) {
-        return gravarDanoEmPersonagem(alvo.personagemNome, alvo.ficha, novoHpBruto, { elemento, nomeNoFeed: alvo.nome, escudosNovos: alvo.escudosNovos });
+        return gravarDanoEmPersonagem(alvo.personagemNome, alvo.ficha, novoHpBruto, { elemento, nomeNoFeed: alvo.nome, escudosNovos: alvo.escudosNovos, golpe });
     }
     salvarDummie(idAlvo, { ...alvo, hpAtual: novoHpBruto });
     return { textos: [], vidaFinalBruta: Math.max(0, novoHpBruto) };

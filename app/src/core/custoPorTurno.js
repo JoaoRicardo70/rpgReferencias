@@ -6,7 +6,9 @@
 // Sem energia suficiente o Poder desliga (mesmo caminho do togglePoder: os máximos voltam e os vitais mantêm a mesma %),
 // sem pagar nada e SEM disparar o "ao desligar" (core/aoDesligar.js), que é só do desligar manual.
 // ==========================================
-import { removerEscudosDoPoder } from './escudos.js';
+import { removerEscudosDoPoder, sincronizarEscudoDoPoder, normalizarEscudoAoLigar } from './escudos.js';
+import { podeUsar, gastarUso } from './usosPoder.js';
+import { emRecarga, iniciarRecarga } from './recargaPoder.js';
 import { FATOR_EXIBICAO_VITAIS, getTetoExibidoComFator, capturarMaximosAtuais, rescalarVitaisProporcional } from './vitals.js';
 
 export const ENERGIAS_CUSTO = ['mana', 'aura', 'chakra', 'corpo'];
@@ -71,7 +73,7 @@ export function calcularCustosPorTurno(ficha) {
 
 // Desliga um Poder NO RASCUNHO pelo mesmo caminho do togglePoder (captura máximos -> desliga -> mantém a % dos vitais).
 export function desligarPoderNoRascunho(ficha, id) {
-    const p = (ficha.poderes || []).find(po => po && po.id === id);
+    const p = (ficha.poderes || []).find(po => po && (po.id === id || String(po.id) === String(id)));
     if (!p || !p.ativa) return false;
     const antes = capturarMaximosAtuais(ficha);
     p.ativa = false;
@@ -79,6 +81,23 @@ export function desligarPoderNoRascunho(ficha, id) {
     // 🛡️ O escudo que o Poder criou ao ligar (escudoAoLigar) some junto.
     removerEscudosDoPoder(ficha, p.id);
     return true;
+}
+
+// Liga um Poder NO RASCUNHO pelo mesmo caminho do togglePoder, com as mesmas travas (usos limitados e recarga em turnos).
+// Devolve { ok, motivo?, semEspacoEscudo? }. Quem chama escolhe o texto do feed.
+export function ligarPoderNoRascunho(ficha, id, cenaId = 'default') {
+    const p = (ficha && ficha.poderes || []).find(po => po && String(po.id) === String(id));
+    if (!p) return { ok: false, motivo: 'não existe na ficha' };
+    if (p.ativa) return { ok: false, motivo: 'já está ligado' };
+    if (!podeUsar(ficha, p, cenaId)) return { ok: false, motivo: 'sem usos restantes' };
+    if (emRecarga(p)) return { ok: false, motivo: 'em recarga' };
+    const antes = capturarMaximosAtuais(ficha);
+    p.ativa = true;
+    gastarUso(ficha, p, cenaId);
+    iniciarRecarga(p);
+    const semEspacoEscudo = !!(normalizarEscudoAoLigar(p.escudoAoLigar) && !sincronizarEscudoDoPoder(ficha, p, true));
+    rescalarVitaisProporcional(ficha, antes);
+    return { ok: true, semEspacoEscudo };
 }
 
 // Instantâneo do que o turno pode mexer em cada Poder (por id), para comparar antes/depois.
@@ -109,12 +128,13 @@ export function aplicarCustosPorTurno(ficha) {
     const { gastos, desligar } = calcularCustosPorTurno(ficha);
     const textos = [];
     let desligados = 0;
+    const ids = [];
     gastos.forEach((g) => {
         ficha[g.energia].atual = Math.max(0, (Number(ficha[g.energia].atual) || 0) - g.bruto);
         textos.push(`${g.nome} consumiu ${g.valor.toLocaleString('pt-BR')} de ${g.energia}`);
     });
     desligar.forEach((d) => {
-        if (desligarPoderNoRascunho(ficha, d.id)) desligados++, textos.push(`${d.nome} desligou: sem ${d.energia} para o custo por turno`);
+        if (desligarPoderNoRascunho(ficha, d.id)) desligados++, ids.push(d.id), textos.push(`${d.nome} desligou: sem ${d.energia} para o custo por turno`);
     });
-    return { alterou: gastos.length > 0 || desligar.length > 0, textos, desligados };
+    return { alterou: gastos.length > 0 || desligar.length > 0, textos, desligados, ids };
 }
