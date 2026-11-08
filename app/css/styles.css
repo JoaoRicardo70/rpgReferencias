@@ -3222,3 +3222,5 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .escudo-tipo { font-size: 1.1em; }
 .escudo-poder-campo { display: flex; flex-wrap: wrap; gap: 6px; }
 .escudo-poder-campo input[type="number"] { max-width: 90px; }
+.prof-energia-campo label { display: block; color: var(--cor-destaque); font-size: 0.85em; font-weight: bold; }
+.prof-energia-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(60px, 1fr)); gap: 6px; }

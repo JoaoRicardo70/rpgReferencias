@@ -1,12 +1,21 @@
 import React from 'react';
 import { useTestesForm, SAVES, SKILLS } from './TestesFormContext';
 import { salvarFichaSilencioso } from '../../services/firebase-sync';
+import { ENERGIAS_PROFICIENCIA, rotuloEnergiaProficiencia, atualizarProficienciaPorEnergia } from '../../core/proficienciaEnergia';
 
 export function TestesModificadoresGlobais() {
     const ctx = useTestesForm();
     if (!ctx) return <div className="def-box" style={{ opacity: 0.5 }}>Modificadores Globais (sem contexto)</div>;
 
     const { minhaFicha, dadosConfig, setDadosConfig, facesConfig, setFacesConfig, bonusConfig, setBonusConfig, updateFicha, rolarD20Puro } = ctx;
+
+    const definirProfEnergia = (energia, digitado) => {
+        updateFicha(f => {
+            const nova = atualizarProficienciaPorEnergia(f.proficienciaPorEnergia, energia, digitado);
+            if (nova) f.proficienciaPorEnergia = nova; else delete f.proficienciaPorEnergia;
+        });
+        salvarFichaSilencioso();
+    };
 
     return (
         <div className="def-box" style={{ border: '1px solid #00ffcc', background: 'rgba(0, 255, 204, 0.05)' }}>
@@ -31,6 +40,23 @@ export function TestesModificadoresGlobais() {
                         }}
                         style={{ borderColor: '#ffcc00', color: '#ffcc00', width: '100%' }}
                     />
+                </div>
+                <div className="prof-energia-campo">
+                    <label>Prof. por energia (vazio = base)</label>
+                    <div className="prof-energia-grade">
+                        {ENERGIAS_PROFICIENCIA.map(en => (
+                            <input
+                                key={en}
+                                className="input-neon"
+                                type="number"
+                                min="0"
+                                placeholder={rotuloEnergiaProficiencia(en)}
+                                aria-label={`Proficiência em ${rotuloEnergiaProficiencia(en)} (vazio = base)`}
+                                value={minhaFicha.proficienciaPorEnergia?.[en] ?? ''}
+                                onChange={e => { definirProfEnergia(en, e.target.value); }}
+                            />
+                        ))}
+                    </div>
                 </div>
 
                 <div>

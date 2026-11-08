@@ -1275,7 +1275,7 @@ export function MapaFormProvider({ children }) {
             magiasEqArea.length > 0 ? Math.max(...magiasEqArea.map(m => m.areaQuad || 0)) : 0
         );
         const result = calcularAcerto({ 
-            qD, fD, prof, bonus, sels, minhaFicha: fichaAcerto, itensEquipados: itensEq, 
+            qD, fD, prof, usarProf: mapUsarProf, bonus, sels, minhaFicha: fichaAcerto, itensEquipados: itensEq, 
             vantagens: mapVantagens, desvantagens: mapDesvantagens, alvo: alvoDummie, aplicarDesvantagemDoAlvo: !(maxArea > 0) 
         });
 

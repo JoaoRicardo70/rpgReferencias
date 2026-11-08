@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { migrarPassivasParaPoderes } from '../core/utils.js';
+import { normalizarProficienciaPorEnergia } from '../core/proficienciaEnergia.js';
 import { temAcessoArmaEspiritual } from '../core/acessoArmaEspiritual.js';
 import { lerModoNavegacao, salvarModoNavegacao, lerLarguraGaveta, CHAVE_LARGURA_GAVETA, ABA_HUB } from '../core/modoNavegacao.js';
 
@@ -360,6 +361,11 @@ const useStore = create(
             if (dados.iniciativa !== undefined) state.minhaFicha.iniciativa = parseInt(dados.iniciativa) || 0;
             if (dados.proficienciaBase !== undefined) state.minhaFicha.proficienciaBase = parseInt(dados.proficienciaBase) || 0;
             if (dados.proficiencias !== undefined) state.minhaFicha.proficiencias = dados.proficiencias || {};
+            // 🎓 Proficiência por energia (opcional, core/proficienciaEnergia.js): só entra se vier com algum valor válido.
+            if (dados.proficienciaPorEnergia !== undefined) {
+                const profEnergia = normalizarProficienciaPorEnergia(dados.proficienciaPorEnergia);
+                if (Object.keys(profEnergia).length > 0) state.minhaFicha.proficienciaPorEnergia = profEnergia; else delete state.minhaFicha.proficienciaPorEnergia;
+            }
             if (dados.divisores) state.minhaFicha.divisores = Object.assign({}, fichaPadrao.divisores, dados.divisores);
             if (dados.statusPoolAlocado) state.minhaFicha.statusPoolAlocado = Object.assign({}, fichaPadrao.statusPoolAlocado, dados.statusPoolAlocado);
             if (dados.combate) state.minhaFicha.combate = Object.assign({}, fichaPadrao.combate, dados.combate);

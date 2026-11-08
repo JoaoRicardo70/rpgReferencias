@@ -9,6 +9,7 @@ import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 import { efeitosAtivosDoItem, efeitosPassivosDoItem, efeitosDaConfigAtiva } from './efeitosItem.js';
 import { calcularFadigaAtual } from './fadiga.js';
 import { getMultiplicadorBonusArma } from './classesMecanicas.js';
+import { ehPropriedadeMultiplicador, passaQuandoMultiplicador, montarContextoDeCombate } from './efeitosCondicionais.js';
 
 const CATEGORIAS_VITAIS = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
@@ -299,12 +300,18 @@ export function getPoderDiretoMultiplier(ficha) {
     try {
         let grupos = { mbase: 0, mgeral: 0, mformas: 0, mabs: 0 };
         let unicos = [];
+        // Multiplicador com "quando": o contexto de combate (sem alvo) só é montado se aparecer um.
+        let contextoMult = null;
 
         const processar = (efeitos) => {
             if (!efeitos) return;
             efeitos.forEach(e => {
                 if (!e || (e.atributo || '').toLowerCase() !== 'poder_direto') return;
                 const prop = (e.propriedade || '').toLowerCase();
+                if (e.quando && ehPropriedadeMultiplicador(prop)) {
+                    if (!contextoMult) contextoMult = montarContextoDeCombate(ficha);
+                    if (!passaQuandoMultiplicador(e, contextoMult)) return;
+                }
                 const val = parseFloat(e.valor);
                 if (isNaN(val)) return;
                 if (prop === 'munico') { if (val > 0) unicos.push(val); }

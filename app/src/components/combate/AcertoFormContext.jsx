@@ -160,7 +160,7 @@ export function AcertoFormProvider({ children }) {
 
         // Alvo único: as condições dos efeitos (alvo com estado, vida abaixo de...) são checadas nele; em área, sem alvo único, não valem.
         const alvoDaCondicao = (!(maxArea > 0 && centroExplosao) && alvoDummie) ? alvoDummie : null;
-        const result = calcularAcerto({ qD, fD, prof, bonus: bon, sels, minhaFicha, itensEquipados, vantagens: v, desvantagens: d, alvo: alvoDaCondicao });
+        const result = calcularAcerto({ qD, fD, prof, usarProf: usarProficiencia, bonus: bon, sels, minhaFicha, itensEquipados, vantagens: v, desvantagens: d, alvo: alvoDaCondicao });
 
         let alvosAtingidos = [];
         const cenaAtivaId = cenario?.ativa || 'default';

@@ -12,6 +12,7 @@ import { modificadoresDeEstados } from './condicoes.js';
 import { menorFatorCuraReduzida } from './suporte.js';
 import { somarEfeitosBase, valoresDeEfeitos, montarContextoDeCombate, desvantagemImpostaAoAtacante, temAcertoAutomatico, multiplicadoresCriticoExtra } from './efeitosCondicionais.js';
 import { armaVirtualDaArmaEspiritual } from './armaEspiritualDano.js';
+import { resolverProficienciaPorEnergia, rotuloEnergiaProficiencia } from './proficienciaEnergia.js';
 
 // Status são gravados 1000x maiores que o número exibido na Ficha (core: Marcados.jsx > FATOR_EXIBICAO_STATUS).
 const FATOR_EXIBICAO_STATUS = 1000;
@@ -432,7 +433,12 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
 }
 
 // `alvo` (opcional): ficha ou Dummie atingido; é com ele que as condições "alvo com estado / vida abaixo de" dos efeitos são checadas.
-export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEquipados, vantagens = 0, desvantagens = 0, alvo = null, aplicarDesvantagemDoAlvo = true }) {
+// `usarProf` (opcional): se a Proficiência está ligada; com ela, a ficha pode trocar `prof` pela Proficiência da energia do golpe
+// (core/proficienciaEnergia.js). Sem `proficienciaPorEnergia` na ficha, `prof` vale exatamente como vem. `energia` (opcional): energia do golpe.
+export function calcularAcerto({ qD, fD, prof: profInformada, usarProf, energia, bonus, sels, minhaFicha, itensEquipados, vantagens = 0, desvantagens = 0, alvo = null, aplicarDesvantagemDoAlvo = true }) {
+    const profLigada = usarProf === undefined ? (Number(profInformada) || 0) > 0 : !!usarProf;
+    const profEnergia = profLigada ? resolverProficienciaPorEnergia(minhaFicha, profInformada, energia) : { valor: profInformada, energia: null };
+    const prof = profEnergia.valor;
     let iAcerto = 0;
     let nomesArmas = [];
     let tiposArmas = []; 
@@ -522,7 +528,7 @@ export function calcularAcerto({ qD, fD, prof, bonus, sels, minhaFicha, itensEqu
     const atributoEBonus = reduzirComBonus(atributosBrutos, bonusReduzidos);
 
     const comSinal = (n) => (n >= 0 ? '+' : '') + n;
-    let profBonusTexto = 'Atributo + bônus (reduzido): ' + comSinal(atributoEBonus) + ' | Prof: +' + prof +
+    let profBonusTexto = 'Atributo + bônus (reduzido): ' + comSinal(atributoEBonus) + (profEnergia.energia ? ` | Prof (${prof}, ${rotuloEnergiaProficiencia(profEnergia.energia)})` : ' | Prof: +' + prof) +
                          (bonus !== 0 ? ' | Bônus Fixo: ' + comSinal(bonus) : '') +
                          (bp > 0 ? ' | Forma: +' + bp : '') +
                          (bonusEfeitos !== 0 ? ' | Efeitos: ' + comSinal(bonusEfeitos) : '') +

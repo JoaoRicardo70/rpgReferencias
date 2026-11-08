@@ -7,7 +7,7 @@
 import { ESTADOS } from './condicoes';
 import { lerCustoPorTurno } from './custoPorTurno';
 import { ATRIBUTOS_EFEITO, PROPRIEDADES_EFEITO, CATEGORIAS_PODER, normalizarPoder, resumirProposta } from './sextaFeiraCriacao';
-import { ATRIBUTOS_COM_QUANDO } from './efeitosCondicionais';
+import { ATRIBUTOS_COM_QUANDO, normalizarQuandoMultiplicador } from './efeitosCondicionais';
 
 export const ROTULO_CATEGORIA = { habilidade: 'Habilidades', forma: 'Formas', poder: 'Poderes' };
 
@@ -41,6 +41,7 @@ CAMPOS DE CADA ITEM
 - "aplicaEstados": estados que a habilidade causa em quem ela atinge: [{"id": "...", "stacks": 1}]. Ids válidos: ${ESTADOS.map(e => e.id).join(', ')}.
 - "usosMax" e "usosPor": se o texto limita os usos ("1 vez por cena", "3 usos por descanso"), coloque o número em "usosMax" e "cena" ou "descanso" em "usosPor". Sem limite, omita os dois.
 - "custoPorTurno": se o texto cobra energia A CADA TURNO enquanto a habilidade está ligada ("5% de chakra por turno", "12 de mana por turno", "5 de aura por turno"): {"modo":"fixo" (número) ou "percMax" (% do máximo da energia),"valor":N,"energia":"mana" | "aura" | "chakra" | "corpo"}. Sem custo por turno, omita.
+- "danoVerdadeiro": true SÓ se o texto disser que o dano é verdadeiro, ignora resistências, imunidades ou reduções ("dano verdadeiro", "ignora resistências e imunidades"). Sem isso, omita.
 - "escudoAoLigar": se o poder cria uma barreira, escudo ou vida temporária ao ser ligado ("cria um domo com 1600 de vida", "ganha 100 de vida temporária"): {"nome":"nome da barreira","valor":N (mesma escala do dano),"tipo":"escudo" (barreira que absorve dano) ou "vidaTemporaria"}. Só para escudo fixo e simples; condições (a cada 50 de vida perdida) vão para "naoAplicado".
 - "recargaTurnos": se o texto manda esperar turnos para usar de novo ("1 vez a cada 2 turnos", "espere 3 turnos para usar de novo", "reutilizável após 3 turnos"), o número inteiro de turnos (1 a 99). Sem recarga, omita.
 - "aoDesligar": se desligar a habilidade causa dano em quem a usava ("ao desativar, sofre 238d6 de dano"): {"dadosQtd":238,"dadosFaces":6,"texto":"opcional"}. Sem isso, omita.
@@ -67,7 +68,7 @@ COMO TRADUZIR
 - "Impõe desvantagem a quem o ataca" / "dupla desvantagem para acertá-lo": {"atributo":"desvantagem_atacante","propriedade":"base","valor":1} (valor 2 para dupla desvantagem): o efeito fica em QUEM é atacado.
 - "Crítico +1 de multiplicador" / "Crítico Fatal +3 de multiplicador": {"atributo":"mult_critico","propriedade":"base","valor":1} e {"atributo":"mult_critico_fatal","propriedade":"base","valor":3} (SOMAM ao x2 do Crítico e ao x4 do Fatal; não confunda com margem_critico, que muda o d20 do crítico).
 - "Sempre acerta" / "ataque certeiro" / "acerto garantido": {"atributo":"acerto_automatico","propriedade":"base","valor":1}.
-- CONDIÇÃO ("quando", opcional): só use se o texto condicionar o efeito. Valores: "em_combate", "empunhando_arma" ou "empunhando_arma:<tipo, ex.: espada>", "alvo_com_estado:<id do estado>", "alvo_vida_abaixo:<%>". Sem condição, não escreva o campo. O "quando" SÓ pode ser usado nestes atributos: ${ATRIBUTOS_COM_QUANDO.join(', ')}. Para qualquer outro atributo (forca, dano, vida...), NÃO escreva "quando": o efeito condicional vai para "naoAplicado".
+- CONDIÇÃO ("quando", opcional): só use se o texto condicionar o efeito. Valores: "em_combate", "empunhando_arma" ou "empunhando_arma:<tipo, ex.: espada>", "alvo_com_estado:<id do estado>", "alvo_vida_abaixo:<%>". Sem condição, não escreva o campo. O "quando" SÓ pode ser usado nestes atributos: ${ATRIBUTOS_COM_QUANDO.join(', ')}. Para qualquer outro atributo (forca, dano, vida...), NÃO escreva "quando": o efeito condicional vai para "naoAplicado". EXCEÇÃO: em MULTIPLICADORES o "quando" só aceita "em_combate" e "empunhando_arma" (ou "empunhando_arma:<tipo>"); multiplicador que depende do alvo (alvo_com_estado, alvo_vida_abaixo) NÃO leva "quando": vai para "naoAplicado".
 MULTIPLICADORES (xN no dano, xN em status, xN em poder direto, "dobra", "triplica"...): NÃO os coloque em "efeitos". Use "multiplicadores": [{"nome":"...","atributo":"poder_direto" (dano e poder também valem poder_direto; ou o atributo, ex.: forca; "dano Geral" = atributo poder_direto com tipo geral: Geral/Base/Forma/Absoluto/Único são o TIPO, nunca o atributo),"valor":N (x800 = 800),"tipo":"base" | "geral" | "formas" | "absoluto" | "unico" (SÓ se o texto disser, ex.: "dano Geral" = geral; senão "")}]. O jogador decide depois se vale sempre ou só ao ativar e confirma o tipo.
 Se não existir um atributo exato para o que o texto pede, NÃO invente: coloque em "naoAplicado" e em "notasIA".
 
@@ -236,7 +237,14 @@ function prepararMultiplicador(bruto, destinoInicial, naoAplicado) {
     }
     // Sem tipo explícito, "geral" no atributo ("dano Geral") indica o tipo Geral.
     const tipo = TIPO_POR_NOME[minusculo(bruto.tipo ?? bruto.propriedade)] || (atributoBruto === 'geral' ? 'mgeral' : '');
-    return { nome: String(bruto.nome ?? '').trim(), atributo, propriedade: tipo, valor, destino: destinoInicial || '', multiplicador: true };
+    // Condição ("quando"): o multiplicador só aceita em_combate e empunhando_arma[:tipo]; qualquer outra (alvo, inválida) não é importada.
+    const quandoBruto = String(bruto.quando ?? '').trim();
+    const quando = quandoBruto ? normalizarQuandoMultiplicador(quandoBruto) : '';
+    if (quando === null) {
+        naoAplicado.push(`Multiplicador condicional que o sistema não suporta, não importado (${bruto.nome ? `${bruto.nome}: ` : ''}${bruto.atributo || '?'} x${bruto.valor ?? '?'}; quando: ${quandoBruto}). Multiplicador só aceita em_combate e empunhando_arma.`);
+        return null;
+    }
+    return { nome: String(bruto.nome ?? '').trim(), atributo, propriedade: tipo, valor, ...(quando ? { quando } : {}), destino: destinoInicial || '', multiplicador: true };
 }
 
 // Todos os multiplicadores de um item da IA (campo "multiplicadores" e efeitos com propriedade de multiplicador).

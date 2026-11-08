@@ -22,7 +22,7 @@ import { lerCustoPorTurno } from './custoPorTurno.js';
 import { normalizarEscudoAoLigar } from './escudos.js';
 import { normalizarRecarga, LIMITE_RECARGA } from './recargaPoder.js';
 import { normalizarAoDesligar } from './aoDesligar.js';
-import { normalizarQuando, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from './efeitosCondicionais.js';
+import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from './efeitosCondicionais.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 import { normalizarAplicaEstados, ATRIBUTOS_TESTE, ROTULO_ATRIBUTO, LIMITES_ESTADOS } from './estadosGolpe.js';
 import { ESTADOS, nomeDoEstado, iconeDoEstado, MAX_STACKS } from './condicoes.js';
@@ -193,15 +193,16 @@ function normalizarEfeitos(lista, padraoAtributo, avisos, rotulo) {
         };
         // Condição ("quando") e escopo (a que rolagem vale) são opcionais (core/efeitosCondicionais.js). Um que o sistema não reconhece
         // DESCARTA o efeito: deixá-lo valer sempre (ou em outra rolagem) daria a vantagem/bônus onde ele nunca deveria valer.
-        const quando = normalizarQuando(e?.quando);
+        const ehMult = ehPropriedadeMultiplicador(efeito.propriedade);
+        const quando = ehMult ? normalizarQuandoMultiplicador(e?.quando) : normalizarQuando(e?.quando);
         const escopo = normalizarEscopo(e?.escopo, efeito.atributo);
         if (quando === null || escopo === null) {
-            avisosEfeito.push(quando === null ? `Condição "${e.quando}" não existe no sistema; o efeito foi descartado.` : (ATRIBUTOS_COM_ESCOPO_ESTADO.includes(efeito.atributo) ? `O atributo "${efeito.atributo}" precisa do escopo com o id de um estado (ou "todos"); recebi "${e.escopo ?? ''}"; o efeito foi descartado.` : `Escopo "${e.escopo}" não existe no sistema; o efeito foi descartado.`));
+            avisosEfeito.push(quando === null ? (ehMult ? `Multiplicador só aceita a condição em_combate ou empunhando_arma (recebeu "${e.quando}"); o efeito foi descartado.` : `Condição "${e.quando}" não existe no sistema; o efeito foi descartado.`) : (ATRIBUTOS_COM_ESCOPO_ESTADO.includes(efeito.atributo) ? `O atributo "${efeito.atributo}" precisa do escopo com o id de um estado (ou "todos"); recebi "${e.escopo ?? ''}"; o efeito foi descartado.` : `Escopo "${e.escopo}" não existe no sistema; o efeito foi descartado.`));
             avisosEfeito.forEach(a => avisos.push(`${rotulo} ${i + 1}: ${a}`));
             return null;
         }
         // Condição só vale nos atributos que a leem (ATRIBUTOS_COM_QUANDO); nos outros o efeito seria incondicional: descarta.
-        if (quando && !ATRIBUTOS_COM_QUANDO.includes(efeito.atributo)) {
+        if (quando && !ehMult && !ATRIBUTOS_COM_QUANDO.includes(efeito.atributo)) {
             avisosEfeito.push(`O atributo "${efeito.atributo}" ainda não aceita condição ("${quando}"); o efeito foi descartado.`);
             avisosEfeito.forEach(a => avisos.push(`${rotulo} ${i + 1}: ${a}`));
             return null;
@@ -370,6 +371,8 @@ export function normalizarPoder(dados) {
     const recarga = normalizarRecarga(d.recargaTurnos);
     if (recarga > 0) objeto.recargaTurnos = recarga;
     if (Number(d.recargaTurnos) > LIMITE_RECARGA) avisos.push(`Recarga acima de ${LIMITE_RECARGA} turnos: reduzida para ${LIMITE_RECARGA}.`);
+    // 💀 Dano Verdadeiro (core/reducaoDano.js): só o boolean true (ou "true") marca o Poder; qualquer outra coisa não grava nada.
+    if (d.danoVerdadeiro === true || d.danoVerdadeiro === 'true') objeto.danoVerdadeiro = true;
     // 🛡️ Escudo que o Poder cria ao ligar (core/escudos.js); inválido não grava nada.
     const escudoLigar = normalizarEscudoAoLigar(d.escudoAoLigar);
     if (escudoLigar) objeto.escudoAoLigar = escudoLigar;
@@ -637,6 +640,7 @@ export const DECLARACOES_CRIACAO = [
                 aoAcertar: { type: 'ARRAY', description: 'O que acontece quando o golpe atinge e causa Dano (até 6): em QUEM ACERTOU (curarAtacante, energiaAtacante) ou no ALVO personagem (drenarEnergiaAlvo; debuffAlvo = reduz Evasiva/Resistência/Acerto do alvo por alguns turnos dele). Ex.: [{"tipo":"curarAtacante","modo":"percMax","valor":5},{"tipo":"debuffAlvo","atributo":"evasiva","valor":3,"duracao":2,"empilha":true}].', items: { type: 'OBJECT', properties: { tipo: { type: 'STRING', enum: ['curarAtacante', 'energiaAtacante', 'drenarEnergiaAlvo', 'debuffAlvo', 'reduzirCuraAlvo'] }, fator: { type: 'NUMBER', description: 'Só reduzirCuraAlvo: fator da cura do alvo (0.01 a 1; 0.5 = metade). Use duracao (turnos do alvo). valor pode ficar fora.' }, atributo: { type: 'STRING', enum: ['evasiva', 'resistencia', 'acerto'], description: 'Só debuffAlvo: o que o alvo perde. valor = pontos perdidos.' }, duracao: { type: 'INTEGER', description: 'Só debuffAlvo: turnos do alvo (1 a 20).' }, empilha: { type: 'BOOLEAN', description: 'Só debuffAlvo: cada golpe soma um debuff novo.' }, modo: { type: 'STRING', enum: ['fixo', 'percAtual', 'percMax'], description: 'fixo = valor na escala exibida (como o Dano); percAtual = % do valor atual; percMax = % do máximo.' }, valor: { type: 'NUMBER' }, energia: { type: 'STRING', enum: ['mana', 'aura', 'chakra', 'corpo'], description: 'Só com energiaAtacante e drenarEnergiaAlvo.' }, apenasCritico: { type: 'BOOLEAN' } }, required: ['tipo'] } },
                 usosMax: { type: 'INTEGER', description: 'Quantas vezes pode ser ligada (1 a 99). Omita se for ilimitada.' },
                 custoPorTurno: { type: 'OBJECT', description: 'Energia cobrada no início de cada turno enquanto o Poder está ligado. Omita se não houver.', properties: { modo: { type: 'STRING', enum: ['fixo', 'percMax'] }, valor: { type: 'NUMBER' }, energia: { type: 'STRING', enum: ['mana', 'aura', 'chakra', 'corpo'] } } },
+                danoVerdadeiro: { type: 'BOOLEAN', description: 'true se o dano deste Poder é Dano Verdadeiro (ignora resistências e imunidades). Omita se não for.' },
                 escudoAoLigar: { type: 'OBJECT', description: 'Barreira/escudo/vida temporária que o Poder cria ao ser ligado e some ao desligar (ex.: Domo Gélido com 1600). Omita se não houver.', properties: { nome: { type: 'STRING' }, valor: { type: 'NUMBER', description: 'Pontos de vida da barreira (escala do dano).' }, tipo: { type: 'STRING', enum: ['escudo', 'vidaTemporaria'] } }, required: ['nome', 'valor'] },
                 recargaTurnos: { type: 'INTEGER', description: 'Turnos do dono a esperar para usar de novo (1 a 99). Omita se não houver recarga.' },
                 aoDesligar: { type: 'OBJECT', description: 'Dano em si quando desligado à mão. Omita se não houver.', properties: { dadosQtd: { type: 'INTEGER' }, dadosFaces: { type: 'INTEGER' }, texto: { type: 'STRING' } } },

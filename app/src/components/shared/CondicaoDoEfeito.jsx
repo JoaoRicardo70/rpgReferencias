@@ -1,5 +1,5 @@
 import React from 'react';
-import { OPCOES_QUANDO, OPCOES_ESCOPO, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO, ESCOPO_TODOS_OS_ESTADOS } from '../../core/efeitosCondicionais';
+import { opcoesQuandoPara, ehPropriedadeMultiplicador, OPCOES_ESCOPO, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO, ESCOPO_TODOS_OS_ESTADOS } from '../../core/efeitosCondicionais';
 import { ESTADOS } from '../../core/condicoes';
 import { SKILLS, SAVES } from '../combate/TestesFormContext';
 
@@ -10,7 +10,8 @@ const partir = (valor) => {
 
 // ❓ Condição ("quando") e escopo opcionais de um efeito (core/efeitosCondicionais.js). Os valores são os mesmos que o efeito guarda
 // ('empunhando_arma:espada', 'alvo_com_estado:surpreso', 'teste:intuicao'); vazio = sem condição / padrão do efeito.
-export default function CondicaoDoEfeito({ atributo, quando, onQuando, escopo, onEscopo }) {
+// `propriedade` (opcional): nos multiplicadores (mgeral...) o Quando aparece com só as condições que dependem da própria ficha.
+export default function CondicaoDoEfeito({ atributo, propriedade, quando, onQuando, escopo, onEscopo }) {
     const q = partir(quando);
     const e = partir(escopo);
     const baseQuando = q.base || 'sempre';
@@ -18,7 +19,8 @@ export default function CondicaoDoEfeito({ atributo, quando, onQuando, escopo, o
     const comEscopo = ATRIBUTOS_COM_ESCOPO.includes(atributo);
     const comEscopoEstado = ATRIBUTOS_COM_ESCOPO_ESTADO.includes(atributo);
     // Só os atributos que leem a condição mostram o "Quando" (nos outros ela seria ignorada).
-    if (!ATRIBUTOS_COM_QUANDO.includes(atributo)) return null;
+    const ehMult = ehPropriedadeMultiplicador(propriedade);
+    if (!ATRIBUTOS_COM_QUANDO.includes(atributo) && !ehMult) return null;
     const idDoTeste = [...SKILLS, ...SAVES].find(t => t.id.toLowerCase() === e.arg.toLowerCase());
 
     const trocarQuando = (base) => {
@@ -33,7 +35,7 @@ export default function CondicaoDoEfeito({ atributo, quando, onQuando, escopo, o
             <label className="condicao-efeito-campo">
                 <span>Quando</span>
                 <select value={baseQuando} aria-label="Condição do efeito" onChange={ev => trocarQuando(ev.target.value)}>
-                    {OPCOES_QUANDO.map(o => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
+                    {opcoesQuandoPara(propriedade).map(o => <option key={o.id} value={o.id}>{o.rotulo}</option>)}
                 </select>
             </label>
             {baseQuando === 'alvo_com_estado' && (

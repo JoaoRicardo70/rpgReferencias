@@ -1,6 +1,6 @@
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
 import { lerRespostaDaIA, prepararImportacao, montarPoderFinal } from '../../core/importadorIA';
-import { normalizarQuando, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from '../../core/efeitosCondicionais';
+import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from '../../core/efeitosCondicionais';
 import { normalizarUsos, limiteDeUsos, podeUsar, gastarUso, descreverUsos } from '../../core/usosPoder';
 import { normalizarCustoPorTurno } from '../../core/custoPorTurno';
 import { normalizarRecarga, emRecarga, mensagemRecarga, iniciarRecarga } from '../../core/recargaPoder';
@@ -92,6 +92,7 @@ export function PoderesFormProvider({ children }) {
     const [escudoPoder, setEscudoPoder] = useState({ nome: '', valor: '', tipo: 'escudo' });
     const cenaAtivaId = useStore(s => s.cenario?.ativa) || 'default';
     const [semComoPoder, setSemComoPoder] = useState(false);
+    const [danoVerdadeiroPoder, setDanoVerdadeiroPoder] = useState(false);
     const [poderAlcance, setPoderAlcance] = useState(1);
     const [poderArea, setPoderArea] = useState(0);
     const [armaVinculada, setArmaVinculada] = useState('');
@@ -139,7 +140,10 @@ export function PoderesFormProvider({ children }) {
     // Monta o efeito com a condição ("quando") e o escopo opcionais; devolve null (e avisa) se algum estiver incompleto.
     // Condição e escopo só valem nos atributos que os leem; valores que sobraram de outro atributo escolhido antes são ignorados.
     const montarEfeitoNovo = useCallback((nome, atributo, propriedade, valor, quando, escopo) => {
-        const q = ATRIBUTOS_COM_QUANDO.includes(atributo) ? normalizarQuando(quando) : '';
+        // Multiplicador (mgeral...) aceita só as condições da própria ficha (em_combate, empunhando_arma); as de alvo não valem.
+        const ehMult = ehPropriedadeMultiplicador(propriedade);
+        const q = ehMult ? normalizarQuandoMultiplicador(quando) : (ATRIBUTOS_COM_QUANDO.includes(atributo) ? normalizarQuando(quando) : '');
+        if (q === null && ehMult && normalizarQuando(quando)) { alert('Multiplicador só aceita a condição "Em combate" ou "Empunhando uma arma" (condições do alvo não valem em multiplicador).'); return null; }
         if (q === null) { alert('A condição do efeito está incompleta: escolha o estado, o tipo de arma ou o %.'); return null; }
         let esc = '';
         if (ATRIBUTOS_COM_ESCOPO.includes(atributo)) {
@@ -212,6 +216,7 @@ export function PoderesFormProvider({ children }) {
         setCustoPercentual(0);
         setCustoPercentualMax(0);
         setSemComoPoder(false);
+        setDanoVerdadeiroPoder(false);
         setTipoAcao('');
         setUsosMaxPoder('');
         setUsosPorPoder('cena');
@@ -283,6 +288,7 @@ export function PoderesFormProvider({ children }) {
                     ficha.poderes[ix].custoPercentual = parseFloat(custoPercentual) || 0;
                     ficha.poderes[ix].custoPercentualMax = parseFloat(custoPercentualMax) || 0;
                     ficha.poderes[ix].semComoPoder = !!semComoPoder;
+                    if (danoVerdadeiroPoder) ficha.poderes[ix].danoVerdadeiro = true; else delete ficha.poderes[ix].danoVerdadeiro;
                     ficha.poderes[ix].tipoAcao = normalizarTipoAcao(tipoAcao);
                     if (limiteUsos) { ficha.poderes[ix].usosMax = limiteUsos.max; ficha.poderes[ix].usosPor = limiteUsos.por; }
                     else { delete ficha.poderes[ix].usosMax; delete ficha.poderes[ix].usosPor; }
@@ -334,6 +340,7 @@ export function PoderesFormProvider({ children }) {
                     custoPercentual: parseFloat(custoPercentual) || 0,
                     custoPercentualMax: parseFloat(custoPercentualMax) || 0,
                     semComoPoder: !!semComoPoder,
+                    ...(danoVerdadeiroPoder ? { danoVerdadeiro: true } : {}),
                     tipoAcao: normalizarTipoAcao(tipoAcao),
                     ...(limiteUsos ? { usosMax: limiteUsos.max, usosPor: limiteUsos.por } : {}),
                     ...(custoTurno ? { custoPorTurno: custoTurno } : {}),
@@ -363,7 +370,7 @@ export function PoderesFormProvider({ children }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, cancelarEdicaoPoder, salvarFirebaseImediato]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato]);
 
     // 🔥 O ESCUDO ANTI-DRENAGEM (Resolve a perda acidental de energia ao Ligar a Forma) 🔥
     // `opcoes.semAoDesligar`: desligar por edição/exclusão não cobra o "ao desligar" (core/aoDesligar.js), só o desligar manual.
@@ -439,6 +446,7 @@ export function PoderesFormProvider({ children }) {
         setCustoPercentual(p.custoPercentual || 0);
         setCustoPercentualMax(p.custoPercentualMax || 0);
         setSemComoPoder(!!p.semComoPoder);
+        setDanoVerdadeiroPoder(p.danoVerdadeiro === true);
         setTipoAcao(normalizarTipoAcao(p.tipoAcao));
         setUsosMaxPoder(p.usosMax || '');
         setUsosPorPoder(p.usosPor || 'cena');
@@ -759,7 +767,7 @@ export function PoderesFormProvider({ children }) {
         poderVertente, setPoderVertente, poderElemento, setPoderElemento,
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, tipoAcao, setTipoAcao, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -783,7 +791,7 @@ export function PoderesFormProvider({ children }) {
     }), [
         minhaFicha, meuNome, isMestre, abaAtual,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
-        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, cenaAtivaId, poderAlcance,
+        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, cenaAtivaId, poderAlcance,
         poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma,
         estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo, novoQuandoPassivo, novoEscopoPassivo,

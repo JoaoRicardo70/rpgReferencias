@@ -70,6 +70,9 @@ function normalizarEfeito(e) {
         propriedade: String(e.propriedade ?? ''),
         valor: e.valor ?? '',
         ...(e.fixo ? { fixo: true } : {}),
+        // Condição/escopo do efeito (core/efeitosCondicionais.js) precisam sobreviver ao marco, senão o efeito vira incondicional.
+        ...(typeof e.quando === 'string' && e.quando ? { quando: e.quando } : {}),
+        ...(typeof e.escopo === 'string' && e.escopo ? { escopo: e.escopo } : {}),
     };
 }
 

@@ -5,6 +5,7 @@ import { efeitosDeCombos } from './combos.js';
 import { efeitosDeBuffsTemporarios, efeitosDeSuportePassivo } from './suporte.js';
 import { efeitosDaArmaEspiritual } from './armaEspiritualEfeitos.js';
 import { efeitosAtivosDoItem, efeitosDaConfigAtiva } from './efeitosItem.js';
+import { ehPropriedadeMultiplicador, passaQuandoMultiplicador, montarContextoDeCombate } from './efeitosCondicionais.js';
 import { getEfeitosFixosDeClasse, removerEfeitosLegados, ehBerserker, calcularGanhoBerserker, registrarResolvedorNivelClasse, getNivelClasse } from './classesMecanicas.js';
 
 // 📖 Classes cadastradas no Compêndio da MESA INTEIRA — a mesma leitura que a tela do Compêndio faz
@@ -134,12 +135,18 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
     // Fúria que vem da CLASSE Berserker (core/classesMecanicas.js): usa a escada própria dela.
     let furiaDeClasse = false;
 
+    // Multiplicador com "quando" (core/efeitosCondicionais.js): o contexto de combate só é montado na primeira vez que aparece um.
+    let contextoMult = null;
     const processarEfeitos = (efeitos, origemNome) => {
         if (!efeitos) return;
         for (let j = 0; j < efeitos.length; j++) {
             let e = efeitos[j];
             if (!e) continue;
             let prop = (e.propriedade || '').toLowerCase();
+            if (e.quando && ehPropriedadeMultiplicador(prop)) {
+                if (!contextoMult) contextoMult = montarContextoDeCombate(ficha);
+                if (!passaQuandoMultiplicador(e, contextoMult)) continue;
+            }
             let atr = (e.atributo || '').toLowerCase();
             let val = parseFloat(e.valor);
             

@@ -27,6 +27,15 @@ export const TEXTO_DANO_VERDADEIRO = 'Dano Verdadeiro: ignora reduções, resist
 export function ehDanoVerdadeiro(v) {
     return v === true;
 }
+// Poder/Técnica marcado com `danoVerdadeiro: true` torna Verdadeiro o golpe que o usa. Devolve o nome do primeiro
+// que marca (ou null); `manual` é o interruptor do painel de Ataque. Verdadeiro se QUALQUER um for verdadeiro.
+export function resolverDanoVerdadeiroDoGolpe(fontes, manual) {
+    const origem = (Array.isArray(fontes) ? fontes : []).find(f => f && ehDanoVerdadeiro(f.danoVerdadeiro));
+    return { verdadeiro: ehDanoVerdadeiro(manual) || !!origem, nomePoder: origem ? (origem.nome || 'sem nome') : null };
+}
+export function textoDanoVerdadeiroDoPoder(nomePoder) {
+    return `Dano Verdadeiro (do poder ${nomePoder}): ignora reduções, resistências, imunidades e Domínio`;
+}
 export const PREFIXO_POLARIDADE = 'pol:';
 export const PERCENTUAL_MAX_REDUCAO = 100;
 export const PERCENTUAL_MIN_REDUCAO = -1000;

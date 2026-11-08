@@ -95,6 +95,40 @@ export const ATRIBUTOS_COM_QUANDO = [
     'acerto', 'evasiva', 'resistencia', 'iniciativa', 'vantagem', 'desvantagem', 'piso_d20',
     'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa', 'imune_estado', 'resiste_estado', 'desvantagem_atacante', 'acerto_automatico',
 ];
+// ---------- ✖️ Multiplicadores com condição ----------
+// Os multiplicadores (mbase, mgeral, mformas, mabs, munico) são somados em core/attributes.js > getBuffs e core/poder.js >
+// getPoderDiretoMultiplier. Eles aceitam "quando", mas SÓ as condições que dependem apenas da ficha do dono (sem alvo):
+// em_combate e empunhando_arma[:tipo]. Condição de alvo (alvo_com_estado, alvo_vida_abaixo) nunca vale num multiplicador:
+// o editor não a oferece, as criações a descartam e um efeito já salvo com ela simplesmente NÃO é aplicado (falha fechada).
+export const PROPRIEDADES_MULTIPLICADOR = ['mbase', 'mgeral', 'mformas', 'mabs', 'munico'];
+export const QUANDO_EM_MULTIPLICADOR = ['em_combate', 'empunhando_arma'];
+
+export function ehPropriedadeMultiplicador(propriedade) {
+    return PROPRIEDADES_MULTIPLICADOR.includes(String(propriedade ?? '').trim().toLowerCase());
+}
+
+// Opções do seletor "Quando" para a propriedade: as de multiplicador são só as permitidas acima.
+export function opcoesQuandoPara(propriedade) {
+    if (!ehPropriedadeMultiplicador(propriedade)) return OPCOES_QUANDO;
+    return OPCOES_QUANDO.filter(o => o.id === 'sempre' || QUANDO_EM_MULTIPLICADOR.includes(o.id));
+}
+
+// Como normalizarQuando, mas null também para condição de alvo (que o multiplicador não aceita).
+export function normalizarQuandoMultiplicador(valor) {
+    const q = normalizarQuando(valor);
+    if (q === null || q === '') return q;
+    return QUANDO_EM_MULTIPLICADOR.includes(q.split(':')[0]) ? q : null;
+}
+
+// O multiplicador vale agora? Sem "quando" (ou 'sempre') sempre vale; com condição só as permitidas, contra o contexto de combate SEM alvo.
+export function passaQuandoMultiplicador(efeito, contexto = {}) {
+    const bruto = String((efeito && efeito.quando) ?? '').trim();
+    if (!bruto) return true;
+    const q = normalizarQuandoMultiplicador(bruto);
+    if (q === null) return false;
+    return q === '' ? true : passaQuando({ quando: q }, contexto);
+}
+
 // Atributos em que o escopo (a que rolagem vale) faz sentido.
 export const ATRIBUTOS_COM_ESCOPO = ['vantagem', 'desvantagem', 'piso_d20'];
 // Atributos cujo escopo é UM ESTADO (id de core/condicoes.js > ESTADOS) ou 'todos': imune_estado (não recebe o estado) e

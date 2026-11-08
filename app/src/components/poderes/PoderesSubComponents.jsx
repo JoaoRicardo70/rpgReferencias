@@ -207,7 +207,7 @@ export function PoderesFormEditor() {
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, uploadingImg, handleImageUpload,
         dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, tipoAcao, setTipoAcao, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -279,6 +279,7 @@ export function PoderesFormEditor() {
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo (%)</label><input type="number" min="0" value={custoPercentual} onChange={e => setCustoPercentual(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo Máx (%)</label><input type="number" min="0" value={custoPercentualMax} onChange={e => setCustoPercentualMax(e.target.value)} title="Margem de Custo: do Custo (%) até este máximo. Vale ao conjurar como Poder." style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Como Poder</label><label style={{ fontSize: '0.8em' }}><input type="checkbox" checked={!!semComoPoder} onChange={e => setSemComoPoder(e.target.checked)} /> Vetar</label></div>
+                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Tipo de dano</label><label style={{ fontSize: '0.8em' }}><input type="checkbox" checked={!!danoVerdadeiroPoder} onChange={e => setDanoVerdadeiroPoder(e.target.checked)} title="Ignora quaisquer resistências e imunidades do alvo ao usar este poder em um golpe." /> 💀 Este poder causa Dano Verdadeiro</label></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Ação gasta</label><select value={tipoAcao} onChange={e => setTipoAcao(e.target.value)} title="Que tipo de Ação custa usar esta técnica (o sistema desconta Ação, Ação Bônus e Reação). Automático: se a técnica eleva o Poder Calculado, ligar gasta uma Reação; escolha Ação Livre para ligar de graça." style={{ width: '100%' }}>{TIPOS_ACAO_TECNICA.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}</select></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Usos</label><div className="usos-poder-campo"><input type="number" min="0" max="99" placeholder="∞" aria-label="Usos máximos (vazio = ilimitado)" value={usosMaxPoder} onChange={e => setUsosMaxPoder(e.target.value)} title="Quantas vezes pode ser ligada. Vazio ou 0 = ilimitado." /><select aria-label="Os usos renovam" value={usosPorPoder} onChange={e => setUsosPorPoder(e.target.value)} title="Quando os usos renovam: ao trocar de cena (ou descansar) ou só ao descansar."><option value="cena">por cena</option><option value="descanso">por descanso</option></select></div></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo por turno ligado</label><div className="custo-turno-campo"><input type="number" min="0" placeholder="0" aria-label="Custo por turno (vazio = sem custo)" value={custoTurnoPoder.valor} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, valor: e.target.value })} title="Energia cobrada no início de cada turno enquanto o Poder está ligado. Vazio ou 0 = sem custo. Sem energia, o Poder desliga." /><select aria-label="Modo do custo por turno" value={custoTurnoPoder.modo} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, modo: e.target.value })}><option value="fixo">fixo</option><option value="percMax">% do máx.</option></select><select aria-label="Energia do custo por turno" value={custoTurnoPoder.energia} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, energia: e.target.value })}>{ENERGIAS_CUSTO.map(en => <option key={en} value={en}>{en}</option>)}</select></div></div>
@@ -431,7 +432,7 @@ export function PoderesFormEditor() {
                 <input type="text" placeholder="Valor" value={novoVal} onChange={e => setNovoVal(e.target.value)} style={{ width: '80px', textAlign: 'center' }} />
                 <button onClick={addEfeitoTemp} style={{ padding: '8px' }}>+</button>
             </div>
-            <CondicaoDoEfeito atributo={novoAtr} quando={novoQuando} onQuando={setNovoQuando} escopo={novoEscopo} onEscopo={setNovoEscopo} />
+            <CondicaoDoEfeito atributo={novoAtr} propriedade={novoProp} quando={novoQuando} onQuando={setNovoQuando} escopo={novoEscopo} onEscopo={setNovoEscopo} />
 
             <div style={{ marginTop: 10 }}>
                 {efeitosTemp.map((e, i) => {
@@ -462,7 +463,7 @@ export function PoderesFormEditor() {
                 <input type="text" placeholder="Valor" value={novoValPassivo} onChange={e => setNovoValPassivo(e.target.value)} style={{ width: '80px', textAlign: 'center' }} />
                 <button onClick={addEfeitoPassivoTemp} style={{ padding: '8px' }}>+</button>
             </div>
-            <CondicaoDoEfeito atributo={novoAtrPassivo} quando={novoQuandoPassivo} onQuando={setNovoQuandoPassivo} escopo={novoEscopoPassivo} onEscopo={setNovoEscopoPassivo} />
+            <CondicaoDoEfeito atributo={novoAtrPassivo} propriedade={novoPropPassivo} quando={novoQuandoPassivo} onQuando={setNovoQuandoPassivo} escopo={novoEscopoPassivo} onEscopo={setNovoEscopoPassivo} />
 
             <div style={{ marginTop: 10 }}>
                 {efeitosTempPassivos.map((e, i) => {

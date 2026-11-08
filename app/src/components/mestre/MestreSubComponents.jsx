@@ -7,6 +7,7 @@ import useStore, { sanitizarNome } from '../../stores/useStore';
 import PainelMestreSandbox, { TODAS_CONDICOES_BASE } from './PainelMestreSandbox';
 import { getMaximo } from '../../core/attributes';
 import { efeitosAtivosDoItem } from '../../core/efeitosItem';
+import { passaQuandoMultiplicador, montarContextoDeCombate } from '../../core/efeitosCondicionais';
 import { calcularCA } from '../../core/engine';
 import { calcularBarrasVida, getVitalMax, getVitalMaxEstavel, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularFatorMultiplicadorForca, calcularPoderAtual } from '../../core/poder';
@@ -79,9 +80,11 @@ function getEnergiasSupremas(ficha) {
         let mFormas = parseFloat(ficha[anchor]?.mFormas) || 1.0;
         let bMFormas = 0;
         let hasMFormas = false;
+        let contextoMult = null;
         const processarEfeitos = (efeitos) => {
             if(!efeitos) return;
             efeitos.forEach(e => {
+                if (e && e.quando) { if (!contextoMult) contextoMult = montarContextoDeCombate(ficha); if (!passaQuandoMultiplicador(e, contextoMult)) return; }
                 let atr = (e.atributo||'').toLowerCase();
                 let prop = (e.propriedade||'').toLowerCase();
                 let afeta = (atr === anchor) || (atr === 'todos_status' && k==='status') || (atr === 'todas_energias' && k!=='status');

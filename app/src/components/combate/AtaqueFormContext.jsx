@@ -11,6 +11,7 @@ import { tiposRastreadosDe, acoesEmFalta, gastarAcoes, avisosDoGasto } from '../
 import { reacaoAguardandoDano, getReacaoDaTecnica } from '../../core/reacoes';
 import { montarAtaqueSalvo, resolverAtaqueSalvo, VERSAO_ATAQUE_SALVO } from '../../core/ataquesSalvos';
 import { golpeEquipado, ehBerserker, calcularGanhoBerserker, getNivelClasse } from '../../core/classesMecanicas';
+import { resolverDanoVerdadeiroDoGolpe, textoDanoVerdadeiroDoPoder } from '../../core/reducaoDano';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, classificarEfetividade } from '../../core/disputaPoder';
 import { enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
@@ -534,6 +535,8 @@ export function AtaqueFormProvider({ children }) {
         const skillCfg = salvoResolvido ? salvoResolvido.skillConfigs : skillConfigs;
         const poderesDoGolpe = salvoResolvido ? salvoResolvido.poderes : poderesAtivos;
         const magiasDoGolpe = salvoResolvido ? salvoResolvido.magias : magiasOfensivas;
+        // 💀 Dano Verdadeiro do interruptor OU de algum Poder/Técnica do golpe (campo danoVerdadeiro do Poder).
+        const golpeVerdadeiro = resolverDanoVerdadeiroDoGolpe([...poderesDoGolpe, ...magiasDoGolpe], danoVerdadeiro);
 
         const elementosInatos = [];
         (minhaFicha.poderes || []).forEach(p => {
@@ -662,7 +665,7 @@ export function AtaqueFormProvider({ children }) {
                         const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dData));
                         // Dano de Ataque (dados + Status) já está na escala da Vida: não é reescalado pela Vida do alvo.
                         const danoEscalado = result.dano;
-                        const danoNoAlvo = posGolpe.aplicar(idD, dData, reduzirDanoNoAlvo(dData, aplicarDisputaAoDano(danoEscalado, disputa), elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: danoVerdadeiro }).final);
+                        const danoNoAlvo = posGolpe.aplicar(idD, dData, reduzirDanoNoAlvo(dData, aplicarDisputaAoDano(danoEscalado, disputa), elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: golpeVerdadeiro.verdadeiro }).final);
                         gravarVidaDoAlvo(idD, posGolpe.alvoParaGravar(idD, dData), Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)), { elemento: elementoAtivo });
                         if (dData.isPersonagem) alvosAplicados.push(dData.personagemNome);
                         if (disputa.ativa || danoNoAlvo !== Math.floor(result.dano)) {
@@ -675,6 +678,7 @@ export function AtaqueFormProvider({ children }) {
             textoAlvos = `<br/><span style="color:#0f0; font-weight:bold;">💥 Dano em Área aplicado a ${atingidos} alvo(s) que falharam na defesa!</span>`;
             // O dano recalculado por alvo é só do Mestre (detalheDisputa); os jogadores só veem a efetividade.
             if (alvosAplicados.length > 0) extraFeed = { ...extraFeed, alvosAplicados };
+            if (golpeVerdadeiro.nomePoder) extraFeed = { ...extraFeed, textoReducao: textoDanoVerdadeiroDoPoder(golpeVerdadeiro.nomePoder) };
             if (linhasDisputa.length > 0) extraFeed = { ...extraFeed, detalheDisputa: `⚖️ Disputa de Poder (dano em cada alvo): ${linhasDisputa.join(' · ')}`, efetividadeAlvos };
         } else if (dummieAlvo) {
             const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dummieAlvo));
@@ -683,7 +687,7 @@ export function AtaqueFormProvider({ children }) {
             const fatorVidaAlvo = 1;
             const danoAposDisputa = aplicarDisputaAoDano(result.dano, disputa);
             // 🛡️ Alvo-personagem: Reduções/Resistências/Domínio da ficha dele, em sequência.
-            const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: danoVerdadeiro });
+            const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: golpeVerdadeiro.verdadeiro });
             const danoNoAlvo = posGolpe.aplicar(alvoSelecionado, dummieAlvo, reducaoAlvo.final);
             // Escala: dano exibido -> Vida bruta do dummy (core/vitals.js > danoExibidoParaBruto).
             const hpAnterior = dummieAlvo.hpAtual || 0;
@@ -692,7 +696,7 @@ export function AtaqueFormProvider({ children }) {
             gravarVidaDoAlvo(alvoSelecionado, posGolpe.alvoParaGravar(alvoSelecionado, dummieAlvo), novoHp, { elemento: elementoAtivo });
             extraFeed = {
                 alvoNome: dummieAlvo.nome, alvoSobreviveu: novoHp > 0, overkill: danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0,
-                danoAplicado: danoNoAlvo, fatorVida: fatorVidaAlvo, ...(reducaoAlvo.texto ? { textoReducao: reducaoAlvo.texto } : {}), ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
+                danoAplicado: danoNoAlvo, fatorVida: fatorVidaAlvo, ...(reducaoAlvo.texto ? { textoReducao: golpeVerdadeiro.nomePoder && golpeVerdadeiro.verdadeiro ? textoDanoVerdadeiroDoPoder(golpeVerdadeiro.nomePoder) : reducaoAlvo.texto } : {}), ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
             };
         }
 
