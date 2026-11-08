@@ -100,29 +100,29 @@ describe('Defesa - God Mode ignora tudo', () => {
         expect((f.combate || {}).estadosDoGolpeTs).toBeUndefined();
         expect(fb.aplicarDanoDireto).not.toHaveBeenCalled();
         const t = feed().at(-1).texto;
-        expect(t).toContain('Imunidade total');
-        expect(t).not.toContain('Reflexo');
+        expect(t).toBe('Eu está com Imunidade total: o golpe não surtiu efeito');
     });
     it('Dano Verdadeiro tambem e anulado', () => {
         const f = montarGod({ poderes: [] });
         receber(5000, { verdadeiro: true });
         expect(f.vida.atual).toBe(VIDA_BASE);
-        expect(feed().at(-1).texto).toContain('Dano Verdadeiro');
-        expect(feed().at(-1).texto).toContain('Imunidade total');
+        expect(feed().at(-1).texto).toBe('Eu está com Imunidade total: o golpe não surtiu efeito');
     });
-    it('reacoes pendentes (reduzir dano) AINDA rodam: o texto mostra a reducao e a reacao e consumida, embora nao tenha havido dano', () => {
-        const f = montarGod({ poderes: [], combate: { imunidadeTotal: GOD(), reacoesPendentes: [{ efeito: 'reduzir_dano', valor: 50, nome: 'Guarda', criadoEm: Date.now() }] } });
+    it('reacoes pendentes (reduzir dano) NAO sao consumidas nem mostram reducao em God Mode', () => {
+        const reacao = { efeito: 'reduzir_dano', valor: 50, nome: 'Guarda', criadoEm: Date.now() };
+        const f = montarGod({ poderes: [], combate: { imunidadeTotal: GOD(), reacoesPendentes: [reacao] } });
         receber(5000);
         expect(f.vida.atual).toBe(VIDA_BASE);
-        expect(feed().at(-1).texto).toContain('Guarda');
-        expect(f.combate.reacoesPendentes).toEqual([]);
+        expect(feed().at(-1).texto).not.toContain('Guarda');
+        expect(f.combate.reacoesPendentes).toEqual([reacao]);
     });
-    it('NOTA: "atacar o ataque" sem dano rolado pede confirmacao mesmo em God Mode (e nao recebe se recusar)', () => {
-        const f = montarGod({ poderes: [], combate: { imunidadeTotal: GOD(), reacoesPendentes: [{ efeito: 'atacar_ataque', nome: 'Contra', criadoEm: Date.now() }] } });
-        window.confirm = vi.fn(() => false);
+    it('"atacar o ataque" sem dano rolado NAO pede confirmacao em God Mode e a reacao fica', () => {
+        const reacao = { efeito: 'atacar_ataque', nome: 'Contra', criadoEm: Date.now() };
+        const f = montarGod({ poderes: [], combate: { imunidadeTotal: GOD(), reacoesPendentes: [reacao] } });
         receber(5000);
-        expect(window.confirm).toHaveBeenCalledTimes(1);
-        expect(fb.enviarParaFeed).not.toHaveBeenCalled();
+        expect(window.confirm).not.toHaveBeenCalled();
+        expect(feed().at(-1).texto).toBe('Eu está com Imunidade total: o golpe não surtiu efeito');
+        expect(f.combate.reacoesPendentes).toEqual([reacao]);
         expect(f.vida.atual).toBe(VIDA_BASE);
     });
     it('God Mode expirado (0 turnos) volta a sofrer: Reflexo cobra mana e devolve ao atacante, estados nao entram (Reflexo devolveu tudo)', () => {

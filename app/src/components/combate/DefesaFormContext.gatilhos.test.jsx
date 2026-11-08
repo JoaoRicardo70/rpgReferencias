@@ -107,3 +107,26 @@ describe('Defesa - revisao 2', () => {
         expect(ultimoFeed().texto).toContain('Imunidade total');
     });
 });
+
+describe('Defesa - God Mode nao consome reacoes nem abre confirm', () => {
+    const GOD = { turnosRestantes: 1, origem: 'x' };
+    const pend = (extra) => ({ id: 'universal', nome: 'Atacar o ataque', efeito: 'atacar_ataque', valor: 0, criadoEm: Date.now(), ...extra });
+    it('atacar o ataque sem dano rolado: sem confirm, reacoes preservadas, feed so avisa', () => {
+        window.confirm = vi.fn(() => true);
+        const f = montar(fichaReal({ combate: { imunidadeTotal: GOD, reacoesPendentes: [pend(), { id: 'r', nome: 'Reduzir', efeito: 'reduzir_dano', valor: 50, criadoEm: Date.now() }] } }));
+        receber(1000);
+        expect(window.confirm).not.toHaveBeenCalled();
+        expect(f.combate.reacoesPendentes).toHaveLength(2);
+        expect(f.vida.atual).toBe(VIDA_BASE);
+        const textos = enviarParaFeed.mock.calls.map(c => c[0].texto);
+        expect(textos).toEqual(['Eu está com Imunidade total: o golpe não surtiu efeito']);
+    });
+    it('sem Imunidade total: confirm abre e as reacoes sao consumidas como sempre', () => {
+        window.confirm = vi.fn(() => true);
+        const f = montar(fichaReal({ combate: { reacoesPendentes: [pend()] } }));
+        receber(1000);
+        expect(window.confirm).toHaveBeenCalledTimes(1);
+        expect(f.combate.reacoesPendentes).toEqual([]);
+        expect(enviarParaFeed.mock.calls.at(-1)[0].texto).toContain('Recebeu');
+    });
+});

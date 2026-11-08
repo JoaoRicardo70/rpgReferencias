@@ -233,9 +233,11 @@ export function DefesaFormProvider({ children }) {
     const sofrerDanoBruto = useCallback(() => {
         const danoDigitado = parseInt(danoRecebidoInc) || 0;
         if (danoDigitado <= 0) return alert('Digite um valor de dano válido para receber.');
+        // 🛡️ God Mode (Imunidade total): ignora TUDO. Nenhuma reação pendente é usada/consumida/mostrada, nenhum confirm abre, e o feed só avisa.
+        const imune = temImunidadeTotal(minhaFicha);
         // ↩️ Reações já usadas contra este ataque (core/reacoes.js): "atacar o ataque" e redução de Dano entram aqui.
         // Só valem reações recentes (core/reacoes.js > reacoesPendentesValidas): uma esquecida não pesa em Danos futuros.
-        const reacoesPendentes = reacoesPendentesValidas(minhaFicha);
+        const reacoesPendentes = imune ? [] : reacoesPendentesValidas(minhaFicha);
         const completas = aplicarReacoesAoDano(danoDigitado, reacoesPendentes);
         if (completas.faltaDanoReacao && !window.confirm('Você escolheu "Atacar o ataque", mas ainda não rolou o seu Dano de reação (aba Ataque ou Livro de Combate). Receber o Dano inteiro mesmo assim?')) return;
         // Sem o Dano da reação rolado, só entram as reduções em % (a "atacar o ataque" fica de fora).
@@ -256,8 +258,7 @@ export function DefesaFormProvider({ children }) {
         let aplicarNoAtacante = null;
         let textosGatilhosAtacante = [];
         let custoPago = 0;
-        // 🛡️ God Mode (Imunidade total): ignora TUDO, inclusive Reflexo (e a cobrança dele) e os estados do golpe. Só o aviso entra no feed.
-        const imune = temImunidadeTotal(minhaFicha);
+        // (God Mode também dispensa o Reflexo e a cobrança dele, e os estados do golpe.)
         const usado = reflexoEscolhido && !imune ? reflexosUsaveis.find(r => `${r.origem}:${r.id}` === reflexoEscolhido) : null;
         if (usado) {
             const escolhaAtacante = atacanteInc === ATACANTE_AUTO ? (ultimoGolpeRecebido ? `p:${ultimoGolpeRecebido.nome}` : ATACANTE_NENHUM) : atacanteInc;
@@ -306,7 +307,7 @@ export function DefesaFormProvider({ children }) {
                 if (custoPago > 0 && ficha[usado.reflexo.energia]) ficha[usado.reflexo.energia].atual = Math.max(0, (ficha[usado.reflexo.energia].atual || 0) - custoPago);
                 if (usado.reflexo.gastaReacao) gastarAcoes(ficha, ['reacao']);
             }
-            if (ficha.combate && Array.isArray(ficha.combate.reacoesPendentes) && ficha.combate.reacoesPendentes.length > 0) ficha.combate.reacoesPendentes = [];
+            if (!imune && ficha.combate && Array.isArray(ficha.combate.reacoesPendentes) && ficha.combate.reacoesPendentes.length > 0) ficha.combate.reacoesPendentes = [];
             if (ficha.vida) {
                 // O dano digitado é o número EXIBIDO (feed/tela); vida.atual é bruta.
                 // 🛡️ Escudos e Vida temporária absorvem antes (core/escudos.js); o que sobra vai para a Vida.
@@ -326,6 +327,12 @@ export function DefesaFormProvider({ children }) {
         const textoEstados = resolucao ? descreverResolucao(resolucao, meuNome) : '';
         const texto = `Recebeu ${danoFinal} de dano${deQuem}! (Original: ${danoDigitado} de ${nomeElemento.toUpperCase()})${mensagemElemental}${textoReflexo ? ` ${textoReflexo}` : ''}${textoEstados ? ` 🩸 ${textoEstados}` : ''}${textoEscudo ? ` 🛡️ ${textoEscudo}` : ''}${textoGatilhos ? ` ${textoGatilhos}` : ''}`;
         if (aplicarNoAtacante) aplicarNoAtacante();
+        if (imune) {
+            // Só o aviso (o texto de Imunidade total vem do ponto único de dano na Vida).
+            enviarParaFeed({ tipo: 'sistema', nome: meuNome, texto: `${meuNome} está com Imunidade total: o golpe não surtiu efeito` });
+            setDanoRecebidoInc(''); setElementoInc('fisico'); setAtacanteInc(ATACANTE_AUTO); setDanoDeDado(false); setDanoVerdadeiro(false);
+            return;
+        }
         if (textosGatilhosAtacante.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${nomeAtacante || 'O atacante'}: ${textosGatilhosAtacante.join(' · ')}` });
 
         // Quem leva vantagem na Disputa de Poder é informação do Mestre (textoMestre).

@@ -123,8 +123,8 @@ describe('P2 - Defesa: gatilhos e God Mode', () => {
         executar(Novo, f, { dano: 5000, verdadeiro: true });
         expect(f.vida.atual).toBe(VIDA_BASE);
         expect(f.escudos).toEqual(ESC);
-        expect(feed().texto).toContain('Imunidade total');
-        expect(feed().texto).toContain('Recebeu 5000 de dano');
+        expect(feed().texto).toBe('Eu está com Imunidade total: o golpe não surtiu efeito');
+        expect(feed().texto).not.toContain('Recebeu');
     });
     it('gatilho dispara so uma vez por golpe: um unico selo 🔔 na frase', () => {
         const f = fichaReal({ poderes: [{ id: 'p', nome: 'P', ativa: true, gatilhos: [NEGAR] }] });
