@@ -22,6 +22,8 @@ import { lerCustoPorTurno } from './custoPorTurno.js';
 import { normalizarEscudoAoLigar } from './escudos.js';
 import { normalizarRecarga, LIMITE_RECARGA } from './recargaPoder.js';
 import { normalizarAoDesligar } from './aoDesligar.js';
+import { lerGatilhosDaIA } from './gatilhosImportacao.js';
+import { EVENTOS_GATILHO, ACOES_GATILHO, PERIODOS_GATILHO, NIVEIS_ACERTO, OPS_CONTADOR_ACAO, OPS_CONTADOR_EVENTO, LIMITE_GATILHOS_POR_FONTE, LIMITE_ACOES_POR_GATILHO, LIMITE_LINHAS_TABELA, descreverGatilho } from './gatilhos.js';
 import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from './efeitosCondicionais.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 import { normalizarAplicaEstados, ATRIBUTOS_TESTE, ROTULO_ATRIBUTO, LIMITES_ESTADOS } from './estadosGolpe.js';
@@ -260,6 +262,7 @@ export function descreverExtrasProposta(objeto) {
         const modo = { devolver: 'Devolver', compartilhar: 'Compartilhar', contra: 'Contra-golpe' }[objeto.reflexo.modo] || objeto.reflexo.modo;
         linhas.push(`↩️ Reflexo: ${modo} ${objeto.reflexo.mult}%${objeto.reflexo.automatico ? ' · automático' : ''}${objeto.reflexo.gastaReacao ? ' · gasta Reação' : ''}`);
     }
+    (objeto.gatilhos || []).forEach((g) => { linhas.push(`🔔 ${g.nome}: ${descreverGatilho(g)}`); });
     const su = objeto.suporte;
     if (su) {
         const partes = [];
@@ -385,6 +388,17 @@ export function normalizarPoder(dados) {
     // 💚 Ao acertar (core/aoAcertar.js): cura/energia de quem acertou; só grava o que for válido.
     const aoAcertar = normalizarAoAcertar(d.aoAcertar);
     if (aoAcertar.length > 0) objeto.aoAcertar = aoAcertar;
+    // 🔔 Gatilhos (core/gatilhos.js): validados por normalizarGatilhos; a IA nunca decide o modo, então chegam OPCIONAIS e DESARMADOS
+    // (o dono arma no Poder). O que for inválido ou passar dos limites vira aviso, nunca "meio gatilho".
+    if (d.gatilhos !== undefined && d.gatilhos !== null && d.gatilhos !== '') {
+        const lidos = lerGatilhosDaIA(d.gatilhos);
+        if (lidos.gatilhos.length > 0) {
+            objeto.gatilhos = lidos.gatilhos;
+            avisos.push(`${lidos.gatilhos.length} gatilho(s) chegam OPCIONAIS e DESARMADOS: o dono arma no Poder (ou muda para automático) depois de conferir.`);
+        }
+        lidos.naoAplicado.forEach(a => avisos.push(a));
+        lidos.avisos.forEach(a => avisos.push(a));
+    }
     anexarEstadosReflexoSuporte(objeto, d, avisos);
     if (!objeto.nome) avisos.push('Falta o nome.');
     return { objeto, avisos, valido: !!objeto.nome };
@@ -618,6 +632,37 @@ const EFEITOS_SCHEMA = {
 };
 const ALVO_SCHEMA = { type: 'STRING', description: 'Personagem que recebe (vazio = quem está pedindo). Jogadores só podem pedir para si.' };
 
+// Gatilhos (core/gatilhos.js): o schema espelha o vocabulário REAL; o que não fechar é descartado por normalizarGatilhos.
+const PROPS_ACAO_GATILHO = {
+    tipo: { type: 'STRING', enum: ACOES_GATILHO.map(a => a.id) },
+    modo: { type: 'STRING', description: 'curar/danoEmSi: fixo | percMax | percAtual. danoNoAtacante: percDanoRecebido | fixo. buff: turnos | combate | permanente.' },
+    valor: { type: 'NUMBER' }, percMax: { type: 'NUMBER', description: 'definirVida: % da Vida máxima (use valor OU percMax).' },
+    nome: { type: 'STRING' }, tipoEscudo: { type: 'STRING', enum: ['escudo', 'vidaTemporaria'] },
+    atributo: { type: 'STRING', description: 'buff: atributo do efeito.' }, duracao: { type: 'INTEGER', description: 'buff: turnos (1 a 20).' },
+    duracaoTurnos: { type: 'INTEGER', description: 'imunidadeTotal: turnos (1 a 10).' }, texto: { type: 'STRING', description: 'mensagem.' },
+    id: { type: 'STRING', description: 'contador: id do contador existente na ficha.' }, op: { type: 'STRING', enum: OPS_CONTADOR_ACAO }, sorteio: { type: 'STRING', description: 'contador: "NdM".' },
+    estado: { type: 'STRING', description: `aplicarEstado/removerEstado. Ids: ${ESTADOS.map(e => e.id).join(', ')}.` }, stacks: { type: 'INTEGER' },
+    poderId: { type: 'STRING', description: 'ligarPoder/desligarPoder.' },
+};
+const GATILHOS_SCHEMA = {
+    type: 'ARRAY',
+    description: `Regras "quando X, faça Y" (até ${LIMITE_GATILHOS_POR_FONTE}). Chegam OPCIONAIS e DESARMADOS (você NÃO decide modo nem armado). Eventos: ${EVENTOS_GATILHO.map(e => e.id).join(', ')}. anularDano só em danoQueZeraria. Limite por turno | cena | descanso ("1 vez por combate" = cena; "luta" não existe). Ex.: [{"nome":"Volta das cinzas","evento":{"tipo":"danoQueZeraria"},"limite":{"max":1,"por":"cena"},"acoes":[{"tipo":"definirVida","valor":1},{"tipo":"imunidadeTotal","duracaoTurnos":1}]}]`,
+    items: {
+        type: 'OBJECT',
+        properties: {
+            nome: { type: 'STRING' }, notas: { type: 'STRING' },
+            evento: { type: 'OBJECT', properties: { tipo: { type: 'STRING', enum: EVENTOS_GATILHO.map(e => e.id) }, de: { type: 'NUMBER', description: 'vidaAbaixoDe: % maior da faixa.' }, ate: { type: 'NUMBER', description: 'vidaAbaixoDe: % menor da faixa.' }, nivel: { type: 'STRING', enum: NIVEIS_ACERTO, description: 'acertou/atingido.' }, poderId: { type: 'STRING', description: 'poderLigou/poderDesligou (vazio = este Poder; "qualquer").' }, contadorId: { type: 'STRING' }, op: { type: 'STRING', enum: OPS_CONTADOR_EVENTO }, valor: { type: 'NUMBER' } }, required: ['tipo'] },
+            condicoes: { type: 'ARRAY', items: { type: 'STRING' }, description: 'vida_maior_que:N, vida_menor_que:N, em_combate, empunhando_arma[:tipo], alvo_com_estado:<id>, alvo_vida_abaixo:<%>.' },
+            limite: { type: 'OBJECT', properties: { max: { type: 'INTEGER' }, por: { type: 'STRING', enum: PERIODOS_GATILHO.map(p => p.id) } } },
+            acoes: {
+                type: 'ARRAY', description: `Até ${LIMITE_ACOES_POR_GATILHO} ações. rolarTabela: {"tipo":"rolarTabela","dado":"1d6","resultados":[{"ate":3,"texto":"...","acoes":[...]}]} (até ${LIMITE_LINHAS_TABELA} faixas, "ate" crescente).`,
+                items: { type: 'OBJECT', properties: { ...PROPS_ACAO_GATILHO, dado: { type: 'STRING', description: 'rolarTabela: "NdM".' }, resultados: { type: 'ARRAY', items: { type: 'OBJECT', properties: { ate: { type: 'INTEGER' }, texto: { type: 'STRING' }, acoes: { type: 'ARRAY', items: { type: 'OBJECT', properties: PROPS_ACAO_GATILHO, required: ['tipo'] } } } } } }, required: ['tipo'] },
+            },
+        },
+        required: ['nome', 'evento', 'acoes'],
+    },
+};
+
 export const DECLARACOES_CRIACAO = [
     {
         name: 'propor_habilidade',
@@ -643,6 +688,7 @@ export const DECLARACOES_CRIACAO = [
                 danoVerdadeiro: { type: 'BOOLEAN', description: 'true se o dano deste Poder é Dano Verdadeiro (ignora resistências e imunidades). Omita se não for.' },
                 escudoAoLigar: { type: 'OBJECT', description: 'Barreira/escudo/vida temporária que o Poder cria ao ser ligado e some ao desligar (ex.: Domo Gélido com 1600). Omita se não houver.', properties: { nome: { type: 'STRING' }, valor: { type: 'NUMBER', description: 'Pontos de vida da barreira (escala do dano).' }, tipo: { type: 'STRING', enum: ['escudo', 'vidaTemporaria'] } }, required: ['nome', 'valor'] },
                 recargaTurnos: { type: 'INTEGER', description: 'Turnos do dono a esperar para usar de novo (1 a 99). Omita se não houver recarga.' },
+                gatilhos: GATILHOS_SCHEMA,
                 aoDesligar: { type: 'OBJECT', description: 'Dano em si quando desligado à mão. Omita se não houver.', properties: { dadosQtd: { type: 'INTEGER' }, dadosFaces: { type: 'INTEGER' }, texto: { type: 'STRING' } } },
                 usosPor: { type: 'STRING', enum: ['cena', 'descanso'], description: 'Quando os usos renovam: cena (ao trocar de cena ou descansar) ou descanso. Só com usosMax.' },
                 maestria: { type: 'NUMBER' }, maestriaRequerida: { type: 'NUMBER' }, fadigaPorUso: { type: 'NUMBER', description: 'Só Formas.' },

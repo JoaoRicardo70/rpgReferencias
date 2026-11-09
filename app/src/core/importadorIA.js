@@ -8,6 +8,8 @@ import { ESTADOS } from './condicoes';
 import { lerCustoPorTurno } from './custoPorTurno';
 import { ATRIBUTOS_EFEITO, PROPRIEDADES_EFEITO, CATEGORIAS_PODER, normalizarPoder, resumirProposta } from './sextaFeiraCriacao';
 import { ATRIBUTOS_COM_QUANDO, normalizarQuandoMultiplicador } from './efeitosCondicionais';
+import { EVENTOS_GATILHO, ACOES_GATILHO, LIMITE_GATILHOS_POR_FONTE, LIMITE_ACOES_POR_GATILHO, LIMITE_LINHAS_TABELA } from './gatilhos';
+import { lerGatilhosDaIA, marcarGatilhosPendentes, gatilhoFaltaResponder, decidirModoDoGatilho, finalizarGatilho } from './gatilhosImportacao';
 
 export const ROTULO_CATEGORIA = { habilidade: 'Habilidades', forma: 'Formas', poder: 'Poderes' };
 
@@ -36,7 +38,7 @@ CAMPOS DE CADA ITEM
 - "efeitos": efeitos que valem enquanto a habilidade está LIGADA (ativa): o texto diz "ao usar", "ao ativar", "enquanto ativo".
 - "efeitosPassivos": efeitos que valem SEMPRE, SOMENTE se o texto disser isso com todas as letras (seção "Passivas", "passivo", "sempre ativo", "permanente", "sem precisar ativar"). NUNCA coloque aqui um bônus só porque o texto o lista.
 - "efeitosIncertos": bônus que o texto lista mas NÃO deixa claro se valem sempre ou só com a habilidade ligada (ex.: uma lista solta "Aumenta a rolagem de ataque em +10"). NA DÚVIDA, use este campo: o jogador decide depois. Mesmo formato dos outros efeitos.
-- "subHabilidades": quando o texto tem uma habilidade PRINCIPAL (um título, ex.: "Rinnegan Supremo (Olho esquerdo):") e, abaixo dela, itens com nome próprio que são habilidades DELA (ex.: "- Limbo: ...", "- Izanagi: ..."), crie UM item só para a principal e ponha esses itens aqui, SEM criar itens separados para eles: [{"nome","descricao","tipoAcao","usosMax","usosPor","recargaTurnos","custoPorTurno","efeitos","efeitosPassivos","efeitosIncertos","multiplicadores","naoAplicado"}] (mesmas regras dos campos acima). Observações soltas da principal (ex.: "x800 em todo dano") ficam na principal, em "naoAplicado". Textos de prints seguidos sobre a mesma habilidade principal são UM item só. Sem sub-habilidades, use [].
+- "subHabilidades": quando o texto tem uma habilidade PRINCIPAL (um título, ex.: "Rinnegan Supremo (Olho esquerdo):") e, abaixo dela, itens com nome próprio que são habilidades DELA (ex.: "- Limbo: ...", "- Izanagi: ..."), crie UM item só para a principal e ponha esses itens aqui, SEM criar itens separados para eles: [{"nome","descricao","tipoAcao","usosMax","usosPor","recargaTurnos","custoPorTurno","efeitos","efeitosPassivos","efeitosIncertos","multiplicadores","gatilhos","naoAplicado"}] (mesmas regras dos campos acima). Observações soltas da principal (ex.: "x800 em todo dano") ficam na principal, em "naoAplicado". Textos de prints seguidos sobre a mesma habilidade principal são UM item só. Sem sub-habilidades, use [].
   Cada efeito: {"nome": "...", "atributo": "...", "propriedade": "...", "valor": 0}. "valor" é SEMPRE um número puro.
 - "aplicaEstados": estados que a habilidade causa em quem ela atinge: [{"id": "...", "stacks": 1}]. Ids válidos: ${ESTADOS.map(e => e.id).join(', ')}.
 - "usosMax" e "usosPor": se o texto limita os usos ("1 vez por cena", "3 usos por descanso"), coloque o número em "usosMax" e "cena" ou "descanso" em "usosPor". Sem limite, omita os dois.
@@ -46,7 +48,16 @@ CAMPOS DE CADA ITEM
 - "recargaTurnos": se o texto manda esperar turnos para usar de novo ("1 vez a cada 2 turnos", "espere 3 turnos para usar de novo", "reutilizável após 3 turnos"), o número inteiro de turnos (1 a 99). Sem recarga, omita.
 - "aoDesligar": se desligar a habilidade causa dano em quem a usava ("ao desativar, sofre 238d6 de dano"): {"dadosQtd":238,"dadosFaces":6,"texto":"opcional"}. Sem isso, omita.
 - "aoAcertar": o que acontece com QUEM ACERTOU quando o golpe atinge e causa dano ("recupera 200 de energia por ataque", "cura X% da vida a cada ataque"): [{"tipo":"curarAtacante" ou "energiaAtacante","modo":"fixo" | "percAtual" | "percMax","valor":N,"energia":"mana" | "aura" | "chakra" | "corpo" (só em energiaAtacante e drenarEnergiaAlvo)}]. "fixo" = número na mesma escala do dano; "percMax" = % do máximo; "percAtual" = % do valor atual. No ALVO: {"tipo":"drenarEnergiaAlvo","energia":"mana","modo":"fixo","valor":N} ("corta 100 de energia do alvo") e {"tipo":"debuffAlvo","atributo":"evasiva" | "resistencia" | "acerto","valor":N,"duracao":turnos do alvo (1 a 20),"empilha":true se soma a cada golpe} ("reduz em 3 a CA do inimigo a cada ataque" = valor 3, atributo evasiva, empilha true; use também resistencia se o texto falar da CA em geral). Cura do alvo reduzida: {"tipo":"reduzirCuraAlvo","fator":0.01 a 1 (0.5 = a cura do alvo fica pela metade, 1/3 = 0.33),"duracao":turnos do alvo (1 a 20)} ("deixa a cura do alvo em 1/2 por 1 turno" = fator 0.5, duracao 1). Outros debuffs vão para "naoAplicado".
-- "notasIA": regras que NÃO cabem nos campos acima (condições, gatilhos, usos por cena, testes, requisitos), em frases curtas, uma por linha.
+- "gatilhos": regras REATIVAS do texto no formato "quando X acontecer, faça Y" (ex.: "se um golpe me levaria a 0, fico com 1 de vida", "ao acertar, ganho 1 carga", "no início do meu turno, curo 5%"). Lista de até ${LIMITE_GATILHOS_POR_FONTE} por habilidade (e por sub-habilidade). Cada gatilho: {"nome":"...","evento":{"tipo":"..."},"condicoes":[],"limite":{"max":1,"por":"cena"},"acoes":[{"tipo":"..."}]}. Use SÓ o vocabulário abaixo; o que não couber vai para "naoAplicado". NÃO escreva "modo", "armado" nem "perguntar": o jogador decide se é automático ou opcional depois. Regra simples de cura/energia ao acertar fica em "aoAcertar", não em gatilhos.
+  EVENTO (campo "evento.tipo"): ${EVENTOS_GATILHO.map(e => `${e.id} (${e.rotulo.replace(/^(Quando|No) /, '')})`).join('; ')}.
+    Parâmetros do evento: vidaAbaixoDe {"de":%maior,"ate":%menor} (% da Vida máxima, ex.: de 50 e ate 26 = entre 50% e 26%); acertou e atingido aceitam "nivel": "normal", "critico", "fatal" ou "qualquer"; poderLigou e poderDesligou aceitam "poderId" (vazio = a própria habilidade; "qualquer" = qualquer Poder); contadorAtingiu {"contadorId":"nome do contador","op":">=" ou "==","valor":N}.
+  AÇÃO (campo "tipo" de cada item de "acoes", até ${LIMITE_ACOES_POR_GATILHO} por gatilho): ${ACOES_GATILHO.map(a => a.id).join(', ')}.
+    Parâmetros: anularDano {} (SÓ no evento danoQueZeraria); definirVida {"valor":N} ou {"percMax":%}; curar {"modo":"fixo"|"percMax"|"percAtual","valor":N}; escudo {"nome","valor":N,"tipoEscudo":"escudo"|"vidaTemporaria"}; buff {"atributo","valor":N,"duracao":turnos 1 a 20,"modo":"turnos"|"combate"|"permanente"}; limparCondicoes {}; imunidadeTotal {"duracaoTurnos":1 a 10}; mensagem {"texto"}; contador {"id":"nome do contador","op":"somar"|"definir"|"zerar"|"dividir","valor":N,"sorteio":"NdM" opcional}; aplicarEstado {"estado":"<id>","stacks":N}; removerEstado {"estado":"<id>"} (ids de estado: ${ESTADOS.map(e => e.id).join(', ')}); ligarPoder / desligarPoder {"poderId":"nome da habilidade"}; danoEmSi {"modo":"fixo"|"percMax"|"percAtual","valor":N}; danoNoAtacante {"modo":"percDanoRecebido"|"fixo","valor":N} (devolve dano a quem atacou); rolarTabela {"dado":"1d6","resultados":[{"ate":3,"texto":"...","acoes":[...]}]} (até ${LIMITE_LINHAS_TABELA} faixas, "ate" estritamente crescente, sem rolarTabela dentro de rolarTabela).
+  "condicoes" (opcional, lista de textos): "vida_maior_que:N", "vida_menor_que:N" (N na escala da Vida exibida), "em_combate", "empunhando_arma", "alvo_com_estado:<id>", "alvo_vida_abaixo:<%>".
+  "limite" (opcional): {"max":N,"por":"turno" | "cena" | "descanso"}. O período "luta" NÃO existe: "1 vez por combate/luta/batalha" = "cena". Sem limite no texto, omita.
+  Contador e Poder referenciados são os que o jogador já tem na ficha: escreva o NOME deles; se o texto citar um que você não conhece, deixe o gatilho em "naoAplicado".
+  Regra que não cabe no vocabulário (outros eventos, ações ou parâmetros): NÃO invente, vai para "naoAplicado".
+- "notasIA": regras que NÃO cabem nos campos acima (condições, usos por cena, testes, requisitos), em frases curtas, uma por linha.
 - "naoAplicado": lista de frases curtas com tudo que o texto diz e que você NÃO conseguiu colocar em nenhum campo.
 
 ATRIBUTOS VÁLIDOS de um efeito (use exatamente estes nomes): ${ATRIBUTOS_EFEITO.join(', ')}
@@ -77,7 +88,7 @@ ${String(texto || '').trim()}
 
 RETORNE SOMENTE UM JSON PURO, sem explicações:
 {
-  "poderes": [{ "nome": "X", "descricao": "Y", "categoria": "${padrao}", "danoQtd": 0, "danoFaces": 0, "custoPercentual": 0, "alcance": 0, "area": 0, "tipoAcao": "", "efeitos": [], "efeitosPassivos": [], "efeitosIncertos": [{ "nome": "Pele dura", "atributo": "evasiva", "propriedade": "base", "valor": 5 }], "multiplicadores": [], "subHabilidades": [], "aplicaEstados": [], "notasIA": "", "naoAplicado": [] }]
+  "poderes": [{ "nome": "X", "descricao": "Y", "categoria": "${padrao}", "danoQtd": 0, "danoFaces": 0, "custoPercentual": 0, "alcance": 0, "area": 0, "tipoAcao": "", "efeitos": [], "efeitosPassivos": [], "efeitosIncertos": [{ "nome": "Pele dura", "atributo": "evasiva", "propriedade": "base", "valor": 5 }], "multiplicadores": [], "gatilhos": [], "subHabilidades": [], "aplicaEstados": [], "notasIA": "", "naoAplicado": [] }]
 }`;
 }
 
@@ -279,19 +290,25 @@ export function prepararItemImportado(bruto, categoriaPadrao = 'habilidade') {
         fadigaPorUso: num(p.fadigaPorUso),
         efeitos: separarEfeitosImportaveis(semMultiplicadores(p.efeitos), naoAplicado),
         efeitosPassivos: separarEfeitosImportaveis(semMultiplicadores(p.efeitosPassivos), naoAplicado),
+        gatilhos: undefined, // validados abaixo (lerGatilhosDaIA): normalizarPoder não os vê
     };
+    const gatilhosLidos = lerGatilhosDaIA(p.gatilhos);
+    naoAplicado.push(...gatilhosLidos.naoAplicado);
     const multiplicadores = colherMultiplicadores(p, naoAplicado);
     if (p.suporte && typeof p.suporte === 'object' && Array.isArray(p.suporte.buffs)) {
         dados.suporte = { ...p.suporte, buffs: separarEfeitosImportaveis(p.suporte.buffs, naoAplicado) };
     }
     const { objeto, avisos, valido } = normalizarPoder(dados);
+    avisos.push(...gatilhosLidos.avisos);
+    // Gatilhos esperam o jogador responder "automático ou opcional?" na prévia: a IA nunca decide o modo.
+    if (gatilhosLidos.gatilhos.length) objeto.gatilhos = marcarGatilhosPendentes(gatilhosLidos.gatilhos);
     objeto.custoPercentualMax = 0;
     objeto.semComoPoder = false;
     // Efeitos sem ativação clara esperam o jogador decidir (Ao ativar x Sempre) na prévia: nada é aplicado antes disso.
     const incertos = [...separarEfeitosImportaveis(semMultiplicadores(p.efeitosIncertos), naoAplicado).map(e => ({ ...e, destino: '' })), ...multiplicadores];
     if (incertos.length) objeto.efeitosIncertos = incertos;
     // Sub-habilidades: viram Formas Místicas do próprio Poder (id definido só na hora de gravar).
-    const subs = (Array.isArray(p.subHabilidades) ? p.subHabilidades : []).map(s => prepararSubHabilidade(s)).filter(Boolean);
+    const subs = (Array.isArray(p.subHabilidades) ? p.subHabilidades : []).map(s => prepararSubHabilidade(s, avisos)).filter(Boolean);
     if (subs.length) objeto.formas = subs;
     objeto.naoAplicado = naoAplicado;
     objeto.notasIA = juntarNotas(objeto.notasIA, naoAplicado);
@@ -299,7 +316,7 @@ export function prepararItemImportado(bruto, categoriaPadrao = 'habilidade') {
 }
 
 // Uma sub-habilidade da IA -> Forma Mística com um Modo ("Padrão") que carrega os efeitos. Ação e usos entram no texto do Modo.
-function prepararSubHabilidade(bruto) {
+function prepararSubHabilidade(bruto, avisos = []) {
     const s = bruto && typeof bruto === 'object' ? bruto : null;
     const nome = String(s && s.nome ? s.nome : '').trim();
     if (!nome) return null;
@@ -307,6 +324,9 @@ function prepararSubHabilidade(bruto) {
     const efeitos = separarEfeitosImportaveis(semMultiplicadores(s.efeitos), naoAplicado);
     const efeitosPassivos = separarEfeitosImportaveis(semMultiplicadores(s.efeitosPassivos), naoAplicado);
     const incertos = [...separarEfeitosImportaveis(semMultiplicadores(s.efeitosIncertos), naoAplicado).map(e => ({ ...e, destino: '' })), ...colherMultiplicadores(s, naoAplicado)];
+    const gatilhosLidos = lerGatilhosDaIA(s.gatilhos);
+    naoAplicado.push(...gatilhosLidos.naoAplicado);
+    avisos.push(...gatilhosLidos.avisos.map(a => `${nome}: ${a}`));
     const detalhes = [];
     const acao = String(s.tipoAcao ?? '').trim();
     if (acao) detalhes.push(`Ação: ${acao}`);
@@ -322,8 +342,19 @@ function prepararSubHabilidade(bruto) {
     return {
         nome, descricao: texto, imagemUrl: '', acumulaFormaBase: true, efeitos: [], efeitosPassivos: [],
         configs: [{ nome: 'Padrão', descricao: '', imagemUrl: '', efeitos, efeitosPassivos, efeitosIncertos: incertos }],
+        ...(gatilhosLidos.gatilhos.length ? { gatilhos: marcarGatilhosPendentes(gatilhosLidos.gatilhos) } : {}),
         naoAplicado,
     };
+}
+
+// Gatilhos importados: [{ onde: 'pai' | índice da forma, indice, gatilho }] (todos, respondidos ou não).
+export function listarGatilhosImportados(objeto) {
+    const lista = [];
+    ((objeto && objeto.gatilhos) || []).forEach((gatilho, indice) => lista.push({ onde: 'pai', indice, gatilho }));
+    ((objeto && objeto.formas) || []).forEach((forma, f) => {
+        ((forma && forma.gatilhos) || []).forEach((gatilho, indice) => lista.push({ onde: f, indice, gatilho }));
+    });
+    return lista;
 }
 
 // Efeitos à espera de decisão: [{ onde: 'pai' | índice da forma, indice, efeito }]. A prévia usa para perguntar ao jogador.
@@ -338,7 +369,9 @@ export function listarEfeitosIncertos(objeto) {
 
 // Falta responder: a ativação (Só ao ativar / Sempre) e, nos multiplicadores, também o tipo.
 export const faltaResponder = (efeito) => !efeito || (efeito.destino !== 'ativo' && efeito.destino !== 'passivo') || (!!efeito.multiplicador && !ehTipoMultiplicador(efeito.propriedade));
-export const contarPendentes = (objeto) => listarEfeitosIncertos(objeto).filter(i => faltaResponder(i.efeito)).length;
+export const faltaResponderGatilho = gatilhoFaltaResponder;
+export const contarGatilhosPendentes = (objeto) => listarGatilhosImportados(objeto).filter(i => gatilhoFaltaResponder(i.gatilho)).length;
+export const contarPendentes = (objeto) => listarEfeitosIncertos(objeto).filter(i => faltaResponder(i.efeito)).length + contarGatilhosPendentes(objeto);
 
 function alterarIncerto(objeto, onde, indice, alterar) {
     const copia = JSON.parse(JSON.stringify(objeto || {}));
@@ -355,6 +388,24 @@ export function decidirEfeitoIncerto(objeto, onde, indice, destino) {
 // Escolhe o tipo ('mbase' | 'mgeral' | 'mformas' | 'mabs' | 'munico') de um multiplicador pendente. Devolve um objeto novo.
 export function definirTipoMultiplicador(objeto, onde, indice, tipo) {
     return alterarIncerto(objeto, onde, indice, (e) => { if (e.multiplicador) e.propriedade = ehTipoMultiplicador(tipo) ? tipo : ''; });
+}
+
+function alterarGatilho(objeto, onde, indice, alterar) {
+    const copia = JSON.parse(JSON.stringify(objeto || {}));
+    const lista = onde === 'pai' ? copia.gatilhos : (copia.formas && copia.formas[onde] && copia.formas[onde].gatilhos);
+    if (lista && lista[indice]) lista[indice] = alterar(lista[indice]);
+    return copia;
+}
+
+// Grava a resposta de um gatilho ('automatico' | 'opcional' | '' para desfazer). Opcional entra desarmado. Devolve um objeto novo.
+export function decidirModoGatilhoImportado(objeto, onde, indice, modo) {
+    return alterarGatilho(objeto, onde, indice, g => decidirModoDoGatilho(g, modo));
+}
+
+export function decidirTodosOsGatilhos(objeto, modo) {
+    let atual = objeto;
+    listarGatilhosImportados(objeto).forEach(i => { atual = decidirModoGatilhoImportado(atual, i.onde, i.indice, modo); });
+    return atual;
 }
 
 // Decide todos os incertos de uma vez ('ativo' | 'passivo').
@@ -429,12 +480,16 @@ export function resumirItemImportado(objeto) {
 export function montarPoderFinal(objeto, id) {
     const copia = JSON.parse(JSON.stringify(objeto || {}));
     delete copia.naoAplicado;
+    if (Array.isArray(copia.gatilhos)) copia.gatilhos = copia.gatilhos.map(finalizarGatilho);
+    if (!copia.gatilhos || copia.gatilhos.length === 0) delete copia.gatilhos;
     const semTipo = resolverIncertos(copia);
     if (semTipo.length) copia.notasIA = [copia.notasIA, ...semTipo].filter(Boolean).join('\n');
     if (Array.isArray(copia.formas)) {
         // Ids únicos dentro do Poder: a Forma e o seu Modo.
         copia.formas = copia.formas.map((forma, i) => {
             const { naoAplicado, ...resto } = forma;
+            if (Array.isArray(resto.gatilhos)) resto.gatilhos = resto.gatilhos.map(finalizarGatilho);
+            if (!resto.gatilhos || resto.gatilhos.length === 0) delete resto.gatilhos;
             const formaId = typeof id === 'number' && Number.isFinite(id) ? id * 100 + i * 2 + 1 : `${id}_f${i + 1}`;
             const config = { ...(resto.configs && resto.configs[0] ? resto.configs[0] : {}), id: typeof formaId === 'number' ? formaId + 1 : `${formaId}_m1` };
             const semTipoSub = resolverIncertos(config);

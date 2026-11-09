@@ -1,5 +1,6 @@
 import React from 'react';
-import { resumirItemImportado, mudarCategoriaImportada, listarEfeitosIncertos, contarPendentes, faltaResponder, decidirEfeitoIncerto, decidirTodosOsIncertos, definirTipoMultiplicador, TIPOS_MULTIPLICADOR } from '../../core/importadorIA';
+import { resumirItemImportado, mudarCategoriaImportada, listarEfeitosIncertos, listarGatilhosImportados, contarPendentes, contarGatilhosPendentes, faltaResponder, faltaResponderGatilho, decidirModoGatilhoImportado, decidirTodosOsGatilhos, decidirEfeitoIncerto, decidirTodosOsIncertos, definirTipoMultiplicador, TIPOS_MULTIPLICADOR } from '../../core/importadorIA';
+import { descreverGatilho } from '../../core/gatilhos';
 import { trocarElementoDaPrevia } from '../../core/importadorTecnicas';
 
 const CATEGORIAS = [
@@ -31,9 +32,14 @@ export default function ImportadorPrevia({ itens, onAtualizar, onRemover, onConf
     // Efeitos sem ativação clara: o jogador precisa responder antes de gravar (só nos itens marcados).
     const pendentes = itens.filter(it => it.marcado && it.valido).reduce((soma, it) => soma + contarPendentes(it.objeto), 0);
 
+    const pendentesGatilhos = itens.filter(it => it.marcado && it.valido).reduce((soma, it) => soma + contarGatilhosPendentes(it.objeto), 0);
+    const pendentesEfeitos = pendentes - pendentesGatilhos;
+
     const decidir = (it, onde, indice, destino) => onAtualizar(it.chave, { ...it, objeto: decidirEfeitoIncerto(it.objeto, onde, indice, destino) });
     const escolherTipo = (it, onde, indice, tipo) => onAtualizar(it.chave, { ...it, objeto: definirTipoMultiplicador(it.objeto, onde, indice, tipo) });
     const decidirTodos = (it, destino) => onAtualizar(it.chave, { ...it, objeto: decidirTodosOsIncertos(it.objeto, destino) });
+    const decidirGatilho = (it, onde, indice, modo) => onAtualizar(it.chave, { ...it, objeto: decidirModoGatilhoImportado(it.objeto, onde, indice, modo) });
+    const decidirTodosGatilhos = (it, modo) => onAtualizar(it.chave, { ...it, objeto: decidirTodosOsGatilhos(it.objeto, modo) });
     const tirarSub = (it, indice) => onAtualizar(it.chave, { ...it, objeto: { ...it.objeto, formas: it.objeto.formas.filter((_, i) => i !== indice) } });
 
     const trocarNome = (it, nome) => {
@@ -108,6 +114,28 @@ export default function ImportadorPrevia({ itens, onAtualizar, onRemover, onConf
                             </div>
                         </div>
                     )}
+                    {listarGatilhosImportados(it.objeto).length > 0 && (
+                        <div className="importacao-gatilhos" role="group" aria-label="Gatilhos importados">
+                            <div className="importacao-efeitos-titulo">🔔 Gatilhos encontrados no texto. Cada um dispara sozinho (automático) ou só quando o dono o arma (opcional)?</div>
+                            {listarGatilhosImportados(it.objeto).map(({ onde, indice, gatilho }) => {
+                                const pendente = faltaResponderGatilho(gatilho);
+                                const automatico = !pendente && gatilho.modo === 'automatico';
+                                const opcional = !pendente && gatilho.modo === 'opcional';
+                                return (
+                                    <div key={`g${onde}_${indice}`} className={`importacao-gatilho${pendente ? '' : ' respondido'}`}>
+                                        <span className="importacao-incerto-estado" aria-hidden="true">{pendente ? '❓' : '✔'}</span>
+                                        <span className="importacao-gatilho-frase"><strong>{onde === 'pai' ? '' : `${it.objeto.formas[onde].nome}: `}{gatilho.nome}</strong> · {descreverGatilho({ ...gatilho, modo: 'automatico' })}</span>
+                                        <button type="button" className={`importacao-opcao${automatico ? ' escolhida' : ''}`} aria-pressed={automatico} onClick={() => decidirGatilho(it, onde, indice, 'automatico')}>{automatico ? '✔ ' : ''}⚡ Automático</button>
+                                        <button type="button" className={`importacao-opcao${opcional ? ' escolhida' : ''}`} aria-pressed={opcional} onClick={() => decidirGatilho(it, onde, indice, 'opcional')}>{opcional ? '✔ ' : ''}🎚️ Opcional (desarmado)</button>
+                                    </div>
+                                );
+                            })}
+                            <div className="importacao-incerto-todos">
+                                <button type="button" className="importacao-opcao" onClick={() => decidirTodosGatilhos(it, 'automatico')}>Todos automáticos</button>
+                                <button type="button" className="importacao-opcao" onClick={() => decidirTodosGatilhos(it, 'opcional')}>Todos opcionais</button>
+                            </div>
+                        </div>
+                    )}
                     {it.avisos.map((a, i) => <div key={`a${i}`} className="importacao-aviso">⚠️ {a}</div>)}
                     {it.naoAplicado.length > 0 && (
                         <div className="importacao-nao-aplicado">
@@ -120,8 +148,8 @@ export default function ImportadorPrevia({ itens, onAtualizar, onRemover, onConf
             <div className="importacao-acoes">
                 <button type="button" onClick={onVoltar}>Voltar</button>
                 <button type="button" onClick={onAdicionarOutra}>+ Colar outra resposta</button>
-                <button type="button" className="importacao-confirmar" disabled={marcados === 0 || pendentes > 0} title={pendentes > 0 ? 'Responda como aplicar os efeitos marcados com ❓' : ''} onClick={onConfirmar}>Gravar {marcados} no Grimório</button>
-                {pendentes > 0 && <div className="importacao-aviso" role="status">❓ Falta responder {pendentes} efeito(s): só ao ativar ou sempre?</div>}
+                <button type="button" className="importacao-confirmar" disabled={marcados === 0 || pendentes > 0} title={pendentes > 0 ? 'Responda as perguntas marcadas com ❓' : ''} onClick={onConfirmar}>Gravar {marcados} no Grimório</button>
+                {pendentes > 0 && <div className="importacao-aviso" role="status">❓ {[pendentesEfeitos > 0 ? 'Falta responder ' + pendentesEfeitos + ' efeito(s): só ao ativar ou sempre?' : '', pendentesGatilhos > 0 ? (pendentesEfeitos > 0 ? 'E ' : 'Falta responder ') + pendentesGatilhos + ' gatilho(s): automático ou opcional?' : ''].filter(Boolean).join(' ')}</div>}
             </div>
         </div>
     );
