@@ -268,6 +268,10 @@ export function getGlobalMultipliers(ficha) {
             });
         }
 
+        // 🏆 Ganho permanente (gatilho `ganhoPermanente`): total acumulado na ficha, soma ADITIVA no MGERAL (1 + Σ) como as outras fontes.
+        const ganhoPerm = Number(ficha.ganhosPermanentes && ficha.ganhosPermanentes.poderCalculado);
+        if (Number.isFinite(ganhoPerm) && ganhoPerm > 0) grupos.MGERAL.Ganho_Permanente = (grupos.MGERAL.Ganho_Permanente || 0) + ganhoPerm;
+
         const calcTotal = (tipo) => {
             let soma = 0;
             Object.values(grupos[tipo]).forEach(v => { soma += v; });

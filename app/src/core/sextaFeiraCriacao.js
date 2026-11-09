@@ -643,6 +643,7 @@ const PROPS_ACAO_GATILHO = {
     id: { type: 'STRING', description: 'contador: id do contador existente na ficha.' }, op: { type: 'STRING', enum: OPS_CONTADOR_ACAO }, sorteio: { type: 'STRING', description: 'contador: "NdM".' },
     estado: { type: 'STRING', description: `aplicarEstado/removerEstado. Ids: ${ESTADOS.map(e => e.id).join(', ')}.` }, stacks: { type: 'INTEGER' },
     poderId: { type: 'STRING', description: 'ligarPoder/desligarPoder.' },
+    deContador: { type: 'OBJECT', description: 'ganhoPermanente a partir de um contador: ganho no Poder Calculado = valor atual do contador x fator (use isto OU valor).', properties: { id: { type: 'STRING', description: 'nome do contador' }, fator: { type: 'NUMBER' }, zerar: { type: 'BOOLEAN', description: 'zerar o contador depois' } } },
 };
 const GATILHOS_SCHEMA = {
     type: 'ARRAY',

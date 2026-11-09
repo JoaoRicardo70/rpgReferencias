@@ -1117,6 +1117,9 @@ export default function MarcadosPanel() {
     const tetoOcultacaoPoder = getTetoOcultacaoPoder(minhaFicha);
     const ocultacaoPoderAtual = getOcultacaoPoder(minhaFicha);
 
+    // 🏆 Ganhos permanentes de Poder (gatilho `ganhoPermanente`; entra em getGlobalMultipliers como Ganho_Permanente).
+    const ganhoPermanentePoder = (() => { const n = Number(minhaFicha?.ganhosPermanentes?.poderCalculado); return Number.isFinite(n) && n > 0 ? n : 0; })();
+
     const salvar = (caminho, valor) => {
         const valFinal = (valor === undefined || (isNaN(valor) && typeof valor === 'number')) ? null : valor;
         updateFicha(f => {
@@ -1704,6 +1707,19 @@ export default function MarcadosPanel() {
                                             className="ocultacao-poder-num"
                                         />
                                         <span className="ocultacao-poder-pct">%</span>
+                                    </div>
+                                )}
+
+                                {(ganhoPermanentePoder > 0 || isMestre) && (
+                                    <div className="ganho-permanente-linha" data-testid="ganho-permanente-poder">
+                                        <span title="Soma acumulada por gatilhos (ex.: Ego Superior, Verg Avesta). Entra no Poder Calculado como um multiplicador somado aos demais (1 + soma).">🏆 Ganhos permanentes: +{Number(ganhoPermanentePoder.toFixed(6)).toLocaleString('pt-BR', { maximumFractionDigits: 6 })}</span>
+                                        {isMestre && (
+                                            <>
+                                                <input type="number" min="0" step="any" aria-label="Ganhos permanentes de Poder (Mestre)" key={ganhoPermanentePoder} defaultValue={ganhoPermanentePoder} onBlur={e => { const v = parseFloat(e.target.value); const novo = Number.isFinite(v) && v > 0 ? Math.min(v, 1e9) : 0; if (novo !== ganhoPermanentePoder) salvar('ganhosPermanentes.poderCalculado', novo); }} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+                                                <button type="button" className="btn-neon" onClick={() => salvar('ganhosPermanentes.poderCalculado', 0)}>Zerar</button>
+                                                <span className="ganho-permanente-dica">(só o Mestre corrige à mão)</span>
+                                            </>
+                                        )}
                                     </div>
                                 )}
 

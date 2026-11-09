@@ -20,7 +20,9 @@
 //            e danoNoAtacante {modo: 'percDanoRecebido'|'fixo', valor} (só atua quando o atacante-personagem é conhecido no contexto; senão avisa e ignora).
 //   Modo: 'automatico' (sempre vale; ignora `armado`) | 'opcional' (`armado` guardado NO PRÓPRIO gatilho; dono e Mestre alternam; `perguntar: true` pede confirmação
 //            ao dono quando o dano é aplicado no cliente dele; "Não" = não dispara e NÃO gasta o limite; em outro cliente/dono offline vale só `armado`).
-//   ganhoPermanente (somar ao valor base da ficha) NÃO foi implementado: use um contador (ver PROGRESSO).
+//   ganhoPermanente {valor} | {deContador:{id, fator, zerar?}}: soma ao total ficha.ganhosPermanentes.poderCalculado (só cresce por gatilho; o Mestre ajusta à mão),
+//            que entra no Poder Calculado como fonte ADITIVA 'Ganho_Permanente' do grupo MGERAL (core/poder.js > getGlobalMultipliers). Com deContador o ganho é
+//            valor atual do contador × fator (contador inexistente ou ganho <= 0: nada acontece); `zerar` zera o contador depois.
 //   Gatilho disparado dentro de outro gatilho respeita profundidade máx. 3 e o mesmo gatilho não dispara 2x na cadeia.
 // Faixas de Vida: o percentual é arredondado PARA BAIXO ao inteiro antes de comparar (6,9% conta como 6); a faixa é inclusiva nas duas pontas.
 // Um golpe que cruza várias faixas só dispara a faixa onde a Vida TERMINA (as outras não contêm a Vida final) e só na borda (entrando de fora).
@@ -46,6 +48,9 @@ export const LIMITE_TURNOS_IMUNIDADE = 10;
 export const LIMITE_DURACAO_BUFF_GATILHO = 20;
 export const LIMITE_CONTADOR_GATILHO = 9999;
 export const LIMITE_LINHAS_TABELA = 12;
+export const LIMITE_GANHO_PERMANENTE = 1e6;
+export const LIMITE_FATOR_GANHO = 1e6;
+export const LIMITE_TOTAL_GANHO_PERMANENTE = 1e9;
 export const LIMITE_ATE_TABELA = 100000;
 export const NIVEIS_ACERTO = ['qualquer', 'normal', 'critico', 'fatal'];
 export const OPS_CONTADOR_ACAO = ['somar', 'definir', 'zerar', 'dividir'];
@@ -82,6 +87,7 @@ export const ACOES_GATILHO = [
     { id: 'danoEmSi', rotulo: 'Sofrer dano' },
     { id: 'rolarTabela', rotulo: 'Rolar tabela' },
     { id: 'danoNoAtacante', rotulo: 'Dano no atacante' },
+    { id: 'ganhoPermanente', rotulo: 'Ganho permanente de Poder' },
 ];
 export const PERIODOS_GATILHO = [
     { id: 'turno', rotulo: 'por turno' },
@@ -195,6 +201,18 @@ export function normalizarAcaoGatilho(bruta, opcoes = {}) {
             const valor = numero(bruta.valor);
             if (valor === null || valor <= 0) return null;
             return { tipo: 'danoNoAtacante', modo, valor: limitar(valor, 0, modo === 'fixo' ? LIMITE_VALOR_GATILHO : 1000) };
+        }
+        case 'ganhoPermanente': {
+            const dc = bruta.deContador;
+            if (dc && typeof dc === 'object') {
+                const id = texto(dc.id, 60);
+                const fator = numero(dc.fator);
+                if (!id || fator === null || fator <= 0) return null;
+                return { tipo: 'ganhoPermanente', deContador: { id, fator: limitar(fator, 0, LIMITE_FATOR_GANHO), ...(dc.zerar === true ? { zerar: true } : {}) } };
+            }
+            const valor = numero(bruta.valor);
+            if (valor === null || bruta.valor === '' || valor <= 0) return null;
+            return { tipo: 'ganhoPermanente', valor: limitar(valor, 0, LIMITE_GANHO_PERMANENTE) };
         }
         case 'rolarTabela': {
             if (opcoes.dentroDeTabela) return null;
@@ -547,6 +565,9 @@ export function descreverAcaoGatilho(a, ctx = null) {
         case 'desligarPoder': return `desligar ${nomeDoPoder(a.poderId, ctx)}`;
         case 'danoNoAtacante': return a.modo === 'fixo' ? `causar ${fmtN(a.valor)} de dano no atacante` : `devolver ${a.valor}% do dano recebido (antes do escudo) ao atacante`;
         case 'rolarTabela': return descreverTabela(a, ctx);
+        case 'ganhoPermanente': return a.deContador
+            ? `ganhar Poder permanente: ${nomeDoContador(a.deContador.id, ctx)} x ${a.deContador.fator}${a.deContador.zerar ? ' (e zerar o contador)' : ''}`
+            : `ganhar +${a.valor} de Poder permanente`;
         case 'danoEmSi': return a.modo === 'fixo' ? `sofrer ${fmtN(a.valor)} de dano` : `sofrer dano de ${a.valor}% da Vida ${a.modo === 'percMax' ? 'máxima' : 'atual'}`;
         default: return '';
     }

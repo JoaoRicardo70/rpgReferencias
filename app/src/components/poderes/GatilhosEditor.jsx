@@ -22,6 +22,7 @@ const ACOES_DO_FORMULARIO = [
     { id: 'desligarPoder', rotulo: 'Desligar um Poder' },
     { id: 'danoEmSi', rotulo: 'Sofrer dano' },
     { id: 'danoNoAtacante', rotulo: 'Dano no atacante' },
+    { id: 'ganhoPermanente', rotulo: 'Ganho permanente de Poder' },
     { id: 'rolarTabela', rotulo: 'Rolar tabela' },
 ];
 const ROTULO_NIVEL = { qualquer: 'qualquer golpe', normal: 'golpe normal', critico: 'golpe crítico', fatal: 'golpe crítico fatal' };
@@ -32,7 +33,7 @@ const EXPLICACAO_MODO = {
 };
 
 const FORMULARIO_VAZIO = { id: '', nome: '', evento: 'danoQueZeraria', de: '10', ate: '1', nivel: 'qualquer', poderEvento: '', contadorEvento: '', opEvento: '>=', valorEvento: '', vidaMaiorQue: '', limite: '', acoes: [], mestreDesligou: false, modo: 'automatico', armado: true, perguntar: false };
-const ACAO_VAZIA = { tipo: 'anularDano', valor: '', nome: '', tipoEscudo: 'escudo', texto: '', contadorId: '', op: 'somar', sorteio: '', estado: 'queimado', poderId: '', modoDano: 'fixo', modoAtacante: 'percDanoRecebido' };
+const ACAO_VAZIA = { tipo: 'anularDano', valor: '', nome: '', tipoEscudo: 'escudo', texto: '', contadorId: '', op: 'somar', sorteio: '', estado: 'queimado', poderId: '', modoDano: 'fixo', modoAtacante: 'percDanoRecebido', gpModo: 'fixo', gpFator: '', gpZerar: false };
 const TABELA_VAZIA = { dado: '1d4', linhas: [{ ate: '1', texto: '', acoes: [] }], alvo: 0 };
 
 function formularioDe(g) {
@@ -92,6 +93,9 @@ function acaoDe(a) {
         case 'ligarPoder': case 'desligarPoder': return { tipo: a.tipo, poderId: a.poderId };
         case 'danoEmSi': return { tipo: 'danoEmSi', modo: a.modoDano, valor: a.valor };
         case 'danoNoAtacante': return { tipo: 'danoNoAtacante', modo: a.modoAtacante, valor: a.valor };
+        case 'ganhoPermanente': return a.gpModo === 'contador'
+            ? { tipo: 'ganhoPermanente', deContador: { id: a.contadorId, fator: a.gpFator, zerar: a.gpZerar === true } }
+            : { tipo: 'ganhoPermanente', valor: a.valor };
         default: return { tipo: a.tipo };
     }
 }
@@ -103,6 +107,25 @@ function CamposDaAcao({ acao, setAcao, anularDanoOk, permitirTabela, nomes, onAd
             <select aria-label={`Tipo da ação${sufixo}`} value={acao.tipo} onChange={e => setAcao({ ...ACAO_VAZIA, tipo: e.target.value })}>
                 {ACOES_DO_FORMULARIO.filter(a => (a.id !== 'anularDano' || anularDanoOk) && (a.id !== 'rolarTabela' || permitirTabela)).map(a => <option key={a.id} value={a.id}>{a.rotulo}</option>)}
             </select>
+            {acao.tipo === 'ganhoPermanente' && (
+                <>
+                    <select aria-label={`Origem do ganho permanente${sufixo}`} value={acao.gpModo} onChange={e => setAcao({ ...acao, gpModo: e.target.value })}>
+                        <option value="fixo">valor fixo</option>
+                        <option value="contador">a partir de um contador x fator</option>
+                    </select>
+                    {acao.gpModo === 'fixo' && <input type="number" min="0" step="any" aria-label={`Valor do ganho permanente${sufixo}`} placeholder="valor (ex.: 2)" value={acao.valor} onChange={e => setAcao({ ...acao, valor: e.target.value })} />}
+                    {acao.gpModo === 'contador' && (
+                        <>
+                            <select aria-label={`Contador do ganho permanente${sufixo}`} value={acao.contadorId} onChange={e => setAcao({ ...acao, contadorId: e.target.value })}>
+                                <option value="">(escolha o contador)</option>
+                                {nomes.contadores.map(c => <option key={String(c.id)} value={String(c.id)}>{c.nome}</option>)}
+                            </select>
+                            <input type="number" min="0" step="any" aria-label={`Fator do ganho permanente${sufixo}`} placeholder="fator (ex.: 0.0001)" value={acao.gpFator} onChange={e => setAcao({ ...acao, gpFator: e.target.value })} />
+                            <label><input type="checkbox" aria-label={`Zerar o contador depois${sufixo}`} checked={acao.gpZerar} onChange={e => setAcao({ ...acao, gpZerar: e.target.checked })} /> zerar o contador depois</label>
+                        </>
+                    )}
+                </>
+            )}
             {['definirVida', 'curar', 'escudo', 'imunidadeTotal', 'danoEmSi', 'danoNoAtacante', 'aplicarEstado'].includes(acao.tipo) && (
                 <input type="number" min="0" aria-label={`Valor da ação${sufixo}`} placeholder={acao.tipo === 'curar' ? '% da Vida' : acao.tipo === 'imunidadeTotal' ? 'turnos' : acao.tipo === 'aplicarEstado' ? 'stacks' : acao.tipo === 'danoNoAtacante' && acao.modoAtacante === 'percDanoRecebido' ? '% do dano recebido (antes do escudo)' : 'valor'} value={acao.valor} onChange={e => setAcao({ ...acao, valor: e.target.value })} />
             )}

@@ -16,9 +16,10 @@ import { calcularEficaciaCura } from './engine.js';
 import { adicionarEscudo, removerEscudo } from './escudos.js';
 import { gastarUso } from './usosPoder.js';
 import { somarBuffTemporario } from './suporte.js';
-import { chaveDoGatilhoDoPoder, normalizarGatilhos } from './gatilhos.js';
+import { chaveDoGatilhoDoPoder, normalizarGatilhos, LIMITE_TOTAL_GANHO_PERMANENTE } from './gatilhos.js';
 
 const fmtN = (n) => Math.floor(Number(n) || 0).toLocaleString('pt-BR');
+const fmtGanho = (n) => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 6 });
 
 // God Mode: enquanto ficha.combate.imunidadeTotal.turnosRestantes > 0, TODO dano à Vida vira 0 (inclusive Dano Verdadeiro).
 export function temImunidadeTotal(ficha) {
@@ -263,6 +264,39 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                 textos.push(`${nome}: ${fmtN(dano)} de dano volta para ${ctx.atacante.nome}`);
                 break;
             }
+            case 'ganhoPermanente': {
+                // Soma ao total permanente do Poder Calculado (ficha.ganhosPermanentes.poderCalculado). Fixo, ou valor ATUAL do contador x fator (zerar opcional).
+                let ganho = 0; let origem = ''; let iZerar = -1;
+                if (a.deContador) {
+                    const i = Array.isArray(ficha.contadores) ? ficha.contadores.findIndex(c => c && String(c.id) === String(a.deContador.id)) : -1;
+                    if (i < 0) break;
+                    const c = ficha.contadores[i];
+                    const v = Number(c.valor) || 0;
+                    ganho = v * a.deContador.fator;
+                    origem = `${c.nome} ${v} x ${a.deContador.fator}`;
+                    if (a.deContador.zerar) iZerar = i;
+                } else { ganho = Number(a.valor); origem = 'valor fixo'; }
+                if (!Number.isFinite(ganho) || !(ganho > 0)) break;
+                const atualGp = Number(ficha.ganhosPermanentes && ficha.ganhosPermanentes.poderCalculado);
+                const base = Number.isFinite(atualGp) && atualGp > 0 ? atualGp : 0;
+                const total = Math.round(Math.min(LIMITE_TOTAL_GANHO_PERMANENTE, base + ganho) * 1e9) / 1e9;
+                if (!ficha.ganhosPermanentes || typeof ficha.ganhosPermanentes !== 'object') ficha.ganhosPermanentes = {};
+                ficha.ganhosPermanentes.poderCalculado = total;
+                caminhos.add('ganhosPermanentes/poderCalculado');
+                textos.push(`${nome}: +${fmtGanho(ganho)} de Poder permanente (${origem}); total ${fmtGanho(total)}`);
+                if (iZerar >= 0) {
+                    const c = ficha.contadores[iZerar];
+                    const antes = Number(c.valor) || 0;
+                    atualizarContador(ficha, c.id, { valor: 0 });
+                    const depois = Number(ficha.contadores[iZerar].valor) || 0;
+                    if (depois !== antes) {
+                        caminhosDoContador(ficha, iZerar).forEach(p => caminhos.add(p));
+                        textos.push(`${nome}: ${c.nome} ${antes} → ${depois}`);
+                        derivados.push({ tipo: 'contadorAtingiu', contadorId: String(c.id), valorAntes: antes, valorDepois: depois });
+                    }
+                }
+                break;
+            }
             case 'rolarTabela': {
                 // Um rolar por aplicação (rng injetável). Sem linha correspondente: nada acontece. As ações da linha passam por este mesmo executor (um nível mais fundo).
                 const rolado = rolarSorteio(a.dado, ctx.rng);
@@ -368,7 +402,7 @@ export function camposParaGravar(ficha, caminhos) {
 
 // Campos de gatilhos/condições que mudaram entre duas versões da ficha (para gravar só eles no Firebase de OUTRO jogador).
 // Formato { caminho: valor | null }. Usado no início do turno (estados que tiram Vida, Imunidade total que passa).
-const CAMINHOS_GATILHOS = ['condicoes', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
+const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'condicoes', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
 export function camposDeGatilhosAlterados(antes, depois) {
     const lido = (f, caminho) => caminho.split('/').reduce((v, p) => (v === undefined || v === null ? undefined : v[p]), f);
     const mudados = CAMINHOS_GATILHOS.filter(c => JSON.stringify(lido(antes, c)) !== JSON.stringify(lido(depois, c)));

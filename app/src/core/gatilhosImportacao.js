@@ -44,6 +44,7 @@ function referenciasParaConferir(g) {
     const olhar = (a) => {
         if (!a || typeof a !== 'object') return;
         if (a.tipo === 'contador' && a.id) refs.push(`contador "${a.id}"`);
+        if (a.tipo === 'ganhoPermanente' && a.deContador && a.deContador.id) refs.push(`contador "${a.deContador.id}"`);
         if ((a.tipo === 'ligarPoder' || a.tipo === 'desligarPoder') && a.poderId) refs.push(`Poder "${a.poderId}"`);
         if (a.tipo === 'rolarTabela') (a.resultados || []).forEach(r => (r && r.acoes || []).forEach(olhar));
     };
