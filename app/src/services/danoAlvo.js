@@ -67,10 +67,10 @@ function gravarEfeitosDoDano(nome, ficha, vidaFinalBruta, { elemento = null, niv
 
 // Dano Rápido do Mestre em OUTRO jogador: escudo -> gatilhos -> Vida. Devolve { texto (escudo), textos (gatilhos) }.
 // Sem gatilhos nem Imunidade total faz EXATAMENTE o de sempre (absorverEmPersonagem + gravarDanoEmPersonagem).
-export function aplicarDanoEmPersonagem(nome, ficha, danoExibido, valorRaw, { elemento = null, nivelOverride = null } = {}) {
+export function aplicarDanoEmPersonagem(nome, ficha, danoExibido, valorRaw, { elemento = null, nivelOverride = null, golpe } = {}) {
     const abs = absorverEmPersonagem(nome, ficha, danoExibido, nome);
     const rawFinal = abs.absorvido > 0 ? danoExibidoParaBruto(abs.restante) : (abs.imune ? 0 : valorRaw);
-    const g = gravarDanoEmPersonagem(nome, ficha, Math.max(0, ((ficha && ficha.vida && ficha.vida.atual) || 0) - rawFinal), { elemento, nivelOverride, nomeNoFeed: nome, escudosNovos: abs.escudosNovos });
+    const g = gravarDanoEmPersonagem(nome, ficha, Math.max(0, ((ficha && ficha.vida && ficha.vida.atual) || 0) - rawFinal), { elemento, nivelOverride, nomeNoFeed: nome, escudosNovos: abs.escudosNovos, golpe });
     return { texto: abs.texto, textos: g.textos };
 }
 

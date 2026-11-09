@@ -35,6 +35,9 @@ import { dispararEventoMeu, dispararEventoEmPersonagem, dispararResultadoDoAcert
 import { resolverAlvoCombate, idAlvoPersonagem, ehAlvoPersonagem } from '../../core/alvoCombate';
 import { ordenarOrdemTurno, chaveEntidadeTurno, moverChaveNaOrdem, recalcularIndiceTurno } from '../../core/turnos';
 
+// 🎯 O Dano Rápido do Mestre conta como GOLPE (nível normal): dispara o evento `atingido` dos gatilhos de quem o sofre.
+const GOLPE_DANO_RAPIDO = { nivel: 'normal' };
+
 export const MAP_SIZE = 30;
 export const PALETA = ['#ff003c', '#0088ff', '#00ff88', '#ffcc00', '#ff00ff', '#00ffff', '#ff8800', '#88ff00'];
 
@@ -1152,11 +1155,11 @@ export function MapaFormProvider({ children }) {
             if (!dData) return;
             salvarDummie(alvo.id, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - valorRaw) });
         } else if (alvo.nome === meuNome) {
-            const decisoesRapido = perguntarGatilhosDeDano(useStore.getState().minhaFicha, valor, { nome: alvo.nome, nomeEscudo: alvo.nome });
+            const decisoesRapido = perguntarGatilhosDeDano(useStore.getState().minhaFicha, valor, { nome: alvo.nome, nomeEscudo: alvo.nome, golpe: GOLPE_DANO_RAPIDO });
             updateFicha(f => {
                 // 🛡️ Escudos e Vida temporária absorvem antes (core/escudos.js); o que sobra vai para a Vida.
                 // 🔔 Ponto único de dano na Vida (core/danoVida.js): Imunidade total, escudo e gatilhos.
-                const r = aplicarDanoNaVidaDaFicha(f, valor, { nome: alvo.nome, nomeEscudo: alvo.nome, decisoes: decisoesRapido });
+                const r = aplicarDanoNaVidaDaFicha(f, valor, { nome: alvo.nome, nomeEscudo: alvo.nome, decisoes: decisoesRapido, golpe: GOLPE_DANO_RAPIDO });
                 textoEscudo = r.textoEscudo; textoGatilhos = textoDosGatilhos(r);
                 if (!f.combate) f.combate = {};
                 f.combate.ultimoElementoRecebido = elemento || null;
@@ -1166,7 +1169,7 @@ export function MapaFormProvider({ children }) {
             salvarFichaSilencioso();
         } else {
             // 🛡️ Escudos e Vida temporária do alvo absorvem antes (services/danoAlvo.js).
-            const r = aplicarDanoEmPersonagem(alvo.nome, alvo.ficha, valor, valorRaw, { elemento, nivelOverride });
+            const r = aplicarDanoEmPersonagem(alvo.nome, alvo.ficha, valor, valorRaw, { elemento, nivelOverride, golpe: GOLPE_DANO_RAPIDO });
             textoEscudo = r.texto;
             if (r.textos.length > 0) textoGatilhos = `🔔 ${r.textos.join(' · ')}`;
         }
