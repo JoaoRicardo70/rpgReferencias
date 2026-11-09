@@ -376,6 +376,8 @@ const useStore = create(
             
             if (dados.afinidades) state.minhaFicha.afinidades = Object.assign({}, fichaPadrao.afinidades, dados.afinidades);
             if (dados.condicoes) state.minhaFicha.condicoes = dados.condicoes || [];
+            // ⏳ Duração dos estados em turnos (core/duracaoEstados.js): sem ela o estado é permanente.
+            if (dados.duracaoEstados && typeof dados.duracaoEstados === 'object') state.minhaFicha.duracaoEstados = { ...dados.duracaoEstados }; else delete state.minhaFicha.duracaoEstados;
 
             if (dados.estetica) state.minhaFicha.estetica = Object.assign({}, fichaPadrao.estetica, dados.estetica);
             if (dados.labels) state.minhaFicha.labels = Object.assign({}, fichaPadrao.labels, dados.labels);

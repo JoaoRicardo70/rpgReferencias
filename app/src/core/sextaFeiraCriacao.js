@@ -26,6 +26,7 @@ import { lerGatilhosDaIA } from './gatilhosImportacao.js';
 import { EVENTOS_GATILHO, ACOES_GATILHO, PERIODOS_GATILHO, NIVEIS_ACERTO, OPS_CONTADOR_ACAO, OPS_CONTADOR_EVENTO, LIMITE_GATILHOS_POR_FONTE, LIMITE_ACOES_POR_GATILHO, LIMITE_LINHAS_TABELA, descreverGatilho } from './gatilhos.js';
 import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from './efeitosCondicionais.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
+import { descreverDuracaoSpec } from './duracaoEstados.js';
 import { normalizarAplicaEstados, ATRIBUTOS_TESTE, ROTULO_ATRIBUTO, LIMITES_ESTADOS } from './estadosGolpe.js';
 import { ESTADOS, nomeDoEstado, iconeDoEstado, MAX_STACKS } from './condicoes.js';
 import { normalizarReflexo, MODOS_REFLEXO, ENERGIAS_REFLEXO } from './reflexo.js';
@@ -255,7 +256,7 @@ export function descreverExtrasProposta(objeto) {
     if (!objeto) return linhas;
     (objeto.aplicaEstados || []).forEach((e) => {
         const teste = e.teste ? `teste de ${ROTULO_ATRIBUTO[e.teste.atributo] || e.teste.atributo} CD ${e.teste.cd}` : '';
-        const extra = [teste, e.apenasCritico ? 'só em crítico' : ''].filter(Boolean).join(', ');
+        const extra = [teste, e.apenasCritico ? 'só em crítico' : '', e.duracao ? `por ${descreverDuracaoSpec(e.duracao)}` : ''].filter(Boolean).join(', ');
         linhas.push(`${iconeDoEstado(e.id)} Aplica ${nomeDoEstado(e.id)} x${e.stacks}${extra ? ` (${extra})` : ''}`);
     });
     if (objeto.reflexo) {
@@ -284,7 +285,7 @@ export function descreverExtrasProposta(objeto) {
 
 const ESTADOS_SCHEMA = {
     type: 'ARRAY',
-    description: `Estados negativos que a criação aplica em quem for atingido (máx. ${LIMITES_ESTADOS.porFonte}). Use só quando ela deve debilitar o alvo (sangramento, queimadura, lentidão...). stacks 1-${MAX_STACKS}; "teste" deixa o alvo resistir (d20 + atributo contra a CD); apenasCritico = só em golpe crítico. Ids: ${ESTADOS.map(e => e.id).join(', ')}. Ex.: [{"id":"sangrando","stacks":2,"teste":{"atributo":"constituicao","cd":15},"apenasCritico":true}]`,
+    description: `Estados negativos que a criação aplica em quem for atingido (máx. ${LIMITES_ESTADOS.porFonte}). Use só quando ela deve debilitar o alvo (sangramento, queimadura, lentidão...). stacks 1-${MAX_STACKS}; "teste" deixa o alvo resistir (d20 + atributo contra a CD); apenasCritico = só em golpe crítico; duracao = turnos que o estado dura ("imobilizado por 1 turno" = "1"; aceita dado "1d12+1"; omita se não houver prazo, aí fica até remover). Ids: ${ESTADOS.map(e => e.id).join(', ')}. Ex.: [{"id":"sangrando","stacks":2,"teste":{"atributo":"constituicao","cd":15},"apenasCritico":true,"duracao":"2"}]`,
     items: {
         type: 'OBJECT',
         properties: {
@@ -292,6 +293,7 @@ const ESTADOS_SCHEMA = {
             stacks: { type: 'INTEGER', description: `1 a ${MAX_STACKS}.` },
             teste: { type: 'OBJECT', description: 'Opcional: o alvo pode resistir.', properties: { atributo: { type: 'STRING', enum: ATRIBUTOS_TESTE }, cd: { type: 'INTEGER', description: `Dificuldade (1 a ${LIMITES_ESTADOS.cdMax}).` } } },
             apenasCritico: { type: 'BOOLEAN' },
+            duracao: { type: 'STRING', description: 'Opcional: turnos que o estado dura (1 a 99, ex.: \"2\") ou dado (ex.: \"1d12+1\"). Sem prazo, omita.' },
         },
         required: ['id'],
     },
@@ -638,7 +640,7 @@ const PROPS_ACAO_GATILHO = {
     modo: { type: 'STRING', description: 'curar/danoEmSi: fixo | percMax | percAtual. danoNoAtacante: percDanoRecebido | fixo. buff: turnos | combate | permanente.' },
     valor: { type: 'NUMBER' }, percMax: { type: 'NUMBER', description: 'definirVida: % da Vida máxima (use valor OU percMax).' },
     nome: { type: 'STRING' }, tipoEscudo: { type: 'STRING', enum: ['escudo', 'vidaTemporaria'] },
-    atributo: { type: 'STRING', description: 'buff: atributo do efeito.' }, duracao: { type: 'INTEGER', description: 'buff: turnos (1 a 20).' },
+    atributo: { type: 'STRING', description: 'buff: atributo do efeito.' }, duracao: { type: 'INTEGER', description: 'buff: turnos (1 a 20). aplicarEstado: turnos que o estado dura (1 a 99), omita se for até remover.' },
     duracaoTurnos: { type: 'INTEGER', description: 'imunidadeTotal: turnos (1 a 10).' }, texto: { type: 'STRING', description: 'mensagem.' },
     id: { type: 'STRING', description: 'contador: id do contador existente na ficha.' }, op: { type: 'STRING', enum: OPS_CONTADOR_ACAO }, sorteio: { type: 'STRING', description: 'contador: "NdM".' },
     estado: { type: 'STRING', description: `aplicarEstado/removerEstado. Ids: ${ESTADOS.map(e => e.id).join(', ')}.` }, stacks: { type: 'INTEGER' },

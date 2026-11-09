@@ -6,6 +6,7 @@ import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes, ge
 import { POLARIDADES, getInfoPolaridade } from '../../core/polaridade.js';
 import { agruparElementosPorCategoria, chaveElemento } from '../../core/elementos.js';
 import { resumoDosEstados } from '../../core/condicoes.js';
+import DuracaoEstadosEditor from '../shared/DuracaoEstadosEditor';
 import { buffsTemporariosDaFicha } from '../../core/suporte.js';
 import { listaDeContadores, LIMITE_CONTADORES, RESETS_CONTADOR } from '../../core/contadores.js';
 import { temEstagios } from '../../core/estagios.js';
@@ -272,7 +273,7 @@ export function FichaCondicoesEElementais() {
     const ctx = useFichaForm();
     if (!ctx) return null;
 
-    const { minhaFicha, modificarCondicao, removerBuffTemporario, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, adicionarContadorFicha, removerContadorFicha, atualizarContadorFicha, mudarContadorFicha } = ctx;
+    const { minhaFicha, modificarCondicao, definirDuracaoEstadoFicha, removerBuffTemporario, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, adicionarContadorFicha, removerContadorFicha, atualizarContadorFicha, mudarContadorFicha } = ctx;
     const contadores = listaDeContadores(minhaFicha);
     const poderesComEstagios = (Array.isArray(minhaFicha.poderes) ? minhaFicha.poderes : []).filter(p => p && temEstagios(p));
     const reducoes = Array.isArray(minhaFicha.reducoesDano) ? minhaFicha.reducoesDano : [];
@@ -343,6 +344,8 @@ export function FichaCondicoesEElementais() {
                                 );
                             })}
                         </div>
+                        {/* ⏳ Duração dos estados em turnos (vazio = até remover) */}
+                        <DuracaoEstadosEditor ficha={minhaFicha} onDefinir={definirDuracaoEstadoFicha} />
                         {buffsAtivos.length > 0 && (
                             <ul className="estados-efeitos" aria-label="Buffs temporários">
                                 {buffsAtivos.map(b => (

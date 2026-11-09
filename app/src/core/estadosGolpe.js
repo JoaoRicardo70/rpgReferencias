@@ -1,13 +1,14 @@
 // ==========================================
 // 🩸 ESTADOS APLICADOS POR UM GOLPE — lógica pura. Poderes/Habilidades, Técnicas elementais, Itens/Armas, o Ataque livre
 // (ficha.ataqueConfig.estadosGolpe) e o tipo da arma podem aplicar estados negativos (core/condicoes.js) a quem for atingido.
-// Cada entrada é { id, stacks, teste?: { atributo, cd }, apenasCritico? }: o alvo pode resistir com um teste de atributo
+// Cada entrada é { id, stacks, teste?: { atributo, cd }, apenasCritico?, duracao? } (duracao = turnos 1 a 99 OU dado 'NdM(+K)' sorteado ao aplicar, ver core/duracaoEstados.js; sem ela o estado é permanente): o alvo pode resistir com um teste de atributo
 // (d20 + dezena do atributo contra a CD). Dummies não têm atributos: não testam, o estado entra direto.
 // ==========================================
 import { ehEstadoValido, MAX_STACKS, nomeDoEstado, iconeDoEstado } from './condicoes.js';
 import { getRawBase } from './attributes.js';
 import { modificadorDezena } from './utils.js';
 import { imuneAoEstado, resisteAoEstado } from './efeitosCondicionais.js';
+import { normalizarDuracaoSpec, sortearDuracao, normalizarDuracao, rotuloDuracao, DURACAO_ESTADO_MAX } from './duracaoEstados.js';
 
 export const ATRIBUTOS_TESTE = ['forca', 'destreza', 'constituicao', 'stamina', 'sabedoria', 'inteligencia', 'energiaEsp', 'carisma'];
 export const ROTULO_ATRIBUTO = {
@@ -37,6 +38,8 @@ export function normalizarAplicaEstados(lista) {
             if (Number.isFinite(cd) && cd > 0) item.teste = { atributo: e.teste.atributo, cd: Math.min(LIMITES_ESTADOS.cdMax, cd) };
         }
         if (e.apenasCritico) item.apenasCritico = true;
+        const duracao = normalizarDuracaoSpec(e.duracao);
+        if (duracao !== null) item.duracao = duracao;
         saida.push(item);
     });
     return saida;
@@ -66,7 +69,7 @@ const d20 = () => Math.floor(Math.random() * 20) + 1;
 
 // Resolve o que realmente entra no alvo. `fichaAlvo` = ficha de personagem (null para Dummie: sem teste).
 // Devolve { aplicados: [{ id, stacks, origem }], resistidos: [{ id, origem, total, cd, atributo }], pulados: n }.
-export function resolverEstadosNoAlvo(estados, fichaAlvo, { critico = false, rolar = d20 } = {}) {
+export function resolverEstadosNoAlvo(estados, fichaAlvo, { critico = false, rolar = d20, rng = Math.random } = {}) {
     const aplicados = []; const resistidos = []; const imunes = []; let pulados = 0;
     (estados || []).forEach((e) => {
         if (!e || !ehEstadoValido(e.id)) return;
@@ -78,21 +81,29 @@ export function resolverEstadosNoAlvo(estados, fichaAlvo, { critico = false, rol
             const total = dado + modificadorDezena(getRawBase(fichaAlvo, e.teste.atributo));
             if (total >= e.teste.cd) { resistidos.push({ id: e.id, origem: e.origem || '', total, cd: e.teste.cd, atributo: e.teste.atributo }); return; }
         }
-        aplicados.push({ id: e.id, stacks: e.stacks, origem: e.origem || '' });
+        // ⏳ Duração (número ou dado) sorteada AGORA, só para quem não resistiu; sem ela o estado é permanente.
+        const duracao = e.duracao === undefined ? null : sortearDuracao(e.duracao, rng);
+        aplicados.push({ id: e.id, stacks: e.stacks, origem: e.origem || '', ...(duracao !== null ? { duracao } : {}) });
     });
     return { aplicados, resistidos, pulados, ...(imunes.length ? { imunes } : {}) };
 }
 
-// Junta o mesmo estado vindo de várias fontes (soma os stacks, até 6).
+// Junta o mesmo estado vindo de várias fontes (soma os stacks, até 6). Duração: a MAIOR entre as fontes; se alguma fonte é permanente, o junto é permanente.
 export function juntarAplicados(aplicados) {
     const mapa = new Map();
-    (aplicados || []).forEach((a) => { mapa.set(a.id, Math.min(MAX_STACKS, (mapa.get(a.id) || 0) + a.stacks)); });
-    return [...mapa.entries()].map(([id, stacks]) => ({ id, stacks }));
+    (aplicados || []).forEach((a) => {
+        const antes = mapa.get(a.id);
+        const dur = normalizarDuracao(a.duracao);
+        if (!antes) { mapa.set(a.id, { stacks: Math.min(MAX_STACKS, a.stacks), duracao: dur }); return; }
+        const duracao = antes.duracao === null || dur === null ? null : Math.min(DURACAO_ESTADO_MAX, Math.max(antes.duracao, dur));
+        mapa.set(a.id, { stacks: Math.min(MAX_STACKS, antes.stacks + a.stacks), duracao });
+    });
+    return [...mapa.entries()].map(([id, v]) => ({ id, stacks: v.stacks, ...(v.duracao !== null ? { duracao: v.duracao } : {}) }));
 }
 
 export function descreverResolucao(r, nomeAlvo = '') {
     if (!r) return '';
-    const partes = juntarAplicados(r.aplicados).map(a => `${iconeDoEstado(a.id)} ${nomeDoEstado(a.id)} +${a.stacks}`);
+    const partes = juntarAplicados(r.aplicados).map(a => `${iconeDoEstado(a.id)} ${nomeDoEstado(a.id)} +${a.stacks}${a.duracao ? ` ${rotuloDuracao(a.duracao)}` : ''}`);
     const resistiu = r.resistidos.map(x => `${iconeDoEstado(x.id)} ${nomeDoEstado(x.id)} (teste ${x.total} contra CD ${x.cd})`);
     const texto = [];
     if (partes.length) texto.push(`${nomeAlvo ? `${nomeAlvo} ficou com` : 'Aplicou'}: ${partes.join(', ')}`);

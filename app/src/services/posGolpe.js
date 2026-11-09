@@ -5,28 +5,41 @@
 // ==========================================
 import useStore from '../stores/useStore';
 import { salvarCamposPersonagem } from './firebase-sync';
-import { somarEstado } from '../core/condicoes';
+import { aplicarEstadoComDuracao } from '../core/duracaoEstados';
 import { resolverEstadosNoAlvo, descreverResolucao, juntarAplicados } from '../core/estadosGolpe';
 import { reflexosDisponiveis, calcularReflexo, descreverReflexo, custoDoReflexo } from '../core/reflexo';
 import { entradasNoAlvo, resolverAoAcertarNoAlvo } from '../core/aoAcertar';
 import { absorverEmPersonagem } from './danoAlvo';
 import { temImunidadeTotal } from '../core/gatilhosAplicar';
 
-// Soma os estados já resolvidos na lista de condições do alvo e grava. `fonte` = quem causou (para Amedrontado/Charmado/Provocado).
-// Lista de condições do alvo depois de somar os estados (não grava nada).
-export function condicoesComEstados(alvo, aplicados, fonte = '') {
-    let lista = alvo.isPersonagem ? (alvo.ficha && alvo.ficha.condicoes) : alvo.condicoes;
-    juntarAplicados(aplicados).forEach((a) => { lista = somarEstado(lista, a.id, a.stacks, fonte); });
-    return lista;
+// Soma os estados já resolvidos na lista de condições do alvo (e na duração deles, core/duracaoEstados.js) sem gravar nada.
+// `fonte` = quem causou (para Amedrontado/Charmado/Provocado). Devolve { condicoes, duracaoEstados } (duracaoEstados undefined = nenhum prazo).
+export function estadoDoAlvoComEstados(alvo, aplicados, fonte = '') {
+    const base = alvo.isPersonagem ? (alvo.ficha || {}) : alvo;
+    const tmp = { condicoes: base.condicoes, ...(base.duracaoEstados ? { duracaoEstados: base.duracaoEstados } : {}) };
+    juntarAplicados(aplicados).forEach((a) => { aplicarEstadoComDuracao(tmp, a.id, a.stacks, fonte, a.duracao); });
+    return { condicoes: tmp.condicoes, duracaoEstados: tmp.duracaoEstados };
 }
 
-// Personagem: grava só o campo `condicoes` (escrita por caminho, não apaga o resto). Dummie: devolve o alvo com as condições novas,
+// Lista de condições do alvo depois de somar os estados (não grava nada).
+export function condicoesComEstados(alvo, aplicados, fonte = '') {
+    return estadoDoAlvoComEstados(alvo, aplicados, fonte).condicoes;
+}
+
+// Personagem: grava só os campos `condicoes` (e `duracaoEstados`, se mudou; null apaga) por caminho, sem apagar o resto. Dummie: devolve o alvo com as condições novas,
 // para quem grava o Dano usar no MESMO salvarDummie (um `set` do nó inteiro; gravar antes seria sobrescrito pelo Dano). Sem nada a aplicar, devolve o alvo como veio.
 export function gravarEstadosNoAlvo(idAlvo, alvo, aplicados, fonte = '') {
     if (!alvo || !Array.isArray(aplicados) || aplicados.length === 0) return alvo;
-    const lista = condicoesComEstados(alvo, aplicados, fonte);
-    if (alvo.isPersonagem) { salvarCamposPersonagem(alvo.personagemNome, { condicoes: lista }); return alvo; }
-    return { ...alvo, condicoes: lista };
+    const { condicoes, duracaoEstados } = estadoDoAlvoComEstados(alvo, aplicados, fonte);
+    const antes = (alvo.isPersonagem ? (alvo.ficha || {}) : alvo).duracaoEstados;
+    const duracaoMudou = JSON.stringify(antes || null) !== JSON.stringify(duracaoEstados || null);
+    if (alvo.isPersonagem) {
+        salvarCamposPersonagem(alvo.personagemNome, { condicoes, ...(duracaoMudou ? { duracaoEstados: duracaoEstados || null } : {}) });
+        return alvo;
+    }
+    const novo = { ...alvo, condicoes };
+    if (duracaoEstados) novo.duracaoEstados = duracaoEstados; else delete novo.duracaoEstados;
+    return novo;
 }
 
 // Resolve (com teste de resistência do alvo, se houver) e grava. Devolve { texto, alvo } (alvo = o alvo a gravar com o Dano; muda só para Dummie).

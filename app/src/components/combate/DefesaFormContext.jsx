@@ -10,7 +10,7 @@ import { montarAlvoPersonagem, reduzirDanoNoAlvo } from '../../core/alvoCombate'
 import { gravarVidaDoAlvo } from '../../services/danoAlvo';
 import { reflexosDisponiveis, calcularReflexo, descreverReflexo, custoDoReflexo } from '../../core/reflexo';
 import { resolverEstadosNoAlvo, descreverResolucao, juntarAplicados } from '../../core/estadosGolpe';
-import { aplicarEstadoNaFicha } from '../../core/condicoes';
+import { aplicarEstadoComDuracao } from '../../core/duracaoEstados';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { danoExibidoParaBruto } from '../../core/vitals';
 import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, novoEventoId, perguntarGatilhosDeDano } from '../../services/danoVida';
@@ -311,7 +311,7 @@ export function DefesaFormProvider({ children }) {
         const decisoesGatilhos = imune || souEuMesmo === false ? {} : perguntarGatilhosDeDano(minhaFicha, danoFinal, ctxDano);
         updateFicha((ficha) => {
             if (resolucao) {
-                juntarAplicados(resolucao.aplicados).forEach(a => aplicarEstadoNaFicha(ficha, a.id, a.stacks, nomeAtacante || ''));
+                juntarAplicados(resolucao.aplicados).forEach(a => aplicarEstadoComDuracao(ficha, a.id, a.stacks, nomeAtacante || '', a.duracao));
                 if (!ficha.combate) ficha.combate = {};
                 ficha.combate.estadosDoGolpeTs = golpeDoDano.ts;
             }

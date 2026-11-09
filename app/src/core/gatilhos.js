@@ -12,7 +12,7 @@
 //            contadorAtingiu {contadorId, op: '>='|'==', valor} (derivado: depois de uma ação de contador, só na BORDA, isto é, quando passa a valer).
 //   ações:   anularDano, definirVida, curar, escudo, buff, limparCondicoes, imunidadeTotal, mensagem;
 //            Fase 2: contador {id, op: somar|definir|zerar|dividir, valor, sorteio?: 'NdM'} (só atua em contador EXISTENTE na ficha, por id; se o id
-//            não existe, ignora em silêncio; com sorteio o valor vira a soma dos dados e `valor` só dá o SINAL), aplicarEstado {estado, stacks} (respeita
+//            não existe, ignora em silêncio; com sorteio o valor vira a soma dos dados e `valor` só dá o SINAL), aplicarEstado {estado, stacks, duracao? turnos 1 a 99 ou dado NdM(+K)} (respeita
 //            imunidade a estado), removerEstado {estado}, ligarPoder {poderId} (passa pelas travas de usos e recarga) / desligarPoder {poderId},
 //            danoEmSi {modo: fixo|percMax|percAtual, valor} (ponto único de dano; God Mode zera).
 //   Fase 3: rolarTabela {dado: 'NdM', resultados: [{ ate, texto?, acoes: [...] }]} (até 12 linhas, `ate` estritamente crescente; vale a PRIMEIRA linha com
@@ -37,6 +37,7 @@ import { passaQuando, montarContextoDeCombate, normalizarQuando } from './efeito
 import { efeitosDaConfigAtiva, efeitosAtivosLigados } from './efeitosItem.js';
 import { normalizarUsos, usosRestantes, LIMITE_USOS } from './usosPoder.js';
 import { ehEstadoValido, MAX_STACKS, nomeDoEstado } from './condicoes.js';
+import { normalizarDuracaoSpec, descreverDuracaoSpec } from './duracaoEstados.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
 
@@ -179,7 +180,9 @@ export function normalizarAcaoGatilho(bruta, opcoes = {}) {
             const estado = texto(bruta.estado, 40);
             if (!ehEstadoValido(estado)) return null;
             const stacks = numero(bruta.stacks);
-            return { tipo: 'aplicarEstado', estado, stacks: Math.floor(limitar(stacks === null ? 1 : stacks, 1, MAX_STACKS)) };
+            // ⏳ `duracao` opcional (turnos 1 a 99 ou dado 'NdM(+K)' sorteado ao aplicar); sem ela o estado é permanente.
+            const duracao = normalizarDuracaoSpec(bruta.duracao);
+            return { tipo: 'aplicarEstado', estado, stacks: Math.floor(limitar(stacks === null ? 1 : stacks, 1, MAX_STACKS)), ...(duracao !== null ? { duracao } : {}) };
         }
         case 'removerEstado': {
             const estado = texto(bruta.estado, 40);
@@ -559,7 +562,7 @@ export function descreverAcaoGatilho(a, ctx = null) {
             const mag = a.sorteio ? `${a.sorteio}${Math.abs(a.valor) > 1 ? ` x ${Math.abs(a.valor)}` : ''}` : String(Math.abs(a.valor));
             return a.op === 'definir' ? `colocar ${nome} em ${a.sorteio ? a.sorteio : a.valor}` : `${sinal}${mag} em ${nome}`;
         }
-        case 'aplicarEstado': return `aplicar ${a.stacks}x ${nomeDoEstado(a.estado)} em mim`;
+        case 'aplicarEstado': return `aplicar ${a.stacks}x ${nomeDoEstado(a.estado)} em mim${a.duracao ? ` por ${descreverDuracaoSpec(a.duracao)}` : ''}`;
         case 'removerEstado': return `remover ${nomeDoEstado(a.estado)}`;
         case 'ligarPoder': return `ligar ${nomeDoPoder(a.poderId, ctx)}`;
         case 'desligarPoder': return `desligar ${nomeDoPoder(a.poderId, ctx)}`;

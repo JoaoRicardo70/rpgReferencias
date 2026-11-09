@@ -21,6 +21,7 @@ import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { aplicarCustosPorTurno, fotoDosPoderes, camposDePoderesAlterados } from '../../core/custoPorTurno';
 import { passarTurnoDasRecargas } from '../../core/recargaPoder';
 import { danoDeEstadosNoTurno, descreverDanoDeEstados } from '../../core/condicoes';
+import { passarTurnoDosEstados } from '../../core/duracaoEstados';
 import { passarTurnoDosBuffs, curaPassivaDoTurno, curaEnergiasPassivaDoTurno } from '../../core/suporte';
 import { getVidaMaxBrutaNpc } from '../../core/gavetaNpc';
 import { getNivelDominio, calcularReducaoDanoElemental } from '../../core/dominios';
@@ -119,6 +120,33 @@ export function aplicarInicioDeTurno(ficha, ehDummie = false, nome = '') {
         } catch (e) { console.error('Gatilhos do início do turno falharam', e); }
     }
     return { estados, cura, custos: custos.textos, gatilhos, poderesAlterados: custos.desligados > 0 || recargasMudaram > 0 };
+}
+
+// ⏳ Fim do turno de `quem` (item da ordem de iniciativa): os estados com prazo perdem 1 turno e saem ao chegar a 0. Três caminhos, como no início do turno:
+// eu (updateFicha + debounce), Dummie (só o Mestre, salvarDummie) e outro jogador (só os caminhos tocados). Devolve as frases para o Feed.
+export function encerrarDuracaoDeEstados(quem, storeState, { updateFicha, isMestre }) {
+    if (quem.isDummie) {
+        if (!isMestre) return [];
+        const d = storeState.dummies && storeState.dummies[quem.id];
+        if (!d || !d.duracaoEstados) return [];
+        const clone = JSON.parse(JSON.stringify(d));
+        const r = passarTurnoDosEstados(clone);
+        if (r.mudou) salvarDummie(quem.id, clone);
+        return r.textos;
+    }
+    if (quem.nome === storeState.meuNome) {
+        if (!storeState.minhaFicha || !storeState.minhaFicha.duracaoEstados) return [];
+        let textos = [];
+        updateFicha((f) => { textos = passarTurnoDosEstados(f).textos; });
+        salvarFichaSilencioso();
+        return textos;
+    }
+    const fresca = storeState.personagens && storeState.personagens[quem.nome];
+    if (!fresca || !fresca.duracaoEstados) return [];
+    const clone = JSON.parse(JSON.stringify(fresca));
+    const r = passarTurnoDosEstados(clone);
+    if (r.mudou) salvarCamposPersonagem(quem.nome, camposDeGatilhosAlterados(fresca, clone));
+    return r.textos;
 }
 
 // ✨ Suporte passivo (core/suporte.js): a Cura de Poderes/Técnicas/Itens/Arma sempre ligados cai na Vida no começo do turno do dono,
@@ -979,6 +1007,15 @@ export function MapaFormProvider({ children }) {
             let fim = { textos: [] };
             try { fim = dispararEventoEmPersonagem(quemAcaba.nome, { tipo: 'turnoFim' }); } catch (e) { console.error('Gatilho turnoFim falhou', e); }
             if (fim.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${quemAcaba.nome}: ${fim.textos.join(' · ')}` });
+        }
+
+        // ⏳ Duração dos estados (core/duracaoEstados.js): conta no FIM do turno do portador (depois dos gatilhos turnoFim), então um estado
+        // aplicado fora do turno dele ainda age no turno seguinte inteiro; ao chegar a 0 sai por completo. Um erro aqui nunca impede a passagem de turno.
+        if (quemAcaba && quemAcaba.nome) {
+            try {
+                const terminaram = encerrarDuracaoDeEstados(quemAcaba, useStore.getState(), { updateFicha, isMestre });
+                if (terminaram.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⏳ ${quemAcaba.nome}: ${terminaram.join(' · ')}` });
+            } catch (e) { console.error('Duração dos estados falhou', e); }
         }
 
         setFeedIndexTurnoAtual(feedCombate.length);

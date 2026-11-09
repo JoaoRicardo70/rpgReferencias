@@ -7,7 +7,8 @@
 import { FATOR_EXIBICAO_VITAIS, VITAIS_REGENERAVEIS } from './vitals.js';
 import { coletarGatilhos, avaliarGatilhos, PROFUNDIDADE_MAX_GATILHOS } from './gatilhos.js';
 import { atualizarContador, resetarContadoresDeCena } from './contadores.js';
-import { aplicarEstadoNaFicha, tirarEstado, nomeDoEstado } from './condicoes.js';
+import { nomeDoEstado } from './condicoes.js';
+import { aplicarEstadoComDuracao, removerEstadoComDuracao, limparDuracoes, sortearDuracao, rotuloDuracao } from './duracaoEstados.js';
 import { imuneAoEstado } from './efeitosCondicionais.js';
 import { ligarPoderNoRascunho, desligarPoderNoRascunho } from './custoPorTurno.js';
 import { aplicarDanoNaVida } from './danoVida.js';
@@ -176,7 +177,7 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                 break;
             }
             case 'limparCondicoes':
-                if (Array.isArray(ficha.condicoes) && ficha.condicoes.length > 0) { delete ficha.condicoes; caminhos.add('condicoes'); textos.push(`${nome} limpou as condições`); }
+                if (Array.isArray(ficha.condicoes) && ficha.condicoes.length > 0) { delete ficha.condicoes; caminhos.add('condicoes'); if (limparDuracoes(ficha)) caminhos.add('duracaoEstados'); textos.push(`${nome} limpou as condições`); }
                 break;
             case 'imunidadeTotal':
                 if (!ficha.combate) ficha.combate = {};
@@ -209,17 +210,20 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
             }
             case 'aplicarEstado': {
                 if (imuneAoEstado(ficha, a.estado)) { textos.push(`${nome}: imune a ${nomeDoEstado(a.estado)}`); break; }
-                aplicarEstadoNaFicha(ficha, a.estado, a.stacks, (a.fonte && a.fonte.nome) || nome);
+                // ⏳ Duração (número ou dado) sorteada AGORA com o rng do contexto; sem `duracao` o estado é permanente.
+                const duracao = a.duracao === undefined ? null : sortearDuracao(a.duracao, ctx.rng);
+                const mapaAntes = JSON.stringify(ficha.duracaoEstados || null);
+                aplicarEstadoComDuracao(ficha, a.estado, a.stacks, (a.fonte && a.fonte.nome) || nome, duracao);
                 caminhos.add('condicoes');
-                textos.push(`${nome} aplicou ${a.stacks}x ${nomeDoEstado(a.estado)}`);
+                if (JSON.stringify(ficha.duracaoEstados || null) !== mapaAntes) caminhos.add('duracaoEstados');
+                textos.push(`${nome} aplicou ${a.stacks}x ${nomeDoEstado(a.estado)}${duracao ? ` (${rotuloDuracao(duracao)})` : ''}`);
                 break;
             }
             case 'removerEstado': {
-                const antes = JSON.stringify(ficha.condicoes || []);
-                const lista = tirarEstado(ficha.condicoes, a.estado);
-                if (JSON.stringify(lista) === antes) break;
-                if (lista.length === 0) delete ficha.condicoes; else ficha.condicoes = lista;
+                const mapaAntes = JSON.stringify(ficha.duracaoEstados || null);
+                if (!removerEstadoComDuracao(ficha, a.estado)) break;
                 caminhos.add('condicoes');
+                if (JSON.stringify(ficha.duracaoEstados || null) !== mapaAntes) caminhos.add('duracaoEstados');
                 textos.push(`${nome} removeu ${nomeDoEstado(a.estado)}`);
                 break;
             }
@@ -402,7 +406,7 @@ export function camposParaGravar(ficha, caminhos) {
 
 // Campos de gatilhos/condições que mudaram entre duas versões da ficha (para gravar só eles no Firebase de OUTRO jogador).
 // Formato { caminho: valor | null }. Usado no início do turno (estados que tiram Vida, Imunidade total que passa).
-const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'condicoes', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
+const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
 export function camposDeGatilhosAlterados(antes, depois) {
     const lido = (f, caminho) => caminho.split('/').reduce((v, p) => (v === undefined || v === null ? undefined : v[p]), f);
     const mudados = CAMINHOS_GATILHOS.filter(c => JSON.stringify(lido(antes, c)) !== JSON.stringify(lido(depois, c)));

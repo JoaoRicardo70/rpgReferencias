@@ -33,7 +33,7 @@ const EXPLICACAO_MODO = {
 };
 
 const FORMULARIO_VAZIO = { id: '', nome: '', evento: 'danoQueZeraria', de: '10', ate: '1', nivel: 'qualquer', poderEvento: '', contadorEvento: '', opEvento: '>=', valorEvento: '', vidaMaiorQue: '', limite: '', acoes: [], mestreDesligou: false, modo: 'automatico', armado: true, perguntar: false };
-const ACAO_VAZIA = { tipo: 'anularDano', valor: '', nome: '', tipoEscudo: 'escudo', texto: '', contadorId: '', op: 'somar', sorteio: '', estado: 'queimado', poderId: '', modoDano: 'fixo', modoAtacante: 'percDanoRecebido', gpModo: 'fixo', gpFator: '', gpZerar: false };
+const ACAO_VAZIA = { tipo: 'anularDano', valor: '', nome: '', tipoEscudo: 'escudo', texto: '', contadorId: '', op: 'somar', sorteio: '', estado: 'queimado', duracaoEstado: '', poderId: '', modoDano: 'fixo', modoAtacante: 'percDanoRecebido', gpModo: 'fixo', gpFator: '', gpZerar: false };
 const TABELA_VAZIA = { dado: '1d4', linhas: [{ ate: '1', texto: '', acoes: [] }], alvo: 0 };
 
 function formularioDe(g) {
@@ -88,7 +88,7 @@ function acaoDe(a) {
         case 'imunidadeTotal': return { tipo: 'imunidadeTotal', duracaoTurnos: a.valor || 1 };
         case 'mensagem': return { tipo: 'mensagem', texto: a.texto };
         case 'contador': return { tipo: 'contador', id: a.contadorId, op: a.op, valor: a.valor, sorteio: a.sorteio };
-        case 'aplicarEstado': return { tipo: 'aplicarEstado', estado: a.estado, stacks: a.valor || 1 };
+        case 'aplicarEstado': return { tipo: 'aplicarEstado', estado: a.estado, stacks: a.valor || 1, duracao: a.duracaoEstado };
         case 'removerEstado': return { tipo: 'removerEstado', estado: a.estado };
         case 'ligarPoder': case 'desligarPoder': return { tipo: a.tipo, poderId: a.poderId };
         case 'danoEmSi': return { tipo: 'danoEmSi', modo: a.modoDano, valor: a.valor };
@@ -165,6 +165,9 @@ function CamposDaAcao({ acao, setAcao, anularDanoOk, permitirTabela, nomes, onAd
                 <select aria-label={`Estado${sufixo}`} value={acao.estado} onChange={e => setAcao({ ...acao, estado: e.target.value })}>
                     {ESTADOS.map(est => <option key={est.id} value={est.id}>{est.icone} {est.nome}</option>)}
                 </select>
+            )}
+            {acao.tipo === 'aplicarEstado' && (
+                <input type="text" maxLength={10} aria-label={`Duração do estado (turnos, vazio = até remover)${sufixo}`} title="Duração em turnos (1 a 99) ou dado, ex.: 1d12+1. Vazio = até remover." placeholder="Duração (turnos, vazio = até remover)" value={acao.duracaoEstado} onChange={e => setAcao({ ...acao, duracaoEstado: e.target.value })} />
             )}
             {(acao.tipo === 'ligarPoder' || acao.tipo === 'desligarPoder') && (
                 <select aria-label={`Poder da ação${sufixo}`} value={acao.poderId} onChange={e => setAcao({ ...acao, poderId: e.target.value })}>

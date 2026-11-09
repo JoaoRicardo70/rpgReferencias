@@ -2,6 +2,7 @@ import { adicionarEscudo, removerEscudo, atualizarEscudo } from '../../core/escu
 import { adicionarContador, removerContador, atualizarContador, mudarContador } from '../../core/contadores';
 import { imuneAoEstado } from '../../core/efeitosCondicionais';
 import { nomeDoEstado } from '../../core/condicoes';
+import { sincronizarDuracoes, definirDuracaoManual } from '../../core/duracaoEstados';
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { ELEMENTOS_SISTEMA } from '../../core/elementos.js';
@@ -132,9 +133,17 @@ export function FichaFormProvider({ children }) {
             } else if (delta > 0) {
                 f.condicoes.push({ id: condId, stacks: 1 });
             }
+            // ⏳ Estado que saiu à mão leva a duração junto (core/duracaoEstados.js).
+            sincronizarDuracoes(f);
         });
         salvarFichaSilencioso();
     }, [updateFicha, minhaFicha]);
+
+    // ⏳ Edita (ou tira, com vazio) os turnos de um estado ativo; vazio = permanente, até remover.
+    const definirDuracaoEstadoFicha = useCallback((condId, turnos) => {
+        updateFicha(f => { definirDuracaoManual(f, condId, turnos); });
+        salvarFichaSilencioso();
+    }, [updateFicha]);
 
     const toggleAfinidade = useCallback((categoria, elementoId) => {
         updateFicha(f => {
@@ -572,7 +581,7 @@ export function FichaFormProvider({ children }) {
         addSerEfeito, removeSerEfeito, addSerEfeitoPassivo, removeSerEfeitoPassivo,
         addSerSelado, editarSerSelado, removeSerSelado, toggleSerSelado, cancelarEdicaoSer,
         salvarFormaSer, deletarFormaSer, ativarFormaSer,
-        modificarCondicao, removerBuffTemporario, adicionarContadorFicha, removerContadorFicha, atualizarContadorFicha, mudarContadorFicha, adicionarEscudoFicha, removerEscudoFicha, atualizarEscudoFicha, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
+        modificarCondicao, definirDuracaoEstadoFicha, removerBuffTemporario, adicionarContadorFicha, removerContadorFicha, atualizarContadorFicha, mudarContadorFicha, adicionarEscudoFicha, removerEscudoFicha, atualizarEscudoFicha, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
     }), [
         minhaFicha, updateFicha, personagens, meuNome, mesa, raca, classe, subClasse, alterEgoSlot1, alterEgoSerId, classesMemorizadas,
         idade, fisico, sangue, alinhamento, afiliacao, dinheiro, salvandoBio, overridesCompendio, grands, isGrand, grandIcone,
@@ -584,7 +593,7 @@ export function FichaFormProvider({ children }) {
         serNovoNomeEfeitoPassivo, serNovoAtrPassivo, serNovoPropPassivo, serNovoValPassivo,
         addSerEfeito, removeSerEfeito, addSerEfeitoPassivo, removeSerEfeitoPassivo,
         addSerSelado, editarSerSelado, removeSerSelado, toggleSerSelado, cancelarEdicaoSer,
-        salvarFormaSer, deletarFormaSer, ativarFormaSer, modificarCondicao, removerBuffTemporario, adicionarContadorFicha, removerContadorFicha, atualizarContadorFicha, mudarContadorFicha, adicionarEscudoFicha, removerEscudoFicha, atualizarEscudoFicha, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
+        salvarFormaSer, deletarFormaSer, ativarFormaSer, modificarCondicao, definirDuracaoEstadoFicha, removerBuffTemporario, adicionarContadorFicha, removerContadorFicha, atualizarContadorFicha, mudarContadorFicha, adicionarEscudoFicha, removerEscudoFicha, atualizarEscudoFicha, toggleAfinidade, condicoesDinamicas, elementosDinamicos, adicionarReducaoDano, atualizarReducaoDano, removerReducaoDano, adicionarAlvoReducao, removerAlvoReducao
     ]);
 
     return (

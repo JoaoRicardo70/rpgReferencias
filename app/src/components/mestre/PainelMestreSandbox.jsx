@@ -1,5 +1,7 @@
 import { imuneAoEstado } from '../../core/efeitosCondicionais';
 import { nomeDoEstado } from '../../core/condicoes';
+import { sincronizarDuracoes, definirDuracaoManual } from '../../core/duracaoEstados';
+import DuracaoEstadosEditor from '../shared/DuracaoEstadosEditor';
 import React, { useState, useCallback } from 'react';
 import useStore, { sanitizarNome } from '../../stores/useStore';
 import { getDatabase, ref, update } from 'firebase/database';
@@ -136,22 +138,42 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
             condicoesAtuais.push({ id: condId, stacks: 1 });
         }
 
+        // ⏳ Estado que saiu à mão leva a duração junto (core/duracaoEstados.js).
+        const tmp = { condicoes: condicoesAtuais, ...(ficha?.duracaoEstados ? { duracaoEstados: ficha.duracaoEstados } : {}) };
+        const duracaoMudou = sincronizarDuracoes(tmp);
+        const duracaoNova = tmp.duracaoEstados;
+
         update(ref(db, `mesas/${mesaId}/personagens/${sanitizarNome(personagemId)}`), {
-            condicoes: condicoesAtuais
+            condicoes: condicoesAtuais,
+            ...(duracaoMudou ? { duracaoEstados: duracaoNova || null } : {})
         }).catch(e => console.error(e));
 
+        const fichaNova = { ...ficha, condicoes: condicoesAtuais };
+        if (duracaoMudou) { if (duracaoNova) fichaNova.duracaoEstados = duracaoNova; else delete fichaNova.duracaoEstados; }
         setPersonagens({
             ...useStore.getState().personagens,
-            [personagemId]: {
-                ...ficha,
-                condicoes: condicoesAtuais
-            }
+            [personagemId]: fichaNova
         });
 
         if (personagemId === meuNome) {
             updateFicha(f => {
                 f.condicoes = condicoesAtuais;
+                if (duracaoMudou) { if (duracaoNova) f.duracaoEstados = duracaoNova; else delete f.duracaoEstados; }
             });
+        }
+    };
+
+    // ⏳ Mestre edita (ou tira, com vazio) os turnos de um estado da entidade; escrita só em duracaoEstados.
+    const definirDuracaoSandbox = (condId, turnos) => {
+        const tmp = JSON.parse(JSON.stringify({ condicoes: ficha?.condicoes || [], ...(ficha?.duracaoEstados ? { duracaoEstados: ficha.duracaoEstados } : {}) }));
+        if (!definirDuracaoManual(tmp, condId, turnos)) return;
+        const novo = tmp.duracaoEstados;
+        update(ref(db, `mesas/${mesaId}/personagens/${sanitizarNome(personagemId)}`), { duracaoEstados: novo || null }).catch(e => console.error(e));
+        const fichaNova = { ...ficha };
+        if (novo) fichaNova.duracaoEstados = novo; else delete fichaNova.duracaoEstados;
+        setPersonagens({ ...useStore.getState().personagens, [personagemId]: fichaNova });
+        if (personagemId === meuNome) {
+            updateFicha(f => { if (novo) f.duracaoEstados = novo; else delete f.duracaoEstados; });
         }
     };
 
@@ -313,6 +335,7 @@ export default function PainelMestreSandbox({ personagemId, ficha, condicoesGlob
                                 );
                             })}
                         </div>
+                        <DuracaoEstadosEditor ficha={ficha} onDefinir={definirDuracaoSandbox} />
                     </div>
 
                 </div>

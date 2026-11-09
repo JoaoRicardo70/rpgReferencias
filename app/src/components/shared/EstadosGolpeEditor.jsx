@@ -17,6 +17,7 @@ export function ListaAplicaEstados({ lista, onChange }) {
                         {ESTADOS.map(s => <option key={s.id} value={s.id}>{s.icone} {s.nome}</option>)}
                     </select>
                     <input className="input-neon estados-golpe-num" type="number" min="1" max={MAX_STACKS} aria-label="Stacks" title="Stacks aplicados (1 a 6)" value={e.stacks} onChange={ev => alterar(i, { stacks: Math.max(1, Math.min(MAX_STACKS, parseInt(ev.target.value) || 1)) })} />
+                    <input className="input-neon estados-golpe-num" type="text" maxLength={10} aria-label="Duração (turnos ou dado, vazio = até remover)" title="Duração em turnos (1 a 99) ou dado, ex.: 1d12+1. Vazio = até remover." placeholder="⏳ turnos" defaultValue={e.duracao === undefined ? '' : String(e.duracao)} key={`dur_${i}_${e.duracao === undefined ? '' : e.duracao}`} onBlur={ev => { const v = ev.target.value.trim(); if (v !== (e.duracao === undefined ? '' : String(e.duracao))) alterar(i, { duracao: v === '' ? undefined : v }); }} />
                     <select className="input-neon" aria-label="Teste de resistência" value={e.teste ? e.teste.atributo : ''} onChange={ev => alterar(i, { teste: ev.target.value ? { atributo: ev.target.value, cd: (e.teste && e.teste.cd) || 15 } : undefined })}>
                         <option value="">Sem teste</option>
                         {ATRIBUTOS_TESTE.map(a => <option key={a} value={a}>Teste de {ROTULO_ATRIBUTO[a]}</option>)}
