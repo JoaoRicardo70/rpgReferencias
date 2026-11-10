@@ -35,6 +35,28 @@ OK = Sim, usar.  Cancelar = Não (o gatilho não gasta o limite de usos).`) === 
     return decisoes;
 }
 
+// 🔔 Ação pedirEscolha: o DONO escolhe no próprio cliente (window.prompt numerado; síncrono como o confirm do `perguntar`).
+// Devolve (pergunta, textos, chave) => índice | null. Cancelar, vazio ou número inválido = null (o motor não aplica nenhuma opção).
+// A resposta fica em cache por gatilho+texto dentro da MESMA instância, para que um produtor Immer repetido não pergunte duas vezes.
+// Crie uma instância por disparo e use SÓ em fichas do próprio dono (nunca em cópias de fichas de outros jogadores).
+export function criarEscolhaDoDono(prompt) {
+    const perguntarAoDono = typeof prompt === 'function' ? prompt : (typeof window !== 'undefined' && typeof window.prompt === 'function' ? (t) => window.prompt(t) : () => null);
+    const cache = new Map();
+    return (pergunta, textos, chave) => {
+        const lista = Array.isArray(textos) ? textos : [];
+        const id = `${chave || ''}|${pergunta}|${lista.join('/')}`;
+        if (cache.has(id)) return cache.get(id);
+        let idx = null;
+        try {
+            const resp = perguntarAoDono(pergunta + '\n\n' + lista.map((t, k) => (k + 1) + ') ' + t).join('\n') + '\n\nDigite o número (Cancelar = nenhuma opção).');
+            const n = resp === null || resp === undefined ? NaN : parseInt(String(resp).trim(), 10);
+            if (Number.isInteger(n) && n >= 1 && n <= lista.length) idx = n - 1;
+        } catch (e) { idx = null; }
+        cache.set(id, idx);
+        return idx;
+    };
+}
+
 // Frase única dos gatilhos/imunidade para o feed ('' se nada disparou).
 export const textoDosGatilhos = (r) => (r && r.textos && r.textos.length > 0 ? `🔔 ${r.textos.join(' · ')}` : '');
 

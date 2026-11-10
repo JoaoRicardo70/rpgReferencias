@@ -58,7 +58,7 @@ export function zerarUsosPorTurno(ficha) {
 }
 
 // O que a cadeia de gatilhos herda do contexto: rng (testes), decisões/lista de perguntas do modo opcional e o atacante do golpe.
-const herdar = (ctx) => ({ rng: ctx.rng, decisoes: ctx.decisoes, perguntas: ctx.perguntas, atacante: ctx.atacante, danoRecebido: ctx.danoRecebido });
+const herdar = (ctx) => ({ rng: ctx.rng, escolher: ctx.escolher, decisoes: ctx.decisoes, perguntas: ctx.perguntas, atacante: ctx.atacante, danoRecebido: ctx.danoRecebido });
 
 // Registra no rascunho que estes gatilhos dispararam: gasta o uso do limite (por turno/cena/descanso) e guarda o evento (idempotência).
 export function registrarDisparos(ficha, disparados, { eventoId, cenaId = 'default' } = {}) {
@@ -252,7 +252,7 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                 danoExibido = Math.floor(danoExibido);
                 if (!(danoExibido > 0)) break;
                 // Ponto único de dano (core/danoVida.js), direto na Vida (sem escudo): God Mode zera; gatilhos de Vida podem disparar (cadeia + 1).
-                const r = aplicarDanoNaVida(ficha, danoExibido, { nome: ctx.nome || '', semEscudo: true, cenaId: ctx.cenaId, vidaMaxBruta: vidaMax, profundidade: (Number(ctx.profundidade) || 0) + 1, jaDisparados: chavesNaCadeia, rng: ctx.rng, decisoes: ctx.decisoes, perguntas: ctx.perguntas });
+                const r = aplicarDanoNaVida(ficha, danoExibido, { nome: ctx.nome || '', semEscudo: true, cenaId: ctx.cenaId, vidaMaxBruta: vidaMax, profundidade: (Number(ctx.profundidade) || 0) + 1, jaDisparados: chavesNaCadeia, rng: ctx.rng, decisoes: ctx.decisoes, perguntas: ctx.perguntas, escolher: ctx.escolher });
                 r.caminhos.forEach(p => caminhos.add(p));
                 (r.externos || []).forEach(e => externos.push(e));
                 if (!r.imune && !r.anulado) textos.push(`${nome} custou ${fmtN(danoExibido)} de vida`);
@@ -310,6 +310,27 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                 if (!linha) break;
                 const aninhadas = linha.acoes.map(x => ({ ...x, gatilhoId: a.gatilhoId, gatilhoNome: a.gatilhoNome, fase: a.fase, chave: a.chave, fonte: a.fonte }));
                 const r = aplicarAcoesNoRascunho(ficha, aninhadas, { ...herdar(ctx), cenaId: ctx.cenaId, nome: ctx.nome, vidaMaxBruta: vidaMax, eventoId: ctx.eventoId ? `${ctx.eventoId}:tab` : undefined, jaDisparados: chavesNaCadeia, profundidade: (Number(ctx.profundidade) || 0) + 1 });
+                if (r.anulado) anulado = true;
+                r.textos.forEach(t => textos.push(t));
+                r.caminhos.forEach(c => caminhos.add(c));
+                (r.externos || []).forEach(e => externos.push(e));
+                (r.chaves || []).forEach((k) => { chavesNaCadeia.push(k); chavesDisparadas.push(k); });
+                break;
+            }
+            case 'pedirEscolha': {
+                // Quem escolhe é o DONO, no cliente dele: ctx.escolher(pergunta, [textos]) => índice | null (síncrono). Regra segura: sem escolher
+                // (ficha de outro jogador, Mestre, teste puro), cancelado ou índice inválido => NENHUMA opção é aplicada e o feed avisa.
+                // Em simulação de perguntas (ctx.perguntas) nunca abre diálogo. A opção escolhida passa por este mesmo executor (um nível mais fundo).
+                const ops = a.opcoes || [];
+                let idx = null;
+                if (typeof ctx.escolher === 'function' && !Array.isArray(ctx.perguntas)) {
+                    try { idx = ctx.escolher(a.pergunta || `${nome}: escolha uma opção`, ops.map(o => o.texto), a.chave); } catch (e) { idx = null; }
+                }
+                const op = Number.isInteger(idx) ? ops[idx] : null;
+                if (!op) { if (!Array.isArray(ctx.perguntas)) textos.push(`${nome}: escolha ignorada (nenhuma opção aplicada)`); break; }
+                textos.push(`${nome}: escolheu "${op.texto}"`);
+                const aninhadas = op.acoes.map(x => ({ ...x, gatilhoId: a.gatilhoId, gatilhoNome: a.gatilhoNome, fase: a.fase, chave: a.chave, fonte: a.fonte }));
+                const r = aplicarAcoesNoRascunho(ficha, aninhadas, { ...herdar(ctx), cenaId: ctx.cenaId, nome: ctx.nome, vidaMaxBruta: vidaMax, eventoId: ctx.eventoId ? `${ctx.eventoId}:esc` : undefined, jaDisparados: chavesNaCadeia, profundidade: (Number(ctx.profundidade) || 0) + 1 });
                 if (r.anulado) anulado = true;
                 r.textos.forEach(t => textos.push(t));
                 r.caminhos.forEach(c => caminhos.add(c));

@@ -74,7 +74,7 @@ export function aplicarDanoNaVida(ficha, danoExibido, ctx = {}) {
     const cenaId = ctx.cenaId || 'default';
     const vidaMaxBruta = Number(ctx.vidaMaxBruta) > 0 ? Number(ctx.vidaMaxBruta) : getVidaMaxBrutaNpc(ficha);
     const profundidade = Number(ctx.profundidade) || 0;
-    const base = { eventoId, cenaId, vidaMaxBruta, profundidade, nome, rng: ctx.rng, decisoes: ctx.decisoes, perguntas: ctx.perguntas, atacante: ctx.atacante, danoRecebido: dano };
+    const base = { eventoId, cenaId, vidaMaxBruta, profundidade, nome, rng: ctx.rng, escolher: ctx.escolher, decisoes: ctx.decisoes, perguntas: ctx.perguntas, atacante: ctx.atacante, danoRecebido: dano };
     const jaDisparados = Array.isArray(ctx.jaDisparados) ? [...ctx.jaDisparados] : [];
     const aplicar = (avaliacao) => {
         if (avaliacao.acoes.length === 0) return { anulado: false };
@@ -101,7 +101,7 @@ export function aplicarDanoNaVida(ficha, danoExibido, ctx = {}) {
     }
     // 🎯 Golpe que causou dano (God Mode já saiu antes): evento `atingido` de quem sofreu, com o nível do golpe.
     if (ctx.golpe && danoBruto > 0 && !anulado) {
-        const g = dispararEventoNaFicha(ficha, { tipo: 'atingido', nivel: ctx.golpe.nivel || 'normal' }, { cenaId, nome, eventoId: eventoId ? `${eventoId}:atingido` : undefined, profundidade, jaDisparados, rng: ctx.rng, decisoes: ctx.decisoes, perguntas: ctx.perguntas, atacante: ctx.atacante, danoRecebido: dano });
+        const g = dispararEventoNaFicha(ficha, { tipo: 'atingido', nivel: ctx.golpe.nivel || 'normal' }, { cenaId, nome, eventoId: eventoId ? `${eventoId}:atingido` : undefined, profundidade, jaDisparados, rng: ctx.rng, escolher: ctx.escolher, decisoes: ctx.decisoes, perguntas: ctx.perguntas, atacante: ctx.atacante, danoRecebido: dano });
         g.textos.forEach(t => res.textos.push(t));
         g.caminhos.forEach(c => caminhos.add(c));
         (g.externos || []).forEach(e => { if (!res.externos) res.externos = []; res.externos.push(e); });

@@ -30,7 +30,7 @@ import { calcularDanoRapido } from '../../core/danoRapido';
 import { resolverAtorCombate } from '../../core/atorCombate';
 import { getPosicaoEntidade, getAlcanceMaximo, verificarAlvoNoAlcance } from '../../core/alcance';
 import { aplicarDanoEmPersonagem } from '../../services/danoAlvo';
-import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, cenaAtualDaMesa, perguntarGatilhosDeDano } from '../../services/danoVida';
+import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, cenaAtualDaMesa, perguntarGatilhosDeDano, criarEscolhaDoDono } from '../../services/danoVida';
 import { passarTurnoDaImunidadeTotal, camposDeGatilhosAlterados, camposParaGravar, dispararEventoNaFicha } from '../../core/gatilhosAplicar';
 import { dispararEventoMeu, dispararEventoEmPersonagem, dispararResultadoDoAcerto } from '../../services/gatilhosEventos';
 import { resolverAlvoCombate, idAlvoPersonagem, ehAlvoPersonagem } from '../../core/alvoCombate';
@@ -796,7 +796,8 @@ export function MapaFormProvider({ children }) {
                     if (disputa.ativa || escalado) hitLogMestre.push(`${nome}: ${dano.toLocaleString('pt-BR')}`);
                     let textoEscudoZona = ''; let textoGatilhosZona = '';
                     const decisoesZona = perguntarGatilhosDeDano(useStore.getState().minhaFicha, dano, { nome, nomeEscudo: nome });
-                    updateFicha(f => { if (f.vida) { const r = aplicarDanoNaVidaDaFicha(f, dano, { nome, nomeEscudo: nome, decisoes: decisoesZona }); textoEscudoZona = r.textoEscudo; textoGatilhosZona = textoDosGatilhos(r); } });
+                    const escolhaDoDono = criarEscolhaDoDono();
+                    updateFicha(f => { if (f.vida) { const r = aplicarDanoNaVidaDaFicha(f, dano, { nome, nomeEscudo: nome, decisoes: decisoesZona, escolher: escolhaDoDono }); textoEscudoZona = r.textoEscudo; textoGatilhosZona = textoDosGatilhos(r); } });
                     salvarFichaSilencioso();
                     if (textoEscudoZona) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🛡️ ${textoEscudoZona}` });
                     if (textoGatilhosZona) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: textoGatilhosZona });
@@ -860,7 +861,8 @@ export function MapaFormProvider({ children }) {
                 } else if (entidadeNome === meuNome) {
                     let textoEscudoPisar = ''; let textoGatilhosPisar = '';
                     const decisoesPisar = perguntarGatilhosDeDano(useStore.getState().minhaFicha, danoAtual, { nome: entidadeNome, nomeEscudo: entidadeNome });
-                    updateFicha(f => { if (f.vida) { const r = aplicarDanoNaVidaDaFicha(f, danoAtual, { nome: entidadeNome, nomeEscudo: entidadeNome, decisoes: decisoesPisar }); textoEscudoPisar = r.textoEscudo; textoGatilhosPisar = textoDosGatilhos(r); } });
+                    const escolhaDoDono = criarEscolhaDoDono();
+                    updateFicha(f => { if (f.vida) { const r = aplicarDanoNaVidaDaFicha(f, danoAtual, { nome: entidadeNome, nomeEscudo: entidadeNome, decisoes: decisoesPisar, escolher: escolhaDoDono }); textoEscudoPisar = r.textoEscudo; textoGatilhosPisar = textoDosGatilhos(r); } });
                     salvarFichaSilencioso();
                     if (textoEscudoPisar) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🛡️ ${textoEscudoPisar}` });
                     if (textoGatilhosPisar) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: textoGatilhosPisar });
@@ -1194,10 +1196,11 @@ export function MapaFormProvider({ children }) {
             salvarDummie(alvo.id, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - valorRaw) });
         } else if (alvo.nome === meuNome) {
             const decisoesRapido = perguntarGatilhosDeDano(useStore.getState().minhaFicha, valor, { nome: alvo.nome, nomeEscudo: alvo.nome, golpe: GOLPE_DANO_RAPIDO });
+            const escolhaDoDono = criarEscolhaDoDono();
             updateFicha(f => {
                 // 🛡️ Escudos e Vida temporária absorvem antes (core/escudos.js); o que sobra vai para a Vida.
                 // 🔔 Ponto único de dano na Vida (core/danoVida.js): Imunidade total, escudo e gatilhos.
-                const r = aplicarDanoNaVidaDaFicha(f, valor, { nome: alvo.nome, nomeEscudo: alvo.nome, decisoes: decisoesRapido, golpe: GOLPE_DANO_RAPIDO });
+                const r = aplicarDanoNaVidaDaFicha(f, valor, { nome: alvo.nome, nomeEscudo: alvo.nome, decisoes: decisoesRapido, escolher: escolhaDoDono, golpe: GOLPE_DANO_RAPIDO });
                 textoEscudo = r.textoEscudo; textoGatilhos = textoDosGatilhos(r);
                 if (!f.combate) f.combate = {};
                 f.combate.ultimoElementoRecebido = elemento || null;

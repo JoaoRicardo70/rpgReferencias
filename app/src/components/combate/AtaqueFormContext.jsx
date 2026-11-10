@@ -26,7 +26,7 @@ import { getNivelDominio } from '../../core/dominios';
 import { classificarAtaque, energiasDoGolpe } from '../../core/identificacao';
 import { montarNarrativa } from '../../core/descricaoAtaque';
 import { calcularFaixasCritico, classificarCritico, maiorDadoDaRolagem } from '../../core/critico';
-import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, perguntarGatilhosDeDano } from '../../services/danoVida';
+import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, perguntarGatilhosDeDano, criarEscolhaDoDono } from '../../services/danoVida';
 import { dispararEventoMeu } from '../../services/gatilhosEventos';
 import { coletarAoAcertar, aplicarAoAcertarNoRascunho } from '../../core/aoAcertar';
 import { valoresDeEfeitos, menorValorDeEfeitos, montarContextoDeCombate } from '../../core/efeitosCondicionais';
@@ -523,7 +523,8 @@ export function AtaqueFormProvider({ children }) {
             let textoEscudo = ''; let textoGatilhosReflexo = '';
             // (Reflexo: o atacante-personagem não é conhecido aqui, então "dano no atacante" é ignorado com aviso.)
             const decisoesReflexo = souEuMesmo === false ? {} : perguntarGatilhosDeDano(minhaFicha, dano, { nome: nomeNoFeed, nomeEscudo: nomeNoFeed }); // só o dono é perguntado
-            updateFicha(ficha => { if (ficha.vida) { const r = aplicarDanoNaVidaDaFicha(ficha, dano, { nome: nomeNoFeed, nomeEscudo: nomeNoFeed, decisoes: decisoesReflexo }); textoEscudo = r.textoEscudo; textoGatilhosReflexo = textoDosGatilhos(r); } });
+            const escolhaDoDono = souEuMesmo === false ? undefined : criarEscolhaDoDono();
+            updateFicha(ficha => { if (ficha.vida) { const r = aplicarDanoNaVidaDaFicha(ficha, dano, { nome: nomeNoFeed, nomeEscudo: nomeNoFeed, decisoes: decisoesReflexo, escolher: escolhaDoDono }); textoEscudo = r.textoEscudo; textoGatilhosReflexo = textoDosGatilhos(r); } });
             salvarFichaSilencioso();
             if (textoEscudo) textos.push(`🛡️ ${textoEscudo}`);
             if (textoGatilhosReflexo) textos.push(textoGatilhosReflexo);

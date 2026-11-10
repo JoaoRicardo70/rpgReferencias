@@ -13,7 +13,7 @@ import { resolverEstadosNoAlvo, descreverResolucao, juntarAplicados } from '../.
 import { aplicarEstadoComDuracao } from '../../core/duracaoEstados';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { danoExibidoParaBruto } from '../../core/vitals';
-import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, novoEventoId, perguntarGatilhosDeDano } from '../../services/danoVida';
+import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, novoEventoId, perguntarGatilhosDeDano, criarEscolhaDoDono } from '../../services/danoVida';
 import { aplicarExternosDeGatilhos } from '../../services/gatilhosEventos';
 import { temImunidadeTotal } from '../../core/gatilhosAplicar';
 import { escalarDanoPelaVida, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
@@ -309,6 +309,7 @@ export function DefesaFormProvider({ children }) {
         // Só pergunta no cliente do PRÓPRIO dono: o Mestre aplicando dano na ficha de outro jogador (souEuMesmo falso) não decide por ele; vale só `armado`.
         // A pergunta cobre apenas dano na Vida; a previsão usa rng 0, então gatilhos disparados por OUTRAS linhas de uma tabela de dado valem pelo `armado`.
         const decisoesGatilhos = imune || souEuMesmo === false ? {} : perguntarGatilhosDeDano(minhaFicha, danoFinal, ctxDano);
+        const escolhaDoDono = imune || souEuMesmo === false ? undefined : criarEscolhaDoDono();
         updateFicha((ficha) => {
             if (resolucao) {
                 juntarAplicados(resolucao.aplicados).forEach(a => aplicarEstadoComDuracao(ficha, a.id, a.stacks, nomeAtacante || '', a.duracao));
@@ -324,7 +325,7 @@ export function DefesaFormProvider({ children }) {
                 // O dano digitado é o número EXIBIDO (feed/tela); vida.atual é bruta.
                 // 🛡️ Escudos e Vida temporária absorvem antes (core/escudos.js); o que sobra vai para a Vida.
                 // 🔔 Ponto único de dano na Vida (core/danoVida.js): Imunidade total, escudo, gatilhos de morte e de faixas de Vida.
-                const r = aplicarDanoNaVidaDaFicha(ficha, danoFinal, { ...ctxDano, decisoes: decisoesGatilhos });
+                const r = aplicarDanoNaVidaDaFicha(ficha, danoFinal, { ...ctxDano, decisoes: decisoesGatilhos, escolher: escolhaDoDono });
                 textoEscudo = r.textoEscudo;
                 externosDano = r.externos || [];
                 textoGatilhos = textoDosGatilhos(r);

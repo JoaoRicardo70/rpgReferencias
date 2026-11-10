@@ -23,7 +23,7 @@ import { normalizarEscudoAoLigar } from './escudos.js';
 import { normalizarRecarga, LIMITE_RECARGA } from './recargaPoder.js';
 import { normalizarAoDesligar } from './aoDesligar.js';
 import { lerGatilhosDaIA } from './gatilhosImportacao.js';
-import { EVENTOS_GATILHO, ACOES_GATILHO, PERIODOS_GATILHO, NIVEIS_ACERTO, OPS_CONTADOR_ACAO, OPS_CONTADOR_EVENTO, LIMITE_GATILHOS_POR_FONTE, LIMITE_ACOES_POR_GATILHO, LIMITE_LINHAS_TABELA, descreverGatilho } from './gatilhos.js';
+import { EVENTOS_GATILHO, ACOES_GATILHO, PERIODOS_GATILHO, NIVEIS_ACERTO, OPS_CONTADOR_ACAO, OPS_CONTADOR_EVENTO, LIMITE_GATILHOS_POR_FONTE, LIMITE_ACOES_POR_GATILHO, LIMITE_LINHAS_TABELA, LIMITE_OPCOES_ESCOLHA, descreverGatilho } from './gatilhos.js';
 import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from './efeitosCondicionais.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 import { descreverDuracaoSpec } from './duracaoEstados.js';
@@ -658,8 +658,8 @@ const GATILHOS_SCHEMA = {
             condicoes: { type: 'ARRAY', items: { type: 'STRING' }, description: 'vida_maior_que:N, vida_menor_que:N, em_combate, empunhando_arma[:tipo], alvo_com_estado:<id>, alvo_vida_abaixo:<%>.' },
             limite: { type: 'OBJECT', properties: { max: { type: 'INTEGER' }, por: { type: 'STRING', enum: PERIODOS_GATILHO.map(p => p.id) } } },
             acoes: {
-                type: 'ARRAY', description: `Até ${LIMITE_ACOES_POR_GATILHO} ações. rolarTabela: {"tipo":"rolarTabela","dado":"1d6","resultados":[{"ate":3,"texto":"...","acoes":[...]}]} (até ${LIMITE_LINHAS_TABELA} faixas, "ate" crescente).`,
-                items: { type: 'OBJECT', properties: { ...PROPS_ACAO_GATILHO, dado: { type: 'STRING', description: 'rolarTabela: "NdM".' }, resultados: { type: 'ARRAY', items: { type: 'OBJECT', properties: { ate: { type: 'INTEGER' }, texto: { type: 'STRING' }, acoes: { type: 'ARRAY', items: { type: 'OBJECT', properties: PROPS_ACAO_GATILHO, required: ['tipo'] } } } } } }, required: ['tipo'] },
+                type: 'ARRAY', description: `Até ${LIMITE_ACOES_POR_GATILHO} ações. rolarTabela: {"tipo":"rolarTabela","dado":"1d6","resultados":[{"ate":3,"texto":"...","acoes":[...]}]} (até ${LIMITE_LINHAS_TABELA} faixas, "ate" crescente). pedirEscolha: {"tipo":"pedirEscolha","pergunta":"...","opcoes":[{"texto":"...","acoes":[...]}]} (2 a ${LIMITE_OPCOES_ESCOLHA} opções).`,
+                items: { type: 'OBJECT', properties: { ...PROPS_ACAO_GATILHO, dado: { type: 'STRING', description: 'rolarTabela: "NdM".' }, resultados: { type: 'ARRAY', items: { type: 'OBJECT', properties: { ate: { type: 'INTEGER' }, texto: { type: 'STRING' }, acoes: { type: 'ARRAY', items: { type: 'OBJECT', properties: PROPS_ACAO_GATILHO, required: ['tipo'] } } } } }, pergunta: { type: 'STRING', description: 'pedirEscolha: a pergunta.' }, opcoes: { type: 'ARRAY', items: { type: 'OBJECT', properties: { texto: { type: 'STRING' }, acoes: { type: 'ARRAY', items: { type: 'OBJECT', properties: PROPS_ACAO_GATILHO, required: ['tipo'] } } } } } }, required: ['tipo'] },
             },
         },
         required: ['nome', 'evento', 'acoes'],

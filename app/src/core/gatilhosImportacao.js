@@ -6,7 +6,7 @@
 // "automático ou opcional?" na prévia; a Sexta-Feira o entrega desarmado e o dono arma depois.
 // Limite "por luta" não existe: "1 vez por combate/luta/batalha" vira 'cena'.
 // ==========================================
-import { normalizarGatilhos, LIMITE_ACOES_POR_GATILHO, LIMITE_LINHAS_TABELA } from './gatilhos.js';
+import { normalizarGatilhos, LIMITE_ACOES_POR_GATILHO, LIMITE_LINHAS_TABELA, LIMITE_OPCOES_ESCOLHA } from './gatilhos.js';
 
 const semAcento = (v) => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 const ehObjeto = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -34,6 +34,10 @@ function motivoDeRecusa(g) {
             if (a.resultados.length > LIMITE_LINHAS_TABELA) return `tabela com mais de ${LIMITE_LINHAS_TABELA} faixas`;
             if (a.resultados.some(r => r && Array.isArray(r.acoes) && r.acoes.length > LIMITE_ACOES_POR_GATILHO)) return `faixa da tabela com mais de ${LIMITE_ACOES_POR_GATILHO} ações`;
         }
+        if (a && a.tipo === 'pedirEscolha' && Array.isArray(a.opcoes)) {
+            if (a.opcoes.length > LIMITE_OPCOES_ESCOLHA) return `escolha com mais de ${LIMITE_OPCOES_ESCOLHA} opções`;
+            if (a.opcoes.some(o => o && Array.isArray(o.acoes) && o.acoes.length > LIMITE_ACOES_POR_GATILHO)) return `opção da escolha com mais de ${LIMITE_ACOES_POR_GATILHO} ações`;
+        }
     }
     return '';
 }
@@ -47,6 +51,7 @@ function referenciasParaConferir(g) {
         if (a.tipo === 'ganhoPermanente' && a.deContador && a.deContador.id) refs.push(`contador "${a.deContador.id}"`);
         if ((a.tipo === 'ligarPoder' || a.tipo === 'desligarPoder') && a.poderId) refs.push(`Poder "${a.poderId}"`);
         if (a.tipo === 'rolarTabela') (a.resultados || []).forEach(r => (r && r.acoes || []).forEach(olhar));
+        if (a.tipo === 'pedirEscolha') (a.opcoes || []).forEach(o => (o && o.acoes || []).forEach(olhar));
     };
     (g.acoes || []).forEach(olhar);
     if (g.evento && g.evento.tipo === 'contadorAtingiu') refs.push(`contador "${g.evento.contadorId}"`);

@@ -17,6 +17,8 @@
 //            danoEmSi {modo: fixo|percMax|percAtual, valor} (ponto único de dano; God Mode zera).
 //   Fase 3: rolarTabela {dado: 'NdM', resultados: [{ ate, texto?, acoes: [...] }]} (até 12 linhas, `ate` estritamente crescente; vale a PRIMEIRA linha com
 //            ate >= rolado; sem linha correspondente nada acontece; ações aninhadas seguem as regras das ações comuns, sem rolarTabela dentro de rolarTabela)
+//   Fase 3: pedirEscolha {pergunta?, opcoes: [{ texto, acoes: [...] }]} (2 a 6 opções; o DONO escolhe no próprio cliente via ctx.escolher; sem escolha NADA é aplicado;
+//            sem rolarTabela/pedirEscolha dentro das opções)
 //            e danoNoAtacante {modo: 'percDanoRecebido'|'fixo', valor} (só atua quando o atacante-personagem é conhecido no contexto; senão avisa e ignora).
 //   Modo: 'automatico' (sempre vale; ignora `armado`) | 'opcional' (`armado` guardado NO PRÓPRIO gatilho; dono e Mestre alternam; `perguntar: true` pede confirmação
 //            ao dono quando o dano é aplicado no cliente dele; "Não" = não dispara e NÃO gasta o limite; em outro cliente/dono offline vale só `armado`).
@@ -49,6 +51,9 @@ export const LIMITE_TURNOS_IMUNIDADE = 10;
 export const LIMITE_DURACAO_BUFF_GATILHO = 20;
 export const LIMITE_CONTADOR_GATILHO = 9999;
 export const LIMITE_LINHAS_TABELA = 12;
+// pedirEscolha: de 2 a 6 opções; cada uma com 1 a LIMITE_ACOES_POR_GATILHO ações (sem rolarTabela/pedirEscolha dentro).
+export const MIN_OPCOES_ESCOLHA = 2;
+export const LIMITE_OPCOES_ESCOLHA = 6;
 export const LIMITE_GANHO_PERMANENTE = 1e6;
 export const LIMITE_FATOR_GANHO = 1e6;
 export const LIMITE_TOTAL_GANHO_PERMANENTE = 1e9;
@@ -87,6 +92,7 @@ export const ACOES_GATILHO = [
     { id: 'desligarPoder', rotulo: 'Desligar um Poder' },
     { id: 'danoEmSi', rotulo: 'Sofrer dano' },
     { id: 'rolarTabela', rotulo: 'Rolar tabela' },
+    { id: 'pedirEscolha', rotulo: 'Pedir uma escolha' },
     { id: 'danoNoAtacante', rotulo: 'Dano no atacante' },
     { id: 'ganhoPermanente', rotulo: 'Ganho permanente de Poder' },
 ];
@@ -238,6 +244,23 @@ export function normalizarAcaoGatilho(bruta, opcoes = {}) {
                 resultados.push({ ate: ateInt, ...(t ? { texto: t } : {}), acoes });
             }
             return { tipo: 'rolarTabela', dado, resultados };
+        }
+        case 'pedirEscolha': {
+            if (opcoes.dentroDeTabela) return null; // não aninha dentro de rolarTabela nem de outra escolha
+            const brutasOp = Array.isArray(bruta.opcoes) ? bruta.opcoes : [];
+            if (brutasOp.length < MIN_OPCOES_ESCOLHA || brutasOp.length > LIMITE_OPCOES_ESCOLHA) return null;
+            const opcoesOk = [];
+            for (const o of brutasOp) {
+                if (!o || typeof o !== 'object') return null;
+                const t = texto(o.texto, 80);
+                const brutas = Array.isArray(o.acoes) ? o.acoes.slice(0, LIMITE_ACOES_POR_GATILHO + 1) : [];
+                if (!t || brutas.length === 0 || brutas.length > LIMITE_ACOES_POR_GATILHO) return null;
+                const acoes = brutas.map(a => normalizarAcaoGatilho(a, { eventoTipo: opcoes.eventoTipo, dentroDeTabela: true }));
+                if (acoes.some(a => !a)) return null;
+                opcoesOk.push({ texto: t, acoes });
+            }
+            const pergunta = texto(bruta.pergunta, 120);
+            return { tipo: 'pedirEscolha', ...(pergunta ? { pergunta } : {}), opcoes: opcoesOk };
         }
         default: return null;
     }
@@ -568,6 +591,7 @@ export function descreverAcaoGatilho(a, ctx = null) {
         case 'desligarPoder': return `desligar ${nomeDoPoder(a.poderId, ctx)}`;
         case 'danoNoAtacante': return a.modo === 'fixo' ? `causar ${fmtN(a.valor)} de dano no atacante` : `devolver ${a.valor}% do dano recebido (antes do escudo) ao atacante`;
         case 'rolarTabela': return descreverTabela(a, ctx);
+        case 'pedirEscolha': return descreverEscolha(a, ctx);
         case 'ganhoPermanente': return a.deContador
             ? `ganhar Poder permanente: ${nomeDoContador(a.deContador.id, ctx)} x ${a.deContador.fator}${a.deContador.zerar ? ' (e zerar o contador)' : ''}`
             : `ganhar +${a.valor} de Poder permanente`;
@@ -586,6 +610,12 @@ export function descreverTabela(a, ctx = null) {
         return `${faixa}→${r.texto ? `"${r.texto}" ` : ''}${o}`;
     });
     return `rola ${a.dado}: ${linhas.join('; ')}`;
+}
+
+// 'escolher (Qual?): "Curar" → curar 10 | "Escudo" → ganhar escudo de 5'.
+export function descreverEscolha(a, ctx = null) {
+    const ops = (a.opcoes || []).map(o => `"${o.texto}" → ${(o.acoes || []).map(x => descreverAcaoGatilho(x, ctx)).filter(Boolean).join(' + ')}`);
+    return `escolher${a.pergunta ? ` (${a.pergunta})` : ''}: ${ops.join(' | ')}`;
 }
 
 export function descreverEventoGatilho(ev, ctx = null) {

@@ -9,7 +9,7 @@ import useStore from '../stores/useStore';
 import { salvarFichaSilencioso, salvarCamposPersonagem } from './firebase-sync';
 import { coletarGatilhos } from '../core/gatilhos';
 import { dispararEventoNaFicha, camposParaGravar } from '../core/gatilhosAplicar';
-import { cenaAtualDaMesa, aplicarDanoNaVidaDaFicha } from './danoVida';
+import { cenaAtualDaMesa, aplicarDanoNaVidaDaFicha, criarEscolhaDoDono } from './danoVida';
 import { aplicarDanoEmPersonagem } from './danoAlvo';
 import { danoExibidoParaBruto } from '../core/vitals';
 
@@ -24,7 +24,8 @@ export function dispararEventoMeu(evento, ctx = {}) {
         const sempre = evento.tipo === 'fimDeLuta';
         if (!sempre && coletarGatilhos(st.minhaFicha).length === 0) return SEM_EFEITO;
         let r = SEM_EFEITO;
-        st.updateFicha((ficha) => { r = dispararEventoNaFicha(ficha, evento, { cenaId: cenaAtualDaMesa(), nome: st.meuNome, ...ctx }); });
+        const escolhaDoDono = criarEscolhaDoDono();
+        st.updateFicha((ficha) => { r = dispararEventoNaFicha(ficha, evento, { cenaId: cenaAtualDaMesa(), nome: st.meuNome, escolher: escolhaDoDono, ...ctx }); });
         if (r.disparou || r.caminhos.length > 0) salvarFichaSilencioso();
         return r;
     } catch (e) { console.error('Gatilho falhou', e); return SEM_EFEITO; }
@@ -59,8 +60,8 @@ export function aplicarExternosDeGatilhos(externos) {
         try {
             const st = useStore.getState();
             if (nome === st.meuNome) {
-                let r = null;
-                st.updateFicha((f) => { if (f.vida) r = aplicarDanoNaVidaDaFicha(f, dano, { nome, nomeEscudo: nome }); });
+                let r = null; const escolhaDoDono = criarEscolhaDoDono();
+                st.updateFicha((f) => { if (f.vida) r = aplicarDanoNaVidaDaFicha(f, dano, { nome, nomeEscudo: nome, escolher: escolhaDoDono }); });
                 salvarFichaSilencioso();
                 textos.push(r && r.imune ? `${nome} está com Imunidade total: o dano devolvido não surtiu efeito` : `${nome} sofreu ${dano.toLocaleString('pt-BR')} de dano devolvido por ${e.gatilhoNome || 'um gatilho'}`);
                 if (r && r.textos.length > 0 && !r.imune) r.textos.forEach(t => textos.push(t));

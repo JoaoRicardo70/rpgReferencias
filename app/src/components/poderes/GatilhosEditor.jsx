@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { normalizarGatilhos, normalizarAcaoGatilho, descreverGatilho, descreverAcaoGatilho, EVENTOS_GATILHO, NIVEIS_ACERTO, LIMITE_GATILHOS_POR_FONTE, LIMITE_ACOES_POR_GATILHO, LIMITE_LINHAS_TABELA } from '../../core/gatilhos';
+import { normalizarGatilhos, normalizarAcaoGatilho, descreverGatilho, descreverAcaoGatilho, EVENTOS_GATILHO, NIVEIS_ACERTO, LIMITE_GATILHOS_POR_FONTE, LIMITE_ACOES_POR_GATILHO, LIMITE_LINHAS_TABELA, LIMITE_OPCOES_ESCOLHA, MIN_OPCOES_ESCOLHA } from '../../core/gatilhos';
 import { ESTADOS } from '../../core/condicoes';
 import { TIPOS_ESCUDO } from '../../core/escudos';
 
@@ -24,6 +24,7 @@ const ACOES_DO_FORMULARIO = [
     { id: 'danoNoAtacante', rotulo: 'Dano no atacante' },
     { id: 'ganhoPermanente', rotulo: 'Ganho permanente de Poder' },
     { id: 'rolarTabela', rotulo: 'Rolar tabela' },
+    { id: 'pedirEscolha', rotulo: 'Pedir uma escolha' },
 ];
 const ROTULO_NIVEL = { qualquer: 'qualquer golpe', normal: 'golpe normal', critico: 'golpe crítico', fatal: 'golpe crítico fatal' };
 const OPS_CONTADOR = [{ id: 'somar', rotulo: 'somar' }, { id: 'definir', rotulo: 'definir para' }, { id: 'zerar', rotulo: 'zerar' }, { id: 'dividir', rotulo: 'dividir por' }];
@@ -35,6 +36,7 @@ const EXPLICACAO_MODO = {
 const FORMULARIO_VAZIO = { id: '', nome: '', evento: 'danoQueZeraria', de: '10', ate: '1', nivel: 'qualquer', poderEvento: '', contadorEvento: '', opEvento: '>=', valorEvento: '', vidaMaiorQue: '', limite: '', acoes: [], mestreDesligou: false, modo: 'automatico', armado: true, perguntar: false };
 const ACAO_VAZIA = { tipo: 'anularDano', valor: '', nome: '', tipoEscudo: 'escudo', texto: '', contadorId: '', op: 'somar', sorteio: '', estado: 'queimado', duracaoEstado: '', poderId: '', modoDano: 'fixo', modoAtacante: 'percDanoRecebido', gpModo: 'fixo', gpFator: '', gpZerar: false };
 const TABELA_VAZIA = { dado: '1d4', linhas: [{ ate: '1', texto: '', acoes: [] }], alvo: 0 };
+const ESCOLHA_VAZIA = { pergunta: '', opcoes: [{ texto: '', acoes: [] }, { texto: '', acoes: [] }], alvo: 0 };
 
 function formularioDe(g) {
     return {
@@ -105,7 +107,7 @@ function CamposDaAcao({ acao, setAcao, anularDanoOk, permitirTabela, nomes, onAd
     return (
         <div className="gatilho-acao-form">
             <select aria-label={`Tipo da ação${sufixo}`} value={acao.tipo} onChange={e => setAcao({ ...ACAO_VAZIA, tipo: e.target.value })}>
-                {ACOES_DO_FORMULARIO.filter(a => (a.id !== 'anularDano' || anularDanoOk) && (a.id !== 'rolarTabela' || permitirTabela)).map(a => <option key={a.id} value={a.id}>{a.rotulo}</option>)}
+                {ACOES_DO_FORMULARIO.filter(a => (a.id !== 'anularDano' || anularDanoOk) && (!['rolarTabela', 'pedirEscolha'].includes(a.id) || permitirTabela)).map(a => <option key={a.id} value={a.id}>{a.rotulo}</option>)}
             </select>
             {acao.tipo === 'ganhoPermanente' && (
                 <>
@@ -176,7 +178,7 @@ function CamposDaAcao({ acao, setAcao, anularDanoOk, permitirTabela, nomes, onAd
                 </select>
             )}
             {acao.tipo === 'mensagem' && <input type="text" maxLength={300} aria-label={`Texto da mensagem${sufixo}`} placeholder="Texto" value={acao.texto} onChange={e => setAcao({ ...acao, texto: e.target.value })} />}
-            {acao.tipo !== 'rolarTabela' && <button type="button" className="btn-neon" onClick={onAdicionar}>{rotuloBotao}</button>}
+            {!['rolarTabela', 'pedirEscolha'].includes(acao.tipo) && <button type="button" className="btn-neon" onClick={onAdicionar}>{rotuloBotao}</button>}
         </div>
     );
 }
@@ -187,10 +189,11 @@ export default function GatilhosEditor({ gatilhos, onChange, descartados = [], c
     const [form, setForm] = useState(null);
     const [acao, setAcao] = useState(ACAO_VAZIA);
     const [tabela, setTabela] = useState(TABELA_VAZIA);
+    const [escolha, setEscolha] = useState(ESCOLHA_VAZIA);
     const [acaoLinha, setAcaoLinha] = useState(ACAO_VAZIA);
     const [erro, setErro] = useState('');
 
-    const abrir = useCallback((g) => { setForm(g ? formularioDe(g) : { ...FORMULARIO_VAZIO }); setAcao(ACAO_VAZIA); setTabela(TABELA_VAZIA); setAcaoLinha(ACAO_VAZIA); setErro(''); }, []);
+    const abrir = useCallback((g) => { setForm(g ? formularioDe(g) : { ...FORMULARIO_VAZIO }); setAcao(ACAO_VAZIA); setTabela(TABELA_VAZIA); setEscolha(ESCOLHA_VAZIA); setAcaoLinha(ACAO_VAZIA); setErro(''); }, []);
 
     const adicionarAcao = () => {
         const nova = normalizarGatilhos([{ nome: 'x', evento: { tipo: 'danoQueZeraria' }, acoes: [acaoDe(acao)] }]);
@@ -227,6 +230,34 @@ export default function GatilhosEditor({ gatilhos, onChange, descartados = [], c
         if (form.acoes.some(a => a.tipo === 'rolarTabela')) { setErro('Só uma tabela por gatilho.'); return; }
         setForm({ ...form, acoes: [...form.acoes, nova] });
         setAcao(ACAO_VAZIA); setTabela(TABELA_VAZIA); setAcaoLinha(ACAO_VAZIA); setErro('');
+    };
+
+    // ---- Escolha (ação "Pedir uma escolha"): o dono escolhe 1 de 2 a 6 opções na hora; cada opção tem as suas ações. Rascunho próprio, entra ao clicar em "Adicionar escolha".
+    const escolhaBruta = () => ({ tipo: 'pedirEscolha', pergunta: escolha.pergunta, opcoes: escolha.opcoes.map(o => ({ texto: o.texto, acoes: o.acoes })) });
+    const escolhaNormalizada = () => normalizarAcaoGatilho(escolhaBruta(), { eventoTipo: form ? form.evento : 'danoQueZeraria' });
+    const mudarOpcao = (i, parte) => setEscolha({ ...escolha, opcoes: escolha.opcoes.map((o, j) => (j === i ? { ...o, ...parte } : o)) });
+    const novaOpcao = () => {
+        if (escolha.opcoes.length >= LIMITE_OPCOES_ESCOLHA) { setErro(`No máximo ${LIMITE_OPCOES_ESCOLHA} opções na escolha.`); return; }
+        setEscolha({ ...escolha, opcoes: [...escolha.opcoes, { texto: '', acoes: [] }], alvo: escolha.opcoes.length });
+        setErro('');
+    };
+    const removerOpcao = (i) => setEscolha({ ...escolha, opcoes: escolha.opcoes.filter((_, j) => j !== i), alvo: 0 });
+    const adicionarAcaoNaOpcao = () => {
+        const nova = normalizarAcaoGatilho(acaoDe(acaoLinha), { eventoTipo: form.evento, dentroDeTabela: true });
+        if (!nova) { setErro('Ação da opção incompleta: confira os valores.'); return; }
+        const opcao = escolha.opcoes[escolha.alvo];
+        if (!opcao) { setErro('Escolha a opção que recebe a ação.'); return; }
+        if (opcao.acoes.length >= LIMITE_ACOES_POR_GATILHO) { setErro(`No máximo ${LIMITE_ACOES_POR_GATILHO} ações por opção.`); return; }
+        mudarOpcao(escolha.alvo, { acoes: [...opcao.acoes, nova] });
+        setAcaoLinha(ACAO_VAZIA); setErro('');
+    };
+    const adicionarEscolha = () => {
+        const nova = escolhaNormalizada();
+        if (!nova) { setErro(`Escolha inválida: use de ${MIN_OPCOES_ESCOLHA} a ${LIMITE_OPCOES_ESCOLHA} opções, cada uma com texto e pelo menos uma ação.`); return; }
+        if (form.acoes.length >= LIMITE_ACOES_POR_GATILHO) { setErro(`No máximo ${LIMITE_ACOES_POR_GATILHO} ações por gatilho.`); return; }
+        if (form.acoes.some(a => a.tipo === 'pedirEscolha')) { setErro('Só uma escolha por gatilho.'); return; }
+        setForm({ ...form, acoes: [...form.acoes, nova] });
+        setAcao(ACAO_VAZIA); setEscolha(ESCOLHA_VAZIA); setAcaoLinha(ACAO_VAZIA); setErro('');
     };
 
     const salvar = () => {
@@ -351,6 +382,25 @@ export default function GatilhosEditor({ gatilhos, onChange, descartados = [], c
                             <CamposDaAcao acao={acaoLinha} setAcao={setAcaoLinha} anularDanoOk={form.evento === 'danoQueZeraria'} permitirTabela={false} nomes={nomes} onAdicionar={adicionarAcaoNaLinha} rotuloBotao="+ Ação na linha" sufixo=" (linha)" />
                             {tabelaNormalizada() && <div className="gatilho-dica">{descreverAcaoGatilho(tabelaNormalizada(), nomes)}</div>}
                             <button type="button" className="btn-neon" onClick={adicionarTabela}>Adicionar tabela</button>
+                        </div>
+                    )}
+                    {acao.tipo === 'pedirEscolha' && (
+                        <div className="gatilho-tabela">
+                            <label className="gatilho-condicao">Pergunta <input type="text" maxLength={120} aria-label="Pergunta da escolha" placeholder="(opcional)" value={escolha.pergunta} onChange={e => setEscolha({ ...escolha, pergunta: e.target.value })} /></label>
+                            {escolha.opcoes.map((o, i) => (
+                                <div key={i} className="gatilho-tabela-linha">
+                                    <label><input type="radio" name="opcao-alvo" aria-label={`Receber ações na opção ${i + 1}`} checked={escolha.alvo === i} onChange={() => setEscolha({ ...escolha, alvo: i })} /> opção</label>
+                                    <input type="text" maxLength={80} aria-label={`Texto da opção ${i + 1}`} placeholder="texto da opção" value={o.texto} onChange={e => mudarOpcao(i, { texto: e.target.value })} />
+                                    <span>{o.acoes.length === 0 ? '(sem ações)' : o.acoes.map(a => descreverAcaoGatilho(a, nomes)).join(' + ')}</span>
+                                    {o.acoes.length > 0 && <button type="button" className="btn-neon" aria-label={`Limpar ações da opção ${i + 1}`} onClick={() => mudarOpcao(i, { acoes: [] })}>↺</button>}
+                                    {escolha.opcoes.length > MIN_OPCOES_ESCOLHA && <button type="button" className="btn-neon" aria-label={`Remover opção ${i + 1}`} onClick={() => removerOpcao(i)}>✖</button>}
+                                </div>
+                            ))}
+                            <button type="button" className="btn-neon" onClick={novaOpcao}>+ Opção</button>
+                            <div className="gatilho-dica">As ações abaixo entram na opção marcada. Quem escolhe é o dono, no aparelho dele; sem escolha (cancelar, Mestre ou dono fora) nenhuma opção é aplicada.</div>
+                            <CamposDaAcao acao={acaoLinha} setAcao={setAcaoLinha} anularDanoOk={form.evento === 'danoQueZeraria'} permitirTabela={false} nomes={nomes} onAdicionar={adicionarAcaoNaOpcao} rotuloBotao="+ Ação na opção" sufixo=" (opção)" />
+                            {escolhaNormalizada() && <div className="gatilho-dica">{descreverAcaoGatilho(escolhaNormalizada(), nomes)}</div>}
+                            <button type="button" className="btn-neon" onClick={adicionarEscolha}>Adicionar escolha</button>
                         </div>
                     )}
                     {previa() && <div className="gatilho-dica">Resumo: {previa()}</div>}
