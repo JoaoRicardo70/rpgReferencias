@@ -15,6 +15,7 @@
 // "atual" é cortado.
 // ==========================================
 import { somarEfeitosDeAtributo } from './percepcaoPoder.js';
+import { modificadoresDeEstados } from './condicoes.js';
 
 export const ACOES_BASE = 2;
 export const ACOES_MAXIMO = 5;
@@ -113,14 +114,16 @@ export function alternarAcao(ficha, tipo, disponivel) {
 }
 
 // Novo turno / descanso: tudo disponível de novo, já com o máximo atualizado.
-export function restaurarAcoes(ficha) {
+// `comEstados` (só o começo do turno de verdade): estados como Paralisado, Atordoado e Apavorado tiram Ações do turno (core/condicoes.js > acoesPerdidas).
+export function restaurarAcoes(ficha, { comEstados = false } = {}) {
     if (!ficha) return;
     sincronizarAcoes(ficha);
     // Reações usadas no round anterior (core/reacoes.js) não passam para o próximo turno.
     if (ficha.combate && Array.isArray(ficha.combate.reacoesPendentes)) ficha.combate.reacoesPendentes = [];
     // ⏳ Ações seguradas valem até o começo do próximo turno de quem segurou (core/segurarAcao.js).
     if (ficha.combate) { ficha.combate.acoesSeguradas = []; ficha.combate[CAMPO_CREDITO_SEGURADA] = 0; }
-    TIPOS_ACAO.forEach(t => { ficha.acoes[t].atual = ficha.acoes[t].max; });
+    const perdidas = comEstados ? modificadoresDeEstados(ficha).acoesPerdidas : null;
+    TIPOS_ACAO.forEach(t => { ficha.acoes[t].atual = Math.max(0, ficha.acoes[t].max - ((perdidas && perdidas[t]) || 0)); });
 }
 
 // Ajuste manual (+1 / -1) do tipo. Não deixa passar do teto de 5 nem ficar abaixo de 0.

@@ -22,7 +22,7 @@ describe('aplicaEstados com duracao (estadosGolpe)', () => {
         expect(normalizarAplicaEstados([
             { id: 'imobilizado', stacks: 1, duracao: 1 },
             { id: 'criogenia', stacks: 2, duracao: '4' },
-            { id: 'paralisado', stacks: 1 },
+            { id: 'zzinexistente', stacks: 1 },
             { id: 'lento', stacks: 1, duracao: '1d12+1' },
             { id: 'queimado', stacks: 1, duracao: 'abc' },
             { id: 'sangrando', stacks: 1, duracao: 0 },

@@ -1,6 +1,7 @@
 import { adicionarEscudo, removerEscudo, atualizarEscudo } from '../../core/escudos';
 import { adicionarContador, removerContador, atualizarContador, mudarContador } from '../../core/contadores';
 import { imuneAoEstado } from '../../core/efeitosCondicionais';
+import { ESTADOS_NOVOS } from '../../core/estadosNovos';
 import { nomeDoEstado } from '../../core/condicoes';
 import { sincronizarDuracoes, definirDuracaoManual } from '../../core/duracaoEstados';
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
@@ -51,7 +52,9 @@ export const CONDICOES_BASE = [
     { id: 'vulneravel', icone: '🛡️', cor: '#ffaa00' }, { id: 'amedrontado', icone: '👻', cor: '#8a2be2' },
     { id: 'enlouquecido', icone: '🌀', cor: '#ff00ff' }, { id: 'necrosado', icone: '💀', cor: '#222222' },
     { id: 'cegosurdo', icone: '🙈', cor: '#dddddd' }, { id: 'petrificado', icone: '🗿', cor: '#555555' },
-    { id: 'charmado', icone: '💖', cor: '#ff66b2' }, { id: 'provocado', icone: '💢', cor: '#ff5500' }
+    { id: 'charmado', icone: '💖', cor: '#ff66b2' }, { id: 'provocado', icone: '💢', cor: '#ff5500' },
+    // Estados novos (core/estadosNovos.js): mesma lista dos seletores do Mestre, do Compêndio e dos golpes.
+    ...ESTADOS_NOVOS.map(e => ({ id: e.id, icone: e.icone, cor: e.cor }))
 ];
 
 export const ELEMENTOS_BASE = ELEMENTOS_SISTEMA;

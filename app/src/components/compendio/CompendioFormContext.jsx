@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useMemo } from
 import { ELEMENTOS_SISTEMA } from '../../core/elementos.js';
 import { MECANICA_CLASSE, MECANICA_CLASSE_CANDIDATO, MECANICA_CLASSE_GRAND } from '../../core/classesMecanicas.js';
 import useStore from '../../stores/useStore';
+import { ESTADOS_NOVOS } from '../../core/estadosNovos.js';
 import { salvarFichaSilencioso, enviarParaFeed } from '../../services/firebase-sync';
 
 const CLASSES_REGULARES_BASE = [
@@ -43,7 +44,8 @@ const CONDICOES_BASE = [
     { id: 'cegosurdo', nome: 'Cego/Surdo', icone: '🙈', cor: '#dddddd', desc: 'Perda de sentidos vitais. Desvantagens severas de perceção e acerto.' },
     { id: 'petrificado', nome: 'Petrificado', icone: '🗿', cor: '#555555', desc: 'Início: Lento -> Vulnerável -> Imobilizado -> Petrificado (Incapacitado).' },
     { id: 'charmado', nome: 'Charmado', icone: '💖', cor: '#ff66b2', desc: '• O alvo não ataca o ser que o Charmou.\n• O alvo defende o ser que o Charmou.' },
-    { id: 'provocado', nome: 'Provocado', icone: '💢', cor: '#ff5500', desc: '• O alvo foca apenas no ser que lhe Provocou.' }
+    { id: 'provocado', nome: 'Provocado', icone: '💢', cor: '#ff5500', desc: '• O alvo foca apenas no ser que lhe Provocou.' },
+    ...ESTADOS_NOVOS.map(e => ({ id: e.id, nome: e.nome, icone: e.icone, cor: e.cor, desc: e.desc }))
 ];
 
 const ELEMENTOS_BASE_CLASSICOS = [

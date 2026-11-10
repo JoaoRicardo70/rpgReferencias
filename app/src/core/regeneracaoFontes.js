@@ -8,7 +8,7 @@ import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 import { efeitosAtivosDoItem } from './efeitosItem.js';
 import { getRegeneracaoManualPct, limitarRegeneracaoPct, REGENERACAO_PCT_MAX } from './regeneracao.js';
 import { getTetoExibidoComFator, FATOR_EXIBICAO_VITAIS } from './vitals.js';
-import { modificadoresDeEstados, stacksDe, nomeDoEstado } from './condicoes.js';
+import { modificadoresDeEstados, stacksDe, nomeDoEstado, cortesDeCuraDosEstadosNovos } from './condicoes.js';
 import { curaPassivaDoTurno, curaEnergiasPassivaDoTurno } from './suporte.js';
 import { calcularEficaciaCura } from './engine.js';
 
@@ -123,6 +123,7 @@ export function detalharRegeneracaoVital(ficha, key) {
                 const n = stacksDe(ficha, id);
                 if (n > 0) estados.push({ id, nome: nomeDoEstado(id), stacks: n, mult: Math.pow(0.5, n) });
             });
+            cortesDeCuraDosEstadosNovos(ficha).forEach(c => estados.push(c));
             if (mult < 1 && estados.reduce((m, e) => m * e.mult, 1) > mult) estados.push({ id: 'exaustao', nome: 'Exaustão 4+', stacks: 1, mult: 0.5 });
         } catch (e) { mult = 1; }
     }

@@ -89,7 +89,8 @@ export function iniciarAnimacaoDado(setDadoAnim, { rawRoll, quemRolou, resultado
 // ANTES de aplicarRegeneracaoDeTurno, senão a cura já aplicada no mesmo tick esconderia o quão
 // gasto o personagem estava entrando neste turno.
 export function aplicarInicioDeTurno(ficha, ehDummie = false, nome = '') {
-    restaurarAcoes(ficha);
+    // Estados como Paralisado/Atordoado/Apavorado tiram Ações do turno (core/condicoes.js > acoesPerdidas).
+    restaurarAcoes(ficha, { comEstados: true });
     // 🔔 A Imunidade total (core/gatilhosAplicar.js) perde 1 turno no começo do turno do dono, antes de qualquer dano deste turno.
     if (!ehDummie) passarTurnoDaImunidadeTotal(ficha);
 

@@ -8,7 +8,12 @@
 //   Sangrando: a cada SANGRANDO_POR_EXAUSTAO stacks soma 1 nível de Exaustão
 //   Queimado: com QUEIMADO_VULNERAVEL stacks fica Vulnerável · Criogenia: Lento e, com CRIOGENIA_IMOBILIZA stacks, Imobilizado
 //   Petrificado: 1 Lento → 2 Vulnerável → 3 Imobilizado → 4+ Petrificado (Incapacitado)
+//   Estados novos (core/estadosNovos.js: paralisado, atordoado, em choque, caído, agarrado, impedido, fraco, debilitado, adoecido, enjoado,
+//   sufocado, eletrizado, intimidado, apavorado, banido, dilacerante, dolorido, inconsciente, cego, surdo): declarados lá, somados aqui
+//   em estadosEfetivos/modificadoresDeEstados, sem código por estado nos consumidores. `cegosurdo` segue como sempre foi.
 // ==========================================
+
+import { ESTADOS_NOVOS, somarEfeitosNovos, descreverEfeitoNovo, definicaoEstadoNovo } from './estadosNovos.js';
 
 export const MAX_STACKS = 6;
 export const SANGRANDO_POR_EXAUSTAO = 3;
@@ -24,7 +29,9 @@ export const DANO_POR_TURNO = {
     sangrando: { qtd: 5, faces: 4 },
     criogenia: { qtd: 5, faces: 4 },
     envenenado: { qtd: 5, faces: 4 },
-    necrosado: { qtd: 8, faces: 4 }
+    necrosado: { qtd: 8, faces: 4 },
+    // Estados novos que causam dano por stack (declarados em estadosNovos.js).
+    ...Object.fromEntries(ESTADOS_NOVOS.filter(e => e.dano).map(e => [e.id, e.dano]))
 };
 
 export const ESTADOS = [
@@ -37,7 +44,9 @@ export const ESTADOS = [
     { id: 'cegosurdo', nome: 'Cego/Surdo', icone: '🙈' }, { id: 'petrificado', nome: 'Petrificado', icone: '🗿' },
     { id: 'charmado', nome: 'Charmado', icone: '💖' }, { id: 'provocado', nome: 'Provocado', icone: '💢' },
     // 😲 Marcado à mão pelo Mestre (por enquanto): não muda conta nenhuma, mas habilita efeitos "contra alvo Surpreso" (ex.: crítico automático).
-    { id: 'surpreso', nome: 'Surpreso', icone: '😲' }
+    { id: 'surpreso', nome: 'Surpreso', icone: '😲' },
+    // Estados novos (ficha do Natsu): fonte única em core/estadosNovos.js.
+    ...ESTADOS_NOVOS.map(e => ({ id: e.id, nome: e.nome, icone: e.icone }))
 ];
 const IDS = new Set(ESTADOS.map(e => e.id));
 export const ehEstadoValido = (id) => typeof id === 'string' && IDS.has(id);
@@ -68,39 +77,49 @@ export function stacksDe(ficha, id) {
 // Quanto cada estado "vale" depois das cadeias. `nivelExaustao` já soma o que o Sangrando acrescenta.
 export function estadosEfetivos(ficha) {
     const s = (id) => stacksDe(ficha, id);
-    const nivelExaustao = Math.min(MAX_STACKS, s('exausto') + Math.floor(s('sangrando') / SANGRANDO_POR_EXAUSTAO));
+    const novos = somarEfeitosNovos(condicoesDaFicha(ficha));
+    const nivelExaustao = Math.min(MAX_STACKS, s('exausto') + Math.floor(s('sangrando') / SANGRANDO_POR_EXAUSTAO) + novos.exaustao);
     const pet = s('petrificado');
     const petrificadoTotal = pet >= 4;
-    const imobilizado = s('imobilizado') > 0 || nivelExaustao >= 5 || s('criogenia') >= CRIOGENIA_IMOBILIZA || pet >= 3;
-    const incapacitado = s('incapacitado') > 0 || nivelExaustao >= 6 || petrificadoTotal;
-    const lento = s('lento') > 0 || nivelExaustao >= 2 || s('criogenia') >= CRIOGENIA_LENTO || pet >= 1;
-    const vulneravel = s('vulneravel') > 0 || s('queimado') >= QUEIMADO_VULNERAVEL || pet >= 2;
-    return { nivelExaustao, lento, imobilizado, incapacitado, vulneravel, petrificado: petrificadoTotal, cegosurdo: s('cegosurdo') > 0 };
+    const imobilizado = s('imobilizado') > 0 || nivelExaustao >= 5 || s('criogenia') >= CRIOGENIA_IMOBILIZA || pet >= 3 || novos.implica.has('imobilizado');
+    const incapacitado = s('incapacitado') > 0 || nivelExaustao >= 6 || petrificadoTotal || novos.implica.has('incapacitado');
+    const lento = s('lento') > 0 || nivelExaustao >= 2 || s('criogenia') >= CRIOGENIA_LENTO || pet >= 1 || novos.implica.has('lento');
+    const vulneravel = s('vulneravel') > 0 || s('queimado') >= QUEIMADO_VULNERAVEL || pet >= 2 || novos.implica.has('vulneravel');
+    // cego/surdo: os estados novos separados OU o antigo Cego/Surdo (que vale pelos dois).
+    return { nivelExaustao, lento, imobilizado, incapacitado, vulneravel, petrificado: petrificadoTotal, cegosurdo: s('cegosurdo') > 0, cego: s('cego') > 0 || s('cegosurdo') > 0, surdo: s('surdo') > 0 || s('cegosurdo') > 0 };
 }
 
 // Tudo que os estados mudam nas contas. Ficha sem condições devolve o "neutro".
 export function modificadoresDeEstados(ficha) {
     const e = estadosEfetivos(ficha);
     const s = (id) => stacksDe(ficha, id);
-    const imovel = e.imobilizado || e.incapacitado;
-    const desvTestes = (e.nivelExaustao >= 1 ? 1 : 0) + (e.cegosurdo ? 1 : 0);
-    const desvAtaque = (e.nivelExaustao >= 3 ? 1 : 0) + (e.cegosurdo ? 2 : 0) + (e.incapacitado ? 1 : 0);
+    const novos = somarEfeitosNovos(condicoesDaFicha(ficha));
+    const imovel = e.imobilizado || e.incapacitado || novos.semMov;
+    const desvTestes = (e.nivelExaustao >= 1 ? 1 : 0) + (e.cegosurdo ? 1 : 0) + novos.desvTestes;
+    const desvAtaque = (e.nivelExaustao >= 3 ? 1 : 0) + (e.cegosurdo ? 2 : 0) + (e.incapacitado ? 1 : 0) + novos.desvAtaque;
     const desvPorAtributo = {
         forca: (e.imobilizado ? 1 : 0) + (e.vulneravel ? 1 : 0),
         destreza: (e.imobilizado ? 1 : 0) + (e.lento ? 1 : 0)
     };
-    const vantagemContraEle = e.incapacitado ? 2 : (e.imobilizado ? 1 : 0);
-    const custoDefesaMult = 1 + CUSTO_DEFESA_POR_STACK * (s('queimado') + s('sangrando'));
+    // Atributos dos estados novos (constituição, sabedoria, carisma...) entram só quando há algo a somar; força e destreza somam sempre.
+    Object.keys(novos.desvAtr).forEach((a) => { desvPorAtributo[a] = (desvPorAtributo[a] || 0) + novos.desvAtr[a]; });
+    const vantagemContraEle = Math.min(2, (e.incapacitado ? 2 : (e.imobilizado ? 1 : 0)) + novos.vantContra);
+    const custoDefesaMult = 1 + CUSTO_DEFESA_POR_STACK * (s('queimado') + s('sangrando')) + novos.custoDefesa;
+    // Ações perdidas no começo do turno (core/acoes.js > restaurarAcoes): 99 = todas daquele tipo.
+    const acoesPerdidas = novos.perdeTurno
+        ? { padrao: 99, bonus: 99, reacao: 99 }
+        : { padrao: novos.perde.padrao, bonus: novos.perde.bonus, reacao: novos.perde.reacao };
     return {
         ...e,
         semMovimento: imovel,
-        movimentoMult: imovel ? 0 : (e.lento ? 0.5 : 1),
-        // Evasiva zera parado/incapacitado, cai pela metade com Lento (mesma regra de sempre da engine).
-        evasivaMult: imovel ? 0 : (e.lento ? 0.5 : 1),
-        resistenciaMult: e.vulneravel ? 0.5 : 1,
-        curaMult: curaDeEstados(ficha),
+        movimentoMult: imovel ? 0 : (e.lento ? 0.5 : 1) * novos.mov,
+        // Evasiva zera Imobilizado/Incapacitado (deslocamento zerado por Agarrado/Banido não zera a Evasiva), cai pela metade com Lento (mesma regra de sempre da engine).
+        evasivaMult: ((e.imobilizado || e.incapacitado) ? 0 : (e.lento ? 0.5 : 1)) * novos.evasiva,
+        resistenciaMult: (e.vulneravel ? 0.5 : 1) * novos.resistencia,
+        curaMult: curaDeEstados(ficha) * novos.cura,
         custoDefesaMult,
         desvTestes, desvAtaque, desvPorAtributo, vantagemContraEle,
+        acoesPerdidas, perdeTurno: novos.perdeTurno,
         perdeFormas: e.incapacitado
     };
 }
@@ -111,6 +130,17 @@ function curaDeEstados(ficha) {
     ['sangrando', 'queimado', 'criogenia'].forEach((id) => { for (let i = 0; i < stacksDe(ficha, id); i++) mult *= 0.5; });
     if (estadosEfetivos(ficha).nivelExaustao >= 4) mult *= 0.5;
     return mult;
+}
+
+// Estados novos que cortam a cura, um a um: [{ id, nome, stacks, mult }] (a Regeneração lista cada corte na ficha).
+export function cortesDeCuraDosEstadosNovos(ficha) {
+    const saida = [];
+    condicoesDaFicha(ficha).forEach((c) => {
+        const def = definicaoEstadoNovo(c.id);
+        const mult = def ? def.efeito(c.stacks).cura : undefined;
+        if (mult !== undefined && mult < 1) saida.push({ id: c.id, nome: def.nome, stacks: c.stacks, mult });
+    });
+    return saida;
 }
 
 // Frases curtas do que cada estado está causando AGORA (para a ficha, o aviso e o feed).
@@ -125,6 +155,9 @@ export function resumoDosEstados(ficha) {
         if (c.id === 'charmado') linhas.push(`💖 Charmado: não ataca${c.fonte ? ` ${c.fonte}` : ' quem o charmou'} e o defende.`);
         if (c.id === 'provocado') linhas.push(`💢 Provocado: só foca${c.fonte ? ` ${c.fonte}` : ' em quem o provocou'}.`);
         if (c.id === 'surpreso') linhas.push('😲 Surpreso: pego desprevenido; habilidades "contra alvo Surpreso" (ex.: crítico automático) passam a valer contra ele.');
+        // Estados novos: a frase vem do próprio `efeito` (core/estadosNovos.js), a mesma conta do motor.
+        const novo = descreverEfeitoNovo(c.id, c.stacks, c.fonte || '');
+        if (novo) linhas.push(novo);
     });
     if (m.incapacitado) linhas.push('☠️ Incapacitado: sem Formas, todos atacam com dupla vantagem.');
     else if (m.imobilizado) linhas.push('⛓️ Imobilizado: 0 de movimento, quem ataca tem vantagem.');

@@ -1,4 +1,5 @@
 import { imuneAoEstado } from '../../core/efeitosCondicionais';
+import { ESTADOS_NOVOS } from '../../core/estadosNovos';
 import { nomeDoEstado } from '../../core/condicoes';
 import { sincronizarDuracoes, definirDuracaoManual } from '../../core/duracaoEstados';
 import DuracaoEstadosEditor from '../shared/DuracaoEstadosEditor';
@@ -28,7 +29,8 @@ export const TODAS_CONDICOES_BASE = [
     { id: 'cegosurdo', icone: '🙈', cor: '#dddddd', nome: 'Cego/Surdo' },
     { id: 'petrificado', icone: '🗿', cor: '#555555', nome: 'Petrificado' },
     { id: 'charmado', icone: '💖', cor: '#ff66b2', nome: 'Charmado' },
-    { id: 'provocado', icone: '💢', cor: '#ff5500', nome: 'Provocado' }
+    { id: 'provocado', icone: '💢', cor: '#ff5500', nome: 'Provocado' },
+    ...ESTADOS_NOVOS.map(e => ({ id: e.id, icone: e.icone, cor: e.cor, nome: e.nome }))
 ];
 
 // 🔥 OTIMIZAÇÃO (Domínio do Mestre): antes este componente assinava a árvore INTEIRA de
