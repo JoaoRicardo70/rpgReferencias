@@ -27,22 +27,36 @@ export function traduzirErroGemini(status, mensagemApi = '') {
 }
 
 // fetch com tempo limite + JSON + erros traduzidos.
-async function requisitar(fetchImpl, url, init) {
+// sinalExterno: AbortSignal de quem chamou (botão Cancelar); aborta o pedido e vira um erro { cancelado: true }.
+function erroCancelado() { const e = new Error('Leitura cancelada.'); e.cancelado = true; return e; }
+async function requisitar(fetchImpl, url, init, sinalExterno = null) {
+    if (sinalExterno?.aborted) throw erroCancelado();
     const controle = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const aoCancelar = () => { if (controle) controle.abort(); };
+    if (sinalExterno && controle) sinalExterno.addEventListener('abort', aoCancelar, { once: true });
     const timer = controle ? setTimeout(() => controle.abort(), TEMPO_LIMITE_MS) : null;
-    let resposta;
+    // Cancelar e tempo limite valem também enquanto o corpo da resposta é lido.
     try {
-        resposta = await fetchImpl(url, { ...init, signal: controle?.signal });
-    } catch (err) {
-        if (err?.name === 'AbortError') throw new Error('O Gemini demorou demais para responder. Tente de novo.');
-        throw new Error('Não consegui falar com o Gemini. Verifique a conexão e tente de novo.');
+        let resposta;
+        try {
+            resposta = await fetchImpl(url, { ...init, signal: controle?.signal });
+        } catch (err) {
+            if (sinalExterno?.aborted) throw erroCancelado();
+            if (err?.name === 'AbortError') throw new Error('O Gemini demorou demais para responder. Tente de novo.');
+            throw new Error('Não consegui falar com o Gemini. Verifique a conexão e tente de novo.');
+        }
+        let dados = null;
+        try { dados = await resposta.json(); } catch (e) {
+            if (sinalExterno?.aborted) throw erroCancelado();
+            if (controle?.signal.aborted) throw new Error('O Gemini demorou demais para responder. Tente de novo.');
+            dados = null;
+        }
+        if (!resposta.ok) throw new Error(traduzirErroGemini(resposta.status, dados?.error?.message));
+        return dados;
     } finally {
         if (timer) clearTimeout(timer);
+        if (sinalExterno) sinalExterno.removeEventListener('abort', aoCancelar);
     }
-    let dados = null;
-    try { dados = await resposta.json(); } catch (e) { dados = null; }
-    if (!resposta.ok) throw new Error(traduzirErroGemini(resposta.status, dados?.error?.message));
-    return dados;
 }
 
 function textoDaResposta(dados) {
@@ -126,7 +140,9 @@ async function requisitarStream(fetchImpl, url, init, aoPedaco) {
 
 // Com `aoReceberTexto(textoParcial)`, usa streaming e vai mostrando a resposta enquanto ela é
 // escrita (a cada rodada de ferramentas o texto parcial recomeça).
-export async function chamarGemini({ chave, modelo, systemInstruction, contents, ferramentas = null, aoReceberTexto = null, fetchImpl = fetch }) {
+// configuracaoGeracao: generationConfig da API (ex.: { responseMimeType: 'application/json' } pede a saída em JSON).
+// sinal: AbortSignal para cancelar (só nas chamadas sem streaming).
+export async function chamarGemini({ chave, modelo, systemInstruction, contents, ferramentas = null, aoReceberTexto = null, configuracaoGeracao = null, sinal = null, fetchImpl = fetch }) {
     if (!chave) throw new Error('A Sexta-Feira ainda não foi configurada: o Mestre precisa cadastrar a chave do Gemini.');
     const nomeModelo = String(modelo || MODELO_GEMINI_PADRAO).trim() || MODELO_GEMINI_PADRAO;
     const url = `${URL_BASE_GEMINI}/${encodeURIComponent(nomeModelo)}:generateContent`;
@@ -136,6 +152,7 @@ export async function chamarGemini({ chave, modelo, systemInstruction, contents,
 
     for (let rodada = 0; rodada <= MAX_RODADAS_FERRAMENTAS; rodada++) {
         const corpo = { systemInstruction: { parts: [{ text: systemInstruction || '' }] }, contents: conversa };
+        if (configuracaoGeracao && typeof configuracaoGeracao === 'object') corpo.generationConfig = configuracaoGeracao;
         // Na última rodada não oferece mais ferramentas: força a resposta em texto.
         if (usarFerramentas && rodada < MAX_RODADAS_FERRAMENTAS) corpo.tools = [{ functionDeclarations: ferramentas.declaracoes }];
 
@@ -163,7 +180,7 @@ export async function chamarGemini({ chave, modelo, systemInstruction, contents,
             });
             dados = { candidates: [{ content: { role: 'model', parts: partesJuntas }, ...(finishReason ? { finishReason } : {}) }], ...(promptFeedback ? { promptFeedback } : {}) };
         } else {
-            dados = await requisitar(fetchImpl, url, init);
+            dados = await requisitar(fetchImpl, url, init, sinal);
         }
 
         const partes = dados?.candidates?.[0]?.content?.parts || [];

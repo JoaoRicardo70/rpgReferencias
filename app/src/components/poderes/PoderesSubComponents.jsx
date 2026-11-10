@@ -3,7 +3,7 @@ import DescricoesAtaqueEditor from '../shared/DescricoesAtaqueEditor';
 import EstadosGolpeEditor from '../shared/EstadosGolpeEditor';
 import AoAcertarEditor from '../shared/AoAcertarEditor';
 import SuporteEditor from '../shared/SuporteEditor';
-import React, { useState, useId, useMemo } from 'react';
+import React, { useState, useId, useMemo, useRef, useEffect } from 'react';
 import { usePoderesForm, SINGULAR } from './PoderesFormContext';
 import { SECOES_FORM, resumirSecoes, rascunhoTemConteudo } from '../../core/rascunhoPoder';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, GRUPO_IDENTIFICACAO, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
@@ -13,8 +13,13 @@ import EstagiosMarcosEditor from './EstagiosMarcosEditor';
 import { escalarEfeitosPorEstagio, previaEstagios, getMaximoEstagio, normalizarEstagios } from '../../core/estagios';
 import { construirArvorePastas, segmentosPasta } from '../../core/pastas';
 import { rotuloComPolaridade } from '../../core/polaridade';
-import { montarPromptImportacao } from '../../core/importadorIA';
+import { montarPromptImportacao, prepararImportacao } from '../../core/importadorIA';
 import ImportadorPrevia from './ImportadorPrevia';
+import LerTextoComIA, { AvisoPartesFalhas } from './LerTextoComIA';
+import useStore from '../../stores/useStore';
+import { MODELO_GEMINI_PADRAO } from '../../core/sextaFeira';
+import { dividirEmPartes, textoProgresso, chaveImportadorIA, MENSAGEM_SEM_CHAVE } from '../../core/transcricaoIA';
+import { transcreverEmPartes } from '../../services/transcricaoIA';
 import LerDeImagemIA from '../shared/LerDeImagemIA';
 import { TEXTO_DAS_IMAGENS } from '../../core/imagemIA';
 import CondicaoDoEfeito from '../shared/CondicaoDoEfeito';
@@ -88,24 +93,68 @@ export const ELEMENTOS_OPCOES = [
     { label: 'Manifestações e Fusões', opcoes: ['Aura Pura', 'Projeção de Aura', 'Artes Marciais', 'Reforço Físico', 'Fusões Básicas', 'Fusões Avançadas'] }
 ];
 
+// Lê o que ficou guardado do importador (store só em memória) sem assinar o estado: em testes com useStore
+// simulado (sem getState) vira no-op. Cópia por JSON: o que mora na store fica congelado (Immer).
+const lerSalvoImportador = (chave) => {
+    try {
+        const salvo = typeof useStore.getState === 'function' ? useStore.getState()?.importadoresIA?.[chave] : null;
+        return salvo ? JSON.parse(JSON.stringify(salvo)) : null;
+    } catch (e) { return null; }
+};
+const guardarImportador = (chave, valor) => {
+    try {
+        const st = typeof useStore.getState === 'function' ? useStore.getState() : null;
+        if (!st) return;
+        const vazio = !String(valor.texto || '').trim() && valor.previa.length === 0 && valor.falhas.length === 0;
+        if (vazio) { if (st.limparImportadorIA) st.limparImportadorIA(chave); return; }
+        if (st.setImportadorIA) st.setImportadorIA(chave, JSON.parse(JSON.stringify(valor)));
+    } catch (e) { /* sem store: só em memória do componente */ }
+};
+
 export function PoderesImportadorIA() {
     const ctx = usePoderesForm();
-    const [aberto, setAberto] = useState(false);
-    const [textoDocs, setTextoDocs] = useState('');
+    const configIA = useStore(s => s.sextaFeiraConfig);
+    const chaveSalva = chaveImportadorIA(ctx && ctx.meuNome);
+    const [salvo] = useState(() => lerSalvoImportador(chaveSalva));
+    const [aberto, setAberto] = useState(() => !!(salvo && ((salvo.texto || '').trim() || (salvo.previa || []).length)));
+    const [textoDocs, setTextoDocs] = useState(() => (salvo && salvo.texto) || '');
     const [jsonResposta, setJsonResposta] = useState('');
-    const [fase, setFase] = useState(1);
+    const [fase, setFase] = useState(() => (salvo && (salvo.previa || []).length ? 3 : 1));
     const [promptGerado, setPromptGerado] = useState('');
-    const [previa, setPrevia] = useState([]);
+    const [previa, setPrevia] = useState(() => (salvo && salvo.previa) || []);
+    const [falhas, setFalhas] = useState(() => (salvo && salvo.falhas) || []);
+    const [origem, setOrigem] = useState('ia');
+    const [lendo, setLendo] = useState(false);
+    const [progresso, setProgresso] = useState(null);
+    const [erroIA, setErroIA] = useState('');
+    const controleRef = useRef(null);
+    const montadoRef = useRef(true);
+    const previaRef = useRef(previa);
+    previaRef.current = previa;
+    const configurada = !!(configIA && configIA.chaveGemini);
+
+    useEffect(() => { montadoRef.current = true; return () => { montadoRef.current = false; if (controleRef.current) controleRef.current.abort(); }; }, []);
+    // Texto, prévia e partes que falharam sobrevivem a trocar de página/aba do livro (o Grimório desmonta ao sair).
+    // Grava com debounce (300ms) e descarrega o que estiver pendente ao sair.
+    const valorImportadorRef = useRef({ texto: textoDocs, previa, falhas });
+    valorImportadorRef.current = { texto: textoDocs, previa, falhas };
+    useEffect(() => {
+        const timer = setTimeout(() => guardarImportador(chaveSalva, valorImportadorRef.current), 300);
+        return () => clearTimeout(timer);
+    }, [chaveSalva, textoDocs, previa, falhas]);
+    useEffect(() => () => guardarImportador(chaveSalva, valorImportadorRef.current), [chaveSalva]);
 
     if (!ctx) return null;
     const { lerImportacao, confirmarImportacao, abaAtual } = ctx;
+    const faseDeVolta = origem === 'ia' ? 1 : 2;
 
-    // Lê a resposta da IA e abre a prévia (várias respostas podem ser somadas antes de gravar).
+    // Lê a resposta da IA (colada) e abre a prévia (várias respostas podem ser somadas antes de gravar).
     const lerResposta = (texto) => {
         const fonte = typeof texto === 'string' ? texto : jsonResposta;
         const proxima = previa.reduce((m, it) => Math.max(m, it.chave), 0) + 1;
         const r = lerImportacao(fonte, proxima);
         if (!r.ok) { alert(r.erro); return false; }
+        setOrigem('manual');
         setPrevia(atual => [...atual, ...r.itens]);
         setJsonResposta('');
         setFase(3);
@@ -116,6 +165,8 @@ export function PoderesImportadorIA() {
         if (total === 0) { alert('Nenhum item marcado para gravar.'); return; }
         alert(`Sincronização Concluída!\n\n🗡️ Inscritos: ${total}. Cada um foi para a aba da sua categoria.`);
         setPrevia([]);
+        setFalhas([]);
+        setErroIA('');
         setTextoDocs('');
         setPromptGerado('');
         setFase(1);
@@ -129,8 +180,49 @@ export function PoderesImportadorIA() {
         let copiou = false;
         try { await navigator.clipboard.writeText(prompt); copiou = true; } catch (e) { copiou = false; }
         alert(copiou ? "Instrução copiada! Cole na sua IA e traga o JSON gerado." : "Não consegui copiar sozinho: copie a instrução que apareceu na caixa e cole na sua IA.");
+        setOrigem('manual');
         setFase(2);
     };
+
+    // ✨ Uma etapa: manda as partes ao Gemini da mesa, em sequência, e abre a prévia com o que deu certo.
+    const executarLeitura = async (partes, tentativaParcial) => {
+        if (!configurada) { setErroIA(MENSAGEM_SEM_CHAVE); return; }
+        if (!partes.length) { setErroIA('Cole o texto primeiro.'); return; }
+        const aba = abaAtual; // a mesma aba vale para o prompt e para preparar os itens
+        const controle = new AbortController();
+        controleRef.current = controle;
+        setErroIA('');
+        setLendo(true);
+        setProgresso({ indice: partes[0].indice, total: partes[0].total, texto: textoProgresso(partes[0].indice, partes[0].total) });
+        try {
+            const r = await transcreverEmPartes({
+                chave: configIA.chaveGemini, modelo: configIA.modelo || MODELO_GEMINI_PADRAO, partes, aba, sinal: controle.signal,
+                aoProgresso: (indice, total) => { if (montadoRef.current) setProgresso({ indice, total, texto: textoProgresso(indice, total) }); },
+                jaExistentes: previaRef.current.map(it => it.objeto),
+            });
+            if (!montadoRef.current) return;
+            const tentadas = new Set(partes.map(p => `${p.indice}_${p.total}`));
+            setFalhas(atual => [...(tentativaParcial ? atual.filter(f => !tentadas.has(`${f.indice}_${f.total}`)) : []), ...r.falhas]);
+            if (r.itens.length > 0) {
+                const proxima = previaRef.current.reduce((m, it) => Math.max(m, it.chave), 0) + 1;
+                const novos = prepararImportacao(r.itens, aba, proxima); // itens já validados: sem re-serializar
+                setOrigem('ia');
+                setPrevia(atual => [...atual, ...novos]);
+                setFase(3);
+            } else if (r.falhas.length === 0) setErroIA('A IA não encontrou habilidades nesse texto.');
+        } catch (e) {
+            if (montadoRef.current) setErroIA('Não consegui ler o texto com a IA. Tente de novo.');
+        } finally {
+            if (controleRef.current === controle) controleRef.current = null;
+            if (montadoRef.current) { setLendo(false); setProgresso(null); }
+        }
+    };
+    const lerComIA = () => {
+        const partes = dividirEmPartes(textoDocs);
+        executarLeitura(partes.map((texto, i) => ({ indice: i + 1, total: partes.length, texto })), false).catch(() => {});
+    };
+    const tentarDeNovo = (f) => { executarLeitura([{ indice: f.indice, total: f.total, texto: f.texto }], true).catch(() => {}); };
+    const cancelarLeitura = () => { if (controleRef.current) controleRef.current.abort(); };
 
     return (
         <div className="grimorio-importar">
@@ -141,19 +233,30 @@ export function PoderesImportadorIA() {
                 <div className="fade-in" style={{ marginTop: '10px', border: '1px dashed currentColor', padding: '15px', borderRadius: '8px', background: 'rgba(0,0,0,0.05)' }}>
                     {fase === 1 ? (
                         <>
-                            <textarea value={textoDocs} onChange={e => setTextoDocs(e.target.value)} placeholder="Cole aqui os textos longos..." style={{ width: '100%', height: '120px', background: 'transparent', padding: '10px', resize: 'vertical' }} />
-                            <button onClick={gerarPrompt} style={{ width: '100%', marginTop: '10px', padding: '8px' }}>1. Copiar Feitiço de Extração (Prompt)</button>
-                            <LerDeImagemIA montarPrompt={() => montarPromptImportacao(TEXTO_DAS_IMAGENS, abaAtual)} onResposta={(texto) => { setJsonResposta(texto); const ok = lerResposta(texto); if (!ok) setFase(2); return ok; }} />
+                            <LerTextoComIA texto={textoDocs} onTexto={setTextoDocs} configurada={configurada} lendo={lendo} progresso={progresso} erro={erroIA} onLer={lerComIA} onCancelar={cancelarLeitura} />
+                            <AvisoPartesFalhas falhas={falhas} lendo={lendo} onTentarDeNovo={tentarDeNovo} />
+                            {previa.length > 0 && <button type="button" onClick={() => setFase(3)} style={{ width: '100%', marginTop: '10px', padding: '8px' }}>Ver prévia ({previa.length})</button>}
+                            <LerDeImagemIA montarPrompt={() => montarPromptImportacao(TEXTO_DAS_IMAGENS, abaAtual)} onResposta={(texto) => { setJsonResposta(texto); const ok = lerResposta(texto); if (!ok) { setOrigem('manual'); setFase(2); } return ok; }} />
+                            <details className="importador-ia-manual" open={!configurada || undefined}>
+                                <summary>Modo manual (avançado)</summary>
+                                <div className="importador-ia-dica">Sem usar a chave da mesa: copie a instrução, leve a uma IA de sua escolha e cole aqui o JSON que ela devolver.</div>
+                                <button type="button" onClick={gerarPrompt} style={{ width: '100%', marginTop: '10px', padding: '8px' }}>1. Copiar Feitiço de Extração (Prompt)</button>
+                            </details>
                         </>
                     ) : fase === 3 ? (
-                        <ImportadorPrevia
-                            itens={previa}
-                            onAtualizar={(chave, novo) => setPrevia(atual => atual.map(it => (it.chave === chave ? novo : it)))}
-                            onRemover={(chave) => { const resto = previa.filter(it => it.chave !== chave); setPrevia(resto); if (resto.length === 0) setFase(2); }}
-                            onConfirmar={gravarPrevia}
-                            onVoltar={() => setFase(2)}
-                            onAdicionarOutra={() => setFase(2)}
-                        />
+                        <>
+                            <AvisoPartesFalhas falhas={falhas} lendo={lendo} onTentarDeNovo={tentarDeNovo} />
+                            {lendo && progresso && <div className="importador-ia-progresso" role="status" aria-live="polite">{progresso.texto} <button type="button" className="importador-ia-cancelar" onClick={cancelarLeitura}>Cancelar</button></div>}
+                            {erroIA && <div className="importacao-aviso" role="alert">⚠️ {erroIA}</div>}
+                            <ImportadorPrevia
+                                itens={previa}
+                                onAtualizar={(chave, novo) => setPrevia(atual => atual.map(it => (it.chave === chave ? novo : it)))}
+                                onRemover={(chave) => { const resto = previa.filter(it => it.chave !== chave); setPrevia(resto); if (resto.length === 0) setFase(faseDeVolta); }}
+                                onConfirmar={gravarPrevia}
+                                onVoltar={() => setFase(faseDeVolta)}
+                                onAdicionarOutra={() => setFase(faseDeVolta)}
+                            />
+                        </>
                     ) : (
                         <>
                             <textarea readOnly value={promptGerado} onFocus={e => e.target.select()} aria-label="Instrução para a IA" style={{ width: '100%', height: '60px', background: 'transparent', padding: '10px', marginBottom: '10px', fontSize: '0.8em', opacity: 0.7 }} />

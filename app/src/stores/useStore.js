@@ -180,6 +180,8 @@ const useStore = create(
         efeitosTemp: [], efeitosTempPassivos: [], efeitosTempArsenal: [], efeitosTempPassivosArsenal: [], efeitosTempForma: [], efeitosTempPassivosForma: [],
         // Rascunhos do formulário do Livro dos Poderes (core/rascunhoPoder.js): só em memória, nunca vão ao Firebase.
         rascunhosPoder: {},
+        // Importador de IA do Livro dos Poderes (core/transcricaoIA.js > chaveImportadorIA): texto colado, prévia e partes que falharam; só em memória.
+        importadoresIA: {},
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
         dummies: {}, alvoSelecionado: null, atorCombate: null,
         // ⏱️ Avisos curtos (toasts) sobre Ações/Reações: [{ id, texto, tipo: 'info' | 'alerta' }]; somem sozinhos (components/combate/AvisosAcao.jsx).
@@ -213,6 +215,8 @@ const useStore = create(
         setFormaEditandoId: (id) => set((state) => { state.formaEditandoId = id; }),
         setPoderEditandoId: (id) => set((state) => { state.poderEditandoId = id; }),
         setRascunhoPoder: (chave, valor) => set((state) => { if (!state.rascunhosPoder) state.rascunhosPoder = {}; state.rascunhosPoder[chave] = valor; }),
+        setImportadorIA: (chave, valor) => set((state) => { if (!state.importadoresIA) state.importadoresIA = {}; state.importadoresIA[chave] = valor; }),
+        limparImportadorIA: (chave) => set((state) => { if (state.importadoresIA) delete state.importadoresIA[chave]; }),
         limparRascunhoPoder: (chave) => set((state) => { if (state.rascunhosPoder) delete state.rascunhosPoder[chave]; }),
         setItemEditandoId: (id) => set((state) => { state.itemEditandoId = id; }),
         setElemEditandoId: (id) => set((state) => { state.elemEditandoId = id; }),
