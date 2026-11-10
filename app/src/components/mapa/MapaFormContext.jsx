@@ -515,14 +515,6 @@ export function MapaFormProvider({ children }) {
         }
     }, [novaCenaNome, novaCenaEscala, novaCenaUnidade, novaCenaApenasCriador, souCriador, cenario, isMestre]);
 
-    const ativarCena = useCallback((id) => {
-        const novoCenario = JSON.parse(JSON.stringify(cenario));
-        novoCenario.ativa = id;
-        salvarCenarioCompleto(novoCenario);
-        setCenaVisualizadaId(null); 
-        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🗺️ O cenário mudou para: ${novoCenario.lista?.[id]?.nome || id}!` });
-    }, [cenario]);
-
     const deletarCena = useCallback((id) => {
         if(id === 'default') return alert("A cena inicial não pode ser apagada.");
         if(!window.confirm("Tem certeza que deseja apagar esta cena?")) return;
@@ -1226,6 +1218,41 @@ export function MapaFormProvider({ children }) {
         });
     }, [isMestre, meuNome, updateFicha, minhaFicha]);
 
+    // 🔔 Fim do combate de UMA cena (usado por encerrarCombate e pela troca de cena ativa): termina a
+    // Imunidade total e dispara fimDeLuta (core/gatilhos.js) em quem estava na cena. "Quem estava na
+    // cena" = mesma regra da ordemIniciativa aplicada à cena `cenaId`: jogadores com iniciativa > 0 e
+    // posição nessa cena (posicoes[cenaId] ou posicao legada). Dummies não têm gatilhos.
+    // Escrita em outros personagens só pelos helpers do Mestre (salvarCamposPersonagem / dispararEventoEmPersonagem).
+    const encerrarCombateDaCena = useCallback((cenaId, nomesFornecidos) => {
+        const storeState = useStore.getState();
+        const nomes = nomesFornecidos || Object.keys(jogadores || {}).filter((n) => {
+            const f = jogadores[n];
+            if (!f || !(f.iniciativa > 0)) return false;
+            return !!(f.posicoes && f.posicoes[cenaId]) || !!(f.posicao && (f.posicao.cenaId || 'default') === cenaId);
+        });
+        // Cada cena conta como um combate: a Imunidade total (core/gatilhosAplicar.js) termina com ele, em mim e nos jogadores que a têm.
+        nomes.forEach((n) => { if (n !== meuNome && storeState.personagens?.[n]?.combate?.imunidadeTotal) salvarCamposPersonagem(n, { 'combate/imunidadeTotal': null }); });
+        if (nomes.includes(meuNome)) { updateFicha(ficha => { if (ficha.combate) delete ficha.combate.imunidadeTotal; }); salvarFichaSilencioso(); }
+        // 🔔 fimDeLuta: zera contadores com reset 'cena' e dispara os gatilhos de quem estava na cena.
+        nomes.forEach((n) => {
+            const fim = dispararEventoEmPersonagem(n, { tipo: 'fimDeLuta' });
+            if (fim.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${n}: ${fim.textos.join(' · ')}` });
+        });
+        return nomes;
+    }, [jogadores, meuNome, updateFicha]);
+
+    const ativarCena = useCallback((id) => {
+        const idAnterior = cenario?.ativa || 'default';
+        const novoCenario = JSON.parse(JSON.stringify(cenario));
+        novoCenario.ativa = id;
+        salvarCenarioCompleto(novoCenario);
+        setCenaVisualizadaId(null);
+        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🗺️ O cenário mudou para: ${novoCenario.lista?.[id]?.nome || id}!` });
+        // Cada cena conta como um combate: trocar a cena ATIVA encerra o da que está saindo.
+        // Iniciativa e ordem manual NÃO são mexidas (como já era).
+        if (id !== idAnterior) encerrarCombateDaCena(idAnterior);
+    }, [cenario, encerrarCombateDaCena]);
+
     const encerrarCombate = useCallback(() => {
         const nomeCena = String(cenaAtual.nome || cenaRenderId);
         if (!window.confirm(`Tem a certeza que deseja ZERAR A INICIATIVA DE TODOS OS JOGADORES E ENTIDADES presentes na cena "${nomeCena}"?`)) return;
@@ -1240,25 +1267,20 @@ export function MapaFormProvider({ children }) {
             if (dData) salvarDummie(d.id, { ...dData, iniciativa: 0 });
         });
 
-        // Cada cena conta como um combate: a Imunidade total (core/gatilhosAplicar.js) termina com ele, em mim e nos jogadores que a têm.
-        nomesNaCena.forEach((n) => { if (n !== meuNome && storeState.personagens?.[n]?.combate?.imunidadeTotal) salvarCamposPersonagem(n, { 'combate/imunidadeTotal': null }); });
         updateFicha(ficha => { ficha.iniciativa = 0; if (ficha.combate) delete ficha.combate.imunidadeTotal; });
         setIniciativaInput(0);
         salvarFichaSilencioso();
         setJogadorHistory(null);
-        // 🔔 fimDeLuta (core/gatilhos.js): zera contadores com reset 'cena' e dispara os gatilhos de quem estava na cena (cada cena conta como um combate).
-        nomesNaCena.forEach((n) => {
-            const fim = dispararEventoEmPersonagem(n, { tipo: 'fimDeLuta' });
-            if (fim.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${n}: ${fim.textos.join(' · ')}` });
-        });
-        
+        // Imunidade total acaba nos outros e fimDeLuta dispara em quem estava na cena (cada cena conta como um combate).
+        encerrarCombateDaCena(cenaRenderId, nomesNaCena);
+
         const novoCenario = JSON.parse(JSON.stringify(storeState.cenario || {}));
         novoCenario.turnoAtualIndex = 0;
         // 🔀 Combate novo começa pela iniciativa de novo, sem a ordem manual deste.
         if (novoCenario.ordemTurnoManual?.[cenaRenderId]) novoCenario.ordemTurnoManual[cenaRenderId] = null;
         salvarCenarioCompleto(novoCenario);
 
-    }, [cenaAtual.nome, ordemIniciativa, updateFicha, cenaRenderId, meuNome]);
+    }, [cenaAtual.nome, ordemIniciativa, updateFicha, cenaRenderId, encerrarCombateDaCena]);
 
     // 🔀 ORDEM DE TURNO MANUAL (Mestre/Co-Mestre, pela aba Mestre — MestreControleTurno.jsx):
     // grava a nova ordem em cenario.ordemTurnoManual[cena] e corrige turnoAtualIndex no MESMO

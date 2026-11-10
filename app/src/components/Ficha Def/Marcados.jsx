@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import useStore from '../../stores/useStore';
 import ClasseMecanicaPainel from './ClasseMecanicaPainel';
-import { salvarFichaSilencioso, salvarFirebaseImediato, salvarDivisorPoderMesa, salvarFichaAlvoSilencioso, salvarFichaAlvoImediato } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, salvarFirebaseImediato, salvarDivisorPoderMesa, salvarFichaAlvoSilencioso, salvarFichaAlvoImediato, enviarParaFeed } from '../../services/firebase-sync';
+import { dispararEventoEmPersonagem } from '../../services/gatilhosEventos';
 import { lerImagemComoBase64 } from '../../services/firebase-storage';
 
 // Importação flexível
@@ -1423,6 +1424,10 @@ export default function MarcadosPanel() {
             if (f.combate) { f.combate.fadigaTurnos = 0; f.combate.fadigaExtra = 0; f.combate.municoTurnos = 0; }
         });
         callSave();
+        // 🔔 Descansar encerra a luta: contadores 'cena' zeram e gatilhos fimDeLuta disparam (na ficha ativa: a minha, ou a que o Mestre edita).
+        const donoDescanso = nomeFichaAtiva || meuNome;
+        const fimDescanso = dispararEventoEmPersonagem(donoDescanso, { tipo: 'fimDeLuta' });
+        if (fimDescanso.textos?.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${donoDescanso}: ${fimDescanso.textos.join(' · ')}` });
     };
 
     // 😮‍💨 FADIGA DE COMBATE: desgaste que se acumula a cada turno/grande gasto e
