@@ -134,10 +134,10 @@ export default function GrimorioPanel() {
                 }}/>
 
                 {/* 📄 AS PÁGINAS DO GRIMÓRIO (Livres para terem o próprio fundo!) */}
-                <div style={{
+                <div className="grimorio-pagina" style={{
                     flex: 1, position: 'relative', backgroundColor: localCorFundo, color: localCorTexto,
                     borderRadius: '5px 15px 15px 5px', boxShadow: '-5px 0 15px rgba(0,0,0,0.5), inset -2px 0 5px rgba(0,0,0,0.1)',
-                    overflow: 'hidden', display: 'flex', flexDirection: 'column', padding: '40px', transition: 'background 0.3s ease, color 0.3s ease'
+                    display: 'flex', flexDirection: 'column', padding: '40px', transition: 'background 0.3s ease, color 0.3s ease'
                 }}>
                     
                     {/* Fundo Alquímico da Página */}

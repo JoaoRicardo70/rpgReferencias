@@ -5,7 +5,7 @@ import { normalizarUsos, limiteDeUsos, podeUsar, gastarUso, descreverUsos } from
 import { normalizarCustoPorTurno } from '../../core/custoPorTurno';
 import { normalizarRecarga, emRecarga, mensagemRecarga, iniciarRecarga } from '../../core/recargaPoder';
 import { rolarAoDesligar, aplicarDanoEmSiMesmo } from '../../core/aoDesligar';
-import React, { createContext, useContext, useState, useRef, useMemo, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes';
 import { uploadImagem, enviarParaFeed } from '../../services/firebase-sync';
@@ -26,7 +26,8 @@ import { definirEstagio } from '../../core/contadores';
 import { sincronizarEscudoDoPoder, normalizarEscudoAoLigar } from '../../core/escudos';
 import { normalizarGatilhos } from '../../core/gatilhos';
 import { dispararEventoNaFicha, forcarGatilhoNaFicha, rngPreSorteado } from '../../core/gatilhosAplicar';
-import { ESTAGIOS_PADRAO, normalizarEstagios, temEstagios, limitarEstagio, marcoParaRascunho } from '../../core/estagios';
+import { ESTAGIOS_PADRAO, normalizarEstagios, limitarEstagio } from '../../core/estagios';
+import { SECOES_PADRAO, chaveRascunhoPoder, chaveAbaRascunhoPoder, rascunhoVazio, rascunhoDoPoder, rascunhoTemConteudo, rascunhoTemAlteracao, rascunhoDifere, completarRascunho } from '../../core/rascunhoPoder';
 
 // 🪜 Rascunho do bloco "Estágios" do editor — nomes ficam como texto (um por linha) enquanto edita.
 const estagiosEditorVazio = () => ({ ...ESTAGIOS_PADRAO, nomes: '' });
@@ -45,7 +46,14 @@ export function usePoderesForm() {
     return ctx;
 }
 
-export function PoderesFormProvider({ children }) {
+// 📝 Lê/grava o rascunho na store sem assinar o estado: em testes com useStore simulado (sem getState)
+// vira no-op e o formulário se comporta como antes (só em memória do componente).
+const ROTULO_CATEGORIA = { habilidade: 'Habilidades', forma: 'Formas', poder: 'Poderes' };
+const lerStoreRascunho = () => (typeof useStore.getState === 'function' ? useStore.getState() : null);
+
+// persistirRascunho: o formulário do Grimório (PoderesPanel) guarda o rascunho na store (core/rascunhoPoder.js),
+// um por dono da ficha + categoria, pra sobreviver a trocar de página do livro e de aba (Habilidades/Formas/Poderes).
+export function PoderesFormProvider({ children, persistirRascunho = false }) {
     // 🔥 GRIMÓRIO DA ENTIDADE: dentro de um FichaAlvoProvider mirando outro personagem (livro do
     // Mestre, components/mestre/LivroEntidade.jsx) tudo aqui lê e grava a ficha DELE; fora disso é a
     // minha ficha, exatamente como sempre (FichaAlvoContext.jsx > useFichaAtiva).
@@ -72,7 +80,13 @@ export function PoderesFormProvider({ children }) {
     const poderEditandoId = souEuMesmo ? poderEditandoIdGlobal : poderEditandoIdLocal;
     const setPoderEditandoId = souEuMesmo ? setPoderEditandoIdGlobal : setPoderEditandoIdLocal;
 
-    const [abaAtual, setAbaAtual] = useState('habilidade');
+    const [abaAtual, setAbaAtual] = useState(() => {
+        if (!persistirRascunho) return 'habilidade';
+        const salva = lerStoreRascunho()?.rascunhosPoder?.[chaveAbaRascunhoPoder(meuNome)];
+        return SINGULAR[salva] ? salva : 'habilidade';
+    });
+    // Seções abertas do acordeão do formulário (só UI; acompanha o rascunho).
+    const [secoesAbertas, setSecoesAbertas] = useState(() => ({ ...SECOES_PADRAO }));
 
     const [nomePoder, setNomePoder] = useState('');
     const [descricaoPoder, setDescricaoPoder] = useState(''); 
@@ -208,43 +222,165 @@ export function PoderesFormProvider({ children }) {
         }
     }, [meuNome]);
 
-    const cancelarEdicaoPoder = useCallback(() => {
-        setPoderEditandoId(null);
-        setNomePoder('');
-        setDescricaoPoder(''); 
-        setPoderVertente('');
-        setPoderElemento('');
-        setElementosAfetados(''); 
-        setImagemUrl('');
-        setDadosQtd(0);
-        setDadosFaces(20);
-        setCustoPercentual(0);
-        setCustoPercentualMax(0);
-        setSemComoPoder(false);
-        setDanoVerdadeiroPoder(false);
-        setTipoAcao('');
-        setUsosMaxPoder('');
-        setUsosPorPoder('cena');
-        setCustoTurnoPoder({ modo: 'fixo', valor: '', energia: 'mana' });
-        setRecargaTurnosPoder('');
-        setEscudoPoder({ nome: '', valor: '', tipo: 'escudo' });
-        setGatilhosPoder([]);
-        setGatilhosDescartados([]);
-        setPoderAlcance(1);
-        setPoderArea(0); 
-        setArmaVinculada('');
-        setMaestriaPoder(0);
-        setFadigaPorUsoPoder(15);
+    // Aplica um rascunho completo em TODOS os campos do formulário (vazio = limpa tudo).
+    const aplicarRascunho = useCallback((bruto) => {
+        const r = completarRascunho(bruto);
+        setPoderEditandoId(r.poderEditandoId);
+        setNomePoder(r.nome);
+        setDescricaoPoder(r.descricao);
+        setPoderVertente(r.vertente);
+        setPoderElemento(r.elemento);
+        setElementosAfetados(r.elementosAfetados);
+        setImagemUrl(r.imagemUrl);
+        setDadosQtd(r.dadosQtd);
+        setDadosFaces(r.dadosFaces);
+        setCustoPercentual(r.custoPercentual);
+        setCustoPercentualMax(r.custoPercentualMax);
+        setSemComoPoder(r.semComoPoder);
+        setDanoVerdadeiroPoder(r.danoVerdadeiro);
+        setTipoAcao(r.tipoAcao);
+        setUsosMaxPoder(r.usosMax);
+        setUsosPorPoder(r.usosPor);
+        setCustoTurnoPoder(r.custoTurno);
+        setRecargaTurnosPoder(r.recargaTurnos);
+        setEscudoPoder(r.escudo);
+        setGatilhosPoder(r.gatilhos);
+        setGatilhosDescartados(r.gatilhosDescartados);
+        setPoderAlcance(r.alcance);
+        setPoderArea(r.area);
+        setArmaVinculada(r.arma);
+        setMaestriaPoder(r.maestria);
+        setFadigaPorUsoPoder(r.fadigaPorUso);
         // Sem isto, a próxima Habilidade criada herdava a Maestria Requerida da última editada.
-        setMaestriaRequeridaPoder(0);
-        setPastaPoder('');
-        setEstagiosEditorBruto(estagiosEditorVazio());
-        setEfeitosTemp([]);
-        setEfeitosTempPassivos([]);
-        setNovoAtrPassivo('evasiva');
-        setNovoPropPassivo('base');
-        setNovoValPassivo('');
+        setMaestriaRequeridaPoder(r.maestriaRequerida);
+        setPastaPoder(r.pasta);
+        setEstagiosEditorBruto(r.estagios);
+        setEfeitosTemp(r.efeitos);
+        setEfeitosTempPassivos(r.efeitosPassivos);
+        setNomeEfeito(r.nomeEfeito);
+        setNovoAtr(r.novoAtr);
+        setNovoProp(r.novoProp);
+        setNovoVal(r.novoVal);
+        setNovoQuando(r.novoQuando);
+        setNovoEscopo(r.novoEscopo);
+        setNomeEfeitoPassivo(r.nomeEfeitoPassivo);
+        setNovoAtrPassivo(r.novoAtrPassivo);
+        setNovoPropPassivo(r.novoPropPassivo);
+        setNovoValPassivo(r.novoValPassivo);
+        setNovoQuandoPassivo(r.novoQuandoPassivo);
+        setNovoEscopoPassivo(r.novoEscopoPassivo);
+        setSecoesAbertas(r.abertas);
     }, [setPoderEditandoId, setEfeitosTemp, setEfeitosTempPassivos]);
+
+    // Descarta o formulário (limpa todos os campos, inclusive o "Quando"/escopo/nome dos efeitos em digitação).
+    const cancelarEdicaoPoder = useCallback(() => { aplicarRascunho(rascunhoVazio()); }, [aplicarRascunho]);
+
+    // ===== Rascunho persistente (só com persistirRascunho) =====
+    // O estado do formulário continua nos useState acima; a cada mudança uma cópia JSON vai pra store
+    // (rascunhosPoder[dono|categoria]) e é recarregada ao remontar ou trocar de categoria.
+    const chaveRascunho = persistirRascunho ? chaveRascunhoPoder(meuNome, abaAtual) : null;
+    const chaveRascunhoRef = useRef(chaveRascunho);
+    chaveRascunhoRef.current = chaveRascunho;
+    const fichaRef = useRef(minhaFicha);
+    fichaRef.current = minhaFicha;
+    const [chaveCarregada, setChaveCarregada] = useState(null);
+
+    // Objeto do rascunho atual (sem serializar nada): só muda de referência quando algum campo muda.
+    const rascunhoAtual = useMemo(() => ({
+        poderEditandoId: poderEditandoId ?? null,
+        nome: nomePoder, descricao: descricaoPoder, vertente: poderVertente, elemento: poderElemento, elementosAfetados, imagemUrl,
+        dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiro: danoVerdadeiroPoder, tipoAcao,
+        usosMax: usosMaxPoder, usosPor: usosPorPoder, custoTurno: custoTurnoPoder, recargaTurnos: recargaTurnosPoder, escudo: escudoPoder,
+        gatilhos: gatilhosPoder, gatilhosDescartados,
+        alcance: poderAlcance, area: poderArea, arma: armaVinculada,
+        maestria: maestriaPoder, fadigaPorUso: fadigaPorUsoPoder, maestriaRequerida: maestriaRequeridaPoder,
+        pasta: pastaPoder, estagios: estagiosEditor, efeitos: efeitosTemp, efeitosPassivos: efeitosTempPassivos,
+        nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo,
+        nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, novoValPassivo, novoQuandoPassivo, novoEscopoPassivo,
+        abertas: secoesAbertas,
+    }), [
+        poderEditandoId, nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados, imagemUrl,
+        dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao,
+        usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, gatilhosDescartados,
+        poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder,
+        pastaPoder, estagiosEditor, efeitosTemp, efeitosTempPassivos,
+        nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo,
+        nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, novoValPassivo, novoQuandoPassivo, novoEscopoPassivo,
+        secoesAbertas,
+    ]);
+    const rascunhoRef = useRef(rascunhoAtual);
+    rascunhoRef.current = rascunhoAtual;
+    const chaveCarregadaRef = useRef(null);
+    const timerRascunhoRef = useRef(null);
+    const rascunhoSujoRef = useRef(false);
+
+    // Grava agora o rascunho pendente na store (clone só aqui, nunca a cada render). Usa a chave JÁ carregada,
+    // então um flush na troca de aba/desmontagem ainda cai na chave antiga.
+    const gravarRascunho = useCallback(() => {
+        if (timerRascunhoRef.current) { clearTimeout(timerRascunhoRef.current); timerRascunhoRef.current = null; }
+        if (!rascunhoSujoRef.current) return;
+        rascunhoSujoRef.current = false;
+        const chave = chaveCarregadaRef.current;
+        const st = lerStoreRascunho();
+        if (!chave || !st) return;
+        const r = rascunhoRef.current;
+        if (r.poderEditandoId == null && !rascunhoTemConteudo(r)) st.limparRascunhoPoder?.(chave);
+        else st.setRascunhoPoder?.(chave, JSON.parse(JSON.stringify(r)));
+    }, []);
+
+    // Ao montar / trocar de dono ou categoria: recarrega o rascunho dessa chave (ou limpa se não houver).
+    // Nunca restaura `poderEditandoId` sem os campos, e descarta o id se o poder já não existe na ficha.
+    // O cleanup grava o que estiver pendente (troca de aba/dono e desmontagem) antes de carregar a próxima chave.
+    useLayoutEffect(() => {
+        if (!chaveRascunho) return undefined;
+        let r = lerStoreRascunho()?.rascunhosPoder?.[chaveRascunho];
+        if (r && typeof r === 'object') {
+            r = completarRascunho(r);
+            if (r.poderEditandoId != null && !(fichaRef.current?.poderes || []).some(po => po && po.id === r.poderEditandoId)) r.poderEditandoId = null;
+        } else {
+            r = rascunhoVazio();
+        }
+        aplicarRascunho(r);
+        chaveCarregadaRef.current = chaveRascunho;
+        setChaveCarregada(chaveRascunho);
+        return () => {
+            gravarRascunho();
+            chaveCarregadaRef.current = null;
+        };
+    }, [chaveRascunho]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Mudou algo no formulário: agenda a gravação (debounce curto). Só depois de carregar a chave atual,
+    // pra não sobrescrever com valores velhos. Sem persistirRascunho não faz nada.
+    useEffect(() => {
+        if (!chaveRascunho || chaveCarregada !== chaveRascunho) return;
+        rascunhoSujoRef.current = true;
+        if (timerRascunhoRef.current) clearTimeout(timerRascunhoRef.current);
+        timerRascunhoRef.current = setTimeout(gravarRascunho, 300);
+    }, [rascunhoAtual, chaveCarregada, chaveRascunho, gravarRascunho]);
+
+    useEffect(() => {
+        if (!persistirRascunho) return;
+        lerStoreRascunho()?.setRascunhoPoder?.(chaveAbaRascunhoPoder(meuNome), abaAtual);
+    }, [persistirRascunho, meuNome, abaAtual]);
+
+    // Há algo escrito que se perderia? Calculado sob demanda (não a cada render), lendo os refs mais recentes.
+    const temAlteracaoNaoGravada = useCallback(
+        () => rascunhoTemAlteracao(rascunhoRef.current, fichaRef.current?.poderes),
+        []
+    );
+
+    // Troca de categoria: com rascunho persistente cada categoria mantém o seu (grava o pendente antes); sem ele, limpa como antes.
+    const trocarAba = useCallback((nova) => {
+        if (persistirRascunho) gravarRascunho();
+        setAbaAtual(nova);
+        if (!persistirRascunho) cancelarEdicaoPoder();
+    }, [persistirRascunho, gravarRascunho, cancelarEdicaoPoder]);
+
+    // Botão Cancelar: pede confirmação se há algo escrito (ou alterado, ao reescrever um poder existente).
+    const cancelarEdicaoComConfirmacao = useCallback(() => {
+        if (temAlteracaoNaoGravada() && !window.confirm('Descartar o que foi escrito neste formulário? Isso não pode ser desfeito.')) return;
+        cancelarEdicaoPoder();
+    }, [temAlteracaoNaoGravada, cancelarEdicaoPoder]);
 
     const salvarNovoPoder = useCallback(() => {
         const n = nomePoder.trim();
@@ -279,7 +415,8 @@ export function PoderesFormProvider({ children }) {
         updateFicha((ficha) => {
             if (!ficha.poderes) ficha.poderes = [];
 
-            if (poderEditandoId) {
+            // Poder em edição que sumiu da ficha (apagado em outra aba/sync): cria um poder novo com o que foi digitado, nunca perde em silêncio.
+            if (poderEditandoId && ficha.poderes.some(p => p.id === poderEditandoId)) {
                 const ix = ficha.poderes.findIndex(p => p.id === poderEditandoId);
                 if (ix !== -1) {
                     ficha.poderes[ix].nome = n;
@@ -375,12 +512,15 @@ export function PoderesFormProvider({ children }) {
             }
         });
 
+        const chaveDoSalvamento = chaveRascunho;
         salvarFirebaseImediato().then(() => {
-            cancelarEdicaoPoder();
+            // Gravou: o rascunho dessa categoria some (mesmo que o livro já tenha mudado de página/aba).
+            if (chaveDoSalvamento) lerStoreRascunho()?.limparRascunhoPoder?.(chaveDoSalvamento);
+            if (!chaveDoSalvamento || chaveRascunhoRef.current === chaveDoSalvamento) cancelarEdicaoPoder();
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato, chaveRascunho]);
 
     // 🔥 O ESCUDO ANTI-DRENAGEM (Resolve a perda acidental de energia ao Ligar a Forma) 🔥
     // `opcoes.semAoDesligar`: desligar por edição/exclusão não cobra o "ao desligar" (core/aoDesligar.js), só o desligar manual.
@@ -483,54 +623,36 @@ export function PoderesFormProvider({ children }) {
     const editarPoder = useCallback((id) => {
         const p = (minhaFicha?.poderes || []).find(po => po.id === id);
         if (!p) return;
-        
+
+        const categoria = p.categoria || 'poder';
+        const rascunho = rascunhoDoPoder(p);
+        const outraCategoria = !!chaveRascunho && categoria !== abaAtual;
+
+        if (outraCategoria) {
+            // O que será sobrescrito é o rascunho da categoria de DESTINO: confirma com base nele.
+            const existente = lerStoreRascunho()?.rascunhosPoder?.[chaveRascunhoPoder(meuNome, categoria)];
+            if (existente && (rascunhoTemAlteracao(existente, minhaFicha?.poderes) || (existente.poderEditandoId === p.id && rascunhoDifere(existente, rascunho)))
+                && !window.confirm('Já existe um rascunho em andamento na aba "' + (ROTULO_CATEGORIA[categoria] || categoria) + '". Ele será substituído pelo conteúdo salvo de "' + p.nome + '". Continuar?')) return;
+        } else if (poderEditandoId !== p.id && temAlteracaoNaoGravada() && !window.confirm('Há um rascunho em andamento neste formulário. Descartá-lo para reescrever "' + p.nome + '"?')) {
+            return;
+        }
+
         if (p.ativa) {
             togglePoder(id, { semAoDesligar: true });
             alert(`A técnica [${p.nome}] foi DESATIVADA temporariamente para edição.`);
         }
-        
-        setPoderEditandoId(p.id);
-        setAbaAtual(p.categoria || 'poder');
-        setNomePoder(p.nome);
-        setDescricaoPoder(p.descricao || ''); 
-        setPoderVertente(p.vertente || ''); 
-        setPoderElemento(p.elemento || ''); 
-        setElementosAfetados(p.elementosAfetados || ''); 
-        setImagemUrl(p.imagemUrl || '');
-        setDadosQtd(p.dadosQtd || 0);
-        setDadosFaces(p.dadosFaces || 20);
-        setCustoPercentual(p.custoPercentual || 0);
-        setCustoPercentualMax(p.custoPercentualMax || 0);
-        setSemComoPoder(!!p.semComoPoder);
-        setDanoVerdadeiroPoder(p.danoVerdadeiro === true);
-        setTipoAcao(normalizarTipoAcao(p.tipoAcao));
-        setUsosMaxPoder(p.usosMax || '');
-        setUsosPorPoder(p.usosPor || 'cena');
-        const custoSalvo = normalizarCustoPorTurno(p.custoPorTurno);
-        setCustoTurnoPoder(custoSalvo ? { modo: custoSalvo.modo, valor: custoSalvo.valor, energia: custoSalvo.energia } : { modo: 'fixo', valor: '', energia: 'mana' });
-        setRecargaTurnosPoder(p.recargaTurnos || '');
-        setEscudoPoder(normalizarEscudoAoLigar(p.escudoAoLigar) || { nome: '', valor: '', tipo: 'escudo' });
-        const normG = normalizarGatilhos(p.gatilhos);
-        setGatilhosPoder(normG.gatilhos);
-        setGatilhosDescartados(normG.descartados);
-        setPoderAlcance(p.alcance || 1);
-        setPoderArea(p.area || 0);
-        setArmaVinculada(p.armaVinculada || '');
-        setMaestriaPoder(p.maestria || 0);
-        setFadigaPorUsoPoder(p.fadigaPorUso !== undefined ? p.fadigaPorUso : 15);
-        setMaestriaRequeridaPoder(p.maestriaRequerida || 0);
-        setPastaPoder(p.pasta || '');
-        if (temEstagios(p)) {
-            const cfg = normalizarEstagios(p.estagios);
-            setEstagiosEditorBruto({ ...cfg, nomes: cfg.nomes.join('\n'), marcos: cfg.marcos.map(marcoParaRascunho) });
-        } else {
-            setEstagiosEditorBruto(estagiosEditorVazio());
-        }
-        setEfeitosTemp(JSON.parse(JSON.stringify(p.efeitos || [])));
-        setEfeitosTempPassivos(JSON.parse(JSON.stringify(p.efeitosPassivos || [])));
 
-        if (formRef.current) formRef.current.scrollIntoView({ behavior: 'smooth' });
-    }, [minhaFicha, setPoderEditandoId, setEfeitosTemp, setEfeitosTempPassivos, togglePoder]);
+        if (outraCategoria) {
+            // Outra categoria: deixa o rascunho pronto na chave dela; ao trocar de aba ele é carregado.
+            lerStoreRascunho()?.setRascunhoPoder?.(chaveRascunhoPoder(meuNome, categoria), rascunho);
+            setAbaAtual(categoria);
+        } else {
+            setAbaAtual(categoria);
+            aplicarRascunho(rascunho);
+        }
+
+        if (formRef.current && typeof formRef.current.scrollIntoView === 'function') formRef.current.scrollIntoView({ behavior: 'smooth' });
+    }, [minhaFicha, poderEditandoId, temAlteracaoNaoGravada, chaveRascunho, abaAtual, meuNome, aplicarRascunho, togglePoder]);
 
     const deletarPoder = useCallback((id) => {
         if (!window.confirm('Tem certeza que deseja rasgar esta página permanentemente?')) return;
@@ -821,7 +943,7 @@ export function PoderesFormProvider({ children }) {
     }, [lerImportacao, confirmarImportacao]);
 
     const value = useMemo(() => ({
-        minhaFicha, meuNome, isMestre, abaAtual, setAbaAtual,
+        minhaFicha, meuNome, isMestre, abaAtual, setAbaAtual, trocarAba, secoesAbertas, setSecoesAbertas, rascunhoAtual, cancelarEdicaoComConfirmacao,
         nomePoder, setNomePoder, descricaoPoder, setDescricaoPoder,
         poderVertente, setPoderVertente, poderElemento, setPoderElemento,
         elementosAfetados, setElementosAfetados, 
@@ -848,7 +970,7 @@ export function PoderesFormProvider({ children }) {
         dispararAtaque, efeitosTemp, efeitosTempPassivos, poderEditandoId,
         injetarJsonDaIA, lerImportacao, confirmarImportacao
     }), [
-        minhaFicha, meuNome, isMestre, abaAtual,
+        minhaFicha, meuNome, isMestre, abaAtual, trocarAba, secoesAbertas, rascunhoAtual, cancelarEdicaoComConfirmacao,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
         imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao, gatilhosPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, cenaAtivaId, poderAlcance,
         poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma,

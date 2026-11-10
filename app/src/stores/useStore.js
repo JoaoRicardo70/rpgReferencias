@@ -178,6 +178,8 @@ const useStore = create(
         minhaFicha: deepClone(fichaPadrao),
         meuNome: '', isMestre: false, souMestreReal: false, modoJogador: lerModoJogadorLocal(storedMesaId), abaAtiva: lerModoNavegacao() === 'hub' ? ABA_HUB : (lerModoNavegacao() === 'mesa' ? 'aba-mapa' : 'aba-Ficha Def'), modoNavegacao: lerModoNavegacao(), larguraGaveta: lerLarguraGaveta(), fichaPaginaPedida: null, combateNaTela: false, personagens: {}, feedCombate: [],
         efeitosTemp: [], efeitosTempPassivos: [], efeitosTempArsenal: [], efeitosTempPassivosArsenal: [], efeitosTempForma: [], efeitosTempPassivosForma: [],
+        // Rascunhos do formulário do Livro dos Poderes (core/rascunhoPoder.js): só em memória, nunca vão ao Firebase.
+        rascunhosPoder: {},
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
         dummies: {}, alvoSelecionado: null, atorCombate: null,
         // ⏱️ Avisos curtos (toasts) sobre Ações/Reações: [{ id, texto, tipo: 'info' | 'alerta' }]; somem sozinhos (components/combate/AvisosAcao.jsx).
@@ -210,6 +212,8 @@ const useStore = create(
         setEfeitosTempPassivosForma: (efeitos) => set((state) => { state.efeitosTempPassivosForma = efeitos; }),
         setFormaEditandoId: (id) => set((state) => { state.formaEditandoId = id; }),
         setPoderEditandoId: (id) => set((state) => { state.poderEditandoId = id; }),
+        setRascunhoPoder: (chave, valor) => set((state) => { if (!state.rascunhosPoder) state.rascunhosPoder = {}; state.rascunhosPoder[chave] = valor; }),
+        limparRascunhoPoder: (chave) => set((state) => { if (state.rascunhosPoder) delete state.rascunhosPoder[chave]; }),
         setItemEditandoId: (id) => set((state) => { state.itemEditandoId = id; }),
         setElemEditandoId: (id) => set((state) => { state.elemEditandoId = id; }),
         setIgnorarTravaAcerto: (val) => set((state) => { state.ignorarTravaAcerto = val; }),

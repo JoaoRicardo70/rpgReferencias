@@ -3,8 +3,9 @@ import DescricoesAtaqueEditor from '../shared/DescricoesAtaqueEditor';
 import EstadosGolpeEditor from '../shared/EstadosGolpeEditor';
 import AoAcertarEditor from '../shared/AoAcertarEditor';
 import SuporteEditor from '../shared/SuporteEditor';
-import React, { useState } from 'react';
+import React, { useState, useId, useMemo } from 'react';
 import { usePoderesForm, SINGULAR } from './PoderesFormContext';
+import { SECOES_FORM, resumirSecoes, rascunhoTemConteudo } from '../../core/rascunhoPoder';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, GRUPO_IDENTIFICACAO, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 import FormasEditor from '../shared/FormasEditor';
 import EstagioControle from './EstagioControle';
@@ -132,8 +133,8 @@ export function PoderesImportadorIA() {
     };
 
     return (
-        <div style={{ marginBottom: '20px', width: '100%' }}>
-            <button onClick={() => setAberto(!aberto)} style={{ width: '100%', padding: '10px' }}>
+        <div className="grimorio-importar">
+            <button type="button" className="grimorio-importar-botao" onClick={() => setAberto(!aberto)}>
                 {aberto ? 'Fechar Círculo de Invocação (IA)' : 'Abrir Círculo de Invocação (IA)'}
             </button>
             {aberto && (
@@ -174,24 +175,24 @@ export function PoderesImportadorIA() {
 export function PoderesNavegacaoLivro() {
     const ctx = usePoderesForm();
     if (!ctx) return FALLBACK;
-    const { abaAtual, setAbaAtual, cancelarEdicaoPoder } = ctx;
+    const { abaAtual, trocarAba } = ctx;
 
     return (
         <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', borderBottom: '2px dashed currentColor', paddingBottom: '15px', marginBottom: '20px', flexWrap: 'wrap' }}>
             <button 
-                onClick={() => { setAbaAtual('habilidade'); cancelarEdicaoPoder(); }} 
+                onClick={() => trocarAba('habilidade')} 
                 style={{ padding: '8px 20px', border: abaAtual === 'habilidade' ? '2px solid currentColor' : '1px dashed currentColor', opacity: abaAtual === 'habilidade' ? 1 : 0.6, fontSize: '1.1em' }}
             >
                 🗡️ Habilidades
             </button>
             <button 
-                onClick={() => { setAbaAtual('forma'); cancelarEdicaoPoder(); }} 
+                onClick={() => trocarAba('forma')} 
                 style={{ padding: '8px 20px', border: abaAtual === 'forma' ? '2px solid currentColor' : '1px dashed currentColor', opacity: abaAtual === 'forma' ? 1 : 0.6, fontSize: '1.1em' }}
             >
                 🎭 Formas
             </button>
             <button 
-                onClick={() => { setAbaAtual('poder'); cancelarEdicaoPoder(); }} 
+                onClick={() => trocarAba('poder')} 
                 style={{ padding: '8px 20px', border: abaAtual === 'poder' ? '2px solid currentColor' : '1px dashed currentColor', opacity: abaAtual === 'poder' ? 1 : 0.6, fontSize: '1.1em' }}
             >
                 ✨ Poderes
@@ -200,13 +201,37 @@ export function PoderesNavegacaoLivro() {
     );
 }
 
+// Seção recolhível do formulário: o corpo fica SEMPRE montado (só escondido por CSS), então o estado e os campos
+// não se perdem ao recolher. O cabeçalho mostra um resumo do que está preenchido e um aviso, se houver.
+function SecaoForm({ id, titulo, resumo, erro, aberta, onAlternar, children }) {
+    const uid = useId();
+    const idCorpo = `grimorio-form-secao-${id}-${uid}`;
+    return (
+        <section className={`grimorio-form-secao${aberta ? ' aberta' : ''}${erro ? ' com-erro' : ''}`}>
+            <button type="button" className="grimorio-form-secao-cab" aria-expanded={!!aberta} aria-controls={idCorpo} onClick={onAlternar}>
+                <span className="grimorio-form-secao-seta" aria-hidden="true">{aberta ? '▾' : '▸'}</span>
+                <span className="grimorio-form-secao-titulo">{titulo}</span>
+                {resumo ? <span className="grimorio-form-secao-resumo">{resumo}</span> : null}
+                {erro ? <span className="grimorio-form-secao-erro" role="status">⚠ {erro}</span> : null}
+            </button>
+            <div id={idCorpo} className="grimorio-form-secao-corpo">
+                {children}
+            </div>
+        </section>
+    );
+}
+
 export function PoderesFormEditor() {
     const ctx = usePoderesForm();
+    const rascunhoCtx = ctx?.rascunhoAtual;
+    // Resumo e "tem algo pra cancelar" só recalculam quando o rascunho muda de referência.
+    const resumos = useMemo(() => (rascunhoCtx ? resumirSecoes(rascunhoCtx) : null), [rascunhoCtx]);
+    const rascunhoComConteudo = useMemo(() => rascunhoTemConteudo(rascunhoCtx), [rascunhoCtx]);
     if (!ctx) return FALLBACK;
-    const { 
+    const {
         abaAtual, poderEditandoId, nomePoder, setNomePoder,
         poderVertente, setPoderVertente, poderElemento, setPoderElemento,
-        elementosAfetados, setElementosAfetados, 
+        elementosAfetados, setElementosAfetados,
         imagemUrl, setImagemUrl, uploadingImg, handleImageUpload,
         dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
         custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
@@ -222,267 +247,329 @@ export function PoderesFormEditor() {
         nomeEfeitoPassivo, setNomeEfeitoPassivo, novoAtrPassivo, setNovoAtrPassivo,
         novoPropPassivo, setNovoPropPassivo, novoValPassivo, setNovoValPassivo,
         addEfeitoPassivoTemp, efeitosTempPassivos, removerEfeitoPassivoTemp,
-        salvarNovoPoder, cancelarEdicaoPoder, formRef, minhaFicha
+        salvarNovoPoder, cancelarEdicaoComConfirmacao, formRef, minhaFicha,
+        secoesAbertas, setSecoesAbertas, rascunhoAtual
     } = ctx;
 
     const sing = SINGULAR[abaAtual] || 'Poder/Habilidade';
+    const abertas = secoesAbertas || {};
+    const todasAbertas = SECOES_FORM.every(id => abertas[id]);
+    const alternar = (id) => setSecoesAbertas({ ...abertas, [id]: !abertas[id] });
+    const alternarTodas = () => setSecoesAbertas(SECOES_FORM.reduce((acc, id) => ({ ...acc, [id]: !todasAbertas }), {}));
+    const secao = (id, titulo, filhos) => (
+        <SecaoForm id={id} titulo={titulo} resumo={resumos[id].resumo} erro={resumos[id].erro} aberta={!!abertas[id]} onAlternar={() => alternar(id)}>
+            {filhos}
+        </SecaoForm>
+    );
+    const temAlgoPraCancelar = !!poderEditandoId || rascunhoComConteudo;
 
     return (
-        <div ref={formRef} style={{ border: '1px dashed currentColor', padding: '20px', borderRadius: '8px', background: 'rgba(0,0,0,0.03)' }}>
-            <h3 style={{ marginBottom: 15 }}>{poderEditandoId ? `✎ Reescrevendo: ${nomePoder}` : `✎ Criar Novo(a) ${sing}`}</h3>
-            
-            <input type="text" placeholder={`Nome (Ex: Chama Imortal)`} value={nomePoder} onChange={e => setNomePoder(e.target.value)} style={{ width: '100%', fontSize: '1.2em', fontWeight: 'bold' }} />
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginTop: 15 }}>
-                <div>
-                    <label style={{ display: 'block', fontSize: '0.85em', fontWeight: 'bold', opacity: 0.8 }}>Natureza da Magia</label>
-                    <select value={poderVertente} onChange={e => setPoderVertente(e.target.value)} style={{ width: '100%' }}>
-                        <option value="">Padrão (Dano / Efeito Direto)</option>
-                        <option value="Acumulativo">📈 Acumulativo (Requer Marcadores/Forja)</option>
-                        <option value="Elemental">🌪️ Elemental (Ressonância Ativa)</option>
-                        <option value="Conceitual">🧩 Conceitual (Distorção de Regras)</option>
-                        <option value="Utilitario">🛠️ Utilitário (Cópia / Suporte)</option>
-                    </select>
-                </div>
-
-                {(poderVertente || '').toLowerCase().includes('elemental') && (
-                    <div className="fade-in" style={{ display: 'flex', gap: '10px', gridColumn: 'span 2' }}>
-                        <div style={{ flex: 1 }}>
-                            <label style={{ display: 'block', fontSize: '0.85em', fontWeight: 'bold', opacity: 0.8 }}>Elemento Principal</label>
-                            <select value={poderElemento} onChange={e => setPoderElemento(e.target.value)} style={{ width: '100%' }}>
-                                <option value="">Selecione a raiz elemental...</option>
-                                {ELEMENTOS_OPCOES.map(grupo => (
-                                    <optgroup key={grupo.label} label={grupo.label}>
-                                        {grupo.opcoes.map(el => <option key={el} value={el}>{rotuloComPolaridade(el)}</option>)}
-                                    </optgroup>
-                                ))}
-                            </select>
-                        </div>
-                        
-                        <div style={{ flex: 1 }}>
-                            <label style={{ display: 'block', fontSize: '0.85em', fontWeight: 'bold', opacity: 0.8 }}>Afeta/Consome</label>
-                            <input type="text" placeholder="Quais elementos engole?" value={elementosAfetados} onChange={e => setElementosAfetados(e.target.value)} style={{ width: '100%' }} />
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 15, borderTop: '1px dotted currentColor', paddingTop: 15 }}>
-                <input type="text" placeholder="URL da Imagem..." value={imagemUrl} onChange={e => setImagemUrl(e.target.value)} style={{ flex: 1, margin: 0 }} />
-                <label style={{ cursor: 'pointer', padding: '8px 15px', border: '1px dashed currentColor', borderRadius: '4px', whiteSpace: 'nowrap', opacity: uploadingImg ? 0.5 : 0.8 }}>
-                    {uploadingImg ? 'Enviando...' : '📁 Anexar'}
-                    <input type="file" accept="image/png, image/jpeg, image/gif, image/webp" onChange={handleImageUpload} style={{ display: 'none' }} disabled={uploadingImg} />
-                </label>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 15, marginTop: 15 }}>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Qtd Dados</label><input type="number" min="0" value={dadosQtd} onChange={e => setDadosQtd(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Faces (d)</label><input type="number" min="1" value={dadosFaces} onChange={e => setDadosFaces(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo (%)</label><input type="number" min="0" value={custoPercentual} onChange={e => setCustoPercentual(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo Máx (%)</label><input type="number" min="0" value={custoPercentualMax} onChange={e => setCustoPercentualMax(e.target.value)} title="Margem de Custo: do Custo (%) até este máximo. Vale ao conjurar como Poder." style={{width:'100%', textAlign:'center'}} /></div>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Como Poder</label><label style={{ fontSize: '0.8em' }}><input type="checkbox" checked={!!semComoPoder} onChange={e => setSemComoPoder(e.target.checked)} /> Vetar</label></div>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Tipo de dano</label><label style={{ fontSize: '0.8em' }}><input type="checkbox" checked={!!danoVerdadeiroPoder} onChange={e => setDanoVerdadeiroPoder(e.target.checked)} title="Ignora quaisquer resistências e imunidades do alvo ao usar este poder em um golpe." /> 💀 Este poder causa Dano Verdadeiro</label></div>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Ação gasta</label><select value={tipoAcao} onChange={e => setTipoAcao(e.target.value)} title="Que tipo de Ação custa usar esta técnica (o sistema desconta Ação, Ação Bônus e Reação). Automático: se a técnica eleva o Poder Calculado, ligar gasta uma Reação; escolha Ação Livre para ligar de graça." style={{ width: '100%' }}>{TIPOS_ACAO_TECNICA.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}</select></div>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Usos</label><div className="usos-poder-campo"><input type="number" min="0" max="99" placeholder="∞" aria-label="Usos máximos (vazio = ilimitado)" value={usosMaxPoder} onChange={e => setUsosMaxPoder(e.target.value)} title="Quantas vezes pode ser ligada. Vazio ou 0 = ilimitado." /><select aria-label="Os usos renovam" value={usosPorPoder} onChange={e => setUsosPorPoder(e.target.value)} title="Quando os usos renovam: ao trocar de cena (ou descansar) ou só ao descansar."><option value="cena">por cena</option><option value="descanso">por descanso</option></select></div></div>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo por turno ligado</label><div className="custo-turno-campo"><input type="number" min="0" placeholder="0" aria-label="Custo por turno (vazio = sem custo)" value={custoTurnoPoder.valor} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, valor: e.target.value })} title="Energia cobrada no início de cada turno enquanto o Poder está ligado. Vazio ou 0 = sem custo. Sem energia, o Poder desliga." /><select aria-label="Modo do custo por turno" value={custoTurnoPoder.modo} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, modo: e.target.value })}><option value="fixo">fixo</option><option value="percMax">% do máx.</option></select><select aria-label="Energia do custo por turno" value={custoTurnoPoder.energia} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, energia: e.target.value })}>{ENERGIAS_CUSTO.map(en => <option key={en} value={en}>{en}</option>)}</select></div></div>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Recarga (turnos)</label><input type="number" min="0" max="99" placeholder="0" aria-label="Recarga em turnos (0 = sem recarga)" value={recargaTurnosPoder} onChange={e => setRecargaTurnosPoder(e.target.value)} title="Turnos do dono a esperar depois de ligar antes de poder ligar de novo. Vazio ou 0 = sem recarga." /></div>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Escudo ao ligar</label><div className="escudo-poder-campo"><input type="text" maxLength={40} placeholder="Nome (ex.: Domo Gélido)" aria-label="Nome do escudo que o Poder cria ao ligar" value={escudoPoder.nome} onChange={e => setEscudoPoder({ ...escudoPoder, nome: e.target.value })} /><input type="number" min="0" placeholder="0" aria-label="Valor do escudo (vazio = sem escudo)" value={escudoPoder.valor} onChange={e => setEscudoPoder({ ...escudoPoder, valor: e.target.value })} title="Barreira criada ao ligar e removida ao desligar. Vazio ou 0 = sem escudo." /><select aria-label="Tipo do escudo" value={escudoPoder.tipo} onChange={e => setEscudoPoder({ ...escudoPoder, tipo: e.target.value })}>{TIPOS_ESCUDO.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}</select></div></div>
-                <div className="gatilhos-editor-celula"><GatilhosEditor gatilhos={gatilhosPoder} onChange={setGatilhosPoder} descartados={gatilhosDescartados} contadores={minhaFicha?.contadores} poderes={minhaFicha?.poderes} /></div>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Alcance (Q)</label><input type="number" min="0" step="0.5" value={poderAlcance} onChange={e => setPoderAlcance(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Área (Q)</label><input type="number" min="0" step="0.5" value={poderArea} onChange={e => setPoderArea(e.target.value)} style={{width:'100%', textAlign:'center'}} /></div>
-                <div>
-                    <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Arma (Opc.)</label>
-                    <select value={armaVinculada} onChange={e => setArmaVinculada(e.target.value)} style={{width:'100%'}}>
-                        <option value="">Livre</option>
-                        {(minhaFicha?.inventario || []).filter(i => i.tipo === 'arma').map(arma => (
-                            <option key={arma.id} value={String(arma.id)}>{arma.nome}</option>
-                        ))}
-                    </select>
-                </div>
-                {abaAtual === 'forma' && (
-                    <div className="fade-in">
-                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7, color: '#00ff88' }} title="Define até quanto de Poder liberado (Supressão) o personagem pode usar com esta Forma ativa sem acumular Fadiga. 100% = Forma dominada, nunca gera Fadiga por Poder.">🥋 Maestria (%)</label>
-                        <input
-                            type="number" min="0" max="100" value={maestriaPoder}
-                            onChange={e => { const v = parseFloat(e.target.value); setMaestriaPoder(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
-                            style={{ width: '100%', textAlign: 'center', borderColor: '#00ff88', color: '#00ff88' }}
-                        />
-                    </div>
-                )}
-                {abaAtual === 'forma' && (
-                    <div className="fade-in">
-                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7, color: '#ff8800' }} title="O quanto esta Forma pesa na Fadiga dinâmica quando usada ACIMA da própria Maestria. Padrão: 15.">😮‍💨 Fadiga por Uso</label>
-                        <input
-                            type="number" min="0" value={fadigaPorUsoPoder}
-                            onChange={e => { const v = parseFloat(e.target.value); setFadigaPorUsoPoder(isNaN(v) ? 0 : Math.max(0, v)); }}
-                            style={{ width: '100%', textAlign: 'center', borderColor: '#ff8800', color: '#ff8800' }}
-                        />
-                    </div>
-                )}
-                {(abaAtual === 'habilidade' || abaAtual === 'poder') && (
-                    <div className="fade-in">
-                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7, color: '#00ff88' }} title={`O quanto o personagem já domina ESTE(A) ${sing} especificamente.`}>🎓 Maestria (%)</label>
-                        <input
-                            type="number" min="0" max="100" value={maestriaPoder}
-                            onChange={e => { const v = parseFloat(e.target.value); setMaestriaPoder(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
-                            style={{ width: '100%', textAlign: 'center', borderColor: '#00ff88', color: '#00ff88' }}
-                        />
-                    </div>
-                )}
-                {(abaAtual === 'habilidade' || abaAtual === 'poder') && (
-                    <div className="fade-in">
-                        <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7, color: '#ff8800' }} title={`Maestria mínima exigida pra usar este(a) ${sing} sem gerar Fadiga extra. 0 = sem requisito (padrão).`}>🎯 Maestria Requerida (%)</label>
-                        <input
-                            type="number" min="0" max="100" value={maestriaRequeridaPoder}
-                            onChange={e => { const v = parseFloat(e.target.value); setMaestriaRequeridaPoder(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
-                            style={{ width: '100%', textAlign: 'center', borderColor: '#ff8800', color: '#ff8800' }}
-                        />
-                    </div>
-                )}
-                <div className="fade-in">
-                    <label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }} title="Organize Formas, Habilidades e Poderes em pastas. Selecione uma existente ou digite um nome novo. Use / para criar subpastas: Taijutsu/Portões coloca a pasta Portões dentro de Taijutsu.">🗂️ Pasta (Opc.) — use / para subpastas</label>
-                    <input
-                        type="text" list="pastas-formas-datalist" placeholder="Sem pasta  (ex.: Taijutsu/Portões)"
-                        value={pastaPoder} onChange={e => setPastaPoder(e.target.value)}
-                        style={{ width: '100%', textAlign: 'center' }}
-                    />
-                    <datalist id="pastas-formas-datalist">
-                        {(pastasExistentes || []).map(nome => <option key={nome} value={nome} />)}
-                    </datalist>
+        <div ref={formRef} className="grimorio-form">
+            <div className={`grimorio-form-banner${poderEditandoId ? ' editando' : ''}`}>
+                <h3 className="grimorio-form-titulo">{poderEditandoId ? `✎ Reescrevendo: ${nomePoder}` : `✎ Criar Novo(a) ${sing}`}</h3>
+                <div className="grimorio-form-banner-acoes">
+                    {poderEditandoId && <button type="button" className="grimorio-form-btn-cancelar-edicao" onClick={cancelarEdicaoComConfirmacao}>✖ Cancelar edição</button>}
+                    <button type="button" className="grimorio-form-btn-expandir" onClick={alternarTodas}>{todasAbertas ? 'Recolher tudo' : 'Expandir tudo'}</button>
                 </div>
             </div>
 
-            {/* 🪜 ESTÁGIOS: Portões Internos (1º ao 10º), Kaioken (sem limite)... numa técnica só */}
-            <div className={`estagios-editor${estagiosEditor.habilitado ? ' ligado' : ''}`}>
-                <label className="estagios-editor-ligar">
-                    <input
-                        type="checkbox"
-                        checked={!!estagiosEditor.habilitado}
-                        onChange={e => setEstagiosEditor({ habilitado: e.target.checked })}
-                    />
-                    🪜 Esta técnica tem Estágios <span className="estagios-editor-dica">(ex.: Portões Internos, Kaioken)</span>
-                </label>
-                {estagiosEditor.habilitado && (
-                    <div className="fade-in">
-                        <p className="estagios-editor-explica">
-                            Os <strong>Efeitos Matemáticos Ativos</strong> abaixo valem para o 1º estágio. Cada estágio acima soma o crescimento sobre eles, e a Fadiga por turno no Mapa aumenta a cada estágio.
-                        </p>
-                        <div className="estagios-editor-campos">
-                            <label>
-                                <span>Nome do estágio</span>
-                                <input type="text" placeholder="Ex: Portão" value={estagiosEditor.rotulo} onChange={e => setEstagiosEditor({ rotulo: e.target.value })} />
+            {/* BÁSICO: o que identifica a técnica */}
+            {secao('basico', '📖 Básico', (
+                <div className="grimorio-form-grade">
+                    <label className="grimorio-form-campo grimorio-form-span-tudo">
+                        <span className="grimorio-form-rotulo">Nome</span>
+                        <input type="text" className="grimorio-form-nome" placeholder="Nome (Ex: Chama Imortal)" value={nomePoder} onChange={e => setNomePoder(e.target.value)} />
+                    </label>
+                    <label className="grimorio-form-campo grimorio-form-span2">
+                        <span className="grimorio-form-rotulo">Natureza da Magia</span>
+                        <select value={poderVertente} onChange={e => setPoderVertente(e.target.value)}>
+                            <option value="">Padrão (Dano / Efeito Direto)</option>
+                            <option value="Acumulativo">📈 Acumulativo (Requer Marcadores/Forja)</option>
+                            <option value="Elemental">🌪️ Elemental (Ressonância Ativa)</option>
+                            <option value="Conceitual">🧩 Conceitual (Distorção de Regras)</option>
+                            <option value="Utilitario">🛠️ Utilitário (Cópia / Suporte)</option>
+                        </select>
+                    </label>
+                    {(poderVertente || '').toLowerCase().includes('elemental') && (
+                        <>
+                            <label className="grimorio-form-campo grimorio-form-span2 fade-in">
+                                <span className="grimorio-form-rotulo">Elemento Principal</span>
+                                <select value={poderElemento} onChange={e => setPoderElemento(e.target.value)}>
+                                    <option value="">Selecione a raiz elemental...</option>
+                                    {ELEMENTOS_OPCOES.map(grupo => (
+                                        <optgroup key={grupo.label} label={grupo.label}>
+                                            {grupo.opcoes.map(el => <option key={el} value={el}>{rotuloComPolaridade(el)}</option>)}
+                                        </optgroup>
+                                    ))}
+                                </select>
                             </label>
-                            <label title="0 = sem limite (ex.: Kaioken)">
-                                <span>Último estágio (0 = ∞)</span>
-                                <input type="number" min="0" value={estagiosEditor.maximo} onChange={e => setEstagiosEditor({ maximo: e.target.value })} />
+                            <label className="grimorio-form-campo grimorio-form-span2 fade-in">
+                                <span className="grimorio-form-rotulo">Afeta/Consome</span>
+                                <input type="text" placeholder="Quais elementos engole?" value={elementosAfetados} onChange={e => setElementosAfetados(e.target.value)} />
                             </label>
-                            <label title="Quanto dos efeitos do 1º estágio cada estágio acima soma. 100% = 2º dobra, 3º triplica.">
-                                <span>Crescimento por estágio (%)</span>
-                                <input type="number" min="0" value={estagiosEditor.crescimento} onChange={e => setEstagiosEditor({ crescimento: e.target.value })} />
-                            </label>
-                            <label title="Fadiga somada a cada início de turno no Mapa, multiplicada pelo estágio atual.">
-                                <span>😮‍💨 Fadiga por estágio (%/turno)</span>
-                                <input type="number" min="0" step="0.5" value={estagiosEditor.fadigaPorEstagio} onChange={e => setEstagiosEditor({ fadigaPorEstagio: e.target.value })} />
+                        </>
+                    )}
+                    <div className="grimorio-form-campo grimorio-form-span-tudo">
+                        <span className="grimorio-form-rotulo">Imagem</span>
+                        <div className="grimorio-form-imagem">
+                            <input type="text" placeholder="URL da Imagem..." value={imagemUrl} onChange={e => setImagemUrl(e.target.value)} />
+                            <label className={`grimorio-form-anexar${uploadingImg ? ' enviando' : ''}`}>
+                                {uploadingImg ? 'Enviando...' : '📁 Anexar'}
+                                <input type="file" accept="image/png, image/jpeg, image/gif, image/webp" onChange={handleImageUpload} className="grimorio-form-arquivo" disabled={uploadingImg} />
                             </label>
                         </div>
-                        <label className="estagios-editor-nomes">
-                            <span>Nome de cada estágio (opcional, um por linha)</span>
-                            <textarea
-                                placeholder={'Portão da Abertura\nPortão do Descanso\nPortão da Vida'}
-                                value={estagiosEditor.nomes}
-                                onChange={e => setEstagiosEditor({ nomes: e.target.value })}
+                    </div>
+                    <label className="grimorio-form-campo grimorio-form-span-tudo">
+                        <span className="grimorio-form-rotulo">Descrição</span>
+                        <textarea className="grimorio-form-descricao" placeholder="Descrição / Efeito Narrativo..." value={descricaoPoder} onChange={e => setDescricaoPoder(e.target.value)} />
+                    </label>
+                </div>
+            ))}
+
+            {/* COMBATE: dados, custo, alcance e ação */}
+            {secao('combate', '⚔️ Combate', (
+                <div className="grimorio-form-grade">
+                    <label className="grimorio-form-campo"><span className="grimorio-form-rotulo">Qtd Dados</span><input type="number" min="0" value={dadosQtd} onChange={e => setDadosQtd(e.target.value)} className="grimorio-form-num" /></label>
+                    <label className="grimorio-form-campo"><span className="grimorio-form-rotulo">Faces (d)</span><input type="number" min="1" value={dadosFaces} onChange={e => setDadosFaces(e.target.value)} className="grimorio-form-num" /></label>
+                    <label className="grimorio-form-campo"><span className="grimorio-form-rotulo">Custo (%)</span><input type="number" min="0" value={custoPercentual} onChange={e => setCustoPercentual(e.target.value)} className="grimorio-form-num" /></label>
+                    <label className="grimorio-form-campo"><span className="grimorio-form-rotulo">Custo Máx (%)</span><input type="number" min="0" value={custoPercentualMax} onChange={e => setCustoPercentualMax(e.target.value)} title="Margem de Custo: do Custo (%) até este máximo. Vale ao conjurar como Poder." className="grimorio-form-num" /></label>
+                    <label className="grimorio-form-campo"><span className="grimorio-form-rotulo">Alcance (Q)</span><input type="number" min="0" step="0.5" value={poderAlcance} onChange={e => setPoderAlcance(e.target.value)} className="grimorio-form-num" /></label>
+                    <label className="grimorio-form-campo"><span className="grimorio-form-rotulo">Área (Q)</span><input type="number" min="0" step="0.5" value={poderArea} onChange={e => setPoderArea(e.target.value)} className="grimorio-form-num" /></label>
+                    <label className="grimorio-form-campo grimorio-form-span2">
+                        <span className="grimorio-form-rotulo">Ação gasta</span>
+                        <select value={tipoAcao} onChange={e => setTipoAcao(e.target.value)} title="Que tipo de Ação custa usar esta técnica (o sistema desconta Ação, Ação Bônus e Reação). Automático: se a técnica eleva o Poder Calculado, ligar gasta uma Reação; escolha Ação Livre para ligar de graça.">{TIPOS_ACAO_TECNICA.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}</select>
+                    </label>
+                    <label className="grimorio-form-campo grimorio-form-span2">
+                        <span className="grimorio-form-rotulo">Arma (Opc.)</span>
+                        <select value={armaVinculada} onChange={e => setArmaVinculada(e.target.value)}>
+                            <option value="">Livre</option>
+                            {(minhaFicha?.inventario || []).filter(i => i.tipo === 'arma').map(arma => (
+                                <option key={arma.id} value={String(arma.id)}>{arma.nome}</option>
+                            ))}
+                        </select>
+                    </label>
+                    <div className="grimorio-form-campo grimorio-form-span2">
+                        <span className="grimorio-form-rotulo">Como Poder</span>
+                        <label className="grimorio-form-check"><input type="checkbox" checked={!!semComoPoder} onChange={e => setSemComoPoder(e.target.checked)} /> Vetar</label>
+                    </div>
+                    <div className="grimorio-form-campo grimorio-form-span2">
+                        <span className="grimorio-form-rotulo">Tipo de dano</span>
+                        <label className="grimorio-form-check"><input type="checkbox" checked={!!danoVerdadeiroPoder} onChange={e => setDanoVerdadeiroPoder(e.target.checked)} title="Ignora quaisquer resistências e imunidades do alvo ao usar este poder em um golpe." /> 💀 Este poder causa Dano Verdadeiro</label>
+                    </div>
+                </div>
+            ))}
+
+            {/* EFEITOS: matemática ativa e passiva */}
+            {secao('efeitos', '➕ Efeitos', (
+                <>
+                    {/* 🎯 BONUS_ACERTO (pedido do usuário): bônus de Acerto que só conta enquanto ESTA
+                        Habilidade específica estiver "★ ATIVADA" -- ligue-a antes de rolar Acerto pelo ataque
+                        que ela representa, e desligue depois, pra não ficar somando em outros ataques. Some-se
+                        com o de outras Habilidades que também estejam Ativas ao mesmo tempo (ver
+                        core/attributes.js > getPoderesDefesa), então mantenha só a do ataque em uso ligada. */}
+                    <div className="grimorio-form-bloco-titulo">
+                        <h4>➕ Efeitos Matemáticos Ativos</h4>
+                        <details className="grimorio-form-ajuda">
+                            <summary aria-label="Ajuda sobre os efeitos" title="Ajuda sobre os efeitos">?</summary>
+                            <p>Dica: use a propriedade BONUS_ACERTO pra um bônus de Acerto que só vale enquanto esta Habilidade estiver "★ Ativada" (ligue antes do ataque, desligue depois). Para dar uma Reação à técnica, escolha um atributo ↩️ REAÇÕES (quando usar) e, em propriedade, o que ela faz; o valor é a % (REDUZIR_DANO) ou o +N (AUMENTAR_CA), nos outros use 0. Efeito Passivo vale sempre; Ativo só com a técnica ligada. Os atributos 🔍 IDENTIFICAÇÃO (propriedade BASE, valor 0) fazem a técnica revelar o tipo do ataque recebido (Físico/Energético/Elemento) e a Energia gasta nele.</p>
+                        </details>
+                    </div>
+                    <input type="text" className="grimorio-form-efeito-nome" placeholder="Nome do Efeito" value={nomeEfeito} onChange={e => setNomeEfeito(e.target.value)} />
+                    <div className="grimorio-form-efeito-linha">
+                        <select value={novoAtr} onChange={e => { setNovoAtr(e.target.value); setNovoProp(ajustarPropriedade(e.target.value, novoProp)); }}>
+                            {ATRIBUTOS_PODERES.map(grupo => (
+                                <optgroup key={grupo.label} label={grupo.label}>
+                                    {grupo.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}
+                                </optgroup>
+                            ))}
+                        </select>
+                        <select value={novoProp} onChange={e => setNovoProp(e.target.value)}>
+                            {getPropriedadesDoAtributo(novoAtr).map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
+                        </select>
+                        <input type="text" className="grimorio-form-efeito-valor" placeholder="Valor" value={novoVal} onChange={e => setNovoVal(e.target.value)} />
+                        <button type="button" className="grimorio-form-efeito-add" onClick={addEfeitoTemp} title="Adicionar efeito ativo">+</button>
+                    </div>
+                    <CondicaoDoEfeito atributo={novoAtr} propriedade={novoProp} quando={novoQuando} onQuando={setNovoQuando} escopo={novoEscopo} onEscopo={setNovoEscopo} />
+
+                    <div className="grimorio-form-efeito-lista">
+                        {efeitosTemp.map((e, i) => {
+                            const isMult = ['mbase', 'mgeral', 'mformas', 'mabs', 'munico'].includes((e.propriedade || '').toLowerCase());
+                            return (
+                                <div key={i} className="grimorio-form-efeito-item">
+                                    <span><strong>{e.nome || '(Sem nome)'}</strong> [{(e.atributo || '').replace('_', ' ').toUpperCase()}] - [{(e.propriedade || '').toUpperCase()}]: <strong>{isMult ? '(x)' : '(+)'} {e.valor}</strong>{textoCondicaoEfeito(e)}</span>
+                                    <button type="button" className="grimorio-form-efeito-remover" onClick={() => removerEfeitoTemp(i)} title="Remover efeito">✖</button>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* SEÇÃO MATEMÁTICA PASSIVA */}
+                    <div className="grimorio-form-bloco-titulo separado">
+                        <h4>🛡️ Efeitos Passivos (Sempre Ligados)</h4>
+                    </div>
+                    <input type="text" className="grimorio-form-efeito-nome" placeholder="Nome do Efeito Passivo" value={nomeEfeitoPassivo} onChange={e => setNomeEfeitoPassivo(e.target.value)} />
+                    <div className="grimorio-form-efeito-linha">
+                        <select value={novoAtrPassivo} onChange={e => { setNovoAtrPassivo(e.target.value); setNovoPropPassivo(ajustarPropriedade(e.target.value, novoPropPassivo)); }}>
+                            {ATRIBUTOS_PODERES.map(grupo => (
+                                <optgroup key={grupo.label} label={grupo.label}>
+                                    {grupo.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}
+                                </optgroup>
+                            ))}
+                        </select>
+                        <select value={novoPropPassivo} onChange={e => setNovoPropPassivo(e.target.value)}>
+                            {getPropriedadesDoAtributo(novoAtrPassivo).map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
+                        </select>
+                        <input type="text" className="grimorio-form-efeito-valor" placeholder="Valor" value={novoValPassivo} onChange={e => setNovoValPassivo(e.target.value)} />
+                        <button type="button" className="grimorio-form-efeito-add" onClick={addEfeitoPassivoTemp} title="Adicionar efeito passivo">+</button>
+                    </div>
+                    <CondicaoDoEfeito atributo={novoAtrPassivo} propriedade={novoPropPassivo} quando={novoQuandoPassivo} onQuando={setNovoQuandoPassivo} escopo={novoEscopoPassivo} onEscopo={setNovoEscopoPassivo} />
+
+                    <div className="grimorio-form-efeito-lista">
+                        {efeitosTempPassivos.map((e, i) => {
+                            const isMult = ['mbase', 'mgeral', 'mformas', 'mabs', 'munico'].includes((e.propriedade || '').toLowerCase());
+                            return (
+                                <div key={i} className="grimorio-form-efeito-item passivo">
+                                    <span>[PASSIVO] <strong>{e.nome || '(Sem nome)'}</strong> [{(e.atributo || '').replace('_', ' ').toUpperCase()}] - [{(e.propriedade || '').toUpperCase()}]: <strong>{isMult ? '(x)' : '(+)'} {e.valor}</strong>{textoCondicaoEfeito(e)}</span>
+                                    <button type="button" className="grimorio-form-efeito-remover" onClick={() => removerEfeitoPassivoTemp(i)} title="Remover efeito passivo">✖</button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </>
+            ))}
+
+            {/* GATILHOS: o editor ocupa a largura toda da seção */}
+            {secao('gatilhos', '🔔 Gatilhos', (
+                <GatilhosEditor gatilhos={gatilhosPoder} onChange={setGatilhosPoder} descartados={gatilhosDescartados} contadores={minhaFicha?.contadores} poderes={minhaFicha?.poderes} />
+            ))}
+
+            {/* AVANÇADO: usos, recarga, escudo, estágios, maestria e pasta */}
+            {secao('avancado', '⚙️ Avançado', (
+                <>
+                    <div className="grimorio-form-grade">
+                        <div className="grimorio-form-campo grimorio-form-span2">
+                            <span className="grimorio-form-rotulo">Usos</span>
+                            <div className="usos-poder-campo"><input type="number" min="0" max="99" placeholder="∞" aria-label="Usos máximos (vazio = ilimitado)" value={usosMaxPoder} onChange={e => setUsosMaxPoder(e.target.value)} title="Quantas vezes pode ser ligada. Vazio ou 0 = ilimitado." /><select aria-label="Os usos renovam" value={usosPorPoder} onChange={e => setUsosPorPoder(e.target.value)} title="Quando os usos renovam: ao trocar de cena (ou descansar) ou só ao descansar."><option value="cena">por cena</option><option value="descanso">por descanso</option></select></div>
+                        </div>
+                        <div className="grimorio-form-campo grimorio-form-span2">
+                            <span className="grimorio-form-rotulo">Recarga (turnos)</span>
+                            <input type="number" min="0" max="99" placeholder="0" aria-label="Recarga em turnos (0 = sem recarga)" value={recargaTurnosPoder} onChange={e => setRecargaTurnosPoder(e.target.value)} title="Turnos do dono a esperar depois de ligar antes de poder ligar de novo. Vazio ou 0 = sem recarga." className="grimorio-form-num" />
+                        </div>
+                        <div className="grimorio-form-campo grimorio-form-span-tudo">
+                            <span className="grimorio-form-rotulo">Custo por turno ligado</span>
+                            <div className="custo-turno-campo"><input type="number" min="0" placeholder="0" aria-label="Custo por turno (vazio = sem custo)" value={custoTurnoPoder.valor} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, valor: e.target.value })} title="Energia cobrada no início de cada turno enquanto o Poder está ligado. Vazio ou 0 = sem custo. Sem energia, o Poder desliga." /><select aria-label="Modo do custo por turno" value={custoTurnoPoder.modo} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, modo: e.target.value })}><option value="fixo">fixo</option><option value="percMax">% do máx.</option></select><select aria-label="Energia do custo por turno" value={custoTurnoPoder.energia} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, energia: e.target.value })}>{ENERGIAS_CUSTO.map(en => <option key={en} value={en}>{en}</option>)}</select></div>
+                        </div>
+                        <div className="grimorio-form-campo grimorio-form-span-tudo">
+                            <span className="grimorio-form-rotulo">Escudo ao ligar</span>
+                            <div className="escudo-poder-campo"><input type="text" maxLength={40} placeholder="Nome (ex.: Domo Gélido)" aria-label="Nome do escudo que o Poder cria ao ligar" value={escudoPoder.nome} onChange={e => setEscudoPoder({ ...escudoPoder, nome: e.target.value })} /><input type="number" min="0" placeholder="0" aria-label="Valor do escudo (vazio = sem escudo)" value={escudoPoder.valor} onChange={e => setEscudoPoder({ ...escudoPoder, valor: e.target.value })} title="Barreira criada ao ligar e removida ao desligar. Vazio ou 0 = sem escudo." /><select aria-label="Tipo do escudo" value={escudoPoder.tipo} onChange={e => setEscudoPoder({ ...escudoPoder, tipo: e.target.value })}>{TIPOS_ESCUDO.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}</select></div>
+                        </div>
+                        {abaAtual === 'forma' && (
+                            <div className="grimorio-form-campo grimorio-form-campo-destaque fade-in">
+                                <label className="grimorio-form-rotulo" title="Define até quanto de Poder liberado (Supressão) o personagem pode usar com esta Forma ativa sem acumular Fadiga. 100% = Forma dominada, nunca gera Fadiga por Poder.">🥋 Maestria (%)</label>
+                                <input
+                                    type="number" min="0" max="100" value={maestriaPoder} className="grimorio-form-num"
+                                    onChange={e => { const v = parseFloat(e.target.value); setMaestriaPoder(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
+                                />
+                            </div>
+                        )}
+                        {abaAtual === 'forma' && (
+                            <div className="grimorio-form-campo grimorio-form-campo-alerta fade-in">
+                                <label className="grimorio-form-rotulo" title="O quanto esta Forma pesa na Fadiga dinâmica quando usada ACIMA da própria Maestria. Padrão: 15.">😮‍💨 Fadiga por Uso</label>
+                                <input
+                                    type="number" min="0" value={fadigaPorUsoPoder} className="grimorio-form-num"
+                                    onChange={e => { const v = parseFloat(e.target.value); setFadigaPorUsoPoder(isNaN(v) ? 0 : Math.max(0, v)); }}
+                                />
+                            </div>
+                        )}
+                        {(abaAtual === 'habilidade' || abaAtual === 'poder') && (
+                            <div className="grimorio-form-campo grimorio-form-campo-destaque fade-in">
+                                <label className="grimorio-form-rotulo" title={`O quanto o personagem já domina ESTE(A) ${sing} especificamente.`}>🎓 Maestria (%)</label>
+                                <input
+                                    type="number" min="0" max="100" value={maestriaPoder} className="grimorio-form-num"
+                                    onChange={e => { const v = parseFloat(e.target.value); setMaestriaPoder(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
+                                />
+                            </div>
+                        )}
+                        {(abaAtual === 'habilidade' || abaAtual === 'poder') && (
+                            <div className="grimorio-form-campo grimorio-form-campo-alerta fade-in">
+                                <label className="grimorio-form-rotulo" title={`Maestria mínima exigida pra usar este(a) ${sing} sem gerar Fadiga extra. 0 = sem requisito (padrão).`}>🎯 Maestria Requerida (%)</label>
+                                <input
+                                    type="number" min="0" max="100" value={maestriaRequeridaPoder} className="grimorio-form-num"
+                                    onChange={e => { const v = parseFloat(e.target.value); setMaestriaRequeridaPoder(isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
+                                />
+                            </div>
+                        )}
+                        <label className="grimorio-form-campo grimorio-form-span-tudo fade-in" title="Organize Formas, Habilidades e Poderes em pastas. Selecione uma existente ou digite um nome novo. Use / para criar subpastas: Taijutsu/Portões coloca a pasta Portões dentro de Taijutsu.">
+                            <span className="grimorio-form-rotulo">🗂️ Pasta (Opc.) — use / para subpastas</span>
+                            <input
+                                type="text" list="pastas-formas-datalist" placeholder="Sem pasta  (ex.: Taijutsu/Portões)"
+                                value={pastaPoder} onChange={e => setPastaPoder(e.target.value)}
                             />
+                            <datalist id="pastas-formas-datalist">
+                                {(pastasExistentes || []).map(nome => <option key={nome} value={nome} />)}
+                            </datalist>
                         </label>
-                        <EstagiosMarcosEditor
-                            estagiosEditor={estagiosEditor}
-                            setEstagiosEditor={setEstagiosEditor}
-                            efeitosBase={efeitosTemp}
-                            atributos={ATRIBUTOS_PODERES.filter(g => g !== GRUPO_REACOES && g !== GRUPO_IDENTIFICACAO)}
-                            propriedades={PROPRIEDADE_OPTIONS}
-                        />
-                        <PreviaEstagios efeitosBase={efeitosTemp} estagiosEditor={estagiosEditor} />
                     </div>
-                )}
-            </div>
 
-            <textarea 
-                placeholder="Descrição / Efeito Narrativo..." 
-                value={descricaoPoder} 
-                onChange={e => setDescricaoPoder(e.target.value)} 
-                style={{ width: '100%', minHeight: '80px', marginTop: 15, padding: '10px', resize: 'vertical' }} 
-            />
+                    {/* 🪜 ESTÁGIOS: Portões Internos (1º ao 10º), Kaioken (sem limite)... numa técnica só */}
+                    <div className={`estagios-editor${estagiosEditor.habilitado ? ' ligado' : ''}`}>
+                        <label className="estagios-editor-ligar">
+                            <input
+                                type="checkbox"
+                                checked={!!estagiosEditor.habilitado}
+                                onChange={e => setEstagiosEditor({ habilitado: e.target.checked })}
+                            />
+                            🪜 Esta técnica tem Estágios <span className="estagios-editor-dica">(ex.: Portões Internos, Kaioken)</span>
+                        </label>
+                        {estagiosEditor.habilitado && (
+                            <div className="fade-in">
+                                <p className="estagios-editor-explica">
+                                    Os <strong>Efeitos Matemáticos Ativos</strong> (seção Efeitos) valem para o 1º estágio. Cada estágio acima soma o crescimento sobre eles, e a Fadiga por turno no Mapa aumenta a cada estágio.
+                                </p>
+                                <div className="estagios-editor-campos">
+                                    <label>
+                                        <span>Nome do estágio</span>
+                                        <input type="text" placeholder="Ex: Portão" value={estagiosEditor.rotulo} onChange={e => setEstagiosEditor({ rotulo: e.target.value })} />
+                                    </label>
+                                    <label title="0 = sem limite (ex.: Kaioken)">
+                                        <span>Último estágio (0 = ∞)</span>
+                                        <input type="number" min="0" value={estagiosEditor.maximo} onChange={e => setEstagiosEditor({ maximo: e.target.value })} />
+                                    </label>
+                                    <label title="Quanto dos efeitos do 1º estágio cada estágio acima soma. 100% = 2º dobra, 3º triplica.">
+                                        <span>Crescimento por estágio (%)</span>
+                                        <input type="number" min="0" value={estagiosEditor.crescimento} onChange={e => setEstagiosEditor({ crescimento: e.target.value })} />
+                                    </label>
+                                    <label title="Fadiga somada a cada início de turno no Mapa, multiplicada pelo estágio atual.">
+                                        <span>😮‍💨 Fadiga por estágio (%/turno)</span>
+                                        <input type="number" min="0" step="0.5" value={estagiosEditor.fadigaPorEstagio} onChange={e => setEstagiosEditor({ fadigaPorEstagio: e.target.value })} />
+                                    </label>
+                                </div>
+                                <label className="estagios-editor-nomes">
+                                    <span>Nome de cada estágio (opcional, um por linha)</span>
+                                    <textarea
+                                        placeholder={'Portão da Abertura\nPortão do Descanso\nPortão da Vida'}
+                                        value={estagiosEditor.nomes}
+                                        onChange={e => setEstagiosEditor({ nomes: e.target.value })}
+                                    />
+                                </label>
+                                <EstagiosMarcosEditor
+                                    estagiosEditor={estagiosEditor}
+                                    setEstagiosEditor={setEstagiosEditor}
+                                    efeitosBase={efeitosTemp}
+                                    atributos={ATRIBUTOS_PODERES.filter(g => g !== GRUPO_REACOES && g !== GRUPO_IDENTIFICACAO)}
+                                    propriedades={PROPRIEDADE_OPTIONS}
+                                />
+                                <PreviaEstagios efeitosBase={efeitosTemp} estagiosEditor={estagiosEditor} />
+                            </div>
+                        )}
+                    </div>
+                </>
+            ))}
 
-            {/* SEÇÃO MATEMÁTICA ATIVA */}
-            <h4 style={{ marginTop: 25, marginBottom: 10, fontSize: '1em', opacity: 0.8, borderBottom: '1px dotted currentColor', paddingBottom: '5px' }}>➕ Efeitos Matemáticos Ativos</h4>
-            {/* 🎯 BONUS_ACERTO (pedido do usuário): bônus de Acerto que só conta enquanto ESTA
-                Habilidade específica estiver "★ ATIVADA" -- ligue-a antes de rolar Acerto pelo ataque
-                que ela representa, e desligue depois, pra não ficar somando em outros ataques. Some-se
-                com o de outras Habilidades que também estejam Ativas ao mesmo tempo (ver
-                core/attributes.js > getPoderesDefesa), então mantenha só a do ataque em uso ligada. */}
-            <div style={{ fontSize: '0.75em', opacity: 0.6, fontStyle: 'italic', marginBottom: 8 }}>Dica: use a propriedade BONUS_ACERTO pra um bônus de Acerto que só vale enquanto esta Habilidade estiver "★ Ativada" (ligue antes do ataque, desligue depois). Para dar uma Reação à técnica, escolha um atributo ↩️ REAÇÕES (quando usar) e, em propriedade, o que ela faz; o valor é a % (REDUZIR_DANO) ou o +N (AUMENTAR_CA), nos outros use 0. Efeito Passivo vale sempre; Ativo só com a técnica ligada. Os atributos 🔍 IDENTIFICAÇÃO (propriedade BASE, valor 0) fazem a técnica revelar o tipo do ataque recebido (Físico/Energético/Elemento) e a Energia gasta nele.</div>
-            <input type="text" placeholder="Nome do Efeito" value={nomeEfeito} onChange={e => setNomeEfeito(e.target.value)} style={{ width: '100%', marginBottom: 10 }} />
-            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                <select value={novoAtr} onChange={e => { setNovoAtr(e.target.value); setNovoProp(ajustarPropriedade(e.target.value, novoProp)); }} style={{ flex: 1 }}>
-                    {ATRIBUTOS_PODERES.map(grupo => (
-                        <optgroup key={grupo.label} label={grupo.label}>
-                            {grupo.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}
-                        </optgroup>
-                    ))}
-                </select>
-                <select value={novoProp} onChange={e => setNovoProp(e.target.value)} style={{ flex: 1 }}>
-                    {getPropriedadesDoAtributo(novoAtr).map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
-                </select>
-                <input type="text" placeholder="Valor" value={novoVal} onChange={e => setNovoVal(e.target.value)} style={{ width: '80px', textAlign: 'center' }} />
-                <button onClick={addEfeitoTemp} style={{ padding: '8px' }}>+</button>
-            </div>
-            <CondicaoDoEfeito atributo={novoAtr} propriedade={novoProp} quando={novoQuando} onQuando={setNovoQuando} escopo={novoEscopo} onEscopo={setNovoEscopo} />
-
-            <div style={{ marginTop: 10 }}>
-                {efeitosTemp.map((e, i) => {
-                    const isMult = ['mbase', 'mgeral', 'mformas', 'mabs', 'munico'].includes((e.propriedade || '').toLowerCase());
-                    return (
-                        <div key={i} style={{ fontSize: '0.9em', marginBottom: 5, padding: '5px 10px', borderLeft: '2px solid currentColor', display: 'flex', justifyContent: 'space-between', opacity: 0.9 }}>
-                            <span><strong>{e.nome || '(Sem nome)'}</strong> [{(e.atributo || '').replace('_', ' ').toUpperCase()}] - [{(e.propriedade || '').toUpperCase()}]: <strong>{isMult ? '(x)' : '(+)'} {e.valor}</strong>{textoCondicaoEfeito(e)}</span>
-                            <button onClick={() => removerEfeitoTemp(i)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', opacity: 0.6 }}>✖</button>
-                        </div>
-                    );
-                })}
-            </div>
-
-            {/* SEÇÃO MATEMÁTICA PASSIVA */}
-            <h4 style={{ marginTop: 25, marginBottom: 10, fontSize: '1em', opacity: 0.8, borderBottom: '1px dotted currentColor', paddingBottom: '5px' }}>🛡️ Efeitos Passivos (Sempre Ligados)</h4>
-            <input type="text" placeholder="Nome do Efeito Passivo" value={nomeEfeitoPassivo} onChange={e => setNomeEfeitoPassivo(e.target.value)} style={{ width: '100%', marginBottom: 10 }} />
-            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-                <select value={novoAtrPassivo} onChange={e => { setNovoAtrPassivo(e.target.value); setNovoPropPassivo(ajustarPropriedade(e.target.value, novoPropPassivo)); }} style={{ flex: 1 }}>
-                    {ATRIBUTOS_PODERES.map(grupo => (
-                        <optgroup key={grupo.label} label={grupo.label}>
-                            {grupo.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}
-                        </optgroup>
-                    ))}
-                </select>
-                <select value={novoPropPassivo} onChange={e => setNovoPropPassivo(e.target.value)} style={{ flex: 1 }}>
-                    {getPropriedadesDoAtributo(novoAtrPassivo).map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
-                </select>
-                <input type="text" placeholder="Valor" value={novoValPassivo} onChange={e => setNovoValPassivo(e.target.value)} style={{ width: '80px', textAlign: 'center' }} />
-                <button onClick={addEfeitoPassivoTemp} style={{ padding: '8px' }}>+</button>
-            </div>
-            <CondicaoDoEfeito atributo={novoAtrPassivo} propriedade={novoPropPassivo} quando={novoQuandoPassivo} onQuando={setNovoQuandoPassivo} escopo={novoEscopoPassivo} onEscopo={setNovoEscopoPassivo} />
-
-            <div style={{ marginTop: 10 }}>
-                {efeitosTempPassivos.map((e, i) => {
-                    const isMult = ['mbase', 'mgeral', 'mformas', 'mabs', 'munico'].includes((e.propriedade || '').toLowerCase());
-                    return (
-                        <div key={i} style={{ fontSize: '0.9em', marginBottom: 5, padding: '5px 10px', borderLeft: '2px solid currentColor', display: 'flex', justifyContent: 'space-between', opacity: 0.8 }}>
-                            <span>[PASSIVO] <strong>{e.nome || '(Sem nome)'}</strong> [{(e.atributo || '').replace('_', ' ').toUpperCase()}] - [{(e.propriedade || '').toUpperCase()}]: <strong>{isMult ? '(x)' : '(+)'} {e.valor}</strong>{textoCondicaoEfeito(e)}</span>
-                            <button onClick={() => removerEfeitoPassivoTemp(i)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', opacity: 0.6 }}>✖</button>
-                        </div>
-                    );
-                })}
-            </div>
-
-            <div style={{ display: 'flex', gap: 10, marginTop: 25 }}>
-                <button onClick={salvarNovoPoder} style={{ flex: 1, padding: '10px' }}>{poderEditandoId ? '✍️ Concluir Revisão' : `📜 Gravar no Grimório`}</button>
-                {poderEditandoId && <button onClick={cancelarEdicaoPoder} style={{ padding: '10px', width: '100px', opacity: 0.8 }}>Cancelar</button>}
+            {/* Barra de ações fixa no rodapé do formulário: sempre à vista, mesmo com tudo aberto */}
+            <div className="grimorio-form-acoes">
+                <button type="button" className="grimorio-form-btn-gravar" onClick={salvarNovoPoder}>{poderEditandoId ? '✍️ Concluir Revisão' : `📜 Gravar no Grimório`}</button>
+                {temAlgoPraCancelar && <button type="button" className="grimorio-form-btn-cancelar" onClick={cancelarEdicaoComConfirmacao}>Cancelar</button>}
             </div>
         </div>
     );
