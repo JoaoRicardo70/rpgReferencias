@@ -3350,3 +3350,49 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
     .grimorio-form-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .grimorio-form-span2, .grimorio-form-span-tudo { grid-column: 1 / -1; }
 }
+
+/* ==========================================
+   🧩 MODELOS PRONTOS DE PODER (Ego Superior, Verg Avesta) — components/poderes/ModelosPoderAssistente.jsx
+   ========================================== */
+.modelo-poder-barra { margin: 8px 0; }
+.origem-poder-selo { align-self: center; padding: 2px 8px; border: 1px dashed var(--cor-destaque); border-radius: 10px; font-size: 0.8em; color: var(--cor-destaque); white-space: nowrap; opacity: 0.85; }
+.modelo-poder-fundo { position: fixed; inset: 0; z-index: 10100; display: flex; align-items: center; justify-content: center; padding: 14px; box-sizing: border-box; background: rgba(0, 0, 0, 0.82); backdrop-filter: blur(4px); }
+.modelo-poder-painel { width: 100%; max-width: 680px; max-height: 92vh; overflow-y: auto; box-sizing: border-box; padding: 16px; border: 1px solid rgba(var(--cor-destaque-rgb), 0.7); border-radius: 12px; background: #0a0a0f; color: #fff; box-shadow: 0 0 24px rgba(var(--cor-destaque-rgb), 0.25); outline: none; }
+.modelo-poder-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.modelo-poder-titulo { margin: 0; font-size: 1.15em; color: var(--cor-destaque); }
+.modelo-poder-fechar { border: 1px solid rgba(var(--cor-destaque-rgb), 0.6); border-radius: 6px; background: transparent; color: inherit; padding: 4px 10px; cursor: pointer; font-family: inherit; }
+.modelo-poder-etapas { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; padding: 0; list-style: none; }
+.modelo-poder-etapa { padding: 3px 10px; border: 1px solid #333; border-radius: 10px; font-size: 0.8em; opacity: 0.6; }
+.modelo-poder-etapa.ativa { opacity: 1; border-color: var(--cor-destaque); color: var(--cor-destaque); }
+.modelo-poder-etapa.feita { opacity: 0.85; }
+.modelo-poder-corpo { display: flex; flex-direction: column; gap: 10px; }
+.modelo-poder-dica { margin: 0; font-size: 0.85em; opacity: 0.8; }
+.modelo-poder-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.modelo-poder-cartao { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 12px; text-align: left; border: 1px solid rgba(var(--cor-destaque-rgb), 0.6); border-radius: 10px; background: rgba(var(--cor-destaque-rgb), 0.06); color: inherit; font-family: inherit; cursor: pointer; }
+.modelo-poder-cartao:hover { background: rgba(var(--cor-destaque-rgb), 0.14); }
+.modelo-poder-categoria { font-size: 0.75em; color: var(--cor-destaque); }
+.modelo-poder-resumo { font-size: 0.85em; opacity: 0.85; }
+.modelo-poder-selo { font-size: 0.75em; padding: 1px 8px; border: 1px dashed var(--cor-destaque); border-radius: 10px; color: var(--cor-destaque); }
+.modelo-poder-parte { padding: 8px 10px; border: 1px solid #333; border-radius: 8px; }
+.modelo-poder-parte.marcada { border-color: rgba(var(--cor-destaque-rgb), 0.7); }
+.modelo-poder-parte-rotulo { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: bold; cursor: pointer; }
+.modelo-poder-parte-desc { margin: 4px 0 0 26px; font-size: 0.8em; opacity: 0.75; }
+.modelo-poder-nota { font-size: 0.7em; font-weight: normal; padding: 1px 8px; border: 1px solid #555; border-radius: 10px; opacity: 0.85; }
+.modelo-poder-params { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 0 26px; }
+.modelo-poder-param { display: flex; flex-direction: column; gap: 2px; font-size: 0.78em; min-width: 120px; flex: 1 1 120px; }
+.modelo-poder-param input, .modelo-poder-origem-linha input, .modelo-poder-origem-linha select { padding: 5px 8px; border: 1px solid #444; border-radius: 6px; background: #000; color: inherit; font-family: inherit; }
+.modelo-poder-origem { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px dashed #444; border-radius: 8px; font-size: 0.85em; }
+.modelo-poder-origem-linha { display: flex; flex-wrap: wrap; gap: 8px; }
+.modelo-poder-origem-linha input { flex: 1 1 180px; }
+.modelo-poder-opcao { display: flex; align-items: flex-start; gap: 8px; font-size: 0.8em; opacity: 0.85; cursor: pointer; }
+.modelo-poder-acoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.modelo-poder-resumo-caixa { padding: 10px 12px; border: 1px solid rgba(var(--cor-destaque-rgb), 0.5); border-radius: 8px; }
+.modelo-poder-resumo-caixa ul { margin: 6px 0 0; padding-left: 20px; font-size: 0.9em; }
+.modelo-poder-avisos { margin: 8px 0 0; padding-left: 20px; font-size: 0.8em; opacity: 0.85; }
+.modelo-poder-resultado { padding: 8px 10px; border-radius: 8px; font-size: 0.9em; border: 1px solid #444; }
+.modelo-poder-resultado.ok { border-color: var(--neon-green, #00ff99); }
+.modelo-poder-resultado.erro { border-color: var(--neon-magenta, #ff3399); }
+@media (max-width: 600px) {
+    .modelo-poder-fundo { padding: 6px; }
+    .modelo-poder-parte-desc, .modelo-poder-params { margin-left: 0; }
+}

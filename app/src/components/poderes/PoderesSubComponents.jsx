@@ -15,6 +15,8 @@ import { construirArvorePastas, segmentosPasta } from '../../core/pastas';
 import { rotuloComPolaridade } from '../../core/polaridade';
 import { montarPromptImportacao, prepararImportacao } from '../../core/importadorIA';
 import ImportadorPrevia from './ImportadorPrevia';
+import ModelosPoderAssistente from './ModelosPoderAssistente';
+import { descreverOrigem } from '../../core/modelosPoder';
 import LerTextoComIA, { AvisoPartesFalhas } from './LerTextoComIA';
 import useStore from '../../stores/useStore';
 import { MODELO_GEMINI_PADRAO } from '../../core/sextaFeira';
@@ -822,6 +824,7 @@ export function PoderesLista() {
                                     >
                                         {isEquipped ? '★ ATIVADA' : 'Desativada'}
                                     </button>
+                                    {descreverOrigem(p.origem) && <span className="origem-poder-selo" title="Origem do poder (informativa)">{descreverOrigem(p.origem)}</span>}
                                     {descreverUsos(minhaFicha, p, cenaAtivaId) && <span className="usos-poder-selo" title="Usos restantes desta técnica">🔁 {descreverUsos(minhaFicha, p, cenaAtivaId)}</span>}
                                     {descreverCustoPorTurno(p) && <span className="custo-turno-selo" title="Energia cobrada no início de cada turno enquanto ligada">🔋 {descreverCustoPorTurno(p)}</span>}
                                     {descreverRecarga(p) && <span className={`recarga-poder-selo${p.recargaRestante > 0 ? ' em-recarga' : ''}`} title="Recarga em turnos antes de ligar de novo">{descreverRecarga(p)}</span>}
@@ -1027,6 +1030,7 @@ export function PoderesAreaCentral() {
             <PoderesNavegacaoLivro />
             <EnsinamentosRecebidos tipo="poder" />
             <PoderesImportadorIA />
+            <ModelosPoderAssistente />
             <PoderesFormEditor />
             <PoderesLista />
             <PoderesAuditoria />
