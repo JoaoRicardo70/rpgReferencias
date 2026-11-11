@@ -5,11 +5,11 @@ import { FichaFormProvider } from '../ficha/FichaFormContext';
 import { FichaCondicoesEElementais } from '../ficha/FichaSubComponents';
 import { useFichaAtiva, useCallSaveAtivo, useSalvarImediatoAtivo } from './FichaAlvoContext';
 import { TEMAS_PADRAO } from '../../core/temas';
-import { normalizarCorDestaque, varsCssDestaque } from '../../core/grimorioEstetica';
+import { normalizarCorDestaque, migrarEsteticaGrimorio, montarEsteticaGrimorio, varsCssGrimorio, contrasteBaixo, cssParaHex } from '../../core/grimorioEstetica';
 
 // 📖 O Grimório herda o estilo do app (Perfil > Aparência: classe `theme-*` no <body>): painéis, botões (.btn-neon),
-// caixas (.def-box) e campos usam os mesmos tokens do tema. A única personalização é a cor de destaque, que troca
-// --cor-primaria & cia SÓ dentro do Grimório (core/grimorioEstetica.js). Visual em css/styles.css (.grimorio-*).
+// caixas (.def-box) e campos usam os mesmos tokens do tema. As personalizações são cor de destaque, de texto e de
+// fundo, que trocam variáveis CSS (--cor-primaria & cia, --grimorio-texto, --grimorio-fundo) SÓ dentro do Grimório (core/grimorioEstetica.js). Visual em css/styles.css (.grimorio-*).
 
 const PAGINAS = [
     { id: 1, rotulo: '🗡️ Poderes', titulo: 'O Livro dos Poderes' },
@@ -19,17 +19,42 @@ const PAGINAS = [
 
 const COR_PADRAO_SELETOR = '#00ffff';
 
-// Cores prontas: a cor principal de cada tema pré-definido do app (core/temas.js).
-const CORES_PRONTAS = Object.values(TEMAS_PADRAO)
-    .map(t => ({ id: t.id, nome: t.nome, emoji: t.emoji, cor: normalizarCorDestaque(t.vars && t.vars['--cor-primaria']) }))
-    .filter(t => t.cor);
+const unicas = (lista) => lista.filter((c, i) => c.cor && lista.findIndex(o => o.cor === c.cor) === i);
+const temasComVar = (variavel) => Object.values(TEMAS_PADRAO)
+    .map(t => ({ id: t.id, nome: t.nome, cor: normalizarCorDestaque(t.vars && t.vars[variavel]) }));
 
-// Cor principal do tema do app que está valendo agora (para o seletor começar nela quando não há cor personalizada).
-function corDoTemaAtual() {
+// Amostras prontas (são dados, por isso a cor vai inline). Destaque e fundo vêm dos temas do app (core/temas.js).
+const AMOSTRAS = {
+    corDestaque: unicas(temasComVar('--cor-primaria')),
+    corTexto: [
+        { id: 'branco', nome: 'Branco', cor: '#ffffff' }, { id: 'cinza-claro', nome: 'Cinza claro', cor: '#d0d0d8' },
+        { id: 'cinza', nome: 'Cinza', cor: '#8a8a99' }, { id: 'preto', nome: 'Preto', cor: '#000000' },
+        { id: 'creme', nome: 'Creme', cor: '#f4e4bc' }, { id: 'ciano-claro', nome: 'Ciano claro', cor: '#aaffff' },
+        { id: 'verde-claro', nome: 'Verde claro', cor: '#b6ffc8' }, { id: 'rosa-claro', nome: 'Rosa claro', cor: '#ffc2e6' }
+    ],
+    corFundo: unicas([
+        ...temasComVar('--bg-body-2'),
+        { id: 'preto', nome: 'Preto', cor: '#000000' }, { id: 'grafite', nome: 'Grafite', cor: '#1c1c24' },
+        { id: 'cinza-claro', nome: 'Cinza claro', cor: '#e6e6ec' }, { id: 'branco', nome: 'Branco', cor: '#ffffff' },
+        { id: 'pergaminho', nome: 'Pergaminho', cor: '#f4e4bc' }
+    ])
+};
+
+const CAMPOS = [
+    { chave: 'corDestaque', rotulo: 'Destaque' },
+    { chave: 'corTexto', rotulo: 'Texto' },
+    { chave: 'corFundo', rotulo: 'Fundo' }
+];
+
+// Cor que o tema do app está dando agora (para o seletor começar nela quando não há cor personalizada).
+// Devolve '' quando o navegador não dá uma cor que a gente entenda (ex.: color-mix); aí só o seletor usa um padrão.
+function corDoTemaAtual(chave) {
     try {
-        const bruto = getComputedStyle(document.body).getPropertyValue('--cor-primaria');
-        return normalizarCorDestaque(bruto) || COR_PADRAO_SELETOR;
-    } catch (e) { return COR_PADRAO_SELETOR; }
+        const cs = getComputedStyle(document.body);
+        if (chave === 'corTexto') return cssParaHex(cs.color);
+        const bruto = cs.getPropertyValue(chave === 'corFundo' ? '--bg-body-2' : '--cor-primaria');
+        return normalizarCorDestaque(bruto) || cssParaHex(bruto);
+    } catch (e) { return ''; }
 }
 
 export default function GrimorioPanel() {
@@ -44,33 +69,36 @@ export default function GrimorioPanel() {
     const [paginaAtual, setPaginaAtual] = useState(1);
     const [painelCores, setPainelCores] = useState(false);
     const [salvando, setSalvando] = useState(false);
-    // Cor escolhida e ainda não gravada (null = vale a que está na ficha). A gravação é adiada para não salvar a cada
-    // pixel do seletor; ao sair da tela o que estava pendente é gravado.
-    const [corLocal, setCorLocal] = useState(null);
+    // Cores escolhidas e ainda não gravadas (null = vale o que está na ficha). A gravação é adiada para não salvar a
+    // cada pixel do seletor; ao sair da tela o que estava pendente é gravado.
+    const [estLocal, setEstLocal] = useState(null);
     const timerCor = useRef(null);
     const pendenteRef = useRef(null);
 
-    const corSalva = normalizarCorDestaque(minhaFicha?.esteticaGrimorio?.corDestaque);
-    const cor = corLocal !== null ? corLocal : corSalva;
+    const estSalva = useMemo(() => migrarEsteticaGrimorio(minhaFicha?.esteticaGrimorio), [minhaFicha?.esteticaGrimorio]);
+    const est = estLocal !== null ? estLocal : estSalva;
 
     // A gravação usa o `updateFicha`/`salvar` do MOMENTO da escolha: se o Mestre trocar de entidade antes dos 400ms,
-    // a cor vai para a ficha de quem foi escolhida, nunca para a nova.
-    const gravarCor = useCallback((valor) => {
-        updateFicha((f) => { f.esteticaGrimorio = valor ? { corDestaque: valor } : {}; });
+    // as cores vão para a ficha de quem foi escolhida, nunca para a nova.
+    const gravarEst = useCallback((valor) => {
+        updateFicha((f) => { f.esteticaGrimorio = valor; });
         salvarFichaSilencioso();
     }, [updateFicha, salvarFichaSilencioso]);
 
-    const mudarCor = useCallback((valor, imediato = false) => {
-        const nova = normalizarCorDestaque(valor);
-        setCorLocal(nova);
+    const aplicarEst = useCallback((nova, imediato) => {
+        setEstLocal(nova);
         clearTimeout(timerCor.current);
-        const gravar = () => { timerCor.current = null; pendenteRef.current = null; gravarCor(nova); setCorLocal(null); };
-        if (imediato) { pendenteRef.current = null; gravar(); } else { pendenteRef.current = { valor: nova, gravar: () => gravarCor(nova) }; timerCor.current = setTimeout(gravar, 400); }
-    }, [gravarCor]);
+        const gravar = () => { timerCor.current = null; pendenteRef.current = null; gravarEst(nova); setEstLocal(null); };
+        if (imediato) { pendenteRef.current = null; gravar(); } else { pendenteRef.current = { gravar: () => gravarEst(nova) }; timerCor.current = setTimeout(gravar, 400); }
+    }, [gravarEst]);
 
-    // Trocar de entidade (ou sair da tela): grava o pendente na entidade ANTIGA e zera a cor local.
+    const mudarCor = useCallback((chave, valor, imediato = false) => {
+        aplicarEst(montarEsteticaGrimorio({ ...est, [chave]: normalizarCorDestaque(valor) }), imediato);
+    }, [est, aplicarEst]);
+
+    // Trocar de entidade (ou sair da tela): grava o pendente na entidade ANTIGA e zera o estado local.
     useEffect(() => {
-        setCorLocal(null);
+        setEstLocal(null);
         return () => {
             clearTimeout(timerCor.current);
             timerCor.current = null;
@@ -80,8 +108,27 @@ export default function GrimorioPanel() {
         };
     }, [meuNome]);
 
-    const varsCor = useMemo(() => varsCssDestaque(cor), [cor]);
-    const corDoSeletor = cor || corDoTemaAtual();
+    const varsCor = useMemo(() => varsCssGrimorio(est), [est]);
+    const temCores = Object.keys(est).length > 0;
+
+    // Aviso de contraste (razão WCAG < 3) entre o texto e o fundo que estão valendo (personalizados ou do tema).
+    // `temaAtivo` (classe do <body>) é lido enquanto o painel está aberto, para o aviso reagir à troca de tema.
+    const [temaAtivo, setTemaAtivo] = useState('');
+    useEffect(() => {
+        if (!painelCores) return undefined;
+        const ler = () => setTemaAtivo(document.body.className);
+        ler();
+        if (typeof MutationObserver === 'undefined') return undefined;
+        const obs = new MutationObserver(ler);
+        obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        return () => obs.disconnect();
+    }, [painelCores]);
+
+    const avisoContraste = useMemo(() => {
+        if (!painelCores || (!est.corTexto && !est.corFundo)) return false;
+        return contrasteBaixo(est.corTexto || corDoTemaAtual('corTexto'), est.corFundo || corDoTemaAtual('corFundo'));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [painelCores, est.corTexto, est.corFundo, temaAtivo]);
 
     if (!minhaFicha) return <div className="grimorio grimorio-carregando">Invocando o Grimório...</div>;
 
@@ -117,7 +164,7 @@ export default function GrimorioPanel() {
     };
 
     return (
-        <div className="grimorio" style={varsCor}>
+        <div className={`grimorio${est.corTexto ? ' grimorio--texto' : ''}${est.corFundo ? ' grimorio--fundo' : ''}`} style={varsCor}>
             <header className="grimorio-cabecalho">
                 <div className="grimorio-cabecalho-texto">
                     <h2 className="grimorio-titulo">📖 {pagina.titulo}</h2>
@@ -136,29 +183,40 @@ export default function GrimorioPanel() {
             {painelCores && (
                 <section id={idPainelCores} className="def-box grimorio-cores fade-in" aria-label="Cores do Grimório">
                     <p className="grimorio-cores-nota">
-                        O Grimório segue o estilo do app (troque em Perfil &gt; Aparência). Aqui você pode dar a ele uma cor de destaque própria.
+                        O Grimório segue o estilo do app (troque em Perfil &gt; Aparência). Aqui você pode dar a ele cores próprias.
                     </p>
-                    <div className="grimorio-cores-linha">
-                        <label className="grimorio-cores-seletor">
-                            <span>Cor de destaque</span>
-                            <input type="color" value={corDoSeletor} onChange={(e) => mudarCor(e.target.value)} aria-label="Cor de destaque do Grimório" />
-                        </label>
-                        <div className="grimorio-cores-prontas" role="group" aria-label="Cores prontas">
-                            {CORES_PRONTAS.map(c => (
-                                <button
-                                    key={c.id}
-                                    type="button"
-                                    className={`grimorio-cor-amostra${cor === c.cor ? ' ativa' : ''}`}
-                                    style={{ '--cor-amostra': c.cor }}
-                                    aria-pressed={cor === c.cor}
-                                    title={c.nome}
-                                    aria-label={`Cor ${c.nome}`}
-                                    onClick={() => mudarCor(c.cor, true)}
-                                />
-                            ))}
-                        </div>
-                        <button type="button" className="btn-neon grimorio-btn grimorio-btn--sm" disabled={!cor} onClick={() => mudarCor('', true)}>
-                            Seguir o tema do app
+                    {CAMPOS.map(({ chave, rotulo }) => {
+                        const valor = est[chave] || '';
+                        return (
+                            <div key={chave} className="grimorio-cores-linha">
+                                <label className="grimorio-cores-seletor">
+                                    <span>{rotulo}</span>
+                                    <input type="color" value={valor || corDoTemaAtual(chave) || (chave === 'corTexto' ? '#ffffff' : COR_PADRAO_SELETOR)} onChange={(e) => mudarCor(chave, e.target.value)} aria-label={`Cor de ${rotulo.toLowerCase()} do Grimório`} />
+                                </label>
+                                <div className="grimorio-cores-prontas" role="group" aria-label={`Cores prontas de ${rotulo.toLowerCase()}`}>
+                                    {AMOSTRAS[chave].map(c => (
+                                        <button
+                                            key={c.id}
+                                            type="button"
+                                            className={`grimorio-cor-amostra${valor === c.cor ? ' ativa' : ''}`}
+                                            style={{ '--cor-amostra': c.cor }}
+                                            aria-pressed={valor === c.cor}
+                                            title={c.nome}
+                                            aria-label={`${rotulo} ${c.nome}`}
+                                            onClick={() => mudarCor(chave, c.cor, true)}
+                                        />
+                                    ))}
+                                </div>
+                                <button type="button" className="btn-neon grimorio-btn grimorio-btn--sm" disabled={!valor} onClick={() => mudarCor(chave, '', true)}>
+                                    Seguir o tema
+                                </button>
+                            </div>
+                        );
+                    })}
+                    <div className="grimorio-cores-rodape">
+                        <span className="grimorio-cores-aviso" aria-live="polite">{avisoContraste ? '⚠ contraste baixo entre texto e fundo' : ''}</span>
+                        <button type="button" className="btn-neon grimorio-btn grimorio-btn--sm" disabled={!temCores} onClick={() => aplicarEst({}, true)}>
+                            Restaurar tudo
                         </button>
                     </div>
                 </section>

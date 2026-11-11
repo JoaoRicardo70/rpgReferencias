@@ -402,7 +402,7 @@ const useStore = create(
             if (dados.multiplicadorForcaPrestigio !== undefined) state.minhaFicha.multiplicadorForcaPrestigio = parseFloat(dados.multiplicadorForcaPrestigio) || 1;
             if (dados.multiplicadorForcaAscensao !== undefined) state.minhaFicha.multiplicadorForcaAscensao = parseFloat(dados.multiplicadorForcaAscensao) || 1;
 
-            // 🎨 Formato antigo do Grimório (papel/tinta/fonte/textura) é migrado para { corDestaque }; o resto é ignorado.
+            // 🎨 Formato antigo do Grimório (papel/tinta/fonte/textura) é migrado para { corDestaque }; as chaves novas { corDestaque, corTexto, corFundo } são validadas; o resto é ignorado.
             state.minhaFicha.esteticaGrimorio = migrarEsteticaGrimorio(dados.esteticaGrimorio);
             state.minhaFicha.habilidades = dados.habilidades || [];
             state.minhaFicha.formas = dados.formas || [];

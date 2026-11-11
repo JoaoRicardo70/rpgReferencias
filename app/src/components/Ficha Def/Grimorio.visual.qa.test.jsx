@@ -94,12 +94,12 @@ describe('painel de cores', () => {
     it('cor pronta grava imediatamente (sem esperar o debounce)', () => {
         const { rerender } = render(<GrimorioPanel />);
         abrirCores();
-        const amostra = screen.getAllByRole('button', { name: /^Cor / })[0];
+        const amostra = screen.getAllByRole('button', { name: /^Destaque / })[0];
         fireEvent.click(amostra);
         expect(entidades.Natsu.updateFicha).toHaveBeenCalledTimes(1);
         expect(entidades.Natsu.ficha.esteticaGrimorio.corDestaque).toMatch(/^#[0-9a-f]{6}$/);
         rerender(<GrimorioPanel />); // o mock de useFichaAtiva não assina a store: força a leitura da ficha nova
-        expect(screen.getAllByRole('button', { name: /^Cor / })[0].getAttribute('aria-pressed')).toBe('true');
+        expect(screen.getAllByRole('button', { name: /^Destaque / })[0].getAttribute('aria-pressed')).toBe('true');
     });
 
     it('desmontar com cor pendente grava (flush) e não deixa timer solto', () => {
@@ -153,13 +153,13 @@ describe('painel de cores', () => {
         entidadeAtual = 'Gray';
         const { rerender } = render(<GrimorioPanel />);
         abrirCores();
-        const btn = screen.getByRole('button', { name: 'Seguir o tema do app' });
+        const btn = screen.getAllByRole('button', { name: 'Seguir o tema' })[0];
         expect(btn.disabled).toBe(false);
         fireEvent.click(btn);
         expect(entidades.Gray.ficha.esteticaGrimorio).toEqual({});
         rerender(<GrimorioPanel />); // o mock de useFichaAtiva não assina a store
         expect(raiz().style.getPropertyValue('--cor-primaria')).toBe('');
-        expect(screen.getByRole('button', { name: 'Seguir o tema do app' }).disabled).toBe(true);
+        expect(screen.getAllByRole('button', { name: 'Seguir o tema' })[0].disabled).toBe(true);
     });
 
     it('"Seguir o tema" cancela uma escolha pendente do seletor', () => {
@@ -167,7 +167,7 @@ describe('painel de cores', () => {
         render(<GrimorioPanel />);
         abrirCores();
         fireEvent.change(seletor(), { target: { value: '#00ff00' } });
-        fireEvent.click(screen.getByRole('button', { name: 'Seguir o tema do app' }));
+        fireEvent.click(screen.getAllByRole('button', { name: 'Seguir o tema' })[0]);
         act(() => { vi.advanceTimersByTime(1000); });
         expect(entidades.Gray.ficha.esteticaGrimorio).toEqual({});
     });
