@@ -455,12 +455,18 @@ function PaginaMarcadores() {
     const municoTurnos = minhaFicha?.combate?.municoTurnos || 0;
     const municoPorTurno = minhaFicha?.combate?.municoPorTurno ?? 5;
     const municoAtual = Math.max(1, 1 + (Math.max(0, municoTurnos) * municoPorTurno / 100));
+    const municoAuto = minhaFicha?.combate?.municoAuto === true;
 
     const updateMunicoTurnos = (delta) => {
         updateFicha(f => {
             if (!f.combate) f.combate = {};
             f.combate.municoTurnos = Math.max(0, (Number(f.combate.municoTurnos) || 0) + delta);
         });
+        callSave();
+    };
+
+    const alternarMunicoAuto = (ligado) => {
+        updateFicha(f => { if (!f.combate) f.combate = {}; f.combate.municoAuto = !!ligado; });
         callSave();
     };
 
@@ -658,9 +664,19 @@ function PaginaMarcadores() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px dotted #aa00ff', paddingBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
                         <h2 style={{ margin: 0, fontSize: '1.4em', display: 'flex', alignItems: 'center', gap: '10px', color: '#aa00ff' }}>♾️ mUnico Crescente (Por Turno)</h2>
-                        <span style={{ fontSize: '0.85em', opacity: 0.8, fontStyle: 'italic' }}>Para Infinities como Adaptação: a cada turno de combate, o Multiplicador Único cresce sozinho e já é aplicado direto no Poder Calculado do Scouter.</span>
+                        <span style={{ fontSize: '0.85em', opacity: 0.8, fontStyle: 'italic' }}>Para Infinities como Adaptação: o Multiplicador Único cresce a cada turno de combate e já é aplicado direto no Poder Calculado do Scouter. Ligue "Crescer sozinho" para o app somar 1 turno no início de cada turno seu; desligado, os turnos são marcados à mão (+/-).</span>
                     </div>
                     <button onClick={zerarMunicoCrescente} style={{ padding: '8px 15px', border: '1px solid #aa00ff', color: '#aa00ff', background: 'transparent', cursor: 'pointer', opacity: 0.8, borderRadius: '4px' }}>🧹 Zerar mUnico</button>
+                </div>
+
+                <label className="municoauto-interruptor">
+                    <input type="checkbox" checked={municoAuto} onChange={e => alternarMunicoAuto(e.target.checked)} />
+                    <span>Crescer sozinho a cada turno</span>
+                </label>
+                <div className="municoauto-estado" role="status">
+                    {municoAuto
+                        ? (municoPorTurno > 0 ? `Automático: cresce +${municoPorTurno}% por turno de combate (linear), no início do seu turno; zera ao fim da luta ou no descanso.` : 'Automático ligado, mas a taxa por turno está em 0: nada cresce.')
+                        : 'Manual: os turnos só mudam quando você usa + e -.'}
                 </div>
 
                 <div style={{ display: 'flex', gap: '20px', alignItems: 'stretch', flexWrap: 'wrap' }}>

@@ -79,7 +79,7 @@ export const fichaPadrao = {
     statusPoolAlocado: {},
 
     combate: {
-        municoTurnos: 0, municoPorTurno: 5,
+        municoTurnos: 0, municoPorTurno: 5, municoAuto: false,
         fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0,
         danoAbsorvido: 0, danoTotalRecebido: 0, letalidadeTotalRecebida: 0,
         conversaoAlvo: 10000, conversaoBonus: 1,

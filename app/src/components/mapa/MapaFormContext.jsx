@@ -4,6 +4,7 @@ import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salv
 import { calcularAcerto, calcularEficaciaCura, somarBonusBase } from '../../core/engine';
 import { montarContextoDeCombate } from '../../core/efeitosCondicionais';
 import { classificarRolagem } from '../../core/rolagemDado';
+import { avancarMunicoCrescente } from '../../core/poder';
 import { aplicarCoresDado, lerCoresDado } from '../../core/coresDado';
 import { getConfigDado } from '../../core/configuracoes';
 import { alternarPresencaNaTaverna } from '../../core/chats';
@@ -96,6 +97,8 @@ export function aplicarInicioDeTurno(ficha, ehDummie = false, nome = '') {
 
     if (!ficha.combate) ficha.combate = {};
     ficha.combate.fadigaTurnos = Math.max(0, (Number(ficha.combate.fadigaTurnos) || 0) + 1);
+    // ♾️ mUnico Crescente (Adaptação): com o interruptor ligado, +1 turno no INÍCIO do turno do portador (zera em fimDeLuta/descanso; core/poder.js > avancarMunicoCrescente).
+    avancarMunicoCrescente(ficha);
     // incluirEsforcoPoder: lutar acima do limiar de Poder cansa mesmo com Vida/Energias cheias.
     const ganhoDinamicoDoTurno = calcularGanhoFadigaDinamico(ficha, { incluirEsforcoPoder: true });
     ficha.combate.fadigaExtra = Math.max(0, (Number(ficha.combate.fadigaExtra) || 0) + ganhoDinamicoDoTurno);
@@ -229,6 +232,7 @@ function camposDeInicioDeTurno(ficha, camposPoderes = {}, escudosMudaram = false
     if (ficha.combate) {
         if (ficha.combate.fadigaTurnos !== undefined) campos['combate/fadigaTurnos'] = ficha.combate.fadigaTurnos;
         if (ficha.combate.fadigaExtra !== undefined) campos['combate/fadigaExtra'] = ficha.combate.fadigaExtra;
+        if (ficha.combate.municoAuto === true && ficha.combate.municoTurnos !== undefined) campos['combate/municoTurnos'] = ficha.combate.municoTurnos;
         // ⏳ Ações seguradas expiram no começo do turno de quem segurou (core/acoes.js > restaurarAcoes).
         if (ficha.combate.acoesSeguradas !== undefined) campos['combate/acoesSeguradas'] = ficha.combate.acoesSeguradas;
         if (ficha.combate.acaoSeguradaCredito !== undefined) campos['combate/acaoSeguradaCredito'] = ficha.combate.acaoSeguradaCredito;

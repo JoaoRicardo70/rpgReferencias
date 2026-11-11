@@ -32,6 +32,7 @@ import { ENERGIAS_CUSTO, descreverCustoPorTurno } from '../../core/custoPorTurno
 import { descreverRecarga } from '../../core/recargaPoder';
 import EnsinarBotao from '../shared/EnsinarBotao';
 import GatilhosEditor from './GatilhosEditor';
+import ConstrutorProgressao from './ConstrutorProgressao';
 import { descreverGatilho } from '../../core/gatilhos';
 import EnsinamentosRecebidos from '../shared/EnsinamentosRecebidos';
 
@@ -555,6 +556,7 @@ export function PoderesFormEditor() {
             {/* GATILHOS: o editor ocupa a largura toda da seção */}
             {secao('gatilhos', '🔔 Gatilhos', (
                 <>
+                <ConstrutorProgressao />
                 <ContadoresDoPoderEditor />
                 <GatilhosEditor gatilhos={gatilhosPoder} onChange={setGatilhosPoder} descartados={gatilhosDescartados} contadores={contadoresParaGatilhos || minhaFicha?.contadores} poderes={minhaFicha?.poderes} />
                 </>

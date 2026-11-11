@@ -15,10 +15,10 @@ import { aplicarDanoNaVida } from './danoVida.js';
 import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
 import { calcularEficaciaCura } from './engine.js';
 import { adicionarEscudo, removerEscudo } from './escudos.js';
-import { gastarUso } from './usosPoder.js';
+import { gastarUso, limiteDeUsos } from './usosPoder.js';
 import { somarBuffTemporario } from './suporte.js';
 import { chaveDoGatilhoDoPoder, normalizarGatilhos, LIMITE_TOTAL_GANHO_PERMANENTE, LIMITE_GANHO_PERC_MIN, LIMITE_GANHO_PERMANENTE } from './gatilhos.js';
-import { FATOR_PODER_MAX, FATOR_PODER_MIN } from './poder.js';
+import { FATOR_PODER_MAX, FATOR_PODER_MIN, zerarMunicoCrescenteNoFimDeLuta } from './poder.js';
 
 const fmtN = (n) => Math.floor(Number(n) || 0).toLocaleString('pt-BR');
 const fmtGanho = (n) => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 6 });
@@ -54,6 +54,22 @@ export function zerarUsosPorTurno(ficha) {
     if (!usos || typeof usos !== 'object') return false;
     let mudou = false;
     Object.keys(usos).forEach((k) => { if (usos[k] && usos[k].turno === true) { delete usos[k]; mudou = true; } });
+    if (mudou && Object.keys(usos).length === 0) delete ficha.combate.usosPoderes;
+    return mudou;
+}
+
+// Fim de luta: cada Cena conta como um combate, então os usos "por cena" (limite de gatilho com por:'cena' e limite de ligar do Poder com
+// usosPor:'cena') recomeçam. 'turno' sai em zerarUsosPorTurno e 'descanso' NUNCA é tocado aqui. Para achar as chaves, os Poderes são vistos
+// como ligados (gatilhos de Poder desligado também têm uso guardado). Devolve true se apagou algo.
+export function restaurarUsosPorCena(ficha) {
+    const usos = ficha && ficha.combate && ficha.combate.usosPoderes;
+    if (!usos || typeof usos !== 'object') return false;
+    const chaves = new Set();
+    const visao = { ...ficha, poderes: (ficha.poderes || []).map(p => (p && typeof p === 'object' ? { ...p, ativa: true } : p)) };
+    coletarGatilhos(visao).forEach(({ gatilho, chave }) => { if (gatilho.limite && gatilho.limite.por === 'cena') chaves.add(chave); });
+    (ficha.poderes || []).forEach((p) => { const l = p && typeof p === 'object' ? limiteDeUsos(p) : null; if (l && l.por === 'cena') chaves.add(String(p.id)); });
+    let mudou = false;
+    chaves.forEach((k) => { if (usos[k] && usos[k].turno !== true) { delete usos[k]; mudou = true; } });
     if (mudou && Object.keys(usos).length === 0) delete ficha.combate.usosPoderes;
     return mudou;
 }
@@ -380,7 +396,7 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
 
 // Dispara um evento NO RASCUNHO da ficha (use dentro de updateFicha ou numa cópia): avalia os gatilhos automáticos que casam, executa as
 // ações e trata os eventos derivados em cadeia. Sem gatilhos que casem, NÃO muda nada (exceções: turnoInicio zera os usos 'por turno' do dono e
-// fimDeLuta também zera os contadores com reset 'cena'). ctx: { cenaId?, eventoId?, profundidade?, jaDisparados?, nome?, rng? }.
+// fimDeLuta também zera os contadores com reset 'cena' e, depois de avaliar, restaura os usos 'por cena'). ctx: { cenaId?, eventoId?, profundidade?, jaDisparados?, nome?, rng? }.
 // Devolve { textos, caminhos, chaves, disparou }: caminhos no formato do Firebase (para gravar em OUTRA ficha com camposParaGravar).
 export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
     const res = { textos: [], caminhos: [], chaves: [], disparou: false };
@@ -390,6 +406,8 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
     if (evento.tipo === 'turnoInicio' || evento.tipo === 'fimDeLuta') { if (zerarUsosPorTurno(ficha)) caminhos.add('combate/usosPoderes'); }
     if (evento.tipo === 'fimDeLuta') {
         resetarContadoresDeCena(ficha).forEach(i => caminhosDoContador(ficha, i).forEach(p => caminhos.add(p)));
+        // ♾️ mUnico Crescente automático volta a 0 junto com a luta (o manual fica como a pessoa deixou).
+        if (zerarMunicoCrescenteNoFimDeLuta(ficha)) caminhos.add('combate/municoTurnos');
     }
     const profundidade = Number(ctx.profundidade) || 0;
     if (profundidade < PROFUNDIDADE_MAX_GATILHOS) {
@@ -407,6 +425,9 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
             }
         }
     }
+    // Por ÚLTIMO: os gatilhos de fimDeLuta (inclusive os com limite por cena) já foram avaliados com os usos do combate que acabou, então
+    // cada um dispara uma vez por combate; só depois os usos por cena recomeçam para o próximo.
+    if (evento.tipo === 'fimDeLuta' && restaurarUsosPorCena(ficha)) caminhos.add('combate/usosPoderes');
     res.caminhos = [...caminhos];
     return res;
 }

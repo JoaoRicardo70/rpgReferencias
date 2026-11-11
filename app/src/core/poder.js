@@ -398,6 +398,26 @@ function getMunicoCrescenteMultiplier(ficha) {
     return Math.max(1, 1 + (turnos * taxa / 100));
 }
 
+export const LIMITE_MUNICO_TURNOS = 9999;
+// ♾️ Crescer sozinho (combate.municoAuto): no INÍCIO do turno do portador, +1 em municoTurnos (teto 9999) se a taxa por turno for > 0. Muta o rascunho; devolve true se mudou.
+export function avancarMunicoCrescente(ficha) {
+    const c = ficha && ficha.combate;
+    if (!c || c.municoAuto !== true) return false;
+    const taxa = Number(c.municoPorTurno);
+    if (!(taxa > 0)) return false;
+    const atual = Math.max(0, Number(c.municoTurnos) || 0);
+    if (atual >= LIMITE_MUNICO_TURNOS) return false;
+    c.municoTurnos = atual + 1;
+    return true;
+}
+// Fim da cena/combate (fimDeLuta): com o interruptor ligado o contador volta a 0 (desligado = manual, a pessoa zera). Devolve true se mudou.
+export function zerarMunicoCrescenteNoFimDeLuta(ficha) {
+    const c = ficha && ficha.combate;
+    if (!c || c.municoAuto !== true || !(Number(c.municoTurnos) > 0)) return false;
+    c.municoTurnos = 0;
+    return true;
+}
+
 // 🔥 "MULTIPLICADOR DE FORÇA" POR VITAL — réplica exata de calcularFatorCategoria em
 // Ficha Def/Marcados.jsx (o mesmo bônus de Ascensão/Prestígio-overflow individual de cada
 // vida/mana/aura/chakra/corpo, incluindo o próprio mFormas daquele vital). A Ficha usa isso como

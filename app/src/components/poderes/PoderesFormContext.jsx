@@ -25,6 +25,7 @@ import { calcularGanhoFadigaMaestriaInsuficiente } from '../../core/fadiga';
 import { definirEstagio, mudarContador, contadoresDoPoder, contadoresAvulsos, listaDeContadores, novoIdContador, normalizarContadorRascunho, referenciasDoContador, semReferenciasDoContador, planejarContadoresDoPoder, aplicarContadoresDoPoder, LIMITE_CONTADORES } from '../../core/contadores';
 import { sincronizarEscudoDoPoder, normalizarEscudoAoLigar } from '../../core/escudos';
 import { normalizarGatilhos } from '../../core/gatilhos';
+import { conferirLimitesProgressao } from '../../core/receitasProgressao';
 import { dispararEventoNaFicha, forcarGatilhoNaFicha, rngPreSorteado } from '../../core/gatilhosAplicar';
 import { ESTAGIOS_PADRAO, normalizarEstagios, limitarEstagio } from '../../core/estagios';
 import { SECOES_PADRAO, chaveRascunhoPoder, chaveAbaRascunhoPoder, rascunhoVazio, rascunhoDoPoder, rascunhoTemConteudo, rascunhoTemAlteracao, rascunhoDifere, completarRascunho } from '../../core/rascunhoPoder';
@@ -749,6 +750,24 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         if (nosMeus.length > 0) setGatilhosPoder(prev => semReferenciasDoContador(prev, id));
         setContadoresPoder(prev => prev.filter(x => String(x.id) !== String(id)));
     }, [contadoresPoder, gatilhosPoder, minhaFicha, poderEditandoId]);
+    // 📈 Construtor de Progressão em combate: acrescenta gatilhos + contadores ao RASCUNHO (nada vai para a ficha até "Gravar").
+    // `ctxProgressao` dá ao construtor os ids já usados (para não colidir) e os números para checar os limites.
+    const ctxProgressao = useMemo(() => ({
+        idsGatilhos: gatilhosPoder.map(g => g && g.id).filter(Boolean),
+        idsContadores: listaDeContadores(minhaFicha).map(c => c.id).concat(contadoresPoder.map(c => c.id)),
+        existentes: { gatilhos: gatilhosPoder.length, contadores: planoContadores.total },
+    }), [gatilhosPoder, minhaFicha, contadoresPoder, planoContadores]);
+    const adicionarProgressaoRascunho = useCallback((resultado) => {
+        const conf = conferirLimitesProgressao(resultado, ctxProgressao.existentes);
+        if (!conf.ok) return conf;
+        // Duplicados são filtrados DENTRO do updater (estado mais novo); um contador que já existe com o mesmo id é reutilizado (os gatilhos citam esse id).
+        setContadoresPoder(prev => {
+            const idsC = new Set(prev.map(c => String(c.id)));
+            return [...prev, ...resultado.contadores.filter(c => !idsC.has(String(c.id)))];
+        });
+        setGatilhosPoder(prev => [...prev, ...resultado.gatilhos]);
+        return conf;
+    }, [ctxProgressao]);
     // +1/−1 no contador JÁ gravado (cartão do poder e resumo da Ficha). Dono da ficha e Mestre editam; jogador não edita ficha alheia.
     const podeEditarContadores = souEuMesmo || isMestre;
     const mudarContadorDoPoder = useCallback((id, delta) => {
@@ -1060,7 +1079,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         poderVertente, setPoderVertente, poderElemento, setPoderElemento,
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, ctxProgressao, adicionarProgressaoRascunho, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -1084,7 +1103,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     }), [
         minhaFicha, meuNome, isMestre, abaAtual, trocarAba, secoesAbertas, rascunhoAtual, cancelarEdicaoComConfirmacao,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
-        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao, gatilhosPoder, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, cenaAtivaId, poderAlcance,
+        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao, gatilhosPoder, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, ctxProgressao, adicionarProgressaoRascunho, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, cenaAtivaId, poderAlcance,
         poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma, pastasAbertas, alternarPasta, definirPastasAbertas,
         estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo, novoQuandoPassivo, novoEscopoPassivo,
