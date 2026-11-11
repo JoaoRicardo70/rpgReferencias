@@ -11,6 +11,17 @@ import { calcularFadigaAtual } from './fadiga.js';
 import { getMultiplicadorBonusArma } from './classesMecanicas.js';
 import { ehPropriedadeMultiplicador, passaQuandoMultiplicador, montarContextoDeCombate } from './efeitosCondicionais.js';
 
+// Limites do fator composto dos ganhos permanentes (ficha.ganhosPermanentes.fatorPoder): evita overflow e zero.
+export const FATOR_PODER_MAX = 1e12;
+export const FATOR_PODER_MIN = 1e-6;
+
+// Fator composto dos ganhos permanentes (default 1; inválido -> 1; limitado a [FATOR_PODER_MIN, FATOR_PODER_MAX]). Única cópia da regra.
+export function fatorGanhoComposto(ficha) {
+    const n = Number(ficha && ficha.ganhosPermanentes && ficha.ganhosPermanentes.fatorPoder);
+    return Number.isFinite(n) && n > 0 ? Math.min(FATOR_PODER_MAX, Math.max(FATOR_PODER_MIN, n)) : 1;
+}
+const fatorGanhoCompostoDe = fatorGanhoComposto;
+
 const CATEGORIAS_VITAIS = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 
@@ -134,7 +145,7 @@ function calcularAscensaoParaPoder(ficha) {
 // Usada também pelo Scouter (Ficha Def/Marcados.jsx), pra os dois nunca divergirem.
 export function getGlobalMultipliers(ficha) {
     try {
-        if (!ficha) return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalP: 1, finalUni: 1, totalDano: 1 };
+        if (!ficha) return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalP: 1, finalUni: 1, fatorGanhoComposto: 1, totalDano: 1 };
 
         let grupos = { MBASE: {}, MGERAL: {}, MFORMAS: {}, MABS: {} };
         let unicos = [];
@@ -272,6 +283,12 @@ export function getGlobalMultipliers(ficha) {
         const ganhoPerm = Number(ficha.ganhosPermanentes && ficha.ganhosPermanentes.poderCalculado);
         if (Number.isFinite(ganhoPerm) && ganhoPerm > 0) grupos.MGERAL.Ganho_Permanente = (grupos.MGERAL.Ganho_Permanente || 0) + ganhoPerm;
 
+        // 🏆 Fator COMPOSTO dos ganhos permanentes em % com modo "multiplicar" (ficha.ganhosPermanentes.fatorPoder, default 1).
+        // Entra como fator multiplicativo extra DENTRO de totalDano (junto de B*G*A*P): assim afeta o Poder e o dano exatamente
+        // como o ganho aditivo (que também vive em totalDano via MGERAL), e nunca é diluído pelos grupos aditivos.
+        // Única cópia da regra: fatorGanhoComposto(ficha) (exportada acima); Marcados.jsx e calcularPoderAtual consomem glob.totalDano.
+        const fatorGanhoComposto = fatorGanhoCompostoDe(ficha);
+
         const calcTotal = (tipo) => {
             let soma = 0;
             Object.values(grupos[tipo]).forEach(v => { soma += v; });
@@ -290,9 +307,9 @@ export function getGlobalMultipliers(ficha) {
         // separadamente em calcularPoderAtual, no MESMO estágio (pós-injeção de
         // Ascensão) que multiplicadorPoderDireto e multiplicadorMunicoCrescente.
         // Ver o mesmo comentário/motivo em Ficha Def/Marcados.jsx > poderGlobal.
-        return { finalB, finalG, finalF, finalA, finalP, finalUni, totalDano: finalB * finalG * finalA * finalP };
+        return { finalB, finalG, finalF, finalA, finalP, finalUni, fatorGanhoComposto, totalDano: finalB * finalG * finalA * finalP * fatorGanhoComposto };
     } catch (e) {
-        return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalP: 1, finalUni: 1, totalDano: 1 };
+        return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalP: 1, finalUni: 1, totalDano: 1, fatorGanhoComposto: 1 };
     }
 }
 

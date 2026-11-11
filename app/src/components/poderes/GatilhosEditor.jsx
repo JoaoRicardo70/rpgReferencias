@@ -34,7 +34,7 @@ const EXPLICACAO_MODO = {
 };
 
 const FORMULARIO_VAZIO = { id: '', nome: '', evento: 'danoQueZeraria', de: '10', ate: '1', nivel: 'qualquer', poderEvento: '', contadorEvento: '', opEvento: '>=', valorEvento: '', vidaMaiorQue: '', limite: '', acoes: [], mestreDesligou: false, modo: 'automatico', armado: true, perguntar: false };
-const ACAO_VAZIA = { tipo: 'anularDano', valor: '', nome: '', tipoEscudo: 'escudo', texto: '', contadorId: '', op: 'somar', sorteio: '', estado: 'queimado', duracaoEstado: '', poderId: '', modoDano: 'fixo', modoAtacante: 'percDanoRecebido', gpModo: 'fixo', gpFator: '', gpZerar: false };
+const ACAO_VAZIA = { tipo: 'anularDano', valor: '', nome: '', tipoEscudo: 'escudo', texto: '', contadorId: '', op: 'somar', sorteio: '', estado: 'queimado', duracaoEstado: '', poderId: '', modoDano: 'fixo', modoAtacante: 'percDanoRecebido', gpModo: 'fixo', gpFator: '', gpZerar: false, gpComo: 'somar' };
 const TABELA_VAZIA = { dado: '1d4', linhas: [{ ate: '1', texto: '', acoes: [] }], alvo: 0 };
 const ESCOLHA_VAZIA = { pergunta: '', opcoes: [{ texto: '', acoes: [] }, { texto: '', acoes: [] }], alvo: 0 };
 
@@ -82,6 +82,7 @@ function gatilhoDe(f) {
     };
 }
 
+// Atenção: o formulário só CRIA ações novas, por isso `acaoDe` emite ganhoPermanente sempre em percentual. Se algum dia houver edição de ação existente, preservar a `unidade` (e o `modo`) dela.
 function acaoDe(a) {
     switch (a.tipo) {
         case 'definirVida': return { tipo: 'definirVida', valor: a.valor };
@@ -95,9 +96,12 @@ function acaoDe(a) {
         case 'ligarPoder': case 'desligarPoder': return { tipo: a.tipo, poderId: a.poderId };
         case 'danoEmSi': return { tipo: 'danoEmSi', modo: a.modoDano, valor: a.valor };
         case 'danoNoAtacante': return { tipo: 'danoNoAtacante', modo: a.modoAtacante, valor: a.valor };
-        case 'ganhoPermanente': return a.gpModo === 'contador'
-            ? { tipo: 'ganhoPermanente', deContador: { id: a.contadorId, fator: a.gpFator, zerar: a.gpZerar === true } }
-            : { tipo: 'ganhoPermanente', valor: a.valor };
+        case 'ganhoPermanente': {
+            const extra = { unidade: 'percentual', modo: a.gpComo === 'multiplicar' ? 'multiplicar' : 'somar' };
+            return a.gpModo === 'contador'
+                ? { tipo: 'ganhoPermanente', ...extra, deContador: { id: a.contadorId, fator: a.gpFator, zerar: a.gpZerar === true } }
+                : { tipo: 'ganhoPermanente', ...extra, valor: a.valor };
+        }
         default: return { tipo: a.tipo };
     }
 }
@@ -115,17 +119,22 @@ function CamposDaAcao({ acao, setAcao, anularDanoOk, permitirTabela, nomes, onAd
                         <option value="fixo">valor fixo</option>
                         <option value="contador">a partir de um contador x fator</option>
                     </select>
-                    {acao.gpModo === 'fixo' && <input type="number" min="0" step="any" aria-label={`Valor do ganho permanente${sufixo}`} placeholder="valor (ex.: 2)" value={acao.valor} onChange={e => setAcao({ ...acao, valor: e.target.value })} />}
+                    <select aria-label={`Como aplicar o ganho permanente${sufixo}`} value={acao.gpComo} onChange={e => setAcao({ ...acao, gpComo: e.target.value })}>
+                        <option value="somar">Somar ao bônus (linear)</option>
+                        <option value="multiplicar">Multiplicar o Poder (composto)</option>
+                    </select>
+                    {acao.gpModo === 'fixo' && <input type="number" min="-99.99" step="any" aria-label={`Valor do ganho permanente${sufixo}`} placeholder="Valor (%) (ex.: 2)" value={acao.valor} onChange={e => setAcao({ ...acao, valor: e.target.value })} />}
                     {acao.gpModo === 'contador' && (
                         <>
                             <select aria-label={`Contador do ganho permanente${sufixo}`} value={acao.contadorId} onChange={e => setAcao({ ...acao, contadorId: e.target.value })}>
                                 <option value="">(escolha o contador)</option>
                                 {nomes.contadores.map(c => <option key={String(c.id)} value={String(c.id)}>{c.nome}</option>)}
                             </select>
-                            <input type="number" min="0" step="any" aria-label={`Fator do ganho permanente${sufixo}`} placeholder="fator (ex.: 0.0001)" value={acao.gpFator} onChange={e => setAcao({ ...acao, gpFator: e.target.value })} />
+                            <input type="number" min="-99.99" step="any" aria-label={`Fator do ganho permanente${sufixo}`} placeholder="% por ponto do contador (ex.: 0.5)" value={acao.gpFator} onChange={e => setAcao({ ...acao, gpFator: e.target.value })} />
                             <label><input type="checkbox" aria-label={`Zerar o contador depois${sufixo}`} checked={acao.gpZerar} onChange={e => setAcao({ ...acao, gpZerar: e.target.checked })} /> zerar o contador depois</label>
                         </>
                     )}
+                    <div className="gatilho-dica">Ex.: 50 acertos de +2%: somar = +100% no bônus; multiplicar = Poder x2,69 (cada ganho multiplica o Poder atual).</div>
                 </>
             )}
             {['definirVida', 'curar', 'escudo', 'imunidadeTotal', 'danoEmSi', 'danoNoAtacante', 'aplicarEstado'].includes(acao.tipo) && (

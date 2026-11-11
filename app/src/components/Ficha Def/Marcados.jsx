@@ -11,7 +11,7 @@ import { getRank } from '../../core/prestige';
 import { formatarPoderCosmico } from '../../core/utils.js';
 import { calcularFadigaAtual } from '../../core/fadiga';
 import { getTetoOcultacaoPoder, getOcultacaoPoder } from '../../core/percepcaoPoder';
-import { getGlobalMultipliers, getPoderDiretoMultiplier, getBaseEquivalenteAscensao, amortecerPoderBruto, getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder, aplicarEscalaPoderCalculado } from '../../core/poder';
+import { getGlobalMultipliers, getPoderDiretoMultiplier, getBaseEquivalenteAscensao, amortecerPoderBruto, getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder, aplicarEscalaPoderCalculado, fatorGanhoComposto as fatorGanhoCompostoDe, FATOR_PODER_MAX, FATOR_PODER_MIN } from '../../core/poder';
 import { planejarAjustePrestigioStatus, aplicarAjustePrestigioStatus, recolherPontosAlocados, getTotalPontosAlocados } from '../../core/statusPool';
 import { getPontosPrestigioDisponiveis, getPontosDistribuidos, calcularBaseDoPrestigio, validarDistribuicaoPrestigio, registrarDistribuicaoPrestigio, podeAscender, prestigioAposAscensao, aplicarAscensao, CATEGORIAS_PRESTIGIO, PRESTIGIO_PARA_ASCENDER } from '../../core/prestigioDistribuicao';
 import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
@@ -1121,6 +1121,8 @@ export default function MarcadosPanel() {
 
     // 🏆 Ganhos permanentes de Poder (gatilho `ganhoPermanente`; entra em getGlobalMultipliers como Ganho_Permanente).
     const ganhoPermanentePoder = (() => { const n = Number(minhaFicha?.ganhosPermanentes?.poderCalculado); return Number.isFinite(n) && n > 0 ? n : 0; })();
+    // Fator composto (modo "multiplicar"; entra em glob.totalDano via getGlobalMultipliers). 1 = sem ganho.
+    const fatorGanhoComposto = fatorGanhoCompostoDe(minhaFicha);
 
     const salvar = (caminho, valor) => {
         const valFinal = (valor === undefined || (isNaN(valor) && typeof valor === 'number')) ? null : valor;
@@ -1716,13 +1718,15 @@ export default function MarcadosPanel() {
                                     </div>
                                 )}
 
-                                {(ganhoPermanentePoder > 0 || isMestre) && (
+                                {(ganhoPermanentePoder > 0 || fatorGanhoComposto !== 1 || isMestre) && (
                                     <div className="ganho-permanente-linha" data-testid="ganho-permanente-poder">
-                                        <span title="Soma acumulada por gatilhos (ex.: Ego Superior, Verg Avesta). Entra no Poder Calculado como um multiplicador somado aos demais (1 + soma).">🏆 Ganhos permanentes: +{Number(ganhoPermanentePoder.toFixed(6)).toLocaleString('pt-BR', { maximumFractionDigits: 6 })}</span>
+                                        <span title="Soma acumulada por gatilhos (ex.: Ego Superior, Verg Avesta). Entra no Poder Calculado como um multiplicador somado aos demais (1 + soma); 1 = +100%.">🏆 Ganhos permanentes: +{Number(ganhoPermanentePoder.toFixed(6)).toLocaleString('pt-BR', { maximumFractionDigits: 6 })}{ganhoPermanentePoder > 0 ? ` (+${Number((ganhoPermanentePoder * 100).toFixed(4)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}%)` : ''}</span>
+                                        {fatorGanhoComposto !== 1 && <span title="Fator composto por gatilhos em modo Multiplicar: multiplica o Poder Calculado.">×{Number(fatorGanhoComposto.toFixed(4)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</span>}
                                         {isMestre && (
                                             <>
                                                 <input type="number" min="0" step="any" aria-label="Ganhos permanentes de Poder (Mestre)" key={ganhoPermanentePoder} defaultValue={ganhoPermanentePoder} onBlur={e => { const v = parseFloat(e.target.value); const novo = Number.isFinite(v) && v > 0 ? Math.min(v, 1e9) : 0; if (novo !== ganhoPermanentePoder) salvar('ganhosPermanentes.poderCalculado', novo); }} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
-                                                <button type="button" className="btn-neon" onClick={() => salvar('ganhosPermanentes.poderCalculado', 0)}>Zerar</button>
+                                                <input type="number" min={FATOR_PODER_MIN} max={FATOR_PODER_MAX} step="any" aria-label="Fator composto de Poder (Mestre)" key={`fp${fatorGanhoComposto}`} defaultValue={fatorGanhoComposto} onBlur={e => { const v = parseFloat(e.target.value); const novo = Number.isFinite(v) && v > 0 ? Math.round(Math.min(FATOR_PODER_MAX, Math.max(FATOR_PODER_MIN, v)) * 1e9) / 1e9 : 1; if (novo !== fatorGanhoComposto) salvar('ganhosPermanentes.fatorPoder', novo); }} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+                                                <button type="button" className="btn-neon" onClick={() => { updateFicha(f => { if (!f.ganhosPermanentes || typeof f.ganhosPermanentes !== 'object') f.ganhosPermanentes = {}; f.ganhosPermanentes.poderCalculado = 0; f.ganhosPermanentes.fatorPoder = 1; }); callSave(); }}>Zerar</button>
                                                 <span className="ganho-permanente-dica">(só o Mestre corrige à mão)</span>
                                             </>
                                         )}

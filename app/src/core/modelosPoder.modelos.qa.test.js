@@ -31,16 +31,16 @@ describe('catalogo', () => {
         expect(partes.map(p => p.id)).toEqual(['multiplicadores', 'prestigioPorAcerto', 'prestigioPorDanoSofrido', 'imunidadeCondicoes', 'ascensaoAdicional', 'habilidadesDeRaca']);
         expect(partes.filter(p => p.suportado === 'nota').map(p => p.id)).toEqual(['ascensaoAdicional', 'habilidadesDeRaca']);
         expect(partes.every(p => p.padrao === true)).toBe(true);
-        expect(paramsPadrao(m(EGO))).toEqual({ fatorEgo: 140, ganhoNormal: 2, ganhoCritico: 3, ganhoFatal: 4, criticosPorGanho: 3, ganhoPorCriticos: 2, ganhoPorFatal: 2 });
+        expect(paramsPadrao(m(EGO))).toEqual({ fatorEgo: 140, modoAcerto: 'multiplicar', ganhoNormal: 2, ganhoCritico: 3, ganhoFatal: 4, modoDanoSofrido: 'multiplicar', criticosPorGanho: 3, ganhoPorCriticos: 2, ganhoPorFatal: 2 });
     });
     it('Verg: partes e padroes', () => {
         const partes = m(VERG).partes;
         expect(partes.filter(p => p.suportado === true).map(p => p.id)).toEqual(['acumuloDeDano', 'acertoPorTurno']);
         expect(partes.filter(p => p.suportado === 'nota').map(p => p.id)).toEqual(['vidaMaxima', 'curaAcumulada', 'adaptacao', 'expansao']);
-        expect(paramsPadrao(m(VERG))).toEqual({ divisor: 10, limiteAcumulo: 999, acertoPorTurno: 5 });
+        expect(paramsPadrao(m(VERG))).toEqual({ modoAcumulo: 'somar', divisor: 10, limiteAcumulo: 999, acertoPorTurno: 5 });
     });
     it('todo parametro tem min<=padrao<=max', () => {
-        MODELOS.forEach(mo => mo.partes.flatMap(p => p.parametros).forEach((p) => {
+        MODELOS.forEach(mo => mo.partes.flatMap(p => p.parametros).filter(p => p.tipo !== 'modo').forEach((p) => {
             expect(p.min).toBeLessThanOrEqual(p.padrao);
             expect(p.padrao).toBeLessThanOrEqual(p.max);
         }));
@@ -95,9 +95,9 @@ describe('construir: Ego Superior', () => {
         const g = construir(EGO, ['prestigioPorAcerto']).poder.gatilhos;
         expect(g.map(x => [x.evento.tipo, x.evento.nivel])).toEqual([['acertou', 'normal'], ['acertou', 'critico'], ['acertou', 'fatal']]);
         expect(g.map(x => x.acoes[0])).toEqual([
-            expect.objectContaining({ tipo: 'ganhoPermanente', valor: 2 }),
-            expect.objectContaining({ tipo: 'ganhoPermanente', valor: 3 }),
-            expect.objectContaining({ tipo: 'ganhoPermanente', valor: 4 }),
+            expect.objectContaining({ tipo: 'ganhoPermanente', unidade: 'percentual', modo: 'multiplicar', valor: 2 }),
+            expect.objectContaining({ tipo: 'ganhoPermanente', unidade: 'percentual', modo: 'multiplicar', valor: 3 }),
+            expect.objectContaining({ tipo: 'ganhoPermanente', unidade: 'percentual', modo: 'multiplicar', valor: 4 }),
         ]);
     });
     it('ganho 0 nao cria o gatilho do nivel (ids mantem posicao)', () => {

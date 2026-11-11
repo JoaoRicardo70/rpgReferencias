@@ -11,7 +11,9 @@
 // criou antes e troca só isso, sem tocar no que o Mestre/jogador acrescentou à mão.
 //
 // SUPOSIÇÕES (detalhe em D:\sistema rpg anime\ficha-referencia\modelos-prontos.md):
-//  - Os valores de ganho (+2/+3/+4 etc.) são somados DIRETO em ficha.ganhosPermanentes.poderCalculado (ação `ganhoPermanente`), como o usuário decidiu.
+//  - Os ganhos (+2%/+3%/+4% etc.) são ações `ganhoPermanente` em PERCENTUAL, com modo por parte: 'multiplicar' (composto em ficha.ganhosPermanentes.fatorPoder; padrão do Ego)
+//    ou 'somar' (linear em ficha.ganhosPermanentes.poderCalculado, +p/100; padrão do Verg). Params antigos sem `modo` caem no padrão da parte ao regenerar.
+//  - Verg: cada golpe acumulado vale 1/divisor de 1% (divisor 10 = 0,1% por golpe).
 //  - Gatilhos nascem `automatico` + `armado` (o Mestre concede de propósito); a opção `criarOpcionais` os cria opcionais e desarmados.
 //  - Verg: o Acerto por turno é +N FIXO (somarBuffTemporario substitui buff de mesmo nome/fonte; não acumula), com nome de gatilho constante.
 //  - Ego: o contador de críticos sofridos tem reset 'cena' (os críticos sofridos pela metade se perdem ao fim da cena; pergunta aberta ao usuário).
@@ -29,6 +31,9 @@ export const ORIGENS_PODER = [
 const LIMITE_EFEITOS = 12;
 const LIMITE_FONTE_ORIGEM = 60;
 
+export const MODOS_GANHO = [{ id: 'multiplicar', rotulo: 'Multiplicar o Poder (composto)' }, { id: 'somar', rotulo: 'Somar ao bônus (linear)' }];
+const modoGanho = (v, padrao) => (v === 'somar' || v === 'multiplicar' ? v : padrao);
+const textoModo = (modo) => (modo === 'multiplicar' ? 'multiplica' : 'soma');
 const numero = (v, padrao) => { if (v === '' || v === null || v === undefined) return padrao; const n = Number(v); return Number.isFinite(n) ? n : padrao; };
 const preso = (n, min, max) => Math.max(min, Math.min(max, n));
 
@@ -58,10 +63,10 @@ const EGO = {
     id: 'egoSuperior',
     curto: 'ego',
     nome: 'Ego Superior',
-    resumo: 'Forma Especial com 140x em Vida, Dano, Status e Energias; ganha Poder permanente por acerto e por golpe crítico/fatal sofrido; imune a condições.',
+    resumo: 'Forma Especial com 140x em Vida, Dano, Status e Energias; ganha Poder permanente (em %) por acerto e por golpe crítico/fatal sofrido; imune a condições.',
     categoria: 'forma',
     temOrigem: false,
-    descricao: 'Forma Especial. Cada acerto e golpe crítico/fatal sofrido soma Poder permanente (Poder Calculado). Energia Potencial: sem limite (ignorada pelo app).',
+    descricao: 'Forma Especial. Cada acerto e golpe crítico/fatal sofrido dá um ganho permanente de Poder em % (multiplica ou soma, conforme o modo). Energia Potencial: sem limite (ignorada pelo app).',
     partes: [
         {
             id: 'multiplicadores', rotulo: 'Multiplicador x140', suportado: true, padrao: true,
@@ -70,20 +75,22 @@ const EGO = {
         },
         {
             id: 'prestigioPorAcerto', rotulo: 'Poder por acerto', suportado: true, padrao: true,
-            descricao: 'Cada acerto soma Poder permanente: normal, crítico e fatal (E-51).',
+            descricao: 'Cada acerto dá um ganho permanente de Poder em %: normal, crítico e fatal (E-51). Modo: multiplica o Poder atual (composto) ou soma ao bônus (linear).',
             parametros: [
-                { id: 'ganhoNormal', rotulo: 'Acerto normal', tipo: 'numero', padrao: 2, min: 0, max: 1000 },
-                { id: 'ganhoCritico', rotulo: 'Acerto crítico', tipo: 'numero', padrao: 3, min: 0, max: 1000 },
-                { id: 'ganhoFatal', rotulo: 'Acerto fatal', tipo: 'numero', padrao: 4, min: 0, max: 1000 },
+                { id: 'modoAcerto', rotulo: 'Modo', tipo: 'modo', padrao: 'multiplicar' },
+                { id: 'ganhoNormal', rotulo: 'Acerto normal (%)', tipo: 'numero', padrao: 2, min: 0, max: 1000 },
+                { id: 'ganhoCritico', rotulo: 'Acerto crítico (%)', tipo: 'numero', padrao: 3, min: 0, max: 1000 },
+                { id: 'ganhoFatal', rotulo: 'Acerto fatal (%)', tipo: 'numero', padrao: 4, min: 0, max: 1000 },
             ],
         },
         {
             id: 'prestigioPorDanoSofrido', rotulo: 'Poder por crítico/fatal sofrido', suportado: true, padrao: true,
-            descricao: 'A cada N críticos sofridos (contador) ou 1 fatal sofrido, soma Poder permanente (E-50).',
+            descricao: 'A cada N críticos sofridos (contador) ou 1 fatal sofrido, ganho permanente de Poder em % (E-50). Modo: multiplica (composto) ou soma (linear).',
             parametros: [
+                { id: 'modoDanoSofrido', rotulo: 'Modo', tipo: 'modo', padrao: 'multiplicar' },
                 { id: 'criticosPorGanho', rotulo: 'Críticos sofridos por ganho', tipo: 'numero', padrao: 3, min: 1, max: 100 },
-                { id: 'ganhoPorCriticos', rotulo: 'Ganho a cada série de críticos', tipo: 'numero', padrao: 2, min: 0, max: 1000 },
-                { id: 'ganhoPorFatal', rotulo: 'Ganho por fatal sofrido', tipo: 'numero', padrao: 2, min: 0, max: 1000 },
+                { id: 'ganhoPorCriticos', rotulo: 'Ganho (%) a cada série de críticos', tipo: 'numero', padrao: 2, min: 0, max: 1000 },
+                { id: 'ganhoPorFatal', rotulo: 'Ganho (%) por fatal sofrido', tipo: 'numero', padrao: 2, min: 0, max: 1000 },
             ],
         },
         {
@@ -114,9 +121,10 @@ const EGO = {
         },
         prestigioPorAcerto: (p) => {
             const gatilhos = [];
+            const modo = modoGanho(p.modoAcerto, 'multiplicar');
             [['normal', 'ganhoNormal', 'normal'], ['critico', 'ganhoCritico', 'crítico'], ['fatal', 'ganhoFatal', 'fatal']].forEach(([nivel, chave, rotulo], i) => {
                 const valor = numero(p[chave], 0);
-                if (valor > 0) gatilhos.push({ id: idGatilho('ego', 'acerto', i + 1), nome: `Ego: +${valor} por acerto ${rotulo}`, evento: { tipo: 'acertou', nivel }, acoes: [{ tipo: 'ganhoPermanente', valor }] });
+                if (valor > 0) gatilhos.push({ id: idGatilho('ego', 'acerto', i + 1), nome: `Ego: +${valor}% por acerto ${rotulo} (${textoModo(modo)})`, evento: { tipo: 'acertou', nivel }, acoes: [{ tipo: 'ganhoPermanente', unidade: 'percentual', modo, valor }] });
             });
             return { gatilhos };
         },
@@ -125,16 +133,17 @@ const EGO = {
             const porSerie = Math.floor(preso(numero(p.criticosPorGanho, 3), 1, 100));
             const ganhoSerie = numero(p.ganhoPorCriticos, 0);
             const ganhoFatal = numero(p.ganhoPorFatal, 0);
+            const modo = modoGanho(p.modoDanoSofrido, 'multiplicar');
             if (ganhoSerie > 0) {
                 contadores.push({ id: ID_CONTADOR_EGO, nome: 'Ego: críticos sofridos', min: 0, max: porSerie, reset: 'cena' });
                 gatilhos.push({ id: idGatilho('ego', 'dano', 1), nome: 'Ego: conta crítico sofrido', evento: { tipo: 'atingido', nivel: 'critico' }, acoes: [{ tipo: 'contador', id: ID_CONTADOR_EGO, op: 'somar', valor: 1 }] });
                 gatilhos.push({
-                    id: idGatilho('ego', 'dano', 2), nome: `Ego: +${ganhoSerie} a cada ${porSerie} críticos sofridos`,
+                    id: idGatilho('ego', 'dano', 2), nome: `Ego: +${ganhoSerie}% a cada ${porSerie} críticos sofridos (${textoModo(modo)})`,
                     evento: { tipo: 'contadorAtingiu', contadorId: ID_CONTADOR_EGO, op: '>=', valor: porSerie },
-                    acoes: [{ tipo: 'ganhoPermanente', valor: ganhoSerie }, { tipo: 'contador', id: ID_CONTADOR_EGO, op: 'zerar' }],
+                    acoes: [{ tipo: 'ganhoPermanente', unidade: 'percentual', modo, valor: ganhoSerie }, { tipo: 'contador', id: ID_CONTADOR_EGO, op: 'zerar' }],
                 });
             }
-            if (ganhoFatal > 0) gatilhos.push({ id: idGatilho('ego', 'dano', 3), nome: `Ego: +${ganhoFatal} por fatal sofrido`, evento: { tipo: 'atingido', nivel: 'fatal' }, acoes: [{ tipo: 'ganhoPermanente', valor: ganhoFatal }] });
+            if (ganhoFatal > 0) gatilhos.push({ id: idGatilho('ego', 'dano', 3), nome: `Ego: +${ganhoFatal}% por fatal sofrido (${textoModo(modo)})`, evento: { tipo: 'atingido', nivel: 'fatal' }, acoes: [{ tipo: 'ganhoPermanente', unidade: 'percentual', modo, valor: ganhoFatal }] });
             return { gatilhos, contadores };
         },
         imunidadeCondicoes: () => ({ efeitos: [{ nome: 'Ego Superior: imune a condições', atributo: 'imune_estado', propriedade: 'base', valor: '1', escopo: 'todos' }] }),
@@ -153,13 +162,14 @@ const VERG = {
     resumo: 'Habilidade que acumula o que sofre e, ao fim da luta, converte em Poder permanente; ganha +N de Acerto por turno (fixo, não acumula).',
     categoria: 'habilidade',
     temOrigem: true,
-    descricao: 'Habilidade passiva: acumula os golpes sofridos e, ao fim da luta (cena), o acumulado vira Poder permanente.',
+    descricao: 'Habilidade passiva: acumula os golpes sofridos e, ao fim da luta (cena), o acumulado vira ganho permanente de Poder em % (cada golpe = 1/divisor de 1%).',
     partes: [
         {
             id: 'acumuloDeDano', rotulo: 'Acúmulo → ganho permanente', suportado: true, padrao: true,
-            descricao: 'Conta cada golpe que causa dano na Vida; no fim da cena o acumulado ÷ divisor vira Poder permanente e o contador zera (A-31).',
+            descricao: 'Conta cada golpe que causa dano na Vida; no fim da cena cada golpe acumulado vale 1/divisor de 1% de Poder permanente e o contador zera (A-31). Modo: soma (linear, padrão) ou multiplica (composto).',
             parametros: [
-                { id: 'divisor', rotulo: 'Divisor do acumulado (1/10 a 1/6)', tipo: 'numero', padrao: 10, min: 1, max: 1000 },
+                { id: 'modoAcumulo', rotulo: 'Modo', tipo: 'modo', padrao: 'somar' },
+                { id: 'divisor', rotulo: 'Divisor do acumulado (cada golpe = 1/divisor de 1%)', tipo: 'numero', padrao: 10, min: 1, max: 1000 },
                 { id: 'limiteAcumulo', rotulo: 'Máximo do contador', tipo: 'numero', padrao: 999, min: 1, max: 9999 },
             ],
         },
@@ -189,12 +199,13 @@ const VERG = {
         acumuloDeDano: (p) => {
             const divisor = preso(numero(p.divisor, 10), 1, 1000);
             const maximo = Math.floor(preso(numero(p.limiteAcumulo, 999), 1, 9999));
-            const fator = Math.round((1 / divisor) * 1e6) / 1e6;
+            const fator = Math.round((1 / divisor) * 1e6) / 1e6; // % de Poder por golpe acumulado
+            const modo = modoGanho(p.modoAcumulo, 'somar');
             return {
                 contadores: [{ id: ID_CONTADOR_VERG, nome: 'Verg Avesta: acumulado', min: 0, max: maximo }],
                 gatilhos: [
                     { id: idGatilho('verg', 'acumulo', 1), nome: 'Verg: acumula o golpe sofrido', evento: { tipo: 'atingido', nivel: 'qualquer' }, passivo: true, acoes: [{ tipo: 'contador', id: ID_CONTADOR_VERG, op: 'somar', valor: 1 }] },
-                    { id: idGatilho('verg', 'acumulo', 2), nome: `Verg: acumulado ÷ ${divisor} vira Poder`, evento: { tipo: 'fimDeLuta' }, passivo: true, acoes: [{ tipo: 'ganhoPermanente', deContador: { id: ID_CONTADOR_VERG, fator, zerar: true } }] },
+                    { id: idGatilho('verg', 'acumulo', 2), nome: `Verg: acumulado ÷ ${divisor} vira Poder (${textoModo(modo)})`, evento: { tipo: 'fimDeLuta' }, passivo: true, acoes: [{ tipo: 'ganhoPermanente', unidade: 'percentual', modo, deContador: { id: ID_CONTADOR_VERG, fator, zerar: true } }] },
                 ],
                 notas: ['Acúmulo: o app conta GOLPES sofridos (não o dano exato); o Mestre ajusta o total em "Ganhos permanentes" se quiser o valor exato.'],
             };
@@ -228,7 +239,7 @@ export function normalizarSelecao(m, selecao) {
 }
 export function normalizarParams(m, params) {
     const bruto = params && typeof params === 'object' ? params : {};
-    return Object.fromEntries(parametrosDe(m).map(p => [p.id, preso(numero(bruto[p.id], p.padrao), p.min, p.max)]));
+    return Object.fromEntries(parametrosDe(m).map(p => [p.id, p.tipo === 'modo' ? modoGanho(bruto[p.id], p.padrao) : preso(numero(bruto[p.id], p.padrao), p.min, p.max)]));
 }
 
 // Material de UMA seleção (sem ficha): efeitos, gatilhos, contadores e notas, nesta ordem de partes.
@@ -328,6 +339,12 @@ export const obterModelo = (id) => MODELOS.find(m => m.id === id) || null;
 
 // Poder da ficha criado por este modelo (modelo.id igual), ou null.
 export const acharPoderDoModelo = (ficha, modeloId) => (ficha && Array.isArray(ficha.poderes) ? ficha.poderes.find(p => p && p.modelo && p.modelo.id === modeloId) || null : null);
+
+// true se o poder do modelo já na ficha tem gatilho `ganhoPermanente` legado (sem `unidade`: valor bruto, +2 = +200%).
+export function temGanhoLegado(poder) {
+    const gs = poder && Array.isArray(poder.gatilhos) ? poder.gatilhos : [];
+    return gs.some(g => g && Array.isArray(g.acoes) && g.acoes.some(a => a && a.tipo === 'ganhoPermanente' && a.unidade === undefined));
+}
 
 // O que o Mestre vai ver antes de aplicar: { modo: 'novo'|'editar', poderes, contadores, gatilhos, efeitos, avisos, ok, erro }.
 export function planejarModelo(modeloId, selecao, params, fichaAtual, opcoes = {}) {

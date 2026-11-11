@@ -637,7 +637,7 @@ const ALVO_SCHEMA = { type: 'STRING', description: 'Personagem que recebe (vazio
 // Gatilhos (core/gatilhos.js): o schema espelha o vocabulário REAL; o que não fechar é descartado por normalizarGatilhos.
 const PROPS_ACAO_GATILHO = {
     tipo: { type: 'STRING', enum: ACOES_GATILHO.map(a => a.id) },
-    modo: { type: 'STRING', description: 'curar/danoEmSi: fixo | percMax | percAtual. danoNoAtacante: percDanoRecebido | fixo. buff: turnos | combate | permanente.' },
+    modo: { type: 'STRING', description: 'curar/danoEmSi: fixo | percMax | percAtual. danoNoAtacante: percDanoRecebido | fixo. buff: turnos | combate | permanente. ganhoPermanente: somar (linear) | multiplicar (composto: multiplica o Poder atual por 1+%/100); sempre junto de unidade:"percentual" (sem modo nem unidade o valor é bruto, formato antigo).' },
     valor: { type: 'NUMBER' }, percMax: { type: 'NUMBER', description: 'definirVida: % da Vida máxima (use valor OU percMax).' },
     nome: { type: 'STRING' }, tipoEscudo: { type: 'STRING', enum: ['escudo', 'vidaTemporaria'] },
     atributo: { type: 'STRING', description: 'buff: atributo do efeito.' }, duracao: { type: 'INTEGER', description: 'buff: turnos (1 a 20). aplicarEstado: turnos que o estado dura (1 a 99), omita se for até remover.' },
@@ -645,7 +645,7 @@ const PROPS_ACAO_GATILHO = {
     id: { type: 'STRING', description: 'contador: id do contador existente na ficha.' }, op: { type: 'STRING', enum: OPS_CONTADOR_ACAO }, sorteio: { type: 'STRING', description: 'contador: "NdM".' },
     estado: { type: 'STRING', description: `aplicarEstado/removerEstado. Ids: ${ESTADOS.map(e => e.id).join(', ')}.` }, stacks: { type: 'INTEGER' },
     poderId: { type: 'STRING', description: 'ligarPoder/desligarPoder.' },
-    deContador: { type: 'OBJECT', description: 'ganhoPermanente a partir de um contador: ganho no Poder Calculado = valor atual do contador x fator (use isto OU valor).', properties: { id: { type: 'STRING', description: 'nome do contador' }, fator: { type: 'NUMBER' }, zerar: { type: 'BOOLEAN', description: 'zerar o contador depois' } } },
+    unidade: { type: 'STRING', enum: ['percentual', 'bruto'], description: 'ganhoPermanente: use "percentual" (valor = % de Poder, ex.: +2% = 2); "bruto" só para o formato antigo.' }, deContador: { type: 'OBJECT', description: 'ganhoPermanente a partir de um contador: ganho no Poder Calculado = valor atual do contador x fator, em % quando unidade percentual (use isto OU valor).', properties: { id: { type: 'STRING', description: 'nome do contador' }, fator: { type: 'NUMBER' }, zerar: { type: 'BOOLEAN', description: 'zerar o contador depois' } } },
 };
 const GATILHOS_SCHEMA = {
     type: 'ARRAY',

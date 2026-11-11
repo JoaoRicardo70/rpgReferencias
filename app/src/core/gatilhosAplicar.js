@@ -17,7 +17,8 @@ import { calcularEficaciaCura } from './engine.js';
 import { adicionarEscudo, removerEscudo } from './escudos.js';
 import { gastarUso } from './usosPoder.js';
 import { somarBuffTemporario } from './suporte.js';
-import { chaveDoGatilhoDoPoder, normalizarGatilhos, LIMITE_TOTAL_GANHO_PERMANENTE } from './gatilhos.js';
+import { chaveDoGatilhoDoPoder, normalizarGatilhos, LIMITE_TOTAL_GANHO_PERMANENTE, LIMITE_GANHO_PERC_MIN, LIMITE_GANHO_PERMANENTE } from './gatilhos.js';
+import { FATOR_PODER_MAX, FATOR_PODER_MIN } from './poder.js';
 
 const fmtN = (n) => Math.floor(Number(n) || 0).toLocaleString('pt-BR');
 const fmtGanho = (n) => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 6 });
@@ -269,7 +270,8 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                 break;
             }
             case 'ganhoPermanente': {
-                // Soma ao total permanente do Poder Calculado (ficha.ganhosPermanentes.poderCalculado). Fixo, ou valor ATUAL do contador x fator (zerar opcional).
+                // Ganho permanente de Poder. Legado (bruto): soma ao total aditivo ficha.ganhosPermanentes.poderCalculado. Percentual: ver abaixo (soma p/100 ou multiplica fatorPoder).
+                // Fixo, ou valor ATUAL do contador x fator (zerar opcional).
                 let ganho = 0; let origem = ''; let iZerar = -1;
                 if (a.deContador) {
                     const i = Array.isArray(ficha.contadores) ? ficha.contadores.findIndex(c => c && String(c.id) === String(a.deContador.id)) : -1;
@@ -280,14 +282,37 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                     origem = `${c.nome} ${v} x ${a.deContador.fator}`;
                     if (a.deContador.zerar) iZerar = i;
                 } else { ganho = Number(a.valor); origem = 'valor fixo'; }
-                if (!Number.isFinite(ganho) || !(ganho > 0)) break;
-                const atualGp = Number(ficha.ganhosPermanentes && ficha.ganhosPermanentes.poderCalculado);
-                const base = Number.isFinite(atualGp) && atualGp > 0 ? atualGp : 0;
-                const total = Math.round(Math.min(LIMITE_TOTAL_GANHO_PERMANENTE, base + ganho) * 1e9) / 1e9;
-                if (!ficha.ganhosPermanentes || typeof ficha.ganhosPermanentes !== 'object') ficha.ganhosPermanentes = {};
-                ficha.ganhosPermanentes.poderCalculado = total;
-                caminhos.add('ganhosPermanentes/poderCalculado');
-                textos.push(`${nome}: +${fmtGanho(ganho)} de Poder permanente (${origem}); total ${fmtGanho(total)}`);
+                if (!Number.isFinite(ganho)) break;
+                if (a.unidade === 'percentual') {
+                    // Percentual: p em %, limitado por disparo (nunca zera o Poder). 'somar' = linear no total aditivo; 'multiplicar' = composto em fatorPoder.
+                    const p = Math.max(LIMITE_GANHO_PERC_MIN, Math.min(LIMITE_GANHO_PERMANENTE, ganho));
+                    if (p === 0) break;
+                    if (!ficha.ganhosPermanentes || typeof ficha.ganhosPermanentes !== 'object') ficha.ganhosPermanentes = {};
+                    if (a.modo === 'multiplicar') {
+                        const atualFp = Number(ficha.ganhosPermanentes.fatorPoder);
+                        const baseFp = Number.isFinite(atualFp) && atualFp > 0 ? atualFp : 1;
+                        const fator = Math.round(Math.min(FATOR_PODER_MAX, Math.max(FATOR_PODER_MIN, baseFp * (1 + p / 100))) * 1e9) / 1e9;
+                        ficha.ganhosPermanentes.fatorPoder = fator;
+                        caminhos.add('ganhosPermanentes/fatorPoder');
+                        textos.push(`${nome}: ${p > 0 ? '+' : ''}${fmtGanho(p)}% de Poder, multiplica (${origem}); fator ${fmtGanho(fator)}x`);
+                    } else {
+                        const atualGp = Number(ficha.ganhosPermanentes.poderCalculado);
+                        const base = Number.isFinite(atualGp) && atualGp > 0 ? atualGp : 0;
+                        const total = Math.round(Math.max(0, Math.min(LIMITE_TOTAL_GANHO_PERMANENTE, base + p / 100)) * 1e9) / 1e9;
+                        ficha.ganhosPermanentes.poderCalculado = total;
+                        caminhos.add('ganhosPermanentes/poderCalculado');
+                        textos.push(`${nome}: ${p > 0 ? '+' : ''}${fmtGanho(p)}% de Poder, soma (${origem}); total ${fmtGanho(total * 100)}%`);
+                    }
+                } else {
+                    if (!(ganho > 0)) break;
+                    const atualGp = Number(ficha.ganhosPermanentes && ficha.ganhosPermanentes.poderCalculado);
+                    const base = Number.isFinite(atualGp) && atualGp > 0 ? atualGp : 0;
+                    const total = Math.round(Math.min(LIMITE_TOTAL_GANHO_PERMANENTE, base + ganho) * 1e9) / 1e9;
+                    if (!ficha.ganhosPermanentes || typeof ficha.ganhosPermanentes !== 'object') ficha.ganhosPermanentes = {};
+                    ficha.ganhosPermanentes.poderCalculado = total;
+                    caminhos.add('ganhosPermanentes/poderCalculado');
+                    textos.push(`${nome}: +${fmtGanho(ganho)} de Poder permanente (${origem}); total ${fmtGanho(total)}`);
+                }
                 if (iZerar >= 0) {
                     const c = ficha.contadores[iZerar];
                     const antes = Number(c.valor) || 0;
@@ -427,7 +452,7 @@ export function camposParaGravar(ficha, caminhos) {
 
 // Campos de gatilhos/condições que mudaram entre duas versões da ficha (para gravar só eles no Firebase de OUTRO jogador).
 // Formato { caminho: valor | null }. Usado no início do turno (estados que tiram Vida, Imunidade total que passa).
-const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
+const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'ganhosPermanentes/fatorPoder', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
 export function camposDeGatilhosAlterados(antes, depois) {
     const lido = (f, caminho) => caminho.split('/').reduce((v, p) => (v === undefined || v === null ? undefined : v[p]), f);
     const mudados = CAMINHOS_GATILHOS.filter(c => JSON.stringify(lido(antes, c)) !== JSON.stringify(lido(depois, c)));

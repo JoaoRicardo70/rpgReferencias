@@ -25,6 +25,9 @@
 //   ganhoPermanente {valor} | {deContador:{id, fator, zerar?}}: soma ao total ficha.ganhosPermanentes.poderCalculado (só cresce por gatilho; o Mestre ajusta à mão),
 //            que entra no Poder Calculado como fonte ADITIVA 'Ganho_Permanente' do grupo MGERAL (core/poder.js > getGlobalMultipliers). Com deContador o ganho é
 //            valor atual do contador × fator (contador inexistente ou ganho <= 0: nada acontece); `zerar` zera o contador depois.
+//            Campos novos: `unidade: 'percentual'|'bruto'` e `modo: 'somar'|'multiplicar'`. Ausência de `unidade` E de `modo` = 'bruto' + 'somar' (legado, sem migração); `modo` sem `unidade` = percentual.
+//            Percentual: valor/fator = p em % (-99,99..1e6 por disparo). 'somar' acrescenta p/100 ao total aditivo (poderCalculado); 'multiplicar' multiplica
+//            ficha.ganhosPermanentes.fatorPoder (default 1) por (1 + p/100) (composto; entra em totalDano de getGlobalMultipliers).
 //   Gatilho disparado dentro de outro gatilho respeita profundidade máx. 3 e o mesmo gatilho não dispara 2x na cadeia.
 // Faixas de Vida: o percentual é arredondado PARA BAIXO ao inteiro antes de comparar (6,9% conta como 6); a faixa é inclusiva nas duas pontas.
 // Um golpe que cruza várias faixas só dispara a faixa onde a Vida TERMINA (as outras não contêm a Vida final) e só na borda (entrando de fora).
@@ -57,6 +60,8 @@ export const LIMITE_OPCOES_ESCOLHA = 6;
 export const LIMITE_GANHO_PERMANENTE = 1e6;
 export const LIMITE_FATOR_GANHO = 1e6;
 export const LIMITE_TOTAL_GANHO_PERMANENTE = 1e9;
+// ganhoPermanente em %: por disparo, p fica entre -99,99 e 1e6 (nunca zera o Poder).
+export const LIMITE_GANHO_PERC_MIN = -99.99;
 export const LIMITE_ATE_TABELA = 100000;
 export const NIVEIS_ACERTO = ['qualquer', 'normal', 'critico', 'fatal'];
 export const OPS_CONTADOR_ACAO = ['somar', 'definir', 'zerar', 'dividir'];
@@ -212,16 +217,23 @@ export function normalizarAcaoGatilho(bruta, opcoes = {}) {
             return { tipo: 'danoNoAtacante', modo, valor: limitar(valor, 0, modo === 'fixo' ? LIMITE_VALOR_GATILHO : 1000) };
         }
         case 'ganhoPermanente': {
+            // Sem `unidade` (ações antigas) = 'bruto' + 'somar' (formato legado, sem campos novos). Percentual: `valor`/`fator` são % (pode ser negativo até -99,99).
+            // Exceção: `modo` somar/multiplicar SEM `unidade` (a IA esqueceu) = percentual (evita ganho 100x maior). Ações legadas nunca têm `modo`.
+            const modoExplicito = bruta.modo === 'somar' || bruta.modo === 'multiplicar';
+            const perc = bruta.unidade === 'percentual' || (bruta.unidade === undefined && modoExplicito);
+            const modoGp = bruta.modo === 'multiplicar' ? 'multiplicar' : 'somar';
+            const extra = perc ? { unidade: 'percentual', modo: modoGp } : {};
+            const minimo = perc ? LIMITE_GANHO_PERC_MIN : 0;
             const dc = bruta.deContador;
             if (dc && typeof dc === 'object') {
                 const id = texto(dc.id, 60);
                 const fator = numero(dc.fator);
-                if (!id || fator === null || fator <= 0) return null;
-                return { tipo: 'ganhoPermanente', deContador: { id, fator: limitar(fator, 0, LIMITE_FATOR_GANHO), ...(dc.zerar === true ? { zerar: true } : {}) } };
+                if (!id || fator === null || (perc ? fator === 0 : fator <= 0)) return null;
+                return { tipo: 'ganhoPermanente', ...extra, deContador: { id, fator: limitar(fator, minimo, LIMITE_FATOR_GANHO), ...(dc.zerar === true ? { zerar: true } : {}) } };
             }
             const valor = numero(bruta.valor);
-            if (valor === null || bruta.valor === '' || valor <= 0) return null;
-            return { tipo: 'ganhoPermanente', valor: limitar(valor, 0, LIMITE_GANHO_PERMANENTE) };
+            if (valor === null || bruta.valor === '' || (perc ? valor === 0 : valor <= 0)) return null;
+            return { tipo: 'ganhoPermanente', ...extra, valor: limitar(valor, minimo, LIMITE_GANHO_PERMANENTE) };
         }
         case 'rolarTabela': {
             if (opcoes.dentroDeTabela) return null;
@@ -592,9 +604,15 @@ export function descreverAcaoGatilho(a, ctx = null) {
         case 'danoNoAtacante': return a.modo === 'fixo' ? `causar ${fmtN(a.valor)} de dano no atacante` : `devolver ${a.valor}% do dano recebido (antes do escudo) ao atacante`;
         case 'rolarTabela': return descreverTabela(a, ctx);
         case 'pedirEscolha': return descreverEscolha(a, ctx);
-        case 'ganhoPermanente': return a.deContador
-            ? `ganhar Poder permanente: ${nomeDoContador(a.deContador.id, ctx)} x ${a.deContador.fator}${a.deContador.zerar ? ' (e zerar o contador)' : ''}`
-            : `ganhar +${a.valor} de Poder permanente`;
+        case 'ganhoPermanente': {
+            const perc = a.unidade === 'percentual';
+            const sufixo = perc ? (a.modo === 'multiplicar' ? ' (multiplica)' : ' (soma)') : '';
+            const sinalPerc = (n) => `${n > 0 ? '+' : ''}${n}%`;
+            if (a.deContador) {
+                return `ganhar Poder${perc ? '' : ' permanente'}: ${nomeDoContador(a.deContador.id, ctx)} x ${a.deContador.fator}${perc ? '%' : ''}${a.deContador.zerar ? ' (e zerar o contador)' : ''}${perc ? sufixo : ' (valor bruto, antigo)'}`;
+            }
+            return perc ? `ganha ${sinalPerc(a.valor)} de Poder${sufixo}` : `ganhar +${a.valor} de Poder permanente (valor bruto, antigo)`;
+        }
         case 'danoEmSi': return a.modo === 'fixo' ? `sofrer ${fmtN(a.valor)} de dano` : `sofrer dano de ${a.valor}% da Vida ${a.modo === 'percMax' ? 'máxima' : 'atual'}`;
         default: return '';
     }

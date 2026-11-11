@@ -27,7 +27,7 @@ describe('GatilhosEditor: ação ganhoPermanente', () => {
         clicar('+ Ação'); clicar('Salvar gatilho');
         expect(ultima).toHaveLength(1);
         expect(ultima[0].evento).toEqual({ tipo: 'acertou', nivel: 'normal' });
-        expect(ultima[0].acoes).toEqual([{ tipo: 'ganhoPermanente', valor: 2 }]);
+        expect(ultima[0].acoes).toEqual([{ tipo: 'ganhoPermanente', unidade: 'percentual', modo: 'somar', valor: 2 }]);
     });
     it('modo contador: Verg Avesta fimDeLuta, fator 0.0001, zerar', () => {
         abrir('fimDeLuta');
@@ -37,7 +37,7 @@ describe('GatilhosEditor: ação ganhoPermanente', () => {
         mudar('Fator do ganho permanente', '0.0001');
         fireEvent.click(screen.getByLabelText('Zerar o contador depois'));
         clicar('+ Ação'); clicar('Salvar gatilho');
-        expect(ultima[0].acoes).toEqual([{ tipo: 'ganhoPermanente', deContador: { id: 'dano', fator: 0.0001, zerar: true } }]);
+        expect(ultima[0].acoes).toEqual([{ tipo: 'ganhoPermanente', unidade: 'percentual', modo: 'somar', deContador: { id: 'dano', fator: 0.0001, zerar: true } }]);
     });
     it('modo contador sem zerar não grava zerar', () => {
         abrir('fimDeLuta');
@@ -47,7 +47,7 @@ describe('GatilhosEditor: ação ganhoPermanente', () => {
         expect(ultima[0].acoes[0].deContador).toEqual({ id: 'furia', fator: 2 });
     });
     it('valor vazio/zero/negativo não vira ação válida: não adiciona nem salva', () => {
-        for (const v of ['', '0', '-3']) {
+        for (const v of ['', '0']) { // em % o negativo passou a valer (até -99,99)
             cleanup();
             abrir('acertou');
             mudar('Valor do ganho permanente', v);
@@ -77,7 +77,7 @@ describe('GatilhosEditor: ação ganhoPermanente', () => {
     it('a lista mostra a frase descritiva do gatilho salvo', () => {
         abrir('acertou'); mudar('Valor do ganho permanente', '3');
         clicar('+ Ação'); clicar('Salvar gatilho');
-        expect(screen.getByText(/\+3 de Poder permanente/)).toBeTruthy();
+        expect(screen.getByText(/\+3% de Poder \(soma\)/)).toBeTruthy();
     });
     it('dentro de rolarTabela aparece como opção da linha', () => {
         render(<Host />); clicar('+ Novo gatilho');

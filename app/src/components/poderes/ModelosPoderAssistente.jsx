@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom';
 import useStore from '../../stores/useStore';
 import { useFichaAtiva, useSalvarImediatoAtivo } from '../Ficha Def/FichaAlvoContext';
 import {
-    MODELOS, ORIGENS_PODER, obterModelo, selecaoPadrao, paramsPadrao, normalizarSelecao, normalizarParams, normalizarOrigem,
-    acharPoderDoModelo, planejarModelo, aplicarModeloNaFicha,
+    MODELOS, MODOS_GANHO, ORIGENS_PODER, obterModelo, selecaoPadrao, paramsPadrao, normalizarSelecao, normalizarParams, normalizarOrigem,
+    acharPoderDoModelo, temGanhoLegado, planejarModelo, aplicarModeloNaFicha,
 } from '../../core/modelosPoder';
 
 // 🧩 "➕ Adicionar de modelo": assistente do MESTRE que cria de uma vez o poder + contadores + gatilhos de uma mecânica pronta
@@ -136,7 +136,13 @@ export default function ModelosPoderAssistente() {
                                             {parte.parametros.map(p => (
                                                 <label key={p.id} className="modelo-poder-param">
                                                     <span>{p.rotulo}</span>
-                                                    <input type="number" value={params[p.id] ?? p.padrao} min={p.min} max={p.max} onChange={e => mudarParam(p.id, e.target.value)} />
+                                                    {p.tipo === 'modo' ? (
+                                                        <select value={params[p.id] ?? p.padrao} onChange={e => mudarParam(p.id, e.target.value)} aria-label={`${parte.rotulo}: modo do ganho`}>
+                                                            {MODOS_GANHO.map(mo => <option key={mo.id} value={mo.id}>{mo.rotulo}</option>)}
+                                                        </select>
+                                                    ) : (
+                                                        <input type="number" value={params[p.id] ?? p.padrao} min={p.min} max={p.max} onChange={e => mudarParam(p.id, e.target.value)} />
+                                                    )}
                                                 </label>
                                             ))}
                                         </div>
@@ -174,6 +180,7 @@ export default function ModelosPoderAssistente() {
                                 <li>{plano.gatilhos} gatilho(s) {criarOpcionais ? 'opcionais e desarmados' : 'automáticos e armados'}</li>
                                 {modelo.temOrigem && <li>Origem: {origem.tipo === 'independente' ? 'independente' : `herdada${origem.fonte ? ` de ${origem.fonte}` : ' de um ser'}`}</li>}
                             </ul>
+                            {existente && temGanhoLegado(existente) && <div className="modelo-poder-resultado erro" role="alert">⚠️ Os ganhos agora são em % (ex.: Ego +2% por acerto; Verg 0,1% por golpe). Os gatilhos antigos usavam valor bruto (+2 = +200%); regenerar troca para a nova escala.</div>}
                             {plano.erro && <div className="modelo-poder-resultado erro" role="alert">⚠️ {plano.erro}</div>}
                             {plano.avisos.length > 0 && <ul className="modelo-poder-avisos">{plano.avisos.map((a, i) => <li key={i}>{a}</li>)}</ul>}
                         </div>
