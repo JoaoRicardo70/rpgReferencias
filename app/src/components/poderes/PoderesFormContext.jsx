@@ -10,7 +10,7 @@ import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes';
 import { uploadImagem, enviarParaFeed } from '../../services/firebase-sync';
 import { useFichaAtiva, useCallSaveAtivo, useSalvarImediatoAtivo } from '../Ficha Def/FichaAlvoContext';
-import { normalizarPasta, listarCaminhosPastas, renomearCaminhoPasta } from '../../core/pastas';
+import { normalizarPasta, listarCaminhosPastas, renomearCaminhoPasta, migrarChavesPastasAbertas, chavesComPastasMae, chavePastaAberta, NOME_SEM_PASTA } from '../../core/pastas';
 // 🔥 CORREÇÃO: a matemática "segura" que substituiu capturarMaximosAtuais/rescalarVitaisProporcional
 // aqui na verdade misturava escalas -- comparava `ficha[v].atual` (SEMPRE guardado na escala
 // COMPRIMIDA de calcVitalScale) contra `getMaximo(ficha, v)` (escala BRUTA/descomprimida) pra tirar
@@ -50,6 +50,7 @@ export function usePoderesForm() {
 // vira no-op e o formulário se comporta como antes (só em memória do componente).
 const ROTULO_CATEGORIA = { habilidade: 'Habilidades', forma: 'Formas', poder: 'Poderes' };
 const lerStoreRascunho = () => (typeof useStore.getState === 'function' ? useStore.getState() : null);
+const PASTAS_ABERTAS_VAZIO = {};
 
 // persistirRascunho: o formulário do Grimório (PoderesPanel) guarda o rascunho na store (core/rascunhoPoder.js),
 // um por dono da ficha + categoria, pra sobreviver a trocar de página do livro e de aba (Habilidades/Formas/Poderes).
@@ -59,6 +60,27 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     // minha ficha, exatamente como sempre (FichaAlvoContext.jsx > useFichaAtiva).
     const { ficha: minhaFicha, updateFicha, nome: meuNome, souEuMesmo } = useFichaAtiva();
     const isMestre = useStore(s => s.isMestre);
+    // 📂 Pastas abertas da lista (só em memória, por categoria::caminho): vive na store, não no componente da lista,
+    // pra sobreviver a trocar de aba, de página do Grimório e a remontar o livro. Sem nada aberto = tudo fechado.
+    const pastasAbertasStore = useStore(s => s.pastasAbertasPoder);
+    // Sem a store real (testes com store simulada) cai num estado local, que só dura enquanto o provider estiver montado.
+    const [pastasLocais, setPastasLocais] = useState(PASTAS_ABERTAS_VAZIO);
+    const pastasAbertas = pastasAbertasStore || pastasLocais;
+    const definirPastasAbertas = useCallback((chaves, aberta) => {
+        const st = lerStoreRascunho();
+        if (typeof st?.definirPastasPoder === 'function') { st.definirPastasPoder(chaves, aberta); return; }
+        setPastasLocais(prev => { const prox = { ...prev }; (chaves || []).forEach(c => { if (aberta) prox[c] = true; else delete prox[c]; }); return prox; });
+    }, []);
+    const alternarPasta = useCallback((chave) => {
+        const st = lerStoreRascunho();
+        if (typeof st?.alternarPastaPoder === 'function') { st.alternarPastaPoder(chave); return; }
+        setPastasLocais(prev => { const prox = { ...prev }; if (prox[chave]) delete prox[chave]; else prox[chave] = true; return prox; });
+    }, []);
+    const abrirPastaDoPoder = useCallback((categoria, pasta) => {
+        const chaves = chavesComPastasMae(categoria, pasta);
+        if (!chaves.length) chaves.push(chavePastaAberta(categoria, NOME_SEM_PASTA));
+        definirPastasAbertas(chaves, true);
+    }, [definirPastasAbertas]);
     const salvarFichaSilencioso = useCallSaveAtivo();
     const salvarFirebaseImediato = useSalvarImediatoAtivo();
 
@@ -512,6 +534,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
             }
         });
 
+        // O poder gravado fica à vista: a pasta dele (e as pastas-mãe) abre na lista.
+        abrirPastaDoPoder(abaAtual, normalizarPasta(pastaPoder));
         const chaveDoSalvamento = chaveRascunho;
         salvarFirebaseImediato().then(() => {
             // Gravou: o rascunho dessa categoria some (mesmo que o livro já tenha mudado de página/aba).
@@ -520,7 +544,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato, chaveRascunho]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato, chaveRascunho, abrirPastaDoPoder]);
 
     // 🔥 O ESCUDO ANTI-DRENAGEM (Resolve a perda acidental de energia ao Ligar a Forma) 🔥
     // `opcoes.semAoDesligar`: desligar por edição/exclusão não cobra o "ao desligar" (core/aoDesligar.js), só o desligar manual.
@@ -637,6 +661,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
             return;
         }
 
+        abrirPastaDoPoder(categoria, normalizarPasta(p.pasta));
         if (p.ativa) {
             togglePoder(id, { semAoDesligar: true });
             alert(`A técnica [${p.nome}] foi DESATIVADA temporariamente para edição.`);
@@ -652,7 +677,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         }
 
         if (formRef.current && typeof formRef.current.scrollIntoView === 'function') formRef.current.scrollIntoView({ behavior: 'smooth' });
-    }, [minhaFicha, poderEditandoId, temAlteracaoNaoGravada, chaveRascunho, abaAtual, meuNome, aplicarRascunho, togglePoder]);
+    }, [minhaFicha, poderEditandoId, temAlteracaoNaoGravada, chaveRascunho, abaAtual, meuNome, aplicarRascunho, togglePoder, abrirPastaDoPoder]);
 
     const deletarPoder = useCallback((id) => {
         if (!window.confirm('Tem certeza que deseja rasgar esta página permanentemente?')) return;
@@ -768,7 +793,16 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
             });
         });
         salvarFichaSilencioso();
-    }, [updateFicha, salvarFichaSilencioso]);
+        // A pasta renomeada/movida mantém o estado aberto/fechado (e as subpastas também); a apagada perde a chave.
+        if (categoria) {
+            const atuais = pastasAbertas || {};
+            const novas = migrarChavesPastasAbertas(atuais, categoria, pastaAntiga, novaLimpa);
+            const fechar = Object.keys(atuais).filter(c => atuais[c] && !novas[c]);
+            const abrir = Object.keys(novas).filter(c => !atuais[c]);
+            if (fechar.length) definirPastasAbertas(fechar, false);
+            if (abrir.length) definirPastasAbertas(abrir, true);
+        }
+    }, [updateFicha, salvarFichaSilencioso, pastasAbertas, definirPastasAbertas]);
 
     const relatorioAuditoria = useMemo(() => {
         const nomesProps = { mbase: 'MULT BASE (x)', mgeral: 'MULT GERAL (x)', mformas: 'MULT FORMA (x)', mabs: 'MULT ABSOLUTO (x)', munico: 'MULT UNICO (x)', base: 'VALOR BRUTO (+)' };
@@ -952,7 +986,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
-        pastaPoder, setPastaPoder, pastasExistentes, renomearPastaForma,
+        pastaPoder, setPastaPoder, pastasExistentes, renomearPastaForma, pastasAbertas, alternarPasta, definirPastasAbertas,
         estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal,
         novoQuando, setNovoQuando, novoEscopo, setNovoEscopo, novoQuandoPassivo, setNovoQuandoPassivo, novoEscopoPassivo, setNovoEscopoPassivo,
@@ -973,7 +1007,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         minhaFicha, meuNome, isMestre, abaAtual, trocarAba, secoesAbertas, rascunhoAtual, cancelarEdicaoComConfirmacao,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
         imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao, gatilhosPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, cenaAtivaId, poderAlcance,
-        poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma,
+        poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma, pastasAbertas, alternarPasta, definirPastasAbertas,
         estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo, novoQuandoPassivo, novoEscopoPassivo,
         nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, novoValPassivo,

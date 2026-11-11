@@ -77,3 +77,47 @@ export function renomearCaminhoPasta(pasta, antigo, novo) {
     const base = destino.length > 0 ? destino : ant.slice(0, -1);
     return [...base, ...segs.slice(ant.length)].join(SEPARADOR_PASTA);
 }
+
+// ==========================================
+// 📂 PASTAS ABERTAS NO LIVRO DOS PODERES
+// As pastas NASCEM FECHADAS. O que está aberto fica guardado (store, só em memória) por "categoria::caminho",
+// então trocar de aba, de página do Grimório ou remontar o livro não muda nada.
+// ==========================================
+export const SEPARADOR_CHAVE_PASTA = '::';
+
+// ('habilidade', 'Taijutsu/Portões') -> 'habilidade::Taijutsu/Portões'
+export function chavePastaAberta(categoria, caminho) {
+    return `${categoria}${SEPARADOR_CHAVE_PASTA}${caminho}`;
+}
+
+// Chaves da pasta e de todas as pastas-mãe ("A/B" -> A e A/B): abrir uma subpasta tem que abrir o caminho até ela.
+export function chavesComPastasMae(categoria, pasta) {
+    const segs = segmentosPasta(pasta);
+    const chaves = [];
+    for (let i = 1; i <= segs.length; i++) chaves.push(chavePastaAberta(categoria, segs.slice(0, i).join(SEPARADOR_PASTA)));
+    return chaves;
+}
+
+// Nome do "balde" dos itens sem pasta, quando a lista é agrupada (nunca colide com uma pasta real: o caminho é sempre trimado).
+export const NOME_SEM_PASTA = 'Sem Pasta';
+
+// Renomear/mover/remover uma pasta leva junto o "aberta/fechada" dela e das subpastas: devolve um novo mapa de pastas abertas
+// onde as chaves de `categoria` sob `de` passam para o caminho novo (`para` vazio = pasta removida: a chave dela some e as das
+// subpastas sobem pra pasta-mãe). Chaves de outras categorias ou fora de `de` ficam como estão.
+export function migrarChavesPastasAbertas(abertas, categoria, de, para) {
+    const origem = abertas || {};
+    const ant = segmentosPasta(de);
+    if (ant.length === 0) return { ...origem };
+    const prefixo = `${categoria}${SEPARADOR_CHAVE_PASTA}`;
+    const resultado = {};
+    Object.keys(origem).forEach((chave) => {
+        if (!origem[chave]) return;
+        if (!chave.startsWith(prefixo)) { resultado[chave] = origem[chave]; return; }
+        const segs = segmentosPasta(chave.slice(prefixo.length));
+        const sob = segs.length >= ant.length && ant.every((s, i) => segs[i] === s);
+        if (!sob) { resultado[chave] = origem[chave]; return; }
+        if (segs.length === ant.length && segmentosPasta(para).length === 0) return; // pasta removida
+        resultado[chavePastaAberta(categoria, renomearCaminhoPasta(segs.join(SEPARADOR_PASTA), de, para))] = true;
+    });
+    return resultado;
+}

@@ -405,6 +405,7 @@ describe('PoderesLista (UI) — badge "🥋 X% MAESTRIA" só aparece pra Forma (
         render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesLista /></PoderesFormProvider>);
 
         fireEvent.click(screen.getByText('🎭 Formas'));
+        fireEvent.click(screen.getByText('📂 Expandir tudo'));
 
         expect(screen.getByText(/42% MAESTRIA/)).toBeDefined();
     });
@@ -416,6 +417,7 @@ describe('PoderesLista (UI) — badge "🥋 X% MAESTRIA" só aparece pra Forma (
         render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesLista /></PoderesFormProvider>);
 
         fireEvent.click(screen.getByText('🎭 Formas'));
+        fireEvent.click(screen.getByText('📂 Expandir tudo'));
 
         expect(screen.getByText(/33% MAESTRIA/)).toBeDefined();
     });

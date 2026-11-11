@@ -829,7 +829,7 @@ function PaginaUtilitaria() {
 export default function ClassificacaoPanel() {
     return (
         <ClassificacaoProvider>
-            <div className="grimorio-estilo-papel" style={{ width: '100%' }}>
+            <div className="ficha-papel" style={{ width: '100%' }}>
                 <ClassificacaoNavegacao />
                 <ConteudoDinamico />
             </div>

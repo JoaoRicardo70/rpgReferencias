@@ -844,7 +844,7 @@ function PaginaSuprimentos() {
 export default function RelicarioPanel() {
     return (
         <RelicarioProvider>
-            <div className="grimorio-estilo-papel" style={{ width: '100%', paddingBottom: '30px' }}>
+            <div className="ficha-papel" style={{ width: '100%', paddingBottom: '30px' }}>
                 <AcessoArmaMestre />
                 <RelicarioNavegacao />
                 <ConteudoDinamico />

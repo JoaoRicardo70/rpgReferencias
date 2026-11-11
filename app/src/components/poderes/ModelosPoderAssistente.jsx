@@ -189,7 +189,7 @@ export default function ModelosPoderAssistente() {
 
     return (
         <div className="modelo-poder-barra">
-            <button type="button" ref={botaoAbrirRef} className="grimorio-importar-botao" onClick={abrir} title="Só o Mestre: cria de uma vez o poder, os contadores e os gatilhos de um modelo pronto">➕ Adicionar de modelo</button>
+            <button type="button" ref={botaoAbrirRef} className="btn-neon grimorio-btn grimorio-btn--sm grimorio-importar-botao" onClick={abrir} title="Só o Mestre: cria de uma vez o poder, os contadores e os gatilhos de um modelo pronto">➕ Adicionar de modelo</button>
             {painel && (typeof document !== 'undefined' && document.body ? createPortal(painel, document.body) : painel)}
         </div>
     );

@@ -3,6 +3,7 @@ import { immer } from 'zustand/middleware/immer';
 import { migrarPassivasParaPoderes } from '../core/utils.js';
 import { normalizarProficienciaPorEnergia } from '../core/proficienciaEnergia.js';
 import { temAcessoArmaEspiritual } from '../core/acessoArmaEspiritual.js';
+import { migrarEsteticaGrimorio } from '../core/grimorioEstetica.js';
 import { lerModoNavegacao, salvarModoNavegacao, lerLarguraGaveta, CHAVE_LARGURA_GAVETA, ABA_HUB } from '../core/modoNavegacao.js';
 
 export const fichaPadrao = {
@@ -180,6 +181,9 @@ const useStore = create(
         efeitosTemp: [], efeitosTempPassivos: [], efeitosTempArsenal: [], efeitosTempPassivosArsenal: [], efeitosTempForma: [], efeitosTempPassivosForma: [],
         // Rascunhos do formulário do Livro dos Poderes (core/rascunhoPoder.js): só em memória, nunca vão ao Firebase.
         rascunhosPoder: {},
+        // Pastas ABERTAS do Livro dos Poderes ({ 'categoria::caminho': true }, core/pastas.js > chavePastaAberta): só em memória.
+        // Pastas nascem fechadas; isto sobrevive a trocar de aba/página e a remontar o livro.
+        pastasAbertasPoder: {},
         // Importador de IA do Livro dos Poderes (core/transcricaoIA.js > chaveImportadorIA): texto colado, prévia e partes que falharam; só em memória.
         importadoresIA: {},
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
@@ -215,6 +219,8 @@ const useStore = create(
         setFormaEditandoId: (id) => set((state) => { state.formaEditandoId = id; }),
         setPoderEditandoId: (id) => set((state) => { state.poderEditandoId = id; }),
         setRascunhoPoder: (chave, valor) => set((state) => { if (!state.rascunhosPoder) state.rascunhosPoder = {}; state.rascunhosPoder[chave] = valor; }),
+        alternarPastaPoder: (chave) => set((state) => { if (!state.pastasAbertasPoder) state.pastasAbertasPoder = {}; if (state.pastasAbertasPoder[chave]) delete state.pastasAbertasPoder[chave]; else state.pastasAbertasPoder[chave] = true; }),
+        definirPastasPoder: (chaves, aberta) => set((state) => { if (!state.pastasAbertasPoder) state.pastasAbertasPoder = {}; (chaves || []).forEach(c => { if (aberta) state.pastasAbertasPoder[c] = true; else delete state.pastasAbertasPoder[c]; }); }),
         setImportadorIA: (chave, valor) => set((state) => { if (!state.importadoresIA) state.importadoresIA = {}; state.importadoresIA[chave] = valor; }),
         limparImportadorIA: (chave) => set((state) => { if (state.importadoresIA) delete state.importadoresIA[chave]; }),
         limparRascunhoPoder: (chave) => set((state) => { if (state.rascunhosPoder) delete state.rascunhosPoder[chave]; }),
@@ -396,7 +402,8 @@ const useStore = create(
             if (dados.multiplicadorForcaPrestigio !== undefined) state.minhaFicha.multiplicadorForcaPrestigio = parseFloat(dados.multiplicadorForcaPrestigio) || 1;
             if (dados.multiplicadorForcaAscensao !== undefined) state.minhaFicha.multiplicadorForcaAscensao = parseFloat(dados.multiplicadorForcaAscensao) || 1;
 
-            if (dados.esteticaGrimorio) state.minhaFicha.esteticaGrimorio = Object.assign({}, fichaPadrao.esteticaGrimorio, dados.esteticaGrimorio);
+            // 🎨 Formato antigo do Grimório (papel/tinta/fonte/textura) é migrado para { corDestaque }; o resto é ignorado.
+            state.minhaFicha.esteticaGrimorio = migrarEsteticaGrimorio(dados.esteticaGrimorio);
             state.minhaFicha.habilidades = dados.habilidades || [];
             state.minhaFicha.formas = dados.formas || [];
 

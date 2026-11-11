@@ -11,7 +11,7 @@ import FormasEditor from '../shared/FormasEditor';
 import EstagioControle from './EstagioControle';
 import EstagiosMarcosEditor from './EstagiosMarcosEditor';
 import { escalarEfeitosPorEstagio, previaEstagios, getMaximoEstagio, normalizarEstagios } from '../../core/estagios';
-import { construirArvorePastas, segmentosPasta } from '../../core/pastas';
+import { construirArvorePastas, segmentosPasta, chavePastaAberta, NOME_SEM_PASTA } from '../../core/pastas';
 import { rotuloComPolaridade } from '../../core/polaridade';
 import { montarPromptImportacao, prepararImportacao } from '../../core/importadorIA';
 import ImportadorPrevia from './ImportadorPrevia';
@@ -228,7 +228,7 @@ export function PoderesImportadorIA() {
 
     return (
         <div className="grimorio-importar">
-            <button type="button" className="grimorio-importar-botao" onClick={() => setAberto(!aberto)}>
+            <button type="button" className="btn-neon grimorio-btn grimorio-btn--sm grimorio-importar-botao" onClick={() => setAberto(!aberto)}>
                 {aberto ? 'Fechar Círculo de Invocação (IA)' : 'Abrir Círculo de Invocação (IA)'}
             </button>
             {aberto && (
@@ -277,31 +277,39 @@ export function PoderesImportadorIA() {
 }
 
 // 🔥 SUBSTITUI A SIDEBAR ANTIGA POR UM ÍNDICE NO TOPO DO LIVRO 🔥
-export function PoderesNavegacaoLivro() {
+export function PoderesNavegacaoLivro({ idBase = 'poderes-categoria' }) {
     const ctx = usePoderesForm();
     if (!ctx) return FALLBACK;
     const { abaAtual, trocarAba } = ctx;
 
+    const abas = [
+        { id: 'habilidade', rotulo: '🗡️ Habilidades' },
+        { id: 'forma', rotulo: '🎭 Formas' },
+        { id: 'poder', rotulo: '✨ Poderes' }
+    ];
+
+    // Setas esquerda/direita (e Home/End) movem a seleção e o foco entre as categorias (roving tabindex).
+    const aoTeclar = (e) => {
+        const idx = Math.max(0, abas.findIndex(a => a.id === abaAtual));
+        let prox = -1;
+        if (e.key === 'ArrowRight') prox = (idx + 1) % abas.length;
+        else if (e.key === 'ArrowLeft') prox = (idx - 1 + abas.length) % abas.length;
+        else if (e.key === 'Home') prox = 0;
+        else if (e.key === 'End') prox = abas.length - 1;
+        if (prox < 0) return;
+        e.preventDefault();
+        trocarAba(abas[prox].id);
+        const el = document.getElementById(`${idBase}-aba-${abas[prox].id}`);
+        if (el) el.focus();
+    };
+
     return (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', borderBottom: '2px dashed currentColor', paddingBottom: '15px', marginBottom: '20px', flexWrap: 'wrap' }}>
-            <button 
-                onClick={() => trocarAba('habilidade')} 
-                style={{ padding: '8px 20px', border: abaAtual === 'habilidade' ? '2px solid currentColor' : '1px dashed currentColor', opacity: abaAtual === 'habilidade' ? 1 : 0.6, fontSize: '1.1em' }}
-            >
-                🗡️ Habilidades
-            </button>
-            <button 
-                onClick={() => trocarAba('forma')} 
-                style={{ padding: '8px 20px', border: abaAtual === 'forma' ? '2px solid currentColor' : '1px dashed currentColor', opacity: abaAtual === 'forma' ? 1 : 0.6, fontSize: '1.1em' }}
-            >
-                🎭 Formas
-            </button>
-            <button 
-                onClick={() => trocarAba('poder')} 
-                style={{ padding: '8px 20px', border: abaAtual === 'poder' ? '2px solid currentColor' : '1px dashed currentColor', opacity: abaAtual === 'poder' ? 1 : 0.6, fontSize: '1.1em' }}
-            >
-                ✨ Poderes
-            </button>
+        <div className="grimorio-abas grimorio-abas--categorias" role="tablist" aria-label="Categorias do Livro dos Poderes" onKeyDown={aoTeclar}>
+            {abas.map(a => (
+                <button key={a.id} id={`${idBase}-aba-${a.id}`} type="button" role="tab" aria-selected={abaAtual === a.id} aria-controls={`${idBase}-painel`} tabIndex={abaAtual === a.id ? 0 : -1} className={`grimorio-aba${abaAtual === a.id ? ' ativa' : ''}`} onClick={() => trocarAba(a.id)}>
+                    {a.rotulo}
+                </button>
+            ))}
         </div>
     );
 }
@@ -373,8 +381,8 @@ export function PoderesFormEditor() {
             <div className={`grimorio-form-banner${poderEditandoId ? ' editando' : ''}`}>
                 <h3 className="grimorio-form-titulo">{poderEditandoId ? `✎ Reescrevendo: ${nomePoder}` : `✎ Criar Novo(a) ${sing}`}</h3>
                 <div className="grimorio-form-banner-acoes">
-                    {poderEditandoId && <button type="button" className="grimorio-form-btn-cancelar-edicao" onClick={cancelarEdicaoComConfirmacao}>✖ Cancelar edição</button>}
-                    <button type="button" className="grimorio-form-btn-expandir" onClick={alternarTodas}>{todasAbertas ? 'Recolher tudo' : 'Expandir tudo'}</button>
+                    {poderEditandoId && <button type="button" className="btn-neon btn-red grimorio-btn grimorio-btn--sm grimorio-form-btn-cancelar-edicao" onClick={cancelarEdicaoComConfirmacao}>✖ Cancelar edição</button>}
+                    <button type="button" className="btn-neon grimorio-btn grimorio-btn--sm grimorio-form-btn-expandir" onClick={alternarTodas}>{todasAbertas ? 'Recolher tudo' : 'Expandir tudo'}</button>
                 </div>
             </div>
 
@@ -492,7 +500,7 @@ export function PoderesFormEditor() {
                             {getPropriedadesDoAtributo(novoAtr).map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
                         </select>
                         <input type="text" className="grimorio-form-efeito-valor" placeholder="Valor" value={novoVal} onChange={e => setNovoVal(e.target.value)} />
-                        <button type="button" className="grimorio-form-efeito-add" onClick={addEfeitoTemp} title="Adicionar efeito ativo">+</button>
+                        <button type="button" className="btn-neon grimorio-btn grimorio-btn--sm grimorio-form-efeito-add" onClick={addEfeitoTemp} title="Adicionar efeito ativo">+</button>
                     </div>
                     <CondicaoDoEfeito atributo={novoAtr} propriedade={novoProp} quando={novoQuando} onQuando={setNovoQuando} escopo={novoEscopo} onEscopo={setNovoEscopo} />
 
@@ -525,7 +533,7 @@ export function PoderesFormEditor() {
                             {getPropriedadesDoAtributo(novoAtrPassivo).map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
                         </select>
                         <input type="text" className="grimorio-form-efeito-valor" placeholder="Valor" value={novoValPassivo} onChange={e => setNovoValPassivo(e.target.value)} />
-                        <button type="button" className="grimorio-form-efeito-add" onClick={addEfeitoPassivoTemp} title="Adicionar efeito passivo">+</button>
+                        <button type="button" className="btn-neon grimorio-btn grimorio-btn--sm grimorio-form-efeito-add" onClick={addEfeitoPassivoTemp} title="Adicionar efeito passivo">+</button>
                     </div>
                     <CondicaoDoEfeito atributo={novoAtrPassivo} propriedade={novoPropPassivo} quando={novoQuandoPassivo} onQuando={setNovoQuandoPassivo} escopo={novoEscopoPassivo} onEscopo={setNovoEscopoPassivo} />
 
@@ -673,8 +681,8 @@ export function PoderesFormEditor() {
 
             {/* Barra de ações fixa no rodapé do formulário: sempre à vista, mesmo com tudo aberto */}
             <div className="grimorio-form-acoes">
-                <button type="button" className="grimorio-form-btn-gravar" onClick={salvarNovoPoder}>{poderEditandoId ? '✍️ Concluir Revisão' : `📜 Gravar no Grimório`}</button>
-                {temAlgoPraCancelar && <button type="button" className="grimorio-form-btn-cancelar" onClick={cancelarEdicaoComConfirmacao}>Cancelar</button>}
+                <button type="button" className="btn-neon btn-green grimorio-btn grimorio-form-btn-gravar" onClick={salvarNovoPoder}>{poderEditandoId ? '✍️ Concluir Revisão' : `📜 Gravar no Grimório`}</button>
+                {temAlgoPraCancelar && <button type="button" className="btn-neon grimorio-btn grimorio-form-btn-cancelar" onClick={cancelarEdicaoComConfirmacao}>Cancelar</button>}
             </div>
         </div>
     );
@@ -682,7 +690,7 @@ export function PoderesFormEditor() {
 
 // 🗂️ Nome do "bucket" pra itens sem pasta atribuída — nunca colide com um nome de pasta real
 // porque pastaPoder é sempre .trim()'ado antes de salvar (nunca fica só espaços).
-const SEM_PASTA = 'Sem Pasta';
+const SEM_PASTA = NOME_SEM_PASTA;
 
 // 🗂️ Plural com artigo de cada categoria, pro texto do prompt de renomear pasta (Pasta deixou de
 // ser exclusiva de Forma — este texto não pode mais dizer "Formas" fixo quando quem está
@@ -691,7 +699,6 @@ const PLURAL_COM_ARTIGO = { habilidade: 'as Habilidades', forma: 'as Formas', po
 
 export function PoderesLista() {
     const ctx = usePoderesForm();
-    const [pastasFechadas, setPastasFechadas] = useState({});
     if (!ctx) return FALLBACK;
     const {
         abaAtual, itensFiltrados, poderPreparandoId, setPoderPreparandoId,
@@ -700,12 +707,12 @@ export function PoderesLista() {
         editarPoder, deletarPoder, overchargeAtivo, curMana, curAura, curChakra,
         energiaElemental, danoBruto, dispararAtaque,
         salvarFormaPoder, deletarFormaPoder, ativarFormaPoder,
-        renomearPastaForma, mudarEstagioPoder, isMestre, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre
+        renomearPastaForma, pastasAbertas, alternarPasta, definirPastasAbertas, mudarEstagioPoder, isMestre, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre
     } = ctx;
 
-    // Namespaced por categoria (abaAtual::nome) — sem isso, recolher "Combos" na aba Habilidades
-    // também recolheria uma pasta "Combos" de outra categoria que reusasse o mesmo nome.
-    const toggleFechada = (nome) => setPastasFechadas(prev => ({ ...prev, [`${abaAtual}::${nome}`]: !prev[`${abaAtual}::${nome}`] }));
+    // 📂 Pastas NASCEM FECHADAS. As abertas ficam na store (provider), por categoria::caminho — sem isso, abrir "Combos"
+    // na aba Habilidades também abriria uma pasta "Combos" de outra categoria que reusasse o mesmo nome.
+    const alternarAberta = (caminho) => alternarPasta(chavePastaAberta(abaAtual, caminho));
 
     const sing = SINGULAR[abaAtual] || 'Poder/Habilidade';
 
@@ -740,16 +747,10 @@ export function PoderesLista() {
                     const energiaOver = Math.floor(curMana * overDec) + Math.floor(curAura * overDec) + Math.floor(curChakra * overDec);
                     
                     return (
-                        <div key={p.id} style={{ 
-                            border: isEquipped ? `2px solid currentColor` : `1px dashed currentColor`, 
-                            background: isEquipped ? 'rgba(0,0,0,0.05)' : 'transparent', 
-                            opacity: isEquipped ? 1 : 0.7,
-                            marginTop: 15, padding: 15, borderRadius: '6px', position: 'relative',
-                            transition: 'all 0.3s ease'
-                        }}>
+                        <div key={p.id} className={`grimorio-poder${isEquipped ? ' ativo' : ''}`}>
                             
                             {p.notasIA && (
-                                <div style={{ padding: '4px 10px', fontSize: '0.85em', fontStyle: 'italic', borderBottom: '1px dashed currentColor', marginBottom: '10px', opacity: 0.8 }}>
+                                <div className="grimorio-poder-nota">
                                     <strong>Anotação Adicional:</strong> {p.notasIA}
                                 </div>
                             )}
@@ -760,17 +761,17 @@ export function PoderesLista() {
                                         {p.nome || 'Poder'} 
                                         <span style={{fontSize: '0.6em', opacity: 0.6, fontWeight: 'normal'}}> (Alcance: {p.alcance || 1}Q)</span>
                                         {p.vertente && (
-                                            <span style={{ marginLeft: '10px', fontSize: '0.55em', padding: '2px 8px', borderRadius: '10px', border: '1px solid currentColor', opacity: 0.8 }}>
+                                            <span className="grimorio-selo">
                                                 {pVertenteLower.includes('elemental') ? `🌪️ ELEMENTAL: ${p.elemento || '?'}` : p.vertente.toUpperCase()}
                                             </span>
                                         )}
                                         {(p.categoria || '').toLowerCase() === 'forma' && (parseFloat(p.maestria) || 0) > 0 && (
-                                            <span style={{ marginLeft: '10px', fontSize: '0.55em', padding: '2px 8px', borderRadius: '10px', border: '1px solid #00ff88', color: '#00ff88', opacity: 0.9 }} title="Livre de Fadiga por Poder até este tanto de Supressão liberada, enquanto esta Forma estiver ativa">
+                                            <span className="grimorio-selo grimorio-selo--sucesso" title="Livre de Fadiga por Poder até este tanto de Supressão liberada, enquanto esta Forma estiver ativa">
                                                 🥋 {Math.min(100, Math.max(0, parseFloat(p.maestria) || 0))}% MAESTRIA
                                             </span>
                                         )}
                                         {(p.categoria || '').toLowerCase() === 'forma' && (
-                                            <span style={{ marginLeft: '10px', fontSize: '0.55em', padding: '2px 8px', borderRadius: '10px', border: '1px solid #ff8800', color: '#ff8800', opacity: 0.9 }} title="Peso de Fadiga gerado por uso acima da Maestria">
+                                            <span className="grimorio-selo grimorio-selo--aviso" title="Peso de Fadiga gerado por uso acima da Maestria">
                                                 😮‍💨 {p.fadigaPorUso !== undefined ? p.fadigaPorUso : 15} FADIGA/USO
                                             </span>
                                         )}
@@ -818,8 +819,10 @@ export function PoderesLista() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: '120px' }}>
                                     
                                     {/* BOTÃO ATIVAR/DESATIVAR MAGIA COMPLETA */}
-                                    <button 
-                                        style={{ padding: '8px', fontWeight: 'bold', border: `2px solid currentColor`, opacity: isEquipped ? 1 : 0.6 }} 
+                                    <button
+                                        type="button"
+                                        className={`btn-neon grimorio-btn${isEquipped ? ' btn-green' : ''}`}
+                                        aria-pressed={!!isEquipped}
                                         onClick={() => togglePoder(p.id)}
                                     >
                                         {isEquipped ? '★ ATIVADA' : 'Desativada'}
@@ -830,8 +833,10 @@ export function PoderesLista() {
                                     {descreverRecarga(p) && <span className={`recarga-poder-selo${p.recargaRestante > 0 ? ' em-recarga' : ''}`} title="Recarga em turnos antes de ligar de novo">{descreverRecarga(p)}</span>}
 
                                     {/* BOTÃO DISPARAR/PREPARAR MODO */}
-                                    <button 
-                                        style={{ padding: '8px', fontSize: '0.9em', fontWeight: 'bold', opacity: poderPreparandoId === p.id ? 1 : 0.8 }} 
+                                    <button
+                                        type="button"
+                                        className={`btn-neon grimorio-btn${poderPreparandoId === p.id ? ' btn-blue' : ''}`}
+                                        aria-pressed={poderPreparandoId === p.id}
                                         onClick={() => {
                                             if (poderPreparandoId === p.id) { setPoderPreparandoId(null); } 
                                             else { setPoderPreparandoId(p.id); setOverchargeAtivo(false); }
@@ -842,18 +847,20 @@ export function PoderesLista() {
                                     
                                     <div style={{ position: 'relative' }} ref={vincularAberto === p.id ? vincularRef : null}>
                                         <button
-                                            style={{ padding: '6px', fontSize: '0.8em', width: '100%', opacity: p.armaVinculada ? 1 : 0.6 }}
+                                            type="button"
+                                            className={`btn-neon grimorio-btn grimorio-btn--sm${p.armaVinculada ? ' btn-gold' : ''}`}
+                                            aria-expanded={vincularAberto === p.id}
                                             onClick={() => setVincularAberto(vincularAberto === p.id ? null : p.id)}
                                         >
                                             {p.armaVinculada ? `🔗 ${((minhaFicha?.inventario || []).find(i => String(i.id) === String(p.armaVinculada))?.nome) || 'Arma'}` : 'Vincular a Arma'}
                                         </button>
                                         {vincularAberto === p.id && (
-                                            <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 10, background: 'rgba(0,0,0,0.9)', border: '1px solid currentColor', borderRadius: 6, padding: 5, minWidth: 180, marginTop: 4 }}>
-                                                <button style={{ width: '100%', padding: '5px 10px', fontSize: '0.85em', margin: '2px 0', background: 'transparent', color: '#fff', border: '1px dotted #ccc' }} onClick={() => vincularArmaAoPoder(p.id, '')}>
+                                            <div className="grimorio-vincular-menu">
+                                                <button type="button" className="grimorio-vincular-item" onClick={() => vincularArmaAoPoder(p.id, '')}>
                                                     Nenhuma (Livre)
                                                 </button>
                                                 {armasEquipadas.map(arma => (
-                                                    <button key={arma.id} style={{ width: '100%', padding: '5px 10px', fontSize: '0.85em', margin: '2px 0', background: 'transparent', color: String(p.armaVinculada) === String(arma.id) ? '#ffcc00' : '#fff', border: '1px dotted #ccc' }} onClick={() => vincularArmaAoPoder(p.id, String(arma.id))}>
+                                                    <button key={arma.id} type="button" className={`grimorio-vincular-item${String(p.armaVinculada) === String(arma.id) ? ' ativo' : ''}`} onClick={() => vincularArmaAoPoder(p.id, String(arma.id))}>
                                                         ⚔️ {arma.nome}
                                                     </button>
                                                 ))}
@@ -861,9 +868,9 @@ export function PoderesLista() {
                                         )}
                                     </div>
                                     
-                                    <div style={{ display: 'flex', gap: 5 }}>
-                                        <button style={{ flex: 1, padding: '4px', fontSize: '0.8em' }} onClick={() => editarPoder(p.id)}>Reescrever</button>
-                                        <button style={{ flex: 1, padding: '4px', fontSize: '0.8em', opacity: 0.6 }} onClick={() => deletarPoder(p.id)}>Rasgar</button>
+                                    <div className="grimorio-poder-acoes-linha">
+                                        <button type="button" className="btn-neon grimorio-btn grimorio-btn--sm" onClick={() => editarPoder(p.id)}>Reescrever</button>
+                                        <button type="button" className="btn-neon btn-red grimorio-btn grimorio-btn--sm" onClick={() => deletarPoder(p.id)}>Rasgar</button>
                                     </div>
                                     <EnsinarBotao tipo="poder" item={p} />
                                 </div>
@@ -876,7 +883,7 @@ export function PoderesLista() {
 
                             {/* CAIXA DE DISPARO */}
                             {poderPreparandoId === p.id && (
-                                <div className="fade-in" style={{ width: '100%', marginTop: '15px', background: 'rgba(0, 0, 0, 0.05)', borderTop: '2px dashed currentColor', paddingTop: '15px' }}>
+                                <div className="fade-in grimorio-disparo">
                                     <h4 style={{ margin: '0 0 10px 0', opacity: 0.9 }}>⚙️ Central de Disparo: {p.nome}</h4>
 
                                     {pVertenteLower.includes('elemental') ? (
@@ -923,9 +930,8 @@ export function PoderesLista() {
                                             const maestriaAtual = parseFloat(p.maestria) || 0;
                                             const req = parseFloat(p.maestriaRequerida) || 0;
                                             const suficiente = maestriaAtual >= req;
-                                            const cor = suficiente ? '#00ff88' : '#ff8800';
                                             return (
-                                                <div style={{ borderLeft: `3px solid ${cor}`, paddingLeft: '10px', marginBottom: '15px', color: cor }}>
+                                                <div className={`grimorio-maestria ${suficiente ? 'grimorio-maestria--ok' : 'grimorio-maestria--falta'}`}>
                                                     <p style={{ margin: 0, fontSize: '0.85em', fontWeight: 'bold' }}>
                                                         🎓 Maestria: {maestriaAtual}% / {req}% requerida
                                                         {suficiente ? ' — dominada, sem Fadiga extra.' : ' — abaixo do requisito, gera Fadiga extra ao usar.'}
@@ -936,7 +942,8 @@ export function PoderesLista() {
                                     )}
 
                                     <button
-                                        style={{ width: '100%', margin: 0, padding: '12px', fontSize: '1.1em', letterSpacing: '1px', fontWeight: 'bold', border: '2px solid currentColor', background: overchargeAtivo ? 'rgba(0,0,0,0.1)' : 'transparent' }}
+                                        type="button"
+                                        className={`btn-neon grimorio-btn grimorio-btn--disparo${overchargeAtivo ? ' btn-red' : ''}`}
                                         onClick={() => dispararAtaque(p)}
                                     >
                                         {overchargeAtivo ? '💥 DISPARAR OVERCHARGE FATAL!' : '⚔️ EXECUTAR HABILIDADE'}
@@ -944,7 +951,7 @@ export function PoderesLista() {
                                 </div>
                             )}
 
-                            {/* O editor de formas também foi parar ao Grimório, certifique-se de que ele tem estilos transparentes na classe dele, ou ele adapta-se sozinho */}
+                            {/* O editor de formas também mora no Grimório e herda os tokens do tema. */}
                             <FormasEditor
                                 formas={p.formas || []}
                                 formaAtivaId={p.formaAtivaId || null}
@@ -969,21 +976,21 @@ export function PoderesLista() {
     }
 
     const renderPasta = (no, nivel) => {
-        const fechada = !!pastasFechadas[`${abaAtual}::${no.caminho}`];
+        const aberta = !!pastasAbertas[chavePastaAberta(abaAtual, no.caminho)];
         const ehSemPasta = no.caminho === SEM_PASTA && nivel === 0 && no.semPastaVirtual;
         return (
-            <div key={no.caminho} className={nivel > 0 ? 'pasta-no pasta-no--sub' : 'pasta-no'} style={{ marginTop: nivel > 0 ? 10 : 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px dashed currentColor', paddingBottom: 8 }}>
-                    <button onClick={() => toggleFechada(no.caminho)} style={{ flex: 1, textAlign: 'left', padding: '8px 12px', fontWeight: 'bold', fontSize: nivel > 0 ? '0.9em' : '1em' }}>
-                        {fechada ? '▶' : '▼'} 📁 {no.nome} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>({no.total})</span>
+            <div key={no.caminho} className={nivel > 0 ? 'pasta-no pasta-no--sub' : 'pasta-no'}>
+                <div className="grimorio-pasta-cab">
+                    <button type="button" className="grimorio-pasta-toggle" aria-expanded={aberta} onClick={() => alternarAberta(no.caminho)}>
+                        <span aria-hidden="true">{aberta ? '▼' : '▶'}</span> 📁 {no.nome} <span className="grimorio-pasta-total">({no.total})</span>
                     </button>
                     {!ehSemPasta && (
-                        <button onClick={() => renomearOuRemoverPasta(no.caminho)} style={{ padding: '6px 10px', fontSize: '0.8em', opacity: 0.7 }} title="Renomear, mover (use /) ou remover esta pasta">
+                        <button type="button" className="grimorio-pasta-renomear" onClick={() => renomearOuRemoverPasta(no.caminho)} title="Renomear, mover (use /) ou remover esta pasta">
                             ✎ Renomear/Remover
                         </button>
                     )}
                 </div>
-                {!fechada && (
+                {aberta && (
                     <>
                         {no.itens.map(p => renderItem(p))}
                         {no.filhos.map(f => renderPasta(f, nivel + 1))}
@@ -993,12 +1000,24 @@ export function PoderesLista() {
         );
     };
 
+    // Todas as pastas da árvore (e o balde "Sem Pasta"): alimenta "Expandir tudo" / "Recolher tudo".
+    const chavesTodasPastas = [];
+    if (arvore) {
+        const coletar = (no) => { chavesTodasPastas.push(chavePastaAberta(abaAtual, no.caminho)); no.filhos.forEach(coletar); };
+        arvore.pastas.forEach(coletar);
+        if (arvore.semPasta.length > 0) chavesTodasPastas.push(chavePastaAberta(abaAtual, SEM_PASTA));
+    }
+
     return (
-        <div style={{ marginTop: '20px' }}>
+        <div className="grimorio-lista">
             {itensFiltrados.length === 0 ? (
-                <p style={{ opacity: 0.5, fontStyle: 'italic', textAlign: 'center' }}>Nenhum registo deste tipo na sua alma.</p>
+                <p className="grimorio-vazio">Nenhum registo deste tipo na sua alma.</p>
             ) : arvore ? (
                 <>
+                    <div className="grimorio-pastas-acoes">
+                        <button type="button" className="btn-neon grimorio-btn-mini" onClick={() => definirPastasAbertas(chavesTodasPastas, true)}>📂 Expandir tudo</button>
+                        <button type="button" className="btn-neon grimorio-btn-mini" onClick={() => definirPastasAbertas(chavesTodasPastas, false)}>📁 Recolher tudo</button>
+                    </div>
                     {arvore.pastas.map(no => renderPasta(no, 0))}
                     {arvore.semPasta.length > 0 && renderPasta({ nome: SEM_PASTA, caminho: SEM_PASTA, itens: arvore.semPasta, filhos: [], total: arvore.semPasta.length, semPastaVirtual: true }, 0)}
                 </>
@@ -1015,8 +1034,8 @@ export function PoderesAuditoria() {
     const { relatorioAuditoria } = ctx;
 
     return (
-        <div style={{ marginTop: '30px', borderTop: '2px dashed currentColor', paddingTop: '20px' }}>
-            <h3 style={{ marginBottom: 10, opacity: 0.8, fontSize: '1.1em' }}>🔍 Auditoria de Combos Globais (Automático)</h3>
+        <div className="grimorio-auditoria">
+            <h3 className="grimorio-auditoria-titulo">🔍 Auditoria de Combos Globais (Automático)</h3>
             <div style={{ fontSize: '0.9em', opacity: 0.9 }}>
                 {relatorioAuditoria || <span style={{ opacity: 0.6, fontStyle: 'italic' }}>Nenhum efeito passivo ativo computado.</span>}
             </div>
@@ -1025,15 +1044,21 @@ export function PoderesAuditoria() {
 }
 
 export function PoderesAreaCentral() {
+    const ctx = usePoderesForm();
+    const uid = useId();
+    const idBase = `poderes-cat-${uid}`;
+    const abaAtual = ctx ? ctx.abaAtual : 'habilidade';
     return (
         <div style={{ width: '100%' }}>
-            <PoderesNavegacaoLivro />
-            <EnsinamentosRecebidos tipo="poder" />
-            <PoderesImportadorIA />
-            <ModelosPoderAssistente />
-            <PoderesFormEditor />
-            <PoderesLista />
-            <PoderesAuditoria />
+            <PoderesNavegacaoLivro idBase={idBase} />
+            <div id={`${idBase}-painel`} role="tabpanel" aria-labelledby={`${idBase}-aba-${abaAtual}`}>
+                <EnsinamentosRecebidos tipo="poder" />
+                <PoderesImportadorIA />
+                <ModelosPoderAssistente />
+                <PoderesFormEditor />
+                <PoderesLista />
+                <PoderesAuditoria />
+            </div>
         </div>
     );
 }

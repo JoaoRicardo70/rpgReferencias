@@ -38,7 +38,7 @@ export default function CombateFichaPanel() {
     }, [pedido, limparPedido]);
 
     // Ficha de outro personagem que o Mestre abriu e ainda não chegou: espera em vez de quebrar os painéis.
-    if (!ficha) return <div className="grimorio-estilo-papel combate-ficha"><p>Abrindo a ficha...</p></div>;
+    if (!ficha) return <div className="ficha-papel combate-ficha"><p>Abrindo a ficha...</p></div>;
 
     const indice = Math.max(0, CAPITULOS_COMBATE.findIndex(c => c.id === capitulo));
     const atual = CAPITULOS_COMBATE[indice];
@@ -46,7 +46,7 @@ export default function CombateFichaPanel() {
     const irPara = (i) => { if (i >= 0 && i < CAPITULOS_COMBATE.length) setCapitulo(CAPITULOS_COMBATE[i].id); };
 
     return (
-        <div className="grimorio-estilo-papel combate-ficha">
+        <div className="ficha-papel combate-ficha">
             <div className="combate-ficha-nav">
                 <button type="button" className="combate-ficha-folhear" onClick={() => irPara(indice - 1)} disabled={indice === 0}>⮜ FOLHEAR</button>
                 <div className="combate-ficha-capitulos" role="tablist" aria-label="Capítulos de Combate">

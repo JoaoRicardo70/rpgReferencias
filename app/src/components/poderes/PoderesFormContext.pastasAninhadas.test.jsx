@@ -198,9 +198,12 @@ describe('PoderesLista (UI) — árvore de pastas', () => {
             base(6, 'Solta', ''),
         ],
     });
+    // As pastas nascem FECHADAS: os testes de árvore abrem tudo pelo botão da lista.
+    const expandirTudo = () => fireEvent.click(screen.getByText('📂 Expandir tudo'));
     const abrir = () => {
         render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesLista /></PoderesFormProvider>);
         fireEvent.click(screen.getByText('🎭 Formas'));
+        expandirTudo();
     };
     const botaoPasta = (container, nome) => [...container.querySelectorAll('button')].find(b => b.textContent.includes(`📁 ${nome}`));
 
@@ -208,6 +211,7 @@ describe('PoderesLista (UI) — árvore de pastas', () => {
         montarStore({ minhaFicha: fichaArvore() });
         render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesLista /></PoderesFormProvider>);
         fireEvent.click(screen.getByText('🎭 Formas'));
+        expandirTudo();
         const topo = document.querySelectorAll('.pasta-no:not(.pasta-no--sub)');
         const subs = document.querySelectorAll('.pasta-no--sub');
         // Topo: Ninjutsu, Taijutsu, Sem Pasta. Subs: Portões, Extra.
@@ -311,6 +315,7 @@ describe('PoderesLista (UI) — árvore de pastas', () => {
     it('habilidade com pasta aninhada ativa o modo agrupado', () => {
         montarStore({ minhaFicha: { poderes: [base(1, 'Hab', 'A/B', 'habilidade')] } });
         render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesLista /></PoderesFormProvider>);
+        expandirTudo();
         expect(document.querySelectorAll('.pasta-no--sub')).toHaveLength(1);
     });
 

@@ -2154,7 +2154,6 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .mapa-tecnicas-vazia { color: #888; font-style: italic; font-size: 0.85em; margin: 6px 0; }
 
 /* 🗂️ Pastas aninhadas (Grimório e Mapa) */
-.pasta-no--sub { margin-left: 18px; padding-left: 10px; border-left: 1px dashed rgba(170, 0, 255, 0.4); }
 .mapa-tecnicas-pasta { margin-bottom: 8px; }
 .mapa-tecnicas-subpasta { margin-left: 14px; padding-left: 8px; border-left: 1px dashed rgba(170, 0, 255, 0.4); }
 .mapa-tecnicas-pasta-topo { background: none; border: none; font-weight: bold; font-size: 0.8em; padding: 2px 0; cursor: pointer; text-align: left; }
@@ -3262,20 +3261,20 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .estados-duracao-selo { color: var(--cor-destaque); font-weight: bold; min-width: 90px; }
 
 /* 📝 Formulário do Livro dos Poderes em seções recolhíveis (components/poderes/PoderesSubComponents.jsx > PoderesFormEditor).
-   Usa --tinta/--fundo quando dentro do Grimório (.grimorio-estilo-papel) e as cores do tema neon fora dele. */
-.grimorio-form { --gf-tinta: var(--tinta, var(--cor-destaque)); --gf-fundo: var(--fundo, var(--bg-panel)); display: flex; flex-direction: column; gap: 10px; border: 1px dashed var(--gf-tinta); border-radius: 8px; padding: 14px; }
+   Herda os tokens do tema do app (--cor-primaria, --bg-body-2...); só a Ficha Definitiva (.ficha-papel) define --tinta/--fundo. */
+.grimorio-form { --gf-tinta: var(--tinta, var(--cor-primaria)); --gf-fundo: var(--fundo, var(--bg-body-2)); display: flex; flex-direction: column; gap: 10px; border: 1px solid var(--border-primary); border-radius: 10px; padding: 14px; }
 .grimorio-form-banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .grimorio-form-banner.editando { padding: 8px 10px; border: 1px solid var(--gf-tinta); border-left-width: 4px; border-radius: 6px; }
 .grimorio-form-titulo { margin: 0; font-size: 1.1em; overflow-wrap: anywhere; }
 .grimorio-form-banner-acoes { display: flex; flex-wrap: wrap; gap: 6px; }
 .grimorio-form-btn-expandir, .grimorio-form-btn-cancelar-edicao { padding: 4px 10px; font-size: 0.8em; cursor: pointer; }
-.grimorio-form-btn-cancelar-edicao { border-color: var(--cor-secundaria) !important; color: var(--cor-secundaria) !important; }
 
 .grimorio-form-secao { border: 1px solid var(--border-primary); border-radius: 8px; overflow: clip; }
 .grimorio-form-secao.com-erro { border-color: var(--cor-secundaria); }
-.grimorio-form-secao-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; width: 100%; padding: 8px 12px; text-align: left; cursor: pointer; }
-.grimorio-estilo-papel .grimorio-form-secao-cab { background: transparent !important; border: none !important; border-radius: 0 !important; text-transform: none !important; transform: none !important; }
-.grimorio-estilo-papel .grimorio-form-secao-cab:hover { background: rgba(var(--cor-destaque-rgb, 255, 204, 0), 0.12) !important; color: inherit !important; transform: none !important; }
+.grimorio-form-secao-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; width: 100%; padding: 8px 12px; text-align: left; cursor: pointer; background: transparent; border: none; color: inherit; font: inherit; }
+.grimorio-form-secao-cab:hover { background: var(--bg-panel-hover); }
+.ficha-papel .grimorio-form-secao-cab { background: transparent !important; border: none !important; border-radius: 0 !important; text-transform: none !important; transform: none !important; }
+.ficha-papel .grimorio-form-secao-cab:hover { background: rgba(var(--cor-destaque-rgb, 255, 204, 0), 0.12) !important; color: inherit !important; transform: none !important; }
 .grimorio-form-secao-seta { width: 1em; }
 .grimorio-form-secao-titulo { font-weight: bold; }
 .grimorio-form-secao-resumo { font-size: 0.8em; opacity: 0.75; font-weight: normal; }
@@ -3283,8 +3282,6 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .grimorio-form-secao-corpo { display: none; padding: 4px 12px 12px; border-top: 1px dotted var(--border-primary); }
 .grimorio-form-secao.aberta > .grimorio-form-secao-corpo { display: block; }
 /* Página do Grimório: corta o que vaza sem quebrar o sticky (overflow:clip onde houver suporte). */
-.grimorio-pagina { overflow: hidden; }
-@supports (overflow: clip) { .grimorio-pagina { overflow: clip; } }
 
 .grimorio-form-grade { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 12px; padding-top: 8px; }
 .grimorio-form-span2 { grid-column: span 2; }
@@ -3319,8 +3316,9 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .grimorio-form-efeito-lista { margin-top: 8px; display: flex; flex-direction: column; gap: 5px; }
 .grimorio-form-efeito-item { font-size: 0.9em; padding: 5px 10px; border-left: 2px solid currentColor; display: flex; justify-content: space-between; gap: 8px; opacity: 0.9; }
 .grimorio-form-efeito-item.passivo { opacity: 0.8; }
-.grimorio-estilo-papel .grimorio-form-efeito-remover { border: none !important; background: transparent !important; opacity: 0.6; cursor: pointer; }
-.grimorio-form-efeito-remover { cursor: pointer; }
+.ficha-papel .grimorio-form-efeito-remover { border: none !important; background: transparent !important; opacity: 0.6; cursor: pointer; }
+.grimorio-form-efeito-remover { cursor: pointer; background: transparent; border: none; color: inherit; opacity: 0.6; }
+.grimorio-form-efeito-remover:hover { opacity: 1; color: var(--cor-secundaria); }
 
 .grimorio-form-acoes { position: sticky; bottom: 0; z-index: 5; display: flex; gap: 8px; padding: 10px 0 4px; background: linear-gradient(var(--gf-fundo), var(--gf-fundo)), var(--bg-body-2); border-top: 1px dotted var(--gf-tinta); }
 .grimorio-form-btn-gravar { flex: 1; padding: 10px; cursor: pointer; }
@@ -3395,4 +3393,101 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 @media (max-width: 600px) {
     .modelo-poder-fundo { padding: 6px; }
     .modelo-poder-parte-desc, .modelo-poder-params { margin-left: 0; }
+}
+
+/* ==========================================
+   📖 GRIMÓRIO — herda o estilo do app (Perfil > Aparência: body.theme-*).
+   Tudo usa os tokens do tema (--cor-primaria, --border-primary, --bg-panel...) e os componentes-base (.btn-neon, .def-box).
+   A cor de destaque escolhida pelo usuário só sobrescreve esses mesmos tokens no elemento .grimorio (inline, ver Grimorio.jsx).
+   ========================================== */
+.grimorio { width: 100%; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.grimorio-carregando { padding: 20px; text-align: center; color: var(--cor-primaria); letter-spacing: 2px; }
+
+/* Base dos elementos "soltos" dos painéis internos (Poderes, Elementos, Estados): especificidade zero, qualquer classe vence. */
+:where(.grimorio) :where(button) { background: transparent; color: inherit; border: 1px solid var(--border-primary); border-radius: 6px; padding: 6px 12px; font-family: inherit; font-size: inherit; cursor: pointer; transition: border-color 0.2s, background 0.2s, color 0.2s; }
+:where(.grimorio) :where(button:hover:not(:disabled)) { border-color: var(--cor-primaria); background: var(--bg-panel-hover); }
+:where(.grimorio) :where(button:disabled) { opacity: 0.45; cursor: not-allowed; }
+:where(.grimorio) :where(input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"]), textarea, select) { background: color-mix(in srgb, var(--bg-body-2) 70%, transparent); color: inherit; border: 1px solid var(--border-primary); border-radius: 5px; padding: 8px 10px; font-family: var(--font-family); outline: none; min-width: 0; max-width: 100%; box-sizing: border-box; }
+:where(.grimorio) :where(textarea) { font-size: 1em; }
+:where(.grimorio) :where(input:focus, textarea:focus, select:focus) { border-color: var(--cor-primaria); }
+:where(.grimorio) :where(h2, h3, h4) { color: var(--cor-primaria); }
+:where(.grimorio) :where(h3, h4) { margin-top: 0; }
+.grimorio :focus-visible { outline: 2px solid var(--cor-primaria); outline-offset: 2px; }
+
+/* Cabeçalho e ações */
+.grimorio-cabecalho { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border-primary); }
+.grimorio-cabecalho-texto { min-width: 0; }
+.grimorio-titulo { margin: 0; font-size: 1.8em; color: var(--cor-primaria); text-shadow: 0 0 10px var(--shadow-primary); overflow-wrap: anywhere; }
+.grimorio-subtitulo { margin: 2px 0 0; opacity: 0.7; font-size: 0.9em; }
+.grimorio-cabecalho-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Botão compacto dentro do Grimório: o .btn-neon base é grande e ocupa a linha toda */
+.btn-neon.grimorio-btn { width: auto; margin: 0; padding: 8px 14px; font-size: 1em; letter-spacing: 0.5px; }
+.btn-neon.grimorio-btn--sm { padding: 5px 10px; font-size: 0.85em; }
+.btn-neon.grimorio-btn-mini { width: auto; margin: 0; padding: 4px 10px; font-size: 0.8em; }
+.btn-neon.grimorio-btn--disparo { width: 100%; padding: 12px; font-size: 1.1em; letter-spacing: 1px; }
+.btn-neon.grimorio-btn.salvando { border-color: var(--cor-sucesso); color: var(--cor-sucesso); }
+.btn-neon.grimorio-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-neon.grimorio-btn:disabled:hover { background: transparent; color: var(--cor-primaria); box-shadow: none; }
+
+/* Painel de cores */
+.grimorio-cores { margin: 0; padding: 14px; }
+.grimorio-cores-nota { margin: 0 0 10px; font-size: 0.9em; opacity: 0.8; }
+.grimorio-cores-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; }
+.grimorio-cores-seletor { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.grimorio-cores-seletor input[type="color"] { width: 44px; height: 32px; padding: 0; border: 1px solid var(--border-primary); border-radius: 6px; background: transparent; cursor: pointer; }
+.grimorio-cores-prontas { display: flex; flex-wrap: wrap; gap: 8px; }
+.grimorio-cor-amostra { width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid transparent; background: var(--cor-amostra); cursor: pointer; }
+.grimorio-cor-amostra:hover { transform: scale(1.1); }
+.grimorio-cor-amostra.ativa { border-color: currentColor; box-shadow: 0 0 8px var(--cor-amostra); }
+
+/* Sub-abas (Poderes / Elementos / Estados e as categorias do Livro dos Poderes) */
+.grimorio-abas { display: flex; flex-wrap: wrap; gap: 8px; }
+.grimorio-abas--categorias { padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border-primary); }
+.grimorio-aba { display: inline-flex; align-items: center; gap: 5px; padding: 8px 16px; border: 1px solid var(--border-primary); border-radius: 18px; background: rgba(255, 255, 255, 0.04); color: inherit; font-family: inherit; font-size: 1em; cursor: pointer; opacity: 0.8; transition: all 0.2s; }
+.grimorio-aba:hover { opacity: 1; border-color: var(--cor-primaria); }
+.grimorio-aba.ativa { opacity: 1; color: var(--cor-primaria); border-color: var(--cor-primaria); background: rgba(var(--cor-primaria-rgb), 0.12); box-shadow: 0 0 10px rgba(var(--cor-primaria-rgb), 0.25); font-weight: 700; }
+
+.grimorio-pagina { min-width: 0; max-width: 100%; }
+.grimorio-pagina > *, .grimorio-poder, .pasta-no, .grimorio-lista, .grimorio-form { min-width: 0; max-width: 100%; }
+.grimorio-poder, .grimorio-pasta-toggle, .grimorio-poder-nota, .grimorio-cores-nota, .grimorio-pagina-aviso { overflow-wrap: anywhere; }
+.grimorio-abas > .grimorio-aba { max-width: 100%; }
+
+/* Lista de poderes, pastas e cartões */
+.grimorio-lista { margin-top: 16px; display: flex; flex-direction: column; gap: 4px; }
+.grimorio-vazio { text-align: center; font-style: italic; opacity: 0.55; }
+.grimorio-pastas-acoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.pasta-no { margin-top: 18px; }
+.pasta-no--sub { margin-top: 10px; margin-left: 14px; padding-left: 12px; border-left: 2px solid var(--border-primary); }
+.grimorio-pasta-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border-primary); }
+.grimorio-pasta-toggle { flex: 1 1 200px; text-align: left; padding: 8px 12px; font-weight: bold; }
+.grimorio-pasta-total { opacity: 0.6; font-weight: normal; }
+.grimorio-pasta-renomear { padding: 5px 10px; font-size: 0.8em; opacity: 0.8; }
+
+.grimorio-poder { position: relative; margin-top: 14px; padding: 15px; border: 1px dashed var(--border-primary); border-radius: 10px; background: color-mix(in srgb, var(--bg-body-2) 30%, transparent); opacity: 0.85; transition: border-color 0.3s, background 0.3s, opacity 0.3s; }
+.grimorio-poder.ativo { opacity: 1; border: 1px solid var(--cor-primaria); background: rgba(var(--cor-primaria-rgb), 0.07); box-shadow: 0 0 12px rgba(var(--cor-primaria-rgb), 0.2); }
+.grimorio-poder-nota { padding: 4px 10px; margin-bottom: 10px; font-size: 0.85em; font-style: italic; border-bottom: 1px dashed var(--border-primary); opacity: 0.85; }
+.grimorio-poder-acoes-linha { display: flex; gap: 6px; }
+.grimorio-poder-acoes-linha > .btn-neon { flex: 1; }
+.grimorio-selo { margin-left: 10px; padding: 2px 8px; font-size: 0.55em; border: 1px solid currentColor; border-radius: 10px; opacity: 0.85; white-space: nowrap; }
+.grimorio-selo--sucesso { color: var(--cor-sucesso); }
+.grimorio-selo--aviso { color: var(--cor-destaque); }
+.grimorio-vincular-menu { position: absolute; top: 100%; right: 0; z-index: 10; min-width: 180px; margin-top: 4px; padding: 5px; display: flex; flex-direction: column; gap: 4px; background: var(--bg-body-2); border: 1px solid var(--border-primary); border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); }
+.grimorio-vincular-item { width: 100%; text-align: left; padding: 5px 10px; font-size: 0.85em; }
+.grimorio-vincular-item.ativo { color: var(--cor-destaque); border-color: var(--cor-destaque); }
+.grimorio-disparo { width: 100%; margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--border-primary); }
+.grimorio-maestria { margin-bottom: 15px; padding-left: 10px; border-left: 3px solid currentColor; font-size: 0.85em; font-weight: bold; }
+.grimorio-maestria p { margin: 0; }
+.grimorio-maestria--ok { color: var(--cor-sucesso); }
+.grimorio-maestria--falta { color: var(--cor-destaque); }
+.grimorio-auditoria { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border-primary); }
+.grimorio-auditoria-titulo { margin-bottom: 10px; font-size: 1.1em; opacity: 0.85; }
+
+@media (max-width: 700px) {
+    .grimorio-titulo { font-size: 1.4em; }
+    .grimorio-aba { padding: 7px 12px; font-size: 0.95em; }
+    .grimorio-poder { padding: 10px; }
+    .pasta-no--sub { margin-left: 6px; padding-left: 8px; }
+    .grimorio-pastas-acoes { justify-content: stretch; }
+    .grimorio-pastas-acoes > .btn-neon { flex: 1; }
 }

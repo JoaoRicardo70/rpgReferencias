@@ -520,6 +520,7 @@ describe('PoderesLista (UI) — badge de Fadiga por Uso (exclusivo de Forma) e a
         render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesLista /></PoderesFormProvider>);
 
         fireEvent.click(screen.getByText('🎭 Formas'));
+        fireEvent.click(screen.getByText('📂 Expandir tudo'));
 
         expect(screen.getByText(/25 FADIGA\/USO/)).toBeDefined();
     });
@@ -531,6 +532,7 @@ describe('PoderesLista (UI) — badge de Fadiga por Uso (exclusivo de Forma) e a
         render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesLista /></PoderesFormProvider>);
 
         fireEvent.click(screen.getByText('🎭 Formas'));
+        fireEvent.click(screen.getByText('📂 Expandir tudo'));
 
         expect(screen.getByText(/15 FADIGA\/USO/)).toBeDefined();
     });
@@ -559,7 +561,7 @@ describe('PoderesLista (UI) — badge de Fadiga por Uso (exclusivo de Forma) e a
 
         fireEvent.click(screen.getByText('🎭 Formas'));
 
-        const cabecalhos = screen.getAllByText(/📁/).map(el => el.closest('button').textContent);
+        const cabecalhos = screen.getAllByText(/📁/).map(el => el.closest('button').textContent).filter(t => !t.includes('Recolher tudo'));
         expect(cabecalhos.length).toBe(3);
         expect(cabecalhos[0]).toContain('Alpha');
         expect(cabecalhos[1]).toContain('Zulu');
@@ -593,6 +595,7 @@ describe('PoderesLista (UI) — badge de Fadiga por Uso (exclusivo de Forma) e a
         });
         render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesLista /></PoderesFormProvider>);
 
+        fireEvent.click(screen.getByText('📂 Expandir tudo'));
         const cabecalhos = screen.getAllByText(/📁/).map(el => el.closest('button').textContent);
         expect(cabecalhos.some(t => t.includes('X'))).toBe(true);
         expect(cabecalhos.some(t => t.includes('Y'))).toBe(true);
@@ -684,7 +687,7 @@ describe('PoderesLista (UI) — badge de Fadiga por Uso (exclusivo de Forma) e a
     // duas compartilhariam a mesma chave "Combos" em `pastasFechadas` e recolher uma recolheria a
     // outra também.
     // -------------------------------------------------------------------------
-    it('recolher a pasta "Combos" na aba Habilidades NÃO recolhe a pasta "Combos" (mesmo nome) na aba Formas', () => {
+    it('abrir a pasta "Combos" na aba Habilidades NÃO abre a pasta "Combos" (mesmo nome) na aba Formas', () => {
         montarStore({
             minhaFicha: {
                 poderes: [
@@ -695,20 +698,17 @@ describe('PoderesLista (UI) — badge de Fadiga por Uso (exclusivo de Forma) e a
         });
         render(<PoderesFormProvider><PoderesNavegacaoLivro /><PoderesLista /></PoderesFormProvider>);
 
-        // Aba padrão já é Habilidades — a pasta "Combos" começa expandida.
+        // As pastas nascem FECHADAS: nada de "Golpe Rápido" até abrir "habilidade::Combos".
+        expect(screen.queryByText('Golpe Rápido')).toBeNull();
+        fireEvent.click(screen.getByText(/📁 Combos/));
         expect(screen.getByText('Golpe Rápido')).toBeDefined();
 
-        // Recolhe "Combos" na aba Habilidades.
-        fireEvent.click(screen.getByText(/📁 Combos/));
-        expect(screen.queryByText('Golpe Rápido')).toBeNull();
-
-        // Muda para a aba Formas — a pasta "Combos" de lá deve continuar EXPANDIDA, pois o estado
-        // de collapse agora é namespaced por aba ("habilidade::Combos" != "forma::Combos").
+        // Na aba Formas, "forma::Combos" segue FECHADA (chave namespaced por categoria).
         fireEvent.click(screen.getByText('🎭 Formas'));
-        expect(screen.getByText('Bankai')).toBeDefined();
+        expect(screen.queryByText('Bankai')).toBeNull();
 
-        // Voltando pra Habilidades, "Combos" continua recolhida (o toggle de lá não foi afetado).
+        // Voltando pra Habilidades, "Combos" continua aberta.
         fireEvent.click(screen.getByText('🗡️ Habilidades'));
-        expect(screen.queryByText('Golpe Rápido')).toBeNull();
+        expect(screen.getByText('Golpe Rápido')).toBeDefined();
     });
 });

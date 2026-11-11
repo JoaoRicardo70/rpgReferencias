@@ -192,7 +192,7 @@ export default function PactosPanel() {
     };
 
     return (
-        <div className="grimorio-estilo-papel fade-in" style={{ width: '100%' }}>
+        <div className="ficha-papel fade-in" style={{ width: '100%' }}>
             <div style={{ textAlign: 'center', borderBottom: '2px solid currentColor', paddingBottom: 10, marginBottom: 20 }}>
                 <h1 style={{ fontSize: '2.2em', fontStyle: 'italic', fontWeight: 'bold', margin: 0, color: '#8a2be2' }}>👁️ Reino Interior</h1>
                 <p style={{ opacity: 0.8, fontSize: '0.9em', margin: '5px 0 0 0' }}>Entidades Seladas, Pactos e Espíritos — sincronize um Pacto para injetar os seus Buffs e Formas no seu Poder Calculado do Scouter.</p>
