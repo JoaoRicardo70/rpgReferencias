@@ -3474,6 +3474,18 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .grimorio-abas--categorias { padding-bottom: 12px; margin-bottom: 14px; border-bottom: 1px solid var(--border-primary); }
 .grimorio-aba { display: inline-flex; align-items: center; gap: 5px; padding: 8px 16px; border: 1px solid var(--border-primary); border-radius: 18px; background: rgba(255, 255, 255, 0.04); color: inherit; font-family: inherit; font-size: 1em; cursor: pointer; opacity: 0.8; transition: all 0.2s; }
 .grimorio-aba:hover { opacity: 1; border-color: var(--cor-primaria); }
+.grimorio-aba-dica { margin: -6px 0 12px; font-size: 0.85em; opacity: 0.75; }
+/* Categorias novas do Livro dos Poderes: cores pelos tokens do tema */
+:root {
+    --mapa-cat-ocular: var(--cor-destaque);
+    --mapa-cat-infinity: var(--cor-info);
+    --mapa-cat-singularidade: color-mix(in srgb, var(--cor-secundaria) 60%, var(--cor-info));
+}
+.hierarquia-ocular { border: 1px solid currentColor; padding: 15px; border-radius: 8px; background: transparent; transition: all 0.3s; }
+.hierarquia-ocular--ativo { border-color: var(--cor-destaque); background: color-mix(in srgb, var(--cor-destaque) 6%, transparent); }
+.hierarquia-ocular-titulo { color: inherit; font-weight: bold; font-size: 1.1em; }
+.hierarquia-ocular-titulo--ativo { color: var(--cor-destaque); }
+.grimorio-aba-dica--grau { color: var(--cor-destaque); opacity: 1; }
 .grimorio-aba.ativa { opacity: 1; color: var(--cor-primaria); border-color: var(--cor-primaria); background: rgba(var(--cor-primaria-rgb), 0.12); box-shadow: 0 0 10px rgba(var(--cor-primaria-rgb), 0.25); font-weight: 700; }
 
 .grimorio-pagina { min-width: 0; max-width: 100%; }

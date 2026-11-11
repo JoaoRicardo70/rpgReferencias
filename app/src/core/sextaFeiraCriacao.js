@@ -31,12 +31,14 @@ import { normalizarAplicaEstados, ATRIBUTOS_TESTE, ROTULO_ATRIBUTO, LIMITES_ESTA
 import { ESTADOS, nomeDoEstado, iconeDoEstado, MAX_STACKS } from './condicoes.js';
 import { normalizarReflexo, MODOS_REFLEXO, ENERGIAS_REFLEXO } from './reflexo.js';
 import { normalizarSuporte, MODOS_ALVO_SUPORTE, ACOES_SUPORTE, LIMITES_SUPORTE } from './suporte.js';
+import { IDS_CATEGORIA_PODER, CATEGORIAS_PODER as CATEGORIAS_PODER_INFO, categoriaLiberadaNaFicha } from './categoriasPoder.js';
 import { normalizarCombo, normalizarFollowUp, resumirCombo, TIPOS_GOLPE, ACOES_GOLPE, QUANDO_FOLLOW_UP, LIMITES as LIMITES_COMBO } from './combos.js';
 
 // Inclui as Reações (efeito reacao_<gatilho> + propriedade do efeito): a Sexta-Feira não pode rebaixá-las a efeito numérico comum.
 export const ATRIBUTOS_EFEITO = [...ATRIBUTOS_AGRUPADOS.flatMap(g => g.options), ...GRUPO_REACOES.options, ...GRUPO_IDENTIFICACAO.options];
 export const PROPRIEDADES_EFEITO = [...PROPRIEDADE_OPTIONS, ...PROPRIEDADES_REACAO];
-export const CATEGORIAS_PODER = ['habilidade', 'poder', 'forma'];
+// Ids das categorias de poder (lista única em core/categoriasPoder.js; aqui só os ids, usados nos enums e validações).
+export const CATEGORIAS_PODER = IDS_CATEGORIA_PODER;
 export const VERTENTES_PODER = ['', 'Acumulativo', 'Elemental', 'Conceitual', 'Utilitario'];
 export const TIPOS_MECANICA_MAGIA = ['ataque', 'saving', 'infusao', 'suporte'];
 export const ATRIBUTOS_SAVING = ['forca', 'destreza', 'constituicao', 'sabedoria', 'inteligencia', 'stamina', 'carisma', 'energiaEsp'];
@@ -79,16 +81,16 @@ export const TIPOS_PEDIDO_JOGADOR = ['poder', 'magia', 'item', 'combo', 'followu
 //   local  — onde dentro da aba (sub-aba, pasta, elemento)
 //   tipo   — o que é, em uma linha
 //   oQue / botaoVer — textos da notificação ("pediu uma Habilidade", "Ver a Habilidade")
-const CATEGORIA_PODER_TEXTO = { habilidade: 'Habilidade', poder: 'Poder', forma: 'Forma' };
-const ARTIGOS_PODER = { habilidade: ['uma', 'a'], poder: ['um', 'o'], forma: ['uma', 'a'] };
-const SUBABA_PODER_TEXTO = { habilidade: 'Habilidades', poder: 'Poderes', forma: 'Formas' };
+const CATEGORIA_PODER_TEXTO = Object.fromEntries(CATEGORIAS_PODER_INFO.map(c => [c.id, c.singular]));
+const ARTIGOS_PODER = Object.fromEntries(CATEGORIAS_PODER_INFO.map(c => [c.id, c.artigo]));
+const SUBABA_PODER_TEXTO = Object.fromEntries(CATEGORIAS_PODER_INFO.map(c => [c.id, c.nome]));
 const TIPO_ITEM_TEXTO = { arma: 'Arma', armadura: 'Armadura', artefato: 'Artefato' };
 const MECANICA_MAGIA_TEXTO = { ataque: 'Ataque', saving: 'Teste de resistência', infusao: 'Infusão', suporte: 'Suporte' };
 
 export function descreverDestinoPedido(tipo, objeto) {
     const o = objeto || {};
     if (tipo === 'poder') {
-        const categoria = CATEGORIAS_PODER.includes(o.categoria) ? o.categoria : 'habilidade';
+        const categoria = IDS_CATEGORIA_PODER.includes(o.categoria) ? o.categoria : 'habilidade';
         const pasta = String(o.pasta || '').trim();
         const vertente = String(o.vertente || '').trim();
         return {
@@ -335,7 +337,7 @@ const SUPORTE_SCHEMA = {
 export function normalizarPoder(dados) {
     const d = dados || {};
     const avisos = [];
-    const categoria = escolher(d.categoria, CATEGORIAS_PODER, 'habilidade', 'Categoria', avisos);
+    const categoria = escolher(d.categoria, IDS_CATEGORIA_PODER, 'habilidade', 'Categoria', avisos);
     const vertente = escolher(d.vertente, VERTENTES_PODER, '', 'Vertente', avisos);
     const objeto = {
         nome: texto(d.nome, 120),
@@ -577,6 +579,10 @@ export function avaliarEquilibrio(tipo, objeto, fichaAlvo) {
             .filter(e => ['mgeral', 'mabs', 'munico', 'mbase', 'mformas'].includes(e.propriedade) && Number(e.valor) >= 2);
         if (efeitosGrandes.length) avisos.push('Tem multiplicador de 2x ou mais: impacto grande no Poder Calculado.');
     }
+    // Categoria especial ainda não liberada na Hierarquia da Alma: grava mesmo assim (o Mestre pode liberar depois), mas avisa.
+    if (tipo === 'poder' && objeto.categoria && !categoriaLiberadaNaFicha(objeto.categoria, fichaAlvo)) {
+        avisos.push(`Categoria ${objeto.categoria} não liberada para este personagem (Ficha > pág. 4 dos Marcados): o poder será gravado mesmo assim; libere a categoria na Hierarquia da Alma.`);
+    }
     if (tipo === 'poder' && objeto.categoria !== 'forma' && objeto.dadosQtd > 0 && !objeto.custoPercentual) {
         avisos.push('Causa dano sem custo de energia.');
     }
@@ -674,7 +680,7 @@ export const DECLARACOES_CRIACAO = [
             type: 'OBJECT',
             properties: {
                 alvo: ALVO_SCHEMA,
-                categoria: { type: 'STRING', enum: CATEGORIAS_PODER },
+                categoria: { type: 'STRING', enum: IDS_CATEGORIA_PODER, description: 'habilidade, forma ou poder; ocular = Poderes Oculares (olhos/dojutsu: Sharingan, Rinnegan, Byakugan); infinity = manipulação conceitual absoluta; singularidade = anomalia máxima irrepetível (impossível de copiar). Só use ocular/infinity/singularidade se o pedido deixar claro.' },
                 nome: { type: 'STRING' },
                 descricao: { type: 'STRING' },
                 vertente: { type: 'STRING', enum: VERTENTES_PODER.filter(Boolean), description: 'Vazio = Padrão. Use Elemental para ter elemento.' },

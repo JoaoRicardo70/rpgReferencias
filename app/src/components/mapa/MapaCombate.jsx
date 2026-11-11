@@ -33,6 +33,7 @@ import { getPercepcaoPoder, enxergaEfetividade, estimarPoderDeEntidade, descreve
 import { getVitalMax, getVitalMaxEstavel, calcVitalScale, calcularBarrasVida, calcularBarrasVidaDummy, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import BarrasVida from '../shared/BarrasVida';
 import { formatarPoderCosmico } from '../../core/utils';
+import { categoriaDoPoderFicha } from '../../core/categoriasPoder';
 import { idAlvoPersonagem, motivoBloqueioAlvo } from '../../core/alvoCombate';
 import { getTipoPersonagem, rotuloTipoPersonagem } from '../../core/tipoPersonagem';
 import { NIVEIS_ROLAGEM, indiceFaceDoDado, textoDaFace } from '../../core/rolagemDado';
@@ -1005,6 +1006,10 @@ const MAPA_TECNICAS_CATEGORIAS = {
     forma: { label: '🎭 Formas', cor: '#aa00ff' },
     habilidade: { label: '🗡️ Habilidades', cor: '#ff8800' },
     poder: { label: '✨ Poderes', cor: '#00ffcc' },
+    // Categorias especiais (core/categoriasPoder.js): usáveis em combate como Habilidades; só aparecem se a ficha tem poderes nelas.
+    ocular: { label: '👁️ Poderes Oculares', cor: 'var(--mapa-cat-ocular)' },
+    infinity: { label: '♾️ Infinities', cor: 'var(--mapa-cat-infinity)' },
+    singularidade: { label: '🌌 Singularidades', cor: 'var(--mapa-cat-singularidade)' },
 };
 const MAPA_TECNICAS_SEM_PASTA = 'Sem Pasta';
 
@@ -1071,7 +1076,7 @@ export function MapaTecnicasRapidas() {
     // Todas as chaves de pasta (inclui pastas-mãe e subpastas, core/pastas.js).
     const todasChaves = [];
     Object.keys(MAPA_TECNICAS_CATEGORIAS).forEach(cat => {
-        const doCat = poderes.filter(p => p && ((p.categoria || 'poder').toLowerCase() === cat));
+        const doCat = poderes.filter(p => p && categoriaDoPoderFicha(p) === cat);
         listarCaminhosPastas(doCat).forEach(caminho => { todasChaves.push(`${cat}::${caminho}`); });
         if (doCat.some(p => segmentosPasta(p.pasta).length === 0)) todasChaves.push(`${cat}::${MAPA_TECNICAS_SEM_PASTA}`);
     });
@@ -1138,7 +1143,7 @@ export function MapaTecnicasRapidas() {
             </div>
             {(termo || soLigadas) && filtrados.length === 0 && <p className="mapa-tecnicas-vazia">{soLigadas && !termo ? 'Nenhuma técnica ligada.' : 'Nenhuma técnica com esse nome.'}</p>}
             {Object.keys(MAPA_TECNICAS_CATEGORIAS).map(cat => {
-                const itensCat = filtrados.filter(p => p && ((p.categoria || 'poder').toLowerCase() === cat));
+                const itensCat = filtrados.filter(p => p && categoriaDoPoderFicha(p) === cat);
                 if (itensCat.length === 0) return null;
                 const info = MAPA_TECNICAS_CATEGORIAS[cat];
 

@@ -637,7 +637,7 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
             expect(getByText('☆ Relíquia Sem Categoria')).toBeTruthy();
         });
 
-        it('DOCUMENTA: um poder com uma categoria ESTRANHA/legada (ex: "legado", não vazia) some das 3 seções silenciosamente, sem lançar', () => {
+        it('um poder com uma categoria ESTRANHA/legada (ex: "legado", não vazia) cai na seção Habilidades (nunca some), sem lançar', () => {
             montarStore({
                 minhaFicha: {
                     poderes: [
@@ -650,8 +650,8 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
 
             // O item normal aparece normalmente...
             expect(getByText('☆ Golpe Normal')).toBeTruthy();
-            // ...mas o item de categoria estranha não aparece em NENHUMA das 3 seções, nem lança.
-            expect(queryByText(/Item Legado/)).toBeNull();
+            // ...e o item de categoria estranha agora aparece junto das Habilidades (core/categoriasPoder.js), em vez de sumir.
+            expect(getByText('☆ Item Legado')).toBeTruthy();
             expect(queryByText('🎭 Formas')).toBeNull();
             expect(queryByText('✨ Poderes')).toBeNull();
         });

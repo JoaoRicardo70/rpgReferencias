@@ -5,6 +5,7 @@
 // capacidade máxima" é aprender com Maestria menor e treinar depois. Nada aqui fala com Firebase nem com a tela.
 // ==========================================
 import { temChaveInvalida, LIMITE_IMAGEM_NO_BACKUP } from './backupFicha';
+import { poderEhCopiavel, usaMaestriaRequerida, ehCategoriaForma, idCategoriaPoder, mensagemCategoriaNaoLiberada, MENSAGEM_SINGULARIDADE_NAO_COPIA } from './categoriasPoder';
 
 export const TIPO_PODER = 'poder';     // item de ficha.poderes (Habilidade, Forma ou Poder)
 export const TIPO_TECNICA = 'tecnica'; // item de ficha.ataquesElementais
@@ -26,6 +27,8 @@ export function montarOferta({ professor, tipo, item, nivel, agora = Date.now(),
     if (!professor) return { ok: false, erro: 'Sem personagem professor.' };
     if (tipo !== TIPO_PODER && tipo !== TIPO_TECNICA) return { ok: false, erro: 'Tipo de ensinamento inválido.' };
     if (!item || typeof item !== 'object' || !String(item.nome || '').trim()) return { ok: false, erro: 'Escolha algo com nome para ensinar.' };
+    // Singularidade é impossível de copiar/ensinar (core/categoriasPoder.js).
+    if (tipo === TIPO_PODER && !poderEhCopiavel(item)) return { ok: false, erro: MENSAGEM_SINGULARIDADE_NAO_COPIA };
     const copia = prepararItemEnsinado(item);
     if (temChaveInvalida(copia)) return { ok: false, erro: 'Isso tem campos com nomes que o servidor não aceita (. # $ [ ] /).' };
     const id = `ens_${agora}_${Math.floor(sorteio() * 1e6)}`;
@@ -47,11 +50,22 @@ export function notaDeOrigem(oferta) {
     return `Aprendido com ${oferta.de}${oferta.tipo === TIPO_TECNICA ? ` (nível ${limitarNivel(oferta.nivel)}%)` : ''}`;
 }
 
+// Motivo de a oferta não poder ser aceita agora ('' = pode): categoria que exige liberação do Mestre e o aluno não tem.
+// Singularidade é tratada à parte (nunca copia). A oferta NÃO é descartada: dá para aceitar depois da liberação.
+export function motivoRecusaOferta(f, oferta) {
+    if (!oferta || oferta.tipo !== TIPO_PODER || !oferta.item) return '';
+    return mensagemCategoriaNaoLiberada(oferta.item, f);
+}
+
 // Cria, dentro de updateFicha (rascunho `f`), a cópia aprendida e tira a oferta. Devolve o item criado ou null.
 export function aceitarOferta(f, oferta, novoId) {
     if (!f || !oferta || !oferta.item) return null;
     // Já aceita/recusada (duplo clique ou snapshot remoto): não duplica o item.
     if (!f.ensinamentos || !f.ensinamentos[oferta.id]) return null;
+    // Oferta de Singularidade (vinda de fora): nunca vira cópia; a oferta é descartada.
+    if (oferta.tipo === TIPO_PODER && !poderEhCopiavel(oferta.item)) { removerOferta(f, oferta.id); return null; }
+    // Categoria ainda não liberada para o aluno: não cria nada e mantém a oferta pendente.
+    if (motivoRecusaOferta(f, oferta)) return null;
     const item = JSON.parse(JSON.stringify(oferta.item));
     item.id = novoId;
     item.ensinadoPor = oferta.de;
@@ -59,7 +73,9 @@ export function aceitarOferta(f, oferta, novoId) {
     item.notasIA = item.notasIA ? `${origem}. ${item.notasIA}` : origem;
     if (oferta.tipo === TIPO_PODER) {
         const nivel = limitarNivel(oferta.nivel);
-        if (item.categoria === 'forma' || item.categoria === 'habilidade' || item.categoria === 'poder') item.maestria = nivel;
+        // Habilidade, Poder e as categorias especiais (Ocular/Infinity) ganham a Maestria inicial; Forma também.
+        const cat = idCategoriaPoder(item.categoria);
+        if (cat && (ehCategoriaForma(cat) || usaMaestriaRequerida(cat))) item.maestria = nivel;
         if (item.categoria === 'forma') item.fadigaPorUso = item.fadigaPorUso ?? 0;
         if (!f.poderes) f.poderes = [];
         f.poderes.push(item);

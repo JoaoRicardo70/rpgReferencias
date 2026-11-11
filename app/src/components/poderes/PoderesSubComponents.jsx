@@ -5,6 +5,7 @@ import AoAcertarEditor from '../shared/AoAcertarEditor';
 import SuporteEditor from '../shared/SuporteEditor';
 import React, { useState, useId, useMemo, useRef, useEffect } from 'react';
 import { usePoderesForm, SINGULAR } from './PoderesFormContext';
+import { CATEGORIAS_PODER, categoriasVisiveisNaFicha, categoriasNaoLiberadas, idCategoriaPoder, usaMaestriaRequerida, textoGrauSingularidade, DICA_LIBERAR_CATEGORIAS } from '../../core/categoriasPoder';
 import { SECOES_FORM, resumirSecoes, rascunhoTemConteudo } from '../../core/rascunhoPoder';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, GRUPO_IDENTIFICACAO, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 import FormasEditor from '../shared/FormasEditor';
@@ -149,8 +150,10 @@ export function PoderesImportadorIA() {
     useEffect(() => () => guardarImportador(chaveSalva, valorImportadorRef.current), [chaveSalva]);
 
     if (!ctx) return null;
-    const { lerImportacao, confirmarImportacao, abaAtual } = ctx;
+    const { lerImportacao, confirmarImportacao, abaAtual, minhaFicha: fichaImportacao } = ctx;
     const faseDeVolta = origem === 'ia' ? 1 : 2;
+    // Na prévia só as categorias liberadas para o personagem (core/categoriasPoder.js).
+    const categoriasLiberadasImportacao = CATEGORIAS_PODER.filter(c => c.liberada(fichaImportacao)).map(c => c.id);
 
     // Lê a resposta da IA (colada) e abre a prévia (várias respostas podem ser somadas antes de gravar).
     const lerResposta = (texto) => {
@@ -179,7 +182,7 @@ export function PoderesImportadorIA() {
 
     const gerarPrompt = async () => {
         if (!textoDocs.trim()) return alert("Cole o texto primeiro!");
-        const prompt = montarPromptImportacao(textoDocs, abaAtual);
+        const prompt = montarPromptImportacao(textoDocs, abaAtual, fichaImportacao);
         setPromptGerado(prompt);
         let copiou = false;
         try { await navigator.clipboard.writeText(prompt); copiou = true; } catch (e) { copiou = false; }
@@ -200,7 +203,7 @@ export function PoderesImportadorIA() {
         setProgresso({ indice: partes[0].indice, total: partes[0].total, texto: textoProgresso(partes[0].indice, partes[0].total) });
         try {
             const r = await transcreverEmPartes({
-                chave: configIA.chaveGemini, modelo: configIA.modelo || MODELO_GEMINI_PADRAO, partes, aba, sinal: controle.signal,
+                chave: configIA.chaveGemini, modelo: configIA.modelo || MODELO_GEMINI_PADRAO, partes, aba, ficha: fichaImportacao, sinal: controle.signal,
                 aoProgresso: (indice, total) => { if (montadoRef.current) setProgresso({ indice, total, texto: textoProgresso(indice, total) }); },
                 jaExistentes: previaRef.current.map(it => it.objeto),
             });
@@ -209,7 +212,7 @@ export function PoderesImportadorIA() {
             setFalhas(atual => [...(tentativaParcial ? atual.filter(f => !tentadas.has(`${f.indice}_${f.total}`)) : []), ...r.falhas]);
             if (r.itens.length > 0) {
                 const proxima = previaRef.current.reduce((m, it) => Math.max(m, it.chave), 0) + 1;
-                const novos = prepararImportacao(r.itens, aba, proxima); // itens já validados: sem re-serializar
+                const novos = prepararImportacao(r.itens, aba, proxima, fichaImportacao); // itens já validados: sem re-serializar
                 setOrigem('ia');
                 setPrevia(atual => [...atual, ...novos]);
                 setFase(3);
@@ -240,7 +243,7 @@ export function PoderesImportadorIA() {
                             <LerTextoComIA texto={textoDocs} onTexto={setTextoDocs} configurada={configurada} lendo={lendo} progresso={progresso} erro={erroIA} onLer={lerComIA} onCancelar={cancelarLeitura} />
                             <AvisoPartesFalhas falhas={falhas} lendo={lendo} onTentarDeNovo={tentarDeNovo} />
                             {previa.length > 0 && <button type="button" onClick={() => setFase(3)} style={{ width: '100%', marginTop: '10px', padding: '8px' }}>Ver prévia ({previa.length})</button>}
-                            <LerDeImagemIA montarPrompt={() => montarPromptImportacao(TEXTO_DAS_IMAGENS, abaAtual)} onResposta={(texto) => { setJsonResposta(texto); const ok = lerResposta(texto); if (!ok) { setOrigem('manual'); setFase(2); } return ok; }} />
+                            <LerDeImagemIA montarPrompt={() => montarPromptImportacao(TEXTO_DAS_IMAGENS, abaAtual, fichaImportacao)} onResposta={(texto) => { setJsonResposta(texto); const ok = lerResposta(texto); if (!ok) { setOrigem('manual'); setFase(2); } return ok; }} />
                             <details className="importador-ia-manual" open={!configurada || undefined}>
                                 <summary>Modo manual (avançado)</summary>
                                 <div className="importador-ia-dica">Sem usar a chave da mesa: copie a instrução, leve a uma IA de sua escolha e cole aqui o JSON que ela devolver.</div>
@@ -253,6 +256,7 @@ export function PoderesImportadorIA() {
                             {lendo && progresso && <div className="importador-ia-progresso" role="status" aria-live="polite">{progresso.texto} <button type="button" className="importador-ia-cancelar" onClick={cancelarLeitura}>Cancelar</button></div>}
                             {erroIA && <div className="importacao-aviso" role="alert">⚠️ {erroIA}</div>}
                             <ImportadorPrevia
+                                categoriasPermitidas={categoriasLiberadasImportacao}
                                 itens={previa}
                                 onAtualizar={(chave, novo) => setPrevia(atual => atual.map(it => (it.chave === chave ? novo : it)))}
                                 onRemover={(chave) => { const resto = previa.filter(it => it.chave !== chave); setPrevia(resto); if (resto.length === 0) setFase(faseDeVolta); }}
@@ -282,17 +286,18 @@ export function PoderesImportadorIA() {
 export function PoderesNavegacaoLivro({ idBase = 'poderes-categoria' }) {
     const ctx = usePoderesForm();
     if (!ctx) return FALLBACK;
-    const { abaAtual, trocarAba } = ctx;
+    const { abaAtual, trocarAba, minhaFicha, isMestre } = ctx;
 
-    const abas = [
-        { id: 'habilidade', rotulo: '🗡️ Habilidades' },
-        { id: 'forma', rotulo: '🎭 Formas' },
-        { id: 'poder', rotulo: '✨ Poderes' }
-    ];
+    // Habilidades/Formas/Poderes sempre; Oculares/Infinity/Singularidade só se o Mestre liberou na ficha (Marcados > pág. 4)
+    // ou se a ficha já tem poderes ali (os dados nunca ficam escondidos). Lista única em core/categoriasPoder.js.
+    const abas = categoriasVisiveisNaFicha(minhaFicha).map(c => ({ id: c.id, rotulo: c.rotulo }));
+    const abaEfetiva = abas.some(a => a.id === abaAtual) ? abaAtual : 'habilidade';
+    const mostrarDicaMestre = !!isMestre && categoriasNaoLiberadas(minhaFicha).length > 0;
+    const grau = abaAtual === 'singularidade' ? textoGrauSingularidade(minhaFicha) : '';
 
     // Setas esquerda/direita (e Home/End) movem a seleção e o foco entre as categorias (roving tabindex).
     const aoTeclar = (e) => {
-        const idx = Math.max(0, abas.findIndex(a => a.id === abaAtual));
+        const idx = Math.max(0, abas.findIndex(a => a.id === abaEfetiva));
         let prox = -1;
         if (e.key === 'ArrowRight') prox = (idx + 1) % abas.length;
         else if (e.key === 'ArrowLeft') prox = (idx - 1 + abas.length) % abas.length;
@@ -306,13 +311,18 @@ export function PoderesNavegacaoLivro({ idBase = 'poderes-categoria' }) {
     };
 
     return (
-        <div className="grimorio-abas grimorio-abas--categorias" role="tablist" aria-label="Categorias do Livro dos Poderes" onKeyDown={aoTeclar}>
-            {abas.map(a => (
-                <button key={a.id} id={`${idBase}-aba-${a.id}`} type="button" role="tab" aria-selected={abaAtual === a.id} aria-controls={`${idBase}-painel`} tabIndex={abaAtual === a.id ? 0 : -1} className={`grimorio-aba${abaAtual === a.id ? ' ativa' : ''}`} onClick={() => trocarAba(a.id)}>
-                    {a.rotulo}
-                </button>
-            ))}
-        </div>
+        <>
+            <div className="grimorio-abas grimorio-abas--categorias" role="tablist" aria-label="Categorias do Livro dos Poderes" onKeyDown={aoTeclar}>
+                {abas.map(a => (
+                    <button key={a.id} id={`${idBase}-aba-${a.id}`} type="button" role="tab" aria-selected={abaEfetiva === a.id} aria-controls={`${idBase}-painel`} tabIndex={abaEfetiva === a.id ? 0 : -1} className={`grimorio-aba${abaEfetiva === a.id ? ' ativa' : ''}`} onClick={() => trocarAba(a.id)}>
+                        {a.rotulo}
+                    </button>
+                ))}
+            </div>
+            {abaAtual === 'singularidade' && <p className="grimorio-aba-dica grimorio-aba-dica--grau">{grau ? `Singularidade ${grau}. ` : ''}Impossível de copiar ou ensinar.</p>}
+            {abaAtual === 'infinity' && <p className="grimorio-aba-dica">Infinity permite cópia (Mimetismo).</p>}
+            {mostrarDicaMestre && <p className="grimorio-aba-dica" role="note">{DICA_LIBERAR_CATEGORIAS}</p>}
+        </>
     );
 }
 
@@ -600,7 +610,7 @@ export function PoderesFormEditor() {
                                 />
                             </div>
                         )}
-                        {(abaAtual === 'habilidade' || abaAtual === 'poder') && (
+                        {usaMaestriaRequerida(abaAtual) && (
                             <div className="grimorio-form-campo grimorio-form-campo-destaque fade-in">
                                 <label className="grimorio-form-rotulo" title={`O quanto o personagem já domina ESTE(A) ${sing} especificamente.`}>🎓 Maestria (%)</label>
                                 <input
@@ -609,7 +619,7 @@ export function PoderesFormEditor() {
                                 />
                             </div>
                         )}
-                        {(abaAtual === 'habilidade' || abaAtual === 'poder') && (
+                        {usaMaestriaRequerida(abaAtual) && (
                             <div className="grimorio-form-campo grimorio-form-campo-alerta fade-in">
                                 <label className="grimorio-form-rotulo" title={`Maestria mínima exigida pra usar este(a) ${sing} sem gerar Fadiga extra. 0 = sem requisito (padrão).`}>🎯 Maestria Requerida (%)</label>
                                 <input
@@ -618,7 +628,7 @@ export function PoderesFormEditor() {
                                 />
                             </div>
                         )}
-                        <label className="grimorio-form-campo grimorio-form-span-tudo fade-in" title="Organize Formas, Habilidades e Poderes em pastas. Selecione uma existente ou digite um nome novo. Use / para criar subpastas: Taijutsu/Portões coloca a pasta Portões dentro de Taijutsu.">
+                        <label className="grimorio-form-campo grimorio-form-span-tudo fade-in" title="Organize suas Habilidades, Formas, Poderes e as demais categorias em pastas. Selecione uma existente ou digite um nome novo. Use / para criar subpastas: Taijutsu/Portões coloca a pasta Portões dentro de Taijutsu.">
                             <span className="grimorio-form-rotulo">🗂️ Pasta (Opc.) — use / para subpastas</span>
                             <input
                                 type="text" list="pastas-formas-datalist" placeholder="Sem pasta  (ex.: Taijutsu/Portões)"
@@ -701,7 +711,7 @@ const SEM_PASTA = NOME_SEM_PASTA;
 // 🗂️ Plural com artigo de cada categoria, pro texto do prompt de renomear pasta (Pasta deixou de
 // ser exclusiva de Forma — este texto não pode mais dizer "Formas" fixo quando quem está
 // renomeando está na aba Habilidades ou Poderes).
-const PLURAL_COM_ARTIGO = { habilidade: 'as Habilidades', forma: 'as Formas', poder: 'os Poderes' };
+const PLURAL_COM_ARTIGO = Object.fromEntries(CATEGORIAS_PODER.map(c => [c.id, c.pluralComArtigo]));
 
 export function PoderesLista() {
     const ctx = usePoderesForm();
@@ -934,7 +944,7 @@ export function PoderesLista() {
                                         </div>
                                     )}
 
-                                    {['habilidade', 'poder'].includes((p.categoria || '').toLowerCase()) && (parseFloat(p.maestriaRequerida) || 0) > 0 && (
+                                    {(() => { const idCat = idCategoriaPoder(p.categoria); return !!idCat && usaMaestriaRequerida(idCat); })() && (parseFloat(p.maestriaRequerida) || 0) > 0 && (
                                         (() => {
                                             const maestriaAtual = parseFloat(p.maestria) || 0;
                                             const req = parseFloat(p.maestriaRequerida) || 0;

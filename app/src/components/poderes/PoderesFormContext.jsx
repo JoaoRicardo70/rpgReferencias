@@ -1,4 +1,5 @@
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
+import { CATEGORIAS_PODER, categoriasVisiveisNaFicha, categoriaDoPoderFicha, idCategoriaPoder, usaMaestriaRequerida } from '../../core/categoriasPoder';
 import { lerRespostaDaIA, prepararImportacao, montarPoderFinal } from '../../core/importadorIA';
 import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from '../../core/efeitosCondicionais';
 import { normalizarUsos, limiteDeUsos, podeUsar, gastarUso, descreverUsos } from '../../core/usosPoder';
@@ -33,11 +34,8 @@ import { SECOES_PADRAO, chaveRascunhoPoder, chaveAbaRascunhoPoder, rascunhoVazio
 // 🪜 Rascunho do bloco "Estágios" do editor — nomes ficam como texto (um por linha) enquanto edita.
 const estagiosEditorVazio = () => ({ ...ESTAGIOS_PADRAO, nomes: '' });
 
-export const SINGULAR = {
-    'habilidade': 'Habilidade',
-    'forma': 'Forma',
-    'poder': 'Poder'
-};
+// Singular de cada categoria (lista única em core/categoriasPoder.js).
+export const SINGULAR = Object.fromEntries(CATEGORIAS_PODER.map(c => [c.id, c.singular]));
 
 const PoderesFormContext = createContext(null);
 
@@ -49,7 +47,7 @@ export function usePoderesForm() {
 
 // 📝 Lê/grava o rascunho na store sem assinar o estado: em testes com useStore simulado (sem getState)
 // vira no-op e o formulário se comporta como antes (só em memória do componente).
-const ROTULO_CATEGORIA = { habilidade: 'Habilidades', forma: 'Formas', poder: 'Poderes' };
+const ROTULO_CATEGORIA = Object.fromEntries(CATEGORIAS_PODER.map(c => [c.id, c.nome]));
 const lerStoreRascunho = () => (typeof useStore.getState === 'function' ? useStore.getState() : null);
 const PASTAS_ABERTAS_VAZIO = {};
 
@@ -402,6 +400,28 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         if (!persistirRascunho) cancelarEdicaoPoder();
     }, [persistirRascunho, gravarRascunho, cancelarEdicaoPoder]);
 
+    // Aba aberta que deixou de existir para esta ficha (liberação retirada, ou o Mestre abriu outra entidade sem a liberação e sem poderes ali): volta para Habilidades.
+    // Não rebaixa na carga inicial: a ficha ainda pode ser a padrão, e a aba lembrada do rascunho (ex.: 'infinity') voltaria a ser visível quando a ficha real chegar.
+    const abaVistaRef = useRef(null); // { nome, aba } da última vez em que a aba atual estava visível
+    const avaliouRef = useRef(false);
+    useEffect(() => {
+        if (!minhaFicha) return;
+        // Só para categorias conhecidas e escondidas (as liberáveis); valor desconhecido não é mexido aqui.
+        if (!SINGULAR[abaAtual]) return;
+        const visivel = categoriasVisiveisNaFicha(minhaFicha).some(c => c.id === abaAtual);
+        const jaAvaliou = avaliouRef.current;
+        avaliouRef.current = true;
+        if (visivel) { abaVistaRef.current = { nome: meuNome, aba: abaAtual }; return; }
+        const vista = abaVistaRef.current;
+        const eraVisivel = !!vista && vista.nome === meuNome && vista.aba === abaAtual;
+        const trocouDeEntidade = !!vista && vista.nome !== meuNome;
+        // Primeira avaliação sem nunca ter visto a aba visível = carga inicial: espera a ficha real.
+        if (eraVisivel || trocouDeEntidade || jaAvaliou) {
+            abaVistaRef.current = null;
+            trocarAba('habilidade');
+        }
+    }, [minhaFicha, meuNome, abaAtual, trocarAba]);
+
     // Botão Cancelar: pede confirmação se há algo escrito (ou alterado, ao reescrever um poder existente).
     const cancelarEdicaoComConfirmacao = useCallback(() => {
         if (temAlteracaoNaoGravada() && !window.confirm('Descartar o que foi escrito neste formulário? Isso não pode ser desfeito.')) return;
@@ -485,7 +505,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
                         ficha.poderes[ix].maestria = Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0));
                         ficha.poderes[ix].fadigaPorUso = Math.max(0, parseFloat(fadigaPorUsoPoder) || 0);
                         delete ficha.poderes[ix].maestriaRequerida;
-                    } else if (abaAtual === 'habilidade' || abaAtual === 'poder') {
+                    } else if (usaMaestriaRequerida(abaAtual)) {
                         // 🎓 Poderes ganharam a MESMA Maestria própria de Habilidades (pedido do
                         // usuário: paridade entre as 3 categorias) — o quanto o personagem já
                         // domina ESTE Poder específico, comparado contra maestriaRequerida (ver
@@ -539,7 +559,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
                     ...(abaAtual === 'forma' ? {
                         maestria: Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0)),
                         fadigaPorUso: Math.max(0, parseFloat(fadigaPorUsoPoder) || 0),
-                    } : (abaAtual === 'habilidade' || abaAtual === 'poder') ? {
+                    } : usaMaestriaRequerida(abaAtual) ? {
                         maestria: Math.min(100, Math.max(0, parseFloat(maestriaPoder) || 0)),
                         maestriaRequerida: Math.min(100, Math.max(0, parseFloat(maestriaRequeridaPoder) || 0))
                     } : {})
@@ -666,7 +686,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         const p = (minhaFicha?.poderes || []).find(po => po.id === id);
         if (!p) return;
 
-        const categoria = p.categoria || 'poder';
+        const categoria = categoriaDoPoderFicha(p);
         const rascunho = rascunhoDoPoder(p, minhaFicha?.contadores);
         const outraCategoria = !!chaveRascunho && categoria !== abaAtual;
 
@@ -855,9 +875,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
 
     const itensFiltrados = useMemo(() => {
         return poderesGlobais.filter(p => {
-            const cat = (p.categoria || 'poder').toLowerCase();
-            const alvo = abaAtual.toLowerCase();
-            return cat === alvo;
+            // Categoria desconhecida cai em Habilidades (core/categoriasPoder.js): nada some da lista.
+            return categoriaDoPoderFicha(p) === abaAtual.toLowerCase();
         });
     }, [poderesGlobais, abaAtual]);
 
@@ -882,7 +901,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         updateFicha((ficha) => {
             (ficha.poderes || []).forEach(p => {
                 if (!p) return;
-                if (catAlvo && (p.categoria || '').toLowerCase() !== catAlvo) return;
+                if (catAlvo && categoriaDoPoderFicha(p) !== catAlvo) return;
                 // Renomear/mover uma pasta leva as subpastas junto (core/pastas.js > renomearCaminhoPasta).
                 const atual = (p.pasta || '').trim();
                 const nova = renomearCaminhoPasta(atual, pastaAntiga, novaLimpa);
@@ -984,8 +1003,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         // categorias); Formas não entram aqui (a Maestria delas afeta a Fadiga DINÂMICA contínua
         // enquanto a transformação está ativa, ver core/fadiga.js > getFatorFormasAtivas, não este
         // ganho instantâneo por disparo).
-        const categoriaLower = (poder.categoria || '').toLowerCase();
-        const usaMaestriaDeDisparo = categoriaLower === 'habilidade' || categoriaLower === 'poder';
+        const categoriaId = idCategoriaPoder(poder.categoria);
+        const usaMaestriaDeDisparo = !!categoriaId && usaMaestriaRequerida(categoriaId);
         const ganhoFadigaMaestria = (usaMaestriaDeDisparo && (parseFloat(poder.maestriaRequerida) || 0) > 0)
             ? calcularGanhoFadigaMaestriaInsuficiente(poder.maestria, poder.maestriaRequerida)
             : 0;
@@ -1045,8 +1064,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     const lerImportacao = useCallback((jsonString, chaveInicial = 1) => {
         const lido = lerRespostaDaIA(jsonString);
         if (!lido.ok) return lido;
-        return { ok: true, itens: prepararImportacao(lido.itens, abaAtual, chaveInicial) };
-    }, [abaAtual]);
+        return { ok: true, itens: prepararImportacao(lido.itens, abaAtual, chaveInicial, minhaFicha) };
+    }, [abaAtual, minhaFicha]);
 
     // 2) Grava na ficha só os itens da prévia que o jogador deixou marcados. Devolve quantos entraram.
     const confirmarImportacao = useCallback((itensPrevia) => {

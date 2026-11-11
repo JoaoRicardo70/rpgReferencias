@@ -5,13 +5,26 @@
 // o mesmo normalizarPoder da Sexta-Feira e prepara a PRÉVIA que o jogador revisa antes de gravar.
 // ==========================================
 import { ESTADOS } from './condicoes';
+import { CATEGORIAS_PODER as LISTA_CATEGORIAS, IDS_CATEGORIA_PODER, idCategoriaPoder, categoriaLiberadaNaFicha } from './categoriasPoder';
 import { lerCustoPorTurno } from './custoPorTurno';
-import { ATRIBUTOS_EFEITO, PROPRIEDADES_EFEITO, CATEGORIAS_PODER, normalizarPoder, resumirProposta } from './sextaFeiraCriacao';
+import { ATRIBUTOS_EFEITO, PROPRIEDADES_EFEITO, normalizarPoder, resumirProposta } from './sextaFeiraCriacao';
 import { ATRIBUTOS_COM_QUANDO, normalizarQuandoMultiplicador } from './efeitosCondicionais';
 import { EVENTOS_GATILHO, ACOES_GATILHO, LIMITE_GATILHOS_POR_FONTE, LIMITE_ACOES_POR_GATILHO, LIMITE_LINHAS_TABELA, LIMITE_OPCOES_ESCOLHA } from './gatilhos';
 import { lerGatilhosDaIA, marcarGatilhosPendentes, gatilhoFaltaResponder, decidirModoDoGatilho, finalizarGatilho } from './gatilhosImportacao';
 
-export const ROTULO_CATEGORIA = { habilidade: 'Habilidades', forma: 'Formas', poder: 'Poderes' };
+export const ROTULO_CATEGORIA = Object.fromEntries(LISTA_CATEGORIAS.map(c => [c.id, c.nome]));
+
+// O que a IA precisa saber para escolher entre as categorias especiais.
+const EXPLICACAO_CATEGORIA = {
+    ocular: 'Poderes Oculares = olhos/dojutsu (Sharingan, Rinnegan, Byakugan e parecidos)',
+    infinity: 'Infinity = manipulação conceitual absoluta',
+    singularidade: 'Singularidade = anomalia máxima irrepetível (impossível de copiar)',
+};
+
+// Categorias que o prompt pode oferecer: as 3 básicas, a aba aberta e, se a ficha for conhecida, só as liberadas nela.
+function categoriasDoPrompt(padrao, ficha) {
+    return IDS_CATEGORIA_PODER.filter(id => id === padrao || ['habilidade', 'forma', 'poder'].includes(id) || !ficha || categoriaLiberadaNaFicha(id, ficha));
+}
 
 // Multiplicadores (xN no dano, xN em status, xN em Poder Direto...) das fichas antigas NÃO são importados por enquanto: foram
 // pensados para outra escala (o multiplicador de dano virou aumento de Poder Calculado). Ficam nas notas, para o jogador decidir.
@@ -22,7 +35,7 @@ export const ATRIBUTOS_NAO_IMPORTADOS = ['dano'];
 
 const LIMITE_NOTAS = 4000;
 
-export function montarPromptImportacao(texto, categoria = 'habilidade') {
+export function montarPromptImportacao(texto, categoria = 'habilidade', ficha = null) {
     const rotulo = ROTULO_CATEGORIA[categoria] || ROTULO_CATEGORIA.habilidade;
     const padrao = ROTULO_CATEGORIA[categoria] ? categoria : 'habilidade';
     return `Atue como extrator de dados de um sistema de RPG.
@@ -31,7 +44,7 @@ Mesmo que usem fogo, gelo ou magia, COLOQUE em "poderes": o usuário quer regist
 
 CAMPOS DE CADA ITEM
 - "nome" e "descricao" (copie o texto original da habilidade, sem resumir).
-- "categoria": "habilidade", "forma" ou "poder" (se o texto não disser, use "${padrao}").
+- "categoria": ${categoriasDoPrompt(padrao, ficha).map(id => `"${id}"`).join(', ')} (se o texto não disser, use "${padrao}"). ${categoriasDoPrompt(padrao, ficha).filter(id => EXPLICACAO_CATEGORIA[id]).map(id => EXPLICACAO_CATEGORIA[id]).join('; ')}${categoriasDoPrompt(padrao, ficha).some(id => EXPLICACAO_CATEGORIA[id]) ? '. Só use essas categorias especiais se o texto deixar claro.' : ''}
 - "danoQtd" e "danoFaces": "15d6" vira 15 e 6. Sem dano: 0 e 0.
 - "custoPercentual": custo em % das energias, se o texto disser (senão 0). "alcance" e "area": em quadrados (senão 0).
 - "tipoAcao": "acao", "bonus", "reacao", "movimento", "livre" ou "" se não estiver claro.
@@ -183,8 +196,24 @@ const textoLista = (v) => {
     });
 };
 // A IA às vezes devolve a categoria no plural ou fora da lista: aceita o plural e, se não reconhecer, usa a aba aberta.
-const CATEGORIA_POR_NOME = { habilidade: 'habilidade', habilidades: 'habilidade', poder: 'poder', poderes: 'poder', forma: 'forma', formas: 'forma' };
-const categoriaDoItem = (v, padrao) => CATEGORIA_POR_NOME[minusculo(v)] || padrao;
+// Aceita plural e apelidos (core/categoriasPoder.js > idCategoriaPoder). Sem valor ou desconhecida = a aba aberta.
+const categoriaDoItem = (v, padrao) => idCategoriaPoder(v) || padrao;
+// Categoria de um item da IA: desconhecida = a aba aberta (com aviso); conhecida mas NÃO liberada para o personagem
+// (ficha conhecida) = 'habilidade' com aviso, exceto a própria aba aberta, que fica (o Mestre pode liberar depois).
+export function escolherCategoriaImportada(valor, padrao, ficha = null) {
+    const avisos = [];
+    const bruta = String(valor == null ? '' : valor).trim();
+    let categoria = idCategoriaPoder(bruta);
+    if (!categoria) {
+        categoria = idCategoriaPoder(padrao) || 'habilidade';
+        if (bruta) avisos.push(`Categoria "${bruta}" não existe no sistema; usei "${categoria}".`);
+    }
+    if (ficha && !categoriaLiberadaNaFicha(categoria, ficha)) {
+        if (categoria === padrao) avisos.push(`Categoria ${categoria} não liberada para este personagem: gravada assim mesmo (o Mestre pode liberar na Ficha, pág. 4 dos Marcados).`);
+        else { avisos.push(`Categoria ${categoria} não liberada para este personagem; usei "habilidade".`); categoria = 'habilidade'; }
+    }
+    return { categoria, avisos };
+}
 const descreverEfeito = (e) => `${e && e.nome ? `${e.nome}: ` : ''}${e && e.atributo ? e.atributo : '?'} ${e && e.propriedade ? e.propriedade : '?'} ${e && e.valor !== undefined ? e.valor : '?'}`;
 
 // Tira os efeitos que não vamos importar (multiplicadores) ou que não têm valor numérico; o que sair vira texto em `naoAplicado`.
@@ -275,13 +304,14 @@ function colherMultiplicadores(p, naoAplicado) {
 }
 
 // Valida UM item vindo da IA e devolve { objeto, avisos, naoAplicado, valido }. `objeto` já está no formato do Grimório (sem id).
-export function prepararItemImportado(bruto, categoriaPadrao = 'habilidade') {
+export function prepararItemImportado(bruto, categoriaPadrao = 'habilidade', ficha = null) {
     const p = bruto && typeof bruto === 'object' ? bruto : {};
     const naoAplicado = textoLista(p.naoAplicado);
+    const categoriaFinal = escolherCategoriaImportada(p.categoria, categoriaPadrao, ficha);
     const faces = num(p.danoFaces ?? p.dadosFaces);
     const dados = {
         ...p,
-        categoria: categoriaDoItem(p.categoria, categoriaPadrao),
+        categoria: categoriaFinal.categoria,
         dadosQtd: Math.max(0, Math.floor(num(p.danoQtd ?? p.dadosQtd))),
         dadosFaces: faces > 0 ? Math.floor(faces) : undefined,
         custoPercentual: num(p.custoPercentual),
@@ -299,6 +329,7 @@ export function prepararItemImportado(bruto, categoriaPadrao = 'habilidade') {
         dados.suporte = { ...p.suporte, buffs: separarEfeitosImportaveis(p.suporte.buffs, naoAplicado) };
     }
     const { objeto, avisos, valido } = normalizarPoder(dados);
+    avisos.unshift(...categoriaFinal.avisos);
     avisos.push(...gatilhosLidos.avisos);
     // Gatilhos esperam o jogador responder "automático ou opcional?" na prévia: a IA nunca decide o modo.
     if (gatilhosLidos.gatilhos.length) objeto.gatilhos = marcarGatilhosPendentes(gatilhosLidos.gatilhos);
@@ -450,16 +481,16 @@ export function juntarNotas(notas, naoAplicado) {
 }
 
 // Prepara a lista inteira para a prévia: [{ chave, marcado, objeto, avisos, naoAplicado, valido }].
-export function prepararImportacao(itens, categoriaPadrao = 'habilidade', chaveInicial = 1) {
+export function prepararImportacao(itens, categoriaPadrao = 'habilidade', chaveInicial = 1, ficha = null) {
     return (Array.isArray(itens) ? itens : []).map((bruto, i) => {
-        const r = prepararItemImportado(bruto, categoriaPadrao);
+        const r = prepararItemImportado(bruto, categoriaPadrao, ficha);
         return { chave: chaveInicial + i, marcado: r.valido, objeto: r.objeto, avisos: r.avisos, naoAplicado: r.naoAplicado, valido: r.valido };
     });
 }
 
 // Troca a categoria de um item da prévia mantendo os campos coerentes (Forma tem fadiga; Habilidade/Poder têm Maestria Requerida).
 export function mudarCategoriaImportada(objeto, categoria) {
-    if (!objeto || !CATEGORIAS_PODER.includes(categoria)) return objeto;
+    if (!objeto || !IDS_CATEGORIA_PODER.includes(categoria)) return objeto;
     const novo = { ...objeto, categoria };
     if (categoria === 'forma') {
         delete novo.maestriaRequerida;

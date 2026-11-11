@@ -3,6 +3,7 @@
 // Sexta-Feira entra na ficha (components/mestre/LivroEntidade.jsx e MestrePedidosSexta.jsx).
 // ==========================================
 
+import { categoriaDoPoderFicha } from './categoriasPoder';
 // Botões do topo do livro da entidade, na ordem em que aparecem.
 export const ABAS_LIVRO_ENTIDADE = [
     { id: 'ficha', icone: '📕', nome: 'Ficha Definitiva' },
@@ -11,8 +12,8 @@ export const ABAS_LIVRO_ENTIDADE = [
 
 // Categoria de um poder na aba Poderes Clássicos (sem categoria = 'poder', como lá).
 export function categoriaDoPoder(p) {
-    const cat = String(p?.categoria || 'poder').toLowerCase();
-    return ['habilidade', 'poder', 'forma'].includes(cat) ? cat : 'poder';
+    // Mesma regra da lista de poderes (core/categoriasPoder.js): sem categoria = 'poder'; desconhecida = 'habilidade'.
+    return categoriaDoPoderFicha(p);
 }
 
 // Em qual parte da ficha um pedido da Sexta-Feira entra: 'habilidade' | 'poder' | 'forma'

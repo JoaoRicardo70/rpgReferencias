@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import useStore from '../../stores/useStore';
-import { ofertasRecebidas, aceitarOferta, removerOferta, TIPO_PODER } from '../../core/ensinar';
+import { ofertasRecebidas, aceitarOferta, motivoRecusaOferta, removerOferta, TIPO_PODER } from '../../core/ensinar';
+import { poderEhCopiavel, MENSAGEM_SINGULARIDADE_NAO_COPIA } from '../../core/categoriasPoder';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 
 // 🎓 Ofertas de ensinamento que outros personagens mandaram para esta ficha: aceitar copia para a ficha, recusar só descarta.
@@ -12,10 +13,13 @@ export default function EnsinamentosRecebidos({ tipo }) {
 
     const aceitar = useCallback((oferta) => {
         let criou = false;
+        const bloqueio = motivoRecusaOferta(minhaFicha, oferta);
+        if (bloqueio) { adicionarAviso(bloqueio, 'alerta'); return; }
+        if (oferta.tipo === TIPO_PODER && !poderEhCopiavel(oferta.item)) adicionarAviso(MENSAGEM_SINGULARIDADE_NAO_COPIA, 'alerta');
         updateFicha((f) => { criou = !!aceitarOferta(f, oferta, Date.now()); });
         salvar();
         if (criou) adicionarAviso(`Você aprendeu "${oferta.item.nome}" com ${oferta.de}.`, 'info');
-    }, [updateFicha, salvar, adicionarAviso]);
+    }, [minhaFicha, updateFicha, salvar, adicionarAviso]);
 
     const recusar = useCallback((oferta) => {
         updateFicha((f) => { removerOferta(f, oferta.id); });

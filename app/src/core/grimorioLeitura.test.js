@@ -48,9 +48,9 @@ describe('categoriaDoPoder', () => {
         expect(categoriaDoPoder(undefined)).toBe('poder');
         expect(categoriaDoPoder({ categoria: '' })).toBe('poder');
     });
-    it('categoria desconhecida ou de tipo estranho cai em poder', () => {
-        expect(categoriaDoPoder({ categoria: 'xyz' })).toBe('poder');
-        expect(categoriaDoPoder({ categoria: 42 })).toBe('poder');
+    it('categoria desconhecida ou de tipo estranho cai em habilidade (igual à lista de poderes)', () => {
+        expect(categoriaDoPoder({ categoria: 'xyz' })).toBe('habilidade');
+        expect(categoriaDoPoder({ categoria: 42 })).toBe('habilidade');
     });
 });
 

@@ -12,10 +12,10 @@ const MENSAGEM_PARTE_VAZIA = 'A IA não achou habilidades nesta parte do texto.'
 const CONFIG_JSON = { responseMimeType: 'application/json' };
 
 // Lê UMA parte: devolve { ok: true, itens } ou { ok: false, erro: { tipo, mensagem } }.
-export async function lerParteComIA({ chave, modelo, texto, aba, indice = 1, total = 1, sinal = null, fetchImpl }) {
+export async function lerParteComIA({ chave, modelo, texto, aba, ficha = null, indice = 1, total = 1, sinal = null, fetchImpl }) {
     if (!chave) return { ok: false, erro: { tipo: 'sem-chave', mensagem: MENSAGEM_SEM_CHAVE } };
     try {
-        const prompt = montarPromptImportacao(montarTextoDaParte(texto, indice, total), aba);
+        const prompt = montarPromptImportacao(montarTextoDaParte(texto, indice, total), aba, ficha);
         const resposta = await chamarGemini({
             chave, modelo,
             systemInstruction: INSTRUCAO_SISTEMA_TEXTO,
@@ -39,7 +39,7 @@ export async function lerParteComIA({ chave, modelo, texto, aba, indice = 1, tot
 // Lê as partes em sequência. `partes`: [{ indice, total, texto }].
 // Devolve { itens (mesclados, sem repetir nomes de `jaExistentes`), falhas: [{ indice, total, texto, erro }], cancelado }.
 // Cota/sem chave/cancelamento interrompem a fila: as partes restantes viram falhas (para tentar de novo depois).
-export async function transcreverEmPartes({ chave, modelo, partes, aba, sinal = null, aoProgresso = null, jaExistentes = [], fetchImpl }) {
+export async function transcreverEmPartes({ chave, modelo, partes, aba, ficha = null, sinal = null, aoProgresso = null, jaExistentes = [], fetchImpl }) {
     const listas = [];
     const falhas = [];
     let cancelado = false;
@@ -48,7 +48,7 @@ export async function transcreverEmPartes({ chave, modelo, partes, aba, sinal = 
         if (bloqueio) { falhas.push({ ...parte, erro: bloqueio }); continue; }
         if (sinal && sinal.aborted) { cancelado = true; falhas.push({ ...parte, erro: { tipo: 'cancelado', mensagem: 'Leitura cancelada.' } }); continue; }
         if (typeof aoProgresso === 'function') aoProgresso(parte.indice, parte.total);
-        const r = await lerParteComIA({ chave, modelo, texto: parte.texto, aba, indice: parte.indice, total: parte.total, sinal, fetchImpl });
+        const r = await lerParteComIA({ chave, modelo, texto: parte.texto, aba, ficha, indice: parte.indice, total: parte.total, sinal, fetchImpl });
         if (r.ok) { listas.push(r.itens); continue; }
         if (r.erro.tipo === 'cancelado') cancelado = true;
         falhas.push({ ...parte, erro: r.erro });

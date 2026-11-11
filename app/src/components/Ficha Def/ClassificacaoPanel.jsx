@@ -154,6 +154,7 @@ function PaginaRegistros() {
     const hPoder = hierarquia.poder || false;
     const hInfinity = hierarquia.infinity || false;
     const hSingularidade = hierarquia.singularidade || '';
+    const hOcular = hierarquia.ocular === true;
 
     const [hTextos, setHTextos] = useState({
         poderNome: '', poderDesc: '', poderVertente: '', poderElemento: '', poderAfeta: '',
@@ -198,6 +199,16 @@ function PaginaRegistros() {
             f.hierarquia.poder = p;
             f.hierarquia.infinity = i;
             f.hierarquia.singularidade = s;
+        });
+        callSave();
+    };
+
+    // 👁️ Libera/bloqueia a aba "Poderes Oculares" do Grimório (só o Mestre marca).
+    const salvarOcular = (ligado) => {
+        if (!isMestre) return;
+        updateFicha(f => {
+            if (!f.hierarquia) f.hierarquia = {};
+            f.hierarquia.ocular = !!ligado;
         });
         callSave();
     };
@@ -325,7 +336,7 @@ function PaginaRegistros() {
                     <input type="checkbox" checked={hInfinity} onChange={e => salvarHierarquia(hPoder, e.target.checked, hSingularidade)} disabled={!isMestre} style={{ transform: 'scale(1.5)', margin: '5px' }} />
                     <div>
                         <div style={{ color: hInfinity ? '#00ccff' : 'inherit', fontWeight: 'bold', fontSize: '1.1em' }}>🌌 Categoria 2: Infinity (Manipulação Absoluta)</div>
-                        <div style={{ fontSize: '0.85em', marginTop: '4px', opacity: 0.8 }}>Controle infinito e conceitual. <strong style={{color: hInfinity ? '#00ccff' : 'inherit'}}>⚠️ Permite Cópia (Mimetismo).</strong></div>
+                        <div style={{ fontSize: '0.85em', marginTop: '4px', opacity: 0.8 }}>Controle infinito e conceitual. <strong style={{color: hInfinity ? '#00ccff' : 'inherit'}}>⚠️ Permite Cópia (Mimetismo).</strong> Libera a aba Infinities no Grimório.</div>
                     </div>
                 </label>
                 {hInfinity && (
@@ -376,7 +387,7 @@ function PaginaRegistros() {
                     <input type="checkbox" checked={!!hSingularidade} onChange={e => { const val = e.target.checked ? '3' : ''; salvarHierarquia(hPoder, hInfinity, val); }} disabled={!isMestre} style={{ transform: 'scale(1.5)', margin: '5px' }} />
                     <div>
                         <div style={{ color: hSingularidade ? '#ff00ff' : 'inherit', fontWeight: 'bold', fontSize: '1.1em' }}>👑 Categoria 3: Singularidade (Anomalia Máxima)</div>
-                        <div style={{ fontSize: '0.85em', marginTop: '4px', opacity: 0.8 }}>Uma falha na própria realidade. <strong style={{color: hSingularidade ? '#ff00ff' : 'inherit'}}>🚫 REGRA ABSOLUTA: Impossível ser copiada.</strong></div>
+                        <div style={{ fontSize: '0.85em', marginTop: '4px', opacity: 0.8 }}>Uma falha na própria realidade. <strong style={{color: hSingularidade ? '#ff00ff' : 'inherit'}}>🚫 REGRA ABSOLUTA: Impossível ser copiada.</strong> Libera a aba Singularidades no Grimório.</div>
                     </div>
                 </label>
                 {hSingularidade && (
@@ -400,6 +411,17 @@ function PaginaRegistros() {
                         </div>
                     </div>
                 )}
+            </div>
+
+            {/* 👁️ CATEGORIA: PODERES OCULARES */}
+            <div className={`hierarquia-ocular${hOcular ? ' hierarquia-ocular--ativo' : ''}`}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '15px', cursor: isMestre ? 'pointer' : 'not-allowed' }}>
+                    <input type="checkbox" checked={hOcular} onChange={e => salvarOcular(e.target.checked)} disabled={!isMestre} style={{ transform: 'scale(1.5)', margin: '5px' }} />
+                    <div>
+                        <div className={`hierarquia-ocular-titulo${hOcular ? ' hierarquia-ocular-titulo--ativo' : ''}`}>👁️ Categoria: Poderes Oculares (Olhos)</div>
+                        <div style={{ fontSize: '0.85em', marginTop: '4px', opacity: 0.8 }}>Poderes dos olhos (dojutsu, olhos especiais). Libera a aba Poderes Oculares no Grimório.</div>
+                    </div>
+                </label>
             </div>
 
             {isMestre && (

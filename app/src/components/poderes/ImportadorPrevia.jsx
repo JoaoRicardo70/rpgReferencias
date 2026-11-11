@@ -1,13 +1,11 @@
 import React from 'react';
 import { resumirItemImportado, mudarCategoriaImportada, listarEfeitosIncertos, listarGatilhosImportados, contarPendentes, contarGatilhosPendentes, faltaResponder, faltaResponderGatilho, decidirModoGatilhoImportado, decidirTodosOsGatilhos, decidirEfeitoIncerto, decidirTodosOsIncertos, definirTipoMultiplicador, TIPOS_MULTIPLICADOR } from '../../core/importadorIA';
 import { descreverGatilho } from '../../core/gatilhos';
+import { CATEGORIAS_PODER } from '../../core/categoriasPoder';
 import { trocarElementoDaPrevia } from '../../core/importadorTecnicas';
 
-const CATEGORIAS = [
-    { id: 'habilidade', rotulo: 'Habilidade' },
-    { id: 'poder', rotulo: 'Poder' },
-    { id: 'forma', rotulo: 'Forma' },
-];
+// Opções do seletor de categoria (lista única em core/categoriasPoder.js); `categoriasPermitidas` (ids) restringe às liberadas pro personagem.
+const CATEGORIAS = CATEGORIAS_PODER.map(c => ({ id: c.id, rotulo: c.singular }));
 
 const textoEfeito = (e) => (e.multiplicador
     ? `x${e.valor} em ${String(e.atributo || '').replace('_', ' ').toUpperCase()}`
@@ -26,7 +24,7 @@ function ListaEfeitos({ titulo, efeitos }) {
 // 🔎 Prévia da importação: cada item que a IA devolveu, já validado pelo sistema, para o jogador conferir, trocar nome/categoria,
 // desmarcar ou tirar antes de gravar no Grimório. Nada é gravado aqui: quem grava é o `onConfirmar`.
 // Técnicas Elementais: passe `elementos` (nomes do Grimório) e `resumir`; o seletor de categoria dá lugar ao de elemento.
-export default function ImportadorPrevia({ itens, onAtualizar, onRemover, onConfirmar, onVoltar, onAdicionarOutra, elementos, resumir }) {
+export default function ImportadorPrevia({ itens, onAtualizar, onRemover, onConfirmar, onVoltar, onAdicionarOutra, elementos, resumir, categoriasPermitidas }) {
     const modoTecnica = Array.isArray(elementos);
     const marcados = itens.filter(it => it.marcado && it.valido).length;
     // Efeitos sem ativação clara: o jogador precisa responder antes de gravar (só nos itens marcados).
@@ -63,7 +61,7 @@ export default function ImportadorPrevia({ itens, onAtualizar, onRemover, onConf
                             </select>
                         ) : (
                             <select value={it.objeto.categoria} aria-label="Categoria" onChange={e => trocarCategoria(it, e.target.value)}>
-                                {CATEGORIAS.map(c => <option key={c.id} value={c.id}>{c.rotulo}</option>)}
+                                {CATEGORIAS.filter(c => !Array.isArray(categoriasPermitidas) || categoriasPermitidas.includes(c.id) || c.id === it.objeto.categoria).map(c => <option key={c.id} value={c.id}>{c.rotulo}</option>)}
                             </select>
                         )}
                         <button type="button" className="importacao-remover" title="Tirar da lista" aria-label="Tirar da lista" onClick={() => onRemover(it.chave)}>✕</button>
