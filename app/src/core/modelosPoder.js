@@ -371,18 +371,20 @@ export function aplicarModeloNaFicha(ficha, req = {}) {
     if (edicao && edicao.bloqueio) return { ok: false, mensagem: edicao.bloqueio, avisos: novo.avisos };
 
     // ---- Fase 2: grava. Contadores do modelo já existentes são reescritos (nome/min/max; valor preservado e preso ao novo intervalo). ----
+    // Os contadores do modelo pertencem ao poder: gravam `poderId` (migra também contadores mp_* antigos, sem poderId, ao editar).
+    const poderId = existente ? existente.id : (req.id !== undefined ? req.id : Date.now());
     const remover = new Set(novo.contadoresRemover);
     const atualizar = new Map(novo.contadoresAtualizar.map(c => [String(c.id), c]));
     ficha.contadores = [
         ...ficha.contadores.filter(c => c && !remover.has(String(c.id))).map((c) => {
             const a = atualizar.get(String(c.id));
-            return a ? (normalizarContador({ ...c, nome: a.nome, min: a.min, max: a.max }) || c) : c;
+            return a ? (normalizarContador({ ...c, nome: a.nome, min: a.min, max: a.max, poderId }) || c) : c;
         }),
-        ...novo.contadores,
+        ...novo.contadores.map(c => ({ ...c, poderId })),
     ];
 
     if (!existente) {
-        ficha.poderes.push({ ...novo.poder, id: req.id !== undefined ? req.id : Date.now() });
+        ficha.poderes.push({ ...novo.poder, id: poderId });
         return { ok: true, modo: 'novo', avisos: novo.avisos, mensagem: `${m.nome} adicionado: ${(novo.poder.gatilhos || []).length} gatilho(s), ${novo.contadores.length} contador(es) novo(s).` };
     }
 

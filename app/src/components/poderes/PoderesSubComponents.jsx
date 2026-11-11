@@ -9,6 +9,7 @@ import { SECOES_FORM, resumirSecoes, rascunhoTemConteudo } from '../../core/rasc
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, GRUPO_IDENTIFICACAO, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 import FormasEditor from '../shared/FormasEditor';
 import EstagioControle from './EstagioControle';
+import { ContadoresDoPoderEditor, ContadoresNoCartao } from './ContadoresDoPoder';
 import EstagiosMarcosEditor from './EstagiosMarcosEditor';
 import { escalarEfeitosPorEstagio, previaEstagios, getMaximoEstagio, normalizarEstagios } from '../../core/estagios';
 import { construirArvorePastas, segmentosPasta, chavePastaAberta, NOME_SEM_PASTA } from '../../core/pastas';
@@ -347,7 +348,7 @@ export function PoderesFormEditor() {
         elementosAfetados, setElementosAfetados,
         imagemUrl, setImagemUrl, uploadingImg, handleImageUpload,
         dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresParaGatilhos, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -553,7 +554,10 @@ export function PoderesFormEditor() {
 
             {/* GATILHOS: o editor ocupa a largura toda da seção */}
             {secao('gatilhos', '🔔 Gatilhos', (
-                <GatilhosEditor gatilhos={gatilhosPoder} onChange={setGatilhosPoder} descartados={gatilhosDescartados} contadores={minhaFicha?.contadores} poderes={minhaFicha?.poderes} />
+                <>
+                <ContadoresDoPoderEditor />
+                <GatilhosEditor gatilhos={gatilhosPoder} onChange={setGatilhosPoder} descartados={gatilhosDescartados} contadores={contadoresParaGatilhos || minhaFicha?.contadores} poderes={minhaFicha?.poderes} />
+                </>
             ))}
 
             {/* AVANÇADO: usos, recarga, escudo, estágios, maestria e pasta */}
@@ -778,6 +782,9 @@ export function PoderesLista() {
                                     </h3>
                                     
                                     <EstagioControle poder={p} onMudar={mudarEstagioPoder} />
+
+                                    {/* 🔢 Contadores deste poder: nome, valor/máx e −/+ */}
+                                    <ContadoresNoCartao poder={p} />
 
                                     {p.descricao && (
                                         <p style={{ fontSize: '0.9em', fontStyle: 'italic', margin: '8px 0', opacity: 0.8 }}>

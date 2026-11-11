@@ -234,10 +234,11 @@ describe('core/contadores — adicionarContador', () => {
         expect(adicionarContador(f, { id: 'extra' })).toBe(false);
         expect(f.contadores).toHaveLength(12);
     });
-    it('já criado ligado a um Poder com Estágios aplica o estágio do valor inicial', () => {
+    it('já criado ligado a um Poder com Estágios adota o estágio atual (valor = estágio - 1) sem mexer no estágio', () => {
         const f = fichaBase({ poderes: [poderComEstagios({ estagioAtual: 4 })] });
         adicionarContador(f, { id: 'x', min: 0, max: 5, poderId: 1 });
-        expect(f.poderes[0].estagioAtual).toBe(1);
+        expect(f.poderes[0].estagioAtual).toBe(4);
+        expect(f.contadores[0].valor).toBe(3);
         expect(f.contadores[0].poderId).toBe(1);
     });
     it('ficha nula -> false', () => {
@@ -268,11 +269,13 @@ describe('core/contadores — atualizarContador', () => {
         atualizarContador(f, 'c', { min: '4' });
         expect(f.contadores[0]).toMatchObject({ min: 4, valor: 4 });
     });
-    it('ligar poderId aplica o estágio (valor 2 -> estágio 3)', () => {
+    it('ligar poderId adota o estágio atual como valor (estágio 4 -> valor 3) sem mexer no estágio', () => {
         const f = ficha();
+        f.poderes[0].estagioAtual = 4;
         atualizarContador(f, 'c', { poderId: '1' });
         expect(f.contadores[0].poderId).toBe('1');
-        expect(f.poderes[0].estagioAtual).toBe(3);
+        expect(f.contadores[0].valor).toBe(3);
+        expect(f.poderes[0].estagioAtual).toBe(4);
     });
     it('desligar poderId ("" ou null) remove a chave e não mexe mais no estágio', () => {
         const f = ficha();
@@ -286,10 +289,12 @@ describe('core/contadores — atualizarContador', () => {
         atualizarContador(f, 'c', { poderId: null });
         expect('poderId' in f.contadores[0]).toBe(false);
     });
-    it('mudarContador ligado avança o estágio do Poder', () => {
+    it('mudarContador ligado (comandante) avança o estágio do Poder a partir do valor adotado', () => {
         const f = ficha();
         atualizarContador(f, 'c', { poderId: 1 });
-        mudarContador(f, 'c', 1);
+        expect(f.contadores[0].valor).toBe(0); // adotou o estágio 1 -> valor 0
+        expect(f.poderes[0].estagioAtual).toBe(1);
+        mudarContador(f, 'c', 3);
         expect(f.contadores[0].valor).toBe(3);
         expect(f.poderes[0].estagioAtual).toBe(4);
         mudarContador(f, 'c', -3);

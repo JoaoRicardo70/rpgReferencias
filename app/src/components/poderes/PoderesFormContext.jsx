@@ -22,7 +22,7 @@ import { normalizarPasta, listarCaminhosPastas, renomearCaminhoPasta, migrarChav
 import { getVitalMxDisplay, capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 import { calcularGanhoFadigaOvercharge, calcularMultiplicadorOvercharge } from '../../core/dominios';
 import { calcularGanhoFadigaMaestriaInsuficiente } from '../../core/fadiga';
-import { definirEstagio } from '../../core/contadores';
+import { definirEstagio, mudarContador, contadoresDoPoder, contadoresAvulsos, listaDeContadores, novoIdContador, normalizarContadorRascunho, referenciasDoContador, semReferenciasDoContador, planejarContadoresDoPoder, aplicarContadoresDoPoder, LIMITE_CONTADORES } from '../../core/contadores';
 import { sincronizarEscudoDoPoder, normalizarEscudoAoLigar } from '../../core/escudos';
 import { normalizarGatilhos } from '../../core/gatilhos';
 import { dispararEventoNaFicha, forcarGatilhoNaFicha, rngPreSorteado } from '../../core/gatilhosAplicar';
@@ -131,6 +131,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     // 🔔 Gatilhos do Poder (core/gatilhos.js): rascunho do editor.
     const [gatilhosPoder, setGatilhosPoder] = useState([]);
     const [gatilhosDescartados, setGatilhosDescartados] = useState([]);
+    // 🔢 Contadores deste poder (core/contadores.js): rascunho [{ id, nome, min, max, reset? }]; só vão para ficha.contadores junto com o poder.
+    const [contadoresPoder, setContadoresPoder] = useState([]);
     const cenaAtivaId = useStore(s => s.cenario?.ativa) || 'default';
     const [semComoPoder, setSemComoPoder] = useState(false);
     const [danoVerdadeiroPoder, setDanoVerdadeiroPoder] = useState(false);
@@ -268,6 +270,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         setEscudoPoder(r.escudo);
         setGatilhosPoder(r.gatilhos);
         setGatilhosDescartados(r.gatilhosDescartados);
+        setContadoresPoder(r.contadoresRascunho);
         setPoderAlcance(r.alcance);
         setPoderArea(r.area);
         setArmaVinculada(r.arma);
@@ -313,7 +316,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         nome: nomePoder, descricao: descricaoPoder, vertente: poderVertente, elemento: poderElemento, elementosAfetados, imagemUrl,
         dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiro: danoVerdadeiroPoder, tipoAcao,
         usosMax: usosMaxPoder, usosPor: usosPorPoder, custoTurno: custoTurnoPoder, recargaTurnos: recargaTurnosPoder, escudo: escudoPoder,
-        gatilhos: gatilhosPoder, gatilhosDescartados,
+        gatilhos: gatilhosPoder, gatilhosDescartados, contadoresRascunho: contadoresPoder,
         alcance: poderAlcance, area: poderArea, arma: armaVinculada,
         maestria: maestriaPoder, fadigaPorUso: fadigaPorUsoPoder, maestriaRequerida: maestriaRequeridaPoder,
         pasta: pastaPoder, estagios: estagiosEditor, efeitos: efeitosTemp, efeitosPassivos: efeitosTempPassivos,
@@ -323,7 +326,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     }), [
         poderEditandoId, nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados, imagemUrl,
         dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao,
-        usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, gatilhosDescartados,
+        usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, gatilhosDescartados, contadoresPoder,
         poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder,
         pastaPoder, estagiosEditor, efeitosTemp, efeitosTempPassivos,
         nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo,
@@ -387,7 +390,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
 
     // Há algo escrito que se perderia? Calculado sob demanda (não a cada render), lendo os refs mais recentes.
     const temAlteracaoNaoGravada = useCallback(
-        () => rascunhoTemAlteracao(rascunhoRef.current, fichaRef.current?.poderes),
+        () => rascunhoTemAlteracao(rascunhoRef.current, fichaRef.current?.poderes, fichaRef.current?.contadores),
         []
     );
 
@@ -434,8 +437,18 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
             }
         };
 
+        // 🔢 Contadores do poder: confere o limite ANTES de gravar qualquer coisa (tudo ou nada).
+        const poderExisteNaFicha = !!poderEditandoId && (fichaRef.current?.poderes || []).some(p => p && p.id === poderEditandoId);
+        const previa = planejarContadoresDoPoder(fichaRef.current, poderExisteNaFicha ? poderEditandoId : null, contadoresPoder);
+        if (!previa.ok) { alert(previa.erro); return; }
+        let bloqueioContadores = '';
+
         updateFicha((ficha) => {
             if (!ficha.poderes) ficha.poderes = [];
+            // Confere de novo contra a ficha viva (o rascunho do Immer): se não couber, o poder também não é gravado.
+            const idDoPoder = poderEditandoId && ficha.poderes.some(p => p.id === poderEditandoId) ? poderEditandoId : Date.now();
+            const plano = planejarContadoresDoPoder(ficha, idDoPoder, contadoresPoder);
+            if (!plano.ok) { bloqueioContadores = plano.erro; return; }
 
             // Poder em edição que sumiu da ficha (apagado em outra aba/sync): cria um poder novo com o que foi digitado, nunca perde em silêncio.
             if (poderEditandoId && ficha.poderes.some(p => p.id === poderEditandoId)) {
@@ -489,10 +502,11 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
                     // (e, por tabela, a lista de Técnicas Rápidas do Mapa) em pastas.
                     ficha.poderes[ix].pasta = normalizarPasta(pastaPoder);
                     aplicarEstagios(ficha.poderes[ix]);
+                    aplicarContadoresDoPoder(ficha, idDoPoder, plano);
                 }
             } else {
                 const novoPoder = {
-                    id: Date.now(),
+                    id: idDoPoder,
                     nome: n,
                     descricao: descSafe, 
                     vertente: vertSafe, 
@@ -531,8 +545,11 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
                 };
                 aplicarEstagios(novoPoder);
                 ficha.poderes.push(novoPoder);
+                aplicarContadoresDoPoder(ficha, idDoPoder, plano);
             }
         });
+        if (bloqueioContadores) { alert(bloqueioContadores); return; }
+        if (previa.avisos && previa.avisos.length > 0) alert(previa.avisos.join('\n'));
 
         // O poder gravado fica à vista: a pasta dele (e as pastas-mãe) abre na lista.
         abrirPastaDoPoder(abaAtual, normalizarPasta(pastaPoder));
@@ -544,7 +561,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato, chaveRascunho, abrirPastaDoPoder]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, contadoresPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato, chaveRascunho, abrirPastaDoPoder]);
 
     // 🔥 O ESCUDO ANTI-DRENAGEM (Resolve a perda acidental de energia ao Ligar a Forma) 🔥
     // `opcoes.semAoDesligar`: desligar por edição/exclusão não cobra o "ao desligar" (core/aoDesligar.js), só o desligar manual.
@@ -649,13 +666,13 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         if (!p) return;
 
         const categoria = p.categoria || 'poder';
-        const rascunho = rascunhoDoPoder(p);
+        const rascunho = rascunhoDoPoder(p, minhaFicha?.contadores);
         const outraCategoria = !!chaveRascunho && categoria !== abaAtual;
 
         if (outraCategoria) {
             // O que será sobrescrito é o rascunho da categoria de DESTINO: confirma com base nele.
             const existente = lerStoreRascunho()?.rascunhosPoder?.[chaveRascunhoPoder(meuNome, categoria)];
-            if (existente && (rascunhoTemAlteracao(existente, minhaFicha?.poderes) || (existente.poderEditandoId === p.id && rascunhoDifere(existente, rascunho)))
+            if (existente && (rascunhoTemAlteracao(existente, minhaFicha?.poderes, minhaFicha?.contadores) || (existente.poderEditandoId === p.id && rascunhoDifere(existente, rascunho)))
                 && !window.confirm('Já existe um rascunho em andamento na aba "' + (ROTULO_CATEGORIA[categoria] || categoria) + '". Ele será substituído pelo conteúdo salvo de "' + p.nome + '". Continuar?')) return;
         } else if (poderEditandoId !== p.id && temAlteracaoNaoGravada() && !window.confirm('Há um rascunho em andamento neste formulário. Descartá-lo para reescrever "' + p.nome + '"?')) {
             return;
@@ -678,6 +695,67 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
 
         if (formRef.current && typeof formRef.current.scrollIntoView === 'function') formRef.current.scrollIntoView({ behavior: 'smooth' });
     }, [minhaFicha, poderEditandoId, temAlteracaoNaoGravada, chaveRascunho, abaAtual, meuNome, aplicarRascunho, togglePoder, abrirPastaDoPoder]);
+
+    // ===== 🔢 Contadores deste poder (core/contadores.js) =====
+    // Ficam no rascunho (contadoresPoder) e só são gravados em ficha.contadores junto com o poder (salvarNovoPoder).
+    const planoContadores = useMemo(() => planejarContadoresDoPoder(minhaFicha, poderEditandoId, contadoresPoder), [minhaFicha, poderEditandoId, contadoresPoder]);
+    const limiteContadoresCheio = planoContadores.total >= LIMITE_CONTADORES;
+    const contadoresAvulsosDaFicha = useMemo(() => {
+        const noRascunho = new Set(contadoresPoder.map(c => String(c.id)));
+        return contadoresAvulsos(minhaFicha).filter(c => !noRascunho.has(String(c.id)));
+    }, [minhaFicha, contadoresPoder]);
+    // O que o editor de gatilhos oferece: os da ficha (menos os deste poder, que vêm do rascunho) + os do rascunho, todos com o id definitivo.
+    const contadoresParaGatilhos = useMemo(() => {
+        const meusNaFicha = new Set(contadoresDoPoder(minhaFicha, poderEditandoId).map(c => String(c.id)));
+        const noRascunho = new Set(contadoresPoder.map(c => String(c.id)));
+        return [...listaDeContadores(minhaFicha).filter(c => !meusNaFicha.has(String(c.id)) && !noRascunho.has(String(c.id))), ...contadoresPoder];
+    }, [minhaFicha, poderEditandoId, contadoresPoder]);
+    const adicionarContadorPoder = useCallback((dados) => {
+        const novo = normalizarContadorRascunho({ ...dados, id: novoIdContador() });
+        if (!novo || limiteContadoresCheio) return false;
+        setContadoresPoder(prev => [...prev, novo]);
+        return true;
+    }, [limiteContadoresCheio]);
+    const atualizarContadorPoder = useCallback((id, patch) => {
+        setContadoresPoder(prev => prev.map(c => (String(c.id) === String(id) ? (normalizarContadorRascunho({ ...c, ...patch, id: c.id }) || c) : c)));
+    }, []);
+    const vincularContadorPoder = useCallback((id) => {
+        const c = contadoresAvulsos(minhaFicha).find(x => String(x.id) === String(id));
+        const n = c ? normalizarContadorRascunho(c) : null;
+        if (!n) return false;
+        setContadoresPoder(prev => (prev.some(x => String(x.id) === String(id)) ? prev : [...prev, n]));
+        return true;
+    }, [minhaFicha]);
+    // Remover pede confirmação quando algum gatilho usa o contador: os gatilhos DESTE poder (no rascunho) são removidos junto;
+    // os de outros poderes não são tocados e ficam listados no aviso.
+    const removerContadorPoder = useCallback((id) => {
+        const c = contadoresPoder.find(x => String(x.id) === String(id));
+        if (!c) return;
+        const nosMeus = referenciasDoContador(gatilhosPoder, id);
+        const emOutros = [];
+        (minhaFicha?.poderes || []).forEach((po) => {
+            if (!po || po.id === poderEditandoId) return;
+            referenciasDoContador(po, id).forEach(g => emOutros.push(`"${g.nome || 'gatilho'}" (em ${po.nome || 'outro poder'})`));
+        });
+        if (nosMeus.length > 0 || emOutros.length > 0) {
+            const lista = [...nosMeus.map(g => `"${g.nome || 'gatilho'}"`), ...emOutros].join(', ');
+            const aviso = `O contador "${c.nome}" é usado por: ${lista}.
+`
+                + (nosMeus.length > 0 ? 'Os gatilhos deste poder que o usam serão removidos do formulário. ' : '')
+                + (emOutros.length > 0 ? 'Os de outros poderes não são alterados e vão parar de funcionar até você escolher outro contador neles. ' : '')
+                + 'Remover mesmo assim?';
+            if (!window.confirm(aviso)) return;
+        }
+        if (nosMeus.length > 0) setGatilhosPoder(prev => semReferenciasDoContador(prev, id));
+        setContadoresPoder(prev => prev.filter(x => String(x.id) !== String(id)));
+    }, [contadoresPoder, gatilhosPoder, minhaFicha, poderEditandoId]);
+    // +1/−1 no contador JÁ gravado (cartão do poder e resumo da Ficha). Dono da ficha e Mestre editam; jogador não edita ficha alheia.
+    const podeEditarContadores = souEuMesmo || isMestre;
+    const mudarContadorDoPoder = useCallback((id, delta) => {
+        if (!podeEditarContadores) return;
+        updateFicha((f) => { mudarContador(f, id, delta); });
+        salvarFichaSilencioso();
+    }, [podeEditarContadores, updateFicha, salvarFichaSilencioso]);
 
     const deletarPoder = useCallback((id) => {
         if (!window.confirm('Tem certeza que deseja rasgar esta página permanentemente?')) return;
@@ -982,7 +1060,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         poderVertente, setPoderVertente, poderElemento, setPoderElemento,
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -1006,7 +1084,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     }), [
         minhaFicha, meuNome, isMestre, abaAtual, trocarAba, secoesAbertas, rascunhoAtual, cancelarEdicaoComConfirmacao,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
-        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao, gatilhosPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, cenaAtivaId, poderAlcance,
+        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao, gatilhosPoder, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, cenaAtivaId, poderAlcance,
         poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma, pastasAbertas, alternarPasta, definirPastasAbertas,
         estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo, novoQuandoPassivo, novoEscopoPassivo,

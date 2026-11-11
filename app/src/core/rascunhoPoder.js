@@ -10,6 +10,7 @@ import { normalizarTipoAcao } from './acoesTecnica';
 import { normalizarCustoPorTurno } from './custoPorTurno';
 import { normalizarEscudoAoLigar } from './escudos';
 import { normalizarGatilhos } from './gatilhos';
+import { contadoresDoPoder, normalizarContadorRascunho } from './contadores';
 import { ESTAGIOS_PADRAO, normalizarEstagios, temEstagios, marcoParaRascunho } from './estagios';
 
 export const SECOES_FORM = ['basico', 'combate', 'efeitos', 'gatilhos', 'avancado'];
@@ -33,6 +34,7 @@ export function rascunhoVazio() {
         recargaTurnos: '',
         escudo: { nome: '', valor: '', tipo: 'escudo' },
         gatilhos: [], gatilhosDescartados: [],
+        contadoresRascunho: [],
         alcance: 1, area: 0, arma: '',
         maestria: 0, fadigaPorUso: 15, maestriaRequerida: 0,
         pasta: '',
@@ -68,12 +70,13 @@ export function completarRascunho(r) {
     out.estagios = { ...vazio.estagios, ...(base.estagios || {}) };
     out.custoTurno = { ...vazio.custoTurno, ...(base.custoTurno || {}) };
     out.escudo = { ...vazio.escudo, ...(base.escudo || {}) };
-    ['gatilhos', 'gatilhosDescartados', 'efeitos', 'efeitosPassivos'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
+    ['gatilhos', 'gatilhosDescartados', 'contadoresRascunho', 'efeitos', 'efeitosPassivos'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
     return out;
 }
 
 // Rascunho preenchido a partir de um poder já gravado (✎ na lista). Não altera `p`.
-export function rascunhoDoPoder(p) {
+// `contadoresDaFicha` (ficha.contadores): os que têm poderId = p.id entram em `contadoresRascunho` para editar junto.
+export function rascunhoDoPoder(p, contadoresDaFicha) {
     const r = rascunhoVazio();
     const custoSalvo = normalizarCustoPorTurno(p.custoPorTurno);
     const normG = normalizarGatilhos(p.gatilhos);
@@ -98,6 +101,7 @@ export function rascunhoDoPoder(p) {
     r.escudo = normalizarEscudoAoLigar(p.escudoAoLigar) || r.escudo;
     r.gatilhos = clonar(normG.gatilhos);
     r.gatilhosDescartados = clonar(normG.descartados);
+    r.contadoresRascunho = contadoresDoPoder({ contadores: contadoresDaFicha }, p.id).map(normalizarContadorRascunho).filter(Boolean);
     r.alcance = p.alcance || 1;
     r.area = p.area || 0;
     r.arma = p.armaVinculada || '';
@@ -156,7 +160,7 @@ export function resumirSecoes(r) {
         basico: { resumo: basico, erro: '' },
         combate: { resumo: combate.join(' · '), erro: '' },
         efeitos: { resumo: efeitos.join(' · '), erro: pendente ? 'efeito digitado e não adicionado' : '' },
-        gatilhos: { resumo: c.gatilhos.length ? plural(c.gatilhos.length, 'gatilho', 'gatilhos') : '', erro: c.gatilhosDescartados.length ? plural(c.gatilhosDescartados.length, 'gatilho inválido', 'gatilhos inválidos') : '' },
+        gatilhos: { resumo: [c.contadoresRascunho.length ? plural(c.contadoresRascunho.length, 'contador', 'contadores') : '', c.gatilhos.length ? plural(c.gatilhos.length, 'gatilho', 'gatilhos') : ''].filter(Boolean).join(' · '), erro: c.gatilhosDescartados.length ? plural(c.gatilhosDescartados.length, 'gatilho inválido', 'gatilhos inválidos') : '' },
         avancado: { resumo: avancado.join(' · '), erro: '' },
     };
 }
@@ -170,8 +174,8 @@ export function rascunhoDifere(atual, original) {
 
 // true se descartar/sobrescrever o rascunho `r` perderia trabalho: reescrevendo um poder existente, só se mudou
 // em relação ao gravado (em `poderes`); sem poder original, se há qualquer conteúdo.
-export function rascunhoTemAlteracao(r, poderes) {
+export function rascunhoTemAlteracao(r, poderes, contadores) {
     if (!r || typeof r !== 'object') return false;
     const original = r.poderEditandoId ? (poderes || []).find(po => po && po.id === r.poderEditandoId) : null;
-    return original ? rascunhoDifere(r, rascunhoDoPoder(original)) : rascunhoTemConteudo(r);
+    return original ? rascunhoDifere(r, rascunhoDoPoder(original, contadores)) : rascunhoTemConteudo(r);
 }

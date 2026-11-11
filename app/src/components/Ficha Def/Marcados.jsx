@@ -22,6 +22,7 @@ import ClassificacaoPanel from './ClassificacaoPanel';
 import RelicarioPanel from './RelicarioPanel';
 import PactosPanel from './PactosPanel';
 import RegeneracaoResumo from './RegeneracaoResumo';
+import ContadoresResumo from './ContadoresResumo';
 import CombateFichaPanel from './CombateFichaPanel';
 import { TOTAL_PAGINAS_FICHA } from '../../core/navegacao';
 import AjustesPanel from './AjustesPanel';
@@ -2008,6 +2009,9 @@ export default function MarcadosPanel() {
                                 </div>
                                 <SegurarAcao />
                             </div>
+
+                            {/* 🔢 Resumo dos Contadores (só o link se não houver nenhum) */}
+                            <ContadoresResumo />
                         </div>
                     </>
                 )}

@@ -3200,12 +3200,26 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .custo-turno-selo, .recarga-poder-selo { align-self: center; padding: 2px 8px; border: 1px solid var(--cor-destaque); border-radius: 10px; font-size: 0.8em; color: var(--cor-destaque); white-space: nowrap; }
 .recarga-poder-selo.em-recarga { opacity: 0.85; border-style: dashed; }
 
-/* 🔢 Contadores manuais (Grimório, página 3) */
+/* 🔢 Contadores (dentro do poder, cartão do poder e resumo na Ficha) */
 .contador-dica { margin: 0 0 10px 0; font-size: 0.85em; opacity: 0.75; }
 .contador-linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
 .contador-nome { flex: 1 1 140px; min-width: 120px; }
 .contador-valor { min-width: 2ch; text-align: center; font-size: 1.2em; }
 .contador-limite { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85em; }
+.contador-detalhe { font-size: 0.8em; opacity: 0.75; }
+.contador-vazio { font-size: 0.85em; opacity: 0.6; margin-bottom: 8px; }
+.contador-aviso { font-size: 0.8em; color: var(--neon-magenta, #ff00ff); margin-bottom: 8px; }
+.contadores-poder { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; padding: 8px; border: 1px dashed var(--border-primary); border-radius: 8px; }
+.contadores-poder-titulo { font-weight: bold; font-size: 0.9em; color: var(--neon-cyan, #00ffff); }
+.contador-nome-texto { flex: 1 1 140px; }
+.contadores-cartao { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.contador-ficha { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px; border: 1px solid var(--border-primary); border-radius: 10px; font-size: 0.85em; }
+.contador-ficha .contador-valor { font-size: 1em; }
+.contador-ficha-poder { font-size: 0.75em; opacity: 0.7; }
+.contadores-resumo { margin-top: 18px; }
+.contadores-resumo-link { background: transparent; border: none; color: inherit; font-family: inherit; font-size: 0.9em; cursor: pointer; text-decoration: underline dotted; opacity: 0.8; padding: 2px 0; }
+.contadores-resumo-corpo { padding: 10px; border: 1px dashed currentColor; border-radius: 10px; display: flex; flex-direction: column; gap: 6px; }
+.contadores-resumo-titulo { font-weight: bold; font-size: 1em; display: flex; justify-content: space-between; align-items: center; }
 
 /* 📷 Ler prints com a Sexta-Feira (importadores) */
 .importacao-imagens { margin-top: 12px; padding-top: 10px; border-top: 1px dotted currentColor; display: flex; flex-direction: column; gap: 8px; }
