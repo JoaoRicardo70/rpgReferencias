@@ -178,6 +178,7 @@ export default function ModelosPoderAssistente() {
                                 <li>{plano.poderes} poder novo, {plano.efeitos} efeito(s) de status</li>
                                 <li>{plano.contadores} contador(es) novo(s){plano.contadoresAtualizados > 0 ? `, ${plano.contadoresAtualizados} ajustado(s) (nome/limites)` : ''}{plano.contadoresRemovidos > 0 ? `, ${plano.contadoresRemovidos} removido(s)` : ''}</li>
                                 <li>{plano.gatilhos} gatilho(s) {criarOpcionais ? 'opcionais e desarmados' : 'automáticos e armados'}</li>
+                                {plano.adaptacao && <li>Liga a Adaptação: +{String(plano.adaptacao.taxa).replace('.', ',')}% por turno (mUnico Crescente)</li>}
                                 {modelo.temOrigem && <li>Origem: {origem.tipo === 'independente' ? 'independente' : `herdada${origem.fonte ? ` de ${origem.fonte}` : ' de um ser'}`}</li>}
                             </ul>
                             {existente && temGanhoLegado(existente) && <div className="modelo-poder-resultado erro" role="alert">⚠️ Os ganhos agora são em % (ex.: Ego +2% por acerto; Verg 0,1% por golpe). Os gatilhos antigos usavam valor bruto (+2 = +200%); regenerar troca para a nova escala.</div>}

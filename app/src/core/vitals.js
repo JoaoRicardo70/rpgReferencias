@@ -8,7 +8,7 @@ import { getPrestigioReal } from './prestige.js';
 import { calcularReducaoFadigaPorRegeneracao } from './fadiga.js';
 import { getRegeneracaoTotalPct, calcularCuraRegeneracao } from './regeneracao.js';
 import { modificadoresDeEstados } from './condicoes.js';
-import { calcularFatorMultiplicadorForca } from './poder.js';
+import { calcularFatorMultiplicadorForca, zerarGanhosCombate } from './poder.js';
 import { restaurarUsos } from './usosPoder.js';
 import { zerarRecargas } from './recargaPoder.js';
 import { limparEscudosNoDescanso } from './escudos.js';
@@ -496,4 +496,6 @@ export function descansarCompleto(ficha) {
     // 🔔 Gatilhos (core/gatilhos.js): some o registro de eventos tratados e a Imunidade total em andamento.
     delete ficha.combate.gatilhos;
     delete ficha.combate.imunidadeTotal;
+    // ⚔️ Ganhos de Poder só de combate (ficha.ganhosCombate) somem no descanso (idempotente com fimDeLuta).
+    zerarGanhosCombate(ficha);
 }

@@ -16,7 +16,7 @@ function fichaMinima(overrides = {}) {
 
 describe('getGlobalMultipliers - exportada e valores neutros', () => {
     it('ficha nula devolve tudo 1, incluindo finalP', () => {
-        expect(getGlobalMultipliers(null)).toEqual({ finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalP: 1, finalUni: 1, fatorGanhoComposto: 1, totalDano: 1 });
+        expect(getGlobalMultipliers(null)).toEqual({ finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalP: 1, finalUni: 1, fatorGanhoComposto: 1, fatorGanhoCombate: 1, fatorGanhoTotal: 1, totalDano: 1 });
     });
     it('ficha sem multiplicadores devolve tudo 1', () => {
         expect(getGlobalMultipliers(fichaMinima())).toMatchObject({ finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalP: 1, finalUni: 1, totalDano: 1 });

@@ -12,7 +12,8 @@ import { descansarCompleto } from './vitals.js';
 
 // QA — Progressão em combate: receitas (lógica pura), simulação com o motor de gatilhos, restaurarUsosPorCena e mUnico automático.
 
-const R = (id) => obterReceita(id);
+// Ajuste intencional (ganho com Duração): estes testes simulam ganhos PERMANENTES; sem `duracao` explícita a receita usaria o padrão novo ('combate' em ganhoPorEvento/crescerPorTurno).
+const R = (id) => { const r = obterReceita(id); return r && { ...r, construir: (b, c) => r.construir({ duracao: 'permanente', ...b }, c) }; };
 const disparar = (f, ev, ctx = {}) => dispararEventoNaFicha(f, ev, { cenaId: 'c1', nome: 'Eu', ...ctx });
 const fp = (f) => f.ganhosPermanentes && f.ganhosPermanentes.fatorPoder;
 const gp = (f) => f.ganhosPermanentes && f.ganhosPermanentes.poderCalculado;

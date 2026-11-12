@@ -62,10 +62,10 @@ describe('fluxo em 3 etapas', () => {
         render(<ModelosPoderAssistente />);
         abrir(); escolher('Ego Superior');
         const checks = screen.getAllByRole('checkbox');
-        // 6 partes + opcao criar opcionais
-        expect(checks).toHaveLength(7);
-        expect(checks.slice(0, 6).every(c => c.checked)).toBe(true);
-        expect(checks[6].checked).toBe(false);
+        // 8 partes (Ego ganhou as permanentes) + opcao criar opcionais
+        expect(checks).toHaveLength(9);
+        expect(checks.slice(0, 8).every(c => c.checked)).toBe(true);
+        expect(checks[8].checked).toBe(false);
         expect(screen.getAllByText('vira nota')).toHaveLength(2);
         expect(screen.getByLabelText('Multiplicador').value).toBe('140');
         expect(screen.queryByLabelText('Origem do poder')).toBeNull();
@@ -81,7 +81,7 @@ describe('fluxo em 3 etapas', () => {
         abrir(); escolher('Verg Avesta');
         expect(screen.getByLabelText('Origem do poder').value).toBe('herdada');
         expect(screen.getByLabelText('Nome do ser de origem')).toBeTruthy();
-        expect(screen.getByLabelText('Acerto por turno').type).toBe('number');
+        expect(screen.getByLabelText('Crescimento por turno (%)').type).toBe('number');
     });
     it('desmarcar tudo desabilita Ver resumo', () => {
         render(<ModelosPoderAssistente />);
@@ -92,22 +92,22 @@ describe('fluxo em 3 etapas', () => {
     it('parametro vazio/invalido volta ao padrao no resumo (nao quebra)', () => {
         render(<ModelosPoderAssistente />);
         abrir(); escolher('Verg Avesta');
-        fireEvent.change(screen.getByLabelText('Acerto por turno'), { target: { value: '' } });
+        fireEvent.change(screen.getByLabelText('Crescimento por turno (%)'), { target: { value: '' } });
         fireEvent.change(screen.getByLabelText(/Divisor/), { target: { value: '-5' } });
         proximo();
         expect(screen.getByRole('button', { name: 'Aplicar' }).disabled).toBe(false);
         fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
         const p = acharPoderDoModelo(ficha(), 'vergAvesta');
         // vazio -> padrao (5); negativo -> preso ao min (1)
-        expect(p.modelo.params.acertoPorTurno).toBe(5);
+        expect(p.modelo.params.taxaPorTurno).toBe(5);
         expect(p.modelo.params.divisor).toBe(1);
     });
     it('campo vazio/texto volta ao padrao (nao ao min)', () => {
         render(<ModelosPoderAssistente />);
         abrir(); escolher('Verg Avesta');
-        fireEvent.change(screen.getByLabelText('Acerto por turno'), { target: { value: 'abc' } }); // number input => ''
+        fireEvent.change(screen.getByLabelText('Crescimento por turno (%)'), { target: { value: 'abc' } }); // number input => ''
         proximo(); fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
-        expect(acharPoderDoModelo(ficha(), 'vergAvesta').modelo.params.acertoPorTurno).toBe(5);
+        expect(acharPoderDoModelo(ficha(), 'vergAvesta').modelo.params.taxaPorTurno).toBe(5);
     });
     it('resumo mostra contagens, origem e avisos', () => {
         render(<ModelosPoderAssistente />);
@@ -117,7 +117,8 @@ describe('fluxo em 3 etapas', () => {
         expect(screen.getByText(/Criar Verg Avesta/)).toBeTruthy();
         expect(screen.getByText(/1 poder novo, 0 efeito/)).toBeTruthy();
         expect(screen.getByText(/1 contador\(es\) novo\(s\)/)).toBeTruthy();
-        expect(screen.getByText(/3 gatilho\(s\) automáticos e armados/)).toBeTruthy();
+        expect(screen.getByText(/2 gatilho\(s\) automáticos e armados/)).toBeTruthy();
+        expect(screen.getByText(/Liga a Adaptação: .5% por turno/)).toBeTruthy();
         expect(screen.getByText(/Origem: herdada de Reid/)).toBeTruthy();
         expect(screen.getAllByText(/não existe no app/).length).toBe(4);
         expect(screen.getByRole('button', { name: 'Aplicar' })).toBeTruthy();
@@ -125,7 +126,7 @@ describe('fluxo em 3 etapas', () => {
     it('criar opcionais muda o texto do resumo', () => {
         render(<ModelosPoderAssistente />);
         abrir(); escolher('Ego Superior');
-        fireEvent.click(screen.getAllByRole('checkbox')[6]);
+        fireEvent.click(screen.getAllByRole('checkbox')[8]);
         proximo();
         expect(screen.getByText(/6 gatilho\(s\) opcionais e desarmados/)).toBeTruthy();
     });

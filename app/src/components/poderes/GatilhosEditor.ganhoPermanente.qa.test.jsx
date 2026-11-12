@@ -18,7 +18,7 @@ const abrir = (evento) => { render(<Host />); clicar('+ Novo gatilho'); mudar('N
 describe('GatilhosEditor: ação ganhoPermanente', () => {
     it('a opção existe no seletor de tipo', () => {
         render(<Host />); clicar('+ Novo gatilho');
-        expect(screen.getByRole('option', { name: 'Ganho permanente de Poder' })).toBeTruthy();
+        expect(screen.getByRole('option', { name: 'Ganho de Poder' })).toBeTruthy();
     });
     it('modo valor fixo (padrão): Ego Superior +2 por acerto normal', () => {
         abrir('acertou'); mudar('Nível do golpe', 'normal');
@@ -85,7 +85,7 @@ describe('GatilhosEditor: ação ganhoPermanente', () => {
         const selects = screen.getAllByLabelText(/Tipo da ação/);
         expect(selects.length).toBeGreaterThan(1);
         const opts = Array.from(selects[selects.length - 1].querySelectorAll('option')).map(o => o.textContent);
-        expect(opts).toContain('Ganho permanente de Poder');
+        expect(opts).toContain('Ganho de Poder');
     });
 });
 

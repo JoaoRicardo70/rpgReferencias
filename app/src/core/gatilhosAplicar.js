@@ -18,7 +18,7 @@ import { adicionarEscudo, removerEscudo } from './escudos.js';
 import { gastarUso, limiteDeUsos } from './usosPoder.js';
 import { somarBuffTemporario } from './suporte.js';
 import { chaveDoGatilhoDoPoder, normalizarGatilhos, LIMITE_TOTAL_GANHO_PERMANENTE, LIMITE_GANHO_PERC_MIN, LIMITE_GANHO_PERMANENTE } from './gatilhos.js';
-import { FATOR_PODER_MAX, FATOR_PODER_MIN, zerarMunicoCrescenteNoFimDeLuta } from './poder.js';
+import { FATOR_PODER_MAX, FATOR_PODER_MIN, zerarMunicoCrescenteNoFimDeLuta, zerarGanhosCombate } from './poder.js';
 
 const fmtN = (n) => Math.floor(Number(n) || 0).toLocaleString('pt-BR');
 const fmtGanho = (n) => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 6 });
@@ -286,8 +286,9 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                 break;
             }
             case 'ganhoPermanente': {
-                // Ganho permanente de Poder. Legado (bruto): soma ao total aditivo ficha.ganhosPermanentes.poderCalculado. Percentual: ver abaixo (soma p/100 ou multiplica fatorPoder).
+                // Ganho de Poder (permanente => ficha.ganhosPermanentes; duracao combate => ficha.ganhosCombate). Legado (bruto): soma ao total aditivo [dest].poderCalculado. Percentual: ver abaixo (soma p/100 ou multiplica fatorPoder).
                 // Fixo, ou valor ATUAL do contador x fator (zerar opcional).
+                const dest = a.duracao === 'combate' ? 'ganhosCombate' : 'ganhosPermanentes'; const sufDur = dest === 'ganhosCombate' ? ' até o fim do combate' : '';
                 let ganho = 0; let origem = ''; let iZerar = -1;
                 if (a.deContador) {
                     const i = Array.isArray(ficha.contadores) ? ficha.contadores.findIndex(c => c && String(c.id) === String(a.deContador.id)) : -1;
@@ -303,31 +304,31 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                     // Percentual: p em %, limitado por disparo (nunca zera o Poder). 'somar' = linear no total aditivo; 'multiplicar' = composto em fatorPoder.
                     const p = Math.max(LIMITE_GANHO_PERC_MIN, Math.min(LIMITE_GANHO_PERMANENTE, ganho));
                     if (p === 0) break;
-                    if (!ficha.ganhosPermanentes || typeof ficha.ganhosPermanentes !== 'object') ficha.ganhosPermanentes = {};
+                    if (!ficha[dest] || typeof ficha[dest] !== 'object') ficha[dest] = {};
                     if (a.modo === 'multiplicar') {
-                        const atualFp = Number(ficha.ganhosPermanentes.fatorPoder);
+                        const atualFp = Number(ficha[dest].fatorPoder);
                         const baseFp = Number.isFinite(atualFp) && atualFp > 0 ? atualFp : 1;
                         const fator = Math.round(Math.min(FATOR_PODER_MAX, Math.max(FATOR_PODER_MIN, baseFp * (1 + p / 100))) * 1e9) / 1e9;
-                        ficha.ganhosPermanentes.fatorPoder = fator;
-                        caminhos.add('ganhosPermanentes/fatorPoder');
-                        textos.push(`${nome}: ${p > 0 ? '+' : ''}${fmtGanho(p)}% de Poder, multiplica (${origem}); fator ${fmtGanho(fator)}x`);
+                        ficha[dest].fatorPoder = fator;
+                        caminhos.add(dest + '/fatorPoder');
+                        textos.push(`${nome}: ${p > 0 ? '+' : ''}${fmtGanho(p)}% de Poder, multiplica (${origem}); fator ${fmtGanho(fator)}x${sufDur}`);
                     } else {
-                        const atualGp = Number(ficha.ganhosPermanentes.poderCalculado);
+                        const atualGp = Number(ficha[dest].poderCalculado);
                         const base = Number.isFinite(atualGp) && atualGp > 0 ? atualGp : 0;
                         const total = Math.round(Math.max(0, Math.min(LIMITE_TOTAL_GANHO_PERMANENTE, base + p / 100)) * 1e9) / 1e9;
-                        ficha.ganhosPermanentes.poderCalculado = total;
-                        caminhos.add('ganhosPermanentes/poderCalculado');
-                        textos.push(`${nome}: ${p > 0 ? '+' : ''}${fmtGanho(p)}% de Poder, soma (${origem}); total ${fmtGanho(total * 100)}%`);
+                        ficha[dest].poderCalculado = total;
+                        caminhos.add(dest + '/poderCalculado');
+                        textos.push(`${nome}: ${p > 0 ? '+' : ''}${fmtGanho(p)}% de Poder, soma (${origem}); total ${fmtGanho(total * 100)}%${sufDur}`);
                     }
                 } else {
                     if (!(ganho > 0)) break;
-                    const atualGp = Number(ficha.ganhosPermanentes && ficha.ganhosPermanentes.poderCalculado);
+                    const atualGp = Number(ficha[dest] && ficha[dest].poderCalculado);
                     const base = Number.isFinite(atualGp) && atualGp > 0 ? atualGp : 0;
                     const total = Math.round(Math.min(LIMITE_TOTAL_GANHO_PERMANENTE, base + ganho) * 1e9) / 1e9;
-                    if (!ficha.ganhosPermanentes || typeof ficha.ganhosPermanentes !== 'object') ficha.ganhosPermanentes = {};
-                    ficha.ganhosPermanentes.poderCalculado = total;
-                    caminhos.add('ganhosPermanentes/poderCalculado');
-                    textos.push(`${nome}: +${fmtGanho(ganho)} de Poder permanente (${origem}); total ${fmtGanho(total)}`);
+                    if (!ficha[dest] || typeof ficha[dest] !== 'object') ficha[dest] = {};
+                    ficha[dest].poderCalculado = total;
+                    caminhos.add(dest + '/poderCalculado');
+                    textos.push(`${nome}: +${fmtGanho(ganho)} de Poder ${dest === 'ganhosCombate' ? 'até o fim do combate' : 'permanente'} (${origem}); total ${fmtGanho(total)}`);
                 }
                 if (iZerar >= 0) {
                     const c = ficha.contadores[iZerar];
@@ -428,6 +429,8 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
     // Por ÚLTIMO: os gatilhos de fimDeLuta (inclusive os com limite por cena) já foram avaliados com os usos do combate que acabou, então
     // cada um dispara uma vez por combate; só depois os usos por cena recomeçam para o próximo.
     if (evento.tipo === 'fimDeLuta' && restaurarUsosPorCena(ficha)) caminhos.add('combate/usosPoderes');
+    // ⚔️ Ganhos de Poder 'durante o combate' zeram DEPOIS dos gatilhos de fimDeLuta (que podem converter contadores em ganho permanente).
+    if (evento.tipo === 'fimDeLuta' && zerarGanhosCombate(ficha)) { caminhos.add('ganhosCombate/poderCalculado'); caminhos.add('ganhosCombate/fatorPoder'); }
     res.caminhos = [...caminhos];
     return res;
 }
@@ -473,7 +476,7 @@ export function camposParaGravar(ficha, caminhos) {
 
 // Campos de gatilhos/condições que mudaram entre duas versões da ficha (para gravar só eles no Firebase de OUTRO jogador).
 // Formato { caminho: valor | null }. Usado no início do turno (estados que tiram Vida, Imunidade total que passa).
-const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'ganhosPermanentes/fatorPoder', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
+const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'ganhosPermanentes/fatorPoder', 'ganhosCombate/poderCalculado', 'ganhosCombate/fatorPoder', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
 export function camposDeGatilhosAlterados(antes, depois) {
     const lido = (f, caminho) => caminho.split('/').reduce((v, p) => (v === undefined || v === null ? undefined : v[p]), f);
     const mudados = CAMINHOS_GATILHOS.filter(c => JSON.stringify(lido(antes, c)) !== JSON.stringify(lido(depois, c)));

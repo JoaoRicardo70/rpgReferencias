@@ -28,6 +28,8 @@
 //            Campos novos: `unidade: 'percentual'|'bruto'` e `modo: 'somar'|'multiplicar'`. Ausência de `unidade` E de `modo` = 'bruto' + 'somar' (legado, sem migração); `modo` sem `unidade` = percentual.
 //            Percentual: valor/fator = p em % (-99,99..1e6 por disparo). 'somar' acrescenta p/100 ao total aditivo (poderCalculado); 'multiplicar' multiplica
 //            ficha.ganhosPermanentes.fatorPoder (default 1) por (1 + p/100) (composto; entra em totalDano de getGlobalMultipliers).
+//            `duracao: 'permanente'|'combate'` (ausente = permanente, formato antigo): 'combate' grava em ficha.ganhosCombate {poderCalculado, fatorPoder} (mesmas regras),
+//            que ZERA no fimDeLuta (depois dos gatilhos de fimDeLuta), no descansarCompleto e quando o Mestre aperta Zerar. Entra no Poder como fonte 'Ganho_Combate' + fatorGanhoCombate.
 //   Gatilho disparado dentro de outro gatilho respeita profundidade máx. 3 e o mesmo gatilho não dispara 2x na cadeia.
 // Faixas de Vida: o percentual é arredondado PARA BAIXO ao inteiro antes de comparar (6,9% conta como 6); a faixa é inclusiva nas duas pontas.
 // Um golpe que cruza várias faixas só dispara a faixa onde a Vida TERMINA (as outras não contêm a Vida final) e só na borda (entrando de fora).
@@ -99,7 +101,7 @@ export const ACOES_GATILHO = [
     { id: 'rolarTabela', rotulo: 'Rolar tabela' },
     { id: 'pedirEscolha', rotulo: 'Pedir uma escolha' },
     { id: 'danoNoAtacante', rotulo: 'Dano no atacante' },
-    { id: 'ganhoPermanente', rotulo: 'Ganho permanente de Poder' },
+    { id: 'ganhoPermanente', rotulo: 'Ganho de Poder' },
 ];
 export const PERIODOS_GATILHO = [
     { id: 'turno', rotulo: 'por turno' },
@@ -222,7 +224,8 @@ export function normalizarAcaoGatilho(bruta, opcoes = {}) {
             const modoExplicito = bruta.modo === 'somar' || bruta.modo === 'multiplicar';
             const perc = bruta.unidade === 'percentual' || (bruta.unidade === undefined && modoExplicito);
             const modoGp = bruta.modo === 'multiplicar' ? 'multiplicar' : 'somar';
-            const extra = perc ? { unidade: 'percentual', modo: modoGp } : {};
+            // ⚔️ duracao 'combate': o ganho vai para ficha.ganhosCombate (zera no fim da luta). Ausente/'permanente' = formato antigo, sem o campo.
+            const extra = { ...(perc ? { unidade: 'percentual', modo: modoGp } : {}), ...(bruta.duracao === 'combate' || bruta.duracaoGanho === 'combate' ? { duracao: 'combate' } : {}) };
             const minimo = perc ? LIMITE_GANHO_PERC_MIN : 0;
             const dc = bruta.deContador;
             if (dc && typeof dc === 'object') {
@@ -606,12 +609,13 @@ export function descreverAcaoGatilho(a, ctx = null) {
         case 'pedirEscolha': return descreverEscolha(a, ctx);
         case 'ganhoPermanente': {
             const perc = a.unidade === 'percentual';
+            const ateOFim = a.duracao === 'combate' ? ' até o fim do combate' : '';
             const sufixo = perc ? (a.modo === 'multiplicar' ? ' (multiplica)' : ' (soma)') : '';
             const sinalPerc = (n) => `${n > 0 ? '+' : ''}${n}%`;
             if (a.deContador) {
-                return `ganhar Poder${perc ? '' : ' permanente'}: ${nomeDoContador(a.deContador.id, ctx)} x ${a.deContador.fator}${perc ? '%' : ''}${a.deContador.zerar ? ' (e zerar o contador)' : ''}${perc ? sufixo : ' (valor bruto, antigo)'}`;
+                return `ganhar Poder${perc ? '' : ' permanente'}: ${nomeDoContador(a.deContador.id, ctx)} x ${a.deContador.fator}${perc ? '%' : ''}${a.deContador.zerar ? ' (e zerar o contador)' : ''}${perc ? sufixo : ' (valor bruto, antigo)'}${ateOFim}`;
             }
-            return perc ? `ganha ${sinalPerc(a.valor)} de Poder${sufixo}` : `ganhar +${a.valor} de Poder permanente (valor bruto, antigo)`;
+            return perc ? `ganha ${sinalPerc(a.valor)} de Poder${sufixo}${ateOFim}` : `ganhar +${a.valor} de Poder${a.duracao === 'combate' ? ' até o fim do combate' : ' permanente'} (valor bruto, antigo)`;
         }
         case 'danoEmSi': return a.modo === 'fixo' ? `sofrer ${fmtN(a.valor)} de dano` : `sofrer dano de ${a.valor}% da Vida ${a.modo === 'percMax' ? 'máxima' : 'atual'}`;
         default: return '';

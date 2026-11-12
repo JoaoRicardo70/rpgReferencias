@@ -11,11 +11,15 @@
 // criou antes e troca só isso, sem tocar no que o Mestre/jogador acrescentou à mão.
 //
 // SUPOSIÇÕES (detalhe em D:\sistema rpg anime\ficha-referencia\modelos-prontos.md):
-//  - Os ganhos (+2%/+3%/+4% etc.) são ações `ganhoPermanente` em PERCENTUAL, com modo por parte: 'multiplicar' (composto em ficha.ganhosPermanentes.fatorPoder; padrão do Ego)
+//  - Os ganhos (+2%/+3%/+4% etc.) são ações `ganhoPermanente` em PERCENTUAL, com duração por parte ('combate' => ficha.ganhosCombate, zera no fim da luta; 'permanente') e modo: 'multiplicar' (composto em fatorPoder; padrão do Ego temporário)
 //    ou 'somar' (linear em ficha.ganhosPermanentes.poderCalculado, +p/100; padrão do Verg). Params antigos sem `modo` caem no padrão da parte ao regenerar.
+//  - Ego (SUPOSIÇÃO editável): temporário +2/3/4% multiplicar; permanente menor +0,2/0,3/0,4% somar; críticos sofridos: +2% (combate, multiplicar) e +0,2% (permanente, somar). Params antigos (modoAcerto, ganhoNormal/Critico/Fatal, modoDanoSofrido, ganhoPorCriticos, ganhoPorFatal, criticosPorGanho) = partes TEMPORÁRIAS; os novos têm sufixo Perm. Os dois tipos compartilham os ids de gatilho mp_ego_acerto_N/mp_ego_dano_N (limite de 8).
 //  - Verg: cada golpe acumulado vale 1/divisor de 1% (divisor 10 = 0,1% por golpe).
 //  - Gatilhos nascem `automatico` + `armado` (o Mestre concede de propósito); a opção `criarOpcionais` os cria opcionais e desarmados.
-//  - Verg: o Acerto por turno é +N FIXO (somarBuffTemporario substitui buff de mesmo nome/fonte; não acumula), com nome de gatilho constante.
+//  - Verg: o crescimento por turno NÃO é gatilho próprio: a parte 'crescimentoAdaptacao' liga o mUnico Crescente da Adaptação (ficha.combate.municoAuto/municoPorTurno;
+//    avancarMunicoCrescente em core/poder.js). poder.modelo.adaptacao = { ligou, taxa }: `ligou` só é true se ESTE modelo ligou o interruptor (desmarcar a parte só desliga se ligou).
+//    Migração: a parte antiga 'acertoPorTurno' (+N fixo de Acerto por turno) saiu; o gatilho mp_verg_acerto_1 é removido ao regenerar e o params antigo `acertoPorTurno` é ignorado
+//    (o significado mudou de 'Acerto fixo' para '% de crescimento do mUnico'; padrão 5).
 //  - Ego: o contador de críticos sofridos tem reset 'cena' (os críticos sofridos pela metade se perdem ao fim da cena; pergunta aberta ao usuário).
 //  - O contador que alimenta um ganho em `fimDeLuta` é PERMANENTE (não 'cena'): resetarContadoresDeCena roda ANTES dos gatilhos de fimDeLuta
 //    (core/gatilhosAplicar.js > dispararEventoNaFicha) e zeraria o contador antes de o ganho lê-lo. O próprio ganho zera o contador (zerar: true).
@@ -59,14 +63,74 @@ const idContador = (modelo, nome) => `mp_${modelo}_${nome}`;
 // ---------- 🌟 EGO SUPERIOR ----------
 const ID_CONTADOR_EGO = idContador('ego', 'criticos');
 
+// Ganho de Poder do modelo (sempre em %). Duração 'combate' grava em ficha.ganhosCombate (zera no fim da luta); 'permanente' = formato antigo, sem o campo.
+const acaoGanho = (modo, valor, duracao, extra = {}) => ({ tipo: 'ganhoPermanente', unidade: 'percentual', modo, ...(duracao === 'combate' ? { duracao: 'combate' } : {}), valor, ...extra });
+const rotuloDuracao = (duracao) => (duracao === 'combate' ? 'combate' : 'permanente');
+// Ego: chaves dos parâmetros por tipo de ganho. Combate = parâmetros ANTIGOS (migração suave: modelo.params antigos viram a parte temporária); permanente = chaves novas com sufixo Perm.
+const CHAVES_EGO = {
+    combate: { modoAcerto: 'modoAcerto', normal: 'ganhoNormal', critico: 'ganhoCritico', fatal: 'ganhoFatal', modoDano: 'modoDanoSofrido', serie: 'ganhoPorCriticos', fatalSofrido: 'ganhoPorFatal' },
+    permanente: { modoAcerto: 'modoAcertoPerm', normal: 'ganhoNormalPerm', critico: 'ganhoCriticoPerm', fatal: 'ganhoFatalPerm', modoDano: 'modoDanoSofridoPerm', serie: 'ganhoPorCriticosPerm', fatalSofrido: 'ganhoPorFatalPerm' },
+};
+const PADRAO_MODO_EGO = { combate: 'multiplicar', permanente: 'somar' };
+// Os gatilhos dos dois tipos compartilham os MESMOS ids (limite de 8 gatilhos): materialDaSelecao junta as ações de ids iguais (ver juntarGatilhosDeMesmoId).
+function gatilhosAcertoEgo(p, duracao) {
+    const k = CHAVES_EGO[duracao];
+    const modo = modoGanho(p[k.modoAcerto], PADRAO_MODO_EGO[duracao]);
+    const gatilhos = [];
+    [['normal', k.normal, 'normal'], ['critico', k.critico, 'crítico'], ['fatal', k.fatal, 'fatal']].forEach(([nivel, chave, rotulo], i) => {
+        const valor = numero(p[chave], 0);
+        if (valor > 0) gatilhos.push({ id: idGatilho('ego', 'acerto', i + 1), nome: `Ego: +${valor}% por acerto ${rotulo} (${textoModo(modo)}, ${rotuloDuracao(duracao)})`, evento: { tipo: 'acertou', nivel }, acoes: [acaoGanho(modo, valor, duracao)], _ganho: { valor, duracao }, _alvo: `por acerto ${rotulo}` });
+    });
+    return gatilhos;
+}
+function gatilhosDanoSofridoEgo(p, duracao) {
+    const k = CHAVES_EGO[duracao];
+    const gatilhos = []; const contadores = [];
+    const porSerie = Math.floor(preso(numero(p.criticosPorGanho, 3), 1, 100));
+    const ganhoSerie = numero(p[k.serie], 0);
+    const ganhoFatal = numero(p[k.fatalSofrido], 0);
+    const modo = modoGanho(p[k.modoDano], PADRAO_MODO_EGO[duracao]);
+    const d = rotuloDuracao(duracao);
+    if (ganhoSerie > 0) {
+        contadores.push({ id: ID_CONTADOR_EGO, nome: 'Ego: críticos sofridos', min: 0, max: porSerie, reset: 'cena' });
+        gatilhos.push({ id: idGatilho('ego', 'dano', 1), nome: 'Ego: conta crítico sofrido', evento: { tipo: 'atingido', nivel: 'critico' }, acoes: [{ tipo: 'contador', id: ID_CONTADOR_EGO, op: 'somar', valor: 1 }] });
+        gatilhos.push({
+            id: idGatilho('ego', 'dano', 2), nome: `Ego: +${ganhoSerie}% a cada ${porSerie} críticos sofridos (${textoModo(modo)}, ${d})`,
+            evento: { tipo: 'contadorAtingiu', contadorId: ID_CONTADOR_EGO, op: '>=', valor: porSerie },
+            acoes: [acaoGanho(modo, ganhoSerie, duracao), { tipo: 'contador', id: ID_CONTADOR_EGO, op: 'zerar' }], _ganho: { valor: ganhoSerie, duracao }, _alvo: `a cada ${porSerie} críticos`,
+        });
+    }
+    if (ganhoFatal > 0) gatilhos.push({ id: idGatilho('ego', 'dano', 3), nome: `Ego: +${ganhoFatal}% por fatal sofrido (${textoModo(modo)}, ${d})`, evento: { tipo: 'atingido', nivel: 'fatal' }, acoes: [acaoGanho(modo, ganhoFatal, duracao)], _ganho: { valor: ganhoFatal, duracao }, _alvo: 'por fatal sofrido' });
+    return { gatilhos, contadores };
+}
+
+// Partes diferentes podem emitir o MESMO id de gatilho/contador (Ego: ganho temporário + permanente no mesmo evento). Junta: ações concatenadas sem repetir
+// (contador 'zerar' sempre por último, para os ganhos lerem o valor antes), nome unido por ' + '; contador repetido fica uma vez só.
+function juntarGatilhosDeMesmoId(lista) {
+    const porId = new Map();
+    lista.forEach((g) => {
+        const antes = porId.get(g.id);
+        if (!antes) { porId.set(g.id, { ...g, acoes: [...g.acoes], ...(g._ganho ? { _ganhos: [g._ganho] } : {}) }); return; }
+        if (g._ganho && antes._ganhos) {
+            antes._ganhos.push(g._ganho);
+            const txt = antes._ganhos.map(x => `+${String(x.valor).replace('.', ',')}% (${x.duracao === 'combate' ? 'combate' : 'perm.'})`).join(' e ');
+            antes.nome = `Ego: ${txt} ${antes._alvo}`;
+        }
+        g.acoes.forEach((a) => { if (!antes.acoes.some(x => JSON.stringify(x) === JSON.stringify(a))) antes.acoes.push(a); });
+    });
+    const zera = (a) => a.tipo === 'contador' && a.op === 'zerar';
+    return [...porId.values()].map(({ _ganho, _ganhos, _alvo, ...g }) => ({ ...g, acoes: [...g.acoes.filter(a => !zera(a)), ...g.acoes.filter(zera)] }));
+}
+const juntarContadoresDeMesmoId = (lista) => { const vistos = new Map(); lista.forEach((c) => { if (!vistos.has(String(c.id))) vistos.set(String(c.id), c); }); return [...vistos.values()]; };
+
 const EGO = {
     id: 'egoSuperior',
     curto: 'ego',
     nome: 'Ego Superior',
-    resumo: 'Forma Especial com 140x em Vida, Dano, Status e Energias; ganha Poder permanente (em %) por acerto e por golpe crítico/fatal sofrido; imune a condições.',
+    resumo: 'Forma Especial com 140x em Vida, Dano, Status e Energias; ganha Poder em % por acerto e por golpe crítico/fatal sofrido, de DOIS tipos (durante o combate e permanente); imune a condições.',
     categoria: 'forma',
     temOrigem: false,
-    descricao: 'Forma Especial. Cada acerto e golpe crítico/fatal sofrido dá um ganho permanente de Poder em % (multiplica ou soma, conforme o modo). Energia Potencial: sem limite (ignorada pelo app).',
+    descricao: 'Forma Especial. Cada acerto e golpe crítico/fatal sofrido dá ganho de Poder em %: um temporário (só durante o combate, zera no fim da luta) e um permanente menor (multiplica ou soma, conforme o modo). Energia Potencial: sem limite (ignorada pelo app).',
     partes: [
         {
             id: 'multiplicadores', rotulo: 'Multiplicador x140', suportado: true, padrao: true,
@@ -74,8 +138,8 @@ const EGO = {
             parametros: [{ id: 'fatorEgo', rotulo: 'Multiplicador', tipo: 'numero', padrao: 140, min: 1, max: 100000 }],
         },
         {
-            id: 'prestigioPorAcerto', rotulo: 'Poder por acerto', suportado: true, padrao: true,
-            descricao: 'Cada acerto dá um ganho permanente de Poder em %: normal, crítico e fatal (E-51). Modo: multiplica o Poder atual (composto) ou soma ao bônus (linear).',
+            id: 'prestigioPorAcerto', rotulo: 'Poder por acerto — durante o combate', suportado: true, padrao: true,
+            descricao: 'TEMPORÁRIO: cada acerto dá um ganho de Poder em % (normal, crítico e fatal) que vale só durante o combate e zera no fim da luta (E-51). Modo: multiplica o Poder atual (composto, padrão) ou soma ao bônus (linear).',
             parametros: [
                 { id: 'modoAcerto', rotulo: 'Modo', tipo: 'modo', padrao: 'multiplicar' },
                 { id: 'ganhoNormal', rotulo: 'Acerto normal (%)', tipo: 'numero', padrao: 2, min: 0, max: 1000 },
@@ -84,13 +148,33 @@ const EGO = {
             ],
         },
         {
-            id: 'prestigioPorDanoSofrido', rotulo: 'Poder por crítico/fatal sofrido', suportado: true, padrao: true,
-            descricao: 'A cada N críticos sofridos (contador) ou 1 fatal sofrido, ganho permanente de Poder em % (E-50). Modo: multiplica (composto) ou soma (linear).',
+            id: 'prestigioPermanentePorAcerto', rotulo: 'Poder por acerto — permanente', suportado: true, padrao: true,
+            descricao: 'PERMANENTE: cada acerto dá também um ganho que fica para sempre (não zera). Valores menores por padrão (SUPOSIÇÃO editável: +0,2%/+0,3%/+0,4%, soma).',
+            parametros: [
+                { id: 'modoAcertoPerm', rotulo: 'Modo', tipo: 'modo', padrao: 'somar' },
+                { id: 'ganhoNormalPerm', rotulo: 'Acerto normal (%)', tipo: 'numero', padrao: 0.2, min: 0, max: 1000 },
+                { id: 'ganhoCriticoPerm', rotulo: 'Acerto crítico (%)', tipo: 'numero', padrao: 0.3, min: 0, max: 1000 },
+                { id: 'ganhoFatalPerm', rotulo: 'Acerto fatal (%)', tipo: 'numero', padrao: 0.4, min: 0, max: 1000 },
+            ],
+        },
+        {
+            id: 'prestigioPorDanoSofrido', rotulo: 'Poder por crítico/fatal sofrido — durante o combate', suportado: true, padrao: true,
+            descricao: 'TEMPORÁRIO: a cada N críticos sofridos (contador) ou 1 fatal sofrido, ganho de Poder em % só durante o combate (E-50). Modo: multiplica (composto, padrão) ou soma (linear).',
             parametros: [
                 { id: 'modoDanoSofrido', rotulo: 'Modo', tipo: 'modo', padrao: 'multiplicar' },
-                { id: 'criticosPorGanho', rotulo: 'Críticos sofridos por ganho', tipo: 'numero', padrao: 3, min: 1, max: 100 },
+                { id: 'criticosPorGanho', rotulo: 'Críticos sofridos por ganho (vale para as duas partes)', tipo: 'numero', padrao: 3, min: 1, max: 100 },
                 { id: 'ganhoPorCriticos', rotulo: 'Ganho (%) a cada série de críticos', tipo: 'numero', padrao: 2, min: 0, max: 1000 },
                 { id: 'ganhoPorFatal', rotulo: 'Ganho (%) por fatal sofrido', tipo: 'numero', padrao: 2, min: 0, max: 1000 },
+            ],
+        },
+        {
+            id: 'prestigioPermanentePorDanoSofrido', rotulo: 'Poder por crítico/fatal sofrido — permanente', suportado: true, padrao: true,
+            descricao: 'PERMANENTE: a cada série de críticos sofridos ou fatal sofrido, ganho que fica para sempre. Padrão menor (SUPOSIÇÃO editável: +0,2%, soma).',
+            parametros: [
+                { id: 'modoDanoSofridoPerm', rotulo: 'Modo', tipo: 'modo', padrao: 'somar' },
+                { id: 'criticosPorGanho', rotulo: 'Críticos sofridos por ganho (vale para as duas partes)', tipo: 'numero', padrao: 3, min: 1, max: 100 },
+                { id: 'ganhoPorCriticosPerm', rotulo: 'Ganho (%) a cada série de críticos', tipo: 'numero', padrao: 0.2, min: 0, max: 1000 },
+                { id: 'ganhoPorFatalPerm', rotulo: 'Ganho (%) por fatal sofrido', tipo: 'numero', padrao: 0.2, min: 0, max: 1000 },
             ],
         },
         {
@@ -119,33 +203,10 @@ const EGO = {
                 notas: [`Cura x${valor}: o app não tem atributo de Cura; aplique à mão.`],
             };
         },
-        prestigioPorAcerto: (p) => {
-            const gatilhos = [];
-            const modo = modoGanho(p.modoAcerto, 'multiplicar');
-            [['normal', 'ganhoNormal', 'normal'], ['critico', 'ganhoCritico', 'crítico'], ['fatal', 'ganhoFatal', 'fatal']].forEach(([nivel, chave, rotulo], i) => {
-                const valor = numero(p[chave], 0);
-                if (valor > 0) gatilhos.push({ id: idGatilho('ego', 'acerto', i + 1), nome: `Ego: +${valor}% por acerto ${rotulo} (${textoModo(modo)})`, evento: { tipo: 'acertou', nivel }, acoes: [{ tipo: 'ganhoPermanente', unidade: 'percentual', modo, valor }] });
-            });
-            return { gatilhos };
-        },
-        prestigioPorDanoSofrido: (p) => {
-            const gatilhos = []; const contadores = [];
-            const porSerie = Math.floor(preso(numero(p.criticosPorGanho, 3), 1, 100));
-            const ganhoSerie = numero(p.ganhoPorCriticos, 0);
-            const ganhoFatal = numero(p.ganhoPorFatal, 0);
-            const modo = modoGanho(p.modoDanoSofrido, 'multiplicar');
-            if (ganhoSerie > 0) {
-                contadores.push({ id: ID_CONTADOR_EGO, nome: 'Ego: críticos sofridos', min: 0, max: porSerie, reset: 'cena' });
-                gatilhos.push({ id: idGatilho('ego', 'dano', 1), nome: 'Ego: conta crítico sofrido', evento: { tipo: 'atingido', nivel: 'critico' }, acoes: [{ tipo: 'contador', id: ID_CONTADOR_EGO, op: 'somar', valor: 1 }] });
-                gatilhos.push({
-                    id: idGatilho('ego', 'dano', 2), nome: `Ego: +${ganhoSerie}% a cada ${porSerie} críticos sofridos (${textoModo(modo)})`,
-                    evento: { tipo: 'contadorAtingiu', contadorId: ID_CONTADOR_EGO, op: '>=', valor: porSerie },
-                    acoes: [{ tipo: 'ganhoPermanente', unidade: 'percentual', modo, valor: ganhoSerie }, { tipo: 'contador', id: ID_CONTADOR_EGO, op: 'zerar' }],
-                });
-            }
-            if (ganhoFatal > 0) gatilhos.push({ id: idGatilho('ego', 'dano', 3), nome: `Ego: +${ganhoFatal}% por fatal sofrido (${textoModo(modo)})`, evento: { tipo: 'atingido', nivel: 'fatal' }, acoes: [{ tipo: 'ganhoPermanente', unidade: 'percentual', modo, valor: ganhoFatal }] });
-            return { gatilhos, contadores };
-        },
+        prestigioPorAcerto: (p) => ({ gatilhos: gatilhosAcertoEgo(p, 'combate') }),
+        prestigioPermanentePorAcerto: (p) => ({ gatilhos: gatilhosAcertoEgo(p, 'permanente') }),
+        prestigioPorDanoSofrido: (p) => gatilhosDanoSofridoEgo(p, 'combate'),
+        prestigioPermanentePorDanoSofrido: (p) => gatilhosDanoSofridoEgo(p, 'permanente'),
         imunidadeCondicoes: () => ({ efeitos: [{ nome: 'Ego Superior: imune a condições', atributo: 'imune_estado', propriedade: 'base', valor: '1', escopo: 'todos' }] }),
         ascensaoAdicional: () => ({ notas: ['Ascensão adicional: +10 de Ascensão em cada ao ativar; os pontos de prestígio adicionais viram pontos de morte e vida temporários (aplique à mão). Os ganhos por acerto/crítico sofrido não contam para esses pontos.'] }),
         habilidadesDeRaca: () => ({ notas: ['Nesta forma, todas as habilidades contam como poderes de raça.'] }),
@@ -159,7 +220,7 @@ const VERG = {
     id: 'vergAvesta',
     curto: 'verg',
     nome: 'Verg Avesta',
-    resumo: 'Habilidade que acumula o que sofre e, ao fim da luta, converte em Poder permanente; ganha +N de Acerto por turno (fixo, não acumula).',
+    resumo: 'Habilidade que acumula o que sofre e, ao fim da luta, converte em Poder permanente; liga o mUnico Crescente da Adaptação (+X% por turno).',
     categoria: 'habilidade',
     temOrigem: true,
     descricao: 'Habilidade passiva: acumula os golpes sofridos e, ao fim da luta (cena), o acumulado vira ganho permanente de Poder em % (cada golpe = 1/divisor de 1%).',
@@ -174,9 +235,9 @@ const VERG = {
             ],
         },
         {
-            id: 'acertoPorTurno', rotulo: 'Acerto por turno (+N fixo, não acumula)', suportado: true, padrao: true,
-            descricao: 'No início de cada turno em combate, +N de Acerto por turno (não acumula: o buff é renovado) (A-31).',
-            parametros: [{ id: 'acertoPorTurno', rotulo: 'Acerto por turno', tipo: 'numero', padrao: 5, min: 1, max: 1000 }],
+            id: 'crescimentoAdaptacao', rotulo: 'Crescimento por turno (Adaptação)', suportado: true, padrao: true,
+            descricao: 'Liga o "mUnico Crescente (Por Turno)" da Adaptação (Ficha > Marcadores & Adaptação): "Crescer sozinho" fica ligado e a taxa por turno vira o valor abaixo (A-31). Desmarcar desliga só se foi este modelo que ligou.',
+            parametros: [{ id: 'taxaPorTurno', rotulo: 'Crescimento por turno (%)', tipo: 'numero', padrao: 5, min: 0.1, max: 1000 }],
         },
         {
             id: 'vidaMaxima', rotulo: 'Vida máxima ÷ 8', suportado: 'nota', padrao: true,
@@ -195,6 +256,7 @@ const VERG = {
             descricao: 'Na expansão, multiplicadores por turno (a esfera gira). Vira nota.', parametros: [],
         },
     ],
+    idsLegados: ['mp_verg_acerto_1'], // gatilho da parte antiga 'acertoPorTurno' (removida): sai ao regenerar
     montar: {
         acumuloDeDano: (p) => {
             const divisor = preso(numero(p.divisor, 10), 1, 1000);
@@ -210,14 +272,9 @@ const VERG = {
                 notas: ['Acúmulo: o app conta GOLPES sofridos (não o dano exato); o Mestre ajusta o total em "Ganhos permanentes" se quiser o valor exato.'],
             };
         },
-        acertoPorTurno: (p) => {
-            const valor = preso(numero(p.acertoPorTurno, 5), 1, 1000);
-            // Nome CONSTANTE (o buff do app se chama "<gatilho> (acerto)" e um novo buff de mesmo nome/fonte SUBSTITUI o anterior):
-            // mudar o valor em "Editar partes" não deixa um buff antigo com outro nome.
-            return {
-                gatilhos: [{ id: idGatilho('verg', 'acerto', 1), nome: 'Verg: Acerto por turno', evento: { tipo: 'turnoInicio' }, passivo: true, acoes: [{ tipo: 'buff', atributo: 'acerto', valor, duracao: 20, modo: 'combate' }] }],
-                notas: [`Acerto por turno: +${valor} de Acerto a cada turno em combate (não acumula: o buff é renovado, não somado). Acúmulo de turno a turno, se desejado, é à mão.`],
-            };
+        crescimentoAdaptacao: (p) => {
+            const taxa = preso(numero(p.taxaPorTurno, 5), 0.1, 1000);
+            return { notas: [`Crescimento por turno: liga a Adaptação (mUnico Crescente) em +${String(taxa).replace('.', ',')}% por turno de combate.`] };
         },
         vidaMaxima: () => ({ notas: ['Vida máxima: soma o dano total sofrido ÷ 8 (aplique à mão).'] }),
         curaAcumulada: () => ({ notas: ['Cura acumulada: 1/20 a 1/10 do curado acumula; ao fim da luta 1/200 a 1/80 vira ganho (aplique à mão).'] }),
@@ -254,6 +311,8 @@ function materialDaSelecao(m, selecao, params) {
         saida.contadores.push(...(r.contadores || []));
         saida.notas.push(...(r.notas || []));
     });
+    saida.gatilhos = juntarGatilhosDeMesmoId(saida.gatilhos);
+    saida.contadores = juntarContadoresDeMesmoId(saida.contadores);
     return { sel, par, ...saida };
 }
 
@@ -277,6 +336,15 @@ function construirDoModelo(m, selecao, params, fichaAtual, opcoes = {}) {
     if (gatilhos.length > 0) objeto.gatilhos = gatilhos;
     if (m.temOrigem) objeto.origem = normalizarOrigem(opcoes.origem);
     objeto.modelo = { id: m.id, partes: mat.sel, params: mat.par };
+    const existenteAviso = acharPoderDoModelo(fichaAtual, m.id);
+    if (existenteAviso && existenteAviso.modelo && Array.isArray(existenteAviso.modelo.partes) && existenteAviso.modelo.partes.includes('acertoPorTurno')) {
+        avisos.push('O Acerto por turno do Verg agora é o Crescimento por turno da Adaptação (mUnico Crescente): o gatilho antigo sai ao aplicar; marque a parte nova se quiser o crescimento.');
+    }
+    if (m.id === 'egoSuperior' && existenteAviso && Array.isArray(existenteAviso.gatilhos)
+        && !mat.sel.includes('prestigioPermanentePorAcerto') && !mat.sel.includes('prestigioPermanentePorDanoSofrido')
+        && existenteAviso.gatilhos.some(g => g && /^mp_ego_/.test(String(g.id || '')) && Array.isArray(g.acoes) && g.acoes.some(a => a && a.tipo === 'ganhoPermanente' && !a.duracao))) {
+        avisos.push('⚠️ Os ganhos do Ego por acerto/dano sofrido agora são temporários (zeram no fim da luta). Marque as partes “permanente” se quiser ganhos que ficam.');
+    }
     // Contadores: o helper único decide o que criar, reaproveitar (e ajustar) e remover.
     const pc = planejarContadores(m, fichaAtual, mat.sel, mat.par);
     mat.sel.forEach((id) => {
@@ -317,7 +385,7 @@ function planejarContadores(m, ficha, selecao, params) {
 // os manuais (que o modelo não criou) ficam e os do modelo entram depois. Se algum gatilho do modelo seria descartado, `bloqueio` explica.
 function gatilhosFinaisEdicao(m, existente, novo) {
     const antigo = materialDaSelecao(m, existente.modelo.partes, existente.modelo.params);
-    const idsAntigos = new Set(antigo.gatilhos.map(g => g.id));
+    const idsAntigos = new Set([...antigo.gatilhos.map(g => g.id), ...(m.idsLegados || [])]);
     const manter = (existente.gatilhos || []).filter(g => g && !idsAntigos.has(g.id));
     const doModelo = novo.poder.gatilhos || [];
     const juntos = normalizarGatilhos([...manter, ...doModelo]);
@@ -362,6 +430,7 @@ export function planejarModelo(modeloId, selecao, params, fichaAtual, opcoes = {
         modo: existente ? 'editar' : 'novo', poderes: existente ? 0 : 1, contadores: r.contadores.length,
         contadoresAtualizados: r.contadoresAtualizar.length, contadoresRemovidos: r.contadoresRemover.length,
         gatilhos: (r.poder.gatilhos || []).length, efeitos: (r.poder.efeitos || []).length, avisos: r.avisos,
+        adaptacao: sel.includes('crescimentoAdaptacao') ? { taxa: r.poder.modelo.params.taxaPorTurno } : null,
     };
 }
 
@@ -387,6 +456,21 @@ export function aplicarModeloNaFicha(ficha, req = {}) {
     const edicao = existente ? gatilhosFinaisEdicao(m._def, existente, novo) : null;
     if (edicao && edicao.bloqueio) return { ok: false, mensagem: edicao.bloqueio, avisos: novo.avisos };
 
+    // Adaptação (mUnico Crescente): decidido ANTES de gravar, a partir do estado atual. `ligou` só vale se ESTE modelo ligou o interruptor.
+    const temCrescimento = sel.includes('crescimentoAdaptacao');
+    const ligouAntes = !!(existente && existente.modelo && existente.modelo.adaptacao && existente.modelo.adaptacao.ligou === true);
+    const taxaAdaptacao = temCrescimento ? novo.poder.modelo.params.taxaPorTurno : 0;
+    const adaptacao = temCrescimento ? { ligou: ligouAntes || !(ficha.combate && ficha.combate.municoAuto === true), taxa: taxaAdaptacao } : null;
+    const aplicarAdaptacao = () => {
+        if (temCrescimento) {
+            if (!ficha.combate || typeof ficha.combate !== 'object') ficha.combate = {};
+            ficha.combate.municoPorTurno = taxaAdaptacao;
+            ficha.combate.municoAuto = true;
+        } else if (ligouAntes && ficha.combate && typeof ficha.combate === 'object') {
+            ficha.combate.municoAuto = false;
+        }
+    };
+
     // ---- Fase 2: grava. Contadores do modelo já existentes são reescritos (nome/min/max; valor preservado e preso ao novo intervalo). ----
     // Os contadores do modelo pertencem ao poder: gravam `poderId` (migra também contadores mp_* antigos, sem poderId, ao editar).
     const poderId = existente ? existente.id : (req.id !== undefined ? req.id : Date.now());
@@ -401,7 +485,8 @@ export function aplicarModeloNaFicha(ficha, req = {}) {
     ];
 
     if (!existente) {
-        ficha.poderes.push({ ...novo.poder, id: poderId });
+        aplicarAdaptacao();
+        ficha.poderes.push({ ...novo.poder, ...(adaptacao ? { modelo: { ...novo.poder.modelo, adaptacao } } : {}), id: poderId });
         return { ok: true, modo: 'novo', avisos: novo.avisos, mensagem: `${m.nome} adicionado: ${(novo.poder.gatilhos || []).length} gatilho(s), ${novo.contadores.length} contador(es) novo(s).` };
     }
 
@@ -416,9 +501,12 @@ export function aplicarModeloNaFicha(ficha, req = {}) {
     existente.efeitos = efeitos;
     // Notas: troca só se ainda forem as que o modelo escreveu; texto editado à mão fica.
     const notasAntigas = antigo.notas.join('\n');
-    if (!existente.notasIA || existente.notasIA === notasAntigas) existente.notasIA = novo.poder.notasIA;
+    // Migração: tira a nota do Acerto por turno do Verg (parte antiga) antes de comparar.
+    const notasAtuais = String(existente.notasIA || '').split('\n').filter(l => !/^Acerto por turno: \+/.test(l)).join('\n');
+    if (!existente.notasIA || existente.notasIA === notasAntigas || notasAtuais === notasAntigas) existente.notasIA = novo.poder.notasIA;
     else if (novo.poder.notasIA && !existente.notasIA.includes(novo.poder.notasIA)) existente.notasIA = `${existente.notasIA}\n${novo.poder.notasIA}`;
     if (m.temOrigem) existente.origem = novo.poder.origem;
-    existente.modelo = novo.poder.modelo;
+    aplicarAdaptacao();
+    existente.modelo = adaptacao ? { ...novo.poder.modelo, adaptacao } : novo.poder.modelo;
     return { ok: true, modo: 'editar', avisos, mensagem: `${m.nome} atualizado: ${(existente.gatilhos || []).length} gatilho(s) no poder.` };
 }

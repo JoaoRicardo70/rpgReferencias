@@ -478,6 +478,8 @@ function PaginaMarcadores() {
     const municoPorTurno = minhaFicha?.combate?.municoPorTurno ?? 5;
     const municoAtual = Math.max(1, 1 + (Math.max(0, municoTurnos) * municoPorTurno / 100));
     const municoAuto = minhaFicha?.combate?.municoAuto === true;
+    // 🧬 Verg Avesta (modelo do Mestre) que ligou este interruptor: só informativo, a edição manual continua valendo.
+    const poderVergAdaptacao = (Array.isArray(minhaFicha?.poderes) ? minhaFicha.poderes : []).find(p => p && p.modelo && p.modelo.id === 'vergAvesta' && p.modelo.adaptacao && p.modelo.adaptacao.ligou === true) || null;
 
     const updateMunicoTurnos = (delta) => {
         updateFicha(f => {
@@ -691,6 +693,11 @@ function PaginaMarcadores() {
                     <button onClick={zerarMunicoCrescente} style={{ padding: '8px 15px', border: '1px solid #aa00ff', color: '#aa00ff', background: 'transparent', cursor: 'pointer', opacity: 0.8, borderRadius: '4px' }}>🧹 Zerar mUnico</button>
                 </div>
 
+                {poderVergAdaptacao && (
+                    <div className="municoauto-verg" role="note">
+                        🧬 Verg Avesta (origem: {poderVergAdaptacao.origem && poderVergAdaptacao.origem.tipo === 'independente' ? 'independente' : `herdada de ${(poderVergAdaptacao.origem && poderVergAdaptacao.origem.fonte) || 'um ser'}`}) controla o crescimento: +{String(municoPorTurno).replace('.', ',')}% por turno
+                    </div>
+                )}
                 <label className="municoauto-interruptor">
                     <input type="checkbox" checked={municoAuto} onChange={e => alternarMunicoAuto(e.target.checked)} />
                     <span>Crescer sozinho a cada turno</span>

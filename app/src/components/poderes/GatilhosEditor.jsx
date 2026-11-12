@@ -22,7 +22,7 @@ const ACOES_DO_FORMULARIO = [
     { id: 'desligarPoder', rotulo: 'Desligar um Poder' },
     { id: 'danoEmSi', rotulo: 'Sofrer dano' },
     { id: 'danoNoAtacante', rotulo: 'Dano no atacante' },
-    { id: 'ganhoPermanente', rotulo: 'Ganho permanente de Poder' },
+    { id: 'ganhoPermanente', rotulo: 'Ganho de Poder' },
     { id: 'rolarTabela', rotulo: 'Rolar tabela' },
     { id: 'pedirEscolha', rotulo: 'Pedir uma escolha' },
 ];
@@ -34,7 +34,7 @@ const EXPLICACAO_MODO = {
 };
 
 const FORMULARIO_VAZIO = { id: '', nome: '', evento: 'danoQueZeraria', de: '10', ate: '1', nivel: 'qualquer', poderEvento: '', contadorEvento: '', opEvento: '>=', valorEvento: '', vidaMaiorQue: '', limite: '', acoes: [], mestreDesligou: false, modo: 'automatico', armado: true, perguntar: false };
-const ACAO_VAZIA = { tipo: 'anularDano', valor: '', nome: '', tipoEscudo: 'escudo', texto: '', contadorId: '', op: 'somar', sorteio: '', estado: 'queimado', duracaoEstado: '', poderId: '', modoDano: 'fixo', modoAtacante: 'percDanoRecebido', gpModo: 'fixo', gpFator: '', gpZerar: false, gpComo: 'somar' };
+const ACAO_VAZIA = { tipo: 'anularDano', valor: '', nome: '', tipoEscudo: 'escudo', texto: '', contadorId: '', op: 'somar', sorteio: '', estado: 'queimado', duracaoEstado: '', poderId: '', modoDano: 'fixo', modoAtacante: 'percDanoRecebido', gpModo: 'fixo', gpFator: '', gpZerar: false, gpComo: 'somar', gpDuracao: 'permanente' };
 const TABELA_VAZIA = { dado: '1d4', linhas: [{ ate: '1', texto: '', acoes: [] }], alvo: 0 };
 const ESCOLHA_VAZIA = { pergunta: '', opcoes: [{ texto: '', acoes: [] }, { texto: '', acoes: [] }], alvo: 0 };
 
@@ -97,7 +97,7 @@ function acaoDe(a) {
         case 'danoEmSi': return { tipo: 'danoEmSi', modo: a.modoDano, valor: a.valor };
         case 'danoNoAtacante': return { tipo: 'danoNoAtacante', modo: a.modoAtacante, valor: a.valor };
         case 'ganhoPermanente': {
-            const extra = { unidade: 'percentual', modo: a.gpComo === 'multiplicar' ? 'multiplicar' : 'somar' };
+            const extra = { unidade: 'percentual', modo: a.gpComo === 'multiplicar' ? 'multiplicar' : 'somar', ...(a.gpDuracao === 'combate' ? { duracao: 'combate' } : {}) };
             return a.gpModo === 'contador'
                 ? { tipo: 'ganhoPermanente', ...extra, deContador: { id: a.contadorId, fator: a.gpFator, zerar: a.gpZerar === true } }
                 : { tipo: 'ganhoPermanente', ...extra, valor: a.valor };
@@ -122,6 +122,10 @@ function CamposDaAcao({ acao, setAcao, anularDanoOk, permitirTabela, nomes, onAd
                     <select aria-label={`Como aplicar o ganho permanente${sufixo}`} value={acao.gpComo} onChange={e => setAcao({ ...acao, gpComo: e.target.value })}>
                         <option value="somar">Somar ao bônus (linear)</option>
                         <option value="multiplicar">Multiplicar o Poder (composto)</option>
+                    </select>
+                    <select aria-label={`Duração do ganho de Poder${sufixo}`} value={acao.gpDuracao || 'permanente'} onChange={e => setAcao({ ...acao, gpDuracao: e.target.value })}>
+                        <option value="permanente">Permanente</option>
+                        <option value="combate">Só durante o combate (zera no fim da luta)</option>
                     </select>
                     {acao.gpModo === 'fixo' && <input type="number" min="-99.99" step="any" aria-label={`Valor do ganho permanente${sufixo}`} placeholder="Valor (%) (ex.: 2)" value={acao.valor} onChange={e => setAcao({ ...acao, valor: e.target.value })} />}
                     {acao.gpModo === 'contador' && (

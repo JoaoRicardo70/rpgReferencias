@@ -28,16 +28,17 @@ describe('catalogo', () => {
     });
     it('Ego: partes, padroes e partes que viram nota', () => {
         const partes = m(EGO).partes;
-        expect(partes.map(p => p.id)).toEqual(['multiplicadores', 'prestigioPorAcerto', 'prestigioPorDanoSofrido', 'imunidadeCondicoes', 'ascensaoAdicional', 'habilidadesDeRaca']);
+        // Ajuste intencional: o Ego ganhou as partes permanentes (acerto e dano sofrido) ao lado das temporárias (durante o combate).
+        expect(partes.map(p => p.id)).toEqual(['multiplicadores', 'prestigioPorAcerto', 'prestigioPermanentePorAcerto', 'prestigioPorDanoSofrido', 'prestigioPermanentePorDanoSofrido', 'imunidadeCondicoes', 'ascensaoAdicional', 'habilidadesDeRaca']);
         expect(partes.filter(p => p.suportado === 'nota').map(p => p.id)).toEqual(['ascensaoAdicional', 'habilidadesDeRaca']);
         expect(partes.every(p => p.padrao === true)).toBe(true);
-        expect(paramsPadrao(m(EGO))).toEqual({ fatorEgo: 140, modoAcerto: 'multiplicar', ganhoNormal: 2, ganhoCritico: 3, ganhoFatal: 4, modoDanoSofrido: 'multiplicar', criticosPorGanho: 3, ganhoPorCriticos: 2, ganhoPorFatal: 2 });
+        expect(paramsPadrao(m(EGO))).toEqual({ fatorEgo: 140, modoAcerto: 'multiplicar', ganhoNormal: 2, ganhoCritico: 3, ganhoFatal: 4, modoDanoSofrido: 'multiplicar', criticosPorGanho: 3, ganhoPorCriticos: 2, ganhoPorFatal: 2, modoAcertoPerm: 'somar', ganhoNormalPerm: 0.2, ganhoCriticoPerm: 0.3, ganhoFatalPerm: 0.4, modoDanoSofridoPerm: 'somar', ganhoPorCriticosPerm: 0.2, ganhoPorFatalPerm: 0.2 });
     });
     it('Verg: partes e padroes', () => {
         const partes = m(VERG).partes;
-        expect(partes.filter(p => p.suportado === true).map(p => p.id)).toEqual(['acumuloDeDano', 'acertoPorTurno']);
+        expect(partes.filter(p => p.suportado === true).map(p => p.id)).toEqual(['acumuloDeDano', 'crescimentoAdaptacao']);
         expect(partes.filter(p => p.suportado === 'nota').map(p => p.id)).toEqual(['vidaMaxima', 'curaAcumulada', 'adaptacao', 'expansao']);
-        expect(paramsPadrao(m(VERG))).toEqual({ modoAcumulo: 'somar', divisor: 10, limiteAcumulo: 999, acertoPorTurno: 5 });
+        expect(paramsPadrao(m(VERG))).toEqual({ modoAcumulo: 'somar', divisor: 10, limiteAcumulo: 999, taxaPorTurno: 5 });
     });
     it('todo parametro tem min<=padrao<=max', () => {
         MODELOS.forEach(mo => mo.partes.flatMap(p => p.parametros).filter(p => p.tipo !== 'modo').forEach((p) => {
@@ -195,19 +196,14 @@ describe('construir: Verg Avesta', () => {
     it('limiteAcumulo customizado', () => {
         expect(construir(VERG, ['acumuloDeDano'], { limiteAcumulo: 50 }).contadores[0].max).toBe(50);
     });
-    it('acerto por turno: buff com nome constante em turnoInicio', () => {
-        const a = construir(VERG, ['acertoPorTurno'], { acertoPorTurno: 5 }).poder.gatilhos[0];
-        const b = construir(VERG, ['acertoPorTurno'], { acertoPorTurno: 9 }).poder.gatilhos[0];
-        expect(a.nome).toBe('Verg: Acerto por turno');
-        expect(b.nome).toBe('Verg: Acerto por turno');
-        expect(a.evento.tipo).toBe('turnoInicio');
-        expect(a.acoes[0]).toMatchObject({ tipo: 'buff', atributo: 'acerto', valor: 5 });
-        expect(b.acoes[0].valor).toBe(9);
-        expect(a.id).toBe('mp_verg_acerto_1');
+    it('crescimento por turno: nao cria gatilho (liga a Adaptacao na aplicacao)', () => {
+        const a = construir(VERG, ['crescimentoAdaptacao'], { taxaPorTurno: 9 });
+        expect(a.poder.gatilhos).toBeUndefined();
+        expect(a.poder.modelo.params.taxaPorTurno).toBe(9);
     });
-    it('selecao padrao: 3 gatilhos, 1 contador, notas das 4 partes nota', () => {
+    it('selecao padrao: 2 gatilhos, 1 contador, notas das 4 partes nota', () => {
         const r = construir(VERG);
-        expect(r.poder.gatilhos).toHaveLength(3);
+        expect(r.poder.gatilhos).toHaveLength(2);
         expect(r.contadores).toHaveLength(1);
         expect(r.avisos.filter(a => /não existe no app/.test(a))).toHaveLength(4);
         expect(r.poder.categoria).toBe('habilidade');
@@ -384,8 +380,8 @@ describe('aplicarModeloNaFicha: criar e editar', () => {
     });
     it('editar troca origem do Verg e mantem a existente do Ego', () => {
         const f = fichaVazia();
-        aplicarModeloNaFicha(f, mestre({ modeloId: VERG, selecao: ['acertoPorTurno'], id: 1, opcoes: { origem: { tipo: 'herdada', fonte: 'A' } } }));
-        aplicarModeloNaFicha(f, mestre({ modeloId: VERG, selecao: ['acertoPorTurno'], id: 1, opcoes: { origem: { tipo: 'independente' } } }));
+        aplicarModeloNaFicha(f, mestre({ modeloId: VERG, selecao: ['crescimentoAdaptacao'], id: 1, opcoes: { origem: { tipo: 'herdada', fonte: 'A' } } }));
+        aplicarModeloNaFicha(f, mestre({ modeloId: VERG, selecao: ['crescimentoAdaptacao'], id: 1, opcoes: { origem: { tipo: 'independente' } } }));
         expect(poderDe(f, VERG).origem).toEqual({ tipo: 'independente', fonte: '' });
     });
     it('notas editadas a mao sao preservadas', () => {

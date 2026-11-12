@@ -27,12 +27,13 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('Assistente: parametro Modo', () => {
-    it('Ego mostra dois seletores de modo com padrao Multiplicar', () => {
+    // Ajuste intencional: o Ego agora tem 4 partes de ganho (temporária e permanente por acerto e por dano sofrido); temporárias = Multiplicar, permanentes = Somar.
+    it('Ego mostra quatro seletores de modo (temporário Multiplicar, permanente Somar)', () => {
         render(<ModelosPoderAssistente />);
         abrir(); escolher('Ego Superior');
         const sel = screen.getAllByRole('combobox').filter(s => /modo do ganho/.test(s.getAttribute('aria-label') || ''));
-        expect(sel).toHaveLength(2);
-        sel.forEach(s => expect(s.value).toBe('multiplicar'));
+        expect(sel).toHaveLength(4);
+        expect(sel.map(s => s.value)).toEqual(['multiplicar', 'somar', 'multiplicar', 'somar']);
         expect(Array.from(sel[0].options).map(o => o.value).sort()).toEqual(['multiplicar', 'somar']);
     });
     it('Verg mostra o modo com padrao Somar e divisor continua numerico', () => {
@@ -46,9 +47,9 @@ describe('Assistente: parametro Modo', () => {
     it('rotulos numericos viram (%)', () => {
         render(<ModelosPoderAssistente />);
         abrir(); escolher('Ego Superior');
-        expect(screen.getByLabelText('Acerto normal (%)').value).toBe('2');
-        expect(screen.getByLabelText('Acerto crítico (%)').value).toBe('3');
-        expect(screen.getByLabelText('Acerto fatal (%)').value).toBe('4');
+        expect(screen.getAllByLabelText('Acerto normal (%)').map(i => i.value)).toEqual(['2', '0.2']);
+        expect(screen.getAllByLabelText('Acerto crítico (%)').map(i => i.value)).toEqual(['3', '0.3']);
+        expect(screen.getAllByLabelText('Acerto fatal (%)').map(i => i.value)).toEqual(['4', '0.4']);
     });
     it('mudar o modo para Somar e aplicar grava gatilhos percentual + somar', () => {
         render(<ModelosPoderAssistente />);
@@ -59,7 +60,8 @@ describe('Assistente: parametro Modo', () => {
         const acertos = acharPoderDoModelo(ficha(), 'egoSuperior').gatilhos.filter(g => g.evento.tipo === 'acertou').flatMap(g => g.acoes);
         expect(acertos.length).toBeGreaterThan(0);
         acertos.forEach(a => expect(a).toMatchObject({ unidade: 'percentual', modo: 'somar' }));
-        const outros = acharPoderDoModelo(ficha(), 'egoSuperior').gatilhos.filter(g => g.evento.tipo !== 'acertou').flatMap(g => g.acoes).filter(a => a.tipo === 'ganhoPermanente');
+        const outros = acharPoderDoModelo(ficha(), 'egoSuperior').gatilhos.filter(g => g.evento.tipo !== 'acertou').flatMap(g => g.acoes).filter(a => a.tipo === 'ganhoPermanente' && a.duracao === 'combate');
+        expect(outros.length).toBeGreaterThan(0);
         outros.forEach(a => expect(a.modo).toBe('multiplicar'));
     });
     it('desmarcar a parte esconde o seletor de modo dela', () => {
@@ -67,7 +69,7 @@ describe('Assistente: parametro Modo', () => {
         abrir(); escolher('Ego Superior');
         fireEvent.click(screen.getAllByRole('checkbox')[1]); // prestigioPorAcerto
         const sel = screen.getAllByRole('combobox').filter(s => /modo do ganho/.test(s.getAttribute('aria-label') || ''));
-        expect(sel).toHaveLength(1);
+        expect(sel).toHaveLength(3);
     });
 });
 

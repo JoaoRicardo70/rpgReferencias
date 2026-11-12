@@ -65,7 +65,7 @@ describe('Marcados: linha Ganhos permanentes', () => {
         render(<MarcadosPanel />);
         expect(linha()).not.toBeNull();
         expect(campo().value).toBe('0');
-        expect(screen.getByText('Zerar')).toBeTruthy();
+        expect(screen.getAllByText('Zerar')[0]).toBeTruthy();
     });
     it('Mestre via ficha.isMestre também vê', () => {
         montar(ficha({ isMestre: true }));
@@ -122,14 +122,14 @@ describe('Marcados: linha Ganhos permanentes', () => {
     it('Zerar grava 0 imediatamente', () => {
         const est = montar(ficha({ ganhosPermanentes: { poderCalculado: 12 } }), { isMestre: true });
         render(<MarcadosPanel />);
-        fireEvent.click(screen.getByText('Zerar'));
+        fireEvent.click(screen.getAllByText('Zerar')[0]);
         expect(est.minhaFicha.ganhosPermanentes.poderCalculado).toBe(0);
         expect(est.updateFicha).toHaveBeenCalledTimes(1);
     });
     it('Zerar com valor já 0 ainda não quebra', () => {
         const est = montar(ficha(), { isMestre: true });
         render(<MarcadosPanel />);
-        expect(() => fireEvent.click(screen.getByText('Zerar'))).not.toThrow();
+        expect(() => fireEvent.click(screen.getAllByText('Zerar')[0])).not.toThrow();
         expect(est.minhaFicha.ganhosPermanentes.poderCalculado).toBe(0);
     });
 });

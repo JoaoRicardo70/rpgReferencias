@@ -11,7 +11,7 @@ import { getRank } from '../../core/prestige';
 import { formatarPoderCosmico } from '../../core/utils.js';
 import { calcularFadigaAtual } from '../../core/fadiga';
 import { getTetoOcultacaoPoder, getOcultacaoPoder } from '../../core/percepcaoPoder';
-import { getGlobalMultipliers, getPoderDiretoMultiplier, getBaseEquivalenteAscensao, amortecerPoderBruto, getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder, aplicarEscalaPoderCalculado, fatorGanhoComposto as fatorGanhoCompostoDe, FATOR_PODER_MAX, FATOR_PODER_MIN } from '../../core/poder';
+import { getGlobalMultipliers, getPoderDiretoMultiplier, getBaseEquivalenteAscensao, amortecerPoderBruto, getMultiplicadorAscensaoPoder, injetarAscensaoNoPoder, aplicarEscalaPoderCalculado, fatorGanhoComposto as fatorGanhoCompostoDe, fatorGanhoCombate as fatorGanhoCombateDe, ganhoAditivoCombate, FATOR_PODER_MAX, FATOR_PODER_MIN } from '../../core/poder';
 import { planejarAjustePrestigioStatus, aplicarAjustePrestigioStatus, recolherPontosAlocados, getTotalPontosAlocados } from '../../core/statusPool';
 import { getPontosPrestigioDisponiveis, getPontosDistribuidos, calcularBaseDoPrestigio, validarDistribuicaoPrestigio, registrarDistribuicaoPrestigio, podeAscender, prestigioAposAscensao, aplicarAscensao, CATEGORIAS_PRESTIGIO, PRESTIGIO_PARA_ASCENDER } from '../../core/prestigioDistribuicao';
 import { getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
@@ -1123,6 +1123,9 @@ export default function MarcadosPanel() {
     const ganhoPermanentePoder = (() => { const n = Number(minhaFicha?.ganhosPermanentes?.poderCalculado); return Number.isFinite(n) && n > 0 ? n : 0; })();
     // Fator composto (modo "multiplicar"; entra em glob.totalDano via getGlobalMultipliers). 1 = sem ganho.
     const fatorGanhoComposto = fatorGanhoCompostoDe(minhaFicha);
+    // ⚔️ Ganhos DO COMBATE (gatilho com duração 'combate'): zeram no fim da luta. Mesma fonte de verdade de core/poder.js.
+    const ganhoCombatePoder = ganhoAditivoCombate(minhaFicha);
+    const fatorGanhoCombate = fatorGanhoCombateDe(minhaFicha);
 
     const salvar = (caminho, valor) => {
         const valFinal = (valor === undefined || (isNaN(valor) && typeof valor === 'number')) ? null : valor;
@@ -1728,6 +1731,20 @@ export default function MarcadosPanel() {
                                                 <input type="number" min={FATOR_PODER_MIN} max={FATOR_PODER_MAX} step="any" aria-label="Fator composto de Poder (Mestre)" key={`fp${fatorGanhoComposto}`} defaultValue={fatorGanhoComposto} onBlur={e => { const v = parseFloat(e.target.value); const novo = Number.isFinite(v) && v > 0 ? Math.round(Math.min(FATOR_PODER_MAX, Math.max(FATOR_PODER_MIN, v)) * 1e9) / 1e9 : 1; if (novo !== fatorGanhoComposto) salvar('ganhosPermanentes.fatorPoder', novo); }} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
                                                 <button type="button" className="btn-neon" onClick={() => { updateFicha(f => { if (!f.ganhosPermanentes || typeof f.ganhosPermanentes !== 'object') f.ganhosPermanentes = {}; f.ganhosPermanentes.poderCalculado = 0; f.ganhosPermanentes.fatorPoder = 1; }); callSave(); }}>Zerar</button>
                                                 <span className="ganho-permanente-dica">(só o Mestre corrige à mão)</span>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+
+                                {(ganhoCombatePoder > 0 || fatorGanhoCombate !== 1 || isMestre) && (
+                                    <div className="ganho-permanente-linha" data-testid="ganho-combate-poder">
+                                        <span title="Ganhos de Poder que valem só durante o combate (gatilhos com duração Combate). Zeram no fim da luta e ao descansar. Entram no Poder Calculado como o ganho permanente: soma no multiplicador geral e fator composto.">⚔️ Ganhos do combate: +{Number(ganhoCombatePoder.toFixed(6)).toLocaleString('pt-BR', { maximumFractionDigits: 6 })}{ganhoCombatePoder > 0 ? ` (+${Number((ganhoCombatePoder * 100).toFixed(4)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}%)` : ''}</span>
+                                        {fatorGanhoCombate !== 1 && <span title="Fator composto de combate (modo Multiplicar): multiplica o Poder Calculado junto com o fator permanente.">×{Number(fatorGanhoCombate.toFixed(4)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</span>}
+                                        {isMestre && (
+                                            <>
+                                                <input type="number" min="0" step="any" aria-label="Ganhos do combate de Poder (Mestre)" key={`gc${ganhoCombatePoder}`} defaultValue={ganhoCombatePoder} onBlur={e => { const v = parseFloat(e.target.value); const novo = Number.isFinite(v) && v > 0 ? Math.min(v, 1e9) : 0; if (novo !== ganhoCombatePoder) salvar('ganhosCombate.poderCalculado', novo); }} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+                                                <input type="number" min={FATOR_PODER_MIN} max={FATOR_PODER_MAX} step="any" aria-label="Fator composto de combate (Mestre)" key={`fc${fatorGanhoCombate}`} defaultValue={fatorGanhoCombate} onBlur={e => { const v = parseFloat(e.target.value); const novo = Number.isFinite(v) && v > 0 ? Math.round(Math.min(FATOR_PODER_MAX, Math.max(FATOR_PODER_MIN, v)) * 1e9) / 1e9 : 1; if (novo !== fatorGanhoCombate) salvar('ganhosCombate.fatorPoder', novo); }} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+                                                <button type="button" className="btn-neon" onClick={() => { updateFicha(f => { if (!f.ganhosCombate || typeof f.ganhosCombate !== 'object') f.ganhosCombate = {}; f.ganhosCombate.poderCalculado = 0; f.ganhosCombate.fatorPoder = 1; }); callSave(); }}>Zerar</button>
                                             </>
                                         )}
                                     </div>

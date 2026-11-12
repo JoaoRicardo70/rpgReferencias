@@ -123,7 +123,7 @@ describe('Marcados: Mestre x jogador', () => {
         render(<MarcadosPanel />);
         expect(campoAdit().value).toBe('0');
         expect(campoFator().value).toBe('1');
-        expect(screen.getByText('Zerar')).toBeTruthy();
+        expect(screen.getAllByText('Zerar')[0]).toBeTruthy();
     });
     it('campo do fator: limites min/max do input', () => {
         montar(ficha(), { isMestre: true });
@@ -183,7 +183,7 @@ describe('Marcados: Mestre x jogador', () => {
     it('Zerar: UMA updateFicha, aditivo 0 e fator 1, e chama callSave (save debounced)', () => {
         const est = montar(ficha({ ganhosPermanentes: { poderCalculado: 12, fatorPoder: 2.69, outro: 'x' } }), { isMestre: true });
         render(<MarcadosPanel />);
-        fireEvent.click(screen.getByText('Zerar'));
+        fireEvent.click(screen.getAllByText('Zerar')[0]);
         expect(est.updateFicha).toHaveBeenCalledTimes(1);
         expect(est.minhaFicha.ganhosPermanentes).toEqual({ poderCalculado: 0, fatorPoder: 1, outro: 'x' });
         salvouDebounced(1);
@@ -193,7 +193,7 @@ describe('Marcados: Mestre x jogador', () => {
             cleanup(); vi.clearAllMocks();
             const est = montar(ficha(lixo === undefined ? {} : { ganhosPermanentes: lixo }), { isMestre: true });
             render(<MarcadosPanel />);
-            expect(() => fireEvent.click(screen.getByText('Zerar'))).not.toThrow();
+            expect(() => fireEvent.click(screen.getAllByText('Zerar')[0])).not.toThrow();
             expect(est.minhaFicha.ganhosPermanentes).toEqual({ poderCalculado: 0, fatorPoder: 1 });
             salvouDebounced(1);
         }

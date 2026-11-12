@@ -13,6 +13,7 @@
 // Tudo sai por normalizarGatilhos / normalizarContadorRascunho; o que eles descartarem NÃO some em silêncio: vira texto em `avisos`.
 //
 // SUPOSIÇÕES (detalhe em D:\sistema rpg anime\ficha-referencia\modelos-prontos.md > "Receitas de Progressão"):
+//  - Cada receita tem o campo 'Duração' (permanente | combate; padrão 'combate' em ganhoPorEvento/crescerPorTurno, 'permanente' em acumularEConverter/bonusACadaN): 'combate' emite duracao:'combate' (ficha.ganhosCombate, zera no fim da luta).
 //  - Ganho é sempre PERCENTUAL (`ganhoPermanente` unidade 'percentual'), modo 'somar' (linear) ou 'multiplicar' (composto).
 //  - Gatilhos nascem `automatico` + `armado: true`; com `opcionais` = 'sim' nascem `opcional` + desarmados (o dono arma depois).
 //  - "No máximo N vezes" e o teto de turnos usam o `limite` do gatilho (por turno | cena | descanso), não um contador-guardião.
@@ -50,10 +51,12 @@ export const MODOS_RECEITA = [
     { id: 'somar', rotulo: 'Somar ao bônus (linear)' },
 ];
 const PERIODOS_RECEITA = [{ id: 'turno', rotulo: 'por turno' }, { id: 'cena', rotulo: 'por cena' }, { id: 'descanso', rotulo: 'por descanso' }];
+export const DURACOES_RECEITA = [{ id: 'permanente', rotulo: 'Permanente' }, { id: 'combate', rotulo: 'Só durante o combate (zera no fim da luta)' }];
 const SIM_NAO = [{ id: 'nao', rotulo: 'Não' }, { id: 'sim', rotulo: 'Sim' }];
 
 const campoModo = (padrao = 'multiplicar') => ({ id: 'modo', rotulo: 'Como o ganho age', tipo: 'select', padrao, opcoes: MODOS_RECEITA });
 const campoPercentual = (rotulo, padrao, min = 0.01) => ({ id: 'percentual', rotulo, tipo: 'numero', padrao, min, max: LIMITE_PERCENTUAL_RECEITA, passo: 0.01 });
+const campoDuracao = (padrao) => ({ id: 'duracao', rotulo: 'Duração do ganho', tipo: 'select', padrao, opcoes: DURACOES_RECEITA });
 const campoOpcionais = () => ({ id: 'opcionais', rotulo: 'Criar opcionais e desarmados (o dono arma depois)', tipo: 'select', padrao: 'nao', opcoes: SIM_NAO });
 const campoEvento = (ids, padrao, rotulo = 'Quando') => ({ id: 'evento', rotulo, tipo: 'evento', padrao, opcoes: opcoesEventos(ids) });
 
@@ -111,18 +114,19 @@ function finalizar(brutos, contadoresBrutos, p) {
 }
 
 const limiteDeUsos = (p) => (numero(p.limiteUsos, 0) > 0 ? { max: Math.floor(p.limiteUsos), por: p.limitePor } : null);
-const ganho = (p, extra = {}) => ({ tipo: 'ganhoPermanente', unidade: 'percentual', modo: p.modo, valor: p.percentual, ...extra });
+const ganho = (p, extra = {}) => ({ tipo: 'ganhoPermanente', unidade: 'percentual', modo: p.modo, ...(p.duracao === 'combate' ? { duracao: 'combate' } : {}), valor: p.percentual, ...extra });
 const textoLimite = (lim) => (lim ? `, máx ${lim.max}x/${lim.por}` : '');
 
 // ---------- a) Ganho por evento ----------
 const GANHO_EVENTO = {
     id: 'ganhoPorEvento',
     nome: 'Ganho por evento',
-    resumo: 'A cada evento (acertar, ser atingido, errar, início/fim do turno) o Poder ganha X%.',
+    resumo: 'A cada evento (acertar, ser atingido, errar, início/fim do turno) o Poder ganha X%. Duração padrão: só durante o combate (zera no fim da luta); mude para Permanente se o ganho deve ficar.',
     campos: [
         campoEvento(IDS_EVENTOS, 'acertou:qualquer', 'A cada'),
         campoPercentual('Ganho de Poder (%)', 2),
         campoModo(),
+        campoDuracao('combate'),
         { id: 'limiteUsos', rotulo: 'No máximo N vezes (0 = sem limite)', tipo: 'numero', padrao: 0, min: 0, max: 99 },
         { id: 'limitePor', rotulo: 'Limite vale', tipo: 'select', padrao: 'cena', opcoes: PERIODOS_RECEITA },
         campoOpcionais(),
@@ -150,6 +154,7 @@ const ACUMULAR = {
         { id: 'teto', rotulo: 'Máximo de pontos acumulados', tipo: 'numero', padrao: 999, min: 1, max: LIMITE_VALOR_CONTADOR },
         { id: 'percentual', rotulo: 'Cada ponto vale (% de Poder)', tipo: 'numero', padrao: 0.1, min: 0.01, max: LIMITE_PERCENTUAL_RECEITA, passo: 0.01 },
         campoModo(),
+        campoDuracao('permanente'),
         campoOpcionais(),
     ],
     construir(brutos, ctx) {
@@ -160,7 +165,7 @@ const ACUMULAR = {
             { id: ids.gatilhos[0], nome: `Progressão: acumula ${p.pontos} ao ${rotuloEvento(p.evento)}`, evento: eventoDaReceita(p.evento), acoes: [{ tipo: 'contador', id: idC, op: 'somar', valor: p.pontos }] },
             {
                 id: ids.gatilhos[1], nome: `Progressão: no fim da luta, pontos x ${fmt(p.percentual)}% de Poder (${textoModo(p.modo)})`, evento: { tipo: 'fimDeLuta' },
-                acoes: [{ tipo: 'ganhoPermanente', unidade: 'percentual', modo: p.modo, deContador: { id: idC, fator: p.percentual, zerar: true } }],
+                acoes: [{ tipo: 'ganhoPermanente', unidade: 'percentual', modo: p.modo, ...(p.duracao === 'combate' ? { duracao: 'combate' } : {}), deContador: { id: idC, fator: p.percentual, zerar: true } }],
             },
         ], [{ id: idC, nome: 'Progressão: pontos acumulados', min: 0, max: p.teto }], p);
     },
@@ -170,10 +175,11 @@ const ACUMULAR = {
 const POR_TURNO = {
     id: 'crescerPorTurno',
     nome: 'Crescer por turno (Adaptação)',
-    resumo: 'A cada início do seu turno em combate o Poder ganha X% (composto ou linear), com teto opcional de turnos por combate (volta a cada fim de luta, troca de cena ou descanso).',
+    resumo: 'A cada início do seu turno em combate o Poder ganha X% (composto ou linear), com teto opcional de turnos por combate (volta a cada fim de luta, troca de cena ou descanso). Duração padrão: só durante o combate (zera no fim da luta).',
     campos: [
         campoPercentual('Ganho por turno (%)', 1),
         campoModo(),
+        campoDuracao('combate'),
         { id: 'tetoTurnos', rotulo: 'Teto de turnos por combate (0 = sem teto; volta a cada fim de luta, troca de cena ou descanso)', tipo: 'numero', padrao: 0, min: 0, max: 99 },
         campoOpcionais(),
     ],
@@ -203,6 +209,7 @@ const A_CADA_N = {
         { id: 'n', rotulo: 'A cada N eventos', tipo: 'numero', padrao: 3, min: 2, max: 999 },
         campoPercentual('Ganho de Poder (%)', 2),
         campoModo(),
+        campoDuracao('permanente'),
         { id: 'reinicio', rotulo: 'A contagem zera ao fim da cena', tipo: 'select', padrao: 'nao', opcoes: SIM_NAO },
         campoOpcionais(),
     ],

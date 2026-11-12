@@ -22,6 +22,29 @@ export function fatorGanhoComposto(ficha) {
 }
 const fatorGanhoCompostoDe = fatorGanhoComposto;
 
+// ⚔️ Ganhos de COMBATE (ficha.ganhosCombate = {poderCalculado, fatorPoder}): mesmas regras dos permanentes, mas zeram no fim da luta (ver zerarGanhosCombate).
+// Mesma regra de clamp do fator permanente; sem ganhosCombate = 1 (neutro).
+export function fatorGanhoCombate(ficha) {
+    const n = Number(ficha && ficha.ganhosCombate && ficha.ganhosCombate.fatorPoder);
+    return Number.isFinite(n) && n > 0 ? Math.min(FATOR_PODER_MAX, Math.max(FATOR_PODER_MIN, n)) : 1;
+}
+// Total aditivo de combate (>= 0; inválido -> 0).
+export function ganhoAditivoCombate(ficha) {
+    const n = Number(ficha && ficha.ganhosCombate && ficha.ganhosCombate.poderCalculado);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+}
+// Fator total dos ganhos compostos (permanente x combate): o que multiplica totalDano. Cada parte conta uma vez.
+export function fatorGanhoTotal(ficha) { return fatorGanhoComposto(ficha) * fatorGanhoCombate(ficha); }
+// Zera os ganhos de combate NO RASCUNHO. Devolve true se havia algo a zerar (para o chamador saber se precisa gravar).
+export function zerarGanhosCombate(ficha) {
+    if (!ficha || !ficha.ganhosCombate || typeof ficha.ganhosCombate !== 'object') return false;
+    const g = ficha.ganhosCombate;
+    if (ganhoAditivoCombate(ficha) === 0 && fatorGanhoCombate(ficha) === 1 && g.poderCalculado === 0 && g.fatorPoder === 1) return false;
+    g.poderCalculado = 0;
+    g.fatorPoder = 1;
+    return true;
+}
+
 const CATEGORIAS_VITAIS = ['vida', 'mana', 'aura', 'chakra', 'corpo'];
 const STATUS_FISICOS = ['forca', 'destreza', 'inteligencia', 'sabedoria', 'energiaEsp', 'carisma', 'stamina', 'constituicao'];
 
@@ -145,7 +168,7 @@ function calcularAscensaoParaPoder(ficha) {
 // Usada também pelo Scouter (Ficha Def/Marcados.jsx), pra os dois nunca divergirem.
 export function getGlobalMultipliers(ficha) {
     try {
-        if (!ficha) return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalP: 1, finalUni: 1, fatorGanhoComposto: 1, totalDano: 1 };
+        if (!ficha) return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalP: 1, finalUni: 1, fatorGanhoComposto: 1, fatorGanhoCombate: 1, fatorGanhoTotal: 1, totalDano: 1 };
 
         let grupos = { MBASE: {}, MGERAL: {}, MFORMAS: {}, MABS: {} };
         let unicos = [];
@@ -283,11 +306,16 @@ export function getGlobalMultipliers(ficha) {
         const ganhoPerm = Number(ficha.ganhosPermanentes && ficha.ganhosPermanentes.poderCalculado);
         if (Number.isFinite(ganhoPerm) && ganhoPerm > 0) grupos.MGERAL.Ganho_Permanente = (grupos.MGERAL.Ganho_Permanente || 0) + ganhoPerm;
 
+        // ⚔️ Ganho de COMBATE (gatilho com duracao 'combate'): mesmo grupo MGERAL, fonte própria; zera no fim da luta.
+        const ganhoCombate = ganhoAditivoCombate(ficha);
+        if (ganhoCombate > 0) grupos.MGERAL.Ganho_Combate = (grupos.MGERAL.Ganho_Combate || 0) + ganhoCombate;
+
         // 🏆 Fator COMPOSTO dos ganhos permanentes em % com modo "multiplicar" (ficha.ganhosPermanentes.fatorPoder, default 1).
         // Entra como fator multiplicativo extra DENTRO de totalDano (junto de B*G*A*P): assim afeta o Poder e o dano exatamente
         // como o ganho aditivo (que também vive em totalDano via MGERAL), e nunca é diluído pelos grupos aditivos.
         // Única cópia da regra: fatorGanhoComposto(ficha) (exportada acima); Marcados.jsx e calcularPoderAtual consomem glob.totalDano.
         const fatorGanhoComposto = fatorGanhoCompostoDe(ficha);
+        const fatorCombate = fatorGanhoCombate(ficha); // ⚔️ de combate; totalDano usa permanente x combate (cada um uma só vez)
 
         const calcTotal = (tipo) => {
             let soma = 0;
@@ -307,9 +335,9 @@ export function getGlobalMultipliers(ficha) {
         // separadamente em calcularPoderAtual, no MESMO estágio (pós-injeção de
         // Ascensão) que multiplicadorPoderDireto e multiplicadorMunicoCrescente.
         // Ver o mesmo comentário/motivo em Ficha Def/Marcados.jsx > poderGlobal.
-        return { finalB, finalG, finalF, finalA, finalP, finalUni, fatorGanhoComposto, totalDano: finalB * finalG * finalA * finalP * fatorGanhoComposto };
+        return { finalB, finalG, finalF, finalA, finalP, finalUni, fatorGanhoComposto, fatorGanhoCombate: fatorCombate, fatorGanhoTotal: fatorGanhoComposto * fatorCombate, totalDano: finalB * finalG * finalA * finalP * fatorGanhoComposto * fatorCombate };
     } catch (e) {
-        return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalP: 1, finalUni: 1, totalDano: 1, fatorGanhoComposto: 1 };
+        return { finalB: 1, finalG: 1, finalF: 1, finalA: 1, finalP: 1, finalUni: 1, totalDano: 1, fatorGanhoComposto: 1, fatorGanhoCombate: 1, fatorGanhoTotal: 1 };
     }
 }
 

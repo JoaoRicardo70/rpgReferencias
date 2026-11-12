@@ -651,6 +651,7 @@ const PROPS_ACAO_GATILHO = {
     id: { type: 'STRING', description: 'contador: id do contador existente na ficha.' }, op: { type: 'STRING', enum: OPS_CONTADOR_ACAO }, sorteio: { type: 'STRING', description: 'contador: "NdM".' },
     estado: { type: 'STRING', description: `aplicarEstado/removerEstado. Ids: ${ESTADOS.map(e => e.id).join(', ')}.` }, stacks: { type: 'INTEGER' },
     poderId: { type: 'STRING', description: 'ligarPoder/desligarPoder.' },
+    duracaoGanho: { type: 'STRING', enum: ['permanente', 'combate'], description: 'ganhoPermanente: "combate" quando o texto disser durante o combate / até o fim da luta / temporário (zera no fim da luta); senão "permanente" (ou omita).' },
     unidade: { type: 'STRING', enum: ['percentual', 'bruto'], description: 'ganhoPermanente: use "percentual" (valor = % de Poder, ex.: +2% = 2); "bruto" só para o formato antigo.' }, deContador: { type: 'OBJECT', description: 'ganhoPermanente a partir de um contador: ganho no Poder Calculado = valor atual do contador x fator, em % quando unidade percentual (use isto OU valor).', properties: { id: { type: 'STRING', description: 'nome do contador' }, fator: { type: 'NUMBER' }, zerar: { type: 'BOOLEAN', description: 'zerar o contador depois' } } },
 };
 const GATILHOS_SCHEMA = {
