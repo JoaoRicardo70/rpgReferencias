@@ -125,16 +125,16 @@ describe('core/poder - calcularPoderAtual: mUnico Crescente e "mUnico sempre mul
         return [{ efeitosPassivos: [{ atributo: 'poder_direto', propriedade: 'munico', valor: String(valor) }] }];
     }
 
-    it('ficha sem combate.municoTurnos produz a MESMA leitura que municoTurnos=0 (sem alteração no Poder)', () => {
+    it('ficha sem combate.adaptacaoFator produz a MESMA leitura que adaptacaoFator=1 (sem alteração no Poder)', () => {
         const semCombate = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
-        const comZeroTurnos = calcularPoderAtual(criarFichaMinima({ combate: { municoTurnos: 0, municoPorTurno: 5 } }), 1).poderGlobal;
+        const comZeroTurnos = calcularPoderAtual(criarFichaMinima({ combate: { adaptacaoFator: 1 } }), 1).poderGlobal;
 
         expect(comZeroTurnos).toBe(semCombate);
     });
 
-    it('10 turnos x 5%/turno (mUnico x1.50) produz a mesma leitura que um mUnico passivo equivalente vindo de Poderes (mesmo estágio pós-injeção de Ascensão)', () => {
+    it('fator de Adaptacao x1.50 produz a mesma leitura que um mUnico passivo equivalente vindo de Poderes (mesmo estágio pós-injeção de Ascensão)', () => {
         const semMunico = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
-        const comMunicoCrescente = calcularPoderAtual(criarFichaMinima({ combate: { municoTurnos: 10, municoPorTurno: 5 } }), 1).poderGlobal;
+        const comMunicoCrescente = calcularPoderAtual(criarFichaMinima({ combate: { adaptacaoFator: 1.5 } }), 1).poderGlobal;
         const comMUnicoPassivoEquivalente = calcularPoderAtual(criarFichaMinima({ poderes: poderesComMUnicoPassivo('1.5') }), 1).poderGlobal;
 
         expect(comMunicoCrescente).toBeGreaterThan(semMunico);
@@ -142,10 +142,10 @@ describe('core/poder - calcularPoderAtual: mUnico Crescente e "mUnico sempre mul
     });
 
     it('combina multiplicativamente com um mUnico manual em ficha.dano.mUnico (Balança de Adaptação) sem diluição — mesma regressão corrigida em Marcados.jsx', () => {
-        // municoTurnos:10 x municoPorTurno:5% -> mUnico Crescente = x1.5; combinado com
+        // adaptacaoFator 1.5; combinado com
         // dano.mUnico='2.0' manual -> total esperado x1.5 * x2.0 = x3.0.
         const comAmbos = calcularPoderAtual(
-            criarFichaMinima({ combate: { municoTurnos: 10, municoPorTurno: 5 }, dano: { mUnico: '2.0' } }),
+            criarFichaMinima({ combate: { adaptacaoFator: 1.5 }, dano: { mUnico: '2.0' } }),
             1
         ).poderGlobal;
         const equivalenteComMUnicoPassivoDe3 = calcularPoderAtual(criarFichaMinima({ poderes: poderesComMUnicoPassivo('3.0') }), 1).poderGlobal;
@@ -153,23 +153,23 @@ describe('core/poder - calcularPoderAtual: mUnico Crescente e "mUnico sempre mul
         expect(comAmbos).toBe(equivalenteComMUnicoPassivoDe3);
     });
 
-    it('NÃO clampa em 100% — 40 turnos x 10%/turno (mUnico x5.00) continua crescendo sem teto', () => {
-        const comMunicoCrescente = calcularPoderAtual(criarFichaMinima({ combate: { municoTurnos: 40, municoPorTurno: 10 } }), 1).poderGlobal;
+    it('NÃO clampa em 100% — fator de Adaptacao x5.00 continua crescendo sem teto', () => {
+        const comMunicoCrescente = calcularPoderAtual(criarFichaMinima({ combate: { adaptacaoFator: 5 } }), 1).poderGlobal;
         const comMUnicoPassivoEquivalente = calcularPoderAtual(criarFichaMinima({ poderes: poderesComMUnicoPassivo('5.0') }), 1).poderGlobal;
 
         expect(comMunicoCrescente).toBe(comMUnicoPassivoEquivalente);
     });
 
-    it('municoPorTurno negativo nunca REDUZ o Poder (multiplicador nunca cai abaixo de x1.00)', () => {
+    it('adaptacaoFator abaixo de 1 nunca REDUZ o Poder (multiplicador nunca cai abaixo de x1.00)', () => {
         const semMunico = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
-        const comTaxaNegativa = calcularPoderAtual(criarFichaMinima({ combate: { municoTurnos: 10, municoPorTurno: -50 } }), 1).poderGlobal;
+        const comTaxaNegativa = calcularPoderAtual(criarFichaMinima({ combate: { adaptacaoFator: 0.2 } }), 1).poderGlobal;
 
         expect(comTaxaNegativa).toBe(semMunico);
     });
 
     it('concorda com Ficha Def/Marcados.jsx: uma ficha com mUnico Crescente + dano.mUnico + Poderes/poder_direto combina os TRÊS multiplicativamente (x1.5 * x2.0 * x2.0 = x6.0)', () => {
         const comTodasAsFontes = calcularPoderAtual(
-            criarFichaMinima({ combate: { municoTurnos: 10, municoPorTurno: 5 }, dano: { mUnico: '2.0' }, poderes: poderesComMUnicoPassivo('2.0') }),
+            criarFichaMinima({ combate: { adaptacaoFator: 1.5 }, dano: { mUnico: '2.0' }, poderes: poderesComMUnicoPassivo('2.0') }),
             1
         ).poderGlobal;
         const equivalenteComMUnicoPassivoDe6 = calcularPoderAtual(criarFichaMinima({ poderes: poderesComMUnicoPassivo('6.0') }), 1).poderGlobal;
@@ -315,13 +315,13 @@ describe('core/poder - calcularPoderAtual: Fadiga de Combate', () => {
     it('combina multiplicativamente com mUnico Crescente (Fadiga aplica DEPOIS do damping de Supressão, sobre o Poder já multiplicado pelo mUnico Crescente)', () => {
         const semNenhum = calcularPoderAtual(criarFichaMinima(), 1).poderGlobal;
 
-        // mUnico Crescente: 10 turnos x 5%/turno -> x1.5. Fadiga: fadigaExtra=50 -> -50%.
+        // Adaptacao: fator de combate x1.5. Fadiga: fadigaExtra=50 -> -50%.
         // Combinado, o Poder deveria ficar em torno de x0.75 (1.5 * 0.5) do valor sem nenhum dos
         // dois. Comparação por RAZÃO (não igualdade exata do produto sobre o valor já arredondado
         // por floor) para não introduzir um floor prematuro sobre `semNenhum` que a fórmula real
         // nunca aplica no meio do cálculo (o floor só acontece uma vez, no final do pipeline).
         const comAmbos = calcularPoderAtual(
-            criarFichaMinima({ combate: { municoTurnos: 10, municoPorTurno: 5, fadigaExtra: 50 } }),
+            criarFichaMinima({ combate: { adaptacaoFator: 1.5, fadigaExtra: 50 } }),
             1
         ).poderGlobal;
 

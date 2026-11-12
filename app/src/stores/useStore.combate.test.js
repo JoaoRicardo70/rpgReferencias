@@ -9,7 +9,7 @@ import useStore, { fichaPadrao } from './useStore.js';
 // Fúria, Reator de Adaptação, Leis/Cópias etc.) não existia em `fichaPadrao` e
 // não tinha nenhum branch explícito em `carregarDadosFicha` — então o loop
 // genérico (que só restaura chaves presentes em `fichaPadrao`) simplesmente
-// IGNORAVA a chave `combate` vinda do Firebase, e fadigaTurnos/municoTurnos
+// IGNORAVA a chave `combate` vinda do Firebase, e fadigaTurnos/adaptacaoTurnos
 // etc. voltavam para 0 (undefined tratado como 0) toda vez que a ficha
 // recarregava, inclusive no meio de um combate real.
 //
@@ -18,9 +18,9 @@ import useStore, { fichaPadrao } from './useStore.js';
 // ---------------------------------------------------------------------------
 
 describe('fichaPadrao.combate — defaults', () => {
-    it('nasce com os defaults documentados (municoTurnos/fadigaTurnos zerados, taxas em 5%, etc.)', () => {
+    it('nasce com os defaults documentados (adaptacaoTurnos/fadigaTurnos zerados, fadigaPorTurno em 5%, fração da Adaptação em 50%, etc.)', () => {
         expect(fichaPadrao.combate).toEqual({
-            municoTurnos: 0, municoPorTurno: 5, municoAuto: false,
+            adaptacaoLigada: false, adaptacaoFracao: 50, adaptacaoFator: 1, adaptacaoSoma: 0, adaptacaoTurnos: 0,
             fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0,
             danoAbsorvido: 0, danoTotalRecebido: 0, letalidadeTotalRecebida: 0,
             conversaoAlvo: 10000, conversaoBonus: 1,
@@ -46,7 +46,7 @@ describe('useStore — minhaFicha.combate (estado inicial e reset)', () => {
     });
 
     it('resetFicha() volta combate ao padrão depois de mutado', () => {
-        useStore.getState().updateFicha((f) => { f.combate.fadigaTurnos = 15; f.combate.municoTurnos = 4; });
+        useStore.getState().updateFicha((f) => { f.combate.fadigaTurnos = 15; f.combate.adaptacaoTurnos = 4; });
         expect(useStore.getState().minhaFicha.combate.fadigaTurnos).toBe(15);
 
         useStore.getState().resetFicha();
@@ -73,29 +73,29 @@ describe('useStore.carregarDadosFicha — restaura combate salvo no Firebase (fi
 
         expect(combate.fadigaTurnos).toBe(7);
         expect(combate.fadigaPorTurno).toBe(5); // default de fichaPadrao.combate
-        expect(combate.municoTurnos).toBe(0);
+        expect(combate.adaptacaoTurnos).toBe(0);
         expect(combate.leis).toEqual([]);
         expect(combate.copias).toEqual([]);
     });
 
-    it('restaura municoTurnos/municoPorTurno (mUnico Crescente) junto com fadiga no mesmo payload', () => {
-        useStore.getState().carregarDadosFicha({ combate: { fadigaTurnos: 3, fadigaPorTurno: 5, municoTurnos: 12, municoPorTurno: 8 } });
+    it('restaura adaptacaoTurnos/adaptacaoFracao (Adaptação) junto com fadiga no mesmo payload', () => {
+        useStore.getState().carregarDadosFicha({ combate: { fadigaTurnos: 3, fadigaPorTurno: 5, adaptacaoTurnos: 12, adaptacaoFracao: 80 } });
         const combate = useStore.getState().minhaFicha.combate;
 
         expect(combate.fadigaTurnos).toBe(3);
-        expect(combate.municoTurnos).toBe(12);
-        expect(combate.municoPorTurno).toBe(8);
+        expect(combate.adaptacaoTurnos).toBe(12);
+        expect(combate.adaptacaoFracao).toBe(80);
     });
 
     it('um payload SEM a chave combate não apaga um combate já carregado em memória (guardado com `if`, como statusPoolAlocado/ataqueConfig)', () => {
-        useStore.getState().carregarDadosFicha({ combate: { fadigaTurnos: 20, municoTurnos: 5 } });
+        useStore.getState().carregarDadosFicha({ combate: { fadigaTurnos: 20, adaptacaoTurnos: 5 } });
         expect(useStore.getState().minhaFicha.combate.fadigaTurnos).toBe(20);
 
         // Um segundo payload (ex.: outro listener do Firebase atualizando um campo qualquer da
         // ficha) que não inclui `combate` não pode zerar o que já estava carregado.
         useStore.getState().carregarDadosFicha({ ascensaoBase: 5 });
         expect(useStore.getState().minhaFicha.combate.fadigaTurnos).toBe(20);
-        expect(useStore.getState().minhaFicha.combate.municoTurnos).toBe(5);
+        expect(useStore.getState().minhaFicha.combate.adaptacaoTurnos).toBe(5);
     });
 
     it('um payload SEM combate em uma ficha recém-resetada mantém os defaults de fichaPadrao.combate (não fica undefined)', () => {
@@ -104,14 +104,14 @@ describe('useStore.carregarDadosFicha — restaura combate salvo no Firebase (fi
     });
 
     it('carregar um novo payload de combate SUBSTITUI o anterior por completo (merge é com fichaPadrao, não com o estado anterior em memória)', () => {
-        useStore.getState().carregarDadosFicha({ combate: { fadigaTurnos: 20, municoTurnos: 5 } });
+        useStore.getState().carregarDadosFicha({ combate: { fadigaTurnos: 20, adaptacaoTurnos: 5 } });
         expect(useStore.getState().minhaFicha.combate.fadigaTurnos).toBe(20);
 
-        useStore.getState().carregarDadosFicha({ combate: { municoTurnos: 9 } });
+        useStore.getState().carregarDadosFicha({ combate: { adaptacaoTurnos: 9 } });
         // fadigaTurnos não sobrevive: o merge é Object.assign({}, fichaPadrao.combate, dados.combate)
         // — nunca com o minhaFicha.combate que já estava em memória (mesmo padrão de statusPoolAlocado).
         expect(useStore.getState().minhaFicha.combate.fadigaTurnos).toBe(0);
-        expect(useStore.getState().minhaFicha.combate.municoTurnos).toBe(9);
+        expect(useStore.getState().minhaFicha.combate.adaptacaoTurnos).toBe(9);
     });
 
     it('restaura leis/copias (arrays) e danoAbsorvido/danoTotalRecebido/letalidadeTotalRecebida (contadores) do payload', () => {

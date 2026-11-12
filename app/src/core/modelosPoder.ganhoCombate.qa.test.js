@@ -4,10 +4,11 @@ import {
 } from './modelosPoder.js';
 import { LIMITE_GATILHOS_POR_FONTE } from './gatilhos.js';
 import { LIMITE_CONTADORES, normalizarContador } from './contadores.js';
-import { avancarMunicoCrescente, calcularPoderAtual } from './poder.js';
+import { calcularPoderAtual } from './poder.js';
+import { fatorAdaptacao } from './adaptacao.js';
 import { dispararEventoNaFicha } from './gatilhosAplicar.js';
 
-// QA - Modelos: Ego Superior (4 partes de ganho: combate x permanente) e Verg Avesta (Adaptacao / mUnico Crescente).
+// QA - Modelos: Ego Superior (4 partes de ganho: combate x permanente) e Verg Avesta (Adaptacao por diferenca de Poder).
 const EGO = 'egoSuperior';
 const VERG = 'vergAvesta';
 const m = (id) => obterModelo(id);
@@ -311,22 +312,22 @@ describe('Ego: limite de 12 contadores', () => {
 });
 
 // ---------------------------------------------------------------------------------------------------------------------------------
-describe('Verg: crescimentoAdaptacao (mUnico Crescente)', () => {
+describe('Verg: crescimentoAdaptacao (Adaptacao por diferenca de Poder)', () => {
     const PARTE = 'crescimentoAdaptacao';
     const SEL = ['acumuloDeDano', PARTE];
     const fichaCombate = (combate = {}) => ({ ...fichaNova(), combate: { ...combate } });
 
-    it('a parte antiga Acerto por turno saiu e a nova parte existe com taxa padrao 5 (min 0,1 max 1000)', () => {
+    it('a parte antiga Acerto por turno saiu e a nova parte existe com fracao padrao 50 (min 0 max 100)', () => {
         const ids = m(VERG).partes.map(p => p.id);
         expect(ids).not.toContain('acertoPorTurno');
         expect(ids).toContain(PARTE);
         const par = m(VERG).partes.find(p => p.id === PARTE).parametros[0];
-        expect(par).toMatchObject({ id: 'taxaPorTurno', padrao: 5, min: 0.1, max: 1000 });
-        expect(paramsPadrao(m(VERG)).taxaPorTurno).toBe(5);
-        expect(normalizarParams(m(VERG), { taxaPorTurno: 0 }).taxaPorTurno).toBe(0.1);
-        expect(normalizarParams(m(VERG), { taxaPorTurno: 99999 }).taxaPorTurno).toBe(1000);
-        expect(normalizarParams(m(VERG), { taxaPorTurno: 'abc' }).taxaPorTurno).toBe(5);
-        expect(normalizarParams(m(VERG), { acertoPorTurno: 50 }).taxaPorTurno).toBe(5); // param antigo ignorado
+        expect(par).toMatchObject({ id: 'fracaoDaDiferenca', padrao: 50, min: 0, max: 100 });
+        expect(paramsPadrao(m(VERG)).fracaoDaDiferenca).toBe(50);
+        expect(normalizarParams(m(VERG), { fracaoDaDiferenca: 0 }).fracaoDaDiferenca).toBe(0);
+        expect(normalizarParams(m(VERG), { fracaoDaDiferenca: 99999 }).fracaoDaDiferenca).toBe(100);
+        expect(normalizarParams(m(VERG), { fracaoDaDiferenca: 'abc' }).fracaoDaDiferenca).toBe(50);
+        expect(normalizarParams(m(VERG), { acertoPorTurno: 50 }).fracaoDaDiferenca).toBe(50); // param antigo ignorado
     });
     it('nenhum gatilho de buff de Acerto e criado; so os 2 do acumulo', () => {
         const r = construir(VERG, null);
@@ -334,123 +335,121 @@ describe('Verg: crescimentoAdaptacao (mUnico Crescente)', () => {
         expect(r.poder.gatilhos.some(g => g.acoes.some(a => a.tipo === 'buff'))).toBe(false);
         expect(r.poder.gatilhos.some(g => g.id === 'mp_verg_acerto_1')).toBe(false);
     });
-    it('aplicar liga municoAuto e define municoPorTurno (ficha com combate ausente tambem)', () => {
-        const f = fichaCombate({ municoAuto: false, municoPorTurno: 5 });
-        expect(aplicar(f, VERG, SEL, { taxaPorTurno: 7.5 }).ok).toBe(true);
-        expect(f.combate.municoAuto).toBe(true);
-        expect(f.combate.municoPorTurno).toBe(7.5);
+    it('aplicar liga adaptacaoLigada e define adaptacaoFracao (ficha com combate ausente tambem)', () => {
+        const f = fichaCombate({ adaptacaoLigada: false, adaptacaoFracao: 5 });
+        expect(aplicar(f, VERG, SEL, { fracaoDaDiferenca: 7.5 }).ok).toBe(true);
+        expect(f.combate.adaptacaoLigada).toBe(true);
+        expect(f.combate.adaptacaoFracao).toBe(7.5);
         const g = fichaNova(); // sem combate
         expect(aplicar(g, VERG, SEL).ok).toBe(true);
-        expect(g.combate).toMatchObject({ municoAuto: true, municoPorTurno: 5 });
+        expect(g.combate).toMatchObject({ adaptacaoLigada: true, adaptacaoFracao: 50 });
     });
     it('ligou: true quando estava DESLIGADO', () => {
-        const f = fichaCombate({ municoAuto: false });
-        aplicar(f, VERG, SEL, { taxaPorTurno: 6 });
-        expect(f.poderes[0].modelo.adaptacao).toEqual({ ligou: true, taxa: 6 });
+        const f = fichaCombate({ adaptacaoLigada: false });
+        aplicar(f, VERG, SEL, { fracaoDaDiferenca: 6 });
+        expect(f.poderes[0].modelo.adaptacao).toEqual({ ligou: true, fracao: 6 });
         const g = fichaNova();
         aplicar(g, VERG, SEL);
-        expect(g.poderes[0].modelo.adaptacao).toEqual({ ligou: true, taxa: 5 });
+        expect(g.poderes[0].modelo.adaptacao).toEqual({ ligou: true, fracao: 50 });
     });
     it('ligou: false quando estava ligado a mao (e a taxa do modelo passa a valer)', () => {
-        const f = fichaCombate({ municoAuto: true, municoPorTurno: 3 });
-        aplicar(f, VERG, SEL, { taxaPorTurno: 9 });
-        expect(f.poderes[0].modelo.adaptacao).toEqual({ ligou: false, taxa: 9 });
-        expect(f.combate.municoAuto).toBe(true);
-        expect(f.combate.municoPorTurno).toBe(9);
+        const f = fichaCombate({ adaptacaoLigada: true, adaptacaoFracao: 3 });
+        aplicar(f, VERG, SEL, { fracaoDaDiferenca: 9 });
+        expect(f.poderes[0].modelo.adaptacao).toEqual({ ligou: false, fracao: 9 });
+        expect(f.combate.adaptacaoLigada).toBe(true);
+        expect(f.combate.adaptacaoFracao).toBe(9);
     });
     it('ligou continua true quando o modelo ja ligou antes (reaplicar com interruptor ligado)', () => {
-        const f = fichaCombate({ municoAuto: false });
-        aplicar(f, VERG, SEL, { taxaPorTurno: 5 });
-        expect(f.combate.municoAuto).toBe(true); // agora ligado (pelo modelo)
-        aplicar(f, VERG, SEL, { taxaPorTurno: 8 });
-        expect(f.poderes[0].modelo.adaptacao).toEqual({ ligou: true, taxa: 8 });
+        const f = fichaCombate({ adaptacaoLigada: false });
+        aplicar(f, VERG, SEL, { fracaoDaDiferenca: 5 });
+        expect(f.combate.adaptacaoLigada).toBe(true); // agora ligado (pelo modelo)
+        aplicar(f, VERG, SEL, { fracaoDaDiferenca: 8 });
+        expect(f.poderes[0].modelo.adaptacao).toEqual({ ligou: true, fracao: 8 });
     });
-    it('editar a taxa atualiza municoPorTurno e adaptacao.taxa; poder nao duplica', () => {
-        const f = fichaCombate({ municoAuto: false });
-        aplicar(f, VERG, SEL, { taxaPorTurno: 5 });
-        aplicar(f, VERG, SEL, { taxaPorTurno: 12 });
+    it('editar a taxa atualiza adaptacaoFracao e adaptacao.fracao; poder nao duplica', () => {
+        const f = fichaCombate({ adaptacaoLigada: false });
+        aplicar(f, VERG, SEL, { fracaoDaDiferenca: 5 });
+        aplicar(f, VERG, SEL, { fracaoDaDiferenca: 12 });
         expect(f.poderes).toHaveLength(1);
-        expect(f.combate.municoPorTurno).toBe(12);
-        expect(f.poderes[0].modelo.adaptacao.taxa).toBe(12);
-        expect(f.poderes[0].modelo.params.taxaPorTurno).toBe(12);
+        expect(f.combate.adaptacaoFracao).toBe(12);
+        expect(f.poderes[0].modelo.adaptacao.fracao).toBe(12);
+        expect(f.poderes[0].modelo.params.fracaoDaDiferenca).toBe(12);
     });
-    it('desmarcar a parte: desliga municoAuto SO se o modelo ligou', () => {
-        const ligou = fichaCombate({ municoAuto: false });
+    it('desmarcar a parte: desliga adaptacaoLigada SO se o modelo ligou', () => {
+        const ligou = fichaCombate({ adaptacaoLigada: false });
         aplicar(ligou, VERG, SEL);
         aplicar(ligou, VERG, ['acumuloDeDano']);
-        expect(ligou.combate.municoAuto).toBe(false);
+        expect(ligou.combate.adaptacaoLigada).toBe(false);
         expect(ligou.poderes[0].modelo.adaptacao).toBeUndefined();
 
-        const aMao = fichaCombate({ municoAuto: true, municoPorTurno: 3 });
+        const aMao = fichaCombate({ adaptacaoLigada: true, adaptacaoFracao: 3 });
         aplicar(aMao, VERG, SEL);
         aplicar(aMao, VERG, ['acumuloDeDano']);
-        expect(aMao.combate.municoAuto).toBe(true);
+        expect(aMao.combate.adaptacaoLigada).toBe(true);
     });
     it('desmarcar a parte quando ela nunca foi marcada nao mexe no interruptor', () => {
-        const f = fichaCombate({ municoAuto: true, municoPorTurno: 4 });
+        const f = fichaCombate({ adaptacaoLigada: true, adaptacaoFracao: 4 });
         aplicar(f, VERG, ['acumuloDeDano']);
-        expect(f.combate).toMatchObject({ municoAuto: true, municoPorTurno: 4 });
+        expect(f.combate).toMatchObject({ adaptacaoLigada: true, adaptacaoFracao: 4 });
         expect(f.poderes[0].modelo.adaptacao).toBeUndefined();
     });
     it('atomicidade: contadores no limite -> ok false e ficha IDENTICA (combate intacto)', () => {
-        const f = fichaCombate({ municoAuto: false, municoPorTurno: 2 });
+        const f = fichaCombate({ adaptacaoLigada: false, adaptacaoFracao: 2 });
         f.contadores = Array.from({ length: LIMITE_CONTADORES }, (_, i) => normalizarContador({ id: 'c' + i, nome: 'c' + i, valor: 0, min: 0, max: 9 }));
         const antes = clone(f);
-        const r = aplicar(f, VERG, SEL, { taxaPorTurno: 50 });
+        const r = aplicar(f, VERG, SEL, { fracaoDaDiferenca: 50 });
         expect(r.ok).toBe(false);
         expect(f).toEqual(antes);
     });
     it('atomicidade: gatilhos no limite (edicao) -> ok false e ficha IDENTICA', () => {
-        const f = fichaCombate({ municoAuto: false });
+        const f = fichaCombate({ adaptacaoLigada: false });
         aplicar(f, VERG, ['acumuloDeDano']);
         const manuais = Array.from({ length: 7 }, (_, i) => ({ id: 'man_' + i, nome: 'M' + i, modo: 'automatico', armado: true, evento: { tipo: 'turnoInicio' }, acoes: [{ tipo: 'mensagem', texto: 'x' }] }));
         f.poderes[0].gatilhos.push(...manuais); // 2 do modelo + 7 manuais => ao regenerar: 7 + 2 = 9 > 8
         const antes = clone(f);
-        const r = aplicar(f, VERG, SEL, { taxaPorTurno: 50 });
+        const r = aplicar(f, VERG, SEL, { fracaoDaDiferenca: 50 });
         expect(r.ok).toBe(false);
         expect(f).toEqual(antes);
-        expect(f.combate.municoAuto).toBe(false);
+        expect(f.combate.adaptacaoLigada).toBe(false);
     });
     it('nao-Mestre ou selecao vazia: nada muda', () => {
-        const f = fichaCombate({ municoAuto: false });
+        const f = fichaCombate({ adaptacaoLigada: false });
         const antes = clone(f);
         expect(aplicarModeloNaFicha(f, { isMestre: false, modeloId: VERG, selecao: SEL, params: {} }).ok).toBe(false);
         expect(aplicar(f, VERG, []).ok).toBe(false);
         expect(f).toEqual(antes);
     });
     it('Mestre aplicando em OUTRA ficha grava os campos nela (e a ficha do Mestre fica intacta)', () => {
-        const fichaMestre = fichaCombate({ municoAuto: false, municoPorTurno: 5 });
-        const fichaAlvo = fichaCombate({ municoAuto: false, municoPorTurno: 5 });
+        const fichaMestre = fichaCombate({ adaptacaoLigada: false, adaptacaoFracao: 5 });
+        const fichaAlvo = fichaCombate({ adaptacaoLigada: false, adaptacaoFracao: 5 });
         const antesMestre = clone(fichaMestre);
-        expect(aplicar(fichaAlvo, VERG, SEL, { taxaPorTurno: 15 }, { opcoes: { origem: { tipo: 'herdada', fonte: 'Verg' } } }).ok).toBe(true);
-        expect(fichaAlvo.combate).toMatchObject({ municoAuto: true, municoPorTurno: 15 });
-        expect(fichaAlvo.poderes[0].modelo.adaptacao).toEqual({ ligou: true, taxa: 15 });
+        expect(aplicar(fichaAlvo, VERG, SEL, { fracaoDaDiferenca: 15 }, { opcoes: { origem: { tipo: 'herdada', fonte: 'Verg' } } }).ok).toBe(true);
+        expect(fichaAlvo.combate).toMatchObject({ adaptacaoLigada: true, adaptacaoFracao: 15 });
+        expect(fichaAlvo.poderes[0].modelo.adaptacao).toEqual({ ligou: true, fracao: 15 });
         expect(fichaMestre).toEqual(antesMestre);
     });
-    it('mUnico automatico: depois de aplicar, cada inicio de turno soma 1 turno e o Poder cresce', () => {
-        const f = { ...fichaCombate({ municoAuto: false }), vida: { base: 600000 }, mana: { base: 0 }, aura: { base: 0 }, chakra: { base: 0 }, corpo: { base: 0 }, forca: { base: 100 }, destreza: { base: 0 }, inteligencia: { base: 0 }, sabedoria: { base: 0 }, energiaEsp: { base: 0 }, carisma: { base: 0 }, stamina: { base: 0 }, constituicao: { base: 0 }, divisores: { vida: 1e-12 }, bio: {}, estetica: {}, labels: {}, inventario: [], seresSelados: [] };
-        aplicar(f, VERG, SEL, { taxaPorTurno: 10 });
-        expect(avancarMunicoCrescente(f)).toBe(true);
-        avancarMunicoCrescente(f); avancarMunicoCrescente(f); avancarMunicoCrescente(f);
-        expect(f.combate.municoTurnos).toBe(4);
-        const poderComTurnos = calcularPoderAtual(f, 1).poderExato;
-        f.combate.municoTurnos = 0;
-        const poderSemTurnos = calcularPoderAtual(f, 1).poderExato;
-        expect(poderComTurnos / poderSemTurnos).toBeCloseTo(1.4, 3); // 1 + 4 x 10%
+    it('Adaptacao: depois de aplicar, ela fica ligada e o fator de combate F multiplica o Poder', () => {
+        const f = { ...fichaCombate({ adaptacaoLigada: false }), vida: { base: 600000 }, mana: { base: 0 }, aura: { base: 0 }, chakra: { base: 0 }, corpo: { base: 0 }, forca: { base: 100 }, destreza: { base: 0 }, inteligencia: { base: 0 }, sabedoria: { base: 0 }, energiaEsp: { base: 0 }, carisma: { base: 0 }, stamina: { base: 0 }, constituicao: { base: 0 }, divisores: { vida: 1e-12 }, bio: {}, estetica: {}, labels: {}, inventario: [], seresSelados: [] };
+        aplicar(f, VERG, SEL, { fracaoDaDiferenca: 10 });
+        expect(f.combate.adaptacaoLigada).toBe(true);
+        const poderSemF = calcularPoderAtual(f, 1).poderExato;
+        f.combate.adaptacaoFator = 1.4;
+        expect(fatorAdaptacao(f)).toBe(1.4);
+        const poderComF = calcularPoderAtual(f, 1).poderExato;
+        expect(poderComF / poderSemF).toBeCloseTo(1.4, 3);
     });
-    it('sem a parte (interruptor desligado) o turno nao soma', () => {
-        const f = fichaCombate({ municoAuto: false });
+    it('sem a parte (interruptor desligado) a Adaptacao continua desligada', () => {
+        const f = fichaCombate({ adaptacaoLigada: false });
         aplicar(f, VERG, ['acumuloDeDano']);
-        expect(avancarMunicoCrescente(f)).toBe(false);
-        expect(f.combate.municoTurnos).toBeUndefined();
+        expect(f.combate.adaptacaoLigada).toBe(false);
     });
     it('planejarModelo expoe adaptacao {taxa} so com a parte marcada', () => {
-        expect(planejarModelo(VERG, SEL, { taxaPorTurno: 3 }, fichaNova()).adaptacao).toEqual({ taxa: 3 });
+        expect(planejarModelo(VERG, SEL, { fracaoDaDiferenca: 3 }, fichaNova()).adaptacao).toEqual({ fracao: 3 });
         expect(planejarModelo(VERG, ['acumuloDeDano'], {}, fichaNova()).adaptacao).toBeNull();
         expect(planejarModelo(EGO, selecaoPadrao(m(EGO)), {}, fichaNova()).adaptacao).toBeNull();
     });
     it('planejar/construir nao mutam a ficha (so aplicar grava)', () => {
-        const f = fichaCombate({ municoAuto: false });
+        const f = fichaCombate({ adaptacaoLigada: false });
         const antes = clone(f);
         planejarModelo(VERG, SEL, {}, f); construir(VERG, SEL, {}, f);
         expect(f).toEqual(antes);
@@ -459,7 +458,7 @@ describe('Verg: crescimentoAdaptacao (mUnico Crescente)', () => {
 
 describe('Verg: migracao do gatilho legado mp_verg_acerto_1', () => {
     const legado = () => {
-        const f = { ...fichaNova(), combate: { municoAuto: false } };
+        const f = { ...fichaNova(), combate: { adaptacaoLigada: false } };
         f.contadores = [normalizarContador({ id: 'mp_verg_acumulo', nome: 'Verg Avesta: acumulado', valor: 3, min: 0, max: 999, poderId: 'pid1' })];
         f.poderes = [{
             id: 'pid1', nome: 'Verg Avesta', notasIA: 'Acerto por turno: +5 de Acerto por turno de combate.\nAcúmulo: o app conta GOLPES sofridos (não o dano exato); o Mestre ajusta o total em "Ganhos permanentes" se quiser o valor exato.',
@@ -487,11 +486,11 @@ describe('Verg: migracao do gatilho legado mp_verg_acerto_1', () => {
     });
     it('regenerar marcando a parte nova: gatilho antigo sai, interruptor liga e params antigos sao ignorados', () => {
         const f = legado();
-        const r = aplicar(f, VERG, ['acumuloDeDano', 'crescimentoAdaptacao'], { acertoPorTurno: 5, taxaPorTurno: 4 });
+        const r = aplicar(f, VERG, ['acumuloDeDano', 'crescimentoAdaptacao'], { acertoPorTurno: 5, fracaoDaDiferenca: 4 });
         expect(r.ok).toBe(true);
         expect(f.poderes[0].gatilhos.some(g => g.id === 'mp_verg_acerto_1')).toBe(false);
-        expect(f.combate).toMatchObject({ municoAuto: true, municoPorTurno: 4 });
-        expect(f.poderes[0].modelo.adaptacao).toEqual({ ligou: true, taxa: 4 });
+        expect(f.combate).toMatchObject({ adaptacaoLigada: true, adaptacaoFracao: 4 });
+        expect(f.poderes[0].modelo.adaptacao).toEqual({ ligou: true, fracao: 4 });
         expect(f.poderes[0].modelo.params.acertoPorTurno).toBeUndefined();
     });
     it('o gatilho legado liberado nao conta no limite de 8 (editar com 7 manuais + legado funciona so se couber)', () => {

@@ -34,69 +34,69 @@ describe('ClassificacaoPanel: linha da Adaptacao controlada pelo Verg Avesta', (
         }
     });
     it('Verg SEM adaptacao registrada (parte desmarcada / poder antigo): sem a linha', () => {
-        abrir({ combate: { municoAuto: true }, poderes: [verg(null, { tipo: 'herdada', fonte: 'Reid' })] });
+        abrir({ combate: { adaptacaoLigada: true }, poderes: [verg(null, { tipo: 'herdada', fonte: 'Reid' })] });
         expect(nota()).toBeNull();
     });
     it('adaptacao.ligou false (interruptor ja estava ligado a mao): sem a linha', () => {
-        abrir({ combate: { municoAuto: true, municoPorTurno: 5 }, poderes: [verg({ ligou: false, taxa: 5 }, { tipo: 'herdada', fonte: 'Reid' })] });
+        abrir({ combate: { adaptacaoLigada: true, adaptacaoFracao: 5 }, poderes: [verg({ ligou: false, fracao: 5 }, { tipo: 'herdada', fonte: 'Reid' })] });
         expect(nota()).toBeNull();
     });
     it.each(['true', 1, 'sim', null, undefined])('adaptacao.ligou %j (nao e exatamente true): sem a linha', (v) => {
-        abrir({ combate: { municoAuto: true }, poderes: [verg({ ligou: v, taxa: 5 })] });
+        abrir({ combate: { adaptacaoLigada: true }, poderes: [verg({ ligou: v, fracao: 5 })] });
         expect(nota()).toBeNull();
     });
     it('modelo de outro id com adaptacao.ligou: sem a linha', () => {
-        const p = verg({ ligou: true, taxa: 5 }); p.modelo.id = 'egoSuperior';
-        abrir({ combate: { municoAuto: true }, poderes: [p] });
+        const p = verg({ ligou: true, fracao: 5 }); p.modelo.id = 'egoSuperior';
+        abrir({ combate: { adaptacaoLigada: true }, poderes: [p] });
         expect(nota()).toBeNull();
     });
     it('ligou true + origem herdada: mostra ser de origem e a taxa', () => {
-        abrir({ combate: { municoAuto: true, municoPorTurno: 5 }, poderes: [verg({ ligou: true, taxa: 5 }, { tipo: 'herdada', fonte: 'Reid' })] });
+        abrir({ combate: { adaptacaoLigada: true, adaptacaoFracao: 5 }, poderes: [verg({ ligou: true, fracao: 5 }, { tipo: 'herdada', fonte: 'Reid' })] });
         const el = nota();
         expect(el).not.toBeNull();
-        expect(el.textContent).toBe('🧬 Verg Avesta (origem: herdada de Reid) controla o crescimento: +5% por turno');
+        expect(el.textContent).toBe('🧬 Verg Avesta (origem: herdada de Reid) controla a Adaptação: fração de 5% da diferença');
     });
     it('origem herdada sem fonte ou sem origem: "herdada de um ser"', () => {
-        abrir({ combate: { municoAuto: true, municoPorTurno: 5 }, poderes: [verg({ ligou: true, taxa: 5 }, { tipo: 'herdada', fonte: '' })] });
+        abrir({ combate: { adaptacaoLigada: true, adaptacaoFracao: 5 }, poderes: [verg({ ligou: true, fracao: 5 }, { tipo: 'herdada', fonte: '' })] });
         expect(nota().textContent).toContain('origem: herdada de um ser');
         cleanup();
-        abrir({ combate: { municoAuto: true, municoPorTurno: 5 }, poderes: [verg({ ligou: true, taxa: 5 })] });
+        abrir({ combate: { adaptacaoLigada: true, adaptacaoFracao: 5 }, poderes: [verg({ ligou: true, fracao: 5 })] });
         expect(nota().textContent).toContain('origem: herdada de um ser');
     });
     it('origem independente: "independente" (sem "herdada")', () => {
-        abrir({ combate: { municoAuto: true, municoPorTurno: 5 }, poderes: [verg({ ligou: true, taxa: 5 }, { tipo: 'independente', fonte: '' })] });
+        abrir({ combate: { adaptacaoLigada: true, adaptacaoFracao: 5 }, poderes: [verg({ ligou: true, fracao: 5 }, { tipo: 'independente', fonte: '' })] });
         expect(nota().textContent).toContain('origem: independente');
         expect(nota().textContent).not.toContain('herdada');
     });
-    it('mostra o municoPorTurno ATUAL (editado a mao, decimal em pt-BR), nao a taxa registrada no modelo', () => {
-        abrir({ combate: { municoAuto: true, municoPorTurno: 12.5 }, poderes: [verg({ ligou: true, taxa: 5 }, { tipo: 'independente' })] });
-        expect(nota().textContent).toContain('+12,5% por turno');
-        expect(nota().textContent).not.toContain('+5% por turno');
+    it('mostra o adaptacaoFracao ATUAL (editado a mao, decimal em pt-BR), nao a taxa registrada no modelo', () => {
+        abrir({ combate: { adaptacaoLigada: true, adaptacaoFracao: 12.5 }, poderes: [verg({ ligou: true, fracao: 5 }, { tipo: 'independente' })] });
+        expect(nota().textContent).toContain('fração de 12,5% da diferença');
+        expect(nota().textContent).not.toContain('fração de 5% da diferença');
     });
-    it('municoPorTurno ausente: usa o padrao 5 da tela', () => {
-        abrir({ combate: { municoAuto: true }, poderes: [verg({ ligou: true, taxa: 9 }, { tipo: 'independente' })] });
-        expect(nota().textContent).toContain('+5% por turno');
+    it('adaptacaoFracao ausente: usa o padrao 50 da tela', () => {
+        abrir({ combate: { adaptacaoLigada: true }, poderes: [verg({ ligou: true, fracao: 9 }, { tipo: 'independente' })] });
+        expect(nota().textContent).toContain('fração de 50% da diferença');
     });
     it('mesmo com o interruptor desligado depois, a linha continua informando (e so informativa)', () => {
-        const est = montar({ combate: { municoAuto: false, municoPorTurno: 7 }, poderes: [verg({ ligou: true, taxa: 7 }, { tipo: 'independente' })] });
+        const est = montar({ combate: { adaptacaoLigada: false, adaptacaoFracao: 7 }, poderes: [verg({ ligou: true, fracao: 7 }, { tipo: 'independente' })] });
         render(<ClassificacaoPanel />); irParaAdaptacao();
         expect(nota()).not.toBeNull();
         expect(est.updateFicha).not.toHaveBeenCalled(); // renderizar nao grava
     });
     it('varios poderes: acha o Verg que ligou mesmo atras de outros poderes', () => {
-        abrir({ combate: { municoAuto: true, municoPorTurno: 5 }, poderes: [{ id: 'x', nome: 'Outro' }, verg({ ligou: false, taxa: 5 }), { ...verg({ ligou: true, taxa: 5 }, { tipo: 'herdada', fonte: 'Aria' }), id: 'v2' }] });
+        abrir({ combate: { adaptacaoLigada: true, adaptacaoFracao: 5 }, poderes: [{ id: 'x', nome: 'Outro' }, verg({ ligou: false, fracao: 5 }), { ...verg({ ligou: true, fracao: 5 }, { tipo: 'herdada', fonte: 'Aria' }), id: 'v2' }] });
         expect(nota().textContent).toContain('herdada de Aria');
     });
     it('o interruptor e o campo da taxa continuam existindo e editaveis a mao', () => {
-        abrir({ combate: { municoAuto: true, municoPorTurno: 5 }, poderes: [verg({ ligou: true, taxa: 5 }, { tipo: 'independente' })] });
-        expect(screen.getByLabelText(/Crescer sozinho a cada turno/)).toBeTruthy();
-        expect(screen.getByLabelText(/Crescer sozinho a cada turno/).checked).toBe(true);
+        abrir({ combate: { adaptacaoLigada: true, adaptacaoFracao: 5 }, poderes: [verg({ ligou: true, fracao: 5 }, { tipo: 'independente' })] });
+        expect(screen.getByLabelText(/Ligar Adaptação/)).toBeTruthy();
+        expect(screen.getByLabelText(/Ligar Adaptação/).checked).toBe(true);
     });
     it('ponta a ponta: aplicar o modelo na ficha liga a linha; desmarcar a parte (ficha desligada pelo modelo) some', () => {
-        const ficha = { combate: { municoAuto: false }, poderes: [], contadores: [] };
-        aplicarModeloNaFicha(ficha, { isMestre: true, modeloId: 'vergAvesta', selecao: ['acumuloDeDano', 'crescimentoAdaptacao'], params: { taxaPorTurno: 8 }, opcoes: { origem: { tipo: 'herdada', fonte: 'Verg' } }, id: 'p1' });
+        const ficha = { combate: { adaptacaoLigada: false }, poderes: [], contadores: [] };
+        aplicarModeloNaFicha(ficha, { isMestre: true, modeloId: 'vergAvesta', selecao: ['acumuloDeDano', 'crescimentoAdaptacao'], params: { fracaoDaDiferenca: 8 }, opcoes: { origem: { tipo: 'herdada', fonte: 'Verg' } }, id: 'p1' });
         abrir(ficha);
-        expect(nota().textContent).toBe('🧬 Verg Avesta (origem: herdada de Verg) controla o crescimento: +8% por turno');
+        expect(nota().textContent).toBe('🧬 Verg Avesta (origem: herdada de Verg) controla a Adaptação: fração de 8% da diferença');
         cleanup();
         aplicarModeloNaFicha(ficha, { isMestre: true, modeloId: 'vergAvesta', selecao: ['acumuloDeDano'], params: {}, id: 'p1' });
         abrir(ficha);

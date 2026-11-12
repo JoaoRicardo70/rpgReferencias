@@ -1,7 +1,7 @@
 // ==========================================
 // FADIGA DE COMBATE — cálculo unificado, usado por Ficha Def/Marcados.jsx e core/poder.js (o
 // Poder exibido no Mapa) pra nunca haver dois números diferentes de Fadiga pro mesmo
-// personagem — mesmo motivo/padrão de getMunicoCrescenteMultiplier em core/poder.js.
+// personagem — mesmo motivo/padrão de fatorAdaptacao em core/poder.js.
 //
 // A Fadiga Atual (sempre clampada em 0-100%) é hoje só combate.fadigaExtra — os pontos
 // acumulados AUTOMATICAMENTE a cada retorno do turno de cada jogador no Mapa (ver
@@ -241,7 +241,7 @@ function getGanhoEstagiosSeguro(ficha, incluirEsforcoPoder) {
 // Fadiga Atual final (0-100%): combate.fadigaExtra (pontos dinâmicos + instantâneos já
 // acumulados), clampado. Réplica exata do bloco antes duplicado em Marcados.jsx e core/poder.js >
 // calcularPoderAtual — agora os dois chamam esta função em vez de calcular cada um a sua própria
-// cópia (mesmo motivo do getMunicoCrescenteMultiplier: nunca deixar duas fontes de verdade pro
+// cópia (mesmo motivo do fatorAdaptacao: nunca deixar duas fontes de verdade pro
 // mesmo número divergirem). combate.fadigaTurnos/fadigaPorTurno NÃO entram mais aqui (ver
 // cabeçalho do arquivo) — fadigaTurnos hoje é só um contador informativo de turnos em combate.
 export function calcularFadigaAtual(ficha) {

@@ -39,7 +39,7 @@ function criarFichaMinima(overrides = {}) {
 describe('core/vitals - descansarCompleto: limpa ultimoElementoRecebido E ultimoElementoRecebidoNivel juntos', () => {
     it('descansar remove os dois campos (elemento + nível override) quando ambos estavam definidos', () => {
         const ficha = criarFichaMinima({
-            combate: { fadigaTurnos: 2, fadigaExtra: 5, municoTurnos: 1, ultimoElementoRecebido: 'Fogo', ultimoElementoRecebidoNivel: 7 },
+            combate: { fadigaTurnos: 2, fadigaExtra: 5, ultimoElementoRecebido: 'Fogo', ultimoElementoRecebidoNivel: 7 },
         });
         descansarCompleto(ficha);
         expect('ultimoElementoRecebido' in ficha.combate).toBe(false);
@@ -78,7 +78,7 @@ describe('core/vitals - descansarCompleto: limpa ultimoElementoRecebido E ultimo
     it('outros campos de combate.* não relacionados sobrevivem intactos junto com a limpeza dos dois campos elementais', () => {
         const ficha = criarFichaMinima({
             combate: {
-                fadigaTurnos: 5, fadigaExtra: 3, municoTurnos: 10, danoAbsorvido: 777, furiaMax: 42,
+                fadigaTurnos: 5, fadigaExtra: 3, danoAbsorvido: 777, furiaMax: 42,
                 ultimoElementoRecebido: 'Raio', ultimoElementoRecebidoNivel: 9,
             },
         });

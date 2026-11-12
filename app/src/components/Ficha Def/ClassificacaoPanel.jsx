@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes.js';
+import { fatorAdaptacao, getFracaoAdaptacao, getTurnosAdaptacao, mediaAdaptacao, limitarFracaoAdaptacao, zerarAdaptacao } from '../../core/adaptacao';
 import { rotuloComPolaridade } from '../../core/polaridade';
 import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
 
@@ -462,40 +463,32 @@ function PaginaMarcadores() {
         if (!window.confirm("Apagar todos os marcadores desta cena e esvaziar o Tanque de Absorção?")) return;
         updateFicha(f => {
             f.marcadores = [];
-            if(f.combate) { f.combate.danoAbsorvido = 0; f.combate.municoTurnos = 0; }
+            if(f.combate) { f.combate.danoAbsorvido = 0; zerarAdaptacao(f); }
         });
         callSave();
     };
 
-    // ♾️ mUnico CRESCENTE (INFINITIES TIPO ADAPTAÇÃO): mesmo padrão de contador da
-    // Fadiga (turnos x taxa por turno), só que em vez de reduzir o Poder, gera um
-    // Multiplicador Único que CRESCE automaticamente a cada turno e é aplicado
-    // direto no Poder Calculado do Scouter (ver getGlobalMultipliers em
-    // Marcados.jsx) — sem precisar de um botão de "injetar" manual. Serve pra
-    // Infinities cujo efeito narrativo é ficar mais forte conforme a luta avança
-    // (ex: Adaptação), e não fica preso a "dano sofrido" como a Balança acima.
-    const municoTurnos = minhaFicha?.combate?.municoTurnos || 0;
-    const municoPorTurno = minhaFicha?.combate?.municoPorTurno ?? 5;
-    const municoAtual = Math.max(1, 1 + (Math.max(0, municoTurnos) * municoPorTurno / 100));
-    const municoAuto = minhaFicha?.combate?.municoAuto === true;
+    // 🧬 ADAPTAÇÃO (por diferença de Poder) — regra em core/adaptacao.js: no início do turno do portador mede a diferença de Poder para o
+    // oponente mais forte da cena e compõe o ganho num fator de combate; ao fim da luta a média das % vira ganho permanente.
+    const adaptacaoLigada = minhaFicha?.combate?.adaptacaoLigada === true;
+    const adaptacaoFracao = getFracaoAdaptacao(minhaFicha);
+    const adaptacaoTurnos = getTurnosAdaptacao(minhaFicha);
+    const adaptacaoFatorAtual = fatorAdaptacao(minhaFicha);
+    const adaptacaoMedia = mediaAdaptacao(minhaFicha);
+    const adaptacaoUltimo = minhaFicha?.combate?.adaptacaoUltimo && typeof minhaFicha.combate.adaptacaoUltimo === 'object' ? minhaFicha.combate.adaptacaoUltimo : null;
+    const fmtAdaptacao = (n) => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 4 });
+    const fmtFatorAdaptacao = (n) => (Number(n) || 1).toLocaleString('pt-BR', { maximumFractionDigits: 4 });
     // 🧬 Verg Avesta (modelo do Mestre) que ligou este interruptor: só informativo, a edição manual continua valendo.
     const poderVergAdaptacao = (Array.isArray(minhaFicha?.poderes) ? minhaFicha.poderes : []).find(p => p && p.modelo && p.modelo.id === 'vergAvesta' && p.modelo.adaptacao && p.modelo.adaptacao.ligou === true) || null;
 
-    const updateMunicoTurnos = (delta) => {
-        updateFicha(f => {
-            if (!f.combate) f.combate = {};
-            f.combate.municoTurnos = Math.max(0, (Number(f.combate.municoTurnos) || 0) + delta);
-        });
+    const alternarAdaptacao = (ligado) => {
+        updateFicha(f => { if (!f.combate) f.combate = {}; f.combate.adaptacaoLigada = !!ligado; });
         callSave();
     };
 
-    const alternarMunicoAuto = (ligado) => {
-        updateFicha(f => { if (!f.combate) f.combate = {}; f.combate.municoAuto = !!ligado; });
-        callSave();
-    };
-
-    const zerarMunicoCrescente = () => {
-        updateFicha(f => { if (!f.combate) f.combate = {}; f.combate.municoTurnos = 0; });
+    // O botão só ZERA o fator e os acumuladores; NÃO converte em ganho permanente (a conversão é do fim da luta).
+    const zerarAdaptacaoManual = () => {
+        updateFicha(f => { zerarAdaptacao(f); });
         callSave();
     };
 
@@ -683,50 +676,53 @@ function PaginaMarcadores() {
                 </div>
             </div>
 
-            {/* ♾️ mUnico CRESCENTE (INFINITIES TIPO ADAPTAÇÃO) */}
+            {/* 🧬 ADAPTAÇÃO (POR DIFERENÇA DE PODER) */}
             <div style={{ border: '2px solid #aa00ff', padding: '20px', borderRadius: '8px', background: 'rgba(170,0,255,0.05)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px dotted #aa00ff', paddingBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
-                        <h2 style={{ margin: 0, fontSize: '1.4em', display: 'flex', alignItems: 'center', gap: '10px', color: '#aa00ff' }}>♾️ mUnico Crescente (Por Turno)</h2>
-                        <span style={{ fontSize: '0.85em', opacity: 0.8, fontStyle: 'italic' }}>Para Infinities como Adaptação: o Multiplicador Único cresce a cada turno de combate e já é aplicado direto no Poder Calculado do Scouter. Ligue "Crescer sozinho" para o app somar 1 turno no início de cada turno seu; desligado, os turnos são marcados à mão (+/-).</span>
+                        <h2 style={{ margin: 0, fontSize: '1.4em', display: 'flex', alignItems: 'center', gap: '10px', color: '#aa00ff' }}>🧬 Adaptação (por diferença de Poder)</h2>
+                        <span style={{ fontSize: '0.85em', opacity: 0.8, fontStyle: 'italic' }}>No início de cada turno seu, o app compara o seu Poder Calculado com o do oponente mais forte da cena e ganha a "fração" da diferença (ex.: oponente 10% mais forte e fração 50% = +5% neste turno). Durante o combate os ganhos se compõem (×1,05, depois ×1,25...) e a diferença encolhe conforme você se adapta. Ao fim da luta, a média das porcentagens ganhas vira Poder permanente.</span>
                     </div>
-                    <button onClick={zerarMunicoCrescente} style={{ padding: '8px 15px', border: '1px solid #aa00ff', color: '#aa00ff', background: 'transparent', cursor: 'pointer', opacity: 0.8, borderRadius: '4px' }}>🧹 Zerar mUnico</button>
+                    <button onClick={zerarAdaptacaoManual} style={{ padding: '8px 15px', border: '1px solid #aa00ff', color: '#aa00ff', background: 'transparent', cursor: 'pointer', opacity: 0.8, borderRadius: '4px' }}>🧹 Zerar (sem converter)</button>
                 </div>
 
                 {poderVergAdaptacao && (
-                    <div className="municoauto-verg" role="note">
-                        🧬 Verg Avesta (origem: {poderVergAdaptacao.origem && poderVergAdaptacao.origem.tipo === 'independente' ? 'independente' : `herdada de ${(poderVergAdaptacao.origem && poderVergAdaptacao.origem.fonte) || 'um ser'}`}) controla o crescimento: +{String(municoPorTurno).replace('.', ',')}% por turno
+                    <div className="adaptacao-verg" role="note">
+                        🧬 Verg Avesta (origem: {poderVergAdaptacao.origem && poderVergAdaptacao.origem.tipo === 'independente' ? 'independente' : `herdada de ${(poderVergAdaptacao.origem && poderVergAdaptacao.origem.fonte) || 'um ser'}`}) controla a Adaptação: fração de {String(adaptacaoFracao).replace('.', ',')}% da diferença
                     </div>
                 )}
-                <label className="municoauto-interruptor">
-                    <input type="checkbox" checked={municoAuto} onChange={e => alternarMunicoAuto(e.target.checked)} />
-                    <span>Crescer sozinho a cada turno</span>
+                <label className="adaptacao-interruptor">
+                    <input type="checkbox" checked={adaptacaoLigada} onChange={e => alternarAdaptacao(e.target.checked)} />
+                    <span>Ligar Adaptação</span>
                 </label>
-                <div className="municoauto-estado" role="status">
-                    {municoAuto
-                        ? (municoPorTurno > 0 ? `Automático: cresce +${municoPorTurno}% por turno de combate (linear), no início do seu turno; zera ao fim da luta ou no descanso.` : 'Automático ligado, mas a taxa por turno está em 0: nada cresce.')
-                        : 'Manual: os turnos só mudam quando você usa + e -.'}
+                <div className="adaptacao-estado" role="status">
+                    {adaptacaoLigada
+                        ? (adaptacaoFracao > 0 ? `Ligada: ganha ${String(adaptacaoFracao).replace('.', ',')}% da diferença de Poder para o oponente mais forte, no início do seu turno; ao fim da luta ou no descanso a média vira permanente.` : 'Ligada, mas a fração está em 0%: nada é ganho.')
+                        : 'Desligada: nenhum turno novo é registrado (o que já foi acumulado continua até o fim da luta).'}
                 </div>
 
                 <div style={{ display: 'flex', gap: '20px', alignItems: 'stretch', flexWrap: 'wrap' }}>
                     <div style={{ flex: '1 1 200px', background: 'rgba(0,0,0,0.03)', borderRadius: '6px', padding: '15px', border: '1px dashed #aa00ff' }}>
-                        <span style={{ fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', opacity: 0.7, color: '#aa00ff' }}>Crescimento por Turno (%)</span>
-                        <CampoMagico valor={municoPorTurno} onChange={v => { const n = Number(v); if (isNaN(n)) return; updateFicha(f => { if (!f.combate) f.combate = {}; f.combate.municoPorTurno = n; }); callSave(); }} type="number" styleExtra={{ fontSize: '1.1em', fontWeight: 'bold', borderBottomColor: '#aa00ff', color: '#aa00ff' }} />
+                        <span style={{ fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', opacity: 0.7, color: '#aa00ff' }}>Fração da diferença (%)</span>
+                        <CampoMagico valor={adaptacaoFracao} onChange={v => { const n = Number(v); if (isNaN(n)) return; updateFicha(f => { if (!f.combate) f.combate = {}; f.combate.adaptacaoFracao = limitarFracaoAdaptacao(n); }); callSave(); }} type="number" styleExtra={{ fontSize: '1.1em', fontWeight: 'bold', borderBottomColor: '#aa00ff', color: '#aa00ff' }} />
+                        <span style={{ fontSize: '0.75em', opacity: 0.7 }}>Entre 0 e 100 (padrão 50).</span>
                     </div>
 
                     <div style={{ flex: '1 1 200px', background: 'rgba(0,0,0,0.03)', borderRadius: '6px', padding: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px dashed #aa00ff' }}>
-                        <span style={{ fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', opacity: 0.7, color: '#aa00ff' }}>Turnos de Combate</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginTop: '5px' }}>
-                            <button onClick={() => updateMunicoTurnos(-1)} style={{ background: 'transparent', border: '1px solid #aa00ff', color: '#aa00ff', fontSize: '1.4em', width: '36px', height: '36px', borderRadius: '50%', cursor: 'pointer' }}>-</button>
-                            <span style={{ fontSize: '1.6em', fontWeight: 'bold', minWidth: '30px', textAlign: 'center' }}>{municoTurnos}</span>
-                            <button onClick={() => updateMunicoTurnos(1)} style={{ background: 'transparent', border: '1px solid #aa00ff', color: '#aa00ff', fontSize: '1.4em', width: '36px', height: '36px', borderRadius: '50%', cursor: 'pointer' }}>+</button>
-                        </div>
+                        <span style={{ fontSize: '0.8em', fontWeight: 'bold', textTransform: 'uppercase', opacity: 0.7, color: '#aa00ff' }}>Turnos registrados</span>
+                        <span style={{ fontSize: '1.6em', fontWeight: 'bold', minWidth: '30px', textAlign: 'center' }}>{adaptacaoTurnos}</span>
+                        <span style={{ fontSize: '0.8em', opacity: 0.75, textAlign: 'center' }} role="status">
+                            {adaptacaoUltimo
+                                ? `Último turno: ${adaptacaoUltimo.gain > 0 ? `+${fmtAdaptacao(adaptacaoUltimo.gain)}%` : 'sem ganho'}${adaptacaoUltimo.oponenteNome ? ` (oponente: ${adaptacaoUltimo.oponenteNome}, ${adaptacaoUltimo.diferenca > 0 ? `+${fmtAdaptacao(adaptacaoUltimo.diferenca)}% mais forte` : 'não mais forte'})` : ''}`
+                                : 'Nenhum turno registrado ainda.'}
+                        </span>
                     </div>
 
                     <div style={{ flex: '1 1 200px', background: 'rgba(170,0,255,0.08)', border: '1px solid #aa00ff', borderRadius: '6px', padding: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-                        <span style={{ fontSize: '0.85em', color: '#aa00ff', fontWeight: 'bold', textTransform: 'uppercase' }}>mUnico Atual</span>
-                        <span style={{ fontSize: '2em', fontWeight: '900', color: '#aa00ff' }}>x{municoAtual.toFixed(2)}</span>
-                        <span style={{ fontSize: '0.8em', opacity: 0.7 }}>Poder Calculado multiplicado por {municoAtual.toFixed(2)}</span>
+                        <span style={{ fontSize: '0.85em', color: '#aa00ff', fontWeight: 'bold', textTransform: 'uppercase' }}>Fator de combate</span>
+                        <span style={{ fontSize: '2em', fontWeight: '900', color: '#aa00ff' }}>×{fmtFatorAdaptacao(adaptacaoFatorAtual)}</span>
+                        <span style={{ fontSize: '0.8em', opacity: 0.7 }}>Poder Calculado multiplicado por {fmtFatorAdaptacao(adaptacaoFatorAtual)} agora</span>
+                        <span style={{ fontSize: '0.8em', opacity: 0.85, marginTop: '6px' }} role="status">Ficará permanente: +{fmtAdaptacao(adaptacaoMedia)}% (média dos turnos)</span>
                     </div>
                 </div>
             </div>

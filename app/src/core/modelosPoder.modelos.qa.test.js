@@ -38,7 +38,7 @@ describe('catalogo', () => {
         const partes = m(VERG).partes;
         expect(partes.filter(p => p.suportado === true).map(p => p.id)).toEqual(['acumuloDeDano', 'crescimentoAdaptacao']);
         expect(partes.filter(p => p.suportado === 'nota').map(p => p.id)).toEqual(['vidaMaxima', 'curaAcumulada', 'adaptacao', 'expansao']);
-        expect(paramsPadrao(m(VERG))).toEqual({ modoAcumulo: 'somar', divisor: 10, limiteAcumulo: 999, taxaPorTurno: 5 });
+        expect(paramsPadrao(m(VERG))).toEqual({ modoAcumulo: 'somar', divisor: 10, limiteAcumulo: 999, fracaoDaDiferenca: 50 });
     });
     it('todo parametro tem min<=padrao<=max', () => {
         MODELOS.forEach(mo => mo.partes.flatMap(p => p.parametros).filter(p => p.tipo !== 'modo').forEach((p) => {
@@ -197,9 +197,9 @@ describe('construir: Verg Avesta', () => {
         expect(construir(VERG, ['acumuloDeDano'], { limiteAcumulo: 50 }).contadores[0].max).toBe(50);
     });
     it('crescimento por turno: nao cria gatilho (liga a Adaptacao na aplicacao)', () => {
-        const a = construir(VERG, ['crescimentoAdaptacao'], { taxaPorTurno: 9 });
+        const a = construir(VERG, ['crescimentoAdaptacao'], { fracaoDaDiferenca: 9 });
         expect(a.poder.gatilhos).toBeUndefined();
-        expect(a.poder.modelo.params.taxaPorTurno).toBe(9);
+        expect(a.poder.modelo.params.fracaoDaDiferenca).toBe(9);
     });
     it('selecao padrao: 2 gatilhos, 1 contador, notas das 4 partes nota', () => {
         const r = construir(VERG);

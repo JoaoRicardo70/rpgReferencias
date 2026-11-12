@@ -468,7 +468,8 @@ export function aplicarRegeneracaoDeTurno(ficha, pisoFadigaExtra = 0) {
 }
 
 // Descanso completo: cura vida/mana/aura/chakra/corpo/pv/pm até o máximo e zera a Fadiga
-// (fadigaTurnos + fadigaExtra) e o mUnico Crescente acumulados — mesma ideia do botão
+// (fadigaTurnos + fadigaExtra) — mesma ideia do botão
+// (a Adaptação acumulada NÃO zera aqui: vira ganho permanente no fimDeLuta que o descanso dispara logo depois).
 // "💖 Descansar" (handleRegenerarTudo) da Ficha, disponível também no Mapa (ver
 // MapaFormContext.jsx > descansar) pra o personagem não carregar a Fadiga de uma luta pra outra
 // sem precisar voltar pra Ficha. Muta o rascunho Immer recebido.
@@ -484,7 +485,6 @@ export function descansarCompleto(ficha) {
     if (!ficha.combate) ficha.combate = {};
     ficha.combate.fadigaTurnos = 0;
     ficha.combate.fadigaExtra = 0;
-    ficha.combate.municoTurnos = 0;
     delete ficha.combate.ultimoElementoRecebido;
     delete ficha.combate.ultimoElementoRecebidoNivel;
     // 🔁 Descansar renova os usos limitados "por cena" e "por descanso" das Habilidades (core/usosPoder.js).

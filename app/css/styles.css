@@ -3567,6 +3567,6 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 }
 
 /* ♾️ mUnico Crescente: interruptor "Crescer sozinho" (Ficha > Marcadores & Adaptação) */
-.municoauto-interruptor { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: bold; color: var(--cor-destaque); cursor: pointer; }
-.municoauto-verg { margin-bottom: 6px; font-size: 0.85em; color: var(--cor-destaque); opacity: 0.9; }
-.municoauto-estado { margin-bottom: 12px; font-size: 0.85em; opacity: 0.85; }
+.adaptacao-interruptor { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: bold; color: var(--cor-destaque); cursor: pointer; }
+.adaptacao-verg { margin-bottom: 6px; font-size: 0.85em; color: var(--cor-destaque); opacity: 0.9; }
+.adaptacao-estado { margin-bottom: 12px; font-size: 0.85em; opacity: 0.85; }

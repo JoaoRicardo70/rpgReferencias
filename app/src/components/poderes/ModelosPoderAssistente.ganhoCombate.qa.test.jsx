@@ -25,17 +25,17 @@ describe('Verg: etapa de partes e Resumo', () => {
         render(<ModelosPoderAssistente />); abrir(); escolher('Verg Avesta');
         expect(screen.getByLabelText(/Crescimento por turno \(Adaptação\)/)).toBeTruthy();
         expect(screen.queryByLabelText('Acerto por turno')).toBeNull();
-        expect(screen.getByLabelText('Crescimento por turno (%)').value).toBe('5');
+        expect(screen.getByLabelText('Fração da diferença de Poder (%)').value).toBe('50');
     });
-    it('Resumo padrao: "Liga a Adaptação: +5% por turno (mUnico Crescente)"', () => {
+    it('Resumo padrao: "Liga a Adaptação: 50% da diferença de Poder..."', () => {
         render(<ModelosPoderAssistente />); abrir(); escolher('Verg Avesta'); proximo();
-        expect(screen.getByText('Liga a Adaptação: +5% por turno (mUnico Crescente)')).toBeTruthy();
+        expect(screen.getByText('Liga a Adaptação: 50% da diferença de Poder para o oponente mais forte, por turno')).toBeTruthy();
     });
     it('taxa decimal aparece com virgula no Resumo', () => {
         render(<ModelosPoderAssistente />); abrir(); escolher('Verg Avesta');
-        fireEvent.change(screen.getByLabelText('Crescimento por turno (%)'), { target: { value: '2.5' } });
+        fireEvent.change(screen.getByLabelText('Fração da diferença de Poder (%)'), { target: { value: '2.5' } });
         proximo();
-        expect(screen.getByText('Liga a Adaptação: +2,5% por turno (mUnico Crescente)')).toBeTruthy();
+        expect(screen.getByText('Liga a Adaptação: 2,5% da diferença de Poder para o oponente mais forte, por turno')).toBeTruthy();
     });
     it('parte desmarcada: Resumo sem a linha da Adaptacao', () => {
         render(<ModelosPoderAssistente />); abrir(); escolher('Verg Avesta');
@@ -45,10 +45,10 @@ describe('Verg: etapa de partes e Resumo', () => {
     });
     it('Aplicar liga o interruptor na ficha do Mestre com a taxa escolhida', () => {
         render(<ModelosPoderAssistente />); abrir(); escolher('Verg Avesta');
-        fireEvent.change(screen.getByLabelText('Crescimento por turno (%)'), { target: { value: '7' } });
+        fireEvent.change(screen.getByLabelText('Fração da diferença de Poder (%)'), { target: { value: '7' } });
         proximo(); fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
-        expect(ficha().combate).toMatchObject({ municoAuto: true, municoPorTurno: 7 });
-        expect(acharPoderDoModelo(ficha(), 'vergAvesta').modelo.adaptacao).toEqual({ ligou: true, taxa: 7 });
+        expect(ficha().combate).toMatchObject({ adaptacaoLigada: true, adaptacaoFracao: 7 });
+        expect(acharPoderDoModelo(ficha(), 'vergAvesta').modelo.adaptacao).toEqual({ ligou: true, fracao: 7 });
     });
     it('Ego nao mostra a linha da Adaptacao', () => {
         render(<ModelosPoderAssistente />); abrir(); escolher('Ego Superior'); proximo();

@@ -565,7 +565,7 @@ export function MapaIniciativaTracker() {
                     {/* 💖 Só aparece FORA de combate (iniciativa zerada) — senão daria pra zerar a
                         Fadiga acumulada a qualquer momento no meio da luta, esvaziando o sentido do
                         desgaste progressivo. "Sair" primeiro (iniciativa=0), depois "Descansar". */}
-                    {!(minhaFicha?.iniciativa > 0) && <button className="btn-neon btn-green" onClick={descansar} title="Recupera toda a Vida/Energias e zera a Fadiga e o mUnico Crescente acumulados" style={{ padding: '2px 10px', fontSize: '0.8em', margin: 0 }}>💖 Descansar</button>}
+                    {!(minhaFicha?.iniciativa > 0) && <button className="btn-neon btn-green" onClick={descansar} title="Recupera toda a Vida/Energias e zera a Fadiga; a Adaptação acumulada vira Poder permanente" style={{ padding: '2px 10px', fontSize: '0.8em', margin: 0 }}>💖 Descansar</button>}
                     {minhaFicha?.iniciativa > 0 && <button className="btn-neon btn-red" onClick={sairDoCombate} style={{ padding: '2px 10px', fontSize: '0.8em', margin: 0 }}>Sair</button>}
                     {isMestre && <button className="btn-neon" onClick={encerrarCombate} style={{ borderColor: '#ff003c', color: '#ff003c', padding: '2px 10px', fontSize: '0.8em', margin: 0 }}>Zerar</button>}
                 </div>

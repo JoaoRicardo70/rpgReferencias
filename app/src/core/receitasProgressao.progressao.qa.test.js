@@ -6,11 +6,11 @@ import {
 import { normalizarGatilhos, LIMITE_GATILHOS_POR_FONTE } from './gatilhos.js';
 import { normalizarContador, LIMITE_CONTADORES } from './contadores.js';
 import { dispararEventoNaFicha, restaurarUsosPorCena, camposParaGravar, camposDeGatilhosAlterados } from './gatilhosAplicar.js';
-import { avancarMunicoCrescente, zerarMunicoCrescenteNoFimDeLuta, LIMITE_MUNICO_TURNOS, calcularPoderAtual, getGlobalMultipliers } from './poder.js';
+import { calcularPoderAtual, getGlobalMultipliers } from './poder.js';
 import { restaurarUsos } from './usosPoder.js';
 import { descansarCompleto } from './vitals.js';
 
-// QA — Progressão em combate: receitas (lógica pura), simulação com o motor de gatilhos, restaurarUsosPorCena e mUnico automático.
+// QA — Progressão em combate: receitas (lógica pura), simulação com o motor de gatilhos, restaurarUsosPorCena e Adaptação.
 
 // Ajuste intencional (ganho com Duração): estes testes simulam ganhos PERMANENTES; sem `duracao` explícita a receita usaria o padrão novo ('combate' em ganhoPorEvento/crescerPorTurno).
 const R = (id) => { const r = obterReceita(id); return r && { ...r, construir: (b, c) => r.construir({ duracao: 'permanente', ...b }, c) }; };
@@ -546,75 +546,47 @@ describe('restaurarUsosPorCena', () => {
     });
 });
 
-describe('mUnico Crescente automático (core)', () => {
-    const f = (c) => ({ combate: c, poderes: [], contadores: [] });
-    it('desligado, ausente ou truthy não-booleano NÃO incrementa', () => {
-        [false, undefined, null, 'true', 1, 0].forEach((auto) => {
-            const x = f({ municoAuto: auto, municoTurnos: 3, municoPorTurno: 5 });
-            expect(avancarMunicoCrescente(x)).toBe(false); expect(x.combate.municoTurnos).toBe(3);
-        });
-    });
-    it('ligado: +1 por chamada', () => {
-        const x = f({ municoAuto: true, municoTurnos: 0, municoPorTurno: 5 });
-        for (let i = 1; i <= 4; i++) { expect(avancarMunicoCrescente(x)).toBe(true); expect(x.combate.municoTurnos).toBe(i); }
-    });
-    it('taxa 0, negativa, NaN: não incrementa; taxa ausente (undefined) também não', () => {
-        [0, -5, NaN, 'abc', undefined, null].forEach((t) => {
-            const x = f({ municoAuto: true, municoTurnos: 2, municoPorTurno: t });
-            expect(avancarMunicoCrescente(x)).toBe(false); expect(x.combate.municoTurnos).toBe(2);
-        });
-    });
-    it('teto 9999: 9998 -> 9999 e depois trava', () => {
-        const x = f({ municoAuto: true, municoTurnos: 9998, municoPorTurno: 1 });
-        expect(avancarMunicoCrescente(x)).toBe(true); expect(x.combate.municoTurnos).toBe(LIMITE_MUNICO_TURNOS);
-        expect(avancarMunicoCrescente(x)).toBe(false); expect(x.combate.municoTurnos).toBe(9999);
-        const y = f({ municoAuto: true, municoTurnos: 50000, municoPorTurno: 1 });
-        expect(avancarMunicoCrescente(y)).toBe(false); expect(y.combate.municoTurnos).toBe(50000);
-    });
-    it('turnos negativos, ausentes ou lixo partem de 0', () => {
-        [-5, undefined, 'x', NaN, null].forEach((t) => {
-            const x = f({ municoAuto: true, municoTurnos: t, municoPorTurno: 5 });
-            expect(avancarMunicoCrescente(x)).toBe(true); expect(x.combate.municoTurnos).toBe(1);
-        });
-    });
-    it('ficha/combate ausentes não quebram', () => {
-        [null, undefined, {}, { combate: null }].forEach(x => { expect(() => avancarMunicoCrescente(x)).not.toThrow(); expect(avancarMunicoCrescente(x)).toBe(false); });
-        [null, undefined, {}].forEach(x => expect(zerarMunicoCrescenteNoFimDeLuta(x)).toBe(false));
-    });
-    it('ficha antiga sem municoAuto: avancar é no-op e fimDeLuta não mexe nos turnos manuais', () => {
-        const x = { vida: { atual: 1 }, poderes: [], contadores: [], combate: { municoTurnos: 7, municoPorTurno: 5 } };
-        avancarMunicoCrescente(x); const res = disparar(x, { tipo: 'fimDeLuta' });
-        expect(x.combate.municoTurnos).toBe(7); expect(res.caminhos).not.toContain('combate/municoTurnos');
-    });
-    it('fimDeLuta zera SÓ com municoAuto ligado e devolve o caminho', () => {
-        const on = { vida: { atual: 1 }, poderes: [], contadores: [], combate: { municoAuto: true, municoTurnos: 7, municoPorTurno: 5 } };
+describe('Adaptação por diferença de Poder no fimDeLuta (core)', () => {
+    const fx = (c, extra = {}) => ({ vida: { atual: 1 }, poderes: [], contadores: [], combate: c, ...extra });
+    it('fimDeLuta converte a média das % em permanente, zera F e devolve os caminhos', () => {
+        const on = fx({ adaptacaoLigada: true, adaptacaoFator: 1.3125, adaptacaoSoma: 30, adaptacaoTurnos: 2, adaptacaoUltimo: { gain: 25 } });
         const res = disparar(on, { tipo: 'fimDeLuta' });
-        expect(on.combate.municoTurnos).toBe(0); expect(res.caminhos).toContain('combate/municoTurnos');
-        expect(camposParaGravar(on, res.caminhos)['combate/municoTurnos']).toBe(0);
-        const off = { vida: { atual: 1 }, poderes: [], contadores: [], combate: { municoAuto: false, municoTurnos: 7, municoPorTurno: 5 } };
-        expect(disparar(off, { tipo: 'fimDeLuta' }).caminhos).not.toContain('combate/municoTurnos'); expect(off.combate.municoTurnos).toBe(7);
+        expect(on.ganhosPermanentes.poderCalculado).toBeCloseTo(0.15, 9);
+        expect(on.combate).toMatchObject({ adaptacaoFator: 1, adaptacaoSoma: 0, adaptacaoTurnos: 0 });
+        expect(on.combate.adaptacaoUltimo).toBeUndefined();
+        expect(res.caminhos).toEqual(expect.arrayContaining(['ganhosPermanentes/poderCalculado', 'combate/adaptacaoFator', 'combate/adaptacaoSoma', 'combate/adaptacaoTurnos', 'combate/adaptacaoUltimo']));
+        expect(res.textos.some(t => /Adaptação/.test(t))).toBe(true);
+        const campos = camposParaGravar(on, res.caminhos);
+        expect(campos['ganhosPermanentes/poderCalculado']).toBeCloseTo(0.15, 9);
+        expect(campos['combate/adaptacaoUltimo']).toBeNull();
+        Object.values(campos).forEach(v => expect(v).not.toBeUndefined());
     });
-    it('ligado com 0 turnos: fimDeLuta não gera caminho', () => {
-        const on = { vida: { atual: 1 }, poderes: [], contadores: [], combate: { municoAuto: true, municoTurnos: 0, municoPorTurno: 5 } };
-        expect(disparar(on, { tipo: 'fimDeLuta' }).caminhos).not.toContain('combate/municoTurnos');
+    it('é idempotente: um segundo fimDeLuta não converte de novo nem gera caminhos', () => {
+        const on = fx({ adaptacaoFator: 1.1, adaptacaoSoma: 10, adaptacaoTurnos: 1 });
+        disparar(on, { tipo: 'fimDeLuta' });
+        const res2 = disparar(on, { tipo: 'fimDeLuta' });
+        expect(on.ganhosPermanentes.poderCalculado).toBeCloseTo(0.1, 9);
+        expect(res2.caminhos).not.toContain('ganhosPermanentes/poderCalculado');
+        expect(res2.caminhos).not.toContain('combate/adaptacaoFator');
     });
-    it('descansar zera SEMPRE (auto ligado ou desligado) e preserva o interruptor', () => {
-        [true, false, undefined].forEach((auto) => {
-            const x = { vida: { atual: 1, base: 1 }, poderes: [], contadores: [], combate: { municoAuto: auto, municoTurnos: 12, municoPorTurno: 5 } };
-            descansarCompleto(x);
-            expect(x.combate.municoTurnos).toBe(0); expect(x.combate.municoAuto).toBe(auto);
-        });
+    it('ficha antiga (campos legados) e sem turnos: nada muda e nenhum caminho de Adaptação', () => {
+        const x = fx({ municoAuto: true, municoTurnos: 7, municoPorTurno: 5 });
+        const res = disparar(x, { tipo: 'fimDeLuta' });
+        expect(x.combate.municoTurnos).toBe(7);
+        expect(x.ganhosPermanentes).toBeUndefined();
+        expect(res.caminhos.filter(c => /adaptacao/.test(c))).toEqual([]);
     });
-    it('fórmula 1 + turnos*taxa/100 preservada no Poder: 10 turnos x 5% = x1,5', () => {
-        const base = { vida: { base: 600000 }, mana: { base: 0 }, aura: { base: 0 }, chakra: { base: 0 }, corpo: { base: 0 }, forca: { base: 100 }, destreza: { base: 0 }, inteligencia: { base: 0 }, sabedoria: { base: 0 }, energiaEsp: { base: 0 }, carisma: { base: 0 }, stamina: { base: 0 }, constituicao: { base: 0 }, divisores: { vida: 1e-12 }, bio: {}, estetica: {}, labels: {}, poderes: [], inventario: [], seresSelados: [] };
-        const sem = calcularPoderAtual({ ...base, combate: { municoTurnos: 0, municoPorTurno: 5 } }, 1).poderExato;
-        const com = calcularPoderAtual({ ...base, combate: { municoTurnos: 10, municoPorTurno: 5, municoAuto: true } }, 1).poderExato;
-        const comManual = calcularPoderAtual({ ...base, combate: { municoTurnos: 10, municoPorTurno: 5, municoAuto: false } }, 1).poderExato;
-        expect(com).toBe(comManual); // o interruptor não muda a fórmula
-        expect(com).toBeGreaterThan(sem);
-        // 10 acionamentos automáticos == 10 turnos manuais
-        const x = { combate: { municoAuto: true, municoTurnos: 0, municoPorTurno: 5 } };
-        for (let i = 0; i < 10; i++) avancarMunicoCrescente(x);
-        expect(calcularPoderAtual({ ...base, combate: x.combate }, 1).poderExato).toBe(com);
+    it('descansarCompleto NÃO zera a Adaptação (a conversão é do fimDeLuta que vem depois)', () => {
+        const x = fx({ adaptacaoFator: 1.2, adaptacaoSoma: 20, adaptacaoTurnos: 1 }, { vida: { atual: 1, base: 1 } });
+        descansarCompleto(x);
+        expect(x.combate).toMatchObject({ adaptacaoFator: 1.2, adaptacaoTurnos: 1 });
+        disparar(x, { tipo: 'fimDeLuta' });
+        expect(x.ganhosPermanentes.poderCalculado).toBeCloseTo(0.2, 9);
+    });
+    it('o fator de combate F multiplica o Poder Calculado (só durante o combate)', () => {
+        const base = { vida: { base: 600000 }, mana: { base: 0 }, aura: { base: 0 }, chakra: { base: 0 }, corpo: { base: 0 }, forca: { base: 100 }, divisores: { vida: 1e-12 }, bio: {}, estetica: {}, labels: {}, inventario: [], seresSelados: [] };
+        const sem = calcularPoderAtual({ ...base, combate: {} }, 1).poderExato;
+        const com = calcularPoderAtual({ ...base, combate: { adaptacaoFator: 1.3125 } }, 1).poderExato;
+        expect(com / sem).toBeCloseTo(1.3125, 3);
     });
 });

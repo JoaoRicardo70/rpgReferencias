@@ -267,24 +267,23 @@ describe('core/vitals - descansarCompleto: happy path (cura tudo até o máximo)
 });
 
 describe('core/vitals - descansarCompleto: zera Fadiga e mUnico Crescente', () => {
-    it('zera combate.fadigaTurnos, combate.fadigaExtra e combate.municoTurnos', () => {
-        const ficha = criarFichaMinima({ combate: { fadigaTurnos: 12, fadigaExtra: 8.5, municoTurnos: 20 } });
+    it('zera combate.fadigaTurnos, combate.fadigaExtra', () => {
+        const ficha = criarFichaMinima({ combate: { fadigaTurnos: 12, fadigaExtra: 8.5 } });
         descansarCompleto(ficha);
         expect(ficha.combate.fadigaTurnos).toBe(0);
         expect(ficha.combate.fadigaExtra).toBe(0);
-        expect(ficha.combate.municoTurnos).toBe(0);
     });
 
     it('cria combate do zero (objeto ausente) sem lançar, e ainda assim os 3 campos ficam zerados', () => {
         const ficha = criarFichaMinima();
         delete ficha.combate;
         expect(() => descansarCompleto(ficha)).not.toThrow();
-        expect(ficha.combate).toEqual({ fadigaTurnos: 0, fadigaExtra: 0, municoTurnos: 0 });
+        expect(ficha.combate).toEqual({ fadigaTurnos: 0, fadigaExtra: 0 });
     });
 
     it('NÃO toca em outros campos de combate.* não relacionados (danoAbsorvido/furiaMax sobrevivem intactos)', () => {
         const ficha = criarFichaMinima({
-            combate: { fadigaTurnos: 5, fadigaExtra: 3, municoTurnos: 10, danoAbsorvido: 777, furiaMax: 42 },
+            combate: { fadigaTurnos: 5, fadigaExtra: 3, danoAbsorvido: 777, furiaMax: 42 },
         });
         descansarCompleto(ficha);
         expect(ficha.combate.danoAbsorvido).toBe(777);
@@ -303,7 +302,7 @@ describe('core/vitals - descansarCompleto: robustez com dados faltando', () => {
         const ficha = {};
         descansarCompleto(ficha);
         expect(ficha.vida).toBeUndefined();
-        expect(ficha.combate).toEqual({ fadigaTurnos: 0, fadigaExtra: 0, municoTurnos: 0 });
+        expect(ficha.combate).toEqual({ fadigaTurnos: 0, fadigaExtra: 0 });
     });
 
     it('pula um vital ausente (ex.: sem "mana") sem afetar a cura dos demais', () => {

@@ -9,6 +9,7 @@ import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 import { efeitosAtivosDoItem, efeitosPassivosDoItem, efeitosDaConfigAtiva } from './efeitosItem.js';
 import { calcularFadigaAtual } from './fadiga.js';
 import { getMultiplicadorBonusArma } from './classesMecanicas.js';
+import { fatorAdaptacao } from './adaptacao.js';
 import { ehPropriedadeMultiplicador, passaQuandoMultiplicador, montarContextoDeCombate } from './efeitosCondicionais.js';
 
 // Limites do fator composto dos ganhos permanentes (ficha.ganhosPermanentes.fatorPoder): evita overflow e zero.
@@ -333,7 +334,7 @@ export function getGlobalMultipliers(ficha) {
 
         // 🔥 finalUni (mUnico) fica DE FORA de totalDano de propósito — é aplicado
         // separadamente em calcularPoderAtual, no MESMO estágio (pós-injeção de
-        // Ascensão) que multiplicadorPoderDireto e multiplicadorMunicoCrescente.
+        // Ascensão) que multiplicadorPoderDireto e multiplicadorAdaptacao.
         // Ver o mesmo comentário/motivo em Ficha Def/Marcados.jsx > poderGlobal.
         return { finalB, finalG, finalF, finalA, finalP, finalUni, fatorGanhoComposto, fatorGanhoCombate: fatorCombate, fatorGanhoTotal: fatorGanhoComposto * fatorCombate, totalDano: finalB * finalG * finalA * finalP * fatorGanhoComposto * fatorCombate };
     } catch (e) {
@@ -411,39 +412,6 @@ export function getPoderDiretoMultiplier(ficha) {
     } catch (e) {
         return 1;
     }
-}
-
-// ♾️ mUnico Crescente (Infinities tipo Adaptação) — réplica exata de
-// getMunicoCrescenteMultiplier em Ficha Def/Marcados.jsx. Cresce automaticamente
-// a cada turno de combate (combate.municoTurnos x combate.municoPorTurno) e
-// multiplica junto de multiplicadorPoderDireto/glob.finalUni no mesmo estágio
-// pós-injeção de Ascensão, pra não ser diluído.
-function getMunicoCrescenteMultiplier(ficha) {
-    const turnos = Math.max(0, Number(ficha?.combate?.municoTurnos) || 0);
-    if (turnos <= 0) return 1;
-    const taxaBruta = Number(ficha?.combate?.municoPorTurno);
-    const taxa = isNaN(taxaBruta) ? 5 : taxaBruta;
-    return Math.max(1, 1 + (turnos * taxa / 100));
-}
-
-export const LIMITE_MUNICO_TURNOS = 9999;
-// ♾️ Crescer sozinho (combate.municoAuto): no INÍCIO do turno do portador, +1 em municoTurnos (teto 9999) se a taxa por turno for > 0. Muta o rascunho; devolve true se mudou.
-export function avancarMunicoCrescente(ficha) {
-    const c = ficha && ficha.combate;
-    if (!c || c.municoAuto !== true) return false;
-    const taxa = Number(c.municoPorTurno);
-    if (!(taxa > 0)) return false;
-    const atual = Math.max(0, Number(c.municoTurnos) || 0);
-    if (atual >= LIMITE_MUNICO_TURNOS) return false;
-    c.municoTurnos = atual + 1;
-    return true;
-}
-// Fim da cena/combate (fimDeLuta): com o interruptor ligado o contador volta a 0 (desligado = manual, a pessoa zera). Devolve true se mudou.
-export function zerarMunicoCrescenteNoFimDeLuta(ficha) {
-    const c = ficha && ficha.combate;
-    if (!c || c.municoAuto !== true || !(Number(c.municoTurnos) > 0)) return false;
-    c.municoTurnos = 0;
-    return true;
 }
 
 // 🔥 "MULTIPLICADOR DE FORÇA" POR VITAL — réplica exata de calcularFatorCategoria em
@@ -564,8 +532,9 @@ export function calcularPoderAtual(ficha, divisorPoderMesa) {
     // 🔥 TODO mUnico se junta aqui, no mesmo estágio (pós-injeção de Ascensão) —
     // ver o mesmo comentário/motivo em Ficha Def/Marcados.jsx > poderGlobal.
     const multiplicadorPoderDireto = clampFinito(getPoderDiretoMultiplier(ficha));
-    const multiplicadorMunicoCrescente = clampFinito(getMunicoCrescenteMultiplier(ficha));
-    const multiplicadorMunicoTotal = clampFinito(glob.finalUni) * multiplicadorPoderDireto * multiplicadorMunicoCrescente;
+    // 🧬 Adaptação (core/adaptacao.js): fator de combate F, composto turno a turno; zera no fim da luta (vira ganho permanente).
+    const multiplicadorAdaptacao = clampFinito(fatorAdaptacao(ficha));
+    const multiplicadorMunicoTotal = clampFinito(glob.finalUni) * multiplicadorPoderDireto * multiplicadorAdaptacao;
     poderComAscensao = clampFinito(poderComAscensao * multiplicadorMunicoTotal);
 
     let power = poderComAscensao * (sup / 100);

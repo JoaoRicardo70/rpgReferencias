@@ -8,6 +8,7 @@ import { lerImagemComoBase64 } from '../../services/firebase-storage';
 // Importação flexível
 import * as AtributosCore from '../../core/attributes';
 import { getRank } from '../../core/prestige';
+import { fatorAdaptacao } from '../../core/adaptacao';
 import { formatarPoderCosmico } from '../../core/utils.js';
 import { calcularFadigaAtual } from '../../core/fadiga';
 import { getTetoOcultacaoPoder, getOcultacaoPoder } from '../../core/percepcaoPoder';
@@ -97,25 +98,9 @@ function getEfetivoMFormas(ficha, k, ignorarPoderes = false) {
 
 // getPoderDiretoMultiplier vem de core/poder.js (Poderes, Pactos e Itens equipados + Formas).
 
-// ♾️ mUnico Crescente (Infinities tipo Adaptação): cresce automaticamente a cada
-// turno de combate (mesmo padrão de contador da Fadiga, só que aumenta o Poder em
-// vez de reduzir). Ver "Marcadores & Adaptação" > mUnico Crescente.
-//
-// 🔥 mUnico SEMPRE multiplica mUnico — nunca soma. Por isso este multiplicador NÃO
-// entra no array `unicos` de getGlobalMultipliers() (que alimenta glob.totalDano,
-// consumido ANTES da injeção de Ascensão em poderGlobal — hoje Poder × (1 + Ascensão),
-// core/poder.js > injetarAscensaoNoPoder). Ficando ali, o efeito multiplicativo era "diluído" pela injeção de
-// Ascensão que vem logo depois, e ficava pouco visível ao lado de mUnicos passivos
-// vindos de Poderes (poder_direto), que já multiplicam DEPOIS dessa injeção via
-// multiplicadorPoderDireto. Aplicando junto de multiplicadorPoderDireto (mesmo
-// estágio do pipeline), os dois voltam a multiplicar entre si de verdade.
-function getMunicoCrescenteMultiplier(ficha) {
-    const turnos = Math.max(0, Number(ficha?.combate?.municoTurnos) || 0);
-    if (turnos <= 0) return 1;
-    const taxaBruta = Number(ficha?.combate?.municoPorTurno);
-    const taxa = isNaN(taxaBruta) ? 5 : taxaBruta;
-    return Math.max(1, 1 + (turnos * taxa / 100));
-}
+// 🧬 Adaptação (core/adaptacao.js > fatorAdaptacao): fator de combate F, composto turno a turno pela diferença de Poder para o oponente; zera no fim da luta
+// (vira ganho permanente). Aplicado junto de multiplicadorPoderDireto (mesmo estágio pós-injeção de Ascensão), como o antigo mUnico Crescente, e NÃO entra no
+// array `unicos` de getGlobalMultipliers (senão a injeção de Ascensão o diluiria). A MESMA função alimenta core/poder.js > calcularPoderAtual.
 
 function getPoderAbsolutoAtributo(key, ficha) {
     if (!ficha) return 0;
@@ -1062,12 +1047,12 @@ export default function MarcadosPanel() {
         // 🔥 TODO mUnico se junta aqui, no mesmo estágio (pós-injeção de Ascensão):
         // glob.finalUni (Balança de Adaptação / buffs / texto de habilidades),
         // multiplicadorPoderDireto (mUnicos de Poderes/poder_direto) e
-        // multiplicadorMunicoCrescente (mUnico Crescente por turno) — nenhuma
+        // multiplicadorAdaptacao (Adaptação por diferença de Poder) — nenhuma
         // fonte de mUnico fica isolada do resto, então mUnico sempre multiplica
         // mUnico, não importa de onde venha.
         const multiplicadorPoderDireto = clampFinito(getPoderDiretoMultiplier(minhaFicha));
-        const multiplicadorMunicoCrescente = clampFinito(getMunicoCrescenteMultiplier(minhaFicha));
-        const multiplicadorMunicoTotal = clampFinito(glob.finalUni) * multiplicadorPoderDireto * multiplicadorMunicoCrescente;
+        const multiplicadorAdaptacao = clampFinito(fatorAdaptacao(minhaFicha));
+        const multiplicadorMunicoTotal = clampFinito(glob.finalUni) * multiplicadorPoderDireto * multiplicadorAdaptacao;
         poderComAscensao = clampFinito(poderComAscensao * multiplicadorMunicoTotal);
 
         let power = poderComAscensao * (sup / 100);
@@ -1427,7 +1412,7 @@ export default function MarcadosPanel() {
             });
             f.pv = { ...f.pv, atual: pvMax || 0 }; f.pm = { ...f.pm, atual: pmMax || 0 }; f.energiaForca = { ...f.energiaForca, atual: forcaMax || 0 };
             restaurarAcoes(f);
-            if (f.combate) { f.combate.fadigaTurnos = 0; f.combate.fadigaExtra = 0; f.combate.municoTurnos = 0; }
+            if (f.combate) { f.combate.fadigaTurnos = 0; f.combate.fadigaExtra = 0; }
         });
         callSave();
         // 🔔 Descansar encerra a luta: contadores 'cena' zeram e gatilhos fimDeLuta disparam (na ficha ativa: a minha, ou a que o Mestre edita).

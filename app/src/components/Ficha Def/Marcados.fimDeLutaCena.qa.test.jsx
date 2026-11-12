@@ -93,10 +93,10 @@ describe('Marcados Descansar: fimDeLuta', () => {
         expect(ge.dispararEventoEmPersonagem).toHaveBeenCalledWith('Eu', { tipo: 'fimDeLuta' });
     });
     it('continua zerando fadiga (comportamento antigo)', () => {
-        const f = ficha({ combate: { fadigaTurnos: 9, fadigaExtra: 3, municoTurnos: 2 } });
+        const f = ficha({ combate: { fadigaTurnos: 9, fadigaExtra: 3 } });
         montar(f);
         render(<MarcadosPanel />);
         descansar();
-        expect(f.combate).toMatchObject({ fadigaTurnos: 0, fadigaExtra: 0, municoTurnos: 0 });
+        expect(f.combate).toMatchObject({ fadigaTurnos: 0, fadigaExtra: 0 });
     });
 });

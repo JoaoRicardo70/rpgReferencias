@@ -4,7 +4,8 @@ import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salv
 import { calcularAcerto, calcularEficaciaCura, somarBonusBase } from '../../core/engine';
 import { montarContextoDeCombate } from '../../core/efeitosCondicionais';
 import { classificarRolagem } from '../../core/rolagemDado';
-import { avancarMunicoCrescente } from '../../core/poder';
+import { montarContextoAdaptacao, aplicarAdaptacaoNoTurno } from '../../core/adaptacaoTurno';
+import { CAMINHOS_ADAPTACAO } from '../../core/adaptacao';
 import { aplicarCoresDado, lerCoresDado } from '../../core/coresDado';
 import { getConfigDado } from '../../core/configuracoes';
 import { alternarPresencaNaTaverna } from '../../core/chats';
@@ -89,16 +90,18 @@ export function iniciarAnimacaoDado(setDadoAnim, { rawRoll, quemRolou, resultado
 // Immer OU um clone solto, tanto faz). A ordem importa: calcularGanhoFadigaDinamico precisa rodar
 // ANTES de aplicarRegeneracaoDeTurno, senão a cura já aplicada no mesmo tick esconderia o quão
 // gasto o personagem estava entrando neste turno.
-export function aplicarInicioDeTurno(ficha, ehDummie = false, nome = '') {
+// `contextoAdaptacao` (opcional, só jogadores): { oponente: { nome, poder } | null, divisorPoderMesa } — ver montarContextoAdaptacao. Devolve também `adaptacao` (texto do Feed, '' sem ganho registrado).
+export function aplicarInicioDeTurno(ficha, ehDummie = false, nome = '', contextoAdaptacao = null) {
     // Estados como Paralisado/Atordoado/Apavorado tiram Ações do turno (core/condicoes.js > acoesPerdidas).
     restaurarAcoes(ficha, { comEstados: true });
     // 🔔 A Imunidade total (core/gatilhosAplicar.js) perde 1 turno no começo do turno do dono, antes de qualquer dano deste turno.
     if (!ehDummie) passarTurnoDaImunidadeTotal(ficha);
 
     if (!ficha.combate) ficha.combate = {};
+    // 🧬 Adaptação (core/adaptacao.js): no INÍCIO do turno do portador, mede a diferença de Poder para o oponente mais forte da cena e compõe o ganho no fator de combate.
+    // Medida ANTES de qualquer outra mudança do turno (Fadiga/regeneração). Dummies não adaptam; um erro aqui nunca impede o turno (aplicarAdaptacaoNoTurno não lança).
+    const resAdaptacao = ehDummie ? null : aplicarAdaptacaoNoTurno(ficha, contextoAdaptacao);
     ficha.combate.fadigaTurnos = Math.max(0, (Number(ficha.combate.fadigaTurnos) || 0) + 1);
-    // ♾️ mUnico Crescente (Adaptação): com o interruptor ligado, +1 turno no INÍCIO do turno do portador (zera em fimDeLuta/descanso; core/poder.js > avancarMunicoCrescente).
-    avancarMunicoCrescente(ficha);
     // incluirEsforcoPoder: lutar acima do limiar de Poder cansa mesmo com Vida/Energias cheias.
     const ganhoDinamicoDoTurno = calcularGanhoFadigaDinamico(ficha, { incluirEsforcoPoder: true });
     ficha.combate.fadigaExtra = Math.max(0, (Number(ficha.combate.fadigaExtra) || 0) + ganhoDinamicoDoTurno);
@@ -123,7 +126,7 @@ export function aplicarInicioDeTurno(ficha, ehDummie = false, nome = '') {
             (custos.ids || []).forEach(id => juntar(dispararEventoNaFicha(ficha, { tipo: 'poderDesligou', poderId: String(id) }, { cenaId, nome })));
         } catch (e) { console.error('Gatilhos do início do turno falharam', e); }
     }
-    return { estados, cura, custos: custos.textos, gatilhos, poderesAlterados: custos.desligados > 0 || recargasMudaram > 0 };
+    return { estados, cura, custos: custos.textos, gatilhos, adaptacao: resAdaptacao ? resAdaptacao.texto : '', poderesAlterados: custos.desligados > 0 || recargasMudaram > 0 };
 }
 
 // ⏳ Fim do turno de `quem` (item da ordem de iniciativa): os estados com prazo perdem 1 turno e saem ao chegar a 0. Três caminhos, como no início do turno:
@@ -232,7 +235,8 @@ function camposDeInicioDeTurno(ficha, camposPoderes = {}, escudosMudaram = false
     if (ficha.combate) {
         if (ficha.combate.fadigaTurnos !== undefined) campos['combate/fadigaTurnos'] = ficha.combate.fadigaTurnos;
         if (ficha.combate.fadigaExtra !== undefined) campos['combate/fadigaExtra'] = ficha.combate.fadigaExtra;
-        if (ficha.combate.municoAuto === true && ficha.combate.municoTurnos !== undefined) campos['combate/municoTurnos'] = ficha.combate.municoTurnos;
+        // 🧬 Adaptação (core/adaptacao.js): só os campos que o início do turno mexe.
+        if (ficha.combate.adaptacaoLigada === true) CAMINHOS_ADAPTACAO.forEach((c) => { const v = ficha.combate[c.split('/')[1]]; if (v !== undefined) campos[c] = v; });
         // ⏳ Ações seguradas expiram no começo do turno de quem segurou (core/acoes.js > restaurarAcoes).
         if (ficha.combate.acoesSeguradas !== undefined) campos['combate/acoesSeguradas'] = ficha.combate.acoesSeguradas;
         if (ficha.combate.acaoSeguradaCredito !== undefined) campos['combate/acaoSeguradaCredito'] = ficha.combate.acaoSeguradaCredito;
@@ -1064,8 +1068,12 @@ export function MapaFormProvider({ children }) {
             let textoCura = '';
             let textosCustos = [];
             let textosGatilhosTurno = [];
-            updateFicha(f => { const r = aplicarInicioDeTurno(f, false, nextPlayer.nome); textoEstados = r.estados; textoCura = r.cura; textosCustos = r.custos; textosGatilhosTurno = r.gatilhos.textos; });
+            let textoAdaptacao = '';
+            // 🧬 Oponente mais forte da cena (só medido com a Adaptação ligada), calculado fora do produtor Immer.
+            const contextoAdaptacao = montarContextoAdaptacao(storeState.minhaFicha, nextPlayer.nome, ordemIniciativa, storeState);
+            updateFicha(f => { const r = aplicarInicioDeTurno(f, false, nextPlayer.nome, contextoAdaptacao); textoEstados = r.estados; textoCura = r.cura; textosCustos = r.custos; textosGatilhosTurno = r.gatilhos.textos; textoAdaptacao = r.adaptacao; });
             salvarFichaSilencioso();
+            if (textoAdaptacao) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🧬 ${nextPlayer.nome}: ${textoAdaptacao}` });
             if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
             if (textoCura) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `✨ ${nextPlayer.nome} se cura (passivo): ${textoCura}` });
             textosCustos.forEach(t => enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔋 ${t}` }));
@@ -1088,10 +1096,12 @@ export function MapaFormProvider({ children }) {
             if (fichaAlvo) {
                 const rascunho = JSON.parse(JSON.stringify(fichaAlvo));
                 const fotoAntes = fotoDosPoderes(rascunho);
-                const { estados: textoEstados, cura: textoCura, custos: textosCustos, gatilhos: gatilhosTurno } = aplicarInicioDeTurno(rascunho, false, nextPlayer.nome);
+                const contextoAdaptacao = montarContextoAdaptacao(rascunho, nextPlayer.nome, ordemIniciativa, storeState);
+                const { estados: textoEstados, cura: textoCura, custos: textosCustos, gatilhos: gatilhosTurno, adaptacao: textoAdaptacao } = aplicarInicioDeTurno(rascunho, false, nextPlayer.nome, contextoAdaptacao);
                 // Poderes: só os campos tocados, com o índice achado pelo id na ficha mais fresca (nunca o array inteiro).
                 const frescos = useStore.getState().personagens?.[nextPlayer.nome]?.poderes || fichaAlvo.poderes;
                 salvarCamposPersonagem(nextPlayer.nome, { ...camposDeInicioDeTurno(rascunho, camposDePoderesAlterados(fotoAntes, fotoDosPoderes(rascunho), frescos), JSON.stringify(rascunho.escudos) !== JSON.stringify(fichaAlvo.escudos)), ...camposDeGatilhosAlterados(fichaAlvo, rascunho), ...camposParaGravar(rascunho, gatilhosTurno.caminhos) });
+                if (textoAdaptacao) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🧬 ${nextPlayer.nome}: ${textoAdaptacao}` });
                 if (gatilhosTurno.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${nextPlayer.nome}: ${gatilhosTurno.textos.join(' · ')}` });
                 textosCustos.forEach(t => enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔋 ${t}` }));
                 if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
@@ -1107,12 +1117,12 @@ export function MapaFormProvider({ children }) {
         setJogadorHistory(null);
     }, [updateFicha]);
 
-    // 💖 Descansar: mesma ação do botão "Descansar" da Ficha (cura tudo + zera Fadiga/mUnico
-    // Crescente), só que direto do Mapa — pra o jogador não precisar voltar pra Ficha só pra
+    // 💖 Descansar: mesma ação do botão "Descansar" da Ficha (cura tudo + zera Fadiga; a Adaptação
+    // vira Poder permanente no fimDeLuta), só que direto do Mapa — pra o jogador não precisar voltar pra Ficha só pra
     // encerrar o desgaste acumulado de uma luta antes da próxima. Só mexe na PRÓPRIA ficha (mesma
     // limitação de toda mutação no Mapa: cada cliente só grava a si mesmo no Firebase).
     const descansar = useCallback(() => {
-        if (!window.confirm('Recuperar toda a Vida/Energias e zerar a Fadiga e o mUnico Crescente acumulados?')) return;
+        if (!window.confirm('Recuperar toda a Vida/Energias e zerar a Fadiga acumulada? (A Adaptação acumulada vira Poder permanente.)')) return;
         updateFicha(f => { descansarCompleto(f); });
         salvarFichaSilencioso();
         // 🔔 Descansar também encerra a luta: contadores 'cena' zeram e gatilhos fimDeLuta disparam.

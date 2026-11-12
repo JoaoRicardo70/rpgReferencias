@@ -16,8 +16,8 @@
 //  - Ego (SUPOSIÇÃO editável): temporário +2/3/4% multiplicar; permanente menor +0,2/0,3/0,4% somar; críticos sofridos: +2% (combate, multiplicar) e +0,2% (permanente, somar). Params antigos (modoAcerto, ganhoNormal/Critico/Fatal, modoDanoSofrido, ganhoPorCriticos, ganhoPorFatal, criticosPorGanho) = partes TEMPORÁRIAS; os novos têm sufixo Perm. Os dois tipos compartilham os ids de gatilho mp_ego_acerto_N/mp_ego_dano_N (limite de 8).
 //  - Verg: cada golpe acumulado vale 1/divisor de 1% (divisor 10 = 0,1% por golpe).
 //  - Gatilhos nascem `automatico` + `armado` (o Mestre concede de propósito); a opção `criarOpcionais` os cria opcionais e desarmados.
-//  - Verg: o crescimento por turno NÃO é gatilho próprio: a parte 'crescimentoAdaptacao' liga o mUnico Crescente da Adaptação (ficha.combate.municoAuto/municoPorTurno;
-//    avancarMunicoCrescente em core/poder.js). poder.modelo.adaptacao = { ligou, taxa }: `ligou` só é true se ESTE modelo ligou o interruptor (desmarcar a parte só desliga se ligou).
+//  - Verg: o crescimento por turno NÃO é gatilho próprio: a parte 'crescimentoAdaptacao' liga a Adaptação por diferença de Poder (ficha.combate.adaptacaoLigada/adaptacaoFracao;
+//    core/adaptacao.js). poder.modelo.adaptacao = { ligou, fracao }: `ligou` só é true se ESTE modelo ligou o interruptor (desmarcar a parte só desliga se ligou).
 //    Migração: a parte antiga 'acertoPorTurno' (+N fixo de Acerto por turno) saiu; o gatilho mp_verg_acerto_1 é removido ao regenerar e o params antigo `acertoPorTurno` é ignorado
 //    (o significado mudou de 'Acerto fixo' para '% de crescimento do mUnico'; padrão 5).
 //  - Ego: o contador de críticos sofridos tem reset 'cena' (os críticos sofridos pela metade se perdem ao fim da cena; pergunta aberta ao usuário).
@@ -220,7 +220,7 @@ const VERG = {
     id: 'vergAvesta',
     curto: 'verg',
     nome: 'Verg Avesta',
-    resumo: 'Habilidade que acumula o que sofre e, ao fim da luta, converte em Poder permanente; liga o mUnico Crescente da Adaptação (+X% por turno).',
+    resumo: 'Habilidade que acumula o que sofre e, ao fim da luta, converte em Poder permanente; liga a Adaptação por diferença de Poder (ganha X% da diferença para o oponente mais forte a cada turno).',
     categoria: 'habilidade',
     temOrigem: true,
     descricao: 'Habilidade passiva: acumula os golpes sofridos e, ao fim da luta (cena), o acumulado vira ganho permanente de Poder em % (cada golpe = 1/divisor de 1%).',
@@ -236,8 +236,8 @@ const VERG = {
         },
         {
             id: 'crescimentoAdaptacao', rotulo: 'Crescimento por turno (Adaptação)', suportado: true, padrao: true,
-            descricao: 'Liga o "mUnico Crescente (Por Turno)" da Adaptação (Ficha > Marcadores & Adaptação): "Crescer sozinho" fica ligado e a taxa por turno vira o valor abaixo (A-31). Desmarcar desliga só se foi este modelo que ligou.',
-            parametros: [{ id: 'taxaPorTurno', rotulo: 'Crescimento por turno (%)', tipo: 'numero', padrao: 5, min: 0.1, max: 1000 }],
+            descricao: 'Liga a "Adaptação (por diferença de Poder)" (Ficha > Marcadores & Adaptação): a cada turno ganha a fração abaixo da diferença de Poder para o oponente mais forte da cena, composto durante o combate; ao fim da luta a média vira Poder permanente (A-31). Desmarcar desliga só se foi este modelo que ligou.',
+            parametros: [{ id: 'fracaoDaDiferenca', rotulo: 'Fração da diferença de Poder (%)', tipo: 'numero', padrao: 50, min: 0, max: 100 }],
         },
         {
             id: 'vidaMaxima', rotulo: 'Vida máxima ÷ 8', suportado: 'nota', padrao: true,
@@ -273,8 +273,8 @@ const VERG = {
             };
         },
         crescimentoAdaptacao: (p) => {
-            const taxa = preso(numero(p.taxaPorTurno, 5), 0.1, 1000);
-            return { notas: [`Crescimento por turno: liga a Adaptação (mUnico Crescente) em +${String(taxa).replace('.', ',')}% por turno de combate.`] };
+            const fracao = preso(numero(p.fracaoDaDiferenca, 50), 0, 100);
+            return { notas: [`Crescimento por turno: liga a Adaptação por diferença de Poder (ganha ${String(fracao).replace('.', ',')}% da diferença para o oponente mais forte a cada turno; a média vira Poder permanente no fim da luta).`] };
         },
         vidaMaxima: () => ({ notas: ['Vida máxima: soma o dano total sofrido ÷ 8 (aplique à mão).'] }),
         curaAcumulada: () => ({ notas: ['Cura acumulada: 1/20 a 1/10 do curado acumula; ao fim da luta 1/200 a 1/80 vira ganho (aplique à mão).'] }),
@@ -338,7 +338,7 @@ function construirDoModelo(m, selecao, params, fichaAtual, opcoes = {}) {
     objeto.modelo = { id: m.id, partes: mat.sel, params: mat.par };
     const existenteAviso = acharPoderDoModelo(fichaAtual, m.id);
     if (existenteAviso && existenteAviso.modelo && Array.isArray(existenteAviso.modelo.partes) && existenteAviso.modelo.partes.includes('acertoPorTurno')) {
-        avisos.push('O Acerto por turno do Verg agora é o Crescimento por turno da Adaptação (mUnico Crescente): o gatilho antigo sai ao aplicar; marque a parte nova se quiser o crescimento.');
+        avisos.push('O Acerto por turno do Verg agora é o Crescimento por turno da Adaptação (por diferença de Poder): o gatilho antigo sai ao aplicar; marque a parte nova se quiser o crescimento.');
     }
     if (m.id === 'egoSuperior' && existenteAviso && Array.isArray(existenteAviso.gatilhos)
         && !mat.sel.includes('prestigioPermanentePorAcerto') && !mat.sel.includes('prestigioPermanentePorDanoSofrido')
@@ -430,7 +430,7 @@ export function planejarModelo(modeloId, selecao, params, fichaAtual, opcoes = {
         modo: existente ? 'editar' : 'novo', poderes: existente ? 0 : 1, contadores: r.contadores.length,
         contadoresAtualizados: r.contadoresAtualizar.length, contadoresRemovidos: r.contadoresRemover.length,
         gatilhos: (r.poder.gatilhos || []).length, efeitos: (r.poder.efeitos || []).length, avisos: r.avisos,
-        adaptacao: sel.includes('crescimentoAdaptacao') ? { taxa: r.poder.modelo.params.taxaPorTurno } : null,
+        adaptacao: sel.includes('crescimentoAdaptacao') ? { fracao: r.poder.modelo.params.fracaoDaDiferenca } : null,
     };
 }
 
@@ -456,18 +456,18 @@ export function aplicarModeloNaFicha(ficha, req = {}) {
     const edicao = existente ? gatilhosFinaisEdicao(m._def, existente, novo) : null;
     if (edicao && edicao.bloqueio) return { ok: false, mensagem: edicao.bloqueio, avisos: novo.avisos };
 
-    // Adaptação (mUnico Crescente): decidido ANTES de gravar, a partir do estado atual. `ligou` só vale se ESTE modelo ligou o interruptor.
+    // Adaptação (por diferença de Poder): decidido ANTES de gravar, a partir do estado atual. `ligou` só vale se ESTE modelo ligou o interruptor.
     const temCrescimento = sel.includes('crescimentoAdaptacao');
     const ligouAntes = !!(existente && existente.modelo && existente.modelo.adaptacao && existente.modelo.adaptacao.ligou === true);
-    const taxaAdaptacao = temCrescimento ? novo.poder.modelo.params.taxaPorTurno : 0;
-    const adaptacao = temCrescimento ? { ligou: ligouAntes || !(ficha.combate && ficha.combate.municoAuto === true), taxa: taxaAdaptacao } : null;
+    const fracaoAdaptacao = temCrescimento ? novo.poder.modelo.params.fracaoDaDiferenca : 0;
+    const adaptacao = temCrescimento ? { ligou: ligouAntes || !(ficha.combate && ficha.combate.adaptacaoLigada === true), fracao: fracaoAdaptacao } : null;
     const aplicarAdaptacao = () => {
         if (temCrescimento) {
             if (!ficha.combate || typeof ficha.combate !== 'object') ficha.combate = {};
-            ficha.combate.municoPorTurno = taxaAdaptacao;
-            ficha.combate.municoAuto = true;
+            ficha.combate.adaptacaoFracao = fracaoAdaptacao;
+            ficha.combate.adaptacaoLigada = true;
         } else if (ligouAntes && ficha.combate && typeof ficha.combate === 'object') {
-            ficha.combate.municoAuto = false;
+            ficha.combate.adaptacaoLigada = false;
         }
     };
 

@@ -18,7 +18,8 @@ import { adicionarEscudo, removerEscudo } from './escudos.js';
 import { gastarUso, limiteDeUsos } from './usosPoder.js';
 import { somarBuffTemporario } from './suporte.js';
 import { chaveDoGatilhoDoPoder, normalizarGatilhos, LIMITE_TOTAL_GANHO_PERMANENTE, LIMITE_GANHO_PERC_MIN, LIMITE_GANHO_PERMANENTE } from './gatilhos.js';
-import { FATOR_PODER_MAX, FATOR_PODER_MIN, zerarMunicoCrescenteNoFimDeLuta, zerarGanhosCombate } from './poder.js';
+import { FATOR_PODER_MAX, FATOR_PODER_MIN, zerarGanhosCombate } from './poder.js';
+import { converterAdaptacaoEmPermanente, textoConversaoAdaptacao, CAMINHOS_ADAPTACAO, CAMINHO_GANHO_PERMANENTE_PODER } from './adaptacao.js';
 
 const fmtN = (n) => Math.floor(Number(n) || 0).toLocaleString('pt-BR');
 const fmtGanho = (n) => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 6 });
@@ -407,8 +408,13 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
     if (evento.tipo === 'turnoInicio' || evento.tipo === 'fimDeLuta') { if (zerarUsosPorTurno(ficha)) caminhos.add('combate/usosPoderes'); }
     if (evento.tipo === 'fimDeLuta') {
         resetarContadoresDeCena(ficha).forEach(i => caminhosDoContador(ficha, i).forEach(p => caminhos.add(p)));
-        // ♾️ mUnico Crescente automático volta a 0 junto com a luta (o manual fica como a pessoa deixou).
-        if (zerarMunicoCrescenteNoFimDeLuta(ficha)) caminhos.add('combate/municoTurnos');
+        // 🧬 Adaptação: a média das % ganhas nos turnos vira Poder PERMANENTE e o fator de combate zera (core/adaptacao.js). Idempotente: depois de converter os acumuladores ficam zerados.
+        try {
+            const antesAdaptacao = JSON.stringify(ficha.combate && [ficha.combate.adaptacaoFator, ficha.combate.adaptacaoSoma, ficha.combate.adaptacaoTurnos, ficha.combate.adaptacaoUltimo]);
+            const adaptacao = converterAdaptacaoEmPermanente(ficha);
+            if (JSON.stringify(ficha.combate && [ficha.combate.adaptacaoFator, ficha.combate.adaptacaoSoma, ficha.combate.adaptacaoTurnos, ficha.combate.adaptacaoUltimo]) !== antesAdaptacao) CAMINHOS_ADAPTACAO.forEach(c => caminhos.add(c));
+            if (adaptacao) { caminhos.add(CAMINHO_GANHO_PERMANENTE_PODER); res.textos.push(textoConversaoAdaptacao(adaptacao)); }
+        } catch (e) { console.error('Conversão da Adaptação falhou', e); }
     }
     const profundidade = Number(ctx.profundidade) || 0;
     if (profundidade < PROFUNDIDADE_MAX_GATILHOS) {
@@ -476,7 +482,7 @@ export function camposParaGravar(ficha, caminhos) {
 
 // Campos de gatilhos/condições que mudaram entre duas versões da ficha (para gravar só eles no Firebase de OUTRO jogador).
 // Formato { caminho: valor | null }. Usado no início do turno (estados que tiram Vida, Imunidade total que passa).
-const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'ganhosPermanentes/fatorPoder', 'ganhosCombate/poderCalculado', 'ganhosCombate/fatorPoder', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
+const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'ganhosPermanentes/fatorPoder', ...CAMINHOS_ADAPTACAO,'ganhosCombate/poderCalculado', 'ganhosCombate/fatorPoder', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
 export function camposDeGatilhosAlterados(antes, depois) {
     const lido = (f, caminho) => caminho.split('/').reduce((v, p) => (v === undefined || v === null ? undefined : v[p]), f);
     const mudados = CAMINHOS_GATILHOS.filter(c => JSON.stringify(lido(antes, c)) !== JSON.stringify(lido(depois, c)));

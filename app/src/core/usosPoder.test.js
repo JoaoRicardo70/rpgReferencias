@@ -197,12 +197,11 @@ describe('descansarCompleto apaga usosPoderes', () => {
         multiplicadorVida: 1, multiplicadorMorte: 1, divisores: {},
     });
     it('remove usosPoderes (cena e descanso) sem tocar em outras chaves', () => {
-        const f = { ...base(), combate: { fadigaTurnos: 2, fadigaExtra: 5, municoTurnos: 1, ultimoElementoRecebido: 'Fogo', outraChave: 'ok', usosPoderes: { a: { n: 1, cena: 'c1' }, b: { n: 3, cena: 'x' } } } };
+        const f = { ...base(), combate: { fadigaTurnos: 2, fadigaExtra: 5, ultimoElementoRecebido: 'Fogo', outraChave: 'ok', usosPoderes: { a: { n: 1, cena: 'c1' }, b: { n: 3, cena: 'x' } } } };
         descansarCompleto(f);
         expect('usosPoderes' in f.combate).toBe(false);
         expect('ultimoElementoRecebido' in f.combate).toBe(false);
         expect(f.combate.outraChave).toBe('ok');
-        expect(f.combate.municoTurnos).toBe(0);
     });
     it('sem usosPoderes nao cria a chave', () => {
         const f = { ...base(), combate: {} };

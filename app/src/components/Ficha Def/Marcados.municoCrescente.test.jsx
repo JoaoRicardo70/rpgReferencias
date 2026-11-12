@@ -119,7 +119,7 @@ function renderELerPoderGlobalComMUnicoPassivoManual(valor) {
     return renderELerPoderGlobal(undefined, { poderes: poderesComMUnicoPassivo(valor) });
 }
 
-describe('MarcadosPanel — mUnico Crescente multiplica o Poder Calculado do Scouter', () => {
+describe('MarcadosPanel — Adaptação (fator de combate F) multiplica o Poder Calculado do Scouter', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         window.confirm = vi.fn(() => true);
@@ -130,48 +130,42 @@ describe('MarcadosPanel — mUnico Crescente multiplica o Poder Calculado do Sco
         cleanup();
     });
 
-    it('ficha sem o campo combate produz a MESMA leitura que combate.municoTurnos=0 (0 turnos = sem alteração no Poder)', () => {
+    it('ficha sem o campo combate produz a MESMA leitura que combate.adaptacaoFator=1 (fator neutro = sem alteração no Poder)', () => {
         const semCombate = renderELerPoderGlobal(undefined);
-        const comZeroTurnos = renderELerPoderGlobal({ municoTurnos: 0, municoPorTurno: 5 });
+        const comZeroTurnos = renderELerPoderGlobal({ adaptacaoFator: 1 });
 
         expect(comZeroTurnos).toBe(semCombate);
     });
 
-    it('10 turnos x 5%/turno produz o mesmo Poder Calculado que um mUnico PASSIVO equivalente de x1.50 vindo de Poderes (mesmo Poder_Multiplicado, mesmo estágio do pipeline)', () => {
+    it('fator de Adaptação x1.50 produz o mesmo Poder Calculado que um mUnico PASSIVO equivalente de x1.50 vindo de Poderes (mesmo Poder_Multiplicado, mesmo estágio do pipeline)', () => {
         const semMunico = renderELerPoderGlobal(undefined);
-        const comMunicoCrescente = renderELerPoderGlobal({ municoTurnos: 10, municoPorTurno: 5 }); // mUnico = 1 + 0.5 = 1.5
+        const comMunicoCrescente = renderELerPoderGlobal({ adaptacaoFator: 1.5 });
         const comMUnicoPassivoEquivalente = renderELerPoderGlobalComMUnicoPassivoManual('1.5');
 
         expect(comMunicoCrescente).toBeGreaterThan(semMunico);
         expect(comMunicoCrescente).toBe(comMUnicoPassivoEquivalente);
     });
 
-    it('NÃO clampa em 100% (diferente da Fadiga) — 40 turnos x 10%/turno (mUnico x5.00) produz o mesmo Poder Calculado que um mUnico passivo de x5.00', () => {
-        const comMunicoCrescente = renderELerPoderGlobal({ municoTurnos: 40, municoPorTurno: 10 }); // mUnico = 1 + 4.0 = 5.0
+    it('NÃO clampa em 100% (diferente da Fadiga) — fator x5.00 produz o mesmo Poder Calculado que um mUnico passivo de x5.00', () => {
+        const comMunicoCrescente = renderELerPoderGlobal({ adaptacaoFator: 5 });
         const comMUnicoPassivoEquivalente = renderELerPoderGlobalComMUnicoPassivoManual('5.0');
 
         expect(comMunicoCrescente).toBe(comMUnicoPassivoEquivalente);
     });
 
-    it('municoPorTurno ausente usa o padrão de 5%/turno (mesmo padrão do card em PaginaMarcadores)', () => {
-        const comPadraoExplicito = renderELerPoderGlobal({ municoTurnos: 4 }); // municoPorTurno ausente -> default 5 -> x1.20
-        const com20PorCentoExplicito = renderELerPoderGlobal({ municoTurnos: 4, municoPorTurno: 5 });
+    it('campos legados (municoTurnos/municoPorTurno/municoAuto) são IGNORADOS: não alteram o Poder', () => {
+        const semMunico = renderELerPoderGlobal(undefined);
+        const comLegado = renderELerPoderGlobal({ municoTurnos: 10, municoPorTurno: 5, municoAuto: true });
 
-        expect(comPadraoExplicito).toBe(com20PorCentoExplicito);
+        expect(comLegado).toBe(semMunico);
     });
 
-    it('municoTurnos negativo é clampado em 0 (sem alteração no Poder), não lança erro', () => {
+    it('adaptacaoFator abaixo de 1, negativo ou inválido nunca REDUZ o Poder (o fator nunca cai abaixo de x1.00)', () => {
         const semMunico = renderELerPoderGlobal(undefined);
-        const comTurnosNegativos = renderELerPoderGlobal({ municoTurnos: -5, municoPorTurno: 5 });
 
-        expect(comTurnosNegativos).toBe(semMunico);
-    });
-
-    it('municoPorTurno negativo nunca REDUZ o Poder (o multiplicador nunca cai abaixo de x1.00, mesmo com taxa negativa)', () => {
-        const semMunico = renderELerPoderGlobal(undefined);
-        const comTaxaNegativa = renderELerPoderGlobal({ municoTurnos: 10, municoPorTurno: -50 }); // 1 + 10*(-0.5) = -4 -> clampado em 1
-
-        expect(comTaxaNegativa).toBe(semMunico);
+        expect(renderELerPoderGlobal({ adaptacaoFator: 0.5 })).toBe(semMunico);
+        expect(renderELerPoderGlobal({ adaptacaoFator: -3 })).toBe(semMunico);
+        expect(renderELerPoderGlobal({ adaptacaoFator: 'abc' })).toBe(semMunico);
     });
 
     // 🔥 Este é o teste que teria pego a regressão original: um personagem com um
@@ -181,7 +175,7 @@ describe('MarcadosPanel — mUnico Crescente multiplica o Poder Calculado do Sco
     // mUnico passivo de x2.0 -> total esperado x1.5 * x2.0 = x3.0 (mesma leitura
     // que um único mUnico passivo de x3.0 puro).
     it('combina multiplicativamente com um mUnico PASSIVO já existente vindo de Poderes (poder_direto) — cenário que ficava diluído antes do fix', () => {
-        const comAmbos = renderELerPoderGlobal({ municoTurnos: 10, municoPorTurno: 5 }, { poderes: poderesComMUnicoPassivo('2.0') });
+        const comAmbos = renderELerPoderGlobal({ adaptacaoFator: 1.5 }, { poderes: poderesComMUnicoPassivo('2.0') });
         const equivalenteComMUnicoPassivoDe3 = renderELerPoderGlobalComMUnicoPassivoManual('3.0');
 
         expect(comAmbos).toBe(equivalenteComMUnicoPassivoDe3);
@@ -195,7 +189,7 @@ describe('MarcadosPanel — mUnico Crescente multiplica o Poder Calculado do Sco
     // se juntam sem diluição nenhuma). 10 turnos x 5%/turno = x1.5; combinado
     // com dano.mUnico='2.0' manual -> total esperado x1.5 * x2.0 = x3.0.
     it('combina multiplicativamente com um mUnico manual em ficha.dano.mUnico (Balança de Adaptação) — mesma correção, outra fonte de mUnico', () => {
-        montarMockUseStore({ ...fichaComMunico({ municoTurnos: 10, municoPorTurno: 5 }), dano: { mUnico: '2.0' } });
+        montarMockUseStore({ ...fichaComMunico({ adaptacaoFator: 1.5 }), dano: { mUnico: '2.0' } });
         render(<MarcadosPanel />);
         const comAmbos = lerPoderGlobalExibido();
         cleanup();
@@ -205,13 +199,14 @@ describe('MarcadosPanel — mUnico Crescente multiplica o Poder Calculado do Sco
         expect(comAmbos).toBe(equivalenteComMUnicoPassivoDe3);
     });
 
-    it('"Descansar" (handleRegenerarTudo) zera combate.municoTurnos', () => {
-        const ficha = fichaComMunico({ municoTurnos: 12, municoPorTurno: 5 });
+    it('"Descansar" (handleRegenerarTudo) não zera o fator de Adaptação sozinho (a conversão em permanente é do evento fimDeLuta que o descanso dispara depois)', () => {
+        const ficha = fichaComMunico({ adaptacaoFator: 1.5, adaptacaoSoma: 15, adaptacaoTurnos: 2 });
         montarMockUseStore(ficha);
         render(<MarcadosPanel />);
 
         fireEvent.click(screen.getByText(/Descansar/i));
 
-        expect(ficha.combate.municoTurnos).toBe(0);
+        expect(ficha.combate.adaptacaoTurnos).toBe(2);
+        expect(ficha.combate.municoTurnos).toBeUndefined();
     });
 });

@@ -53,7 +53,7 @@ function fichaComVital(overrides = {}) {
         poderes: [],
         inventario: [],
         passivas: [],
-        combate: { fadigaTurnos: 3, fadigaPorTurno: 5, fadigaExtra: 6, municoTurnos: 4, danoAbsorvido: 777, furiaMax: 42 },
+        combate: { fadigaTurnos: 3, fadigaPorTurno: 5, fadigaExtra: 6, danoAbsorvido: 777, furiaMax: 42 },
         ...overrides,
     };
 }
@@ -130,7 +130,7 @@ describe('MapaFormContext — descansar() (botão "💖 Descansar" do Mapa)', ()
         cleanup();
     });
 
-    it('Happy Path: cura vida/mana/aura/chakra/corpo até o máximo e zera fadigaTurnos/fadigaExtra/municoTurnos (via descansarCompleto)', () => {
+    it('Happy Path: cura vida/mana/aura/chakra/corpo até o máximo e zera fadigaTurnos/fadigaExtra (via descansarCompleto)', () => {
         const state = baseState();
         montarComEstado(state);
 
@@ -142,7 +142,6 @@ describe('MapaFormContext — descansar() (botão "💖 Descansar" do Mapa)', ()
         });
         expect(state.minhaFicha.combate.fadigaTurnos).toBe(0);
         expect(state.minhaFicha.combate.fadigaExtra).toBe(0);
-        expect(state.minhaFicha.combate.municoTurnos).toBe(0);
         // Campos não relacionados de combate.* sobrevivem intactos (descansarCompleto não mexe neles).
         expect(state.minhaFicha.combate.danoAbsorvido).toBe(777);
         expect(state.minhaFicha.combate.furiaMax).toBe(42);
