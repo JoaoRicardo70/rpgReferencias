@@ -53,7 +53,7 @@ function estado(minha, extra = {}) {
         dummies: { filler: { nome: 'Filler', iniciativa: 5, posicao: { x: 5, y: 5, z: 0 } } },
         alvoSelecionado: null,
         abaAtiva: 'mapa',
-        cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
+        cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
         ...extra
     };
 }
@@ -147,7 +147,7 @@ describe('avancarTurno - feed e gravacao da duracao', () => {
         outra.iniciativa = 10;
         outra.posicao = { x: 2, y: 2, z: 0 };
         const minha = ficha();
-        const st = estado(minha, { personagens: { Rival: outra }, dummies: {}, cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 1 } });
+        const st = estado(minha, { personagens: { Rival: outra }, dummies: {}, cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 1 } });
         minha.iniciativa = 20; // ordem: Heroi (0), Rival (1) -> o turno do Rival acaba
         montar(st);
         passarTurno();

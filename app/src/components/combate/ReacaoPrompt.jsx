@@ -4,6 +4,7 @@ import useStore, { sanitizarNome } from '../../stores/useStore';
 import { enviarParaFeed, salvarFichaSilencioso } from '../../services/firebase-sync';
 import { opcoesDeReacao, getRotuloEfeito } from '../../core/reacoes';
 import { getAcoesExibicao, alternarAcao } from '../../core/acoes';
+import { relacaoEntre } from '../../core/lados';
 
 // ↩️ Aviso de Reação: quando um ataque (Acerto no feed) tem VOCÊ como alvo — ou um aliado, se você tem técnica de ajuda —
 // pergunta se quer usar suas Reações (core/reacoes.js). Reagir gasta 1 Reação por opção escolhida, avisa no feed e guarda
@@ -17,6 +18,7 @@ export default function ReacaoPrompt() {
     const meuNome = useStore(s => s.meuNome);
     const minhaFicha = useStore(s => s.minhaFicha);
     const personagens = useStore(s => s.personagens);
+    const cenario = useStore(s => s.cenario);
     const updateFicha = useStore(s => s.updateFicha);
     const adicionarAviso = useStore(s => s.adicionarAviso);
     const vistos = useRef(new Set());
@@ -28,6 +30,8 @@ export default function ReacaoPrompt() {
     useEffect(() => {
         if (!meuNome || !Array.isArray(feed) || pedido) return;
         const eu = sanitizarNome(meuNome);
+        // Aliado = personagem com relação 'aliada' comigo (core/lados.js); sem equipes configuradas, todo jogador é aliado (como sempre).
+        const ehPersonagemAliado = (f) => !!f && relacaoEntre(cenario, minhaFicha, f) === 'aliada';
         for (const f of feed) {
             if (!f || f.tipo !== 'acerto' || !f.ts || f.nome === meuNome) continue;
             const chave = `${f.ts}|${f.nome}`;
@@ -37,7 +41,7 @@ export default function ReacaoPrompt() {
 
             const alvos = Array.isArray(f.alvosArea) ? f.alvosArea : [];
             const meu = alvos.find(a => a && sanitizarNome(a.nome || '') === eu);
-            const aliado = meu ? null : alvos.find(a => a && a.nome && personagens && (personagens[a.nome] || personagens[sanitizarNome(a.nome)]));
+            const aliado = meu ? null : alvos.find(a => a && a.nome && personagens && ehPersonagemAliado(personagens[a.nome] || personagens[sanitizarNome(a.nome)]));
             const alvoAtingido = meu || aliado;
             if (!alvoAtingido) continue;
 
@@ -54,7 +58,7 @@ export default function ReacaoPrompt() {
             setPedido({ atacante: f.nome, acertou: contexto.acertou, alvoNome: alvoAtingido.nome, alvoEhAliado: contexto.alvoEhAliado, opcoes, restantes: reacoesRestantes });
             break;
         }
-    }, [feed, meuNome, minhaFicha, personagens, adicionarAviso, pedido]);
+    }, [feed, meuNome, minhaFicha, personagens, cenario, adicionarAviso, pedido]);
 
     const alternarMarca = useCallback((id) => {
         setMarcadas(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));

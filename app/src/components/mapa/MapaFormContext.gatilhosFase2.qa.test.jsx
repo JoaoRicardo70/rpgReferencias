@@ -49,7 +49,7 @@ function estado(minhaFicha, extra = {}) {
     return {
         minhaFicha, meuNome: 'Mestre', personagens: {}, updateFicha: vi.fn((cb) => cb(minhaFicha)), feedCombate: [],
         isMestre: true, mesaCriador: 'Mestre', dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa',
-        cenario: { ativa: 'c', lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [] },
+        cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [] },
         ...extra,
     };
 }
@@ -78,10 +78,10 @@ const VARIANTES = {
     buffs: () => ficha({ buffsTemporarios: [{ id: 'b1', nome: 'B', fonte: 'x', efeitos: [], duracao: 2, duracaoModo: 'turnos' }] }),
 };
 const OPS = {
-    'avancar eu->Vilao': (Mod, mk) => { const eu = mk(); eu.iniciativa = 20; const vilao = mk(); montar(Mod, estado(eu, { personagens: { Vilao: vilao }, cenario: { ativa: 'c', lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [] } })); act(() => { probe.avancarTurno(); }); return { eu, vilao }; },
-    'avancar Vilao->eu': (Mod, mk) => { const eu = mk(); eu.iniciativa = 20; const vilao = mk(); montar(Mod, estado(eu, { personagens: { Vilao: vilao }, cenario: { ativa: 'c', lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 1, zonas: [] } })); act(() => { probe.avancarTurno(); }); return { eu, vilao }; },
+    'avancar eu->Vilao': (Mod, mk) => { const eu = mk(); eu.iniciativa = 20; const vilao = mk(); montar(Mod, estado(eu, { personagens: { Vilao: vilao }, cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [] } })); act(() => { probe.avancarTurno(); }); return { eu, vilao }; },
+    'avancar Vilao->eu': (Mod, mk) => { const eu = mk(); eu.iniciativa = 20; const vilao = mk(); montar(Mod, estado(eu, { personagens: { Vilao: vilao }, cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 1, zonas: [] } })); act(() => { probe.avancarTurno(); }); return { eu, vilao }; },
     'avancar eu->Dummie': (Mod, mk) => { const eu = mk(); eu.iniciativa = 20; const dummies = { d1: { nome: 'D', iniciativa: 5, cenaId: 'c', hpAtual: 10, condicoes: [{ id: 'sangrando', stacks: 1 }] } }; montar(Mod, estado(eu, { dummies })); act(() => { probe.avancarTurno(); }); return { eu, dummies }; },
-    'avancar Dummie->eu': (Mod, mk) => { const eu = mk(); eu.iniciativa = 20; const dummies = { d1: { nome: 'D', iniciativa: 5, cenaId: 'c', hpAtual: 10 } }; montar(Mod, estado(eu, { dummies, cenario: { ativa: 'c', lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 1, zonas: [] } })); act(() => { probe.avancarTurno(); }); return { eu, dummies }; },
+    'avancar Dummie->eu': (Mod, mk) => { const eu = mk(); eu.iniciativa = 20; const dummies = { d1: { nome: 'D', iniciativa: 5, cenaId: 'c', hpAtual: 10 } }; montar(Mod, estado(eu, { dummies, cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 1, zonas: [] } })); act(() => { probe.avancarTurno(); }); return { eu, dummies }; },
     'encerrarCombate': (Mod, mk) => { const eu = mk(); const vilao = mk(); const fora = mk(); fora.iniciativa = 0; montar(Mod, estado(eu, { personagens: { Vilao: vilao, Fora: fora } })); act(() => { probe.encerrarCombate(); }); return { eu, vilao, fora }; },
     'descansar': (Mod, mk) => { const eu = mk(); montar(Mod, estado(eu)); act(() => { probe.descansar(); }); return { eu }; },
 };
@@ -140,7 +140,7 @@ describe('NAO-REGRESSAO (valores a mao) - Mapa sem gatilhos', () => {
     });
     it('turnoFim de quem acaba sem gatilhos: nenhuma gravacao extra em outro jogador (so as de sempre)', () => {
         const eu = ficha({ iniciativa: 5 }); const vilao = ficha({ iniciativa: 20 });
-        montar(Novo, estado(eu, { personagens: { Vilao: vilao }, cenario: { ativa: 'c', lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [] } }));
+        montar(Novo, estado(eu, { personagens: { Vilao: vilao }, cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [] } }));
         act(() => { probe.avancarTurno(); }); // Vilao (ini 20) acaba o turno -> eu comeca
         expect(campos('Vilao')).toBeNull();
     });
@@ -248,7 +248,7 @@ describe('Fase 2 - encerrarCombate / descansar (fimDeLuta, reset de cena)', () =
 // ---------------------------------------------------------------------------------------------------------
 describe('Fase 2 - avancarTurno (turnoFim, turnoInicio, poderDesligou)', () => {
     const cura = (extra = {}) => G({ id: 'cc', nome: 'Cura Criacao', evento: { tipo: 'turnoInicio' }, acoes: [{ tipo: 'curar', modo: 'fixo', valor: 100 }], ...extra });
-    const cenarioIdx = (i) => ({ ativa: 'c', lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: i, zonas: [] });
+    const cenarioIdx = (i) => ({ ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: i, zonas: [] });
     it('turnoInicio do dono (eu): cura 100, uma vez por turno com limite; o proximo turno cura de novo', () => {
         const eu = ficha({ iniciativa: 20, poderes: [{ id: 'p1', nome: 'P', ativa: true, gatilhos: [cura({ limite: { max: 1, por: 'turno' } })] }] });
         eu.vida.atual = 100 * F;

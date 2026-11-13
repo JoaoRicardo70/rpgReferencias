@@ -78,7 +78,7 @@ describe('avancarTurno - gatilho turnoFim que quebra nao trava o turno', () => {
         const state = {
             minhaFicha: minha, meuNome: 'Heroi', personagens: {}, updateFicha: vi.fn((cb) => cb(minha)), feedCombate: [], isMestre: false, mesaCriador: '',
             dummies: { g: { nome: 'Goblin', iniciativa: 10, posicao: { x: 1, y: 1, z: 0 } } }, alvoSelecionado: null, abaAtiva: 'mapa',
-            cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
+            cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
         };
         const erro = vi.spyOn(console, 'error').mockImplementation(() => {});
         montar(state);

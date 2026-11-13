@@ -38,6 +38,9 @@ import { idAlvoPersonagem, motivoBloqueioAlvo } from '../../core/alvoCombate';
 import { getTipoPersonagem, rotuloTipoPersonagem } from '../../core/tipoPersonagem';
 import { NIVEIS_ROLAGEM, indiceFaceDoDado, textoDaFace } from '../../core/rolagemDado';
 import useBotaoArrastavel from '../../hooks/useBotaoArrastavel';
+import CombateEstadoBarra from './CombateEstadoBarra';
+import MolduraLado from './MolduraLado';
+import SeloEquipe from '../shared/SeloEquipe';
 
 // 🔥 IMPORTAÇÕES PARA RENDERIZAR O DADO 3D FÍSICO 🔥
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
@@ -516,7 +519,7 @@ export function MapaIniciativaTracker() {
     const ctx = useMapaForm();
     const {
         minhaFicha, iniciativaInput, setIniciativaInput, isMestre, sairDoCombate, encerrarCombate, descansar,
-        setMinhaIniciativa, rolarMinhaIniciativa, avancarTurno, ordemIniciativa, turnoAtualIndex, jogadorHistory,
+        setMinhaIniciativa, rolarMinhaIniciativa, avancarTurno, combateAtivo, rodadaAtual, combateSemInicio, iniciarCombate, ordemIniciativa, turnoAtualIndex, jogadorHistory,
         setJogadorHistory, feedCombate, getAvatarInfo, fmt, jogadorDaVez, infoDaVez, cenario,
         jogadores, dummies, cenaRenderId, inspecao, inspecionar
     } = ctx || {};
@@ -561,15 +564,17 @@ export function MapaIniciativaTracker() {
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10 }}>
-                    <button className="btn-neon" onClick={avancarTurno} style={{ borderColor: '#00ffcc', color: '#00ffcc', padding: '2px 10px', fontSize: '0.8em', margin: 0 }}>Passar Turno</button>
+                    <button className="btn-neon" onClick={avancarTurno} disabled={combateAtivo === false} title={combateAtivo === false ? 'Inicie o combate primeiro' : undefined} style={{ borderColor: '#00ffcc', color: '#00ffcc', padding: '2px 10px', fontSize: '0.8em', margin: 0 }}>Passar Turno</button>
                     {/* 💖 Só aparece FORA de combate (iniciativa zerada) — senão daria pra zerar a
                         Fadiga acumulada a qualquer momento no meio da luta, esvaziando o sentido do
                         desgaste progressivo. "Sair" primeiro (iniciativa=0), depois "Descansar". */}
                     {!(minhaFicha?.iniciativa > 0) && <button className="btn-neon btn-green" onClick={descansar} title="Recupera toda a Vida/Energias e zera a Fadiga; a Adaptação acumulada vira Poder permanente" style={{ padding: '2px 10px', fontSize: '0.8em', margin: 0 }}>💖 Descansar</button>}
                     {minhaFicha?.iniciativa > 0 && <button className="btn-neon btn-red" onClick={sairDoCombate} style={{ padding: '2px 10px', fontSize: '0.8em', margin: 0 }}>Sair</button>}
-                    {isMestre && <button className="btn-neon" onClick={encerrarCombate} style={{ borderColor: '#ff003c', color: '#ff003c', padding: '2px 10px', fontSize: '0.8em', margin: 0 }}>Zerar</button>}
                 </div>
             </div>
+            {/* ⚔️ Estado do combate (Preparação / Rodada N) + Iniciar/Encerrar (só Mestre/Co-Mestre). */}
+            <CombateEstadoBarra combateAtivo={combateAtivo === true} rodadaAtual={rodadaAtual} combateSemInicio={combateSemInicio} isMestre={!!isMestre}
+                podeIniciar={!!(ordemIniciativa && ordemIniciativa.length > 0)} onIniciar={iniciarCombate} onEncerrar={encerrarCombate} />
 
             <div id="lista-turnos" style={{ display: 'flex', gap: 8, marginTop: 15, overflowX: 'auto', paddingBottom: 5, minHeight: 50 }}>
                 {todasEntidades.length === 0 ? <p style={{ color: '#888', fontSize: '0.8em', margin: 0 }}>Nenhuma entidade no mapa.</p> : (
@@ -593,6 +598,7 @@ export function MapaIniciativaTracker() {
                                     backgroundImage: urlSeguraParaCss(info.img) || 'none', backgroundSize: 'cover', backgroundPosition: 'top center', 
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.7em', color: 'white', textShadow: '1px 1px 2px black' 
                                 }}>{!info.img && entidade.nome.charAt(0)}</div>
+                                <span className="lado-selo-posicao"><SeloEquipe cenario={cenario} entidade={entidade} isMestre={!!isMestre} /></span>
                                 {isMestre && <button onClick={(e) => toggleVisibilidadeToken(e, dynamicTokenId => toggleVisibilidadeToken(e, entidade.id))} style={{ position: 'absolute', top: -5, right: -5, background: isOculto ? '#ff003c' : '#000', borderRadius: '50%', padding: '2px 4px', fontSize: '10px', cursor: 'pointer', border: '1px solid #fff' }}>{isOculto ? '👻' : '👁️'}</button>}
                             </div>
                         );
@@ -1601,6 +1607,8 @@ export function MapaHologramaAcao() {
                                 {nomeBase}
                             </h2>
                             {infoBase?.forma && <div style={{ color: '#00ffcc', fontSize: '1.2em', fontWeight: 'bold', textShadow: '0 0 5px #000' }}>☄️ {infoBase.forma}</div>}
+                            {/* 🛡️ Lado do personagem (+ Equipe e Revelar/Ocultar para o Mestre) */}
+                            {fichaBase && <MolduraLado entidade={{ id: idBase, nome: nomeBase, isDummie: ehDummieBase }} ficha={fichaBase} />}
                         </div>
                     </div>
                     {acaoExibir && (

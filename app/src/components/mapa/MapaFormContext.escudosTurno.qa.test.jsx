@@ -32,7 +32,7 @@ const ficha = (o = {}) => ({
 const estado = (minha, extra = {}) => ({
     minhaFicha: minha, meuNome: 'Heroi', personagens: {}, updateFicha: vi.fn((cb) => cb(minha)), feedCombate: [], isMestre: false, mesaCriador: '',
     dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } }, alvoSelecionado: null, abaAtiva: 'mapa',
-    cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 }, ...extra,
+    cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 }, ...extra,
 });
 let probe;
 function Harness() { probe = useMapaForm(); return null; }
@@ -160,7 +160,7 @@ describe('Mapa - dano de Zona no TICK DE TURNO passa pelo escudo', () => {
     const montarZona = (eu) => {
         const s = estado(eu, {
             dummies: { a: { nome: 'A', iniciativa: 20, cenaId: 'default' }, conj: { nome: 'Conj', iniciativa: 10, cenaId: 'default' } },
-            cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [{ id: 'z1', nome: 'Fogo', cenaId: 'default', conjurador: 'Conj', duracao: 3, danoOriginal: 40, x: 5, y: 5, z: 0, raio: 2 }] },
+            cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [{ id: 'z1', nome: 'Fogo', cenaId: 'default', conjurador: 'Conj', duracao: 3, danoOriginal: 40, x: 5, y: 5, z: 0, raio: 2 }] },
         });
         montar(s);
     };

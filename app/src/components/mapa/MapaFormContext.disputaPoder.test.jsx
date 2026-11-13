@@ -80,7 +80,7 @@ function baseState(overrides = {}) {
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
         feedCombate: [], isMestre: true, mesaCriador: 'Mestre', dummies: {},
         alvoSelecionado: null, abaAtiva: 'mapa',
-        cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
+        cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
         ...overrides,
     };
 }
@@ -306,7 +306,7 @@ describe('Zona - dispararEfeitoDaZona (tick em avancarTurno) com Disputa de Pode
                 conj: { nome: 'Conj', iniciativa: 10, cenaId: 'cena_x', hpAtual: 10 },
                 ...dummies,
             },
-            cenario: { ativa: 'cena_x', lista: { cena_x: { nome: 'X', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [zona] },
+            cenario: { ativa: 'cena_x', combates: { cena_x: { ativo: true, rodada: 1 } }, lista: { cena_x: { nome: 'X', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [zona] },
             ...extras,
         });
     }
@@ -393,7 +393,7 @@ describe('Zona - processarEntradaNaZona (mover o token para dentro) com Disputa 
         const zona = { id: 'z1', nome: 'Gelo', cenaId: 'default', conjurador: 'Conj', duracao: 3, danoOriginal: 100, x: 5, y: 5, z: 0, raio: 1 };
         return baseState({
             personagens: { Conj: { __poder: 1000 } },
-            cenario: { ativa: 'default', lista: { default: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [zona] },
+            cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [zona] },
             ...extras,
         });
     }

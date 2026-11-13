@@ -47,6 +47,7 @@ function estado(dummies, overrides = {}) {
         abaAtiva: 'mapa',
         cenario: {
             ativa: 'cena_x',
+            combates: { cena_x: { ativo: true, rodada: 1 } },
             lista: { cena_x: { nome: 'Cena X', escala: 1.5 } },
             turnoAtualIndex: 0,
             zonas: [{ id: 'z1', nome: 'Fogo', cenaId: 'cena_x', conjurador: 'Conj', duracao: 3, danoOriginal: 40, x: 5, y: 5, z: 0, raio: 2 }],

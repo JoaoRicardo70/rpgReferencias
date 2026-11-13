@@ -10,6 +10,7 @@ import { calcularAcerto, calcularCA } from '../../core/engine';
 import { modificadoresDeEstados } from '../../core/condicoes';
 import { getPoderesDefesa, getEfeitosDeClasse } from '../../core/attributes';
 import { enviarParaFeed, salvarCenarioCompleto } from '../../services/firebase-sync';
+import { alvoNoFiltro, comoCombatente } from '../../core/lados';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { resolverAlvoCombate } from '../../core/alvoCombate';
 import { getPosicaoEntidade } from '../../core/alcance';
@@ -185,13 +186,17 @@ export function AcertoFormProvider({ children }) {
                 }
             };
 
-            if (alvoFiltro === 'todos' || alvoFiltro === 'inimigos') {
+            // 🛡️ Filtro de alvos RELATIVO ao atacante (core/lados.js): 'inimigos' = relação hostil, 'aliados' = aliada, 'todos' = todos.
+            // Sem equipes configuradas: Dummies = inimigos; jogadores = aliados (como sempre).
+            const atacanteLado = comoCombatente(minhaFicha, false);
+            const passaNoFiltro = (dados, ehDummie) => alvoNoFiltro(cenario, atacanteLado, comoCombatente(dados, ehDummie), alvoFiltro);
+            if (alvoFiltro === 'todos' || alvoFiltro === 'inimigos' || alvoFiltro === 'aliados') {
                 // dummieId: o dano em área (AtaqueFormContext) acha o alvo pelo id, não pelo nome (NPCs repetidos).
-                Object.entries(dummies).forEach(([id, dummieObj]) => { if (dummieObj.posicao) verificarHit({ ...dummieObj.posicao, cenaId: dummieObj.cenaId || dummieObj.posicao.cenaId }, dummieObj.valorDefesa, dummieObj.nome, getPoderDummie(dummieObj), { dummieId: id }); });
+                Object.entries(dummies).forEach(([id, dummieObj]) => { if (dummieObj.posicao && passaNoFiltro(dummieObj, true)) verificarHit({ ...dummieObj.posicao, cenaId: dummieObj.cenaId || dummieObj.posicao.cenaId }, dummieObj.valorDefesa, dummieObj.nome, getPoderDummie(dummieObj), { dummieId: id }); });
             }
-            if (alvoFiltro === 'todos' || alvoFiltro === 'aliados') {
-                if (minhaFicha.posicao && origemArea !== 'self') verificarHit(minhaFicha.posicao, calcularCA(minhaFicha, 'evasiva'), meuNome, getPoderParaDisputa(minhaFicha, divisorPoderMesa));
-                Object.entries(personagens || {}).forEach(([n, f]) => { if (f.posicao) verificarHit(f.posicao, calcularCA(f, 'evasiva'), n, getPoderParaDisputa(f, divisorPoderMesa)); });
+            if (alvoFiltro === 'todos' || alvoFiltro === 'aliados' || alvoFiltro === 'inimigos') {
+                if (minhaFicha.posicao && origemArea !== 'self' && passaNoFiltro(minhaFicha, false)) verificarHit(minhaFicha.posicao, calcularCA(minhaFicha, 'evasiva'), meuNome, getPoderParaDisputa(minhaFicha, divisorPoderMesa));
+                Object.entries(personagens || {}).forEach(([n, f]) => { if (f.posicao && passaNoFiltro(f, false)) verificarHit(f.posicao, calcularCA(f, 'evasiva'), n, getPoderParaDisputa(f, divisorPoderMesa)); });
             }
         } else if (alvoDummie) {
             alvosAtingidos.push(resolverAlvo(alvoDummie.nome, alvoDummie.valorDefesa, getPoderDummie(alvoDummie), { dummieId: alvoSelecionado }));

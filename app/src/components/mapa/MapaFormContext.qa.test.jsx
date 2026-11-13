@@ -61,7 +61,7 @@ function estado(minhaFicha, extra = {}) {
     return {
         minhaFicha, meuNome: 'Mestre', personagens: {}, updateFicha: vi.fn((cb) => cb(minhaFicha)), feedCombate: [],
         isMestre: true, mesaCriador: 'Mestre', dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa',
-        cenario: { ativa: 'c', lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [] },
+        cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [] },
         ...extra,
     };
 }
@@ -93,7 +93,7 @@ const CENARIOS = {
     'Zona ao pisar': (Mod, mk, { dano }) => {
         const eu = mk();
         const z = ZONA.map(x => ({ ...x, danoOriginal: dano }));
-        montar(Mod, estado(eu, { meuNome: 'Heroi', isMestre: false, cenario: { ativa: 'c', lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: z } }));
+        montar(Mod, estado(eu, { meuNome: 'Heroi', isMestre: false, cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: z } }));
         act(() => { probe.handleCellClick(5, 5); });
         return { eu };
     },
@@ -102,7 +102,7 @@ const CENARIOS = {
         eu.posicoes = { c: { x: 5, y: 5, z: 0, cenaId: 'c' } };
         const z = ZONA_TICK.map(x => ({ ...x, danoOriginal: dano }));
         const dummies = { a: { nome: 'A', iniciativa: 20, cenaId: 'c', hpAtual: 10 }, conj: { nome: 'Conj', iniciativa: 10, cenaId: 'c', hpAtual: 10 } };
-        montar(Mod, estado(eu, { dummies, cenario: { ativa: 'c', lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: z } }));
+        montar(Mod, estado(eu, { dummies, cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: z } }));
         act(() => { probe.avancarTurno(); });
         return { eu };
     },
@@ -187,7 +187,7 @@ describe('P2 - Mapa: gatilhos, God Mode e dono offline', () => {
 
     it('Zona ao pisar com God Mode: nada; sem God Mode e Negar morte: segura', () => {
         const eu = ficha({ combate: { ...COMBATE, imunidadeTotal: { ...GOD } } });
-        montar(Novo, estado(eu, { meuNome: 'Heroi', isMestre: false, cenario: { ativa: 'c', lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: ZONA } }));
+        montar(Novo, estado(eu, { meuNome: 'Heroi', isMestre: false, cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: ZONA } }));
         act(() => { probe.handleCellClick(5, 5); });
         expect(eu.vida.atual).toBe(VIDA);
     });
@@ -196,7 +196,7 @@ describe('P2 - Mapa: gatilhos, God Mode e dono offline', () => {
         const mk = (extra) => { const f = ficha({ poderes: [{ id: 'p1', nome: 'P', ativa: true, gatilhos: [NEGAR] }], ...extra }); f.posicoes = { c: { x: 5, y: 5, z: 0, cenaId: 'c' } }; f.vida.atual = 30 * 1000; return f; };
         const run = (f) => {
             const dummies = { a: { nome: 'A', iniciativa: 20, cenaId: 'c', hpAtual: 10 }, conj: { nome: 'Conj', iniciativa: 10, cenaId: 'c', hpAtual: 10 } };
-            montar(Novo, estado(f, { dummies, cenario: { ativa: 'c', lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: ZONA_TICK } }));
+            montar(Novo, estado(f, { dummies, cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: ZONA_TICK } }));
             act(() => { probe.avancarTurno(); });
         };
         const f = mk(); run(f);
@@ -240,7 +240,7 @@ describe('P2 - Mapa: gatilhos, God Mode e dono offline', () => {
         const dummies = { a: { nome: 'A', iniciativa: 20, cenaId: 'c', hpAtual: 10 } };
         const eu = ficha({ iniciativa: 0 });
         vilao.iniciativa = 10;
-        montar(Novo, estado(eu, { dummies, personagens: { Vilao: vilao }, cenario: { ativa: 'c', lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [] } }));
+        montar(Novo, estado(eu, { dummies, personagens: { Vilao: vilao }, cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [] } }));
         act(() => { probe.avancarTurno(); });
         const chamada = fb.salvarCamposPersonagem.mock.calls.find(c => c[0] === 'Vilao');
         if (chamada) {

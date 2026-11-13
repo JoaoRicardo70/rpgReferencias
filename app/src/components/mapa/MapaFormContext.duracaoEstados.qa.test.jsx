@@ -52,7 +52,7 @@ function estado(minha, extra = {}) {
         dummies: { filler: { nome: 'Filler', iniciativa: 5, posicao: { x: 5, y: 5, z: 0 } } },
         alvoSelecionado: null,
         abaAtiva: 'mapa',
-        cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
+        cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
         ...extra
     };
 }
@@ -169,7 +169,7 @@ describe('QA avancarTurno - regressao zero e multiplos estados', () => {
     it('Dummie no fim do turno sem prazo: salvarDummie nao recebe duracaoEstados', () => {
         const minha = ficha();
         const dummies = { d1: { nome: 'Boneco', iniciativa: 20, posicao: { x: 2, y: 2, z: 0 }, condicoes: [{ id: 'lento', stacks: 1 }] } };
-        montar(estado(minha, { dummies, isMestre: true, cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 } }));
+        montar(estado(minha, { dummies, isMestre: true, cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 } }));
         passarTurno();
         expect(firebaseSync.salvarDummie.mock.calls.every(c => !('duracaoEstados' in (c[1] || {})))).toBe(true);
         expect(textosFeed().some(t => t.includes('terminou'))).toBe(false);

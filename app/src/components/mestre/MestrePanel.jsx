@@ -8,6 +8,7 @@ import {
     MestreForjaNPC // Adicionámos a importação aqui!
 } from './MestreSubComponents';
 import MestreControleTurno from './MestreControleTurno';
+import EquipesRelacoes from './EquipesRelacoes';
 import MestreSegurarAcao from './MestreSegurarAcao';
 import { MestreNotificacoesPedidos } from './MestrePedidosSexta';
 
@@ -27,6 +28,9 @@ function MestreConteudoSeguro() {
 
             {/* Controle de Turnos do combate (mesma ação do "Passar Turno" do Mapa) */}
             <MestreControleTurno />
+
+            {/* 🛡️ Equipes nomeadas, relações entre elas e quem está em qual lado */}
+            <EquipesRelacoes />
 
             {/* ⏳ Quantas Ações cada um pode segurar (Hold Action) */}
             <MestreSegurarAcao />

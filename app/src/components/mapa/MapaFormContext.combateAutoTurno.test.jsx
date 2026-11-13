@@ -83,7 +83,7 @@ function baseState(overrides = {}) {
         dummies: {},
         alvoSelecionado: null,
         abaAtiva: 'mapa',
-        cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
+        cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
         ...overrides,
     };
 }

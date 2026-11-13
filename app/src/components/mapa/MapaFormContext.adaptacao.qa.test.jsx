@@ -42,7 +42,7 @@ function baseState(overrides = {}) {
         minhaFicha, meuNome: 'Heroi', personagens: {},
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
         feedCombate: [], isMestre: false, mesaCriador: '', dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa',
-        cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
+        cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
         ...overrides,
     };
 }
@@ -120,7 +120,8 @@ describe('avancarTurno: quem recebe o turno', () => {
         expect(state.minhaFicha.combate.adaptacaoTurnos).toBeUndefined();
     });
     it('jogador REMOTO ligado: grava combate/adaptacao* em salvarCamposPersonagem, sem undefined, sem mutar o espelho', () => {
-        const state = baseState({ personagens: { Vilao: ficha({ iniciativa: 10, posicao: { x: 2, y: 2, z: 0 } }, { adaptacaoLigada: true }) } });
+        const state = baseState({ personagens: { Vilao: ficha({ iniciativa: 10, isNPC: true, posicao: { x: 2, y: 2, z: 0 } }, { adaptacaoLigada: true }) } });
+        // Vilao é NPC (equipe 'inimigos'): só assim o Heroi (jogador) é HOSTIL a ele e conta como oponente da Adaptação.
         // o Heroi (20) é mais forte? mesma ficha -> sem ganho, mas o turno conta
         montar(state);
         act(() => { probe.avancarTurno(); });

@@ -6,6 +6,8 @@ import { montarContextoDeCombate } from '../../core/efeitosCondicionais';
 import { classificarRolagem } from '../../core/rolagemDado';
 import { montarContextoAdaptacao, aplicarAdaptacaoNoTurno } from '../../core/adaptacaoTurno';
 import { CAMINHOS_ADAPTACAO } from '../../core/adaptacao';
+import { getEquipes, getRelacoes, equipeDe, moverParaEquipe, textoMudancaDeLado, ladoEstaOculto, alvoNoFiltro, sanitizarEquipes, sanitizarRelacoes, comoCombatente, patchLadoOculto } from '../../core/lados';
+import { combateAtivo as combateAtivoNoCenario, getRodada, iniciarCombateNoCenario, encerrarCombateNoCenario, avancarRodadaSeVoltou } from '../../core/combateEstado';
 import { aplicarCoresDado, lerCoresDado } from '../../core/coresDado';
 import { getConfigDado } from '../../core/configuracoes';
 import { alternarPresencaNaTaverna } from '../../core/chats';
@@ -257,6 +259,15 @@ function camposDeInicioDeTurno(ficha, camposPoderes = {}, escudosMudaram = false
 }
 
 const MapaFormContext = createContext(null);
+
+// 🛡️ Zonas: o filtro 'inimigos'/'aliados' é RELATIVO ao conjurador (core/lados.js > alvoNoFiltro). Sem equipes configuradas = o comportamento de sempre
+// (jogador = aliado; Dummie = inimigo). Conjurador sem ficha achada é tratado como um jogador. `st` = useStore.getState().
+function alvoDaZonaPassa(zona, alvo, st) {
+    if (zona.alvosFiltro !== 'inimigos' && zona.alvosFiltro !== 'aliados') return true;
+    const c = zona.conjurador;
+    const fichaC = c ? (c === st.meuNome ? st.minhaFicha : (st.personagens || {})[c]) : null;
+    return alvoNoFiltro(st.cenario, fichaC ? comoCombatente(fichaC, false) : null, alvo, zona.alvosFiltro);
+}
 
 export function useMapaForm() {
     const ctx = useContext(MapaFormContext);
@@ -771,12 +782,12 @@ export function MapaFormProvider({ children }) {
         const hitLogMestre = [];
         let houveDisputa = false;
 
+        const storeAtual = useStore.getState();
         const checkHit = (pos, nome, isDummie, idDummie, dData) => {
             if (!pos || pos.x === undefined) return;
             const cenaDaEntidade = (isDummie ? (dData?.cenaId || pos.cenaId) : pos.cenaId) || 'default';
             if (cenaDaEntidade !== (zona.cenaId || 'default')) return;
-            if (zona.alvosFiltro === 'inimigos' && !isDummie) return;
-            if (zona.alvosFiltro === 'aliados' && isDummie) return;
+            if (!alvoDaZonaPassa(zona, isDummie ? comoCombatente(dData, true) : comoCombatente(storeAtual.minhaFicha, false), storeAtual)) return;
 
             const dX = Math.abs(pos.x - zona.x);
             const dY = Math.abs(pos.y - zona.y);
@@ -825,8 +836,10 @@ export function MapaFormProvider({ children }) {
         const zonasCena = (cenario?.zonas || []).filter(zo => (zo.cenaId || 'default') === cenaRenderId && zo.danoOriginal);
         
         zonasCena.forEach(zona => {
-            if (zona.alvosFiltro === 'inimigos' && !isDummie) return;
-            if (zona.alvosFiltro === 'aliados' && isDummie) return;
+            const stZona = useStore.getState();
+            const fichaDoAlvo = entidadeNome === stZona.meuNome ? stZona.minhaFicha : (stZona.personagens || {})[entidadeNome];
+            const alvoComoCombatente = isDummie ? comoCombatente(dData, true) : comoCombatente(fichaDoAlvo, false);
+            if (!alvoDaZonaPassa(zona, alvoComoCombatente, stZona)) return;
 
             let estavaDentro = false;
             if (oldPos && oldPos.x !== undefined) {
@@ -994,8 +1007,75 @@ export function MapaFormProvider({ children }) {
     // mesmo personagem. Libera de novo assim que a escrita do Cenário for confirmada.
     const avancandoTurnoRef = useRef(false);
 
+    // 💖 Aplica o INÍCIO DE TURNO de `nextPlayer` (item da ordem): Ações, Fadiga, Regeneração, estados, custos, gatilhos turnoInicio e Adaptação.
+    // Usado por avancarTurno (próximo da vez) e por iniciarCombate (o primeiro da ordem). `exigirCombateAtivo`: a Adaptação só mede com combate ativo na cena.
+    const iniciarTurnoDe = useCallback((nextPlayer, storeState, exigirCombateAtivo) => {
+        const estadoAdaptacao = exigirCombateAtivo ? { ...storeState, cenaIdCombate: cenaRenderId } : storeState;
+        if (nextPlayer.isDummie) {
+            if (!isMestre) return;
+            const dData = storeState.dummies[nextPlayer.id];
+            if (dData) {
+                const dDataAtualizado = JSON.parse(JSON.stringify(dData));
+                const textoEstados = aplicarInicioDeTurno(dDataAtualizado, true).estados;
+                salvarDummie(nextPlayer.id, dDataAtualizado);
+                if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
+            }
+        } else if (nextPlayer.nome === storeState.meuNome) {
+            // Sou eu mesmo quem começa o turno: aplica local (fonte de verdade imediata, sem
+            // esperar o Firebase) e deixa o debounce de sempre sincronizar.
+            let textoEstados = '';
+            let textoCura = '';
+            let textosCustos = [];
+            let textosGatilhosTurno = [];
+            let textoAdaptacao = '';
+            // 🧬 Oponente mais forte da cena (só medido com a Adaptação ligada), calculado fora do produtor Immer.
+            const contextoAdaptacao = montarContextoAdaptacao(storeState.minhaFicha, nextPlayer.nome, ordemIniciativa, estadoAdaptacao);
+            updateFicha(f => { const r = aplicarInicioDeTurno(f, false, nextPlayer.nome, contextoAdaptacao); textoEstados = r.estados; textoCura = r.cura; textosCustos = r.custos; textosGatilhosTurno = r.gatilhos.textos; textoAdaptacao = r.adaptacao; });
+            salvarFichaSilencioso();
+            if (textoAdaptacao) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🧬 ${nextPlayer.nome}: ${textoAdaptacao}` });
+            if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
+            if (textoCura) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `✨ ${nextPlayer.nome} se cura (passivo): ${textoCura}` });
+            textosCustos.forEach(t => enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔋 ${t}` }));
+            if (textosGatilhosTurno.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${nextPlayer.nome}: ${textosGatilhosTurno.join(' · ')}` });
+        } else {
+            // Outro jogador começa o turno: nunca posso mutar a ficha dele localmente
+            // (`updateFicha` só mexe na MINHA), então calculo em cima da cópia mais recente que
+            // este cliente já tem (`personagens`, espelho completo sincronizado via Firebase) e
+            // escrevo só os campos que mudaram direto no nó dele.
+            //
+            // ⚠️ Mesma limitação já aceita em aplicarDanoDireto/aplicarFadigaDireta acima: sem
+            // transação, se o `personagens[nome]` espelhado neste cliente ainda estiver um pouco
+            // atrasado em relação ao Firebase (ex: o próprio dono levou um dano que ainda não
+            // chegou aqui), este write pode sobrescrever esse valor mais novo com uma conta feita
+            // em cima do estado antigo. Aceitável pro uso real (só os campos regeneráveis são
+            // escritos, nunca a ficha inteira, e o próximo save do dono corrige o resto), mas
+            // documentado aqui porque, diferente de aplicarDanoDireto (1 clique manual do Mestre),
+            // este caminho dispara automaticamente a CADA avanço de turno.
+            const fichaAlvo = storeState.personagens?.[nextPlayer.nome];
+            if (fichaAlvo) {
+                const rascunho = JSON.parse(JSON.stringify(fichaAlvo));
+                const fotoAntes = fotoDosPoderes(rascunho);
+                const contextoAdaptacao = montarContextoAdaptacao(rascunho, nextPlayer.nome, ordemIniciativa, estadoAdaptacao);
+                const { estados: textoEstados, cura: textoCura, custos: textosCustos, gatilhos: gatilhosTurno, adaptacao: textoAdaptacao } = aplicarInicioDeTurno(rascunho, false, nextPlayer.nome, contextoAdaptacao);
+                // Poderes: só os campos tocados, com o índice achado pelo id na ficha mais fresca (nunca o array inteiro).
+                const frescos = useStore.getState().personagens?.[nextPlayer.nome]?.poderes || fichaAlvo.poderes;
+                salvarCamposPersonagem(nextPlayer.nome, { ...camposDeInicioDeTurno(rascunho, camposDePoderesAlterados(fotoAntes, fotoDosPoderes(rascunho), frescos), JSON.stringify(rascunho.escudos) !== JSON.stringify(fichaAlvo.escudos)), ...camposDeGatilhosAlterados(fichaAlvo, rascunho), ...camposParaGravar(rascunho, gatilhosTurno.caminhos) });
+                if (textoAdaptacao) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🧬 ${nextPlayer.nome}: ${textoAdaptacao}` });
+                if (gatilhosTurno.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${nextPlayer.nome}: ${gatilhosTurno.textos.join(' · ')}` });
+                textosCustos.forEach(t => enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔋 ${t}` }));
+                if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
+                if (textoCura) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `✨ ${nextPlayer.nome} se cura (passivo): ${textoCura}` });
+            }
+        }
+    }, [ordemIniciativa, isMestre, updateFicha, cenaRenderId]);
+
     const avancarTurno = useCallback(() => {
         if (ordemIniciativa.length === 0 || avancandoTurnoRef.current) return;
+        // ⚔️ Sem combate iniciado (fase de preparação) nada de turnos, Adaptação nem gatilhos de turno: o Mestre/Co-Mestre precisa iniciar o combate.
+        if (!combateAtivoNoCenario(useStore.getState().cenario, cenaRenderId)) {
+            enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: '⚠️ Inicie o combate primeiro' });
+            return;
+        }
         avancandoTurnoRef.current = true;
 
         let nextIndex = (cenario?.turnoAtualIndex || 0) + 1;
@@ -1027,8 +1107,11 @@ export function MapaFormProvider({ children }) {
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔄 É a vez de ${nextPlayer.nome} agir!` });
 
         const storeState = useStore.getState();
-        const novoCenario = JSON.parse(JSON.stringify(storeState.cenario || {}));
+        // 🔁 A rodada sobe quando o índice do turno dá a volta (do último para o primeiro).
+        const novoCenario = avancarRodadaSeVoltou(storeState.cenario || {}, cenaRenderId, cenario?.turnoAtualIndex || 0, nextIndex, ordemIniciativa.length);
         novoCenario.turnoAtualIndex = nextIndex;
+        const rodadaNova = getRodada(novoCenario, cenaRenderId);
+        if (rodadaNova > getRodada(storeState.cenario, cenaRenderId)) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔁 RODADA ${rodadaNova}` });
 
         if (novoCenario.zonas && novoCenario.zonas.length > 0) {
             novoCenario.zonas = novoCenario.zonas.filter(z => {
@@ -1052,63 +1135,8 @@ export function MapaFormProvider({ children }) {
         // turnos continuando a passar normalmente pra todo mundo (bug relatado: "os Rounds passam,
         // mas a Vida e Energias não recuperam"). Ver aplicarInicioDeTurno/camposDeInicioDeTurno
         // acima e salvarCamposPersonagem em firebase-sync.js.
-        if (nextPlayer.isDummie) {
-            if (!isMestre) return;
-            const dData = storeState.dummies[nextPlayer.id];
-            if (dData) {
-                const dDataAtualizado = JSON.parse(JSON.stringify(dData));
-                const textoEstados = aplicarInicioDeTurno(dDataAtualizado, true).estados;
-                salvarDummie(nextPlayer.id, dDataAtualizado);
-                if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
-            }
-        } else if (nextPlayer.nome === storeState.meuNome) {
-            // Sou eu mesmo quem começa o turno: aplica local (fonte de verdade imediata, sem
-            // esperar o Firebase) e deixa o debounce de sempre sincronizar.
-            let textoEstados = '';
-            let textoCura = '';
-            let textosCustos = [];
-            let textosGatilhosTurno = [];
-            let textoAdaptacao = '';
-            // 🧬 Oponente mais forte da cena (só medido com a Adaptação ligada), calculado fora do produtor Immer.
-            const contextoAdaptacao = montarContextoAdaptacao(storeState.minhaFicha, nextPlayer.nome, ordemIniciativa, storeState);
-            updateFicha(f => { const r = aplicarInicioDeTurno(f, false, nextPlayer.nome, contextoAdaptacao); textoEstados = r.estados; textoCura = r.cura; textosCustos = r.custos; textosGatilhosTurno = r.gatilhos.textos; textoAdaptacao = r.adaptacao; });
-            salvarFichaSilencioso();
-            if (textoAdaptacao) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🧬 ${nextPlayer.nome}: ${textoAdaptacao}` });
-            if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
-            if (textoCura) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `✨ ${nextPlayer.nome} se cura (passivo): ${textoCura}` });
-            textosCustos.forEach(t => enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔋 ${t}` }));
-            if (textosGatilhosTurno.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${nextPlayer.nome}: ${textosGatilhosTurno.join(' · ')}` });
-        } else {
-            // Outro jogador começa o turno: nunca posso mutar a ficha dele localmente
-            // (`updateFicha` só mexe na MINHA), então calculo em cima da cópia mais recente que
-            // este cliente já tem (`personagens`, espelho completo sincronizado via Firebase) e
-            // escrevo só os campos que mudaram direto no nó dele.
-            //
-            // ⚠️ Mesma limitação já aceita em aplicarDanoDireto/aplicarFadigaDireta acima: sem
-            // transação, se o `personagens[nome]` espelhado neste cliente ainda estiver um pouco
-            // atrasado em relação ao Firebase (ex: o próprio dono levou um dano que ainda não
-            // chegou aqui), este write pode sobrescrever esse valor mais novo com uma conta feita
-            // em cima do estado antigo. Aceitável pro uso real (só os campos regeneráveis são
-            // escritos, nunca a ficha inteira, e o próximo save do dono corrige o resto), mas
-            // documentado aqui porque, diferente de aplicarDanoDireto (1 clique manual do Mestre),
-            // este caminho dispara automaticamente a CADA avanço de turno.
-            const fichaAlvo = storeState.personagens?.[nextPlayer.nome];
-            if (fichaAlvo) {
-                const rascunho = JSON.parse(JSON.stringify(fichaAlvo));
-                const fotoAntes = fotoDosPoderes(rascunho);
-                const contextoAdaptacao = montarContextoAdaptacao(rascunho, nextPlayer.nome, ordemIniciativa, storeState);
-                const { estados: textoEstados, cura: textoCura, custos: textosCustos, gatilhos: gatilhosTurno, adaptacao: textoAdaptacao } = aplicarInicioDeTurno(rascunho, false, nextPlayer.nome, contextoAdaptacao);
-                // Poderes: só os campos tocados, com o índice achado pelo id na ficha mais fresca (nunca o array inteiro).
-                const frescos = useStore.getState().personagens?.[nextPlayer.nome]?.poderes || fichaAlvo.poderes;
-                salvarCamposPersonagem(nextPlayer.nome, { ...camposDeInicioDeTurno(rascunho, camposDePoderesAlterados(fotoAntes, fotoDosPoderes(rascunho), frescos), JSON.stringify(rascunho.escudos) !== JSON.stringify(fichaAlvo.escudos)), ...camposDeGatilhosAlterados(fichaAlvo, rascunho), ...camposParaGravar(rascunho, gatilhosTurno.caminhos) });
-                if (textoAdaptacao) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🧬 ${nextPlayer.nome}: ${textoAdaptacao}` });
-                if (gatilhosTurno.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${nextPlayer.nome}: ${gatilhosTurno.textos.join(' · ')}` });
-                textosCustos.forEach(t => enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔋 ${t}` }));
-                if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
-                if (textoCura) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `✨ ${nextPlayer.nome} se cura (passivo): ${textoCura}` });
-            }
-        }
-    }, [ordemIniciativa, cenario, feedCombate.length, dispararEfeitoDaZona, isMestre, updateFicha]);
+        iniciarTurnoDe(nextPlayer, storeState, true);
+    }, [ordemIniciativa, cenario, cenaRenderId, feedCombate.length, dispararEfeitoDaZona, isMestre, updateFicha, iniciarTurnoDe]);
 
     const sairDoCombate = useCallback(() => {
         updateFicha(ficha => { ficha.iniciativa = 0; });
@@ -1232,6 +1260,127 @@ export function MapaFormProvider({ children }) {
         });
     }, [isMestre, meuNome, updateFicha, minhaFicha]);
 
+    // ⚔️ INICIAR O COMBATE da cena que está na tela (só Mestre/Co-Mestre). Precisa de ≥ 1 na ordem de iniciativa. Rodada 1; dispara o gatilho
+    // `inicioDeLuta` em todo jogador/NPC com ficha da ordem; o primeiro da ordem começa o turno (mesmo início de turno de avancarTurno).
+    // A duração das Zonas do primeiro NÃO desce aqui (só nos turnos seguintes). Devolve true se iniciou.
+    // Mutex próprio: dois cliques seguidos chegam antes de o cenário voltar do Firebase (combateAtivo ainda falso) e iniciariam duas vezes.
+    // Liberado quando a gravação do cenário termina (ou em qualquer saída antecipada/erro).
+    const iniciandoCombateRef = useRef(false);
+    const iniciarCombate = useCallback(() => {
+        if (!isMestre || iniciandoCombateRef.current) return false;
+        const storeState = useStore.getState();
+        if (combateAtivoNoCenario(storeState.cenario, cenaRenderId)) return false;
+        if (ordemIniciativa.length === 0) {
+            enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: '⚠️ Ninguém está na ordem de iniciativa: não dá para iniciar o combate.' });
+            return false;
+        }
+        iniciandoCombateRef.current = true;
+        try {
+        avancandoTurnoRef.current = false;
+        const novoCenario = iniciarCombateNoCenario(storeState.cenario || {}, cenaRenderId, Date.now());
+        Promise.resolve(salvarCenarioCompleto(novoCenario)).finally(() => { iniciandoCombateRef.current = false; });
+        setJogadorHistory(null);
+        setFeedIndexTurnoAtual(feedCombate.length);
+        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: '⚔️ COMBATE INICIADO — Rodada 1' });
+        // 🔔 inicioDeLuta: um erro de gatilho nunca impede o combate de começar. Roda ANTES do início do turno do primeiro (o gatilho de
+        // "início do combate" vem antes da regeneração/custos do turno). Limitação conhecida: se o primeiro é OUTRO jogador, os dois passos
+        // gravam na mesma ficha a partir do espelho local, que pode ainda não ter o primeiro write (mesma limitação do avancarTurno).
+        ordemIniciativa.filter(j => !j.isDummie && j.nome).forEach((j) => {
+            try {
+                const r = dispararEventoEmPersonagem(j.nome, { tipo: 'inicioDeLuta' });
+                if (r.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${j.nome}: ${r.textos.join(' · ')}` });
+            } catch (e) { console.error('Gatilho inicioDeLuta falhou', e); }
+        });
+        const primeiro = ordemIniciativa[0];
+        enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔄 É a vez de ${primeiro.nome} agir!` });
+        try { iniciarTurnoDe(primeiro, useStore.getState(), false); } catch (e) { console.error('Início do turno do primeiro falhou', e); }
+        return true;
+        } catch (e) {
+            iniciandoCombateRef.current = false;
+            console.error('Iniciar combate falhou', e);
+            return false;
+        }
+    }, [isMestre, cenaRenderId, ordemIniciativa, feedCombate.length, iniciarTurnoDe]);
+
+    // 🛡️ LADOS / EQUIPES (core/lados.js). Só Mestre/Co-Mestre escrevem. `entidade` = item { id, nome, isDummie } (ordem, foraDaOrdem, token) —
+    // a ficha/dummie é buscada FRESCA no store. Jogador: eu = updateFicha + debounce; outro jogador = salvarCamposPersonagem (combate/equipe, combate/ladoOculto);
+    // Dummie = salvarDummie. Equipes/relações vão em cenario.equipes / cenario.relacoes (salvarCenarioCompleto).
+    const equipes = useMemo(() => getEquipes(cenario), [cenario]);
+    const relacoes = useMemo(() => getRelacoes(cenario), [cenario]);
+
+    const lerEntidadeFresca = useCallback((entidade) => {
+        if (!entidade) return null;
+        const st = useStore.getState();
+        if (entidade.isDummie) { const d = (st.dummies || {})[entidade.id]; return d ? { dados: d, combatente: comoCombatente(d, true), nome: d.nome || entidade.nome } : null; }
+        const nome = entidade.id || entidade.nome;
+        const f = nome === st.meuNome ? st.minhaFicha : (st.personagens || {})[nome];
+        return f ? { dados: f, combatente: comoCombatente(f, false), nome } : null;
+    }, []);
+
+    const gravarNaEntidade = useCallback((entidade, alvo, patchFicha, patchDummie) => {
+        const st = useStore.getState();
+        if (entidade.isDummie) { salvarDummie(entidade.id, { ...alvo.dados, ...patchDummie }); return; }
+        if (alvo.nome === st.meuNome) {
+            updateFicha((f) => { if (!f.combate) f.combate = {}; Object.keys(patchFicha).forEach((k) => { f.combate[k.replace('combate/', '')] = patchFicha[k]; }); });
+            salvarFichaSilencioso();
+        } else {
+            salvarCamposPersonagem(alvo.nome, patchFicha);
+        }
+    }, [updateFicha]);
+
+    const definirEquipeDe = useCallback((entidade, equipeId) => {
+        if (!isMestre) return false;
+        const alvo = lerEntidadeFresca(entidade);
+        if (!alvo) return false;
+        const mov = moverParaEquipe(useStore.getState().cenario, alvo.combatente, equipeId);
+        if (!mov || !mov.mudou) return false;
+        gravarNaEntidade(entidade, alvo, entidade.isDummie ? {} : mov.patch, entidade.isDummie ? mov.patch : {});
+        if (mov.anunciar) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: textoMudancaDeLado(useStore.getState().cenario, alvo.nome, mov.de, mov.para) });
+        return true;
+    }, [isMestre, lerEntidadeFresca, gravarNaEntidade]);
+
+    // Revela/oculta o lado. Ocultar não anuncia; REVELAR anuncia no Feed qual é o lado. Devolve o novo valor de ladoOculto (ou null se nada foi feito).
+    const alternarLadoOculto = useCallback((entidade) => {
+        if (!isMestre) return null;
+        const alvo = lerEntidadeFresca(entidade);
+        if (!alvo) return null;
+        const novoOculto = !ladoEstaOculto(alvo.combatente);
+        const patch = patchLadoOculto(!!entidade.isDummie, novoOculto);
+        gravarNaEntidade(entidade, alvo, entidade.isDummie ? {} : patch, entidade.isDummie ? patch : {});
+        if (!novoOculto) {
+            // O combatente em mãos ainda é o antigo (oculto): o rótulo é montado direto da equipe real.
+            const cen = useStore.getState().cenario;
+            const eq = getEquipes(cen).find(e => e.id === equipeDe(alvo.combatente, cen));
+            enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `👁️ O lado de ${alvo.nome} foi revelado: ${eq ? `${eq.icone || ''} ${eq.nome}`.trim() : equipeDe(alvo.combatente, cen)}` });
+        }
+        return novoOculto;
+    }, [isMestre, lerEntidadeFresca, gravarNaEntidade]);
+
+    // Salva a lista de equipes (saneada; vazia = volta ao padrão virtual) e poda relações de equipes que sumiram. Devolve a lista salva.
+    const salvarEquipes = useCallback((lista) => {
+        if (!isMestre) return null;
+        const limpa = sanitizarEquipes(lista);
+        const novoCenario = JSON.parse(JSON.stringify(useStore.getState().cenario || {}));
+        if (limpa.length === 0) { delete novoCenario.equipes; delete novoCenario.relacoes; }
+        else {
+            novoCenario.equipes = limpa;
+            const rel = sanitizarRelacoes(novoCenario.relacoes, limpa);
+            if (Object.keys(rel).length > 0) novoCenario.relacoes = rel; else delete novoCenario.relacoes;
+        }
+        salvarCenarioCompleto(novoCenario);
+        return limpa;
+    }, [isMestre]);
+
+    // Salva o mapa de relações { "idA|idB": 'aliada'|'neutra'|'hostil' } (só pares de equipes existentes). Devolve o mapa salvo.
+    const salvarRelacoes = useCallback((mapa) => {
+        if (!isMestre) return null;
+        const novoCenario = JSON.parse(JSON.stringify(useStore.getState().cenario || {}));
+        const limpa = sanitizarRelacoes(mapa, getEquipes(novoCenario));
+        if (Object.keys(limpa).length > 0) novoCenario.relacoes = limpa; else delete novoCenario.relacoes;
+        salvarCenarioCompleto(novoCenario);
+        return limpa;
+    }, [isMestre]);
+
     // 🔔 Fim do combate de UMA cena (usado por encerrarCombate e pela troca de cena ativa): termina a
     // Imunidade total e dispara fimDeLuta (core/gatilhos.js) em quem estava na cena. "Quem estava na
     // cena" = mesma regra da ordemIniciativa aplicada à cena `cenaId`: jogadores com iniciativa > 0 e
@@ -1256,18 +1405,24 @@ export function MapaFormProvider({ children }) {
     }, [jogadores, meuNome, updateFicha]);
 
     const ativarCena = useCallback((id) => {
+        if (!isMestre) return;
         const idAnterior = cenario?.ativa || 'default';
-        const novoCenario = JSON.parse(JSON.stringify(cenario));
+        let novoCenario = JSON.parse(JSON.stringify(cenario));
         novoCenario.ativa = id;
+        // ⚔️ O estado do combate da cena que sai também acaba (sem mexer no turnoAtualIndex, como antes).
+        const tinhaCombate = id !== idAnterior && combateAtivoNoCenario(novoCenario, idAnterior);
+        if (id !== idAnterior) novoCenario = encerrarCombateNoCenario(novoCenario, idAnterior, { resetarTurno: false });
         salvarCenarioCompleto(novoCenario);
         setCenaVisualizadaId(null);
+        if (tinhaCombate) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O combate em ${String(cenario?.lista?.[idAnterior]?.nome || idAnterior).toUpperCase()} foi encerrado pela troca de cena.` });
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🗺️ O cenário mudou para: ${novoCenario.lista?.[id]?.nome || id}!` });
         // Cada cena conta como um combate: trocar a cena ATIVA encerra o da que está saindo.
         // Iniciativa e ordem manual NÃO são mexidas (como já era).
         if (id !== idAnterior) encerrarCombateDaCena(idAnterior);
-    }, [cenario, encerrarCombateDaCena]);
+    }, [isMestre, cenario, encerrarCombateDaCena]);
 
     const encerrarCombate = useCallback(() => {
+        if (!isMestre) return;
         const nomeCena = String(cenaAtual.nome || cenaRenderId);
         if (!window.confirm(`Tem a certeza que deseja ZERAR A INICIATIVA DE TODOS OS JOGADORES E ENTIDADES presentes na cena "${nomeCena}"?`)) return;
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O COMBATE EM ${nomeCena.toUpperCase()} FOI ENCERRADO PELO MESTRE! ⚔️` });
@@ -1288,13 +1443,13 @@ export function MapaFormProvider({ children }) {
         // Imunidade total acaba nos outros e fimDeLuta dispara em quem estava na cena (cada cena conta como um combate).
         encerrarCombateDaCena(cenaRenderId, nomesNaCena);
 
-        const novoCenario = JSON.parse(JSON.stringify(storeState.cenario || {}));
-        novoCenario.turnoAtualIndex = 0;
+        // ⚔️ Limpa o estado do combate da cena (rodada, ativo) e volta o turno ao início: fica em preparação/sem combate.
+        const novoCenario = encerrarCombateNoCenario(storeState.cenario || {}, cenaRenderId);
         // 🔀 Combate novo começa pela iniciativa de novo, sem a ordem manual deste.
         if (novoCenario.ordemTurnoManual?.[cenaRenderId]) novoCenario.ordemTurnoManual[cenaRenderId] = null;
         salvarCenarioCompleto(novoCenario);
 
-    }, [cenaAtual.nome, ordemIniciativa, updateFicha, cenaRenderId, encerrarCombateDaCena]);
+    }, [isMestre, cenaAtual.nome, ordemIniciativa, updateFicha, cenaRenderId, encerrarCombateDaCena]);
 
     // 🔀 ORDEM DE TURNO MANUAL (Mestre/Co-Mestre, pela aba Mestre — MestreControleTurno.jsx):
     // grava a nova ordem em cenario.ordemTurnoManual[cena] e corrige turnoAtualIndex no MESMO
@@ -1481,13 +1636,20 @@ export function MapaFormProvider({ children }) {
     }, []);
 
     // 🔀 Ações de ordem manual pra aba Mestre — mesmo esquema estável (ref) do avancarTurno acima.
-    const acoesOrdemTurnoRef = useRef({ reordenarTurno, adicionarAoTurno, removerDoTurno });
-    useEffect(() => { acoesOrdemTurnoRef.current = { reordenarTurno, adicionarAoTurno, removerDoTurno }; }, [reordenarTurno, adicionarAoTurno, removerDoTurno]);
+    // + combate e lados (iniciarCombate, encerrarCombate, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes) para a UI da aba Mestre.
+    const acoesOrdemTurnoRef = useRef({ reordenarTurno, adicionarAoTurno, removerDoTurno, iniciarCombate, encerrarCombate, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes });
+    useEffect(() => { acoesOrdemTurnoRef.current = { reordenarTurno, adicionarAoTurno, removerDoTurno, iniciarCombate, encerrarCombate, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes }; }, [reordenarTurno, adicionarAoTurno, removerDoTurno, iniciarCombate, encerrarCombate, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes]);
     useEffect(() => {
         const acoes = {
             reordenar: (chave, indice) => acoesOrdemTurnoRef.current.reordenarTurno(chave, indice),
             adicionar: (entidade, indice) => acoesOrdemTurnoRef.current.adicionarAoTurno(entidade, indice),
             remover: (entidade) => acoesOrdemTurnoRef.current.removerDoTurno(entidade),
+            iniciarCombate: () => acoesOrdemTurnoRef.current.iniciarCombate(),
+            encerrarCombate: () => acoesOrdemTurnoRef.current.encerrarCombate(),
+            definirEquipeDe: (entidade, equipeId) => acoesOrdemTurnoRef.current.definirEquipeDe(entidade, equipeId),
+            alternarLadoOculto: (entidade) => acoesOrdemTurnoRef.current.alternarLadoOculto(entidade),
+            salvarEquipes: (lista) => acoesOrdemTurnoRef.current.salvarEquipes(lista),
+            salvarRelacoes: (mapa) => acoesOrdemTurnoRef.current.salvarRelacoes(mapa),
         };
         useStore.getState?.()?.setAcoesOrdemTurnoMapa?.(acoes);
         return () => {
@@ -1508,12 +1670,21 @@ export function MapaFormProvider({ children }) {
         return lista.sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
     }, [jogadores, dummies, cenaRenderId, ordemIniciativa]);
 
-    const chaveResumoTurno = `${cenaRenderId}#${turnoAtualIndex}#${ordemIniciativa.map(e => `${e.id}:${e.nome}:${e.iniciativa}:${e.isDummie ? 1 : 0}`).join('|')}#${foraDaOrdem.map(e => `${e.isDummie ? 'd' : 'p'}:${e.id}:${e.nome}`).join('|')}`;
+    // ⚔️ Estado do combate da cena na tela (cenario.combates[cena]). `combateSemInicio`: há ordem de iniciativa mas o Mestre ainda não iniciou
+    // (preparação, ou uma mesa que já estava em combate antes deste recurso) — a UI pode mostrar um aviso.
+    const combateAtivo = combateAtivoNoCenario(cenario, cenaRenderId);
+    const rodadaAtual = getRodada(cenario, cenaRenderId);
+    const combateSemInicio = ordemIniciativa.length > 0 && !combateAtivo;
+
+    const chaveResumoTurno = `${cenaRenderId}#${turnoAtualIndex}#${combateAtivo ? rodadaAtual : 0}#${ordemIniciativa.map(e => `${e.id}:${e.nome}:${e.iniciativa}:${e.isDummie ? 1 : 0}`).join('|')}#${foraDaOrdem.map(e => `${e.isDummie ? 'd' : 'p'}:${e.id}:${e.nome}`).join('|')}`;
     useEffect(() => {
         useStore.getState?.()?.setResumoTurnoMapa?.({
             ordem: ordemIniciativa.map(e => ({ id: e.id, nome: e.nome, iniciativa: e.iniciativa, isDummie: e.isDummie, chave: chaveEntidadeTurno(e) })),
             turnoAtualIndex,
             foraDaOrdem,
+            combateAtivo,
+            rodadaAtual,
+            combateSemInicio,
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps -- chaveResumoTurno já resume ordemIniciativa/turnoAtualIndex/cena/foraDaOrdem
     }, [chaveResumoTurno]);
@@ -1536,6 +1707,7 @@ export function MapaFormProvider({ children }) {
         handleUploadNovaCena, ativarCena, deletarCena, definirAcessoCena, corDoJogador, getAvatarInfo,
         cells, jogadores, playersNaTaverna, ordemIniciativa, handleCellClick,
         alterarZoom, setMinhaIniciativa, rolarMinhaIniciativa, avancarTurno, sairDoCombate, encerrarCombate, descansar, aplicarDanoRapido,
+        combateAtivo, rodadaAtual, combateSemInicio, iniciarCombate, equipes, relacoes, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes,
         rolarAcertoRapido, tokenMap, dummyMap, tokens3D, jogadorDaVez, infoDaVez, fmt, deletarZona, toggleActionDot,
         inspecao, inspecionar, limparInspecao, modoJogador,
         movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento, removerTokenDoMapa, estouNoMapa
@@ -1552,6 +1724,7 @@ export function MapaFormProvider({ children }) {
         changeDesvantagem, handleUploadNovaCena, ativarCena, deletarCena, definirAcessoCena, corDoJogador, descansar, aplicarDanoRapido,
         getAvatarInfo, handleCellClick, alterarZoom, setMinhaIniciativa, rolarMinhaIniciativa, avancarTurno,
         sairDoCombate, encerrarCombate, rolarAcertoRapido, deletarZona, toggleActionDot,
+        combateAtivo, rodadaAtual, combateSemInicio, iniciarCombate, equipes, relacoes, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes,
         inspecao, inspecionar, limparInspecao, modoJogador,
         movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento, removerTokenDoMapa, estouNoMapa
     ]);

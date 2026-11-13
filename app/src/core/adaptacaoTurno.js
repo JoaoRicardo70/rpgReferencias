@@ -4,24 +4,31 @@
 // ==========================================
 import { getPoderParaDisputa, getPoderDummie } from './disputaPoder.js';
 import { escolherOponente, registrarTurnoAdaptacao } from './adaptacao.js';
+import { relacaoEntre } from './lados.js';
+import { combateAtivo } from './combateEstado.js';
 
-// Poder do OPONENTE mais forte entre os OUTROS combatentes da ordem de iniciativa (itens { id, nome, ficha, isDummie }).
+// Poder do OPONENTE mais forte entre os combatentes da ordem de iniciativa (itens { id, nome, ficha, isDummie }) que têm relação HOSTIL com o portador
+// (core/lados.js > relacaoEntre, pelo cenário: aliados e neutros NÃO contam; sem hostil válido = null e nada é registrado).
 // Jogadores/NPCs com ficha: Poder Calculado (getPoderParaDisputa, com a ficha mais fresca do store; a minha vem de minhaFicha);
 // Dummies: poderCalculado definido (getPoderDummie; sem Poder definido = ignorado). Exclui o próprio portador. Devolve { nome, poder } ou null.
-// ctx: { personagens, dummies, meuNome, minhaFicha, divisorPoderMesa }.
+// ctx: { personagens, dummies, meuNome, minhaFicha, divisorPoderMesa, cenario, fichaPortador? }.
 export function poderDoOponenteMaisForte(ordem, nomeDono, ctx = {}) {
-    const { personagens = {}, dummies = {}, meuNome, minhaFicha, divisorPoderMesa } = ctx;
+    const { personagens = {}, dummies = {}, meuNome, minhaFicha, divisorPoderMesa, cenario } = ctx;
+    const fichaDono = ctx.fichaPortador || (nomeDono === meuNome && minhaFicha ? minhaFicha : (personagens && personagens[nomeDono])) || null;
+    const portador = { id: nomeDono, nome: nomeDono, ficha: fichaDono, isDummie: false };
     const candidatos = [];
     (Array.isArray(ordem) ? ordem : []).forEach((item) => {
         if (!item || !item.nome) return;
         try {
             if (item.isDummie) {
                 const d = (dummies && dummies[item.id]) || item.ficha;
+                if (relacaoEntre(cenario, portador, { id: item.id, nome: item.nome, ficha: d, isDummie: true }) !== 'hostil') return;
                 candidatos.push({ nome: item.nome, poder: getPoderDummie(d) });
                 return;
             }
             if (item.nome === nomeDono) return;
             const ficha = item.nome === meuNome && minhaFicha ? minhaFicha : ((personagens && personagens[item.nome]) || item.ficha);
+            if (relacaoEntre(cenario, portador, { id: item.nome, nome: item.nome, ficha, isDummie: false }) !== 'hostil') return;
             candidatos.push({ nome: item.nome, poder: ficha ? getPoderParaDisputa(ficha, divisorPoderMesa) : null });
         } catch (e) { /* um candidato que falha é ignorado */ }
     });
@@ -39,11 +46,13 @@ export function aplicarAdaptacaoNoTurno(ficha, contexto) {
 }
 
 // Monta o contexto que aplicarInicioDeTurno recebe (só se a Adaptação do portador estiver ligada; senão null e nada é medido).
-// `estado` = useStore.getState() (personagens, dummies, meuNome, minhaFicha, divisorPoderMesa). Nunca lança.
+// `estado` = useStore.getState() (personagens, dummies, meuNome, minhaFicha, divisorPoderMesa, cenario) + cenaIdCombate opcional. Nunca lança.
 export function montarContextoAdaptacao(ficha, nomeDono, ordem, estado = {}) {
     try {
         if (!ficha || !ficha.combate || ficha.combate.adaptacaoLigada !== true) return null;
-        const oponente = poderDoOponenteMaisForte(ordem, nomeDono, estado);
+        // Com `estado.cenaIdCombate` a Adaptação só registra turno se a cena tem combate ATIVO (fase de preparação não conta).
+        if (estado.cenaIdCombate && !combateAtivo(estado.cenario, estado.cenaIdCombate)) return null;
+        const oponente = poderDoOponenteMaisForte(ordem, nomeDono, { ...estado, fichaPortador: ficha });
         return { oponente, divisorPoderMesa: estado.divisorPoderMesa };
     } catch (e) { console.error('Contexto da Adaptação falhou', e); return null; }
 }

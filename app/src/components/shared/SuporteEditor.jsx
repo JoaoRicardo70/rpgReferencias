@@ -5,6 +5,7 @@ import EditorBuffs from '../combos/EditorBuffs';
 import { lerAlvoDeEditor, acharAlvoParaGravar } from './alvoDeEditor';
 import { normalizarSuporte, MODOS_ALVO_SUPORTE, MODOS_SUPORTE, DURACOES_SUPORTE, ACOES_SUPORTE, LIMITES_SUPORTE } from '../../core/suporte';
 import { usarSuporte } from '../../services/suporte';
+import { relacaoEntre, comoCombatente, ladoEstaOculto } from '../../core/lados';
 
 const SUPORTE_VAZIO = { cura: { dadosQtd: 0, dadosFaces: 8, fixo: 0, percVida: 0 }, buffs: [], modo: 'uso', duracaoModo: 'turnos', duracao: 3, alvos: 'aliados', maxAlvos: 3, custoPercentual: 0, energia: 'mana', acao: 'padrao' };
 
@@ -23,7 +24,21 @@ export default function SuporteEditor({ colecao, itemId, estado = 'base' }) {
     const item = lerAlvoDeEditor(ficha, colecao, itemId, estado);
     const atual = useMemo(() => normalizarSuporte(item && item.suporte), [item]);
     const form = rascunho || (atual ? { ...SUPORTE_VAZIO, ...atual, cura: atual.cura || SUPORTE_VAZIO.cura } : SUPORTE_VAZIO);
-    const aliadosPossiveis = useMemo(() => Object.keys(personagens || {}).filter(n => n && n !== meuNome && personagens[n]), [personagens, meuNome]);
+    const cenario = useStore(s => s.cenario);
+    const isMestre = useStore(s => s.isMestre);
+    // Possíveis alvos: TODOS os outros (ninguém some), com os aliados primeiro (core/lados.js > relacaoEntre) e um rótulo da relação.
+    // Lado oculto (para quem não é Mestre) entra como "neutro" no fim dos aliados, sem rótulo, para não vazar a equipe.
+    const aliadosPossiveis = useMemo(() => {
+        const eu = comoCombatente(ficha, false);
+        const ordem = { aliada: 0, neutra: 1, hostil: 2 };
+        const lista = Object.keys(personagens || {}).filter(n => n && n !== meuNome && personagens[n]).map((n) => {
+            const f = comoCombatente(personagens[n], false);
+            const oculto = !isMestre && ladoEstaOculto(f);
+            const rel = oculto ? 'neutra' : relacaoEntre(cenario, eu, f);
+            return { nome: n, rel, rotulo: oculto ? '' : ({ aliada: 'aliado', neutra: 'neutro', hostil: 'inimigo' })[rel] };
+        });
+        return lista.map((x, i) => ({ ...x, i })).sort((a, b) => (ordem[a.rel] - ordem[b.rel]) || (a.i - b.i));
+    }, [personagens, meuNome, ficha, cenario, isMestre]);
 
     const alterar = useCallback((patch) => setRascunho({ ...form, ...patch }), [form]);
     const alterarCura = (patch) => alterar({ cura: { ...form.cura, ...patch } });
@@ -113,8 +128,11 @@ export default function SuporteEditor({ colecao, itemId, estado = 'base' }) {
                             {precisaAliados && (
                                 <div className="suporte-aliados" role="group" aria-label="Aliados que recebem">
                                     {aliadosPossiveis.length === 0 && <span className="combo-vazio">Nenhum aliado na mesa.</span>}
-                                    {aliadosPossiveis.map(n => (
-                                        <label key={n} className="estados-golpe-check"><input type="checkbox" checked={escolhidos.includes(n)} onChange={() => alternarAliado(n)} /> {n}</label>
+                                    {aliadosPossiveis.map(a => (
+                                        <span key={a.nome} className="suporte-aliado-opcao">
+                                            <label className="estados-golpe-check"><input type="checkbox" checked={escolhidos.includes(a.nome)} onChange={() => alternarAliado(a.nome)} /> {a.nome}</label>
+                                            {a.rotulo && <span className={`suporte-aliado-rotulo suporte-aliado-${a.rel}`}> ({a.rotulo})</span>}
+                                        </span>
                                     ))}
                                 </div>
                             )}

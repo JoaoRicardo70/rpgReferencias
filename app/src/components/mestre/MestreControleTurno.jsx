@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import useStore from '../../stores/useStore';
+import CombateEstadoBarra from '../mapa/CombateEstadoBarra';
 
 // ⏭️ CONTROLE DE TURNO NA ABA MESTRE: mostra a ordem de iniciativa da cena exibida no Mapa e passa
 // o turno sem trocar de aba. Não tem lógica própria de turno — chama a MESMA função avancarTurno
@@ -56,6 +57,8 @@ export default function MestreControleTurno() {
     const daVez = emCombate ? ordem[indiceAtual] : null;
     const proximo = emCombate ? ordem[(indiceAtual + 1) % ordem.length] : null;
     const podeEditarOrdem = !!acoesOrdem;
+    // Sem combate INICIADO (preparação) não há turnos. `undefined` (Mapa antigo/sem o dado) não bloqueia.
+    const semCombateIniciado = resumo?.combateAtivo === false;
 
     const passarTurno = useCallback(() => {
         if (typeof acaoAvancarTurno === 'function') acaoAvancarTurno();
@@ -122,12 +125,18 @@ export default function MestreControleTurno() {
                 <button
                     className="btn-neon mestre-turno-btn-passar"
                     onClick={passarTurno}
-                    disabled={!emCombate || typeof acaoAvancarTurno !== 'function'}
-                    title="Passa o turno exatamente como o botão do Mapa (reseta Ações, aplica Fadiga e Regeneração do próximo)"
+                    disabled={!emCombate || semCombateIniciado || typeof acaoAvancarTurno !== 'function'}
+                    title={semCombateIniciado ? 'Inicie o combate primeiro' : 'Passa o turno exatamente como o botão do Mapa (reseta Ações, aplica Fadiga e Regeneração do próximo)'}
                 >
                     PASSAR TURNO ⏭️
                 </button>
             </div>
+
+            {resumo && typeof resumo.combateAtivo === 'boolean' && (
+                <CombateEstadoBarra combateAtivo={resumo.combateAtivo} rodadaAtual={resumo.rodadaAtual || 1} combateSemInicio={!!resumo.combateSemInicio} isMestre={!!acoesOrdem}
+                    podeIniciar={emCombate} onIniciar={() => acoesOrdem && acoesOrdem.iniciarCombate()} onEncerrar={() => acoesOrdem && acoesOrdem.encerrarCombate()} />
+            )}
+            {semCombateIniciado && emCombate && <p className="combate-estado-dica">Inicie o combate para poder passar o turno.</p>}
 
             {emCombate ? (
                 <div className="mestre-turno-status">

@@ -64,7 +64,7 @@ function baseState(overrides = {}) {
         dummies: {},
         alvoSelecionado: null,
         abaAtiva: 'mapa',
-        cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
+        cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
         setAcaoAvancarTurnoMapa: vi.fn(),
         setResumoTurnoMapa: vi.fn(),
         acaoAvancarTurnoMapa: null,
@@ -276,7 +276,7 @@ describe('MapaFormContext — ordem de turno manual (reordenarTurno/adicionarAoT
 
     it('reordenar move a chave para o índice pedido e salva ordemTurnoManual[cena] com turnoAtualIndex que mantém quem está na vez', async () => {
         const firebaseSync = await import('../../services/firebase-sync');
-        const state = estadoComOrdemManual({ cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 } });
+        const state = estadoComOrdemManual({ cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 } });
         montarComEstado(state);
         // ordemIniciativa por iniciativa: Heroi(20), goblin(15), Aliado(5) -> índice 0 = Heroi (da vez)
 
@@ -338,7 +338,7 @@ describe('MapaFormContext — ordem de turno manual (reordenarTurno/adicionarAoT
 
     it('remover quem está na vez tira a chave da ordemTurnoManual e passa a vez pro próximo que ainda está na ordem, zerando a iniciativa via zerarIniciativaGlobal', async () => {
         const firebaseSync = await import('../../services/firebase-sync');
-        const state = estadoComOrdemManual({ cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 1 } });
+        const state = estadoComOrdemManual({ cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 1 } });
         montarComEstado(state);
         // ordemIniciativa: Heroi(20,0), goblin(15,1), Aliado(5,2) -- turnoAtualIndex=1 -> vez do goblin (dummie, sem zerarIniciativaGlobal)
         // Removendo o Aliado (não é quem está na vez) só tira ele da ordem.

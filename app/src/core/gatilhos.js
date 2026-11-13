@@ -8,7 +8,7 @@
 //   Fase 2: acertou {nivel: normal|critico|fatal|qualquer} (no cliente do atacante, depois de o golpe causar dano; em área conta UMA vez),
 //            errou (todos os alvos do teste de acerto escaparam), atingido {nivel?} (quem sofreu o golpe, no ponto único de dano; God Mode não dispara),
 //            inimigoErrou (o golpe de alguém errou ESTE alvo), turnoInicio / turnoFim (dono do turno), poderLigou / poderDesligou {poderId?} (vazio = o próprio
-//            Poder dono do gatilho; 'qualquer' = qualquer Poder), fimDeLuta (encerrar combate / descansar; cada cena conta como um combate) e
+//            Poder dono do gatilho; 'qualquer' = qualquer Poder), inicioDeLuta (o Mestre iniciou o combate da cena), fimDeLuta (encerrar combate / descansar; cada cena conta como um combate) e
 //            contadorAtingiu {contadorId, op: '>='|'==', valor} (derivado: depois de uma ação de contador, só na BORDA, isto é, quando passa a valer).
 //   ações:   anularDano, definirVida, curar, escudo, buff, limparCondicoes, imunidadeTotal, mensagem;
 //            Fase 2: contador {id, op: somar|definir|zerar|dividir, valor, sorteio?: 'NdM'} (só atua em contador EXISTENTE na ficha, por id; se o id
@@ -80,6 +80,7 @@ export const EVENTOS_GATILHO = [
     { id: 'turnoFim', fase: 'depois', rotulo: 'No fim do meu turno' },
     { id: 'poderLigou', fase: 'depois', rotulo: 'Quando o Poder ligar' },
     { id: 'poderDesligou', fase: 'depois', rotulo: 'Quando o Poder desligar' },
+    { id: 'inicioDeLuta', fase: 'depois', rotulo: 'No início do combate' },
     { id: 'fimDeLuta', fase: 'depois', rotulo: 'No fim da cena/combate' },
     { id: 'contadorAtingiu', fase: 'depois', rotulo: 'Quando um contador chegar a N (por gatilho)' },
 ];
@@ -483,7 +484,7 @@ function eventoCasa(g, fonte, evento, contexto) {
             const cid = String(evento.contadorId ?? contexto.contadorId ?? '');
             return ev.contadorId === cid && contadorCruzou(ev, evento.valorAntes ?? contexto.valorAntes, evento.valorDepois ?? contexto.valorDepois);
         }
-        default: return true; // errou, inimigoErrou, turnoInicio, turnoFim, fimDeLuta
+        default: return true; // errou, inimigoErrou, turnoInicio, turnoFim, inicioDeLuta, fimDeLuta
     }
 }
 
@@ -653,6 +654,7 @@ export function descreverEventoGatilho(ev, ctx = null) {
         case 'turnoFim': return 'No fim do meu turno';
         case 'poderLigou': return ev.poderId && ev.poderId !== 'qualquer' ? `Quando ${nomeDoPoder(ev.poderId, ctx)} ligar` : (ev.poderId === 'qualquer' ? 'Quando qualquer Poder ligar' : 'Quando este Poder ligar');
         case 'poderDesligou': return ev.poderId && ev.poderId !== 'qualquer' ? `Quando ${nomeDoPoder(ev.poderId, ctx)} desligar` : (ev.poderId === 'qualquer' ? 'Quando qualquer Poder desligar' : 'Quando este Poder desligar');
+        case 'inicioDeLuta': return 'No início do combate';
         case 'fimDeLuta': return 'No fim da cena/combate';
         case 'contadorAtingiu': return `Quando um gatilho levar ${nomeDoContador(ev.contadorId, ctx)} ${ev.op === '==' ? 'a exatamente' : 'a pelo menos'} ${ev.valor}`;
         default: return '';

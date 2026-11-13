@@ -3570,3 +3570,52 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .adaptacao-interruptor { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: bold; color: var(--cor-destaque); cursor: pointer; }
 .adaptacao-verg { margin-bottom: 6px; font-size: 0.85em; color: var(--cor-destaque); opacity: 0.9; }
 .adaptacao-estado { margin-bottom: 12px; font-size: 0.85em; opacity: 0.85; }
+
+/* ==========================================
+   ⚔️ ESTADO DO COMBATE, 🛡️ LADOS E EQUIPES
+   ========================================== */
+.combate-estado-barra { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.combate-estado-selo { padding: 3px 12px; border-radius: 14px; border: 1px solid var(--border-primary); font-weight: bold; font-size: 0.85em; letter-spacing: 1px; }
+.combate-estado-selo--preparacao { color: var(--cor-info); border-color: var(--cor-info); background: color-mix(in srgb, var(--cor-info) 10%, transparent); }
+.combate-estado-selo--ativo { color: var(--cor-secundaria); border-color: var(--cor-secundaria); background: rgba(var(--cor-secundaria-rgb), 0.12); text-shadow: 0 0 6px rgba(var(--cor-secundaria-rgb), 0.6); }
+.combate-estado-btn { margin: 0; padding: 2px 10px; font-size: 0.8em; }
+.combate-estado-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.combate-estado-aviso { color: var(--cor-destaque); font-size: 0.8em; font-style: italic; }
+.combate-estado-dica { color: var(--cor-destaque); font-size: 0.8em; font-style: italic; margin: 6px 0 0; }
+
+.lado-selo { --lado-cor: var(--cor-primaria); display: inline-flex; align-items: center; gap: 3px; padding: 0 5px; min-width: 18px; justify-content: center; border-radius: 10px; border: 1px solid var(--lado-cor); background: rgba(0, 0, 0, 0.75); font-size: 0.7em; line-height: 1.5; color: #fff; }
+.lado-selo--oculto { --lado-cor: var(--cor-destaque); border-style: dashed; }
+.lado-selo--mestre-oculto { border-style: dashed; }
+.lado-selo-nome { font-weight: bold; }
+.lado-selo-posicao { position: absolute; bottom: -6px; left: -4px; pointer-events: none; }
+.lado-moldura { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
+.lado-moldura-rotulo { --lado-cor: var(--cor-primaria); display: inline-block; padding: 2px 10px; border-radius: 12px; border: 1px solid var(--lado-cor); background: rgba(0, 0, 0, 0.7); color: #fff; font-size: 0.85em; font-weight: bold; text-shadow: 0 0 4px #000; }
+.lado-moldura-rotulo--oculto { --lado-cor: var(--cor-destaque); border-style: dashed; color: var(--cor-destaque); }
+.lado-moldura-controles { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; background: rgba(0, 0, 0, 0.7); padding: 3px 8px; border-radius: 8px; }
+.lado-moldura-campo { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8em; color: #ccc; }
+.lado-moldura-select { margin: 0; padding: 2px 6px; height: 26px; font-size: 0.85em; }
+.lado-moldura-btn { margin: 0; padding: 2px 10px; font-size: 0.8em; }
+.lado-estado { font-size: 0.75em; font-weight: bold; }
+.lado-estado--oculto { color: var(--cor-destaque); }
+.lado-estado--revelado { color: var(--cor-sucesso); }
+.lado-moldura-select:focus-visible, .lado-moldura-btn:focus-visible, .combate-estado-btn:focus-visible, .equipes-btn:focus-visible, .equipes-titulo-btn:focus-visible, .equipes-select:focus-visible, .equipes-input-cor:focus-visible { outline: 2px solid var(--cor-destaque); outline-offset: 2px; }
+
+.equipes-painel { padding: 12px 15px; border: 1px solid var(--border-primary); border-radius: 8px; }
+.equipes-titulo-btn { background: none; border: none; color: var(--cor-primaria); font: inherit; font-size: 1.1em; font-weight: bold; cursor: pointer; padding: 0; text-shadow: 0 0 6px rgba(var(--cor-primaria-rgb), 0.5); }
+.equipes-corpo { margin-top: 10px; }
+.equipes-aviso { color: var(--cor-destaque); font-size: 0.85em; font-style: italic; }
+.equipes-subtitulo { color: var(--cor-destaque); margin: 14px 0 6px; font-size: 0.95em; }
+.equipes-lista, .equipes-matriz, .equipes-membros { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.equipes-item { --lado-cor: var(--cor-primaria); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 8px; border-left: 4px solid var(--lado-cor); background: rgba(0, 0, 0, 0.35); border-radius: 4px; }
+.equipes-input-icone { width: 54px; margin: 0; padding: 4px; text-align: center; }
+.equipes-input-nome { flex: 1 1 160px; margin: 0; padding: 4px 8px; }
+.equipes-input-cor { width: 38px; height: 28px; padding: 0; border: 1px solid var(--border-primary); background: none; cursor: pointer; }
+.equipes-padrao { color: #888; font-size: 0.75em; font-style: italic; }
+.equipes-acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+.equipes-btn { margin: 0; padding: 4px 12px; font-size: 0.8em; }
+.equipes-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.equipes-confirmar { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--cor-secundaria); font-size: 0.85em; font-weight: bold; }
+.equipes-legenda, .equipes-vazio { color: #999; font-size: 0.8em; margin: 4px 0; }
+.equipes-par, .equipes-membro { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.equipes-par-nome, .equipes-membro-nome { flex: 1 1 180px; color: #ddd; font-size: 0.9em; }
+.equipes-select { margin: 0; padding: 4px 8px; font-size: 0.85em; min-width: 140px; }

@@ -138,14 +138,16 @@ describe('clamps', () => {
 
 describe('poderDoOponenteMaisForte: selecao', () => {
     const fp = (vida) => ({ combate: {}, vida: { base: vida }, ascensaoBase: 1 });
+    // Só combatentes HOSTIS ao portador contam como oponente (core/lados.js): o portador é jogador (aliados) e os oponentes são NPCs (inimigos).
+    const fn = (vida) => ({ ...fp(vida), isNPC: true });
     it('exclui o proprio portador mesmo sendo o mais forte e pega o mais forte dos outros', () => {
-        const personagens = { A: fp(1e9), B: fp(1e3), C: fp(1e5) };
+        const personagens = { A: fp(1e9), B: fn(1e3), C: fn(1e5) };
         const ordem = ['A', 'B', 'C'].map(n => ({ id: n, nome: n, isDummie: false, ficha: personagens[n] }));
         const r = poderDoOponenteMaisForte(ordem, 'A', { personagens, dummies: {}, meuNome: 'Z' });
         expect(r.nome).toBe('C');
     });
     it('dummie com poder maior vence jogador; dummie sem poder (undefined/null/NaN/negativo) e ignorado', () => {
-        const personagens = { B: fp(1e3) };
+        const personagens = { B: fn(1e3) };
         const ordem = [
             { id: 'B', nome: 'B', isDummie: false, ficha: personagens.B },
             { id: 'd1', nome: 'D1', isDummie: true, ficha: {} },
@@ -159,9 +161,9 @@ describe('poderDoOponenteMaisForte: selecao', () => {
         expect(poderDoOponenteMaisForte(ordem, 'A', { personagens, dummies }).nome).toBe('B');
     });
     it('usa minhaFicha quando o item e meuNome', () => {
-        const ordem = [{ id: 'Eu', nome: 'Eu', isDummie: false, ficha: fp(1) }];
-        const r = poderDoOponenteMaisForte(ordem, 'Outro', { personagens: { Eu: fp(1) }, meuNome: 'Eu', minhaFicha: fp(1e9) });
-        const r2 = poderDoOponenteMaisForte(ordem, 'Outro', { personagens: { Eu: fp(1e9) }, meuNome: 'Eu', minhaFicha: fp(1) });
+        const ordem = [{ id: 'Eu', nome: 'Eu', isDummie: false, ficha: fn(1) }];
+        const r = poderDoOponenteMaisForte(ordem, 'Outro', { personagens: { Eu: fn(1) }, meuNome: 'Eu', minhaFicha: fn(1e9) });
+        const r2 = poderDoOponenteMaisForte(ordem, 'Outro', { personagens: { Eu: fn(1e9) }, meuNome: 'Eu', minhaFicha: fn(1) });
         expect(r.poder).toBeGreaterThan(r2.poder);
     });
     it('ordem invalida/itens nulos nao quebram', () => {
