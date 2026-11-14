@@ -28,6 +28,7 @@ import { sincronizarEscudoDoPoder, normalizarEscudoAoLigar } from '../../core/es
 import { normalizarGatilhos } from '../../core/gatilhos';
 import { conferirLimitesProgressao } from '../../core/receitasProgressao';
 import { dispararEventoNaFicha, forcarGatilhoNaFicha, rngPreSorteado } from '../../core/gatilhosAplicar';
+import { registrarGastoDeEnergia } from '../../core/zenkaiMedicao';
 import { ESTAGIOS_PADRAO, normalizarEstagios, limitarEstagio } from '../../core/estagios';
 import { SECOES_PADRAO, chaveRascunhoPoder, chaveAbaRascunhoPoder, rascunhoVazio, rascunhoDoPoder, rascunhoTemConteudo, rascunhoTemAlteracao, rascunhoDifere, completarRascunho } from '../../core/rascunhoPoder';
 
@@ -1012,13 +1013,16 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         if (custoFinalPerc > 0 || overchargeGeraFadiga || ganhoFadigaMaestria > 0) {
             updateFicha(ficha => {
                 if (custoFinalPerc > 0) {
+                    const gastosZenkai = [];
                     ['mana', 'aura', 'chakra'].forEach(v => {
                         let maxDisplay = getVitalMxDisplay(v, ficha);
                         let drain = Math.floor(maxDisplay * (custoFinalPerc / 100));
                         let curr = ficha[v]?.atual !== undefined ? ficha[v].atual : maxDisplay;
                         if (!ficha[v]) ficha[v] = {};
                         ficha[v].atual = Math.max(0, curr - drain);
+                        gastosZenkai.push({ key: v, valor: curr - ficha[v].atual });
                     });
+                    registrarGastoDeEnergia(ficha, { drenos: gastosZenkai }); // 💥 Zenkai
                 }
                 if (overchargeGeraFadiga || ganhoFadigaMaestria > 0) {
                     if (!ficha.combate) ficha.combate = {};

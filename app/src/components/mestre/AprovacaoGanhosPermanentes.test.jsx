@@ -26,13 +26,13 @@ describe('AprovacaoGanhosPermanentes', () => {
         render(<AprovacaoGanhosPermanentes itens={itens} aoConfirmar={aoConfirmar} aoCancelar={() => {}} />);
         fireEvent.click(screen.getByTestId('aprovacao-item-Verg').querySelector('input[value="recusar"]'));
         fireEvent.click(screen.getByText('Confirmar e encerrar'));
-        expect(aoConfirmar).toHaveBeenLastCalledWith({ Natsu: 'liberar', Verg: 'recusar' });
+        expect(aoConfirmar).toHaveBeenLastCalledWith({ Natsu: 'liberar', Verg: 'recusar' }, {});
         fireEvent.click(screen.getByText('Recusar todos'));
         fireEvent.click(screen.getByText('Confirmar e encerrar'));
-        expect(aoConfirmar).toHaveBeenLastCalledWith({ Natsu: 'recusar', Verg: 'recusar' });
+        expect(aoConfirmar).toHaveBeenLastCalledWith({ Natsu: 'recusar', Verg: 'recusar' }, {});
         fireEvent.click(screen.getByText('Liberar todos'));
         fireEvent.click(screen.getByText('Confirmar e encerrar'));
-        expect(aoConfirmar).toHaveBeenLastCalledWith({ Natsu: 'liberar', Verg: 'liberar' });
+        expect(aoConfirmar).toHaveBeenLastCalledWith({ Natsu: 'liberar', Verg: 'liberar' }, {});
     });
     it('Cancelar chama aoCancelar e não confirma', () => {
         const aoConfirmar = vi.fn(); const aoCancelar = vi.fn();

@@ -19,8 +19,8 @@ const ctr = (f, id) => f.contadores.find(c => c.id === id);
 const poderDe = (f, id) => acharPoderDoModelo(f, id);
 
 describe('catalogo', () => {
-    it('tem Ego Superior (forma) e Verg Avesta (habilidade com origem)', () => {
-        expect(MODELOS.map(x => x.id)).toEqual([EGO, VERG]);
+    it('tem Ego Superior (forma), Verg Avesta (habilidade com origem) e Zenkai (habilidade)', () => {
+        expect(MODELOS.map(x => x.id)).toEqual([EGO, VERG, 'zenkai']);
         expect(m(EGO).categoria).toBe('forma');
         expect(m(EGO).temOrigem).toBe(false);
         expect(m(VERG).categoria).toBe('habilidade');

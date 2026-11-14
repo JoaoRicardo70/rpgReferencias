@@ -23,6 +23,7 @@ import {
     CAMINHOS_ADAPTACAO, CAMINHO_GANHO_PERMANENTE_PODER, LIMITE_ADAPTACAO_GANHO_PERC, LIMITE_ADAPTACAO_GANHO_PERC_MIN, LIMITE_ADAPTACAO_TOTAL_PERMANENTE,
 } from './adaptacao.js';
 import { FATOR_PODER_MAX, FATOR_PODER_MIN } from './poder.js';
+import { calcularZenkai, decidirZenkaiNoFim, resumirZenkai } from './zenkai.js';
 
 export const CAMINHO_FOTO_GANHOS = 'combate/ganhosAntesDoCombate';
 export const CAMINHO_FATOR_PERMANENTE = 'ganhosPermanentes/fatorPoder';
@@ -60,7 +61,9 @@ export function fotografarGanhos(ficha) {
 
 // O que está pendente de aprovação.
 // adaptacao: { pct (média das %), turnos, soma } ou null; derivados: { poderCalculado (diferença aditiva), fatorPoder (razão atual/foto) } ou null
-// (só com foto e só se algo mudou). temPendencia = há alguma das duas.
+// (só com foto e só se algo mudou); zenkai: { pct (sugerido, em %), turnos, score, teto, fatorOponente, semOponente, componentes[], resumo } ou AUSENTE (só com Zenkai
+// ligado e ao menos 1 turno do portador; o valor é sugestão e o Mestre pode ajustá-lo). O Zenkai NÃO entra em `derivados` (só é aplicado depois da decisão).
+// temPendencia = há alguma das três.
 export function calcularPendencias(ficha) {
     const turnos = getTurnosAdaptacao(ficha);
     const media = mediaAdaptacao(ficha);
@@ -78,7 +81,12 @@ export function calcularPendencias(ficha) {
         const temFator = Math.abs(razao - 1) > EPS;
         if (temDp || temFator) derivados = { poderCalculado: temDp ? dp : 0, fatorPoder: temFator ? razao : 1 };
     }
-    return { temPendencia: !!adaptacao || !!derivados, adaptacao, derivados };
+    let zenkai = null;
+    try {
+        const z = calcularZenkai(ficha);
+        if (z.ativo && z.turnos > 0) zenkai = { pct: z.pct, turnos: z.turnos, score: z.score, teto: z.teto, fatorOponente: z.fatorOponente, fatorDuracao: z.fatorDuracao, turnosMinimos: z.turnosMinimos, semOponente: z.semOponente, componentes: z.componentes, resumo: resumirZenkai(z) };
+    } catch (e) { zenkai = null; }
+    return { temPendencia: !!adaptacao || !!derivados || !!zenkai, adaptacao, derivados, ...(zenkai ? { zenkai } : {}) };
 }
 
 // Frase curta dos valores pendentes (para o diálogo e o feed), ex.: "+15% (Adaptação) · +50% (derivados)".
@@ -100,8 +108,9 @@ function apagarFoto(ficha, caminhos) {
 }
 
 // Fase 1 (ANTES dos gatilhos de fimDeLuta): trata a Adaptação. Devolve { textos, caminhos, pendencias }.
-export function iniciarFim(ficha, modo, { nome } = {}) {
-    const res = { textos: [], caminhos: [], pendencias: calcularPendencias(ficha) };
+// `zenkaiPct` (modo 'liberar'): valor final do Zenkai (em %) ajustado pelo Mestre; ausente = o sugerido. `textosZenkai`: frases próprias do Zenkai (o feed as mostra à parte).
+export function iniciarFim(ficha, modo, { nome, zenkaiPct, nomeZenkai } = {}) {
+    const res = { textos: [], textosZenkai: [], caminhos: [], pendencias: calcularPendencias(ficha) };
     if (!ficha || !MODOS_FIM_PERMANENTE.includes(modo) || modo === 'adiar') return res;
     const caminhos = new Set();
     const antes = estadoAdaptacao(ficha);
@@ -109,7 +118,7 @@ export function iniciarFim(ficha, modo, { nome } = {}) {
         const r = converterAdaptacaoEmPermanente(ficha);
         if (r) caminhos.add(CAMINHO_GANHO_PERMANENTE_PODER);
         if (modo === 'converter') { if (r) res.textos.push(textoConversaoAdaptacao(r)); }
-        else if (res.pendencias.temPendencia) {
+        else if (res.pendencias.adaptacao || res.pendencias.derivados) {
             res.textos.push(`✅ ${nome ? `${nome}: ` : ''}ganho permanente liberado: ${descreverPendencias(res.pendencias)}`);
         }
     } else {
@@ -117,6 +126,13 @@ export function iniciarFim(ficha, modo, { nome } = {}) {
         zerarAdaptacao(ficha);
     }
     if (estadoAdaptacao(ficha) !== antes) CAMINHOS_ADAPTACAO.forEach(c => caminhos.add(c));
+    // 💥 Zenkai: 'converter' aplica o sugerido, 'liberar' o valor do Mestre (ou o sugerido), 'recusar'/'limpar' descartam; a telemetria sempre zera.
+    // Soma p/100 em poderCalculado como a Adaptação (aditivo: a ordem entre as duas não importa).
+    try {
+        const z = decidirZenkaiNoFim(ficha, modo, { pctFinal: zenkaiPct, nome: nomeZenkai });
+        if (z.texto) res.textosZenkai.push(z.texto);
+        z.caminhos.forEach(c => caminhos.add(c));
+    } catch (e) { console.error('Zenkai no fim do combate falhou', e); }
     res.caminhos = [...caminhos];
     return res;
 }
@@ -141,7 +157,7 @@ export function concluirFim(ficha, modo, { nome, pendencias } = {}) {
         }
         const p = pendencias || { temPendencia: false };
         const mudou = caminhos.size > 0;
-        if (p.temPendencia || mudou) res.textos.push(`❌ ${nome ? `${nome}: ` : ''}o Mestre recusou os ganhos permanentes deste combate; Poder volta ao de antes`);
+        if (p.adaptacao || p.derivados || mudou) res.textos.push(`❌ ${nome ? `${nome}: ` : ''}o Mestre recusou os ganhos permanentes deste combate; Poder volta ao de antes`);
     }
     apagarFoto(ficha, caminhos);
     res.caminhos = [...caminhos];
@@ -154,7 +170,7 @@ export function aplicarDecisao(ficha, decisao, opcoes = {}) {
     const modo = decisao === 'recusar' ? 'recusar' : 'liberar';
     const a = iniciarFim(ficha, modo, opcoes);
     const b = concluirFim(ficha, modo, { ...opcoes, pendencias: a.pendencias });
-    return { textos: [...a.textos, ...b.textos], caminhos: [...new Set([...a.caminhos, ...b.caminhos])], pendencias: a.pendencias };
+    return { textos: [...a.textos, ...b.textos], textosZenkai: a.textosZenkai, caminhos: [...new Set([...a.caminhos, ...b.caminhos])], pendencias: a.pendencias };
 }
 
 // Opção do Mestre/Co-Mestre (cenario.aprovarGanhosPermanentes). AUSENTE = LIGADA (padrão); só `false` desliga.

@@ -6,6 +6,9 @@ import { getPoderParaDisputa, getPoderDummie } from './disputaPoder.js';
 import { escolherOponente, registrarTurnoAdaptacao } from './adaptacao.js';
 import { relacaoEntre } from './lados.js';
 import { combateAtivo } from './combateEstado.js';
+import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
+import { zenkaiLigado } from './zenkai.js';
+import { medirTurnoZenkai } from './zenkaiMedicao.js';
 
 // Poder do OPONENTE mais forte entre os combatentes da ordem de iniciativa (itens { id, nome, ficha, isDummie }) que têm relação HOSTIL com o portador
 // (core/lados.js > relacaoEntre, pelo cenário: aliados e neutros NÃO contam; sem hostil válido = null e nada é registrado).
@@ -45,14 +48,30 @@ export function aplicarAdaptacaoNoTurno(ficha, contexto) {
     } catch (e) { console.error('Adaptação falhou', e); return null; }
 }
 
-// Monta o contexto que aplicarInicioDeTurno recebe (só se a Adaptação do portador estiver ligada; senão null e nada é medido).
+// 💥 Zenkai (core/zenkai.js): no início do turno mede Fadiga, Forma, Vida e a razão Poder do oponente ÷ Poder do portador (mesmo oponente da Adaptação).
+// Só faz algo com Zenkai ligado. `contexto` = o de montarContextoAdaptacao. Devolve true se registrou. NUNCA lança.
+export function aplicarZenkaiNoTurno(ficha, contexto) {
+    try {
+        if (!zenkaiLigado(ficha) || !contexto) return false;
+        let razao = null;
+        if (contexto.oponente) {
+            const pp = Number(getPoderParaDisputa(ficha, contexto.divisorPoderMesa));
+            const po = contexto.oponente.poder === null || contexto.oponente.poder === undefined || contexto.oponente.poder === '' ? NaN : Number(contexto.oponente.poder);
+            if (Number.isFinite(pp) && pp > 0 && Number.isFinite(po) && po >= 0) razao = po / pp;
+        }
+        return medirTurnoZenkai(ficha, { razao, vidaMaxBruta: getVidaMaxBrutaNpc(ficha) });
+    } catch (e) { console.error('Zenkai falhou', e); return false; }
+}
+
+// Monta o contexto que aplicarInicioDeTurno recebe (só se a Adaptação OU o Zenkai do portador estiverem ligados; senão null e nada é medido: o custo de medir
+// o oponente só existe quando alguma das duas está ligada). `estado.inicioDeCombate` = primeiro turno do combate (o Zenkai reinicia a telemetria).
 // `estado` = useStore.getState() (personagens, dummies, meuNome, minhaFicha, divisorPoderMesa, cenario) + cenaIdCombate opcional. Nunca lança.
 export function montarContextoAdaptacao(ficha, nomeDono, ordem, estado = {}) {
     try {
-        if (!ficha || !ficha.combate || ficha.combate.adaptacaoLigada !== true) return null;
+        if (!ficha || !ficha.combate || (ficha.combate.adaptacaoLigada !== true && ficha.combate.zenkaiLigado !== true)) return null;
         // Com `estado.cenaIdCombate` a Adaptação só registra turno se a cena tem combate ATIVO (fase de preparação não conta).
         if (estado.cenaIdCombate && !combateAtivo(estado.cenario, estado.cenaIdCombate)) return null;
         const oponente = poderDoOponenteMaisForte(ordem, nomeDono, { ...estado, fichaPortador: ficha });
-        return { oponente, divisorPoderMesa: estado.divisorPoderMesa };
+        return { oponente, divisorPoderMesa: estado.divisorPoderMesa, ...(estado.inicioDeCombate ? { zenkaiReiniciar: true } : {}) };
     } catch (e) { console.error('Contexto da Adaptação falhou', e); return null; }
 }

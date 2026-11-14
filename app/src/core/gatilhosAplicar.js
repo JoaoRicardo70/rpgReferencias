@@ -20,6 +20,7 @@ import { somarBuffTemporario } from './suporte.js';
 import { chaveDoGatilhoDoPoder, normalizarGatilhos, LIMITE_TOTAL_GANHO_PERMANENTE, LIMITE_GANHO_PERC_MIN, LIMITE_GANHO_PERMANENTE } from './gatilhos.js';
 import { FATOR_PODER_MAX, FATOR_PODER_MIN, zerarGanhosCombate } from './poder.js';
 import { CAMINHOS_ADAPTACAO } from './adaptacao.js';
+import { CAMINHOS_ZENKAI } from './zenkai.js';
 import { iniciarFim, concluirFim } from './aprovacaoPermanente.js';
 
 const fmtN = (n) => Math.floor(Number(n) || 0).toLocaleString('pt-BR');
@@ -271,7 +272,7 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                 danoExibido = Math.floor(danoExibido);
                 if (!(danoExibido > 0)) break;
                 // Ponto único de dano (core/danoVida.js), direto na Vida (sem escudo): God Mode zera; gatilhos de Vida podem disparar (cadeia + 1).
-                const r = aplicarDanoNaVida(ficha, danoExibido, { nome: ctx.nome || '', semEscudo: true, cenaId: ctx.cenaId, vidaMaxBruta: vidaMax, profundidade: (Number(ctx.profundidade) || 0) + 1, jaDisparados: chavesNaCadeia, rng: ctx.rng, decisoes: ctx.decisoes, perguntas: ctx.perguntas, escolher: ctx.escolher });
+                const r = aplicarDanoNaVida(ficha, danoExibido, { nome: ctx.nome || '', semEscudo: true, autoInfligido: true, cenaId: ctx.cenaId, vidaMaxBruta: vidaMax, profundidade: (Number(ctx.profundidade) || 0) + 1, jaDisparados: chavesNaCadeia, rng: ctx.rng, decisoes: ctx.decisoes, perguntas: ctx.perguntas, escolher: ctx.escolher });
                 r.caminhos.forEach(p => caminhos.add(p));
                 (r.externos || []).forEach(e => externos.push(e));
                 if (!r.imune && !r.anulado) textos.push(`${nome} custou ${fmtN(danoExibido)} de vida`);
@@ -406,6 +407,8 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
     if (!ficha || !evento || !evento.tipo) return res;
     const caminhos = new Set();
     const cenaId = ctx.cenaId || 'default';
+    // 💥 Zenkai: res.textosZenkai só existe no fimDeLuta (frases próprias do Zenkai, para o feed à parte). ctx.zenkaiPct = valor final do Mestre (em %).
+    if (evento.tipo === 'fimDeLuta') res.textosZenkai = [];
     const modoPermanente = ctx.permanente || 'converter';
     let fimPermanente = null;
     if (evento.tipo === 'turnoInicio' || evento.tipo === 'fimDeLuta') { if (zerarUsosPorTurno(ficha)) caminhos.add('combate/usosPoderes'); }
@@ -414,9 +417,10 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
         // 🧬 Adaptação: por padrão ('converter') a média das % ganhas nos turnos vira Poder PERMANENTE e o fator de combate zera (core/adaptacao.js). Idempotente.
         // ctx.permanente: 'liberar'/'recusar' = decisão do Mestre; 'adiar' = combate ainda ativo; 'limpar' = sem combate (core/aprovacaoPermanente.js).
         try {
-            fimPermanente = iniciarFim(ficha, modoPermanente);
+            fimPermanente = iniciarFim(ficha, modoPermanente, { nomeZenkai: ctx.nome, zenkaiPct: ctx.zenkaiPct });
             fimPermanente.caminhos.forEach(c => caminhos.add(c));
             fimPermanente.textos.forEach(t => res.textos.push(t));
+            fimPermanente.textosZenkai.forEach(t => res.textosZenkai.push(t));
         } catch (e) { console.error('Conversão da Adaptação falhou', e); }
     }
     const profundidade = Number(ctx.profundidade) || 0;
@@ -493,7 +497,7 @@ export function camposParaGravar(ficha, caminhos) {
 
 // Campos de gatilhos/condições que mudaram entre duas versões da ficha (para gravar só eles no Firebase de OUTRO jogador).
 // Formato { caminho: valor | null }. Usado no início do turno (estados que tiram Vida, Imunidade total que passa).
-const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'ganhosPermanentes/fatorPoder', ...CAMINHOS_ADAPTACAO, 'combate/ganhosAntesDoCombate', 'ganhosCombate/poderCalculado', 'ganhosCombate/fatorPoder', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
+const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'ganhosPermanentes/fatorPoder', ...CAMINHOS_ADAPTACAO, 'combate/ganhosAntesDoCombate', ...CAMINHOS_ZENKAI, 'ganhosCombate/poderCalculado', 'ganhosCombate/fatorPoder', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
 export function camposDeGatilhosAlterados(antes, depois) {
     const lido = (f, caminho) => caminho.split('/').reduce((v, p) => (v === undefined || v === null ? undefined : v[p]), f);
     const mudados = CAMINHOS_GATILHOS.filter(c => JSON.stringify(lido(antes, c)) !== JSON.stringify(lido(depois, c)));

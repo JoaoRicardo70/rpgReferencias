@@ -8,7 +8,7 @@ import {
 } from '../../core/modelosPoder';
 
 // 🧩 "➕ Adicionar de modelo": assistente do MESTRE que cria de uma vez o poder + contadores + gatilhos de uma mecânica pronta
-// (Ego Superior, Verg Avesta). Age na ficha mostrada (a própria ou a de outro personagem, via useFichaAtiva) e só aparece para o Mestre;
+// (Ego Superior, Verg Avesta, Zenkai). Age na ficha mostrada (a própria ou a de outro personagem, via useFichaAtiva) e só aparece para o Mestre;
 // aplicarModeloNaFicha confere o Mestre de novo. Poder do mesmo modelo já na ficha vira "Editar partes" (não duplica).
 const ETAPAS = ['Modelo', 'Partes', 'Resumo'];
 
@@ -141,7 +141,7 @@ export default function ModelosPoderAssistente() {
                                                             {MODOS_GANHO.map(mo => <option key={mo.id} value={mo.id}>{mo.rotulo}</option>)}
                                                         </select>
                                                     ) : (
-                                                        <input type="number" value={params[p.id] ?? p.padrao} min={p.min} max={p.max} onChange={e => mudarParam(p.id, e.target.value)} />
+                                                        <input type="number" value={params[p.id] ?? p.padrao} min={p.min} max={p.max} step={p.passo} onChange={e => mudarParam(p.id, e.target.value)} />
                                                     )}
                                                 </label>
                                             ))}
@@ -179,6 +179,7 @@ export default function ModelosPoderAssistente() {
                                 <li>{plano.contadores} contador(es) novo(s){plano.contadoresAtualizados > 0 ? `, ${plano.contadoresAtualizados} ajustado(s) (nome/limites)` : ''}{plano.contadoresRemovidos > 0 ? `, ${plano.contadoresRemovidos} removido(s)` : ''}</li>
                                 <li>{plano.gatilhos} gatilho(s) {criarOpcionais ? 'opcionais e desarmados' : 'automáticos e armados'}</li>
                                 {plano.adaptacao && <li>Liga a Adaptação: {String(plano.adaptacao.fracao).replace('.', ',')}% da diferença de Poder para o oponente mais forte, por turno</li>}
+                                {plano.zenkai && <li>Liga o Zenkai: teto de {String(plano.zenkai.teto).replace('.', ',')}% por combate (pontuação {String(plano.zenkai.pontuacaoRef).replace('.', ',')} enche o teto); o Mestre ajusta o valor ao encerrar o combate. Pesos: {Object.entries(plano.zenkai.pesos).map(([k, v]) => `${k} ${String(v).replace('.', ',')}`).join(', ')}. Pontuação = soma de peso × fator (dano, energia, fadiga, duração, quase morte, Formas) e Zenkai % = teto × pontuação ÷ referência × fator do oponente (padrões são suposições a revisar).</li>}
                                 {modelo.temOrigem && <li>Origem: {origem.tipo === 'independente' ? 'independente' : `herdada${origem.fonte ? ` de ${origem.fonte}` : ' de um ser'}`}</li>}
                             </ul>
                             {existente && temGanhoLegado(existente) && <div className="modelo-poder-resultado erro" role="alert">⚠️ Os ganhos agora são em % (ex.: Ego +2% por acerto; Verg 0,1% por golpe). Os gatilhos antigos usavam valor bruto (+2 = +200%); regenerar troca para a nova escala.</div>}

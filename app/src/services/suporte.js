@@ -10,6 +10,7 @@ import { getVidaMaxExibidaFicha } from '../core/danoProporcional';
 import { danoExibidoParaBruto, getVitalMxDisplay } from '../core/vitals';
 import { descreverBuff } from '../core/combos';
 import { gastarAcoes, acoesEmFalta } from '../core/acoesTecnica';
+import { registrarGastoDeEnergia } from '../core/zenkaiMedicao';
 
 // Quem recebe o quê. `fichas` = { nome: ficha } de todos (inclui a minha). Devolve { erro } ou { receptores, custo }.
 export function planejarUsoSuporte({ item, meuNome, fichas, aliados = [], agora = Date.now(), rolar }) {
@@ -76,7 +77,7 @@ export function usarSuporte({ item, aliados, ctx }) {
     });
     const meu = plano.receptores.find(r => r.nome === meuNome);
     updateFicha((f) => {
-        if (custo.valor > 0 && f[custo.energia]) f[custo.energia].atual = Math.max(0, (f[custo.energia].atual || 0) - custo.valor);
+        if (custo.valor > 0 && f[custo.energia]) { f[custo.energia].atual = Math.max(0, (f[custo.energia].atual || 0) - custo.valor); registrarGastoDeEnergia(f, { drenos: [{ key: custo.energia, valor: custo.valor }] }); /* 💥 Zenkai */ }
         if (s.acao !== 'nenhuma') gastarAcoes(f, [s.acao]);
         if (meu) {
             if (meu.vidaNova !== null && f.vida) f.vida.atual = meu.vidaNova;

@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { getMaximo } from '../../core/attributes.js';
 import { fatorAdaptacao, getFracaoAdaptacao, getTurnosAdaptacao, mediaAdaptacao, limitarFracaoAdaptacao, zerarAdaptacao } from '../../core/adaptacao';
+import { zenkaiLigado, calcularZenkai, zerarZenkai, lerTelemetriaZenkai } from '../../core/zenkai';
 import { rotuloComPolaridade } from '../../core/polaridade';
 import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
 
@@ -726,6 +727,47 @@ function PaginaMarcadores() {
                     </div>
                 </div>
             </div>
+            {/* 💥 ZENKAI (acompanhamento da luta) */}
+            <BlocoZenkai />
+        </div>
+    );
+}
+
+// 💥 ZENKAI (esta luta): acompanhamento SOMENTE LEITURA do que a luta já rendeu (core/zenkai.js). Só aparece com Zenkai ligado (modelo "Zenkai" do Mestre).
+// O valor final quem decide é o Mestre/Co-Mestre ao encerrar o combate; "Zerar" apaga a telemetria sem aplicar nada.
+function BlocoZenkai() {
+    const { minhaFicha, updateFicha, callSave } = useClassificacao();
+    const ligado = zenkaiLigado(minhaFicha);
+    const calc = useMemo(() => (ligado ? calcularZenkai(minhaFicha) : null), [ligado, minhaFicha]);
+    const telemetria = useMemo(() => (ligado ? lerTelemetriaZenkai(minhaFicha) : null), [ligado, minhaFicha]);
+    if (!ligado || !calc) return null;
+    const fmt = (n) => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 4 });
+    const zerar = () => { updateFicha(f => { zerarZenkai(f); }); callSave(); };
+    return (
+        <div className="zenkai-bloco" data-testid="zenkai-bloco">
+            <div className="zenkai-cabecalho">
+                <h2 className="zenkai-titulo">💥 Zenkai (esta luta)</h2>
+                <button type="button" className="zenkai-zerar" onClick={zerar} disabled={!telemetria}>🧹 Zerar (sem aplicar)</button>
+            </div>
+            <p className="zenkai-ajuda">Quanto mais DIFÍCIL a luta foi para você (dano, energia gasta, fadiga, duração, quase morte, Formas e oponente mais forte), maior o Poder permanente. O Mestre ajusta e libera ao encerrar o combate.</p>
+            {!telemetria ? (
+                <p className="zenkai-estado" role="status">Nenhuma luta em andamento: a telemetria começa quando o combate inicia.</p>
+            ) : (
+                <>
+                    <ul className="zenkai-lista">
+                        {calc.componentes.map(c => (
+                            <li key={c.id} className="zenkai-fator">
+                                <span className="zenkai-fator-nome">{c.rotulo}</span>
+                                <span className="zenkai-fator-valor">{fmt(c.valor * 100)}%</span>
+                                <span className="zenkai-fator-detalhe">{c.detalhe} (peso {fmt(c.peso)})</span>
+                            </li>
+                        ))}
+                    </ul>
+                    <p className="zenkai-estado" role="status">{calc.semOponente ? 'Oponente: sem dados ainda (fator ×0,1).' : `Oponente: fator ×${fmt(calc.fatorOponente)} (média de Poder do oponente ÷ o seu).`}</p>
+                    <p className="zenkai-estado" role="status">{calc.fatorDuracao < 1 ? `Combate curto: fator ×${fmt(calc.fatorDuracao)} (${calc.turnos} de ${fmt(calc.turnosMinimos)} turnos para o ganho cheio).` : `Duração: sem redução (${calc.turnos} turnos, mínimo ${fmt(calc.turnosMinimos)}).`}</p>
+                    <div className="zenkai-projecao" role="status">Zenkai projetado: <strong>+{fmt(calc.pct)}%</strong> <span className="zenkai-teto">(teto {fmt(calc.teto)}%)</span></div>
+                </>
+            )}
         </div>
     );
 }

@@ -4,7 +4,9 @@ import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salv
 import { calcularAcerto, calcularEficaciaCura, somarBonusBase } from '../../core/engine';
 import { montarContextoDeCombate } from '../../core/efeitosCondicionais';
 import { classificarRolagem } from '../../core/rolagemDado';
-import { montarContextoAdaptacao, aplicarAdaptacaoNoTurno } from '../../core/adaptacaoTurno';
+import { montarContextoAdaptacao, aplicarAdaptacaoNoTurno, aplicarZenkaiNoTurno } from '../../core/adaptacaoTurno';
+import { abrirTurnoZenkai, iniciarZenkai, novaTelemetriaZenkai, zenkaiLigado, CAMINHOS_ZENKAI } from '../../core/zenkai';
+import { registrarGastoDeEnergia } from '../../core/zenkaiMedicao';
 import { CAMINHOS_ADAPTACAO } from '../../core/adaptacao';
 import { getEquipes, getRelacoes, equipeDe, moverParaEquipe, textoMudancaDeLado, ladoEstaOculto, alvoNoFiltro, sanitizarEquipes, sanitizarRelacoes, comoCombatente, patchLadoOculto } from '../../core/lados';
 import { aprovarGanhosPermanentesLigado, cenarioComAprovacao, calcularPendencias, fotografarGanhos, lerGanhosPermanentes, CAMINHO_FOTO_GANHOS } from '../../core/aprovacaoPermanente';
@@ -102,6 +104,9 @@ export function aplicarInicioDeTurno(ficha, ehDummie = false, nome = '', context
     if (!ehDummie) passarTurnoDaImunidadeTotal(ficha);
 
     if (!ficha.combate) ficha.combate = {};
+    // 💥 Zenkai (core/zenkai.js): fecha o gasto de Energia do turno anterior (ou abre a telemetria no 1º turno / de quem entrou depois). Só com Zenkai ligado e combate ativo
+    // (contextoAdaptacao != null). Um erro aqui nunca impede o turno.
+    if (!ehDummie && contextoAdaptacao) { try { abrirTurnoZenkai(ficha, { reiniciar: contextoAdaptacao.zenkaiReiniciar === true }); } catch (e) { console.error('Zenkai: abertura do turno falhou', e); } }
     // 🧬 Adaptação (core/adaptacao.js): no INÍCIO do turno do portador, mede a diferença de Poder para o oponente mais forte da cena e compõe o ganho no fator de combate.
     // Medida ANTES de qualquer outra mudança do turno (Fadiga/regeneração). Dummies não adaptam; um erro aqui nunca impede o turno (aplicarAdaptacaoNoTurno não lança).
     const resAdaptacao = ehDummie ? null : aplicarAdaptacaoNoTurno(ficha, contextoAdaptacao);
@@ -117,7 +122,11 @@ export function aplicarInicioDeTurno(ficha, ehDummie = false, nome = '', context
     // 🔋 Poderes ligados com custo por turno pagam a energia (ou desligam sem ela) e ⏳ as recargas em turnos perdem 1 (core/custoPorTurno.js, core/recargaPoder.js).
     const custos = ehDummie ? { textos: [], desligados: 0 } : aplicarCustosPorTurno(ficha);
     const recargasMudaram = ehDummie ? 0 : passarTurnoDasRecargas(ficha);
+    // 💥 Zenkai: a energia que os Poderes com custo por turno pagaram entra no gasto do turno que começa.
+    if (!ehDummie && custos.gastos && contextoAdaptacao) registrarGastoDeEnergia(ficha, { drenos: custos.gastos });
     const estados = aplicarDanoDeEstadosNoTurno(ficha, ehDummie, nome);
+    // 💥 Zenkai: conta o turno do portador (Fadiga, Forma ativa, Vida mínima, razão do oponente). Depois do dano dos estados (que se registra sozinho).
+    if (!ehDummie) aplicarZenkaiNoTurno(ficha, contextoAdaptacao);
     // 🔔 Gatilhos de turno (core/gatilhos.js): poderDesligou (Poder desligado por falta de energia) e turnoInicio do dono. Os usos 'por turno' voltam aqui.
     const gatilhos = { textos: [], caminhos: [] };
     if (!ehDummie) {
@@ -241,6 +250,8 @@ function camposDeInicioDeTurno(ficha, camposPoderes = {}, escudosMudaram = false
         if (ficha.combate.fadigaExtra !== undefined) campos['combate/fadigaExtra'] = ficha.combate.fadigaExtra;
         // 🧬 Adaptação (core/adaptacao.js): só os campos que o início do turno mexe.
         if (ficha.combate.adaptacaoLigada === true) CAMINHOS_ADAPTACAO.forEach((c) => { const v = ficha.combate[c.split('/')[1]]; if (v !== undefined) campos[c] = v; });
+        // 💥 Zenkai (core/zenkai.js): a telemetria do combate inteira (um nó só).
+        if (zenkaiLigado(ficha) && ficha.combate.zenkai !== undefined) CAMINHOS_ZENKAI.forEach((c) => { campos[c] = ficha.combate[c.split('/')[1]]; });
         // ⏳ Ações seguradas expiram no começo do turno de quem segurou (core/acoes.js > restaurarAcoes).
         if (ficha.combate.acoesSeguradas !== undefined) campos['combate/acoesSeguradas'] = ficha.combate.acoesSeguradas;
         if (ficha.combate.acaoSeguradaCredito !== undefined) campos['combate/acaoSeguradaCredito'] = ficha.combate.acaoSeguradaCredito;
@@ -1012,7 +1023,8 @@ export function MapaFormProvider({ children }) {
     // 💖 Aplica o INÍCIO DE TURNO de `nextPlayer` (item da ordem): Ações, Fadiga, Regeneração, estados, custos, gatilhos turnoInicio e Adaptação.
     // Usado por avancarTurno (próximo da vez) e por iniciarCombate (o primeiro da ordem). `exigirCombateAtivo`: a Adaptação só mede com combate ativo na cena.
     const iniciarTurnoDe = useCallback((nextPlayer, storeState, exigirCombateAtivo) => {
-        const estadoAdaptacao = exigirCombateAtivo ? { ...storeState, cenaIdCombate: cenaRenderId } : storeState;
+        // `inicioDeCombate`: o primeiro turno (iniciarCombate) reinicia a telemetria do Zenkai.
+        const estadoAdaptacao = exigirCombateAtivo ? { ...storeState, cenaIdCombate: cenaRenderId } : { ...storeState, inicioDeCombate: true };
         if (nextPlayer.isDummie) {
             if (!isMestre) return;
             const dData = storeState.dummies[nextPlayer.id];
@@ -1236,7 +1248,7 @@ export function MapaFormProvider({ children }) {
             updateFicha(f => {
                 // 🛡️ Escudos e Vida temporária absorvem antes (core/escudos.js); o que sobra vai para a Vida.
                 // 🔔 Ponto único de dano na Vida (core/danoVida.js): Imunidade total, escudo e gatilhos.
-                const r = aplicarDanoNaVidaDaFicha(f, valor, { nome: alvo.nome, nomeEscudo: alvo.nome, decisoes: decisoesRapido, escolher: escolhaDoDono, golpe: GOLPE_DANO_RAPIDO });
+                const r = aplicarDanoNaVidaDaFicha(f, valor, { nome: alvo.nome, nomeEscudo: alvo.nome, decisoes: decisoesRapido, escolher: escolhaDoDono, golpe: GOLPE_DANO_RAPIDO, ...(atacante && atacante.nome === alvo.nome ? { autoInfligido: true } : {}) }); // 💥 Zenkai: dano em si mesmo não conta
                 textoEscudo = r.textoEscudo; textoGatilhos = textoDosGatilhos(r);
                 if (!f.combate) f.combate = {};
                 f.combate.ultimoElementoRecebido = elemento || null;
@@ -1246,7 +1258,7 @@ export function MapaFormProvider({ children }) {
             salvarFichaSilencioso();
         } else {
             // 🛡️ Escudos e Vida temporária do alvo absorvem antes (services/danoAlvo.js).
-            const r = aplicarDanoEmPersonagem(alvo.nome, alvo.ficha, valor, valorRaw, { elemento, nivelOverride, golpe: GOLPE_DANO_RAPIDO });
+            const r = aplicarDanoEmPersonagem(alvo.nome, alvo.ficha, valor, valorRaw, { elemento, nivelOverride, golpe: GOLPE_DANO_RAPIDO, ...(atacante && atacante.nome === alvo.nome ? { autoInfligido: true } : {}) });
             textoEscudo = r.texto;
             if (r.textos.length > 0) textoGatilhos = `🔔 ${r.textos.join(' · ')}`;
         }
@@ -1291,8 +1303,9 @@ export function MapaFormProvider({ children }) {
         // Quem entra na ordem depois do início não tem foto (nesse caso só a Adaptação é recusável).
         ordemIniciativa.filter(j => !j.isDummie && j.nome).forEach((j) => {
             try {
-                if (j.nome === storeState.meuNome) { updateFicha((f) => { fotografarGanhos(f); }); salvarFichaSilencioso(); }
-                else if (storeState.personagens?.[j.nome]) salvarCamposPersonagem(j.nome, { [CAMINHO_FOTO_GANHOS]: lerGanhosPermanentes(storeState.personagens[j.nome]) });
+                // 💥 Zenkai: a telemetria do combate nasce zerada em quem tem Zenkai ligado.
+                if (j.nome === storeState.meuNome) { updateFicha((f) => { fotografarGanhos(f); iniciarZenkai(f); }); salvarFichaSilencioso(); }
+                else if (storeState.personagens?.[j.nome]) salvarCamposPersonagem(j.nome, { [CAMINHO_FOTO_GANHOS]: lerGanhosPermanentes(storeState.personagens[j.nome]), ...(zenkaiLigado(storeState.personagens[j.nome]) ? { [CAMINHOS_ZENKAI[0]]: novaTelemetriaZenkai() } : {}) });
             } catch (e) { console.error('Foto dos ganhos permanentes falhou', e); }
         });
         ordemIniciativa.filter(j => !j.isDummie && j.nome).forEach((j) => {
@@ -1424,7 +1437,8 @@ export function MapaFormProvider({ children }) {
         return itens;
     }, []);
 
-    const encerrarCombateDaCena = useCallback((cenaId, nomesFornecidos, decisoes) => {
+    // `ajustes` ({ nome: pct }, do diálogo): valor FINAL do Zenkai que o Mestre digitou para cada personagem (só vale com 'liberar').
+    const encerrarCombateDaCena = useCallback((cenaId, nomesFornecidos, decisoes, ajustes) => {
         const storeState = useStore.getState();
         const nomes = nomesFornecidos || nomesDaCena(cenaId);
         // Cada cena conta como um combate: a Imunidade total (core/gatilhosAplicar.js) termina com ele, em mim e nos jogadores que a têm.
@@ -1433,9 +1447,11 @@ export function MapaFormProvider({ children }) {
         // 🔔 fimDeLuta: zera contadores com reset 'cena' e dispara os gatilhos de quem estava na cena.
         nomes.forEach((n) => {
             const fim = decisoes
-                ? dispararEventoEmPersonagem(n, { tipo: 'fimDeLuta' }, { permanente: decisoes[n] === 'recusar' ? 'recusar' : 'liberar' })
+                ? dispararEventoEmPersonagem(n, { tipo: 'fimDeLuta' }, { permanente: decisoes[n] === 'recusar' ? 'recusar' : 'liberar', ...(ajustes && ajustes[n] !== undefined ? { zenkaiPct: ajustes[n] } : {}) })
                 : dispararEventoEmPersonagem(n, { tipo: 'fimDeLuta' });
             if (fim.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${n}: ${fim.textos.join(' · ')}` });
+            // 💥 Zenkai: frases próprias ("🔥 X: Zenkai +A% (...)").
+            (fim.textosZenkai || []).forEach(t => enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: t }));
         });
         return nomes;
     }, [nomesDaCena, meuNome, updateFicha]);
@@ -1451,8 +1467,8 @@ export function MapaFormProvider({ children }) {
         if (aprovandoRef.current) return;
         aprovandoRef.current = true;
         const liberar = () => { aprovandoRef.current = false; };
-        const rodar = (decisoes) => {
-            try { Promise.resolve(executar(decisoes)).finally(liberar); } catch (e) { liberar(); console.error('Encerramento falhou', e); }
+        const rodar = (decisoes, ajustes) => {
+            try { Promise.resolve(executar(decisoes, ajustes)).finally(liberar); } catch (e) { liberar(); console.error('Encerramento falhou', e); }
         };
         try {
             if (!aprovarGanhosPermanentesLigado(useStore.getState().cenario)) { rodar(undefined); return; }
@@ -1461,7 +1477,7 @@ export function MapaFormProvider({ children }) {
             let usado = false;
             setAprovacao({
                 itens, titulo,
-                aoConfirmar: (decisoes) => { if (usado) return; usado = true; setAprovacao(null); if (useStore.getState().isMestre) rodar(decisoes); else liberar(); },
+                aoConfirmar: (decisoes, ajustes) => { if (usado) return; usado = true; setAprovacao(null); if (useStore.getState().isMestre) rodar(decisoes, ajustes); else liberar(); },
                 aoCancelar: () => { setAprovacao(null); liberar(); },
             });
         } catch (e) { liberar(); console.error('Aprovação falhou', e); }
@@ -1474,7 +1490,7 @@ export function MapaFormProvider({ children }) {
         return true;
     }, [isMestre]);
 
-    const trocarCena = useCallback((id, idAnterior, decisoes) => {
+    const trocarCena = useCallback((id, idAnterior, decisoes, ajustes) => {
         if (!isMestre) return;
         let novoCenario = JSON.parse(JSON.stringify(useStore.getState().cenario || cenario));
         novoCenario.ativa = id;
@@ -1487,7 +1503,7 @@ export function MapaFormProvider({ children }) {
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🗺️ O cenário mudou para: ${novoCenario.lista?.[id]?.nome || id}!` });
         // Cada cena conta como um combate: trocar a cena ATIVA encerra o da que está saindo.
         // Iniciativa e ordem manual NÃO são mexidas (como já era).
-        if (id !== idAnterior) encerrarCombateDaCena(idAnterior, undefined, decisoes);
+        if (id !== idAnterior) encerrarCombateDaCena(idAnterior, undefined, decisoes, ajustes);
         return salvo;
     }, [isMestre, cenario, encerrarCombateDaCena]);
 
@@ -1496,11 +1512,11 @@ export function MapaFormProvider({ children }) {
         const idAnterior = cenario?.ativa || 'default';
         if (aprovandoRef.current) return;
         // Trocar a cena encerra o combate da que sai: se há ganhos permanentes a aprovar, o Mestre decide antes (Cancelar = a cena NÃO muda).
-        if (id !== idAnterior) { aprovarEExecutar(nomesDaCena(idAnterior), idAnterior, 'Trocar de cena', (decisoes) => trocarCena(id, idAnterior, decisoes)); return; }
+        if (id !== idAnterior) { aprovarEExecutar(nomesDaCena(idAnterior), idAnterior, 'Trocar de cena', (decisoes, ajustes) => trocarCena(id, idAnterior, decisoes, ajustes)); return; }
         trocarCena(id, idAnterior, undefined);
     }, [isMestre, cenario, aprovarEExecutar, nomesDaCena, trocarCena]);
 
-    const finalizarEncerramento = useCallback((nomeCena, nomesNaCena, decisoes) => {
+    const finalizarEncerramento = useCallback((nomeCena, nomesNaCena, decisoes, ajustes) => {
         if (!isMestre) return;
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O COMBATE EM ${nomeCena.toUpperCase()} FOI ENCERRADO PELO MESTRE! ⚔️` });
 
@@ -1517,7 +1533,7 @@ export function MapaFormProvider({ children }) {
         salvarFichaSilencioso();
         setJogadorHistory(null);
         // Imunidade total acaba nos outros e fimDeLuta dispara em quem estava na cena (cada cena conta como um combate).
-        encerrarCombateDaCena(cenaRenderId, nomesNaCena, decisoes);
+        encerrarCombateDaCena(cenaRenderId, nomesNaCena, decisoes, ajustes);
 
         // ⚔️ Limpa o estado do combate da cena (rodada, ativo) e volta o turno ao início: fica em preparação/sem combate.
         const novoCenario = encerrarCombateNoCenario(storeState.cenario || {}, cenaRenderId);
@@ -1533,7 +1549,7 @@ export function MapaFormProvider({ children }) {
         if (!window.confirm(`Tem a certeza que deseja ZERAR A INICIATIVA DE TODOS OS JOGADORES E ENTIDADES presentes na cena "${nomeCena}"?`)) return;
         const nomesNaCena = ordemIniciativa.filter(j => !j.isDummie).map(j => j.nome);
         // ✅ Ganhos permanentes pendentes (Adaptação / Verg e derivados): o Mestre libera ou recusa no diálogo; Cancelar NÃO encerra o combate.
-        aprovarEExecutar(nomesNaCena, cenaRenderId, `Encerrar combate em ${nomeCena}`, (decisoes) => finalizarEncerramento(nomeCena, nomesNaCena, decisoes));
+        aprovarEExecutar(nomesNaCena, cenaRenderId, `Encerrar combate em ${nomeCena}`, (decisoes, ajustes) => finalizarEncerramento(nomeCena, nomesNaCena, decisoes, ajustes));
     }, [isMestre, cenaAtual.nome, ordemIniciativa, cenaRenderId, aprovarEExecutar, finalizarEncerramento]);
 
     // 🔀 ORDEM DE TURNO MANUAL (Mestre/Co-Mestre, pela aba Mestre — MestreControleTurno.jsx):

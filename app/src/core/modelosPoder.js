@@ -27,6 +27,7 @@
 import { normalizarPoder } from './sextaFeiraCriacao.js';
 import { normalizarGatilhos, LIMITE_GATILHOS_POR_FONTE } from './gatilhos.js';
 import { normalizarContador, listaDeContadores, LIMITE_CONTADORES } from './contadores.js';
+import { PESOS_ZENKAI_PADRAO, ZENKAI_TETO_PADRAO, ZENKAI_TETO_MIN, ZENKAI_TETO_MAX, ZENKAI_PONTUACAO_REF_PADRAO, ZENKAI_PONTUACAO_REF_MIN, ZENKAI_PONTUACAO_REF_MAX, TURNOS_PARA_ZENKAI_CHEIO, TURNOS_MINIMOS_MIN, TURNOS_MINIMOS_MAX, ZENKAI_PESO_MIN, ZENKAI_PESO_MAX, TETO_GASTO_TURNO, TURNOS_DURACAO_REF, LIMIAR_QUASE_MORTE, FATOR_OPONENTE_MIN, FATOR_OPONENTE_MAX } from './zenkai.js';
 
 export const ORIGENS_PODER = [
     { id: 'herdada', rotulo: 'Herdada de um ser' },
@@ -283,6 +284,44 @@ const VERG = {
     },
 };
 
+// ---------- 💥 ZENKAI ----------
+// Habilidade de Raça: depois do combate o Poder evolui de forma PERMANENTE conforme a DIFICULDADE da luta para o personagem (core/zenkai.js). A parte liga
+// ficha.combate.zenkaiLigado e grava ficha.combate.zenkaiConfig = { pesos, teto, pontuacaoRef }; poder.modelo.zenkai = { ligou } (desmarcar só desliga se foi este modelo que ligou).
+const fmtNum = (n) => String(n).replace('.', ',');
+const PESOS_ZENKAI_PARAMS = [['pesoDano', 'dano', 'Peso: dano recebido'], ['pesoEnergia', 'energia', 'Peso: energia gasta'], ['pesoFadiga', 'fadiga', 'Peso: fadiga acumulada'], ['pesoDuracao', 'duracao', 'Peso: duração do combate'], ['pesoQuaseMorte', 'quaseMorte', 'Peso: quase morte'], ['pesoFormas', 'formas', 'Peso: uso de Formas']];
+
+const ZENKAI = {
+    id: 'zenkai',
+    curto: 'zenkai',
+    nome: 'Zenkai',
+    resumo: 'Habilidade de Raça: depois do combate o Poder evolui de forma permanente conforme a dificuldade da luta para o personagem (dano recebido, energia gasta, fadiga, duração, quase morte, Formas e força do oponente); teto padrão 5% por combate; o Mestre ajusta ao encerrar.',
+    categoria: 'habilidade',
+    temOrigem: false,
+    descricao: 'Habilidade de Raça. Ao encerrar o combate o Poder Calculado ganha um aumento permanente que depende de QUÃO DIFÍCIL foi a luta para o personagem; o Mestre ajusta o valor sugerido antes de liberar.',
+    partes: [
+        {
+            id: 'calculoZenkai', rotulo: 'Ganho de Poder por dificuldade do combate', suportado: true, padrao: true,
+            descricao: 'Liga o Zenkai (Ficha > Marcadores & Adaptação mostra o acompanhamento): pontuação S = soma de peso × fator (dano, energia gasta, fadiga, duração, quase morte, Formas); Zenkai % = teto × (S ÷ pontuação de referência) × fator do oponente, limitado ao teto. Desmarcar desliga só se foi este modelo que ligou.',
+            parametros: [
+                { id: 'teto', rotulo: 'Teto de ganho por combate (%)', tipo: 'numero', passo: 'any', padrao: ZENKAI_TETO_PADRAO, min: ZENKAI_TETO_MIN, max: ZENKAI_TETO_MAX },
+                { id: 'pontuacaoRef', rotulo: 'Pontuação que enche o teto', tipo: 'numero', passo: 'any', padrao: ZENKAI_PONTUACAO_REF_PADRAO, min: ZENKAI_PONTUACAO_REF_MIN, max: ZENKAI_PONTUACAO_REF_MAX },
+                { id: 'turnosMinimos', rotulo: 'Turnos para o ganho cheio (menos que isso reduz o ganho)', tipo: 'numero', passo: 'any', padrao: TURNOS_PARA_ZENKAI_CHEIO, min: TURNOS_MINIMOS_MIN, max: TURNOS_MINIMOS_MAX },
+                ...PESOS_ZENKAI_PARAMS.map(([id, chave, rotulo]) => ({ id, rotulo, tipo: 'numero', passo: 'any', padrao: PESOS_ZENKAI_PADRAO[chave], min: ZENKAI_PESO_MIN, max: ZENKAI_PESO_MAX })),
+            ],
+        },
+    ],
+    montar: {
+        calculoZenkai: (p) => {
+            const pesos = PESOS_ZENKAI_PARAMS.map(([id, chave]) => `${chave} ${fmtNum(p[id])}`).join(', ');
+            return { notas: [
+                `Zenkai: pontuação S = soma de peso × fator (pesos: ${pesos}); Zenkai % = min(teto ${fmtNum(p.teto)}%, teto × S ÷ ${fmtNum(p.pontuacaoRef)} × fator do oponente) × min(1, turnos ÷ ${fmtNum(p.turnosMinimos)}) (combate curto rende menos). Fatores de 0 a 1: dano = dano recebido ÷ Vida máxima; energia = gasto de Energia (e custo equivalente de golpes como Poder) ÷ soma dos tetos de energia, com no máximo ${fmtNum(TETO_GASTO_TURNO * 100)}% contados por turno; fadiga = pico de Fadiga; duração = turnos ÷ ${TURNOS_DURACAO_REF}; quase morte = Vida chegou a ${fmtNum(LIMIAR_QUASE_MORTE * 100)}% ou menos e sobreviveu; formas = turnos com Forma ativa ÷ turnos.`,
+                `Fator do oponente: Poder do oponente hostil mais forte ÷ o seu, em média nos turnos, entre ${fmtNum(FATOR_OPONENTE_MIN)} e ${fmtNum(FATOR_OPONENTE_MAX)} (sem dado de oponente vale ${fmtNum(FATOR_OPONENTE_MIN)}). Lutar contra alguém mais fraco rende pouco.`,
+                'Suposições a revisar: pesos, teto por turno de gasto, duração de referência e limiar de quase morte são valores padrão (os pesos e o teto são editáveis aqui); o Mestre ajusta o valor final ao encerrar o combate.',
+            ] };
+        },
+    },
+};
+
 // Seleção/parâmetros válidos de um modelo (partes desconhecidas somem; numéricos presos a [min, max]).
 const todasAsPartes = (m) => m.partes;
 const parametrosDe = (m) => m.partes.flatMap(p => p.parametros);
@@ -397,7 +436,7 @@ function gatilhosFinaisEdicao(m, existente, novo) {
     return { gatilhos: juntos.gatilhos, descartados: juntos.descartados, bloqueio, antigo };
 }
 
-export const MODELOS = [EGO, VERG].map(m => ({
+export const MODELOS = [EGO, VERG, ZENKAI].map(m => ({
     id: m.id, nome: m.nome, resumo: m.resumo, categoria: m.categoria, temOrigem: m.temOrigem, partes: m.partes,
     construir: (selecao, params, fichaAtual, opcoes) => construirDoModelo(m, selecao, params, fichaAtual, opcoes),
     _def: m,
@@ -413,6 +452,9 @@ export function temGanhoLegado(poder) {
     const gs = poder && Array.isArray(poder.gatilhos) ? poder.gatilhos : [];
     return gs.some(g => g && Array.isArray(g.acoes) && g.acoes.some(a => a && a.tipo === 'ganhoPermanente' && a.unidade === undefined));
 }
+
+// ficha.combate.zenkaiConfig a partir dos params normalizados do modelo.
+const configZenkaiDosParams = (par) => ({ pesos: Object.fromEntries(PESOS_ZENKAI_PARAMS.map(([id, chave]) => [chave, par[id]])), teto: par.teto, pontuacaoRef: par.pontuacaoRef, turnosMinimos: par.turnosMinimos });
 
 // O que o Mestre vai ver antes de aplicar: { modo: 'novo'|'editar', poderes, contadores, gatilhos, efeitos, avisos, ok, erro }.
 export function planejarModelo(modeloId, selecao, params, fichaAtual, opcoes = {}) {
@@ -431,6 +473,7 @@ export function planejarModelo(modeloId, selecao, params, fichaAtual, opcoes = {
         contadoresAtualizados: r.contadoresAtualizar.length, contadoresRemovidos: r.contadoresRemover.length,
         gatilhos: (r.poder.gatilhos || []).length, efeitos: (r.poder.efeitos || []).length, avisos: r.avisos,
         adaptacao: sel.includes('crescimentoAdaptacao') ? { fracao: r.poder.modelo.params.fracaoDaDiferenca } : null,
+        zenkai: sel.includes('calculoZenkai') ? configZenkaiDosParams(r.poder.modelo.params) : null,
     };
 }
 
@@ -471,6 +514,21 @@ export function aplicarModeloNaFicha(ficha, req = {}) {
         }
     };
 
+    // Zenkai: mesmo padrão da Adaptação (`ligou` só vale se ESTE modelo ligou o interruptor).
+    const temZenkai = sel.includes('calculoZenkai');
+    const ligouZenkaiAntes = !!(existente && existente.modelo && existente.modelo.zenkai && existente.modelo.zenkai.ligou === true);
+    const zenkai = temZenkai ? { ligou: ligouZenkaiAntes || !(ficha.combate && ficha.combate.zenkaiLigado === true) } : null;
+    const aplicarZenkai = () => {
+        if (temZenkai) {
+            if (!ficha.combate || typeof ficha.combate !== 'object') ficha.combate = {};
+            ficha.combate.zenkaiConfig = configZenkaiDosParams(novo.poder.modelo.params);
+            ficha.combate.zenkaiLigado = true;
+        } else if (ligouZenkaiAntes && ficha.combate && typeof ficha.combate === 'object') {
+            ficha.combate.zenkaiLigado = false;
+        }
+    };
+    const modeloFinal = () => ({ ...novo.poder.modelo, ...(adaptacao ? { adaptacao } : {}), ...(zenkai ? { zenkai } : {}) });
+
     // ---- Fase 2: grava. Contadores do modelo já existentes são reescritos (nome/min/max; valor preservado e preso ao novo intervalo). ----
     // Os contadores do modelo pertencem ao poder: gravam `poderId` (migra também contadores mp_* antigos, sem poderId, ao editar).
     const poderId = existente ? existente.id : (req.id !== undefined ? req.id : Date.now());
@@ -486,7 +544,8 @@ export function aplicarModeloNaFicha(ficha, req = {}) {
 
     if (!existente) {
         aplicarAdaptacao();
-        ficha.poderes.push({ ...novo.poder, ...(adaptacao ? { modelo: { ...novo.poder.modelo, adaptacao } } : {}), id: poderId });
+        aplicarZenkai();
+        ficha.poderes.push({ ...novo.poder, modelo: modeloFinal(), id: poderId });
         return { ok: true, modo: 'novo', avisos: novo.avisos, mensagem: `${m.nome} adicionado: ${(novo.poder.gatilhos || []).length} gatilho(s), ${novo.contadores.length} contador(es) novo(s).` };
     }
 
@@ -507,6 +566,7 @@ export function aplicarModeloNaFicha(ficha, req = {}) {
     else if (novo.poder.notasIA && !existente.notasIA.includes(novo.poder.notasIA)) existente.notasIA = `${existente.notasIA}\n${novo.poder.notasIA}`;
     if (m.temOrigem) existente.origem = novo.poder.origem;
     aplicarAdaptacao();
-    existente.modelo = adaptacao ? { ...novo.poder.modelo, adaptacao } : novo.poder.modelo;
+    aplicarZenkai();
+    existente.modelo = modeloFinal();
     return { ok: true, modo: 'editar', avisos, mensagem: `${m.nome} atualizado: ${(existente.gatilhos || []).length} gatilho(s) no poder.` };
 }

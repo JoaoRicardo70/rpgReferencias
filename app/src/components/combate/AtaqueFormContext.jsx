@@ -28,6 +28,7 @@ import { montarNarrativa } from '../../core/descricaoAtaque';
 import { calcularFaixasCritico, classificarCritico, maiorDadoDaRolagem } from '../../core/critico';
 import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, perguntarGatilhosDeDano, criarEscolhaDoDono } from '../../services/danoVida';
 import { dispararEventoMeu } from '../../services/gatilhosEventos';
+import { registrarGastoDeEnergia } from '../../core/zenkaiMedicao';
 import { coletarAoAcertar, aplicarAoAcertarNoRascunho } from '../../core/aoAcertar';
 import { valoresDeEfeitos, menorValorDeEfeitos, montarContextoDeCombate } from '../../core/efeitosCondicionais';
 
@@ -427,7 +428,9 @@ export function AtaqueFormProvider({ children }) {
 
                 updateFicha(ficha => {
                     if (ficha[tipoAtiva]) {
-                        ficha[tipoAtiva].atual = Math.max(0, (ficha[tipoAtiva].atual || 0) - custoCalculado);
+                        const antesZenkai = ficha[tipoAtiva].atual || 0;
+                        ficha[tipoAtiva].atual = Math.max(0, antesZenkai - custoCalculado);
+                        registrarGastoDeEnergia(ficha, { drenos: [{ key: tipoAtiva, valor: antesZenkai - ficha[tipoAtiva].atual }] }); // 💥 Zenkai: o que foi realmente drenado
                     }
                 });
                 salvarFichaSilencioso();
@@ -606,6 +609,7 @@ export function AtaqueFormProvider({ children }) {
             const danoReacao = Math.floor(result.dano);
             updateFicha(ficha => {
                 if (result.drenos) result.drenos.forEach(d => { if (ficha[d.key]) ficha[d.key].atual -= d.valor; });
+                registrarGastoDeEnergia(ficha, { drenos: result.drenos, custosPoder: result.custosPoder }); // 💥 Zenkai
                 const r = ((ficha.combate && ficha.combate.reacoesPendentes) || []).find(x => x && x.id === reacaoEsperando.id && x.criadoEm === reacaoEsperando.criadoEm && !Number.isFinite(Number(x.danoReacao)));
                 if (r) r.danoReacao = danoReacao;
             });
@@ -628,7 +632,7 @@ export function AtaqueFormProvider({ children }) {
         }
 
         if (result.drenos) {
-            updateFicha((ficha) => { for (let i = 0; i < result.drenos.length; i++) { if (ficha[result.drenos[i].key]) { ficha[result.drenos[i].key].atual -= result.drenos[i].valor; } } });
+            updateFicha((ficha) => { for (let i = 0; i < result.drenos.length; i++) { if (ficha[result.drenos[i].key]) { ficha[result.drenos[i].key].atual -= result.drenos[i].valor; } } registrarGastoDeEnergia(ficha, { drenos: result.drenos, custosPoder: result.custosPoder }); /* 💥 Zenkai */ });
             salvarFichaSilencioso();
         }
 

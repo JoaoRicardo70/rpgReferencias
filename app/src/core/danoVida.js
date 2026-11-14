@@ -10,8 +10,20 @@ import { absorverNoRascunho } from './escudos.js';
 import { coletarGatilhos, avaliarGatilhos } from './gatilhos.js';
 import { aplicarAcoesNoRascunho, temImunidadeTotal, dispararEventoNaFicha } from './gatilhosAplicar.js';
 import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
+import { zenkaiLigado, registrarDanoZenkai } from './zenkai.js';
 
 export { camposParaGravar } from './gatilhosAplicar.js';
+
+// 💥 Zenkai (core/zenkai.js): o dano que de fato reduziu a Vida (bruto) entra na telemetria do portador e o caminho 'combate/zenkai' volta em `caminhos`
+// (para gravar em outro jogador). Sem Zenkai ligado não faz nada. Nunca lança.
+// ctx.autoInfligido (aoDesligar, danoEmSi, Dano Rápido de si em si): o dano que o próprio personagem causa a si NÃO conta (estados e golpes de outros contam).
+function registrarDanoNoZenkai(ficha, danoBrutoEfetivo, vidaMaxBruta, caminhos, autoInfligido) {
+    try {
+        if (autoInfligido === true || !zenkaiLigado(ficha) || !(danoBrutoEfetivo > 0)) return;
+        const max = Number(vidaMaxBruta) > 0 ? Number(vidaMaxBruta) : getVidaMaxBrutaNpc(ficha);
+        if (registrarDanoZenkai(ficha, danoBrutoEfetivo, max)) caminhos.add('combate/zenkai');
+    } catch (e) { console.error('Zenkai: dano falhou', e); }
+}
 
 // Quais gatilhos com `perguntar` (modo opcional) DISPARARIAM com este dano, sem tocar na ficha: simula numa cópia com todos "sim" (rng fixo) e
 // devolve [{ chave, nome, fonte }]. `decisoes` já dadas ficam de fora. Rápido: sem nenhum gatilho opcional com `perguntar` nem clona.
@@ -66,6 +78,7 @@ export function aplicarDanoNaVida(ficha, danoExibido, ctx = {}) {
     const coletados = coletarGatilhos(ficha);
     if (coletados.length === 0) {
         ficha.vida.atual = Math.max(0, vidaAntes - danoBruto);
+        registrarDanoNoZenkai(ficha, vidaAntes - ficha.vida.atual, ctx.vidaMaxBruta, caminhos, ctx.autoInfligido);
         res.vidaNova = ficha.vida.atual; res.caminhos = [...caminhos, 'vida/atual'];
         return res;
     }
@@ -93,6 +106,7 @@ export function aplicarDanoNaVida(ficha, danoExibido, ctx = {}) {
     }
     const vidaMeio = Number(ficha.vida.atual) || 0;
     ficha.vida.atual = anulado ? vidaMeio : Math.max(0, vidaMeio - danoBruto);
+    registrarDanoNoZenkai(ficha, vidaMeio - ficha.vida.atual, vidaMaxBruta, caminhos, ctx.autoInfligido);
     caminhos.add('vida/atual');
 
     // Fase 'depois': a Vida terminou numa faixa nova?

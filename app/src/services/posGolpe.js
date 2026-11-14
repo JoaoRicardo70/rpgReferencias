@@ -11,6 +11,7 @@ import { reflexosDisponiveis, calcularReflexo, descreverReflexo, custoDoReflexo 
 import { entradasNoAlvo, resolverAoAcertarNoAlvo } from '../core/aoAcertar';
 import { absorverEmPersonagem } from './danoAlvo';
 import { temImunidadeTotal } from '../core/gatilhosAplicar';
+import { zenkaiAposGasto } from '../core/zenkaiMedicao';
 
 // Soma os estados já resolvidos na lista de condições do alvo (e na duração deles, core/duracaoEstados.js) sem gravar nada.
 // `fonte` = quem causou (para Amedrontado/Charmado/Provocado). Devolve { condicoes, duracaoEstados } (duracaoEstados undefined = nenhum prazo).
@@ -64,7 +65,11 @@ export function resolverReflexoAutomatico({ alvo, danoNoAlvo, danoOriginal, nome
         if (temCusto) {
             const atual = Number(ficha[k] && ficha[k].atual);
             if (!Number.isFinite(custo) || !Number.isFinite(atual) || atual < custo) continue; // sem energia para pagar: tenta o próximo
-            if (custo > 0) campos[`${k}/atual`] = atual - custo;
+            if (custo > 0) {
+                campos[`${k}/atual`] = atual - custo;
+                const z = zenkaiAposGasto(ficha, { drenos: [{ key: k, valor: custo }] }); // 💥 Zenkai do defensor
+                if (z) Object.assign(campos, z); // só os campos alterados (combate/zenkai/<campo>)
+            }
         }
         const calculo = calcularReflexo(item.reflexo, { danoChega: danoNoAlvo, danoOriginal });
         if (Object.keys(campos).length > 0) salvarCamposPersonagem(alvo.personagemNome, campos);

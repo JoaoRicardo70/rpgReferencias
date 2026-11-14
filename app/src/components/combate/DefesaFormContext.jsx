@@ -16,6 +16,7 @@ import { danoExibidoParaBruto } from '../../core/vitals';
 import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, novoEventoId, perguntarGatilhosDeDano, criarEscolhaDoDono } from '../../services/danoVida';
 import { aplicarExternosDeGatilhos } from '../../services/gatilhosEventos';
 import { temImunidadeTotal } from '../../core/gatilhosAplicar';
+import { registrarGastoDeEnergia } from '../../core/zenkaiMedicao';
 import { escalarDanoPelaVida, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
 
@@ -222,6 +223,7 @@ export function DefesaFormProvider({ children }) {
                 for (let i = 0; i < result.drenos.length; i++) {
                     ficha[result.drenos[i].key].atual -= result.drenos[i].valor;
                 }
+                registrarGastoDeEnergia(ficha, { drenos: result.drenos }); // 💥 Zenkai
             });
         }
         salvarFichaSilencioso();
@@ -317,7 +319,7 @@ export function DefesaFormProvider({ children }) {
                 ficha.combate.estadosDoGolpeTs = golpeDoDano.ts;
             }
             if (usado && textoReflexo) {
-                if (custoPago > 0 && ficha[usado.reflexo.energia]) ficha[usado.reflexo.energia].atual = Math.max(0, (ficha[usado.reflexo.energia].atual || 0) - custoPago);
+                if (custoPago > 0 && ficha[usado.reflexo.energia]) { ficha[usado.reflexo.energia].atual = Math.max(0, (ficha[usado.reflexo.energia].atual || 0) - custoPago); registrarGastoDeEnergia(ficha, { drenos: [{ key: usado.reflexo.energia, valor: custoPago }] }); /* 💥 Zenkai */ }
                 if (usado.reflexo.gastaReacao) gastarAcoes(ficha, ['reacao']);
             }
             if (!imune && ficha.combate && Array.isArray(ficha.combate.reacoesPendentes) && ficha.combate.reacoesPendentes.length > 0) ficha.combate.reacoesPendentes = [];

@@ -136,5 +136,6 @@ export function aplicarCustosPorTurno(ficha) {
     desligar.forEach((d) => {
         if (desligarPoderNoRascunho(ficha, d.id)) desligados++, ids.push(d.id), textos.push(`${d.nome} desligou: sem ${d.energia} para o custo por turno`);
     });
-    return { alterou: gastos.length > 0 || desligar.length > 0, textos, desligados, ids };
+    // `gastos`: energia realmente descontada ({ energia, valor } na escala de `atual`), para o Zenkai (core/zenkaiMedicao.js).
+    return { alterou: gastos.length > 0 || desligar.length > 0, textos, desligados, ids, gastos: gastos.map(g => ({ key: g.energia, valor: g.bruto })) };
 }

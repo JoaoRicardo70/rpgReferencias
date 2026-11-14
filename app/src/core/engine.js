@@ -237,9 +237,11 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
 
     // 🔋 Custos que viram Poder no golpe (core/custoPoder.js): [{ energia, bruto }].
     let custosPoder = [];
+    // `perc` em semDesgaste conta como gasto de energia para o Zenkai POR DESIGN (potencial gasto), limitado pelo teto por turno.
+    // `semDesgaste` (sem Redução de Custo = "como Poder"/Ressonância Natural): a energia NÃO foi descontada; o Zenkai (core/zenkaiMedicao.js) conta esse "potencial gasto" por `perc`.
     const registrarCustoPoder = (energia, perc, aplicarReducao) => {
         const bruto = custoBrutoDeEnergia(minhaFicha, energia, perc, aplicarReducao);
-        if (bruto > 0) custosPoder.push({ energia, bruto });
+        if (bruto > 0) custosPoder.push({ energia, bruto, perc: parseFloat(perc) || 0, ...(aplicarReducao ? {} : { semDesgaste: true }) });
     };
     let comoPoderNames = [];
     // ↩️ Custo CHEIO do golpe (para o Reflexo que cobra o mesmo valor): o que foi gasto + o que "como Poder" teria gasto sem ser Poder.

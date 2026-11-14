@@ -33,7 +33,7 @@ export function rolarAoDesligar(poder, rng = Math.random) {
 // ctx opcional: { nome, cenaId, textos: [] } — as frases dos gatilhos/imunidade entram em ctx.textos.
 export function aplicarDanoEmSiMesmo(ficha, danoExibido, ctx = {}) {
     if (!ficha || !ficha.vida || !(danoExibido > 0)) return 0;
-    const r = aplicarDanoNaVida(ficha, danoExibido, { ...ctx, semEscudo: true });
+    const r = aplicarDanoNaVida(ficha, danoExibido, { ...ctx, semEscudo: true, autoInfligido: true });
     if (Array.isArray(ctx.textos)) r.textos.forEach(t => ctx.textos.push(t));
     return r.imune || r.anulado ? 0 : danoExibido; // valor realmente aplicado (Imunidade total ou gatilho que anulou = 0)
 }

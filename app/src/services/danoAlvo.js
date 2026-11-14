@@ -11,6 +11,8 @@ import { temImunidadeTotal, camposParaGravar } from '../core/gatilhosAplicar';
 import { aplicarDanoNaVidaDaFicha } from './danoVida';
 import { FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto } from '../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../core/fadiga';
+import { zenkaiAposRegistrar, registrarDanoZenkai, camposZenkaiAlterados } from '../core/zenkai';
+import { getVidaMaxBrutaNpc } from '../core/gavetaNpc';
 
 // 🛡️ Escudos e Vida Temporária (core/escudos.js) de OUTRO personagem: tira do escudo dele o que der do Dano FINAL (escala exibida) e grava só
 // o campo `escudos` (null apaga). Usa a ficha mais recente do store. Devolve { restante, absorvido, texto }; sem escudos, nada é gravado.
@@ -26,7 +28,7 @@ export function absorverEmPersonagem(nome, ficha, danoExibido, nomeNoFeed = '') 
 }
 
 // `ficha` = ficha ATUAL do alvo; `vidaFinalBruta` = Vida já reduzida, na escala bruta gravada.
-export function gravarDanoEmPersonagem(nome, ficha, vidaFinalBruta, { elemento = null, nivelOverride = null, nomeNoFeed = '', escudosNovos, eventoId, golpe } = {}) {
+export function gravarDanoEmPersonagem(nome, ficha, vidaFinalBruta, { elemento = null, nivelOverride = null, nomeNoFeed = '', escudosNovos, eventoId, golpe, autoInfligido = false } = {}) {
     // 🔔 Alvo com Imunidade total ou gatilhos: quem grava o dano executa os gatilhos dele, sobre a ficha mais fresca, e grava só os campos tocados.
     const fresca = (useStore.getState().personagens || {})[nome] || ficha;
     const danoBruto = (Number(fresca && fresca.vida && fresca.vida.atual) || 0) - Math.max(0, vidaFinalBruta);
@@ -35,11 +37,18 @@ export function gravarDanoEmPersonagem(nome, ficha, vidaFinalBruta, { elemento =
         // A absorção já foi gravada à parte: o clone parte da lista de escudos PÓS-absorção, para o escudo de um gatilho somar a ela (e não desfazê-la).
         if (Array.isArray(escudosNovos)) { if (escudosNovos.length > 0) clone.escudos = JSON.parse(JSON.stringify(escudosNovos)); else delete clone.escudos; }
         // O escudo já foi consumido antes (absorverEmPersonagem): aqui só o dano que sobrou, em escala exibida.
-        const r = aplicarDanoNaVidaDaFicha(clone, danoBruto / FATOR_EXIBICAO_VITAIS, { nome: nomeNoFeed || nome, jaAbsorvido: true, ...(eventoId ? { eventoId } : {}), ...(golpe ? { golpe } : {}) });
-        const campos = camposParaGravar(clone, r.caminhos.filter(c => c !== 'vida/atual'));
+        const r = aplicarDanoNaVidaDaFicha(clone, danoBruto / FATOR_EXIBICAO_VITAIS, { nome: nomeNoFeed || nome, jaAbsorvido: true, ...(eventoId ? { eventoId } : {}), ...(golpe ? { golpe } : {}), ...(autoInfligido ? { autoInfligido: true } : {}) });
+        // 💥 Zenkai: só os campos alterados da telemetria (não o nó inteiro).
+        const campos = camposParaGravar(clone, r.caminhos.filter(c => c !== 'vida/atual' && c !== 'combate/zenkai'));
+        if (r.caminhos.includes('combate/zenkai')) Object.assign(campos, camposZenkaiAlterados(fresca.combate && fresca.combate.zenkai, clone.combate && clone.combate.zenkai));
         if (Object.keys(campos).length > 0) salvarCamposPersonagem(nome, campos);
         gravarEfeitosDoDano(nome, clone, clone.vida.atual, { elemento, nivelOverride });
         return { textos: r.textos, vidaFinalBruta: clone.vida.atual };
+    }
+    // 💥 Zenkai do alvo (sem gatilhos o dano não passa por aplicarDanoNaVida): grava só `combate/zenkai`, calculado numa cópia da ficha mais fresca.
+    if (danoBruto > 0 && !autoInfligido) {
+        const z = zenkaiAposRegistrar(fresca, (c) => { if (!c.vida) return false; c.vida.atual = Math.max(0, vidaFinalBruta); return registrarDanoZenkai(c, danoBruto, getVidaMaxBrutaNpc(c)); });
+        if (z) salvarCamposPersonagem(nome, z); // campos aninhados combate/zenkai/<campo>
     }
     gravarEfeitosDoDano(nome, ficha, vidaFinalBruta, { elemento, nivelOverride });
     return { textos: [], vidaFinalBruta: Math.max(0, vidaFinalBruta) };
@@ -67,10 +76,10 @@ function gravarEfeitosDoDano(nome, ficha, vidaFinalBruta, { elemento = null, niv
 
 // Dano Rápido do Mestre em OUTRO jogador: escudo -> gatilhos -> Vida. Devolve { texto (escudo), textos (gatilhos) }.
 // Sem gatilhos nem Imunidade total faz EXATAMENTE o de sempre (absorverEmPersonagem + gravarDanoEmPersonagem).
-export function aplicarDanoEmPersonagem(nome, ficha, danoExibido, valorRaw, { elemento = null, nivelOverride = null, golpe } = {}) {
+export function aplicarDanoEmPersonagem(nome, ficha, danoExibido, valorRaw, { elemento = null, nivelOverride = null, golpe, autoInfligido = false } = {}) {
     const abs = absorverEmPersonagem(nome, ficha, danoExibido, nome);
     const rawFinal = abs.absorvido > 0 ? danoExibidoParaBruto(abs.restante) : (abs.imune ? 0 : valorRaw);
-    const g = gravarDanoEmPersonagem(nome, ficha, Math.max(0, ((ficha && ficha.vida && ficha.vida.atual) || 0) - rawFinal), { elemento, nivelOverride, nomeNoFeed: nome, escudosNovos: abs.escudosNovos, golpe });
+    const g = gravarDanoEmPersonagem(nome, ficha, Math.max(0, ((ficha && ficha.vida && ficha.vida.atual) || 0) - rawFinal), { elemento, nivelOverride, nomeNoFeed: nome, escudosNovos: abs.escudosNovos, golpe, autoInfligido });
     return { texto: abs.texto, textos: g.textos };
 }
 
