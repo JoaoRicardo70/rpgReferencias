@@ -681,7 +681,7 @@ function PaginaMarcadores() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', borderBottom: '1px dotted #aa00ff', paddingBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
                     <div>
                         <h2 style={{ margin: 0, fontSize: '1.4em', display: 'flex', alignItems: 'center', gap: '10px', color: '#aa00ff' }}>🧬 Adaptação (por diferença de Poder)</h2>
-                        <span style={{ fontSize: '0.85em', opacity: 0.8, fontStyle: 'italic' }}>No início de cada turno seu, o app compara o seu Poder Calculado com o do oponente mais forte da cena e ganha a "fração" da diferença (ex.: oponente 10% mais forte e fração 50% = +5% neste turno). Durante o combate os ganhos se compõem (×1,05, depois ×1,25...) e a diferença encolhe conforme você se adapta. Ao fim da luta, a média das porcentagens ganhas vira Poder permanente.</span>
+                        <span style={{ fontSize: '0.85em', opacity: 0.8, fontStyle: 'italic' }}>No início de cada turno seu, o app compara o seu Poder Calculado com o do oponente mais forte da cena e ganha a "fração" da diferença (ex.: oponente 10% mais forte e fração 50% = +5% neste turno). Durante o combate os ganhos se compõem (×1,05, depois ×1,25...) e a diferença encolhe conforme você se adapta. Se você superar o oponente, repete o ganho do turno anterior até ele voltar a passar você. Ao fim da luta, a média das porcentagens ganhas vira Poder permanente.</span>
                     </div>
                     <button onClick={zerarAdaptacaoManual} style={{ padding: '8px 15px', border: '1px solid #aa00ff', color: '#aa00ff', background: 'transparent', cursor: 'pointer', opacity: 0.8, borderRadius: '4px' }}>🧹 Zerar (sem converter)</button>
                 </div>
@@ -713,7 +713,7 @@ function PaginaMarcadores() {
                         <span style={{ fontSize: '1.6em', fontWeight: 'bold', minWidth: '30px', textAlign: 'center' }}>{adaptacaoTurnos}</span>
                         <span style={{ fontSize: '0.8em', opacity: 0.75, textAlign: 'center' }} role="status">
                             {adaptacaoUltimo
-                                ? `Último turno: ${adaptacaoUltimo.gain > 0 ? `+${fmtAdaptacao(adaptacaoUltimo.gain)}%` : 'sem ganho'}${adaptacaoUltimo.oponenteNome ? ` (oponente: ${adaptacaoUltimo.oponenteNome}, ${adaptacaoUltimo.diferenca > 0 ? `+${fmtAdaptacao(adaptacaoUltimo.diferenca)}% mais forte` : 'não mais forte'})` : ''}`
+                                ? `Último turno: ${adaptacaoUltimo.gain > 0 ? `+${fmtAdaptacao(adaptacaoUltimo.gain)}%` : 'sem ganho'}${adaptacaoUltimo.repetido ? ' (mantido: você supera o oponente)' : ''}${adaptacaoUltimo.oponenteNome ? ` (oponente: ${adaptacaoUltimo.oponenteNome}, ${adaptacaoUltimo.diferenca > 0 ? `+${fmtAdaptacao(adaptacaoUltimo.diferenca)}% mais forte` : 'não mais forte'})` : ''}`
                                 : 'Nenhum turno registrado ainda.'}
                         </span>
                     </div>

@@ -39,9 +39,9 @@ describe('ponta a ponta: exemplo do usuario com fimDeLuta', () => {
     it('combates seguidos somam linear no permanente', () => {
         const f = ficha();
         turno(f, 100, 120); fim(f);           // +10% -> 0,10
-        turno(f, 100, 140); turno(f, 100, 100); fim(f); // (20+0)/2 = 10% -> 0,20
-        turno(f, 100, 110); fim(f);           // +5% -> 0,25
-        expect(f.ganhosPermanentes.poderCalculado).toBeCloseTo(0.25, 9);
+        turno(f, 100, 140); turno(f, 100, 100); fim(f); // 20 e repete 20 (empate) -> media 20% -> 0,20
+        turno(f, 100, 110); fim(f);           // +5% (sem ganho anterior herdado de outro combate) -> 0,05
+        expect(f.ganhosPermanentes.poderCalculado).toBeCloseTo(0.35, 9);
     });
     it('fimDeLuta sem adaptacao ligada e sem acumulados nao cria ganho nem quebra', () => {
         const f = { combate: {}, ganhosPermanentes: {} };
@@ -61,13 +61,14 @@ describe('ponta a ponta: exemplo do usuario com fimDeLuta', () => {
 });
 
 describe('divisor e ganho zero', () => {
-    it('turno com portador mais forte conta no divisor com g=0 (+10%, 0, 0 -> media 3,333%)', () => {
+    it('turno com portador mais forte/igual repete o ganho e conta no divisor (+10%, repete 10, repete 10 -> media 10%)', () => {
         const f = ficha({ adaptacaoFracao: 100 });
         turno(f, 100, 110); turno(f, 200, 100); turno(f, 200, 200);
         expect(f.combate.adaptacaoTurnos).toBe(3);
-        expect(mediaAdaptacao(f)).toBeCloseTo(10 / 3, 9);
+        expect(f.combate.adaptacaoSoma).toBeCloseTo(30, 9);
+        expect(mediaAdaptacao(f)).toBeCloseTo(10, 9);
         converterAdaptacaoEmPermanente(f);
-        expect(f.ganhosPermanentes.poderCalculado).toBeCloseTo(10 / 3 / 100, 9);
+        expect(f.ganhosPermanentes.poderCalculado).toBeCloseTo(0.1, 9);
     });
     it('poderPortador <= 0 ou NaN/string vazia: retorna null e nada e registrado', () => {
         const f = ficha();
@@ -187,7 +188,7 @@ describe('poderDoOponenteMaisForte: selecao', () => {
         expect(r1.gain).toBeGreaterThan(0);
         expect(fatorAdaptacao(g)).toBeGreaterThan(1);
         const r2 = aplicarAdaptacaoNoTurno(g, { oponente: { nome: 'Fraco', poder: 0 } });
-        expect(r2.gain).toBe(0);
+        expect(r2.gain).toBe(r1.gain); // portador supera: repete o ganho anterior (ja no teto 1e6)
         expect(g.combate.adaptacaoTurnos).toBe(2);
     });
 });

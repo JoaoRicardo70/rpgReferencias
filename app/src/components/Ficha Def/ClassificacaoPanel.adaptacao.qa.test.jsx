@@ -74,6 +74,25 @@ describe('ClassificacaoPanel — estado, fator e prévia do permanente', () => {
         expect(screen.getByText(/Rival/)).toBeTruthy();
         expect(screen.getByText(/Ficará permanente: \+15%/)).toBeTruthy();
     });
+    it('turno repetido (portador supera): mostra o ganho mantido e "(mantido: você supera o oponente)"', () => {
+        montar({ combate: { adaptacaoLigada: true, adaptacaoFator: 1.5, adaptacaoSoma: 20, adaptacaoTurnos: 2, adaptacaoUltimo: { gain: 10, diferenca: -20, oponenteNome: 'Rival', poderOponente: 100, poderPortador: 125, repetido: true } } });
+        render(<ClassificacaoPanel />); irParaMarcadores();
+        const t = screen.getByText(/Último turno:/).textContent;
+        expect(t).toMatch(/Último turno: \+10%/);
+        expect(t).toContain('(mantido: você supera o oponente)');
+        expect(t).toContain('não mais forte');
+    });
+    it('turno normal ou sem ganho NÃO mostra "(mantido...)"', () => {
+        montar({ combate: { adaptacaoLigada: true, adaptacaoFator: 1.1, adaptacaoSoma: 10, adaptacaoTurnos: 1, adaptacaoUltimo: { gain: 10, diferenca: 20, oponenteNome: 'Rival', repetido: false } } });
+        render(<ClassificacaoPanel />); irParaMarcadores();
+        expect(screen.getByText(/Último turno:/).textContent).not.toContain('mantido');
+        cleanup();
+        montar({ combate: { adaptacaoLigada: true, adaptacaoTurnos: 1, adaptacaoUltimo: { gain: 0, diferenca: -5, oponenteNome: 'Rival', repetido: false } } });
+        render(<ClassificacaoPanel />); irParaMarcadores();
+        const t = screen.getByText(/Último turno:/).textContent;
+        expect(t).toContain('sem ganho');
+        expect(t).not.toContain('mantido');
+    });
     it('Zerar (sem converter) zera fator e acumuladores e NÃO mexe em ganhosPermanentes', () => {
         const ficha = { ganhosPermanentes: { poderCalculado: 0.1 }, combate: { adaptacaoLigada: true, adaptacaoFator: 1.5, adaptacaoSoma: 30, adaptacaoTurnos: 2 } };
         montar(ficha);

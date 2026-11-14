@@ -5,7 +5,10 @@
 //  1. No INÍCIO DO TURNO do portador, com a Adaptação ligada (ficha.combate.adaptacaoLigada), mede-se a diferença de Poder Calculado
 //     entre o OPONENTE e o portador:  d = (PoderOponente − PoderPortador) / PoderPortador × 100  (em %).
 //     OPONENTE = o mais forte entre os OUTROS combatentes da ordem de iniciativa da cena (ver core/adaptacaoTurno.js).
-//     Se d <= 0 (portador igual/mais forte) ou os dados são inválidos, o ganho do turno é 0.
+//     Se d > 0 (oponente mais forte) o ganho do turno é calculado pela diferença (item 2). Se d <= 0 (portador IGUAL/MAIS FORTE que o oponente
+//     mais forte), ele MANTÉM O GANHO DO TURNO ANTERIOR (repete o último g, de novo composto) até o oponente voltar a ultrapassá-lo; aí a
+//     conta pela diferença volta. Se nunca houve ganho (o oponente já começou mais fraco), o ganho é 0 até o oponente passar o portador.
+//     Dados inválidos: nada é registrado.
 //  2. Ganho do turno  g = fração/100 × d  (fração padrão 50, editável 0–100). Ex.: oponente 10% mais forte -> g = 5%.
 //  3. Durante o combate o ganho é COMPOSTO sobre o Poder Calculado: fator F = Π(1 + g_i/100).
 //     Turno 1 +5% -> ×1,05; turno 2 +25% -> ×1,05 × 1,25. A diferença de cada turno é medida com o Poder ATUAL do portador (já com o F
@@ -21,7 +24,7 @@
 //     Dummies (entidades do Mapa) não adaptam.
 //
 // Campos em ficha.combate: adaptacaoLigada (bool), adaptacaoFracao (padrão 50), adaptacaoFator (padrão 1), adaptacaoSoma (soma dos g em %),
-// adaptacaoTurnos (contagem), adaptacaoUltimo ({ gain, diferenca, poderOponente, poderPortador, oponenteNome } só informativo).
+// adaptacaoTurnos (contagem), adaptacaoUltimo ({ gain, diferenca, poderOponente, poderPortador, oponenteNome, repetido }; `gain` também é a base do ganho repetido no turno seguinte).
 // Os campos legados municoAuto/municoTurnos/municoPorTurno das fichas antigas são IGNORADOS.
 //
 // ⚠️ Este módulo NÃO importa core/poder.js (poder.js importa fatorAdaptacao daqui). A medição do Poder fica em core/adaptacaoTurno.js.
@@ -117,15 +120,20 @@ export function registrarTurnoAdaptacao(ficha, medida) {
     const turnos = getTurnosAdaptacao(ficha);
     if (turnos >= LIMITE_ADAPTACAO_TURNOS) return null;
     const { diferenca, ganho } = calcularGanhoAdaptacao(pp, po, getFracaoAdaptacao(ficha));
-    const g = arred9(ganho);
+    // Portador igual/mais forte (diferença <= 0): repete o ganho do turno anterior (0 se nunca houve ganho).
+    const repete = !(diferenca > 0);
+    const anterior = numero(c.adaptacaoUltimo && c.adaptacaoUltimo.gain);
+    const g = arred9(repete ? Math.min(LIMITE_ADAPTACAO_GANHO_PERC, Math.max(0, anterior)) : ganho);
     const fatorAnterior = fatorAdaptacao(ficha);
     const fator = arred9(Math.min(FATOR_ADAPTACAO_MAX, fatorAnterior * (1 + g / 100)));
     c.adaptacaoFator = fator;
     c.adaptacaoSoma = arred9(getSomaAdaptacao(ficha) + g);
     c.adaptacaoTurnos = turnos + 1;
     const nome = String(medida.nomeOponente || '');
-    c.adaptacaoUltimo = { gain: g, diferenca: arred9(diferenca), poderOponente: po, poderPortador: pp, oponenteNome: nome };
-    const texto = g > 0
+    c.adaptacaoUltimo = { gain: g, diferenca: arred9(diferenca), poderOponente: po, poderPortador: pp, oponenteNome: nome, repetido: repete && g > 0 };
+    const texto = repete && g > 0
+        ? `Adaptação: mantém +${fmtPerc(g)}% neste turno (você supera${nome ? ` ${nome}` : ' o oponente'}; repete o ganho anterior) — Poder ×${fmtFator(fator)}`
+        : g > 0
         ? `Adaptação: +${fmtPerc(g)}% neste turno (oponente${nome ? ` ${nome}` : ''} +${fmtPerc(diferenca)}% mais forte) — Poder ×${fmtFator(fator)}`
         : `Adaptação: sem ganho neste turno (você já iguala ou supera${nome ? ` ${nome}` : ' o oponente'}) — Poder ×${fmtFator(fator)}`;
     return { gain: g, texto };

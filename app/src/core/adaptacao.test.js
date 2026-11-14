@@ -91,13 +91,13 @@ describe('fatorAdaptacao e registro de turnos (exemplo do usuário)', () => {
         expect(registrarTurnoAdaptacao(f, { poderPortador: null, poderOponente: 200 })).toBeNull();
         expect(f.combate.adaptacaoTurnos).toBeUndefined();
     });
-    it('portador mais forte: turno conta com ganho 0 (puxa a média para baixo)', () => {
+    it('portador mais forte: turno repete o ganho anterior e conta no divisor', () => {
         const f = ficha();
         registrarTurnoAdaptacao(f, { poderPortador: 100, poderOponente: 120 });
         const r = registrarTurnoAdaptacao(f, { poderPortador: 120, poderOponente: 100 });
-        expect(r.gain).toBe(0);
+        expect(r.gain).toBeCloseTo(10, 9);
         expect(f.combate.adaptacaoTurnos).toBe(2);
-        expect(mediaAdaptacao(f)).toBeCloseTo(5, 9);
+        expect(mediaAdaptacao(f)).toBeCloseTo(10, 9);
     });
     it('sem turnos ou média 0: não ganha nada mas zera', () => {
         const f = ficha({ adaptacaoFator: 1, adaptacaoSoma: 0, adaptacaoTurnos: 0 });
