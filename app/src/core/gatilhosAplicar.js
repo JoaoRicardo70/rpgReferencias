@@ -19,7 +19,8 @@ import { gastarUso, limiteDeUsos } from './usosPoder.js';
 import { somarBuffTemporario } from './suporte.js';
 import { chaveDoGatilhoDoPoder, normalizarGatilhos, LIMITE_TOTAL_GANHO_PERMANENTE, LIMITE_GANHO_PERC_MIN, LIMITE_GANHO_PERMANENTE } from './gatilhos.js';
 import { FATOR_PODER_MAX, FATOR_PODER_MIN, zerarGanhosCombate } from './poder.js';
-import { converterAdaptacaoEmPermanente, textoConversaoAdaptacao, CAMINHOS_ADAPTACAO, CAMINHO_GANHO_PERMANENTE_PODER } from './adaptacao.js';
+import { CAMINHOS_ADAPTACAO } from './adaptacao.js';
+import { iniciarFim, concluirFim } from './aprovacaoPermanente.js';
 
 const fmtN = (n) => Math.floor(Number(n) || 0).toLocaleString('pt-BR');
 const fmtGanho = (n) => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 6 });
@@ -405,15 +406,17 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
     if (!ficha || !evento || !evento.tipo) return res;
     const caminhos = new Set();
     const cenaId = ctx.cenaId || 'default';
+    const modoPermanente = ctx.permanente || 'converter';
+    let fimPermanente = null;
     if (evento.tipo === 'turnoInicio' || evento.tipo === 'fimDeLuta') { if (zerarUsosPorTurno(ficha)) caminhos.add('combate/usosPoderes'); }
     if (evento.tipo === 'fimDeLuta') {
         resetarContadoresDeCena(ficha).forEach(i => caminhosDoContador(ficha, i).forEach(p => caminhos.add(p)));
-        // 🧬 Adaptação: a média das % ganhas nos turnos vira Poder PERMANENTE e o fator de combate zera (core/adaptacao.js). Idempotente: depois de converter os acumuladores ficam zerados.
+        // 🧬 Adaptação: por padrão ('converter') a média das % ganhas nos turnos vira Poder PERMANENTE e o fator de combate zera (core/adaptacao.js). Idempotente.
+        // ctx.permanente: 'liberar'/'recusar' = decisão do Mestre; 'adiar' = combate ainda ativo; 'limpar' = sem combate (core/aprovacaoPermanente.js).
         try {
-            const antesAdaptacao = JSON.stringify(ficha.combate && [ficha.combate.adaptacaoFator, ficha.combate.adaptacaoSoma, ficha.combate.adaptacaoTurnos, ficha.combate.adaptacaoUltimo]);
-            const adaptacao = converterAdaptacaoEmPermanente(ficha);
-            if (JSON.stringify(ficha.combate && [ficha.combate.adaptacaoFator, ficha.combate.adaptacaoSoma, ficha.combate.adaptacaoTurnos, ficha.combate.adaptacaoUltimo]) !== antesAdaptacao) CAMINHOS_ADAPTACAO.forEach(c => caminhos.add(c));
-            if (adaptacao) { caminhos.add(CAMINHO_GANHO_PERMANENTE_PODER); res.textos.push(textoConversaoAdaptacao(adaptacao)); }
+            fimPermanente = iniciarFim(ficha, modoPermanente);
+            fimPermanente.caminhos.forEach(c => caminhos.add(c));
+            fimPermanente.textos.forEach(t => res.textos.push(t));
         } catch (e) { console.error('Conversão da Adaptação falhou', e); }
     }
     const profundidade = Number(ctx.profundidade) || 0;
@@ -437,6 +440,14 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
     if (evento.tipo === 'fimDeLuta' && restaurarUsosPorCena(ficha)) caminhos.add('combate/usosPoderes');
     // ⚔️ Ganhos de Poder 'durante o combate' zeram DEPOIS dos gatilhos de fimDeLuta (que podem converter contadores em ganho permanente).
     if (evento.tipo === 'fimDeLuta' && zerarGanhosCombate(ficha)) { caminhos.add('ganhosCombate/poderCalculado'); caminhos.add('ganhosCombate/fatorPoder'); }
+    // ✅ Por fim: a recusa do Mestre devolve os ganhos permanentes à foto de antes do combate (desfaz também o que os gatilhos de fimDeLuta ganharam) e a foto some.
+    if (evento.tipo === 'fimDeLuta') {
+        try {
+            const fim2 = concluirFim(ficha, modoPermanente, { pendencias: fimPermanente && fimPermanente.pendencias });
+            fim2.caminhos.forEach(c => caminhos.add(c));
+            fim2.textos.forEach(t => res.textos.push(t));
+        } catch (e) { console.error('Aprovação dos ganhos permanentes falhou', e); }
+    }
     res.caminhos = [...caminhos];
     return res;
 }
@@ -482,7 +493,7 @@ export function camposParaGravar(ficha, caminhos) {
 
 // Campos de gatilhos/condições que mudaram entre duas versões da ficha (para gravar só eles no Firebase de OUTRO jogador).
 // Formato { caminho: valor | null }. Usado no início do turno (estados que tiram Vida, Imunidade total que passa).
-const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'ganhosPermanentes/fatorPoder', ...CAMINHOS_ADAPTACAO,'ganhosCombate/poderCalculado', 'ganhosCombate/fatorPoder', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
+const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'ganhosPermanentes/fatorPoder', ...CAMINHOS_ADAPTACAO, 'combate/ganhosAntesDoCombate', 'ganhosCombate/poderCalculado', 'ganhosCombate/fatorPoder', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
 export function camposDeGatilhosAlterados(antes, depois) {
     const lido = (f, caminho) => caminho.split('/').reduce((v, p) => (v === undefined || v === null ? undefined : v[p]), f);
     const mudados = CAMINHOS_GATILHOS.filter(c => JSON.stringify(lido(antes, c)) !== JSON.stringify(lido(depois, c)));

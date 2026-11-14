@@ -142,9 +142,11 @@ describe('avancarTurno: quem recebe o turno', () => {
 });
 
 describe('descansar (Mapa)', () => {
-    it('converte a média em permanente via fimDeLuta e zera o fator', () => {
+    it('com a opção de aprovação DESLIGADA converte a média em permanente via fimDeLuta e zera o fator', () => {
         vi.spyOn(window, 'confirm').mockReturnValue(true);
         const state = baseState();
+        // Com a opção padrão (ligada) o Descansar não converte: o Mestre decide ao encerrar (ver MapaFormContext.aprovacaoPermanente.test.jsx).
+        state.cenario = { ...(state.cenario || {}), aprovarGanhosPermanentes: false };
         Object.assign(state.minhaFicha.combate, { adaptacaoLigada: true, adaptacaoFator: 1.3125, adaptacaoSoma: 30, adaptacaoTurnos: 2 });
         montar(state);
         act(() => { probe.descansar(); });

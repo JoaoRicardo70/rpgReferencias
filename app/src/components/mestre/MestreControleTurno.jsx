@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import useStore from '../../stores/useStore';
 import CombateEstadoBarra from '../mapa/CombateEstadoBarra';
+import { aprovarGanhosPermanentesLigado } from '../../core/aprovacaoPermanente';
 
 // ⏭️ CONTROLE DE TURNO NA ABA MESTRE: mostra a ordem de iniciativa da cena exibida no Mapa e passa
 // o turno sem trocar de aba. Não tem lógica própria de turno — chama a MESMA função avancarTurno
@@ -45,6 +46,8 @@ export default function MestreControleTurno() {
     const acaoAvancarTurno = useStore(s => s.acaoAvancarTurnoMapa);
     const acoesOrdem = useStore(s => s.acoesOrdemTurnoMapa);
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
+    // Opção do Mestre/Co-Mestre (cenario.aprovarGanhosPermanentes; ausente = ligada): perguntar antes de liberar ganhos permanentes ao encerrar o combate.
+    const aprovarGanhosLigado = useStore(s => aprovarGanhosPermanentesLigado(s.cenario));
 
     const [indiceSoltura, setIndiceSoltura] = useState(null);
     const [arrastandoDaOrdem, setArrastandoDaOrdem] = useState(false);
@@ -135,6 +138,15 @@ export default function MestreControleTurno() {
             {resumo && typeof resumo.combateAtivo === 'boolean' && (
                 <CombateEstadoBarra combateAtivo={resumo.combateAtivo} rodadaAtual={resumo.rodadaAtual || 1} combateSemInicio={!!resumo.combateSemInicio} isMestre={!!acoesOrdem}
                     podeIniciar={emCombate} onIniciar={() => acoesOrdem && acoesOrdem.iniciarCombate()} onEncerrar={() => acoesOrdem && acoesOrdem.encerrarCombate()} />
+            )}
+            {podeEditarOrdem && typeof acoesOrdem.definirAprovarGanhos === 'function' && (
+                <label className="aprovacao-interruptor">
+                    <input type="checkbox" checked={aprovarGanhosLigado} onChange={(e) => acoesOrdem.definirAprovarGanhos(e.target.checked)} />
+                    <span>
+                        Perguntar antes de liberar ganhos permanentes ao encerrar o combate
+                        <small className="aprovacao-interruptor-dica">Adaptação, Verg Avesta e derivados (ex.: Ego Superior): ao encerrar, você libera ou recusa o Poder permanente. Desligado, tudo é liberado sozinho.</small>
+                    </span>
+                </label>
             )}
             {semCombateIniciado && emCombate && <p className="combate-estado-dica">Inicie o combate para poder passar o turno.</p>}
 

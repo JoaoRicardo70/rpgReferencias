@@ -7,6 +7,8 @@ import { classificarRolagem } from '../../core/rolagemDado';
 import { montarContextoAdaptacao, aplicarAdaptacaoNoTurno } from '../../core/adaptacaoTurno';
 import { CAMINHOS_ADAPTACAO } from '../../core/adaptacao';
 import { getEquipes, getRelacoes, equipeDe, moverParaEquipe, textoMudancaDeLado, ladoEstaOculto, alvoNoFiltro, sanitizarEquipes, sanitizarRelacoes, comoCombatente, patchLadoOculto } from '../../core/lados';
+import { aprovarGanhosPermanentesLigado, cenarioComAprovacao, calcularPendencias, fotografarGanhos, lerGanhosPermanentes, CAMINHO_FOTO_GANHOS } from '../../core/aprovacaoPermanente';
+import AprovacaoGanhosPermanentes from '../mestre/AprovacaoGanhosPermanentes';
 import { combateAtivo as combateAtivoNoCenario, getRodada, iniciarCombateNoCenario, encerrarCombateNoCenario, avancarRodadaSeVoltou } from '../../core/combateEstado';
 import { aplicarCoresDado, lerCoresDado } from '../../core/coresDado';
 import { getConfigDado } from '../../core/configuracoes';
@@ -1285,6 +1287,14 @@ export function MapaFormProvider({ children }) {
         // 🔔 inicioDeLuta: um erro de gatilho nunca impede o combate de começar. Roda ANTES do início do turno do primeiro (o gatilho de
         // "início do combate" vem antes da regeneração/custos do turno). Limitação conhecida: se o primeiro é OUTRO jogador, os dois passos
         // gravam na mesma ficha a partir do espelho local, que pode ainda não ter o primeiro write (mesma limitação do avancarTurno).
+        // 📸 Foto dos ganhos permanentes ANTES do combate (e antes dos gatilhos de início): a recusa do Mestre ao encerrar volta a ela (core/aprovacaoPermanente.js).
+        // Quem entra na ordem depois do início não tem foto (nesse caso só a Adaptação é recusável).
+        ordemIniciativa.filter(j => !j.isDummie && j.nome).forEach((j) => {
+            try {
+                if (j.nome === storeState.meuNome) { updateFicha((f) => { fotografarGanhos(f); }); salvarFichaSilencioso(); }
+                else if (storeState.personagens?.[j.nome]) salvarCamposPersonagem(j.nome, { [CAMINHO_FOTO_GANHOS]: lerGanhosPermanentes(storeState.personagens[j.nome]) });
+            } catch (e) { console.error('Foto dos ganhos permanentes falhou', e); }
+        });
         ordemIniciativa.filter(j => !j.isDummie && j.nome).forEach((j) => {
             try {
                 const r = dispararEventoEmPersonagem(j.nome, { tipo: 'inicioDeLuta' });
@@ -1300,7 +1310,7 @@ export function MapaFormProvider({ children }) {
             console.error('Iniciar combate falhou', e);
             return false;
         }
-    }, [isMestre, cenaRenderId, ordemIniciativa, feedCombate.length, iniciarTurnoDe]);
+    }, [isMestre, cenaRenderId, ordemIniciativa, feedCombate.length, iniciarTurnoDe, updateFicha]);
 
     // 🛡️ LADOS / EQUIPES (core/lados.js). Só Mestre/Co-Mestre escrevem. `entidade` = item { id, nome, isDummie } (ordem, foraDaOrdem, token) —
     // a ficha/dummie é buscada FRESCA no store. Jogador: eu = updateFicha + debounce; outro jogador = salvarCamposPersonagem (combate/equipe, combate/ladoOculto);
@@ -1386,48 +1396,114 @@ export function MapaFormProvider({ children }) {
     // cena" = mesma regra da ordemIniciativa aplicada à cena `cenaId`: jogadores com iniciativa > 0 e
     // posição nessa cena (posicoes[cenaId] ou posicao legada). Dummies não têm gatilhos.
     // Escrita em outros personagens só pelos helpers do Mestre (salvarCamposPersonagem / dispararEventoEmPersonagem).
-    const encerrarCombateDaCena = useCallback((cenaId, nomesFornecidos) => {
-        const storeState = useStore.getState();
-        const nomes = nomesFornecidos || Object.keys(jogadores || {}).filter((n) => {
-            const f = jogadores[n];
-            if (!f || !(f.iniciativa > 0)) return false;
-            return !!(f.posicoes && f.posicoes[cenaId]) || !!(f.posicao && (f.posicao.cenaId || 'default') === cenaId);
+    // `decisoes` ({ nome: 'liberar'|'recusar' }, vindo do diálogo de aprovação) vale quando a opção do Mestre está LIGADA: cada fimDeLuta recebe
+    // ctx.permanente (quem não está no mapa = 'liberar'). Sem `decisoes` (opção desligada) o fimDeLuta converte a Adaptação sozinho, como sempre.
+    const nomesDaCena = useCallback((cenaId) => Object.keys(jogadores || {}).filter((n) => {
+        const f = jogadores[n];
+        if (!f || !(f.iniciativa > 0)) return false;
+        return !!(f.posicoes && f.posicoes[cenaId]) || !!(f.posicao && (f.posicao.cenaId || 'default') === cenaId);
+    }), [jogadores]);
+
+    // ✅ Pendências de ganho permanente (Adaptação + derivados) de quem está em `nomes`. [] com a opção desligada. Os derivados incluem o que os gatilhos
+    // de fimDeLuta (ex.: Verg) ainda vão ganhar: simula-se o fimDeLuta numa cópia (modo 'adiar', sem escolhas ao dono) e mede-se contra a foto.
+    const coletarPendenciasPermanentes = useCallback((nomes, cenaId) => {
+        const st = useStore.getState();
+        if (!aprovarGanhosPermanentesLigado(st.cenario)) return [];
+        const itens = [];
+        (nomes || []).forEach((nome) => {
+            const ficha = nome === st.meuNome ? st.minhaFicha : st.personagens?.[nome];
+            if (!ficha) return;
+            let pendencias;
+            try {
+                const copia = JSON.parse(JSON.stringify(ficha));
+                dispararEventoNaFicha(copia, { tipo: 'fimDeLuta' }, { cenaId, nome, permanente: 'adiar' });
+                pendencias = calcularPendencias(copia);
+            } catch (e) { pendencias = calcularPendencias(ficha); }
+            if (pendencias.temPendencia) itens.push({ nome, pendencias });
         });
+        return itens;
+    }, []);
+
+    const encerrarCombateDaCena = useCallback((cenaId, nomesFornecidos, decisoes) => {
+        const storeState = useStore.getState();
+        const nomes = nomesFornecidos || nomesDaCena(cenaId);
         // Cada cena conta como um combate: a Imunidade total (core/gatilhosAplicar.js) termina com ele, em mim e nos jogadores que a têm.
         nomes.forEach((n) => { if (n !== meuNome && storeState.personagens?.[n]?.combate?.imunidadeTotal) salvarCamposPersonagem(n, { 'combate/imunidadeTotal': null }); });
         if (nomes.includes(meuNome)) { updateFicha(ficha => { if (ficha.combate) delete ficha.combate.imunidadeTotal; }); salvarFichaSilencioso(); }
         // 🔔 fimDeLuta: zera contadores com reset 'cena' e dispara os gatilhos de quem estava na cena.
         nomes.forEach((n) => {
-            const fim = dispararEventoEmPersonagem(n, { tipo: 'fimDeLuta' });
+            const fim = decisoes
+                ? dispararEventoEmPersonagem(n, { tipo: 'fimDeLuta' }, { permanente: decisoes[n] === 'recusar' ? 'recusar' : 'liberar' })
+                : dispararEventoEmPersonagem(n, { tipo: 'fimDeLuta' });
             if (fim.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${n}: ${fim.textos.join(' · ')}` });
         });
         return nomes;
-    }, [jogadores, meuNome, updateFicha]);
+    }, [nomesDaCena, meuNome, updateFicha]);
 
-    const ativarCena = useCallback((id) => {
+    // ✅ Diálogo de aprovação em andamento ({ itens, titulo, aoConfirmar, aoCancelar }) ou null. Só abre/confirma com isMestre efetivo (Mestre ou Co-Mestre; Modo Jogador não).
+    const [aprovacao, setAprovacao] = useState(null);
+    const aprovandoRef = useRef(false);
+    useEffect(() => { if (!isMestre) { setAprovacao(null); aprovandoRef.current = false; } }, [isMestre]);
+    // Roda `executar(decisoes)` já, se não há nada a aprovar, ou depois de o Mestre decidir no diálogo. Opção desligada: executar(undefined). Ligada sem pendências: executar({}).
+    // Mutex próprio (aprovandoRef, como iniciandoCombateRef): impede abrir o diálogo duas vezes e Confirmar duplo. Libera ao cancelar, ao concluir
+    // (depois de salvarCenarioCompleto, que `executar` devolve) e em erro síncrono.
+    const aprovarEExecutar = useCallback((nomes, cenaId, titulo, executar) => {
+        if (aprovandoRef.current) return;
+        aprovandoRef.current = true;
+        const liberar = () => { aprovandoRef.current = false; };
+        const rodar = (decisoes) => {
+            try { Promise.resolve(executar(decisoes)).finally(liberar); } catch (e) { liberar(); console.error('Encerramento falhou', e); }
+        };
+        try {
+            if (!aprovarGanhosPermanentesLigado(useStore.getState().cenario)) { rodar(undefined); return; }
+            const itens = coletarPendenciasPermanentes(nomes, cenaId);
+            if (itens.length === 0) { rodar({}); return; }
+            let usado = false;
+            setAprovacao({
+                itens, titulo,
+                aoConfirmar: (decisoes) => { if (usado) return; usado = true; setAprovacao(null); if (useStore.getState().isMestre) rodar(decisoes); else liberar(); },
+                aoCancelar: () => { setAprovacao(null); liberar(); },
+            });
+        } catch (e) { liberar(); console.error('Aprovação falhou', e); }
+    }, [coletarPendenciasPermanentes]);
+
+    // 🔘 Interruptor do Mestre/Co-Mestre (aba Mestre): pergunta antes de liberar ganhos permanentes ao encerrar o combate. Ausente = ligado.
+    const definirAprovarGanhos = useCallback((ligado) => {
+        if (!isMestre) return false;
+        salvarCenarioCompleto(cenarioComAprovacao(useStore.getState().cenario, !!ligado));
+        return true;
+    }, [isMestre]);
+
+    const trocarCena = useCallback((id, idAnterior, decisoes) => {
         if (!isMestre) return;
-        const idAnterior = cenario?.ativa || 'default';
-        let novoCenario = JSON.parse(JSON.stringify(cenario));
+        let novoCenario = JSON.parse(JSON.stringify(useStore.getState().cenario || cenario));
         novoCenario.ativa = id;
         // ⚔️ O estado do combate da cena que sai também acaba (sem mexer no turnoAtualIndex, como antes).
         const tinhaCombate = id !== idAnterior && combateAtivoNoCenario(novoCenario, idAnterior);
         if (id !== idAnterior) novoCenario = encerrarCombateNoCenario(novoCenario, idAnterior, { resetarTurno: false });
-        salvarCenarioCompleto(novoCenario);
+        const salvo = salvarCenarioCompleto(novoCenario);
         setCenaVisualizadaId(null);
         if (tinhaCombate) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O combate em ${String(cenario?.lista?.[idAnterior]?.nome || idAnterior).toUpperCase()} foi encerrado pela troca de cena.` });
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🗺️ O cenário mudou para: ${novoCenario.lista?.[id]?.nome || id}!` });
         // Cada cena conta como um combate: trocar a cena ATIVA encerra o da que está saindo.
         // Iniciativa e ordem manual NÃO são mexidas (como já era).
-        if (id !== idAnterior) encerrarCombateDaCena(idAnterior);
+        if (id !== idAnterior) encerrarCombateDaCena(idAnterior, undefined, decisoes);
+        return salvo;
     }, [isMestre, cenario, encerrarCombateDaCena]);
 
-    const encerrarCombate = useCallback(() => {
+    const ativarCena = useCallback((id) => {
         if (!isMestre) return;
-        const nomeCena = String(cenaAtual.nome || cenaRenderId);
-        if (!window.confirm(`Tem a certeza que deseja ZERAR A INICIATIVA DE TODOS OS JOGADORES E ENTIDADES presentes na cena "${nomeCena}"?`)) return;
+        const idAnterior = cenario?.ativa || 'default';
+        if (aprovandoRef.current) return;
+        // Trocar a cena encerra o combate da que sai: se há ganhos permanentes a aprovar, o Mestre decide antes (Cancelar = a cena NÃO muda).
+        if (id !== idAnterior) { aprovarEExecutar(nomesDaCena(idAnterior), idAnterior, 'Trocar de cena', (decisoes) => trocarCena(id, idAnterior, decisoes)); return; }
+        trocarCena(id, idAnterior, undefined);
+    }, [isMestre, cenario, aprovarEExecutar, nomesDaCena, trocarCena]);
+
+    const finalizarEncerramento = useCallback((nomeCena, nomesNaCena, decisoes) => {
+        if (!isMestre) return;
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚔️ O COMBATE EM ${nomeCena.toUpperCase()} FOI ENCERRADO PELO MESTRE! ⚔️` });
-        
-        const nomesNaCena = ordemIniciativa.filter(j => !j.isDummie).map(j => j.nome);
+
         if (nomesNaCena.length > 0) zerarIniciativaGlobal(nomesNaCena);
 
         const storeState = useStore.getState();
@@ -1441,15 +1517,24 @@ export function MapaFormProvider({ children }) {
         salvarFichaSilencioso();
         setJogadorHistory(null);
         // Imunidade total acaba nos outros e fimDeLuta dispara em quem estava na cena (cada cena conta como um combate).
-        encerrarCombateDaCena(cenaRenderId, nomesNaCena);
+        encerrarCombateDaCena(cenaRenderId, nomesNaCena, decisoes);
 
         // ⚔️ Limpa o estado do combate da cena (rodada, ativo) e volta o turno ao início: fica em preparação/sem combate.
         const novoCenario = encerrarCombateNoCenario(storeState.cenario || {}, cenaRenderId);
         // 🔀 Combate novo começa pela iniciativa de novo, sem a ordem manual deste.
         if (novoCenario.ordemTurnoManual?.[cenaRenderId]) novoCenario.ordemTurnoManual[cenaRenderId] = null;
-        salvarCenarioCompleto(novoCenario);
+        return salvarCenarioCompleto(novoCenario);
 
-    }, [isMestre, cenaAtual.nome, ordemIniciativa, updateFicha, cenaRenderId, encerrarCombateDaCena]);
+    }, [isMestre, ordemIniciativa, updateFicha, cenaRenderId, encerrarCombateDaCena]);
+
+    const encerrarCombate = useCallback(() => {
+        if (!isMestre || aprovandoRef.current) return;
+        const nomeCena = String(cenaAtual.nome || cenaRenderId);
+        if (!window.confirm(`Tem a certeza que deseja ZERAR A INICIATIVA DE TODOS OS JOGADORES E ENTIDADES presentes na cena "${nomeCena}"?`)) return;
+        const nomesNaCena = ordemIniciativa.filter(j => !j.isDummie).map(j => j.nome);
+        // ✅ Ganhos permanentes pendentes (Adaptação / Verg e derivados): o Mestre libera ou recusa no diálogo; Cancelar NÃO encerra o combate.
+        aprovarEExecutar(nomesNaCena, cenaRenderId, `Encerrar combate em ${nomeCena}`, (decisoes) => finalizarEncerramento(nomeCena, nomesNaCena, decisoes));
+    }, [isMestre, cenaAtual.nome, ordemIniciativa, cenaRenderId, aprovarEExecutar, finalizarEncerramento]);
 
     // 🔀 ORDEM DE TURNO MANUAL (Mestre/Co-Mestre, pela aba Mestre — MestreControleTurno.jsx):
     // grava a nova ordem em cenario.ordemTurnoManual[cena] e corrige turnoAtualIndex no MESMO
@@ -1637,8 +1722,8 @@ export function MapaFormProvider({ children }) {
 
     // 🔀 Ações de ordem manual pra aba Mestre — mesmo esquema estável (ref) do avancarTurno acima.
     // + combate e lados (iniciarCombate, encerrarCombate, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes) para a UI da aba Mestre.
-    const acoesOrdemTurnoRef = useRef({ reordenarTurno, adicionarAoTurno, removerDoTurno, iniciarCombate, encerrarCombate, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes });
-    useEffect(() => { acoesOrdemTurnoRef.current = { reordenarTurno, adicionarAoTurno, removerDoTurno, iniciarCombate, encerrarCombate, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes }; }, [reordenarTurno, adicionarAoTurno, removerDoTurno, iniciarCombate, encerrarCombate, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes]);
+    const acoesOrdemTurnoRef = useRef({ reordenarTurno, adicionarAoTurno, removerDoTurno, iniciarCombate, encerrarCombate, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes, definirAprovarGanhos });
+    useEffect(() => { acoesOrdemTurnoRef.current = { reordenarTurno, adicionarAoTurno, removerDoTurno, iniciarCombate, encerrarCombate, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes, definirAprovarGanhos }; }, [reordenarTurno, adicionarAoTurno, removerDoTurno, iniciarCombate, encerrarCombate, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes, definirAprovarGanhos]);
     useEffect(() => {
         const acoes = {
             reordenar: (chave, indice) => acoesOrdemTurnoRef.current.reordenarTurno(chave, indice),
@@ -1650,6 +1735,7 @@ export function MapaFormProvider({ children }) {
             alternarLadoOculto: (entidade) => acoesOrdemTurnoRef.current.alternarLadoOculto(entidade),
             salvarEquipes: (lista) => acoesOrdemTurnoRef.current.salvarEquipes(lista),
             salvarRelacoes: (mapa) => acoesOrdemTurnoRef.current.salvarRelacoes(mapa),
+            definirAprovarGanhos: (ligado) => acoesOrdemTurnoRef.current.definirAprovarGanhos(ligado),
         };
         useStore.getState?.()?.setAcoesOrdemTurnoMapa?.(acoes);
         return () => {
@@ -1732,6 +1818,7 @@ export function MapaFormProvider({ children }) {
     return (
         <MapaFormContext.Provider value={value}>
             {children}
+            {aprovacao && isMestre && <AprovacaoGanhosPermanentes itens={aprovacao.itens} titulo={aprovacao.titulo} aoConfirmar={aprovacao.aoConfirmar} aoCancelar={aprovacao.aoCancelar} />}
         </MapaFormContext.Provider>
     );
 }

@@ -12,9 +12,20 @@ import { dispararEventoNaFicha, camposParaGravar } from '../core/gatilhosAplicar
 import { cenaAtualDaMesa, aplicarDanoNaVidaDaFicha, criarEscolhaDoDono } from './danoVida';
 import { aplicarDanoEmPersonagem } from './danoAlvo';
 import { danoExibidoParaBruto } from '../core/vitals';
+import { combateAtivo as combateAtivoNoCenario } from '../core/combateEstado';
+import { aprovarGanhosPermanentesLigado } from '../core/aprovacaoPermanente';
 
 // Congelado: ninguém altera este objeto compartilhado (os chamadores só leem).
 const SEM_EFEITO = Object.freeze({ textos: Object.freeze([]), caminhos: Object.freeze([]), chaves: Object.freeze([]), disparou: false });
+
+// ✅ Modo do fimDeLuta para os ganhos permanentes (core/aprovacaoPermanente.js). Decisão explícita do Mestre (ctx.permanente) vale sempre. Sem ela:
+// opção desligada = 'converter' (como antes); ligada = 'adiar' se a cena tem combate ativo (o Mestre decide ao encerrar) ou 'limpar' (sem combate).
+function ctxDoFim(evento, ctx) {
+    if (evento.tipo !== 'fimDeLuta' || (ctx && ctx.permanente)) return ctx;
+    const cen = useStore.getState().cenario;
+    if (!aprovarGanhosPermanentesLigado(cen)) return ctx;
+    return { ...ctx, permanente: combateAtivoNoCenario(cen, (ctx && ctx.cenaId) || cenaAtualDaMesa()) ? 'adiar' : 'limpar' };
+}
 
 // Na MINHA ficha. Devolve { textos } (frases para o feed).
 export function dispararEventoMeu(evento, ctx = {}) {
@@ -25,7 +36,7 @@ export function dispararEventoMeu(evento, ctx = {}) {
         if (!sempre && coletarGatilhos(st.minhaFicha).length === 0) return SEM_EFEITO;
         let r = SEM_EFEITO;
         const escolhaDoDono = criarEscolhaDoDono();
-        st.updateFicha((ficha) => { r = dispararEventoNaFicha(ficha, evento, { cenaId: cenaAtualDaMesa(), nome: st.meuNome, escolher: escolhaDoDono, ...ctx }); });
+        st.updateFicha((ficha) => { r = dispararEventoNaFicha(ficha, evento, { cenaId: cenaAtualDaMesa(), nome: st.meuNome, escolher: escolhaDoDono, ...ctxDoFim(evento, ctx) }); });
         if (r.disparou || r.caminhos.length > 0) salvarFichaSilencioso();
         return r;
     } catch (e) { console.error('Gatilho falhou', e); return SEM_EFEITO; }
@@ -42,7 +53,7 @@ export function dispararEventoEmPersonagem(nome, evento, ctx = {}) {
         const sempre = evento.tipo === 'fimDeLuta';
         if (!sempre && coletarGatilhos(fresca).length === 0) return SEM_EFEITO;
         const clone = JSON.parse(JSON.stringify(fresca));
-        const r = dispararEventoNaFicha(clone, evento, { cenaId: cenaAtualDaMesa(), nome, ...ctx });
+        const r = dispararEventoNaFicha(clone, evento, { cenaId: cenaAtualDaMesa(), nome, ...ctxDoFim(evento, ctx) });
         if (r.caminhos.length > 0) salvarCamposPersonagem(nome, camposParaGravar(clone, r.caminhos));
         return r;
     } catch (e) { console.error('Gatilho falhou', e); return SEM_EFEITO; }
