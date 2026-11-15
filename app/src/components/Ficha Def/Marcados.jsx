@@ -30,6 +30,7 @@ import AjustesPanel from './AjustesPanel';
 import SegurarAcao from '../combate/SegurarAcao';
 import { getAcoesExibicao, alternarAcao, restaurarAcoes, ajustarExtraManualAcao, getExtraManualAcao, TIPOS_ACAO, ACOES_MAXIMO, ROTULO_ACAO } from '../../core/acoes';
 import BarrasVida from '../shared/BarrasVida';
+import { FONTES_GANHO, ROTULO_FONTE, detalharGanhos, lerHistorico, removerGanhoDeFonte } from '../../core/ganhosFonte';
 import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
 
 // ==========================================
@@ -1106,6 +1107,17 @@ export default function MarcadosPanel() {
 
     // 🏆 Ganhos permanentes de Poder (gatilho `ganhoPermanente`; entra em getGlobalMultipliers como Ganho_Permanente).
     const ganhoPermanentePoder = (() => { const n = Number(minhaFicha?.ganhosPermanentes?.poderCalculado); return Number.isFinite(n) && n > 0 ? n : 0; })();
+    // 🏆 Rastro por fonte (Adaptação / Zenkai / Gatilhos / Outros) e histórico: core/ganhosFonte.js (só leitura; o total continua sendo poderCalculado).
+    const detalheGanhos = detalharGanhos(minhaFicha);
+    const historicoGanhos = lerHistorico(minhaFicha);
+    const fmtGanhoPct = (fracao) => Number((fracao * 100).toFixed(4)).toLocaleString('pt-BR', { maximumFractionDigits: 4 });
+    // 🧹 Correção do Mestre: tira o ganho rastreado de UMA fonte (com confirmação), nunca abaixo de 0, e registra 'removido' no histórico. Grava pela ficha ativa (a de outro jogador, se for o caso).
+    const removerFonteDoGanho = (fonte) => {
+        if (!isMestre) return;
+        if (!window.confirm(`Remover o ganho de ${ROTULO_FONTE[fonte]} (+${fmtGanhoPct(detalheGanhos.fontes[fonte])}%) do Poder permanente? Isso diminui o total.`)) return;
+        updateFicha(f => { removerGanhoDeFonte(f, fonte, { cena: 'Mestre' }); });
+        callSave();
+    };
     // Fator composto (modo "multiplicar"; entra em glob.totalDano via getGlobalMultipliers). 1 = sem ganho.
     const fatorGanhoComposto = fatorGanhoCompostoDe(minhaFicha);
     // ⚔️ Ganhos DO COMBATE (gatilho com duração 'combate'): zeram no fim da luta. Mesma fonte de verdade de core/poder.js.
@@ -1419,6 +1431,7 @@ export default function MarcadosPanel() {
         const donoDescanso = nomeFichaAtiva || meuNome;
         const fimDescanso = dispararEventoEmPersonagem(donoDescanso, { tipo: 'fimDeLuta' });
         if (fimDescanso.textos?.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${donoDescanso}: ${fimDescanso.textos.join(' · ')}` });
+        if (fimDescanso.partes?.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${donoDescanso}: ${fimDescanso.partes.join(' · ')}` }); // uma parte por fonte
     };
 
     // 😮‍💨 FADIGA DE COMBATE: desgaste que se acumula a cada turno/grande gasto e
@@ -1710,6 +1723,31 @@ export default function MarcadosPanel() {
                                     <div className="ganho-permanente-linha" data-testid="ganho-permanente-poder">
                                         <span title="Soma acumulada por gatilhos (ex.: Ego Superior, Verg Avesta). Entra no Poder Calculado como um multiplicador somado aos demais (1 + soma); 1 = +100%.">🏆 Ganhos permanentes: +{Number(ganhoPermanentePoder.toFixed(6)).toLocaleString('pt-BR', { maximumFractionDigits: 6 })}{ganhoPermanentePoder > 0 ? ` (+${Number((ganhoPermanentePoder * 100).toFixed(4)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}%)` : ''}</span>
                                         {fatorGanhoComposto !== 1 && <span title="Fator composto por gatilhos em modo Multiplicar: multiplica o Poder Calculado.">×{Number(fatorGanhoComposto.toFixed(4)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })}</span>}
+                                        {/* 🏆 Detalhamento por fonte (core/ganhosFonte.js): o total acima é a soma; aqui se vê de onde veio cada parte. */}
+                                        {(ganhoPermanentePoder > 0 || fatorGanhoComposto !== 1) && (
+                                            <div className="ganho-fontes" data-testid="ganho-fontes">
+                                                {FONTES_GANHO.map(f => (detalheGanhos.fontes[f] > 0 || (f === 'gatilhos' && fatorGanhoComposto !== 1)) && (
+                                                    <span key={f} className="ganho-fonte" data-testid={`ganho-fonte-${f}`}>
+                                                        {ROTULO_FONTE[f]} +{fmtGanhoPct(detalheGanhos.fontes[f])}%{f === 'gatilhos' && fatorGanhoComposto !== 1 ? ` (fator ×${Number(fatorGanhoComposto.toFixed(4)).toLocaleString('pt-BR', { maximumFractionDigits: 4 })})` : ''}
+                                                        {isMestre && detalheGanhos.fontes[f] > 0 && (
+                                                            <button type="button" className="ganho-fonte-remover" aria-label={`Remover ganho de ${ROTULO_FONTE[f]}`} onClick={() => removerFonteDoGanho(f)}>Remover ganho de {ROTULO_FONTE[f]}</button>
+                                                        )}
+                                                    </span>
+                                                ))}
+                                                {detalheGanhos.excede && <span className="ganho-fonte ganho-fonte-aviso" data-testid="ganho-fontes-aviso" role="note">total editado manualmente abaixo da soma das fontes</span>}
+                                                {detalheGanhos.outros > 0 && <span className="ganho-fonte" data-testid="ganho-fonte-outros">{ROTULO_FONTE.outros} +{fmtGanhoPct(detalheGanhos.outros)}%</span>}
+                                            </div>
+                                        )}
+                                        {historicoGanhos.length > 0 && (
+                                            <details className="ganho-historico" data-testid="ganho-historico">
+                                                <summary>Histórico</summary>
+                                                <ul>
+                                                    {[...historicoGanhos].reverse().map((r, i) => (
+                                                        <li key={`${r.ts}-${i}`}>{Number.isFinite(Number(r.ts)) && !Number.isNaN(new Date(r.ts).getTime()) ? new Date(r.ts).toLocaleString('pt-BR') : '—'} · {ROTULO_FONTE[r.fonte] || r.fonte} · {r.decisao === 'removido' ? '−' : '+'}{fmtGanhoPct(r.pct / 100)}% · {r.decisao}{r.cena ? ` · ${r.cena}` : ''}{r.rodada ? ` (rodada ${r.rodada})` : ''}{r.nota ? ` · ${r.nota}` : ''}</li>
+                                                    ))}
+                                                </ul>
+                                            </details>
+                                        )}
                                         {isMestre && (
                                             <>
                                                 <input type="number" min="0" step="any" aria-label="Ganhos permanentes de Poder (Mestre)" key={ganhoPermanentePoder} defaultValue={ganhoPermanentePoder} onBlur={e => { const v = parseFloat(e.target.value); const novo = Number.isFinite(v) && v > 0 ? Math.min(v, 1e9) : 0; if (novo !== ganhoPermanentePoder) salvar('ganhosPermanentes.poderCalculado', novo); }} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }} />

@@ -30,6 +30,8 @@
 // ⚠️ Este módulo NÃO importa core/poder.js (poder.js importa fatorAdaptacao daqui). A medição do Poder fica em core/adaptacaoTurno.js.
 // ==========================================
 
+import { somarPorFonte, registrarHistorico } from './ganhosFonte.js';
+
 export const ADAPTACAO_FRACAO_PADRAO = 50;
 export const ADAPTACAO_FRACAO_MIN = 0;
 export const ADAPTACAO_FRACAO_MAX = 100;
@@ -155,7 +157,8 @@ export function zerarAdaptacao(ficha) {
 
 // Fim do combate/cena: converte a MÉDIA das porcentagens em ganho permanente (soma P/100 em ficha.ganhosPermanentes.poderCalculado) e zera.
 // Devolve { percentual, total } se ganhou algo, senão null (os acumuladores zeram do mesmo jeito). Idempotente: a segunda chamada devolve null.
-export function converterAdaptacaoEmPermanente(ficha) {
+// `hist` (opcional): { cena, rodada } para o histórico por fonte (core/ganhosFonte.js). O ganho entra em porFonte.adaptacao e no histórico como 'liberado'.
+export function converterAdaptacaoEmPermanente(ficha, hist = {}) {
     const c = ficha && ficha.combate;
     if (!c) return null;
     const turnos = getTurnosAdaptacao(ficha);
@@ -169,7 +172,10 @@ export function converterAdaptacaoEmPermanente(ficha) {
     const base = Number.isFinite(atual) && atual > 0 ? atual : 0;
     const total = arred9(Math.max(0, Math.min(LIMITE_ADAPTACAO_TOTAL_PERMANENTE, base + p / 100)));
     ficha.ganhosPermanentes.poderCalculado = total;
-    return { percentual: p, total };
+    const delta = arred9(total - base); // o que REALMENTE entrou (teto 1e9 e arredondamento já aplicados)
+    somarPorFonte(ficha, 'adaptacao', delta);
+    registrarHistorico(ficha, { fonte: 'adaptacao', pct: p, decisao: 'liberado', cena: hist && hist.cena, rodada: hist && hist.rodada });
+    return { percentual: p, total, delta };
 }
 
 export function textoConversaoAdaptacao(r) {

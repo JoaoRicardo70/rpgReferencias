@@ -103,7 +103,7 @@ describe('encerrarCombate com ganhos permanentes pendentes', () => {
         expect(c['combate/ganhosAntesDoCombate']).toBeNull();
         Object.values(c).forEach(v => expect(v).not.toBeUndefined());
         const textos = firebaseSync.enviarParaFeed.mock.calls.map(([m]) => m.texto);
-        expect(textos.some(t => t.includes('Vilao') && t.includes('❌ o Mestre recusou os ganhos permanentes'))).toBe(true);
+        expect(textos.some(t => t.includes('Vilao') && t.includes('❌ Derivados recusados'))).toBe(true);
         expect(cenarioSalvo().combates).toBeUndefined();
     });
     it('decisão por personagem: libera um e recusa o outro', () => {

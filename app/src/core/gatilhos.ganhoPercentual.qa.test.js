@@ -352,7 +352,7 @@ describe('ordem somar + multiplicar no mesmo disparo', () => {
         const a = ficha(); const b = ficha();
         aplicarAcoesNoRascunho(a, [{ tipo: 'ganhoPermanente', unidade: 'percentual', modo: 'somar', valor: 10 }, { tipo: 'ganhoPermanente', unidade: 'percentual', modo: 'multiplicar', valor: 10 }]);
         aplicarAcoesNoRascunho(b, [{ tipo: 'ganhoPermanente', unidade: 'percentual', modo: 'multiplicar', valor: 10 }, { tipo: 'ganhoPermanente', unidade: 'percentual', modo: 'somar', valor: 10 }]);
-        expect(a.ganhosPermanentes).toEqual({ poderCalculado: 0.1, fatorPoder: 1.1 });
+        expect(a.ganhosPermanentes).toMatchObject({ poderCalculado: 0.1, fatorPoder: 1.1 });
         expect(b.ganhosPermanentes).toEqual(a.ganhosPermanentes);
         expect(getGlobalMultipliers(a).totalDano).toBeCloseTo(1.1 * 1.1, 9);
         expect(getGlobalMultipliers(a).totalDano).toBeCloseTo(getGlobalMultipliers(b).totalDano, 12);

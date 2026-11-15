@@ -73,17 +73,17 @@ describe('aplicarDecisao', () => {
         expect(f.combate.adaptacaoTurnos).toBe(0);
         expect(f.combate.ganhosAntesDoCombate).toBeUndefined();
         expect(r.caminhos).toEqual(expect.arrayContaining(['ganhosPermanentes/poderCalculado', CAMINHO_FOTO_GANHOS, 'combate/adaptacaoFator']));
-        expect(r.textos[0]).toMatch(/^✅ Natsu: ganho permanente liberado: \+15% \(Adaptação\)/);
+        expect(r.partes[0]).toBe("✅ Adaptação +15%");
     });
     it('recusar: zera a Adaptacao sem converter e restaura a foto', () => {
         const f = base();
         const r = aplicarDecisao(f, 'recusar', { nome: 'Natsu' });
-        expect(f.ganhosPermanentes).toEqual({ poderCalculado: 0.4, fatorPoder: 2 });
+        expect(f.ganhosPermanentes).toMatchObject({ poderCalculado: 0.4, fatorPoder: 2 });
         expect(f.combate.adaptacaoFator).toBe(1);
         expect(f.combate.adaptacaoSoma).toBe(0);
         expect(f.combate.ganhosAntesDoCombate).toBeUndefined();
         expect(r.caminhos).toEqual(expect.arrayContaining(['ganhosPermanentes/poderCalculado', 'ganhosPermanentes/fatorPoder', CAMINHO_FOTO_GANHOS]));
-        expect(r.textos[0]).toBe('❌ Natsu: o Mestre recusou os ganhos permanentes deste combate; Poder volta ao de antes');
+        expect(r.partes).toEqual(['❌ Adaptação recusada', '❌ Derivados recusados']);
     });
     it('recusar sem foto: so a Adaptacao e recusada, derivados ficam', () => {
         const f = fichaCom({ soma: 30, turnos: 2, perm: { poderCalculado: 0.9 } });

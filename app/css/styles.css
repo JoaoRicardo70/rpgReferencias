@@ -3666,3 +3666,17 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .aprovacao-zenkai-fatores { margin: 0; padding-left: 18px; font-size: 0.78em; opacity: 0.8; }
 .aprovacao-zenkai-campo { display: inline-flex; align-items: center; gap: 8px; font-size: 0.85em; color: var(--cor-destaque); }
 .aprovacao-zenkai-campo input { width: 100px; padding: 4px 6px; border-radius: 4px; border: 1px solid var(--border-primary); background: transparent; color: inherit; }
+
+/* 🏆 Ganhos permanentes por fonte: seções do diálogo de aprovação e detalhamento/histórico na ficha */
+.aprovacao-item { flex-direction: column; align-items: stretch; }
+.aprovacao-item--misto { border-color: var(--cor-destaque); }
+.aprovacao-item-cabeca { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.aprovacao-secao { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 6px 8px; border-radius: 6px; border: 1px dashed var(--border-primary); }
+.aprovacao-secao-titulo { font-weight: bold; color: var(--cor-primaria); }
+.aprovacao-zenkai-dica { font-size: 0.8em; opacity: 0.7; }
+.ganho-fontes { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 0.85em; opacity: 0.9; }
+.ganho-fonte { padding: 2px 8px; border-radius: 10px; border: 1px solid var(--border-primary); }
+.ganho-fonte-remover { margin-left: 6px; padding: 0 6px; cursor: pointer; border-radius: 4px; border: 1px solid var(--cor-secundaria); background: transparent; color: var(--cor-secundaria); font-size: 0.85em; }
+.ganho-historico { font-size: 0.8em; width: 100%; }
+.ganho-historico summary { cursor: pointer; color: var(--cor-destaque); }
+.ganho-historico ul { margin: 4px 0 0 0; padding-left: 18px; }

@@ -152,7 +152,7 @@ describe('Clipes e 9 casas (combate = mesmas regras dos permanentes)', () => {
             aplicar(comb, { unidade: 'percentual', modo, valor, duracao: 'combate' });
             aplicar(perm, { unidade: 'percentual', modo, valor });
         });
-        expect(comb.ganhosCombate).toEqual(perm.ganhosPermanentes);
+        expect(comb.ganhosCombate).toEqual({ poderCalculado: perm.ganhosPermanentes.poderCalculado, fatorPoder: perm.ganhosPermanentes.fatorPoder });
     });
     it('ganhosCombate existente corrompido: acao percentual parte do neutro', () => {
         const f = { ...fichaVazia(), ganhosCombate: { poderCalculado: 'abc', fatorPoder: -3 } };

@@ -61,6 +61,14 @@ describe('Marcados Descansar: fimDeLuta', () => {
         descansar();
         expect(fb.enviarParaFeed).not.toHaveBeenCalled();
     });
+    it('com partes por fonte (opcao de aprovacao desligada): uma linha extra, uma parte por fonte', () => {
+        ge.dispararEventoEmPersonagem.mockImplementation(() => ({ textos: [], partes: ['✅ Adaptação +15%', '🔥 Zenkai +3% (x)'], caminhos: [] }));
+        montar(ficha());
+        render(<MarcadosPanel />);
+        descansar();
+        expect(fb.enviarParaFeed).toHaveBeenCalledTimes(1);
+        expect(fb.enviarParaFeed).toHaveBeenCalledWith({ tipo: 'sistema', nome: 'SISTEMA', texto: '\u{1F514} Eu: ✅ Adaptação +15% · 🔥 Zenkai +3% (x)' });
+    });
     it('com textos: feed com sino, nome e textos separados por ponto medio', () => {
         ge.dispararEventoEmPersonagem.mockImplementation(() => ({ textos: ['Fim: paz', 'Outro'], caminhos: [] }));
         montar(ficha());

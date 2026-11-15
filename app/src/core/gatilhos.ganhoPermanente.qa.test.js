@@ -90,13 +90,13 @@ describe('QA ganhoPermanente: aplicação, arredondamento e tetos', () => {
     it('preserva outros campos de ganhosPermanentes', () => {
         const f = ficha({ ganhosPermanentes: { outro: 7, poderCalculado: 1 }, poderes: [poder(fixo(2))] });
         disparar(f, { tipo: 'turnoInicio' });
-        expect(f.ganhosPermanentes).toEqual({ outro: 7, poderCalculado: 3 });
+        expect(f.ganhosPermanentes).toMatchObject({ outro: 7, poderCalculado: 3 });
     });
-    it('caminhos Firebase só tocam ganhosPermanentes/poderCalculado no valor fixo', () => {
+    it('caminhos Firebase tocam poderCalculado e o rastro porFonte.gatilhos no valor fixo', () => {
         const f = ficha({ poderes: [poder(fixo(2))] });
         const r = disparar(f, { tipo: 'turnoInicio' });
-        expect(r.caminhos).toEqual(['ganhosPermanentes/poderCalculado']);
-        expect(camposParaGravar(f, r.caminhos)).toEqual({ 'ganhosPermanentes/poderCalculado': 2 });
+        expect(r.caminhos).toEqual(["ganhosPermanentes/poderCalculado", "ganhosPermanentes/porFonte/gatilhos"]);
+        expect(camposParaGravar(f, r.caminhos)).toEqual({ 'ganhosPermanentes/poderCalculado': 2, 'ganhosPermanentes/porFonte/gatilhos': 2 });
     });
 });
 

@@ -31,6 +31,8 @@
 // ==========================================
 import { LIMITE_ADAPTACAO_GANHO_PERC, LIMITE_ADAPTACAO_GANHO_PERC_MIN, LIMITE_ADAPTACAO_TOTAL_PERMANENTE, CAMINHO_GANHO_PERMANENTE_PODER } from './adaptacao.js';
 
+import { somarPorFonte, registrarHistorico } from './ganhosFonte.js';
+
 export const ZENKAI_TETO_PADRAO = 5;            // % máximo de Poder por combate
 export const ZENKAI_TETO_MIN = 0;
 export const ZENKAI_TETO_MAX = 100;
@@ -268,7 +270,8 @@ export function resumirZenkai(calc) {
 
 // Soma pctFinal/100 em ficha.ganhosPermanentes.poderCalculado (modo 'somar'; mesmos limites de converterAdaptacaoEmPermanente). NÃO zera a telemetria.
 // pctFinal inválido, <= 0 ou NaN = nada. Devolve { percentual, total } ou null.
-export function aplicarZenkaiPermanente(ficha, pctFinal) {
+// `hist` (opcional): { cena, rodada } para o histórico por fonte; o ganho entra em porFonte.zenkai.
+export function aplicarZenkaiPermanente(ficha, pctFinal, hist = {}) {
     if (!ficha) return null;
     const bruto = Number(pctFinal);
     if (!Number.isFinite(bruto)) return null;
@@ -279,7 +282,10 @@ export function aplicarZenkaiPermanente(ficha, pctFinal) {
     const base = Number.isFinite(atual) && atual > 0 ? atual : 0;
     const total = arred9(Math.max(0, Math.min(LIMITE_ADAPTACAO_TOTAL_PERMANENTE, base + p / 100)));
     ficha.ganhosPermanentes.poderCalculado = total;
-    return { percentual: p, total };
+    const delta = arred9(total - base); // o que REALMENTE entrou (teto 1e9 e arredondamento já aplicados)
+    somarPorFonte(ficha, 'zenkai', delta);
+    registrarHistorico(ficha, { fonte: 'zenkai', pct: p, decisao: 'liberado', cena: hist && hist.cena, rodada: hist && hist.rodada });
+    return { percentual: p, total, delta };
 }
 
 // Valor do campo editável do diálogo: vazio/inválido = o sugerido; senão preso a [0, 100] com 4 casas.
@@ -291,7 +297,7 @@ export function limitarPctFinalZenkai(v, sugerido = 0) {
 
 // Decisão do fim do combate no RASCUNHO. modo: 'converter' (opção desligada: aplica o sugerido), 'liberar' (aplica pctFinal, ou o sugerido se omitido),
 // 'recusar' / 'limpar' (descarta). 'adiar' não faz nada. A telemetria sempre zera (exceto 'adiar'). Devolve { aplicou, texto, caminhos }.
-export function decidirZenkaiNoFim(ficha, modo, { pctFinal, nome } = {}) {
+export function decidirZenkaiNoFim(ficha, modo, { pctFinal, nome, cena, rodada } = {}) {
     const res = { aplicou: null, texto: '', caminhos: [] };
     if (!ficha || modo === 'adiar') return res;
     const tinha = !!(ficha.combate && ficha.combate.zenkai !== undefined);
@@ -299,14 +305,17 @@ export function decidirZenkaiNoFim(ficha, modo, { pctFinal, nome } = {}) {
     const calc = calcularZenkai(ficha);
     if (modo === 'converter' || modo === 'liberar') {
         const pct = modo === 'liberar' && pctFinal !== undefined && pctFinal !== null ? limitarPctFinalZenkai(pctFinal, calc.pct) : calc.pct;
-        const r = aplicarZenkaiPermanente(ficha, pct);
+        const r = aplicarZenkaiPermanente(ficha, pct, { cena, rodada });
         if (r) {
             res.aplicou = r;
             res.caminhos.push(CAMINHO_GANHO_PERMANENTE_PODER);
             res.texto = `🔥 ${nome ? `${nome}: ` : ''}Zenkai +${fmt(r.percentual)}% de Poder permanente (${resumirZenkai(calc)}); total ${fmt(r.total * 100)}%`;
+            res.parte = `🔥 Zenkai +${fmt(r.percentual)}% (${resumirZenkai(calc)})`;
         }
     } else if (calc.ativo && calc.turnos > 0 && modo === 'recusar') {
         res.texto = `❌ ${nome ? `${nome}: ` : ''}Zenkai recusado pelo Mestre`;
+        res.recusado = true; // recusa explícita; com turnos = 0 não há o que recusar (sem texto, histórico nem parte)
+        registrarHistorico(ficha, { fonte: 'zenkai', pct: calc.pct, decisao: 'recusado', cena, rodada });
     }
     if (zerarZenkai(ficha)) res.caminhos.push(...CAMINHOS_ZENKAI);
     return res;

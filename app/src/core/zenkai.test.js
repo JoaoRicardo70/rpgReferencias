@@ -253,7 +253,7 @@ describe('configuracao por personagem (zenkaiConfig)', () => {
 describe('aplicarZenkaiPermanente', () => {
     it('soma p/100 em ganhosPermanentes.poderCalculado (9 casas)', () => {
         const f = { ganhosPermanentes: { poderCalculado: 0.2 } };
-        expect(aplicarZenkaiPermanente(f, 2.5)).toEqual({ percentual: 2.5, total: 0.225 });
+        expect(aplicarZenkaiPermanente(f, 2.5)).toMatchObject({ percentual: 2.5, total: 0.225 });
         expect(f.ganhosPermanentes.poderCalculado).toBe(0.225);
         const g = {};
         aplicarZenkaiPermanente(g, 1 / 3);
@@ -294,7 +294,7 @@ describe('decidirZenkaiNoFim', () => {
         const d = comTurnos();
         const rd = decidirZenkaiNoFim(d, 'recusar', { nome: 'X' });
         expect(rd.aplicou).toBeNull();
-        expect(d.ganhosPermanentes).toBeUndefined();
+        expect(d.ganhosPermanentes?.poderCalculado).toBeUndefined();
         expect(d.combate.zenkai).toBeUndefined();
         expect(rd.texto).toContain('Zenkai recusado');
         const e = comTurnos();

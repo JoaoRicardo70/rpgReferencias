@@ -15,6 +15,7 @@ const itens = (extra = {}) => [
     { nome: 'Verg', pendencias: { temPendencia: true, adaptacao: { pct: 10, turnos: 2, soma: 20 }, derivados: null, ...extra } },
 ];
 
+const T = (v) => ({ adaptacao: v, zenkai: v, derivados: v });
 afterEach(cleanup);
 
 describe('AprovacaoGanhosPermanentes: Zenkai', () => {
@@ -39,7 +40,7 @@ describe('AprovacaoGanhosPermanentes: Zenkai', () => {
         render(<AprovacaoGanhosPermanentes itens={itens()} aoConfirmar={aoConfirmar} aoCancelar={() => {}} />);
         fireEvent.change(screen.getByLabelText('Zenkai de Natsu (%)'), { target: { value: '3.75' } });
         fireEvent.click(screen.getByText('Confirmar e encerrar'));
-        expect(aoConfirmar).toHaveBeenLastCalledWith({ Natsu: 'liberar', Verg: 'liberar' }, { Natsu: 3.75 });
+        expect(aoConfirmar).toHaveBeenLastCalledWith({ Natsu: T('liberar'), Verg: T('liberar') }, { Natsu: 3.75 });
     });
     it('sem editar entrega o sugerido; vazio volta ao sugerido; acima de 100 e preso; negativo vira 0', () => {
         const aoConfirmar = vi.fn();
@@ -63,9 +64,9 @@ describe('AprovacaoGanhosPermanentes: Zenkai', () => {
         fireEvent.change(screen.getByLabelText('Zenkai de Natsu (%)'), { target: { value: '1' } });
         fireEvent.click(screen.getByText('Recusar todos'));
         fireEvent.click(screen.getByText('Confirmar e encerrar'));
-        expect(aoConfirmar).toHaveBeenLastCalledWith({ Natsu: 'recusar', Verg: 'recusar' }, { Natsu: 1 });
+        expect(aoConfirmar).toHaveBeenLastCalledWith({ Natsu: T('recusar'), Verg: T('recusar') }, { Natsu: 1 });
         fireEvent.click(screen.getByText('Liberar todos'));
         fireEvent.click(screen.getByText('Confirmar e encerrar'));
-        expect(aoConfirmar).toHaveBeenLastCalledWith({ Natsu: 'liberar', Verg: 'liberar' }, { Natsu: 1 });
+        expect(aoConfirmar).toHaveBeenLastCalledWith({ Natsu: T('liberar'), Verg: T('liberar') }, { Natsu: 1 });
     });
 });

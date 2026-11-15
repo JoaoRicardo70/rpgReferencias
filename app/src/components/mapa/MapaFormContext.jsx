@@ -9,7 +9,7 @@ import { abrirTurnoZenkai, iniciarZenkai, novaTelemetriaZenkai, zenkaiLigado, CA
 import { registrarGastoDeEnergia } from '../../core/zenkaiMedicao';
 import { CAMINHOS_ADAPTACAO } from '../../core/adaptacao';
 import { getEquipes, getRelacoes, equipeDe, moverParaEquipe, textoMudancaDeLado, ladoEstaOculto, alvoNoFiltro, sanitizarEquipes, sanitizarRelacoes, comoCombatente, patchLadoOculto } from '../../core/lados';
-import { aprovarGanhosPermanentesLigado, cenarioComAprovacao, calcularPendencias, fotografarGanhos, lerGanhosPermanentes, CAMINHO_FOTO_GANHOS } from '../../core/aprovacaoPermanente';
+import { normalizarDecisoes, aprovarGanhosPermanentesLigado, cenarioComAprovacao, calcularPendencias, fotografarGanhos, lerGanhosPermanentes, CAMINHO_FOTO_GANHOS } from '../../core/aprovacaoPermanente';
 import AprovacaoGanhosPermanentes from '../mestre/AprovacaoGanhosPermanentes';
 import { combateAtivo as combateAtivoNoCenario, getRodada, iniciarCombateNoCenario, encerrarCombateNoCenario, avancarRodadaSeVoltou } from '../../core/combateEstado';
 import { aplicarCoresDado, lerCoresDado } from '../../core/coresDado';
@@ -1170,6 +1170,7 @@ export function MapaFormProvider({ children }) {
         // 🔔 Descansar também encerra a luta: contadores 'cena' zeram e gatilhos fimDeLuta disparam.
         const fimDescanso = dispararEventoMeu({ tipo: 'fimDeLuta' }, { nome: meuNome });
         if (fimDescanso.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${meuNome}: ${fimDescanso.textos.join(' · ')}` });
+        if ((fimDescanso.partes || []).length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${meuNome}: ${fimDescanso.partes.join(' · ')}` }); // uma parte por fonte (Adaptação/Zenkai/Derivados)
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `💖 ${meuNome} descansou e recuperou as forças!` });
     }, [updateFicha, meuNome]);
 
@@ -1446,12 +1447,15 @@ export function MapaFormProvider({ children }) {
         if (nomes.includes(meuNome)) { updateFicha(ficha => { if (ficha.combate) delete ficha.combate.imunidadeTotal; }); salvarFichaSilencioso(); }
         // 🔔 fimDeLuta: zera contadores com reset 'cena' e dispara os gatilhos de quem estava na cena.
         nomes.forEach((n) => {
+            // Decisão POR FONTE (Adaptação / Zenkai / Derivados): decisoes[n] = 'liberar'|'recusar' (tudo) ou { adaptacao, zenkai, derivados }.
+            const fontes = decisoes ? normalizarDecisoes(decisoes[n]) : null;
+            const histCtx = { rodada: getRodada(storeState.cenario, cenaId) || undefined, cenaNome: String(storeState.cenario?.lista?.[cenaId]?.nome || cenaId) };
             const fim = decisoes
-                ? dispararEventoEmPersonagem(n, { tipo: 'fimDeLuta' }, { permanente: decisoes[n] === 'recusar' ? 'recusar' : 'liberar', ...(ajustes && ajustes[n] !== undefined ? { zenkaiPct: ajustes[n] } : {}) })
-                : dispararEventoEmPersonagem(n, { tipo: 'fimDeLuta' });
+                ? dispararEventoEmPersonagem(n, { tipo: 'fimDeLuta' }, { permanente: Object.values(fontes).every(v => v === 'recusar') ? 'recusar' : 'liberar', fontes, ...histCtx, ...(ajustes && ajustes[n] !== undefined ? { zenkaiPct: ajustes[n] } : {}) })
+                : dispararEventoEmPersonagem(n, { tipo: 'fimDeLuta' }, histCtx);
             if (fim.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${n}: ${fim.textos.join(' · ')}` });
-            // 💥 Zenkai: frases próprias ("🔥 X: Zenkai +A% (...)").
-            (fim.textosZenkai || []).forEach(t => enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: t }));
+            // 🏆 Uma linha com UMA parte por fonte: "🔔 X: ✅ Adaptação +a% · 🔥 Zenkai +z% (...) · ❌ Derivados recusados".
+            if ((fim.partes || []).length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${n}: ${fim.partes.join(' · ')}` });
         });
         return nomes;
     }, [nomesDaCena, meuNome, updateFicha]);

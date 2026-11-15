@@ -273,7 +273,7 @@ describe('(h) decisao do Mestre: editado / vazio / 0 / junto com Adaptacao / for
         const b = mk(); aplicarDecisao(b, 'liberar', { zenkaiPct: 0 });
         expect(b.ganhosPermanentes.poderCalculado).toBeCloseTo(0.1, 9); // so a Adaptacao
         const c = mk(); aplicarDecisao(c, 'recusar', { zenkaiPct: 5 });
-        expect(c.ganhosPermanentes).toBeUndefined();
+        expect(c.ganhosPermanentes?.poderCalculado).toBeUndefined();
     });
     it('o Zenkai nao entra em derivados mesmo com ganhos de outra origem mudando', () => {
         const f = luta({ ganhosAntesDoCombate: { poderCalculado: 0, fatorPoder: 1 } });

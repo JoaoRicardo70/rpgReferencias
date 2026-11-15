@@ -23,7 +23,7 @@ describe('ponta a ponta: exemplo do usuario com fimDeLuta', () => {
         expect(f.combate.adaptacaoTurnos).toBe(0);
         expect(f.combate.adaptacaoSoma).toBe(0);
         expect(f.combate.adaptacaoUltimo).toBeUndefined();
-        expect(r.textos.some(t => /Adapta/.test(t) && /15/.test(t))).toBe(true);
+        expect(r.partes.some(t => /Adapta/.test(t) && /15/.test(t))).toBe(true);
         expect(r.caminhos ? [...r.caminhos] : []).toEqual(expect.arrayContaining(['ganhosPermanentes/poderCalculado']));
     });
     it('fimDeLuta duas vezes nao converte em dobro', () => {

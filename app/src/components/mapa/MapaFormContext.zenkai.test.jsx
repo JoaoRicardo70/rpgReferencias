@@ -92,7 +92,7 @@ describe('encerrarCombate com Zenkai', () => {
         expect(state.minhaFicha.ganhosPermanentes.poderCalculado).toBeCloseTo(0.0325, 9);
         expect(state.minhaFicha.combate.zenkai).toBeUndefined();
         expect(state.minhaFicha.combate.ganhosAntesDoCombate).toBeUndefined();
-        expect(feed().some(t => t.startsWith('🔥 Heroi: Zenkai +3,25%'))).toBe(true);
+        expect(feed().some(t => t.startsWith('🔔 Heroi:') && t.includes('🔥 Zenkai +3,25%'))).toBe(true);
     });
 
     it('Liberar com valor EDITADO aplica o editado (soma com o resto)', () => {
@@ -103,7 +103,7 @@ describe('encerrarCombate com Zenkai', () => {
         act(() => { fireEvent.change(campoZenkai('Heroi'), { target: { value: '1.5' } }); });
         act(() => { fireEvent.click(botao('Confirmar e encerrar')); });
         expect(state.minhaFicha.ganhosPermanentes.poderCalculado).toBeCloseTo(0.115, 9);
-        expect(feed().some(t => t.startsWith('🔥 Heroi: Zenkai +1,5%'))).toBe(true);
+        expect(feed().some(t => t.startsWith('🔔 Heroi:') && t.includes('🔥 Zenkai +1,5%'))).toBe(true);
     });
 
     it('valor acima de 100 e preso a 100; campo vazio volta ao sugerido; 0 nao aplica', () => {
@@ -330,5 +330,80 @@ describe('aplicarInicioDeTurno + Zenkai (passos do turno)', () => {
         expect(montarContextoAdaptacao(ficha({}, { zenkaiLigado: true }), 'Heroi', ordem, { ...estado, inicioDeCombate: true }).zenkaiReiniciar).toBe(true);
         // com cenaIdCombate e sem combate ativo: null
         expect(montarContextoAdaptacao(ficha({}, { zenkaiLigado: true }), 'Heroi', ordem, { ...estado, cenaIdCombate: 'default' })).toBeNull();
+    });
+});
+
+describe('decisao por fonte no encerramento (Adaptacao / Zenkai / Derivados)', () => {
+    const secaoRadio = (nome, fonte, valor) => (fonte === 'zenkai' ? screen.getByTestId(`aprovacao-zenkai-${nome}`) : screen.getByTestId(`aprovacao-secao-${nome}-${fonte}`)).querySelector(`input[value="${valor}"]`);
+
+    it('Zenkai recusado e Adaptacao liberada: so a Adaptacao entra; uma linha no feed com uma parte por fonte', () => {
+        const state = baseState();
+        Object.assign(state.minhaFicha.combate, { adaptacaoLigada: true, adaptacaoFator: 1.3125, adaptacaoSoma: 30, adaptacaoTurnos: 2 });
+        montar(state);
+        act(() => { probe.encerrarCombate(); });
+        act(() => { fireEvent.click(secaoRadio('Heroi', 'zenkai', 'recusar')); });
+        act(() => { fireEvent.click(botao('Confirmar e encerrar')); });
+        expect(state.minhaFicha.ganhosPermanentes.poderCalculado).toBeCloseTo(0.15, 9);
+        expect(state.minhaFicha.ganhosPermanentes.porFonte.adaptacao).toBeCloseTo(0.15, 9);
+        expect(state.minhaFicha.ganhosPermanentes.porFonte.zenkai).toBeUndefined();
+        const h = state.minhaFicha.ganhosPermanentes.historico;
+        expect(h.map(x => `${x.fonte}:${x.decisao}`)).toEqual(['adaptacao:liberado', 'zenkai:recusado']);
+        expect(h[0].cena).toBe('Cena');
+        expect(h[0].rodada).toBe(2);
+        expect(feed().filter(t => t.startsWith('🔔 Heroi:'))).toEqual(['🔔 Heroi: ✅ Adaptação +15% · ❌ Zenkai recusado']);
+    });
+
+    it('Derivados recusados e Zenkai liberado em outro jogador: restaura a foto e SO DEPOIS soma o Zenkai; grava rastro granular', () => {
+        const vilao = ficha({ iniciativa: 5, isNPC: true, posicao: { x: 1, y: 1, z: 0 }, ganhosPermanentes: { poderCalculado: 0.7, fatorPoder: 3, porFonte: { gatilhos: 0.5 } } }, comZenkai({ ganhosAntesDoCombate: { poderCalculado: 0.2, fatorPoder: 1 } }));
+        const state = baseState({ personagens: { Vilao: vilao } });
+        montar(state);
+        act(() => { probe.encerrarCombate(); });
+        act(() => { fireEvent.click(secaoRadio('Vilao', 'derivados', 'recusar')); });
+        act(() => { fireEvent.click(botao('Confirmar e encerrar')); });
+        const c = camposSalvos('Vilao')[0];
+        expect(c['ganhosPermanentes/poderCalculado']).toBeCloseTo(0.2325, 9);
+        expect(c['ganhosPermanentes/fatorPoder']).toBe(1);
+        expect(c['ganhosPermanentes/porFonte/zenkai']).toBeCloseTo(0.0325, 9);
+        expect(c['ganhosPermanentes/porFonte/gatilhos']).toBe(0);
+        expect(c['ganhosPermanentes/historico'].map(x => `${x.fonte}:${x.decisao}`)).toEqual(['zenkai:liberado', 'gatilhos:recusado']);
+        expect(c['combate/zenkai']).toBeNull();
+        Object.values(c).forEach(v => expect(v).not.toBeUndefined());
+        expect(feed().some(t => t.startsWith('🔔 Vilao:') && t.includes('🔥 Zenkai +3,25%') && t.includes('❌ Derivados recusados'))).toBe(true);
+    });
+
+    it('Cancelar com secoes alteradas nao aplica nada', () => {
+        const state = baseState();
+        montar(state);
+        act(() => { probe.encerrarCombate(); });
+        act(() => { fireEvent.click(secaoRadio('Heroi', 'zenkai', 'recusar')); });
+        act(() => { fireEvent.click(botao('Cancelar')); });
+        expect(state.minhaFicha.ganhosPermanentes).toBeUndefined();
+        expect(state.minhaFicha.combate.zenkai).toBeDefined();
+    });
+});
+
+describe('feed sem decisoes (opcao de aprovacao desligada) e Descansar', () => {
+    const comAdaptacao = (state) => Object.assign(state.minhaFicha.combate, { adaptacaoLigada: true, adaptacaoFator: 1.3125, adaptacaoSoma: 30, adaptacaoTurnos: 2 });
+    it('encerrar com a opcao desligada: linha por fonte com Adaptacao e Zenkai aplicados', () => {
+        const state = baseState();
+        state.cenario.aprovarGanhosPermanentes = false;
+        comAdaptacao(state);
+        montar(state);
+        act(() => { probe.encerrarCombate(); });
+        expect(feed().some(t => t.startsWith('🔔 Heroi: ✅ Adaptação +15% · 🔥 Zenkai +3,25% ('))).toBe(true);
+    });
+    it('Descansar (opcao desligada) mostra a linha de Adaptacao/Zenkai', () => {
+        const state = baseState();
+        state.cenario.aprovarGanhosPermanentes = false;
+        comAdaptacao(state);
+        montar(state);
+        act(() => { probe.descansar(); });
+        expect(feed().some(t => t.startsWith('🔔 Heroi: ✅ Adaptação +15% · 🔥 Zenkai +3,25%'))).toBe(true);
+    });
+    it('Descansar com a opcao ligada nao aplica: nenhuma linha de parte', () => {
+        const state = baseState();
+        montar(state);
+        act(() => { probe.descansar(); });
+        expect(feed().some(t => t.includes('Zenkai +'))).toBe(false);
     });
 });

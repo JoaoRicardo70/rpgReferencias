@@ -21,6 +21,7 @@ import { chaveDoGatilhoDoPoder, normalizarGatilhos, LIMITE_TOTAL_GANHO_PERMANENT
 import { FATOR_PODER_MAX, FATOR_PODER_MIN, zerarGanhosCombate } from './poder.js';
 import { CAMINHOS_ADAPTACAO } from './adaptacao.js';
 import { CAMINHOS_ZENKAI } from './zenkai.js';
+import { somarPorFonte, CAMINHOS_RASTRO } from './ganhosFonte.js';
 import { iniciarFim, concluirFim } from './aprovacaoPermanente.js';
 
 const fmtN = (n) => Math.floor(Number(n) || 0).toLocaleString('pt-BR');
@@ -321,6 +322,7 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                         const total = Math.round(Math.max(0, Math.min(LIMITE_TOTAL_GANHO_PERMANENTE, base + p / 100)) * 1e9) / 1e9;
                         ficha[dest].poderCalculado = total;
                         caminhos.add(dest + '/poderCalculado');
+                        if (dest === 'ganhosPermanentes') { somarPorFonte(ficha, 'gatilhos', total - base); caminhos.add('ganhosPermanentes/porFonte/gatilhos'); } // rastro por fonte (core/ganhosFonte.js)
                         textos.push(`${nome}: ${p > 0 ? '+' : ''}${fmtGanho(p)}% de Poder, soma (${origem}); total ${fmtGanho(total * 100)}%${sufDur}`);
                     }
                 } else {
@@ -331,6 +333,7 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                     if (!ficha[dest] || typeof ficha[dest] !== 'object') ficha[dest] = {};
                     ficha[dest].poderCalculado = total;
                     caminhos.add(dest + '/poderCalculado');
+                    if (dest === 'ganhosPermanentes') { somarPorFonte(ficha, 'gatilhos', total - base); caminhos.add('ganhosPermanentes/porFonte/gatilhos'); }
                     textos.push(`${nome}: +${fmtGanho(ganho)} de Poder ${dest === 'ganhosCombate' ? 'até o fim do combate' : 'permanente'} (${origem}); total ${fmtGanho(total)}`);
                 }
                 if (iZerar >= 0) {
@@ -408,7 +411,9 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
     const caminhos = new Set();
     const cenaId = ctx.cenaId || 'default';
     // 💥 Zenkai: res.textosZenkai só existe no fimDeLuta (frases próprias do Zenkai, para o feed à parte). ctx.zenkaiPct = valor final do Mestre (em %).
-    if (evento.tipo === 'fimDeLuta') res.textosZenkai = [];
+    if (evento.tipo === 'fimDeLuta') { res.textosZenkai = []; res.partes = []; }
+    // ctx.fontes { adaptacao, zenkai, derivados } = decisão por fonte; ctx.rodada/ctx.cenaNome alimentam o histórico (core/ganhosFonte.js).
+    const histCtx = { cena: ctx.cenaNome || cenaId, rodada: ctx.rodada };
     const modoPermanente = ctx.permanente || 'converter';
     let fimPermanente = null;
     if (evento.tipo === 'turnoInicio' || evento.tipo === 'fimDeLuta') { if (zerarUsosPorTurno(ficha)) caminhos.add('combate/usosPoderes'); }
@@ -417,10 +422,11 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
         // 🧬 Adaptação: por padrão ('converter') a média das % ganhas nos turnos vira Poder PERMANENTE e o fator de combate zera (core/adaptacao.js). Idempotente.
         // ctx.permanente: 'liberar'/'recusar' = decisão do Mestre; 'adiar' = combate ainda ativo; 'limpar' = sem combate (core/aprovacaoPermanente.js).
         try {
-            fimPermanente = iniciarFim(ficha, modoPermanente, { nomeZenkai: ctx.nome, zenkaiPct: ctx.zenkaiPct });
+            fimPermanente = iniciarFim(ficha, modoPermanente, { nomeZenkai: ctx.nome, zenkaiPct: ctx.zenkaiPct, fontes: ctx.fontes, ...histCtx });
             fimPermanente.caminhos.forEach(c => caminhos.add(c));
             fimPermanente.textos.forEach(t => res.textos.push(t));
             fimPermanente.textosZenkai.forEach(t => res.textosZenkai.push(t));
+            fimPermanente.partes.forEach(t => res.partes.push(t));
         } catch (e) { console.error('Conversão da Adaptação falhou', e); }
     }
     const profundidade = Number(ctx.profundidade) || 0;
@@ -447,9 +453,10 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
     // ✅ Por fim: a recusa do Mestre devolve os ganhos permanentes à foto de antes do combate (desfaz também o que os gatilhos de fimDeLuta ganharam) e a foto some.
     if (evento.tipo === 'fimDeLuta') {
         try {
-            const fim2 = concluirFim(ficha, modoPermanente, { pendencias: fimPermanente && fimPermanente.pendencias });
+            const fim2 = concluirFim(ficha, modoPermanente, { pendencias: fimPermanente && fimPermanente.pendencias, aplicados: fimPermanente && fimPermanente.aplicados, fontes: ctx.fontes, ...histCtx });
             fim2.caminhos.forEach(c => caminhos.add(c));
             fim2.textos.forEach(t => res.textos.push(t));
+            fim2.partes.forEach(t => res.partes.push(t));
         } catch (e) { console.error('Aprovação dos ganhos permanentes falhou', e); }
     }
     res.caminhos = [...caminhos];
@@ -497,7 +504,7 @@ export function camposParaGravar(ficha, caminhos) {
 
 // Campos de gatilhos/condições que mudaram entre duas versões da ficha (para gravar só eles no Firebase de OUTRO jogador).
 // Formato { caminho: valor | null }. Usado no início do turno (estados que tiram Vida, Imunidade total que passa).
-const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'ganhosPermanentes/fatorPoder', ...CAMINHOS_ADAPTACAO, 'combate/ganhosAntesDoCombate', ...CAMINHOS_ZENKAI, 'ganhosCombate/poderCalculado', 'ganhosCombate/fatorPoder', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
+const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'ganhosPermanentes/fatorPoder', ...CAMINHOS_RASTRO, ...CAMINHOS_ADAPTACAO, 'combate/ganhosAntesDoCombate', ...CAMINHOS_ZENKAI, 'ganhosCombate/poderCalculado', 'ganhosCombate/fatorPoder', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
 export function camposDeGatilhosAlterados(antes, depois) {
     const lido = (f, caminho) => caminho.split('/').reduce((v, p) => (v === undefined || v === null ? undefined : v[p]), f);
     const mudados = CAMINHOS_GATILHOS.filter(c => JSON.stringify(lido(antes, c)) !== JSON.stringify(lido(depois, c)));

@@ -555,7 +555,7 @@ describe('Adaptação por diferença de Poder no fimDeLuta (core)', () => {
         expect(on.combate).toMatchObject({ adaptacaoFator: 1, adaptacaoSoma: 0, adaptacaoTurnos: 0 });
         expect(on.combate.adaptacaoUltimo).toBeUndefined();
         expect(res.caminhos).toEqual(expect.arrayContaining(['ganhosPermanentes/poderCalculado', 'combate/adaptacaoFator', 'combate/adaptacaoSoma', 'combate/adaptacaoTurnos', 'combate/adaptacaoUltimo']));
-        expect(res.textos.some(t => /Adaptação/.test(t))).toBe(true);
+        expect(res.partes.some(t => /Adaptação/.test(t))).toBe(true);
         const campos = camposParaGravar(on, res.caminhos);
         expect(campos['ganhosPermanentes/poderCalculado']).toBeCloseTo(0.15, 9);
         expect(campos['combate/adaptacaoUltimo']).toBeNull();

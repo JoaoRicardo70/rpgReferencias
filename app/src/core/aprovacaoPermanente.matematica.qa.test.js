@@ -44,7 +44,7 @@ describe('matematica ponta a ponta (Poder Base 800, fracao 50%)', () => {
         expect(p.derivados.poderCalculado).toBeCloseTo(0.5, 9);
         expect(p.derivados.fatorPoder).toBeCloseTo(3, 9);
         aplicarDecisao(f, 'recusar');
-        expect(f.ganhosPermanentes).toEqual({ poderCalculado: 0.2, fatorPoder: 2 });
+        expect(f.ganhosPermanentes).toMatchObject({ poderCalculado: 0.2, fatorPoder: 2 });
         expect(f.combate.adaptacaoSoma).toBe(0);
         expect(f.combate.adaptacaoFator).toBe(1);
         expect(f.combate.ganhosAntesDoCombate).toBeUndefined();
@@ -62,7 +62,7 @@ describe('matematica ponta a ponta (Poder Base 800, fracao 50%)', () => {
         f.ganhosPermanentes = { poderCalculado: 0.7, fatorPoder: 6 };
         expect(calcularPendencias(f).derivados).toBeNull();
         aplicarDecisao(f, 'recusar');
-        expect(f.ganhosPermanentes).toEqual({ poderCalculado: 0.7, fatorPoder: 6 });
+        expect(f.ganhosPermanentes).toMatchObject({ poderCalculado: 0.7, fatorPoder: 6 });
         expect(f.combate.adaptacaoTurnos).toBe(0);
     });
     it('decisoes mistas em varios personagens sao independentes', () => {
