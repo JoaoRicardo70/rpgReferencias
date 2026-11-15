@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import useStore, { sanitizarNome } from '../stores/useStore';
 import { salvarFichaSilencioso } from '../services/firebase-sync';
 import { CAMPO_FICHA_POR_TIPO, TIPOS_PEDIDO_JOGADOR, anexarNaLista, normalizarProposta } from '../core/sextaFeiraCriacao';
+import { verificarAcessoHabilidadeRaca, aplicarExcecaoRaca, ehHabilidadeDeRaca, racasAcessoPadraoParaFicha } from '../core/racas';
 import { anexarNaFicha, enviarPendente, registrarDecisao, reivindicarPendente } from '../services/sextaFeiraDados';
 
 // 🛠️ PEDIDOS DE CRIAÇÃO DOS JOGADORES (Sexta-Feira): gravar na ficha, aprovar e recusar.
@@ -18,9 +19,35 @@ export default function usePedidosCriacao(dialogos) {
 
     // Anexa poder/magia/item à ficha do alvo: a própria pelo store (com save em debounce), a de
     // outro jogador por transação no banco (não sobrescreve o que o dono acabou de gravar).
-    const gravarNaFicha = useCallback(async ({ tipo, objeto, alvo }) => {
+    // 🧬 Habilidade de Raça (core/racas.js): a IA/jogador nunca define quem tem acesso (o Mestre concede com a Raça cadastrada do alvo). Esta tela usa dialogos.confirmar (diálogo próprio da Sexta-Feira), não o ConfirmarExcecaoRaca. Gravar sem acesso da Raça do alvo
+    // só vale com a confirmação explícita do Mestre (exceção, racaExcecao: true); jogador não grava. Devolve { objeto, erro, precisaConfirmarExcecao, mensagem }.
+    const decidirAcessoRaca = useCallback((tipo, objeto, alvo, excecaoConfirmada = false) => {
+        if (tipo !== 'poder' || !ehHabilidadeDeRaca(objeto)) return { objeto };
+        const loja = useStore.getState();
+        const chave = sanitizarNome(alvo || '');
+        const ficha = chave === sanitizarNome(meuNome || '') ? loja.minhaFicha : (loja.personagens || {})[alvo] || (loja.personagens || {})[chave];
+        // A IA/jogador nunca define quem tem acesso: o Mestre concede com a Raça cadastrada do alvo (sem raça cadastrada = [] + exceção).
+        const poder = { ...objeto, racasAcesso: isMestre ? racasAcessoPadraoParaFicha(loja.cenario, ficha) : [] };
+        delete poder.racaExcecao;
+        const r = verificarAcessoHabilidadeRaca({ cenario: loja.cenario, ficha, poder, isMestre });
+        if (r.permitido) return { objeto: aplicarExcecaoRaca(poder, false) };
+        if (r.precisaConfirmarExcecao && excecaoConfirmada) return { objeto: aplicarExcecaoRaca(poder, true) };
+        return { erro: r.mensagem, precisaConfirmarExcecao: r.precisaConfirmarExcecao, mensagem: r.mensagem };
+    }, [meuNome, isMestre]);
+
+    const gravarNaFicha = useCallback(async ({ tipo, objeto, alvo, excecaoConfirmada = false }) => {
         const campo = CAMPO_FICHA_POR_TIPO[tipo];
         if (!campo) throw new Error('Tipo de criação desconhecido.');
+        const acessoRaca = decidirAcessoRaca(tipo, objeto, alvo, excecaoConfirmada);
+        if (acessoRaca.erro) {
+            // Mestre aplicando direto: pergunta aqui mesmo; recusar ou jogador = não grava.
+            const aceito = acessoRaca.precisaConfirmarExcecao && typeof dialogos?.confirmar === 'function'
+                && await dialogos.confirmar({ titulo: '🧬 Raça sem acesso', mensagem: acessoRaca.mensagem, textoConfirmar: 'Conceder como exceção' });
+            if (!aceito) throw new Error(acessoRaca.precisaConfirmarExcecao ? 'Concessão de Habilidade de Raça cancelada.' : acessoRaca.erro);
+            objeto = decidirAcessoRaca(tipo, objeto, alvo, true).objeto;
+        } else {
+            objeto = acessoRaca.objeto;
+        }
         const novo = { ...objeto, id: Date.now() };
         if (sanitizarNome(alvo || '') === sanitizarNome(meuNome || '')) {
             updateFicha((f) => { f[campo] = anexarNaLista(f[campo], novo); });
@@ -28,7 +55,7 @@ export default function usePedidosCriacao(dialogos) {
         } else {
             await anexarNaFicha(mesaId, alvo, campo, novo);
         }
-    }, [meuNome, mesaId, updateFicha]);
+    }, [meuNome, mesaId, updateFicha, decidirAcessoRaca, dialogos]);
 
     // Tudo é validado DE NOVO antes de gravar (o pedido veio do banco e qualquer um da mesa
     // consegue escrever lá): o tipo, o objeto, e que o pedido é para a própria ficha de quem
@@ -48,8 +75,18 @@ export default function usePedidosCriacao(dialogos) {
 
     const aprovarPendente = useCallback(async (id) => {
         if (!isMestre) return false;
-        const previa = validarPedido(useStore.getState().sextaFeiraPendentes?.[id]);
+        const pedidoPrevio = useStore.getState().sextaFeiraPendentes?.[id];
+        const previa = validarPedido(pedidoPrevio);
         if (previa.erro) { dialogos.avisar(`${previa.erro} Recuse o pedido.`, 'erro'); return false; }
+        // 🧬 Habilidade de Raça sem acesso da Raça do alvo: o Mestre confirma a exceção ANTES de pegar o pedido da fila (recusar aqui não mexe em nada).
+        let excecaoConfirmada = false;
+        const acessoPrevio = decidirAcessoRaca(pedidoPrevio.tipo, previa.objeto, previa.alvo);
+        if (acessoPrevio.erro) {
+            if (!acessoPrevio.precisaConfirmarExcecao) { dialogos.avisar(acessoPrevio.erro, 'erro'); return false; }
+            const ok = await dialogos.confirmar({ titulo: '🧬 Raça sem acesso', mensagem: acessoPrevio.mensagem, textoConfirmar: 'Conceder como exceção' });
+            if (!ok) return false;
+            excecaoConfirmada = true;
+        }
         // Pega o pedido da fila de forma atômica: dois Mestres não aprovam o mesmo pedido.
         let pedido;
         try {
@@ -66,7 +103,7 @@ export default function usePedidosCriacao(dialogos) {
             return false;
         }
         try {
-            await gravarNaFicha({ tipo: pedido.tipo, objeto, alvo });
+            await gravarNaFicha({ tipo: pedido.tipo, objeto, alvo, excecaoConfirmada });
         } catch (err) {
             // Não gravou: devolve o pedido pra fila, pra não sumir.
             Promise.resolve(enviarPendente(mesaId, pedido)).catch(() => {});
@@ -76,7 +113,7 @@ export default function usePedidosCriacao(dialogos) {
         Promise.resolve(registrarDecisao(mesaId, { solicitante: pedido.solicitante, nomeCriacao: objeto.nome, tipo: pedido.tipo, aprovado: true })).catch(() => {});
         dialogos.avisar(`✅ "${objeto.nome}" aprovado e adicionado a ${alvo}.`);
         return true;
-    }, [isMestre, mesaId, gravarNaFicha, dialogos, validarPedido]);
+    }, [isMestre, mesaId, gravarNaFicha, dialogos, validarPedido, decidirAcessoRaca]);
 
     const recusarPendente = useCallback(async (id, { semConfirmar = false } = {}) => {
         const pedido = useStore.getState().sextaFeiraPendentes?.[id];

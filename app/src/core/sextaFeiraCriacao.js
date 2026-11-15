@@ -367,6 +367,8 @@ export function normalizarPoder(dados) {
         objeto.maestria = numero(d.maestria, 0, 0, 100);
         objeto.maestriaRequerida = numero(d.maestriaRequerida, 0, 0, 100);
     }
+    // 🧬 Habilidade de Raça: quem tem acesso (racasAcesso) NUNCA vem da IA nem do jogador: nasce vazia e só o Mestre define (core/racas.js).
+    if (categoria === 'habilidadeRaca') objeto.racasAcesso = [];
     // 🔁 Usos limitados (core/usosPoder.js): só grava quando há limite (usosMax > 0).
     const usos = normalizarUsos(d.usosMax, d.usosPor);
     if (usos) { objeto.usosMax = usos.max; objeto.usosPor = usos.por; }
@@ -681,7 +683,7 @@ export const DECLARACOES_CRIACAO = [
             type: 'OBJECT',
             properties: {
                 alvo: ALVO_SCHEMA,
-                categoria: { type: 'STRING', enum: IDS_CATEGORIA_PODER, description: 'habilidade, forma ou poder; ocular = Poderes Oculares (olhos/dojutsu: Sharingan, Rinnegan, Byakugan); infinity = manipulação conceitual absoluta; singularidade = anomalia máxima irrepetível (impossível de copiar). Só use ocular/infinity/singularidade se o pedido deixar claro.' },
+                categoria: { type: 'STRING', enum: IDS_CATEGORIA_PODER, description: 'habilidade, forma ou poder; ocular = Poderes Oculares (olhos/dojutsu: Sharingan, Rinnegan, Byakugan); infinity = manipulação conceitual absoluta; singularidade = anomalia máxima irrepetível (impossível de copiar); habilidadeRaca = Habilidade de Raça (depende da Raça do personagem; só o Mestre concede). Só use ocular/infinity/singularidade/habilidadeRaca se o pedido deixar claro.' },
                 nome: { type: 'STRING' },
                 descricao: { type: 'STRING' },
                 vertente: { type: 'STRING', enum: VERTENTES_PODER.filter(Boolean), description: 'Vazio = Padrão. Use Elemental para ter elemento.' },

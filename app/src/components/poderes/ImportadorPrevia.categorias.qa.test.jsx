@@ -15,9 +15,9 @@ const valores = () => Array.from(screen.getByLabelText('Categoria').querySelecto
 
 describe('ImportadorPrevia - categoriasPermitidas', () => {
     const itens = () => prepararImportacao([{ nome: 'A', categoria: 'habilidade' }], 'habilidade', 1);
-    it('sem restricao (undefined): as 6 categorias', () => {
+    it('sem restricao (undefined): as 7 categorias', () => {
         montar(undefined, itens());
-        expect(valores()).toEqual(['habilidade', 'forma', 'poder', 'ocular', 'infinity', 'singularidade']);
+        expect(valores()).toEqual(['habilidade', 'habilidadeRaca', 'forma', 'poder', 'ocular', 'infinity', 'singularidade']);
     });
     it('so as liberadas (3 basicas)', () => {
         montar(['habilidade', 'forma', 'poder'], itens());

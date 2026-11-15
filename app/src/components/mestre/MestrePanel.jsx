@@ -9,6 +9,7 @@ import {
 } from './MestreSubComponents';
 import MestreControleTurno from './MestreControleTurno';
 import EquipesRelacoes from './EquipesRelacoes';
+import RacasCatalogo from './RacasCatalogo';
 import MestreSegurarAcao from './MestreSegurarAcao';
 import { MestreNotificacoesPedidos } from './MestrePedidosSexta';
 
@@ -31,6 +32,9 @@ function MestreConteudoSeguro() {
 
             {/* 🛡️ Equipes nomeadas, relações entre elas e quem está em qual lado */}
             <EquipesRelacoes />
+
+            {/* 🧬 Catálogo de Raças da mesa e quem é de qual raça (acesso às Habilidades de Raça) */}
+            <RacasCatalogo />
 
             {/* ⏳ Quantas Ações cada um pode segurar (Hold Action) */}
             <MestreSegurarAcao />

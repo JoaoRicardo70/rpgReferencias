@@ -4,6 +4,7 @@ import { migrarPassivasParaPoderes } from '../core/utils.js';
 import { normalizarProficienciaPorEnergia } from '../core/proficienciaEnergia.js';
 import { temAcessoArmaEspiritual } from '../core/acessoArmaEspiritual.js';
 import { migrarEsteticaGrimorio } from '../core/grimorioEstetica.js';
+import { migrarHabilidadesDeRaca } from '../core/racas.js';
 import { lerModoNavegacao, salvarModoNavegacao, lerLarguraGaveta, CHAVE_LARGURA_GAVETA, ABA_HUB } from '../core/modoNavegacao.js';
 
 export const fichaPadrao = {
@@ -33,7 +34,7 @@ export const fichaPadrao = {
     hierarquia: { poder: false, infinity: false, singularidade: '', ocular: false, poderNome: '', poderDesc: '', infinityNome: '', infinityDesc: '', singularidadeNome: '', singularidadeDesc: '' },
     proficienciaBase: 2, proficiencias: {}, avatar: { base: "" },
     
-    bio: { raca: "", classe: "", idade: "", fisico: "", sangue: "", alinhamento: "", afiliacao: "", dinheiro: "", apelido: "", nivel: 0 },
+    bio: { raca: "", racaId: "", classe: "", idade: "", fisico: "", sangue: "", alinhamento: "", afiliacao: "", dinheiro: "", apelido: "", nivel: 0 },
     
     afinidades: { resistencias: [], vulnerabilidades: [], imunidades: [], absorcoes: [] },
     condicoes: [], 
@@ -435,7 +436,8 @@ const useStore = create(
             if (dados.posicao) state.minhaFicha.posicao = Object.assign({}, fichaPadrao.posicao, dados.posicao);
             state.minhaFicha.inventario = dados.inventario || [];
             
-            state.minhaFicha.poderes = [...(dados.poderes || []), ...migrarPassivasParaPoderes(dados.passivas)];
+            // 🧬 Zenkai (e modelos de Habilidade de Raça) em 'habilidade' passam a 'habilidadeRaca', já com exceção concedida (core/racas.js).
+            state.minhaFicha.poderes = migrarHabilidadesDeRaca([...(dados.poderes || []), ...migrarPassivasParaPoderes(dados.passivas)]).poderes;
             state.minhaFicha.ataquesElementais = dados.ataquesElementais || [];
             state.minhaFicha.passivas = [];
             state.minhaFicha.seresSelados = dados.seresSelados || []; 

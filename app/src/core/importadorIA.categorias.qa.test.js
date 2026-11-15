@@ -120,7 +120,7 @@ describe('prepararImportacao com ficha', () => {
 describe('Sexta-Feira (schema e avisos)', () => {
     it('enum de categoria do schema tem as 6 ids', () => {
         const enumCat = DECLARACOES_CRIACAO[0].parameters.properties.categoria.enum;
-        expect(enumCat).toEqual(['habilidade', 'forma', 'poder', 'ocular', 'infinity', 'singularidade']);
+        expect(enumCat).toEqual(['habilidade', 'habilidadeRaca', 'forma', 'poder', 'ocular', 'infinity', 'singularidade']);
         expect(CATEGORIAS_PODER).toEqual(enumCat);
     });
     it('normalizarPoder aceita as novas e grava maestria/maestriaRequerida', () => {

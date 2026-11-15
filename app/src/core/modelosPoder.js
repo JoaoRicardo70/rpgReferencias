@@ -25,6 +25,7 @@
 //    (core/gatilhosAplicar.js > dispararEventoNaFicha) e zeraria o contador antes de o ganho lê-lo. O próprio ganho zera o contador (zerar: true).
 // ==========================================
 import { normalizarPoder } from './sextaFeiraCriacao.js';
+import { ehHabilidadeDeRaca, normalizarRacasAcesso, racasAcessoPadraoParaFicha, verificarAcessoHabilidadeRaca, aplicarExcecaoRaca } from './racas.js';
 import { normalizarGatilhos, LIMITE_GATILHOS_POR_FONTE } from './gatilhos.js';
 import { normalizarContador, listaDeContadores, LIMITE_CONTADORES } from './contadores.js';
 import { PESOS_ZENKAI_PADRAO, ZENKAI_TETO_PADRAO, ZENKAI_TETO_MIN, ZENKAI_TETO_MAX, ZENKAI_PONTUACAO_REF_PADRAO, ZENKAI_PONTUACAO_REF_MIN, ZENKAI_PONTUACAO_REF_MAX, TURNOS_PARA_ZENKAI_CHEIO, TURNOS_MINIMOS_MIN, TURNOS_MINIMOS_MAX, ZENKAI_PESO_MIN, ZENKAI_PESO_MAX, TETO_GASTO_TURNO, TURNOS_DURACAO_REF, LIMIAR_QUASE_MORTE, FATOR_OPONENTE_MIN, FATOR_OPONENTE_MAX } from './zenkai.js';
@@ -295,7 +296,7 @@ const ZENKAI = {
     curto: 'zenkai',
     nome: 'Zenkai',
     resumo: 'Habilidade de Raça: depois do combate o Poder evolui de forma permanente conforme a dificuldade da luta para o personagem (dano recebido, energia gasta, fadiga, duração, quase morte, Formas e força do oponente); teto padrão 5% por combate; o Mestre ajusta ao encerrar.',
-    categoria: 'habilidade',
+    categoria: 'habilidadeRaca',
     temOrigem: false,
     descricao: 'Habilidade de Raça. Ao encerrar o combate o Poder Calculado ganha um aumento permanente que depende de QUÃO DIFÍCIL foi a luta para o personagem; o Mestre ajusta o valor sugerido antes de liberar.',
     partes: [
@@ -369,6 +370,8 @@ function construirDoModelo(m, selecao, params, fichaAtual, opcoes = {}) {
     avisos.push(...avisosPoder.filter(a => !/^Falta o nome/.test(a)));
     const notasDasPartes = mat.notas;
     objeto.notasIA = notasDasPartes.join('\n');
+    // 🧬 Habilidade de Raça (core/racas.js): racasAcesso = opcoes.racasAcesso, senão a Raça cadastrada da ficha-alvo (sem raça cadastrada = [] e exige exceção do Mestre).
+    if (ehHabilidadeDeRaca(objeto)) objeto.racasAcesso = opcoes.racasAcesso !== undefined ? normalizarRacasAcesso(opcoes.racasAcesso) : racasAcessoPadraoParaFicha(opcoes.cenario, fichaAtual);
     const { gatilhos, descartados } = normalizarGatilhos(mat.gatilhos.map(g => marcarModo(g, opcoes.criarOpcionais === true)));
     descartados.forEach(d => avisos.push(`Gatilho "${d.nome}" não foi criado: ${d.motivo}.`));
     if (mat.gatilhos.length > LIMITE_GATILHOS_POR_FONTE) avisos.push(`O modelo precisa de mais de ${LIMITE_GATILHOS_POR_FONTE} gatilhos: só os ${LIMITE_GATILHOS_POR_FONTE} primeiros foram mantidos.`);
@@ -456,6 +459,15 @@ export function temGanhoLegado(poder) {
 // ficha.combate.zenkaiConfig a partir dos params normalizados do modelo.
 const configZenkaiDosParams = (par) => ({ pesos: Object.fromEntries(PESOS_ZENKAI_PARAMS.map(([id, chave]) => [chave, par[id]])), teto: par.teto, pontuacaoRef: par.pontuacaoRef, turnosMinimos: par.turnosMinimos });
 
+// Acesso de Raça de um modelo de Habilidade de Raça (null nos demais). `opcoes` = { cenario, racasAcesso? }. No modo editar vale a lista do poder já existente
+// (e a exceção que ele já tem), a menos que opcoes.racasAcesso seja informado.
+function acessoRacaDoModelo(poderNovo, existente, ficha, opcoes = {}) {
+    if (!ehHabilidadeDeRaca(poderNovo)) return null;
+    const racasAcesso = existente && opcoes.racasAcesso === undefined && Array.isArray(existente.racasAcesso) ? normalizarRacasAcesso(existente.racasAcesso) : poderNovo.racasAcesso;
+    const poder = { categoria: poderNovo.categoria, nome: poderNovo.nome, racasAcesso, racaExcecao: existente ? existente.racaExcecao : undefined };
+    return { racasAcesso, decisao: verificarAcessoHabilidadeRaca({ cenario: opcoes.cenario, ficha, poder, isMestre: true }) };
+}
+
 // O que o Mestre vai ver antes de aplicar: { modo: 'novo'|'editar', poderes, contadores, gatilhos, efeitos, avisos, ok, erro }.
 export function planejarModelo(modeloId, selecao, params, fichaAtual, opcoes = {}) {
     const m = obterModelo(modeloId);
@@ -464,6 +476,7 @@ export function planejarModelo(modeloId, selecao, params, fichaAtual, opcoes = {
     if (sel.length === 0) return { ok: false, erro: 'Marque ao menos uma parte.', modo: 'novo', poderes: 0, contadores: 0, gatilhos: 0, efeitos: 0, avisos: [] };
     const r = m.construir(sel, params, fichaAtual, opcoes);
     const existente = acharPoderDoModelo(fichaAtual, modeloId);
+    const acessoRaca = acessoRacaDoModelo(r.poder, existente, fichaAtual, opcoes);
     let erro = '';
     if (r.totalContadores > LIMITE_CONTADORES) erro = `A ficha só comporta ${LIMITE_CONTADORES} contadores (ficaria com ${r.totalContadores}). Apague algum e tente de novo.`;
     else if (existente) erro = gatilhosFinaisEdicao(m._def, existente, r).bloqueio;
@@ -474,11 +487,15 @@ export function planejarModelo(modeloId, selecao, params, fichaAtual, opcoes = {
         gatilhos: (r.poder.gatilhos || []).length, efeitos: (r.poder.efeitos || []).length, avisos: r.avisos,
         adaptacao: sel.includes('crescimentoAdaptacao') ? { fracao: r.poder.modelo.params.fracaoDaDiferenca } : null,
         zenkai: sel.includes('calculoZenkai') ? configZenkaiDosParams(r.poder.modelo.params) : null,
+        // 🧬 Só nos modelos de Habilidade de Raça: { permitido, precisaConfirmarExcecao, mensagem } e as Raças com acesso (a UI pede a confirmação da exceção).
+        acessoRaca: acessoRaca ? { ...acessoRaca.decisao, racasAcesso: acessoRaca.racasAcesso } : null,
     };
 }
 
 // Aplica no RASCUNHO da ficha (use dentro de updateFicha). Só o Mestre: `req.isMestre` é conferido aqui também (a UI já esconde o botão).
-// req: { modeloId, selecao, params, opcoes?: { origem, criarOpcionais }, isMestre, id? }
+// req: { modeloId, selecao, params, opcoes?: { origem, criarOpcionais }, isMestre, id?, cenario?, racasAcesso?, confirmarExcecao? }
+//   Modelos de Habilidade de Raça (Zenkai): `cenario` (catálogo de Raças), `racasAcesso` (ids; padrão = Raça cadastrada da ficha-alvo, ou a lista do poder já existente)
+//   e `confirmarExcecao`: sem acesso da Raça e sem confirmarExcecao devolve { ok: false, precisaConfirmarExcecao: true, mensagem } e NADA é gravado.
 // Devolve { ok, mensagem, avisos, modo }. Poder do mesmo modelo já na ficha é ATUALIZADO (não duplica).
 export function aplicarModeloNaFicha(ficha, req = {}) {
     if (req.isMestre !== true) return { ok: false, mensagem: 'Só o Mestre pode adicionar de modelo.', avisos: [] };
@@ -487,7 +504,7 @@ export function aplicarModeloNaFicha(ficha, req = {}) {
     const sel = normalizarSelecao(m, req.selecao);
     if (sel.length === 0) return { ok: false, mensagem: 'Marque ao menos uma parte.', avisos: [] };
     const opcoes = req.opcoes || {};
-    const novo = m.construir(sel, req.params, ficha, opcoes);
+    const novo = m.construir(sel, req.params, ficha, { ...opcoes, cenario: req.cenario, racasAcesso: req.racasAcesso });
     if (!Array.isArray(ficha.contadores)) ficha.contadores = [];
     if (!Array.isArray(ficha.poderes)) ficha.poderes = [];
     const existente = acharPoderDoModelo(ficha, m.id);
@@ -498,6 +515,10 @@ export function aplicarModeloNaFicha(ficha, req = {}) {
     }
     const edicao = existente ? gatilhosFinaisEdicao(m._def, existente, novo) : null;
     if (edicao && edicao.bloqueio) return { ok: false, mensagem: edicao.bloqueio, avisos: novo.avisos };
+    // 🧬 Habilidade de Raça: sem acesso da Raça do alvo, só com a confirmação explícita do Mestre (grava racaExcecao: true).
+    const acessoRaca = acessoRacaDoModelo(novo.poder, existente, ficha, { cenario: req.cenario, racasAcesso: req.racasAcesso });
+    const concedeExcecao = !!acessoRaca && !acessoRaca.decisao.permitido;
+    if (concedeExcecao && req.confirmarExcecao !== true) return { ok: false, precisaConfirmarExcecao: true, mensagem: acessoRaca.decisao.mensagem, avisos: novo.avisos };
 
     // Adaptação (por diferença de Poder): decidido ANTES de gravar, a partir do estado atual. `ligou` só vale se ESTE modelo ligou o interruptor.
     const temCrescimento = sel.includes('crescimentoAdaptacao');
@@ -545,7 +566,9 @@ export function aplicarModeloNaFicha(ficha, req = {}) {
     if (!existente) {
         aplicarAdaptacao();
         aplicarZenkai();
-        ficha.poderes.push({ ...novo.poder, modelo: modeloFinal(), id: poderId });
+        const criado = { ...novo.poder, modelo: modeloFinal(), id: poderId };
+        if (acessoRaca) aplicarExcecaoRaca(criado, concedeExcecao);
+        ficha.poderes.push(criado);
         return { ok: true, modo: 'novo', avisos: novo.avisos, mensagem: `${m.nome} adicionado: ${(novo.poder.gatilhos || []).length} gatilho(s), ${novo.contadores.length} contador(es) novo(s).` };
     }
 
@@ -565,6 +588,11 @@ export function aplicarModeloNaFicha(ficha, req = {}) {
     if (!existente.notasIA || existente.notasIA === notasAntigas || notasAtuais === notasAntigas) existente.notasIA = novo.poder.notasIA;
     else if (novo.poder.notasIA && !existente.notasIA.includes(novo.poder.notasIA)) existente.notasIA = `${existente.notasIA}\n${novo.poder.notasIA}`;
     if (m.temOrigem) existente.origem = novo.poder.origem;
+    if (acessoRaca) {
+        existente.categoria = novo.poder.categoria;
+        existente.racasAcesso = acessoRaca.racasAcesso;
+        if (concedeExcecao) existente.racaExcecao = true;
+    }
     aplicarAdaptacao();
     aplicarZenkai();
     existente.modelo = modeloFinal();

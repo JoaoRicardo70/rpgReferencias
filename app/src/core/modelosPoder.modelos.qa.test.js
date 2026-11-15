@@ -13,7 +13,7 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 const fichaVazia = () => ({ poderes: [], contadores: [] });
 const m = (id) => obterModelo(id);
 const construir = (id, sel, params = {}, ficha = fichaVazia(), op = {}) => m(id).construir(sel ?? selecaoPadrao(m(id)), params, ficha, op);
-const mestre = (extra) => ({ isMestre: true, ...extra });
+const mestre = (extra) => ({ isMestre: true, confirmarExcecao: true, ...extra });
 const semUndefined = (o) => !JSON.stringify(o, (k, v) => (v === undefined ? '__UNDEF__' : v)).includes('__UNDEF__');
 const ctr = (f, id) => f.contadores.find(c => c.id === id);
 const poderDe = (f, id) => acharPoderDoModelo(f, id);

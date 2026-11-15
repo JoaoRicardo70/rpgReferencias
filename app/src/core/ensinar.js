@@ -5,6 +5,7 @@
 // capacidade máxima" é aprender com Maestria menor e treinar depois. Nada aqui fala com Firebase nem com a tela.
 // ==========================================
 import { temChaveInvalida, LIMITE_IMAGEM_NO_BACKUP } from './backupFicha';
+import { verificarAcessoHabilidadeRaca, aplicarExcecaoRaca, ehHabilidadeDeRaca, normalizarRacasAcesso, normalizarNomeRaca } from './racas';
 import { poderEhCopiavel, usaMaestriaRequerida, ehCategoriaForma, idCategoriaPoder, mensagemCategoriaNaoLiberada, MENSAGEM_SINGULARIDADE_NAO_COPIA } from './categoriasPoder';
 
 export const TIPO_PODER = 'poder';     // item de ficha.poderes (Habilidade, Forma ou Poder)
@@ -18,6 +19,8 @@ export function prepararItemEnsinado(item) {
     delete copia.id;
     copia.ativa = false;
     copia.equipado = false;
+    // A exceção de Raça é do dono que a recebeu: quem aprende precisa ter acesso (ou receber a sua própria exceção do Mestre).
+    delete copia.racaExcecao;
     if (typeof copia.imagemUrl === 'string' && copia.imagemUrl.length > LIMITE_IMAGEM_NO_BACKUP && copia.imagemUrl.startsWith('data:')) copia.imagemUrl = '';
     return copia;
 }
@@ -57,8 +60,29 @@ export function motivoRecusaOferta(f, oferta) {
     return mensagemCategoriaNaoLiberada(oferta.item, f);
 }
 
+// racasAcesso CONFIÁVEL de uma Habilidade de Raça ofertada: qualquer jogador escreve ofertas no Firebase, então a lista da oferta NÃO vale.
+// Vale a do poder correspondente (mesmo id; senão mesmo nome) na ficha REAL do remetente (`fichaRemetente`); sem ficha ou sem o poder = [].
+export function racasAcessoConfiavelDaOferta(item, fichaRemetente) {
+    const lista = fichaRemetente && Array.isArray(fichaRemetente.poderes) ? fichaRemetente.poderes : [];
+    const raciais = lista.filter(p => p && ehHabilidadeDeRaca(p));
+    const nome = normalizarNomeRaca(item && item.nome);
+    const achado = (item && item.id != null && raciais.find(p => p.id === item.id)) || (nome && raciais.find(p => normalizarNomeRaca(p.nome) === nome)) || null;
+    return achado ? normalizarRacasAcesso(achado.racasAcesso) : [];
+}
+
+// Acesso de Raça de uma oferta (Habilidade de Raça): { permitido, precisaConfirmarExcecao, mensagem } (core/racas.js).
+// `contexto` = { cenario, isMestre, fichaRemetente } (ficha real de quem ofertou, do store). A exceção que vier na oferta é ignorada: vale só a decisão de quem aceita.
+export function verificarAcessoOferta(f, oferta, contexto = {}) {
+    if (!oferta || oferta.tipo !== TIPO_PODER || !oferta.item) return { permitido: true, precisaConfirmarExcecao: false, mensagem: '' };
+    const poder = { ...oferta.item };
+    delete poder.racaExcecao;
+    if (ehHabilidadeDeRaca(poder)) poder.racasAcesso = racasAcessoConfiavelDaOferta(oferta.item, contexto.fichaRemetente);
+    return verificarAcessoHabilidadeRaca({ cenario: contexto.cenario, ficha: f, poder, isMestre: contexto.isMestre === true });
+}
+
 // Cria, dentro de updateFicha (rascunho `f`), a cópia aprendida e tira a oferta. Devolve o item criado ou null.
-export function aceitarOferta(f, oferta, novoId) {
+// `opcoes` = { cenario, isMestre, excecaoConfirmada, fichaRemetente }: Habilidade de Raça sem acesso só é aceita pelo Mestre com excecaoConfirmada (grava racaExcecao: true).
+export function aceitarOferta(f, oferta, novoId, opcoes = {}) {
     if (!f || !oferta || !oferta.item) return null;
     // Já aceita/recusada (duplo clique ou snapshot remoto): não duplica o item.
     if (!f.ensinamentos || !f.ensinamentos[oferta.id]) return null;
@@ -67,6 +91,11 @@ export function aceitarOferta(f, oferta, novoId) {
     // Categoria ainda não liberada para o aluno: não cria nada e mantém a oferta pendente.
     if (motivoRecusaOferta(f, oferta)) return null;
     const item = JSON.parse(JSON.stringify(oferta.item));
+    delete item.racaExcecao;
+    if (ehHabilidadeDeRaca(item)) item.racasAcesso = racasAcessoConfiavelDaOferta(oferta.item, opcoes.fichaRemetente);
+    const acesso = verificarAcessoOferta(f, oferta, opcoes);
+    if (!acesso.permitido && !(acesso.precisaConfirmarExcecao && opcoes.excecaoConfirmada === true)) return null;
+    if (oferta.tipo === TIPO_PODER) aplicarExcecaoRaca(item, !acesso.permitido);
     item.id = novoId;
     item.ensinadoPor = oferta.de;
     const origem = notaDeOrigem(oferta);

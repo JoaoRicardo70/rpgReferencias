@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import useStore, { sanitizarNome } from '../../stores/useStore';
 import { useFichaAtiva } from '../Ficha Def/FichaAlvoContext';
-import { alunosPossiveis } from '../../core/ensinar';
+import { alunosPossiveis, verificarAcessoOferta } from '../../core/ensinar';
 import { enviarEnsinamento } from '../../services/ensinar';
 import { poderEhCopiavel, mensagemCategoriaNaoLiberada, MENSAGEM_SINGULARIDADE_NAO_COPIA } from '../../core/categoriasPoder';
 
@@ -10,6 +10,7 @@ export default function EnsinarBotao({ tipo, item }) {
     const { nome: meuNome, souEuMesmo } = useFichaAtiva();
     const personagens = useStore(s => s.personagens);
     const adicionarAviso = useStore(s => s.adicionarAviso);
+    const cenario = useStore(s => s.cenario);
     const [aberto, setAberto] = useState(false);
     const [escolhidos, setEscolhidos] = useState([]);
     const [nivel, setNivel] = useState(50);
@@ -21,6 +22,12 @@ export default function EnsinarBotao({ tipo, item }) {
         if (tipo !== 'poder') return [];
         return escolhidos.filter(n => mensagemCategoriaNaoLiberada(item, personagens?.[n]));
     }, [tipo, item, escolhidos, personagens]);
+
+    // Aviso (não bloqueia o envio): alunos cuja Raça não tem acesso a esta Habilidade de Raça (o aluno será bloqueado ao aceitar, salvo exceção do Mestre).
+    const semAcessoRaca = useMemo(() => {
+        if (tipo !== 'poder') return [];
+        return escolhidos.filter(n => !verificarAcessoOferta(personagens?.[n], { tipo: 'poder', item }, { cenario, isMestre: false }).permitido);
+    }, [tipo, item, escolhidos, personagens, cenario]);
 
     const alternar = useCallback((nome) => {
         setEscolhidos(l => (l.includes(nome) ? l.filter(n => n !== nome) : [...l, nome]));
@@ -71,6 +78,7 @@ export default function EnsinarBotao({ tipo, item }) {
                     </label>
                     <p className="ensinar-dica">{tipo === 'poder' ? 'Vira a Maestria inicial do aluno: quanto menor, mais ele ainda precisa treinar.' : 'O aluno recebe uma cópia, anotada com este nível.'} Ele só recebe se aceitar.</p>
                     {semLiberacao.length > 0 && <p className="ensinar-dica">Atenção: {semLiberacao.join(', ')} ainda não {semLiberacao.length > 1 ? 'têm' : 'tem'} esta categoria liberada pelo Mestre (Ficha &gt; pág. 4, Marcados). A oferta fica pendente até a liberação.</p>}
+                    {semAcessoRaca.length > 0 && <p className="ensinar-dica">Atenção: a Raça de {semAcessoRaca.join(', ')} não tem acesso a esta Habilidade de Raça. {semAcessoRaca.length > 1 ? 'Eles só aprendem' : 'Só aprende'} se o Mestre conceder como exceção.</p>}
                     <button type="button" className="btn-neon btn-gold btn-small" onClick={enviar} disabled={enviando || escolhidos.length === 0}>Enviar oferta</button>
                 </div>
             )}

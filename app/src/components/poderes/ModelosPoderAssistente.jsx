@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import useStore from '../../stores/useStore';
 import { useFichaAtiva, useSalvarImediatoAtivo } from '../Ficha Def/FichaAlvoContext';
+import { confirmarExcecaoRaca } from '../shared/ConfirmarExcecaoRaca';
 import {
     MODELOS, MODOS_GANHO, ORIGENS_PODER, obterModelo, selecaoPadrao, paramsPadrao, normalizarSelecao, normalizarParams, normalizarOrigem,
     acharPoderDoModelo, temGanhoLegado, planejarModelo, aplicarModeloNaFicha,
@@ -14,6 +15,7 @@ const ETAPAS = ['Modelo', 'Partes', 'Resumo'];
 
 export default function ModelosPoderAssistente() {
     const isMestre = useStore(s => s.isMestre);
+    const cenario = useStore(s => s.cenario);
     const { ficha, updateFicha, nome } = useFichaAtiva();
     const salvarImediato = useSalvarImediatoAtivo();
     const [aberto, setAberto] = useState(false);
@@ -73,17 +75,23 @@ export default function ModelosPoderAssistente() {
     const alternarParte = useCallback((id) => { setSujo(true); setSelecao(s => (s.includes(id) ? s.filter(x => x !== id) : [...s, id])); }, []);
     const mudarParam = useCallback((id, valor) => { setSujo(true); setParams(p => ({ ...p, [id]: valor })); }, []);
 
-    const plano = useMemo(() => (modelo ? planejarModelo(modelo.id, selecao, params, ficha, { origem, criarOpcionais }) : null), [modelo, selecao, params, ficha, origem, criarOpcionais]);
+    const plano = useMemo(() => (modelo ? planejarModelo(modelo.id, selecao, params, ficha, { origem, criarOpcionais, cenario }) : null), [modelo, selecao, params, ficha, origem, criarOpcionais, cenario]);
 
-    const aplicar = useCallback(() => {
+    const aplicar = useCallback(async () => {
         if (!modelo || !isMestre) return;
+        // 🧬 Habilidade de Raça (Zenkai): Raça do personagem sem acesso = o Mestre confirma conceder como exceção.
+        let confirmarExcecao = false;
+        if (plano && plano.acessoRaca && !plano.acessoRaca.permitido) {
+            if (!(await confirmarExcecaoRaca({ mensagem: plano.acessoRaca.mensagem, nomePoder: modelo.nome }))) return;
+            confirmarExcecao = true;
+        }
         let res = null;
         updateFicha((f) => {
-            res = aplicarModeloNaFicha(f, { modeloId: modelo.id, selecao, params, opcoes: { origem, criarOpcionais }, isMestre, id: Date.now() });
+            res = aplicarModeloNaFicha(f, { modeloId: modelo.id, selecao, params, opcoes: { origem, criarOpcionais }, isMestre, id: Date.now(), cenario, confirmarExcecao });
         });
         if (res && res.ok) salvarImediato().catch(() => {});
         setResultado(res || { ok: false, mensagem: 'Não foi possível aplicar.', avisos: [] });
-    }, [modelo, isMestre, updateFicha, selecao, params, origem, criarOpcionais, salvarImediato]);
+    }, [modelo, isMestre, updateFicha, selecao, params, origem, criarOpcionais, salvarImediato, plano, cenario]);
 
     if (!isMestre) return null;
 
@@ -111,7 +119,7 @@ export default function ModelosPoderAssistente() {
                             {MODELOS.map(m => (
                                 <button key={m.id} type="button" className="modelo-poder-cartao" onClick={() => escolher(m)}>
                                     <strong>{m.nome}</strong>
-                                    <span className="modelo-poder-categoria">{m.categoria === 'forma' ? 'Forma Especial' : 'Habilidade'}</span>
+                                    <span className="modelo-poder-categoria">{m.categoria === 'forma' ? 'Forma Especial' : (m.categoria === 'habilidadeRaca' ? 'Habilidade de Raça' : 'Habilidade')}</span>
                                     <span className="modelo-poder-resumo">{m.resumo}</span>
                                     {acharPoderDoModelo(ficha, m.id) && <span className="modelo-poder-selo">já na ficha: editar partes</span>}
                                 </button>

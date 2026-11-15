@@ -232,10 +232,10 @@ describe('aprovacaoPermanente + fimDeLuta', () => {
 });
 
 describe('modelo pronto "Zenkai"', () => {
-    const aplicar = (ficha, over = {}) => aplicarModeloNaFicha(ficha, { modeloId: 'zenkai', selecao: selecaoPadrao(obterModelo('zenkai')), params: paramsPadrao(obterModelo('zenkai')), isMestre: true, id: 7, ...over });
-    it('esta no catalogo como Habilidade, sem origem, com pesos/teto/ref editaveis', () => {
+    const aplicar = (ficha, over = {}) => aplicarModeloNaFicha(ficha, { modeloId: 'zenkai', selecao: selecaoPadrao(obterModelo('zenkai')), params: paramsPadrao(obterModelo('zenkai')), isMestre: true, id: 7, confirmarExcecao: true, ...over });
+    it('esta no catalogo como Habilidade de Raca, sem origem, com pesos/teto/ref editaveis', () => {
         const m = obterModelo('zenkai');
-        expect(m.categoria).toBe('habilidade');
+        expect(m.categoria).toBe('habilidadeRaca');
         expect(m.temOrigem).toBe(false);
         expect(m.partes.flatMap(p => p.parametros.map(x => x.id))).toEqual(['teto', 'pontuacaoRef', 'turnosMinimos', 'pesoDano', 'pesoEnergia', 'pesoFadiga', 'pesoDuracao', 'pesoQuaseMorte', 'pesoFormas']);
         expect(paramsPadrao(m).teto).toBe(5);

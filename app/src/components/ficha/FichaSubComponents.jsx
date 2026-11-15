@@ -7,6 +7,7 @@ import { POLARIDADES, getInfoPolaridade } from '../../core/polaridade.js';
 import { agruparElementosPorCategoria, chaveElemento } from '../../core/elementos.js';
 import { resumoDosEstados } from '../../core/condicoes.js';
 import DuracaoEstadosEditor from '../shared/DuracaoEstadosEditor';
+import SeletorRaca from '../shared/SeletorRaca';
 import { buffsTemporariosDaFicha } from '../../core/suporte.js';
 import { listaDeEscudos, totalDeEscudos, TIPOS_ESCUDO, LIMITE_ESCUDOS } from '../../core/escudos.js';
 
@@ -78,7 +79,7 @@ export function FichaBioGroup() {
                         <p style={{ color: '#ffcc00', fontSize: '1em', fontWeight: 'bold', margin: '10px 0 0 0', textShadow: '0 0 5px #ff003c', letterSpacing: '2px' }}>O RECEPTÁCULO ABSOLUTO DO TRONO DA ASCENSÃO</p>
                     </div>
                 )}
-                <div><label style={{ color: '#aaa', fontSize: '0.85em' }}>Raça</label><input className="input-neon" type="text" value={raca} onChange={e => setRaca(e.target.value)} /></div>
+                <SeletorRaca valor={raca} aoMudar={setRaca} />
                 {!isGrand && (
                     <div>
                         <label style={{ color: '#00ffcc', fontSize: '0.85em', fontWeight: 'bold' }}>Classe Mística</label>

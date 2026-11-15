@@ -5,6 +5,7 @@
 // o mesmo normalizarPoder da Sexta-Feira e prepara a PRÉVIA que o jogador revisa antes de gravar.
 // ==========================================
 import { ESTADOS } from './condicoes';
+import { verificarAcessoHabilidadeRaca, aplicarExcecaoRaca, ehHabilidadeDeRaca, racasAcessoPadraoParaFicha, normalizarRacasAcesso } from './racas';
 import { CATEGORIAS_PODER as LISTA_CATEGORIAS, IDS_CATEGORIA_PODER, idCategoriaPoder, categoriaLiberadaNaFicha } from './categoriasPoder';
 import { lerCustoPorTurno } from './custoPorTurno';
 import { ATRIBUTOS_EFEITO, PROPRIEDADES_EFEITO, normalizarPoder, resumirProposta } from './sextaFeiraCriacao';
@@ -16,6 +17,7 @@ export const ROTULO_CATEGORIA = Object.fromEntries(LISTA_CATEGORIAS.map(c => [c.
 
 // O que a IA precisa saber para escolher entre as categorias especiais.
 const EXPLICACAO_CATEGORIA = {
+    habilidadeRaca: 'Habilidade de Raça = habilidade que só quem tem certa Raça possui (Zenkai dos Saiyajins, Regeneração dos Namekuseijins...); NÃO informe quais Raças têm acesso, o Mestre define',
     ocular: 'Poderes Oculares = olhos/dojutsu (Sharingan, Rinnegan, Byakugan e parecidos)',
     infinity: 'Infinity = manipulação conceitual absoluta',
     singularidade: 'Singularidade = anomalia máxima irrepetível (impossível de copiar)',
@@ -23,7 +25,8 @@ const EXPLICACAO_CATEGORIA = {
 
 // Categorias que o prompt pode oferecer: as 3 básicas, a aba aberta e, se a ficha for conhecida, só as liberadas nela.
 function categoriasDoPrompt(padrao, ficha) {
-    return IDS_CATEGORIA_PODER.filter(id => id === padrao || ['habilidade', 'forma', 'poder'].includes(id) || !ficha || categoriaLiberadaNaFicha(id, ficha));
+    // Habilidade de Raça só é oferecida à IA com a própria aba aberta (quem tem acesso é decisão do Mestre).
+    return IDS_CATEGORIA_PODER.filter(id => (id !== 'habilidadeRaca' || padrao === 'habilidadeRaca') && (id === padrao || ['habilidade', 'forma', 'poder'].includes(id) || !ficha || categoriaLiberadaNaFicha(id, ficha)));
 }
 
 // Multiplicadores (xN no dano, xN em status, xN em Poder Direto...) das fichas antigas NÃO são importados por enquanto: foram
@@ -492,6 +495,8 @@ export function prepararImportacao(itens, categoriaPadrao = 'habilidade', chaveI
 export function mudarCategoriaImportada(objeto, categoria) {
     if (!objeto || !IDS_CATEGORIA_PODER.includes(categoria)) return objeto;
     const novo = { ...objeto, categoria };
+    // Habilidade de Raça: quem tem acesso nunca vem da IA (o Mestre define depois); fora dela os campos de Raça somem.
+    if (categoria === 'habilidadeRaca') novo.racasAcesso = []; else { delete novo.racasAcesso; delete novo.racaExcecao; }
     if (categoria === 'forma') {
         delete novo.maestriaRequerida;
         novo.fadigaPorUso = novo.fadigaPorUso ?? 0;
@@ -507,10 +512,29 @@ export function resumirItemImportado(objeto) {
     return objeto ? resumirProposta('poder', objeto, { extras: false }) : '';
 }
 
+// Acesso de Raça dos itens marcados da prévia (core/racas.js): { liberados, bloqueados, paraConfirmar } — cada um { item, mensagem }.
+// Sem acesso: jogador é bloqueado; Mestre vai para paraConfirmar (precisa confirmar "conceder como exceção"). racaExcecao que vier da IA é ignorada.
+export function separarItensPorAcessoRaca(itens, { cenario, ficha, isMestre } = {}) {
+    const saida = { liberados: [], bloqueados: [], paraConfirmar: [] };
+    (Array.isArray(itens) ? itens : []).forEach((item) => {
+        if (!item || !item.objeto) return;
+        if (!ehHabilidadeDeRaca(item.objeto)) { saida.liberados.push({ item, mensagem: '' }); return; }
+        // Quem tem acesso nunca vem da IA: o Mestre concede com a Raça cadastrada do alvo (sem raça cadastrada = [] e exige exceção); jogador = [] (bloqueado).
+        const poder = { ...item.objeto, racasAcesso: isMestre === true ? racasAcessoPadraoParaFicha(cenario, ficha) : [] }; delete poder.racaExcecao;
+        const r = verificarAcessoHabilidadeRaca({ cenario, ficha, poder, isMestre: isMestre === true });
+        if (r.permitido) saida.liberados.push({ item, mensagem: '' });
+        else if (r.precisaConfirmarExcecao) saida.paraConfirmar.push({ item, mensagem: r.mensagem });
+        else saida.bloqueados.push({ item, mensagem: r.mensagem });
+    });
+    return saida;
+}
+
 // Poder pronto para ir para ficha.poderes: cópia profunda (a prévia e a ficha nunca dividem objetos) + id.
-export function montarPoderFinal(objeto, id) {
+export function montarPoderFinal(objeto, id, opcoes = {}) {
     const copia = JSON.parse(JSON.stringify(objeto || {}));
     delete copia.naoAplicado;
+    // Habilidade de Raça: a exceção nunca vem do texto da IA, só de quem confirmou (opcoes.racaExcecao); racasAcesso vem só de opcoes.racasAcesso (concessão do Mestre), nunca da IA.
+    if (ehHabilidadeDeRaca(copia)) { copia.racasAcesso = normalizarRacasAcesso(opcoes.racasAcesso); aplicarExcecaoRaca(copia, opcoes.racaExcecao === true); } else { delete copia.racaExcecao; delete copia.racasAcesso; }
     if (Array.isArray(copia.gatilhos)) copia.gatilhos = copia.gatilhos.map(finalizarGatilho);
     if (!copia.gatilhos || copia.gatilhos.length === 0) delete copia.gatilhos;
     const semTipo = resolverIncertos(copia);

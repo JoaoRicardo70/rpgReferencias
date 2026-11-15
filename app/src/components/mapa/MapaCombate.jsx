@@ -1011,6 +1011,7 @@ export function MapaAtaqueArma({ aoRolar }) {
 const MAPA_TECNICAS_CATEGORIAS = {
     forma: { label: '🎭 Formas', cor: '#aa00ff' },
     habilidade: { label: '🗡️ Habilidades', cor: '#ff8800' },
+    habilidadeRaca: { label: '🧬 Habilidades de Raça', cor: 'var(--mapa-cat-habilidade-raca)' },
     poder: { label: '✨ Poderes', cor: '#00ffcc' },
     // Categorias especiais (core/categoriasPoder.js): usáveis em combate como Habilidades; só aparecem se a ficha tem poderes nelas.
     ocular: { label: '👁️ Poderes Oculares', cor: 'var(--mapa-cat-ocular)' },

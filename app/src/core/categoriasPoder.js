@@ -22,6 +22,8 @@ export const GRAUS_SINGULARIDADE = {
 //   dicaLiberacao    — o que o Mestre precisa marcar na ficha (só as categorias com liberação)
 export const CATEGORIAS_PODER = [
     { id: 'habilidade', rotulo: '🗡️ Habilidades', icone: '🗡️', nome: 'Habilidades', singular: 'Habilidade', artigo: ['uma', 'a'], pluralComArtigo: 'as Habilidades', liberada: sempre, copiavel: true, maestriaRequerida: true, ehForma: false },
+    // Habilidade de Raça: depende da Raça do personagem (core/racas.js: poder.racasAcesso). Liberada sempre; a aba só aparece com poderes dela ou para o Mestre.
+    { id: 'habilidadeRaca', rotulo: '🧬 Habilidades de Raça', icone: '🧬', nome: 'Habilidades de Raça', singular: 'Habilidade de Raça', artigo: ['uma', 'a'], pluralComArtigo: 'as Habilidades de Raça', liberada: sempre, copiavel: true, maestriaRequerida: true, ehForma: false, abaSoComDados: true },
     { id: 'forma', rotulo: '🎭 Formas', icone: '🎭', nome: 'Formas', singular: 'Forma', artigo: ['uma', 'a'], pluralComArtigo: 'as Formas', liberada: sempre, copiavel: true, maestriaRequerida: false, ehForma: true },
     { id: 'poder', rotulo: '✨ Poderes', icone: '✨', nome: 'Poderes', singular: 'Poder', artigo: ['um', 'o'], pluralComArtigo: 'os Poderes', liberada: sempre, copiavel: true, maestriaRequerida: true, ehForma: false },
     { id: 'ocular', rotulo: '👁️ Poderes Oculares', icone: '👁️', nome: 'Poderes Oculares', singular: 'Poder Ocular', artigo: ['um', 'o'], pluralComArtigo: 'os Poderes Oculares', liberada: (ficha) => ficha?.hierarquia?.ocular === true, copiavel: true, maestriaRequerida: true, ehForma: false, dicaLiberacao: 'Poderes Oculares' },
@@ -35,11 +37,15 @@ export const IDS_CATEGORIA_BASE = ['habilidade', 'forma', 'poder'];
 
 const POR_ID = Object.fromEntries(CATEGORIAS_PODER.map(c => [c.id, c]));
 
+const ID_POR_MINUSCULO = Object.fromEntries(CATEGORIAS_PODER.map(c => [c.id.toLowerCase(), c.id]));
+
 const minusculo = (v) => String(v == null ? '' : v).normalize('NFKC').replace(/[​-‏⁠﻿]/g, '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
 // Plural e singular aceitos (a IA às vezes devolve "habilidades", "infinities", "poderes oculares"...).
 const APELIDOS = {
-    habilidades: 'habilidade', formas: 'forma', poderes: 'poder',
+    habilidades: 'habilidade',
+    'habilidades de raca': 'habilidadeRaca', 'habilidade de raca': 'habilidadeRaca', racial: 'habilidadeRaca', raciais: 'habilidadeRaca', 'habilidade racial': 'habilidadeRaca', 'habilidades raciais': 'habilidadeRaca', raca: 'habilidadeRaca',
+    formas: 'forma', poderes: 'poder',
     oculares: 'ocular', 'poder ocular': 'ocular', 'poderes oculares': 'ocular', olho: 'ocular', olhos: 'ocular', dojutsu: 'ocular',
     infinities: 'infinity', infinitys: 'infinity', infinito: 'infinity',
     singularidades: 'singularidade',
@@ -48,7 +54,8 @@ const APELIDOS = {
 // Id canônico de um valor qualquer ('Infinities' -> 'infinity'); '' se não existe.
 export function idCategoriaPoder(valor) {
     const v = minusculo(valor);
-    if (POR_ID[v]) return v;
+    // ids com maiúscula (habilidadeRaca) chegam aqui já em minúsculas: compara pelo id minúsculo.
+    if (ID_POR_MINUSCULO[v]) return ID_POR_MINUSCULO[v];
     return APELIDOS[v] || '';
 }
 
@@ -79,10 +86,11 @@ export const categoriaLiberadaNaFicha = (valor, ficha) => {
 };
 
 // Categorias liberadas na ficha, mais as que já têm poderes (os dados nunca ficam escondidos), na ordem da lista única.
-export function categoriasVisiveisNaFicha(ficha) {
+// `opcoes.isMestre`: categorias `abaSoComDados` (Habilidades de Raça) aparecem sem poderes só para o Mestre/Co-Mestre.
+export function categoriasVisiveisNaFicha(ficha, opcoes = {}) {
     const poderes = Array.isArray(ficha?.poderes) ? ficha.poderes : [];
     const comDados = new Set(poderes.filter(Boolean).map(p => idCategoriaPoder(p.categoria)).filter(Boolean));
-    return CATEGORIAS_PODER.filter(c => c.liberada(ficha) || comDados.has(c.id));
+    return CATEGORIAS_PODER.filter(c => comDados.has(c.id) || (c.liberada(ficha) && (!c.abaSoComDados || opcoes.isMestre === true)));
 }
 
 // Categorias que existem mas ainda não foram liberadas (pra dica ao Mestre).

@@ -3479,6 +3479,8 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 :root {
     --mapa-cat-ocular: var(--cor-destaque);
     --mapa-cat-infinity: var(--cor-info);
+    --mapa-cat-habilidade-raca: var(--cor-sucesso, var(--cor-secundaria));
+    --texto-suave: #aaa;
     --mapa-cat-singularidade: color-mix(in srgb, var(--cor-secundaria) 60%, var(--cor-info));
 }
 .hierarquia-ocular { border: 1px solid currentColor; padding: 15px; border-radius: 8px; background: transparent; transition: all 0.3s; }
@@ -3680,3 +3682,38 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .ganho-historico { font-size: 0.8em; width: 100%; }
 .ganho-historico summary { cursor: pointer; color: var(--cor-destaque); }
 .ganho-historico ul { margin: 4px 0 0 0; padding-left: 18px; }
+
+/* 🧬 Raças da mesa (aba Mestre), Habilidades de Raça (Grimório) e diálogo de exceção de Raça */
+.racas-painel { margin-top: 0; }
+.racas-item { --lado-cor: var(--cor-primaria); }
+.racas-input-apelidos { flex: 1 1 200px; margin: 0; padding: 4px 8px; font-size: 0.85em; }
+.racas-confirmar { flex: 1 1 100%; line-height: 1.4; }
+.racas-membro { align-items: center; }
+.racas-nao-cadastrada { flex: 1 1 100%; margin: 2px 0 0; color: var(--cor-destaque); font-size: 0.8em; font-style: italic; }
+.racas-seletor-rotulo { color: var(--texto-suave); font-size: 0.85em; }
+.racas-seletor { display: flex; flex-direction: column; gap: 4px; }
+.racas-seletor .input-neon { margin: 0; }
+.racas-seletor-livre { margin-top: 2px; }
+
+.habilidade-raca-bloco { margin: 8px 0; padding: 6px 8px; border-left: 3px solid var(--cor-info); background: rgba(0, 0, 0, 0.3); border-radius: 4px; }
+.habilidade-raca-selos { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; }
+.habilidade-raca-selo { padding: 2px 8px; font-size: 0.75em; border: 1px solid currentColor; border-radius: 10px; white-space: nowrap; }
+.habilidade-raca-selo--incompativel { color: var(--cor-destaque); }
+.habilidade-raca-selo--excecao { color: var(--cor-info); }
+.habilidade-raca-contagem { color: var(--texto-suave); font-size: 0.75em; }
+.habilidade-raca-acesso { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.habilidade-raca-acesso-rotulo, .habilidade-raca-acesso-texto { color: var(--texto-suave); font-size: 0.8em; margin: 0; }
+.habilidade-raca-acesso-vazio { color: var(--texto-suave); font-size: 0.75em; font-style: italic; }
+.habilidade-raca-chip { background: none; border: 1px solid var(--border-primary); color: var(--texto-suave); border-radius: 12px; padding: 2px 10px; font: inherit; font-size: 0.8em; cursor: pointer; }
+.habilidade-raca-chip:hover { border-color: var(--cor-primaria); }
+.habilidade-raca-chip.marcada { color: var(--cor-primaria); border-color: var(--cor-primaria); background: var(--bg-panel-hover); }
+.habilidade-raca-vazio { max-width: 520px; }
+
+.excecao-raca-fundo { position: fixed; inset: 0; z-index: 10002; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.excecao-raca-caixa { width: 100%; max-width: 460px; max-height: calc(100vh - 32px); overflow-y: auto; background: var(--bg-body-2); border: 1px solid var(--cor-destaque); border-radius: 12px; box-shadow: 0 0 30px rgba(var(--cor-destaque-rgb), 0.25); padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+.excecao-raca-titulo { margin: 0; color: var(--cor-destaque); font-size: 1.1em; }
+.excecao-raca-poder { margin: 0; color: var(--texto-suave); font-size: 0.9em; }
+.excecao-raca-mensagem { margin: 0; line-height: 1.5; white-space: pre-line; }
+.excecao-raca-pergunta { margin: 0; color: var(--cor-primaria); font-size: 0.9em; }
+.excecao-raca-acoes { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.excecao-raca-btn { margin: 0; padding: 8px 16px; }

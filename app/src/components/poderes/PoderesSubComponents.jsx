@@ -36,6 +36,8 @@ import GatilhosEditor from './GatilhosEditor';
 import ConstrutorProgressao from './ConstrutorProgressao';
 import { descreverGatilho } from '../../core/gatilhos';
 import EnsinamentosRecebidos from '../shared/EnsinamentosRecebidos';
+import RacasAcessoCampo from './RacasAcessoCampo';
+import { ehHabilidadeDeRaca, poderRacaIncompativel, SELO_RACA_INCOMPATIVEL, racasComAcessoTexto, contarRacasComAcesso } from '../../core/racas';
 
 const LIMITE_PREVIA_ESTAGIOS = 12;
 const fmtNumero = (v) => (typeof v === 'number' ? (Math.round(v * 10000) / 10000).toLocaleString('pt-BR') : v);
@@ -150,10 +152,10 @@ export function PoderesImportadorIA() {
     useEffect(() => () => guardarImportador(chaveSalva, valorImportadorRef.current), [chaveSalva]);
 
     if (!ctx) return null;
-    const { lerImportacao, confirmarImportacao, abaAtual, minhaFicha: fichaImportacao } = ctx;
+    const { lerImportacao, confirmarImportacao, abaAtual, minhaFicha: fichaImportacao, isMestre: ehMestreImportacao } = ctx;
     const faseDeVolta = origem === 'ia' ? 1 : 2;
     // Na prévia só as categorias liberadas para o personagem (core/categoriasPoder.js).
-    const categoriasLiberadasImportacao = CATEGORIAS_PODER.filter(c => c.liberada(fichaImportacao)).map(c => c.id);
+    const categoriasLiberadasImportacao = CATEGORIAS_PODER.filter(c => c.liberada(fichaImportacao) && (c.id !== 'habilidadeRaca' || ehMestreImportacao || abaAtual === 'habilidadeRaca')).map(c => c.id);
 
     // Lê a resposta da IA (colada) e abre a prévia (várias respostas podem ser somadas antes de gravar).
     const lerResposta = (texto) => {
@@ -167,17 +169,25 @@ export function PoderesImportadorIA() {
         setFase(3);
         return true;
     };
+    const gravandoRef = useRef(false);
     const gravarPrevia = () => {
-        const total = confirmarImportacao(previa);
-        if (total === 0) { alert('Nenhum item marcado para gravar.'); return; }
-        alert(`Sincronização Concluída!\n\n🗡️ Inscritos: ${total}. Cada um foi para a aba da sua categoria.`);
-        setPrevia([]);
-        setFalhas([]);
-        setErroIA('');
-        setTextoDocs('');
-        setPromptGerado('');
-        setFase(1);
-        setAberto(false);
+        if (gravandoRef.current) return; // segundo clique enquanto o diálogo de exceção está aberto
+        gravandoRef.current = true;
+        const concluir = (total) => {
+            if (total === 0) { alert('Nenhum item marcado para gravar.'); return; }
+            alert(`Sincronização Concluída!\n\n🗡️ Inscritos: ${total}. Cada um foi para a aba da sua categoria.`);
+            setPrevia([]);
+            setFalhas([]);
+            setErroIA('');
+            setTextoDocs('');
+            setPromptGerado('');
+            setFase(1);
+            setAberto(false);
+        };
+        // Com Habilidade de Raça sem acesso (só o Mestre) o resultado vem depois do diálogo de exceção.
+        const r = confirmarImportacao(previa);
+        if (r && typeof r.then === 'function') r.then(concluir).finally(() => { gravandoRef.current = false; });
+        else { gravandoRef.current = false; concluir(r); }
     };
 
     const gerarPrompt = async () => {
@@ -290,7 +300,7 @@ export function PoderesNavegacaoLivro({ idBase = 'poderes-categoria' }) {
 
     // Habilidades/Formas/Poderes sempre; Oculares/Infinity/Singularidade só se o Mestre liberou na ficha (Marcados > pág. 4)
     // ou se a ficha já tem poderes ali (os dados nunca ficam escondidos). Lista única em core/categoriasPoder.js.
-    const abas = categoriasVisiveisNaFicha(minhaFicha).map(c => ({ id: c.id, rotulo: c.rotulo }));
+    const abas = categoriasVisiveisNaFicha(minhaFicha, { isMestre }).map(c => ({ id: c.id, rotulo: c.rotulo }));
     const abaEfetiva = abas.some(a => a.id === abaAtual) ? abaAtual : 'habilidade';
     const mostrarDicaMestre = !!isMestre && categoriasNaoLiberadas(minhaFicha).length > 0;
     const grau = abaAtual === 'singularidade' ? textoGrauSingularidade(minhaFicha) : '';
@@ -321,6 +331,7 @@ export function PoderesNavegacaoLivro({ idBase = 'poderes-categoria' }) {
             </div>
             {abaAtual === 'singularidade' && <p className="grimorio-aba-dica grimorio-aba-dica--grau">{grau ? `Singularidade ${grau}. ` : ''}Impossível de copiar ou ensinar.</p>}
             {abaAtual === 'infinity' && <p className="grimorio-aba-dica">Infinity permite cópia (Mimetismo).</p>}
+            {abaAtual === 'habilidadeRaca' && <p className="grimorio-aba-dica">Habilidades de Raça dependem da Raça do personagem: só o Mestre concede e define quais Raças têm acesso.{isMestre ? ' Ao gravar uma nova, o acesso começa com a Raça atual do personagem; ajuste em "Raças com acesso" no cartão.' : ''}</p>}
             {mostrarDicaMestre && <p className="grimorio-aba-dica" role="note">{DICA_LIBERAR_CATEGORIAS}</p>}
         </>
     );
@@ -715,6 +726,7 @@ const PLURAL_COM_ARTIGO = Object.fromEntries(CATEGORIAS_PODER.map(c => [c.id, c.
 
 export function PoderesLista() {
     const ctx = usePoderesForm();
+    const cenarioRacas = useStore(s => s.cenario);
     if (!ctx) return FALLBACK;
     const {
         abaAtual, itensFiltrados, poderPreparandoId, setPoderPreparandoId,
@@ -723,7 +735,7 @@ export function PoderesLista() {
         editarPoder, deletarPoder, overchargeAtivo, curMana, curAura, curChakra,
         energiaElemental, danoBruto, dispararAtaque,
         salvarFormaPoder, deletarFormaPoder, ativarFormaPoder,
-        renomearPastaForma, pastasAbertas, alternarPasta, definirPastasAbertas, mudarEstagioPoder, isMestre, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre
+        renomearPastaForma, pastasAbertas, alternarPasta, definirPastasAbertas, mudarEstagioPoder, isMestre, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, definirRacasAcessoDoPoder
     } = ctx;
 
     // 📂 Pastas NASCEM FECHADAS. As abertas ficam na store (provider), por categoria::caminho — sem isso, abrir "Combos"
@@ -804,6 +816,19 @@ export function PoderesLista() {
                                         </p>
                                     )}
                                     
+                                    {ehHabilidadeDeRaca(p) && (
+                                        <div className="habilidade-raca-bloco">
+                                            <div className="habilidade-raca-selos">
+                                                {poderRacaIncompativel(cenarioRacas, minhaFicha, p) && (
+                                                    <span className="habilidade-raca-selo habilidade-raca-selo--incompativel" title={`A Raça atual do personagem não tem acesso a esta habilidade (Raças com acesso: ${racasComAcessoTexto(cenarioRacas, p)}). Ele não a perde; só fica sinalizada.`}>{SELO_RACA_INCOMPATIVEL}</span>
+                                                )}
+                                                {p.racaExcecao === true && <span className="habilidade-raca-selo habilidade-raca-selo--excecao" title="O Mestre concedeu esta habilidade mesmo sem a Raça ter acesso">Exceção do Mestre</span>}
+                                                {isMestre && <span className="habilidade-raca-contagem">{contarRacasComAcesso(cenarioRacas, p)} raça(s) com acesso</span>}
+                                            </div>
+                                            <RacasAcessoCampo poder={p} cenario={cenarioRacas} podeEditar={!!isMestre} aoMudar={(ids) => definirRacasAcessoDoPoder(p.id, ids)} />
+                                        </div>
+                                    )}
+
                                     {Array.isArray(p.gatilhos) && p.gatilhos.length > 0 && (
                                         <div className="gatilhos-poder-lista">
                                             {p.gatilhos.map(g => (
@@ -1030,7 +1055,9 @@ export function PoderesLista() {
     return (
         <div className="grimorio-lista">
             {itensFiltrados.length === 0 ? (
-                <p className="grimorio-vazio">Nenhum registo deste tipo na sua alma.</p>
+                abaAtual === 'habilidadeRaca'
+                    ? <p className="grimorio-vazio habilidade-raca-vazio">Nenhuma Habilidade de Raça ainda. O Mestre concede Habilidades de Raça compatíveis com a sua Raça.</p>
+                    : <p className="grimorio-vazio">Nenhum registo deste tipo na sua alma.</p>
             ) : arvore ? (
                 <>
                     <div className="grimorio-pastas-acoes">

@@ -1,6 +1,8 @@
 import { normalizarTipoAcao } from '../../core/acoesTecnica';
 import { CATEGORIAS_PODER, categoriasVisiveisNaFicha, categoriaDoPoderFicha, idCategoriaPoder, usaMaestriaRequerida } from '../../core/categoriasPoder';
-import { lerRespostaDaIA, prepararImportacao, montarPoderFinal } from '../../core/importadorIA';
+import { confirmarExcecaoRaca } from '../shared/ConfirmarExcecaoRaca';
+import { lerRespostaDaIA, prepararImportacao, montarPoderFinal, separarItensPorAcessoRaca } from '../../core/importadorIA';
+import { verificarAcessoHabilidadeRaca, normalizarRacasAcesso, racasAcessoPadraoParaFicha, ehHabilidadeDeRaca, MENSAGEM_JOGADOR_NAO_CRIA_HABILIDADE_RACA, MENSAGEM_JOGADOR_NAO_EDITA_RACAS_ACESSO } from '../../core/racas';
 import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from '../../core/efeitosCondicionais';
 import { normalizarUsos, limiteDeUsos, podeUsar, gastarUso, descreverUsos } from '../../core/usosPoder';
 import { normalizarCustoPorTurno } from '../../core/custoPorTurno';
@@ -134,6 +136,10 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     // 🔢 Contadores deste poder (core/contadores.js): rascunho [{ id, nome, min, max, reset? }]; só vão para ficha.contadores junto com o poder.
     const [contadoresPoder, setContadoresPoder] = useState([]);
     const cenaAtivaId = useStore(s => s.cenario?.ativa) || 'default';
+    // 🧬 Catálogo de Raças da mesa (core/racas.js), lido por ref para os handlers de gravar/importar.
+    const cenarioMesa = useStore(s => s.cenario);
+    const cenarioMesaRef = useRef(cenarioMesa);
+    cenarioMesaRef.current = cenarioMesa;
     const [semComoPoder, setSemComoPoder] = useState(false);
     const [danoVerdadeiroPoder, setDanoVerdadeiroPoder] = useState(false);
     const [poderAlcance, setPoderAlcance] = useState(1);
@@ -409,7 +415,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         if (!minhaFicha) return;
         // Só para categorias conhecidas e escondidas (as liberáveis); valor desconhecido não é mexido aqui.
         if (!SINGULAR[abaAtual]) return;
-        const visivel = categoriasVisiveisNaFicha(minhaFicha).some(c => c.id === abaAtual);
+        const visivel = categoriasVisiveisNaFicha(minhaFicha, { isMestre }).some(c => c.id === abaAtual);
         const jaAvaliou = avaliouRef.current;
         avaliouRef.current = true;
         if (visivel) { abaVistaRef.current = { nome: meuNome, aba: abaAtual }; return; }
@@ -421,7 +427,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
             abaVistaRef.current = null;
             trocarAba('habilidade');
         }
-    }, [minhaFicha, meuNome, abaAtual, trocarAba]);
+    }, [minhaFicha, meuNome, abaAtual, trocarAba, isMestre]);
 
     // Botão Cancelar: pede confirmação se há algo escrito (ou alterado, ao reescrever um poder existente).
     const cancelarEdicaoComConfirmacao = useCallback(() => {
@@ -429,7 +435,9 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         cancelarEdicaoPoder();
     }, [temAlteracaoNaoGravada, cancelarEdicaoPoder]);
 
-    const salvarNovoPoder = useCallback(() => {
+    // Trava de reentrância: enquanto o diálogo de exceção de Raça está aberto, outro clique em Gravar não abre outro nem duplica o poder.
+    const salvandoRef = useRef(false);
+    const salvarNovoPoderInterno = useCallback(async () => {
         const n = nomePoder.trim();
         if (!n || (!efeitosTemp.length && !efeitosTempPassivos.length && dadosQtd === 0 && !descricaoPoder.trim())) {
             alert('Falta nome ou efeitos (ou dados/descrição)!');
@@ -465,6 +473,26 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         if (!previa.ok) { alert(previa.erro); return; }
         let bloqueioContadores = '';
 
+        // 🧬 Habilidade de Raça (core/racas.js): jogador não cria uma nova (só o Mestre concede); quem tem acesso é definido só pelo Mestre
+        // (aqui nunca muda numa edição). O Mestre sem acesso de Raça confirma a exceção antes de gravar.
+        const ehRaca = abaAtual === 'habilidadeRaca';
+        let excecaoRaca = false;
+        let racasAcessoRaca = [];
+        if (ehRaca) {
+            const existenteRaca = poderExisteNaFicha ? (fichaRef.current?.poderes || []).find(p => p && p.id === poderEditandoId) : null;
+            if (!existenteRaca && !isMestre) { lerStoreRascunho()?.adicionarAviso?.(MENSAGEM_JOGADOR_NAO_CRIA_HABILIDADE_RACA, 'alerta'); return; }
+            const cenarioRaca = cenarioMesaRef.current;
+            racasAcessoRaca = existenteRaca ? normalizarRacasAcesso(existenteRaca.racasAcesso) : racasAcessoPadraoParaFicha(cenarioRaca, fichaRef.current);
+            // Poder já existente com o jogador editando: não revalida (mudar de Raça nunca tira a habilidade).
+            if (isMestre) {
+                const acessoRaca = verificarAcessoHabilidadeRaca({ cenario: cenarioRaca, ficha: fichaRef.current, poder: { categoria: 'habilidadeRaca', nome: n, racasAcesso: racasAcessoRaca, racaExcecao: existenteRaca ? existenteRaca.racaExcecao : undefined }, isMestre });
+                if (!acessoRaca.permitido) {
+                    if (!acessoRaca.precisaConfirmarExcecao || !(await confirmarExcecaoRaca({ mensagem: acessoRaca.mensagem, nomePoder: n }))) return;
+                    excecaoRaca = true;
+                }
+            }
+        }
+
         updateFicha((ficha) => {
             if (!ficha.poderes) ficha.poderes = [];
             // Confere de novo contra a ficha viva (o rascunho do Immer): se não couber, o poder também não é gravado.
@@ -482,6 +510,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
                     ficha.poderes[ix].elemento = elemSafe; 
                     ficha.poderes[ix].elementosAfetados = afetaSafe; 
                     ficha.poderes[ix].categoria = abaAtual;
+                    if (ehRaca) { ficha.poderes[ix].racasAcesso = racasAcessoRaca; if (excecaoRaca) ficha.poderes[ix].racaExcecao = true; }
                     ficha.poderes[ix].efeitos = JSON.parse(JSON.stringify(efeitosTemp));
                     ficha.poderes[ix].efeitosPassivos = JSON.parse(JSON.stringify(efeitosTempPassivos));
                     ficha.poderes[ix].imagemUrl = urlSafe;
@@ -535,6 +564,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
                     elemento: elemSafe, 
                     elementosAfetados: afetaSafe, 
                     categoria: abaAtual,
+                    ...(ehRaca ? { racasAcesso: racasAcessoRaca, ...(excecaoRaca ? { racaExcecao: true } : {}) } : {}),
                     ativa: false,
                     efeitos: JSON.parse(JSON.stringify(efeitosTemp)),
                     efeitosPassivos: JSON.parse(JSON.stringify(efeitosTempPassivos)),
@@ -583,7 +613,27 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, contadoresPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato, chaveRascunho, abrirPastaDoPoder]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, contadoresPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato, chaveRascunho, abrirPastaDoPoder, isMestre]);
+    const salvarNovoPoder = useCallback(async () => {
+        if (salvandoRef.current) return;
+        salvandoRef.current = true;
+        try { await salvarNovoPoderInterno(); } finally { salvandoRef.current = false; }
+    }, [salvarNovoPoderInterno]);
+
+    // 🧬 Quem tem acesso a uma Habilidade de Raça (poder.racasAcesso = ids de Raça do catálogo da mesa, core/racas.js). SÓ o Mestre/Co-Mestre muda;
+    // jogador: a lista é mantida e ele é avisado. Devolve true se gravou.
+    const definirRacasAcessoDoPoder = useCallback((idPoder, ids) => {
+        if (!isMestre) { lerStoreRascunho()?.adicionarAviso?.(MENSAGEM_JOGADOR_NAO_EDITA_RACAS_ACESSO, 'alerta'); return false; }
+        let alterou = false;
+        updateFicha((ficha) => {
+            const p = (ficha.poderes || []).find(po => po && po.id === idPoder);
+            if (!p || !ehHabilidadeDeRaca(p)) return;
+            p.racasAcesso = normalizarRacasAcesso(ids);
+            alterou = true;
+        });
+        if (alterou) salvarFichaSilencioso();
+        return alterou;
+    }, [isMestre, updateFicha, salvarFichaSilencioso]);
 
     // 🔥 O ESCUDO ANTI-DRENAGEM (Resolve a perda acidental de energia ao Ligar a Forma) 🔥
     // `opcoes.semAoDesligar`: desligar por edição/exclusão não cobra o "ao desligar" (core/aoDesligar.js), só o desligar manual.
@@ -877,7 +927,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     const itensFiltrados = useMemo(() => {
         return poderesGlobais.filter(p => {
             // Categoria desconhecida cai em Habilidades (core/categoriasPoder.js): nada some da lista.
-            return categoriaDoPoderFicha(p) === abaAtual.toLowerCase();
+            return categoriaDoPoderFicha(p) === (idCategoriaPoder(abaAtual) || abaAtual.toLowerCase());
         });
     }, [poderesGlobais, abaAtual]);
 
@@ -898,7 +948,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     // continua renomeando em TODAS as categorias, comportamento original desta função.
     const renomearPastaForma = useCallback((pastaAntiga, pastaNova, categoria) => {
         const novaLimpa = normalizarPasta(pastaNova);
-        const catAlvo = categoria ? categoria.toLowerCase() : null;
+        const catAlvo = categoria ? (idCategoriaPoder(categoria) || categoria.toLowerCase()) : null;
         updateFicha((ficha) => {
             (ficha.poderes || []).forEach(p => {
                 if (!p) return;
@@ -1071,29 +1121,54 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         return { ok: true, itens: prepararImportacao(lido.itens, abaAtual, chaveInicial, minhaFicha) };
     }, [abaAtual, minhaFicha]);
 
+    const importacaoEmCursoRef = useRef(null);
     // 2) Grava na ficha só os itens da prévia que o jogador deixou marcados. Devolve quantos entraram.
     const confirmarImportacao = useCallback((itensPrevia) => {
         const lista = (Array.isArray(itensPrevia) ? itensPrevia : []).filter(it => it && it.marcado && it.valido && it.objeto && String(it.objeto.nome || '').trim());
         if (lista.length === 0) return 0;
-        const time = Date.now();
-        updateFicha(f => {
-            if (!f.poderes) f.poderes = [];
-            lista.forEach((it, i) => { f.poderes.push(montarPoderFinal(it.objeto, time + i)); });
-        });
-        salvarFirebaseImediato().catch(() => {});
-        return lista.length;
-    }, [updateFicha, salvarFirebaseImediato]);
+        // 🧬 Habilidade de Raça (core/racas.js): jogador sem acesso é bloqueado (a IA não define quem tem acesso); o Mestre confirma a exceção.
+        const acesso = separarItensPorAcessoRaca(lista, { cenario: cenarioMesaRef.current, ficha: fichaRef.current, isMestre });
+        const entram = acesso.liberados.map(x => ({ it: x.item, excecao: false }));
+        acesso.bloqueados.forEach(b => lerStoreRascunho()?.adicionarAviso?.(`"${b.item.objeto.nome}" não foi importada. ${b.mensagem}`, 'alerta'));
+        const gravar = () => {
+            if (entram.length === 0) return 0;
+            const time = Date.now();
+            updateFicha(f => {
+                if (!f.poderes) f.poderes = [];
+                entram.forEach((e, i) => { f.poderes.push(montarPoderFinal(e.it.objeto, time + i, { racaExcecao: e.excecao, racasAcesso: isMestre ? racasAcessoPadraoParaFicha(cenarioMesaRef.current, fichaRef.current) : [] })); });
+            });
+            salvarFirebaseImediato().catch(() => {});
+            return entram.length;
+        };
+        // Sem Habilidade de Raça a confirmar: grava na hora e devolve o total (síncrono). Com exceções a confirmar (só o Mestre): devolve uma Promise do total.
+        // Enquanto essa Promise não termina, outra chamada recebe a MESMA Promise (nada é perguntado nem gravado duas vezes).
+        if (acesso.paraConfirmar.length === 0) return gravar();
+        const emCurso = importacaoEmCursoRef.current;
+        if (emCurso) return emCurso;
+        const promessa = (async () => {
+            try {
+                for (const c of acesso.paraConfirmar) {
+                    if (await confirmarExcecaoRaca({ mensagem: `"${c.item.objeto.nome}": ${c.mensagem}`, nomePoder: c.item.objeto.nome })) entram.push({ it: c.item, excecao: true });
+                }
+                return gravar();
+            } finally { importacaoEmCursoRef.current = null; }
+        })();
+        importacaoEmCursoRef.current = promessa;
+        return promessa;
+    }, [updateFicha, salvarFirebaseImediato, isMestre]);
 
     // Atalho de uma etapa só (sem prévia): lê e grava tudo o que for válido.
+    // Devolve boolean (síncrono) ou, quando o Mestre precisa confirmar exceções de Raça, uma Promise<boolean> com o resultado real.
     const injetarJsonDaIA = useCallback((jsonString) => {
         const lido = lerImportacao(jsonString);
         if (!lido.ok) {
             alert(lido.erro);
             return false;
         }
-        const total = confirmarImportacao(lido.itens);
-        alert(`Sincronização Concluída!\n\n🗡️ Inscritos: ${total}.`);
-        return total > 0;
+        const concluir = (total) => { alert(`Sincronização Concluída!\n\n🗡️ Inscritos: ${total}.`); return total > 0; };
+        const r = confirmarImportacao(lido.itens);
+        if (r && typeof r.then === 'function') return r.then(concluir);
+        return concluir(r);
     }, [lerImportacao, confirmarImportacao]);
 
     const value = useMemo(() => ({
@@ -1116,7 +1191,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         poderPreparandoId, setPoderPreparandoId, overchargeAtivo, setOverchargeAtivo,
         formRef, vincularRef,
         addEfeitoTemp, removerEfeitoTemp, addEfeitoPassivoTemp, removerEfeitoPassivoTemp,
-        handleImageUpload, salvarNovoPoder, editarPoder, cancelarEdicaoPoder,
+        handleImageUpload, salvarNovoPoder, definirRacasAcessoDoPoder, editarPoder, cancelarEdicaoPoder,
         togglePoder, deletarPoder, vincularArmaAoPoder, salvarFormaPoder,
         deletarFormaPoder, ativarFormaPoder,
         armasEquipadas, itensFiltrados, relatorioAuditoria,
@@ -1133,7 +1208,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, novoValPassivo,
         uploadingImg, vincularAberto, poderPreparandoId, overchargeAtivo,
         addEfeitoTemp, removerEfeitoTemp, addEfeitoPassivoTemp, removerEfeitoPassivoTemp,
-        handleImageUpload, salvarNovoPoder, editarPoder, cancelarEdicaoPoder,
+        handleImageUpload, salvarNovoPoder, definirRacasAcessoDoPoder, editarPoder, cancelarEdicaoPoder,
         togglePoder, deletarPoder, vincularArmaAoPoder, salvarFormaPoder,
         deletarFormaPoder, ativarFormaPoder,
         armasEquipadas, itensFiltrados, relatorioAuditoria,

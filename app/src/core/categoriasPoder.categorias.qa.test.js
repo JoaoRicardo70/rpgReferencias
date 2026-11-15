@@ -9,7 +9,7 @@ const ficha = (h, poderes) => ({ hierarquia: h, poderes });
 
 describe('catalogo de categorias', () => {
     it('tem as 6 categorias na ordem, com campos obrigatorios', () => {
-        expect(IDS_CATEGORIA_PODER).toEqual(['habilidade', 'forma', 'poder', 'ocular', 'infinity', 'singularidade']);
+        expect(IDS_CATEGORIA_PODER).toEqual(['habilidade', 'forma', 'poder', 'ocular', 'infinity', 'singularidade'].flatMap(i => (i === 'habilidade' ? [i, 'habilidadeRaca'] : [i])));
         expect(IDS_CATEGORIA_BASE).toEqual(['habilidade', 'forma', 'poder']);
         CATEGORIAS_PODER.forEach((c) => {
             expect(c.id).toBeTruthy();
@@ -137,7 +137,7 @@ describe('categoriasVisiveisNaFicha', () => {
     });
     it('liberada aparece, na ordem da lista', () => {
         expect(ids(ficha({ singularidade: '2', ocular: true }))).toEqual(['habilidade', 'forma', 'poder', 'ocular', 'singularidade']);
-        expect(ids(ficha({ ocular: true, infinity: true, singularidade: '0' }))).toEqual(IDS_CATEGORIA_PODER);
+        expect(ids(ficha({ ocular: true, infinity: true, singularidade: '0' }))).toEqual(IDS_CATEGORIA_PODER.filter(id => id !== 'habilidadeRaca'));
     });
     it('com poderes na categoria sem liberacao: continua visivel', () => {
         expect(ids(ficha({}, [{ categoria: 'Infinities' }]))).toContain('infinity');

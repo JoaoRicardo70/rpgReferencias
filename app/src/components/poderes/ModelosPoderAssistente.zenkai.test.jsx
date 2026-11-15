@@ -1,7 +1,8 @@
 import React from 'react';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import ModelosPoderAssistente from './ModelosPoderAssistente';
+import { ConfirmarExcecaoRacaHost } from '../shared/ConfirmarExcecaoRaca';
 import useStore from '../../stores/useStore';
 
 vi.mock('../../services/firebase-sync', () => ({
@@ -40,16 +41,27 @@ describe('Zenkai no assistente de modelos', () => {
         expect(linha.textContent).toMatch(/dano 1, energia 0,8/);
         expect(linha.textContent).toMatch(/suposições a revisar/);
     });
-    it('Aplicar liga o Zenkai e grava a configuracao escolhida na ficha do Mestre', () => {
-        render(<ModelosPoderAssistente />); abrir(); escolher('Zenkai');
+    it('Aplicar liga o Zenkai e grava a configuracao escolhida na ficha do Mestre', async () => {
+        // Ficha sem Raça cadastrada: o Mestre confirma conceder como exceção (Habilidade de Raça) no diálogo temático.
+        render(<><ModelosPoderAssistente /><ConfirmarExcecaoRacaHost /></>); abrir(); escolher('Zenkai');
         fireEvent.change(screen.getByLabelText('Teto de ganho por combate (%)'), { target: { value: '8' } });
         fireEvent.change(screen.getByLabelText('Peso: fadiga acumulada'), { target: { value: '1.5' } });
         proximo(); fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
-        expect(ficha().combate.zenkaiLigado).toBe(true);
+        fireEvent.click(await screen.findByRole('button', { name: 'Conceder como exceção' }));
+        await waitFor(() => expect(ficha().combate.zenkaiLigado).toBe(true));
         expect(ficha().combate.zenkaiConfig).toMatchObject({ teto: 8, pontuacaoRef: 2 });
         expect(ficha().combate.zenkaiConfig.pesos.fadiga).toBe(1.5);
         expect(ficha().poderes).toHaveLength(1);
         expect(ficha().poderes[0].modelo.zenkai.ligou).toBe(true);
+        expect(ficha().poderes[0]).toMatchObject({ categoria: 'habilidadeRaca', racaExcecao: true });
+    });
+    it('Cancelar no diálogo de exceção não aplica o modelo', async () => {
+        render(<><ModelosPoderAssistente /><ConfirmarExcecaoRacaHost /></>); abrir(); escolher('Zenkai');
+        proximo(); fireEvent.click(screen.getByRole('button', { name: 'Aplicar' }));
+        expect(await screen.findByText(/Raça sem acesso/)).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+        await waitFor(() => expect(screen.queryByRole('button', { name: 'Conceder como exceção' })).toBeNull());
+        expect(ficha().poderes).toHaveLength(0);
     });
     it('so o Mestre ve o assistente', () => {
         useStore.setState({ isMestre: false });
