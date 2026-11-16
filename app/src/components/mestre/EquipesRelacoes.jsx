@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import useStore from '../../stores/useStore';
 import SeloEquipe from '../shared/SeloEquipe';
+import useSecaoMestre, { domDaSecaoMestre } from './useSecaoMestre';
 import {
     getEquipes, getRelacoes, equipeDe, ladoEstaOculto, relacaoEntreEquipes, definirRelacao, gerarIdEquipe,
     EQUIPES_PADRAO, LIMITE_EQUIPES, LIMITE_NOME_EQUIPE, COR_EQUIPE_PADRAO, ICONE_EQUIPE_PADRAO,
@@ -29,6 +30,7 @@ export default function EquipesRelacoes() {
     const minhaFicha = useStore(s => s.minhaFicha);
 
     const [aberto, setAberto] = useState(false);
+    useSecaoMestre('equipes', () => setAberto(true));
     const [confirmando, setConfirmando] = useState(null); // id da equipe a remover, ou '__restaurar__'
     const equipesSalvas = useMemo(() => getEquipes(cenario), [cenario]);
     const relacoes = useMemo(() => getRelacoes(cenario), [cenario]);
@@ -92,7 +94,7 @@ export default function EquipesRelacoes() {
     equipesSalvas.forEach((a, i) => { for (let j = i + 1; j < equipesSalvas.length; j += 1) pares.push([a, equipesSalvas[j]]); });
 
     return (
-        <section className="equipes-painel glass-panel" aria-label="Equipes e Relações">
+        <section id={domDaSecaoMestre('equipes')} className="equipes-painel glass-panel" aria-label="Equipes e Relações">
             <button type="button" className="equipes-titulo-btn" onClick={() => setAberto(v => !v)} aria-expanded={aberto} aria-controls="equipes-corpo">
                 <span aria-hidden="true">{aberto ? '▼' : '▶'}</span> 🛡️ Equipes e Relações
             </button>

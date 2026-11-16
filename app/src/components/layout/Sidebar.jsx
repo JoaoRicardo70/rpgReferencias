@@ -47,7 +47,7 @@ export default function Sidebar({ onResetClick, children }) {
                         {isMestre && (
                             <button
                                 type="button"
-                                title={qtdPedidos > 0 ? `${ABA_MESTRE.nome} — ${qtdPedidos} pedido(s) aguardando aprovação` : ABA_MESTRE.nome}
+                                title={qtdPedidos > 0 ? `${ABA_MESTRE.nome} — ${qtdPedidos} pedido(s) aguardando aprovação` : `${ABA_MESTRE.nome} (Turnos, Equipes, 🧬 Raças…)`}
                                 className={`nav-item btn-macro btn-macro-mestre ${abaAtiva === 'aba-mestre' ? 'ativa' : ''}`}
                                 onClick={() => setAbaAtiva('aba-mestre')}
                             >

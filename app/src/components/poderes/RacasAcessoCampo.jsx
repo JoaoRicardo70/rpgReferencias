@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { getRacas, racasComAcessoTexto } from '../../core/racas';
+import BotaoCatalogoRacas from '../shared/BotaoCatalogoRacas';
 
 // 🧬 "Raças com acesso" de uma Habilidade de Raça (poder.racasAcesso = ids do catálogo de Raças da mesa, core/racas.js).
 // Mestre/Co-Mestre: chips de seleção múltipla (cada clique grava na hora via aoMudar(ids)). Jogador: só leitura, com o texto das raças.
@@ -15,7 +16,12 @@ export default function RacasAcessoCampo({ poder, cenario, podeEditar, aoMudar }
         return <p className="habilidade-raca-acesso-texto">🧬 Raças com acesso: {racasComAcessoTexto(cenario, poder)}</p>;
     }
     if (racas.length === 0) {
-        return <p className="habilidade-raca-acesso-texto" role="note">🧬 Cadastre as Raças da mesa na aba Mestre (🧬 Raças) para definir quais têm acesso a esta habilidade.</p>;
+        return (
+            <div className="habilidade-raca-acesso-texto" role="note">
+                <p>🧬 Cadastre as Raças da mesa para definir quais têm acesso a esta habilidade. Caminho: menu lateral → 👑 Mestre → 🧬 Raças.</p>
+                <BotaoCatalogoRacas rotulo="🧬 Nenhuma Raça cadastrada — abrir catálogo" />
+            </div>
+        );
     }
     return (
         <div className="habilidade-raca-acesso" role="group" aria-label={`Raças com acesso a ${poder && poder.nome ? poder.nome : 'esta habilidade'}`}>

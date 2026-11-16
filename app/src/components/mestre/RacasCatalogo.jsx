@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import useStore from '../../stores/useStore';
 import { salvarDummie, salvarCamposPersonagem, salvarFichaSilencioso } from '../../services/firebase-sync';
+import { salvarRacasDaMesa, definirRacaDoPersonagemDireto } from '../../services/racasMesa';
+import useSecaoMestre, { domDaSecaoMestre } from './useSecaoMestre';
 import {
     getRacas, gerarIdRaca, resolverRaca, ehHabilidadeDeRaca, limparReferenciasDeRaca,
     LIMITE_RACAS, LIMITE_NOME_RACA, LIMITE_APELIDOS_RACA, ICONE_RACA_PADRAO,
@@ -8,7 +10,7 @@ import {
 
 // 🧬 RAÇAS DA MESA (aba Mestre — só Mestre/Co-Mestre). Edita o catálogo de Raças do cenário (ícone, nome, apelidos, "herda de") e
 // mostra de qual Raça é cada personagem. Quem é de qual Raça decide o acesso às Habilidades de Raça (core/racas.js).
-// Sem lógica de gravação própria: usa as ações do Mapa (acoesOrdemTurnoMapa → salvarRacas / definirRacaDoPersonagem).
+// Grava pelo serviço services/racasMesa.js (a mesma regra do Mapa): NÃO depende do Mapa ter sido aberto. Começa ABERTA.
 // Nome, ícone e apelidos só gravam ao SAIR do campo (ou no botão "Salvar raças"); adicionar, remover e "herda de" gravam na hora.
 
 const paraRascunho = (r) => ({ id: r.id, icone: r.icone, nome: r.nome, apelidosTexto: (r.apelidos || []).join(', '), herdaDe: r.herdaDe || '' });
@@ -22,7 +24,6 @@ const entradas = (v) => (Array.isArray(v) ? v.map((p, i) => [String(i), p]) : (v
 export default function RacasCatalogo() {
     const isMestre = useStore(s => s.isMestre);
     const cenario = useStore(s => s.cenario);
-    const acoes = useStore(s => s.acoesOrdemTurnoMapa);
     const resumo = useStore(s => s.resumoTurnoMapa);
     const personagens = useStore(s => s.personagens);
     const dummies = useStore(s => s.dummies);
@@ -30,7 +31,8 @@ export default function RacasCatalogo() {
     const minhaFicha = useStore(s => s.minhaFicha);
     const updateFicha = useStore(s => s.updateFicha);
 
-    const [aberto, setAberto] = useState(false);
+    const [aberto, setAberto] = useState(true);
+    useSecaoMestre('racas', () => setAberto(true));
     const [confirmando, setConfirmando] = useState(null); // id da raça a remover
     const salvas = useMemo(() => getRacas(cenario), [cenario]);
     const chaveSalvas = JSON.stringify(salvas);
@@ -40,8 +42,7 @@ export default function RacasCatalogo() {
         // eslint-disable-next-line react-hooks/exhaustive-deps -- chaveSalvas resume salvas
     }, [chaveSalvas]);
 
-    const podeGravar = !!acoes && typeof acoes.salvarRacas === 'function';
-    const gravar = useCallback((lista) => { if (podeGravar) acoes.salvarRacas(lista); }, [podeGravar, acoes]);
+    const gravar = useCallback((lista) => { salvarRacasDaMesa(lista); }, []);
     const gravarRascunho = useCallback(() => gravar(paraLista(rascunho)), [gravar, rascunho]);
 
     const editar = useCallback((id, campo, valor) => {
@@ -139,30 +140,35 @@ export default function RacasCatalogo() {
     const racaDe = (e) => resolverRaca(cenario, e.ficha);
 
     return (
-        <section className="equipes-painel racas-painel glass-panel" aria-label="Raças da mesa">
-            <button type="button" className="equipes-titulo-btn" onClick={() => setAberto(v => !v)} aria-expanded={aberto} aria-controls="racas-corpo">
+        <section id={domDaSecaoMestre('racas')} className="equipes-painel racas-painel racas-destaque glass-panel" aria-label="Raças da mesa">
+            <button type="button" className="equipes-titulo-btn racas-titulo-btn" onClick={() => setAberto(v => !v)} aria-expanded={aberto} aria-controls="racas-corpo">
                 <span aria-hidden="true">{aberto ? '▼' : '▶'}</span> 🧬 Raças
             </button>
             {aberto && (
                 <div id="racas-corpo" className="equipes-corpo racas-corpo">
-                    {!podeGravar && <p className="equipes-aviso" role="note">Abra o Mapa uma vez para liberar a edição (as ações da mesa vivem lá).</p>}
+                    <p className="racas-intro">Aqui você cadastra as Raças da mesa. Cada Habilidade de Raça libera acesso por Raça. Como chegar: menu lateral → 👑 Mestre → 🧬 Raças.</p>
                     <p className="equipes-legenda">As Raças cadastradas aqui definem quem tem acesso a cada Habilidade de Raça. Quem herda de outra Raça tem o mesmo acesso que ela. Sem nenhuma Raça cadastrada, o campo Raça das fichas continua livre.</p>
 
                     <h4 className="equipes-subtitulo">Catálogo de Raças</h4>
-                    {rascunho.length === 0 ? <p className="equipes-vazio">Nenhuma Raça cadastrada ainda.</p> : (
+                    {rascunho.length === 0 ? (
+                        <div className="racas-vazio-destaque" role="status">
+                            <p>Nenhuma Raça cadastrada ainda. Cadastre a primeira para liberar o acesso às Habilidades de Raça.</p>
+                            <button type="button" className="btn-neon btn-green" onClick={adicionar}>＋ Cadastrar primeira Raça</button>
+                        </div>
+                    ) : (
                         <ul className="equipes-lista racas-lista">
                             {rascunho.map((r) => {
                                 const ref = referenciasDe(r.id);
                                 return (
                                     <li key={r.id} className="equipes-item racas-item">
                                         <input className="input-neon equipes-input-icone" value={r.icone} maxLength={8} aria-label={`Ícone da raça ${r.nome}`}
-                                            onChange={(ev) => editar(r.id, 'icone', ev.target.value)} onBlur={gravarRascunho} disabled={!podeGravar} />
+                                            onChange={(ev) => editar(r.id, 'icone', ev.target.value)} onBlur={gravarRascunho} />
                                         <input className="input-neon equipes-input-nome" value={r.nome} maxLength={LIMITE_NOME_RACA} aria-label={`Nome da raça ${r.id}`}
-                                            onChange={(ev) => editar(r.id, 'nome', ev.target.value)} onBlur={() => aoSairDoNome(r.id)} disabled={!podeGravar} />
+                                            onChange={(ev) => editar(r.id, 'nome', ev.target.value)} onBlur={() => aoSairDoNome(r.id)} />
                                         <input className="input-neon racas-input-apelidos" value={r.apelidosTexto} aria-label={`Apelidos da raça ${r.nome}`}
                                             placeholder={`Apelidos, separados por vírgula (até ${LIMITE_APELIDOS_RACA})`}
-                                            onChange={(ev) => editar(r.id, 'apelidosTexto', ev.target.value)} onBlur={gravarRascunho} disabled={!podeGravar} />
-                                        <select className="input-neon equipes-select" value={r.herdaDe} disabled={!podeGravar}
+                                            onChange={(ev) => editar(r.id, 'apelidosTexto', ev.target.value)} onBlur={gravarRascunho} />
+                                        <select className="input-neon equipes-select" value={r.herdaDe}
                                             aria-label={`${r.nome} herda de`} onChange={(ev) => mudarHerdaDe(r.id, ev.target.value)}>
                                             <option value="">Não herda de ninguém</option>
                                             {rascunho.filter(o => o.id !== r.id).map(o => <option key={o.id} value={o.id}>Herda de {o.icone} {o.nome}</option>)}
@@ -177,7 +183,7 @@ export default function RacasCatalogo() {
                                                 <button type="button" className="btn-neon equipes-btn" onClick={() => setConfirmando(null)}>Cancelar</button>
                                             </span>
                                         ) : (
-                                            <button type="button" className="btn-neon btn-red equipes-btn" onClick={() => setConfirmando(r.id)} disabled={!podeGravar} aria-label={`Remover raça ${r.nome}`}>🗑️ Remover</button>
+                                            <button type="button" className="btn-neon btn-red equipes-btn" onClick={() => setConfirmando(r.id)} aria-label={`Remover raça ${r.nome}`}>🗑️ Remover</button>
                                         )}
                                     </li>
                                 );
@@ -185,9 +191,9 @@ export default function RacasCatalogo() {
                         </ul>
                     )}
                     <div className="equipes-acoes">
-                        <button type="button" className="btn-neon btn-green equipes-btn" onClick={adicionar} disabled={!podeGravar || rascunho.length >= LIMITE_RACAS}
+                        <button type="button" className="btn-neon btn-green equipes-btn" onClick={adicionar} disabled={rascunho.length >= LIMITE_RACAS}
                             title={rascunho.length >= LIMITE_RACAS ? `Limite de ${LIMITE_RACAS} raças` : 'Cria uma nova raça'}>➕ Adicionar raça</button>
-                        <button type="button" className="btn-neon equipes-btn" onClick={gravarRascunho} disabled={!podeGravar}>💾 Salvar raças</button>
+                        <button type="button" className="btn-neon equipes-btn" onClick={gravarRascunho}>💾 Salvar raças</button>
                     </div>
 
                     <h4 className="equipes-subtitulo">Quem é de qual raça</h4>
@@ -198,9 +204,9 @@ export default function RacasCatalogo() {
                                 return (
                                     <li key={e.chave} className="equipes-membro racas-membro">
                                         <span className="equipes-membro-nome">{e.isDummie ? '👾 ' : ''}{e.nome}</span>
-                                        <select className="input-neon equipes-select" value={raca.cadastrada ? raca.id : ''} disabled={!podeGravar || salvas.length === 0}
+                                        <select className="input-neon equipes-select" value={raca.cadastrada ? raca.id : ''} disabled={salvas.length === 0}
                                             aria-label={`Raça de ${e.nome}`}
-                                            onChange={(ev) => acoes && acoes.definirRacaDoPersonagem({ id: e.id, nome: e.nome, isDummie: e.isDummie }, ev.target.value)}>
+                                            onChange={(ev) => definirRacaDoPersonagemDireto({ id: e.id, nome: e.nome, isDummie: e.isDummie }, ev.target.value)}>
                                             <option value="">{raca.nome && !raca.cadastrada ? `Outra: ${raca.nome}` : 'Sem raça'}</option>
                                             {salvas.map(o => <option key={o.id} value={o.id}>{o.icone} {o.nome}</option>)}
                                         </select>

@@ -11,6 +11,7 @@ import MestreControleTurno from './MestreControleTurno';
 import EquipesRelacoes from './EquipesRelacoes';
 import RacasCatalogo from './RacasCatalogo';
 import MestreSegurarAcao from './MestreSegurarAcao';
+import AtalhosMestre, { SecaoMestreAncora } from './AtalhosMestre';
 import { MestreNotificacoesPedidos } from './MestrePedidosSexta';
 
 function MestreConteudoSeguro() {
@@ -24,11 +25,14 @@ function MestreConteudoSeguro() {
                 👑 DOMÍNIO DO MESTRE
             </h2>
 
+            {/* 🧭 Atalhos para as seções desta página (inclui 🧬 Raças) */}
+            <AtalhosMestre />
+
             {/* 🔔 Pedidos de criação feitos pelos jogadores à Sexta-Feira */}
-            <MestreNotificacoesPedidos />
+            <SecaoMestreAncora id="pedidos"><MestreNotificacoesPedidos /></SecaoMestreAncora>
 
             {/* Controle de Turnos do combate (mesma ação do "Passar Turno" do Mapa) */}
-            <MestreControleTurno />
+            <SecaoMestreAncora id="turnos"><MestreControleTurno /></SecaoMestreAncora>
 
             {/* 🛡️ Equipes nomeadas, relações entre elas e quem está em qual lado */}
             <EquipesRelacoes />
@@ -37,11 +41,11 @@ function MestreConteudoSeguro() {
             <RacasCatalogo />
 
             {/* ⏳ Quantas Ações cada um pode segurar (Hold Action) */}
-            <MestreSegurarAcao />
+            <SecaoMestreAncora id="segurar"><MestreSegurarAcao /></SecaoMestreAncora>
 
             {/* Primeira linha: Visor, Injetor Rápido e Voz do Sistema */}
             <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                <MestreVisorJogadores />
+                <SecaoMestreAncora id="jogadores" className="mestre-secao-ancora--visor"><MestreVisorJogadores /></SecaoMestreAncora>
                 <div style={{ flex: '1 1 35%', minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     <MestreInjetorEntidades />
                     <MestreVozSistema />
@@ -49,7 +53,7 @@ function MestreConteudoSeguro() {
             </div>
 
             {/* Segunda linha inteira: A nossa nova Forja de Vilões */}
-            <MestreForjaNPC />
+            <SecaoMestreAncora id="forja"><MestreForjaNPC /></SecaoMestreAncora>
             
         </div>
     );

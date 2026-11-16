@@ -21,7 +21,7 @@ let mockState;
 function montar({ isMestre, raca = 'Saiyajin', poderes }) {
     mockState = {
         minhaFicha: { bio: { raca }, poderes },
-        meuNome: 'Heroi', isMestre, cenario: CENARIO, adicionarAviso: vi.fn(),
+        meuNome: 'Heroi', isMestre, cenario: CENARIO, pedirSecaoMestre: vi.fn(), adicionarAviso: vi.fn(),
         updateFicha: vi.fn((cb) => cb(mockState.minhaFicha)),
         efeitosTemp: [], setEfeitosTemp: vi.fn(), efeitosTempPassivos: [], setEfeitosTempPassivos: vi.fn(),
         poderEditandoId: null, setPoderEditandoId: vi.fn(),
@@ -73,5 +73,17 @@ describe('Grimório — Habilidades de Raça', () => {
     it('aba vazia explica como obter a habilidade', () => {
         montar({ isMestre: true, poderes: [] });
         expect(screen.getByText(/O Mestre concede Habilidades de Raça compatíveis com a sua Raça/)).toBeTruthy();
+    });
+
+    it('Mestre vê o botão de abrir o catálogo de Raças no cabeçalho da aba; ele pede a seção racas', () => {
+        montar({ isMestre: true, poderes: [] });
+        fireEvent.click(screen.getByRole('button', { name: /Abrir catálogo de Raças/ }));
+        expect(mockState.pedirSecaoMestre).toHaveBeenCalledWith('racas');
+    });
+
+    it('jogador não vê o botão do catálogo de Raças', () => {
+        montar({ isMestre: false, poderes: [zenkai()] });
+        expect(screen.getByText('Zenkai')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /catálogo de Raças/ })).toBeNull();
     });
 });

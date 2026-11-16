@@ -16,7 +16,7 @@ describe('Sidebar > badge de pedidos pendentes no 👑', () => {
     it('sem pedidos: sem badge e título padrão', () => {
         render(<Sidebar onResetClick={() => {}} />);
         expect(document.querySelector('.sidebar-badge-pedidos')).toBeNull();
-        expect(botaoMestre().getAttribute('title')).toBe('Painel do Mestre');
+        expect(botaoMestre().getAttribute('title')).toBe('Painel do Mestre (Turnos, Equipes, 🧬 Raças…)');
     });
     it('Mestre com 3 pedidos mostra "3"', () => {
         useStore.setState({ sextaFeiraPendentes: pedidos(3) });

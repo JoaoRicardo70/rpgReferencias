@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import useStore from '../../stores/useStore';
 import { getRacas, resolverRaca } from '../../core/racas';
+import BotaoCatalogoRacas from './BotaoCatalogoRacas';
 
 // 🧬 Campo "Raça" das fichas (Ficha e Narrativa). Com catálogo de Raças na mesa (core/racas.js): seleção do catálogo + "Outra (texto livre)";
 // sem catálogo: o mesmo campo de texto livre de sempre. O valor continua sendo o NOME da raça (ficha.bio.raca); o racaId é derivado ao salvar.
@@ -14,10 +15,11 @@ export default function SeletorRaca({ valor, aoMudar, rotulo = 'Raça', desabili
     const texto = valor == null ? '' : String(valor);
     const casada = useMemo(() => resolverRaca(cenario, { bio: { raca: texto } }), [cenario, texto]);
 
+    const linkCatalogo = <BotaoCatalogoRacas rotulo="⚙️ Gerenciar catálogo de Raças" />;
     const rotuloEl = <label className="racas-seletor-rotulo">{rotulo}</label>;
     if (racas.length === 0) {
         return (
-            <div>{rotuloEl}<input className="input-neon" type="text" value={texto} aria-label={rotulo} disabled={desabilitado} onChange={e => aoMudar(e.target.value)} /></div>
+            <div>{rotuloEl}<input className="input-neon" type="text" value={texto} aria-label={rotulo} disabled={desabilitado} onChange={e => aoMudar(e.target.value)} />{linkCatalogo}</div>
         );
     }
     const modoLivre = livre || (!casada.cadastrada && texto.trim() !== '');
@@ -37,6 +39,7 @@ export default function SeletorRaca({ valor, aoMudar, rotulo = 'Raça', desabili
                 {racas.map(r => <option key={r.id} value={r.id}>{r.icone} {r.nome}</option>)}
                 <option value={VALOR_OUTRA}>Outra (texto livre)</option>
             </select>
+            {linkCatalogo}
             {modoLivre && (
                 <>
                     <input className="input-neon racas-seletor-livre" type="text" value={texto} aria-label={`${rotulo} (texto livre)`} placeholder="Digite a raça" disabled={desabilitado}

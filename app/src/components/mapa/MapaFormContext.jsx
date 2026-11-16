@@ -8,7 +8,8 @@ import { montarContextoAdaptacao, aplicarAdaptacaoNoTurno, aplicarZenkaiNoTurno 
 import { abrirTurnoZenkai, iniciarZenkai, novaTelemetriaZenkai, zenkaiLigado, CAMINHOS_ZENKAI } from '../../core/zenkai';
 import { registrarGastoDeEnergia } from '../../core/zenkaiMedicao';
 import { CAMINHOS_ADAPTACAO } from '../../core/adaptacao';
-import { getRacas, sanitizarRacas, camposDaRacaNaFicha } from '../../core/racas';
+import { getRacas } from '../../core/racas';
+import { salvarRacasDaMesa, definirRacaDoPersonagemDireto } from '../../services/racasMesa';
 import { getEquipes, getRelacoes, equipeDe, moverParaEquipe, textoMudancaDeLado, ladoEstaOculto, alvoNoFiltro, sanitizarEquipes, sanitizarRelacoes, comoCombatente, patchLadoOculto } from '../../core/lados';
 import { normalizarDecisoes, aprovarGanhosPermanentesLigado, cenarioComAprovacao, calcularPendencias, fotografarGanhos, lerGanhosPermanentes, CAMINHO_FOTO_GANHOS } from '../../core/aprovacaoPermanente';
 import AprovacaoGanhosPermanentes from '../mestre/AprovacaoGanhosPermanentes';
@@ -1409,45 +1410,9 @@ export function MapaFormProvider({ children }) {
     // 🧬 RAÇAS DA MESA (core/racas.js): catálogo em cenario.racas (só Mestre/Co-Mestre gravam, via salvarCenarioCompleto).
     const racas = useMemo(() => getRacas(cenario), [cenario]);
 
-    // Salva o catálogo (saneado: ids estáveis, limites, ciclos de herança removidos; vazio = apaga o catálogo). Devolve a lista salva ou null (sem permissão).
-    // Remover uma raça deixa referências órfãs e inofensivas (racasAcesso, herdaDe, bio.racaId): ver limparReferenciasDeRaca em core/racas.js.
-    const salvarRacas = useCallback((lista) => {
-        if (!isMestre) return null;
-        const limpa = sanitizarRacas(lista);
-        const novoCenario = JSON.parse(JSON.stringify(useStore.getState().cenario || {}));
-        if (limpa.length === 0) delete novoCenario.racas; else novoCenario.racas = limpa;
-        salvarCenarioCompleto(novoCenario);
-        return limpa;
-    }, [isMestre]);
-
-    // Define a Raça de um personagem (grava bio.racaId + bio.raca = nome do catálogo; racaId '' = sem raça). Mestre/Co-Mestre em qualquer um;
-    // o jogador só na PRÓPRIA ficha. entidade = { id, nome, isDummie }. Devolve true se gravou (id fora do catálogo ou sem permissão = false).
-    const definirRacaDoPersonagem = useCallback((entidade, racaId) => {
-        if (!entidade) return false;
-        const st = useStore.getState();
-        const catalogo = getRacas(st.cenario);
-        const raca = racaId ? catalogo.find(r => r.id === racaId) : null;
-        if (racaId && !raca) return false;
-        const campos = camposDaRacaNaFicha(raca);
-        if (entidade.isDummie) {
-            if (!isMestre) return false;
-            const d = (st.dummies || {})[entidade.id];
-            if (!d) return false;
-            salvarDummie(entidade.id, { ...d, bio: { ...(d.bio || {}), racaId: campos['bio/racaId'], raca: campos['bio/raca'] } });
-            return true;
-        }
-        const nome = entidade.id || entidade.nome;
-        if (!nome) return false;
-        const souEu = sanitizarNome(nome) === sanitizarNome(st.meuNome || '');
-        if (!isMestre && !souEu) return false;
-        if (souEu) {
-            updateFicha((f) => { if (!f.bio) f.bio = {}; f.bio.racaId = campos['bio/racaId']; f.bio.raca = campos['bio/raca']; });
-            salvarFichaSilencioso();
-        } else {
-            salvarCamposPersonagem(nome, campos);
-        }
-        return true;
-    }, [isMestre, updateFicha]);
+    // Gravação das Raças: única cópia da regra em services/racasMesa.js (também usada pelo catálogo da aba Mestre, sem depender do Mapa).
+    const salvarRacas = useCallback((lista) => salvarRacasDaMesa(lista), []);
+    const definirRacaDoPersonagem = useCallback((entidade, racaId) => definirRacaDoPersonagemDireto(entidade, racaId), []);
 
     // 🔔 Fim do combate de UMA cena (usado por encerrarCombate e pela troca de cena ativa): termina a
     // Imunidade total e dispara fimDeLuta (core/gatilhos.js) em quem estava na cena. "Quem estava na

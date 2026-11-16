@@ -9,6 +9,7 @@ import { CATEGORIAS_PODER, categoriasVisiveisNaFicha, categoriasNaoLiberadas, id
 import { SECOES_FORM, resumirSecoes, rascunhoTemConteudo } from '../../core/rascunhoPoder';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, GRUPO_IDENTIFICACAO, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
 import FormasEditor from '../shared/FormasEditor';
+import BotaoCatalogoRacas from '../shared/BotaoCatalogoRacas';
 import EstagioControle from './EstagioControle';
 import { ContadoresDoPoderEditor, ContadoresNoCartao } from './ContadoresDoPoder';
 import EstagiosMarcosEditor from './EstagiosMarcosEditor';
@@ -331,7 +332,7 @@ export function PoderesNavegacaoLivro({ idBase = 'poderes-categoria' }) {
             </div>
             {abaAtual === 'singularidade' && <p className="grimorio-aba-dica grimorio-aba-dica--grau">{grau ? `Singularidade ${grau}. ` : ''}Impossível de copiar ou ensinar.</p>}
             {abaAtual === 'infinity' && <p className="grimorio-aba-dica">Infinity permite cópia (Mimetismo).</p>}
-            {abaAtual === 'habilidadeRaca' && <p className="grimorio-aba-dica">Habilidades de Raça dependem da Raça do personagem: só o Mestre concede e define quais Raças têm acesso.{isMestre ? ' Ao gravar uma nova, o acesso começa com a Raça atual do personagem; ajuste em "Raças com acesso" no cartão.' : ''}</p>}
+            {abaAtual === 'habilidadeRaca' && <p className="grimorio-aba-dica">Habilidades de Raça dependem da Raça do personagem: só o Mestre concede e define quais Raças têm acesso.{isMestre ? ' Ao gravar uma nova, o acesso começa com a Raça atual do personagem; ajuste em "Raças com acesso" no cartão.' : ''}{isMestre && <>{' '}<BotaoCatalogoRacas /></>}</p>}
             {mostrarDicaMestre && <p className="grimorio-aba-dica" role="note">{DICA_LIBERAR_CATEGORIAS}</p>}
         </>
     );

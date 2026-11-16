@@ -178,7 +178,7 @@ const useStore = create(
             state.entidadeInspecionada = null;
         }),
         minhaFicha: deepClone(fichaPadrao),
-        meuNome: '', isMestre: false, souMestreReal: false, modoJogador: lerModoJogadorLocal(storedMesaId), abaAtiva: lerModoNavegacao() === 'hub' ? ABA_HUB : (lerModoNavegacao() === 'mesa' ? 'aba-mapa' : 'aba-Ficha Def'), modoNavegacao: lerModoNavegacao(), larguraGaveta: lerLarguraGaveta(), fichaPaginaPedida: null, combateNaTela: false, personagens: {}, feedCombate: [],
+        meuNome: '', isMestre: false, souMestreReal: false, modoJogador: lerModoJogadorLocal(storedMesaId), abaAtiva: lerModoNavegacao() === 'hub' ? ABA_HUB : (lerModoNavegacao() === 'mesa' ? 'aba-mapa' : 'aba-Ficha Def'), modoNavegacao: lerModoNavegacao(), larguraGaveta: lerLarguraGaveta(), fichaPaginaPedida: null, secaoMestrePedida: null, combateNaTela: false, personagens: {}, feedCombate: [],
         efeitosTemp: [], efeitosTempPassivos: [], efeitosTempArsenal: [], efeitosTempPassivosArsenal: [], efeitosTempForma: [], efeitosTempPassivosForma: [],
         // Rascunhos do formulário do Livro dos Poderes (core/rascunhoPoder.js): só em memória, nunca vão ao Firebase.
         rascunhosPoder: {},
@@ -240,6 +240,9 @@ const useStore = create(
         // Abre a Ficha Definitiva já numa página (e capítulo, se a página tiver); a Ficha consome o pedido ao montar.
         abrirFichaNaPagina: (pagina, capitulo = null) => set((state) => { state.fichaPaginaPedida = { pagina, capitulo }; state.abaAtiva = 'aba-Ficha Def'; }),
         limparFichaPaginaPedida: () => set((state) => { state.fichaPaginaPedida = null; }),
+        // Leva o Mestre/Co-Mestre a uma seção da aba Mestre (ex.: 'racas'); a seção abre e rola até ela ao consumir o pedido. Jogador: nada acontece.
+        pedirSecaoMestre: (id) => set((state) => { if (!state.isMestre || !id) return; state.secaoMestrePedida = { id: String(id) }; state.abaAtiva = 'aba-mestre'; }),
+        limparSecaoMestrePedida: () => set((state) => { state.secaoMestrePedida = null; }),
         // 🧭 Modo de navegação (core/modoNavegacao.js). Sair do hub estando na tela do hub leva pra Ficha (a tela do hub só existe nele).
         setModoNavegacao: (modo) => set((state) => {
             if (!salvarModoNavegacao(modo) || modo === state.modoNavegacao) return;
