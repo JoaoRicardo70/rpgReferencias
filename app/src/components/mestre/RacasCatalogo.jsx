@@ -23,6 +23,8 @@ const paraLista = (rascunho) => rascunho.map(r => ({
     apelidos: String(r.apelidosTexto || '').split(',').map(a => a.trim()).filter(Boolean),
 }));
 const comoLista = (v) => (Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []));
+const semAcento = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+const LIMITE_MEMBROS_ABERTO = 5;
 const entradas = (v) => (Array.isArray(v) ? v.map((p, i) => [String(i), p]) : (v && typeof v === 'object' ? Object.entries(v) : []));
 
 export default function RacasCatalogo() {
@@ -38,6 +40,9 @@ export default function RacasCatalogo() {
     const [aberto, setAberto] = useState(true);
     useSecaoMestre('racas', () => setAberto(true));
     const [confirmando, setConfirmando] = useState(null); // id da raça a remover
+    // "Quem é de qual raça": null = automático (aberto se não há catálogo ou há até 5 personagens); true/false = escolha do Mestre.
+    const [membrosAberto, setMembrosAberto] = useState(null);
+    const [busca, setBusca] = useState('');
     const salvas = useMemo(() => getRacas(cenario), [cenario]);
     const chaveSalvas = JSON.stringify(salvas);
     const [rascunho, setRascunho] = useState(() => salvas.map(paraRascunho));
@@ -148,6 +153,9 @@ export default function RacasCatalogo() {
 
     if (!isMestre) return null;
 
+    const membrosVisivel = membrosAberto === null ? (entidades.length <= LIMITE_MEMBROS_ABERTO) : membrosAberto;
+    const termoBusca = semAcento(busca);
+    const entidadesFiltradas = termoBusca ? entidades.filter(e => semAcento(e.nome).includes(termoBusca)) : entidades;
     const racaDe = (e) => resolverRaca(cenario, e.ficha);
 
     return (
@@ -232,10 +240,22 @@ export default function RacasCatalogo() {
                         <button type="button" className="btn-neon equipes-btn" onClick={gravarRascunho}>💾 Salvar raças</button>
                     </div>
 
-                    <h4 className="equipes-subtitulo">Quem é de qual raça</h4>
+                    <h4 className="equipes-subtitulo racas-membros-cabecalho">
+                        <button type="button" className="racas-membros-titulo" onClick={() => setMembrosAberto(!membrosVisivel)} aria-expanded={membrosVisivel} aria-controls="racas-membros-corpo">
+                            <span aria-hidden="true">{membrosVisivel ? '▼' : '▶'}</span> Quem é de qual raça <span className="racas-membros-contador">({entidades.length} personagens)</span>
+                        </button>
+                    </h4>
+                    {membrosVisivel && (
+                    <div id="racas-membros-corpo">
+                    {entidades.length > 0 && (
+                        <label className="racas-busca">Buscar personagem
+                            <input type="search" className="input-neon" value={busca} placeholder="Nome do personagem" aria-label="Buscar personagem"
+                                onChange={(ev) => setBusca(ev.target.value)} />
+                        </label>
+                    )}
                     {entidades.length === 0 ? <p className="equipes-vazio">Ninguém na mesa ainda.</p> : (
                         <ul className="equipes-membros racas-membros">
-                            {entidades.map((e) => {
+                            {entidadesFiltradas.map((e) => {
                                 const raca = racaDe(e);
                                 return (
                                     <li key={e.chave} className="equipes-membro racas-membro">
@@ -254,6 +274,9 @@ export default function RacasCatalogo() {
                                 );
                             })}
                         </ul>
+                    )}
+                    {entidades.length > 0 && entidadesFiltradas.length === 0 && <p className="equipes-vazio" role="status">Nenhum personagem encontrado para essa busca.</p>}
+                    </div>
                     )}
 
                     <PedidosRacaMestre />

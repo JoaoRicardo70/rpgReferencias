@@ -162,3 +162,70 @@ describe('RacasCatalogo', () => {
         expect(useStore.getState().abaAtiva).toBe('aba-mestre');
     });
 });
+
+describe('RacasCatalogo: "Quem é de qual raça" recolhível com busca', () => {
+    const muitos = () => {
+        const p = {};
+        ['Ágata', 'Bruno', 'Carla', 'Dênis', 'Elis', 'Fábio', 'Gael'].forEach(n => { p[n] = { bio: { nome: n }, poderes: [] }; });
+        return p;
+    };
+    const cabecalho = () => screen.getByRole('button', { name: /Quem é de qual raça/ });
+
+    it('aberta com até 5 personagens, com contador e campo de busca', () => {
+        preparar();
+        render(<RacasCatalogo />);
+        expect(cabecalho().getAttribute('aria-expanded')).toBe('true');
+        expect(cabecalho().textContent).toMatch(/\((3 personagens)\)/);
+        expect(screen.getByLabelText('Buscar personagem')).toBeTruthy();
+        expect(screen.getByLabelText('Raça de Kai')).toBeTruthy();
+    });
+
+    it('fechada com mais de 5 personagens; abre ao clicar e o catálogo segue aberto', () => {
+        preparar({ personagens: muitos() });
+        render(<RacasCatalogo />);
+        expect(cabecalho().getAttribute('aria-expanded')).toBe('false');
+        expect(cabecalho().textContent).toMatch(/\((8 personagens)\)/);
+        expect(screen.queryByLabelText('Raça de Bruno')).toBeNull();
+        expect(screen.getByText('Catálogo de Raças')).toBeTruthy();
+        fireEvent.click(cabecalho());
+        expect(cabecalho().getAttribute('aria-expanded')).toBe('true');
+        expect(screen.getByLabelText('Raça de Bruno')).toBeTruthy();
+    });
+
+    it('fechada com muitos personagens mesmo com o catálogo vazio (só abre com até 5)', () => {
+        preparar({ personagens: muitos(), cenario: {} });
+        render(<RacasCatalogo />);
+        expect(cabecalho().getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('limite: 4 personagens + o Mestre (5 entidades) abre; 5 + o Mestre (6) fecha', () => {
+        const mk = (n) => { const p = {}; for (let i = 0; i < n; i++) p[`P${i}`] = { bio: { nome: `P${i}` }, poderes: [] }; return p; };
+        preparar({ personagens: mk(4) });
+        const { unmount } = render(<RacasCatalogo />);
+        expect(cabecalho().getAttribute('aria-expanded')).toBe('true');
+        unmount();
+        preparar({ personagens: mk(5) });
+        render(<RacasCatalogo />);
+        expect(cabecalho().getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('a busca filtra por nome sem acento nem caixa e mostra aviso quando nada bate', () => {
+        preparar({ personagens: muitos() });
+        render(<RacasCatalogo />);
+        fireEvent.click(cabecalho());
+        const campo = screen.getByLabelText('Buscar personagem');
+        fireEvent.change(campo, { target: { value: 'AGATA' } });
+        expect(screen.getByLabelText('Raça de Ágata')).toBeTruthy();
+        expect(screen.queryByLabelText('Raça de Bruno')).toBeNull();
+        fireEvent.change(campo, { target: { value: 'zzz' } });
+        expect(screen.getByText(/Nenhum personagem encontrado/)).toBeTruthy();
+        fireEvent.change(campo, { target: { value: '' } });
+        expect(screen.getByLabelText('Raça de Bruno')).toBeTruthy();
+    });
+
+    it('Pedidos de Raça fica destacado quando há pendentes', () => {
+        preparar({ personagens: { Kai: { bio: { pedidosRaca: [{ id: 'p1', racaId: 'elfo' }] }, poderes: [{ id: 1, manipulaDNA: true }] } } });
+        render(<RacasCatalogo />);
+        expect(screen.getByRole('region', { name: 'Pedidos de Raça' }).className).toMatch(/pedido-raca-painel--pendentes/);
+    });
+});

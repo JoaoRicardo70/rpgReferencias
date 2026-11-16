@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import RacasCatalogo from './RacasCatalogo';
-import AtalhosMestre from './AtalhosMestre';
+import SubAbasMestre from './SubAbasMestre';
 import ComposicaoRacialEditor from './ComposicaoRacialEditor';
 import PedidosRacaMestre from './PedidosRacaMestre';
 import useStore from '../../stores/useStore';
@@ -274,17 +274,18 @@ describe('Pedidos de Raça (Mestre)', () => {
         expect(container.innerHTML).toBe('');
     });
 
-    it('o painel aparece dentro do catálogo e o atalho 🧬 Raças mostra o contador', () => {
+    it('o painel aparece dentro do catálogo e a sub-aba 🧬 Raças mostra o contador', () => {
         comPedido();
-        render(<><AtalhosMestre /><RacasCatalogo /></>);
+        render(<SubAbasMestre paineis={{ racas: <RacasCatalogo /> }} />);
+        fireEvent.click(screen.getByRole('tab', { name: /Raças/ }));
         expect(screen.getByRole('region', { name: 'Pedidos de Raça' })).toBeTruthy();
-        const nav = screen.getByRole('navigation', { name: 'Atalhos do Mestre' });
-        expect(within(nav).getByRole('button', { name: /🧬 Raças/ }).textContent).toMatch(/1/);
+        const nav = screen.getByRole('tablist', { name: 'Áreas do Painel do Mestre' });
+        expect(within(nav).getByRole('tab', { name: /Raças/ }).textContent).toMatch(/1/);
     });
 
-    it('sem pedidos o atalho não mostra contador', () => {
+    it('sem pedidos a sub-aba não mostra contador', () => {
         preparar();
-        render(<AtalhosMestre />);
-        expect(screen.getByRole('button', { name: '🧬 Raças' })).toBeTruthy();
+        render(<SubAbasMestre />);
+        expect(screen.getByRole('tab', { name: /Raças/ }).textContent).not.toMatch(/[0-9]/);
     });
 });

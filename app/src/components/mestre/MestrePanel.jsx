@@ -5,13 +5,13 @@ import {
     MestreVisorJogadores,
     MestreInjetorEntidades,
     MestreVozSistema,
-    MestreForjaNPC // Adicionámos a importação aqui!
+    MestreForjaNPC
 } from './MestreSubComponents';
 import MestreControleTurno from './MestreControleTurno';
 import EquipesRelacoes from './EquipesRelacoes';
 import RacasCatalogo from './RacasCatalogo';
 import MestreSegurarAcao from './MestreSegurarAcao';
-import AtalhosMestre, { SecaoMestreAncora } from './AtalhosMestre';
+import SubAbasMestre, { SecaoMestreAncora } from './SubAbasMestre';
 import { MestreNotificacoesPedidos } from './MestrePedidosSexta';
 
 function MestreConteudoSeguro() {
@@ -19,42 +19,41 @@ function MestreConteudoSeguro() {
     if (!ctx) return null;
     if (!ctx.isMestre) return <MestreAcessoNegado />;
 
-    return (
-        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h2 style={{ color: '#ffcc00', textShadow: '0 0 10px #ffcc00', borderBottom: '2px solid #ffcc00', paddingBottom: 10, margin: 0 }}>
-                👑 DOMÍNIO DO MESTRE
-            </h2>
-
-            {/* 🧭 Atalhos para as seções desta página (inclui 🧬 Raças) */}
-            <AtalhosMestre />
-
-            {/* 🔔 Pedidos de criação feitos pelos jogadores à Sexta-Feira */}
-            <SecaoMestreAncora id="pedidos"><MestreNotificacoesPedidos /></SecaoMestreAncora>
-
-            {/* Controle de Turnos do combate (mesma ação do "Passar Turno" do Mapa) */}
-            <SecaoMestreAncora id="turnos"><MestreControleTurno /></SecaoMestreAncora>
-
-            {/* 🛡️ Equipes nomeadas, relações entre elas e quem está em qual lado */}
-            <EquipesRelacoes />
-
-            {/* 🧬 Catálogo de Raças da mesa e quem é de qual raça (acesso às Habilidades de Raça) */}
-            <RacasCatalogo />
-
-            {/* ⏳ Quantas Ações cada um pode segurar (Hold Action) */}
-            <SecaoMestreAncora id="segurar"><MestreSegurarAcao /></SecaoMestreAncora>
-
-            {/* Primeira linha: Visor, Injetor Rápido e Voz do Sistema */}
-            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+    const paineis = {
+        combate: (
+            <>
+                {/* Controle de Turnos do combate (mesma ação do "Passar Turno" do Mapa) */}
+                <SecaoMestreAncora id="turnos"><MestreControleTurno /></SecaoMestreAncora>
+                {/* 🛡️ Equipes nomeadas, relações entre elas e quem está em qual lado */}
+                <EquipesRelacoes />
+                {/* ⏳ Quantas Ações cada um pode segurar (Hold Action) */}
+                <SecaoMestreAncora id="segurar"><MestreSegurarAcao /></SecaoMestreAncora>
+            </>
+        ),
+        // 🧬 Catálogo de Raças da mesa, quem é de qual raça e Pedidos de Raça
+        racas: <RacasCatalogo />,
+        entidades: (
+            <div className="mestre-entidades-linha">
                 <SecaoMestreAncora id="jogadores" className="mestre-secao-ancora--visor"><MestreVisorJogadores /></SecaoMestreAncora>
-                <div style={{ flex: '1 1 35%', minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div className="mestre-entidades-lateral">
                     <MestreInjetorEntidades />
                     <MestreVozSistema />
                 </div>
             </div>
+        ),
+        // 💀 Forja de Entidades (Boss & NPCs)
+        forja: <SecaoMestreAncora id="forja"><MestreForjaNPC /></SecaoMestreAncora>,
+    };
 
-            {/* Segunda linha inteira: A nossa nova Forja de Vilões */}
-            <SecaoMestreAncora id="forja"><MestreForjaNPC /></SecaoMestreAncora>
-            
+    return (
+        <div className="mestre-painel-pagina">
+            <h2 className="mestre-painel-titulo">👑 DOMÍNIO DO MESTRE</h2>
+
+            {/* 🔔 Pedidos de criação feitos pelos jogadores à Sexta-Feira (visíveis em qualquer sub-aba) */}
+            <SecaoMestreAncora id="pedidos"><MestreNotificacoesPedidos /></SecaoMestreAncora>
+
+            {/* 🧭 Sub-abas: Combate, Raças, Entidades e Forja */}
+            <SubAbasMestre paineis={paineis} />
         </div>
     );
 }

@@ -34,7 +34,7 @@ export default function PedidosRacaMestre() {
 
     if (!isMestre) return null;
     return (
-        <div className="pedido-raca-painel" role="region" aria-label="Pedidos de Raça">
+        <div className={`pedido-raca-painel${pedidos.length > 0 ? " pedido-raca-painel--pendentes" : ""}`} role="region" aria-label="Pedidos de Raça">
             <h4 className="equipes-subtitulo">🧬 Pedidos de Raça {pedidos.length > 0 && <span className="pedido-raca-badge" aria-label={`${pedidos.length} pendente(s)`}>{pedidos.length}</span>}</h4>
             <p className="equipes-legenda">Jogadores com um poder de Manipulação de DNA podem pedir Raças novas. Ao aprovar, a Raça entra na composição como adquirida, no percentual inicial que você definir (padrão {PERCENTUAL_RACA_ADQUIRIDA_PADRAO}%).</p>
             {pedidos.length === 0 ? <p className="equipes-vazio">Nenhum pedido pendente.</p> : (
