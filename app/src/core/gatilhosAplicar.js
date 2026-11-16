@@ -10,6 +10,7 @@ import { atualizarContador, resetarContadoresDeCena } from './contadores.js';
 import { nomeDoEstado } from './condicoes.js';
 import { aplicarEstadoComDuracao, removerEstadoComDuracao, limparDuracoes, sortearDuracao, rotuloDuracao } from './duracaoEstados.js';
 import { imuneAoEstado } from './efeitosCondicionais.js';
+import useStore from '../stores/useStore';
 import { ligarPoderNoRascunho, desligarPoderNoRascunho } from './custoPorTurno.js';
 import { aplicarDanoNaVida } from './danoVida.js';
 import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
@@ -249,7 +250,7 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                 break;
             }
             case 'ligarPoder': {
-                const r = ligarPoderNoRascunho(ficha, a.poderId, ctx.cenaId || 'default');
+                const r = ligarPoderNoRascunho(ficha, a.poderId, ctx.cenaId || 'default', ctx.cenario || useStore.getState().cenario || null);
                 if (!r.ok) { if (r.motivo !== 'já está ligado') textos.push(`${nome}: não conseguiu ligar o Poder (${r.motivo})`); break; }
                 caminhosDoLigarDesligar(ficha, a.poderId).forEach(p => caminhos.add(p));
                 const p = ficha.poderes.find(po => String(po.id) === String(a.poderId));

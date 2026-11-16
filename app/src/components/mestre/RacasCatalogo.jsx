@@ -3,19 +3,23 @@ import useStore from '../../stores/useStore';
 import { salvarDummie, salvarCamposPersonagem, salvarFichaSilencioso } from '../../services/firebase-sync';
 import { salvarRacasDaMesa, definirRacaDoPersonagemDireto } from '../../services/racasMesa';
 import useSecaoMestre, { domDaSecaoMestre } from './useSecaoMestre';
+import ComposicaoRacialEditor from './ComposicaoRacialEditor';
+import PedidosRacaMestre from './PedidosRacaMestre';
 import {
-    getRacas, gerarIdRaca, resolverRaca, ehHabilidadeDeRaca, limparReferenciasDeRaca,
+    getRacas, gerarIdRaca, resolverRaca, descendentesDaRaca, ehHabilidadeDeRaca, limparReferenciasDeRaca,
     LIMITE_RACAS, LIMITE_NOME_RACA, LIMITE_APELIDOS_RACA, ICONE_RACA_PADRAO,
 } from '../../core/racas';
 
 // 🧬 RAÇAS DA MESA (aba Mestre — só Mestre/Co-Mestre). Edita o catálogo de Raças do cenário (ícone, nome, apelidos, "herda de") e
-// mostra de qual Raça é cada personagem. Quem é de qual Raça decide o acesso às Habilidades de Raça (core/racas.js).
+// mostra de qual Raça é cada personagem (e a composição racial de cada um: mestiços, Raça adquirida por DNA, pedidos de Raça). Quem é de qual Raça decide o acesso às Habilidades de Raça (core/racas.js).
 // Grava pelo serviço services/racasMesa.js (a mesma regra do Mapa): NÃO depende do Mapa ter sido aberto. Começa ABERTA.
-// Nome, ícone e apelidos só gravam ao SAIR do campo (ou no botão "Salvar raças"); adicionar, remover e "herda de" gravam na hora.
+// Nome, ícone e apelidos só gravam ao SAIR do campo (ou no botão "Salvar raças"); adicionar, remover, "herda de", "descende de" e "Raça Primordial" gravam na hora.
+// "Herda habilidades de" (herdaDe) = quem é desta Raça também acessa as Habilidades da Raça-mãe. "Descende de" (descendeDe) = só genealogia;
+// a Raça Primordial (acessoTotalDescendentes) acessa as Habilidades de TODAS as descendentes (transitivo) além das próprias.
 
-const paraRascunho = (r) => ({ id: r.id, icone: r.icone, nome: r.nome, apelidosTexto: (r.apelidos || []).join(', '), herdaDe: r.herdaDe || '' });
+const paraRascunho = (r) => ({ id: r.id, icone: r.icone, nome: r.nome, apelidosTexto: (r.apelidos || []).join(', '), herdaDe: r.herdaDe || '', descendeDe: r.descendeDe || '', acessoTotalDescendentes: r.acessoTotalDescendentes === true });
 const paraLista = (rascunho) => rascunho.map(r => ({
-    id: r.id, icone: r.icone, nome: r.nome, herdaDe: r.herdaDe,
+    id: r.id, icone: r.icone, nome: r.nome, herdaDe: r.herdaDe, descendeDe: r.descendeDe, acessoTotalDescendentes: r.acessoTotalDescendentes,
     apelidos: String(r.apelidosTexto || '').split(',').map(a => a.trim()).filter(Boolean),
 }));
 const comoLista = (v) => (Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []));
@@ -60,16 +64,23 @@ export default function RacasCatalogo() {
     }, [rascunho, salvas, gravarRascunho]);
     const adicionar = useCallback(() => {
         if (rascunho.length >= LIMITE_RACAS) return;
-        const nova = { id: gerarIdRaca('Nova raça', rascunho), icone: ICONE_RACA_PADRAO, nome: 'Nova raça', apelidosTexto: '', herdaDe: '' };
+        const nova = { id: gerarIdRaca('Nova raça', rascunho), icone: ICONE_RACA_PADRAO, nome: 'Nova raça', apelidosTexto: '', herdaDe: '', descendeDe: '', acessoTotalDescendentes: false };
         const lista = [...rascunho, nova];
         setRascunho(lista);
         gravar(paraLista(lista));
     }, [rascunho, gravar]);
-    const mudarHerdaDe = useCallback((id, valor) => {
-        const lista = rascunho.map(x => (x.id === id ? { ...x, herdaDe: valor } : x));
+    // "Herda habilidades de", "Descende de" e "Raça Primordial" gravam na hora.
+    const mudarGravando = useCallback((id, campo, valor) => {
+        const lista = rascunho.map(x => (x.id === id ? { ...x, [campo]: valor } : x));
         setRascunho(lista);
         gravar(paraLista(lista));
     }, [rascunho, gravar]);
+
+    // Descendentes (transitivo por "Descende de") calculadas sobre o rascunho atual do catálogo.
+    const descendentesDe = useCallback((idRaca) => {
+        const ids = descendentesDaRaca({ racas: paraLista(rascunho) }, idRaca);
+        return ids.map(i => rascunho.find(x => x.id === i)).filter(Boolean);
+    }, [rascunho]);
 
     // Todas as fichas que o Mestre enxerga com seus poderes: [{ chave, nome, isDummie, ficha }].
     const entidades = useMemo(() => {
@@ -95,7 +106,7 @@ export default function RacasCatalogo() {
         entidades.forEach((e) => {
             comoLista(e.ficha && e.ficha.poderes).forEach((p) => { if (ehHabilidadeDeRaca(p) && Array.isArray(p.racasAcesso) && p.racasAcesso.includes(idRaca)) habilidades += 1; });
         });
-        const filhas = salvas.filter(r => r.herdaDe === idRaca).length;
+        const filhas = salvas.filter(r => r.herdaDe === idRaca || r.descendeDe === idRaca).length;
         return { habilidades, filhas };
     }, [entidades, salvas]);
 
@@ -168,11 +179,36 @@ export default function RacasCatalogo() {
                                         <input className="input-neon racas-input-apelidos" value={r.apelidosTexto} aria-label={`Apelidos da raça ${r.nome}`}
                                             placeholder={`Apelidos, separados por vírgula (até ${LIMITE_APELIDOS_RACA})`}
                                             onChange={(ev) => editar(r.id, 'apelidosTexto', ev.target.value)} onBlur={gravarRascunho} />
-                                        <select className="input-neon equipes-select" value={r.herdaDe}
-                                            aria-label={`${r.nome} herda de`} onChange={(ev) => mudarHerdaDe(r.id, ev.target.value)}>
-                                            <option value="">Não herda de ninguém</option>
-                                            {rascunho.filter(o => o.id !== r.id).map(o => <option key={o.id} value={o.id}>Herda de {o.icone} {o.nome}</option>)}
-                                        </select>
+                                        <div className="racas-genealogia">
+                                            <div className="racas-campo">
+                                                <span className="racas-campo-rotulo" aria-hidden="true">Herda habilidades de</span>
+                                                <select className="input-neon equipes-select" value={r.herdaDe}
+                                                    aria-label={`${r.nome} herda de`} onChange={(ev) => mudarGravando(r.id, 'herdaDe', ev.target.value)}>
+                                                    <option value="">Não herda de ninguém</option>
+                                                    {rascunho.filter(o => o.id !== r.id).map(o => <option key={o.id} value={o.id}>Herda de {o.icone} {o.nome}</option>)}
+                                                </select>
+                                                <span className="racas-campo-dica">Quem é desta Raça também acessa as Habilidades da Raça escolhida.</span>
+                                            </div>
+                                            <div className="racas-campo">
+                                                <span className="racas-campo-rotulo" aria-hidden="true">Descende de</span>
+                                                <select className="input-neon equipes-select" value={r.descendeDe}
+                                                    aria-label={`${r.nome} descende de`} onChange={(ev) => mudarGravando(r.id, 'descendeDe', ev.target.value)}>
+                                                    <option value="">Não descende de ninguém</option>
+                                                    {rascunho.filter(o => o.id !== r.id).map(o => <option key={o.id} value={o.id}>Descende de {o.icone} {o.nome}</option>)}
+                                                </select>
+                                                <span className="racas-campo-dica">Só a árvore genealógica: não dá acesso a Habilidades, a não ser que a Raça de origem seja Primordial.</span>
+                                            </div>
+                                            <label className="primordial-campo">
+                                                <input type="checkbox" checked={r.acessoTotalDescendentes === true} aria-label={`${r.nome} é Raça Primordial`}
+                                                    onChange={(ev) => mudarGravando(r.id, 'acessoTotalDescendentes', ev.target.checked)} />
+                                                <span>🌟 Raça Primordial: acesso a TODAS as Habilidades de Raça das descendentes (e às próprias)</span>
+                                            </label>
+                                            {r.acessoTotalDescendentes === true && (
+                                                <p className="primordial-descendentes" role="note">
+                                                    Descendentes: {descendentesDe(r.id).length ? descendentesDe(r.id).map(d => `${d.icone} ${d.nome}`).join(', ') : 'nenhuma ainda (marque "Descende de" nas outras Raças)'}
+                                                </p>
+                                            )}
+                                        </div>
                                         {confirmando === r.id ? (
                                             <span className="equipes-confirmar racas-confirmar" role="alertdialog" aria-label={`Confirmar remoção de ${r.nome}`}>
                                                 Remover a raça {r.nome}?
@@ -211,11 +247,16 @@ export default function RacasCatalogo() {
                                             {salvas.map(o => <option key={o.id} value={o.id}>{o.icone} {o.nome}</option>)}
                                         </select>
                                         {!raca.cadastrada && raca.nome && <span className="racas-nao-cadastrada" role="note">⚠️ Raça não cadastrada: &quot;{raca.nome}&quot; (sem acesso a Habilidades de Raça)</span>}
+                                        <div className="composicao-no-membro">
+                                            <ComposicaoRacialEditor entidade={{ id: e.id, nome: e.nome, isDummie: e.isDummie }} ficha={e.ficha} />
+                                        </div>
                                     </li>
                                 );
                             })}
                         </ul>
                     )}
+
+                    <PedidosRacaMestre />
                 </div>
             )}
         </section>

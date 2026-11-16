@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { ELEMENTOS_SISTEMA } from '../../core/elementos';
 import useStore from '../../stores/useStore';
+import { poderBloqueado } from '../../core/racas';
 import { getEfeitosDeClasse } from '../../core/attributes';
 import { getVitalMxDisplay, getVidaTotalMaxDisplay, danoExibidoParaBruto, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { calcularDano } from '../../core/engine';
@@ -203,7 +204,9 @@ export function AtaqueFormProvider({ children }) {
     // ⚔️ A Arma Espiritual equipada (virtual) também conta como arma; ela rola à parte no calcularDano.
     const armaEspiritualEquipada = useMemo(() => armaVirtualDaArmaEspiritual(minhaFicha), [minhaFicha]);
     const armaEquipada = armaInventario || armaEspiritualEquipada || undefined;
-    const poderesAtivos = useMemo(() => (minhaFicha.poderes || []).filter(p => p && p.ativa), [minhaFicha.poderes]);
+    // 🔒 Habilidades de Raça bloqueadas (não despertou / Domínio insuficiente) não entram no golpe, mesmo que estejam ligadas.
+    const cenarioRacas = useStore(s => s.cenario);
+    const poderesAtivos = useMemo(() => (minhaFicha.poderes || []).filter(p => p && p.ativa && !poderBloqueado(cenarioRacas, minhaFicha, p).bloqueado), [minhaFicha.poderes, minhaFicha.bio, cenarioRacas]);
     const magiasOfensivas = useMemo(() => (minhaFicha.ataquesElementais || []).filter(m => m && m.equipado && m.tipoMecanica !== 'suporte'), [minhaFicha.ataquesElementais]);
 
     useEffect(() => {

@@ -5,7 +5,7 @@
 // capacidade máxima" é aprender com Maestria menor e treinar depois. Nada aqui fala com Firebase nem com a tela.
 // ==========================================
 import { temChaveInvalida, LIMITE_IMAGEM_NO_BACKUP } from './backupFicha';
-import { verificarAcessoHabilidadeRaca, aplicarExcecaoRaca, ehHabilidadeDeRaca, normalizarRacasAcesso, normalizarNomeRaca } from './racas';
+import { verificarAcessoHabilidadeRaca, aplicarExcecaoRaca, ehHabilidadeDeRaca, normalizarRacasAcesso, normalizarNomeRaca, percentualMinimoDoPoder } from './racas';
 import { poderEhCopiavel, usaMaestriaRequerida, ehCategoriaForma, idCategoriaPoder, mensagemCategoriaNaoLiberada, MENSAGEM_SINGULARIDADE_NAO_COPIA } from './categoriasPoder';
 
 export const TIPO_PODER = 'poder';     // item de ficha.poderes (Habilidade, Forma ou Poder)
@@ -21,6 +21,9 @@ export function prepararItemEnsinado(item) {
     copia.equipado = false;
     // A exceção de Raça é do dono que a recebeu: quem aprende precisa ter acesso (ou receber a sua própria exceção do Mestre).
     delete copia.racaExcecao;
+    // Marcas do Mestre (bloqueio de Habilidade de Raça, manipulação de DNA) nunca viajam numa cópia.
+    delete copia.bloqueio;
+    delete copia.manipulaDNA;
     if (typeof copia.imagemUrl === 'string' && copia.imagemUrl.length > LIMITE_IMAGEM_NO_BACKUP && copia.imagemUrl.startsWith('data:')) copia.imagemUrl = '';
     return copia;
 }
@@ -70,13 +73,32 @@ export function racasAcessoConfiavelDaOferta(item, fichaRemetente) {
     return achado ? normalizarRacasAcesso(achado.racasAcesso) : [];
 }
 
+// percentualMinimo CONFIÁVEL (mesma regra da lista de Raças: vale o da ficha real do remetente; sem ela = 0).
+export function percentualMinimoConfiavelDaOferta(item, fichaRemetente) {
+    const lista = fichaRemetente && Array.isArray(fichaRemetente.poderes) ? fichaRemetente.poderes : [];
+    const raciais = lista.filter(p => p && ehHabilidadeDeRaca(p));
+    const nome = normalizarNomeRaca(item && item.nome);
+    const achado = (item && item.id != null && raciais.find(p => p.id === item.id)) || (nome && raciais.find(p => normalizarNomeRaca(p.nome) === nome)) || null;
+    return achado ? percentualMinimoDoPoder(achado) : 0;
+}
+
+function aplicarDadosRaciaisConfiaveis(poder, itemOferta, fichaRemetente) {
+    delete poder.bloqueio;
+    delete poder.manipulaDNA;
+    if (!ehHabilidadeDeRaca(poder)) { delete poder.percentualMinimo; return poder; }
+    poder.racasAcesso = racasAcessoConfiavelDaOferta(itemOferta, fichaRemetente);
+    const min = percentualMinimoConfiavelDaOferta(itemOferta, fichaRemetente);
+    if (min > 0) poder.percentualMinimo = min; else delete poder.percentualMinimo;
+    return poder;
+}
+
 // Acesso de Raça de uma oferta (Habilidade de Raça): { permitido, precisaConfirmarExcecao, mensagem } (core/racas.js).
 // `contexto` = { cenario, isMestre, fichaRemetente } (ficha real de quem ofertou, do store). A exceção que vier na oferta é ignorada: vale só a decisão de quem aceita.
 export function verificarAcessoOferta(f, oferta, contexto = {}) {
     if (!oferta || oferta.tipo !== TIPO_PODER || !oferta.item) return { permitido: true, precisaConfirmarExcecao: false, mensagem: '' };
     const poder = { ...oferta.item };
     delete poder.racaExcecao;
-    if (ehHabilidadeDeRaca(poder)) poder.racasAcesso = racasAcessoConfiavelDaOferta(oferta.item, contexto.fichaRemetente);
+    aplicarDadosRaciaisConfiaveis(poder, oferta.item, contexto.fichaRemetente);
     return verificarAcessoHabilidadeRaca({ cenario: contexto.cenario, ficha: f, poder, isMestre: contexto.isMestre === true });
 }
 
@@ -92,7 +114,7 @@ export function aceitarOferta(f, oferta, novoId, opcoes = {}) {
     if (motivoRecusaOferta(f, oferta)) return null;
     const item = JSON.parse(JSON.stringify(oferta.item));
     delete item.racaExcecao;
-    if (ehHabilidadeDeRaca(item)) item.racasAcesso = racasAcessoConfiavelDaOferta(oferta.item, opcoes.fichaRemetente);
+    aplicarDadosRaciaisConfiaveis(item, oferta.item, opcoes.fichaRemetente);
     const acesso = verificarAcessoOferta(f, oferta, opcoes);
     if (!acesso.permitido && !(acesso.precisaConfirmarExcecao && opcoes.excecaoConfirmada === true)) return null;
     if (oferta.tipo === TIPO_PODER) aplicarExcecaoRaca(item, !acesso.permitido);

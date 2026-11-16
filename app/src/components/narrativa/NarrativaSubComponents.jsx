@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNarrativaForm, ATRIBUTO_OPTIONS, PROPRIEDADE_OPTIONS } from './NarrativaFormContext';
 import SeletorRaca from '../shared/SeletorRaca';
+import ComposicaoRacialFicha from '../shared/ComposicaoRacialFicha';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Narrativa provider não encontrado</div>;
 
@@ -15,6 +16,7 @@ export function NarrativaBioForm() {
                 <h3 style={{ color: '#ffcc00', marginBottom: 10 }}>Ficha Narrativa</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <SeletorRaca valor={raca} aoMudar={setRaca} />
+                    <ComposicaoRacialFicha />
                     <div><label style={{ color: '#aaa', fontSize: '0.85em' }}>Classe</label><input className="input-neon" value={classe} onChange={e => setClasse(e.target.value)} /></div>
                     <div><label style={{ color: '#aaa', fontSize: '0.85em' }}>Idade</label><input className="input-neon" value={idade} onChange={e => setIdade(e.target.value)} /></div>
                     <div><label style={{ color: '#aaa', fontSize: '0.85em' }}>Físico</label><input className="input-neon" value={fisico} onChange={e => setFisico(e.target.value)} /></div>

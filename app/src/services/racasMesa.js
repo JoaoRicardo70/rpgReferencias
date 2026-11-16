@@ -1,6 +1,7 @@
 import useStore, { sanitizarNome } from '../stores/useStore';
 import { salvarFichaSilencioso, salvarDummie, salvarCenarioCompleto, salvarCamposPersonagem } from './firebase-sync';
-import { getRacas, sanitizarRacas, camposDaRacaNaFicha } from '../core/racas';
+import { desligarHabilidadesBloqueadas } from './composicaoRacial';
+import { getRacas, sanitizarRacas, camposDaRacaNaFicha, composicaoComPrincipal } from '../core/racas';
 
 // 🧬 Gravação do catálogo de Raças da mesa e da Raça de cada personagem (core/racas.js).
 // Única cópia da regra: usada pelo catálogo da aba Mestre (RacasCatalogo) e pelo MapaFormContext. Não depende do Mapa estar aberto:
@@ -33,7 +34,13 @@ export function definirRacaDoPersonagemDireto(entidade, racaId) {
         if (!isMestre) return false;
         const d = (st.dummies || {})[entidade.id];
         if (!d) return false;
-        salvarDummie(entidade.id, { ...d, bio: { ...(d.bio || {}), racaId: campos['bio/racaId'], raca: campos['bio/raca'] } });
+        const bioNova = { ...(d.bio || {}), racaId: campos['bio/racaId'], raca: campos['bio/raca'] };
+        const compD = !isMestre ? null : composicaoComPrincipal(st.cenario, { bio: bioNova });
+        if (compD) bioNova.composicaoRacial = compD;
+        // Trocar a Raça pode bloquear Habilidades de Raça ligadas (acesso/percentual): desliga (ver desligarHabilidadesBloqueadas).
+        const novoD = JSON.parse(JSON.stringify({ ...d, bio: bioNova }));
+        desligarHabilidadesBloqueadas(novoD, st.cenario, { tipo: 'dummie', nome: d.nome || entidade.id });
+        salvarDummie(entidade.id, novoD);
         return true;
     }
     const nome = entidade.id || entidade.nome;
@@ -41,10 +48,28 @@ export function definirRacaDoPersonagemDireto(entidade, racaId) {
     const souEu = sanitizarNome(nome) === sanitizarNome(st.meuNome || '');
     if (!isMestre && !souEu) return false;
     if (souEu) {
-        st.updateFicha((f) => { if (!f.bio) f.bio = {}; f.bio.racaId = campos['bio/racaId']; f.bio.raca = campos['bio/raca']; });
+        st.updateFicha((f) => {
+            if (!f.bio) f.bio = {};
+            f.bio.racaId = campos['bio/racaId']; f.bio.raca = campos['bio/raca'];
+            // Só Mestre/Co-Mestre alinha a composição à nova principal; o jogador trocando a própria Raça não se concede percentual (o Mestre usa "Incluir a Raça principal").
+            const comp = isMestre ? composicaoComPrincipal(st.cenario, f) : null;
+            if (comp) f.bio.composicaoRacial = comp;
+            desligarHabilidadesBloqueadas(f, st.cenario, { tipo: 'eu', nome: st.meuNome });
+        });
         salvarFichaSilencioso();
     } else {
-        salvarCamposPersonagem(nome, campos);
+        // Composição explícita: a nova principal entra nela (nativa, 100%) para não ficar desalinhada.
+        const pers = st.personagens || {};
+        const outra = pers[nome] || pers[Object.keys(pers).find(k => sanitizarNome(k) === sanitizarNome(nome))];
+        const comp = outra && isMestre ? composicaoComPrincipal(st.cenario, { bio: { ...(outra.bio || {}), racaId: campos['bio/racaId'], raca: campos['bio/raca'] } }) : null;
+        const todos = comp ? { ...campos, 'bio/composicaoRacial': comp } : { ...campos };
+        if (outra) {
+            const clone = JSON.parse(JSON.stringify(outra));
+            clone.bio = { ...(clone.bio || {}), racaId: campos['bio/racaId'], raca: campos['bio/raca'], ...(comp ? { composicaoRacial: comp } : {}) };
+            desligarHabilidadesBloqueadas(clone, st.cenario, { tipo: 'outro', nome });
+            (Array.isArray(clone.poderes) ? clone.poderes : []).forEach((p, i) => { if (p && p.ativa === false && outra.poderes && outra.poderes[i] && outra.poderes[i].ativa) todos[`poderes/${i}/ativa`] = false; });
+        }
+        salvarCamposPersonagem(nome, todos);
     }
     return true;
 }

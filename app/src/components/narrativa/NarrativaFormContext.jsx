@@ -1,4 +1,4 @@
-import { racaIdAposEdicaoDeTexto } from '../../core/racas';
+import { racaIdAposEdicaoDeTexto, composicaoComPrincipal } from '../../core/racas';
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import useStore from '../../stores/useStore';
 import { salvarFichaSilencioso } from '../../services/firebase-sync';
@@ -62,7 +62,7 @@ export function NarrativaFormProvider({ children }) {
         updateFicha((ficha) => {
             if (!ficha.bio) ficha.bio = {};
             ficha.bio.racaId = racaIdAposEdicaoDeTexto(useStore.getState().cenario, ficha.bio.racaId, ficha.bio.raca, raca);
-            ficha.bio.raca = raca; ficha.bio.classe = classe; ficha.bio.idade = idade;
+            ficha.bio.raca = raca; { const stRaca = useStore.getState(); const comp = stRaca.isMestre ? composicaoComPrincipal(stRaca.cenario, ficha) : null; if (comp) ficha.bio.composicaoRacial = comp; } ficha.bio.classe = classe; ficha.bio.idade = idade;
             ficha.bio.fisico = fisico; ficha.bio.sangue = sangue; ficha.bio.alinhamento = alinhamento;
             ficha.bio.afiliacao = afiliacao; ficha.bio.dinheiro = dinheiro;
         });

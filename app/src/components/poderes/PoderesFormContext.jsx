@@ -2,7 +2,7 @@ import { normalizarTipoAcao } from '../../core/acoesTecnica';
 import { CATEGORIAS_PODER, categoriasVisiveisNaFicha, categoriaDoPoderFicha, idCategoriaPoder, usaMaestriaRequerida } from '../../core/categoriasPoder';
 import { confirmarExcecaoRaca } from '../shared/ConfirmarExcecaoRaca';
 import { lerRespostaDaIA, prepararImportacao, montarPoderFinal, separarItensPorAcessoRaca } from '../../core/importadorIA';
-import { verificarAcessoHabilidadeRaca, normalizarRacasAcesso, racasAcessoPadraoParaFicha, ehHabilidadeDeRaca, MENSAGEM_JOGADOR_NAO_CRIA_HABILIDADE_RACA, MENSAGEM_JOGADOR_NAO_EDITA_RACAS_ACESSO } from '../../core/racas';
+import { poderBloqueado, verificarAcessoHabilidadeRaca, normalizarRacasAcesso, racasAcessoPadraoParaFicha, ehHabilidadeDeRaca, MENSAGEM_JOGADOR_NAO_CRIA_HABILIDADE_RACA, MENSAGEM_JOGADOR_NAO_EDITA_RACAS_ACESSO } from '../../core/racas';
 import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from '../../core/efeitosCondicionais';
 import { normalizarUsos, limiteDeUsos, podeUsar, gastarUso, descreverUsos } from '../../core/usosPoder';
 import { normalizarCustoPorTurno } from '../../core/custoPorTurno';
@@ -646,6 +646,11 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         }
         // ⏳ Recarga em turnos (core/recargaPoder.js): ligar de novo só depois de esperar; ligar inicia a contagem.
         if (atual && !atual.ativa && emRecarga(atual)) { alert(mensagemRecarga(atual)); return; }
+        // 🔒 Habilidade de Raça bloqueada (não despertou / Domínio insuficiente): não liga. Desligar sempre pode.
+        if (atual && !atual.ativa) {
+            const bloq = poderBloqueado(cenarioMesaRef.current, minhaFicha, atual);
+            if (bloq.bloqueado) { alert(`"${atual.nome}" está bloqueada. ${bloq.motivo}`); return; }
+        }
         // 💥 Ao desligar à mão (core/aoDesligar.js): rola os dados fora do rascunho para o dano não se repetir se o Immer reexecutar.
         const danoAoDesligar = atual && atual.ativa && !(opcoes && opcoes.semAoDesligar) ? rolarAoDesligar(atual) : 0;
         // Dano realmente aplicado no rascunho (o clique pode chegar com `minhaFicha` velho): só ele vai para o Feed.
@@ -663,6 +668,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
             // 🔁 Confere os usos também no RASCUNHO: o check de fora usa o último render e pode estar desatualizado (clique duplo, snapshot remoto).
             if (!p.ativa && !podeUsar(ficha, p, cenaAtivaId)) return;
             if (!p.ativa && emRecarga(p)) return;
+            if (!p.ativa && poderBloqueado(cenarioMesaRef.current, ficha, p).bloqueado) return;
 
             // 2. Mudamos o status da forma (o que engatilha o novo Máximo de Status)
             p.ativa = !p.ativa;
@@ -1039,6 +1045,9 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     const danoBruto = minhaFicha?.dano?.danoBruto || 0;
 
     const dispararAtaque = useCallback((poder) => {
+        // 🔒 Habilidade de Raça bloqueada não é usada em ataque/dano/custo.
+        const bloqueioRaca = poderBloqueado(cenarioMesaRef.current, minhaFicha, poder);
+        if (bloqueioRaca.bloqueado) { alert(`"${poder.nome}" está bloqueada. ${bloqueioRaca.motivo}`); return; }
         let custoFinalPerc = poder.custoPercentual || 0;
         const vertenteLower = (poder.vertente || '').toLowerCase();
         const isHabilidadeElemental = vertenteLower.includes('elemental');

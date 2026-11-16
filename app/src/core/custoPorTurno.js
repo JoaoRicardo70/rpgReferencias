@@ -9,6 +9,7 @@
 import { removerEscudosDoPoder, sincronizarEscudoDoPoder, normalizarEscudoAoLigar } from './escudos.js';
 import { podeUsar, gastarUso } from './usosPoder.js';
 import { emRecarga, iniciarRecarga } from './recargaPoder.js';
+import { poderBloqueado } from './racas.js';
 import { FATOR_EXIBICAO_VITAIS, getTetoExibidoComFator, capturarMaximosAtuais, rescalarVitaisProporcional } from './vitals.js';
 
 export const ENERGIAS_CUSTO = ['mana', 'aura', 'chakra', 'corpo'];
@@ -85,12 +86,13 @@ export function desligarPoderNoRascunho(ficha, id) {
 
 // Liga um Poder NO RASCUNHO pelo mesmo caminho do togglePoder, com as mesmas travas (usos limitados e recarga em turnos).
 // Devolve { ok, motivo?, semEspacoEscudo? }. Quem chama escolhe o texto do feed.
-export function ligarPoderNoRascunho(ficha, id, cenaId = 'default') {
+export function ligarPoderNoRascunho(ficha, id, cenaId = 'default', cenario = null) {
     const p = (ficha && ficha.poderes || []).find(po => po && String(po.id) === String(id));
     if (!p) return { ok: false, motivo: 'não existe na ficha' };
     if (p.ativa) return { ok: false, motivo: 'já está ligado' };
     if (!podeUsar(ficha, p, cenaId)) return { ok: false, motivo: 'sem usos restantes' };
     if (emRecarga(p)) return { ok: false, motivo: 'em recarga' };
+    if (poderBloqueado(cenario, ficha, p).bloqueado) return { ok: false, motivo: 'bloqueada (Habilidade de Raça)' };
     const antes = capturarMaximosAtuais(ficha);
     p.ativa = true;
     gastarUso(ficha, p, cenaId);

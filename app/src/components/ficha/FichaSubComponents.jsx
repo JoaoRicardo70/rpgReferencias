@@ -8,6 +8,7 @@ import { agruparElementosPorCategoria, chaveElemento } from '../../core/elemento
 import { resumoDosEstados } from '../../core/condicoes.js';
 import DuracaoEstadosEditor from '../shared/DuracaoEstadosEditor';
 import SeletorRaca from '../shared/SeletorRaca';
+import ComposicaoRacialFicha from '../shared/ComposicaoRacialFicha';
 import { buffsTemporariosDaFicha } from '../../core/suporte.js';
 import { listaDeEscudos, totalDeEscudos, TIPOS_ESCUDO, LIMITE_ESCUDOS } from '../../core/escudos.js';
 
@@ -80,6 +81,7 @@ export function FichaBioGroup() {
                     </div>
                 )}
                 <SeletorRaca valor={raca} aoMudar={setRaca} />
+                <ComposicaoRacialFicha />
                 {!isGrand && (
                     <div>
                         <label style={{ color: '#00ffcc', fontSize: '0.85em', fontWeight: 'bold' }}>Classe Mística</label>

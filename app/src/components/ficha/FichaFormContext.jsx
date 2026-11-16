@@ -1,4 +1,4 @@
-import { racaIdAposEdicaoDeTexto } from '../../core/racas';
+import { racaIdAposEdicaoDeTexto, composicaoComPrincipal } from '../../core/racas';
 import { adicionarEscudo, removerEscudo, atualizarEscudo } from '../../core/escudos';
 import { imuneAoEstado } from '../../core/efeitosCondicionais';
 import { ESTADOS_NOVOS } from '../../core/estadosNovos';
@@ -267,7 +267,7 @@ export function FichaFormProvider({ children }) {
         updateFicha((ficha) => {
             if (!ficha.bio) ficha.bio = {};
             ficha.bio.mesa = overrides.mesa !== undefined ? overrides.mesa : mesa;
-            { const novaRaca = overrides.raca !== undefined ? overrides.raca : raca; ficha.bio.racaId = racaIdAposEdicaoDeTexto(useStore.getState().cenario, ficha.bio.racaId, ficha.bio.raca, novaRaca); ficha.bio.raca = novaRaca; }
+            { const novaRaca = overrides.raca !== undefined ? overrides.raca : raca; ficha.bio.racaId = racaIdAposEdicaoDeTexto(useStore.getState().cenario, ficha.bio.racaId, ficha.bio.raca, novaRaca); ficha.bio.raca = novaRaca; const stRaca = useStore.getState(); const comp = stRaca.isMestre ? composicaoComPrincipal(stRaca.cenario, ficha) : null; if (comp) ficha.bio.composicaoRacial = comp; }
             ficha.bio.classe = overrides.classe !== undefined ? overrides.classe : classe;
             ficha.bio.subClasse = overrides.subClasse !== undefined ? overrides.subClasse : subClasse; 
             ficha.bio.alterEgoSlot1 = overrides.alterEgoSlot1 !== undefined ? overrides.alterEgoSlot1 : alterEgoSlot1;

@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import useStore from '../../stores/useStore';
+import { poderBloqueado } from '../../core/racas';
 import { useMapaForm, urlSeguraParaCss } from './MapaFormContext';
 import { calcularCA } from '../../core/engine';
 import { useAtaqueForm } from '../combate/AtaqueFormContext';
@@ -1051,6 +1052,7 @@ export function MapaTecnicasRapidas() {
     const [busca, setBusca] = useState('');
     const [soLigadas, setSoLigadas] = useState(false);
     const gastarAcao = useGastarAcao();
+    const cenarioRacas = useStore(s => s.cenario);
     if (!poderesCtx) return null;
     const { minhaFicha, togglePoder, mudarEstagioPoder } = poderesCtx;
     const poderes = minhaFicha?.poderes || [];
@@ -1061,6 +1063,9 @@ export function MapaTecnicasRapidas() {
             if (!podeUsar(minhaFicha, p, poderesCtx.cenaAtivaId)) { alert(`"${p.nome}" já usou todos os usos (${descreverUsos(minhaFicha, p, poderesCtx.cenaAtivaId)}). Eles voltam ao ${limiteDeUsos(p).por === 'cena' ? 'trocar de cena ou descansar' : 'descansar'}.`); return; }
             // ⏳ Em recarga (core/recargaPoder.js): barra antes de gastar a Ação.
             if (emRecarga(p)) { alert(mensagemRecarga(p)); return; }
+            // 🔒 Habilidade de Raça bloqueada: avisa ANTES de gastar a Ação (mesmo aviso do togglePoder).
+            const bloqRaca = poderBloqueado(cenarioRacas, minhaFicha, p);
+            if (bloqRaca.bloqueado) { alert(`"${p.nome}" está bloqueada. ${bloqRaca.motivo}`); return; }
             if (!gastarAcao(p)) return;
         }
         togglePoder(p.id);

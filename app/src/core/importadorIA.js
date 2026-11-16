@@ -533,6 +533,8 @@ export function separarItensPorAcessoRaca(itens, { cenario, ficha, isMestre } = 
 export function montarPoderFinal(objeto, id, opcoes = {}) {
     const copia = JSON.parse(JSON.stringify(objeto || {}));
     delete copia.naoAplicado;
+    // Marcas do Mestre (bloqueio, manipulação de DNA, percentual mínimo de Raça) nunca vêm do texto da IA.
+    delete copia.bloqueio; delete copia.manipulaDNA; delete copia.percentualMinimo;
     // Habilidade de Raça: a exceção nunca vem do texto da IA, só de quem confirmou (opcoes.racaExcecao); racasAcesso vem só de opcoes.racasAcesso (concessão do Mestre), nunca da IA.
     if (ehHabilidadeDeRaca(copia)) { copia.racasAcesso = normalizarRacasAcesso(opcoes.racasAcesso); aplicarExcecaoRaca(copia, opcoes.racaExcecao === true); } else { delete copia.racaExcecao; delete copia.racasAcesso; }
     if (Array.isArray(copia.gatilhos)) copia.gatilhos = copia.gatilhos.map(finalizarGatilho);

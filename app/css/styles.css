@@ -3731,3 +3731,84 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .excecao-raca-pergunta { margin: 0; color: var(--cor-primaria); font-size: 0.9em; }
 .excecao-raca-acoes { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 .excecao-raca-btn { margin: 0; padding: 8px 16px; }
+
+/* 🧬 Composição Racial, Raça Primordial, pedidos de Raça (DNA), bloqueio de Habilidades de Raça e diálogo temático */
+.racas-genealogia { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-start; padding-top: 4px; }
+.racas-campo { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; }
+.racas-campo-rotulo { color: var(--texto-suave); font-size: 0.8em; font-weight: bold; }
+.racas-campo-dica { color: var(--texto-suave); font-size: 0.72em; font-style: italic; line-height: 1.3; }
+.primordial-campo { flex: 1 1 100%; display: flex; align-items: center; gap: 8px; color: var(--cor-destaque); font-size: 0.85em; font-weight: bold; cursor: pointer; }
+.primordial-campo input { margin: 0; cursor: pointer; }
+.primordial-descendentes { flex: 1 1 100%; margin: 0; padding: 4px 8px; border-left: 3px solid var(--cor-destaque); color: var(--texto-suave); font-size: 0.8em; }
+
+.composicao-no-membro { flex: 1 1 100%; }
+.composicao-editor { display: flex; flex-direction: column; gap: 6px; }
+.composicao-toggle { align-self: flex-start; }
+.composicao-corpo { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border: 1px solid var(--border-primary); border-left: 3px solid var(--cor-primaria); border-radius: 6px; background: rgba(0, 0, 0, 0.3); }
+.composicao-dica { margin: 0; color: var(--texto-suave); font-size: 0.8em; }
+.composicao-aviso { margin: 0; padding: 4px 8px; border-left: 3px solid var(--cor-destaque); color: var(--cor-destaque); font-size: 0.85em; }
+.composicao-linhas, .composicao-historico, .composicao-chips, .pedido-raca-lista, .pedido-raca-pendentes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.composicao-linha { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.composicao-raca { min-width: 150px; }
+.composicao-input-percentual { width: 74px; margin: 0; padding: 4px 6px; text-align: right; }
+.composicao-input-motivo { flex: 1 1 180px; margin: 0; padding: 4px 8px; }
+.composicao-percent-simbolo { color: var(--texto-suave); }
+.composicao-origem { padding: 1px 8px; border: 1px solid currentColor; border-radius: 10px; font-size: 0.75em; white-space: nowrap; }
+.composicao-origem--nativa { color: var(--cor-sucesso); }
+.composicao-origem--adquirida { color: var(--cor-info); }
+.composicao-fonte { color: var(--texto-suave); font-size: 0.75em; font-style: italic; }
+.composicao-pratica, .composicao-adicionar { flex: 1 1 100%; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.composicao-mensagem { margin: 0; color: var(--cor-sucesso); font-size: 0.85em; }
+.composicao-mensagem--erro { color: var(--cor-destaque); }
+.composicao-historico-titulo { margin: 4px 0 0; color: var(--cor-destaque); font-size: 0.85em; }
+.composicao-historico-item { color: var(--texto-suave); font-size: 0.8em; }
+.composicao-historico-data { color: var(--cor-info); }
+
+.composicao-ficha { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--border-primary); border-left: 3px solid var(--cor-primaria); border-radius: 6px; background: rgba(0, 0, 0, 0.3); }
+.composicao-ficha-titulo { margin: 0; color: var(--cor-primaria); font-size: 0.95em; }
+.composicao-principal { margin: 0; color: var(--texto-suave); font-size: 0.85em; }
+.composicao-chips { flex-direction: row; flex-wrap: wrap; }
+.composicao-chip { position: relative; display: flex; flex-direction: column; gap: 2px; min-width: 150px; padding: 6px 10px 8px; border: 1px solid var(--border-primary); border-radius: 8px; font-size: 0.85em; }
+.composicao-chip--nativa { border-color: var(--cor-sucesso); }
+.composicao-chip--adquirida { border-color: var(--cor-info); }
+.composicao-chip-dominio { color: var(--cor-primaria); font-weight: bold; }
+.composicao-chip-selo { color: var(--texto-suave); font-size: 0.75em; }
+.composicao-barra { display: block; height: 4px; margin-top: 4px; border-radius: 2px; background: var(--border-primary); overflow: hidden; }
+.composicao-barra-cheia { display: block; height: 100%; background: var(--cor-primaria); }
+.composicao-resumo { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid var(--cor-primaria); background: rgba(0, 0, 0, 0.3); border-radius: 4px; }
+.composicao-resumo-linha { margin: 0; font-size: 0.9em; }
+.composicao-resumo-dica { margin: 2px 0 0; color: var(--texto-suave); font-size: 0.75em; font-style: italic; }
+.composicao-dna-selo { color: var(--cor-info); }
+.composicao-dna-mestre { margin: 4px 0; }
+
+.pedido-raca-painel { margin-top: 10px; }
+.pedido-raca-badge { display: inline-block; min-width: 1.4em; margin-left: 6px; padding: 0 6px; border-radius: 10px; background: var(--cor-secundaria); color: var(--bg-body-2); font-size: 0.8em; font-weight: bold; text-align: center; }
+.pedido-raca-item { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 6px 8px; border-left: 4px solid var(--cor-info); background: rgba(0, 0, 0, 0.35); border-radius: 4px; }
+.pedido-raca-info { flex: 1 1 240px; font-size: 0.9em; }
+.pedido-raca-data { color: var(--texto-suave); font-size: 0.8em; }
+.pedido-raca-motivo { margin: 2px 0 0; color: var(--texto-suave); font-size: 0.8em; font-style: italic; }
+.pedido-raca-percentual { display: inline-flex; align-items: center; gap: 4px; color: var(--texto-suave); font-size: 0.8em; }
+.pedido-raca-ficha { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.pedido-raca-pendentes { color: var(--texto-suave); font-size: 0.8em; }
+.pedido-raca-campo { display: flex; flex-direction: column; gap: 4px; color: var(--texto-suave); font-size: 0.85em; }
+.pedido-raca-campo .input-neon { margin: 0; }
+
+.bloqueio-raca { display: flex; flex-direction: column; gap: 4px; }
+.bloqueio-raca-dominio { margin: 0; color: var(--cor-info); font-size: 0.8em; }
+.bloqueio-raca-requisito, .bloqueio-raca-motivo { margin: 0; color: var(--cor-destaque); font-size: 0.8em; }
+.bloqueio-raca-mestre { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; padding: 6px 8px; border: 1px dashed var(--border-primary); border-radius: 6px; }
+.bloqueio-raca-bloco { display: flex; flex-direction: column; gap: 4px; }
+.bloqueio-raca-campo { display: flex; flex-direction: column; gap: 2px; color: var(--texto-suave); font-size: 0.8em; }
+.bloqueio-raca-campo .input-neon { margin: 0; }
+.bloqueio-raca-interruptor { display: inline-flex; align-items: center; gap: 6px; color: var(--cor-destaque); font-size: 0.85em; font-weight: bold; cursor: pointer; }
+.bloqueio-raca-interruptor input { margin: 0; cursor: pointer; }
+.bloqueio-raca-despertar { align-self: flex-start; margin: 0; }
+.bloqueio-raca-pratica { display: flex; flex-direction: column; gap: 6px; }
+
+.dialogo-tematico-fundo { position: fixed; inset: 0; z-index: 10002; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.dialogo-tematico-caixa { width: 100%; max-width: 460px; max-height: calc(100vh - 32px); overflow-y: auto; background: var(--bg-body-2); border: 1px solid var(--cor-destaque); border-radius: 12px; box-shadow: 0 0 30px rgba(var(--cor-destaque-rgb), 0.25); padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+.dialogo-tematico-titulo { margin: 0; color: var(--cor-destaque); font-size: 1.1em; }
+.dialogo-tematico-descricao { margin: 0; color: var(--texto-suave); font-size: 0.9em; line-height: 1.5; }
+.dialogo-tematico-acoes { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.dialogo-tematico-acoes .btn-neon { margin: 0; padding: 8px 16px; }
+.composicao-toggle:focus-visible, .composicao-input-percentual:focus-visible, .primordial-campo input:focus-visible, .bloqueio-raca-interruptor input:focus-visible { outline: 2px solid var(--cor-destaque); outline-offset: 2px; }
