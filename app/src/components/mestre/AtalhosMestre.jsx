@@ -19,7 +19,7 @@ export default function AtalhosMestre() {
     const pedidosRaca = useMemo(() => listarPedidosRaca({ personagens, meuNome, minhaFicha }).length, [personagens, meuNome, minhaFicha]);
     const ir = useCallback((id) => { if (typeof pedir === 'function') pedir(id); }, [pedir]);
     return (
-        <nav className="mestre-atalhos glass-panel" aria-label="Atalhos do Mestre">
+        <nav className="mestre-atalhos glass-panel ativo" aria-label="Atalhos do Mestre">
             <h3 className="mestre-atalhos-titulo">🧭 Atalhos do Mestre</h3>
             <p className="mestre-atalhos-dica">Toque num botão para ir direto à seção desta página.</p>
             <div className="mestre-atalhos-lista">

@@ -3695,7 +3695,7 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .mestre-atalhos-titulo { margin: 0; color: var(--cor-primaria); }
 .mestre-atalhos-dica { margin: 4px 0 8px; color: var(--texto-suave); font-size: 0.85em; }
 .mestre-atalhos-lista { display: flex; flex-wrap: wrap; gap: 8px; }
-.mestre-atalho-btn { margin: 0; }
+.mestre-atalho-btn { margin: 0; width: auto; padding: 8px 14px; font-size: 0.95em; }
 .mestre-secao-ancora:empty { display: none; }
 .mestre-secao-ancora--visor { flex: 1 1 60%; min-width: 400px; }
 .mestre-atalhos-lista .mestre-atalho-btn:focus-visible { outline: 2px solid var(--cor-destaque); outline-offset: 2px; }

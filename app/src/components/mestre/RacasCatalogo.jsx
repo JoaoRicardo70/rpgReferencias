@@ -151,7 +151,7 @@ export default function RacasCatalogo() {
     const racaDe = (e) => resolverRaca(cenario, e.ficha);
 
     return (
-        <section id={domDaSecaoMestre('racas')} className="equipes-painel racas-painel racas-destaque glass-panel" aria-label="Raças da mesa">
+        <section id={domDaSecaoMestre('racas')} className="equipes-painel racas-painel racas-destaque glass-panel ativo" aria-label="Raças da mesa">
             <button type="button" className="equipes-titulo-btn racas-titulo-btn" onClick={() => setAberto(v => !v)} aria-expanded={aberto} aria-controls="racas-corpo">
                 <span aria-hidden="true">{aberto ? '▼' : '▶'}</span> 🧬 Raças
             </button>

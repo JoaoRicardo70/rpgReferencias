@@ -94,7 +94,7 @@ export default function EquipesRelacoes() {
     equipesSalvas.forEach((a, i) => { for (let j = i + 1; j < equipesSalvas.length; j += 1) pares.push([a, equipesSalvas[j]]); });
 
     return (
-        <section id={domDaSecaoMestre('equipes')} className="equipes-painel glass-panel" aria-label="Equipes e Relações">
+        <section id={domDaSecaoMestre('equipes')} className="equipes-painel glass-panel ativo" aria-label="Equipes e Relações">
             <button type="button" className="equipes-titulo-btn" onClick={() => setAberto(v => !v)} aria-expanded={aberto} aria-controls="equipes-corpo">
                 <span aria-hidden="true">{aberto ? '▼' : '▶'}</span> 🛡️ Equipes e Relações
             </button>
