@@ -90,7 +90,7 @@ export const categoriaLiberadaNaFicha = (valor, ficha) => {
 export function categoriasVisiveisNaFicha(ficha, opcoes = {}) {
     const poderes = Array.isArray(ficha?.poderes) ? ficha.poderes : [];
     const comDados = new Set(poderes.filter(Boolean).map(p => idCategoriaPoder(p.categoria)).filter(Boolean));
-    return CATEGORIAS_PODER.filter(c => comDados.has(c.id) || (c.liberada(ficha) && (!c.abaSoComDados || opcoes.isMestre === true)));
+    return CATEGORIAS_PODER.filter(c => comDados.has(c.id) || (c.liberada(ficha) && (!c.abaSoComDados || opcoes.isMestre === true || (c.id === 'habilidadeRaca' && opcoes.comDisponiveis === true))));
 }
 
 // Categorias que existem mas ainda não foram liberadas (pra dica ao Mestre).

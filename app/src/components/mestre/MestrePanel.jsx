@@ -10,6 +10,7 @@ import {
 import MestreControleTurno from './MestreControleTurno';
 import EquipesRelacoes from './EquipesRelacoes';
 import RacasCatalogo from './RacasCatalogo';
+import BibliotecaRacialMestre from './BibliotecaRacialMestre';
 import MestreSegurarAcao from './MestreSegurarAcao';
 import SubAbasMestre, { SecaoMestreAncora } from './SubAbasMestre';
 import { MestreNotificacoesPedidos } from './MestrePedidosSexta';
@@ -31,7 +32,13 @@ function MestreConteudoSeguro() {
             </>
         ),
         // 🧬 Catálogo de Raças da mesa, quem é de qual raça e Pedidos de Raça
-        racas: <RacasCatalogo />,
+        racas: (
+            <>
+                <RacasCatalogo />
+                {/* 📚 Biblioteca de Habilidades de Raça (publicar uma vez, conceder a cada personagem da Raça) */}
+                <BibliotecaRacialMestre />
+            </>
+        ),
         entidades: (
             <div className="mestre-entidades-linha">
                 <SecaoMestreAncora id="jogadores" className="mestre-secao-ancora--visor"><MestreVisorJogadores /></SecaoMestreAncora>

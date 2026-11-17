@@ -10,6 +10,7 @@ import { normalizarRecarga, emRecarga, mensagemRecarga, iniciarRecarga } from '.
 import { rolarAoDesligar, aplicarDanoEmSiMesmo } from '../../core/aoDesligar';
 import React, { createContext, useContext, useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback } from 'react';
 import useStore from '../../stores/useStore';
+import { disponiveisParaJogador } from '../../core/bibliotecaRacial';
 import { getMaximo } from '../../core/attributes';
 import { uploadImagem, enviarParaFeed } from '../../services/firebase-sync';
 import { useFichaAtiva, useCallSaveAtivo, useSalvarImediatoAtivo } from '../Ficha Def/FichaAlvoContext';
@@ -407,6 +408,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         if (!persistirRascunho) cancelarEdicaoPoder();
     }, [persistirRascunho, gravarRascunho, cancelarEdicaoPoder]);
 
+    // 📚 A aba 🧬 Habilidades de Raça também aparece quando a biblioteca da mesa tem algo disponível para a Raça do personagem (mesmo sem nenhum poder dela).
+    const temDisponiveisBiblioteca = useMemo(() => disponiveisParaJogador(cenarioMesa, minhaFicha).length > 0, [cenarioMesa, minhaFicha]);
     // Aba aberta que deixou de existir para esta ficha (liberação retirada, ou o Mestre abriu outra entidade sem a liberação e sem poderes ali): volta para Habilidades.
     // Não rebaixa na carga inicial: a ficha ainda pode ser a padrão, e a aba lembrada do rascunho (ex.: 'infinity') voltaria a ser visível quando a ficha real chegar.
     const abaVistaRef = useRef(null); // { nome, aba } da última vez em que a aba atual estava visível
@@ -415,7 +418,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         if (!minhaFicha) return;
         // Só para categorias conhecidas e escondidas (as liberáveis); valor desconhecido não é mexido aqui.
         if (!SINGULAR[abaAtual]) return;
-        const visivel = categoriasVisiveisNaFicha(minhaFicha, { isMestre }).some(c => c.id === abaAtual);
+        const visivel = categoriasVisiveisNaFicha(minhaFicha, { isMestre, comDisponiveis: temDisponiveisBiblioteca }).some(c => c.id === abaAtual);
         const jaAvaliou = avaliouRef.current;
         avaliouRef.current = true;
         if (visivel) { abaVistaRef.current = { nome: meuNome, aba: abaAtual }; return; }
@@ -427,7 +430,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
             abaVistaRef.current = null;
             trocarAba('habilidade');
         }
-    }, [minhaFicha, meuNome, abaAtual, trocarAba, isMestre]);
+    }, [minhaFicha, meuNome, abaAtual, trocarAba, isMestre, temDisponiveisBiblioteca]);
 
     // Botão Cancelar: pede confirmação se há algo escrito (ou alterado, ao reescrever um poder existente).
     const cancelarEdicaoComConfirmacao = useCallback(() => {

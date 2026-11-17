@@ -1,6 +1,7 @@
 import useStore, { sanitizarNome } from '../stores/useStore';
 import { salvarFichaSilencioso, salvarDummie, salvarCenarioCompleto, salvarCamposPersonagem } from './firebase-sync';
 import { desligarHabilidadesBloqueadas } from './composicaoRacial';
+import { limparRacaDaBiblioteca } from '../core/bibliotecaRacial';
 import { getRacas, sanitizarRacas, camposDaRacaNaFicha, composicaoComPrincipal } from '../core/racas';
 
 // 🧬 Gravação do catálogo de Raças da mesa e da Raça de cada personagem (core/racas.js).
@@ -10,12 +11,16 @@ import { getRacas, sanitizarRacas, camposDaRacaNaFicha, composicaoComPrincipal }
 // Salva o catálogo (saneado: ids estáveis, limites, ciclos de herança removidos; vazio = apaga o catálogo). Só Mestre/Co-Mestre.
 // Devolve a lista salva ou null (sem permissão).
 // Remover uma raça deixa referências órfãs e inofensivas (racasAcesso, herdaDe, bio.racaId): ver limparReferenciasDeRaca em core/racas.js.
-export function salvarRacasDaMesa(lista) {
+// `opcoes.removida` = id da Raça que acabou de sair do catálogo: ela também sai dos racasAcesso da biblioteca de Habilidades de Raça (na mesma gravação).
+export function salvarRacasDaMesa(lista, opcoes = {}) {
     const st = useStore.getState();
     if (!st.isMestre) return null;
     const limpa = sanitizarRacas(lista);
     const novoCenario = JSON.parse(JSON.stringify(st.cenario || {}));
     if (limpa.length === 0) delete novoCenario.racas; else novoCenario.racas = limpa;
+    if (opcoes && opcoes.removida && novoCenario.bibliotecaRacial) {
+        novoCenario.bibliotecaRacial = limparRacaDaBiblioteca(opcoes.removida, novoCenario.bibliotecaRacial).biblioteca;
+    }
     salvarCenarioCompleto(novoCenario);
     return limpa;
 }

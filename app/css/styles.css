@@ -3728,6 +3728,30 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .racas-seletor { display: flex; flex-direction: column; gap: 4px; }
 .racas-seletor .input-neon { margin: 0; }
 .racas-seletor-livre { margin-top: 2px; }
+/* 📚 Biblioteca de Habilidades de Raça (painel do Mestre, cartão do Grimório e lista "Disponíveis para a sua Raça") */
+.biblioteca-painel { margin-top: 12px; }
+.biblioteca-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.biblioteca-item { flex-direction: column; align-items: stretch; gap: 6px; }
+.biblioteca-cabecalho { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.biblioteca-nome { color: var(--cor-primaria); }
+.biblioteca-resumo { margin: 0; color: var(--texto-suave); font-size: 0.9em; }
+.biblioteca-racas { margin: 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.biblioteca-edicao { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; padding: 8px; border: 1px dashed var(--border-primary); border-radius: 6px; }
+.biblioteca-edicao .input-neon { margin: 0; }
+.biblioteca-edicao .biblioteca-input-largo { flex: 1 1 220px; }
+.biblioteca-acoes { align-items: center; }
+.biblioteca-subtitulo { margin: 8px 0 4px; color: var(--cor-destaque); font-size: 0.95em; }
+.biblioteca-compativeis { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-primary); }
+.biblioteca-compativeis-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.biblioteca-compativel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border-primary); border-radius: 6px; }
+.biblioteca-compativel--bloco { flex-direction: column; align-items: flex-start; }
+.biblioteca-compativel-nome { font-weight: bold; }
+.biblioteca-compativel-raca, .biblioteca-compativel-dominio, .biblioteca-dica { color: var(--texto-suave); font-size: 0.85em; margin: 0; }
+.biblioteca-disponiveis { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--cor-primaria); border-radius: 8px; }
+.biblioteca-dialogo-check { display: flex; align-items: center; gap: 8px; }
+.biblioteca-dialogo-campo { display: flex; flex-direction: column; gap: 4px; color: var(--texto-suave); font-size: 0.85em; }
+.biblioteca-dialogo-campo .input-neon { margin: 0; }
+.biblioteca-publicar { margin-top: 6px; }
 .racas-seletor--ficha { flex: 1; gap: 2px; font-size: inherit; }
 .racas-seletor--ficha .racas-seletor--ficha-campo { flex: 1; width: 100%; font: inherit; color: inherit; background: transparent; border: none; border-bottom: 1px dotted currentColor; border-radius: 0; box-shadow: none; outline: none; padding: 0 5px; margin: 0; }
 .racas-seletor--ficha option { color: #000; }

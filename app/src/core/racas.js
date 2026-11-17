@@ -410,7 +410,7 @@ export function racasAcessoPadraoParaFicha(cenario, ficha) {
 
 // Faxina para o Mestre: tira a raça do catálogo e todas as referências a ela (herdaDe das outras raças e racasAcesso dos poderes dados).
 // Puro: devolve cópias { racas, poderes, alterados }. Não mexe em bio.racaId de fichas (id órfão é ignorado por resolverRaca).
-export function limparReferenciasDeRaca(idRaca, { racas = [], poderes = [] } = {}) {
+export function limparReferenciasDeRaca(idRaca, { racas = [], poderes = [], biblioteca = [] } = {}) {
     let alterados = 0;
     const novasRacas = sanitizarRacas(racas).filter(r => r.id !== idRaca).map((r) => {
         if (r.herdaDe === idRaca || r.descendeDe === idRaca) { alterados += 1; return { ...r, herdaDe: r.herdaDe === idRaca ? '' : r.herdaDe, descendeDe: r.descendeDe === idRaca ? '' : r.descendeDe }; }
@@ -423,7 +423,15 @@ export function limparReferenciasDeRaca(idRaca, { racas = [], poderes = [] } = {
         }
         return p;
     });
-    return { racas: novasRacas, poderes: novosPoderes, alterados };
+    // Biblioteca de Habilidades de Raça (cenario.bibliotecaRacial): a Raça sai dos racasAcesso das entradas.
+    const novaBiblioteca = comoLista(biblioteca).map((e) => {
+        if (e && Array.isArray(e.racasAcesso) && e.racasAcesso.includes(idRaca)) {
+            alterados += 1;
+            return { ...e, racasAcesso: e.racasAcesso.filter(i => i !== idRaca) };
+        }
+        return e;
+    });
+    return { racas: novasRacas, poderes: novosPoderes, biblioteca: novaBiblioteca, alterados };
 }
 
 // Campos que a seleção de Raça grava (caminhos relativos para salvarCamposPersonagem). raca = item do catálogo ou null (sem raça).

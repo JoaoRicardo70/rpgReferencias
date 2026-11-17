@@ -25,7 +25,7 @@ const clonar = (o) => JSON.parse(JSON.stringify(o));
 const valorNoCaminho = (obj, caminho) => caminho.split('/').reduce((a, k) => (a == null ? undefined : a[k]), obj);
 
 // Resolve a entidade alvo: { tipo: 'eu'|'outro'|'dummie', nome, id, fresca } ou { erro }.
-function resolverAlvo(entidade, st) {
+export function resolverAlvo(entidade, st) {
     if (!entidade) return { erro: 'Personagem não informado.' };
     if (entidade.isDummie) {
         const d = (st.dummies || {})[entidade.id];

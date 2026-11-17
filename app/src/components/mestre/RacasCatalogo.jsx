@@ -122,7 +122,7 @@ export default function RacasCatalogo() {
         const poderesSalvos = [];
         entidades.forEach(e => entradas(e.ficha && e.ficha.poderes).forEach(([, p]) => poderesSalvos.push(p)));
         const { racas: restantes } = limparReferenciasDeRaca(idRaca, { racas: salvas, poderes: poderesSalvos });
-        gravar(restantes);
+        salvarRacasDaMesa(restantes, { removida: idRaca }); // também tira a Raça da biblioteca de Habilidades de Raça
         // As fichas são relidas do store NO MOMENTO de gravar (nunca o índice do snapshot antigo): o poder é achado pelo id e, se sumiu, nada é gravado.
         const fresco = useStore.getState();
         const idsComRaca = (ficha) => entradas(ficha && ficha.poderes)

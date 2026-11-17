@@ -150,7 +150,7 @@ describe('mapeamento seção -> sub-aba com pedirSecaoMestre', () => {
     it('cada seção está mapeada para a sub-aba certa', () => {
         expect(SECOES_MESTRE.map(s => [s.id, s.sub])).toEqual([
             ['pedidos', null], ['turnos', 'combate'], ['equipes', 'combate'], ['segurar', 'combate'],
-            ['racas', 'racas'], ['jogadores', 'entidades'], ['forja', 'forja'],
+            ['racas', 'racas'], ['biblioteca', 'racas'], ['jogadores', 'entidades'], ['forja', 'forja'],
         ]);
         expect(subAbaDaSecaoMestre('inexistente')).toBeNull();
     });

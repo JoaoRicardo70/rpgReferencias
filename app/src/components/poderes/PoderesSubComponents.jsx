@@ -38,6 +38,9 @@ import ConstrutorProgressao from './ConstrutorProgressao';
 import { descreverGatilho } from '../../core/gatilhos';
 import EnsinamentosRecebidos from '../shared/EnsinamentosRecebidos';
 import RacasAcessoCampo from './RacasAcessoCampo';
+import DisponiveisBiblioteca from './DisponiveisBiblioteca';
+import PublicarNaBiblioteca from './PublicarNaBiblioteca';
+import { disponiveisParaJogador } from '../../core/bibliotecaRacial';
 import { ResumoDominioRacial, DominioHabilidadeRaca, DnaDoPoder } from './RacaPoderControles';
 import { ehHabilidadeDeRaca, poderBloqueado, poderRacaIncompativel, SELO_RACA_INCOMPATIVEL, racasComAcessoTexto, contarRacasComAcesso } from '../../core/racas';
 
@@ -296,13 +299,16 @@ export function PoderesImportadorIA() {
 
 // 🔥 SUBSTITUI A SIDEBAR ANTIGA POR UM ÍNDICE NO TOPO DO LIVRO 🔥
 export function PoderesNavegacaoLivro({ idBase = 'poderes-categoria' }) {
+    const cenarioNav = useStore(s => s.cenario);
     const ctx = usePoderesForm();
+    const fichaNav = ctx ? ctx.minhaFicha : null;
+    const temDisponiveis = useMemo(() => disponiveisParaJogador(cenarioNav, fichaNav).length > 0, [cenarioNav, fichaNav]); // 📚 a aba de Habilidades de Raça aparece se a biblioteca tem algo para a Raça dele
     if (!ctx) return FALLBACK;
     const { abaAtual, trocarAba, minhaFicha, isMestre } = ctx;
 
     // Habilidades/Formas/Poderes sempre; Oculares/Infinity/Singularidade só se o Mestre liberou na ficha (Marcados > pág. 4)
     // ou se a ficha já tem poderes ali (os dados nunca ficam escondidos). Lista única em core/categoriasPoder.js.
-    const abas = categoriasVisiveisNaFicha(minhaFicha, { isMestre }).map(c => ({ id: c.id, rotulo: c.rotulo }));
+    const abas = categoriasVisiveisNaFicha(minhaFicha, { isMestre, comDisponiveis: temDisponiveis }).map(c => ({ id: c.id, rotulo: c.rotulo }));
     const abaEfetiva = abas.some(a => a.id === abaAtual) ? abaAtual : 'habilidade';
     const mostrarDicaMestre = !!isMestre && categoriasNaoLiberadas(minhaFicha).length > 0;
     const grau = abaAtual === 'singularidade' ? textoGrauSingularidade(minhaFicha) : '';
@@ -933,6 +939,7 @@ export function PoderesLista() {
                                         <button type="button" className="btn-neon btn-red grimorio-btn grimorio-btn--sm" onClick={() => deletarPoder(p.id)}>Rasgar</button>
                                     </div>
                                     <EnsinarBotao tipo="poder" item={p} />
+                                    {isMestre && ehHabilidadeDeRaca(p) && <PublicarNaBiblioteca poder={p} />}
                                 </div>
                             </div>
                             
@@ -1071,6 +1078,7 @@ export function PoderesLista() {
     return (
         <div className="grimorio-lista">
             {abaAtual === 'habilidadeRaca' && <ResumoDominioRacial cenario={cenarioRacas} ficha={minhaFicha} />}
+            {abaAtual === 'habilidadeRaca' && <DisponiveisBiblioteca cenario={cenarioRacas} ficha={minhaFicha} entidade={entidadeDono} isMestre={!!isMestre} />}
             {itensFiltrados.length === 0 ? (
                 abaAtual === 'habilidadeRaca'
                     ? <p className="grimorio-vazio habilidade-raca-vazio">Nenhuma Habilidade de Raça ainda. O Mestre concede Habilidades de Raça compatíveis com a sua Raça.</p>

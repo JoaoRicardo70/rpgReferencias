@@ -17,6 +17,7 @@ export const SECOES_MESTRE = [
     { id: 'equipes', dom: 'mestre-sec-equipes', rotulo: '🛡️ Equipes e Relações', sub: 'combate' },
     { id: 'segurar', dom: 'mestre-sec-segurar', rotulo: '⏳ Segurar Ação', sub: 'combate' },
     { id: 'racas', dom: 'mestre-sec-racas', rotulo: '🧬 Raças', sub: 'racas' },
+    { id: 'biblioteca', dom: 'mestre-sec-biblioteca', rotulo: '📚 Biblioteca de Habilidades de Raça', sub: 'racas' },
     { id: 'jogadores', dom: 'mestre-sec-jogadores', rotulo: '👥 Jogadores', sub: 'entidades' },
     { id: 'forja', dom: 'mestre-sec-forja', rotulo: '💀 Forja de Entidades', sub: 'forja' },
 ];
