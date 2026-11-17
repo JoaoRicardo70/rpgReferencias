@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import useStore from '../../stores/useStore';
 import { useFichaAtiva } from '../Ficha Def/FichaAlvoContext';
+import { composicaoVisivel, racasDesconhecidasDoDono, racaPrincipalVisivel, contextoDoViewer, ROTULO_RACA_OCULTA } from '../../core/racasVisibilidade';
 import { pedirRacaAdquirida } from '../../services/composicaoRacial';
 import { getRacas, getComposicaoRacial, resolverRaca, temComposicaoExplicita } from '../../core/racas';
 import DialogoTematico from './DialogoTematico';
@@ -20,11 +21,17 @@ export default function ComposicaoRacialFicha() {
     const [aviso, setAviso] = useState('');
 
     const racas = useMemo(() => getRacas(cenario), [cenario]);
-    const composicao = useMemo(() => getComposicaoRacial(cenario, ficha), [cenario, ficha]);
+    const isMestre = useStore(s => s?.isMestre) === true;
+    const viewer = useMemo(() => contextoDoViewer({ souDono: souEuMesmo, isMestre }), [souEuMesmo, isMestre]);
+    // 🙈 Só o que o viewer pode ver (core/racasVisibilidade.js). `composicaoReal` serve às regras (livres para o pedido), nunca à exibição.
+    const composicaoReal = useMemo(() => getComposicaoRacial(cenario, ficha), [cenario, ficha]);
+    const composicao = useMemo(() => composicaoVisivel(cenario, ficha, viewer), [cenario, ficha, viewer]);
+    const desconhecidas = useMemo(() => racasDesconhecidasDoDono(cenario, ficha, viewer), [cenario, ficha, viewer]);
+    const principalVis = useMemo(() => racaPrincipalVisivel(cenario, ficha, viewer), [cenario, ficha, viewer]);
     const principal = useMemo(() => resolverRaca(cenario, ficha), [cenario, ficha]);
     const temDNA = useMemo(() => comoLista(ficha && ficha.poderes).some(p => p && p.manipulaDNA === true), [ficha]);
     const pedidos = useMemo(() => comoLista(ficha && ficha.bio && ficha.bio.pedidosRaca).filter(p => p && p.racaId), [ficha]);
-    const livres = useMemo(() => racas.filter(r => !composicao.some(e => e.racaId === r.id) && !pedidos.some(p => p.racaId === r.id)), [racas, composicao, pedidos]);
+    const livres = useMemo(() => racas.filter(r => !composicaoReal.some(e => e.racaId === r.id) && !pedidos.some(p => p.racaId === r.id)), [racas, composicaoReal, pedidos]);
 
     const fechar = useCallback(() => { setModal(false); setErro(''); }, []);
     const enviar = useCallback(() => {
@@ -36,14 +43,15 @@ export default function ComposicaoRacialFicha() {
     }, [racaId, motivo]);
 
     const podePedir = souEuMesmo && temDNA && racas.length > 0;
-    if (racas.length === 0 || (composicao.length === 0 && !podePedir)) return null;
+    if (racas.length === 0 || (composicao.length === 0 && desconhecidas.length === 0 && !podePedir)) return null;
     const nomeRaca = (id) => { const r = racas.find(x => x.id === id); return r ? `${r.icone} ${r.nome}` : id; };
 
     return (
         <section className="composicao-ficha" aria-label="Composição Racial">
             <h4 className="composicao-ficha-titulo">🧬 Composição Racial</h4>
-            {principal.cadastrada && <p className="composicao-principal">Raça principal: <strong>{nomeRaca(principal.id)}</strong> · Domínio {(composicao.find(e => e.racaId === principal.id) || { percentual: 0 }).percentual}%</p>}
-            {souEuMesmo && principal.cadastrada && temComposicaoExplicita(ficha) && !composicao.some(e => e.racaId === principal.id) && (
+            {principal.cadastrada && !principalVis.oculta && <p className="composicao-principal">Raça principal: <strong>{nomeRaca(principal.id)}</strong> · Domínio {(composicao.find(e => e.racaId === principal.id) || { percentual: 0 }).percentual}%</p>}
+            {principal.cadastrada && principalVis.oculta && principalVis.texto && <p className="composicao-principal">Raça principal: <strong>{principalVis.texto}</strong></p>}
+            {souEuMesmo && principal.cadastrada && !principalVis.oculta && temComposicaoExplicita(ficha) && !composicao.some(e => e.racaId === principal.id) && (
                 <p className="composicao-dica" role="note">Sua composição racial é definida pelo Mestre.</p>
             )}
             {composicao.length > 0 && (
@@ -56,6 +64,11 @@ export default function ComposicaoRacialFicha() {
                             <span className="composicao-barra" aria-hidden="true"><span className="composicao-barra-cheia" style={{ width: `${e.percentual}%` }} /></span>
                         </li>
                     ))}
+                </ul>
+            )}
+            {desconhecidas.length > 0 && (
+                <ul className="composicao-chips" aria-label="Raças desconhecidas">
+                    {desconhecidas.map(e => <li key={`oculta-${e.racaId}`} className="composicao-chip composicao-chip--oculta"><span className="composicao-chip-nome">{ROTULO_RACA_OCULTA}</span></li>)}
                 </ul>
             )}
             {podePedir && (

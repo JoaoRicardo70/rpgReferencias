@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState, useId } from 'react';
 import useStore from '../../stores/useStore';
+import SeletorVisibilidadeRaca from '../shared/SeletorVisibilidadeRaca';
 import {
     definirComposicaoRacial, concederPraticaRacial, adicionarRacaAdquirida, removerRacaDaComposicao,
 } from '../../services/composicaoRacial';
@@ -105,7 +106,7 @@ export default function ComposicaoRacialEditor({ entidade, ficha, rotulo = '🧬
             </button>
             {aberto && (
                 <div id={idCorpo} className="composicao-corpo" role="group" aria-label={`Composição racial de ${nome}`}>
-                    <p className="composicao-dica">Cada Raça tem o seu percentual (0 a 100). Eles são independentes e sobem com a prática. O Domínio da Raça é o próprio percentual.</p>
+                    <p className="composicao-dica">Cada Raça tem o seu percentual (0 a 100). Eles são independentes e sobem com a prática. O Domínio da Raça é o próprio percentual. A visibilidade define quem vê cada Raça: Pública (todos), Privada (dono e Mestre) ou Secreta (só o Mestre; o jogador vê "Raça desconhecida").</p>
                     {principalFora && (
                         <p className="composicao-aviso" role="note">
                             ⚠️ A Raça principal ({nomeDa(principal.id)}) não está na composição.{' '}
@@ -126,6 +127,8 @@ export default function ComposicaoRacialEditor({ entidade, ficha, rotulo = '🧬
                                     <span className="composicao-percent-simbolo" aria-hidden="true">%</span>
                                     <span className={`composicao-origem composicao-origem--${l.origem}`}>{l.origem === 'adquirida' ? '🧪 Adquirida' : '🌱 Nativa'}</span>
                                     {l.fonte ? <span className="composicao-fonte" title="Origem registrada">{l.fonte}</span> : null}
+                                    <span className="composicao-barra composicao-barra--linha" aria-hidden="true"><span className="composicao-barra-cheia" style={{ width: `${Math.min(100, Math.max(0, Number(l.percentual) || 0))}%` }} /></span>
+                                    {l.racaId && <SeletorVisibilidadeRaca entidade={entidade} chave={l.racaId} ficha={ficha} souMestre nomeRaca={(racas.find(r => r.id === l.racaId) || {}).nome || l.racaId} />}
                                     <button type="button" className="btn-neon equipes-btn" aria-expanded={praticando === l.racaId}
                                         aria-label={`＋ Prática em ${(racas.find(r => r.id === l.racaId) || {}).nome || l.racaId}`}
                                         onClick={() => { setPraticando(praticando === l.racaId ? null : l.racaId); setPraticaValor(''); }}>＋ Prática</button>

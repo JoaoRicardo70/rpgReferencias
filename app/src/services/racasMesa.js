@@ -1,8 +1,9 @@
 import useStore, { sanitizarNome } from '../stores/useStore';
 import { salvarFichaSilencioso, salvarDummie, salvarCenarioCompleto, salvarCamposPersonagem } from './firebase-sync';
-import { desligarHabilidadesBloqueadas } from './composicaoRacial';
+import { desligarHabilidadesBloqueadas, limparVisibilidadeOrfa } from './composicaoRacial';
 import { limparRacaDaBiblioteca } from '../core/bibliotecaRacial';
-import { getRacas, sanitizarRacas, camposDaRacaNaFicha, composicaoComPrincipal } from '../core/racas';
+import { getRacas, sanitizarRacas, camposDaRacaNaFicha, composicaoComPrincipal, resolverRaca } from '../core/racas';
+import { nivelDaRaca, CHAVE_PRINCIPAL } from '../core/racasVisibilidade';
 
 // 🧬 Gravação do catálogo de Raças da mesa e da Raça de cada personagem (core/racas.js).
 // Única cópia da regra: usada pelo catálogo da aba Mestre (RacasCatalogo) e pelo MapaFormContext. Não depende do Mapa estar aberto:
@@ -45,6 +46,7 @@ export function definirRacaDoPersonagemDireto(entidade, racaId) {
         // Trocar a Raça pode bloquear Habilidades de Raça ligadas (acesso/percentual): desliga (ver desligarHabilidadesBloqueadas).
         const novoD = JSON.parse(JSON.stringify({ ...d, bio: bioNova }));
         desligarHabilidadesBloqueadas(novoD, st.cenario, { tipo: 'dummie', nome: d.nome || entidade.id });
+        limparVisibilidadeOrfa(novoD, st.cenario);
         salvarDummie(entidade.id, novoD);
         return true;
     }
@@ -52,6 +54,11 @@ export function definirRacaDoPersonagemDireto(entidade, racaId) {
     if (!nome) return false;
     const souEu = sanitizarNome(nome) === sanitizarNome(st.meuNome || '');
     if (!isMestre && !souEu) return false;
+    // Raça principal 'secreta' (só o Mestre sabe): o jogador não a troca (nem a vê). Só exibição, mas a interface e o serviço concordam.
+    if (!isMestre && souEu && st.minhaFicha) {
+        const atual = resolverRaca(st.cenario, st.minhaFicha);
+        if (nivelDaRaca(st.minhaFicha, atual.id || CHAVE_PRINCIPAL) === 'secreta') return false;
+    }
     if (souEu) {
         st.updateFicha((f) => {
             if (!f.bio) f.bio = {};
@@ -60,6 +67,7 @@ export function definirRacaDoPersonagemDireto(entidade, racaId) {
             const comp = isMestre ? composicaoComPrincipal(st.cenario, f) : null;
             if (comp) f.bio.composicaoRacial = comp;
             desligarHabilidadesBloqueadas(f, st.cenario, { tipo: 'eu', nome: st.meuNome });
+            limparVisibilidadeOrfa(f, st.cenario);
         });
         salvarFichaSilencioso();
     } else {
@@ -72,6 +80,7 @@ export function definirRacaDoPersonagemDireto(entidade, racaId) {
             const clone = JSON.parse(JSON.stringify(outra));
             clone.bio = { ...(clone.bio || {}), racaId: campos['bio/racaId'], raca: campos['bio/raca'], ...(comp ? { composicaoRacial: comp } : {}) };
             desligarHabilidadesBloqueadas(clone, st.cenario, { tipo: 'outro', nome });
+            if (limparVisibilidadeOrfa(clone, st.cenario)) todos['bio/racaVisibilidade'] = clone.bio.racaVisibilidade === undefined ? null : clone.bio.racaVisibilidade;
             (Array.isArray(clone.poderes) ? clone.poderes : []).forEach((p, i) => { if (p && p.ativa === false && outra.poderes && outra.poderes[i] && outra.poderes[i].ativa) todos[`poderes/${i}/ativa`] = false; });
         }
         salvarCamposPersonagem(nome, todos);

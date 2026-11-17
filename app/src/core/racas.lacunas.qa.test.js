@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-    sanitizarRacas, resolverRaca, ancestraisDaRaca, racaTemAcesso, poderRacaIncompativel, verificarAcessoHabilidadeRaca,
-    racasAcessoPadraoParaFicha, limparReferenciasDeRaca, migrarHabilidadesDeRaca, racaIdAposEdicaoDeTexto,
-} from './racas';
+import { sanitizarRacas, resolverRaca, ancestraisDaRaca, racaTemAcesso, poderRacaIncompativel, racasAcessoPadraoParaFicha, limparReferenciasDeRaca, migrarHabilidadesDeRaca, racaIdAposEdicaoDeTexto } from './racas';
+import { verificarAcessoHabilidadeRaca } from './racasAcesso';
 import { idCategoriaPoder, categoriasVisiveisNaFicha, poderEhCopiavel, CATEGORIAS_PODER } from './categoriasPoder';
 import { verificarAcessoOferta, aceitarOferta } from './ensinar';
 import { planejarModelo, aplicarModeloNaFicha } from './modelosPoder';

@@ -2,6 +2,9 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import useStore from '../../stores/useStore';
 import SeletorRaca from '../shared/SeletorRaca';
 import BotaoCatalogoRacas from '../shared/BotaoCatalogoRacas';
+import DominioRacialFicha from '../shared/DominioRacialFicha';
+import { contextoDoViewer, racaPrincipalVisivel } from '../../core/racasVisibilidade';
+import { limparVisibilidadeOrfa } from '../../services/composicaoRacial';
 import { getRacas, racaIdAposEdicaoDeTexto, composicaoComPrincipal } from '../../core/racas';
 import ClasseMecanicaPainel from './ClasseMecanicaPainel';
 import { salvarFichaSilencioso, salvarFirebaseImediato, salvarDivisorPoderMesa, salvarFichaAlvoSilencioso, salvarFichaAlvoImediato, enviarParaFeed } from '../../services/firebase-sync';
@@ -1142,6 +1145,10 @@ export default function MarcadosPanel() {
         callSave();
     };
 
+    // 🙈 Raça principal oculta para quem olha (privada p/ outros, secreta p/ o próprio jogador): mostra "❓ Raça desconhecida" e não deixa editar.
+    const racaPrincipalVis = racaPrincipalVisivel(catalogoCenario, minhaFicha, contextoDoViewer({ souDono: souEuMesmo, isMestre: isMestreStatus }));
+    const racaPrincipalOculta = racaPrincipalVis.oculta;
+
     // 🧬 Raça: grava nome + racaId (e, só para o Mestre, alinha a composição racial) num único update/save.
     const salvarRaca = (novoTexto, { doCatalogo = false } = {}) => {
         const cen = catalogoCenario;
@@ -1150,6 +1157,7 @@ export default function MarcadosPanel() {
             f.bio.racaId = racaIdAposEdicaoDeTexto(cen, f.bio.racaId, f.bio.raca, novoTexto);
             f.bio.raca = novoTexto;
             if (isMestre && doCatalogo) { const comp = composicaoComPrincipal(cen, f); if (comp) f.bio.composicaoRacial = comp; }
+            limparVisibilidadeOrfa(f, cen);
         });
         callSave();
     };
@@ -1896,7 +1904,9 @@ export default function MarcadosPanel() {
                                             </select>
                                         ) : item.k === 'raca' ? (
                                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                                                {getRacas(catalogoCenario).length > 0 ? (
+                                                {racaPrincipalOculta ? (
+                                                    <SeletorRaca key={nomeFichaAtiva || 'ficha'} variante="ficha" oculta textoOculto={racaPrincipalVis.texto} aoMudar={salvarRaca} />
+                                                ) : getRacas(catalogoCenario).length > 0 ? (
                                                     <SeletorRaca key={nomeFichaAtiva || 'ficha'} variante="ficha" mostrarCatalogo={isMestre} valor={minhaFicha.bio?.raca} aoMudar={salvarRaca}
                                                         dica={isMestre ? '' : 'Suas Habilidades de Raça dependem desta Raça; o Domínio é definido pelo Mestre.'} />
                                                 ) : (
@@ -1912,6 +1922,9 @@ export default function MarcadosPanel() {
                                     </div>
                                 ))}
                             </div>
+
+                            {/* 🧬 Composição Racial e Domínio (visibilidade por Raça; Mestre edita) */}
+                            <DominioRacialFicha />
 
                             {/* 🛡️ Foto + painel da Classe lado a lado (ClasseMecanicaPainel) */}
                             <div className="avatar-com-classe">

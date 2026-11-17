@@ -25,7 +25,7 @@ describe('desliga Habilidade de Raça ligada que ficou bloqueada', () => {
         montar({ minha: fichaCom([{ racaId: 'saiyajin', percentual: 60, origem: 'nativa' }]) });
         expect(concederPraticaRacial(eu, 'saiyajin', -20).ok).toBe(true);
         expect(useStore.getState().minhaFicha.poderes[0].ativa).toBe(false);
-        expect(sync.enviarParaFeed).toHaveBeenCalledWith(expect.objectContaining({ texto: expect.stringContaining('Kaioken foi desligada (Domínio insuficiente)') }));
+        expect(sync.enviarParaFeed).toHaveBeenCalledWith(expect.objectContaining({ texto: expect.stringContaining('Kaioken foi desligada') }));
     });
     it('não desliga se continua liberada', () => {
         montar({ minha: fichaCom([{ racaId: 'saiyajin', percentual: 90, origem: 'nativa' }]) });

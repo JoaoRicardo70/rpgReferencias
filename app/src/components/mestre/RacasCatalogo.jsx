@@ -5,6 +5,7 @@ import { salvarRacasDaMesa, definirRacaDoPersonagemDireto } from '../../services
 import useSecaoMestre, { domDaSecaoMestre } from './useSecaoMestre';
 import ComposicaoRacialEditor from './ComposicaoRacialEditor';
 import PedidosRacaMestre from './PedidosRacaMestre';
+import { chavesNaoPublicas, nivelDaRaca } from '../../core/racasVisibilidade';
 import {
     getRacas, gerarIdRaca, resolverRaca, descendentesDaRaca, ehHabilidadeDeRaca, limparReferenciasDeRaca,
     LIMITE_RACAS, LIMITE_NOME_RACA, LIMITE_APELIDOS_RACA, ICONE_RACA_PADRAO,
@@ -260,6 +261,8 @@ export default function RacasCatalogo() {
                                 return (
                                     <li key={e.chave} className="equipes-membro racas-membro">
                                         <span className="equipes-membro-nome">{e.isDummie ? '👾 ' : ''}{e.nome}</span>
+                                        {chavesNaoPublicas(e.ficha).some(k => nivelDaRaca(e.ficha, k) === 'secreta') && <span className="racas-marca-oculta" role="img" aria-label="Raça secreta: só o Mestre vê" title="Tem Raça secreta (só o Mestre vê)">🙈</span>}
+                                        {chavesNaoPublicas(e.ficha).some(k => nivelDaRaca(e.ficha, k) === 'privada') && <span className="racas-marca-oculta" role="img" aria-label="Raça privada: só o dono e o Mestre veem" title="Tem Raça privada (dono e Mestre)">🔒</span>}
                                         <select className="input-neon equipes-select" value={raca.cadastrada ? raca.id : ''} disabled={salvas.length === 0}
                                             aria-label={`Raça de ${e.nome}`}
                                             onChange={(ev) => definirRacaDoPersonagemDireto({ id: e.id, nome: e.nome, isDummie: e.isDummie }, ev.target.value)}>

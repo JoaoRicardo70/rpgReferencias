@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-    getComposicaoRacial, racaTemAcesso, racasEfetivas, poderBloqueado, poderUsavel, poderRacaIncompativel, racasQueDaoAcesso,
-    percentualMinimoDoPoder, composicaoComPrincipal, verificarAcessoHabilidadeRaca, sanitizarRacas, dominioDaRaca,
-} from './racas';
+import { getComposicaoRacial, racaTemAcesso, racasEfetivas, poderBloqueado, poderUsavel, poderRacaIncompativel, racasQueDaoAcesso, percentualMinimoDoPoder, composicaoComPrincipal, sanitizarRacas, dominioDaRaca } from './racas';
+import { verificarAcessoHabilidadeRaca } from './racasAcesso';
 import { prepararItemEnsinado, aceitarOferta, percentualMinimoConfiavelDaOferta, montarOferta } from './ensinar';
 import { montarPoderFinal } from './importadorIA';
 

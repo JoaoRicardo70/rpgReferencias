@@ -42,7 +42,8 @@ import DisponiveisBiblioteca from './DisponiveisBiblioteca';
 import PublicarNaBiblioteca from './PublicarNaBiblioteca';
 import { disponiveisParaJogador } from '../../core/bibliotecaRacial';
 import { ResumoDominioRacial, DominioHabilidadeRaca, DnaDoPoder } from './RacaPoderControles';
-import { ehHabilidadeDeRaca, poderBloqueado, poderRacaIncompativel, SELO_RACA_INCOMPATIVEL, racasComAcessoTexto, contarRacasComAcesso } from '../../core/racas';
+import { ehHabilidadeDeRaca, poderRacaIncompativel, SELO_RACA_INCOMPATIVEL, racasComAcessoTexto, contarRacasComAcesso } from '../../core/racas';
+import { contextoDoViewer, habilidadeRevelaRaca, poderBloqueadoVisivel, nomesRacasOcultas, habilidadeComRacaOcultaDoJogador, AVISO_RACA_OCULTA_MESTRE } from '../../core/racasVisibilidade';
 
 const LIMITE_PREVIA_ESTAGIOS = 12;
 const fmtNumero = (v) => (typeof v === 'number' ? (Math.round(v * 10000) / 10000).toLocaleString('pt-BR') : v);
@@ -749,6 +750,8 @@ export function PoderesLista() {
         salvarFormaPoder, deletarFormaPoder, ativarFormaPoder,
         renomearPastaForma, pastasAbertas, alternarPasta, definirPastasAbertas, mudarEstagioPoder, isMestre, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, definirRacasAcessoDoPoder
     } = ctx;
+    // 🙈 Quem olha: o Grimório exibido é sempre o do dono (jogador) ou o da Entidade mirada pelo Mestre; Modo Jogador = visão de jogador.
+    const viewerRaca = contextoDoViewer({ souDono: true, isMestre: !!isMestre });
 
     // 📂 Pastas NASCEM FECHADAS. As abertas ficam na store (provider), por categoria::caminho — sem isso, abrir "Combos"
     // na aba Habilidades também abriria uma pasta "Combos" de outra categoria que reusasse o mesmo nome.
@@ -769,7 +772,10 @@ export function PoderesLista() {
             if (!p) return null;
                     const isEquipped = p.ativa;
                     // 🔒 Habilidade de Raça bloqueada não liga (desligar sempre pode): botão desabilitado com o motivo no tooltip.
-                    const bloqueioRaca = poderBloqueado(cenarioRacas, minhaFicha, p);
+                    // 🙈 bloqueado/naoPodeLigar usam o dado real; selo e motivo exibidos saem mascarados quando o Domínio vem de Raça que o viewer não vê.
+                    const bloqueioRaca = poderBloqueadoVisivel(cenarioRacas, minhaFicha, p, viewerRaca);
+                    const revelaRaca = habilidadeRevelaRaca(cenarioRacas, minhaFicha, p, viewerRaca);
+                    const escondeRaca = revelaRaca || (!isMestre && nomesRacasOcultas(cenarioRacas, minhaFicha, viewerRaca).length > 0);
                     const naoPodeLigar = bloqueioRaca.bloqueado && !isEquipped;
                     // Valores já no estágio atual (técnicas com Estágios — core/estagios.js).
                     const txtArr = escalarEfeitosPorEstagio(p.efeitos, p).map(e => {
@@ -838,14 +844,15 @@ export function PoderesLista() {
                                         <div className="habilidade-raca-bloco">
                                             <div className="habilidade-raca-selos">
                                                 {poderRacaIncompativel(cenarioRacas, minhaFicha, p) && (
-                                                    <span className="habilidade-raca-selo habilidade-raca-selo--incompativel" title={`A Raça atual do personagem não tem acesso a esta habilidade (Raças com acesso: ${racasComAcessoTexto(cenarioRacas, p)}). Ele não a perde; só fica sinalizada.`}>{SELO_RACA_INCOMPATIVEL}</span>
+                                                    <span className="habilidade-raca-selo habilidade-raca-selo--incompativel" title={escondeRaca ? 'A Raça atual do personagem não tem acesso a esta habilidade. Ele não a perde; só fica sinalizada.' : `A Raça atual do personagem não tem acesso a esta habilidade (Raças com acesso: ${racasComAcessoTexto(cenarioRacas, p)}). Ele não a perde; só fica sinalizada.`}>{SELO_RACA_INCOMPATIVEL}</span>
                                                 )}
                                                 {bloqueioRaca.bloqueado && <span className="habilidade-raca-selo habilidade-raca-selo--incompativel" title={bloqueioRaca.motivo}>{bloqueioRaca.selo}</span>}
                                                 {p.racaExcecao === true && <span className="habilidade-raca-selo habilidade-raca-selo--excecao" title="O Mestre concedeu esta habilidade mesmo sem a Raça ter acesso">Exceção do Mestre</span>}
                                                 {isMestre && <span className="habilidade-raca-contagem">{contarRacasComAcesso(cenarioRacas, p)} raça(s) com acesso</span>}
+                                                {isMestre && habilidadeComRacaOcultaDoJogador(cenarioRacas, minhaFicha, p) && <span className="habilidade-raca-selo habilidade-raca-selo--oculta" title="O acesso desta habilidade passa por uma Raça que o jogador não vê (Secreta).">{AVISO_RACA_OCULTA_MESTRE}</span>}
                                             </div>
-                                            <RacasAcessoCampo poder={p} cenario={cenarioRacas} podeEditar={!!isMestre} aoMudar={(ids) => definirRacasAcessoDoPoder(p.id, ids)} />
-                                            <DominioHabilidadeRaca poder={p} ficha={minhaFicha} cenario={cenarioRacas} entidade={entidadeDono} isMestre={!!isMestre} />
+                                            <RacasAcessoCampo poder={p} cenario={cenarioRacas} podeEditar={!!isMestre} ocultar={revelaRaca} aoMudar={(ids) => definirRacasAcessoDoPoder(p.id, ids)} />
+                                            <DominioHabilidadeRaca poder={p} ficha={minhaFicha} cenario={cenarioRacas} entidade={entidadeDono} isMestre={!!isMestre} viewer={viewerRaca} />
                                         </div>
                                     )}
 
@@ -1077,8 +1084,8 @@ export function PoderesLista() {
 
     return (
         <div className="grimorio-lista">
-            {abaAtual === 'habilidadeRaca' && <ResumoDominioRacial cenario={cenarioRacas} ficha={minhaFicha} />}
-            {abaAtual === 'habilidadeRaca' && <DisponiveisBiblioteca cenario={cenarioRacas} ficha={minhaFicha} entidade={entidadeDono} isMestre={!!isMestre} />}
+            {abaAtual === 'habilidadeRaca' && <ResumoDominioRacial cenario={cenarioRacas} ficha={minhaFicha} viewer={viewerRaca} />}
+            {abaAtual === 'habilidadeRaca' && <DisponiveisBiblioteca cenario={cenarioRacas} ficha={minhaFicha} entidade={entidadeDono} isMestre={!!isMestre} viewer={viewerRaca} />}
             {itensFiltrados.length === 0 ? (
                 abaAtual === 'habilidadeRaca'
                     ? <p className="grimorio-vazio habilidade-raca-vazio">Nenhuma Habilidade de Raça ainda. O Mestre concede Habilidades de Raça compatíveis com a sua Raça.</p>

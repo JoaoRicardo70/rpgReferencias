@@ -3861,3 +3861,15 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .dialogo-tematico-acoes { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 .dialogo-tematico-acoes .btn-neon { margin: 0; padding: 8px 16px; }
 .composicao-toggle:focus-visible, .composicao-input-percentual:focus-visible, .primordial-campo input:focus-visible, .bloqueio-raca-interruptor input:focus-visible { outline: 2px solid var(--cor-destaque); outline-offset: 2px; }
+
+/* 🙈 Visibilidade das Raças (core/racasVisibilidade.js) */
+.composicao-chip--oculta { border-style: dashed; border-color: var(--texto-suave); color: var(--texto-suave); }
+.composicao-barra--linha { width: 70px; margin-top: 0; }
+.composicao-principal--livre { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.visibilidade-raca { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.visibilidade-raca .visibilidade-raca-select { width: auto; min-width: 150px; font-size: 0.85em; padding: 3px 6px; }
+.visibilidade-raca-erro { color: var(--cor-destaque); font-size: 0.8em; }
+.racas-oculta { display: inline-block; padding: 2px 8px; border: 1px dashed var(--texto-suave); border-radius: 6px; color: var(--texto-suave); }
+.racas-marca-oculta { margin-left: 4px; cursor: help; }
+.habilidade-raca-selo--oculta, .bloqueio-raca-oculta { color: var(--texto-suave); font-size: 0.8em; }
+.dominio-racial-ficha { margin-top: 12px; }

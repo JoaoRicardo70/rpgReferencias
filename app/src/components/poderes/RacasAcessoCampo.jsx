@@ -4,7 +4,8 @@ import BotaoCatalogoRacas from '../shared/BotaoCatalogoRacas';
 
 // 🧬 "Raças com acesso" de uma Habilidade de Raça (poder.racasAcesso = ids do catálogo de Raças da mesa, core/racas.js).
 // Mestre/Co-Mestre: chips de seleção múltipla (cada clique grava na hora via aoMudar(ids)). Jogador: só leitura, com o texto das raças.
-export default function RacasAcessoCampo({ poder, cenario, podeEditar, aoMudar }) {
+// `ocultar` (jogador): o acesso da habilidade passa por uma Raça que ele não vê (core/racasVisibilidade.js): não mostra "Raças com acesso" para não revelá-la.
+export default function RacasAcessoCampo({ poder, cenario, podeEditar, aoMudar, ocultar = false }) {
     const racas = getRacas(cenario);
     const marcadas = (poder && Array.isArray(poder.racasAcesso) ? poder.racasAcesso : []).filter(id => racas.some(r => r.id === id));
     const alternar = useCallback((id) => {
@@ -12,6 +13,7 @@ export default function RacasAcessoCampo({ poder, cenario, podeEditar, aoMudar }
         aoMudar(marcadas.includes(id) ? marcadas.filter(i => i !== id) : [...marcadas, id]);
     }, [aoMudar, marcadas]);
 
+    if (!podeEditar && ocultar) return null;
     if (!podeEditar) {
         return <p className="habilidade-raca-acesso-texto">🧬 Raças com acesso: {racasComAcessoTexto(cenario, poder)}</p>;
     }

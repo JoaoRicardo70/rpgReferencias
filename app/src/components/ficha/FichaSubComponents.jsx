@@ -7,7 +7,7 @@ import { POLARIDADES, getInfoPolaridade } from '../../core/polaridade.js';
 import { agruparElementosPorCategoria, chaveElemento } from '../../core/elementos.js';
 import { resumoDosEstados } from '../../core/condicoes.js';
 import DuracaoEstadosEditor from '../shared/DuracaoEstadosEditor';
-import SeletorRaca from '../shared/SeletorRaca';
+import SeletorRaca from '../shared/SeletorRacaDaFicha';
 import ComposicaoRacialFicha from '../shared/ComposicaoRacialFicha';
 import { buffsTemporariosDaFicha } from '../../core/suporte.js';
 import { listaDeEscudos, totalDeEscudos, TIPOS_ESCUDO, LIMITE_ESCUDOS } from '../../core/escudos.js';

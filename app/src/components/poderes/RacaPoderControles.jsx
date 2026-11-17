@@ -2,9 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     definirBloqueioDoPoder, despertarHabilidade, definirPercentualMinimoDoPoder, definirManipulaDNA,
 } from '../../services/composicaoRacial';
-import { getComposicaoRacial, poderBloqueado, percentualMinimoDoPoder, racasQueDaoAcesso } from '../../core/racas';
+import { percentualMinimoDoPoder, racasQueDaoAcesso } from '../../core/racas';
 import ComposicaoRacialEditor from '../mestre/ComposicaoRacialEditor';
 import DialogoTematico from '../shared/DialogoTematico';
+import { composicaoVisivel, racasDesconhecidasDoDono, habilidadeRevelaRaca, poderBloqueadoVisivel, habilidadeComRacaOcultaDoJogador, VIEWER_OUTRO_JOGADOR, ROTULO_RACA_OCULTA, AVISO_RACA_OCULTA_MESTRE } from '../../core/racasVisibilidade';
 
 // 🧬 Peças do cartão do Grimório ligadas à Raça (core/racas.js + services/composicaoRacial.js):
 //  - ResumoDominioRacial: cabeçalho da aba Habilidades de Raça ("Seu Domínio: Saiyajin 70% · Humano 30%").
@@ -12,22 +13,27 @@ import DialogoTematico from '../shared/DialogoTematico';
 //  - DnaDoPoder: interruptor "Manipulação de DNA" do Mestre (qualquer categoria) e selo discreto "🧬 DNA" para o jogador.
 // `entidade` = { id, nome, isDummie } do dono da ficha exibida (o Grimório da Entidade do Mestre mira outro personagem).
 
-export function ResumoDominioRacial({ cenario, ficha }) {
-    const composicao = useMemo(() => getComposicaoRacial(cenario, ficha), [cenario, ficha]);
+// `viewer` = { souDono, souMestre } (core/racasVisibilidade.js): só as Raças que ele pode ver; o dono vê "❓ Raça desconhecida" no lugar das secretas. Sem viewer = o mais restrito (outro jogador).
+export function ResumoDominioRacial({ cenario, ficha, viewer = VIEWER_OUTRO_JOGADOR }) {
+    const composicao = useMemo(() => composicaoVisivel(cenario, ficha, viewer), [cenario, ficha, viewer]);
+    const desconhecidas = useMemo(() => racasDesconhecidasDoDono(cenario, ficha, viewer), [cenario, ficha, viewer]);
     return (
         <div className="composicao-resumo" role="note">
             <p className="composicao-resumo-linha">
-                🧬 Seu Domínio: {composicao.length === 0 ? <em>sem Raça definida</em> : composicao.map((e, i) => (
+                🧬 Seu Domínio: {composicao.length === 0 && desconhecidas.length === 0 ? <em>sem Raça definida</em> : composicao.map((e, i) => (
                     <span key={e.racaId}>{i > 0 ? ' · ' : ''}<strong>{e.nome}</strong> {e.percentual}%</span>
                 ))}
+                {desconhecidas.map((e, i) => <span key={`oculta-${e.racaId}`}>{composicao.length + i > 0 ? ' · ' : ''}<strong>{ROTULO_RACA_OCULTA}</strong></span>)}
             </p>
             <p className="composicao-resumo-dica">Pratique para elevar o percentual e desbloquear mais Habilidades.</p>
         </div>
     );
 }
 
-export function DominioHabilidadeRaca({ poder, ficha, cenario, entidade, isMestre }) {
-    const bloqueio = poderBloqueado(cenario, ficha, poder);
+export function DominioHabilidadeRaca({ poder, ficha, cenario, entidade, isMestre, viewer = VIEWER_OUTRO_JOGADOR }) {
+    // 🙈 `bloqueio` e `revela` só mudam a EXIBIÇÃO (selo/motivo/Domínio); o bloqueio real continua em poderBloqueado.
+    const bloqueio = poderBloqueadoVisivel(cenario, ficha, poder, viewer);
+    const revela = habilidadeRevelaRaca(cenario, ficha, poder, viewer);
     const minimo = percentualMinimoDoPoder(poder);
     const manual = poder.bloqueio && poder.bloqueio.ativo === true;
     const [minimoTxt, setMinimoTxt] = useState(String(minimo));
@@ -64,12 +70,13 @@ export function DominioHabilidadeRaca({ poder, ficha, cenario, entidade, isMestr
 
     return (
         <div className="bloqueio-raca">
-            {minimo > 0 && melhor && <p className="bloqueio-raca-dominio">Domínio: {melhor.nome} {melhor.percentual}% (mínimo {minimo}%)</p>}
-            {minimo > 0 && !melhor && <p className="bloqueio-raca-dominio">Domínio mínimo exigido: {minimo}%</p>}
+            {minimo > 0 && melhor && !revela && <p className="bloqueio-raca-dominio">Domínio: {melhor.nome} {melhor.percentual}% (mínimo {minimo}%)</p>}
+            {minimo > 0 && (!melhor || revela) && <p className="bloqueio-raca-dominio">Domínio mínimo exigido: {minimo}%</p>}
             {bloqueio.bloqueado && bloqueio.requisito && <p className="bloqueio-raca-requisito" role="note">Para desbloquear: {bloqueio.requisito}</p>}
             {manual && poder.bloqueio.motivo && <p className="bloqueio-raca-motivo">{poder.bloqueio.motivo}</p>}
             {bloqueio.bloqueado && bloqueio.origem === 'percentual' && <p className="bloqueio-raca-motivo">Esta habilidade sobe com a prática: eleve o percentual da Raça.</p>}
 
+            {isMestre && habilidadeComRacaOcultaDoJogador(cenario, ficha, poder) && <p className="bloqueio-raca-oculta" role="note">{AVISO_RACA_OCULTA_MESTRE}</p>}
             {isMestre && (
                 <div className="bloqueio-raca-mestre" role="group" aria-label={`Controles de Raça de ${nomePoder}`}>
                     <label className="bloqueio-raca-campo">Percentual mínimo da Raça (%)

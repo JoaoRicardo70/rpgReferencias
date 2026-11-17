@@ -1,10 +1,11 @@
 import useStore, { sanitizarNome } from '../stores/useStore';
 import { salvarFichaSilencioso, salvarDummie, salvarCamposPersonagem, enviarParaFeed } from './firebase-sync';
 import {
-    getRacas, getComposicaoRacial, ehHabilidadeDeRaca, poderBloqueado, percentualMinimoDoPoder,
+    getRacas, getComposicaoRacial, resolverRaca, ehHabilidadeDeRaca, poderBloqueado, percentualMinimoDoPoder,
     PERCENTUAL_RACA_ADQUIRIDA_PADRAO, LIMITE_HISTORICO_COMPOSICAO, LIMITE_COMPOSICAO_RACIAL, LIMITE_PEDIDOS_RACA,
 } from '../core/racas';
 import { desligarPoderNoRascunho } from '../core/custoPorTurno';
+import { fichaTemRacaOculta, nivelValido, nivelDaRaca, nivelPermitidoAoJogador, sanitizarVisibilidade, CHAVE_PRINCIPAL, NIVEL_PADRAO } from '../core/racasVisibilidade';
 
 // 🧬 Composição racial (mestiços, Raça Primordial, Manipulação de DNA), bloqueio de Habilidades de Raça e pedidos de Raça.
 // Única cópia da regra (a interface chama estas funções). Não depende do Mapa: lê o store NO MOMENTO da chamada.
@@ -103,7 +104,7 @@ export function desligarHabilidadesBloqueadas(f, cenario, { tipo = 'eu', nome = 
         if (!b.bloqueado) return;
         if (tipo === 'outro') p.ativa = false; else desligarPoderNoRascunho(f, p.id);
         caminhos.push({ poderId: p.id, campo: 'ativa' });
-        feedDNA(`🔒 ${nome || 'Personagem'}: ${p.nome || 'Habilidade de Raça'} foi desligada (${b.origem === 'percentual' ? 'Domínio insuficiente' : 'bloqueada'})`);
+        feedDNA(fichaTemRacaOculta(f) ? `🔒 ${nome || 'Personagem'} teve uma habilidade racial desligada` : `🔒 ${nome || 'Personagem'}: ${p.nome || 'Habilidade de Raça'} foi desligada`);
     });
     return caminhos;
 }
@@ -132,7 +133,8 @@ export function definirComposicaoRacial(entidade, lista) {
         if (!f.bio) f.bio = {};
         f.bio.composicaoRacial = limpa;
         const desl = desligarHabilidadesBloqueadas(f, st.cenario, alvo);
-        return { ok: true, composicao: limpa, caminhos: ['bio/composicaoRacial', ...desl] };
+        const vis = limparVisibilidadeOrfa(f, st.cenario) ? ['bio/racaVisibilidade'] : [];
+        return { ok: true, composicao: limpa, caminhos: ['bio/composicaoRacial', ...vis, ...desl] };
     });
 }
 
@@ -158,7 +160,8 @@ export function concederPraticaRacial(entidade, racaId, delta, motivo = '') {
         if (!f.bio) f.bio = {};
         f.bio.composicaoRacial = comp;
         registrarHistorico(f, { racaId, de, para, delta: Math.round((para - de) * 100) / 100, motivo: texto(motivo, 200), fonte: 'pratica' });
-        feedDNA(`🧬 ${alvo.nome} praticou ${raca.nome}: ${de}% → ${para}%`);
+        // O Feed é PÚBLICO: só nomeia a Raça (e o percentual) se ela for pública agora; senão texto genérico.
+        feedDNA(nivelDaRaca(f, racaId) === NIVEL_PADRAO ? `🧬 ${alvo.nome} praticou ${raca.nome}: ${de}% → ${para}%` : `🧬 ${alvo.nome} praticou o Domínio de uma Raça`);
         const desl = desligarHabilidadesBloqueadas(f, st.cenario, alvo);
         return { ok: true, de, para, composicao: comp, caminhos: ['bio/composicaoRacial', 'bio/composicaoRacialHistorico', ...desl] };
     });
@@ -184,7 +187,7 @@ export function adicionarRacaAdquirida(entidade, racaId, percentual = PERCENTUAL
         if (!f.bio) f.bio = {};
         f.bio.composicaoRacial = comp;
         registrarHistorico(f, { racaId, de: 0, para: p, delta: p, motivo: fonteLimpa ? `Raça adquirida: ${fonteLimpa}` : 'Raça adquirida', fonte: 'dna' });
-        feedDNA(`🧬 ${alvo.nome}: Raça ${raca.nome} adquirida (${p}%)`);
+        feedDNA(`🧬 ${alvo.nome} adquiriu uma nova Raça`); // genérico: o nome só aparece na revelação
         return { ok: true, percentual: p, composicao: comp, caminhos: ['bio/composicaoRacial', 'bio/composicaoRacialHistorico'] };
     });
 }
@@ -202,7 +205,8 @@ export function removerRacaDaComposicao(entidade, racaId) {
         if (!f.bio) f.bio = {};
         f.bio.composicaoRacial = nova;
         const desl = desligarHabilidadesBloqueadas(f, st.cenario, alvo);
-        return { ok: true, composicao: nova, caminhos: ['bio/composicaoRacial', ...desl] };
+        const vis = limparVisibilidadeOrfa(f, st.cenario) ? ['bio/racaVisibilidade'] : [];
+        return { ok: true, composicao: nova, caminhos: ['bio/composicaoRacial', ...vis, ...desl] };
     });
 }
 
@@ -216,7 +220,7 @@ export function pedirRacaAdquirida(racaId, motivo = '') {
     if (!listaDe(ficha.poderes).some(p => p && p.manipulaDNA === true)) {
         return falha('Você precisa de uma habilidade, poder, infinity ou singularidade de Manipulação de DNA (marcada pelo Mestre) para pedir uma nova Raça.');
     }
-    if (getComposicaoRacial(st.cenario, ficha).some(e => e.racaId === racaId)) return falha(`Você já tem a Raça ${raca.nome}.`);
+    if (getComposicaoRacial(st.cenario, ficha).some(e => e.racaId === racaId)) return falha(nivelDaRaca(ficha, racaId) === NIVEL_PADRAO ? `Você já tem a Raça ${raca.nome}.` : 'Você não pode pedir esta Raça.');
     const pedidos = listaDe(ficha.bio && ficha.bio.pedidosRaca).filter(Boolean);
     if (pedidos.some(p => p.racaId === racaId)) return falha(`Já existe um pedido pendente para ${raca.nome}.`);
     if (pedidos.length >= LIMITE_PEDIDOS_RACA) return falha('Muitos pedidos pendentes: aguarde o Mestre.');
@@ -227,7 +231,7 @@ export function pedirRacaAdquirida(racaId, motivo = '') {
         f.bio.pedidosRaca = [...listaDe(f.bio.pedidosRaca).filter(Boolean), pedido];
     });
     salvarFichaSilencioso();
-    feedDNA(`🧬 ${st.meuNome} pediu a Raça ${raca.nome} (Manipulação de DNA)`);
+    feedDNA(nivelDaRaca(ficha, racaId) === NIVEL_PADRAO ? `🧬 ${st.meuNome} pediu a Raça ${raca.nome} (Manipulação de DNA)` : `🧬 ${st.meuNome} pediu uma nova Raça (Manipulação de DNA)`);
     return { ok: true, pedido };
 }
 
@@ -254,7 +258,7 @@ export function aprovarPedidoRaca(entidade, pedidoId, percentual = PERCENTUAL_RA
         comp.push({ racaId: raca.id, percentual: p, origem: 'adquirida', fonte: 'Pedido aprovado' });
         f.bio.composicaoRacial = comp;
         registrarHistorico(f, { racaId: raca.id, de: 0, para: p, delta: p, motivo: pedido.motivo || 'Pedido aprovado', fonte: 'dna' });
-        feedDNA(`🧬 ${alvo.nome}: Raça ${raca.nome} adquirida (${p}%)`);
+        feedDNA(`🧬 ${alvo.nome} adquiriu uma nova Raça`);
         return { ok: true, percentual: p, composicao: comp, caminhos: [...caminhos, 'bio/composicaoRacial', 'bio/composicaoRacialHistorico'] };
     });
 }
@@ -317,7 +321,8 @@ export function despertarHabilidade(entidade, poderId) {
             return falha(b.bloqueado ? 'Esta habilidade está bloqueada por Domínio (percentual da Raça): pratique para elevar o percentual.' : 'Esta habilidade não está bloqueada.');
         }
         poder.bloqueio = { ...poder.bloqueio, ativo: false, despertouEm: Date.now() };
-        feedDNA(`🧬 ${alvo.nome} despertou ${poder.nome || 'uma Habilidade de Raça'}`);
+        // Com qualquer Raça não pública, o nome da habilidade também pode denunciar a Raça: texto genérico.
+        feedDNA(fichaTemRacaOculta(f) ? `🧬 ${alvo.nome} despertou uma habilidade racial` : `🧬 ${alvo.nome} despertou ${poder.nome || 'uma Habilidade de Raça'}`);
         return { ok: true, caminhos: [{ poderId, campo: 'bloqueio' }] };
     });
 }
@@ -350,4 +355,51 @@ export function definirManipulaDNA(entidade, poderId, valor) {
         if (valor === true) poder.manipulaDNA = true; else delete poder.manipulaDNA;
         return { ok: true, manipulaDNA: valor === true, caminhos: [{ poderId, campo: 'manipulaDNA' }] };
     });
+}
+
+// ---------- 🙈 Visibilidade das Raças (core/racasVisibilidade.js) ----------
+// Mestre/Co-Mestre: qualquer nível, em qualquer personagem (inclusive Dummie). Jogador: só na PRÓPRIA ficha, só publica⇄privada e NUNCA mexe numa Raça
+// 'secreta' (nem para tirar). Modo Jogador do Mestre vale como jogador (st.isMestre efetivo). `chave` = id da Raça no catálogo ou '_principal'.
+// Grava bio.racaVisibilidade: na própria ficha/dummie pelo rascunho; em outro jogador de forma granular ('bio/racaVisibilidade/<chave>', null apaga).
+// Só quando o MESTRE revela (secreta/privada → pública) vai um aviso ao Feed; ocultar não avisa ninguém. Só EXIBIÇÃO: ver o limite honesto no core.
+export function definirVisibilidadeRaca(entidade, chave, nivel) {
+    const st = useStore.getState();
+    if (!nivelValido(nivel)) return falha('Nível de visibilidade inválido.');
+    if (typeof chave !== 'string' || !(chave === CHAVE_PRINCIPAL || getRacas(st.cenario).some(r => r.id === chave))) return falha('Raça não encontrada no catálogo.');
+    const alvo = resolverAlvo(entidade, st);
+    if (alvo.erro) return falha(alvo.erro);
+    const ehMestre = !!st.isMestre;
+    const atual = nivelDaRaca(alvo.fresca, chave);
+    if (!ehMestre) {
+        if (alvo.tipo !== 'eu') return falha('Só o Mestre ou Co-Mestre pode mudar a visibilidade da Raça de outro personagem (e não no Modo Jogador).');
+        if (!nivelPermitidoAoJogador(atual, nivel)) {
+            return falha(atual === 'secreta' ? 'Só o Mestre pode mudar esta informação.' : 'Você só pode alternar a sua Raça entre Pública e Privada.');
+        }
+    }
+    if (atual === nivel) return { ok: true, nivel, semMudanca: true };
+    const racaInfo = chave === CHAVE_PRINCIPAL ? null : getRacas(st.cenario).find(r => r.id === chave);
+    return aplicar(alvo, (f) => {
+        if (!f.bio) f.bio = {};
+        const mapa = sanitizarVisibilidade(f.bio.racaVisibilidade);
+        if (nivel === NIVEL_PADRAO) delete mapa[chave]; else mapa[chave] = nivel;
+        if (Object.keys(mapa).length) f.bio.racaVisibilidade = mapa; else delete f.bio.racaVisibilidade;
+        if (ehMestre && nivel === NIVEL_PADRAO && atual !== NIVEL_PADRAO) {
+            const nomeRaca = racaInfo ? racaInfo.nome : (f.bio.raca || 'Raça');
+            feedDNA(`🧬 A Raça de ${alvo.nome} foi revelada: ${nomeRaca}`);
+        }
+        return { ok: true, nivel, caminhos: [`bio/racaVisibilidade/${chave}`] };
+    });
+}
+
+// Tira, do rascunho `f`, a visibilidade das Raças que não estão mais na composição nem são a principal. Devolve true se mudou algo.
+export function limparVisibilidadeOrfa(f, cenario) {
+    const mapa = f && f.bio && f.bio.racaVisibilidade;
+    if (!mapa || typeof mapa !== 'object') return false;
+    const vivas = new Set(getComposicaoRacial(cenario, f).map(e => e.racaId));
+    const principal = resolverRaca(cenario, f);
+    if (principal.id) vivas.add(principal.id); else vivas.add(CHAVE_PRINCIPAL);
+    let mudou = false;
+    Object.keys(mapa).forEach((k) => { if (!vivas.has(k)) { delete mapa[k]; mudou = true; } });
+    if (mudou && Object.keys(mapa).length === 0) delete f.bio.racaVisibilidade;
+    return mudou;
 }

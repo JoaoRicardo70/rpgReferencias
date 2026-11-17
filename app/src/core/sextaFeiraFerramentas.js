@@ -14,6 +14,7 @@
 // core/prestigioDistribuicao.js) — a IA nunca calcula Poder/Fadiga por conta própria.
 // ==========================================
 import { calcularPoderAtual } from './poder.js';
+import { racaPrincipalVisivel, contextoDoViewer } from './racasVisibilidade.js';
 import { getRawBase } from './attributes.js';
 import { calcularFadigaAtual, calcularGanhoFadigaDinamico } from './fadiga.js';
 import { getTetoExibidoComFator, FATOR_EXIBICAO_VITAIS } from './vitals.js';
@@ -176,6 +177,8 @@ function poderDe(ficha, estado) {
 // Ficha completa (dono ou Mestre).
 export function resumoFichaDetalhado(nome, ficha, estado) {
     const bio = ficha.bio || {};
+    // 🙈 Raça oculta para quem pergunta (core/racasVisibilidade.js): sem meuNome no estado, quem pede é o dono (visão de jogador); Mestre vê tudo.
+    const racaVis = racaPrincipalVisivel(estado && estado.cenario, ficha, contextoDoViewer({ nomeDono: nome, meuNome: estado && estado.meuNome, isMestre: !!(estado && estado.isMestre), souDono: estado && estado.meuNome ? undefined : true }));
     const vitais = {};
     VITAIS.forEach((k) => { const r = resumoVital(ficha, k); if (r) vitais[k] = r; });
     const prestigio = {};
@@ -186,7 +189,7 @@ export function resumoFichaDetalhado(nome, ficha, estado) {
     const poderes = lista(ficha.poderes);
     return {
         nome,
-        raca: bio.raca || 'N/A',
+        raca: racaVis.oculta ? (racaVis.texto || 'N/A') : (bio.raca || 'N/A'),
         classe: bio.classe || 'N/A',
         poderCalculado: poderDe(ficha, estado),
         supressaoPoder: arred(supressao),
@@ -204,10 +207,12 @@ export function resumoFichaDetalhado(nome, ficha, estado) {
 }
 
 // O que qualquer jogador pode ver de outro personagem.
-function resumoFichaPublico(nome, ficha) {
+function resumoFichaPublico(nome, ficha, estado) {
     const bio = ficha.bio || {};
     const vida = resumoVital(ficha, 'vida');
-    return { nome, raca: bio.raca || 'N/A', classe: bio.classe || 'N/A', vidaPorcentagem: vida ? vida.porcentagem : null, observacao: 'Só dados públicos: a ficha completa de outro personagem é exclusiva do dono e do Mestre.' };
+    // Só a Raça PÚBLICA de outro personagem: privada/secreta saem como "Raça desconhecida".
+    const racaVis = racaPrincipalVisivel(estado && estado.cenario, ficha, contextoDoViewer({ souDono: false, isMestre: false }));
+    return { nome, raca: racaVis.oculta ? (racaVis.texto || 'N/A') : (bio.raca || 'N/A'), classe: bio.classe || 'N/A', vidaPorcentagem: vida ? vida.porcentagem : null, observacao: 'Só dados públicos: a ficha completa de outro personagem é exclusiva do dono e do Mestre.' };
 }
 
 function resumoDummie(id, d, isMestre) {
@@ -346,7 +351,7 @@ export async function executarFerramenta(nomeFerramenta, args, estado, { carrega
                 }
                 return podeVerDetalhes(estado, achado.nome)
                     ? resumoFichaDetalhado(achado.nome, achado.ficha, estado)
-                    : resumoFichaPublico(achado.nome, achado.ficha);
+                    : resumoFichaPublico(achado.nome, achado.ficha, estado);
             }
             case 'estado_combate': {
                 const ordem = lista(estado.resumoTurnoMapa?.ordem);

@@ -1,17 +1,28 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import BotaoConcederHabilidade from '../mestre/BotaoConcederHabilidade';
 import { getBiblioteca, disponiveisParaJogador, disponivelParaFicha, textoDominio } from '../../core/bibliotecaRacial';
+import { habilidadeRevelaRaca, VIEWER_OUTRO_JOGADOR } from '../../core/racasVisibilidade';
+import { ID_CATEGORIA_HABILIDADE_RACA } from '../../core/racas';
 
 // 📚 "Disponíveis para a sua Raça" (aba 🧬 Habilidades de Raça do Grimório). Lista as entradas da biblioteca da mesa com acesso pela Raça/composição
 // do personagem que ele ainda NÃO possui: nome, resumo, "Domínio X% de Y%" (ou "Domínio suficiente") e o requisito de desbloqueio.
 // Jogador: SOMENTE LEITURA, nunca vê entradas de outras Raças nem o `modelo` (só nome/resumo/requisito/percentual) — "Peça ao Mestre para receber".
 // Mestre (Grimório do próprio ou de outra Entidade): a mesma lista com "✨ Conceder" daquele personagem + as entradas sem acesso pela Raça, concedíveis só como EXCEÇÃO.
 // entidade = { id, nome, isDummie } do dono da ficha exibida.
-export default function DisponiveisBiblioteca({ cenario, ficha, entidade, isMestre }) {
+// 🙈 `viewer` (core/racasVisibilidade.js): para quem não vê a Raça que dá o acesso, a entrada some da lista (listá-la revelaria a Raça).
+export default function DisponiveisBiblioteca({ cenario, ficha, entidade, isMestre, viewer = VIEWER_OUTRO_JOGADOR }) {
     const [mensagem, setMensagem] = useState(null);
     const aoResultado = useCallback((r) => setMensagem(r), []);
 
-    const disponiveis = useMemo(() => disponiveisParaJogador(cenario, ficha), [cenario, ficha]);
+    const disponiveis = useMemo(() => {
+        const lista = disponiveisParaJogador(cenario, ficha);
+        if (isMestre || (viewer && viewer.souMestre)) return lista;
+        const porId = new Map(getBiblioteca(cenario).map(e => [e.id, e]));
+        return lista.filter((d) => {
+            const e = porId.get(d.id);
+            return !e || !habilidadeRevelaRaca(cenario, ficha, { categoria: ID_CATEGORIA_HABILIDADE_RACA, racasAcesso: e.racasAcesso, percentualMinimo: 0 }, viewer);
+        });
+    }, [cenario, ficha, isMestre, viewer]);
     // Só Mestre: o que o personagem ainda não tem e a Raça dele NÃO libera (conceder = exceção, com confirmação).
     const excecoes = useMemo(() => {
         if (!isMestre) return [];

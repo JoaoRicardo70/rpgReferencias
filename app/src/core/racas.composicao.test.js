@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-    sanitizarRacas, getComposicaoRacial, racaTemAcesso, racasEfetivas, dominioDaRaca, poderBloqueado, poderUsavel, poderRacaIncompativel,
-    verificarAcessoHabilidadeRaca, motivoSemAcesso, racasQueDaoAcesso, descendentesDaRaca, limparReferenciasDeRaca,
-} from './racas';
+import { sanitizarRacas, getComposicaoRacial, racaTemAcesso, racasEfetivas, dominioDaRaca, poderBloqueado, poderUsavel, poderRacaIncompativel, motivoSemAcesso, racasQueDaoAcesso, descendentesDaRaca, limparReferenciasDeRaca } from './racas';
+import { verificarAcessoHabilidadeRaca } from './racasAcesso';
 
 const cenario = { racas: [
     { id: 'saiyajin', nome: 'Saiyajin' },

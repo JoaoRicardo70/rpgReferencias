@@ -5,7 +5,8 @@
 // capacidade máxima" é aprender com Maestria menor e treinar depois. Nada aqui fala com Firebase nem com a tela.
 // ==========================================
 import { temChaveInvalida, LIMITE_IMAGEM_NO_BACKUP } from './backupFicha';
-import { verificarAcessoHabilidadeRaca, aplicarExcecaoRaca, ehHabilidadeDeRaca, normalizarRacasAcesso, normalizarNomeRaca, percentualMinimoDoPoder } from './racas';
+import { aplicarExcecaoRaca, ehHabilidadeDeRaca, normalizarRacasAcesso, normalizarNomeRaca, percentualMinimoDoPoder } from './racas';
+import { verificarAcessoHabilidadeRaca } from './racasAcesso';
 import { poderEhCopiavel, usaMaestriaRequerida, ehCategoriaForma, idCategoriaPoder, mensagemCategoriaNaoLiberada, MENSAGEM_SINGULARIDADE_NAO_COPIA } from './categoriasPoder';
 
 export const TIPO_PODER = 'poder';     // item de ficha.poderes (Habilidade, Forma ou Poder)

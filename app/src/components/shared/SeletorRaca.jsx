@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import useStore from '../../stores/useStore';
 import { getRacas, resolverRaca } from '../../core/racas';
 import BotaoCatalogoRacas from './BotaoCatalogoRacas';
+import { ROTULO_RACA_OCULTA } from '../../core/racasVisibilidade';
 
 // 🧬 Campo "Raça" das fichas (Ficha e Narrativa). Com catálogo de Raças na mesa (core/racas.js): seleção do catálogo + "Outra (texto livre)";
 // sem catálogo: o mesmo campo de texto livre de sempre. O valor continua sendo o NOME da raça (ficha.bio.raca); o racaId é derivado ao salvar.
@@ -10,7 +11,7 @@ const VALOR_OUTRA = '__outra__';
 
 // variante="ficha": visual herdado da página (transparente, borda inferior pontilhada), sem rótulo próprio nem input-neon (Ficha Definitiva).
 // `dica` (opcional, variante ficha): linha curta mostrada sob o campo quando a raça escolhida está cadastrada.
-export default function SeletorRaca({ valor, aoMudar, rotulo = 'Raça', desabilitado = false, variante = 'padrao', dica = '', mostrarCatalogo }) {
+export default function SeletorRaca({ valor, aoMudar, rotulo = 'Raça', desabilitado = false, variante = 'padrao', dica = '', mostrarCatalogo, oculta = false, textoOculto = ROTULO_RACA_OCULTA }) {
     const ficha = variante === 'ficha';
     const cenario = useStore(s => s.cenario);
     const racas = useMemo(() => getRacas(cenario), [cenario]);
@@ -18,6 +19,16 @@ export default function SeletorRaca({ valor, aoMudar, rotulo = 'Raça', desabili
     const texto = valor == null ? '' : String(valor);
     const casada = useMemo(() => resolverRaca(cenario, { bio: { raca: texto } }), [cenario, texto]);
 
+    // 🙈 Raça principal oculta para quem olha (core/racasVisibilidade.js): só leitura, sem revelar nome nem permitir editar. O valor real fica intocado.
+    if (oculta) {
+        if (!textoOculto) return null; // terceiros: nada (nem o placeholder)
+        return (
+            <div className={ficha ? 'racas-seletor racas-seletor--ficha' : 'racas-seletor'}>
+                {ficha ? null : <label className="racas-seletor-rotulo">{rotulo}</label>}
+                <span className="racas-oculta" role="note" aria-label={rotulo}>{textoOculto}</span>
+            </div>
+        );
+    }
     const linkCatalogo = <BotaoCatalogoRacas forcarVisivel={mostrarCatalogo} rotulo={ficha ? '⚙️ Catálogo de Raças' : '⚙️ Gerenciar catálogo de Raças'} className={ficha ? 'racas-seletor--ficha-link' : ''} />;
     const rotuloEl = ficha ? null : <label className="racas-seletor-rotulo">{rotulo}</label>;
     const classeCampo = ficha ? 'racas-seletor--ficha-campo' : 'input-neon';

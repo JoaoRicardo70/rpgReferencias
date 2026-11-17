@@ -3,6 +3,8 @@ import { urlSeguraParaCss } from './MapaFormContext';
 import { ref, uploadBytes } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { storage, functions } from '../../services/firebase-config';
+import useStore from '../../stores/useStore';
+import { racaPrincipalVisivel, VIEWER_OUTRO_JOGADOR } from '../../core/racasVisibilidade';
 
 export function PlayerDeAudioRemoto({ stream, volume, surdo, nome, sinkId }) {
     const audioRef = useRef(null);
@@ -179,9 +181,13 @@ export function MapaOlhoSextaFeira({ meuNome, personagens, minhaFicha, tavernaAt
     const mixerCtxRef = useRef(null);
     const pedacoContadorRef = useRef(1);
 
+    const cenarioRacas = useStore(s => s?.cenario);
     const perfisJogadores = (Array.isArray(tavernaAtivos) ? tavernaAtivos : []).map(nome => {
         const ficha = nome === meuNome ? minhaFicha : personagens?.[nome];
-        return `${nome} (Classe: ${ficha?.bio?.classe || 'Mundano'}, Raça: ${ficha?.bio?.raca || 'Desconhecida'})`;
+        // 🙈 Este perfil vai à Cloud Function de transcrição: visão MAIS RESTRITA (só Raça pública, para todos, inclusive quem grava).
+        const vis = racaPrincipalVisivel(cenarioRacas, ficha, VIEWER_OUTRO_JOGADOR);
+        const raca = vis.oculta ? 'Desconhecida' : (ficha?.bio?.raca || 'Desconhecida');
+        return `${nome} (Classe: ${ficha?.bio?.classe || 'Mundano'}, Raça: ${raca})`;
     });
 
     useEffect(() => {

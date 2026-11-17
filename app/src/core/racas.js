@@ -367,24 +367,6 @@ export function poderRacaIncompativel(cenario, ficha, poder) {
     return ehHabilidadeDeRaca(poder) && poder.racaExcecao !== true && !racaTemAcessoPelaRaca(cenario, ficha, poder);
 }
 
-// Decisão ÚNICA do acesso (aceitar ensinamento/cópia, importar, Sexta-Feira, modelo, salvar):
-//  permitido: pode gravar agora; precisaConfirmarExcecao: só o Mestre, depois de confirmar "Raça sem acesso: conceder como exceção?" (gravar com racaExcecao: true).
-//  Poder que não é Habilidade de Raça, que já tem exceção (racaExcecao === true) ou com acesso: permitido.
-export function verificarAcessoHabilidadeRaca({ cenario, ficha, poder, isMestre } = {}) {
-    if (!ehHabilidadeDeRaca(poder) || poder.racaExcecao === true || racaTemAcessoPelaRaca(cenario, ficha, poder)) {
-        // Tem a Raça mas o percentual está abaixo do mínimo: pode receber a habilidade; ela fica 🔒 Domínio insuficiente até o percentual subir (poderBloqueado).
-        if (ehHabilidadeDeRaca(poder) && poder.racaExcecao !== true && !racaTemAcesso(cenario, ficha, poder)) {
-            return { permitido: true, precisaConfirmarExcecao: false, dominioInsuficiente: true, mensagem: '' };
-        }
-        return { permitido: true, precisaConfirmarExcecao: false, mensagem: '' };
-    }
-    const motivo = motivoSemAcesso(cenario, ficha, poder);
-    if (isMestre === true) {
-        return { permitido: false, precisaConfirmarExcecao: true, mensagem: `${motivo}\n\nRaça sem acesso: conceder como exceção?` };
-    }
-    return { permitido: false, precisaConfirmarExcecao: false, mensagem: `${motivo} Só o Mestre pode conceder como exceção.` };
-}
-
 export const MENSAGEM_JOGADOR_NAO_CRIA_HABILIDADE_RACA = 'Habilidades de Raça são concedidas pelo Mestre: peça a ele para criar ou conceder esta habilidade.';
 export const MENSAGEM_JOGADOR_NAO_EDITA_RACAS_ACESSO = 'Só o Mestre pode mudar quais Raças têm acesso a uma Habilidade de Raça: a lista foi mantida.';
 

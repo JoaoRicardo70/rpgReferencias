@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNarrativaForm, ATRIBUTO_OPTIONS, PROPRIEDADE_OPTIONS } from './NarrativaFormContext';
-import SeletorRaca from '../shared/SeletorRaca';
+import SeletorRaca from '../shared/SeletorRacaDaFicha';
 import ComposicaoRacialFicha from '../shared/ComposicaoRacialFicha';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Narrativa provider não encontrado</div>;

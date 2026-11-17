@@ -1,10 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-    normalizarNomeRaca, getRacas, sanitizarRacas, gerarIdRaca, resolverRaca, ancestraisDaRaca, racaTemAcesso, racasComAcessoTexto,
-    motivoSemAcesso, poderRacaIncompativel, ehHabilidadeDeRaca, verificarAcessoHabilidadeRaca, limparReferenciasDeRaca, migrarHabilidadesDeRaca,
-    camposDaRacaNaFicha, racaIdAposEdicaoDeTexto, contarRacasComAcesso, racasAcessoPadraoParaFicha, aplicarExcecaoRaca, normalizarRacasAcesso,
-    LIMITE_RACAS, LIMITE_NOME_RACA, LIMITE_APELIDOS_RACA,
-} from './racas';
+import { normalizarNomeRaca, getRacas, sanitizarRacas, gerarIdRaca, resolverRaca, ancestraisDaRaca, racaTemAcesso, racasComAcessoTexto, motivoSemAcesso, poderRacaIncompativel, ehHabilidadeDeRaca, limparReferenciasDeRaca, migrarHabilidadesDeRaca, camposDaRacaNaFicha, racaIdAposEdicaoDeTexto, contarRacasComAcesso, racasAcessoPadraoParaFicha, aplicarExcecaoRaca, normalizarRacasAcesso, LIMITE_RACAS, LIMITE_NOME_RACA, LIMITE_APELIDOS_RACA } from './racas';
+import { verificarAcessoHabilidadeRaca } from './racasAcesso';
 import { idCategoriaPoder, categoriasVisiveisNaFicha, poderEhCopiavel, usaMaestriaRequerida, CATEGORIAS_PODER, IDS_CATEGORIA_PODER } from './categoriasPoder';
 import { verificarAcessoOferta, aceitarOferta, prepararItemEnsinado } from './ensinar';
 import { planejarModelo, aplicarModeloNaFicha, obterModelo } from './modelosPoder';

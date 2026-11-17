@@ -8,6 +8,7 @@
 // montado aqui.
 // ==========================================
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
+import { racaPrincipalVisivel, VIEWER_DONO_JOGADOR, VIEWER_MESTRE } from './racasVisibilidade.js';
 
 // A família 2.5 ficou restrita a quem já a usava; projetos novos precisam dos modelos atuais.
 // O Mestre pode trocar na Config (o botão "Testar chave" lista os modelos que a chave aceita).
@@ -58,9 +59,15 @@ function listaOuPadrao(lista, padrao) {
     return lista.length > 0 ? lista.join('; ') : padrao;
 }
 
+function racaParaContexto(ficha, opcoes) {
+    const v = racaPrincipalVisivel(opcoes && opcoes.cenario, ficha, opcoes && opcoes.isMestre === true ? VIEWER_MESTRE : VIEWER_DONO_JOGADOR);
+    return v.oculta ? (v.texto || 'N/A') : ((ficha.bio && ficha.bio.raca) || '');
+}
+
 // Texto do contexto da ficha de quem está falando com a Sexta-Feira. Sempre começa com o nome,
 // que é o que o Protocolo Elizabeth do prompt usa.
-export function montarContextoFicha(ficha, nome) {
+// `opcoes` = { cenario, isMestre }: a Raça só entra no contexto se quem fala puder vê-la (🙈 core/racasVisibilidade.js: secreta = "Raça desconhecida"; sem opcoes = visão de jogador).
+export function montarContextoFicha(ficha, nome, opcoes = {}) {
     const nomeSeguro = nome || 'Desconhecido';
     if (!ficha) return `Quem fala: ${nomeSeguro}`;
     const bio = ficha.bio || {};
@@ -79,7 +86,7 @@ export function montarContextoFicha(ficha, nome) {
 
     const linhas = [
         `Quem fala: ${nomeSeguro}`,
-        `Raça: ${bio.raca || 'N/A'} | Classe: ${bio.classe || 'N/A'}`,
+        `Raça: ${racaParaContexto(ficha, opcoes) || 'N/A'} | Classe: ${bio.classe || 'N/A'}`,
     ];
     if (vitais.length) linhas.push(`Vitais atuais: ${vitais.join(', ')}`);
     linhas.push(`Armas equipadas: ${listaOuPadrao(equipadas, 'Desarmado')}`);

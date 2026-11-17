@@ -25,7 +25,8 @@
 //    (core/gatilhosAplicar.js > dispararEventoNaFicha) e zeraria o contador antes de o ganho lê-lo. O próprio ganho zera o contador (zerar: true).
 // ==========================================
 import { normalizarPoder } from './sextaFeiraCriacao.js';
-import { ehHabilidadeDeRaca, normalizarRacasAcesso, racasAcessoPadraoParaFicha, verificarAcessoHabilidadeRaca, aplicarExcecaoRaca } from './racas.js';
+import { ehHabilidadeDeRaca, normalizarRacasAcesso, racasAcessoPadraoParaFicha, aplicarExcecaoRaca } from './racas.js';
+import { verificarAcessoHabilidadeRaca } from './racasAcesso.js';
 import { normalizarGatilhos, LIMITE_GATILHOS_POR_FONTE } from './gatilhos.js';
 import { normalizarContador, listaDeContadores, LIMITE_CONTADORES } from './contadores.js';
 import { PESOS_ZENKAI_PADRAO, ZENKAI_TETO_PADRAO, ZENKAI_TETO_MIN, ZENKAI_TETO_MAX, ZENKAI_PONTUACAO_REF_PADRAO, ZENKAI_PONTUACAO_REF_MIN, ZENKAI_PONTUACAO_REF_MAX, TURNOS_PARA_ZENKAI_CHEIO, TURNOS_MINIMOS_MIN, TURNOS_MINIMOS_MAX, ZENKAI_PESO_MIN, ZENKAI_PESO_MAX, TETO_GASTO_TURNO, TURNOS_DURACAO_REF, LIMIAR_QUASE_MORTE, FATOR_OPONENTE_MIN, FATOR_OPONENTE_MAX } from './zenkai.js';

@@ -2,7 +2,8 @@ import { useCallback } from 'react';
 import useStore, { sanitizarNome } from '../stores/useStore';
 import { salvarFichaSilencioso } from '../services/firebase-sync';
 import { CAMPO_FICHA_POR_TIPO, TIPOS_PEDIDO_JOGADOR, anexarNaLista, normalizarProposta } from '../core/sextaFeiraCriacao';
-import { verificarAcessoHabilidadeRaca, aplicarExcecaoRaca, ehHabilidadeDeRaca, racasAcessoPadraoParaFicha } from '../core/racas';
+import { aplicarExcecaoRaca, ehHabilidadeDeRaca, racasAcessoPadraoParaFicha } from '../core/racas';
+import { verificarAcessoHabilidadeRaca } from '../core/racasAcesso';
 import { anexarNaFicha, enviarPendente, registrarDecisao, reivindicarPendente } from '../services/sextaFeiraDados';
 
 // 🛠️ PEDIDOS DE CRIAÇÃO DOS JOGADORES (Sexta-Feira): gravar na ficha, aprovar e recusar.

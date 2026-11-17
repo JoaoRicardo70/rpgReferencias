@@ -27,6 +27,7 @@ import {
     enviarPendente,
 } from '../../services/sextaFeiraDados';
 import * as pdfjsLib from 'pdfjs-dist';
+import { racaPrincipalVisivel, VIEWER_MESTRE, VIEWER_DONO_JOGADOR } from '../../core/racasVisibilidade';
 
 // Períodos do "Resumir sessão" (valor -> rótulo). 'ultimo' = desde o último resumo feito.
 export const PERIODOS_RESUMO = { hoje: 'de hoje', '6h': 'das últimas 6 horas', ultimo: 'desde o último resumo' };
@@ -102,6 +103,12 @@ export function useAIForm() {
     const ctx = useContext(AIFormContext);
     if (!ctx) return null;
     return ctx;
+}
+
+// 🙈 Raça que vai à IA: a real, a menos que esteja oculta para quem fala (secreta) e ele não seja Mestre (core/racasVisibilidade.js).
+function racaParaIA(cenario, ficha, isMestre) {
+    const v = racaPrincipalVisivel(cenario, ficha, isMestre ? VIEWER_MESTRE : VIEWER_DONO_JOGADOR);
+    return v.oculta ? (v.texto || 'N/A') : ((ficha && ficha.bio && ficha.bio.raca) || 'N/A');
 }
 
 export function AIFormProvider({ children }) {
@@ -692,7 +699,8 @@ export function AIFormProvider({ children }) {
         const poderesAtivos = (minhaFicha.poderes || []).filter(p => p.ativa).map(p => `${p.nome}[${p.vertente||'Padrão'}]`);
 
         return {
-            dadosPersonagem: { nome: meuNome, raca: bio.raca || 'N/A', classe: bio.classe || 'N/A' },
+            // 🙈 Raça oculta para o dono (secreta) não vai à IA; o Mestre vê a real (core/racasVisibilidade.js).
+            dadosPersonagem: { nome: meuNome, raca: racaParaIA(useStore.getState().cenario, minhaFicha, isMestre), classe: bio.classe || 'N/A' },
             statusVitais: { hp: (minhaFicha.vida?.atual||0) / FATOR_EXIBICAO_VITAIS, mana: (minhaFicha.mana?.atual||0) / FATOR_EXIBICAO_VITAIS, aura: (minhaFicha.aura?.atual||0) / FATOR_EXIBICAO_VITAIS },
             combate: {
                 armasEquipadas: armasEquipadas.length > 0 ? armasEquipadas : ['Desarmado'],
@@ -701,7 +709,7 @@ export function AIFormProvider({ children }) {
                 poderesAtivos: poderesAtivos.length > 0 ? poderesAtivos : ['Nenhum']
             }
         };
-    }, [minhaFicha, meuNome]);
+    }, [minhaFicha, meuNome, isMestre]);
 
     // 🎚️ PREFERÊNCIAS DO CHAT (de cada pessoa, neste navegador): quais fontes a Sexta-Feira usa e
     // se lê as respostas em voz alta.

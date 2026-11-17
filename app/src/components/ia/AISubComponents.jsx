@@ -489,8 +489,8 @@ function PainelContextoSexta() {
     const meuNome = ctx?.meuNome;
     const minhaVisao = useMemo(() => {
         if (!minhaFicha) return null;
-        try { return resumoFichaDetalhado(meuNome, minhaFicha, { divisorPoderMesa }); } catch (e) { return null; }
-    }, [minhaFicha, meuNome, divisorPoderMesa]);
+        try { return resumoFichaDetalhado(meuNome, minhaFicha, { divisorPoderMesa, meuNome, cenario, isMestre: ctx?.isMestre === true }); } catch (e) { return null; }
+    }, [minhaFicha, meuNome, divisorPoderMesa, cenario, ctx?.isMestre]);
     if (!ctx) return null;
     const { isMestre, carregando, iaConfigurada, preferencias, alternarPreferencia, arcoAtivoObj, capituloAtivoObj, sextaFeiraMemoria } = ctx;
 

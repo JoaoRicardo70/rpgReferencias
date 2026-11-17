@@ -5,7 +5,8 @@
 // o mesmo normalizarPoder da Sexta-Feira e prepara a PRÉVIA que o jogador revisa antes de gravar.
 // ==========================================
 import { ESTADOS } from './condicoes';
-import { verificarAcessoHabilidadeRaca, aplicarExcecaoRaca, ehHabilidadeDeRaca, racasAcessoPadraoParaFicha, normalizarRacasAcesso } from './racas';
+import { aplicarExcecaoRaca, ehHabilidadeDeRaca, racasAcessoPadraoParaFicha, normalizarRacasAcesso } from './racas';
+import { verificarAcessoHabilidadeRaca } from './racasAcesso';
 import { CATEGORIAS_PODER as LISTA_CATEGORIAS, IDS_CATEGORIA_PODER, idCategoriaPoder, categoriaLiberadaNaFicha } from './categoriasPoder';
 import { lerCustoPorTurno } from './custoPorTurno';
 import { ATRIBUTOS_EFEITO, PROPRIEDADES_EFEITO, normalizarPoder, resumirProposta } from './sextaFeiraCriacao';

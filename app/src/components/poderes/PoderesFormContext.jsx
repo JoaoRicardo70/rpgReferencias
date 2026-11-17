@@ -2,7 +2,9 @@ import { normalizarTipoAcao } from '../../core/acoesTecnica';
 import { CATEGORIAS_PODER, categoriasVisiveisNaFicha, categoriaDoPoderFicha, idCategoriaPoder, usaMaestriaRequerida } from '../../core/categoriasPoder';
 import { confirmarExcecaoRaca } from '../shared/ConfirmarExcecaoRaca';
 import { lerRespostaDaIA, prepararImportacao, montarPoderFinal, separarItensPorAcessoRaca } from '../../core/importadorIA';
-import { poderBloqueado, verificarAcessoHabilidadeRaca, normalizarRacasAcesso, racasAcessoPadraoParaFicha, ehHabilidadeDeRaca, MENSAGEM_JOGADOR_NAO_CRIA_HABILIDADE_RACA, MENSAGEM_JOGADOR_NAO_EDITA_RACAS_ACESSO } from '../../core/racas';
+import { poderBloqueado, normalizarRacasAcesso, racasAcessoPadraoParaFicha, ehHabilidadeDeRaca, MENSAGEM_JOGADOR_NAO_CRIA_HABILIDADE_RACA, MENSAGEM_JOGADOR_NAO_EDITA_RACAS_ACESSO } from '../../core/racas';
+import { verificarAcessoHabilidadeRaca } from '../../core/racasAcesso';
+import { poderBloqueadoParaDono } from '../../core/racasVisibilidade';
 import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from '../../core/efeitosCondicionais';
 import { normalizarUsos, limiteDeUsos, podeUsar, gastarUso, descreverUsos } from '../../core/usosPoder';
 import { normalizarCustoPorTurno } from '../../core/custoPorTurno';
@@ -652,7 +654,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         // 🔒 Habilidade de Raça bloqueada (não despertou / Domínio insuficiente): não liga. Desligar sempre pode.
         if (atual && !atual.ativa) {
             const bloq = poderBloqueado(cenarioMesaRef.current, minhaFicha, atual);
-            if (bloq.bloqueado) { alert(`"${atual.nome}" está bloqueada. ${bloq.motivo}`); return; }
+            if (bloq.bloqueado) { alert(`"${atual.nome}" está bloqueada. ${poderBloqueadoParaDono(cenarioMesaRef.current, minhaFicha, atual, useStore.getState().isMestre).motivo}`); return; }
         }
         // 💥 Ao desligar à mão (core/aoDesligar.js): rola os dados fora do rascunho para o dano não se repetir se o Immer reexecutar.
         const danoAoDesligar = atual && atual.ativa && !(opcoes && opcoes.semAoDesligar) ? rolarAoDesligar(atual) : 0;
@@ -1050,7 +1052,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     const dispararAtaque = useCallback((poder) => {
         // 🔒 Habilidade de Raça bloqueada não é usada em ataque/dano/custo.
         const bloqueioRaca = poderBloqueado(cenarioMesaRef.current, minhaFicha, poder);
-        if (bloqueioRaca.bloqueado) { alert(`"${poder.nome}" está bloqueada. ${bloqueioRaca.motivo}`); return; }
+        if (bloqueioRaca.bloqueado) { alert(`"${poder.nome}" está bloqueada. ${poderBloqueadoParaDono(cenarioMesaRef.current, minhaFicha, poder, useStore.getState().isMestre).motivo}`); return; }
         let custoFinalPerc = poder.custoPercentual || 0;
         const vertenteLower = (poder.vertente || '').toLowerCase();
         const isHabilidadeElemental = vertenteLower.includes('elemental');

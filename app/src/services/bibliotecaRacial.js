@@ -5,7 +5,8 @@ import {
     getBiblioteca, sanitizarBiblioteca, criarEntradaDePoder, disponivelParaFicha, jaPossuiHabilidade, montarPoderConcedido,
     LIMITE_BIBLIOTECA, LIMITE_NOME_BIBLIOTECA, normalizarTextoBiblioteca as textoBiblioteca,
 } from '../core/bibliotecaRacial';
-import { verificarAcessoHabilidadeRaca, ehHabilidadeDeRaca, normalizarNomeRaca, ID_CATEGORIA_HABILIDADE_RACA } from '../core/racas';
+import { ehHabilidadeDeRaca, normalizarNomeRaca, ID_CATEGORIA_HABILIDADE_RACA } from '../core/racas';
+import { verificarAcessoHabilidadeRaca } from '../core/racasAcesso';
 
 // 📚 Biblioteca de Habilidades de Raça da mesa (core/bibliotecaRacial.js). Só Mestre/Co-Mestre (isMestre efetivo; false em Modo Jogador).
 // Não depende do Mapa: lê o store NO MOMENTO da chamada. Todas devolvem { ok, mensagem?, ... } e nunca lançam.

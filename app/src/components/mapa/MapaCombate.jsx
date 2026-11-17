@@ -2,6 +2,7 @@ import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import useStore from '../../stores/useStore';
 import { poderBloqueado } from '../../core/racas';
+import { poderBloqueadoParaDono } from '../../core/racasVisibilidade';
 import { useMapaForm, urlSeguraParaCss } from './MapaFormContext';
 import { calcularCA } from '../../core/engine';
 import { useAtaqueForm } from '../combate/AtaqueFormContext';
@@ -1065,7 +1066,7 @@ export function MapaTecnicasRapidas() {
             if (emRecarga(p)) { alert(mensagemRecarga(p)); return; }
             // 🔒 Habilidade de Raça bloqueada: avisa ANTES de gastar a Ação (mesmo aviso do togglePoder).
             const bloqRaca = poderBloqueado(cenarioRacas, minhaFicha, p);
-            if (bloqRaca.bloqueado) { alert(`"${p.nome}" está bloqueada. ${bloqRaca.motivo}`); return; }
+            if (bloqRaca.bloqueado) { alert(`"${p.nome}" está bloqueada. ${poderBloqueadoParaDono(cenarioRacas, minhaFicha, p, useStore.getState().isMestre).motivo}`); return; }
             if (!gastarAcao(p)) return;
         }
         togglePoder(p.id);

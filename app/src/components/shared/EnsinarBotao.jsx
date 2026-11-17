@@ -3,6 +3,7 @@ import useStore, { sanitizarNome } from '../../stores/useStore';
 import { useFichaAtiva } from '../Ficha Def/FichaAlvoContext';
 import { alunosPossiveis, verificarAcessoOferta } from '../../core/ensinar';
 import { enviarEnsinamento } from '../../services/ensinar';
+import { fichaTemRacaOculta } from '../../core/racasVisibilidade';
 import { poderEhCopiavel, mensagemCategoriaNaoLiberada, MENSAGEM_SINGULARIDADE_NAO_COPIA } from '../../core/categoriasPoder';
 
 // 🎓 Botão "Ensinar" de uma Habilidade/Forma/Poder/Técnica: escolhe os alunos e o nível de aprendizado, e envia a oferta.
@@ -78,7 +79,7 @@ export default function EnsinarBotao({ tipo, item }) {
                     </label>
                     <p className="ensinar-dica">{tipo === 'poder' ? 'Vira a Maestria inicial do aluno: quanto menor, mais ele ainda precisa treinar.' : 'O aluno recebe uma cópia, anotada com este nível.'} Ele só recebe se aceitar.</p>
                     {semLiberacao.length > 0 && <p className="ensinar-dica">Atenção: {semLiberacao.join(', ')} ainda não {semLiberacao.length > 1 ? 'têm' : 'tem'} esta categoria liberada pelo Mestre (Ficha &gt; pág. 4, Marcados). A oferta fica pendente até a liberação.</p>}
-                    {semAcessoRaca.length > 0 && <p className="ensinar-dica">Atenção: a Raça de {semAcessoRaca.join(', ')} não tem acesso a esta Habilidade de Raça. {semAcessoRaca.length > 1 ? 'Eles só aprendem' : 'Só aprende'} se o Mestre conceder como exceção.</p>}
+                    {semAcessoRaca.length > 0 && <p className="ensinar-dica">Atenção: {semAcessoRaca.some(n => fichaTemRacaOculta(personagens?.[n])) ? `${semAcessoRaca.join(', ')} pode não ter` : `a Raça de ${semAcessoRaca.join(', ')} não tem`} acesso a esta Habilidade de Raça. {semAcessoRaca.length > 1 ? 'Eles só aprendem' : 'Só aprende'} se o Mestre conceder como exceção.</p>}
                     <button type="button" className="btn-neon btn-gold btn-small" onClick={enviar} disabled={enviando || escolhidos.length === 0}>Enviar oferta</button>
                 </div>
             )}
