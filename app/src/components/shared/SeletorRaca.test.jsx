@@ -56,3 +56,19 @@ describe('SeletorRaca', () => {
         expect(screen.getByRole('note').textContent).toMatch(/Raça não cadastrada/);
     });
 });
+
+describe('SeletorRaca variante ficha', () => {
+    it('usa classes próprias, sem rótulo nem input-neon, e mostra a dica quando cadastrada', () => {
+        useStore.setState({ cenario: CATALOGO });
+        const { container } = render(<SeletorRaca variante="ficha" valor="Humano" aoMudar={() => {}} dica="Dica curta" />);
+        expect(container.querySelector('.racas-seletor--ficha')).not.toBeNull();
+        expect(container.querySelector('.input-neon')).toBeNull();
+        expect(container.querySelector('.racas-seletor-rotulo')).toBeNull();
+        expect(screen.getByText('Dica curta')).toBeTruthy();
+    });
+    it('sem catálogo é um input de texto livre da variante', () => {
+        useStore.setState({ cenario: {} });
+        render(<SeletorRaca variante="ficha" valor="" aoMudar={() => {}} />);
+        expect(screen.getByLabelText('Raça').className).toContain('racas-seletor--ficha-campo');
+    });
+});

@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import useStore from '../../stores/useStore';
+import SeletorRaca from '../shared/SeletorRaca';
+import BotaoCatalogoRacas from '../shared/BotaoCatalogoRacas';
+import { getRacas, racaIdAposEdicaoDeTexto, composicaoComPrincipal } from '../../core/racas';
 import ClasseMecanicaPainel from './ClasseMecanicaPainel';
 import { salvarFichaSilencioso, salvarFirebaseImediato, salvarDivisorPoderMesa, salvarFichaAlvoSilencioso, salvarFichaAlvoImediato, enviarParaFeed } from '../../services/firebase-sync';
 import { dispararEventoEmPersonagem } from '../../services/gatilhosEventos';
@@ -852,6 +855,7 @@ export default function MarcadosPanel() {
     const { ficha: minhaFicha, updateFicha, nome: nomeFichaAtiva, souEuMesmo } = useFichaAtiva();
     const meuNome = useStore(s => s?.meuNome);
     const isMestreStatus = useStore(s => s?.isMestre) || false;
+    const catalogoCenario = useStore(s => s?.cenario);
     const importarDaAbaStatus = useStore(s => s?.importarDaAbaStatus);
     const divisorPoderMesa = useStore(s => s?.divisorPoderMesa) || 1;
     const setDivisorPoderMesa = useStore(s => s?.setDivisorPoderMesa);
@@ -1134,6 +1138,18 @@ export default function MarcadosPanel() {
                 atual = atual[chaves[i]];
             }
             atual[chaves[chaves.length - 1]] = valFinal;
+        });
+        callSave();
+    };
+
+    // 🧬 Raça: grava nome + racaId (e, só para o Mestre, alinha a composição racial) num único update/save.
+    const salvarRaca = (novoTexto, { doCatalogo = false } = {}) => {
+        const cen = catalogoCenario;
+        updateFicha(f => {
+            if (!f.bio || typeof f.bio !== 'object') f.bio = {};
+            f.bio.racaId = racaIdAposEdicaoDeTexto(cen, f.bio.racaId, f.bio.raca, novoTexto);
+            f.bio.raca = novoTexto;
+            if (isMestre && doCatalogo) { const comp = composicaoComPrincipal(cen, f); if (comp) f.bio.composicaoRacial = comp; }
         });
         callSave();
     };
@@ -1878,6 +1894,18 @@ export default function MarcadosPanel() {
                                                 style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px dotted currentColor', fontFamily: 'inherit', fontSize: 'inherit', color: 'inherit', fontWeight: 'inherit', outline: 'none', padding: '0 5px' }}>
                                                 {CLASSE_SELECT_OPTIONS.map(opt => <option key={opt.id} value={opt.id} style={{ color: '#000' }}>{opt.icone ? `${opt.icone} ${opt.nome}` : opt.nome}</option>)}
                                             </select>
+                                        ) : item.k === 'raca' ? (
+                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                                                {getRacas(catalogoCenario).length > 0 ? (
+                                                    <SeletorRaca key={nomeFichaAtiva || 'ficha'} variante="ficha" mostrarCatalogo={isMestre} valor={minhaFicha.bio?.raca} aoMudar={salvarRaca}
+                                                        dica={isMestre ? '' : 'Suas Habilidades de Raça dependem desta Raça; o Domínio é definido pelo Mestre.'} />
+                                                ) : (
+                                                    <>
+                                                        <CampoMagico valor={minhaFicha.bio?.raca} onChange={salvarRaca} styleExtra={{ flex: 1, borderBottom: '1px dotted currentColor' }} />
+                                                        <BotaoCatalogoRacas forcarVisivel={isMestre} rotulo="⚙️ Catálogo de Raças" className="racas-seletor--ficha-link" />
+                                                    </>
+                                                )}
+                                            </div>
                                         ) : (
                                             <CampoMagico valor={minhaFicha.bio?.[item.k]} onChange={(v) => salvar(`bio.${item.k}`, v)} styleExtra={{ flex: 1, borderBottom: '1px dotted currentColor' }} />
                                         )}

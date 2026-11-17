@@ -3728,6 +3728,11 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .racas-seletor { display: flex; flex-direction: column; gap: 4px; }
 .racas-seletor .input-neon { margin: 0; }
 .racas-seletor-livre { margin-top: 2px; }
+.racas-seletor--ficha { flex: 1; gap: 2px; font-size: inherit; }
+.racas-seletor--ficha .racas-seletor--ficha-campo { flex: 1; width: 100%; font: inherit; color: inherit; background: transparent; border: none; border-bottom: 1px dotted currentColor; border-radius: 0; box-shadow: none; outline: none; padding: 0 5px; margin: 0; }
+.racas-seletor--ficha option { color: #000; }
+.racas-seletor--ficha .racas-nao-cadastrada, .racas-seletor--ficha-dica { margin: 0; font-size: 0.65em; font-style: italic; opacity: 0.8; }
+.racas-seletor--ficha .racas-link-catalogo, .racas-seletor--ficha-link.racas-link-catalogo { align-self: flex-start; width: auto; margin: 0; background: transparent; border: none; padding: 0; font-size: 0.6em; text-decoration: underline; color: inherit; opacity: 0.7; cursor: pointer; box-shadow: none; }
 
 .habilidade-raca-bloco { margin: 8px 0; padding: 6px 8px; border-left: 3px solid var(--cor-info); background: rgba(0, 0, 0, 0.3); border-radius: 4px; }
 .habilidade-raca-selos { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; }
