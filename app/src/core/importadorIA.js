@@ -10,7 +10,8 @@ import { verificarAcessoHabilidadeRaca } from './racasAcesso';
 import { CATEGORIAS_PODER as LISTA_CATEGORIAS, IDS_CATEGORIA_PODER, idCategoriaPoder, categoriaLiberadaNaFicha } from './categoriasPoder';
 import { lerCustosPorTurno } from './custoPorTurno';
 import { ATRIBUTOS_EFEITO, PROPRIEDADES_EFEITO, normalizarPoder, resumirProposta } from './sextaFeiraCriacao';
-import { ATRIBUTOS_COM_QUANDO, normalizarQuandoMultiplicador } from './efeitosCondicionais';
+import { ATRIBUTOS_COM_QUANDO, normalizarQuando, normalizarQuandoMultiplicador } from './efeitosCondicionais';
+import { ATRIBUTO_DANO_DADOS, normalizarValorDanoDados, dadoDoEfeito } from './danoDados';
 import { EVENTOS_GATILHO, ACOES_GATILHO, LIMITE_GATILHOS_POR_FONTE, LIMITE_ACOES_POR_GATILHO, LIMITE_LINHAS_TABELA, LIMITE_OPCOES_ESCOLHA } from './gatilhos';
 import { lerGatilhosDaIA, marcarGatilhosPendentes, gatilhoFaltaResponder, decidirModoDoGatilho, finalizarGatilho } from './gatilhosImportacao';
 
@@ -50,13 +51,15 @@ CAMPOS DE CADA ITEM
 - "nome" e "descricao" (copie o texto original da habilidade, sem resumir).
 - "categoria": ${categoriasDoPrompt(padrao, ficha).map(id => `"${id}"`).join(', ')} (se o texto não disser, use "${padrao}"). ${categoriasDoPrompt(padrao, ficha).filter(id => EXPLICACAO_CATEGORIA[id]).map(id => EXPLICACAO_CATEGORIA[id]).join('; ')}${categoriasDoPrompt(padrao, ficha).some(id => EXPLICACAO_CATEGORIA[id]) ? '. Só use essas categorias especiais se o texto deixar claro.' : ''}
 - "danoQtd" e "danoFaces": "15d6" vira 15 e 6. Sem dano: 0 e 0.
+- "dadosExtra" (opcional): quando o dano rola MAIS DE UM tipo de dado ("100d4+25d10", "138d4+29d6+20d8+77d10"), ponha o primeiro em danoQtd/danoFaces e os outros aqui: [{"qtd":25,"faces":10}]. Sem dados extras, omita.
+- "statusFatores" (opcional): quando o dano soma N x um atributo ("3*dex", "8*str", "3*PM"): {"destreza":3} (chaves: forca, destreza, inteligencia, sabedoria, energiaEsp, carisma, stamina, constituicao; PM/poder mágico = inteligencia, presença = carisma). Termos que você não sabe mapear (ex.: "att") NÃO entram: vão para "naoAplicado". Esse fator vale SÓ no dano.
 - "custoPercentual": custo em % das energias, se o texto disser (senão 0). "alcance" e "area": em quadrados (senão 0).
 - "tipoAcao": "acao", "bonus", "reacao", "movimento", "livre" ou "" se não estiver claro.
 - "efeitos": efeitos que valem enquanto a habilidade está LIGADA (ativa): o texto diz "ao usar", "ao ativar", "enquanto ativo".
 - "efeitosPassivos": efeitos que valem SEMPRE, SOMENTE se o texto disser isso com todas as letras (seção "Passivas", "passivo", "sempre ativo", "permanente", "sem precisar ativar"). NUNCA coloque aqui um bônus só porque o texto o lista.
 - "efeitosIncertos": bônus que o texto lista mas NÃO deixa claro se valem sempre ou só com a habilidade ligada (ex.: uma lista solta "Aumenta a rolagem de ataque em +10"). NA DÚVIDA, use este campo: o jogador decide depois. Mesmo formato dos outros efeitos.
 - "subHabilidades": quando o texto tem uma habilidade PRINCIPAL (um título, ex.: "Rinnegan Supremo (Olho esquerdo):") e, abaixo dela, itens com nome próprio que são habilidades DELA (ex.: "- Limbo: ...", "- Izanagi: ..."), crie UM item só para a principal e ponha esses itens aqui, SEM criar itens separados para eles: [{"nome","descricao","tipoAcao","usosMax","usosPor","recargaTurnos","custoPorTurno","efeitos","efeitosPassivos","efeitosIncertos","multiplicadores","gatilhos","naoAplicado"}] (mesmas regras dos campos acima). Observações soltas da principal (ex.: "x800 em todo dano") ficam na principal, em "naoAplicado". Textos de prints seguidos sobre a mesma habilidade principal são UM item só. Sem sub-habilidades, use [].
-  Cada efeito: {"nome": "...", "atributo": "...", "propriedade": "...", "valor": 0}. "valor" é SEMPRE um número puro.
+  Cada efeito: {"nome": "...", "atributo": "...", "propriedade": "...", "valor": 0}. "valor" é SEMPRE um número puro, EXCETO no atributo "dano_dados" (bônus de DADO no dano, ex.: "+20d6 de dano"): {"atributo":"dano_dados","propriedade":"base","valor":"20d6"} (texto NdM; aceita "quando"). Multiplicadores (x3 no dano) NÃO são dano_dados.
 - "aplicaEstados": estados que a habilidade causa em quem ela atinge: [{"id": "...", "stacks": 1, "duracao": 2}]. Ids válidos: ${ESTADOS.map(e => e.id).join(', ')}. "duracao": SÓ se o texto disser por quantos turnos o estado dura ("imobilizado por 1 turno" = 1; "congela por 4 turnos" = 4; "por 1d12+1 turnos" = "1d12+1"): número de 1 a 99 OU dado "NdM" / "NdM+K". Sem prazo no texto, omita (o estado fica até ser removido). Só estados dos ids válidos; qualquer outro efeito vai para as notas.
 - "usosMax" e "usosPor": se o texto limita os usos ("1 vez por cena", "3 usos por descanso"), coloque o número em "usosMax" e "cena" ou "descanso" em "usosPor". Sem limite, omita os dois.
 - "custoPorTurno": se o texto cobra energia A CADA TURNO enquanto a habilidade está ligada ("5% de chakra por turno", "12 de mana por turno", "5 de aura por turno"): {"modo":"fixo" (número) ou "percMax" (% do máximo da energia),"valor":N,"energia":"mana" | "aura" | "chakra" | "corpo"}. Se cobra MAIS DE UMA energia por turno (ex.: "10% de corpo e 10% de aura por turno"), use uma LISTA com um objeto por energia. Sem custo por turno, omita.
@@ -70,7 +73,7 @@ CAMPOS DE CADA ITEM
     Parâmetros do evento: vidaAbaixoDe {"de":%maior,"ate":%menor} (% da Vida máxima, ex.: de 50 e ate 26 = entre 50% e 26%); acertou e atingido aceitam "nivel": "normal", "critico", "fatal" ou "qualquer"; poderLigou e poderDesligou aceitam "poderId" (vazio = a própria habilidade; "qualquer" = qualquer Poder); contadorAtingiu {"contadorId":"nome do contador","op":">=" ou "==","valor":N}.
   AÇÃO (campo "tipo" de cada item de "acoes", até ${LIMITE_ACOES_POR_GATILHO} por gatilho): ${ACOES_GATILHO.map(a => a.id).join(', ')}.
     Parâmetros: anularDano {} (SÓ no evento danoQueZeraria); definirVida {"valor":N} ou {"percMax":%}; curar {"modo":"fixo"|"percMax"|"percAtual","valor":N}; escudo {"nome","valor":N,"tipoEscudo":"escudo"|"vidaTemporaria"}; buff {"atributo","valor":N,"duracao":turnos 1 a 20,"modo":"turnos"|"combate"|"permanente"}; limparCondicoes {}; imunidadeTotal {"duracaoTurnos":1 a 10}; mensagem {"texto"}; contador {"id":"nome do contador","op":"somar"|"definir"|"zerar"|"dividir","valor":N,"sorteio":"NdM" opcional}; aplicarEstado {"estado":"<id>","stacks":N,"duracao":turnos 1 a 99 ou dado "NdM+K", só se o texto der prazo}; removerEstado {"estado":"<id>"} (ids de estado: ${ESTADOS.map(e => e.id).join(', ')}); ligarPoder / desligarPoder {"poderId":"nome da habilidade"}; danoEmSi {"modo":"fixo"|"percMax"|"percAtual","valor":N}; danoNoAtacante {"modo":"percDanoRecebido"|"fixo","valor":N} (devolve dano a quem atacou); ganhoPermanente {"unidade":"percentual","modo":"somar"|"multiplicar","valor":P} (ganho permanente de Poder em PORCENTAGEM: "+2% de Poder" = valor 2; "somar" = soma linear ao bônus, "multiplicar" = cada ganho multiplica o Poder atual por 1+P/100; se o texto não disser, use "somar"; "duracaoGanho":"combate" quando o texto disser "durante o combate", "até o fim da luta" ou "temporário" (o ganho zera no fim da luta), senão omita (permanente; também vale "duracaoGanho":"permanente"); SEMPRE envie "unidade":"percentual" junto de "modo"; sem "modo" nem "unidade" o valor é bruto, formato antigo, evite) OU {"unidade":"percentual","modo":"somar"|"multiplicar","deContador":{"id":"nome do contador","fator":P,"zerar":true|false}} (P% por ponto do contador: ganho = valor atual do contador x fator; "zerar" zera o contador depois); rolarTabela {"dado":"1d6","resultados":[{"ate":3,"texto":"...","acoes":[...]}]} (até ${LIMITE_LINHAS_TABELA} faixas, "ate" estritamente crescente, sem rolarTabela dentro de rolarTabela); pedirEscolha {"pergunta":"...","opcoes":[{"texto":"...","acoes":[...]}]} (de 2 a ${LIMITE_OPCOES_ESCOLHA} opções; o jogador escolhe uma na hora; sem rolarTabela/pedirEscolha dentro das opções).
-  "condicoes" (opcional, lista de textos): "vida_maior_que:N", "vida_menor_que:N" (N na escala da Vida exibida), "em_combate", "empunhando_arma", "alvo_com_estado:<id>", "eu_com_estado:<id>" (o próprio portador com o estado), "alvo_vida_abaixo:<%>".
+  "condicoes" (opcional, lista de textos): "vida_maior_que:N", "vida_menor_que:N" (N na escala da Vida exibida), "em_combate", "empunhando_arma", "alvo_com_estado:<id>", "eu_com_estado:<id>" (o próprio portador com o estado), "alvo_vida_abaixo:<%>", "alvo_com_debuff" (alvo com algum estado negativo), "combos_finalizados:<N>" (o portador finalizou ao menos N Combos), "primeiro_ataque_do_turno".
   "limite" (opcional): {"max":N,"por":"turno" | "cena" | "descanso"}. O período "luta" NÃO existe: "1 vez por combate/luta/batalha" = "cena". Sem limite no texto, omita.
   Contador e Poder referenciados são os que o jogador já tem na ficha: escreva o NOME deles; se o texto citar um que você não conhece, deixe o gatilho em "naoAplicado".
   Regra que não cabe no vocabulário (outros eventos, ações ou parâmetros): NÃO invente, vai para "naoAplicado".
@@ -96,7 +99,7 @@ COMO TRADUZIR
 - "Impõe desvantagem a quem o ataca" / "dupla desvantagem para acertá-lo": {"atributo":"desvantagem_atacante","propriedade":"base","valor":1} (valor 2 para dupla desvantagem): o efeito fica em QUEM é atacado.
 - "Crítico +1 de multiplicador" / "Crítico Fatal +3 de multiplicador": {"atributo":"mult_critico","propriedade":"base","valor":1} e {"atributo":"mult_critico_fatal","propriedade":"base","valor":3} (SOMAM ao x2 do Crítico e ao x4 do Fatal; não confunda com margem_critico, que muda o d20 do crítico).
 - "Sempre acerta" / "ataque certeiro" / "acerto garantido": {"atributo":"acerto_automatico","propriedade":"base","valor":1}.
-- CONDIÇÃO ("quando", opcional): só use se o texto condicionar o efeito. Valores: "em_combate", "empunhando_arma" ou "empunhando_arma:<tipo, ex.: espada>", "alvo_com_estado:<id do estado>", "alvo_vida_abaixo:<%>". Sem condição, não escreva o campo. O "quando" SÓ pode ser usado nestes atributos: ${ATRIBUTOS_COM_QUANDO.join(', ')}. Para qualquer outro atributo (forca, dano, vida...), NÃO escreva "quando": o efeito condicional vai para "naoAplicado". EXCEÇÃO: em MULTIPLICADORES o "quando" só aceita "em_combate" e "empunhando_arma" (ou "empunhando_arma:<tipo>"); multiplicador que depende do alvo (alvo_com_estado, alvo_vida_abaixo) NÃO leva "quando": vai para "naoAplicado".
+- CONDIÇÃO ("quando", opcional): só use se o texto condicionar o efeito. Valores: "em_combate", "empunhando_arma" ou "empunhando_arma:<tipo, ex.: espada>", "alvo_com_estado:<id do estado>", "alvo_vida_abaixo:<%>", "alvo_com_debuff", "combos_finalizados:<N>", "primeiro_ataque_do_turno". Sem condição, não escreva o campo. O "quando" SÓ pode ser usado nestes atributos: ${ATRIBUTOS_COM_QUANDO.join(', ')}. Para qualquer outro atributo (forca, dano, vida...), NÃO escreva "quando": o efeito condicional vai para "naoAplicado". EXCEÇÃO: em MULTIPLICADORES o "quando" só aceita "em_combate" e "empunhando_arma" (ou "empunhando_arma:<tipo>"); multiplicador que depende do alvo (alvo_com_estado, alvo_vida_abaixo) NÃO leva "quando": vai para "naoAplicado".
 MULTIPLICADORES (xN no dano, xN em status, xN em poder direto, "dobra", "triplica"...): NÃO os coloque em "efeitos". Use "multiplicadores": [{"nome":"...","atributo":"poder_direto" (dano e poder também valem poder_direto; ou o atributo, ex.: forca; "dano Geral" = atributo poder_direto com tipo geral: Geral/Base/Forma/Absoluto/Único são o TIPO, nunca o atributo),"valor":N (x800 = 800),"tipo":"base" | "geral" | "formas" | "absoluto" | "unico" (SÓ se o texto disser, ex.: "dano Geral" = geral; senão "")}]. O jogador decide depois se vale sempre ou só ao ativar e confirma o tipo.
 Se não existir um atributo exato para o que o texto pede, NÃO invente: coloque em "naoAplicado" e em "notasIA".
 
@@ -245,12 +248,26 @@ function separarEfeitosImportaveis(lista, naoAplicado) {
             naoAplicado.push(`Efeito em dano não importado (${descreverEfeito(e)})`);
             return false;
         }
+        // 🎲 Dado de dano (core/danoDados.js): o valor é "NdM", não um número; inválido ou com condição inválida não é importado.
+        if (minusculo(e.atributo) === ATRIBUTO_DANO_DADOS) {
+            if (!normalizarValorDanoDados(dadoDoEfeito(e))) {
+                naoAplicado.push(`Dado de dano inválido, não importado (${descreverEfeito(e)}); use NdM, ex.: 20d6`);
+                return false;
+            }
+            if (condicao && minusculo(condicao) !== 'sempre' && normalizarQuando(condicao) === null) {
+                naoAplicado.push(`Dado de dano com condição inválida, não importado (${descreverEfeito(e)}; quando: ${condicao})`);
+                return false;
+            }
+            return true;
+        }
         if (!Number.isFinite(parseFloat(String(e.valor ?? '').replace(',', '.')))) {
             naoAplicado.push(`Efeito sem valor numérico não importado (${descreverEfeito(e)})`);
             return false;
         }
         return true;
-    }).map(e => ({ ...e, valor: num(e.valor) }));
+    }).map(e => (minusculo(e.atributo) === ATRIBUTO_DANO_DADOS
+        ? { ...e, propriedade: 'base', valor: normalizarValorDanoDados(dadoDoEfeito(e)), ...(e.quando && minusculo(e.quando) !== 'sempre' ? { quando: normalizarQuando(e.quando) } : {}) }
+        : { ...e, valor: num(e.valor) }));
 }
 
 // Tipos de multiplicador do sistema (propriedade do efeito) que o jogador escolhe na prévia.

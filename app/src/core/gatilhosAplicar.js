@@ -18,6 +18,7 @@ import { calcularEficaciaCura } from './engine.js';
 import { adicionarEscudo, removerEscudo } from './escudos.js';
 import { gastarUso, limiteDeUsos } from './usosPoder.js';
 import { somarBuffTemporario } from './suporte.js';
+import { zerarAtaquesNoTurno, CAMINHO_ATAQUES_NO_TURNO } from './ataquesNoTurno.js';
 import { chaveDoGatilhoDoPoder, normalizarGatilhos, LIMITE_TOTAL_GANHO_PERMANENTE, LIMITE_GANHO_PERC_MIN, LIMITE_GANHO_PERMANENTE } from './gatilhos.js';
 import { FATOR_PODER_MAX, FATOR_PODER_MIN, zerarGanhosCombate } from './poder.js';
 import { CAMINHOS_ADAPTACAO } from './adaptacao.js';
@@ -192,10 +193,10 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                 const nomeBuff = `${nome} (${a.atributo})`;
                 ficha.buffsTemporarios = somarBuffTemporario(ficha.buffsTemporarios, {
                     id: `bg_${a.chave}_${a.atributo}`, nome: nomeBuff, fonte: (a.fonte && a.fonte.nome) || nome,
-                    efeitos: [{ atributo: a.atributo, propriedade: 'base', valor: a.valor, nome: nomeBuff }], duracao: a.duracao, duracaoModo: a.modo,
+                    efeitos: [{ atributo: a.atributo, propriedade: 'base', valor: a.valor, nome: nomeBuff, ...(a.quando ? { quando: a.quando } : {}) }], duracao: a.duracao, duracaoModo: a.modo,
                 });
                 caminhos.add('buffsTemporarios');
-                textos.push(`${nome} deu ${a.valor >= 0 ? '+' : ''}${a.valor} em ${a.atributo}`);
+                textos.push(a.atributo === 'dano_dados' ? `${nome} deu +${a.valor} de dado de dano` : `${nome} deu ${a.valor >= 0 ? '+' : ''}${a.valor} em ${a.atributo}`);
                 break;
             }
             case 'limparCondicoes':
@@ -417,7 +418,13 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
     const histCtx = { cena: ctx.cenaNome || cenaId, rodada: ctx.rodada };
     const modoPermanente = ctx.permanente || 'converter';
     let fimPermanente = null;
-    if (evento.tipo === 'turnoInicio' || evento.tipo === 'fimDeLuta') { if (zerarUsosPorTurno(ficha)) caminhos.add('combate/usosPoderes'); }
+    if (evento.tipo === 'turnoInicio' || evento.tipo === 'fimDeLuta') {
+        if (zerarUsosPorTurno(ficha)) caminhos.add('combate/usosPoderes');
+        // ⚔️ O contador de ataques do turno (core/ataquesNoTurno.js) volta a zero no começo do turno e no fim da luta.
+        if (zerarAtaquesNoTurno(ficha)) caminhos.add(CAMINHO_ATAQUES_NO_TURNO);
+    }
+    // Entrar na luta também zera o contador (o combate começa sem ataques feitos).
+    if (evento.tipo === 'inicioDeLuta' && zerarAtaquesNoTurno(ficha)) caminhos.add(CAMINHO_ATAQUES_NO_TURNO);
     if (evento.tipo === 'fimDeLuta') {
         resetarContadoresDeCena(ficha).forEach(i => caminhosDoContador(ficha, i).forEach(p => caminhos.add(p)));
         // 🧬 Adaptação: por padrão ('converter') a média das % ganhas nos turnos vira Poder PERMANENTE e o fator de combate zera (core/adaptacao.js). Idempotente.

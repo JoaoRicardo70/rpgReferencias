@@ -3,6 +3,9 @@ import { opcoesQuandoPara, ehPropriedadeMultiplicador, OPCOES_ESCOPO, ATRIBUTOS_
 import { ESTADOS } from '../../core/condicoes';
 import { SKILLS, SAVES } from '../combate/TestesFormContext';
 
+// Condições que não pedem complemento depois dos dois pontos.
+const SEM_ARGUMENTO = ['em_combate', 'empunhando_arma', 'alvo_com_debuff', 'primeiro_ataque_do_turno'];
+
 const partir = (valor) => {
     const [base, ...resto] = String(valor || '').split(':');
     return { base, arg: resto.join(':'), temArg: resto.length > 0 };
@@ -25,7 +28,7 @@ export default function CondicaoDoEfeito({ atributo, propriedade, quando, onQuan
 
     const trocarQuando = (base) => {
         if (base === 'sempre') onQuando('');
-        else if (base === 'em_combate' || base === 'empunhando_arma') onQuando(base);
+        else if (SEM_ARGUMENTO.includes(base)) onQuando(base);
         else onQuando(`${base}:`);
     };
     const trocarEscopo = (base) => onEscopo(base === 'teste:' ? 'teste:' : base);
@@ -59,6 +62,9 @@ export default function CondicaoDoEfeito({ atributo, propriedade, quando, onQuan
             )}
             {baseQuando === 'alvo_vida_abaixo' && (
                 <input type="number" min="1" max="100" placeholder="%" aria-label="Vida do alvo abaixo de (%)" value={q.arg} onChange={ev => onQuando(`alvo_vida_abaixo:${ev.target.value}`)} />
+            )}
+            {baseQuando === 'combos_finalizados' && (
+                <input type="number" min="1" max="999" placeholder="N" aria-label="Combos finalizados (mínimo)" value={q.arg} onChange={ev => onQuando(`combos_finalizados:${ev.target.value}`)} />
             )}
             {baseQuando === 'empunhando_arma' && (
                 <input type="text" placeholder="tipo (opcional)" aria-label="Tipo de arma" value={q.arg} onChange={ev => onQuando(ev.target.value.trim() ? `empunhando_arma:${ev.target.value}` : 'empunhando_arma')} />

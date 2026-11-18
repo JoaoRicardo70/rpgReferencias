@@ -4,6 +4,7 @@ import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vitals';
 import { equiparCobraReacao } from '../../core/acaoPoder';
 import useGastarAcao from '../../hooks/useGastarAcao';
+import { normalizarValorDanoDados } from '../../core/danoDados';
 
 export const ARMA_TIPOS = ['espada', 'arco', 'lança', 'machado', 'adaga', 'cajado', 'arma de fogo', 'manopla', 'foice', 'chicote', 'martelo', 'escudo'];
 export const RARIDADES = ['comum', 'rara', 'avançada', 'lendaria', 'lendaria (Longuinus)', 'espiritual', 'fantasma nobre'];
@@ -60,7 +61,9 @@ export function ArsenalFormProvider({ children }) {
 
     const addEfeitoTemp = useCallback(() => {
         if (!novoVal || !nomeEfeito.trim()) { alert('Preencha o nome e o valor do efeito!'); return; }
-        setEfeitosTempArsenal([...efeitosTempArsenal, { nome: nomeEfeito.trim(), atributo: novoAtr, propriedade: novoProp, valor: novoVal }]);
+        const dado = novoAtr === 'dano_dados' ? normalizarValorDanoDados(novoVal) : null;
+        if (novoAtr === 'dano_dados' && !dado) { alert('Dado de dano inválido: escreva no formato NdM, por exemplo 20d6.'); return; }
+        setEfeitosTempArsenal([...efeitosTempArsenal, { nome: nomeEfeito.trim(), atributo: novoAtr, propriedade: dado ? 'base' : novoProp, valor: dado || novoVal }]);
         setNovoVal('');
         setNomeEfeito('');
     }, [novoVal, nomeEfeito, efeitosTempArsenal, novoAtr, novoProp, setEfeitosTempArsenal]);
@@ -71,7 +74,9 @@ export function ArsenalFormProvider({ children }) {
 
     const addEfeitoPassivoTemp = useCallback(() => {
         if (!novoValPassivo || !nomeEfeitoPassivo.trim()) { alert('Preencha o nome e o valor do efeito passivo!'); return; }
-        setEfeitosTempPassivosArsenal([...efeitosTempPassivosArsenal, { nome: nomeEfeitoPassivo.trim(), atributo: novoAtrPassivo, propriedade: novoPropPassivo, valor: novoValPassivo }]);
+        const dado = novoAtrPassivo === 'dano_dados' ? normalizarValorDanoDados(novoValPassivo) : null;
+        if (novoAtrPassivo === 'dano_dados' && !dado) { alert('Dado de dano inválido: escreva no formato NdM, por exemplo 20d6.'); return; }
+        setEfeitosTempPassivosArsenal([...efeitosTempPassivosArsenal, { nome: nomeEfeitoPassivo.trim(), atributo: novoAtrPassivo, propriedade: dado ? 'base' : novoPropPassivo, valor: dado || novoValPassivo }]);
         setNovoValPassivo('');
         setNomeEfeitoPassivo('');
     }, [novoValPassivo, nomeEfeitoPassivo, efeitosTempPassivosArsenal, novoAtrPassivo, novoPropPassivo, setEfeitosTempPassivosArsenal]);

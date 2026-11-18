@@ -5,6 +5,8 @@ import { lerRespostaDaIA, prepararImportacao, montarPoderFinal, separarItensPorA
 import { poderBloqueado, normalizarRacasAcesso, racasAcessoPadraoParaFicha, ehHabilidadeDeRaca, MENSAGEM_JOGADOR_NAO_CRIA_HABILIDADE_RACA, MENSAGEM_JOGADOR_NAO_EDITA_RACAS_ACESSO } from '../../core/racas';
 import { verificarAcessoHabilidadeRaca } from '../../core/racasAcesso';
 import { poderBloqueadoParaDono } from '../../core/racasVisibilidade';
+import { ATRIBUTO_DANO_DADOS, normalizarValorDanoDados, normalizarDadosExtra, normalizarStatusFatores, resumirFormulaDeDano } from '../../core/danoDados';
+import { interpretarFormulaDano } from '../../core/formulaDano';
 import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from '../../core/efeitosCondicionais';
 import { normalizarUsos, limiteDeUsos, podeUsar, gastarUso, descreverUsos } from '../../core/usosPoder';
 import { custoPorTurnoParaSalvar, lerCustosPorTurno } from '../../core/custoPorTurno';
@@ -123,6 +125,11 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     const [imagemUrl, setImagemUrl] = useState('');
     const [dadosQtd, setDadosQtd] = useState(0);
     const [dadosFaces, setDadosFaces] = useState(20);
+    // 🧮 Fórmula de dano (core/danoDados.js, core/formulaDano.js): outros tipos de dado e N x atributo (só no dano) + o texto colado e o aviso do que foi lido/ignorado.
+    const [dadosExtraPoder, setDadosExtraPoder] = useState([]);
+    const [statusFatoresPoder, setStatusFatoresPoder] = useState({});
+    const [formulaDanoTexto, setFormulaDanoTexto] = useState('');
+    const [formulaDanoAviso, setFormulaDanoAviso] = useState('');
     const [custoPercentual, setCustoPercentual] = useState(0);
     const [custoPercentualMax, setCustoPercentualMax] = useState(0);
     const [tipoAcao, setTipoAcao] = useState('');
@@ -193,7 +200,14 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
 
     // Monta o efeito com a condição ("quando") e o escopo opcionais; devolve null (e avisa) se algum estiver incompleto.
     // Condição e escopo só valem nos atributos que os leem; valores que sobraram de outro atributo escolhido antes são ignorados.
-    const montarEfeitoNovo = useCallback((nome, atributo, propriedade, valor, quando, escopo) => {
+    const montarEfeitoNovo = useCallback((nome, atributo, propriedade, valorDigitado, quando, escopo) => {
+        let valor = valorDigitado;
+        // 🎲 Dado de dano: o valor é "NdM" (ex.: 20d6), sempre na propriedade base; escrito de outro jeito não entra.
+        if (atributo === ATRIBUTO_DANO_DADOS) {
+            valor = normalizarValorDanoDados(valorDigitado);
+            if (!valor) { alert('Dado de dano inválido: escreva no formato NdM, por exemplo 20d6 (de 1 a 1000 dados e de 1 a 1000 faces).'); return null; }
+            propriedade = 'base';
+        }
         // Multiplicador (mgeral...) aceita só as condições da própria ficha (em_combate, empunhando_arma); as de alvo não valem.
         const ehMult = ehPropriedadeMultiplicador(propriedade);
         const q = ehMult ? normalizarQuandoMultiplicador(quando) : (ATRIBUTOS_COM_QUANDO.includes(atributo) ? normalizarQuando(quando) : '');
@@ -210,6 +224,26 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         }
         return { nome, atributo, propriedade, valor, ...(q ? { quando: q } : {}), ...(esc ? { escopo: esc } : {}) };
     }, []);
+
+    // 🧮 Lê a fórmula de dano colada (core/formulaDano.js) e preenche dados, dados extras e N x atributo; o que não deu para ler com certeza é mostrado, nunca chutado.
+    const aplicarFormulaDano = useCallback(() => {
+        const lida = interpretarFormulaDano(formulaDanoTexto);
+        // O que vai para o estado passa de novo pela validação (atributo conhecido, fator de 1 a 1000).
+        const r = { ...lida, fatores: normalizarStatusFatores(lida.fatores).fatores };
+        const [principal, ...extras] = r.dados;
+        const atributosLidos = Object.keys(r.fatores);
+        if (!principal && atributosLidos.length === 0) {
+            setFormulaDanoAviso(r.ignorados.length > 0 ? `Nada reconhecido. Ignorado: ${r.ignorados.join(', ')}.` : 'Escreva uma fórmula, por exemplo 100d4+3*dex+3*PM.');
+            return;
+        }
+        if (principal) { setDadosQtd(principal.qtd); setDadosFaces(principal.faces); setDadosExtraPoder(extras); }
+        setStatusFatoresPoder(r.fatores);
+        const partes = [`Aplicado: ${resumirFormulaDeDano({ dadosQtd: principal ? principal.qtd : 0, dadosFaces: principal ? principal.faces : 0, dadosExtra: extras, statusFatores: r.fatores }) || 'nada'}.`];
+        if (r.fixo > 0) partes.push(`Valor fixo +${r.fixo} não aplicado (não há campo para ele).`);
+        if (r.ignorados.length > 0) partes.push(`Ignorado: ${r.ignorados.join(', ')}.`);
+        partes.push('Os fatores (N x atributo) valem só no dano.');
+        setFormulaDanoAviso(partes.join(' '));
+    }, [formulaDanoTexto, setDadosQtd, setDadosFaces]);
 
     const addEfeitoTemp = useCallback(() => {
         if (!novoVal || !nomeEfeito.trim()) { alert('Preencha o nome e o valor do efeito!'); return; }
@@ -269,6 +303,10 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         setImagemUrl(r.imagemUrl);
         setDadosQtd(r.dadosQtd);
         setDadosFaces(r.dadosFaces);
+        setDadosExtraPoder(r.dadosExtra);
+        setStatusFatoresPoder(r.statusFatores);
+        setFormulaDanoTexto('');
+        setFormulaDanoAviso('');
         setCustoPercentual(r.custoPercentual);
         setCustoPercentualMax(r.custoPercentualMax);
         setSemComoPoder(r.semComoPoder);
@@ -326,7 +364,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     const rascunhoAtual = useMemo(() => ({
         poderEditandoId: poderEditandoId ?? null,
         nome: nomePoder, descricao: descricaoPoder, vertente: poderVertente, elemento: poderElemento, elementosAfetados, imagemUrl,
-        dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiro: danoVerdadeiroPoder, tipoAcao,
+        dadosQtd, dadosFaces, dadosExtra: dadosExtraPoder, statusFatores: statusFatoresPoder, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiro: danoVerdadeiroPoder, tipoAcao,
         usosMax: usosMaxPoder, usosPor: usosPorPoder, custoTurno: custoTurnoPoder, custoTurnoExtras: custoTurnoExtrasPoder, recargaTurnos: recargaTurnosPoder, escudo: escudoPoder,
         gatilhos: gatilhosPoder, gatilhosDescartados, contadoresRascunho: contadoresPoder,
         alcance: poderAlcance, area: poderArea, arma: armaVinculada,
@@ -337,7 +375,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         abertas: secoesAbertas,
     }), [
         poderEditandoId, nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados, imagemUrl,
-        dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao,
+        dadosQtd, dadosFaces, dadosExtraPoder, statusFatoresPoder, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao,
         usosMaxPoder, usosPorPoder, custoTurnoPoder, custoTurnoExtrasPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, gatilhosDescartados, contadoresPoder,
         poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder,
         pastaPoder, estagiosEditor, efeitosTemp, efeitosTempPassivos,
@@ -462,6 +500,9 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         const afetaSafe = elementosAfetados || "";
         const urlSafe = imagemUrl || "";
         const armaSafe = armaVinculada || "";
+        // 🧮 Dados extras e N x atributo (só no dano): gravados já validados; vazio apaga o campo.
+        const dadosExtraSalvos = normalizarDadosExtra(dadosExtraPoder).lista;
+        const fatoresSalvos = normalizarStatusFatores(statusFatoresPoder).fatores;
         // 🪜 Estágios (core/estagios.js): só grava a config quando ligada; desligar apaga tudo.
         const limiteUsos = normalizarUsos(usosMaxPoder, usosPorPoder);
         const custoTurno = custoPorTurnoParaSalvar([custoTurnoPoder, ...custoTurnoExtrasPoder]);
@@ -528,6 +569,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
                     ficha.poderes[ix].imagemUrl = urlSafe;
                     ficha.poderes[ix].dadosQtd = parseInt(dadosQtd) || 0;
                     ficha.poderes[ix].dadosFaces = parseInt(dadosFaces) || 20;
+                    if (dadosExtraSalvos.length > 0) ficha.poderes[ix].dadosExtra = dadosExtraSalvos; else delete ficha.poderes[ix].dadosExtra;
+                    if (Object.keys(fatoresSalvos).length > 0) ficha.poderes[ix].statusFatores = fatoresSalvos; else delete ficha.poderes[ix].statusFatores;
                     ficha.poderes[ix].custoPercentual = parseFloat(custoPercentual) || 0;
                     ficha.poderes[ix].custoPercentualMax = parseFloat(custoPercentualMax) || 0;
                     ficha.poderes[ix].semComoPoder = !!semComoPoder;
@@ -583,6 +626,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
                     imagemUrl: urlSafe,
                     dadosQtd: parseInt(dadosQtd) || 0,
                     dadosFaces: parseInt(dadosFaces) || 20,
+                    ...(dadosExtraSalvos.length > 0 ? { dadosExtra: dadosExtraSalvos } : {}),
+                    ...(Object.keys(fatoresSalvos).length > 0 ? { statusFatores: fatoresSalvos } : {}),
                     custoPercentual: parseFloat(custoPercentual) || 0,
                     custoPercentualMax: parseFloat(custoPercentualMax) || 0,
                     semComoPoder: !!semComoPoder,
@@ -625,7 +670,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, custoTurnoExtrasPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, contadoresPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato, chaveRascunho, abrirPastaDoPoder, isMestre]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, dadosExtraPoder, statusFatoresPoder, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, custoTurnoExtrasPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, contadoresPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato, chaveRascunho, abrirPastaDoPoder, isMestre]);
     const salvarNovoPoder = useCallback(async () => {
         if (salvandoRef.current) return;
         salvandoRef.current = true;
@@ -1198,6 +1243,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         poderVertente, setPoderVertente, poderElemento, setPoderElemento,
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
+        dadosExtraPoder, setDadosExtraPoder, statusFatoresPoder, setStatusFatoresPoder, formulaDanoTexto, setFormulaDanoTexto, formulaDanoAviso, aplicarFormulaDano,
         custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, ctxProgressao, adicionarProgressaoRascunho, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, custoTurnoExtrasPoder, setCustoTurnoExtrasPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
@@ -1222,7 +1268,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     }), [
         minhaFicha, meuNome, isMestre, abaAtual, trocarAba, secoesAbertas, rascunhoAtual, cancelarEdicaoComConfirmacao,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
-        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao, gatilhosPoder, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, ctxProgressao, adicionarProgressaoRascunho, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, usosPorPoder, custoTurnoPoder, custoTurnoExtrasPoder, recargaTurnosPoder, escudoPoder, cenaAtivaId, poderAlcance,
+        imagemUrl, dadosQtd, dadosFaces, dadosExtraPoder, statusFatoresPoder, formulaDanoTexto, formulaDanoAviso, aplicarFormulaDano, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao, gatilhosPoder, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, ctxProgressao, adicionarProgressaoRascunho, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, usosPorPoder, custoTurnoPoder, custoTurnoExtrasPoder, recargaTurnosPoder, escudoPoder, cenaAtivaId, poderAlcance,
         poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma, pastasAbertas, alternarPasta, definirPastasAbertas,
         estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo, novoQuandoPassivo, novoEscopoPassivo,

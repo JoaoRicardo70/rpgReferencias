@@ -42,6 +42,7 @@ import { getPosicaoEntidade, getAlcanceMaximo, verificarAlvoNoAlcance } from '..
 import { aplicarDanoEmPersonagem } from '../../services/danoAlvo';
 import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, cenaAtualDaMesa, perguntarGatilhosDeDano, criarEscolhaDoDono } from '../../services/danoVida';
 import { passarTurnoDaImunidadeTotal, camposDeGatilhosAlterados, camposParaGravar, dispararEventoNaFicha } from '../../core/gatilhosAplicar';
+import { zerarAtaquesNoTurno, CAMINHO_ATAQUES_NO_TURNO } from '../../core/ataquesNoTurno';
 import { dispararEventoMeu, dispararEventoEmPersonagem, dispararResultadoDoAcerto } from '../../services/gatilhosEventos';
 import { resolverAlvoCombate, idAlvoPersonagem, ehAlvoPersonagem } from '../../core/alvoCombate';
 import { ordenarOrdemTurno, chaveEntidadeTurno, moverChaveNaOrdem, recalcularIndiceTurno } from '../../core/turnos';
@@ -106,6 +107,8 @@ export function aplicarInicioDeTurno(ficha, ehDummie = false, nome = '', context
     if (!ehDummie) passarTurnoDaImunidadeTotal(ficha);
 
     if (!ficha.combate) ficha.combate = {};
+    // ⚔️ Contador de ataques do turno (core/ataquesNoTurno.js): zera SEMPRE no início do turno do portador (alimenta "primeiro ataque do turno").
+    if (!ehDummie) zerarAtaquesNoTurno(ficha);
     // 💥 Zenkai (core/zenkai.js): fecha o gasto de Energia do turno anterior (ou abre a telemetria no 1º turno / de quem entrou depois). Só com Zenkai ligado e combate ativo
     // (contextoAdaptacao != null). Um erro aqui nunca impede o turno.
     if (!ehDummie && contextoAdaptacao) { try { abrirTurnoZenkai(ficha, { reiniciar: contextoAdaptacao.zenkaiReiniciar === true }); } catch (e) { console.error('Zenkai: abertura do turno falhou', e); } }
@@ -249,6 +252,7 @@ function camposDeInicioDeTurno(ficha, camposPoderes = {}, escudosMudaram = false
     });
     if (ficha.combate) {
         if (ficha.combate.fadigaTurnos !== undefined) campos['combate/fadigaTurnos'] = ficha.combate.fadigaTurnos;
+        if (ficha.combate.ataquesNoTurno !== undefined) campos[CAMINHO_ATAQUES_NO_TURNO] = ficha.combate.ataquesNoTurno;
         if (ficha.combate.fadigaExtra !== undefined) campos['combate/fadigaExtra'] = ficha.combate.fadigaExtra;
         // 🧬 Adaptação (core/adaptacao.js): só os campos que o início do turno mexe.
         if (ficha.combate.adaptacaoLigada === true) CAMINHOS_ADAPTACAO.forEach((c) => { const v = ficha.combate[c.split('/')[1]]; if (v !== undefined) campos[c] = v; });

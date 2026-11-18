@@ -3310,6 +3310,13 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .grimorio-form-nome { font-size: 1.15em; font-weight: bold; }
 .grimorio-form-descricao { min-height: 90px; resize: vertical; padding: 8px; }
 .grimorio-form-check { display: flex; align-items: center; gap: 6px; font-size: 0.85em; }
+/* Fórmula de dano colada (dados extras e N x atributo só no dano) */
+.grimorio-formula { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.grimorio-formula > input { flex: 1 1 220px; margin: 0; }
+.grimorio-formula-aviso { margin: 4px 0 0; font-size: 0.8em; line-height: 1.4; opacity: 0.85; }
+.grimorio-formula-resumo { display: flex; flex-wrap: wrap; gap: 6px; font-size: 0.8em; }
+.grimorio-formula-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--cor-destaque); border-radius: 12px; }
+.grimorio-formula-chip button { background: none; border: 0; color: inherit; cursor: pointer; padding: 0; line-height: 1; }
 .grimorio-form-imagem { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .grimorio-form-imagem > input { flex: 1 1 180px; margin: 0; }
 .grimorio-form-anexar { cursor: pointer; padding: 6px 12px; border: 1px dashed currentColor; border-radius: 4px; white-space: nowrap; opacity: 0.85; }

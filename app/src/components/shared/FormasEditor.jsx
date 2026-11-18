@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ATRIBUTOS_AGRUPADOS_ITEM_SEM_ESTADO, getPropriedadesDoAtributo, ajustarPropriedade } from '../../core/efeitos-constants';
+import { normalizarValorDanoDados } from '../../core/danoDados';
 
 export default function FormasEditor({ className, itemRaridade, formas, formaAtivaId, configAtivaId, onSalvarForma, onDeletarForma, onAtivarForma }) {
     const [mostrarFormas, setMostrarFormas] = useState(false);
@@ -109,13 +110,17 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
         if (isAtivo) {
             if (!cfg.tNomeA?.trim() || cfg.tValA === '') return alert('Preencha o nome e o valor do efeito! (Coloque 0 no valor se for uma habilidade mecânica/inata)');
             if (!cfg.efeitos) cfg.efeitos = [];
-            cfg.efeitos.push({ nome: cfg.tNomeA.trim(), atributo: cfg.tAtrA || 'forca', propriedade: cfg.tPropA || 'base', valor: cfg.tValA });
+            const dadoA = cfg.tAtrA === 'dano_dados' ? normalizarValorDanoDados(cfg.tValA) : null;
+            if (cfg.tAtrA === 'dano_dados' && !dadoA) return alert('Dado de dano inválido: escreva no formato NdM, por exemplo 20d6.');
+            cfg.efeitos.push({ nome: cfg.tNomeA.trim(), atributo: cfg.tAtrA || 'forca', propriedade: dadoA ? 'base' : (cfg.tPropA || 'base'), valor: dadoA || cfg.tValA });
             cfg.tValA = '';
             cfg.tNomeA = '';
         } else {
             if (!cfg.tNomeP?.trim() || cfg.tValP === '') return alert('Preencha o nome e o valor do efeito passivo! (Coloque 0 no valor se for uma habilidade mecânica/inata)');
             if (!cfg.efeitosPassivos) cfg.efeitosPassivos = [];
-            cfg.efeitosPassivos.push({ nome: cfg.tNomeP.trim(), atributo: cfg.tAtrP || 'forca', propriedade: cfg.tPropP || 'base', valor: cfg.tValP });
+            const dadoP = cfg.tAtrP === 'dano_dados' ? normalizarValorDanoDados(cfg.tValP) : null;
+            if (cfg.tAtrP === 'dano_dados' && !dadoP) return alert('Dado de dano inválido: escreva no formato NdM, por exemplo 20d6.');
+            cfg.efeitosPassivos.push({ nome: cfg.tNomeP.trim(), atributo: cfg.tAtrP || 'forca', propriedade: dadoP ? 'base' : (cfg.tPropP || 'base'), valor: dadoP || cfg.tValP });
             cfg.tValP = '';
             cfg.tNomeP = '';
         }

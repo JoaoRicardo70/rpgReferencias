@@ -53,6 +53,11 @@ export const ehEstadoValido = (id) => typeof id === 'string' && IDS.has(id);
 export const nomeDoEstado = (id) => (ESTADOS.find(e => e.id === id) || { nome: String(id) }).nome;
 export const iconeDoEstado = (id) => (ESTADOS.find(e => e.id === id) || { icone: '❔' }).icone;
 
+// 🔻 "Debuff" do alvo (condição `alvo_com_debuff`, core/efeitosCondicionais.js) = QUALQUER estado em `condicoes` que seja prejudicial ao portador
+// OU um buff temporário negativo (core/suporte.js > temBuffNegativo). Só os estados-flag de situação/posição do próprio personagem NÃO contam:
+// escondido, invisível, escalando e correndo. Presa, Flanqueado, Fintado e Surpreso contam (prejudicam quem os carrega).
+export const ESTADOS_NAO_NEGATIVOS = ['escondido', 'invisivel', 'escalando', 'correndo'];
+
 const limitarStacks = (n) => Math.max(0, Math.min(MAX_STACKS, Math.floor(Number(n) || 0)));
 
 // Lista limpa de condições da ficha (ids válidos, stacks de 1 a 6, sem repetir id).
@@ -67,6 +72,11 @@ export function condicoesDaFicha(ficha) {
         if (!antes || stacks > antes.stacks) vistos.set(c.id, { id: c.id, stacks, ...(c.fonte ? { fonte: String(c.fonte).slice(0, 60) } : {}) });
     });
     return [...vistos.values()];
+}
+
+// A ficha tem algum estado negativo ativo (ver ESTADOS_NAO_NEGATIVOS)?
+export function temEstadoNegativo(ficha) {
+    return condicoesDaFicha(ficha).some(c => !ESTADOS_NAO_NEGATIVOS.includes(c.id));
 }
 
 export function stacksDe(ficha, id) {

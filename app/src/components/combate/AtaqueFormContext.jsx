@@ -18,6 +18,7 @@ import { enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../servi
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getFatorVida, getPontosVidaTotal } from '../../core/danoProporcional';
 import { resolverAlvoCombate, reduzirDanoNoAlvo, ehAlvoPersonagem, montarAlvoPersonagem } from '../../core/alvoCombate';
+import { registrarAtaqueNoTurno } from '../../core/ataquesNoTurno';
 import { gravarVidaDoAlvo } from '../../services/danoAlvo';
 import { criarPosGolpe } from '../../services/posGolpe';
 import { coletarEstadosDoGolpe } from '../../core/estadosGolpe';
@@ -34,6 +35,9 @@ import { coletarAoAcertar, aplicarAoAcertarNoRascunho, aplicarRoubadoNoRascunho 
 import { valoresDeEfeitos, menorValorDeEfeitos, montarContextoDeCombate } from '../../core/efeitosCondicionais';
 
 const AtaqueFormContext = createContext(null);
+
+// Habilidade com N x atributo (statusFatores): o 1x implícito de Força NÃO vale (só o que o jogador marcou de verdade).
+const temFatores = (p) => !!p && !!p.statusFatores && typeof p.statusFatores === 'object' && Object.keys(p.statusFatores).length > 0;
 
 export const STATS_LIST = [
     { value: 'forca', label: 'Forca' }, { value: 'destreza', label: 'Destreza' }, { value: 'inteligencia', label: 'Inteligencia' },
@@ -275,7 +279,7 @@ export function AtaqueFormProvider({ children }) {
 
     useEffect(() => {
         const configs = {};
-        poderesAtivos.forEach(p => { configs[p.id] = { statusUsados: p.statusUsados || ['forca'], energiaCombustao: p.energiaCombustao || 'mana', comoPoder: !!p.comoPoder, percComoPoder: p.percComoPoder }; });
+        poderesAtivos.forEach(p => { configs[p.id] = { statusUsados: p.statusUsados || (temFatores(p) ? [] : ['forca']), energiaCombustao: p.energiaCombustao || 'mana', comoPoder: !!p.comoPoder, percComoPoder: p.percComoPoder }; });
         magiasOfensivas.forEach(m => { configs[m.id] = { statusUsados: m.statusUsados || ['inteligencia'], energiaCombustao: m.energiaCombustao || 'mana', comoPoder: !!m.comoPoder, percComoPoder: m.percComoPoder }; });
         setSkillConfigs(configs);
     }, [minhaFicha.poderes, minhaFicha.ataquesElementais]);
@@ -290,9 +294,11 @@ export function AtaqueFormProvider({ children }) {
         setSkillConfigs(prev => {
             const current = prev[id]?.statusUsados || ['forca'];
             const updated = current.includes(statValue) ? current.filter(v => v !== statValue) : [...current, statValue];
-            return { ...prev, [id]: { ...prev[id], statusUsados: updated.length > 0 ? updated : ['forca'] } };
+            // Com N x atributo (statusFatores) pode ficar sem nenhum status marcado: o 1x implícito de Força não volta.
+            const aceitaVazio = temFatores(poderesAtivos.find(p => p.id === id));
+            return { ...prev, [id]: { ...prev[id], statusUsados: updated.length > 0 || aceitaVazio ? updated : ['forca'] } };
         });
-    }, []);
+    }, [poderesAtivos]);
 
     // ⚔️ Equipar/desequipar a Arma Espiritual pelo Livro: o MESMO flag do Altar da Relíquia (armaEspiritual.equipada).
     const alternarArmaEspiritual = useCallback(() => {
@@ -578,7 +584,10 @@ export function AtaqueFormProvider({ children }) {
             id: p.id, nome: p.nome, dadosQtd: p.dadosQtd || 0, dadosFaces: p.dadosFaces || 20, custoPercentual: p.custoPercentual || 0,
             custoPercentualMax: p.custoPercentualMax, semComoPoder: !!p.semComoPoder,
             comoPoder: !!skillCfg[p.id]?.comoPoder, percComoPoder: skillCfg[p.id]?.percComoPoder,
-            armaVinculada: p.armaVinculada || '', statusUsados: skillCfg[p.id]?.statusUsados || p.statusUsados || ['forca'],
+            armaVinculada: p.armaVinculada || '', statusUsados: skillCfg[p.id]?.statusUsados || p.statusUsados || (temFatores(p) ? [] : ['forca']),
+            // 🎲 Fórmula de dano (core/danoDados.js): outros tipos de dado e N x atributo, só no dano.
+            ...(Array.isArray(p.dadosExtra) && p.dadosExtra.length > 0 ? { dadosExtra: p.dadosExtra } : {}),
+            ...(p.statusFatores && typeof p.statusFatores === 'object' && Object.keys(p.statusFatores).length > 0 ? { statusFatores: p.statusFatores } : {}),
             energiaCombustao: skillCfg[p.id]?.energiaCombustao || p.energiaCombustao || 'mana', efeitos: escalarEfeitosPorEstagio(p.efeitos, p),
             vertente: p.vertente || '', elemento: p.elemento || '' 
         }));
@@ -606,7 +615,7 @@ export function AtaqueFormProvider({ children }) {
             : { statusUsados: armaStatusUsados, energiaCombustao: armaEnergiaCombustao, percEnergia: parseFloat(armaPercEnergia) || 0 };
         const isCriticoNormal = forcarCritNormal || autoCritNormal || criticoPorEfeito.normal; const isCriticoFatal = forcarCritFatal || autoCritFatal || criticoPorEfeito.fatal;
 
-        const result = calcularDano({ minhaFicha, configArma, configHabilidades: todasHabilidades, itensEquipados: (minhaFicha.inventario || []).filter(i => i.equipado), isCriticoNormal, isCriticoFatal });
+        const result = calcularDano({ minhaFicha, configArma, configHabilidades: todasHabilidades, itensEquipados: (minhaFicha.inventario || []).filter(i => i.equipado), isCriticoNormal, isCriticoFatal, alvo: dummieAlvo || null });
 
         if (result.erro) { alert(result.erro); return false; }
 
@@ -644,6 +653,10 @@ export function AtaqueFormProvider({ children }) {
             updateFicha((ficha) => { for (let i = 0; i < result.drenos.length; i++) { if (ficha[result.drenos[i].key]) { ficha[result.drenos[i].key].atual -= result.drenos[i].valor; } } registrarGastoDeEnergia(ficha, { drenos: result.drenos, custosPoder: result.custosPoder }); /* 💥 Zenkai */ });
             salvarFichaSilencioso();
         }
+        // ⚔️ Conta o golpe no turno do portador (core/ataquesNoTurno.js): é o que faz o "primeiro ataque do turno" valer só no primeiro.
+        // Só conta em combate (iniciativa > 0): fora dele não há turno.
+        if (Number(minhaFicha.iniciativa) > 0) updateFicha(ficha => { if (Number(ficha.iniciativa) > 0) registrarAtaqueNoTurno(ficha); });
+        salvarFichaSilencioso();
 
         setForcarCritNormal(false); setForcarCritFatal(false); setIgnorarTravaAcerto(false);
 

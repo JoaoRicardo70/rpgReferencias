@@ -34,6 +34,12 @@ export const ATRIBUTOS_AGRUPADOS = [
         label: '🛡️ IMUNIDADE A ESTADOS',
         options: ['imune_estado', 'resiste_estado']
     },
+    // 🎲 Dado de dano (core/danoDados.js, core/efeitosCondicionais.js > dadosBonusDeDano): propriedade BASE; o valor é um DADO escrito "NdM" (ex.: 20d6),
+    // somado ao dano ROLADO do golpe do portador (e multiplicado pelo crítico como os demais dados). Aceita "quando". Multiplicadores não o tocam.
+    {
+        label: '🎲 DADO DE DANO',
+        options: ['dano_dados']
+    },
     {
         label: 'DEFESA (CA)',
         options: ['evasiva', 'resistencia']
@@ -97,7 +103,7 @@ export const GRUPO_IDENTIFICACAO = {
 export const PROPRIEDADES_REACAO = ['contra_ataque', 'atacar_atacante', 'atacar_ataque', 'reduzir_dano', 'aumentar_ca'];
 
 // Atributos que só fazem sentido com a propriedade BASE (o valor é a quantidade/porcentagem).
-const SO_BASE = new Set(['acerto', 'imune_surpresa', 'imune_estado', 'resiste_estado', 'vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'mult_critico', 'mult_critico_fatal', 'acerto_automatico', 'desvantagem_atacante', 'reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder', 'identificar_tipo_ataque', 'identificar_energia']);
+const SO_BASE = new Set(['acerto', 'imune_surpresa', 'imune_estado', 'resiste_estado', 'vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'mult_critico', 'mult_critico_fatal', 'acerto_automatico', 'desvantagem_atacante', 'reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder', 'identificar_tipo_ataque', 'identificar_energia', 'dano_dados']);
 
 // Propriedades que fazem sentido para o atributo escolhido (Ação/Reação não têm Multiplicador; Reação escolhe o efeito).
 export function getPropriedadesDoAtributo(atributo) {

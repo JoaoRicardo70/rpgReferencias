@@ -379,6 +379,7 @@ export function PoderesFormEditor() {
         elementosAfetados, setElementosAfetados,
         imagemUrl, setImagemUrl, uploadingImg, handleImageUpload,
         dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
+        dadosExtraPoder, setDadosExtraPoder, statusFatoresPoder, setStatusFatoresPoder, formulaDanoTexto, setFormulaDanoTexto, formulaDanoAviso, aplicarFormulaDano,
         custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresParaGatilhos, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, custoTurnoExtrasPoder, setCustoTurnoExtrasPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
@@ -395,6 +396,9 @@ export function PoderesFormEditor() {
         salvarNovoPoder, cancelarEdicaoComConfirmacao, formRef, minhaFicha,
         secoesAbertas, setSecoesAbertas, rascunhoAtual
     } = ctx;
+    // Contextos antigos/mockados podem não trazer os campos da fórmula de dano.
+    const dadosExtraLista = dadosExtraPoder || [];
+    const fatoresObj = statusFatoresPoder || {};
 
     const sing = SINGULAR[abaAtual] || 'Poder/Habilidade';
     const abertas = secoesAbertas || {};
@@ -476,6 +480,24 @@ export function PoderesFormEditor() {
                 <div className="grimorio-form-grade">
                     <label className="grimorio-form-campo"><span className="grimorio-form-rotulo">Qtd Dados</span><input type="number" min="0" value={dadosQtd} onChange={e => setDadosQtd(e.target.value)} className="grimorio-form-num" /></label>
                     <label className="grimorio-form-campo"><span className="grimorio-form-rotulo">Faces (d)</span><input type="number" min="1" value={dadosFaces} onChange={e => setDadosFaces(e.target.value)} className="grimorio-form-num" /></label>
+                    <div className="grimorio-form-campo grimorio-form-span-tudo">
+                        <span className="grimorio-form-rotulo">Fórmula de dano (colar)</span>
+                        <div className="grimorio-formula">
+                            <input type="text" aria-label="Fórmula de dano" placeholder="Ex.: 100d4+25d10+3*dex+3*PM" value={formulaDanoTexto || ''} onChange={e => setFormulaDanoTexto(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); aplicarFormulaDano(); } }} />
+                            <button type="button" className="btn-neon grimorio-btn grimorio-btn--sm" onClick={aplicarFormulaDano} disabled={!String(formulaDanoTexto || '').trim()} title="Preenche os dados, os dados extras e os fatores N x atributo (só valem no dano)">Aplicar</button>
+                        </div>
+                        {formulaDanoAviso && <p className="grimorio-formula-aviso" role="status">{formulaDanoAviso}</p>}
+                        {(dadosExtraLista.length > 0 || Object.keys(fatoresObj).length > 0) && (
+                            <div className="grimorio-formula-resumo">
+                                {dadosExtraLista.map((d, i) => (
+                                    <span key={`dx-${i}`} className="grimorio-formula-chip">+{d.qtd}d{d.faces}<button type="button" aria-label={`Remover o dado extra ${d.qtd}d${d.faces}`} onClick={() => setDadosExtraPoder(dadosExtraLista.filter((_, j) => j !== i))}>✖</button></span>
+                                ))}
+                                {Object.keys(fatoresObj).map(a => (
+                                    <span key={`sf-${a}`} className="grimorio-formula-chip">{fatoresObj[a]}x {a}<button type="button" aria-label={`Remover o fator de ${a}`} onClick={() => { const { [a]: _removido, ...resto } = fatoresObj; setStatusFatoresPoder(resto); }}>✖</button></span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                     <label className="grimorio-form-campo"><span className="grimorio-form-rotulo">Custo (%)</span><input type="number" min="0" value={custoPercentual} onChange={e => setCustoPercentual(e.target.value)} className="grimorio-form-num" /></label>
                     <label className="grimorio-form-campo"><span className="grimorio-form-rotulo">Custo Máx (%)</span><input type="number" min="0" value={custoPercentualMax} onChange={e => setCustoPercentualMax(e.target.value)} title="Margem de Custo: do Custo (%) até este máximo. Vale ao conjurar como Poder." className="grimorio-form-num" /></label>
                     <label className="grimorio-form-campo"><span className="grimorio-form-rotulo">Alcance (Q)</span><input type="number" min="0" step="0.5" value={poderAlcance} onChange={e => setPoderAlcance(e.target.value)} className="grimorio-form-num" /></label>
@@ -524,14 +546,14 @@ export function PoderesFormEditor() {
                         <select value={novoAtr} onChange={e => { setNovoAtr(e.target.value); setNovoProp(ajustarPropriedade(e.target.value, novoProp)); }}>
                             {ATRIBUTOS_PODERES.map(grupo => (
                                 <optgroup key={grupo.label} label={grupo.label}>
-                                    {grupo.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}
+                                    {grupo.options.map(a => <option key={a} value={a}>{a === 'dano_dados' ? 'DADO DE DANO' : a.replace('_', ' ').toUpperCase()}</option>)}
                                 </optgroup>
                             ))}
                         </select>
                         <select value={novoProp} onChange={e => setNovoProp(e.target.value)}>
                             {getPropriedadesDoAtributo(novoAtr).map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
                         </select>
-                        <input type="text" className="grimorio-form-efeito-valor" placeholder="Valor" value={novoVal} onChange={e => setNovoVal(e.target.value)} />
+                        <input type="text" className="grimorio-form-efeito-valor" placeholder={novoAtr === 'dano_dados' ? 'Ex.: 20d6' : 'Valor'} value={novoVal} onChange={e => setNovoVal(e.target.value)} />
                         <button type="button" className="btn-neon grimorio-btn grimorio-btn--sm grimorio-form-efeito-add" onClick={addEfeitoTemp} title="Adicionar efeito ativo">+</button>
                     </div>
                     <CondicaoDoEfeito atributo={novoAtr} propriedade={novoProp} quando={novoQuando} onQuando={setNovoQuando} escopo={novoEscopo} onEscopo={setNovoEscopo} />
@@ -557,14 +579,14 @@ export function PoderesFormEditor() {
                         <select value={novoAtrPassivo} onChange={e => { setNovoAtrPassivo(e.target.value); setNovoPropPassivo(ajustarPropriedade(e.target.value, novoPropPassivo)); }}>
                             {ATRIBUTOS_PODERES.map(grupo => (
                                 <optgroup key={grupo.label} label={grupo.label}>
-                                    {grupo.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}
+                                    {grupo.options.map(a => <option key={a} value={a}>{a === 'dano_dados' ? 'DADO DE DANO' : a.replace('_', ' ').toUpperCase()}</option>)}
                                 </optgroup>
                             ))}
                         </select>
                         <select value={novoPropPassivo} onChange={e => setNovoPropPassivo(e.target.value)}>
                             {getPropriedadesDoAtributo(novoAtrPassivo).map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
                         </select>
-                        <input type="text" className="grimorio-form-efeito-valor" placeholder="Valor" value={novoValPassivo} onChange={e => setNovoValPassivo(e.target.value)} />
+                        <input type="text" className="grimorio-form-efeito-valor" placeholder={novoAtrPassivo === 'dano_dados' ? 'Ex.: 20d6' : 'Valor'} value={novoValPassivo} onChange={e => setNovoValPassivo(e.target.value)} />
                         <button type="button" className="btn-neon grimorio-btn grimorio-btn--sm grimorio-form-efeito-add" onClick={addEfeitoPassivoTemp} title="Adicionar efeito passivo">+</button>
                     </div>
                     <CondicaoDoEfeito atributo={novoAtrPassivo} propriedade={novoPropPassivo} quando={novoQuandoPassivo} onQuando={setNovoQuandoPassivo} escopo={novoEscopoPassivo} onEscopo={setNovoEscopoPassivo} />

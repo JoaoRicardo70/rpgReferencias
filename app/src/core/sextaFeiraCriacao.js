@@ -24,6 +24,8 @@ import { normalizarRecarga, LIMITE_RECARGA } from './recargaPoder.js';
 import { normalizarAoDesligar } from './aoDesligar.js';
 import { lerGatilhosDaIA } from './gatilhosImportacao.js';
 import { EVENTOS_GATILHO, ACOES_GATILHO, PERIODOS_GATILHO, NIVEIS_ACERTO, OPS_CONTADOR_ACAO, OPS_CONTADOR_EVENTO, LIMITE_GATILHOS_POR_FONTE, LIMITE_ACOES_POR_GATILHO, LIMITE_LINHAS_TABELA, LIMITE_OPCOES_ESCOLHA, descreverGatilho } from './gatilhos.js';
+import { fatoresComApelidos } from './formulaDano.js';
+import { ATRIBUTO_DANO_DADOS, LIMITES_DANO_DADOS, normalizarValorDanoDados, dadoDoEfeito, normalizarDadosExtra, normalizarStatusFatores, resumirFormulaDeDano } from './danoDados.js';
 import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from './efeitosCondicionais.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 import { descreverDuracaoSpec } from './duracaoEstados.js';
@@ -196,6 +198,16 @@ function normalizarEfeitos(lista, padraoAtributo, avisos, rotulo) {
             // O app guarda o valor como texto digitado.
             valor: String(numero(e?.valor, 0)),
         };
+        // 🎲 Dado de dano (core/danoDados.js): o valor é "NdM" (campo `dado` ou `valor`), sempre na propriedade base; inválido descarta o efeito.
+        if (efeito.atributo === ATRIBUTO_DANO_DADOS) {
+            const dado = normalizarValorDanoDados(dadoDoEfeito(e));
+            if (!dado) {
+                avisos.push(`${rotulo} ${i + 1}: o dado de dano "${dadoDoEfeito(e) ?? ''}" é inválido (use NdM, ex.: 20d6, de 1 a ${LIMITES_DANO_DADOS.qtdMax} dados e faces); o efeito foi descartado.`);
+                return null;
+            }
+            efeito.valor = dado;
+            efeito.propriedade = 'base';
+        }
         // Condição ("quando") e escopo (a que rolagem vale) são opcionais (core/efeitosCondicionais.js). Um que o sistema não reconhece
         // DESCARTA o efeito: deixá-lo valer sempre (ou em outra rolagem) daria a vantagem/bônus onde ele nunca deveria valer.
         const ehMult = ehPropriedadeMultiplicador(efeito.propriedade);
@@ -239,7 +251,7 @@ function anexarEstadosReflexoSuporte(objeto, d, avisos, { reflexo = true } = {})
         }
     }
     if (d.suporte !== undefined && d.suporte !== null) {
-        const su = normalizarSuporte(d.suporte);
+        const su = normalizarSuporte(d.suporte && typeof d.suporte === 'object' ? { ...d.suporte, buffs: buffsComQuandoCanonico(d.suporte.buffs) } : d.suporte);
         const buffsBrutos = Array.isArray(d.suporte?.buffs) ? d.suporte.buffs.length : 0;
         if (!su) avisos.push('Suporte vazio ou inválido (sem cura e sem buffs válidos); foi ignorado.');
         else {
@@ -323,7 +335,7 @@ const SUPORTE_SCHEMA = {
     description: 'Cura e/ou buffs dados a quem usa e/ou a aliados (criação de apoio). Use quando a criação cura ou fortalece, não para dano. Ex.: {"cura":{"dadosQtd":3,"dadosFaces":8,"fixo":10},"buffs":[{"atributo":"forca","propriedade":"base","valor":5}],"duracao":3,"alvos":"aliados","maxAlvos":3,"acao":"padrao"}',
     properties: {
         cura: { type: 'OBJECT', description: 'Cura = dados + valor fixo + % da Vida máxima do alvo. No modo passivo, energias = % do máximo de cada energia recuperado por turno (0-100).', properties: { dadosQtd: { type: 'INTEGER' }, dadosFaces: { type: 'INTEGER' }, fixo: { type: 'NUMBER' }, percVida: { type: 'NUMBER' }, energias: { type: 'OBJECT', properties: { mana: { type: 'NUMBER' }, aura: { type: 'NUMBER' }, chakra: { type: 'NUMBER' }, corpo: { type: 'NUMBER' } } } } },
-        buffs: { type: 'ARRAY', description: 'Buffs temporários no mesmo formato dos efeitos.', items: { type: 'OBJECT', properties: { atributo: { type: 'STRING', enum: ATRIBUTOS_EFEITO }, propriedade: { type: 'STRING', enum: PROPRIEDADES_EFEITO }, valor: { type: 'NUMBER' } }, required: ['atributo', 'propriedade', 'valor'] } },
+        buffs: { type: 'ARRAY', description: 'Buffs temporários no mesmo formato dos efeitos.', items: { type: 'OBJECT', properties: { atributo: { type: 'STRING', enum: ATRIBUTOS_EFEITO }, propriedade: { type: 'STRING', enum: PROPRIEDADES_EFEITO }, valor: { type: 'NUMBER' }, dado: { type: 'STRING', description: 'Só dano_dados: o dado NdM (ex.: "20d6"); use valor 0.' }, quando: { type: 'STRING', description: 'Só dano_dados: condição (em_combate, alvo_com_debuff, combos_finalizados:<N>, primeiro_ataque_do_turno...).' } }, required: ['atributo', 'propriedade', 'valor'] } },
         modo: { type: 'STRING', enum: ['uso', 'passivo'], description: 'uso = ativo; passivo = sempre ligado enquanto o Poder/Item estiver em uso (só em quem usa).' },
         duracao: { type: 'INTEGER', description: `Turnos dos buffs (0 = sem prazo, máx. ${LIMITES_SUPORTE.duracaoMax}).` },
         alvos: { type: 'STRING', enum: MODOS_ALVO_SUPORTE.map(m => m.id), description: 'si = só quem usa; aliados; ambos.' },
@@ -360,6 +372,19 @@ export function normalizarPoder(dados) {
         tipoAcao: normalizarTipoAcao(d.tipoAcao),
         notasIA: texto(d.notasIA, 4000),
     };
+    // 🧮 Dados extras (outros tipos de dado rolados junto) e fatores N x atributo (SÓ no dano): validação rígida, o inválido sai com aviso (core/danoDados.js).
+    const extras = normalizarDadosExtra(d.dadosExtra);
+    const brutosExtras = Array.isArray(d.dadosExtra) ? d.dadosExtra.length : 0;
+    if (brutosExtras > extras.lista.length) avisos.push(`${brutosExtras - extras.lista.length} dado(s) extra(s) inválido(s) (use qtd e faces inteiros, de 1 a ${LIMITES_DANO_DADOS.qtdMax}) ou acima do limite de ${LIMITES_DANO_DADOS.gruposExtra} tipos foram descartados.`);
+    if (d.dadosExtra !== undefined && d.dadosExtra !== null && !Array.isArray(d.dadosExtra)) avisos.push('dadosExtra precisa ser uma lista de { qtd, faces }; foi ignorado.');
+    let listaExtras = extras.lista;
+    if (objeto.dadosQtd === 0 && listaExtras.length > 0) { objeto.dadosQtd = listaExtras[0].qtd; objeto.dadosFaces = listaExtras[0].faces; listaExtras = listaExtras.slice(1); }
+    if (listaExtras.length > 0) objeto.dadosExtra = listaExtras;
+    if (d.statusFatores !== undefined && d.statusFatores !== null) {
+        const fat = normalizarStatusFatores(fatoresComApelidos(d.statusFatores));
+        if (fat.descartados > 0) avisos.push(`${fat.descartados} fator(es) de atributo inválido(s) (atributo desconhecido, N <= 0 ou acima de ${LIMITES_DANO_DADOS.fatorMax}) foram descartados.`);
+        if (Object.keys(fat.fatores).length > 0) objeto.statusFatores = fat.fatores;
+    }
     if (categoria === 'forma') {
         objeto.maestria = numero(d.maestria, 0, 0, 100);
         objeto.fadigaPorUso = numero(d.fadigaPorUso, 15, 0, 100);
@@ -515,13 +540,22 @@ export function normalizarTierList(dados, nomesConhecidos = []) {
 
 
 // ---------- 🥋 Combos e Follow Ups (core/combos.js) ----------
+// Buff de dano_dados com "quando": a condição entra na forma canônica; inválida descarta o buff (falha fechada, conta no aviso de descartados). Os demais passam como vieram.
+function buffsComQuandoCanonico(lista) {
+    return (Array.isArray(lista) ? lista : []).map((b) => {
+        if (!b || typeof b !== 'object' || b.atributo !== ATRIBUTO_DANO_DADOS || b.quando === undefined || b.quando === null || b.quando === '') return b;
+        const q = normalizarQuando(b.quando);
+        return q === null ? null : { ...b, quando: q };
+    });
+}
+const golpeComQuandoCanonico = (g) => (g && typeof g === 'object' ? { ...g, buffs: buffsComQuandoCanonico(g.buffs) } : g);
 function contarBuffs(golpes) { return golpes.reduce((s, g) => s + (Array.isArray(g?.buffs) ? g.buffs.length : 0), 0); }
 
 export function normalizarComboProposta(dados) {
     const avisos = [];
     const entrada = dados && typeof dados === 'object' ? dados : {};
     const brutoGolpes = [entrada.iniciador, ...(Array.isArray(entrada.passos) ? entrada.passos : [])];
-    const combo = normalizarCombo({ ...entrada, id: undefined });
+    const combo = normalizarCombo({ ...entrada, id: undefined, iniciador: golpeComQuandoCanonico(entrada.iniciador), passos: (Array.isArray(entrada.passos) ? entrada.passos : []).map(golpeComQuandoCanonico) });
     const antes = contarBuffs(brutoGolpes);
     const depois = contarBuffs([combo.iniciador, ...combo.passos]);
     if (depois < antes) avisos.push(`${antes - depois} buff(s) inválido(s) ou acima do limite foram descartados.`);
@@ -535,7 +569,7 @@ export function normalizarComboProposta(dados) {
 export function normalizarFollowUpProposta(dados) {
     const avisos = [];
     const entrada = dados && typeof dados === 'object' ? dados : {};
-    const fu = normalizarFollowUp({ ...entrada, id: undefined, combosIds: [] });
+    const fu = normalizarFollowUp({ ...entrada, id: undefined, combosIds: [], niveis: (Array.isArray(entrada.niveis) ? entrada.niveis : []).map(golpeComQuandoCanonico) });
     const antes = (Array.isArray(entrada.niveis) ? entrada.niveis : []).reduce((s, n) => s + (Array.isArray(n?.buffs) ? n.buffs.length : 0), 0);
     const depois = fu.niveis.reduce((s, n) => s + n.buffs.length, 0);
     if (depois < antes) avisos.push(`${antes - depois} buff(s) inválido(s) ou acima do limite foram descartados.`);
@@ -613,7 +647,7 @@ export function resumirProposta(tipo, objeto, { extras: comExtras = true } = {})
 
 function resumirBase(tipo, objeto) {
     if (!objeto) return '';
-    if (tipo === 'poder') return `${objeto.categoria} · ${objeto.dadosQtd ? `${objeto.dadosQtd}d${objeto.dadosFaces}` : 'sem dano'} · custo ${objeto.custoPercentual}% · ${(objeto.efeitos || []).length + (objeto.efeitosPassivos || []).length} efeito(s)`;
+    if (tipo === 'poder') return `${objeto.categoria} · ${resumirFormulaDeDano(objeto) || 'sem dano'} · custo ${objeto.custoPercentual}% · ${(objeto.efeitos || []).length + (objeto.efeitosPassivos || []).length} efeito(s)`;
     if (tipo === 'magia') return `${objeto.elemento} · ${objeto.tipoMecanica} · ${objeto.dadosExtraQtd ? `${objeto.dadosExtraQtd}d${objeto.dadosExtraFaces}` : 'sem dados extras'} · custo ${objeto.custoValor}`;
     if (tipo === 'item') return `${objeto.tipo}${objeto.armaTipo ? ` (${objeto.armaTipo})` : ''} · ${objeto.raridade}${objeto.dadosQtd ? ` · ${objeto.dadosQtd}d${objeto.dadosFaces}` : ''}`;
     if (tipo === 'npc') return `Vida ${Math.round(objeto.hpMax / FATOR_EXIBICAO_VITAIS).toLocaleString('pt-BR')} · ${objeto.tipoDefesa} ${objeto.valorDefesa}${objeto.poderCalculado !== undefined ? ` · Poder ${Math.round(objeto.poderCalculado).toLocaleString('pt-BR')}` : ''}`;
@@ -633,8 +667,9 @@ const EFEITOS_SCHEMA = {
             nome: { type: 'STRING' },
             atributo: { type: 'STRING', enum: ATRIBUTOS_EFEITO },
             propriedade: { type: 'STRING', enum: PROPRIEDADES_EFEITO, description: 'base = soma fixa; mbase/mgeral/mformas/mabs/munico = multiplicadores; reducaocusto; regeneracao; bonus_acerto; elemento_inato; furia_berserker.' },
-            valor: { type: 'NUMBER' },
-            quando: { type: 'STRING', description: 'Opcional: condição para o efeito valer. sempre (padrão), em_combate, empunhando_arma, empunhando_arma:<tipo, ex.: espada>, alvo_com_estado:<id do estado, ex.: surpreso>, alvo_vida_abaixo:<%>.' },
+            valor: { type: 'NUMBER', description: 'Número do efeito. Para o atributo dano_dados use valor 0 e preencha "dado".' },
+            dado: { type: 'STRING', description: 'SÓ para atributo dano_dados (bônus de DADO no dano rolado do golpe; propriedade base): o dado no formato NdM, ex.: "20d6". Multiplicadores x N continuam só no Poder: não use dano_dados para eles.' },
+            quando: { type: 'STRING', description: 'Opcional: condição para o efeito valer. sempre (padrão), em_combate, empunhando_arma, empunhando_arma:<tipo, ex.: espada>, alvo_com_estado:<id do estado, ex.: surpreso>, alvo_vida_abaixo:<%>, alvo_com_debuff (alvo com algum estado negativo), combos_finalizados:<N> (o portador finalizou ao menos N Combos), primeiro_ataque_do_turno.' },
             escopo: { type: 'STRING', description: 'Opcional, para vantagem/desvantagem/piso_d20: ataque, teste, teste:<perícia ou atributo, ex.: intuicao> ou tudo.' },
         },
         required: ['atributo', 'propriedade', 'valor'],
@@ -664,7 +699,7 @@ const GATILHOS_SCHEMA = {
         properties: {
             nome: { type: 'STRING' }, notas: { type: 'STRING' },
             evento: { type: 'OBJECT', properties: { tipo: { type: 'STRING', enum: EVENTOS_GATILHO.map(e => e.id) }, de: { type: 'NUMBER', description: 'vidaAbaixoDe: % maior da faixa.' }, ate: { type: 'NUMBER', description: 'vidaAbaixoDe: % menor da faixa.' }, nivel: { type: 'STRING', enum: NIVEIS_ACERTO, description: 'acertou/atingido.' }, poderId: { type: 'STRING', description: 'poderLigou/poderDesligou (vazio = este Poder; "qualquer").' }, contadorId: { type: 'STRING' }, op: { type: 'STRING', enum: OPS_CONTADOR_EVENTO }, valor: { type: 'NUMBER' } }, required: ['tipo'] },
-            condicoes: { type: 'ARRAY', items: { type: 'STRING' }, description: 'vida_maior_que:N, vida_menor_que:N, em_combate, empunhando_arma[:tipo], alvo_com_estado:<id>, eu_com_estado:<id> (o próprio portador), alvo_vida_abaixo:<%>.' },
+            condicoes: { type: 'ARRAY', items: { type: 'STRING' }, description: 'vida_maior_que:N, vida_menor_que:N, em_combate, empunhando_arma[:tipo], alvo_com_estado:<id>, eu_com_estado:<id> (o próprio portador), alvo_vida_abaixo:<%>, alvo_com_debuff, combos_finalizados:<N>, primeiro_ataque_do_turno.' },
             limite: { type: 'OBJECT', properties: { max: { type: 'INTEGER' }, por: { type: 'STRING', enum: PERIODOS_GATILHO.map(p => p.id) } } },
             acoes: {
                 type: 'ARRAY', description: `Até ${LIMITE_ACOES_POR_GATILHO} ações. rolarTabela: {"tipo":"rolarTabela","dado":"1d6","resultados":[{"ate":3,"texto":"...","acoes":[...]}]} (até ${LIMITE_LINHAS_TABELA} faixas, "ate" crescente). pedirEscolha: {"tipo":"pedirEscolha","pergunta":"...","opcoes":[{"texto":"...","acoes":[...]}]} (2 a ${LIMITE_OPCOES_ESCOLHA} opções).`,
@@ -690,6 +725,8 @@ export const DECLARACOES_CRIACAO = [
                 elemento: { type: 'STRING', description: 'Só com vertente Elemental. Ex.: Fogo, Raio, Gelo, Luz, Trevas.' },
                 elementosAfetados: { type: 'STRING' },
                 dadosQtd: { type: 'INTEGER' }, dadosFaces: { type: 'INTEGER' },
+                dadosExtra: { type: 'ARRAY', description: 'Outros tipos de dado rolados JUNTO com dadosQtd/dadosFaces (ex.: "100d4+25d10" = dadosQtd 100, dadosFaces 4, dadosExtra [{"qtd":25,"faces":10}]). Omita se houver só um tipo de dado.', items: { type: 'OBJECT', properties: { qtd: { type: 'INTEGER' }, faces: { type: 'INTEGER' } }, required: ['qtd', 'faces'] } },
+                statusFatores: { type: 'OBJECT', description: 'N x o valor EXIBIDO do atributo, SÓ no dano ("3*dex+3*PM" = {"destreza":3,"inteligencia":3}). Chaves: forca, destreza, inteligencia, sabedoria, energiaEsp, carisma, stamina, constituicao. Termos que você não sabe mapear (ex.: "att"): NÃO invente, deixe em notasIA.' },
                 custoPercentual: { type: 'NUMBER', description: '% de energia gasta ao usar.' },
                 alcance: { type: 'NUMBER' }, area: { type: 'NUMBER' },
                 tipoAcao: { type: 'STRING', enum: ['acao', 'bonus', 'reacao', 'movimento', 'livre'], description: 'Ação gasta ao usar (vazio = automático).' },

@@ -8,12 +8,14 @@
 // Aqui também mora a coleta de efeitos de TODAS as fontes (Poderes, Passivas, Combos, Suporte, Arma Espiritual, Itens, Pactos).
 // ==========================================
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
-import { efeitosDeCombos } from './combos.js';
+import { efeitosDeCombos, estadoDeCombo } from './combos.js';
 import { efeitosAtivosDoItem, efeitosDaConfigAtiva } from './efeitosItem.js';
-import { efeitosDeBuffsTemporarios, efeitosDeSuportePassivo } from './suporte.js';
+import { efeitosDeBuffsTemporarios, efeitosDeSuportePassivo, temBuffNegativo } from './suporte.js';
 import { efeitosDaArmaEspiritual } from './armaEspiritualEfeitos.js';
 import { armaVirtualDaArmaEspiritual } from './armaEspiritualDano.js';
-import { ESTADOS, condicoesDaFicha } from './condicoes.js';
+import { ESTADOS, condicoesDaFicha, temEstadoNegativo } from './condicoes.js';
+import { ATRIBUTO_DANO_DADOS, lerDadoDeDano, limitarDadosDeEfeitos } from './danoDados.js';
+import { ataquesNoTurno } from './ataquesNoTurno.js';
 
 const semAcento = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
@@ -73,6 +75,11 @@ export const OPCOES_QUANDO = [
     { id: 'alvo_defende_com', rotulo: 'Alvo defende com… (Indesviável/Imbloqueável)', argumento: 'Evasiva ou Resistência' },
     { id: 'eu_com_estado', rotulo: 'Eu (portador) com o estado…', argumento: 'estado' },
     { id: 'alvo_vida_abaixo', rotulo: 'Alvo com vida abaixo de…%', argumento: '%' },
+    // Debuff = estado negativo ativo OU buff temporário negativo do alvo (core/condicoes.js > ESTADOS_NAO_NEGATIVOS, core/suporte.js > temBuffNegativo).
+    { id: 'alvo_com_debuff', rotulo: 'Alvo com algum debuff (estado negativo)' },
+    // Do portador: Combos finalizados neste combate (core/combos.js) e primeiro ataque do turno dele (core/ataquesNoTurno.js; só em combate).
+    { id: 'combos_finalizados', rotulo: 'Eu finalizei ao menos… Combos', argumento: 'quantos Combos' },
+    { id: 'primeiro_ataque_do_turno', rotulo: 'Primeiro ataque do meu turno' },
 ];
 
 // Devolve a condição em forma canônica ('' = sempre) ou null se for inválida.
@@ -87,6 +94,12 @@ export function normalizarQuando(valor) {
     if (base === 'alvo_com_estado') return IDS_ESTADOS.has(semAcento(arg)) ? `alvo_com_estado:${semAcento(arg)}` : null;
     if (base === 'alvo_defende_com') { const d = semAcento(arg); return d === 'evasiva' || d === 'resistencia' ? `alvo_defende_com:${d}` : null; }
     if (base === 'eu_com_estado') return IDS_ESTADOS.has(semAcento(arg)) ? `eu_com_estado:${semAcento(arg)}` : null;
+    if (base === 'alvo_com_debuff') return 'alvo_com_debuff';
+    if (base === 'primeiro_ataque_do_turno') return 'primeiro_ataque_do_turno';
+    if (base === 'combos_finalizados') {
+        const n = /^\d{1,3}$/.test(arg) ? parseInt(arg, 10) : NaN;
+        return Number.isInteger(n) && n >= 1 && n <= 999 ? `combos_finalizados:${n}` : null;
+    }
     if (base === 'alvo_vida_abaixo') {
         const pct = parseFloat(arg.replace(',', '.'));
         return Number.isFinite(pct) && pct > 0 && pct <= 100 ? `alvo_vida_abaixo:${pct}` : null;
@@ -99,7 +112,7 @@ export function normalizarQuando(valor) {
 // um efeito "dano +10 quando empunhando espada" valeria sempre. Condição nesses atributos descarta o efeito (falha fechada).
 export const ATRIBUTOS_COM_QUANDO = [
     'acerto', 'evasiva', 'resistencia', 'iniciativa', 'vantagem', 'desvantagem', 'piso_d20',
-    'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa', 'imune_estado', 'resiste_estado', 'desvantagem_atacante', 'acerto_automatico',
+    'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa', 'imune_estado', 'resiste_estado', 'desvantagem_atacante', 'acerto_automatico', ATRIBUTO_DANO_DADOS,
 ];
 // ---------- ✖️ Multiplicadores com condição ----------
 // Os multiplicadores (mbase, mgeral, mformas, mabs, munico) são somados em core/attributes.js > getBuffs e core/poder.js >
@@ -142,7 +155,8 @@ export const ATRIBUTOS_COM_ESCOPO = ['vantagem', 'desvantagem', 'piso_d20'];
 export const ATRIBUTOS_COM_ESCOPO_ESTADO = ['imune_estado', 'resiste_estado'];
 export const ESCOPO_TODOS_OS_ESTADOS = 'todos';
 
-// O contexto de combate: { emCombate, armaTipos: [tipos normalizados], temArma, euEstados: [ids do portador], alvoEstados: [ids], alvoVidaPct }.
+// O contexto de combate: { emCombate, armaTipos: [tipos normalizados], temArma, euEstados: [ids do portador], alvoEstados: [ids], alvoVidaPct, alvoDebuff,
+// combosFinalizados, primeiroAtaqueDoTurno }. Sem contexto (ou sem alvo) as condições de alvo e as novas do portador NÃO valem (falham fechadas).
 // A condição guardada é normalizada aqui também (dado gravado à mão como 'Em_Combate' vale); inválida nunca vale.
 export function passaQuando(efeito, contexto = {}) {
     const bruto = String((efeito && efeito.quando) ?? '').trim();
@@ -163,6 +177,9 @@ export function passaQuando(efeito, contexto = {}) {
         case 'alvo_defende_com': return ctx.alvoDefesa === arg;
         case 'eu_com_estado': return Array.isArray(ctx.euEstados) && ctx.euEstados.includes(arg);
         case 'alvo_vida_abaixo': return Number.isFinite(ctx.alvoVidaPct) && ctx.alvoVidaPct < parseFloat(arg);
+        case 'alvo_com_debuff': return ctx.alvoDebuff === true;
+        case 'combos_finalizados': return Number.isFinite(ctx.combosFinalizados) && ctx.combosFinalizados >= parseInt(arg, 10);
+        case 'primeiro_ataque_do_turno': return ctx.primeiroAtaqueDoTurno === true;
         default: return false; // condição desconhecida: nunca vale
     }
 }
@@ -189,10 +206,15 @@ export function montarContextoDeCombate(ficha, alvo = null) {
         alvoEstados: [],
         alvoDefesa: '',
         alvoVidaPct: NaN,
+        alvoDebuff: false,
+        // Do portador: Combos finalizados neste combate e se este seria o 1º ataque do turno dele (só em combate: fora da iniciativa não há turno).
+        combosFinalizados: ficha ? estadoDeCombo(ficha).finalizados : 0,
+        primeiroAtaqueDoTurno: !!ficha && Number(ficha.iniciativa) > 0 && ataquesNoTurno(ficha) === 0,
     };
     if (alvo && typeof alvo === 'object') {
         const dono = alvo.isPersonagem && alvo.ficha ? alvo.ficha : alvo;
         ctx.alvoEstados = condicoesDaFicha(dono).map(c => c.id);
+        ctx.alvoDebuff = temEstadoNegativo(dono) || temBuffNegativo(dono);
         // Defesa que o alvo usa contra o golpe ('evasiva' | 'resistencia'): a maior das duas (core/alvoCombate.js e Gaveta de NPCs).
         ctx.alvoDefesa = semAcento(alvo.tipoDefesa);
         const max = Number(alvo.hpMax);
@@ -282,6 +304,19 @@ export function imuneAoEstado(ficha, estadoId) {
     if (temEfeitoDeEstado(ficha, 'imune_estado', estadoId)) return true;
     const atributo = IMUNIDADE_DE_ESTADO[estadoId];
     return !!atributo && somarEfeitosBase(ficha, atributo, montarContextoDeCombate(ficha)) > 0;
+}
+
+// 🎲 `dano_dados`: dados que os efeitos somam ao dano ROLADO do golpe: [{ nome, qtd, faces }] dos efeitos válidos (propriedade base, valor "NdM" ou
+// { qtd, faces }) cuja condição ("quando") passa no contexto, já limitados ao total de dados do golpe (core/danoDados.js). Lido por core/engine.js > calcularDano.
+export function dadosBonusDeDano(ficha, contexto = {}) {
+    const lista = [];
+    coletarEfeitos(ficha).forEach((e) => {
+        if (!e || e.atributo !== ATRIBUTO_DANO_DADOS || String(e.propriedade ?? 'base').trim().toLowerCase() !== 'base') return;
+        if (!passaQuando(e, contexto)) return;
+        const d = lerDadoDeDano(e.valor);
+        if (d) lista.push({ nome: String(e.nome ?? '').slice(0, 80), ...d });
+    });
+    return limitarDadosDeEfeitos(lista);
 }
 
 // Menor valor entre os efeitos (para "o crítico começa em N": vale o menor N). null se nenhum efeito vale.

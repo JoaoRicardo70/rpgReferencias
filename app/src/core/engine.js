@@ -10,7 +10,8 @@ import { efeitosAtivosDoItem } from './efeitosItem.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
 import { modificadoresDeEstados } from './condicoes.js';
 import { menorFatorCuraReduzida } from './suporte.js';
-import { somarEfeitosBase, valoresDeEfeitos, montarContextoDeCombate, desvantagemImpostaAoAtacante, temAcertoAutomatico, multiplicadoresCriticoExtra } from './efeitosCondicionais.js';
+import { somarEfeitosBase, valoresDeEfeitos, montarContextoDeCombate, desvantagemImpostaAoAtacante, temAcertoAutomatico, multiplicadoresCriticoExtra, dadosBonusDeDano } from './efeitosCondicionais.js';
+import { fatoresDaFonte, dadosExtraDaFonte } from './danoDados.js';
 import { armaVirtualDaArmaEspiritual } from './armaEspiritualDano.js';
 import { resolverProficienciaPorEnergia, rotuloEnergiaProficiencia } from './proficienciaEnergia.js';
 
@@ -113,6 +114,8 @@ export function rolarDadosComVantagem(qD, fD, vantagens = 0, desvantagens = 0) {
     return { sD, rolagemTexto, mantidos: kept };
 }
 
+const escaparHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
 function rolarDadosSimples(qtd, faces) {
     let soma = 0;
     let rolls = [];
@@ -136,9 +139,23 @@ function formatarRolagem(qtd, faces, rolls, soma) {
 // do Dano (core/custoPoder.js), e quem ajusta o dano contra o alvo é a Disputa de Poder (core/disputaPoder.js).
 // Cada fonte (arma, habilidade vinculada, habilidade livre, técnica) rola os próprios dados; os Status de todas elas
 // entram uma vez cada (se duas fontes usam Força, a Força soma uma vez só).
-function rolarFonteDeDano({ nome, tipo, qtdDados, facesDados, sels }) {
-    const { soma, rolls } = rolarDadosSimples(qtdDados, facesDados);
-    return { nome, tipo, soma, rolagem: formatarRolagem(qtdDados, facesDados, rolls, soma), sels: Array.isArray(sels) ? sels : ['forca'] };
+// Uma fonte pode ainda trazer `dadosExtra` (outros tipos de dado rolados junto, ex.: 100d4 + 25d10) e `statusFatores`
+// ({ destreza: 3 } = soma 3 x o valor exibido da Destreza, SÓ no dano; ver core/danoDados.js).
+function rolarFonteDeDano({ nome, tipo, qtdDados, facesDados, sels, dadosExtra, statusFatores }) {
+    const principal = rolarDadosSimples(qtdDados, facesDados);
+    let soma = principal.soma;
+    const partes = qtdDados > 0 ? [formatarRolagem(qtdDados, facesDados, principal.rolls, principal.soma)] : [];
+    const extras = dadosExtraDaFonte({ dadosExtra });
+    extras.forEach((d) => {
+        const r = rolarDadosSimples(d.qtd, d.faces);
+        soma += r.soma;
+        partes.push(formatarRolagem(d.qtd, d.faces, r.rolls, r.soma));
+    });
+    const rolagem = extras.length > 0 ? `${partes.join(' + ')} = ${soma}` : (partes[0] || '');
+    const fatores = fatoresDaFonte({ statusFatores });
+    // Sem status escolhidos, o padrão é Força 1x; mas se a fonte traz fatores (ex.: 3*dex), a Força implícita não entra.
+    const padrao = Object.keys(fatores).length > 0 ? [] : ['forca'];
+    return { nome, tipo, soma, rolagem, sels: Array.isArray(sels) ? sels : padrao, fatores };
 }
 
 // Valor do Status como a Ficha Definitiva exibe (coluna Atual), usado no dano.
@@ -147,25 +164,37 @@ function valorStatusExibido(minhaFicha, k) {
     return Math.floor((bruto * calcularFatorMultiplicadorForca(minhaFicha, 'status')) / FATOR_EXIBICAO_STATUS);
 }
 
-// Soma os Status distintos das fontes (cada um conta uma vez).
+// Soma os Status distintos das fontes (cada um conta uma vez). Um atributo com FATOR numa fonte (statusFatores) soma N x o valor exibido
+// NO LUGAR do 1x (nunca 1x + Nx); se duas fontes dão fatores diferentes para o mesmo atributo, vale o maior (não duplica).
 function somarStatusDasFontes(fontes, minhaFicha) {
     const vistos = new Set();
+    const marcados = [];
+    const fatores = {};
+    fontes.forEach((f) => {
+        f.sels.forEach((k) => { if (!vistos.has(k)) { vistos.add(k); marcados.push(k); } });
+        Object.keys(f.fatores || {}).forEach((k) => { fatores[k] = Math.max(fatores[k] || 0, f.fatores[k]); });
+    });
+    const ordem = [...marcados, ...Object.keys(fatores).filter(k => !vistos.has(k))];
     let soma = 0;
     const detalhes = [];
-    fontes.forEach(f => f.sels.forEach(k => {
-        if (vistos.has(k)) return;
-        vistos.add(k);
+    ordem.forEach((k) => {
         // O Status do dano é o MESMO número que a Ficha Definitiva mostra na coluna Atual (ex.: 240): o valor bruto vem em escala
         // 1000x maior e passa pelo fator de Ascensão/Prestígio (core/poder.js > calcularFatorMultiplicadorForca), igual à exibição.
-        const val = valorStatusExibido(minhaFicha, k);
+        const base = valorStatusExibido(minhaFicha, k);
+        const fator = fatores[k] !== undefined ? fatores[k] : 1;
+        let val = fator === 1 ? base : Math.floor(base * fator);
+        if (!Number.isFinite(val)) val = Number.MAX_SAFE_INTEGER; // valores absurdos não viram NaN no cálculo de dígitos
         soma += val;
         const nomeAttr = (minhaFicha[k] && minhaFicha[k].nome) || String(k).toUpperCase();
-        detalhes.push(`<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>`);
-    }));
+        detalhes.push(fator === 1
+            ? `<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>`
+            : `<span style="color:#ff003c">${nomeAttr}(${base.toLocaleString('pt-BR')} x${fator} = ${val.toLocaleString('pt-BR')})</span>`);
+    });
     return { soma, detalhes };
 }
 
-export function calcularDano({ minhaFicha, configArma, configHabilidades, itensEquipados, isCriticoNormal, isCriticoFatal }) {
+// `alvo` (opcional): ficha ou Dummie atingido; é com ele que as condições de alvo dos efeitos `dano_dados` (alvo com estado/debuff/vida abaixo) são checadas.
+export function calcularDano({ minhaFicha, configArma, configHabilidades, itensEquipados, isCriticoNormal, isCriticoFatal, alvo = null }) {
     let iDanoBruto = 0, iLetalidade = 0;
     let elementosAtaque = [];
     let nomesArmas = [];
@@ -328,9 +357,17 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     }
     for (let i = 0; i < configHabilidades.length; i++) {
         const hab = configHabilidades[i];
-        if ((hab.dadosQtd || 0) <= 0) continue;
+        if ((hab.dadosQtd || 0) <= 0 && dadosExtraDaFonte(hab).length === 0 && Object.keys(fatoresDaFonte(hab)).length === 0) continue;
         const vinculada = !!armaEquipada && !!hab.armaVinculada && String(hab.armaVinculada) === String(armaEquipada.id);
-        fontes.push(rolarFonteDeDano({ nome: hab.nome, tipo: vinculada ? 'vinculada' : 'habilidade', qtdDados: hab.dadosQtd, facesDados: hab.dadosFaces || 20, sels: hab.statusUsados }));
+        fontes.push(rolarFonteDeDano({ nome: hab.nome, tipo: vinculada ? 'vinculada' : 'habilidade', qtdDados: hab.dadosQtd || 0, facesDados: hab.dadosFaces || 20, sels: hab.statusUsados, dadosExtra: hab.dadosExtra, statusFatores: hab.statusFatores }));
+    }
+    // 🎲 Efeitos `dano_dados` (Poder, Passiva, Item, Combo, Suporte, buff de gatilho...): dados somados ao dano ROLADO. Só há bônus se existe um golpe
+    // (alguma fonte com dados); respeitam o "quando" e o limite total de dados (core/danoDados.js). Entram na soma ANTES do crítico, então o multiplicador
+    // do crítico os multiplica como multiplica os dados da arma/habilidade. Multiplicadores de Poder não os tocam. Não têm Status (sels vazio).
+    if (fontes.length > 0) {
+        dadosBonusDeDano(minhaFicha, montarContextoDeCombate(minhaFicha, alvo)).forEach((b) => {
+            fontes.push(rolarFonteDeDano({ nome: b.nome || 'Bônus de dado', tipo: 'bonus', qtdDados: b.qtd, facesDados: b.faces, sels: [] }));
+        });
     }
 
     const somaDados = fontes.reduce((s, f) => s + f.soma, 0);
@@ -384,8 +421,8 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
 
     fontes.forEach(f => {
         const cor = f.tipo === 'arma' ? '#0f0' : '#f0f';
-        const rotulo = f.tipo === 'arma' ? 'Dados da Arma' : (f.tipo === 'vinculada' ? 'Dados da Habilidade (vinculada à arma)' : 'Dados da Habilidade');
-        detalheLinhas.push(`<strong style="color:${cor}">${rotulo} [${f.nome}]:</strong> <span style="color:${cor}">${f.rolagem}</span>`);
+        const rotulo = f.tipo === 'arma' ? 'Dados da Arma' : (f.tipo === 'vinculada' ? 'Dados da Habilidade (vinculada à arma)' : (f.tipo === 'bonus' ? 'Dados de Bônus' : 'Dados da Habilidade'));
+        detalheLinhas.push(`<strong style="color:${cor}">${rotulo} [${escaparHtml(f.nome)}]:</strong> <span style="color:${cor}">${f.rolagem}</span>`);
     });
     if (fontes.length > 0) {
         detalheLinhas.push(`<strong>Soma dos Dados:</strong> ${somaDados.toLocaleString('pt-BR')}`);
@@ -411,6 +448,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     let allAttrNames = new Set();
     if (configArma) (configArma.statusUsados || []).forEach(s => allAttrNames.add((minhaFicha[s] && minhaFicha[s].nome) || s.toUpperCase()));
     configHabilidades.forEach(h => (h.statusUsados || []).forEach(s => allAttrNames.add((minhaFicha[s] && minhaFicha[s].nome) || s.toUpperCase())));
+    fontes.forEach(f => Object.keys(f.fatores || {}).forEach(k => allAttrNames.add((minhaFicha[k] && minhaFicha[k].nome) || k.toUpperCase())));
     if (armaEsp) armaEsp.danoAtributos.forEach(a => allAttrNames.add((minhaFicha[a.atributo] && minhaFicha[a.atributo].nome) || a.atributo.toUpperCase()));
 
     let armaStr = "";

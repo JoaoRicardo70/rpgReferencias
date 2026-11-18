@@ -41,6 +41,7 @@
 // Aqui NADA muta a ficha: avaliarGatilhos só decide; quem aplica é core/gatilhosAplicar.js.
 // ==========================================
 import { passaQuando, montarContextoDeCombate, normalizarQuando } from './efeitosCondicionais.js';
+import { ATRIBUTO_DANO_DADOS, normalizarValorDanoDados } from './danoDados.js';
 import { efeitosDaConfigAtiva, efeitosAtivosLigados } from './efeitosItem.js';
 import { normalizarUsos, usosRestantes, LIMITE_USOS } from './usosPoder.js';
 import { ehEstadoValido, MAX_STACKS, nomeDoEstado } from './condicoes.js';
@@ -164,9 +165,16 @@ export function normalizarAcaoGatilho(bruta, opcoes = {}) {
         }
         case 'buff': {
             const atributo = texto(bruta.atributo, 40);
+            const modo = MODOS_BUFF.includes(bruta.modo) ? bruta.modo : 'turnos';
+            // 🎲 Bônus de dado de dano (core/danoDados.js): valor "NdM" ou { qtd, faces }; `quando` opcional (vocabulário do efeito). Inválido = ação descartada.
+            if (atributo === ATRIBUTO_DANO_DADOS) {
+                const dado = normalizarValorDanoDados(bruta.valor);
+                const quando = bruta.quando === undefined || bruta.quando === null || bruta.quando === '' ? '' : normalizarQuando(bruta.quando);
+                if (!dado || quando === null) return null;
+                return { tipo: 'buff', atributo, valor: dado, duracao: Math.floor(limitar(numero(bruta.duracao) ?? 3, 1, LIMITE_DURACAO_BUFF_GATILHO)), modo, ...(quando ? { quando } : {}) };
+            }
             const valor = numero(bruta.valor);
             if (!atributo || valor === null) return null;
-            const modo = MODOS_BUFF.includes(bruta.modo) ? bruta.modo : 'turnos';
             return { tipo: 'buff', atributo, valor: limitar(valor, -1e9, 1e9), duracao: Math.floor(limitar(numero(bruta.duracao) ?? 3, 1, LIMITE_DURACAO_BUFF_GATILHO)), modo };
         }
         case 'imunidadeTotal': {
@@ -589,7 +597,8 @@ export function descreverAcaoGatilho(a, ctx = null) {
         case 'definirVida': return a.valor !== undefined ? `ficar com ${fmtN(a.valor)} de vida` : `ficar com ${a.percMax}% da Vida máxima`;
         case 'curar': return a.modo === 'fixo' ? `curar ${fmtN(a.valor)}` : `curar ${a.valor}% da Vida ${a.modo === 'percMax' ? 'máxima' : 'atual'}`;
         case 'escudo': return `ganhar ${a.tipoEscudo === 'vidaTemporaria' ? 'vida temporária' : 'escudo'} de ${fmtN(a.valor)}`;
-        case 'buff': return `ganhar ${a.valor >= 0 ? '+' : ''}${a.valor} em ${a.atributo}${a.modo === 'turnos' ? ` por ${a.duracao} turno(s)` : a.modo === 'combate' ? ' até o fim do combate' : ''}`;
+        case 'buff': if (a.atributo === ATRIBUTO_DANO_DADOS) return `ganhar +${a.valor} de dado de dano${a.quando ? ` (${a.quando.replace(/_/g, ' ').replace(':', ' ')})` : ''}${a.modo === 'turnos' ? ` por ${a.duracao} turno(s)` : a.modo === 'combate' ? ' até o fim do combate' : ''}`;
+            return `ganhar ${a.valor >= 0 ? '+' : ''}${a.valor} em ${a.atributo}${a.modo === 'turnos' ? ` por ${a.duracao} turno(s)` : a.modo === 'combate' ? ' até o fim do combate' : ''}`;
         case 'limparCondicoes': return 'limpar as condições';
         case 'imunidadeTotal': return `ficar imune a todo dano por ${a.duracaoTurnos} turno(s)`;
         case 'mensagem': return `avisar: "${a.texto}"`;

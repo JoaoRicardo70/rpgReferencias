@@ -4,6 +4,7 @@ import { ATRIBUTOS_AGRUPADOS_SEM_ESTADO, getPropriedadesDoAtributo, ajustarPropr
 import { CLASSES_OPTIONS } from '../ficha/FichaFormContext';
 import FormasEditor from '../shared/FormasEditor';
 import { useFichaAtiva, useCallSaveAtivo } from './FichaAlvoContext';
+import { normalizarValorDanoDados } from '../../core/danoDados';
 
 // ==========================================
 // 👁️ REINO INTERIOR — PACTOS, ESPÍRITOS & ENTIDADES SELADAS
@@ -91,7 +92,9 @@ export default function PactosPanel() {
         const rascunho = isAtivo ? novoAtivo : novoPassivo;
         if (!rascunho.nome.trim() || rascunho.valor === '') { alert('Preencha o nome e o valor do efeito!'); return; }
         const chave = isAtivo ? 'efeitos' : 'efeitosPassivos';
-        setDraft(d => ({ ...d, [chave]: [...d[chave], { nome: rascunho.nome.trim(), atributo: rascunho.atributo, propriedade: rascunho.propriedade, valor: rascunho.valor }] }));
+        const dado = rascunho.atributo === 'dano_dados' ? normalizarValorDanoDados(rascunho.valor) : null;
+        if (rascunho.atributo === 'dano_dados' && !dado) { alert('Dado de dano inválido: escreva no formato NdM, por exemplo 20d6.'); return; }
+        setDraft(d => ({ ...d, [chave]: [...d[chave], { nome: rascunho.nome.trim(), atributo: rascunho.atributo, propriedade: dado ? 'base' : rascunho.propriedade, valor: dado || rascunho.valor }] }));
         if (isAtivo) setNovoAtivo({ nome: '', atributo: 'forca', propriedade: 'base', valor: '' });
         else setNovoPassivo({ nome: '', atributo: 'forca', propriedade: 'base', valor: '' });
     };

@@ -19,6 +19,7 @@
 // Este módulo é puro e não importa nada além de efeitos-constants (attributes.js importa este arquivo).
 // ==========================================
 import { ATRIBUTOS_AGRUPADOS, getPropriedadesDoAtributo } from './efeitos-constants.js';
+import { ATRIBUTO_DANO_DADOS, normalizarValorDanoDados, dadoDoEfeito } from './danoDados.js';
 
 export const TIPOS_GOLPE = [
     { id: 'livre', rotulo: 'Golpe livre' },
@@ -66,6 +67,14 @@ export function normalizarBuff(e) {
     const permitidas = getPropriedadesDoAtributo(atributo);
     const prop = String(e.propriedade ?? '').trim();
     const propriedade = permitidas.includes(prop) ? prop : permitidas[0];
+    // 🎲 Bônus de dado de dano (core/danoDados.js): o valor é "NdM" (ou { qtd, faces }), nunca um número. `quando` (opcional) é guardado como veio e
+    // validado na leitura (core/efeitosCondicionais.js > passaQuando falha fechado com condição inválida).
+    if (atributo === ATRIBUTO_DANO_DADOS) {
+        const dado = normalizarValorDanoDados(dadoDoEfeito(e));
+        if (!dado) return null;
+        const quando = texto(e.quando, 80);
+        return { nome: texto(e.nome, LIMITES.nome), atributo, propriedade: 'base', valor: dado, ...(quando ? { quando } : {}) };
+    }
     const bruto = numero(e.valor, NaN);
     if (!Number.isFinite(bruto)) return null;
     return { nome: texto(e.nome, LIMITES.nome), atributo, propriedade, valor: Math.round(bruto * 1000) / 1000 };
@@ -77,6 +86,7 @@ function normalizarBuffs(lista) {
 
 export function descreverBuff(b) {
     if (!b) return '';
+    if (b.atributo === ATRIBUTO_DANO_DADOS) return `dado de dano +${b.valor}${b.quando ? ` (${String(b.quando).replace(/_/g, ' ').replace(':', ' ')})` : ''}`;
     const sinal = b.valor > 0 ? '+' : '';
     const mult = String(b.propriedade).startsWith('m');
     return `${String(b.atributo).replace(/_/g, ' ')} (${b.propriedade}) ${sinal}${b.valor}${mult ? 'x' : ''}`;

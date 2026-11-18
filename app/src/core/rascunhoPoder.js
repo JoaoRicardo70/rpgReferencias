@@ -11,6 +11,7 @@ import { normalizarCustosPorTurno } from './custoPorTurno';
 import { normalizarEscudoAoLigar } from './escudos';
 import { normalizarGatilhos } from './gatilhos';
 import { contadoresDoPoder, normalizarContadorRascunho } from './contadores';
+import { normalizarDadosExtra, normalizarStatusFatores } from './danoDados';
 import { ESTAGIOS_PADRAO, normalizarEstagios, temEstagios, marcoParaRascunho } from './estagios';
 
 export const SECOES_FORM = ['basico', 'combate', 'efeitos', 'gatilhos', 'avancado'];
@@ -27,7 +28,7 @@ export function rascunhoVazio() {
     return {
         poderEditandoId: null,
         nome: '', descricao: '', vertente: '', elemento: '', elementosAfetados: '', imagemUrl: '',
-        dadosQtd: 0, dadosFaces: 20, custoPercentual: 0, custoPercentualMax: 0,
+        dadosQtd: 0, dadosFaces: 20, dadosExtra: [], statusFatores: {}, custoPercentual: 0, custoPercentualMax: 0,
         semComoPoder: false, danoVerdadeiro: false, tipoAcao: '',
         usosMax: '', usosPor: 'cena',
         custoTurno: { modo: 'fixo', valor: '', energia: 'mana' },
@@ -71,6 +72,8 @@ export function completarRascunho(r) {
     out.estagios = { ...vazio.estagios, ...(base.estagios || {}) };
     out.custoTurno = { ...vazio.custoTurno, ...(base.custoTurno || {}) };
     out.escudo = { ...vazio.escudo, ...(base.escudo || {}) };
+    out.dadosExtra = normalizarDadosExtra(out.dadosExtra).lista;
+    out.statusFatores = normalizarStatusFatores(out.statusFatores).fatores;
     ['gatilhos', 'gatilhosDescartados', 'contadoresRascunho', 'efeitos', 'efeitosPassivos', 'custoTurnoExtras'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
     return out;
 }
@@ -91,6 +94,8 @@ export function rascunhoDoPoder(p, contadoresDaFicha) {
     r.imagemUrl = p.imagemUrl || '';
     r.dadosQtd = p.dadosQtd || 0;
     r.dadosFaces = p.dadosFaces || 20;
+    r.dadosExtra = clonar(normalizarDadosExtra(p.dadosExtra).lista);
+    r.statusFatores = clonar(normalizarStatusFatores(p.statusFatores).fatores);
     r.custoPercentual = p.custoPercentual || 0;
     r.custoPercentualMax = p.custoPercentualMax || 0;
     r.semComoPoder = !!p.semComoPoder;
@@ -135,6 +140,8 @@ export function resumirSecoes(r) {
 
     const combate = [];
     if (num(c.dadosQtd) > 0) combate.push(`${num(c.dadosQtd)}d${num(c.dadosFaces) || 20}`);
+    if (c.dadosExtra.length > 0) combate.push(`+${c.dadosExtra.map(d => `${d.qtd}d${d.faces}`).join('+')}`);
+    if (Object.keys(c.statusFatores).length > 0) combate.push(`fatores ${Object.keys(c.statusFatores).map(k => `${c.statusFatores[k]}x${k}`).join(' ')}`);
     if (num(c.custoPercentual) > 0 || num(c.custoPercentualMax) > 0) {
         combate.push(num(c.custoPercentualMax) > num(c.custoPercentual) ? `custo ${num(c.custoPercentual)}–${num(c.custoPercentualMax)}%` : `custo ${num(c.custoPercentual)}%`);
     }

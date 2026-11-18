@@ -10,6 +10,7 @@
 // ==========================================
 import { ATRIBUTOS_AGRUPADOS, getPropriedadesDoAtributo } from './efeitos-constants.js';
 import { blocoEfetivoDaArma } from './armaEspiritualEfeitos.js';
+import { ATRIBUTO_DANO_DADOS, lerDadoDeDano, normalizarValorDanoDados, dadoDoEfeito } from './danoDados.js';
 
 export const LIMITES_SUPORTE = { buffs: 12, duracaoMax: 20, maxAlvos: 10, dadosQtd: 100, dadosFaces: 1000, buffsAtivosPorFicha: 30 };
 export const MODOS_ALVO_SUPORTE = [
@@ -33,8 +34,18 @@ const numero = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n :
 const ATRIBUTOS_VALIDOS = new Set(ATRIBUTOS_AGRUPADOS.flatMap(g => g.options));
 function buffValido(b) {
     if (!b || typeof b.atributo !== 'string' || typeof b.propriedade !== 'string') return false;
+    // Bônus de dado de dano (core/danoDados.js): valor "NdM" ou { qtd, faces }, nunca um número.
+    if (b.atributo === ATRIBUTO_DANO_DADOS) return b.propriedade === 'base' && !!lerDadoDeDano(dadoDoEfeito(b));
     if (!Number.isFinite(parseFloat(b.valor)) || !ATRIBUTOS_VALIDOS.has(b.atributo)) return false;
     return getPropriedadesDoAtributo(b.atributo).includes(b.propriedade);
+}
+
+// Buff na forma gravada: número, ou "NdM" (+ `quando`, só para dano_dados) no bônus de dado. O `quando` é validado na leitura (passaQuando falha fechado).
+function buffNormalizado(b) {
+    const nome = b.nome ? { nome: String(b.nome).slice(0, 60) } : {};
+    if (b.atributo !== ATRIBUTO_DANO_DADOS) return { atributo: b.atributo, propriedade: b.propriedade, valor: numero(b.valor), ...nome };
+    const quando = String(b.quando ?? '').trim().slice(0, 80);
+    return { atributo: b.atributo, propriedade: 'base', valor: normalizarValorDanoDados(dadoDoEfeito(b)), ...nome, ...(quando ? { quando } : {}) };
 }
 
 export function normalizarSuporte(s) {
@@ -50,8 +61,7 @@ export function normalizarSuporte(s) {
         if (Object.keys(energias).length > 0) cura.energias = energias;
     }
     const temCura = cura && (cura.dadosQtd > 0 || cura.fixo > 0 || cura.percVida > 0 || !!cura.energias);
-    const buffs = (Array.isArray(s.buffs) ? s.buffs : []).filter(buffValido).slice(0, LIMITES_SUPORTE.buffs)
-        .map(b => ({ atributo: b.atributo, propriedade: b.propriedade, valor: numero(b.valor), ...(b.nome ? { nome: String(b.nome).slice(0, 60) } : {}) }));
+    const buffs = (Array.isArray(s.buffs) ? s.buffs : []).filter(buffValido).slice(0, LIMITES_SUPORTE.buffs).map(buffNormalizado);
     if (!temCura && buffs.length === 0) return null;
     const passivo = s.modo === 'passivo';
     const duracao = inteiro(s.duracao, 0, LIMITES_SUPORTE.duracaoMax, 3);
@@ -165,7 +175,7 @@ export function suportesPassivos(ficha) {
 
 // Buffs dos suportes passivos, no formato de efeitos (entram em getEfeitosDeClasse; somem quando o Poder/Item desliga).
 export function efeitosDeSuportePassivo(ficha) {
-    return suportesPassivos(ficha).flatMap(f => f.suporte.buffs.map(b => ({ atributo: b.atributo, propriedade: b.propriedade, valor: b.valor, nome: b.nome || f.nome })));
+    return suportesPassivos(ficha).flatMap(f => f.suporte.buffs.map(b => ({ atributo: b.atributo, propriedade: b.propriedade, valor: b.valor, nome: b.nome || f.nome, ...(b.quando ? { quando: b.quando } : {}) })));
 }
 
 // Cura passiva no começo do turno do dono (escala EXIBIDA, antes da Eficácia de Cura): [{ nome, valor, detalhe }] e o total.
@@ -206,6 +216,14 @@ export function fatorDeBuffCura(buff) {
     const ef = buff && Array.isArray(buff.efeitos) ? buff.efeitos.find(e => e && e.propriedade === PROPRIEDADE_CURA_REDUZIDA) : null;
     const f = ef ? Number(ef.valor) : NaN;
     return Number.isFinite(f) && f > 0 && f <= 1 ? f : null;
+}
+
+// Algum buff temporário NEGATIVO vigente (conta como debuff em `alvo_com_debuff`): cura reduzida ou um efeito base com valor < 0 (ex.: -3 de Evasiva
+// posto por "debuffAlvo" ao acertar). O bônus de dado `dano_dados` nunca conta.
+export function temBuffNegativo(ficha) {
+    return buffsTemporariosDaFicha(ficha).some(b => b.efeitos.some(e => e && (
+        e.propriedade === PROPRIEDADE_CURA_REDUZIDA || (e.propriedade === 'base' && e.atributo !== 'dano_dados' && Number(e.valor) < 0)
+    )));
 }
 
 // Menor fator entre os buffs de cura reduzida vigentes (1 = sem redução). Fatores de fontes diferentes NÃO se multiplicam.

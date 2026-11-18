@@ -1,26 +1,37 @@
 import React, { useState, useCallback } from 'react';
 import { ATRIBUTOS_AGRUPADOS_SEM_ESTADO, getPropriedadesDoAtributo } from '../../core/efeitos-constants';
 import { normalizarBuff, descreverBuff, LIMITES } from '../../core/combos';
+import { ATRIBUTO_DANO_DADOS } from '../../core/danoDados';
+import { normalizarQuando } from '../../core/efeitosCondicionais';
+import CondicaoDoEfeito from '../shared/CondicaoDoEfeito';
 
 // Lista de buffs (os mesmos efeitos das Habilidades/Poderes: atributo + propriedade + valor) de um golpe ou de um nível de Follow Up.
 export default function EditorBuffs({ buffs, onChange, rotulo = 'Buffs' }) {
     const [atributo, setAtributo] = useState('dano');
     const [propriedade, setPropriedade] = useState('base');
     const [valor, setValor] = useState('');
+    // 🎲 Só o bônus de dado de dano (valor "NdM") aceita condição ("Quando") nos buffs de Combo/Suporte.
+    const [quando, setQuando] = useState('');
+    const ehDado = atributo === ATRIBUTO_DANO_DADOS;
     const propriedades = getPropriedadesDoAtributo(atributo);
 
     const trocarAtributo = useCallback((novo) => {
+        // O dado ("20d6") e o número não se misturam: trocar de um para o outro limpa o valor e a condição digitados.
+        if ((novo === ATRIBUTO_DANO_DADOS) !== (atributo === ATRIBUTO_DANO_DADOS)) { setValor(''); setQuando(''); }
         setAtributo(novo);
         const opcoes = getPropriedadesDoAtributo(novo);
         setPropriedade((atual) => (opcoes.includes(atual) ? atual : opcoes[0]));
-    }, []);
+    }, [atributo]);
 
     const adicionar = useCallback(() => {
-        const novo = normalizarBuff({ atributo, propriedade, valor });
-        if (!novo || buffs.length >= LIMITES.buffs) return;
+        const condicao = ehDado ? normalizarQuando(quando) : '';
+        if (condicao === null) { window.alert('A condição está incompleta: escolha o estado ou informe o número.'); return; }
+        const novo = normalizarBuff({ atributo, propriedade, valor, ...(condicao ? { quando: condicao } : {}) });
+        if (!novo || buffs.length >= LIMITES.buffs) { if (!novo && ehDado) window.alert('Dado de dano inválido: escreva no formato NdM, por exemplo 20d6.'); return; }
         onChange([...buffs, novo]);
         setValor('');
-    }, [atributo, propriedade, valor, buffs, onChange]);
+        setQuando('');
+    }, [atributo, propriedade, valor, quando, ehDado, buffs, onChange]);
 
     return (
         <div className="combo-buffs">
@@ -41,9 +52,10 @@ export default function EditorBuffs({ buffs, onChange, rotulo = 'Buffs' }) {
                 <select className="input-neon" aria-label="Propriedade do buff" value={propriedade} onChange={(e) => setPropriedade(e.target.value)}>
                     {propriedades.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
-                <input className="input-neon" type="number" step="any" aria-label="Valor do buff" placeholder="valor" value={valor} onChange={(e) => setValor(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') adicionar(); }} />
+                <input className="input-neon" type={ehDado ? "text" : "number"} step="any" aria-label="Valor do buff" placeholder={ehDado ? "ex.: 20d6" : "valor"} value={valor} onChange={(e) => setValor(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') adicionar(); }} />
                 <button type="button" className="btn-neon combo-mini-botao" onClick={adicionar} disabled={valor === '' || buffs.length >= LIMITES.buffs}>➕ Buff</button>
             </div>
+            {ehDado && <CondicaoDoEfeito atributo={atributo} propriedade={propriedade} quando={quando} onQuando={setQuando} escopo="" onEscopo={() => {}} />}
         </div>
     );
 }
