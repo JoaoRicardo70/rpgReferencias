@@ -19,8 +19,8 @@ describe('helpers de multiplicador com quando', () => {
         ['mbase', 'mgeral', 'mformas', 'mabs', 'munico', 'MGERAL'].forEach(p => expect(ehPropriedadeMultiplicador(p)).toBe(true));
         ['base', 'reducaocusto', '', undefined].forEach(p => expect(ehPropriedadeMultiplicador(p)).toBe(false));
     });
-    it('opcoes: multiplicador so oferece Sempre, Em combate e Empunhando; as demais ficam inteiras', () => {
-        expect(opcoesQuandoPara('mgeral').map(o => o.id)).toEqual(['sempre', 'em_combate', 'empunhando_arma']);
+    it('opcoes: multiplicador so oferece Sempre, Em combate, Empunhando e Eu com estado; as demais ficam inteiras', () => {
+        expect(opcoesQuandoPara('mgeral').map(o => o.id)).toEqual(['sempre', 'em_combate', 'empunhando_arma', 'eu_com_estado']);
         expect(opcoesQuandoPara('base')).toBe(OPCOES_QUANDO);
     });
     it('normalizacao: aceita as permitidas e rejeita as de alvo', () => {

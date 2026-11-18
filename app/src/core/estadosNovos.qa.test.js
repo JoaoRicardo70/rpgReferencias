@@ -202,7 +202,7 @@ describe('QA combinacoes - multiplicadores, teto 2, pisos', () => {
         expect(m.evasivaMult).toBe(0);
         expect(m.movimentoMult).toBe(0);
     });
-    it('todos os 37 em 6 stacks continuam finitos', () => {
+    it('todos os 44 em 6 stacks continuam finitos', () => {
         const m = modificadoresDeEstados(f(...ESTADOS.map(e => c(e.id, 6))));
         CAMPOS_NUM.forEach(k => expect(Number.isFinite(m[k]), k).toBe(true));
         expect(m.vantagemContraEle).toBe(2);
@@ -382,7 +382,8 @@ describe('QA acoes - perda so em aplicarInicioDeTurno; restaurar manual nao perd
             paralisado: [0, 0, 0], atordoado: [0, 0, 0], emchoque: [2, 0, 0], caido: [2, 2, 2], agarrado: [2, 2, 2], impedido: [2, 2, 2],
             fraco: [2, 2, 2], debilitado: [2, 2, 2], adoecido: [2, 2, 2], enjoado: [2, 1, 2], sufocado: [2, 2, 2], eletrizado: [2, 2, 2],
             intimidado: [2, 2, 2], apavorado: [0, 0, 0], banido: [0, 0, 0], dilacerante: [2, 2, 2], dolorido: [2, 2, 0], inconsciente: [0, 0, 0],
-            cego: [2, 2, 2], surdo: [2, 2, 2]
+            cego: [2, 2, 2], surdo: [2, 2, 2],
+            presa: [2, 2, 2], flanqueado: [2, 2, 2], fintado: [2, 2, 2], escondido: [2, 2, 2], invisivel: [2, 2, 2], escalando: [2, 2, 2], correndo: [2, 2, 2]
         };
         NOVOS.forEach((id) => {
             const fi = fichaAcoes([c(id, 6)]);
@@ -673,7 +674,7 @@ describe('QA gatilhos - aplicarEstado/removerEstado com estado novo', () => {
 });
 
 describe('QA importador e Sexta-Feira - ids novos aceitos, inexistentes descartados', () => {
-    it('prompt do importador lista todos os 37 ids e nao lista id inexistente', () => {
+    it('prompt do importador lista todos os 44 ids e nao lista id inexistente', () => {
         const p = montarPromptImportacao('texto');
         ESTADOS.forEach(e => expect(p).toContain(e.id));
         expect(p).not.toContain('zzinexistente');
@@ -702,8 +703,8 @@ describe('QA seletores - ESTADOS_NOVOS aparecem nas listas de UI', () => {
             expect(t, p).toContain('...ESTADOS_NOVOS.map(');
         });
     });
-    it('a lista de ESTADOS usada pelo seletor tem id unico, nome e icone para todos os 37', () => {
-        expect(new Set(ESTADOS.map(e => e.id)).size).toBe(37);
+    it('a lista de ESTADOS usada pelo seletor tem id unico, nome e icone para todos os 44', () => {
+        expect(new Set(ESTADOS.map(e => e.id)).size).toBe(44);
         ESTADOS.forEach((e) => { expect(ehEstadoValido(e.id)).toBe(true); expect(e.nome).toBeTruthy(); expect(e.icone).toBeTruthy(); });
         ESTADOS_NOVOS.forEach(e => expect(e.cor).toMatch(/^#[0-9a-f]{6}$/i));
     });

@@ -146,6 +146,51 @@ export const ESTADOS_NOVOS = [
         desc: '• Desvantagem em testes de Sabedoria (percepção); 3+ stacks: 1 desvantagem em todos os testes.\n• 2+ stacks: Evasiva a 75% (não ouve o golpe chegar).',
         inspiracao: 'Metade do Cego/Surdo antigo: sem penalidade de acerto, só percepção e reação.',
         efeito: (s) => ({ desvAtr: { sabedoria: 1 }, desvTestes: s >= 3 ? 1 : 0, evasiva: s >= 2 ? 0.75 : 1 })
+    },
+    // ---- Estados-flag (marcadores de situação do portador): sem regra numérica própria, o Mestre/jogador aplica à mão. Só Flanqueado
+    // tem efeito automático (quem o ataca ganha vantagem). Valem também como condição `eu_com_estado:<id>` / `alvo_com_estado:<id>`
+    // em core/efeitosCondicionais.js, por isso existem mesmo sem efeito próprio.
+    {
+        id: 'presa', nome: 'Presa (marcado)', icone: '🎯', cor: '#ff5577', suposicao: true,
+        desc: '• Marcador: este personagem foi marcado como presa de alguém.\n• Sem efeito numérico; serve de condição para efeitos ("contra presa").',
+        inspiracao: 'Estado-flag: marca para condições condicionais ("alvo_com_estado:presa").',
+        efeito: () => ({})
+    },
+    {
+        id: 'flanqueado', nome: 'Flanqueado', icone: '↔️', cor: '#ff9944', suposicao: true,
+        desc: '• Está cercado por lados opostos.\n• Quem o ataca tem vantagem.',
+        inspiracao: 'Regra clássica de flanquear: vantagem para quem ataca o flanqueado.',
+        efeito: () => ({ vantContra: 1 })
+    },
+    {
+        id: 'fintado', nome: 'Fintado', icone: '🎭', cor: '#d98cff', suposicao: true,
+        desc: '• Marcador: foi enganado por uma finta.\n• Sem efeito numérico; o Mestre aplica o que a finta causar.',
+        inspiracao: 'Estado-flag para condições ("alvo_com_estado:fintado").',
+        efeito: () => ({})
+    },
+    {
+        id: 'escondido', nome: 'Escondido', icone: '🫥', cor: '#7a8a9a', suposicao: true,
+        desc: '• Marcador: o personagem está escondido.\n• Sem efeito numérico; serve de condição ("eu_com_estado:escondido").',
+        inspiracao: 'Estado-flag do portador, para efeitos condicionais a quem ataca às escondidas.',
+        efeito: () => ({})
+    },
+    {
+        id: 'invisivel', nome: 'Invisível', icone: '👻', cor: '#aaddff', suposicao: true,
+        desc: '• Marcador: o personagem está invisível.\n• Sem efeito numérico; serve de condição ("eu_com_estado:invisivel").',
+        inspiracao: 'Estado-flag do portador, para efeitos condicionais.',
+        efeito: () => ({})
+    },
+    {
+        id: 'escalando', nome: 'Escalando', icone: '🧗', cor: '#b5a070', suposicao: true,
+        desc: '• Marcador: o personagem está escalando.\n• Sem efeito numérico.',
+        inspiracao: 'Estado-flag de posição/movimento.',
+        efeito: () => ({})
+    },
+    {
+        id: 'correndo', nome: 'Correndo', icone: '🏃', cor: '#66ddaa', suposicao: true,
+        desc: '• Marcador: o personagem está correndo.\n• Sem efeito numérico; serve de condição ("eu_com_estado:correndo").',
+        inspiracao: 'Estado-flag de movimento.',
+        efeito: () => ({})
     }
 ];
 

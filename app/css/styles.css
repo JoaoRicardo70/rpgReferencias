@@ -3196,6 +3196,7 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .usos-poder-campo input { width: 52px; text-align: center; }
 .usos-poder-selo { align-self: center; padding: 2px 8px; border: 1px solid var(--cor-destaque); border-radius: 10px; font-size: 0.8em; color: var(--cor-destaque); white-space: nowrap; }
 .custo-turno-campo { display: flex; gap: 4px; }
+.custo-sugerido-dica { display: block; margin-top: 2px; font-size: 0.75em; opacity: 0.7; color: var(--cor-destaque); }
 .custo-turno-campo input { width: 64px; text-align: center; }
 .custo-turno-selo, .recarga-poder-selo { align-self: center; padding: 2px 8px; border: 1px solid var(--cor-destaque); border-radius: 10px; font-size: 0.8em; color: var(--cor-destaque); white-space: nowrap; }
 .recarga-poder-selo.em-recarga { opacity: 0.85; border-style: dashed; }

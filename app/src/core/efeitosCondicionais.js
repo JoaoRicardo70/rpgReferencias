@@ -1,6 +1,8 @@
 // ==========================================
 // 🎯 EFEITOS CONDICIONAIS — lógica pura. Um efeito é { nome, atributo, propriedade, valor } e agora pode ter dois campos opcionais:
-//   • quando — a CONDIÇÃO para valer ('' ou 'sempre' = sempre). Ex.: 'em_combate', 'empunhando_arma:espada', 'alvo_com_estado:surpreso'.
+//   • quando — a CONDIÇÃO para valer ('' ou 'sempre' = sempre). Ex.: 'em_combate', 'empunhando_arma:espada', 'alvo_com_estado:surpreso',
+//     'eu_com_estado:escondido' (o próprio portador), 'alvo_defende_com:evasiva'.
+//     INDESVIÁVEL = efeito acerto_automatico (valor 1) com quando 'alvo_defende_com:evasiva'; IMBLOQUEÁVEL = o mesmo com 'alvo_defende_com:resistencia'.
 //   • escopo — a que rolagem vale (vantagem, desvantagem, piso do d20): 'ataque', 'teste', 'teste:<perícia ou atributo>' ou 'tudo'.
 // Sem contexto, só valem os efeitos sem condição (uma condição desconhecida ou que não dá para checar NÃO vale: "falha fechado").
 // Aqui também mora a coleta de efeitos de TODAS as fontes (Poderes, Passivas, Combos, Suporte, Arma Espiritual, Itens, Pactos).
@@ -68,6 +70,8 @@ export const OPCOES_QUANDO = [
     { id: 'em_combate', rotulo: 'Em combate (iniciativa ativa)' },
     { id: 'empunhando_arma', rotulo: 'Empunhando uma arma', argumento: 'tipo de arma (opcional)' },
     { id: 'alvo_com_estado', rotulo: 'Alvo com o estado…', argumento: 'estado' },
+    { id: 'alvo_defende_com', rotulo: 'Alvo defende com… (Indesviável/Imbloqueável)', argumento: 'Evasiva ou Resistência' },
+    { id: 'eu_com_estado', rotulo: 'Eu (portador) com o estado…', argumento: 'estado' },
     { id: 'alvo_vida_abaixo', rotulo: 'Alvo com vida abaixo de…%', argumento: '%' },
 ];
 
@@ -81,6 +85,8 @@ export function normalizarQuando(valor) {
     if (base === 'em_combate') return 'em_combate';
     if (base === 'empunhando_arma') return arg ? `empunhando_arma:${semAcento(arg)}` : 'empunhando_arma';
     if (base === 'alvo_com_estado') return IDS_ESTADOS.has(semAcento(arg)) ? `alvo_com_estado:${semAcento(arg)}` : null;
+    if (base === 'alvo_defende_com') { const d = semAcento(arg); return d === 'evasiva' || d === 'resistencia' ? `alvo_defende_com:${d}` : null; }
+    if (base === 'eu_com_estado') return IDS_ESTADOS.has(semAcento(arg)) ? `eu_com_estado:${semAcento(arg)}` : null;
     if (base === 'alvo_vida_abaixo') {
         const pct = parseFloat(arg.replace(',', '.'));
         return Number.isFinite(pct) && pct > 0 && pct <= 100 ? `alvo_vida_abaixo:${pct}` : null;
@@ -98,10 +104,10 @@ export const ATRIBUTOS_COM_QUANDO = [
 // ---------- ✖️ Multiplicadores com condição ----------
 // Os multiplicadores (mbase, mgeral, mformas, mabs, munico) são somados em core/attributes.js > getBuffs e core/poder.js >
 // getPoderDiretoMultiplier. Eles aceitam "quando", mas SÓ as condições que dependem apenas da ficha do dono (sem alvo):
-// em_combate e empunhando_arma[:tipo]. Condição de alvo (alvo_com_estado, alvo_vida_abaixo) nunca vale num multiplicador:
+// em_combate, empunhando_arma[:tipo] e eu_com_estado:<id> (o PRÓPRIO portador está com o estado; não precisa de alvo). Condição de alvo (alvo_com_estado, alvo_vida_abaixo) nunca vale num multiplicador:
 // o editor não a oferece, as criações a descartam e um efeito já salvo com ela simplesmente NÃO é aplicado (falha fechada).
 export const PROPRIEDADES_MULTIPLICADOR = ['mbase', 'mgeral', 'mformas', 'mabs', 'munico'];
-export const QUANDO_EM_MULTIPLICADOR = ['em_combate', 'empunhando_arma'];
+export const QUANDO_EM_MULTIPLICADOR = ['em_combate', 'empunhando_arma', 'eu_com_estado'];
 
 export function ehPropriedadeMultiplicador(propriedade) {
     return PROPRIEDADES_MULTIPLICADOR.includes(String(propriedade ?? '').trim().toLowerCase());
@@ -136,7 +142,7 @@ export const ATRIBUTOS_COM_ESCOPO = ['vantagem', 'desvantagem', 'piso_d20'];
 export const ATRIBUTOS_COM_ESCOPO_ESTADO = ['imune_estado', 'resiste_estado'];
 export const ESCOPO_TODOS_OS_ESTADOS = 'todos';
 
-// O contexto de combate: { emCombate, armaTipos: [tipos normalizados], temArma, alvoEstados: [ids], alvoVidaPct }.
+// O contexto de combate: { emCombate, armaTipos: [tipos normalizados], temArma, euEstados: [ids do portador], alvoEstados: [ids], alvoVidaPct }.
 // A condição guardada é normalizada aqui também (dado gravado à mão como 'Em_Combate' vale); inválida nunca vale.
 export function passaQuando(efeito, contexto = {}) {
     const bruto = String((efeito && efeito.quando) ?? '').trim();
@@ -154,6 +160,8 @@ export function passaQuando(efeito, contexto = {}) {
             if (!arg) return !!ctx.temArma || (Array.isArray(ctx.armaTipos) && ctx.armaTipos.length > 0);
             return Array.isArray(ctx.armaTipos) && ctx.armaTipos.includes(semAcento(arg));
         case 'alvo_com_estado': return Array.isArray(ctx.alvoEstados) && ctx.alvoEstados.includes(arg);
+        case 'alvo_defende_com': return ctx.alvoDefesa === arg;
+        case 'eu_com_estado': return Array.isArray(ctx.euEstados) && ctx.euEstados.includes(arg);
         case 'alvo_vida_abaixo': return Number.isFinite(ctx.alvoVidaPct) && ctx.alvoVidaPct < parseFloat(arg);
         default: return false; // condição desconhecida: nunca vale
     }
@@ -177,12 +185,16 @@ export function montarContextoDeCombate(ficha, alvo = null) {
         emCombate: Number(ficha && ficha.iniciativa) > 0,
         armaTipos,
         temArma: ((ficha && ficha.inventario) || []).some(i => i && i.equipado && (i.tipo === 'arma' || i.tipo === 'artefato')) || armaTipos.length > 0,
+        euEstados: ficha ? condicoesDaFicha(ficha).map(c => c.id) : [],
         alvoEstados: [],
+        alvoDefesa: '',
         alvoVidaPct: NaN,
     };
     if (alvo && typeof alvo === 'object') {
         const dono = alvo.isPersonagem && alvo.ficha ? alvo.ficha : alvo;
         ctx.alvoEstados = condicoesDaFicha(dono).map(c => c.id);
+        // Defesa que o alvo usa contra o golpe ('evasiva' | 'resistencia'): a maior das duas (core/alvoCombate.js e Gaveta de NPCs).
+        ctx.alvoDefesa = semAcento(alvo.tipoDefesa);
         const max = Number(alvo.hpMax);
         const atual = Number(alvo.hpAtual);
         if (Number.isFinite(max) && max > 0 && Number.isFinite(atual)) ctx.alvoVidaPct = Math.max(0, Math.min(100, (atual / max) * 100));

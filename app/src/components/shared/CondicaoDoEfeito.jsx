@@ -44,6 +44,19 @@ export default function CondicaoDoEfeito({ atributo, propriedade, quando, onQuan
                     {ESTADOS.map(s => <option key={s.id} value={s.id}>{s.icone} {s.nome}</option>)}
                 </select>
             )}
+            {baseQuando === 'alvo_defende_com' && (
+                <select value={q.arg} aria-label="Defesa do alvo" onChange={ev => onQuando(`alvo_defende_com:${ev.target.value}`)}>
+                    <option value="">Defesa…</option>
+                    <option value="evasiva">Evasiva (Indesviável)</option>
+                    <option value="resistencia">Resistência (Imbloqueável)</option>
+                </select>
+            )}
+            {baseQuando === 'eu_com_estado' && (
+                <select value={q.arg} aria-label="Estado do portador" onChange={ev => onQuando(`eu_com_estado:${ev.target.value}`)}>
+                    <option value="">Estado…</option>
+                    {ESTADOS.map(s => <option key={s.id} value={s.id}>{s.icone} {s.nome}</option>)}
+                </select>
+            )}
             {baseQuando === 'alvo_vida_abaixo' && (
                 <input type="number" min="1" max="100" placeholder="%" aria-label="Vida do alvo abaixo de (%)" value={q.arg} onChange={ev => onQuando(`alvo_vida_abaixo:${ev.target.value}`)} />
             )}

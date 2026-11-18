@@ -22,7 +22,7 @@ const buffVivo = (nome, fonte = 'V', restantes = 3) => ({ id: nome, nome, fonte,
 describe('normalizarAoAcertar - tipos no alvo', () => {
     it('constantes', () => {
         expect(TIPOS_NO_ALVO).toEqual(['drenarEnergiaAlvo', 'debuffAlvo', 'reduzirCuraAlvo']);
-        expect(ATRIBUTOS_DEBUFF_AO_ACERTAR).toEqual(['evasiva', 'resistencia', 'acerto']);
+        expect(ATRIBUTOS_DEBUFF_AO_ACERTAR).toEqual(['evasiva', 'resistencia', 'acerto', 'cd']);
         expect(LIMITE_DURACAO_DEBUFF).toBe(20);
     });
     it('dreno: energia padrao mana e energia invalida vira mana', () => {

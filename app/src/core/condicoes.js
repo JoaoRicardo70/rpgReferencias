@@ -8,8 +8,8 @@
 //   Sangrando: a cada SANGRANDO_POR_EXAUSTAO stacks soma 1 nível de Exaustão
 //   Queimado: com QUEIMADO_VULNERAVEL stacks fica Vulnerável · Criogenia: Lento e, com CRIOGENIA_IMOBILIZA stacks, Imobilizado
 //   Petrificado: 1 Lento → 2 Vulnerável → 3 Imobilizado → 4+ Petrificado (Incapacitado)
-//   Estados novos (core/estadosNovos.js: paralisado, atordoado, em choque, caído, agarrado, impedido, fraco, debilitado, adoecido, enjoado,
-//   sufocado, eletrizado, intimidado, apavorado, banido, dilacerante, dolorido, inconsciente, cego, surdo): declarados lá, somados aqui
+//   Estados novos (44 estados no total; core/estadosNovos.js: paralisado, atordoado, em choque, caído, agarrado, impedido, fraco, debilitado, adoecido, enjoado,
+//   sufocado, eletrizado, intimidado, apavorado, banido, dilacerante, dolorido, inconsciente, cego, surdo e os 7 estados-flag presa, flanqueado, fintado, escondido, invisivel, escalando, correndo): declarados lá, somados aqui
 //   em estadosEfetivos/modificadoresDeEstados, sem código por estado nos consumidores. `cegosurdo` segue como sempre foi.
 // ==========================================
 

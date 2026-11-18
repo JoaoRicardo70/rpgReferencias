@@ -228,11 +228,19 @@ describe('editor - valores estranhos em custo por turno e recarga', () => {
         ['energia invalida', { modo: 'fixo', valor: '5', energia: 'vida' }],
         ['modo invalido', { modo: 'xis', valor: '5', energia: 'mana' }],
         ['zero', { modo: 'fixo', valor: '0', energia: 'mana' }],
-    ])('custo %s nao e gravado', async (_n, valor) => {
+    ])('custo %s nao e gravado', async (n, valor) => {
         montarStore();
+        const alerta = vi.spyOn(window, 'alert').mockImplementation(() => {});
         await criar(() => { probe.setCustoTurnoPoder(valor); });
-        expect('custoPorTurno' in p0()).toBe(false);
-        expect(JSON.stringify(p0())).not.toContain('undefined');
+        if (n === 'zero') {
+            expect('custoPorTurno' in p0()).toBe(false);
+            expect(JSON.stringify(p0())).not.toContain('undefined');
+        } else {
+            // Custo inválido: avisa e NÃO salva o poder com menos custos do que o digitado.
+            expect(alerta).toHaveBeenCalledWith(expect.stringContaining('custo por turno'));
+            expect(mockState.minhaFicha.poderes).toHaveLength(0);
+        }
+        alerta.mockRestore();
     });
     it('custo com virgula decimal e gravado como numero', async () => {
         montarStore();

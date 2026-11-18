@@ -3,7 +3,7 @@ import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { TIPOS_AO_ACERTAR, FATOR_CURA_MIN, FATOR_CURA_MAX, MODOS_AO_ACERTAR, ENERGIAS_AO_ACERTAR, ATRIBUTOS_DEBUFF_AO_ACERTAR, LIMITE_DURACAO_DEBUFF, LIMITE_AO_ACERTAR, normalizarAoAcertar, lerFatorCura } from '../../core/aoAcertar';
 import { lerAlvoDeEditor, acharAlvoParaGravar } from './alvoDeEditor';
 
-const ROTULO_ATRIBUTO_DEBUFF = { evasiva: 'Evasiva (CA)', resistencia: 'Resistência (CA)', acerto: 'Acerto' };
+const ROTULO_ATRIBUTO_DEBUFF = { evasiva: 'Evasiva (CA)', resistencia: 'Resistência (CA/save)', acerto: 'Acerto', cd: 'CD das habilidades' };
 
 // 💚 Lista de "o que acontece com quem acertou" (core/aoAcertar.js): cura ou energia, valor fixo / % do atual / % do máximo.
 // `onChange` grava na hora (selects, caixas, +/remover); `onDigitar` só atualiza a lista local enquanto se digita um valor (campo vazio
@@ -23,6 +23,9 @@ export function ListaAoAcertar({ lista, onChange, onDigitar }) {
                         <select className="input-neon" aria-label={e.tipo === 'drenarEnergiaAlvo' ? 'Energia drenada do alvo' : 'Energia restaurada'} value={e.energia || 'mana'} onChange={ev => alterar(i, { energia: ev.target.value })}>
                             {ENERGIAS_AO_ACERTAR.map(k => <option key={k} value={k}>{k}</option>)}
                         </select>
+                    )}
+                    {e.tipo === 'drenarEnergiaAlvo' && (
+                        <label className="estados-golpe-check" title="Quem acertou recebe exatamente o que saiu do alvo (no máximo o que ele tinha)."><input type="checkbox" checked={!!e.roubar} onChange={ev => alterar(i, { roubar: ev.target.checked })} /> rouba p/ mim</label>
                     )}
                     {e.tipo === 'reduzirCuraAlvo' ? (
                         <label className="estados-golpe-check">cura x <input className="input-neon estados-golpe-num" type="number" min={FATOR_CURA_MIN} max={FATOR_CURA_MAX} step="0.05" aria-label="Fator da cura do alvo" title="0.5 = a cura do alvo cai pela metade; 0.33 = 1/3" value={e.fator ?? 0.5} onChange={ev => digitar(i, 'fator', ev.target.value)} onBlur={() => onChange(itens)} /></label>
@@ -44,6 +47,9 @@ export function ListaAoAcertar({ lista, onChange, onDigitar }) {
                             </select>
                             <label className="estados-golpe-check">por <input className="input-neon estados-golpe-num" type="number" min="1" max={LIMITE_DURACAO_DEBUFF} aria-label="Duração em turnos do alvo" title="Turnos do alvo" value={e.duracao ?? 3} onChange={ev => digitar(i, 'duracao', ev.target.value)} onBlur={() => onChange(itens)} /> turno(s)</label>
                             <label className="estados-golpe-check" title="Cada golpe soma um debuff novo; sem isto, golpes seguidos só renovam o prazo."><input type="checkbox" checked={!!e.empilha} onChange={ev => alterar(i, { empilha: ev.target.checked })} /> empilha</label>
+                            {e.empilha && (
+                                <label className="estados-golpe-check" title="Teto do acúmulo, em pontos (ex.: 15 com 5 por golpe = para em -15). Vazio = sem teto.">teto <input className="input-neon estados-golpe-num" type="number" min="0" aria-label="Teto do acúmulo do debuff" value={e.maximo ?? ''} onChange={ev => digitar(i, 'maximo', ev.target.value)} onBlur={() => onChange(itens)} /></label>
+                            )}
                         </>
                     )}
                     <label className="estados-golpe-check"><input type="checkbox" checked={!!e.apenasCritico} onChange={ev => alterar(i, { apenasCritico: ev.target.checked })} /> só em crítico</label>

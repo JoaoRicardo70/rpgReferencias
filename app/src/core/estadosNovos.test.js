@@ -19,14 +19,15 @@ const f = (...cs) => ({ condicoes: cs });
 const m = (id, stacks = 1) => modificadoresDeEstados(f(c(id, stacks)));
 
 const NOVOS = ['paralisado', 'atordoado', 'emchoque', 'caido', 'agarrado', 'impedido', 'fraco', 'debilitado', 'adoecido', 'enjoado',
-    'sufocado', 'eletrizado', 'intimidado', 'apavorado', 'banido', 'dilacerante', 'dolorido', 'inconsciente', 'cego', 'surdo'];
+    'sufocado', 'eletrizado', 'intimidado', 'apavorado', 'banido', 'dilacerante', 'dolorido', 'inconsciente', 'cego', 'surdo',
+    'presa', 'flanqueado', 'fintado', 'escondido', 'invisivel', 'escalando', 'correndo'];
 
 describe('estados novos - cadastro', () => {
-    it('os 20 estados novos existem em ESTADOS, sem repetir id, com nome e icone', () => {
+    it('os 27 estados novos existem em ESTADOS, sem repetir id, com nome e icone', () => {
         expect(IDS_ESTADOS_NOVOS).toEqual(NOVOS);
         const ids = ESTADOS.map(e => e.id);
         expect(new Set(ids).size).toBe(ids.length);
-        expect(ESTADOS).toHaveLength(17 + 20);
+        expect(ESTADOS).toHaveLength(17 + 27);
         NOVOS.forEach((id) => {
             expect(ehEstadoValido(id)).toBe(true);
             expect(nomeDoEstado(id)).not.toBe(id);
@@ -50,7 +51,9 @@ describe('estados novos - cadastro', () => {
     });
     it('todo estado novo mexe em alguma conta (nao e so enfeite)', () => {
         const neutro = modificadoresDeEstados({});
-        NOVOS.forEach((id) => {
+        // Estados-flag (so marcadores, sem efeito numerico; so Flanqueado da vantagem a quem ataca) ficam de fora.
+        const FLAGS = ['presa', 'fintado', 'escondido', 'invisivel', 'escalando', 'correndo'];
+        NOVOS.filter(id => !FLAGS.includes(id)).forEach((id) => {
             const mod = m(id, 6);
             const diferente = ['evasivaMult', 'resistenciaMult', 'movimentoMult', 'curaMult', 'custoDefesaMult', 'desvTestes', 'desvAtaque', 'vantagemContraEle'].some(k => mod[k] !== neutro[k])
                 || mod.perdeTurno || Object.values(mod.acoesPerdidas).some(v => v > 0) || !!DANO_POR_TURNO[id];
@@ -332,7 +335,7 @@ describe('estados novos - acoes do turno', () => {
 });
 
 describe('estados novos - prompts e declaracoes (fonte unica ESTADOS)', () => {
-    it('importador de habilidades, de tecnicas e a Sexta-Feira listam os 37 ids', () => {
+    it('importador de habilidades, de tecnicas e a Sexta-Feira listam os 44 ids', () => {
         const pI = montarPromptImportacao('texto');
         const pT = montarPromptTecnicas('texto', [], 'Fogo');
         const decl = JSON.stringify(DECLARACOES_CRIACAO);

@@ -25,8 +25,8 @@ describe('efeitos-constants: grupo ROLAGENS E CRITICO', () => {
 });
 
 describe('condicoes: estado Surpreso', () => {
-    it('ESTADOS tem 37 (17 antigos + 20 novos) e inclui surpreso valido', () => {
-        expect(ESTADOS).toHaveLength(37);
+    it('ESTADOS tem 44 (17 antigos + 27 novos) e inclui surpreso valido', () => {
+        expect(ESTADOS).toHaveLength(44);
         expect(ESTADOS.slice(0, 17).map(e => e.id)).toContain('surpreso');
         expect(ehEstadoValido('surpreso')).toBe(true);
     });

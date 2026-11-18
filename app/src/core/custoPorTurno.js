@@ -1,10 +1,10 @@
 // ==========================================
 // 🔋 CUSTO POR TURNO ENQUANTO LIGADO — lógica pura. Um Poder pode cobrar energia a cada início de turno do dono enquanto
 // está ligado ("5% de chakra por turno", "12 de mana por turno"):
-//   custoPorTurno: { modo: 'fixo' | 'percMax', valor: N, energia: 'mana' | 'aura' | 'chakra' | 'corpo' }
+//   custoPorTurno: { modo: 'fixo' | 'percMax', valor: N, energia: 'mana' | 'aura' | 'chakra' | 'corpo' }  (ou uma LISTA desses, ex.: 10% de corpo e 10% de aura)
 // fixo = N na escala exibida (o valor guardado na ficha é N x FATOR_EXIBICAO_VITAIS); percMax = N% do máximo atual da energia.
 // Sem energia suficiente o Poder desliga (mesmo caminho do togglePoder: os máximos voltam e os vitais mantêm a mesma %),
-// sem pagar nada e SEM disparar o "ao desligar" (core/aoDesligar.js), que é só do desligar manual.
+// sem pagar nada (com vários custos, se faltar em qualquer energia nenhuma é paga) e SEM disparar o "ao desligar" (core/aoDesligar.js), que é só do desligar manual.
 // ==========================================
 import { removerEscudosDoPoder, sincronizarEscudoDoPoder, normalizarEscudoAoLigar } from './escudos.js';
 import { podeUsar, gastarUso } from './usosPoder.js';
@@ -15,10 +15,11 @@ import { FATOR_EXIBICAO_VITAIS, getTetoExibidoComFator, capturarMaximosAtuais, r
 export const ENERGIAS_CUSTO = ['mana', 'aura', 'chakra', 'corpo'];
 export const MODOS_CUSTO = ['fixo', 'percMax'];
 export const LIMITE_CUSTO_POR_TURNO = 1e12;
+export const LIMITE_CUSTOS_POR_TURNO = 4;
 const LIMITE_PERCENTUAL = 100;
 
-// Lê e valida o custo de um Poder. { custo, aviso }: custo = objeto limpo ou null (sem custo / inválido); aviso só se o dado veio inválido.
-export function lerCustoPorTurno(bruto) {
+// Valida UM custo. { custo, aviso }: custo = objeto limpo ou null (sem custo / inválido); aviso só se o dado veio inválido.
+function lerUmCusto(bruto) {
     if (bruto === undefined || bruto === null || bruto === '') return { custo: null, aviso: '' };
     if (typeof bruto !== 'object' || Array.isArray(bruto)) return { custo: null, aviso: 'Custo por turno ignorado: formato inválido.' };
     const valor = parseFloat(String(bruto.valor ?? '').replace(',', '.'));
@@ -30,14 +31,44 @@ export function lerCustoPorTurno(bruto) {
     return { custo: { modo: bruto.modo, valor, energia: bruto.energia }, aviso: '' };
 }
 
-export const normalizarCustoPorTurno = (bruto) => lerCustoPorTurno(bruto).custo;
+// Lê e valida TODOS os custos de um Poder. Aceita o formato antigo (UM objeto) ou uma LISTA (ex.: 10% de corpo e 10% de aura).
+// { custos, aviso }: `custos` = lista limpa (no máximo LIMITE_CUSTOS_POR_TURNO); aviso só se algum dado veio inválido.
+export function lerCustosPorTurno(bruto) {
+    const itens = Array.isArray(bruto) ? bruto : [bruto];
+    const custos = [];
+    const avisos = [];
+    itens.forEach((it) => {
+        const r = lerUmCusto(it);
+        if (r.aviso) avisos.push(r.aviso);
+        else if (r.custo && custos.length < LIMITE_CUSTOS_POR_TURNO) custos.push(r.custo);
+    });
+    return { custos, aviso: avisos[0] || '' };
+}
 
-// "5% de chakra por turno" / "12 de mana por turno". Vazio sem custo.
+// Formato antigo: só o primeiro custo. { custo, aviso }: custo = objeto limpo ou null.
+export function lerCustoPorTurno(bruto) {
+    const r = lerCustosPorTurno(bruto);
+    return { custo: r.custos[0] || null, aviso: r.aviso };
+}
+
+// Só o primeiro custo (formato antigo). Para a lista toda use normalizarCustosPorTurno.
+export const normalizarCustoPorTurno = (bruto) => lerCustosPorTurno(bruto).custos[0] || null;
+export const normalizarCustosPorTurno = (bruto) => lerCustosPorTurno(bruto).custos;
+
+// O que gravar no Poder: um custo = objeto (mesmo formato de antes); vários = lista; nenhum = null.
+export function custoPorTurnoParaSalvar(bruto) {
+    const custos = normalizarCustosPorTurno(bruto);
+    if (custos.length === 0) return null;
+    return custos.length === 1 ? custos[0] : custos;
+}
+
+// "5% de chakra por turno" / "12 de mana por turno" / "10% de corpo e 10% de aura por turno". Vazio sem custo.
 export function descreverCustoPorTurno(poder) {
-    const c = normalizarCustoPorTurno(poder && poder.custoPorTurno);
-    if (!c) return '';
-    const n = c.valor.toLocaleString('pt-BR');
-    return c.modo === 'percMax' ? `${n}% de ${c.energia} por turno` : `${n} de ${c.energia} por turno`;
+    const custos = normalizarCustosPorTurno(poder && poder.custoPorTurno);
+    if (custos.length === 0) return '';
+    const partes = custos.map((c) => `${c.valor.toLocaleString('pt-BR')}${c.modo === 'percMax' ? '%' : ''} de ${c.energia}`);
+    const texto = partes.length > 1 ? `${partes.slice(0, -1).join(', ')} e ${partes[partes.length - 1]}` : partes[0];
+    return `${texto} por turno`;
 }
 
 const exibido = (bruto) => Math.floor(bruto / FATOR_EXIBICAO_VITAIS);
@@ -52,22 +83,31 @@ export function calcularCustosPorTurno(ficha) {
     const tetos = {};
     ficha.poderes.forEach((p) => {
         if (!p || !p.ativa) return;
-        const c = normalizarCustoPorTurno(p.custoPorTurno);
-        if (!c) return;
-        const reg = ficha[c.energia];
-        if (saldo[c.energia] === undefined) saldo[c.energia] = Math.max(0, Number(reg && reg.atual) || 0);
-        let bruto = 0;
-        if (c.modo === 'fixo') bruto = c.valor * FATOR_EXIBICAO_VITAIS;
-        else {
-            if (tetos[c.energia] === undefined) {
-                try { tetos[c.energia] = Number(getTetoExibidoComFator(c.energia, ficha)) || 0; } catch (e) { tetos[c.energia] = 0; }
+        const custos = normalizarCustosPorTurno(p.custoPorTurno);
+        if (custos.length === 0) return;
+        // Tudo ou nada: se faltar saldo em QUALQUER energia, o Poder desliga sem pagar nenhuma delas.
+        const parciais = [];
+        const saldoTemp = {};
+        let faltou = null;
+        for (const c of custos) {
+            const reg = ficha[c.energia];
+            if (saldoTemp[c.energia] === undefined) saldoTemp[c.energia] = saldo[c.energia] !== undefined ? saldo[c.energia] : Math.max(0, Number(reg && reg.atual) || 0);
+            let bruto = 0;
+            if (c.modo === 'fixo') bruto = c.valor * FATOR_EXIBICAO_VITAIS;
+            else {
+                if (tetos[c.energia] === undefined) {
+                    try { tetos[c.energia] = Number(getTetoExibidoComFator(c.energia, ficha)) || 0; } catch (e) { tetos[c.energia] = 0; }
+                }
+                bruto = tetos[c.energia] * (c.valor / 100);
             }
-            bruto = tetos[c.energia] * (c.valor / 100);
+            if (!Number.isFinite(bruto)) bruto = Number.MAX_VALUE;
+            if (!reg || saldoTemp[c.energia] < bruto) { faltou = c.energia; break; }
+            saldoTemp[c.energia] -= bruto;
+            parciais.push({ id: p.id, nome: p.nome, energia: c.energia, bruto, valor: exibido(bruto) });
         }
-        if (!Number.isFinite(bruto)) bruto = Number.MAX_VALUE;
-        if (!reg || saldo[c.energia] < bruto) { desligar.push({ id: p.id, nome: p.nome, energia: c.energia }); return; }
-        saldo[c.energia] -= bruto;
-        gastos.push({ id: p.id, nome: p.nome, energia: c.energia, bruto, valor: exibido(bruto) });
+        if (faltou) { desligar.push({ id: p.id, nome: p.nome, energia: faltou }); return; }
+        Object.keys(saldoTemp).forEach((k) => { saldo[k] = saldoTemp[k]; });
+        parciais.forEach(g => gastos.push(g));
     });
     return { gastos, desligar };
 }

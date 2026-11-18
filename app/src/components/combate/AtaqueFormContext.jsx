@@ -30,7 +30,7 @@ import { calcularFaixasCritico, classificarCritico, maiorDadoDaRolagem } from '.
 import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, perguntarGatilhosDeDano, criarEscolhaDoDono } from '../../services/danoVida';
 import { dispararEventoMeu } from '../../services/gatilhosEventos';
 import { registrarGastoDeEnergia } from '../../core/zenkaiMedicao';
-import { coletarAoAcertar, aplicarAoAcertarNoRascunho } from '../../core/aoAcertar';
+import { coletarAoAcertar, aplicarAoAcertarNoRascunho, aplicarRoubadoNoRascunho } from '../../core/aoAcertar';
 import { valoresDeEfeitos, menorValorDeEfeitos, montarContextoDeCombate } from '../../core/efeitosCondicionais';
 
 const AtaqueFormContext = createContext(null);
@@ -513,13 +513,19 @@ export function AtaqueFormProvider({ children }) {
     // 🩸↩️ Fecha o pós-golpe (services/posGolpe.js): o Dano que o Reflexo de alguém devolveu cai em MIM (com as minhas Reduções) e os
     // textos de estados/reflexo vão para o Feed. Devolve os campos extras do Feed.
     const finalizarPosGolpe = (pg) => {
-        const { textos, danoAtacante, aoAcertar, critico } = pg.resultado();
+        const { textos, danoAtacante, aoAcertar, critico, roubado } = pg.resultado();
         // 🔔 Gatilhos `acertou` (core/gatilhos.js): UMA vez por golpe (também em área), só se algum alvo sofreu Dano.
         if (pg.causouDano()) { const g = dispararEventoMeu({ tipo: 'acertou', nivel: pg.golpe().nivel }, { nome: nomeNoFeed }); g.textos.forEach(t => textos.push(`🔔 ${t}`)); }
         // 💚 Ao acertar (core/aoAcertar.js): cura/energia de quem acertou, UMA vez por golpe e só se algum alvo sofreu Dano.
         if (aoAcertar && aoAcertar.length > 0) {
             let frases = [];
             updateFicha(ficha => { frases = aplicarAoAcertarNoRascunho(ficha, aoAcertar, { critico }); });
+            if (frases.length > 0) { salvarFichaSilencioso(); frases.forEach(t => textos.push(t)); }
+        }
+        // 🕳️ Dreno com `roubar`: o que saiu dos alvos entra em quem acertou.
+        if (roubado && Object.keys(roubado).length > 0) {
+            let frases = [];
+            updateFicha(ficha => { frases = aplicarRoubadoNoRascunho(ficha, roubado); });
             if (frases.length > 0) { salvarFichaSilencioso(); frases.forEach(t => textos.push(t)); }
         }
         if (danoAtacante > 0) {

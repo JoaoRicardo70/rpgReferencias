@@ -7,7 +7,7 @@ import { verificarAcessoHabilidadeRaca } from '../../core/racasAcesso';
 import { poderBloqueadoParaDono } from '../../core/racasVisibilidade';
 import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from '../../core/efeitosCondicionais';
 import { normalizarUsos, limiteDeUsos, podeUsar, gastarUso, descreverUsos } from '../../core/usosPoder';
-import { normalizarCustoPorTurno } from '../../core/custoPorTurno';
+import { custoPorTurnoParaSalvar, lerCustosPorTurno } from '../../core/custoPorTurno';
 import { normalizarRecarga, emRecarga, mensagemRecarga, iniciarRecarga } from '../../core/recargaPoder';
 import { rolarAoDesligar, aplicarDanoEmSiMesmo } from '../../core/aoDesligar';
 import React, { createContext, useContext, useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback } from 'react';
@@ -131,6 +131,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     const [usosPorPoder, setUsosPorPoder] = useState('cena');
     // 🔋 Custo por turno ligado e ⏳ recarga em turnos (core/custoPorTurno.js, core/recargaPoder.js): rascunho do editor.
     const [custoTurnoPoder, setCustoTurnoPoder] = useState({ modo: 'fixo', valor: '', energia: 'mana' });
+    // Custos por turno em OUTRAS energias além do principal (ex.: 10% de Corpo e 10% de Aura): lista de { modo, valor, energia }.
+    const [custoTurnoExtrasPoder, setCustoTurnoExtrasPoder] = useState([]);
     const [recargaTurnosPoder, setRecargaTurnosPoder] = useState('');
     const [escudoPoder, setEscudoPoder] = useState({ nome: '', valor: '', tipo: 'escudo' });
     // 🔔 Gatilhos do Poder (core/gatilhos.js): rascunho do editor.
@@ -275,6 +277,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         setUsosMaxPoder(r.usosMax);
         setUsosPorPoder(r.usosPor);
         setCustoTurnoPoder(r.custoTurno);
+        setCustoTurnoExtrasPoder(r.custoTurnoExtras);
         setRecargaTurnosPoder(r.recargaTurnos);
         setEscudoPoder(r.escudo);
         setGatilhosPoder(r.gatilhos);
@@ -324,7 +327,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         poderEditandoId: poderEditandoId ?? null,
         nome: nomePoder, descricao: descricaoPoder, vertente: poderVertente, elemento: poderElemento, elementosAfetados, imagemUrl,
         dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiro: danoVerdadeiroPoder, tipoAcao,
-        usosMax: usosMaxPoder, usosPor: usosPorPoder, custoTurno: custoTurnoPoder, recargaTurnos: recargaTurnosPoder, escudo: escudoPoder,
+        usosMax: usosMaxPoder, usosPor: usosPorPoder, custoTurno: custoTurnoPoder, custoTurnoExtras: custoTurnoExtrasPoder, recargaTurnos: recargaTurnosPoder, escudo: escudoPoder,
         gatilhos: gatilhosPoder, gatilhosDescartados, contadoresRascunho: contadoresPoder,
         alcance: poderAlcance, area: poderArea, arma: armaVinculada,
         maestria: maestriaPoder, fadigaPorUso: fadigaPorUsoPoder, maestriaRequerida: maestriaRequeridaPoder,
@@ -335,7 +338,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     }), [
         poderEditandoId, nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados, imagemUrl,
         dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao,
-        usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, gatilhosDescartados, contadoresPoder,
+        usosMaxPoder, usosPorPoder, custoTurnoPoder, custoTurnoExtrasPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, gatilhosDescartados, contadoresPoder,
         poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder,
         pastaPoder, estagiosEditor, efeitosTemp, efeitosTempPassivos,
         nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo,
@@ -449,6 +452,10 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
             return;
         }
 
+        // 🔋 Custo por turno inválido (% acima de 100, valor negativo, energia/modo inválido): avisa e não salva com menos custos do que o digitado.
+        const avisoCusto = [custoTurnoPoder, ...custoTurnoExtrasPoder].map(c => lerCustosPorTurno([c]).aviso).find(Boolean);
+        if (avisoCusto) { alert(avisoCusto.replace('ignorado', 'inválido') + ' Corrija o custo por turno antes de salvar.'); return; }
+
         const descSafe = descricaoPoder || "";
         const vertSafe = poderVertente || "";
         const elemSafe = poderElemento || "";
@@ -457,7 +464,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         const armaSafe = armaVinculada || "";
         // 🪜 Estágios (core/estagios.js): só grava a config quando ligada; desligar apaga tudo.
         const limiteUsos = normalizarUsos(usosMaxPoder, usosPorPoder);
-        const custoTurno = normalizarCustoPorTurno(custoTurnoPoder);
+        const custoTurno = custoPorTurnoParaSalvar([custoTurnoPoder, ...custoTurnoExtrasPoder]);
         const recargaN = normalizarRecarga(recargaTurnosPoder);
         const escudoLigar = normalizarEscudoAoLigar(escudoPoder);
         const gatilhosSalvos = normalizarGatilhos(gatilhosPoder).gatilhos;
@@ -618,7 +625,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, contadoresPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato, chaveRascunho, abrirPastaDoPoder, isMestre]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, custoTurnoExtrasPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, contadoresPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato, chaveRascunho, abrirPastaDoPoder, isMestre]);
     const salvarNovoPoder = useCallback(async () => {
         if (salvandoRef.current) return;
         salvandoRef.current = true;
@@ -1191,7 +1198,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         poderVertente, setPoderVertente, poderElemento, setPoderElemento,
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, ctxProgressao, adicionarProgressaoRascunho, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, ctxProgressao, adicionarProgressaoRascunho, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, custoTurnoExtrasPoder, setCustoTurnoExtrasPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -1215,7 +1222,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     }), [
         minhaFicha, meuNome, isMestre, abaAtual, trocarAba, secoesAbertas, rascunhoAtual, cancelarEdicaoComConfirmacao,
         nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados,
-        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao, gatilhosPoder, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, ctxProgressao, adicionarProgressaoRascunho, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, usosPorPoder, custoTurnoPoder, recargaTurnosPoder, escudoPoder, cenaAtivaId, poderAlcance,
+        imagemUrl, dadosQtd, dadosFaces, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao, gatilhosPoder, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, ctxProgressao, adicionarProgressaoRascunho, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, usosPorPoder, custoTurnoPoder, custoTurnoExtrasPoder, recargaTurnosPoder, escudoPoder, cenaAtivaId, poderAlcance,
         poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, pastasExistentes, renomearPastaForma, pastasAbertas, alternarPasta, definirPastasAbertas,
         estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo, novoQuandoPassivo, novoEscopoPassivo,

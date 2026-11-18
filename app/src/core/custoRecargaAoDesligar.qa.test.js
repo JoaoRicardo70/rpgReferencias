@@ -20,8 +20,9 @@ describe('custoPorTurno - valores de borda', () => {
         expect(lerCustoPorTurno({ modo: 'percMax', valor: 100.01, energia: 'corpo' }).custo).toBeNull();
         expect(lerCustoPorTurno({ modo: 'percMax', valor: 0.0001, energia: 'corpo' }).custo).not.toBeNull();
     });
-    it('array, numero, booleano como custo = formato invalido; false/0 vazios', () => {
-        [[], 5, true].forEach(v => expect(lerCustoPorTurno(v).aviso).toMatch(/formato/));
+    it('numero e booleano como custo = formato invalido; lista vazia = sem custo e sem aviso', () => {
+        [5, true].forEach(v => expect(lerCustoPorTurno(v).aviso).toMatch(/formato/));
+        expect(lerCustoPorTurno([])).toEqual({ custo: null, aviso: '' });
     });
     it('energia exata paga e zera; 1 bruto a menos desliga', () => {
         const ok = { mana: energia(5 * F), poderes: [pod(1, { custoPorTurno: { modo: 'fixo', valor: 5, energia: 'mana' } })] };
@@ -149,7 +150,7 @@ describe('normalizarPoder / prompt - campos novos', () => {
         expect(normalizarPoder({ nome: 'A', recargaTurnos: 99 }).avisos).toEqual([]);
     });
     it('custoPorTurno: cada tipo de invalido avisa uma vez e nao grava; nada de undefined no objeto', () => {
-        [{ modo: 'fixo', valor: 'abc', energia: 'mana' }, { modo: 'percMax', valor: 120, energia: 'mana' }, { modo: 'x', valor: 1, energia: 'mana' }, { modo: 'fixo', valor: 1, energia: 'x' }, 'texto', []].forEach((c) => {
+        [{ modo: 'fixo', valor: 'abc', energia: 'mana' }, { modo: 'percMax', valor: 120, energia: 'mana' }, { modo: 'x', valor: 1, energia: 'mana' }, { modo: 'fixo', valor: 1, energia: 'x' }, 'texto'].forEach((c) => {
             const r = normalizarPoder({ nome: 'A', custoPorTurno: c });
             expect('custoPorTurno' in r.objeto).toBe(false);
             expect(r.avisos.length).toBe(1);

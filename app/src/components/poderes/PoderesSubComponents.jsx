@@ -30,7 +30,7 @@ import { TEXTO_DAS_IMAGENS } from '../../core/imagemIA';
 import CondicaoDoEfeito from '../shared/CondicaoDoEfeito';
 import { descreverUsos } from '../../core/usosPoder';
 import { TIPOS_ESCUDO } from '../../core/escudos';
-import { ENERGIAS_CUSTO, descreverCustoPorTurno } from '../../core/custoPorTurno';
+import { ENERGIAS_CUSTO, LIMITE_CUSTOS_POR_TURNO, descreverCustoPorTurno } from '../../core/custoPorTurno';
 import { descreverRecarga } from '../../core/recargaPoder';
 import EnsinarBotao from '../shared/EnsinarBotao';
 import GatilhosEditor from './GatilhosEditor';
@@ -379,7 +379,7 @@ export function PoderesFormEditor() {
         elementosAfetados, setElementosAfetados,
         imagemUrl, setImagemUrl, uploadingImg, handleImageUpload,
         dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresParaGatilhos, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresParaGatilhos, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, custoTurnoExtrasPoder, setCustoTurnoExtrasPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -607,6 +607,17 @@ export function PoderesFormEditor() {
                         <div className="grimorio-form-campo grimorio-form-span-tudo">
                             <span className="grimorio-form-rotulo">Custo por turno ligado</span>
                             <div className="custo-turno-campo"><input type="number" min="0" placeholder="0" aria-label="Custo por turno (vazio = sem custo)" value={custoTurnoPoder.valor} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, valor: e.target.value })} title="Energia cobrada no início de cada turno enquanto o Poder está ligado. Vazio ou 0 = sem custo. Sem energia, o Poder desliga." /><select aria-label="Modo do custo por turno" value={custoTurnoPoder.modo} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, modo: e.target.value })}><option value="fixo">fixo</option><option value="percMax">% do máx.</option></select><select aria-label="Energia do custo por turno" value={custoTurnoPoder.energia} onChange={e => setCustoTurnoPoder({ ...custoTurnoPoder, energia: e.target.value })}>{ENERGIAS_CUSTO.map(en => <option key={en} value={en}>{en}</option>)}</select></div>
+                            {custoTurnoExtrasPoder.map((ex, ix) => (
+                                <div className="custo-turno-campo" key={ix}>
+                                    <input type="number" min="0" placeholder="0" aria-label={`Custo por turno extra ${ix + 1}`} value={ex.valor} onChange={e => setCustoTurnoExtrasPoder(custoTurnoExtrasPoder.map((x, j) => (j === ix ? { ...x, valor: e.target.value } : x)))} />
+                                    <select aria-label={`Modo do custo por turno extra ${ix + 1}`} value={ex.modo} onChange={e => setCustoTurnoExtrasPoder(custoTurnoExtrasPoder.map((x, j) => (j === ix ? { ...x, modo: e.target.value } : x)))}><option value="fixo">fixo</option><option value="percMax">% do máx.</option></select>
+                                    <select aria-label={`Energia do custo por turno extra ${ix + 1}`} value={ex.energia} onChange={e => setCustoTurnoExtrasPoder(custoTurnoExtrasPoder.map((x, j) => (j === ix ? { ...x, energia: e.target.value } : x)))}>{ENERGIAS_CUSTO.map(en => <option key={en} value={en}>{en}</option>)}</select>
+                                    <button type="button" className="btn-neon grimorio-btn-mini" aria-label={`Remover custo por turno extra ${ix + 1}`} onClick={() => setCustoTurnoExtrasPoder(custoTurnoExtrasPoder.filter((_, j) => j !== ix))}>✕</button>
+                                </div>
+                            ))}
+                            {custoTurnoExtrasPoder.length + 1 < LIMITE_CUSTOS_POR_TURNO && (
+                                <button type="button" className="btn-neon grimorio-btn-mini" title="Cobra também outra energia a cada turno (ex.: 10% de Corpo e 10% de Aura)" onClick={() => setCustoTurnoExtrasPoder([...custoTurnoExtrasPoder, { modo: 'percMax', valor: '', energia: 'aura' }])}>+ outra energia</button>
+                            )}
                         </div>
                         <div className="grimorio-form-campo grimorio-form-span-tudo">
                             <span className="grimorio-form-rotulo">Escudo ao ligar</span>

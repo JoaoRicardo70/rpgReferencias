@@ -9,6 +9,7 @@ import { enviarParaFeed } from '../../services/firebase-sync';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { modificadorDezena } from '../../core/utils';
 import { getRawBase } from '../../core/attributes';
+import { custoSugeridoDaCategoria } from '../../core/elementos';
 
 // ============================================================================
 // 🔮 CONSTANTES MÁGICAS E REGRAS DO SISTEMA
@@ -161,6 +162,9 @@ export function ElementosFormProvider({ children }) {
     const [bonusValor, setBonusValor] = useState('');
     const [custoValor, setCustoValor] = useState(0);
     const [custoValorMax, setCustoValorMax] = useState(0);
+    const ultimoSugeridoRef = useRef(null); // último Custo pré-preenchido pelo app
+    const custoValorRef = useRef(0);
+    custoValorRef.current = custoValor;
     const [semComoPoder, setSemComoPoder] = useState(false);
     const [limiteDados, setLimiteDados] = useState('');
     const [tipoAcao, setTipoAcao] = useState('');
@@ -346,8 +350,35 @@ export function ElementosFormProvider({ children }) {
         return opts;
     }, [abaAtual, elemSelecionado, elemEditandoId, energiaCombustao]);
 
+    // Grupo do Grimório (título) onde um elemento/categoria está, para achar o custo sugerido.
+    const tituloDoGrupo = useCallback((nome) => {
+        for (const aba of Object.values(abasDinamicas)) {
+            const grupo = (aba.categorias || []).find(c => (c.itens || []).includes(nome));
+            if (grupo) return grupo.titulo;
+        }
+        return '';
+    }, [abasDinamicas]);
+    const custoSugerido = useMemo(() => custoSugeridoDaCategoria(elemSelecionado, tituloDoGrupo(elemSelecionado)), [elemSelecionado, tituloDoGrupo]);
+
     const selecionarElemento = useCallback((nome) => {
         setElemSelecionado(nome);
+        // Pré-preenche o Custo (%) com o sugerido da categoria (sempre editável); ao editar uma técnica já salva, não mexe.
+        const sugerido = custoSugeridoDaCategoria(nome, tituloDoGrupo(nome));
+        if (!elemEditandoId) {
+            if (sugerido !== null) {
+                // Só pré-preenche se o Custo está vazio/0 ou ainda é o que o app pré-preencheu; valor digitado pelo usuário é preservado.
+                const atual = String(custoValorRef.current ?? '').trim();
+                const vazio = atual === '' || Number(atual) === 0;
+                const ehPrePreenchido = ultimoSugeridoRef.current !== null && atual === String(ultimoSugeridoRef.current);
+                if (vazio || ehPrePreenchido) { setCustoValor(sugerido); ultimoSugeridoRef.current = sugerido; }
+                else ultimoSugeridoRef.current = null;
+            }
+            else if (ultimoSugeridoRef.current !== null) {
+                // Sem sugestão nesta categoria: só limpa se o Custo ainda for o que o app pré-preencheu (nunca apaga o que o usuário digitou).
+                if (String(custoValorRef.current) === String(ultimoSugeridoRef.current)) setCustoValor(0);
+                ultimoSugeridoRef.current = null;
+            }
+        }
         if (nome.includes('Truque')) setEnergiaCombustao('livre');
         else if (nome.includes('Arcanas/Negra')) setEnergiaCombustao('flexivel'); 
         else if (abaAtual === 'chakra') setEnergiaCombustao('chakra');
@@ -356,7 +387,7 @@ export function ElementosFormProvider({ children }) {
         else if (abaAtual === 'corpo') setEnergiaCombustao('corpo');
         else if (abaAtual === 'astrais') setEnergiaCombustao('pontosVitais');
         else setEnergiaCombustao('flexivel'); 
-    }, [abaAtual]);
+    }, [abaAtual, tituloDoGrupo, elemEditandoId]);
 
     const cancelarEdicaoElem = useCallback(() => {
         setElemEditandoId(null); setNomeElem(''); setDescricaoElem(''); 
@@ -505,7 +536,7 @@ export function ElementosFormProvider({ children }) {
         abaAtual, setAbaAtual, elemSelecionado, setElemSelecionado,
         nomeElem, setNomeElem, descricaoElem, setDescricaoElem, elementosAfetados, setElementosAfetados, 
         bonusTipo, setBonusTipo, bonusValor, setBonusValor,
-        custoValor, setCustoValor, custoValorMax, setCustoValorMax, semComoPoder, setSemComoPoder, limiteDados, setLimiteDados, tipoAcao, setTipoAcao, reacaoGatilho, setReacaoGatilho, reacaoEfeito, setReacaoEfeito, reacaoValor, setReacaoValor, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
+        custoValor, setCustoValor, custoSugerido, custoValorMax, setCustoValorMax, semComoPoder, setSemComoPoder, limiteDados, setLimiteDados, tipoAcao, setTipoAcao, reacaoGatilho, setReacaoGatilho, reacaoEfeito, setReacaoEfeito, reacaoValor, setReacaoValor, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
         energiaCombustao, setEnergiaCombustao, tipoMecanica, setTipoMecanica,
         savingAttr, setSavingAttr, alcanceQuad, setAlcanceQuad, areaQuad, setAreaQuad,
         alvosAfetados, setAlvosAfetados, duracaoZona, setDuracaoZona,
@@ -514,7 +545,7 @@ export function ElementosFormProvider({ children }) {
         deletarElem, conjurarMagia, magiasDoGrupo, magiasConjuradasOutros, elemEditandoId, minhaFicha,
         elementosInatos, injetarJsonDaIA, lerImportacao, confirmarImportacao, nomesElementos, abasDinamicas, criarElementoCustomizado
     }), [
-        abaAtual, elemSelecionado, nomeElem, descricaoElem, elementosAfetados, bonusTipo, bonusValor, custoValor, custoValorMax, semComoPoder, limiteDados, tipoAcao, reacaoGatilho, reacaoEfeito, reacaoValor, dadosQtd, dadosFaces,
+        abaAtual, elemSelecionado, nomeElem, descricaoElem, elementosAfetados, bonusTipo, bonusValor, custoValor, custoSugerido, custoValorMax, semComoPoder, limiteDados, tipoAcao, reacaoGatilho, reacaoEfeito, reacaoValor, dadosQtd, dadosFaces,
         energiaCombustao, tipoMecanica, savingAttr, alcanceQuad, areaQuad, alvosAfetados, duracaoZona, profGlobal, getModificadorDoisDigitos, allowedEnergies,
         selecionarElemento, salvarNovoElem, editarElem, cancelarEdicaoElem, toggleEquiparElem, deletarElem, conjurarMagia, magiasDoGrupo, magiasConjuradasOutros, elemEditandoId, minhaFicha, elementosInatos, injetarJsonDaIA, lerImportacao, confirmarImportacao, nomesElementos, elemSelecionado, abasDinamicas, criarElementoCustomizado
     ]);

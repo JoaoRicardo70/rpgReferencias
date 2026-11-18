@@ -7,7 +7,7 @@
 // chaveado por dono da ficha + categoria, para sobreviver a trocar de página do livro e de aba.
 // ==========================================
 import { normalizarTipoAcao } from './acoesTecnica';
-import { normalizarCustoPorTurno } from './custoPorTurno';
+import { normalizarCustosPorTurno } from './custoPorTurno';
 import { normalizarEscudoAoLigar } from './escudos';
 import { normalizarGatilhos } from './gatilhos';
 import { contadoresDoPoder, normalizarContadorRascunho } from './contadores';
@@ -31,6 +31,7 @@ export function rascunhoVazio() {
         semComoPoder: false, danoVerdadeiro: false, tipoAcao: '',
         usosMax: '', usosPor: 'cena',
         custoTurno: { modo: 'fixo', valor: '', energia: 'mana' },
+        custoTurnoExtras: [],
         recargaTurnos: '',
         escudo: { nome: '', valor: '', tipo: 'escudo' },
         gatilhos: [], gatilhosDescartados: [],
@@ -70,7 +71,7 @@ export function completarRascunho(r) {
     out.estagios = { ...vazio.estagios, ...(base.estagios || {}) };
     out.custoTurno = { ...vazio.custoTurno, ...(base.custoTurno || {}) };
     out.escudo = { ...vazio.escudo, ...(base.escudo || {}) };
-    ['gatilhos', 'gatilhosDescartados', 'contadoresRascunho', 'efeitos', 'efeitosPassivos'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
+    ['gatilhos', 'gatilhosDescartados', 'contadoresRascunho', 'efeitos', 'efeitosPassivos', 'custoTurnoExtras'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
     return out;
 }
 
@@ -78,7 +79,8 @@ export function completarRascunho(r) {
 // `contadoresDaFicha` (ficha.contadores): os que têm poderId = p.id entram em `contadoresRascunho` para editar junto.
 export function rascunhoDoPoder(p, contadoresDaFicha) {
     const r = rascunhoVazio();
-    const custoSalvo = normalizarCustoPorTurno(p.custoPorTurno);
+    const custosSalvos = normalizarCustosPorTurno(p.custoPorTurno);
+    const custoSalvo = custosSalvos[0] || null;
     const normG = normalizarGatilhos(p.gatilhos);
     r.poderEditandoId = p.id;
     r.nome = p.nome || '';
@@ -97,6 +99,8 @@ export function rascunhoDoPoder(p, contadoresDaFicha) {
     r.usosMax = p.usosMax || '';
     r.usosPor = p.usosPor || 'cena';
     r.custoTurno = custoSalvo ? { modo: custoSalvo.modo, valor: custoSalvo.valor, energia: custoSalvo.energia } : r.custoTurno;
+    // Custos por turno em outras energias (o primeiro fica no campo principal).
+    r.custoTurnoExtras = custosSalvos.slice(1).map(c => ({ modo: c.modo, valor: c.valor, energia: c.energia }));
     r.recargaTurnos = p.recargaTurnos || '';
     r.escudo = normalizarEscudoAoLigar(p.escudoAoLigar) || r.escudo;
     r.gatilhos = clonar(normG.gatilhos);
@@ -148,7 +152,7 @@ export function resumirSecoes(r) {
 
     const avancado = [];
     if (num(c.usosMax) > 0) avancado.push(plural(num(c.usosMax), 'uso', 'usos'));
-    if (num(c.custoTurno.valor) > 0) avancado.push('custo por turno');
+    if (num(c.custoTurno.valor) > 0 || c.custoTurnoExtras.some(x => x && num(x.valor) > 0)) avancado.push('custo por turno');
     if (num(c.recargaTurnos) > 0) avancado.push(`recarga ${num(c.recargaTurnos)}`);
     if (num(c.escudo.valor) > 0) avancado.push('escudo');
     if (c.estagios.habilitado) avancado.push('Estágios ativos');

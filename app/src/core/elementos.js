@@ -98,3 +98,27 @@ export function agruparElementosPorCategoria(elementos) {
     });
     return [...grupos.entries()].filter(([, itens]) => itens.length > 0).map(([titulo, itens]) => ({ titulo, itens }));
 }
+
+// ---------- Custo sugerido por categoria de magia ----------
+// Custo POR NÍVEL (cada nível/ciclo com o seu): a sugestão pré-preenche o campo Custo (%) do formulário de Técnica Elemental e é
+// sempre editável. Não há espaços de magia nem recurso x/y.
+// Magia de Ciclo comum (as 'Magias Arcanas/Negra de Nº Ciclo' e os Truques NÃO têm sugestão).
+export const CUSTO_SUGERIDO_CICLO = { 1: 10, 2: 11, 3: 12, 4: 13, 5: 14, 6: 15, 7: 16, 8: 17, 9: 18, 10: 20 };
+// Por grupo do Grimório que EXISTE no app (título do grupo começa com a chave).
+export const CUSTO_SUGERIDO_POR_GRUPO = { 'Kekkei Genkai': 10, 'Kekkei Touta': 20 };
+// Tabelas de categorias que o app ainda NÃO tem (guardadas aqui para quando existirem; nada as usa hoje):
+//   Magia Ancestral por nível: 1 = 10%, 2 = 15%, 3 = 25% (o app não distingue o nível da Ancestral).
+//   Respiração (1) = 20%; Domínio Simples = 40%; Nen: técnicas de Nen = 5%, Nen avançado = 15%, Especializações = 30%, Não-especializado = 50%.
+//   Portões: 1º ao 9º = 10% + 5% por portão aberto (custoSugeridoPortao); 10º Portão = 100%.
+//   Composição de elementos: 2 elementos = 20%, 3 elementos = 30% (o app não tem composição).
+export const CUSTO_SUGERIDO_ANCESTRAL = { 1: 10, 2: 15, 3: 25 };
+export const CUSTO_SUGERIDO_FIXO = { respiracao: 20, dominioSimples: 40, nenTecnica: 5, nenAvancado: 15, nenEspecializacao: 30, nenNaoEspecializado: 50, decimoPortao: 100 };
+export const custoSugeridoPortao = (n) => (n === 10 ? 100 : n >= 1 && n <= 9 ? 10 + 5 * (n - 1) : null);
+
+// Custo sugerido (% inteiro) ou null: `nomeElemento` = o elemento/categoria escolhido ('Magias de 3º Ciclo'), `tituloGrupo` = o grupo do Grimório onde ele está.
+export function custoSugeridoDaCategoria(nomeElemento, tituloGrupo = '') {
+    const m = /^Magias de (\d+)º Ciclo$/.exec(String(nomeElemento || '').trim());
+    if (m) return CUSTO_SUGERIDO_CICLO[Number(m[1])] ?? null;
+    const grupo = Object.keys(CUSTO_SUGERIDO_POR_GRUPO).find(k => String(tituloGrupo || '').startsWith(k));
+    return grupo ? CUSTO_SUGERIDO_POR_GRUPO[grupo] : null;
+}

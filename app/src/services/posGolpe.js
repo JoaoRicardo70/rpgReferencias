@@ -90,6 +90,7 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
     // 🕳️ Efeitos 'Ao acertar' que mexem no ALVO (dreno de energia, debuff): valem em cada alvo-personagem que sofreu Dano.
     const noAlvo = entradasNoAlvo(aoAcertar);
     let avisouSemFicha = false;
+    const roubado = {}; // energia -> bruto tirado dos alvos pelo dreno com `roubar` (vai para quem acertou)
     return {
         aplicar(idAlvo, alvo, danoNoAlvo) {
             if (!alvo) return danoNoAlvo;
@@ -117,6 +118,7 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
                     const r = resolverAoAcertarNoAlvo(noAlvo, fichaFresca, { critico, nomeAtacante });
                     const campos = { ...r.campos, ...(r.buffs ? { buffsTemporarios: r.buffs } : {}) };
                     if (Object.keys(campos).length > 0) salvarCamposPersonagem(alvo.personagemNome, campos);
+                    Object.keys(r.roubado || {}).forEach((k) => { roubado[k] = (roubado[k] || 0) + r.roubado[k]; });
                     r.textos.forEach(t => textos.push(`${alvo.nome}: ${t}`));
                 } else if (!avisouSemFicha) {
                     avisouSemFicha = true;
@@ -139,7 +141,7 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
         golpe() { return { nivel }; },
         // 🔔 Frases dos gatilhos do alvo (Negar morte etc.), vindas de gravarVidaDoAlvo, entram no resumo do golpe.
         adicionarTextos(r) { ((r && r.textos) || []).forEach(t => textos.push(`🔔 ${t}`)); },
-        resultado() { return { textos: [...textos], danoAtacante, aoAcertar: atingiuComDano ? aoAcertar : [], critico }; },
+        resultado() { return { textos: [...textos], danoAtacante, aoAcertar: atingiuComDano ? aoAcertar : [], critico, ...(Object.keys(roubado).length > 0 ? { roubado: { ...roubado } } : {}) }; },
         // 🔔 Algum alvo sofreu Dano? (dispara o evento `acertou` do atacante) e o nível do golpe.
         causouDano() { return atingiuComDano; },
     };

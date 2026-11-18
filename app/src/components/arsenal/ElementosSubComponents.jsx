@@ -15,6 +15,7 @@ import { montarPromptTecnicas, resumirTecnicaImportada } from '../../core/import
 import { useElementosForm, emogis, cores, BONUS_OPTIONS, NIVEIS_DOMINIO } from './ElementosFormContext';
 import { getNivelDominio, getFracaoDominio, calcularReducaoDanoElemental } from '../../core/dominios';
 import { getInfoPolaridade } from '../../core/polaridade';
+import { bonusBuffTemporario } from '../../core/aoAcertar';
 
 const FALLBACK = <div style={{ opacity: 0.5, padding: 10 }}>Elementos provider não encontrado...</div>;
 
@@ -229,7 +230,7 @@ export function ElementosFormMagia() {
         tipoMecanica, setTipoMecanica, savingAttr, setSavingAttr,
         energiaCombustao, setEnergiaCombustao, allowedEnergies, alcanceQuad, setAlcanceQuad, 
         areaQuad, setAreaQuad, alvosAfetados, setAlvosAfetados, duracaoZona, setDuracaoZona,
-        bonusTipo, setBonusTipo, bonusValor, setBonusValor, custoValor, setCustoValor, custoValorMax, setCustoValorMax, semComoPoder, setSemComoPoder, dadosQtd, setDadosQtd,
+        bonusTipo, setBonusTipo, bonusValor, setBonusValor, custoValor, setCustoValor, custoSugerido, custoValorMax, setCustoValorMax, semComoPoder, setSemComoPoder, dadosQtd, setDadosQtd,
         dadosFaces, setDadosFaces, salvarNovoElem, cancelarEdicaoElem, formRef, limiteDados, setLimiteDados, tipoAcao, setTipoAcao, reacaoGatilho, setReacaoGatilho, reacaoEfeito, setReacaoEfeito, reacaoValor, setReacaoValor, elemSelecionado
     } = ctx;
     // 🎲 Limite de dados do nível do elemento (core/limiteDados.js).
@@ -302,7 +303,7 @@ export function ElementosFormMagia() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 15, marginTop: 15, borderTop: '1px dotted currentColor', paddingTop: 15 }}>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Atributo Bônus</label><select value={bonusTipo} onChange={e => setBonusTipo(e.target.value)} style={{width:'100%'}}>{BONUS_OPTIONS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}</select></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Valor Numérico</label><input type="text" value={bonusValor} onChange={e => setBonusValor(e.target.value)} disabled={bonusTipo === 'nenhum'} style={{width:'100%', textAlign:'center'}} /></div>
-                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo (%)</label><input type="number" value={custoValor} onChange={e => setCustoValor(e.target.value)} disabled={energiaCombustao === 'livre'} style={{width:'100%', textAlign:'center'}} /></div>
+                <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo (%)</label><input type="number" value={custoValor} onChange={e => setCustoValor(e.target.value)} disabled={energiaCombustao === 'livre'} style={{width:'100%', textAlign:'center'}} />{custoSugerido !== null && <small className="custo-sugerido-dica">Custo sugerido para esta categoria: {custoSugerido}%</small>}</div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Custo Máx (%)</label><input type="number" min="0" value={custoValorMax} onChange={e => setCustoValorMax(e.target.value)} disabled={energiaCombustao === 'livre'} title="Margem de Custo: do Custo (%) até este máximo. Vale ao conjurar como Poder." style={{width:'100%', textAlign:'center'}} /></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Como Poder</label><label style={{ fontSize: '0.8em' }}><input type="checkbox" checked={!!semComoPoder} onChange={e => setSemComoPoder(e.target.checked)} /> Vetar</label></div>
                 <div><label style={{ display: 'block', fontSize: '0.8em', opacity: 0.7 }}>Ação gasta</label><select value={tipoAcao} onChange={e => setTipoAcao(e.target.value)} title="Que tipo de Ação custa usar esta técnica (o sistema desconta Ação, Ação Bônus e Reação)" style={{ width: '100%' }}>{TIPOS_ACAO_TECNICA.map(t => <option key={t.id} value={t.id}>{t.rotulo}</option>)}</select></div>
@@ -389,7 +390,8 @@ export function ElementosMagiaCard({ magia }) {
         modBase = getModificadorDoisDigitos(regente);
     }
 
-    const cd = 8 + modBase + profGlobal;
+    // CD exibida já inclui debuffs de CD (Ao acertar > Enfraquece o alvo > CD), que são buffs temporários negativos.
+    const cd = 8 + modBase + profGlobal + bonusBuffTemporario(minhaFicha, 'cd');
     const bonusAcerto = modBase + profGlobal;
 
     return (
