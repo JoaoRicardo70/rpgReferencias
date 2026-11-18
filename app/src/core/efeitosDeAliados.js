@@ -1,5 +1,5 @@
 // ==========================================
-// 🤝 EFEITOS QUE VALEM PARA OS ALIADOS DO PORTADOR — o menor mecanismo para "todos os aliados ganham X contra a Presa do Lohen".
+// 🤝 EFEITOS QUE VALEM PARA OS ALIADOS DO PORTADOR — o menor mecanismo para "todos os aliados ganham X contra o alvo marcado com a Presa".
 //   Um efeito de Poder (ativo/passivo) marcado `valeParaAliados: true` também vale para quem é ALIADO do portador e está na CENA ATIVA
 //   (core/aliadosEmCampo.js: conscientes ou não). Ele é avaliado no contexto de QUEM ATACA (o BENEFICIÁRIO = a ficha passada a efeitosDeAliados):
 //   `quando: 'alvo_com_estado:presa'` olha o alvo do beneficiário, `escalaContador` usa os contadores de QUEM TEM o efeito (o portador do Poder) e
@@ -8,7 +8,7 @@
 //   Identidade: `nomePortador` = chave do beneficiário em `personagens` (do chamador, ou pela identidade da ficha); sem ela, [] (falha fechada).
 //   Só entram atributos de ATAQUE lidos por core/efeitosCondicionais.js > coletarEfeitos (ATRIBUTOS_PARA_ALIADOS); nos outros a marca é ignorada.
 //   O efeito vale só enquanto o Poder do portador está ligado (ativos) ou sempre (passivos). NÃO há evento "morreu": se o portador sair da cena, os
-//   aliados deixam de receber (a cena ativa decide). Simplificação: a Presa de QUALQUER portador conta (a Presa é só do Lohen).
+//   aliados deixam de receber (a cena ativa decide). Simplificação: a Presa de QUALQUER portador conta (a Presa é de um único portador).
 //   Anti-inflação: no máximo UM efeito por (nome do Poder, atributo) vindo de portadores diferentes (o primeiro na ordem da mesa); a soma dos dados
 //   ainda passa por limitarDadosDeEfeitos. Cache de 1 entrada (pela lista de aliados, que já é memoizada por referências da mesa).
 //   Não recursivo: lê só os Poderes dos aliados, nunca os efeitos "de aliados" deles.
