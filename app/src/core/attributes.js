@@ -183,7 +183,7 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
         for (let i = 0; i < ficha.poderes.length; i++) {
             let p = ficha.poderes[i];
             if (!p) continue;
-            let resolved = resolverEfeitosEntidade(p);
+            let resolved = resolverEfeitosEntidade(p, ficha);
             if (p.ativa) processarEfeitos(resolved.efeitos, `Poder: ${p.nome}`);
             processarEfeitos(resolved.efeitosPassivos, `Poder(Pass): ${p.nome}`);
             // Modo (Config) da Forma Mística ativa do Poder; sem Forma ativa não entra nada.
@@ -240,7 +240,7 @@ export function getBuffs(ficha, statKey, ignorarPassivas = false, avoidLoop = fa
         for (let i = 0; i < ficha.seresSelados.length; i++) {
             let ser = ficha.seresSelados[i];
             if (ser && ser.ativo) {
-                let resolved = resolverEfeitosEntidade(ser);
+                let resolved = resolverEfeitosEntidade(ser, ficha);
                 if (resolved.efeitos) processarEfeitos(resolved.efeitos, `[Pacto] ${ser.nome}`);
                 if (resolved.efeitosPassivos) processarEfeitos(resolved.efeitosPassivos, `[Pacto Passivo] ${ser.nome}`);
 
@@ -331,7 +331,7 @@ export function getPoderesDefesa(ficha, tipo) {
         for (let i = 0; i < ficha.poderes.length; i++) {
             let p = ficha.poderes[i];
             if (p && p.ativa) {
-                let resolved = resolverEfeitosEntidade(p);
+                let resolved = resolverEfeitosEntidade(p, ficha);
                 for (let j = 0; j < resolved.efeitos.length; j++) {
                     if (resolved.efeitos[j] && (resolved.efeitos[j].propriedade || '').toLowerCase() === tipo) {
                         t += (parseFloat(resolved.efeitos[j].valor) || 0);
@@ -345,7 +345,7 @@ export function getPoderesDefesa(ficha, tipo) {
         for (let i = 0; i < ficha.seresSelados.length; i++) {
             let ser = ficha.seresSelados[i];
             if (ser && ser.ativo) {
-                let resolved = resolverEfeitosEntidade(ser);
+                let resolved = resolverEfeitosEntidade(ser, ficha);
                 for (let j = 0; j < resolved.efeitos.length; j++) {
                     if (resolved.efeitos[j] && (resolved.efeitos[j].propriedade || '').toLowerCase() === tipo) {
                         t += (parseFloat(resolved.efeitos[j].valor) || 0);

@@ -33,7 +33,7 @@ const EXPLICACAO_MODO = {
     opcional: 'Opcional: só vale armado. O dono e o Mestre armam e desarmam no cartão do Poder; armado conta como "sim" antecipado, mesmo com o dono fora.',
 };
 
-const FORMULARIO_VAZIO = { id: '', nome: '', evento: 'danoQueZeraria', de: '10', ate: '1', nivel: 'qualquer', poderEvento: '', contadorEvento: '', opEvento: '>=', valorEvento: '', vidaMaiorQue: '', limite: '', acoes: [], mestreDesligou: false, modo: 'automatico', armado: true, perguntar: false };
+const FORMULARIO_VAZIO = { id: '', nome: '', evento: 'danoQueZeraria', de: '10', ate: '1', nivel: 'qualquer', poderEvento: '', armaTipoEvento: '', contadorEvento: '', opEvento: '>=', valorEvento: '', vidaMaiorQue: '', limite: '', acoes: [], mestreDesligou: false, modo: 'automatico', armado: true, perguntar: false };
 const ACAO_VAZIA = { tipo: 'anularDano', valor: '', nome: '', tipoEscudo: 'escudo', texto: '', contadorId: '', op: 'somar', sorteio: '', estado: 'queimado', duracaoEstado: '', poderId: '', modoDano: 'fixo', modoAtacante: 'percDanoRecebido', gpModo: 'fixo', gpFator: '', gpZerar: false, gpComo: 'somar', gpDuracao: 'permanente' };
 const TABELA_VAZIA = { dado: '1d4', linhas: [{ ate: '1', texto: '', acoes: [] }], alvo: 0 };
 const ESCOLHA_VAZIA = { pergunta: '', opcoes: [{ texto: '', acoes: [] }, { texto: '', acoes: [] }], alvo: 0 };
@@ -41,7 +41,7 @@ const ESCOLHA_VAZIA = { pergunta: '', opcoes: [{ texto: '', acoes: [] }, { texto
 function formularioDe(g) {
     return {
         id: g.id, nome: g.nome, evento: g.evento.tipo, de: String(g.evento.de ?? '10'), ate: String(g.evento.ate ?? '1'),
-        nivel: g.evento.nivel || 'qualquer', poderEvento: g.evento.poderId || '', contadorEvento: g.evento.contadorId || '', opEvento: g.evento.op || '>=', valorEvento: g.evento.valor !== undefined ? String(g.evento.valor) : '',
+        nivel: g.evento.nivel || 'qualquer', poderEvento: g.evento.poderId || '', armaTipoEvento: g.evento.armaTipo || '', contadorEvento: g.evento.contadorId || '', opEvento: g.evento.op || '>=', valorEvento: g.evento.valor !== undefined ? String(g.evento.valor) : '',
         vidaMaiorQue: ((g.condicoes || []).find(c => c.startsWith('vida_maior_que:')) || '').split(':')[1] || '',
         limite: g.limite ? `${g.limite.max}:${g.limite.por}` : '',
         acoes: g.acoes, mestreDesligou: g.mestreDesligou === true,
@@ -58,6 +58,7 @@ function eventoDe(f) {
         case 'vidaAbaixoDe': return { tipo: 'vidaAbaixoDe', de: f.de, ate: f.ate };
         case 'acertou': case 'atingido': return { tipo: f.evento, nivel: f.nivel };
         case 'poderLigou': case 'poderDesligou': return { tipo: f.evento, poderId: f.poderEvento };
+        case 'armaTrocada': return { tipo: 'armaTrocada', armaTipo: f.armaTipoEvento };
         case 'contadorAtingiu': return { tipo: 'contadorAtingiu', contadorId: f.contadorEvento, op: f.opEvento, valor: f.valorEvento };
         default: return { tipo: f.evento };
     }
@@ -329,6 +330,9 @@ export default function GatilhosEditor({ gatilhos, onChange, descartados = [], c
                             <option value="qualquer">Qualquer Poder</option>
                             {nomes.poderes.map(p => <option key={String(p.id)} value={String(p.id)}>{p.nome}</option>)}
                         </select>
+                    )}
+                    {form.evento === 'armaTrocada' && (
+                        <input type="text" aria-label="Tipo da arma (vazio = qualquer)" placeholder="tipo da arma (vazio = qualquer)" value={form.armaTipoEvento} onChange={e => setForm({ ...form, armaTipoEvento: e.target.value })} />
                     )}
                     {form.evento === 'contadorAtingiu' && (
                         <span className="gatilho-faixa">

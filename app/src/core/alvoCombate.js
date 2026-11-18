@@ -89,11 +89,11 @@ export function resolverAlvoCombate(idAlvo, { dummies, personagens, meuNome, div
 
 // Reduções/Resistências do PERSONAGEM atingido (ficha) + Domínio elemental, em sequência.
 // Dummie (ou sem redução nenhuma) devolve o dano como veio. nivelAtacante = Domínio de quem golpeou.
-export function reduzirDanoNoAlvo(alvo, dano, elemento, { nivelAtacante = 0, nivelDefensorOverride = null, verdadeiro = false } = {}) {
+export function reduzirDanoNoAlvo(alvo, dano, elemento, { nivelAtacante = 0, nivelDefensorOverride = null, verdadeiro = false, tipoGolpe = '' } = {}) {
     const inicial = Math.max(0, Number(dano) || 0);
     if (ehDanoVerdadeiro(verdadeiro)) return { final: inicial, detalhe: [], texto: TEXTO_DANO_VERDADEIRO };
     if (!alvo || !alvo.isPersonagem) return { final: inicial, detalhe: [], texto: '' };
-    const passos = getPassosReducaoDano(alvo.ficha, elemento);
+    const passos = getPassosReducaoDano(alvo.ficha, elemento, undefined, tipoGolpe);
     if (elemento) {
         const nivelDefensor = nivelDefensorOverride !== null && nivelDefensorOverride !== undefined && nivelDefensorOverride !== ''
             ? Number(nivelDefensorOverride) || 0

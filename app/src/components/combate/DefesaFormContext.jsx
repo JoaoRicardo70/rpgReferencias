@@ -252,8 +252,11 @@ export function DefesaFormProvider({ children }) {
             ? escalarDanoPelaVida(dano, getVidaMaxExibidaFicha(minhaFicha), getPontosVidaTotal(useStore.getState().cenario))
             : dano;
         const danoDisputa = aplicarDisputaAoDano(danoBase, disputa);
+        // 🏹 O tipo do golpe (projétil/golpe) só vale se o atacante efetivo escolhido é o AUTOR do último golpe recebido; senão '' (a redução por tipo não vale).
+        const escolhaTipo = atacanteInc === ATACANTE_AUTO ? (ultimoGolpeRecebido ? `p:${ultimoGolpeRecebido.nome}` : ATACANTE_NENHUM) : atacanteInc;
+        const tipoGolpeDoAtacante = ultimoGolpeRecebido && escolhaTipo === `p:${ultimoGolpeRecebido.nome}` ? (ultimoGolpeRecebido.tipoGolpe || '') : '';
         // 🛡️ Reduções/Resistências aplicadas em SEQUÊNCIA, uma de cada vez (core/reducaoDano.js).
-        const reduzido = aplicarReducoesSequenciais(danoDisputa, danoVerdadeiro ? [] : getPassosReducaoDano(minhaFicha, elementoInc, elementosDinamicos.find(e => e.id === elementoInc)?.nome));
+        const reduzido = aplicarReducoesSequenciais(danoDisputa, danoVerdadeiro ? [] : getPassosReducaoDano(minhaFicha, elementoInc, elementosDinamicos.find(e => e.id === elementoInc)?.nome, tipoGolpeDoAtacante));
         let danoFinal = reduzido.final;
 
         // ↩️ Reflexo escolhido: devolve (ou divide) o Dano com quem me atacou. Precisa saber quem foi e ter como pagar.

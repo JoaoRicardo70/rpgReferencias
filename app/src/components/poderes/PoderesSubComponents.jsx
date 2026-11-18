@@ -28,6 +28,7 @@ import { transcreverEmPartes } from '../../services/transcricaoIA';
 import LerDeImagemIA from '../shared/LerDeImagemIA';
 import { TEXTO_DAS_IMAGENS } from '../../core/imagemIA';
 import CondicaoDoEfeito from '../shared/CondicaoDoEfeito';
+import EscalaContadorEfeito from '../shared/EscalaContadorEfeito';
 import { descreverUsos } from '../../core/usosPoder';
 import { TIPOS_ESCUDO } from '../../core/escudos';
 import { ENERGIAS_CUSTO, LIMITE_CUSTOS_POR_TURNO, descreverCustoPorTurno } from '../../core/custoPorTurno';
@@ -48,7 +49,7 @@ import { contextoDoViewer, habilidadeRevelaRaca, poderBloqueadoVisivel, nomesRac
 const LIMITE_PREVIA_ESTAGIOS = 12;
 const fmtNumero = (v) => (typeof v === 'number' ? (Math.round(v * 10000) / 10000).toLocaleString('pt-BR') : v);
 // Texto da condição e do escopo de um efeito na lista (vazio se não tiver nenhum).
-const textoCondicaoEfeito = (e) => [e.quando ? ` · quando: ${e.quando.replace(':', ' ')}` : '', e.escopo ? ` · vale em: ${e.escopo.replace(':', ' ')}` : ''].join('');
+const textoCondicaoEfeito = (e) => [e.quando ? ` · quando: ${e.quando.replace(':', ' ')}` : '', e.escopo ? ` · vale em: ${e.escopo.replace(':', ' ')}` : '', e.escalaContador ? ` · escala: ${e.escalaContador.fator > 0 ? '+' : ''}${e.escalaContador.fator} por ponto do contador` : '', e.valeParaAliados ? ' · vale para aliados em campo' : '', e.escalaAliados ? ` · escala: ${e.escalaAliados.fator > 0 ? '+' : ''}${e.escalaAliados.fator} por aliado em campo${e.escalaAliados.filtro ? ` (${e.escalaAliados.filtro})` : ''}` : ''].join('');
 const textoEfeito = (e) => `${(e.atributo || '').replace('_', ' ').toUpperCase()} ${(e.propriedade || '').toUpperCase()} ${fmtNumero(e.valor)}${e.fixo ? ' (fixo)' : ''}`;
 
 // 🔎 Tabela "estágio a estágio" no editor, com a config ainda em rascunho (core/estagios.js >
@@ -380,7 +381,7 @@ export function PoderesFormEditor() {
         imagemUrl, setImagemUrl, uploadingImg, handleImageUpload,
         dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
         dadosExtraPoder, setDadosExtraPoder, statusFatoresPoder, setStatusFatoresPoder, formulaDanoTexto, setFormulaDanoTexto, formulaDanoAviso, aplicarFormulaDano,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresParaGatilhos, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, custoTurnoExtrasPoder, setCustoTurnoExtrasPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresParaGatilhos, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, custoTurnoExtrasPoder, setCustoTurnoExtrasPoder, cobrarAoAtivarPoder, setCobrarAoAtivarPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -389,6 +390,7 @@ export function PoderesFormEditor() {
         descricaoPoder, setDescricaoPoder,
         nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal,
         novoQuando, setNovoQuando, novoEscopo, setNovoEscopo, novoQuandoPassivo, setNovoQuandoPassivo, novoEscopoPassivo, setNovoEscopoPassivo,
+        novoEscala, setNovoEscala, novoEscalaPassivo, setNovoEscalaPassivo,
         addEfeitoTemp, efeitosTemp, removerEfeitoTemp,
         nomeEfeitoPassivo, setNomeEfeitoPassivo, novoAtrPassivo, setNovoAtrPassivo,
         novoPropPassivo, setNovoPropPassivo, novoValPassivo, setNovoValPassivo,
@@ -557,6 +559,7 @@ export function PoderesFormEditor() {
                         <button type="button" className="btn-neon grimorio-btn grimorio-btn--sm grimorio-form-efeito-add" onClick={addEfeitoTemp} title="Adicionar efeito ativo">+</button>
                     </div>
                     <CondicaoDoEfeito atributo={novoAtr} propriedade={novoProp} quando={novoQuando} onQuando={setNovoQuando} escopo={novoEscopo} onEscopo={setNovoEscopo} />
+                    <EscalaContadorEfeito atributo={novoAtr} contadores={contadoresParaGatilhos} valor={novoEscala} onChange={setNovoEscala} />
 
                     <div className="grimorio-form-efeito-lista">
                         {efeitosTemp.map((e, i) => {
@@ -590,6 +593,7 @@ export function PoderesFormEditor() {
                         <button type="button" className="btn-neon grimorio-btn grimorio-btn--sm grimorio-form-efeito-add" onClick={addEfeitoPassivoTemp} title="Adicionar efeito passivo">+</button>
                     </div>
                     <CondicaoDoEfeito atributo={novoAtrPassivo} propriedade={novoPropPassivo} quando={novoQuandoPassivo} onQuando={setNovoQuandoPassivo} escopo={novoEscopoPassivo} onEscopo={setNovoEscopoPassivo} />
+                    <EscalaContadorEfeito atributo={novoAtrPassivo} contadores={contadoresParaGatilhos} valor={novoEscalaPassivo} onChange={setNovoEscalaPassivo} />
 
                     <div className="grimorio-form-efeito-lista">
                         {efeitosTempPassivos.map((e, i) => {
@@ -640,6 +644,7 @@ export function PoderesFormEditor() {
                             {custoTurnoExtrasPoder.length + 1 < LIMITE_CUSTOS_POR_TURNO && (
                                 <button type="button" className="btn-neon grimorio-btn-mini" title="Cobra também outra energia a cada turno (ex.: 10% de Corpo e 10% de Aura)" onClick={() => setCustoTurnoExtrasPoder([...custoTurnoExtrasPoder, { modo: 'percMax', valor: '', energia: 'aura' }])}>+ outra energia</button>
                             )}
+                            <label className="grimorio-form-check" title="Ao ligar o Poder, cobra o custo por turno uma vez, e cada vez que desligar e ligar de novo (sem energia, ele não liga). Nos turnos seguintes continua cobrando como sempre."><input type="checkbox" checked={cobrarAoAtivarPoder} onChange={e => setCobrarAoAtivarPoder(e.target.checked)} /> Cobrar o custo por turno também ao ativar (desligar e ligar de novo cobra de novo)</label>
                         </div>
                         <div className="grimorio-form-campo grimorio-form-span-tudo">
                             <span className="grimorio-form-rotulo">Escudo ao ligar</span>

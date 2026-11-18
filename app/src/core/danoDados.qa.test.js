@@ -323,7 +323,7 @@ describe('condicoes alvo_com_debuff / combos_finalizados / primeiro_ataque_do_tu
         expect(q('primeiro_ataque_do_turno', ctxDe({ iniciativa: 10, combate: { ataquesNoTurno: 1 } }))).toBe(false);
     });
     it('multiplicador: so eu_com_estado alem das basicas', () => {
-        expect(QUANDO_EM_MULTIPLICADOR).toEqual(['em_combate', 'empunhando_arma', 'eu_com_estado']);
+        expect(QUANDO_EM_MULTIPLICADOR).toEqual(['em_combate', 'empunhando_arma', 'eu_com_estado', 'aliados_em_campo']);
         const ctx = { emCombate: true, alvoDebuff: true, combosFinalizados: 9, primeiroAtaqueDoTurno: true, alvoEstados: ['surpreso'], alvoVidaPct: 10 };
         for (const ruim of ['alvo_com_debuff', 'combos_finalizados:2', 'primeiro_ataque_do_turno', 'alvo_com_estado:surpreso', 'alvo_vida_abaixo:50']) {
             expect(normalizarQuandoMultiplicador(ruim)).toBeNull();

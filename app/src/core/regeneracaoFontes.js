@@ -37,7 +37,7 @@ function coletarFontes(ficha, key) {
 
     (ficha.poderes || []).forEach((p) => {
         if (!p) return;
-        const r = resolverEfeitosEntidade(p);
+        const r = resolverEfeitosEntidade(p, ficha);
         if (p.ativa) processar(r.efeitos, p.nome || 'Poder', 'Poder');
         processar(r.efeitosPassivos, p.nome || 'Poder', 'Poder (passivo)');
     });
@@ -62,7 +62,7 @@ function coletarFontes(ficha, key) {
     (ficha.seresSelados || []).forEach((ser) => {
         if (!ser || !ser.ativo) return;
         const nome = ser.nome || 'Ser selado';
-        const r = resolverEfeitosEntidade(ser);
+        const r = resolverEfeitosEntidade(ser, ficha);
         processar(r.efeitos, nome, 'Pacto');
         processar(r.efeitosPassivos, nome, 'Pacto (passivo)');
         const forma = ser.formaAtivaId && ser.formas ? ser.formas.find(f => f.id === ser.formaAtivaId) : null;

@@ -1,3 +1,4 @@
+import { contarAliadosEmCampoDaMesa, normalizarFiltroAliado, nomeDoPortador } from './aliadosEmCampo.js';
 import { temEstagios, efeitosDoEstagio, fatorGeralDoEstagio, escalarPorFator } from './estagios.js';
 
 /**
@@ -7,7 +8,66 @@ import { temEstagios, efeitosDoEstagio, fatorGeralDoEstagio, escalarPorFator } f
  * "mudanca" em vigor naquele estagio, com o crescimento; passivos nao mudam). Sub-formas
  * da tecnica escalam pelo crescimento geral (nao tem lista propria por "mudanca").
  */
-export function resolverEfeitosEntidade(entidade) {
+export function resolverEfeitosEntidade(entidade, fonte, nomePortador = '') {
+    const r = resolverComEstagio(entidade);
+    if (!fonte) return r;
+    // `fonte` = a ficha do portador (usa ficha.contadores e, para "por aliado", a mesa) ou, direto, a lista de contadores.
+    const contadores = Array.isArray(fonte) ? fonte : fonte.contadores;
+    const ficha = Array.isArray(fonte) ? null : fonte;
+    return escalarResultado(r, contadores, ficha, nomePortador);
+}
+
+// 🔢 Escala (M8/M9). SOMA, nunca multiplica: valor final = valor + fator x (valor do contador) [+ fator x aliados em campo].
+//   escalaContador: { contadorId, fator }   -> contador da ficha do portador (inexistente = sem escala).
+//   escalaAliados:  { fator, filtro? }      -> nº de aliados na CENA ATIVA (core/aliadosEmCampo.js); filtro = "afiliacao|raca|classe=texto".
+//     O portador vem de `nomePortador` (3º argumento) ou da identidade da ficha na mesa; sem ele a contagem é 0 (falha fechada).
+// Vale em efeitos ativos e passivos (da técnica e da Forma ativa; a Configuração de Forma não escala). Fator finito, diferente de 0, até
+// LIMITE_FATOR_ESCALA. Sem NaN: resultado não finito, valor-base não numérico (ex.: dado "20d6") ou escala inválida mantêm o efeito como está.
+// Não muta o efeito original (devolve cópias só dos efeitos escalados). Efeitos sem esses campos passam direto (custo ~zero).
+export const LIMITE_FATOR_ESCALA = 1e6;
+const fatorValido = (f) => { const n = Number(f); return Number.isFinite(n) && n !== 0 && Math.abs(n) <= LIMITE_FATOR_ESCALA ? n : null; };
+
+export function escalarEfeitosPorContador(efeitos, contadores, ficha = null, nomePortador = '') {
+    if (!Array.isArray(efeitos)) return efeitos;
+    // Caminho rápido: sem nenhum efeito escalável não aloca nada.
+    if (!efeitos.some(e => e && typeof e === 'object' && (e.escalaContador || e.escalaAliados))) return efeitos;
+    let mudou = false;
+    const lista = Array.isArray(contadores) ? contadores : [];
+    const saida = efeitos.map((e) => {
+        if (!e || typeof e !== 'object') return e;
+        const ec = e.escalaContador && typeof e.escalaContador === 'object' ? e.escalaContador : null;
+        const ea = e.escalaAliados && typeof e.escalaAliados === 'object' ? e.escalaAliados : null;
+        if (!ec && !ea) return e;
+        const textoBase = String(e.valor ?? '').trim().replace(',', '.');
+        const base = textoBase === '' ? 0 : Number(textoBase);
+        if (!Number.isFinite(base)) return e;
+        let total = base;
+        if (ec) {
+            const f = fatorValido(ec.fator);
+            const ct = f === null ? null : lista.find(c => c && String(c.id) === String(ec.contadorId));
+            const n = ct ? Number(ct.valor) : NaN;
+            if (Number.isFinite(n)) total += f * n;
+        }
+        if (ea && ficha) {
+            const f = fatorValido(ea.fator);
+            if (f !== null) total += f * contarAliadosEmCampoDaMesa(ficha, normalizarFiltroAliado(ea.filtro), nomeDoPortador(ficha, nomePortador));
+        }
+        if (!Number.isFinite(total) || total === base) return e;
+        mudou = true;
+        return { ...e, valor: String(Math.round(total * 1e6) / 1e6) };
+    });
+    return mudou ? saida : efeitos;
+}
+
+function escalarResultado(r, contadores, ficha, nomePortador) {
+    const efeitos = escalarEfeitosPorContador(r.efeitos, contadores, ficha, nomePortador);
+    const efeitosPassivos = escalarEfeitosPorContador(r.efeitosPassivos, contadores, ficha, nomePortador);
+    return efeitos === r.efeitos && efeitosPassivos === r.efeitosPassivos ? r : { ...r, efeitos, efeitosPassivos };
+}
+
+
+
+function resolverComEstagio(entidade) {
     if (!temEstagios(entidade)) return resolverSemEstagio(entidade);
     const fator = fatorGeralDoEstagio(entidade);
     const formas = (fator !== 1 && Array.isArray(entidade.formas))

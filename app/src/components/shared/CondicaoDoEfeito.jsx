@@ -66,6 +66,27 @@ export default function CondicaoDoEfeito({ atributo, propriedade, quando, onQuan
             {baseQuando === 'combos_finalizados' && (
                 <input type="number" min="1" max="999" placeholder="N" aria-label="Combos finalizados (mínimo)" value={q.arg} onChange={ev => onQuando(`combos_finalizados:${ev.target.value}`)} />
             )}
+            {baseQuando === 'aliados_em_campo' && (() => {
+                // arg = "N" ou "N:tipo=valor" (core/aliadosEmCampo.js); aliados da CENA ATIVA, conscientes ou não.
+                const [nTxt, ...resto] = q.arg.split(':');
+                const filtro = resto.join(':');
+                const i = filtro.indexOf('=');
+                const tipoF = i >= 0 ? filtro.slice(0, i) : '';
+                const valorF = i >= 0 ? filtro.slice(i + 1) : '';
+                const montar = (n, t, v) => onQuando(`aliados_em_campo:${n}${t ? `:${t}=${v}` : ''}`);
+                return (
+                    <>
+                        <input type="number" min="1" max="200" placeholder="N" aria-label="Aliados em campo (mínimo)" value={nTxt} onChange={ev => montar(ev.target.value, tipoF, valorF)} />
+                        <select value={tipoF} aria-label="Filtro dos aliados" onChange={ev => montar(nTxt, ev.target.value, valorF || '')}>
+                            <option value="">Qualquer aliado</option>
+                            <option value="afiliacao">Da afiliação…</option>
+                            <option value="raca">Da Raça…</option>
+                            <option value="classe">Da Classe…</option>
+                        </select>
+                        {tipoF && <input type="text" placeholder="texto do filtro" aria-label="Texto do filtro dos aliados" value={valorF} onChange={ev => montar(nTxt, tipoF, ev.target.value.replace(/[:|]/g, ' '))} />}
+                    </>
+                );
+            })()}
             {baseQuando === 'empunhando_arma' && (
                 <input type="text" placeholder="tipo (opcional)" aria-label="Tipo de arma" value={q.arg} onChange={ev => onQuando(ev.target.value.trim() ? `empunhando_arma:${ev.target.value}` : 'empunhando_arma')} />
             )}

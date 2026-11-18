@@ -5,6 +5,8 @@ import { capturarMaximosAtuais, rescalarVitaisProporcional } from '../../core/vi
 import { equiparCobraReacao } from '../../core/acaoPoder';
 import useGastarAcao from '../../hooks/useGastarAcao';
 import { normalizarValorDanoDados } from '../../core/danoDados';
+import { dispararEventoNaFicha } from '../../core/gatilhosAplicar';
+import { enviarParaFeed } from '../../services/firebase-sync';
 
 export const ARMA_TIPOS = ['espada', 'arco', 'lança', 'machado', 'adaga', 'cajado', 'arma de fogo', 'manopla', 'foice', 'chicote', 'martelo', 'escudo'];
 export const RARIDADES = ['comum', 'rara', 'avançada', 'lendaria', 'lendaria (Longuinus)', 'espiritual', 'fantasma nobre'];
@@ -31,6 +33,7 @@ export function ArsenalFormProvider({ children }) {
     // Ficha ativa: a minha, ou a da entidade que o Mestre está vendo (Ficha Definitiva / Mapa), pelo mesmo mecanismo do Grimório.
     const { ficha: minhaFicha, updateFicha, nome: nomeAlvo } = useFichaAtiva();
     const callSave = useCallSaveAtivo();
+    const cenaAtivaId = useStore(s => s.cenario?.ativa) || 'default';
     const itemEditandoId = useStore(s => s.itemEditandoId);
     const setItemEditandoId = useStore(s => s.setItemEditandoId);
     const efeitosTempArsenal = useStore(s => s.efeitosTempArsenal);
@@ -109,6 +112,7 @@ export function ArsenalFormProvider({ children }) {
         // Equipar item que eleva o Poder Calculado e foi marcado como Reação gasta uma Reação (core/acaoPoder.js).
         const alvoItem = (minhaFicha?.inventario || []).find(i => i.id === id);
         if (alvoItem && !alvoItem.equipado && equiparCobraReacao(alvoItem) && !gastarAcao({ tipoAcao: 'reacao' })) return;
+        const textosGatilhos = [];
         updateFicha((ficha) => {
             if (!ficha.inventario) return;
             const itemIndex = ficha.inventario.findIndex(i => i.id === id);
@@ -130,9 +134,15 @@ export function ArsenalFormProvider({ children }) {
             }
 
             rescalarVitaisProporcional(ficha, oldM);
+            // 🔔 Gatilho armaTrocada (core/gatilhos.js): só ao EQUIPAR uma arma (não ao desequipar); alimenta contadores/efeitos por arma.
+            const equipado = ficha.inventario[itemIndex];
+            if (equipado.equipado && equipado.tipo === 'arma') {
+                try { dispararEventoNaFicha(ficha, { tipo: 'armaTrocada', armaTipo: String(equipado.armaTipo || '') }, { cenaId: cenaAtivaId, nome: nomeAlvo }).textos.forEach(t => textosGatilhos.push(t)); } catch (e) { console.error('Gatilho de arma falhou', e); }
+            }
         });
         callSave();
-    }, [updateFicha, callSave, minhaFicha, gastarAcao]);
+        if (textosGatilhos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${textosGatilhos.join(' · ')}` });
+    }, [updateFicha, callSave, minhaFicha, gastarAcao, cenaAtivaId, nomeAlvo]);
 
     const salvarNovoItem = useCallback(() => {
         const n = nomeItem.trim();

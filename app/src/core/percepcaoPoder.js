@@ -74,7 +74,7 @@ export function listarEfeitosDeAtributo(ficha, atributo) {
 
     (ficha.poderes || []).forEach(p => {
         if (!p) return;
-        const r = resolverEfeitosEntidade(p);
+        const r = resolverEfeitosEntidade(p, ficha);
         if (p.ativa) somar(r.efeitos);
         somar(r.efeitosPassivos);
     });
@@ -89,7 +89,7 @@ export function listarEfeitosDeAtributo(ficha, atributo) {
     });
     (ficha.seresSelados || []).forEach(ser => {
         if (!ser || !ser.ativo) return;
-        const r = resolverEfeitosEntidade(ser);
+        const r = resolverEfeitosEntidade(ser, ficha);
         somar(r.efeitos);
         somar(r.efeitosPassivos);
         somarForma(ser);

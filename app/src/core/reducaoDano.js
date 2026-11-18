@@ -7,6 +7,8 @@
 //   1. ficha.reducoesDano — lista editada na Ficha: { id, nome, percentual, elemento }, onde
 //      elemento = 'todos' (qualquer dano), 'fisico', 'pol:yin' | 'pol:yang' | 'pol:neutro' (qualquer
 //      elemento daquela polaridade — ver core/polaridade.js) ou o id de um elemento (só vale contra ele).
+//      ou 'tipo:projetil' / 'tipo:golpe' (só vale contra golpe À DISTÂNCIA / CORPO A CORPO; core/tipoGolpe.js). Sem o tipo do golpe informado, a
+//      redução por tipo NÃO vale (falha fechada).
 //      Cada uma é uma "Habilidade de Redução de Dano" (nome, descrição). O alvo pode ser VÁRIOS
 //      tipos de uma vez: r.elementos = ['fogo', 'agua'] (vale se bater com qualquer um; r.elemento
 //      sozinho é o formato antigo). r.tipo = 'passiva' vale sempre; 'ativa' (padrão) só vale ligada
@@ -18,6 +20,7 @@
 import { listarEfeitosDeAtributo } from './percepcaoPoder.js';
 import { getPolaridadeElemento } from './polaridade.js';
 import { chaveElemento } from './elementos.js';
+import { normalizarTipoGolpe } from './tipoGolpe.js';
 
 export const ATRIBUTO_REDUCAO_DANO = 'reducao_dano';
 export const ELEMENTO_TODOS = 'todos';
@@ -37,6 +40,7 @@ export function textoDanoVerdadeiroDoPoder(nomePoder) {
     return `Dano Verdadeiro (do poder ${nomePoder}): ignora reduções, resistências, imunidades e Domínio`;
 }
 export const PREFIXO_POLARIDADE = 'pol:';
+export const PREFIXO_TIPO_GOLPE = 'tipo:';
 export const PERCENTUAL_MAX_REDUCAO = 100;
 export const PERCENTUAL_MIN_REDUCAO = -1000;
 
@@ -68,7 +72,7 @@ export function alternarAlvoReducao(alvos, alvo, adicionar) {
     if (adicionar) {
         if (a === ELEMENTO_TODOS) return [ELEMENTO_TODOS];
         lista = lista.filter(x => x !== ELEMENTO_TODOS);
-        if (!lista.some(x => x === a || (!x.startsWith(PREFIXO_POLARIDADE) && !a.startsWith(PREFIXO_POLARIDADE) && chaveElemento(x) === chaveElemento(a)))) lista.push(a);
+        if (!lista.some(x => x === a || (!x.startsWith(PREFIXO_POLARIDADE) && !a.startsWith(PREFIXO_POLARIDADE) && !x.startsWith(PREFIXO_TIPO_GOLPE) && !a.startsWith(PREFIXO_TIPO_GOLPE) && chaveElemento(x) === chaveElemento(a)))) lista.push(a);
         return lista.slice(0, 30);
     }
     lista = lista.filter(x => x !== a);
@@ -82,8 +86,9 @@ export function habilidadeEstaLigada(r) {
     return r.ativa !== false;
 }
 
-function alvoCombina(alvo, elemento, el) {
+function alvoCombina(alvo, elemento, el, tipoGolpe = '') {
     if (alvo === ELEMENTO_TODOS) return true;
+    if (alvo.startsWith(PREFIXO_TIPO_GOLPE)) return !!tipoGolpe && normalizarTipoGolpe(alvo.slice(PREFIXO_TIPO_GOLPE.length)) === tipoGolpe;
     if (alvo.startsWith(PREFIXO_POLARIDADE)) {
         return (getPolaridadeElemento(elemento) || null) === alvo.slice(PREFIXO_POLARIDADE.length);
     }
@@ -96,17 +101,19 @@ function inteiroSeguro(v) {
 }
 
 // Lista ORDENADA de passos que valem contra um golpe do `elemento` (vazio/'fisico' = sem elemento).
-export function getPassosReducaoDano(ficha, elemento, nomeElemento) {
+// `tipoGolpe` (opcional): 'projetil' | 'golpe' (core/tipoGolpe.js), para as reduções com alvo `tipo:...`.
+export function getPassosReducaoDano(ficha, elemento, nomeElemento, tipoGolpe = '') {
     const passos = [];
     if (!ficha || ehDanoVerdadeiro(elemento)) return passos;
     // Golpe sem elemento (o Mapa manda null) é dano Físico.
     const el = chaveElemento(elemento) || 'fisico';
+    const tipo = normalizarTipoGolpe(tipoGolpe);
     const elementoComPolaridade = getPolaridadeElemento(elemento) ? elemento : (nomeElemento || elemento);
 
     (Array.isArray(ficha.reducoesDano) ? ficha.reducoesDano : []).forEach((r) => {
         if (!habilidadeEstaLigada(r)) return;
         const alvos = getAlvosReducao(r);
-        if (!alvos.some(a => alvoCombina(a, elementoComPolaridade, el))) return;
+        if (!alvos.some(a => alvoCombina(a, elementoComPolaridade, el, tipo))) return;
         const alvo = alvos.length === 1 ? alvos[0] : 'varios';
         const p = limitarPercentualReducao(r.percentual);
         if (p === 0) return;

@@ -296,7 +296,7 @@ describe('valoresDeEfeitos / somarEfeitosBase / menorValorDeEfeitos', () => {
 
 describe('constantes de opcoes', () => {
     it('OPCOES_QUANDO e OPCOES_ESCOPO tem os ids esperados', () => {
-        expect(OPCOES_QUANDO.map(o => o.id)).toEqual(['sempre', 'em_combate', 'empunhando_arma', 'alvo_com_estado', 'alvo_defende_com', 'eu_com_estado', 'alvo_vida_abaixo', 'alvo_com_debuff', 'combos_finalizados', 'primeiro_ataque_do_turno']);
+        expect(OPCOES_QUANDO.map(o => o.id)).toEqual(['sempre', 'em_combate', 'empunhando_arma', 'alvo_com_estado', 'alvo_defende_com', 'eu_com_estado', 'alvo_vida_abaixo', 'alvo_com_debuff', 'combos_finalizados', 'primeiro_ataque_do_turno', 'aliados_em_campo']);
         expect(OPCOES_ESCOPO.map(o => o.id)).toEqual(['', 'ataque', 'teste', 'teste:', 'tudo']);
     });
 });

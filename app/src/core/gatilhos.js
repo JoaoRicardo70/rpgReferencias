@@ -9,7 +9,8 @@
 //            errou (todos os alvos do teste de acerto escaparam), atingido {nivel?} (quem sofreu o golpe, no ponto único de dano; God Mode não dispara),
 //            inimigoErrou (o golpe de alguém errou ESTE alvo), turnoInicio / turnoFim (dono do turno), poderLigou / poderDesligou {poderId?} (vazio = o próprio
 //            Poder dono do gatilho; 'qualquer' = qualquer Poder), inicioDeLuta (o Mestre iniciou o combate da cena), fimDeLuta (encerrar combate / descansar; cada cena conta como um combate) e
-//            contadorAtingiu {contadorId, op: '>='|'==', valor} (derivado: depois de uma ação de contador, só na BORDA, isto é, quando passa a valer).
+//            contadorAtingiu {contadorId, op: '>='|'==', valor} (derivado: depois de uma ação de contador, só na BORDA, isto é, quando passa a valer) e
+//            armaTrocada {armaTipo?} (ao EQUIPAR uma arma pelo Arsenal; armaTipo vazio = qualquer; serve para alimentar contadores, ex.: estâncias por arma).
 //   ações:   anularDano, definirVida, curar, escudo, buff, limparCondicoes, imunidadeTotal, mensagem;
 //            Fase 2: contador {id, op: somar|definir|zerar|dividir, valor, sorteio?: 'NdM'} (só atua em contador EXISTENTE na ficha, por id; se o id
 //            não existe, ignora em silêncio; com sorteio o valor vira a soma dos dados e `valor` só dá o SINAL), aplicarEstado {estado, stacks, duracao? turnos 1 a 99 ou dado NdM(+K)} (respeita
@@ -84,6 +85,7 @@ export const EVENTOS_GATILHO = [
     { id: 'inicioDeLuta', fase: 'depois', rotulo: 'No início do combate' },
     { id: 'fimDeLuta', fase: 'depois', rotulo: 'No fim da cena/combate' },
     { id: 'contadorAtingiu', fase: 'depois', rotulo: 'Quando um contador chegar a N (por gatilho)' },
+    { id: 'armaTrocada', fase: 'depois', rotulo: 'Quando eu equipar uma arma' },
 ];
 export const ACOES_GATILHO = [
     { id: 'anularDano', rotulo: 'Anular o dano' },
@@ -127,6 +129,7 @@ const numero = (v) => {
 };
 const limitar = (n, min, max) => Math.max(min, Math.min(max, n));
 const texto = (v, max) => String(v ?? '').trim().slice(0, max);
+const semAcentoGatilho = (v) => texto(String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(), 40);
 
 // ---------- 🧹 Normalização ----------
 
@@ -323,6 +326,11 @@ function normalizarEvento(bruto) {
             const poderId = texto(bruto.poderId, 40);
             return poderId ? { tipo: bruto.tipo, poderId } : { tipo: bruto.tipo };
         }
+        case 'armaTrocada': {
+            // armaTipo opcional: vazio = qualquer arma; senão só a arma desse tipo (sem acento/maiúsculas).
+            const armaTipo = semAcentoGatilho(bruto.armaTipo);
+            return armaTipo ? { tipo: 'armaTrocada', armaTipo } : { tipo: 'armaTrocada' };
+        }
         case 'contadorAtingiu': {
             const contadorId = texto(bruto.contadorId, 60);
             const valor = numero(bruto.valor);
@@ -488,6 +496,7 @@ function eventoCasa(g, fonte, evento, contexto) {
             if (!ev.poderId) return fonte.tipo === 'poder' && fonte.id === id;
             return ev.poderId === 'qualquer' || ev.poderId === id;
         }
+        case 'armaTrocada': return !ev.armaTipo || ev.armaTipo === semAcentoGatilho(evento.armaTipo ?? contexto.armaTipo);
         case 'contadorAtingiu': {
             const cid = String(evento.contadorId ?? contexto.contadorId ?? '');
             return ev.contadorId === cid && contadorCruzou(ev, evento.valorAntes ?? contexto.valorAntes, evento.valorDepois ?? contexto.valorDepois);
@@ -522,7 +531,7 @@ export function avaliarGatilhos(evento, contexto = {}, ficha = null, opcoes = {}
     const ja = new Set(Array.isArray(contexto.jaDisparados) ? contexto.jaDisparados : (contexto.jaDisparados ? [...contexto.jaDisparados] : []));
     const coletados = (opcoes.coletados || coletarGatilhos(ficha)).filter(c => c.gatilho.evento.tipo === evento.tipo);
     if (coletados.length === 0) return resultado;
-    const ctxCombate = opcoes.contextoCombate || montarContextoDeCombate(ficha);
+    const ctxCombate = opcoes.contextoCombate || montarContextoDeCombate(ficha, null, contexto.nome);
     const vidaMax = Number(contexto.vidaMaxBruta) > 0 ? Number(contexto.vidaMaxBruta) : getVidaMaxBrutaNpc(ficha);
     const registros = (ficha.combate && ficha.combate.gatilhos) || {};
     const cena = String(contexto.cenaId ?? 'default');
@@ -665,6 +674,7 @@ export function descreverEventoGatilho(ev, ctx = null) {
         case 'poderDesligou': return ev.poderId && ev.poderId !== 'qualquer' ? `Quando ${nomeDoPoder(ev.poderId, ctx)} desligar` : (ev.poderId === 'qualquer' ? 'Quando qualquer Poder desligar' : 'Quando este Poder desligar');
         case 'inicioDeLuta': return 'No início do combate';
         case 'fimDeLuta': return 'No fim da cena/combate';
+        case 'armaTrocada': return ev.armaTipo ? `Quando eu equipar uma arma do tipo ${ev.armaTipo}` : 'Quando eu equipar uma arma';
         case 'contadorAtingiu': return `Quando um gatilho levar ${nomeDoContador(ev.contadorId, ctx)} ${ev.op === '==' ? 'a exatamente' : 'a pelo menos'} ${ev.valor}`;
         default: return '';
     }

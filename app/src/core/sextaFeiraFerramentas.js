@@ -278,7 +278,7 @@ async function executarProposta(tipo, a, estado, registrarProposta) {
             ...Object.keys(estado.personagens || {}),
             ...Object.entries(estado.dummies || {}).map(([id, d]) => d?.nome || id),
         ];
-        const { objeto, avisos, valido, quantidade } = normalizarProposta(tipo, dados, { nomesConhecidos });
+        const { objeto, avisos, valido, quantidade } = normalizarProposta(tipo, dados, { nomesConhecidos, contadores: ((fichaAlvo && fichaAlvo.contadores) || []).map(c => ({ id: c.id, nome: c.nome })) });
         if (!valido) return { erro: 'Proposta incompleta.', avisos };
         const avisosEquilibrio = avaliarEquilibrio(tipo, objeto, fichaAlvo);
         const id = await registrarProposta({ tipo, objeto, alvo, avisos: [...avisos, ...avisosEquilibrio], quantidade: quantidade || 1 });

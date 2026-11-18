@@ -16,6 +16,8 @@ import { armaVirtualDaArmaEspiritual } from './armaEspiritualDano.js';
 import { ESTADOS, condicoesDaFicha, temEstadoNegativo } from './condicoes.js';
 import { ATRIBUTO_DANO_DADOS, lerDadoDeDano, limitarDadosDeEfeitos } from './danoDados.js';
 import { ataquesNoTurno } from './ataquesNoTurno.js';
+import { efeitosDeAliados } from './efeitosDeAliados.js';
+import { contarAliadosEmCampoDaMesa, normalizarFiltroAliado, filtroAliadoParaTexto, nomeDoPortador } from './aliadosEmCampo.js';
 
 const semAcento = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
@@ -24,7 +26,7 @@ const semAcento = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, ''
 // Todos os efeitos que valem agora na ficha, numa lista só (sem filtrar por atributo nem condição).
 // resolverEfeitosEntidade já embute a Forma ativa (ou a substitui com acumulaFormaBase === false); a Configuração (modo) da Forma é
 // somada à parte, uma vez, por efeitosDaConfigAtiva, como em core/attributes.js > getBuffs.
-export function coletarEfeitos(ficha) {
+export function coletarEfeitos(ficha, nomePortador = '') {
     if (!ficha) return [];
     const lista = [];
     const juntar = (efeitos) => { (efeitos || []).forEach(e => { if (e && typeof e === 'object') lista.push(e); }); };
@@ -35,7 +37,7 @@ export function coletarEfeitos(ficha) {
 
     (ficha.poderes || []).forEach(p => {
         if (!p) return;
-        const resolved = resolverEfeitosEntidade(p);
+        const resolved = resolverEfeitosEntidade(p, ficha, nomePortador);
         if (p.ativa) juntar(resolved.efeitos);
         juntar(resolved.efeitosPassivos);
         juntarConfigDaForma(p);
@@ -46,15 +48,17 @@ export function coletarEfeitos(ficha) {
     juntar(efeitosDeSuportePassivo(ficha)); // ✨ Suporte passivo (sempre ligado)
     juntar(efeitosDaArmaEspiritual(ficha)); // ⚔️ Buffs do estado em vigor da Arma Espiritual
     (ficha.inventario || []).filter(i => i && i.equipado).forEach(i => {
-        const resolved = resolverEfeitosEntidade({ ...i, efeitos: efeitosAtivosDoItem(i) });
+        const resolved = resolverEfeitosEntidade({ ...i, efeitos: efeitosAtivosDoItem(i) }, ficha);
         juntar(resolved.efeitos);
         juntar(resolved.efeitosPassivos);
         juntarConfigDaForma(i);
     });
+    // 🤝 Efeitos dos Poderes de ALIADOS na cena ativa marcados `valeParaAliados` (core/efeitosDeAliados.js).
+    juntar(efeitosDeAliados(ficha, nomePortador));
     // 🔮 Pactos/Entidades Seladas sincronizadas (campos "Buffs Ativos" e "Buffs Passivos" do Reino Interior), com a Forma ativa.
     (ficha.seresSelados || []).forEach(ser => {
         if (!ser || !ser.ativo) return;
-        const resolved = resolverEfeitosEntidade(ser);
+        const resolved = resolverEfeitosEntidade(ser, ficha);
         juntar(resolved.efeitos);
         juntar(resolved.efeitosPassivos);
         juntarConfigDaForma(ser);
@@ -80,6 +84,8 @@ export const OPCOES_QUANDO = [
     // Do portador: Combos finalizados neste combate (core/combos.js) e primeiro ataque do turno dele (core/ataquesNoTurno.js; só em combate).
     { id: 'combos_finalizados', rotulo: 'Eu finalizei ao menos… Combos', argumento: 'quantos Combos' },
     { id: 'primeiro_ataque_do_turno', rotulo: 'Primeiro ataque do meu turno' },
+    // Aliados do portador na CENA ATIVA (core/aliadosEmCampo.js), conscientes ou não, com filtro opcional por afiliação/Raça/Classe.
+    { id: 'aliados_em_campo', rotulo: 'Ao menos… aliados em campo (cena ativa)', argumento: 'quantos aliados' },
 ];
 
 // Devolve a condição em forma canônica ('' = sempre) ou null se for inválida.
@@ -95,6 +101,16 @@ export function normalizarQuando(valor) {
     if (base === 'alvo_defende_com') { const d = semAcento(arg); return d === 'evasiva' || d === 'resistencia' ? `alvo_defende_com:${d}` : null; }
     if (base === 'eu_com_estado') return IDS_ESTADOS.has(semAcento(arg)) ? `eu_com_estado:${semAcento(arg)}` : null;
     if (base === 'alvo_com_debuff') return 'alvo_com_debuff';
+    if (base === 'aliados_em_campo') {
+        // arg = "N" ou "N:tipo=valor" (tipo: afiliacao | raca | classe). Filtro escrito mas inválido invalida a condição (nunca vira "sem filtro").
+        const [nTxt, ...restoFiltro] = arg.split(':');
+        const n = /^\d{1,3}$/.test(nTxt.trim()) ? parseInt(nTxt, 10) : NaN;
+        if (!Number.isInteger(n) || n < 1 || n > 200) return null;
+        const textoFiltro = restoFiltro.join(':').trim();
+        if (!textoFiltro) return `aliados_em_campo:${n}`;
+        const f = normalizarFiltroAliado(textoFiltro);
+        return f ? `aliados_em_campo:${n}:${filtroAliadoParaTexto(f)}` : null;
+    }
     if (base === 'primeiro_ataque_do_turno') return 'primeiro_ataque_do_turno';
     if (base === 'combos_finalizados') {
         const n = /^\d{1,3}$/.test(arg) ? parseInt(arg, 10) : NaN;
@@ -117,10 +133,10 @@ export const ATRIBUTOS_COM_QUANDO = [
 // ---------- ✖️ Multiplicadores com condição ----------
 // Os multiplicadores (mbase, mgeral, mformas, mabs, munico) são somados em core/attributes.js > getBuffs e core/poder.js >
 // getPoderDiretoMultiplier. Eles aceitam "quando", mas SÓ as condições que dependem apenas da ficha do dono (sem alvo):
-// em_combate, empunhando_arma[:tipo] e eu_com_estado:<id> (o PRÓPRIO portador está com o estado; não precisa de alvo). Condição de alvo (alvo_com_estado, alvo_vida_abaixo) nunca vale num multiplicador:
+// em_combate, empunhando_arma[:tipo], eu_com_estado:<id> (o PRÓPRIO portador está com o estado) e aliados_em_campo:N (aliados na cena ativa); nenhuma precisa de alvo. Condição de alvo (alvo_com_estado, alvo_vida_abaixo) nunca vale num multiplicador:
 // o editor não a oferece, as criações a descartam e um efeito já salvo com ela simplesmente NÃO é aplicado (falha fechada).
 export const PROPRIEDADES_MULTIPLICADOR = ['mbase', 'mgeral', 'mformas', 'mabs', 'munico'];
-export const QUANDO_EM_MULTIPLICADOR = ['em_combate', 'empunhando_arma', 'eu_com_estado'];
+export const QUANDO_EM_MULTIPLICADOR = ['em_combate', 'empunhando_arma', 'eu_com_estado', 'aliados_em_campo'];
 
 export function ehPropriedadeMultiplicador(propriedade) {
     return PROPRIEDADES_MULTIPLICADOR.includes(String(propriedade ?? '').trim().toLowerCase());
@@ -180,6 +196,14 @@ export function passaQuando(efeito, contexto = {}) {
         case 'alvo_com_debuff': return ctx.alvoDebuff === true;
         case 'combos_finalizados': return Number.isFinite(ctx.combosFinalizados) && ctx.combosFinalizados >= parseInt(arg, 10);
         case 'primeiro_ataque_do_turno': return ctx.primeiroAtaqueDoTurno === true;
+        case 'aliados_em_campo': {
+            // Sem contexto da mesa (ou sem o contador) a condição falha fechada.
+            if (typeof ctx.contarAliadosEmCampo !== 'function') return false;
+            const [nTxt, ...restoFiltro] = arg.split(':');
+            const n = parseInt(nTxt, 10);
+            const total = Number(ctx.contarAliadosEmCampo(normalizarFiltroAliado(restoFiltro.join(':'))));
+            return Number.isFinite(n) && Number.isFinite(total) && total >= n;
+        }
         default: return false; // condição desconhecida: nunca vale
     }
 }
@@ -196,7 +220,8 @@ export function tiposDeArmasEquipadas(ficha) {
 }
 
 // Monta o contexto a partir da ficha de quem age e do alvo (ficha de personagem ou Dummie; pode ser null).
-export function montarContextoDeCombate(ficha, alvo = null) {
+// `nomePortador`: chave do portador em `personagens` (obrigatória para as condições/escalas de aliados; sem ela contam 0).
+export function montarContextoDeCombate(ficha, alvo = null, nomePortador = '') {
     const armaTipos = tiposDeArmasEquipadas(ficha);
     const ctx = {
         emCombate: Number(ficha && ficha.iniciativa) > 0,
@@ -210,6 +235,9 @@ export function montarContextoDeCombate(ficha, alvo = null) {
         // Do portador: Combos finalizados neste combate e se este seria o 1º ataque do turno dele (só em combate: fora da iniciativa não há turno).
         combosFinalizados: ficha ? estadoDeCombo(ficha).finalizados : 0,
         primeiroAtaqueDoTurno: !!ficha && Number(ficha.iniciativa) > 0 && ataquesNoTurno(ficha) === 0,
+        // Aliados do portador na cena ativa (preguiçoso: só lê a mesa quando alguma condição aliados_em_campo é avaliada). Filtro = { tipo, valor } ou null.
+        nomePortador: nomePortador || '',
+        contarAliadosEmCampo: ficha ? (filtro = null) => contarAliadosEmCampoDaMesa(ficha, filtro, nomeDoPortador(ficha, nomePortador)) : null,
     };
     if (alvo && typeof alvo === 'object') {
         const dono = alvo.isPersonagem && alvo.ficha ? alvo.ficha : alvo;
@@ -269,7 +297,7 @@ export function escopoPassa(efeito, rolagem, padrao = 'ataque') {
 
 // Valores numéricos dos efeitos BASE de um atributo que passam na condição (e, se pedido, no escopo).
 export function valoresDeEfeitos(ficha, atributo, { contexto = {}, rolagem = null, escopoPadrao = 'ataque' } = {}) {
-    return coletarEfeitos(ficha)
+    return coletarEfeitos(ficha, contexto && contexto.nomePortador)
         .filter(e => e.atributo === atributo && e.propriedade === 'base' && passaQuando(e, contexto) && (!rolagem || escopoPassa(e, rolagem, escopoPadrao)))
         .map(e => parseFloat(e.valor) || 0);
 }

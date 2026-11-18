@@ -12,6 +12,7 @@ import { tiposRastreadosDe, acoesEmFalta, gastarAcoes, avisosDoGasto } from '../
 import { reacaoAguardandoDano, getReacaoDaTecnica } from '../../core/reacoes';
 import { montarAtaqueSalvo, resolverAtaqueSalvo, VERSAO_ATAQUE_SALVO } from '../../core/ataquesSalvos';
 import { golpeEquipado, ehBerserker, calcularGanhoBerserker, getNivelClasse } from '../../core/classesMecanicas';
+import { tipoDoGolpeDaFicha } from '../../core/tipoGolpe';
 import { resolverDanoVerdadeiroDoGolpe, textoDanoVerdadeiroDoPoder } from '../../core/reducaoDano';
 import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, classificarEfetividade } from '../../core/disputaPoder';
 import { enviarParaFeed, salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
@@ -252,7 +253,7 @@ export function AtaqueFormProvider({ children }) {
 
     // 💥 Crítico e Crítico Fatal (core/critico.js): faixas da ficha abaixadas pelos efeitos MARGEM_CRITICO / MARGEM_CRITICO_FATAL (o menor N
     // vale) e Crítico automático por efeito (ex.: contra alvo Surpreso, com a condição do efeito checada no alvo escolhido).
-    const contextoCritico = useMemo(() => montarContextoDeCombate(minhaFicha, dummieAlvo), [minhaFicha, dummieAlvo]);
+    const contextoCritico = useMemo(() => montarContextoDeCombate(minhaFicha, dummieAlvo, meuNome), [minhaFicha, dummieAlvo, meuNome]);
     const faixasCritico = useMemo(() => calcularFaixasCritico(
         { normalMin: critNormalMin, normalMax: critNormalMax, fatalMin: critFatalMin, fatalMax: critFatalMax },
         menorValorDeEfeitos(minhaFicha, 'margem_critico', contextoCritico),
@@ -473,7 +474,7 @@ export function AtaqueFormProvider({ children }) {
                 fatorVidaAlvo = getFatorVida(vidaAlvo, pontosVida);
                 const danoAposDisputa = aplicarDisputaAoDano(escalarDanoPelaVida(danoReduzido, vidaAlvo, pontosVida), disputa);
                 // 🛡️ Alvo-personagem: Reduções/Resistências/Domínio da ficha dele, em sequência.
-                const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: danoVerdadeiro });
+                const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: danoVerdadeiro, tipoGolpe: tipoDoGolpeDaFicha(minhaFicha) });
                 const danoNoAlvo = posGolpeLivre.aplicar(alvoSelecionado, dummieAlvo, reducaoAlvo.final);
                 // Escala: dano exibido -> Vida bruta do dummy (core/vitals.js > danoExibidoParaBruto).
                 const hpAnterior = dummieAlvo.hpAtual || 0;
@@ -492,7 +493,7 @@ export function AtaqueFormProvider({ children }) {
             extraFeed = { ...extraFeed, ...finalizarPosGolpe(posGolpeLivre) };
             const energiasManual = (tipoAtiva && tipoAtiva !== 'nenhum' && percNum > 0) ? [tipoAtiva] : [];
             const feedData = {
-                tipo: 'dano', ts: Date.now(), nome: nomeNoFeed, dano: Math.floor(danoReduzido), letalidade: letalidadeCalculada, poderAtacante: meuPoderDisputa, 
+                tipo: 'dano', ts: Date.now(), nome: nomeNoFeed, dano: Math.floor(danoReduzido), letalidade: letalidadeCalculada, poderAtacante: meuPoderDisputa, tipoGolpe: tipoDoGolpeDaFicha(minhaFicha),
                 tipoAtaque: classificarAtaque({ elemento: elementoAtivo, energias: energiasManual }).rotulo, energiasUsadas: energiasManual,
                 rolagem: `${rollsLog.length > 0 ? rollsLog.length + ' rolagem(ns)' : 'Cálculo Direto'}`, rolagemMagica: "",
                 atributosUsados: 'Manual', detalheEnergia: logEnergia ? `(${logEnergia})` : '',
@@ -701,7 +702,7 @@ export function AtaqueFormProvider({ children }) {
                         const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dData));
                         // Dano de Ataque (dados + Status) já está na escala da Vida: não é reescalado pela Vida do alvo.
                         const danoEscalado = result.dano;
-                        const danoNoAlvo = posGolpe.aplicar(idD, dData, reduzirDanoNoAlvo(dData, aplicarDisputaAoDano(danoEscalado, disputa), elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: golpeVerdadeiro.verdadeiro }).final);
+                        const danoNoAlvo = posGolpe.aplicar(idD, dData, reduzirDanoNoAlvo(dData, aplicarDisputaAoDano(danoEscalado, disputa), elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: golpeVerdadeiro.verdadeiro, tipoGolpe: tipoDoGolpeDaFicha(minhaFicha) }).final);
                         posGolpe.adicionarTextos(gravarVidaDoAlvo(idD, posGolpe.alvoParaGravar(idD, dData), Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)), { elemento: elementoAtivo, golpe: posGolpe.golpe() }));
                         if (dData.isPersonagem) alvosAplicados.push(dData.personagemNome);
                         if (disputa.ativa || danoNoAlvo !== Math.floor(result.dano)) {
@@ -723,7 +724,7 @@ export function AtaqueFormProvider({ children }) {
             const fatorVidaAlvo = 1;
             const danoAposDisputa = aplicarDisputaAoDano(result.dano, disputa);
             // 🛡️ Alvo-personagem: Reduções/Resistências/Domínio da ficha dele, em sequência.
-            const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: golpeVerdadeiro.verdadeiro });
+            const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: golpeVerdadeiro.verdadeiro, tipoGolpe: tipoDoGolpeDaFicha(minhaFicha) });
             const danoNoAlvo = posGolpe.aplicar(alvoSelecionado, dummieAlvo, reducaoAlvo.final);
             // Escala: dano exibido -> Vida bruta do dummy (core/vitals.js > danoExibidoParaBruto).
             const hpAnterior = dummieAlvo.hpAtual || 0;
@@ -810,7 +811,7 @@ export function AtaqueFormProvider({ children }) {
             critico: textoArma.includes('FATAL') ? 'fatal' : (textoArma.includes('CRÍTICO') ? 'critico' : '')
         });
         const feedData = {
-            tipo: 'dano', ts: Date.now(), nome: nomeNoFeed, dano: result.dano, letalidade: result.letalidade, poderAtacante: meuPoderNoGolpe,
+            tipo: 'dano', ts: Date.now(), nome: nomeNoFeed, dano: result.dano, letalidade: result.letalidade, poderAtacante: meuPoderNoGolpe, tipoGolpe: tipoDoGolpeDaFicha(minhaFicha),
             tipoAtaque: classificarAtaque({ elemento: elementoAtivo, energias: energiasGolpe }).rotulo, energiasUsadas: energiasGolpe,
             rolagem: result.rolagem, rolagemMagica: result.rolagemMagica,
             atributosUsados: result.atributosUsados, detalheEnergia: result.detalheEnergia,

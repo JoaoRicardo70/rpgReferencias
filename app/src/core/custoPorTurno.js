@@ -73,6 +73,33 @@ export function descreverCustoPorTurno(poder) {
 
 const exibido = (bruto) => Math.floor(bruto / FATOR_EXIBICAO_VITAIS);
 
+// Custo de UM Poder agora (tudo ou nada). `saldo`/`tetos` são caches compartilhados entre Poderes (saldo já descontado dos anteriores).
+// Devolve { parciais: [{ id, nome, energia, bruto, valor }], faltou: energia | null, saldoTemp }. NÃO mexe na ficha e NÃO olha p.ativa.
+function custoDoPoder(ficha, p, saldo, tetos) {
+    const custos = normalizarCustosPorTurno(p && p.custoPorTurno);
+    const parciais = [];
+    const saldoTemp = {};
+    if (custos.length === 0) return { parciais, faltou: null, saldoTemp };
+    let faltou = null;
+    for (const c of custos) {
+        const reg = ficha[c.energia];
+        if (saldoTemp[c.energia] === undefined) saldoTemp[c.energia] = saldo[c.energia] !== undefined ? saldo[c.energia] : Math.max(0, Number(reg && reg.atual) || 0);
+        let bruto = 0;
+        if (c.modo === 'fixo') bruto = c.valor * FATOR_EXIBICAO_VITAIS;
+        else {
+            if (tetos[c.energia] === undefined) {
+                try { tetos[c.energia] = Number(getTetoExibidoComFator(c.energia, ficha)) || 0; } catch (e) { tetos[c.energia] = 0; }
+            }
+            bruto = tetos[c.energia] * (c.valor / 100);
+        }
+        if (!Number.isFinite(bruto)) bruto = Number.MAX_VALUE;
+        if (!reg || saldoTemp[c.energia] < bruto) { faltou = c.energia; break; }
+        saldoTemp[c.energia] -= bruto;
+        parciais.push({ id: p.id, nome: p.nome, energia: c.energia, bruto, valor: exibido(bruto) });
+    }
+    return { parciais, faltou, saldoTemp };
+}
+
 // Calcula (sem mexer na ficha) o que cada Poder LIGADO com custo pagaria agora. Vários Poderes na mesma energia pagam em sequência.
 // Devolve { gastos: [{ id, nome, energia, bruto, valor }], desligar: [{ id, nome, energia }] }.
 export function calcularCustosPorTurno(ficha) {
@@ -83,33 +110,28 @@ export function calcularCustosPorTurno(ficha) {
     const tetos = {};
     ficha.poderes.forEach((p) => {
         if (!p || !p.ativa) return;
-        const custos = normalizarCustosPorTurno(p.custoPorTurno);
-        if (custos.length === 0) return;
         // Tudo ou nada: se faltar saldo em QUALQUER energia, o Poder desliga sem pagar nenhuma delas.
-        const parciais = [];
-        const saldoTemp = {};
-        let faltou = null;
-        for (const c of custos) {
-            const reg = ficha[c.energia];
-            if (saldoTemp[c.energia] === undefined) saldoTemp[c.energia] = saldo[c.energia] !== undefined ? saldo[c.energia] : Math.max(0, Number(reg && reg.atual) || 0);
-            let bruto = 0;
-            if (c.modo === 'fixo') bruto = c.valor * FATOR_EXIBICAO_VITAIS;
-            else {
-                if (tetos[c.energia] === undefined) {
-                    try { tetos[c.energia] = Number(getTetoExibidoComFator(c.energia, ficha)) || 0; } catch (e) { tetos[c.energia] = 0; }
-                }
-                bruto = tetos[c.energia] * (c.valor / 100);
-            }
-            if (!Number.isFinite(bruto)) bruto = Number.MAX_VALUE;
-            if (!reg || saldoTemp[c.energia] < bruto) { faltou = c.energia; break; }
-            saldoTemp[c.energia] -= bruto;
-            parciais.push({ id: p.id, nome: p.nome, energia: c.energia, bruto, valor: exibido(bruto) });
-        }
+        const { parciais, faltou, saldoTemp } = custoDoPoder(ficha, p, saldo, tetos);
         if (faltou) { desligar.push({ id: p.id, nome: p.nome, energia: faltou }); return; }
         Object.keys(saldoTemp).forEach((k) => { saldo[k] = saldoTemp[k]; });
         parciais.forEach(g => gastos.push(g));
     });
     return { gastos, desligar };
+}
+
+// 💥 Custo NA ATIVAÇÃO (opção por Poder `cobrarAoAtivar: true`; ausente = só liga, nada se gasta). Ao LIGAR cobra UMA vez os custos por turno
+// do Poder (mesmas regras: tudo ou nada; % sobre o máximo ANTES de ligar). Nos turnos seguintes a cobrança por turno segue como sempre
+// (o início de turno só cobra Poder já ligado, então ligar durante o próprio turno não cobra duas vezes nele).
+// Chamar com o Poder AINDA desligado, dentro do rascunho. { cobra, ok, faltou?, gastos, texto }. Com ok=false nada foi descontado.
+export function cobrarCustoDeAtivacao(ficha, p) {
+    const vazio = { cobra: false, ok: true, gastos: [], texto: '' };
+    if (!ficha || !p || p.cobrarAoAtivar !== true) return vazio;
+    const { parciais, faltou } = custoDoPoder(ficha, p, {}, {});
+    if (parciais.length === 0 && !faltou) return vazio;
+    if (faltou) return { cobra: true, ok: false, faltou, gastos: [], texto: `${p.nome} não ligou: sem ${faltou} para o custo de ativação` };
+    parciais.forEach((g) => { ficha[g.energia].atual = Math.max(0, (Number(ficha[g.energia].atual) || 0) - g.bruto); });
+    const texto = `${p.nome} consumiu ${parciais.map(g => `${g.valor.toLocaleString('pt-BR')} de ${g.energia}`).join(' e ')} ao ativar`;
+    return { cobra: true, ok: true, gastos: parciais.map(g => ({ key: g.energia, valor: g.bruto })), texto };
 }
 
 // Desliga um Poder NO RASCUNHO pelo mesmo caminho do togglePoder (captura máximos -> desliga -> mantém a % dos vitais).
@@ -134,12 +156,15 @@ export function ligarPoderNoRascunho(ficha, id, cenaId = 'default', cenario = nu
     if (emRecarga(p)) return { ok: false, motivo: 'em recarga' };
     if (poderBloqueado(cenario, ficha, p).bloqueado) return { ok: false, motivo: 'bloqueada (Habilidade de Raça)' };
     const antes = capturarMaximosAtuais(ficha);
+    // 💥 Custo na ativação (opção `cobrarAoAtivar`): sem energia, não liga e nada é gasto (nem uso, nem recarga).
+    const cobranca = cobrarCustoDeAtivacao(ficha, p);
+    if (!cobranca.ok) return { ok: false, motivo: `sem ${cobranca.faltou} para o custo de ativação` };
     p.ativa = true;
     gastarUso(ficha, p, cenaId);
     iniciarRecarga(p);
     const semEspacoEscudo = !!(normalizarEscudoAoLigar(p.escudoAoLigar) && !sincronizarEscudoDoPoder(ficha, p, true));
     rescalarVitaisProporcional(ficha, antes);
-    return { ok: true, semEspacoEscudo };
+    return { ok: true, semEspacoEscudo, textoCobranca: cobranca.texto, gastosCobranca: cobranca.gastos };
 }
 
 // Instantâneo do que o turno pode mexer em cada Poder (por id), para comparar antes/depois.

@@ -14,6 +14,7 @@ import { somarEfeitosBase, valoresDeEfeitos, montarContextoDeCombate, desvantage
 import { fatoresDaFonte, dadosExtraDaFonte } from './danoDados.js';
 import { armaVirtualDaArmaEspiritual } from './armaEspiritualDano.js';
 import { resolverProficienciaPorEnergia, rotuloEnergiaProficiencia } from './proficienciaEnergia.js';
+import { escalarEfeitosPorContador } from './efeitos-resolver.js';
 
 // Status são gravados 1000x maiores que o número exibido na Ficha (core: Marcados.jsx > FATOR_EXIBICAO_STATUS).
 const FATOR_EXIBICAO_STATUS = 1000;
@@ -734,7 +735,7 @@ export function calcularEficaciaCura(ficha) {
         });
     };
 
-    (ficha.poderes || []).forEach(p => { if(p.ativa) scanCura(p.efeitos); scanCura(p.efeitosPassivos); });
+    (ficha.poderes || []).forEach(p => { if(p.ativa) scanCura(escalarEfeitosPorContador(p.efeitos, ficha.contadores, ficha)); scanCura(escalarEfeitosPorContador(p.efeitosPassivos, ficha.contadores, ficha)); });
     (ficha.inventario || []).forEach(i => { if(i.equipado) { scanCura(efeitosAtivosDoItem(i)); scanCura(i.efeitosPassivos); } });
     (ficha.passivas || []).forEach(p => scanCura(p.efeitos));
 

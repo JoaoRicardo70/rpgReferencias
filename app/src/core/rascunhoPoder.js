@@ -33,6 +33,7 @@ export function rascunhoVazio() {
         usosMax: '', usosPor: 'cena',
         custoTurno: { modo: 'fixo', valor: '', energia: 'mana' },
         custoTurnoExtras: [],
+        cobrarAoAtivar: false,
         recargaTurnos: '',
         escudo: { nome: '', valor: '', tipo: 'escudo' },
         gatilhos: [], gatilhosDescartados: [],
@@ -44,6 +45,9 @@ export function rascunhoVazio() {
         efeitos: [], efeitosPassivos: [],
         nomeEfeito: '', novoAtr: 'forca', novoProp: 'base', novoVal: '', novoQuando: '', novoEscopo: '',
         nomeEfeitoPassivo: '', novoAtrPassivo: 'evasiva', novoPropPassivo: 'base', novoValPassivo: '', novoQuandoPassivo: '', novoEscopoPassivo: '',
+        // Escala do efeito em edição (core/escalaEfeito.js): por contador, por aliado em campo e "vale para aliados".
+        novoEscala: { contadorId: '', fator: '', aliFator: '', aliTipo: '', aliValor: '', paraAliados: false },
+        novoEscalaPassivo: { contadorId: '', fator: '', aliFator: '', aliTipo: '', aliValor: '', paraAliados: false },
         abertas: { ...SECOES_PADRAO },
     };
 }
@@ -72,6 +76,8 @@ export function completarRascunho(r) {
     out.estagios = { ...vazio.estagios, ...(base.estagios || {}) };
     out.custoTurno = { ...vazio.custoTurno, ...(base.custoTurno || {}) };
     out.escudo = { ...vazio.escudo, ...(base.escudo || {}) };
+    out.novoEscala = { ...vazio.novoEscala, ...(base.novoEscala || {}) };
+    out.novoEscalaPassivo = { ...vazio.novoEscalaPassivo, ...(base.novoEscalaPassivo || {}) };
     out.dadosExtra = normalizarDadosExtra(out.dadosExtra).lista;
     out.statusFatores = normalizarStatusFatores(out.statusFatores).fatores;
     ['gatilhos', 'gatilhosDescartados', 'contadoresRascunho', 'efeitos', 'efeitosPassivos', 'custoTurnoExtras'].forEach(k => { if (!Array.isArray(out[k])) out[k] = []; });
@@ -106,6 +112,7 @@ export function rascunhoDoPoder(p, contadoresDaFicha) {
     r.custoTurno = custoSalvo ? { modo: custoSalvo.modo, valor: custoSalvo.valor, energia: custoSalvo.energia } : r.custoTurno;
     // Custos por turno em outras energias (o primeiro fica no campo principal).
     r.custoTurnoExtras = custosSalvos.slice(1).map(c => ({ modo: c.modo, valor: c.valor, energia: c.energia }));
+    r.cobrarAoAtivar = p.cobrarAoAtivar === true;
     r.recargaTurnos = p.recargaTurnos || '';
     r.escudo = normalizarEscudoAoLigar(p.escudoAoLigar) || r.escudo;
     r.gatilhos = clonar(normG.gatilhos);
@@ -159,7 +166,7 @@ export function resumirSecoes(r) {
 
     const avancado = [];
     if (num(c.usosMax) > 0) avancado.push(plural(num(c.usosMax), 'uso', 'usos'));
-    if (num(c.custoTurno.valor) > 0 || c.custoTurnoExtras.some(x => x && num(x.valor) > 0)) avancado.push('custo por turno');
+    if (num(c.custoTurno.valor) > 0 || c.custoTurnoExtras.some(x => x && num(x.valor) > 0)) avancado.push(c.cobrarAoAtivar ? 'custo por turno e ao ativar' : 'custo por turno');
     if (num(c.recargaTurnos) > 0) avancado.push(`recarga ${num(c.recargaTurnos)}`);
     if (num(c.escudo.valor) > 0) avancado.push('escudo');
     if (c.estagios.habilitado) avancado.push('Estágios ativos');

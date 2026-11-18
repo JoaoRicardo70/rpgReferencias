@@ -27,6 +27,8 @@ import { EVENTOS_GATILHO, ACOES_GATILHO, PERIODOS_GATILHO, NIVEIS_ACERTO, OPS_CO
 import { fatoresComApelidos } from './formulaDano.js';
 import { ATRIBUTO_DANO_DADOS, LIMITES_DANO_DADOS, normalizarValorDanoDados, dadoDoEfeito, normalizarDadosExtra, normalizarStatusFatores, resumirFormulaDeDano } from './danoDados.js';
 import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from './efeitosCondicionais.js';
+import { efeitoPodeValerParaAliados } from './efeitosDeAliados.js';
+import { normalizarFiltroAliado, filtroAliadoParaTexto } from './aliadosEmCampo.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 import { descreverDuracaoSpec } from './duracaoEstados.js';
 import { normalizarAplicaEstados, ATRIBUTOS_TESTE, ROTULO_ATRIBUTO, LIMITES_ESTADOS } from './estadosGolpe.js';
@@ -186,7 +188,8 @@ function escolher(valor, lista, padrao, rotulo, avisos) {
     return padrao;
 }
 
-function normalizarEfeitos(lista, padraoAtributo, avisos, rotulo) {
+// `contadores`: [{ id, nome }] da ficha de quem recebe; `escalaContador.contadorId` pode vir como id OU como NOME do contador.
+function normalizarEfeitos(lista, padraoAtributo, avisos, rotulo, contadores = []) {
     const itens = Array.isArray(lista) ? lista : [];
     if (itens.length > 12) avisos.push(`${rotulo}: só os 12 primeiros efeitos foram mantidos (${itens.length - 12} ficaram de fora).`);
     return itens.slice(0, 12).map((e, i) => {
@@ -228,6 +231,30 @@ function normalizarEfeitos(lista, padraoAtributo, avisos, rotulo) {
         if (escopo) {
             if (ATRIBUTOS_COM_ESCOPO.includes(efeito.atributo) || ATRIBUTOS_COM_ESCOPO_ESTADO.includes(efeito.atributo)) efeito.escopo = escopo;
             else avisosEfeito.push(`O atributo "${efeito.atributo}" não usa escopo; ele foi ignorado.`);
+        }
+        // 🔢 Escala por contador (core/efeitos-resolver.js): { contadorId, fator }; fator finito, diferente de 0 e até 1.000.000. Contador inexistente = sem escala.
+        const esc2 = e && e.escalaContador;
+        if (esc2 && typeof esc2 === 'object' && efeito.atributo !== ATRIBUTO_DANO_DADOS) {
+            const fator = Number(esc2.fator);
+            const ref = String(esc2.contadorId ?? '').trim();
+            const lista = Array.isArray(contadores) ? contadores : [];
+            const ct = ref ? (lista.find(c => c && String(c.id) === ref) || lista.find(c => c && semAcento(c.nome) === semAcento(ref))) : null;
+            if (!Number.isFinite(fator) || fator === 0 || Math.abs(fator) > 1e6) avisosEfeito.push('Escala por contador inválida (fator numérico diferente de 0); foi ignorada.');
+            else if (!ct) avisosEfeito.push(`Escala por contador ignorada: não achei o contador "${ref}" na ficha (use o nome ou o id de um contador existente).`);
+            else efeito.escalaContador = { contadorId: String(ct.id), fator };
+        }
+        // 🔢 Por aliado em campo (cena ativa): { fator, filtro? } com filtro "afiliacao|raca|classe=texto"; filtro escrito mas inválido ignora só a escala.
+        const ali = e && e.escalaAliados;
+        if (ali && typeof ali === 'object' && efeito.atributo !== ATRIBUTO_DANO_DADOS) {
+            const fator = Number(ali.fator);
+            const filtro = ali.filtro ? normalizarFiltroAliado(ali.filtro) : null;
+            if (Number.isFinite(fator) && fator !== 0 && Math.abs(fator) <= 1e6 && (!ali.filtro || filtro)) efeito.escalaAliados = { fator, ...(filtro ? { filtro: filtroAliadoParaTexto(filtro) } : {}) };
+            else avisosEfeito.push('Escala por aliado inválida (fator numérico diferente de 0 e filtro tipo=texto); foi ignorada.');
+        }
+        // 🤝 Vale também para aliados na cena ativa (core/efeitosDeAliados.js): só em atributos de ataque.
+        if (e && e.valeParaAliados === true) {
+            if (efeitoPodeValerParaAliados(efeito.atributo)) efeito.valeParaAliados = true;
+            else avisosEfeito.push(`O atributo "${efeito.atributo}" não vale para aliados; a marca foi ignorada.`);
         }
         avisosEfeito.forEach(a => avisos.push(`${rotulo} ${i + 1}: ${a}`));
         return efeito;
@@ -346,8 +373,9 @@ const SUPORTE_SCHEMA = {
     },
 };
 
-export function normalizarPoder(dados) {
+export function normalizarPoder(dados, opcoesCriacao = {}) {
     const d = dados || {};
+    const contadoresFicha = Array.isArray(opcoesCriacao && opcoesCriacao.contadores) ? opcoesCriacao.contadores : [];
     const avisos = [];
     const categoria = escolher(d.categoria, IDS_CATEGORIA_PODER, 'habilidade', 'Categoria', avisos);
     const vertente = escolher(d.vertente, VERTENTES_PODER, '', 'Vertente', avisos);
@@ -359,8 +387,8 @@ export function normalizarPoder(dados) {
         elementosAfetados: texto(d.elementosAfetados, 200),
         categoria,
         ativa: false,
-        efeitos: normalizarEfeitos(d.efeitos, 'forca', avisos, 'Efeito ativo'),
-        efeitosPassivos: normalizarEfeitos(d.efeitosPassivos, 'evasiva', avisos, 'Efeito passivo'),
+        efeitos: normalizarEfeitos(d.efeitos, 'forca', avisos, 'Efeito ativo', contadoresFicha),
+        efeitosPassivos: normalizarEfeitos(d.efeitosPassivos, 'evasiva', avisos, 'Efeito passivo', contadoresFicha),
         imagemUrl: '',
         dadosQtd: inteiro(d.dadosQtd, 0, 0, 1000),
         dadosFaces: inteiro(d.dadosFaces, 20, 1, 1000),
@@ -401,6 +429,8 @@ export function normalizarPoder(dados) {
     const custoTurno = lerCustosPorTurno(d.custoPorTurno);
     if (custoTurno.custos.length) objeto.custoPorTurno = custoPorTurnoParaSalvar(d.custoPorTurno);
     if (custoTurno.aviso) avisos.push(custoTurno.aviso);
+    // 💥 Cobra o custo por turno também ao ligar (só faz sentido com custo por turno).
+    if (custoTurno.custos.length && d.cobrarAoAtivar === true) objeto.cobrarAoAtivar = true;
     // ⏳ Recarga em turnos (core/recargaPoder.js): inteiro 1 a 99; 0/ausente não grava.
     const recarga = normalizarRecarga(d.recargaTurnos);
     if (recarga > 0) objeto.recargaTurnos = recarga;
@@ -588,7 +618,7 @@ export function normalizarProposta(tipo, dados, extras = {}) {
     switch (tipo) {
         case 'combo': return normalizarComboProposta(dados);
         case 'followup': return normalizarFollowUpProposta(dados);
-        case 'poder': return normalizarPoder(dados);
+        case 'poder': return normalizarPoder(dados, extras);
         case 'magia': return normalizarMagia(dados);
         case 'item': return normalizarItem(dados);
         case 'npc': return normalizarNpc(dados);
@@ -669,8 +699,11 @@ const EFEITOS_SCHEMA = {
             propriedade: { type: 'STRING', enum: PROPRIEDADES_EFEITO, description: 'base = soma fixa; mbase/mgeral/mformas/mabs/munico = multiplicadores; reducaocusto; regeneracao; bonus_acerto; elemento_inato; furia_berserker.' },
             valor: { type: 'NUMBER', description: 'Número do efeito. Para o atributo dano_dados use valor 0 e preencha "dado".' },
             dado: { type: 'STRING', description: 'SÓ para atributo dano_dados (bônus de DADO no dano rolado do golpe; propriedade base): o dado no formato NdM, ex.: "20d6". Multiplicadores x N continuam só no Poder: não use dano_dados para eles.' },
-            quando: { type: 'STRING', description: 'Opcional: condição para o efeito valer. sempre (padrão), em_combate, empunhando_arma, empunhando_arma:<tipo, ex.: espada>, alvo_com_estado:<id do estado, ex.: surpreso>, alvo_vida_abaixo:<%>, alvo_com_debuff (alvo com algum estado negativo), combos_finalizados:<N> (o portador finalizou ao menos N Combos), primeiro_ataque_do_turno.' },
+            quando: { type: 'STRING', description: 'Opcional: condição para o efeito valer. sempre (padrão), em_combate, empunhando_arma, empunhando_arma:<tipo, ex.: espada>, alvo_com_estado:<id do estado, ex.: surpreso>, alvo_vida_abaixo:<%>, alvo_com_debuff (alvo com algum estado negativo), combos_finalizados:<N> (o portador finalizou ao menos N Combos), primeiro_ataque_do_turno, aliados_em_campo:<N>[:afiliacao=texto|raca=texto|classe=texto] (ao menos N aliados na cena ativa).' },
             escopo: { type: 'STRING', description: 'Opcional, para vantagem/desvantagem/piso_d20: ataque, teste, teste:<perícia ou atributo, ex.: intuicao> ou tudo.' },
+            escalaContador: { type: 'OBJECT', description: 'Opcional: o efeito ganha fator x o valor de um contador EXISTENTE da ficha (soma: valor + fator x contador).', properties: { contadorId: { type: 'STRING' }, fator: { type: 'NUMBER' } } },
+            escalaAliados: { type: 'OBJECT', description: 'Opcional: o efeito ganha fator x o número de aliados na CENA ATIVA (soma). filtro opcional "afiliacao=texto", "raca=texto" ou "classe=texto".', properties: { fator: { type: 'NUMBER' }, filtro: { type: 'STRING' } } },
+            valeParaAliados: { type: 'BOOLEAN', description: 'Opcional: true para o efeito valer também para os aliados na cena ativa (só atributos de ataque: acerto, vantagem, margem_critico, dano_dados...).' },
         },
         required: ['atributo', 'propriedade', 'valor'],
     },
@@ -698,8 +731,8 @@ const GATILHOS_SCHEMA = {
         type: 'OBJECT',
         properties: {
             nome: { type: 'STRING' }, notas: { type: 'STRING' },
-            evento: { type: 'OBJECT', properties: { tipo: { type: 'STRING', enum: EVENTOS_GATILHO.map(e => e.id) }, de: { type: 'NUMBER', description: 'vidaAbaixoDe: % maior da faixa.' }, ate: { type: 'NUMBER', description: 'vidaAbaixoDe: % menor da faixa.' }, nivel: { type: 'STRING', enum: NIVEIS_ACERTO, description: 'acertou/atingido.' }, poderId: { type: 'STRING', description: 'poderLigou/poderDesligou (vazio = este Poder; "qualquer").' }, contadorId: { type: 'STRING' }, op: { type: 'STRING', enum: OPS_CONTADOR_EVENTO }, valor: { type: 'NUMBER' } }, required: ['tipo'] },
-            condicoes: { type: 'ARRAY', items: { type: 'STRING' }, description: 'vida_maior_que:N, vida_menor_que:N, em_combate, empunhando_arma[:tipo], alvo_com_estado:<id>, eu_com_estado:<id> (o próprio portador), alvo_vida_abaixo:<%>, alvo_com_debuff, combos_finalizados:<N>, primeiro_ataque_do_turno.' },
+            evento: { type: 'OBJECT', properties: { tipo: { type: 'STRING', enum: EVENTOS_GATILHO.map(e => e.id) }, de: { type: 'NUMBER', description: 'vidaAbaixoDe: % maior da faixa.' }, ate: { type: 'NUMBER', description: 'vidaAbaixoDe: % menor da faixa.' }, nivel: { type: 'STRING', enum: NIVEIS_ACERTO, description: 'acertou/atingido.' }, poderId: { type: 'STRING', description: 'poderLigou/poderDesligou (vazio = este Poder; "qualquer").' }, contadorId: { type: 'STRING' }, op: { type: 'STRING', enum: OPS_CONTADOR_EVENTO }, valor: { type: 'NUMBER' }, armaTipo: { type: 'STRING', description: 'armaTrocada: tipo da arma equipada (ex.: espada, arco); vazio = qualquer arma.' } }, required: ['tipo'] },
+            condicoes: { type: 'ARRAY', items: { type: 'STRING' }, description: 'vida_maior_que:N, vida_menor_que:N, em_combate, empunhando_arma[:tipo], alvo_com_estado:<id>, eu_com_estado:<id> (o próprio portador), alvo_vida_abaixo:<%>, alvo_com_debuff, combos_finalizados:<N>, primeiro_ataque_do_turno, aliados_em_campo:<N>[:afiliacao=texto|raca=texto|classe=texto].' },
             limite: { type: 'OBJECT', properties: { max: { type: 'INTEGER' }, por: { type: 'STRING', enum: PERIODOS_GATILHO.map(p => p.id) } } },
             acoes: {
                 type: 'ARRAY', description: `Até ${LIMITE_ACOES_POR_GATILHO} ações. rolarTabela: {"tipo":"rolarTabela","dado":"1d6","resultados":[{"ate":3,"texto":"...","acoes":[...]}]} (até ${LIMITE_LINHAS_TABELA} faixas, "ate" crescente). pedirEscolha: {"tipo":"pedirEscolha","pergunta":"...","opcoes":[{"texto":"...","acoes":[...]}]} (2 a ${LIMITE_OPCOES_ESCOLHA} opções).`,
@@ -734,6 +767,7 @@ export const DECLARACOES_CRIACAO = [
                 aoAcertar: { type: 'ARRAY', description: 'O que acontece quando o golpe atinge e causa Dano (até 6): em QUEM ACERTOU (curarAtacante, energiaAtacante) ou no ALVO personagem (drenarEnergiaAlvo; debuffAlvo = reduz Evasiva/Resistência/Acerto do alvo por alguns turnos dele). Ex.: [{"tipo":"curarAtacante","modo":"percMax","valor":5},{"tipo":"debuffAlvo","atributo":"evasiva","valor":3,"duracao":2,"empilha":true}].', items: { type: 'OBJECT', properties: { tipo: { type: 'STRING', enum: ['curarAtacante', 'energiaAtacante', 'drenarEnergiaAlvo', 'debuffAlvo', 'reduzirCuraAlvo'] }, fator: { type: 'NUMBER', description: 'Só reduzirCuraAlvo: fator da cura do alvo (0.01 a 1; 0.5 = metade). Use duracao (turnos do alvo). valor pode ficar fora.' }, atributo: { type: 'STRING', enum: ['evasiva', 'resistencia', 'acerto', 'cd'], description: 'Só debuffAlvo: o que o alvo perde (resistencia = save; cd = CD das habilidades dele). valor = pontos perdidos.' }, duracao: { type: 'INTEGER', description: 'Só debuffAlvo: turnos do alvo (1 a 20).' }, empilha: { type: 'BOOLEAN', description: 'Só debuffAlvo: cada golpe soma um debuff novo.' }, maximo: { type: 'NUMBER', description: 'Só debuffAlvo com empilha: teto do acúmulo em pontos (ex.: valor 5 e maximo 15 = para em -15).' }, roubar: { type: 'BOOLEAN', description: 'Só drenarEnergiaAlvo: quem acertou recebe exatamente o que saiu do alvo.' }, modo: { type: 'STRING', enum: ['fixo', 'percAtual', 'percMax'], description: 'fixo = valor na escala exibida (como o Dano); percAtual = % do valor atual; percMax = % do máximo.' }, valor: { type: 'NUMBER' }, energia: { type: 'STRING', enum: ['mana', 'aura', 'chakra', 'corpo'], description: 'Só com energiaAtacante e drenarEnergiaAlvo.' }, apenasCritico: { type: 'BOOLEAN' } }, required: ['tipo'] } },
                 usosMax: { type: 'INTEGER', description: 'Quantas vezes pode ser ligada (1 a 99). Omita se for ilimitada.' },
                 custoPorTurno: { type: 'ARRAY', description: 'Energia cobrada no início de cada turno enquanto o Poder está ligado; um item por energia (ex.: 10% de corpo e 10% de aura = 2 itens). Omita se não houver.', items: { type: 'OBJECT', properties: { modo: { type: 'STRING', enum: ['fixo', 'percMax'] }, valor: { type: 'NUMBER' }, energia: { type: 'STRING', enum: ['mana', 'aura', 'chakra', 'corpo'] } } } },
+                cobrarAoAtivar: { type: 'BOOLEAN', description: 'true se o custo por turno também é cobrado UMA vez ao ligar/ativar (ex.: Portões, Instinto). Só com custoPorTurno. Omita se não.' },
                 danoVerdadeiro: { type: 'BOOLEAN', description: 'true se o dano deste Poder é Dano Verdadeiro (ignora resistências e imunidades). Omita se não for.' },
                 escudoAoLigar: { type: 'OBJECT', description: 'Barreira/escudo/vida temporária que o Poder cria ao ser ligado e some ao desligar (ex.: Domo Gélido com 1600). Omita se não houver.', properties: { nome: { type: 'STRING' }, valor: { type: 'NUMBER', description: 'Pontos de vida da barreira (escala do dano).' }, tipo: { type: 'STRING', enum: ['escudo', 'vidaTemporaria'] } }, required: ['nome', 'valor'] },
                 recargaTurnos: { type: 'INTEGER', description: 'Turnos do dono a esperar para usar de novo (1 a 99). Omita se não houver recarga.' },

@@ -9,7 +9,9 @@ import { ATRIBUTO_DANO_DADOS, normalizarValorDanoDados, normalizarDadosExtra, no
 import { interpretarFormulaDano } from '../../core/formulaDano';
 import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from '../../core/efeitosCondicionais';
 import { normalizarUsos, limiteDeUsos, podeUsar, gastarUso, descreverUsos } from '../../core/usosPoder';
-import { custoPorTurnoParaSalvar, lerCustosPorTurno } from '../../core/custoPorTurno';
+import { registrarGastoDeEnergia } from '../../core/zenkaiMedicao';
+import { ESCALA_VAZIA, montarEscalasDoEfeito } from '../../core/escalaEfeito';
+import { custoPorTurnoParaSalvar, lerCustosPorTurno, cobrarCustoDeAtivacao } from '../../core/custoPorTurno';
 import { normalizarRecarga, emRecarga, mensagemRecarga, iniciarRecarga } from '../../core/recargaPoder';
 import { rolarAoDesligar, aplicarDanoEmSiMesmo } from '../../core/aoDesligar';
 import React, { createContext, useContext, useState, useRef, useMemo, useEffect, useLayoutEffect, useCallback } from 'react';
@@ -35,7 +37,6 @@ import { sincronizarEscudoDoPoder, normalizarEscudoAoLigar } from '../../core/es
 import { normalizarGatilhos } from '../../core/gatilhos';
 import { conferirLimitesProgressao } from '../../core/receitasProgressao';
 import { dispararEventoNaFicha, forcarGatilhoNaFicha, rngPreSorteado } from '../../core/gatilhosAplicar';
-import { registrarGastoDeEnergia } from '../../core/zenkaiMedicao';
 import { ESTAGIOS_PADRAO, normalizarEstagios, limitarEstagio } from '../../core/estagios';
 import { SECOES_PADRAO, chaveRascunhoPoder, chaveAbaRascunhoPoder, rascunhoVazio, rascunhoDoPoder, rascunhoTemConteudo, rascunhoTemAlteracao, rascunhoDifere, completarRascunho } from '../../core/rascunhoPoder';
 
@@ -140,6 +141,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     const [custoTurnoPoder, setCustoTurnoPoder] = useState({ modo: 'fixo', valor: '', energia: 'mana' });
     // Custos por turno em OUTRAS energias além do principal (ex.: 10% de Corpo e 10% de Aura): lista de { modo, valor, energia }.
     const [custoTurnoExtrasPoder, setCustoTurnoExtrasPoder] = useState([]);
+    // 💥 Cobrar o custo por turno também ao LIGAR (opção por Poder; ausente = só liga).
+    const [cobrarAoAtivarPoder, setCobrarAoAtivarPoder] = useState(false);
     const [recargaTurnosPoder, setRecargaTurnosPoder] = useState('');
     const [escudoPoder, setEscudoPoder] = useState({ nome: '', valor: '', tipo: 'escudo' });
     // 🔔 Gatilhos do Poder (core/gatilhos.js): rascunho do editor.
@@ -177,6 +180,10 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     const [novoValPassivo, setNovoValPassivo] = useState('');
     const [novoQuandoPassivo, setNovoQuandoPassivo] = useState('');
     const [novoEscopoPassivo, setNovoEscopoPassivo] = useState('');
+    // 🔢 Escalar o efeito com um contador (efeito.escalaContador = { contadorId, fator }); campos transitórios do formulário de efeito.
+    // E por aliado em campo (efeito.escalaAliados = { fator, filtro? }). Objeto: { contadorId, fator, aliFator, aliTipo, aliValor }.
+    const [novoEscala, setNovoEscala] = useState(ESCALA_VAZIA);
+    const [novoEscalaPassivo, setNovoEscalaPassivo] = useState(ESCALA_VAZIA);
 
     const [uploadingImg, setUploadingImg] = useState(false);
     const [vincularAberto, setVincularAberto] = useState(null);
@@ -200,7 +207,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
 
     // Monta o efeito com a condição ("quando") e o escopo opcionais; devolve null (e avisa) se algum estiver incompleto.
     // Condição e escopo só valem nos atributos que os leem; valores que sobraram de outro atributo escolhido antes são ignorados.
-    const montarEfeitoNovo = useCallback((nome, atributo, propriedade, valorDigitado, quando, escopo) => {
+    const montarEfeitoNovo = useCallback((nome, atributo, propriedade, valorDigitado, quando, escopo, escalaForm = ESCALA_VAZIA) => {
         let valor = valorDigitado;
         // 🎲 Dado de dano: o valor é "NdM" (ex.: 20d6), sempre na propriedade base; escrito de outro jeito não entra.
         if (atributo === ATRIBUTO_DANO_DADOS) {
@@ -222,7 +229,10 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
             esc = normalizarEscopo(escopo, atributo);
             if (!esc) { alert('Escolha a qual estado o efeito se aplica (ou "Todos os estados").'); return null; }
         }
-        return { nome, atributo, propriedade, valor, ...(q ? { quando: q } : {}), ...(esc ? { escopo: esc } : {}) };
+        // 🔢 Escalas (core/efeitos-resolver.js): por contador e/ou por aliado em campo; fator numérico diferente de 0 (até 1.000.000); dado de dano não escala.
+        const escalas = montarEscalasDoEfeito(escalaForm, atributo);
+        if (escalas.erro) { alert(escalas.erro); return null; }
+        return { nome, atributo, propriedade, valor, ...(q ? { quando: q } : {}), ...(esc ? { escopo: esc } : {}), ...escalas.campos };
     }, []);
 
     // 🧮 Lê a fórmula de dano colada (core/formulaDano.js) e preenche dados, dados extras e N x atributo; o que não deu para ler com certeza é mostrado, nunca chutado.
@@ -247,14 +257,15 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
 
     const addEfeitoTemp = useCallback(() => {
         if (!novoVal || !nomeEfeito.trim()) { alert('Preencha o nome e o valor do efeito!'); return; }
-        const efeito = montarEfeitoNovo(nomeEfeito.trim(), novoAtr, novoProp, novoVal, novoQuando, novoEscopo);
+        const efeito = montarEfeitoNovo(nomeEfeito.trim(), novoAtr, novoProp, novoVal, novoQuando, novoEscopo, novoEscala);
         if (!efeito) return;
         setEfeitosTemp([...efeitosTemp, efeito]);
         setNovoVal('');
         setNomeEfeito('');
         setNovoQuando('');
         setNovoEscopo('');
-    }, [novoVal, nomeEfeito, novoAtr, novoProp, novoQuando, novoEscopo, efeitosTemp, setEfeitosTemp, montarEfeitoNovo]);
+        setNovoEscala(ESCALA_VAZIA);
+    }, [novoVal, nomeEfeito, novoAtr, novoProp, novoQuando, novoEscopo, novoEscala, efeitosTemp, setEfeitosTemp, montarEfeitoNovo]);
 
     const removerEfeitoTemp = useCallback((index) => {
         setEfeitosTemp(efeitosTemp.filter((_, i) => i !== index));
@@ -262,14 +273,15 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
 
     const addEfeitoPassivoTemp = useCallback(() => {
         if (!novoValPassivo || !nomeEfeitoPassivo.trim()) { alert('Preencha o nome e o valor do efeito passivo!'); return; }
-        const efeito = montarEfeitoNovo(nomeEfeitoPassivo.trim(), novoAtrPassivo, novoPropPassivo, novoValPassivo, novoQuandoPassivo, novoEscopoPassivo);
+        const efeito = montarEfeitoNovo(nomeEfeitoPassivo.trim(), novoAtrPassivo, novoPropPassivo, novoValPassivo, novoQuandoPassivo, novoEscopoPassivo, novoEscalaPassivo);
         if (!efeito) return;
         setEfeitosTempPassivos([...efeitosTempPassivos, efeito]);
         setNovoValPassivo('');
         setNomeEfeitoPassivo('');
         setNovoQuandoPassivo('');
         setNovoEscopoPassivo('');
-    }, [novoValPassivo, nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, novoQuandoPassivo, novoEscopoPassivo, efeitosTempPassivos, setEfeitosTempPassivos, montarEfeitoNovo]);
+        setNovoEscalaPassivo(ESCALA_VAZIA);
+    }, [novoValPassivo, nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, novoQuandoPassivo, novoEscopoPassivo, novoEscalaPassivo, efeitosTempPassivos, setEfeitosTempPassivos, montarEfeitoNovo]);
 
     const removerEfeitoPassivoTemp = useCallback((index) => {
         setEfeitosTempPassivos(efeitosTempPassivos.filter((_, i) => i !== index));
@@ -316,6 +328,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         setUsosPorPoder(r.usosPor);
         setCustoTurnoPoder(r.custoTurno);
         setCustoTurnoExtrasPoder(r.custoTurnoExtras);
+        setCobrarAoAtivarPoder(r.cobrarAoAtivar === true);
         setRecargaTurnosPoder(r.recargaTurnos);
         setEscudoPoder(r.escudo);
         setGatilhosPoder(r.gatilhos);
@@ -344,6 +357,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         setNovoValPassivo(r.novoValPassivo);
         setNovoQuandoPassivo(r.novoQuandoPassivo);
         setNovoEscopoPassivo(r.novoEscopoPassivo);
+        setNovoEscala(r.novoEscala || ESCALA_VAZIA);
+        setNovoEscalaPassivo(r.novoEscalaPassivo || ESCALA_VAZIA);
         setSecoesAbertas(r.abertas);
     }, [setPoderEditandoId, setEfeitosTemp, setEfeitosTempPassivos]);
 
@@ -365,22 +380,24 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         poderEditandoId: poderEditandoId ?? null,
         nome: nomePoder, descricao: descricaoPoder, vertente: poderVertente, elemento: poderElemento, elementosAfetados, imagemUrl,
         dadosQtd, dadosFaces, dadosExtra: dadosExtraPoder, statusFatores: statusFatoresPoder, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiro: danoVerdadeiroPoder, tipoAcao,
-        usosMax: usosMaxPoder, usosPor: usosPorPoder, custoTurno: custoTurnoPoder, custoTurnoExtras: custoTurnoExtrasPoder, recargaTurnos: recargaTurnosPoder, escudo: escudoPoder,
+        usosMax: usosMaxPoder, usosPor: usosPorPoder, custoTurno: custoTurnoPoder, custoTurnoExtras: custoTurnoExtrasPoder, cobrarAoAtivar: cobrarAoAtivarPoder, recargaTurnos: recargaTurnosPoder, escudo: escudoPoder,
         gatilhos: gatilhosPoder, gatilhosDescartados, contadoresRascunho: contadoresPoder,
         alcance: poderAlcance, area: poderArea, arma: armaVinculada,
         maestria: maestriaPoder, fadigaPorUso: fadigaPorUsoPoder, maestriaRequerida: maestriaRequeridaPoder,
         pasta: pastaPoder, estagios: estagiosEditor, efeitos: efeitosTemp, efeitosPassivos: efeitosTempPassivos,
         nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo,
         nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, novoValPassivo, novoQuandoPassivo, novoEscopoPassivo,
+        novoEscala, novoEscalaPassivo,
         abertas: secoesAbertas,
     }), [
         poderEditandoId, nomePoder, descricaoPoder, poderVertente, poderElemento, elementosAfetados, imagemUrl,
         dadosQtd, dadosFaces, dadosExtraPoder, statusFatoresPoder, custoPercentual, custoPercentualMax, semComoPoder, danoVerdadeiroPoder, tipoAcao,
-        usosMaxPoder, usosPorPoder, custoTurnoPoder, custoTurnoExtrasPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, gatilhosDescartados, contadoresPoder,
+        usosMaxPoder, usosPorPoder, custoTurnoPoder, custoTurnoExtrasPoder, cobrarAoAtivarPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, gatilhosDescartados, contadoresPoder,
         poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder,
         pastaPoder, estagiosEditor, efeitosTemp, efeitosTempPassivos,
         nomeEfeito, novoAtr, novoProp, novoVal, novoQuando, novoEscopo,
         nomeEfeitoPassivo, novoAtrPassivo, novoPropPassivo, novoValPassivo, novoQuandoPassivo, novoEscopoPassivo,
+        novoEscala, novoEscalaPassivo,
         secoesAbertas,
     ]);
     const rascunhoRef = useRef(rascunhoAtual);
@@ -579,6 +596,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
                     if (limiteUsos) { ficha.poderes[ix].usosMax = limiteUsos.max; ficha.poderes[ix].usosPor = limiteUsos.por; }
                     else { delete ficha.poderes[ix].usosMax; delete ficha.poderes[ix].usosPor; }
                     if (custoTurno) ficha.poderes[ix].custoPorTurno = custoTurno; else delete ficha.poderes[ix].custoPorTurno;
+                    if (custoTurno && cobrarAoAtivarPoder) ficha.poderes[ix].cobrarAoAtivar = true; else delete ficha.poderes[ix].cobrarAoAtivar;
                     if (escudoLigar) ficha.poderes[ix].escudoAoLigar = escudoLigar; else delete ficha.poderes[ix].escudoAoLigar;
                     if (gatilhosSalvos.length > 0) ficha.poderes[ix].gatilhos = gatilhosSalvos; else delete ficha.poderes[ix].gatilhos;
                     if (recargaN > 0) ficha.poderes[ix].recargaTurnos = recargaN;
@@ -635,6 +653,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
                     tipoAcao: normalizarTipoAcao(tipoAcao),
                     ...(limiteUsos ? { usosMax: limiteUsos.max, usosPor: limiteUsos.por } : {}),
                     ...(custoTurno ? { custoPorTurno: custoTurno } : {}),
+                    ...(custoTurno && cobrarAoAtivarPoder ? { cobrarAoAtivar: true } : {}),
                     ...(escudoLigar ? { escudoAoLigar: escudoLigar } : {}),
                     ...(gatilhosSalvos.length > 0 ? { gatilhos: gatilhosSalvos } : {}),
                     ...(recargaN > 0 ? { recargaTurnos: recargaN } : {}),
@@ -670,7 +689,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         }).catch(() => {
             alert('Erro ao sincronizar no Firebase!');
         });
-    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, dadosExtraPoder, statusFatoresPoder, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, custoTurnoExtrasPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, contadoresPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato, chaveRascunho, abrirPastaDoPoder, isMestre]);
+    }, [nomePoder, efeitosTemp, efeitosTempPassivos, dadosQtd, descricaoPoder, updateFicha, poderEditandoId, poderVertente, poderElemento, elementosAfetados, abaAtual, imagemUrl, dadosFaces, dadosExtraPoder, statusFatoresPoder, custoPercentual, custoPercentualMax, semComoPoder, tipoAcao, poderAlcance, poderArea, armaVinculada, maestriaPoder, fadigaPorUsoPoder, maestriaRequeridaPoder, pastaPoder, estagiosEditor, usosMaxPoder, usosPorPoder, custoTurnoPoder, custoTurnoExtrasPoder, cobrarAoAtivarPoder, recargaTurnosPoder, escudoPoder, gatilhosPoder, contadoresPoder, danoVerdadeiroPoder, cancelarEdicaoPoder, salvarFirebaseImediato, chaveRascunho, abrirPastaDoPoder, isMestre]);
     const salvarNovoPoder = useCallback(async () => {
         if (salvandoRef.current) return;
         salvandoRef.current = true;
@@ -714,6 +733,9 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         let danoAplicado = 0;
         const textosGatilhosDesligar = [];
         let semEspacoEscudo = '';
+        let textoAtivacao = '';
+        let faltouAtivacao = '';
+        let gastosAtivacao = [];
         updateFicha((ficha) => {
             if (!ficha.poderes) return;
             const p = ficha.poderes.find(po => po.id === id);
@@ -727,6 +749,14 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
             if (!p.ativa && emRecarga(p)) return;
             if (!p.ativa && poderBloqueado(cenarioMesaRef.current, ficha, p).bloqueado) return;
 
+            // 💥 Custo na ativação (opção do Poder `cobrarAoAtivar`, core/custoPorTurno.js): cobra uma vez ao LIGAR; sem energia, não liga.
+            if (!p.ativa) {
+                const cobranca = cobrarCustoDeAtivacao(ficha, p);
+                if (!cobranca.ok) { faltouAtivacao = cobranca.texto; return; }
+                textoAtivacao = cobranca.texto;
+                gastosAtivacao = cobranca.gastos;
+            }
+
             // 2. Mudamos o status da forma (o que engatilha o novo Máximo de Status)
             p.ativa = !p.ativa;
             if (p.ativa) { gastarUso(ficha, p, cenaAtivaId); iniciarRecarga(p); }
@@ -736,6 +766,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
 
             // 3. Re-escala "atual" de cada barra pra manter a MESMA % no novo Máximo. (Nada se gasta!)
             rescalarVitaisProporcional(ficha, oldM);
+            // 💥 Zenkai: a energia paga ao ativar entra no gasto (só com combate ativo, como o custo por turno).
+            if (gastosAtivacao.length > 0 && Number(ficha.iniciativa) > 0) registrarGastoDeEnergia(ficha, { drenos: gastosAtivacao });
             if (danoAoDesligar > 0 && !p.ativa) danoAplicado = aplicarDanoEmSiMesmo(ficha, danoAoDesligar, { nome: meuNome, cenaId: cenaAtivaId, textos: textosGatilhosDesligar });
             // 🔔 Gatilhos poderLigou / poderDesligou (core/gatilhos.js).
             // Desligar por edição/exclusão (semAoDesligar) não é um desligar "de verdade": não dispara gatilhos.
@@ -744,7 +776,9 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
             }
         });
 
+        if (faltouAtivacao) { alert(faltouAtivacao); return; }
         salvarFichaSilencioso();
+        if (textoAtivacao) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔋 ${textoAtivacao}` });
         if (semEspacoEscudo) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🛡️ Sem espaço para o escudo de ${semEspacoEscudo}` });
         if (textosGatilhosDesligar.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${textosGatilhosDesligar.join(' · ')}` });
         if (danoAplicado > 0 && atual) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `💥 ${atual.nome} ao desligar causou ${danoAplicado.toLocaleString('pt-BR')} de dano em ${meuNome}` });
@@ -1244,7 +1278,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         elementosAfetados, setElementosAfetados, 
         imagemUrl, setImagemUrl, dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
         dadosExtraPoder, setDadosExtraPoder, statusFatoresPoder, setStatusFatoresPoder, formulaDanoTexto, setFormulaDanoTexto, formulaDanoAviso, aplicarFormulaDano,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, ctxProgressao, adicionarProgressaoRascunho, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, custoTurnoExtrasPoder, setCustoTurnoExtrasPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresPoder, contadoresParaGatilhos, contadoresAvulsosDaFicha, limiteContadoresCheio, ctxProgressao, adicionarProgressaoRascunho, podeEditarContadores, adicionarContadorPoder, atualizarContadorPoder, vincularContadorPoder, removerContadorPoder, mudarContadorDoPoder, alternarGatilhoMestre, alternarArmadoGatilho, forcarGatilhoMestre, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, custoTurnoExtrasPoder, setCustoTurnoExtrasPoder, cobrarAoAtivarPoder, setCobrarAoAtivarPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -1252,6 +1286,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         estagiosEditor, setEstagiosEditor, mudarEstagioPoder,
         nomeEfeito, setNomeEfeito, novoAtr, setNovoAtr, novoProp, setNovoProp, novoVal, setNovoVal,
         novoQuando, setNovoQuando, novoEscopo, setNovoEscopo, novoQuandoPassivo, setNovoQuandoPassivo, novoEscopoPassivo, setNovoEscopoPassivo,
+        novoEscala, setNovoEscala, novoEscalaPassivo, setNovoEscalaPassivo,
         nomeEfeitoPassivo, setNomeEfeitoPassivo, novoAtrPassivo, setNovoAtrPassivo,
         novoPropPassivo, setNovoPropPassivo, novoValPassivo, setNovoValPassivo,
         uploadingImg, setUploadingImg, vincularAberto, setVincularAberto,

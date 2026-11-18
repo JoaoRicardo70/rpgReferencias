@@ -10,11 +10,11 @@ const opcoes = () => Array.from(screen.getByLabelText('Condição do efeito').qu
 describe('CondicaoDoEfeito em multiplicador', () => {
     it('multiplicador (atributo sem quando) mostra so Sempre, Em combate, Empunhando e Eu com o estado', () => {
         render(<CondicaoDoEfeito {...props} atributo="forca" propriedade="mgeral" />);
-        expect(opcoes()).toEqual(['sempre', 'em_combate', 'empunhando_arma', 'eu_com_estado']);
+        expect(opcoes()).toEqual(['sempre', 'em_combate', 'empunhando_arma', 'eu_com_estado', 'aliados_em_campo']);
     });
     it('multiplicador em poder_direto tambem mostra o seletor', () => {
         render(<CondicaoDoEfeito {...props} atributo="poder_direto" propriedade="mabs" />);
-        expect(opcoes()).toEqual(['sempre', 'em_combate', 'empunhando_arma', 'eu_com_estado']);
+        expect(opcoes()).toEqual(['sempre', 'em_combate', 'empunhando_arma', 'eu_com_estado', 'aliados_em_campo']);
     });
     it('REGRESSAO: atributo sem quando e propriedade comum continua sem seletor', () => {
         const { container } = render(<CondicaoDoEfeito {...props} atributo="forca" propriedade="base" />);

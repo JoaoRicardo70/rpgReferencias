@@ -12,6 +12,7 @@ import { aplicarEstadoComDuracao, removerEstadoComDuracao, limparDuracoes, sorte
 import { imuneAoEstado } from './efeitosCondicionais.js';
 import useStore from '../stores/useStore';
 import { ligarPoderNoRascunho, desligarPoderNoRascunho } from './custoPorTurno.js';
+import { registrarGastoDeEnergia } from './zenkaiMedicao.js';
 import { aplicarDanoNaVida } from './danoVida.js';
 import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
 import { calcularEficaciaCura } from './engine.js';
@@ -254,8 +255,10 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                 const r = ligarPoderNoRascunho(ficha, a.poderId, ctx.cenaId || 'default', ctx.cenario || useStore.getState().cenario || null);
                 if (!r.ok) { if (r.motivo !== 'já está ligado') textos.push(`${nome}: não conseguiu ligar o Poder (${r.motivo})`); break; }
                 caminhosDoLigarDesligar(ficha, a.poderId).forEach(p => caminhos.add(p));
+                // 💥 Zenkai: a energia paga ao ativar entra no gasto (só com combate ativo, como o custo por turno).
+                if (r.gastosCobranca && r.gastosCobranca.length > 0 && Number(ficha.iniciativa) > 0) registrarGastoDeEnergia(ficha, { drenos: r.gastosCobranca });
                 const p = ficha.poderes.find(po => String(po.id) === String(a.poderId));
-                textos.push(`${nome} ligou ${p ? p.nome : 'o Poder'}${r.semEspacoEscudo ? ' (sem espaço para o escudo)' : ''}`);
+                textos.push(`${nome} ligou ${p ? p.nome : 'o Poder'}${r.semEspacoEscudo ? ' (sem espaço para o escudo)' : ''}${r.textoCobranca ? ` (${r.textoCobranca})` : ''}`);
                 derivados.push({ tipo: 'poderLigou', poderId: String(a.poderId) });
                 break;
             }
@@ -442,7 +445,7 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
         const coletados = coletarGatilhos(ficha, evento.tipo === 'poderDesligou' ? { tambemLigado: evento.poderId } : {}).filter(c => c.gatilho.evento.tipo === evento.tipo);
         if (coletados.length > 0) {
             const jaDisparados = Array.isArray(ctx.jaDisparados) ? ctx.jaDisparados : [];
-            const av = avaliarGatilhos(evento, { eventoId: ctx.eventoId, cenaId, profundidade, jaDisparados, decisoes: ctx.decisoes, perguntas: ctx.perguntas }, ficha, { coletados });
+            const av = avaliarGatilhos(evento, { eventoId: ctx.eventoId, cenaId, profundidade, jaDisparados, decisoes: ctx.decisoes, perguntas: ctx.perguntas, nome: ctx.nome }, ficha, { coletados });
             if (av.acoes.length > 0) {
                 const r = aplicarAcoesNoRascunho(ficha, av.acoes, { cenaId, eventoId: ctx.eventoId, disparados: av.disparados, jaDisparados, profundidade, nome: ctx.nome, ...herdar(ctx) });
                 (r.externos || []).forEach(e => { if (!res.externos) res.externos = []; res.externos.push(e); });

@@ -162,6 +162,9 @@ export function FichaBioGroup() {
 // Rótulo de um alvo de redução: "Todo dano", "🌑 Yin" (polaridade) ou "🔥 Fogo" (elemento).
 function rotuloAlvoReducao(alvo, elementos) {
     if (alvo === 'todos') return 'Todo dano';
+    if (alvo === 'tipo:projetil') return '🏹 Projéteis (à distância)';
+    if (alvo === 'tipo:golpe') return '👊 Golpes (corpo a corpo)';
+    // Vários alvos na mesma habilidade valem por OU: ['tipo:projetil', 'fogo'] reduz projétil OU fogo.
     if (alvo.startsWith('pol:')) {
         const pol = POLARIDADES[alvo.slice(4)];
         return pol ? `${pol.icone} Elemento ${pol.nome}` : alvo;
@@ -209,9 +212,13 @@ function CartaoHabilidadeReducao({ r }) {
                         <button type="button" className="habilidade-alvo-remover" onClick={() => removerAlvoReducao(r.id, a)} title="Tirar este tipo">✖</button>
                     </span>
                 ))}
-                <select className="input-neon habilidade-alvo-add" value="" onChange={e => { if (e.target.value) adicionarAlvoReducao(r.id, e.target.value); }} title="Adicionar um tipo de dano">
+                <select className="input-neon habilidade-alvo-add" value="" onChange={e => { if (e.target.value) adicionarAlvoReducao(r.id, e.target.value); }} title="Adicionar um tipo de dano. Com vários tipos a redução vale contra QUALQUER um deles (OU), ex.: Projéteis + Fogo">
                     <option value="">+ tipo de dano</option>
                     <option value="todos">Todo dano</option>
+                    <optgroup label="Tipo de ataque (não vale no Dano Rápido do Mestre/dummie, que não informa o tipo)">
+                        <option value="tipo:projetil">🏹 Projéteis (à distância)</option>
+                        <option value="tipo:golpe">👊 Golpes (corpo a corpo)</option>
+                    </optgroup>
                     <optgroup label="Polaridade do elemento">
                         {Object.values(POLARIDADES).map(pol => <option key={pol.id} value={`pol:${pol.id}`}>{pol.icone} Elemento {pol.nome}</option>)}
                     </optgroup>

@@ -371,7 +371,7 @@ export function getPoderDiretoMultiplier(ficha) {
 
         (ficha.poderes || []).forEach(p => {
             if (!p) return;
-            const resolved = resolverEfeitosEntidade(p);
+            const resolved = resolverEfeitosEntidade(p, ficha);
             if (p.ativa) processar(resolved.efeitos);
             processar(resolved.efeitosPassivos);
             const cfg = efeitosDaConfigAtiva(p);
@@ -383,7 +383,7 @@ export function getPoderDiretoMultiplier(ficha) {
         // (ser.ativo), igual a todo o resto dos buffs dele (ver core/attributes.js).
         (ficha.seresSelados || []).forEach(ser => {
             if (!ser || !ser.ativo) return;
-            const resolved = resolverEfeitosEntidade(ser);
+            const resolved = resolverEfeitosEntidade(ser, ficha);
             processar(resolved.efeitos);
             processar(resolved.efeitosPassivos);
             const cfg = efeitosDaConfigAtiva(ser);
