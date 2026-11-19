@@ -31,6 +31,11 @@
 //            ficha.ganhosPermanentes.fatorPoder (default 1) por (1 + p/100) (composto; entra em totalDano de getGlobalMultipliers).
 //            `duracao: 'permanente'|'combate'` (ausente = permanente, formato antigo): 'combate' grava em ficha.ganhosCombate {poderCalculado, fatorPoder} (mesmas regras),
 //            que ZERA no fimDeLuta (depois dos gatilhos de fimDeLuta), no descansarCompleto e quando o Mestre aperta Zerar. Entra no Poder como fonte 'Ganho_Combate' + fatorGanhoCombate.
+//   Fase 4: oferecerFollowUp {followUpId, custoReducaoPct?, naoGeraOutro?} (FUA OFERECIDO: NÃO rola nada sozinho; guarda uma OFERTA em ficha.combate.ofertasFollowUp e o DONO, no cliente dele,
+//            vê o aviso do Follow Up (components/combos/ComboPrompt.jsx), aceita ou recusa, escolhe a Ação a pagar e rola o golpe como sempre. followUpId = id OU nome de um Follow Up da
+//            própria ficha (se não existir, a ação avisa e ignora). custoReducaoPct (0 a 100; 100 = "sem custo", também aceito como `semCusto: true`) vira um buff de UM golpe que reduz o custo de energia
+//            do próximo golpe do dono. naoGeraOutro: enquanto aquele golpe acerta, nenhum oferecerFollowUp dispara (o FUA não gera outro FUA). O limite "por round" é o `limite` do gatilho (por turno).
+//            Mestre, NPCs e clones nunca são consultados (o aviso só abre no cliente do dono); com o dono offline a oferta fica guardada na ficha e expira no próximo início do turno dele ou no fim da luta.)
 //   Gatilho disparado dentro de outro gatilho respeita profundidade máx. 3 e o mesmo gatilho não dispara 2x na cadeia.
 // Faixas de Vida: o percentual é arredondado PARA BAIXO ao inteiro antes de comparar (6,9% conta como 6); a faixa é inclusiva nas duas pontas.
 // Um golpe que cruza várias faixas só dispara a faixa onde a Vida TERMINA (as outras não contêm a Vida final) e só na borda (entrando de fora).
@@ -49,6 +54,7 @@ import { ehEstadoValido, MAX_STACKS, nomeDoEstado } from './condicoes.js';
 import { normalizarDuracaoSpec, descreverDuracaoSpec } from './duracaoEstados.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
+import { semEncadeioAtivo } from './ofertaFollowUp.js';
 
 export const PROFUNDIDADE_MAX_GATILHOS = 3;
 export const LIMITE_GATILHOS_POR_FONTE = 8;
@@ -106,6 +112,7 @@ export const ACOES_GATILHO = [
     { id: 'pedirEscolha', rotulo: 'Pedir uma escolha' },
     { id: 'danoNoAtacante', rotulo: 'Dano no atacante' },
     { id: 'ganhoPermanente', rotulo: 'Ganho de Poder' },
+    { id: 'oferecerFollowUp', rotulo: 'Oferecer um Follow Up (FUA)' },
 ];
 export const PERIODOS_GATILHO = [
     { id: 'turno', rotulo: 'por turno' },
@@ -249,6 +256,14 @@ export function normalizarAcaoGatilho(bruta, opcoes = {}) {
             const valor = numero(bruta.valor);
             if (valor === null || bruta.valor === '' || (perc ? valor === 0 : valor <= 0)) return null;
             return { tipo: 'ganhoPermanente', ...extra, valor: limitar(valor, minimo, LIMITE_GANHO_PERMANENTE) };
+        }
+        case 'oferecerFollowUp': {
+            // Id (ou nome) de um Follow Up da ficha, resolvido na hora de aplicar. Redução 0 a 100 (semCusto = 100); sem redução o campo some.
+            const followUpId = texto(bruta.followUpId, 60);
+            if (!followUpId) return null;
+            const pct = bruta.semCusto === true ? 100 : numero(bruta.custoReducaoPct);
+            const reducao = pct === null ? 0 : Math.round(limitar(pct, 0, 100) * 100) / 100;
+            return { tipo: 'oferecerFollowUp', followUpId, ...(reducao > 0 ? { custoReducaoPct: reducao } : {}), ...(bruta.naoGeraOutro === true ? { naoGeraOutro: true } : {}) };
         }
         case 'rolarTabela': {
             if (opcoes.dentroDeTabela) return null;
@@ -544,6 +559,8 @@ export function avaliarGatilhos(evento, contexto = {}, ficha = null, opcoes = {}
         if (profundidade >= PROFUNDIDADE_MAX_GATILHOS) return bloquear('profundidade máxima');
         if (ja.has(chave)) return bloquear('já disparou nesta cadeia');
         if (contexto.eventoId && registros[chave] && registros[chave].ultimoEvento === contexto.eventoId) return bloquear('evento já tratado');
+        // 🥋 FUA em andamento com `naoGeraOutro`: gatilho SÓ de oferta não dispara (e não gasta o limite). Gatilho misto roda; a ação de oferta é ignorada na aplicação.
+        if (g.acoes.length > 0 && g.acoes.every(a => a.tipo === 'oferecerFollowUp') && semEncadeioAtivo(ficha)) return bloquear('o Follow Up em andamento não gera outro');
         if (g.limite && !(usosRestantesDoGatilho(ficha, chave, g.limite, cena) > 0)) return bloquear('sem usos');
 
         const vidaAtualFicha = Number(ficha.vida && ficha.vida.atual) || 0;
@@ -596,9 +613,13 @@ const nomeDoPoder = (id, ctx) => {
     const p = ((ctx && ctx.poderes) || []).find(x => x && String(x.id) === String(id));
     return p ? p.nome : 'um Poder';
 };
+const nomeDoFollowUp = (id, ctx) => {
+    const f = ((ctx && ctx.followUps) || []).find(x => x && (String(x.id) === String(id) || String(x.nome) === String(id)));
+    return f ? f.nome : String(id);
+};
 const NOME_NIVEL = { normal: 'normal', critico: 'crítico', fatal: 'crítico fatal' };
 
-// ctx opcional: { contadores: [{ id, nome }], poderes: [{ id, nome }] } para nomes legíveis no lugar de ids.
+// ctx opcional: { contadores: [{ id, nome }], poderes: [{ id, nome }], followUps: [{ id, nome }] } para nomes legíveis no lugar de ids.
 export function descreverAcaoGatilho(a, ctx = null) {
     if (!a) return '';
     switch (a.tipo) {
@@ -636,6 +657,7 @@ export function descreverAcaoGatilho(a, ctx = null) {
             }
             return perc ? `ganha ${sinalPerc(a.valor)} de Poder${sufixo}${ateOFim}` : `ganhar +${a.valor} de Poder${a.duracao === 'combate' ? ' até o fim do combate' : ' permanente'} (valor bruto, antigo)`;
         }
+        case 'oferecerFollowUp': return `oferecer o Follow Up "${nomeDoFollowUp(a.followUpId, ctx)}"${a.custoReducaoPct >= 100 ? ' sem custo de energia' : (a.custoReducaoPct > 0 ? ` com custo -${a.custoReducaoPct}%` : '')}${a.naoGeraOutro ? ' (não gera outro)' : ''}`;
         case 'danoEmSi': return a.modo === 'fixo' ? `sofrer ${fmtN(a.valor)} de dano` : `sofrer dano de ${a.valor}% da Vida ${a.modo === 'percMax' ? 'máxima' : 'atual'}`;
         default: return '';
     }

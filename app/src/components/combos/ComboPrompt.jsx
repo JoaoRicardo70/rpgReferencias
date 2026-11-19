@@ -4,7 +4,8 @@ import useStore from '../../stores/useStore';
 import { enviarParaFeed, salvarFichaSilencioso } from '../../services/firebase-sync';
 import { temCombos, opcoesDeCombo, estadoDeCombo, zerarEstadoDeCombo, rotuloAcaoGolpe, resumirCombo, descreverBuff, ACOES_GOLPE } from '../../core/combos';
 import { removerBuffsDoCombate } from '../../core/suporte';
-import { aplicarEscolhaCombo, acaoFaltando, definirEstadoDeCombo } from './aplicarCombo';
+import { aplicarEscolhaCombo, acaoFaltando, definirEstadoDeCombo, aceitarOfertaFollowUp } from './aplicarCombo';
+import { ofertasValidas, localizarFollowUp, removerOfertaFollowUp, limparSemEncadeio } from '../../core/ofertaFollowUp';
 
 // 🥋 Aviso de Combo (mesmo jeito do aviso de Reação, components/combate/ReacaoPrompt.jsx): quando um golpe SEU acerta, pergunta o que foi:
 // o iniciador de um Combo, o próximo golpe do Combo em andamento ou um Follow Up. Só aparece para quem criou Combos; "Foi um golpe comum" ignora.
@@ -23,12 +24,16 @@ export default function ComboPrompt() {
     const minhaFicha = useStore(s => s.minhaFicha);
     const updateFicha = useStore(s => s.updateFicha);
     const adicionarAviso = useStore(s => s.adicionarAviso);
+    // O Mestre nunca é consultado: a oferta de FUA só abre para um jogador, na ficha dele.
+    const souMestre = useStore(s => s.isMestre);
     const vistos = useRef(new Set());
     const montadoEm = useRef(Date.now());
     const [pedido, setPedido] = useState(null);
     const [escolhido, setEscolhido] = useState('');
     const [custo, setCusto] = useState('padrao');
     const [gastar, setGastar] = useState(true);
+    const [custoOferta, setCustoOferta] = useState('');
+    const [gastarOferta, setGastarOferta] = useState(true);
 
     const opcoes = useMemo(() => (pedido ? opcoesDeCombo(minhaFicha) : null), [pedido, minhaFicha]);
 
@@ -86,6 +91,34 @@ export default function ComboPrompt() {
         }
     }, [minhaFicha, meuNome, updateFicha, adicionarAviso]);
 
+    // 🥋 Oferta de Follow Up (FUA) guardada pelos gatilhos: a primeira ainda válida. Só aparece quando não há o pedido de Combo na tela.
+    const oferta = useMemo(() => (souMestre ? null : (ofertasValidas(minhaFicha)[0] || null)), [minhaFicha, souMestre]);
+    const followUpDaOferta = useMemo(() => (oferta ? localizarFollowUp(minhaFicha, oferta.followUpId) : null), [oferta, minhaFicha]);
+    // Outra oferta na tela: Ação e "gastar" voltam ao padrão (nada herdado da oferta anterior).
+    const idDaOferta = oferta ? oferta.id : '';
+    useEffect(() => { setCustoOferta(''); setGastarOferta(true); }, [idDaOferta]);
+    const acaoDaOferta = custoOferta || (followUpDaOferta ? followUpDaOferta.acoesPermitidas[0] : 'padrao');
+
+    const aceitarOferta = useCallback(() => {
+        if (!oferta || !followUpDaOferta) return;
+        const falta = gastarOferta ? acaoFaltando(minhaFicha, acaoDaOferta) : [];
+        if (falta.length > 0 && !window.confirm(`Sem ${falta.join(' e ')} disponível. Usar mesmo assim?`)) return;
+        let texto = '';
+        updateFicha((f) => { texto = aceitarOfertaFollowUp(f, oferta.id, { custo: acaoDaOferta, gastar: gastarOferta }); });
+        salvarFichaSilencioso();
+        if (texto) enviarParaFeed({ tipo: 'sistema', nome: meuNome, texto });
+        if (texto) adicionarAviso('Follow Up aceito: faça o golpe na aba de Ataque.', 'info');
+        else adicionarAviso('Esta oferta de Follow Up já não vale.', 'alerta');
+        setCustoOferta('');
+    }, [oferta, followUpDaOferta, gastarOferta, acaoDaOferta, minhaFicha, updateFicha, meuNome, adicionarAviso]);
+
+    const recusarOferta = useCallback(() => {
+        if (!oferta) return;
+        updateFicha((f) => { removerOfertaFollowUp(f, oferta.id); limparSemEncadeio(f); });
+        salvarFichaSilencioso();
+        setCustoOferta('');
+    }, [oferta, updateFicha]);
+
     const item = itens.find(i => i.id === escolhido) || null;
     const escolher = useCallback((i) => { setEscolhido(i.id); setCusto(i.acao); setGastar(true); }, []);
     const recusar = useCallback(() => { setPedido(null); setEscolhido(''); }, []);
@@ -104,7 +137,39 @@ export default function ComboPrompt() {
         setEscolhido('');
     }, [item, custo, gastar, minhaFicha, updateFicha, meuNome, adicionarAviso]);
 
-    if (!pedido || typeof document === 'undefined' || !document.body) return null;
+    if (typeof document === 'undefined' || !document.body) return null;
+
+    if (!pedido) {
+        if (!oferta) return null;
+        const nivelOferta = followUpDaOferta ? followUpDaOferta.niveis[0] : null;
+        const efeitoCusto = oferta.custoReducaoPct ? (oferta.custoReducaoPct >= 100 ? ': o golpe não gasta energia.' : `: o golpe custa ${oferta.custoReducaoPct}% menos energia.`) : '.';
+        return createPortal(
+            <div className="reacao-fundo" role="dialog" aria-label="Oferta de Follow Up">
+                <div className="reacao-caixa">
+                    <h3 className="reacao-titulo">🥋 {oferta.gatilho} ofereceu um Follow Up</h3>
+                    <p className="reacao-contexto">{followUpDaOferta ? `Follow Up "${followUpDaOferta.nome || 'sem nome'}"${efeitoCusto}` : 'Este Follow Up não existe mais na ficha.'}{oferta.naoGeraOutro ? ' Este golpe não gera outro Follow Up.' : ''}</p>
+                    {followUpDaOferta && (
+                        <>
+                            <p className="reacao-opcao-efeito">{(nivelOferta && nivelOferta.descricao) || followUpDaOferta.descricao || 'Escolha o golpe e role normalmente na aba de Ataque depois de aceitar.'}</p>
+                            <div className="combo-custo">
+                                {followUpDaOferta.acoesPermitidas.length > 1 ? (
+                                    <label>Pagar com <select className="input-neon" value={acaoDaOferta} onChange={(e) => setCustoOferta(e.target.value)}>
+                                        {followUpDaOferta.acoesPermitidas.map(a => <option key={a} value={a}>{rotuloAcaoGolpe(a)}</option>)}
+                                    </select></label>
+                                ) : null}
+                                <label><input type="checkbox" checked={gastarOferta} onChange={(e) => setGastarOferta(e.target.checked)} /> Gastar 1 {rotuloAcaoGolpe(acaoDaOferta)} agora (desmarque se já gastou)</label>
+                            </div>
+                        </>
+                    )}
+                    <div className="reacao-botoes">
+                        <button type="button" className="reacao-reagir" onClick={aceitarOferta} disabled={!followUpDaOferta}>🥋 ACEITAR</button>
+                        <button type="button" className="reacao-recusar" onClick={recusarOferta}>Recusar</button>
+                    </div>
+                </div>
+            </div>,
+            document.body
+        );
+    }
 
     return createPortal(
         <div className="reacao-fundo" role="dialog" aria-label="Combo e Follow Up">

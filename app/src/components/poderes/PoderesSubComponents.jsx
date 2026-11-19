@@ -33,6 +33,8 @@ import { descreverUsos } from '../../core/usosPoder';
 import { TIPOS_ESCUDO } from '../../core/escudos';
 import { ENERGIAS_CUSTO, LIMITE_CUSTOS_POR_TURNO, descreverCustoPorTurno } from '../../core/custoPorTurno';
 import { descreverRecarga } from '../../core/recargaPoder';
+import { descreverReutilizacao } from '../../core/reutilizacao';
+import { followUpsDaFicha } from '../../core/combos';
 import EnsinarBotao from '../shared/EnsinarBotao';
 import GatilhosEditor from './GatilhosEditor';
 import ConstrutorProgressao from './ConstrutorProgressao';
@@ -381,7 +383,7 @@ export function PoderesFormEditor() {
         imagemUrl, setImagemUrl, uploadingImg, handleImageUpload,
         dadosQtd, setDadosQtd, dadosFaces, setDadosFaces,
         dadosExtraPoder, setDadosExtraPoder, statusFatoresPoder, setStatusFatoresPoder, formulaDanoTexto, setFormulaDanoTexto, formulaDanoAviso, aplicarFormulaDano,
-        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresParaGatilhos, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, custoTurnoExtrasPoder, setCustoTurnoExtrasPoder, cobrarAoAtivarPoder, setCobrarAoAtivarPoder, recargaTurnosPoder, setRecargaTurnosPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
+        custoPercentual, setCustoPercentual, custoPercentualMax, setCustoPercentualMax, semComoPoder, setSemComoPoder, danoVerdadeiroPoder, setDanoVerdadeiroPoder, tipoAcao, setTipoAcao, gatilhosPoder, setGatilhosPoder, gatilhosDescartados, contadoresParaGatilhos, usosMaxPoder, setUsosMaxPoder, usosPorPoder, setUsosPorPoder, custoTurnoPoder, setCustoTurnoPoder, custoTurnoExtrasPoder, setCustoTurnoExtrasPoder, cobrarAoAtivarPoder, setCobrarAoAtivarPoder, recargaTurnosPoder, setRecargaTurnosPoder, reutilizacaoPoder, setReutilizacaoPoder, escudoPoder, setEscudoPoder, cenaAtivaId, poderAlcance, setPoderAlcance,
         poderArea, setPoderArea, armaVinculada, setArmaVinculada,
         maestriaPoder, setMaestriaPoder, fadigaPorUsoPoder, setFadigaPorUsoPoder,
         maestriaRequeridaPoder, setMaestriaRequeridaPoder,
@@ -614,7 +616,7 @@ export function PoderesFormEditor() {
                 <>
                 <ConstrutorProgressao />
                 <ContadoresDoPoderEditor />
-                <GatilhosEditor gatilhos={gatilhosPoder} onChange={setGatilhosPoder} descartados={gatilhosDescartados} contadores={contadoresParaGatilhos || minhaFicha?.contadores} poderes={minhaFicha?.poderes} />
+                <GatilhosEditor gatilhos={gatilhosPoder} onChange={setGatilhosPoder} descartados={gatilhosDescartados} contadores={contadoresParaGatilhos || minhaFicha?.contadores} poderes={minhaFicha?.poderes} followUps={followUpsDaFicha(minhaFicha)} />
                 </>
             ))}
 
@@ -645,6 +647,30 @@ export function PoderesFormEditor() {
                                 <button type="button" className="btn-neon grimorio-btn-mini" title="Cobra também outra energia a cada turno (ex.: 10% de Corpo e 10% de Aura)" onClick={() => setCustoTurnoExtrasPoder([...custoTurnoExtrasPoder, { modo: 'percMax', valor: '', energia: 'aura' }])}>+ outra energia</button>
                             )}
                             <label className="grimorio-form-check" title="Ao ligar o Poder, cobra o custo por turno uma vez, e cada vez que desligar e ligar de novo (sem energia, ele não liga). Nos turnos seguintes continua cobrando como sempre."><input type="checkbox" checked={cobrarAoAtivarPoder} onChange={e => setCobrarAoAtivarPoder(e.target.checked)} /> Cobrar o custo por turno também ao ativar (desligar e ligar de novo cobra de novo)</label>
+                        </div>
+                        <div className="grimorio-form-campo grimorio-form-span-tudo">
+                            <span className="grimorio-form-rotulo">Reutilização do golpe (sem custo)</span>
+                            <div className="custo-turno-campo">
+                                <select aria-label="Como o golpe é reutilizado" value={reutilizacaoPoder.modo} onChange={e => setReutilizacaoPoder({ ...reutilizacaoPoder, modo: e.target.value })} title="Depois do golpe, ele é rolado de novo SEM pagar o custo: por número de alvos atingidos ou por chance.">
+                                    <option value="">Sem reutilização</option>
+                                    <option value="porAlvos">Por nº de alvos atingidos</option>
+                                    <option value="chance">Por chance a cada reuso</option>
+                                </select>
+                                {reutilizacaoPoder.modo === 'porAlvos' && (
+                                    <>
+                                        <input type="number" min="0" max="20" placeholder="1 alvo" aria-label="Reusos se atingir 1 alvo" value={reutilizacaoPoder.a1} onChange={e => setReutilizacaoPoder({ ...reutilizacaoPoder, a1: e.target.value })} title="Reusos se o golpe atingir 1 alvo (máx. 20)" />
+                                        <input type="number" min="0" max="20" placeholder="2 alvos" aria-label="Reusos se atingir 2 alvos" value={reutilizacaoPoder.a2} onChange={e => setReutilizacaoPoder({ ...reutilizacaoPoder, a2: e.target.value })} title="Reusos se o golpe atingir 2 alvos (máx. 20)" />
+                                        <input type="number" min="0" max="20" placeholder="3+ alvos" aria-label="Reusos se atingir 3 ou mais alvos" value={reutilizacaoPoder.a3} onChange={e => setReutilizacaoPoder({ ...reutilizacaoPoder, a3: e.target.value })} title="Reusos se o golpe atingir 3 ou mais alvos (máx. 20)" />
+                                    </>
+                                )}
+                                {reutilizacaoPoder.modo === 'chance' && (
+                                    <>
+                                        <input type="number" min="1" max="100" placeholder="% chance" aria-label="Chance de cada reuso, em porcentagem" value={reutilizacaoPoder.chance} onChange={e => setReutilizacaoPoder({ ...reutilizacaoPoder, chance: e.target.value })} title="Chance (%) de cada reuso acontecer; a primeira falha encerra." />
+                                        <input type="number" min="1" max="20" placeholder="máx." aria-label="Máximo de reusos" value={reutilizacaoPoder.max} onChange={e => setReutilizacaoPoder({ ...reutilizacaoPoder, max: e.target.value })} title="Máximo de reusos (até 20)" />
+                                        <input type="text" maxLength={10} placeholder="dado extra (ex.: 5d4)" aria-label="Dado extra somado ao dano de cada reuso (opcional)" value={reutilizacaoPoder.extra} onChange={e => setReutilizacaoPoder({ ...reutilizacaoPoder, extra: e.target.value })} title="Opcional: dado somado ao dano de cada reuso." />
+                                    </>
+                                )}
+                            </div>
                         </div>
                         <div className="grimorio-form-campo grimorio-form-span-tudo">
                             <span className="grimorio-form-rotulo">Escudo ao ligar</span>
@@ -898,7 +924,7 @@ export function PoderesLista() {
                                         <div className="gatilhos-poder-lista">
                                             {p.gatilhos.map(g => (
                                                 <div key={g.id} className={"gatilho-poder-linha" + (g.mestreDesligou ? ' desligado-mestre' : '')}>
-                                                    <span>🔔 {descreverGatilho(g, { contadores: minhaFicha?.contadores, poderes: minhaFicha?.poderes })}{g.mestreDesligou ? ' (desligado pelo Mestre)' : ''}</span>
+                                                    <span>🔔 {descreverGatilho(g, { contadores: minhaFicha?.contadores, poderes: minhaFicha?.poderes, followUps: followUpsDaFicha(minhaFicha) })}{g.mestreDesligou ? ' (desligado pelo Mestre)' : ''}</span>
                                                     {g.modo === 'opcional' && <button type="button" className={"btn-neon btn-gatilho-armado" + (g.armado !== true ? ' desarmado' : '')} aria-pressed={g.armado === true} onClick={() => alternarArmadoGatilho(p.id, g.id)} title="Opcional: só dispara armado. O dono e o Mestre podem alternar.">{g.armado !== true ? '🔕 Desarmado' : '🔔 Armado'}</button>}
                                                     {isMestre && <button type="button" className="btn-neon" onClick={() => forcarGatilhoMestre(p.id, g.id)} title="Executa as ações agora, ignorando condições e limite (só o Mestre)">Forçar disparo</button>}
                                                     {isMestre && <button type="button" className="btn-neon" onClick={() => alternarGatilhoMestre(p.id, g.id)} title="Liga ou desliga este gatilho (só o Mestre)">{g.mestreDesligou ? 'Religar' : 'Desligar'}</button>}
@@ -941,6 +967,7 @@ export function PoderesLista() {
                                     {descreverOrigem(p.origem) && <span className="origem-poder-selo" title="Origem do poder (informativa)">{descreverOrigem(p.origem)}</span>}
                                     {descreverUsos(minhaFicha, p, cenaAtivaId) && <span className="usos-poder-selo" title="Usos restantes desta técnica">🔁 {descreverUsos(minhaFicha, p, cenaAtivaId)}</span>}
                                     {descreverCustoPorTurno(p) && <span className="custo-turno-selo" title="Energia cobrada no início de cada turno enquanto ligada">🔋 {descreverCustoPorTurno(p)}</span>}
+                                    {descreverReutilizacao(p.reutilizacao) && <span className="custo-turno-selo" title="Depois do golpe, ele é rolado de novo sem custo">🔁 {descreverReutilizacao(p.reutilizacao)}</span>}
                                     {descreverRecarga(p) && <span className={`recarga-poder-selo${p.recargaRestante > 0 ? ' em-recarga' : ''}`} title="Recarga em turnos antes de ligar de novo">{descreverRecarga(p)}</span>}
 
                                     {/* BOTÃO DISPARAR/PREPARAR MODO */}

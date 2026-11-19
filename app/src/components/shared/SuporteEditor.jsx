@@ -3,11 +3,11 @@ import useStore from '../../stores/useStore';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import EditorBuffs from '../combos/EditorBuffs';
 import { lerAlvoDeEditor, acharAlvoParaGravar } from './alvoDeEditor';
-import { normalizarSuporte, MODOS_ALVO_SUPORTE, MODOS_SUPORTE, DURACOES_SUPORTE, ACOES_SUPORTE, LIMITES_SUPORTE } from '../../core/suporte';
+import { normalizarSuporte, TIPOS_ESCUDO_SUPORTE, MODOS_ALVO_SUPORTE, MODOS_SUPORTE, DURACOES_SUPORTE, ACOES_SUPORTE, LIMITES_SUPORTE } from '../../core/suporte';
 import { usarSuporte } from '../../services/suporte';
 import { relacaoEntre, comoCombatente, ladoEstaOculto } from '../../core/lados';
 
-const SUPORTE_VAZIO = { cura: { dadosQtd: 0, dadosFaces: 8, fixo: 0, percVida: 0 }, buffs: [], modo: 'uso', duracaoModo: 'turnos', duracao: 3, alvos: 'aliados', maxAlvos: 3, custoPercentual: 0, energia: 'mana', acao: 'padrao' };
+const SUPORTE_VAZIO = { cura: { dadosQtd: 0, dadosFaces: 8, fixo: 0, percVida: 0 }, escudo: { valor: 0, percVida: 0, tipo: 'escudo' }, buffs: [], modo: 'uso', duracaoModo: 'turnos', duracao: 3, alvos: 'aliados', maxAlvos: 3, custoPercentual: 0, energia: 'mana', acao: 'padrao' };
 
 // ✨ Cura e Buffs de um Poder, Técnica ou Item (core/suporte.js): configura (cura em dados/fixo/% da Vida e buffs temporários em
 // si e/ou em aliados) e USA, escolhendo os aliados. Grava direto no item da ficha em foco.
@@ -23,7 +23,7 @@ export default function SuporteEditor({ colecao, itemId, estado = 'base' }) {
 
     const item = lerAlvoDeEditor(ficha, colecao, itemId, estado);
     const atual = useMemo(() => normalizarSuporte(item && item.suporte), [item]);
-    const form = rascunho || (atual ? { ...SUPORTE_VAZIO, ...atual, cura: atual.cura || SUPORTE_VAZIO.cura } : SUPORTE_VAZIO);
+    const form = rascunho || (atual ? { ...SUPORTE_VAZIO, ...atual, cura: atual.cura || SUPORTE_VAZIO.cura, escudo: atual.escudo || SUPORTE_VAZIO.escudo } : SUPORTE_VAZIO);
     const cenario = useStore(s => s.cenario);
     const isMestre = useStore(s => s.isMestre);
     // Possíveis alvos: TODOS os outros (ninguém some), com os aliados primeiro (core/lados.js > relacaoEntre) e um rótulo da relação.
@@ -42,6 +42,7 @@ export default function SuporteEditor({ colecao, itemId, estado = 'base' }) {
 
     const alterar = useCallback((patch) => setRascunho({ ...form, ...patch }), [form]);
     const alterarCura = (patch) => alterar({ cura: { ...form.cura, ...patch } });
+    const alterarEscudo = (patch) => alterar({ escudo: { ...form.escudo, ...patch } });
 
     const salvar = useCallback(() => {
         const normalizado = normalizarSuporte(form);
@@ -52,7 +53,7 @@ export default function SuporteEditor({ colecao, itemId, estado = 'base' }) {
         });
         callSave();
         setRascunho(null);
-        adicionarAviso && adicionarAviso(normalizado ? 'Cura/Buffs salvos.' : 'Nada para salvar: coloque uma Cura ou um Buff.', normalizado ? 'info' : 'alerta');
+        adicionarAviso && adicionarAviso(normalizado ? 'Cura/Buffs salvos.' : 'Nada para salvar: coloque uma Cura, um Escudo ou um Buff.', normalizado ? 'info' : 'alerta');
     }, [form, updateFicha, callSave, colecao, itemId, estado, adicionarAviso]);
 
     const remover = useCallback(() => {
@@ -97,6 +98,13 @@ export default function SuporteEditor({ colecao, itemId, estado = 'base' }) {
                         {[['mana', 'Mana'], ['aura', 'Aura'], ['chakra', 'Chakra'], ['corpo', 'Corpo']].map(([k, rotulo]) => (
                             <label key={k} className="estados-golpe-check">{rotulo} <input className="input-neon estados-golpe-num" type="number" min="0" max="100" aria-label={`Regenera ${rotulo} (% do máximo por turno)`} value={(form.cura.energias && form.cura.energias[k]) || 0} onChange={e => alterarCura({ energias: { ...(form.cura.energias || {}), [k]: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) } })} /></label>
                         ))}
+                    </div>}
+                    {!passivo && <div className="estados-golpe-linha">
+                        <label className="estados-golpe-check">Escudo: <input className="input-neon estados-golpe-num" type="number" min="0" aria-label="Escudo fixo" value={form.escudo.valor} onChange={e => alterarEscudo({ valor: parseFloat(e.target.value) || 0 })} /></label>
+                        <label className="estados-golpe-check">+ <input className="input-neon estados-golpe-num" type="number" min="0" max="1000" aria-label="Escudo em porcentagem da Vida máxima do alvo" value={form.escudo.percVida} onChange={e => alterarEscudo({ percVida: parseFloat(e.target.value) || 0 })} />% da Vida máx. do alvo</label>
+                        <select className="input-neon" aria-label="Tipo do escudo" value={form.escudo.tipo} onChange={e => alterarEscudo({ tipo: e.target.value })}>
+                            {TIPOS_ESCUDO_SUPORTE.map(t => <option key={t} value={t}>{t === 'vidaTemporaria' ? 'Vida temporária' : 'Escudo'}</option>)}
+                        </select>
                     </div>}
                     <EditorBuffs buffs={form.buffs} onChange={(b) => alterar({ buffs: b })} rotulo="Buffs temporários" />
                     {!passivo && <div className="estados-golpe-linha">

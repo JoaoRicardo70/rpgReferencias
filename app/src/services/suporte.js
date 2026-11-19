@@ -3,7 +3,9 @@
 // grava: em MIM pela ficha local (updateFicha), nos aliados só os campos que mudam (salvarCamposPersonagem), nunca a ficha inteira.
 // ==========================================
 import { salvarCamposPersonagem, enviarParaFeed } from './firebase-sync';
-import { normalizarSuporte, destinatariosPermitidos, calcularCuraSuporte, somarBuffTemporario } from '../core/suporte';
+import { normalizarSuporte, destinatariosPermitidos, calcularCuraSuporte, calcularEscudoSuporte, somarBuffTemporario } from '../core/suporte';
+import { adicionarEscudo, removerEscudo } from '../core/escudos';
+import { sanitizarNome } from '../stores/useStore';
 import { calcularEficaciaCura } from '../core/engine';
 import { getVidaMaxBrutaNpc } from '../core/gavetaNpc';
 import { getVidaMaxExibidaFicha } from '../core/danoProporcional';
@@ -24,7 +26,7 @@ export function planejarUsoSuporte({ item, meuNome, fichas, aliados = [], agora 
     nomes.forEach((nome, i) => {
         const ficha = fichas[nome];
         if (!ficha) return;
-        const r = { nome, vidaNova: null, cura: null, buffsNovos: null };
+        const r = { nome, vidaNova: null, cura: null, buffsNovos: null, escudo: null, escudosNovos: null };
         if (s.cura) {
             const cura = calcularCuraSuporte(s, { vidaMaxExibida: getVidaMaxExibidaFicha(ficha) || 0, eficacia: calcularEficaciaCura(ficha), rolar });
             const maxBruto = getVidaMaxBrutaNpc(ficha);
@@ -38,6 +40,17 @@ export function planejarUsoSuporte({ item, meuNome, fichas, aliados = [], agora 
         if (s.buffs.length > 0) {
             r.buffsNovos = somarBuffTemporario(ficha.buffsTemporarios, { id: `${item.id}_${agora}_${i}`, nome: item.nome, fonte: meuNome, efeitos: s.buffs, duracao: s.duracao, duracaoModo: s.duracaoModo });
         }
+        if (s.escudo) {
+            // 🛡️ Escudo/Vida temporária para o aliado (core/escudos.js): valor fixo + % da Vida máxima DELE. Mesmo id = renova (não soma); lista cheia = sem espaço.
+            const e = calcularEscudoSuporte(s, getVidaMaxExibidaFicha(ficha) || 0);
+            if (e.total > 0) {
+                const id = `esc_sup_${sanitizarNome(meuNome)}_${item.id}`;
+                const tmp = { escudos: Array.isArray(ficha.escudos) ? JSON.parse(JSON.stringify(ficha.escudos)) : undefined };
+                removerEscudo(tmp, id);
+                if (adicionarEscudo(tmp, { id, nome: String(item.nome || 'Escudo').slice(0, 40), valor: e.total, tipo: e.tipo })) { r.escudo = e; r.escudosNovos = tmp.escudos; }
+                else r.escudo = { ...e, semEspaco: true };
+            }
+        }
         receptores.push(r);
     });
     const eu = fichas[meuNome];
@@ -49,6 +62,7 @@ export function descreverUsoSuporte(plano, nomeItem, meuNome) {
     const partes = plano.receptores.map((r) => {
         const o = [];
         if (r.cura) o.push(`curou ${r.cura.total.toLocaleString('pt-BR')}`);
+        if (r.escudo) o.push(r.escudo.semEspaco ? 'sem espaço para o escudo' : `${r.escudo.tipo === 'vidaTemporaria' ? 'Vida temporária' : 'escudo'} de ${r.escudo.total.toLocaleString('pt-BR')}`);
         if (r.buffsNovos && plano.suporte.buffs.length > 0) o.push(`buffs (${plano.suporte.buffs.map(descreverBuff).join('; ')})${plano.suporte.duracao > 0 ? ` por ${plano.suporte.duracao} turno(s)` : (plano.suporte.duracaoModo === 'combate' ? ' até o fim do combate' : '')}`);
         return `${r.nome}: ${o.join(' + ') || 'nada'}`;
     });
@@ -73,6 +87,7 @@ export function usarSuporte({ item, aliados, ctx }) {
         const campos = {};
         if (r.vidaNova !== null) campos['vida/atual'] = r.vidaNova;
         if (r.buffsNovos) campos.buffsTemporarios = r.buffsNovos;
+        if (r.escudosNovos) campos.escudos = r.escudosNovos;
         if (Object.keys(campos).length > 0) salvarCamposPersonagem(r.nome, campos);
     });
     const meu = plano.receptores.find(r => r.nome === meuNome);
@@ -82,6 +97,7 @@ export function usarSuporte({ item, aliados, ctx }) {
         if (meu) {
             if (meu.vidaNova !== null && f.vida) f.vida.atual = meu.vidaNova;
             if (meu.buffsNovos) f.buffsTemporarios = meu.buffsNovos;
+            if (meu.escudosNovos) f.escudos = meu.escudosNovos;
         }
     });
     salvarFichaSilencioso();

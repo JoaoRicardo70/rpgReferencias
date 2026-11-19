@@ -2,6 +2,7 @@
 // Fica fora de core/ porque junta o estado do Combo (core/combos.js) com o gasto de Ações (core/acoesTecnica.js).
 import { estadoDeCombo, iniciarCombo, avancarCombo, usarFollowUp, nivelDoFollowUp, rotuloAcaoGolpe, resumirCombo } from '../../core/combos';
 import { gastarAcoes, acoesEmFalta } from '../../core/acoesTecnica';
+import { localizarFollowUp, ofertasValidas, removerOfertaFollowUp, definirReducaoCusto, marcarSemEncadeio } from '../../core/ofertaFollowUp';
 
 // Grava o estado do Combo na ficha (rascunho Immer).
 export function definirEstadoDeCombo(ficha, estado) {
@@ -38,6 +39,23 @@ export function aplicarEscolhaCombo(ficha, escolha, { gastar = true } = {}) {
 
     definirEstadoDeCombo(ficha, novo);
     if (gastar) gastarAcoes(ficha, [tipoCusto]);
+    return texto;
+}
+
+// 🥋 Aceita uma OFERTA de Follow Up (gatilho `oferecerFollowUp`, core/ofertaFollowUp.js) no rascunho: registra o uso do Follow Up (como a escolha manual),
+// tira a oferta, guarda o custo reduzido do próximo golpe (se a oferta tem) e marca "não gera outro" (se tem). Devolve o texto do feed ('' se a oferta já não vale).
+export function aceitarOfertaFollowUp(ficha, ofertaId, { custo, gastar = true, agora = Date.now() } = {}) {
+    const oferta = ofertasValidas(ficha, agora).find(o => o.id === ofertaId);
+    if (!oferta) { removerOfertaFollowUp(ficha, ofertaId); return ''; }
+    const fu = localizarFollowUp(ficha, oferta.followUpId);
+    removerOfertaFollowUp(ficha, ofertaId);
+    if (!fu) return '';
+    let texto = aplicarEscolhaCombo(ficha, { tipo: 'followUp', followUp: fu, golpe: fu, custo }, { gastar });
+    if (oferta.custoReducaoPct) {
+        definirReducaoCusto(ficha, oferta.custoReducaoPct, agora);
+        texto += ` O custo de energia do próximo golpe cai ${oferta.custoReducaoPct >= 100 ? '100% (sem custo)' : `${oferta.custoReducaoPct}%`}.`;
+    }
+    if (oferta.naoGeraOutro) marcarSemEncadeio(ficha, agora);
     return texto;
 }
 

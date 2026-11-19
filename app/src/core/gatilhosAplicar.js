@@ -26,6 +26,7 @@ import { CAMINHOS_ADAPTACAO } from './adaptacao.js';
 import { CAMINHOS_ZENKAI } from './zenkai.js';
 import { somarPorFonte, CAMINHOS_RASTRO } from './ganhosFonte.js';
 import { iniciarFim, concluirFim } from './aprovacaoPermanente.js';
+import { registrarOfertaFollowUp, limparOfertasFollowUp, limparSemEncadeio, limparReducaoCusto, CAMINHO_OFERTAS, CAMINHO_SEM_ENCADEIO, CAMINHO_REDUCAO_CUSTO } from './ofertaFollowUp.js';
 
 const fmtN = (n) => Math.floor(Number(n) || 0).toLocaleString('pt-BR');
 const fmtGanho = (n) => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 6 });
@@ -370,6 +371,15 @@ export function aplicarAcoesNoRascunho(ficha, acoes, ctx = {}) {
                 (r.chaves || []).forEach((k) => { chavesNaCadeia.push(k); chavesDisparadas.push(k); });
                 break;
             }
+            case 'oferecerFollowUp': {
+                // 🥋 FUA oferecido: só GUARDA a oferta na ficha (ficha.combate.ofertasFollowUp); o dono decide no cliente dele (ComboPrompt). Nada é rolado aqui.
+                // Em simulação de perguntas (ctx.perguntas) não grava nada.
+                if (Array.isArray(ctx.perguntas)) break;
+                const o = registrarOfertaFollowUp(ficha, { chave: a.chave, referencia: a.followUpId, custoReducaoPct: a.custoReducaoPct, naoGeraOutro: a.naoGeraOutro === true, gatilhoNome: nome });
+                if (o.texto) textos.push(o.texto);
+                o.caminhos.forEach(c => caminhos.add(c));
+                break;
+            }
             case 'pedirEscolha': {
                 // Quem escolhe é o DONO, no cliente dele: ctx.escolher(pergunta, [textos]) => índice | null (síncrono). Regra segura: sem escolher
                 // (ficha de outro jogador, Mestre, teste puro), cancelado ou índice inválido => NENHUMA opção é aplicada e o feed avisa.
@@ -422,6 +432,10 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
     const modoPermanente = ctx.permanente || 'converter';
     let fimPermanente = null;
     if (evento.tipo === 'turnoInicio' || evento.tipo === 'fimDeLuta') {
+        // 🥋 As ofertas de Follow Up (FUA) expiram no início do próximo turno do dono e no fim da luta (e o "não gera outro" junto).
+        if (limparOfertasFollowUp(ficha)) caminhos.add(CAMINHO_OFERTAS);
+        if (limparSemEncadeio(ficha)) caminhos.add(CAMINHO_SEM_ENCADEIO);
+        if (limparReducaoCusto(ficha)) caminhos.add(CAMINHO_REDUCAO_CUSTO);
         if (zerarUsosPorTurno(ficha)) caminhos.add('combate/usosPoderes');
         // ⚔️ O contador de ataques do turno (core/ataquesNoTurno.js) volta a zero no começo do turno e no fim da luta.
         if (zerarAtaquesNoTurno(ficha)) caminhos.add(CAMINHO_ATAQUES_NO_TURNO);
@@ -456,6 +470,9 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
             }
         }
     }
+    // 🥋 O golpe que fecha o FUA aceito (acertou/errou, no evento raiz, depois de os gatilhos dele rodarem) encerra a janela "não gera outro".
+    // `ctx.mantemSemEncadeio` (golpes com reuso): a marca só é fechada por quem rola o laço, DEPOIS do último reuso.
+    if ((evento.tipo === 'acertou' || evento.tipo === 'errou') && profundidade === 0 && ctx.mantemSemEncadeio !== true && limparSemEncadeio(ficha)) caminhos.add(CAMINHO_SEM_ENCADEIO);
     // Por ÚLTIMO: os gatilhos de fimDeLuta (inclusive os com limite por cena) já foram avaliados com os usos do combate que acabou, então
     // cada um dispara uma vez por combate; só depois os usos por cena recomeçam para o próximo.
     if (evento.tipo === 'fimDeLuta' && restaurarUsosPorCena(ficha)) caminhos.add('combate/usosPoderes');
@@ -515,7 +532,7 @@ export function camposParaGravar(ficha, caminhos) {
 
 // Campos de gatilhos/condições que mudaram entre duas versões da ficha (para gravar só eles no Firebase de OUTRO jogador).
 // Formato { caminho: valor | null }. Usado no início do turno (estados que tiram Vida, Imunidade total que passa).
-const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'ganhosPermanentes/fatorPoder', ...CAMINHOS_RASTRO, ...CAMINHOS_ADAPTACAO, 'combate/ganhosAntesDoCombate', ...CAMINHOS_ZENKAI, 'ganhosCombate/poderCalculado', 'ganhosCombate/fatorPoder', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes'];
+const CAMINHOS_GATILHOS = ['ganhosPermanentes/poderCalculado', 'ganhosPermanentes/fatorPoder', ...CAMINHOS_RASTRO, ...CAMINHOS_ADAPTACAO, 'combate/ganhosAntesDoCombate', ...CAMINHOS_ZENKAI, 'ganhosCombate/poderCalculado', 'ganhosCombate/fatorPoder', 'condicoes', 'duracaoEstados', 'combate/imunidadeTotal', 'combate/gatilhos', 'combate/usosPoderes', CAMINHO_OFERTAS, CAMINHO_SEM_ENCADEIO, CAMINHO_REDUCAO_CUSTO];
 export function camposDeGatilhosAlterados(antes, depois) {
     const lido = (f, caminho) => caminho.split('/').reduce((v, p) => (v === undefined || v === null ? undefined : v[p]), f);
     const mudados = CAMINHOS_GATILHOS.filter(c => JSON.stringify(lido(antes, c)) !== JSON.stringify(lido(depois, c)));

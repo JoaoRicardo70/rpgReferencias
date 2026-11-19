@@ -3,6 +3,8 @@
 // estados que o golpe aplica, core/estadosGolpe.js, só que para o lado bom). Lógica pura; as escritas ficam em services/suporte.js.
 //   suporte: { cura?: { dadosQtd, dadosFaces, fixo, percVida, energias?: { mana, aura, chakra, corpo } (% do máx. por turno, só passivo) }, buffs: [{ atributo, propriedade, valor }], duracao,
 //              alvos: 'si' | 'aliados' | 'ambos', maxAlvos, custoPercentual, energia, acao }
+// Escudo (opcional, só no uso ativo): `escudo: { valor, percVida, tipo: 'escudo'|'vidaTemporaria' }` dá a cada destinatário um escudo/Vida temporária de
+// `valor` + `percVida`% da Vida máxima DELE (escala exibida; teto de core/escudos.js). Segue as regras de ficha.escudos (limite de 12, absorve antes da Vida).
 // Cura: dados + valor fixo + % da Vida máxima do alvo (escala exibida), vezes a Eficácia de Cura dele (estados cortam a cura).
 // Buffs: efeitos no mesmo formato de sempre ({ atributo, propriedade, valor }); ficam em ficha.buffsTemporarios por `duracao`
 // turnos do próprio alvo (0 = até serem removidos) e entram em getEfeitosDeClasse, então valem em dano, acerto, CA, Ações etc.
@@ -11,6 +13,7 @@
 import { ATRIBUTOS_AGRUPADOS, getPropriedadesDoAtributo } from './efeitos-constants.js';
 import { blocoEfetivoDaArma } from './armaEspiritualEfeitos.js';
 import { ATRIBUTO_DANO_DADOS, lerDadoDeDano, normalizarValorDanoDados, dadoDoEfeito } from './danoDados.js';
+import { LIMITE_VALOR_ESCUDO } from './escudos.js';
 
 export const LIMITES_SUPORTE = { buffs: 12, duracaoMax: 20, maxAlvos: 10, dadosQtd: 100, dadosFaces: 1000, buffsAtivosPorFicha: 30 };
 export const MODOS_ALVO_SUPORTE = [
@@ -48,6 +51,29 @@ function buffNormalizado(b) {
     return { atributo: b.atributo, propriedade: 'base', valor: normalizarValorDanoDados(dadoDoEfeito(b)), ...nome, ...(quando ? { quando } : {}) };
 }
 
+export const TIPOS_ESCUDO_SUPORTE = ['escudo', 'vidaTemporaria'];
+
+// Escudo/Vida temporária que o suporte dá a cada destinatário: { valor (fixo), percVida (% da Vida máxima do alvo, 0 a 1000), tipo } ou null (sem valor).
+export function normalizarEscudoSuporte(e) {
+    if (!e || typeof e !== 'object') return null;
+    const valor = Math.floor(Math.max(0, Math.min(LIMITE_VALOR_ESCUDO, numero(e.valor))));
+    const percVida = Math.max(0, Math.min(1000, numero(e.percVida)));
+    if (valor <= 0 && percVida <= 0) return null;
+    return { valor, percVida, tipo: TIPOS_ESCUDO_SUPORTE.includes(e.tipo) ? e.tipo : 'escudo' };
+}
+
+// Pontos de escudo (escala exibida) para um alvo: valor fixo + % da Vida máxima EXIBIDA dele, inteiro, no máximo LIMITE_VALOR_ESCUDO.
+export function calcularEscudoSuporte(suporte, vidaMaxExibida = 0) {
+    const s = normalizarSuporte(suporte);
+    if (!s || !s.escudo) return { total: 0, tipo: 'escudo', detalhe: '' };
+    const porVida = Math.floor(Math.max(0, Number(vidaMaxExibida) || 0) * (s.escudo.percVida / 100));
+    const total = Math.min(LIMITE_VALOR_ESCUDO, s.escudo.valor + porVida);
+    const partes = [];
+    if (s.escudo.valor > 0) partes.push(`${s.escudo.valor}`);
+    if (s.escudo.percVida > 0) partes.push(`${s.escudo.percVida}% da Vida = ${porVida}`);
+    return { total, tipo: s.escudo.tipo, detalhe: partes.join(' + ') };
+}
+
 export function normalizarSuporte(s) {
     if (!s || typeof s !== 'object') return null;
     const cura = s.cura && typeof s.cura === 'object' ? {
@@ -62,13 +88,16 @@ export function normalizarSuporte(s) {
     }
     const temCura = cura && (cura.dadosQtd > 0 || cura.fixo > 0 || cura.percVida > 0 || !!cura.energias);
     const buffs = (Array.isArray(s.buffs) ? s.buffs : []).filter(buffValido).slice(0, LIMITES_SUPORTE.buffs).map(buffNormalizado);
-    if (!temCura && buffs.length === 0) return null;
     const passivo = s.modo === 'passivo';
+    // O escudo só vale no uso ativo (o suporte passivo vale só em quem está com o Poder/Item e não cria escudos).
+    const escudo = passivo ? null : normalizarEscudoSuporte(s.escudo);
+    if (!temCura && buffs.length === 0 && !escudo) return null;
     const duracao = inteiro(s.duracao, 0, LIMITES_SUPORTE.duracaoMax, 3);
     // Fichas/pedidos antigos só tinham `duracao` (0 = até remover).
     const duracaoModo = DURACOES_SUPORTE.some(d => d.id === s.duracaoModo) ? s.duracaoModo : (duracao > 0 ? 'turnos' : 'permanente');
     return {
         ...(temCura ? { cura } : {}),
+        ...(escudo ? { escudo } : {}),
         buffs,
         modo: passivo ? 'passivo' : 'uso',
         duracaoModo: passivo ? 'permanente' : duracaoModo,

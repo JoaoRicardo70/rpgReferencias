@@ -128,7 +128,7 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
             if (dano > 0) atingiuComDano = true;
             // 🛡️ Por último: escudos/Vida temporária do alvo-personagem absorvem o Dano final (efeitos 'Ao acertar' valem mesmo que o escudo absorva tudo).
             if (dano > 0 && alvo.isPersonagem && alvo.personagemNome) {
-                const a = absorverEmPersonagem(alvo.personagemNome, alvo.ficha, dano, alvo.nome);
+                const a = absorverEmPersonagem(alvo.personagemNome, alvo.ficha, dano, alvo.nome, alvo.fichaFixa === true);
                 if (a.texto) { dano = a.restante; textos.push(a.texto); }
                 if (a.escudosNovos) escudosPosAbsorcao.set(idAlvo, a.escudosNovos);
             }

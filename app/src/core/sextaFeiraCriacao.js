@@ -21,6 +21,7 @@ import { normalizarAoAcertar } from './aoAcertar.js';
 import { lerCustosPorTurno, custoPorTurnoParaSalvar } from './custoPorTurno.js';
 import { normalizarEscudoAoLigar } from './escudos.js';
 import { normalizarRecarga, LIMITE_RECARGA } from './recargaPoder.js';
+import { normalizarReutilizacao, descreverReutilizacao, LIMITE_REUSOS } from './reutilizacao.js';
 import { normalizarAoDesligar } from './aoDesligar.js';
 import { lerGatilhosDaIA } from './gatilhosImportacao.js';
 import { EVENTOS_GATILHO, ACOES_GATILHO, PERIODOS_GATILHO, NIVEIS_ACERTO, OPS_CONTADOR_ACAO, OPS_CONTADOR_EVENTO, LIMITE_GATILHOS_POR_FONTE, LIMITE_ACOES_POR_GATILHO, LIMITE_LINHAS_TABELA, LIMITE_OPCOES_ESCOLHA, descreverGatilho } from './gatilhos.js';
@@ -280,7 +281,7 @@ function anexarEstadosReflexoSuporte(objeto, d, avisos, { reflexo = true } = {})
     if (d.suporte !== undefined && d.suporte !== null) {
         const su = normalizarSuporte(d.suporte && typeof d.suporte === 'object' ? { ...d.suporte, buffs: buffsComQuandoCanonico(d.suporte.buffs) } : d.suporte);
         const buffsBrutos = Array.isArray(d.suporte?.buffs) ? d.suporte.buffs.length : 0;
-        if (!su) avisos.push('Suporte vazio ou inválido (sem cura e sem buffs válidos); foi ignorado.');
+        if (!su) avisos.push('Suporte vazio ou inválido (sem cura, escudo e buffs válidos); foi ignorado.');
         else {
             if (su.buffs.length < buffsBrutos) avisos.push(`${buffsBrutos - su.buffs.length} buff(s) de Suporte com atributo/propriedade inválido ou acima do limite foram descartados.`);
             objeto.suporte = su;
@@ -305,6 +306,7 @@ export function descreverExtrasProposta(objeto) {
         linhas.push(`↩️ Reflexo: ${modo} ${objeto.reflexo.mult}%${objeto.reflexo.automatico ? ' · automático' : ''}${objeto.reflexo.gastaReacao ? ' · gasta Reação' : ''}`);
     }
     (objeto.gatilhos || []).forEach((g) => { linhas.push(`🔔 ${g.nome}: ${descreverGatilho(g)}`); });
+    if (objeto.reutilizacao) linhas.push(`🔁 ${descreverReutilizacao(objeto.reutilizacao)}`);
     const su = objeto.suporte;
     if (su) {
         const partes = [];
@@ -314,6 +316,7 @@ export function descreverExtrasProposta(objeto) {
             if (cv) partes.push(`Cura ${cv}`);
             if (c.energias) partes.push(`Regenera ${Object.keys(c.energias).map(k => `${c.energias[k]}% ${k}`).join(', ')} por turno`);
         }
+        if (su.escudo) partes.push(`${su.escudo.tipo === 'vidaTemporaria' ? 'Vida temporária' : 'Escudo'} ${[su.escudo.valor ? String(su.escudo.valor) : '', su.escudo.percVida ? `${su.escudo.percVida}% da Vida máx. do alvo` : ''].filter(Boolean).join('+')}`);
         if (su.buffs.length) {
             const prazo = su.duracao > 0 ? `por ${su.duracao} turno${su.duracao === 1 ? '' : 's'}` : 'sem prazo';
             partes.push(`Buffs: ${su.buffs.map(b => `${b.atributo} ${b.propriedade} ${b.valor > 0 ? '+' : ''}${b.valor}`).join(', ')} ${prazo}`);
@@ -362,6 +365,7 @@ const SUPORTE_SCHEMA = {
     description: 'Cura e/ou buffs dados a quem usa e/ou a aliados (criação de apoio). Use quando a criação cura ou fortalece, não para dano. Ex.: {"cura":{"dadosQtd":3,"dadosFaces":8,"fixo":10},"buffs":[{"atributo":"forca","propriedade":"base","valor":5}],"duracao":3,"alvos":"aliados","maxAlvos":3,"acao":"padrao"}',
     properties: {
         cura: { type: 'OBJECT', description: 'Cura = dados + valor fixo + % da Vida máxima do alvo. No modo passivo, energias = % do máximo de cada energia recuperado por turno (0-100).', properties: { dadosQtd: { type: 'INTEGER' }, dadosFaces: { type: 'INTEGER' }, fixo: { type: 'NUMBER' }, percVida: { type: 'NUMBER' }, energias: { type: 'OBJECT', properties: { mana: { type: 'NUMBER' }, aura: { type: 'NUMBER' }, chakra: { type: 'NUMBER' }, corpo: { type: 'NUMBER' } } } } },
+        escudo: { type: 'OBJECT', description: 'Escudo ou Vida temporária dado a cada destinatário (só no modo uso): valor fixo + % da Vida máxima DO ALVO. Ex.: Parede de 150 = {"valor":150,"tipo":"escudo"}; Heroísmo = {"percVida":20,"tipo":"vidaTemporaria"}.', properties: { valor: { type: 'NUMBER' }, percVida: { type: 'NUMBER', description: '% da Vida máxima do alvo (0-1000).' }, tipo: { type: 'STRING', enum: ['escudo', 'vidaTemporaria'] } } },
         buffs: { type: 'ARRAY', description: 'Buffs temporários no mesmo formato dos efeitos.', items: { type: 'OBJECT', properties: { atributo: { type: 'STRING', enum: ATRIBUTOS_EFEITO }, propriedade: { type: 'STRING', enum: PROPRIEDADES_EFEITO }, valor: { type: 'NUMBER' }, dado: { type: 'STRING', description: 'Só dano_dados: o dado NdM (ex.: "20d6"); use valor 0.' }, quando: { type: 'STRING', description: 'Só dano_dados: condição (em_combate, alvo_com_debuff, combos_finalizados:<N>, primeiro_ataque_do_turno...).' } }, required: ['atributo', 'propriedade', 'valor'] } },
         modo: { type: 'STRING', enum: ['uso', 'passivo'], description: 'uso = ativo; passivo = sempre ligado enquanto o Poder/Item estiver em uso (só em quem usa).' },
         duracao: { type: 'INTEGER', description: `Turnos dos buffs (0 = sem prazo, máx. ${LIMITES_SUPORTE.duracaoMax}).` },
@@ -435,6 +439,12 @@ export function normalizarPoder(dados, opcoesCriacao = {}) {
     const recarga = normalizarRecarga(d.recargaTurnos);
     if (recarga > 0) objeto.recargaTurnos = recarga;
     if (Number(d.recargaTurnos) > LIMITE_RECARGA) avisos.push(`Recarga acima de ${LIMITE_RECARGA} turnos: reduzida para ${LIMITE_RECARGA}.`);
+    // 🔁 Reutilização do golpe (core/reutilizacao.js): por nº de alvos OU por chance; inválido não grava nada (nunca "meio reuso") e avisa.
+    if (d.reutilizacao !== undefined && d.reutilizacao !== null) {
+        const reut = normalizarReutilizacao(d.reutilizacao);
+        if (reut) objeto.reutilizacao = reut;
+        else avisos.push(`Reutilização inválida (use {"porAlvos":{"1":N,"2":M}} com N até ${LIMITE_REUSOS}, ou {"chance":%,"max":N,"extra":"NdM"}); foi ignorada.`);
+    }
     // 💀 Dano Verdadeiro (core/reducaoDano.js): só o boolean true (ou "true") marca o Poder; qualquer outra coisa não grava nada.
     if (d.danoVerdadeiro === true || d.danoVerdadeiro === 'true') objeto.danoVerdadeiro = true;
     // 🛡️ Escudo que o Poder cria ao ligar (core/escudos.js); inválido não grava nada.
@@ -721,6 +731,10 @@ const PROPS_ACAO_GATILHO = {
     id: { type: 'STRING', description: 'contador: id do contador existente na ficha.' }, op: { type: 'STRING', enum: OPS_CONTADOR_ACAO }, sorteio: { type: 'STRING', description: 'contador: "NdM".' },
     estado: { type: 'STRING', description: `aplicarEstado/removerEstado. Ids: ${ESTADOS.map(e => e.id).join(', ')}.` }, stacks: { type: 'INTEGER' },
     poderId: { type: 'STRING', description: 'ligarPoder/desligarPoder.' },
+    followUpId: { type: 'STRING', description: 'oferecerFollowUp: id OU nome de um Follow Up que já existe na ficha (FUA oferecido: o jogador aceita ou recusa e rola o golpe; a ação nunca ataca sozinha).' },
+    custoReducaoPct: { type: 'NUMBER', description: 'oferecerFollowUp: redução (%) do custo de energia do golpe oferecido (0 a 100; 100 = sem custo). Omita se não houver.' },
+    semCusto: { type: 'BOOLEAN', description: 'oferecerFollowUp: true = o golpe não gasta energia (o mesmo que custoReducaoPct 100).' },
+    naoGeraOutro: { type: 'BOOLEAN', description: 'oferecerFollowUp: true = o golpe oferecido não gera outro Follow Up.' },
     duracaoGanho: { type: 'STRING', enum: ['permanente', 'combate'], description: 'ganhoPermanente: "combate" quando o texto disser durante o combate / até o fim da luta / temporário (zera no fim da luta); senão "permanente" (ou omita).' },
     unidade: { type: 'STRING', enum: ['percentual', 'bruto'], description: 'ganhoPermanente: use "percentual" (valor = % de Poder, ex.: +2% = 2); "bruto" só para o formato antigo.' }, deContador: { type: 'OBJECT', description: 'ganhoPermanente a partir de um contador: ganho no Poder Calculado = valor atual do contador x fator, em % quando unidade percentual (use isto OU valor).', properties: { id: { type: 'STRING', description: 'nome do contador' }, fator: { type: 'NUMBER' }, zerar: { type: 'BOOLEAN', description: 'zerar o contador depois' } } },
 };
@@ -771,6 +785,7 @@ export const DECLARACOES_CRIACAO = [
                 danoVerdadeiro: { type: 'BOOLEAN', description: 'true se o dano deste Poder é Dano Verdadeiro (ignora resistências e imunidades). Omita se não for.' },
                 escudoAoLigar: { type: 'OBJECT', description: 'Barreira/escudo/vida temporária que o Poder cria ao ser ligado e some ao desligar (ex.: Domo Gélido com 1600). Omita se não houver.', properties: { nome: { type: 'STRING' }, valor: { type: 'NUMBER', description: 'Pontos de vida da barreira (escala do dano).' }, tipo: { type: 'STRING', enum: ['escudo', 'vidaTemporaria'] } }, required: ['nome', 'valor'] },
                 recargaTurnos: { type: 'INTEGER', description: 'Turnos do dono a esperar para usar de novo (1 a 99). Omita se não houver recarga.' },
+                reutilizacao: { type: 'OBJECT', description: `O golpe é reusado SEM pagar o custo de novo. Por nº de alvos atingidos: {"porAlvos":{"1":5,"2":3,"3":2}} (5 reusos se acertar 1 alvo, 3 se 2, 2 se 3 ou mais). Por chance: {"chance":50,"max":3,"extra":"50d4"} (cada reuso só ocorre com 50% de chance, até 3, somando o dado extra ao dano de cada reuso; \"extra\" opcional). Máx. ${LIMITE_REUSOS} reusos. Use só um dos dois modos; omita se não houver reuso.`, properties: { porAlvos: { type: 'OBJECT', description: 'Chave = nº de alvos atingidos ("1","2","3"...), valor = quantos reusos.' }, chance: { type: 'NUMBER', description: '% de chance de cada reuso (1 a 100).' }, max: { type: 'INTEGER', description: `Máximo de reusos (1 a ${LIMITE_REUSOS}).` }, extra: { type: 'STRING', description: 'Dado somado ao dano de cada reuso, formato NdM (opcional).' } } },
                 gatilhos: GATILHOS_SCHEMA,
                 aoDesligar: { type: 'OBJECT', description: 'Dano em si quando desligado à mão. Omita se não houver.', properties: { dadosQtd: { type: 'INTEGER' }, dadosFaces: { type: 'INTEGER' }, texto: { type: 'STRING' } } },
                 usosPor: { type: 'STRING', enum: ['cena', 'descanso'], description: 'Quando os usos renovam: cena (ao trocar de cena ou descansar) ou descanso. Só com usosMax.' },

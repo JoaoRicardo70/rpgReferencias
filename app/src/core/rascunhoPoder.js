@@ -12,6 +12,7 @@ import { normalizarEscudoAoLigar } from './escudos';
 import { normalizarGatilhos } from './gatilhos';
 import { contadoresDoPoder, normalizarContadorRascunho } from './contadores';
 import { normalizarDadosExtra, normalizarStatusFatores } from './danoDados';
+import { reutilizacaoFormVazio, reutilizacaoParaForm } from './reutilizacao';
 import { ESTAGIOS_PADRAO, normalizarEstagios, temEstagios, marcoParaRascunho } from './estagios';
 
 export const SECOES_FORM = ['basico', 'combate', 'efeitos', 'gatilhos', 'avancado'];
@@ -35,6 +36,7 @@ export function rascunhoVazio() {
         custoTurnoExtras: [],
         cobrarAoAtivar: false,
         recargaTurnos: '',
+        reutilizacao: reutilizacaoFormVazio(),
         escudo: { nome: '', valor: '', tipo: 'escudo' },
         gatilhos: [], gatilhosDescartados: [],
         contadoresRascunho: [],
@@ -76,6 +78,7 @@ export function completarRascunho(r) {
     out.estagios = { ...vazio.estagios, ...(base.estagios || {}) };
     out.custoTurno = { ...vazio.custoTurno, ...(base.custoTurno || {}) };
     out.escudo = { ...vazio.escudo, ...(base.escudo || {}) };
+    out.reutilizacao = { ...vazio.reutilizacao, ...(base.reutilizacao && typeof base.reutilizacao === 'object' ? base.reutilizacao : {}) };
     out.novoEscala = { ...vazio.novoEscala, ...(base.novoEscala || {}) };
     out.novoEscalaPassivo = { ...vazio.novoEscalaPassivo, ...(base.novoEscalaPassivo || {}) };
     out.dadosExtra = normalizarDadosExtra(out.dadosExtra).lista;
@@ -114,6 +117,7 @@ export function rascunhoDoPoder(p, contadoresDaFicha) {
     r.custoTurnoExtras = custosSalvos.slice(1).map(c => ({ modo: c.modo, valor: c.valor, energia: c.energia }));
     r.cobrarAoAtivar = p.cobrarAoAtivar === true;
     r.recargaTurnos = p.recargaTurnos || '';
+    r.reutilizacao = reutilizacaoParaForm(p.reutilizacao);
     r.escudo = normalizarEscudoAoLigar(p.escudoAoLigar) || r.escudo;
     r.gatilhos = clonar(normG.gatilhos);
     r.gatilhosDescartados = clonar(normG.descartados);
@@ -168,6 +172,7 @@ export function resumirSecoes(r) {
     if (num(c.usosMax) > 0) avancado.push(plural(num(c.usosMax), 'uso', 'usos'));
     if (num(c.custoTurno.valor) > 0 || c.custoTurnoExtras.some(x => x && num(x.valor) > 0)) avancado.push(c.cobrarAoAtivar ? 'custo por turno e ao ativar' : 'custo por turno');
     if (num(c.recargaTurnos) > 0) avancado.push(`recarga ${num(c.recargaTurnos)}`);
+    if (c.reutilizacao && c.reutilizacao.modo) avancado.push('reutilização');
     if (num(c.escudo.valor) > 0) avancado.push('escudo');
     if (c.estagios.habilitado) avancado.push('Estágios ativos');
     if (num(c.maestria) > 0) avancado.push(`maestria ${num(c.maestria)}%`);

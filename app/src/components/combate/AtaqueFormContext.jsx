@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ELEMENTOS_SISTEMA } from '../../core/elementos';
 import useStore from '../../stores/useStore';
 import { poderBloqueado } from '../../core/racas';
@@ -20,6 +20,8 @@ import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getFatorVida, getPontosVidaTotal } from '../../core/danoProporcional';
 import { resolverAlvoCombate, reduzirDanoNoAlvo, ehAlvoPersonagem, montarAlvoPersonagem } from '../../core/alvoCombate';
 import { registrarAtaqueNoTurno } from '../../core/ataquesNoTurno';
+import { fichaComReducaoDeCusto, limparReducaoCusto, limparSemEncadeio } from '../../core/ofertaFollowUp';
+import { reutilizacaoDoGolpe, calcularReusos, dadoExtraDoReuso, rotuloDoReuso, limitarReusosPorAlvos, LIMITE_DANOS_POR_GOLPE } from '../../core/reutilizacao';
 import { gravarVidaDoAlvo } from '../../services/danoAlvo';
 import { criarPosGolpe } from '../../services/posGolpe';
 import { coletarEstadosDoGolpe } from '../../core/estadosGolpe';
@@ -522,7 +524,7 @@ export function AtaqueFormProvider({ children }) {
     const finalizarPosGolpe = (pg) => {
         const { textos, danoAtacante, aoAcertar, critico, roubado } = pg.resultado();
         // 🔔 Gatilhos `acertou` (core/gatilhos.js): UMA vez por golpe (também em área), só se algum alvo sofreu Dano.
-        if (pg.causouDano()) { const g = dispararEventoMeu({ tipo: 'acertou', nivel: pg.golpe().nivel }, { nome: nomeNoFeed }); g.textos.forEach(t => textos.push(`🔔 ${t}`)); }
+        if (pg.causouDano()) { const g = dispararEventoMeu({ tipo: 'acertou', nivel: pg.golpe().nivel }, { nome: nomeNoFeed, mantemSemEncadeio: true }); g.textos.forEach(t => textos.push(`🔔 ${t}`)); }
         // 💚 Ao acertar (core/aoAcertar.js): cura/energia de quem acertou, UMA vez por golpe e só se algum alvo sofreu Dano.
         if (aoAcertar && aoAcertar.length > 0) {
             let frases = [];
@@ -554,13 +556,38 @@ export function AtaqueFormProvider({ children }) {
 
     // 💾 `salvo` (opcional): ataque salvo (core/ataquesSalvos.js). Roda com a configuração guardada, mas SEMPRE
     // recalculado pela engine de hoje; sem `salvo` usa o que está montado na tela.
-    const executarRolarDano = useCallback((salvo) => {
+    // 🔁 `reuso` (core/reutilizacao.js): { indice, total, reut, fonteId, dadoExtra?, hp } quando esta chamada é um REUSO do golpe que acabou de ser rolado
+    // (sem custo de energia/Ação, sem contar no "ataques do turno", sem crítico forçado e lendo os alvos FRESCOS do store, pois o golpe anterior já os feriu).
+    // As chamadas de reuso saem do laço no fim do 1º golpe (executarRef). `hp` = Vida dos alvos já atualizada pelos golpes anteriores deste laço.
+    const dummieAlvoDaTela = dummieAlvo; const dummiesDaTela = dummies; const personagensDaTela = personagens; const minhaFichaDaTela = minhaFicha;
+    const executarRolarDano = useCallback((salvo, reuso = null) => {
+        const ehReuso = !!reuso;
+        const rastroHp = (reuso && reuso.hp) || {};
+        const rastroEsc = (reuso && reuso.esc) || {}; // escudos pós-absorção por alvo-personagem, carregados entre os reusos (sem reler o store)
+        const idsAlvos = []; // alvos tocados por este golpe (o laço de reusos para quando todos já caíram ou saíram do store)
+        // Nos reusos os alvos vêm do store de AGORA (nas chamadas normais, os da tela, como sempre). As três constantes abaixo sombreiam as da tela de propósito.
+        const estadoAgora = ehReuso ? useStore.getState() : null;
+        const dummies = ehReuso ? (estadoAgora.dummies || {}) : dummiesDaTela;
+        const personagens = ehReuso ? (estadoAgora.personagens || {}) : personagensDaTela;
+        // Nos reusos a ficha do ator também é a de AGORA (o contador de ataques do turno já subiu: "primeiro ataque do turno" não vale).
+        const minhaFicha = ehReuso && souEuMesmo !== false ? (estadoAgora.minhaFicha || minhaFichaDaTela) : minhaFichaDaTela;
+        const dummieAlvo = ehReuso ? resolverAlvoCombate(alvoSelecionado, { dummies, personagens, meuNome, divisorPoderMesa, fichaAtor: minhaFicha, atorEhMestre: souMestre }) : dummieAlvoDaTela;
+        const dummieAlvoBruto = dummieAlvo;
+        // Alvo-personagem nos reusos: parte da Vida/escudos que ESTE laço já gravou (alvo.fichaFixa = não relê o store).
+        const comRastro = (id, d) => {
+            if (!ehReuso || !d || !d.isPersonagem || !d.ficha || (rastroEsc[id] === undefined && rastroHp[id] === undefined)) return d;
+            const ficha = { ...d.ficha };
+            if (rastroHp[id] !== undefined) ficha.vida = { ...(d.ficha.vida || {}), atual: Math.min(Number(d.ficha.vida && d.ficha.vida.atual) || 0, rastroHp[id]) };
+            if (rastroEsc[id] !== undefined) { if (rastroEsc[id].length > 0) ficha.escudos = rastroEsc[id]; else delete ficha.escudos; }
+            return { ...d, ficha, fichaFixa: true };
+        };
+        const hpDe = (id, d) => { const atual = Number(d && d.hpAtual) || 0; return rastroHp[id] !== undefined ? Math.min(atual, rastroHp[id]) : atual; };
         // 🛡️ Regra de PvP (core/alvoCombate.js): jogador x jogador só em combate.
         if (dummieAlvo && dummieAlvo.bloqueado) { alert(dummieAlvo.bloqueado); return false; }
         const salvoResolvido = salvo ? resolverAtaqueSalvo(salvo, { poderesAtivos, magiasOfensivas }) : null;
         if (salvo && !salvoResolvido) { alert('Este ataque salvo está incompleto. Salve-o de novo.'); return false; }
-        if (salvoResolvido && salvoResolvido.faltando > 0 && !window.confirm(`${salvoResolvido.faltando} habilidade(s)/magia(s) deste ataque não estão mais ativas. Executar assim mesmo, sem elas?`)) return false;
-        if (!salvoResolvido) salvarConfigAtaque();
+        if (salvoResolvido && salvoResolvido.faltando > 0 && !ehReuso && !window.confirm(`${salvoResolvido.faltando} habilidade(s)/magia(s) deste ataque não estão mais ativas. Executar assim mesmo, sem elas?`)) return false;
+        if (!salvoResolvido && !ehReuso) salvarConfigAtaque();
         const skillCfg = salvoResolvido ? salvoResolvido.skillConfigs : skillConfigs;
         const poderesDoGolpe = salvoResolvido ? salvoResolvido.poderes : poderesAtivos;
         const magiasDoGolpe = salvoResolvido ? salvoResolvido.magias : magiasOfensivas;
@@ -581,13 +608,18 @@ export function AtaqueFormProvider({ children }) {
             elementosInatos.push(h.infinityElemento.toLowerCase().trim());
         }
 
+        // 🔁 Reuso no modo chance: o dado `extra` entra SÓ neste golpe e SÓ no Poder dono da reutilização (core/reutilizacao.js).
+        const dadosExtraDoPoder = (p) => {
+            const base = Array.isArray(p.dadosExtra) ? p.dadosExtra : [];
+            return ehReuso && reuso.dadoExtra && String(p.id) === String(reuso.fonteId) ? [...base, { qtd: reuso.dadoExtra.qtd, faces: reuso.dadoExtra.faces }] : base;
+        };
         const configHabilidades = poderesDoGolpe.map(p => ({
             id: p.id, nome: p.nome, dadosQtd: p.dadosQtd || 0, dadosFaces: p.dadosFaces || 20, custoPercentual: p.custoPercentual || 0,
             custoPercentualMax: p.custoPercentualMax, semComoPoder: !!p.semComoPoder,
             comoPoder: !!skillCfg[p.id]?.comoPoder, percComoPoder: skillCfg[p.id]?.percComoPoder,
             armaVinculada: p.armaVinculada || '', statusUsados: skillCfg[p.id]?.statusUsados || p.statusUsados || (temFatores(p) ? [] : ['forca']),
             // 🎲 Fórmula de dano (core/danoDados.js): outros tipos de dado e N x atributo, só no dano.
-            ...(Array.isArray(p.dadosExtra) && p.dadosExtra.length > 0 ? { dadosExtra: p.dadosExtra } : {}),
+            ...(dadosExtraDoPoder(p).length > 0 ? { dadosExtra: dadosExtraDoPoder(p) } : {}),
             ...(p.statusFatores && typeof p.statusFatores === 'object' && Object.keys(p.statusFatores).length > 0 ? { statusFatores: p.statusFatores } : {}),
             energiaCombustao: skillCfg[p.id]?.energiaCombustao || p.energiaCombustao || 'mana', efeitos: escalarEfeitosPorEstagio(p.efeitos, p),
             vertente: p.vertente || '', elemento: p.elemento || '' 
@@ -614,16 +646,17 @@ export function AtaqueFormProvider({ children }) {
         const configArma = salvoResolvido
             ? { statusUsados: salvoResolvido.armaStatusUsados, energiaCombustao: salvoResolvido.armaEnergiaCombustao, percEnergia: salvoResolvido.armaPercEnergia }
             : { statusUsados: armaStatusUsados, energiaCombustao: armaEnergiaCombustao, percEnergia: parseFloat(armaPercEnergia) || 0 };
-        const isCriticoNormal = forcarCritNormal || autoCritNormal || criticoPorEfeito.normal; const isCriticoFatal = forcarCritFatal || autoCritFatal || criticoPorEfeito.fatal;
+        // Reuso: cada golpe extra é rolado como golpe normal (o crítico forçado/automático vale só para o 1º golpe).
+        const isCriticoNormal = !ehReuso && (forcarCritNormal || autoCritNormal || criticoPorEfeito.normal); const isCriticoFatal = !ehReuso && (forcarCritFatal || autoCritFatal || criticoPorEfeito.fatal);
 
-        const result = calcularDano({ minhaFicha, configArma, configHabilidades: todasHabilidades, itensEquipados: (minhaFicha.inventario || []).filter(i => i.equipado), isCriticoNormal, isCriticoFatal, alvo: dummieAlvo || null });
+        const result = calcularDano({ minhaFicha: ehReuso ? minhaFicha : fichaComReducaoDeCusto(minhaFicha), configArma, configHabilidades: todasHabilidades, itensEquipados: (minhaFicha.inventario || []).filter(i => i.equipado), isCriticoNormal, isCriticoFatal, alvo: dummieAlvo || null });
 
         if (result.erro) { alert(result.erro); return false; }
 
         // ↩️ Reação "Atacar o ataque" (core/reacoes.js): com uma pendente esperando Dano, este Dano pode ser a REAÇÃO contra o
         // Dano que vou receber (não atinge o alvo e não cobra Ação de novo: a Reação já foi gasta). Pergunta antes; recusar
         // segue o ataque normal.
-        const reacaoEsperando = salvoResolvido ? null : reacaoAguardandoDano(minhaFicha);
+        const reacaoEsperando = salvoResolvido || ehReuso ? null : reacaoAguardandoDano(minhaFicha);
         if (reacaoEsperando && window.confirm(`Usar este Dano (${Math.floor(result.dano).toLocaleString('pt-BR')}) como a sua REAÇÃO contra o ataque de ${reacaoEsperando.atacante || 'seu oponente'}?\n\nOK = reação (não ataca o alvo). Cancelar = ataque normal.`)) {
             const danoReacao = Math.floor(result.dano);
             updateFicha(ficha => {
@@ -631,6 +664,7 @@ export function AtaqueFormProvider({ children }) {
                 registrarGastoDeEnergia(ficha, { drenos: result.drenos, custosPoder: result.custosPoder }); // 💥 Zenkai
                 const r = ((ficha.combate && ficha.combate.reacoesPendentes) || []).find(x => x && x.id === reacaoEsperando.id && x.criadoEm === reacaoEsperando.criadoEm && !Number.isFinite(Number(x.danoReacao)));
                 if (r) r.danoReacao = danoReacao;
+                limparReducaoCusto(ficha); // o desconto do Follow Up vale só para o próximo golpe, mesmo quando a Reação o consome
             });
             salvarFichaSilencioso();
             setForcarCritNormal(false); setForcarCritFatal(false); setIgnorarTravaAcerto(false);
@@ -642,7 +676,7 @@ export function AtaqueFormProvider({ children }) {
         // ⏱️ Ação gasta pelas Técnicas Elementais do golpe (core/acoesTecnica.js): uma por tipo de Ação distinto.
         // Técnica elemental de REAÇÃO configurada (core/reacoes.js) não cobra aqui: a Reação já foi gasta ao reagir.
         const tiposAcaoGolpe = tiposRastreadosDe(magiasDoGolpe.filter(m => !getReacaoDaTecnica(m)));
-        if (tiposAcaoGolpe.length > 0) {
+        if (!ehReuso && tiposAcaoGolpe.length > 0) {
             const faltando = acoesEmFalta(minhaFicha, tiposAcaoGolpe);
             if (faltando.length > 0 && !window.confirm(`Sem ${faltando.join(' e ')} disponível. Atacar mesmo assim?`)) return false;
             avisosDoGasto(minhaFicha, tiposAcaoGolpe).forEach(a => useStore.getState().adicionarAviso?.(a.texto, a.tipo));
@@ -650,16 +684,19 @@ export function AtaqueFormProvider({ children }) {
             salvarFichaSilencioso();
         }
 
-        if (result.drenos) {
+        if (result.drenos && !ehReuso) {
             updateFicha((ficha) => { for (let i = 0; i < result.drenos.length; i++) { if (ficha[result.drenos[i].key]) { ficha[result.drenos[i].key].atual -= result.drenos[i].valor; } } registrarGastoDeEnergia(ficha, { drenos: result.drenos, custosPoder: result.custosPoder }); /* 💥 Zenkai */ });
             salvarFichaSilencioso();
         }
         // ⚔️ Conta o golpe no turno do portador (core/ataquesNoTurno.js): é o que faz o "primeiro ataque do turno" valer só no primeiro.
         // Só conta em combate (iniciativa > 0): fora dele não há turno.
-        if (Number(minhaFicha.iniciativa) > 0) updateFicha(ficha => { if (Number(ficha.iniciativa) > 0) registrarAtaqueNoTurno(ficha); });
-        salvarFichaSilencioso();
-
-        setForcarCritNormal(false); setForcarCritFatal(false); setIgnorarTravaAcerto(false);
+        if (!ehReuso && Number(minhaFicha.iniciativa) > 0) updateFicha(ficha => { if (Number(ficha.iniciativa) > 0) registrarAtaqueNoTurno(ficha); });
+        if (!ehReuso) {
+            // 🥋 O custo reduzido de um Follow Up oferecido vale só para este golpe: já entrou na conta (só no calcularDano), agora sai.
+            if (minhaFicha.combate && minhaFicha.combate.reducaoCustoFollowUp !== undefined) updateFicha(ficha => { limparReducaoCusto(ficha); });
+            salvarFichaSilencioso();
+            setForcarCritNormal(false); setForcarCritFatal(false); setIgnorarTravaAcerto(false);
+        }
 
         // 🩸 Estados que o golpe aplica (Poderes, Técnicas, arma, itens e Ataque livre) e Reflexo de quem for atingido.
         // Quem defende pela aba Defesa (sem alvo marcado) recebe os mesmos estados pelo Feed (estadosGolpe).
@@ -671,7 +708,7 @@ export function AtaqueFormProvider({ children }) {
         });
         // Só o que ATACA: Poderes e Técnicas em uso e a arma equipada (armadura/acessório não curam em todo golpe).
         const aoAcertarDoGolpe = coletarAoAcertar({ fontes: [...poderesDoGolpe, ...magiasDoGolpe, ...(armaEquipada ? [armaEquipada] : [])] });
-        const posGolpe = criarPosGolpe({ estados: estadosParaDefensor, critico: isCriticoNormal || isCriticoFatal, danoOriginal: result.dano, nomeAtacante: nomeNoFeed, custoGolpeTotal: result.custoCheioTotal || 0, aoAcertar: aoAcertarDoGolpe, nivel: isCriticoFatal ? 'fatal' : (isCriticoNormal ? 'critico' : 'normal') });
+        const posGolpe = criarPosGolpe({ estados: estadosParaDefensor, critico: isCriticoNormal || isCriticoFatal, danoOriginal: result.dano, nomeAtacante: nomeNoFeed, custoGolpeTotal: ehReuso ? 0 : (result.custoCheioTotal || 0), aoAcertar: aoAcertarDoGolpe, nivel: isCriticoFatal ? 'fatal' : (isCriticoNormal ? 'critico' : 'normal') });
         const meuUltimoAcerto = [...feedCombate].reverse().find(f => f.nome === nomeNoFeed && f.tipo === 'acerto');
         let extraFeed = {};
         let textoAlvos = "";
@@ -681,7 +718,7 @@ export function AtaqueFormProvider({ children }) {
         // Receber Dano), lendo o poderAtacante gravado no feed abaixo.
         // Classes (Caster em Conjuração, Assassin ocultado, Moon Cancer) multiplicam o Poder só neste golpe.
         // 🔋 O Custo do golpe (gasto ou "como Poder") soma no Poder só deste golpe (core/custoPoder.js).
-        const meuPoderNoGolpe = getPoderParaDisputa(minhaFicha, divisorPoderMesa, { ...golpeEquipado(minhaFicha), custoBruto: result.custoPoderBruto || 0 });
+        const meuPoderNoGolpe = getPoderParaDisputa(minhaFicha, divisorPoderMesa, { ...golpeEquipado(minhaFicha), custoBruto: ehReuso ? 0 : (result.custoPoderBruto || 0) });
         if (meuUltimoAcerto && meuUltimoAcerto.alvosArea && meuUltimoAcerto.alvosArea.length > 0) {
             let atingidos = 0;
             const linhasDisputa = [];
@@ -698,12 +735,21 @@ export function AtaqueFormProvider({ children }) {
                             ? (dummies[alvoHit.dummieId] ? [alvoHit.dummieId, dummies[alvoHit.dummieId]] : null)
                             : Object.entries(dummies).find(([id, d]) => d.nome === alvoHit.nome);
                     if (dummieEntry) {
-                        const [idD, dData] = dummieEntry;
+                        const [idD, dDataBruto] = dummieEntry;
+                        // Reuso: alvo que já caiu neste laço não é atingido de novo (sem dano, Reflexo nem 'Ao acertar' contra morto).
+                        if (ehReuso && rastroHp[idD] === 0) return;
+                        const dData = comRastro(idD, dDataBruto);
+                        idsAlvos.push(idD);
                         const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dData));
                         // Dano de Ataque (dados + Status) já está na escala da Vida: não é reescalado pela Vida do alvo.
                         const danoEscalado = result.dano;
                         const danoNoAlvo = posGolpe.aplicar(idD, dData, reduzirDanoNoAlvo(dData, aplicarDisputaAoDano(danoEscalado, disputa), elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: golpeVerdadeiro.verdadeiro, tipoGolpe: tipoDoGolpeDaFicha(minhaFicha) }).final);
-                        posGolpe.adicionarTextos(gravarVidaDoAlvo(idD, posGolpe.alvoParaGravar(idD, dData), Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoNoAlvo)), { elemento: elementoAtivo, golpe: posGolpe.golpe() }));
+                        const hpAntesD = hpDe(idD, dData);
+                        const gravouD = gravarVidaDoAlvo(idD, posGolpe.alvoParaGravar(idD, dData), Math.max(0, hpAntesD - danoExibidoParaBruto(danoNoAlvo)), { elemento: elementoAtivo, golpe: posGolpe.golpe() });
+                        rastroHp[idD] = gravouD && Number.isFinite(gravouD.vidaFinalBruta) ? gravouD.vidaFinalBruta : Math.max(0, hpAntesD - danoExibidoParaBruto(danoNoAlvo));
+                        posGolpe.adicionarTextos(gravouD);
+                        const alvoGravado = posGolpe.alvoParaGravar(idD, dData);
+                        if (dData.isPersonagem && Array.isArray(alvoGravado.escudosNovos)) rastroEsc[idD] = alvoGravado.escudosNovos;
                         if (dData.isPersonagem) alvosAplicados.push(dData.personagemNome);
                         if (disputa.ativa || danoNoAlvo !== Math.floor(result.dano)) {
                             linhasDisputa.push(`${dData.nome}: ${danoNoAlvo.toLocaleString('pt-BR')}`);
@@ -717,7 +763,9 @@ export function AtaqueFormProvider({ children }) {
             if (alvosAplicados.length > 0) extraFeed = { ...extraFeed, alvosAplicados };
             if (golpeVerdadeiro.nomePoder) extraFeed = { ...extraFeed, textoReducao: textoDanoVerdadeiroDoPoder(golpeVerdadeiro.nomePoder) };
             if (linhasDisputa.length > 0) extraFeed = { ...extraFeed, detalheDisputa: `⚖️ Disputa de Poder (dano em cada alvo): ${linhasDisputa.join(' · ')}`, efetividadeAlvos };
-        } else if (dummieAlvo) {
+        } else if (dummieAlvoBruto) {
+            const dummieAlvo = comRastro(alvoSelecionado, dummieAlvoBruto);
+            idsAlvos.push(alvoSelecionado);
             const disputa = calcularDisputaPoder(meuPoderNoGolpe, getPoderDummie(dummieAlvo));
             // O Dano do Ataque (soma dos dados + Status) já é um número na escala da Vida: segue direto para a Disputa de Poder,
             // Reduções/Resistências/Fraquezas e então desconta da Vida do alvo. (Só a fórmula livre de dados puros é proporcional à Vida.)
@@ -727,13 +775,16 @@ export function AtaqueFormProvider({ children }) {
             const reducaoAlvo = reduzirDanoNoAlvo(dummieAlvo, danoAposDisputa, elementoAtivo, { nivelAtacante: getNivelDominio(minhaFicha, elementoAtivo), verdadeiro: golpeVerdadeiro.verdadeiro, tipoGolpe: tipoDoGolpeDaFicha(minhaFicha) });
             const danoNoAlvo = posGolpe.aplicar(alvoSelecionado, dummieAlvo, reducaoAlvo.final);
             // Escala: dano exibido -> Vida bruta do dummy (core/vitals.js > danoExibidoParaBruto).
-            const hpAnterior = dummieAlvo.hpAtual || 0;
+            const hpAnterior = hpDe(alvoSelecionado, dummieAlvo);
             const novoHp = Math.max(0, hpAnterior - danoExibidoParaBruto(danoNoAlvo));
             const hpAnteriorExibido = hpAnterior / FATOR_EXIBICAO_VITAIS;
             const resGravacao = gravarVidaDoAlvo(alvoSelecionado, posGolpe.alvoParaGravar(alvoSelecionado, dummieAlvo), novoHp, { elemento: elementoAtivo, golpe: posGolpe.golpe() });
             posGolpe.adicionarTextos(resGravacao);
             // Se um gatilho do alvo (Negar morte etc.) mudou o desfecho, o feed usa a Vida FINAL (sem gatilhos: idêntico ao cálculo de antes).
             const hpFinal = resGravacao && resGravacao.textos && resGravacao.textos.length > 0 && Number.isFinite(resGravacao.vidaFinalBruta) ? resGravacao.vidaFinalBruta : novoHp;
+            rastroHp[alvoSelecionado] = hpFinal;
+            const alvoGravadoU = posGolpe.alvoParaGravar(alvoSelecionado, dummieAlvo);
+            if (dummieAlvo.isPersonagem && Array.isArray(alvoGravadoU.escudosNovos)) rastroEsc[alvoSelecionado] = alvoGravadoU.escudosNovos;
             extraFeed = {
                 alvoNome: dummieAlvo.nome, alvoSobreviveu: hpFinal > 0, overkill: hpFinal > 0 ? 0 : (danoNoAlvo > hpAnteriorExibido ? Math.floor(danoNoAlvo - hpAnteriorExibido) : 0),
                 danoAplicado: danoNoAlvo, fatorVida: fatorVidaAlvo, ...(reducaoAlvo.texto ? { textoReducao: golpeVerdadeiro.nomePoder && golpeVerdadeiro.verdadeiro ? textoDanoVerdadeiroDoPoder(golpeVerdadeiro.nomePoder) : reducaoAlvo.texto } : {}), ...(disputa.ativa ? { textoDisputa: descreverDisputa(disputa), efetividade: classificarEfetividade(disputa) } : {})
@@ -742,7 +793,7 @@ export function AtaqueFormProvider({ children }) {
 
         extraFeed = { ...extraFeed, ...finalizarPosGolpe(posGolpe) };
 
-        if (meuUltimoAcerto && meuUltimoAcerto.zonaIdGerada) {
+        if (!ehReuso && meuUltimoAcerto && meuUltimoAcerto.zonaIdGerada) {
             const cenarioAtual = useStore.getState().cenario;
             if (cenarioAtual?.zonas) {
                 const novoCenario = JSON.parse(JSON.stringify(cenarioAtual));
@@ -814,28 +865,63 @@ export function AtaqueFormProvider({ children }) {
             tipo: 'dano', ts: Date.now(), nome: nomeNoFeed, dano: result.dano, letalidade: result.letalidade, poderAtacante: meuPoderNoGolpe, tipoGolpe: tipoDoGolpeDaFicha(minhaFicha),
             tipoAtaque: classificarAtaque({ elemento: elementoAtivo, energias: energiasGolpe }).rotulo, energiasUsadas: energiasGolpe,
             rolagem: result.rolagem, rolagemMagica: result.rolagemMagica,
-            atributosUsados: result.atributosUsados, detalheEnergia: result.detalheEnergia,
-            armaStr: result.armaStr, detalheConta: result.detalheConta + textoAlvos,
+            atributosUsados: result.atributosUsados, detalheEnergia: ehReuso ? 'Reuso: sem custo de energia.' : result.detalheEnergia,
+            armaStr: result.armaStr, detalheConta: (ehReuso ? `<div class="reuso-rotulo">${rotuloDoReuso(reuso.reut, reuso.indice, reuso.total)}</div>` : '') + result.detalheConta + textoAlvos,
+            ...(ehReuso ? { reuso: { indice: reuso.indice, total: reuso.total } } : {}),
             elemento: elementoAtivo, 
             ...(estadosParaDefensor.length > 0 ? { estadosGolpe: estadosParaDefensor, golpeCritico: !!(isCriticoNormal || isCriticoFatal) } : {}),
             // Nível do golpe (para o evento `atingido` de quem defende pela aba Defesa); feed antigo sem este campo cai no golpeCritico.
             golpeNivel: isCriticoFatal ? 'fatal' : (isCriticoNormal ? 'critico' : 'normal'),
-            ...(result.custoCheioTotal > 0 ? { custoGolpeTotal: Math.floor(result.custoCheioTotal) } : {}),
+            ...(!ehReuso && result.custoCheioTotal > 0 ? { custoGolpeTotal: Math.floor(result.custoCheioTotal) } : {}),
             ...(narrativa ? { narrativa: narrativa.texto, narrativaComplemento: narrativa.complemento } : {}),
             ...extraFeed
         };
 
         enviarParaFeed(feedData);
         setAbaAtiva('aba-log');
-        // O Dano Verdadeiro vale só para este golpe.
-        setDanoVerdadeiro(false);
+
+        // 🔁 Reutilização (core/reutilizacao.js): o 1º golpe acabou; o Poder do golpe pode ganhar golpes extras SEM custo (por nº de alvos atingidos ou por chance).
+        // Cada reuso roda o mesmo caminho com `reuso`; se um falhar (alvo bloqueado, erro de cálculo) o laço para.
+        if (!ehReuso) {
+            const dono = reutilizacaoDoGolpe(poderesDoGolpe);
+            if (dono) {
+                const alvosArea = meuUltimoAcerto && Array.isArray(meuUltimoAcerto.alvosArea) ? meuUltimoAcerto.alvosArea : [];
+                const atingidos = alvosArea.length > 0 ? alvosArea.filter(a => a && a.acertou).length : 1;
+                const plano = calcularReusos(dono.reut, atingidos);
+                // Teto de escritas: alvos x golpes (o 1º + reusos) <= LIMITE_DANOS_POR_GOLPE.
+                const totalPedido = plano.total;
+                plano.total = limitarReusosPorAlvos(plano.total, atingidos);
+                const nomeFonte = dono.fonte.nome || 'Habilidade';
+                if (plano.total === 0) {
+                    enviarParaFeed({ tipo: 'sistema', nome: nomeNoFeed, texto: plano.rolagens.length > 0 ? `🔁 ${nomeFonte} não foi reutilizada (rolou ${plano.rolagens[0].valor}, chance de ${dono.reut.chance}%).` : `🔁 ${nomeFonte}: sem reuso para ${atingidos} alvo(s) atingido(s).`, ts: Date.now() });
+                } else {
+                    const dadoExtra = dadoExtraDoReuso(dono.reut, plano.total);
+                    enviarParaFeed({ tipo: 'sistema', nome: nomeNoFeed, texto: `🔁 ${nomeFonte} será reutilizada ${plano.total}x sem custo${plano.total < totalPedido ? ` (limitada de ${totalPedido} para não passar do teto de ${LIMITE_DANOS_POR_GOLPE} danos por golpe)` : ''}${dono.reut.chance ? ` (chance ${dono.reut.chance}% por reuso, máx. ${dono.reut.max})` : ` (${atingidos} alvo(s) atingido(s))`}${dadoExtra ? `, +${dadoExtra.qtd}d${dadoExtra.faces} em cada${dadoExtra.reduzido ? ' (reduzido pelo limite de dados)' : ''}` : ''}.`, ts: Date.now() });
+                    const existe = (id) => { const st = useStore.getState(); return String(id).startsWith('pj:') ? !!(st.personagens || {})[String(id).slice(3)] : !!(st.dummies || {})[id]; };
+                    for (let i = 1; i <= plano.total; i++) {
+                        // Para quando todos os alvos tocados já caíram (Vida 0) ou saíram do store: nada de feed, 'acertou' ou Reflexo contra alvo morto.
+                        if (idsAlvos.length > 0 && idsAlvos.every(id => !existe(id) || rastroHp[id] === 0)) { enviarParaFeed({ tipo: 'sistema', nome: nomeNoFeed, texto: `🔁 ${nomeFonte}: os reusos pararam (alvos já derrotados).`, ts: Date.now() }); break; }
+                        const ok = executarRef.current ? executarRef.current(salvo, { indice: i, total: plano.total, reut: dono.reut, fonteId: dono.fonte.id, dadoExtra, hp: rastroHp, esc: rastroEsc }) : false;
+                        if (!ok) break;
+                    }
+                }
+            }
+            // 🥋 Fim do golpe (e dos reusos): fecha a marca "o Follow Up oferecido não gera outro".
+            { const st = useStore.getState?.()?.minhaFicha; if (souEuMesmo !== false && st && st.combate && st.combate.semEncadeioFollowUp !== undefined) { updateFicha(ficha => { limparSemEncadeio(ficha); }); salvarFichaSilencioso(); } }
+            // O Dano Verdadeiro vale só para este golpe (e os reusos dele).
+            setDanoVerdadeiro(false);
+        }
         return true;
     }, [
         updateFicha, armaStatusUsados, armaEnergiaCombustao, armaPercEnergia,
         critNormalMin, critNormalMax, critFatalMin, critFatalMax, skillConfigs,
-        minhaFicha, forcarCritNormal, autoCritNormal, forcarCritFatal, autoCritFatal, criticoPorEfeito,
+        minhaFicha, forcarCritNormal, autoCritNormal, forcarCritFatal, autoCritFatal, criticoPorEfeito, souMestre, souEuMesmo,
         dummieAlvo, alvoSelecionado, meuNome, nomeNoFeed, setAbaAtiva, poderesAtivos, magiasOfensivas, armaEquipada, feedCombate, dummies, personagens, elementoAtivo, divisorPoderMesa, danoVerdadeiro
     ]);
+
+    // Os reusos (laço no fim do 1º golpe) chamam a versão MAIS RECENTE da função pelo ref.
+    const executarRef = useRef(null);
+    executarRef.current = executarRolarDano;
 
     const rolarDano = useCallback(() => executarRolarDano(null), [executarRolarDano]);
     const rolarAtaqueSalvo = useCallback((salvo) => executarRolarDano(salvo), [executarRolarDano]);

@@ -23,6 +23,7 @@ const ACOES_DO_FORMULARIO = [
     { id: 'danoEmSi', rotulo: 'Sofrer dano' },
     { id: 'danoNoAtacante', rotulo: 'Dano no atacante' },
     { id: 'ganhoPermanente', rotulo: 'Ganho de Poder' },
+    { id: 'oferecerFollowUp', rotulo: 'Oferecer um Follow Up (FUA)' },
     { id: 'rolarTabela', rotulo: 'Rolar tabela' },
     { id: 'pedirEscolha', rotulo: 'Pedir uma escolha' },
 ];
@@ -34,7 +35,7 @@ const EXPLICACAO_MODO = {
 };
 
 const FORMULARIO_VAZIO = { id: '', nome: '', evento: 'danoQueZeraria', de: '10', ate: '1', nivel: 'qualquer', poderEvento: '', armaTipoEvento: '', contadorEvento: '', opEvento: '>=', valorEvento: '', vidaMaiorQue: '', limite: '', acoes: [], mestreDesligou: false, modo: 'automatico', armado: true, perguntar: false };
-const ACAO_VAZIA = { tipo: 'anularDano', valor: '', nome: '', tipoEscudo: 'escudo', texto: '', contadorId: '', op: 'somar', sorteio: '', estado: 'queimado', duracaoEstado: '', poderId: '', modoDano: 'fixo', modoAtacante: 'percDanoRecebido', gpModo: 'fixo', gpFator: '', gpZerar: false, gpComo: 'somar', gpDuracao: 'permanente' };
+const ACAO_VAZIA = { tipo: 'anularDano', valor: '', nome: '', tipoEscudo: 'escudo', texto: '', contadorId: '', op: 'somar', sorteio: '', estado: 'queimado', duracaoEstado: '', poderId: '', modoDano: 'fixo', modoAtacante: 'percDanoRecebido', gpModo: 'fixo', gpFator: '', gpZerar: false, gpComo: 'somar', gpDuracao: 'permanente', followUpId: '', custoReducaoPct: '', naoGeraOutro: false };
 const TABELA_VAZIA = { dado: '1d4', linhas: [{ ate: '1', texto: '', acoes: [] }], alvo: 0 };
 const ESCOLHA_VAZIA = { pergunta: '', opcoes: [{ texto: '', acoes: [] }, { texto: '', acoes: [] }], alvo: 0 };
 
@@ -97,6 +98,7 @@ function acaoDe(a) {
         case 'ligarPoder': case 'desligarPoder': return { tipo: a.tipo, poderId: a.poderId };
         case 'danoEmSi': return { tipo: 'danoEmSi', modo: a.modoDano, valor: a.valor };
         case 'danoNoAtacante': return { tipo: 'danoNoAtacante', modo: a.modoAtacante, valor: a.valor };
+        case 'oferecerFollowUp': return { tipo: 'oferecerFollowUp', followUpId: a.followUpId, custoReducaoPct: a.custoReducaoPct, naoGeraOutro: a.naoGeraOutro === true };
         case 'ganhoPermanente': {
             const extra = { unidade: 'percentual', modo: a.gpComo === 'multiplicar' ? 'multiplicar' : 'somar', ...(a.gpDuracao === 'combate' ? { duracao: 'combate' } : {}) };
             return a.gpModo === 'contador'
@@ -191,14 +193,25 @@ function CamposDaAcao({ acao, setAcao, anularDanoOk, permitirTabela, nomes, onAd
                     {nomes.poderes.map(p => <option key={String(p.id)} value={String(p.id)}>{p.nome}</option>)}
                 </select>
             )}
+            {acao.tipo === 'oferecerFollowUp' && (
+                <>
+                    <select aria-label={`Follow Up oferecido${sufixo}`} value={acao.followUpId} onChange={e => setAcao({ ...acao, followUpId: e.target.value })}>
+                        <option value="">(escolha o Follow Up)</option>
+                        {nomes.followUps.map(f => <option key={String(f.id)} value={String(f.id)}>{f.nome}</option>)}
+                    </select>
+                    <input type="number" min="0" max="100" step="any" aria-label={`Redução do custo de energia (%)${sufixo}`} placeholder="custo -% (100 = sem custo)" value={acao.custoReducaoPct} onChange={e => setAcao({ ...acao, custoReducaoPct: e.target.value })} />
+                    <label><input type="checkbox" aria-label={`Não gera outro Follow Up${sufixo}`} checked={acao.naoGeraOutro} onChange={e => setAcao({ ...acao, naoGeraOutro: e.target.checked })} /> não gera outro</label>
+                    <div className="gatilho-dica">O jogador vê o aviso e escolhe aceitar ou recusar; ele mesmo rola o golpe. Para "no máximo N por round", use o limite "por turno" do gatilho.</div>
+                </>
+            )}
             {acao.tipo === 'mensagem' && <input type="text" maxLength={300} aria-label={`Texto da mensagem${sufixo}`} placeholder="Texto" value={acao.texto} onChange={e => setAcao({ ...acao, texto: e.target.value })} />}
             {!['rolarTabela', 'pedirEscolha'].includes(acao.tipo) && <button type="button" className="btn-neon" onClick={onAdicionar}>{rotuloBotao}</button>}
         </div>
     );
 }
 
-export default function GatilhosEditor({ gatilhos, onChange, descartados = [], contadores = [], poderes = [] }) {
-    const nomes = { contadores: Array.isArray(contadores) ? contadores : [], poderes: Array.isArray(poderes) ? poderes : [] };
+export default function GatilhosEditor({ gatilhos, onChange, descartados = [], contadores = [], poderes = [], followUps = [] }) {
+    const nomes = { contadores: Array.isArray(contadores) ? contadores : [], poderes: Array.isArray(poderes) ? poderes : [], followUps: Array.isArray(followUps) ? followUps : [] };
     const lista = Array.isArray(gatilhos) ? gatilhos : [];
     const [form, setForm] = useState(null);
     const [acao, setAcao] = useState(ACAO_VAZIA);

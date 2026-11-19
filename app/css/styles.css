@@ -2516,6 +2516,7 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .nav-grupo { display: flex; flex: 0 0 auto; align-items: center; gap: 3px; padding: 0 8px; border-right: 1px solid rgba(255, 255, 255, 0.08); --cor-grupo: var(--cor-primaria); }
 .nav-grupo:last-child { border-right: none; }
 .nav-grupo-mestre { --cor-grupo: var(--cor-destaque); }
+.reuso-rotulo { color: var(--cor-secundaria); font-weight: bold; }
 .nav-grupo-diarios { --cor-grupo: #bba9d8; }
 .nav-grupo-combate { --cor-grupo: var(--cor-secundaria); }
 .nav-grupo-mundo { --cor-grupo: var(--cor-info); }

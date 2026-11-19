@@ -16,8 +16,9 @@ import { getVidaMaxBrutaNpc } from '../core/gavetaNpc';
 
 // 🛡️ Escudos e Vida Temporária (core/escudos.js) de OUTRO personagem: tira do escudo dele o que der do Dano FINAL (escala exibida) e grava só
 // o campo `escudos` (null apaga). Usa a ficha mais recente do store. Devolve { restante, absorvido, texto }; sem escudos, nada é gravado.
-export function absorverEmPersonagem(nome, ficha, danoExibido, nomeNoFeed = '') {
-    const fresca = (useStore.getState().personagens || {})[nome] || ficha;
+export function absorverEmPersonagem(nome, ficha, danoExibido, nomeNoFeed = '', fixa = false) {
+    // `fixa` (reusos de golpe): usa a ficha dada (com os escudos já consumidos pelo laço), sem reler o store.
+    const fresca = fixa ? ficha : ((useStore.getState().personagens || {})[nome] || ficha);
     // 🛡️ Imunidade total (God Mode): nada é absorvido nem consumido; o dano que sobra é 0.
     if (temImunidadeTotal(fresca) && Number(danoExibido) > 0) return { restante: 0, absorvido: 0, texto: `${nomeNoFeed || nome} está com Imunidade total: nenhum dano foi sofrido`, imune: true };
     const r = absorverDano(fresca, danoExibido);
@@ -28,9 +29,9 @@ export function absorverEmPersonagem(nome, ficha, danoExibido, nomeNoFeed = '') 
 }
 
 // `ficha` = ficha ATUAL do alvo; `vidaFinalBruta` = Vida já reduzida, na escala bruta gravada.
-export function gravarDanoEmPersonagem(nome, ficha, vidaFinalBruta, { elemento = null, nivelOverride = null, nomeNoFeed = '', escudosNovos, eventoId, golpe, autoInfligido = false } = {}) {
+export function gravarDanoEmPersonagem(nome, ficha, vidaFinalBruta, { elemento = null, nivelOverride = null, nomeNoFeed = '', escudosNovos, eventoId, golpe, autoInfligido = false, fichaFixa = false } = {}) {
     // 🔔 Alvo com Imunidade total ou gatilhos: quem grava o dano executa os gatilhos dele, sobre a ficha mais fresca, e grava só os campos tocados.
-    const fresca = (useStore.getState().personagens || {})[nome] || ficha;
+    const fresca = fichaFixa ? ficha : ((useStore.getState().personagens || {})[nome] || ficha);
     const danoBruto = (Number(fresca && fresca.vida && fresca.vida.atual) || 0) - Math.max(0, vidaFinalBruta);
     if (fresca && fresca.vida && danoBruto > 0 && (temImunidadeTotal(fresca) || coletarGatilhos(fresca).length > 0)) {
         const clone = JSON.parse(JSON.stringify(fresca));
@@ -87,7 +88,7 @@ export function aplicarDanoEmPersonagem(nome, ficha, danoExibido, valorRaw, { el
 export function gravarVidaDoAlvo(idAlvo, alvo, novoHpBruto, { elemento = null, golpe } = {}) {
     if (!alvo) return { textos: [] };
     if (alvo.isPersonagem) {
-        return gravarDanoEmPersonagem(alvo.personagemNome, alvo.ficha, novoHpBruto, { elemento, nomeNoFeed: alvo.nome, escudosNovos: alvo.escudosNovos, golpe });
+        return gravarDanoEmPersonagem(alvo.personagemNome, alvo.ficha, novoHpBruto, { elemento, nomeNoFeed: alvo.nome, escudosNovos: alvo.escudosNovos, golpe, fichaFixa: alvo.fichaFixa === true });
     }
     salvarDummie(idAlvo, { ...alvo, hpAtual: novoHpBruto });
     return { textos: [], vidaFinalBruta: Math.max(0, novoHpBruto) };
