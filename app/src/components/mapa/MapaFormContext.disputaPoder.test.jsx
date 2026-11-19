@@ -110,7 +110,7 @@ describe('aplicarDanoRapido com atacante - alvo e dummie', () => {
         montar(baseState({ dummies: { orc, boss } }));
         act(() => { probe.aplicarDanoRapido(entidade('orc', orc), 100, null, null, 0, entidade('boss', boss)); });
 
-        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 110 * FATOR_EXIBICAO_VITAIS }));
+        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 110 * FATOR_EXIBICAO_VITAIS }), expect.anything());
         // publico: sem o numero recalculado, sem o digitado e sem a disputa
         expect(textoFeed()).toBe('⚔️ O Mestre aplicou dano em Orc (golpe de Boss)!');
         expect(textoFeed()).not.toMatch(/110|100|digitado|Disputa/);
@@ -124,20 +124,20 @@ describe('aplicarDanoRapido com atacante - alvo e dummie', () => {
         const boss = { nome: 'Boss', poderCalculado: 1000 };
         montar(baseState({ dummies: { orc, boss } }));
         act(() => { probe.aplicarDanoRapido(entidade('orc', orc), 100, null, null, 0, entidade('boss', boss)); });
-        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 75 * FATOR_EXIBICAO_VITAIS }));
+        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 75 * FATOR_EXIBICAO_VITAIS }), expect.anything());
     });
     it('atacante jogador (ficha) contra dummie: usa o Poder da ficha', () => {
         const heroi = fichaReal();
         const orc = dummieAlvo(poderReal(heroi) / 3);
         montar(baseState({ dummies: { orc } }));
         act(() => { probe.aplicarDanoRapido(entidade('orc', orc), 10, null, null, 0, jogador('Heroi', heroi)); });
-        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 30 * FATOR_EXIBICAO_VITAIS }));
+        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 30 * FATOR_EXIBICAO_VITAIS }), expect.anything());
     });
     it('SEM atacante: dano entra como digitado (x1) e o feed nao menciona golpe nem disputa', () => {
         const orc = dummieAlvo(1000);
         montar(baseState({ dummies: { orc } }));
         act(() => { probe.aplicarDanoRapido(entidade('orc', orc), 100); });
-        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 100 * FATOR_EXIBICAO_VITAIS }));
+        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 100 * FATOR_EXIBICAO_VITAIS }), expect.anything());
         expect(textoFeed()).toBe('⚔️ O Mestre aplicou 100 de dano em Orc!');
     });
     it('atacante sem Poder definido (dummie sem poderCalculado): sem disputa, mas cita o golpe', () => {
@@ -145,7 +145,7 @@ describe('aplicarDanoRapido com atacante - alvo e dummie', () => {
         const boss = { nome: 'Boss' };
         montar(baseState({ dummies: { orc, boss } }));
         act(() => { probe.aplicarDanoRapido(entidade('orc', orc), 100, null, null, 0, entidade('boss', boss)); });
-        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 100 * FATOR_EXIBICAO_VITAIS }));
+        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 100 * FATOR_EXIBICAO_VITAIS }), expect.anything());
         expect(textoFeed()).toContain('(golpe de Boss)');
         expect(textoFeed()).not.toContain('Disputa de Poder');
     });
@@ -246,7 +246,7 @@ describe('aplicarDanoRapido com atacante - alvo e outro jogador', () => {
         const boss = { nome: 'Boss', poderCalculado: poderReal(outro) * 2 };
         montar(baseState({ personagens: { Outro: outro }, dummies: { boss } }));
         act(() => { probe.aplicarDanoRapido(jogador('Outro', outro), 10, null, null, 0, entidade('boss', boss)); });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Outro', 5000000 - 20 * FATOR_EXIBICAO_VITAIS);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Outro', 5000000 - 20 * FATOR_EXIBICAO_VITAIS, expect.anything());
     });
 });
 
@@ -274,7 +274,7 @@ describe('MapaMestreDanoRapido (UI) - seletor de atacante', () => {
         fireEvent.change(selectAtacante(), { target: { value: 'boss' } });
         fireEvent.click(screen.getByText('💥 Aplicar Dano'));
         // valor padrao do campo Dano = 10 -> 11
-        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 11 * FATOR_EXIBICAO_VITAIS }));
+        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 11 * FATOR_EXIBICAO_VITAIS }), expect.anything());
     });
     it('o atacante nao pode ser o proprio alvo (some da lista de atacantes)', () => {
         montarUI(dummiesUI());
@@ -287,7 +287,7 @@ describe('MapaMestreDanoRapido (UI) - seletor de atacante', () => {
         montarUI(dummiesUI());
         fireEvent.change(selectAlvo(), { target: { value: 'orc' } });
         fireEvent.click(screen.getByText('💥 Aplicar Dano'));
-        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 10 * FATOR_EXIBICAO_VITAIS }));
+        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ hpAtual: 1000000 - 10 * FATOR_EXIBICAO_VITAIS }), expect.anything());
     });
 });
 

@@ -69,7 +69,7 @@ describe('AtaqueFormContext.rolarDano - alvo unico (dummie) com Disputa de Poder
         montar({ meuPoder: 1100, dummies: { g1: dummie(5000, 1000) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
 
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (5000 - 1100) * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (5000 - 1100) * FATOR }), expect.anything());
         const feed = feedEnviado();
         expect(feed.tipo).toBe('dano');
         expect(feed.dano).toBe(1000);
@@ -83,14 +83,14 @@ describe('AtaqueFormContext.rolarDano - alvo unico (dummie) com Disputa de Poder
     it('atacante 1000 vs dummie 1100: dano x0,9', () => {
         montar({ meuPoder: 1000, dummies: { g1: dummie(5000, 1100) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (5000 - 900) * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (5000 - 900) * FATOR }), expect.anything());
         expect(feedEnviado().danoAplicado).toBe(900);
         expect(feedEnviado().efetividade).toBe('reduzida');
     });
     it('dummie com o dobro do Poder: dano zero e o HP nao muda', () => {
         montar({ meuPoder: 1000, dummies: { g1: dummie(5000, 2000) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 5000 * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 5000 * FATOR }), expect.anything());
         const feed = feedEnviado();
         expect(feed.danoAplicado).toBe(0);
         expect(feed.textoDisputa).toContain('não surtiu efeito');
@@ -107,7 +107,7 @@ describe('AtaqueFormContext.rolarDano - alvo unico (dummie) com Disputa de Poder
     it('dummie SEM poderCalculado: sem disputa, dano integral e sem fatorDisputa/textoDisputa no feed', () => {
         montar({ meuPoder: 1000, dummies: { g1: dummie(5000) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 4000 * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 4000 * FATOR }), expect.anything());
         const feed = feedEnviado();
         expect(feed.danoAplicado).toBe(1000);
         expect('fatorDisputa' in feed).toBe(false);
@@ -137,13 +137,13 @@ describe('AtaqueFormContext.rolarDano - alvo unico (dummie) com Disputa de Poder
         expect(feed.danoAplicado).toBe(2000);
         expect(feed.overkill).toBe(500);
         expect(feed.alvoSobreviveu).toBe(false);
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 0 }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 0 }), expect.anything());
     });
     it('Poder 0 no dummie contra atacante forte usa o teto sem estourar (HP vai a 0)', () => {
         montar({ meuPoder: 1000, dummies: { g1: dummie(5000, 0) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
         expect(feedEnviado().danoAplicado).toBe(1000 * 1e6);
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 0 }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 0 }), expect.anything());
     });
     it('dano 0 vindo do engine resulta em danoAplicado 0 sem erro', () => {
         calcularDano.mockReturnValue({ dano: 0, letalidade: 0, rolagem: '', rolagemMagica: '', atributosUsados: '', detalheEnergia: '', armaStr: '', detalheConta: '' });
@@ -161,10 +161,10 @@ describe('AtaqueFormContext.rolarDano - dano em area com Disputa de Poder por al
             alvosArea: ['g1', 'g2', 'g3', 'g4'].map(id => ({ nome: 'Goblin', acertou: true, dummieId: id })),
         });
         act(() => { probe.rolarDano(); });
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (10000 - 2000) * FATOR }));
-        expect(salvarDummie).toHaveBeenCalledWith('g2', expect.objectContaining({ hpAtual: 9000 * FATOR }));
-        expect(salvarDummie).toHaveBeenCalledWith('g3', expect.objectContaining({ hpAtual: 10000 * FATOR }));
-        expect(salvarDummie).toHaveBeenCalledWith('g4', expect.objectContaining({ hpAtual: 9000 * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (10000 - 2000) * FATOR }), expect.anything());
+        expect(salvarDummie).toHaveBeenCalledWith('g2', expect.objectContaining({ hpAtual: 9000 * FATOR }), expect.anything());
+        expect(salvarDummie).toHaveBeenCalledWith('g3', expect.objectContaining({ hpAtual: 10000 * FATOR }), expect.anything());
+        expect(salvarDummie).toHaveBeenCalledWith('g4', expect.objectContaining({ hpAtual: 9000 * FATOR }), expect.anything());
     });
     it('o recalculo por alvo sai do detalheConta publico e vai para detalheDisputa (Mestre) + efetividadeAlvos', () => {
         montar({
@@ -220,7 +220,7 @@ describe('AtaqueFormContext.rolarDanoCustomizado - contra dummie', () => {
     it('formula livre: 1000 contra dummie mais forte (1250) = x0,75', () => {
         montar({ meuPoder: 1000, dummies: { g1: dummie(5000, 1250) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDanoCustomizado('1000', 0, 'mana', 0); });
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (5000 - 750) * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (5000 - 750) * FATOR }), expect.anything());
         const feed = feedEnviado();
         expect(feed.dano).toBe(1000);
         expect(feed.danoAplicado).toBe(750);
@@ -235,7 +235,7 @@ describe('AtaqueFormContext.rolarDanoCustomizado - contra dummie', () => {
     it('formula livre contra dummie com o dobro do Poder: nao causa dano', () => {
         montar({ meuPoder: 1000, dummies: { g1: dummie(5000, 2000) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDanoCustomizado('1000', 0, 'mana', 0); });
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 5000 * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 5000 * FATOR }), expect.anything());
         expect(feedEnviado().danoAplicado).toBe(0);
     });
     it('dummie sem Poder: dano integral, sem campos de disputa', () => {

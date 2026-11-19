@@ -99,7 +99,7 @@ describe('Ataque > rolarDano em alvo-personagem', () => {
         act(() => { probe.setDanoVerdadeiro(true); });
         act(() => { probe.rolarDano(); });
         expect(ultimoFeed().danoAplicado).toBe(1000);
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', VIDA - 1000 * FATOR);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', VIDA - 1000 * FATOR, expect.anything());
     });
     it('com o interruptor atravessa Imunidade (Gelo imune = 0 sem a flag)', () => {
         montar({ alvoSelecionado: 'pj:Ana', personagens: { Ana: fichaAna() } });

@@ -256,14 +256,14 @@ describe('danoAlvo/posGolpe com fichaFixa (reusos)', () => {
         useStore.setState({ personagens: { 'Alvo A': ficha({ vida: vitalBase(40_000_000) }) } }); // store "antigo"
         const fixa = ficha({ vida: vitalBase(30_000_000) });
         gravarDanoEmPersonagem('Alvo A', fixa, 20_000_000, { nomeNoFeed: 'Alvo A', fichaFixa: true });
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Alvo A', 20_000_000);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Alvo A', 20_000_000, expect.anything());
     });
     it('gravarVidaDoAlvo repassa alvo.fichaFixa', () => {
         useStore.setState({ personagens: { 'Alvo A': ficha({ vida: vitalBase(40_000_000), combate: { imunidadeTotal: { turnosRestantes: 1 } } }) } });
         const alvo = { isPersonagem: true, personagemNome: 'Alvo A', nome: 'Alvo A', ficha: ficha({ vida: vitalBase(30_000_000) }), fichaFixa: true };
         const r = gravarVidaDoAlvo('t1', alvo, 20_000_000, {});
         // a ficha fixa NAO tem imunidade: o dano grava (o store tem, mas nao deve ser lido)
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Alvo A', 20_000_000);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Alvo A', 20_000_000, expect.anything());
         expect(r.vidaFinalBruta).toBe(20_000_000);
         // contraprova: sem fichaFixa le o store (imune) e a Vida nao cai para 20M
         vi.clearAllMocks();

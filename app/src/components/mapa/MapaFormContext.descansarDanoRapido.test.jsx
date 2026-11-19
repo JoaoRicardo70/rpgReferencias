@@ -260,7 +260,7 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
 
         expect(aplicarDanoDireto).toHaveBeenCalledTimes(1);
         // 30 (dano exibido) * FATOR_EXIBICAO_VITAIS (1000) = 30.000 bruto subtraídos de 500.000.
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 470000); // 500000 - 30*1000
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 470000, expect.anything()); // 500000 - 30*1000
         // Também aplica na hora um ganho de Fadiga dinâmica pro alvo, calculado com a Vida JÁ
         // reduzida por este golpe (ver core/fadiga.js) — cresce a partir do fadigaExtra=6
         // pré-existente na ficha-base. Valor exato coberto com uma ficha isolada em
@@ -286,7 +286,7 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
 
         // 300000 (dano exibido) * FATOR_EXIBICAO_VITAIS (1000) = 300.000.000 bruto subtraídos de
         // 1.000.000.000 (base de fichaVidaLimpa, ver comentário na fábrica acima) -> 700.000.000.
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 700000000); // 1000000000 - 300000*1000
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 700000000, expect.anything()); // 1000000000 - 300000*1000
         // fatorDano = 1 - 700000000/1000000000 = 0.3 ; fatorEnergia=0 (energias cheias) ; fatorFormas=0
         // (sem Forma ativa) -> severidade = 0.3/3 = 0.1 -> ganho pré-supressão = 0.1*15 = 1.5.
         // supressaoPoder ausente -> default 100 -> fatorPoder=1 -> ganho final = 1.5.

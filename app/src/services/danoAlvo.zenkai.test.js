@@ -27,7 +27,7 @@ describe('gravarDanoEmPersonagem + Zenkai', () => {
         const alvo = comZenkai();
         useStore.setState({ personagens: { Ana: alvo } });
         gravarDanoEmPersonagem('Ana', alvo, 200 * F, { nomeNoFeed: 'Ana' });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 200 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 200 * F, expect.anything());
         const campos = salvarCamposPersonagem.mock.calls.find(([, c]) => 'combate/zenkai/danoRecebido' in c)[1];
         // so os campos alterados (caminhos aninhados), nunca o no inteiro
         expect(campos).toEqual({ 'combate/zenkai/danoRecebido': 300 * F, 'combate/zenkai/vidaMinimaFracao': 0.2 });

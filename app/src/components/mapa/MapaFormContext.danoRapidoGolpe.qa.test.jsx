@@ -118,7 +118,7 @@ describe('Dano Rapido como golpe - outro jogador', () => {
         const vilao = fichaCom([gAting([{ tipo: 'ganhoPermanente', valor: 6 }])]);
         montar(estado(eu, { Vilao: vilao }));
         act(() => { probe.aplicarDanoRapido(jogador('Vilao', vilao), 100); });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 500000 - 100 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 500000 - 100 * F, expect.anything());
         expect(camposGravados()[PC]).toBe(6);
         expect(eu.ganhosPermanentes).toBeUndefined();
         expect(salvarCamposPersonagem.mock.calls.every(c => c[0] === 'Vilao')).toBe(true);
@@ -129,7 +129,7 @@ describe('Dano Rapido como golpe - outro jogador', () => {
         montar(estado(fichaCom(null), { Vilao: vilao }));
         act(() => { probe.aplicarDanoRapido(jogador('Vilao', vilao), 100); });
         expect(camposGravados()[PC]).toBeUndefined();
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 500000 - 100 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 500000 - 100 * F, expect.anything());
     });
     it('jogador com escudo absorvendo tudo: sem disparo', () => {
         const vilao = fichaCom([gAting([{ tipo: 'ganhoPermanente', valor: 6 }])], { escudos: [{ id: 'e', nome: 'B', valor: 1e6, tipo: 'escudo' }] });
@@ -148,7 +148,7 @@ describe('Dano Rapido como golpe - outro jogador', () => {
         montar(estado(fichaCom(null), { Vilao: vilao }));
         act(() => { probe.aplicarDanoRapido(jogador('Vilao', vilao), 100); });
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 500000 - 100 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 500000 - 100 * F, expect.anything());
     });
 });
 
@@ -158,7 +158,7 @@ describe('Dano Rapido - Dummie continua sem gatilhos', () => {
         const dData = { nome: 'Boneco', cenaId: 'default', hpMax: 1000 * F, hpAtual: 1000 * F };
         montar(estado(eu, {}, { dummies: { d1: dData } }));
         act(() => { probe.aplicarDanoRapido({ id: 'd1', nome: 'Boneco', ficha: dData, isDummie: true }, 100); });
-        expect(salvarDummie).toHaveBeenCalledWith('d1', expect.objectContaining({ hpAtual: 900 * F }));
+        expect(salvarDummie).toHaveBeenCalledWith('d1', expect.objectContaining({ hpAtual: 900 * F }), expect.anything());
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(aplicarDanoDireto).not.toHaveBeenCalled();
         expect(eu.ganhosPermanentes).toBeUndefined();

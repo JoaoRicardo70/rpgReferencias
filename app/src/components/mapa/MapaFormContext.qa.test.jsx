@@ -171,7 +171,7 @@ describe('P2 - Mapa: gatilhos, God Mode e dono offline', () => {
         expect(campos.condicoes).toBeNull();
         expect(campos['combate/imunidadeTotal']).toEqual({ turnosRestantes: 2, origem: 'Negar morte' });
         expect(semUndefined(campos)).toBe(true);
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 1000);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 1000, expect.anything());
         expect(vilao.vida.atual).toBe(VIDA);
         expect(feeds().at(-1)).toContain('Negar morte segurou em 1 de vida');
     });
@@ -180,7 +180,7 @@ describe('P2 - Mapa: gatilhos, God Mode e dono offline', () => {
         const vilao = ficha({ combate: { ...COMBATE, imunidadeTotal: { ...GOD } }, escudos: ESC() });
         montar(Novo, estado(ficha({ poderes: [] }), { personagens: { Vilao: vilao } }));
         act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 5000000, 'fisico', null, 0, null, false, true); });
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA, expect.anything());
         expect(fb.salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(feeds().at(-1)).toContain('Imunidade total');
     });

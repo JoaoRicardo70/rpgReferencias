@@ -149,6 +149,10 @@ function lerDivisorPoderMesaLocal(mesaId) {
     return (!isNaN(val) && val > 0) ? val : 1;
 }
 
+// Gancho registrado por services/firebase-sync.js (evita import circular): chamado quando setMeuNome descarta a ficha carregada.
+let aoDescartarFicha = null;
+export function registrarAoDescartarFicha(fn) { aoDescartarFicha = fn; }
+
 const useStore = create(
     immer((set, get) => ({
         userLogado: null,
@@ -200,7 +204,19 @@ const useStore = create(
         divisorPoderMesa: lerDivisorPoderMesaLocal(storedMesaId),
 
         setMinhaFicha: (ficha) => set((state) => { state.minhaFicha = ficha; }),
-        setMeuNome: (nome) => set((state) => { state.meuNome = nome; }),
+        // 🔒 `fichaDono` = de quem é a ficha que está em `minhaFicha` ('' = ficha padrão/em branco, sem dono). Se o nome muda para OUTRO e a ficha
+        // carregada era de alguém, ela é descartada (volta à padrão): impede que a ficha de um personagem seja gravada sob o nome de outro
+        // (reload com a conta logando por cima, voltar ao lobby, Mestre trocando de personagem).
+        fichaDono: '',
+        setMeuNome: (nome) => {
+            const descarta = !!get().fichaDono && get().fichaDono !== nome;
+            set((state) => {
+                if (descarta) { state.minhaFicha = deepClone(fichaPadrao); state.fichaDono = ''; }
+                state.meuNome = nome;
+            });
+            // Ficha descartada: cancela o salvamento agendado (debounce) e derruba a confirmação do personagem anterior (registrado por firebase-sync).
+            if (descarta && typeof aoDescartarFicha === 'function') { try { aoDescartarFicha(); } catch (e) { /* sem sync */ } }
+        },
         // isMestre é o papel EFETIVO da interface: o Mestre/Co-Mestre em Modo Jogador enxerga a mesa como
         // jogador. souMestreReal guarda o papel verdadeiro (vem do Firebase) pra poder voltar.
         setIsMestre: (val) => set((state) => { state.souMestreReal = !!val; state.isMestre = !!val && !state.modoJogador; }),
@@ -369,8 +385,11 @@ const useStore = create(
             arco.texto = arco.texto + sep + linhaFormatada;
         }),
 
-        carregarDadosFicha: (dados) => set((state) => {
+        // `dono` = o nome do personagem DONO dos dados (quem foi lido); sem ele, vale o nome ativo no momento (compatível com quem não passa).
+        carregarDadosFicha: (dados, dono) => set((state) => {
             if (!dados) return;
+            const donoDaCarga = dono || state.meuNome;
+            if (donoDaCarga) state.fichaDono = donoDaCarga; // a ficha em memória passa a ser DESTE nome (ver setMeuNome)
             const chaves = Object.keys(fichaPadrao);
             
             if (dados.donoDaFicha !== undefined) state.minhaFicha.donoDaFicha = dados.donoDaFicha;
@@ -530,7 +549,7 @@ const useStore = create(
             console.log("✅ Importação de Status concluída com sucesso!");
         }),
 
-        resetFicha: () => set((state) => { state.minhaFicha = deepClone(fichaPadrao); }),
+        resetFicha: () => set((state) => { state.minhaFicha = deepClone(fichaPadrao); state.fichaDono = ''; }),
     }))
 );
 export default useStore;

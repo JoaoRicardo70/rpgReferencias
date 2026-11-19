@@ -34,8 +34,9 @@ export default function useFirebase() {
             // outra aba/dispositivo do mesmo jogador, etc.) sem precisar de F5.
             unsubFichaPropria = iniciarListenerFichaPropria(meuNome, (dados, primeiraCarga) => {
                 if (cancelled || !primeiraCarga) return;
+                if (useStore.getState().meuNome !== meuNome) return; // carga tardia de outro personagem
                 if (dados) {
-                    carregarDadosFicha(dados);
+                    carregarDadosFicha(dados, meuNome);
                     // 💾 Cópia diária da ficha (a que veio do servidor); nunca lança e não atrasa o carregamento.
                     garantirBackupDiario(meuNome, dados).catch(() => {});
                     // 🔥 Persiste imediatamente a migração de ficha.passivas -> ficha.poderes

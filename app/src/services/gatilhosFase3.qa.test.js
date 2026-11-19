@@ -143,7 +143,7 @@ describe('aplicarExternosDeGatilhos (dano no atacante)', () => {
     it('atacante-personagem com ficha: dano pelo ponto unico dele (grava a Vida dele) e frase no feed', () => {
         useStore.setState({ personagens: { Vilao: ficha({}, 1000) } });
         const t = aplicarExternosDeGatilhos([ext('Vilao', 400)]);
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 600 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 600 * F, expect.anything());
         expect(t.length).toBeGreaterThan(0);
     });
     it('atacante sem ficha / Dummie (nao esta em personagens): avisa e nao grava nada', () => {
@@ -162,7 +162,7 @@ describe('aplicarExternosDeGatilhos (dano no atacante)', () => {
     it('escudo do atacante absorve antes da Vida dele', () => {
         useStore.setState({ personagens: { Vilao: ficha({ escudos: [{ id: 'e', nome: 'Domo', valor: 300, tipo: 'escudo' }] }, 1000) } });
         aplicarExternosDeGatilhos([ext('Vilao', 400)]);
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 900 * F); // 400 - 300 de escudo = 100 de dano
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 900 * F, expect.anything()); // 400 - 300 de escudo = 100 de dano
     });
     it('atacante e o PROPRIO dono (auto-golpe): aplica na minha ficha pelo ponto unico, salva com debounce', () => {
         useStore.setState({ meuNome: 'Eu', minhaFicha: ficha({}, 1000) });
@@ -178,7 +178,7 @@ describe('aplicarExternosDeGatilhos (dano no atacante)', () => {
     it('atacante com Negar morte armado: o gatilho DELE tambem roda no dano devolvido (ponto unico)', () => {
         useStore.setState({ personagens: { Vilao: ficha({ poderes: poderCom(NEGAR()) }, 100) } });
         const t = aplicarExternosDeGatilhos([ext('Vilao', 5000)]);
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 1 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 1 * F, expect.anything());
         expect(t.join(' ')).toContain('Negar morte segurou');
     });
     it('LACO: atacante que tambem tem contra-ataque nao devolve de volta (o dano devolvido nao carrega atacante)', () => {
@@ -192,12 +192,12 @@ describe('aplicarExternosDeGatilhos (dano no atacante)', () => {
         useStore.setState({ personagens: { Vilao: ficha({}, 1000) } });
         const t = aplicarExternosDeGatilhos([ext('Fantasma', 10), ext('Vilao', 100)]);
         expect(t.some(x => x.includes('não tem ficha'))).toBe(true);
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 900 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 900 * F, expect.anything());
     });
     it('dano fracionado/enorme: floor e finito', () => {
         useStore.setState({ personagens: { Vilao: ficha({}, 1000) } });
         aplicarExternosDeGatilhos([ext('Vilao', 10.9)]);
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 990 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 990 * F, expect.anything());
         aplicarDanoDireto.mockClear();
         aplicarExternosDeGatilhos([ext('Vilao', 1e300)]);
         const v = aplicarDanoDireto.mock.calls.at(-1)[1]; expect(Number.isFinite(v)).toBe(true); expect(v).toBeGreaterThanOrEqual(0);
@@ -210,11 +210,11 @@ describe('Dono offline / dano aplicado por OUTRO cliente: so `armado`, sem pergu
         useStore.setState({ personagens: { Ana: ficha({ poderes: poderCom(NEGAR({ perguntar: true })) }, 500) } });
         gravarDanoEmPersonagem('Ana', ficha({}, 500), 0, { nomeNoFeed: 'Ana' });
         expect(window.confirm).not.toHaveBeenCalled();
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1 * F, expect.anything());
         aplicarDanoDireto.mockClear();
         useStore.setState({ personagens: { Ana: ficha({ poderes: poderCom(NEGAR({ perguntar: true, armado: false })) }, 500) } });
         gravarDanoEmPersonagem('Ana', ficha({}, 500), 0, { nomeNoFeed: 'Ana' });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 0);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 0, expect.anything());
     });
     it('Ataque/Dano Rapido em outro jogador com Volta das cinzas (rolarTabela): grava so os campos tocados, sem undefined; danoNoAtacante ignorado (atacante desconhecido neste caminho)', () => {
         const volta = { id: 'vc0', nome: 'Cinzas 0%', modo: 'opcional', armado: true, evento: { tipo: 'danoQueZeraria' }, limite: { max: 1, por: 'cena' }, acoes: [{ tipo: 'definirVida', percMax: 1 }, { tipo: 'rolarTabela', dado: '1d4', resultados: [{ ate: 4, texto: 'volta', acoes: [{ tipo: 'danoNoAtacante', valor: 100 }, { tipo: 'curar', modo: 'percMax', valor: 50 }] }] }] };
@@ -229,7 +229,7 @@ describe('Dono offline / dano aplicado por OUTRO cliente: so `armado`, sem pergu
     it('Dano Rapido (aplicarDanoEmPersonagem) em jogador com gatilho opcional armado: escudo -> gatilho -> Vida', () => {
         useStore.setState({ personagens: { Ana: ficha({ poderes: poderCom(NEGAR()), escudos: [{ id: 'e', nome: 'D', valor: 100, tipo: 'escudo' }] }, 500) } });
         const r = aplicarDanoEmPersonagem('Ana', useStore.getState().personagens.Ana, 1e9, 1e9 * F, {});
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1 * F, expect.anything());
         expect(r.textos.join(' ')).toContain('Negar morte segurou');
     });
 });

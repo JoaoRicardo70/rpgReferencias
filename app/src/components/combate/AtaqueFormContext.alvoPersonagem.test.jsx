@@ -96,7 +96,7 @@ describe('AtaqueFormContext - alvo-personagem (pj:<nome>)', () => {
     it('sem Reducoes na ficha: dano integral e sem textoReducao', () => {
         montar({ alvoSelecionado: 'pj:Ana', personagens: { Ana: fichaAna() } });
         act(() => { probe.rolarDano(); });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 1000 * FATOR);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 1000 * FATOR, expect.anything());
         expect(ultimoFeed().textoReducao).toBeUndefined();
     });
 
@@ -105,7 +105,7 @@ describe('AtaqueFormContext - alvo-personagem (pj:<nome>)', () => {
         act(() => { probe.setElementoAtivo('Fogo'); });
         act(() => { probe.rolarDanoCustomizado('1000'); });
         expect(salvarDummie).not.toHaveBeenCalled();
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 560 * FATOR);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 560 * FATOR, expect.anything());
         expect(ultimoFeed().danoAplicado).toBe(560);
     });
 
@@ -134,7 +134,7 @@ describe('AtaqueFormContext - alvo-personagem (pj:<nome>)', () => {
         montar({ alvoSelecionado: 'g1', dummies: { g1: { nome: 'Goblin', hpAtual: 100 * FATOR, hpMax: 100 * FATOR, valorDefesa: 10 } } });
         act(() => { probe.rolarDano(); });
         expect(salvarDummie).toHaveBeenCalledTimes(1);
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 0 }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 0 }), expect.anything());
         expect(aplicarDanoDireto).not.toHaveBeenCalled();
         expect(aplicarElementoNivelDireto).not.toHaveBeenCalled();
     });

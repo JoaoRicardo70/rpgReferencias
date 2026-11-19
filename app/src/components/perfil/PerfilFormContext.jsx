@@ -118,7 +118,7 @@ export function PerfilFormProvider({ children }) {
         }
 
         if (dadosFinais) {
-            carregarDadosFicha(dadosFinais);
+            carregarDadosFicha(dadosFinais, n);
             // Ficha com avatar em base64 pode estourar a cota: sem o try, o carimbo e a troca de aba abaixo nunca rodavam.
             try { localStorage.setItem('rpgFicha_' + n, JSON.stringify(dadosFinais)); } catch (e) { /* cota do localStorage */ }
         } else {

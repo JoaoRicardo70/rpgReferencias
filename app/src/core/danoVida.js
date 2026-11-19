@@ -115,7 +115,7 @@ export function aplicarDanoNaVida(ficha, danoExibido, ctx = {}) {
     }
     // 🎯 Golpe que causou dano (God Mode já saiu antes): evento `atingido` de quem sofreu, com o nível do golpe.
     if (ctx.golpe && danoBruto > 0 && !anulado) {
-        const g = dispararEventoNaFicha(ficha, { tipo: 'atingido', nivel: ctx.golpe.nivel || 'normal' }, { cenaId, nome, eventoId: eventoId ? `${eventoId}:atingido` : undefined, profundidade, jaDisparados, rng: ctx.rng, escolher: ctx.escolher, decisoes: ctx.decisoes, perguntas: ctx.perguntas, atacante: ctx.atacante, danoRecebido: dano });
+        const g = dispararEventoNaFicha(ficha, { tipo: 'atingido', nivel: ctx.golpe.nivel || 'normal' }, { cenaId, nome, eventoId: eventoId ? `${eventoId}:atingido` : undefined, profundidade, jaDisparados, rng: ctx.rng, escolher: ctx.escolher, decisoes: ctx.decisoes, perguntas: ctx.perguntas, atacante: ctx.atacante, alvo: ctx.alvoDoEvento, danoRecebido: dano });
         g.textos.forEach(t => res.textos.push(t));
         g.caminhos.forEach(c => caminhos.add(c));
         (g.externos || []).forEach(e => { if (!res.externos) res.externos = []; res.externos.push(e); });

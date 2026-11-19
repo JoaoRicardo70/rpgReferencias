@@ -77,7 +77,7 @@ describe('rolarDano - alvo unico: dano de Ataque (calcularDano) NAO e reescalado
         montar({ dummies: { g1: dummie(200000) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
         expect(feedEnviado().danoAplicado).toBe(35);
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 35) * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 35) * FATOR }), expect.anything());
     });
     it('feed: dano e danoAplicado iguais e fatorVida = 1', () => {
         montar({ dummies: { g1: dummie(200000) }, alvoSelecionado: 'g1' });
@@ -130,7 +130,7 @@ describe('rolarDano - alvo unico: dano de Ataque (calcularDano) NAO e reescalado
         montar({ meuPoder: 1000, dummies: { g1: dummie(200000, { poder: 2000 }) }, alvoSelecionado: 'g1' });
         act(() => { probe.rolarDano(); });
         expect(feedEnviado().danoAplicado).toBe(0);
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 200000 * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 200000 * FATOR }), expect.anything());
     });
     it('overkill e alvoSobreviveu usam o dano aplicado', () => {
         montar({ dummies: { g1: dummie(200000, { hpAtual: 30 }) }, alvoSelecionado: 'g1' });
@@ -139,7 +139,7 @@ describe('rolarDano - alvo unico: dano de Ataque (calcularDano) NAO e reescalado
         expect(feed.danoAplicado).toBe(35);
         expect(feed.overkill).toBe(5);
         expect(feed.alvoSobreviveu).toBe(false);
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 0 }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 0 }), expect.anything());
     });
     it('dano 0 do engine: danoAplicado 0 sem NaN', () => {
         setDano(0);
@@ -166,7 +166,7 @@ describe('rolarDano - alvo com Vida 10.000 (fator 50 na regra antiga): dano 1.22
         expect(feed.danoAplicado).toBe(1228);
         expect(feed.danoAplicado).not.toBe(61400);
         expect(feed.fatorVida).toBe(1);
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (10000 - 1228) * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (10000 - 1228) * FATOR }), expect.anything());
     });
     it('Disputa de Poder 6,5M vs 6M aplica fator ~1,083 (1.228 -> 1.330)', () => {
         setDano(1228);
@@ -201,9 +201,9 @@ describe('rolarDano - area: dano de Ataque igual para todos (sem escala pela Vid
             alvosArea: area('g1', 'g2', 'g3'),
         });
         act(() => { probe.rolarDano(); });
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 35) * FATOR }));
-        expect(salvarDummie).toHaveBeenCalledWith('g2', expect.objectContaining({ hpAtual: (2000 - 35) * FATOR }));
-        expect(salvarDummie).toHaveBeenCalledWith('g3', expect.objectContaining({ hpAtual: (200 - 35) * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 35) * FATOR }), expect.anything());
+        expect(salvarDummie).toHaveBeenCalledWith('g2', expect.objectContaining({ hpAtual: (2000 - 35) * FATOR }), expect.anything());
+        expect(salvarDummie).toHaveBeenCalledWith('g3', expect.objectContaining({ hpAtual: (200 - 35) * FATOR }), expect.anything());
     });
     it('Disputa por alvo aplica direto sobre o dano', () => {
         montar({
@@ -212,8 +212,8 @@ describe('rolarDano - area: dano de Ataque igual para todos (sem escala pela Vid
             alvosArea: area('g1', 'g2'),
         });
         act(() => { probe.rolarDano(); });
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 70) * FATOR }));
-        expect(salvarDummie).toHaveBeenCalledWith('g2', expect.objectContaining({ hpAtual: (2000 - 35) * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 70) * FATOR }), expect.anything());
+        expect(salvarDummie).toHaveBeenCalledWith('g2', expect.objectContaining({ hpAtual: (2000 - 35) * FATOR }), expect.anything());
     });
     it('detalheDisputa (so Mestre) lista o dummie com Disputa ativa, com o dano ajustado', () => {
         montar({
@@ -253,7 +253,7 @@ describe('rolarDano - area: dano de Ataque igual para todos (sem escala pela Vid
     it('pontosDanoVida da mesa nao afeta a area', () => {
         montar({ dummies: { g1: dummie(200000) }, alvosArea: area('g1'), cenario: { zonas: [], pontosDanoVida: 1000 } });
         act(() => { probe.rolarDano(); });
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 35) * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 35) * FATOR }), expect.anything());
     });
 });
 
@@ -299,7 +299,7 @@ describe('rolarDanoCustomizado (Modo Deus) - dado proporcional a Vida', () => {
         expect(feed.dano).toBe(35);
         expect(feed.danoAplicado).toBe(35000);
         expect(feed.fatorVida).toBe(1000);
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 35000) * FATOR }));
+        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: (200000 - 35000) * FATOR }), expect.anything());
     });
     it('escala e depois Disputa: 35 x 1000 x 1,5 = 52.500', () => {
         montar({ meuPoder: 1500, dummies: { g1: dummie(200000, { poder: 1000 }) }, alvoSelecionado: 'g1' });

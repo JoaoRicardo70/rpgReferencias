@@ -183,7 +183,7 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
         act(() => { botao.click(); });
 
         // calcularDano está mockado no topo do arquivo pra sempre devolver dano:10.
-        expect(salvarDummie).toHaveBeenCalledWith('goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }));
+        expect(salvarDummie).toHaveBeenCalledWith('goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }), expect.anything());
         expect(enviarParaFeed).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'dano', dano: 10, alvoNome: 'Goblin' }));
     });
 
@@ -220,8 +220,8 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
         // acontecerem antes do dummie realmente sincronizar de volta pelo Firebase, o segundo
         // "dano" pode se perder (sobrescrito) ou, dependendo da ordem de chegada, duplicar o
         // efeito no feed de combate mesmo a vida do alvo não caindo duas vezes.
-        expect(salvarDummie).toHaveBeenNthCalledWith(1, 'goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }));
-        expect(salvarDummie).toHaveBeenNthCalledWith(2, 'goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }));
+        expect(salvarDummie).toHaveBeenNthCalledWith(1, 'goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }), expect.anything());
+        expect(salvarDummie).toHaveBeenNthCalledWith(2, 'goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }), expect.anything());
     });
 
     // -------------------------------------------------------------------------
@@ -290,7 +290,7 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
 
             act(() => { getByText('⚔️ ATACAR GOBLIN').click(); });
 
-            expect(salvarDummie).toHaveBeenCalledWith('goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }));
+            expect(salvarDummie).toHaveBeenCalledWith('goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }), expect.anything());
             expect(enviarParaFeed).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'dano', dano: 10, alvoNome: 'Goblin' }));
         });
 

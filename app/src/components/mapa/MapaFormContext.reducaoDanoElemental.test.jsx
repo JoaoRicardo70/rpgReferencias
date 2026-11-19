@@ -209,7 +209,7 @@ describe('MapaFormContext — aplicarDanoRapido(): redução de dano real (branc
         // < default de fichaVidaLimpa (1.000.000), não clampa -> fixture inalterado.
         // 1000 reduzido em 60% = 400 (a conta sequencial tolera o erro de ponto flutuante de 0,6).
         const valorEsperado = 400;
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 1000000 - valorEsperado * FATOR_EXIBICAO_VITAIS);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 1000000 - valorEsperado * FATOR_EXIBICAO_VITAIS, expect.anything());
     });
 
     it('nivelDominioAtacante >= Domínio do outro jogador cancela a redução (dano integral via aplicarDanoDireto)', () => {
@@ -225,7 +225,7 @@ describe('MapaFormContext — aplicarDanoRapido(): redução de dano real (branc
 
         act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador, isDummie: false }, 1000, 'Agua', undefined, 8); });
 
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 5000000 - 1000000); // 5000000 - 1000*1000
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 5000000 - 1000000, expect.anything()); // 5000000 - 1000*1000
     });
 
     it('override "Domínio Alvo" do Mestre também tem precedência sobre o Domínio real de OUTRO jogador', () => {
@@ -237,7 +237,7 @@ describe('MapaFormContext — aplicarDanoRapido(): redução de dano real (branc
 
         // calcularReducaoDanoElemental(10,0) = 0.75 -> valor = 250 (exibido) -> valorRaw = 250.000
         // bruto, < default de 1.000.000 -> não clampa, fixture inalterado.
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 1000000 - 250000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 1000000 - 250000, expect.anything());
     });
 });
 

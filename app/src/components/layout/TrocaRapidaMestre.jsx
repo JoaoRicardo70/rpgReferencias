@@ -104,11 +104,11 @@ export default function TrocaRapidaMestre() {
                 resetSincronizacaoFicha();
                 resetFicha();
                 setMeuNome(n);
-                carregarDadosFicha(clonar(dados));
+                carregarDadosFicha(clonar(dados), n);
             } catch (e) {
                 // Falhou no meio: volta pro personagem anterior em vez de ficar com uma ficha vazia sob o nome novo.
                 setMeuNome(nomeAnterior);
-                carregarDadosFicha(fichaAnterior);
+                carregarDadosFicha(fichaAnterior, nomeAnterior);
                 adicionarAviso(`Não consegui trocar para ${n}.`, 'alerta');
                 return;
             }

@@ -60,7 +60,7 @@ describe('Poder com danoVerdadeiro no Ataque (QA)', () => {
         montar({ personagens: { Ana: ana }, poderes: [verd] });
         act(() => { probe.setElementoAtivo('Gelo'); });
         act(() => { probe.rolarDano(); });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', VIDA - 1000 * 1000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', VIDA - 1000 * 1000, expect.anything());
         expect(ultimoFeed().danoAplicado).toBe(1000);
     });
     it('imunidade total: o golpe de um Poder comum e zerado, o do Poder verdadeiro causa o dano inteiro', () => {
@@ -80,12 +80,12 @@ describe('Poder com danoVerdadeiro no Ataque (QA)', () => {
         act(() => { probe.rolarDano(); });
         expect(salvarCamposPersonagem).toHaveBeenCalledWith('Ana', { escudos: null });
         // 1000 inteiros (sem os 50% da Couraca) - 300 absorvidos = 700 na Vida
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', VIDA - 700 * 1000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', VIDA - 700 * 1000, expect.anything());
     });
     it('escudo + poder comum: reducao primeiro (500) e depois o escudo (regressao da ordem)', () => {
         montar({ personagens: { Ana: fichaAna({ escudos: [esc('a', 'Parede', 300)] }) }, poderes: [comum] });
         act(() => { probe.rolarDano(); });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', VIDA - 200 * 1000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', VIDA - 200 * 1000, expect.anything());
     });
     it('Tecnica/Magia ofensiva equipada com a marca tambem vale', () => {
         const magia = { id: 'm1', nome: 'Raio Puro', equipado: true, danoVerdadeiro: true, tipoMecanica: 'ofensiva', statusUsados: ['inteligencia'], energiaCombustao: 'mana' };

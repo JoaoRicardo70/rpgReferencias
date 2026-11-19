@@ -282,7 +282,7 @@ describe('aplicarDanoRapido - 7o argumento danoDeDado', () => {
         const outro = fichaVida(1000);
         montar(baseState({ personagens: { Outro: outro } }));
         act(() => { probe.aplicarDanoRapido(jogador('Outro', outro), 35, null, null, 0, undefined, true); });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Outro', 200000000 - 35000 * FATOR);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Outro', 200000000 - 35000 * FATOR, expect.anything());
     });
     it('true: alvo e a ficha do proprio Mestre escala pela minhaFicha', () => {
         const minhaFicha = fichaVida(1000);

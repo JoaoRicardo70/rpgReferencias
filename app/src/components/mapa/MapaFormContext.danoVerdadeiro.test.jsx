@@ -138,13 +138,13 @@ describe('MapaMestreDanoRapido - interruptor Dano Verdadeiro (UI)', () => {
     it('desmarcado: o Vilao com Armadura 50% perde so 5 (exibido)', () => {
         render_();
         fireEvent.click(screen.getByText('💥 Aplicar Dano'));
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 500000 - 5 * 1000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 500000 - 5 * 1000, expect.anything());
     });
     it('marcado: o Vilao perde os 10 inteiros e o interruptor zera depois de aplicar', () => {
         render_();
         fireEvent.click(checkbox());
         fireEvent.click(screen.getByText('💥 Aplicar Dano'));
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 500000 - 10 * 1000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 500000 - 10 * 1000, expect.anything());
         expect(checkbox().checked).toBe(false);
     });
     it('a previa reflete o Dano Verdadeiro', () => {

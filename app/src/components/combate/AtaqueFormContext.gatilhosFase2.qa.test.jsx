@@ -100,7 +100,7 @@ describe.skipIf(!Velho)('P1 NAO-REGRESSAO - Ataque identico ao HEAD sem gatilhos
     });
     it('sanidade do diferencial: o golpe em Ana realmente gravou Vida e feed (comparacao nao vazia)', () => {
         vi.clearAllMocks(); dano(30); ALVOS.pjAna(Novo, {}); golpe('normal');
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 30 * FATOR);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 30 * FATOR, expect.anything());
         expect(fb.enviarParaFeed).toHaveBeenCalled();
     });
 });
@@ -117,7 +117,7 @@ describe('NAO-REGRESSAO (valores a mao) - sem gatilhos', () => {
     it('golpe em Ana sem gatilhos: Vida = 1000000 - 30*1000 e nenhuma gravacao de campos extras', () => {
         montar(Novo, { alvoSelecionado: 'pj:Ana', personagens: { Ana: ana() } });
         golpe('normal');
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 30 * FATOR);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 30 * FATOR, expect.anything());
         expect(fb.salvarCamposPersonagem).not.toHaveBeenCalled();
     });
 });
@@ -233,7 +233,7 @@ describe('Fase 2 - atingido no alvo-personagem (Furia)', () => {
         const a = ana({ poderes: furia().poderes, contadores: [ct('x'), ct('f', { valor: 9 })] });
         montar(Novo, { alvoSelecionado: 'pj:Ana', personagens: { Ana: a } });
         golpe('normal');
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 30 * FATOR);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 30 * FATOR, expect.anything());
         expect(campos('Ana')).toEqual({ 'contadores/1/valor': 7 });
         expect(a.contadores[1].valor).toBe(9); // espelho nao e mutado
         expect(ultimoFeed().textoPosGolpe.some(t => t.startsWith('🔔') && t.includes('f 9 → 7'))).toBe(true);
@@ -251,7 +251,7 @@ describe('Fase 2 - atingido no alvo-personagem (Furia)', () => {
         const a = furia(); a.combate = { imunidadeTotal: { turnosRestantes: 1, origem: 'x' } };
         montar(Novo, { alvoSelecionado: 'pj:Ana', personagens: { Ana: a } });
         golpe('normal');
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000); // grava a MESMA Vida: nada foi tirado
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000, expect.anything()); // grava a MESMA Vida: nada foi tirado
         expect(campos('Ana')['contadores/0/valor']).toBeUndefined();
     });
     it('dano 0 no alvo: nao e atingido', () => {
@@ -266,7 +266,7 @@ describe('Fase 2 - atingido no alvo-personagem (Furia)', () => {
         a.vida.atual = 100 * FATOR;
         montar(Novo, { alvoSelecionado: 'pj:Ana', personagens: { Ana: a } });
         act(() => { probe.rolarDano(); });
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1 * FATOR);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1 * FATOR, expect.anything());
         expect(campos('Ana')['contadores/0/valor']).toBeUndefined();
     });
     it('area com Ana atingida: atingido dispara 1 vez nela', () => {

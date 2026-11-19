@@ -67,7 +67,7 @@ describe('Dano Rapido com gatilhos', () => {
         const vilao = ficha();
         montar(estado(ficha({ poderes: [] }), { personagens: { Vilao: vilao } }));
         act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 5000000, 'fisico'); });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 1000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 1000, expect.anything());
         const campos = salvarCamposPersonagem.mock.calls.find(c => c[0] === 'Vilao')[1];
         expect(Object.keys(campos).sort()).toEqual(['combate/usosPoderes']); // sem eventoId real do golpe, nada de ultimoEvento
         expect(campos['combate/usosPoderes']['p1:nm']).toEqual({ n: 1, cena: 'c' });
@@ -78,7 +78,7 @@ describe('Dano Rapido com gatilhos', () => {
         const vilao = ficha({ poderes: [] });
         montar(estado(ficha(), { personagens: { Vilao: vilao } }));
         act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 1000, 'fisico'); });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA - 1000 * 1000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA - 1000 * 1000, expect.anything());
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
     });
     it('Imunidade total: em mim e em outro jogador o dano vira 0', () => {
@@ -91,7 +91,7 @@ describe('Dano Rapido com gatilhos', () => {
         const vilao = ficha({ combate: { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0, imunidadeTotal: GOD } });
         montar(estado(ficha({ poderes: [] }), { personagens: { Vilao: vilao } }));
         act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 5000000, 'fisico', null, 0, null, false, true); });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA, expect.anything());
         expect(feeds().at(-1)).toContain('Imunidade total');
     });
 });

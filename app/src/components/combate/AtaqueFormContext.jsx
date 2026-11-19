@@ -525,7 +525,7 @@ export function AtaqueFormProvider({ children }) {
     const finalizarPosGolpe = (pg) => {
         const { textos, danoAtacante, aoAcertar, critico, roubado } = pg.resultado();
         // 🔔 Gatilhos `acertou` (core/gatilhos.js): UMA vez por golpe (também em área), só se algum alvo sofreu Dano.
-        if (pg.causouDano()) { const g = dispararEventoMeu({ tipo: 'acertou', nivel: pg.golpe().nivel }, { nome: nomeNoFeed, mantemSemEncadeio: true }); g.textos.forEach(t => textos.push(`🔔 ${t}`)); }
+        if (pg.causouDano()) { const g = dispararEventoMeu({ tipo: 'acertou', nivel: pg.golpe().nivel }, { nome: nomeNoFeed, mantemSemEncadeio: true, alvo: pg.alvoAtingido() }); g.textos.forEach(t => textos.push(`🔔 ${t}`)); }
         // 💚 Ao acertar (core/aoAcertar.js): cura/energia de quem acertou, UMA vez por golpe e só se algum alvo sofreu Dano.
         if (aoAcertar && aoAcertar.length > 0) {
             let frases = [];

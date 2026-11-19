@@ -130,7 +130,7 @@ describe('Defesa - God Mode ignora tudo', () => {
         receber(5000, { reflexo: 'poder:r1', atacante: 'p:Vilao' });
         expect(f.mana.atual).toBeLessThan(1000000);
         expect(f.escudos[0].valor).toBe(100); // o Reflexo devolveu tudo, entao nada chegou ao escudo
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Vilao', expect.any(Number));
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Vilao', expect.any(Number), expect.anything());
         expect(f.condicoes).toBeUndefined(); // regra antiga: Reflexo que devolve tudo tambem nao deixa os estados entrarem
         expect(feed().at(-1).texto).not.toContain('Imunidade total');
     });

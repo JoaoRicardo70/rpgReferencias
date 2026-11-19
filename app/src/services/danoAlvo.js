@@ -43,7 +43,7 @@ export function gravarDanoEmPersonagem(nome, ficha, vidaFinalBruta, { elemento =
         const campos = camposParaGravar(clone, r.caminhos.filter(c => c !== 'vida/atual' && c !== 'combate/zenkai'));
         if (r.caminhos.includes('combate/zenkai')) Object.assign(campos, camposZenkaiAlterados(fresca.combate && fresca.combate.zenkai, clone.combate && clone.combate.zenkai));
         if (Object.keys(campos).length > 0) salvarCamposPersonagem(nome, campos);
-        gravarEfeitosDoDano(nome, clone, clone.vida.atual, { elemento, nivelOverride });
+        gravarEfeitosDoDano(nome, clone, clone.vida.atual, { elemento, nivelOverride, vidaBase: Number(fresca.vida.atual) || 0, fadigaBase: Math.max(0, Number(fresca.combate && fresca.combate.fadigaExtra) || 0) });
         return { textos: r.textos, vidaFinalBruta: clone.vida.atual };
     }
     // 💥 Zenkai do alvo (sem gatilhos o dano não passa por aplicarDanoNaVida): grava só `combate/zenkai`, calculado numa cópia da ficha mais fresca.
@@ -51,12 +51,14 @@ export function gravarDanoEmPersonagem(nome, ficha, vidaFinalBruta, { elemento =
         const z = zenkaiAposRegistrar(fresca, (c) => { if (!c.vida) return false; c.vida.atual = Math.max(0, vidaFinalBruta); return registrarDanoZenkai(c, danoBruto, getVidaMaxBrutaNpc(c)); });
         if (z) salvarCamposPersonagem(nome, z); // campos aninhados combate/zenkai/<campo>
     }
-    gravarEfeitosDoDano(nome, ficha, vidaFinalBruta, { elemento, nivelOverride });
+    gravarEfeitosDoDano(nome, ficha, vidaFinalBruta, { elemento, nivelOverride, vidaBase: Number(ficha && ficha.vida && ficha.vida.atual) || 0, fadigaBase: Math.max(0, Number(ficha && ficha.combate && ficha.combate.fadigaExtra) || 0) });
     return { textos: [], vidaFinalBruta: Math.max(0, vidaFinalBruta) };
 }
 
 // Grava a Vida, a Fadiga dinâmica e o elemento recebido (o miolo de sempre; `ficha` = ficha atual do alvo).
-function gravarEfeitosDoDano(nome, ficha, vidaFinalBruta, { elemento = null, nivelOverride = null } = {}) {
+// vidaBase/fadigaBase = os valores que este cliente conhecia ANTES do golpe: a Vida e a Fadiga são gravadas como DELTA transacional
+// (dois golpes simultâneos de clientes diferentes se somam, em vez de um sobrescrever o outro). O teto da Vida é o máximo do alvo.
+function gravarEfeitosDoDano(nome, ficha, vidaFinalBruta, { elemento = null, nivelOverride = null, vidaBase, fadigaBase } = {}) {
     const fichaAlvo = ficha || {};
     const novaVida = Math.max(0, vidaFinalBruta);
     // Ficha "simulada" com a Vida já reduzida (e o elemento/nível deste golpe já registrados), só pra
@@ -69,8 +71,9 @@ function gravarEfeitosDoDano(nome, ficha, vidaFinalBruta, { elemento = null, niv
     const fadigaExtraAtual = Math.max(0, Number(fichaAlvo.combate && fichaAlvo.combate.fadigaExtra) || 0);
     const novaFadigaExtra = fadigaExtraAtual + calcularGanhoFadigaDinamico(fichaSimulada);
 
-    aplicarDanoDireto(nome, novaVida);
-    aplicarFadigaDireta(nome, novaFadigaExtra);
+    const vidaMax = getVidaMaxBrutaNpc(fichaAlvo);
+    aplicarDanoDireto(nome, novaVida, Number.isFinite(vidaBase) ? { base: vidaBase, ...(vidaMax > 0 ? { max: vidaMax } : {}) } : undefined);
+    aplicarFadigaDireta(nome, novaFadigaExtra, Number.isFinite(fadigaBase) ? { base: fadigaBase } : undefined);
     aplicarElementoDireto(nome, elemento || null);
     aplicarElementoNivelDireto(nome, nivelOverride);
 }
@@ -90,6 +93,7 @@ export function gravarVidaDoAlvo(idAlvo, alvo, novoHpBruto, { elemento = null, g
     if (alvo.isPersonagem) {
         return gravarDanoEmPersonagem(alvo.personagemNome, alvo.ficha, novoHpBruto, { elemento, nomeNoFeed: alvo.nome, escudosNovos: alvo.escudosNovos, golpe, fichaFixa: alvo.fichaFixa === true });
     }
-    salvarDummie(idAlvo, { ...alvo, hpAtual: novoHpBruto });
+    // Dummie: só os campos alterados; a Vida vira delta transacional (baseHp = a que este cliente via; teto hpMax).
+    salvarDummie(idAlvo, { ...alvo, hpAtual: novoHpBruto }, { baseHp: Number(alvo.hpAtual) || 0, hpMax: Number(alvo.hpMax) || 0 });
     return { textos: [], vidaFinalBruta: Math.max(0, novoHpBruto) };
 }

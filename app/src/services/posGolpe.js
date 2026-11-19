@@ -87,6 +87,7 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
     const escudosPosAbsorcao = new Map(); // alvo-personagem: lista de escudos gravada após a absorção
     let danoAtacante = 0;
     let atingiuComDano = false;
+    let primeiroAlvoAtingido = null; // alvo (já com estados do golpe) do 1º que sofreu Dano: é o "alvo" do evento `acertou` do atacante
     // 🕳️ Efeitos 'Ao acertar' que mexem no ALVO (dreno de energia, debuff): valem em cada alvo-personagem que sofreu Dano.
     const noAlvo = entradasNoAlvo(aoAcertar);
     let avisouSemFicha = false;
@@ -125,7 +126,7 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
                     textos.push('ℹ️ Entidade do Mapa não tem ficha: dreno de energia, debuff e cura reduzida (Ao acertar) não se aplicam a ela.');
                 }
             }
-            if (dano > 0) atingiuComDano = true;
+            if (dano > 0) { atingiuComDano = true; if (!primeiroAlvoAtingido) primeiroAlvoAtingido = comEstados.get(idAlvo) || alvo; }
             // 🛡️ Por último: escudos/Vida temporária do alvo-personagem absorvem o Dano final (efeitos 'Ao acertar' valem mesmo que o escudo absorva tudo).
             if (dano > 0 && alvo.isPersonagem && alvo.personagemNome) {
                 const a = absorverEmPersonagem(alvo.personagemNome, alvo.ficha, dano, alvo.nome, alvo.fichaFixa === true);
@@ -144,5 +145,7 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
         resultado() { return { textos: [...textos], danoAtacante, aoAcertar: atingiuComDano ? aoAcertar : [], critico, ...(Object.keys(roubado).length > 0 ? { roubado: { ...roubado } } : {}) }; },
         // 🔔 Algum alvo sofreu Dano? (dispara o evento `acertou` do atacante) e o nível do golpe.
         causouDano() { return atingiuComDano; },
+        // 🎯 O alvo para as condições alvo_* dos gatilhos `acertou` (null se ninguém sofreu Dano).
+        alvoAtingido() { return primeiroAlvoAtingido; },
     };
 }

@@ -67,7 +67,7 @@ describe('Dano Rapido do Mestre com escudos', () => {
         montar(estado(ficha(), { personagens: { Vilao: vilao } }));
         act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 1000, 'fisico'); });
         expect(salvarCamposPersonagem).toHaveBeenCalledWith('Vilao', { escudos: [expect.objectContaining({ id: 'a', valor: 4000 })] });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA, expect.anything());
         expect(ultimoFeed().texto).toContain('Vilao absorveu 1.000 (restam 4.000)');
     });
 
@@ -76,7 +76,7 @@ describe('Dano Rapido do Mestre com escudos', () => {
         montar(estado(ficha(), { personagens: { Vilao: vilao } }));
         act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 1000, 'fisico'); });
         expect(salvarCamposPersonagem).toHaveBeenCalledWith('Vilao', { escudos: null });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA - 600 * 1000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA - 600 * 1000, expect.anything());
     });
 
     it('no proprio Mestre: absorve na ficha local e a sobra vai para a Vida', () => {
@@ -92,7 +92,7 @@ describe('Dano Rapido do Mestre com escudos', () => {
         const vilao = ficha();
         montar(estado(ficha(), { personagens: { Vilao: vilao } }));
         act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 1000, 'fisico'); });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA - 1000 * 1000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA - 1000 * 1000, expect.anything());
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(ultimoFeed().texto).not.toContain('absorveu');
     });

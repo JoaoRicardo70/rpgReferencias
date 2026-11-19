@@ -35,7 +35,7 @@ describe('absorverEmPersonagem com Imunidade total', () => {
 describe('gravarDanoEmPersonagem - transparente sem gatilhos', () => {
     it('so a vida/fadiga/elemento de sempre; nenhuma escrita de campos extras', () => {
         const r = gravarDanoEmPersonagem('Ana', ficha(), 100 * F, { elemento: 'fogo' });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 100 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 100 * F, expect.anything());
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(r).toEqual({ textos: [], vidaFinalBruta: 100 * F });
     });
@@ -45,7 +45,7 @@ describe('gravarDanoEmPersonagem - Ataque contra jogador com Negar morte', () =>
     it('executa o gatilho sobre a ficha mais fresca e grava so os campos tocados', () => {
         useStore.setState({ personagens: { Ana: comNegar() } });
         const r = gravarDanoEmPersonagem('Ana', ficha(), 0, { elemento: 'fogo', nomeNoFeed: 'Ana' });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1 * F, expect.anything());
         const campos = salvarCamposPersonagem.mock.calls[0][1];
         expect(Object.keys(campos).sort()).toEqual(['combate/usosPoderes']);
         expect(JSON.stringify(campos)).not.toContain('undefined');
@@ -54,7 +54,7 @@ describe('gravarDanoEmPersonagem - Ataque contra jogador com Negar morte', () =>
     it('Dano que nao zera nao dispara nem grava campos extras', () => {
         useStore.setState({ personagens: { Ana: comNegar() } });
         gravarDanoEmPersonagem('Ana', ficha(), 400 * F);
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 400 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 400 * F, expect.anything());
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
     });
     it('gravarVidaDoAlvo devolve os textos e o posGolpe os leva ao resumo do golpe', () => {
@@ -67,7 +67,7 @@ describe('gravarDanoEmPersonagem - Ataque contra jogador com Negar morte', () =>
     });
     it('Dummie sem ficha segue o fluxo antigo', () => {
         const r = gravarVidaDoAlvo('d1', { isDummie: true, nome: 'Boneco', hpAtual: 100 }, 40);
-        expect(salvarDummie).toHaveBeenCalledWith('d1', expect.objectContaining({ hpAtual: 40 }));
+        expect(salvarDummie).toHaveBeenCalledWith('d1', expect.objectContaining({ hpAtual: 40 }), expect.anything());
         expect(r).toEqual({ textos: [], vidaFinalBruta: 40 });
     });
 });
@@ -77,13 +77,13 @@ describe('aplicarDanoEmPersonagem (Dano Rapido em outro jogador)', () => {
         const a = ficha({ escudos: [{ id: 'a', nome: 'Domo', valor: 30, tipo: 'escudo' }] });
         const r = aplicarDanoEmPersonagem('Ana', a, 100, 100 * F, {});
         expect(r.texto).toContain('Ana absorveu 30');
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', (500 - 70) * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', (500 - 70) * F, expect.anything());
     });
     it('Imunidade total: a vida fica como estava', () => {
         const a = ficha({ combate: { imunidadeTotal: God } });
         const r = aplicarDanoEmPersonagem('Ana', a, 100, 100 * F, {});
         expect(r.texto).toContain('Imunidade total');
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 500 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 500 * F, expect.anything());
     });
 });
 

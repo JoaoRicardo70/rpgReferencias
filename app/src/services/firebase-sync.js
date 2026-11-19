@@ -1,14 +1,53 @@
-import { ref, set, update, get, push, remove, onValue, onChildAdded, onChildChanged, limitToLast, query, onDisconnect } from 'firebase/database';
+import { ref, set, update, get, push, remove, runTransaction, onValue, onChildAdded, onChildChanged, limitToLast, query, onDisconnect } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from './firebase-config';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
-import useStore, { sanitizarNome } from '../stores/useStore';
+import useStore, { sanitizarNome, registrarAoDescartarFicha } from '../stores/useStore';
 import { calcularDiffFirebase, mesclarComRemoto } from '../core/utils.js';
 import { deveSerPrivada, lerDadosMestrePrivados, acertoDeveFicarOculto, lerAcertoOculto } from '../core/dadosMestre.js';
 
 let _modoPlasmic = false;
 export function setModoPlasmic(ativo) { _modoPlasmic = ativo; }
 function isInPlasmicCanvas() { return _modoPlasmic; }
+
+// ⚠️ Falha de gravação nunca é engolida: avisa o jogador (toast) e registra no console. Janela de 5 s por texto, para não empilhar toasts.
+const _ultimoAvisoFalha = {};
+export function avisarFalhaGravacao(texto, err) {
+    try { console.warn(texto, err); } catch (e) { /* sem console */ }
+    const agora = Date.now();
+    if (_ultimoAvisoFalha[texto] && agora - _ultimoAvisoFalha[texto] < 5000) return;
+    _ultimoAvisoFalha[texto] = agora;
+    try {
+        const st = useStore.getState();
+        if (st && typeof st.adicionarAviso === 'function') st.adicionarAviso(texto, 'alerta');
+    } catch (e) { /* store indisponível */ }
+}
+
+// 🔥 Soma um DELTA (e não um valor absoluto) a um número do Firebase numa transação: dois danos quase simultâneos de clientes diferentes se
+// acumulam em vez de um sobrescrever o outro. `fallback` = o valor que o cliente conhecia (usado só se o nó ainda não está no cache local).
+// Piso 0; `teto` (opcional, > 0) limita o resultado de uma CURA. Devolve a Promise (true = gravou; falha avisa o jogador).
+// Valor atual ausente (null/undefined/NaN; o 1º passo da transação pode rodar com o cache local vazio) usa o `fallback`, nunca 0.
+// `existe` (opcional): () => false quando o store já sabe que o dono do nó foi APAGADO; aí a transação aborta e não recria um nó parcial.
+// `applyLocally:false`: o valor provisório não aparece na tela antes de o servidor confirmar (sem "flash" de Vida errada).
+function somarDeltaTransacional(refNo, delta, fallback, teto, textoErro, existe) {
+    return runTransaction(refNo, (atual) => {
+        const ausente = atual === null || atual === undefined || !Number.isFinite(Number(atual));
+        if (ausente && typeof existe === 'function' && !existe()) return undefined;
+        const base = ausente ? (Number(fallback) || 0) : Number(atual);
+        let novo = Math.max(0, base + delta);
+        if (Number.isFinite(teto) && teto > 0 && delta > 0) novo = Math.min(novo, Math.max(teto, base));
+        return novo;
+    }, { applyLocally: false }).then(() => true).catch((err) => { avisarFalhaGravacao(textoErro, err); return false; });
+}
+
+// O store ainda conhece este item de uma coleção (personagens/dummies)? Coleção vazia/não carregada = "não sei" = true (não aborta).
+function existeNoStore(colecao, chaves) {
+    try {
+        const c = useStore.getState()[colecao];
+        if (!c || typeof c !== 'object' || Object.keys(c).length === 0) return true;
+        return chaves.some(k => c[k] !== undefined && c[k] !== null);
+    } catch (e) { return true; }
+}
 
 // ==========================================
 // 🔥 SISTEMA DE PRESENÇA (ONLINE/OFFLINE) 🔥
@@ -53,8 +92,11 @@ export function monitorarAuth(callback) {
             const nick = user.email.split('@')[0];
             
             // 🔥 A MÁGICA: Injeta a identidade diretamente no Cérebro do Jogo
-            useStore.getState().setMeuNome(nick); 
-            try { localStorage.setItem('rpgNome', nick); } catch (e) { /* sem localStorage */ } // Garante a retrocompatibilidade com a Web
+            // Só assume o nome da conta se NENHUM personagem já foi restaurado (reload com personagem escolhido): senão a ficha dele ficaria sob o nome da conta.
+            if (!useStore.getState().meuNome) {
+                useStore.getState().setMeuNome(nick);
+                try { localStorage.setItem('rpgNome', nick); } catch (e) { /* sem localStorage */ } // Garante a retrocompatibilidade com a Web
+            }
             
             callback(nick);
         }
@@ -126,7 +168,7 @@ let debounceTimer = null;
 export function salvarFichaSilencioso() {
     if (isInPlasmicCanvas()) return;
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => { salvarFirebaseImediato().catch(() => {}); }, 500);
+    debounceTimer = setTimeout(() => { salvarFirebaseImediato().catch((err) => avisarFalhaGravacao('⚠️ Não foi possível salvar a ficha no servidor' + (err && err.code ? ` (${err.code})` : '') + ': as alterações ficam só neste navegador por enquanto.', err)); }, 500);
 }
 
 // 🔥 Último estado da ficha confirmado no Firebase (o que este cliente sabe que
@@ -173,13 +215,17 @@ export function confirmarLeituraRemota(dados, nome) {
     if (existe && ultimoEstadoSincronizado === null) ultimoEstadoSincronizado = JSON.parse(JSON.stringify(dados));
 }
 
+// O nó do MEU personagem sumiu do servidor depois de existir (apagado por outra pessoa); libera quando dados voltarem ao nó (recriado) ou ao trocar de personagem.
+let apagadoNaNuvem = false;
+let ultimoWarnSalvamentoBloqueado = 0;
 function avisarEnvioBloqueado() {
     const agora = Date.now();
     if (agora - ultimoAvisoBloqueio < 20000) return;
     ultimoAvisoBloqueio = agora;
     try {
         const adicionar = useStore.getState().adicionarAviso;
-        if (typeof adicionar === 'function') adicionar('⚠️ A ficha ainda não sincronizou com o servidor, então a alteração NÃO foi enviada (isso evita sobrescrever a ficha da nuvem com uma cópia antiga). Espere conectar e repita.', 'alerta');
+        if (typeof adicionar === 'function' && apagadoNaNuvem) adicionar('⚠️ Este personagem foi apagado do servidor por outra pessoa: as alterações NÃO foram enviadas. Entre no personagem de novo para recriá-lo.', 'alerta');
+        else if (typeof adicionar === 'function') adicionar('⚠️ A ficha ainda não sincronizou com o servidor, então a alteração NÃO foi enviada (isso evita sobrescrever a ficha da nuvem com uma cópia antiga). Espere conectar e repita.', 'alerta');
     } catch (e) { /* sem store: só não avisa */ }
 }
 
@@ -188,11 +234,13 @@ function avisarEnvioBloqueado() {
 // NOVO seria calculado contra o estado do personagem ANTERIOR. Também cancela
 // um debounce pendente: sem isso, um save agendado para o personagem ANTIGO
 // podia disparar depois da troca e gravar a ficha errada no personagem NOVO.
+try { registrarAoDescartarFicha(() => resetSincronizacaoFicha()); } catch (e) { /* store simulado sem o gancho */ }
 export function resetSincronizacaoFicha() {
     ultimoEstadoSincronizado = null;
     confirmacaoRemota = 'desconhecido';
     confirmadoPara = '';
     ultimoAvisoBloqueio = 0;
+    apagadoNaNuvem = false;
     clearTimeout(debounceTimer);
     debounceTimer = null;
 }
@@ -202,6 +250,10 @@ export function salvarFirebaseImediato() {
     const { minhaFicha, meuNome, mesaId } = useStore.getState();
     const nomeSanitizado = sanitizarNome(meuNome);
     if (!nomeSanitizado || !mesaId) return Promise.resolve();
+
+    // 🔒 A ficha em memória é de OUTRO nome (carregada sob um personagem e o nome ativo mudou): nunca grava no caminho do nome ativo.
+    const { fichaDono } = useStore.getState();
+    if (fichaDono && fichaDono !== meuNome) { const agoraW = Date.now(); if (agoraW - ultimoWarnSalvamentoBloqueado > 10000) { ultimoWarnSalvamentoBloqueado = agoraW; console.warn('Salvamento bloqueado: a ficha carregada pertence a', fichaDono, 'e o personagem ativo é', meuNome); } return Promise.resolve(); }
 
     const fichaParaSalvar = JSON.parse(JSON.stringify(minhaFicha));
 
@@ -309,7 +361,23 @@ export function iniciarListenerFichaPropria(nome, callback) {
         // só os campos "intocados" desde a última sync recebem o valor
         // remoto. Isso evita perder edições rápidas feitas entre um
         // debounce e outro quando um snapshot remoto chega no meio.
-        if (dados) {
+        // 🗑️ O nó do MEU personagem sumiu depois de existir (apagado por outra pessoa): trava o envio, para um edit posterior não recriar um
+        // personagem "fantasma" parcial nem ressuscitar o apagado. Recarregar/entrar de novo no personagem libera.
+        if (!dados && confirmacaoRemota === 'existe' && confirmadoPara === `${mesaId}/${nomeSanitizado}`) {
+            confirmacaoRemota = 'desconhecido';
+            apagadoNaNuvem = true;
+            ultimoEstadoSincronizado = null;
+            clearTimeout(debounceTimer);
+            avisarFalhaGravacao('⚠️ Este personagem foi apagado por outra pessoa. As alterações NÃO serão enviadas; entre no personagem de novo para recriá-lo.');
+        }
+        if (dados && apagadoNaNuvem) {
+            // O nó voltou (recriado): reconfirma a leitura, a baseline passa a ser o que está na nuvem (que vale) e o envio é liberado.
+            apagadoNaNuvem = false;
+            confirmacaoRemota = 'existe';
+            confirmadoPara = `${mesaId}/${nomeSanitizado}`;
+            ultimoEstadoSincronizado = JSON.parse(JSON.stringify(dados));
+            useStore.getState().carregarDadosFicha(dados, useStore.getState().meuNome);
+        } else if (dados) {
             const { minhaFicha, setMinhaFicha } = useStore.getState();
             setMinhaFicha(mesclarComRemoto(ultimoEstadoSincronizado || {}, minhaFicha, dados));
             ultimoEstadoSincronizado = JSON.parse(JSON.stringify(dados));
@@ -472,6 +540,8 @@ export async function deletarPersonagem(nome) {
     if (!nomeSanitizado || !mesaId) return;
     try { localStorage.removeItem('rpgFicha_' + nomeSanitizado); } catch (err) {}
     if (!db) return;
+    // Apagando o MEU personagem: o listener vai ver o nó sumir; isso é esperado, não é "apagado por outra pessoa".
+    if (chaveDaFicha(nome) === chaveDaFicha()) { confirmacaoRemota = 'desconhecido'; ultimoEstadoSincronizado = null; clearTimeout(debounceTimer); }
     await remove(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}`));
 }
 export const apagarFicha = deletarPersonagem;
@@ -504,11 +574,48 @@ export function iniciarListenerDummies(callback) {
     if (!db || !mesaId) return () => {};
     return onValue(ref(db, `mesas/${mesaId}/dummies`), (snapshot) => { callback(snapshot.val() || {}); });
 }
-export function salvarDummie(id, dadosDummie) {
+// Grava um Dummie. Se ele já existe no store, grava SÓ os campos que mudaram (update por caminho) em vez do objeto inteiro (um golpe e um
+// arrastar de posição, ou dois golpes, não se apagam mais). `opcoes.baseHp` = a Vida que o cliente conhecia: o campo `hpAtual` vira DELTA
+// transacional (novo - baseHp), com piso 0 e teto `opcoes.hpMax`. Sem Dummie no store (criação), grava o objeto inteiro como antes.
+export function salvarDummie(id, dadosDummie, opcoes = {}) {
     if (isInPlasmicCanvas()) return;
-    const { mesaId } = useStore.getState();
+    const { mesaId, dummies } = useStore.getState();
     if (!db || !mesaId) return;
-    set(ref(db, `mesas/${mesaId}/dummies/${id}`), dadosDummie).catch(() => {});
+    const textoErro = 'Não foi possível gravar o Dummie no servidor: a alteração pode não ter sido salva.';
+    const atual = dummies && dummies[id];
+    if (!atual || typeof atual !== 'object' || !dadosDummie || typeof dadosDummie !== 'object') {
+        set(ref(db, `mesas/${mesaId}/dummies/${id}`), dadosDummie).catch((err) => avisarFalhaGravacao(textoErro, err));
+        return;
+    }
+    const igual = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
+    const usaDelta = Number.isFinite(Number(opcoes.baseHp)) && Number.isFinite(Number(dadosDummie.hpAtual));
+    const mudados = {}; const removidos = [];
+    Object.keys(dadosDummie).forEach((k) => {
+        if (usaDelta && k === 'hpAtual') return;
+        if (!igual(dadosDummie[k], atual[k])) mudados[k] = dadosDummie[k];
+    });
+    Object.keys(atual).forEach((k) => { if (!(k in dadosDummie) && !(usaDelta && k === 'hpAtual')) removidos.push(k); });
+    const delta = usaDelta ? Number(dadosDummie.hpAtual) - Number(opcoes.baseHp) : 0;
+    if (Object.keys(mudados).length === 0 && removidos.length === 0 && delta === 0) return;
+    // Uma TRANSAÇÃO no nó do Dummie: só os campos alterados (+ a Vida por delta) e nunca recria um Dummie apagado por outro cliente em voo.
+    runTransaction(ref(db, `mesas/${mesaId}/dummies/${id}`), (cur) => {
+        if (cur === null || cur === undefined || typeof cur !== 'object') {
+            if (!existeNoStore('dummies', [id])) return undefined; // apagado: aborta
+            cur = JSON.parse(JSON.stringify(atual)); // 1º passo com o cache vazio: parte do que o cliente conhecia
+        }
+        const prox = { ...cur };
+        Object.keys(mudados).forEach((k) => { if (mudados[k] === undefined || mudados[k] === null) delete prox[k]; else prox[k] = mudados[k]; });
+        removidos.forEach((k) => { delete prox[k]; });
+        if (usaDelta && delta !== 0) {
+            const n = Number(cur.hpAtual);
+            const base = Number.isFinite(n) ? n : Number(opcoes.baseHp);
+            const teto = Number(opcoes.hpMax);
+            let novo = Math.max(0, base + delta);
+            if (Number.isFinite(teto) && teto > 0 && delta > 0) novo = Math.min(novo, Math.max(teto, base));
+            prox.hpAtual = novo;
+        }
+        return prox;
+    }, { applyLocally: false }).catch((err) => avisarFalhaGravacao(textoErro, err));
 }
 export function deletarDummie(id) {
     if (isInPlasmicCanvas()) return;
@@ -618,12 +725,22 @@ export function zerarIniciativaGlobal(nomesArray) {
 // aplicarDanoRapido) — como não existe transação aqui, dois Mestres aplicando dano no mesmo alvo
 // quase ao mesmo tempo podem se sobrepor (o segundo clique "ganha"); aceitável pro uso real (GM
 // clicando um dano por vez), mas documentado caso vire um problema no futuro.
-export function aplicarDanoDireto(nome, novoValorVidaAtual) {
+// `opcoes.base` (a Vida que o cliente conhecia) liga o modo TRANSACIONAL: grava `atual + (novo - base)` com piso 0 e teto `opcoes.max` (cura),
+// então dois danos simultâneos se somam. Sem `base`, mantém o `set` absoluto de sempre.
+export function aplicarDanoDireto(nome, novoValorVidaAtual, opcoes = {}) {
     if (isInPlasmicCanvas()) return;
     const { mesaId } = useStore.getState();
     if (!db || !mesaId || !nome) return;
     const nomeSanitizado = sanitizarNome(nome);
-    set(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}/vida/atual`), Math.max(0, novoValorVidaAtual)).catch(() => {});
+    const refVida = ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}/vida/atual`);
+    const textoErro = `Não foi possível gravar o dano em ${nome} no servidor: a Vida dele pode não ter mudado.`;
+    if (opcoes && Number.isFinite(Number(opcoes.base))) {
+        const delta = Math.max(0, novoValorVidaAtual) - Number(opcoes.base);
+        if (delta === 0) return; // nada mudou: não grava à toa
+        somarDeltaTransacional(refVida, delta, opcoes.base, Number(opcoes.max), textoErro, () => existeNoStore('personagens', [nome, nomeSanitizado]));
+        return;
+    }
+    set(refVida, Math.max(0, novoValorVidaAtual)).catch((err) => avisarFalhaGravacao(textoErro, err));
 }
 // 🔥 Mesmo esquema de aplicarDanoDireto acima, mas para VÁRIOS campos pontuais de uma vez —
 // usado por avancarTurno (ver MapaFormContext.jsx) pra aplicar a Regeneração/Ações/Fadiga de
@@ -653,12 +770,21 @@ export function salvarCamposPersonagem(nome, campos) {
 // pelo Dano Rápido do Mestre (ver MapaFormContext.jsx > aplicarDanoRapido) pra que o dano que o
 // Mestre aplica em OUTRO jogador já gere Fadiga na hora, escalada pela Supressão de Poder daquele
 // jogador, sem precisar esperar o turno dele voltar na iniciativa do Mapa.
-export function aplicarFadigaDireta(nome, novoFadigaExtra) {
+export function aplicarFadigaDireta(nome, novoFadigaExtra, opcoes = {}) {
     if (isInPlasmicCanvas()) return;
     const { mesaId } = useStore.getState();
     if (!db || !mesaId || !nome) return;
     const nomeSanitizado = sanitizarNome(nome);
-    set(ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}/combate/fadigaExtra`), Math.max(0, novoFadigaExtra)).catch(() => {});
+    const refFadiga = ref(db, `mesas/${mesaId}/personagens/${nomeSanitizado}/combate/fadigaExtra`);
+    const textoErro = `Não foi possível gravar a Fadiga de ${nome} no servidor.`;
+    // `opcoes.base` = a Fadiga que o cliente conhecia: modo transacional (soma só o ganho deste golpe).
+    if (opcoes && Number.isFinite(Number(opcoes.base))) {
+        const delta = Math.max(0, novoFadigaExtra) - Number(opcoes.base);
+        if (delta === 0) return; // nada mudou: não grava `fadigaExtra: 0` à toa
+        somarDeltaTransacional(refFadiga, delta, opcoes.base, 0, textoErro, () => existeNoStore('personagens', [nome, nomeSanitizado]));
+        return;
+    }
+    set(refFadiga, Math.max(0, novoFadigaExtra)).catch((err) => avisarFalhaGravacao(textoErro, err));
 }
 // 🔥 Mesmo esquema de aplicarFadigaDireta acima, só que pro campo combate/ultimoElementoRecebido —
 // usado pelo Dano Rápido do Mestre (ver MapaFormContext.jsx > aplicarDanoRapido) quando o Mestre

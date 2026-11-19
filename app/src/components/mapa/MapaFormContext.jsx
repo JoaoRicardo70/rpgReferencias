@@ -804,11 +804,12 @@ export function MapaFormProvider({ children }) {
         let houveDisputa = false;
 
         const storeAtual = useStore.getState();
-        const checkHit = (pos, nome, isDummie, idDummie, dData) => {
+        // `fichaOutro` = ficha (do store) de OUTRO jogador dentro da zona; ele toma o dano pelo caminho de dano em outra ficha (escudo/imunidade/gatilhos, por delta).
+        const checkHit = (pos, nome, isDummie, idDummie, dData, fichaOutro = null) => {
             if (!pos || pos.x === undefined) return;
             const cenaDaEntidade = (isDummie ? (dData?.cenaId || pos.cenaId) : pos.cenaId) || 'default';
             if (cenaDaEntidade !== (zona.cenaId || 'default')) return;
-            if (!alvoDaZonaPassa(zona, isDummie ? comoCombatente(dData, true) : comoCombatente(storeAtual.minhaFicha, false), storeAtual)) return;
+            if (!alvoDaZonaPassa(zona, isDummie ? comoCombatente(dData, true) : comoCombatente(fichaOutro || storeAtual.minhaFicha, false), storeAtual)) return;
 
             const dX = Math.abs(pos.x - zona.x);
             const dY = Math.abs(pos.y - zona.y);
@@ -820,7 +821,7 @@ export function MapaFormProvider({ children }) {
                     if (disputa.ativa || escalado) houveDisputa = true;
                     hitLog.push(nome);
                     if (disputa.ativa || escalado) hitLogMestre.push(`${nome}: ${dano.toLocaleString('pt-BR')}`);
-                    salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(dano)) });
+                    salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(dano)) }, { baseHp: dData.hpAtual || 0, hpMax: dData.hpMax });
                 } else if (nome === meuNome) {
                     const { dano, disputa, escalado } = aplicarDisputaDaZona(din, getPoderParaDisputa(minhaFicha, useStore.getState().divisorPoderMesa), getVidaMaxExibidaFicha(minhaFicha), zona.danoDeDados);
                     if (disputa.ativa || escalado) houveDisputa = true;
@@ -833,6 +834,15 @@ export function MapaFormProvider({ children }) {
                     salvarFichaSilencioso();
                     if (textoEscudoZona) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🛡️ ${textoEscudoZona}` });
                     if (textoGatilhosZona) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: textoGatilhosZona });
+                } else if (fichaOutro && fichaOutro.vida) {
+                    const divisorZona = useStore.getState().divisorPoderMesa;
+                    const { dano, disputa, escalado } = aplicarDisputaDaZona(din, getPoderParaDisputa(fichaOutro, divisorZona), getVidaMaxExibidaFicha(fichaOutro), zona.danoDeDados);
+                    if (disputa.ativa || escalado) houveDisputa = true;
+                    hitLog.push(nome);
+                    if (disputa.ativa || escalado) hitLogMestre.push(`${nome}: ${dano.toLocaleString('pt-BR')}`);
+                    const r = aplicarDanoEmPersonagem(nome, fichaOutro, dano, danoExibidoParaBruto(dano), {});
+                    if (r.texto) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🛡️ ${r.texto}` });
+                    if (r.textos && r.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${r.textos.join(' · ')}` });
                 } else {
                     hitLog.push(nome);
                 }
@@ -840,6 +850,12 @@ export function MapaFormProvider({ children }) {
         };
 
         Object.entries(dummies || {}).forEach(([id, d]) => checkHit(d.posicao, d.nome, true, id, d));
+        // 🌪️ Os OUTROS jogadores dentro da zona também sofrem (antes só dummies e quem clicou em Passar Turno).
+        Object.entries(storeAtual.personagens || {}).forEach(([nomeP, fichaP]) => {
+            if (!fichaP || nomeP === meuNome) return;
+            const posP = fichaP.posicoes ? fichaP.posicoes[cenaAtivaId] : fichaP.posicao;
+            if (posP) checkHit(posP, nomeP, false, null, null, fichaP);
+        });
         
         let myPos = minhaFicha?.posicoes ? minhaFicha.posicoes[cenaAtivaId] : minhaFicha?.posicao;
         if (myPos) checkHit(myPos, meuNome, false, null, null);
@@ -891,7 +907,7 @@ export function MapaFormProvider({ children }) {
                 enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: escondeDano ? `⚠️ ${entidadeNome} pisou na área de [${zona.nome}] e sofreu dano${letalStr} imediatamente!` : `⚠️ ${entidadeNome} pisou na área de [${zona.nome}] e sofreu ${danoAtual} de Dano${letalStr} imediatamente!`, ...((disputa.ativa || escalado) ? { textoMestre: escondeDano ? `Dano após a Disputa de Poder: ${danoAtual}${textoDisputa}` : descreverDisputa(disputa) } : {}) });
                                 
                 if (isDummie && idDummie && dData) {
-                    salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoAtual)) });
+                    salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoAtual)) }, { baseHp: dData.hpAtual || 0, hpMax: dData.hpMax });
                 } else if (entidadeNome === meuNome) {
                     let textoEscudoPisar = ''; let textoGatilhosPisar = '';
                     const decisoesPisar = perguntarGatilhosDeDano(useStore.getState().minhaFicha, danoAtual, { nome: entidadeNome, nomeEscudo: entidadeNome });
@@ -1142,7 +1158,14 @@ export function MapaFormProvider({ children }) {
             novoCenario.zonas = novoCenario.zonas.filter(z => {
                 if (z.conjurador === nextPlayer.nome) {
                     z.duracao -= 1;
-                    if (z.duracao > 0 && z.danoOriginal) dispararEfeitoDaZona(z);
+                    // Idempotência: a zona só castiga uma vez por rodada+turno (dois cliques / dois clientes não aplicam duas vezes).
+                    // ⚠️ Limitação residual: a marca `ultimoTick` é lida do store local; dois clientes que passam o turno ANTES de o cenário do outro
+                    // chegar ainda podem aplicar duas vezes. Restringir ao Mestre perderia o dano quando um jogador passa o turno com o Mestre online;
+                    // o fechamento definitivo exige reivindicar o tick por transação no Firebase (não feito aqui).
+                    const chaveTick = `${rodadaNova}:${nextIndex}`;
+                    const zonaNoStore = ((storeState.cenario && storeState.cenario.zonas) || []).find(zz => zz.id === z.id);
+                    const jaAplicada = z.id !== undefined && zonaNoStore && zonaNoStore.ultimoTick === chaveTick;
+                    if (z.duracao > 0 && z.danoOriginal && !jaAplicada) { z.ultimoTick = chaveTick; dispararEfeitoDaZona(z); }
                     return z.duracao > 0;
                 }
                 return true;
@@ -1253,7 +1276,7 @@ export function MapaFormProvider({ children }) {
             const storeState = useStore.getState();
             const dData = storeState.dummies[alvo.id];
             if (!dData) return;
-            salvarDummie(alvo.id, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - valorRaw) });
+            salvarDummie(alvo.id, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - valorRaw) }, { baseHp: dData.hpAtual || 0, hpMax: dData.hpMax });
         } else if (alvo.nome === meuNome) {
             const decisoesRapido = perguntarGatilhosDeDano(useStore.getState().minhaFicha, valor, { nome: alvo.nome, nomeEscudo: alvo.nome, golpe: GOLPE_DANO_RAPIDO });
             const escolhaDoDono = criarEscolhaDoDono();

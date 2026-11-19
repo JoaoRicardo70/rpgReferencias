@@ -254,7 +254,7 @@ export default function App() {
             setMeuNome(nomeSanitizado);
             try {
                 const backup = localStorage.getItem('rpgFicha_' + nomeSanitizado);
-                if (backup) carregarDadosFicha(JSON.parse(backup));
+                if (backup) carregarDadosFicha(JSON.parse(backup), nomeSanitizado);
             } catch (e) { console.warn('Falha backup:', e); }
             setPronto(true);
         }
@@ -317,8 +317,10 @@ export default function App() {
             if (!(leitura.ok && dados)) {
                 try { dados = JSON.parse(localStorage.getItem('rpgFicha_' + nomeSanitizado) || 'null'); } catch (e) { dados = null; }
             }
+            // Leitura tardia: se o personagem ativo já mudou enquanto esperava o servidor, esta carga não vale mais.
+            if (useStore.getState().meuNome !== nomeSanitizado) return;
             if (dados && Object.keys(dados).length > 2) {
-                carregarDadosFicha(dados);
+                carregarDadosFicha(dados, nomeSanitizado);
                 // 🔥 Persiste imediatamente a migração de ficha.passivas -> ficha.poderes
                 // (ver migrarPassivasParaPoderes), para não repeti-la a cada login.
                 if (leitura.ok && Array.isArray(dados.passivas) && dados.passivas.length > 0) {

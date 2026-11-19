@@ -74,7 +74,7 @@ describe.skipIf(!temAntigo)('P1 - Ataque: Reflexo e golpe em jogador identicos a
 describe('P2 - Ataque com gatilhos', () => {
     it('Negar morte do ALVO salva: feed nao diz que morreu (sobreviveu, overkill 0) e traz o selo do gatilho', () => {
         const r = rodar(Novo, { dano: 1000, ana: { vida: stat(1000000), poderes: [{ id: 'p1', nome: 'P', ativa: true, gatilhos: [NEGAR] }] } });
-        expect(JSON.parse(r.danoDireto)).toEqual([['Ana', 1000]]);
+        expect(JSON.parse(r.danoDireto).map(c => c.slice(0, 2))).toEqual([['Ana', 1000]]);
         const feed = ultimoFeed(r);
         expect(feed.alvoSobreviveu).toBe(true);
         expect(feed.overkill).toBe(0);
@@ -102,6 +102,6 @@ describe('P2 - Ataque com gatilhos', () => {
     });
     it('golpe em jogador com God Mode: Vida do alvo intacta', () => {
         const r = rodar(Novo, { dano: 5000, ana: { combate: { imunidadeTotal: { turnosRestantes: 1, origem: 'x' } } } });
-        expect(JSON.parse(r.danoDireto)).toEqual([['Ana', 1000000]]);
+        expect(JSON.parse(r.danoDireto).map(c => c.slice(0, 2))).toEqual([['Ana', 1000000]]);
     });
 });

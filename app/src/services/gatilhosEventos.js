@@ -11,6 +11,7 @@ import { coletarGatilhos } from '../core/gatilhos';
 import { dispararEventoNaFicha, camposParaGravar } from '../core/gatilhosAplicar';
 import { cenaAtualDaMesa, aplicarDanoNaVidaDaFicha, criarEscolhaDoDono } from './danoVida';
 import { aplicarDanoEmPersonagem } from './danoAlvo';
+import { alvoDoGatilhoPorNome, alvoDoGatilhoPorItem, usaCondicaoDeAlvo } from './alvoDoGatilho';
 import { danoExibidoParaBruto } from '../core/vitals';
 import { combateAtivo as combateAtivoNoCenario } from '../core/combateEstado';
 import { aprovarGanhosPermanentesLigado } from '../core/aprovacaoPermanente';
@@ -100,7 +101,7 @@ export function dispararResultadoDoAcerto(alvos, { atacanteSouEu = true, nomeAta
     if (lista.length === 0) return textos;
     const st = useStore.getState();
     if (atacanteSouEu && lista.every(a => a && a.acertou === false)) {
-        dispararEventoMeu({ tipo: 'errou' }, { nome: st.meuNome }).textos.forEach(t => textos.push(t));
+        dispararEventoMeu({ tipo: 'errou' }, { nome: st.meuNome, alvo: usaCondicaoDeAlvo(st.minhaFicha) ? alvoDoGatilhoPorItem(lista[0]) : null }).textos.forEach(t => textos.push(t));
     }
     lista.forEach((a) => {
         if (!a || a.acertou !== false) return;
@@ -108,7 +109,7 @@ export function dispararResultadoDoAcerto(alvos, { atacanteSouEu = true, nomeAta
         // Com dummieId, só 'pj:Nome' é personagem (um Dummie com o nome de um jogador NÃO conta); sem dummieId, pelo nome.
         const nome = id ? (id.startsWith('pj:') ? id.slice(3) : '') : (((st.personagens || {})[a.nome] || a.nome === st.meuNome) ? a.nome : '');
         if (!nome || nome === nomeAtacante) return;
-        dispararEventoEmPersonagem(nome, { tipo: 'inimigoErrou' }).textos.forEach(t => textos.push(`${nome}: ${t}`));
+        dispararEventoEmPersonagem(nome, { tipo: 'inimigoErrou' }, { alvo: usaCondicaoDeAlvo(nome === st.meuNome ? st.minhaFicha : (st.personagens || {})[nome]) ? alvoDoGatilhoPorNome(nomeAtacante) : null }).textos.forEach(t => textos.push(`${nome}: ${t}`));
     });
     return textos;
 }

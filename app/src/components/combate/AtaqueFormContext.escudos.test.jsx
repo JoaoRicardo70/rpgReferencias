@@ -67,7 +67,7 @@ describe('AtaqueFormContext - escudos do alvo-personagem', () => {
         montar({ personagens: { Ana: fichaAna({ escudos: [esc('a', 'Domo Gelido', 1600)] }) } });
         act(() => { probe.rolarDano(); });
         expect(salvarCamposPersonagem).toHaveBeenCalledWith('Ana', { escudos: [expect.objectContaining({ id: 'a', valor: 600 })] });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000, expect.anything());
         expect(ultimoFeed().textoPosGolpe.join(' ')).toContain('Ana absorveu 1.000 (restam 600)');
     });
 
@@ -75,20 +75,20 @@ describe('AtaqueFormContext - escudos do alvo-personagem', () => {
         montar({ personagens: { Ana: fichaAna({ escudos: [esc('a', 'Parede', 600)] }) } });
         act(() => { probe.rolarDano(); });
         expect(salvarCamposPersonagem).toHaveBeenCalledWith('Ana', { escudos: null });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 400 * 1000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 400 * 1000, expect.anything());
         expect(ultimoFeed().textoPosGolpe.join(' ')).toContain('Ana absorveu 600 (restam 0)');
     });
 
     it('Dano Verdadeiro tambem passa pelo escudo', () => {
         montar({ personagens: { Ana: fichaAna({ escudos: [esc('a', 'Parede', 300)] }) }, danoVerdadeiroLigado: true });
         act(() => { probe.rolarDano(); });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 700 * 1000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 700 * 1000, expect.anything());
     });
 
     it('sem escudos (ficha antiga): comportamento de sempre, nada gravado em escudos', () => {
         montar({ personagens: { Ana: fichaAna() } });
         act(() => { probe.rolarDano(); });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 1000 * 1000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 1000 * 1000, expect.anything());
         const chamouEscudos = salvarCamposPersonagem.mock.calls.some(([, c]) => 'escudos' in c);
         expect(chamouEscudos).toBe(false);
     });

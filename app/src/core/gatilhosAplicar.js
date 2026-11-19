@@ -465,7 +465,7 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
         const coletados = coletarGatilhos(ficha, evento.tipo === 'poderDesligou' ? { tambemLigado: evento.poderId } : {}).filter(c => c.gatilho.evento.tipo === evento.tipo);
         if (coletados.length > 0) {
             const jaDisparados = Array.isArray(ctx.jaDisparados) ? ctx.jaDisparados : [];
-            const av = avaliarGatilhos(evento, { eventoId: ctx.eventoId, cenaId, profundidade, jaDisparados, decisoes: ctx.decisoes, perguntas: ctx.perguntas, nome: ctx.nome }, ficha, { coletados });
+            const av = avaliarGatilhos(evento, { eventoId: ctx.eventoId, cenaId, profundidade, jaDisparados, decisoes: ctx.decisoes, perguntas: ctx.perguntas, nome: ctx.nome, alvo: ctx.alvo }, ficha, { coletados });
             if (av.acoes.length > 0) {
                 const r = aplicarAcoesNoRascunho(ficha, av.acoes, { cenaId, eventoId: ctx.eventoId, disparados: av.disparados, jaDisparados, profundidade, nome: ctx.nome, ...herdar(ctx) });
                 (r.externos || []).forEach(e => { if (!res.externos) res.externos = []; res.externos.push(e); });

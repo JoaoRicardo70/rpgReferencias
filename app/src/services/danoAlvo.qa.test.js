@@ -134,7 +134,7 @@ describe('P2 - alvo-personagem em outro cliente com gatilhos (grava so campos to
     it('Negar morte: Vida via aplicarDanoDireto(1), campos so combate/*; jamais a ficha inteira nem vida/atual', () => {
         useStore.setState({ personagens: { Ana: comPoder([NEGAR]) } });
         const r = novo.gravarDanoEmPersonagem('Ana', ficha(), 0, { nomeNoFeed: 'Ana' });
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1 * F);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1 * F, expect.anything());
         expect(Object.keys(camposGravados())).toEqual(['combate/usosPoderes']); // sem eventoId real nao ha combate/gatilhos
         expect(semUndefined(camposGravados())).toBe(true);
         expect(fb.salvarCamposPersonagem).toHaveBeenCalledTimes(1);
@@ -150,7 +150,7 @@ describe('P2 - alvo-personagem em outro cliente com gatilhos (grava so campos to
         useStore.setState({ personagens: { Ana: f } });
         vi.clearAllMocks();
         const r = novo.gravarDanoEmPersonagem('Ana', f, 0, { eventoId: 'golpe_1' });
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 0);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 0, expect.anything());
         expect(r.textos).toEqual([]);
     });
 
@@ -187,7 +187,7 @@ describe('P2 - alvo-personagem em outro cliente com gatilhos (grava so campos to
     it('usa a ficha mais fresca do store (nao a snapshot do clique): fresca sem o poder nao dispara', () => {
         useStore.setState({ personagens: { Ana: ficha() } });
         novo.gravarDanoEmPersonagem('Ana', comPoder([NEGAR]), 0, {});
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 0);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 0, expect.anything());
         expect(fb.salvarCamposPersonagem).not.toHaveBeenCalled();
     });
 
@@ -205,7 +205,7 @@ describe('P2 - alvo-personagem em outro cliente com gatilhos (grava so campos to
         useStore.setState({ personagens: { Ana: atual } });
         vi.clearAllMocks();
         const r = novo.gravarDanoEmPersonagem('Ana', ficha(), 0, {});
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 0);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 0, expect.anything());
         expect(r.textos).toEqual([]);
     });
 
@@ -224,7 +224,7 @@ describe('P2 - alvo-personagem em outro cliente com gatilhos (grava so campos to
         const dano = pg.aplicar('pj:Ana', alvo, 9999);
         expect(dano).toBe(0);
         pg.adicionarTextos(novo.gravarVidaDoAlvo('pj:Ana', alvo, Math.max(0, 500 * F - dano * F), {}));
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 500 * F);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 500 * F, expect.anything());
         expect(fb.salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(pg.resultado().textos.join(' ')).toContain('Imunidade total');
     });
@@ -232,7 +232,7 @@ describe('P2 - alvo-personagem em outro cliente com gatilhos (grava so campos to
     it('God Mode: gravarDanoEmPersonagem com vidaFinal menor que a atual mantem a Vida atual e NAO dispara gatilhos', () => {
         useStore.setState({ personagens: { Ana: comPoder([NEGAR], { combate: { imunidadeTotal: GOD } }) } });
         const r = novo.gravarDanoEmPersonagem('Ana', ficha(), 0, { nomeNoFeed: 'Ana' });
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 500 * F);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 500 * F, expect.anything());
         expect(fb.salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(r.textos.join(' ')).toContain('Imunidade total');
     });
@@ -240,14 +240,14 @@ describe('P2 - alvo-personagem em outro cliente com gatilhos (grava so campos to
     it('God Mode no Dano Rapido: valorRaw enorme e ignorado e o dano grava a Vida intacta', () => {
         useStore.setState({ personagens: { Ana: ficha({ combate: { imunidadeTotal: GOD } }) } });
         const r = novo.aplicarDanoEmPersonagem('Ana', ficha({ combate: { imunidadeTotal: GOD } }), 1e9, 1e9 * F, {});
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 500 * F);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 500 * F, expect.anything());
         expect(r.texto).toContain('Imunidade total');
     });
 
     it('imunidade vencida (0 turnos) no store nao protege', () => {
         useStore.setState({ personagens: { Ana: ficha({ combate: { imunidadeTotal: { turnosRestantes: 0 } } }) } });
         novo.gravarDanoEmPersonagem('Ana', ficha(), 100 * F, {});
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 100 * F);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 100 * F, expect.anything());
     });
 
     it('arredondamento: no caminho com gatilhos a Vida final difere do caminho antigo por no maximo 1e-3 bruto', () => {
@@ -261,7 +261,7 @@ describe('P2 - alvo-personagem em outro cliente com gatilhos (grava so campos to
     it('Vida do alvo >= vidaFinal (cura ou dano 0) nao entra no caminho de gatilhos', () => {
         useStore.setState({ personagens: { Ana: comPoder([NEGAR]) } });
         const r = novo.gravarDanoEmPersonagem('Ana', ficha(), 900 * F, {});
-        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 900 * F);
+        expect(fb.aplicarDanoDireto).toHaveBeenCalledWith('Ana', 900 * F, expect.anything());
         expect(r).toMatchObject({ textos: [] });
         expect(fb.salvarCamposPersonagem).not.toHaveBeenCalled();
     });

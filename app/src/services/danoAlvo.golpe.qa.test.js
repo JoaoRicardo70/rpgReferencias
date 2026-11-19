@@ -34,7 +34,7 @@ describe('aplicarDanoEmPersonagem com golpe', () => {
         const f = ficha([gAting([{ tipo: 'ganhoPermanente', valor: 7 }])]);
         useStore.setState({ personagens: { Ana: f } });
         const r = aplicarDanoEmPersonagem('Ana', f, 100, 100 * F, { golpe: GOLPE });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 400 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 400 * F, expect.anything());
         expect(todosCampos()[PC]).toBe(7);
         expect(todasChaves()).not.toContain('vida/atual');
         expect(JSON.stringify(todosCampos())).not.toContain('undefined');
@@ -57,7 +57,7 @@ describe('aplicarDanoEmPersonagem com golpe', () => {
         const f = ficha([gAting([{ tipo: 'ganhoPermanente', valor: 7 }])]);
         useStore.setState({ personagens: { Ana: f } });
         const r = aplicarDanoEmPersonagem('Ana', f, 100, 100 * F);
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 400 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 400 * F, expect.anything());
         expect(todasChaves()).not.toContain(PC);
         expect(r.textos).toEqual([]);
     });
@@ -81,13 +81,13 @@ describe('aplicarDanoEmPersonagem com golpe', () => {
         aplicarDanoEmPersonagem('Ana', f, 100, 100 * F, { golpe: GOLPE });
         expect(todasChaves()).not.toContain(PC);
         expect(todasChaves()).toContain('escudos');
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 500 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 500 * F, expect.anything());
     });
     it('escudo parcial: o que sobra e dano na Vida e dispara', () => {
         const f = ficha([gAting([{ tipo: 'ganhoPermanente', valor: 7 }])], { escudos: [{ id: 'e1', nome: 'Barreira', valor: 40, tipo: 'escudo' }] });
         useStore.setState({ personagens: { Ana: f } });
         aplicarDanoEmPersonagem('Ana', f, 100, 100 * F, { golpe: GOLPE });
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 440 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 440 * F, expect.anything());
         expect(todosCampos()[PC]).toBe(7);
     });
     it('imunidade total NAO dispara e a vida nao muda', () => {
@@ -95,7 +95,7 @@ describe('aplicarDanoEmPersonagem com golpe', () => {
         useStore.setState({ personagens: { Ana: f } });
         const r = aplicarDanoEmPersonagem('Ana', f, 100, 100 * F, { golpe: GOLPE });
         expect(todasChaves()).not.toContain(PC);
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 500 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 500 * F, expect.anything());
         expect(r.texto).toContain('Imunidade total');
     });
     it('dano 0 NAO dispara', () => {
@@ -103,7 +103,7 @@ describe('aplicarDanoEmPersonagem com golpe', () => {
         useStore.setState({ personagens: { Ana: f } });
         aplicarDanoEmPersonagem('Ana', f, 0, 0, { golpe: GOLPE });
         expect(todasChaves()).not.toContain(PC);
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 500 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 500 * F, expect.anything());
     });
     it('ficha sem gatilhos com golpe: caminho de sempre, nenhuma gravacao extra', () => {
         const f = ficha(null);
@@ -111,7 +111,7 @@ describe('aplicarDanoEmPersonagem com golpe', () => {
         const r = aplicarDanoEmPersonagem('Ana', f, 100, 100 * F, { golpe: GOLPE });
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(r.textos).toEqual([]);
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 400 * F);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 400 * F, expect.anything());
     });
     it('dois golpes seguidos (ficha refletindo a gravacao) somam duas vezes', () => {
         const f = ficha([gAting([{ tipo: 'ganhoPermanente', valor: 2 }])]);

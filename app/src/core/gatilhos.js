@@ -546,7 +546,7 @@ export function avaliarGatilhos(evento, contexto = {}, ficha = null, opcoes = {}
     const ja = new Set(Array.isArray(contexto.jaDisparados) ? contexto.jaDisparados : (contexto.jaDisparados ? [...contexto.jaDisparados] : []));
     const coletados = (opcoes.coletados || coletarGatilhos(ficha)).filter(c => c.gatilho.evento.tipo === evento.tipo);
     if (coletados.length === 0) return resultado;
-    const ctxCombate = opcoes.contextoCombate || montarContextoDeCombate(ficha, null, contexto.nome);
+    const ctxCombate = opcoes.contextoCombate || montarContextoDeCombate(ficha, contexto.alvo || null, contexto.nome); // contexto.alvo: o alvo do evento (acertou/errou = o atacado; atingido/inimigoErrou = o atacante); sem alvo, as condições alvo_* falham fechado
     const vidaMax = Number(contexto.vidaMaxBruta) > 0 ? Number(contexto.vidaMaxBruta) : getVidaMaxBrutaNpc(ficha);
     const registros = (ficha.combate && ficha.combate.gatilhos) || {};
     const cena = String(contexto.cenaId ?? 'default');

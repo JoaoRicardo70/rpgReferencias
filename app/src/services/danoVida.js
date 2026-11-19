@@ -4,6 +4,7 @@
 // ==========================================
 import useStore from '../stores/useStore';
 import { aplicarDanoNaVida, novoEventoId, preverPerguntasDeDano } from '../core/danoVida';
+import { alvoDoGatilhoPorNome, usaCondicaoDeAlvo } from './alvoDoGatilho';
 
 export function cenaAtualDaMesa() {
     try {
@@ -13,7 +14,14 @@ export function cenaAtualDaMesa() {
 }
 
 export function aplicarDanoNaVidaDaFicha(ficha, danoExibido, ctx = {}) {
-    return aplicarDanoNaVida(ficha, danoExibido, { cenaId: cenaAtualDaMesa(), ...ctx });
+    // Evento `atingido`: o "alvo" das condições alvo_* é o ATACANTE (resolvido pelo nome no store; sem ele, as condições falham fechado).
+    // Preguiçoso: só monta o alvo se algum gatilho da ficha usa condição alvo_*.
+    let extra = {};
+    if (!ctx.alvoDoEvento && ctx.golpe && ctx.atacante && ctx.atacante.nome && usaCondicaoDeAlvo(ficha)) {
+        const a = alvoDoGatilhoPorNome(ctx.atacante.nome);
+        if (a) extra = { alvoDoEvento: a };
+    }
+    return aplicarDanoNaVida(ficha, danoExibido, { cenaId: cenaAtualDaMesa(), ...ctx, ...extra });
 }
 
 // 🔔 Modo opcional com `perguntar` (core/gatilhos.js): ANTES de gravar o dano na minha ficha, pergunta ao dono (window.confirm: Sim/Não; cancelar = Não)

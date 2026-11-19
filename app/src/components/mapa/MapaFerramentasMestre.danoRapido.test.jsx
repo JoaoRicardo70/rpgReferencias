@@ -164,7 +164,7 @@ describe('MapaMestreDanoRapido — aplicar dano', () => {
 
         // Vilao não tem `dominios`, então sem elemento marcado o dano passa integral: 10 (padrão,
         // exibido) * FATOR_EXIBICAO_VITAIS (1000) = 10.000 bruto subtraídos de 500.000 -> 490.000.
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 490000); // 500000 - 10*1000 (padrão)
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 490000, expect.anything()); // 500000 - 10*1000 (padrão)
         expect(salvarFichaSilencioso).not.toHaveBeenCalled();
         // Sem elemento selecionado (padrão "Físico/Nenhum") -> limpa o campo (null), nunca deixa
         // undefined/sem chamar (ver aplicarElementoDireto em firebase-sync.js).
@@ -185,7 +185,7 @@ describe('MapaMestreDanoRapido — aplicar dano', () => {
 
         // Vilao não tem `dominios` -> getNivelDominio(Vilao, 'Fogo') = 0 -> sem redução mesmo com
         // elemento marcado -> mesma conta do teste acima: 500000 - 10*1000 = 490000.
-        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 490000);
+        expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 490000, expect.anything());
         expect(aplicarElementoDireto).toHaveBeenCalledWith('Vilao', 'Fogo');
     });
 });
