@@ -582,6 +582,9 @@ export function calcularAcerto({ qD, fD, prof: profInformada, usarProf, energia,
 
     return {
         acertoTotal: Math.floor(atributoEBonus + sD + prof + bonusProfArma),
+        // 🔁 Para a Deflexão (core/deflexao.js): o bônus do acerto SEM o dado e o dado rolado, gravados no feed do golpe.
+        acertoBonus: Math.floor(atributoEBonus + prof + bonusProfArma),
+        acertoDados: { qtd: qD, faces: fD },
         ...(naturalD20 ? { naturalD20 } : {}),
         ...(dadoNatural ? { dadoNatural } : {}),
         ...(desvantagemDoAlvo > 0 ? { desvantagemDoAlvo } : {}),

@@ -15,6 +15,7 @@ import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes, ehDanoVerdadeiro, TEXTO_DANO_VERDADEIRO } from './reducaoDano.js';
 import { getNivelDominio, calcularReducaoDanoElemental } from './dominios.js';
 import { ehNpc, getTipoPersonagem, TIPO_JOGADOR } from './tipoPersonagem.js';
+import { modificadorDeDefesaContraInimigos } from './efeitosCondicionais.js';
 
 export const PREFIXO_ALVO_PERSONAGEM = 'pj:';
 
@@ -57,6 +58,17 @@ export function montarAlvoPersonagem(nome, ficha, divisorPoderMesa) {
         posicao,
         ...(poder !== null ? { poderCalculado: Math.round(poder * 100) / 100 } : {}),
     };
+}
+
+// ☠️ CA que vale no acerto contra o alvo: para NPC/Dummie (CA fixa em `valorDefesa`) soma o modificador de defesa dos efeitos `valeParaInimigos` ativos na cena
+// (core/efeitosDeInimigos.js; <= 0, nunca abaixo de 0 no total). Alvo-personagem já traz a CA calculada com esses efeitos (calcularCA), então vem como está.
+export function defesaEfetivaDoDummie(alvo) {
+    if (!alvo) return 0;
+    const base = Number(alvo.valorDefesa);
+    if (alvo.isPersonagem) return base;
+    if (!Number.isFinite(base)) return base;
+    const mod = modificadorDeDefesaContraInimigos(alvo);
+    return mod < 0 ? Math.max(0, base + mod) : base;
 }
 
 // 🛡️ Regra de PvP: um JOGADOR só causa dano a outro JOGADOR durante um combate (os dois na ordem de

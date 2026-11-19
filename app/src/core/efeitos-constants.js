@@ -40,6 +40,13 @@ export const ATRIBUTOS_AGRUPADOS = [
         label: '🎲 DADO DE DANO',
         options: ['dano_dados']
     },
+    // 👣 Movimento (core/movimentoInfo.js): INFORMATIVO (mostrado na ficha e no Mapa; o Mapa não limita o deslocamento). Propriedade BASE.
+    //   movimento — bônus de deslocamento em QUADRADOS (+2, +10...); aceita 'quando'.
+    //   velocidade_zero — valor maior que 0 = a velocidade (deslocamento) do portador é 0 enquanto o efeito valer.
+    {
+        label: '👣 MOVIMENTO (informativo)',
+        options: ['movimento', 'velocidade_zero']
+    },
     {
         label: 'DEFESA (CA)',
         options: ['evasiva', 'resistencia']
@@ -100,10 +107,10 @@ export const GRUPO_IDENTIFICACAO = {
     label: '🔍 IDENTIFICAÇÃO (em combate)',
     options: ['identificar_tipo_ataque', 'identificar_energia']
 };
-export const PROPRIEDADES_REACAO = ['contra_ataque', 'atacar_atacante', 'atacar_ataque', 'reduzir_dano', 'aumentar_ca'];
+export const PROPRIEDADES_REACAO = ['contra_ataque', 'atacar_atacante', 'atacar_ataque', 'reduzir_dano', 'aumentar_ca', 'rerolar_ataque'];
 
 // Atributos que só fazem sentido com a propriedade BASE (o valor é a quantidade/porcentagem).
-const SO_BASE = new Set(['acerto', 'imune_surpresa', 'imune_estado', 'resiste_estado', 'vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'mult_critico', 'mult_critico_fatal', 'acerto_automatico', 'desvantagem_atacante', 'reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder', 'identificar_tipo_ataque', 'identificar_energia', 'dano_dados']);
+const SO_BASE = new Set(['acerto', 'imune_surpresa', 'imune_estado', 'resiste_estado', 'vantagem', 'desvantagem', 'piso_d20', 'iniciativa', 'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'mult_critico', 'mult_critico_fatal', 'acerto_automatico', 'desvantagem_atacante', 'reducao_dano', 'acao_padrao', 'acao_bonus', 'acao_reacao', 'percepcao_poder', 'ocultacao_poder', 'identificar_tipo_ataque', 'identificar_energia', 'dano_dados', 'movimento', 'velocidade_zero']);
 
 // Propriedades que fazem sentido para o atributo escolhido (Ação/Reação não têm Multiplicador; Reação escolhe o efeito).
 export function getPropriedadesDoAtributo(atributo) {

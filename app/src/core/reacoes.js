@@ -17,6 +17,7 @@
 //    Efeito PASSIVO vale sempre; efeito ATIVO só com a técnica LIGADA; Técnica Elemental só equipada.
 // Efeitos: reduzir_dano (%) e atacar_ataque entram sozinhos no Dano recebido (Defesa > Receber Dano); contra_ataque,
 // atacar_atacante e aumentar_ca são registrados no feed e quem reagiu rola/aplica normalmente (a Reação já foi gasta).
+// rerolar_ataque (Deflexão, core/deflexao.js): só quando o ataque ERRA você; é OFERECIDA (nunca automática) e re-rola o MESMO ataque contra a CA do atacante.
 // ==========================================
 
 export const GATILHOS_REACAO = [
@@ -33,7 +34,8 @@ export const EFEITOS_REACAO = [
     { id: 'atacar_atacante', rotulo: 'Atacar o atacante (Dano direto)', usaValor: false },
     { id: 'atacar_ataque', rotulo: 'Atacar o ataque (Dano contra Dano)', usaValor: false },
     { id: 'reduzir_dano', rotulo: 'Reduzir o Dano recebido (%)', usaValor: true, unidade: '%' },
-    { id: 'aumentar_ca', rotulo: 'Aumentar a CA (+N)', usaValor: true, unidade: 'CA' }
+    { id: 'aumentar_ca', rotulo: 'Aumentar a CA (+N)', usaValor: true, unidade: 'CA' },
+    { id: 'rerolar_ataque', rotulo: 'Re-rolar o ataque que errou contra a CA do atacante (Deflexão)', usaValor: false }
 ];
 
 const GATILHOS = new Set(GATILHOS_REACAO.map(g => g.id).filter(Boolean));
@@ -95,6 +97,8 @@ export function opcoesDeReacao(ficha, contexto = {}) {
     if (!contexto.alvoEhAliado && contexto.acertou) opcoes.push({ ...OPCAO_UNIVERSAL });
     const adicionar = (t, origem, r, sufixo) => {
         if (!gatilhoBate(r.gatilho, contexto)) return;
+        // Deflexão só existe para o ataque que ERROU contra o próprio defensor (não para aliado, não quando acerta).
+        if (r.efeito === 'rerolar_ataque' && (contexto.acertou || contexto.alvoEhAliado)) return;
         opcoes.push({ id: `${origem}:${t.id}${sufixo}`, origem, nome: t.nome || 'Sem nome', efeito: r.efeito, valor: r.valor, gatilho: r.gatilho });
     };
     (Array.isArray(ficha?.poderes) ? ficha.poderes : []).forEach(t => {

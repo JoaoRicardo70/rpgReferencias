@@ -20,6 +20,7 @@ import { adicionarEscudo, removerEscudo } from './escudos.js';
 import { gastarUso, limiteDeUsos } from './usosPoder.js';
 import { somarBuffTemporario } from './suporte.js';
 import { zerarAtaquesNoTurno, CAMINHO_ATAQUES_NO_TURNO } from './ataquesNoTurno.js';
+import { zerarQuadradosNoTurno, CAMINHO_QUADRADOS_NO_TURNO } from './movimentoNoTurno.js';
 import { chaveDoGatilhoDoPoder, normalizarGatilhos, LIMITE_TOTAL_GANHO_PERMANENTE, LIMITE_GANHO_PERC_MIN, LIMITE_GANHO_PERMANENTE } from './gatilhos.js';
 import { FATOR_PODER_MAX, FATOR_PODER_MIN, zerarGanhosCombate } from './poder.js';
 import { CAMINHOS_ADAPTACAO } from './adaptacao.js';
@@ -439,9 +440,14 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
         if (zerarUsosPorTurno(ficha)) caminhos.add('combate/usosPoderes');
         // ⚔️ O contador de ataques do turno (core/ataquesNoTurno.js) volta a zero no começo do turno e no fim da luta.
         if (zerarAtaquesNoTurno(ficha)) caminhos.add(CAMINHO_ATAQUES_NO_TURNO);
+        // 👣 Os quadrados percorridos no turno (core/movimentoNoTurno.js) também voltam a zero.
+        if (zerarQuadradosNoTurno(ficha)) caminhos.add(CAMINHO_QUADRADOS_NO_TURNO);
     }
     // Entrar na luta também zera o contador (o combate começa sem ataques feitos).
-    if (evento.tipo === 'inicioDeLuta' && zerarAtaquesNoTurno(ficha)) caminhos.add(CAMINHO_ATAQUES_NO_TURNO);
+    if (evento.tipo === 'inicioDeLuta') {
+        if (zerarAtaquesNoTurno(ficha)) caminhos.add(CAMINHO_ATAQUES_NO_TURNO);
+        if (zerarQuadradosNoTurno(ficha)) caminhos.add(CAMINHO_QUADRADOS_NO_TURNO);
+    }
     if (evento.tipo === 'fimDeLuta') {
         resetarContadoresDeCena(ficha).forEach(i => caminhosDoContador(ficha, i).forEach(p => caminhos.add(p)));
         // 🧬 Adaptação: por padrão ('converter') a média das % ganhas nos turnos vira Poder PERMANENTE e o fator de combate zera (core/adaptacao.js). Idempotente.

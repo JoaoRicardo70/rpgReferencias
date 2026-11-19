@@ -120,7 +120,7 @@ describe('Sexta-Feira: escalaAliados e valeParaAliados', () => {
 });
 
 describe('Rascunho: novoEscala / novoEscalaPassivo', () => {
-    const vazia = { contadorId: '', fator: '', aliFator: '', aliTipo: '', aliValor: '', paraAliados: false };
+    const vazia = { contadorId: '', fator: '', aliFator: '', aliTipo: '', aliValor: '', paraAliados: false, paraInimigos: false, movFator: '', movMax: '' };
     it('rascunhoVazio tem os campos de escala e cobrarAoAtivar=false', () => {
         const r = rascunhoVazio();
         expect(r.novoEscala).toEqual(vazia);

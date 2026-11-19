@@ -20,6 +20,7 @@ import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
 import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getFatorVida, getPontosVidaTotal } from '../../core/danoProporcional';
 import { resolverAlvoCombate, reduzirDanoNoAlvo, ehAlvoPersonagem, montarAlvoPersonagem } from '../../core/alvoCombate';
 import { registrarAtaqueNoTurno } from '../../core/ataquesNoTurno';
+import { ultimoAcertoTs } from '../../core/deflexao';
 import { fichaComReducaoDeCusto, limparReducaoCusto, limparSemEncadeio } from '../../core/ofertaFollowUp';
 import { reutilizacaoDoGolpe, calcularReusos, dadoExtraDoReuso, rotuloDoReuso, limitarReusosPorAlvos, LIMITE_DANOS_POR_GOLPE } from '../../core/reutilizacao';
 import { gravarVidaDoAlvo } from '../../services/danoAlvo';
@@ -495,7 +496,7 @@ export function AtaqueFormProvider({ children }) {
             extraFeed = { ...extraFeed, ...finalizarPosGolpe(posGolpeLivre) };
             const energiasManual = (tipoAtiva && tipoAtiva !== 'nenhum' && percNum > 0) ? [tipoAtiva] : [];
             const feedData = {
-                tipo: 'dano', ts: Date.now(), nome: nomeNoFeed, dano: Math.floor(danoReduzido), letalidade: letalidadeCalculada, poderAtacante: meuPoderDisputa, tipoGolpe: tipoDoGolpeDaFicha(minhaFicha),
+                tipo: 'dano', ts: Date.now(), nome: nomeNoFeed, ...(ultimoAcertoTs(useStore.getState?.()?.feedCombate, nomeNoFeed) ? { golpeAcertoTs: ultimoAcertoTs(useStore.getState?.()?.feedCombate, nomeNoFeed) } : {}), dano: Math.floor(danoReduzido), letalidade: letalidadeCalculada, poderAtacante: meuPoderDisputa, tipoGolpe: tipoDoGolpeDaFicha(minhaFicha),
                 tipoAtaque: classificarAtaque({ elemento: elementoAtivo, energias: energiasManual }).rotulo, energiasUsadas: energiasManual,
                 rolagem: `${rollsLog.length > 0 ? rollsLog.length + ' rolagem(ns)' : 'Cálculo Direto'}`, rolagemMagica: "",
                 atributosUsados: 'Manual', detalheEnergia: logEnergia ? `(${logEnergia})` : '',
@@ -862,7 +863,7 @@ export function AtaqueFormProvider({ children }) {
             critico: textoArma.includes('FATAL') ? 'fatal' : (textoArma.includes('CRÍTICO') ? 'critico' : '')
         });
         const feedData = {
-            tipo: 'dano', ts: Date.now(), nome: nomeNoFeed, dano: result.dano, letalidade: result.letalidade, poderAtacante: meuPoderNoGolpe, tipoGolpe: tipoDoGolpeDaFicha(minhaFicha),
+            tipo: 'dano', ts: Date.now(), nome: nomeNoFeed, ...(ultimoAcertoTs(useStore.getState?.()?.feedCombate, nomeNoFeed) ? { golpeAcertoTs: ultimoAcertoTs(useStore.getState?.()?.feedCombate, nomeNoFeed) } : {}), dano: result.dano, letalidade: result.letalidade, poderAtacante: meuPoderNoGolpe, tipoGolpe: tipoDoGolpeDaFicha(minhaFicha),
             tipoAtaque: classificarAtaque({ elemento: elementoAtivo, energias: energiasGolpe }).rotulo, energiasUsadas: energiasGolpe,
             rolagem: result.rolagem, rolagemMagica: result.rolagemMagica,
             atributosUsados: result.atributosUsados, detalheEnergia: ehReuso ? 'Reuso: sem custo de energia.' : result.detalheEnergia,

@@ -36,7 +36,7 @@ import { getVitalMax, getVitalMaxEstavel, calcVitalScale, calcularBarrasVida, ca
 import BarrasVida from '../shared/BarrasVida';
 import { formatarPoderCosmico } from '../../core/utils';
 import { categoriaDoPoderFicha } from '../../core/categoriasPoder';
-import { idAlvoPersonagem, motivoBloqueioAlvo } from '../../core/alvoCombate';
+import { idAlvoPersonagem, motivoBloqueioAlvo, defesaEfetivaDoDummie } from '../../core/alvoCombate';
 import { getTipoPersonagem, rotuloTipoPersonagem } from '../../core/tipoPersonagem';
 import { NIVEIS_ROLAGEM, indiceFaceDoDado, textoDaFace } from '../../core/rolagemDado';
 import useBotaoArrastavel from '../../hooks/useBotaoArrastavel';
@@ -1696,7 +1696,7 @@ export function MapaHologramaAcao() {
                                 </>)}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                                 {ehDummieBase ? (
-                                    <div style={{ color: fichaBase.tipoDefesa === 'evasiva' ? '#0088ff' : '#ccc', fontWeight: 'bold', fontSize: '0.9em' }}>🛡️ {fichaBase.tipoDefesa === 'evasiva' ? 'EVA' : 'RES'}: {fichaBase.valorDefesa}</div>
+                                    <div style={{ color: fichaBase.tipoDefesa === 'evasiva' ? '#0088ff' : '#ccc', fontWeight: 'bold', fontSize: '0.9em' }}>🛡️ {fichaBase.tipoDefesa === 'evasiva' ? 'EVA' : 'RES'}: {defesaEfetivaDoDummie(fichaBase)}</div>
                                 ) : (<>
                                     <div style={{ color: '#0088ff', fontWeight: 'bold', fontSize: '0.9em', textShadow: '0 0 5px #0088ff' }}>🛡️ EVA: {calcularCA(fichaBase, 'evasiva')}</div>
                                     <div style={{ color: '#ccc', fontWeight: 'bold', fontSize: '0.9em', textShadow: '0 0 5px #ccc' }}>🛡️ RES: {calcularCA(fichaBase, 'resistencia')}</div>

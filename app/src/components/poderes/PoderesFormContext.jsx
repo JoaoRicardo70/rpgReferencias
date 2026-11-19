@@ -235,6 +235,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         // 🔢 Escalas (core/efeitos-resolver.js): por contador e/ou por aliado em campo; fator numérico diferente de 0 (até 1.000.000); dado de dano não escala.
         const escalas = montarEscalasDoEfeito(escalaForm, atributo);
         if (escalas.erro) { alert(escalas.erro); return null; }
+        if (escalas.campos.valeParaInimigos && propriedade !== 'base') { alert('Penalidade para os inimigos só vale com a propriedade BASE.'); return null; }
+        if (escalas.campos.valeParaInimigos && !(parseFloat(valor) < 0)) { alert('Penalidade para os inimigos: use um valor NEGATIVO (ex.: -4).'); return null; }
         return { nome, atributo, propriedade, valor, ...(q ? { quando: q } : {}), ...(esc ? { escopo: esc } : {}), ...escalas.campos };
     }, []);
 

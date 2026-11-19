@@ -1,4 +1,5 @@
 import React, { useContext } from 'react';
+import { resumoDeMovimento, textoDeMovimento } from '../../core/movimentoInfo';
 import { useMapaForm, urlSeguraParaCss, MAP_SIZE } from './MapaFormContext';
 import Tabuleiro3D from './Tabuleiro3D';
 import DummieToken from '../combat/DummieToken';
@@ -40,8 +41,10 @@ export function MapaControlesSuperiores() {
     const {
         modo3D, setModo3D, alterarZoom, tamanhoCelula, isMestre, souCriador,
         cenaVisualizadaId, cenaAtivaIdGlobal, cenaAtual,
-        altitudeInput, setAltitudeInput, cenario, ativarCena, estouNoMapa, removerTokenDoMapa, meuNome, alvoSelecionado, dummies
+        altitudeInput, setAltitudeInput, cenario, ativarCena, estouNoMapa, removerTokenDoMapa, meuNome, alvoSelecionado, dummies, minhaFicha
     } = ctx;
+    // 👣 Movimento (informativo): bônus em quadrados, velocidade 0 e quadrados percorridos no turno (core/movimentoInfo.js). O Mapa não limita o deslocamento.
+    const textoMovimento = textoDeMovimento(resumoDeMovimento(minhaFicha, meuNome));
     // O Mestre com uma Entidade selecionada move a Entidade ao clicar numa casa: a dica/botão do próprio personagem não se aplica.
     const movendoEntidade = !!(isMestre && alvoSelecionado && dummies?.[alvoSelecionado]);
     
@@ -87,6 +90,7 @@ export function MapaControlesSuperiores() {
                 <input className="input-neon" type="number" value={altitudeInput} onChange={e => setAltitudeInput(e.target.value)} style={{ width: 50, padding: 2, height: 24, borderColor: '#00ccff', color: '#fff', margin: 0 }} title="Altitude" />
                 <span style={{ color: '#888' }}>m</span>
             </div>
+            {textoMovimento && <span className="mapa-movimento-info" title="Informativo: o Mapa não limita o seu deslocamento por isso.">{textoMovimento}</span>}
             {movendoEntidade ? null : estouNoMapa ? (
                 <button type="button" className="btn-neon" onClick={() => removerTokenDoMapa(meuNome)} style={{ padding: '2px 10px', margin: 0 }} title="Tira o seu personagem do Mapa (para voltar, clique numa casa)">🚪 Sair do Mapa</button>
             ) : (

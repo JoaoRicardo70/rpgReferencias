@@ -72,7 +72,7 @@ export function aliadoPassaFiltro(cenario, dados, filtro, viewer = null) {
 }
 
 // Está NA cena? Mesmo critério do mapa (core/alcance.js): posição conhecida (x/y) naquela cena.
-const naCena = (f, cenaId) => {
+export const naCena = (f, cenaId) => {
     const pos = getPosicaoEntidade(f, cenaId);
     return !!pos && (pos.cenaId || 'default') === cenaId;
 };

@@ -18,6 +18,8 @@ import { ATRIBUTO_DANO_DADOS, lerDadoDeDano, limitarDadosDeEfeitos } from './dan
 import { ataquesNoTurno } from './ataquesNoTurno.js';
 import { efeitosDeAliados } from './efeitosDeAliados.js';
 import { contarAliadosEmCampoDaMesa, normalizarFiltroAliado, filtroAliadoParaTexto, nomeDoPortador } from './aliadosEmCampo.js';
+import { efeitosDeInimigosDaMesa, modificadorDeDefesaDoDummie } from './efeitosDeInimigos.js';
+import { existeEstadoEmCampoDaMesa } from './estadoEmCampo.js';
 
 const semAcento = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
@@ -29,7 +31,8 @@ const semAcento = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, ''
 export function coletarEfeitos(ficha, nomePortador = '') {
     if (!ficha) return [];
     const lista = [];
-    const juntar = (efeitos) => { (efeitos || []).forEach(e => { if (e && typeof e === 'object') lista.push(e); }); };
+    // Efeito `valeParaInimigos` é penalidade dos INIMIGOS do portador (core/efeitosDeInimigos.js): nunca vale para o próprio dono.
+    const juntar = (efeitos) => { (efeitos || []).forEach(e => { if (e && typeof e === 'object' && e.valeParaInimigos !== true) lista.push(e); }); };
     const juntarConfigDaForma = (entidade) => {
         const cfg = efeitosDaConfigAtiva(entidade);
         if (cfg) { juntar(cfg.efeitos); juntar(cfg.efeitosPassivos); }
@@ -55,6 +58,8 @@ export function coletarEfeitos(ficha, nomePortador = '') {
     });
     // 🤝 Efeitos dos Poderes de ALIADOS na cena ativa marcados `valeParaAliados` (core/efeitosDeAliados.js).
     juntar(efeitosDeAliados(ficha, nomePortador));
+    // ☠️ Penalidades que os INIMIGOS na cena ativa impõem a quem defende/ataca aqui (já com a condição checada no portador inimigo; core/efeitosDeInimigos.js).
+    juntar(efeitosDeInimigosDaMesa(ficha, nomeDoPortador(ficha, nomePortador), avaliarEfeitoDeInimigo));
     // 🔮 Pactos/Entidades Seladas sincronizadas (campos "Buffs Ativos" e "Buffs Passivos" do Reino Interior), com a Forma ativa.
     (ficha.seresSelados || []).forEach(ser => {
         if (!ser || !ser.ativo) return;
@@ -86,6 +91,8 @@ export const OPCOES_QUANDO = [
     { id: 'primeiro_ataque_do_turno', rotulo: 'Primeiro ataque do meu turno' },
     // Aliados do portador na CENA ATIVA (core/aliadosEmCampo.js), conscientes ou não, com filtro opcional por afiliação/Raça/Classe.
     { id: 'aliados_em_campo', rotulo: 'Ao menos… aliados em campo (cena ativa)', argumento: 'quantos aliados' },
+    // Alguém (de qualquer lado) com o estado, na CENA ATIVA (core/estadoEmCampo.js): ex.: a Presa de um portador.
+    { id: 'estado_em_campo', rotulo: 'Há alguém com o estado… em campo (cena ativa)', argumento: 'estado' },
 ];
 
 // Devolve a condição em forma canônica ('' = sempre) ou null se for inválida.
@@ -101,6 +108,7 @@ export function normalizarQuando(valor) {
     if (base === 'alvo_defende_com') { const d = semAcento(arg); return d === 'evasiva' || d === 'resistencia' ? `alvo_defende_com:${d}` : null; }
     if (base === 'eu_com_estado') return IDS_ESTADOS.has(semAcento(arg)) ? `eu_com_estado:${semAcento(arg)}` : null;
     if (base === 'alvo_com_debuff') return 'alvo_com_debuff';
+    if (base === 'estado_em_campo') return IDS_ESTADOS.has(semAcento(arg)) ? `estado_em_campo:${semAcento(arg)}` : null;
     if (base === 'aliados_em_campo') {
         // arg = "N" ou "N:tipo=valor" (tipo: afiliacao | raca | classe). Filtro escrito mas inválido invalida a condição (nunca vira "sem filtro").
         const [nTxt, ...restoFiltro] = arg.split(':');
@@ -128,7 +136,7 @@ export function normalizarQuando(valor) {
 // um efeito "dano +10 quando empunhando espada" valeria sempre. Condição nesses atributos descarta o efeito (falha fechada).
 export const ATRIBUTOS_COM_QUANDO = [
     'acerto', 'evasiva', 'resistencia', 'iniciativa', 'vantagem', 'desvantagem', 'piso_d20',
-    'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa', 'imune_estado', 'resiste_estado', 'desvantagem_atacante', 'acerto_automatico', ATRIBUTO_DANO_DADOS,
+    'margem_critico', 'margem_critico_fatal', 'critico_automatico', 'critico_fatal_automatico', 'imune_surpresa', 'imune_estado', 'resiste_estado', 'desvantagem_atacante', 'acerto_automatico', ATRIBUTO_DANO_DADOS, 'movimento', 'velocidade_zero',
 ];
 // ---------- ✖️ Multiplicadores com condição ----------
 // Os multiplicadores (mbase, mgeral, mformas, mabs, munico) são somados em core/attributes.js > getBuffs e core/poder.js >
@@ -194,6 +202,8 @@ export function passaQuando(efeito, contexto = {}) {
         case 'eu_com_estado': return Array.isArray(ctx.euEstados) && ctx.euEstados.includes(arg);
         case 'alvo_vida_abaixo': return Number.isFinite(ctx.alvoVidaPct) && ctx.alvoVidaPct < parseFloat(arg);
         case 'alvo_com_debuff': return ctx.alvoDebuff === true;
+        // Sem contexto da mesa a condição falha fechada.
+        case 'estado_em_campo': return typeof ctx.temEstadoEmCampo === 'function' && ctx.temEstadoEmCampo(arg) === true;
         case 'combos_finalizados': return Number.isFinite(ctx.combosFinalizados) && ctx.combosFinalizados >= parseInt(arg, 10);
         case 'primeiro_ataque_do_turno': return ctx.primeiroAtaqueDoTurno === true;
         case 'aliados_em_campo': {
@@ -237,6 +247,8 @@ export function montarContextoDeCombate(ficha, alvo = null, nomePortador = '') {
         primeiroAtaqueDoTurno: !!ficha && Number(ficha.iniciativa) > 0 && ataquesNoTurno(ficha) === 0,
         // Aliados do portador na cena ativa (preguiçoso: só lê a mesa quando alguma condição aliados_em_campo é avaliada). Filtro = { tipo, valor } ou null.
         nomePortador: nomePortador || '',
+        // "Há alguém com o estado X na cena ativa?" (core/estadoEmCampo.js; preguiçoso, só devolve verdadeiro/falso).
+        temEstadoEmCampo: (id) => existeEstadoEmCampoDaMesa(id),
         contarAliadosEmCampo: ficha ? (filtro = null) => contarAliadosEmCampoDaMesa(ficha, filtro, nomeDoPortador(ficha, nomePortador)) : null,
     };
     if (alvo && typeof alvo === 'object') {
@@ -250,6 +262,16 @@ export function montarContextoDeCombate(ficha, alvo = null, nomePortador = '') {
         if (Number.isFinite(max) && max > 0 && Number.isFinite(atual)) ctx.alvoVidaPct = Math.max(0, Math.min(100, (atual / max) * 100));
     }
     return ctx;
+}
+
+// ☠️ Condição de um efeito `valeParaInimigos` avaliada NO PORTADOR (o dono do Poder), sem alvo: ex.: 'estado_em_campo:presa'.
+function avaliarEfeitoDeInimigo(portador, nome, efeito) {
+    return passaQuando(efeito, montarContextoDeCombate(portador, null, nome));
+}
+
+// ☠️ Modificador (<= 0) que os efeitos `valeParaInimigos` ativos na cena somam à CA FIXA de um NPC/Dummie (core/alvoCombate.js > defesaEfetivaDoDummie).
+export function modificadorDeDefesaContraInimigos(dummie) {
+    return modificadorDeDefesaDoDummie(dummie, avaliarEfeitoDeInimigo);
 }
 
 // ---------- 🎲 Escopo ----------

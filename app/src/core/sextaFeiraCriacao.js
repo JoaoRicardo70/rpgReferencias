@@ -29,6 +29,8 @@ import { fatoresComApelidos } from './formulaDano.js';
 import { ATRIBUTO_DANO_DADOS, LIMITES_DANO_DADOS, normalizarValorDanoDados, dadoDoEfeito, normalizarDadosExtra, normalizarStatusFatores, resumirFormulaDeDano } from './danoDados.js';
 import { normalizarQuando, normalizarQuandoMultiplicador, ehPropriedadeMultiplicador, normalizarEscopo, ATRIBUTOS_COM_QUANDO, ATRIBUTOS_COM_ESCOPO, ATRIBUTOS_COM_ESCOPO_ESTADO } from './efeitosCondicionais.js';
 import { efeitoPodeValerParaAliados } from './efeitosDeAliados.js';
+import { efeitoPodeValerParaInimigos } from './efeitosDeInimigos.js';
+import { efeitoAceitaEscalaMovimento, normalizarEscalaMovimento, LIMITE_MAX_ESCALA_MOVIMENTO } from './movimentoNoTurno.js';
 import { normalizarFiltroAliado, filtroAliadoParaTexto } from './aliadosEmCampo.js';
 import { FATOR_EXIBICAO_VITAIS } from './vitals.js';
 import { descreverDuracaoSpec } from './duracaoEstados.js';
@@ -256,6 +258,21 @@ function normalizarEfeitos(lista, padraoAtributo, avisos, rotulo, contadores = [
         if (e && e.valeParaAliados === true) {
             if (efeitoPodeValerParaAliados(efeito.atributo)) efeito.valeParaAliados = true;
             else avisosEfeito.push(`O atributo "${efeito.atributo}" não vale para aliados; a marca foi ignorada.`);
+        }
+        // 👣 Escala por movimento (core/movimentoNoTurno.js): { fator, max } com TETO `max` obrigatório (1 a 100); sem teto válido a escala é ignorada.
+        const mov = e && e.escalaMovimento;
+        if (mov && typeof mov === 'object') {
+            const escMov = normalizarEscalaMovimento({ fator: Number(mov.fator), max: Number(mov.max) });
+            if (!efeitoAceitaEscalaMovimento(efeito.atributo)) avisosEfeito.push(`O atributo "${efeito.atributo}" não escala por movimento; a escala foi ignorada.`);
+            else if (!escMov || (efeito.atributo === ATRIBUTO_DANO_DADOS && escMov.fator < 0)) avisosEfeito.push(`Escala por movimento inválida (fator diferente de 0 e teto de quadrados de 1 a ${LIMITE_MAX_ESCALA_MOVIMENTO}, obrigatório); foi ignorada.`);
+            else efeito.escalaMovimento = escMov;
+        }
+        // ☠️ Penalidade para os INIMIGOS em campo (core/efeitosDeInimigos.js): só evasiva/resistencia/acerto, valor negativo.
+        if (e && e.valeParaInimigos === true) {
+            if (!efeitoPodeValerParaInimigos(efeito.atributo)) avisosEfeito.push(`O atributo "${efeito.atributo}" não vale para inimigos; a marca foi ignorada.`);
+            else if (efeito.propriedade !== 'base') avisosEfeito.push('Penalidade para inimigos só vale com a propriedade base; a marca foi ignorada.');
+            else if (!(parseFloat(efeito.valor) < 0)) avisosEfeito.push('Penalidade para inimigos precisa de valor NEGATIVO; a marca foi ignorada.');
+            else efeito.valeParaInimigos = true;
         }
         avisosEfeito.forEach(a => avisos.push(`${rotulo} ${i + 1}: ${a}`));
         return efeito;
@@ -713,6 +730,8 @@ const EFEITOS_SCHEMA = {
             escopo: { type: 'STRING', description: 'Opcional, para vantagem/desvantagem/piso_d20: ataque, teste, teste:<perícia ou atributo, ex.: intuicao> ou tudo.' },
             escalaContador: { type: 'OBJECT', description: 'Opcional: o efeito ganha fator x o valor de um contador EXISTENTE da ficha (soma: valor + fator x contador).', properties: { contadorId: { type: 'STRING' }, fator: { type: 'NUMBER' } } },
             escalaAliados: { type: 'OBJECT', description: 'Opcional: o efeito ganha fator x o número de aliados na CENA ATIVA (soma). filtro opcional "afiliacao=texto", "raca=texto" ou "classe=texto".', properties: { fator: { type: 'NUMBER' }, filtro: { type: 'STRING' } } },
+            escalaMovimento: { type: 'OBJECT', description: 'Opcional: o efeito ganha fator x quadrados percorridos no turno (só em combate), COM teto obrigatório de quadrados contados (1 a 100). Em dano_dados o dado do efeito vale POR quadrado. Atributos: dano_dados, acerto, evasiva, resistencia, dano.', properties: { fator: { type: 'NUMBER' }, max: { type: 'NUMBER' } } },
+            valeParaInimigos: { type: 'BOOLEAN', description: 'Opcional: true para o efeito ser PENALIDADE (valor negativo) dos inimigos do portador na cena ativa (só evasiva, resistencia, acerto). Combine com quando estado_em_campo:<id do estado, ex.: presa>.' },
             valeParaAliados: { type: 'BOOLEAN', description: 'Opcional: true para o efeito valer também para os aliados na cena ativa (só atributos de ataque: acerto, vantagem, margem_critico, dano_dados...).' },
         },
         required: ['atributo', 'propriedade', 'valor'],

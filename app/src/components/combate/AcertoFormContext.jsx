@@ -12,7 +12,7 @@ import { getPoderesDefesa, getEfeitosDeClasse } from '../../core/attributes';
 import { enviarParaFeed, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { alvoNoFiltro, comoCombatente } from '../../core/lados';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
-import { resolverAlvoCombate } from '../../core/alvoCombate';
+import { resolverAlvoCombate, defesaEfetivaDoDummie } from '../../core/alvoCombate';
 import { getPosicaoEntidade } from '../../core/alcance';
 import { getPoderParaDisputa, getPoderDummie, resolverAcertoNoAlvo } from '../../core/disputaPoder';
 import { golpeEquipado } from '../../core/classesMecanicas';
@@ -192,14 +192,14 @@ export function AcertoFormProvider({ children }) {
             const passaNoFiltro = (dados, ehDummie) => alvoNoFiltro(cenario, atacanteLado, comoCombatente(dados, ehDummie), alvoFiltro);
             if (alvoFiltro === 'todos' || alvoFiltro === 'inimigos' || alvoFiltro === 'aliados') {
                 // dummieId: o dano em área (AtaqueFormContext) acha o alvo pelo id, não pelo nome (NPCs repetidos).
-                Object.entries(dummies).forEach(([id, dummieObj]) => { if (dummieObj.posicao && passaNoFiltro(dummieObj, true)) verificarHit({ ...dummieObj.posicao, cenaId: dummieObj.cenaId || dummieObj.posicao.cenaId }, dummieObj.valorDefesa, dummieObj.nome, getPoderDummie(dummieObj), { dummieId: id }); });
+                Object.entries(dummies).forEach(([id, dummieObj]) => { if (dummieObj.posicao && passaNoFiltro(dummieObj, true)) verificarHit({ ...dummieObj.posicao, cenaId: dummieObj.cenaId || dummieObj.posicao.cenaId }, defesaEfetivaDoDummie(dummieObj), dummieObj.nome, getPoderDummie(dummieObj), { dummieId: id }); });
             }
             if (alvoFiltro === 'todos' || alvoFiltro === 'aliados' || alvoFiltro === 'inimigos') {
                 if (minhaFicha.posicao && origemArea !== 'self' && passaNoFiltro(minhaFicha, false)) verificarHit(minhaFicha.posicao, calcularCA(minhaFicha, 'evasiva'), meuNome, getPoderParaDisputa(minhaFicha, divisorPoderMesa));
                 Object.entries(personagens || {}).forEach(([n, f]) => { if (f.posicao && passaNoFiltro(f, false)) verificarHit(f.posicao, calcularCA(f, 'evasiva'), n, getPoderParaDisputa(f, divisorPoderMesa)); });
             }
         } else if (alvoDummie) {
-            alvosAtingidos.push(resolverAlvo(alvoDummie.nome, alvoDummie.valorDefesa, getPoderDummie(alvoDummie), { dummieId: alvoSelecionado }));
+            alvosAtingidos.push(resolverAlvo(alvoDummie.nome, defesaEfetivaDoDummie(alvoDummie), getPoderDummie(alvoDummie), { dummieId: alvoSelecionado }));
         }
 
         let idDaZonaCriada = null;

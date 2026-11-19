@@ -56,7 +56,7 @@ describe.each([['ativo', 0], ['passivo', 1]])('PoderesFormEditor - efeito %s', (
         const [atr] = par(container, idx);
         fireEvent.change(atr, { target: { value: 'reacao_errou' } });
         const [, prop] = par(container, idx);
-        expect(opcoes(prop)).toEqual(['contra_ataque', 'atacar_atacante', 'atacar_ataque', 'reduzir_dano', 'aumentar_ca']);
+        expect(opcoes(prop)).toEqual(['contra_ataque', 'atacar_atacante', 'atacar_ataque', 'reduzir_dano', 'aumentar_ca', 'rerolar_ataque']);
         expect(opcoes(prop)).toContain(prop.value);
     });
     it('voltar de reacao para atributo comum restaura as propriedades normais', () => {

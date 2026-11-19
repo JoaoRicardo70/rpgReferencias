@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import useStore, { sanitizarNome } from '../../stores/useStore';
-import { enviarParaFeed, salvarFichaSilencioso } from '../../services/firebase-sync';
+import { enviarParaFeed, salvarFichaSilencioso, salvarFirebaseImediato } from '../../services/firebase-sync';
 import { opcoesDeReacao, getRotuloEfeito } from '../../core/reacoes';
 import { getAcoesExibicao, alternarAcao } from '../../core/acoes';
 import { relacaoEntre } from '../../core/lados';
+import { chaveDoGolpe, dadosParaRerolar, rolarDeflexao, resolverAtacanteParaDeflexao, registrarDeflexao, deflexoesPendentes, consumirDeflexaoPendente, acharDanoDoGolpe, deflexoesExpiradas, expirarDeflexao } from '../../core/deflexao';
+import { aplicarDanoDeflexao } from '../../services/deflexao';
 
 // ↩️ Aviso de Reação: quando um ataque (Acerto no feed) tem VOCÊ como alvo — ou um aliado, se você tem técnica de ajuda —
 // pergunta se quer usar suas Reações (core/reacoes.js). Reagir gasta 1 Reação por opção escolhida, avisa no feed e guarda
@@ -22,6 +24,7 @@ export default function ReacaoPrompt() {
     const updateFicha = useStore(s => s.updateFicha);
     const adicionarAviso = useStore(s => s.adicionarAviso);
     const vistos = useRef(new Set());
+    const deflexoesProcessando = useRef(new Set());
     const montadoEm = useRef(Date.now());
     const [pedido, setPedido] = useState(null);
     const [marcadas, setMarcadas] = useState([]);
@@ -55,10 +58,53 @@ export default function ReacaoPrompt() {
                 continue;
             }
             setMarcadas([]);
-            setPedido({ atacante: f.nome, acertou: contexto.acertou, alvoNome: alvoAtingido.nome, alvoEhAliado: contexto.alvoEhAliado, opcoes, restantes: reacoesRestantes });
+            setPedido({ golpe: { chave: chaveDoGolpe(f), ts: f.ts, dados: dadosParaRerolar(f) }, atacante: f.nome, acertou: contexto.acertou, alvoNome: alvoAtingido.nome, alvoEhAliado: contexto.alvoEhAliado, opcoes, restantes: reacoesRestantes });
             break;
         }
     }, [feed, meuNome, minhaFicha, personagens, cenario, adicionarAviso, pedido]);
+
+    // 🔁 Deflexão que acertou (core/deflexao.js): quando o atacante rola o Dano do golpe, devolve esse dano a ele (só o cliente do defensor grava).
+    useEffect(() => {
+        if (!meuNome || !minhaFicha || !Array.isArray(feed)) return;
+        deflexoesPendentes(minhaFicha).forEach((d) => {
+            if (deflexoesProcessando.current.has(d.chave)) return;
+            const golpeDano = acharDanoDoGolpe(feed, d);
+            if (!golpeDano) return;
+            deflexoesProcessando.current.add(d.chave);
+            let consumiu = false;
+            updateFicha((ficha) => { consumiu = consumirDeflexaoPendente(ficha, d.chave); });
+            if (!consumiu) return;
+            // At-most-once: grava o estado `aplicada` no Firebase ANTES de aplicar o dano (F5/outra aba não reaplicam). Limitação residual: duas abas abertas
+            // que consumam antes de o Firebase sincronizar podem aplicar duas vezes; se a aba cair entre gravar e aplicar, o dano daquela Deflexão se perde.
+            Promise.resolve(salvarFirebaseImediato()).catch(() => {}).then(() => {
+                const st = useStore.getState();
+                const r = aplicarDanoDeflexao({ atacante: d.atacante, dano: golpeDano.dano, elemento: golpeDano.elemento, personagens: st.personagens, dummies: st.dummies, divisorPoderMesa: st.divisorPoderMesa });
+                const texto = r.ok
+                    ? `🔁 Deflexão de ${meuNome}: o golpe voltou e ${d.atacante} recebeu ${Math.floor(r.final).toLocaleString('pt-BR')} de dano.`
+                    : `🔁 Deflexão de ${meuNome} acertou, mas ${r.motivo} (dano do golpe: ${Math.floor(Number(golpeDano.dano) || 0).toLocaleString('pt-BR')}; peça ao Mestre para aplicar).`;
+                enviarParaFeed({ tipo: 'sistema', nome: meuNome, texto, ts: Date.now() });
+                if (r.ok && r.textos && r.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${d.atacante}: ${r.textos.join(' · ')}`, ts: Date.now() });
+            });
+        });
+    }, [feed, minhaFicha, meuNome, updateFicha]);
+
+    // 🔁 Deflexão que acertou mas venceu sem o Dano do golpe: avisa (a Reação já tinha sido gasta). Confere a cada 30 s e ao mudar a ficha.
+    useEffect(() => {
+        if (!meuNome) return undefined;
+        const conferir = () => {
+            const ficha = useStore.getState?.()?.minhaFicha;
+            deflexoesExpiradas(ficha).forEach((d) => {
+                let expirou = false;
+                updateFicha((f) => { expirou = expirarDeflexao(f, d.chave); });
+                if (!expirou) return;
+                salvarFichaSilencioso();
+                adicionarAviso(`A Deflexão contra ${d.atacante} acertou, mas ele não rolou o Dano daquele golpe a tempo: nada foi devolvido (a Reação foi gasta).`, 'alerta');
+            });
+        };
+        conferir();
+        const t = setInterval(conferir, 30000);
+        return () => clearInterval(t);
+    }, [meuNome, minhaFicha, updateFicha, adicionarAviso]);
 
     const alternarMarca = useCallback((id) => {
         setMarcadas(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
@@ -68,11 +114,29 @@ export default function ReacaoPrompt() {
 
     const reagir = useCallback(() => {
         if (!pedido) return;
-        const escolhidas = pedido.opcoes.filter(o => marcadas.includes(o.id)).slice(0, pedido.restantes);
+        let escolhidas = pedido.opcoes.filter(o => marcadas.includes(o.id)).slice(0, pedido.restantes);
+        // 🔁 Deflexão (core/deflexao.js): uma só por golpe; falha fechada (sem dados do golpe, atacante ausente ou sem CA) NÃO gasta a Reação.
+        let rolagemDeflexao = null;
+        const querDeflexao = escolhidas.filter(o => o.efeito === 'rerolar_ataque');
+        if (querDeflexao.length > 0) {
+            const st = useStore.getState();
+            const golpe = pedido.golpe;
+            const atac = golpe && golpe.dados && golpe.chave ? resolverAtacanteParaDeflexao(pedido.atacante, { personagens: st.personagens, dummies: st.dummies, divisorPoderMesa: st.divisorPoderMesa }) : null;
+            if (!atac) adicionarAviso(!golpe || !golpe.dados ? 'Este golpe não trouxe o bônus de acerto no Feed (versão antiga): a Deflexão não pode re-rolar.' : `Não consegui a CA de ${pedido.atacante} (ausente da mesa ou sem CA válida): a Deflexão não foi usada e a Reação não foi gasta.`, 'alerta');
+            else rolagemDeflexao = { chave: golpe.chave, golpeTs: golpe.ts, atacante: pedido.atacante, roll: rolarDeflexao({ ...golpe.dados, defesa: atac.defesa }) };
+            let jaTem = false;
+            escolhidas = escolhidas.filter(o => { if (o.efeito !== 'rerolar_ataque') return true; if (!rolagemDeflexao || jaTem) return false; jaTem = true; return true; });
+        }
         if (escolhidas.length === 0) { setPedido(null); return; }
 
+        let deflexaoRegistrada = false;
         updateFicha((ficha) => {
-            escolhidas.forEach(() => alternarAcao(ficha, 'reacao', true));
+            // Cada Reação gasta é 1 ação; a Deflexão repetida no mesmo golpe (outra aba/clique) é recusada aqui e não gasta nada.
+            escolhidas.forEach((o) => {
+                if (o.efeito === 'rerolar_ataque') {
+                    if (registrarDeflexao(ficha, { chave: rolagemDeflexao.chave, atacante: rolagemDeflexao.atacante, acertou: rolagemDeflexao.roll.acertou, golpeTs: rolagemDeflexao.golpeTs })) { alternarAcao(ficha, 'reacao', true); deflexaoRegistrada = true; }
+                } else alternarAcao(ficha, 'reacao', true);
+            });
             if (!ficha.combate) ficha.combate = {};
             if (!Array.isArray(ficha.combate.reacoesPendentes)) ficha.combate.reacoesPendentes = [];
             escolhidas.forEach(o => {
@@ -83,6 +147,17 @@ export default function ReacaoPrompt() {
         });
         salvarFichaSilencioso();
 
+        if (rolagemDeflexao && !deflexaoRegistrada) {
+            adicionarAviso('Você já usou a Deflexão neste golpe.', 'alerta');
+            escolhidas = escolhidas.filter(o => o.efeito !== 'rerolar_ataque');
+            if (escolhidas.length === 0) { setPedido(null); setMarcadas([]); return; }
+        }
+        if (deflexaoRegistrada) {
+            const r = rolagemDeflexao.roll;
+            enviarParaFeed({ tipo: 'sistema', nome: meuNome, texto: `🔁 Deflexão de ${meuNome}: re-rolou o ataque de ${pedido.atacante} contra a defesa do próprio atacante (${r.soma} + bônus = ${r.total}${r.natural === 20 ? ', 20 natural' : r.natural === 1 ? ', 1 natural' : ''}): ${r.acertou ? 'ACERTOU' : 'ERROU'}.`, ts: Date.now() });
+            adicionarAviso('A Deflexão re-rola o ataque como um ataque simples (sem vantagem nem Diferença de Poder).', 'info');
+            adicionarAviso(r.acertou ? `A Deflexão acertou! O dano do golpe volta a ${pedido.atacante} quando ele rolar o Dano (até 10 min).` : 'A Deflexão errou.', r.acertou ? 'info' : 'alerta');
+        }
         const descricao = escolhidas.map(o => `${o.nome} (${getRotuloEfeito(o.efeito)}${o.efeito === 'reduzir_dano' ? ` ${o.valor}%` : o.efeito === 'aumentar_ca' ? ` +${o.valor}` : ''})`).join(', ');
         enviarParaFeed({ tipo: 'sistema', nome: meuNome, texto: `↩️ ${meuNome} usou ${escolhidas.length > 1 ? `${escolhidas.length} Reações` : 'Reação'} contra o ataque de ${pedido.atacante}${pedido.alvoEhAliado ? ` em ${pedido.alvoNome}` : ''}: ${descricao}`, ts: Date.now() });
 

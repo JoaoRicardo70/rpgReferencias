@@ -48,8 +48,8 @@ export function rascunhoVazio() {
         nomeEfeito: '', novoAtr: 'forca', novoProp: 'base', novoVal: '', novoQuando: '', novoEscopo: '',
         nomeEfeitoPassivo: '', novoAtrPassivo: 'evasiva', novoPropPassivo: 'base', novoValPassivo: '', novoQuandoPassivo: '', novoEscopoPassivo: '',
         // Escala do efeito em edição (core/escalaEfeito.js): por contador, por aliado em campo e "vale para aliados".
-        novoEscala: { contadorId: '', fator: '', aliFator: '', aliTipo: '', aliValor: '', paraAliados: false },
-        novoEscalaPassivo: { contadorId: '', fator: '', aliFator: '', aliTipo: '', aliValor: '', paraAliados: false },
+        novoEscala: { contadorId: '', fator: '', aliFator: '', aliTipo: '', aliValor: '', paraAliados: false, paraInimigos: false, movFator: '', movMax: '' },
+        novoEscalaPassivo: { contadorId: '', fator: '', aliFator: '', aliTipo: '', aliValor: '', paraAliados: false, paraInimigos: false, movFator: '', movMax: '' },
         abertas: { ...SECOES_PADRAO },
     };
 }

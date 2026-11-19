@@ -1,4 +1,6 @@
 import { contarAliadosEmCampoDaMesa, normalizarFiltroAliado, nomeDoPortador } from './aliadosEmCampo.js';
+import { normalizarEscalaMovimento, quadradosContados } from './movimentoNoTurno.js';
+import { lerDadoDeDano, formatarDadoDeDano, ATRIBUTO_DANO_DADOS, LIMITES_DANO_DADOS } from './danoDados.js';
 import { temEstagios, efeitosDoEstagio, fatorGeralDoEstagio, escalarPorFator } from './estagios.js';
 
 /**
@@ -30,14 +32,27 @@ const fatorValido = (f) => { const n = Number(f); return Number.isFinite(n) && n
 export function escalarEfeitosPorContador(efeitos, contadores, ficha = null, nomePortador = '') {
     if (!Array.isArray(efeitos)) return efeitos;
     // Caminho rápido: sem nenhum efeito escalável não aloca nada.
-    if (!efeitos.some(e => e && typeof e === 'object' && (e.escalaContador || e.escalaAliados))) return efeitos;
+    if (!efeitos.some(e => e && typeof e === 'object' && (e.escalaContador || e.escalaAliados || e.escalaMovimento))) return efeitos;
     let mudou = false;
     const lista = Array.isArray(contadores) ? contadores : [];
     const saida = efeitos.map((e) => {
         if (!e || typeof e !== 'object') return e;
         const ec = e.escalaContador && typeof e.escalaContador === 'object' ? e.escalaContador : null;
         const ea = e.escalaAliados && typeof e.escalaAliados === 'object' ? e.escalaAliados : null;
-        if (!ec && !ea) return e;
+        const em = e.escalaMovimento && typeof e.escalaMovimento === 'object' ? e.escalaMovimento : null;
+        if (!ec && !ea && !em) return e;
+        // 👣 Escala por movimento (core/movimentoNoTurno.js): fator x quadrados percorridos no turno, com teto `max` obrigatório (sem ele não escala).
+        if (em && String(e.atributo ?? '').trim().toLowerCase() === ATRIBUTO_DANO_DADOS) {
+            // Dado de dano: o valor "NdM" é o dado POR quadrado; dados = N x fator x quadrados (inteiro, limitado ao teto de dados do golpe).
+            // Sem escala válida, sem ficha ou sem quadrados = 0 dados (o efeito não soma nada).
+            const d = lerDadoDeDano(e.valor);
+            if (!d) return e;
+            const esc = normalizarEscalaMovimento(em);
+            const q = esc && esc.fator > 0 && ficha ? quadradosContados(ficha, esc.max) : 0;
+            const qtd = esc ? Math.min(LIMITES_DANO_DADOS.qtdMax, Math.floor(d.qtd * esc.fator * q)) : 0;
+            mudou = true;
+            return { ...e, valor: qtd >= 1 ? formatarDadoDeDano({ qtd, faces: d.faces }) : `0d${d.faces}` };
+        }
         const textoBase = String(e.valor ?? '').trim().replace(',', '.');
         const base = textoBase === '' ? 0 : Number(textoBase);
         if (!Number.isFinite(base)) return e;
@@ -51,6 +66,10 @@ export function escalarEfeitosPorContador(efeitos, contadores, ficha = null, nom
         if (ea && ficha) {
             const f = fatorValido(ea.fator);
             if (f !== null) total += f * contarAliadosEmCampoDaMesa(ficha, normalizarFiltroAliado(ea.filtro), nomeDoPortador(ficha, nomePortador));
+        }
+        if (em && ficha) {
+            const esc = normalizarEscalaMovimento(em);
+            if (esc) total += esc.fator * quadradosContados(ficha, esc.max);
         }
         if (!Number.isFinite(total) || total === base) return e;
         mudou = true;

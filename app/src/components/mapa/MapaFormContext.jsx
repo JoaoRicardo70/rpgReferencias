@@ -43,8 +43,9 @@ import { aplicarDanoEmPersonagem } from '../../services/danoAlvo';
 import { aplicarDanoNaVidaDaFicha, textoDosGatilhos, cenaAtualDaMesa, perguntarGatilhosDeDano, criarEscolhaDoDono } from '../../services/danoVida';
 import { passarTurnoDaImunidadeTotal, camposDeGatilhosAlterados, camposParaGravar, dispararEventoNaFicha } from '../../core/gatilhosAplicar';
 import { zerarAtaquesNoTurno, CAMINHO_ATAQUES_NO_TURNO } from '../../core/ataquesNoTurno';
+import { registrarMovimento, zerarQuadradosNoTurno, CAMINHO_QUADRADOS_NO_TURNO } from '../../core/movimentoNoTurno';
 import { dispararEventoMeu, dispararEventoEmPersonagem, dispararResultadoDoAcerto } from '../../services/gatilhosEventos';
-import { resolverAlvoCombate, idAlvoPersonagem, ehAlvoPersonagem } from '../../core/alvoCombate';
+import { resolverAlvoCombate, idAlvoPersonagem, ehAlvoPersonagem, defesaEfetivaDoDummie } from '../../core/alvoCombate';
 import { ordenarOrdemTurno, chaveEntidadeTurno, moverChaveNaOrdem, recalcularIndiceTurno } from '../../core/turnos';
 
 // 🎯 O Dano Rápido do Mestre conta como GOLPE (nível normal): dispara o evento `atingido` dos gatilhos de quem o sofre.
@@ -108,7 +109,7 @@ export function aplicarInicioDeTurno(ficha, ehDummie = false, nome = '', context
 
     if (!ficha.combate) ficha.combate = {};
     // ⚔️ Contador de ataques do turno (core/ataquesNoTurno.js): zera SEMPRE no início do turno do portador (alimenta "primeiro ataque do turno").
-    if (!ehDummie) zerarAtaquesNoTurno(ficha);
+    if (!ehDummie) { zerarAtaquesNoTurno(ficha); zerarQuadradosNoTurno(ficha); } // 👣 quadrados percorridos (core/movimentoNoTurno.js) também zeram
     // 💥 Zenkai (core/zenkai.js): fecha o gasto de Energia do turno anterior (ou abre a telemetria no 1º turno / de quem entrou depois). Só com Zenkai ligado e combate ativo
     // (contextoAdaptacao != null). Um erro aqui nunca impede o turno.
     if (!ehDummie && contextoAdaptacao) { try { abrirTurnoZenkai(ficha, { reiniciar: contextoAdaptacao.zenkaiReiniciar === true }); } catch (e) { console.error('Zenkai: abertura do turno falhou', e); } }
@@ -253,6 +254,7 @@ function camposDeInicioDeTurno(ficha, camposPoderes = {}, escudosMudaram = false
     if (ficha.combate) {
         if (ficha.combate.fadigaTurnos !== undefined) campos['combate/fadigaTurnos'] = ficha.combate.fadigaTurnos;
         if (ficha.combate.ataquesNoTurno !== undefined) campos[CAMINHO_ATAQUES_NO_TURNO] = ficha.combate.ataquesNoTurno;
+        if (ficha.combate.quadradosNoTurno !== undefined) campos[CAMINHO_QUADRADOS_NO_TURNO] = ficha.combate.quadradosNoTurno;
         if (ficha.combate.fadigaExtra !== undefined) campos['combate/fadigaExtra'] = ficha.combate.fadigaExtra;
         // 🧬 Adaptação (core/adaptacao.js): só os campos que o início do turno mexe.
         if (ficha.combate.adaptacaoLigada === true) CAMINHOS_ADAPTACAO.forEach((c) => { const v = ficha.combate[c.split('/')[1]]; if (v !== undefined) campos[c] = v; });
@@ -919,7 +921,10 @@ export function MapaFormProvider({ children }) {
             salvarDummie(alvoSelecionado, { ...d, posicao: { x, y, z }, cenaId: cenaRenderId });
             processarEntradaNaZona(oldPos, x, y, z, d.nome, true, alvoSelecionado, d);
         } else {
+            const escalaDaCena = cenario?.lista?.[cenaRenderId]?.escala || 1.5;
             updateFicha((ficha) => {
+                // 👣 Conta os quadrados percorridos no turno (core/movimentoNoTurno.js): só em combate e na mesma cena; teleporte tem teto por movimento.
+                if (oldPos && cenaRenderId === ((cenario && cenario.ativa) || 'default')) registrarMovimento(ficha, { ...oldPos, cenaId: cenaRenderId }, { x, y, z, cenaId: cenaRenderId }, escalaDaCena);
                 // Guarda na nova estrutura independente
                 if (!ficha.posicoes) ficha.posicoes = {};
                 ficha.posicoes[cenaRenderId] = { x, y, z, cenaId: cenaRenderId };
@@ -934,7 +939,7 @@ export function MapaFormProvider({ children }) {
             salvarFichaSilencioso();
             processarEntradaNaZona(oldPos, x, y, z, meuNome, false, null, null);
         }
-    }, [isMestre, alvoSelecionado, dummies, cenaRenderId, altitudeInput, updateFicha, processarEntradaNaZona, meuNome, minhaFicha]);
+    }, [isMestre, alvoSelecionado, dummies, cenaRenderId, altitudeInput, updateFicha, processarEntradaNaZona, meuNome, minhaFicha, cenario]);
 
     // 📍 Mover o PRÓPRIO personagem pede confirmação: um clique na casa só marca o destino e o jogador
     // escolhe "Ir para lá" ou "Ficar" — assim clicar perto de outro token (ou sem querer) não teleporta
@@ -1706,7 +1711,7 @@ export function MapaFormProvider({ children }) {
 
                 // Alvo-personagem: ele mesmo entra no golpe em área (os Dummies vizinhos entram pelo laço abaixo).
                 if (alvoDummie.isPersonagem) {
-                    alvosAtingidos.push(resolverAlvo(alvoDummie.nome, alvoDummie.valorDefesa, getPoderDummie(alvoDummie), { dummieId: alvoSelecionado }));
+                    alvosAtingidos.push(resolverAlvo(alvoDummie.nome, defesaEfetivaDoDummie(alvoDummie), getPoderDummie(alvoDummie), { dummieId: alvoSelecionado }));
                 }
                 Object.entries(dummies).forEach(([id, dObj]) => {
                     const isSameScene = (dObj.cenaId || 'default') === (alvoDummie.cenaId || 'default');
@@ -1716,12 +1721,12 @@ export function MapaFormProvider({ children }) {
                         const dZ = Math.floor(Math.abs((dObj.posicao.z || 0) - (alvoDummie.posicao.z || 0)) / escala);
                         
                         if (Math.max(dX, dY, dZ) <= maxArea) {
-                            alvosAtingidos.push(resolverAlvo(dObj.nome, dObj.valorDefesa, getPoderDummie(dObj), { dummieId: id }));
+                            alvosAtingidos.push(resolverAlvo(dObj.nome, defesaEfetivaDoDummie(dObj), getPoderDummie(dObj), { dummieId: id }));
                         }
                     }
                 });
             } else {
-                alvosAtingidos.push(resolverAlvo(alvoDummie.nome, alvoDummie.valorDefesa, getPoderDummie(alvoDummie), { dummieId: alvoSelecionado }));
+                alvosAtingidos.push(resolverAlvo(alvoDummie.nome, defesaEfetivaDoDummie(alvoDummie), getPoderDummie(alvoDummie), { dummieId: alvoSelecionado }));
             }
         }
 

@@ -1,5 +1,7 @@
 import React from 'react';
 import { efeitoPodeValerParaAliados } from '../../core/efeitosDeAliados';
+import { efeitoPodeValerParaInimigos } from '../../core/efeitosDeInimigos';
+import { efeitoAceitaEscalaMovimento, LIMITE_MAX_ESCALA_MOVIMENTO } from '../../core/movimentoNoTurno';
 
 // 🔢 "Escalar com contador" e "Escalar por aliado em campo" (core/efeitos-resolver.js): o efeito passa a valer
 // valor + fator × valor do contador (+ fator × aliados da cena ativa); e, em atributos de ataque, "vale também para aliados em campo" (core/efeitosDeAliados.js). `valor` = { contadorId, fator, aliFator, aliTipo, aliValor } (core/escalaEfeito.js).
@@ -11,12 +13,26 @@ export default function EscalaContadorEfeito({ atributo, contadores, valor, onCh
     const v = valor || {};
     const mudar = (campo, novo) => onChange({ ...v, [campo]: novo });
     const podeAliados = efeitoPodeValerParaAliados(atributo);
-    if (semEscala && !podeAliados) return null;
+    const podeInimigos = efeitoPodeValerParaInimigos(atributo);
+    const podeMovimento = efeitoAceitaEscalaMovimento(atributo);
+    if (semEscala && !podeAliados && !podeMovimento) return null;
     return (
         <div className="condicao-efeito">
             {podeAliados && (
                 <label className="condicao-efeito-campo" title="Os aliados na cena ativa também recebem este efeito (avaliado no ataque deles; ex.: contra a Presa marcada).">
                     <input type="checkbox" checked={!!v.paraAliados} onChange={ev => mudar('paraAliados', ev.target.checked)} /> <span>Vale também para aliados em campo</span>
+                </label>
+            )}
+            {podeInimigos && (
+                <label className="condicao-efeito-campo" title="Penalidade (use valor NEGATIVO, até -20 somados) para os INIMIGOS do portador na cena ativa, enquanto a condição do efeito valer para o portador (ex.: Há alguém com o estado Presa em campo).">
+                    <input type="checkbox" checked={!!v.paraInimigos} onChange={ev => mudar('paraInimigos', ev.target.checked)} /> <span>Penalidade para os inimigos em campo</span>
+                </label>
+            )}
+            {podeMovimento && (
+                <label className="condicao-efeito-campo">
+                    <span>Escalar com movimento (por quadrado)</span>
+                    <input type="number" step="any" placeholder="+ por quadrado" aria-label="Quanto o efeito ganha por quadrado percorrido no turno" title={semEscala ? 'Dado de dano: o dado do efeito vale POR quadrado (fator multiplica). Só conta em combate.' : 'Valor final = valor do efeito + fator x quadrados percorridos no turno (só em combate). Vazio = não escala.'} value={v.movFator || ''} onChange={ev => mudar('movFator', ev.target.value)} />
+                    <input type="number" min="1" max={LIMITE_MAX_ESCALA_MOVIMENTO} step="1" placeholder="teto de quadrados" aria-label="Teto de quadrados contados (obrigatório, 1 a 100)" title={`Teto de quadrados contados pelo efeito (obrigatório, 1 a ${LIMITE_MAX_ESCALA_MOVIMENTO}).`} value={v.movMax || ''} onChange={ev => mudar('movMax', ev.target.value)} />
                 </label>
             )}
             {!semEscala && (lista.length > 0 || v.contadorId) && (

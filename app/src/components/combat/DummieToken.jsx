@@ -3,6 +3,7 @@ import useStore from '../../stores/useStore';
 import { salvarDummie, deletarDummie } from '../../services/firebase-sync';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { getPoderDummie, formatarPoderDisputa } from '../../core/disputaPoder';
+import { defesaEfetivaDoDummie } from '../../core/alvoCombate';
 import { recalcularDefesaDoDummie, definirDefesaManualDoDummie } from '../../core/gavetaNpc';
 
 // 🔥 Formatador de Números Gigantes (K, M, B, T)
@@ -110,7 +111,7 @@ export default function DummieToken({ className, id, dummie }) {
                     {dummie.nome}
                 </span>
                 <span style={{ fontSize: '9px', color: colorAC, fontWeight: 'bold', background: 'rgba(0,0,0,0.8)', padding: '0 4px', borderRadius: 4, marginTop: 1 }}>
-                    🛡️ {dummie.valorDefesa}
+                    🛡️ {defesaEfetivaDoDummie(dummie)}
                 </span>
                 {poderDummie !== null && isMestre && (
                     <span className="dummie-poder" title="Poder Calculado (Disputa de Poder)">⚡ {formatarPoderDisputa(poderDummie)}</span>
