@@ -38,14 +38,18 @@ export default function DummieToken({ className, id, dummie }) {
         setEntidadeInspecionada(jaInspecionado ? null : { tipo: 'dummie', id });
     };
 
+    // Defesa nos handlers abaixo: só o Mestre/Co-Mestre efetivo (false em Modo Jogador) grava, edita ou remove a
+    // entidade, mesmo que o botão seja exibido por engano.
     const resetarVida = (e) => {
         e.stopPropagation();
+        if (!isMestre) return;
         salvarDummie(id, { ...dummie, hpAtual: dummie.hpMax });
     };
 
     // 🛡️ Atualiza a CA (Dummies salvos antes da CA nova guardam o valor antigo): pela ficha do NPC de origem, ou digitada pelo Mestre.
     const atualizarDefesa = (e) => {
         e.stopPropagation();
+        if (!isMestre) return;
         const personagens = useStore.getState().personagens || {};
         const fichaOrigem = dummie.fichaOrigem ? personagens[dummie.fichaOrigem] : null;
         const daFicha = recalcularDefesaDoDummie(dummie, fichaOrigem);
@@ -60,6 +64,7 @@ export default function DummieToken({ className, id, dummie }) {
     // ⚡ Poder Calculado da entidade (Disputa de Poder, core/disputaPoder.js). Vazio = sem disputa.
     const editarPoder = (e) => {
         e.stopPropagation();
+        if (!isMestre) return;
         const atual = getPoderDummie(dummie);
         const resposta = window.prompt(`Poder Calculado de ${dummie.nome} (mesma escala do Scouter). Deixe vazio para tirar a Disputa de Poder desta entidade.`, atual === null ? '' : String(atual));
         if (resposta === null) return;
@@ -79,6 +84,7 @@ export default function DummieToken({ className, id, dummie }) {
 
     const removerDummie = (e) => {
         e.stopPropagation();
+        if (!isMestre) return;
         if (window.confirm('Remover esta Entidade do mapa?')) {
             if (alvoSelecionado === id) setAlvoSelecionado(null);
             deletarDummie(id);
@@ -139,16 +145,13 @@ export default function DummieToken({ className, id, dummie }) {
             )}
             
             {/* 🔥 Controles Dinâmicos (Flutuando acima do Token) */}
+            {/* RESSUSCITAR/HP e demais controles destrutivos: só Mestre efetivo (o 🔄 HP também revive entidade morta) */}
             {(isMestre && isTarget) ? (
                 <div style={{ display: 'flex', gap: 2, position: 'absolute', top: '-25px', right: '-20px', background: '#000', padding: 2, borderRadius: 4, border: '1px solid #ffcc00', zIndex: 30 }}>
                     <button onClick={resetarVida} style={{ background: '#00ffcc', color: '#000', border: 'none', borderRadius: 2, fontSize: '10px', cursor: 'pointer', padding: '2px 5px', fontWeight: 'bold' }}>🔄 HP</button>
                     <button onClick={atualizarDefesa} className="dummie-btn-poder" title="Atualizar a CA desta entidade (recalcula pela ficha do NPC, ou digite o valor)">🛡️</button>
                     <button onClick={editarPoder} className="dummie-btn-poder" title="Definir o Poder Calculado desta entidade (Disputa de Poder)">⚡</button>
                     <button onClick={removerDummie} style={{ background: '#ff003c', color: '#fff', border: 'none', borderRadius: 2, fontSize: '10px', cursor: 'pointer', padding: '2px 5px' }}>🗑️</button>
-                </div>
-            ) : (isDead && isTarget) ? (
-                <div style={{ display: 'flex', gap: 2, position: 'absolute', top: '-25px', right: '-20px', background: '#000', padding: 2, borderRadius: 4, border: '1px solid #00ffcc', zIndex: 30 }}>
-                    <button onClick={resetarVida} style={{ background: '#00ffcc', color: '#000', border: 'none', borderRadius: 2, fontSize: '10px', cursor: 'pointer', padding: '2px 5px', fontWeight: 'bold' }}>🔄 RESSUSCITAR</button>
                 </div>
             ) : null}
         </div>

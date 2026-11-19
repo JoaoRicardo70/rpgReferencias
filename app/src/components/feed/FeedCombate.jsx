@@ -4,7 +4,12 @@ import { getPercepcaoPoder, enxergaEfetividade, descreverEfetividade } from '../
 import { entradaVisivel } from '../../core/dadosMestre';
 import { revelarEntradaFeed } from '../../services/firebase-sync';
 import useDadosMestrePrivados, { useAcertoOculto } from '../../hooks/useDadosMestre';
+import { escaparHtml as esc, sanitizarHtml } from '../../core/escaparHtml';
 import { marcaPoderAcerto, marcaNaturalAcerto } from '../../core/disputaPoder';
+
+// Toda string HTML do feed passa pela whitelist (entradas antigas/de outros clientes podem trazer HTML malicioso);
+// os campos de texto puro (nomes) são escapados antes de entrar nos templates.
+const html = (texto) => ({ __html: sanitizarHtml(texto) });
 
 export default function FeedCombate({ className }) {
     const feedCombate = useStore(s => s.feedCombate);
@@ -64,12 +69,12 @@ export default function FeedCombate({ className }) {
                     return (
                         <div key={idx} className="damage-log" style={{ borderLeftColor: '#0088ff', background: 'rgba(0,136,255,0.1)' }}>
                             <p style={{ color: '#0088ff' }}>
-                                <span dangerouslySetInnerHTML={{ __html: `🎯 <strong>${d.nome}</strong> fez um Teste de <strong>${d.nomeTeste}</strong>:` }} />
+                                <span dangerouslySetInnerHTML={html(`🎯 <strong>${esc(d.nome)}</strong> fez um Teste de <strong>${esc(d.nomeTeste)}</strong>:`)} />
                             </p>
                             <h1 className="damage-number" style={{ color: '#0088ff', textShadow: '0 0 20px rgba(0,136,255,0.8)' }}>
                                 {d.total}
                             </h1>
-                            <div className="log-details" dangerouslySetInnerHTML={{ __html: d.detalheCalc }} />
+                            <div className="log-details" dangerouslySetInnerHTML={html(d.detalheCalc)} />
                         </div>
                     );
                 }
@@ -79,12 +84,12 @@ export default function FeedCombate({ className }) {
                     return (
                         <div key={idx} className="damage-log" style={{ borderLeftColor: '#ffcc00', background: 'rgba(255,204,0,0.1)' }}>
                             <p style={{ color: '#ffcc00' }}>
-                                <span dangerouslySetInnerHTML={{ __html: `🛡️ <strong>${d.nome}</strong> rolou um Saving Throw de <strong>${d.nomeTeste}</strong>:` }} />
+                                <span dangerouslySetInnerHTML={html(`🛡️ <strong>${esc(d.nome)}</strong> rolou um Saving Throw de <strong>${esc(d.nomeTeste)}</strong>:`)} />
                             </p>
                             <h1 className="damage-number" style={{ color: '#ffcc00', textShadow: '0 0 20px rgba(255,204,0,0.8)' }}>
                                 {d.total}
                             </h1>
-                            <div className="log-details" dangerouslySetInnerHTML={{ __html: d.detalheCalc }} />
+                            <div className="log-details" dangerouslySetInnerHTML={html(d.detalheCalc)} />
                         </div>
                     );
                 }
@@ -93,14 +98,14 @@ export default function FeedCombate({ className }) {
                     return (
                         <div key={idx} className="damage-log" style={{ borderLeftColor: '#f90', background: 'rgba(255,153,0,0.1)' }}>
                             <p style={{ color: '#f90' }}>
-                                <span dangerouslySetInnerHTML={{ __html: `&#x1F3AF; <strong>${d.nome}</strong> rolou Acerto usando <strong>${d.atributosUsados}</strong>${d.armaStr || ''}:` }} />
+                                <span dangerouslySetInnerHTML={html(`&#x1F3AF; <strong>${esc(d.nome)}</strong> rolou Acerto usando <strong>${esc(d.atributosUsados)}</strong>${d.armaStr || ''}:`)} />
                             </p>
                             <h1 className="damage-number" style={{ color: '#f90', textShadow: '0 0 20px rgba(255,153,0,0.8)' }}>
                                 {d.valorOculto && !isMestre ? '🎲 ?' : d.acertoTotal}
                             </h1>
                             {d.valorOculto && <p className="feed-acerto-oculto">{isMestre ? '🙈 Valor escondido dos jogadores' : 'Valor do acerto escondido pelo Mestre'}</p>}
                             {!(d.valorOculto && !isMestre) && <p className="lethality" style={{ color: '#fff' }}>{d.profBonusTexto}</p>}
-                            {!(d.valorOculto && !isMestre) && <div className="log-details" dangerouslySetInnerHTML={{ __html: `&#x1F3B2; Rolagem Base: ${d.rolagem}` }} />}
+                            {!(d.valorOculto && !isMestre) && <div className="log-details" dangerouslySetInnerHTML={html(`&#x1F3B2; Rolagem Base: ${d.rolagem}`)} />}
                             
                             {/* 🔥 FEEDBACK VISUAL PARA MÚLTIPLOS ALVOS E ÁREA 🔥 */}
                             {alvosArray.length > 0 && (
@@ -121,12 +126,12 @@ export default function FeedCombate({ className }) {
                     return (
                         <div key={idx} className="damage-log" style={{ borderLeftColor: '#0088ff', background: 'rgba(0,136,255,0.1)' }}>
                             <p style={{ color: '#0088ff' }}>
-                                <span dangerouslySetInnerHTML={{ __html: `&#x1F4A8; <strong>${d.nome}</strong> declarou Esquiva${d.armaStr || ''}:` }} />
+                                <span dangerouslySetInnerHTML={html(`&#x1F4A8; <strong>${esc(d.nome)}</strong> declarou Esquiva${d.armaStr || ''}:`)} />
                             </p>
                             <h1 className="damage-number" style={{ color: '#0088ff', textShadow: '0 0 20px rgba(0,136,255,0.8)' }}>
                                 {d.total}
                             </h1>
-                            <div className="log-details" dangerouslySetInnerHTML={{ __html: d.baseCalc }} />
+                            <div className="log-details" dangerouslySetInnerHTML={html(d.baseCalc)} />
                         </div>
                     );
                 }
@@ -135,12 +140,12 @@ export default function FeedCombate({ className }) {
                     return (
                         <div key={idx} className="damage-log" style={{ borderLeftColor: '#ccc', background: 'rgba(200,200,200,0.1)' }}>
                             <p style={{ color: '#ccc' }}>
-                                <span dangerouslySetInnerHTML={{ __html: `&#x1F6E1;&#xFE0F; <strong>${d.nome}</strong> declarou Bloqueio${d.armaStr || ''}:` }} />
+                                <span dangerouslySetInnerHTML={html(`&#x1F6E1;&#xFE0F; <strong>${esc(d.nome)}</strong> declarou Bloqueio${d.armaStr || ''}:`)} />
                             </p>
                             <h1 className="damage-number" style={{ color: '#ccc', textShadow: '0 0 20px rgba(200,200,200,0.8)' }}>
                                 {d.total}
                             </h1>
-                            <div className="log-details" dangerouslySetInnerHTML={{ __html: d.baseCalc }} />
+                            <div className="log-details" dangerouslySetInnerHTML={html(d.baseCalc)} />
                         </div>
                     );
                 }
@@ -150,12 +155,12 @@ export default function FeedCombate({ className }) {
                     return (
                         <div key={idx} className="damage-log" style={{ borderLeftColor: '#f0f', background: 'rgba(255,0,255,0.1)' }}>
                             <p style={{ color: '#f0f' }}>
-                                <span dangerouslySetInnerHTML={{ __html: `&#x2728; <strong>${d.nome}</strong> ativou Escudo${d.armaStr || ''}:` }} />
+                                <span dangerouslySetInnerHTML={html(`&#x2728; <strong>${esc(d.nome)}</strong> ativou Escudo${d.armaStr || ''}:`)} />
                             </p>
                             <h1 className="damage-number" style={{ color: '#f0f', textShadow: '0 0 20px rgba(255,0,255,0.8)' }}>
-                                <span dangerouslySetInnerHTML={{ __html: `${(d.escudoReduzido || 0).toLocaleString('pt-BR')}${tg}` }} />
+                                <span dangerouslySetInnerHTML={html(`${(d.escudoReduzido || 0).toLocaleString('pt-BR')}${tg}`)} />
                             </h1>
-                            <div className="log-details" dangerouslySetInnerHTML={{ __html: d.detalhe }} />
+                            <div className="log-details" dangerouslySetInnerHTML={html(d.detalhe)} />
                         </div>
                     );
                 }
@@ -172,7 +177,7 @@ export default function FeedCombate({ className }) {
                 // Default: dano
                 return (
                     <div key={idx} className="damage-log">
-                        <p dangerouslySetInnerHTML={{ __html: `&#x1F4A5; <strong>${d.nome}</strong> atacou usando <strong>${d.atributosUsados}</strong>${d.armaStr || ''}:` }} />
+                        <p dangerouslySetInnerHTML={html(`&#x1F4A5; <strong>${esc(d.nome)}</strong> atacou usando <strong>${esc(d.atributosUsados)}</strong>${d.armaStr || ''}:`)} />
                         <h1 className="damage-number">
                             {(d.dano || 0).toLocaleString('pt-BR')}
                         </h1>
@@ -186,9 +191,9 @@ export default function FeedCombate({ className }) {
                                 {d.narrativaComplemento && <small className="feed-narrativa-complemento">{d.narrativaComplemento}</small>}
                             </div>
                         )}
-                        <div className="log-details" dangerouslySetInnerHTML={{
-                            __html: `&#x1F3B2; Rolagem de Dados: ${d.rolagem || ''}${d.rolagemMagica || ''}${d.detalheEnergia || ''}${d.detalheConta || ''}`
-                        }} />
+                        <div className="log-details" dangerouslySetInnerHTML={html(
+                            `&#x1F3B2; Rolagem de Dados: ${d.rolagem || ''}${d.rolagemMagica || ''}${d.detalheEnergia || ''}${d.detalheConta || ''}`
+                        )} />
 
                         {/* ⚖️ Dano em área: o recalculo por alvo é do Mestre; o jogador só vê a efetividade, se perceber */}
                         {isMestre && d.detalheDisputa && <div className="feed-disputa-poder">🔒 {d.detalheDisputa}</div>}

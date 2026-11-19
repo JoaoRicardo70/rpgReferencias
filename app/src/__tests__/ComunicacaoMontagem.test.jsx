@@ -96,7 +96,7 @@ let telaTrack;
 let micTrack;
 
 beforeEach(() => {
-    useStore.setState({ meuNome: 'Ana', cenario: { tavernaAtivos: [] }, personagens: { Ana: {} }, abaAtiva: 'aba-comunicacao' });
+    useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Ana', cenario: { tavernaAtivos: [] }, personagens: { Ana: {} }, abaAtiva: 'aba-comunicacao' });
 
     // jsdom não implementa scrollIntoView (auto-scroll dos logs do Gravador) nem requestAnimationFrame
     // de forma útil (o visualizador de volume entraria num loop recursivo).

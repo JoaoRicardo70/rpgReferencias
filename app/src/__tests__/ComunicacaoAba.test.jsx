@@ -28,7 +28,7 @@ const com = (ui, chat = fakeChat()) => render(
 );
 
 beforeEach(() => {
-    useStore.setState({ meuNome: 'Ana', cenario: { tavernaAtivos: [] }, personagens: { Ana: {} }, abaAtiva: 'aba-ficha' });
+    useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Ana', cenario: { tavernaAtivos: [] }, personagens: { Ana: {} }, abaAtiva: 'aba-ficha' });
     // O Gravador (agora sempre montado nesta aba) rola os logs para baixo a cada render; jsdom não implementa scrollIntoView.
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
 });

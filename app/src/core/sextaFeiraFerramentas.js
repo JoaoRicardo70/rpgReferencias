@@ -1,3 +1,4 @@
+import { htmlParaTexto } from "./escaparHtml.js";
 // ==========================================
 // SEXTA-FEIRA — FERRAMENTAS (function calling do Gemini), lógica pura.
 //
@@ -232,7 +233,7 @@ export function resumirEventoFeed(e, verNumeros = false) {
     const partes = [`[${e.tipo || 'evento'}] ${e.nome || '?'}`];
     if (e.texto) partes.push(String(e.texto));
     if (e.nomeTeste) partes.push(`teste: ${e.nomeTeste}`);
-    if (e.armaStr) partes.push(`com ${e.armaStr}`);
+    if (e.armaStr) partes.push(`com ${htmlParaTexto(e.armaStr)}`);
     if (e.alvoNome) partes.push(`alvo: ${e.alvoNome}`);
     if (e.total !== undefined) partes.push(`total: ${e.total}`);
     if (e.acertoTotal !== undefined) partes.push(`acerto: ${e.acertoTotal}`);

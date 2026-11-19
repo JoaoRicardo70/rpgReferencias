@@ -1,18 +1,27 @@
-const { ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webFrame } = require('electron');
 
-// 🔥 Substitui window.alert/window.confirm ANTES da página carregar (preload roda primeiro, e
-// como contextIsolation está desativado em electron.cjs, esta atribuição em `window` fica visível
-// pro código da própria página depois). Cada chamada vira uma mensagem IPC SÍNCRONA pro processo
-// principal, que mostra um diálogo nativo do Electron (dialog.showMessageBoxSync) em vez do
-// diálogo nativo do Chromium — o do Electron devolve o foco de teclado corretamente ao fechar, o
-// do Chromium não (ver o comentário grande em electron.cjs). ipcRenderer.sendSync já bloqueia a
-// execução até o processo principal responder, preservando o mesmo comportamento síncrono que
-// window.alert()/window.confirm() sempre tiveram — nenhum código que já chama
-// `if (!window.confirm(...)) return;` precisa mudar.
-window.alert = function (mensagem) {
-  ipcRenderer.sendSync('electron-alert', mensagem === undefined ? '' : String(mensagem));
-};
+// 🔒 O renderer roda com contextIsolation e sandbox (ver electron.cjs): a página não enxerga Node nem o
+// ipcRenderer. Aqui expomos SÓ duas funções (alert/confirm nativos do Electron) e, no mundo da página,
+// substituímos window.alert/window.confirm por elas.
+//
+// Por que isto existe: alert()/confirm() do Chromium roubam o foco de teclado da janela no Windows e não o
+// devolvem (nenhum campo aceita clique/digitação até um alt-tab). O diálogo nativo do Electron
+// (dialog.showMessageBoxSync, no processo principal) devolve o foco corretamente. ipcRenderer.sendSync
+// bloqueia até a resposta, preservando o comportamento síncrono: `if (!window.confirm(...)) return;` segue igual.
+contextBridge.exposeInMainWorld('__rpgNativo', {
+  alert: (mensagem) => {
+    ipcRenderer.sendSync('electron-alert', mensagem === undefined ? '' : String(mensagem));
+  },
+  confirm: (mensagem) => ipcRenderer.sendSync('electron-confirm', mensagem === undefined ? '' : String(mensagem)),
+});
 
-window.confirm = function (mensagem) {
-  return ipcRenderer.sendSync('electron-confirm', mensagem === undefined ? '' : String(mensagem));
-};
+// Com contextIsolation, atribuir window.alert aqui só mudaria o mundo isolado; então o override entra no
+// mundo da página via webFrame (executa antes dos scripts do site).
+webFrame.executeJavaScript(`
+  (function () {
+    var n = window.__rpgNativo;
+    if (!n) return;
+    window.alert = function (m) { n.alert(m === undefined ? '' : String(m)); };
+    window.confirm = function (m) { return !!n.confirm(m === undefined ? '' : String(m)); };
+  })();
+`);

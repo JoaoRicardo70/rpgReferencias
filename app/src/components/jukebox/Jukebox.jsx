@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import useStore from '../../stores/useStore';
 import { enviarParaJukebox, iniciarListenerJukebox } from '../../services/firebase-sync';
 import { lerVolumeMusica, salvarVolumeMusica, assinarVolumeMusica } from '../../core/configuracoes';
 
@@ -36,6 +37,10 @@ function carregarYouTubeApi() {
 // (a leitura/gravação fica em core/configuracoes.js, que a tela de Configurações também usa)
 
 export default function Jukebox({ className }) {
+    // Só o Mestre/Co-Mestre efetivo controla (grava no Firebase); os demais só ouvem e ajustam o próprio volume.
+    const isMestre = useStore(s => s.isMestre);
+    const isMestreRef = useRef(isMestre);
+    isMestreRef.current = isMestre;
     const [inputUrl, setInputUrl] = useState('');
     const [tocando, setTocando] = useState(false);
     const [videoId, setVideoId] = useState(null);
@@ -124,6 +129,7 @@ export default function Jukebox({ className }) {
                 },
                 onStateChange: (event) => {
                     if (ignorandoEventoLocal.current) return;
+                    if (!isMestreRef.current) return;
 
                     const state = event.data;
                     if (state === window.YT.PlayerState.PAUSED) {
@@ -209,6 +215,7 @@ export default function Jukebox({ className }) {
     }, [tocando, pausado]);
 
     const handlePlay = () => {
+        if (!isMestre) return;
         const id = extractVideoId(inputUrl);
         if (id && /^[a-zA-Z0-9_-]{11}$/.test(id)) {
             setVideoId(id);
@@ -221,13 +228,14 @@ export default function Jukebox({ className }) {
     };
 
     const handlePause = () => {
-        if (!videoId) return;
+        if (!isMestre || !videoId) return;
         setTocando(false);
         setPausado(true);
         enviarParaJukebox({ videoId: videoId, inputUrl: inputUrl, playing: false });
     };
 
     const handleStop = () => {
+        if (!isMestre) return;
         setVideoId(null);
         setTocando(false);
         setPausado(false);
@@ -238,10 +246,10 @@ export default function Jukebox({ className }) {
     return (
         <div className={['def-box', className].filter(Boolean).join(' ')} style={{ marginTop: '15px' }}>
             <h3 style={{ color: '#00ffcc', marginBottom: 15, display: 'flex', alignItems: 'center', gap: '10px' }}>
-                🎵 Mesa de Som (Controlo Mestre & Leitor)
+                {isMestre ? '🎵 Mesa de Som (Controlo Mestre & Leitor)' : '🎵 Mesa de Som'}
             </h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '15px', alignItems: 'center' }}>
+            {isMestre && <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '15px', alignItems: 'center' }}>
                 <input
                     className="input-neon"
                     type="text"
@@ -259,7 +267,7 @@ export default function Jukebox({ className }) {
                 <button className="btn-neon btn-red" onClick={handleStop} style={{ margin: 0, height: '44px', padding: '0 25px' }}>
                     ⏹ PARAR
                 </button>
-            </div>
+            </div>}
 
             <div className="jukebox-volume">
                 <button

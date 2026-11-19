@@ -1,10 +1,61 @@
-const { app, BrowserWindow, ipcMain, dialog, session } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, session, shell } = require('electron');
 const path = require('path');
 
 // 👇 FORÇA O WINDOWS A RECONHECER O SEU NOME, NÃO O DO ELECTRON 👇
 app.setAppUserModelId("RPG Anime System");
 
 const URL_DO_APP = 'https://rpg-referencias.web.app';
+
+// 🔒 Segurança do renderer: o site remoto roda isolado (sem Node, com contextIsolation e sandbox). Só a origem do
+// app pode navegar dentro da janela; qualquer outro link abre no navegador padrão, e apenas se for https:.
+// Em desenvolvimento (app não empacotado) o localhost também é aceito.
+const ORIGENS_DO_APP = new Set([new URL(URL_DO_APP).origin]);
+if (!app.isPackaged) {
+  ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:4173'].forEach((o) => ORIGENS_DO_APP.add(o));
+}
+
+function origemDoApp(url) {
+  try { return ORIGENS_DO_APP.has(new URL(url).origin); } catch (e) { return false; }
+}
+
+// Abre no navegador do sistema só URLs https: bem formadas (nunca file:, javascript:, data:, smb:, etc.).
+function abrirExternoSeguro(url) {
+  try {
+    const u = new URL(url);
+    if (u.protocol === 'https:' && !u.username && !u.password) shell.openExternal(u.href);
+  } catch (e) { /* URL inválida: ignora */ }
+}
+
+// Permissões que o app usa: microfone (voz e gravador; a câmera NÃO é usada), captura do próprio app (gravador),
+// tela cheia e cópia para a área de transferência. Só para a origem do app; o resto é negado.
+// O iframe do YouTube (Mesa de Som) pode pedir tela cheia.
+const ORIGENS_TELA_CHEIA_EXTRA = new Set(['https://www.youtube.com', 'https://www.youtube-nocookie.com']);
+const PERMISSOES_PERMITIDAS = new Set(['media', 'display-capture', 'fullscreen', 'clipboard-sanitized-write']);
+
+function permissaoPermitida(permissao, origem, detalhes) {
+  if (permissao === 'fullscreen') {
+    let o = '';
+    try { o = new URL(origem).origin; } catch (e) { /* origem inválida */ }
+    if (ORIGENS_TELA_CHEIA_EXTRA.has(o)) return true;
+  }
+  if (!origemDoApp(origem) || !PERMISSOES_PERMITIDAS.has(permissao)) return false;
+  if (permissao === 'media') {
+    if (detalhes && detalhes.mediaType === 'video') return false; // handler de checagem: câmera negada
+    const tipos = (detalhes && detalhes.mediaTypes) || ['audio'];
+    return tipos.every((t) => t === 'audio');
+  }
+  return true;
+}
+
+function endurecerSessao(ses) {
+  ses.setPermissionRequestHandler((wc, permissao, callback, detalhes) => {
+    const origem = (detalhes && detalhes.requestingUrl) || (wc && wc.getURL && wc.getURL()) || '';
+    callback(permissaoPermitida(permissao, origem, detalhes));
+  });
+  ses.setPermissionCheckHandler((wc, permissao, origem, detalhes) => {
+    return permissaoPermitida(permissao, origem || (detalhes && detalhes.requestingUrl) || '', detalhes);
+  });
+}
 
 // 🎬 O gravador de sessão precisa que a janela continue "viva" com o app minimizado ou coberto por
 // outra janela: sem estes ajustes o Chromium pausa a renderização e os timers, e a gravação da tela
@@ -74,13 +125,30 @@ function createWindow() {
     title: "RPG Anime System - Forja Definitiva", // 👈 Força o título da janela
     icon: path.join(__dirname, 'logo.ico'),
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      enableRemoteModule: true,
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      webviewTag: false,
       backgroundThrottling: false,
       preload: path.join(__dirname, 'preload.cjs'),
     }
   });
+
+  endurecerSessao(session.defaultSession);
+
+  // Links: só a origem do app navega na janela; o resto vai para o navegador padrão (https:) ou é bloqueado.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (!origemDoApp(url)) abrirExternoSeguro(url);
+    return { action: 'deny' };
+  });
+  win.webContents.on('will-navigate', (event, url) => {
+    if (origemDoApp(url)) return;
+    event.preventDefault();
+    abrirExternoSeguro(url);
+  });
+  win.webContents.on('will-attach-webview', (event) => event.preventDefault());
 
   janelaPrincipal = win;
   win.on('closed', () => { janelaPrincipal = null; });
@@ -158,6 +226,7 @@ function createWindow() {
   // sempre uma resposta que nunca chega, reproduzindo o EXATO mesmo travamento de input que esta
   // correção existe pra resolver, só que por um caminho diferente.
   ipcMain.on('electron-alert', (event, mensagem) => {
+    if (!origemDoApp(event.senderFrame && event.senderFrame.url)) { event.returnValue = undefined; return; }
     try {
       dialog.showMessageBoxSync(win, {
         type: 'info',
@@ -172,6 +241,7 @@ function createWindow() {
   });
 
   ipcMain.on('electron-confirm', (event, mensagem) => {
+    if (!origemDoApp(event.senderFrame && event.senderFrame.url)) { event.returnValue = false; return; }
     let resultado;
     try {
       resultado = dialog.showMessageBoxSync(win, {

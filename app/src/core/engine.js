@@ -2,6 +2,7 @@
 // ENGINE RPG — Cálculos de combate (dano, acerto, defesa)
 // ==========================================
 import { contarDigitos, reduzirComBonus, BASE_CA } from './utils.js';
+import { escaparHtml } from './escaparHtml.js';
 import { getMaximo, getBuffs, getRawBase, getPoderesDefesa, getEfeitosDeClasse } from './attributes.js';
 import { getVitalMxDisplay } from './vitals.js';
 import { ENERGIAS_COMO_PODER, getMargemCusto, limitarPercComoPoder, podeConjurarComoPoder, custoBrutoDeEnergia, somarCustosBrutos } from './custoPoder.js';
@@ -115,7 +116,6 @@ export function rolarDadosComVantagem(qD, fD, vantagens = 0, desvantagens = 0) {
     return { sD, rolagemTexto, mantidos: kept };
 }
 
-const escaparHtml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 function rolarDadosSimples(qtd, faces) {
     let soma = 0;
@@ -188,8 +188,8 @@ function somarStatusDasFontes(fontes, minhaFicha) {
         soma += val;
         const nomeAttr = (minhaFicha[k] && minhaFicha[k].nome) || String(k).toUpperCase();
         detalhes.push(fator === 1
-            ? `<span style="color:#ff003c">${nomeAttr}(${val.toLocaleString('pt-BR')})</span>`
-            : `<span style="color:#ff003c">${nomeAttr}(${base.toLocaleString('pt-BR')} x${fator} = ${val.toLocaleString('pt-BR')})</span>`);
+            ? `<span style="color:#ff003c">${escaparHtml(nomeAttr)}(${val.toLocaleString('pt-BR')})</span>`
+            : `<span style="color:#ff003c">${escaparHtml(nomeAttr)}(${base.toLocaleString('pt-BR')} x${fator} = ${val.toLocaleString('pt-BR')})</span>`);
     });
     return { soma, detalhes };
 }
@@ -216,7 +216,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         if (item.bonusTipo === 'letalidade') iLetalidade += Math.floor(v);
         if (item.tipo === 'arma' || item.tipo === 'artefato') {
             if (item.elemento && item.elemento !== 'Neutro') elementosAtaque.push(formatElemSpan(item.elemento));
-            nomesArmas.push(item.nome);
+            nomesArmas.push(escaparHtml(item.nome));
         }
     });
 
@@ -227,7 +227,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         if (atk.bonusTipo === 'dano_bruto' && v > 0) iDanoBruto += v;
         if (atk.bonusTipo === 'letalidade' && v > 0) iLetalidade += Math.floor(v);
         if (atk.elemento && atk.elemento !== 'Neutro') elementosAtaque.push(formatElemSpan(atk.elemento));
-        nomesMagias.push(atk.nome);
+        nomesMagias.push(escaparHtml(atk.nome));
     });
 
     // ⚖️ Multiplicadores de Dano EXTINTOS do dano (pedido do usuário — inflavam demais os números):
@@ -263,7 +263,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     let armaEquipada = itensEquipados.find(i => i.tipo === 'arma');
     // ⚔️ Arma Espiritual EQUIPADA: fonte de dano à parte (core/armaEspiritualDano.js); desequipada ou sem acesso = null.
     const armaEsp = armaVirtualDaArmaEspiritual(minhaFicha);
-    if (armaEsp) nomesArmas.push(armaEsp.nome);
+    if (armaEsp) nomesArmas.push(escaparHtml(armaEsp.nome));
 
     // 🔋 Custos que viram Poder no golpe (core/custoPoder.js): [{ energia, bruto }].
     let custosPoder = [];
@@ -296,13 +296,13 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
             // 0% de energia gasta, benefício do Custo escolhido na margem, com Mana, Aura e Chakra juntas.
             let perc = limitarPercComoPoder(hab, hab.percComoPoder);
             ENERGIAS_COMO_PODER.forEach(e => registrarCustoPoder(e, perc, false));
-            comoPoderNames.push(`${hab.nome} ${perc}%`);
+            comoPoderNames.push(escaparHtml(`${hab.nome} ${perc}%`));
             if (hab.custoPercentual > 0 && !isElemental) custoCheioExtra += calcularDreno(hab.energiaCombustao, hab.custoPercentual).dreno;
         } else if (hab.custoPercentual > 0) {
             if (isElemental) {
                 // Ressonância Natural (Elemental inato): sem custo, e as três energias entram no Poder do golpe.
                 ENERGIAS_COMO_PODER.forEach(e => registrarCustoPoder(e, hab.custoPercentual, false));
-                innateNames.push(hab.nome);
+                innateNames.push(escaparHtml(hab.nome));
             } else {
                 let { dreno } = calcularDreno(hab.energiaCombustao, hab.custoPercentual);
                 registrarCustoPoder(hab.energiaCombustao, hab.custoPercentual, true);
@@ -322,7 +322,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
         }
         if (totalDreno > 0) {
             drenos.push({ key, valor: totalDreno });
-            custoTxt.push(`${totalDreno.toLocaleString('pt-BR')} ${key.toUpperCase()}`);
+            custoTxt.push(`${totalDreno.toLocaleString('pt-BR')} ${escaparHtml(key.toUpperCase())}`);
         }
     }
 
@@ -444,7 +444,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     ${detalheLinhas.join('<br>')}
     </div>`;
 
-    const rolagemTextoFinal = fontes.map(f => `${f.tipo === 'arma' ? 'Arma' : f.nome}: ${f.rolagem}`).join(' | ');
+    const rolagemTextoFinal = fontes.map(f => `${f.tipo === 'arma' ? 'Arma' : escaparHtml(f.nome)}: ${f.rolagem}`).join(' | ');
 
     let allAttrNames = new Set();
     if (configArma) (configArma.statusUsados || []).forEach(s => allAttrNames.add((minhaFicha[s] && minhaFicha[s].nome) || s.toUpperCase()));
@@ -487,7 +487,7 @@ export function calcularAcerto({ qD, fD, prof: profInformada, usarProf, energia,
     itensEquipados.forEach(item => {
         if (item.bonusTipo === 'bonus_acerto') iAcerto += (parseFloat(item.bonusValor) || 0);
         if (item.tipo === 'arma' || item.tipo === 'artefato') {
-            nomesArmas.push(item.nome);
+            nomesArmas.push(escaparHtml(item.nome));
             let itemStr = String(item.armaTipo || '').toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
             tiposArmas.push(itemStr);
         }
@@ -495,7 +495,7 @@ export function calcularAcerto({ qD, fD, prof: profInformada, usarProf, energia,
     // ⚔️ Arma Espiritual equipada conta como arma no Acerto (nome e tipo).
     const armaEspAcerto = armaVirtualDaArmaEspiritual(minhaFicha);
     if (armaEspAcerto) {
-        nomesArmas.push(armaEspAcerto.nome);
+        nomesArmas.push(escaparHtml(armaEspAcerto.nome));
         tiposArmas.push(String(armaEspAcerto.armaTipo || '').toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
     }
 
@@ -602,7 +602,7 @@ export function calcularEvasiva({ prof, bonus, minhaFicha, itensEquipados }) {
     let nomesArmaduras = [];
     itensEquipados.forEach(item => {
         if (item.bonusTipo === 'bonus_evasiva') iEvasiva += (parseFloat(item.bonusValor) || 0);
-        if (item.tipo === 'armadura') nomesArmaduras.push(item.nome);
+        if (item.tipo === 'armadura') nomesArmaduras.push(escaparHtml(item.nome));
     });
 
     // REDUÇÃO(atributo × (1 + 3 × bônus)) e só depois a Proficiência (sem a Ascensão). Sem a base fixa BASE_CA: aqui é a rolagem de defesa.
@@ -623,7 +623,7 @@ export function calcularResistencia({ prof, bonus, minhaFicha, itensEquipados })
     let nomesArmaduras = [];
     itensEquipados.forEach(item => {
         if (item.bonusTipo === 'bonus_resistencia') iResistencia += (parseFloat(item.bonusValor) || 0);
-        if (item.tipo === 'armadura') nomesArmaduras.push(item.nome);
+        if (item.tipo === 'armadura') nomesArmaduras.push(escaparHtml(item.nome));
     });
 
     // REDUÇÃO(atributo × (1 + 3 × bônus)) e só depois a Proficiência (sem a Ascensão). Sem a base fixa BASE_CA: aqui é a rolagem de defesa.
@@ -644,7 +644,7 @@ export function calcularReducao({ energiaKey, perc, multBase, minhaFicha, itensE
     let nomesArmaduras = [];
     itensEquipados.forEach(item => {
         if (item.bonusTipo === 'mult_escudo') iMultEscudo += (parseFloat(item.bonusValor) || 0);
-        if (item.tipo === 'armadura') nomesArmaduras.push(item.nome);
+        if (item.tipo === 'armadura') nomesArmaduras.push(escaparHtml(item.nome));
     });
 
     let keys = energiaKey === 'poder' ? ['mana', 'aura', 'chakra'] : [energiaKey];
@@ -689,7 +689,7 @@ export function calcularReducao({ energiaKey, perc, multBase, minhaFicha, itensE
     return {
         escudoReduzido: escRed,
         vitalidade: pVit,
-        detalhe: 'Drenou ' + perc + '% de ' + nDef + ' (Gasto: ' + cReal.toLocaleString('pt-BR') + ')' + (pM > 0 ? ' | Buff Forma: +' + pM + 'x' : '') + (iMultEscudo > 0 ? ' | Armadura: +' + iMultEscudo + 'x' : ''),
+        detalhe: 'Drenou ' + perc + '% de ' + escaparHtml(nDef) + ' (Gasto: ' + cReal.toLocaleString('pt-BR') + ')' + (pM > 0 ? ' | Buff Forma: +' + pM + 'x' : '') + (iMultEscudo > 0 ? ' | Armadura: +' + iMultEscudo + 'x' : ''),
         armaStr: strArmadura,
         drenos: drenos,
         energiaDrenada: true
@@ -702,7 +702,7 @@ function formatElemSpan(elemento) {
         .replace(/[íìîï]/g, 'i').replace(/[óòõôö]/g, 'o')
         .replace(/[úùûü]/g, 'u').replace(/ç/g, 'c')
         .replace(/[\s\/]+/g, '-');
-    return `<span class="${cls}">${elemento.toUpperCase()}</span>`;
+    return `<span class="${escaparHtml(cls)}">${escaparHtml(elemento.toUpperCase())}</span>`;
 }
 
 // 🩸 Estados negativos (core/condicoes.js): Evasiva zera parado/incapacitado e cai pela metade com Lento; Resistência cai pela metade Vulnerável.
