@@ -39,6 +39,23 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // Separa as bibliotecas pesadas do código do app: three (só o Mapa 3D) e firebase carregam em chunks próprios e cacheáveis.
+        manualChunks(id) {
+          // ⚠️ Após upgrades do Vite, confira em dist/index.html que o three NÃO está no modulepreload (helpers vite/preload-helper e commonjsHelpers).
+          // Helpers virtuais do Vite (preload de import dinâmico) ficam fora do chunk three, senão o index carregaria o three na abertura.
+          if (id.includes('vite/preload-helper') || id.includes('commonjsHelpers')) return 'react-base';
+          if (!id.includes('node_modules')) return undefined;
+          if (/node_modules[\\/](react|react-dom|scheduler|react-is|use-sync-external-store|its-fine|zustand|immer)[\\/]/.test(id)) return 'react-base';
+          if (/node_modules[\\/](three|@react-three|react-reconciler|suspend-react|debounce|react-use-measure)[\\/]/.test(id)) return 'three';
+          if (/node_modules[\\/](@?firebase)[\\/]/.test(id)) return 'firebase';
+          return undefined;
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
   }

@@ -8,7 +8,7 @@ import { ATRIBUTOS_AGRUPADOS_ITEM_SEM_ESTADO, getPropriedadesDoAtributo, ajustar
 import FormasEditor from '../shared/FormasEditor';
 import { afetaPoderCalculado, normalizarAcaoEquipar, ACOES_EQUIPAR_ITEM } from '../../core/acaoPoder';
 
-const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Arsenal provider não encontrado</div>;
+const FALLBACK = <div style={{ color: 'var(--txt-mudo)', padding: 10 }}>Arsenal provider não encontrado</div>;
 
 export function ArsenalFormTitle() {
     const ctx = useArsenalForm();
@@ -16,7 +16,7 @@ export function ArsenalFormTitle() {
     const { itemEditandoId, nomeItem } = ctx;
 
     return (
-        <h3 style={{ color: '#ffcc00', marginBottom: 10 }} id="titulo-item-form">
+        <h3 style={{ color: 'var(--txt-ouro)', marginBottom: 10 }} id="titulo-item-form">
             {itemEditandoId ? `Editando: ${nomeItem}` : 'Forjar Novo Equipamento'}
         </h3>
     );
@@ -39,7 +39,7 @@ export function ArsenalTipoSelect() {
 
     return (
         <div>
-            <label style={{ color: '#aaa', fontSize: '0.85em' }}>Tipo</label>
+            <label style={{ color: 'var(--txt-suave)', fontSize: '0.85em' }}>Tipo</label>
             <select className="input-neon" value={tipoItem} onChange={e => setTipoItem(e.target.value)}>
                 <option value="arma">Arma</option>
                 <option value="armadura">Armadura</option>
@@ -58,7 +58,7 @@ export function ArsenalArmaSelect() {
 
     return (
         <div>
-            <label style={{ color: '#aaa', fontSize: '0.85em' }}>Arma</label>
+            <label style={{ color: 'var(--txt-suave)', fontSize: '0.85em' }}>Arma</label>
             <select className="input-neon" value={armaTipo} onChange={e => setArmaTipo(e.target.value)}>
                 {ARMA_TIPOS.map(a => <option key={a} value={a}>{a.charAt(0).toUpperCase() + a.slice(1)}</option>)}
             </select>
@@ -73,7 +73,7 @@ export function ArsenalRaridadeSelect() {
 
     return (
         <div>
-            <label style={{ color: '#aaa', fontSize: '0.85em' }}>Raridade</label>
+            <label style={{ color: 'var(--txt-suave)', fontSize: '0.85em' }}>Raridade</label>
             <select className="input-neon" value={raridade} onChange={e => setRaridade(e.target.value)}>
                 {RARIDADES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
             </select>
@@ -89,13 +89,13 @@ export function ArsenalBonusSelect() {
     return (
         <>
             <div>
-                <label style={{ color: '#aaa', fontSize: '0.85em' }}>Bonus</label>
+                <label style={{ color: 'var(--txt-suave)', fontSize: '0.85em' }}>Bonus</label>
                 <select className="input-neon" value={bonusTipo} onChange={e => setBonusTipo(e.target.value)}>
                     {BONUS_OPTIONS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
                 </select>
             </div>
             <div>
-                <label style={{ color: '#aaa', fontSize: '0.85em' }}>Valor</label>
+                <label style={{ color: 'var(--txt-suave)', fontSize: '0.85em' }}>Valor</label>
                 <input className="input-neon" type="text" value={bonusValor} onChange={e => setBonusValor(e.target.value)} />
             </div>
         </>
@@ -113,19 +113,19 @@ export function ArsenalDadosDano() {
         <>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 10 }}>
                 <div>
-                    <label style={{ color: '#aaa', fontSize: '0.85em' }}>Dados de Dano (qtd)</label>
+                    <label style={{ color: 'var(--txt-suave)', fontSize: '0.85em' }}>Dados de Dano (qtd)</label>
                     <input className="input-neon" type="number" min="1" value={armaDadosQtd} onChange={e => setArmaDadosQtd(e.target.value)} />
                 </div>
                 <div>
-                    <label style={{ color: '#aaa', fontSize: '0.85em' }}>Faces (d)</label>
+                    <label style={{ color: 'var(--txt-suave)', fontSize: '0.85em' }}>Faces (d)</label>
                     <input className="input-neon" type="number" min="1" value={armaDadosFaces} onChange={e => setArmaDadosFaces(e.target.value)} />
                 </div>
                 <div>
-                    <label style={{ color: '#00ffcc', fontSize: '0.85em', fontWeight: 'bold' }}>Alcance (Quadrados)</label>
-                    <input className="input-neon" type="number" min="1" step="0.5" value={armaAlcance} onChange={e => setArmaAlcance(e.target.value)} style={{ borderColor: '#00ffcc', color: '#00ffcc' }} />
+                    <label style={{ color: 'var(--txt-teal)', fontSize: '0.85em', fontWeight: 'bold' }}>Alcance (Quadrados)</label>
+                    <input className="input-neon" type="number" min="1" step="0.5" value={armaAlcance} onChange={e => setArmaAlcance(e.target.value)} style={{ borderColor: '#00ffcc', color: 'var(--txt-teal)' }} />
                 </div>
             </div>
-            <p style={{ color: '#0f0', fontSize: '0.85em', margin: '5px 0 0' }}>Dano da Arma: {armaDadosQtd}d{armaDadosFaces}</p>
+            <p style={{ color: 'var(--txt-verde)', fontSize: '0.85em', margin: '5px 0 0' }}>Dano da Arma: {armaDadosQtd}d{armaDadosFaces}</p>
         </>
     );
 }
@@ -137,13 +137,13 @@ export function ArsenalEfeitosAtivos() {
 
     return (
         <>
-            <h4 style={{ color: '#0ff', marginTop: 15, marginBottom: 4, fontSize: '0.95em' }}>Efeitos Ativos</h4>
-            <p style={{ color: '#888', fontSize: '0.8em', margin: '0 0 6px' }}>Só valem com o toggle "Efeitos ativos" ligado no item equipado.</p>
+            <h4 style={{ color: 'var(--txt-ciano)', marginTop: 15, marginBottom: 4, fontSize: '0.95em' }}>Efeitos Ativos</h4>
+            <p style={{ color: 'var(--txt-mudo)', fontSize: '0.8em', margin: '0 0 6px' }}>Só valem com o toggle "Efeitos ativos" ligado no item equipado.</p>
             <input className="input-neon" type="text" placeholder="Nome do Efeito" value={nomeEfeito} onChange={e => setNomeEfeito(e.target.value)} style={{ marginTop: 10 }} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, marginTop: 5 }}>
                 <select className="input-neon" value={novoAtr} onChange={e => { setNovoAtr(e.target.value); setNovoProp(ajustarPropriedade(e.target.value, novoProp)); }}>
                     {ATRIBUTOS_AGRUPADOS_ITEM_SEM_ESTADO.map(grupo => (
-                        <optgroup key={grupo.label} label={grupo.label} style={{ background: '#051010', color: '#0ff' }}>
+                        <optgroup key={grupo.label} label={grupo.label} style={{ background: 'var(--fundo-select)', color: 'var(--txt-ciano)' }}>
                             {grupo.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}
                         </optgroup>
                     ))}
@@ -157,16 +157,16 @@ export function ArsenalEfeitosAtivos() {
 
             <div style={{ marginTop: 10 }}>
                 {efeitosTempArsenal.length === 0 ? (
-                    <p style={{ color: '#888', fontSize: '0.9em', margin: 0 }}>Nenhum efeito adicionado.</p>
+                    <p style={{ color: 'var(--txt-mudo)', fontSize: '0.9em', margin: 0 }}>Nenhum efeito adicionado.</p>
                 ) : (
                     efeitosTempArsenal.map((e, i) => {
                         if (!e) return null;
                         const prop = (e.propriedade || '').toLowerCase();
                         const isMult = ['mbase', 'mgeral', 'mformas', 'mabs', 'munico'].includes(prop);
                         return (
-                            <div key={i} style={{ color: '#0ff', fontSize: '0.9em', marginBottom: 5, background: 'rgba(0,255,255,0.1)', padding: '5px 10px', borderLeft: '2px solid #0ff', display: 'flex', justifyContent: 'space-between' }}>
-                                <span><strong style={{ color: '#fff' }}>{e.nome || '(Sem nome)'}</strong> [{(e.atributo || '').replace('_', ' ').toUpperCase()}] {(e.propriedade || '').toUpperCase()}: <strong style={{ color: '#ffcc00' }}>{isMult ? '(x)' : '(+)'} {e.valor || 0}</strong></span>
-                                <button onClick={() => removerEfeitoTemp(i)} style={{ background: 'transparent', color: '#f00', border: 'none', cursor: 'pointer' }}>X</button>
+                            <div key={i} style={{ color: 'var(--txt-ciano)', fontSize: '0.9em', marginBottom: 5, background: 'rgba(0,255,255,0.1)', padding: '5px 10px', borderLeft: '2px solid #0ff', display: 'flex', justifyContent: 'space-between' }}>
+                                <span><strong style={{ color: 'var(--txt-forte)' }}>{e.nome || '(Sem nome)'}</strong> [{(e.atributo || '').replace('_', ' ').toUpperCase()}] {(e.propriedade || '').toUpperCase()}: <strong style={{ color: 'var(--txt-ouro)' }}>{isMult ? '(x)' : '(+)'} {e.valor || 0}</strong></span>
+                                <button onClick={() => removerEfeitoTemp(i)} style={{ background: 'transparent', color: 'var(--txt-vermelho)', border: 'none', cursor: 'pointer' }}>X</button>
                             </div>
                         );
                     })
@@ -183,13 +183,13 @@ export function ArsenalEfeitosPassivos() {
 
     return (
         <>
-            <h4 style={{ color: '#f0f', marginTop: 15, marginBottom: 4, fontSize: '0.95em' }}>Efeitos Passivos</h4>
-            <p style={{ color: '#888', fontSize: '0.8em', margin: '0 0 6px' }}>Valem sempre que o item está equipado.</p>
+            <h4 style={{ color: 'var(--txt-magenta)', marginTop: 15, marginBottom: 4, fontSize: '0.95em' }}>Efeitos Passivos</h4>
+            <p style={{ color: 'var(--txt-mudo)', fontSize: '0.8em', margin: '0 0 6px' }}>Valem sempre que o item está equipado.</p>
             <input className="input-neon" type="text" placeholder="Nome do Efeito Passivo" value={nomeEfeitoPassivo} onChange={e => setNomeEfeitoPassivo(e.target.value)} />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 8, marginTop: 5 }}>
                 <select className="input-neon" value={novoAtrPassivo} onChange={e => { setNovoAtrPassivo(e.target.value); setNovoPropPassivo(ajustarPropriedade(e.target.value, novoPropPassivo)); }}>
                     {ATRIBUTOS_AGRUPADOS_ITEM_SEM_ESTADO.map(grupo => (
-                        <optgroup key={grupo.label} label={grupo.label} style={{ background: '#051010', color: '#f0f' }}>
+                        <optgroup key={grupo.label} label={grupo.label} style={{ background: 'var(--fundo-select)', color: 'var(--txt-magenta)' }}>
                             {grupo.options.map(a => <option key={a} value={a}>{a.replace('_', ' ').toUpperCase()}</option>)}
                         </optgroup>
                     ))}
@@ -198,21 +198,21 @@ export function ArsenalEfeitosPassivos() {
                     {getPropriedadesDoAtributo(novoAtrPassivo).map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
                 </select>
                 <input className="input-neon" type="text" placeholder="Valor" value={novoValPassivo} onChange={e => setNovoValPassivo(e.target.value)} />
-                <button className="btn-neon" style={{ padding: '5px 10px', borderColor: '#f0f', color: '#f0f' }} onClick={addEfeitoPassivoTemp}>+ Passivo</button>
+                <button className="btn-neon" style={{ padding: '5px 10px', borderColor: '#f0f', color: 'var(--txt-magenta)' }} onClick={addEfeitoPassivoTemp}>+ Passivo</button>
             </div>
 
             <div style={{ marginTop: 10 }}>
                 {efeitosTempPassivosArsenal.length === 0 ? (
-                    <p style={{ color: '#888', fontSize: '0.9em', margin: 0 }}>Nenhum efeito passivo adicionado.</p>
+                    <p style={{ color: 'var(--txt-mudo)', fontSize: '0.9em', margin: 0 }}>Nenhum efeito passivo adicionado.</p>
                 ) : (
                     efeitosTempPassivosArsenal.map((e, i) => {
                         if (!e) return null;
                         const prop = (e.propriedade || '').toLowerCase();
                         const isMult = ['mbase', 'mgeral', 'mformas', 'mabs', 'munico'].includes(prop);
                         return (
-                            <div key={i} style={{ color: '#f0f', fontSize: '0.9em', marginBottom: 5, background: 'rgba(255,0,255,0.1)', padding: '5px 10px', borderLeft: '2px solid #f0f', display: 'flex', justifyContent: 'space-between' }}>
-                                <span>PASSIVO: <strong style={{ color: '#fff' }}>{e.nome || '(Sem nome)'}</strong> [{(e.atributo || '').replace('_', ' ').toUpperCase()}] {(e.propriedade || '').toUpperCase()}: <strong style={{ color: '#ffcc00' }}>{isMult ? '(x)' : '(+)'} {e.valor || 0}</strong></span>
-                                <button onClick={() => removerEfeitoPassivoTemp(i)} style={{ background: 'transparent', color: '#f00', border: 'none', cursor: 'pointer' }}>X</button>
+                            <div key={i} style={{ color: 'var(--txt-magenta)', fontSize: '0.9em', marginBottom: 5, background: 'rgba(255,0,255,0.1)', padding: '5px 10px', borderLeft: '2px solid #f0f', display: 'flex', justifyContent: 'space-between' }}>
+                                <span>PASSIVO: <strong style={{ color: 'var(--txt-forte)' }}>{e.nome || '(Sem nome)'}</strong> [{(e.atributo || '').replace('_', ' ').toUpperCase()}] {(e.propriedade || '').toUpperCase()}: <strong style={{ color: 'var(--txt-ouro)' }}>{isMult ? '(x)' : '(+)'} {e.valor || 0}</strong></span>
+                                <button onClick={() => removerEfeitoPassivoTemp(i)} style={{ background: 'transparent', color: 'var(--txt-vermelho)', border: 'none', cursor: 'pointer' }}>X</button>
                             </div>
                         );
                     })
@@ -251,7 +251,7 @@ export function ArsenalInventarioList() {
     return (
         <div id="lista-inventario-salvos" style={{ marginTop: 15 }}>
             {inventario.length === 0 ? (
-                <p style={{ color: '#888' }}>Nenhum equipamento na sua forja.</p>
+                <p style={{ color: 'var(--txt-mudo)' }}>Nenhum equipamento na sua forja.</p>
             ) : (
                 inventario.map((p) => {
                     if (!p) return null;
@@ -272,11 +272,11 @@ export function ArsenalInventarioList() {
                                     <h3 style={{ margin: 0, color: c, textShadow: `0 0 10px ${c}` }}>
                                         {icon} {p.nome || 'Item'}
                                     </h3>
-                                    <p style={{ color: '#aaa', fontSize: '0.85em', margin: '5px 0 0' }}>
+                                    <p style={{ color: 'var(--txt-suave)', fontSize: '0.85em', margin: '5px 0 0' }}>
                                         {(p.tipo || '').toUpperCase()}{p.armaTipo ? ` (${p.armaTipo.charAt(0).toUpperCase() + p.armaTipo.slice(1)})` : ''}{p.raridade ? ` | ${(p.raridade || '').charAt(0).toUpperCase() + (p.raridade || '').slice(1)}` : ''}{p.tipo === 'arma' && p.dadosQtd ? ` | Dano: ${p.dadosQtd}d${p.dadosFaces || 20}` : ''}{p.tipo === 'arma' ? ` | Alcance: ${p.alcance || 1}Q` : ''}
                                     </p>
-                                    <p style={{ color: '#0ff', fontSize: '0.9em', margin: '5px 0 0' }}>
-                                        {propText}: <strong style={{ color: '#ffcc00' }}>{prefixo}{p.bonusValor || 0}</strong>
+                                    <p style={{ color: 'var(--txt-ciano)', fontSize: '0.9em', margin: '5px 0 0' }}>
+                                        {propText}: <strong style={{ color: 'var(--txt-ouro)' }}>{prefixo}{p.bonusValor || 0}</strong>
                                     </p>
                                 </div>
                                 <div style={{ display: 'flex', gap: 10 }}>

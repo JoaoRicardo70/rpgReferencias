@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, Html, Sky } from '@react-three/drei';
-import * as THREE from 'three';
+import { TextureLoader as THREE_TextureLoader } from 'three';
 
 // 🔥 AGORA ELE RECEBE O "mapUrl" DIRETAMENTE DO PAINEL DO MESTRE
 export default function Tabuleiro3D({ mapSize, tokens, moverJogador, mapUrl, inspecionarToken }) {
@@ -16,7 +16,7 @@ export default function Tabuleiro3D({ mapSize, tokens, moverJogador, mapUrl, ins
         }
 
         setStatusMundo('carregando');
-        const loader = new THREE.TextureLoader();
+        const loader = new THREE_TextureLoader();
         // Permite carregar imagens do Discord/Imgur sem bloqueios de segurança (CORS)
         loader.setCrossOrigin('anonymous'); 
         

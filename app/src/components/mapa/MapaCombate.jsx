@@ -48,7 +48,7 @@ import SeloEquipe from '../shared/SeloEquipe';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import ParticulasDado from './ParticulasDado';
 import { simularLancamento, quadroEm, velocidadeDoGesto } from '../../core/fisicaDado';
-import * as THREE from 'three';
+import { CanvasTexture as THREE_CanvasTexture, Euler as THREE_Euler, IcosahedronGeometry as THREE_IcosahedronGeometry, Matrix4 as THREE_Matrix4, Quaternion as THREE_Quaternion, RepeatWrapping as THREE_RepeatWrapping, SRGBColorSpace as THREE_SRGBColorSpace, Vector3 as THREE_Vector3 } from 'three';
 
 // ============================================================================
 // 🎲 MOTOR 3D DO DADO D20 (REFATORADO PARA ALTO REALISMO)
@@ -61,7 +61,7 @@ const RAIO_INSCRITO = 2.8 * 0.7947;
 function DadoFisico3D({ isLanded, cor, valor, nivel, fisica }) {
     const meshRef = useRef();
     const sombraRef = useRef();
-    const alvoRef = useRef(new THREE.Quaternion());
+    const alvoRef = useRef(new THREE_Quaternion());
     const { gl, viewport, size } = useThree();
     const viewportRef = useRef(viewport);
     viewportRef.current = viewport;
@@ -84,18 +84,18 @@ function DadoFisico3D({ isLanded, cor, valor, nivel, fisica }) {
     // Cada face tem uma orientação própria (z = normal, y = "para cima" do número): para pousar mostrando o resultado
     // basta girar o dado pelo inverso da orientação da face sorteada.
     const faces = useMemo(() => {
-        const geo = new THREE.IcosahedronGeometry(2.8, 0);
+        const geo = new THREE_IcosahedronGeometry(2.8, 0);
         const pos = geo.getAttribute('position');
         const lista = [];
         for (let i = 0; i < 20; i++) {
-            const v0 = new THREE.Vector3().fromBufferAttribute(pos, i * 3);
-            const v1 = new THREE.Vector3().fromBufferAttribute(pos, i * 3 + 1);
-            const v2 = new THREE.Vector3().fromBufferAttribute(pos, i * 3 + 2);
-            const centro = new THREE.Vector3().add(v0).add(v1).add(v2).divideScalar(3);
+            const v0 = new THREE_Vector3().fromBufferAttribute(pos, i * 3);
+            const v1 = new THREE_Vector3().fromBufferAttribute(pos, i * 3 + 1);
+            const v2 = new THREE_Vector3().fromBufferAttribute(pos, i * 3 + 2);
+            const centro = new THREE_Vector3().add(v0).add(v1).add(v2).divideScalar(3);
             const normal = centro.clone().normalize();
             const cima = v0.clone().sub(centro).normalize();
-            const direita = new THREE.Vector3().crossVectors(cima, normal).normalize();
-            const orientacao = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(direita, cima, normal));
+            const direita = new THREE_Vector3().crossVectors(cima, normal).normalize();
+            const orientacao = new THREE_Quaternion().setFromRotationMatrix(new THREE_Matrix4().makeBasis(direita, cima, normal));
             lista.push({ centro, normal, orientacao });
         }
         return { geo, lista };
@@ -106,9 +106,9 @@ function DadoFisico3D({ isLanded, cor, valor, nivel, fisica }) {
         return Array.from({ length: 20 }, (_, i) => {
             const canvas = document.createElement('canvas');
             canvas.width = 256; canvas.height = 256;
-            const tex = new THREE.CanvasTexture(canvas);
+            const tex = new THREE_CanvasTexture(canvas);
             tex.anisotropy = 4;
-            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.colorSpace = THREE_SRGBColorSpace;
             return { canvas, tex, i };
         });
     }, []);
@@ -145,7 +145,7 @@ function DadoFisico3D({ isLanded, cor, valor, nivel, fisica }) {
     // Orientação final: a face do resultado de frente pra câmera, número em pé, com uma leve inclinação pra dar volume.
     useEffect(() => {
         const inversa = faces.lista[indiceAlvo].orientacao.clone().invert();
-        const inclinacao = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.14, 0.18, 0));
+        const inclinacao = new THREE_Quaternion().setFromEuler(new THREE_Euler(-0.14, 0.18, 0));
         alvoRef.current.copy(inclinacao).multiply(inversa);
     }, [faces, indiceAlvo]);
 
@@ -164,9 +164,9 @@ function DadoFisico3D({ isLanded, cor, valor, nivel, fisica }) {
                 ctx.fillRect(Math.random() * 512, Math.random() * 512, 1, 1);
             }
         }
-        const tex = new THREE.CanvasTexture(canvas);
-        tex.wrapS = THREE.RepeatWrapping;
-        tex.wrapT = THREE.RepeatWrapping;
+        const tex = new THREE_CanvasTexture(canvas);
+        tex.wrapS = THREE_RepeatWrapping;
+        tex.wrapT = THREE_RepeatWrapping;
         return tex;
     }, []);
 

@@ -139,7 +139,7 @@ export function ElementosNavegacaoLivro() {
                     title="Pular para um Capítulo"
                 >
                     {chaves.map((k, i) => (
-                        <option key={k} value={k} style={{ background: '#1e1423', color: '#e6d5b8' }}>
+                        <option key={k} value={k} style={{ background: 'var(--fundo-select)', color: 'var(--txt-pergaminho)' }}>
                             Capítulo {i + 1} de {total}: {abasDinamicas[k].label}
                         </option>
                     ))}
@@ -391,6 +391,8 @@ export function ElementosMagiaCard({ magia }) {
     }
 
     // CD exibida já inclui debuffs de CD (Ao acertar > Enfraquece o alvo > CD), que são buffs temporários negativos.
+    // ⚠️ AVISO: o debuff só aparece AQUI (card de magia). Outros pontos que calculam/mostram a CD (painel de Acerto/Defesa, rolagens, Sexta-Feira) podem usar a CD sem o debuff:
+    // ao mudar a regra, procure todos os usos de 'cd' e unifique em uma função pura de core/ (hoje não há fonte única).
     const cd = 8 + modBase + profGlobal + bonusBuffTemporario(minhaFicha, 'cd');
     const bonusAcerto = modBase + profGlobal;
 

@@ -55,7 +55,7 @@ export function gerarId(prefixo = 'c', agora = Date.now()) {
     return `${prefixo}${agora.toString(36)}${contadorId.toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
 }
 
-export const rotuloAcaoGolpe = (id) => NOME_ACAO[id] || NOME_ACAO.padrao;
+export const rotuloAcaoGolpe = (id) => (Object.prototype.hasOwnProperty.call(NOME_ACAO, id) && NOME_ACAO[id]) || NOME_ACAO.padrao;
 
 // ---------- Buffs (efeitos) ----------
 

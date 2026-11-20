@@ -17,7 +17,7 @@ export const NIVEIS_LIMITE_DADOS = [
     { id: 'avancados', rotulo: 'Elementos Avançados', limite: 300, elementos: ['solar', 'energia', 'gelo', 'vacuo', 'natureza'] },
     { id: 'avancados_verdadeiros', rotulo: 'Elementos Avançados Verdadeiros', limite: 750, verdadeiro: true, elementos: ['solar', 'energia', 'gelo', 'vacuo', 'natureza'] },
     { id: 'primordiais', rotulo: 'Elementos Primordiais', limite: 750, elementos: ['luz', 'trevas', 'ether', 'eter'] },
-    { id: 'primordiais_verdadeiros', rotulo: 'Elementos Primordiais Verdadeiros', limite: 1250, elementos: ['celestial', 'infernal', 'caos'] },
+    { id: 'primordiais_verdadeiros', rotulo: 'Elementos Primordiais Verdadeiros', limite: 1250, verdadeiroOpcional: true, elementos: ['celestial', 'infernal', 'caos'] },
     { id: 'absolutos', rotulo: 'Elementos Primordiais Absolutos', limite: 1750, elementos: ['criacao', 'destruicao', 'cosmos'] },
     { id: 'astrais', rotulo: 'Elementos Astrais', limite: 2500, elementos: ['vida', 'morte', 'vazio'] },
     { id: 'kekkei_genkai', rotulo: 'Kekkei Genkai', limite: 400, elementos: ['madeira', 'mineral', 'cinzas', 'igneo', 'lava', 'vapor', 'nevoa', 'tempestade', 'areia', 'tufao'] },
@@ -37,7 +37,8 @@ export function getNivelLimiteDados(nomeElemento) {
     if (!nomeElemento) return null;
     const { chave, verdadeiro } = lerElemento(nomeElemento);
     if (!chave) return null;
-    return NIVEIS_LIMITE_DADOS.find(n => n.elementos.includes(chave) && !!n.verdadeiro === verdadeiro) || null;
+    // `verdadeiroOpcional`: o nível já é "verdadeiro" por natureza (Celestial/Infernal/Caos); com ou sem o sufixo "Verdadeiro" vale o mesmo limite.
+    return NIVEIS_LIMITE_DADOS.find(n => n.elementos.includes(chave) && (!!n.verdadeiro === verdadeiro || (n.verdadeiroOpcional && verdadeiro))) || null;
 }
 
 // Limite efetivo de uma Técnica: o `limiteDados` próprio (se for um número positivo) ou o padrão do elemento.

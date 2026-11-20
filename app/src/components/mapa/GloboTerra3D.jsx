@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import { AdditiveBlending as THREE_AdditiveBlending, BackSide as THREE_BackSide, CanvasTexture as THREE_CanvasTexture, RepeatWrapping as THREE_RepeatWrapping, SRGBColorSpace as THREE_SRGBColorSpace } from 'three';
 import { CONTINENTES_RUNETERRA, ILHAS_RUNETERRA, ALTURA_MAPA, LARGURA_MAPA, pontosDoCaminho, costaOrganica, sorteadorComSemente } from '../../core/globoTerra';
 
 // ==========================================
@@ -121,9 +121,9 @@ function Planeta({ estado, parado }) {
     const nuvens = useRef();
     const { mapaCor, mapaAlto, mapaNuvens } = useMemo(() => {
         const { cor, alto, nuvens: telaNuvens } = texturasDoGlobo();
-        const tCor = new THREE.CanvasTexture(cor); tCor.colorSpace = THREE.SRGBColorSpace; tCor.anisotropy = 8;
-        const tAlto = new THREE.CanvasTexture(alto);
-        const tNuvens = new THREE.CanvasTexture(telaNuvens); tNuvens.colorSpace = THREE.SRGBColorSpace; tNuvens.wrapS = THREE.RepeatWrapping;
+        const tCor = new THREE_CanvasTexture(cor); tCor.colorSpace = THREE_SRGBColorSpace; tCor.anisotropy = 8;
+        const tAlto = new THREE_CanvasTexture(alto);
+        const tNuvens = new THREE_CanvasTexture(telaNuvens); tNuvens.colorSpace = THREE_SRGBColorSpace; tNuvens.wrapS = THREE_RepeatWrapping;
         return { mapaCor: tCor, mapaAlto: tAlto, mapaNuvens: tNuvens };
     }, []);
     useEffect(() => () => { mapaCor.dispose(); mapaAlto.dispose(); mapaNuvens.dispose(); }, [mapaCor, mapaAlto, mapaNuvens]);
@@ -161,11 +161,11 @@ function Planeta({ estado, parado }) {
             </group>
             <mesh scale={1.02}>
                 <sphereGeometry args={[1, 64, 48]} />
-                <shaderMaterial vertexShader={VERTEX} fragmentShader={FRAG_BORDA} transparent blending={THREE.AdditiveBlending} depthWrite={false} />
+                <shaderMaterial vertexShader={VERTEX} fragmentShader={FRAG_BORDA} transparent blending={THREE_AdditiveBlending} depthWrite={false} />
             </mesh>
             <mesh scale={1.14}>
                 <sphereGeometry args={[1, 64, 48]} />
-                <shaderMaterial vertexShader={VERTEX} fragmentShader={FRAG_ATMOSFERA} side={THREE.BackSide} transparent blending={THREE.AdditiveBlending} depthWrite={false} />
+                <shaderMaterial vertexShader={VERTEX} fragmentShader={FRAG_ATMOSFERA} side={THREE_BackSide} transparent blending={THREE_AdditiveBlending} depthWrite={false} />
             </mesh>
         </>
     );

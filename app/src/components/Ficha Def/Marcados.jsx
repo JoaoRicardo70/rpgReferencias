@@ -859,7 +859,6 @@ export default function MarcadosPanel() {
     const meuNome = useStore(s => s?.meuNome);
     const isMestreStatus = useStore(s => s?.isMestre) || false;
     const catalogoCenario = useStore(s => s?.cenario);
-    const importarDaAbaStatus = useStore(s => s?.importarDaAbaStatus);
     const divisorPoderMesa = useStore(s => s?.divisorPoderMesa) || 1;
     const setDivisorPoderMesa = useStore(s => s?.setDivisorPoderMesa);
 
@@ -913,8 +912,6 @@ export default function MarcadosPanel() {
     const [localMolduraOpMultiply, setLocalMolduraOpMultiply] = useState(0.85);
     const [localMolduraOpOverlay, setLocalMolduraOpOverlay] = useState(0.6);
 
-    const [textoImport, setTextoImport] = useState('');
-    const [modalImport, setModalImport] = useState(false);
 
     // 🔥 NOVA PALETA OFICIAL RPG/ANIME 🔥
     const PALETA_PREMIUM = [
@@ -1238,14 +1235,6 @@ export default function MarcadosPanel() {
             .finally(() => setUploadingImg(false));
     };
 
-    const executarImportacao = () => {
-        if (!textoImport.trim()) return alert("Cole o texto do Google Docs primeiro!");
-        importarDaAbaStatus(textoImport);
-        setModalImport(false);
-        setTextoImport('');
-        alert("A sua ficha foi sincronizada!");
-    };
-
     const calcularAscensaoAtualStatus = (displayPStatus = getPontosParaAscensao(minhaFicha, 'status')) => {
         let mF = 1;
         if (fatorCrescimentoAtual > 1) { mF = getEfetivoMFormas(minhaFicha, 'status'); if (isNaN(mF) || mF < 1) mF = 1; }
@@ -1541,7 +1530,7 @@ export default function MarcadosPanel() {
                     </button>
                 </div>
                 <div style={{ position: 'relative' }}>
-                    <button onClick={() => { setModalEstilo(!modalEstilo); setModalImport(false); }} style={{ background: '#ff94c2', color: '#000', border: '1px solid #333', borderBottom: '3px solid #222', padding: '10px 20px', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '1.1em', cursor: 'pointer', borderRadius: '4px', boxShadow: '2px 4px 8px rgba(0,0,0,0.4)', transform: 'rotate(-2deg)' }}>🎨 Estilo</button>
+                    <button onClick={() => setModalEstilo(!modalEstilo)} style={{ background: '#ff94c2', color: '#000', border: '1px solid #333', borderBottom: '3px solid #222', padding: '10px 20px', fontFamily: 'inherit', fontWeight: 'bold', fontSize: '1.1em', cursor: 'pointer', borderRadius: '4px', boxShadow: '2px 4px 8px rgba(0,0,0,0.4)', transform: 'rotate(-2deg)' }}>🎨 Estilo</button>
                     {modalEstilo && (
                         <div className="fade-in" style={{ position: 'absolute', top: '55px', right: '0', background: '#ffe4f0', padding: '15px', border: '1px solid #ccc', boxShadow: '5px 5px 15px rgba(0,0,0,0.3)', width: '320px', zIndex: 20, borderRadius: '6px', color: '#000', maxHeight: '75vh', overflowY: 'auto' }}>
                             <label style={{ display: 'block', fontSize: '0.9em', marginBottom: '5px', fontWeight: 'bold' }}>Cor do Texto da Ficha:</label>

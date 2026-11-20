@@ -3883,3 +3883,15 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .racas-marca-oculta { margin-left: 4px; cursor: help; }
 .habilidade-raca-selo--oculta, .bloqueio-raca-oculta { color: var(--texto-suave); font-size: 0.8em; }
 .dominio-racial-ficha { margin-top: 12px; }
+
+/* === Cores de TEXTO semânticas (Arsenal/Formas): neon no tema escuro; sobre o papel claro da Ficha Definitiva viram tons escuros legíveis === */
+:root {
+    --txt-ciano: #0ff; --txt-magenta: #f0f; --txt-ouro: #ffcc00; --txt-vermelho: #f00; --txt-laranja: #ffaa00; --txt-teal: #00ffcc; --txt-verde: #0f0;
+    --fundo-select: #0b1414;
+    --txt-suave: #aaa; --txt-mudo: #888; --txt-claro: #ccc; --txt-forte: #fff; --txt-pergaminho: #e6d5b8;
+}
+.ficha-papel {
+    --txt-ciano: #00656e; --txt-magenta: #800080; --txt-ouro: #7a5a00; --txt-vermelho: #a30000; --txt-laranja: #8a4600; --txt-teal: #006652; --txt-verde: #0a6a0a;
+    --txt-suave: color-mix(in srgb, var(--tinta, #000) 70%, transparent); --txt-mudo: color-mix(in srgb, var(--tinta, #000) 55%, transparent);
+    --txt-claro: color-mix(in srgb, var(--tinta, #000) 80%, transparent); --txt-forte: var(--tinta, #000); --txt-pergaminho: var(--tinta, #000); --fundo-select: var(--fundo, #fff);
+}

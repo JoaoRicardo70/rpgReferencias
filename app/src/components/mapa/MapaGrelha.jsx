@@ -7,7 +7,7 @@ import MapaMundi from './MapaMundi';
 import { MapaSessaoRP } from './MapaVoz';
 
 // 🔥 NOVO: CONSUMINDO A VOZ GLOBAL DO APP 🔥
-import { VoiceContext } from '../../App'; 
+import { VoiceContext } from '../../hooks/VoiceContext'; 
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Mapa provider não encontrado</div>;
 

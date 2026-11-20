@@ -158,7 +158,7 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
 
     return (
         <div className={className} style={{ marginTop: 10 }}>
-            <button className="btn-neon" onClick={() => setMostrarFormas(!mostrarFormas)} style={{ padding: '4px 12px', fontSize: '0.85em', margin: 0, borderColor: '#ff8800', color: '#ff8800' }}>
+            <button className="btn-neon" onClick={() => setMostrarFormas(!mostrarFormas)} style={{ padding: '4px 12px', fontSize: '0.85em', margin: 0, borderColor: '#ff8800', color: 'var(--txt-laranja)' }}>
                 {mostrarFormas ? '▼' : '▶'} FORMAS MÍSTICAS ({listaFormas.length})
             </button>
 
@@ -182,8 +182,8 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
                                                 )}
                                                 <div>
                                                     <h3 style={{ margin: 0, color: isAtiva ? '#ff8800' : '#aaa', textShadow: isAtiva ? '0 0 10px #ff8800' : 'none' }}>{forma.nome || '(Sem Nome)'}</h3>
-                                                    <span style={{ color: '#666', fontSize: '0.85em' }}>{forma.acumulaFormaBase !== false ? '+ Acumula com os bónus base da arma' : 'Substitui os bónus base da arma'}</span>
-                                                    {forma.descricao && <p style={{ color: '#ccc', fontSize: '0.9em', fontStyle: 'italic', margin: '8px 0 0 0', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{forma.descricao}</p>}
+                                                    <span style={{ color: 'var(--txt-mudo)', fontSize: '0.85em' }}>{forma.acumulaFormaBase !== false ? '+ Acumula com os bónus base da arma' : 'Substitui os bónus base da arma'}</span>
+                                                    {forma.descricao && <p style={{ color: 'var(--txt-claro)', fontSize: '0.9em', fontStyle: 'italic', margin: '8px 0 0 0', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{forma.descricao}</p>}
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', gap: 6, flexDirection: 'column' }}>
@@ -213,11 +213,11 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
                                                                     {isConfigAtiva ? 'DESATIVAR MODO' : 'ATIVAR MODO'}
                                                                 </button>
                                                             </div>
-                                                            {cfg.descricao && <p style={{ color: '#aaa', fontSize: '0.85em', margin: '5px 0 0 0', whiteSpace: 'pre-wrap', lineHeight: '1.3' }}>{cfg.descricao}</p>}
+                                                            {cfg.descricao && <p style={{ color: 'var(--txt-suave)', fontSize: '0.85em', margin: '5px 0 0 0', whiteSpace: 'pre-wrap', lineHeight: '1.3' }}>{cfg.descricao}</p>}
                                                             
                                                             <div style={{ display: 'flex', gap: 10, marginTop: 5, flexWrap: 'wrap' }}>
-                                                                {(cfg.efeitos || []).length > 0 && <span style={{ color: '#0ff', fontSize: '0.7em' }}>⚡ {cfg.efeitos.length} Ativos</span>}
-                                                                {(cfg.efeitosPassivos || []).length > 0 && <span style={{ color: '#f0f', fontSize: '0.7em' }}>🛡️ {cfg.efeitosPassivos.length} Passivos</span>}
+                                                                {(cfg.efeitos || []).length > 0 && <span style={{ color: 'var(--txt-ciano)', fontSize: '0.7em' }}>⚡ {cfg.efeitos.length} Ativos</span>}
+                                                                {(cfg.efeitosPassivos || []).length > 0 && <span style={{ color: 'var(--txt-magenta)', fontSize: '0.7em' }}>🛡️ {cfg.efeitosPassivos.length} Passivos</span>}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -233,31 +233,31 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
                     // MODO EDIÇÃO DO MESTRE
                     ) : (
                         <div style={{ background: 'rgba(20,20,20,0.9)', borderLeft: '4px solid #00ffcc', padding: 15, borderRadius: 4 }}>
-                            <h4 style={{ color: '#00ffcc', margin: '0 0 15px 0', borderBottom: '1px solid #00ffcc40', paddingBottom: 5 }}>
+                            <h4 style={{ color: 'var(--txt-teal)', margin: '0 0 15px 0', borderBottom: '1px solid #00ffcc40', paddingBottom: 5 }}>
                                 {editando.id ? '⚙️ Editando Forma Base' : '⚙️ Forjando Nova Forma'}
                             </h4>
                             
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                                 <div>
-                                    <label style={{ color: '#00ffcc', fontSize: '0.8em' }}>Nome da Forma</label>
+                                    <label style={{ color: 'var(--txt-teal)', fontSize: '0.8em' }}>Nome da Forma</label>
                                     <input className="input-neon" value={editando.nome || ''} onChange={e => handleFormaChange('nome', e.target.value)} placeholder="Ex: Forma dos Pecados" style={{ width: '100%', borderColor: '#00ffcc' }} />
                                 </div>
                                 <div>
-                                    <label style={{ color: '#00ffcc', fontSize: '0.8em' }}>Anexar Imagem da Forma</label>
-                                    <input type="file" accept="image/*" onChange={handleFormaImageUpload} style={{ display: 'block', color: '#fff', fontSize: '0.8em', marginTop: '5px' }} />
+                                    <label style={{ color: 'var(--txt-teal)', fontSize: '0.8em' }}>Anexar Imagem da Forma</label>
+                                    <input type="file" accept="image/*" onChange={handleFormaImageUpload} style={{ display: 'block', color: 'var(--txt-forte)', fontSize: '0.8em', marginTop: '5px' }} />
                                     {editando.imagemUrl && <img src={editando.imagemUrl} alt="Preview Forma" style={{ height: '30px', marginTop: '5px', borderRadius: '4px', border: '1px solid #00ffcc' }} />}
                                 </div>
                             </div>
 
-                            <label style={{ color: '#aaa', fontSize: '0.85em', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 10 }}>
+                            <label style={{ color: 'var(--txt-suave)', fontSize: '0.85em', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 10 }}>
                                 <input type="checkbox" checked={editando.acumulaFormaBase !== false} onChange={e => handleFormaChange('acumulaFormaBase', e.target.checked)} />
-                                <span style={{ color: '#ffcc00' }}>Acumula com os atributos base da arma</span> (Se desmarcar, a arma perde os buffs normais enquanto transformada)
+                                <span style={{ color: 'var(--txt-ouro)' }}>Acumula com os atributos base da arma</span> (Se desmarcar, a arma perde os buffs normais enquanto transformada)
                             </label>
 
-                            <label style={{ color: '#00ffcc', fontSize: '0.8em' }}>Lore / Descrição Visual da Forma</label>
+                            <label style={{ color: 'var(--txt-teal)', fontSize: '0.8em' }}>Lore / Descrição Visual da Forma</label>
                             <textarea className="input-neon" value={editando.descricao || ''} onChange={e => handleFormaChange('descricao', e.target.value)} placeholder="Descreva como a arma muda fisicamente..." style={{ width: '100%', minHeight: '60px', marginBottom: 20, whiteSpace: 'pre-wrap' }} />
 
-                            <h4 style={{ color: '#ffaa00', margin: '0 0 10px 0', borderBottom: '1px solid #ffaa0040', paddingBottom: 5 }}>
+                            <h4 style={{ color: 'var(--txt-laranja)', margin: '0 0 10px 0', borderBottom: '1px solid #ffaa0040', paddingBottom: 5 }}>
                                 ⚙️ Configurações / Modos desta Forma
                             </h4>
 
@@ -268,12 +268,12 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
                                     
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, marginBottom: 10, alignItems: 'flex-start' }}>
                                         <div>
-                                            <label style={{ color: '#ffaa00', fontSize: '0.8em' }}>Nome do Modo / Pecado</label>
-                                            <input className="input-neon" value={cfg.nome || ''} onChange={e => handleConfigChange(cIdx, 'nome', e.target.value)} placeholder="Ex: Ganância, Tiamat Verde..." style={{ width: '100%', borderColor: '#ffaa00', color: '#ffaa00' }} />
+                                            <label style={{ color: 'var(--txt-laranja)', fontSize: '0.8em' }}>Nome do Modo / Pecado</label>
+                                            <input className="input-neon" value={cfg.nome || ''} onChange={e => handleConfigChange(cIdx, 'nome', e.target.value)} placeholder="Ex: Ganância, Tiamat Verde..." style={{ width: '100%', borderColor: '#ffaa00', color: 'var(--txt-laranja)' }} />
                                         </div>
                                         <div>
-                                            <label style={{ color: '#ffaa00', fontSize: '0.8em' }}>Anexar Imagem do Modo</label>
-                                            <input type="file" accept="image/*" onChange={(e) => handleConfigImageUpload(cIdx, e)} style={{ display: 'block', color: '#fff', fontSize: '0.8em', marginTop: '5px' }} />
+                                            <label style={{ color: 'var(--txt-laranja)', fontSize: '0.8em' }}>Anexar Imagem do Modo</label>
+                                            <input type="file" accept="image/*" onChange={(e) => handleConfigImageUpload(cIdx, e)} style={{ display: 'block', color: 'var(--txt-forte)', fontSize: '0.8em', marginTop: '5px' }} />
                                             {cfg.imagemUrl && <img src={cfg.imagemUrl} alt="Preview Modo" style={{ height: '30px', marginTop: '5px', borderRadius: '4px', border: '1px solid #ffaa00' }} />}
                                         </div>
                                         {(editando.configs || []).length > 1 && (
@@ -281,10 +281,10 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
                                         )}
                                     </div>
 
-                                    <label style={{ color: '#ffaa00', fontSize: '0.8em' }}>Mecânicas e Lore deste Modo</label>
+                                    <label style={{ color: 'var(--txt-laranja)', fontSize: '0.8em' }}>Mecânicas e Lore deste Modo</label>
                                     <textarea className="input-neon" value={cfg.descricao || ''} onChange={e => handleConfigChange(cIdx, 'descricao', e.target.value)} placeholder="O que este modo faz mecanicamente ou na história? Ex: 'Área de 4.5m reduz a movimentação...'" style={{ width: '100%', minHeight: '60px', marginBottom: 15, whiteSpace: 'pre-wrap' }} />
 
-                                    <h6 style={{ color: '#0ff', margin: '0 0 5px 0', fontSize: '0.85em' }}>Efeitos Ativos (Motor)</h6>
+                                    <h6 style={{ color: 'var(--txt-ciano)', margin: '0 0 5px 0', fontSize: '0.85em' }}>Efeitos Ativos (Motor)</h6>
                                     {/* 🔥 LAYOUT GRID ATUALIZADO: Com campo para o Nome do Efeito 🔥 */}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 60px auto', gap: 6, marginBottom: 5 }}>
                                         <input className="input-neon" type="text" placeholder="Nome (Ex: Vento)" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tNomeA || ''} onChange={e => handleConfigChange(cIdx, 'tNomeA', e.target.value)} />
@@ -300,13 +300,13 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
                                     {(cfg.efeitos || []).map((e, eIdx) => {
                                         if(!e) return null;
                                         return (
-                                        <div key={eIdx} style={{ color: '#0ff', fontSize: '0.8em', display: 'flex', justifyContent: 'space-between', background: 'rgba(0,255,255,0.05)', padding: 4, marginBottom: 2 }}>
+                                        <div key={eIdx} style={{ color: 'var(--txt-ciano)', fontSize: '0.8em', display: 'flex', justifyContent: 'space-between', background: 'rgba(0,255,255,0.05)', padding: 4, marginBottom: 2 }}>
                                             <span>{e.nome ? `[${e.nome}] ` : ''}[{(e.atributo || '').replace('_', ' ').toUpperCase()}] {(e.propriedade || '').toUpperCase()}: {e.valor}</span>
-                                            <span style={{ color: '#f00', cursor: 'pointer' }} onClick={() => removeEfeitoFromConfig(cIdx, eIdx, true)}>X</span>
+                                            <span style={{ color: 'var(--txt-vermelho)', cursor: 'pointer' }} onClick={() => removeEfeitoFromConfig(cIdx, eIdx, true)}>X</span>
                                         </div>
                                     )})}
 
-                                    <h6 style={{ color: '#f0f', margin: '15px 0 5px 0', fontSize: '0.85em' }}>Efeitos Passivos (Motor)</h6>
+                                    <h6 style={{ color: 'var(--txt-magenta)', margin: '15px 0 5px 0', fontSize: '0.85em' }}>Efeitos Passivos (Motor)</h6>
                                     {/* 🔥 LAYOUT GRID ATUALIZADO 🔥 */}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 60px auto', gap: 6, marginBottom: 5 }}>
                                         <input className="input-neon" type="text" placeholder="Nome (Ex: Aura)" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tNomeP || ''} onChange={e => handleConfigChange(cIdx, 'tNomeP', e.target.value)} />
@@ -317,20 +317,20 @@ export default function FormasEditor({ className, itemRaridade, formas, formaAti
                                             {getPropriedadesDoAtributo(cfg.tAtrP || 'forca').map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
                                         </select>
                                         <input className="input-neon" type="text" placeholder="Val" style={{ padding: 4, fontSize: '0.8em' }} value={cfg.tValP || ''} onChange={e => handleConfigChange(cIdx, 'tValP', e.target.value)} />
-                                        <button className="btn-neon" onClick={() => addEfeitoToConfig(cIdx, false)} style={{ padding: '4px 10px', margin: 0, borderColor: '#f0f', color: '#f0f' }}>+</button>
+                                        <button className="btn-neon" onClick={() => addEfeitoToConfig(cIdx, false)} style={{ padding: '4px 10px', margin: 0, borderColor: '#f0f', color: 'var(--txt-magenta)' }}>+</button>
                                     </div>
                                     {(cfg.efeitosPassivos || []).map((e, eIdx) => {
                                         if(!e) return null;
                                         return (
-                                        <div key={eIdx} style={{ color: '#f0f', fontSize: '0.8em', display: 'flex', justifyContent: 'space-between', background: 'rgba(255,0,255,0.05)', padding: 4, marginBottom: 2 }}>
+                                        <div key={eIdx} style={{ color: 'var(--txt-magenta)', fontSize: '0.8em', display: 'flex', justifyContent: 'space-between', background: 'rgba(255,0,255,0.05)', padding: 4, marginBottom: 2 }}>
                                             <span>{e.nome ? `[${e.nome}] ` : ''}[{(e.atributo || '').replace('_', ' ').toUpperCase()}] {(e.propriedade || '').toUpperCase()}: {e.valor}</span>
-                                            <span style={{ color: '#f00', cursor: 'pointer' }} onClick={() => removeEfeitoFromConfig(cIdx, eIdx, false)}>X</span>
+                                            <span style={{ color: 'var(--txt-vermelho)', cursor: 'pointer' }} onClick={() => removeEfeitoFromConfig(cIdx, eIdx, false)}>X</span>
                                         </div>
                                     )})}
                                 </div>
                             )})}
 
-                            <button className="btn-neon btn-small" onClick={addConfig} style={{ width: '100%', borderStyle: 'dashed', borderColor: '#ffaa00', color: '#ffaa00', marginBottom: 15, padding: '10px' }}>
+                            <button className="btn-neon btn-small" onClick={addConfig} style={{ width: '100%', borderStyle: 'dashed', borderColor: '#ffaa00', color: 'var(--txt-laranja)', marginBottom: 15, padding: '10px' }}>
                                 + ADICIONAR NOVA CONFIGURAÇÃO (Pecado, Elemento, Estágio...)
                             </button>
 
