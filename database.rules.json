@@ -1,81 +1,44 @@
 {
   "rules": {
-    "personagens": {
-      ".read": true,
-      ".write": false,
+    "index_mesas": {
+      ".read": "auth != null",
+      "$mesaId": {
+        ".write": "auth != null && (!data.exists() || (data.child('mestre').isString() && (data.child('mestre').val().toLowerCase() + '@multiverso.rpg') == auth.token.email))"
+      }
+    },
+    "usuarios": {
       "$nome": {
-        ".write": true,
-        ".validate": "newData.exists() && newData.hasChildren() && $nome.length >= 1 && $nome.length <= 50",
-        "posicao": {
-          ".validate": "(!newData.child('x').exists() || newData.child('x').isNumber()) && (!newData.child('y').exists() || newData.child('y').isNumber()) && (!newData.child('z').exists() || newData.child('z').isNumber())"
+        ".read": "auth != null && ($nome.toLowerCase() + '@multiverso.rpg') == auth.token.email",
+        ".write": "auth != null && ($nome.toLowerCase() + '@multiverso.rpg') == auth.token.email"
+      }
+    },
+    "mesas": {
+      "$mesaId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "midia": {
+          "$imagem": {
+            ".validate": "newData.hasChildren(['autor', 'url', 'ts']) && newData.child('autor').isString() && newData.child('url').isString() && ((newData.child('url').val().matches(/^data:image\\/(png|jpeg|jpg|webp|gif);base64,/) && newData.child('url').val().length <= 300000) || (newData.child('url').val().beginsWith('https://firebasestorage.googleapis.com/') && newData.child('url').val().length <= 1500)) && newData.child('ts').isNumber()"
+          }
         },
-        "iniciativa": {
-          ".validate": "!newData.exists() || newData.isNumber()"
+        "chatsMensagens": {
+          "$chatId": {
+            "$msg": {
+              ".validate": "newData.hasChildren(['autor', 'texto', 'ts']) && newData.child('autor').isString() && newData.child('texto').isString() && newData.child('texto').val().length <= 500 && newData.child('ts').isNumber()"
+            }
+          }
         },
-        "vida": {
-          "atual": { ".validate": "!newData.exists() || newData.isNumber()" },
-          "base": { ".validate": "!newData.exists() || newData.isNumber()" }
+        "personagens": {
+          "$nome": {
+            ".validate": "newData.exists() && newData.hasChildren() && $nome.length >= 1 && $nome.length <= 50"
+          }
         },
-        "mana": {
-          "atual": { ".validate": "!newData.exists() || newData.isNumber()" },
-          "base": { ".validate": "!newData.exists() || newData.isNumber()" }
-        },
-        "aura": {
-          "atual": { ".validate": "!newData.exists() || newData.isNumber()" },
-          "base": { ".validate": "!newData.exists() || newData.isNumber()" }
-        },
-        "chakra": {
-          "atual": { ".validate": "!newData.exists() || newData.isNumber()" },
-          "base": { ".validate": "!newData.exists() || newData.isNumber()" }
-        },
-        "corpo": {
-          "atual": { ".validate": "!newData.exists() || newData.isNumber()" },
-          "base": { ".validate": "!newData.exists() || newData.isNumber()" }
-        },
-        "energiaForca": {
-          "atual": { ".validate": "!newData.exists() || newData.isNumber()" },
-          "base": { ".validate": "!newData.exists() || newData.isNumber()" }
-        },
-        "multiplicadorForcaPrestigio": {
-          ".validate": "!newData.exists() || newData.isNumber()"
-        },
-        "multiplicadorForcaAscensao": {
-          ".validate": "!newData.exists() || newData.isNumber()"
+        "feed_combate": {
+          "$entry": {
+            ".validate": "newData.hasChildren() && newData.child('tipo').exists() && newData.child('nome').exists()"
+          }
         }
       }
-    },
-    "feed_combate": {
-      ".read": true,
-      ".write": false,
-      "$entry": {
-        ".write": true,
-        ".validate": "newData.hasChildren() && newData.child('tipo').exists() && newData.child('nome').exists() && newData.child('tipo').isString() && newData.child('nome').isString() && newData.child('tipo').val().length <= 50 && newData.child('nome').val().length <= 50"
-      }
-    },
-    "jukebox": {
-      ".read": true,
-      ".write": true,
-      ".validate": "newData.hasChildren(['playing'])",
-      "playing": {
-        ".validate": "newData.isBoolean()"
-      },
-      "videoId": {
-        ".validate": "!newData.exists() || (newData.isString() && newData.val().length == 11)"
-      },
-      "inputUrl": {
-        ".validate": "newData.isString() && newData.val().length <= 200 && (newData.val() === '' || newData.val().matches(/^https:\\/\\/(www\\.)?(youtube\\.com|youtu\\.be)\\/.+$/))"
-      },
-      "$unknown": {
-        ".validate": false
-      }
-    },
-    "dummies": {
-      ".read": true,
-      ".write": true
-    },
-    "cenario": {
-      ".read": true,
-      ".write": true
     },
     "$other": {
       ".read": false,
