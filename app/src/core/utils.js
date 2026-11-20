@@ -4,6 +4,8 @@
 
 export function contarDigitos(v) {
     if (!v || isNaN(v) || v <= 0) return 0;
+    // Abaixo de 1e21 o texto do inteiro é exato (log10 erra perto de potências de 10 acima de ~1e15).
+    if (v >= 1 && v < 1e21) return String(Math.floor(v)).length;
     return Math.floor(Math.log10(v)) + 1;
 }
 

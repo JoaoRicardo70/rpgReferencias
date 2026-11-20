@@ -90,6 +90,12 @@ export const fichaPadrao = {
 };
 
 export function sanitizarNome(n) { return !n ? '' : String(n).replace(/[.#$\[\]\/]/g, '_').trim(); }
+// Teto do feed de combate guardado no store (as entradas mais antigas saem; o histórico completo vive no Firebase).
+export const LIMITE_FEED_STORE = 200;
+function podarFeedDoStore(state) {
+    const excesso = state.feedCombate.length - LIMITE_FEED_STORE;
+    if (excesso > 0) { state.feedCombate.splice(0, excesso); state.feedDescartados = (state.feedDescartados || 0) + excesso; }
+}
 function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
 // Leitura do localStorage que nunca lança (armazenamento bloqueado/modo privado restrito).
@@ -182,7 +188,7 @@ const useStore = create(
             state.entidadeInspecionada = null;
         }),
         minhaFicha: deepClone(fichaPadrao),
-        meuNome: '', isMestre: false, souMestreReal: false, modoJogador: lerModoJogadorLocal(storedMesaId), abaAtiva: lerModoNavegacao() === 'hub' ? ABA_HUB : (lerModoNavegacao() === 'mesa' ? 'aba-mapa' : 'aba-Ficha Def'), modoNavegacao: lerModoNavegacao(), larguraGaveta: lerLarguraGaveta(), fichaPaginaPedida: null, secaoMestrePedida: null, combateNaTela: false, personagens: {}, feedCombate: [],
+        meuNome: '', isMestre: false, souMestreReal: false, modoJogador: lerModoJogadorLocal(storedMesaId), abaAtiva: lerModoNavegacao() === 'hub' ? ABA_HUB : (lerModoNavegacao() === 'mesa' ? 'aba-mapa' : 'aba-Ficha Def'), modoNavegacao: lerModoNavegacao(), larguraGaveta: lerLarguraGaveta(), fichaPaginaPedida: null, secaoMestrePedida: null, combateNaTela: false, personagens: {}, feedCombate: [], feedDescartados: 0,
         efeitosTemp: [], efeitosTempPassivos: [], efeitosTempArsenal: [], efeitosTempPassivosArsenal: [], efeitosTempForma: [], efeitosTempPassivosForma: [],
         // Rascunhos do formulário do Livro dos Poderes (core/rascunhoPoder.js): só em memória, nunca vão ao Firebase.
         rascunhosPoder: {},
@@ -273,15 +279,17 @@ const useStore = create(
             try { localStorage.setItem(CHAVE_LARGURA_GAVETA, id); } catch (e) { /* sem localStorage */ }
         }),
         setPersonagens: (personagens) => set((state) => { state.personagens = personagens; }),
-        addFeedEntry: (entry) => set((state) => { state.feedCombate.push(entry); }),
+        // O feed do store guarda só as últimas LIMITE_FEED_STORE entradas; `feedDescartados` conta as podadas (quem usa a posição no feed como marco,
+        // como o Mapa, compara com feedCombate.length + feedDescartados e não perde o fio quando o feed é podado).
+        addFeedEntry: (entry) => set((state) => { state.feedCombate.push(entry); podarFeedDoStore(state); }),
         // Entrada que mudou no Firebase (ex.: rolagem privada revelada): troca a que já existe (pela chave) ou acrescenta.
         atualizarFeedEntry: (entry) => set((state) => {
             const i = entry && entry._chave ? state.feedCombate.findIndex(e => e && e._chave === entry._chave) : -1;
-            if (i >= 0) state.feedCombate[i] = entry; else state.feedCombate.push(entry);
+            if (i >= 0) state.feedCombate[i] = entry; else { state.feedCombate.push(entry); podarFeedDoStore(state); }
         }),
         adicionarAviso: (texto, tipo = 'info') => set((state) => { state.avisosAcao.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, texto: String(texto || ''), tipo }); if (state.avisosAcao.length > 5) state.avisosAcao.shift(); }),
         removerAviso: (id) => set((state) => { state.avisosAcao = state.avisosAcao.filter(a => a.id !== id); }),
-        limparFeedStore: () => set(state => { state.feedCombate = []; }),
+        limparFeedStore: () => set(state => { state.feedCombate = []; state.feedDescartados = 0; }),
         setDummies: (dummies) => set((state) => { state.dummies = dummies || {}; }),
         setAlvoSelecionado: (id) => set((state) => { state.alvoSelecionado = id; }),
         // 🎭 Ator de combate do Mestre (core/atorCombate.js): { nome, dummieId? } do NPC em que ele está atuando, ou null.
@@ -316,16 +324,23 @@ const useStore = create(
         // ao resto do app já espera. Só existe pra permitir que a Ficha Definitiva (Marcados.jsx)
         // e seus painéis sejam reaproveitados ao vivo pelo Mestre sem duplicar toda a lógica de
         // edição -- ver FichaAlvoContext.jsx.
-        updateFichaAlvo: (nome, callback) => set((state) => {
-            if (!nome) return;
-            if (sanitizarNome(nome) === sanitizarNome(state.meuNome || '')) {
-                callback(state.minhaFicha);
-                return;
-            }
-            if (state.personagens && state.personagens[nome]) {
-                callback(state.personagens[nome]);
-            }
-        }),
+        // Devolve true se a mutação foi aplicada, false se o personagem alvo não existe (quem grava um rascunho só o apaga se gravou).
+        updateFichaAlvo: (nome, callback) => {
+            let aplicou = false;
+            set((state) => {
+                if (!nome) return;
+                if (sanitizarNome(nome) === sanitizarNome(state.meuNome || '')) {
+                    callback(state.minhaFicha);
+                    aplicou = true;
+                    return;
+                }
+                if (state.personagens && state.personagens[nome]) {
+                    callback(state.personagens[nome]);
+                    aplicou = true;
+                }
+            });
+            return aplicou;
+        },
 
         loreCapitulosPresente: lerLoreLocal('rpgSextaFeira_capitulos', loreCapitulosPresentePadrao),
         loreCapituloAtivoId: lerLoreNumeroLocal('rpgSextaFeira_capituloAtivo', 1),

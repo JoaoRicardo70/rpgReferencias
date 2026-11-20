@@ -49,6 +49,11 @@ export function getLimiteDadosTecnica(tecnica) {
     return nivel ? nivel.limite : null;
 }
 
+// Tetos da ROLAGEM (Acerto): quantidade de dados, faces e vantagens/desvantagens líquidas. Evitam travar a aba com 'Dados Base' absurdo
+// ou um efeito de vantagem enorme (a rolagem guarda cada dado em memória). Valores acima são limitados em silêncio.
+export const LIMITE_DADOS_ROLAGEM = 1000;
+export const LIMITE_VANTAGENS_LIQUIDAS = 20;
+
 export function danoMaximoDosDados(qtd, faces) {
     const q = Math.max(0, Math.trunc(Number(qtd)) || 0);
     const f = Math.max(0, Math.trunc(Number(faces)) || 0);

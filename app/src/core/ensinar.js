@@ -25,6 +25,17 @@ export function prepararItemEnsinado(item) {
     // Marcas do Mestre (bloqueio de Habilidade de Raça, manipulação de DNA) nunca viajam numa cópia.
     delete copia.bloqueio;
     delete copia.manipulaDNA;
+    // Estado de INSTÂNCIA do dono (Forma/Config ligada, recarga, estágio, usos gastos) não viaja: o aluno começa do zero.
+    ['formaAtivaId', 'configAtivaId', 'recargaRestante', 'estagioAtual', 'usosRestantes', 'armado', 'mestreDesligou'].forEach(k => { delete copia[k]; });
+    // Gatilhos: o consentimento (armado) e o desligar do Mestre são da ficha de origem (também nos gatilhos das Formas).
+    const limparGatilhos = (lista) => (Array.isArray(lista) ? lista.map((g) => { if (!g || typeof g !== 'object') return g; const { armado, mestreDesligou, ...resto } = g; return resto; }) : lista);
+    if (Array.isArray(copia.gatilhos)) copia.gatilhos = limparGatilhos(copia.gatilhos);
+    if (Array.isArray(copia.formas)) copia.formas.forEach((f) => {
+        if (!f || typeof f !== 'object') return;
+        if (Array.isArray(f.gatilhos)) f.gatilhos = limparGatilhos(f.gatilhos);
+        // Também os gatilhos das Configurações da Forma.
+        if (Array.isArray(f.configs)) f.configs.forEach((c) => { if (c && typeof c === 'object' && Array.isArray(c.gatilhos)) c.gatilhos = limparGatilhos(c.gatilhos); });
+    });
     if (typeof copia.imagemUrl === 'string' && copia.imagemUrl.length > LIMITE_IMAGEM_NO_BACKUP && copia.imagemUrl.startsWith('data:')) copia.imagemUrl = '';
     return copia;
 }

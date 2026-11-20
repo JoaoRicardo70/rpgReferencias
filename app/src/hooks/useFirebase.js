@@ -3,6 +3,7 @@ import useStore from '../stores/useStore';
 import { entradaVisivel, ocultarValorDoAcerto } from '../core/dadosMestre';
 import { db } from '../services/firebase-config';
 import { garantirBackupDiario } from '../services/backup-ficha';
+import { preservarReferenciasIguais } from '../core/estruturaCompartilhada';
 import { iniciarListenerFichaPropria, iniciarListenerPersonagens, iniciarListenerFeed, salvarFirebaseImediato, resetSincronizacaoFicha, mesclarPersonagensRemotos } from '../services/firebase-sync';
 
 export default function useFirebase() {
@@ -59,7 +60,9 @@ export default function useFirebase() {
             // da mesa mudasse algo (é esta árvore inteira que dispara este listener). Sem
             // ninguém editando por este caminho, mesclarPersonagensRemotos devolve o snapshot
             // como está, idêntico ao comportamento de sempre.
-            setPersonagens(mesclarPersonagensRemotos(useStore.getState().personagens, personagens));
+            // Personagens cujo conteúdo não mudou mantêm a mesma referência (não invalida caches de quem olha a identidade da ficha).
+            const locais = useStore.getState().personagens;
+            setPersonagens(preservarReferenciasIguais(locais, mesclarPersonagensRemotos(locais, personagens)));
         });
 
         return () => {

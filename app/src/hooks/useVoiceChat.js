@@ -115,6 +115,10 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
     const tentativasFalhasRef = useRef(0);
     const supressorAtivoRef = useRef(supressorAtivo);
 
+    // Quem está na sala agora (ids de voz): só esses podem ser atendidos; o ID do peer é público e fácil de adivinhar.
+    const idsDaSalaRef = useRef([]);
+    idsDaSalaRef.current = (Array.isArray(tavernaAtivos) ? tavernaAtivos : []).map(idDeVoz);
+
     const meuIDTelefone = meuNome ? meuNome.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
 
     useEffect(() => { conexoesRef.current = conexoes; }, [conexoes]);
@@ -202,6 +206,12 @@ export function useVoiceChat(meuNome, tavernaAtivos, isPresenteNaTaverna) {
 
         novoPeer.on('call', (call) => {
             console.log(`[VOZ] A receber chamada de: ${call.peer}`);
+            // Estranho (não está na sala da mesa): não atende e não devolve o microfone.
+            if (!idsDaSalaRef.current.includes(call.peer)) {
+                console.warn(`[VOZ] Chamada de ${call.peer} recusada: não está na sala.`);
+                try { call.close(); } catch (e) { /* já fechada */ }
+                return;
+            }
             // Marca já aqui (antes até de atender) pra "FORÇAR LIGAÇÃO"/o auto-dialer não discarem
             // por cima enquanto essa chamada recebida ainda está sendo negociada: com as duas pontas
             // ligando ao mesmo tempo, o app cria DUAS conexões WebRTC pro mesmo amigo, e qual delas

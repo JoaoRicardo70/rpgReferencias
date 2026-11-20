@@ -77,7 +77,7 @@ export function lerGatilhosDaIA(brutos) {
         if (recusa) { naoAplicado.push(`Gatilho não importado (${nome}): ${recusa}`); return; }
         candidatos.push(prepararBruto(g));
     });
-    const { gatilhos, descartados } = normalizarGatilhos(candidatos);
+    const { gatilhos, descartados } = normalizarGatilhos(candidatos, { validarBuff: true });
     descartados.forEach(d => naoAplicado.push(`Gatilho não importado (${d.nome}): ${d.motivo}`));
     const prontos = gatilhos.map((g) => {
         const refs = referenciasParaConferir(g);

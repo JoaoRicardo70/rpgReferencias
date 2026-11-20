@@ -39,6 +39,7 @@ export function AcertoFormProvider({ children }) {
     const salvarFichaSilencioso = useCallSaveAtivo();
     const personagens = useStore(s => s.personagens);
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
+    const adicionarAviso = useStore(s => s.adicionarAviso);
     const alvoSelecionado = useStore(s => s.alvoSelecionado);
     const dummies = useStore(s => s.dummies);
     const cenario = useStore(s => s.cenario);
@@ -154,10 +155,12 @@ export function AcertoFormProvider({ children }) {
         const rolagemLivre = origemArea === 'alvo' && !alvoDummie;
         if (isForaDeAlcance && origemArea !== 'self' && !rolagemLivre) { alert('Aviso: O alvo ou o Ponto de Explosão está fora do seu alcance!'); return; }
 
-        const qD = parseInt(dados) || 1; const fD = parseInt(faces) || 20; const bon = parseInt(bonus) || 0; const prof = usarProficiencia ? profGlobal : 0;
+        const qD = Math.min(1000, Math.max(1, parseInt(dados) || 1)); const fD = Math.min(1000, Math.max(1, parseInt(faces) || 20)); const bon = parseInt(bonus) || 0; const prof = usarProficiencia ? profGlobal : 0;
         // 🩸 Alvo Imobilizado/Incapacitado: quem ataca ganha vantagem (core/condicoes.js). Vale para alvo único; em área cada alvo tem o seu estado.
         const vantagemDoEstado = !(maxArea > 0 && centroExplosao) && alvoDummie ? modificadoresDeEstados(alvoDummie.isPersonagem ? alvoDummie.ficha : alvoDummie).vantagemContraEle : 0;
         const v = (parseInt(vantagens) || 0) + vantagemDoEstado; const d = parseInt(desvantagens) || 0;
+        // Aviso discreto quando os tetos da rolagem (core/limiteDados.js) cortam o que foi pedido.
+        if ((parseInt(dados) || 1) > 1000 || (parseInt(faces) || 20) > 1000 || Math.abs(v - d) > 20) adicionarAviso?.('Acerto: dados/faces limitados a 1000 e vantagem líquida a 20.', 'info');
         const sels = statsSelecionados.length > 0 ? statsSelecionados : ['destreza'];
 
         // Alvo único: as condições dos efeitos (alvo com estado, vida abaixo de...) são checadas nele; em área, sem alvo único, não valem.
@@ -241,7 +244,7 @@ export function AcertoFormProvider({ children }) {
         if (textosErro.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${textosErro.join(' · ')}` });
         setAbaAtiva('aba-log');
 
-    }, [isForaDeAlcance, origemArea, dados, faces, bonus, usarProficiencia, profGlobal, vantagens, desvantagens, statsSelecionados, minhaFicha, itensEquipados, maxArea, centroExplosao, alvoFiltro, dummies, personagens, meuNome, alvoDummie, duracaoZonaEfeito, elementoZona, cenario, setAbaAtiva, divisorPoderMesa]);
+    }, [adicionarAviso, isForaDeAlcance, origemArea, dados, faces, bonus, usarProficiencia, profGlobal, vantagens, desvantagens, statsSelecionados, minhaFicha, itensEquipados, maxArea, centroExplosao, alvoFiltro, dummies, personagens, meuNome, alvoDummie, duracaoZonaEfeito, elementoZona, cenario, setAbaAtiva, divisorPoderMesa]);
 
     const value = useMemo(() => ({
         dados, setDados, faces, setFaces, usarProficiencia, setUsarProficiencia, bonus, setBonus,

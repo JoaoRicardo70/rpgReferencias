@@ -290,7 +290,7 @@ export default function GatilhosEditor({ gatilhos, onChange, descartados = [], c
     const salvar = () => {
         if (form.acoes.length === 0) { setErro('Adicione pelo menos uma ação.'); return; }
         if (form.evento === 'contadorAtingiu' && !form.contadorEvento) { setErro('Escolha o contador.'); return; }
-        const r = normalizarGatilhos([gatilhoDe(form)]);
+        const r = normalizarGatilhos([gatilhoDe(form)], { validarBuff: true });
         if (r.gatilhos.length === 0) { setErro(`Gatilho inválido (${r.descartados[0] ? r.descartados[0].motivo : 'confira os campos'}).`); return; }
         const novo = r.gatilhos[0];
         const existe = lista.some(g => g.id === novo.id);

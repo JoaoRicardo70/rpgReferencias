@@ -775,7 +775,15 @@ export function AIFormProvider({ children }) {
                 },
                 carregarArvore,
                 carregarTranscricoes: (desde) => carregarTranscricoesDesde(mesaId, desde),
-                memorizar: ({ texto, soMestre }) => memorizarFato(mesaId, { texto, soMestre, autor: meuNome }),
+                // Gravar na memória permanente (vai no prompt de todos) pede o OK do Mestre: o modelo pode ter sido induzido por texto de jogador.
+                memorizar: async ({ texto, soMestre }) => {
+                    const ok = await dialogos.confirmar({ titulo: '📌 Memorizar este fato?', mensagem: `A Sexta-Feira quer gravar na memória da mesa${soMestre ? ' (só Mestre)' : ''}:
+
+${texto}`, textoConfirmar: 'Memorizar' });
+                    if (!ok) return false;
+                    await memorizarFato(mesaId, { texto, soMestre, autor: meuNome });
+                    return true;
+                },
             };
             const memoria = preferencias.memoria ? montarTextoMemoria(loja.sextaFeiraMemoria, isMestre) : '';
             // Sem "Dados da mesa": nem a ficha, nem as ferramentas — só quem fala e o papel.
@@ -821,7 +829,7 @@ export function AIFormProvider({ children }) {
             setRespostaParcial(null);
             setCarregando(false);
         }
-    }, [podeVerFuturo, capitulosPresente, capitulosFuturo, loreFoco, arcoAtivoObj, capituloAtivoObj, preferencias, meuNome, isMestre, mesaId, alvosMencao, sextaFeiraConfig]);
+    }, [podeVerFuturo, capitulosPresente, capitulosFuturo, loreFoco, arcoAtivoObj, capituloAtivoObj, preferencias, meuNome, isMestre, mesaId, alvosMencao, sextaFeiraConfig, dialogos]);
 
     const avisarSemChave = useCallback(() => {
         setHistorico(prev => [...prev, { role: 'erro', texto: isMestre

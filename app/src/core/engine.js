@@ -16,6 +16,7 @@ import { fatoresDaFonte, dadosExtraDaFonte } from './danoDados.js';
 import { armaVirtualDaArmaEspiritual } from './armaEspiritualDano.js';
 import { resolverProficienciaPorEnergia, rotuloEnergiaProficiencia } from './proficienciaEnergia.js';
 import { escalarEfeitosPorContador } from './efeitos-resolver.js';
+import { LIMITE_DADOS_ROLAGEM, LIMITE_VANTAGENS_LIQUIDAS } from './limiteDados.js';
 
 // Status são gravados 1000x maiores que o número exibido na Ficha (core: Marcados.jsx > FATOR_EXIBICAO_STATUS).
 const FATOR_EXIBICAO_STATUS = 1000;
@@ -70,8 +71,19 @@ export function somarBonusBase(ficha, atributo, contexto = {}) {
     return somarEfeitosBase(ficha, atributo, contexto);
 }
 
+// Quantidade em [0, LIMITE_DADOS_ROLAGEM] e faces em [1, LIMITE_DADOS_ROLAGEM], inteiros finitos; a vantagem líquida (vantagens - desvantagens) fica em
+// [-LIMITE_VANTAGENS_LIQUIDAS, +LIMITE_VANTAGENS_LIQUIDAS]. NaN, negativo e Infinity caem no mínimo/teto em vez de travar a rolagem.
+function limitarEntradaDeRolagem(v, minimo, maximo) {
+    const n = Math.trunc(Number(v));
+    if (Number.isNaN(n)) return Math.max(minimo, 0);
+    return Math.min(maximo, Math.max(minimo, n));
+}
+
 export function rolarDadosComVantagem(qD, fD, vantagens = 0, desvantagens = 0) {
-    let netVantagem = (parseInt(vantagens) || 0) - (parseInt(desvantagens) || 0);
+    qD = limitarEntradaDeRolagem(qD, 0, LIMITE_DADOS_ROLAGEM);
+    fD = limitarEntradaDeRolagem(fD, 1, LIMITE_DADOS_ROLAGEM);
+    const liquida = limitarEntradaDeRolagem(vantagens, -1e9, 1e9) - limitarEntradaDeRolagem(desvantagens, -1e9, 1e9);
+    let netVantagem = Math.min(LIMITE_VANTAGENS_LIQUIDAS, Math.max(-LIMITE_VANTAGENS_LIQUIDAS, liquida));
     let totalDice = qD + Math.abs(netVantagem);
     let rolls = [];
     
@@ -92,13 +104,14 @@ export function rolarDadosComVantagem(qD, fD, vantagens = 0, desvantagens = 0) {
 
     let sD = 0;
     let finalTexts = [];
-    let pool = [...kept]; 
+    const pool = new Map();
+    for (const k of kept) pool.set(k, (pool.get(k) || 0) + 1);
 
     for (let i = 0; i < rolls.length; i++) {
         let r = rolls[i];
-        let idx = pool.indexOf(r);
-        if (idx !== -1) {
-            pool.splice(idx, 1);
+        const restantes = pool.get(r) || 0;
+        if (restantes > 0) {
+            pool.set(r, restantes - 1);
             sD += r;
             finalTexts.push(`<strong>${r}</strong>`);
         } else {
@@ -477,6 +490,12 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
 // `usarProf` (opcional): se a Proficiência está ligada; com ela, a ficha pode trocar `prof` pela Proficiência da energia do golpe
 // (core/proficienciaEnergia.js). Sem `proficienciaPorEnergia` na ficha, `prof` vale exatamente como vem. `energia` (opcional): energia do golpe.
 export function calcularAcerto({ qD, fD, prof: profInformada, usarProf, energia, bonus, sels, minhaFicha, itensEquipados, vantagens = 0, desvantagens = 0, alvo = null, aplicarDesvantagemDoAlvo = true }) {
+    // Dados: qtd em [0, LIMITE_DADOS_ROLAGEM] (0 = sem dado, usado para totais fixos; a UI já exige >= 1) e faces em [1, LIMITE] (negativo/NaN/Infinity viram o mínimo ou o teto); mesma regra de rolarDadosComVantagem.
+    qD = limitarEntradaDeRolagem(qD, 0, LIMITE_DADOS_ROLAGEM);
+    fD = limitarEntradaDeRolagem(fD, 1, LIMITE_DADOS_ROLAGEM);
+    // ENERGIA DO GOLPE: nenhum chamador passa `energia` porque o Acerto é rolado ANTES de escolher habilidade/arma do Dano (a energia cobrada
+    // só é conhecida lá, em calcularDano). Sem `energia`, a Proficiência por energia usa a energia presumida (arma configurada ou 1º Poder
+    // ativo com custo, ver energiaDoGolpe). Quem já souber a energia deve passá-la em `energia` para o Acerto e o custo coincidirem.
     const profLigada = usarProf === undefined ? (Number(profInformada) || 0) > 0 : !!usarProf;
     const profEnergia = profLigada ? resolverProficienciaPorEnergia(minhaFicha, profInformada, energia) : { valor: profInformada, energia: null };
     const prof = profEnergia.valor;
@@ -506,7 +525,7 @@ export function calcularAcerto({ qD, fD, prof: profInformada, usarProf, energia,
     // 🎲 Efeitos VANTAGEM/DESVANTAGEM (escopo ataque) e PISO_D20 (só vale em ataque se o escopo disser 'ataque' ou 'tudo'), core/efeitosCondicionais.js.
     const contexto = montarContextoDeCombate(minhaFicha, alvo);
     const rolagemAtaque = { tipo: 'ataque', ids: [] };
-    const somaEfeitos = (atributo, escopoPadrao) => Math.max(0, Math.floor(valoresDeEfeitos(minhaFicha, atributo, { contexto, rolagem: rolagemAtaque, escopoPadrao }).reduce((s, v) => s + v, 0)));
+    const somaEfeitos = (atributo, escopoPadrao) => Math.min(LIMITE_VANTAGENS_LIQUIDAS, Math.max(0, Math.floor(valoresDeEfeitos(minhaFicha, atributo, { contexto, rolagem: rolagemAtaque, escopoPadrao }).reduce((s, v) => s + v, 0))));
     const vantagemEfeitos = somaEfeitos('vantagem', 'ataque');
     // 🛡️ Alvo-personagem com o efeito DESVANTAGEM_ATACANTE impõe dados de desvantagem a quem o ataca (Dummie sem ficha não tem efeitos).
     const fichaDoAlvo = alvo && typeof alvo === 'object' ? (alvo.isPersonagem && alvo.ficha ? alvo.ficha : null) : null;

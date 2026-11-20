@@ -30,8 +30,10 @@ export default function FeedCombate({ className }) {
         </label>
         </>
     ) : null;
+    // Key estável por entrada (chave do Firebase, senão horário+tipo+autor): o índice da lista invertida muda a cada entrada nova e remontaria tudo.
+    const chaveDaEntrada = (d, idx) => d._chave || (d.ts ? `${d.ts}-${d.tipo || ''}-${d.nome || ''}` : idx);
     const comBarraPrivada = (d, idx, el) => (d.privado && isMestre ? (
-        <div key={`priv-${d._chave || idx}`} className="feed-privado">
+        <div key={`priv-${chaveDaEntrada(d, idx)}`} className="feed-privado">
             <div className="feed-privado-barra">
                 <span>🔒 Rolagem do Mestre: só você vê</span>
                 <button type="button" className="feed-privado-revelar" disabled={!d._chave} onClick={() => revelarEntradaFeed(d._chave)}>📢 Revelar aos jogadores</button>
@@ -67,7 +69,7 @@ export default function FeedCombate({ className }) {
                 // 🔥 NOVO: TESTE DE HABILIDADE (PERÍCIA)
                 if (d.tipo === 'skill') {
                     return (
-                        <div key={idx} className="damage-log" style={{ borderLeftColor: '#0088ff', background: 'rgba(0,136,255,0.1)' }}>
+                        <div key={chaveDaEntrada(d, idx)} className="damage-log" style={{ borderLeftColor: '#0088ff', background: 'rgba(0,136,255,0.1)' }}>
                             <p style={{ color: '#0088ff' }}>
                                 <span dangerouslySetInnerHTML={html(`🎯 <strong>${esc(d.nome)}</strong> fez um Teste de <strong>${esc(d.nomeTeste)}</strong>:`)} />
                             </p>
@@ -82,7 +84,7 @@ export default function FeedCombate({ className }) {
                 // 🔥 NOVO: SAVING THROW (RESISTÊNCIA PURA)
                 if (d.tipo === 'saving') {
                     return (
-                        <div key={idx} className="damage-log" style={{ borderLeftColor: '#ffcc00', background: 'rgba(255,204,0,0.1)' }}>
+                        <div key={chaveDaEntrada(d, idx)} className="damage-log" style={{ borderLeftColor: '#ffcc00', background: 'rgba(255,204,0,0.1)' }}>
                             <p style={{ color: '#ffcc00' }}>
                                 <span dangerouslySetInnerHTML={html(`🛡️ <strong>${esc(d.nome)}</strong> rolou um Saving Throw de <strong>${esc(d.nomeTeste)}</strong>:`)} />
                             </p>
@@ -96,7 +98,7 @@ export default function FeedCombate({ className }) {
 
                 if (d.tipo === 'acerto') {
                     return (
-                        <div key={idx} className="damage-log" style={{ borderLeftColor: '#f90', background: 'rgba(255,153,0,0.1)' }}>
+                        <div key={chaveDaEntrada(d, idx)} className="damage-log" style={{ borderLeftColor: '#f90', background: 'rgba(255,153,0,0.1)' }}>
                             <p style={{ color: '#f90' }}>
                                 <span dangerouslySetInnerHTML={html(`&#x1F3AF; <strong>${esc(d.nome)}</strong> rolou Acerto usando <strong>${esc(d.atributosUsados)}</strong>${d.armaStr || ''}:`)} />
                             </p>
@@ -124,7 +126,7 @@ export default function FeedCombate({ className }) {
 
                 if (d.tipo === 'evasiva') {
                     return (
-                        <div key={idx} className="damage-log" style={{ borderLeftColor: '#0088ff', background: 'rgba(0,136,255,0.1)' }}>
+                        <div key={chaveDaEntrada(d, idx)} className="damage-log" style={{ borderLeftColor: '#0088ff', background: 'rgba(0,136,255,0.1)' }}>
                             <p style={{ color: '#0088ff' }}>
                                 <span dangerouslySetInnerHTML={html(`&#x1F4A8; <strong>${esc(d.nome)}</strong> declarou Esquiva${d.armaStr || ''}:`)} />
                             </p>
@@ -138,7 +140,7 @@ export default function FeedCombate({ className }) {
 
                 if (d.tipo === 'resistencia') {
                     return (
-                        <div key={idx} className="damage-log" style={{ borderLeftColor: '#ccc', background: 'rgba(200,200,200,0.1)' }}>
+                        <div key={chaveDaEntrada(d, idx)} className="damage-log" style={{ borderLeftColor: '#ccc', background: 'rgba(200,200,200,0.1)' }}>
                             <p style={{ color: '#ccc' }}>
                                 <span dangerouslySetInnerHTML={html(`&#x1F6E1;&#xFE0F; <strong>${esc(d.nome)}</strong> declarou Bloqueio${d.armaStr || ''}:`)} />
                             </p>
@@ -153,7 +155,7 @@ export default function FeedCombate({ className }) {
                 if (d.tipo === 'escudo') {
                     const tg = d.vitalidade > 0 ? ` <span style="color:#ffcc00;">(Vit: +${d.vitalidade})</span>` : '';
                     return (
-                        <div key={idx} className="damage-log" style={{ borderLeftColor: '#f0f', background: 'rgba(255,0,255,0.1)' }}>
+                        <div key={chaveDaEntrada(d, idx)} className="damage-log" style={{ borderLeftColor: '#f0f', background: 'rgba(255,0,255,0.1)' }}>
                             <p style={{ color: '#f0f' }}>
                                 <span dangerouslySetInnerHTML={html(`&#x2728; <strong>${esc(d.nome)}</strong> ativou Escudo${d.armaStr || ''}:`)} />
                             </p>
@@ -167,7 +169,7 @@ export default function FeedCombate({ className }) {
 
                 if (d.tipo === 'sistema') {
                     return (
-                        <div key={idx} className="damage-log" style={{ borderLeftColor: '#ffcc00', background: 'rgba(255,204,0,0.1)', textAlign: 'center' }}>
+                        <div key={chaveDaEntrada(d, idx)} className="damage-log" style={{ borderLeftColor: '#ffcc00', background: 'rgba(255,204,0,0.1)', textAlign: 'center' }}>
                             <h3 style={{ color: '#ffcc00', margin: '10px 0', textShadow: '0 0 10px rgba(255,204,0,0.8)' }}>{d.texto}</h3>
                             {isMestre && d.textoMestre && <div className="feed-texto-mestre">🔒 {d.textoMestre}</div>}
                         </div>
@@ -176,7 +178,7 @@ export default function FeedCombate({ className }) {
 
                 // Default: dano
                 return (
-                    <div key={idx} className="damage-log">
+                    <div key={chaveDaEntrada(d, idx)} className="damage-log">
                         <p dangerouslySetInnerHTML={html(`&#x1F4A5; <strong>${esc(d.nome)}</strong> atacou usando <strong>${esc(d.atributosUsados)}</strong>${d.armaStr || ''}:`)} />
                         <h1 className="damage-number">
                             {(d.dano || 0).toLocaleString('pt-BR')}

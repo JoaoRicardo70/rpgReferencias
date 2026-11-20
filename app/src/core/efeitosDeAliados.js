@@ -30,16 +30,20 @@ export function efeitosDeAliados(ficha, nomePortador = '') {
     if (aliados.length === 0) return [];
     if (cacheEfeitos && cacheEfeitos.aliados === aliados) return cacheEfeitos.valor;
     const saida = [];
+    // Dedup só entre portadores DIFERENTES (mesmo nome de Poder em dois aliados não soma em dobro); dentro do mesmo Poder todos os efeitos valem.
     const vistos = new Set();
     aliados.forEach(({ nome, ficha: aliado, dummie }) => {
         if (dummie || !aliado || !Array.isArray(aliado.poderes)) return;
         aliado.poderes.forEach((p) => {
             if (!p) return;
             const r = resolverEfeitosEntidade(p, aliado, nome);
+            const vistosDoPoder = new Set();
             const juntar = (lista) => (lista || []).forEach((e) => {
                 if (!e || typeof e !== 'object' || e.valeParaAliados !== true || !efeitoPodeValerParaAliados(e.atributo)) return;
                 const chave = `${String(p.nome || p.id).trim().toLowerCase()}|${String(e.atributo).trim().toLowerCase()}`;
-                if (vistos.has(chave)) return;
+                // Já veio de OUTRO portador com o mesmo Poder/atributo: descarta. Do mesmo portador e Poder: mantém.
+                if (vistos.has(chave) && !vistosDoPoder.has(chave)) return;
+                vistosDoPoder.add(chave);
                 vistos.add(chave);
                 saida.push(e);
             });

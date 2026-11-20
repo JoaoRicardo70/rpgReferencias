@@ -8,7 +8,9 @@ import { ESTADOS } from './condicoes';
 import { aplicarExcecaoRaca, ehHabilidadeDeRaca, racasAcessoPadraoParaFicha, normalizarRacasAcesso } from './racas';
 import { verificarAcessoHabilidadeRaca } from './racasAcesso';
 import { CATEGORIAS_PODER as LISTA_CATEGORIAS, IDS_CATEGORIA_PODER, idCategoriaPoder, categoriaLiberadaNaFicha } from './categoriasPoder';
-import { lerCustosPorTurno } from './custoPorTurno';
+import { lerCustosPorTurno, custoPorTurnoParaSalvar } from './custoPorTurno';
+import { normalizarUsos } from './usosPoder';
+import { normalizarRecarga } from './recargaPoder';
 import { ATRIBUTOS_EFEITO, PROPRIEDADES_EFEITO, normalizarPoder, resumirProposta } from './sextaFeiraCriacao';
 import { ATRIBUTOS_COM_QUANDO, normalizarQuando, normalizarQuandoMultiplicador } from './efeitosCondicionais';
 import { ATRIBUTO_DANO_DADOS, normalizarValorDanoDados, dadoDoEfeito } from './danoDados';
@@ -390,6 +392,12 @@ function prepararSubHabilidade(bruto, avisos = []) {
     if (recargaSub > 0) detalhes.push(`Recarga: ${recargaSub} turno(s)`);
     const custosSub = lerCustosPorTurno(s.custoPorTurno).custos;
     if (custosSub.length) detalhes.push(`Custo por turno: ${custosSub.map(c => `${c.valor}${c.modo === 'percMax' ? '%' : ''} de ${c.energia}`).join(' e ')}`);
+    // Usos/recarga/custo por turno válidos ficam GRAVADOS na Forma (não se perdem; hoje o jogo só aplica esses campos no Poder principal, então além do
+    // texto do Modo avisamos que a Forma não os cobra sozinha).
+    const usosValidos = normalizarUsos(s.usosMax, s.usosPor);
+    const recargaValida = normalizarRecarga(s.recargaTurnos);
+    const custoSalvo = custosSub.length ? custoPorTurnoParaSalvar(s.custoPorTurno) : null;
+    if (usosValidos || recargaValida > 0 || custoSalvo) naoAplicado.push('Usos, recarga e custo por turno desta sub-habilidade ficam só como descrição/dados da Forma: o limite não é cobrado sozinho.');
     const descricao = String(s.descricao ?? '').trim();
     const notas = juntarNotas('', naoAplicado);
     const texto = [descricao, detalhes.join(' · '), notas].filter(Boolean).join('\n\n');
@@ -397,6 +405,9 @@ function prepararSubHabilidade(bruto, avisos = []) {
         nome, descricao: texto, imagemUrl: '', acumulaFormaBase: true, efeitos: [], efeitosPassivos: [],
         configs: [{ nome: 'Padrão', descricao: '', imagemUrl: '', efeitos, efeitosPassivos, efeitosIncertos: incertos }],
         ...(gatilhosLidos.gatilhos.length ? { gatilhos: marcarGatilhosPendentes(gatilhosLidos.gatilhos) } : {}),
+        ...(usosValidos ? { usosMax: usosValidos.max, usosPor: usosValidos.por } : {}),
+        ...(recargaValida > 0 ? { recargaTurnos: recargaValida } : {}),
+        ...(custoSalvo ? { custoPorTurno: custoSalvo } : {}),
         naoAplicado,
     };
 }

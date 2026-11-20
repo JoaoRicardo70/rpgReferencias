@@ -406,6 +406,8 @@ export function isStatBuffed(ficha, statKey) {
 function sanitizarBaseNumerica(valor) {
     if (typeof valor === 'number') return valor;
     if (valor === null || valor === undefined || valor === '') return 0;
+    // Notação científica colada de planilha ("4.3e8") é lida como número; o resto segue o caminho do separador de milhar.
+    if (/^\s*[+-]?\d+(\.\d+)?e[+-]?\d+\s*$/i.test(String(valor))) { const n = Number(valor); return Number.isFinite(n) ? n : 0; }
     const limpo = parseInt(String(valor).replace(/\./g, ''), 10);
     return isNaN(limpo) ? 0 : limpo;
 }

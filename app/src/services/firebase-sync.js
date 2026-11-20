@@ -1,4 +1,4 @@
-import { ref, set, update, get, push, remove, runTransaction, onValue, onChildAdded, onChildChanged, limitToLast, query, onDisconnect } from 'firebase/database';
+import { ref, set, update, get, push, remove, runTransaction, onValue, onChildAdded, onChildChanged, limitToLast, orderByKey, endBefore, query, onDisconnect } from 'firebase/database';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from './firebase-config';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
@@ -516,6 +516,27 @@ export function iniciarListenerFeed(callback, aoAlterar) {
 }
 // 🎲 Dados do Mestre: as rolagens de quem está como Mestre vão como `privado: true` (só Mestre/Co-Mestre veem) a não ser que
 // ele desligue o padrão ou a entrada já traga `privado` definido. Narrações do sistema nunca são privadas.
+// 🧹 Poda do feed no Firebase: mantém as últimas LIMITE_FEED_FIREBASE entradas. Roda a cada PODA_FEED_A_CADA envios DESTE cliente (não a cada envio):
+// lê as últimas N (a mais antiga delas é o marco) e apaga, em lotes, as chaves anteriores (as chaves do push são ordenadas pelo tempo).
+const LIMITE_FEED_FIREBASE = 1500; // = o que a Sexta-Feira lê para resumir sessões (sextaFeiraDados: limitToLast(1500))
+const PODA_FEED_A_CADA = 60;
+const LOTE_PODA_FEED = 100;
+let enviosDesdeAPoda = 0;
+async function podarFeedNoFirebase(mesaId) {
+    try {
+        const base = ref(db, `mesas/${mesaId}/feed_combate`);
+        const recentes = await get(query(base, limitToLast(LIMITE_FEED_FIREBASE)));
+        if (!recentes.exists()) return;
+        const chaves = Object.keys(recentes.val() || {});
+        if (chaves.length < LIMITE_FEED_FIREBASE) return; // nada antes do marco
+        const marco = chaves.sort()[0];
+        const antigas = await get(query(base, orderByKey(), endBefore(marco), limitToLast(LOTE_PODA_FEED)));
+        if (!antigas.exists()) return;
+        const apagar = {};
+        Object.keys(antigas.val() || {}).forEach((k) => { apagar[k] = null; });
+        if (Object.keys(apagar).length > 0) await update(base, apagar);
+    } catch (e) { /* poda é só higiene: falhar não atrapalha a mesa */ }
+}
 export function enviarParaFeed(d) {
     if (isInPlasmicCanvas()) return;
     const { mesaId, isMestre } = useStore.getState();
@@ -525,6 +546,8 @@ export function enviarParaFeed(d) {
     const valorOculto = acertoDeveFicarOculto(d, { ehMestre: isMestre, ocultarPorPadrao: lerAcertoOculto() });
     const entrada = { ...d, ...(privado ? { privado: true } : {}), ...(valorOculto ? { valorOculto: true } : {}) };
     push(ref(db, `mesas/${mesaId}/feed_combate`), privado || valorOculto ? entrada : d).catch(() => {});
+    enviosDesdeAPoda += 1;
+    if (enviosDesdeAPoda >= PODA_FEED_A_CADA) { enviosDesdeAPoda = 0; podarFeedNoFirebase(mesaId); }
 }
 // Torna pública uma rolagem privada do Mestre (ela aparece, com a animação, no feed dos jogadores).
 export function revelarEntradaFeed(chave) {

@@ -418,7 +418,8 @@ export async function executarFerramenta(nomeFerramenta, args, estado, { carrega
                 if (typeof memorizar !== 'function') return { erro: 'Memória indisponível.' };
                 const texto = String(a.texto || '').trim().substring(0, 500);
                 if (!texto) return { erro: 'Nada para memorizar.' };
-                await memorizar({ texto, soMestre: !!a.soMestre });
+                const gravou = await memorizar({ texto, soMestre: !!a.soMestre });
+                if (gravou === false) return { erro: 'O Mestre não confirmou: nada foi memorizado.' };
                 return { ok: true, memorizado: texto, soMestre: !!a.soMestre };
             }
             case 'simular_prestigio': {

@@ -429,6 +429,8 @@ describe('memoria na instrucao de sistema e ferramentas', () => {
     });
     it('ferramentas: transcricoes_recentes usa carregarTranscricoesDesde(mesa) e memorizar_fato usa memorizarFato (Mestre)', async () => {
         useStore.setState({ isMestre: true, meuNome: 'Mestre' });
+        // memorizar_fato agora pede a confirmação do Mestre (sem provider de diálogos, cai no window.confirm).
+        const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(true);
         dados.carregarTranscricoesDesde.mockResolvedValue([{ timestamp: Date.now(), autor: 'Goblin', texto: 'grr', tipo: 'npc' }]);
         let saidas = {};
         chamarGemini.mockImplementation(async (args) => {
@@ -442,6 +444,19 @@ describe('memoria na instrucao de sistema e ferramentas', () => {
         expect(saidas.t.falas).toEqual(['Goblin (NPC): "grr"']);
         expect(dados.memorizarFato).toHaveBeenCalledWith('M1', { texto: 'lembrar', soMestre: true, autor: 'Mestre' });
         expect(saidas.m.ok).toBe(true);
+        expect(confirmar).toHaveBeenCalled();
+        confirmar.mockRestore();
+    });
+    it('ferramentas: memorizar_fato recusado pelo Mestre nao grava nada', async () => {
+        useStore.setState({ isMestre: true, meuNome: 'Mestre' });
+        const confirmar = vi.spyOn(window, 'confirm').mockReturnValue(false);
+        let saida;
+        chamarGemini.mockImplementation(async (args) => { saida = await args.ferramentas.executar('memorizar_fato', { texto: 'x' }); return 'ok'; });
+        const { result } = montar();
+        await enviar(result, 'oi');
+        expect(saida.erro).toMatch(/confirm/);
+        expect(dados.memorizarFato).not.toHaveBeenCalled();
+        confirmar.mockRestore();
     });
     it('ferramentas: jogador nao consegue memorizar_fato', async () => {
         let saida;

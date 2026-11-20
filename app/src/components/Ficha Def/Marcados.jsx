@@ -1180,6 +1180,19 @@ export default function MarcadosPanel() {
         }, 500);
     };
 
+    // Estilo pendente de gravar (debounce 800 ms), POR INSTÂNCIA: guarda também o updateFicha/callSave da ficha em que a mudança foi feita, para que o
+    // flush (ao trocar de ficha alvo ou desmontar) grave na ficha certa e nada se perca.
+    const estiloRef = useRef({ pendentes: {}, timer: null, updateFicha: null, callSave: null });
+    const flushEstilo = useCallback(() => {
+        const rec = estiloRef.current;
+        if (rec.timer) { clearTimeout(rec.timer); rec.timer = null; }
+        const pendentes = rec.pendentes;
+        if (!rec.updateFicha || Object.keys(pendentes).length === 0) return;
+        rec.pendentes = {};
+        rec.updateFicha(f => { if (!f.estetica) f.estetica = {}; Object.keys(pendentes).forEach((k) => { f.estetica[k] = pendentes[k]; }); });
+        if (rec.callSave) rec.callSave();
+    }, []);
+    useEffect(() => () => flushEstilo(), [nomeFichaAtiva, flushEstilo]);
     const handleStyleChange = (key, val) => {
         if (key === 'diarioCor') setLocalCorFundo(val);
         else if (key === 'corTexto') setLocalCorTexto(val);
@@ -1196,11 +1209,13 @@ export default function MarcadosPanel() {
         else if (key === 'molduraOpMultiply') setLocalMolduraOpMultiply(val);
         else if (key === 'molduraOpOverlay') setLocalMolduraOpOverlay(val);
 
-        if (window.timerSaveCor) clearTimeout(window.timerSaveCor);
-        window.timerSaveCor = setTimeout(() => {
-            updateFicha(f => { if (!f.estetica) f.estetica = {}; f.estetica[key] = val; });
-            callSave();
-        }, 800);
+        // Debounce de 800 ms com as mudanças PENDENTES acumuladas por chave: trocar duas coisas em sequência grava as duas (um timer único perdia a 1ª).
+        const rec = estiloRef.current;
+        rec.pendentes[key] = val;
+        rec.updateFicha = updateFicha;
+        rec.callSave = callSave;
+        if (rec.timer) clearTimeout(rec.timer);
+        rec.timer = setTimeout(flushEstilo, 800);
     };
 
     // 🔥 Upload como arquivo (base64 direto no Realtime Database) — o Firebase Storage

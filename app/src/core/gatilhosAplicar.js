@@ -21,7 +21,7 @@ import { gastarUso, limiteDeUsos } from './usosPoder.js';
 import { somarBuffTemporario } from './suporte.js';
 import { zerarAtaquesNoTurno, CAMINHO_ATAQUES_NO_TURNO } from './ataquesNoTurno.js';
 import { zerarQuadradosNoTurno, CAMINHO_QUADRADOS_NO_TURNO } from './movimentoNoTurno.js';
-import { chaveDoGatilhoDoPoder, normalizarGatilhos, LIMITE_TOTAL_GANHO_PERMANENTE, LIMITE_GANHO_PERC_MIN, LIMITE_GANHO_PERMANENTE } from './gatilhos.js';
+import { chaveDoGatilhoDoPoder, chaveDoGatilhoDeForma, achaGatilhoDoPoder, normalizarGatilhos, LIMITE_TOTAL_GANHO_PERMANENTE, LIMITE_GANHO_PERC_MIN, LIMITE_GANHO_PERMANENTE } from './gatilhos.js';
 import { FATOR_PODER_MAX, FATOR_PODER_MIN, zerarGanhosCombate } from './poder.js';
 import { CAMINHOS_ADAPTACAO } from './adaptacao.js';
 import { CAMINHOS_ZENKAI } from './zenkai.js';
@@ -503,11 +503,12 @@ export function dispararEventoNaFicha(ficha, evento, ctx = {}) {
 export function forcarGatilhoNaFicha(ficha, poderId, gatilhoId, ctx = {}) {
     const vazio = { achou: false, textos: [], caminhos: [], externos: [] };
     const poder = ficha && Array.isArray(ficha.poderes) ? ficha.poderes.find(p => p && String(p.id) === String(poderId)) : null;
-    const bruto = poder && Array.isArray(poder.gatilhos) ? poder.gatilhos.find(g => g && g.id === gatilhoId) : null;
+    const formaId = ctx.formaId || null;
+    const bruto = achaGatilhoDoPoder(poder, gatilhoId, formaId, ctx.configId || null);
     if (!bruto) return vazio;
     const g = normalizarGatilhos([bruto], { persistir: false }).gatilhos[0];
     if (!g) return vazio;
-    const chave = chaveDoGatilhoDoPoder(poder.id, g.id);
+    const chave = formaId ? chaveDoGatilhoDeForma(poder.id, formaId, g.id, ctx.configId || null) : chaveDoGatilhoDoPoder(poder.id, g.id);
     const fonte = { tipo: 'poder', id: String(poder.id), nome: String(poder.nome || 'Poder') };
     const acoes = g.acoes.map(a => ({ ...a, gatilhoId: g.id, gatilhoNome: g.nome, fase: g.fase, chave, fonte }));
     try {

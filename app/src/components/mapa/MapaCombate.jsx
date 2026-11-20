@@ -1397,13 +1397,13 @@ export function MapaHologramaAcao() {
     const alvoSelecionado = useStore(s => s.alvoSelecionado);
     const setAlvoSelecionado = useStore(s => s.setAlvoSelecionado);
     if (!ctx) return null;
-    const { ordemIniciativa, feedCombate, feedIndexTurnoAtual, jogadorDaVez, jogadores, overridesCompendio, getAvatarInfo, fmt, meuNome, minhaFicha, isMestre, inspecao, limparInspecao, removerTokenDoMapa } = ctx;
+    const { ordemIniciativa, feedCombate, feedIndexTurnoAtual, jogadorDaVez, jogadores, overridesCompendio, getAvatarInfo, fmt, meuNome, minhaFicha, isMestre, inspecao, limparInspecao, removerTokenDoMapa, feedDescartados = 0 } = ctx;
 
     const feedSeguro = feedCombate || [];
     const ordemSegura = ordemIniciativa || [];
     const emCombate = ordemSegura.length > 0;
 
-    const acaoNovaNoTurno = feedSeguro.length > feedIndexTurnoAtual ? feedSeguro[feedSeguro.length - 1] : null;
+    const acaoNovaNoTurno = (feedSeguro.length + feedDescartados) > feedIndexTurnoAtual ? feedSeguro[feedSeguro.length - 1] : null;
     const acaoGeralForaDeCombate = feedSeguro.length > 0 ? feedSeguro[feedSeguro.length - 1] : null;
     // 👁️ Inspeção (clique num token ou na Ordem de Turno): a moldura mostra o resumo do personagem
     // escolhido no lugar da ação do combate, até fecharem (✖) ou clicarem em outro.
@@ -1570,7 +1570,7 @@ export function MapaHologramaAcao() {
 
     return (
         <>
-            {/* 🔥 A moldura pulsa ao chegar uma ação nova — o key={feedSeguro.length} força o
+            {/* 🔥 A moldura pulsa ao chegar uma ação nova — o key={feedSeguro.length + feedDescartados} força o
                 React a remontar esta div a cada item novo no feed, o que reinicia a animação
                 CSS do zero (o mesmo truque de "resetar com key" usado pra qualquer elemento,
                 não só itens de lista). Sem isso a moldura só troca o número na hora, estática. */}
@@ -1583,7 +1583,7 @@ export function MapaHologramaAcao() {
                     animation: hologramaImpacto 0.5s cubic-bezier(0.22, 1, 0.36, 1);
                 }
             `}} />
-            <div key={feedSeguro.length} className="def-box holograma-impacto" style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', border: isGrand ? `3px solid #ffcc00` : (isCandidato ? `2px solid #00ccff` : `2px solid ${corImpacto}`), boxShadow: isGrand ? `0 0 30px rgba(255,0,60,0.6), inset 0 0 20px rgba(255,204,0,0.3)` : (isCandidato ? `0 0 20px rgba(0,204,255,0.4)` : `0 0 20px ${corImpacto}40`) }}>
+            <div key={feedSeguro.length + feedDescartados} className="def-box holograma-impacto" style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', border: isGrand ? `3px solid #ffcc00` : (isCandidato ? `2px solid #00ccff` : `2px solid ${corImpacto}`), boxShadow: isGrand ? `0 0 30px rgba(255,0,60,0.6), inset 0 0 20px rgba(255,204,0,0.3)` : (isCandidato ? `0 0 20px rgba(0,204,255,0.4)` : `0 0 20px ${corImpacto}40`) }}>
             <div style={{ background: corHeader, color: corTextoHeader, padding: '10px', textAlign: 'center', fontWeight: '900', letterSpacing: 2, fontSize: '1.2em', textTransform: 'uppercase', position: 'relative' }}>
                 {tituloImpacto}
                 {inspecionando && !inspecao.isDummie && (isMestre || inspecao.id === meuNome) && (

@@ -343,7 +343,10 @@ export function MapaFormProvider({ children }) {
     const [uploadingMap, setUploadingMap] = useState(false);
 
     const [dadoAnim, setDadoAnim] = useState({ ativo: false, numero: 20, finalResult: null, cor: '#00ffcc', quemRolou: '' });
-    const prevFeedLen = useRef(feedCombate.length);
+    // Posição no feed = descartados (podados do store) + tamanho atual: continua crescendo mesmo com o feed limitado.
+    const feedDescartados = useStore(s => s.feedDescartados) || 0;
+    const feedTotal = feedCombate.length + feedDescartados;
+    const prevFeedLen = useRef(feedTotal);
 
     const [cenaVisualizadaId, setCenaVisualizadaId] = useState(null);
     const cenaAtivaIdGlobal = cenario?.ativa || 'default';
@@ -468,7 +471,7 @@ export function MapaFormProvider({ children }) {
     }, [meuNome]);
 
     useEffect(() => {
-        if (feedCombate.length > prevFeedLen.current) {
+        if (feedTotal > prevFeedLen.current) {
             const newItem = feedCombate[feedCombate.length - 1];
             if (newItem && newItem.rolagem && (newItem.tipo === 'acerto' || newItem.tipo === 'dano')) {
                 const painelMapa = document.querySelector('.mapa-panel');
@@ -500,8 +503,8 @@ export function MapaFormProvider({ children }) {
                 }
             }
         }
-        prevFeedLen.current = feedCombate.length;
-    }, [feedCombate, abaAtiva, meuNome]);
+        prevFeedLen.current = feedTotal;
+    }, [feedCombate, feedTotal, abaAtiva, meuNome]);
 
     useEffect(() => {
         setMapVantagens(fichaSegura.ataqueConfig?.vantagens || 0);
@@ -1019,8 +1022,8 @@ export function MapaFormProvider({ children }) {
             ficha.posicoes[cenaRenderId] = { ...ficha.posicoes[cenaRenderId], cenaId: cenaRenderId }; 
         });
         salvarFichaSilencioso();
-        setFeedIndexTurnoAtual(feedCombate.length); 
-    }, [iniciativaInput, cenaRenderId, updateFicha, feedCombate.length]);
+        setFeedIndexTurnoAtual(feedTotal); 
+    }, [iniciativaInput, cenaRenderId, updateFicha, feedTotal]);
 
     // 🎲 Rola a Iniciativa: 1d20 + SÓ os bônus de efeitos INICIATIVA (atributo, Proficiência e outros bônus não entram). Mínimo 1,
     // porque iniciativa 0 significa "fora de combate". Grava como a Iniciativa digitada e avisa no feed.
@@ -1035,9 +1038,9 @@ export function MapaFormProvider({ children }) {
         });
         setIniciativaInput(total);
         salvarFichaSilencioso();
-        setFeedIndexTurnoAtual(feedCombate.length);
+        setFeedIndexTurnoAtual(feedTotal);
         enviarParaFeed({ tipo: 'sistema', nome: meuNome, texto: `🎲 ${meuNome} rolou Iniciativa: d20 (${dado})${bonus ? ` ${bonus > 0 ? '+' : '-'} ${Math.abs(bonus)}` : ''} = ${total}` });
-    }, [minhaFicha, meuNome, cenaRenderId, updateFicha, feedCombate.length]);
+    }, [minhaFicha, meuNome, cenaRenderId, updateFicha, feedTotal]);
 
     // 🔥 Trava contra duplo-clique: "Passar Turno" agora aplica ações/fadiga/regeneração de forma
     // SÍNCRONA aqui dentro (ver comentário mais abaixo), não mais só reativamente num efeito
@@ -1142,7 +1145,7 @@ export function MapaFormProvider({ children }) {
             } catch (e) { console.error('Duração dos estados falhou', e); }
         }
 
-        setFeedIndexTurnoAtual(feedCombate.length);
+        setFeedIndexTurnoAtual(feedTotal);
         setJogadorHistory(null);
 
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔄 É a vez de ${nextPlayer.nome} agir!` });
@@ -1184,7 +1187,7 @@ export function MapaFormProvider({ children }) {
         // mas a Vida e Energias não recuperam"). Ver aplicarInicioDeTurno/camposDeInicioDeTurno
         // acima e salvarCamposPersonagem em firebase-sync.js.
         iniciarTurnoDe(nextPlayer, storeState, true);
-    }, [ordemIniciativa, cenario, cenaRenderId, feedCombate.length, dispararEfeitoDaZona, isMestre, updateFicha, iniciarTurnoDe]);
+    }, [ordemIniciativa, cenario, cenaRenderId, feedTotal, dispararEfeitoDaZona, isMestre, updateFicha, iniciarTurnoDe]);
 
     const sairDoCombate = useCallback(() => {
         updateFicha(ficha => { ficha.iniciativa = 0; });
@@ -1329,7 +1332,7 @@ export function MapaFormProvider({ children }) {
         const novoCenario = iniciarCombateNoCenario(storeState.cenario || {}, cenaRenderId, Date.now());
         Promise.resolve(salvarCenarioCompleto(novoCenario)).finally(() => { iniciandoCombateRef.current = false; });
         setJogadorHistory(null);
-        setFeedIndexTurnoAtual(feedCombate.length);
+        setFeedIndexTurnoAtual(feedTotal);
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: '⚔️ COMBATE INICIADO — Rodada 1' });
         // 🔔 inicioDeLuta: um erro de gatilho nunca impede o combate de começar. Roda ANTES do início do turno do primeiro (o gatilho de
         // "início do combate" vem antes da regeneração/custos do turno). Limitação conhecida: se o primeiro é OUTRO jogador, os dois passos
@@ -1358,7 +1361,7 @@ export function MapaFormProvider({ children }) {
             console.error('Iniciar combate falhou', e);
             return false;
         }
-    }, [isMestre, cenaRenderId, ordemIniciativa, feedCombate.length, iniciarTurnoDe, updateFicha]);
+    }, [isMestre, cenaRenderId, ordemIniciativa, feedTotal, iniciarTurnoDe, updateFicha]);
 
     // 🛡️ LADOS / EQUIPES (core/lados.js). Só Mestre/Co-Mestre escrevem. `entidade` = item { id, nome, isDummie } (ordem, foraDaOrdem, token) —
     // a ficha/dummie é buscada FRESCA no store. Jogador: eu = updateFicha + debounce; outro jogador = salvarCamposPersonagem (combate/equipe, combate/ladoOculto);
@@ -1844,7 +1847,7 @@ export function MapaFormProvider({ children }) {
         minhaFicha, meuNome, personagens, feedCombate, isMestre, souCriador, dummies, alvoSelecionado, cenario, abaAtiva,
         fichaSegura, modo3D, setModo3D, tamanhoCelula, setTamanhoCelula,
         iniciativaInput, setIniciativaInput, altitudeInput, setAltitudeInput,
-        turnoAtualIndex, feedIndexTurnoAtual, setFeedIndexTurnoAtual,
+        turnoAtualIndex, feedIndexTurnoAtual, setFeedIndexTurnoAtual, feedDescartados,
         jogadorHistory, setJogadorHistory, mapQD, setMapQD, mapFD, setMapFD,
         mapBonus, setMapBonus, mapStat, setMapStat, mapUsarProf, setMapUsarProf,
         profGlobal, mapVantagens, setMapVantagens, mapDesvantagens, setMapDesvantagens,
@@ -1865,7 +1868,7 @@ export function MapaFormProvider({ children }) {
     }), [
         minhaFicha, meuNome, personagens, feedCombate, isMestre, souCriador, dummies, alvoSelecionado, cenario, abaAtiva,
         fichaSegura, modo3D, tamanhoCelula, iniciativaInput, altitudeInput,
-        turnoAtualIndex, feedIndexTurnoAtual, jogadorHistory, mapQD, mapFD,
+        turnoAtualIndex, feedIndexTurnoAtual, feedDescartados, jogadorHistory, mapQD, mapFD,
         mapBonus, mapStat, mapUsarProf, profGlobal, mapVantagens, mapDesvantagens,
         novaCenaNome, novaCenaEscala, novaCenaUnidade, novaCenaApenasCriador, uploadingMap, dadoAnim,
         cenaVisualizadaId, cenaAtivaIdGlobal, cenaRenderId, cenaAtual, isModoRP,

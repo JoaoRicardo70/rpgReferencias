@@ -48,6 +48,7 @@
 // ==========================================
 import { passaQuando, montarContextoDeCombate, normalizarQuando } from './efeitosCondicionais.js';
 import { ATRIBUTO_DANO_DADOS, normalizarValorDanoDados } from './danoDados.js';
+import { ATRIBUTOS_AGRUPADOS_ITEM } from './efeitos-constants.js';
 import { efeitosDaConfigAtiva, efeitosAtivosLigados } from './efeitosItem.js';
 import { normalizarUsos, usosRestantes, LIMITE_USOS } from './usosPoder.js';
 import { ehEstadoValido, MAX_STACKS, nomeDoEstado } from './condicoes.js';
@@ -184,7 +185,9 @@ export function normalizarAcaoGatilho(bruta, opcoes = {}) {
                 return { tipo: 'buff', atributo, valor: dado, duracao: Math.floor(limitar(numero(bruta.duracao) ?? 3, 1, LIMITE_DURACAO_BUFF_GATILHO)), modo, ...(quando ? { quando } : {}) };
             }
             const valor = numero(bruta.valor);
-            if (!atributo || valor === null) return null;
+            // Só em gatilho NOVO/importado/editado (`validarBuff`): atributo que o jogo lê (lista do Editor de Efeitos + poder_direto); "defesa"/"ca" viravam
+            // buff morto. Gatilhos já salvos não passam por aqui com a validação ligada, então nada salvo é apagado nem deixa de disparar.
+            if (!atributo || valor === null || (opcoes.validarBuff === true && !ATRIBUTOS_BUFF_VALIDOS.has(atributo))) return null;
             return { tipo: 'buff', atributo, valor: limitar(valor, -1e9, 1e9), duracao: Math.floor(limitar(numero(bruta.duracao) ?? 3, 1, LIMITE_DURACAO_BUFF_GATILHO)), modo };
         }
         case 'imunidadeTotal': {
@@ -358,7 +361,7 @@ function normalizarEvento(bruto) {
 
 // { gatilhos, descartados: [{ nome, motivo }] }. Descarta o gatilho inteiro se o evento, uma ação, a condição ou o período forem inválidos
 // (nunca "meio gatilho": tirar uma ação mudaria a regra). Trunca em 8 gatilhos e 6 ações; ids únicos; sem `undefined`.
-export function normalizarGatilhos(lista, { persistir = true } = {}) {
+export function normalizarGatilhos(lista, { persistir = true, validarBuff = false } = {}) {
     const gatilhos = []; const descartados = [];
     const usados = new Set();
     (Array.isArray(lista) ? lista : []).forEach((g, indice) => {
@@ -369,8 +372,12 @@ export function normalizarGatilhos(lista, { persistir = true } = {}) {
         if (!evento) { descartados.push({ nome, motivo: g.evento && g.evento.tipo === 'contadorAtingiu' ? 'escolha o contador e o valor' : 'evento desconhecido' }); return; }
         if (evento.tipo !== 'danoQueZeraria' && Array.isArray(g.acoes) && g.acoes.some(a => a && a.tipo === 'anularDano')) { descartados.push({ nome, motivo: "'anular o dano' só vale em 'golpe me levaria a 0'" }); return; }
         const acoesBrutas = Array.isArray(g.acoes) ? g.acoes.slice(0, LIMITE_ACOES_POR_GATILHO) : [];
-        const acoes = acoesBrutas.map(a => normalizarAcaoGatilho(a, { eventoTipo: evento.tipo }));
-        if (acoes.length === 0 || acoes.some(a => !a)) { descartados.push({ nome, motivo: acoes.length === 0 ? 'sem ações' : 'ação desconhecida ou inválida' }); return; }
+        const acoes = acoesBrutas.map(a => normalizarAcaoGatilho(a, { eventoTipo: evento.tipo, validarBuff }));
+        if (acoes.length === 0 || acoes.some(a => !a)) {
+            const buffMorto = validarBuff && acoesBrutas.some(a => a && a.tipo === 'buff' && a.atributo !== ATRIBUTO_DANO_DADOS && !ATRIBUTOS_BUFF_VALIDOS.has(texto(a.atributo, 40)));
+            descartados.push({ nome, motivo: acoes.length === 0 ? 'sem ações' : (buffMorto ? 'buff com atributo que o jogo não reconhece' : 'ação desconhecida ou inválida') });
+            return;
+        }
         const condicoes = [];
         for (const c of (Array.isArray(g.condicoes) ? g.condicoes : [])) {
             const n = normalizarCondicaoGatilho(c);
@@ -424,6 +431,30 @@ function listasDaForma(entidade) {
         if (ativa && Array.isArray(ativa.gatilhos)) listas.push({ lista: ativa.gatilhos, sufixo: `forma:${forma.id}:cfg:${ativa.id}` });
     }
     return listas;
+}
+
+const ATRIBUTOS_BUFF_VALIDOS = new Set(ATRIBUTOS_AGRUPADOS_ITEM.flatMap(g => g.options));
+
+// Gatilho de um Poder/Item pelo id. Com `formaId`, procura entre os gatilhos dessa Forma (os que o importador grava em forma.gatilhos).
+export function achaGatilhoDoPoder(entidade, gatilhoId, formaId = null, configId = null) {
+    if (!entidade || typeof entidade !== 'object') return null;
+    const forma = formaId ? (Array.isArray(entidade.formas) ? entidade.formas : []).find(f => f && f.id === formaId) : null;
+    const cfg = forma && configId ? (Array.isArray(forma.configs) ? forma.configs : []).find(c => c && c.id === configId) : null;
+    const lista = formaId ? (configId ? (cfg || {}).gatilhos : (forma || {}).gatilhos) : entidade.gatilhos;
+    return Array.isArray(lista) ? (lista.find(x => x && x.id === gatilhoId) || null) : null;
+}
+
+// Gatilhos a mostrar no cartão do Poder: os do próprio Poder + os da Forma ATIVA. [{ g, formaId|null }]
+export function gatilhosDoCartao(poder) {
+    if (!poder || typeof poder !== 'object') return [];
+    const lista = (Array.isArray(poder.gatilhos) ? poder.gatilhos : []).filter(Boolean).map(g => ({ g, formaId: null }));
+    const forma = poder.formaAtivaId && Array.isArray(poder.formas) ? poder.formas.find(f => f && f.id === poder.formaAtivaId) : null;
+    if (forma && Array.isArray(forma.gatilhos)) forma.gatilhos.filter(Boolean).forEach(g => lista.push({ g, formaId: forma.id }));
+    // Configuração ativa da Forma (a mesma que listasDaForma/coletarGatilhos usam: configAtivaId ou a primeira).
+    const cfgs = forma && efeitosDaConfigAtiva(poder) && Array.isArray(forma.configs) ? forma.configs.filter(Boolean) : [];
+    const cfgAtiva = cfgs.length ? ((poder.configAtivaId && cfgs.find(c => c.id === poder.configAtivaId)) || cfgs[0]) : null;
+    if (cfgAtiva && Array.isArray(cfgAtiva.gatilhos)) cfgAtiva.gatilhos.filter(Boolean).forEach(g => lista.push({ g, formaId: forma.id, configId: cfgAtiva.id }));
+    return lista;
 }
 
 const chaveSegura = (s) => String(s).replace(/[.#$[\]/]/g, '_');
@@ -599,6 +630,8 @@ export function preverGatilhos(evento, contexto = {}, ficha = null, opcoes = {})
 }
 
 // Chave de um gatilho na lista de um Poder (a mesma de coletarGatilhos): usada para decisões e por quem age sobre um gatilho específico.
+// Gatilho de Forma: mesma chave que coletarGatilhos monta ("<id>:forma:<forma>:<gatilho>").
+export const chaveDoGatilhoDeForma = (poderId, formaId, gatilhoId, configId = null) => chaveSegura(`${poderId}:forma:${formaId}:${configId ? `cfg:${configId}:` : ''}${gatilhoId}`);
 export const chaveDoGatilhoDoPoder = (poderId, gatilhoId) => chaveSegura(`${poderId}:${gatilhoId}`);
 
 // ---------- 💬 Frase legível (cartão do Poder, editor) ----------

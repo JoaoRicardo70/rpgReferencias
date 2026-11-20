@@ -44,17 +44,20 @@ export function coletarEfeitosDeInimigos({ defensor, personagens, cenario, cenaI
         portador.poderes.forEach((p) => {
             if (!p) return;
             const r = resolverEfeitosEntidade(p, portador, nome);
+            // Dedup só entre portadores DIFERENTES com o mesmo Poder/atributo; dentro do mesmo Poder todos os efeitos que passam valem (o teto acumulado continua).
+            const vistosDoPoder = new Set();
             const juntar = (lista) => (lista || []).forEach((e) => {
                 if (!e || typeof e !== 'object' || e.valeParaInimigos !== true || !efeitoPodeValerParaInimigos(e.atributo)) return;
                 if (norm(e.propriedade ?? 'base') !== 'base') return;
                 const valor = parseFloat(e.valor);
                 if (!Number.isFinite(valor) || valor >= 0) return;
                 const chave = `${norm(p.nome || p.id)}|${norm(e.atributo)}`;
-                if (vistos.has(chave)) return;
+                if (vistos.has(chave) && !vistosDoPoder.has(chave)) return;
                 let passa = false;
                 try { passa = avaliar(portador, nome, e) === true; } catch (err) { passa = false; }
                 if (!passa) return;
                 vistos.add(chave);
+                vistosDoPoder.add(chave);
                 const atr = norm(e.atributo);
                 const usado = acumulado[atr] || 0;
                 const permitido = Math.max(valor, -LIMITE_PENALIDADE_INIMIGOS - usado); // não passa do teto acumulado

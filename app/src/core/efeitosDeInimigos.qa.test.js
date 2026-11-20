@@ -175,10 +175,10 @@ describe('penalidade a inimigos: personagem defensor (coletarEfeitos)', () => {
         expect(soma(r, 'resistencia')).toBe(-3);
         expect(soma(r, 'acerto')).toBe(-2);
     });
-    it('um efeito por (Poder, atributo): duplicado no mesmo Poder e Poder homonimo em outro portador contam uma vez', () => {
+    it('dedup so entre portadores: efeitos do MESMO Poder valem todos; Poder homonimo em outro portador nao soma', () => {
         const p = { Defensor: ficha(), P1: npc({ poderes: [poder('Poder X', [efPen({ valor: '-4' }), efPen({ valor: '-6' })])] }), P2: npc({ poderes: [poder('  PODER x ', [efPen({ valor: '-9' })])] }) };
         mesa(p);
-        expect(soma(coletarEfeitos(p.Defensor, 'Defensor'), 'evasiva')).toBe(-4);
+        expect(soma(coletarEfeitos(p.Defensor, 'Defensor'), 'evasiva')).toBe(-10);
     });
     it('Poderes distintos acumulam, com teto de -20 por atributo', () => {
         const p = { Defensor: ficha(), Portador: npc({ poderes: [poder('A', [efPen({ valor: '-15' })]), poder('B', [efPen({ valor: '-15' })]), poder('C', [efPen({ valor: '-15' })]), poder('D', [efPen({ atributo: 'resistencia', valor: '-7' })])] }) };

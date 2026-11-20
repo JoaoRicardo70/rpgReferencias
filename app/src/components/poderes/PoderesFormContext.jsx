@@ -35,7 +35,7 @@ import { calcularGanhoFadigaMaestriaInsuficiente } from '../../core/fadiga';
 import { definirEstagio, mudarContador, contadoresDoPoder, contadoresAvulsos, listaDeContadores, novoIdContador, normalizarContadorRascunho, referenciasDoContador, semReferenciasDoContador, planejarContadoresDoPoder, aplicarContadoresDoPoder, LIMITE_CONTADORES } from '../../core/contadores';
 import { sincronizarEscudoDoPoder, normalizarEscudoAoLigar } from '../../core/escudos';
 import { reutilizacaoFormVazio, reutilizacaoDoForm } from '../../core/reutilizacao';
-import { normalizarGatilhos } from '../../core/gatilhos';
+import { normalizarGatilhos, achaGatilhoDoPoder } from '../../core/gatilhos';
 import { conferirLimitesProgressao } from '../../core/receitasProgressao';
 import { dispararEventoNaFicha, forcarGatilhoNaFicha, rngPreSorteado } from '../../core/gatilhosAplicar';
 import { ESTAGIOS_PADRAO, normalizarEstagios, limitarEstagio } from '../../core/estagios';
@@ -150,6 +150,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     const [escudoPoder, setEscudoPoder] = useState({ nome: '', valor: '', tipo: 'escudo' });
     // 🔔 Gatilhos do Poder (core/gatilhos.js): rascunho do editor.
     const [gatilhosPoder, setGatilhosPoder] = useState([]);
+    // Gatilhos como estavam ao ABRIR o rascunho: só se o usuário NÃO mexeu no `armado` (checkbox "começa armado") a ficha viva vence ao gravar.
+    const gatilhosAberturaRef = useRef([]);
     const [gatilhosDescartados, setGatilhosDescartados] = useState([]);
     // 🔢 Contadores deste poder (core/contadores.js): rascunho [{ id, nome, min, max, reset? }]; só vão para ficha.contadores junto com o poder.
     const [contadoresPoder, setContadoresPoder] = useState([]);
@@ -338,6 +340,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         setReutilizacaoPoder(r.reutilizacao);
         setEscudoPoder(r.escudo);
         setGatilhosPoder(r.gatilhos);
+        gatilhosAberturaRef.current = Array.isArray(r.gatilhos) ? JSON.parse(JSON.stringify(r.gatilhos)) : [];
         setGatilhosDescartados(r.gatilhosDescartados);
         setContadoresPoder(r.contadoresRascunho);
         setPoderAlcance(r.alcance);
@@ -535,7 +538,13 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
         const custoTurno = custoPorTurnoParaSalvar([custoTurnoPoder, ...custoTurnoExtrasPoder]);
         const recargaN = normalizarRecarga(recargaTurnosPoder);
         const escudoLigar = normalizarEscudoAoLigar(escudoPoder);
-        const gatilhosSalvos = normalizarGatilhos(gatilhosPoder).gatilhos;
+        const normGatilhosSalvar = normalizarGatilhos(gatilhosPoder);
+        const gatilhosSalvos = normGatilhosSalvar.gatilhos;
+        // Gatilho que não passou na validação NÃO é gravado em silêncio: avisa quais foram descartados.
+        if (normGatilhosSalvar.descartados.length > 0) {
+            const listaDescartados = normGatilhosSalvar.descartados.map(d => `- ${d.nome}: ${d.motivo}`).join('\n');
+            alert(`Estes gatilhos foram descartados ao gravar:\n${listaDescartados}`);
+        }
         const estagiosSalvos = estagiosEditor.habilitado ? normalizarEstagios(estagiosEditor) : null;
         const aplicarEstagios = (poder) => {
             if (estagiosSalvos) {
@@ -573,7 +582,8 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
             }
         }
 
-        updateFicha((ficha) => {
+        // updateFicha devolve `false` quando a ficha alvo (Grimório do Mestre) não existe mais: nada foi gravado, então o rascunho NÃO pode ser apagado.
+        const gravouNaFicha = updateFicha((ficha) => {
             if (!ficha.poderes) ficha.poderes = [];
             // Confere de novo contra a ficha viva (o rascunho do Immer): se não couber, o poder também não é gravado.
             const idDoPoder = poderEditandoId && ficha.poderes.some(p => p.id === poderEditandoId) ? poderEditandoId : Date.now();
@@ -608,7 +618,19 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
                     if (custoTurno) ficha.poderes[ix].custoPorTurno = custoTurno; else delete ficha.poderes[ix].custoPorTurno;
                     if (custoTurno && cobrarAoAtivarPoder) ficha.poderes[ix].cobrarAoAtivar = true; else delete ficha.poderes[ix].cobrarAoAtivar;
                     if (escudoLigar) ficha.poderes[ix].escudoAoLigar = escudoLigar; else delete ficha.poderes[ix].escudoAoLigar;
-                    if (gatilhosSalvos.length > 0) ficha.poderes[ix].gatilhos = gatilhosSalvos; else delete ficha.poderes[ix].gatilhos;
+                    // `armado` e `mestreDesligou` não são editados no formulário e podem ter mudado na ficha viva (Mestre/dono) com o rascunho aberto:
+                    // a ficha viva vence, por id de gatilho; exceto `armado` quando o editor o alterou em relação ao snapshot de abertura (aí vale o editor).
+                    const gatilhosAntigos = Array.isArray(ficha.poderes[ix].gatilhos) ? ficha.poderes[ix].gatilhos : [];
+                    const gatilhosComEstadoVivo = gatilhosSalvos.map((g) => {
+                        const antigo = gatilhosAntigos.find(x => x && x.id === g.id);
+                        if (!antigo) return g;
+                        const { armado, mestreDesligou, ...resto } = g;
+                        const abertura = gatilhosAberturaRef.current.find(x => x && x.id === g.id);
+                        const editouArmado = !!abertura && (abertura.armado === true) !== (armado === true);
+                        if (editouArmado) return { ...resto, ...(armado !== undefined ? { armado } : {}), ...(antigo.mestreDesligou ? { mestreDesligou: true } : {}) };
+                        return { ...resto, ...(antigo.armado !== undefined ? { armado: antigo.armado } : {}), ...(antigo.mestreDesligou ? { mestreDesligou: true } : {}) };
+                    });
+                    if (gatilhosComEstadoVivo.length > 0) ficha.poderes[ix].gatilhos = gatilhosComEstadoVivo; else delete ficha.poderes[ix].gatilhos;
                     if (recargaN > 0) ficha.poderes[ix].recargaTurnos = recargaN;
                     else { delete ficha.poderes[ix].recargaTurnos; delete ficha.poderes[ix].recargaRestante; }
                     if (reutSalva.reut) ficha.poderes[ix].reutilizacao = reutSalva.reut; else delete ficha.poderes[ix].reutilizacao;
@@ -689,6 +711,7 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
             }
         });
         if (bloqueioContadores) { alert(bloqueioContadores); return; }
+        if (gravouNaFicha === false) { alert('Não foi possível gravar: o personagem aberto não existe mais. O rascunho foi mantido.'); return; }
         if (previa.avisos && previa.avisos.length > 0) alert(previa.avisos.join('\n'));
 
         // O poder gravado fica à vista: a pasta dele (e as pastas-mãe) abre na lista.
@@ -799,11 +822,12 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     // 🪜 Sobe/desce o estágio (core/estagios.js). Ativa, a técnica muda os máximos na hora — mesmo
     // travamento de vitais do liga/desliga, pra trocar de estágio nunca drenar Vida/Energia.
     // 🔔 O Mestre liga/desliga um gatilho do Poder (campo mestreDesligou: enquanto verdadeiro o gatilho é ignorado).
-    const alternarGatilhoMestre = useCallback((poderId, gatilhoId) => {
+    // `formaId` (opcional): o gatilho é da Forma (criado pelo importador), não do Poder.
+    const alternarGatilhoMestre = useCallback((poderId, gatilhoId, formaId = null, configId = null) => {
         if (!isMestre) return; // além de a UI só mostrar o botão ao Mestre
         updateFicha((ficha) => {
             const p = (ficha.poderes || []).find(po => po && po.id === poderId);
-            const g = p && Array.isArray(p.gatilhos) ? p.gatilhos.find(x => x && x.id === gatilhoId) : null;
+            const g = achaGatilhoDoPoder(p, gatilhoId, formaId, configId);
             if (!g) return;
             if (g.mestreDesligou) delete g.mestreDesligou; else g.mestreDesligou = true;
         });
@@ -812,10 +836,10 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
 
     // 🔔 Modo opcional: o DONO e o MESTRE armam/desarmam um gatilho (campo `armado` NO PRÓPRIO gatilho do Poder; persiste, o descanso não mexe).
     // updateFicha do useFichaAtiva já roteia para a ficha que o Mestre abriu.
-    const alternarArmadoGatilho = useCallback((poderId, gatilhoId) => {
+    const alternarArmadoGatilho = useCallback((poderId, gatilhoId, formaId = null, configId = null) => {
         updateFicha((ficha) => {
             const p = (ficha.poderes || []).find(po => po && po.id === poderId);
-            const g = p && Array.isArray(p.gatilhos) ? p.gatilhos.find(x => x && x.id === gatilhoId) : null;
+            const g = achaGatilhoDoPoder(p, gatilhoId, formaId, configId);
             if (!g || g.modo !== 'opcional') return;
             g.armado = g.armado !== true;
         });
@@ -823,15 +847,15 @@ export function PoderesFormProvider({ children, persistirRascunho = false }) {
     }, [updateFicha, salvarFichaSilencioso]);
 
     // 🔔 O Mestre FORÇA o gatilho agora: executa as ações ignorando evento, condições, armado e o limite de usos (não gasta o limite). O feed diz "forçado pelo Mestre".
-    const forcarGatilhoMestre = useCallback((poderId, gatilhoId) => {
+    const forcarGatilhoMestre = useCallback((poderId, gatilhoId, formaId = null, configId = null) => {
         if (!isMestre) return;
         const p = (minhaFicha?.poderes || []).find(po => po && po.id === poderId);
-        const g = p && Array.isArray(p.gatilhos) ? p.gatilhos.find(x => x && x.id === gatilhoId) : null;
+        const g = achaGatilhoDoPoder(p, gatilhoId, formaId, configId);
         if (!g) return;
         if (!window.confirm(`Forçar o disparo de "${g.nome}" agora? Ele ignora as condições e o limite de usos.`)) return;
         const rng = rngPreSorteado();
         let r = null;
-        try { updateFicha((ficha) => { rng.reiniciar(); r = forcarGatilhoNaFicha(ficha, poderId, gatilhoId, { cenaId: cenaAtivaId, nome: meuNome, rng }); }); } catch (e) { console.error('Forçar gatilho falhou', e); return; }
+        try { updateFicha((ficha) => { rng.reiniciar(); r = forcarGatilhoNaFicha(ficha, poderId, gatilhoId, { cenaId: cenaAtivaId, nome: meuNome, rng, formaId, configId }); }); } catch (e) { console.error('Forçar gatilho falhou', e); return; }
         if (!r || !r.achou) return;
         salvarFichaSilencioso();
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${r.textos.join(' · ')}` });

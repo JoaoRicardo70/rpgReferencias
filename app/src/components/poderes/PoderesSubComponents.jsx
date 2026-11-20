@@ -38,7 +38,8 @@ import { followUpsDaFicha } from '../../core/combos';
 import EnsinarBotao from '../shared/EnsinarBotao';
 import GatilhosEditor from './GatilhosEditor';
 import ConstrutorProgressao from './ConstrutorProgressao';
-import { descreverGatilho } from '../../core/gatilhos';
+import { descreverGatilho, gatilhosDoCartao } from '../../core/gatilhos';
+import { resumirEfeitoParaCartao } from '../../core/efeitoResumo';
 import EnsinamentosRecebidos from '../shared/EnsinamentosRecebidos';
 import RacasAcessoCampo from './RacasAcessoCampo';
 import DisponiveisBiblioteca from './DisponiveisBiblioteca';
@@ -844,7 +845,7 @@ export function PoderesLista() {
                     // Valores já no estágio atual (técnicas com Estágios — core/estagios.js).
                     const txtArr = escalarEfeitosPorEstagio(p.efeitos, p).map(e => {
                         if (!e) return '';
-                        return `[${(e.atributo || '').replace('_', ' ').toUpperCase()}] ${(e.propriedade || '').toUpperCase()}: +${e.valor || 0}`;
+                        return resumirEfeitoParaCartao(e);
                     }).filter(Boolean);
                     
                     const pVertenteLower = (p.vertente || '').toLowerCase();
@@ -920,14 +921,14 @@ export function PoderesLista() {
                                         </div>
                                     )}
 
-                                    {Array.isArray(p.gatilhos) && p.gatilhos.length > 0 && (
+                                    {gatilhosDoCartao(p).length > 0 && (
                                         <div className="gatilhos-poder-lista">
-                                            {p.gatilhos.map(g => (
-                                                <div key={g.id} className={"gatilho-poder-linha" + (g.mestreDesligou ? ' desligado-mestre' : '')}>
+                                            {gatilhosDoCartao(p).map(({ g, formaId, configId }) => (
+                                                <div key={(formaId ? formaId + ":" + (configId || "") + ":" : "") + g.id} className={"gatilho-poder-linha" + (g.mestreDesligou ? ' desligado-mestre' : '')}>
                                                     <span>🔔 {descreverGatilho(g, { contadores: minhaFicha?.contadores, poderes: minhaFicha?.poderes, followUps: followUpsDaFicha(minhaFicha) })}{g.mestreDesligou ? ' (desligado pelo Mestre)' : ''}</span>
-                                                    {g.modo === 'opcional' && <button type="button" className={"btn-neon btn-gatilho-armado" + (g.armado !== true ? ' desarmado' : '')} aria-pressed={g.armado === true} onClick={() => alternarArmadoGatilho(p.id, g.id)} title="Opcional: só dispara armado. O dono e o Mestre podem alternar.">{g.armado !== true ? '🔕 Desarmado' : '🔔 Armado'}</button>}
-                                                    {isMestre && <button type="button" className="btn-neon" onClick={() => forcarGatilhoMestre(p.id, g.id)} title="Executa as ações agora, ignorando condições e limite (só o Mestre)">Forçar disparo</button>}
-                                                    {isMestre && <button type="button" className="btn-neon" onClick={() => alternarGatilhoMestre(p.id, g.id)} title="Liga ou desliga este gatilho (só o Mestre)">{g.mestreDesligou ? 'Religar' : 'Desligar'}</button>}
+                                                    {g.modo === 'opcional' && <button type="button" className={"btn-neon btn-gatilho-armado" + (g.armado !== true ? ' desarmado' : '')} aria-pressed={g.armado === true} onClick={() => alternarArmadoGatilho(p.id, g.id, formaId, configId)} title="Opcional: só dispara armado. O dono e o Mestre podem alternar.">{g.armado !== true ? '🔕 Desarmado' : '🔔 Armado'}</button>}
+                                                    {isMestre && <button type="button" className="btn-neon" onClick={() => forcarGatilhoMestre(p.id, g.id, formaId, configId)} title="Executa as ações agora, ignorando condições e limite (só o Mestre)">Forçar disparo</button>}
+                                                    {isMestre && <button type="button" className="btn-neon" onClick={() => alternarGatilhoMestre(p.id, g.id, formaId, configId)} title="Liga ou desliga este gatilho (só o Mestre)">{g.mestreDesligou ? 'Religar' : 'Desligar'}</button>}
                                                 </div>
                                             ))}
                                         </div>
@@ -945,7 +946,7 @@ export function PoderesLista() {
                                             <span style={{ display: 'block', marginTop: '4px', fontStyle: 'italic' }}>
                                                 {(p.efeitosPassivos || []).map(e => {
                                                     if (!e) return '';
-                                                    return `[PASSIVO] [${(e.atributo || '').replace('_', ' ').toUpperCase()}] ${(e.propriedade || '').toUpperCase()}: +${e.valor || 0}`;
+                                                    return resumirEfeitoParaCartao(e, '[PASSIVO] ');
                                                 }).filter(Boolean).join(' | ')}
                                             </span>
                                         )}
