@@ -191,3 +191,39 @@ describe('mesclarPersonagensRemotos — merge 3 vias só para entidades com base
         pararSincronizacaoFichaAlvo('NPC Sombrio');
     });
 });
+
+describe('iniciar/pararSincronizacaoFichaAlvo — vários miradores na mesma ficha (Grimório + Atuar como)', () => {
+    beforeEach(() => { vi.useFakeTimers(); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('fechar um mirador NÃO apaga a baseline nem achata a edição pendente do outro', async () => {
+        montarEstado({ personagens: { 'NpcX': { vida: { atual: 500 } } } });
+        iniciarSincronizacaoFichaAlvo('NpcX'); // ex.: Atuar como (fica o tempo todo)
+        iniciarSincronizacaoFichaAlvo('NpcX'); // ex.: Grimório aberto
+
+        estadoAtual.personagens['NpcX'] = { vida: { atual: 250 } };
+        salvarFichaAlvoSilencioso('NpcX');
+
+        pararSincronizacaoFichaAlvo('NpcX'); // Grimório fecha
+        await Promise.resolve();
+        expect(update).not.toHaveBeenCalled(); // a edição continua no debounce do mirador que ficou
+
+        await vi.advanceTimersByTimeAsync(600);
+        expect(update).toHaveBeenCalledTimes(1);
+        expect(update.mock.calls[0][1]).toEqual({ 'vida/atual': 250 }); // diff mínimo: a baseline sobreviveu
+
+        pararSincronizacaoFichaAlvo('NpcX'); // o último sai: limpa tudo
+    });
+
+    it('o segundo mirador não reinicia a baseline do primeiro', async () => {
+        montarEstado({ personagens: { 'NpcY': { vida: { atual: 500 } } } });
+        iniciarSincronizacaoFichaAlvo('NpcY');
+        estadoAtual.personagens['NpcY'] = { vida: { atual: 300 } };
+        iniciarSincronizacaoFichaAlvo('NpcY'); // não pode virar a nova baseline (300)
+        salvarFichaAlvoSilencioso('NpcY');
+        await vi.advanceTimersByTimeAsync(600);
+        expect(update.mock.calls[0][1]).toEqual({ 'vida/atual': 300 }); // diferença contra a baseline original (500)
+        pararSincronizacaoFichaAlvo('NpcY');
+        pararSincronizacaoFichaAlvo('NpcY');
+    });
+});

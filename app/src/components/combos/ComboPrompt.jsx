@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import useStore from '../../stores/useStore';
-import { enviarParaFeed, salvarFichaSilencioso } from '../../services/firebase-sync';
+import { enviarParaFeed } from '../../services/firebase-sync';
 import { temCombos, opcoesDeCombo, estadoDeCombo, zerarEstadoDeCombo, rotuloAcaoGolpe, resumirCombo, descreverBuff, ACOES_GOLPE } from '../../core/combos';
 import { removerBuffsDoCombate } from '../../core/suporte';
 import { aplicarEscolhaCombo, acaoFaltando, definirEstadoDeCombo, aceitarOfertaFollowUp } from './aplicarCombo';
 import { ofertasValidas, localizarFollowUp, removerOfertaFollowUp, limparSemEncadeio } from '../../core/ofertaFollowUp';
+import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
+import { useAtorDosAvisos } from '../combate/AvisosDoAtor';
 
 // 🥋 Aviso de Combo (mesmo jeito do aviso de Reação, components/combate/ReacaoPrompt.jsx): quando um golpe SEU acerta, pergunta o que foi:
 // o iniciador de um Combo, o próximo golpe do Combo em andamento ou um Follow Up. Só aparece para quem criou Combos; "Foi um golpe comum" ignora.
@@ -21,11 +23,14 @@ const acertou = (f) => {
 export default function ComboPrompt() {
     const feed = useStore(s => s.feedCombate);
     const meuNome = useStore(s => s.meuNome);
-    const minhaFicha = useStore(s => s.minhaFicha);
-    const updateFicha = useStore(s => s.updateFicha);
+    // 🎭 Ficha ativa: a do NPC em que o Mestre está atuando (AvisosDoAtor) ou a minha.
+    const { ficha: minhaFicha, updateFicha, nome: nomeFichaAtiva } = useFichaAtiva();
+    const salvarAtivo = useCallSaveAtivo();
+    const { nomeFeed, ehAtor } = useAtorDosAvisos();
     const adicionarAviso = useStore(s => s.adicionarAviso);
     // O Mestre nunca é consultado: a oferta de FUA só abre para um jogador, na ficha dele.
-    const souMestre = useStore(s => s.isMestre);
+    const souMestreReal = useStore(s => s.isMestre);
+    const souMestre = souMestreReal && !ehAtor;
     const vistos = useRef(new Set());
     const montadoEm = useRef(Date.now());
     const [pedido, setPedido] = useState(null);
@@ -49,10 +54,10 @@ export default function ComboPrompt() {
 
     // Procura Acertos novos meus e monta o pedido (só se a ficha usa Combos e há o que escolher).
     useEffect(() => {
-        if (!meuNome || !Array.isArray(feed) || pedido) return;
+        if (!meuNome || !nomeFeed || !minhaFicha || !Array.isArray(feed) || pedido) return;
         const usaCombos = temCombos(minhaFicha);
         for (const f of feed) {
-            if (!f || f.tipo !== 'acerto' || !f.ts || f.nome !== meuNome) continue;
+            if (!f || f.tipo !== 'acerto' || !f.ts || f.nome !== nomeFeed) continue;
             const chave = `${f.ts}|${f.nome}`;
             if (vistos.current.has(chave)) continue;
             vistos.current.add(chave); // vale também sem Combos: um golpe de antes de criar o primeiro Combo não vira aviso depois
@@ -67,16 +72,16 @@ export default function ComboPrompt() {
             setPedido({ ts: f.ts });
             break;
         }
-    }, [feed, meuNome, minhaFicha, pedido, adicionarAviso]);
+    }, [feed, meuNome, nomeFeed, minhaFicha, pedido, adicionarAviso]);
 
     // Fim do combate (o Mestre zerou a iniciativa): Combos e Follow Ups começam do zero no próximo.
-    const iniciativaAnterior = useRef({ nome: meuNome, valor: minhaFicha?.iniciativa });
+    const iniciativaAnterior = useRef({ nome: nomeFichaAtiva, valor: minhaFicha?.iniciativa });
     useEffect(() => {
         // Só conta a virada da MESMA ficha (trocar de personagem não zera os Combos do outro).
-        const antes = iniciativaAnterior.current.nome === meuNome ? Number(iniciativaAnterior.current.valor) || 0 : 0;
+        const antes = iniciativaAnterior.current.nome === nomeFichaAtiva ? Number(iniciativaAnterior.current.valor) || 0 : 0;
         const agora = Number(minhaFicha?.iniciativa) || 0;
-        iniciativaAnterior.current = { nome: meuNome, valor: minhaFicha?.iniciativa };
-        if (antes > 0 && agora === 0) {
+        iniciativaAnterior.current = { nome: nomeFichaAtiva, valor: minhaFicha?.iniciativa };
+        if (minhaFicha && antes > 0 && agora === 0) {
             const temCombos = JSON.stringify(estadoDeCombo(minhaFicha)) !== JSON.stringify(zerarEstadoDeCombo());
             // ✨ Buffs de Suporte "até o fim do combate" (core/suporte.js) saem junto.
             const temBuffsDoCombate = (minhaFicha.buffsTemporarios || []).some(b => b && b.ateFimCombate);
@@ -85,11 +90,11 @@ export default function ComboPrompt() {
                     if (temCombos) definirEstadoDeCombo(f, zerarEstadoDeCombo());
                     if (temBuffsDoCombate) f.buffsTemporarios = removerBuffsDoCombate(f.buffsTemporarios);
                 });
-                salvarFichaSilencioso();
+                salvarAtivo();
                 adicionarAviso(temCombos ? 'Combate encerrado: Combos zerados.' : 'Combate encerrado: buffs do combate removidos.', 'info');
             }
         }
-    }, [minhaFicha, meuNome, updateFicha, adicionarAviso]);
+    }, [minhaFicha, nomeFichaAtiva, updateFicha, salvarAtivo, adicionarAviso]);
 
     // 🥋 Oferta de Follow Up (FUA) guardada pelos gatilhos: a primeira ainda válida. Só aparece quando não há o pedido de Combo na tela.
     const oferta = useMemo(() => (souMestre ? null : (ofertasValidas(minhaFicha)[0] || null)), [minhaFicha, souMestre]);
@@ -105,19 +110,19 @@ export default function ComboPrompt() {
         if (falta.length > 0 && !window.confirm(`Sem ${falta.join(' e ')} disponível. Usar mesmo assim?`)) return;
         let texto = '';
         updateFicha((f) => { texto = aceitarOfertaFollowUp(f, oferta.id, { custo: acaoDaOferta, gastar: gastarOferta }); });
-        salvarFichaSilencioso();
-        if (texto) enviarParaFeed({ tipo: 'sistema', nome: meuNome, texto });
+        salvarAtivo();
+        if (texto) enviarParaFeed({ tipo: 'sistema', nome: nomeFeed, texto });
         if (texto) adicionarAviso('Follow Up aceito: faça o golpe na aba de Ataque.', 'info');
         else adicionarAviso('Esta oferta de Follow Up já não vale.', 'alerta');
         setCustoOferta('');
-    }, [oferta, followUpDaOferta, gastarOferta, acaoDaOferta, minhaFicha, updateFicha, meuNome, adicionarAviso]);
+    }, [oferta, followUpDaOferta, gastarOferta, acaoDaOferta, minhaFicha, updateFicha, salvarAtivo, nomeFeed, adicionarAviso]);
 
     const recusarOferta = useCallback(() => {
         if (!oferta) return;
         updateFicha((f) => { removerOfertaFollowUp(f, oferta.id); limparSemEncadeio(f); });
-        salvarFichaSilencioso();
+        salvarAtivo();
         setCustoOferta('');
-    }, [oferta, updateFicha]);
+    }, [oferta, updateFicha, salvarAtivo]);
 
     const item = itens.find(i => i.id === escolhido) || null;
     const escolher = useCallback((i) => { setEscolhido(i.id); setCusto(i.acao); setGastar(true); }, []);
@@ -130,12 +135,12 @@ export default function ComboPrompt() {
         if (falta.length > 0 && !window.confirm(`Sem ${falta.join(' e ')} disponível. Usar mesmo assim?`)) return;
         let texto = '';
         updateFicha((f) => { texto = aplicarEscolhaCombo(f, escolha, { gastar }); });
-        salvarFichaSilencioso();
-        if (texto) enviarParaFeed({ tipo: 'sistema', nome: meuNome, texto });
+        salvarAtivo();
+        if (texto) enviarParaFeed({ tipo: 'sistema', nome: nomeFeed, texto });
         adicionarAviso(gastar ? `Combo registrado (gastou 1 ${rotuloAcaoGolpe(custo)}).` : 'Combo registrado.', 'info');
         setPedido(null);
         setEscolhido('');
-    }, [item, custo, gastar, minhaFicha, updateFicha, meuNome, adicionarAviso]);
+    }, [item, custo, gastar, minhaFicha, updateFicha, salvarAtivo, nomeFeed, adicionarAviso]);
 
     if (typeof document === 'undefined' || !document.body) return null;
 

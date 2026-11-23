@@ -6,13 +6,15 @@ import { getPontosVidaTotal } from '../../core/danoProporcional';
 import { calcularDanoRapido } from '../../core/danoRapido';
 import { iconeTipoPersonagem } from '../../core/tipoPersonagem';
 import { rotuloComPolaridade } from '../../core/polaridade';
-import { agruparNpcsPorFamilia, montarDummieDeNpc, posicoesLivres, getVidaMaxBrutaNpc, cenarioComTokensOcultos } from '../../core/gavetaNpc';
+import { agruparNpcsPorFamilia, montarDummieDeNpc, posicoesLivres, getVidaMaxBrutaNpc, cenarioComTokensOcultos, camposPosicaoNaCena } from '../../core/gavetaNpc';
 import DisputaPoderResumo from '../combate/DisputaPoderResumo';
-import { salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
+import { salvarDummie, salvarCenarioCompleto, salvarCamposPersonagem } from '../../services/firebase-sync';
 import { ELEMENTOS_OPCOES } from '../poderes/PoderesSubComponents';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { nomeDaCenaNaRegiao, regiaoDaCena } from '../../core/cenasRegiao';
 import CenaAcesso from './CenaAcesso';
+import { getPosicaoEntidade } from '../../core/alcance';
+import { MapaPainelFichas, MapaLivroHost } from './MapaAcessoFichas';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Mapa provider não encontrado</div>;
 
@@ -27,6 +29,7 @@ export function MapaFerramentasMestre() {
 
     return (
         <div className="fade-in" style={{ marginBottom: 15, background: 'rgba(0,0,0,0.4)', borderRadius: 5, border: '1px solid #333', overflow: 'hidden' }}>
+            <MapaLivroHost />
             <MapaMestreRPToggle />
             
             {(!isModoRP || mestreVendoRP) && (
@@ -37,12 +40,14 @@ export function MapaFerramentasMestre() {
                         <button className={`btn-neon ${abaMestre === 'cenas' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'cenas' ? '' : 'cenas')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>🎬 Cenas</button>
                         <button className={`btn-neon ${abaMestre === 'tokens' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'tokens' ? '' : 'tokens')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>📦 Gaveta</button>
                         <button className={`btn-neon ${abaMestre === 'dummies' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'dummies' ? '' : 'dummies')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>🤖 Entidades</button>
+                        <button className={`btn-neon ${abaMestre === 'fichas' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'fichas' ? '' : 'fichas')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>📖 Fichas</button>
                         <button className={`btn-neon ${abaMestre === 'zonas' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'zonas' ? '' : 'zonas')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>🌪️ Zonas</button>
                         <button className={`btn-neon ${abaMestre === 'dano' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'dano' ? '' : 'dano')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>⚔️ Dano</button>
                     </div>
 
                     {abaMestre === 'cenas' && <MapaMestreGerenciadorCenas />}
                     {abaMestre === 'tokens' && <MapaMestreGavetaTokens />}
+                    {abaMestre === 'fichas' && <MapaPainelFichas />}
                     {abaMestre === 'dummies' && <MapaMestreGeradorDummies />}
                     {abaMestre === 'zonas' && <MapaMestreGerenciadorZonas />}
                     {abaMestre === 'dano' && <MapaMestreDanoRapido />}
@@ -149,17 +154,19 @@ export function MapaMestreGerenciadorCenas() {
 }
 
 // Uma linha da Gaveta: Vida e Poder (cálculos pesados) só recalculam quando a ficha muda.
-const GavetaNpcLinha = React.memo(function GavetaNpcLinha({ nome, ficha, divisorPoderMesa, naCena, onColocar }) {
+const GavetaNpcLinha = React.memo(function GavetaNpcLinha({ nome, ficha, divisorPoderMesa, naCena, onColocar, onColocarFicha, fichaNaCena }) {
     const vida = useMemo(() => getVidaMaxBrutaNpc(ficha) / FATOR_EXIBICAO_VITAIS, [ficha]);
     const poder = useMemo(() => getPoderDeEntidade({ ficha, isDummie: false }, divisorPoderMesa), [ficha, divisorPoderMesa]);
     const colocar = useCallback(() => onColocar(nome, ficha), [onColocar, nome, ficha]);
+    const colocarFicha = useCallback(() => onColocarFicha(nome), [onColocarFicha, nome]);
     return (
         <div className="gaveta-npc">
             <div className="gaveta-npc-info">
                 <strong>{nome}</strong>
-                <span>❤️ {Math.round(vida).toLocaleString('pt-BR')} · ⚡ {formatarPoderDisputa(poder)}{naCena ? ` · ${naCena} na cena` : ''}</span>
+                <span>❤️ {Math.round(vida).toLocaleString('pt-BR')} · ⚡ {formatarPoderDisputa(poder)}{naCena ? ` · ${naCena} na cena` : ''}{fichaNaCena ? ' · ficha na cena' : ''}</span>
             </div>
-            <button type="button" className="btn-neon btn-green gaveta-npc-btn" onClick={colocar}>⚔️ Ao combate</button>
+            <button type="button" className="btn-neon btn-green gaveta-npc-btn" onClick={colocar} title="Token-cópia (boneco) do NPC, com Vida, Defesa e Poder da ficha. Pode ter várias cópias.">⚔️ Ao combate</button>
+            <button type="button" className="btn-neon btn-blue gaveta-npc-btn" onClick={colocarFicha} disabled={fichaNaCena} title="A PRÓPRIA ficha do NPC entra na cena como um personagem (Combos, Reações, ataques salvos e Poder da ficha). Para agir como ele, use 🎭 Controlar.">🧍 Como personagem</button>
         </div>
     );
 });
@@ -221,6 +228,17 @@ export function MapaMestreGavetaTokens() {
         if (oculto) salvarCenarioCompleto(cenarioComTokensOcultos(useStore.getState().cenario, ids));
     }, [quantidade, dummies, jogadores, cenaRenderId, maiorNumero, divisorPoderMesa, oculto, visibilidadeHp]);
 
+    // 🧍 A própria ficha do NPC entra na cena (sem cópia), na primeira casa livre.
+    const colocarFicha = useCallback((nome) => {
+        const ocupadas = [
+            ...Object.values(dummies || {}).filter(d => d && (d.cenaId || 'default') === cenaRenderId).map(d => d.posicao),
+            ...Object.values(jogadores || {}).map(f => getPosicaoEntidade(f, cenaRenderId)),
+        ];
+        const [pos] = posicoesLivres(ocupadas, 1);
+        salvarCamposPersonagem(nome, camposPosicaoNaCena(cenaRenderId, pos));
+    }, [dummies, jogadores, cenaRenderId]);
+    const fichaNaCena = (ficha) => { const p = getPosicaoEntidade(ficha, cenaRenderId); return !!(p && p.x !== undefined && (p.cenaId || 'default') === (cenaRenderId || 'default')); };
+
     if (!ctx) return FALLBACK;
     if (!isMestre || (isModoRP && !mestreVendoRP)) return null;
 
@@ -253,7 +271,7 @@ export function MapaMestreGavetaTokens() {
                         <span className="gaveta-contador">{grupos[familia].length}</span>
                     </button>
                     {(aberta[familia] || busca) && grupos[familia].map(({ nome, ficha }) => (
-                        <GavetaNpcLinha key={nome} nome={nome} ficha={ficha} divisorPoderMesa={divisorPoderMesa} naCena={naCena[nome] || 0} onColocar={colocarEmCombate} />
+                        <GavetaNpcLinha key={nome} nome={nome} ficha={ficha} divisorPoderMesa={divisorPoderMesa} naCena={naCena[nome] || 0} onColocar={colocarEmCombate} onColocarFicha={colocarFicha} fichaNaCena={fichaNaCena(ficha)} />
                     ))}
                 </div>
             ))}

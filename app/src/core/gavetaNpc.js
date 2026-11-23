@@ -106,6 +106,18 @@ export function definirDefesaManualDoDummie(dummie, texto) {
     return { ok: true, dummie: { ...dummie, valorDefesa: Math.round(valor) } };
 }
 
+// 🧍 FICHA VIVA NO MAPA — em vez de um token-cópia (dummie), a PRÓPRIA ficha do NPC entra na cena como um personagem
+// qualquer: Vida, Poder, Combos, Reações e ataques salvos são os da ficha (o Mestre usa "Controlar" pra agir como ele).
+// Campos a gravar na ficha (caminhos de salvarCamposPersonagem) pra ela aparecer na casa `pos` da cena `cenaId`.
+export function camposPosicaoNaCena(cenaId, pos) {
+    const cena = String(cenaId || 'default');
+    const x = Math.trunc(Number(pos && pos.x)) || 0;
+    const y = Math.trunc(Number(pos && pos.y)) || 0;
+    const z = Math.trunc(Number(pos && pos.z)) || 0;
+    const p = { x, y, z, cenaId: cena };
+    return { [`posicoes/${cena}`]: p, posicao: { ...p } };
+}
+
 // 🔗 PODER VIVO — o token de um NPC da Gaveta (fichaOrigem) acompanha o Poder Atual da ficha do NPC: o Mestre muda a
 // ficha (liga uma Forma, corrige um Multiplicador...) e o token do Mapa já segue, sem injetar de novo. Quem digitou o
 // Poder à mão no token (poderDesvinculado) fica como está até pedir "auto" de novo.

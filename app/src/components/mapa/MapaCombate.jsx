@@ -41,6 +41,8 @@ import { getTipoPersonagem, rotuloTipoPersonagem } from '../../core/tipoPersonag
 import { NIVEIS_ROLAGEM, indiceFaceDoDado, textoDaFace } from '../../core/rolagemDado';
 import useBotaoArrastavel from '../../hooks/useBotaoArrastavel';
 import CombateEstadoBarra from './CombateEstadoBarra';
+import { nomeFichaDoToken, atorValorDoToken } from '../../core/acessoFichas';
+import { atorDeValor } from '../../core/atorCombate';
 import MolduraLado from './MolduraLado';
 import SeloEquipe from '../shared/SeloEquipe';
 
@@ -1396,6 +1398,10 @@ export function MapaHologramaAcao() {
     const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
     const alvoSelecionado = useStore(s => s.alvoSelecionado);
     const setAlvoSelecionado = useStore(s => s.setAlvoSelecionado);
+    const setLivroEntidadeMapa = useStore(s => s.setLivroEntidadeMapa);
+    const setAtorCombate = useStore(s => s.setAtorCombate);
+    const atorCombateAtual = useStore(s => s.atorCombate);
+    const dummiesDoStore = useStore(s => s.dummies);
     if (!ctx) return null;
     const { ordemIniciativa, feedCombate, feedIndexTurnoAtual, jogadorDaVez, jogadores, overridesCompendio, getAvatarInfo, fmt, meuNome, minhaFicha, isMestre, inspecao, limparInspecao, removerTokenDoMapa, feedDescartados = 0 } = ctx;
 
@@ -1408,6 +1414,9 @@ export function MapaHologramaAcao() {
     // 👁️ Inspeção (clique num token ou na Ordem de Turno): a moldura mostra o resumo do personagem
     // escolhido no lugar da ação do combate, até fecharem (✖) ou clicarem em outro.
     const inspecionando = !!inspecao;
+    const nomeFichaInspecao = inspecionando ? nomeFichaDoToken(inspecao, jogadores) : null;
+    const atorValorInspecao = inspecionando ? atorValorDoToken(inspecao, jogadores) : null;
+    const atorInspecaoAtivo = !!(atorValorInspecao && atorCombateAtual && (atorCombateAtual.dummieId ? atorValorInspecao === `d:${atorCombateAtual.dummieId}` : atorValorInspecao === `n:${atorCombateAtual.nome}`));
     // 🛡️ Regra de PvP: jogador só mira outro jogador durante um combate (core/alvoCombate.js).
     const bloqueioMirar = (inspecionando && !inspecao.isDummie)
         ? motivoBloqueioAlvo({ fichaAtor: minhaFicha, atorEhMestre: isMestre, alvo: { isPersonagem: true, tipoPersonagem: getTipoPersonagem(inspecao.ficha), ficha: inspecao.ficha } })
@@ -1596,6 +1605,13 @@ export function MapaHologramaAcao() {
                     <button type="button" className="moldura-alvo-token" disabled={!!bloqueioMirar && alvoSelecionado !== idAlvoPersonagem(inspecao.id)} onClick={() => setAlvoSelecionado(alvoSelecionado === idAlvoPersonagem(inspecao.id) ? null : idAlvoPersonagem(inspecao.id))} title={bloqueioMirar || `Escolher este ${inspecao.ficha ? rotuloTipoPersonagem(inspecao.ficha) : 'personagem'} como alvo dos seus ataques`}>
                         {alvoSelecionado === idAlvoPersonagem(inspecao.id) ? '🎯 Alvo (soltar)' : '🎯 Mirar'}
                     </button>
+                )}
+                {/* 📖 Acesso rápido do Mestre: abre a ficha de quem foi clicado e passa a atuar como ele, sem sair do Mapa */}
+                {inspecionando && isMestre && nomeFichaInspecao && (
+                    <button type="button" className="moldura-abrir-ficha" onClick={() => setLivroEntidadeMapa(nomeFichaInspecao)} title={`Abrir a ficha de ${nomeFichaInspecao}`}>📖 Ficha</button>
+                )}
+                {inspecionando && isMestre && atorValorInspecao && (
+                    <button type="button" className="moldura-atuar-token" onClick={() => setAtorCombate(atorInspecaoAtivo ? null : atorDeValor(atorValorInspecao, dummiesDoStore))} title="Seus golpes no Mapa passam a sair com a ficha dele">{atorInspecaoAtivo ? '🎭 Atuando' : '🎭 Atuar'}</button>
                 )}
                 {inspecionando && <button type="button" className="moldura-fechar-inspecao" onClick={limparInspecao} title="Voltar à ação do combate" aria-label="Fechar o resumo e voltar à ação do combate">✖</button>}
             </div>

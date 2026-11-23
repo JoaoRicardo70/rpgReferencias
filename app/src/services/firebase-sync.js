@@ -403,6 +403,9 @@ export function iniciarListenerPersonagens(callback) {
 // sem baseline, porque ninguém está editando-as localmente por este caminho.
 const debounceTimersAlvo = new Map();
 const baselinesAlvo = new Map();
+// Quantos "miradores" (Grimório da Entidade, Atuar como do Mestre) estão olhando cada ficha alheia: a baseline só nasce no
+// primeiro e só some quando o último sai — senão fechar o Grimório de um NPC apagava a baseline de quem ainda atuava como ele.
+const usosAlvo = new Map();
 
 // Chamado ao abrir o Grimório pra uma entidade que não é "eu mesmo" -- inicia o rastreamento de
 // baseline dela a partir do que já está carregado localmente. Chamar de novo ao fechar o
@@ -412,12 +415,20 @@ export function iniciarSincronizacaoFichaAlvo(nome) {
     const chave = sanitizarNome(nome);
     const { personagens } = useStore.getState();
     const atual = personagens && personagens[nome];
+    const usos = (usosAlvo.get(chave) || 0) + 1;
+    usosAlvo.set(chave, usos);
+    // Outro mirador já acompanha esta ficha (e já tem baseline): não reinicia, pra não descartar uma edição pendente.
+    if (usos > 1 && baselinesAlvo.has(chave)) return;
     baselinesAlvo.set(chave, atual ? JSON.parse(JSON.stringify(atual)) : null);
 }
 
 export function pararSincronizacaoFichaAlvo(nome) {
     if (!nome) return;
     const chave = sanitizarNome(nome);
+    // Ainda há outro mirador nesta ficha: só diminui a contagem (nada de achatar nem descartar a baseline dele).
+    const restantes = (usosAlvo.get(chave) || 1) - 1;
+    if (restantes > 0) { usosAlvo.set(chave, restantes); return; }
+    usosAlvo.delete(chave);
     // 🔥 Achata uma edição pendente ANTES de descartar o timer/baseline -- sem isto, fechar o
     // Grimório logo depois de editar um campo perdia a última mudança em silêncio: o blur do
     // campo agenda um save daqui a 500ms (salvarFichaAlvoSilencioso), mas fechar o Grimório

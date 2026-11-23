@@ -3895,3 +3895,12 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
     --txt-suave: color-mix(in srgb, var(--tinta, #000) 70%, transparent); --txt-mudo: color-mix(in srgb, var(--tinta, #000) 55%, transparent);
     --txt-claro: color-mix(in srgb, var(--tinta, #000) 80%, transparent); --txt-forte: var(--tinta, #000); --txt-pergaminho: var(--tinta, #000); --fundo-select: var(--fundo, #fff);
 }
+
+/* 📖 Acesso rápido às Fichas pelo Mapa (components/mapa/MapaAcessoFichas.jsx) */
+.fichas-mapa { padding: 10px; border: 1px solid #0088ff; border-radius: 5px; background: rgba(0, 136, 255, 0.08); }
+.fichas-mapa-secao { margin-top: 10px; }
+.fichas-mapa-titulo { font-weight: bold; color: #ffcc00; font-size: 0.85em; margin-bottom: 4px; }
+.fichas-mapa-linha { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 4px 6px; border-bottom: 1px dotted rgba(127, 127, 127, 0.3); }
+.fichas-mapa-nome { flex: 1; min-width: 120px; color: #ddd; overflow: hidden; text-overflow: ellipsis; }
+.fichas-mapa-btn { margin: 0; padding: 3px 10px; font-size: 0.8em; }
+.moldura-abrir-ficha, .moldura-atuar-token { margin-left: 6px; padding: 2px 8px; font-size: 0.6em; border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.6); background: rgba(0, 0, 0, 0.45); color: #fff; cursor: pointer; vertical-align: middle; }

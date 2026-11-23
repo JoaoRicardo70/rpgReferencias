@@ -7,6 +7,8 @@ import { getAcoesExibicao, alternarAcao } from '../../core/acoes';
 import { relacaoEntre } from '../../core/lados';
 import { chaveDoGolpe, dadosParaRerolar, rolarDeflexao, resolverAtacanteParaDeflexao, registrarDeflexao, deflexoesPendentes, consumirDeflexaoPendente, acharDanoDoGolpe, deflexoesExpiradas, expirarDeflexao } from '../../core/deflexao';
 import { aplicarDanoDeflexao } from '../../services/deflexao';
+import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
+import { useAtorDosAvisos } from './AvisosDoAtor';
 
 // ↩️ Aviso de Reação: quando um ataque (Acerto no feed) tem VOCÊ como alvo — ou um aliado, se você tem técnica de ajuda —
 // pergunta se quer usar suas Reações (core/reacoes.js). Reagir gasta 1 Reação por opção escolhida, avisa no feed e guarda
@@ -18,10 +20,15 @@ const FOLGA_RELOGIO_MS = 5 * 1000;
 export default function ReacaoPrompt() {
     const feed = useStore(s => s.feedCombate);
     const meuNome = useStore(s => s.meuNome);
-    const minhaFicha = useStore(s => s.minhaFicha);
+    // 🎭 Ficha ativa: a do NPC em que o Mestre está atuando (AvisosDoAtor) ou a minha. A Deflexão e os efeitos abaixo que mexem
+    // na PRÓPRIA ficha usam sempre a minha de verdade (minhaFichaReal).
+    const { ficha: minhaFicha, updateFicha } = useFichaAtiva();
+    const salvarAtivo = useCallSaveAtivo();
+    const { nomeFeed, ehAtor } = useAtorDosAvisos();
+    const minhaFichaReal = useStore(s => s.minhaFicha);
+    const updateFichaReal = useStore(s => s.updateFicha);
     const personagens = useStore(s => s.personagens);
     const cenario = useStore(s => s.cenario);
-    const updateFicha = useStore(s => s.updateFicha);
     const adicionarAviso = useStore(s => s.adicionarAviso);
     const vistos = useRef(new Set());
     const deflexoesProcessando = useRef(new Set());
@@ -31,12 +38,12 @@ export default function ReacaoPrompt() {
 
     // Procura Acertos novos contra mim (ou contra um aliado) e monta o pedido.
     useEffect(() => {
-        if (!meuNome || !Array.isArray(feed) || pedido) return;
-        const eu = sanitizarNome(meuNome);
+        if (!meuNome || !nomeFeed || !minhaFicha || !Array.isArray(feed) || pedido) return;
+        const eu = sanitizarNome(nomeFeed);
         // Aliado = personagem com relação 'aliada' comigo (core/lados.js); sem equipes configuradas, todo jogador é aliado (como sempre).
         const ehPersonagemAliado = (f) => !!f && relacaoEntre(cenario, minhaFicha, f) === 'aliada';
         for (const f of feed) {
-            if (!f || f.tipo !== 'acerto' || !f.ts || f.nome === meuNome) continue;
+            if (!f || f.tipo !== 'acerto' || !f.ts || f.nome === nomeFeed) continue;
             const chave = `${f.ts}|${f.nome}`;
             if (vistos.current.has(chave)) continue;
             vistos.current.add(chave);
@@ -49,30 +56,31 @@ export default function ReacaoPrompt() {
             if (!alvoAtingido) continue;
 
             const contexto = { acertou: !!alvoAtingido.acertou, alvoEhAliado: !meu };
-            const opcoes = opcoesDeReacao(minhaFicha, contexto);
+            // A Deflexão fica só para jogadores: o aviso dela é processado na ficha própria (efeito abaixo).
+            const opcoes = opcoesDeReacao(minhaFicha, contexto).filter(o => !(ehAtor && o.efeito === 'rerolar_ataque'));
             if (opcoes.length === 0) continue;
 
             const reacoesRestantes = getAcoesExibicao(minhaFicha).reacao.atual;
             if (reacoesRestantes <= 0) {
-                adicionarAviso(`${f.nome} atacou ${meu ? 'você' : alvoAtingido.nome}, mas você não tem mais Reações.`, 'alerta');
+                adicionarAviso(`${f.nome} atacou ${meu ? (ehAtor ? nomeFeed : 'você') : alvoAtingido.nome}, mas ${ehAtor ? nomeFeed : 'você'} não tem mais Reações.`, 'alerta');
                 continue;
             }
             setMarcadas([]);
             setPedido({ golpe: { chave: chaveDoGolpe(f), ts: f.ts, dados: dadosParaRerolar(f) }, atacante: f.nome, acertou: contexto.acertou, alvoNome: alvoAtingido.nome, alvoEhAliado: contexto.alvoEhAliado, opcoes, restantes: reacoesRestantes });
             break;
         }
-    }, [feed, meuNome, minhaFicha, personagens, cenario, adicionarAviso, pedido]);
+    }, [feed, meuNome, nomeFeed, ehAtor, minhaFicha, personagens, cenario, adicionarAviso, pedido]);
 
     // 🔁 Deflexão que acertou (core/deflexao.js): quando o atacante rola o Dano do golpe, devolve esse dano a ele (só o cliente do defensor grava).
     useEffect(() => {
-        if (!meuNome || !minhaFicha || !Array.isArray(feed)) return;
-        deflexoesPendentes(minhaFicha).forEach((d) => {
+        if (!meuNome || !minhaFichaReal || !Array.isArray(feed)) return;
+        deflexoesPendentes(minhaFichaReal).forEach((d) => {
             if (deflexoesProcessando.current.has(d.chave)) return;
             const golpeDano = acharDanoDoGolpe(feed, d);
             if (!golpeDano) return;
             deflexoesProcessando.current.add(d.chave);
             let consumiu = false;
-            updateFicha((ficha) => { consumiu = consumirDeflexaoPendente(ficha, d.chave); });
+            updateFichaReal((ficha) => { consumiu = consumirDeflexaoPendente(ficha, d.chave); });
             if (!consumiu) return;
             // At-most-once: grava o estado `aplicada` no Firebase ANTES de aplicar o dano (F5/outra aba não reaplicam). Limitação residual: duas abas abertas
             // que consumam antes de o Firebase sincronizar podem aplicar duas vezes; se a aba cair entre gravar e aplicar, o dano daquela Deflexão se perde.
@@ -86,7 +94,7 @@ export default function ReacaoPrompt() {
                 if (r.ok && r.textos && r.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${d.atacante}: ${r.textos.join(' · ')}`, ts: Date.now() });
             });
         });
-    }, [feed, minhaFicha, meuNome, updateFicha]);
+    }, [feed, minhaFichaReal, meuNome, updateFichaReal]);
 
     // 🔁 Deflexão que acertou mas venceu sem o Dano do golpe: avisa (a Reação já tinha sido gasta). Confere a cada 30 s e ao mudar a ficha.
     useEffect(() => {
@@ -95,7 +103,7 @@ export default function ReacaoPrompt() {
             const ficha = useStore.getState?.()?.minhaFicha;
             deflexoesExpiradas(ficha).forEach((d) => {
                 let expirou = false;
-                updateFicha((f) => { expirou = expirarDeflexao(f, d.chave); });
+                updateFichaReal((f) => { expirou = expirarDeflexao(f, d.chave); });
                 if (!expirou) return;
                 salvarFichaSilencioso();
                 adicionarAviso(`A Deflexão contra ${d.atacante} acertou, mas ele não rolou o Dano daquele golpe a tempo: nada foi devolvido (a Reação foi gasta).`, 'alerta');
@@ -104,7 +112,7 @@ export default function ReacaoPrompt() {
         conferir();
         const t = setInterval(conferir, 30000);
         return () => clearInterval(t);
-    }, [meuNome, minhaFicha, updateFicha, adicionarAviso]);
+    }, [meuNome, minhaFichaReal, updateFichaReal, adicionarAviso]);
 
     const alternarMarca = useCallback((id) => {
         setMarcadas(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
@@ -145,7 +153,7 @@ export default function ReacaoPrompt() {
                 }
             });
         });
-        salvarFichaSilencioso();
+        salvarAtivo();
 
         if (rolagemDeflexao && !deflexaoRegistrada) {
             adicionarAviso('Você já usou a Deflexão neste golpe.', 'alerta');
@@ -154,12 +162,12 @@ export default function ReacaoPrompt() {
         }
         if (deflexaoRegistrada) {
             const r = rolagemDeflexao.roll;
-            enviarParaFeed({ tipo: 'sistema', nome: meuNome, texto: `🔁 Deflexão de ${meuNome}: re-rolou o ataque de ${pedido.atacante} contra a defesa do próprio atacante (${r.soma} + bônus = ${r.total}${r.natural === 20 ? ', 20 natural' : r.natural === 1 ? ', 1 natural' : ''}): ${r.acertou ? 'ACERTOU' : 'ERROU'}.`, ts: Date.now() });
+            enviarParaFeed({ tipo: 'sistema', nome: nomeFeed, texto: `🔁 Deflexão de ${nomeFeed}: re-rolou o ataque de ${pedido.atacante} contra a defesa do próprio atacante (${r.soma} + bônus = ${r.total}${r.natural === 20 ? ', 20 natural' : r.natural === 1 ? ', 1 natural' : ''}): ${r.acertou ? 'ACERTOU' : 'ERROU'}.`, ts: Date.now() });
             adicionarAviso('A Deflexão re-rola o ataque como um ataque simples (sem vantagem nem Diferença de Poder).', 'info');
             adicionarAviso(r.acertou ? `A Deflexão acertou! O dano do golpe volta a ${pedido.atacante} quando ele rolar o Dano (até 10 min).` : 'A Deflexão errou.', r.acertou ? 'info' : 'alerta');
         }
         const descricao = escolhidas.map(o => `${o.nome} (${getRotuloEfeito(o.efeito)}${o.efeito === 'reduzir_dano' ? ` ${o.valor}%` : o.efeito === 'aumentar_ca' ? ` +${o.valor}` : ''})`).join(', ');
-        enviarParaFeed({ tipo: 'sistema', nome: meuNome, texto: `↩️ ${meuNome} usou ${escolhidas.length > 1 ? `${escolhidas.length} Reações` : 'Reação'} contra o ataque de ${pedido.atacante}${pedido.alvoEhAliado ? ` em ${pedido.alvoNome}` : ''}: ${descricao}`, ts: Date.now() });
+        enviarParaFeed({ tipo: 'sistema', nome: nomeFeed, texto: `↩️ ${nomeFeed} usou ${escolhidas.length > 1 ? `${escolhidas.length} Reações` : 'Reação'} contra o ataque de ${pedido.atacante}${pedido.alvoEhAliado ? ` em ${pedido.alvoNome}` : ''}: ${descricao}`, ts: Date.now() });
 
         const restam = Math.max(0, pedido.restantes - escolhidas.length);
         adicionarAviso(`Gastou ${escolhidas.length} ${escolhidas.length > 1 ? 'Reações' : 'Reação'} (restam ${restam}).`, 'info');
@@ -168,13 +176,13 @@ export default function ReacaoPrompt() {
         if (escolhidas.some(o => o.efeito === 'contra_ataque' || o.efeito === 'atacar_atacante')) adicionarAviso(`Role seu ataque contra ${pedido.atacante} (a Reação já foi gasta).`, 'info');
         setPedido(null);
         setMarcadas([]);
-    }, [pedido, marcadas, updateFicha, meuNome, adicionarAviso]);
+    }, [pedido, marcadas, updateFicha, salvarAtivo, nomeFeed, adicionarAviso]);
 
     const rotuloGatilho = useMemo(() => {
         if (!pedido) return '';
         if (pedido.alvoEhAliado) return `${pedido.atacante} atacou ${pedido.alvoNome}.`;
-        return `${pedido.atacante} atacou você e ${pedido.acertou ? 'ACERTOU' : 'ERROU'}.`;
-    }, [pedido]);
+        return `${pedido.atacante} atacou ${ehAtor ? nomeFeed : 'você'} e ${pedido.acertou ? 'ACERTOU' : 'ERROU'}.`;
+    }, [pedido, ehAtor, nomeFeed]);
 
     if (!pedido || typeof document === 'undefined' || !document.body) return null;
 

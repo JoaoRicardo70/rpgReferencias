@@ -18,6 +18,7 @@ import AvisosAcao from './components/combate/AvisosAcao';
 import { ConfirmarExcecaoRacaHost } from './components/shared/ConfirmarExcecaoRaca';
 import ReacaoPrompt from './components/combate/ReacaoPrompt';
 import ComboPrompt from './components/combos/ComboPrompt';
+import { AvisosDoAtor } from './components/combate/AvisosDoAtor';
 import IdentificacaoAtaque from './components/combate/IdentificacaoAtaque';
 import AudioVozGlobal from './components/comunicacao/AudioVozGlobal';
 
@@ -132,8 +133,11 @@ function ProvedorDeVozGlobal({ meuNome, cenario, children }) {
                 <LimiteDeErro area="Os avisos de Ação" compacto>
                     <AvisosAcao />
                     <ConfirmarExcecaoRacaHost />
-                    <ReacaoPrompt />
-                    <ComboPrompt />
+                    {/* 🎭 Reação e Combo seguem a ficha do NPC em que o Mestre está atuando ("Atuar como") */}
+                    <AvisosDoAtor>
+                        <ReacaoPrompt />
+                        <ComboPrompt />
+                    </AvisosDoAtor>
                     <IdentificacaoAtaque />
                     <EfeitosDeFundo />
                 </LimiteDeErro>

@@ -198,7 +198,7 @@ const useStore = create(
         // Importador de IA do Livro dos Poderes (core/transcricaoIA.js > chaveImportadorIA): texto colado, prévia e partes que falharam; só em memória.
         importadoresIA: {},
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
-        dummies: {}, alvoSelecionado: null, atorCombate: null,
+        dummies: {}, alvoSelecionado: null, atorCombate: null, livroEntidadeMapa: null,
         // ⏱️ Avisos curtos (toasts) sobre Ações/Reações: [{ id, texto, tipo: 'info' | 'alerta' }]; somem sozinhos (components/combate/AvisosAcao.jsx).
         avisosAcao: [],
         // 👁️ Personagem inspecionado na moldura do Mapa: { tipo: 'jogador' | 'dummie', id } ou null.
@@ -294,6 +294,8 @@ const useStore = create(
         setAlvoSelecionado: (id) => set((state) => { state.alvoSelecionado = id; }),
         // 🎭 Ator de combate do Mestre (core/atorCombate.js): { nome, dummieId? } do NPC em que ele está atuando, ou null.
         setAtorCombate: (ator) => set((state) => { state.atorCombate = ator || null; }),
+        // 📖 Ficha (Livro da entidade) aberta pelo Mapa, pelo acesso rápido do Mestre: nome da ficha ou null.
+        setLivroEntidadeMapa: (nome) => set((state) => { state.livroEntidadeMapa = nome || null; }),
         setCenario: (dados) => set((state) => { state.cenario = dados; }),
 
         // ⏭️ CONTROLE DE TURNO FORA DO MAPA (aba Mestre): o MapaFormProvider (sempre montado, ver

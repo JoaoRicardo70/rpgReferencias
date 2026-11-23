@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { poderVivoDoDummie, dummiesComPoderDesatualizado } from './gavetaNpc';
+import { poderVivoDoDummie, dummiesComPoderDesatualizado, camposPosicaoNaCena } from './gavetaNpc';
 
 // O Poder vem de um campo falso da ficha (__poder) para o teste controlar o número.
 vi.mock('./disputaPoder.js', () => ({
@@ -62,5 +62,20 @@ describe('dummiesComPoderDesatualizado', () => {
         const d = { fichaOrigem: 'Boss', poderCalculado: 1 };
         dummiesComPoderDesatualizado({ a: d }, personagens, 1);
         expect(d.poderCalculado).toBe(1);
+    });
+});
+
+describe('camposPosicaoNaCena', () => {
+    it('grava a posição da cena e a legada', () => {
+        const c = camposPosicaoNaCena('cena1', { x: 3, y: 4 });
+        expect(c['posicoes/cena1']).toEqual({ x: 3, y: 4, z: 0, cenaId: 'cena1' });
+        expect(c.posicao).toEqual({ x: 3, y: 4, z: 0, cenaId: 'cena1' });
+    });
+    it('usa a cena "default" e 0 quando faltar ou vier inválido', () => {
+        expect(camposPosicaoNaCena('', { x: 'a' })['posicoes/default']).toEqual({ x: 0, y: 0, z: 0, cenaId: 'default' });
+        expect(camposPosicaoNaCena(null, null)['posicoes/default'].x).toBe(0);
+    });
+    it('trunca decimais', () => {
+        expect(camposPosicaoNaCena('c', { x: 2.9, y: 1.2, z: 5.7 })['posicoes/c']).toEqual({ x: 2, y: 1, z: 5, cenaId: 'c' });
     });
 });
