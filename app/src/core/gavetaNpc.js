@@ -106,6 +106,33 @@ export function definirDefesaManualDoDummie(dummie, texto) {
     return { ok: true, dummie: { ...dummie, valorDefesa: Math.round(valor) } };
 }
 
+// 🔗 PODER VIVO — o token de um NPC da Gaveta (fichaOrigem) acompanha o Poder Atual da ficha do NPC: o Mestre muda a
+// ficha (liga uma Forma, corrige um Multiplicador...) e o token do Mapa já segue, sem injetar de novo. Quem digitou o
+// Poder à mão no token (poderDesvinculado) fica como está até pedir "auto" de novo.
+const TOLERANCIA_PODER = 1e-6;
+
+// Poder que o token deveria ter agora (2 casas, como montarDummieDeNpc), ou null se não há o que seguir.
+export function poderVivoDoDummie(dummie, ficha, divisorPoderMesa) {
+    if (!dummie || !dummie.fichaOrigem || dummie.poderDesvinculado === true || !ficha) return null;
+    const poder = getPoderParaDisputa(ficha, divisorPoderMesa);
+    return poder === null ? null : Math.round(poder * 100) / 100;
+}
+
+// [{ id, dummie }] dos tokens cujo Poder gravado ficou diferente do da ficha de origem (dummie já com o Poder novo).
+export function dummiesComPoderDesatualizado(dummies, personagens, divisorPoderMesa) {
+    const mudancas = [];
+    Object.entries(dummies || {}).forEach(([id, dummie]) => {
+        if (!dummie || !dummie.fichaOrigem) return;
+        const novo = poderVivoDoDummie(dummie, (personagens || {})[dummie.fichaOrigem], divisorPoderMesa);
+        if (novo === null) return;
+        const bruto = dummie.poderCalculado;
+        const atual = (bruto === undefined || bruto === null || bruto === '') ? null : Number(bruto);
+        const igual = atual !== null && Number.isFinite(atual) && Math.abs(atual - novo) <= Math.max(0.01, Math.abs(novo) * TOLERANCIA_PODER);
+        if (!igual) mudancas.push({ id, dummie: { ...dummie, poderCalculado: novo } });
+    });
+    return mudancas;
+}
+
 // Token (dummy) pronto pra salvarDummie. Vida cheia (100 de Vida exibida se a ficha não tiver
 // nenhuma), Defesa = a maior CA da ficha, Poder Atual da ficha neste momento.
 // O nome ganha sempre o número da cópia ("Goblin #1") pra nunca colidir com o nome da ficha do NPC

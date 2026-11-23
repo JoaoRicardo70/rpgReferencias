@@ -5,6 +5,7 @@ import useStore, { sanitizarNome } from './stores/useStore';
 import useFirebase from './hooks/useFirebase';
 import useSextaFeiraMesa from './hooks/useSextaFeiraMesa';
 import useSincronizarAcoes from './hooks/useSincronizarAcoes';
+import useSincronizarPoderDummies from './hooks/useSincronizarPoderDummies';
 import { usePreferenciasDaConta } from './hooks/usePreferenciasDaConta';
 
 // 🔥 IMPORTANDO O MOTOR DE VOZ PARA O TOPO DO APP 🔥
@@ -184,6 +185,8 @@ export default function App() {
     const [pronto, setPronto] = useState(false);
     // ⚡ Mantém o máximo de Ações gravado na ficha igual ao calculado (core/acoes.js).
     useSincronizarAcoes(pronto && !loading && !!meuNome);
+    // 🔗 Tokens de NPC do Mapa seguem o Poder da ficha do NPC (só o Mestre efetivo grava).
+    useSincronizarPoderDummies();
     const [modalAberto, setModalAberto] = useState(false);
     const [themeReady, setThemeReady] = useState(false);
 

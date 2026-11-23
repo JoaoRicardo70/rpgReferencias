@@ -66,20 +66,30 @@ export default function DummieToken({ className, id, dummie }) {
         e.stopPropagation();
         if (!isMestre) return;
         const atual = getPoderDummie(dummie);
-        const resposta = window.prompt(`Poder Calculado de ${dummie.nome} (mesma escala do Scouter). Deixe vazio para tirar a Disputa de Poder desta entidade.`, atual === null ? '' : String(atual));
+        const vinculado = !!dummie.fichaOrigem && dummie.poderDesvinculado !== true;
+        const dica = dummie.fichaOrigem
+            ? (vinculado ? ' Hoje ele SEGUE o Poder da ficha de origem; digitar um valor fixa o Poder aqui.' : ' Digite "auto" para voltar a seguir o Poder da ficha de origem.')
+            : '';
+        const resposta = window.prompt(`Poder Calculado de ${dummie.nome} (mesma escala do Scouter). Deixe vazio para tirar a Disputa de Poder desta entidade.${dica}`, atual === null ? '' : String(atual));
         if (resposta === null) return;
+        if (dummie.fichaOrigem && resposta.trim().toLowerCase() === 'auto') {
+            const { poderDesvinculado, ...religado } = dummie;
+            salvarDummie(id, religado);
+            return;
+        }
         // pt-BR: vírgula decimal e pontos de milhar ("1.000", "1.000.000,5" — como o token exibe);
         // ponto seguido de algo que não sejam grupos de 3 dígitos é decimal ("1.5").
         const bruto = resposta.trim();
         const texto = (bruto.includes(',') || /^\d{1,3}(\.\d{3})+$/.test(bruto)) ? bruto.replace(/\./g, '').replace(',', '.') : bruto;
         if (texto === '') {
             const { poderCalculado, ...semPoder } = dummie;
-            salvarDummie(id, semPoder);
+            // Com ficha de origem, "sem Poder" só vale se desvincular (senão o Poder da ficha voltaria sozinho).
+            salvarDummie(id, dummie.fichaOrigem ? { ...semPoder, poderDesvinculado: true } : semPoder);
             return;
         }
         const valor = Number(texto);
         if (!Number.isFinite(valor) || valor < 0) { alert('Digite um número válido (0 ou mais).'); return; }
-        salvarDummie(id, { ...dummie, poderCalculado: valor });
+        salvarDummie(id, { ...dummie, poderCalculado: valor, ...(dummie.fichaOrigem ? { poderDesvinculado: true } : {}) });
     };
 
     const removerDummie = (e) => {
