@@ -3904,3 +3904,27 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .fichas-mapa-nome { flex: 1; min-width: 120px; color: #ddd; overflow: hidden; text-overflow: ellipsis; }
 .fichas-mapa-btn { margin: 0; padding: 3px 10px; font-size: 0.8em; }
 .moldura-abrir-ficha, .moldura-atuar-token { margin-left: 6px; padding: 2px 8px; font-size: 0.6em; border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.6); background: rgba(0, 0, 0, 0.45); color: #fff; cursor: pointer; vertical-align: middle; }
+
+/* 🌀 Entropia da Entidade (components/mestre/EntropiaPainel.jsx, components/shared/EntropiaSelo.jsx) */
+.entropia-painel { padding: 15px; display: flex; flex-direction: column; gap: 12px; }
+.entropia-titulo { margin: 0; color: var(--txt-forte, #c9a0ff); }
+.entropia-explica, .entropia-vazia { margin: 0; font-size: 0.85em; opacity: 0.8; }
+.entropia-card { border: 1px solid rgba(170, 0, 255, 0.5); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: rgba(120, 0, 200, 0.08); }
+.entropia-card.ativa { border-color: #aa00ff; box-shadow: 0 0 14px rgba(170, 0, 255, 0.45); }
+.entropia-card-topo { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.entropia-nome { flex: 1; min-width: 160px; }
+.entropia-oculta { display: flex; align-items: center; gap: 4px; font-size: 0.85em; cursor: pointer; }
+.entropia-desc { width: 100%; min-height: 60px; }
+.entropia-efeitos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.9em; }
+.entropia-efeitos li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 2px 6px; border-bottom: 1px dotted rgba(127, 127, 127, 0.3); }
+.entropia-remover { margin: 0; padding: 0 8px; }
+.entropia-novo-efeito { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.entropia-novo-efeito .input-neon { margin: 0; min-width: 90px; flex: 1; }
+.entropia-nova { align-self: flex-start; }
+.entropia-selo { margin: 8px 0; padding: 8px 12px; border: 1px solid #aa00ff; border-radius: 8px; background: rgba(120, 0, 200, 0.15); display: flex; flex-direction: column; gap: 4px; }
+.entropia-selo-titulo { color: #c9a0ff; font-size: 0.9em; }
+.entropia-selo-item { display: flex; flex-direction: column; font-size: 0.85em; }
+.entropia-selo-nome { font-weight: bold; }
+.entropia-selo-desc { opacity: 0.85; font-style: italic; }
+.entropia-selo-efeitos { opacity: 0.7; font-size: 0.9em; }
+.entropia-selo-compacto { margin-left: 6px; padding: 2px 8px; font-size: 0.6em; border-radius: 4px; border: 1px solid #aa00ff; background: rgba(120, 0, 200, 0.55); color: #fff; vertical-align: middle; }

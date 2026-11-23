@@ -10,6 +10,7 @@ import { efeitosAtivosDoItem, efeitosPassivosDoItem, efeitosDaConfigAtiva } from
 import { calcularFadigaAtual } from './fadiga.js';
 import { getMultiplicadorBonusArma } from './classesMecanicas.js';
 import { fatorAdaptacao } from './adaptacao.js';
+import { efeitosDaEntropia } from './entropia.js';
 import { ehPropriedadeMultiplicador, passaQuandoMultiplicador, montarContextoDeCombate } from './efeitosCondicionais.js';
 
 // Limites do fator composto dos ganhos permanentes (ficha.ganhosPermanentes.fatorPoder): evita overflow e zero.
@@ -389,6 +390,9 @@ export function getPoderDiretoMultiplier(ficha) {
             const cfg = efeitosDaConfigAtiva(ser);
             if (cfg) { processar(cfg.efeitos); processar(cfg.efeitosPassivos); }
         });
+
+        // 🌀 Entropia da Entidade (core/entropia.js): as ativas com efeito de Poder Direto.
+        processar(efeitosDaEntropia(ficha));
 
         // 🎒 Itens equipados: mesma regra do getBuffs (core/attributes.js).
         (ficha.inventario || []).forEach(item => {

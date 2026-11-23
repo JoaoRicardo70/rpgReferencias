@@ -7,6 +7,7 @@ import GrimorioPanel from '../Ficha Def/Grimorio';
 import { FichaAlvoProvider } from '../Ficha Def/FichaAlvoContext';
 import { ordenarPedidosPendentes } from '../../core/sextaFeiraCriacao';
 import { ABAS_LIVRO_ENTIDADE } from '../../core/grimorioLeitura';
+import EntropiaPainel from './EntropiaPainel';
 
 // 📖 LIVRO DA ENTIDADE ("ABRIR GRIMÓRIO DA ENTIDADE" no Sandbox do Mestre). Dois botões no topo:
 //   📕 Ficha Definitiva  — a MESMA Ficha Definitiva que o jogador usa (Marcados.jsx);
@@ -20,6 +21,7 @@ import { ABAS_LIVRO_ENTIDADE } from '../../core/grimorioLeitura';
 // position: fixed dentro dele — sem o portal o livro abria no TOPO da aba, longe de quem clicou.
 export default function LivroEntidade({ nome, pedidoFocoId, aoFechar }) {
     const pendentes = useStore(s => s.sextaFeiraPendentes);
+    const isMestre = useStore(s => s.isMestre);
 
     // Pedidos pendentes deste personagem (selo ⏳ no botão do Grimório) e se o pedido em foco é dele.
     const { qtdPedidos, focoEhDele } = useMemo(() => {
@@ -60,11 +62,15 @@ export default function LivroEntidade({ nome, pedidoFocoId, aoFechar }) {
                                 )}
                             </button>
                         ))}
+                        {/* 🌀 Entropia da Entidade: buff narrativo, só o Mestre aplica (EntropiaPainel). */}
+                        {isMestre && (
+                            <button type="button" role="tab" aria-selected={aba === 'entropia'} className={`grimorio-mestre-aba${aba === 'entropia' ? ' ativa' : ''}`} onClick={() => setAba('entropia')}>🌀 Entropia</button>
+                        )}
                     </div>
                     <button type="button" className="livro-entidade-fechar" onClick={aoFechar}>❌ FECHAR LIVRO</button>
                 </div>
                 <div className="livro-entidade-corpo fade-in" role="tabpanel">
-                    {aba === 'ficha' ? <MarcadosPanel /> : (
+                    {aba === 'entropia' && isMestre ? <EntropiaPainel /> : aba === 'ficha' ? <MarcadosPanel /> : (
                         <>
                             {/* Pedidos da Sexta-Feira deste personagem, antes das páginas do Grimório */}
                             <div className="livro-entidade-pedidos">

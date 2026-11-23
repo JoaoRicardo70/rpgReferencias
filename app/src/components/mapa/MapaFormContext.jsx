@@ -18,7 +18,7 @@ import { aplicarCoresDado, lerCoresDado } from '../../core/coresDado';
 import { getConfigDado } from '../../core/configuracoes';
 import { alternarPresencaNaTaverna } from '../../core/chats';
 import { podeAcessarCena, cenarioComAcessoDaCena } from '../../core/cenasRegiao';
-import { infoAvatarDaFicha } from '../../core/avatar';
+import { infoAvatarDaFicha, fichaVisualDoToken } from '../../core/avatar';
 import { assinarFalhasDeImagem } from '../../core/imagemVerificada';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
 import { efeitosAtivosDoItem } from '../../core/efeitosItem';
@@ -595,7 +595,8 @@ export function MapaFormProvider({ children }) {
     const [versaoImagensQuebradas, setVersaoImagensQuebradas] = useState(0);
     useEffect(() => assinarFalhasDeImagem(() => setVersaoImagensQuebradas(v => v + 1)), []);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a versão só serve para renovar a função (e o contexto)
-    const getAvatarInfo = useCallback((ficha) => infoAvatarDaFicha(ficha), [versaoImagensQuebradas]);
+    // Token de NPC da Gaveta: a imagem vem da ficha de origem (fichaVisualDoToken).
+    const getAvatarInfo = useCallback((ficha) => infoAvatarDaFicha(fichaVisualDoToken(ficha, personagens)), [versaoImagensQuebradas, personagens]);
 
     const fmt = useCallback((n) => Number(n || 0).toLocaleString('pt-BR'), []);
 

@@ -6,6 +6,8 @@ import DominioRacialFicha from '../shared/DominioRacialFicha';
 import { contextoDoViewer, racaPrincipalVisivel } from '../../core/racasVisibilidade';
 import { limparVisibilidadeOrfa } from '../../services/composicaoRacial';
 import { getRacas, racaIdAposEdicaoDeTexto, composicaoComPrincipal } from '../../core/racas';
+import { mesclarOverridesCompendio } from '../../core/compendioOverrides';
+import { useImagemQueCarrega } from '../../hooks/useImagemQueCarrega';
 import ClasseMecanicaPainel from './ClasseMecanicaPainel';
 import { salvarFichaSilencioso, salvarFirebaseImediato, salvarDivisorPoderMesa, salvarFichaAlvoSilencioso, salvarFichaAlvoImediato, enviarParaFeed } from '../../services/firebase-sync';
 import { dispararEventoEmPersonagem } from '../../services/gatilhosEventos';
@@ -26,6 +28,7 @@ import { calcularBarrasVida, aplicarEdicaoBarraVida, getTetoVida, getTetoExibido
 import { getRegeneracaoManualPct, limitarRegeneracaoPct } from '../../core/regeneracao';
 
 import ClassificacaoPanel from './ClassificacaoPanel';
+import EntropiaSelo from '../shared/EntropiaSelo';
 import RelicarioPanel from './RelicarioPanel';
 import PactosPanel from './PactosPanel';
 import RegeneracaoResumo from './RegeneracaoResumo';
@@ -189,13 +192,14 @@ const CLASSE_SELECT_OPTIONS = [
     ...CLASSES_REGULARES_BASE, ...CLASSES_EXTRA_BASE.filter(c => c.id !== 'desconhecido')
 ];
 
-function getClasseInfo(ficha) {
+function getClasseInfo(ficha, classesGlobais) {
     const nomeClasse = ficha?.bio?.classe;
     if (!nomeClasse) return null;
     const normalizar = (txt) => String(txt).replace(/[^a-z0-9]/gi, '').toLowerCase();
     const nomeStr = normalizar(nomeClasse);
     const todasClasses = [...CLASSES_REGULARES_BASE, ...CLASSES_EXTRA_BASE];
-    const overrides = ficha?.compendioOverrides?.classes || {};
+    // As substituições do Compêndio valem pra mesa toda (o ícone que o Mestre subiu aparece na ficha de todos); as da própria ficha vencem.
+    const overrides = { ...(classesGlobais || {}), ...(ficha?.compendioOverrides?.classes || {}) };
     const overrideMatch = Object.values(overrides).find(c => !c.deletado && c.nome && normalizar(c.nome) === nomeStr);
     if (overrideMatch) return overrideMatch;
     return todasClasses.find(c => normalizar(c.nome) === nomeStr) || null;
@@ -906,6 +910,7 @@ export default function MarcadosPanel() {
     const [localModoFundo, setLocalModoFundo] = useState('normal'); 
     const [localCorFundoTint, setLocalCorFundoTint] = useState('#ffffff'); 
     const [localIconeOffsetY, setLocalIconeOffsetY] = useState(-45);
+    const [localIconeTamanho, setLocalIconeTamanho] = useState(70);
     
     // 🔥 NOVOS REGULADORES DE PINTURA 🔥
     const [localMolduraOpColor, setLocalMolduraOpColor] = useState(1);
@@ -938,6 +943,7 @@ export default function MarcadosPanel() {
             setLocalModoFundo(minhaFicha.estetica?.modoFundo || 'normal');
             setLocalCorFundoTint(minhaFicha.estetica?.corFundoTint || '#ffffff');
             setLocalIconeOffsetY(minhaFicha.estetica?.iconeOffsetY ?? -45);
+            setLocalIconeTamanho(minhaFicha.estetica?.iconeTamanho ?? 70);
             setLocalMolduraOpColor(minhaFicha.estetica?.molduraOpColor ?? 1);
             setLocalMolduraOpMultiply(minhaFicha.estetica?.molduraOpMultiply ?? 0.85);
             setLocalMolduraOpOverlay(minhaFicha.estetica?.molduraOpOverlay ?? 0.6);
@@ -1089,11 +1095,16 @@ export default function MarcadosPanel() {
         return { poderGlobal: aplicarEscalaPoderCalculado(power), vitalidadeGlobal: Math.max(0, digitos - 8), supressao: sup, limiteSupressao: lim, temaScouter: tema };
     }, [minhaFicha, divisorPoderMesa, ascensaoGeralEfetivaParaPoder]);
 
+    // 🛡️ Moldura/ícone da classe: ícones do Compêndio de toda a mesa + imagem de reserva (link quebrado cai pro símbolo padrão, nunca fica vazio).
+    const personagensDaMesa = useStore(s => s.personagens);
+    const classesGlobais = useMemo(() => mesclarOverridesCompendio(personagensDaMesa, minhaFicha).classes, [personagensDaMesa, minhaFicha]);
+    const classeInfo = getClasseInfo(minhaFicha, classesGlobais);
+    const candidatasIconeClasse = [localIconeClasse, classeInfo?.iconeUrl].filter(u => typeof u === 'string' && u.trim() !== '');
+    const iconeFinal = useImagemQueCarrega(candidatasIconeClasse);
+
     if (!minhaFicha) return <div style={{ color: '#000', padding: 20, fontFamily: 'cursive' }}>Abrindo a Ficha...</div>;
 
     const isMestre = isMestreStatus || (minhaFicha?.isMestre === true);
-    const classeInfo = getClasseInfo(minhaFicha);
-    const iconeFinal = localIconeClasse || classeInfo?.iconeUrl;
     // 🔥 Cor do "glow" do avatar/ícone de classe — usa a cor da classe do personagem quando
     // definida (ficha sem classe, ou classe sem "cor" cadastrada) cai no ciano neon padrão do tema.
     const glowColor = classeInfo?.cor || '#00ffcc';
@@ -1202,6 +1213,7 @@ export default function MarcadosPanel() {
         else if (key === 'modoFundo') setLocalModoFundo(val);
         else if (key === 'corFundoTint') setLocalCorFundoTint(val);
         else if (key === 'iconeOffsetY') setLocalIconeOffsetY(val);
+        else if (key === 'iconeTamanho') setLocalIconeTamanho(val);
         else if (key === 'molduraOpColor') setLocalMolduraOpColor(val);
         else if (key === 'molduraOpMultiply') setLocalMolduraOpMultiply(val);
         else if (key === 'molduraOpOverlay') setLocalMolduraOpOverlay(val);
@@ -1615,6 +1627,12 @@ export default function MarcadosPanel() {
                                 <span style={{ width: '40px', textAlign: 'right' }}>{localIconeOffsetY}px</span>
                             </label>
 
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9em', color: '#555', marginBottom: '15px', fontWeight: 'bold' }}>
+                                <span>📏 Tamanho do Ícone:</span>
+                                <input type="range" min="30" max="160" value={localIconeTamanho} onChange={(e) => handleStyleChange('iconeTamanho', parseInt(e.target.value))} style={{ flex: 1, accentColor: localCorMoldura !== '#ffffff' ? localCorMoldura : '#000', cursor: 'pointer' }} />
+                                <span style={{ width: '40px', textAlign: 'right' }}>{localIconeTamanho}px</span>
+                            </label>
+
                             <hr style={{ border: '1px dashed #ccc', margin: '15px 0' }}/>
                             
                             {/* 🔥 NOVA PALETA PREMIUM NA TINTA DO RADAR 🔥 */}
@@ -1973,7 +1991,7 @@ export default function MarcadosPanel() {
 
                                         {/* 🔥 SÍMBOLO DA CLASSE ALINHADO (DEFAULT -45PX) E COM SLIDER DE CONTROLO 🔥 */}
                                         {(classeInfo || localIconeClasse) && (
-                                            <div style={{ position: 'absolute', bottom: `${localIconeOffsetY}px`, left: '50%', transform: 'translateX(-50%)', zIndex: 3, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '70px', height: '70px' }}>
+                                            <div style={{ position: 'absolute', bottom: `${localIconeOffsetY}px`, left: '50%', transform: 'translateX(-50%)', zIndex: 3, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: `${localIconeTamanho}px`, height: `${localIconeTamanho}px` }}>
                                                 {iconeFinal ? (
                                                     <div style={{ position: 'relative', width: '100%', height: '100%', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.8))', isolation: 'isolate' }}>
                                                         <img src={iconeFinal} alt="Classe" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain' }} />
@@ -1987,7 +2005,7 @@ export default function MarcadosPanel() {
                                                         )}
                                                     </div>
                                                 ) : (
-                                                    <div style={{ width: '50px', height: '50px', background: glowColor, transform: 'rotate(45deg)', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.8)' }}>
+                                                    <div style={{ width: `${Math.round(localIconeTamanho * 0.71)}px`, height: `${Math.round(localIconeTamanho * 0.71)}px`, background: glowColor, transform: 'rotate(45deg)', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.8)' }}>
                                                         <span style={{ transform: 'rotate(-45deg)', fontSize: '1.5em', textShadow: '0 2px 4px rgba(0,0,0,0.5)', color: '#fff' }}>{classeInfo?.icone || '👤'}</span>
                                                     </div>
                                                 )}
@@ -2008,6 +2026,8 @@ export default function MarcadosPanel() {
                             {minhaFicha.avatar?.base && <button onClick={() => {if(window.confirm('Apagar?')) { updateFicha(f => {f.avatar.base = ""}); callSave(); } }} style={{ background: 'transparent', border: '1px dashed #ff003c', color: '#ff003c', marginTop: '10px', padding: '5px 15px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'inherit', width: 'fit-content' }}>🗑️ Remover Foto</button>}
                             </div>
                             <ClasseMecanicaPainel ficha={minhaFicha} salvar={salvar} meuNome={meuNome} opcoesClasses={CLASSE_SELECT_OPTIONS} />
+                            {/* 🌀 Entropia da Entidade ligada nesta ficha (o Mestre vê todas; o dono só as não secretas) */}
+                            <EntropiaSelo ficha={minhaFicha} isMestre={isMestre} />
                             </div>
                         </div>
 
