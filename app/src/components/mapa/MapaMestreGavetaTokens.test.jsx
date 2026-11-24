@@ -219,6 +219,20 @@ describe('Gaveta de Tokens - Colocar e + cópia (sem dummie)', () => {
         const casas = criarPersonagemNaMesa.mock.calls.map(c => JSON.stringify(c[1].posicao));
         expect(new Set(casas).size).toBe(3);
     });
+    it('com "Entrar oculto" marcado, o personagem colocado vai para tokensOcultos', () => {
+        configurar();
+        render(<MapaMestreGavetaTokens />);
+        fireEvent.click(checkInvisivel());
+        fireEvent.click(linha('Goblin').querySelector('.gaveta-npc-principal'));
+        expect(salvarCenarioCompleto).toHaveBeenCalledTimes(1);
+        expect(salvarCenarioCompleto.mock.calls[0][0].tokensOcultos).toContain('Goblin');
+    });
+    it('sem marcar, não mexe no cenário', () => {
+        configurar();
+        render(<MapaMestreGavetaTokens />);
+        fireEvent.click(linha('Goblin').querySelector('.gaveta-npc-principal'));
+        expect(salvarCenarioCompleto).not.toHaveBeenCalled();
+    });
     it('se a ficha nova não puder ser criada (já existe), não posiciona nada', async () => {
         configurar();
         criarPersonagemNaMesa.mockResolvedValueOnce(false);

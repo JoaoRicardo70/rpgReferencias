@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fatorDaPosicao, posicaoDoFator, fatorDoAjuste, entropiasComAjuste, aplicarAjusteNaFicha, rotuloDoFator, ID_AJUSTE_PODER, FATOR_MIN, FATOR_MAX } from './ajustePoder';
+import { fatorDaPosicao, posicaoDoFator, fatorDoAjuste, entropiasComAjuste, aplicarAjusteNaFicha, rotuloDoFator, ID_AJUSTE_PODER, FATOR_MIN, FATOR_MAX, LIMITES_ABSOLUTOS, normalizarLimites, limitesDoAjuste } from './ajustePoder';
 import { getPoderDiretoMultiplier } from './poder';
 import { entropiasDaFicha } from './entropia';
 
@@ -38,7 +38,7 @@ describe('ajustePoder', () => {
         expect(getPoderDiretoMultiplier(ficha)).toBe(1);
     });
     it('fatores inválidos/fora do limite são contidos', () => {
-        expect(fatorDoAjuste({ entropias: entropiasComAjuste({}, 100000).length ? [entropiasComAjuste({}, 100000)[0]] : [] })).toBe(FATOR_MAX);
+        expect(fatorDoAjuste({ entropias: entropiasComAjuste({}, 1e9) })).toBe(LIMITES_ABSOLUTOS.max);
         expect(entropiasComAjuste({}, 'abc')).toHaveLength(0);
         expect(rotuloDoFator(2.5)).toBe('×2,5');
     });
@@ -50,5 +50,23 @@ describe('ajustePoder - limite de Entropias', () => {
         aplicarAjusteNaFicha(ficha, 3);
         expect(fatorDoAjuste(ficha)).toBe(3);
         expect(entropiasDaFicha(ficha)).toHaveLength(12);
+    });
+});
+
+describe('ajustePoder - alcance da barra editável', () => {
+    it('limites inválidos caem no padrão; válidos são usados', () => {
+        expect(limitesDoAjuste({})).toEqual({ min: 0.1, max: 100 });
+        expect(limitesDoAjuste({ ajustePoderLimites: { min: 5, max: 2 } })).toEqual({ min: 0.1, max: 100 });
+        expect(limitesDoAjuste({ ajustePoderLimites: { min: '0,5', max: '1000' } })).toEqual({ min: 0.5, max: 1000 });
+        expect(normalizarLimites({ min: 0, max: 10 })).toBeNull();
+        expect(normalizarLimites({ min: 1, max: 1e9 })).toBeNull();
+    });
+    it('a barra mapeia nos limites escolhidos', () => {
+        const lim = { min: 1, max: 10000 };
+        expect(fatorDaPosicao(0, lim)).toBe(1);
+        expect(fatorDaPosicao(100, lim)).toBe(10000);
+        expect(fatorDaPosicao(50, lim)).toBeCloseTo(100, 0);
+        expect(posicaoDoFator(100, lim)).toBeCloseTo(50, 0);
+        expect(posicaoDoFator(1e9, lim)).toBe(100);
     });
 });

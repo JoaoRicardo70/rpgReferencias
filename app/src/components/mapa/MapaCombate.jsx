@@ -25,7 +25,7 @@ import { temEstagios } from '../../core/estagios';
 import { useArsenalForm } from '../arsenal/ArsenalFormContext';
 import { useElementosForm, emogis as ELEMENTOS_EMOJIS, cores as ELEMENTOS_CORES } from '../arsenal/ElementosFormContext';
 import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto, salvarCamposPersonagem } from '../../services/firebase-sync';
-import { fatorDoAjuste, entropiasComAjuste, fatorDaPosicao, posicaoDoFator, rotuloDoFator } from '../../core/ajustePoder';
+import { fatorDoAjuste, entropiasComAjuste, fatorDaPosicao, posicaoDoFator, rotuloDoFator, limitesDoAjuste, normalizarLimites } from '../../core/ajustePoder';
 import { getClassIconById } from '../../core/classIcons';
 import { getAcoesExibicao, criarAcoesIniciais, restaurarAcoes, ACOES_MAXIMO } from '../../core/acoes';
 import { calcularPoderAtual, calcularFatorMultiplicadorForca } from '../../core/poder';
@@ -1418,34 +1418,50 @@ function MoldPoderEditor({ dummie, id }) {
 // 🎚️ Barra de Ajuste de Poder (só Mestre, NPCs que são personagens do Mapa): o ajuste é uma Entropia da Entidade com multiplicador de Poder
 // (core/ajustePoder.js), então aparece na aba Entropia da ficha e entra no Poder Calculado como qualquer outro buff. ×1 remove a Entropia.
 function MoldPoderBarra({ nome, ficha }) {
+    const lim = limitesDoAjuste(ficha);
     const fatorSalvo = fatorDoAjuste(ficha);
-    const [pos, setPos] = useState(() => posicaoDoFator(fatorSalvo));
+    const [pos, setPos] = useState(() => posicaoDoFator(fatorSalvo, lim));
     const [arrastando, setArrastando] = useState(false);
+    const [editandoLimites, setEditandoLimites] = useState(false);
+    const [textoMin, setTextoMin] = useState('');
+    const [textoMax, setTextoMax] = useState('');
     const posRef = useRef(pos);
     const pendente = useRef(false);
     // Enquanto o servidor não devolve o valor gravado, a barra fica onde o Mestre soltou (sem pulo pra trás).
-    useEffect(() => { pendente.current = false; if (!arrastando) setPos(posicaoDoFator(fatorSalvo)); }, [fatorSalvo]);
-    const fator = (arrastando || pendente.current) ? fatorDaPosicao(pos) : fatorSalvo;
+    useEffect(() => { pendente.current = false; if (!arrastando) setPos(posicaoDoFator(fatorSalvo, lim)); }, [fatorSalvo, lim.min, lim.max]);
+    const fator = (arrastando || pendente.current) ? fatorDaPosicao(pos, lim) : fatorSalvo;
     const gravar = (f, forcar = false) => {
         if (!arrastando && !forcar) return;
         setArrastando(false); pendente.current = true;
         Promise.resolve(salvarCamposPersonagem(nome, { entropias: entropiasComAjuste(ficha, f) })).then(ok => {
-            if (ok === false) { pendente.current = false; setPos(posicaoDoFator(fatorSalvo)); window.alert('Não foi possível gravar o Ajuste de Poder (o servidor recusou).'); }
+            if (ok === false) { pendente.current = false; setPos(posicaoDoFator(fatorSalvo, lim)); window.alert('Não foi possível gravar o Ajuste de Poder (o servidor recusou).'); }
         });
     };
+    const abrirLimites = () => { setTextoMin(String(lim.min).replace('.', ',')); setTextoMax(String(lim.max).replace('.', ',')); setEditandoLimites(v => !v); };
+    const novosLimites = normalizarLimites({ min: textoMin, max: textoMax });
+    const salvarLimites = (valor) => { salvarCamposPersonagem(nome, { ajustePoderLimites: valor }); setEditandoLimites(false); };
     return (
         <div className="moldura-poder-barra">
             <div className="moldura-poder-barra-topo">
                 <span title="Entropia da Entidade: multiplicador de Poder aplicado pelo Mestre">🎚️ Ajuste de Poder</span>
+                <button type="button" className="moldura-poder-editar" onClick={abrirLimites} title="Mudar o alcance da barra (mínimo e máximo)" aria-label="Editar o alcance da barra">⚙</button>
                 <strong className={fator === 1 ? '' : 'ajustado'}>{rotuloDoFator(fator)}</strong>
-                {fatorSalvo !== 1 && <button type="button" className="moldura-poder-editar" onClick={() => { setPos(posicaoDoFator(1)); posRef.current = posicaoDoFator(1); gravar(1, true); }} title="Volta ao Poder da ficha (remove a Entropia)">↺ ×1</button>}
+                {fatorSalvo !== 1 && <button type="button" className="moldura-poder-editar" onClick={() => { const p = posicaoDoFator(1, lim); setPos(p); posRef.current = p; gravar(1, true); }} title="Volta ao Poder da ficha (remove a Entropia)">↺ ×1</button>}
             </div>
+            {editandoLimites && (
+                <div className="moldura-poder-limites">
+                    <label>Mín ×<input className="input-neon" type="text" inputMode="decimal" value={textoMin} onChange={e => setTextoMin(e.target.value)} aria-label="Mínimo da barra" /></label>
+                    <label>Máx ×<input className="input-neon" type="text" inputMode="decimal" value={textoMax} onChange={e => setTextoMax(e.target.value)} aria-label="Máximo da barra" /></label>
+                    <button type="button" className="btn-neon btn-gold" disabled={!novosLimites} onClick={() => salvarLimites(novosLimites)} title="Aceita de ×0,001 a ×1.000.000, com o mínimo menor que o máximo">Salvar</button>
+                    <button type="button" className="btn-neon" onClick={() => salvarLimites(null)} title="Volta ao alcance padrão (×0,1 a ×100)">Padrão</button>
+                </div>
+            )}
             <input type="range" min="0" max="100" step="0.5" value={pos} aria-label="Ajuste de Poder do NPC"
                 onChange={e => { const v = Number(e.target.value); posRef.current = v; setArrastando(true); setPos(v); }}
-                onPointerUp={() => gravar(fatorDaPosicao(posRef.current))}
-                onKeyUp={() => gravar(fatorDaPosicao(posRef.current))}
-                onBlur={() => gravar(fatorDaPosicao(posRef.current))} />
-            <div className="moldura-poder-barra-escala"><span>×0,1</span><span>×1</span><span>×10</span><span>×100</span></div>
+                onPointerUp={() => gravar(fatorDaPosicao(posRef.current, lim))}
+                onKeyUp={() => gravar(fatorDaPosicao(posRef.current, lim))}
+                onBlur={() => gravar(fatorDaPosicao(posRef.current, lim))} />
+            <div className="moldura-poder-barra-escala"><span>{rotuloDoFator(lim.min)}</span><span>{rotuloDoFator(lim.max)}</span></div>
         </div>
     );
 }
@@ -1467,6 +1483,7 @@ function MoldSituacao({ ficha, supressao }) {
 export function MapaHologramaAcao() {
     const ctx = useMapaForm();
     const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
+    const cenarioStore = useStore(s => s.cenario);
     const alvoSelecionado = useStore(s => s.alvoSelecionado);
     const setAlvoSelecionado = useStore(s => s.setAlvoSelecionado);
     const setLivroEntidadeMapa = useStore(s => s.setLivroEntidadeMapa);
@@ -1493,6 +1510,14 @@ export function MapaHologramaAcao() {
         ? motivoBloqueioAlvo({ fichaAtor: minhaFicha, atorEhMestre: isMestre, alvo: { isPersonagem: true, tipoPersonagem: getTipoPersonagem(inspecao.ficha), ficha: inspecao.ficha } })
         : null;
     const acaoExibir = inspecionando ? null : (emCombate ? acaoNovaNoTurno : acaoGeralForaDeCombate);
+    // 🙈 Ocultar/Revelar o token (personagem ou entidade) no Mapa: a invisibilidade é por id/nome em cenario.tokensOcultos.
+    const tokenOculto = inspecionando && (cenarioStore?.tokensOcultos || []).includes(inspecao.id);
+    const alternarOcultoToken = (id) => {
+        const novo = JSON.parse(JSON.stringify(cenarioStore || {}));
+        const lista = Array.isArray(novo.tokensOcultos) ? novo.tokensOcultos : [];
+        novo.tokensOcultos = lista.includes(id) ? lista.filter(t => t !== id) : [...lista, id];
+        salvarCenarioCompleto(novo);
+    };
 
     if (!inspecionando && !emCombate && !acaoExibir) {
         return <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontStyle: 'italic', border: '2px dashed #333', borderRadius: 8 }}>O campo de batalha aguarda...</div>;
@@ -1668,6 +1693,7 @@ export function MapaHologramaAcao() {
             <div key={feedSeguro.length + feedDescartados} className="def-box holograma-impacto" style={{ height: '100%', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', border: isGrand ? `3px solid #ffcc00` : (isCandidato ? `2px solid #00ccff` : `2px solid ${corImpacto}`), boxShadow: isGrand ? `0 0 30px rgba(255,0,60,0.6), inset 0 0 20px rgba(255,204,0,0.3)` : (isCandidato ? `0 0 20px rgba(0,204,255,0.4)` : `0 0 20px ${corImpacto}40`) }}>
             <div style={{ background: corHeader, color: corTextoHeader, padding: '10px', textAlign: 'center', fontWeight: '900', letterSpacing: 2, fontSize: '1.2em', textTransform: 'uppercase', position: 'relative' }}>
                 {tituloImpacto}
+                <div className="moldura-barra-acoes">
                 {inspecionando && !inspecao.isDummie && (isMestre || inspecao.id === meuNome) && (
                     <button type="button" className="moldura-remover-token" onClick={() => removerTokenDoMapa(inspecao.id)} title={inspecao.id === meuNome ? 'Retirar o seu personagem do Mapa' : 'Remover este personagem do Mapa'}>
                         {inspecao.id === meuNome ? '🚪 Sair do Mapa' : '🗑️ Remover do Mapa'}
@@ -1688,6 +1714,10 @@ export function MapaHologramaAcao() {
                 {inspecionando && isMestre && atorValorInspecao && (
                     <button type="button" className="moldura-atuar-token" onClick={() => setAtorCombate(atorInspecaoAtivo ? null : atorDeValor(atorValorInspecao, dummiesDoStore))} title="Seus golpes no Mapa passam a sair com a ficha dele">{atorInspecaoAtivo ? '🎭 Atuando' : '🎭 Atuar'}</button>
                 )}
+                {inspecionando && isMestre && inspecao.id !== meuNome && (
+                    <button type="button" className="moldura-ocultar-token" onClick={() => alternarOcultoToken(inspecao.id)} title={tokenOculto ? 'Os jogadores não veem este token. Clique para revelá-lo no Mapa.' : 'Esconde este token dos jogadores (você continua vendo)'}>{tokenOculto ? '👁️ Revelar' : '🙈 Ocultar'}</button>
+                )}
+                </div>
                 {inspecionando && <button type="button" className="moldura-fechar-inspecao" onClick={limparInspecao} title="Voltar à ação do combate" aria-label="Fechar o resumo e voltar à ação do combate">✖</button>}
             </div>
             {acaoExibir?.tipo === 'sistema' && !acaoExibir.texto.includes('É a vez de') ? (

@@ -6,7 +6,7 @@ import { getPontosVidaTotal } from '../../core/danoProporcional';
 import { calcularDanoRapido } from '../../core/danoRapido';
 import { iconeTipoPersonagem } from '../../core/tipoPersonagem';
 import { rotuloComPolaridade } from '../../core/polaridade';
-import { agruparNpcsPorFamilia, posicoesLivres, getVidaMaxBrutaNpc, camposPosicaoNaCena, nomeDaCopia, fichaCopiaDeNpc } from '../../core/gavetaNpc';
+import { agruparNpcsPorFamilia, cenarioComTokensOcultos, posicoesLivres, getVidaMaxBrutaNpc, camposPosicaoNaCena, nomeDaCopia, fichaCopiaDeNpc } from '../../core/gavetaNpc';
 import DisputaPoderResumo from '../combate/DisputaPoderResumo';
 import { salvarDummie, salvarCenarioCompleto, salvarCamposPersonagem } from '../../services/firebase-sync';
 import { criarPersonagemNaMesa } from '../../services/midia-sync';
@@ -182,6 +182,11 @@ export function MapaMestreGavetaTokens() {
     const [quantidade, setQuantidade] = useState(1);
     const [aberta, setAberta] = useState({});
     const copiando = useRef(false);
+    const [oculto, setOculto] = useState(false);
+    // Entrar oculto: o nome do personagem vai pra cenario.tokensOcultos (o Mestre vê, os jogadores não); "Revelar" fica no Resumo do token.
+    const ocultarNomes = useCallback((nomes) => {
+        if (oculto && nomes.length) salvarCenarioCompleto(cenarioComTokensOcultos(useStore.getState().cenario, nomes));
+    }, [oculto]);
 
     const grupos = useMemo(() => agruparNpcsPorFamilia(jogadores, busca), [jogadores, busca]);
     const familias = useMemo(() => Object.keys(grupos).sort((a, b) => a.localeCompare(b, 'pt-BR')), [grupos]);
@@ -206,15 +211,18 @@ export function MapaMestreGavetaTokens() {
         if (copiando.current) return;
         copiando.current = true;
         let falhas = 0;
+        const criados = [];
         try {
             for (let i = 0; i < qtd; i++) {
                 const novoNome = nomeDaCopia(nome, nomes);
                 nomes.push(novoNome);
                 if (!(await criarPersonagemNaMesa(novoNome, fichaCopiaDeNpc(ficha, camposPosicaoNaCena(cenaRenderId, livres[i]))))) falhas += 1;
+                else criados.push(novoNome);
             }
         } finally { copiando.current = false; }
+        ocultarNomes(criados);
         if (falhas > 0) window.alert(`${falhas} cópia(s) não puderam ser criadas (o nome já existe ou o servidor recusou).`);
-    }, [quantidade, dummies, jogadores, cenaRenderId]);
+    }, [quantidade, dummies, jogadores, cenaRenderId, ocultarNomes]);
 
     // 🧍 A própria ficha do NPC entra na cena (sem cópia), na primeira casa livre.
     const colocarFicha = useCallback((nome) => {
@@ -224,7 +232,8 @@ export function MapaMestreGavetaTokens() {
         ];
         const [pos] = posicoesLivres(ocupadas, 1);
         salvarCamposPersonagem(nome, camposPosicaoNaCena(cenaRenderId, pos));
-    }, [dummies, jogadores, cenaRenderId]);
+        ocultarNomes([nome]);
+    }, [dummies, jogadores, cenaRenderId, ocultarNomes]);
     const fichaNaCena = (ficha) => { const p = getPosicaoEntidade(ficha, cenaRenderId); return !!(p && p.x !== undefined && (p.cenaId || 'default') === (cenaRenderId || 'default')); };
 
     if (!ctx) return FALLBACK;
@@ -240,6 +249,9 @@ export function MapaMestreGavetaTokens() {
                 <label className="gaveta-campo" title="Quantas cópias entram de uma vez (1 a 10)">
                     <span>Qtd.</span>
                     <input className="input-neon" type="number" min="1" max="10" value={quantidade} onChange={e => setQuantidade(e.target.value)} />
+                </label>
+                <label className="gaveta-check" title="Entra no Mapa escondido dos jogadores. Use 🙈/👁️ no Resumo do token para revelar.">
+                    <input type="checkbox" checked={oculto} onChange={e => setOculto(e.target.checked)} /> 👻 Entrar oculto
                 </label>
             </div>
 
