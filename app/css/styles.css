@@ -3939,3 +3939,12 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .barra-rapida-mapa.em-combate { border-color: #ff003c; box-shadow: 0 0 10px rgba(255, 0, 60, 0.35); }
 .barra-rapida-titulo { font-weight: bold; font-size: 0.85em; margin-right: 4px; }
 .barra-rapida-btn { margin: 0; padding: 4px 12px; font-size: 0.85em; }
+
+.moldura-poder-editor.recolhido { margin: 0; }
+.moldura-poder-editar { background: transparent; border: 1px dashed rgba(255,204,0,0.45); color: #ffcc00; font-size: 0.75em; padding: 2px 8px; border-radius: 10px; cursor: pointer; width: auto; }
+.moldura-poder-editar.seguir { border-color: rgba(0,255,136,0.5); color: #00ff88; }
+.moldura-poder-editor .btn-neon { width: auto; flex: 0 0 auto; }
+.gaveta-npc-acoes { display: flex; gap: 8px; align-items: center; }
+.gaveta-npc-acoes .gaveta-npc-principal { flex: 1; margin: 0; }
+.gaveta-npc-copia { background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #9aa; font-size: 0.75em; padding: 4px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.gaveta-npc-copia:hover { color: #fff; border-color: rgba(255,255,255,0.5); }

@@ -1385,6 +1385,7 @@ function MoldPoderLinha({ exato, poderExato, estimativa }) {
 // neste token e, se ele veio de uma ficha de NPC, desvincula do Poder da ficha (o botão "Seguir a ficha" volta ao automático).
 function MoldPoderEditor({ dummie, id }) {
     const [texto, setTexto] = useState('');
+    const [aberto, setAberto] = useState(false);
     const atual = getPoderDummie(dummie);
     const gravar = (novo) => { const d = dummieComPoderManual(dummie, novo); if (d) salvarDummie(id, d); };
     const aplicar = () => { if (lerPoderDigitado(texto) === null) return; gravar(texto); setTexto(''); };
@@ -1392,6 +1393,14 @@ function MoldPoderEditor({ dummie, id }) {
     const escalar = (fator) => { if (!podeEscalar) return; const v = escalarPoder(atual, fator); if (v !== null) gravar(v); };
     const seguir = () => { const d = dummieSeguindoFicha(dummie); if (d) salvarDummie(id, d); };
     const desvinculado = !!dummie.fichaOrigem && dummie.poderDesvinculado === true;
+    if (!aberto) {
+        return (
+            <div className="moldura-poder-editor recolhido">
+                <button type="button" className="moldura-poder-editar" onClick={() => setAberto(true)} title="Editar o Poder deste token">✏️ Editar Poder</button>
+                {desvinculado && <button type="button" className="moldura-poder-editar seguir" onClick={seguir} title="Volta a seguir o Poder da ficha do NPC">↺ Seguir a ficha</button>}
+            </div>
+        );
+    }
     return (
         <div className="moldura-poder-editor">
             <input className="input-neon" type="text" inputMode="decimal" placeholder="Novo Poder (ex.: 50 bi)" value={texto} onChange={e => setTexto(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') aplicar(); }} aria-label="Novo Poder Calculado" />
@@ -1400,6 +1409,7 @@ function MoldPoderEditor({ dummie, id }) {
             <button type="button" className="btn-neon" onClick={() => escalar(10)} disabled={!podeEscalar} title="Multiplica o Poder por 10">×10</button>
             <button type="button" className="btn-neon" onClick={() => escalar(1.25)} disabled={!podeEscalar} title="Aumenta o Poder em 25%">+25%</button>
             {desvinculado && <button type="button" className="btn-neon btn-green" onClick={seguir} title="Volta a seguir o Poder da ficha do NPC">Seguir a ficha</button>}
+            <button type="button" className="btn-neon" onClick={() => setAberto(false)} title="Fechar o editor">✕</button>
         </div>
     );
 }

@@ -164,8 +164,10 @@ const GavetaNpcLinha = React.memo(function GavetaNpcLinha({ nome, ficha, divisor
                 <strong>{nome}</strong>
                 <span>❤️ {Math.round(vida).toLocaleString('pt-BR')} · ⚡ {formatarPoderDisputa(poder)}{naCena ? ` · ${naCena} na cena` : ''}{fichaNaCena ? ' · ficha na cena' : ''}</span>
             </div>
-            <button type="button" className="btn-neon btn-green gaveta-npc-btn" onClick={colocar} title="Token-cópia (boneco) do NPC, com Vida, Defesa e Poder da ficha. Pode ter várias cópias.">⚔️ Ao combate</button>
-            <button type="button" className="btn-neon btn-blue gaveta-npc-btn" onClick={colocarFicha} disabled={fichaNaCena} title="A PRÓPRIA ficha do NPC entra na cena como um personagem (Combos, Reações, ataques salvos e Poder da ficha). Para agir como ele, use 🎭 Controlar.">🧍 Como personagem</button>
+            <div className="gaveta-npc-acoes">
+                <button type="button" className="btn-neon btn-blue gaveta-npc-btn gaveta-npc-principal" onClick={colocarFicha} disabled={fichaNaCena} title="A PRÓPRIA ficha do NPC entra na cena como um personagem (Combos, Reações, ataques salvos e Poder da ficha). Para agir como ele, use 🎭 Controlar.">{fichaNaCena ? '🧍 Já está lá' : '🧍 Colocar'}</button>
+                <button type="button" className="gaveta-npc-copia" onClick={colocar} title="Boneco simples (cópia) com Vida, Defesa e Poder da ficha. Só para capangas e sacos de pancada: não tem Combos nem Reações.">+ boneco</button>
+            </div>
         </div>
     );
 });

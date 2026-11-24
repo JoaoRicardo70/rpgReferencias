@@ -46,7 +46,7 @@ function configurar(ctx = {}, cenario = { ativa: 'cena_x', lista: {}, tokensOcul
 }
 
 const abrirFamilia = (nome) => fireEvent.click(screen.getByText(nome, { exact: false }).closest('button'));
-const botoesCombate = () => screen.queryAllByText('⚔️ Ao combate');
+const botoesCombate = () => screen.queryAllByText('+ boneco');
 const campoQtd = () => document.querySelector('input[type="number"]');
 const checkInvisivel = () => document.querySelector('input[type="checkbox"]');
 const salvos = () => salvarDummie.mock.calls.map(c => ({ id: c[0], dummie: c[1] }));
@@ -185,7 +185,7 @@ describe('Gaveta de Tokens - estado vazio', () => {
 describe('Gaveta de Tokens - "Ao combate"', () => {
     const colocar = (nome) => {
         abrirFamilia(nome === 'Lobo' ? FAMILIA_SEM_CLA : 'Tribo Verde');
-        fireEvent.click(screen.getByText(nome).closest('.gaveta-npc').querySelector('button'));
+        fireEvent.click(screen.getByText(nome).closest('.gaveta-npc').querySelector('.gaveta-npc-copia'));
     };
 
     it('com quantidade 1 chama salvarDummie uma vez, com cena e casa livre', () => {
