@@ -1,10 +1,11 @@
 import React from 'react';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaMestreGavetaTokens } from './MapaFerramentasMestre';
 import { useMapaForm } from './MapaFormContext';
 import useStore from '../../stores/useStore';
-import { salvarDummie, salvarCenarioCompleto } from '../../services/firebase-sync';
+import { salvarDummie, salvarCenarioCompleto, salvarCamposPersonagem } from '../../services/firebase-sync';
+import { criarPersonagemNaMesa } from '../../services/midia-sync';
 import { FAMILIA_SEM_CLA } from '../../core/gavetaNpc';
 
 // ---------------------------------------------------------------------------
@@ -19,7 +20,9 @@ vi.mock('../../services/firebase-sync', () => ({
     salvarCenarioCompleto: vi.fn(() => Promise.resolve()),
     enviarParaFeed: vi.fn(),
     salvarFichaSilencioso: vi.fn(),
+    salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)),
 }));
+vi.mock('../../services/midia-sync', () => ({ criarPersonagemNaMesa: vi.fn(() => Promise.resolve(true)) }));
 
 let storeState;
 function mockUseStore(state) {
@@ -46,7 +49,7 @@ function configurar(ctx = {}, cenario = { ativa: 'cena_x', lista: {}, tokensOcul
 }
 
 const abrirFamilia = (nome) => fireEvent.click(screen.getByText(nome, { exact: false }).closest('button'));
-const botoesCombate = () => screen.queryAllByText('+ boneco');
+const botoesCombate = () => screen.queryAllByText('+ cópia');
 const campoQtd = () => document.querySelector('input[type="number"]');
 const checkInvisivel = () => document.querySelector('input[type="checkbox"]');
 const salvos = () => salvarDummie.mock.calls.map(c => ({ id: c[0], dummie: c[1] }));
@@ -152,8 +155,8 @@ describe('Gaveta de Tokens - lista de NPCs por familia', () => {
         configurar({
             dummies: {
                 a: { nome: 'Goblin #1', fichaOrigem: 'Goblin', cenaId: 'cena_x' },
-                b: { nome: 'Goblin #2', fichaOrigem: 'Goblin', cenaId: 'cena_x' },
-                c: { nome: 'Goblin #3', fichaOrigem: 'Goblin', cenaId: 'outra' },
+                b: { nome: 'Goblin (2)', fichaOrigem: 'Goblin', cenaId: 'cena_x' },
+                c: { nome: 'Goblin (3)', fichaOrigem: 'Goblin', cenaId: 'outra' },
             },
         });
         render(<MapaMestreGavetaTokens />);
@@ -182,153 +185,48 @@ describe('Gaveta de Tokens - estado vazio', () => {
     });
 });
 
-describe('Gaveta de Tokens - "Ao combate"', () => {
-    const colocar = (nome) => {
-        abrirFamilia(nome === 'Lobo' ? FAMILIA_SEM_CLA : 'Tribo Verde');
-        fireEvent.click(screen.getByText(nome).closest('.gaveta-npc').querySelector('.gaveta-npc-copia'));
-    };
+describe('Gaveta de Tokens - Colocar e + cópia (sem dummie)', () => {
+    const linha = (nome) => { abrirFamilia(nome === 'Lobo' ? FAMILIA_SEM_CLA : 'Tribo Verde'); return screen.getByText(nome).closest('.gaveta-npc'); };
 
-    it('com quantidade 1 chama salvarDummie uma vez, com cena e casa livre', () => {
+    it('"Colocar" põe a PRÓPRIA ficha na cena (posição na cena renderizada) e não cria dummie', () => {
         configurar();
         render(<MapaMestreGavetaTokens />);
-        colocar('Goblin');
-        expect(salvarDummie).toHaveBeenCalledTimes(1);
-        const [{ id, dummie }] = salvos();
-        expect(id).toBe('dummie_1700000000000_0');
-        expect(dummie.nome).toBe('Goblin #1');
-        expect(dummie.fichaOrigem).toBe('Goblin');
-        expect(dummie.cenaId).toBe('cena_x');
-        expect(dummie.posicao).toEqual({ x: 0, y: 0 });
-        expect(dummie.visibilidadeHp).toBe('todos');
+        fireEvent.click(linha('Goblin').querySelector('.gaveta-npc-principal'));
+        expect(salvarCamposPersonagem).toHaveBeenCalledTimes(1);
+        expect(salvarCamposPersonagem.mock.calls[0][0]).toBe('Goblin');
+        expect(salvarCamposPersonagem.mock.calls[0][1]['posicoes/cena_x']).toMatchObject({ cenaId: 'cena_x' });
+        expect(salvarDummie).not.toHaveBeenCalled();
     });
-    it('quantidade 3 chama salvarDummie 3 vezes com ids, numeros e casas distintas', () => {
+    it('"+ cópia" cria uma ficha NOVA (Goblin (2)) igual à original e a posiciona, sem dummie', async () => {
+        configurar();
+        render(<MapaMestreGavetaTokens />);
+        fireEvent.click(linha('Goblin').querySelector('.gaveta-npc-copia'));
+        await waitFor(() => expect(criarPersonagemNaMesa).toHaveBeenCalledTimes(1));
+        const [nome, ficha] = criarPersonagemNaMesa.mock.calls[0];
+        expect(nome).toBe('Goblin (2)');
+        expect(ficha.isNPC).toBe(true);
+        expect(ficha.bio.afiliacao).toBe('Tribo Verde');
+        expect(Object.keys(ficha.posicoes)).toEqual(['cena_x']);
+        expect(salvarDummie).not.toHaveBeenCalled();
+    });
+    it('quantidade 3 cria Goblin (2), #3 e #4, em casas distintas', async () => {
         configurar();
         render(<MapaMestreGavetaTokens />);
         fireEvent.change(campoQtd(), { target: { value: '3' } });
-        colocar('Goblin');
-        const s = salvos();
-        expect(s).toHaveLength(3);
-        expect(s.map(x => x.id)).toEqual(['dummie_1700000000000_0', 'dummie_1700000000000_1', 'dummie_1700000000000_2']);
-        expect(s.map(x => x.dummie.nome)).toEqual(['Goblin #1', 'Goblin #2', 'Goblin #3']);
-        expect(s.map(x => x.dummie.posicao)).toEqual([{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }]);
+        fireEvent.click(linha('Goblin').querySelector('.gaveta-npc-copia'));
+        await waitFor(() => expect(criarPersonagemNaMesa).toHaveBeenCalledTimes(3));
+        expect(criarPersonagemNaMesa.mock.calls.map(c => c[0])).toEqual(['Goblin (2)', 'Goblin (3)', 'Goblin (4)']);
+        const casas = criarPersonagemNaMesa.mock.calls.map(c => JSON.stringify(c[1].posicao));
+        expect(new Set(casas).size).toBe(3);
     });
-    it.each([
-        ['15', 10],
-        ['10', 10],
-        ['0', 1],
-        ['-4', 1],
-        ['', 1],
-        ['abc', 1],
-        ['2.9', 2],
-    ])('quantidade digitada %j vira %i chamadas (limite 1..10)', (digitado, esperado) => {
+    it('se a ficha nova não puder ser criada (já existe), não posiciona nada', async () => {
         configurar();
+        criarPersonagemNaMesa.mockResolvedValueOnce(false);
+        window.alert = vi.fn();
         render(<MapaMestreGavetaTokens />);
-        fireEvent.change(campoQtd(), { target: { value: digitado } });
-        colocar('Goblin');
-        expect(salvarDummie).toHaveBeenCalledTimes(esperado);
-    });
-    it('evita casas ocupadas por entidades da cena e por personagens, ignorando outras cenas', () => {
-        configurar({
-            dummies: {
-                a: { nome: 'X #1', fichaOrigem: 'X', cenaId: 'cena_x', posicao: { x: 0, y: 0 } },
-                b: { nome: 'Y #1', fichaOrigem: 'Y', cenaId: 'outra', posicao: { x: 1, y: 0 } },
-            },
-            jogadores: { ...mesaPadrao(), Heroi: { bio: { mesa: 'jogador' }, posicoes: { cena_x: { x: 2, y: 0 } } } },
-        });
-        render(<MapaMestreGavetaTokens />);
-        fireEvent.change(campoQtd(), { target: { value: '2' } });
-        colocar('Goblin');
-        expect(salvos().map(x => x.dummie.posicao)).toEqual([{ x: 1, y: 0 }, { x: 3, y: 0 }]);
-    });
-    it('a numeracao continua do maior "#n" ja usado por aquela ficha, mesmo com buracos', () => {
-        configurar({
-            dummies: {
-                a: { nome: 'Goblin #1', fichaOrigem: 'Goblin', cenaId: 'cena_x', posicao: { x: 5, y: 5 } },
-                b: { nome: 'Goblin #7', fichaOrigem: 'Goblin', cenaId: 'outra', posicao: { x: 6, y: 6 } },
-                c: { nome: 'Orc #99', fichaOrigem: 'Orc', cenaId: 'cena_x', posicao: { x: 7, y: 7 } },
-                d: { nome: 'Goblin #50', cenaId: 'cena_x', posicao: { x: 8, y: 8 } },
-            },
-        });
-        render(<MapaMestreGavetaTokens />);
-        fireEvent.change(campoQtd(), { target: { value: '2' } });
-        colocar('Goblin');
-        expect(salvos().map(x => x.dummie.nome)).toEqual(['Goblin #8', 'Goblin #9']);
-    });
-    it('dummies com fichaOrigem mas sem "#n" no nome contam como 0 e a numeracao comeca em 1', () => {
-        configurar({ dummies: { a: { nome: 'Goblin', fichaOrigem: 'Goblin', cenaId: 'cena_x' } } });
-        render(<MapaMestreGavetaTokens />);
-        colocar('Goblin');
-        expect(salvos()[0].dummie.nome).toBe('Goblin #1');
-    });
-    it('a numeracao de um NPC nao e afetada pelos tokens de outro', () => {
-        configurar({ dummies: { c: { nome: 'Orc #4', fichaOrigem: 'Orc', cenaId: 'cena_x' } } });
-        render(<MapaMestreGavetaTokens />);
-        colocar('Goblin');
-        expect(salvos()[0].dummie.nome).toBe('Goblin #1');
-    });
-    it('"HP Oculto" grava visibilidadeHp "mestre" nos tokens', () => {
-        configurar();
-        render(<MapaMestreGavetaTokens />);
-        fireEvent.change(document.querySelector('select'), { target: { value: 'mestre' } });
-        colocar('Goblin');
-        expect(salvos()[0].dummie.visibilidadeHp).toBe('mestre');
-    });
-    it('usa a cena renderizada (cenaRenderId) no token', () => {
-        configurar({ cenaRenderId: 'taverna' });
-        render(<MapaMestreGavetaTokens />);
-        colocar('Goblin');
-        expect(salvos()[0].dummie.cenaId).toBe('taverna');
-    });
-    it('colocar um NPC nao chama salvarCenarioCompleto com o checkbox desmarcado', () => {
-        configurar();
-        render(<MapaMestreGavetaTokens />);
-        expect(checkInvisivel().checked).toBe(false);
-        colocar('Goblin');
-        expect(salvarCenarioCompleto).not.toHaveBeenCalled();
-    });
-    it('com "Token invisível" marcado chama salvarCenarioCompleto com os ids novos em tokensOcultos', () => {
-        const cenario = { ativa: 'cena_x', lista: { cena_x: { nome: 'X' } }, tokensOcultos: ['antigo'] };
-        configurar({}, cenario);
-        render(<MapaMestreGavetaTokens />);
-        fireEvent.click(checkInvisivel());
-        fireEvent.change(campoQtd(), { target: { value: '2' } });
-        colocar('Goblin');
-        expect(salvarDummie).toHaveBeenCalledTimes(2);
-        expect(salvarCenarioCompleto).toHaveBeenCalledTimes(1);
-        const enviado = salvarCenarioCompleto.mock.calls[0][0];
-        expect(enviado.tokensOcultos).toEqual(['antigo', 'dummie_1700000000000_0', 'dummie_1700000000000_1']);
-        expect(enviado.ativa).toBe('cena_x');
-        expect(enviado.lista).toEqual({ cena_x: { nome: 'X' } });
-    });
-    it('o cenario do store nao e mutado ao ocultar tokens', () => {
-        const cenario = { ativa: 'cena_x', tokensOcultos: ['antigo'] };
-        configurar({}, cenario);
-        render(<MapaMestreGavetaTokens />);
-        fireEvent.click(checkInvisivel());
-        colocar('Goblin');
-        expect(cenario.tokensOcultos).toEqual(['antigo']);
-    });
-    it('funciona com invisivel marcado quando o cenario ainda nao tem tokensOcultos', () => {
-        configurar({}, { ativa: 'cena_x' });
-        render(<MapaMestreGavetaTokens />);
-        fireEvent.click(checkInvisivel());
-        colocar('Goblin');
-        expect(salvarCenarioCompleto.mock.calls[0][0].tokensOcultos).toEqual(['dummie_1700000000000_0']);
-    });
-    it('desmarcar o checkbox de novo volta a nao ocultar', () => {
-        configurar();
-        render(<MapaMestreGavetaTokens />);
-        fireEvent.click(checkInvisivel());
-        fireEvent.click(checkInvisivel());
-        colocar('Goblin');
-        expect(salvarCenarioCompleto).not.toHaveBeenCalled();
-    });
-    it('o token nasce com Vida cheia (hpMax = hpAtual, fallback 100 x 1000 sem Vida na ficha)', () => {
-        configurar();
-        render(<MapaMestreGavetaTokens />);
-        colocar('Goblin');
-        const d = salvos()[0].dummie;
-        expect(d.hpAtual).toBe(100000);
-        expect(d.hpMax).toBe(d.hpAtual);
+        fireEvent.click(linha('Goblin').querySelector('.gaveta-npc-copia'));
+        await waitFor(() => expect(criarPersonagemNaMesa).toHaveBeenCalledTimes(1));
+        expect(salvarCamposPersonagem).not.toHaveBeenCalled();
+        await waitFor(() => expect(window.alert).toHaveBeenCalled());
     });
 });

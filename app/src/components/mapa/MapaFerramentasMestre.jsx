@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import useStore from '../../stores/useStore';
 import { useMapaForm } from './MapaFormContext';
 import { calcularDisputaPoder, getPoderDeEntidade, formatarPoderDisputa } from '../../core/disputaPoder';
@@ -6,9 +6,10 @@ import { getPontosVidaTotal } from '../../core/danoProporcional';
 import { calcularDanoRapido } from '../../core/danoRapido';
 import { iconeTipoPersonagem } from '../../core/tipoPersonagem';
 import { rotuloComPolaridade } from '../../core/polaridade';
-import { agruparNpcsPorFamilia, montarDummieDeNpc, posicoesLivres, getVidaMaxBrutaNpc, cenarioComTokensOcultos, camposPosicaoNaCena } from '../../core/gavetaNpc';
+import { agruparNpcsPorFamilia, posicoesLivres, getVidaMaxBrutaNpc, camposPosicaoNaCena, nomeDaCopia, fichaCopiaDeNpc } from '../../core/gavetaNpc';
 import DisputaPoderResumo from '../combate/DisputaPoderResumo';
 import { salvarDummie, salvarCenarioCompleto, salvarCamposPersonagem } from '../../services/firebase-sync';
+import { criarPersonagemNaMesa } from '../../services/midia-sync';
 import { ELEMENTOS_OPCOES } from '../poderes/PoderesSubComponents';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { nomeDaCenaNaRegiao, regiaoDaCena } from '../../core/cenasRegiao';
@@ -38,7 +39,6 @@ export function MapaFerramentasMestre() {
                     <div style={{ display: 'flex', gap: 5, marginBottom: abaMestre ? 15 : 0, overflowX: 'auto', paddingBottom: 5 }}>
                         <button className={`btn-neon ${abaMestre === 'cenas' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'cenas' ? '' : 'cenas')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>🎬 Cenas</button>
                         <button className={`btn-neon ${abaMestre === 'tokens' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'tokens' ? '' : 'tokens')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>📦 Gaveta</button>
-                        <button className={`btn-neon ${abaMestre === 'dummies' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'dummies' ? '' : 'dummies')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>🤖 Entidades</button>
                         <button className={`btn-neon ${abaMestre === 'fichas' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'fichas' ? '' : 'fichas')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>📖 Fichas</button>
                         <button className={`btn-neon ${abaMestre === 'zonas' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'zonas' ? '' : 'zonas')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>🌪️ Zonas</button>
                         <button className={`btn-neon ${abaMestre === 'dano' ? 'btn-gold' : ''}`} onClick={() => setAbaMestre(a => a === 'dano' ? '' : 'dano')} style={{ padding: '4px 10px', fontSize: '0.85em', margin: 0, flex: 1, whiteSpace: 'nowrap' }}>⚔️ Dano</button>
@@ -47,7 +47,6 @@ export function MapaFerramentasMestre() {
                     {abaMestre === 'cenas' && <MapaMestreGerenciadorCenas />}
                     {abaMestre === 'tokens' && <MapaMestreGavetaTokens />}
                     {abaMestre === 'fichas' && <MapaPainelFichas />}
-                    {abaMestre === 'dummies' && <MapaMestreGeradorDummies />}
                     {abaMestre === 'zonas' && <MapaMestreGerenciadorZonas />}
                     {abaMestre === 'dano' && <MapaMestreDanoRapido />}
                 </div>
@@ -166,7 +165,7 @@ const GavetaNpcLinha = React.memo(function GavetaNpcLinha({ nome, ficha, divisor
             </div>
             <div className="gaveta-npc-acoes">
                 <button type="button" className="btn-neon btn-blue gaveta-npc-btn gaveta-npc-principal" onClick={colocarFicha} disabled={fichaNaCena} title="A PRÓPRIA ficha do NPC entra na cena como um personagem (Combos, Reações, ataques salvos e Poder da ficha). Para agir como ele, use 🎭 Controlar.">{fichaNaCena ? '🧍 Já está lá' : '🧍 Colocar'}</button>
-                <button type="button" className="gaveta-npc-copia" onClick={colocar} title="Boneco simples (cópia) com Vida, Defesa e Poder da ficha. Só para capangas e sacos de pancada: não tem Combos nem Reações.">+ boneco</button>
+                <button type="button" className="gaveta-npc-copia" onClick={colocar} title="Cria uma CÓPIA da ficha deste NPC (Nome #2, #3...) e já a coloca na cena, com tudo igual ao original. A quantidade vem do campo Qtd.">+ cópia</button>
             </div>
         </div>
     );
@@ -181,9 +180,8 @@ export function MapaMestreGavetaTokens() {
     const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
     const [busca, setBusca] = useState('');
     const [quantidade, setQuantidade] = useState(1);
-    const [oculto, setOculto] = useState(false);
-    const [visibilidadeHp, setVisibilidadeHp] = useState('todos');
     const [aberta, setAberta] = useState({});
+    const copiando = useRef(false);
 
     const grupos = useMemo(() => agruparNpcsPorFamilia(jogadores, busca), [jogadores, busca]);
     const familias = useMemo(() => Object.keys(grupos).sort((a, b) => a.localeCompare(b, 'pt-BR')), [grupos]);
@@ -194,40 +192,29 @@ export function MapaMestreGavetaTokens() {
         });
         return contagem;
     }, [dummies, cenaRenderId]);
-    // Maior "#n" já usado por cada NPC (em qualquer cena): a próxima cópia continua dali, mesmo
-    // que uma do meio tenha sido removida — dois tokens nunca ficam com o mesmo nome.
-    const maiorNumero = useMemo(() => {
-        const maior = {};
-        Object.values(dummies || {}).forEach(d => {
-            if (!d || !d.fichaOrigem) return;
-            const m = String(d.nome || '').match(/#(\d+)$/);
-            const n = m ? parseInt(m[1], 10) : 0;
-            if (n > (maior[d.fichaOrigem] || 0)) maior[d.fichaOrigem] = n;
-        });
-        return maior;
-    }, [dummies]);
-
     const alternarFamilia = useCallback((familia) => setAberta(prev => ({ ...prev, [familia]: !prev[familia] })), []);
 
-    const colocarEmCombate = useCallback((nome, ficha) => {
+    // 👥 Cópias da ficha (Nome #2, #3...): cada uma é um NPC novo, igual ao original, que já entra na cena como personagem.
+    const colocarCopias = useCallback(async (nome, ficha) => {
         const qtd = Math.min(10, Math.max(1, parseInt(quantidade, 10) || 1));
-        // Casas já ocupadas nesta cena (entidades e personagens), pra não empilhar tokens.
+        const nomes = Object.keys(jogadores || {});
         const ocupadas = [
             ...Object.values(dummies || {}).filter(d => d && (d.cenaId || 'default') === cenaRenderId).map(d => d.posicao),
-            ...Object.values(jogadores || {}).map(f => f?.posicoes?.[cenaRenderId]),
+            ...Object.values(jogadores || {}).map(f => getPosicaoEntidade(f, cenaRenderId)),
         ];
         const livres = posicoesLivres(ocupadas, qtd);
-        const ultimoNumero = maiorNumero[nome] || 0;
-        const base = Date.now();
-        const ids = [];
-        for (let i = 0; i < qtd; i++) {
-            const id = `dummie_${base}_${i}`;
-            ids.push(id);
-            salvarDummie(id, montarDummieDeNpc(nome, ficha, { divisorPoderMesa, cenaId: cenaRenderId, posicao: livres[i], visibilidadeHp, numero: ultimoNumero + i + 1 }));
-        }
-        // Invisível de verdade: o Mapa esconde pelos ids em cenario.tokensOcultos.
-        if (oculto) salvarCenarioCompleto(cenarioComTokensOcultos(useStore.getState().cenario, ids));
-    }, [quantidade, dummies, jogadores, cenaRenderId, maiorNumero, divisorPoderMesa, oculto, visibilidadeHp]);
+        if (copiando.current) return;
+        copiando.current = true;
+        let falhas = 0;
+        try {
+            for (let i = 0; i < qtd; i++) {
+                const novoNome = nomeDaCopia(nome, nomes);
+                nomes.push(novoNome);
+                if (!(await criarPersonagemNaMesa(novoNome, fichaCopiaDeNpc(ficha, camposPosicaoNaCena(cenaRenderId, livres[i]))))) falhas += 1;
+            }
+        } finally { copiando.current = false; }
+        if (falhas > 0) window.alert(`${falhas} cópia(s) não puderam ser criadas (o nome já existe ou o servidor recusou).`);
+    }, [quantidade, dummies, jogadores, cenaRenderId]);
 
     // 🧍 A própria ficha do NPC entra na cena (sem cópia), na primeira casa livre.
     const colocarFicha = useCallback((nome) => {
@@ -246,20 +233,13 @@ export function MapaMestreGavetaTokens() {
     return (
         <div className="fade-in gaveta-tokens">
             <h3 className="gaveta-titulo">📦 Gaveta de Tokens</h3>
-            <p className="gaveta-explica">Seus NPCs (os do Visor de Entidades da aba Mestre) entram nesta cena como tokens de combate, com a Vida cheia, a Defesa e o Poder Calculado da ficha. Depois é só adicioná-los à ordem de turno.</p>
+            <p className="gaveta-explica">Seus NPCs (os do Visor de Entidades da aba Mestre) entram nesta cena como personagens, com a ficha completa: Combos, Reações, ataques salvos e Poder. Para vários iguais, use + cópia (Nome #2, #3...). Depois é só adicioná-los à ordem de turno.</p>
 
             <div className="gaveta-opcoes">
                 <input className="input-neon gaveta-busca" type="text" placeholder="🔍 Buscar NPC..." value={busca} onChange={e => setBusca(e.target.value)} />
                 <label className="gaveta-campo" title="Quantas cópias entram de uma vez (1 a 10)">
                     <span>Qtd.</span>
                     <input className="input-neon" type="number" min="1" max="10" value={quantidade} onChange={e => setQuantidade(e.target.value)} />
-                </label>
-                <select className="input-neon gaveta-campo-select" value={visibilidadeHp} onChange={e => setVisibilidadeHp(e.target.value)} title="Quem vê a Vida e o Poder do token">
-                    <option value="todos">HP Visível</option>
-                    <option value="mestre">HP Oculto</option>
-                </select>
-                <label className="gaveta-check">
-                    <input type="checkbox" checked={oculto} onChange={e => setOculto(e.target.checked)} /> 👻 Token invisível
                 </label>
             </div>
 
@@ -272,7 +252,7 @@ export function MapaMestreGavetaTokens() {
                         <span className="gaveta-contador">{grupos[familia].length}</span>
                     </button>
                     {(aberta[familia] || busca) && grupos[familia].map(({ nome, ficha }) => (
-                        <GavetaNpcLinha key={nome} nome={nome} ficha={ficha} divisorPoderMesa={divisorPoderMesa} naCena={naCena[nome] || 0} onColocar={colocarEmCombate} onColocarFicha={colocarFicha} fichaNaCena={fichaNaCena(ficha)} />
+                        <GavetaNpcLinha key={nome} nome={nome} ficha={ficha} divisorPoderMesa={divisorPoderMesa} naCena={naCena[nome] || 0} onColocar={colocarCopias} onColocarFicha={colocarFicha} fichaNaCena={fichaNaCena(ficha)} />
                     ))}
                 </div>
             ))}

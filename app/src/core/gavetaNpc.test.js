@@ -367,3 +367,25 @@ describe('montarDummieDeNpc', () => {
         expect(JSON.stringify(f)).toBe(copia);
     });
 });
+
+import { nomeDaCopia, fichaCopiaDeNpc } from './gavetaNpc';
+describe('cópia de ficha de NPC', () => {
+    it('nomeDaCopia pega o próximo #n livre, sem repetir', () => {
+        expect(nomeDaCopia('Rappa', ['Rappa'])).toBe('Rappa (2)');
+        expect(nomeDaCopia('Rappa', ['Rappa', 'Rappa (2)', 'Rappa (4)'])).toBe('Rappa (3)');
+        expect(nomeDaCopia('Rappa (2)', ['Rappa', 'Rappa (2)'])).toBe('Rappa (3)');
+        expect(nomeDaCopia('Rappa _2', ['Rappa', 'Rappa _2'])).toBe('Rappa (2)');
+    });
+    it('fichaCopiaDeNpc já nasce com a posição na cena', () => {
+        const c = fichaCopiaDeNpc({}, { 'posicoes/c1': { x: 1, y: 2, z: 0, cenaId: 'c1' }, posicao: { x: 1, y: 2 } });
+        expect(c.posicoes.c1.x).toBe(1); expect(c.posicao.y).toBe(2);
+    });
+    it('fichaCopiaDeNpc é independente da original, sem posição e marcada como NPC', () => {
+        const o = { bio: { x: 1 }, poderes: [{ nome: 'a' }], posicoes: { c: { x: 1 } }, posicao: { x: 1 } };
+        const c = fichaCopiaDeNpc(o);
+        expect(c.posicoes).toBeUndefined(); expect(c.posicao).toBeUndefined(); expect(c.isNPC).toBe(true);
+        c.poderes[0].nome = 'b';
+        expect(o.poderes[0].nome).toBe('a');
+        expect(o.posicoes).toBeDefined();
+    });
+});

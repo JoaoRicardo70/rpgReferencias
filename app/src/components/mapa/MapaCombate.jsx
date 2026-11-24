@@ -24,7 +24,8 @@ import EstagioControle from '../poderes/EstagioControle';
 import { temEstagios } from '../../core/estagios';
 import { useArsenalForm } from '../arsenal/ArsenalFormContext';
 import { useElementosForm, emogis as ELEMENTOS_EMOJIS, cores as ELEMENTOS_CORES } from '../arsenal/ElementosFormContext';
-import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto } from '../../services/firebase-sync';
+import { salvarDummie, salvarFichaSilencioso, salvarCenarioCompleto, salvarCamposPersonagem } from '../../services/firebase-sync';
+import { fatorDoAjuste, entropiasComAjuste, fatorDaPosicao, posicaoDoFator, rotuloDoFator } from '../../core/ajustePoder';
 import { getClassIconById } from '../../core/classIcons';
 import { getAcoesExibicao, criarAcoesIniciais, restaurarAcoes, ACOES_MAXIMO } from '../../core/acoes';
 import { calcularPoderAtual, calcularFatorMultiplicadorForca } from '../../core/poder';
@@ -38,7 +39,7 @@ import BarrasVida from '../shared/BarrasVida';
 import { formatarPoderCosmico } from '../../core/utils';
 import { categoriaDoPoderFicha } from '../../core/categoriasPoder';
 import { idAlvoPersonagem, motivoBloqueioAlvo, defesaEfetivaDoDummie } from '../../core/alvoCombate';
-import { getTipoPersonagem, rotuloTipoPersonagem } from '../../core/tipoPersonagem';
+import { ehNpc, getTipoPersonagem, rotuloTipoPersonagem } from '../../core/tipoPersonagem';
 import { NIVEIS_ROLAGEM, indiceFaceDoDado, textoDaFace } from '../../core/rolagemDado';
 import useBotaoArrastavel from '../../hooks/useBotaoArrastavel';
 import CombateEstadoBarra from './CombateEstadoBarra';
@@ -1414,6 +1415,41 @@ function MoldPoderEditor({ dummie, id }) {
     );
 }
 
+// 🎚️ Barra de Ajuste de Poder (só Mestre, NPCs que são personagens do Mapa): o ajuste é uma Entropia da Entidade com multiplicador de Poder
+// (core/ajustePoder.js), então aparece na aba Entropia da ficha e entra no Poder Calculado como qualquer outro buff. ×1 remove a Entropia.
+function MoldPoderBarra({ nome, ficha }) {
+    const fatorSalvo = fatorDoAjuste(ficha);
+    const [pos, setPos] = useState(() => posicaoDoFator(fatorSalvo));
+    const [arrastando, setArrastando] = useState(false);
+    const posRef = useRef(pos);
+    const pendente = useRef(false);
+    // Enquanto o servidor não devolve o valor gravado, a barra fica onde o Mestre soltou (sem pulo pra trás).
+    useEffect(() => { pendente.current = false; if (!arrastando) setPos(posicaoDoFator(fatorSalvo)); }, [fatorSalvo]);
+    const fator = (arrastando || pendente.current) ? fatorDaPosicao(pos) : fatorSalvo;
+    const gravar = (f, forcar = false) => {
+        if (!arrastando && !forcar) return;
+        setArrastando(false); pendente.current = true;
+        Promise.resolve(salvarCamposPersonagem(nome, { entropias: entropiasComAjuste(ficha, f) })).then(ok => {
+            if (ok === false) { pendente.current = false; setPos(posicaoDoFator(fatorSalvo)); window.alert('Não foi possível gravar o Ajuste de Poder (o servidor recusou).'); }
+        });
+    };
+    return (
+        <div className="moldura-poder-barra">
+            <div className="moldura-poder-barra-topo">
+                <span title="Entropia da Entidade: multiplicador de Poder aplicado pelo Mestre">🎚️ Ajuste de Poder</span>
+                <strong className={fator === 1 ? '' : 'ajustado'}>{rotuloDoFator(fator)}</strong>
+                {fatorSalvo !== 1 && <button type="button" className="moldura-poder-editar" onClick={() => { setPos(posicaoDoFator(1)); posRef.current = posicaoDoFator(1); gravar(1, true); }} title="Volta ao Poder da ficha (remove a Entropia)">↺ ×1</button>}
+            </div>
+            <input type="range" min="0" max="100" step="0.5" value={pos} aria-label="Ajuste de Poder do NPC"
+                onChange={e => { const v = Number(e.target.value); posRef.current = v; setArrastando(true); setPos(v); }}
+                onPointerUp={() => gravar(fatorDaPosicao(posRef.current))}
+                onKeyUp={() => gravar(fatorDaPosicao(posRef.current))}
+                onBlur={() => gravar(fatorDaPosicao(posRef.current))} />
+            <div className="moldura-poder-barra-escala"><span>×0,1</span><span>×1</span><span>×10</span><span>×100</span></div>
+        </div>
+    );
+}
+
 // 🧭 Situação extra que só o Mestre (e o dono) vê: Fadiga, Supressão e Ocultação do Poder.
 function MoldSituacao({ ficha, supressao }) {
     const fadiga = calcularFadigaAtual(ficha);
@@ -1720,6 +1756,7 @@ export function MapaHologramaAcao() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(0,0,0,0.7)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
                                 <MoldPoderLinha exato={verTudo} poderExato={poderAtualBase} estimativa={estimativaPoderBase} />
                                 {isMestre && ehDummieBase && inspecionando && <MoldPoderEditor key={idBase} dummie={fichaBase} id={idBase} />}
+                                {isMestre && !ehDummieBase && inspecionando && ehNpc(fichaBase) && <MoldPoderBarra key={nomeBase} nome={nomeBase} ficha={fichaBase} />}
                                 {verTudo && poderCalculadoBase && <MoldSituacao ficha={fichaBase} supressao={poderCalculadoBase.supressao} />}
                                 <div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', color: '#ff4d4d', fontWeight: 'bold' }}><span style={{ fontSize: '0.8em', alignSelf: 'center' }}>HP</span><span>{fmt(vidaInfo.atual / FATOR_EXIBICAO_VITAIS)}</span></div>

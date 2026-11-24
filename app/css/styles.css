@@ -3948,3 +3948,10 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .gaveta-npc-acoes .gaveta-npc-principal { flex: 1; margin: 0; }
 .gaveta-npc-copia { background: transparent; border: 1px solid rgba(255,255,255,0.2); color: #9aa; font-size: 0.75em; padding: 4px 8px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
 .gaveta-npc-copia:hover { color: #fff; border-color: rgba(255,255,255,0.5); }
+
+.moldura-poder-barra { display: flex; flex-direction: column; gap: 2px; margin: 2px 0 6px; }
+.moldura-poder-barra-topo { display: flex; align-items: center; gap: 8px; font-size: 0.78em; color: #ffcc00; }
+.moldura-poder-barra-topo strong { margin-left: auto; color: #aaa; }
+.moldura-poder-barra-topo strong.ajustado { color: #00ff88; }
+.moldura-poder-barra input[type=range] { width: 100%; accent-color: #ffcc00; margin: 0; }
+.moldura-poder-barra-escala { display: flex; justify-content: space-between; font-size: 0.65em; color: #667; }

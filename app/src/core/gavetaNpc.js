@@ -118,6 +118,31 @@ export function camposPosicaoNaCena(cenaId, pos) {
     return { [`posicoes/${cena}`]: p, posicao: { ...p } };
 }
 
+// 👥 CÓPIA DE FICHA — vários NPCs iguais na cena (4 capangas) sem token-boneco: cada cópia é uma ficha de NPC nova ("Rappa (2)"),
+// igual à original (Poderes, Combos, Reações, ataques salvos). O nome NÃO usa "#": a chave do Firebase troca "#" por "_" (sanitizarNome)
+// e a cópia colidiria com ela mesma.
+const chaveDoNome = (n) => String(n).replace(/[.#$[\]/]/g, '_').trim();
+export function nomeDaCopia(nome, nomesExistentes = []) {
+    const usados = new Set((nomesExistentes || []).map(chaveDoNome));
+    const base = String(nome || '').replace(/\s*(\(\d+\)|[#_]\d+)$/, '').trim() || 'NPC';
+    for (let n = 2; n < 1000; n++) {
+        const candidato = `${base} (${n})`;
+        if (!usados.has(chaveDoNome(candidato))) return candidato;
+    }
+    return `${base} (${Date.now()})`;
+}
+// A cópia já nasce com a posição na cena (campos de camposPosicaoNaCena), sem esperar uma segunda gravação.
+export function fichaCopiaDeNpc(ficha, camposPosicao = null) {
+    const copia = JSON.parse(JSON.stringify(ficha || {}));
+    delete copia.posicoes; delete copia.posicao;
+    copia.isNPC = true;
+    Object.keys(camposPosicao || {}).forEach((caminho) => {
+        if (caminho.startsWith('posicoes/')) { copia.posicoes = { ...(copia.posicoes || {}), [caminho.slice(9)]: camposPosicao[caminho] }; }
+        else copia[caminho] = camposPosicao[caminho];
+    });
+    return copia;
+}
+
 // 🔗 PODER VIVO — o token de um NPC da Gaveta (fichaOrigem) acompanha o Poder Atual da ficha do NPC: o Mestre muda a
 // ficha (liga uma Forma, corrige um Multiplicador...) e o token do Mapa já segue, sem injetar de novo. Quem digitou o
 // Poder à mão no token (poderDesvinculado) fica como está até pedir "auto" de novo.
