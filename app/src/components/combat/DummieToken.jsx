@@ -15,7 +15,8 @@ const formatNum = (n) => {
     return String(Math.floor(n));
 };
 
-export default function DummieToken({ className, id, dummie }) {
+// `imagemCss` (opcional): imagem do NPC já resolvida e segura pro CSS (url(...)), vinda da ficha de origem pelo Mapa; vira o fundo do token.
+export default function DummieToken({ className, id, dummie, imagemCss }) {
     const isMestre = useStore(s => s.isMestre);
     const alvoSelecionado = useStore(s => s.alvoSelecionado);
     const setAlvoSelecionado = useStore(s => s.setAlvoSelecionado);
@@ -113,6 +114,8 @@ export default function DummieToken({ className, id, dummie }) {
             style={{
                 position: 'absolute', top: 2, left: 2, right: 2, bottom: 2,
                 backgroundColor: isDead ? 'rgba(50, 0, 0, 0.95)' : 'rgba(20, 20, 20, 0.95)',
+                // 🖼️ Miniatura do NPC no lugar do fundo liso (véu escuro por cima pro nome, CA e Poder continuarem legíveis).
+                ...(imagemCss ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.25), rgba(0,0,0,0.7)), ${imagemCss}`, backgroundSize: 'cover', backgroundPosition: 'top center' } : {}),
                 border: isTarget ? '3px solid #ff003c' : '2px solid #ffcc00',
                 borderRadius: '8px', display: 'flex', flexDirection: 'column', 
                 alignItems: 'center', justifyContent: 'center',

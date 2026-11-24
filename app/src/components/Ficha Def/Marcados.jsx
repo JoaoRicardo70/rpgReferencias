@@ -7,7 +7,9 @@ import { contextoDoViewer, racaPrincipalVisivel } from '../../core/racasVisibili
 import { limparVisibilidadeOrfa } from '../../services/composicaoRacial';
 import { getRacas, racaIdAposEdicaoDeTexto, composicaoComPrincipal } from '../../core/racas';
 import { mesclarOverridesCompendio } from '../../core/compendioOverrides';
+import { recorteDaFotoPelaMoldura } from '../../core/avatar';
 import { useImagemQueCarrega } from '../../hooks/useImagemQueCarrega';
+import useMolduraTemJanela from '../../hooks/useMolduraTemJanela';
 import ClasseMecanicaPainel from './ClasseMecanicaPainel';
 import { salvarFichaSilencioso, salvarFirebaseImediato, salvarDivisorPoderMesa, salvarFichaAlvoSilencioso, salvarFichaAlvoImediato, enviarParaFeed } from '../../services/firebase-sync';
 import { dispararEventoEmPersonagem } from '../../services/gatilhosEventos';
@@ -911,6 +913,7 @@ export default function MarcadosPanel() {
     const [localCorFundoTint, setLocalCorFundoTint] = useState('#ffffff'); 
     const [localIconeOffsetY, setLocalIconeOffsetY] = useState(-45);
     const [localIconeTamanho, setLocalIconeTamanho] = useState(70);
+    const [localFotoNaMoldura, setLocalFotoNaMoldura] = useState(true);
     
     // 🔥 NOVOS REGULADORES DE PINTURA 🔥
     const [localMolduraOpColor, setLocalMolduraOpColor] = useState(1);
@@ -944,6 +947,7 @@ export default function MarcadosPanel() {
             setLocalCorFundoTint(minhaFicha.estetica?.corFundoTint || '#ffffff');
             setLocalIconeOffsetY(minhaFicha.estetica?.iconeOffsetY ?? -45);
             setLocalIconeTamanho(minhaFicha.estetica?.iconeTamanho ?? 70);
+            setLocalFotoNaMoldura(minhaFicha.estetica?.fotoNaMoldura !== false);
             setLocalMolduraOpColor(minhaFicha.estetica?.molduraOpColor ?? 1);
             setLocalMolduraOpMultiply(minhaFicha.estetica?.molduraOpMultiply ?? 0.85);
             setLocalMolduraOpOverlay(minhaFicha.estetica?.molduraOpOverlay ?? 0.6);
@@ -1101,6 +1105,8 @@ export default function MarcadosPanel() {
     const classeInfo = getClasseInfo(minhaFicha, classesGlobais);
     const candidatasIconeClasse = [localIconeClasse, classeInfo?.iconeUrl].filter(u => typeof u === 'string' && u.trim() !== '');
     const iconeFinal = useImagemQueCarrega(candidatasIconeClasse);
+    // A foto só é recortada pela janela da moldura se a moldura TEM janela transparente (moldura opaca/JPG esconderia a foto inteira).
+    const molduraTemJanelaDaFoto = useMolduraTemJanela(localModoMoldura === 'normal' ? localMolduraAvatar : '');
 
     if (!minhaFicha) return <div style={{ color: '#000', padding: 20, fontFamily: 'cursive' }}>Abrindo a Ficha...</div>;
 
@@ -1214,6 +1220,7 @@ export default function MarcadosPanel() {
         else if (key === 'corFundoTint') setLocalCorFundoTint(val);
         else if (key === 'iconeOffsetY') setLocalIconeOffsetY(val);
         else if (key === 'iconeTamanho') setLocalIconeTamanho(val);
+        else if (key === 'fotoNaMoldura') setLocalFotoNaMoldura(val);
         else if (key === 'molduraOpColor') setLocalMolduraOpColor(val);
         else if (key === 'molduraOpMultiply') setLocalMolduraOpMultiply(val);
         else if (key === 'molduraOpOverlay') setLocalMolduraOpOverlay(val);
@@ -1581,6 +1588,12 @@ export default function MarcadosPanel() {
                                 <option value="multiply">Fundo Branco (Magia Multiply)</option>
                                 <option value="normal">Nenhum / Imagem PNG Transparente</option>
                             </select>
+                            {localModoMoldura === 'normal' && (
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85em', color: '#555', marginBottom: '10px', fontWeight: 'bold' }} title="A foto só aparece pela janela transparente da moldura e nunca passa por cima da arte dela. Desmarque se a sua moldura não tem janela transparente.">
+                                    <input type="checkbox" checked={localFotoNaMoldura} onChange={(e) => handleStyleChange('fotoNaMoldura', e.target.checked)} />
+                                    <span>🖼️ Foto dentro da moldura (recortar pela janela)</span>
+                                </label>
+                            )}
                             
                             {/* 🔥 NOVA PALETA PREMIUM NAS BORDAS 🔥 */}
                             <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9em', color: '#555', marginTop: '10px', fontWeight: 'bold' }}>
@@ -1963,7 +1976,7 @@ export default function MarcadosPanel() {
                                     <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', color: '#fff', fontWeight: 'bold', zIndex: 20 }}>✍️ Forjando...</div>
                                 ) : minhaFicha.avatar?.base ? (
                                     <>
-                                        <img src={minhaFicha.avatar.base} alt="Avatar" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center', zIndex: 1, borderRadius: '8px' }} />
+                                        <img src={minhaFicha.avatar.base} alt="Avatar" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center', zIndex: 1, borderRadius: '8px', ...recorteDaFotoPelaMoldura(localMolduraAvatar, localModoMoldura, localFotoNaMoldura && molduraTemJanelaDaFoto !== false) }} />
                                         
                                         {localMolduraAvatar && (
                                             <div style={{ position: 'absolute', top: '-3.5%', left: '-3%', width: '106%', height: '107%', zIndex: 2, pointerEvents: 'none', mixBlendMode: localModoMoldura, isolation: 'isolate' }}>

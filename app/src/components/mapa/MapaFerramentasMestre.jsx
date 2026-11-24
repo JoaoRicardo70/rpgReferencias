@@ -14,7 +14,7 @@ import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import { nomeDaCenaNaRegiao, regiaoDaCena } from '../../core/cenasRegiao';
 import CenaAcesso from './CenaAcesso';
 import { getPosicaoEntidade } from '../../core/alcance';
-import { MapaPainelFichas, MapaLivroHost } from './MapaAcessoFichas';
+import { MapaPainelFichas } from './MapaAcessoFichas';
 
 const FALLBACK = <div style={{ color: '#888', padding: 10 }}>Mapa provider não encontrado</div>;
 
@@ -29,7 +29,6 @@ export function MapaFerramentasMestre() {
 
     return (
         <div className="fade-in" style={{ marginBottom: 15, background: 'rgba(0,0,0,0.4)', borderRadius: 5, border: '1px solid #333', overflow: 'hidden' }}>
-            <MapaLivroHost />
             <MapaMestreRPToggle />
             
             {(!isModoRP || mestreVendoRP) && (

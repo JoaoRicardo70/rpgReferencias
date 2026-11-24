@@ -198,7 +198,7 @@ const useStore = create(
         // Importador de IA do Livro dos Poderes (core/transcricaoIA.js > chaveImportadorIA): texto colado, prévia e partes que falharam; só em memória.
         importadoresIA: {},
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
-        dummies: {}, alvoSelecionado: null, atorCombate: null, livroEntidadeMapa: null,
+        dummies: {}, alvoSelecionado: null, atorCombate: null, livroEntidadeMapa: null, livroMapaOpcoes: null,
         // ⏱️ Avisos curtos (toasts) sobre Ações/Reações: [{ id, texto, tipo: 'info' | 'alerta' }]; somem sozinhos (components/combate/AvisosAcao.jsx).
         avisosAcao: [],
         // 👁️ Personagem inspecionado na moldura do Mapa: { tipo: 'jogador' | 'dummie', id } ou null.
@@ -295,7 +295,14 @@ const useStore = create(
         // 🎭 Ator de combate do Mestre (core/atorCombate.js): { nome, dummieId? } do NPC em que ele está atuando, ou null.
         setAtorCombate: (ator) => set((state) => { state.atorCombate = ator || null; }),
         // 📖 Ficha (Livro da entidade) aberta pelo Mapa, pelo acesso rápido do Mestre: nome da ficha ou null.
-        setLivroEntidadeMapa: (nome) => set((state) => { state.livroEntidadeMapa = nome || null; }),
+        setLivroEntidadeMapa: (nome) => set((state) => { state.livroEntidadeMapa = nome || null; state.livroMapaOpcoes = null; state.fichaPaginaPedida = null; }),
+        // Abre a ficha por cima do Mapa já na aba ('ficha' | 'grimorio') e, na Ficha, na página pedida (1 Ficha, 5 Relicário, 7 Ajustes, 8 Combate).
+        abrirLivroNoMapa: (nome, { aba = 'ficha', pagina = null } = {}) => set((state) => {
+            state.livroEntidadeMapa = nome || null;
+            state.livroMapaOpcoes = nome ? { aba, pagina } : null;
+            // Sem página pedida (ou no Grimório) zera o pedido: uma página velha nunca fica esperando o próximo MarcadosPanel.
+            state.fichaPaginaPedida = nome && aba === 'ficha' && pagina ? { pagina, capitulo: null } : null;
+        }),
         setCenario: (dados) => set((state) => { state.cenario = dados; }),
 
         // ⏭️ CONTROLE DE TURNO FORA DO MAPA (aba Mestre): o MapaFormProvider (sempre montado, ver

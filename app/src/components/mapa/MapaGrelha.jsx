@@ -179,7 +179,7 @@ export function MapaVisao() {
                         
                         {cellDummies.map(([id, d]) => (
                             <div key={id} style={{ opacity: cenario?.tokensOcultos?.includes(id) ? 0.4 : 1 }}>
-                                <DummieToken id={id} dummie={d} />
+                                <DummieToken id={id} dummie={d} imagemCss={urlSeguraParaCss(getAvatarInfo(d).img) || undefined} />
                             </div>
                         ))}
                         

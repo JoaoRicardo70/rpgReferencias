@@ -10,6 +10,7 @@ import { PoderesFormProvider } from '../poderes/PoderesFormContext';
 import { ArsenalFormProvider } from '../arsenal/ArsenalFormContext';
 import { ElementosFormProvider } from '../arsenal/ElementosFormContext';
 import { MapaSeletorAtor, MapaModulosDoAtor } from './MapaAtorCombate';
+import { MapaBarraRapida, MapaLivroHost } from './MapaAcessoFichas';
 
 export default function MapaPanel({ className, children }) {
     const hasChildren = React.Children.count(children) > 0;
@@ -37,6 +38,9 @@ export default function MapaPanel({ className, children }) {
                             {/* MÓDULO DO MESTRE (ZONAS, CENAS, DUMMIES) */}
                             <MapaFerramentasMestre />
                             <MapaSeletorAtor />
+                            <MapaBarraRapida />
+                            {/* 📖 Ficha aberta por cima do Mapa (Mestre: de qualquer um; jogador: a própria) */}
+                            <MapaLivroHost />
                             
                             {/* MÓDULO VISUAL E COMUNICAÇÃO (GRELHA, 3D, VOZ E IA) */}
                             <MapaAreaCentral />

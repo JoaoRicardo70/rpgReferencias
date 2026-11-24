@@ -12,14 +12,44 @@ const LivroEntidade = lazyComRetry(() => import('../mestre/LivroEntidade'));
 // "Fichas" só avisam o store (livroEntidadeMapa) e ele aparece aqui, num portal por cima do Mapa.
 export function MapaLivroHost() {
     const isMestre = useStore(s => s.isMestre);
+    const meuNome = useStore(s => s.meuNome);
     const nome = useStore(s => s.livroEntidadeMapa);
+    const opcoes = useStore(s => s.livroMapaOpcoes);
     const setLivro = useStore(s => s.setLivroEntidadeMapa);
-    const fechar = useCallback(() => setLivro(null), [setLivro]);
-    if (!isMestre || !nome) return null;
+    const limparPagina = useStore(s => s.limparFichaPaginaPedida);
+    const fechar = useCallback(() => { setLivro(null); if (limparPagina) limparPagina(); }, [setLivro, limparPagina]);
+    // O Mestre abre a ficha de qualquer um; o jogador só a própria (acesso rápido durante o combate).
+    if (!nome || !(isMestre || nome === meuNome)) return null;
     return (
         <Suspense fallback={null}>
-            <LivroEntidade key={nome} nome={nome} aoFechar={fechar} />
+            <LivroEntidade key={`${nome}-${opcoes ? `${opcoes.aba}-${opcoes.pagina || 0}` : ''}`} nome={nome} aoFechar={fechar} abaInicial={opcoes ? opcoes.aba : undefined} />
         </Suspense>
+    );
+}
+
+// ⚡ Barra de acesso rápido do Mapa (todo jogador, sobretudo em combate): abre a PRÓPRIA ficha por cima do Mapa, já na página certa,
+// sem sair da tela do Mapa. Fecha no ❌ do livro e volta direto ao combate.
+export const ATALHOS_FICHA_NO_MAPA = [
+    { id: 'ficha', icone: '📕', rotulo: 'Ficha', dica: 'Ficha Definitiva (Poder, restringir Poder, status)', aba: 'ficha', pagina: 1 },
+    { id: 'combate', icone: '⚔️', rotulo: 'Combate', dica: 'Página de Combate da Ficha', aba: 'ficha', pagina: 8 },
+    { id: 'relicario', icone: '🎒', rotulo: 'Inventário', dica: 'Relicário (itens e equipamentos)', aba: 'ficha', pagina: 5 },
+    { id: 'ajustes', icone: '⚙️', rotulo: 'Ajustes', dica: 'Atributos e multiplicadores de Poder', aba: 'ficha', pagina: 7 },
+    { id: 'grimorio', icone: '📖', rotulo: 'Grimório', dica: 'Habilidades, Formas e Poderes', aba: 'grimorio', pagina: null },
+];
+
+export function MapaBarraRapida() {
+    const ctx = useMapaForm();
+    const meuNome = useStore(s => s.meuNome);
+    const abrir = useStore(s => s.abrirLivroNoMapa);
+    const emCombate = !!(ctx && Array.isArray(ctx.ordemIniciativa) && ctx.ordemIniciativa.length > 0);
+    if (!ctx || !meuNome || !ctx.minhaFicha) return null;
+    return (
+        <div className={`barra-rapida-mapa${emCombate ? ' em-combate' : ''}`} role="toolbar" aria-label="Acesso rápido à sua ficha">
+            <span className="barra-rapida-titulo">{emCombate ? '⚔️ Combate' : '⚡ Acesso rápido'}</span>
+            {ATALHOS_FICHA_NO_MAPA.map(a => (
+                <button key={a.id} type="button" className="btn-neon barra-rapida-btn" title={a.dica} onClick={() => abrir(meuNome, { aba: a.aba, pagina: a.pagina })}>{a.icone} {a.rotulo}</button>
+            ))}
+        </div>
     );
 }
 

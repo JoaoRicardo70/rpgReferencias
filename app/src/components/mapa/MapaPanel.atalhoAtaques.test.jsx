@@ -17,6 +17,7 @@ vi.mock('./MapaCombate', () => {
 vi.mock('./MapaFerramentasMestre', () => ({ MapaFerramentasMestre: () => null }));
 vi.mock('./MapaGrelha', () => ({ MapaAreaCentral: () => null }));
 vi.mock('./MapaAtorCombate', () => ({ MapaSeletorAtor: () => null, MapaModulosDoAtor: ({ children }) => <>{children}</> }));
+vi.mock('./MapaAcessoFichas', () => ({ MapaBarraRapida: () => null, MapaLivroHost: () => null }));
 vi.mock('../combate/AtaqueFormContext', () => ({ AtaqueFormProvider: ({ children }) => <div data-testid="prov-ataque">{children}</div> }));
 vi.mock('../poderes/PoderesFormContext', () => ({ PoderesFormProvider: ({ children }) => <div data-testid="prov-poderes">{children}</div> }));
 vi.mock('../arsenal/ArsenalFormContext', () => ({ ArsenalFormProvider: ({ children }) => <>{children}</> }));

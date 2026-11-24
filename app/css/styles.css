@@ -3928,3 +3928,14 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .entropia-selo-desc { opacity: 0.85; font-style: italic; }
 .entropia-selo-efeitos { opacity: 0.7; font-size: 0.9em; }
 .entropia-selo-compacto { margin-left: 6px; padding: 2px 8px; font-size: 0.6em; border-radius: 4px; border: 1px solid #aa00ff; background: rgba(120, 0, 200, 0.55); color: #fff; vertical-align: middle; }
+
+/* ✏️ Editor rápido do Poder de um token no resumo do Mapa (components/mapa/MapaCombate.jsx > MoldPoderEditor) */
+.moldura-poder-editor { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 4px 0 6px; }
+.moldura-poder-editor .input-neon { flex: 1; min-width: 130px; margin: 0; padding: 4px 8px; font-size: 0.85em; }
+.moldura-poder-editor .btn-neon { margin: 0; padding: 4px 10px; font-size: 0.8em; }
+
+/* ⚡ Barra de acesso rápido do Mapa (components/mapa/MapaAcessoFichas.jsx > MapaBarraRapida) */
+.barra-rapida-mapa { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 0 0 10px; padding: 6px 10px; border: 1px solid rgba(0, 255, 204, 0.35); border-radius: 8px; background: rgba(0, 0, 0, 0.35); }
+.barra-rapida-mapa.em-combate { border-color: #ff003c; box-shadow: 0 0 10px rgba(255, 0, 60, 0.35); }
+.barra-rapida-titulo { font-weight: bold; font-size: 0.85em; margin-right: 4px; }
+.barra-rapida-btn { margin: 0; padding: 4px 12px; font-size: 0.85em; }

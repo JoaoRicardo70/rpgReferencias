@@ -49,6 +49,39 @@ export function fichaVisualDoToken(entidade, personagens) {
     return origem && typeof origem === 'object' ? origem : entidade;
 }
 
+// A moldura tem uma JANELA transparente no meio? Recebe os pixels RGBA (como getImageData) de uma miniatura da moldura e olha o miolo
+// (o terço central): com pelo menos 20% de pixels bem transparentes, tem janela. Sem janela (PNG opaco / JPG) o recorte esconderia a foto.
+export function molduraTemJanela(rgba, largura, altura) {
+    if (!rgba || !(largura > 0) || !(altura > 0) || rgba.length < largura * altura * 4) return null;
+    const x0 = Math.floor(largura / 3); const x1 = Math.ceil((largura * 2) / 3);
+    const y0 = Math.floor(altura / 3); const y1 = Math.ceil((altura * 2) / 3);
+    let total = 0; let transparentes = 0;
+    for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+            total += 1;
+            if (rgba[(y * largura + x) * 4 + 3] < 128) transparentes += 1;
+        }
+    }
+    return total > 0 && transparentes / total >= 0.2;
+}
+
+// Recorte da foto pela JANELA da moldura: a foto só aparece onde a moldura (PNG transparente) é transparente, então nunca passa por
+// cima da arte da moldura. Vale só no modo "normal" (PNG transparente): moldura de fundo preto/branco (screen/multiply) não tem janela
+// transparente e esconderia a foto inteira. A moldura é desenhada num quadro 106% x 107% centrado na foto (ver Marcados.jsx).
+// Devolve o estilo (inline, valor dinâmico) a somar ao da foto, ou {} quando não se aplica.
+export function recorteDaFotoPelaMoldura(urlMoldura, modo, ativo = true) {
+    if (!ativo || modo !== 'normal' || !temTexto(urlMoldura)) return {};
+    const url = `url("${String(urlMoldura).replace(/["\\\n\r]/g, '')}")`;
+    const imagens = `linear-gradient(#000, #000), ${url}`;
+    return {
+        WebkitMaskImage: imagens, maskImage: imagens,
+        WebkitMaskSize: '100% 100%, 106% 107%', maskSize: '100% 100%, 106% 107%',
+        WebkitMaskPosition: '0 0, center', maskPosition: '0 0, center',
+        WebkitMaskRepeat: 'no-repeat', maskRepeat: 'no-repeat',
+        WebkitMaskComposite: 'xor', maskComposite: 'exclude',
+    };
+}
+
 // Imagem do personagem: a base da ficha, ou a do último poder/ser selado ativo que tenha imagem própria
 // (a do poder em si ou a da Forma/Configuração ativa dele; a Forma vence a imagem do poder).
 export function infoAvatarDaFicha(ficha) {

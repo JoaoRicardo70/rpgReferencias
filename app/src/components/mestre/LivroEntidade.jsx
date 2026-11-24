@@ -19,7 +19,7 @@ import EntropiaPainel from './EntropiaPainel';
 //
 // Vai num portal em document.body: o painel da aba usa backdrop-filter, que prende um
 // position: fixed dentro dele — sem o portal o livro abria no TOPO da aba, longe de quem clicou.
-export default function LivroEntidade({ nome, pedidoFocoId, aoFechar }) {
+export default function LivroEntidade({ nome, pedidoFocoId, aoFechar, abaInicial }) {
     const pendentes = useStore(s => s.sextaFeiraPendentes);
     const isMestre = useStore(s => s.isMestre);
 
@@ -36,7 +36,7 @@ export default function LivroEntidade({ nome, pedidoFocoId, aoFechar }) {
         return { qtdPedidos: qtd, focoEhDele: foco };
     }, [pendentes, nome, pedidoFocoId]);
 
-    const [aba, setAba] = useState(() => (focoEhDele ? 'grimorio' : 'ficha'));
+    const [aba, setAba] = useState(() => (focoEhDele ? 'grimorio' : (abaInicial === 'grimorio' ? 'grimorio' : 'ficha')));
     // Outro "Ver a Habilidade" com o livro já aberto: vai pro Grimório.
     useEffect(() => { if (focoEhDele) setAba('grimorio'); }, [pedidoFocoId, focoEhDele]);
 

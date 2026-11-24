@@ -33,3 +33,52 @@ describe('fichaVisualDoToken — imagem de token de NPC da Gaveta', () => {
         expect(fichaVisualDoToken(undefined, {})).toBeUndefined();
     });
 });
+
+import { recorteDaFotoPelaMoldura } from './avatar';
+
+describe('recorteDaFotoPelaMoldura — foto só pela janela da moldura', () => {
+    it('modo PNG transparente (normal) recorta pela moldura, com o quadro 106% x 107% centrado', () => {
+        const e = recorteDaFotoPelaMoldura('https://x/moldura.png', 'normal', true);
+        expect(e.maskImage).toContain('url("https://x/moldura.png")');
+        expect(e.maskComposite).toBe('exclude');
+        expect(e.WebkitMaskComposite).toBe('xor');
+        expect(e.maskSize).toBe('100% 100%, 106% 107%');
+        expect(e.maskPosition).toBe('0 0, center');
+    });
+    it('não se aplica em screen/multiply, sem moldura ou desligado', () => {
+        expect(recorteDaFotoPelaMoldura('u.png', 'screen', true)).toEqual({});
+        expect(recorteDaFotoPelaMoldura('u.png', 'multiply', true)).toEqual({});
+        expect(recorteDaFotoPelaMoldura('', 'normal', true)).toEqual({});
+        expect(recorteDaFotoPelaMoldura('   ', 'normal', true)).toEqual({});
+        expect(recorteDaFotoPelaMoldura(undefined, 'normal', true)).toEqual({});
+        expect(recorteDaFotoPelaMoldura('u.png', 'normal', false)).toEqual({});
+    });
+    it('ligado por padrão e remove aspas/quebras da URL (não escapa do url())', () => {
+        expect(recorteDaFotoPelaMoldura('u.png', 'normal').maskImage).toContain('u.png');
+        const e = recorteDaFotoPelaMoldura('a"b\nc\d', 'normal', true);
+        expect(e.maskImage).toContain('url("abcd")');
+    });
+});
+
+import { molduraTemJanela } from './avatar';
+
+const pixels = (w, h, alphaDe) => { const d = new Uint8ClampedArray(w * h * 4); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) d[(y * w + x) * 4 + 3] = alphaDe(x, y); return d; };
+
+describe('molduraTemJanela — a moldura tem janela transparente?', () => {
+    it('janela transparente no miolo (moldura PNG de verdade) = true', () => {
+        const d = pixels(30, 30, (x, y) => (x >= 5 && x < 25 && y >= 5 && y < 25 ? 0 : 255));
+        expect(molduraTemJanela(d, 30, 30)).toBe(true);
+    });
+    it('miolo opaco (PNG sem janela ou JPG) = false', () => {
+        expect(molduraTemJanela(pixels(30, 30, () => 255), 30, 30)).toBe(false);
+    });
+    it('só as bordas transparentes não contam (o miolo é que importa)', () => {
+        const d = pixels(30, 30, (x, y) => (x < 3 || y < 3 ? 0 : 255));
+        expect(molduraTemJanela(d, 30, 30)).toBe(false);
+    });
+    it('dados inválidos ou curtos = null (não dá para saber)', () => {
+        expect(molduraTemJanela(null, 10, 10)).toBeNull();
+        expect(molduraTemJanela(new Uint8ClampedArray(8), 10, 10)).toBeNull();
+        expect(molduraTemJanela(pixels(4, 4, () => 0), 0, 4)).toBeNull();
+    });
+});
