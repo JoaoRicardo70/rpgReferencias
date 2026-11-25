@@ -4,7 +4,7 @@ import { iniciarListenerRegistro, definirLiberacao, criarPedido, removerPedido }
 import { enviarEnsinamento } from '../../services/ensinar';
 import {
     indexarCapacidades, jogadorVeCapacidade, liberacaoDe, montarLiberacao, montarPedido, pedidosPendentes,
-    jaPediu, totalPedidosDe, jogadorJaTem, filtrarCapacidades, LIMITE_PEDIDOS_POR_JOGADOR,
+    jaPediu, totalPedidosDe, jogadorJaTem, filtrarCapacidades, categoriasPresentes, LIMITE_PEDIDOS_POR_JOGADOR,
 } from '../../core/registroCapacidades';
 
 // 📚 REGISTRO DE CAPACIDADES (seção do Compêndio). O catálogo vem das fichas da mesa (core/registroCapacidades.js).
@@ -51,6 +51,10 @@ export default function CompendioRegistro() {
     const personagens = useStore(s => s.personagens);
     const [registro, setRegistro] = useState({ liberacoes: {}, pedidos: {} });
     const [busca, setBusca] = useState('');
+    const [categoria, setCategoria] = useState('todas');
+    const [dono, setDono] = useState('');
+    const [origem, setOrigem] = useState('');
+    const [liberacaoFiltro, setLiberacaoFiltro] = useState('');
     const [aviso, setAviso] = useState('');
     const [niveis, setNiveis] = useState({});
     const aprovando = useRef(new Set());
@@ -64,10 +68,19 @@ export default function CompendioRegistro() {
         () => Object.keys(personagens || {}).filter(n => { const f = personagens[n]; return f && !(f.isNPC || (f.bio && f.bio.mesa === 'npc')); }).sort((a, b) => a.localeCompare(b, 'pt-BR')),
         [personagens]
     );
-    const visiveis = useMemo(() => {
-        const base = isMestre ? todas : todas.filter(c => c.dono !== minhaChave && jogadorVeCapacidade(registro.liberacoes, c.chave, minhaChave));
-        return filtrarCapacidades(base, busca).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-    }, [isMestre, todas, registro.liberacoes, busca, minhaChave]);
+    // O que este usuário pode ver (o jogador só enxerga o liberado a ele); os filtros se aplicam em cima disso.
+    const base = useMemo(
+        () => (isMestre ? todas : todas.filter(c => c.dono !== minhaChave && jogadorVeCapacidade(registro.liberacoes, c.chave, minhaChave))),
+        [isMestre, todas, registro.liberacoes, minhaChave]
+    );
+    const categorias = useMemo(() => categoriasPresentes(base), [base]);
+    const donos = useMemo(() => [...new Set(base.map(c => c.dono))].sort((a, b) => a.localeCompare(b, 'pt-BR')), [base]);
+    const visiveis = useMemo(
+        () => filtrarCapacidades(base, { busca, categoria, dono, origem, liberacao: isMestre ? liberacaoFiltro : '', liberacoes: registro.liberacoes }).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+        [base, busca, categoria, dono, origem, liberacaoFiltro, isMestre, registro.liberacoes]
+    );
+    const filtrando = !!(busca || dono || origem || liberacaoFiltro || categoria !== 'todas');
+    const limparFiltros = () => { setBusca(''); setCategoria('todas'); setDono(''); setOrigem(''); setLiberacaoFiltro(''); };
     const pendentes = useMemo(() => pedidosPendentes(registro.pedidos), [registro.pedidos]);
 
     const mudarLiberacao = useCallback(async (chave, valor) => {
@@ -105,7 +118,7 @@ export default function CompendioRegistro() {
     return (
         <div className="fade-in registro-capacidades">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, borderBottom: '2px solid #00ffcc', paddingBottom: 10 }}>
-                <h2 style={{ color: '#00ffcc', margin: 0, letterSpacing: 2 }}>📚 REGISTRO DE CAPACIDADES</h2>
+                <h2 style={{ color: '#00ffcc', margin: 0, letterSpacing: 2 }}>📚 GRIMÓRIO SUPREMO</h2>
             </div>
             <p className="registro-explica">
                 {isMestre
@@ -134,6 +147,28 @@ export default function CompendioRegistro() {
             )}
 
             <input className="input-neon registro-busca" type="text" placeholder="🔍 Buscar por nome, dono ou categoria..." value={busca} onChange={e => setBusca(e.target.value)} />
+            <div className="registro-filtros">
+                <div className="registro-chips" role="group" aria-label="Filtrar por categoria">
+                    <button type="button" className={`registro-chip${categoria === 'todas' ? ' ativo' : ''}`} onClick={() => setCategoria('todas')}>Todas ({base.length})</button>
+                    {categorias.map(c => <button key={c.id} type="button" className={`registro-chip${categoria === c.id ? ' ativo' : ''}`} onClick={() => setCategoria(c.id)}>{c.rotulo} ({c.total})</button>)}
+                </div>
+                <div className="registro-selects">
+                    <select className="input-neon" value={origem} onChange={e => setOrigem(e.target.value)} aria-label="Filtrar por tipo de dono">
+                        <option value="">Jogadores e NPCs</option><option value="jogador">🧑 Só jogadores</option><option value="npc">👹 Só NPCs</option>
+                    </select>
+                    <select className="input-neon" value={dono} onChange={e => setDono(e.target.value)} aria-label="Filtrar por dono">
+                        <option value="">Todos os donos</option>
+                        {donos.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                    {isMestre && (
+                        <select className="input-neon" value={liberacaoFiltro} onChange={e => setLiberacaoFiltro(e.target.value)} aria-label="Filtrar por liberação">
+                            <option value="">Liberados e ocultos</option><option value="liberado">🌍 Já liberados</option><option value="oculto">🔒 Só o Mestre vê</option>
+                        </select>
+                    )}
+                    {filtrando && <button type="button" className="registro-botao" onClick={limparFiltros}>Limpar filtros</button>}
+                    <span className="registro-contagem">{visiveis.length} de {base.length}</span>
+                </div>
+            </div>
 
             {visiveis.length === 0 && <p className="registro-vazio">{isMestre ? 'Nada encontrado nas fichas.' : 'O Mestre ainda não liberou nada para você.'}</p>}
 

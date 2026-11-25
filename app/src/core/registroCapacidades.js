@@ -108,9 +108,31 @@ export function jogadorJaTem(ficha, capacidade) {
     return Array.isArray(lista) && lista.some(i => i && String(i.nome || '').trim().toLowerCase() === nome);
 }
 
-// Filtro de busca (nome, dono, categoria).
-export function filtrarCapacidades(lista, busca) {
-    const t = String(busca || '').trim().toLowerCase();
-    if (!t) return lista;
-    return lista.filter(c => c.nome.toLowerCase().includes(t) || c.dono.toLowerCase().includes(t) || String(c.rotuloCategoria).toLowerCase().includes(t));
+// Filtros do Grimório Supremo. `filtros` = texto de busca (nome, dono, categoria) OU { busca, categoria, dono, origem, liberacao, liberacoes }:
+//   categoria — id da categoria (habilidade, forma, poder, infinity, tecnica...) ou ''/'todas';
+//   dono — nome do dono ou ''; origem — 'jogador' | 'npc' | ''; liberacao — 'liberado' | 'oculto' | '' (usa `liberacoes`).
+export function filtrarCapacidades(lista, filtros) {
+    const f = typeof filtros === 'string' ? { busca: filtros } : (filtros || {});
+    const t = String(f.busca || '').trim().toLowerCase();
+    return lista.filter((c) => {
+        if (t && !(c.nome.toLowerCase().includes(t) || c.dono.toLowerCase().includes(t) || String(c.rotuloCategoria).toLowerCase().includes(t))) return false;
+        if (f.categoria && f.categoria !== 'todas' && c.categoria !== f.categoria) return false;
+        if (f.dono && c.dono !== f.dono) return false;
+        if (f.origem === 'npc' && !c.ehNpc) return false;
+        if (f.origem === 'jogador' && c.ehNpc) return false;
+        if (f.liberacao) {
+            const l = liberacaoDe(f.liberacoes, c.chave);
+            const liberado = l.todos || l.para.length > 0;
+            if (f.liberacao === 'liberado' && !liberado) return false;
+            if (f.liberacao === 'oculto' && liberado) return false;
+        }
+        return true;
+    });
+}
+
+// Categorias presentes na lista, com contagem, pra montar os chips: [{ id, rotulo, total }].
+export function categoriasPresentes(lista) {
+    const mapa = new Map();
+    lista.forEach((c) => { const m = mapa.get(c.categoria) || { id: c.categoria, rotulo: c.rotuloCategoria, total: 0 }; m.total += 1; mapa.set(c.categoria, m); });
+    return [...mapa.values()].sort((a, b) => b.total - a.total || a.rotulo.localeCompare(b.rotulo, 'pt-BR'));
 }

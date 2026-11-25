@@ -89,3 +89,28 @@ describe('registroCapacidades - liberação e pedidos', () => {
         expect(filtrarCapacidades(lista, '')).toHaveLength(lista.length);
     });
 });
+
+import { filtrarCapacidades as filtrar, categoriasPresentes } from './registroCapacidades';
+describe('registroCapacidades - filtros do Grimório Supremo', () => {
+    const lista = indexarCapacidades(mesa());
+    it('filtra por categoria, dono e tipo de dono', () => {
+        expect(filtrar(lista, { categoria: 'tecnica' }).map(c => c.nome)).toEqual(['Bola de Fogo']);
+        expect(filtrar(lista, { dono: 'Lohen' })).toHaveLength(3);
+        expect(filtrar(lista, { origem: 'npc' }).map(c => c.nome)).toEqual(['Sem Id']);
+        expect(filtrar(lista, { origem: 'jogador' })).toHaveLength(3);
+        expect(filtrar(lista, { categoria: 'todas' })).toHaveLength(lista.length);
+    });
+    it('filtra por liberação e combina filtros', () => {
+        const k = lista.find(c => c.nome === 'Corte Lunar').chave;
+        const liberacoes = { [k]: { todos: true } };
+        expect(filtrar(lista, { liberacao: 'liberado', liberacoes }).map(c => c.nome)).toEqual(['Corte Lunar']);
+        expect(filtrar(lista, { liberacao: 'oculto', liberacoes })).toHaveLength(lista.length - 1);
+        expect(filtrar(lista, { liberacao: 'liberado', liberacoes, dono: 'Rappa' })).toHaveLength(0);
+        expect(filtrar(lista, { busca: 'fogo', origem: 'jogador' })).toHaveLength(1);
+    });
+    it('categoriasPresentes conta por categoria', () => {
+        const cats = categoriasPresentes(lista);
+        expect(cats.reduce((n, c) => n + c.total, 0)).toBe(lista.length);
+        expect(cats.find(c => c.id === 'tecnica').total).toBe(1);
+    });
+});

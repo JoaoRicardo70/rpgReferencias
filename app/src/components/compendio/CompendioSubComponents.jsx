@@ -26,7 +26,7 @@ export function CompendioSidebar() {
                 <button className={`btn-neon ${secaoAtiva === 'condicoes' ? 'btn-gold' : ''}`} onClick={() => setSecaoAtiva('condicoes')} style={{ textAlign: 'left', paddingLeft: '15px' }}>🩸 Condições</button>
                 <button className={`btn-neon ${secaoAtiva === 'elementos' ? 'btn-gold' : ''}`} onClick={() => setSecaoAtiva('elementos')} style={{ textAlign: 'left', paddingLeft: '15px' }}>⚔️ Tipos de Dano</button>
                 <button className={`btn-neon ${secaoAtiva === 'regras' ? 'btn-gold' : ''}`} onClick={() => setSecaoAtiva('regras')} style={{ textAlign: 'left', paddingLeft: '15px' }}>📜 Regras da Casa</button>
-                <button className={`btn-neon ${secaoAtiva === 'registro' ? 'btn-gold' : ''}`} onClick={() => setSecaoAtiva('registro')} style={{ textAlign: 'left', paddingLeft: '15px' }}>📚 Registro de Capacidades</button>
+                <button className={`btn-neon ${secaoAtiva === 'registro' ? 'btn-gold' : ''}`} onClick={() => setSecaoAtiva('registro')} style={{ textAlign: 'left', paddingLeft: '15px' }}>📚 Grimório Supremo</button>
             </div>
         </div>
     );
