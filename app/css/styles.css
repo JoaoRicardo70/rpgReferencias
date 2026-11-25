@@ -3963,3 +3963,43 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .moldura-poder-limites { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 0.75em; color: #ccc; }
 .moldura-poder-limites .input-neon { width: 70px; margin: 0 0 0 4px; padding: 2px 6px; font-size: 0.9em; }
 .moldura-poder-limites .btn-neon { width: auto; margin: 0; padding: 2px 10px; font-size: 0.85em; }
+
+/* Faixa de atalhos acima do Mapa: Atuar como + Acesso rápido na mesma linha, botões pequenos (nada de botão de largura total). */
+.mapa-atalhos { display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; margin: 6px 0 10px; }
+.mapa-atalhos > * { flex: 1 1 280px; margin: 0 !important; min-width: 0; }
+.mapa-atalhos .mapa-ator { padding: 4px 8px; gap: 6px; flex-wrap: nowrap; }
+.mapa-atalhos .mapa-ator-rotulo { white-space: nowrap; font-size: 0.78em; }
+.mapa-atalhos .mapa-ator-select { flex: 1 1 auto; min-width: 0; width: auto; font-size: 0.85em; padding: 2px 4px; margin: 0; }
+.mapa-atalhos .mapa-ator-banner { display: none; }
+.mapa-atalhos .mapa-ator-voltar { width: auto; flex: 0 0 auto; white-space: nowrap; padding: 2px 8px; font-size: 0.75em; }
+.mapa-atalhos .barra-rapida-mapa { padding: 4px 8px; gap: 4px; flex-wrap: wrap; justify-content: flex-start; }
+.mapa-atalhos .barra-rapida-titulo { display: none; }
+.mapa-atalhos .barra-rapida-mapa.em-combate .barra-rapida-titulo { display: inline; font-size: 0.75em; }
+.mapa-atalhos .barra-rapida-btn { width: auto; flex: 0 0 auto; padding: 3px 9px; font-size: 0.75em; border-width: 1px; letter-spacing: 0; }
+.mapa-atalhos:empty { display: none; }
+
+/* 📚 Registro de Capacidades (Compêndio) */
+.registro-explica { color: #aab; font-size: 0.85em; margin: 0 0 10px; }
+.registro-aviso { background: rgba(255, 0, 60, 0.15); border: 1px solid #ff003c; color: #ffb3c0; padding: 6px 10px; border-radius: 6px; margin-bottom: 10px; font-size: 0.85em; }
+.registro-busca { width: 100%; margin-bottom: 10px; }
+.registro-item { border: 1px solid #333; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; background: rgba(0, 0, 0, 0.35); }
+.registro-item-topo { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.registro-item-topo strong { color: #fff; }
+.registro-tag { font-size: 0.7em; padding: 1px 8px; border-radius: 10px; border: 1px solid #00ffcc; color: #00ffcc; }
+.registro-dono { border-color: #ffcc00; color: #ffcc00; }
+.registro-nao-copia { border-color: #ff003c; color: #ff6680; }
+.registro-resumo { margin-left: auto; font-size: 0.75em; color: #9aa; }
+.registro-botao { width: auto; margin: 0; padding: 2px 10px; font-size: 0.75em; border: 1px solid #00ffcc; background: transparent; color: #00ffcc; border-radius: 6px; cursor: pointer; }
+.registro-botao:disabled { opacity: 0.5; cursor: not-allowed; }
+.registro-desc { margin: 4px 0 0; font-size: 0.8em; color: #bbb; }
+.registro-liberar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.registro-chip { width: auto; margin: 0; padding: 2px 10px; font-size: 0.75em; border: 1px solid #555; background: transparent; color: #aaa; border-radius: 12px; cursor: pointer; }
+.registro-chip.ativo { border-color: #00ff88; color: #00ff88; background: rgba(0, 255, 136, 0.1); }
+.registro-chip:disabled { cursor: default; }
+.registro-vazio { color: #778; font-size: 0.85em; font-style: italic; }
+.registro-pedidos { border: 1px solid #ffcc00; border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; background: rgba(255, 204, 0, 0.06); }
+.registro-pedidos h3 { margin: 0 0 6px; color: #ffcc00; font-size: 0.95em; }
+.registro-pedido { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 4px 0; font-size: 0.85em; }
+.registro-pedido label { display: flex; align-items: center; gap: 4px; font-size: 0.8em; color: #aaa; }
+.registro-pedido .input-neon { width: 60px; margin: 0; padding: 2px 6px; }
+.registro-pedido .btn-neon { width: auto; }

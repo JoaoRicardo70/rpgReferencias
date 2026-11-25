@@ -1,4 +1,5 @@
 import React from 'react';
+import CompendioRegistro from './CompendioRegistro';
 import { CompendioFormProvider, useCompendioForm } from './CompendioFormContext';
 import { 
     CompendioSidebar, 
@@ -18,6 +19,7 @@ function CompendioAreaCentral() {
     if (ctx.secaoAtiva === 'condicoes') return <CompendioCondicoes />;
     if (ctx.secaoAtiva === 'elementos') return <CompendioElementos />;
     if (ctx.secaoAtiva === 'regras') return <CompendioRegras />;
+    if (ctx.secaoAtiva === 'registro') return <CompendioRegistro />;
     
     return null;
 }

@@ -37,8 +37,10 @@ export default function MapaPanel({ className, children }) {
                         <div style={{ flex: '1 1 70%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                             {/* MÓDULO DO MESTRE (ZONAS, CENAS, DUMMIES) */}
                             <MapaFerramentasMestre />
-                            <MapaSeletorAtor />
-                            <MapaBarraRapida />
+                            <div className="mapa-atalhos">
+                                <MapaSeletorAtor />
+                                <MapaBarraRapida />
+                            </div>
                             {/* 📖 Ficha aberta por cima do Mapa (Mestre: de qualquer um; jogador: a própria) */}
                             <MapaLivroHost />
                             
