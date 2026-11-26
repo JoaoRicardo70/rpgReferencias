@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
     FAMILIA_SEM_CLA, ehNpc, getFamiliaNpc, agruparNpcsPorFamilia, getVidaMaxBrutaNpc,
-    posicoesLivres, cenarioComTokensOcultos, montarDummieDeNpc,
+    posicoesLivres, cenarioComTokensOcultos, nomeDaCopia, fichaCopiaDeNpc,
 } from './gavetaNpc';
 import { FATOR_EXIBICAO_VITAIS } from './vitals';
 
@@ -266,109 +266,6 @@ describe('cenarioComTokensOcultos', () => {
     });
 });
 
-describe('montarDummieDeNpc', () => {
-    const opts = (extra = {}) => ({ divisorPoderMesa: 1, cenaId: 'cena_x', posicao: { x: 3, y: 4 }, visibilidadeHp: 'mestre', numero: 2, ...extra });
-    const ficha = (extra = {}) => fichaComVida(2000000, { __poder: 1234.5678, __evasiva: 12, __resistencia: 8, ...extra });
-    const camposUndefined = (obj) => Object.entries(obj).filter(([, v]) => v === undefined).map(([k]) => k);
-
-    it('o nome vira "Nome #numero"', () => {
-        expect(montarDummieDeNpc('Goblin', ficha(), opts({ numero: 3 })).nome).toBe('Goblin #3');
-    });
-    it('numero padrao e 1', () => {
-        expect(montarDummieDeNpc('Goblin', ficha(), { divisorPoderMesa: 1 }).nome).toBe('Goblin #1');
-    });
-    it('nome com acentos e espacos e preservado', () => {
-        expect(montarDummieDeNpc('Lobo Cinzento ção', ficha(), opts()).nome).toBe('Lobo Cinzento ção #2');
-    });
-    it('hpMax e igual a hpAtual (Vida cheia) e sao a Vida bruta da ficha', () => {
-        const f = ficha();
-        const d = montarDummieDeNpc('Goblin', f, opts());
-        expect(d.hpMax).toBe(d.hpAtual);
-        expect(d.hpAtual).toBe(getVidaMaxBrutaNpc(f));
-        expect(d.hpAtual).toBeGreaterThan(0);
-    });
-    it('sem Vida na ficha: hpMax = hpAtual = 100 * FATOR_EXIBICAO_VITAIS (escala bruta)', () => {
-        const d = montarDummieDeNpc('Goblin', { isNPC: true }, opts());
-        expect(d.hpMax).toBe(100 * FATOR_EXIBICAO_VITAIS);
-        expect(d.hpAtual).toBe(100000);
-    });
-    it('ficha null usa o mesmo fallback de Vida e nao lanca', () => {
-        const d = montarDummieDeNpc('Fantasma', null, opts());
-        expect(d.hpAtual).toBe(100000);
-        expect(d.hpMax).toBe(100000);
-    });
-    it('Defesa: evasiva maior que resistencia usa evasiva', () => {
-        const d = montarDummieDeNpc('G', ficha({ __evasiva: 30, __resistencia: 12 }), opts());
-        expect(d.tipoDefesa).toBe('evasiva');
-        expect(d.valorDefesa).toBe(30);
-    });
-    it('Defesa: resistencia maior que evasiva usa resistencia', () => {
-        const d = montarDummieDeNpc('G', ficha({ __evasiva: 12, __resistencia: 40 }), opts());
-        expect(d.tipoDefesa).toBe('resistencia');
-        expect(d.valorDefesa).toBe(40);
-    });
-    it('Defesa: empate fica com evasiva', () => {
-        const d = montarDummieDeNpc('G', ficha({ __evasiva: 20, __resistencia: 20 }), opts());
-        expect(d.tipoDefesa).toBe('evasiva');
-        expect(d.valorDefesa).toBe(20);
-    });
-    it('Defesa: calcularCA lancando erro cai na CA padrao BASE_CA = 12 (evasiva)', () => {
-        const d = montarDummieDeNpc('G', ficha({ __erroCA: true }), opts());
-        expect(d.tipoDefesa).toBe('evasiva');
-        expect(d.valorDefesa).toBe(12);
-    });
-    it('Defesa: valor 0 cai em BASE_CA = 12 (nunca defesa zerada)', () => {
-        const d = montarDummieDeNpc('G', ficha({ __evasiva: 0, __resistencia: 0 }), opts());
-        expect(d.valorDefesa).toBe(12);
-    });
-    it('poderCalculado existe quando o Poder e conhecido, arredondado a 2 casas', () => {
-        expect(montarDummieDeNpc('G', ficha(), opts()).poderCalculado).toBe(1234.57);
-    });
-    it('Poder 0 e conhecido: poderCalculado 0 e gravado', () => {
-        const d = montarDummieDeNpc('G', ficha({ __poder: 0 }), opts());
-        expect('poderCalculado' in d).toBe(true);
-        expect(d.poderCalculado).toBe(0);
-    });
-    it('Poder desconhecido (null): o campo poderCalculado nao existe', () => {
-        const d = montarDummieDeNpc('G', fichaComVida(2000000), opts());
-        expect('poderCalculado' in d).toBe(false);
-    });
-    it('fichaOrigem e o nome do NPC (sem o numero)', () => {
-        expect(montarDummieDeNpc('Goblin', ficha(), opts()).fichaOrigem).toBe('Goblin');
-    });
-    it('repassa cenaId, posicao e visibilidadeHp', () => {
-        const d = montarDummieDeNpc('G', ficha(), opts());
-        expect(d.cenaId).toBe('cena_x');
-        expect(d.posicao).toEqual({ x: 3, y: 4 });
-        expect(d.visibilidadeHp).toBe('mestre');
-    });
-    it('padroes: cenaId default, posicao (0,0), visibilidadeHp todos', () => {
-        const d = montarDummieDeNpc('G', ficha(), { divisorPoderMesa: 1 });
-        expect(d.cenaId).toBe('default');
-        expect(d.posicao).toEqual({ x: 0, y: 0 });
-        expect(d.visibilidadeHp).toBe('todos');
-    });
-    it('sem objeto de opcoes tambem funciona', () => {
-        expect(montarDummieDeNpc('G', ficha()).nome).toBe('G #1');
-    });
-    it('nenhum campo fica undefined (Firebase rejeita undefined)', () => {
-        expect(camposUndefined(montarDummieDeNpc('G', ficha(), opts()))).toEqual([]);
-        expect(camposUndefined(montarDummieDeNpc('G', null, opts({ posicao: undefined, cenaId: undefined })))).toEqual([]);
-        expect(camposUndefined(montarDummieDeNpc('G', fichaComVida(100), {}))).toEqual([]);
-    });
-    it('o resultado e serializavel em JSON sem perder campos', () => {
-        const d = montarDummieDeNpc('G', ficha(), opts());
-        expect(JSON.parse(JSON.stringify(d))).toEqual(d);
-    });
-    it('nao muta a ficha de origem', () => {
-        const f = ficha();
-        const copia = JSON.stringify(f);
-        montarDummieDeNpc('G', f, opts());
-        expect(JSON.stringify(f)).toBe(copia);
-    });
-});
-
-import { nomeDaCopia, fichaCopiaDeNpc } from './gavetaNpc';
 describe('cópia de ficha de NPC', () => {
     it('nomeDaCopia pega o próximo #n livre, sem repetir', () => {
         expect(nomeDaCopia('Rappa', ['Rappa'])).toBe('Rappa (2)');

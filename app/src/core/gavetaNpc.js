@@ -1,13 +1,10 @@
 // ==========================================
 // 📦 GAVETA DE TOKENS — os NPCs da mesa (fichas com isNPC / bio.mesa 'npc', os mesmos do
-// "Visor de Entidades > NPCs" da aba Mestre) viram tokens de combate (dummies) no Mapa com um
-// clique, já com Vida, Defesa e Poder Calculado tirados da ficha.
+// "Visor de Entidades > NPCs" da aba Mestre) entram no Mapa como personagens com um clique
+// (a própria ficha ou uma cópia dela).
 // ==========================================
-import { getTetoVida, getVitalMax, getVitalMaxEstavel, FATOR_EXIBICAO_VITAIS } from './vitals.js';
+import { getTetoVida, getVitalMax, getVitalMaxEstavel } from './vitals.js';
 import { calcularFatorMultiplicadorForca } from './poder.js';
-import { calcularCA } from './engine.js';
-import { BASE_CA } from './utils.js';
-import { getPoderParaDisputa } from './disputaPoder.js';
 import { ehNpc } from './tipoPersonagem.js';
 
 export const FAMILIA_SEM_CLA = 'Sem Clã / Bestas Soltas';
@@ -82,30 +79,6 @@ export function cenarioComTokensOcultos(cenario, ids) {
     return novo;
 }
 
-// Defesa de uma ficha: a MAIOR entre Evasiva e Resistência (CA = 12 + redução, core/engine.js > calcularCA).
-export function defesaDaFicha(ficha) {
-    let evasiva = BASE_CA;
-    let resistencia = BASE_CA;
-    try { evasiva = calcularCA(ficha, 'evasiva'); resistencia = calcularCA(ficha, 'resistencia'); } catch (e) { /* CA padrão */ }
-    const usaResistencia = (Number(resistencia) || 0) > (Number(evasiva) || 0);
-    return { tipoDefesa: usaResistencia ? 'resistencia' : 'evasiva', valorDefesa: (usaResistencia ? Number(resistencia) : Number(evasiva)) || BASE_CA };
-}
-
-// Dummie salvo antes da CA nova guarda o valor antigo. Se veio de um NPC da Gaveta (fichaOrigem) e a ficha ainda existe, devolve o
-// Dummie com a defesa recalculada; senão null (quem chama pede o valor ao Mestre).
-export function recalcularDefesaDoDummie(dummie, ficha) {
-    if (!dummie || !dummie.fichaOrigem || !ficha) return null;
-    return { ...dummie, ...defesaDaFicha(ficha) };
-}
-
-// CA digitada pelo Mestre (vírgula decimal aceita). { ok: true, dummie } ou { ok: false, erro }. Mantém o tipo de defesa.
-export function definirDefesaManualDoDummie(dummie, texto) {
-    const limpo = String(texto ?? '').trim();
-    const valor = /^\d+([.,]\d+)?$/.test(limpo) ? Number(limpo.replace(',', '.')) : NaN;
-    if (limpo === '' || !Number.isFinite(valor) || valor < 0 || valor > 100000) return { ok: false, erro: 'Digite uma CA válida (0 ou mais).' };
-    return { ok: true, dummie: { ...dummie, valorDefesa: Math.round(valor) } };
-}
-
 // 🧍 FICHA VIVA NO MAPA — em vez de um token-cópia (dummie), a PRÓPRIA ficha do NPC entra na cena como um personagem
 // qualquer: Vida, Poder, Combos, Reações e ataques salvos são os da ficha (o Mestre usa "Controlar" pra agir como ele).
 // Campos a gravar na ficha (caminhos de salvarCamposPersonagem) pra ela aparecer na casa `pos` da cena `cenaId`.
@@ -141,53 +114,4 @@ export function fichaCopiaDeNpc(ficha, camposPosicao = null) {
         else copia[caminho] = camposPosicao[caminho];
     });
     return copia;
-}
-
-// 🔗 PODER VIVO — o token de um NPC da Gaveta (fichaOrigem) acompanha o Poder Atual da ficha do NPC: o Mestre muda a
-// ficha (liga uma Forma, corrige um Multiplicador...) e o token do Mapa já segue, sem injetar de novo. Quem digitou o
-// Poder à mão no token (poderDesvinculado) fica como está até pedir "auto" de novo.
-const TOLERANCIA_PODER = 1e-6;
-
-// Poder que o token deveria ter agora (2 casas, como montarDummieDeNpc), ou null se não há o que seguir.
-export function poderVivoDoDummie(dummie, ficha, divisorPoderMesa) {
-    if (!dummie || !dummie.fichaOrigem || dummie.poderDesvinculado === true || !ficha) return null;
-    const poder = getPoderParaDisputa(ficha, divisorPoderMesa);
-    return poder === null ? null : Math.round(poder * 100) / 100;
-}
-
-// [{ id, dummie }] dos tokens cujo Poder gravado ficou diferente do da ficha de origem (dummie já com o Poder novo).
-export function dummiesComPoderDesatualizado(dummies, personagens, divisorPoderMesa) {
-    const mudancas = [];
-    Object.entries(dummies || {}).forEach(([id, dummie]) => {
-        if (!dummie || !dummie.fichaOrigem) return;
-        const novo = poderVivoDoDummie(dummie, (personagens || {})[dummie.fichaOrigem], divisorPoderMesa);
-        if (novo === null) return;
-        const bruto = dummie.poderCalculado;
-        const atual = (bruto === undefined || bruto === null || bruto === '') ? null : Number(bruto);
-        const igual = atual !== null && Number.isFinite(atual) && Math.abs(atual - novo) <= Math.max(0.01, Math.abs(novo) * TOLERANCIA_PODER);
-        if (!igual) mudancas.push({ id, dummie: { ...dummie, poderCalculado: novo } });
-    });
-    return mudancas;
-}
-
-// Token (dummy) pronto pra salvarDummie. Vida cheia (100 de Vida exibida se a ficha não tiver
-// nenhuma), Defesa = a maior CA da ficha, Poder Atual da ficha neste momento.
-// O nome ganha sempre o número da cópia ("Goblin #1") pra nunca colidir com o nome da ficha do NPC
-// (alvos, iniciativa e tokensOcultos de personagens são por nome).
-export function montarDummieDeNpc(nome, ficha, { divisorPoderMesa, cenaId = 'default', posicao = { x: 0, y: 0 }, visibilidadeHp = 'todos', numero = 1 } = {}) {
-    const hp = getVidaMaxBrutaNpc(ficha) || 100 * FATOR_EXIBICAO_VITAIS;
-    const defesa = defesaDaFicha(ficha);
-    const poder = getPoderParaDisputa(ficha, divisorPoderMesa);
-    return {
-        nome: `${nome} #${numero}`,
-        hpMax: hp,
-        hpAtual: hp,
-        tipoDefesa: defesa.tipoDefesa,
-        valorDefesa: defesa.valorDefesa,
-        visibilidadeHp,
-        cenaId,
-        posicao,
-        fichaOrigem: nome,
-        ...(poder !== null ? { poderCalculado: Math.round(poder * 100) / 100 } : {}),
-    };
 }
