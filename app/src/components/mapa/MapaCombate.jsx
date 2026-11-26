@@ -921,8 +921,8 @@ export function MapaAtalhoAtaques() {
                             })}
                         </div>
                         </>)}
-                        {abaEfetiva === 'tecnicas' && <div className="atalho-livro-modulo"><MapaTecnicasRapidas /></div>}
-                        {abaEfetiva === 'elementais' && <div className="atalho-livro-modulo"><MapaMagiasElementais /></div>}
+                        {abaEfetiva === 'tecnicas' && <div className="atalho-livro-modulo atalho-livro-modulo--largo"><MapaTecnicasRapidas /></div>}
+                        {abaEfetiva === 'elementais' && <div className="atalho-livro-modulo atalho-livro-modulo--largo"><MapaMagiasElementais /></div>}
                     </div>
                     </div>
                     <div className="atalho-livro-rodape" aria-hidden="true">✦ ✦ ✦</div>
@@ -1057,6 +1057,8 @@ export function MapaTecnicasRapidas() {
     const setPastasFechadasMapaTecnicas = useStore(s => s.setPastasFechadasMapaTecnicas);
     const [busca, setBusca] = useState('');
     const [soLigadas, setSoLigadas] = useState(false);
+    // Aba de categoria: 'auto' = tudo junto em listas curtas, e só a 1ª categoria quando há muitas técnicas (lista longa vira abas).
+    const [catAtiva, setCatAtiva] = useState('auto');
     const gastarAcao = useGastarAcao();
     const cenarioRacas = useStore(s => s.cenario);
     if (!poderesCtx) return null;
@@ -1083,6 +1085,10 @@ export function MapaTecnicasRapidas() {
     const filtrados = termo ? baseLista.filter(p => p && (`${p.nome || ''} ${p.pasta || ''}`).toLowerCase().includes(termo)) : baseLista;
     const ligadasTotal = poderes.filter(p => p && p.ativa).length;
     const padraoFechada = poderes.length > MAPA_TECNICAS_MUITAS;
+    const catsComItens = Object.keys(MAPA_TECNICAS_CATEGORIAS).filter(cat => filtrados.some(p => p && categoriaDoPoderFicha(p) === cat));
+    const catEscolhida = catAtiva === 'auto' ? (padraoFechada ? catsComItens[0] : 'todas') : catAtiva;
+    const catEfetiva = catsComItens.length > 1 && catsComItens.includes(catEscolhida) ? catEscolhida : 'todas';
+    const mostraCategoria = (cat) => catEfetiva === 'todas' || cat === catEfetiva;
     // Durante a busca / "só ligadas" as pastas ficam abertas à força: o clique no cabeçalho não pode mexer no estado salvo.
     const forcaAberta = !!termo || soLigadas;
     const fechadaSalva = (chave) => (chave in pastasFechadas ? !!pastasFechadas[chave] : padraoFechada);
@@ -1093,7 +1099,7 @@ export function MapaTecnicasRapidas() {
     const toggleCategoria = (cat) => { if (forcaAberta) return; setPastasFechadasMapaTecnicas({ ...pastasFechadas, [`categoria::${cat}`]: !categoriaFechada(cat) }); };
     // Todas as chaves de pasta (inclui pastas-mãe e subpastas, core/pastas.js).
     const todasChaves = [];
-    Object.keys(MAPA_TECNICAS_CATEGORIAS).forEach(cat => {
+    Object.keys(MAPA_TECNICAS_CATEGORIAS).filter(mostraCategoria).forEach(cat => {
         const doCat = poderes.filter(p => p && categoriaDoPoderFicha(p) === cat);
         listarCaminhosPastas(doCat).forEach(caminho => { todasChaves.push(`${cat}::${caminho}`); });
         if (doCat.some(p => segmentosPasta(p.pasta).length === 0)) todasChaves.push(`${cat}::${MAPA_TECNICAS_SEM_PASTA}`);
@@ -1160,7 +1166,15 @@ export function MapaTecnicasRapidas() {
                 </button>
             </div>
             {(termo || soLigadas) && filtrados.length === 0 && <p className="mapa-tecnicas-vazia">{soLigadas && !termo ? 'Nenhuma técnica ligada.' : 'Nenhuma técnica com esse nome.'}</p>}
-            {Object.keys(MAPA_TECNICAS_CATEGORIAS).map(cat => {
+            {catsComItens.length > 1 && (
+                <div className="mapa-tecnicas-abas" role="tablist" aria-label="Categorias de técnicas">
+                    <button type="button" role="tab" aria-selected={catEfetiva === 'todas'} className={`mapa-tecnicas-aba${catEfetiva === 'todas' ? ' ativa' : ''}`} onClick={() => setCatAtiva('todas')}>Todas ({filtrados.length})</button>
+                    {catsComItens.map(cat => (
+                        <button key={cat} type="button" role="tab" aria-selected={catEfetiva === cat} className={`mapa-tecnicas-aba${catEfetiva === cat ? ' ativa' : ''}`} onClick={() => setCatAtiva(cat)}>{MAPA_TECNICAS_CATEGORIAS[cat].label} ({filtrados.filter(p => p && categoriaDoPoderFicha(p) === cat).length})</button>
+                    ))}
+                </div>
+            )}
+            {Object.keys(MAPA_TECNICAS_CATEGORIAS).filter(mostraCategoria).map(cat => {
                 const itensCat = filtrados.filter(p => p && categoriaDoPoderFicha(p) === cat);
                 if (itensCat.length === 0) return null;
                 const info = MAPA_TECNICAS_CATEGORIAS[cat];
@@ -1196,12 +1210,13 @@ export function MapaTecnicasRapidas() {
                     );
                 };
 
-                const catFechada = categoriaFechada(cat);
+                const comAbas = catEfetiva !== 'todas';
+                const catFechada = comAbas ? false : categoriaFechada(cat);
                 return (
                     <div key={cat} style={{ marginTop: 10 }}>
-                        <button type="button" className="mapa-tecnicas-categoria" aria-expanded={!catFechada} onClick={() => toggleCategoria(cat)} title={catFechada ? 'Abrir categoria' : 'Recolher categoria'} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottom: `1px dashed ${info.cor}`, cursor: 'pointer', color: info.cor, fontWeight: 'bold', fontSize: '0.85em', marginBottom: 6, paddingBottom: 4, paddingLeft: 0, paddingRight: 0 }}>
+                        {!comAbas && <button type="button" className="mapa-tecnicas-categoria" aria-expanded={!catFechada} onClick={() => toggleCategoria(cat)} title={catFechada ? 'Abrir categoria' : 'Recolher categoria'} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottom: `1px dashed ${info.cor}`, cursor: 'pointer', color: info.cor, fontWeight: 'bold', fontSize: '0.85em', marginBottom: 6, paddingBottom: 4, paddingLeft: 0, paddingRight: 0 }}>
                             <span className="mapa-categoria-seta" aria-hidden="true">{catFechada ? '▶' : '▼'}</span> {info.label} <span className="mapa-categoria-total" style={{ opacity: 0.6, fontWeight: 'normal' }}>({itensCat.length})</span>
-                        </button>
+                        </button>}
                         {!catFechada && (arvore ? (
                             <>
                                 {arvore.pastas.map(no => renderPasta(no, 0))}

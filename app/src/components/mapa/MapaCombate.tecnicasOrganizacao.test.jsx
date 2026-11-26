@@ -464,3 +464,65 @@ describe('MapaTecnicasRapidas - Recolher tudo / Expandir tudo', () => {
         expect(chips(container)).toHaveLength(0);
     });
 });
+
+describe('MapaTecnicasRapidas - abas por categoria e pastas independentes', () => {
+    const multi = () => {
+        const lista = [];
+        ['Angra', 'Demonio', 'Ego'].forEach((f, i) => { for (let k = 0; k < 4; k++) lista.push(poder(`f${i}${k}`, `${f} ${k}`, { categoria: 'forma', pasta: f })); });
+        for (let k = 0; k < 6; k++) lista.push(poder(`h${k}`, `Hab ${k}`, { categoria: 'habilidade', pasta: 'Soco' }));
+        return lista; // 18 técnicas (> 12)
+    };
+    const abas = (container) => [...container.querySelectorAll('.mapa-tecnicas-aba')];
+    const topos = (container) => [...container.querySelectorAll('.mapa-tecnicas-pasta-topo')];
+
+    it('lista longa: só a 1ª categoria aparece e as abas mostram a contagem de cada uma', () => {
+        montarStore({ minhaFicha: { poderes: multi() } });
+        const { container } = renderizar();
+        expect(abas(container).map(a => a.textContent)).toEqual(['Todas (18)', '🎭 Formas (12)', '🗡️ Habilidades (6)']);
+        expect(abas(container)[1].getAttribute('aria-selected')).toBe('true');
+        expect(topos(container).map(b => b.textContent)).toEqual(expect.arrayContaining([expect.stringContaining('Angra')]));
+        expect(topos(container).some(b => b.textContent.includes('Soco'))).toBe(false);
+    });
+    it('trocar de aba mostra a outra categoria; "Todas" mostra tudo', () => {
+        montarStore({ minhaFicha: { poderes: multi() } });
+        const { container } = renderizar();
+        fireEvent.click(abas(container)[2]);
+        expect(topos(container).map(b => b.textContent).join('|')).toContain('Soco');
+        expect(topos(container).map(b => b.textContent).join('|')).not.toContain('Angra');
+        fireEvent.click(abas(container)[0]);
+        expect(topos(container).map(b => b.textContent).join('|')).toContain('Angra');
+        expect(topos(container).map(b => b.textContent).join('|')).toContain('Soco');
+    });
+    it('lista curta: sem abas escolhidas, tudo junto (comportamento antigo) e a barra só existe com 2+ categorias', () => {
+        montarStore({ minhaFicha: { poderes: multi().slice(0, 4).concat(multi().slice(12, 14)) } });
+        const { container } = renderizar();
+        expect(abas(container)[0].getAttribute('aria-selected')).toBe('true');
+        montarStore({ minhaFicha: { poderes: gerar(4) } });
+        cleanup();
+        expect(abas(renderizar().container)).toHaveLength(0);
+    });
+    it('abrir/fechar UMA pasta não muda o estado das outras', () => {
+        const estado = montarStore({ minhaFicha: { poderes: multi() } });
+        const { container, rerender } = renderizar();
+        const expandidos = () => topos(container).map(b => b.getAttribute('aria-expanded'));
+        expect(expandidos()).toEqual(['false', 'false', 'false']);
+        fireEvent.click(topos(container)[1]);
+        rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+        expect(expandidos()).toEqual(['false', 'true', 'false']);
+        fireEvent.click(topos(container)[0]);
+        rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+        expect(expandidos()).toEqual(['true', 'true', 'false']);
+        fireEvent.click(topos(container)[1]);
+        rerender(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
+        expect(expandidos()).toEqual(['true', 'false', 'false']);
+        expect(estado.setPastasFechadasMapaTecnicas).toHaveBeenCalled();
+    });
+    it('Recolher/Expandir tudo vale só para a categoria da aba aberta', () => {
+        const estado = montarStore({ minhaFicha: { poderes: multi() } });
+        const { container } = renderizar();
+        fireEvent.click([...container.querySelectorAll('.mapa-tecnicas-mini')].find(b => b.textContent.includes('Expandir tudo')));
+        const gravado = estado.setPastasFechadasMapaTecnicas.mock.calls.pop()[0];
+        expect(Object.keys(gravado).every(k => k.startsWith('forma::'))).toBe(true);
+        expect(Object.values(gravado).every(v => v === false)).toBe(true);
+    });
+});

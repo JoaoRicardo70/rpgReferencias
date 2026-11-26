@@ -4009,3 +4009,11 @@ body.reduzir-animacoes .cena-card, body.reduzir-animacoes .cenas-regiao-painel {
 .registro-selects { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .registro-selects .input-neon { width: auto; min-width: 150px; margin: 0; padding: 3px 6px; font-size: 0.8em; }
 .registro-contagem { margin-left: auto; font-size: 0.75em; color: #889; }
+
+/* Livro de atalhos: técnicas ocupam a largura toda (sem fluxo em colunas, que embaralhava as pastas ao abrir/fechar) + abas por categoria. */
+.atalho-livro-modulo--largo { column-span: all; }
+.mapa-tecnicas-abas { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.mapa-tecnicas-aba { width: auto; margin: 0; padding: 3px 12px; font-size: 0.78em; border: 1px solid #aa00ff; border-radius: 14px; background: transparent; color: #aa00ff; cursor: pointer; letter-spacing: 0; text-transform: none; }
+.mapa-tecnicas-aba.ativa { background: rgba(170, 0, 255, 0.25); color: #fff; }
+.atalho-livro-modulo .mapa-tecnicas-aba { border-color: #8b6a3a; color: #4a2e12; font-family: Georgia, serif; }
+.atalho-livro-modulo .mapa-tecnicas-aba.ativa { background: rgba(139, 30, 45, 0.18); border-color: #8b1e2d; color: #7a1424; font-weight: bold; }
