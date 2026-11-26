@@ -272,57 +272,6 @@ export function MapaMestreGavetaTokens() {
     );
 }
 
-export function MapaMestreGeradorDummies() {
-    const ctx = useMapaForm();
-    if (!ctx) return FALLBACK;
-    const { isMestre, isModoRP, mestreVendoRP, cenaRenderId } = ctx;
-    if (!isMestre || (isModoRP && !mestreVendoRP)) return null;
-    return (
-        <div className="fade-in" style={{ padding: 10, border: '1px solid #0088ff', borderRadius: 5, background: 'rgba(0, 136, 255, 0.1)' }}>
-            <h3 style={{ color: '#0088ff', marginTop: 0, marginBottom: 10 }}>🤖 Gerador de Entidades (Nesta Cena)</h3>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                <input className="input-neon" type="text" placeholder="Nome" id="dummieNome" defaultValue="Boneco" style={{ width: 100, padding: 5 }}/>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#111', padding: '3px 8px', borderRadius: 5, border: '1px solid #444' }}>
-                    <span style={{ color: '#aaa', fontSize: '0.8em' }}>HP Base:</span>
-                    <input className="input-neon" type="number" id="dummieHp" defaultValue="100" style={{ width: 60, padding: 4, margin: 0 }} />
-                    <span style={{ color: '#0f0', fontSize: '0.8em', fontWeight: 'bold' }}>+Vit:</span>
-                    <input className="input-neon" type="number" id="dummieVitalidade" defaultValue="0" min="0" max="15" style={{ width: 45, padding: 4, margin: 0, borderColor: '#0f0', color: '#0f0' }} title="Ex: Vit 3 = adiciona 3 zeros" />
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#111', padding: '3px 8px', borderRadius: 5, border: '1px solid #444' }}>
-                    <select className="input-neon" id="dummieDefTipo" style={{ width: 90, padding: 4, margin: 0 }}>
-                        <option value="evasiva">Evasiva</option><option value="resistencia">Resistência</option>
-                    </select>
-                    <span style={{ color: '#0088ff', fontSize: '0.8em', fontWeight: 'bold' }}>CA:</span>
-                    <input className="input-neon" type="number" id="dummieDef" defaultValue="10" style={{ width: 50, padding: 4, margin: 0 }} title="Classe de Armadura (5 + Base)"/>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#111', padding: '3px 8px', borderRadius: 5, border: '1px solid #444' }} title="Poder Calculado da entidade, na mesma escala do Scouter. Decide a Disputa de Poder contra quem a ataca ou é atacado por ela. Vazio = sem disputa (dano x1).">
-                    <span style={{ color: '#ffcc00', fontSize: '0.8em', fontWeight: 'bold' }}>⚡ Poder:</span>
-                    <input className="input-neon" type="number" min="0" step="any" id="dummiePoder" placeholder="vazio" style={{ width: 90, padding: 4, margin: 0 }} />
-                </div>
-                <select className="input-neon" id="dummieVisivel" style={{ width: 110, padding: 5 }} title="Visibilidade do HP">
-                    <option value="todos">HP Visível</option><option value="mestre">HP Oculto</option>
-                </select>
-                <button className="btn-neon btn-blue" onClick={() => {
-                    const n = document.getElementById('dummieNome').value || 'Entidade';
-                    const hBase = parseInt(document.getElementById('dummieHp').value) || 100;
-                    const vit = parseInt(document.getElementById('dummieVitalidade').value) || 0;
-                    // 🔥 Reformulação de Vida/Energias: "HP Base" é digitado já na escala EXIBIDA —
-                    // multiplica de volta por FATOR_EXIBICAO_VITAIS antes de gravar o valor bruto do dummy.
-                    const h = hBase * Math.pow(10, vit) * FATOR_EXIBICAO_VITAIS;
-                    const dt = document.getElementById('dummieDefTipo').value;
-                    const dv = parseInt(document.getElementById('dummieDef').value) || 10;
-                    const vHp = document.getElementById('dummieVisivel').value;
-                    const poderTxt = document.getElementById('dummiePoder').value;
-                    const poderNum = Number(poderTxt);
-                    const poder = (poderTxt === '' || !Number.isFinite(poderNum)) ? null : Math.max(0, poderNum);
-                    const id = 'dummie_' + Date.now();
-                    salvarDummie(id, { nome: n, hpMax: h, hpAtual: h, tipoDefesa: dt, valorDefesa: dv, visibilidadeHp: vHp, cenaId: cenaRenderId, posicao: { x: 0, y: 0 }, ...(poder !== null ? { poderCalculado: poder } : {}) });
-                }} style={{ padding: '5px 15px', margin: 0 }}>+ Injetar na Cena</button>
-            </div>
-        </div>
-    );
-}
-
 // 👁️ Prévia do Dano Rápido: mostra, passo a passo, quanto dano o alvo escolhido vai levar e quanto de Vida sobra.
 const fmtNum = (n) => Math.floor(Number(n) || 0).toLocaleString('pt-BR');
 

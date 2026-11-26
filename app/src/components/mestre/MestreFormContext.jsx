@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import useStore, { sanitizarNome } from '../../stores/useStore';
-import { enviarParaFeed, salvarDummie, apagarFicha, salvarCenarioCompleto } from '../../services/firebase-sync';
-import { cenarioComTokensOcultos } from '../../core/gavetaNpc';
+import { enviarParaFeed, apagarFicha } from '../../services/firebase-sync';
 import { getMaximo } from '../../core/attributes';
 import { calcularCA } from '../../core/engine';
 import { getVitalMax, getVitalMaxEstavel, getTetoVida, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
@@ -37,15 +36,7 @@ export function MestreFormProvider({ children }) {
     const mesaMestres = useStore(s => s.mesaMestres) || MESA_MESTRES_VAZIA;
 
     const [msgSistema, setMsgSistema] = useState('');
-    const [dNome, setDNome] = useState('Goblin Espiao');
-    const [dHp, setDHp] = useState(100);
-    const [dVit, setDVit] = useState(0);
-    const [dDefTipo, setDDefTipo] = useState('evasiva');
-    const [dDef, setDDef] = useState(10);
-    const [dVisivelHp, setDVisivelHp] = useState('todos');
-    const [dOculto, setDOculto] = useState(false);
     // ⚡ Poder Calculado da entidade (escala do Scouter) pra Disputa de Poder — vazio = sem disputa.
-    const [dPoder, setDPoder] = useState('');
 
     // 📖 Livro da Entidade aberto ("ABRIR GRIMÓRIO DA ENTIDADE" do Sandbox, LivroEntidade.jsx): um só
     // para a aba toda, pra que o "Ver a Habilidade" das notificações consiga abri-lo mesmo com o
@@ -68,35 +59,6 @@ export function MestreFormProvider({ children }) {
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: msgSistema.trim() });
         setMsgSistema('');
     }, [msgSistema]);
-
-    const injetarDummie = useCallback(() => {
-        const hBase = parseInt(dHp) || 100;
-        const vit = parseInt(dVit) || 0;
-        // 🔥 Reformulação de Vida/Energias: "HP Base" é digitado já na escala EXIBIDA (a mesma que
-        // Vida de jogadores mostra) — multiplica de volta por FATOR_EXIBICAO_VITAIS pra gravar o
-        // dummy na mesma unidade bruta que calcularBarrasVidaDummy/MapaHologramaAcao esperam.
-        const h = hBase * Math.pow(10, vit) * FATOR_EXIBICAO_VITAIS;
-        const dv = parseInt(dDef) || 10;
-        const poderNum = Number(dPoder);
-        const poder = (String(dPoder).trim() === '' || !Number.isFinite(poderNum)) ? null : Math.max(0, poderNum);
-        const id = 'dummie_' + Date.now();
-
-        salvarDummie(id, {
-            nome: dNome,
-            hpMax: h,
-            hpAtual: h,
-            tipoDefesa: dDefTipo,
-            valorDefesa: dv,
-            visibilidadeHp: dVisivelHp,
-            oculto: dOculto,
-            posicao: { x: 0, y: 0 },
-            ...(poder !== null ? { poderCalculado: poder } : {})
-        });
-        // "oculto" no dummy não esconde nada no Mapa: a invisibilidade é por id em cenario.tokensOcultos.
-        if (dOculto) salvarCenarioCompleto(cenarioComTokensOcultos(useStore.getState().cenario, [id]));
-
-        alert(`${dNome} injetado no mapa! ${dOculto ? '(Invisivel)' : ''}`);
-    }, [dNome, dHp, dVit, dDef, dDefTipo, dVisivelHp, dOculto, dPoder]);
 
     const handleApagarJogador = useCallback((nome) => {
         if (nome === meuNome) {
@@ -190,16 +152,7 @@ export function MestreFormProvider({ children }) {
         mesaCriador,
         mesaMestres,
         msgSistema, setMsgSistema,
-        dNome, setDNome,
-        dHp, setDHp,
-        dVit, setDVit,
-        dDefTipo, setDDefTipo,
-        dDef, setDDef,
-        dVisivelHp, setDVisivelHp,
-        dOculto, setDOculto,
-        dPoder, setDPoder,
         enviarAviso,
-        injetarDummie,
         handleApagarJogador,
         toggleCoMestre, // Exporta a função de promover!
         jogadoresList,
@@ -208,8 +161,8 @@ export function MestreFormProvider({ children }) {
         livroAberto, abrirLivroEntidade, verPedidoNaFicha, fecharLivroEntidade,
     }), [
         isMestre, meuNome, userLogado, mesaCriador, mesaMestres,
-        msgSistema, dNome, dHp, dVit, dDefTipo, dDef, dVisivelHp, dOculto, dPoder,
-        enviarAviso, injetarDummie, handleApagarJogador, toggleCoMestre,
+        msgSistema,
+        enviarAviso, handleApagarJogador, toggleCoMestre,
         jogadoresList, jogadoresComStats, fmt,
         livroAberto, abrirLivroEntidade, verPedidoNaFicha, fecharLivroEntidade,
     ]);

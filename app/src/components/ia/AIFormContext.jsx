@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useRef, useEffect, useCallb
 import { ref, set, get } from 'firebase/database';
 import { db } from '../../services/firebase-config';
 import useStore, { sanitizarNome } from '../../stores/useStore';
-import { salvarDummie } from '../../services/firebase-sync';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import {
     MODELO_GEMINI_PADRAO, montarHistoricoGemini,
@@ -765,11 +764,6 @@ export function AIFormProvider({ children }) {
                     const extras = {};
                     // Tier List: fica presa ao capítulo aberto AGORA; NPC: à cena publicada agora.
                     if (p.tipo === 'tierlist') { extras.foco = loreFoco; extras.capituloId = capituloAtivoObj?.id; extras.capituloTitulo = capituloAtivoObj?.titulo || ''; }
-                    if (p.tipo === 'npc') {
-                        const cen = useStore.getState().cenario;
-                        extras.cenaId = cen?.ativa || 'default';
-                        extras.cenaNome = cen?.lista?.[extras.cenaId]?.nome || extras.cenaId;
-                    }
                     propostasDoTurno.push({ id, ...p, ...extras, estado: 'nova' });
                     return id;
                 },
@@ -792,8 +786,8 @@ ${texto}`, textoConfirmar: 'Memorizar' });
                 : `Quem fala: ${meuNome || 'Desconhecido'}\nPapel: ${isMestre ? 'Mestre' : 'Jogador'}\n(Quem fala desligou o acesso aos dados da mesa nesta conversa.)`;
             const systemInstruction = montarInstrucaoSistema({ contextoFicha, lore, memoria, semFerramentas: !preferencias.mesa });
             // Fontes desligadas também tiram as ferramentas correspondentes.
-            // Jogadores não recebem as ferramentas só-Mestre (NPC, Tier List, poder do grupo).
-            const soMestre = ['propor_npc', 'propor_tier_list', 'poder_do_grupo'];
+            // Jogadores não recebem as ferramentas só-Mestre (Tier List, poder do grupo).
+            const soMestre = ['propor_tier_list', 'poder_do_grupo'];
             const declaracoes = [...DECLARACOES_FERRAMENTAS, ...DECLARACOES_CRIACAO].filter(d => !(
                 (!preferencias.lore && d.name === 'buscar_lore') || (!preferencias.memoria && d.name === 'memorizar_fato')
                 || (!isMestre && soMestre.includes(d.name))
@@ -939,16 +933,6 @@ ${texto}`, textoConfirmar: 'Memorizar' });
     const gravarCriacao = useCallback(async ({ tipo, objeto, alvo, quantidade, cenaId: cenaProposta, foco: focoProposta, capituloId: capituloProposta }) => {
         if (tipo === 'poder' || tipo === 'magia' || tipo === 'item' || tipo === 'combo' || tipo === 'followup') {
             await gravarNaFicha({ tipo, objeto, alvo });
-            return;
-        }
-        if (tipo === 'npc') {
-            // Mesmo padrão do Mapa: sem Cena publicada, é a 'default'.
-            const cenaId = cenaProposta || useStore.getState().cenario?.ativa || 'default';
-            const qtd = Math.min(10, Math.max(1, Number(quantidade) || 1));
-            for (let i = 0; i < qtd; i++) {
-                const nome = qtd > 1 ? `${objeto.nome} ${i + 1}` : objeto.nome;
-                salvarDummie(`dummie_${Date.now()}_${i}`, { ...objeto, nome, cenaId, posicao: { x: i, y: 0 } });
-            }
             return;
         }
         if (tipo === 'tierlist') {

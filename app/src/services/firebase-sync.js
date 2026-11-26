@@ -602,12 +602,6 @@ export async function uploadImagem(file, pasta = 'imagens') {
     await uploadBytes(caminhoRef, file);
     return await getDownloadURL(caminhoRef);
 }
-export function iniciarListenerDummies(callback) {
-    if (isInPlasmicCanvas()) return () => {};
-    const { mesaId } = useStore.getState();
-    if (!db || !mesaId) return () => {};
-    return onValue(ref(db, `mesas/${mesaId}/dummies`), (snapshot) => { callback(snapshot.val() || {}); });
-}
 // Grava um Dummie. Se ele já existe no store, grava SÓ os campos que mudaram (update por caminho) em vez do objeto inteiro (um golpe e um
 // arrastar de posição, ou dois golpes, não se apagam mais). `opcoes.baseHp` = a Vida que o cliente conhecia: o campo `hpAtual` vira DELTA
 // transacional (novo - baseHp), com piso 0 e teto `opcoes.hpMax`. Sem Dummie no store (criação), grava o objeto inteiro como antes.
@@ -650,12 +644,6 @@ export function salvarDummie(id, dadosDummie, opcoes = {}) {
         }
         return prox;
     }, { applyLocally: false }).catch((err) => avisarFalhaGravacao(textoErro, err));
-}
-export function deletarDummie(id) {
-    if (isInPlasmicCanvas()) return;
-    const { mesaId } = useStore.getState();
-    if (!db || !mesaId) return;
-    remove(ref(db, `mesas/${mesaId}/dummies/${id}`)).catch(() => {});
 }
 // 🔥 Último estado do `cenario` confirmado no Firebase (mesmo papel de
 // `ultimoEstadoSincronizado` pra ficha, ver salvarFirebaseImediato acima): baseline

@@ -5,7 +5,6 @@ import useStore, { sanitizarNome } from './stores/useStore';
 import useFirebase from './hooks/useFirebase';
 import useSextaFeiraMesa from './hooks/useSextaFeiraMesa';
 import useSincronizarAcoes from './hooks/useSincronizarAcoes';
-import useSincronizarPoderDummies from './hooks/useSincronizarPoderDummies';
 import { usePreferenciasDaConta } from './hooks/usePreferenciasDaConta';
 
 // 🔥 IMPORTANDO O MOTOR DE VOZ PARA O TOPO DO APP 🔥
@@ -70,7 +69,7 @@ import LimiteDeErro from './components/layout/LimiteDeErro';
 import { transferirPresencaNaTaverna, marcarMestreNaTaverna } from './core/chats';
 
 import {
-    carregarFichaDoFirebase, lerFichaDoFirebaseSeguro, confirmarLeituraRemota, resetSincronizacaoFicha, iniciarListenerDummies,
+    carregarFichaDoFirebase, lerFichaDoFirebaseSeguro, confirmarLeituraRemota, resetSincronizacaoFicha,
     iniciarListenerCenario, resetSincronizacaoCenario, monitorarAuth,
     iniciarSistemaDePresenca, iniciarListenerPresenca, removerPresencaImediata,
     iniciarListenerMestres, salvarFirebaseImediato, iniciarListenerDivisorPoderMesa, salvarCenarioCompleto
@@ -172,7 +171,6 @@ export default function App() {
     
     const cenario = useStore(s => s.cenario);
     const setCenario = useStore(s => s.setCenario);
-    const setDummies = useStore(s => s.setDummies);
     const setDivisorPoderMesa = useStore(s => s.setDivisorPoderMesa);
     
     const mesaId = useStore(s => s.mesaId);
@@ -190,7 +188,6 @@ export default function App() {
     // ⚡ Mantém o máximo de Ações gravado na ficha igual ao calculado (core/acoes.js).
     useSincronizarAcoes(pronto && !loading && !!meuNome);
     // 🔗 Tokens de NPC do Mapa seguem o Poder da ficha do NPC (só o Mestre efetivo grava).
-    useSincronizarPoderDummies();
     const [modalAberto, setModalAberto] = useState(false);
     const [themeReady, setThemeReady] = useState(false);
 
@@ -268,7 +265,7 @@ export default function App() {
     }, [setMeuNome, carregarDadosFicha]);
 
     useEffect(() => {
-        // 🔥 mesaId PRECISA estar nas dependências: iniciarListenerDummies/Cenario/DivisorPoderMesa
+        // 🔥 mesaId PRECISA estar nas dependências: iniciarListenerCenario/DivisorPoderMesa
         // leem mesaId internamente (useStore.getState()) só no momento em que são chamadas — se
         // mesaId ainda não estava definido quando este efeito rodou pela primeira vez (ex.: primeiro
         // login da sessão, mesaId chega via setMesaId DEPOIS do mount), os listeners nunca eram
@@ -278,11 +275,10 @@ export default function App() {
         // 🔥 Reseta a baseline de diff do Cenário antes de anexar o listener desta mesa — senão o
         // próximo salvarCenarioCompleto() calcularia o diff contra o Cenário da mesa ANTERIOR.
         resetSincronizacaoCenario();
-        const unsubDummies = iniciarListenerDummies((dados) => setDummies(dados || {}));
         const unsubCenario = iniciarListenerCenario((dados) => setCenario(dados));
         const unsubDivisorPoder = iniciarListenerDivisorPoderMesa((valor) => setDivisorPoderMesa(valor));
-        return () => { if (unsubDummies) unsubDummies(); if (unsubCenario) unsubCenario(); if (unsubDivisorPoder) unsubDivisorPoder(); };
-    }, [mesaId, setDummies, setCenario, setDivisorPoderMesa]);
+        return () => { if (unsubCenario) unsubCenario(); if (unsubDivisorPoder) unsubDivisorPoder(); };
+    }, [mesaId, setCenario, setDivisorPoderMesa]);
 
     useEffect(() => {
         if (!mesaId || !userLogado || !pronto) return;

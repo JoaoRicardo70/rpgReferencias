@@ -110,20 +110,12 @@ describe('executarFerramenta propor_*', () => {
         expect(r.ajustes.some(a => a.includes('Bizarra'))).toBe(true);
     });
 
-    describe('so Mestre: npc e tierlist', () => {
-        it.each([['propor_npc', { nome: 'Orc', vida: 10 }], ['propor_tier_list', { ranks: [{ nome: 'Ana', rank: 'A' }] }]])('jogador recusado em %s', async (fn, args) => {
+    describe('so Mestre: tierlist', () => {
+        it.each([['propor_tier_list', { ranks: [{ nome: 'Ana', rank: 'A' }] }]])('jogador recusado em %s', async (fn, args) => {
             const registrarProposta = propostaRegistrada();
             const r = await executarFerramenta(fn, args, estadoBase(), { registrarProposta });
             expect(r.erro).toMatch(/Só o Mestre/);
             expect(registrarProposta).not.toHaveBeenCalled();
-        });
-        it('Mestre propoe npc: quantidade e hpMax passam', async () => {
-            const registrarProposta = propostaRegistrada();
-            const r = await executarFerramenta('propor_npc', { nome: 'Orc', vida: 200, quantidade: 3 }, estadoBase({ isMestre: true }), { registrarProposta });
-            expect(r.ok).toBe(true);
-            const arg = registrarProposta.mock.calls[0][0];
-            expect(arg).toMatchObject({ tipo: 'npc', alvo: null, quantidade: 3 });
-            expect(arg.objeto.hpMax).toBe(200000);
         });
         it('Mestre propoe tierlist; nome desconhecido gera aviso; ranks invalidos = erro', async () => {
             const registrarProposta = propostaRegistrada();
@@ -164,7 +156,6 @@ describe('executarFerramenta poder_do_grupo', () => {
         expect(r.medias.vidaMaxima).toBe(Math.round(somaVida / 3));
         const somaPoder = r.jogadores.reduce((s, j) => s + j.poderCalculado, 0);
         expect(r.medias.poderCalculado).toBe(Math.round(somaPoder / 3));
-        expect(r.dica).toContain('propor_npc');
         r.jogadores.forEach(j => expect(j).toHaveProperty('fadigaPorcentagem'));
     });
     it('a ficha do proprio Mestre com nome repetido em personagens nao duplica', async () => {

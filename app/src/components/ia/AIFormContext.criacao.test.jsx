@@ -98,24 +98,15 @@ describe('propostas na resposta da Sexta-Feira', () => {
         const r2 = await pedir(result, []);
         expect(r2.msg).not.toHaveProperty('propostas');
     });
-    it('NPC guarda a cena publicada; sem cena vira default', async () => {
-        const { result } = montar();
-        useStore.setState({ cenario: { ativa: 'praca', lista: { praca: { nome: 'Praça' } } } });
-        let p = (await pedir(result, [['propor_npc', { nome: 'Orc', vida: 10, quantidade: 2 }]])).proposta;
-        expect(p).toMatchObject({ tipo: 'npc', cenaId: 'praca', cenaNome: 'Praça', quantidade: 2 });
-        useStore.setState({ cenario: null });
-        p = (await pedir(result, [['propor_npc', { nome: 'Orc', vida: 10 }]])).proposta;
-        expect(p).toMatchObject({ cenaId: 'default', cenaNome: 'default' });
-    });
     it('Tier List guarda o capitulo aberto na hora da proposta', async () => {
         const { result } = montar();
         const p = (await pedir(result, [['propor_tier_list', { ranks: [{ nome: 'Ana', rank: 'S' }] }]])).proposta;
         expect(p).toMatchObject({ tipo: 'tierlist', capituloId: 1, capituloTitulo: 'Cap Um', foco: 'presente' });
     });
-    it('jogador nao recebe propor_npc: executar recusa e nao cria cartao', async () => {
+    it('jogador nao recebe propor_tier_list: executar recusa e nao cria cartao', async () => {
         useStore.setState({ isMestre: false, meuNome: 'Ana', minhaFicha: fichaBase() });
         const { result } = montar();
-        const { msg } = await pedir(result, [['propor_npc', { nome: 'Orc', vida: 10 }]]);
+        const { msg } = await pedir(result, [['propor_tier_list', { ranks: [{ nome: 'Ana', rank: 'A' }] }]]);
         expect(msg.propostas).toBeUndefined();
     });
 });
@@ -185,26 +176,6 @@ describe('aplicarProposta (Mestre)', () => {
         expect(ok).toBe(false);
         expect(result.current.historico[idx].propostas[0].estado).toBe('nova');
         expect(dialogos.avisar).toHaveBeenCalledWith(expect.stringContaining('sem rede'), 'erro');
-    });
-    it('NPC: salvarDummie x quantidade com nomes numerados e cenaId da cena publicada', async () => {
-        useStore.setState({ cenario: { ativa: 'praca', lista: { praca: { nome: 'Praça' } } } });
-        const { result } = montar();
-        const { idx, proposta } = await pedir(result, [['propor_npc', { nome: 'Orc', vida: 10, quantidade: 3 }]]);
-        useStore.setState({ cenario: { ativa: 'outra', lista: {} } });
-        await act(async () => { await result.current.aplicarProposta(idx, proposta.id); });
-        expect(salvarDummie).toHaveBeenCalledTimes(3);
-        const chamadas = salvarDummie.mock.calls;
-        expect(chamadas.map(c => c[1].nome)).toEqual(['Orc 1', 'Orc 2', 'Orc 3']);
-        expect(new Set(chamadas.map(c => c[0])).size).toBe(3);
-        chamadas.forEach(c => expect(c[1]).toMatchObject({ cenaId: 'praca', hpMax: 10000, hpAtual: 10000 }));
-        expect(chamadas.map(c => c[1].posicao.x)).toEqual([0, 1, 2]);
-    });
-    it('NPC unico: sem numeracao, cena default quando nao ha cena', async () => {
-        const { result } = montar();
-        const { idx, proposta } = await pedir(result, [['propor_npc', { nome: 'Chefe', vida: 500 }]]);
-        await act(async () => { await result.current.aplicarProposta(idx, proposta.id); });
-        expect(salvarDummie).toHaveBeenCalledTimes(1);
-        expect(salvarDummie.mock.calls[0][1]).toMatchObject({ nome: 'Chefe', cenaId: 'default' });
     });
     it('Tier List: aplica no capitulo proposto (nao no aberto no clique); preserva avatar e substitui rank', async () => {
         const { result } = montar();

@@ -3,7 +3,6 @@ import { initPlasmicLoader } from '@plasmicapp/loader-react'
 // --- Componentes puros (sem dependência de store) ---
 import VitalBar from './components/status/VitalBar'
 import TabPanel from './components/layout/TabPanel'
-import DummieToken from './components/combat/DummieToken'
 import FormasEditor from './components/shared/FormasEditor'
 import TemaSelector from './components/shared/TemaSelector'
 import TemaEditor from './components/shared/TemaEditor'
@@ -138,15 +137,6 @@ PLASMIC.registerComponent(TabPanel, {
     className: 'string',
     id: 'string',
     children: 'slot'
-  }
-})
-
-PLASMIC.registerComponent(DummieToken, {
-  name: 'DummieToken',
-  props: {
-    className: 'string',
-    id: 'string',
-    dummie: 'object'
   }
 })
 

@@ -32,7 +32,6 @@ import { calcularPoderAtual, calcularFatorMultiplicadorForca } from '../../core/
 import { calcularFadigaAtual } from '../../core/fadiga';
 import { construirArvorePastas, contarNaPasta, listarCaminhosPastas, segmentosPasta } from '../../core/pastas';
 import { getPoderDummie, marcaPoderAcerto, marcaNaturalAcerto } from '../../core/disputaPoder';
-import { lerPoderDigitado, escalarPoder, dummieComPoderManual, dummieSeguindoFicha } from '../../core/poderManual';
 import { getPercepcaoPoder, enxergaEfetividade, estimarPoderDeEntidade, descreverEstimativaPoder, rotuloPrecisaoPoder, descreverCondicaoVida, getOcultacaoPoder, getTetoOcultacaoPoder } from '../../core/percepcaoPoder';
 import { getVitalMax, getVitalMaxEstavel, calcVitalScale, calcularBarrasVida, calcularBarrasVidaDummy, FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 import BarrasVida from '../shared/BarrasVida';
@@ -1397,39 +1396,6 @@ function MoldPoderLinha({ exato, poderExato, estimativa }) {
     );
 }
 
-// ✏️ Editor rápido do Poder de um token (só Mestre): digita o número ("50 bi", "1,5 mi") ou escala num clique (x2, x10, +25%). Grava só
-// neste token e, se ele veio de uma ficha de NPC, desvincula do Poder da ficha (o botão "Seguir a ficha" volta ao automático).
-function MoldPoderEditor({ dummie, id }) {
-    const [texto, setTexto] = useState('');
-    const [aberto, setAberto] = useState(false);
-    const atual = getPoderDummie(dummie);
-    const gravar = (novo) => { const d = dummieComPoderManual(dummie, novo); if (d) salvarDummie(id, d); };
-    const aplicar = () => { if (lerPoderDigitado(texto) === null) return; gravar(texto); setTexto(''); };
-    const podeEscalar = atual !== null && atual > 0;
-    const escalar = (fator) => { if (!podeEscalar) return; const v = escalarPoder(atual, fator); if (v !== null) gravar(v); };
-    const seguir = () => { const d = dummieSeguindoFicha(dummie); if (d) salvarDummie(id, d); };
-    const desvinculado = !!dummie.fichaOrigem && dummie.poderDesvinculado === true;
-    if (!aberto) {
-        return (
-            <div className="moldura-poder-editor recolhido">
-                <button type="button" className="moldura-poder-editar" onClick={() => setAberto(true)} title="Editar o Poder deste token">✏️ Editar Poder</button>
-                {desvinculado && <button type="button" className="moldura-poder-editar seguir" onClick={seguir} title="Volta a seguir o Poder da ficha do NPC">↺ Seguir a ficha</button>}
-            </div>
-        );
-    }
-    return (
-        <div className="moldura-poder-editor">
-            <input className="input-neon" type="text" inputMode="decimal" placeholder="Novo Poder (ex.: 50 bi)" value={texto} onChange={e => setTexto(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') aplicar(); }} aria-label="Novo Poder Calculado" />
-            <button type="button" className="btn-neon btn-gold" onClick={aplicar} disabled={lerPoderDigitado(texto) === null} title="Define o Poder Calculado deste token">Definir</button>
-            <button type="button" className="btn-neon" onClick={() => escalar(2)} disabled={!podeEscalar} title="Dobra o Poder">×2</button>
-            <button type="button" className="btn-neon" onClick={() => escalar(10)} disabled={!podeEscalar} title="Multiplica o Poder por 10">×10</button>
-            <button type="button" className="btn-neon" onClick={() => escalar(1.25)} disabled={!podeEscalar} title="Aumenta o Poder em 25%">+25%</button>
-            {desvinculado && <button type="button" className="btn-neon btn-green" onClick={seguir} title="Volta a seguir o Poder da ficha do NPC">Seguir a ficha</button>}
-            <button type="button" className="btn-neon" onClick={() => setAberto(false)} title="Fechar o editor">✕</button>
-        </div>
-    );
-}
-
 // 🎚️ Barra de Ajuste de Poder (só Mestre, NPCs que são personagens do Mapa): o ajuste é uma Entropia da Entidade com multiplicador de Poder
 // (core/ajustePoder.js), então aparece na aba Entropia da ficha e entra no Poder Calculado como qualquer outro buff. ×1 remove a Entropia.
 function MoldPoderBarra({ nome, ficha }) {
@@ -1800,7 +1766,6 @@ export function MapaHologramaAcao() {
                         <div style={{ padding: '15px', background: '#050505' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(0,0,0,0.7)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)' }}>
                                 <MoldPoderLinha exato={verTudo} poderExato={poderAtualBase} estimativa={estimativaPoderBase} />
-                                {isMestre && ehDummieBase && inspecionando && <MoldPoderEditor key={idBase} dummie={fichaBase} id={idBase} />}
                                 {isMestre && !ehDummieBase && inspecionando && ehNpc(fichaBase) && <MoldPoderBarra key={nomeBase} nome={nomeBase} ficha={fichaBase} />}
                                 {verTudo && poderCalculadoBase && <MoldSituacao ficha={fichaBase} supressao={poderCalculadoBase.supressao} />}
                                 <div>

@@ -289,15 +289,6 @@ describe('firebase-sync.js — setModoPlasmic guard', () => {
     });
 
     // --- deletarDummie ---
-    it('blocks deletarDummie when Plasmic mode is on', async () => {
-        const { remove } = await import('firebase/database');
-        remove.mockClear();
-        syncMod.setModoPlasmic(true);
-        syncMod.deletarDummie('d1');
-        expect(remove).not.toHaveBeenCalled();
-    });
-
-    // --- salvarCenarioCompleto ---
     it('blocks salvarCenarioCompleto when Plasmic mode is on', async () => {
         const { set } = await import('firebase/database');
         set.mockClear();
@@ -333,12 +324,6 @@ describe('firebase-sync.js — setModoPlasmic guard', () => {
     it('iniciarListenerFeed returns noop when Plasmic mode is on', () => {
         syncMod.setModoPlasmic(true);
         const cleanup = syncMod.iniciarListenerFeed(vi.fn());
-        expect(typeof cleanup).toBe('function');
-    });
-
-    it('iniciarListenerDummies returns noop when Plasmic mode is on', () => {
-        syncMod.setModoPlasmic(true);
-        const cleanup = syncMod.iniciarListenerDummies(vi.fn());
         expect(typeof cleanup).toBe('function');
     });
 

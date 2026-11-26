@@ -290,7 +290,6 @@ const useStore = create(
         adicionarAviso: (texto, tipo = 'info') => set((state) => { state.avisosAcao.push({ id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, texto: String(texto || ''), tipo }); if (state.avisosAcao.length > 5) state.avisosAcao.shift(); }),
         removerAviso: (id) => set((state) => { state.avisosAcao = state.avisosAcao.filter(a => a.id !== id); }),
         limparFeedStore: () => set(state => { state.feedCombate = []; state.feedDescartados = 0; }),
-        setDummies: (dummies) => set((state) => { state.dummies = dummies || {}; }),
         setAlvoSelecionado: (id) => set((state) => { state.alvoSelecionado = id; }),
         // 🎭 Ator de combate do Mestre (core/atorCombate.js): { nome, dummieId? } do NPC em que ele está atuando, ou null.
         setAtorCombate: (ator) => set((state) => { state.atorCombate = ator || null; }),

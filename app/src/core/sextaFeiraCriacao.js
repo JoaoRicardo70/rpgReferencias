@@ -10,7 +10,6 @@
 //   poder/habilidade/forma -> components/poderes/PoderesFormContext.jsx (salvarNovoPoder)
 //   magia                  -> components/arsenal/ElementosFormContext.jsx (salvarNovoElem)
 //   item                   -> components/arsenal/ArsenalFormContext.jsx (salvarNovoItem)
-//   npc (dummie do Mapa)   -> components/mapa/MapaFerramentasMestre.jsx (criar dummie)
 // ==========================================
 import { dadosLimitadosDaTecnica } from './limiteDados.js';
 import { ATRIBUTOS_AGRUPADOS, PROPRIEDADE_OPTIONS, GRUPO_REACOES, GRUPO_IDENTIFICACAO, PROPRIEDADES_REACAO } from './efeitos-constants.js';
@@ -40,7 +39,6 @@ import { normalizarReflexo, MODOS_REFLEXO, ENERGIAS_REFLEXO } from './reflexo.js
 import { normalizarSuporte, MODOS_ALVO_SUPORTE, ACOES_SUPORTE, LIMITES_SUPORTE } from './suporte.js';
 import { IDS_CATEGORIA_PODER, CATEGORIAS_PODER as CATEGORIAS_PODER_INFO, categoriaLiberadaNaFicha } from './categoriasPoder.js';
 import { normalizarCombo, normalizarFollowUp, resumirCombo, TIPOS_GOLPE, ACOES_GOLPE, QUANDO_FOLLOW_UP, LIMITES as LIMITES_COMBO } from './combos.js';
-
 // Inclui as Reações (efeito reacao_<gatilho> + propriedade do efeito): a Sexta-Feira não pode rebaixá-las a efeito numérico comum.
 export const ATRIBUTOS_EFEITO = [...ATRIBUTOS_AGRUPADOS.flatMap(g => g.options), ...GRUPO_REACOES.options, ...GRUPO_IDENTIFICACAO.options];
 export const PROPRIEDADES_EFEITO = [...PROPRIEDADE_OPTIONS, ...PROPRIEDADES_REACAO];
@@ -78,7 +76,7 @@ export const IDS_RANKS = [
 
 // Onde cada tipo entra na ficha.
 export const CAMPO_FICHA_POR_TIPO = { poder: 'poderes', magia: 'ataquesElementais', item: 'inventario', combo: 'combos', followup: 'followUps' };
-export const ROTULO_TIPO = { poder: 'Habilidade/Poder/Forma', magia: 'Técnica Elemental', item: 'Item do Arsenal', npc: 'NPC do Mapa', tierlist: 'Tier List', combo: 'Combo', followup: 'Follow Up' };
+export const ROTULO_TIPO = { poder: 'Habilidade/Poder/Forma', magia: 'Técnica Elemental', item: 'Item do Arsenal', tierlist: 'Tier List', combo: 'Combo', followup: 'Follow Up' };
 // O que um jogador pode pedir pra própria ficha (o resto é só do Mestre).
 export const TIPOS_PEDIDO_JOGADOR = ['poder', 'magia', 'item', 'combo', 'followup'];
 
@@ -556,27 +554,6 @@ export function normalizarItem(dados) {
     return { objeto, avisos, valido: !!objeto.nome };
 }
 
-// NPC/dummie do Mapa. `vida` vem na escala EXIBIDA (a mesma que o Mestre digita no Mapa).
-export function normalizarNpc(dados) {
-    const d = dados || {};
-    const avisos = [];
-    const vidaExibida = numero(d.vida, 100, 1, 1e15);
-    const hp = Math.round(vidaExibida * FATOR_EXIBICAO_VITAIS);
-    const objeto = {
-        nome: texto(d.nome, 60) || 'Entidade',
-        hpMax: hp,
-        hpAtual: hp,
-        tipoDefesa: escolher(d.tipoDefesa, DEFESAS_NPC, 'evasiva', 'Defesa', avisos),
-        valorDefesa: numero(d.valorDefesa, 10, 0, 1e6),
-        visibilidadeHp: escolher(d.visibilidadeHp, VISIBILIDADES_HP, 'todos', 'Visibilidade', avisos),
-    };
-    // ⚡ Poder Calculado (Disputa de Poder, core/disputaPoder.js). Sem valor = sem disputa.
-    const poder = numero(d.poder, null, 0, 1e300);
-    if (poder !== null) objeto.poderCalculado = poder;
-    const quantidade = inteiro(d.quantidade, 1, 1, 10);
-    return { objeto, avisos, valido: true, quantidade };
-}
-
 export function normalizarTierList(dados, nomesConhecidos = []) {
     const avisos = [];
     const itens = (Array.isArray(dados?.ranks) ? dados.ranks : []).slice(0, 60);
@@ -648,7 +625,6 @@ export function normalizarProposta(tipo, dados, extras = {}) {
         case 'poder': return normalizarPoder(dados, extras);
         case 'magia': return normalizarMagia(dados);
         case 'item': return normalizarItem(dados);
-        case 'npc': return normalizarNpc(dados);
         case 'tierlist': return normalizarTierList(dados, extras.nomesConhecidos);
         default: return { objeto: null, avisos: [`Tipo desconhecido: ${tipo}`], valido: false };
     }
@@ -707,7 +683,7 @@ function resumirBase(tipo, objeto) {
     if (tipo === 'poder') return `${objeto.categoria} · ${resumirFormulaDeDano(objeto) || 'sem dano'} · custo ${objeto.custoPercentual}% · ${(objeto.efeitos || []).length + (objeto.efeitosPassivos || []).length} efeito(s)`;
     if (tipo === 'magia') return `${objeto.elemento} · ${objeto.tipoMecanica} · ${objeto.dadosExtraQtd ? `${objeto.dadosExtraQtd}d${objeto.dadosExtraFaces}` : 'sem dados extras'} · custo ${objeto.custoValor}`;
     if (tipo === 'item') return `${objeto.tipo}${objeto.armaTipo ? ` (${objeto.armaTipo})` : ''} · ${objeto.raridade}${objeto.dadosQtd ? ` · ${objeto.dadosQtd}d${objeto.dadosFaces}` : ''}`;
-    if (tipo === 'npc') return `Vida ${Math.round(objeto.hpMax / FATOR_EXIBICAO_VITAIS).toLocaleString('pt-BR')} · ${objeto.tipoDefesa} ${objeto.valorDefesa}${objeto.poderCalculado !== undefined ? ` · Poder ${Math.round(objeto.poderCalculado).toLocaleString('pt-BR')}` : ''}`;
+
     if (tipo === 'tierlist') return `${(objeto.ranks || []).length} personagem(ns) classificados`;
     if (tipo === 'combo') return `${resumirCombo(objeto)} · ${objeto.passos.length + 1} golpes`;
     if (tipo === 'followup') return `${objeto.niveis.length} nível(is) · ${objeto.acoesPermitidas.map(a => (ACOES_GOLPE.find(x => x.id === a) || {}).rotulo).join('/')} · ${objeto.quando === 'combo' ? 'durante um Combo' : 'a qualquer momento'}`;
@@ -891,22 +867,6 @@ export const DECLARACOES_CRIACAO = [
         },
     },
     {
-        name: 'propor_npc',
-        description: 'SÓ MESTRE: prepara NPCs/dummies para a cena atual do Mapa. NÃO cria: vira um cartão para o Mestre aplicar. Use poder_do_grupo antes para equilibrar a Vida.',
-        parameters: {
-            type: 'OBJECT',
-            properties: {
-                nome: { type: 'STRING' },
-                vida: { type: 'NUMBER', description: 'Vida máxima na escala mostrada na tela (a mesma do Mapa).' },
-                tipoDefesa: { type: 'STRING', enum: DEFESAS_NPC }, valorDefesa: { type: 'NUMBER' },
-                visibilidadeHp: { type: 'STRING', enum: VISIBILIDADES_HP },
-                poder: { type: 'NUMBER', description: 'Poder Calculado do NPC (escala do Scouter, a mesma de poder_do_grupo). O dano no combate segue a diferença de Poder: com o dobro de Poder ou mais, o mais fraco não causa dano.' },
-                quantidade: { type: 'INTEGER', description: '1 a 10 cópias.' },
-            },
-            required: ['nome', 'vida'],
-        },
-    },
-    {
         name: 'poder_do_grupo',
         description: 'SÓ MESTRE: Poder Calculado, Vida máxima e Fadiga dos personagens de jogadores, com médias — para equilibrar inimigos.',
         parameters: { type: 'OBJECT', properties: {} },
@@ -928,6 +888,6 @@ export const DECLARACOES_CRIACAO = [
 ];
 
 export const TIPO_POR_FERRAMENTA = {
-    propor_habilidade: 'poder', propor_magia: 'magia', propor_item: 'item', propor_npc: 'npc', propor_tier_list: 'tierlist', propor_combo: 'combo', propor_follow_up: 'followup',
+    propor_habilidade: 'poder', propor_magia: 'magia', propor_item: 'item', propor_tier_list: 'tierlist', propor_combo: 'combo', propor_follow_up: 'followup',
 };
-export const TIPOS_SO_MESTRE = ['npc', 'tierlist'];
+export const TIPOS_SO_MESTRE = ['tierlist'];

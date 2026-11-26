@@ -680,23 +680,6 @@ export function MapaFormProvider({ children }) {
         return map;
     }, [jogadores, cenaRenderId]);
 
-    // 🔥 MAPA DE DUMMIES POR CÉLULA (evita varrer todos os dummies em cada uma das células do grid)
-    const dummyMap = useMemo(() => {
-        const map = {};
-        if (dummies) {
-            const dIds = Object.keys(dummies);
-            for (let i = 0; i < dIds.length; i++) {
-                const id = dIds[i];
-                const d = dummies[id];
-                const dCena = d.cenaId || 'default';
-                if (d.posicao?.x === undefined || dCena !== cenaRenderId) continue;
-                const key = `${d.posicao.x},${d.posicao.y}`;
-                if (!map[key]) map[key] = [];
-                map[key].push([id, d]);
-            }
-        }
-        return map;
-    }, [dummies, cenaRenderId]);
 
     const tokens3D = useMemo(() => {
         return Object.entries(jogadores)
@@ -1863,7 +1846,7 @@ export function MapaFormProvider({ children }) {
         cells, jogadores, playersNaTaverna, ordemIniciativa, handleCellClick,
         alterarZoom, setMinhaIniciativa, rolarMinhaIniciativa, avancarTurno, sairDoCombate, encerrarCombate, descansar, aplicarDanoRapido,
         combateAtivo, rodadaAtual, combateSemInicio, iniciarCombate, equipes, relacoes, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes, racas, salvarRacas, definirRacaDoPersonagem,
-        rolarAcertoRapido, tokenMap, dummyMap, tokens3D, jogadorDaVez, infoDaVez, fmt, deletarZona, toggleActionDot,
+        rolarAcertoRapido, tokenMap, tokens3D, jogadorDaVez, infoDaVez, fmt, deletarZona, toggleActionDot,
         inspecao, inspecionar, limparInspecao, modoJogador,
         movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento, removerTokenDoMapa, estouNoMapa
     }), [
@@ -1874,7 +1857,7 @@ export function MapaFormProvider({ children }) {
         novaCenaNome, novaCenaEscala, novaCenaUnidade, novaCenaApenasCriador, uploadingMap, dadoAnim,
         cenaVisualizadaId, cenaAtivaIdGlobal, cenaRenderId, cenaAtual, isModoRP,
         mestreVendoRP, tavernaAtivos, isPresenteNaTaverna, overridesCompendio,
-        cells, jogadores, playersNaTaverna, ordemIniciativa, tokenMap, dummyMap, tokens3D,
+        cells, jogadores, playersNaTaverna, ordemIniciativa, tokenMap, tokens3D,
         jogadorDaVez, infoDaVez, fmt, toggleModoRP, togglePresencaTaverna, changeVantagem,
         changeDesvantagem, handleUploadNovaCena, ativarCena, deletarCena, definirAcessoCena, corDoJogador, descansar, aplicarDanoRapido,
         getAvatarInfo, handleCellClick, alterarZoom, setMinhaIniciativa, rolarMinhaIniciativa, avancarTurno,

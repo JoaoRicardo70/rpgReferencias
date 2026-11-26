@@ -161,20 +161,6 @@ describe('CartaoProposta - Mestre', () => {
         expect(salvarFichaSilencioso).toHaveBeenCalled();
         expect(screen.queryByText('✅ Aplicar')).toBeNull();
     });
-    it('NPC mostra quantidade e cena; Tier List mostra capitulo e a lista de ranks', async () => {
-        useStore.setState({ cenario: { ativa: 'praca', lista: { praca: { nome: 'Praça Central' } } } });
-        montar();
-        await enviar([['propor_npc', { nome: 'Orc', vida: 50, quantidade: 3 }], ['propor_tier_list', { ranks: [{ nome: 'Bruno', rank: 's+' }] }]]);
-        const [npc, tier] = document.querySelectorAll('.sexta-criacao');
-        expect(npc.textContent).toContain('NPC do Mapa × 3');
-        expect(npc.textContent).toContain('na cena "Praça Central"');
-        expect(npc.querySelector('.sexta-criacao-nome').textContent).toBe('Orc');
-        expect(tier.querySelector('.sexta-criacao-nome').textContent).toBe('Tier List');
-        expect(tier.textContent).toContain('no capítulo "Cap P"');
-        expect(tier.textContent).toContain('S+');
-        expect(tier.textContent).toContain('Bruno');
-        expect(within(tier).getByText('✅ Aplicar')).toBeTruthy();
-    });
     it('alvo diferente aparece como "para Bruno"', async () => {
         montar();
         await enviar([['propor_item', { nome: 'Espada', tipo: 'arma', alvo: 'Bruno' }]]);
@@ -183,9 +169,9 @@ describe('CartaoProposta - Mestre', () => {
 });
 
 describe('CartaoProposta - jogador com tipos so-Mestre', () => {
-    it('cartao npc/tierlist forjado em mensagem salva mostra "Só o Mestre pode aplicar isto."', async () => {
+    it('cartao tierlist forjado em mensagem salva mostra "Só o Mestre pode aplicar isto."', async () => {
         localStorage.setItem('rpgSextaFeira_chat_M1_Ana', JSON.stringify([
-            { role: 'ai', texto: 'oi', propostas: [{ id: 'p', tipo: 'npc', objeto: { nome: 'Orc', hpMax: 1000, tipoDefesa: 'evasiva', valorDefesa: 1 }, avisos: [], estado: 'nova', quantidade: 1 }] },
+            { role: 'ai', texto: 'oi', propostas: [{ id: 'p', tipo: 'tierlist', objeto: { ranks: [{ nome: 'Ana', rank: 'A' }] }, avisos: [], estado: 'nova', quantidade: 1 }] },
         ]));
         montar();
         await waitFor(() => expect(cartao()).not.toBeNull());

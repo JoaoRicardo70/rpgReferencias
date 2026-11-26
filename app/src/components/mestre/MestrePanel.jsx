@@ -3,7 +3,6 @@ import { MestreFormProvider, useMestreForm } from './MestreFormContext';
 import {
     MestreAcessoNegado,
     MestreVisorJogadores,
-    MestreInjetorEntidades,
     MestreVozSistema,
     MestreForjaNPC
 } from './MestreSubComponents';
@@ -43,7 +42,6 @@ function MestreConteudoSeguro() {
             <div className="mestre-entidades-linha">
                 <SecaoMestreAncora id="jogadores" className="mestre-secao-ancora--visor"><MestreVisorJogadores /></SecaoMestreAncora>
                 <div className="mestre-entidades-lateral">
-                    <MestreInjetorEntidades />
                     <MestreVozSistema />
                 </div>
             </div>

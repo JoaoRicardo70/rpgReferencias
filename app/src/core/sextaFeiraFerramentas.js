@@ -314,7 +314,7 @@ function poderDoGrupo(estado) {
         return {
             jogadores,
             medias: { poderCalculado: media('poderCalculado'), vidaMaxima: media('vidaMaxima') },
-            dica: 'Para propor_npc, "vida" usa a mesma escala de vidaMaxima. Um inimigo equilibrado costuma ter Vida parecida com a média do grupo; chefes, 2 a 4 vezes.',
+            dica: 'Um inimigo equilibrado costuma ter Vida parecida com a média do grupo; chefes, 2 a 4 vezes.',
         };
     } catch (err) {
         return { erro: `Falha ao consultar o grupo (${err?.message || 'erro desconhecido'}).` };

@@ -2,7 +2,6 @@ import React, { useContext } from 'react';
 import { resumoDeMovimento, textoDeMovimento } from '../../core/movimentoInfo';
 import { useMapaForm, urlSeguraParaCss, MAP_SIZE } from './MapaFormContext';
 import Tabuleiro3D from './Tabuleiro3D';
-import DummieToken from '../combat/DummieToken';
 import MapaMundi from './MapaMundi';
 import { MapaSessaoRP } from './MapaVoz';
 
@@ -46,7 +45,6 @@ export function MapaControlesSuperiores() {
     // 👣 Movimento (informativo): bônus em quadrados, velocidade 0 e quadrados percorridos no turno (core/movimentoInfo.js). O Mapa não limita o deslocamento.
     const textoMovimento = textoDeMovimento(resumoDeMovimento(minhaFicha, meuNome));
     // O Mestre com uma Entidade selecionada move a Entidade ao clicar numa casa: a dica/botão do próprio personagem não se aplica.
-    const movendoEntidade = !!(isMestre && alvoSelecionado && dummies?.[alvoSelecionado]);
     
     return (
         <div style={{ display: 'flex', gap: 15, marginBottom: 10, alignItems: 'center', background: 'rgba(0,0,0,0.6)', padding: '6px 12px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.1)', fontSize: '0.85em', flexWrap: 'wrap', position: 'relative', zIndex: 100 }}>
@@ -91,7 +89,7 @@ export function MapaControlesSuperiores() {
                 <span style={{ color: '#888' }}>m</span>
             </div>
             {textoMovimento && <span className="mapa-movimento-info" title="Informativo: o Mapa não limita o seu deslocamento por isso.">{textoMovimento}</span>}
-            {movendoEntidade ? null : estouNoMapa ? (
+            {estouNoMapa ? (
                 <button type="button" className="btn-neon" onClick={() => removerTokenDoMapa(meuNome)} style={{ padding: '2px 10px', margin: 0 }} title="Tira o seu personagem do Mapa (para voltar, clique numa casa)">🚪 Sair do Mapa</button>
             ) : (
                 <span className="mapa-entrar-dica">📍 Clique numa casa para colocar o seu personagem</span>
@@ -107,7 +105,7 @@ export function MapaVisao() {
     const ctx = useMapaForm();
     if (!ctx) return FALLBACK;
     const {
-        modo3D, tamanhoCelula, cenaAtual, cells, tokenMap, dummyMap,
+        modo3D, tamanhoCelula, cenaAtual, cells, tokenMap,
         cenaRenderId, tokens3D, pedirMovimento, movimentoPendente, confirmarMovimento, cancelarMovimento, getAvatarInfo,
         meuNome, corDoJogador, overridesCompendio, cenario, isMestre, inspecionar, inspecao, alvoSelecionado
     } = ctx;
@@ -169,19 +167,8 @@ export function MapaVisao() {
                 const tokensNestaCelula = tokenMap[key] || [];
                 const visivelTokens = tokensNestaCelula.filter(tk => isMestre || !(cenario?.tokensOcultos?.includes(tk.nome)));
 
-                const cellDummies = (dummyMap[key] || []).filter(([id]) => {
-                    const isOculto = cenario?.tokensOcultos?.includes(id);
-                    return isMestre || !isOculto;
-                });
-
                 return (
                     <div key={key} className={`map-cell${movimentoPendente && movimentoPendente.x === cell.x && movimentoPendente.y === cell.y ? ' map-cell--pendente' : ''}`} data-x={cell.x} data-y={cell.y} onClick={() => pedirMovimento(cell.x, cell.y)} style={{ width: tamanhoCelula, height: tamanhoCelula, border: '1px solid rgba(255,255,255,0.1)', position: 'relative', cursor: 'pointer' }}>
-                        
-                        {cellDummies.map(([id, d]) => (
-                            <div key={id} style={{ opacity: cenario?.tokensOcultos?.includes(id) ? 0.4 : 1 }}>
-                                <DummieToken id={id} dummie={d} imagemCss={urlSeguraParaCss(getAvatarInfo(d).img) || undefined} />
-                            </div>
-                        ))}
                         
                         {visivelTokens.map((tk) => {
                             const info = getAvatarInfo(tk.ficha);

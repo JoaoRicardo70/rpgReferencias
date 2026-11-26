@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    normalizarPoder, normalizarMagia, normalizarItem, normalizarNpc, normalizarTierList, normalizarProposta,
+    normalizarPoder, normalizarMagia, normalizarItem, normalizarTierList, normalizarProposta,
     avaliarEquilibrio, anexarNaLista, resumirProposta, DECLARACOES_CRIACAO, TIPO_POR_FERRAMENTA, TIPOS_SO_MESTRE,
     ATRIBUTOS_EFEITO, PROPRIEDADES_EFEITO, IDS_RANKS, ELEMENTOS_CONHECIDOS, CAMPO_FICHA_POR_TIPO,
 } from './sextaFeiraCriacao';
@@ -202,35 +202,6 @@ describe('normalizarItem', () => {
     });
 });
 
-describe('normalizarNpc', () => {
-    it('hpMax = vida * 1000 (escala exibida)', () => {
-        const r = normalizarNpc({ nome: 'Goblin', vida: 250, tipoDefesa: 'resistencia', valorDefesa: 30, visibilidadeHp: 'mestre', quantidade: 3 });
-        expect(r.valido).toBe(true);
-        expect(r.quantidade).toBe(3);
-        expect(r.objeto).toEqual({ nome: 'Goblin', hpMax: 250000, hpAtual: 250000, tipoDefesa: 'resistencia', valorDefesa: 30, visibilidadeHp: 'mestre' });
-    });
-    it('padroes: vida 100, evasiva 10, visivel a todos, nome Entidade, quantidade 1', () => {
-        const r = normalizarNpc({});
-        expect(r.objeto).toEqual({ nome: 'Entidade', hpMax: 100000, hpAtual: 100000, tipoDefesa: 'evasiva', valorDefesa: 10, visibilidadeHp: 'todos' });
-        expect(r.quantidade).toBe(1);
-        expect(r.valido).toBe(true);
-    });
-    it('quantidade clamp 1..10', () => {
-        expect(normalizarNpc({ quantidade: 0 }).quantidade).toBe(1);
-        expect(normalizarNpc({ quantidade: -4 }).quantidade).toBe(1);
-        expect(normalizarNpc({ quantidade: 99 }).quantidade).toBe(10);
-        expect(normalizarNpc({ quantidade: 2.4 }).quantidade).toBe(2);
-        expect(normalizarNpc({ quantidade: 'abc' }).quantidade).toBe(1);
-    });
-    it('vida minima 1 (nao aceita 0/negativo) e enums invalidos avisam', () => {
-        expect(normalizarNpc({ vida: 0 }).objeto.hpMax).toBe(1000);
-        expect(normalizarNpc({ vida: -50 }).objeto.hpMax).toBe(1000);
-        const r = normalizarNpc({ tipoDefesa: 'magica', visibilidadeHp: 'ninguem' });
-        expect(r.objeto).toMatchObject({ tipoDefesa: 'evasiva', visibilidadeHp: 'todos' });
-        expect(r.avisos).toHaveLength(2);
-    });
-});
-
 describe('normalizarTierList', () => {
     it('aceita apenas IDS_RANKS validos, normaliza caixa', () => {
         const r = normalizarTierList({ ranks: [{ nome: 'Ana', rank: 's+' }, { nome: 'Bruno', rank: 'ZZ' }, { nome: 'Cid', rank: 'EX' }, { nome: 'Dan', rank: 'r-' }] });
@@ -269,7 +240,6 @@ describe('normalizarProposta', () => {
         expect(normalizarProposta('poder', { nome: 'X' }).objeto.categoria).toBe('habilidade');
         expect(normalizarProposta('magia', { nome: 'X' }).objeto.tipoMecanica).toBe('ataque');
         expect(normalizarProposta('item', { nome: 'X' }).objeto.tipo).toBe('arma');
-        expect(normalizarProposta('npc', {}).quantidade).toBe(1);
         expect(normalizarProposta('tierlist', { ranks: [{ nome: 'A', rank: 'A' }] }).valido).toBe(true);
         const r = normalizarProposta('bobagem', {});
         expect(r).toMatchObject({ objeto: null, valido: false });
@@ -365,9 +335,7 @@ describe('resumirProposta', () => {
         expect(resumirProposta('item', normalizarItem({ nome: 'X', armaTipo: 'arco', dadosQtd: 1, dadosFaces: 8 }).objeto)).toBe('arma (arco) · comum · 1d8');
         expect(resumirProposta('item', normalizarItem({ nome: 'X', tipo: 'armadura' }).objeto)).toBe('armadura · comum');
     });
-    it('npc e tierlist', () => {
-        expect(resumirProposta('npc', normalizarNpc({ vida: 250 }).objeto)).toContain('Vida 250');
-        expect(resumirProposta('npc', normalizarNpc({ vida: 250 }).objeto)).toContain('evasiva 10');
+    it('tierlist', () => {
         expect(resumirProposta('tierlist', { ranks: [{}, {}] })).toBe('2 personagem(ns) classificados');
     });
     it('objeto nulo ou tipo desconhecido: string vazia', () => {
@@ -379,7 +347,7 @@ describe('resumirProposta', () => {
 describe('DECLARACOES_CRIACAO / constantes', () => {
     it('nomes esperados, sem duplicatas', () => {
         const nomes = DECLARACOES_CRIACAO.map(d => d.name);
-        expect(nomes).toEqual(['propor_habilidade', 'propor_combo', 'propor_follow_up', 'propor_magia', 'propor_item', 'propor_npc', 'poder_do_grupo', 'propor_tier_list']);
+        expect(nomes).toEqual(['propor_habilidade', 'propor_combo', 'propor_follow_up', 'propor_magia', 'propor_item', 'poder_do_grupo', 'propor_tier_list']);
         expect(new Set(nomes).size).toBe(nomes.length);
     });
     it('todas tem description e parameters OBJECT; required existe em properties', () => {
@@ -410,7 +378,7 @@ describe('DECLARACOES_CRIACAO / constantes', () => {
     });
     it('TIPO_POR_FERRAMENTA cobre todas as propor_* e TIPOS_SO_MESTRE', () => {
         DECLARACOES_CRIACAO.filter(d => d.name.startsWith('propor_')).forEach(d => expect(TIPO_POR_FERRAMENTA[d.name]).toBeTruthy());
-        expect(TIPOS_SO_MESTRE).toEqual(['npc', 'tierlist']);
+        expect(TIPOS_SO_MESTRE).toEqual(['tierlist']);
         expect(CAMPO_FICHA_POR_TIPO).toEqual({ poder: 'poderes', magia: 'ataquesElementais', item: 'inventario', combo: 'combos', followup: 'followUps' });
     });
     it('IDS_RANKS: sem duplicatas, 19 + 14*3 = 61 ranks', () => {

@@ -65,8 +65,8 @@ describe('descreverDestinoPedido', () => {
         const d = descreverDestinoPedido('banana', {});
         expect(d).toMatchObject({ secao: '', pagina: '', local: '', tipo: 'banana', oQue: 'uma criação', botaoVer: 'Ver o pedido' });
     });
-    it('tipo com rótulo conhecido (npc) usa o rótulo', () => {
-        expect(descreverDestinoPedido('npc', {}).tipo).toBe('NPC do Mapa');
+    it('tipo com rótulo conhecido (tierlist) usa o rótulo', () => {
+        expect(descreverDestinoPedido('tierlist', {}).tipo).toBe('Tier List');
     });
     it('tipo undefined/null não quebra', () => {
         expect(descreverDestinoPedido(undefined, null).tipo).toBe('');

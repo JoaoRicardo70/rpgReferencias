@@ -228,14 +228,14 @@ describe('preferencias', () => {
         expect(nomes(arg.ferramentas.declaracoes)).not.toContain('propor_npc');
         expect(nomes(arg.ferramentas.declaracoes)).not.toContain('poder_do_grupo');
     });
-    it('tudo ligado como Mestre: recebe tambem propor_npc, propor_tier_list e poder_do_grupo', async () => {
+    it('tudo ligado como Mestre: recebe tambem propor_tier_list e poder_do_grupo', async () => {
         useStore.setState({ isMestre: true });
         chamarGemini.mockResolvedValue('r');
         const { result } = montar();
         await digitarEEnviar(result, 'oi');
         const arg = chamarGemini.mock.calls[0][0];
         expect(arg.ferramentas.declaracoes).toHaveLength(DECLARACOES_FERRAMENTAS.length + DECLARACOES_CRIACAO.length);
-        expect(nomes(arg.ferramentas.declaracoes)).toEqual(expect.arrayContaining(['propor_npc', 'propor_tier_list', 'poder_do_grupo']));
+        expect(nomes(arg.ferramentas.declaracoes)).toEqual(expect.arrayContaining(['propor_tier_list', 'poder_do_grupo']));
     });
 
     describe('executar respeita ferramentas desligadas', () => {
