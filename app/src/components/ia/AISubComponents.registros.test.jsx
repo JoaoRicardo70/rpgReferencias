@@ -57,7 +57,7 @@ beforeEach(() => {
     dados.listarLixeira.mockResolvedValue([]);
     useStore.setState({
         meuNome: 'Ana', minhaFicha: {}, isMestre: false, mesaId: 'M1', registrosCompartilhados: false,
-        sextaFeiraConfig: { chaveGemini: 'K', modelo: 'm' }, sextaFeiraMemoria: {}, personagens: {}, dummies: {},
+        sextaFeiraConfig: { chaveGemini: 'K', modelo: 'm' }, sextaFeiraMemoria: {}, personagens: {},
         loreCapitulosPresente: mkPresente(), loreCapitulosFuturo: mkFuturo(),
         loreCapituloAtivoId: 1, loreArcoAtivoIdPresente: 11, loreCapFuturoAtivoId: 100, loreArcoAtivoIdFuturo: 101,
     });

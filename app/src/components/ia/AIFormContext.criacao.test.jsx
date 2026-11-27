@@ -6,7 +6,7 @@ vi.mock('firebase/database', () => ({ ref: vi.fn((db, p) => p), onValue: vi.fn()
 vi.mock('../../services/firebase-config', () => ({ db: {}, functions: {}, auth: {} }));
 vi.mock('pdfjs-dist', () => ({ GlobalWorkerOptions: {}, version: '0', getDocument: vi.fn() }));
 vi.mock('../../services/sextaFeiraIA', () => ({ chamarGemini: vi.fn(), traduzirErroGemini: vi.fn() }));
-vi.mock('../../services/firebase-sync', () => ({ salvarFichaSilencioso: vi.fn(), salvarDummie: vi.fn() }));
+vi.mock('../../services/firebase-sync', () => ({ salvarFichaSilencioso: vi.fn() }));
 vi.mock('../../services/sextaFeiraDados', () => ({
     LIMITE_MENSAGENS_CHAT_SALVAS: 60,
     carregarChat: vi.fn(), salvarChat: vi.fn(),
@@ -22,7 +22,7 @@ vi.mock('./DialogosSexta', () => ({ useDialogosSexta: () => dialogos, ModalSexta
 import { AIFormProvider, useAIForm } from './AIFormContext';
 import useStore from '../../stores/useStore';
 import { chamarGemini } from '../../services/sextaFeiraIA';
-import { salvarFichaSilencioso, salvarDummie } from '../../services/firebase-sync';
+import { salvarFichaSilencioso } from '../../services/firebase-sync';
 import * as dados from '../../services/sextaFeiraDados';
 
 const fichaBase = (over = {}) => ({
@@ -56,7 +56,7 @@ beforeEach(() => {
         meuNome: 'Mestre', minhaFicha: fichaBase(), isMestre: true, mesaId: 'M1',
         sextaFeiraConfig: { chaveGemini: 'K', modelo: 'm' }, registrosCompartilhados: false,
         sextaFeiraPendentes: {}, sextaFeiraDecisoes: {}, sextaFeiraMemoria: {},
-        personagens: { Ana: fichaBase() }, dummies: {},
+        personagens: { Ana: fichaBase() },
         resumoTurnoMapa: null, cenario: null,
         loreCapitulosPresente: capitulos(), loreCapitulosFuturo: [],
         loreCapituloAtivoId: 1, loreArcoAtivoIdPresente: 11, loreCapFuturoAtivoId: null, loreArcoAtivoIdFuturo: null,

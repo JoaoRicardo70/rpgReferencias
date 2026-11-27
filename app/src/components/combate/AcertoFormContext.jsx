@@ -12,9 +12,10 @@ import { getPoderesDefesa, getEfeitosDeClasse } from '../../core/attributes';
 import { enviarParaFeed, salvarCenarioCompleto } from '../../services/firebase-sync';
 import { alvoNoFiltro, comoCombatente } from '../../core/lados';
 import { useFichaAtiva, useCallSaveAtivo } from '../Ficha Def/FichaAlvoContext';
-import { resolverAlvoCombate, defesaEfetivaDoDummie } from '../../core/alvoCombate';
+import { resolverAlvoCombate, defesaEfetivaDoAlvo, idAlvoPersonagem } from '../../core/alvoCombate';
+import { ehNpc } from '../../core/tipoPersonagem';
 import { getPosicaoEntidade } from '../../core/alcance';
-import { getPoderParaDisputa, getPoderDummie, resolverAcertoNoAlvo } from '../../core/disputaPoder';
+import { getPoderParaDisputa, getPoderDoAlvo, resolverAcertoNoAlvo } from '../../core/disputaPoder';
 import { golpeEquipado } from '../../core/classesMecanicas';
 
 import { cores } from '../arsenal/ElementosFormContext';
@@ -41,7 +42,6 @@ export function AcertoFormProvider({ children }) {
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
     const adicionarAviso = useStore(s => s.adicionarAviso);
     const alvoSelecionado = useStore(s => s.alvoSelecionado);
-    const dummies = useStore(s => s.dummies);
     const cenario = useStore(s => s.cenario);
 
     const [dados, setDados] = useState(1);
@@ -77,12 +77,12 @@ export function AcertoFormProvider({ children }) {
         return { bonusMaestriaArma: bonus, nomesMaestriaArma: nomes };
     }, [efeitosClasse, tiposArmasEquipadas]);
 
-    // 🎯 Alvo do golpe: Dummie do Mapa OU personagem de verdade ('pj:<nome>', core/alvoCombate.js).
+    // 🎯 Alvo do golpe: personagem de verdade ('pj:<nome>', core/alvoCombate.js).
     const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
     const souMestre = useStore(s => s.isMestre);
-    const alvoDummie = useMemo(
-        () => resolverAlvoCombate(alvoSelecionado, { dummies, personagens, meuNome, divisorPoderMesa, fichaAtor: minhaFicha, atorEhMestre: souMestre }),
-        [alvoSelecionado, dummies, personagens, meuNome, divisorPoderMesa, minhaFicha, souMestre]
+    const alvoAcerto = useMemo(
+        () => resolverAlvoCombate(alvoSelecionado, { personagens, meuNome, divisorPoderMesa, fichaAtor: minhaFicha, atorEhMestre: souMestre }),
+        [alvoSelecionado, personagens, meuNome, divisorPoderMesa, minhaFicha, souMestre]
     );
 
     useEffect(() => {
@@ -121,7 +121,7 @@ export function AcertoFormProvider({ children }) {
         }
 
         if (origemArea === 'self') centro = minhaFicha?.posicao;
-        else if (origemArea === 'alvo') centro = alvoDummie?.posicao ? { ...alvoDummie.posicao, cenaId: alvoDummie.cenaId || alvoDummie.posicao.cenaId } : undefined;
+        else if (origemArea === 'alvo') centro = alvoAcerto?.posicao ? { ...alvoAcerto.posicao, cenaId: alvoAcerto.cenaId || alvoAcerto.posicao.cenaId } : undefined;
         else if (origemArea === 'livre') centro = { x: parseInt(coordLivreX) || 0, y: parseInt(coordLivreY) || 0, z: 0, cenaId: cenaAtivaId };
 
         if (centro && minhaFicha?.posicao) {
@@ -132,9 +132,9 @@ export function AcertoFormProvider({ children }) {
             dR = dQ * escala;
             fora = dQ > mA;
             // 🗺️ Alvo/ponto em OUTRA cena (só quando as duas cenas são conhecidas) também está fora de alcance.
-            if (origemArea === 'alvo' && alvoDummie) {
+            if (origemArea === 'alvo' && alvoAcerto) {
                 const posMinha = getPosicaoEntidade(minhaFicha, cenaAtivaId);
-                const posAlvo = getPosicaoEntidade(alvoDummie.isPersonagem ? alvoDummie.ficha : alvoDummie, cenaAtivaId);
+                const posAlvo = getPosicaoEntidade(alvoAcerto.ficha, cenaAtivaId);
                 if (posMinha && posAlvo && posMinha.cenaId === cenaAtivaId && posAlvo.cenaId !== posMinha.cenaId) fora = true;
             }
         } else {
@@ -142,7 +142,7 @@ export function AcertoFormProvider({ children }) {
         }
 
         return { distQuadrados: dQ, distReal: dR, maxAlcance: mA, maxArea: mArea, isForaDeAlcance: fora, unidadeEscala: unidade, centroExplosao: centro, duracaoZonaEfeito: duracao, elementoZona: elemZ };
-    }, [alvoDummie, minhaFicha?.posicao, minhaFicha?.poderes, minhaFicha?.ataquesElementais, cenario, armasEquipadas, origemArea, coordLivreX, coordLivreY]);
+    }, [alvoAcerto, minhaFicha?.posicao, minhaFicha?.poderes, minhaFicha?.ataquesElementais, cenario, armasEquipadas, origemArea, coordLivreX, coordLivreY]);
 
     const changeVantagem = useCallback((e) => { updateFicha(f => { if (!f.ataqueConfig) f.ataqueConfig = {}; f.ataqueConfig.vantagens = parseInt(e.target.value) || 0; }); salvarFichaSilencioso(); }, [updateFicha, salvarFichaSilencioso]);
     const changeDesvantagem = useCallback((e) => { updateFicha(f => { if (!f.ataqueConfig) f.ataqueConfig = {}; f.ataqueConfig.desvantagens = parseInt(e.target.value) || 0; }); salvarFichaSilencioso(); }, [updateFicha, salvarFichaSilencioso]);
@@ -150,21 +150,21 @@ export function AcertoFormProvider({ children }) {
 
     const rolarAcerto = useCallback(() => {
         // 🛡️ Regra de PvP (core/alvoCombate.js): jogador x jogador só em combate.
-        if (alvoDummie && alvoDummie.bloqueado) { alert(alvoDummie.bloqueado); return; }
+        if (alvoAcerto && alvoAcerto.bloqueado) { alert(alvoAcerto.bloqueado); return; }
         // Sem alvo escolhido é uma rolagem livre (o botão diz "ROLAR ACERTO LIVRE"): nada a medir.
-        const rolagemLivre = origemArea === 'alvo' && !alvoDummie;
+        const rolagemLivre = origemArea === 'alvo' && !alvoAcerto;
         if (isForaDeAlcance && origemArea !== 'self' && !rolagemLivre) { alert('Aviso: O alvo ou o Ponto de Explosão está fora do seu alcance!'); return; }
 
         const qD = Math.min(1000, Math.max(1, parseInt(dados) || 1)); const fD = Math.min(1000, Math.max(1, parseInt(faces) || 20)); const bon = parseInt(bonus) || 0; const prof = usarProficiencia ? profGlobal : 0;
         // 🩸 Alvo Imobilizado/Incapacitado: quem ataca ganha vantagem (core/condicoes.js). Vale para alvo único; em área cada alvo tem o seu estado.
-        const vantagemDoEstado = !(maxArea > 0 && centroExplosao) && alvoDummie ? modificadoresDeEstados(alvoDummie.isPersonagem ? alvoDummie.ficha : alvoDummie).vantagemContraEle : 0;
+        const vantagemDoEstado = !(maxArea > 0 && centroExplosao) && alvoAcerto ? modificadoresDeEstados(alvoAcerto.ficha).vantagemContraEle : 0;
         const v = (parseInt(vantagens) || 0) + vantagemDoEstado; const d = parseInt(desvantagens) || 0;
         // Aviso discreto quando os tetos da rolagem (core/limiteDados.js) cortam o que foi pedido.
         if ((parseInt(dados) || 1) > 1000 || (parseInt(faces) || 20) > 1000 || Math.abs(v - d) > 20) adicionarAviso?.('Acerto: dados/faces limitados a 1000 e vantagem líquida a 20.', 'info');
         const sels = statsSelecionados.length > 0 ? statsSelecionados : ['destreza'];
 
         // Alvo único: as condições dos efeitos (alvo com estado, vida abaixo de...) são checadas nele; em área, sem alvo único, não valem.
-        const alvoDaCondicao = (!(maxArea > 0 && centroExplosao) && alvoDummie) ? alvoDummie : null;
+        const alvoDaCondicao = (!(maxArea > 0 && centroExplosao) && alvoAcerto) ? alvoAcerto : null;
         const result = calcularAcerto({ qD, fD, prof, usarProf: usarProficiencia, bonus: bon, sels, minhaFicha, itensEquipados, vantagens: v, desvantagens: d, alvo: alvoDaCondicao });
 
         let alvosAtingidos = [];
@@ -190,19 +190,15 @@ export function AcertoFormProvider({ children }) {
             };
 
             // 🛡️ Filtro de alvos RELATIVO ao atacante (core/lados.js): 'inimigos' = relação hostil, 'aliados' = aliada, 'todos' = todos.
-            // Sem equipes configuradas: Dummies = inimigos; jogadores = aliados (como sempre).
-            const atacanteLado = comoCombatente(minhaFicha, false);
-            const passaNoFiltro = (dados, ehDummie) => alvoNoFiltro(cenario, atacanteLado, comoCombatente(dados, ehDummie), alvoFiltro);
-            if (alvoFiltro === 'todos' || alvoFiltro === 'inimigos' || alvoFiltro === 'aliados') {
-                // dummieId: o dano em área (AtaqueFormContext) acha o alvo pelo id, não pelo nome (NPCs repetidos).
-                Object.entries(dummies).forEach(([id, dummieObj]) => { if (dummieObj.posicao && passaNoFiltro(dummieObj, true)) verificarHit({ ...dummieObj.posicao, cenaId: dummieObj.cenaId || dummieObj.posicao.cenaId }, defesaEfetivaDoDummie(dummieObj), dummieObj.nome, getPoderDummie(dummieObj), { dummieId: id }); });
-            }
+            // Sem equipes configuradas: NPCs = inimigos; jogadores = aliados (como sempre).
+            const atacanteLado = comoCombatente(minhaFicha);
+            const passaNoFiltro = (dados) => alvoNoFiltro(cenario, atacanteLado, comoCombatente(dados), alvoFiltro);
             if (alvoFiltro === 'todos' || alvoFiltro === 'aliados' || alvoFiltro === 'inimigos') {
-                if (minhaFicha.posicao && origemArea !== 'self' && passaNoFiltro(minhaFicha, false)) verificarHit(minhaFicha.posicao, calcularCA(minhaFicha, 'evasiva'), meuNome, getPoderParaDisputa(minhaFicha, divisorPoderMesa));
-                Object.entries(personagens || {}).forEach(([n, f]) => { if (f.posicao && passaNoFiltro(f, false)) verificarHit(f.posicao, calcularCA(f, 'evasiva'), n, getPoderParaDisputa(f, divisorPoderMesa)); });
+                if (minhaFicha.posicao && origemArea !== 'self' && passaNoFiltro(minhaFicha)) verificarHit(minhaFicha.posicao, calcularCA(minhaFicha, 'evasiva'), meuNome, getPoderParaDisputa(minhaFicha, divisorPoderMesa));
+                Object.entries(personagens || {}).forEach(([n, f]) => { if (f.posicao && passaNoFiltro(f)) verificarHit(f.posicao, calcularCA(f, 'evasiva'), n, getPoderParaDisputa(f, divisorPoderMesa), ehNpc(f) ? { alvoId: idAlvoPersonagem(n) } : {}); });
             }
-        } else if (alvoDummie) {
-            alvosAtingidos.push(resolverAlvo(alvoDummie.nome, defesaEfetivaDoDummie(alvoDummie), getPoderDummie(alvoDummie), { dummieId: alvoSelecionado }));
+        } else if (alvoAcerto) {
+            alvosAtingidos.push(resolverAlvo(alvoAcerto.nome, defesaEfetivaDoAlvo(alvoAcerto), getPoderDoAlvo(alvoAcerto), { alvoId: alvoSelecionado }));
         }
 
         let idDaZonaCriada = null;
@@ -244,19 +240,19 @@ export function AcertoFormProvider({ children }) {
         if (textosErro.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${textosErro.join(' · ')}` });
         setAbaAtiva('aba-log');
 
-    }, [adicionarAviso, isForaDeAlcance, origemArea, dados, faces, bonus, usarProficiencia, profGlobal, vantagens, desvantagens, statsSelecionados, minhaFicha, itensEquipados, maxArea, centroExplosao, alvoFiltro, dummies, personagens, meuNome, alvoDummie, duracaoZonaEfeito, elementoZona, cenario, setAbaAtiva, divisorPoderMesa]);
+    }, [adicionarAviso, isForaDeAlcance, origemArea, dados, faces, bonus, usarProficiencia, profGlobal, vantagens, desvantagens, statsSelecionados, minhaFicha, itensEquipados, maxArea, centroExplosao, alvoFiltro, personagens, meuNome, alvoAcerto, duracaoZonaEfeito, elementoZona, cenario, setAbaAtiva, divisorPoderMesa]);
 
     const value = useMemo(() => ({
         dados, setDados, faces, setFaces, usarProficiencia, setUsarProficiencia, bonus, setBonus,
         statsSelecionados, vantagens, desvantagens, profGlobal, bonusAcertoClasse,
         itensEquipados, armasEquipadas, tiposArmasEquipadas, efeitosClasse, bonusMaestriaArma, nomesMaestriaArma,
-        alvoDummie, alvoSelecionado, distQuadrados, distReal, maxAlcance, maxArea, isForaDeAlcance, unidadeEscala,
+        alvoAcerto, alvoSelecionado, distQuadrados, distReal, maxAlcance, maxArea, isForaDeAlcance, unidadeEscala,
         origemArea, setOrigemArea, coordLivreX, setCoordLivreX, coordLivreY, setCoordLivreY, alvoFiltro, setAlvoFiltro,
         changeVantagem, changeDesvantagem, toggleStat, rolarAcerto,
     }), [
         dados, faces, usarProficiencia, bonus, statsSelecionados, vantagens, desvantagens, profGlobal, bonusAcertoClasse,
         itensEquipados, armasEquipadas, tiposArmasEquipadas, efeitosClasse, bonusMaestriaArma, nomesMaestriaArma,
-        alvoDummie, alvoSelecionado, distQuadrados, distReal, maxAlcance, maxArea, isForaDeAlcance, unidadeEscala,
+        alvoAcerto, alvoSelecionado, distQuadrados, distReal, maxAlcance, maxArea, isForaDeAlcance, unidadeEscala,
         origemArea, coordLivreX, coordLivreY, alvoFiltro, changeVantagem, changeDesvantagem, toggleStat, rolarAcerto,
     ]);
 

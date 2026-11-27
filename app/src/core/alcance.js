@@ -7,7 +7,7 @@
 // ==========================================
 
 // { x, y, z, cenaId } da entidade na cena pedida (ou na última posição conhecida), ou null.
-// `entidade` pode ser ficha de personagem (posicoes[cena] / posicao) ou Dummie (posicao + cenaId).
+// `entidade` é a ficha de um personagem (posicoes[cena] / posicao).
 export function getPosicaoEntidade(entidade, cenaId) {
     if (!entidade) return null;
     const cena = cenaId || null;

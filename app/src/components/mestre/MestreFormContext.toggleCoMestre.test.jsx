@@ -52,7 +52,6 @@ vi.mock('../../services/firebase-config', () => ({
 
 vi.mock('../../services/firebase-sync', () => ({
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     apagarFicha: vi.fn(),
 }));
 

@@ -15,7 +15,7 @@ vi.mock('firebase/database', () => ({
 }));
 vi.mock('../../services/firebase-config', () => ({ db: { __isMock: true } }));
 vi.mock('../../services/firebase-sync', () => ({
-    enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), apagarFicha: vi.fn(),
+    enviarParaFeed: vi.fn(), apagarFicha: vi.fn(),
 }));
 
 const estado = {

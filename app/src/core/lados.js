@@ -7,16 +7,15 @@
 //  - `cenario.relacoes`: mapa { "idA|idB": 'aliada' | 'neutra' | 'hostil' } com os dois ids em ORDEM ALFABÉTICA (chaveRelacao).
 //    Mesma equipe = SEMPRE 'aliada'. Padrão virtual: aliados↔inimigos = hostil; neutros↔qualquer = neutra;
 //    equipes diferentes sem relação definida = 'neutra'. O Mestre cria quantos lados quiser (todos contra todos = todas as relações 'hostil').
-//  - Cada combatente tem `equipe` (id) e `ladoOculto` (bool): na ficha de jogador/NPC em `ficha.combate.equipe` / `ficha.combate.ladoOculto`;
-//    num Dummie em `dummie.equipe` / `dummie.ladoOculto`. Sem equipe: jogador → 'aliados'; NPC (ehNpc) e Dummie → 'inimigos' (o comportamento de sempre).
+//  - Cada combatente tem `equipe` (id) e `ladoOculto` (bool), na ficha de jogador/NPC: `ficha.combate.equipe` / `ficha.combate.ladoOculto`.
+//    Sem equipe: jogador → 'aliados'; NPC (ehNpc) → 'inimigos' (o comportamento de sempre).
 //    Equipe que não existe mais na lista do cenário (apagada) cai no padrão automático.
 //  - ALIADO/INIMIGO É RELATIVO: relacaoEntre(cenario, a, b) devolve 'aliada' | 'neutra' | 'hostil'.
 //  - `ladoOculto: true` = os jogadores NÃO veem a equipe (a UI mostra "❓ Lado desconhecido"); a MECÂNICA usa SEMPRE a equipe real.
-//    ATENÇÃO: como as fichas sincronizam para todos, o ocultamento é de EXIBIÇÃO (mesmo padrão de visibilidadeHp dos Dummies), não de segurança.
+//    ATENÇÃO: como as fichas sincronizam para todos, o ocultamento é de EXIBIÇÃO, não de segurança.
 //  - Só Mestre/Co-Mestre alteram equipes, relações, lado de qualquer um e revelação (a checagem é de quem chama, via isMestre do store); os jogadores só leem.
 //
-// "Combatente": aceita ficha crua (jogador/NPC), Dummie cru com `isDummie: true`, ou um item como os da ordem de iniciativa / alvos
-// ({ id, nome, ficha, isDummie }). Para passar um Dummie cru sem flag use `comoCombatente(dados, true)`.
+// "Combatente": aceita ficha crua (jogador/NPC) ou um item como os da ordem de iniciativa / alvos ({ id, nome, ficha }).
 // ==========================================
 import { ehNpc } from './tipoPersonagem.js';
 
@@ -40,21 +39,21 @@ export const ROTULO_LADO_OCULTO = '❓ Lado desconhecido';
 const RE_COR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 // ---------- Combatente ----------
-export function comoCombatente(dados, isDummie = false) {
-    return { ficha: dados || null, isDummie: !!isDummie };
+export function comoCombatente(dados) {
+    return { ficha: dados || null };
 }
 
-// { dados, isDummie } a partir de qualquer forma aceita.
+// { dados } a partir de qualquer forma aceita.
 function resolver(x) {
-    if (!x || typeof x !== 'object') return { dados: null, isDummie: false };
-    if (Object.prototype.hasOwnProperty.call(x, 'ficha') && x.ficha !== undefined) return { dados: x.ficha, isDummie: !!x.isDummie };
-    return { dados: x, isDummie: x.isDummie === true };
+    if (!x || typeof x !== 'object') return { dados: null };
+    if (Object.prototype.hasOwnProperty.call(x, 'ficha') && x.ficha !== undefined) return { dados: x.ficha };
+    return { dados: x };
 }
 
 function equipeGravada(x) {
-    const { dados, isDummie } = resolver(x);
+    const { dados } = resolver(x);
     if (!dados) return '';
-    const v = isDummie ? dados.equipe : (dados.combate && dados.combate.equipe);
+    const v = dados.combate && dados.combate.equipe;
     return typeof v === 'string' ? v : '';
 }
 
@@ -81,8 +80,7 @@ export function chaveRelacao(a, b) {
 
 // Id da equipe de um combatente. Sem `cenario`, devolve o id gravado (se houver); com `cenario`, id que não existe mais cai no padrão automático.
 export function equipeAutomatica(entidade) {
-    const { dados, isDummie } = resolver(entidade);
-    if (isDummie) return EQUIPE_INIMIGOS;
+    const { dados } = resolver(entidade);
     return ehNpc(dados) ? EQUIPE_INIMIGOS : EQUIPE_ALIADOS;
 }
 
@@ -116,8 +114,6 @@ export const ehNeutro = (cenario, a, b) => relacaoEntre(cenario, a, b) === 'neut
 export function mesmoCombatente(a, b) {
     if (!a || !b) return false;
     if (a === b) return true;
-    const ra = resolver(a); const rb = resolver(b);
-    if (ra.isDummie !== rb.isDummie) return false;
     if (a.id !== undefined && b.id !== undefined) return a.id === b.id;
     return !!a.nome && a.nome === b.nome;
 }
@@ -131,9 +127,9 @@ export const aliadosDe = (cenario, portador, lista) => filtrarPorRelacao(cenario
 
 // ---------- Exibição / revelação ----------
 export function ladoEstaOculto(entidade) {
-    const { dados, isDummie } = resolver(entidade);
+    const { dados } = resolver(entidade);
     if (!dados) return false;
-    return (isDummie ? dados.ladoOculto : (dados.combate && dados.combate.ladoOculto)) === true;
+    return (dados.combate && dados.combate.ladoOculto) === true;
 }
 
 // Mestre vê sempre; jogador só vê se o lado não está oculto.
@@ -233,21 +229,20 @@ export function equipeExiste(cenario, id) {
 }
 
 // ---------- Patches (sem I/O): quem grava decide como ----------
-// Ficha de jogador/NPC → { 'combate/equipe': id } (caminho do Firebase / do updateFicha); Dummie → { equipe: id } (campo do Dummie).
-export function patchEquipe(isDummie, equipeId) {
-    return isDummie ? { equipe: equipeId } : { 'combate/equipe': equipeId };
+// Ficha de jogador/NPC → { 'combate/equipe': id } (caminho do Firebase / do updateFicha).
+export function patchEquipe(equipeId) {
+    return { 'combate/equipe': equipeId };
 }
-export function patchLadoOculto(isDummie, oculto) {
-    return isDummie ? { ladoOculto: !!oculto } : { 'combate/ladoOculto': !!oculto };
+export function patchLadoOculto(oculto) {
+    return { 'combate/ladoOculto': !!oculto };
 }
 
 // Patch completo de "mover para a equipe": null se a equipe não existe no cenário. Devolve { patch, de, para, anunciar } —
 // `anunciar` = false quando o lado está oculto (a mudança não vai para o Feed).
 export function moverParaEquipe(cenario, entidade, equipeId) {
     if (!equipeExiste(cenario, equipeId)) return null;
-    const { isDummie } = resolver(entidade);
     const de = equipeDe(entidade, cenario);
-    return { patch: patchEquipe(isDummie, equipeId), de, para: equipeId, mudou: de !== equipeId, anunciar: !ladoEstaOculto(entidade) };
+    return { patch: patchEquipe(equipeId), de, para: equipeId, mudou: de !== equipeId, anunciar: !ladoEstaOculto(entidade) };
 }
 
 // Frase do Feed ("🔀 X mudou de lado: Aliados → Inimigos") ou '' se não houve mudança.
@@ -262,7 +257,7 @@ export function textoMudancaDeLado(cenario, nome, deId, paraId) {
 // qualquer outro valor ('todos') = todos. `conjurador` ausente (não achado) é tratado como um jogador sem equipe configurada (aliados).
 export function alvoNoFiltro(cenario, conjurador, alvo, filtro) {
     if (filtro !== 'inimigos' && filtro !== 'aliados') return true;
-    const ref = conjurador || comoCombatente(null, false);
+    const ref = conjurador || comoCombatente(null);
     const rel = relacaoEntre(cenario, ref, alvo);
     return filtro === 'inimigos' ? rel === 'hostil' : rel === 'aliada';
 }

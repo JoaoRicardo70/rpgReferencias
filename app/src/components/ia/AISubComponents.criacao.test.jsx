@@ -6,7 +6,7 @@ vi.mock('firebase/database', () => ({ ref: vi.fn((db, p) => p), onValue: vi.fn()
 vi.mock('../../services/firebase-config', () => ({ db: {}, functions: {}, auth: {} }));
 vi.mock('pdfjs-dist', () => ({ GlobalWorkerOptions: {}, version: '0', getDocument: vi.fn() }));
 vi.mock('../../services/sextaFeiraIA', () => ({ chamarGemini: vi.fn(), traduzirErroGemini: vi.fn(), listarModelosGemini: vi.fn() }));
-vi.mock('../../services/firebase-sync', () => ({ salvarFichaSilencioso: vi.fn(), salvarDummie: vi.fn() }));
+vi.mock('../../services/firebase-sync', () => ({ salvarFichaSilencioso: vi.fn() }));
 vi.mock('../../services/sextaFeiraDados', () => ({
     LIMITE_MENSAGENS_CHAT_SALVAS: 60,
     carregarChat: vi.fn(), salvarChat: vi.fn(),
@@ -62,7 +62,7 @@ beforeEach(() => {
     useStore.setState({
         meuNome: 'Ana', minhaFicha: fichaBase(), isMestre: false, mesaId: 'M1', registrosCompartilhados: false,
         sextaFeiraConfig: { chaveGemini: 'K', modelo: 'm' }, sextaFeiraMemoria: {}, sextaFeiraPendentes: {}, sextaFeiraDecisoes: {},
-        personagens: { Bruno: fichaBase() }, dummies: {}, resumoTurnoMapa: null, cenario: null,
+        personagens: { Bruno: fichaBase() }, resumoTurnoMapa: null, cenario: null,
         loreCapitulosPresente: capitulos, loreCapitulosFuturo: [],
         loreCapituloAtivoId: 1, loreArcoAtivoIdPresente: 11, loreCapFuturoAtivoId: null, loreArcoAtivoIdFuturo: null,
     });

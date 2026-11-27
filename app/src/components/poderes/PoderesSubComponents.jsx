@@ -803,8 +803,8 @@ export function PoderesLista() {
     const cenarioRacas = useStore(s => s.cenario);
     // Dono da ficha exibida (no Grimório da Entidade do Mestre é o personagem mirado): alvo dos serviços de Raça.
     const nomeDono = ctx ? ctx.meuNome : '';
-    // isDummie:false de propósito: o Grimório da Entidade do Mestre mira personagens de jogador (por nome); dummies/NPCs não passam por aqui.
-    const entidadeDono = useMemo(() => ({ id: nomeDono, nome: nomeDono, isDummie: false }), [nomeDono]);
+    // O Grimório da Entidade do Mestre mira personagens (por nome).
+    const entidadeDono = useMemo(() => ({ id: nomeDono, nome: nomeDono }), [nomeDono]);
     if (!ctx) return FALLBACK;
     const {
         abaAtual, itensFiltrados, poderPreparandoId, setPoderPreparandoId,

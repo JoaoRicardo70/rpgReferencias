@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    FATOR_DISPUTA_MAXIMO, getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisputaPoder,
+    FATOR_DISPUTA_MAXIMO, getPoderParaDisputa, getPoderDoAlvo, getPoderDeEntidade, calcularDisputaPoder,
     aplicarDisputaAoDano, formatarFatorDisputa, formatarPoderDisputa, descreverDisputa,
     BONUS_ACERTO_PODER_MAXIMO, bonusAcertoPorDisputa, resolverAcertoNoAlvo, marcaPoderAcerto,
 } from './disputaPoder';
@@ -137,24 +137,24 @@ describe('aplicarDisputaAoDano', () => {
     });
 });
 
-describe('getPoderDummie', () => {
+describe('getPoderDoAlvo', () => {
     it('null, undefined e sem campo: null', () => {
-        expect(getPoderDummie(null)).toBeNull();
-        expect(getPoderDummie(undefined)).toBeNull();
-        expect(getPoderDummie({})).toBeNull();
-        expect(getPoderDummie({ poderCalculado: null })).toBeNull();
-        expect(getPoderDummie({ poderCalculado: '' })).toBeNull();
+        expect(getPoderDoAlvo(null)).toBeNull();
+        expect(getPoderDoAlvo(undefined)).toBeNull();
+        expect(getPoderDoAlvo({})).toBeNull();
+        expect(getPoderDoAlvo({ poderCalculado: null })).toBeNull();
+        expect(getPoderDoAlvo({ poderCalculado: '' })).toBeNull();
     });
     it('numero valido (incluindo 0 e texto numerico)', () => {
-        expect(getPoderDummie({ poderCalculado: 1500 })).toBe(1500);
-        expect(getPoderDummie({ poderCalculado: 0 })).toBe(0);
-        expect(getPoderDummie({ poderCalculado: '42.5' })).toBe(42.5);
+        expect(getPoderDoAlvo({ poderCalculado: 1500 })).toBe(1500);
+        expect(getPoderDoAlvo({ poderCalculado: 0 })).toBe(0);
+        expect(getPoderDoAlvo({ poderCalculado: '42.5' })).toBe(42.5);
     });
     it('negativo, NaN, Infinity e texto invalido: null', () => {
-        expect(getPoderDummie({ poderCalculado: -1 })).toBeNull();
-        expect(getPoderDummie({ poderCalculado: NaN })).toBeNull();
-        expect(getPoderDummie({ poderCalculado: Infinity })).toBeNull();
-        expect(getPoderDummie({ poderCalculado: 'xyz' })).toBeNull();
+        expect(getPoderDoAlvo({ poderCalculado: -1 })).toBeNull();
+        expect(getPoderDoAlvo({ poderCalculado: NaN })).toBeNull();
+        expect(getPoderDoAlvo({ poderCalculado: Infinity })).toBeNull();
+        expect(getPoderDoAlvo({ poderCalculado: 'xyz' })).toBeNull();
     });
 });
 
@@ -175,14 +175,9 @@ describe('getPoderParaDisputa e getPoderDeEntidade', () => {
         const v = getPoderParaDisputa({}, 1);
         expect(v === null || (Number.isFinite(v) && v >= 0)).toBe(true);
     });
-    it('entidade dummie usa poderCalculado direto', () => {
-        expect(getPoderDeEntidade({ isDummie: true, poderCalculado: 700 }, 1)).toBe(700);
-        expect(getPoderDeEntidade({ isDummie: true, ficha: { poderCalculado: 300 } }, 1)).toBe(300);
-        expect(getPoderDeEntidade({ isDummie: true }, 1)).toBeNull();
-    });
     it('entidade jogador usa a ficha', () => {
         const f = fichaMinima();
-        expect(getPoderDeEntidade({ isDummie: false, ficha: f }, 1)).toBe(getPoderParaDisputa(f, 1));
+        expect(getPoderDeEntidade({ ficha: f }, 1)).toBe(getPoderParaDisputa(f, 1));
         expect(getPoderDeEntidade(f, 1)).toBe(getPoderParaDisputa(f, 1));
     });
     it('entidade nula: null', () => {
@@ -275,8 +270,8 @@ describe('Acerto: bônus da diferença de Poder', () => {
         expect(sem.poderAcerto).toBeUndefined();
         const favor = resolverAcertoNoAlvo({ ...base, poderAtacante: 10000, poderAlvo: 1000 });
         expect(favor).toMatchObject({ nome: 'Goblin', defesa: 20, acertou: true, poderAcerto: 'favor' });
-        const contra = resolverAcertoNoAlvo({ ...base, acertoTotal: 25, poderAtacante: 1000, poderAlvo: 10000, extras: { dummieId: 'd1' } });
-        expect(contra).toMatchObject({ acertou: false, poderAcerto: 'contra', dummieId: 'd1' });
+        const contra = resolverAcertoNoAlvo({ ...base, acertoTotal: 25, poderAtacante: 1000, poderAlvo: 10000, extras: { alvoId: 'd1' } });
+        expect(contra).toMatchObject({ acertou: false, poderAcerto: 'contra', alvoId: 'd1' });
         expect(JSON.stringify(favor)).not.toContain('1000');
     });
 

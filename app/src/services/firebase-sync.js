@@ -40,7 +40,7 @@ function somarDeltaTransacional(refNo, delta, fallback, teto, textoErro, existe)
     }, { applyLocally: false }).then(() => true).catch((err) => { avisarFalhaGravacao(textoErro, err); return false; });
 }
 
-// O store ainda conhece este item de uma coleção (personagens/dummies)? Coleção vazia/não carregada = "não sei" = true (não aborta).
+// O store ainda conhece este item de uma coleção (personagens)? Coleção vazia/não carregada = "não sei" = true (não aborta).
 function existeNoStore(colecao, chaves) {
     try {
         const c = useStore.getState()[colecao];
@@ -602,49 +602,6 @@ export async function uploadImagem(file, pasta = 'imagens') {
     await uploadBytes(caminhoRef, file);
     return await getDownloadURL(caminhoRef);
 }
-// Grava um Dummie. Se ele já existe no store, grava SÓ os campos que mudaram (update por caminho) em vez do objeto inteiro (um golpe e um
-// arrastar de posição, ou dois golpes, não se apagam mais). `opcoes.baseHp` = a Vida que o cliente conhecia: o campo `hpAtual` vira DELTA
-// transacional (novo - baseHp), com piso 0 e teto `opcoes.hpMax`. Sem Dummie no store (criação), grava o objeto inteiro como antes.
-export function salvarDummie(id, dadosDummie, opcoes = {}) {
-    if (isInPlasmicCanvas()) return;
-    const { mesaId, dummies } = useStore.getState();
-    if (!db || !mesaId) return;
-    const textoErro = 'Não foi possível gravar o Dummie no servidor: a alteração pode não ter sido salva.';
-    const atual = dummies && dummies[id];
-    if (!atual || typeof atual !== 'object' || !dadosDummie || typeof dadosDummie !== 'object') {
-        set(ref(db, `mesas/${mesaId}/dummies/${id}`), dadosDummie).catch((err) => avisarFalhaGravacao(textoErro, err));
-        return;
-    }
-    const igual = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
-    const usaDelta = Number.isFinite(Number(opcoes.baseHp)) && Number.isFinite(Number(dadosDummie.hpAtual));
-    const mudados = {}; const removidos = [];
-    Object.keys(dadosDummie).forEach((k) => {
-        if (usaDelta && k === 'hpAtual') return;
-        if (!igual(dadosDummie[k], atual[k])) mudados[k] = dadosDummie[k];
-    });
-    Object.keys(atual).forEach((k) => { if (!(k in dadosDummie) && !(usaDelta && k === 'hpAtual')) removidos.push(k); });
-    const delta = usaDelta ? Number(dadosDummie.hpAtual) - Number(opcoes.baseHp) : 0;
-    if (Object.keys(mudados).length === 0 && removidos.length === 0 && delta === 0) return;
-    // Uma TRANSAÇÃO no nó do Dummie: só os campos alterados (+ a Vida por delta) e nunca recria um Dummie apagado por outro cliente em voo.
-    runTransaction(ref(db, `mesas/${mesaId}/dummies/${id}`), (cur) => {
-        if (cur === null || cur === undefined || typeof cur !== 'object') {
-            if (!existeNoStore('dummies', [id])) return undefined; // apagado: aborta
-            cur = JSON.parse(JSON.stringify(atual)); // 1º passo com o cache vazio: parte do que o cliente conhecia
-        }
-        const prox = { ...cur };
-        Object.keys(mudados).forEach((k) => { if (mudados[k] === undefined || mudados[k] === null) delete prox[k]; else prox[k] = mudados[k]; });
-        removidos.forEach((k) => { delete prox[k]; });
-        if (usaDelta && delta !== 0) {
-            const n = Number(cur.hpAtual);
-            const base = Number.isFinite(n) ? n : Number(opcoes.baseHp);
-            const teto = Number(opcoes.hpMax);
-            let novo = Math.max(0, base + delta);
-            if (Number.isFinite(teto) && teto > 0 && delta > 0) novo = Math.min(novo, Math.max(teto, base));
-            prox.hpAtual = novo;
-        }
-        return prox;
-    }, { applyLocally: false }).catch((err) => avisarFalhaGravacao(textoErro, err));
-}
 // 🔥 Último estado do `cenario` confirmado no Firebase (mesmo papel de
 // `ultimoEstadoSincronizado` pra ficha, ver salvarFirebaseImediato acima): baseline
 // pra calcular o diff de saída em salvarCenarioCompleto. `null` = ainda não
@@ -702,7 +659,7 @@ export function salvarCenarioCompleto(dadosCenario) {
 }
 // 🔥 Divisor de Poder padrão da mesa: valor global que o Mestre define (fora de
 // ficha.divisorPoder, que é por personagem) para dividir o Poder do Scouter de TODOS os
-// jogadores da mesa de uma vez — mesmo esqueleto de iniciarListenerDummies/salvarDummie.
+// jogadores da mesa de uma vez.
 export function iniciarListenerDivisorPoderMesa(callback) {
     if (isInPlasmicCanvas()) return () => {};
     const { mesaId } = useStore.getState();

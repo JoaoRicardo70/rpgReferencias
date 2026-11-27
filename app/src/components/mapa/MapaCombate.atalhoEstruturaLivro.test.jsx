@@ -22,7 +22,7 @@ const MAGIAS = [{ id: 'm1', nome: 'Bola de Fogo', elemento: 'Fogo', equipado: tr
 beforeEach(() => {
     const ficha = { poderes: PODERES, ataquesElementais: MAGIAS, ataqueConfig: { ataquesSalvos: [SALVO] } };
     ataqueCtx = {
-        minhaFicha: ficha, podeRolarDano: true, ignorarTravaAcerto: false, dummieAlvo: null,
+        minhaFicha: ficha, podeRolarDano: true, ignorarTravaAcerto: false, alvoAtaque: null,
         poderesAtivos: [], magiasOfensivas: [], armaEquipada: null,
         rolarAtaqueSalvo: vi.fn(), rolarDanoCustomizado: vi.fn()
     };

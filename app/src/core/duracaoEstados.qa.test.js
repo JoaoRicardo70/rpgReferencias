@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../services/firebase-sync', () => ({
     salvarCamposPersonagem: vi.fn(),
-    salvarDummie: vi.fn()
 }));
 
 import {
@@ -390,20 +389,6 @@ describe('QA gatilho aplicarEstado com duracao', () => {
 });
 
 describe('QA posGolpe - estados com prazo no alvo', () => {
-    it('Dummie: devolve alvo com duracaoEstados; sem prazo nao cria a chave', () => {
-        const alvo = { nome: 'B', condicoes: [] };
-        const r = gravarEstadosNoAlvo('d1', alvo, [{ id: 'lento', stacks: 1, duracao: 3 }]);
-        expect(r.duracaoEstados).toEqual({ lento: 3 });
-        const r2 = gravarEstadosNoAlvo('d1', alvo, [{ id: 'lento', stacks: 1 }]);
-        expect('duracaoEstados' in r2).toBe(false);
-        expect(alvo.duracaoEstados).toBeUndefined();
-    });
-    it('Dummie com prazo velho + reaplicado permanente: chave removida sem mutar o original', () => {
-        const alvo = { nome: 'B', condicoes: [{ id: 'lento', stacks: 1 }], duracaoEstados: { lento: 3 } };
-        const r = gravarEstadosNoAlvo('d1', alvo, [{ id: 'lento', stacks: 1 }]);
-        expect('duracaoEstados' in r).toBe(false);
-        expect(alvo.duracaoEstados).toEqual({ lento: 3 });
-    });
     it('personagem: grava duracaoEstados so se mudou (null apaga); sem prazo grava so condicoes', () => {
         salvarCamposPersonagem.mockClear();
         gravarEstadosNoAlvo('p', { isPersonagem: true, personagemNome: 'Rival', ficha: {} }, [{ id: 'lento', stacks: 1 }]);

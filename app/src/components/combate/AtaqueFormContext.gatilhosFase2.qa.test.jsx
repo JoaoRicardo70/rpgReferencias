@@ -20,7 +20,7 @@ vi.mock('../../core/disputaPoder', async (importOriginal) => ({
 }));
 vi.mock('../../core/danoProporcional', async (importOriginal) => ({ ...(await importOriginal()), escalarDanoPelaVida: vi.fn((dano) => dano) }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCenarioCompleto: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCenarioCompleto: vi.fn(),
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
 }));
@@ -35,13 +35,13 @@ const semUndefined = (o) => !JSON.stringify(o, (k, v) => (v === undefined ? '__U
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
 let mockState; let probe;
-const goblin = (hp = 100) => ({ nome: 'Goblin', hpAtual: hp * FATOR, valorDefesa: 10 });
+const goblin = () => ({ vida: stat(1000000, 1000000), reducoesDano: [], iniciativa: 10, isNPC: true, poderes: [], inventario: [], passivas: [] });
 const ana = (extra = {}) => ({ vida: stat(1000000, 1000000), reducoesDano: [], iniciativa: 10, poderes: [], inventario: [], passivas: [], ...extra });
 
-function montar(Mod, { alvoSelecionado = null, dummies = {}, personagens = {}, alvosArea, poderes = [], ficha = {} } = {}) {
+function montar(Mod, { alvoSelecionado = null, personagens = {}, alvosArea, poderes = [], ficha = {} } = {}) {
     const minhaFicha = { poderes, inventario: [], passivas: [], ataquesElementais: [], hierarquia: {}, combate: {}, iniciativa: 10, vida: stat(500000), contadores: [], ...ficha };
     mockState = {
-        minhaFicha, meuNome: 'Heroi', personagens, dummies, alvoSelecionado,
+        minhaFicha, meuNome: 'Heroi', personagens, alvoSelecionado,
         updateFicha: vi.fn((cb) => cb(minhaFicha)), setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque',
         feedCombate: alvosArea ? [{ tipo: 'acerto', nome: 'Heroi', alvosArea }] : [],
         ignorarTravaAcerto: false, setIgnorarTravaAcerto: vi.fn(), cenario: { ativa: 'c1', zonas: [] },
@@ -62,19 +62,19 @@ beforeEach(() => { vi.clearAllMocks(); window.alert = vi.fn(); vi.spyOn(Date, 'n
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 // ---------------------------------------------------------------------------------------------------------
-const nomesMock = ['salvarFichaSilencioso', 'enviarParaFeed', 'salvarDummie', 'aplicarDanoDireto', 'aplicarFadigaDireta', 'aplicarElementoDireto', 'aplicarElementoNivelDireto', 'salvarCamposPersonagem'];
+const nomesMock = ['salvarFichaSilencioso', 'enviarParaFeed', 'aplicarDanoDireto', 'aplicarFadigaDireta', 'aplicarElementoDireto', 'aplicarElementoNivelDireto', 'salvarCamposPersonagem'];
 const chamadas = () => JSON.stringify(nomesMock.map(n => [n, fb[n].mock.calls]));
 const ESC = () => [{ id: 'e1', nome: 'Domo', valor: 10, tipo: 'escudo' }];
 const ALVOS = {
-    dummie: (Mod, p) => montar(Mod, { alvoSelecionado: 'g1', dummies: { g1: goblin() }, ...p }),
+    npc: (Mod, p) => montar(Mod, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, ...p }),
     semAlvo: (Mod, p) => montar(Mod, { ...p }),
-    area2: (Mod, p) => montar(Mod, { dummies: { g1: goblin(), g2: goblin() }, alvosArea: [{ nome: 'Goblin', acertou: true, dummieId: 'g1' }, { nome: 'Goblin', acertou: true, dummieId: 'g2' }], ...p }),
-    areaNinguem: (Mod, p) => montar(Mod, { dummies: { g1: goblin() }, alvosArea: [{ nome: 'Goblin', acertou: false, dummieId: 'g1' }], ...p }),
+    area2: (Mod, p) => montar(Mod, { personagens: { G1: goblin(), G2: goblin() }, alvosArea: [{ nome: 'G1', acertou: true, alvoId: 'pj:G1' }, { nome: 'G1', acertou: true, alvoId: 'pj:G2' }], ...p }),
+    areaNinguem: (Mod, p) => montar(Mod, { personagens: { G1: goblin() }, alvosArea: [{ nome: 'G1', acertou: false, alvoId: 'pj:G1' }], ...p }),
     pjAna: (Mod, p) => montar(Mod, { alvoSelecionado: 'pj:Ana', personagens: { Ana: ana() }, ...p }),
     pjAnaEscudo: (Mod, p) => montar(Mod, { alvoSelecionado: 'pj:Ana', personagens: { Ana: ana({ escudos: ESC() }) }, ...p }),
     pjAnaNegar: (Mod, p) => montar(Mod, { alvoSelecionado: 'pj:Ana', personagens: { Ana: ana({ poderes: [{ id: 'p1', nome: 'P', ativa: true, gatilhos: [NEGAR] }] }) }, ...p }),
     pjAnaGod: (Mod, p) => montar(Mod, { alvoSelecionado: 'pj:Ana', personagens: { Ana: ana({ combate: { imunidadeTotal: { turnosRestantes: 1, origem: 'x' } } }) }, ...p }),
-    areaAna: (Mod, p) => montar(Mod, { personagens: { Ana: ana() }, dummies: { g1: goblin() }, alvosArea: [{ nome: 'Ana', acertou: true, dummieId: 'pj:Ana' }, { nome: 'Goblin', acertou: true, dummieId: 'g1' }], ...p }),
+    areaAna: (Mod, p) => montar(Mod, { personagens: { Ana: ana(), G1: goblin() }, alvosArea: [{ nome: 'Ana', acertou: true, alvoId: 'pj:Ana' }, { nome: 'G1', acertou: true, alvoId: 'pj:G1' }], ...p }),
 };
 const ATACANTES = { simples: () => ({}), comPoderFase1: () => ({ poderes: [{ id: 'p9', nome: 'Neg', ativa: true, gatilhos: [NEGAR] }] }), comContador: () => ({ ficha: { contadores: [ct('a', { valor: 2 })] } }) };
 
@@ -83,7 +83,7 @@ describe.skipIf(!Velho)('P1 NAO-REGRESSAO - Ataque identico ao HEAD sem gatilhos
         it(`alvo ${nomeAlvo}: mesma ficha, mesmo feed, mesmas gravacoes (normal/critico/fatal x dano 0/30/5000 x atacantes)`, () => {
             let n = 0;
             Object.entries(ATACANTES).forEach(([an, atk]) => ['normal', 'critico', 'fatal'].forEach(nivel => [0, 30, 5000].forEach((d) => {
-                const rodar = (Mod) => { vi.clearAllMocks(); dano(d); mkAlvo(Mod, atk()); golpe(nivel); const r = JSON.stringify([mockState.minhaFicha, mockState.personagens, mockState.dummies]); const c = chamadas(); cleanup(); return [r, c]; };
+                const rodar = (Mod) => { vi.clearAllMocks(); dano(d); mkAlvo(Mod, atk()); golpe(nivel); const r = JSON.stringify([mockState.minhaFicha, mockState.personagens]); const c = chamadas(); cleanup(); return [r, c]; };
                 const [ra, ca] = rodar(Velho); const [rb, cb] = rodar(Novo);
                 n++;
                 expect(rb, `${nomeAlvo}/${an}/${nivel}/${d}`).toBe(ra);
@@ -92,9 +92,9 @@ describe.skipIf(!Velho)('P1 NAO-REGRESSAO - Ataque identico ao HEAD sem gatilhos
             expect(n).toBe(27);
         });
     });
-    it('rolarDanoCustomizado (formula livre) em alvo-personagem e Dummie: identico ao HEAD', () => {
-        ['pjAna', 'pjAnaEscudo', 'dummie'].forEach((al) => {
-            const rodar = (Mod) => { vi.clearAllMocks(); ALVOS[al](Mod, {}); act(() => { probe.rolarDanoCustomizado('1000'); }); const r = JSON.stringify([mockState.minhaFicha, mockState.personagens, mockState.dummies]); const c = chamadas(); cleanup(); return [r, c]; };
+    it('rolarDanoCustomizado (formula livre) em alvo-personagem e NPC: identico ao HEAD', () => {
+        ['pjAna', 'pjAnaEscudo', 'npc'].forEach((al) => {
+            const rodar = (Mod) => { vi.clearAllMocks(); ALVOS[al](Mod, {}); act(() => { probe.rolarDanoCustomizado('1000'); }); const r = JSON.stringify([mockState.minhaFicha, mockState.personagens]); const c = chamadas(); cleanup(); return [r, c]; };
             expect(rodar(Novo)).toEqual(rodar(Velho));
         });
     });
@@ -107,8 +107,8 @@ describe.skipIf(!Velho)('P1 NAO-REGRESSAO - Ataque identico ao HEAD sem gatilhos
 
 // ---------------------------------------------------------------------------------------------------------
 describe('NAO-REGRESSAO (valores a mao) - sem gatilhos', () => {
-    it('golpe em Dummie sem gatilhos: sem selo 🔔, sem salvar a ficha por gatilho, contadores intactos', () => {
-        const f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin() }, ficha: { contadores: [ct('a', { valor: 2 })] } });
+    it('golpe em NPC sem gatilhos: sem selo 🔔, sem salvar a ficha por gatilho, contadores intactos', () => {
+        const f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, ficha: { contadores: [ct('a', { valor: 2 })] } });
         golpe('normal');
         expect(f.contadores[0].valor).toBe(2);
         expect(JSON.stringify(ultimoFeed().textoPosGolpe || [])).not.toContain('🔔');
@@ -129,7 +129,7 @@ describe('Fase 2 - acertou (Ego Superior: normal +2, critico +3, fatal +4)', () 
     const poderEgo = () => [{ id: 'pe', nome: 'Ego Superior', ativa: true, gatilhos: ego() }];
     const comPrest = () => ({ prest: ct('prest', { max: 9999 }) });
     it.each([['normal', 2], ['critico', 3], ['fatal', 4]])('golpe %s soma %i e o feed leva a frase do gatilho', (nivel, esperado) => {
-        const f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: poderEgo(), ficha: { contadores: [comPrest().prest] } });
+        const f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: poderEgo(), ficha: { contadores: [comPrest().prest] } });
         golpe(nivel);
         expect(v(f, 'prest')).toBe(esperado);
         expect(ultimoFeed().textoPosGolpe.some(t => t.startsWith('🔔') && t.includes(`prest 0 → ${esperado}`))).toBe(true);
@@ -138,35 +138,35 @@ describe('Fase 2 - acertou (Ego Superior: normal +2, critico +3, fatal +4)', () 
         expect(semUndefined([f.contadores, f.combate])).toBe(true);
     });
     it('critico E fatal marcados ao mesmo tempo contam como FATAL (+4), nunca os dois', () => {
-        const f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: poderEgo(), ficha: { contadores: [comPrest().prest] } });
+        const f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: poderEgo(), ficha: { contadores: [comPrest().prest] } });
         act(() => { probe.setForcarCritNormal(true); probe.setForcarCritFatal(true); });
         act(() => { probe.rolarDano(); });
         expect(v(f, 'prest')).toBe(4);
     });
     it('dois golpes seguidos disparam duas vezes (nao fica preso ao primeiro)', () => {
-        const f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin(1000) }, poderes: poderEgo(), ficha: { contadores: [comPrest().prest] } });
+        const f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin(1000) }, poderes: poderEgo(), ficha: { contadores: [comPrest().prest] } });
         golpe('normal'); act(() => { probe.rolarDano(); });
         expect(v(f, 'prest')).toBe(4);
     });
     it('acertou qualquer: golpe em area com 2 alvos acertados soma UMA vez', () => {
-        const f = montar(Novo, { dummies: { g1: goblin(), g2: goblin() }, alvosArea: [{ nome: 'Goblin', acertou: true, dummieId: 'g1' }, { nome: 'Goblin', acertou: true, dummieId: 'g2' }], poderes: [{ id: 'p', nome: 'A3', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou', nivel: 'qualquer' })] }], ficha: { contadores: [ct('c')] } });
+        const f = montar(Novo, { personagens: { G1: goblin(), G2: goblin() }, alvosArea: [{ nome: 'G1', acertou: true, alvoId: 'pj:G1' }, { nome: 'G1', acertou: true, alvoId: 'pj:G2' }], poderes: [{ id: 'p', nome: 'A3', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou', nivel: 'qualquer' })] }], ficha: { contadores: [ct('c')] } });
         act(() => { probe.rolarDano(); });
         expect(v(f, 'c')).toBe(1);
     });
-    it('area com Dummie + jogador atingidos: tambem uma vez so', () => {
-        const f = montar(Novo, { personagens: { Ana: ana() }, dummies: { g1: goblin() }, alvosArea: [{ nome: 'Ana', acertou: true, dummieId: 'pj:Ana' }, { nome: 'Goblin', acertou: true, dummieId: 'g1' }], poderes: [{ id: 'p', nome: 'A3', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' })] }], ficha: { contadores: [ct('c')] } });
+    it('area com NPC + jogador atingidos: tambem uma vez so', () => {
+        const f = montar(Novo, { personagens: { Ana: ana(), G1: goblin() }, alvosArea: [{ nome: 'Ana', acertou: true, alvoId: 'pj:Ana' }, { nome: 'G1', acertou: true, alvoId: 'pj:G1' }], poderes: [{ id: 'p', nome: 'A3', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' })] }], ficha: { contadores: [ct('c')] } });
         act(() => { probe.rolarDano(); });
         expect(v(f, 'c')).toBe(1);
     });
     it('sem alvo, area onde ninguem foi atingido, e dano 0: NAO dispara', () => {
         const gat = [{ id: 'p', nome: 'A3', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' })] }];
         let f = montar(Novo, { poderes: clone(gat), ficha: { contadores: [ct('c')] } }); act(() => { probe.rolarDano(); }); expect(v(f, 'c')).toBe(0); cleanup();
-        f = montar(Novo, { dummies: { g1: goblin() }, alvosArea: [{ nome: 'Goblin', acertou: false, dummieId: 'g1' }], poderes: clone(gat), ficha: { contadores: [ct('c')] } }); act(() => { probe.rolarDano(); }); expect(v(f, 'c')).toBe(0); cleanup();
-        dano(0); f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: clone(gat), ficha: { contadores: [ct('c')] } }); act(() => { probe.rolarDano(); }); expect(v(f, 'c')).toBe(0);
+        f = montar(Novo, { personagens: { G1: goblin() }, alvosArea: [{ nome: 'G1', acertou: false, alvoId: 'pj:G1' }], poderes: clone(gat), ficha: { contadores: [ct('c')] } }); act(() => { probe.rolarDano(); }); expect(v(f, 'c')).toBe(0); cleanup();
+        dano(0); f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: clone(gat), ficha: { contadores: [ct('c')] } }); act(() => { probe.rolarDano(); }); expect(v(f, 'c')).toBe(0);
     });
     it('golpe que MATA o alvo tambem conta como acerto', () => {
         dano(5000);
-        const f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin(10) }, poderes: [{ id: 'p', nome: 'A3', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' })] }], ficha: { contadores: [ct('c')] } });
+        const f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin(10) }, poderes: [{ id: 'p', nome: 'A3', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' })] }], ficha: { contadores: [ct('c')] } });
         act(() => { probe.rolarDano(); });
         expect(v(f, 'c')).toBe(1);
     });
@@ -177,24 +177,24 @@ describe('Fase 2 - acertou (Ego Superior: normal +2, critico +3, fatal +4)', () 
         expect([0, 1]).toContain(v(f, 'c'));
     });
     it('atacante em God Mode (Imunidade total propria) ainda dispara acertou', () => {
-        const f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: [{ id: 'p', nome: 'A3', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' })] }], ficha: { contadores: [ct('c')], combate: { imunidadeTotal: { turnosRestantes: 2, origem: 'x' } } } });
+        const f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: [{ id: 'p', nome: 'A3', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' })] }], ficha: { contadores: [ct('c')], combate: { imunidadeTotal: { turnosRestantes: 2, origem: 'x' } } } });
         act(() => { probe.rolarDano(); });
         expect(v(f, 'c')).toBe(1);
     });
     it('Poder desligado nao dispara; gatilho passivo dispara mesmo desligado; item equipado dispara', () => {
         const mk = (extra) => [{ id: 'p', nome: 'A3', ativa: false, gatilhos: [soma('c', 1, { tipo: 'acertou' }, extra)] }];
-        let f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: mk(), ficha: { contadores: [ct('c')] } }); act(() => { probe.rolarDano(); }); expect(v(f, 'c')).toBe(0); cleanup();
-        f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: mk({ passivo: true }), ficha: { contadores: [ct('c')] } }); act(() => { probe.rolarDano(); }); expect(v(f, 'c')).toBe(1); cleanup();
-        f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin() }, ficha: { contadores: [ct('c')], inventario: [{ id: 'i1', nome: 'Anel', equipado: true, gatilhos: [soma('c', 5, { tipo: 'acertou' }, { passivo: true })] }] } }); act(() => { probe.rolarDano(); }); expect(v(f, 'c')).toBe(5);
+        let f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: mk(), ficha: { contadores: [ct('c')] } }); act(() => { probe.rolarDano(); }); expect(v(f, 'c')).toBe(0); cleanup();
+        f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: mk({ passivo: true }), ficha: { contadores: [ct('c')] } }); act(() => { probe.rolarDano(); }); expect(v(f, 'c')).toBe(1); cleanup();
+        f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, ficha: { contadores: [ct('c')], inventario: [{ id: 'i1', nome: 'Anel', equipado: true, gatilhos: [soma('c', 5, { tipo: 'acertou' }, { passivo: true })] }] } }); act(() => { probe.rolarDano(); }); expect(v(f, 'c')).toBe(5);
     });
     it('Assalto 3: todo acerto soma 1 no contador (3 golpes = 3)', () => {
-        const f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin(1000) }, poderes: [{ id: 'p', nome: 'Assalto 3', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' })] }], ficha: { contadores: [ct('c', { max: 3 })] } });
+        const f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin(1000) }, poderes: [{ id: 'p', nome: 'Assalto 3', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' })] }], ficha: { contadores: [ct('c', { max: 3 })] } });
         for (let i = 0; i < 4; i++) act(() => { probe.rolarDano(); });
         expect(v(f, 'c')).toBe(3);
     });
     it('Quebra-cascos: 3 acertos -> mensagem + zerar; o ciclo recomeca', () => {
         const gat = [soma('q', 1, { tipo: 'acertou' }), G({ id: 'q2', evento: { tipo: 'contadorAtingiu', contadorId: 'q', op: '>=', valor: 3 }, acoes: [{ tipo: 'mensagem', texto: 'CASCO QUEBRADO' }, { tipo: 'contador', id: 'q', op: 'zerar' }] })];
-        const f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin(1000) }, poderes: [{ id: 'p', nome: 'QC', ativa: true, gatilhos: gat }], ficha: { contadores: [ct('q')] } });
+        const f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin(1000) }, poderes: [{ id: 'p', nome: 'QC', ativa: true, gatilhos: gat }], ficha: { contadores: [ct('q')] } });
         act(() => { probe.rolarDano(); }); act(() => { probe.rolarDano(); });
         expect(v(f, 'q')).toBe(2);
         act(() => { probe.rolarDano(); });
@@ -202,23 +202,23 @@ describe('Fase 2 - acertou (Ego Superior: normal +2, critico +3, fatal +4)', () 
         expect(ultimoFeed().textoPosGolpe.join(' ')).toContain('CASCO QUEBRADO');
     });
     it('limite 1 por turno: dois golpes no mesmo turno so somam uma vez', () => {
-        const f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin(1000) }, poderes: [{ id: 'p', nome: 'X', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' }, { limite: { max: 1, por: 'turno' } })] }], ficha: { contadores: [ct('c')] } });
+        const f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin(1000) }, poderes: [{ id: 'p', nome: 'X', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' }, { limite: { max: 1, por: 'turno' } })] }], ficha: { contadores: [ct('c')] } });
         act(() => { probe.rolarDano(); }); act(() => { probe.rolarDano(); });
         expect(v(f, 'c')).toBe(1);
     });
     it('ficha antiga sem `contadores` e gatilho apontando um contador: ignora em silencio (sem selo, sem quebra)', () => {
-        const f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: [{ id: 'p', nome: 'X', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' })] }] });
+        const f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: [{ id: 'p', nome: 'X', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' })] }] });
         delete f.contadores;
         expect(() => act(() => { probe.rolarDano(); })).not.toThrow();
         expect(JSON.stringify(ultimoFeed().textoPosGolpe || [])).not.toContain('🔔');
     });
     it('contador removido no meio (id do gatilho nao existe mais): ignora e nao dispara selo', () => {
-        const f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: [{ id: 'p', nome: 'X', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' })] }], ficha: { contadores: [ct('outro')] } });
+        const f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: [{ id: 'p', nome: 'X', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou' })] }], ficha: { contadores: [ct('outro')] } });
         act(() => { probe.rolarDano(); });
         expect(v(f, 'outro')).toBe(0);
     });
     it('golpe com Dano Verdadeiro/area/sem Ataque salvo nao quebra o `nivel` (nivel default normal)', () => {
-        const f = montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: [{ id: 'p', nome: 'X', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou', nivel: 'normal' })] }], ficha: { contadores: [ct('c')] } });
+        const f = montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: [{ id: 'p', nome: 'X', ativa: true, gatilhos: [soma('c', 1, { tipo: 'acertou', nivel: 'normal' })] }], ficha: { contadores: [ct('c')] } });
         act(() => { probe.rolarDanoCustomizado('1000'); });
         expect([0, 1]).toContain(v(f, 'c'));
     });
@@ -270,7 +270,7 @@ describe('Fase 2 - atingido no alvo-personagem (Furia)', () => {
         expect(campos('Ana')['contadores/0/valor']).toBeUndefined();
     });
     it('area com Ana atingida: atingido dispara 1 vez nela', () => {
-        montar(Novo, { personagens: { Ana: furia() }, dummies: { g1: goblin() }, alvosArea: [{ nome: 'Ana', acertou: true, dummieId: 'pj:Ana' }, { nome: 'Goblin', acertou: true, dummieId: 'g1' }] });
+        montar(Novo, { personagens: { Ana: furia(), G1: goblin() }, alvosArea: [{ nome: 'Ana', acertou: true, alvoId: 'pj:Ana' }, { nome: 'G1', acertou: true, alvoId: 'pj:G1' }] });
         act(() => { probe.rolarDano(); });
         expect(fb.salvarCamposPersonagem.mock.calls.filter(c => c[0] === 'Ana' && 'contadores/0/valor' in c[1]).length).toBe(1);
     });
@@ -280,8 +280,8 @@ describe('Fase 2 - atingido no alvo-personagem (Furia)', () => {
         act(() => { probe.rolarDano(); });
         expect(campos('Ana')['contadores/0/valor']).toBeUndefined();
     });
-    it('Ana com gatilho atingido e ataque num Dummie vizinho: nada e gravado em Ana', () => {
-        montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin() }, personagens: { Ana: furia() } });
+    it('Ana com gatilho atingido e ataque num NPC vizinho: nada e gravado em Ana', () => {
+        montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin(), Ana: furia() } });
         act(() => { probe.rolarDano(); });
         expect(fb.salvarCamposPersonagem).not.toHaveBeenCalled();
     });
@@ -291,7 +291,7 @@ describe('Lacuna conhecida - nivel do golpe no feed (Defesa nao enxerga critico/
     // BUG/LACUNA: o item `dano` do feed so leva `golpeCritico` quando o golpe tem estados e nunca distingue FATAL. A Defesa usa esse campo para o
     // `nivel` do evento `atingido` (jogador que clica "Receber dano"): "atingido por critico/fatal" nao dispara a partir de golpes sem estados.
     it('o feed do golpe critico/fatal carrega o nivel mesmo sem estados', () => {
-        montar(Novo, { alvoSelecionado: 'g1', dummies: { g1: goblin() } });
+        montar(Novo, { alvoSelecionado: 'pj:G1', personagens: { G1: goblin() } });
         golpe('fatal');
         const f = ultimoFeed();
         expect(f.golpeNivel === 'fatal' || (f.golpeCritico === true && f.golpeNivel !== 'normal')).toBe(true);

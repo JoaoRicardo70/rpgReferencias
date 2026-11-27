@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
     LIMIAR_BARRA_VIDA,
     calcularBarrasVida,
-    calcularBarrasVidaDummy,
     aplicarEdicaoBarraVida,
 } from './vitals';
 
@@ -22,7 +21,7 @@ function somaAtual(info) {
     return info.barras.reduce((s, b) => s + b.atual, 0);
 }
 
-describe('core/vitals - montarBarrasVida (via calcularBarrasVida/calcularBarrasVidaDummy): robustez de entrada', () => {
+describe('core/vitals - montarBarrasVida (via calcularBarrasVida): robustez de entrada', () => {
     it('total negativo -> clampa em 0, 1 barra de max=0, sem lançar', () => {
         const info = calcularBarrasVida(-500000000, 'vida', -50);
         expect(info.totalMax).toBe(0);
@@ -127,36 +126,6 @@ describe('core/vitals - montarBarrasVida (via calcularBarrasVida/calcularBarrasV
         expect(() => calcularBarrasVida('abc', 'vida', 'xyz')).not.toThrow();
         const info = calcularBarrasVida('abc', 'vida', 'xyz');
         expect(info.totalMax).toBe(0);
-    });
-});
-
-describe('core/vitals - calcularBarrasVidaDummy: mesmos casos-limite do lado dos dummies/NPCs', () => {
-    it('hpMax negativo -> 1 barra de max=0', () => {
-        const info = calcularBarrasVidaDummy(-100, -100);
-        expect(info.totalMax).toBe(0);
-        expect(info.barras).toEqual([{ atual: 0, max: 0 }]);
-    });
-
-    it('hpMax NaN/undefined -> tratado como 0 sem lançar', () => {
-        expect(() => calcularBarrasVidaDummy(NaN, NaN)).not.toThrow();
-        expect(() => calcularBarrasVidaDummy(undefined, undefined)).not.toThrow();
-        expect(calcularBarrasVidaDummy(NaN, NaN).totalMax).toBe(0);
-        expect(calcularBarrasVidaDummy(undefined, undefined).totalMax).toBe(0);
-    });
-
-    it('hpMax gigante (1e12) com hpAtual em cascata: invariante soma(max)===hpMax mantido', () => {
-        const info = calcularBarrasVidaDummy(1e12, 1e12 - 250000000);
-        expect(info.numBarras).toBe(1e3);
-        const somaMaxTotal = info.barras.reduce((s, b) => s + b.max, 0);
-        expect(somaMaxTotal).toBe(1e12);
-        const somaAtualTotal = info.barras.reduce((s, b) => s + b.atual, 0);
-        expect(somaAtualTotal).toBe(1e12 - 250000000);
-    });
-
-    it('hpAtual negativo (Mestre digita um valor inválido) clampa em 0 em todas as barras', () => {
-        const info = calcularBarrasVidaDummy(150000000, -999);
-        expect(info.atual).toBe(0);
-        info.barras.forEach(b => expect(b.atual).toBe(0));
     });
 });
 

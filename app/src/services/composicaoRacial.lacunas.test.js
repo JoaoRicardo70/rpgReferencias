@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import useStore from '../stores/useStore';
 
 vi.mock('./firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)),
+    salvarFichaSilencioso: vi.fn(), salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)),
     enviarParaFeed: vi.fn(), salvarCenarioCompleto: vi.fn(),
 }));
 import * as sync from './firebase-sync';
@@ -17,8 +17,8 @@ const cenario = { racas: [{ id: 'saiyajin', nome: 'Saiyajin' }, { id: 'humano', 
 const hab = (extra = {}) => ({ id: 7, nome: 'Transformacao', categoria: 'habilidadeRaca', racasAcesso: ['humano'], percentualMinimo: 50, ...extra });
 const eu = { id: 'Goku', nome: 'Goku' };
 const outro = { id: 'Vegeta', nome: 'Vegeta' };
-function montar({ isMestre = true, minha, outros = {}, dummies = {} } = {}) {
-    useStore.setState({ meuNome: 'Goku', isMestre, souMestreReal: isMestre, cenario, minhaFicha: minha, personagens: outros, dummies });
+function montar({ isMestre = true, minha, outros = {} } = {}) {
+    useStore.setState({ meuNome: 'Goku', isMestre, souMestreReal: isMestre, cenario, minhaFicha: minha, personagens: outros });
 }
 const base = (poderes, comp) => ({ bio: { raca: 'Saiyajin', racaId: 'saiyajin', ...(comp ? { composicaoRacial: comp } : {}) }, poderes });
 const minha = () => useStore.getState().minhaFicha;
@@ -167,15 +167,9 @@ describe('(g) seguranca: jogador / Modo Jogador nao executa acoes do Mestre', ()
         acoes.forEach((a, i) => { const r = a(); expect([i, r.ok]).toEqual([i, false]); expect(r.mensagem).toMatch(/Mestre/); });
         expect(sync.salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(sync.salvarFichaSilencioso).not.toHaveBeenCalled();
-        expect(sync.salvarDummie).not.toHaveBeenCalled();
         expect(JSON.stringify(useStore.getState().personagens.Vegeta)).toBe(antes);
         expect(minha().bio.composicaoRacial).toBeUndefined();
         expect(minha().poderes[0].ativa).toBe(true);
-    });
-    it('dummie: jogador nao altera', () => {
-        montar({ isMestre: false, minha: base([]), dummies: { d1: { nome: 'B', bio: { raca: 'Humano', racaId: 'humano' }, poderes: [] } } });
-        expect(adicionarRacaAdquirida({ id: 'd1', isDummie: true }, 'namek').ok).toBe(false);
-        expect(sync.salvarDummie).not.toHaveBeenCalled();
     });
     it('jogador troca a raca de OUTRO personagem: recusado; marca manipulaDNA nao e auto-concedida', () => {
         montar({ isMestre: false, minha: base([{ id: 1, nome: 'Gene' }]), outros: { Vegeta: base([]) } });

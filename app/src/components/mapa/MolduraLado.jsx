@@ -4,7 +4,7 @@ import { rotuloDoLado, ladoVisivelParaMim, ladoEstaOculto, equipeDe, getEquipe, 
 
 // 🛡️ Lado do personagem na moldura do Mapa. Todos veem o lado (jogador: "❓ Lado desconhecido" se oculto).
 // Só Mestre/Co-Mestre (isMestre) veem o seletor de Equipe e o botão Revelar/Ocultar — a checagem também é feita em definirEquipeDe/alternarLadoOculto.
-// `entidade` = { id, nome, isDummie }; `ficha` = ficha do jogador/NPC ou dados do Dummie.
+// `entidade` = { id, nome }; `ficha` = ficha do jogador/NPC.
 export default function MolduraLado({ entidade, ficha }) {
     const ctx = useMapaForm();
     const cenario = ctx ? ctx.cenario : null;
@@ -16,7 +16,7 @@ export default function MolduraLado({ entidade, ficha }) {
     const aoAlternar = useCallback(() => { if (alternarLadoOculto && entidade) alternarLadoOculto(entidade); }, [alternarLadoOculto, entidade]);
 
     if (!ctx || !entidade || !ficha) return null;
-    const combatente = { ficha, isDummie: !!entidade.isDummie };
+    const combatente = { ficha };
     const visivel = ladoVisivelParaMim(combatente, { isMestre });
     const oculto = ladoEstaOculto(combatente);
     const idEquipe = equipeDe(combatente, cenario);

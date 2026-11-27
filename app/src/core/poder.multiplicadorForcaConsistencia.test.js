@@ -34,7 +34,7 @@ function fichaFicticia(overrides = {}) {
     };
 }
 
-// Réplica EXATA de MapaCombate.jsx > MapaHologramaAcao > vidaInfo (branch !isDummie).
+// Réplica EXATA de MapaCombate.jsx > MapaHologramaAcao > vidaInfo.
 function vidaComoMapaCombate(ficha) {
     const fatorVida = calcularFatorMultiplicadorForca(ficha, 'vida');
     return calcularBarrasVida(

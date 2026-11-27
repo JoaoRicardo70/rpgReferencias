@@ -5,7 +5,7 @@ import { montarEscalasDoEfeito, ESCALA_VAZIA } from './escalaEfeito';
 import { calcularEficaciaCura } from './engine';
 import { calcularMultiplicadorFuriaClasse } from './furia';
 
-beforeEach(() => { useStore.setState({ personagens: {}, dummies: {}, cenario: { ativa: 'default' }, isMestre: false }); });
+beforeEach(() => { useStore.setState({ personagens: {}, cenario: { ativa: 'default' }, isMestre: false }); });
 
 const ef = (extra = {}) => ({ atributo: 'forca', propriedade: 'base', valor: '10', ...extra });
 const ficha = (valor = 4) => ({ contadores: [{ id: 'c1', nome: 'Carga', valor }] });

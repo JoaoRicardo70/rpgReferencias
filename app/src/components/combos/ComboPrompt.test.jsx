@@ -21,7 +21,7 @@ const combo = normalizarCombo({
 });
 const seguir = normalizarFollowUp({ id: 'fu1', nome: 'Perseguição', acao: 'reacao', quando: 'qualquer', acoesPermitidas: ['reacao', 'bonus'], niveis: [{ combos: 0, buffs: [buff('dano', 3)] }] });
 const acoes = () => ({ padrao: { max: 2, atual: 2, extra: 0 }, bonus: { max: 2, atual: 2, extra: 0 }, reacao: { max: 2, atual: 2, extra: 0 } });
-const meuAcerto = (over = {}) => ({ tipo: 'acerto', nome: 'Heroi', ts: Date.now(), alvosArea: [{ nome: 'Dummie', acertou: true }], ...over });
+const meuAcerto = (over = {}) => ({ tipo: 'acerto', nome: 'Heroi', ts: Date.now(), alvosArea: [{ nome: 'Goblin', acertou: true }], ...over });
 
 function montar({ feed = [], combos = [combo], followUps = [], comboEstado, iniciativa = 5 } = {}) {
     ficha = { combos, followUps, acoes: acoes(), iniciativa, combate: comboEstado ? { comboEstado } : {} };
@@ -56,7 +56,7 @@ describe('ComboPrompt - quando abre', () => {
         montar({ feed: [meuAcerto({ ts: Date.now() - 60000 })] });
         expect(dialogo()).toBeNull();
         cleanup();
-        montar({ feed: [meuAcerto({ alvosArea: [{ nome: 'Dummie', acertou: false }] })] });
+        montar({ feed: [meuAcerto({ alvosArea: [{ nome: 'Goblin', acertou: false }] })] });
         expect(dialogo()).toBeNull();
     });
 

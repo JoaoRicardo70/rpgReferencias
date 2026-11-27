@@ -9,7 +9,7 @@ import { salvarCenarioCompleto } from '../../services/firebase-sync';
 
 vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), uploadImagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), uploadImagem: vi.fn(),
     salvarCenarioCompleto: vi.fn(() => Promise.resolve()), zerarIniciativaGlobal: vi.fn(),
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
@@ -42,7 +42,7 @@ describe('aplicarInicioDeTurno - ordem dos gatilhos', () => {
         const f = ficha({ poderes: [
             { id: 'p1', nome: 'Caro', ativa: true, custoPorTurno: { modo: 'fixo', valor: 10, energia: 'mana' }, gatilhos: [{ id: 'dd', nome: 'Ao desligar', evento: { tipo: 'poderDesligou' }, limite: { max: 1, por: 'turno' }, acoes: [{ tipo: 'contador', id: 'k', op: 'somar', valor: 1 }] }] },
         ] });
-        const r = aplicarInicioDeTurno(f, false, 'Heroi');
+        const r = aplicarInicioDeTurno(f, 'Heroi');
         expect(f.poderes[0].ativa).toBe(false);
         expect(f.contadores[0].valor).toBe(1);
         expect(f.combate.usosPoderes['p1:dd']).toMatchObject({ n: 1, turno: true });
@@ -50,7 +50,7 @@ describe('aplicarInicioDeTurno - ordem dos gatilhos', () => {
     });
     it('o uso por turno do turno anterior volta no turnoInicio', () => {
         const f = ficha({ poderes: [{ id: 'p1', nome: 'P', ativa: true, gatilhos: [{ id: 'g', nome: 'G', evento: { tipo: 'turnoInicio' }, limite: { max: 1, por: 'turno' }, acoes: [{ tipo: 'contador', id: 'k', op: 'somar', valor: 1 }] }] }] });
-        aplicarInicioDeTurno(f, false, 'Heroi'); aplicarInicioDeTurno(f, false, 'Heroi');
+        aplicarInicioDeTurno(f, 'Heroi'); aplicarInicioDeTurno(f, 'Heroi');
         expect(f.contadores[0].valor).toBe(2);
     });
     it('gatilho que lanca excecao nao impede o inicio do turno', () => {
@@ -59,31 +59,12 @@ describe('aplicarInicioDeTurno - ordem dos gatilhos', () => {
         Object.defineProperty(p, 'gatilhos', { enumerable: true, get() { throw new Error('boom'); } });
         f.poderes.push(p);
         const erro = vi.spyOn(console, 'error').mockImplementation(() => {});
-        expect(() => aplicarInicioDeTurno(f, false, 'Heroi')).not.toThrow();
+        expect(() => aplicarInicioDeTurno(f, 'Heroi')).not.toThrow();
         expect(f.combate.fadigaTurnos).toBe(1);
         erro.mockRestore();
     });
     it('sem gatilhos o resultado e o de sempre (gatilhos vazios)', () => {
-        const r = aplicarInicioDeTurno(ficha(), false, 'Heroi');
+        const r = aplicarInicioDeTurno(ficha(), 'Heroi');
         expect(r.gatilhos).toEqual({ textos: [], caminhos: [] });
-    });
-});
-
-describe('avancarTurno - gatilho turnoFim que quebra nao trava o turno', () => {
-    it('passa o turno e grava o cenario mesmo com excecao no gatilho', () => {
-        const minha = ficha({ iniciativa: 20 });
-        const p = { id: 'p1', nome: 'P', ativa: true };
-        Object.defineProperty(p, 'gatilhos', { enumerable: true, get() { throw new Error('boom'); } });
-        minha.poderes.push(p);
-        const state = {
-            minhaFicha: minha, meuNome: 'Heroi', personagens: {}, updateFicha: vi.fn((cb) => cb(minha)), feedCombate: [], isMestre: false, mesaCriador: '',
-            dummies: { g: { nome: 'Goblin', iniciativa: 10, posicao: { x: 1, y: 1, z: 0 } } }, alvoSelecionado: null, abaAtiva: 'mapa',
-            cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
-        };
-        const erro = vi.spyOn(console, 'error').mockImplementation(() => {});
-        montar(state);
-        expect(() => act(() => { probe.avancarTurno(); })).not.toThrow();
-        expect(salvarCenarioCompleto).toHaveBeenCalledTimes(1);
-        erro.mockRestore();
     });
 });

@@ -3,7 +3,6 @@ import { render, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 vi.mock('./Tabuleiro3D', () => ({ default: () => null }));
-vi.mock('../combat/DummieToken', () => ({ default: () => null }));
 vi.mock('./MapaMundi', () => ({ default: ({ children }) => <div>{children}</div> }));
 vi.mock('./MapaVoz', () => ({ MapaSessaoRP: () => null }));
 vi.mock('../../App', async () => {
@@ -27,12 +26,12 @@ function montar(extra = {}) {
     ctxMock.valor = {
         modo3D: false, tamanhoCelula: 40, cenaAtual: { img: '' },
         cells: [{ x: 0, y: 0 }, { x: 1, y: 0 }],
-        tokenMap: { '0,0': [tk] }, dummyMap: {},
+        tokenMap: { '0,0': [tk] },
         cenaRenderId: 'default', tokens3D: [], pedirMovimento, movimentoPendente: null,
         confirmarMovimento: vi.fn(), cancelarMovimento: vi.fn(),
         getAvatarInfo: () => ({ img: '' }), meuNome: 'Bia', corDoJogador: () => '#fff',
         overridesCompendio: {}, cenario: {}, isMestre: false, inspecionar, inspecao: null,
-        alvoSelecionado: null, dummies: {},
+        alvoSelecionado: null,
         ...extra,
     };
     render(<MapaVisao />);
@@ -48,27 +47,10 @@ describe('MapaGrelha - clique no token de jogador', () => {
         expect(inspecionar).toHaveBeenCalledWith('jogador', 'Ana');
         expect(pedirMovimento).not.toHaveBeenCalled();
     });
-    it('Mestre com dummie selecionado: AINDA inspeciona o jogador e nao propaga para a celula', () => {
-        const { inspecionar, pedirMovimento } = montar({
-            isMestre: true, alvoSelecionado: 'd1', dummies: { d1: { nome: 'Boneco' } },
-        });
-        fireEvent.click(document.querySelector('.player-token'));
-        expect(inspecionar).toHaveBeenCalledTimes(1);
-        expect(inspecionar).toHaveBeenCalledWith('jogador', 'Ana');
-        expect(pedirMovimento).not.toHaveBeenCalled();
-    });
     it('Mestre sem alvo: inspeciona e nao move', () => {
         const { inspecionar, pedirMovimento } = montar({ isMestre: true });
         fireEvent.click(document.querySelector('.player-token'));
         expect(inspecionar).toHaveBeenCalledWith('jogador', 'Ana');
         expect(pedirMovimento).not.toHaveBeenCalled();
-    });
-    it('clicar numa celula vazia ainda pede movimento (Mestre com dummie selecionado)', () => {
-        const { inspecionar, pedirMovimento } = montar({
-            isMestre: true, alvoSelecionado: 'd1', dummies: { d1: {} },
-        });
-        fireEvent.click(document.querySelector('.map-cell[data-x="1"]'));
-        expect(pedirMovimento).toHaveBeenCalledWith(1, 0);
-        expect(inspecionar).not.toHaveBeenCalled();
     });
 });

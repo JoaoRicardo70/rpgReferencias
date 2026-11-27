@@ -436,15 +436,15 @@ export function AtaqueBotoesAcao() {
     const ctx = useAtaqueForm();
     if (!ctx) return PROVIDER_FALLBACK;
 
-    const { podeRolarDano, dummieAlvo, disputaAlvo, ignorarTravaAcerto, setIgnorarTravaAcerto, salvarConfigAtaque, rolarDano, salvarAtaque } = ctx;
+    const { podeRolarDano, alvoAtaque, disputaAlvo, ignorarTravaAcerto, setIgnorarTravaAcerto, salvarConfigAtaque, rolarDano, salvarAtaque } = ctx;
 
     return (
         <>
-            {dummieAlvo && (
+            {alvoAtaque && (
                 <DisputaPoderResumo
                     disputa={disputaAlvo}
                     nomeAtacante="Você"
-                    nomeDefensor={dummieAlvo.nome || 'Alvo'}
+                    nomeDefensor={alvoAtaque.nome || 'Alvo'}
                     semPoderTexto="Esta entidade não tem Poder definido (o Mestre define no token): o dano entra inteiro (x1)."
                 />
             )}
@@ -464,7 +464,7 @@ export function AtaqueBotoesAcao() {
                     style={{ flex: 1, opacity: (podeRolarDano || ignorarTravaAcerto) ? 1 : 0.5 }}
                     disabled={!podeRolarDano && !ignorarTravaAcerto}
                 >
-                    {dummieAlvo ? ((podeRolarDano || ignorarTravaAcerto) ? `ATACAR ${String(dummieAlvo.nome || 'alvo').toUpperCase()}` : 'ACERTO NECESSARIO') : 'ROLAR DANO'}
+                    {alvoAtaque ? ((podeRolarDano || ignorarTravaAcerto) ? `ATACAR ${String(alvoAtaque.nome || 'alvo').toUpperCase()}` : 'ACERTO NECESSARIO') : 'ROLAR DANO'}
                 </button>
             </div>
             <AtaquesSalvosChips />

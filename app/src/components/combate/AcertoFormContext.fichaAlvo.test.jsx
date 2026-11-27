@@ -36,7 +36,7 @@ function montarStore() {
     state = {
         minhaFicha: fichaBase({ proficienciaBase: 2, ataqueConfig: { vantagens: 1, desvantagens: 0 } }),
         personagens: { Outro: fichaBase({ proficienciaBase: 9, ataqueConfig: { vantagens: 3, desvantagens: 2 } }) },
-        meuNome: 'Heroi', isMestre: true, dummies: {}, cenario: { ativa: 'default', lista: { default: { escala: 1.5, unidade: 'm' } } },
+        meuNome: 'Heroi', isMestre: true, cenario: { ativa: 'default', lista: { default: { escala: 1.5, unidade: 'm' } } },
         alvoSelecionado: null, divisorPoderMesa: 1,
         setAbaAtiva: vi.fn(),
         updateFicha: vi.fn((cb) => cb(state.minhaFicha)),

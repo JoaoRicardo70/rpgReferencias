@@ -2,7 +2,7 @@
 // 🧬 ADAPTAÇÃO — parte que precisa MEDIR Poder (importa core/disputaPoder.js -> core/poder.js, por isso fica fora de core/adaptacao.js,
 // que poder.js importa). Regras em core/adaptacao.js.
 // ==========================================
-import { getPoderParaDisputa, getPoderDummie } from './disputaPoder.js';
+import { getPoderParaDisputa } from './disputaPoder.js';
 import { escolherOponente, registrarTurnoAdaptacao } from './adaptacao.js';
 import { relacaoEntre } from './lados.js';
 import { combateAtivo } from './combateEstado.js';
@@ -10,28 +10,22 @@ import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
 import { zenkaiLigado } from './zenkai.js';
 import { medirTurnoZenkai } from './zenkaiMedicao.js';
 
-// Poder do OPONENTE mais forte entre os combatentes da ordem de iniciativa (itens { id, nome, ficha, isDummie }) que têm relação HOSTIL com o portador
+// Poder do OPONENTE mais forte entre os combatentes da ordem de iniciativa (itens { id, nome, ficha }) que têm relação HOSTIL com o portador
 // (core/lados.js > relacaoEntre, pelo cenário: aliados e neutros NÃO contam; sem hostil válido = null e nada é registrado).
 // Jogadores/NPCs com ficha: Poder Calculado (getPoderParaDisputa, com a ficha mais fresca do store; a minha vem de minhaFicha);
-// Dummies: poderCalculado definido (getPoderDummie; sem Poder definido = ignorado). Exclui o próprio portador. Devolve { nome, poder } ou null.
-// ctx: { personagens, dummies, meuNome, minhaFicha, divisorPoderMesa, cenario, fichaPortador? }.
+// Exclui o próprio portador. Devolve { nome, poder } ou null.
+// ctx: { personagens, meuNome, minhaFicha, divisorPoderMesa, cenario, fichaPortador? }.
 export function poderDoOponenteMaisForte(ordem, nomeDono, ctx = {}) {
-    const { personagens = {}, dummies = {}, meuNome, minhaFicha, divisorPoderMesa, cenario } = ctx;
+    const { personagens = {}, meuNome, minhaFicha, divisorPoderMesa, cenario } = ctx;
     const fichaDono = ctx.fichaPortador || (nomeDono === meuNome && minhaFicha ? minhaFicha : (personagens && personagens[nomeDono])) || null;
-    const portador = { id: nomeDono, nome: nomeDono, ficha: fichaDono, isDummie: false };
+    const portador = { id: nomeDono, nome: nomeDono, ficha: fichaDono };
     const candidatos = [];
     (Array.isArray(ordem) ? ordem : []).forEach((item) => {
         if (!item || !item.nome) return;
         try {
-            if (item.isDummie) {
-                const d = (dummies && dummies[item.id]) || item.ficha;
-                if (relacaoEntre(cenario, portador, { id: item.id, nome: item.nome, ficha: d, isDummie: true }) !== 'hostil') return;
-                candidatos.push({ nome: item.nome, poder: getPoderDummie(d) });
-                return;
-            }
             if (item.nome === nomeDono) return;
             const ficha = item.nome === meuNome && minhaFicha ? minhaFicha : ((personagens && personagens[item.nome]) || item.ficha);
-            if (relacaoEntre(cenario, portador, { id: item.nome, nome: item.nome, ficha, isDummie: false }) !== 'hostil') return;
+            if (relacaoEntre(cenario, portador, { id: item.nome, nome: item.nome, ficha }) !== 'hostil') return;
             candidatos.push({ nome: item.nome, poder: ficha ? getPoderParaDisputa(ficha, divisorPoderMesa) : null });
         } catch (e) { /* um candidato que falha é ignorado */ }
     });
@@ -65,7 +59,7 @@ export function aplicarZenkaiNoTurno(ficha, contexto) {
 
 // Monta o contexto que aplicarInicioDeTurno recebe (só se a Adaptação OU o Zenkai do portador estiverem ligados; senão null e nada é medido: o custo de medir
 // o oponente só existe quando alguma das duas está ligada). `estado.inicioDeCombate` = primeiro turno do combate (o Zenkai reinicia a telemetria).
-// `estado` = useStore.getState() (personagens, dummies, meuNome, minhaFicha, divisorPoderMesa, cenario) + cenaIdCombate opcional. Nunca lança.
+// `estado` = useStore.getState() (personagens, meuNome, minhaFicha, divisorPoderMesa, cenario) + cenaIdCombate opcional. Nunca lança.
 export function montarContextoAdaptacao(ficha, nomeDono, ordem, estado = {}) {
     try {
         if (!ficha || !ficha.combate || (ficha.combate.adaptacaoLigada !== true && ficha.combate.zenkaiLigado !== true)) return null;

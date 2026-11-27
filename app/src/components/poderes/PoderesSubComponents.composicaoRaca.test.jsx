@@ -24,7 +24,7 @@ const CENARIO = { racas: [
     { id: 'saiyajin', nome: 'Saiyajin', icone: '🐒', apelidos: [], herdaDe: '' },
     { id: 'humano', nome: 'Humano', icone: '🧍', apelidos: [], herdaDe: '' },
 ] };
-const ENTIDADE = { id: 'Heroi', nome: 'Heroi', isDummie: false };
+const ENTIDADE = { id: 'Heroi', nome: 'Heroi' };
 let mockState;
 function montar({ isMestre, poderes, bio, aba = /Habilidades de Raça/ }) {
     mockState = {

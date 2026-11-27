@@ -211,7 +211,7 @@ const EntidadeCard = React.memo(function EntidadeCard({ jogador, meuNome, userLo
             <div className="entidade-card-arrastavel" style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '12px' }}
                 draggable
                 title="Arraste para o Controle de Turnos para colocar na ordem de turno"
-                onDragStart={(e) => iniciarArrastoTurno(e, { origem: 'visor', id: nome, isDummie: false, nome })}
+                onDragStart={(e) => iniciarArrastoTurno(e, { origem: 'visor', id: nome, nome })}
                 onDragEnd={encerrarArrastoTurno}
             >
                 <div style={{
@@ -413,7 +413,7 @@ export function MestreVisorJogadores() {
                 if (payload?.origem !== 'ordem' || !acoesOrdemTurno) return;
                 e.preventDefault();
                 encerrarArrastoTurno();
-                acoesOrdemTurno.remover({ id: payload.id, isDummie: !!payload.isDummie });
+                acoesOrdemTurno.remover({ id: payload.id });
             }}
         >
 

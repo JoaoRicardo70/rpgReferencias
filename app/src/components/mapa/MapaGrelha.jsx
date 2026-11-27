@@ -40,7 +40,7 @@ export function MapaControlesSuperiores() {
     const {
         modo3D, setModo3D, alterarZoom, tamanhoCelula, isMestre, souCriador,
         cenaVisualizadaId, cenaAtivaIdGlobal, cenaAtual,
-        altitudeInput, setAltitudeInput, cenario, ativarCena, estouNoMapa, removerTokenDoMapa, meuNome, alvoSelecionado, dummies, minhaFicha
+        altitudeInput, setAltitudeInput, cenario, ativarCena, estouNoMapa, removerTokenDoMapa, meuNome, alvoSelecionado, minhaFicha
     } = ctx;
     // 👣 Movimento (informativo): bônus em quadrados, velocidade 0 e quadrados percorridos no turno (core/movimentoInfo.js). O Mapa não limita o deslocamento.
     const textoMovimento = textoDeMovimento(resumoDeMovimento(minhaFicha, meuNome));
@@ -201,7 +201,7 @@ export function MapaVisao() {
                             return (
                                 <div
                                     key={tk.nome}
-                                    className={`player-token${isMe ? ' my-token' : ''}${inspecao && !inspecao.isDummie && inspecao.id === tk.nome ? ' token-inspecionado' : ''}${alvoSelecionado === `pj:${tk.nome}` ? ' token-alvo' : ''}`}
+                                    className={`player-token${isMe ? ' my-token' : ''}${inspecao && inspecao.id === tk.nome ? ' token-inspecionado' : ''}${alvoSelecionado === `pj:${tk.nome}` ? ' token-alvo' : ''}`}
                                     title={`${tk.nome} | Altura: ${altitude}m — clique para ver o resumo`}
                                     style={style}
                                     onClick={(e) => {

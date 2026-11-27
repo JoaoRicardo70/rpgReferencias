@@ -12,7 +12,6 @@ vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
@@ -50,11 +49,10 @@ function estado(minha, extra = {}) {
         feedCombate: [],
         isMestre: false,
         mesaCriador: '',
-        dummies: { filler: { nome: 'Filler', iniciativa: 5, posicao: { x: 5, y: 5, z: 0 } } },
         alvoSelecionado: null,
         abaAtiva: 'mapa',
         cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
-        ...extra
+        ...extra, personagens: { ...(extra && extra.semFiller ? {} : { Filler: { nome: 'Filler', iniciativa: 5, posicao: { x: 5, y: 5, z: 0 } } }), ...((extra && extra.personagens) || {}) }
     };
 }
 
@@ -97,15 +95,6 @@ describe('encerrarDuracaoDeEstados - fim do turno do portador', () => {
         expect(f.condicoes).toEqual([{ id: 'lento', stacks: 2 }]);
     });
 
-    it('Dummie: so o Mestre conta, e grava o no inteiro', () => {
-        const d = { nome: 'Boneco', condicoes: [{ id: 'criogenia', stacks: 1 }], duracaoEstados: { criogenia: 1 } };
-        const st = { meuNome: 'Heroi', dummies: { d1: d } };
-        expect(encerrarDuracaoDeEstados({ isDummie: true, id: 'd1', nome: 'Boneco' }, st, { isMestre: false })).toEqual([]);
-        expect(firebaseSync.salvarDummie).not.toHaveBeenCalled();
-        expect(encerrarDuracaoDeEstados({ isDummie: true, id: 'd1', nome: 'Boneco' }, st, { isMestre: true })).toEqual(['❄️ Criogenia terminou']);
-        expect(firebaseSync.salvarDummie).toHaveBeenCalledWith('d1', expect.not.objectContaining({ duracaoEstados: expect.anything() }));
-        expect(d.duracaoEstados).toEqual({ criogenia: 1 }); // original intacto
-    });
 });
 
 describe('avancarTurno - feed e gravacao da duracao', () => {
@@ -128,7 +117,7 @@ describe('avancarTurno - feed e gravacao da duracao', () => {
         outra.iniciativa = 10;
         outra.posicao = { x: 2, y: 2, z: 0 };
         const minha = ficha();
-        montar(estado(minha, { personagens: { Rival: outra }, dummies: {} }));
+        montar(estado(minha, { semFiller: true, personagens: { Rival: outra } }));
         minha.iniciativa = 20;
         passarTurno();
         expect(firebaseSync.salvarCamposPersonagem.mock.calls.some(c => c[1].duracaoEstados === null)).toBe(false);
@@ -147,7 +136,7 @@ describe('avancarTurno - feed e gravacao da duracao', () => {
         outra.iniciativa = 10;
         outra.posicao = { x: 2, y: 2, z: 0 };
         const minha = ficha();
-        const st = estado(minha, { personagens: { Rival: outra }, dummies: {}, cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 1 } });
+        const st = estado(minha, { semFiller: true, personagens: { Rival: outra }, cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 1 } });
         minha.iniciativa = 20; // ordem: Heroi (0), Rival (1) -> o turno do Rival acaba
         montar(st);
         passarTurno();

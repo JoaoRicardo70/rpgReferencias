@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./firebase-sync', () => ({
-    salvarCamposPersonagem: vi.fn(), salvarDummie: vi.fn(),
+    salvarCamposPersonagem: vi.fn(), 
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
 }));
 

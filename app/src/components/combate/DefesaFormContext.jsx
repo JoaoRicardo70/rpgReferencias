@@ -18,7 +18,7 @@ import { aplicarExternosDeGatilhos } from '../../services/gatilhosEventos';
 import { temImunidadeTotal } from '../../core/gatilhosAplicar';
 import { registrarGastoDeEnergia } from '../../core/zenkaiMedicao';
 import { escalarDanoPelaVida, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
-import { getPoderParaDisputa, getPoderDummie, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
+import { getPoderParaDisputa, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa } from '../../core/disputaPoder';
 
 // "auto" = quem desferiu o último golpe do feed (que não fui eu).
 export const ATACANTE_AUTO = 'auto';
@@ -39,7 +39,6 @@ export function DefesaFormProvider({ children }) {
     const personagens = useStore(s => s.personagens); // 🔥 VARREDURA GLOBAL DE PERSONAGENS DA MESA
     const setAbaAtiva = useStore(s => s.setAbaAtiva);
     const feedCombate = useStore(s => s.feedCombate);
-    const dummies = useStore(s => s.dummies);
     const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
 
     const caEvasiva = calcularCA(minhaFicha, 'evasiva');
@@ -77,22 +76,16 @@ export function DefesaFormProvider({ children }) {
         const feed = feedCombate || [];
         for (let i = feed.length - 1; i >= 0; i--) {
             const f = feed[i];
-            // Golpe com alvoNome foi numa entidade do Mapa (dummy), não em um jogador: não conta.
+            // Golpe com alvoNome foi numa entidade do Mapa, não em um jogador: não conta.
             // Golpe em área que já gravou o dano direto na minha ficha (alvosAplicados) também não conta.
             if (f && f.tipo === 'dano' && f.nome && f.nome !== meuNome && !f.alvoNome && !(Array.isArray(f.alvosAplicados) && f.alvosAplicados.includes(meuNome))) return f;
         }
         return null;
     }, [feedCombate, meuNome]);
 
-    const opcoesAtacante = useMemo(() => {
-        const jogadores = Object.keys(personagens || {})
-            .filter(n => n && n !== meuNome && personagens[n])
-            .map(n => ({ valor: `p:${n}`, nome: n, isDummie: false }));
-        const entidades = Object.entries(dummies || {})
-            .filter(([, d]) => d && getPoderDummie(d) !== null)
-            .map(([id, d]) => ({ valor: `d:${id}`, nome: d.nome || 'Entidade', isDummie: true }));
-        return [...jogadores, ...entidades];
-    }, [personagens, dummies, meuNome]);
+    const opcoesAtacante = useMemo(() => Object.keys(personagens || {})
+        .filter(n => n && n !== meuNome && personagens[n])
+        .map(n => ({ valor: `p:${n}`, nome: n })), [personagens, meuNome]);
 
     // Resolve o atacante escolhido no Poder dele. Pra quem desferiu o último golpe recebido, usa o
     // Poder gravado no feed no momento do golpe (poderAtacante); senão, o Poder Atual dele agora.
@@ -108,14 +101,10 @@ export function DefesaFormProvider({ children }) {
             poder = (golpe && golpe.poderAtacante !== undefined && golpe.poderAtacante !== null && Number.isFinite(gravado))
                 ? gravado
                 : getPoderParaDisputa(personagens?.[nome], divisorPoderMesa);
-        } else if (escolha.startsWith('d:')) {
-            const d = dummies?.[escolha.slice(2)];
-            nome = d?.nome || 'Entidade';
-            poder = getPoderDummie(d);
         }
         if (!nome) return { nomeAtacante: null, disputa: null };
         return { nomeAtacante: nome, disputa: calcularDisputaPoder(poder, getPoderParaDisputa(minhaFicha, divisorPoderMesa)) };
-    }, [atacanteInc, ultimoGolpeRecebido, personagens, dummies, minhaFicha, divisorPoderMesa]);
+    }, [atacanteInc, ultimoGolpeRecebido, personagens, minhaFicha, divisorPoderMesa]);
 
     // 🔥 LEITURA DINÂMICA DO COMPÊNDIO COM CORREÇÃO DE VARREDURA 🔥
     const overridesCompendio = useMemo(() => {
@@ -270,17 +259,15 @@ export function DefesaFormProvider({ children }) {
             const escolhaAtacante = atacanteInc === ATACANTE_AUTO ? (ultimoGolpeRecebido ? `p:${ultimoGolpeRecebido.nome}` : ATACANTE_NENHUM) : atacanteInc;
             const golpeDoReflexo = ultimoGolpeRecebido && escolhaAtacante === `p:${ultimoGolpeRecebido.nome}` ? ultimoGolpeRecebido : null;
             const { energia: k, valor: custo } = custoDoReflexo(minhaFicha, usado, golpeDoReflexo ? golpeDoReflexo.custoGolpeTotal : 0);
-            if (escolhaAtacante === ATACANTE_NENHUM || (!escolhaAtacante.startsWith('p:') && !escolhaAtacante.startsWith('d:'))) {
+            if (escolhaAtacante === ATACANTE_NENHUM || !escolhaAtacante.startsWith('p:')) {
                 if (!window.confirm('Não sei quem te atacou, então o Reflexo não tem para quem voltar. Receber o Dano inteiro mesmo assim?')) return;
             } else if (custo > 0 && (Number(minhaFicha[k] && minhaFicha[k].atual) || 0) < custo) {
                 if (!window.confirm(`Sem ${k.toUpperCase()} para pagar o Reflexo (${custo.toLocaleString('pt-BR')}). Receber o Dano inteiro mesmo assim?`)) return;
             } else {
                 const calculo = calcularReflexo(usado.reflexo, { danoChega: danoFinal, danoOriginal: danoDigitado });
                 danoFinal = calculo.danoNoDefensor;
-                const idAtacante = escolhaAtacante.startsWith('d:') ? escolhaAtacante.slice(2) : `pj:${escolhaAtacante.slice(2)}`;
-                const alvoAtacante = escolhaAtacante.startsWith('d:')
-                    ? (dummies || {})[idAtacante]
-                    : montarAlvoPersonagem(escolhaAtacante.slice(2), (personagens || {})[escolhaAtacante.slice(2)], divisorPoderMesa);
+                const idAtacante = `pj:${escolhaAtacante.slice(2)}`;
+                const alvoAtacante = montarAlvoPersonagem(escolhaAtacante.slice(2), (personagens || {})[escolhaAtacante.slice(2)], divisorPoderMesa);
                 textoReflexo = descreverReflexo(usado, calculo, nomeAtacante || 'o atacante');
                 aplicarNoAtacante = () => {
                     if (!alvoAtacante || calculo.danoNoAtacante <= 0) return;
@@ -304,7 +291,7 @@ export function DefesaFormProvider({ children }) {
         let textoEscudo = '';
         let textoGatilhos = '';
         let externosDano = [];
-        // 🔔 Quem me atacou (só personagem com ficha): habilita a ação "dano no atacante" dos gatilhos. Dummie ou desconhecido = sem atacante.
+        // 🔔 Quem me atacou (só personagem com ficha): habilita a ação "dano no atacante" dos gatilhos. Desconhecido = sem atacante.
         const escolhaDoGolpe = atacanteInc === ATACANTE_AUTO ? (ultimoGolpeRecebido ? `p:${ultimoGolpeRecebido.nome}` : ATACANTE_NENHUM) : atacanteInc;
         const nomeAtacanteFicha = escolhaDoGolpe.startsWith('p:') && (personagens || {})[escolhaDoGolpe.slice(2)] ? escolhaDoGolpe.slice(2) : '';
         // Cada clique em "Receber dano" é uma aplicação distinta: id único, gerado FORA do produtor Immer (o ts do feed é do último golpe, igual entre cliques).
@@ -369,7 +356,7 @@ export function DefesaFormProvider({ children }) {
         setDanoVerdadeiro(false);
         setReflexoEscolhido('');
         setAbaAtiva('aba-log');
-    }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, souEuMesmo, updateFicha, salvarFichaSilencioso, setAbaAtiva, elementosDinamicos, disputaDefesa, danoDeDado, danoVerdadeiro, reflexoEscolhido, reflexosUsaveis, atacanteInc, ultimoGolpeRecebido, dummies, personagens, divisorPoderMesa]);
+    }, [danoRecebidoInc, elementoInc, minhaFicha, meuNome, souEuMesmo, updateFicha, salvarFichaSilencioso, setAbaAtiva, elementosDinamicos, disputaDefesa, danoDeDado, danoVerdadeiro, reflexoEscolhido, reflexosUsaveis, atacanteInc, ultimoGolpeRecebido, personagens, divisorPoderMesa]);
 
     const value = useMemo(() => ({
         evaDados, setEvaDados, evaFaces, setEvaFaces, evaProf, setEvaProf, evaBonus, setEvaBonus,

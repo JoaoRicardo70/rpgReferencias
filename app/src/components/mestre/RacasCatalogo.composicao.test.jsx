@@ -10,7 +10,7 @@ import { salvarRacasDaMesa } from '../../services/racasMesa';
 import * as comp from '../../services/composicaoRacial';
 
 vi.mock('../../services/firebase-sync', () => ({
-    salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)), salvarFichaSilencioso: vi.fn(),
+    salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)), salvarFichaSilencioso: vi.fn(),
 }));
 vi.mock('../../services/racasMesa', () => ({ salvarRacasDaMesa: vi.fn(), definirRacaDoPersonagemDireto: vi.fn() }));
 vi.mock('../../services/composicaoRacial', () => ({
@@ -22,7 +22,7 @@ vi.mock('../../services/composicaoRacial', () => ({
 const SAIYAJIN = { id: 'saiyajin', nome: 'Saiyajin', icone: '🐒', apelidos: [], herdaDe: '', descendeDe: '', acessoTotalDescendentes: false };
 const HUMANO = { id: 'humano', nome: 'Humano', icone: '🧍', apelidos: [], herdaDe: '', descendeDe: '', acessoTotalDescendentes: false };
 const ELFO = { id: 'elfo', nome: 'Elfo', icone: '🧝', apelidos: [], herdaDe: '', descendeDe: '', acessoTotalDescendentes: false };
-const KAI = { id: 'Kai', nome: 'Kai', isDummie: false };
+const KAI = { id: 'Kai', nome: 'Kai' };
 
 function preparar(extra = {}, racas = [SAIYAJIN, HUMANO, ELFO]) {
     useStore.setState({
@@ -30,7 +30,7 @@ function preparar(extra = {}, racas = [SAIYAJIN, HUMANO, ELFO]) {
         personagens: {
             Kai: { bio: { raca: 'Saiyajin', racaId: 'saiyajin' }, poderes: [] },
         },
-        dummies: {}, resumoTurnoMapa: { ordem: [], foraDaOrdem: [], turnoAtualIndex: 0 }, acoesOrdemTurnoMapa: null, secaoMestrePedida: null, ...extra,
+        resumoTurnoMapa: { ordem: [], foraDaOrdem: [], turnoAtualIndex: 0 }, acoesOrdemTurnoMapa: null, secaoMestrePedida: null, ...extra,
     });
 }
 beforeEach(() => { vi.clearAllMocks(); });
@@ -246,7 +246,7 @@ describe('Pedidos de Raça (Mestre)', () => {
         expect(campo.value).toBe('10');
         fireEvent.change(campo, { target: { value: '15' } });
         fireEvent.click(screen.getByRole('button', { name: /Aprovar pedido de Kai/ }));
-        expect(comp.aprovarPedidoRaca).toHaveBeenCalledWith({ id: 'Kai', nome: 'Kai', isDummie: false }, 'ped1', 15);
+        expect(comp.aprovarPedidoRaca).toHaveBeenCalledWith({ id: 'Kai', nome: 'Kai' }, 'ped1', 15);
     });
 
     it('aprovar sem mexer no campo usa 10', () => {
@@ -260,7 +260,7 @@ describe('Pedidos de Raça (Mestre)', () => {
         comPedido();
         render(<PedidosRacaMestre />);
         fireEvent.click(screen.getByRole('button', { name: /Recusar pedido de Kai/ }));
-        expect(comp.recusarPedidoRaca).toHaveBeenCalledWith({ id: 'Kai', nome: 'Kai', isDummie: false }, 'ped1');
+        expect(comp.recusarPedidoRaca).toHaveBeenCalledWith({ id: 'Kai', nome: 'Kai' }, 'ped1');
     });
 
     it('sem pedidos mostra o vazio; não-Mestre não vê o painel', () => {

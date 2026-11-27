@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('firebase/database', () => ({ ref: vi.fn((db, p) => p), onValue: vi.fn(), set: vi.fn(), get: vi.fn() }));
 vi.mock('../../services/firebase-config', () => ({ db: {}, functions: {}, auth: {} }));
-vi.mock('../../services/firebase-sync', () => ({ salvarFichaSilencioso: vi.fn(), salvarDummie: vi.fn() }));
+vi.mock('../../services/firebase-sync', () => ({ salvarFichaSilencioso: vi.fn() }));
 
 import EfeitosDeFundo from './EfeitosDeFundo';
 import useStore from '../../stores/useStore';

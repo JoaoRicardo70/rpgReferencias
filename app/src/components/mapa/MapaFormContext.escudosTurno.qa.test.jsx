@@ -11,7 +11,7 @@ import { calcularEficaciaCura } from '../../core/engine';
 // avanca o turno de OUTRO jogador); e o buff de cura reduzida perde turnos no inicio do turno do dono (expiracao).
 vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')), salvarCenarioCompleto: vi.fn(), zerarIniciativaGlobal: vi.fn(),
 }));
 
@@ -31,8 +31,8 @@ const ficha = (o = {}) => ({
 });
 const estado = (minha, extra = {}) => ({
     minhaFicha: minha, meuNome: 'Heroi', personagens: {}, updateFicha: vi.fn((cb) => cb(minha)), feedCombate: [], isMestre: false, mesaCriador: '',
-    dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } }, alvoSelecionado: null, abaAtiva: 'mapa',
-    cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 }, ...extra,
+    alvoSelecionado: null, abaAtiva: 'mapa',
+    cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 }, ...extra, personagens: { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } }, ...((extra && extra.personagens) || {}) },
 });
 let probe;
 function Harness() { probe = useMapaForm(); return null; }
@@ -153,38 +153,5 @@ describe('Mapa - cura reduzida expira no inicio do turno do dono', () => {
         const ganhoCortado = cortada.vida.atual - 1000;
         expect(ganhoNormal).toBeGreaterThan(0);
         expect(ganhoCortado).toBeCloseTo(ganhoNormal / 2, -1);
-    });
-});
-
-describe('Mapa - dano de Zona no TICK DE TURNO passa pelo escudo', () => {
-    const montarZona = (eu) => {
-        const s = estado(eu, {
-            dummies: { a: { nome: 'A', iniciativa: 20, cenaId: 'default' }, conj: { nome: 'Conj', iniciativa: 10, cenaId: 'default' } },
-            cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [{ id: 'z1', nome: 'Fogo', cenaId: 'default', conjurador: 'Conj', duracao: 3, danoOriginal: 40, x: 5, y: 5, z: 0, raio: 2 }] },
-        });
-        montar(s);
-    };
-    const eu = (extra = {}) => ficha({ iniciativa: 5, vida: energia(1000000, { base: 1000000 }), posicoes: { default: { x: 5, y: 5, z: 0, cenaId: 'default' } }, ...extra });
-    it('escudo menor que o dano: some, a sobra vai para a Vida e o feed avisa', () => {
-        const f = eu({ escudos: [esc('a', 15)] });
-        montarZona(f);
-        act(() => { probe.avancarTurno(); });
-        expect('escudos' in f).toBe(false);
-        expect(f.vida.atual).toBe(1000000 - 25 * F);
-        expect(firebaseSync.enviarParaFeed.mock.calls.some(c => String(c[0].texto).includes('Heroi absorveu 15 (restam 0)'))).toBe(true);
-    });
-    it('escudo maior que o dano: Vida intacta e o escudo diminui', () => {
-        const f = eu({ escudos: [esc('a', 100)] });
-        montarZona(f);
-        act(() => { probe.avancarTurno(); });
-        expect(f.vida.atual).toBe(1000000);
-        expect(f.escudos[0].valor).toBe(60);
-    });
-    it('sem escudos: dano integral e a chave nao e criada', () => {
-        const f = eu();
-        montarZona(f);
-        act(() => { probe.avancarTurno(); });
-        expect(f.vida.atual).toBe(1000000 - 40 * F);
-        expect('escudos' in f).toBe(false);
     });
 });

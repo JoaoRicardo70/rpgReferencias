@@ -16,7 +16,6 @@ vi.mock('../../core/engine', async (importOriginal) => {
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
     aplicarDanoDireto: vi.fn(),
     aplicarFadigaDireta: vi.fn(),
@@ -35,9 +34,9 @@ const ficha = (efeitos = [], extra = {}) => ({
 
 let probe;
 function Harness() { probe = useAtaqueForm(); return null; }
-function montar(minhaFicha, { dummies = {}, alvoSelecionado = null } = {}) {
+function montar(minhaFicha, { alvoSelecionado = null } = {}) {
     const state = {
-        minhaFicha, meuNome: 'Heroi', personagens: {}, dummies, alvoSelecionado,
+        minhaFicha, meuNome: 'Heroi', personagens: {}, alvoSelecionado,
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
         setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque', feedCombate: [],
         ignorarTravaAcerto: true, setIgnorarTravaAcerto: vi.fn(), cenario: { zonas: [] },

@@ -87,11 +87,11 @@ export function AcertoDistanciaHUD() {
     if (!ctx) return PROVIDER_FALLBACK;
 
     const { 
-        alvoDummie, distQuadrados, distReal, maxAlcance, maxArea, isForaDeAlcance, unidadeEscala,
+        alvoAcerto, distQuadrados, distReal, maxAlcance, maxArea, isForaDeAlcance, unidadeEscala,
         origemArea, setOrigemArea, coordLivreX, setCoordLivreX, coordLivreY, setCoordLivreY, alvoFiltro, setAlvoFiltro
     } = ctx;
 
-    const alvoTexto = origemArea === 'alvo' ? (alvoDummie?.nome || 'Nenhum Alvo!') : origemArea === 'self' ? 'Meu Personagem' : `Célula Livre [${coordLivreX}, ${coordLivreY}]`;
+    const alvoTexto = origemArea === 'alvo' ? (alvoAcerto?.nome || 'Nenhum Alvo!') : origemArea === 'self' ? 'Meu Personagem' : `Célula Livre [${coordLivreX}, ${coordLivreY}]`;
 
     return (
         <div style={{ marginTop: 15, padding: '15px', background: isForaDeAlcance ? 'rgba(255,0,0,0.1)' : 'rgba(0,136,255,0.1)', border: `2px solid ${isForaDeAlcance ? '#ff003c' : '#0088ff'}`, borderRadius: '5px' }}>
@@ -133,7 +133,7 @@ export function AcertoDistanciaHUD() {
                     Seu Alcance Máx: <strong style={{color:'#fff'}}>{maxAlcance}Q</strong> 
                     {maxArea > 0 && <span style={{color: '#ff00ff', fontWeight: 'bold'}}> | Raio da Explosão: {maxArea}Q</span>}
                 </span>
-                {isForaDeAlcance && origemArea !== 'self' && !(origemArea === 'alvo' && !alvoDummie) && <div style={{ color: '#ff003c', marginTop: 5, fontWeight: 'bold', textShadow: '0 0 5px #ff003c' }}>⚠️ FORA DE ALCANCE! APROXIME-SE!</div>}
+                {isForaDeAlcance && origemArea !== 'self' && !(origemArea === 'alvo' && !alvoAcerto) && <div style={{ color: '#ff003c', marginTop: 5, fontWeight: 'bold', textShadow: '0 0 5px #ff003c' }}>⚠️ FORA DE ALCANCE! APROXIME-SE!</div>}
             </div>
         </div>
     );
@@ -142,12 +142,12 @@ export function AcertoDistanciaHUD() {
 export function AcertoRolarButton() {
     const ctx = useAcertoForm();
     if (!ctx) return PROVIDER_FALLBACK;
-    const { alvoSelecionado, alvoDummie, isForaDeAlcance, maxArea, origemArea, rolarAcerto } = ctx;
+    const { alvoSelecionado, alvoAcerto, isForaDeAlcance, maxArea, origemArea, rolarAcerto } = ctx;
 
     // Sem alvo escolhido (origem "alvo" vazia) é uma rolagem LIVRE: não há distância a checar.
-    const rolagemLivre = origemArea === 'alvo' && !alvoDummie;
+    const rolagemLivre = origemArea === 'alvo' && !alvoAcerto;
     const podeLancar = !isForaDeAlcance || origemArea === 'self' || rolagemLivre;
-    const alvoValido = alvoDummie || origemArea === 'self' || origemArea === 'livre';
+    const alvoValido = alvoAcerto || origemArea === 'self' || origemArea === 'livre';
 
     return (
         <button

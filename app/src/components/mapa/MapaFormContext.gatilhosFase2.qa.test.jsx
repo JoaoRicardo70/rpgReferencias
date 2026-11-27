@@ -12,7 +12,7 @@ const Velho = velhos['./MapaFormContext.qaf2old.jsx'] || null;
 
 vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), uploadImagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), uploadImagem: vi.fn(),
     salvarCenarioCompleto: vi.fn(() => Promise.resolve()), zerarIniciativaGlobal: vi.fn(),
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
@@ -48,12 +48,12 @@ function montar(Mod, state) {
 function estado(minhaFicha, extra = {}) {
     return {
         minhaFicha, meuNome: 'Mestre', personagens: {}, updateFicha: vi.fn((cb) => cb(minhaFicha)), feedCombate: [],
-        isMestre: true, mesaCriador: 'Mestre', dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa',
+        isMestre: true, mesaCriador: 'Mestre', alvoSelecionado: null, abaAtiva: 'mapa',
         cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [] },
         ...extra,
     };
 }
-const nomesMock = ['salvarFichaSilencioso', 'enviarParaFeed', 'salvarDummie', 'aplicarDanoDireto', 'aplicarFadigaDireta', 'salvarCamposPersonagem', 'salvarCenarioCompleto', 'zerarIniciativaGlobal'];
+const nomesMock = ['salvarFichaSilencioso', 'enviarParaFeed', 'aplicarDanoDireto', 'aplicarFadigaDireta', 'salvarCamposPersonagem', 'salvarCenarioCompleto', 'zerarIniciativaGlobal'];
 const chamadas = () => JSON.stringify(nomesMock.map(n => [n, fb[n].mock.calls]));
 const feeds = () => fb.enviarParaFeed.mock.calls.map(c => String(c[0].texto));
 const campos = (nome) => (fb.salvarCamposPersonagem.mock.calls.find(c => c[0] === nome) || [null, null])[1];
@@ -80,8 +80,6 @@ const VARIANTES = {
 const OPS = {
     'avancar eu->Vilao': (Mod, mk) => { const eu = mk(); eu.iniciativa = 20; const vilao = mk(); montar(Mod, estado(eu, { personagens: { Vilao: vilao }, cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [] } })); act(() => { probe.avancarTurno(); }); return { eu, vilao }; },
     'avancar Vilao->eu': (Mod, mk) => { const eu = mk(); eu.iniciativa = 20; const vilao = mk(); montar(Mod, estado(eu, { personagens: { Vilao: vilao }, cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 1, zonas: [] } })); act(() => { probe.avancarTurno(); }); return { eu, vilao }; },
-    'avancar eu->Dummie': (Mod, mk) => { const eu = mk(); eu.iniciativa = 20; const dummies = { d1: { nome: 'D', iniciativa: 5, cenaId: 'c', hpAtual: 10, condicoes: [{ id: 'sangrando', stacks: 1 }] } }; montar(Mod, estado(eu, { dummies })); act(() => { probe.avancarTurno(); }); return { eu, dummies }; },
-    'avancar Dummie->eu': (Mod, mk) => { const eu = mk(); eu.iniciativa = 20; const dummies = { d1: { nome: 'D', iniciativa: 5, cenaId: 'c', hpAtual: 10 } }; montar(Mod, estado(eu, { dummies, cenario: { ativa: 'c', combates: { c: { ativo: true, rodada: 1 } }, lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 1, zonas: [] } })); act(() => { probe.avancarTurno(); }); return { eu, dummies }; },
     'encerrarCombate': (Mod, mk) => { const eu = mk(); const vilao = mk(); const fora = mk(); fora.iniciativa = 0; montar(Mod, estado(eu, { personagens: { Vilao: vilao, Fora: fora } })); act(() => { probe.encerrarCombate(); }); return { eu, vilao, fora }; },
     'descansar': (Mod, mk) => { const eu = mk(); montar(Mod, estado(eu)); act(() => { probe.descansar(); }); return { eu }; },
 };
@@ -107,15 +105,6 @@ describe.skipIf(!Velho)('P1 NAO-REGRESSAO - Mapa (diferencial vs HEAD, fichas SE
         expect(JSON.stringify(fb.salvarCamposPersonagem.mock.calls)).toContain('mana'); cleanup();
         vi.clearAllMocks(); OPS.encerrarCombate(Novo, VARIANTES.simples);
         expect(fb.zerarIniciativaGlobal).toHaveBeenCalled(); expect(fb.salvarCenarioCompleto).toHaveBeenCalled();
-    });
-    it('aplicarInicioDeTurno: mesmo retorno (menos `gatilhos` novo) e mesma ficha, Dummie e jogador', () => {
-        Object.values(VARIANTES).forEach((mk) => [false, true].forEach((dum) => {
-            const a = mk(); const b = clone(a);
-            const ra = Velho.aplicarInicioDeTurno(a, dum, 'N'); const { gatilhos, ...rb } = Novo.aplicarInicioDeTurno(b, dum, 'N');
-            expect(JSON.stringify(b)).toBe(JSON.stringify(a));
-            expect(JSON.stringify(rb)).toBe(JSON.stringify(ra));
-            expect(gatilhos).toEqual({ textos: [], caminhos: [] });
-        }));
     });
     it('aplicarDanoDeEstadosNoTurno inalterado', () => {
         Object.values(VARIANTES).forEach((mk) => {
@@ -199,13 +188,6 @@ describe('Fase 2 - encerrarCombate / descansar (fimDeLuta, reset de cena)', () =
         expect(eu.contadores[0].valor).toBe(1);
         expect(campos('Vilao')['contadores/0/valor']).toBe(1);
         expect(fb.salvarCamposPersonagem.mock.calls.filter(c => c[0] === 'Vilao' && 'contadores/0/valor' in c[1]).length).toBe(1);
-    });
-    it('encerrarCombate: Dummie na cena nao quebra e nao recebe gatilho', () => {
-        const eu = ficha({ contadores: marca() });
-        montar(Novo, estado(eu, { dummies: { d1: { nome: 'D', iniciativa: 5, cenaId: 'c', hpAtual: 10 } } }));
-        act(() => { probe.encerrarCombate(); });
-        expect(eu.contadores[0].valor).toBe(0);
-        expect(fb.salvarDummie).toHaveBeenCalled();
     });
     it('encerrarCombate: ficha sem contadores/combate/poderes nao quebra', () => {
         const eu = { iniciativa: 10, posicoes: { c: { x: 0, y: 0, cenaId: 'c' } } };
@@ -305,43 +287,6 @@ describe('Fase 2 - avancarTurno (turnoFim, turnoInicio, poderDesligou)', () => {
         expect(() => act(() => { probe.avancarTurno(); })).not.toThrow();
         expect(fb.salvarCenarioCompleto).toHaveBeenCalledTimes(1);
         erro.mockRestore();
-    });
-    it('LACO custoPorTurno <-> poderDesligou: Poder sem energia desliga, o gatilho poderDesligou o religa; sem cobrar, sem loop, e o proximo turno repete', () => {
-        const poder = { id: 'p1', nome: 'Aura', ativa: true, custoPorTurno: { modo: 'fixo', valor: 50, energia: 'mana' }, gatilhos: [G({ id: 'r', nome: 'Religa', evento: { tipo: 'poderDesligou' }, acoes: [{ tipo: 'ligarPoder', poderId: 'p1' }] })] };
-        const eu = ficha({ iniciativa: 20, poderes: [poder] }); eu.mana.atual = 10 * F;
-        montar(Novo, estado(eu, { dummies: { d: { nome: 'D', iniciativa: 5, cenaId: 'c', hpAtual: 1 } }, cenario: cenarioIdx(2) }));
-        act(() => { probe.avancarTurno(); }); // dummie -> eu
-        expect(eu.poderes[0].ativa).toBe(true);
-        expect(eu.mana.atual).toBe(10 * F);
-        const f = feeds();
-        expect(f.some(t => t.includes('Aura desligou: sem mana'))).toBe(true);
-        expect(f.some(t => t.includes('Religa ligou Aura'))).toBe(true);
-        cleanup(); vi.clearAllMocks();
-        montar(Novo, estado(eu, { dummies: { d: { nome: 'D', iniciativa: 5, cenaId: 'c', hpAtual: 1 } }, cenario: cenarioIdx(2) }));
-        act(() => { probe.avancarTurno(); });
-        expect(eu.poderes[0].ativa).toBe(true);
-    });
-    it('LACO com recarga em turnos: religar e barrado pela recarga e o Poder fica desligado', () => {
-        const poder = { id: 'p1', nome: 'Aura', ativa: true, recargaRestante: 3, custoPorTurno: { modo: 'fixo', valor: 50, energia: 'mana' }, gatilhos: [G({ id: 'r', evento: { tipo: 'poderDesligou' }, acoes: [{ tipo: 'ligarPoder', poderId: 'p1' }] })] };
-        const eu = ficha({ iniciativa: 20, poderes: [poder] }); eu.mana.atual = 0;
-        montar(Novo, estado(eu, { dummies: { d: { nome: 'D', iniciativa: 5, cenaId: 'c', hpAtual: 1 } }, cenario: cenarioIdx(2) }));
-        act(() => { probe.avancarTurno(); });
-        expect(eu.poderes[0].ativa).toBe(false);
-        expect(feeds().some(t => t.includes('recarga'))).toBe(true);
-    });
-    it('poderDesligou so dispara no Poder que desligou (o outro Poder ligado sem custo nao reage)', () => {
-        const a = { id: 'a', nome: 'A', ativa: true, custoPorTurno: { modo: 'fixo', valor: 50, energia: 'mana' }, gatilhos: [G({ id: 'x', evento: { tipo: 'poderDesligou' }, acoes: [{ tipo: 'contador', id: 'k', op: 'somar', valor: 1 }] })] };
-        const b = { id: 'b', nome: 'B', ativa: true, gatilhos: [G({ id: 'x', evento: { tipo: 'poderDesligou' }, acoes: [{ tipo: 'contador', id: 'k', op: 'somar', valor: 10 }] })] };
-        const eu = ficha({ iniciativa: 20, poderes: [a, b], contadores: [ct('k')] }); eu.mana.atual = 0;
-        montar(Novo, estado(eu, { dummies: { d: { nome: 'D', iniciativa: 5, cenaId: 'c', hpAtual: 1 } }, cenario: cenarioIdx(2) }));
-        act(() => { probe.avancarTurno(); });
-        expect(eu.contadores[0].valor).toBe(1);
-    });
-    it('Dummie comecando o turno: nenhum gatilho/evento e executado nele', () => {
-        const eu = ficha({ iniciativa: 20, poderes: [{ id: 'p1', nome: 'P', ativa: true, gatilhos: [G({ evento: { tipo: 'turnoInicio' }, acoes: [{ tipo: 'contador', id: 'k', op: 'somar', valor: 1 }] })] }], contadores: [ct('k')] });
-        montar(Novo, estado(eu, { dummies: { d: { nome: 'D', iniciativa: 5, cenaId: 'c', hpAtual: 1 } }, cenario: cenarioIdx(0) }));
-        act(() => { probe.avancarTurno(); }); // eu acaba -> Vilao nao existe, indice 1 = dummie
-        expect(eu.contadores[0].valor).toBe(0);
     });
     it('turnoInicio com danoEmSi + God Mode: Imunidade total perde 1 turno ANTES (a ultima volta zera o dano) e o dano e nulo enquanto vale', () => {
         const mk = (turnos) => ficha({ iniciativa: 20, combate: { ...COMBATE(), imunidadeTotal: { turnosRestantes: turnos, origem: 'x' } }, poderes: [{ id: 'p1', nome: 'P', ativa: true, gatilhos: [G({ evento: { tipo: 'turnoInicio' }, acoes: [{ tipo: 'danoEmSi', modo: 'fixo', valor: 10 }] })] }] });

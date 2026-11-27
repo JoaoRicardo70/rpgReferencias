@@ -23,7 +23,7 @@ import { aplicarInicioDeTurno, aplicarDanoDeEstadosNoTurno } from '../components
 
 vi.mock('../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(), salvarCenarioCompleto: vi.fn(), zerarIniciativaGlobal: vi.fn()
 }));
 
@@ -344,19 +344,6 @@ describe('QA dano por stack - eletrizado e sufocado', () => {
         expect(danoDeEstadosNoTurno(f(c('queimado', 2)), () => 1).partes[0].dado).toBe(`${DANO_POR_TURNO.queimado.qtd * 2}d4`);
         expect(DANO_POR_TURNO.queimado.qtd).toBe(8);
     });
-    it('aplicarDanoDeEstadosNoTurno: dummie perde hp, ficha perde vida; paralisado sozinho nao causa dano e devolve texto vazio', () => {
-        const d = { hpAtual: 1e9, condicoes: [c('sufocado', 2)] };
-        expect(aplicarDanoDeEstadosNoTurno(d, true, 'X')).toContain('Sufocado');
-        expect(d.hpAtual).toBeLessThan(1e9);
-        const p = { hpAtual: 1e9, condicoes: [c('paralisado', 6)] };
-        expect(aplicarDanoDeEstadosNoTurno(p, true, 'X')).toBe('');
-        expect(p.hpAtual).toBe(1e9);
-    });
-    it('dummie com 1 de hp nao fica negativo', () => {
-        const d = { hpAtual: 1, condicoes: [c('eletrizado', 6)] };
-        aplicarDanoDeEstadosNoTurno(d, true, 'X');
-        expect(d.hpAtual).toBe(0);
-    });
 });
 
 describe('QA acoes - perda so em aplicarInicioDeTurno; restaurar manual nao perde', () => {
@@ -599,13 +586,13 @@ describe('QA golpes - aplicaEstados com estado novo', () => {
         expect(juntarAplicados([{ id: 'cego', stacks: 4, duracao: 2 }, { id: 'cego', stacks: 4, duracao: 5 }])).toEqual([{ id: 'cego', stacks: 6, duracao: 5 }]);
         expect(juntarAplicados([{ id: 'cego', stacks: 1, duracao: 2 }, { id: 'cego', stacks: 1 }])).toEqual([{ id: 'cego', stacks: 2 }]);
     });
-    it('condicoesComEstados (posGolpe) soma novos no alvo, personagem e dummie, sem mutar', () => {
-        const dummie = { condicoes: [c('cego', 2)] };
-        const antes = JSON.stringify(dummie);
-        const r = condicoesComEstados(dummie, [{ id: 'cego', stacks: 3 }, { id: 'paralisado', stacks: 1 }]);
+    it('condicoesComEstados (posGolpe) soma novos no alvo, e personagem, sem mutar', () => {
+        const alvoSolto = { ficha: { condicoes: [c('cego', 2)] } };
+        const antes = JSON.stringify(alvoSolto);
+        const r = condicoesComEstados(alvoSolto, [{ id: 'cego', stacks: 3 }, { id: 'paralisado', stacks: 1 }]);
         expect(r.find(x => x.id === 'cego').stacks).toBe(5);
         expect(r.find(x => x.id === 'paralisado').stacks).toBe(1);
-        expect(JSON.stringify(dummie)).toBe(antes);
+        expect(JSON.stringify(alvoSolto)).toBe(antes);
         const pers = { isPersonagem: true, ficha: { condicoes: [] } };
         expect(condicoesComEstados(pers, [{ id: 'banido', stacks: 9 }])).toEqual([{ id: 'banido', stacks: 6 }]);
     });

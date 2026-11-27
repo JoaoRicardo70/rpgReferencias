@@ -34,7 +34,7 @@ function fichaDe(salvos, poderes, magias) {
 }
 function aplicarFicha(ficha, { comPoderesCtx = true, comElemCtx = true } = {}) {
     ataqueCtx = {
-        minhaFicha: ficha, podeRolarDano: true, ignorarTravaAcerto: false, dummieAlvo: null,
+        minhaFicha: ficha, podeRolarDano: true, ignorarTravaAcerto: false, alvoAtaque: null,
         poderesAtivos: [], magiasOfensivas: [], armaEquipada: null, rolarAtaqueSalvo, rolarDanoCustomizado
     };
     poderesCtx = comPoderesCtx ? { minhaFicha: ficha, togglePoder, mudarEstagioPoder: vi.fn() } : null;

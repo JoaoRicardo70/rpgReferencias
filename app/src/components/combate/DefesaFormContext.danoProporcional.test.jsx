@@ -49,7 +49,7 @@ function fichaReal(extra = {}) {
 
 function montar({ ficha = fichaReal(), feed = [], cenario = { zonas: [] }, filho = null } = {}) {
     mockState = {
-        minhaFicha: ficha, meuNome: 'Eu', personagens: {}, dummies: {}, feedCombate: feed, divisorPoderMesa: 1,
+        minhaFicha: ficha, meuNome: 'Eu', personagens: {}, feedCombate: feed, divisorPoderMesa: 1,
         updateFicha: vi.fn((cb) => cb(ficha)),
         setAbaAtiva: vi.fn(),
         cenario,

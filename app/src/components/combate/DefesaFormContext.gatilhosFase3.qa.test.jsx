@@ -7,7 +7,7 @@ import useStore from '../../stores/useStore';
 import { enviarParaFeed, aplicarDanoDireto } from '../../services/firebase-sync';
 
 // QA Fase 3 na Defesa > Receber dano: nao-regressao (automatico / sem gatilhos), Volta das cinzas por resultado, perguntar (Sim/Nao/cancelar/dois gatilhos),
-// previsao x aplicacao, Mestre aplicando na ficha de outro jogador, atacante Dummie / sem ficha, God Mode.
+// previsao x aplicacao, Mestre aplicando na ficha de outro jogador, atacante sem ficha, God Mode.
 vi.mock('../../stores/useStore', async (importOriginal) => {
     const real = await importOriginal();
     return { ...real, default: vi.fn() }; // sanitizarNome real (FichaAlvoProvider decide souEuMesmo com ele)
@@ -19,7 +19,6 @@ vi.mock('../../services/firebase-sync', () => ({
     enviarParaFeed: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
-    salvarDummie: vi.fn(),
 }));
 vi.mock('../../core/engine', async (importOriginal) => {
     const real = await importOriginal();
@@ -57,9 +56,9 @@ const G51 = (extra = {}) => ({ id: 'vc3', nome: 'Cinzas 5-1%', ...opc(), evento:
 const NEGAR_AUTO = { id: 'nm', nome: 'Negar morte', evento: { tipo: 'danoQueZeraria' }, limite: { max: 1, por: 'cena' }, acoes: [{ tipo: 'anularDano' }, { tipo: 'definirVida', valor: 1 }] };
 const poderCom = (...gs) => [{ id: 'p1', nome: 'Volta', ativa: true, gatilhos: gs }];
 
-function montar(ficha, { personagens = {}, dummies = {}, alvo } = {}) {
+function montar(ficha, { personagens = {}, alvo } = {}) {
     const state = {
-        minhaFicha: ficha, meuNome: 'Eu', personagens: alvo ? { ...personagens, [alvo]: ficha } : personagens, dummies, feedCombate: [], divisorPoderMesa: 1,
+        minhaFicha: ficha, meuNome: 'Eu', personagens: alvo ? { ...personagens, [alvo]: ficha } : personagens, feedCombate: [], divisorPoderMesa: 1,
         updateFicha: vi.fn((cb) => cb(ficha)), updateFichaAlvo: vi.fn((nome, cb) => cb(ficha)), setAbaAtiva: vi.fn(), cenario: { ativa: 'cena1', zonas: [] },
     };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(state) : state));
@@ -160,12 +159,6 @@ describe('Defesa - Volta das cinzas: cada resultado do 1d4 pelo componente', () 
         const [nome, vidaNova] = aplicarDanoDireto.mock.calls[0];
         expect(nome).toBe('Vilao'); expect(vidaNova).toBe(0); // 999.999.999 exibidos >> 200.000: o atacante zera
         expect(textosFeed()).toMatch(/Vilao sofreu 999\.999\.999 de dano devolvido por Cinzas 0%/);
-    });
-    it('4 com atacante DUMMIE (d:x): so avisa, nao grava ninguem', () => {
-        const f = rodar(0.99, {}, {}, 'd:dum1');
-        expect(f.vida.atual).toBe(VIDA_BASE * 0.51);
-        expect(aplicarDanoDireto).not.toHaveBeenCalled();
-        expect(textosFeed()).toContain('dano no atacante ignorado');
     });
     it('4 com atacante personagem SEM ficha no store: aviso "nao tem ficha" e nada gravado', () => {
         const f = rodar(0.99, {}, {}, 'p:Fantasma');

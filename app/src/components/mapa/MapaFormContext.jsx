@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import useStore, { sanitizarNome } from '../../stores/useStore';
-import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto, salvarCamposPersonagem } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, enviarParaFeed, uploadImagem, salvarCenarioCompleto, zerarIniciativaGlobal, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto, salvarCamposPersonagem } from '../../services/firebase-sync';
 import { calcularAcerto, calcularEficaciaCura, somarBonusBase } from '../../core/engine';
 import { montarContextoDeCombate } from '../../core/efeitosCondicionais';
 import { classificarRolagem } from '../../core/rolagemDado';
@@ -22,10 +22,10 @@ import { infoAvatarDaFicha, fichaVisualDoToken } from '../../core/avatar';
 import { assinarFalhasDeImagem } from '../../core/imagemVerificada';
 import { escalarEfeitosPorEstagio } from '../../core/estagios';
 import { efeitosAtivosDoItem } from '../../core/efeitosItem';
-import { escalarDanoPelaVida, getVidaMaxExibidaDummie, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
+import { escalarDanoPelaVida, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
 import { golpeEquipado } from '../../core/classesMecanicas';
-import { alternarAcao, restaurarAcoes, criarAcoesIniciais } from '../../core/acoes';
-import { getPoderParaDisputa, getPoderDummie, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, resolverAcertoNoAlvo } from '../../core/disputaPoder';
+import { alternarAcao, restaurarAcoes } from '../../core/acoes';
+import { getPoderParaDisputa, getPoderDoAlvo, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, resolverAcertoNoAlvo } from '../../core/disputaPoder';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto, getTetoExibidoComFator } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
 import { aplicarCustosPorTurno, fotoDosPoderes, camposDePoderesAlterados } from '../../core/custoPorTurno';
@@ -45,7 +45,7 @@ import { passarTurnoDaImunidadeTotal, camposDeGatilhosAlterados, camposParaGrava
 import { zerarAtaquesNoTurno, CAMINHO_ATAQUES_NO_TURNO } from '../../core/ataquesNoTurno';
 import { registrarMovimento, zerarQuadradosNoTurno, CAMINHO_QUADRADOS_NO_TURNO } from '../../core/movimentoNoTurno';
 import { dispararEventoMeu, dispararEventoEmPersonagem, dispararResultadoDoAcerto } from '../../services/gatilhosEventos';
-import { resolverAlvoCombate, idAlvoPersonagem, ehAlvoPersonagem, defesaEfetivaDoDummie } from '../../core/alvoCombate';
+import { resolverAlvoCombate, idAlvoPersonagem, ehAlvoPersonagem, defesaEfetivaDoAlvo } from '../../core/alvoCombate';
 import { ordenarOrdemTurno, chaveEntidadeTurno, moverChaveNaOrdem, recalcularIndiceTurno } from '../../core/turnos';
 
 // 🎯 O Dano Rápido do Mestre conta como GOLPE (nível normal): dispara o evento `atingido` dos gatilhos de quem o sofre.
@@ -94,28 +94,28 @@ export function iniciarAnimacaoDado(setDadoAnim, { rawRoll, quemRolou, resultado
 }
 
 // 🔥 Início de turno (reset de Ações + Fadiga de Combate dinâmica + Regeneração automática) — a
-// MESMA conta pra qualquer personagem (jogador real ou dummie), usada por avancarTurno tanto pro
+// MESMA conta pra qualquer personagem (jogador ou NPC), usada por avancarTurno tanto pro
 // caminho "sou eu mesmo" (updateFicha local) quanto pro caminho "é outro jogador" (escrita direta
 // no Firebase via salvarCamposPersonagem, ver firebase-sync.js). Muta o rascunho recebido (draft
 // Immer OU um clone solto, tanto faz). A ordem importa: calcularGanhoFadigaDinamico precisa rodar
 // ANTES de aplicarRegeneracaoDeTurno, senão a cura já aplicada no mesmo tick esconderia o quão
 // gasto o personagem estava entrando neste turno.
 // `contextoAdaptacao` (opcional, só jogadores): { oponente: { nome, poder } | null, divisorPoderMesa } — ver montarContextoAdaptacao. Devolve também `adaptacao` (texto do Feed, '' sem ganho registrado).
-export function aplicarInicioDeTurno(ficha, ehDummie = false, nome = '', contextoAdaptacao = null) {
+export function aplicarInicioDeTurno(ficha, nome = '', contextoAdaptacao = null) {
     // Estados como Paralisado/Atordoado/Apavorado tiram Ações do turno (core/condicoes.js > acoesPerdidas).
     restaurarAcoes(ficha, { comEstados: true });
     // 🔔 A Imunidade total (core/gatilhosAplicar.js) perde 1 turno no começo do turno do dono, antes de qualquer dano deste turno.
-    if (!ehDummie) passarTurnoDaImunidadeTotal(ficha);
+    passarTurnoDaImunidadeTotal(ficha);
 
     if (!ficha.combate) ficha.combate = {};
     // ⚔️ Contador de ataques do turno (core/ataquesNoTurno.js): zera SEMPRE no início do turno do portador (alimenta "primeiro ataque do turno").
-    if (!ehDummie) { zerarAtaquesNoTurno(ficha); zerarQuadradosNoTurno(ficha); } // 👣 quadrados percorridos (core/movimentoNoTurno.js) também zeram
+    zerarAtaquesNoTurno(ficha); zerarQuadradosNoTurno(ficha); // 👣 quadrados percorridos (core/movimentoNoTurno.js) também zeram
     // 💥 Zenkai (core/zenkai.js): fecha o gasto de Energia do turno anterior (ou abre a telemetria no 1º turno / de quem entrou depois). Só com Zenkai ligado e combate ativo
     // (contextoAdaptacao != null). Um erro aqui nunca impede o turno.
-    if (!ehDummie && contextoAdaptacao) { try { abrirTurnoZenkai(ficha, { reiniciar: contextoAdaptacao.zenkaiReiniciar === true }); } catch (e) { console.error('Zenkai: abertura do turno falhou', e); } }
+    if (contextoAdaptacao) { try { abrirTurnoZenkai(ficha, { reiniciar: contextoAdaptacao.zenkaiReiniciar === true }); } catch (e) { console.error('Zenkai: abertura do turno falhou', e); } }
     // 🧬 Adaptação (core/adaptacao.js): no INÍCIO do turno do portador, mede a diferença de Poder para o oponente mais forte da cena e compõe o ganho no fator de combate.
-    // Medida ANTES de qualquer outra mudança do turno (Fadiga/regeneração). Dummies não adaptam; um erro aqui nunca impede o turno (aplicarAdaptacaoNoTurno não lança).
-    const resAdaptacao = ehDummie ? null : aplicarAdaptacaoNoTurno(ficha, contextoAdaptacao);
+    // Medida ANTES de qualquer outra mudança do turno (Fadiga/regeneração). Um erro aqui nunca impede o turno (aplicarAdaptacaoNoTurno não lança).
+    const resAdaptacao = aplicarAdaptacaoNoTurno(ficha, contextoAdaptacao);
     ficha.combate.fadigaTurnos = Math.max(0, (Number(ficha.combate.fadigaTurnos) || 0) + 1);
     // incluirEsforcoPoder: lutar acima do limiar de Poder cansa mesmo com Vida/Energias cheias.
     const ganhoDinamicoDoTurno = calcularGanhoFadigaDinamico(ficha, { incluirEsforcoPoder: true });
@@ -124,42 +124,31 @@ export function aplicarInicioDeTurno(ficha, ehDummie = false, nome = '', context
     aplicarRegeneracaoDeTurno(ficha, ganhoDinamicoDoTurno);
     // ✨ Buffs temporários de Suporte (core/suporte.js) perdem 1 turno no começo do turno do dono; os que acabam saem.
     if (Array.isArray(ficha.buffsTemporarios) && ficha.buffsTemporarios.length > 0) ficha.buffsTemporarios = passarTurnoDosBuffs(ficha).lista;
-    const cura = ehDummie ? '' : aplicarCuraPassivaNoTurno(ficha);
+    const cura = aplicarCuraPassivaNoTurno(ficha);
     // 🔋 Poderes ligados com custo por turno pagam a energia (ou desligam sem ela) e ⏳ as recargas em turnos perdem 1 (core/custoPorTurno.js, core/recargaPoder.js).
-    const custos = ehDummie ? { textos: [], desligados: 0 } : aplicarCustosPorTurno(ficha);
-    const recargasMudaram = ehDummie ? 0 : passarTurnoDasRecargas(ficha);
+    const custos = aplicarCustosPorTurno(ficha);
+    const recargasMudaram = passarTurnoDasRecargas(ficha);
     // 💥 Zenkai: a energia que os Poderes com custo por turno pagaram entra no gasto do turno que começa.
-    if (!ehDummie && custos.gastos && contextoAdaptacao) registrarGastoDeEnergia(ficha, { drenos: custos.gastos });
-    const estados = aplicarDanoDeEstadosNoTurno(ficha, ehDummie, nome);
+    if (custos.gastos && contextoAdaptacao) registrarGastoDeEnergia(ficha, { drenos: custos.gastos });
+    const estados = aplicarDanoDeEstadosNoTurno(ficha, nome);
     // 💥 Zenkai: conta o turno do portador (Fadiga, Forma ativa, Vida mínima, razão do oponente). Depois do dano dos estados (que se registra sozinho).
-    if (!ehDummie) aplicarZenkaiNoTurno(ficha, contextoAdaptacao);
+    aplicarZenkaiNoTurno(ficha, contextoAdaptacao);
     // 🔔 Gatilhos de turno (core/gatilhos.js): poderDesligou (Poder desligado por falta de energia) e turnoInicio do dono. Os usos 'por turno' voltam aqui.
     const gatilhos = { textos: [], caminhos: [] };
-    if (!ehDummie) {
-        const cenaId = cenaAtualDaMesa();
-        const juntar = (r) => { r.textos.forEach(t => gatilhos.textos.push(t)); r.caminhos.forEach(c => { if (!gatilhos.caminhos.includes(c)) gatilhos.caminhos.push(c); }); };
-        // turnoInicio PRIMEIRO (ele devolve os usos 'por turno'); depois os poderDesligou, para não apagarem o uso que acabaram de gastar.
-        // Um gatilho que falha nunca impede o turno de começar.
-        try {
-            juntar(dispararEventoNaFicha(ficha, { tipo: 'turnoInicio' }, { cenaId, nome }));
-            (custos.ids || []).forEach(id => juntar(dispararEventoNaFicha(ficha, { tipo: 'poderDesligou', poderId: String(id) }, { cenaId, nome })));
-        } catch (e) { console.error('Gatilhos do início do turno falharam', e); }
-    }
+    const cenaId = cenaAtualDaMesa();
+    const juntar = (r) => { r.textos.forEach(t => gatilhos.textos.push(t)); r.caminhos.forEach(c => { if (!gatilhos.caminhos.includes(c)) gatilhos.caminhos.push(c); }); };
+    // turnoInicio PRIMEIRO (ele devolve os usos 'por turno'); depois os poderDesligou, para não apagarem o uso que acabaram de gastar.
+    // Um gatilho que falha nunca impede o turno de começar.
+    try {
+        juntar(dispararEventoNaFicha(ficha, { tipo: 'turnoInicio' }, { cenaId, nome }));
+        (custos.ids || []).forEach(id => juntar(dispararEventoNaFicha(ficha, { tipo: 'poderDesligou', poderId: String(id) }, { cenaId, nome })));
+    } catch (e) { console.error('Gatilhos do início do turno falharam', e); }
     return { estados, cura, custos: custos.textos, gatilhos, adaptacao: resAdaptacao ? resAdaptacao.texto : '', poderesAlterados: custos.desligados > 0 || recargasMudaram > 0 };
 }
 
-// ⏳ Fim do turno de `quem` (item da ordem de iniciativa): os estados com prazo perdem 1 turno e saem ao chegar a 0. Três caminhos, como no início do turno:
-// eu (updateFicha + debounce), Dummie (só o Mestre, salvarDummie) e outro jogador (só os caminhos tocados). Devolve as frases para o Feed.
-export function encerrarDuracaoDeEstados(quem, storeState, { updateFicha, isMestre }) {
-    if (quem.isDummie) {
-        if (!isMestre) return [];
-        const d = storeState.dummies && storeState.dummies[quem.id];
-        if (!d || !d.duracaoEstados) return [];
-        const clone = JSON.parse(JSON.stringify(d));
-        const r = passarTurnoDosEstados(clone);
-        if (r.mudou) salvarDummie(quem.id, clone);
-        return r.textos;
-    }
+// ⏳ Fim do turno de `quem` (item da ordem de iniciativa): os estados com prazo perdem 1 turno e saem ao chegar a 0. Dois caminhos, como no início do turno:
+// eu (updateFicha + debounce) e outro jogador (só os caminhos tocados). Devolve as frases para o Feed.
+export function encerrarDuracaoDeEstados(quem, storeState, { updateFicha }) {
     if (quem.nome === storeState.meuNome) {
         if (!storeState.minhaFicha || !storeState.minhaFicha.duracaoEstados) return [];
         let textos = [];
@@ -220,15 +209,13 @@ function aplicarCuraPassivaDeEnergias(ficha) {
 }
 
 // 🩸 Estados negativos (core/condicoes.js): Queimado/Sangrando/Criogenia causam dano por stack no começo do turno de quem está
-// afetado. Dano direto (sem Reduções): tira da Vida bruta da ficha (vida.atual) ou do Dummie (hpAtual). Devolve o texto para o feed ('' sem dano).
-export function aplicarDanoDeEstadosNoTurno(ficha, ehDummie, nome = '') {
+// afetado. Dano direto (sem Reduções): tira da Vida bruta da ficha (vida.atual). Devolve o texto para o feed ('' sem dano).
+export function aplicarDanoDeEstadosNoTurno(ficha, nome = '') {
     const r = danoDeEstadosNoTurno(ficha);
     if (r.total <= 0) return '';
-    const bruto = danoExibidoParaBruto(r.total);
     let extra = '';
-    if (ehDummie) ficha.hpAtual = Math.max(0, (Number(ficha.hpAtual) || 0) - bruto);
-    else if (ficha.vida) {
-        // 🛡️ Escudos/Vida temporária absorvem o dano dos estados (sem Reduções); Dummies não têm.
+    if (ficha.vida) {
+        // 🛡️ Escudos/Vida temporária absorvem o dano dos estados (sem Reduções).
         // 🔔 Ponto único de dano na Vida (core/danoVida.js): Imunidade total, escudo e gatilhos.
         const vr = aplicarDanoNaVidaDaFicha(ficha, r.total, { nome, nomeEscudo: 'Escudo' });
         // Imunidade total: o dano dos estados não foi sofrido, então o texto não lista dano.
@@ -282,12 +269,12 @@ function camposDeInicioDeTurno(ficha, camposPoderes = {}, escudosMudaram = false
 const MapaFormContext = createContext(null);
 
 // 🛡️ Zonas: o filtro 'inimigos'/'aliados' é RELATIVO ao conjurador (core/lados.js > alvoNoFiltro). Sem equipes configuradas = o comportamento de sempre
-// (jogador = aliado; Dummie = inimigo). Conjurador sem ficha achada é tratado como um jogador. `st` = useStore.getState().
+// (jogador = aliado; NPC = inimigo). Conjurador sem ficha achada é tratado como um jogador. `st` = useStore.getState().
 function alvoDaZonaPassa(zona, alvo, st) {
     if (zona.alvosFiltro !== 'inimigos' && zona.alvosFiltro !== 'aliados') return true;
     const c = zona.conjurador;
     const fichaC = c ? (c === st.meuNome ? st.minhaFicha : (st.personagens || {})[c]) : null;
-    return alvoNoFiltro(st.cenario, fichaC ? comoCombatente(fichaC, false) : null, alvo, zona.alvosFiltro);
+    return alvoNoFiltro(st.cenario, fichaC ? comoCombatente(fichaC) : null, alvo, zona.alvosFiltro);
 }
 
 export function useMapaForm() {
@@ -309,7 +296,6 @@ export function MapaFormProvider({ children }) {
     const souCriador = !!meuNome && meuNome === mesaCriador && !modoJogador;
     const entidadeInspecionada = useStore(s => s.entidadeInspecionada);
     const setEntidadeInspecionada = useStore(s => s.setEntidadeInspecionada);
-    const dummies = useStore(s => s.dummies);
     const alvoSelecionado = useStore(s => s.alvoSelecionado);
     const cenario = useStore(s => s.cenario);
     const abaAtiva = useStore(s => s.abaAtiva);
@@ -371,8 +357,8 @@ export function MapaFormProvider({ children }) {
     // 🎭 Ator de combate (core/atorCombate.js): o NPC em que o Mestre está atuando, ou null (= eu mesmo).
     const atorCombateSel = useStore(s => s.atorCombate);
     const atorAtivo = useMemo(
-        () => resolverAtorCombate(atorCombateSel, { personagens, dummies, isMestre, cenaId: cenaRenderId }),
-        [atorCombateSel, personagens, dummies, isMestre, cenaRenderId]
+        () => resolverAtorCombate(atorCombateSel, { personagens, isMestre, cenaId: cenaRenderId }),
+        [atorCombateSel, personagens, isMestre, cenaRenderId]
     );
     const cenaAtual = cenario?.lista?.[cenaRenderId] || { nome: 'Desconhecido', img: '', escala: 1.5, unidade: 'm' };
 
@@ -440,23 +426,14 @@ export function MapaFormProvider({ children }) {
         return globais;
     }, [minhaFicha, personagens]);
 
-    const toggleActionDot = useCallback((tipo, isAvailable, entidadeNome, isDummie, idDummie) => {
-        if (isDummie && idDummie && isMestre) {
-            const storeState = useStore.getState();
-            const dData = storeState.dummies[idDummie];
-            if (!dData) return;
-            const acoes = dData.acoes ? JSON.parse(JSON.stringify(dData.acoes)) : criarAcoesIniciais();
-            if (!acoes[tipo]) acoes[tipo] = { max: 2, atual: 2 };
-            if (isAvailable) acoes[tipo].atual = Math.max(0, acoes[tipo].atual - 1);
-            else acoes[tipo].atual = Math.min(acoes[tipo].max, acoes[tipo].atual + 1);
-            salvarDummie(idDummie, { ...dData, acoes });
-        } else if (entidadeNome === meuNome) {
+    const toggleActionDot = useCallback((tipo, isAvailable, entidadeNome) => {
+        if (entidadeNome === meuNome) {
             updateFicha(f => {
                 alternarAcao(f, tipo, isAvailable);
             });
             salvarFichaSilencioso();
         }
-    }, [isMestre, meuNome, updateFicha]);
+    }, [meuNome, updateFicha]);
 
     // 🎲 Botão "Testar" da tela de Configurações: rola um dado de mentira (nível: normal, critico, fatal ou falha) em qualquer aba.
     useEffect(() => {
@@ -628,18 +605,13 @@ export function MapaFormProvider({ children }) {
         if (!entidadeInspecionada) return null;
         const { tipo, id } = entidadeInspecionada;
         if (!isMestre && (cenario?.tokensOcultos || []).includes(id)) return null;
-        if (tipo === 'dummie') {
-            const d = dummies?.[id];
-            if (!d || (d.cenaId || 'default') !== cenaRenderId) return null;
-            return { id, nome: d.nome, ficha: d, isDummie: true };
-        }
         const f = jogadores?.[id];
         if (!f) return null;
         // Mesma regra da Ordem de Turno: só quem está nesta cena (posição nova ou legada).
         const naCena = !!(f.posicoes && f.posicoes[cenaRenderId]) || !!(f.posicao && (f.posicao.cenaId || 'default') === cenaRenderId);
         if (!naCena) return null;
-        return { id, nome: id, ficha: f, isDummie: false };
-    }, [entidadeInspecionada, isMestre, cenario, dummies, jogadores, cenaRenderId]);
+        return { id, nome: id, ficha: f };
+    }, [entidadeInspecionada, isMestre, cenario, jogadores, cenaRenderId]);
 
     // Clicar de novo no mesmo personagem fecha a inspeção.
     const inspecionar = useCallback((tipo, id) => {
@@ -705,26 +677,14 @@ export function MapaFormProvider({ children }) {
 
                 // Só aparece na iniciativa se estiver NA CENA ATUAL!
                 if (f && f.iniciativa !== undefined && f.iniciativa > 0 && pos) {
-                    lista.push({ id: n, nome: n, ficha: f, iniciativa: f.iniciativa, isDummie: false });
+                    lista.push({ id: n, nome: n, ficha: f, iniciativa: f.iniciativa });
                 }
             }
         }
         
-        if (dummies) {
-            const dIds = Object.keys(dummies);
-            for (let i = 0; i < dIds.length; i++) {
-                const id = dIds[i];
-                const d = dummies[id];
-                const cenaDoDummie = d?.cenaId || 'default';
-                if (d && d.iniciativa !== undefined && d.iniciativa > 0 && cenaDoDummie === cenaRenderId) {
-                    lista.push({ id: id, nome: d.nome, ficha: d, iniciativa: d.iniciativa, isDummie: true });
-                }
-            }
-        }
-
         // 🔀 Ordem arrumada à mão pelo Mestre (cenario.ordemTurnoManual) — core/turnos.js.
         return ordenarOrdemTurno(lista, cenario?.ordemTurnoManual?.[cenaRenderId]);
-    }, [jogadores, dummies, cenaRenderId, cenario?.ordemTurnoManual]);
+    }, [jogadores, cenaRenderId, cenario?.ordemTurnoManual]);
 
     // ⚖️ Sem Multiplicadores de Dano (agora só no Poder Calculado): a Zona acompanha só o que
     // muda o dano PURO do conjurador (Status, Dano Bruto, Letalidade). O Poder dele vai junto pra
@@ -792,24 +752,18 @@ export function MapaFormProvider({ children }) {
 
         const storeAtual = useStore.getState();
         // `fichaOutro` = ficha (do store) de OUTRO jogador dentro da zona; ele toma o dano pelo caminho de dano em outra ficha (escudo/imunidade/gatilhos, por delta).
-        const checkHit = (pos, nome, isDummie, idDummie, dData, fichaOutro = null) => {
+        const checkHit = (pos, nome, fichaOutro = null) => {
             if (!pos || pos.x === undefined) return;
-            const cenaDaEntidade = (isDummie ? (dData?.cenaId || pos.cenaId) : pos.cenaId) || 'default';
+            const cenaDaEntidade = pos.cenaId || 'default';
             if (cenaDaEntidade !== (zona.cenaId || 'default')) return;
-            if (!alvoDaZonaPassa(zona, isDummie ? comoCombatente(dData, true) : comoCombatente(fichaOutro || storeAtual.minhaFicha, false), storeAtual)) return;
+            if (!alvoDaZonaPassa(zona, comoCombatente(fichaOutro || storeAtual.minhaFicha), storeAtual)) return;
 
             const dX = Math.abs(pos.x - zona.x);
             const dY = Math.abs(pos.y - zona.y);
             const dZ = Math.floor(Math.abs((pos.z || 0) - (zona.z || 0)) / escala);
             
             if (Math.max(dX, dY, dZ) <= zona.raio) {
-                if (isDummie && idDummie && dData) {
-                    const { dano, disputa, escalado } = aplicarDisputaDaZona(din, getPoderDummie(dData), getVidaMaxExibidaDummie(dData), zona.danoDeDados);
-                    if (disputa.ativa || escalado) houveDisputa = true;
-                    hitLog.push(nome);
-                    if (disputa.ativa || escalado) hitLogMestre.push(`${nome}: ${dano.toLocaleString('pt-BR')}`);
-                    salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(dano)) }, { baseHp: dData.hpAtual || 0, hpMax: dData.hpMax });
-                } else if (nome === meuNome) {
+                if (nome === meuNome) {
                     const { dano, disputa, escalado } = aplicarDisputaDaZona(din, getPoderParaDisputa(minhaFicha, useStore.getState().divisorPoderMesa), getVidaMaxExibidaFicha(minhaFicha), zona.danoDeDados);
                     if (disputa.ativa || escalado) houveDisputa = true;
                     hitLog.push(nome);
@@ -836,25 +790,24 @@ export function MapaFormProvider({ children }) {
             }
         };
 
-        Object.entries(dummies || {}).forEach(([id, d]) => checkHit(d.posicao, d.nome, true, id, d));
-        // 🌪️ Os OUTROS jogadores dentro da zona também sofrem (antes só dummies e quem clicou em Passar Turno).
+        // 🌪️ Os OUTROS jogadores dentro da zona também sofrem.
         Object.entries(storeAtual.personagens || {}).forEach(([nomeP, fichaP]) => {
             if (!fichaP || nomeP === meuNome) return;
             const posP = fichaP.posicoes ? fichaP.posicoes[cenaAtivaId] : fichaP.posicao;
-            if (posP) checkHit(posP, nomeP, false, null, null, fichaP);
+            if (posP) checkHit(posP, nomeP, fichaP);
         });
         
         let myPos = minhaFicha?.posicoes ? minhaFicha.posicoes[cenaAtivaId] : minhaFicha?.posicao;
-        if (myPos) checkHit(myPos, meuNome, false, null, null);
+        if (myPos) checkHit(myPos, meuNome);
         
         if (hitLog.length > 0) {
             const letalStr = letalAtual > 0 ? ` (+${letalAtual} Letalidade)` : '';
             // Quanto cada um realmente sofreu (Disputa de Poder) é só do Mestre: vai em textoMestre.
             enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🌪️ A Zona [${zona.nome}] castigou ${hitLog.join(', ')} com ${danoAtual} de Dano${letalStr}!`, ...(houveDisputa ? { textoMestre: `⚖️ Dano após a Disputa de Poder: ${hitLogMestre.join(' · ')}` } : {}) });
         }
-    }, [cenario, getDanoDinamicoZona, aplicarDisputaDaZona, dummies, minhaFicha, meuNome, updateFicha]);
+    }, [cenario, getDanoDinamicoZona, aplicarDisputaDaZona, minhaFicha, meuNome, updateFicha]);
 
-    const processarEntradaNaZona = useCallback((oldPos, newX, newY, newZ, entidadeNome, isDummie, idDummie, dData) => {
+    const processarEntradaNaZona = useCallback((oldPos, newX, newY, newZ, entidadeNome) => {
         const cenaAtivaId = cenario?.ativa || 'default';
         const escala = cenario?.lista?.[cenaAtivaId]?.escala || 1.5;
         const zonasCena = (cenario?.zonas || []).filter(zo => (zo.cenaId || 'default') === cenaRenderId && zo.danoOriginal);
@@ -862,7 +815,7 @@ export function MapaFormProvider({ children }) {
         zonasCena.forEach(zona => {
             const stZona = useStore.getState();
             const fichaDoAlvo = entidadeNome === stZona.meuNome ? stZona.minhaFicha : (stZona.personagens || {})[entidadeNome];
-            const alvoComoCombatente = isDummie ? comoCombatente(dData, true) : comoCombatente(fichaDoAlvo, false);
+            const alvoComoCombatente = comoCombatente(fichaDoAlvo);
             if (!alvoDaZonaPassa(zona, alvoComoCombatente, stZona)) return;
 
             let estavaDentro = false;
@@ -880,22 +833,16 @@ export function MapaFormProvider({ children }) {
 
             if (!estavaDentro && estaDentro) {
                 const din = getDanoDinamicoZona(zona);
-                const poderAlvo = isDummie
-                    ? getPoderDummie(dData)
-                    : (entidadeNome === meuNome ? getPoderParaDisputa(useStore.getState().minhaFicha, useStore.getState().divisorPoderMesa) : null);
-                const vidaAlvoZona = isDummie ? getVidaMaxExibidaDummie(dData) : (entidadeNome === meuNome ? getVidaMaxExibidaFicha(useStore.getState().minhaFicha) : null);
+                const poderAlvo = entidadeNome === meuNome ? getPoderParaDisputa(useStore.getState().minhaFicha, useStore.getState().divisorPoderMesa) : null;
+                const vidaAlvoZona = entidadeNome === meuNome ? getVidaMaxExibidaFicha(useStore.getState().minhaFicha) : null;
                 const { dano: danoAtual, disputa, escalado } = aplicarDisputaDaZona(din, poderAlvo, vidaAlvoZona, zona.danoDeDados);
                 const letalAtual = din.letalidade;
                 const letalStr = letalAtual > 0 ? ` (+${letalAtual} Letalidade)` : '';
                 const textoDisputa = disputa.ativa ? ` | ${descreverDisputa(disputa)}` : '';
 
-                // Entidades (inimigos): o dano recalculado pela Disputa de Poder é só do Mestre.
-                const escondeDano = isDummie && (disputa.ativa || escalado);
-                enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: escondeDano ? `⚠️ ${entidadeNome} pisou na área de [${zona.nome}] e sofreu dano${letalStr} imediatamente!` : `⚠️ ${entidadeNome} pisou na área de [${zona.nome}] e sofreu ${danoAtual} de Dano${letalStr} imediatamente!`, ...((disputa.ativa || escalado) ? { textoMestre: escondeDano ? `Dano após a Disputa de Poder: ${danoAtual}${textoDisputa}` : descreverDisputa(disputa) } : {}) });
-                                
-                if (isDummie && idDummie && dData) {
-                    salvarDummie(idDummie, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - danoExibidoParaBruto(danoAtual)) }, { baseHp: dData.hpAtual || 0, hpMax: dData.hpMax });
-                } else if (entidadeNome === meuNome) {
+                enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⚠️ ${entidadeNome} pisou na área de [${zona.nome}] e sofreu ${danoAtual} de Dano${letalStr} imediatamente!`, ...((disputa.ativa || escalado) ? { textoMestre: descreverDisputa(disputa) } : {}) });
+
+                if (entidadeNome === meuNome) {
                     let textoEscudoPisar = ''; let textoGatilhosPisar = '';
                     const decisoesPisar = perguntarGatilhosDeDano(useStore.getState().minhaFicha, danoAtual, { nome: entidadeNome, nomeEscudo: entidadeNome });
                     const escolhaDoDono = criarEscolhaDoDono();
@@ -912,18 +859,9 @@ export function MapaFormProvider({ children }) {
     const handleCellClick = useCallback((x, y) => {
         const z = parseInt(altitudeInput) || 0;
         
-        let oldPos = null;
-        if (isMestre && alvoSelecionado && dummies[alvoSelecionado]) {
-            oldPos = dummies[alvoSelecionado].posicao;
-        } else {
-            oldPos = minhaFicha?.posicoes ? minhaFicha.posicoes[cenaRenderId] : (minhaFicha?.posicao?.cenaId === cenaRenderId ? minhaFicha.posicao : null);
-        }
-        
-        if (isMestre && alvoSelecionado && dummies[alvoSelecionado]) {
-            const d = dummies[alvoSelecionado];
-            salvarDummie(alvoSelecionado, { ...d, posicao: { x, y, z }, cenaId: cenaRenderId });
-            processarEntradaNaZona(oldPos, x, y, z, d.nome, true, alvoSelecionado, d);
-        } else {
+        const oldPos = minhaFicha?.posicoes ? minhaFicha.posicoes[cenaRenderId] : (minhaFicha?.posicao?.cenaId === cenaRenderId ? minhaFicha.posicao : null);
+
+        {
             const escalaDaCena = cenario?.lista?.[cenaRenderId]?.escala || 1.5;
             updateFicha((ficha) => {
                 // 👣 Conta os quadrados percorridos no turno (core/movimentoNoTurno.js): só em combate e na mesma cena; teleporte tem teto por movimento.
@@ -940,21 +878,20 @@ export function MapaFormProvider({ children }) {
                 ficha.posicao.cenaId = cenaRenderId; 
             });
             salvarFichaSilencioso();
-            processarEntradaNaZona(oldPos, x, y, z, meuNome, false, null, null);
+            processarEntradaNaZona(oldPos, x, y, z, meuNome);
         }
-    }, [isMestre, alvoSelecionado, dummies, cenaRenderId, altitudeInput, updateFicha, processarEntradaNaZona, meuNome, minhaFicha, cenario]);
+    }, [cenaRenderId, altitudeInput, updateFicha, processarEntradaNaZona, meuNome, minhaFicha, cenario]);
 
     // 📍 Mover o PRÓPRIO personagem pede confirmação: um clique na casa só marca o destino e o jogador
     // escolhe "Ir para lá" ou "Ficar" — assim clicar perto de outro token (ou sem querer) não teleporta
-    // ninguém. O Mestre movendo o alvo (entidade) selecionado continua direto, sem perguntar.
+    // ninguém.
     const [movimentoPendente, setMovimentoPendente] = useState(null);
     const pedirMovimento = useCallback((x, y) => {
-        if (isMestre && alvoSelecionado && dummies[alvoSelecionado]) { handleCellClick(x, y); return; }
         const pos = minhaFicha?.posicoes?.[cenaRenderId] || ((minhaFicha?.posicao && (minhaFicha.posicao.cenaId || 'default') === cenaRenderId) ? minhaFicha.posicao : null);
         // Mesma casa e mesma altitude: nada a confirmar (mudar só a altitude Z continua valendo como movimento).
         if (pos && pos.x === x && pos.y === y && (pos.z || 0) === (parseInt(altitudeInput) || 0)) { setMovimentoPendente(null); return; }
         setMovimentoPendente({ x, y });
-    }, [isMestre, alvoSelecionado, dummies, minhaFicha, cenaRenderId, handleCellClick, altitudeInput]);
+    }, [minhaFicha, cenaRenderId, handleCellClick, altitudeInput]);
     const confirmarMovimento = useCallback(() => {
         if (movimentoPendente) handleCellClick(movimentoPendente.x, movimentoPendente.y);
         setMovimentoPendente(null);
@@ -962,7 +899,7 @@ export function MapaFormProvider({ children }) {
     const cancelarMovimento = useCallback(() => setMovimentoPendente(null), []);
 
     // 🚪 Tirar um token de JOGADOR do Mapa (só desta cena): o Mestre tira qualquer um; cada jogador
-    // tira só o próprio (e volta clicando numa casa). Entidades/dummies têm a lixeira própria no token.
+    // tira só o próprio (e volta clicando numa casa). 
     // Só conta se tem casa de verdade (a iniciativa pode criar posicoes[cena] só com cenaId, sem x/y).
     const posNaCena = minhaFicha?.posicoes?.[cenaRenderId] || ((minhaFicha?.posicao && (minhaFicha.posicao.cenaId || 'default') === cenaRenderId) ? minhaFicha.posicao : null);
     const estouNoMapa = !!(posNaCena && posNaCena.x !== undefined);
@@ -1039,16 +976,7 @@ export function MapaFormProvider({ children }) {
     const iniciarTurnoDe = useCallback((nextPlayer, storeState, exigirCombateAtivo) => {
         // `inicioDeCombate`: o primeiro turno (iniciarCombate) reinicia a telemetria do Zenkai.
         const estadoAdaptacao = exigirCombateAtivo ? { ...storeState, cenaIdCombate: cenaRenderId } : { ...storeState, inicioDeCombate: true };
-        if (nextPlayer.isDummie) {
-            if (!isMestre) return;
-            const dData = storeState.dummies[nextPlayer.id];
-            if (dData) {
-                const dDataAtualizado = JSON.parse(JSON.stringify(dData));
-                const textoEstados = aplicarInicioDeTurno(dDataAtualizado, true).estados;
-                salvarDummie(nextPlayer.id, dDataAtualizado);
-                if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
-            }
-        } else if (nextPlayer.nome === storeState.meuNome) {
+        if (nextPlayer.nome === storeState.meuNome) {
             // Sou eu mesmo quem começa o turno: aplica local (fonte de verdade imediata, sem
             // esperar o Firebase) e deixa o debounce de sempre sincronizar.
             let textoEstados = '';
@@ -1058,7 +986,7 @@ export function MapaFormProvider({ children }) {
             let textoAdaptacao = '';
             // 🧬 Oponente mais forte da cena (só medido com a Adaptação ligada), calculado fora do produtor Immer.
             const contextoAdaptacao = montarContextoAdaptacao(storeState.minhaFicha, nextPlayer.nome, ordemIniciativa, estadoAdaptacao);
-            updateFicha(f => { const r = aplicarInicioDeTurno(f, false, nextPlayer.nome, contextoAdaptacao); textoEstados = r.estados; textoCura = r.cura; textosCustos = r.custos; textosGatilhosTurno = r.gatilhos.textos; textoAdaptacao = r.adaptacao; });
+            updateFicha(f => { const r = aplicarInicioDeTurno(f, nextPlayer.nome, contextoAdaptacao); textoEstados = r.estados; textoCura = r.cura; textosCustos = r.custos; textosGatilhosTurno = r.gatilhos.textos; textoAdaptacao = r.adaptacao; });
             salvarFichaSilencioso();
             if (textoAdaptacao) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🧬 ${nextPlayer.nome}: ${textoAdaptacao}` });
             if (textoEstados) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🩸 ${nextPlayer.nome} sofre dos estados negativos: ${textoEstados}` });
@@ -1084,7 +1012,7 @@ export function MapaFormProvider({ children }) {
                 const rascunho = JSON.parse(JSON.stringify(fichaAlvo));
                 const fotoAntes = fotoDosPoderes(rascunho);
                 const contextoAdaptacao = montarContextoAdaptacao(rascunho, nextPlayer.nome, ordemIniciativa, estadoAdaptacao);
-                const { estados: textoEstados, cura: textoCura, custos: textosCustos, gatilhos: gatilhosTurno, adaptacao: textoAdaptacao } = aplicarInicioDeTurno(rascunho, false, nextPlayer.nome, contextoAdaptacao);
+                const { estados: textoEstados, cura: textoCura, custos: textosCustos, gatilhos: gatilhosTurno, adaptacao: textoAdaptacao } = aplicarInicioDeTurno(rascunho, nextPlayer.nome, contextoAdaptacao);
                 // Poderes: só os campos tocados, com o índice achado pelo id na ficha mais fresca (nunca o array inteiro).
                 const frescos = useStore.getState().personagens?.[nextPlayer.nome]?.poderes || fichaAlvo.poderes;
                 salvarCamposPersonagem(nextPlayer.nome, { ...camposDeInicioDeTurno(rascunho, camposDePoderesAlterados(fotoAntes, fotoDosPoderes(rascunho), frescos), JSON.stringify(rascunho.escudos) !== JSON.stringify(fichaAlvo.escudos)), ...camposDeGatilhosAlterados(fichaAlvo, rascunho), ...camposParaGravar(rascunho, gatilhosTurno.caminhos) });
@@ -1113,7 +1041,7 @@ export function MapaFormProvider({ children }) {
 
         // 🔔 Gatilhos `turnoFim` de quem ACABA o turno (core/gatilhos.js): na ficha dele (a minha, ou a de outro jogador por caminhos).
         const quemAcaba = ordemIniciativa[(cenario?.turnoAtualIndex || 0) % ordemIniciativa.length];
-        if (quemAcaba && !quemAcaba.isDummie && quemAcaba.nome) {
+        if (quemAcaba && quemAcaba.nome) {
             // Um gatilho NUNCA pode impedir a passagem de turno: qualquer erro é só registrado.
             let fim = { textos: [] };
             try { fim = dispararEventoEmPersonagem(quemAcaba.nome, { tipo: 'turnoFim' }); } catch (e) { console.error('Gatilho turnoFim falhou', e); }
@@ -1124,7 +1052,7 @@ export function MapaFormProvider({ children }) {
         // aplicado fora do turno dele ainda age no turno seguinte inteiro; ao chegar a 0 sai por completo. Um erro aqui nunca impede a passagem de turno.
         if (quemAcaba && quemAcaba.nome) {
             try {
-                const terminaram = encerrarDuracaoDeEstados(quemAcaba, useStore.getState(), { updateFicha, isMestre });
+                const terminaram = encerrarDuracaoDeEstados(quemAcaba, useStore.getState(), { updateFicha });
                 if (terminaram.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `⏳ ${quemAcaba.nome}: ${terminaram.join(' · ')}` });
             } catch (e) { console.error('Duração dos estados falhou', e); }
         }
@@ -1195,9 +1123,8 @@ export function MapaFormProvider({ children }) {
         enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `💖 ${meuNome} descansou e recuperou as forças!` });
     }, [updateFicha, meuNome]);
 
-    // ⚔️ Dano Rápido do Mestre: aplica dano direto num jogador OU numa entidade (dummie), sem
-    // precisar que o alvo digite nada manualmente. Dummies já aceitam escrita de qualquer
-    // cliente (salvarDummie) e não têm Fadiga (são só HP). Jogadores usam aplicarDanoDireto
+    // ⚔️ Dano Rápido do Mestre: aplica dano direto num jogador ou NPC, sem
+    // precisar que o alvo digite nada manualmente. Jogadores usam aplicarDanoDireto
     // (escrita pontual em vida/atual, mesma ideia de zerarIniciativaGlobal) quando o alvo NÃO é
     // quem está clicando — se for o próprio Mestre se auto-aplicando dano, usa o caminho normal
     // (updateFicha) da própria ficha.
@@ -1218,7 +1145,7 @@ export function MapaFormProvider({ children }) {
     //
     // 🎚️ `nivelDominioOverride` (opcional, 0-10): o Mestre pode sobrescrever o nível de Domínio
     // usado no cálculo, em vez de ler o que o próprio alvo tem registrado na Ficha — útil pra
-    // NPCs/dummies sem Domínio próprio ou pra simular uma resistência pontual diferente. Vazio/
+    // NPCs sem Domínio próprio ou pra simular uma resistência pontual diferente. Vazio/
     // undefined = "usar o Domínio do próprio personagem" (comportamento normal).
     //
     // 🛡️⚔️ `nivelDominioAtacante` (opcional, 0-10, padrão 0): o Domínio de QUEM golpeou nesse
@@ -1230,7 +1157,7 @@ export function MapaFormProvider({ children }) {
     // (getFracaoResistenciaElemental) que já existia — as duas convivem: o dano já sai menor, e
     // o pouco que passa ainda gera menos Fadiga se o alvo tiver Domínio ali.
     //
-    // ⚖️ `atacante` (opcional, { nome, ficha, isDummie }): quem desferiu o golpe — o dano passa
+    // ⚖️ `atacante` (opcional, { nome, ficha }): quem desferiu o golpe — o dano passa
     // antes pela Disputa de Poder (core/disputaPoder.js) entre o Poder dele e o do alvo. Sem
     // atacante, o dano entra como digitado (x1), igual antes.
     // 🎲 `danoDeDado` (opcional, 7º argumento): o número digitado é uma rolagem de dado — vira proporcional
@@ -1240,7 +1167,7 @@ export function MapaFormProvider({ children }) {
         const valorDigitado = Math.max(0, Math.floor(Number(dano)) || 0);
         if (valorDigitado <= 0) return;
 
-        const fichaDoAlvo = alvo.isDummie ? alvo.ficha : (alvo.nome === meuNome ? minhaFicha : alvo.ficha);
+        const fichaDoAlvo = alvo.nome === meuNome ? minhaFicha : alvo.ficha;
         // O cálculo inteiro (dado proporcional → Disputa de Poder → reduções em sequência + Domínio) vive em
         // core/danoRapido.js, o MESMO que alimenta a prévia do Mestre.
         const calculo = calcularDanoRapido({
@@ -1259,12 +1186,7 @@ export function MapaFormProvider({ children }) {
         }
 
         let textoEscudo = ''; let textoGatilhos = '';
-        if (alvo.isDummie) {
-            const storeState = useStore.getState();
-            const dData = storeState.dummies[alvo.id];
-            if (!dData) return;
-            salvarDummie(alvo.id, { ...dData, hpAtual: Math.max(0, (dData.hpAtual || 0) - valorRaw) }, { baseHp: dData.hpAtual || 0, hpMax: dData.hpMax });
-        } else if (alvo.nome === meuNome) {
+        if (alvo.nome === meuNome) {
             const decisoesRapido = perguntarGatilhosDeDano(useStore.getState().minhaFicha, valor, { nome: alvo.nome, nomeEscudo: alvo.nome, golpe: GOLPE_DANO_RAPIDO });
             const escolhaDoDono = criarEscolhaDoDono();
             updateFicha(f => {
@@ -1323,14 +1245,14 @@ export function MapaFormProvider({ children }) {
         // gravam na mesma ficha a partir do espelho local, que pode ainda não ter o primeiro write (mesma limitação do avancarTurno).
         // 📸 Foto dos ganhos permanentes ANTES do combate (e antes dos gatilhos de início): a recusa do Mestre ao encerrar volta a ela (core/aprovacaoPermanente.js).
         // Quem entra na ordem depois do início não tem foto (nesse caso só a Adaptação é recusável).
-        ordemIniciativa.filter(j => !j.isDummie && j.nome).forEach((j) => {
+        ordemIniciativa.filter(j => j.nome).forEach((j) => {
             try {
                 // 💥 Zenkai: a telemetria do combate nasce zerada em quem tem Zenkai ligado.
                 if (j.nome === storeState.meuNome) { updateFicha((f) => { fotografarGanhos(f); iniciarZenkai(f); }); salvarFichaSilencioso(); }
                 else if (storeState.personagens?.[j.nome]) salvarCamposPersonagem(j.nome, { [CAMINHO_FOTO_GANHOS]: lerGanhosPermanentes(storeState.personagens[j.nome]), ...(zenkaiLigado(storeState.personagens[j.nome]) ? { [CAMINHOS_ZENKAI[0]]: novaTelemetriaZenkai() } : {}) });
             } catch (e) { console.error('Foto dos ganhos permanentes falhou', e); }
         });
-        ordemIniciativa.filter(j => !j.isDummie && j.nome).forEach((j) => {
+        ordemIniciativa.filter(j => j.nome).forEach((j) => {
             try {
                 const r = dispararEventoEmPersonagem(j.nome, { tipo: 'inicioDeLuta' });
                 if (r.textos.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${j.nome}: ${r.textos.join(' · ')}` });
@@ -1347,24 +1269,22 @@ export function MapaFormProvider({ children }) {
         }
     }, [isMestre, cenaRenderId, ordemIniciativa, feedTotal, iniciarTurnoDe, updateFicha]);
 
-    // 🛡️ LADOS / EQUIPES (core/lados.js). Só Mestre/Co-Mestre escrevem. `entidade` = item { id, nome, isDummie } (ordem, foraDaOrdem, token) —
-    // a ficha/dummie é buscada FRESCA no store. Jogador: eu = updateFicha + debounce; outro jogador = salvarCamposPersonagem (combate/equipe, combate/ladoOculto);
-    // Dummie = salvarDummie. Equipes/relações vão em cenario.equipes / cenario.relacoes (salvarCenarioCompleto).
+    // 🛡️ LADOS / EQUIPES (core/lados.js). Só Mestre/Co-Mestre escrevem. `entidade` = item { id, nome } (ordem, foraDaOrdem, token) —
+    // a ficha é buscada FRESCA no store. Jogador: eu = updateFicha + debounce; outro jogador = salvarCamposPersonagem (combate/equipe, combate/ladoOculto);
+    // Equipes/relações vão em cenario.equipes / cenario.relacoes (salvarCenarioCompleto).
     const equipes = useMemo(() => getEquipes(cenario), [cenario]);
     const relacoes = useMemo(() => getRelacoes(cenario), [cenario]);
 
     const lerEntidadeFresca = useCallback((entidade) => {
         if (!entidade) return null;
         const st = useStore.getState();
-        if (entidade.isDummie) { const d = (st.dummies || {})[entidade.id]; return d ? { dados: d, combatente: comoCombatente(d, true), nome: d.nome || entidade.nome } : null; }
         const nome = entidade.id || entidade.nome;
         const f = nome === st.meuNome ? st.minhaFicha : (st.personagens || {})[nome];
-        return f ? { dados: f, combatente: comoCombatente(f, false), nome } : null;
+        return f ? { dados: f, combatente: comoCombatente(f), nome } : null;
     }, []);
 
-    const gravarNaEntidade = useCallback((entidade, alvo, patchFicha, patchDummie) => {
+    const gravarNaEntidade = useCallback((entidade, alvo, patchFicha) => {
         const st = useStore.getState();
-        if (entidade.isDummie) { salvarDummie(entidade.id, { ...alvo.dados, ...patchDummie }); return; }
         if (alvo.nome === st.meuNome) {
             updateFicha((f) => { if (!f.combate) f.combate = {}; Object.keys(patchFicha).forEach((k) => { f.combate[k.replace('combate/', '')] = patchFicha[k]; }); });
             salvarFichaSilencioso();
@@ -1379,7 +1299,7 @@ export function MapaFormProvider({ children }) {
         if (!alvo) return false;
         const mov = moverParaEquipe(useStore.getState().cenario, alvo.combatente, equipeId);
         if (!mov || !mov.mudou) return false;
-        gravarNaEntidade(entidade, alvo, entidade.isDummie ? {} : mov.patch, entidade.isDummie ? mov.patch : {});
+        gravarNaEntidade(entidade, alvo, mov.patch);
         if (mov.anunciar) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: textoMudancaDeLado(useStore.getState().cenario, alvo.nome, mov.de, mov.para) });
         return true;
     }, [isMestre, lerEntidadeFresca, gravarNaEntidade]);
@@ -1390,8 +1310,8 @@ export function MapaFormProvider({ children }) {
         const alvo = lerEntidadeFresca(entidade);
         if (!alvo) return null;
         const novoOculto = !ladoEstaOculto(alvo.combatente);
-        const patch = patchLadoOculto(!!entidade.isDummie, novoOculto);
-        gravarNaEntidade(entidade, alvo, entidade.isDummie ? {} : patch, entidade.isDummie ? patch : {});
+        const patch = patchLadoOculto(novoOculto);
+        gravarNaEntidade(entidade, alvo, patch);
         if (!novoOculto) {
             // O combatente em mãos ainda é o antigo (oculto): o rótulo é montado direto da equipe real.
             const cen = useStore.getState().cenario;
@@ -1436,7 +1356,7 @@ export function MapaFormProvider({ children }) {
     // 🔔 Fim do combate de UMA cena (usado por encerrarCombate e pela troca de cena ativa): termina a
     // Imunidade total e dispara fimDeLuta (core/gatilhos.js) em quem estava na cena. "Quem estava na
     // cena" = mesma regra da ordemIniciativa aplicada à cena `cenaId`: jogadores com iniciativa > 0 e
-    // posição nessa cena (posicoes[cenaId] ou posicao legada). Dummies não têm gatilhos.
+    // posição nessa cena (posicoes[cenaId] ou posicao legada).
     // Escrita em outros personagens só pelos helpers do Mestre (salvarCamposPersonagem / dispararEventoEmPersonagem).
     // `decisoes` ({ nome: 'liberar'|'recusar' }, vindo do diálogo de aprovação) vale quando a opção do Mestre está LIGADA: cada fimDeLuta recebe
     // ctx.permanente (quem não está no mapa = 'liberar'). Sem `decisoes` (opção desligada) o fimDeLuta converte a Adaptação sozinho, como sempre.
@@ -1555,10 +1475,6 @@ export function MapaFormProvider({ children }) {
         if (nomesNaCena.length > 0) zerarIniciativaGlobal(nomesNaCena);
 
         const storeState = useStore.getState();
-        ordemIniciativa.filter(j => j.isDummie).forEach(d => {
-            const dData = storeState.dummies[d.id];
-            if (dData) salvarDummie(d.id, { ...dData, iniciativa: 0 });
-        });
 
         updateFicha(ficha => { ficha.iniciativa = 0; if (ficha.combate) delete ficha.combate.imunidadeTotal; });
         setIniciativaInput(0);
@@ -1579,7 +1495,7 @@ export function MapaFormProvider({ children }) {
         if (!isMestre || aprovandoRef.current) return;
         const nomeCena = String(cenaAtual.nome || cenaRenderId);
         if (!window.confirm(`Tem a certeza que deseja ZERAR A INICIATIVA DE TODOS OS JOGADORES E ENTIDADES presentes na cena "${nomeCena}"?`)) return;
-        const nomesNaCena = ordemIniciativa.filter(j => !j.isDummie).map(j => j.nome);
+        const nomesNaCena = ordemIniciativa.map(j => j.nome);
         // ✅ Ganhos permanentes pendentes (Adaptação / Verg e derivados): o Mestre libera ou recusa no diálogo; Cancelar NÃO encerra o combate.
         aprovarEExecutar(nomesNaCena, cenaRenderId, `Encerrar combate em ${nomeCena}`, (decisoes, ajustes) => finalizarEncerramento(nomeCena, nomesNaCena, decisoes, ajustes));
     }, [isMestre, cenaAtual.nome, ordemIniciativa, cenaRenderId, aprovarEExecutar, finalizarEncerramento]);
@@ -1617,13 +1533,7 @@ export function MapaFormProvider({ children }) {
 
         const storeState = useStore.getState();
         let nome = entidade.id;
-        if (entidade.isDummie) {
-            const d = storeState.dummies?.[entidade.id];
-            if (!d) return;
-            if ((d.cenaId || 'default') !== cenaRenderId) { alert(`${d.nome} não está nesta cena do Mapa.`); return; }
-            nome = d.nome;
-            salvarDummie(entidade.id, { ...d, iniciativa: Number(d.iniciativa) > 0 ? d.iniciativa : 1 });
-        } else if (entidade.id === storeState.meuNome) {
+        if (entidade.id === storeState.meuNome) {
             updateFicha((ficha) => {
                 if (!(Number(ficha.iniciativa) > 0)) ficha.iniciativa = 1;
                 if (!ficha.posicoes) ficha.posicoes = {};
@@ -1650,10 +1560,7 @@ export function MapaFormProvider({ children }) {
         if (!alvo) return;
 
         const storeState = useStore.getState();
-        if (entidade.isDummie) {
-            const d = storeState.dummies?.[entidade.id];
-            if (d) salvarDummie(entidade.id, { ...d, iniciativa: 0 });
-        } else if (entidade.id === storeState.meuNome) {
+        if (entidade.id === storeState.meuNome) {
             updateFicha((ficha) => { ficha.iniciativa = 0; });
             setIniciativaInput(0);
             salvarFichaSilencioso();
@@ -1678,7 +1585,7 @@ export function MapaFormProvider({ children }) {
 
         // O alvo é resolvido ANTES da rolagem: as condições dos efeitos (alvo com estado, vida abaixo de...) são checadas nele.
         const estadoAtual = useStore.getState();
-        const alvoDummie = resolverAlvoCombate(alvoSelecionado, { dummies, personagens: estadoAtual.personagens, meuNome: atorAtivo ? atorAtivo.nomeFicha : meuNome, divisorPoderMesa: estadoAtual.divisorPoderMesa, fichaAtor: fichaAcerto, atorEhMestre: isMestre });
+        const alvoMapa = resolverAlvoCombate(alvoSelecionado, { personagens: estadoAtual.personagens, meuNome: atorAtivo ? atorAtivo.nomeFicha : meuNome, divisorPoderMesa: estadoAtual.divisorPoderMesa, fichaAtor: fichaAcerto, atorEhMestre: isMestre });
         // Área do golpe (maior entre armas, poderes e magias), calculada antes da rolagem: em área o d20 é um só, então a desvantagem imposta pelo alvo escolhido não vale.
         const armasEqArea = itensEq.filter(i => i.tipo === 'arma');
         const poderesAtivosArea = (fichaAcerto?.poderes || []).filter(p => p.ativa);
@@ -1690,7 +1597,7 @@ export function MapaFormProvider({ children }) {
         );
         const result = calcularAcerto({ 
             qD, fD, prof, usarProf: mapUsarProf, bonus, sels, minhaFicha: fichaAcerto, itensEquipados: itensEq, 
-            vantagens: mapVantagens, desvantagens: mapDesvantagens, alvo: alvoDummie, aplicarDesvantagemDoAlvo: !(maxArea > 0) 
+            vantagens: mapVantagens, desvantagens: mapDesvantagens, alvo: alvoMapa, aplicarDesvantagemDoAlvo: !(maxArea > 0) 
         });
 
         let alvosAtingidos = [];
@@ -1698,46 +1605,25 @@ export function MapaFormProvider({ children }) {
         // 🛡️ Regra de PvP (jogador x jogador só em combate) e 🗺️ cena/alcance (core/alcance.js). A checagem de alcance
         // só roda quando as DUAS posições são conhecidas e alguma arma/poder/magia declara alcance; sem esses
         // dados o golpe segue liberado, pra uma falha de detecção nunca travar o combate.
-        if (alvoDummie && alvoDummie.bloqueado) { alert(alvoDummie.bloqueado); return; }
-        if (alvoDummie) {
+        if (alvoMapa && alvoMapa.bloqueado) { alert(alvoMapa.bloqueado); return; }
+        if (alvoMapa) {
             const escalaCena = cenario?.lista?.[cenaRenderId]?.escala || 1.5;
             // Posição do atacante só conta se ele está de fato NESTA cena (ficha sem token aqui, ex.: o Mestre, não é verificada).
             const posAtorBruta = atorAtivo ? atorAtivo.posicao : getPosicaoEntidade(minhaFicha, cenaRenderId);
             const posAtor = posAtorBruta && posAtorBruta.cenaId === cenaRenderId ? posAtorBruta : null;
-            const posAlvo = getPosicaoEntidade(alvoDummie.isPersonagem ? alvoDummie.ficha : alvoDummie, cenaRenderId);
+            const posAlvo = getPosicaoEntidade(alvoMapa.ficha, cenaRenderId);
             const verificacao = verificarAlvoNoAlcance({ posAtor, posAlvo, alcance: getAlcanceMaximo(fichaAcerto, { padrao: null }), escala: escalaCena });
             if (!verificacao.ok) { alert(verificacao.motivo); return; }
         }
 
-        if (alvoDummie) {
+        if (alvoMapa) {
             // ⚖️ A diferença de Poder soma ao Acerto por último (core/disputaPoder.js); mesmo Poder do dano, sem o custo do golpe.
             const poderAtacante = getPoderParaDisputa(fichaAcerto, estadoAtual.divisorPoderMesa, golpeEquipado(fichaAcerto));
             // O alvo escolhido usa o acerto automático dele ('quando' checado nele); os vizinhos de um golpe em área, só o que não depende de alvo.
-            const resolverAlvo = (nome, defesa, poderAlvo, extras) => resolverAcertoNoAlvo({ nome, defesa, acertoTotal: result.acertoTotal, naturalD20: result.naturalD20 || null, acertoAutomatico: !!(extras && extras.dummieId === alvoSelecionado ? result.acertoAutomatico : result.acertoAutomaticoGeral), poderAtacante, poderAlvo, extras });
+            const resolverAlvo = (nome, defesa, poderAlvo, extras) => resolverAcertoNoAlvo({ nome, defesa, acertoTotal: result.acertoTotal, naturalD20: result.naturalD20 || null, acertoAutomatico: !!(extras && extras.alvoId === alvoSelecionado ? result.acertoAutomatico : result.acertoAutomaticoGeral), poderAtacante, poderAlvo, extras });
 
-            if (maxArea > 0) {
-                const cenaAtivaId = cenario?.ativa || 'default';
-                const escala = cenario?.lista?.[cenaAtivaId]?.escala || 1.5;
-
-                // Alvo-personagem: ele mesmo entra no golpe em área (os Dummies vizinhos entram pelo laço abaixo).
-                if (alvoDummie.isPersonagem) {
-                    alvosAtingidos.push(resolverAlvo(alvoDummie.nome, defesaEfetivaDoDummie(alvoDummie), getPoderDummie(alvoDummie), { dummieId: alvoSelecionado }));
-                }
-                Object.entries(dummies).forEach(([id, dObj]) => {
-                    const isSameScene = (dObj.cenaId || 'default') === (alvoDummie.cenaId || 'default');
-                    if (isSameScene && dObj.posicao && alvoDummie.posicao) {
-                        const dX = Math.abs(dObj.posicao.x - alvoDummie.posicao.x);
-                        const dY = Math.abs(dObj.posicao.y - alvoDummie.posicao.y);
-                        const dZ = Math.floor(Math.abs((dObj.posicao.z || 0) - (alvoDummie.posicao.z || 0)) / escala);
-                        
-                        if (Math.max(dX, dY, dZ) <= maxArea) {
-                            alvosAtingidos.push(resolverAlvo(dObj.nome, defesaEfetivaDoDummie(dObj), getPoderDummie(dObj), { dummieId: id }));
-                        }
-                    }
-                });
-            } else {
-                alvosAtingidos.push(resolverAlvo(alvoDummie.nome, defesaEfetivaDoDummie(alvoDummie), getPoderDummie(alvoDummie), { dummieId: alvoSelecionado }));
-            }
+            // O alvo escolhido entra no golpe (em área ou não).
+            alvosAtingidos.push(resolverAlvo(alvoMapa.nome, defesaEfetivaDoAlvo(alvoMapa), getPoderDoAlvo(alvoMapa), { alvoId: alvoSelecionado }));
         }
 
         const feedData = { tipo: 'acerto', ts: Date.now(), nome: nomeAcerto, ...result, alvosArea: alvosAtingidos, areaEf: maxArea };
@@ -1745,7 +1631,7 @@ export function MapaFormProvider({ children }) {
         // 🔔 Gatilhos errou / inimigoErrou (core/gatilhos.js); o Mestre agindo por um NPC não dispara o `errou` na própria ficha.
         const textosErro = dispararResultadoDoAcerto(alvosAtingidos, { atacanteSouEu: !atorAtivo, nomeAtacante: nomeAcerto });
         if (textosErro.length > 0) enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto: `🔔 ${textosErro.join(' · ')}` });
-    }, [mapQD, mapFD, mapBonus, mapUsarProf, profGlobal, mapStat, fichaSegura, mapVantagens, mapDesvantagens, alvoSelecionado, dummies, meuNome, cenario, atorAtivo, isMestre, cenaRenderId, minhaFicha]);
+    }, [mapQD, mapFD, mapBonus, mapUsarProf, profGlobal, mapStat, fichaSegura, mapVantagens, mapDesvantagens, alvoSelecionado, meuNome, cenario, atorAtivo, isMestre, cenaRenderId, minhaFicha]);
 
     const jogadorDaVez = ordemIniciativa.length > 0 ? ordemIniciativa[turnoAtualIndex % ordemIniciativa.length] : null;
     const infoDaVez = jogadorDaVez ? getAvatarInfo(jogadorDaVez.ficha) : null;
@@ -1797,16 +1683,13 @@ export function MapaFormProvider({ children }) {
     }, []);
 
     // Entidades que podem ENTRAR na ordem (lista do "adicionar" da aba Mestre): jogadores/NPCs
-    // fora dela e dummies desta cena fora dela.
+    // fora dela.
     const foraDaOrdem = useMemo(() => {
         const naOrdem = new Set(ordemIniciativa.map(chaveEntidadeTurno));
         const lista = [];
-        Object.keys(jogadores || {}).forEach(n => { if (!naOrdem.has(`p:${n}`)) lista.push({ id: n, nome: n, isDummie: false }); });
-        Object.entries(dummies || {}).forEach(([id, d]) => {
-            if (d && (d.cenaId || 'default') === cenaRenderId && !naOrdem.has(`d:${id}`)) lista.push({ id, nome: d.nome || id, isDummie: true });
-        });
+        Object.keys(jogadores || {}).forEach(n => { if (!naOrdem.has(`p:${n}`)) lista.push({ id: n, nome: n }); });
         return lista.sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
-    }, [jogadores, dummies, cenaRenderId, ordemIniciativa]);
+    }, [jogadores, ordemIniciativa]);
 
     // ⚔️ Estado do combate da cena na tela (cenario.combates[cena]). `combateSemInicio`: há ordem de iniciativa mas o Mestre ainda não iniciou
     // (preparação, ou uma mesa que já estava em combate antes deste recurso) — a UI pode mostrar um aviso.
@@ -1814,10 +1697,10 @@ export function MapaFormProvider({ children }) {
     const rodadaAtual = getRodada(cenario, cenaRenderId);
     const combateSemInicio = ordemIniciativa.length > 0 && !combateAtivo;
 
-    const chaveResumoTurno = `${cenaRenderId}#${turnoAtualIndex}#${combateAtivo ? rodadaAtual : 0}#${ordemIniciativa.map(e => `${e.id}:${e.nome}:${e.iniciativa}:${e.isDummie ? 1 : 0}`).join('|')}#${foraDaOrdem.map(e => `${e.isDummie ? 'd' : 'p'}:${e.id}:${e.nome}`).join('|')}`;
+    const chaveResumoTurno = `${cenaRenderId}#${turnoAtualIndex}#${combateAtivo ? rodadaAtual : 0}#${ordemIniciativa.map(e => `${e.id}:${e.nome}:${e.iniciativa}`).join('|')}#${foraDaOrdem.map(e => `p:${e.id}:${e.nome}`).join('|')}`;
     useEffect(() => {
         useStore.getState?.()?.setResumoTurnoMapa?.({
-            ordem: ordemIniciativa.map(e => ({ id: e.id, nome: e.nome, iniciativa: e.iniciativa, isDummie: e.isDummie, chave: chaveEntidadeTurno(e) })),
+            ordem: ordemIniciativa.map(e => ({ id: e.id, nome: e.nome, iniciativa: e.iniciativa, chave: chaveEntidadeTurno(e) })),
             turnoAtualIndex,
             foraDaOrdem,
             combateAtivo,
@@ -1828,7 +1711,7 @@ export function MapaFormProvider({ children }) {
     }, [chaveResumoTurno]);
 
     const value = useMemo(() => ({
-        minhaFicha, meuNome, personagens, feedCombate, isMestre, souCriador, dummies, alvoSelecionado, cenario, abaAtiva,
+        minhaFicha, meuNome, personagens, feedCombate, isMestre, souCriador, alvoSelecionado, cenario, abaAtiva,
         fichaSegura, modo3D, setModo3D, tamanhoCelula, setTamanhoCelula,
         iniciativaInput, setIniciativaInput, altitudeInput, setAltitudeInput,
         turnoAtualIndex, feedIndexTurnoAtual, setFeedIndexTurnoAtual, feedDescartados,
@@ -1850,7 +1733,7 @@ export function MapaFormProvider({ children }) {
         inspecao, inspecionar, limparInspecao, modoJogador,
         movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento, removerTokenDoMapa, estouNoMapa
     }), [
-        minhaFicha, meuNome, personagens, feedCombate, isMestre, souCriador, dummies, alvoSelecionado, cenario, abaAtiva,
+        minhaFicha, meuNome, personagens, feedCombate, isMestre, souCriador, alvoSelecionado, cenario, abaAtiva,
         fichaSegura, modo3D, tamanhoCelula, iniciativaInput, altitudeInput,
         turnoAtualIndex, feedIndexTurnoAtual, feedDescartados, jogadorHistory, mapQD, mapFD,
         mapBonus, mapStat, mapUsarProf, profGlobal, mapVantagens, mapDesvantagens,

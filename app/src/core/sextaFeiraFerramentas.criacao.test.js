@@ -20,7 +20,6 @@ function estadoBase(over = {}) {
         meuNome: 'Ana', isMestre: false, podeVerFuturo: false,
         minhaFicha: fichaBase(),
         personagens: { Bruno: fichaBase({ bio: { raca: 'Elfo', classe: 'Mago' } }) },
-        dummies: { d1: { nome: 'Goblin' } },
         resumoTurnoMapa: { ordem: [], turnoAtualIndex: 0 },
         cenario: { ativa: 'c1', lista: { c1: { nome: 'Floresta' } } },
         feedCombate: [], divisorPoderMesa: 1, capitulosPresente: [], capitulosFuturo: [],
@@ -120,11 +119,11 @@ describe('executarFerramenta propor_*', () => {
         it('Mestre propoe tierlist; nome desconhecido gera aviso; ranks invalidos = erro', async () => {
             const registrarProposta = propostaRegistrada();
             const st = estadoBase({ isMestre: true, meuNome: 'Mestre' });
-            const r = await executarFerramenta('propor_tier_list', { ranks: [{ nome: 'Bruno', rank: 'S' }, { nome: 'Goblin', rank: 'C' }, { nome: 'Quem', rank: 'B' }] }, st, { registrarProposta });
+            const r = await executarFerramenta('propor_tier_list', { ranks: [{ nome: 'Bruno', rank: 'S' }, { nome: 'Mestre', rank: 'C' }, { nome: 'Quem', rank: 'B' }] }, st, { registrarProposta });
             expect(r.ok).toBe(true);
             const { avisos, objeto } = registrarProposta.mock.calls[0][0];
             expect(objeto.ranks).toHaveLength(3);
-            expect(avisos.some(a => a.includes('Quem') && !a.includes('Bruno') && !a.includes('Goblin'))).toBe(true);
+            expect(avisos.some(a => a.includes('Quem') && !a.includes('Bruno') && !a.includes('Mestre'))).toBe(true);
             const r2 = await executarFerramenta('propor_tier_list', { ranks: [{ nome: 'Bruno', rank: 'nope' }] }, st, { registrarProposta });
             expect(r2.erro).toBe('Proposta incompleta.');
         });

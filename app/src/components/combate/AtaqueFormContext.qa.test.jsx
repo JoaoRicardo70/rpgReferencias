@@ -17,7 +17,7 @@ vi.mock('../../core/engine', async (importOriginal) => ({ ...(await importOrigin
 vi.mock('../../core/disputaPoder', async (importOriginal) => ({ ...(await importOriginal()), calcularDisputaPoder: vi.fn(() => ({ ativa: false })), aplicarDisputaAoDano: vi.fn((d) => d) }));
 vi.mock('../../core/danoProporcional', async (importOriginal) => ({ ...(await importOriginal()), escalarDanoPelaVida: vi.fn((d) => d) }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCenarioCompleto: vi.fn(), salvarCamposPersonagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCenarioCompleto: vi.fn(), salvarCamposPersonagem: vi.fn(),
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
 }));
 
@@ -30,7 +30,7 @@ function rodar(Mod, { heroi = {}, ana = {}, alvo = 'pj:Ana', dano = 1000 }) {
     const minhaFicha = { poderes: [], inventario: [], passivas: [], ataquesElementais: [], hierarquia: {}, combate: {}, iniciativa: 10, vida: stat(5000000), ...heroi };
     const anaF = { vida: stat(1000000), mana: stat(100000), reducoesDano: [], iniciativa: 10, destreza: { base: 50 }, poderes: [], ...ana };
     const state = {
-        minhaFicha, meuNome: 'Heroi', personagens: { Ana: anaF }, dummies: {}, alvoSelecionado: alvo,
+        minhaFicha, meuNome: 'Heroi', personagens: { Ana: anaF }, alvoSelecionado: alvo,
         updateFicha: vi.fn((cb) => cb(minhaFicha)), setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque', feedCombate: [],
         ignorarTravaAcerto: false, setIgnorarTravaAcerto: vi.fn(), cenario: { ativa: 'c1', zonas: [] },
     };

@@ -43,7 +43,7 @@ beforeEach(() => {
         meuNome: 'Ana', minhaFicha: fichaAna(), isMestre: false, mesaId: 'M1',
         sextaFeiraConfig: { chaveGemini: 'K', modelo: 'mod' }, registrosCompartilhados: false,
         personagens: { Bruno: { ...fichaAna(), bio: { raca: 'Elfo', classe: 'Mago' } } },
-        dummies: {}, feedCombate: [{ tipo: 'ataque', nome: 'Ana', dano: 5 }],
+        feedCombate: [{ tipo: 'ataque', nome: 'Ana', dano: 5 }],
         resumoTurnoMapa: { ordem: [{ nome: 'Ana', iniciativa: 3 }, { nome: 'Bruno', iniciativa: 1 }], turnoAtualIndex: 0 },
         cenario: { ativa: 'c', lista: { c: { nome: 'Praca' } } }, divisorPoderMesa: 1,
         loreCapitulosPresente: presente, loreCapitulosFuturo: futuro,

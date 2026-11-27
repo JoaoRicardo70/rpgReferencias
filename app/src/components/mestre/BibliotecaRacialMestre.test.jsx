@@ -10,7 +10,7 @@ vi.mock('../../services/bibliotecaRacial', () => ({
     atualizarEntradaDaBiblioteca: vi.fn(() => ({ ok: true })), removerDaBiblioteca: vi.fn(() => ({ ok: true })),
     concederHabilidade: vi.fn(() => ({ ok: true, poder: {} })), publicarNaBiblioteca: vi.fn(), entradaExistenteParaPoder: vi.fn(),
 }));
-vi.mock('../../services/firebase-sync', () => ({ salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(), salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCenarioCompleto: vi.fn() }));
+vi.mock('../../services/firebase-sync', () => ({ salvarCamposPersonagem: vi.fn(), salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCenarioCompleto: vi.fn() }));
 
 const RACAS = [{ id: 'saiyajin', nome: 'Saiyajin', icone: '🐒' }, { id: 'humano', nome: 'Humano', icone: '🧍' }];
 const entrada = criarEntradaDePoder({ nome: 'Zenkai', categoria: 'habilidadeRaca', descricao: 'Fica mais forte.', racasAcesso: ['saiyajin'], percentualMinimo: 50 },
@@ -25,7 +25,7 @@ function preparar(extra = {}) {
             Lia: { bio: { racaId: 'humano', raca: 'Humano' }, poderes: [] },
             Gok: { bio: { composicaoRacial: [{ racaId: 'saiyajin', percentual: 30 }, { racaId: 'humano', percentual: 70 }] }, poderes: [{ nome: 'Zenkai' }] },
         },
-        dummies: {}, resumoTurnoMapa: { ordem: [], foraDaOrdem: [] }, secaoMestrePedida: null, ...extra,
+        resumoTurnoMapa: { ordem: [], foraDaOrdem: [] }, secaoMestrePedida: null, ...extra,
     });
 }
 beforeEach(() => { vi.clearAllMocks(); preparar(); });
@@ -117,7 +117,7 @@ describe('BibliotecaRacialMestre', () => {
         fireEvent.click(within(dialogo).getByLabelText('Conceder já bloqueada (ainda não despertou)'));
         fireEvent.click(within(dialogo).getByRole('button', { name: 'Confirmar' }));
         await waitFor(() => expect(concederHabilidade).toHaveBeenCalledTimes(1));
-        expect(concederHabilidade).toHaveBeenCalledWith({ id: 'Kai', nome: 'Kai', isDummie: false }, 'bib_zenkai', { bloqueada: true, requisito: 'Quase morrer' });
+        expect(concederHabilidade).toHaveBeenCalledWith({ id: 'Kai', nome: 'Kai' }, 'bib_zenkai', { bloqueada: true, requisito: 'Quase morrer' });
         expect(await screen.findByText(/Kai recebeu "Zenkai" \(bloqueada\)/)).toBeTruthy();
     });
 

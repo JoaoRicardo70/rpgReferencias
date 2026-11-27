@@ -7,7 +7,7 @@ import { salvarCamposPersonagem } from '../../services/firebase-sync';
 import { salvarRacasDaMesa, definirRacaDoPersonagemDireto } from '../../services/racasMesa';
 
 vi.mock('../../services/firebase-sync', () => ({
-    salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)), salvarFichaSilencioso: vi.fn(),
+    salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)), salvarFichaSilencioso: vi.fn(),
 }));
 
 vi.mock('../../services/racasMesa', () => ({ salvarRacasDaMesa: vi.fn(), definirRacaDoPersonagemDireto: vi.fn() }));
@@ -24,7 +24,7 @@ function preparar(extra = {}) {
             Kai: { bio: { raca: 'Saiyajin', racaId: 'saiyajin' }, poderes: [{ id: 1, nome: 'Zenkai', categoria: 'habilidadeRaca', racasAcesso: ['saiyajin'] }] },
             Lia: { bio: { raca: 'Elfo da Lua' }, poderes: [] },
         },
-        dummies: {}, resumoTurnoMapa: { ordem: [], foraDaOrdem: [], turnoAtualIndex: 0 },
+        resumoTurnoMapa: { ordem: [], foraDaOrdem: [], turnoAtualIndex: 0 },
         acoesOrdemTurnoMapa: null, secaoMestrePedida: null, ...extra,
     });
 }
@@ -121,7 +121,7 @@ describe('RacasCatalogo', () => {
         expect(screen.getByLabelText('Raça de Kai').value).toBe('saiyajin');
         expect(screen.getByText(/Raça não cadastrada: "Elfo da Lua"/)).toBeTruthy();
         fireEvent.change(screen.getByLabelText('Raça de Lia'), { target: { value: 'hibrido' } });
-        expect(acoes.definirRacaDoPersonagem).toHaveBeenCalledWith({ id: 'Lia', nome: 'Lia', isDummie: false }, 'hibrido');
+        expect(acoes.definirRacaDoPersonagem).toHaveBeenCalledWith({ id: 'Lia', nome: 'Lia' }, 'hibrido');
     });
 
     it('mostra o caminho para chegar e a explicação do acesso por Raça', () => {

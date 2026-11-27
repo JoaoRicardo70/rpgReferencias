@@ -3,7 +3,7 @@ import { definirVisibilidadeRaca } from '../../services/composicaoRacial';
 import { nivelDaRaca, niveisParaEditor, ROTULOS, DESCRICOES } from '../../core/racasVisibilidade';
 
 // 🙈 Seletor de visibilidade de UMA Raça (core/racasVisibilidade.js). Dono jogador: Pública/Privada. Mestre/Co-Mestre: Pública/Privada/Secreta + "👁️ Revelar".
-// `chave` = id da Raça no catálogo ou '_principal'. `entidade` = { id, nome, isDummie } do dono da ficha. Quem grava (e recusa o que não pode) é o serviço.
+// `chave` = id da Raça no catálogo ou '_principal'. `entidade` = { id, nome } do dono da ficha. Quem grava (e recusa o que não pode) é o serviço.
 export default function SeletorVisibilidadeRaca({ entidade, chave, ficha, souMestre = false, nomeRaca = 'Raça' }) {
     const [erro, setErro] = useState('');
     const nivel = nivelDaRaca(ficha, chave);

@@ -11,7 +11,6 @@ vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
@@ -51,7 +50,7 @@ function montar(state) {
 function estado(minhaFicha, extra = {}) {
     return {
         minhaFicha, meuNome: 'Mestre', personagens: {}, updateFicha: vi.fn((cb) => cb(minhaFicha)), feedCombate: [],
-        isMestre: true, mesaCriador: 'Mestre', dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa',
+        isMestre: true, mesaCriador: 'Mestre', alvoSelecionado: null, abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
         ...extra,
     };
@@ -65,7 +64,7 @@ describe('Dano Rapido do Mestre com escudos', () => {
     it('em OUTRO jogador: escudo grande absorve tudo (Vida intacta) e o feed avisa', () => {
         const vilao = ficha({ escudos: [{ id: 'a', nome: 'Domo', valor: 5000, tipo: 'escudo' }] });
         montar(estado(ficha(), { personagens: { Vilao: vilao } }));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 1000, 'fisico'); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao }, 1000, 'fisico'); });
         expect(salvarCamposPersonagem).toHaveBeenCalledWith('Vilao', { escudos: [expect.objectContaining({ id: 'a', valor: 4000 })] });
         expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA, expect.anything());
         expect(ultimoFeed().texto).toContain('Vilao absorveu 1.000 (restam 4.000)');
@@ -74,7 +73,7 @@ describe('Dano Rapido do Mestre com escudos', () => {
     it('em OUTRO jogador: escudo pequeno some e a sobra vai para a Vida', () => {
         const vilao = ficha({ escudos: [{ id: 'a', nome: 'Parede', valor: 400, tipo: 'escudo' }] });
         montar(estado(ficha(), { personagens: { Vilao: vilao } }));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 1000, 'fisico'); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao }, 1000, 'fisico'); });
         expect(salvarCamposPersonagem).toHaveBeenCalledWith('Vilao', { escudos: null });
         expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA - 600 * 1000, expect.anything());
     });
@@ -82,7 +81,7 @@ describe('Dano Rapido do Mestre com escudos', () => {
     it('no proprio Mestre: absorve na ficha local e a sobra vai para a Vida', () => {
         const eu = ficha({ escudos: [{ id: 'v', nome: 'Vida Falsa', valor: 250, tipo: 'vidaTemporaria' }] });
         montar(estado(eu));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu, isDummie: false }, 1000, 'fisico'); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu }, 1000, 'fisico'); });
         expect(eu.escudos).toBeUndefined();
         expect(eu.vida.atual).toBe(VIDA - 750 * 1000);
         expect(ultimoFeed().texto).toContain('Mestre absorveu 250 (restam 0)');
@@ -91,7 +90,7 @@ describe('Dano Rapido do Mestre com escudos', () => {
     it('alvo sem escudos (ficha antiga): dano integral, sem chave nova', () => {
         const vilao = ficha();
         montar(estado(ficha(), { personagens: { Vilao: vilao } }));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 1000, 'fisico'); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao }, 1000, 'fisico'); });
         expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA - 1000 * 1000, expect.anything());
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(ultimoFeed().texto).not.toContain('absorveu');

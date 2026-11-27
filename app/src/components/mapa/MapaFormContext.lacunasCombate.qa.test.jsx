@@ -7,7 +7,7 @@ import * as firebaseSync from '../../services/firebase-sync';
 
 vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('u')), salvarCenarioCompleto: vi.fn(() => Promise.resolve(true)), zerarIniciativaGlobal: vi.fn(),
 }));
 vi.mock('../../services/gatilhosEventos', async (importOriginal) => {
@@ -31,7 +31,7 @@ function baseState(o = {}) {
     const minhaFicha = ficha();
     return {
         minhaFicha, meuNome: 'Heroi', personagens: {}, updateFicha: vi.fn((cb) => cb(minhaFicha)), feedCombate: [], isMestre: true,
-        mesaCriador: '', dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa',
+        mesaCriador: '', alvoSelecionado: null, abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena' } }, turnoAtualIndex: 0 }, ...o,
     };
 }
@@ -61,15 +61,6 @@ describe('lacunas do combate no contexto', () => {
         montar(baseState({ isMestre: false }));
         act(() => { probe.iniciarCombate(); });
         expect(firebaseSync.salvarCenarioCompleto).not.toHaveBeenCalled();
-        expect(feeds()).toHaveLength(0);
-    });
-    it('jogador não revela lado nem muda equipe de dummie', () => {
-        montar(baseState({ isMestre: false, dummies: { d: { nome: 'D', iniciativa: 1, ladoOculto: true } } }));
-        act(() => {
-            expect(probe.alternarLadoOculto({ id: 'd', nome: 'D', isDummie: true })).toBeNull();
-            expect(probe.definirEquipeDe({ id: 'd', nome: 'D', isDummie: true }, 'aliados')).toBe(false);
-        });
-        expect(firebaseSync.salvarDummie).not.toHaveBeenCalled();
         expect(feeds()).toHaveLength(0);
     });
     it('salvarEquipes([]) volta ao padrão: sem equipes e sem relações órfãs', () => {

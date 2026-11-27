@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./firebase-sync', () => ({
-    salvarCamposPersonagem: vi.fn(), salvarDummie: vi.fn(), aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(),
+    salvarCamposPersonagem: vi.fn(), aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(),
     aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
 }));
 
@@ -13,38 +13,38 @@ import { aplicarDanoNaVidaDaFicha } from './danoVida';
 
 const trig = (condicoes, extra = {}) => ({ id: 'g1', nome: 'Gatilho', evento: { tipo: 'acertou' }, condicoes, acoes: [{ tipo: 'mensagem', texto: 'disparou' }], ...extra });
 const fichaCom = (gatilhos, extra = {}) => ({ vida: { atual: 100 }, iniciativa: 0, inventario: [], passivas: [], poderes: [{ id: 'p1', nome: 'Poder', ativa: true, gatilhos }], ...extra });
-const dummie = (extra = {}) => ({ nome: 'Boneco', hpAtual: 100, hpMax: 100, tipoDefesa: 'evasiva', ...extra });
+const alvoSolto = (extra = {}) => ({ nome: 'Boneco', hpAtual: 100, hpMax: 100, tipoDefesa: 'evasiva', ...extra });
 const ev = { tipo: 'acertou' };
 const dispara = (cond, alvo, tipoEv = 'acertou') => avaliarGatilhos({ tipo: tipoEv }, { nome: 'Eu', cenaId: 'c', alvo }, fichaCom([trig(cond, { evento: { tipo: tipoEv } })])).disparados.length === 1;
 
 beforeEach(() => {
-    useStore.setState({ meuNome: 'Eu', minhaFicha: fichaCom([]), personagens: {}, dummies: {} });
+    useStore.setState({ meuNome: 'Eu', minhaFicha: fichaCom([]), personagens: {} });
 });
 
 describe('avaliarGatilhos com contexto.alvo (condicoes alvo_*)', () => {
     it('alvo_vida_abaixo: vale com alvo abaixo, falha com alvo acima e no limite', () => {
-        expect(dispara(['alvo_vida_abaixo:50'], dummie({ hpAtual: 30 }))).toBe(true);
-        expect(dispara(['alvo_vida_abaixo:50'], dummie({ hpAtual: 50 }))).toBe(false);
-        expect(dispara(['alvo_vida_abaixo:50'], dummie({ hpAtual: 90 }))).toBe(false);
-        expect(dispara(['alvo_vida_abaixo:50'], dummie({ hpAtual: 0 }))).toBe(true);
+        expect(dispara(['alvo_vida_abaixo:50'], alvoSolto({ hpAtual: 30 }))).toBe(true);
+        expect(dispara(['alvo_vida_abaixo:50'], alvoSolto({ hpAtual: 50 }))).toBe(false);
+        expect(dispara(['alvo_vida_abaixo:50'], alvoSolto({ hpAtual: 90 }))).toBe(false);
+        expect(dispara(['alvo_vida_abaixo:50'], alvoSolto({ hpAtual: 0 }))).toBe(true);
     });
     it('alvo_vida_abaixo com hpMax 0/ausente falha fechado', () => {
-        expect(dispara(['alvo_vida_abaixo:50'], dummie({ hpMax: 0, hpAtual: 0 }))).toBe(false);
+        expect(dispara(['alvo_vida_abaixo:50'], alvoSolto({ hpMax: 0, hpAtual: 0 }))).toBe(false);
         expect(dispara(['alvo_vida_abaixo:50'], { nome: 'x' })).toBe(false);
     });
     it('alvo_com_estado', () => {
-        expect(dispara(['alvo_com_estado:surpreso'], dummie({ condicoes: [{ id: 'surpreso', stacks: 1 }] }))).toBe(true);
-        expect(dispara(['alvo_com_estado:surpreso'], dummie({ condicoes: [{ id: 'sangrando', stacks: 1 }] }))).toBe(false);
-        expect(dispara(['alvo_com_estado:surpreso'], dummie())).toBe(false);
+        expect(dispara(['alvo_com_estado:surpreso'], alvoSolto({ condicoes: [{ id: 'surpreso', stacks: 1 }] }))).toBe(true);
+        expect(dispara(['alvo_com_estado:surpreso'], alvoSolto({ condicoes: [{ id: 'sangrando', stacks: 1 }] }))).toBe(false);
+        expect(dispara(['alvo_com_estado:surpreso'], alvoSolto())).toBe(false);
     });
     it('alvo_com_debuff', () => {
-        expect(dispara(['alvo_com_debuff'], dummie({ condicoes: [{ id: 'sangrando', stacks: 2 }] }))).toBe(true);
-        expect(dispara(['alvo_com_debuff'], dummie())).toBe(false);
+        expect(dispara(['alvo_com_debuff'], alvoSolto({ condicoes: [{ id: 'sangrando', stacks: 2 }] }))).toBe(true);
+        expect(dispara(['alvo_com_debuff'], alvoSolto())).toBe(false);
     });
     it('alvo_defende_com', () => {
-        expect(dispara(['alvo_defende_com:evasiva'], dummie({ tipoDefesa: 'evasiva' }))).toBe(true);
-        expect(dispara(['alvo_defende_com:evasiva'], dummie({ tipoDefesa: 'resistencia' }))).toBe(false);
-        expect(dispara(['alvo_defende_com:resistencia'], dummie({ tipoDefesa: 'Resistência' }))).toBe(true);
+        expect(dispara(['alvo_defende_com:evasiva'], alvoSolto({ tipoDefesa: 'evasiva' }))).toBe(true);
+        expect(dispara(['alvo_defende_com:evasiva'], alvoSolto({ tipoDefesa: 'resistencia' }))).toBe(false);
+        expect(dispara(['alvo_defende_com:resistencia'], alvoSolto({ tipoDefesa: 'Resistência' }))).toBe(true);
     });
     it('FALHA FECHADA sem alvo (undefined, null) para todas as condicoes alvo_*', () => {
         ['alvo_vida_abaixo:50', 'alvo_com_estado:surpreso', 'alvo_com_debuff', 'alvo_defende_com:evasiva'].forEach((c) => {
@@ -59,7 +59,7 @@ describe('avaliarGatilhos com contexto.alvo (condicoes alvo_*)', () => {
     });
     it('sem condicao de alvo o alvo e irrelevante (dispara com e sem)', () => {
         expect(dispara([], undefined)).toBe(true);
-        expect(dispara([], dummie())).toBe(true);
+        expect(dispara([], alvoSolto())).toBe(true);
     });
     it('alvo-personagem (isPersonagem + ficha) le estados da ficha do alvo', () => {
         const alvo = { isPersonagem: true, ficha: { condicoes: [{ id: 'surpreso', stacks: 1 }] }, hpMax: 100, hpAtual: 10, tipoDefesa: 'evasiva' };
@@ -67,18 +67,18 @@ describe('avaliarGatilhos com contexto.alvo (condicoes alvo_*)', () => {
         expect(dispara(['alvo_vida_abaixo:20'], alvo)).toBe(true);
     });
     it('evento atingido: alvo = atacante vale igual', () => {
-        expect(dispara(['alvo_com_estado:surpreso'], dummie({ condicoes: [{ id: 'surpreso', stacks: 1 }] }), 'atingido')).toBe(true);
+        expect(dispara(['alvo_com_estado:surpreso'], alvoSolto({ condicoes: [{ id: 'surpreso', stacks: 1 }] }), 'atingido')).toBe(true);
         expect(dispara(['alvo_com_estado:surpreso'], undefined, 'atingido')).toBe(false);
     });
     it('avaliarGatilhos nao muta o alvo recebido', () => {
-        const a = dummie({ hpAtual: 10, condicoes: [{ id: 'surpreso', stacks: 1 }] });
+        const a = alvoSolto({ hpAtual: 10, condicoes: [{ id: 'surpreso', stacks: 1 }] });
         const copia = JSON.stringify(a);
         dispara(['alvo_vida_abaixo:50', 'alvo_com_estado:surpreso'], a);
         expect(JSON.stringify(a)).toBe(copia);
     });
     it('o contexto de combate nao expoe Raca (so booleanos/ids/porcentagem)', async () => {
         const { montarContextoDeCombate } = await import('../core/efeitosCondicionais');
-        const ctx = montarContextoDeCombate(fichaCom([]), dummie({ raca: 'Saiyajin', condicoes: [{ id: 'surpreso', stacks: 1 }] }), 'Eu');
+        const ctx = montarContextoDeCombate(fichaCom([]), alvoSolto({ raca: 'Saiyajin', condicoes: [{ id: 'surpreso', stacks: 1 }] }), 'Eu');
         expect(JSON.stringify(ctx)).not.toMatch(/saiyajin|raca/i);
         expect(ctx.alvoEstados).toEqual(['surpreso']);
         expect(typeof ctx.alvoDebuff).toBe('boolean');
@@ -126,31 +126,16 @@ describe('alvoDoGatilhoPorNome / PorItem', () => {
         const a = alvoDoGatilhoPorNome('Eu');
         expect(a.ficha.condicoes).toEqual([{ id: 'surpreso', stacks: 1 }]);
     });
-    it('acha Dummie pelo nome', () => {
-        useStore.setState({ dummies: { d1: dummie({ nome: 'Boneco' }) } });
-        expect(alvoDoGatilhoPorNome('Boneco')).toEqual(dummie({ nome: 'Boneco' }));
-    });
-    it('personagem tem precedencia sobre Dummie homonimo', () => {
-        useStore.setState({ personagens: { Dup: { vida: { atual: 5, max: 10 } } }, dummies: { d1: dummie({ nome: 'Dup' }) } });
-        expect(alvoDoGatilhoPorNome('Dup').isPersonagem).toBe(true);
-    });
     it('desconhecido: null', () => {
         expect(alvoDoGatilhoPorNome('Fantasma')).toBeNull();
     });
-    it('PorItem: dummieId de Dummie busca no store; pj: busca personagem; sem id usa o nome; item nulo = null', () => {
-        useStore.setState({ dummies: { d1: dummie() }, personagens: { Ana: { vida: { atual: 4, max: 10 } } } });
-        expect(alvoDoGatilhoPorItem({ nome: 'Boneco', dummieId: 'd1' })).toEqual(dummie());
-        expect(alvoDoGatilhoPorItem({ nome: 'x', dummieId: 'pj:Ana' }).personagemNome).toBe('Ana');
+    it('PorItem: pj: busca personagem; sem id usa o nome; id desconhecido e item nulo = null', () => {
+        useStore.setState({ personagens: { Ana: { vida: { atual: 4, max: 10 } } } });
+        expect(alvoDoGatilhoPorItem({ nome: 'x', alvoId: 'pj:Ana' }).personagemNome).toBe('Ana');
         expect(alvoDoGatilhoPorItem({ nome: 'Ana' }).personagemNome).toBe('Ana');
-        expect(alvoDoGatilhoPorItem({ nome: 'x', dummieId: 'inexistente' })).toBeNull();
+        expect(alvoDoGatilhoPorItem({ nome: 'x', alvoId: 'inexistente' })).toBeNull();
         expect(alvoDoGatilhoPorItem(null)).toBeNull();
         expect(alvoDoGatilhoPorItem(undefined)).toBeNull();
-    });
-    it('PorItem: Dummie homonimo de jogador NAO vira personagem', () => {
-        useStore.setState({ dummies: { d9: dummie({ nome: 'Ana' }) }, personagens: { Ana: { vida: { atual: 4, max: 10 } } } });
-        const a = alvoDoGatilhoPorItem({ nome: 'Ana', dummieId: 'd9' });
-        expect(a.isPersonagem).toBeUndefined();
-        expect(a.hpAtual).toBe(100);
     });
 });
 
@@ -159,15 +144,15 @@ describe('posGolpe.alvoAtingido()', () => {
     it('null antes de qualquer aplicar e quando ninguem sofreu dano', () => {
         const p = criarPosGolpe({});
         expect(p.alvoAtingido()).toBeNull();
-        p.aplicar('d1', dummie(), 0);
+        p.aplicar('d1', alvoSolto(), 0);
         expect(p.alvoAtingido()).toBeNull();
         expect(p.causouDano()).toBe(false);
     });
     it('devolve o 1o alvo que sofreu dano, com a vida PRE-golpe', () => {
         const p = criarPosGolpe({});
-        p.aplicar('d0', dummie({ nome: 'Zero' }), 0);
-        p.aplicar('d1', dummie({ nome: 'Primeiro', hpAtual: 80 }), 30);
-        p.aplicar('d2', dummie({ nome: 'Segundo' }), 30);
+        p.aplicar('d0', alvoSolto({ nome: 'Zero' }), 0);
+        p.aplicar('d1', alvoSolto({ nome: 'Primeiro', hpAtual: 80 }), 30);
+        p.aplicar('d2', alvoSolto({ nome: 'Segundo' }), 30);
         const a = p.alvoAtingido();
         expect(a.nome).toBe('Primeiro');
         expect(a.hpAtual).toBe(80);
@@ -179,7 +164,7 @@ describe('posGolpe.alvoAtingido()', () => {
     });
     it('estados do golpe sao refletidos no alvo devolvido (alvo_com_estado ve o estado recem-aplicado)', () => {
         const p = criarPosGolpe({ estados: [{ id: 'surpreso', stacks: 1 }] });
-        p.aplicar('d1', dummie(), 10);
+        p.aplicar('d1', alvoSolto(), 10);
         const a = p.alvoAtingido();
         expect(a).toBeTruthy();
         // contrato minimo: devolve objeto de alvo; os estados (se aplicados ao alvo) devem ser lidos por alvo_com_estado
@@ -191,13 +176,13 @@ describe('posGolpe.alvoAtingido()', () => {
 describe('atingido/acertou: quem e o alvo (danoVida.aplicarDanoNaVidaDaFicha)', () => {
     const fichaDefensor = () => fichaCom([trig(['alvo_com_estado:surpreso'], { evento: { tipo: 'atingido' } })]);
     it('atingido: o alvo e o ATACANTE (resolvido pelo nome); atacante surpreso dispara', () => {
-        useStore.setState({ dummies: { d1: dummie({ nome: 'Atacante', condicoes: [{ id: 'surpreso', stacks: 1 }] }) } });
+        useStore.setState({ personagens: { Atacante: { vida: { atual: 10 }, condicoes: [{ id: 'surpreso', stacks: 1 }] } } });
         const f = fichaDefensor();
         const r = aplicarDanoNaVidaDaFicha(f, 10, { golpe: { nivel: 1 }, atacante: { nome: 'Atacante' }, nome: 'Eu', eventoId: 'e1' });
         expect((r.textos || []).join(' ')).toContain('disparou');
     });
     it('atingido: atacante sem o estado NAO dispara', () => {
-        useStore.setState({ dummies: { d1: dummie({ nome: 'Atacante' }) } });
+        useStore.setState({ personagens: { Atacante: { vida: { atual: 10 } } } });
         const r = aplicarDanoNaVidaDaFicha(fichaDefensor(), 10, { golpe: { nivel: 1 }, atacante: { nome: 'Atacante' }, nome: 'Eu', eventoId: 'e2' });
         expect((r.textos || []).join(' ')).not.toContain('disparou');
     });
@@ -208,8 +193,8 @@ describe('atingido/acertou: quem e o alvo (danoVida.aplicarDanoNaVidaDaFicha)', 
         [a, b, c].forEach(r => expect((r.textos || []).join(' ')).not.toContain('disparou'));
     });
     it('ctx.alvoDoEvento explicito nao e sobrescrito', () => {
-        useStore.setState({ dummies: { d1: dummie({ nome: 'Atacante' }) } }); // sem estado
-        const explicito = dummie({ condicoes: [{ id: 'surpreso', stacks: 1 }] });
+        useStore.setState({ personagens: { Atacante: { vida: { atual: 10 } } } }); // sem estado
+        const explicito = alvoSolto({ condicoes: [{ id: 'surpreso', stacks: 1 }] });
         const r = aplicarDanoNaVidaDaFicha(fichaDefensor(), 10, { golpe: { nivel: 1 }, atacante: { nome: 'Atacante' }, alvoDoEvento: explicito, nome: 'Eu', eventoId: 'e6' });
         expect((r.textos || []).join(' ')).toContain('disparou');
     });
@@ -217,7 +202,7 @@ describe('atingido/acertou: quem e o alvo (danoVida.aplicarDanoNaVidaDaFicha)', 
         const spy = vi.spyOn(useStore, 'getState');
         const f = fichaCom([trig(['vida_menor_que:30'], { evento: { tipo: 'atingido' } })]);
         aplicarDanoNaVidaDaFicha(f, 10, { golpe: { nivel: 1 }, atacante: { nome: 'Atacante' }, nome: 'Eu', eventoId: 'e7' });
-        // alvoDoGatilhoPorNome nao deve ter sido chamado: nenhum acesso a `dummies`/`personagens` por esse caminho
+        // alvoDoGatilhoPorNome nao deve ter sido chamado: nenhum acesso a `personagens` por esse caminho
         spy.mockRestore();
         expect(true).toBe(true);
     });

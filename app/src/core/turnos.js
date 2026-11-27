@@ -13,10 +13,10 @@
 
 export function chaveEntidadeTurno(entidade) {
     if (!entidade) return '';
-    return `${entidade.isDummie ? 'd' : 'p'}:${entidade.id}`;
+    return `p:${entidade.id}`;
 }
 
-// `lista`: [{ id, isDummie, iniciativa, ... }] (qualquer ordem). `ordemManual`: [chave] ou nada.
+// `lista`: [{ id, iniciativa, ... }] (qualquer ordem). `ordemManual`: [chave] ou nada.
 export function ordenarOrdemTurno(lista, ordemManual) {
     const porIniciativa = [...(lista || [])].sort((a, b) => (Number(b.iniciativa) || 0) - (Number(a.iniciativa) || 0));
     if (!Array.isArray(ordemManual) || ordemManual.length === 0) return porIniciativa;

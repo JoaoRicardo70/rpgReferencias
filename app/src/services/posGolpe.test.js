@@ -2,14 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./firebase-sync', () => ({
     salvarCamposPersonagem: vi.fn(),
-    salvarDummie: vi.fn()
 }));
 
-import { salvarCamposPersonagem, salvarDummie } from './firebase-sync';
+import { salvarCamposPersonagem } from './firebase-sync';
 import { condicoesComEstados, criarPosGolpe, aplicarEstadosDoGolpe, resolverReflexoAutomatico, gravarEstadosNoAlvo } from './posGolpe';
 
 const personagem = (ficha = {}, nome = 'Goku') => ({ isPersonagem: true, personagemNome: nome, nome, ficha });
-const dummie = (extra = {}) => ({ isPersonagem: false, nome: 'Boneco', vida: 100, ...extra });
 const comReflexo = (reflexo, extra = {}) => ({
     mana: { base: 1000000, atual: 1000000 },
     poderes: [{ id: 'p1', nome: 'Espelho', ativa: true, reflexo }],
@@ -25,7 +23,6 @@ describe('posGolpe - gravarEstadosNoAlvo', () => {
         expect(gravarEstadosNoAlvo('id', p, [])).toBe(p);
         expect(gravarEstadosNoAlvo('id', p, null)).toBe(p);
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
-        expect(salvarDummie).not.toHaveBeenCalled();
     });
     it('personagem: soma na lista existente e grava so o campo condicoes', () => {
         gravarEstadosNoAlvo('x', personagem({ condicoes: [{ id: 'lento', stacks: 1 }] }), [{ id: 'lento', stacks: 2 }, { id: 'queimado', stacks: 1 }], 'Vegeta');
@@ -34,34 +31,23 @@ describe('posGolpe - gravarEstadosNoAlvo', () => {
         expect(nome).toBe('Goku');
         expect(Object.keys(campos)).toEqual(['condicoes']);
         expect(campos.condicoes).toEqual([{ id: 'lento', stacks: 3, fonte: 'Vegeta' }, { id: 'queimado', stacks: 1, fonte: 'Vegeta' }]);
-        expect(salvarDummie).not.toHaveBeenCalled();
-    });
-    it('dummie: nao grava sozinho; devolve o dummie com condicoes novas para gravar junto com o Dano', () => {
-        const d = dummie();
-        const novo = gravarEstadosNoAlvo('d1', d, [{ id: 'sangrando', stacks: 2 }]);
-        expect(salvarCamposPersonagem).not.toHaveBeenCalled();
-        expect(salvarDummie).not.toHaveBeenCalled();
-        expect(novo).toMatchObject({ vida: 100, condicoes: [{ id: 'sangrando', stacks: 2 }] });
-        expect(d.condicoes).toBeUndefined();
     });
     it('junta duplicados antes de somar (limite 6)', () => {
-        const novo = gravarEstadosNoAlvo('d1', dummie(), [{ id: 'lento', stacks: 4 }, { id: 'lento', stacks: 4 }]);
-        expect(novo.condicoes).toEqual([{ id: 'lento', stacks: 6 }]);
+        gravarEstadosNoAlvo('a', personagem(), [{ id: 'lento', stacks: 4 }, { id: 'lento', stacks: 4 }]);
+        expect(salvarCamposPersonagem.mock.calls[0][1].condicoes).toEqual([{ id: 'lento', stacks: 6 }]);
     });
     it('condicoesComEstados soma na lista existente sem gravar', () => {
-        const l = condicoesComEstados(dummie({ condicoes: [{ id: 'lento', stacks: 1 }] }), [{ id: 'lento', stacks: 1 }]);
+        const l = condicoesComEstados(personagem({ condicoes: [{ id: 'lento', stacks: 1 }] }), [{ id: 'lento', stacks: 1 }]);
         expect(l).toEqual([{ id: 'lento', stacks: 2 }]);
-        expect(salvarDummie).not.toHaveBeenCalled();
     });
 });
 
 describe('posGolpe - aplicarEstadosDoGolpe', () => {
     it('devolve texto "" e o mesmo alvo sem alvo ou sem estados', () => {
-        const d = dummie();
+        const d = personagem();
         expect(aplicarEstadosDoGolpe({ idAlvo: 'a', alvo: null, estados: [{ id: 'lento', stacks: 1 }] })).toEqual({ texto: '', alvo: null });
         expect(aplicarEstadosDoGolpe({ idAlvo: 'a', alvo: d, estados: [] })).toEqual({ texto: '', alvo: d });
         expect(aplicarEstadosDoGolpe({ idAlvo: 'a', alvo: d }).alvo).toBe(d);
-        expect(salvarDummie).not.toHaveBeenCalled();
     });
     it('escreve no alvo-personagem e devolve texto com o nome', () => {
         const t = aplicarEstadosDoGolpe({ idAlvo: 'a', alvo: personagem(), estados: [{ id: 'queimado', stacks: 2 }], fonte: 'Vegeta' });
@@ -69,19 +55,13 @@ describe('posGolpe - aplicarEstadosDoGolpe', () => {
         expect(t.texto).toContain('Goku ficou com');
         expect(t.texto).toContain('Queimado +2');
     });
-    it('dummie: ignora teste de resistencia e devolve o alvo com condicoes (sem gravar)', () => {
-        const t = aplicarEstadosDoGolpe({ idAlvo: 'd1', alvo: dummie(), estados: [{ id: 'queimado', stacks: 1, teste: { atributo: 'forca', cd: 1 } }] });
-        expect(salvarDummie).not.toHaveBeenCalled();
-        expect(t.alvo.condicoes).toEqual([{ id: 'queimado', stacks: 1 }]);
-        expect(t.texto).toContain('Boneco');
-    });
     it('apenasCritico sem critico nao grava; com critico grava', () => {
         const estados = [{ id: 'sangrando', stacks: 1, apenasCritico: true }];
-        const sem = aplicarEstadosDoGolpe({ idAlvo: 'd', alvo: dummie(), estados, critico: false });
+        const sem = aplicarEstadosDoGolpe({ idAlvo: 'd', alvo: personagem(), estados, critico: false });
         expect(sem.texto).toBe('');
-        expect(sem.alvo.condicoes).toBeUndefined();
-        const com = aplicarEstadosDoGolpe({ idAlvo: 'd', alvo: dummie(), estados, critico: true });
-        expect(com.alvo.condicoes).toEqual([{ id: 'sangrando', stacks: 1 }]);
+        expect(salvarCamposPersonagem).not.toHaveBeenCalled();
+        aplicarEstadosDoGolpe({ idAlvo: 'd', alvo: personagem(), estados, critico: true });
+        expect(salvarCamposPersonagem.mock.calls[0][1].condicoes).toEqual([{ id: 'sangrando', stacks: 1 }]);
     });
     it('alvo-personagem que sempre resiste: nao grava e informa a resistencia', () => {
         const ficha = { forca: { base: 9900 } }; // dezena 99; d20 + 99 >= CD 60
@@ -94,9 +74,9 @@ describe('posGolpe - aplicarEstadosDoGolpe', () => {
 describe('posGolpe - resolverReflexoAutomatico', () => {
     const args = (alvo, extra = {}) => ({ alvo, danoNoAlvo: 1000, danoOriginal: 2000, nomeAtacante: 'Vegeta', ...extra });
 
-    it('neutro sem alvo, dummie ou sem ficha', () => {
+    it('neutro sem alvo, sem personagem ou sem ficha', () => {
         expect(resolverReflexoAutomatico(args(null))).toEqual({ danoNoAlvo: 1000, danoNoAtacante: 0, texto: '' });
-        expect(resolverReflexoAutomatico(args(dummie()))).toEqual({ danoNoAlvo: 1000, danoNoAtacante: 0, texto: '' });
+        expect(resolverReflexoAutomatico(args({ nome: 'x' }))).toEqual({ danoNoAlvo: 1000, danoNoAtacante: 0, texto: '' });
         expect(resolverReflexoAutomatico(args({ isPersonagem: true }))).toEqual({ danoNoAlvo: 1000, danoNoAtacante: 0, texto: '' });
     });
     it('reflexo nao automatico nao dispara', () => {
@@ -170,16 +150,13 @@ describe('posGolpe - criarPosGolpe', () => {
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(p.resultado().textos).toEqual([]);
     });
-    it('aplica estados no alvo-personagem (grava) e no dummie (alvoParaGravar leva as condicoes)', () => {
+    it('aplica estados no alvo-personagem (grava)', () => {
         const p = criarPosGolpe({ estados: [{ id: 'queimado', stacks: 1 }], nomeAtacante: 'V' });
-        const d = dummie();
-        expect(p.aplicar('a', personagem(), 10)).toBe(10);
-        expect(p.aplicar('d', d, 10)).toBe(10);
+        const alvo = personagem();
+        expect(p.aplicar('a', alvo, 10)).toBe(10);
         expect(salvarCamposPersonagem).toHaveBeenCalledTimes(1);
-        expect(salvarDummie).not.toHaveBeenCalled();
-        expect(p.alvoParaGravar('d', d).condicoes).toEqual([{ id: 'queimado', stacks: 1, fonte: 'V' }]);
-        expect(p.alvoParaGravar('outro', d)).toBe(d);
-        expect(p.resultado().textos).toHaveLength(2);
+        expect(p.alvoParaGravar('outro', alvo)).toBe(alvo);
+        expect(p.resultado().textos).toHaveLength(1);
     });
     it('reflexo devolvendo tudo (dano 0) impede os estados', () => {
         const alvo = personagem(comReflexo({ modo: 'devolver', automatico: true }));
@@ -214,7 +191,7 @@ describe('posGolpe - criarPosGolpe', () => {
     });
     it('resultado devolve copia dos textos', () => {
         const p = criarPosGolpe({ estados: [{ id: 'lento', stacks: 1 }] });
-        p.aplicar('d', dummie(), 1);
+        p.aplicar('d', personagem(), 1);
         p.resultado().textos.push('x');
         expect(p.resultado().textos).toHaveLength(1);
     });

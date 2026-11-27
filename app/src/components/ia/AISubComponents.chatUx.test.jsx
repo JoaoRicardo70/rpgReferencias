@@ -38,7 +38,7 @@ beforeEach(() => {
     useStore.setState({
         meuNome: 'Ana', minhaFicha: {}, isMestre: false, mesaId: 'M1', registrosCompartilhados: false,
         sextaFeiraConfig: { chaveGemini: 'K', modelo: 'm' }, sextaFeiraMemoria: {},
-        personagens: { Natsu: {}, Naomi: {}, Bruno: {} }, dummies: {},
+        personagens: { Natsu: {}, Naomi: {}, Bruno: {} },
         resumoTurnoMapa: null, cenario: null,
         loreCapitulosPresente: capitulos, loreCapitulosFuturo: [],
         loreCapituloAtivoId: 1, loreArcoAtivoIdPresente: 11, loreCapFuturoAtivoId: null, loreArcoAtivoIdFuturo: null,

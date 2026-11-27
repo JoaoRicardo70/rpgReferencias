@@ -279,16 +279,7 @@ describe('firebase-sync.js — setModoPlasmic guard', () => {
         expect(remove).not.toHaveBeenCalled();
     });
 
-    // --- salvarDummie ---
-    it('blocks salvarDummie when Plasmic mode is on', async () => {
-        const { set } = await import('firebase/database');
-        set.mockClear();
-        syncMod.setModoPlasmic(true);
-        syncMod.salvarDummie('d1', { nome: 'Alvo' });
-        expect(set).not.toHaveBeenCalled();
-    });
-
-    // --- deletarDummie ---
+    // --- salvarCenarioCompleto ---
     it('blocks salvarCenarioCompleto when Plasmic mode is on', async () => {
         const { set } = await import('firebase/database');
         set.mockClear();

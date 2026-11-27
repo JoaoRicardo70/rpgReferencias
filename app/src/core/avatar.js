@@ -40,7 +40,7 @@ function coletarSubstituicoes(ficha) {
     return lista;
 }
 
-// Ficha de onde sai a imagem de um token do Mapa. O token de um NPC da Gaveta (dummie) não tem avatar próprio: a imagem é a da ficha
+// Ficha de onde sai a imagem de um token do Mapa. Um token sem avatar próprio usa a imagem da ficha
 // de origem (fichaOrigem), com as Formas ativas dela. Um token que tenha avatar próprio, ou sem ficha de origem, usa o que tem.
 export function fichaVisualDoToken(entidade, personagens) {
     if (!entidade || typeof entidade !== 'object') return entidade;

@@ -74,7 +74,7 @@ describe('regra de PvP: jogador x jogador só em combate', () => {
         expect(motivoBloqueioAlvo({ fichaAtor: { isNPC: true }, alvo: alvoJogador(0) })).toBeNull();
         expect(motivoBloqueioAlvo({ fichaAtor: {}, alvo: { isPersonagem: true, tipoPersonagem: 'npc', ficha: {} } })).toBeNull();
         expect(motivoBloqueioAlvo({ alvo: alvoJogador(0) })).toBeNull();
-        expect(motivoBloqueioAlvo({ fichaAtor: {}, alvo: { isDummie: true } })).toBeNull();
+        expect(motivoBloqueioAlvo({ fichaAtor: {}, alvo: {} })).toBeNull();
     });
 
     it('o resolver marca o alvo bloqueado em vez de escondê-lo', () => {
@@ -95,47 +95,38 @@ describe('ator de combate (Mestre atuando como NPC)', () => {
         Ana: { posicao: { x: 1, y: 1, cenaId: 'c1' } },
         Fora: { isNPC: true, posicao: { x: 1, y: 1, cenaId: 'c2' } },
     };
-    const dummies = {
-        d1: { nome: 'Goblin #1', fichaOrigem: 'Goblin', cenaId: 'c1', posicao: { x: 7, y: 7 } },
-        d2: { nome: 'Boneco', cenaId: 'c1', posicao: { x: 0, y: 0 } },
-    };
 
-    it('lista tokens da Gaveta com ficha e NPCs posicionados na cena', () => {
-        const lista = listarAtoresDaCena({ personagens, dummies, cenaId: 'c1' });
+    it('lista NPCs com ficha posicionados na cena', () => {
+        const lista = listarAtoresDaCena({ personagens, cenaId: 'c1' });
         const valores = lista.map(a => a.valor);
-        expect(valores).toContain('d:d1');
         expect(valores).toContain('n:Goblin');
         expect(valores).toContain('n:Orc');
         expect(valores).not.toContain('n:Ana');
         expect(valores).not.toContain('n:Fora');
-        expect(valores).not.toContain('d:d2');
     });
 
-    it('resolve o ator: ficha do NPC, nome do token e posição do token', () => {
-        const ator = resolverAtorCombate({ nome: 'Goblin', dummieId: 'd1' }, { personagens, dummies, isMestre: true, cenaId: 'c1' });
+    it('resolve o ator: ficha do NPC, nome e posição da ficha', () => {
+        const ator = resolverAtorCombate({ nome: 'Goblin' }, { personagens, isMestre: true, cenaId: 'c1' });
         expect(ator.nomeFicha).toBe('Goblin');
-        expect(ator.nomeExibido).toBe('Goblin #1');
+        expect(ator.nomeExibido).toBe('Goblin');
         expect(ator.ficha).toBe(personagens.Goblin);
-        expect(ator.posicao).toMatchObject({ x: 7, y: 7, cenaId: 'c1' });
-        const direto = resolverAtorCombate({ nome: 'Orc' }, { personagens, dummies, isMestre: true, cenaId: 'c1' });
+        expect(ator.posicao).toMatchObject({ x: 2, y: 2, cenaId: 'c1' });
+        const direto = resolverAtorCombate({ nome: 'Orc' }, { personagens, isMestre: true, cenaId: 'c1' });
         expect(direto.nomeExibido).toBe('Orc');
         expect(direto.posicao).toMatchObject({ x: 5, y: 5 });
     });
 
-    it('só vale pro Mestre e enquanto a ficha/token existirem', () => {
-        expect(resolverAtorCombate({ nome: 'Goblin' }, { personagens, dummies, isMestre: false })).toBeNull();
-        expect(resolverAtorCombate(null, { personagens, dummies, isMestre: true })).toBeNull();
-        expect(resolverAtorCombate({ nome: 'Sumiu' }, { personagens, dummies, isMestre: true })).toBeNull();
-        expect(resolverAtorCombate({ nome: 'Goblin', dummieId: 'x' }, { personagens, dummies, isMestre: true })).toBeNull();
+    it('só vale pro Mestre e enquanto a ficha existir', () => {
+        expect(resolverAtorCombate({ nome: 'Goblin' }, { personagens, isMestre: false })).toBeNull();
+        expect(resolverAtorCombate(null, { personagens, isMestre: true })).toBeNull();
+        expect(resolverAtorCombate({ nome: 'Sumiu' }, { personagens, isMestre: true })).toBeNull();
     });
 
     it('serializa e lê o valor do select', () => {
-        expect(valorDoAtor({ nome: 'Goblin', dummieId: 'd1' })).toBe('d:d1');
         expect(valorDoAtor({ nome: 'Orc' })).toBe('n:Orc');
         expect(valorDoAtor(null)).toBe('');
-        expect(atorDeValor('d:d1', dummies)).toEqual({ nome: 'Goblin', dummieId: 'd1' });
-        expect(atorDeValor('n:Orc', dummies)).toEqual({ nome: 'Orc' });
-        expect(atorDeValor('d:d2', dummies)).toBeNull();
-        expect(atorDeValor('', dummies)).toBeNull();
+        expect(atorDeValor('n:Orc')).toEqual({ nome: 'Orc' });
+        expect(atorDeValor('d:d2')).toBeNull();
+        expect(atorDeValor('')).toBeNull();
     });
 });

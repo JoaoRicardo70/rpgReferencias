@@ -21,8 +21,8 @@ export function getPontosVidaTotal(cenario) {
 }
 
 // Vida máxima na escala EXIBIDA (a mesma dos números de dano), ou null se não for conhecida.
-export function getVidaMaxExibidaDummie(dummie) {
-    const v = Number(dummie && dummie.hpMax) / FATOR_EXIBICAO_VITAIS;
+export function getVidaMaxExibidaAlvo(alvo) {
+    const v = Number(alvo && alvo.hpMax) / FATOR_EXIBICAO_VITAIS;
     return Number.isFinite(v) && v > 0 ? v : null;
 }
 

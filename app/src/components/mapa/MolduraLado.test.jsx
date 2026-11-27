@@ -11,7 +11,7 @@ vi.mock('./MapaFormContext', () => ({ useMapaForm: vi.fn() }));
 const definirEquipeDe = vi.fn();
 const alternarLadoOculto = vi.fn();
 const ficha = (extra = {}) => ({ combate: { ...extra } });
-const ent = { id: 'Kai', nome: 'Kai', isDummie: false };
+const ent = { id: 'Kai', nome: 'Kai' };
 
 function usarCtx(extra = {}) {
     useMapaForm.mockReturnValue({ cenario: {}, isMestre: false, equipes: EQUIPES_PADRAO, definirEquipeDe, alternarLadoOculto, ...extra });
@@ -49,16 +49,6 @@ describe('MolduraLado', () => {
         render(<MolduraLado entidade={ent} ficha={ficha({ equipe: 'aliados' })} />);
         expect(screen.getByText('👁️ Revelado')).toBeDefined();
         expect(screen.getByRole('button', { name: /Ocultar lado/ })).toBeDefined();
-    });
-
-    it('Mestre: seletor de equipe chama definirEquipeDe; funciona também para Dummie', () => {
-        usarCtx({ isMestre: true });
-        const dummie = { id: 'd1', nome: 'Slime', isDummie: true };
-        render(<MolduraLado entidade={dummie} ficha={{ nome: 'Slime' }} />);
-        const select = screen.getByLabelText('Equipe de Slime');
-        expect(select.value).toBe('inimigos');
-        fireEvent.change(select, { target: { value: 'neutros' } });
-        expect(definirEquipeDe).toHaveBeenCalledWith(dummie, 'neutros');
     });
 
     it('não renderiza sem contexto', () => {
@@ -102,16 +92,16 @@ describe('CombateEstadoBarra', () => {
 
 describe('SeloEquipe', () => {
     it('jogador: lado oculto vira ❓; lado visível mostra o ícone da equipe', () => {
-        const oculto = { ficha: { combate: { equipe: 'inimigos', ladoOculto: true } }, isDummie: false };
+        const oculto = { ficha: { combate: { equipe: 'inimigos', ladoOculto: true } } };
         const { rerender } = render(<SeloEquipe cenario={{}} entidade={oculto} isMestre={false} />);
         expect(screen.getByTestId('lado-selo').textContent).toContain('❓');
         expect(screen.getByTestId('lado-selo').getAttribute('aria-label')).toBe('❓ Lado desconhecido');
-        rerender(<SeloEquipe cenario={{}} entidade={{ ficha: { combate: { equipe: 'aliados' } }, isDummie: false }} isMestre={false} />);
+        rerender(<SeloEquipe cenario={{}} entidade={{ ficha: { combate: { equipe: 'aliados' } } }} isMestre={false} />);
         expect(screen.getByTestId('lado-selo').textContent).toContain('🛡️');
     });
 
     it('Mestre vê a equipe real mesmo oculta, com indicação de oculto', () => {
-        const oculto = { ficha: { combate: { equipe: 'inimigos', ladoOculto: true } }, isDummie: false };
+        const oculto = { ficha: { combate: { equipe: 'inimigos', ladoOculto: true } } };
         render(<SeloEquipe cenario={{}} entidade={oculto} isMestre />);
         const s = screen.getByTestId('lado-selo');
         expect(s.textContent).toContain('👹');

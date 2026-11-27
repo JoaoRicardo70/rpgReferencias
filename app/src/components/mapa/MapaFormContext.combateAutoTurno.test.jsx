@@ -14,8 +14,6 @@ import { calcularFadigaAtual } from '../../core/fadiga';
 // (`nextPlayer`) — não mais num useEffect reativo que só existia no navegador do
 // PRÓPRIO dono da ficha. Quem chamou avancarTurno (Mestre ou outro jogador
 // qualquer) já aplica a conta e grava o resultado:
-//   - dummie (NPC): só se quem chamou for Mestre, grava via salvarDummie (nó
-//     inteiro, já que só o Mestre escreve dummies).
 //   - EU mesmo: updateFicha local (fonte de verdade imediata) + salvarFichaSilencioso.
 //   - outro jogador real: nunca posso mutar a ficha dele localmente, então
 //     escrevo só os campos que mudaram DIRETO no Firebase via
@@ -42,7 +40,6 @@ vi.mock('../../stores/useStore', () => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
@@ -80,7 +77,6 @@ function baseState(overrides = {}) {
         feedCombate: [],
         isMestre: false,
         mesaCriador: '',
-        dummies: {},
         alvoSelecionado: null,
         abaAtiva: 'mapa',
         cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
@@ -107,38 +103,6 @@ describe('MapaFormContext — avancarTurno: Fadiga de Combate e Regeneração au
 
     afterEach(() => {
         cleanup();
-    });
-
-    it('aplica regeneração quando o turno passa a ser o MEU (não-dummie), e incrementa combate.fadigaTurnos (contador informativo)', () => {
-        // Filler (dummie) na posição 0 com iniciativa maior; EU (Heroi) na posição 1.
-        const state = baseState({
-            meuNome: 'Heroi',
-            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
-        });
-        state.minhaFicha.iniciativa = 10; // fico atrás do filler na ordem de iniciativa
-        montarComEstado(state);
-
-        expect(state.minhaFicha.combate.fadigaTurnos).toBe(0);
-        expect(state.minhaFicha.vida.atual).toBe(1);
-
-        act(() => { probe.avancarTurno(); }); // turnoAtualIndex 0(Filler) -> 1(EU)
-
-        // fadigaTurnos (contador informativo) sobe +1 a cada retorno do meu turno.
-        expect(state.minhaFicha.combate.fadigaTurnos).toBe(1);
-        // Regeneração real de core/vitals.js aplicada: vida.atual(1) + regeneracao(5_000_000).
-        expect(state.minhaFicha.vida.atual).toBe(5000001);
-    });
-
-    it('NÃO incrementa fadiga/regen quando o PRÓXIMO ator é um dummie (NPC), mesmo que EU esteja na lista de iniciativa', () => {
-        // EU (Heroi) na posição 0 com iniciativa maior; um dummie na posição 1 (o alvo do turno).
-        const state = baseState({ meuNome: 'Heroi', dummies: { goblin: { nome: 'Goblin', iniciativa: 10, posicao: { x: 1, y: 1, z: 0 } } } });
-        state.minhaFicha.iniciativa = 20;
-        montarComEstado(state);
-
-        act(() => { probe.avancarTurno(); }); // turnoAtualIndex 0(EU) -> 1(Goblin, dummie)
-
-        expect(state.minhaFicha.combate.fadigaTurnos).toBe(0);
-        expect(state.minhaFicha.vida.atual).toBe(1);
     });
 
     it('NÃO incrementa fadiga/regen NA MINHA ficha quando o PRÓXIMO ator é um jogador DIFERENTE de mim — mas escreve a regeneração DELE direto no Firebase via salvarCamposPersonagem', async () => {
@@ -223,7 +187,7 @@ describe('MapaFormContext — avancarTurno: Fadiga de Combate e Regeneração au
     it('duas chamadas RÁPIDAS e sucessivas de avancarTurno() (antes do Firebase confirmar o Cenário) aplicam a Regeneração só UMA vez', () => {
         const state = baseState({
             meuNome: 'Heroi',
-            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+            personagens: { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         });
         state.minhaFicha.iniciativa = 10;
         montarComEstado(state);
@@ -239,7 +203,7 @@ describe('MapaFormContext — avancarTurno: Fadiga de Combate e Regeneração au
     });
 
     it('NÃO dispara nada só de montar (sem chamar avancarTurno), mesmo se turnoAtualIndex já apontar pra mim', () => {
-        const state = baseState({ meuNome: 'Heroi', dummies: { filler: { nome: 'Filler', iniciativa: 5, posicao: { x: 5, y: 5, z: 0 } } } });
+        const state = baseState({ meuNome: 'Heroi', personagens: { Filler: { nome: 'Filler', iniciativa: 5, posicao: { x: 5, y: 5, z: 0 } } } });
         state.minhaFicha.iniciativa = 20; // EU já sou o índice 0 (maior iniciativa)
         montarComEstado(state);
 
@@ -251,7 +215,7 @@ describe('MapaFormContext — avancarTurno: Fadiga de Combate e Regeneração au
     it('incrementa combate.fadigaTurnos a partir do valor manual já existente (soma, não substitui)', () => {
         const state = baseState({
             meuNome: 'Heroi',
-            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+            personagens: { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         });
         state.minhaFicha.iniciativa = 10;
         state.minhaFicha.combate = { fadigaTurnos: 6, fadigaPorTurno: 5 };
@@ -265,7 +229,7 @@ describe('MapaFormContext — avancarTurno: Fadiga de Combate e Regeneração au
     it('cria combate do zero (objeto ausente) sem lançar exceção quando o turno automático dispara pela primeira vez, e inicia fadigaTurnos em 1', () => {
         const state = baseState({
             meuNome: 'Heroi',
-            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+            personagens: { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         });
         state.minhaFicha.iniciativa = 10;
         delete state.minhaFicha.combate;
@@ -299,7 +263,7 @@ describe('MapaFormContext — Fadiga DINÂMICA (fadigaExtra) acumula ao chegar o
     it('acumula combate.fadigaExtra > 0 e <= 15 num único tick para uma ficha com pouca vida/energia', () => {
         const state = baseState({
             meuNome: 'Heroi',
-            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+            personagens: { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         });
         state.minhaFicha.iniciativa = 10;
         // Vida quase zerada (grande fator de "vida perdida") -- sem regeneração própria, pra o
@@ -321,7 +285,7 @@ describe('MapaFormContext — Fadiga DINÂMICA (fadigaExtra) acumula ao chegar o
     it('reflete o déficit PRÉ-regeneração: mesmo quando a Regeneração cura o vital TOTALMENTE no mesmo tick, o ganho dinâmico não fica mascarado em 0', () => {
         const state = baseState({
             meuNome: 'Heroi',
-            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+            personagens: { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         });
         state.minhaFicha.iniciativa = 10;
         // Vida bem baixa, MAS com regeneração enorme (>= o máximo calculado) -- se o cálculo
@@ -345,7 +309,7 @@ describe('MapaFormContext — Fadiga DINÂMICA (fadigaExtra) acumula ao chegar o
     it('uma ficha "de boa" (vida/energia cheias, sem Forma ativa) com Poder no limiar livre (80%) não ganha fadigaExtra nenhum no tick', () => {
         const state = baseState({
             meuNome: 'Heroi',
-            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+            personagens: { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         });
         state.minhaFicha.iniciativa = 10;
         state.minhaFicha.supressaoPoder = 80;
@@ -366,7 +330,7 @@ describe('MapaFormContext — Fadiga DINÂMICA (fadigaExtra) acumula ao chegar o
     it('uma ficha "de boa" com Poder a 100% acumula 3% de fadigaExtra por turno (Esforço de Poder)', () => {
         const state = baseState({
             meuNome: 'Heroi',
-            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+            personagens: { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         });
         state.minhaFicha.iniciativa = 10;
         state.minhaFicha.supressaoPoder = 100;
@@ -382,7 +346,7 @@ describe('MapaFormContext — Fadiga DINÂMICA (fadigaExtra) acumula ao chegar o
     it('acumula fadigaExtra a partir do valor já existente (soma, não substitui)', () => {
         const state = baseState({
             meuNome: 'Heroi',
-            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+            personagens: { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         });
         state.minhaFicha.iniciativa = 10;
         state.minhaFicha.vida = { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1, regeneracao: 0 };
@@ -426,7 +390,7 @@ describe('MapaFormContext — Regressão do bug relatado: sem piso fixo de 5%/tu
     it('personagem em condições IDEAIS (100% Maestria na única Forma ativa, Energia/Vida cheias, Poder fortemente suprimido) fica com Fadiga Atual em 0% mesmo após VÁRIOS retornos do turno — não sobe um % fixo por turno', async () => {
         const state = baseState({
             meuNome: 'Heroi',
-            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+            personagens: { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         });
         state.minhaFicha.iniciativa = 10;
         // Vida e as 4 Energias 100% cheias (fatorVida=0, fatorEnergia=0).
@@ -470,7 +434,7 @@ describe('MapaFormContext — Regressão do bug relatado: sem piso fixo de 5%/tu
     it('combate.fadigaTurnos definido manualmente (stepper da Ficha) continua somando com os incrementos automáticos, mas NUNCA afeta a Fadiga Atual (%)', async () => {
         const state = baseState({
             meuNome: 'Heroi',
-            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+            personagens: { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         });
         state.minhaFicha.iniciativa = 10;
         // GM/jogador setou fadigaTurnos=6 manualmente via stepper +/- antes do combate.
@@ -489,136 +453,7 @@ describe('MapaFormContext — Regressão do bug relatado: sem piso fixo de 5%/tu
 });
 
 // ---------------------------------------------------------------------------
-// QA — Regressão: dummies/NPCs nunca regeneravam automaticamente. O bloco de
-// `avancarTurno` que já reseta acoes.padrao/bonus/reacao de um dummie quando o
-// turno dele volta não chamava aplicarRegeneracaoDeTurno — corrigido chamando-a
-// ali também, salvando o resultado via salvarDummie (o Mestre já tem permissão
-// de escrita nos dummies, diferente de outro jogador). Precisa `isMestre: true`
-// porque o bloco de dummie em avancarTurno é gated nisso (só o Mestre
-// reseta/regenera NPCs).
 // ---------------------------------------------------------------------------
-describe('MapaFormContext — avancarTurno: Regeneração automática também se aplica a dummies (NPCs)', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
-    afterEach(() => {
-        cleanup();
-    });
-
-    function dummieComVital(overrides = {}) {
-        return {
-            nome: 'Goblin', iniciativa: 10, posicao: { x: 1, y: 1, z: 0 },
-            acoes: { padrao: { max: 1, atual: 0 }, bonus: { max: 1, atual: 0 }, reacao: { max: 1, atual: 0 } },
-            vida: { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1, regeneracao: 5000000 },
-            ...overrides,
-        };
-    }
-
-    it('regenera a vida do dummie e reseta suas ações quando o turno dele chega, chamando salvarDummie com o resultado', async () => {
-        const firebaseSync = await import('../../services/firebase-sync');
-        const state = baseState({ meuNome: 'Heroi', isMestre: true, dummies: { goblin: dummieComVital() } });
-        state.minhaFicha.iniciativa = 20; // Heroi(20) na posição 0, Goblin(10) na posição 1
-        montarComEstado(state);
-
-        act(() => { probe.avancarTurno(); });
-
-        expect(firebaseSync.salvarDummie).toHaveBeenCalledTimes(1);
-        const [idSalvo, dadosSalvos] = firebaseSync.salvarDummie.mock.calls[0];
-        expect(idSalvo).toBe('goblin');
-        // Regeneração real de core/vitals.js: vida.atual(1) + regeneracao(5_000_000).
-        expect(dadosSalvos.vida.atual).toBe(5000001);
-        // O reset de ações (comportamento já existente) continua funcionando junto.
-        expect(dadosSalvos.acoes.padrao.atual).toBe(2);
-    });
-
-    it('não lança e não chama salvarDummie quando o próximo ator é um dummie sem NENHUM dado de vitais', () => {
-        const state = baseState({ meuNome: 'Heroi', isMestre: true, dummies: { goblin: { nome: 'Goblin', iniciativa: 10, posicao: { x: 1, y: 1, z: 0 } } } });
-        state.minhaFicha.iniciativa = 20;
-        montarComEstado(state);
-
-        expect(() => { act(() => { probe.avancarTurno(); }); }).not.toThrow();
-    });
-
-    it('NÃO chama salvarDummie (nem regenera) quando quem NÃO é Mestre avança o turno pro dummie', async () => {
-        const firebaseSync = await import('../../services/firebase-sync');
-        const state = baseState({ meuNome: 'Heroi', isMestre: false, dummies: { goblin: dummieComVital() } });
-        state.minhaFicha.iniciativa = 20;
-        montarComEstado(state);
-
-        act(() => { probe.avancarTurno(); });
-
-        expect(firebaseSync.salvarDummie).not.toHaveBeenCalled();
-    });
-
-    // -------------------------------------------------------------------------
-    // QA (gap) — dummie JÁ no teto (atual === mxDisplay): aplicarRegeneracaoDeTurno não deveria
-    // fazer overheal (o guard `(ficha[key].atual || 0) < mxDisplay` em core/vitals.js já cobre isso
-    // na fonte), nem lançar erro, e salvarDummie ainda deveria ser chamado normalmente -- "sempre
-    // salva, regenerar é só uma consequência opcional de já não estar cheio".
-    // -------------------------------------------------------------------------
-    it('dummie já no máximo (atual === mxDisplay) não sofre overheal nem lança erro, e salvarDummie ainda é chamado normalmente', async () => {
-        const firebaseSync = await import('../../services/firebase-sync');
-        // O teto de Vida é o mesmo que a Ficha mostra: bruto x Multiplicador de Força
-        // (core/vitals.js > getTetoExibidoComFator) — o dummie começa exatamente nele.
-        const { getTetoExibidoComFator } = await import('../../core/vitals');
-        const dummieBase = dummieComVital({ vida: { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 0, regeneracao: 5000000 } });
-        const tetoVida = getTetoExibidoComFator('vida', dummieBase);
-        const dummieCheio = { ...dummieBase, vida: { ...dummieBase.vida, atual: tetoVida } };
-        const state = baseState({ meuNome: 'Heroi', isMestre: true, dummies: { goblin: dummieCheio } });
-        state.minhaFicha.iniciativa = 20;
-        montarComEstado(state);
-
-        expect(() => { act(() => { probe.avancarTurno(); }); }).not.toThrow();
-
-        expect(firebaseSync.salvarDummie).toHaveBeenCalledTimes(1);
-        const [idSalvo, dadosSalvos] = firebaseSync.salvarDummie.mock.calls[0];
-        expect(idSalvo).toBe('goblin');
-        // Nenhum overheal: permanece exatamente no teto, nunca ultrapassa.
-        expect(dadosSalvos.vida.atual).toBe(tetoVida);
-        // O reset de ações continua acontecendo independentemente da regeneração ter sido um no-op.
-        expect(dadosSalvos.acoes.padrao.atual).toBe(2);
-    });
-
-    // -------------------------------------------------------------------------
-    // QA (gap) — paridade: o path do jogador (updateFicha local em avancarTurno) e o path do
-    // dummie (bloco de avancarTurno) agora chamam a MESMA função aplicarRegeneracaoDeTurno
-    // (core/vitals.js) -- pra um mesmo estado inicial de vital (mesmo base/atual/regeneracao), a
-    // quantidade regenerada deve ser IDÊNTICA nos dois caminhos, provando que não existe uma
-    // segunda implementação divergente de regeneração escondida em algum dos dois call sites.
-    // -------------------------------------------------------------------------
-    it('regeneração do jogador e do dummie produzem o MESMO "vida.atual" final para o mesmo estado inicial (mesma função aplicarRegeneracaoDeTurno nos dois paths)', async () => {
-        const firebaseSync = await import('../../services/firebase-sync');
-        const vitalInicial = { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1, regeneracao: 5000000 };
-
-        // --- Path do JOGADOR (updateFicha local em avancarTurno) ---
-        const stateJogador = baseState({
-            meuNome: 'Heroi',
-            dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
-        });
-        stateJogador.minhaFicha.iniciativa = 10;
-        stateJogador.minhaFicha.vida = { ...vitalInicial };
-        montarComEstado(stateJogador);
-        act(() => { probe.avancarTurno(); }); // turnoAtualIndex 0(Filler) -> 1(EU)
-        const vidaFinalJogador = stateJogador.minhaFicha.vida.atual;
-
-        cleanup();
-        vi.clearAllMocks();
-
-        // --- Path do DUMMIE (bloco de avancarTurno) ---
-        const stateDummie = baseState({ meuNome: 'Heroi', isMestre: true, dummies: { goblin: { nome: 'Goblin', iniciativa: 10, posicao: { x: 1, y: 1, z: 0 }, vida: { ...vitalInicial } } } });
-        stateDummie.minhaFicha.iniciativa = 20;
-        montarComEstado(stateDummie);
-        act(() => { probe.avancarTurno(); });
-        const [, dadosSalvosDummie] = firebaseSync.salvarDummie.mock.calls[0];
-
-        expect(vidaFinalJogador).toBe(dadosSalvosDummie.vida.atual);
-        // Confere também contra o valor esperado bruto (regressão dupla: nem os dois caminhos
-        // divergiram entre si, nem os dois divergiram do valor matematicamente correto).
-        expect(vidaFinalJogador).toBe(5000001);
-    });
-});
-
 // ---------------------------------------------------------------------------
 // QA (gap do relatório) — combate com um ÚNICO combatente na ordem de iniciativa: nextIndex
 // sempre recalcula de volta pro MESMO ator (só existe o índice 0). "Passar Turno" clicado
@@ -636,8 +471,8 @@ describe('MapaFormContext — avancarTurno: combate com um ÚNICO combatente na 
     });
 
     it('aplica a Regeneração/reset de Ações/Fadiga TODA VEZ que "Passar Turno" é clicado, mesmo com um único combatente (o índice sempre volta pra ele mesmo)', async () => {
-        // Só EU na ordem de iniciativa — nenhum dummie, nenhum outro jogador.
-        const state = baseState({ meuNome: 'Heroi', dummies: {}, personagens: {} });
+        // Só EU na ordem de iniciativa — nenhum outro jogador.
+        const state = baseState({ meuNome: 'Heroi', personagens: {} });
         state.minhaFicha.iniciativa = 10;
         montarComEstado(state);
 
@@ -667,65 +502,21 @@ describe('MapaFormContext — avancarTurno: combate com um ÚNICO combatente na 
 });
 
 // ---------------------------------------------------------------------------
-// QA (gap do relatório) — dummie cujo turno chegou, mas `storeState.dummies[nextPlayer.id]`
-// já não existe mais (removido da mesa entre o último render e o clique em "Passar Turno") —
-// mesma classe de problema já coberta para "outro jogador" (linha ~205 acima), agora para o
-// branch de dummie: `ordemIniciativa` (fechado no closure) ainda "acha" que o dummie está lá,
-// mas o `useStore.getState()` fresco dentro da função não encontra mais o nó dele.
 // ---------------------------------------------------------------------------
-describe('MapaFormContext — avancarTurno: dummie removido entre o render e o clique (storeState.dummies[id] undefined)', () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-    });
-
-    afterEach(() => {
-        cleanup();
-    });
-
-    it('não lança e não chama salvarDummie quando o dummie do próximo ator foi removido do estado antes do clique', async () => {
-        const firebaseSync = await import('../../services/firebase-sync');
-        const state = baseState({ meuNome: 'Heroi', isMestre: true, dummies: { goblin: { nome: 'Goblin', iniciativa: 10, posicao: { x: 1, y: 1, z: 0 }, vida: { base: 100000000, atual: 1, regeneracao: 5000000 } } } });
-        state.minhaFicha.iniciativa = 20; // Heroi(20) na posição 0, Goblin(10) na posição 1
-        montarComEstado(state);
-
-        // O dummie some da mesa (ex: o Mestre o deletou) DEPOIS do último render, mas ANTES do clique.
-        delete state.dummies.goblin;
-
-        expect(() => { act(() => { probe.avancarTurno(); }); }).not.toThrow();
-        expect(firebaseSync.salvarDummie).not.toHaveBeenCalled();
-    });
-});
-
 // ---------------------------------------------------------------------------
 // QA (gap do relatório) — a trava contra duplo-clique (avancandoTurnoRef) precisa continuar
-// permitindo só UMA aplicação mesmo quando o branch percorrido (dummie / outro jogador / eu
+// permitindo só UMA aplicação mesmo quando o branch percorrido (outro jogador / eu
 // mesmo) não é o mesmo do teste "duas chamadas rápidas" original (que só cobria o caminho "eu
 // mesmo"). Os dois cliques acontecem no MESMO tick síncrono, então `cenario.turnoAtualIndex`
 // nunca muda entre eles — ambos calculariam o MESMO nextIndex/nextPlayer se não fosse a trava.
 // ---------------------------------------------------------------------------
-describe('MapaFormContext — avancarTurno: trava de duplo-clique cobre também os caminhos de dummie e de outro jogador', () => {
+describe('MapaFormContext — avancarTurno: trava de duplo-clique cobre também o caminho de outro jogador', () => {
     beforeEach(() => {
         vi.clearAllMocks();
     });
 
     afterEach(() => {
         cleanup();
-    });
-
-    it('dois cliques rápidos quando o PRÓXIMO ator é um dummie aplicam a Regeneração dele só UMA vez (salvarDummie chamado 1x)', async () => {
-        const firebaseSync = await import('../../services/firebase-sync');
-        const state = baseState({ meuNome: 'Heroi', isMestre: true, dummies: { goblin: { nome: 'Goblin', iniciativa: 10, posicao: { x: 1, y: 1, z: 0 }, vida: { base: 100000000, mBase: 1.0, mGeral: 1.0, mFormas: 1.0, mAbsoluto: 1.0, mUnico: '1.0', atual: 1, regeneracao: 5000000 } } } });
-        state.minhaFicha.iniciativa = 20;
-        montarComEstado(state);
-
-        act(() => {
-            probe.avancarTurno();
-            probe.avancarTurno(); // "duplo-clique" no mesmo tick síncrono
-        });
-
-        expect(firebaseSync.salvarDummie).toHaveBeenCalledTimes(1);
-        const [, dadosSalvos] = firebaseSync.salvarDummie.mock.calls[0];
-        expect(dadosSalvos.vida.atual).toBe(5000001); // uma única aplicação da Regeneração, não duas
     });
 
     it('dois cliques rápidos quando o PRÓXIMO ator é OUTRO jogador real aplicam a Regeneração dele só UMA vez (salvarCamposPersonagem chamado 1x)', async () => {

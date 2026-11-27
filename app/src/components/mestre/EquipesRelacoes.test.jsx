@@ -12,9 +12,8 @@ const acoes = {
 
 function preparar(extra = {}) {
     useStore.setState({
-        isMestre: true, meuNome: 'Mestre', minhaFicha: {}, cenario: {}, personagens: { Kai: { combate: { equipe: 'aliados', ladoOculto: true } } },
-        dummies: { d1: { nome: 'Slime', cenaId: 'default' } },
-        resumoTurnoMapa: { ordem: [], foraDaOrdem: [{ id: 'Kai', nome: 'Kai', isDummie: false }, { id: 'd1', nome: 'Slime', isDummie: true }], turnoAtualIndex: 0, combateAtivo: false, rodadaAtual: 0 },
+        isMestre: true, meuNome: 'Mestre', minhaFicha: {}, cenario: {}, personagens: { Kai: { combate: { equipe: 'aliados', ladoOculto: true } }, Slime: { isNPC: true, combate: {} } },
+        resumoTurnoMapa: { ordem: [], foraDaOrdem: [{ id: 'Kai', nome: 'Kai' }, { id: 'Slime', nome: 'Slime' }], turnoAtualIndex: 0, combateAtivo: false, rodadaAtual: 0 },
         acoesOrdemTurnoMapa: acoes, acaoAvancarTurnoMapa: null, ...extra,
     });
 }
@@ -119,9 +118,9 @@ describe('EquipesRelacoes', () => {
         render(<EquipesRelacoes />);
         abrir();
         fireEvent.change(screen.getByLabelText('Equipe de Slime'), { target: { value: 'neutros' } });
-        expect(acoes.definirEquipeDe).toHaveBeenCalledWith({ id: 'd1', nome: 'Slime', isDummie: true }, 'neutros');
+        expect(acoes.definirEquipeDe).toHaveBeenCalledWith({ id: 'Slime', nome: 'Slime' }, 'neutros');
         fireEvent.click(screen.getByRole('button', { name: /Oculto — revelar/ }));
-        expect(acoes.alternarLadoOculto).toHaveBeenCalledWith({ id: 'Kai', nome: 'Kai', isDummie: false });
+        expect(acoes.alternarLadoOculto).toHaveBeenCalledWith({ id: 'Kai', nome: 'Kai' });
     });
 
     it('sem as ações do Mapa, os controles ficam desabilitados com aviso', () => {
@@ -135,7 +134,7 @@ describe('EquipesRelacoes', () => {
 
 describe('MestreControleTurno — estado do combate', () => {
     it('Preparação: mostra Iniciar combate e desabilita Passar turno com dica', () => {
-        preparar({ resumoTurnoMapa: { ordem: [{ id: 'Kai', nome: 'Kai', iniciativa: 10, isDummie: false }], turnoAtualIndex: 0, combateAtivo: false, rodadaAtual: 0, combateSemInicio: true }, acaoAvancarTurnoMapa: vi.fn() });
+        preparar({ resumoTurnoMapa: { ordem: [{ id: 'Kai', nome: 'Kai', iniciativa: 10 }], turnoAtualIndex: 0, combateAtivo: false, rodadaAtual: 0, combateSemInicio: true }, acaoAvancarTurnoMapa: vi.fn() });
         render(<MestreControleTurno />);
         expect(screen.getByRole('status').textContent).toBe('🕊️ Preparação');
         const passar = screen.getByRole('button', { name: /PASSAR TURNO/ });
@@ -147,7 +146,7 @@ describe('MestreControleTurno — estado do combate', () => {
     });
 
     it('Combate ativo: mostra a rodada e Encerrar combate; Passar turno habilitado', () => {
-        preparar({ resumoTurnoMapa: { ordem: [{ id: 'Kai', nome: 'Kai', iniciativa: 10, isDummie: false }], turnoAtualIndex: 0, combateAtivo: true, rodadaAtual: 2, combateSemInicio: false }, acaoAvancarTurnoMapa: vi.fn() });
+        preparar({ resumoTurnoMapa: { ordem: [{ id: 'Kai', nome: 'Kai', iniciativa: 10 }], turnoAtualIndex: 0, combateAtivo: true, rodadaAtual: 2, combateSemInicio: false }, acaoAvancarTurnoMapa: vi.fn() });
         render(<MestreControleTurno />);
         expect(screen.getByRole('status').textContent).toBe('⚔️ Combate · Rodada 2');
         expect(screen.getByRole('button', { name: /PASSAR TURNO/ }).disabled).toBe(false);

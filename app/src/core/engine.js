@@ -207,7 +207,7 @@ function somarStatusDasFontes(fontes, minhaFicha) {
     return { soma, detalhes };
 }
 
-// `alvo` (opcional): ficha ou Dummie atingido; é com ele que as condições de alvo dos efeitos `dano_dados` (alvo com estado/debuff/vida abaixo) são checadas.
+// `alvo` (opcional): ficha atingida; é com ele que as condições de alvo dos efeitos `dano_dados` (alvo com estado/debuff/vida abaixo) são checadas.
 export function calcularDano({ minhaFicha, configArma, configHabilidades, itensEquipados, isCriticoNormal, isCriticoFatal, alvo = null }) {
     let iDanoBruto = 0, iLetalidade = 0;
     let elementosAtaque = [];
@@ -486,7 +486,7 @@ export function calcularDano({ minhaFicha, configArma, configHabilidades, itensE
     };
 }
 
-// `alvo` (opcional): ficha ou Dummie atingido; é com ele que as condições "alvo com estado / vida abaixo de" dos efeitos são checadas.
+// `alvo` (opcional): ficha atingida; é com ele que as condições "alvo com estado / vida abaixo de" dos efeitos são checadas.
 // `usarProf` (opcional): se a Proficiência está ligada; com ela, a ficha pode trocar `prof` pela Proficiência da energia do golpe
 // (core/proficienciaEnergia.js). Sem `proficienciaPorEnergia` na ficha, `prof` vale exatamente como vem. `energia` (opcional): energia do golpe.
 export function calcularAcerto({ qD, fD, prof: profInformada, usarProf, energia, bonus, sels, minhaFicha, itensEquipados, vantagens = 0, desvantagens = 0, alvo = null, aplicarDesvantagemDoAlvo = true }) {
@@ -527,7 +527,7 @@ export function calcularAcerto({ qD, fD, prof: profInformada, usarProf, energia,
     const rolagemAtaque = { tipo: 'ataque', ids: [] };
     const somaEfeitos = (atributo, escopoPadrao) => Math.min(LIMITE_VANTAGENS_LIQUIDAS, Math.max(0, Math.floor(valoresDeEfeitos(minhaFicha, atributo, { contexto, rolagem: rolagemAtaque, escopoPadrao }).reduce((s, v) => s + v, 0))));
     const vantagemEfeitos = somaEfeitos('vantagem', 'ataque');
-    // 🛡️ Alvo-personagem com o efeito DESVANTAGEM_ATACANTE impõe dados de desvantagem a quem o ataca (Dummie sem ficha não tem efeitos).
+    // 🛡️ Alvo-personagem com o efeito DESVANTAGEM_ATACANTE impõe dados de desvantagem a quem o ataca.
     const fichaDoAlvo = alvo && typeof alvo === 'object' ? (alvo.isPersonagem && alvo.ficha ? alvo.ficha : null) : null;
     const desvantagemDoAlvo = aplicarDesvantagemDoAlvo ? desvantagemImpostaAoAtacante(fichaDoAlvo, minhaFicha) : 0;
     const desvantagemEfeitos = somaEfeitos('desvantagem', 'ataque') + desvantagemDoAlvo;

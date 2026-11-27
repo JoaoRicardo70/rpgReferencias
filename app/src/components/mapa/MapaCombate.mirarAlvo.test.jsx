@@ -10,7 +10,7 @@ import useStore from '../../stores/useStore';
 vi.mock('../../stores/useStore');
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(), salvarCenarioCompleto: vi.fn(), zerarIniciativaGlobal: vi.fn(),
-    salvarDummie: vi.fn(), enviarParaFeed: vi.fn(), uploadImagem: vi.fn(),
+    enviarParaFeed: vi.fn(), uploadImagem: vi.fn(),
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
 }));
 
@@ -30,7 +30,6 @@ function montar(overrides = {}) {
     const mock = {
         minhaFicha: criarFicha(), meuNome: 'Kakaroto', personagens: { Ana: criarFicha() }, feedCombate: [],
         updateFicha: vi.fn(), isMestre: false, modoJogador: false, mesaCriador: '',
-        dummies: { d1: { nome: 'Slime', hpAtual: 500000, hpMax: 1000000, poderCalculado: 4000, visibilidadeHp: 'todos', tipoDefesa: 'evasiva', valorDefesa: 17, cenaId: 'default' } },
         alvoSelecionado: null, cenario: {}, abaAtiva: 'aba-mapa', divisorPoderMesa: 1,
         entidadeInspecionada: null, setEntidadeInspecionada: vi.fn(), setAlvoSelecionado: vi.fn(),
         ...overrides,
@@ -61,12 +60,6 @@ describe('Moldura - botão Mirar', () => {
 
     it('não aparece ao inspecionar a si mesmo', () => {
         montar({ entidadeInspecionada: { tipo: 'jogador', id: 'Kakaroto' } });
-        expect(screen.queryByText(/🎯/)).toBeNull();
-    });
-
-    it('não aparece ao inspecionar um Dummie', () => {
-        montar({ entidadeInspecionada: { tipo: 'dummie', id: 'd1' } });
-        expect(screen.getByText(/Slime/)).toBeDefined();
         expect(screen.queryByText(/🎯/)).toBeNull();
     });
 

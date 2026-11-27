@@ -23,7 +23,7 @@ import * as svc from '../../services/composicaoRacial';
 import { definirRacaDoPersonagemDireto } from '../../services/racasMesa';
 
 vi.mock('../../services/firebase-sync', () => ({
-    salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)), salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(),
+    salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)), salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(),
     iniciarSincronizacaoFichaAlvo: vi.fn(), pararSincronizacaoFichaAlvo: vi.fn(), salvarFichaAlvoSilencioso: vi.fn(), salvarFichaAlvoImediato: vi.fn(),
     salvarFirebaseImediato: vi.fn(), salvarCenarioCompleto: vi.fn(),
 }));
@@ -37,7 +37,7 @@ const RACAS = [
 const CENARIO = { racas: RACAS };
 const zenkai = { id: 7, nome: 'Zenkai', categoria: 'habilidadeRaca', racasAcesso: ['saiyajin'], percentualMinimo: 80, efeitos: [] };
 const genki = { id: 8, nome: 'Genki', categoria: 'habilidadeRaca', racasAcesso: ['namekuseijin'], efeitos: [] };
-const ENTIDADE = { id: 'Kai', nome: 'Kai', isDummie: false };
+const ENTIDADE = { id: 'Kai', nome: 'Kai' };
 
 const fichaCom = (vis, extraBio = {}) => ({
     bio: {
@@ -63,7 +63,7 @@ function preparar(v, ficha, extra = {}) {
     useStore.setState({
         isMestre: c.isMestre, souMestreReal: c.isMestre, modoJogador: false, meuNome: c.meuNome, cenario: CENARIO,
         minhaFicha: v === 'dono' ? ficha : { bio: { raca: 'Humano', racaId: 'humano' }, poderes: [] },
-        personagens: v === 'dono' ? {} : { Kai: ficha }, dummies: {}, ...extra,
+        personagens: v === 'dono' ? {} : { Kai: ficha }, ...extra,
     });
 }
 const envolver = (v, ui) => (CTX[v].alvo ? <FichaAlvoProvider nome="Kai">{ui}</FichaAlvoProvider> : ui);
@@ -79,7 +79,7 @@ const RE_DOMINIO = /(?<![\d.,])70(?:\.0+)?\s*%|percentual\W{1,4}70\b|Dom[ií]nio
 const vaza = (s) => RE_RACA.test(s) || RE_DOMINIO.test(s);
 
 beforeEach(() => { vi.clearAllMocks(); });
-afterEach(() => { cleanup(); useStore.setState({ isMestre: false, souMestreReal: false, modoJogador: false, cenario: {}, personagens: {}, dummies: {} }); });
+afterEach(() => { cleanup(); useStore.setState({ isMestre: false, souMestreReal: false, modoJogador: false, cenario: {}, personagens: {} }); });
 
 // ---------- 1. matriz de renderização: cada ponto da UI × viewer × nível ----------
 const PONTOS = [
@@ -221,7 +221,7 @@ describe.each(NIVEIS)('Sexta-Feira: Raça %s', (nivel) => {
         const estado = {
             meuNome: c.meuNome, isMestre: c.isMestre, cenario: CENARIO,
             minhaFicha: v === 'dono' ? ficha : { bio: { raca: 'Humano', racaId: 'humano' }, poderes: [] },
-            personagens: v === 'dono' ? {} : { Kai: ficha }, dummies: {},
+            personagens: v === 'dono' ? {} : { Kai: ficha },
         };
         const saidas = [];
         saidas.push(JSON.stringify(await executarFerramenta('consultar_ficha', { nome: 'Kai' }, estado)));
@@ -246,7 +246,7 @@ describe('Feed só nomeia Raça pública e a revelação', () => {
     const feeds = () => sync.enviarParaFeed.mock.calls.map(c => c[0].texto);
     const comZenkai = (vis) => { const f = fichaCom(vis); f.poderes = [{ ...zenkai, id: 5, racasAcesso: ['saiyajin'], percentualMinimo: 90, ativa: true }, { id: 9, nome: 'DNA', manipulaDNA: true }]; return f; };
     it.each(['secreta', 'privada'])('Mestre pratica/adiciona/aprova/desliga com Saiyajin %s: nada de Saiyajin nem Domínio no Feed', (nivel) => {
-        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Kai', cenario: CENARIO, minhaFicha: comZenkai({ saiyajin: nivel }), personagens: {}, dummies: {} });
+        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Kai', cenario: CENARIO, minhaFicha: comZenkai({ saiyajin: nivel }), personagens: {} });
         expect(svc.concederPraticaRacial(ENTIDADE, 'saiyajin', 5).ok).toBe(true);
         expect(svc.definirComposicaoRacial(ENTIDADE, [{ racaId: 'saiyajin', percentual: 10, origem: 'nativa' }]).ok).toBe(true);
         svc.definirPercentualMinimoDoPoder(ENTIDADE, 5, 40);
@@ -258,12 +258,12 @@ describe('Feed só nomeia Raça pública e a revelação', () => {
     it('pedido de Raça (jogador) com Saiyajin secreta no Feed: genérico', () => {
         const f = fichaCom({ saiyajin: 'secreta' });
         f.poderes = [{ id: 9, nome: 'DNA', manipulaDNA: true }];
-        useStore.setState({ isMestre: false, meuNome: 'Kai', cenario: CENARIO, minhaFicha: f, personagens: {}, dummies: {} });
+        useStore.setState({ isMestre: false, meuNome: 'Kai', cenario: CENARIO, minhaFicha: f, personagens: {} });
         svc.pedirRacaAdquirida('namekuseijin', 'm');
         expect(feeds().join('|')).not.toMatch(RE_RACA);
     });
     it('pública: nomeia a Raça e o Domínio; revelação pelo Mestre nomeia a Raça', () => {
-        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Kai', cenario: CENARIO, minhaFicha: comZenkai(null), personagens: {}, dummies: {} });
+        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Kai', cenario: CENARIO, minhaFicha: comZenkai(null), personagens: {} });
         svc.concederPraticaRacial(ENTIDADE, 'saiyajin', 5);
         expect(feeds().join('|')).toMatch(/praticou Saiyajin: 70% → 75%/);
         vi.clearAllMocks();
@@ -275,7 +275,7 @@ describe('Feed só nomeia Raça pública e a revelação', () => {
     });
     it('_principal (texto livre) revelada nomeia o texto da ficha', () => {
         const f = { bio: { raca: 'Saiyajin', racaVisibilidade: { _principal: 'secreta' } }, poderes: [] };
-        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Kai', cenario: { racas: [RACAS[1]] }, minhaFicha: f, personagens: {}, dummies: {} });
+        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Kai', cenario: { racas: [RACAS[1]] }, minhaFicha: f, personagens: {} });
         svc.definirVisibilidadeRaca(ENTIDADE, '_principal', 'publica');
         expect(feeds()).toEqual(['🧬 A Raça de Kai foi revelada: Saiyajin']);
     });
@@ -305,9 +305,9 @@ describe('definirVisibilidadeRaca: matriz de permissões', () => {
                     const f = atual === 'publica' ? fichaCom(null) : fichaCom({ saiyajin: atual });
                     useStore.setState({
                         isMestre: ator.isMestre, souMestreReal: ator.isMestre || modo, modoJogador: modo, meuNome: 'Kai', cenario: CENARIO,
-                        minhaFicha: ator.alvo === 'eu' ? f : fichaCom(null), personagens: ator.alvo === 'outro' ? { Vegeta: f } : {}, dummies: {},
+                        minhaFicha: ator.alvo === 'eu' ? f : fichaCom(null), personagens: ator.alvo === 'outro' ? { Vegeta: f } : {},
                     });
-                    const ent = ator.alvo === 'eu' ? ENTIDADE : { id: 'Vegeta', nome: 'Vegeta', isDummie: false };
+                    const ent = ator.alvo === 'eu' ? ENTIDADE : { id: 'Vegeta', nome: 'Vegeta' };
                     const r = svc.definirVisibilidadeRaca(ent, 'saiyajin', novo);
                     const mudou = atual !== novo;
                     expect(r.ok).toBe(esperado(ator, atual, novo) || (!esperado(ator, atual, novo) && false));
@@ -325,14 +325,14 @@ describe('definirVisibilidadeRaca: matriz de permissões', () => {
     });
     it("'_principal': jogador alterna e Mestre define; jogador não mexe se secreta", () => {
         const f = { bio: { raca: 'Xpto', racaVisibilidade: { _principal: 'secreta' } }, poderes: [] };
-        useStore.setState({ isMestre: false, meuNome: 'Kai', cenario: CENARIO, minhaFicha: f, personagens: {}, dummies: {} });
+        useStore.setState({ isMestre: false, meuNome: 'Kai', cenario: CENARIO, minhaFicha: f, personagens: {} });
         expect(svc.definirVisibilidadeRaca(ENTIDADE, '_principal', 'publica').ok).toBe(false);
         useStore.setState({ isMestre: true });
         expect(svc.definirVisibilidadeRaca(ENTIDADE, '_principal', 'privada').ok).toBe(true);
         expect(useStore.getState().minhaFicha.bio.racaVisibilidade).toEqual({ _principal: 'privada' });
     });
     it("Mestre em OUTRO personagem: '_principal' grava granular em bio/racaVisibilidade/_principal", () => {
-        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Mestre', cenario: CENARIO, minhaFicha: fichaCom(null), personagens: { Vegeta: { bio: { raca: 'Xpto' }, poderes: [] } }, dummies: {} });
+        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Mestre', cenario: CENARIO, minhaFicha: fichaCom(null), personagens: { Vegeta: { bio: { raca: 'Xpto' }, poderes: [] } } });
         expect(svc.definirVisibilidadeRaca({ id: 'Vegeta', nome: 'Vegeta' }, '_principal', 'secreta').ok).toBe(true);
         expect(sync.salvarCamposPersonagem).toHaveBeenCalledTimes(1);
         expect(sync.salvarCamposPersonagem).toHaveBeenCalledWith('Vegeta', { 'bio/racaVisibilidade/_principal': 'secreta' });
@@ -346,7 +346,7 @@ describe('definirVisibilidadeRaca: matriz de permissões', () => {
         expect(useStore.getState().minhaFicha.bio.racaVisibilidade).toBeUndefined();
     });
     it('nome da chave inválida/injeção é recusada', () => {
-        useStore.setState({ isMestre: true, meuNome: 'Kai', cenario: CENARIO, minhaFicha: fichaCom(null), personagens: {}, dummies: {} });
+        useStore.setState({ isMestre: true, meuNome: 'Kai', cenario: CENARIO, minhaFicha: fichaCom(null), personagens: {} });
         ['../x', 'a/b', 'saiyajin/../x', '', null, undefined, 42, '__proto__', 'constructor'].forEach((k) => {
             expect(svc.definirVisibilidadeRaca(ENTIDADE, k, 'secreta').ok, String(k)).toBe(false);
         });
@@ -358,7 +358,7 @@ describe('definirVisibilidadeRaca: matriz de permissões', () => {
 describe('Troca da Raça principal e remoção limpam a visibilidade', () => {
     it('principal derivada (sem composição explícita) secreta: Mestre troca para outra => visibilidade antiga some', () => {
         const f = { bio: { raca: 'Saiyajin', racaId: 'saiyajin', racaVisibilidade: { saiyajin: 'secreta' } }, poderes: [] };
-        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Kai', cenario: CENARIO, minhaFicha: f, personagens: {}, dummies: {} });
+        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Kai', cenario: CENARIO, minhaFicha: f, personagens: {} });
         expect(definirRacaDoPersonagemDireto(ENTIDADE, 'humano')).toBe(true);
         const bio = useStore.getState().minhaFicha.bio;
         expect(bio.racaVisibilidade).toBeUndefined();
@@ -366,12 +366,12 @@ describe('Troca da Raça principal e remoção limpam a visibilidade', () => {
     });
     it('principal em texto livre secreta ("_principal") vira catalogada: chave órfã removida', () => {
         const f = { bio: { raca: 'Xpto', racaVisibilidade: { _principal: 'secreta' } }, poderes: [] };
-        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Kai', cenario: CENARIO, minhaFicha: f, personagens: {}, dummies: {} });
+        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Kai', cenario: CENARIO, minhaFicha: f, personagens: {} });
         definirRacaDoPersonagemDireto(ENTIDADE, 'humano');
         expect(useStore.getState().minhaFicha.bio.racaVisibilidade).toBeUndefined();
     });
     it('jogador NÃO troca a principal secreta; troca a privada', () => {
-        useStore.setState({ isMestre: false, meuNome: 'Kai', cenario: CENARIO, minhaFicha: fichaCom({ saiyajin: 'secreta' }), personagens: {}, dummies: {} });
+        useStore.setState({ isMestre: false, meuNome: 'Kai', cenario: CENARIO, minhaFicha: fichaCom({ saiyajin: 'secreta' }), personagens: {} });
         expect(definirRacaDoPersonagemDireto(ENTIDADE, 'humano')).toBe(false);
         expect(useStore.getState().minhaFicha.bio.raca).toBe('Saiyajin');
         useStore.setState({ minhaFicha: fichaCom({ saiyajin: 'privada' }) });
@@ -379,7 +379,7 @@ describe('Troca da Raça principal e remoção limpam a visibilidade', () => {
     });
     it('remover da composição limpa a chave e, se re-adicionada, volta PÚBLICA (não herda segredo velho)', () => {
         const f = fichaCom({ humano: 'secreta' });
-        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Kai', cenario: CENARIO, minhaFicha: f, personagens: {}, dummies: {} });
+        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Kai', cenario: CENARIO, minhaFicha: f, personagens: {} });
         svc.removerRacaDaComposicao(ENTIDADE, 'humano');
         expect(useStore.getState().minhaFicha.bio.racaVisibilidade).toBeUndefined();
         svc.adicionarRacaAdquirida(ENTIDADE, 'humano');
@@ -387,7 +387,7 @@ describe('Troca da Raça principal e remoção limpam a visibilidade', () => {
     });
     it('Raça principal hoje fora da composição explícita mantém a visibilidade (não some por engano)', () => {
         const f = { bio: { raca: 'Humano', racaId: 'humano', composicaoRacial: [{ racaId: 'saiyajin', percentual: 40, origem: 'adquirida' }], racaVisibilidade: { humano: 'secreta', namekuseijin: 'secreta' } }, poderes: [] };
-        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Kai', cenario: CENARIO, minhaFicha: f, personagens: {}, dummies: {} });
+        useStore.setState({ isMestre: true, souMestreReal: true, meuNome: 'Kai', cenario: CENARIO, minhaFicha: f, personagens: {} });
         svc.definirComposicaoRacial(ENTIDADE, [{ racaId: 'saiyajin', percentual: 40, origem: 'adquirida' }]);
         expect(useStore.getState().minhaFicha.bio.racaVisibilidade).toEqual({ humano: 'secreta' });
     });
@@ -412,7 +412,7 @@ describe('Fichas sem racaVisibilidade (ou com lixo) se comportam como antes', ()
     });
     it('Modo Jogador do Mestre enxerga como jogador (secreta some)', () => {
         const f = FICHAS.secreta();
-        useStore.setState({ isMestre: false, souMestreReal: true, modoJogador: true, meuNome: 'Mestre', cenario: CENARIO, minhaFicha: { bio: { raca: 'Humano' }, poderes: [] }, personagens: { Kai: f }, dummies: {} });
+        useStore.setState({ isMestre: false, souMestreReal: true, modoJogador: true, meuNome: 'Mestre', cenario: CENARIO, minhaFicha: { bio: { raca: 'Humano' }, poderes: [] }, personagens: { Kai: f } });
         render(<FichaAlvoProvider nome="Kai"><ComposicaoRacialFicha /><DominioRacialFicha /></FichaAlvoProvider>);
         expect(vaza(despejo())).toBe(false);
     });
@@ -428,7 +428,7 @@ describe.each(['secreta', 'privada'])("'_principal' em texto livre: %s", (nivel)
         const c = CTX[v];
         useStore.setState({
             isMestre: c.isMestre, souMestreReal: c.isMestre, modoJogador: false, meuNome: c.meuNome, cenario: { racas: [RACAS[1]] },
-            minhaFicha: v === 'dono' ? f : { bio: { raca: 'Humano', racaId: 'humano' }, poderes: [] }, personagens: v === 'dono' ? {} : { Kai: f }, dummies: {},
+            minhaFicha: v === 'dono' ? f : { bio: { raca: 'Humano', racaId: 'humano' }, poderes: [] }, personagens: v === 'dono' ? {} : { Kai: f },
         });
         render(envolver(v, <><DominioRacialFicha /><ComposicaoRacialFicha /><SeletorRacaDaFicha valor="Saiyajin" aoMudar={() => {}} variante="ficha" /></>));
         const txt = despejo();

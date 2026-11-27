@@ -2,7 +2,7 @@ import React from 'react';
 import { getEquipe, equipeDe, ladoVisivelParaMim, ladoEstaOculto, ROTULO_LADO_OCULTO, ICONE_EQUIPE_PADRAO } from '../../core/lados';
 
 // 🛡️ Selo pequeno da equipe de um combatente (ícone + cor). Para quem não é Mestre, um lado oculto vira "❓".
-// `entidade` = item { ficha, isDummie } (ordem de iniciativa / alvos) ou ficha crua. A cor vai por variável CSS (valor dinâmico).
+// `entidade` = item { ficha } (ordem de iniciativa / alvos) ou ficha crua. A cor vai por variável CSS (valor dinâmico).
 export default function SeloEquipe({ cenario, entidade, isMestre = false, comNome = false }) {
     if (!entidade) return null;
     if (!ladoVisivelParaMim(entidade, { isMestre })) {

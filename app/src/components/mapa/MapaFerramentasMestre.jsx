@@ -8,7 +8,7 @@ import { iconeTipoPersonagem } from '../../core/tipoPersonagem';
 import { rotuloComPolaridade } from '../../core/polaridade';
 import { agruparNpcsPorFamilia, cenarioComTokensOcultos, posicoesLivres, getVidaMaxBrutaNpc, camposPosicaoNaCena, nomeDaCopia, fichaCopiaDeNpc } from '../../core/gavetaNpc';
 import DisputaPoderResumo from '../combate/DisputaPoderResumo';
-import { salvarDummie, salvarCenarioCompleto, salvarCamposPersonagem } from '../../services/firebase-sync';
+import { salvarCenarioCompleto, salvarCamposPersonagem } from '../../services/firebase-sync';
 import { criarPersonagemNaMesa } from '../../services/midia-sync';
 import { ELEMENTOS_OPCOES } from '../poderes/PoderesSubComponents';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
@@ -152,16 +152,16 @@ export function MapaMestreGerenciadorCenas() {
 }
 
 // Uma linha da Gaveta: Vida e Poder (cálculos pesados) só recalculam quando a ficha muda.
-const GavetaNpcLinha = React.memo(function GavetaNpcLinha({ nome, ficha, divisorPoderMesa, naCena, onColocar, onColocarFicha, fichaNaCena }) {
+const GavetaNpcLinha = React.memo(function GavetaNpcLinha({ nome, ficha, divisorPoderMesa, onColocar, onColocarFicha, fichaNaCena }) {
     const vida = useMemo(() => getVidaMaxBrutaNpc(ficha) / FATOR_EXIBICAO_VITAIS, [ficha]);
-    const poder = useMemo(() => getPoderDeEntidade({ ficha, isDummie: false }, divisorPoderMesa), [ficha, divisorPoderMesa]);
+    const poder = useMemo(() => getPoderDeEntidade({ ficha }, divisorPoderMesa), [ficha, divisorPoderMesa]);
     const colocar = useCallback(() => onColocar(nome, ficha), [onColocar, nome, ficha]);
     const colocarFicha = useCallback(() => onColocarFicha(nome), [onColocarFicha, nome]);
     return (
         <div className="gaveta-npc">
             <div className="gaveta-npc-info">
                 <strong>{nome}</strong>
-                <span>❤️ {Math.round(vida).toLocaleString('pt-BR')} · ⚡ {formatarPoderDisputa(poder)}{naCena ? ` · ${naCena} na cena` : ''}{fichaNaCena ? ' · ficha na cena' : ''}</span>
+                <span>❤️ {Math.round(vida).toLocaleString('pt-BR')} · ⚡ {formatarPoderDisputa(poder)}{fichaNaCena ? ' · ficha na cena' : ''}</span>
             </div>
             <div className="gaveta-npc-acoes">
                 <button type="button" className="btn-neon btn-blue gaveta-npc-btn gaveta-npc-principal" onClick={colocarFicha} disabled={fichaNaCena} title="A PRÓPRIA ficha do NPC entra na cena como um personagem (Combos, Reações, ataques salvos e Poder da ficha). Para agir como ele, use 🎭 Controlar.">{fichaNaCena ? '🧍 Já está lá' : '🧍 Colocar'}</button>
@@ -176,7 +176,7 @@ const GavetaNpcLinha = React.memo(function GavetaNpcLinha({ nome, ficha, divisor
 // (core/gavetaNpc.js). Depois é só colocar na ordem de turno pelo painel de Iniciativa.
 export function MapaMestreGavetaTokens() {
     const ctx = useMapaForm();
-    const { isMestre, isModoRP, mestreVendoRP, jogadores, dummies, cenaRenderId } = ctx || {};
+    const { isMestre, isModoRP, mestreVendoRP, jogadores, cenaRenderId } = ctx || {};
     const divisorPoderMesa = useStore(s => s.divisorPoderMesa);
     const [busca, setBusca] = useState('');
     const [quantidade, setQuantidade] = useState(1);
@@ -190,23 +190,13 @@ export function MapaMestreGavetaTokens() {
 
     const grupos = useMemo(() => agruparNpcsPorFamilia(jogadores, busca), [jogadores, busca]);
     const familias = useMemo(() => Object.keys(grupos).sort((a, b) => a.localeCompare(b, 'pt-BR')), [grupos]);
-    const naCena = useMemo(() => {
-        const contagem = {};
-        Object.values(dummies || {}).forEach(d => {
-            if (d && d.fichaOrigem && (d.cenaId || 'default') === cenaRenderId) contagem[d.fichaOrigem] = (contagem[d.fichaOrigem] || 0) + 1;
-        });
-        return contagem;
-    }, [dummies, cenaRenderId]);
     const alternarFamilia = useCallback((familia) => setAberta(prev => ({ ...prev, [familia]: !prev[familia] })), []);
 
     // 👥 Cópias da ficha (Nome #2, #3...): cada uma é um NPC novo, igual ao original, que já entra na cena como personagem.
     const colocarCopias = useCallback(async (nome, ficha) => {
         const qtd = Math.min(10, Math.max(1, parseInt(quantidade, 10) || 1));
         const nomes = Object.keys(jogadores || {});
-        const ocupadas = [
-            ...Object.values(dummies || {}).filter(d => d && (d.cenaId || 'default') === cenaRenderId).map(d => d.posicao),
-            ...Object.values(jogadores || {}).map(f => getPosicaoEntidade(f, cenaRenderId)),
-        ];
+        const ocupadas = Object.values(jogadores || {}).map(f => getPosicaoEntidade(f, cenaRenderId));
         const livres = posicoesLivres(ocupadas, qtd);
         if (copiando.current) return;
         copiando.current = true;
@@ -222,18 +212,15 @@ export function MapaMestreGavetaTokens() {
         } finally { copiando.current = false; }
         ocultarNomes(criados);
         if (falhas > 0) window.alert(`${falhas} cópia(s) não puderam ser criadas (o nome já existe ou o servidor recusou).`);
-    }, [quantidade, dummies, jogadores, cenaRenderId, ocultarNomes]);
+    }, [quantidade, jogadores, cenaRenderId, ocultarNomes]);
 
     // 🧍 A própria ficha do NPC entra na cena (sem cópia), na primeira casa livre.
     const colocarFicha = useCallback((nome) => {
-        const ocupadas = [
-            ...Object.values(dummies || {}).filter(d => d && (d.cenaId || 'default') === cenaRenderId).map(d => d.posicao),
-            ...Object.values(jogadores || {}).map(f => getPosicaoEntidade(f, cenaRenderId)),
-        ];
+        const ocupadas = Object.values(jogadores || {}).map(f => getPosicaoEntidade(f, cenaRenderId));
         const [pos] = posicoesLivres(ocupadas, 1);
         salvarCamposPersonagem(nome, camposPosicaoNaCena(cenaRenderId, pos));
         ocultarNomes([nome]);
-    }, [dummies, jogadores, cenaRenderId, ocultarNomes]);
+    }, [jogadores, cenaRenderId, ocultarNomes]);
     const fichaNaCena = (ficha) => { const p = getPosicaoEntidade(ficha, cenaRenderId); return !!(p && p.x !== undefined && (p.cenaId || 'default') === (cenaRenderId || 'default')); };
 
     if (!ctx) return FALLBACK;
@@ -264,7 +251,7 @@ export function MapaMestreGavetaTokens() {
                         <span className="gaveta-contador">{grupos[familia].length}</span>
                     </button>
                     {(aberta[familia] || busca) && grupos[familia].map(({ nome, ficha }) => (
-                        <GavetaNpcLinha key={nome} nome={nome} ficha={ficha} divisorPoderMesa={divisorPoderMesa} naCena={naCena[nome] || 0} onColocar={colocarCopias} onColocarFicha={colocarFicha} fichaNaCena={fichaNaCena(ficha)} />
+                        <GavetaNpcLinha key={nome} nome={nome} ficha={ficha} divisorPoderMesa={divisorPoderMesa} onColocar={colocarCopias} onColocarFicha={colocarFicha} fichaNaCena={fichaNaCena(ficha)} />
                     ))}
                 </div>
             ))}
@@ -311,7 +298,7 @@ function PreviaDanoRapido({ previa, nomeAlvo }) {
 
 export function MapaMestreDanoRapido() {
     const ctx = useMapaForm();
-    const { isMestre, isModoRP, mestreVendoRP, jogadores, dummies, cenaRenderId, aplicarDanoRapido } = ctx || {};
+    const { isMestre, isModoRP, mestreVendoRP, jogadores, cenaRenderId, aplicarDanoRapido } = ctx || {};
     const [alvoId, setAlvoId] = useState('');
     const [valorDano, setValorDano] = useState(10);
     // 🛡️ Elemento do dano (opcional): marcar o elemento aqui registra ficha.combate.
@@ -321,7 +308,7 @@ export function MapaMestreDanoRapido() {
     const [elementoDano, setElementoDano] = useState('');
     // 🎚️ Nível de Domínio do ALVO (opcional, 0-10): sobrescreve o Domínio LIDO DA FICHA do alvo
     // pra este golpe específico — em branco usa o Domínio que o próprio personagem tem registrado
-    // normalmente (comportamento padrão). Útil pra NPCs/dummies sem Domínio próprio na Ficha.
+    // normalmente (comportamento padrão). Útil pra NPCs sem Domínio próprio na Ficha.
     const [nivelDominioDano, setNivelDominioDano] = useState('');
     // ⚔️ Nível de Domínio de QUEM GOLPEOU (opcional, 0-10, padrão 0): reduz/anula a vantagem de
     // Redução de Dano do alvo — um golpe vindo de um Domínio igual ou maior que o do alvo
@@ -345,10 +332,9 @@ export function MapaMestreDanoRapido() {
             if (pos) return true;
             return !!(f.posicao && (f.posicao.cenaId || 'default') === cenaRenderId);
         };
-        const js = Object.entries(jogadores || {}).filter(([n, f]) => estaNaCena(f)).map(([n, f]) => ({ id: n, nome: n, ficha: f, isDummie: false }));
-        const ds = Object.entries(dummies || {}).filter(([id, d]) => (d.cenaId || 'default') === cenaRenderId).map(([id, d]) => ({ id, nome: d.nome, ficha: d, isDummie: true }));
-        return [...js, ...ds];
-    }, [jogadores, dummies, cenaRenderId]);
+        const js = Object.entries(jogadores || {}).filter(([n, f]) => estaNaCena(f)).map(([n, f]) => ({ id: n, nome: n, ficha: f }));
+        return js;
+    }, [jogadores, cenaRenderId]);
 
     const minhaFichaCtx = ctx ? ctx.minhaFicha : null;
     const meuNomeCtx = ctx ? ctx.meuNome : null;
@@ -359,7 +345,7 @@ export function MapaMestreDanoRapido() {
         const alvoPrev = alvos.find(a => a.id === alvoId) || null;
         if (!alvoPrev) return null;
         const atacantePrev = alvos.find(a => a.id === atacanteId && a.id !== alvoId) || null;
-        const fichaDoAlvo = alvoPrev.isDummie ? alvoPrev.ficha : (alvoPrev.nome === meuNomeCtx ? minhaFichaCtx : alvoPrev.ficha);
+        const fichaDoAlvo = alvoPrev.nome === meuNomeCtx ? minhaFichaCtx : alvoPrev.ficha;
         return calcularDanoRapido({
             alvo: alvoPrev, fichaDoAlvo, dano: valorDano, elemento: elementoDano || null,
             nivelDominioOverride: nivelDominioDano === '' ? null : nivelDominioDano,
@@ -407,7 +393,7 @@ export function MapaMestreDanoRapido() {
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     <select className="input-neon" value={alvoId} onChange={e => setAlvoId(e.target.value)} style={{ padding: 5, minWidth: 140 }}>
                         <option value="">Escolha o alvo...</option>
-                        {alvos.map(a => <option key={a.id} value={a.id}>{a.isDummie ? '🤖 ' : `${iconeTipoPersonagem(a.ficha)} `}{a.nome}</option>)}
+                        {alvos.map(a => <option key={a.id} value={a.id}>{`${iconeTipoPersonagem(a.ficha)} `}{a.nome}</option>)}
                     </select>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#111', padding: '3px 8px', borderRadius: 5, border: '1px solid #444' }}>
                         <span style={{ color: '#ff003c', fontSize: '0.8em', fontWeight: 'bold' }}>Dano:</span>
@@ -432,7 +418,7 @@ export function MapaMestreDanoRapido() {
                     {/* ⚖️ Quem golpeou: aplica a Disputa de Poder (depois dos campos de Domínio pra não mudar a ordem dos seletores) */}
                     <select className="input-neon" value={atacanteId} onChange={e => setAtacanteId(e.target.value)} style={{ padding: 5, minWidth: 140 }} title="Quem desferiu o golpe: aplica a Disputa de Poder entre ele e o alvo">
                         <option value="">Golpe de: ninguém (sem Disputa)</option>
-                        {alvos.filter(a => a.id !== alvoId).map(a => <option key={a.id} value={a.id}>Golpe de {a.isDummie ? '🤖 ' : `${iconeTipoPersonagem(a.ficha)} `}{a.nome}</option>)}
+                        {alvos.filter(a => a.id !== alvoId).map(a => <option key={a.id} value={a.id}>Golpe de {`${iconeTipoPersonagem(a.ficha)} `}{a.nome}</option>)}
                     </select>
                     <button className="btn-neon btn-red" onClick={aplicar} disabled={!alvoAtual} style={{ padding: '5px 15px', margin: 0, opacity: alvoAtual ? 1 : 0.5 }}>💥 Aplicar Dano</button>
                 </div>

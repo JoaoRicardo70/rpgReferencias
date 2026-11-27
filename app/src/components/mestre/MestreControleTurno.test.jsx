@@ -67,7 +67,7 @@ describe('MestreControleTurno — Controle de Turnos na aba Mestre', () => {
 
     it('botão "PASSAR TURNO" fica desabilitado quando há ordem, mas acaoAvancarTurnoMapa ainda não foi registrada (ex.: Mapa não montado)', () => {
         useStore.setState({
-            resumoTurnoMapa: { ordem: [{ id: 'a', nome: 'Heroi', iniciativa: 10, isDummie: false }], turnoAtualIndex: 0 },
+            resumoTurnoMapa: { ordem: [{ id: 'a', nome: 'Heroi', iniciativa: 10 }], turnoAtualIndex: 0 },
             acaoAvancarTurnoMapa: null,
         });
         render(<MestreControleTurno />);
@@ -93,8 +93,8 @@ describe('MestreControleTurno — Controle de Turnos na aba Mestre', () => {
         useStore.setState({
             resumoTurnoMapa: {
                 ordem: [
-                    { id: 'a', nome: 'Heroi', iniciativa: 20, isDummie: false },
-                    { id: 'b', nome: 'Goblin', iniciativa: 10, isDummie: true },
+                    { id: 'a', nome: 'Heroi', iniciativa: 20 },
+                    { id: 'b', nome: 'Goblin', iniciativa: 10 },
                 ],
                 turnoAtualIndex: 0,
             },
@@ -110,8 +110,8 @@ describe('MestreControleTurno — Controle de Turnos na aba Mestre', () => {
         useStore.setState({
             resumoTurnoMapa: {
                 ordem: [
-                    { id: 'a', nome: 'Heroi', iniciativa: 20, isDummie: false },
-                    { id: 'b', nome: 'Goblin', iniciativa: 10, isDummie: true },
+                    { id: 'a', nome: 'Heroi', iniciativa: 20 },
+                    { id: 'b', nome: 'Goblin', iniciativa: 10 },
                 ],
                 turnoAtualIndex: 1,
             },
@@ -127,8 +127,8 @@ describe('MestreControleTurno — Controle de Turnos na aba Mestre', () => {
         useStore.setState({
             resumoTurnoMapa: {
                 ordem: [
-                    { id: 'a', nome: 'Heroi', iniciativa: 20, isDummie: false },
-                    { id: 'b', nome: 'Goblin', iniciativa: 10, isDummie: true },
+                    { id: 'a', nome: 'Heroi', iniciativa: 20 },
+                    { id: 'b', nome: 'Goblin', iniciativa: 10 },
                 ],
                 turnoAtualIndex: 0,
             },
@@ -143,7 +143,7 @@ describe('MestreControleTurno — Controle de Turnos na aba Mestre', () => {
     it('clicar em "PASSAR TURNO" chama a função registrada (acaoAvancarTurnoMapa) quando há combate', () => {
         const avancar = vi.fn();
         useStore.setState({
-            resumoTurnoMapa: { ordem: [{ id: 'a', nome: 'Heroi', iniciativa: 20, isDummie: false }], turnoAtualIndex: 0 },
+            resumoTurnoMapa: { ordem: [{ id: 'a', nome: 'Heroi', iniciativa: 20 }], turnoAtualIndex: 0 },
             acaoAvancarTurnoMapa: avancar,
         });
         render(<MestreControleTurno />);
@@ -155,7 +155,7 @@ describe('MestreControleTurno — Controle de Turnos na aba Mestre', () => {
 
     it('botão "PASSAR TURNO" fica habilitado quando há ordem e a função está registrada', () => {
         useStore.setState({
-            resumoTurnoMapa: { ordem: [{ id: 'a', nome: 'Heroi', iniciativa: 20, isDummie: false }], turnoAtualIndex: 0 },
+            resumoTurnoMapa: { ordem: [{ id: 'a', nome: 'Heroi', iniciativa: 20 }], turnoAtualIndex: 0 },
             acaoAvancarTurnoMapa: vi.fn(),
         });
         render(<MestreControleTurno />);
@@ -173,7 +173,7 @@ describe('MestreControleTurno — Controle de Turnos na aba Mestre', () => {
 
         act(() => {
             useStore.setState({
-                resumoTurnoMapa: { ordem: [{ id: 'a', nome: 'Heroi', iniciativa: 20, isDummie: false }], turnoAtualIndex: 0 },
+                resumoTurnoMapa: { ordem: [{ id: 'a', nome: 'Heroi', iniciativa: 20 }], turnoAtualIndex: 0 },
                 acaoAvancarTurnoMapa: vi.fn(),
             });
         });
@@ -182,9 +182,9 @@ describe('MestreControleTurno — Controle de Turnos na aba Mestre', () => {
         expect(container.querySelector('.mestre-turno-davez').textContent).toBe('Heroi');
     });
 
-    it('não lança quando um dummie não tem "nome" definido (defensivo contra dados incompletos)', () => {
+    it('não lança quando um combatente não tem "nome" definido (defensivo contra dados incompletos)', () => {
         useStore.setState({
-            resumoTurnoMapa: { ordem: [{ id: 'd1', iniciativa: 5, isDummie: true }], turnoAtualIndex: 0 },
+            resumoTurnoMapa: { ordem: [{ id: 'd1', iniciativa: 5 }], turnoAtualIndex: 0 },
             acaoAvancarTurnoMapa: vi.fn(),
         });
 
@@ -212,9 +212,9 @@ describe('MestreControleTurno — ordem manual por arrastar e soltar (acoesOrdem
         return {
             resumoTurnoMapa: {
                 ordem: [
-                    { chave: 'p:A', id: 'A', nome: 'A', iniciativa: 30, isDummie: false },
-                    { chave: 'p:B', id: 'B', nome: 'B', iniciativa: 20, isDummie: false },
-                    { chave: 'd:C', id: 'C', nome: 'C', iniciativa: 10, isDummie: true },
+                    { chave: 'p:A', id: 'A', nome: 'A', iniciativa: 30 },
+                    { chave: 'p:B', id: 'B', nome: 'B', iniciativa: 20 },
+                    { chave: 'p:C', id: 'C', nome: 'C', iniciativa: 10 },
                 ],
                 turnoAtualIndex: 0,
                 foraDaOrdem: [],
@@ -228,7 +228,7 @@ describe('MestreControleTurno — ordem manual por arrastar e soltar (acoesOrdem
     // -----------------------------------------------------------------------
     // ✕ nos chips
     // -----------------------------------------------------------------------
-    it('renderiza o botão ✕ em cada chip quando acoesOrdemTurnoMapa existe, e clicar nele chama remover com {id, isDummie}', () => {
+    it('renderiza o botão ✕ em cada chip quando acoesOrdemTurnoMapa existe, e clicar nele chama remover com {id}', () => {
         const acoes = { reordenar: vi.fn(), adicionar: vi.fn(), remover: vi.fn() };
         useStore.setState(estadoComOrdem({ acoesOrdemTurnoMapa: acoes }));
         const { container } = render(<MestreControleTurno />);
@@ -237,7 +237,7 @@ describe('MestreControleTurno — ordem manual por arrastar e soltar (acoesOrdem
         expect(botoesRemover.length).toBe(3);
 
         fireEvent.click(botoesRemover[1]); // chip "B"
-        expect(acoes.remover).toHaveBeenCalledWith({ id: 'B', isDummie: false });
+        expect(acoes.remover).toHaveBeenCalledWith({ id: 'B' });
     });
 
     it('sem acoesOrdemTurnoMapa (null): os chips não têm ✕ e não são arrastáveis', () => {
@@ -288,61 +288,47 @@ describe('MestreControleTurno — ordem manual por arrastar e soltar (acoesOrdem
         fireEvent.drop(chipA, { dataTransfer: dataTransferFake() });
 
         // origem (C) = 2, alvo (antes de A) = 0; como origem(2) NÃO é < alvo(0), destino = 0 (sem ajuste).
-        expect(acoes.reordenar).toHaveBeenCalledWith('d:C', 0);
+        expect(acoes.reordenar).toHaveBeenCalledWith('p:C', 0);
     });
 
     // -----------------------------------------------------------------------
     // Adicionar arrastando um card do Visor (payload origem: 'visor')
     // -----------------------------------------------------------------------
-    it('soltar um payload do Visor (origem: "visor") na tira de ordem chama adicionar com {id, isDummie} e o índice do fim da ordem', () => {
+    it('soltar um payload do Visor (origem: "visor") na tira de ordem chama adicionar com {id} e o índice do fim da ordem', () => {
         const acoes = { reordenar: vi.fn(), adicionar: vi.fn(), remover: vi.fn() };
         useStore.setState(estadoComOrdem({ acoesOrdemTurnoMapa: acoes }));
         const { container } = render(<MestreControleTurno />);
 
         const tira = container.querySelector('[data-testid="mestre-turno-ordem"]');
         // Simula o card do Visor de Entidades (MestreSubComponents.jsx) iniciando o arrasto.
-        iniciarArrastoTurno({ dataTransfer: dataTransferFake() }, { origem: 'visor', id: 'Npc1', isDummie: false, nome: 'Npc1' });
+        iniciarArrastoTurno({ dataTransfer: dataTransferFake() }, { origem: 'visor', id: 'Npc1', nome: 'Npc1' });
 
         fireEvent.dragOver(tira, { dataTransfer: dataTransferFake() });
         fireEvent.drop(tira, { dataTransfer: dataTransferFake() });
 
-        expect(acoes.adicionar).toHaveBeenCalledWith({ id: 'Npc1', isDummie: false }, 3);
-    });
-
-    it('soltar um payload do Visor de um dummie (isDummie: true) chama adicionar com isDummie: true', () => {
-        const acoes = { reordenar: vi.fn(), adicionar: vi.fn(), remover: vi.fn() };
-        useStore.setState(estadoComOrdem({ acoesOrdemTurnoMapa: acoes }));
-        const { container } = render(<MestreControleTurno />);
-
-        const tira = container.querySelector('[data-testid="mestre-turno-ordem"]');
-        iniciarArrastoTurno({ dataTransfer: dataTransferFake() }, { origem: 'visor', id: 'Goblin1', isDummie: true, nome: 'Goblin' });
-
-        fireEvent.dragOver(tira, { dataTransfer: dataTransferFake() });
-        fireEvent.drop(tira, { dataTransfer: dataTransferFake() });
-
-        expect(acoes.adicionar).toHaveBeenCalledWith({ id: 'Goblin1', isDummie: true }, 3);
+        expect(acoes.adicionar).toHaveBeenCalledWith({ id: 'Npc1' }, 3);
     });
 
     // -----------------------------------------------------------------------
     // Select + botão "Adicionar" (fallback sem drag and drop)
     // -----------------------------------------------------------------------
-    it('selecionar alguém no select e clicar em "Adicionar" chama adicionar com o id/isDummie do value selecionado ("p:<id>"/"d:<id>")', () => {
+    it('selecionar alguém no select e clicar em "Adicionar" chama adicionar com o id do value selecionado ("p:<id>")', () => {
         const acoes = { reordenar: vi.fn(), adicionar: vi.fn(), remover: vi.fn() };
         useStore.setState(estadoComOrdem({
             acoesOrdemTurnoMapa: acoes,
             resumoTurnoMapa: {
-                ordem: [{ chave: 'p:A', id: 'A', nome: 'A', iniciativa: 30, isDummie: false }],
+                ordem: [{ chave: 'p:A', id: 'A', nome: 'A', iniciativa: 30 }],
                 turnoAtualIndex: 0,
-                foraDaOrdem: [{ id: 'Npc2', nome: 'Npc2', isDummie: false }, { id: 'Goblin2', nome: 'Goblin2', isDummie: true }],
+                foraDaOrdem: [{ id: 'Npc2', nome: 'Npc2' }, { id: 'Goblin2', nome: 'Goblin2' }],
             },
         }));
         render(<MestreControleTurno />);
 
         const select = screen.getByLabelText(/Personagem para adicionar à ordem de turno/i);
-        fireEvent.change(select, { target: { value: 'd:Goblin2' } });
+        fireEvent.change(select, { target: { value: 'p:Goblin2' } });
         fireEvent.click(screen.getByRole('button', { name: /^Adicionar$/i }));
 
-        expect(acoes.adicionar).toHaveBeenCalledWith({ id: 'Goblin2', isDummie: true }, 1);
+        expect(acoes.adicionar).toHaveBeenCalledWith({ id: 'Goblin2' }, 1);
     });
 
     it('o botão "Adicionar" fica desabilitado sem nada selecionado no select, e não faz nada se clicado (guarda em adicionarSelecionado)', () => {
@@ -352,7 +338,7 @@ describe('MestreControleTurno — ordem manual por arrastar e soltar (acoesOrdem
             resumoTurnoMapa: {
                 ordem: [],
                 turnoAtualIndex: 0,
-                foraDaOrdem: [{ id: 'Npc2', nome: 'Npc2', isDummie: false }],
+                foraDaOrdem: [{ id: 'Npc2', nome: 'Npc2' }],
             },
         }));
         render(<MestreControleTurno />);

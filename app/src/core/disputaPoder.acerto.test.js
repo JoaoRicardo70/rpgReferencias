@@ -153,7 +153,7 @@ describe('resolverAcertoNoAlvo: extras', () => {
         expect(Object.keys(acerto({ poderAtacante: 5, poderAlvo: 5 })).sort()).toEqual(['acertou', 'defesa', 'nome']);
     });
     it('extras sao copiados', () => {
-        expect(acerto({ extras: { dummieId: 'd1', dano: 7 } })).toMatchObject({ dummieId: 'd1', dano: 7, nome: 'Alvo' });
+        expect(acerto({ extras: { alvoId: 'd1', dano: 7 } })).toMatchObject({ alvoId: 'd1', dano: 7, nome: 'Alvo' });
     });
     it('extras sobrescrevem nome, defesa e acertou (comportamento atual)', () => {
         const r = acerto({ extras: { nome: 'Outro', defesa: 99, acertou: 'x' } });
@@ -178,7 +178,7 @@ describe('resolverAcertoNoAlvo: extras', () => {
 
 describe('resolverAcertoNoAlvo: privacidade e serializacao', () => {
     it('nunca contem os valores de Poder', () => {
-        const r = acerto({ acertoTotal: 17, poderAtacante: 123456789, poderAlvo: 987654321, extras: { dummieId: 'd' } });
+        const r = acerto({ acertoTotal: 17, poderAtacante: 123456789, poderAlvo: 987654321, extras: { alvoId: 'd' } });
         const txt = JSON.stringify(r);
         expect(txt).not.toContain('123456789');
         expect(txt).not.toContain('987654321');
@@ -255,8 +255,8 @@ describe('resolverAcertoNoAlvo: naturalD20', () => {
         expect(acerto({ acertoTotal: 17, poderAtacante: 2000, poderAlvo: 1000 })).toMatchObject({ acertou: true, poderAcerto: 'favor' });
     });
     it('natural convive com poderAcerto e extras', () => {
-        const r = acerto({ acertoTotal: 0, defesa: 50, poderAtacante: 2000, poderAlvo: 1000, naturalD20: 20, extras: { dummieId: 'd1' } });
-        expect(r).toMatchObject({ acertou: true, natural: 20, poderAcerto: 'favor', dummieId: 'd1' });
+        const r = acerto({ acertoTotal: 0, defesa: 50, poderAtacante: 2000, poderAlvo: 1000, naturalD20: 20, extras: { alvoId: 'd1' } });
+        expect(r).toMatchObject({ acertou: true, natural: 20, poderAcerto: 'favor', alvoId: 'd1' });
     });
     it('natural 1 com Poder contra marca os dois', () => {
         const r = acerto({ acertoTotal: 99, defesa: 1, poderAtacante: 1000, poderAlvo: 2000, naturalD20: 1 });

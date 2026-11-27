@@ -5,11 +5,11 @@ import { MapaFormProvider, useMapaForm, aplicarDanoDeEstadosNoTurno } from './Ma
 import useStore from '../../stores/useStore';
 import { enviarParaFeed } from '../../services/firebase-sync';
 
-// Escudos absorvem o dano de Zona (ao pisar) e o dano de estados no turno; Dummies seguem sem escudo.
+// Escudos absorvem o dano de Zona (ao pisar) e o dano de estados no turno.
 
 vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(), salvarCenarioCompleto: vi.fn(() => Promise.resolve()), zerarIniciativaGlobal: vi.fn(),
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
 }));
@@ -19,7 +19,7 @@ let probe;
 function Harness() { probe = useMapaForm(); return null; }
 function montar(minhaFicha) {
     const state = {
-        minhaFicha, meuNome: 'Heroi', personagens: {}, dummies: {}, feedCombate: [], isMestre: false, mesaCriador: '', alvoSelecionado: null, abaAtiva: 'mapa',
+        minhaFicha, meuNome: 'Heroi', personagens: {}, feedCombate: [], isMestre: false, mesaCriador: '', alvoSelecionado: null, abaAtiva: 'mapa',
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
         cenario: { ativa: 'c', lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [{ id: 'z', nome: 'Fogo', cenaId: 'c', conjurador: 'Outro', duracao: 3, danoOriginal: 40, x: 5, y: 5, z: 0, raio: 2 }] },
     };
@@ -54,20 +54,16 @@ describe('Dano de estados no turno com escudo', () => {
     it('Sangrando passa pelo escudo e o texto vai junto', () => {
         vi.spyOn(Math, 'random').mockReturnValue(0); // 5d4 = 5
         const eu = f({ condicoes: [{ id: 'sangrando', stacks: 1 }], escudos: esc(3) });
-        const texto = aplicarDanoDeEstadosNoTurno(eu, false);
+        const texto = aplicarDanoDeEstadosNoTurno(eu);
         expect(texto).toContain('Escudo absorveu 3');
         expect(eu.escudos).toBeUndefined();
         expect(eu.vida.atual).toBe(VIDA - 2 * 1000);
     });
-    it('sem escudos igual a antes; Dummie ignora escudos', () => {
+    it('sem escudos igual a antes', () => {
         vi.spyOn(Math, 'random').mockReturnValue(0);
         const eu = f({ condicoes: [{ id: 'sangrando', stacks: 1 }] });
-        aplicarDanoDeEstadosNoTurno(eu, false);
+        aplicarDanoDeEstadosNoTurno(eu);
         expect(eu.vida.atual).toBe(VIDA - 5 * 1000);
         expect('escudos' in eu).toBe(false);
-        const d = { condicoes: [{ id: 'sangrando', stacks: 1 }], hpAtual: 10000, escudos: esc(100) };
-        aplicarDanoDeEstadosNoTurno(d, true);
-        expect(d.hpAtual).toBe(5000);
-        expect(d.escudos[0].valor).toBe(100);
     });
 });

@@ -3,14 +3,14 @@ import { render, cleanup, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaFormProvider, useMapaForm } from './MapaFormContext';
 import useStore from '../../stores/useStore';
-import { salvarDummie, enviarParaFeed, salvarCamposPersonagem, aplicarDanoDireto, salvarFichaSilencioso } from '../../services/firebase-sync';
+import { enviarParaFeed, salvarCamposPersonagem, aplicarDanoDireto, salvarFichaSilencioso } from '../../services/firebase-sync';
 
 // QA: o Dano Rapido do Mestre conta como GOLPE (nivel normal) e dispara o evento `atingido` dos gatilhos de quem sofre:
-// no proprio Mestre (updateFicha/Immer), em OUTRO jogador (services/danoAlvo) e nunca em Dummie.
+// no proprio Mestre (updateFicha/Immer), em OUTRO jogador (services/danoAlvo).
 
 vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')), salvarCenarioCompleto: vi.fn(() => Promise.resolve()),
     zerarIniciativaGlobal: vi.fn(), aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
 }));
@@ -36,7 +36,7 @@ function estado(minhaFicha, personagens = {}, extra = {}) {
     return {
         minhaFicha, meuNome: 'Mestre', personagens, divisorPoderMesa: 1,
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
-        feedCombate: [], isMestre: true, mesaCriador: 'Mestre', dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa',
+        feedCombate: [], isMestre: true, mesaCriador: 'Mestre', alvoSelecionado: null, abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
         ...extra,
     };
@@ -44,7 +44,7 @@ function estado(minhaFicha, personagens = {}, extra = {}) {
 let probe;
 function Harness() { probe = useMapaForm(); return null; }
 function montar(state) { mockUseStore(state); return render(<MapaFormProvider><Harness /></MapaFormProvider>); }
-const jogador = (nome, ficha) => ({ id: nome, nome, ficha, isDummie: false });
+const jogador = (nome, ficha) => ({ id: nome, nome, ficha });
 const camposGravados = () => Object.assign({}, ...salvarCamposPersonagem.mock.calls.map(c => c[1]));
 const feedTexto = () => enviarParaFeed.mock.calls.map(c => c[0].texto).join(' | ');
 
@@ -55,7 +55,7 @@ describe('Dano Rapido como golpe - meu personagem (Mestre)', () => {
     it('atingido com ganhoPermanente soma no meu poderCalculado e a Vida cai', () => {
         const eu = fichaCom([gAting([{ tipo: 'ganhoPermanente', valor: 4 }])]);
         montar(estado(eu));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu, isDummie: false }, 100); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu }, 100); });
         expect(eu.ganhosPermanentes.poderCalculado).toBe(4);
         expect(eu.vida.atual).toBe(500000 - 100 * F);
         expect(salvarFichaSilencioso).toHaveBeenCalled();
@@ -64,41 +64,41 @@ describe('Dano Rapido como golpe - meu personagem (Mestre)', () => {
     it('dois Danos Rapidos somam duas vezes', () => {
         const eu = fichaCom([gAting([{ tipo: 'ganhoPermanente', valor: 4 }])]);
         montar(estado(eu));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu, isDummie: false }, 10); });
-        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu, isDummie: false }, 10); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu }, 10); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu }, 10); });
         expect(eu.ganhosPermanentes.poderCalculado).toBe(8);
     });
     it('gatilho danoEmSi NAO dispara atingido', () => {
         const eu = fichaCom([gAting([{ tipo: 'ganhoPermanente', valor: 4 }], { tipo: 'danoEmSi' })]);
         montar(estado(eu));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu, isDummie: false }, 100); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu }, 100); });
         expect(eu.ganhosPermanentes).toBeUndefined();
         expect(eu.vida.atual).toBe(500000 - 100 * F);
     });
     it('atingido exclusivo de critico nao dispara (golpe do Dano Rapido e normal)', () => {
         const eu = fichaCom([gAting([{ tipo: 'ganhoPermanente', valor: 4 }], { tipo: 'atingido', nivel: 'critico' })]);
         montar(estado(eu));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu, isDummie: false }, 100); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu }, 100); });
         expect(eu.ganhosPermanentes).toBeUndefined();
     });
     it('escudo absorvendo tudo nao dispara', () => {
         const eu = fichaCom([gAting([{ tipo: 'ganhoPermanente', valor: 4 }])], { escudos: [{ id: 'e', nome: 'B', valor: 1e6, tipo: 'escudo' }] });
         montar(estado(eu));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu, isDummie: false }, 100); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu }, 100); });
         expect(eu.ganhosPermanentes).toBeUndefined();
         expect(eu.vida.atual).toBe(500000);
     });
     it('imunidade total nao dispara', () => {
         const eu = fichaCom([gAting([{ tipo: 'ganhoPermanente', valor: 4 }])], { combate: { imunidadeTotal: { turnosRestantes: 1, origem: 'x' } } });
         montar(estado(eu));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu, isDummie: false }, 100); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu }, 100); });
         expect(eu.ganhosPermanentes).toBeUndefined();
         expect(eu.vida.atual).toBe(500000);
     });
     it('dano 0 e ignorado (nada muda)', () => {
         const eu = fichaCom([gAting([{ tipo: 'ganhoPermanente', valor: 4 }])]);
         montar(estado(eu));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu, isDummie: false }, 0); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu }, 0); });
         expect(eu.ganhosPermanentes).toBeUndefined();
         expect(enviarParaFeed).not.toHaveBeenCalled();
     });
@@ -107,7 +107,7 @@ describe('Dano Rapido como golpe - meu personagem (Mestre)', () => {
         const g = { ...gAting([{ tipo: 'ganhoPermanente', valor: 4 }]), modo: 'opcional', perguntar: true, armado: true };
         const eu = fichaCom([g]);
         montar(estado(eu));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu, isDummie: false }, 100); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu }, 100); });
         expect(eu.ganhosPermanentes).toBeUndefined();
     });
 });
@@ -149,20 +149,6 @@ describe('Dano Rapido como golpe - outro jogador', () => {
         act(() => { probe.aplicarDanoRapido(jogador('Vilao', vilao), 100); });
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 500000 - 100 * F, expect.anything());
-    });
-});
-
-describe('Dano Rapido - Dummie continua sem gatilhos', () => {
-    it('Dummie so tem hpAtual reduzido; nenhuma gravacao de campos de personagem', () => {
-        const eu = fichaCom([gAting([{ tipo: 'ganhoPermanente', valor: 4 }])]);
-        const dData = { nome: 'Boneco', cenaId: 'default', hpMax: 1000 * F, hpAtual: 1000 * F };
-        montar(estado(eu, {}, { dummies: { d1: dData } }));
-        act(() => { probe.aplicarDanoRapido({ id: 'd1', nome: 'Boneco', ficha: dData, isDummie: true }, 100); });
-        expect(salvarDummie).toHaveBeenCalledWith('d1', expect.objectContaining({ hpAtual: 900 * F }), expect.anything());
-        expect(salvarCamposPersonagem).not.toHaveBeenCalled();
-        expect(aplicarDanoDireto).not.toHaveBeenCalled();
-        expect(eu.ganhosPermanentes).toBeUndefined();
-        expect(feedTexto()).not.toContain('🔔');
     });
 });
 

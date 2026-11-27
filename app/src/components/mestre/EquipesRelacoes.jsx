@@ -25,7 +25,6 @@ export default function EquipesRelacoes() {
     const acoes = useStore(s => s.acoesOrdemTurnoMapa);
     const resumo = useStore(s => s.resumoTurnoMapa);
     const personagens = useStore(s => s.personagens);
-    const dummies = useStore(s => s.dummies);
     const meuNome = useStore(s => s.meuNome);
     const minhaFicha = useStore(s => s.minhaFicha);
 
@@ -74,19 +73,19 @@ export default function EquipesRelacoes() {
         if (acoes) acoes.salvarRelacoes(definirRelacao(relacoes, a, b, valor));
     }, [acoes, relacoes]);
 
-    // Combatentes da cena exibida no Mapa (ordem + fora da ordem), com a ficha/dummie fresca da store.
+    // Combatentes da cena exibida no Mapa (ordem + fora da ordem), com a ficha fresca da store.
     const combatentes = useMemo(() => {
         const itens = [...((resumo && resumo.ordem) || []), ...((resumo && resumo.foraDaOrdem) || [])];
         const vistos = new Set();
         return itens.map((it) => {
-            const chave = `${it.isDummie ? 'd' : 'p'}:${it.id}`;
+            const chave = `p:${it.id}`;
             if (vistos.has(chave)) return null;
             vistos.add(chave);
-            const dados = it.isDummie ? (dummies || {})[it.id] : (it.id === meuNome ? minhaFicha : (personagens || {})[it.id]);
+            const dados = it.id === meuNome ? minhaFicha : (personagens || {})[it.id];
             if (!dados) return null;
-            return { id: it.id, nome: it.nome, isDummie: !!it.isDummie, chave, ficha: dados };
+            return { id: it.id, nome: it.nome, chave, ficha: dados };
         }).filter(Boolean);
-    }, [resumo, dummies, personagens, meuNome, minhaFicha]);
+    }, [resumo, personagens, meuNome, minhaFicha]);
 
     if (!isMestre) return null;
 
@@ -168,14 +167,14 @@ export default function EquipesRelacoes() {
                                 return (
                                     <li key={c.chave} className="equipes-membro">
                                         <SeloEquipe cenario={cenario} entidade={c} isMestre />
-                                        <span className="equipes-membro-nome">{c.isDummie ? '👾 ' : ''}{c.nome}</span>
+                                        <span className="equipes-membro-nome">{c.nome}</span>
                                         <select className="input-neon equipes-select" value={equipeDe(c, cenario)} disabled={!podeGravar}
-                                            aria-label={`Equipe de ${c.nome}`} onChange={(ev) => acoes && acoes.definirEquipeDe({ id: c.id, nome: c.nome, isDummie: c.isDummie }, ev.target.value)}>
+                                            aria-label={`Equipe de ${c.nome}`} onChange={(ev) => acoes && acoes.definirEquipeDe({ id: c.id, nome: c.nome }, ev.target.value)}>
                                             {equipesSalvas.map(e => <option key={e.id} value={e.id}>{e.icone} {e.nome}</option>)}
                                         </select>
                                         <button type="button" className="btn-neon equipes-btn" disabled={!podeGravar} aria-pressed={oculto}
                                             title={oculto ? 'O lado está oculto dos jogadores: clique para revelar' : 'O lado está visível: clique para ocultar dos jogadores'}
-                                            onClick={() => acoes && acoes.alternarLadoOculto({ id: c.id, nome: c.nome, isDummie: c.isDummie })}>
+                                            onClick={() => acoes && acoes.alternarLadoOculto({ id: c.id, nome: c.nome })}>
                                             {oculto ? '🙈 Oculto — revelar' : '👁️ Revelado — ocultar'}
                                         </button>
                                     </li>

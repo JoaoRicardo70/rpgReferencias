@@ -21,7 +21,7 @@
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
 import { getEfeitosDeClasse } from './attributes.js';
 import { efeitosAtivosDoItem } from './efeitosItem.js';
-import { getPoderParaDisputa, getPoderDummie } from './disputaPoder.js';
+import { getPoderParaDisputa } from './disputaPoder.js';
 
 export const ATRIBUTO_PERCEPCAO_PODER = 'percepcao_poder';
 export const ATRIBUTO_OCULTACAO_PODER = 'ocultacao_poder';
@@ -185,17 +185,9 @@ export function descreverEstimativaPoder(estimativa, formatar = (n) => String(n)
 }
 
 // Estimativa do Poder de uma entidade do Mapa vista por `observador` (a ficha de quem olha).
-//   entidade: { isDummie, ficha, id, nome }. Entidade (dummy) com Vida oculta esconde o Poder também
-//   (o campo "HP Oculto" do token vale pros dois, ver MapaMestreGavetaTokens).
+//   entidade: { ficha, id, nome }.
 export function estimarPoderDeEntidade(entidade, observador, divisorPoderMesa) {
     if (!entidade) return null;
-    if (entidade.isDummie) {
-        const dummie = entidade.ficha || {};
-        const poder = getPoderDummie(dummie);
-        if (poder === null) return null;
-        if (dummie.visibilidadeHp && dummie.visibilidadeHp !== 'todos') return { modo: 'oculto', min: null, max: null, incerteza: LIMITE_PODER_OCULTO };
-        return estimarPoder(poder, { ocultacao: 0, percepcao: getPercepcaoPoder(observador) });
-    }
     const poder = getPoderParaDisputa(entidade.ficha, divisorPoderMesa);
     if (poder === null) return null;
     return estimarPoder(poder, { ocultacao: getOcultacaoPoder(entidade.ficha), percepcao: getPercepcaoPoder(observador) });

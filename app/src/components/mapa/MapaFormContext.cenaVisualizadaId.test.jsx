@@ -34,7 +34,6 @@ vi.mock('../../stores/useStore', () => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
@@ -56,7 +55,6 @@ function baseState(overrides = {}) {
         feedCombate: [],
         isMestre: true,
         mesaCriador: 'Astolfo',
-        dummies: {},
         alvoSelecionado: null,
         abaAtiva: 'mapa',
         cenario: {

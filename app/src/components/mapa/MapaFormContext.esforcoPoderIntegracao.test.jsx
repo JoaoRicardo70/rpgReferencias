@@ -9,7 +9,7 @@ import useStore from '../../stores/useStore';
 // { incluirEsforcoPoder }) nos DOIS caminhos reais de MapaFormContext.jsx que geram Fadiga:
 //
 //   1) INÍCIO DE TURNO (aplicarInicioDeTurno, via avancarTurno) — SEMPRE passa
-//      { incluirEsforcoPoder: true }, pros 3 sub-caminhos (eu mesmo, outro jogador, dummie).
+//      { incluirEsforcoPoder: true }, pros sub-caminhos (eu mesmo, outro jogador).
 //      Este arquivo cobre o sub-caminho "outro jogador" (salvarCamposPersonagem).
 //
 //   2) DANO RÁPIDO do Mestre (aplicarDanoRapido) — chama calcularGanhoFadigaDinamico(f) SEM a
@@ -27,7 +27,6 @@ vi.mock('../../stores/useStore', () => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
@@ -72,7 +71,6 @@ function baseState(overrides = {}) {
         feedCombate: [],
         isMestre: true,
         mesaCriador: 'Mestre',
-        dummies: {},
         alvoSelecionado: null,
         abaAtiva: 'mapa',
         cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
@@ -146,7 +144,7 @@ describe('MapaFormContext — Integração: Dano Rápido (aplicarDanoRapido) NÃ
         const state = baseState({ minhaFicha, meuNome: 'Mestre', updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 1, null); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 1, null); });
 
         // Dano de 1 (exibido) sobre uma Vida de 1 bilhão (bruto) mal arranha o fator de vida
         // perdida -- ganho real fica ordens de grandeza abaixo do piso de 3 do Esforço de Poder,
@@ -163,7 +161,7 @@ describe('MapaFormContext — Integração: Dano Rápido (aplicarDanoRapido) NÃ
         const state = baseState({ meuNome: 'Mestre', personagens: { Vilao: outroJogador } });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador, isDummie: false }, 1, null); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador }, 1, null); });
 
         expect(firebaseSync.aplicarFadigaDireta).toHaveBeenCalledTimes(1);
         const [nomeSalvo, novaFadigaExtra] = firebaseSync.aplicarFadigaDireta.mock.calls[0];

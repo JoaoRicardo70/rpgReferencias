@@ -176,7 +176,7 @@ describe('montarContextoDeCombate', () => {
         expect(c.alvoEstados).toEqual([]);
         expect(Number.isNaN(c.alvoVidaPct)).toBe(true);
     });
-    it('alvo Dummie: estados e vida em %', () => {
+    it('alvo sem ficha: estados e vida em %', () => {
         const c = montarContextoDeCombate({}, { hpAtual: 25, hpMax: 100, condicoes: [{ id: 'surpreso', stacks: 1 }] });
         expect(c.alvoEstados).toEqual(['surpreso']);
         expect(c.alvoVidaPct).toBe(25);

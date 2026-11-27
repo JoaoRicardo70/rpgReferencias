@@ -102,7 +102,7 @@ describe('Sidebar - Modo Jogador', () => {
 
     it('clicar limpa a entidade inspecionada', () => {
         st().setIsMestre(true);
-        st().setEntidadeInspecionada({ tipo: 'dummie', id: 'd1' });
+        st().setEntidadeInspecionada({ tipo: 'jogador', id: 'p1' });
         render(<Sidebar onResetClick={() => {}} />);
         fireEvent.click(botaoModo());
         expect(st().entidadeInspecionada).toBeNull();

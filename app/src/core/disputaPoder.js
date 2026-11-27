@@ -38,20 +38,19 @@ export function getPoderParaDisputa(ficha, divisorPoderMesa, golpe) {
     }
 }
 
-// Entidades do Mapa (dummies) não têm ficha: o Mestre informa o Poder no campo poderCalculado.
+// Alvo de combate montado a partir de uma ficha (core/alvoCombate.js): o Poder fica no campo poderCalculado.
 // Vazio = sem Poder definido (o golpe não entra em disputa).
-export function getPoderDummie(dummie) {
-    if (!dummie) return null;
-    const bruto = dummie.poderCalculado;
+export function getPoderDoAlvo(alvo) {
+    if (!alvo) return null;
+    const bruto = alvo.poderCalculado;
     if (bruto === undefined || bruto === null || bruto === '') return null;
     const v = Number(bruto);
     return Number.isFinite(v) && v >= 0 ? v : null;
 }
 
-// Poder de qualquer alvo/atacante do app: ficha de jogador/NPC ou dummy do Mapa.
+// Poder de qualquer alvo/atacante do app: ficha de jogador/NPC.
 export function getPoderDeEntidade(entidade, divisorPoderMesa) {
     if (!entidade) return null;
-    if (entidade.isDummie) return getPoderDummie(entidade.ficha || entidade);
     return getPoderParaDisputa(entidade.ficha || entidade, divisorPoderMesa);
 }
 

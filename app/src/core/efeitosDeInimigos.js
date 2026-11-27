@@ -5,16 +5,14 @@
 //   (ex.: `quando: 'estado_em_campo:presa'` = "há alguém com o estado Presa na cena"; sem contexto a condição falha fechada).
 //   • Defensor PERSONAGEM (jogador/NPC com ficha): core/efeitosCondicionais.js > coletarEfeitos soma estes efeitos aos dele; o efeito dono NUNCA se aplica
 //     ao próprio portador (coletarEfeitos descarta `valeParaInimigos` na coleta própria).
-//   • Defensor NPC/DUMMIE (CA fixa em `valorDefesa`): modificadorDeDefesaDoDummie devolve o modificador (<= 0) que se soma à CA fixa onde ela é usada no acerto.
 //   Regras: só valor < 0 conta (positivo seria buff para o inimigo e é ignorado); no máximo UM efeito por (nome do Poder, atributo) entre todos os portadores;
 //   o acumulado por atributo não passa de -LIMITE_PENALIDADE_INIMIGOS (-20). O efeito devolvido já vem sem `quando` (a condição foi checada no portador).
 //   Privacidade: só números saem; nenhum nome de portador é exposto ao defensor.
 //   Não recursivo: lê só os Poderes dos portadores inimigos, nunca os efeitos "de inimigos" deles. Cache de 1 entrada pelas referências da mesa.
 // ==========================================
-import { relacaoEntre, comoCombatente, mesmoCombatente } from './lados.js';
+import { relacaoEntre } from './lados.js';
 import { naCena } from './aliadosEmCampo.js';
 import { resolverEfeitosEntidade } from './efeitos-resolver.js';
-import { reduzirComBonus } from './utils.js';
 import useStore from '../stores/useStore.js';
 
 export const ATRIBUTOS_PARA_INIMIGOS = ['evasiva', 'resistencia', 'acerto'];
@@ -25,20 +23,19 @@ export const efeitoPodeValerParaInimigos = (atributo) => ATRIBUTOS_PARA_INIMIGOS
 
 const sanitizarNome = (n) => (!n ? '' : String(n).replace(/[.#$\[\]\/]/g, '_').trim());
 
-// Puro. `defensor` = { dados, ehDummie, nome }; `personagens` = { nome: ficha } (portadores possíveis); `avaliar(fichaPortador, nomePortador, efeito)` = a condição vale?
+// Puro. `defensor` = { dados, nome }; `personagens` = { nome: ficha } (portadores possíveis); `avaliar(fichaPortador, nomePortador, efeito)` = a condição vale?
 // Devolve os efeitos já filtrados, SEM `quando`, com a soma por atributo limitada a -LIMITE_PENALIDADE_INIMIGOS.
 export function coletarEfeitosDeInimigos({ defensor, personagens, cenario, cenaId, avaliar }) {
     const saida = [];
     if (!defensor || !defensor.dados || !cenaId || typeof avaliar !== 'function') return saida;
-    const alvo = defensor.ehDummie ? comoCombatente(defensor.dados, true) : defensor.dados;
+    const alvo = defensor.dados;
     const nomeD = sanitizarNome(defensor.nome);
     const vistos = new Set();
     const acumulado = {};
     Object.keys(personagens || {}).forEach((nome) => {
         const portador = personagens[nome];
         if (!portador || typeof portador !== 'object' || !Array.isArray(portador.poderes)) return;
-        if (!defensor.ehDummie && (portador === defensor.dados || (nomeD && sanitizarNome(nome) === nomeD))) return;
-        if (defensor.ehDummie && mesmoCombatente(comoCombatente(portador, false), alvo)) return;
+        if (portador === defensor.dados || (nomeD && sanitizarNome(nome) === nomeD)) return;
         if (!naCena(portador, cenaId)) return;
         if (relacaoEntre(cenario, alvo, portador) !== 'hostil') return;
         portador.poderes.forEach((p) => {
@@ -74,19 +71,19 @@ export function coletarEfeitosDeInimigos({ defensor, personagens, cenario, cenaI
 }
 
 // Índice por mesa: só os portadores que têm ALGUM efeito `valeParaInimigos` (em Poderes, Formas ou Estágios). Quem nunca usa o efeito não paga nada além deste
-// varrer único por mudança da mesa (personagens/cenario/dummies). O filtro por defensor/cena/relação/condição vem depois, em coletarEfeitosDeInimigos.
+// varrer único por mudança da mesa (personagens/cenario). O filtro por defensor/cena/relação/condição vem depois, em coletarEfeitosDeInimigos.
 const temMarca = (lista) => Array.isArray(lista) && lista.some(e => e && e.valeParaInimigos === true);
 const poderTemMarca = (p) => !!p && (temMarca(p.efeitos) || temMarca(p.efeitosPassivos) || !!p.estagios
     || (Array.isArray(p.formas) && p.formas.some(f => f && (temMarca(f.efeitos) || temMarca(f.efeitosPassivos)))));
 let cacheIndice = null;
 function portadoresComMarca(st) {
-    if (cacheIndice && cacheIndice.p === st.personagens && cacheIndice.c === st.cenario && cacheIndice.d === st.dummies) return cacheIndice.v;
+    if (cacheIndice && cacheIndice.p === st.personagens && cacheIndice.c === st.cenario) return cacheIndice.v;
     const v = {};
     Object.keys(st.personagens || {}).forEach((n) => {
         const f = st.personagens[n];
         if (f && typeof f === 'object' && Array.isArray(f.poderes) && f.poderes.some(poderTemMarca)) v[n] = f;
     });
-    cacheIndice = { p: st.personagens, c: st.cenario, d: st.dummies, v };
+    cacheIndice = { p: st.personagens, c: st.cenario, v };
     return v;
 }
 
@@ -96,39 +93,14 @@ export function efeitosDeInimigosDaMesa(ficha, nomeDefensor, avaliar) {
     if (!ficha || typeof ficha !== 'object' || !sanitizarNome(nomeDefensor) || typeof avaliar !== 'function') return [];
     try {
         const st = useStore.getState();
-        if (cache && cache.p === st.personagens && cache.c === st.cenario && cache.d === st.dummies && cache.f === ficha && cache.n === nomeDefensor && cache.a === avaliar) return cache.v;
+        if (cache && cache.p === st.personagens && cache.c === st.cenario && cache.f === ficha && cache.n === nomeDefensor && cache.a === avaliar) return cache.v;
         const portadores = portadoresComMarca(st);
         let v = [];
         if (Object.keys(portadores).length > 0) {
             const cenaId = (st.cenario && st.cenario.ativa) || 'default';
-            v = coletarEfeitosDeInimigos({ defensor: { dados: ficha, ehDummie: false, nome: nomeDefensor }, personagens: portadores, cenario: st.cenario || null, cenaId, avaliar });
+            v = coletarEfeitosDeInimigos({ defensor: { dados: ficha, nome: nomeDefensor }, personagens: portadores, cenario: st.cenario || null, cenaId, avaliar });
         }
-        cache = { p: st.personagens, c: st.cenario, d: st.dummies, f: ficha, n: nomeDefensor, a: avaliar, v };
+        cache = { p: st.personagens, c: st.cenario, f: ficha, n: nomeDefensor, a: avaliar, v };
         return v;
     } catch (e) { return []; }
-}
-
-// Modificador (<= 0, em pontos de CA) somado à CA fixa do NPC/Dummie `dummie` para o tipo de defesa dele ('evasiva' | 'resistencia'). Só vale na cena ativa.
-// MESMA conversão do personagem (core/engine.js > calcularCA): reduzirComBonus(0, soma dos efeitos), não a soma crua. Cache por (mesa, Dummie, avaliar).
-let cacheDummie = null;
-export function modificadorDeDefesaDoDummie(dummie, avaliar) {
-    if (!dummie || typeof dummie !== 'object' || typeof avaliar !== 'function') return 0;
-    const tipo = norm(dummie.tipoDefesa);
-    if (tipo !== 'evasiva' && tipo !== 'resistencia') return 0;
-    try {
-        const st = useStore.getState();
-        const portadores = portadoresComMarca(st);
-        if (Object.keys(portadores).length === 0) return 0;
-        if (!cacheDummie || cacheDummie.p !== st.personagens || cacheDummie.c !== st.cenario || cacheDummie.d !== st.dummies || cacheDummie.a !== avaliar) cacheDummie = { p: st.personagens, c: st.cenario, d: st.dummies, a: avaliar, m: new WeakMap() };
-        if (cacheDummie.m.has(dummie)) return cacheDummie.m.get(dummie);
-        const cenaId = (st.cenario && st.cenario.ativa) || 'default';
-        let mod = 0;
-        if ((dummie.cenaId || 'default') === cenaId) {
-            const efeitos = coletarEfeitosDeInimigos({ defensor: { dados: dummie, ehDummie: true, nome: String(dummie.nome || '') }, personagens: portadores, cenario: st.cenario || null, cenaId, avaliar });
-            const soma = efeitos.filter(e => norm(e.atributo) === tipo).reduce((acc, e) => acc + (parseFloat(e.valor) || 0), 0);
-            mod = Math.min(0, reduzirComBonus(0, Math.max(-LIMITE_PENALIDADE_INIMIGOS, Math.min(0, soma))));
-        }
-        cacheDummie.m.set(dummie, mod);
-        return mod;
-    } catch (e) { return 0; }
 }

@@ -23,7 +23,6 @@ vi.mock('../../core/danoProporcional', async (importOriginal) => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
     aplicarDanoDireto: vi.fn(),
     aplicarFadigaDireta: vi.fn(),
@@ -37,16 +36,16 @@ function Harness() { probe = useAtaqueForm(); return null; }
 
 const FATOR = 1000;
 const stat = (atual, base = 1000000) => ({ base, atual, mBase: 1, mGeral: 1, mFormas: 1, mUnico: '1.0', mAbsoluto: 1 });
-const goblin = (hp = 100) => ({ nome: 'Goblin', hpAtual: hp * FATOR, valorDefesa: 10 });
+const goblin = () => ({ vida: stat(1000000, 1000000), reducoesDano: [], iniciativa: 10, isNPC: true, poderes: [], inventario: [], passivas: [] });
 const AO = [{ tipo: 'curarAtacante', modo: 'fixo', valor: 50 }];
 
-function montar({ alvoSelecionado = null, dummies = {}, alvosArea, poderes = [], inventario = [], vidaAtual = 500000, ficha = {} }) {
+function montar({ alvoSelecionado = null, personagens = {}, alvosArea, poderes = [], inventario = [], vidaAtual = 500000, ficha = {} }) {
     const minhaFicha = {
         poderes, inventario, passivas: [], ataquesElementais: [], hierarquia: {}, combate: {}, iniciativa: 10,
         vida: stat(vidaAtual), ...ficha,
     };
     mockState = {
-        minhaFicha, meuNome: 'Heroi', personagens: {}, dummies, alvoSelecionado,
+        minhaFicha, meuNome: 'Heroi', personagens, alvoSelecionado,
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
         setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque',
         feedCombate: alvosArea ? [{ tipo: 'acerto', nome: 'Heroi', alvosArea }] : [],
@@ -72,22 +71,22 @@ afterEach(() => cleanup());
 
 describe('AtaqueFormContext - Ao acertar', () => {
     it('Poder ativo com curarAtacante e alvo marcado cura o atacante', () => {
-        montar({ alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: [{ id: 'p1', nome: 'Vampirismo', ativa: true, aoAcertar: AO }] });
+        montar({ alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: [{ id: 'p1', nome: 'Vampirismo', ativa: true, aoAcertar: AO }] });
         act(() => { probe.rolarDano(); });
         expect(vidaHeroi()).toBe(500000 + 50 * FATOR);
         expect(salvarFichaSilencioso).toHaveBeenCalled();
     });
 
     it('a frase vai para o textoPosGolpe do feed com a origem', () => {
-        montar({ alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: [{ id: 'p1', nome: 'Vampirismo', ativa: true, aoAcertar: AO }] });
+        montar({ alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: [{ id: 'p1', nome: 'Vampirismo', ativa: true, aoAcertar: AO }] });
         act(() => { probe.rolarDano(); });
         expect(ultimoFeed().textoPosGolpe).toContain('💚 Vampirismo: +50 de Vida');
     });
 
     it('em area com 2 alvos acertados cura UMA vez so', () => {
         montar({
-            dummies: { g1: goblin(), g2: goblin() },
-            alvosArea: [{ nome: 'Goblin', acertou: true, dummieId: 'g1' }, { nome: 'Goblin', acertou: true, dummieId: 'g2' }],
+            personagens: { G1: goblin(), G2: goblin() },
+            alvosArea: [{ nome: 'G1', acertou: true, alvoId: 'pj:G1' }, { nome: 'G1', acertou: true, alvoId: 'pj:G2' }],
             poderes: [{ id: 'p1', nome: 'Vampirismo', ativa: true, aoAcertar: AO }],
         });
         act(() => { probe.rolarDano(); });
@@ -105,15 +104,15 @@ describe('AtaqueFormContext - Ao acertar', () => {
 
     it('dano 0 no alvo nao cura', () => {
         dano(0);
-        montar({ alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: [{ id: 'p1', nome: 'Vampirismo', ativa: true, aoAcertar: AO }] });
+        montar({ alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: [{ id: 'p1', nome: 'Vampirismo', ativa: true, aoAcertar: AO }] });
         act(() => { probe.rolarDano(); });
         expect(vidaHeroi()).toBe(500000);
     });
 
     it('area em que ninguem acertou nao cura', () => {
         montar({
-            dummies: { g1: goblin() },
-            alvosArea: [{ nome: 'Goblin', acertou: false, dummieId: 'g1' }],
+            personagens: { G1: goblin() },
+            alvosArea: [{ nome: 'G1', acertou: false, alvoId: 'pj:G1' }],
             poderes: [{ id: 'p1', nome: 'Vampirismo', ativa: true, aoAcertar: AO }],
         });
         act(() => { probe.rolarDano(); });
@@ -121,20 +120,20 @@ describe('AtaqueFormContext - Ao acertar', () => {
     });
 
     it('Poder inativo nao cura', () => {
-        montar({ alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: [{ id: 'p1', nome: 'Vampirismo', ativa: false, aoAcertar: AO }] });
+        montar({ alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: [{ id: 'p1', nome: 'Vampirismo', ativa: false, aoAcertar: AO }] });
         act(() => { probe.rolarDano(); });
         expect(vidaHeroi()).toBe(500000);
     });
 
     it('nunca passa do maximo da Vida', () => {
-        montar({ alvoSelecionado: 'g1', dummies: { g1: goblin() }, vidaAtual: 999000, poderes: [{ id: 'p1', nome: 'V', ativa: true, aoAcertar: [{ tipo: 'curarAtacante', modo: 'fixo', valor: 9999 }] }] });
+        montar({ alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, vidaAtual: 999000, poderes: [{ id: 'p1', nome: 'V', ativa: true, aoAcertar: [{ tipo: 'curarAtacante', modo: 'fixo', valor: 9999 }] }] });
         act(() => { probe.rolarDano(); });
         expect(vidaHeroi()).toBe(1000000);
     });
 
     it('restaura energia (mana) do atacante', () => {
         montar({
-            alvoSelecionado: 'g1', dummies: { g1: goblin() },
+            alvoSelecionado: 'pj:G1', personagens: { G1: goblin() },
             ficha: { mana: stat(100000) },
             poderes: [{ id: 'p1', nome: 'Siphon', ativa: true, aoAcertar: [{ tipo: 'energiaAtacante', modo: 'fixo', valor: 20, energia: 'mana' }] }],
         });
@@ -144,26 +143,26 @@ describe('AtaqueFormContext - Ao acertar', () => {
     });
 
     it('arma equipada com aoAcertar cura', () => {
-        montar({ alvoSelecionado: 'g1', dummies: { g1: goblin() }, inventario: [{ id: 1, nome: 'Lamina', tipo: 'arma', equipado: true, aoAcertar: AO }] });
+        montar({ alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, inventario: [{ id: 1, nome: 'Lamina', tipo: 'arma', equipado: true, aoAcertar: AO }] });
         act(() => { probe.rolarDano(); });
         expect(vidaHeroi()).toBe(500000 + 50 * FATOR);
     });
 
     it('armadura equipada com aoAcertar NAO cura', () => {
-        montar({ alvoSelecionado: 'g1', dummies: { g1: goblin() }, inventario: [{ id: 2, nome: 'Peitoral', tipo: 'armadura', equipado: true, aoAcertar: AO }] });
+        montar({ alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, inventario: [{ id: 2, nome: 'Peitoral', tipo: 'armadura', equipado: true, aoAcertar: AO }] });
         act(() => { probe.rolarDano(); });
         expect(vidaHeroi()).toBe(500000);
     });
 
     it('arma NAO equipada com aoAcertar nao cura', () => {
-        montar({ alvoSelecionado: 'g1', dummies: { g1: goblin() }, inventario: [{ id: 1, nome: 'Lamina', tipo: 'arma', equipado: false, aoAcertar: AO }] });
+        montar({ alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, inventario: [{ id: 1, nome: 'Lamina', tipo: 'arma', equipado: false, aoAcertar: AO }] });
         act(() => { probe.rolarDano(); });
         expect(vidaHeroi()).toBe(500000);
     });
 
     it('Poder + arma somam (duas fontes, cada uma uma vez)', () => {
         montar({
-            alvoSelecionado: 'g1', dummies: { g1: goblin() },
+            alvoSelecionado: 'pj:G1', personagens: { G1: goblin() },
             poderes: [{ id: 'p1', nome: 'P', ativa: true, aoAcertar: AO }],
             inventario: [{ id: 1, nome: 'Lamina', tipo: 'arma', equipado: true, aoAcertar: AO }],
         });
@@ -172,13 +171,13 @@ describe('AtaqueFormContext - Ao acertar', () => {
     });
 
     it('apenasCritico nao cura em golpe sem critico', () => {
-        montar({ alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: [{ id: 'p1', nome: 'P', ativa: true, aoAcertar: [{ ...AO[0], apenasCritico: true }] }] });
+        montar({ alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: [{ id: 'p1', nome: 'P', ativa: true, aoAcertar: [{ ...AO[0], apenasCritico: true }] }] });
         act(() => { probe.rolarDano(); });
         expect(vidaHeroi()).toBe(500000);
     });
 
     it('sem Vida na ficha do atacante nao quebra', () => {
-        const m = montar({ alvoSelecionado: 'g1', dummies: { g1: goblin() }, poderes: [{ id: 'p1', nome: 'P', ativa: true, aoAcertar: AO }] });
+        const m = montar({ alvoSelecionado: 'pj:G1', personagens: { G1: goblin() }, poderes: [{ id: 'p1', nome: 'P', ativa: true, aoAcertar: AO }] });
         expect(m).toBeTruthy();
         delete mockState.minhaFicha.vida;
         expect(() => act(() => { probe.rolarDano(); })).not.toThrow();

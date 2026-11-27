@@ -9,7 +9,7 @@ import { calcularDano } from '../../core/engine';
 vi.mock('../../stores/useStore');
 vi.mock('../../core/engine', () => ({ calcularDano: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCenarioCompleto: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCenarioCompleto: vi.fn(),
 }));
 
 let mockState; let probe; let ficha;
@@ -29,7 +29,7 @@ function montar(extra = {}, ajustar) {
     mockState = {
         minhaFicha: ficha, meuNome: 'Heroi', personagens: {},
         updateFicha: vi.fn((cb) => cb(ficha)),
-        setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque', feedCombate: [], alvoSelecionado: null, dummies: {},
+        setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque', feedCombate: [], alvoSelecionado: null,
         ignorarTravaAcerto: false, setIgnorarTravaAcerto: vi.fn(), cenario: { zonas: [] },
     };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(mockState) : mockState));

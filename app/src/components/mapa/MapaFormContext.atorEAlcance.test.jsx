@@ -16,7 +16,6 @@ vi.mock('../../core/engine', async (importOriginal) => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
@@ -46,11 +45,11 @@ function fichaBase(overrides = {}) {
 let probe;
 function Harness() { probe = useMapaForm(); return null; }
 
-function montar({ ficha, nome = 'Joao', isMestre = false, personagens = {}, dummies = {}, alvoSelecionado = null, atorCombate = null }) {
+function montar({ ficha, nome = 'Joao', isMestre = false, personagens = {}, alvoSelecionado = null, atorCombate = null }) {
     const state = {
         minhaFicha: ficha, meuNome: nome, personagens, atorCombate,
         updateFicha: vi.fn((cb) => cb(ficha)),
-        feedCombate: [], isMestre, mesaCriador: 'Mestre', dummies, alvoSelecionado, abaAtiva: 'mapa',
+        feedCombate: [], isMestre, mesaCriador: 'Mestre', alvoSelecionado, abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
     };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(state) : state));
@@ -65,21 +64,6 @@ beforeEach(() => { vi.clearAllMocks(); window.alert = vi.fn(); });
 afterEach(() => cleanup());
 
 describe('MapaFormContext.rolarAcertoRapido - ator NPC do Mestre', () => {
-    it('com ator (token da Gaveta) o feed usa nomeExibido e o calculo usa a ficha do NPC', () => {
-        const goblin = fichaBase({ isNPC: true });
-        const mestre = fichaBase();
-        montar({
-            ficha: mestre, nome: 'Mestre', isMestre: true, personagens: { Goblin: goblin },
-            dummies: { g2: { nome: 'Goblin #2', fichaOrigem: 'Goblin', cenaId: 'default', posicao: { x: 3, y: 3, z: 0 } } },
-            atorCombate: { nome: 'Goblin', dummieId: 'g2' },
-        });
-        act(() => { probe.rolarAcertoRapido(); });
-        expect(calcularAcerto.mock.calls[0][0].minhaFicha).toBe(goblin);
-        const feeds = acertosNoFeed();
-        expect(feeds).toHaveLength(1);
-        expect(feeds[0].nome).toBe('Goblin #2');
-    });
-
     it('sem ator ativo o feed usa meuNome e a ficha propria', () => {
         const mestre = fichaBase();
         montar({ ficha: mestre, nome: 'Mestre', isMestre: true, personagens: { Goblin: fichaBase({ isNPC: true }) } });

@@ -8,7 +8,7 @@ import useStore from '../../stores/useStore';
 vi.mock('../../stores/useStore');
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(), salvarFirebaseImediato: vi.fn(() => Promise.resolve()), enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(), salvarCenarioCompleto: vi.fn(), uploadImagem: vi.fn(() => Promise.resolve('')),
+    salvarCenarioCompleto: vi.fn(), uploadImagem: vi.fn(() => Promise.resolve('')),
 }));
 const gastar = vi.fn(() => true);
 vi.mock('../../hooks/useGastarAcao', () => ({ default: () => gastar }));
@@ -16,7 +16,7 @@ vi.mock('../../hooks/useGastarAcao', () => ({ default: () => gastar }));
 let mockState;
 function montar(minhaFicha, cenario) {
     mockState = {
-        minhaFicha, cenario, meuNome: 'Heroi', isMestre: true, personagens: {}, dummies: {}, feedCombate: [],
+        minhaFicha, cenario, meuNome: 'Heroi', isMestre: true, personagens: {}, feedCombate: [],
         updateFicha: vi.fn((cb) => cb(minhaFicha)), setAbaAtiva: vi.fn(), abaAtiva: 'aba-mapa',
         efeitosTemp: [], setEfeitosTemp: vi.fn(), efeitosTempPassivos: [], setEfeitosTempPassivos: vi.fn(),
         poderEditandoId: null, setPoderEditandoId: vi.fn(),

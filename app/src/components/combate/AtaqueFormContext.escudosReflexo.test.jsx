@@ -22,7 +22,6 @@ vi.mock('../../core/danoProporcional', async (importOriginal) => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     aplicarDanoDireto: vi.fn(),
@@ -40,7 +39,7 @@ function montar(escudos) {
     const ana = { vida: stat(1000000), mana: stat(100000), reducoesDano: [], iniciativa: 10, destreza: { base: 50 }, poderes: [{ id: 'r1', nome: 'Espelho', ativa: true, reflexo: { modo: 'devolver', mult: 100, automatico: true } }] };
     const minhaFicha = { poderes: [], inventario: [], passivas: [], ataquesElementais: [], hierarquia: {}, combate: {}, iniciativa: 10, vida: stat(5000000), ...(escudos ? { escudos } : {}) };
     mockState = {
-        minhaFicha, meuNome: 'Heroi', personagens: { Ana: ana }, dummies: {}, alvoSelecionado: 'pj:Ana',
+        minhaFicha, meuNome: 'Heroi', personagens: { Ana: ana }, alvoSelecionado: 'pj:Ana',
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
         setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque', feedCombate: [],
         ignorarTravaAcerto: false, setIgnorarTravaAcerto: vi.fn(), cenario: { zonas: [] },

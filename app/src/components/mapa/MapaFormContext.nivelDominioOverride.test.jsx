@@ -3,7 +3,7 @@ import { render, cleanup, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaFormProvider, useMapaForm } from './MapaFormContext';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, enviarParaFeed, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto } from '../../services/firebase-sync';
 
 // ---------------------------------------------------------------------------
 // QA — aplicarDanoRapido(): 4º parâmetro `nivelDominioOverride` (override de Domínio
@@ -11,7 +11,7 @@ import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, aplicarDanoDireto,
 //
 // MapaFormContext.elementoAutoDano.test.jsx já cobre o branch AUTO pro campo IRMÃO
 // combate.ultimoElementoRecebido — este arquivo cobre o threading do NOVO 4º
-// parâmetro nos 3 branches (dummie: ignorado por completo; self/AUTO: grava
+// parâmetro nos 3 branches (self/AUTO: grava
 // ultimoElementoRecebidoNivel no draft local; outro jogador: chama
 // aplicarElementoNivelDireto cross-player). Mesmo padrão de mock/fixture de
 // MapaFormContext.elementoAutoDano.test.jsx / .descansarDanoRapido.test.jsx.
@@ -24,7 +24,6 @@ vi.mock('../../stores/useStore', () => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
@@ -72,7 +71,6 @@ function baseState(overrides = {}) {
         feedCombate: [],
         isMestre: true,
         mesaCriador: 'Mestre',
-        dummies: {},
         alvoSelecionado: null,
         abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
@@ -101,7 +99,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch AUTO/self grava combat
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 10, 'Fogo', 7); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 10, 'Fogo', 7); });
 
         expect(minhaFicha.combate.ultimoElementoRecebido).toBe('Fogo');
         expect(minhaFicha.combate.ultimoElementoRecebidoNivel).toBe(7);
@@ -113,7 +111,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch AUTO/self grava combat
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 10, 'Fogo', 0); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 10, 'Fogo', 0); });
 
         expect(minhaFicha.combate.ultimoElementoRecebidoNivel).toBe(0);
     });
@@ -123,7 +121,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch AUTO/self grava combat
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 10, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 10, 'Fogo'); });
 
         expect(minhaFicha.combate.ultimoElementoRecebidoNivel).toBe(null);
     });
@@ -133,7 +131,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch AUTO/self grava combat
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 10, 'Fogo', ''); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 10, 'Fogo', ''); });
 
         expect(minhaFicha.combate.ultimoElementoRecebidoNivel).toBe(null);
     });
@@ -143,10 +141,10 @@ describe('MapaFormContext — aplicarDanoRapido(): branch AUTO/self grava combat
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 10, 'Fogo', 7); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 10, 'Fogo', 7); });
         expect(minhaFicha.combate.ultimoElementoRecebidoNivel).toBe(7);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 10, 'Gelo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 10, 'Gelo'); });
         expect(minhaFicha.combate.ultimoElementoRecebidoNivel).toBe(null);
     });
 
@@ -154,7 +152,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch AUTO/self grava combat
         const minhaFichaComOverride = fichaVidaLimpa();
         const stateComOverride = baseState({ minhaFicha: minhaFichaComOverride, updateFicha: vi.fn((callback) => callback(minhaFichaComOverride)) });
         montarComEstado(stateComOverride);
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFichaComOverride, isDummie: false }, 300000, 'Fogo', 10); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFichaComOverride }, 300000, 'Fogo', 10); });
         const fadigaComOverride = minhaFichaComOverride.combate.fadigaExtra;
 
         cleanup();
@@ -163,7 +161,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch AUTO/self grava combat
         const minhaFichaSemOverride = fichaVidaLimpa();
         const stateSemOverride = baseState({ minhaFicha: minhaFichaSemOverride, updateFicha: vi.fn((callback) => callback(minhaFichaSemOverride)) });
         montarComEstado(stateSemOverride);
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFichaSemOverride, isDummie: false }, 300000, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFichaSemOverride }, 300000, 'Fogo'); });
         const fadigaSemOverride = minhaFichaSemOverride.combate.fadigaExtra;
 
         expect(fadigaComOverride).toBeLessThan(fadigaSemOverride);
@@ -179,7 +177,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch OUTRO JOGADOR chama ap
         const state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: outroJogador } });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador, isDummie: false }, 10, 'Fogo', 6); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador }, 10, 'Fogo', 6); });
 
         expect(aplicarElementoDireto).toHaveBeenCalledWith('Vilao', 'Fogo');
         expect(aplicarElementoNivelDireto).toHaveBeenCalledWith('Vilao', 6);
@@ -190,7 +188,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch OUTRO JOGADOR chama ap
         const state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: outroJogador } });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador, isDummie: false }, 10, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador }, 10, 'Fogo'); });
 
         expect(aplicarElementoNivelDireto).toHaveBeenCalledWith('Vilao', null);
     });
@@ -200,7 +198,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch OUTRO JOGADOR chama ap
         const state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: outroJogador } });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador, isDummie: false }, 10, 'Fogo', 0); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador }, 10, 'Fogo', 0); });
 
         expect(aplicarElementoNivelDireto).toHaveBeenCalledWith('Vilao', 0);
     });
@@ -209,7 +207,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch OUTRO JOGADOR chama ap
         const alvoComOverride = fichaVidaLimpa();
         let state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: alvoComOverride } });
         montarComEstado(state);
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoComOverride, isDummie: false }, 300000, 'Fogo', 10); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoComOverride }, 300000, 'Fogo', 10); });
         const fadigaComOverride = aplicarFadigaDireta.mock.calls[0][1];
 
         cleanup();
@@ -218,31 +216,9 @@ describe('MapaFormContext — aplicarDanoRapido(): branch OUTRO JOGADOR chama ap
         const alvoSemOverride = fichaVidaLimpa();
         state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: alvoSemOverride } });
         montarComEstado(state);
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoSemOverride, isDummie: false }, 300000, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoSemOverride }, 300000, 'Fogo'); });
         const fadigaSemOverride = aplicarFadigaDireta.mock.calls[0][1];
 
         expect(fadigaComOverride).toBeLessThan(fadigaSemOverride);
-    });
-});
-
-describe('MapaFormContext — aplicarDanoRapido(): branch DUMMIE ignora nivelDominioOverride por completo (dummies não têm Resistência Elemental)', () => {
-    beforeEach(() => { vi.clearAllMocks(); });
-    afterEach(() => cleanup());
-
-    it('aplicar dano com elemento+override num dummie nunca chama aplicarElementoNivelDireto/aplicarElementoDireto, e salvarDummie não grava nenhum campo de combate', () => {
-        // 🔥 hpAtual bruto em escala realista (500.000) — o antigo "50" clamparia pra 0 depois da
-        // correção de escala de aplicarDanoRapido (FATOR_EXIBICAO_VITAIS).
-        const state = baseState({ isMestre: true, dummies: { goblin: { nome: 'Goblin', hpAtual: 500000, cenaId: 'default' } } });
-        montarComEstado(state);
-
-        act(() => { probe.aplicarDanoRapido({ id: 'goblin', nome: 'Goblin', ficha: state.dummies.goblin, isDummie: true }, 15, 'Fogo', 8); });
-
-        expect(salvarDummie).toHaveBeenCalledTimes(1);
-        const dadosSalvos = salvarDummie.mock.calls[0][1];
-        // 15 (dano exibido) * FATOR_EXIBICAO_VITAIS (1000) = 15.000 bruto subtraídos de 500.000.
-        expect(dadosSalvos.hpAtual).toBe(485000); // 500000 - 15*1000
-        expect(dadosSalvos.combate).toBeUndefined();
-        expect(aplicarElementoNivelDireto).not.toHaveBeenCalled();
-        expect(aplicarElementoDireto).not.toHaveBeenCalled();
     });
 });

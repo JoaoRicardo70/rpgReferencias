@@ -198,10 +198,10 @@ const useStore = create(
         // Importador de IA do Livro dos Poderes (core/transcricaoIA.js > chaveImportadorIA): texto colado, prévia e partes que falharam; só em memória.
         importadoresIA: {},
         formaEditandoId: null, poderEditandoId: null, itemEditandoId: null, elemEditandoId: null, personagemParaDeletar: '',
-        dummies: {}, alvoSelecionado: null, atorCombate: null, livroEntidadeMapa: null, livroMapaOpcoes: null,
+        alvoSelecionado: null, atorCombate: null, livroEntidadeMapa: null, livroMapaOpcoes: null,
         // ⏱️ Avisos curtos (toasts) sobre Ações/Reações: [{ id, texto, tipo: 'info' | 'alerta' }]; somem sozinhos (components/combate/AvisosAcao.jsx).
         avisosAcao: [],
-        // 👁️ Personagem inspecionado na moldura do Mapa: { tipo: 'jogador' | 'dummie', id } ou null.
+        // 👁️ Personagem inspecionado na moldura do Mapa: { tipo: 'jogador', id } ou null.
         entidadeInspecionada: null,
         
         ignorarTravaAcerto: false,
@@ -291,7 +291,7 @@ const useStore = create(
         removerAviso: (id) => set((state) => { state.avisosAcao = state.avisosAcao.filter(a => a.id !== id); }),
         limparFeedStore: () => set(state => { state.feedCombate = []; state.feedDescartados = 0; }),
         setAlvoSelecionado: (id) => set((state) => { state.alvoSelecionado = id; }),
-        // 🎭 Ator de combate do Mestre (core/atorCombate.js): { nome, dummieId? } do NPC em que ele está atuando, ou null.
+        // 🎭 Ator de combate do Mestre (core/atorCombate.js): { nome } do NPC em que ele está atuando, ou null.
         setAtorCombate: (ator) => set((state) => { state.atorCombate = ator || null; }),
         // 📖 Ficha (Livro da entidade) aberta pelo Mapa, pelo acesso rápido do Mestre: nome da ficha ou null.
         setLivroEntidadeMapa: (nome) => set((state) => { state.livroEntidadeMapa = nome || null; state.livroMapaOpcoes = null; state.fichaPaginaPedida = null; }),

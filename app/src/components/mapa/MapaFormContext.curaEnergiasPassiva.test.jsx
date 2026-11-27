@@ -14,7 +14,6 @@ vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
@@ -57,11 +56,10 @@ function estado(minha, extra = {}) {
         feedCombate: [],
         isMestre: false,
         mesaCriador: '',
-        dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         alvoSelecionado: null,
         abaAtiva: 'mapa',
         cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
-        ...extra
+        ...extra, personagens: { ...(extra && extra.semFiller ? {} : { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } }), ...((extra && extra.personagens) || {}) }
     };
 }
 
@@ -213,12 +211,12 @@ describe('MapaFormContext: cura passiva de energias no inicio do turno', () => {
         const teto = getTetoExibidoComFator('mana', outro);
         outro.mana.atual = 0;
         const minha = ficha();
-        const state = estado(minha, { personagens: { Vilao: outro }, dummies: {} });
+        const state = estado(minha, { semFiller: true, personagens: { Vilao: outro } });
         minha.iniciativa = 20;
         montar(state);
         passarTurno();
         expect(state.updateFicha).not.toHaveBeenCalled();
-        const [nome, campos] = firebaseSync.salvarCamposPersonagem.mock.calls[0];
+        const [nome, campos] = firebaseSync.salvarCamposPersonagem.mock.calls.find(c => c[0] === 'Vilao');
         expect(nome).toBe('Vilao');
         expect(campos['mana/atual']).toBeCloseTo(teto * 0.10, 5);
         expect(campos['aura/atual']).toBe(0);
@@ -228,12 +226,4 @@ describe('MapaFormContext: cura passiva de energias no inicio do turno', () => {
         expect(t).toContain('mana +');
     });
 
-    it('dummie (NPC) nao recebe cura passiva de energia', () => {
-        const minha = ficha();
-        minha.iniciativa = 20;
-        const state = estado(minha, { isMestre: true, dummies: { gob: { nome: 'Goblin', iniciativa: 10, posicao: { x: 1, y: 1, z: 0 }, poderes: [passivoEnergia({ mana: 10 })], mana: energia(), vida: energia({ atual: 1 }) } } });
-        montar(state);
-        passarTurno();
-        expect(textosFeed().some(t => t.includes('se cura'))).toBe(false);
-    });
 });

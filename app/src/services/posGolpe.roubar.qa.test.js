@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('./firebase-sync', () => ({ salvarCamposPersonagem: vi.fn(), salvarDummie: vi.fn() }));
+vi.mock('./firebase-sync', () => ({ salvarCamposPersonagem: vi.fn() }));
 
 import { criarPosGolpe } from './posGolpe';
 import useStore from '../stores/useStore';
@@ -33,7 +33,7 @@ describe('posGolpe - roubar', () => {
         p.aplicar('pj:X', pers('X', 100000), 0);
         expect('roubado' in p.resultado()).toBe(false);
     });
-    it('dummie (sem ficha) nao rouba', () => {
+    it('alvo sem ficha nao rouba', () => {
         const p = criarPosGolpe({ aoAcertar: [dreno({ roubar: true })], nomeAtacante: 'A' });
         p.aplicar('d1', { isPersonagem: false, nome: 'Boneco', vida: 100 }, 5);
         expect('roubado' in p.resultado()).toBe(false);

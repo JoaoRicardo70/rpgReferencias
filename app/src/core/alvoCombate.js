@@ -1,11 +1,10 @@
 // ==========================================
 // 🎯 ALVO DE COMBATE — quem pode ser atingido pelo Ataque/Acerto de quem está logado.
-// Antes só dava pra mirar num Dummie (entidade de combate do Mapa). Agora também dá pra mirar
-// num PERSONAGEM de verdade (outro jogador ou NPC com ficha própria): o alvoSelecionado do store
-// guarda 'pj:<nome>' e este módulo monta, a partir da ficha dele, um objeto com o MESMO formato
-// do Dummie (nome, hpAtual/hpMax brutos, valorDefesa, poderCalculado, posicao...) — assim o
-// cálculo de acerto, a Disputa de Poder e o dano proporcional à Vida funcionam igual pros dois.
-// A diferença: o personagem tem Reduções/Resistências/Domínio na ficha, aplicados em sequência
+// Dá pra mirar num PERSONAGEM de verdade (outro jogador ou NPC com ficha própria): o alvoSelecionado
+// do store guarda 'pj:<nome>' e este módulo monta, a partir da ficha dele, um objeto de alvo
+// (nome, hpAtual/hpMax brutos, valorDefesa, poderCalculado, posicao...) — assim o cálculo de acerto,
+// a Disputa de Poder e o dano proporcional à Vida usam sempre o mesmo formato.
+// O personagem tem Reduções/Resistências/Domínio na ficha, aplicados em sequência
 // sobre o dano (core/reducaoDano.js), e a Vida é gravada na ficha dele (services/danoAlvo.js).
 // ==========================================
 import { calcularCA } from './engine.js';
@@ -15,7 +14,6 @@ import { getVidaMaxBrutaNpc } from './gavetaNpc.js';
 import { getPassosReducaoDano, aplicarReducoesSequenciais, descreverReducoes, ehDanoVerdadeiro, TEXTO_DANO_VERDADEIRO } from './reducaoDano.js';
 import { getNivelDominio, calcularReducaoDanoElemental } from './dominios.js';
 import { ehNpc, getTipoPersonagem, TIPO_JOGADOR } from './tipoPersonagem.js';
-import { modificadorDeDefesaContraInimigos } from './efeitosCondicionais.js';
 
 export const PREFIXO_ALVO_PERSONAGEM = 'pj:';
 
@@ -31,7 +29,7 @@ export function nomeAlvoPersonagem(id) {
     return ehAlvoPersonagem(id) ? id.slice(PREFIXO_ALVO_PERSONAGEM.length) : null;
 }
 
-// Alvo "Dummie-like" a partir da ficha de um personagem. Defesa = a maior entre Evasiva e Resistência
+// Alvo a partir da ficha de um personagem. Defesa = a maior entre Evasiva e Resistência
 // (mesma regra da Gaveta de NPCs). Devolve null sem ficha.
 export function montarAlvoPersonagem(nome, ficha, divisorPoderMesa) {
     if (!ficha) return null;
@@ -60,15 +58,10 @@ export function montarAlvoPersonagem(nome, ficha, divisorPoderMesa) {
     };
 }
 
-// ☠️ CA que vale no acerto contra o alvo: para NPC/Dummie (CA fixa em `valorDefesa`) soma o modificador de defesa dos efeitos `valeParaInimigos` ativos na cena
-// (core/efeitosDeInimigos.js; <= 0, nunca abaixo de 0 no total). Alvo-personagem já traz a CA calculada com esses efeitos (calcularCA), então vem como está.
-export function defesaEfetivaDoDummie(alvo) {
+// CA que vale no acerto contra o alvo. O alvo-personagem já traz a CA calculada com os efeitos `valeParaInimigos` (calcularCA), então vem como está.
+export function defesaEfetivaDoAlvo(alvo) {
     if (!alvo) return 0;
-    const base = Number(alvo.valorDefesa);
-    if (alvo.isPersonagem) return base;
-    if (!Number.isFinite(base)) return base;
-    const mod = modificadorDeDefesaContraInimigos(alvo);
-    return mod < 0 ? Math.max(0, base + mod) : base;
+    return Number(alvo.valorDefesa);
 }
 
 // 🛡️ Regra de PvP: um JOGADOR só causa dano a outro JOGADOR durante um combate (os dois na ordem de
@@ -83,10 +76,10 @@ export function motivoBloqueioAlvo({ fichaAtor, atorEhMestre = false, alvo }) {
     return 'Jogadores só podem atacar outros jogadores durante um combate (os dois precisam estar na ordem de iniciativa).';
 }
 
-// Resolve o alvoSelecionado (id de Dummie ou 'pj:<nome>') no objeto do alvo, ou null. Nunca devolve
+// Resolve o alvoSelecionado ('pj:<nome>') no objeto do alvo, ou null. Nunca devolve
 // o próprio jogador logado (não dá pra mirar em si mesmo). Com `fichaAtor`, um alvo-personagem que
 // a regra de PvP não permite vem com `bloqueado` (texto do motivo): quem dispara o golpe deve parar.
-export function resolverAlvoCombate(idAlvo, { dummies, personagens, meuNome, divisorPoderMesa, fichaAtor, atorEhMestre } = {}) {
+export function resolverAlvoCombate(idAlvo, { personagens, meuNome, divisorPoderMesa, fichaAtor, atorEhMestre } = {}) {
     if (!idAlvo) return null;
     if (ehAlvoPersonagem(idAlvo)) {
         const nome = nomeAlvoPersonagem(idAlvo);
@@ -96,11 +89,11 @@ export function resolverAlvoCombate(idAlvo, { dummies, personagens, meuNome, div
         const bloqueado = motivoBloqueioAlvo({ fichaAtor, atorEhMestre, alvo });
         return bloqueado ? { ...alvo, bloqueado } : alvo;
     }
-    return (dummies && dummies[idAlvo]) || null;
+    return null;
 }
 
 // Reduções/Resistências do PERSONAGEM atingido (ficha) + Domínio elemental, em sequência.
-// Dummie (ou sem redução nenhuma) devolve o dano como veio. nivelAtacante = Domínio de quem golpeou.
+// Sem redução nenhuma devolve o dano como veio. nivelAtacante = Domínio de quem golpeou.
 export function reduzirDanoNoAlvo(alvo, dano, elemento, { nivelAtacante = 0, nivelDefensorOverride = null, verdadeiro = false, tipoGolpe = '' } = {}) {
     const inicial = Math.max(0, Number(dano) || 0);
     if (ehDanoVerdadeiro(verdadeiro)) return { final: inicial, detalhe: [], texto: TEXTO_DANO_VERDADEIRO };

@@ -116,51 +116,35 @@ describe('dispararResultadoDoAcerto (errou / inimigoErrou)', () => {
     });
     it('errou so quando TODOS os alvos escaparam; um acerto no meio cancela', () => {
         const f = ficha([errou()]); montar(f);
-        dispararResultadoDoAcerto([{ nome: 'G', acertou: false, dummieId: 'g1' }, { nome: 'H', acertou: true, dummieId: 'g2' }], { atacanteSouEu: true, nomeAtacante: 'Eu' });
+        dispararResultadoDoAcerto([{ nome: 'G', acertou: false, alvoId: 'g1' }, { nome: 'H', acertou: true, alvoId: 'g2' }], { atacanteSouEu: true, nomeAtacante: 'Eu' });
         expect(f.contadores[0].valor).toBe(0);
-        dispararResultadoDoAcerto([{ nome: 'G', acertou: false, dummieId: 'g1' }, { nome: 'H', acertou: false, dummieId: 'g2' }], { atacanteSouEu: true, nomeAtacante: 'Eu' });
+        dispararResultadoDoAcerto([{ nome: 'G', acertou: false, alvoId: 'g1' }, { nome: 'H', acertou: false, alvoId: 'g2' }], { atacanteSouEu: true, nomeAtacante: 'Eu' });
         expect(f.contadores[0].valor).toBe(1);
     });
     it('Mestre agindo por NPC (atacanteSouEu:false) nao dispara errou na propria ficha', () => {
         const f = ficha([errou()]); montar(f);
-        dispararResultadoDoAcerto([{ nome: 'G', acertou: false, dummieId: 'g1' }], { atacanteSouEu: false, nomeAtacante: 'Goblin' });
+        dispararResultadoDoAcerto([{ nome: 'G', acertou: false, alvoId: 'g1' }], { atacanteSouEu: false, nomeAtacante: 'Goblin' });
         expect(f.contadores[0].valor).toBe(0);
     });
     it('inimigoErrou: dispara em cada alvo-personagem que escapou (pj:Nome), com o nome na frase, gravando na ficha dele', () => {
         const ana = ficha([contra()]); const bia = ficha([contra()]); montar(ficha(), { Ana: ana, Bia: bia });
-        const t = dispararResultadoDoAcerto([{ nome: 'Ana', acertou: false, dummieId: 'pj:Ana' }, { nome: 'Bia', acertou: true, dummieId: 'pj:Bia' }], { atacanteSouEu: true, nomeAtacante: 'Eu' });
+        const t = dispararResultadoDoAcerto([{ nome: 'Ana', acertou: false, alvoId: 'pj:Ana' }, { nome: 'Bia', acertou: true, alvoId: 'pj:Bia' }], { atacanteSouEu: true, nomeAtacante: 'Eu' });
         expect(t).toEqual(['Ana: Contra: Contra-ataque!']);
     });
-    it('inimigoErrou em Dummie (id g1) nao dispara; alvo = o proprio atacante nao dispara', () => {
+    it('inimigoErrou em alvo que nao e personagem (id g1) nao dispara; alvo = o proprio atacante nao dispara', () => {
         const eu = ficha([contra()]); montar(eu);
-        const t = dispararResultadoDoAcerto([{ nome: 'Goblin', acertou: false, dummieId: 'g1' }], { atacanteSouEu: true, nomeAtacante: 'Eu' });
+        const t = dispararResultadoDoAcerto([{ nome: 'Goblin', acertou: false, alvoId: 'g1' }], { atacanteSouEu: true, nomeAtacante: 'Eu' });
         expect(t).toEqual([]);
-        const t2 = dispararResultadoDoAcerto([{ nome: 'Eu', acertou: false, dummieId: 'pj:Eu' }], { atacanteSouEu: true, nomeAtacante: 'Eu' });
+        const t2 = dispararResultadoDoAcerto([{ nome: 'Eu', acertou: false, alvoId: 'pj:Eu' }], { atacanteSouEu: true, nomeAtacante: 'Eu' });
         expect(t2).toEqual([]);
     });
-    it('alvo sem dummieId resolvido por nome: so se o nome e de um personagem conhecido', () => {
+    it('alvo sem alvoId e resolvido por nome: so se o nome e de um personagem conhecido', () => {
         const ana = ficha([contra()]); montar(ficha(), { Ana: ana });
         expect(dispararResultadoDoAcerto([{ nome: 'Ana', acertou: false }], { atacanteSouEu: false, nomeAtacante: 'Mestre' })).toEqual(['Ana: Contra: Contra-ataque!']);
         expect(dispararResultadoDoAcerto([{ nome: 'Zumbi', acertou: false }], { atacanteSouEu: false, nomeAtacante: 'Mestre' })).toEqual([]);
     });
     it('alvo desconhecido (pj:Fantasma) nao quebra', () => {
         montar(ficha(), {});
-        expect(dispararResultadoDoAcerto([{ nome: 'F', acertou: false, dummieId: 'pj:Fantasma' }], { atacanteSouEu: false })).toEqual([]);
-    });
-    // BUG CONHECIDO (baixa probabilidade): a resolucao por nome ignora o dummieId; um Dummie com o mesmo nome de um jogador aciona o gatilho do jogador.
-    it('Dummie de nome igual a um jogador, com id proprio, NAO deve acionar o gatilho do jogador', () => {
-        const ana = ficha([contra()]); montar(ficha(), { Ana: ana });
-        // Dummie "Ana" (id d9) escapou: o evento so deve ir para o personagem se o alvo FOR o personagem (id pj:Ana).
-        const t = dispararResultadoDoAcerto([{ nome: 'Ana', acertou: false, dummieId: 'd9' }], { atacanteSouEu: false, nomeAtacante: 'Mestre' });
-        expect(t).toEqual([]);
-    });
-});
-
-describe('dispararResultadoDoAcerto - Dummie homonimo vs pj:Nome', () => {
-    it('Dummie "Ana" nao aciona o jogador Ana; o alvo pj:Ana aciona', () => {
-        const ana = ficha([G({ id: 'g1', nome: 'Contra', evento: { tipo: 'inimigoErrou' }, acoes: [{ tipo: 'mensagem', texto: 'ok' }] })]); montar(ficha(), { Ana: ana });
-        const o = { atacanteSouEu: false, nomeAtacante: 'Mestre' };
-        expect(dispararResultadoDoAcerto([{ nome: 'Ana', acertou: false, dummieId: 'd9' }], o)).toEqual([]);
-        expect(dispararResultadoDoAcerto([{ nome: 'Ana', acertou: false, dummieId: 'pj:Ana' }], o)).toEqual(['Ana: Contra: ok']);
+        expect(dispararResultadoDoAcerto([{ nome: 'F', acertou: false, alvoId: 'pj:Fantasma' }], { atacanteSouEu: false })).toEqual([]);
     });
 });

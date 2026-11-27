@@ -12,7 +12,6 @@ vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
@@ -41,7 +40,7 @@ function baseState(overrides = {}) {
     return {
         minhaFicha, meuNome: 'Heroi', personagens: {},
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
-        feedCombate: [], isMestre: false, mesaCriador: '', dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa',
+        feedCombate: [], isMestre: false, mesaCriador: '', alvoSelecionado: null, abaAtiva: 'mapa',
         cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
         ...overrides,
     };
@@ -60,13 +59,13 @@ describe('aplicarInicioDeTurno: Adaptação', () => {
     const ctx = (mult) => ({ oponente: { nome: 'Rival', poder: poderBase() * mult }, divisorPoderMesa: 1 });
     it('desligada: não registra nada', () => {
         const f = ficha({}, { adaptacaoLigada: false });
-        const r = aplicarInicioDeTurno(f, false, 'Heroi', ctx(1.1));
+        const r = aplicarInicioDeTurno(f, 'Heroi', ctx(1.1));
         expect(f.combate.adaptacaoTurnos).toBeUndefined();
         expect(r.adaptacao).toBe('');
     });
     it('ligada com oponente 10% mais forte e fração 50: +5% e fator x1,05', () => {
         const f = ficha({}, { adaptacaoLigada: true, adaptacaoFracao: 50 });
-        const r = aplicarInicioDeTurno(f, false, 'Heroi', ctx(1.1));
+        const r = aplicarInicioDeTurno(f, 'Heroi', ctx(1.1));
         expect(f.combate.adaptacaoFator).toBeCloseTo(1.05, 6);
         expect(f.combate.adaptacaoTurnos).toBe(1);
         expect(r.adaptacao).toContain('Adaptação');
@@ -74,18 +73,13 @@ describe('aplicarInicioDeTurno: Adaptação', () => {
     });
     it('sem contexto/oponente: não registra e não quebra', () => {
         const f = ficha({}, { adaptacaoLigada: true });
-        expect(() => aplicarInicioDeTurno(f, false, 'Heroi', null)).not.toThrow();
-        expect(() => aplicarInicioDeTurno(f, false, 'Heroi', { oponente: null })).not.toThrow();
-        expect(f.combate.adaptacaoTurnos).toBeUndefined();
-    });
-    it('dummie não adapta', () => {
-        const f = ficha({}, { adaptacaoLigada: true });
-        aplicarInicioDeTurno(f, true, 'Goblin', ctx(2));
+        expect(() => aplicarInicioDeTurno(f, 'Heroi', null)).not.toThrow();
+        expect(() => aplicarInicioDeTurno(f, 'Heroi', { oponente: null })).not.toThrow();
         expect(f.combate.adaptacaoTurnos).toBeUndefined();
     });
     it('ficha antiga (campos legados) é ignorada', () => {
         const f = ficha({}, { municoAuto: true, municoTurnos: 3, municoPorTurno: 5 });
-        expect(() => aplicarInicioDeTurno(f, false, 'Heroi', ctx(2))).not.toThrow();
+        expect(() => aplicarInicioDeTurno(f, 'Heroi', ctx(2))).not.toThrow();
         expect(f.combate.municoTurnos).toBe(3);
         expect(f.combate.adaptacaoTurnos).toBeUndefined();
     });
@@ -93,26 +87,10 @@ describe('aplicarInicioDeTurno: Adaptação', () => {
 
 describe('avancarTurno: quem recebe o turno', () => {
     const comRival = (extraCombate = {}) => {
-        const state = baseState({ dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 }, poderCalculado: poderBase() * 1.2 } } });
+        const state = baseState({ personagens: { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } } });
         state.minhaFicha.iniciativa = 10; Object.assign(state.minhaFicha.combate, { adaptacaoLigada: true, ...extraCombate });
         return state;
     };
-    it('o turno chega para MIM: mede contra a entidade com Poder definido (+20% x 50% = +10%)', () => {
-        const state = comRival();
-        montar(state);
-        act(() => { probe.avancarTurno(); });
-        expect(state.minhaFicha.combate.adaptacaoTurnos).toBe(1);
-        expect(state.minhaFicha.combate.adaptacaoFator).toBeCloseTo(1.1, 4);
-        expect(state.minhaFicha.combate.adaptacaoUltimo.oponenteNome).toBe('Filler');
-        expect(firebaseSync.enviarParaFeed.mock.calls.some(([m]) => /Adaptação/.test(m.texto))).toBe(true);
-    });
-    it('oponente sem Poder definido é ignorado: nada registrado', () => {
-        const state = comRival();
-        delete state.dummies.filler.poderCalculado;
-        montar(state);
-        act(() => { probe.avancarTurno(); });
-        expect(state.minhaFicha.combate.adaptacaoTurnos).toBeUndefined();
-    });
     it('desligada: não muda', () => {
         const state = comRival({ adaptacaoLigada: false });
         montar(state);

@@ -7,7 +7,7 @@ import ComboPrompt from '../combos/ComboPrompt';
 import useStore from '../../stores/useStore';
 import { enviarParaFeed } from '../../services/firebase-sync';
 
-// QA - Avisos de Reação e de Combo no "Atuar como" do Mestre: olham a ficha do NPC e o nome do token no feed.
+// QA - Avisos de Reação e de Combo no "Atuar como" do Mestre: olham a ficha do NPC e o nome do NPC no feed.
 vi.mock('../../stores/useStore', async (importOriginal) => {
     const actual = await importOriginal();
     return { ...actual, default: vi.fn() };
@@ -29,7 +29,7 @@ function montar({ feed = [], atorCombate = null, poderes = [], combos = [] } = {
     fichaMestre = { poderes: [], ataquesElementais: [], acoes: acoes(2), combate: {} };
     state = {
         feedCombate: feed, meuNome: 'claudio', minhaFicha: fichaMestre, isMestre: true, atorCombate,
-        personagens: { Rappa: fichaNpc, claudio: fichaMestre }, dummies: { d1: { nome: 'Rappa #2', fichaOrigem: 'Rappa', cenaId: 'c' } }, cenario: {},
+        personagens: { Rappa: fichaNpc, claudio: fichaMestre }, cenario: {},
         updateFicha: vi.fn((cb) => cb(fichaMestre)), updateFichaAlvo: vi.fn((nome, cb) => cb(fichaNpc)),
         adicionarAviso: vi.fn(),
     };
@@ -43,58 +43,58 @@ beforeEach(() => { vi.clearAllMocks(); });
 afterEach(() => cleanup());
 
 describe('Avisos no "Atuar como" — Reação', () => {
-    it('atuando como o token "Rappa #2": acerto contra o token abre o aviso, com o nome do token', () => {
-        montar({ feed: [acertoContra('Rappa #2')], atorCombate: { nome: 'Rappa', dummieId: 'd1' }, poderes: [assassin] });
+    it('atuando como o NPC "Rappa": acerto contra o NPC abre o aviso, com o nome do NPC', () => {
+        montar({ feed: [acertoContra('Rappa')], atorCombate: { nome: 'Rappa' }, poderes: [assassin] });
         expect(dialogo()).not.toBeNull();
-        expect(screen.getByText(/Lohen atacou Rappa #2 e ACERTOU/)).toBeTruthy();
+        expect(screen.getByText(/Lohen atacou Rappa e ACERTOU/)).toBeTruthy();
         expect(screen.getByText('Postura Defensiva')).toBeTruthy();
     });
 
-    it('sem ator ativo, o acerto contra o token não abre nada (como era)', () => {
-        montar({ feed: [acertoContra('Rappa #2')], atorCombate: null, poderes: [assassin] });
+    it('sem ator ativo, o acerto contra o NPC não abre nada (como era)', () => {
+        montar({ feed: [acertoContra('Rappa')], atorCombate: null, poderes: [assassin] });
         expect(dialogo()).toBeNull();
     });
 
     it('acerto contra OUTRO alvo não abre', () => {
-        montar({ feed: [acertoContra('Rappa #3')], atorCombate: { nome: 'Rappa', dummieId: 'd1' }, poderes: [assassin] });
+        montar({ feed: [acertoContra('Outro')], atorCombate: { nome: 'Rappa' }, poderes: [assassin] });
         expect(dialogo()).toBeNull();
     });
 
-    it('reagir grava na ficha do NPC (não na do Mestre) e avisa o feed com o nome do token', () => {
-        montar({ feed: [acertoContra('Rappa #2')], atorCombate: { nome: 'Rappa', dummieId: 'd1' }, poderes: [assassin] });
+    it('reagir grava na ficha do NPC (não na do Mestre) e avisa o feed com o nome do NPC', () => {
+        montar({ feed: [acertoContra('Rappa')], atorCombate: { nome: 'Rappa' }, poderes: [assassin] });
         fireEvent.click(screen.getByText('Postura Defensiva'));
         fireEvent.click(screen.getByText(/REAGIR/));
         expect(state.updateFichaAlvo).toHaveBeenCalled();
         expect(state.updateFicha).not.toHaveBeenCalled();
         expect(fichaNpc.combate.reacoesPendentes).toHaveLength(1);
         expect(fichaNpc.acoes.reacao.atual).toBe(1);
-        expect(enviarParaFeed).toHaveBeenCalledWith(expect.objectContaining({ nome: 'Rappa #2', texto: expect.stringContaining('Rappa #2 usou') }));
+        expect(enviarParaFeed).toHaveBeenCalledWith(expect.objectContaining({ nome: 'Rappa', texto: expect.stringContaining('Rappa usou') }));
     });
 
     it('a Deflexão não é oferecida ao ator (fica só para jogadores)', () => {
-        montar({ feed: [acertoContra('Rappa #2', { alvosArea: [{ nome: 'Rappa #2', acertou: false }] })], atorCombate: { nome: 'Rappa', dummieId: 'd1' }, poderes: [deflexao] });
+        montar({ feed: [acertoContra('Rappa', { alvosArea: [{ nome: 'Rappa', acertou: false }] })], atorCombate: { nome: 'Rappa' }, poderes: [deflexao] });
         expect(dialogo()).toBeNull();
     });
 });
 
 describe('Avisos no "Atuar como" — Combo', () => {
-    it('golpe do token que acerta abre o aviso de Combo da ficha do NPC', () => {
-        montar({ feed: [{ tipo: 'acerto', nome: 'Rappa #2', ts: Date.now(), alvosArea: [{ nome: 'Lohen', acertou: true }] }], atorCombate: { nome: 'Rappa', dummieId: 'd1' }, combos: [combo] });
+    it('golpe do NPC que acerta abre o aviso de Combo da ficha do NPC', () => {
+        montar({ feed: [{ tipo: 'acerto', nome: 'Rappa', ts: Date.now(), alvosArea: [{ nome: 'Lohen', acertou: true }] }], atorCombate: { nome: 'Rappa' }, combos: [combo] });
         expect(dialogo()).not.toBeNull();
         expect(screen.getByText(/Iniciar o Combo "Rajada" com Soco/)).toBeTruthy();
     });
 
     it('sem ator ativo o Mestre não é consultado', () => {
-        montar({ feed: [{ tipo: 'acerto', nome: 'Rappa #2', ts: Date.now(), alvosArea: [{ nome: 'Lohen', acertou: true }] }], atorCombate: null, combos: [combo] });
+        montar({ feed: [{ tipo: 'acerto', nome: 'Rappa', ts: Date.now(), alvosArea: [{ nome: 'Lohen', acertou: true }] }], atorCombate: null, combos: [combo] });
         expect(dialogo()).toBeNull();
     });
 
-    it('confirmar grava o estado do Combo na ficha do NPC e posta no feed com o nome do token', () => {
-        montar({ feed: [{ tipo: 'acerto', nome: 'Rappa #2', ts: Date.now(), alvosArea: [{ nome: 'Lohen', acertou: true }] }], atorCombate: { nome: 'Rappa', dummieId: 'd1' }, combos: [combo] });
+    it('confirmar grava o estado do Combo na ficha do NPC e posta no feed com o nome do NPC', () => {
+        montar({ feed: [{ tipo: 'acerto', nome: 'Rappa', ts: Date.now(), alvosArea: [{ nome: 'Lohen', acertou: true }] }], atorCombate: { nome: 'Rappa' }, combos: [combo] });
         fireEvent.click(screen.getByText(/Iniciar o Combo "Rajada" com Soco/));
         fireEvent.click(screen.getByText(/CONFIRMAR/));
         expect(state.updateFichaAlvo).toHaveBeenCalled();
         expect(state.updateFicha).not.toHaveBeenCalled();
-        expect(enviarParaFeed).toHaveBeenCalledWith(expect.objectContaining({ nome: 'Rappa #2' }));
+        expect(enviarParaFeed).toHaveBeenCalledWith(expect.objectContaining({ nome: 'Rappa' }));
     });
 });

@@ -29,7 +29,7 @@ function montar({ ana, iniciativaEu = 10 }) {
     const state = {
         minhaFicha, meuNome: 'Heroi', personagens: { Ana: ana },
         setAbaAtiva: vi.fn(), updateFicha: vi.fn((cb) => cb(minhaFicha)),
-        alvoSelecionado: 'pj:Ana', dummies: {}, isMestre: false,
+        alvoSelecionado: 'pj:Ana', isMestre: false,
         cenario: { ativa: 'cena_x', lista: { cena_x: { escala: 1.5 } }, zonas: [] },
     };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(state) : state));

@@ -11,7 +11,6 @@ vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
@@ -49,11 +48,10 @@ function estado(minha, extra = {}) {
         feedCombate: [],
         isMestre: false,
         mesaCriador: '',
-        dummies: { filler: { nome: 'Filler', iniciativa: 5, posicao: { x: 5, y: 5, z: 0 } } },
         alvoSelecionado: null,
         abaAtiva: 'mapa',
         cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
-        ...extra
+        ...extra, personagens: { Filler: { nome: 'Filler', iniciativa: 5, posicao: { x: 5, y: 5, z: 0 } }, ...((extra && extra.personagens) || {}) }
     };
 }
 
@@ -91,13 +89,6 @@ describe('QA encerrarDuracaoDeEstados - regressao zero (sem duracaoEstados)', ()
         expect(firebaseSync.salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(outra.condicoes).toEqual([{ id: 'lento', stacks: 1 }]);
     });
-    it('Dummie sem duracaoEstados ou inexistente: nada gravado (mesmo Mestre)', () => {
-        const st = { meuNome: 'Heroi', dummies: { d1: { nome: 'B', condicoes: [{ id: 'lento', stacks: 1 }] } } };
-        expect(encerrarDuracaoDeEstados({ isDummie: true, id: 'd1', nome: 'B' }, st, { isMestre: true })).toEqual([]);
-        expect(encerrarDuracaoDeEstados({ isDummie: true, id: 'zzz', nome: 'B' }, st, { isMestre: true })).toEqual([]);
-        expect(encerrarDuracaoDeEstados({ isDummie: true, id: 'd1', nome: 'B' }, { meuNome: 'Heroi' }, { isMestre: true })).toEqual([]);
-        expect(firebaseSync.salvarDummie).not.toHaveBeenCalled();
-    });
 });
 
 describe('QA encerrarDuracaoDeEstados - bordas com duracao', () => {
@@ -134,15 +125,6 @@ describe('QA encerrarDuracaoDeEstados - bordas com duracao', () => {
         expect(firebaseSync.salvarCamposPersonagem).toHaveBeenCalledTimes(1);
         expect(firebaseSync.salvarCamposPersonagem.mock.calls[0][1].duracaoEstados).toBeNull();
     });
-    it('Dummie: varios expirando e Mestre; no gravado perde condicoes e duracaoEstados', () => {
-        const d = { nome: 'B', condicoes: [{ id: 'lento', stacks: 1 }, { id: 'queimado', stacks: 1 }], duracaoEstados: { lento: 1, queimado: 1 } };
-        const textos = encerrarDuracaoDeEstados({ isDummie: true, id: 'd1', nome: 'B' }, { meuNome: 'Heroi', dummies: { d1: d } }, { isMestre: true });
-        expect(textos).toHaveLength(2);
-        const gravado = firebaseSync.salvarDummie.mock.calls[0][1];
-        expect(gravado.condicoes).toBeUndefined();
-        expect(gravado.duracaoEstados).toBeUndefined();
-        expect(d.condicoes).toHaveLength(2);
-    });
     it('prazo fora de faixa no dado cru (0, negativo, texto) e tratado como permanente/limpo', () => {
         const f = ficha({ condicoes: [{ id: 'lento', stacks: 1 }, { id: 'queimado', stacks: 1 }], duracaoEstados: { lento: 0, queimado: -2 } });
         const textos = encerrarDuracaoDeEstados({ nome: 'Heroi' }, { meuNome: 'Heroi', minhaFicha: f }, { updateFicha: (cb) => cb(f), isMestre: false });
@@ -153,27 +135,6 @@ describe('QA encerrarDuracaoDeEstados - bordas com duracao', () => {
 });
 
 describe('QA avancarTurno - regressao zero e multiplos estados', () => {
-    it('eu sem duracaoEstados, com outros jogadores e Dummie sem prazo: nada de duracao gravado nem aviso', () => {
-        const rival = ficha({ condicoes: [{ id: 'lento', stacks: 1 }] });
-        rival.iniciativa = 8;
-        rival.posicao = { x: 2, y: 2, z: 0 };
-        const minha = ficha({ condicoes: [{ id: 'queimado', stacks: 1 }] });
-        montar(estado(minha, { personagens: { Rival: rival }, isMestre: true }));
-        passarTurno();
-        expect(chamadasComDuracao()).toHaveLength(0);
-        expect(textosFeed().some(t => t.includes('terminou') || t.includes('⏳'))).toBe(false);
-        expect('duracaoEstados' in minha).toBe(false);
-        expect('duracaoEstados' in rival).toBe(false);
-        expect(firebaseSync.salvarDummie.mock.calls.every(c => !('duracaoEstados' in (c[1] || {})))).toBe(true);
-    });
-    it('Dummie no fim do turno sem prazo: salvarDummie nao recebe duracaoEstados', () => {
-        const minha = ficha();
-        const dummies = { d1: { nome: 'Boneco', iniciativa: 20, posicao: { x: 2, y: 2, z: 0 }, condicoes: [{ id: 'lento', stacks: 1 }] } };
-        montar(estado(minha, { dummies, isMestre: true, cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 } }));
-        passarTurno();
-        expect(firebaseSync.salvarDummie.mock.calls.every(c => !('duracaoEstados' in (c[1] || {})))).toBe(true);
-        expect(textosFeed().some(t => t.includes('terminou'))).toBe(false);
-    });
     it('eu com 2 estados expirando: UMA mensagem do sistema lista os dois', () => {
         const f = ficha({ condicoes: [{ id: 'imobilizado', stacks: 1 }, { id: 'criogenia', stacks: 1 }], duracaoEstados: { imobilizado: 1, criogenia: 1 } });
         montar(estado(f));

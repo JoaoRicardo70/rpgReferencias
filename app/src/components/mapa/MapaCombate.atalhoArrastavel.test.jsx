@@ -14,7 +14,7 @@ vi.mock('./MapaFormContext', () => ({ useMapaForm: () => null, urlSeguraParaCss:
 const montar = () => {
     ctx = {
         minhaFicha: { ataqueConfig: { ataquesSalvos: [{ id: 1, nome: 'Combo', config: {} }] } },
-        podeRolarDano: true, ignorarTravaAcerto: false, dummieAlvo: null,
+        podeRolarDano: true, ignorarTravaAcerto: false, alvoAtaque: null,
         rolarAtaqueSalvo: vi.fn(), rolarDanoCustomizado: vi.fn(),
     };
     return render(<MapaAtalhoAtaques />);

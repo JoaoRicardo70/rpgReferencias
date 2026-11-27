@@ -24,11 +24,11 @@ export default function PedidosRacaMestre() {
     const valorDe = (id) => (percentuais[id] === undefined ? String(PERCENTUAL_RACA_ADQUIRIDA_PADRAO) : percentuais[id]);
     const aprovar = useCallback((item) => {
         const v = percentuais[item.pedido.id];
-        const r = aprovarPedidoRaca({ id: item.id, nome: item.nome, isDummie: false }, item.pedido.id, v === undefined || v === '' ? PERCENTUAL_RACA_ADQUIRIDA_PADRAO : Number(v));
+        const r = aprovarPedidoRaca({ id: item.id, nome: item.nome }, item.pedido.id, v === undefined || v === '' ? PERCENTUAL_RACA_ADQUIRIDA_PADRAO : Number(v));
         setMensagem(r.ok ? { ok: true, texto: `Pedido de ${item.nome} aprovado.` } : { ok: false, texto: r.mensagem || 'Não foi possível aprovar.' });
     }, [percentuais]);
     const recusar = useCallback((item) => {
-        const r = recusarPedidoRaca({ id: item.id, nome: item.nome, isDummie: false }, item.pedido.id);
+        const r = recusarPedidoRaca({ id: item.id, nome: item.nome }, item.pedido.id);
         setMensagem(r.ok ? { ok: true, texto: `Pedido de ${item.nome} recusado.` } : { ok: false, texto: r.mensagem || 'Não foi possível recusar.' });
     }, []);
 

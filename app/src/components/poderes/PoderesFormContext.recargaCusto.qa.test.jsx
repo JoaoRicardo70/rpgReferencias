@@ -16,7 +16,6 @@ vi.mock('../../services/firebase-sync', () => ({
     salvarFirebaseImediato: vi.fn(() => Promise.resolve()),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
 }));
 
@@ -33,7 +32,7 @@ function montarStore({ poderes = [], vida, extra = {}, filho } = {}) {
         updateFicha: vi.fn((cb) => cb(mockState.minhaFicha)),
         efeitosTemp: [], setEfeitosTemp: vi.fn(), efeitosTempPassivos: [], setEfeitosTempPassivos: vi.fn(),
         poderEditandoId: null, setPoderEditandoId: vi.fn((id) => { mockState.poderEditandoId = id; }),
-        pastasFechadasMapaTecnicas: {}, setPastasFechadasMapaTecnicas: vi.fn(), dummies: {}, personagens: {}, feedCombate: [], alvoSelecionado: null, abaAtiva: 'mapa', setAbaAtiva: vi.fn(),
+        pastasFechadasMapaTecnicas: {}, setPastasFechadasMapaTecnicas: vi.fn(), personagens: {}, feedCombate: [], alvoSelecionado: null, abaAtiva: 'mapa', setAbaAtiva: vi.fn(),
     };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(mockState) : mockState));
     useStore.getState = () => mockState;

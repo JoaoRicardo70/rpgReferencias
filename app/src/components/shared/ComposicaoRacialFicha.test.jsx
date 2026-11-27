@@ -7,7 +7,7 @@ import useStore from '../../stores/useStore';
 import * as comp from '../../services/composicaoRacial';
 
 vi.mock('../../services/firebase-sync', () => ({
-    salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(), salvarFichaSilencioso: vi.fn(),
+    salvarCamposPersonagem: vi.fn(), salvarFichaSilencioso: vi.fn(),
 }));
 vi.mock('../../services/composicaoRacial', () => ({ pedirRacaAdquirida: vi.fn(() => ({ ok: true, pedido: { id: 'p1' } })) }));
 

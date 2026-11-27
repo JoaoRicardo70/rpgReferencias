@@ -37,7 +37,7 @@ describe('imune_estado', () => {
         expect(r.aplicados.map(a => a.id)).toEqual(['lento']);
         expect(r.imunes.map(i => i.id)).toEqual(['queimado']);
     });
-    it('Dummie (sem ficha) recebe normalmente', () => {
+    it('alvo sem ficha recebe normalmente', () => {
         expect(resolverEstadosNoAlvo([{ id: 'queimado', stacks: 1 }], null).aplicados).toHaveLength(1);
     });
 });

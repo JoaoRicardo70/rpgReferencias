@@ -726,10 +726,9 @@ export function AIFormProvider({ children }) {
 
     // Nomes/arcos que dá pra mencionar com @ no chat.
     const personagensStore = useStore(s => s.personagens);
-    const dummiesStore = useStore(s => s.dummies);
     const alvosMencao = useMemo(() => listarAlvosMencao({
-        meuNome, personagens: personagensStore, dummies: dummiesStore, capitulosPresente, capitulosFuturo, podeVerFuturo,
-    }), [meuNome, personagensStore, dummiesStore, capitulosPresente, capitulosFuturo, podeVerFuturo]);
+        meuNome, personagens: personagensStore, capitulosPresente, capitulosFuturo, podeVerFuturo,
+    }), [meuNome, personagensStore, capitulosPresente, capitulosFuturo, podeVerFuturo]);
 
     // Monta o pedido (contexto, lore, memória, ferramentas) e fala com o Gemini. A mensagem do
     // usuário já deve estar no histórico; `historicoBase` é a conversa ANTES dela.
@@ -745,7 +744,7 @@ export function AIFormProvider({ children }) {
             const loja = useStore.getState();
             const estadoMesa = {
                 meuNome, isMestre, podeVerFuturo,
-                minhaFicha: loja.minhaFicha, personagens: loja.personagens, dummies: loja.dummies,
+                minhaFicha: loja.minhaFicha, personagens: loja.personagens,
                 resumoTurnoMapa: loja.resumoTurnoMapa, cenario: loja.cenario, feedCombate: loja.feedCombate,
                 divisorPoderMesa: loja.divisorPoderMesa,
                 capitulosPresente, capitulosFuturo: podeVerFuturo ? capitulosFuturo : [],

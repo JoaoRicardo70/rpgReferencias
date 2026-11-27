@@ -11,7 +11,7 @@ import { composicaoVisivel, racasDesconhecidasDoDono, habilidadeRevelaRaca, pode
 //  - ResumoDominioRacial: cabeçalho da aba Habilidades de Raça ("Seu Domínio: Saiyajin 70% · Humano 30%").
 //  - DominioHabilidadeRaca: requisito/Domínio da habilidade (todos veem) + controles do Mestre/Co-Mestre (percentual mínimo, bloqueio, despertar).
 //  - DnaDoPoder: interruptor "Manipulação de DNA" do Mestre (qualquer categoria) e selo discreto "🧬 DNA" para o jogador.
-// `entidade` = { id, nome, isDummie } do dono da ficha exibida (o Grimório da Entidade do Mestre mira outro personagem).
+// `entidade` = { id, nome } do dono da ficha exibida (o Grimório da Entidade do Mestre mira outro personagem).
 
 // `viewer` = { souDono, souMestre } (core/racasVisibilidade.js): só as Raças que ele pode ver; o dono vê "❓ Raça desconhecida" no lugar das secretas. Sem viewer = o mais restrito (outro jogador).
 export function ResumoDominioRacial({ cenario, ficha, viewer = VIEWER_OUTRO_JOGADOR }) {

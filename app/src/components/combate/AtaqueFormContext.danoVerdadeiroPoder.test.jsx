@@ -4,11 +4,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AtaqueFormProvider, useAtaqueForm } from './AtaqueFormContext';
 import { AtaqueElementoSelector } from './AtaqueSubComponents';
 import useStore from '../../stores/useStore';
-import { salvarDummie, enviarParaFeed, aplicarDanoDireto } from '../../services/firebase-sync';
+import { enviarParaFeed, aplicarDanoDireto } from '../../services/firebase-sync';
 import { calcularDano } from '../../core/engine';
 
 // QA - Dano Verdadeiro no Ataque: o interruptor da infusao elemental e passado ao calculo (reduzirDanoNoAlvo),
-// o alvo-personagem recebe o dano inteiro (ignora Reducao, Resistencia, Imunidade e Dominio), o Dummie nao muda e
+// o alvo-personagem recebe o dano inteiro (ignora Reducao, Resistencia, Imunidade e Dominio) e
 // o interruptor zera depois do golpe.
 
 vi.mock('../../stores/useStore');
@@ -25,7 +25,6 @@ vi.mock('../../core/danoProporcional', async (importOriginal) => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
     aplicarDanoDireto: vi.fn(),
     aplicarFadigaDireta: vi.fn(),
@@ -46,10 +45,10 @@ const fichaAna = (extra = {}) => ({
     ...extra,
 });
 
-function montar({ alvoSelecionado, personagens = {}, dummies = {}, filho = null, poderes = [] }) {
+function montar({ alvoSelecionado, personagens = {}, filho = null, poderes = [] }) {
     const minhaFicha = { poderes, inventario: [], passivas: [], ataquesElementais: [], hierarquia: {}, combate: {}, iniciativa: 10 };
     const state = {
-        minhaFicha, meuNome: 'Heroi', personagens, dummies, alvoSelecionado,
+        minhaFicha, meuNome: 'Heroi', personagens, alvoSelecionado,
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
         setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque', feedCombate: [],
         ignorarTravaAcerto: false, setIgnorarTravaAcerto: vi.fn(), cenario: { zonas: [] },

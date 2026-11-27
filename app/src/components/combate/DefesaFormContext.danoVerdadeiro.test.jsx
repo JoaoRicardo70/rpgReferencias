@@ -42,7 +42,7 @@ function fichaReal(extra = {}) {
 
 function montar({ ficha = fichaReal(), filho = <DefesaSofrerDanoBox /> } = {}) {
     const state = {
-        minhaFicha: ficha, meuNome: 'Eu', personagens: {}, dummies: {}, feedCombate: [], divisorPoderMesa: 1,
+        minhaFicha: ficha, meuNome: 'Eu', personagens: {}, feedCombate: [], divisorPoderMesa: 1,
         updateFicha: vi.fn((cb) => cb(ficha)), setAbaAtiva: vi.fn(), cenario: { zonas: [] },
     };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(state) : state));

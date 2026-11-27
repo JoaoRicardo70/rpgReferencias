@@ -84,24 +84,20 @@ describe('listarAlvosMencao', () => {
     const base = {
         meuNome: 'Ana',
         personagens: { Ana: {}, Bruno: {} },
-        dummies: { d1: { nome: 'Goblin' }, d2: {}, d3: { nome: 'Bruno' } },
         capitulosPresente: [{ titulo: 'Cap P', arcos: [{ titulo: 'Arco P' }, { titulo: '' }, { texto: 'sem titulo' }] }],
         capitulosFuturo: [{ titulo: 'Cap F', arcos: [{ titulo: 'Arco F' }] }],
         podeVerFuturo: false,
     };
-    it('cena primeiro, depois meuNome, personagens, dummies e arcos', () => {
+    it('cena primeiro, depois meuNome, personagens e arcos', () => {
         const r = listarAlvosMencao(base);
         expect(r[0]).toEqual({ rotulo: 'Cena atual', tipo: 'cena' });
-        expect(r.map(a => a.rotulo)).toEqual(['Cena atual', 'Ana', 'Bruno', 'Goblin', 'd2', 'Arco P']);
+        expect(r.map(a => a.rotulo)).toEqual(['Cena atual', 'Ana', 'Bruno', 'Arco P']);
     });
-    it('sem duplicar pessoas (meuNome ja em personagens; dummie com mesmo nome de personagem)', () => {
+    it('sem duplicar pessoas (meuNome ja em personagens)', () => {
         const r = listarAlvosMencao(base);
         expect(r.filter(a => a.rotulo === 'Ana')).toHaveLength(1);
         expect(r.filter(a => a.rotulo === 'Bruno')).toHaveLength(1);
         expect(r.find(a => a.rotulo === 'Bruno').tipo).toBe('personagem');
-    });
-    it('dummie sem nome usa o id', () => {
-        expect(listarAlvosMencao(base).find(a => a.rotulo === 'd2').tipo).toBe('npc');
     });
     it('arco carrega o titulo do capitulo', () => {
         expect(listarAlvosMencao(base).find(a => a.tipo === 'arco')).toEqual({ rotulo: 'Arco P', tipo: 'arco', capitulo: 'Cap P' });
@@ -112,8 +108,8 @@ describe('listarAlvosMencao', () => {
     });
     it('entradas vazias/undefined nao quebram', () => {
         expect(listarAlvosMencao({})).toEqual([{ rotulo: 'Cena atual', tipo: 'cena' }]);
-        expect(listarAlvosMencao({ meuNome: 'X', personagens: null, dummies: null, capitulosPresente: 'x', capitulosFuturo: {}, podeVerFuturo: true }).map(a => a.rotulo)).toEqual(['Cena atual', 'X']);
-        expect(() => listarAlvosMencao({ capitulosPresente: [null, { arcos: null }], dummies: { a: null } })).not.toThrow();
+        expect(listarAlvosMencao({ meuNome: 'X', personagens: null, capitulosPresente: 'x', capitulosFuturo: {}, podeVerFuturo: true }).map(a => a.rotulo)).toEqual(['Cena atual', 'X']);
+        expect(() => listarAlvosMencao({ capitulosPresente: [null, { arcos: null }] })).not.toThrow();
     });
 });
 

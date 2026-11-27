@@ -23,7 +23,6 @@ vi.mock('../../core/danoProporcional', async (importOriginal) => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     aplicarDanoDireto: vi.fn(),
@@ -43,7 +42,7 @@ const esc = (id, nome, valor, tipo = 'escudo') => ({ id, nome, valor, tipo });
 function montar({ personagens, poderes = [], danoVerdadeiroLigado = false }) {
     const minhaFicha = { poderes, inventario: [], passivas: [], ataquesElementais: [], hierarquia: {}, combate: {}, iniciativa: 10, vida: stat(500000) };
     mockState = {
-        minhaFicha, meuNome: 'Heroi', personagens, dummies: {}, alvoSelecionado: 'pj:Ana',
+        minhaFicha, meuNome: 'Heroi', personagens, alvoSelecionado: 'pj:Ana',
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
         setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque',
         feedCombate: [],

@@ -15,7 +15,6 @@ vi.mock('../../core/engine', () => ({ calcularDano: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
 }));
 
@@ -28,7 +27,7 @@ function montar(poderes) {
         minhaFicha, meuNome: 'Heroi', personagens: {},
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
         setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque', feedCombate: [],
-        alvoSelecionado: null, dummies: {},
+        alvoSelecionado: null,
         ignorarTravaAcerto: false, setIgnorarTravaAcerto: vi.fn(),
         cenario: { zonas: [] },
     };

@@ -9,7 +9,7 @@ import { salvarCenarioCompleto, enviarParaFeed } from '../../services/firebase-s
 // ==========================================================================
 // NOTA DE ESCOPO:
 // `MapaFerramentasMestre.jsx` só importa `useMapaForm` (MapaFormContext.jsx)
-// e `salvarDummie` (firebase-sync) — não importa `MapaGrelha.jsx`/`Tabuleiro3D`,
+// e firebase-sync — não importa `MapaGrelha.jsx`/`Tabuleiro3D`,
 // então é seguro montar `MapaMestreGerenciadorCenas` dentro de um
 // `MapaFormProvider` REAL (verificado manualmente: importar `MapaGrelha.jsx`
 // sozinho já trava o Vitest por ~20s por arrastar @react-three/fiber/three.js;
@@ -27,7 +27,6 @@ vi.mock('../../stores/useStore', () => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
@@ -49,7 +48,6 @@ function baseState(overrides = {}) {
         feedCombate: [],
         isMestre: true,
         mesaCriador: 'Mestre Supremo',
-        dummies: {},
         alvoSelecionado: null,
         abaAtiva: 'mapa',
         cenario: { ativa: 'cena-publica', lista: { 'cena-publica': { nome: 'Praça Pública' } } },

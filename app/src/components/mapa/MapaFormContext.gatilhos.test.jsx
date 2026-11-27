@@ -9,7 +9,7 @@ import { enviarParaFeed, aplicarDanoDireto, salvarCamposPersonagem } from '../..
 
 vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), uploadImagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), uploadImagem: vi.fn(),
     salvarCenarioCompleto: vi.fn(() => Promise.resolve()), zerarIniciativaGlobal: vi.fn(),
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
@@ -43,7 +43,7 @@ function montar(state) {
 function estado(minhaFicha, extra = {}) {
     return {
         minhaFicha, meuNome: 'Mestre', personagens: {}, updateFicha: vi.fn((cb) => cb(minhaFicha)), feedCombate: [],
-        isMestre: true, mesaCriador: 'Mestre', dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa',
+        isMestre: true, mesaCriador: 'Mestre', alvoSelecionado: null, abaAtiva: 'mapa',
         cenario: { ativa: 'c', lista: { c: { nome: 'C', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [] },
         ...extra,
     };
@@ -58,7 +58,7 @@ describe('Dano Rapido com gatilhos', () => {
     it('em mim: dano que zeraria fica em 1 de vida e o feed diz', () => {
         const eu = ficha();
         montar(estado(eu));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu, isDummie: false }, 5000000, 'fisico'); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu }, 5000000, 'fisico'); });
         expect(eu.vida.atual).toBe(1000);
         expect(feeds().at(-1)).toContain('Negar morte segurou em 1 de vida');
         expect(semUndefined(eu)).toBe(true);
@@ -66,7 +66,7 @@ describe('Dano Rapido com gatilhos', () => {
     it('em OUTRO jogador: grava so os campos tocados (nunca a ficha), vida pelo caminho de sempre', () => {
         const vilao = ficha();
         montar(estado(ficha({ poderes: [] }), { personagens: { Vilao: vilao } }));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 5000000, 'fisico'); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao }, 5000000, 'fisico'); });
         expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 1000, expect.anything());
         const campos = salvarCamposPersonagem.mock.calls.find(c => c[0] === 'Vilao')[1];
         expect(Object.keys(campos).sort()).toEqual(['combate/usosPoderes']); // sem eventoId real do golpe, nada de ultimoEvento
@@ -77,20 +77,20 @@ describe('Dano Rapido com gatilhos', () => {
     it('em OUTRO jogador sem gatilhos: igual a antes (so a vida), nenhuma escrita extra', () => {
         const vilao = ficha({ poderes: [] });
         montar(estado(ficha(), { personagens: { Vilao: vilao } }));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 1000, 'fisico'); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao }, 1000, 'fisico'); });
         expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA - 1000 * 1000, expect.anything());
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
     });
     it('Imunidade total: em mim e em outro jogador o dano vira 0', () => {
         const eu = ficha({ combate: { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0, imunidadeTotal: GOD } });
         montar(estado(eu));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu, isDummie: false }, 5000000, 'fisico', null, 0, null, false, true); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu }, 5000000, 'fisico', null, 0, null, false, true); });
         expect(eu.vida.atual).toBe(VIDA);
         expect(feeds().at(-1)).toContain('Imunidade total');
         cleanup(); vi.clearAllMocks();
         const vilao = ficha({ combate: { fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0, imunidadeTotal: GOD } });
         montar(estado(ficha({ poderes: [] }), { personagens: { Vilao: vilao } }));
-        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 5000000, 'fisico', null, 0, null, false, true); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao }, 5000000, 'fisico', null, 0, null, false, true); });
         expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', VIDA, expect.anything());
         expect(feeds().at(-1)).toContain('Imunidade total');
     });
@@ -115,11 +115,11 @@ describe('Zona e estados respeitam gatilhos e God Mode', () => {
     it('estados no turno: Imunidade total zera o dano; sem ela e sem gatilhos igual a antes', () => {
         vi.spyOn(Math, 'random').mockReturnValue(0);
         const imune = ficha({ poderes: [], condicoes: [{ id: 'sangrando', stacks: 1 }], combate: { imunidadeTotal: GOD } });
-        const texto = aplicarDanoDeEstadosNoTurno(imune, false);
+        const texto = aplicarDanoDeEstadosNoTurno(imune);
         expect(imune.vida.atual).toBe(VIDA);
         expect(texto).toContain('Imunidade total');
         const normal = ficha({ poderes: [], condicoes: [{ id: 'sangrando', stacks: 1 }] });
-        aplicarDanoDeEstadosNoTurno(normal, false);
+        aplicarDanoDeEstadosNoTurno(normal);
         expect(normal.vida.atual).toBe(VIDA - 5 * 1000);
     });
     it('estados no turno que zerariam: Negar morte', () => {
@@ -127,7 +127,7 @@ describe('Zona e estados respeitam gatilhos e God Mode', () => {
         montar(estado(ficha()));
         const f = ficha({ condicoes: [{ id: 'sangrando', stacks: 1 }] });
         f.vida.atual = 3 * 1000;
-        const texto = aplicarDanoDeEstadosNoTurno(f, false);
+        const texto = aplicarDanoDeEstadosNoTurno(f);
         expect(f.vida.atual).toBe(1000);
         expect(texto).toContain('Negar morte segurou em 1 de vida');
     });
@@ -148,7 +148,7 @@ describe('Revisao Fase 1 - Mapa', () => {
     it('estados no turno com Imunidade total: texto sem dano listado e nome do personagem', () => {
         vi.spyOn(Math, 'random').mockReturnValue(0);
         const f = ficha({ poderes: [], condicoes: [{ id: 'sangrando', stacks: 1 }], combate: { imunidadeTotal: GOD } });
-        const texto = aplicarDanoDeEstadosNoTurno(f, false, 'Heroi');
+        const texto = aplicarDanoDeEstadosNoTurno(f, 'Heroi');
         expect(texto).toContain('Heroi está com Imunidade total');
         expect(texto).not.toContain('Sangrando');
     });

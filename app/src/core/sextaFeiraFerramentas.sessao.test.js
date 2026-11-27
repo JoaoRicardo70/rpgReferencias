@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { executarFerramenta, DECLARACOES_FERRAMENTAS } from './sextaFeiraFerramentas';
 
 const estadoBase = (over = {}) => ({
-    meuNome: 'Ana', isMestre: false, podeVerFuturo: false, minhaFicha: {}, personagens: {}, dummies: {},
+    meuNome: 'Ana', isMestre: false, podeVerFuturo: false, minhaFicha: {}, personagens: {},
     resumoTurnoMapa: { ordem: [], turnoAtualIndex: 0 }, cenario: {}, feedCombate: [], divisorPoderMesa: 1,
     capitulosPresente: [], capitulosFuturo: [], ...over,
 });

@@ -2,7 +2,7 @@
 // 🩸 ESTADOS APLICADOS POR UM GOLPE — lógica pura. Poderes/Habilidades, Técnicas elementais, Itens/Armas, o Ataque livre
 // (ficha.ataqueConfig.estadosGolpe) e o tipo da arma podem aplicar estados negativos (core/condicoes.js) a quem for atingido.
 // Cada entrada é { id, stacks, teste?: { atributo, cd }, apenasCritico?, duracao? } (duracao = turnos 1 a 99 OU dado 'NdM(+K)' sorteado ao aplicar, ver core/duracaoEstados.js; sem ela o estado é permanente): o alvo pode resistir com um teste de atributo
-// (d20 + dezena do atributo contra a CD). Dummies não têm atributos: não testam, o estado entra direto.
+// (d20 + dezena do atributo contra a CD).
 // ==========================================
 import { ehEstadoValido, MAX_STACKS, nomeDoEstado, iconeDoEstado } from './condicoes.js';
 import { getRawBase } from './attributes.js';
@@ -67,7 +67,7 @@ export function coletarEstadosDoGolpe({ armas = [], fontes = [], extras = [] } =
 
 const d20 = () => Math.floor(Math.random() * 20) + 1;
 
-// Resolve o que realmente entra no alvo. `fichaAlvo` = ficha de personagem (null para Dummie: sem teste).
+// Resolve o que realmente entra no alvo. `fichaAlvo` = ficha de personagem (null = sem teste).
 // Devolve { aplicados: [{ id, stacks, origem }], resistidos: [{ id, origem, total, cd, atributo }], pulados: n }.
 export function resolverEstadosNoAlvo(estados, fichaAlvo, { critico = false, rolar = d20, rng = Math.random } = {}) {
     const aplicados = []; const resistidos = []; const imunes = []; let pulados = 0;

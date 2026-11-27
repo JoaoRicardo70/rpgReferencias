@@ -10,13 +10,12 @@ import { somarBuffTemporario } from '../../core/suporte';
 
 // Inicio de turno no Mapa (aplicarInicioDeTurno, acionado por avancarTurno): cura do suporte passivo,
 // buffs temporarios que perdem turno e dano de estados (Queimado/Envenenado/Necrosado/Sangrando).
-// Mesmo cenario de MapaFormContext.combateAutoTurno.test.jsx: um dummie na frente e EU em seguida.
+// Mesmo cenario de MapaFormContext.combateAutoTurno.test.jsx: um combatente na frente e EU em seguida.
 
 vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
@@ -57,11 +56,10 @@ function estado(minha, extra = {}) {
         feedCombate: [],
         isMestre: false,
         mesaCriador: '',
-        dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         alvoSelecionado: null,
         abaAtiva: 'mapa',
         cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
-        ...extra
+        ...extra, personagens: { ...(extra && extra.semFiller ? {} : { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } }), ...((extra && extra.personagens) || {}) }
     };
 }
 
@@ -156,26 +154,17 @@ describe('MapaFormContext: inicio de turno com suporte passivo, buffs temporario
             outro.iniciativa = 10;
             const minha = ficha();
             minha.iniciativa = 20;
-            const state = estado(minha, { personagens: { Vilao: outro }, dummies: {} });
+            const state = estado(minha, { semFiller: true, personagens: { Vilao: outro } });
             minha.iniciativa = 20;
             montar(state);
             passarTurno();
             expect(state.updateFicha).not.toHaveBeenCalled();
-            const [nome, campos] = firebaseSync.salvarCamposPersonagem.mock.calls[0];
+            const [nome, campos] = firebaseSync.salvarCamposPersonagem.mock.calls.find(c => c[0] === 'Vilao');
             expect(nome).toBe('Vilao');
             expect(campos['vida/atual']).toBe(1 + danoExibidoParaBruto(1000));
             expect(textosFeed().some(t => t.includes('Vilao se cura (passivo)'))).toBe(true);
         });
 
-        it('dummie (NPC) nao recebe cura passiva', () => {
-            const minha = ficha();
-            minha.iniciativa = 20;
-            const state = estado(minha, { isMestre: true, dummies: { gob: { nome: 'Goblin', iniciativa: 10, posicao: { x: 1, y: 1, z: 0 }, poderes: [passivoCura(1000)], vida: { base: 100000000, mBase: 1, atual: 1 } } } });
-            montar(state);
-            passarTurno();
-            expect(firebaseSync.salvarDummie).toHaveBeenCalled();
-            expect(textosFeed().some(t => t.includes('se cura'))).toBe(false);
-        });
     });
 
     describe('buffs temporarios', () => {
@@ -211,11 +200,11 @@ describe('MapaFormContext: inicio de turno com suporte passivo, buffs temporario
             const outro = ficha({ buffsTemporarios: l });
             outro.iniciativa = 10;
             const minha = ficha();
-            const state = estado(minha, { personagens: { Vilao: outro }, dummies: {} });
+            const state = estado(minha, { semFiller: true, personagens: { Vilao: outro } });
             minha.iniciativa = 20;
             montar(state);
             passarTurno();
-            const [, campos] = firebaseSync.salvarCamposPersonagem.mock.calls[0];
+            const [, campos] = firebaseSync.salvarCamposPersonagem.mock.calls.find(c => c[0] === 'Vilao');
             expect(campos.buffsTemporarios).toHaveLength(1);
             expect(campos.buffsTemporarios[0].restantes).toBe(1);
         });

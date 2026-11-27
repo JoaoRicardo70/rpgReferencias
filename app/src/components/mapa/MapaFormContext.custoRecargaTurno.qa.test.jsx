@@ -6,12 +6,11 @@ import useStore from '../../stores/useStore';
 import * as firebaseSync from '../../services/firebase-sync';
 import { FATOR_EXIBICAO_VITAIS, getTetoExibidoComFator } from '../../core/vitals';
 
-// QA (endurecimento) - inicio de turno no Mapa: varios poderes/energias, percMax, saldo exato, dummies, outro jogador, guarda de duplo clique.
+// QA (endurecimento) - inicio de turno no Mapa: varios poderes/energias, percMax, saldo exato, outro jogador, guarda de duplo clique.
 vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
@@ -44,10 +43,9 @@ function estado(minha, extra = {}) {
         minhaFicha: minha, meuNome: 'Heroi', personagens: {},
         updateFicha: vi.fn((cb) => cb(minha)),
         feedCombate: [], isMestre: false, mesaCriador: '',
-        dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         alvoSelecionado: null, abaAtiva: 'mapa',
         cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
-        ...extra
+        ...extra, personagens: { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } }, ...((extra && extra.personagens) || {}) }
     };
 }
 let probe;
@@ -194,18 +192,6 @@ describe('Mapa - inicio de turno com varios poderes e energias', () => {
         act(() => { probe.avancarTurno(); probe.avancarTurno(); });
         expect(f.mana.atual).toBe(95 * F);
         expect(f.poderes[0].recargaRestante).toBe(2);
-    });
-
-    it('turno do DUMMIE nao paga custo nem decrementa recarga do dummie nem do dono', () => {
-        const f = ficha({ iniciativa: 30, poderes: [pod(1, { custoPorTurno: custo('fixo', 5, 'mana'), recargaTurnos: 2, recargaRestante: 2 })] });
-        const dummy = { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 }, poderes: [pod(9, { custoPorTurno: custo('fixo', 5, 'mana'), recargaRestante: 2 })], mana: energia(100 * F) };
-        montar(estado(f, { isMestre: true, dummies: { filler: dummy } }));
-        passarTurno();
-        expect(f.mana.atual).toBe(100 * F);
-        expect(f.poderes[0].recargaRestante).toBe(2);
-        const gravado = firebaseSync.salvarDummie.mock.calls[0][1];
-        expect(gravado.mana.atual).toBe(100 * F);
-        expect(gravado.poderes[0].recargaRestante).toBe(2);
     });
 
     it('outro jogador: grava energia e SO os caminhos de poderes que mudaram, sem mutar o espelho local', () => {

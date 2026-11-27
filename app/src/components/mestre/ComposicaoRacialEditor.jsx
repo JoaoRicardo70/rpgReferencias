@@ -12,7 +12,7 @@ import {
 // 🧬 Composição Racial de UM personagem (só Mestre/Co-Mestre). Mestiços: cada Raça tem um percentual próprio (0-100, independentes, sobem com a prática).
 // Linhas = Raças da composição; "＋ Prática" soma pontos e registra no histórico; "＋ Adicionar Raça" (nativa ou adquirida, padrão 10%); remover.
 // Percentual só grava ao SAIR do campo (ou em "💾 Salvar composição"); adicionar, remover e prática gravam na hora. Quem grava é services/composicaoRacial.js.
-// entidade = { id, nome, isDummie }; ficha = a ficha dessa entidade (para ler a composição e o histórico).
+// entidade = { id, nome }; ficha = a ficha dessa entidade (para ler a composição e o histórico).
 
 const LIMITE_INICIAL_HISTORICO = 10;
 const LIMITE_MAXIMO_HISTORICO = 50;

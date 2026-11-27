@@ -17,7 +17,6 @@ vi.mock('../../core/engine', () => ({ calcularDano: vi.fn(() => ({ dano: 0, leta
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
 }));
 
@@ -31,7 +30,6 @@ function montarStore(overrides = {}) {
         setAbaAtiva: vi.fn(),
         feedCombate: [],
         alvoSelecionado: null,
-        dummies: {},
         ...overrides,
     };
     useStore.mockImplementation((selector) => (typeof selector === 'function' ? selector(mockState) : mockState));

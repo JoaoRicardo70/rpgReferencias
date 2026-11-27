@@ -1,13 +1,13 @@
 // ==========================================
 // 🎯 ALVO PARA AS CONDIÇÕES DE GATILHO (`alvo_com_estado`, `alvo_vida_abaixo`, `alvo_com_debuff`, `alvo_defende_com`).
-// Resolve, a partir do store, o alvo "Dummie-like" que core/efeitosCondicionais.js > montarContextoDeCombate espera.
+// Resolve, a partir do store, o alvo que core/efeitosCondicionais.js > montarContextoDeCombate espera.
 // Sem alvo encontrado devolve null: as condições de alvo continuam falhando fechado.
 // ==========================================
 import useStore from '../stores/useStore';
 import { montarAlvoPersonagem } from '../core/alvoCombate';
 import { coletarGatilhos } from '../core/gatilhos';
 
-// Alvo pelo NOME (personagem ou Dummie). Para o evento `atingido` o "alvo" é o atacante, que só vem como nome.
+// Alvo pelo NOME (personagem). Para o evento `atingido` o "alvo" é o atacante, que só vem como nome.
 export function alvoDoGatilhoPorNome(nome) {
     const n = String(nome || '').trim();
     if (!n) return null;
@@ -15,18 +15,15 @@ export function alvoDoGatilhoPorNome(nome) {
         const st = useStore.getState();
         const ficha = n === st.meuNome ? st.minhaFicha : (st.personagens || {})[n];
         if (ficha && typeof ficha === 'object') return montarAlvoPersonagem(n, ficha, st.divisorPoderMesa);
-        const d = Object.values(st.dummies || {}).find(x => x && x.nome === n);
-        return d || null;
+        return null;
     } catch (e) { return null; }
 }
 
-// Alvo de um item de resolverAcertoNoAlvo ({ nome, dummieId? }): 'pj:Nome' = personagem; outro id = Dummie do store.
+// Alvo de um item de resolverAcertoNoAlvo ({ nome, alvoId? }): 'pj:Nome' = personagem.
 export function alvoDoGatilhoPorItem(item) {
     if (!item) return null;
-    const id = String(item.dummieId || '');
-    try {
-        if (id && !id.startsWith('pj:')) return (useStore.getState().dummies || {})[id] || null;
-    } catch (e) { return null; }
+    const id = String(item.alvoId || '');
+    if (id && !id.startsWith('pj:')) return null;
     return alvoDoGatilhoPorNome(id ? id.slice(3) : item.nome);
 }
 

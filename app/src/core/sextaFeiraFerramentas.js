@@ -7,9 +7,9 @@ import { htmlParaTexto } from "./escaparHtml.js";
 // Quem executa é o navegador de quem perguntou, com os dados que o app já tem (store + Firebase).
 //
 // 🔒 Permissões por papel:
-//   - Mestre/Co-Mestre: vê tudo (fichas completas de todos, NPCs/dummies, Futuro dos Registros).
+//   - Mestre/Co-Mestre: vê tudo (fichas completas de todos, NPCs, Futuro dos Registros).
 //   - Jogador: a PRÓPRIA ficha completa; dos outros só o público (nome, raça, classe, % de Vida);
-//     dummies só nome e % de Vida; Registros só do Presente; simulações só da própria ficha.
+//     Registros só do Presente; simulações só da própria ficha.
 //
 // 🔢 Todo número vem das funções do motor (core/poder.js, core/fadiga.js, core/vitals.js,
 // core/prestigioDistribuicao.js) — a IA nunca calcula Poder/Fadiga por conta própria.
@@ -36,7 +36,7 @@ const LIMITE_TURNOS_PROJECAO = 100;
 export const DECLARACOES_FERRAMENTAS = [
     {
         name: 'listar_personagens',
-        description: 'Lista os personagens de jogadores e os NPCs/dummies da mesa, com o que quem pergunta pode ver de cada um.',
+        description: 'Lista os personagens de jogadores e os NPCs da mesa, com o que quem pergunta pode ver de cada um.',
         parameters: { type: 'OBJECT', properties: {} },
     },
     {
@@ -216,17 +216,6 @@ function resumoFichaPublico(nome, ficha, estado) {
     return { nome, raca: racaVis.oculta ? (racaVis.texto || 'N/A') : (bio.raca || 'N/A'), classe: bio.classe || 'N/A', vidaPorcentagem: vida ? vida.porcentagem : null, observacao: 'Só dados públicos: a ficha completa de outro personagem é exclusiva do dono e do Mestre.' };
 }
 
-function resumoDummie(id, d, isMestre) {
-    const hpMax = num(d.hpMax);
-    const pct = hpMax > 0 ? arred(Math.min(100, Math.max(0, (num(d.hpAtual) / hpMax) * 100))) : null;
-    if (!isMestre) return { nome: d.nome || id, tipo: 'NPC', vidaPorcentagem: pct };
-    return {
-        nome: d.nome || id, tipo: 'NPC', vidaPorcentagem: pct,
-        vidaAtual: Math.floor(num(d.hpAtual) / FATOR_EXIBICAO_VITAIS), vidaMaxima: Math.floor(hpMax / FATOR_EXIBICAO_VITAIS),
-        iniciativa: num(d.iniciativa),
-    };
-}
-
 // `verNumeros`: só o Mestre vê o dano recalculado pela Disputa de Poder (os jogadores sabem só a rolagem).
 export function resumirEventoFeed(e, verNumeros = false) {
     if (!e || typeof e !== 'object') return null;
@@ -277,7 +266,6 @@ async function executarProposta(tipo, a, estado, registrarProposta) {
         const nomesConhecidos = [
             ...(estado.meuNome ? [estado.meuNome] : []),
             ...Object.keys(estado.personagens || {}),
-            ...Object.entries(estado.dummies || {}).map(([id, d]) => d?.nome || id),
         ];
         const { objeto, avisos, valido, quantidade } = normalizarProposta(tipo, dados, { nomesConhecidos, contadores: ((fichaAlvo && fichaAlvo.contadores) || []).map(c => ({ id: c.id, nome: c.nome })) });
         if (!valido) return { erro: 'Proposta incompleta.', avisos };
@@ -322,7 +310,7 @@ function poderDoGrupo(estado) {
 }
 
 // ---------- execução ----------
-// `estado`: { meuNome, isMestre, minhaFicha, personagens, dummies, resumoTurnoMapa, cenario,
+// `estado`: { meuNome, isMestre, minhaFicha, personagens, resumoTurnoMapa, cenario,
 //             feedCombate, divisorPoderMesa, capitulosPresente, capitulosFuturo, podeVerFuturo }
 // (podeVerFuturo: Mestre, ou jogador com Registros só dele, não compartilhados pela mesa)
 // `carregarArvore`: função async opcional que devolve a Árvore da mesa ({ familia: [membros] }).
@@ -340,14 +328,11 @@ export async function executarFerramenta(nomeFerramenta, args, estado, { carrega
                 const jogadores = [];
                 if (estado.minhaFicha && estado.meuNome) jogadores.push(estado.meuNome);
                 Object.keys(estado.personagens || {}).forEach((n) => { if (normalizar(n) !== normalizar(estado.meuNome)) jogadores.push(n); });
-                const npcs = Object.entries(estado.dummies || {}).filter(([, d]) => d && typeof d === 'object').map(([id, d]) => resumoDummie(id, d, estado.isMestre));
-                return { voceE: estado.meuNome, papel: estado.isMestre ? 'Mestre' : 'Jogador', jogadores, npcs };
+                return { voceE: estado.meuNome, papel: estado.isMestre ? 'Mestre' : 'Jogador', jogadores };
             }
             case 'consultar_ficha': {
                 const achado = resolverPersonagem(estado, a.nome);
                 if (!achado) {
-                    const dummie = Object.entries(estado.dummies || {}).find(([id, d]) => normalizar(d?.nome || id) === normalizar(a.nome));
-                    if (dummie) return resumoDummie(dummie[0], dummie[1], estado.isMestre);
                     return { erro: `Não encontrei o personagem "${a.nome || 'de quem pergunta'}". Use listar_personagens para ver os nomes.` };
                 }
                 return podeVerDetalhes(estado, achado.nome)
@@ -364,7 +349,7 @@ export async function executarFerramenta(nomeFerramenta, args, estado, { carrega
                     cena, emCombate: true,
                     vezDe: ordem[idx]?.nome,
                     proximo: ordem[(idx + 1) % ordem.length]?.nome,
-                    ordemDeTurno: ordem.map((e, i) => ({ posicao: i + 1, nome: e.nome, iniciativa: e.iniciativa, npc: !!e.isDummie })),
+                    ordemDeTurno: ordem.map((e, i) => ({ posicao: i + 1, nome: e.nome, iniciativa: e.iniciativa })),
                 };
             }
             case 'feed_recente': {

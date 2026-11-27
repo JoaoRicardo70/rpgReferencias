@@ -7,7 +7,7 @@ import { enviarParaFeed } from '../../services/firebase-sync';
 
 // ---------------------------------------------------------------------------
 // QA - Disputa de Poder na Defesa: sofrerDanoBruto() e a resolucao do atacante
-// ("auto" = ultimo golpe tipo 'dano' de outra pessoa SEM alvoNome; "p:nome"; "d:id"; "nenhum").
+// ("auto" = ultimo golpe tipo 'dano' de outra pessoa SEM alvoNome; "p:nome"; "nenhum").
 // O Poder das fichas vem do campo falso __poder (mock de getPoderParaDisputa) para o teste
 // controlar os numeros sem montar uma ficha completa.
 // ---------------------------------------------------------------------------
@@ -34,10 +34,10 @@ let mockState;
 let probe;
 function Harness() { probe = useDefesaForm(); return null; }
 
-function montar({ meuPoder = 1000, feed = [], personagens = {}, dummies = {}, vida = VIDA } = {}) {
+function montar({ meuPoder = 1000, feed = [], personagens = {}, vida = VIDA } = {}) {
     const minhaFicha = { __poder: meuPoder, vida: { atual: vida }, afinidades: {}, inventario: [], poderes: [] };
     mockState = {
-        minhaFicha, meuNome: 'Eu', personagens, dummies, feedCombate: feed, divisorPoderMesa: 1,
+        minhaFicha, meuNome: 'Eu', personagens, feedCombate: feed, divisorPoderMesa: 1,
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
         setAbaAtiva: vi.fn(),
     };
@@ -111,16 +111,14 @@ describe('DefesaFormContext - ultimoGolpeRecebido (auto)', () => {
 });
 
 describe('DefesaFormContext - opcoesAtacante', () => {
-    it('lista jogadores (menos eu) como p:nome e so dummies COM poder como d:id', () => {
+    it('lista jogadores (menos eu) como p:nome', () => {
         montar({
             personagens: { Eu: { __poder: 1 }, Rival: { __poder: 2 }, Vazio: null },
-            dummies: { g1: { nome: 'Goblin', poderCalculado: 500 }, g2: { nome: 'SemPoder' }, g3: { nome: 'Zero', poderCalculado: 0 } },
         });
-        expect(probe.opcoesAtacante.map(o => o.valor)).toEqual(['p:Rival', 'd:g1', 'd:g3']);
-        expect(probe.opcoesAtacante.find(o => o.valor === 'd:g1').isDummie).toBe(true);
+        expect(probe.opcoesAtacante.map(o => o.valor)).toEqual(['p:Rival']);
     });
-    it('sem personagens e sem dummies: lista vazia', () => {
-        montar({ personagens: undefined, dummies: undefined });
+    it('sem personagens: lista vazia', () => {
+        montar({ personagens: undefined });
         expect(probe.opcoesAtacante).toEqual([]);
     });
 });
@@ -211,20 +209,6 @@ describe('DefesaFormContext - escolha manual do atacante', () => {
         act(() => { probe.setAtacanteInc('p:Rival'); });
         receber(1000);
         expect(ficha.vida.atual).toBe(VIDA - (1100) * FATOR);
-    });
-    it('"d:id" usa o poderCalculado do dummy', () => {
-        const ficha = montar({ meuPoder: 1000, dummies: { g1: { nome: 'Dragao', poderCalculado: 3000 } } });
-        act(() => { probe.setAtacanteInc('d:g1'); });
-        receber(100);
-        expect(ficha.vida.atual).toBe(VIDA - (300) * FATOR);
-        expect(ultimoTexto()).toContain('de Dragao');
-    });
-    it('"d:id" de dummy removido: sem Poder (x1) com nome generico "Entidade"', () => {
-        const ficha = montar({ meuPoder: 1000, dummies: {} });
-        act(() => { probe.setAtacanteInc('d:fantasma'); });
-        receber(100);
-        expect(ficha.vida.atual).toBe(VIDA - (100) * FATOR);
-        expect(ultimoTexto()).toContain('de Entidade');
     });
     it('valor desconhecido (sem prefixo) e tratado como sem atacante', () => {
         const ficha = montar({ meuPoder: 1000 });

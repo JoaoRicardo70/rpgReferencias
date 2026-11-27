@@ -20,7 +20,7 @@ export function DefesaSofrerDanoBox() {
                 <label htmlFor="defesa-atacante">Quem atacou?</label>
                 <select id="defesa-atacante" className="input-neon" value={atacanteInc} onChange={e => setAtacanteInc(e.target.value)}>
                     <option value={ATACANTE_AUTO}>{ultimoGolpeRecebido ? `Último ataque: ${ultimoGolpeRecebido.nome}` : 'Último ataque (nenhum no feed)'}</option>
-                    {opcoesAtacante.map(o => <option key={o.valor} value={o.valor}>{o.isDummie ? '🤖 ' : '🧑 '}{o.nome}</option>)}
+                    {opcoesAtacante.map(o => <option key={o.valor} value={o.valor}>🧑 {o.nome}</option>)}
                     <option value={ATACANTE_NENHUM}>Sem Disputa de Poder (x1)</option>
                 </select>
             </div>

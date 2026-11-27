@@ -11,6 +11,6 @@ export default function useVisaoRacas() {
     const { ficha, nome, souEuMesmo } = useFichaAtiva();
     const viewer = useMemo(() => contextoDoViewer({ souDono: souEuMesmo, isMestre }), [souEuMesmo, isMestre]);
     const principal = useMemo(() => racaPrincipalVisivel(cenario, ficha, viewer), [cenario, ficha, viewer]);
-    const entidade = useMemo(() => ({ id: nome, nome, isDummie: false }), [nome]);
+    const entidade = useMemo(() => ({ id: nome, nome }), [nome]);
     return { cenario, ficha, nome, souEuMesmo, isMestre, viewer, principal, entidade };
 }

@@ -3,7 +3,7 @@ import { renderHook, act, cleanup } from '@testing-library/react';
 
 vi.mock('firebase/database', () => ({ ref: vi.fn((db, p) => p), onValue: vi.fn(), set: vi.fn(), get: vi.fn() }));
 vi.mock('../services/firebase-config', () => ({ db: {}, functions: {}, auth: {} }));
-vi.mock('../services/firebase-sync', () => ({ salvarFichaSilencioso: vi.fn(), salvarDummie: vi.fn() }));
+vi.mock('../services/firebase-sync', () => ({ salvarFichaSilencioso: vi.fn() }));
 vi.mock('../services/sextaFeiraDados', () => ({
     anexarNaFicha: vi.fn(), enviarPendente: vi.fn(), registrarDecisao: vi.fn(), reivindicarPendente: vi.fn(),
 }));

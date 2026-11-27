@@ -15,7 +15,7 @@ vi.mock('../../services/firebase-sync', () => ({
 function mockarStore() {
     const state = {
         minhaFicha: {}, meuNome: 'Herói', personagens: {}, feedCombate: [], updateFicha: vi.fn(),
-        isMestre: false, mesaCriador: null, dummies: {}, alvoSelecionado: null, cenario: {},
+        isMestre: false, mesaCriador: null, alvoSelecionado: null, cenario: {},
         abaAtiva: 'aba-mapa', pastasFechadasMapaTecnicas: {}, setPastasFechadasMapaTecnicas: vi.fn(),
         divisorPoderMesa: 1,
         itemEditandoId: null, setItemEditandoId: vi.fn(),

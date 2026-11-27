@@ -109,7 +109,7 @@ describe('estadosGolpe - resolverEstadosNoAlvo', () => {
         expect(resolverEstadosNoAlvo([e], alvo, { rolar: () => 9 }).aplicados).toHaveLength(1);
         expect(resolverEstadosNoAlvo([e], alvo, { rolar: () => 10 }).resistidos).toHaveLength(1);
     });
-    it('Dummie (fichaAlvo null) nao testa: estado entra direto e rolar nao e chamado', () => {
+    it('fichaAlvo null nao testa: estado entra direto e rolar nao e chamado', () => {
         let chamou = 0;
         const e = { id: 'queimado', stacks: 1, teste: { atributo: 'forca', cd: 1 } };
         const r = resolverEstadosNoAlvo([e], null, { rolar: () => { chamou++; return 20; } });

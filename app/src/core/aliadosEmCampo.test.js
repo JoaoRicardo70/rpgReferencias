@@ -10,7 +10,7 @@ import { efeitosDeAliados } from './efeitosDeAliados';
 const POS = { c1: { x: 1, y: 1 } };
 const ficha = (extra = {}) => ({ bio: {}, posicoes: { ...POS }, poderes: [], ...extra });
 const mesa = (personagens, extra = {}) => useStore.setState({
-    personagens, dummies: {}, cenario: { ativa: 'c1' }, isMestre: false, meuNome: 'Logado', minhaFicha: null, ...extra,
+    personagens, cenario: { ativa: 'c1' }, isMestre: false, meuNome: 'Logado', minhaFicha: null, ...extra,
 });
 const conta = (nome, personagens, filtro = null) => contarAliadosEmCampoDaMesa(personagens[nome], filtro, nome);
 
@@ -78,15 +78,6 @@ describe('M9 contagem de aliados em campo', () => {
         expect(nomeDoPortador({ ...eu }, '')).toBe('');
         expect(nomeDoPortador(eu, 'Dado')).toBe('Dado');
         expect(nomeDoPortador(null, '')).toBe('');
-    });
-    it('dummie aliado na cena ativa conta; dummie padrao (inimigo) e de outra cena nao', () => {
-        const p = { Eu: ficha() };
-        mesa(p, { dummies: {
-            d1: { id: 'd1', nome: 'Boneco', equipe: 'aliados', cenaId: 'c1' },
-            d2: { id: 'd2', nome: 'Inimigo', cenaId: 'c1' },
-            d3: { id: 'd3', nome: 'Longe', equipe: 'aliados', cenaId: 'c2' },
-        } });
-        expect(conta('Eu', p)).toBe(1);
     });
     it('NPC aliado conta; NPC sem lado (inimigo), hostil e neutro nao', () => {
         const p = {
@@ -361,11 +352,6 @@ describe('M14 efeitos que valem para aliados', () => {
         mesa(p);
         const m = marcados(p.Eu, 'Eu');
         expect(m).toHaveLength(1);
-    });
-    it('dummie aliado nao fornece efeitos', () => {
-        const p = { Eu: ficha() };
-        mesa(p, { dummies: { d1: { id: 'd1', nome: 'B', equipe: 'aliados', cenaId: 'c1', poderes: [poderAli('M', [dado()])] } } });
-        expect(marcados(p.Eu, 'Eu')).toHaveLength(0);
     });
     it('sem nome do portador (ficha solta) = nenhum efeito (falha fechada)', () => {
         const p = { Eu: ficha(), A: ficha({ poderes: [poderAli('Marca', [dado()])] }) };

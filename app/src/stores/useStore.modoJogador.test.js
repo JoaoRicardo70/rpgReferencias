@@ -77,7 +77,7 @@ describe('setModoJogador', () => {
     });
     it('limpa a entidade inspecionada (ao ligar e ao desligar)', () => {
         st().setIsMestre(true);
-        st().setEntidadeInspecionada({ tipo: 'dummie', id: 'd1' });
+        st().setEntidadeInspecionada({ tipo: 'jogador', id: 'p1' });
         st().setModoJogador(true);
         expect(st().entidadeInspecionada).toBeNull();
         st().setEntidadeInspecionada({ tipo: 'jogador', id: 'Ana' });
@@ -142,7 +142,7 @@ describe('setMesaId recarrega o Modo Jogador da mesa', () => {
         st().setMesaId('mesaE'); expect(st().modoJogador).toBe(false);
     });
     it('trocar de mesa limpa a entidade inspecionada', () => {
-        st().setEntidadeInspecionada({ tipo: 'dummie', id: 'd1' });
+        st().setEntidadeInspecionada({ tipo: 'jogador', id: 'p1' });
         st().setMesaId('mesaB');
         expect(st().entidadeInspecionada).toBeNull();
     });
@@ -156,8 +156,8 @@ describe('setMesaId recarrega o Modo Jogador da mesa', () => {
 
 describe('setEntidadeInspecionada', () => {
     it('guarda e limpa', () => {
-        st().setEntidadeInspecionada({ tipo: 'dummie', id: 'd1' });
-        expect(st().entidadeInspecionada).toEqual({ tipo: 'dummie', id: 'd1' });
+        st().setEntidadeInspecionada({ tipo: 'jogador', id: 'p1' });
+        expect(st().entidadeInspecionada).toEqual({ tipo: 'jogador', id: 'p1' });
         st().setEntidadeInspecionada(null);
         expect(st().entidadeInspecionada).toBeNull();
     });
@@ -169,7 +169,7 @@ describe('setEntidadeInspecionada', () => {
         expect(st().entidadeInspecionada).toBeNull();
     });
     it('trocar de alvo substitui', () => {
-        st().setEntidadeInspecionada({ tipo: 'dummie', id: 'd1' });
+        st().setEntidadeInspecionada({ tipo: 'jogador', id: 'p1' });
         st().setEntidadeInspecionada({ tipo: 'jogador', id: 'Ana' });
         expect(st().entidadeInspecionada).toEqual({ tipo: 'jogador', id: 'Ana' });
     });

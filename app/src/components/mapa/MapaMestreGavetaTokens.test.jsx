@@ -4,19 +4,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaMestreGavetaTokens } from './MapaFerramentasMestre';
 import { useMapaForm } from './MapaFormContext';
 import useStore from '../../stores/useStore';
-import { salvarDummie, salvarCenarioCompleto, salvarCamposPersonagem } from '../../services/firebase-sync';
+import { salvarCenarioCompleto, salvarCamposPersonagem } from '../../services/firebase-sync';
 import { criarPersonagemNaMesa } from '../../services/midia-sync';
 import { FAMILIA_SEM_CLA } from '../../core/gavetaNpc';
 
 // ---------------------------------------------------------------------------
 // QA - Gaveta de Tokens (MapaMestreGavetaTokens + GavetaNpcLinha memoizada).
-// useMapaForm e mockado para controlar isMestre/isModoRP/mestreVendoRP/jogadores/dummies/cenaRenderId.
+// useMapaForm e mockado para controlar isMestre/isModoRP/mestreVendoRP/jogadores/cenaRenderId.
 // ---------------------------------------------------------------------------
 
 vi.mock('./MapaFormContext', () => ({ useMapaForm: vi.fn() }));
 vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(() => Promise.resolve()),
     enviarParaFeed: vi.fn(),
     salvarFichaSilencioso: vi.fn(),
@@ -43,7 +42,7 @@ function configurar(ctx = {}, cenario = { ativa: 'cena_x', lista: {}, tokensOcul
     mockUseStore({ divisorPoderMesa: 1, cenario });
     useMapaForm.mockReturnValue({
         isMestre: true, isModoRP: false, mestreVendoRP: false,
-        jogadores: mesaPadrao(), dummies: {}, cenaRenderId: 'cena_x',
+        jogadores: mesaPadrao(), cenaRenderId: 'cena_x',
         ...ctx,
     });
 }
@@ -52,7 +51,6 @@ const abrirFamilia = (nome) => fireEvent.click(screen.getByText(nome, { exact: f
 const botoesCombate = () => screen.queryAllByText('+ cópia');
 const campoQtd = () => document.querySelector('input[type="number"]');
 const checkInvisivel = () => document.querySelector('input[type="checkbox"]');
-const salvos = () => salvarDummie.mock.calls.map(c => ({ id: c[0], dummie: c[1] }));
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -151,19 +149,6 @@ describe('Gaveta de Tokens - lista de NPCs por familia', () => {
         fireEvent.change(busca, { target: { value: '' } });
         expect(screen.queryByText('Goblin')).toBeNull();
     });
-    it('mostra quantos tokens do NPC ja estao NESTA cena', () => {
-        configurar({
-            dummies: {
-                a: { nome: 'Goblin #1', fichaOrigem: 'Goblin', cenaId: 'cena_x' },
-                b: { nome: 'Goblin (2)', fichaOrigem: 'Goblin', cenaId: 'cena_x' },
-                c: { nome: 'Goblin (3)', fichaOrigem: 'Goblin', cenaId: 'outra' },
-            },
-        });
-        render(<MapaMestreGavetaTokens />);
-        abrirFamilia('Tribo Verde');
-        expect(screen.getByText('Goblin').closest('.gaveta-npc').textContent).toContain('2 na cena');
-        expect(screen.getByText('Orc').closest('.gaveta-npc').textContent).not.toContain('na cena');
-    });
 });
 
 describe('Gaveta de Tokens - estado vazio', () => {
@@ -185,30 +170,9 @@ describe('Gaveta de Tokens - estado vazio', () => {
     });
 });
 
-describe('Gaveta de Tokens - Colocar e + cópia (sem dummie)', () => {
+describe('Gaveta de Tokens - Colocar e + cópia (sem token-cópia)', () => {
     const linha = (nome) => { abrirFamilia(nome === 'Lobo' ? FAMILIA_SEM_CLA : 'Tribo Verde'); return screen.getByText(nome).closest('.gaveta-npc'); };
 
-    it('"Colocar" põe a PRÓPRIA ficha na cena (posição na cena renderizada) e não cria dummie', () => {
-        configurar();
-        render(<MapaMestreGavetaTokens />);
-        fireEvent.click(linha('Goblin').querySelector('.gaveta-npc-principal'));
-        expect(salvarCamposPersonagem).toHaveBeenCalledTimes(1);
-        expect(salvarCamposPersonagem.mock.calls[0][0]).toBe('Goblin');
-        expect(salvarCamposPersonagem.mock.calls[0][1]['posicoes/cena_x']).toMatchObject({ cenaId: 'cena_x' });
-        expect(salvarDummie).not.toHaveBeenCalled();
-    });
-    it('"+ cópia" cria uma ficha NOVA (Goblin (2)) igual à original e a posiciona, sem dummie', async () => {
-        configurar();
-        render(<MapaMestreGavetaTokens />);
-        fireEvent.click(linha('Goblin').querySelector('.gaveta-npc-copia'));
-        await waitFor(() => expect(criarPersonagemNaMesa).toHaveBeenCalledTimes(1));
-        const [nome, ficha] = criarPersonagemNaMesa.mock.calls[0];
-        expect(nome).toBe('Goblin (2)');
-        expect(ficha.isNPC).toBe(true);
-        expect(ficha.bio.afiliacao).toBe('Tribo Verde');
-        expect(Object.keys(ficha.posicoes)).toEqual(['cena_x']);
-        expect(salvarDummie).not.toHaveBeenCalled();
-    });
     it('quantidade 3 cria Goblin (2), #3 e #4, em casas distintas', async () => {
         configurar();
         render(<MapaMestreGavetaTokens />);

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-    aplicarDanoDireto, aplicarFadigaDireta, salvarDummie, salvarFirebaseImediato, resetSincronizacaoFicha,
+    aplicarDanoDireto, aplicarFadigaDireta, salvarFirebaseImediato, resetSincronizacaoFicha,
     iniciarListenerFichaPropria, confirmarLeituraRemota, remotoConfirmado, deletarPersonagem, salvarFichaSilencioso,
 } from './firebase-sync';
 import useStore from '../stores/useStore';
@@ -42,7 +42,7 @@ beforeEach(() => {
     resetSincronizacaoFicha();
     estado = {
         mesaId: 'm1', meuNome: 'Eu', minhaFicha: { vida: { atual: 5 } },
-        personagens: { Ana: { vida: { atual: 50 } }, Bia: { vida: { atual: 10 } } }, dummies: {},
+        personagens: { Ana: { vida: { atual: 50 } }, Bia: { vida: { atual: 10 } } },
         adicionarAviso: vi.fn(), setMinhaFicha: vi.fn(), carregarDadosFicha: vi.fn(), fichaDono: '',
     };
     useStore.getState.mockImplementation(() => estado);
@@ -209,94 +209,6 @@ describe('aplicarFadigaDireta', () => {
         aplicarFadigaDireta('Fadi', 8, { base: 5 });
         await esperar();
         expect(estado.adicionarAviso).toHaveBeenCalledTimes(1);
-    });
-});
-
-describe('salvarDummie', () => {
-    const D = () => ({ nome: 'Boneco', hpAtual: 100, hpMax: 100, x: 1, y: 2 });
-    beforeEach(() => { estado.dummies = { d1: D() }; });
-
-    it('criacao (sem dummy no store): set do objeto inteiro', () => {
-        salvarDummie('novo', { nome: 'N', hpAtual: 5 });
-        expect(set).toHaveBeenCalledWith('mesas/m1/dummies/novo', { nome: 'N', hpAtual: 5 });
-        expect(runTransaction).not.toHaveBeenCalled();
-    });
-    it('objeto identico nao grava nada', () => {
-        salvarDummie('d1', D(), { baseHp: 100, hpMax: 100 });
-        salvarDummie('d1', D());
-        expect(runTransaction).not.toHaveBeenCalled();
-        expect(set).not.toHaveBeenCalled();
-    });
-    it('so campos alterados: transacao no no; demais campos preservados do servidor', () => {
-        salvarDummie('d1', { ...D(), x: 9 });
-        expect(runTransaction).toHaveBeenCalledTimes(1);
-        expect(set).not.toHaveBeenCalled();
-        expect(ref).toHaveBeenCalledWith({}, 'mesas/m1/dummies/d1');
-        const servidor = { nome: 'Boneco', hpAtual: 40, hpMax: 100, x: 1, y: 77 };
-        expect(cbDe()(servidor)).toEqual({ nome: 'Boneco', hpAtual: 40, hpMax: 100, x: 9, y: 77 });
-        expect(optsDe()).toEqual({ applyLocally: false });
-    });
-    it('campo ausente no novo objeto vira remocao; valor null tambem remove', () => {
-        salvarDummie('d1', { nome: 'Boneco', hpAtual: 100, hpMax: 100, y: null });
-        const r = cbDe()({ ...D() });
-        expect('x' in r).toBe(false);
-        expect('y' in r).toBe(false);
-    });
-    it('hpAtual por delta: servidor 60, golpe de 30 sobre base 100 => 30', () => {
-        salvarDummie('d1', { ...D(), hpAtual: 70 }, { baseHp: 100, hpMax: 100 });
-        expect(cbDe()({ ...D(), hpAtual: 60 }).hpAtual).toBe(30);
-    });
-    it('dois danos em sequencia somam (nao sobrescrevem)', () => {
-        salvarDummie('d1', { ...D(), hpAtual: 70 }, { baseHp: 100, hpMax: 100 });
-        salvarDummie('d1', { ...D(), hpAtual: 80 }, { baseHp: 100, hpMax: 100 });
-        let servidor = D();
-        servidor = cbDe(0)(servidor);
-        servidor = cbDe(1)(servidor);
-        expect(servidor.hpAtual).toBe(50);
-    });
-    it('so o delta de Vida mudando ainda grava', () => {
-        salvarDummie('d1', { ...D(), hpAtual: 90 }, { baseHp: 100, hpMax: 100 });
-        expect(runTransaction).toHaveBeenCalledTimes(1);
-    });
-    it('piso 0 e teto hpMax na cura; nunca reduz acima do maximo', () => {
-        salvarDummie('d1', { ...D(), hpAtual: 100 }, { baseHp: 60, hpMax: 100 });
-        expect(cbDe()({ ...D(), hpAtual: 80 }).hpAtual).toBe(100);
-        expect(cbDe()({ ...D(), hpAtual: 130 }).hpAtual).toBe(130);
-        salvarDummie('d1', { ...D(), hpAtual: 0 }, { baseHp: 100, hpMax: 100 });
-        expect(cbDe(1)({ ...D(), hpAtual: 20 }).hpAtual).toBe(0);
-    });
-    it('servidor sem hpAtual valido usa baseHp', () => {
-        salvarDummie('d1', { ...D(), hpAtual: 70 }, { baseHp: 100, hpMax: 100 });
-        expect(cbDe()({ nome: 'Boneco', hpMax: 100, x: 1, y: 2 }).hpAtual).toBe(70);
-    });
-    it('dummie apagado (no ausente e fora do store): aborta sem criar no parcial', () => {
-        salvarDummie('d1', { ...D(), hpAtual: 70 }, { baseHp: 100, hpMax: 100 });
-        estado.dummies = { outro: D() };
-        expect(cbDe()(null)).toBeUndefined();
-    });
-    it('primeiro passo com cache vazio mas dummie ainda no store: parte do que o cliente conhecia', () => {
-        salvarDummie('d1', { ...D(), hpAtual: 70, x: 5 }, { baseHp: 100, hpMax: 100 });
-        expect(cbDe()(null)).toEqual({ nome: 'Boneco', hpAtual: 70, hpMax: 100, x: 5, y: 2 });
-    });
-    it('callback reexecutavel nao muta o dummie do store', () => {
-        salvarDummie('d1', { ...D(), hpAtual: 70, x: 5 }, { baseHp: 100, hpMax: 100 });
-        const cb = cbDe();
-        cb(null); cb(null);
-        expect(estado.dummies.d1).toEqual(D());
-    });
-    it('sem baseHp: hpAtual e campo comum (valor absoluto)', () => {
-        salvarDummie('d1', { ...D(), hpAtual: 10 });
-        expect(cbDe()({ ...D(), hpAtual: 55 }).hpAtual).toBe(10);
-    });
-    it('falha avisa (transacao e set de criacao)', async () => {
-        runTransaction.mockRejectedValue(new Error('x'));
-        salvarDummie('d1', { ...D(), x: 3 });
-        await esperar();
-        expect(estado.adicionarAviso).toHaveBeenCalledTimes(1);
-        set.mockRejectedValueOnce(new Error('y'));
-        salvarDummie('criar-outro', { nome: 'Z' });
-        await esperar();
-        expect(console.warn.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
 });
 

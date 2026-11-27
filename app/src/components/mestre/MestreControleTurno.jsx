@@ -88,7 +88,7 @@ export default function MestreControleTurno() {
             const destino = origem !== -1 && origem < indice ? indice - 1 : indice;
             acoesOrdem.reordenar(payload.chave, destino);
         } else {
-            acoesOrdem.adicionar({ id: payload.id, isDummie: !!payload.isDummie }, indice);
+            acoesOrdem.adicionar({ id: payload.id }, indice);
         }
     }, [acoesOrdem, ordem, limparArrasto]);
 
@@ -111,13 +111,12 @@ export default function MestreControleTurno() {
         e.preventDefault();
         const payload = lerArrastoTurno(e);
         limparArrasto();
-        if (payload?.origem === 'ordem' && acoesOrdem) acoesOrdem.remover({ id: payload.id, isDummie: !!payload.isDummie });
+        if (payload?.origem === 'ordem' && acoesOrdem) acoesOrdem.remover({ id: payload.id });
     }, [acoesOrdem, limparArrasto]);
 
     const adicionarSelecionado = useCallback(() => {
         if (!selecaoAdicionar || !acoesOrdem) return;
-        const [tipo, ...resto] = selecaoAdicionar.split(':');
-        acoesOrdem.adicionar({ id: resto.join(':'), isDummie: tipo === 'd' }, ordem.length);
+        acoesOrdem.adicionar({ id: selecaoAdicionar.slice(2) }, ordem.length);
         setSelecaoAdicionar('');
     }, [selecaoAdicionar, acoesOrdem, ordem.length]);
 
@@ -171,20 +170,20 @@ export default function MestreControleTurno() {
                 onDrop={(e) => soltarNaOrdem(e, indiceSoltura ?? ordem.length)}
             >
                 {ordem.map((e, i) => (
-                    <React.Fragment key={e.chave || `${e.isDummie ? 'd' : 'p'}-${e.id}`}>
+                    <React.Fragment key={e.chave || `p-${e.id}`}>
                         {indiceSoltura === i && <span className="mestre-turno-marcador" />}
                         <span
-                            className={`mestre-turno-chip${i === indiceAtual ? ' ativo' : ''}${e.isDummie ? ' dummie' : ''}${podeEditarOrdem ? ' arrastavel' : ''}`}
+                            className={`mestre-turno-chip${i === indiceAtual ? ' ativo' : ''}${podeEditarOrdem ? ' arrastavel' : ''}`}
                             title={podeEditarOrdem ? `Iniciativa ${e.iniciativa} — arraste para reordenar, ou para o Visor para tirar do turno` : `Iniciativa ${e.iniciativa}`}
                             draggable={podeEditarOrdem}
-                            onDragStart={(ev) => { iniciarArrastoTurno(ev, { origem: 'ordem', chave: e.chave, id: e.id, isDummie: e.isDummie, nome: e.nome }); setArrastandoDaOrdem(true); }}
+                            onDragStart={(ev) => { iniciarArrastoTurno(ev, { origem: 'ordem', chave: e.chave, id: e.id, nome: e.nome }); setArrastandoDaOrdem(true); }}
                             onDragEnd={limparArrasto}
                             onDragOver={(ev) => aoPassarSobreChip(ev, i)}
                         >
-                            {e.isDummie ? '👾 ' : ''}{e.nome} <small>({e.iniciativa})</small>
+                            {e.nome} <small>({e.iniciativa})</small>
                             {podeEditarOrdem && (
                                 <button type="button" className="mestre-turno-chip-remover" title={`Tirar ${e.nome} da ordem de turno`}
-                                    onClick={() => acoesOrdem.remover({ id: e.id, isDummie: e.isDummie })}>✕</button>
+                                    onClick={() => acoesOrdem.remover({ id: e.id })}>✕</button>
                             )}
                         </span>
                     </React.Fragment>
@@ -204,7 +203,7 @@ export default function MestreControleTurno() {
                     <select className="input-neon mestre-turno-adicionar-select" value={selecaoAdicionar} onChange={(e) => setSelecaoAdicionar(e.target.value)} aria-label="Personagem para adicionar à ordem de turno">
                         <option value="">➕ Adicionar à ordem de turno...</option>
                         {foraDaOrdem.map(e => (
-                            <option key={`${e.isDummie ? 'd' : 'p'}:${e.id}`} value={`${e.isDummie ? 'd' : 'p'}:${e.id}`}>{e.isDummie ? '👾 ' : ''}{e.nome}</option>
+                            <option key={`p:${e.id}`} value={`p:${e.id}`}>{e.nome}</option>
                         ))}
                     </select>
                     <button type="button" className="btn-neon mestre-turno-adicionar-btn" onClick={adicionarSelecionado} disabled={!selecaoAdicionar}>Adicionar</button>

@@ -35,7 +35,7 @@ export default function MapaPanel({ className, children }) {
                         <MapaDadoAnimado />
                         
                         <div style={{ flex: '1 1 70%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                            {/* MÓDULO DO MESTRE (ZONAS, CENAS, DUMMIES) */}
+                            {/* MÓDULO DO MESTRE (ZONAS, CENAS) */}
                             <MapaFerramentasMestre />
                             <div className="mapa-atalhos">
                                 <MapaSeletorAtor />

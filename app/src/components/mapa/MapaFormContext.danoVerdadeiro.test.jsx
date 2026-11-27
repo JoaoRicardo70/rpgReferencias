@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaFormProvider, useMapaForm } from './MapaFormContext';
 import { MapaMestreDanoRapido } from './MapaFerramentasMestre';
 import useStore from '../../stores/useStore';
-import { enviarParaFeed, salvarDummie, aplicarDanoDireto } from '../../services/firebase-sync';
+import { enviarParaFeed, aplicarDanoDireto } from '../../services/firebase-sync';
 
 // QA - Dano Verdadeiro no Dano Rapido do Mestre: aplicarDanoRapido (8o parametro) e o interruptor da UI.
 
@@ -12,7 +12,6 @@ vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
@@ -52,7 +51,7 @@ function mockStore(ficha, extra = {}) {
     const state = {
         minhaFicha: ficha, meuNome: 'Mestre', personagens: {},
         updateFicha: vi.fn((cb) => cb(ficha)),
-        feedCombate: [], isMestre: true, mesaCriador: 'Mestre', dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa',
+        feedCombate: [], isMestre: true, mesaCriador: 'Mestre', alvoSelecionado: null, abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
         ...extra,
     };
@@ -65,7 +64,7 @@ function montar(ficha, extra) {
     render(<MapaFormProvider><Harness /></MapaFormProvider>);
     return ficha;
 }
-const alvoDe = (ficha) => ({ id: 'Mestre', nome: 'Mestre', ficha, isDummie: false });
+const alvoDe = (ficha) => ({ id: 'Mestre', nome: 'Mestre', ficha });
 const ultimoFeed = () => enviarParaFeed.mock.calls.at(-1)[0];
 
 beforeEach(() => { vi.clearAllMocks(); window.alert = vi.fn(); });
@@ -100,15 +99,6 @@ describe('MapaFormContext.aplicarDanoRapido - 8o parametro danoVerdadeiro', () =
             act(() => { probe.aplicarDanoRapido(alvoDe(f), 1000, 'Fogo', null, 0, null, false, v); });
             expect(VIDA - f.vida.atual).toBe(normal);
         });
-    });
-    it('Dummie recebe o mesmo dano com e sem a flag', () => {
-        const dummie = (hp) => ({ id: 'g1', nome: 'Goblin', isDummie: true, hpAtual: hp, hpMax: hp, valorDefesa: 10, ficha: null });
-        montar(fichaBase(), { dummies: { g1: { nome: 'Goblin', cenaId: 'default', hpAtual: 5000000, hpMax: 5000000 } } });
-        act(() => { probe.aplicarDanoRapido(dummie(5000000), 10, 'Fogo', null, 0, null, false, false); });
-        const sem = salvarDummie.mock.calls.at(-1)[1].hpAtual;
-        vi.clearAllMocks();
-        act(() => { probe.aplicarDanoRapido(dummie(5000000), 10, 'Fogo', null, 0, null, false, true); });
-        expect(salvarDummie.mock.calls.at(-1)[1].hpAtual).toBe(sem);
     });
     it('Mestre sem permissao (nao-Mestre) nao aplica nada', () => {
         const ficha = montar(blindada(), { isMestre: false });

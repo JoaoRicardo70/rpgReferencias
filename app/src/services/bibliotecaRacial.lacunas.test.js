@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import useStore from '../stores/useStore';
 import { publicarNaBiblioteca, atualizarEntradaDaBiblioteca, removerDaBiblioteca, concederHabilidade, limparPendentesBiblioteca } from './bibliotecaRacial';
 import { salvarRacasDaMesa } from './racasMesa';
-import { salvarFichaSilencioso, salvarDummie, salvarCenarioCompleto, salvarCamposPersonagem } from './firebase-sync';
+import { salvarFichaSilencioso, salvarCenarioCompleto, salvarCamposPersonagem } from './firebase-sync';
 import { criarEntradaDePoder, disponiveisParaJogador } from '../core/bibliotecaRacial';
 
 vi.mock('./firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), salvarDummie: vi.fn(), salvarCenarioCompleto: vi.fn(), salvarCamposPersonagem: vi.fn(), enviarParaFeed: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), salvarCenarioCompleto: vi.fn(), salvarCamposPersonagem: vi.fn(), enviarParaFeed: vi.fn(),
 }));
 
 const RACAS = [{ id: 'saiyajin', nome: 'Saiyajin', icone: '🐒' }, { id: 'humano', nome: 'Humano', icone: '🧍' }];
@@ -24,7 +24,7 @@ function preparar(extra = {}) {
             Kai: { bio: { racaId: 'saiyajin' }, poderes: [{ id: 1, nome: 'A' }] },
             Lia: { bio: { racaId: 'humano' }, poderes: [] },
         },
-        dummies: {}, ...extra,
+        ...extra,
     });
 }
 beforeEach(() => { vi.clearAllMocks(); limparPendentesBiblioteca(); preparar(); });
@@ -60,10 +60,9 @@ describe('(c) segurança: nada gravado fora do Mestre', () => {
             removerDaBiblioteca('bib_zenkai'),
             concederHabilidade({ id: 'Kai', nome: 'Kai' }, 'bib_zenkai'),
             concederHabilidade({ id: 'Mestre', nome: 'Mestre' }, 'bib_zenkai'),
-            concederHabilidade({ id: 'd1', nome: 'B', isDummie: true }, 'bib_zenkai'),
         ];
         rs.forEach(r => expect(r.ok).toBe(false));
-        [salvarCenarioCompleto, salvarCamposPersonagem, salvarFichaSilencioso, salvarDummie].forEach(f => expect(f).not.toHaveBeenCalled());
+        [salvarCenarioCompleto, salvarCamposPersonagem, salvarFichaSilencioso].forEach(f => expect(f).not.toHaveBeenCalled());
         expect(JSON.stringify(useStore.getState().cenario)).toBe(antes);
         expect(JSON.stringify(useStore.getState().minhaFicha)).toBe(antesFicha);
     });
@@ -195,14 +194,13 @@ describe('(f) raça removida só pelo catálogo', () => {
 });
 
 describe('editar/remover NÃO altera cópias já concedidas', () => {
-    it('após remover/editar a entrada, nenhum save de personagem/ficha/dummie', () => {
+    it('após remover/editar a entrada, nenhum save de personagem/ficha', () => {
         concederHabilidade({ id: 'Mestre', nome: 'Mestre' }, 'bib_zenkai');
         const copia = JSON.stringify(useStore.getState().minhaFicha.poderes);
         vi.clearAllMocks();
         atualizarEntradaDaBiblioteca('bib_zenkai', { nome: 'Outro', percentualMinimo: 90, racasAcesso: ['humano'] });
         removerDaBiblioteca('bib_zenkai');
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
-        expect(salvarDummie).not.toHaveBeenCalled();
         expect(salvarFichaSilencioso).not.toHaveBeenCalled();
         expect(JSON.stringify(useStore.getState().minhaFicha.poderes)).toBe(copia);
     });

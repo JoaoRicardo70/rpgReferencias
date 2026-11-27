@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./firebase-sync', () => ({
-    salvarCamposPersonagem: vi.fn(), salvarDummie: vi.fn(),
+    salvarCamposPersonagem: vi.fn(), 
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
 }));
 
@@ -21,7 +21,7 @@ const F = 1000;
 const NEGAR = { id: 'nm', nome: 'Negar morte', evento: { tipo: 'danoQueZeraria' }, condicoes: ['vida_maior_que:1'], limite: { max: 1, por: 'cena' }, acoes: [{ tipo: 'anularDano' }, { tipo: 'definirVida', valor: 1 }] };
 const ficha = (extra = {}) => ({ vida: { atual: 500 * F, base: 1e9 }, combate: { fadigaExtra: 3 }, poderes: [], inventario: [], passivas: [], ...extra });
 const GOD = { turnosRestantes: 1, origem: 'x' };
-const mocks = ['salvarCamposPersonagem', 'salvarDummie', 'aplicarDanoDireto', 'aplicarFadigaDireta', 'aplicarElementoDireto', 'aplicarElementoNivelDireto'];
+const mocks = ['salvarCamposPersonagem', 'aplicarDanoDireto', 'aplicarFadigaDireta', 'aplicarElementoDireto', 'aplicarElementoNivelDireto'];
 const chamadas = () => JSON.stringify(mocks.map(m => [m, fb[m].mock.calls]), (k, v) => (typeof v === 'number' && !Number.isFinite(v) ? `#${v}` : v));
 const semUndefined = (o) => !JSON.stringify(o, (k, v) => (v === undefined ? '__U__' : v)).includes('__U__');
 function rodar(fn) { vi.clearAllMocks(); const ret = fn(); return { ret, calls: chamadas() }; }
@@ -72,7 +72,7 @@ describe.skipIf(!temAntigo)('P1 - diferencial contra o HEAD (sem gatilhos, sem G
         })));
     });
 
-    it('gravarVidaDoAlvo: personagem e Dummie gravam o mesmo (retorno novo { textos: [] } em vez de undefined)', () => {
+    it('gravarVidaDoAlvo: personagem grava o mesmo (retorno novo { textos: [] } em vez de undefined)', () => {
         const alvoP = (mk) => ({ isPersonagem: true, personagemNome: 'Ana', nome: 'Ana', ficha: mk() });
         Object.entries(FICHAS).forEach(([nome, mk]) => VIDAS_FINAIS.forEach((v) => {
             const a = rodar(() => velho.gravarVidaDoAlvo('pj:Ana', alvoP(mk), v, { elemento: 'fogo' }));
@@ -80,11 +80,6 @@ describe.skipIf(!temAntigo)('P1 - diferencial contra o HEAD (sem gatilhos, sem G
             expect(b.calls, `${nome} v=${v}`).toBe(a.calls);
             expect(b.ret).toMatchObject({ textos: [] });
         }));
-        const d = { isDummie: true, nome: 'Boneco', hpAtual: 100, condicoes: [{ id: 'x', stacks: 1 }] };
-        const a = rodar(() => velho.gravarVidaDoAlvo('d1', d, 40));
-        const b = rodar(() => novo.gravarVidaDoAlvo('d1', d, 40));
-        expect(b.calls).toBe(a.calls);
-        expect(b.ret).toMatchObject({ textos: [] });
         expect(rodar(() => novo.gravarVidaDoAlvo('x', null, 1)).ret).toMatchObject({ textos: [] });
         expect(rodar(() => novo.gravarVidaDoAlvo('x', undefined, 1)).calls).toBe(rodar(() => velho.gravarVidaDoAlvo('x', undefined, 1)).calls);
     });

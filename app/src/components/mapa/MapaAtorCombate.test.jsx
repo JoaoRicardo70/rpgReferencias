@@ -11,10 +11,10 @@ vi.mock('./MapaFormContext', () => ({ useMapaForm: vi.fn() }));
 const setAtorCombate = vi.fn();
 const npc = { isNPC: true, posicao: { x: 1, y: 1, z: 0, cenaId: 'default' } };
 
-function montar({ isMestre = true, personagens = { Goblin: npc }, dummies = {}, atorCombate = null } = {}) {
+function montar({ isMestre = true, personagens = { Goblin: npc }, atorCombate = null } = {}) {
     const state = { atorCombate, setAtorCombate };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(state) : state));
-    useMapaForm.mockReturnValue({ isMestre, personagens, dummies, cenaRenderId: 'default' });
+    useMapaForm.mockReturnValue({ isMestre, personagens, cenaRenderId: 'default' });
     return render(<MapaSeletorAtor />);
 }
 

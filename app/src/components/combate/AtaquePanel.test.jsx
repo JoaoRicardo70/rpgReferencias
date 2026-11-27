@@ -25,7 +25,6 @@ vi.mock('../../core/engine', () => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn()
 }));
 
 describe('AtaquePanel', () => {
@@ -48,7 +47,6 @@ describe('AtaquePanel', () => {
             addFeedEntry: mockAddFeedEntry,
             feedCombate: [],
             alvoSelecionado: null,
-            dummies: {},
             ignorarTravaAcerto: false,
             setIgnorarTravaAcerto: vi.fn(),
         };
@@ -83,7 +81,7 @@ describe('AtaquePanel', () => {
                     poderes, inventario: [], ataquesElementais: magias,
                 },
                 meuNome: 'Herói', updateFicha: vi.fn(), setAbaAtiva: vi.fn(), addFeedEntry: vi.fn(),
-                feedCombate: [], alvoSelecionado: null, dummies: {}, ignorarTravaAcerto: false, setIgnorarTravaAcerto: vi.fn(),
+                feedCombate: [], alvoSelecionado: null, ignorarTravaAcerto: false, setIgnorarTravaAcerto: vi.fn(),
             };
             useStore.mockImplementation(selector => selector ? selector(mockState) : mockState);
         };

@@ -371,29 +371,11 @@ describe('getClasseEfetiva / getTetoOcultacaoPoder / getOcultacaoPoder', () => {
 
 describe('estimarPoderDeEntidade', () => {
     it('entidade nula = null', () => expect(estimarPoderDeEntidade(null, {}, 1)).toBeNull());
-    it('dummie sem poderCalculado = null', () => {
-        expect(estimarPoderDeEntidade({ isDummie: true, ficha: { visibilidadeHp: 'todos' } }, {}, 1)).toBeNull();
-        expect(estimarPoderDeEntidade({ isDummie: true, ficha: { poderCalculado: '' } }, {}, 1)).toBeNull();
-    });
-    it('dummie visivel usa poderCalculado e a percepcao do observador', () => {
-        const ent = { isDummie: true, ficha: { poderCalculado: 1000, visibilidadeHp: 'todos' } };
-        expect(estimarPoderDeEntidade(ent, {}, 1)).toEqual(estimarPoder(1000));
-        const vidente = { passivas: [{ efeitos: [ef(P, 50)] }] };
-        expect(estimarPoderDeEntidade(ent, vidente, 1).modo).toBe('exato');
-    });
-    it.each(['mestre', 'nenhum'])('dummie com visibilidadeHp=%s -> oculto', (vis) => {
-        const ent = { isDummie: true, ficha: { poderCalculado: 1000, visibilidadeHp: vis } };
-        expect(estimarPoderDeEntidade(ent, {}, 1)).toEqual({ modo: 'oculto', min: null, max: null, incerteza: 150 });
-    });
-    it('dummie com HP oculto continua oculto mesmo com percepcao enorme', () => {
-        const ent = { isDummie: true, ficha: { poderCalculado: 1000, visibilidadeHp: 'mestre' } };
-        expect(estimarPoderDeEntidade(ent, { passivas: [{ efeitos: [ef(P, 9999)] }] }, 1).modo).toBe('oculto');
-    });
     it('ficha usa o poderExato (calcularPoderAtual)', () => {
         const f = fichaMinima();
         const real = getPoderParaDisputa(f, 1);
         expect(real).toBeGreaterThan(0);
-        expect(estimarPoderDeEntidade({ isDummie: false, ficha: f }, {}, 1)).toEqual(estimarPoder(real));
+        expect(estimarPoderDeEntidade({ ficha: f }, {}, 1)).toEqual(estimarPoder(real));
     });
     it('ficha de assassino ocultando 100 fica oculta; com percepcao 150 do observador fica exata', () => {
         const f = fichaMinima({ bio: { classe: 'assassin' }, ocultacaoPoder: 100 });
@@ -408,7 +390,7 @@ describe('estimarPoderDeEntidade', () => {
         expect(estimarPoderDeEntidade({ ficha: f }, {}, 1).modo).toBe('faixa');
     });
     it('observador nulo nao quebra', () => {
-        expect(estimarPoderDeEntidade({ isDummie: true, ficha: { poderCalculado: 10, visibilidadeHp: 'todos' } }, null, 1).modo).toBe('faixa');
+        expect(estimarPoderDeEntidade({ ficha: fichaMinima() }, null, 1).modo).toBe('faixa');
     });
 });
 

@@ -1,21 +1,21 @@
 // ==========================================
 // 🛡️ ALIADOS EM CAMPO — contagem de aliados do portador na CENA ATIVA, com filtro opcional (lógica pura + atalhos que leem a mesa).
-//   "Em campo" = personagens (e NPCs/Dummies) POSICIONADOS na CENA ATIVA (cenario.ativa), com o mesmo critério do mapa (core/alcance.js >
+//   "Em campo" = personagens (e NPCs) POSICIONADOS na CENA ATIVA (cenario.ativa), com o mesmo critério do mapa (core/alcance.js >
 //   getPosicaoEntidade: precisa de x/y), conscientes ou não: NÃO exige iniciativa nem vida > 0, e NÃO é a mesa inteira.
 //   Aliado = relação 'aliada' de core/lados.js (mesma equipe ou equipes aliadas); neutros e inimigos não contam; o portador nunca conta.
 //   IDENTIDADE DO PORTADOR: vem do CHAMADOR (`nomePortador`, a chave em `personagens`); nunca é deduzido de ficha.nome/bio.nome. Sem nome
 //   (ou se ele não achar a ficha), a contagem FALHA FECHADA: 0 aliados. Compara-se sempre sanitizarNome() dos dois lados.
 //   Filtro opcional (texto "tipo=valor"): afiliacao (ficha.bio.afiliacao, contém o texto), raca (id ou nome da Raça, igual), classe (ficha.bio.classe, igual).
-//   Comparação sem acento e sem maiúsculas. Aliado sem o dado do filtro não passa (falha fechada). NPCs/Dummies só passam sem filtro ou com filtro que o
+//   Comparação sem acento e sem maiúsculas. Aliado sem o dado do filtro não passa (falha fechada). NPCs só passam sem filtro ou com filtro que o
 //   próprio registro responda (bio).
 //   PRIVACIDADE: no filtro por RAÇA só contam os aliados cuja Raça o PORTADOR pode ver (core/racasVisibilidade.js > visivelPara; o dono de uma Raça
 //   "só eu e o Mestre"/"só o Mestre" não é revelado a outros jogadores; o Mestre efetivo vê tudo), para a contagem não virar oráculo da Raça oculta.
 //   Este módulo devolve só números/listas de aliados e nunca mostra a Raça de ninguém.
-//   Cache de 1 entrada (por referência de personagens/dummies/cenario, cena, portador, filtro e Mestre) para não recalcular a cada leitura.
+//   Cache de 1 entrada (por referência de personagens/cenario, cena, portador, filtro e Mestre) para não recalcular a cada leitura.
 // Usado por: condição `aliados_em_campo:N[:tipo=valor]` (core/efeitosCondicionais.js), valor por aliado `escalaAliados` (core/efeitos-resolver.js)
 // e efeitos `valeParaAliados` (core/efeitosDeAliados.js).
 // ==========================================
-import { relacaoEntre, mesmoCombatente, comoCombatente } from './lados.js';
+import { relacaoEntre } from './lados.js';
 import { resolverRaca } from './racas.js';
 import { getPosicaoEntidade } from './alcance.js';
 import { nivelDaRaca, visivelPara, CHAVE_PRINCIPAL } from './racasVisibilidade.js';
@@ -77,9 +77,9 @@ export const naCena = (f, cenaId) => {
     return !!pos && (pos.cenaId || 'default') === cenaId;
 };
 
-// Lista os aliados do portador na cena: [{ nome, ficha, dummie }]. `portador` = { ficha, nome } (nome = chave em `personagens`, obrigatório:
-// sem ele a lista é VAZIA). `personagens` = { nome: ficha }, `dummies` = { id: dummie }. `viewer` = { souMestre } (filtro por Raça).
-export function listarAliadosEmCampo({ portador, personagens, dummies, cenario, cenaId, filtro = null, viewer = null }) {
+// Lista os aliados do portador na cena: [{ nome, ficha }]. `portador` = { ficha, nome } (nome = chave em `personagens`, obrigatório:
+// sem ele a lista é VAZIA). `personagens` = { nome: ficha }. `viewer` = { souMestre } (filtro por Raça).
+export function listarAliadosEmCampo({ portador, personagens, cenario, cenaId, filtro = null, viewer = null }) {
     const lista = [];
     const nomeP = sanitizarNome(portador && portador.nome);
     if (!portador || !portador.ficha || !cenaId || !nomeP) return lista;
@@ -90,16 +90,7 @@ export function listarAliadosEmCampo({ portador, personagens, dummies, cenario, 
         if (sanitizarNome(nome) === nomeP) return;
         if (!naCena(outra, cenaId)) return;
         if (relacaoEntre(cenario, portador.ficha, outra) !== 'aliada') return;
-        if (aliadoPassaFiltro(cenario, outra, f, viewer)) lista.push({ nome, ficha: outra, dummie: false });
-    });
-    Object.keys(dummies || {}).forEach((id) => {
-        const d = dummies[id];
-        if (!d || typeof d !== 'object' || d === portador.ficha) return;
-        if ((d.cenaId || 'default') !== cenaId) return;
-        const comoDummie = comoCombatente(d, true);
-        if (mesmoCombatente(comoCombatente(portador.ficha, false), comoDummie)) return;
-        if (relacaoEntre(cenario, portador.ficha, comoDummie) !== 'aliada') return;
-        if (aliadoPassaFiltro(cenario, d, f, viewer)) lista.push({ nome: String(d.nome || id), ficha: d, dummie: true });
+        if (aliadoPassaFiltro(cenario, outra, f, viewer)) lista.push({ nome, ficha: outra });
     });
     return lista;
 }
@@ -112,9 +103,9 @@ export function contarAliadosEmCampo(params) {
 // Cache de 1 entrada por chave de referências (a ficha do portador entra na chave: o resultado depende da equipe dela).
 let cacheLista = null;
 function chaveDe(st, ficha, nome, filtroTexto) {
-    return { personagens: st.personagens, dummies: st.dummies, cenario: st.cenario, ficha, nome, filtroTexto, mestre: st.isMestre === true };
+    return { personagens: st.personagens, cenario: st.cenario, ficha, nome, filtroTexto, mestre: st.isMestre === true };
 }
-const mesmaChave = (a, b) => !!a && !!b && a.personagens === b.personagens && a.dummies === b.dummies && a.cenario === b.cenario && a.ficha === b.ficha && a.nome === b.nome && a.filtroTexto === b.filtroTexto && a.mestre === b.mestre;
+const mesmaChave = (a, b) => !!a && !!b && a.personagens === b.personagens && a.cenario === b.cenario && a.ficha === b.ficha && a.nome === b.nome && a.filtroTexto === b.filtroTexto && a.mestre === b.mestre;
 
 // Aliados na mesa ativa (lê o store). `nomePortador` é OBRIGATÓRIO (chave do portador em `personagens`); sem ele, [] (falha fechada).
 export function listarAliadosEmCampoDaMesa(ficha, filtro = null, nomePortador = '') {
@@ -125,7 +116,7 @@ export function listarAliadosEmCampoDaMesa(ficha, filtro = null, nomePortador = 
         const chave = chaveDe(st, ficha, sanitizarNome(nomePortador), filtroAliadoParaTexto(f));
         if (cacheLista && mesmaChave(cacheLista.chave, chave)) return cacheLista.valor;
         const cenario = st.cenario || null;
-        const valor = listarAliadosEmCampo({ portador: { ficha, nome: nomePortador }, personagens: st.personagens, dummies: st.dummies, cenario, cenaId: (cenario && cenario.ativa) || 'default', filtro: f, viewer: { souMestre: st.isMestre === true } });
+        const valor = listarAliadosEmCampo({ portador: { ficha, nome: nomePortador }, personagens: st.personagens, cenario, cenaId: (cenario && cenario.ativa) || 'default', filtro: f, viewer: { souMestre: st.isMestre === true } });
         cacheLista = { chave, valor };
         return valor;
     } catch (e) { return []; }

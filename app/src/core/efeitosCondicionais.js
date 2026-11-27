@@ -18,7 +18,7 @@ import { ATRIBUTO_DANO_DADOS, lerDadoDeDano, limitarDadosDeEfeitos } from './dan
 import { ataquesNoTurno } from './ataquesNoTurno.js';
 import { efeitosDeAliados } from './efeitosDeAliados.js';
 import { contarAliadosEmCampoDaMesa, normalizarFiltroAliado, filtroAliadoParaTexto, nomeDoPortador } from './aliadosEmCampo.js';
-import { efeitosDeInimigosDaMesa, modificadorDeDefesaDoDummie } from './efeitosDeInimigos.js';
+import { efeitosDeInimigosDaMesa } from './efeitosDeInimigos.js';
 import { existeEstadoEmCampoDaMesa } from './estadoEmCampo.js';
 
 const semAcento = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
@@ -229,7 +229,7 @@ export function tiposDeArmasEquipadas(ficha) {
     return tipos;
 }
 
-// Monta o contexto a partir da ficha de quem age e do alvo (ficha de personagem ou Dummie; pode ser null).
+// Monta o contexto a partir da ficha de quem age e do alvo (ficha de personagem; pode ser null).
 // `nomePortador`: chave do portador em `personagens` (obrigatória para as condições/escalas de aliados; sem ela contam 0).
 export function montarContextoDeCombate(ficha, alvo = null, nomePortador = '') {
     const armaTipos = tiposDeArmasEquipadas(ficha);
@@ -267,11 +267,6 @@ export function montarContextoDeCombate(ficha, alvo = null, nomePortador = '') {
 // ☠️ Condição de um efeito `valeParaInimigos` avaliada NO PORTADOR (o dono do Poder), sem alvo: ex.: 'estado_em_campo:presa'.
 function avaliarEfeitoDeInimigo(portador, nome, efeito) {
     return passaQuando(efeito, montarContextoDeCombate(portador, null, nome));
-}
-
-// ☠️ Modificador (<= 0) que os efeitos `valeParaInimigos` ativos na cena somam à CA FIXA de um NPC/Dummie (core/alvoCombate.js > defesaEfetivaDoDummie).
-export function modificadorDeDefesaContraInimigos(dummie) {
-    return modificadorDeDefesaDoDummie(dummie, avaliarEfeitoDeInimigo);
 }
 
 // ---------- 🎲 Escopo ----------
@@ -348,7 +343,7 @@ export function resisteAoEstado(ficha, estadoId) {
     return !!ficha && temEfeitoDeEstado(ficha, 'resiste_estado', estadoId);
 }
 
-// A ficha é imune a este estado por algum efeito (Poder, Passiva, Item, Pacto...)? Ficha vazia/Dummie (null) nunca é.
+// A ficha é imune a este estado por algum efeito (Poder, Passiva, Item, Pacto...)? Ficha vazia (null) nunca é.
 export function imuneAoEstado(ficha, estadoId) {
     if (!ficha) return false;
     if (temEfeitoDeEstado(ficha, 'imune_estado', estadoId)) return true;
@@ -384,7 +379,7 @@ export const LIMITE_MULT_CRITICO_EXTRA = 100;
 const somaPositivos = (valores) => valores.filter(v => Number.isFinite(v) && v > 0).reduce((s, v) => s + v, 0);
 
 // 🛡️ `desvantagem_atacante`: quantos dados de desvantagem a ficha DEFENSORA impõe a quem a ataca (2 = "dupla desvantagem").
-// Vem dos efeitos da própria ficha defensora (Poder ativo/passivo, Item equipado, Forma, Pacto...). Dummie sem ficha = 0.
+// Vem dos efeitos da própria ficha defensora (Poder ativo/passivo, Item equipado, Forma, Pacto...).
 // A condição "quando" é checada do ponto de vista do defensor; o "alvo" do contexto é o atacante (se informado).
 export function desvantagemImpostaAoAtacante(fichaDefensor, fichaAtacante = null) {
     if (!fichaDefensor || typeof fichaDefensor !== 'object') return 0;

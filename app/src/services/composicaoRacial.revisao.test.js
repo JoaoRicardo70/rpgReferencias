@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import useStore from '../stores/useStore';
 
 vi.mock('./firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)),
+    salvarFichaSilencioso: vi.fn(), salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)),
     enviarParaFeed: vi.fn(), salvarCenarioCompleto: vi.fn(),
 }));
 import * as sync from './firebase-sync';
@@ -16,7 +16,7 @@ const fichaCom = (comp, poderes = [hab()], bio = {}) => ({ bio: { raca: 'Saiyaji
 const eu = { id: 'Goku', nome: 'Goku' };
 const outro = { id: 'Vegeta', nome: 'Vegeta' };
 function montar({ isMestre = true, minha, outros = {} } = {}) {
-    useStore.setState({ meuNome: 'Goku', isMestre, souMestreReal: isMestre, cenario, minhaFicha: minha, personagens: outros, dummies: {} });
+    useStore.setState({ meuNome: 'Goku', isMestre, souMestreReal: isMestre, cenario, minhaFicha: minha, personagens: outros });
 }
 beforeEach(() => { vi.clearAllMocks(); });
 

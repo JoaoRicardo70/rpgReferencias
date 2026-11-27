@@ -32,8 +32,8 @@ export function efeitosDeAliados(ficha, nomePortador = '') {
     const saida = [];
     // Dedup só entre portadores DIFERENTES (mesmo nome de Poder em dois aliados não soma em dobro); dentro do mesmo Poder todos os efeitos valem.
     const vistos = new Set();
-    aliados.forEach(({ nome, ficha: aliado, dummie }) => {
-        if (dummie || !aliado || !Array.isArray(aliado.poderes)) return;
+    aliados.forEach(({ nome, ficha: aliado }) => {
+        if (!aliado || !Array.isArray(aliado.poderes)) return;
         aliado.poderes.forEach((p) => {
             if (!p) return;
             const r = resolverEfeitosEntidade(p, aliado, nome);

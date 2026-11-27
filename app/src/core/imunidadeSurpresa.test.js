@@ -78,7 +78,7 @@ describe('resolverEstadosNoAlvo com imunidade', () => {
         expect(r.aplicados).toEqual([{ id: 'lento', stacks: 2, origem: 'X' }]);
         expect(r.imunes).toHaveLength(1);
     });
-    it('sem fichaAlvo (Dummie) aplica', () => {
+    it('sem fichaAlvo aplica', () => {
         const r = resolverEstadosNoAlvo([{ id: 'surpreso', stacks: 1 }], null);
         expect(r.aplicados).toHaveLength(1);
         expect(r.imunes).toBeUndefined();

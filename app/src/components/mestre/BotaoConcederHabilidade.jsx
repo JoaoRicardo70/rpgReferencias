@@ -6,7 +6,7 @@ import { concederHabilidade } from '../../services/bibliotecaRacial';
 // ✨ "Conceder" uma Habilidade da biblioteca a UM personagem (só Mestre/Co-Mestre; quem chama já filtra por isMestre).
 // Abre um diálogo temático com "Conceder já bloqueada (ainda não despertou)" e "Requisito para desbloquear" (pré-preenchido com o da entrada).
 // Sem Raça com acesso: depois de confirmar o diálogo, pede a confirmação de EXCEÇÃO (mesmo diálogo dos outros fluxos). `aoResultado(r)` recebe { ok, mensagem }.
-// entidade = { id, nome, isDummie }; entrada = { id, nome, requisito }.
+// entidade = { id, nome }; entrada = { id, nome, requisito }.
 export default function BotaoConcederHabilidade({ entrada, entidade, rotulo = '✨ Conceder', aoResultado, comoExcecao = false }) {
     const [aberto, setAberto] = useState(false);
     const [bloqueada, setBloqueada] = useState(false);

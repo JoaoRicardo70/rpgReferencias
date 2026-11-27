@@ -1,5 +1,5 @@
 // ==========================================
-// 🩸↩️ DEPOIS DO GOLPE — aplica no alvo (jogador, NPC com ficha ou Dummie) os estados negativos que o golpe causa e decide o
+// 🩸↩️ DEPOIS DO GOLPE — aplica no alvo (jogador ou NPC com ficha) os estados negativos que o golpe causa e decide o
 // Reflexo automático de quem estava defendendo. Regras puras em core/estadosGolpe.js, core/condicoes.js e core/reflexo.js; aqui
 // ficam só as escritas no Firebase (nunca a ficha inteira: só o campo que mudou).
 // ==========================================
@@ -16,7 +16,7 @@ import { zenkaiAposGasto } from '../core/zenkaiMedicao';
 // Soma os estados já resolvidos na lista de condições do alvo (e na duração deles, core/duracaoEstados.js) sem gravar nada.
 // `fonte` = quem causou (para Amedrontado/Charmado/Provocado). Devolve { condicoes, duracaoEstados } (duracaoEstados undefined = nenhum prazo).
 export function estadoDoAlvoComEstados(alvo, aplicados, fonte = '') {
-    const base = alvo.isPersonagem ? (alvo.ficha || {}) : alvo;
+    const base = alvo.ficha || {};
     const tmp = { condicoes: base.condicoes, ...(base.duracaoEstados ? { duracaoEstados: base.duracaoEstados } : {}) };
     juntarAplicados(aplicados).forEach((a) => { aplicarEstadoComDuracao(tmp, a.id, a.stacks, fonte, a.duracao); });
     return { condicoes: tmp.condicoes, duracaoEstados: tmp.duracaoEstados };
@@ -27,23 +27,20 @@ export function condicoesComEstados(alvo, aplicados, fonte = '') {
     return estadoDoAlvoComEstados(alvo, aplicados, fonte).condicoes;
 }
 
-// Personagem: grava só os campos `condicoes` (e `duracaoEstados`, se mudou; null apaga) por caminho, sem apagar o resto. Dummie: devolve o alvo com as condições novas,
-// para quem grava o Dano usar no MESMO salvarDummie (um `set` do nó inteiro; gravar antes seria sobrescrito pelo Dano). Sem nada a aplicar, devolve o alvo como veio.
+// Grava só os campos `condicoes` (e `duracaoEstados`, se mudou; null apaga) do personagem por caminho, sem apagar o resto. Devolve o alvo como veio.
 export function gravarEstadosNoAlvo(idAlvo, alvo, aplicados, fonte = '') {
     if (!alvo || !Array.isArray(aplicados) || aplicados.length === 0) return alvo;
     const { condicoes, duracaoEstados } = estadoDoAlvoComEstados(alvo, aplicados, fonte);
-    const antes = (alvo.isPersonagem ? (alvo.ficha || {}) : alvo).duracaoEstados;
+    const antes = (alvo.ficha || {}).duracaoEstados;
     const duracaoMudou = JSON.stringify(antes || null) !== JSON.stringify(duracaoEstados || null);
     if (alvo.isPersonagem) {
         salvarCamposPersonagem(alvo.personagemNome, { condicoes, ...(duracaoMudou ? { duracaoEstados: duracaoEstados || null } : {}) });
         return alvo;
     }
-    const novo = { ...alvo, condicoes };
-    if (duracaoEstados) novo.duracaoEstados = duracaoEstados; else delete novo.duracaoEstados;
-    return novo;
+    return alvo;
 }
 
-// Resolve (com teste de resistência do alvo, se houver) e grava. Devolve { texto, alvo } (alvo = o alvo a gravar com o Dano; muda só para Dummie).
+// Resolve (com teste de resistência do alvo, se houver) e grava. Devolve { texto, alvo } (alvo = o alvo a gravar com o Dano).
 export function aplicarEstadosDoGolpe({ idAlvo, alvo, estados, critico = false, fonte = '' }) {
     if (!alvo || !Array.isArray(estados) || estados.length === 0) return { texto: '', alvo };
     const r = resolverEstadosNoAlvo(estados, alvo.isPersonagem ? alvo.ficha : null, { critico });
@@ -83,7 +80,6 @@ export function resolverReflexoAutomatico({ alvo, danoNoAlvo, danoOriginal, nome
 // `aoAcertar` (core/aoAcertar.js): o que o ATACANTE ganha ao acertar; vale uma vez por golpe, só se algum alvo sofreu Dano (resultado()).
 export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0, nomeAtacante = '', custoGolpeTotal = 0, aoAcertar = [], nivel = 'normal' } = {}) {
     const textos = [];
-    const comEstados = new Map(); // Dummies: alvo com as condições novas, para o chamador gravar junto com o Dano
     const escudosPosAbsorcao = new Map(); // alvo-personagem: lista de escudos gravada após a absorção
     let danoAtacante = 0;
     let atingiuComDano = false;
@@ -110,7 +106,6 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
             if (estados.length > 0 && (devolveu ? dano > 0 : true)) {
                 const r = aplicarEstadosDoGolpe({ idAlvo, alvo, estados, critico, fonte: nomeAtacante });
                 if (r.texto) textos.push(r.texto);
-                if (r.alvo !== alvo) comEstados.set(idAlvo, r.alvo);
             }
             if (dano > 0 && noAlvo.length > 0) {
                 if (alvo.isPersonagem && alvo.ficha) {
@@ -123,10 +118,10 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
                     r.textos.forEach(t => textos.push(`${alvo.nome}: ${t}`));
                 } else if (!avisouSemFicha) {
                     avisouSemFicha = true;
-                    textos.push('ℹ️ Entidade do Mapa não tem ficha: dreno de energia, debuff e cura reduzida (Ao acertar) não se aplicam a ela.');
+                    textos.push('ℹ️ O alvo não tem ficha: dreno de energia, debuff e cura reduzida (Ao acertar) não se aplicam a ele.');
                 }
             }
-            if (dano > 0) { atingiuComDano = true; if (!primeiroAlvoAtingido) primeiroAlvoAtingido = comEstados.get(idAlvo) || alvo; }
+            if (dano > 0) { atingiuComDano = true; if (!primeiroAlvoAtingido) primeiroAlvoAtingido = alvo; }
             // 🛡️ Por último: escudos/Vida temporária do alvo-personagem absorvem o Dano final (efeitos 'Ao acertar' valem mesmo que o escudo absorva tudo).
             if (dano > 0 && alvo.isPersonagem && alvo.personagemNome) {
                 const a = absorverEmPersonagem(alvo.personagemNome, alvo.ficha, dano, alvo.nome, alvo.fichaFixa === true);
@@ -135,9 +130,8 @@ export function criarPosGolpe({ estados = [], critico = false, danoOriginal = 0,
             }
             return dano;
         },
-        // Use no lugar do alvo ao gravar o Dano (gravarVidaDoAlvo): leva junto as condições novas do Dummie.
-        // Leva junto os escudos pós-absorção do alvo-personagem (para os gatilhos dele partirem da lista certa).
-        alvoParaGravar(idAlvo, alvo) { const base = comEstados.get(idAlvo) || alvo; return escudosPosAbsorcao.has(idAlvo) ? { ...base, escudosNovos: escudosPosAbsorcao.get(idAlvo) } : base; },
+        // Use no lugar do alvo ao gravar o Dano (gravarVidaDoAlvo): leva junto os escudos pós-absorção do alvo-personagem (para os gatilhos dele partirem da lista certa).
+        alvoParaGravar(idAlvo, alvo) { return escudosPosAbsorcao.has(idAlvo) ? { ...alvo, escudosNovos: escudosPosAbsorcao.get(idAlvo) } : alvo; },
         // Nível do golpe (normal|critico|fatal) para o evento `atingido` do alvo-personagem: passe a gravarVidaDoAlvo({ golpe }).
         golpe() { return { nivel }; },
         // 🔔 Frases dos gatilhos do alvo (Negar morte etc.), vindas de gravarVidaDoAlvo, entram no resumo do golpe.

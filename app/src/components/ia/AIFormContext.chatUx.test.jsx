@@ -47,7 +47,7 @@ beforeEach(() => {
         meuNome: 'Ana', minhaFicha: fichaAna(), isMestre: false, mesaId: 'M1',
         sextaFeiraConfig: { chaveGemini: 'K', modelo: 'mod' }, registrosCompartilhados: false,
         sextaFeiraMemoria: { a: { texto: 'FATO-PUBLICO', em: 2 }, b: { texto: 'FATO-SECRETO', soMestre: true, em: 1 } },
-        personagens: { Bruno: fichaAna() }, dummies: { d1: { nome: 'Goblin' } },
+        personagens: { Bruno: fichaAna(), Goblin: fichaAna() },
         feedCombate: [], resumoTurnoMapa: null, cenario: null, divisorPoderMesa: 1,
         loreCapitulosPresente: presente, loreCapitulosFuturo: futuro,
         loreCapituloAtivoId: 1, loreArcoAtivoIdPresente: 11, loreCapFuturoAtivoId: 100, loreArcoAtivoIdFuturo: 101,
@@ -114,7 +114,7 @@ describe('enviarMensagem(textoDireto)', () => {
         const { result } = montar();
         await digitarEEnviar(result, 'e o @Goblin?');
         const txt = chamarGemini.mock.calls[0][0].contents.at(-1).parts[0].text;
-        expect(txt).toContain('Menções nesta mensagem: @Goblin = NPC/dummie do Mapa (use consultar_ficha');
+        expect(txt).toContain('Menções nesta mensagem: @Goblin = personagem (use consultar_ficha');
         expect(result.current.historico[0].texto).toBe('e o @Goblin?');
     });
     it('sem Dados da mesa a dica de mencao nao cita ferramentas', async () => {
@@ -123,10 +123,10 @@ describe('enviarMensagem(textoDireto)', () => {
         const { result } = montar();
         await digitarEEnviar(result, 'e o @Goblin?');
         const txt = chamarGemini.mock.calls[0][0].contents.at(-1).parts[0].text;
-        expect(txt).toContain('@Goblin = NPC/dummie do Mapa');
+        expect(txt).toContain('@Goblin = personagem');
         expect(txt).not.toContain('consultar_ficha');
     });
-    it('alvosMencao exposto: cena, eu, personagens, dummies e arcos (Futuro incluso quando registros locais)', () => {
+    it('alvosMencao exposto: cena, eu, personagens e arcos (Futuro incluso quando registros locais)', () => {
         const { result } = montar();
         const rot = result.current.alvosMencao.map(a => a.rotulo);
         expect(rot).toEqual(['Cena atual', 'Ana', 'Bruno', 'Goblin', 'Arco P', 'Arco F']);

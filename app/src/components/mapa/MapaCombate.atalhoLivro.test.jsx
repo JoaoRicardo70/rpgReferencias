@@ -28,7 +28,7 @@ const salvoCompleto = {
 const montar = (ataqueConfig, extra = {}) => {
     ctx = {
         minhaFicha: { ...FICHA_BASE, ataqueConfig },
-        podeRolarDano: true, ignorarTravaAcerto: false, dummieAlvo: null,
+        podeRolarDano: true, ignorarTravaAcerto: false, alvoAtaque: null,
         poderesAtivos: [{ id: 'p1' }], magiasOfensivas: [], armaEquipada: { nome: 'Katana' },
         rolarAtaqueSalvo: vi.fn(), rolarDanoCustomizado: vi.fn(), ...extra
     };
@@ -137,7 +137,7 @@ describe('MapaAtalhoAtaques livro - conteudo da carta', () => {
     });
 
     it('topo mostra alvo, ou "Sem alvo", e o aviso de Acerto quando travado', () => {
-        montar({ ataquesSalvos: [salvoCompleto] }, { dummieAlvo: { nome: 'Boneco' } });
+        montar({ ataquesSalvos: [salvoCompleto] }, { alvoAtaque: { nome: 'Boneco' } });
         abrir();
         expect(document.querySelector('.atalho-livro-topo').textContent).toContain('🎯 Boneco');
         expect(screen.queryByText(/Acerto necess/)).toBeNull();

@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./firebase-sync', () => ({
-    salvarCamposPersonagem: vi.fn(), salvarDummie: vi.fn(),
+    salvarCamposPersonagem: vi.fn(), 
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
 }));
 
-import { salvarCamposPersonagem, salvarDummie, aplicarDanoDireto } from './firebase-sync';
+import { salvarCamposPersonagem, aplicarDanoDireto } from './firebase-sync';
 import { absorverEmPersonagem, gravarDanoEmPersonagem, gravarVidaDoAlvo, aplicarDanoEmPersonagem } from './danoAlvo';
 import { criarPosGolpe } from './posGolpe';
 import useStore from '../stores/useStore';
@@ -64,11 +64,6 @@ describe('gravarDanoEmPersonagem - Ataque contra jogador com Negar morte', () =>
         pg.adicionarTextos(gravarVidaDoAlvo('Ana', alvo, 0, { elemento: 'fogo' }));
         expect(pg.resultado().textos.join(' ')).toContain('🔔 Negar morte segurou em 1 de vida');
         pg.adicionarTextos(undefined); // resultado ausente (mocks) nao quebra
-    });
-    it('Dummie sem ficha segue o fluxo antigo', () => {
-        const r = gravarVidaDoAlvo('d1', { isDummie: true, nome: 'Boneco', hpAtual: 100 }, 40);
-        expect(salvarDummie).toHaveBeenCalledWith('d1', expect.objectContaining({ hpAtual: 40 }), expect.anything());
-        expect(r).toEqual({ textos: [], vidaFinalBruta: 40 });
     });
 });
 

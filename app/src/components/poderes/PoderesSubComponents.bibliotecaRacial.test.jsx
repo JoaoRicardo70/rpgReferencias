@@ -76,7 +76,7 @@ describe('Grimório — Mestre', () => {
         const secao = screen.getByRole('region', { name: /disponíveis para Heroi/ });
         fireEvent.click(within(secao).getByRole('button', { name: 'Conceder Zenkai a Heroi' }));
         fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirmar' }));
-        expect(concederHabilidade).toHaveBeenCalledWith({ id: 'Heroi', nome: 'Heroi', isDummie: false }, 'bib_zenkai', { bloqueada: false, requisito: 'Quase morrer' });
+        expect(concederHabilidade).toHaveBeenCalledWith({ id: 'Heroi', nome: 'Heroi' }, 'bib_zenkai', { bloqueada: false, requisito: 'Quase morrer' });
         expect(within(secao).getByText(/Sem acesso pela Raça/)).toBeTruthy();
         expect(within(secao).getByRole('button', { name: 'Conceder Tenacidade a Heroi como exceção' })).toBeTruthy();
     });

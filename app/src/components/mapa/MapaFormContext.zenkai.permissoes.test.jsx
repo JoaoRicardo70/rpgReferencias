@@ -9,7 +9,7 @@ import { novaTelemetriaZenkai } from '../../core/zenkai';
 // Permissoes: jogador (ou Modo Jogador, isMestre=false) nao encerra combate, nao abre o dialogo nem decide o Zenkai.
 vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(() => Promise.resolve(true)), zerarIniciativaGlobal: vi.fn(),
 }));
@@ -34,7 +34,7 @@ function estado() {
     };
     return {
         minhaFicha, meuNome: 'Heroi', personagens: {}, updateFicha: vi.fn((cb) => cb(minhaFicha)), feedCombate: [], isMestre: false, mesaCriador: '',
-        dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa', setAcoesOrdemTurnoMapa: vi.fn(),
+        alvoSelecionado: null, abaAtiva: 'mapa', setAcoesOrdemTurnoMapa: vi.fn(),
         cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 2, iniciadoEm: 1 } }, lista: { default: { nome: 'Cena' } }, turnoAtualIndex: 0 },
     };
 }

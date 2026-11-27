@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('./firebase-sync', () => ({
-    salvarCamposPersonagem: vi.fn(), salvarDummie: vi.fn(), salvarFichaSilencioso: vi.fn(),
+    salvarCamposPersonagem: vi.fn(), salvarFichaSilencioso: vi.fn(),
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
 }));
 
@@ -146,8 +146,8 @@ describe('aplicarExternosDeGatilhos (dano no atacante)', () => {
         expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 600 * F, expect.anything());
         expect(t.length).toBeGreaterThan(0);
     });
-    it('atacante sem ficha / Dummie (nao esta em personagens): avisa e nao grava nada', () => {
-        const t = aplicarExternosDeGatilhos([ext('Dummie 1', 400)]);
+    it('atacante sem ficha (nao esta em personagens): avisa e nao grava nada', () => {
+        const t = aplicarExternosDeGatilhos([ext('Desconhecido 1', 400)]);
         expect(t[0]).toContain('não tem ficha'); expect(aplicarDanoDireto).not.toHaveBeenCalled();
         useStore.setState({ personagens: { SemVida: { poderes: [] } } });
         expect(aplicarExternosDeGatilhos([ext('SemVida', 5)])[0]).toContain('não tem ficha');

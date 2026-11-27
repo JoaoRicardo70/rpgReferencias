@@ -12,7 +12,6 @@ vi.mock('../../services/firebase-sync', () => ({
     enviarParaFeed: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
-    salvarDummie: vi.fn(),
 }));
 vi.mock('../../core/engine', async (importOriginal) => {
     const real = await importOriginal();
@@ -48,7 +47,7 @@ function fichaReal(extra = {}) {
 const poderCom = (g) => [{ id: 'p1', nome: 'Volta', ativa: true, gatilhos: [g] }];
 function montar(ficha, personagens = {}) {
     const state = {
-        minhaFicha: ficha, meuNome: 'Eu', personagens, dummies: {}, feedCombate: [], divisorPoderMesa: 1,
+        minhaFicha: ficha, meuNome: 'Eu', personagens, feedCombate: [], divisorPoderMesa: 1,
         updateFicha: vi.fn((cb) => cb(ficha)), setAbaAtiva: vi.fn(), cenario: { ativa: 'cena1', zonas: [] },
     };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(state) : state));

@@ -10,14 +10,13 @@ function useAtorAtivoDoMapa() {
     const ctx = useMapaForm();
     const atorCombate = useStore(s => s.atorCombate);
     const personagens = ctx ? ctx.personagens : null;
-    const dummies = ctx ? ctx.dummies : null;
     const cenaRenderId = ctx ? ctx.cenaRenderId : null;
     const isMestre = !!(ctx && ctx.isMestre);
     const ator = useMemo(
-        () => resolverAtorCombate(atorCombate, { personagens, dummies, isMestre, cenaId: cenaRenderId }),
-        [atorCombate, personagens, dummies, isMestre, cenaRenderId]
+        () => resolverAtorCombate(atorCombate, { personagens, isMestre, cenaId: cenaRenderId }),
+        [atorCombate, personagens, isMestre, cenaRenderId]
     );
-    return { ctx, atorCombate, ator, personagens, dummies, cenaRenderId, isMestre };
+    return { ctx, atorCombate, ator, personagens, cenaRenderId, isMestre };
 }
 
 // Envolve os módulos de combate do Mapa: com um NPC ativo eles leem e gravam a ficha DELE
@@ -31,20 +30,20 @@ export function MapaModulosDoAtor({ children }) {
 // ativo, o Acerto, o Ataque (armas, Poderes, magias) e os gastos de energia do Mapa usam a ficha
 // DELE — dá pra trocar de NPC num clique e conduzir vários combatentes. Só aparece pro Mestre.
 export function MapaSeletorAtor() {
-    const { atorCombate, ator, dummies, personagens, cenaRenderId, isMestre } = useAtorAtivoDoMapa();
+    const { atorCombate, ator, personagens, cenaRenderId, isMestre } = useAtorAtivoDoMapa();
     const setAtorCombate = useStore(s => s.setAtorCombate);
 
     const atores = useMemo(
-        () => (isMestre ? listarAtoresDaCena({ personagens, dummies, cenaId: cenaRenderId }) : []),
-        [isMestre, personagens, dummies, cenaRenderId]
+        () => (isMestre ? listarAtoresDaCena({ personagens, cenaId: cenaRenderId }) : []),
+        [isMestre, personagens, cenaRenderId]
     );
 
-    // Ator que deixou de valer (token removido ou em outra cena): volta a agir como eu mesmo, sem ficar meio ativo.
+    // Ator que deixou de valer (ficha removida ou em outra cena): volta a agir como eu mesmo, sem ficar meio ativo.
     useEffect(() => {
         if (isMestre && atorCombate && !ator) setAtorCombate(null);
     }, [isMestre, atorCombate, ator, setAtorCombate]);
 
-    const trocar = useCallback((e) => { setAtorCombate(atorDeValor(e.target.value, dummies)); }, [setAtorCombate, dummies]);
+    const trocar = useCallback((e) => { setAtorCombate(atorDeValor(e.target.value)); }, [setAtorCombate]);
     const voltar = useCallback(() => { setAtorCombate(null); }, [setAtorCombate]);
 
     if (!isMestre) return null;

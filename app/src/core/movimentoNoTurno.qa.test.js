@@ -13,7 +13,7 @@ import { normalizarQuando, ATRIBUTOS_COM_QUANDO } from './efeitosCondicionais';
 import { dispararEventoNaFicha } from './gatilhosAplicar';
 import { efeitoPodeValerParaInimigos } from './efeitosDeInimigos';
 
-beforeEach(() => { useStore.setState({ personagens: {}, dummies: {}, cenario: { ativa: 'c1' } }); });
+beforeEach(() => { useStore.setState({ personagens: {}, cenario: { ativa: 'c1' } }); });
 
 const emCombate = (extra = {}) => ({ iniciativa: 10, combate: { quadradosNoTurno: 0 }, ...extra });
 const A = { x: 0, y: 0, z: 0, cenaId: 'c1' };

@@ -8,7 +8,7 @@ import { ID_CATEGORIA_HABILIDADE_RACA } from '../../core/racas';
 // do personagem que ele ainda NÃO possui: nome, resumo, "Domínio X% de Y%" (ou "Domínio suficiente") e o requisito de desbloqueio.
 // Jogador: SOMENTE LEITURA, nunca vê entradas de outras Raças nem o `modelo` (só nome/resumo/requisito/percentual) — "Peça ao Mestre para receber".
 // Mestre (Grimório do próprio ou de outra Entidade): a mesma lista com "✨ Conceder" daquele personagem + as entradas sem acesso pela Raça, concedíveis só como EXCEÇÃO.
-// entidade = { id, nome, isDummie } do dono da ficha exibida.
+// entidade = { id, nome } do dono da ficha exibida.
 // 🙈 `viewer` (core/racasVisibilidade.js): para quem não vê a Raça que dá o acesso, a entrada some da lista (listá-la revelaria a Raça).
 export default function DisponiveisBiblioteca({ cenario, ficha, entidade, isMestre, viewer = VIEWER_OUTRO_JOGADOR }) {
     const [mensagem, setMensagem] = useState(null);

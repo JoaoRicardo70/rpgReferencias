@@ -15,7 +15,6 @@ vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(() => Promise.resolve(true)),
@@ -48,7 +47,7 @@ function baseState(overrides = {}) {
     return {
         minhaFicha, meuNome: 'Heroi', personagens: {},
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
-        feedCombate: [], isMestre: true, mesaCriador: '', dummies: {},
+        feedCombate: [], isMestre: true, mesaCriador: '',
         alvoSelecionado: null, abaAtiva: 'mapa', setAcoesOrdemTurnoMapa: vi.fn(),
         cenario: { ativa: 'default', combates: ativo(), lista: { default: { nome: 'Cena' }, outra: { nome: 'Outra' } }, turnoAtualIndex: 0 },
         ...overrides,
@@ -244,26 +243,6 @@ describe('Descansar com Zenkai', () => {
     });
 });
 
-describe('iniciarCombate zera a telemetria do Zenkai', () => {
-    it('minha ficha e a dos outros com Zenkai ligado (so eles); dummies e quem nao tem Zenkai ficam de fora', () => {
-        const state = baseState({
-            cenario: { ativa: 'default', lista: { default: { nome: 'Cena' } }, turnoAtualIndex: 0 },
-            dummies: { d1: { nome: 'Boneco', iniciativa: 3, posicao: { x: 5, y: 5, z: 0 } } },
-            personagens: {
-                Vilao: ficha({ iniciativa: 5, isNPC: true, posicao: { x: 1, y: 1, z: 0 } }, comZenkai()),
-                Capanga: ficha({ iniciativa: 4, isNPC: true, posicao: { x: 2, y: 2, z: 0 } }, {}),
-            },
-        });
-        montar(state);
-        act(() => { probe.iniciarCombate(); });
-        expect(state.minhaFicha.combate.zenkai.turnos).toBeLessThanOrEqual(1); // zerada e, no maximo, o 1o turno do primeiro da ordem
-        expect(state.minhaFicha.combate.zenkai.danoRecebido).toBe(0);
-        const v = camposSalvos('Vilao').find(c => c['combate/zenkai']);
-        expect(v['combate/zenkai']).toMatchObject({ ativo: true, danoRecebido: 0, turnos: 0 });
-        expect(camposSalvos('Capanga').some(c => 'combate/zenkai' in c)).toBe(false);
-    });
-});
-
 describe('avancarTurno registra o turno do Zenkai', () => {
     it('o portador que comeca o turno conta 1 turno (so com Zenkai ligado)', () => {
         const state = baseState({ cenario: { ativa: 'default', combates: ativo(), lista: { default: { nome: 'Cena' } }, turnoAtualIndex: 0 } });
@@ -280,7 +259,7 @@ describe('aplicarInicioDeTurno + Zenkai (passos do turno)', () => {
     const fichaTurno = () => ficha({}, { zenkaiLigado: true, zenkai: { ...novaTelemetriaZenkai(), vidaMax: 100000, energiaBuffer: 0.3 }, fadigaExtra: 40 });
     it('fecha o gasto do turno anterior, conta o turno e mede o oponente (so com contexto = combate ativo)', () => {
         const f = fichaTurno();
-        aplicarInicioDeTurno(f, false, 'Heroi', { oponente: { nome: 'Vilao', poder: 1e12 }, divisorPoderMesa: 1 });
+        aplicarInicioDeTurno(f, 'Heroi', { oponente: { nome: 'Vilao', poder: 1e12 }, divisorPoderMesa: 1 });
         expect(f.combate.zenkai.energiaBuffer).toBe(0);
         expect(f.combate.zenkai.energiaContada).toBeCloseTo(0.3, 9);
         expect(f.combate.zenkai.turnos).toBe(1);
@@ -291,37 +270,34 @@ describe('aplicarInicioDeTurno + Zenkai (passos do turno)', () => {
     });
     it('sem oponente hostil: conta o turno mas nao registra razao', () => {
         const f = fichaTurno();
-        aplicarInicioDeTurno(f, false, 'Heroi', { oponente: null, divisorPoderMesa: 1 });
+        aplicarInicioDeTurno(f, 'Heroi', { oponente: null, divisorPoderMesa: 1 });
         expect(f.combate.zenkai.turnos).toBe(1);
         expect(f.combate.zenkai.razaoTurnos).toBe(0);
     });
-    it('sem contexto (sem combate ativo) e dummies: telemetria intacta', () => {
+    it('sem contexto (sem combate ativo): telemetria intacta', () => {
         const a = fichaTurno(); const antes = JSON.stringify(a.combate.zenkai);
-        aplicarInicioDeTurno(a, false, 'Heroi', null);
+        aplicarInicioDeTurno(a, 'Heroi', null);
         expect(JSON.stringify(a.combate.zenkai)).toBe(antes);
-        const b = fichaTurno();
-        aplicarInicioDeTurno(b, true, 'Boneco', { oponente: null });
-        expect(JSON.stringify(b.combate.zenkai)).toBe(antes);
     });
     it('zenkaiReiniciar (1o turno do combate) abre a telemetria do zero', () => {
         const f = fichaTurno(); f.combate.zenkai.danoRecebido = 999;
-        aplicarInicioDeTurno(f, false, 'Heroi', { oponente: null, zenkaiReiniciar: true });
+        aplicarInicioDeTurno(f, 'Heroi', { oponente: null, zenkaiReiniciar: true });
         expect(f.combate.zenkai.danoRecebido).toBe(0);
         expect(f.combate.zenkai.turnos).toBe(1);
     });
     it('quem entrou depois (sem telemetria) ganha uma ao comecar o turno', () => {
         const f = ficha({}, { zenkaiLigado: true });
-        aplicarInicioDeTurno(f, false, 'Heroi', { oponente: null });
+        aplicarInicioDeTurno(f, 'Heroi', { oponente: null });
         expect(f.combate.zenkai.turnos).toBe(1);
     });
     it('Zenkai desligado: nenhuma chave nova', () => {
         const f = ficha({}, {});
-        aplicarInicioDeTurno(f, false, 'Heroi', { oponente: null });
+        aplicarInicioDeTurno(f, 'Heroi', { oponente: null });
         expect(f.combate.zenkai).toBeUndefined();
     });
     it('montarContextoAdaptacao: o Zenkai tambem pede a medicao do oponente; sem nenhum dos dois ligados, null', () => {
         const ordem = [{ id: 'Heroi', nome: 'Heroi', ficha: {} }];
-        const estado = { personagens: {}, dummies: {}, meuNome: 'Heroi', cenario: {} };
+        const estado = { personagens: {}, meuNome: 'Heroi', cenario: {} };
         expect(montarContextoAdaptacao(ficha({}, {}), 'Heroi', ordem, estado)).toBeNull();
         const c = montarContextoAdaptacao(ficha({}, { zenkaiLigado: true }), 'Heroi', ordem, estado);
         expect(c).not.toBeNull();

@@ -3,7 +3,6 @@ import useStore from '../stores/useStore';
 
 vi.mock('./firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)),
     enviarParaFeed: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
@@ -20,8 +19,8 @@ const cenario = { racas: [{ id: 'saiyajin', nome: 'Saiyajin' }, { id: 'humano', 
 const hab = (extra = {}) => ({ id: 7, nome: 'Kaioken', categoria: 'habilidadeRaca', racasAcesso: ['saiyajin'], ...extra });
 const fichaBase = (extra = {}) => ({ bio: { raca: 'Saiyajin', racaId: 'saiyajin' }, poderes: [hab()], ...extra });
 
-function montar({ isMestre = true, minha = fichaBase(), outros = {}, dummies = {} } = {}) {
-    useStore.setState({ meuNome: 'Goku', isMestre, souMestreReal: isMestre, cenario, minhaFicha: minha, personagens: outros, dummies });
+function montar({ isMestre = true, minha = fichaBase(), outros = {} } = {}) {
+    useStore.setState({ meuNome: 'Goku', isMestre, souMestreReal: isMestre, cenario, minhaFicha: minha, personagens: outros });
 }
 const eu = { id: 'Goku', nome: 'Goku' };
 const outro = { id: 'Vegeta', nome: 'Vegeta' };
@@ -87,11 +86,6 @@ describe('composição e prática', () => {
         const c2 = sync.salvarCamposPersonagem.mock.calls[1][1];
         expect(c2['poderes/1/bloqueio']).toMatchObject({ ativo: true, requisito: 'Treinar' });
         expect(definirBloqueioDoPoder({ id: 'Fantasma' }, 9, { ativo: true }).ok).toBe(false);
-    });
-    it('dummie usa salvarDummie', () => {
-        montar({ dummies: { d1: { nome: 'Boneco', bio: { raca: 'Humano', racaId: 'humano' }, poderes: [] } } });
-        expect(adicionarRacaAdquirida({ id: 'd1', isDummie: true }, 'namek').ok).toBe(true);
-        expect(sync.salvarDummie).toHaveBeenCalledWith('d1', expect.objectContaining({ bio: expect.objectContaining({ composicaoRacial: expect.any(Array) }) }));
     });
 });
 

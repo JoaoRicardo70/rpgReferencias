@@ -57,35 +57,30 @@ describe('Adaptação só com oponente hostil e combate ativo', () => {
     const aliado = fp(1e9);
     const inimigoNpc = fp(1e5, { isNPC: true });
     const ordem = [
-        { id: 'P', nome: 'P', isDummie: false, ficha: portador },
-        { id: 'A', nome: 'A', isDummie: false, ficha: aliado },
-        { id: 'N', nome: 'N', isDummie: false, ficha: inimigoNpc },
-        { id: 'd1', nome: 'Dum', isDummie: true, ficha: {} },
+        { id: 'P', nome: 'P', ficha: portador },
+        { id: 'A', nome: 'A', ficha: aliado },
+        { id: 'N', nome: 'N', ficha: inimigoNpc },
     ];
     const personagens = { P: portador, A: aliado, N: inimigoNpc };
 
     it('aliado (outro jogador) NÃO conta, mesmo sendo o mais forte', () => {
-        const r = poderDoOponenteMaisForte(ordem.slice(0, 3), 'P', { personagens, dummies: {}, meuNome: 'P', minhaFicha: portador, cenario: {} });
+        const r = poderDoOponenteMaisForte(ordem.slice(0, 3), 'P', { personagens, meuNome: 'P', minhaFicha: portador, cenario: {} });
         expect(r.nome).toBe('N');
     });
     it('sem nenhum hostil válido = null', () => {
         const so = ordem.slice(0, 2);
-        expect(poderDoOponenteMaisForte(so, 'P', { personagens, dummies: {}, meuNome: 'P', minhaFicha: portador, cenario: {} })).toBeNull();
+        expect(poderDoOponenteMaisForte(so, 'P', { personagens, meuNome: 'P', minhaFicha: portador, cenario: {} })).toBeNull();
     });
     it('relação neutra não conta; hostil por equipe customizada conta', () => {
         const cen = { equipes: [{ id: 'aliados', nome: 'A' }, { id: 'inimigos', nome: 'I' }, { id: 'neutros', nome: 'N' }, { id: 'rival', nome: 'R' }], relacoes: { 'aliados|rival': 'hostil' } };
         const ficha = { ...aliado, combate: { adaptacaoLigada: true, equipe: 'rival' } };
-        const ord = [ordem[0], { id: 'A', nome: 'A', isDummie: false, ficha }];
-        expect(poderDoOponenteMaisForte(ord, 'P', { personagens: { P: portador, A: ficha }, dummies: {}, meuNome: 'P', minhaFicha: portador, cenario: cen }).nome).toBe('A');
+        const ord = [ordem[0], { id: 'A', nome: 'A', ficha }];
+        expect(poderDoOponenteMaisForte(ord, 'P', { personagens: { P: portador, A: ficha }, meuNome: 'P', minhaFicha: portador, cenario: cen }).nome).toBe('A');
         const cenNeutra = { ...cen, relacoes: {} };
-        expect(poderDoOponenteMaisForte(ord, 'P', { personagens: { P: portador, A: ficha }, dummies: {}, meuNome: 'P', minhaFicha: portador, cenario: cenNeutra })).toBeNull();
-    });
-    it('dummie (inimigo por padrão) conta quando tem Poder', () => {
-        const r = poderDoOponenteMaisForte([ordem[0], ordem[3]], 'P', { personagens, dummies: { d1: { poderCalculado: 500 } }, meuNome: 'P', minhaFicha: portador, cenario: {} });
-        expect(r).toEqual({ nome: 'Dum', poder: 500 });
+        expect(poderDoOponenteMaisForte(ord, 'P', { personagens: { P: portador, A: ficha }, meuNome: 'P', minhaFicha: portador, cenario: cenNeutra })).toBeNull();
     });
     it('montarContextoAdaptacao: com cenaIdCombate exige combate ATIVO nessa cena', () => {
-        const estadoBase = { personagens, dummies: {}, meuNome: 'P', minhaFicha: portador };
+        const estadoBase = { personagens, meuNome: 'P', minhaFicha: portador };
         const semCombate = { ...estadoBase, cenario: {}, cenaIdCombate: 'c1' };
         expect(montarContextoAdaptacao(portador, 'P', ordem.slice(0, 3), semCombate)).toBeNull();
         const comCombate = { ...estadoBase, cenario: iniciarCombateNoCenario({}, 'c1', 1), cenaIdCombate: 'c1' };

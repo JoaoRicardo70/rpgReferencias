@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./firebase-sync', () => ({
-    salvarCamposPersonagem: vi.fn(), salvarDummie: vi.fn(),
+    salvarCamposPersonagem: vi.fn(), 
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
 }));
 
@@ -87,7 +87,7 @@ describe('posGolpe.aplicar - God Mode', () => {
         expect(r.aoAcertar).toEqual(AO_ACERTAR);
         expect(r.textos.filter(t => t.includes('Imunidade total'))).toHaveLength(1);
     });
-    it('Dummie nunca e imune por este caminho', () => {
+    it('alvo sem personagem nunca e imune por este caminho', () => {
         const p = golpe();
         expect(p.aplicar('d1', { isPersonagem: false, nome: 'Boneco', vida: 100 }, 80)).toBe(80);
     });

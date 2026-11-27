@@ -159,20 +159,15 @@ export function montarPoderConcedido(entrada, opcoes = {}) {
     return poder;
 }
 
-// Todas as fichas da mesa que o Mestre enxerga: [{ chave, id, nome, isDummie, ficha }]. Dummies só os que estão na cena (resumo.ordem / foraDaOrdem).
-export function entidadesDaMesa({ personagens, dummies, meuNome, minhaFicha, resumo } = {}) {
+// Todas as fichas da mesa que o Mestre enxerga: [{ chave, id, nome, ficha }].
+export function entidadesDaMesa({ personagens, meuNome, minhaFicha } = {}) {
     const saida = [];
     const nomes = new Set(Object.keys(personagens || {}));
     if (meuNome) nomes.add(meuNome);
     nomes.forEach((id) => {
         const ficha = id === meuNome ? minhaFicha : (personagens || {})[id];
         if (!ficha || typeof ficha !== 'object') return;
-        saida.push({ chave: `p:${id}`, id, nome: (ficha.bio && ficha.bio.nome) || id, isDummie: false, ficha });
-    });
-    const naCena = new Set([...((resumo && resumo.ordem) || []), ...((resumo && resumo.foraDaOrdem) || [])].filter(it => it && it.isDummie).map(it => it.id));
-    Object.entries(dummies || {}).forEach(([id, d]) => {
-        if (!d || typeof d !== 'object' || !naCena.has(id)) return;
-        saida.push({ chave: `d:${id}`, id, nome: d.nome || id, isDummie: true, ficha: d });
+        saida.push({ chave: `p:${id}`, id, nome: (ficha.bio && ficha.bio.nome) || id, ficha });
     });
     return saida;
 }

@@ -21,7 +21,6 @@
 //     segunda conversão (ex.: descansar + trocar de cena) não ganha nada. Sem turnos registrados ou P <= 0: não ganha nada.
 //     O botão "Zerar" do painel só ZERA, sem converter.
 //  5. O turno só conta na média se houve um oponente válido (com Poder definido); sem oponente nada é registrado.
-//     Dummies (entidades do Mapa) não adaptam.
 //
 // Campos em ficha.combate: adaptacaoLigada (bool), adaptacaoFracao (padrão 50), adaptacaoFator (padrão 1), adaptacaoSoma (soma dos g em %),
 // adaptacaoTurnos (contagem), adaptacaoUltimo ({ gain, diferenca, poderOponente, poderPortador, oponenteNome, repetido }; `gain` também é a base do ganho repetido no turno seguinte).

@@ -3,7 +3,7 @@ import { render, cleanup, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaFormProvider, useMapaForm } from './MapaFormContext';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, enviarParaFeed, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto } from '../../services/firebase-sync';
 
 // ---------------------------------------------------------------------------
 // QA — descansar() e aplicarDanoRapido() (MapaFormContext.jsx)
@@ -19,7 +19,6 @@ vi.mock('../../stores/useStore', () => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
@@ -100,7 +99,6 @@ function baseState(overrides = {}) {
         feedCombate: [],
         isMestre: false,
         mesaCriador: '',
-        dummies: {},
         alvoSelecionado: null,
         abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
@@ -174,18 +172,6 @@ describe('MapaFormContext — descansar() (botão "💖 Descansar" do Mapa)', ()
         expect(enviarParaFeed).not.toHaveBeenCalled();
     });
 
-    it('Regressão: descansar() nunca chama salvarDummie/aplicarDanoDireto — só mexe na PRÓPRIA ficha', () => {
-        const state = baseState({
-            dummies: { goblin: { nome: 'Goblin', hpAtual: 5 } },
-            personagens: { Vilao: fichaComVital() },
-        });
-        montarComEstado(state);
-
-        act(() => { probe.descansar(); });
-
-        expect(salvarDummie).not.toHaveBeenCalled();
-        expect(aplicarDanoDireto).not.toHaveBeenCalled();
-    });
 });
 
 describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápido" do Mestre)', () => {
@@ -197,56 +183,14 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
         cleanup();
     });
 
-    it('Gate isMestre: um jogador comum (isMestre=false) chamando aplicarDanoRapido é um no-op completo', () => {
-        const state = baseState({ isMestre: false, dummies: { goblin: { nome: 'Goblin', hpAtual: 50 } } });
-        montarComEstado(state);
-
-        act(() => { probe.aplicarDanoRapido({ id: 'goblin', nome: 'Goblin', ficha: state.dummies.goblin, isDummie: true }, 10); });
-
-        expect(salvarDummie).not.toHaveBeenCalled();
-        expect(aplicarDanoDireto).not.toHaveBeenCalled();
-        expect(state.updateFicha).not.toHaveBeenCalled();
-        expect(enviarParaFeed).not.toHaveBeenCalled();
-    });
-
-    it('Branch DUMMIE: chama salvarDummie com hpAtual reduzido, relendo os dados FRESCOS de useStore.getState().dummies (não o snapshot "ficha" passado)', () => {
-        // 🔥 hpAtual bruto (500.000) numa escala realista — o antigo "50" clamparia pra 0 com
-        // qualquer dano digitado depois da correção de escala de aplicarDanoRapido.
-        const state = baseState({ isMestre: true, dummies: { goblin: { nome: 'Goblin', hpAtual: 500000, cenaId: 'default' } } });
-        montarComEstado(state);
-
-        // Snapshot desatualizado propositalmente passado como alvo.ficha -- a implementação deve
-        // IGNORAR esse hpAtual velho e reler useStore.getState().dummies[id] na hora de aplicar.
-        const alvoComSnapshotVelho = { id: 'goblin', nome: 'Goblin', ficha: { hpAtual: 999 }, isDummie: true };
-
-        act(() => { probe.aplicarDanoRapido(alvoComSnapshotVelho, 15); });
-
-        expect(salvarDummie).toHaveBeenCalledTimes(1);
-        const [idChamado, dadosChamados] = salvarDummie.mock.calls[0];
-        expect(idChamado).toBe('goblin');
-        // 15 (dano exibido) * FATOR_EXIBICAO_VITAIS (1000) = 15.000 bruto subtraídos de 500.000
-        // (dado fresco do store) -> 485.000, não 999-15.
-        expect(dadosChamados.hpAtual).toBe(485000); // 500000 (dado fresco) - 15*1000, não 999-15
-    });
-
-    it('Branch DUMMIE: clampa hpAtual em 0 (nunca negativo) quando o dano excede o HP restante', () => {
-        const state = baseState({ isMestre: true, dummies: { goblin: { nome: 'Goblin', hpAtual: 10, cenaId: 'default' } } });
-        montarComEstado(state);
-
-        act(() => { probe.aplicarDanoRapido({ id: 'goblin', nome: 'Goblin', ficha: state.dummies.goblin, isDummie: true }, 999); });
-
-        expect(salvarDummie.mock.calls[0][1].hpAtual).toBe(0);
-    });
-
     it('Branch AUTO (Mestre se auto-aplicando dano, alvo.nome === meuNome): usa o updateFicha LOCAL, vida flooreada em 0', () => {
         const state = baseState({ isMestre: true, meuNome: 'Mestre' });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: state.minhaFicha, isDummie: false }, 999); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: state.minhaFicha }, 999); });
 
         expect(state.minhaFicha.vida.atual).toBe(0);
         expect(salvarFichaSilencioso).toHaveBeenCalledTimes(1);
-        expect(salvarDummie).not.toHaveBeenCalled();
         expect(aplicarDanoDireto).not.toHaveBeenCalled();
     });
 
@@ -256,7 +200,7 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
         const state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: outroJogador } });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador, isDummie: false }, 30); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador }, 30); });
 
         expect(aplicarDanoDireto).toHaveBeenCalledTimes(1);
         // 30 (dano exibido) * FATOR_EXIBICAO_VITAIS (1000) = 30.000 bruto subtraídos de 500.000.
@@ -272,7 +216,6 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
         expect(novoFadigaExtra).toBeGreaterThan(6);
         // A ficha alheia nunca é gravada pelos caminhos "locais" (updateFicha só grava a MINHA ficha).
         expect(salvarFichaSilencioso).not.toHaveBeenCalled();
-        expect(salvarDummie).not.toHaveBeenCalled();
         // A MINHA ficha (do Mestre) não foi tocada.
         expect(state.minhaFicha.vida.atual).toBe(1);
     });
@@ -282,7 +225,7 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
         const state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: alvoFicha } });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoFicha, isDummie: false }, 300000); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoFicha }, 300000); });
 
         // 300000 (dano exibido) * FATOR_EXIBICAO_VITAIS (1000) = 300.000.000 bruto subtraídos de
         // 1.000.000.000 (base de fichaVidaLimpa, ver comentário na fábrica acima) -> 700.000.000.
@@ -307,7 +250,7 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
         const alvoPoderLiberado = fichaVidaLimpa({ supressaoPoder: 100 });
         let state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: alvoPoderLiberado } });
         montarComEstado(state);
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoPoderLiberado, isDummie: false }, danoAplicado); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoPoderLiberado }, danoAplicado); });
         const fadigaComPoderLiberado = aplicarFadigaDireta.mock.calls[0][1];
 
         vi.clearAllMocks();
@@ -316,7 +259,7 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
         const alvoPoderSuprimido = fichaVidaLimpa({ supressaoPoder: 90 });
         state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: alvoPoderSuprimido } });
         montarComEstado(state);
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoPoderSuprimido, isDummie: false }, danoAplicado); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoPoderSuprimido }, danoAplicado); });
         const fadigaComPoderSuprimido = aplicarFadigaDireta.mock.calls[0][1];
 
         // Mesmíssimo dano (300000) nas duas fichas idênticas exceto supressaoPoder:
@@ -342,7 +285,7 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
         });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 300000); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 300000); });
 
         // Mesma conta do teste "OUTRO JOGADOR" acima: 300000*1000 = 300.000.000 bruto subtraídos
         // de 1.000.000.000 -> 700.000.000.
@@ -354,30 +297,7 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
         expect(aplicarFadigaDireta).not.toHaveBeenCalled();
     });
 
-    it('posta uma mensagem de feed com o valor de dano e o nome do alvo em todos os 3 branches', () => {
-        const state = baseState({ isMestre: true, meuNome: 'Mestre', dummies: { goblin: { nome: 'Goblin', hpAtual: 50, cenaId: 'default' } } });
-        montarComEstado(state);
-
-        act(() => { probe.aplicarDanoRapido({ id: 'goblin', nome: 'Goblin', ficha: state.dummies.goblin, isDummie: true }, 15); });
-
-        expect(enviarParaFeed).toHaveBeenCalledTimes(1);
-        const feedArg = enviarParaFeed.mock.calls[0][0];
-        expect(feedArg.texto).toContain('15');
-        expect(feedArg.texto).toContain('Goblin');
-    });
-
     describe('Edge Cases de aplicarDanoRapido', () => {
-        it('dano <= 0 é um no-op completo (nenhuma escrita, nenhum feed)', () => {
-            const state = baseState({ isMestre: true, dummies: { goblin: { nome: 'Goblin', hpAtual: 50, cenaId: 'default' } } });
-            montarComEstado(state);
-
-            act(() => { probe.aplicarDanoRapido({ id: 'goblin', nome: 'Goblin', ficha: state.dummies.goblin, isDummie: true }, 0); });
-            act(() => { probe.aplicarDanoRapido({ id: 'goblin', nome: 'Goblin', ficha: state.dummies.goblin, isDummie: true }, -10); });
-
-            expect(salvarDummie).not.toHaveBeenCalled();
-            expect(enviarParaFeed).not.toHaveBeenCalled();
-        });
-
         it('alvo null/undefined é um no-op completo, sem lançar exceção', () => {
             const state = baseState({ isMestre: true });
             montarComEstado(state);
@@ -385,33 +305,9 @@ describe('MapaFormContext — aplicarDanoRapido() (ferramenta "⚔️ Dano Rápi
             expect(() => { act(() => { probe.aplicarDanoRapido(null, 10); }); }).not.toThrow();
             expect(() => { act(() => { probe.aplicarDanoRapido(undefined, 10); }); }).not.toThrow();
 
-            expect(salvarDummie).not.toHaveBeenCalled();
             expect(aplicarDanoDireto).not.toHaveBeenCalled();
             expect(enviarParaFeed).not.toHaveBeenCalled();
         });
 
-        it('dummie inexistente no store (removido entre a UI listar e o clique) não lança e não escreve nada', () => {
-            const state = baseState({ isMestre: true, dummies: {} });
-            montarComEstado(state);
-
-            expect(() => {
-                act(() => { probe.aplicarDanoRapido({ id: 'fantasma', nome: 'Fantasma', ficha: { hpAtual: 10 }, isDummie: true }, 10); });
-            }).not.toThrow();
-
-            expect(salvarDummie).not.toHaveBeenCalled();
-        });
-
-        it('valor de dano fracionário é truncado (Math.floor) antes de aplicar', () => {
-            // 🔥 hpAtual bruto em escala realista (500.000) — ver mesmo raciocínio dos outros
-            // testes de dummy neste arquivo.
-            const state = baseState({ isMestre: true, dummies: { goblin: { nome: 'Goblin', hpAtual: 500000, cenaId: 'default' } } });
-            montarComEstado(state);
-
-            act(() => { probe.aplicarDanoRapido({ id: 'goblin', nome: 'Goblin', ficha: state.dummies.goblin, isDummie: true }, 15.9); });
-
-            // floor(15.9) = 15 (exibido) * FATOR_EXIBICAO_VITAIS (1000) = 15.000 bruto subtraídos
-            // de 500.000 -> 485.000.
-            expect(salvarDummie.mock.calls[0][1].hpAtual).toBe(485000); // 500000 - floor(15.9)*1000
-        });
     });
 });

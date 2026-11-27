@@ -54,7 +54,7 @@ beforeEach(() => {
     vi.spyOn(Date, 'now').mockImplementation(() => agora);
     useStore.setState({
         meuNome: 'Ana', minhaFicha: {}, isMestre: true, mesaId: 'M1', registrosCompartilhados: true,
-        sextaFeiraConfig: null, sextaFeiraMemoria: {}, personagens: {}, dummies: {},
+        sextaFeiraConfig: null, sextaFeiraMemoria: {}, personagens: {},
         loreCapitulosPresente: mkPresente(), loreCapitulosFuturo: mkFuturo(),
         loreCapituloAtivoId: 1, loreArcoAtivoIdPresente: 11, loreCapFuturoAtivoId: 100, loreArcoAtivoIdFuturo: 101,
     });

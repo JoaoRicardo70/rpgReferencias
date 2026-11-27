@@ -61,7 +61,7 @@ describe('desvantagem_atacante', () => {
             expect(r.rolagem).not.toContain('DESVANTAGEM');
             expect(r.profBonusTexto).not.toContain('desvantagem');
         });
-        it('Dummie (sem ficha) nao impoe nada', () => {
+        it('alvo sem ficha nao impoe nada', () => {
             const r = acerto(base(), { nome: 'Saco', valorDefesa: 10 });
             expect(r.desvantagemDoAlvo).toBeUndefined();
             expect(r.rolagem).not.toContain('DESVANTAGEM');

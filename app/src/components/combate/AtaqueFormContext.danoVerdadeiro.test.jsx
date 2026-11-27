@@ -4,11 +4,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AtaqueFormProvider, useAtaqueForm } from './AtaqueFormContext';
 import { AtaqueElementoSelector } from './AtaqueSubComponents';
 import useStore from '../../stores/useStore';
-import { salvarDummie, enviarParaFeed, aplicarDanoDireto } from '../../services/firebase-sync';
+import { enviarParaFeed, aplicarDanoDireto } from '../../services/firebase-sync';
 import { calcularDano } from '../../core/engine';
 
 // QA - Dano Verdadeiro no Ataque: o interruptor da infusao elemental e passado ao calculo (reduzirDanoNoAlvo),
-// o alvo-personagem recebe o dano inteiro (ignora Reducao, Resistencia, Imunidade e Dominio), o Dummie nao muda e
+// o alvo-personagem recebe o dano inteiro (ignora Reducao, Resistencia, Imunidade e Dominio) e
 // o interruptor zera depois do golpe.
 
 vi.mock('../../stores/useStore');
@@ -25,7 +25,6 @@ vi.mock('../../core/danoProporcional', async (importOriginal) => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
     aplicarDanoDireto: vi.fn(),
     aplicarFadigaDireta: vi.fn(),
@@ -46,10 +45,10 @@ const fichaAna = (extra = {}) => ({
     ...extra,
 });
 
-function montar({ alvoSelecionado, personagens = {}, dummies = {}, filho = null }) {
+function montar({ alvoSelecionado, personagens = {}, filho = null }) {
     const minhaFicha = { poderes: [], inventario: [], passivas: [], ataquesElementais: [], hierarquia: {}, combate: {}, iniciativa: 10 };
     const state = {
-        minhaFicha, meuNome: 'Heroi', personagens, dummies, alvoSelecionado,
+        minhaFicha, meuNome: 'Heroi', personagens, alvoSelecionado,
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
         setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque', feedCombate: [],
         ignorarTravaAcerto: false, setIgnorarTravaAcerto: vi.fn(), cenario: { zonas: [] },
@@ -124,24 +123,5 @@ describe('Ataque > rolarDano em alvo-personagem', () => {
         act(() => { probe.rolarDanoCustomizado('1000'); });
         expect(ultimoFeed().danoAplicado).toBe(1000);
         expect(probe.danoVerdadeiro).toBe(false);
-    });
-});
-
-describe('Ataque > Dummie (alvo sem ficha) e sem alvo', () => {
-    const dummies = { g1: { nome: 'Goblin', hpAtual: 100 * FATOR, hpMax: 100 * FATOR, valorDefesa: 10 } };
-    it('Dummie recebe o mesmo dano com ou sem o interruptor', () => {
-        montar({ alvoSelecionado: 'g1', dummies });
-        act(() => { probe.rolarDano(); });
-        const sem = salvarDummie.mock.calls.at(-1)[1].hpAtual;
-        vi.clearAllMocks();
-        act(() => { probe.setDanoVerdadeiro(true); });
-        act(() => { probe.rolarDano(); });
-        expect(salvarDummie.mock.calls.at(-1)[1].hpAtual).toBe(sem);
-        expect(aplicarDanoDireto).not.toHaveBeenCalled();
-    });
-    it('sem alvo selecionado marcar o interruptor nao quebra o golpe', () => {
-        montar({ alvoSelecionado: null });
-        act(() => { probe.setDanoVerdadeiro(true); });
-        expect(() => act(() => { probe.rolarDano(); })).not.toThrow();
     });
 });

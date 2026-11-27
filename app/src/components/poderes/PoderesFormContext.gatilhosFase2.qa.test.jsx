@@ -15,7 +15,7 @@ vi.mock('../../stores/useStore');
 vi.mock('../../core/engine', () => ({ calcularDano: vi.fn(() => ({ dano: 10 })) }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(), salvarFirebaseImediato: vi.fn(() => Promise.resolve()), uploadImagem: vi.fn(),
-    enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCenarioCompleto: vi.fn(),
+    enviarParaFeed: vi.fn(), salvarCenarioCompleto: vi.fn(),
 }));
 
 const F = FATOR_EXIBICAO_VITAIS;
@@ -30,7 +30,7 @@ function montar(Mod, { poderes, contadores = [ct('k')], extra = {} }) {
     mockState = {
         minhaFicha, meuNome: 'Heroi', isMestre: false, updateFicha: vi.fn((cb) => cb(minhaFicha)),
         efeitosTemp: [], setEfeitosTemp: vi.fn(), efeitosTempPassivos: [], setEfeitosTempPassivos: vi.fn(), poderEditandoId: null, setPoderEditandoId: vi.fn(),
-        pastasFechadasMapaTecnicas: {}, setPastasFechadasMapaTecnicas: vi.fn(), dummies: {}, personagens: {}, feedCombate: [], alvoSelecionado: null, abaAtiva: 'mapa', setAbaAtiva: vi.fn(),
+        pastasFechadasMapaTecnicas: {}, setPastasFechadasMapaTecnicas: vi.fn(), personagens: {}, feedCombate: [], alvoSelecionado: null, abaAtiva: 'mapa', setAbaAtiva: vi.fn(),
         cenario: { ativa: 'cenaZ' },
     };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(mockState) : mockState));

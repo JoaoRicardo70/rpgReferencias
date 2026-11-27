@@ -7,12 +7,8 @@ import { chaveEntidadeTurno, ordenarOrdemTurno, moverChaveNaOrdem, recalcularInd
 // ---------------------------------------------------------------------------
 
 describe('chaveEntidadeTurno', () => {
-    it('gera chave "p:<id>" para jogador/NPC (isDummie falsy)', () => {
-        expect(chaveEntidadeTurno({ id: 'Heroi', isDummie: false })).toBe('p:Heroi');
-    });
-
-    it('gera chave "d:<id>" para dummie', () => {
-        expect(chaveEntidadeTurno({ id: 'filler', isDummie: true })).toBe('d:filler');
+    it('gera chave "p:<id>" para jogador/NPC', () => {
+        expect(chaveEntidadeTurno({ id: 'Heroi' })).toBe('p:Heroi');
     });
 
     it('retorna string vazia para entidade nula/undefined (defensivo)', () => {
@@ -24,9 +20,9 @@ describe('chaveEntidadeTurno', () => {
 describe('ordenarOrdemTurno', () => {
     it('sem ordem manual: ordena só pela iniciativa (maior primeiro)', () => {
         const lista = [
-            { id: 'a', nome: 'A', iniciativa: 10, isDummie: false },
-            { id: 'b', nome: 'B', iniciativa: 30, isDummie: false },
-            { id: 'c', nome: 'C', iniciativa: 20, isDummie: true },
+            { id: 'a', nome: 'A', iniciativa: 10 },
+            { id: 'b', nome: 'B', iniciativa: 30 },
+            { id: 'c', nome: 'C', iniciativa: 20 },
         ];
         const resultado = ordenarOrdemTurno(lista, undefined);
         expect(resultado.map(e => e.id)).toEqual(['b', 'c', 'a']);
@@ -34,28 +30,30 @@ describe('ordenarOrdemTurno', () => {
 
     it('ordem manual vazia ([]) também cai no fallback por iniciativa', () => {
         const lista = [
-            { id: 'a', nome: 'A', iniciativa: 5, isDummie: false },
-            { id: 'b', nome: 'B', iniciativa: 15, isDummie: false },
+            { id: 'a', nome: 'A', iniciativa: 5 },
+            { id: 'b', nome: 'B', iniciativa: 15 },
         ];
         expect(ordenarOrdemTurno(lista, []).map(e => e.id)).toEqual(['b', 'a']);
     });
 
     it('com ordem manual completa: respeita a ordem manual, ignorando a iniciativa', () => {
         const lista = [
-            { id: 'a', nome: 'A', iniciativa: 10, isDummie: false },
-            { id: 'b', nome: 'B', iniciativa: 30, isDummie: false },
-            { id: 'c', nome: 'C', iniciativa: 20, isDummie: true },
+            { id: 'a', nome: 'A', iniciativa: 10 },
+            { id: 'b', nome: 'B', iniciativa: 30 },
+            { id: 'c', nome: 'C', iniciativa: 20 },
         ];
-        const ordemManual = ['p:a', 'd:c', 'p:b'];
+        const ordemManual = ['p:a', 'p:c', 'p:b'];
+        // chaves antigas (d:<id>) já gravadas no cenário são ignoradas
+        expect(ordenarOrdemTurno(lista, ['d:x', ...ordemManual]).map(e => e.id)).toEqual(['a', 'c', 'b']);
         expect(ordenarOrdemTurno(lista, ordemManual).map(e => e.id)).toEqual(['a', 'c', 'b']);
     });
 
     it('recém-chegado (fora da ordem manual) é encaixado pela iniciativa, antes do primeiro com iniciativa menor', () => {
         const ordemManual = ['p:a', 'p:b']; // a=30, b=10
         const lista = [
-            { id: 'a', nome: 'A', iniciativa: 30, isDummie: false },
-            { id: 'b', nome: 'B', iniciativa: 10, isDummie: false },
-            { id: 'novo', nome: 'Novo', iniciativa: 20, isDummie: false }, // entra entre a(30) e b(10)
+            { id: 'a', nome: 'A', iniciativa: 30 },
+            { id: 'b', nome: 'B', iniciativa: 10 },
+            { id: 'novo', nome: 'Novo', iniciativa: 20 }, // entra entre a(30) e b(10)
         ];
         expect(ordenarOrdemTurno(lista, ordemManual).map(e => e.id)).toEqual(['a', 'novo', 'b']);
     });
@@ -63,9 +61,9 @@ describe('ordenarOrdemTurno', () => {
     it('recém-chegado com iniciativa maior que todos na ordem manual vai para o início', () => {
         const ordemManual = ['p:a', 'p:b']; // a=30, b=10
         const lista = [
-            { id: 'a', nome: 'A', iniciativa: 30, isDummie: false },
-            { id: 'b', nome: 'B', iniciativa: 10, isDummie: false },
-            { id: 'novo', nome: 'Novo', iniciativa: 99, isDummie: false },
+            { id: 'a', nome: 'A', iniciativa: 30 },
+            { id: 'b', nome: 'B', iniciativa: 10 },
+            { id: 'novo', nome: 'Novo', iniciativa: 99 },
         ];
         expect(ordenarOrdemTurno(lista, ordemManual).map(e => e.id)).toEqual(['novo', 'a', 'b']);
     });
@@ -73,9 +71,9 @@ describe('ordenarOrdemTurno', () => {
     it('recém-chegado com iniciativa menor que todos na ordem manual vai para o fim', () => {
         const ordemManual = ['p:a', 'p:b']; // a=30, b=10
         const lista = [
-            { id: 'a', nome: 'A', iniciativa: 30, isDummie: false },
-            { id: 'b', nome: 'B', iniciativa: 10, isDummie: false },
-            { id: 'novo', nome: 'Novo', iniciativa: 1, isDummie: false },
+            { id: 'a', nome: 'A', iniciativa: 30 },
+            { id: 'b', nome: 'B', iniciativa: 10 },
+            { id: 'novo', nome: 'Novo', iniciativa: 1 },
         ];
         expect(ordenarOrdemTurno(lista, ordemManual).map(e => e.id)).toEqual(['a', 'b', 'novo']);
     });
@@ -83,9 +81,9 @@ describe('ordenarOrdemTurno', () => {
     it('múltiplos recém-chegados são todos encaixados, cada um pela sua iniciativa', () => {
         const ordemManual = ['p:a']; // a=30
         const lista = [
-            { id: 'a', nome: 'A', iniciativa: 30, isDummie: false },
-            { id: 'x', nome: 'X', iniciativa: 40, isDummie: false }, // antes de a
-            { id: 'y', nome: 'Y', iniciativa: 5, isDummie: false }, // depois de a
+            { id: 'a', nome: 'A', iniciativa: 30 },
+            { id: 'x', nome: 'X', iniciativa: 40 }, // antes de a
+            { id: 'y', nome: 'Y', iniciativa: 5 }, // depois de a
         ];
         expect(ordenarOrdemTurno(lista, ordemManual).map(e => e.id)).toEqual(['x', 'a', 'y']);
     });
@@ -93,7 +91,7 @@ describe('ordenarOrdemTurno', () => {
     it('chaves obsoletas na ordem manual (entidades que não estão mais na lista) são ignoradas', () => {
         const ordemManual = ['p:fantasma', 'p:a', 'd:c'];
         const lista = [
-            { id: 'a', nome: 'A', iniciativa: 10, isDummie: false },
+            { id: 'a', nome: 'A', iniciativa: 10 },
         ];
         expect(ordenarOrdemTurno(lista, ordemManual).map(e => e.id)).toEqual(['a']);
     });
@@ -111,8 +109,8 @@ describe('ordenarOrdemTurno', () => {
     it('trata iniciativa não numérica/ausente como 0 tanto na ordenação quanto no encaixe', () => {
         const ordemManual = ['p:a']; // a = NaN -> 0
         const lista = [
-            { id: 'a', nome: 'A', iniciativa: 'abc', isDummie: false },
-            { id: 'novo', nome: 'Novo', iniciativa: 5, isDummie: false },
+            { id: 'a', nome: 'A', iniciativa: 'abc' },
+            { id: 'novo', nome: 'Novo', iniciativa: 5 },
         ];
         // novo(5) > a(0) => entra antes de a
         expect(ordenarOrdemTurno(lista, ordemManual).map(e => e.id)).toEqual(['novo', 'a']);
@@ -121,8 +119,8 @@ describe('ordenarOrdemTurno', () => {
     it('chave duplicada na ordem manual usa a primeira ocorrência (posicaoManual.has guarda a primeira)', () => {
         const ordemManual = ['p:b', 'p:a', 'p:b'];
         const lista = [
-            { id: 'a', nome: 'A', iniciativa: 10, isDummie: false },
-            { id: 'b', nome: 'B', iniciativa: 20, isDummie: false },
+            { id: 'a', nome: 'A', iniciativa: 10 },
+            { id: 'b', nome: 'B', iniciativa: 20 },
         ];
         expect(ordenarOrdemTurno(lista, ordemManual).map(e => e.id)).toEqual(['b', 'a']);
     });

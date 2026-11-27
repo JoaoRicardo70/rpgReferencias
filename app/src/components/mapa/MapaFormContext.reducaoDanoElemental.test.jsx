@@ -3,7 +3,7 @@ import { render, cleanup, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaFormProvider, useMapaForm } from './MapaFormContext';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, enviarParaFeed, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto } from '../../services/firebase-sync';
 import { calcularReducaoDanoElemental } from '../../core/dominios';
 import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 
@@ -12,7 +12,7 @@ import { FATOR_EXIBICAO_VITAIS } from '../../core/vitals';
 // core/dominios.js > calcularReducaoDanoElemental (redução de DANO real, diferente da
 // Resistência Elemental de Fadiga já coberta por MapaFormContext.nivelDominioOverride.test.jsx).
 //
-// Quando `elemento` é passado e o alvo NÃO é dummie, o dano BRUTO é pré-reduzido por
+// Quando `elemento` é passado o dano BRUTO é pré-reduzido por
 // calcularReducaoDanoElemental(nivelDefensor, nivelAtacante) ANTES de subtrair de vida.atual —
 // nivelDefensor resolve pra nivelDominioOverride (se fornecido) ou getNivelDominio(ficha,
 // elemento) (Domínio real do alvo). Mesmo padrão de mock/fixture de
@@ -26,7 +26,6 @@ vi.mock('../../stores/useStore', () => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
@@ -74,7 +73,6 @@ function baseState(overrides = {}) {
         feedCombate: [],
         isMestre: true,
         mesaCriador: 'Mestre',
-        dummies: {},
         alvoSelecionado: null,
         abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
@@ -103,7 +101,7 @@ describe('MapaFormContext — aplicarDanoRapido(): redução de dano real basead
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 1000, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 1000, 'Fogo'); });
 
         // calcularReducaoDanoElemental(10,0) = 0.75 -> valor = floor(1000*0.25) = 250 (exibido) ->
         // valorRaw = 250 * FATOR_EXIBICAO_VITAIS (1000) = 250.000 bruto, subtraídos do default de
@@ -125,7 +123,7 @@ describe('MapaFormContext — aplicarDanoRapido(): redução de dano real basead
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 1000, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 1000, 'Fogo'); });
 
         expect(minhaFicha.vida.atual).toBe(5000000 - 1000000); // 5000000 - 1000*1000
     });
@@ -141,7 +139,7 @@ describe('MapaFormContext — aplicarDanoRapido(): redução de dano real basead
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 1000, 'Fogo', undefined, 6); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 1000, 'Fogo', undefined, 6); });
 
         expect(minhaFicha.vida.atual).toBe(5000000 - 1000000); // 5000000 - 1000*1000
     });
@@ -155,7 +153,7 @@ describe('MapaFormContext — aplicarDanoRapido(): redução de dano real basead
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 1000, 'Fogo', undefined, 9); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 1000, 'Fogo', undefined, 9); });
 
         expect(minhaFicha.vida.atual).toBe(5000000 - 1000000); // 5000000 - 1000*1000
     });
@@ -166,7 +164,7 @@ describe('MapaFormContext — aplicarDanoRapido(): redução de dano real basead
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 1000, 'Fogo', 10); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 1000, 'Fogo', 10); });
 
         // calcularReducaoDanoElemental(10,0) = 0.75 -> valor = 250 (exibido) -> valorRaw = 250.000
         // bruto (NÃO os ~925.000 que o nível 1 real daria). 250.000 < default de 1.000.000, não
@@ -184,7 +182,7 @@ describe('MapaFormContext — aplicarDanoRapido(): redução de dano real basead
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 1000, 'Fogo', 0); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 1000, 'Fogo', 0); });
 
         expect(minhaFicha.vida.atual).toBe(5000000 - 1000000); // 5000000 - 1000*1000
     });
@@ -199,7 +197,7 @@ describe('MapaFormContext — aplicarDanoRapido(): redução de dano real (branc
         const state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: outroJogador } });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador, isDummie: false }, 1000, 'Agua'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador }, 1000, 'Agua'); });
 
         // calcularReducaoDanoElemental(8,0) ~= 0.6 -> valor = floor(1000*(1-reducao)) (usa a própria
         // função, já testada isoladamente em core/dominios.calcularReducaoDanoElemental.test.js, pra
@@ -223,7 +221,7 @@ describe('MapaFormContext — aplicarDanoRapido(): redução de dano real (branc
         const state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: outroJogador } });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador, isDummie: false }, 1000, 'Agua', undefined, 8); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador }, 1000, 'Agua', undefined, 8); });
 
         expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 5000000 - 1000000, expect.anything()); // 5000000 - 1000*1000
     });
@@ -233,30 +231,11 @@ describe('MapaFormContext — aplicarDanoRapido(): redução de dano real (branc
         const state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: outroJogador } });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador, isDummie: false }, 1000, 'Agua', 10); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: outroJogador }, 1000, 'Agua', 10); });
 
         // calcularReducaoDanoElemental(10,0) = 0.75 -> valor = 250 (exibido) -> valorRaw = 250.000
         // bruto, < default de 1.000.000 -> não clampa, fixture inalterado.
         expect(aplicarDanoDireto).toHaveBeenCalledWith('Vilao', 1000000 - 250000, expect.anything());
-    });
-});
-
-describe('MapaFormContext — aplicarDanoRapido(): DUMMIE nunca recebe redução de dano elemental, mesmo com elemento marcado', () => {
-    beforeEach(() => { vi.clearAllMocks(); });
-    afterEach(() => cleanup());
-
-    it('dummie com elemento marcado (e mesmo se, hipoteticamente, tivesse um campo "dominios") sempre toma o dano BRUTO integral', () => {
-        // 🔥 hpAtual bruto elevado pra 500.000 — 300 (exibido) * FATOR_EXIBICAO_VITAIS (1000) =
-        // 300.000 bruto; o antigo hpAtual de 1000 clamparia pra 0 e perderia o cenário de dano
-        // parcial que este teste quer exercitar.
-        const state = baseState({ isMestre: true, dummies: { goblin: { nome: 'Goblin', hpAtual: 500000, cenaId: 'default', dominios: { Fogo: { nivel: 10 } } } } });
-        montarComEstado(state);
-
-        act(() => { probe.aplicarDanoRapido({ id: 'goblin', nome: 'Goblin', ficha: state.dummies.goblin, isDummie: true }, 300, 'Fogo', 10); });
-
-        expect(salvarDummie).toHaveBeenCalledTimes(1);
-        const dadosSalvos = salvarDummie.mock.calls[0][1];
-        expect(dadosSalvos.hpAtual).toBe(200000); // 500000 - 300*1000, SEM nenhuma redução
     });
 });
 
@@ -269,7 +248,7 @@ describe('MapaFormContext — aplicarDanoRapido(): feed de combate inclui a redu
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 1000, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 1000, 'Fogo'); });
 
         const texto = enviarParaFeed.mock.calls[0][0].texto;
         expect(texto).toContain('75%');
@@ -282,7 +261,7 @@ describe('MapaFormContext — aplicarDanoRapido(): feed de combate inclui a redu
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 1000, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 1000, 'Fogo'); });
 
         const texto = enviarParaFeed.mock.calls[0][0].texto;
         expect(texto).not.toContain('bruto');
@@ -294,7 +273,7 @@ describe('MapaFormContext — aplicarDanoRapido(): feed de combate inclui a redu
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 1000, null); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 1000, null); });
 
         const texto = enviarParaFeed.mock.calls[0][0].texto;
         expect(texto).not.toContain('bruto');
@@ -311,7 +290,7 @@ describe('MapaFormContext — aplicarDanoRapido(): hit quase totalmente resistid
         montarComEstado(state);
 
         expect(() => {
-            act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 1, 'Fogo'); });
+            act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 1, 'Fogo'); });
         }).not.toThrow();
 
         // floor(1 * 0.25) = 0 -> vida.atual não muda
@@ -326,7 +305,7 @@ describe('MapaFormContext — aplicarDanoRapido(): hit quase totalmente resistid
         montarComEstado(state);
 
         expect(() => {
-            act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 100, 'Fogo'); });
+            act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 100, 'Fogo'); });
         }).not.toThrow();
 
         expect(minhaFicha.vida.atual).toBeGreaterThanOrEqual(0);
@@ -351,7 +330,7 @@ describe('MapaFormContext — aplicarDanoRapido(): a Fadiga dinâmica gerada usa
         const fichaComReducao = fichaVidaLimpa({ dominios: { Fogo: { nivel: 4 } }, vida: { ...VIDA_BRUTA_TESTE_FADIGA } });
         let state = baseState({ minhaFicha: fichaComReducao, updateFicha: vi.fn((callback) => callback(fichaComReducao)) });
         montarComEstado(state);
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: fichaComReducao, isDummie: false }, 300000, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: fichaComReducao }, 300000, 'Fogo'); });
         const fadigaComReducao = fichaComReducao.combate.fadigaExtra;
         const vidaComReducao = fichaComReducao.vida.atual;
 
@@ -365,7 +344,7 @@ describe('MapaFormContext — aplicarDanoRapido(): a Fadiga dinâmica gerada usa
         const fichaSemReducao = fichaVidaLimpa({ dominios: { Fogo: { nivel: 4 } }, vida: { ...VIDA_BRUTA_TESTE_FADIGA } });
         state = baseState({ minhaFicha: fichaSemReducao, updateFicha: vi.fn((callback) => callback(fichaSemReducao)) });
         montarComEstado(state);
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: fichaSemReducao, isDummie: false }, 300000, 'Fogo', undefined, 4); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: fichaSemReducao }, 300000, 'Fogo', undefined, 4); });
         const fadigaSemReducao = fichaSemReducao.combate.fadigaExtra;
         const vidaSemReducao = fichaSemReducao.vida.atual;
 
@@ -379,7 +358,7 @@ describe('MapaFormContext — aplicarDanoRapido(): a Fadiga dinâmica gerada usa
         const alvoComReducao = fichaVidaLimpa({ dominios: { Fogo: { nivel: 4 } }, vida: { ...VIDA_BRUTA_TESTE_FADIGA } });
         let state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: alvoComReducao } });
         montarComEstado(state);
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoComReducao, isDummie: false }, 300000, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoComReducao }, 300000, 'Fogo'); });
         const fadigaComReducao = aplicarFadigaDireta.mock.calls[0][1];
 
         cleanup();
@@ -388,7 +367,7 @@ describe('MapaFormContext — aplicarDanoRapido(): a Fadiga dinâmica gerada usa
         const alvoSemReducao = fichaVidaLimpa({ dominios: { Fogo: { nivel: 4 } }, vida: { ...VIDA_BRUTA_TESTE_FADIGA } });
         state = baseState({ isMestre: true, meuNome: 'Mestre', personagens: { Vilao: alvoSemReducao } });
         montarComEstado(state);
-        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoSemReducao, isDummie: false }, 300000, 'Fogo', undefined, 4); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Vilao', nome: 'Vilao', ficha: alvoSemReducao }, 300000, 'Fogo', undefined, 4); });
         const fadigaSemReducao = aplicarFadigaDireta.mock.calls[0][1];
 
         expect(fadigaComReducao).toBeLessThan(fadigaSemReducao);

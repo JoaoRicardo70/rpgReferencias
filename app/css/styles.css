@@ -1637,7 +1637,6 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .mestre-turno-proximo { color: #888; }
 .mestre-turno-ordem { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; padding-bottom: 4px; }
 .mestre-turno-chip { flex: 0 0 auto; padding: 4px 10px; border-radius: 14px; border: 1px solid #333; background: rgba(255, 255, 255, 0.03); color: #aaa; font-size: 0.8em; white-space: nowrap; }
-.mestre-turno-chip.dummie { border-style: dashed; }
 .mestre-turno-chip.ativo { border-color: #ffcc00; color: #ffcc00; background: rgba(255, 204, 0, 0.12); box-shadow: 0 0 8px rgba(255, 204, 0, 0.4); font-weight: bold; }
 /* 🔀 Ordem de turno manual (arrastar pra dentro/fora/reordenar) — MestreControleTurno.jsx */
 .mestre-turno-soltura { min-height: 38px; align-items: center; border: 1px dashed transparent; border-radius: 8px; padding: 4px; transition: border-color 0.2s, background 0.2s; }
@@ -2072,8 +2071,6 @@ body.theme-arcane ::-webkit-scrollbar-thumb:hover { background: #e040fb !importa
 .disputa-atacante label { color: #aaa; font-size: 0.85em; font-weight: bold; }
 .disputa-atacante select { flex: 1 1 200px; min-width: 0; margin: 0; padding: 5px; }
 .feed-disputa-poder { margin-top: 4px; color: #ffcc00; font-size: 0.85em; }
-.dummie-poder { font-size: 8px; color: #ffcc00; font-weight: bold; background: rgba(0, 0, 0, 0.8); padding: 0 4px; border-radius: 4px; margin-top: 1px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.dummie-btn-poder { background: #ffcc00; color: #000; border: none; border-radius: 2px; font-size: 10px; cursor: pointer; padding: 2px 5px; font-weight: bold; }
 .injetor-poder { display: flex; flex-direction: column; gap: 4px; }
 .injetor-poder label { color: #ffcc00; font-size: 0.8em; font-weight: bold; }
 .injetor-poder input { width: 100%; border-color: #ffcc00; }

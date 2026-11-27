@@ -12,7 +12,6 @@ vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     salvarFirebaseImediato: vi.fn(() => Promise.resolve()),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
 }));
@@ -29,7 +28,6 @@ function montar(ficha, extra = {}) {
         abaAtiva: 'aba-mapa',
         feedCombate: [],
         alvoSelecionado: null,
-        dummies: {},
         efeitosTemp: [], setEfeitosTemp: vi.fn(),
         efeitosTempPassivos: [], setEfeitosTempPassivos: vi.fn(),
         poderEditandoId: null, setPoderEditandoId: vi.fn(),

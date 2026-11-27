@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./firebase-sync', () => ({
     salvarCamposPersonagem: vi.fn(),
-    salvarDummie: vi.fn(),
 }));
 
 import { salvarCamposPersonagem } from './firebase-sync';
@@ -38,13 +37,10 @@ describe('absorverEmPersonagem', () => {
 });
 
 describe('posGolpe - escudos do alvo-personagem', () => {
-    it('aplicar devolve so o que sobra, com texto no feed; dummie nao e afetado', () => {
+    it('aplicar devolve so o que sobra, com texto no feed', () => {
         const p = criarPosGolpe({});
         expect(p.aplicar('pj:Ana', personagem({ escudos: [esc('a', 'Domo', 30)] }), 100)).toBe(70);
         expect(p.resultado().textos).toEqual(['Ana absorveu 30 (restam 0)']);
-        const q = criarPosGolpe({});
-        expect(q.aplicar('d1', { isPersonagem: false, nome: 'Boneco', escudos: [esc('a', 'X', 30)] }, 100)).toBe(100);
-        expect(q.resultado().textos).toEqual([]);
     });
     it('efeitos ao acertar valem mesmo se o escudo absorveu tudo', () => {
         const p = criarPosGolpe({ aoAcertar: [{ tipo: 'reduzirCuraAlvo', fator: 0.5, duracao: 1, origem: 'EA' }], nomeAtacante: 'Vegeta' });
@@ -54,12 +50,5 @@ describe('posGolpe - escudos do alvo-personagem', () => {
         expect(campos.some(c => c.buffsTemporarios)).toBe(true);
         expect(p.resultado().aoAcertar).toHaveLength(1);
         expect(p.resultado().textos.join(' ')).toContain('cura do alvo reduzida a 50%');
-    });
-    it('aviso unico para Dummie sem ficha menciona cura reduzida', () => {
-        const p = criarPosGolpe({ aoAcertar: [{ tipo: 'reduzirCuraAlvo', fator: 0.5, duracao: 1 }] });
-        p.aplicar('d1', { isPersonagem: false, nome: 'Boneco' }, 10);
-        p.aplicar('d2', { isPersonagem: false, nome: 'Boneco2' }, 10);
-        expect(p.resultado().textos.filter(t => t.includes('não tem ficha'))).toHaveLength(1);
-        expect(p.resultado().textos[0]).toContain('cura reduzida');
     });
 });

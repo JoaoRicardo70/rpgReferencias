@@ -40,7 +40,7 @@ export function getExtraManualAcao(ficha, tipo) {
     return inteiroNaoNegativo(g.extra);
 }
 
-// Estrutura inicial de Ações (personagem novo ou Dummie sem Ações).
+// Estrutura inicial de Ações (personagem novo ou sem Ações).
 export function criarAcoesIniciais() {
     return {
         padrao: { max: ACOES_BASE, atual: ACOES_BASE, extra: 0 },

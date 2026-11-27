@@ -7,7 +7,7 @@ import { salvarConfig } from '../../core/configuracoes';
 
 vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')), salvarCenarioCompleto: vi.fn(), zerarIniciativaGlobal: vi.fn()
 }));
 
@@ -127,7 +127,7 @@ describe('evento rpg-testar-dado (MapaFormProvider)', () => {
         const minhaFicha = { acoes: {}, poderes: [], inventario: [], passivas: [], combate: {} };
         const state = {
             minhaFicha, meuNome: 'Heroi', personagens: {}, updateFicha: vi.fn(), feedCombate: [], isMestre: false, mesaCriador: '',
-            dummies: {}, alvoSelecionado: null, abaAtiva: 'aba-Ficha', cenario: { ativa: 'default', lista: { default: { nome: 'C', escala: 1 } }, turnoAtualIndex: 0 }
+            alvoSelecionado: null, abaAtiva: 'aba-Ficha', cenario: { ativa: 'default', lista: { default: { nome: 'C', escala: 1 } }, turnoAtualIndex: 0 }
         };
         useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(state) : state));
         useStore.getState = () => state;

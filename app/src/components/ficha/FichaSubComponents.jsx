@@ -215,7 +215,7 @@ function CartaoHabilidadeReducao({ r }) {
                 <select className="input-neon habilidade-alvo-add" value="" onChange={e => { if (e.target.value) adicionarAlvoReducao(r.id, e.target.value); }} title="Adicionar um tipo de dano. Com vários tipos a redução vale contra QUALQUER um deles (OU), ex.: Projéteis + Fogo">
                     <option value="">+ tipo de dano</option>
                     <option value="todos">Todo dano</option>
-                    <optgroup label="Tipo de ataque (não vale no Dano Rápido do Mestre/dummie, que não informa o tipo)">
+                    <optgroup label="Tipo de ataque (não vale no Dano Rápido do Mestre, que não informa o tipo)">
                         <option value="tipo:projetil">🏹 Projéteis (à distância)</option>
                         <option value="tipo:golpe">👊 Golpes (corpo a corpo)</option>
                     </optgroup>

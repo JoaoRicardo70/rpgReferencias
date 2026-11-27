@@ -7,7 +7,7 @@ import { PoderesFormProvider } from '../poderes/PoderesFormContext';
 import { ArsenalFormProvider } from '../arsenal/ArsenalFormContext';
 import { ElementosFormProvider } from '../arsenal/ElementosFormContext';
 import useStore from '../../stores/useStore';
-import { salvarDummie, enviarParaFeed } from '../../services/firebase-sync';
+import { enviarParaFeed } from '../../services/firebase-sync';
 
 // O cabeçalho da pasta/grupo agora separa seta, ícone, nome e total em spans (tema do Livro): casa pelo texto do botão inteiro.
 const cab = (re) => (_conteudo, el) => el.tagName === 'BUTTON' && el.classList.contains('mapa-tecnicas-pasta-topo') && re.test(el.textContent);
@@ -25,7 +25,6 @@ vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     salvarFirebaseImediato: vi.fn(() => Promise.resolve()),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
 }));
@@ -42,7 +41,6 @@ function montarStore(overrides = {}) {
         abaAtiva: 'aba-mapa',
         feedCombate: [],
         alvoSelecionado: null,
-        dummies: {},
         efeitosTemp: [],
         setEfeitosTemp: vi.fn(),
         efeitosTempPassivos: [],
@@ -97,28 +95,6 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
         expect(botao.disabled).toBe(false);
     });
 
-    it('o checkbox "Ignorar Trava de Acerto" habilita o botão mesmo quando podeRolarDano é falso (mesma trava da aba Ataque)', () => {
-        // dummieAlvo presente + nenhum acerto registrado no feed -> podeRolarDano começa falso.
-        montarStore({
-            minhaFicha: { poderes: [], inventario: [] },
-            alvoSelecionado: 'goblin1',
-            dummies: { goblin1: { nome: 'Goblin', hpAtual: 10 } },
-            feedCombate: [],
-        });
-        const { getByRole, getByText, rerender } = render(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
-
-        expect(getByText('ACERTO NECESSÁRIO PRIMEIRO').disabled).toBe(true);
-
-        const checkbox = getByRole('checkbox');
-        act(() => { checkbox.click(); });
-        // ignorarTravaAcerto agora vive no Zustand (useStore.js), não em useState local — o mock
-        // de useStore não é reativo por si só, então precisamos re-renderizar pra este componente
-        // reler o valor atualizado de mockState.ignorarTravaAcerto (mutado pelo mock do setter).
-        rerender(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
-
-        expect(getByText('⚔️ ATACAR GOBLIN').disabled).toBe(false);
-    });
-
     it('clicar em ROLAR DANO (habilitado) chama rolarDano e não lança', () => {
         const minhaFicha = {
             poderes: [], inventario: [], passivas: [], ataquesElementais: [],
@@ -126,7 +102,7 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
             vida: { base: 1000000, atual: 1000000 },
             combate: {}, hierarquia: {},
         };
-        montarStore({ minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)), alvoSelecionado: null, dummies: {} });
+        montarStore({ minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)), alvoSelecionado: null });
         const { getByText } = render(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
 
         expect(() => {
@@ -158,72 +134,6 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
         expect(queryByText(/Machado Duplo/)).toBeNull();
     });
 
-    it('clicar em ATACAR com um alvo já Acertado (podeRolarDano true) aplica o dano no dummie via salvarDummie', () => {
-        // Mesmo caminho completo do botão "ATACAR"/"ROLAR DANO" da aba Ataque (AtaqueBotoesAcao),
-        // agora exercitado a partir do Mapa COM alvo — a suíte anterior só cobria o caminho sem
-        // dummieAlvo (nunca passava pelo bloco de aplicar dano no dummie/salvarDummie).
-        const minhaFicha = {
-            poderes: [], inventario: [], passivas: [], ataquesElementais: [],
-            mana: { base: 1000000, atual: 1000000 },
-            vida: { base: 1000000, atual: 1000000 },
-            combate: {}, hierarquia: {},
-        };
-        montarStore({
-            minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)),
-            alvoSelecionado: 'goblin1',
-            dummies: { goblin1: { nome: 'Goblin', hpAtual: 50 * 1000 } }, // Vida bruta (x1000)
-            // meuUltimoAcerto contra o mesmo alvo -> useEffect de podeRolarDano libera o ataque.
-            feedCombate: [{ nome: 'Heroi', tipo: 'acerto', alvoNome: 'Goblin', acertouAlvo: true }],
-        });
-        const { getByText } = render(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
-
-        const botao = getByText('⚔️ ATACAR GOBLIN');
-        expect(botao.disabled).toBe(false);
-
-        act(() => { botao.click(); });
-
-        // calcularDano está mockado no topo do arquivo pra sempre devolver dano:10.
-        expect(salvarDummie).toHaveBeenCalledWith('goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }), expect.anything());
-        expect(enviarParaFeed).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'dano', dano: 10, alvoNome: 'Goblin' }));
-    });
-
-    it('DOCUMENTA (não corrige): clique duplo rápido chama rolarDano duas vezes, sem nenhuma guarda de idempotência', () => {
-        // rolarDano (AtaqueFormContext.jsx) é lógica pré-existente, amplamente usada (inclusive
-        // pelo botão já existente na aba Ataque) e fora do escopo desta sessão — diferente do
-        // lock de "avançar turno" adicionado nesta mesma sessão pro Mapa, rolarDano NÃO tem
-        // nenhum guard/debounce contra duplo clique. Este teste apenas comprova e documenta o
-        // comportamento (2 chamadas a salvarDummie/enviarParaFeed a partir de UM duplo-clique),
-        // pra decisão humana futura sobre se vale a pena adicionar uma trava aqui também.
-        const minhaFicha = {
-            poderes: [], inventario: [], passivas: [], ataquesElementais: [],
-            mana: { base: 1000000, atual: 1000000 },
-            vida: { base: 1000000, atual: 1000000 },
-            combate: {}, hierarquia: {},
-        };
-        montarStore({
-            minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)),
-            alvoSelecionado: 'goblin1',
-            dummies: { goblin1: { nome: 'Goblin', hpAtual: 50 * 1000 } }, // Vida bruta (x1000)
-            feedCombate: [{ nome: 'Heroi', tipo: 'acerto', alvoNome: 'Goblin', acertouAlvo: true }],
-        });
-        const { getByText } = render(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
-
-        const botao = getByText('⚔️ ATACAR GOBLIN');
-        act(() => { botao.click(); botao.click(); });
-
-        expect(salvarDummie).toHaveBeenCalledTimes(2);
-        expect(enviarParaFeed).toHaveBeenCalledTimes(2);
-        // Como o mock de store não reflete de volta o hpAtual salvo (não há um "banco" real de
-        // dummies sendo atualizado entre os dois cliques dentro do mesmo teste), as DUAS chamadas
-        // calculam o dano em cima do MESMO hpAtual original (50) — cada uma soltando hpAtual:40 —
-        // em vez de encadear 50 -> 40 -> 30. Isso ilustra bem o risco: se os dois cliques
-        // acontecerem antes do dummie realmente sincronizar de volta pelo Firebase, o segundo
-        // "dano" pode se perder (sobrescrito) ou, dependendo da ordem de chegada, duplicar o
-        // efeito no feed de combate mesmo a vida do alvo não caindo duas vezes.
-        expect(salvarDummie).toHaveBeenNthCalledWith(1, 'goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }), expect.anything());
-        expect(salvarDummie).toHaveBeenNthCalledWith(2, 'goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }), expect.anything());
-    });
-
     // -------------------------------------------------------------------------
     // QA (regressão desta sessão) — ignorarTravaAcerto agora vive no Zustand (useStore.js), não
     // mais em useState local. rolarDano (AtaqueFormContext.jsx, ~linha 475) é lógica PRÉ-EXISTENTE
@@ -233,67 +143,6 @@ describe('MapaAtaqueArma — ataque com a arma equipada direto do Mapa', () => {
     // continua funcionando corretamente agora que setIgnorarTravaAcerto vem do store.
     // -------------------------------------------------------------------------
     describe('rolarDano() e o auto-reset de "Ignorar Trava de Acerto" (store-backed)', () => {
-        it('ao clicar em ATACAR com "Ignorar Trava" já marcado (via store), rolarDano chama setIgnorarTravaAcerto(false) — e o checkbox aparece desmarcado após reler o store', () => {
-            const minhaFicha = {
-                poderes: [], inventario: [], passivas: [], ataquesElementais: [],
-                mana: { base: 1000000, atual: 1000000 },
-                vida: { base: 1000000, atual: 1000000 },
-                combate: {}, hierarquia: {},
-            };
-            montarStore({
-                minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)),
-                alvoSelecionado: 'goblin1',
-                dummies: { goblin1: { nome: 'Goblin', hpAtual: 50 * 1000 } }, // Vida bruta (x1000)
-                // Nenhum Acerto no feed -> podeRolarDano começaria falso; só "Ignorar Trava" (já
-                // pré-marcada no store, simulando o jogador ter marcado antes) libera o botão.
-                feedCombate: [],
-                ignorarTravaAcerto: true,
-            });
-            const { getByText, getByRole, rerender } = render(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
-
-            const checkboxAntes = getByRole('checkbox');
-            expect(checkboxAntes.checked).toBe(true);
-
-            const botao = getByText('⚔️ ATACAR GOBLIN');
-            expect(botao.disabled).toBe(false);
-
-            act(() => { botao.click(); });
-
-            // rolarDano (AtaqueFormContext.jsx linha ~475) chama setIgnorarTravaAcerto(false) como
-            // parte do seu próprio fluxo interno, independente de quem forneceu o setter.
-            expect(mockState.setIgnorarTravaAcerto).toHaveBeenCalledWith(false);
-            expect(mockState.ignorarTravaAcerto).toBe(false);
-
-            // Como o mock de useStore não é reativo por si só, precisamos re-renderizar pra este
-            // componente reler o valor mutado do "store" — mesma convenção já usada no resto desta
-            // suíte (ver comentário no teste "o checkbox... habilita o botão..." acima).
-            rerender(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
-            const checkboxDepois = getByRole('checkbox');
-            expect(checkboxDepois.checked).toBe(false);
-        });
-
-        it('o dano ainda é aplicado normalmente no mesmo clique em que o auto-reset acontece (o reset de ignorarTravaAcerto não interrompe o resto de rolarDano)', () => {
-            const minhaFicha = {
-                poderes: [], inventario: [], passivas: [], ataquesElementais: [],
-                mana: { base: 1000000, atual: 1000000 },
-                vida: { base: 1000000, atual: 1000000 },
-                combate: {}, hierarquia: {},
-            };
-            montarStore({
-                minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)),
-                alvoSelecionado: 'goblin1',
-                dummies: { goblin1: { nome: 'Goblin', hpAtual: 50 * 1000 } }, // Vida bruta (x1000)
-                feedCombate: [],
-                ignorarTravaAcerto: true,
-            });
-            const { getByText } = render(<AtaqueFormProvider><MapaAtaqueArma /></AtaqueFormProvider>);
-
-            act(() => { getByText('⚔️ ATACAR GOBLIN').click(); });
-
-            expect(salvarDummie).toHaveBeenCalledWith('goblin1', expect.objectContaining({ hpAtual: 40 * 1000 }), expect.anything());
-            expect(enviarParaFeed).toHaveBeenCalledWith(expect.objectContaining({ tipo: 'dano', dano: 10, alvoNome: 'Goblin' }));
-        });
-
         // ---------------------------------------------------------------------
         // QA — "compartilhado entre a aba Ataque e o Mapa": como ignorarTravaAcerto agora vive no
         // Zustand (singleton fora da árvore de React), QUALQUER consumidor que leia
@@ -507,29 +356,6 @@ describe('MapaTecnicasRapidas — liga/desliga Poderes/Formas/Habilidades do Gri
         const botoes = getAllByRole('button').filter(b => b.classList.contains('mapa-tecnica-chip'));
         expect(botoes.length).toBe(2);
         expect(botoes.map(b => b.textContent.trim()).sort()).toEqual(['★ Sem nome', '☆ Sem nome']);
-    });
-
-    it('alterna um poder normalmente mesmo com um alvo selecionado e podeRolarDano (Ataque) falso — toggle de Técnica não depende da trava de Acerto do Mapa', () => {
-        // Gap de cobertura apontado no code-review: MapaTecnicasRapidas só lê usePoderesForm()
-        // (minhaFicha.poderes, togglePoder) — nunca toca em alvoSelecionado/dummies/feedCombate/
-        // podeRolarDano do AtaqueFormContext. Simulamos aqui exatamente o cenário em que o botão
-        // de Ataque estaria bloqueado (dummie selecionado, ZERO acerto no feed) e confirmamos que
-        // isso não trava nem afeta em nada o toggle da Técnica, renderizada ao lado dele.
-        const minhaFicha = {
-            poderes: [{ id: 'p1', nome: 'Bola de Fogo', categoria: 'habilidade', ativa: false, vida: {}, mana: {}, aura: {}, chakra: {}, corpo: {} }],
-        };
-        montarStore({
-            minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)),
-            alvoSelecionado: 'goblin1',
-            dummies: { goblin1: { nome: 'Goblin', hpAtual: 10 } },
-            feedCombate: [], // nenhum Acerto ainda -> podeRolarDano (Ataque) começaria falso
-        });
-
-        const { getByText } = render(<PoderesFormProvider><MapaTecnicasRapidas /></PoderesFormProvider>);
-
-        act(() => { getByText('☆ Bola de Fogo').click(); });
-
-        expect(minhaFicha.poderes[0].ativa).toBe(true);
     });
 
     // -------------------------------------------------------------------------
@@ -801,7 +627,7 @@ describe('MapaAtaqueArma + MapaTecnicasRapidas juntos no mesmo Mapa (como em Map
             vida: { base: 1000000, atual: 1000000 },
             combate: {}, hierarquia: {},
         };
-        montarStore({ minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)), alvoSelecionado: null, dummies: {} });
+        montarStore({ minhaFicha, updateFicha: vi.fn((cb) => cb(minhaFicha)), alvoSelecionado: null });
 
         let utils;
         expect(() => {

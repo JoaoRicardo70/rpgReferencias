@@ -7,7 +7,7 @@ import { enviarParaFeed, salvarCamposPersonagem } from '../../services/firebase-
 import { calcularDano, calcularCA } from '../../core/engine';
 
 // "Ao acertar" no ALVO (dreno de energia / debuff): golpe em alvo-personagem grava na ficha dele (salvarCamposPersonagem),
-// nao cura o atacante, e o Dummie so recebe um aviso.
+// nao cura o atacante.
 
 vi.mock('../../stores/useStore');
 vi.mock('../../core/engine', async (importOriginal) => ({ ...(await importOriginal()), calcularDano: vi.fn() }));
@@ -23,7 +23,6 @@ vi.mock('../../core/danoProporcional', async (importOriginal) => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     aplicarDanoDireto: vi.fn(),
@@ -41,10 +40,10 @@ const fichaAna = (extra = {}) => ({ vida: stat(1000000), mana: stat(100000), red
 const DEBUFF = [{ tipo: 'debuffAlvo', modo: 'fixo', valor: 3, atributo: 'evasiva', duracao: 4 }];
 const CURA = { tipo: 'curarAtacante', modo: 'fixo', valor: 50 };
 
-function montar({ alvoSelecionado, personagens = {}, dummies = {}, poderes = [], vidaAtual = 500000 }) {
+function montar({ alvoSelecionado, personagens = {}, poderes = [], vidaAtual = 500000 }) {
     const minhaFicha = { poderes, inventario: [], passivas: [], ataquesElementais: [], hierarquia: {}, combate: {}, iniciativa: 10, vida: stat(vidaAtual) };
     mockState = {
-        minhaFicha, meuNome: 'Heroi', personagens, dummies, alvoSelecionado,
+        minhaFicha, meuNome: 'Heroi', personagens, alvoSelecionado,
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
         setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque',
         feedCombate: [],
@@ -114,10 +113,4 @@ describe('AtaqueFormContext - Ao acertar no alvo', () => {
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
     });
 
-    it('Dummie recebe o aviso e nada e gravado em personagem', () => {
-        montar({ alvoSelecionado: 'g1', dummies: { g1: { nome: 'Goblin', hpAtual: 100000, valorDefesa: 10 } }, poderes: [{ id: 'p1', nome: 'G', ativa: true, aoAcertar: DEBUFF }] });
-        act(() => { probe.rolarDano(); });
-        expect(salvarCamposPersonagem).not.toHaveBeenCalled();
-        expect(ultimoFeed().textoPosGolpe.filter(t => t.includes('não tem ficha'))).toHaveLength(1);
-    });
 });

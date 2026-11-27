@@ -1,5 +1,5 @@
 import useStore, { sanitizarNome } from '../stores/useStore';
-import { salvarFichaSilencioso, salvarDummie, salvarCenarioCompleto, salvarCamposPersonagem } from './firebase-sync';
+import { salvarFichaSilencioso, salvarCenarioCompleto, salvarCamposPersonagem } from './firebase-sync';
 import { desligarHabilidadesBloqueadas, limparVisibilidadeOrfa } from './composicaoRacial';
 import { limparRacaDaBiblioteca } from '../core/bibliotecaRacial';
 import { getRacas, sanitizarRacas, camposDaRacaNaFicha, composicaoComPrincipal, resolverRaca } from '../core/racas';
@@ -27,7 +27,7 @@ export function salvarRacasDaMesa(lista, opcoes = {}) {
 }
 
 // Define a Raça de um personagem (grava bio.racaId + bio.raca = nome do catálogo; racaId '' = sem raça). Mestre/Co-Mestre em qualquer um;
-// o jogador só na PRÓPRIA ficha. entidade = { id, nome, isDummie }. Devolve true se gravou (id fora do catálogo ou sem permissão = false).
+// o jogador só na PRÓPRIA ficha. entidade = { id, nome }. Devolve true se gravou (id fora do catálogo ou sem permissão = false).
 export function definirRacaDoPersonagemDireto(entidade, racaId) {
     if (!entidade) return false;
     const st = useStore.getState();
@@ -36,20 +36,6 @@ export function definirRacaDoPersonagemDireto(entidade, racaId) {
     const raca = racaId ? catalogo.find(r => r.id === racaId) : null;
     if (racaId && !raca) return false;
     const campos = camposDaRacaNaFicha(raca);
-    if (entidade.isDummie) {
-        if (!isMestre) return false;
-        const d = (st.dummies || {})[entidade.id];
-        if (!d) return false;
-        const bioNova = { ...(d.bio || {}), racaId: campos['bio/racaId'], raca: campos['bio/raca'] };
-        const compD = !isMestre ? null : composicaoComPrincipal(st.cenario, { bio: bioNova });
-        if (compD) bioNova.composicaoRacial = compD;
-        // Trocar a Raça pode bloquear Habilidades de Raça ligadas (acesso/percentual): desliga (ver desligarHabilidadesBloqueadas).
-        const novoD = JSON.parse(JSON.stringify({ ...d, bio: bioNova }));
-        desligarHabilidadesBloqueadas(novoD, st.cenario, { tipo: 'dummie', nome: d.nome || entidade.id });
-        limparVisibilidadeOrfa(novoD, st.cenario);
-        salvarDummie(entidade.id, novoD);
-        return true;
-    }
     const nome = entidade.id || entidade.nome;
     if (!nome) return false;
     const souEu = sanitizarNome(nome) === sanitizarNome(st.meuNome || '');

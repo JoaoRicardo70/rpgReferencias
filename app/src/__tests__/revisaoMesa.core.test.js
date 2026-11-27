@@ -415,7 +415,7 @@ describe('dedup efeitosDeInimigos (mesmo Poder x portadores diferentes)', () => 
     const ef = (valor) => ({ atributo: 'evasiva', propriedade: 'base', valor, valeParaInimigos: true, quando: '' });
     const poder = (nome, efeitos) => ({ id: nome, nome, ativa: true, efeitos, efeitosPassivos: [] });
     const npc = (poderes) => ({ bio: {}, isNPC: true, posicoes: { c1: { x: 1, y: 1 } }, poderes });
-    const args = (personagens) => ({ defensor: { dados: { bio: {}, posicoes: { c1: { x: 1, y: 1 } }, poderes: [] }, ehDummie: false, nome: 'Def' }, personagens, cenario: null, cenaId: 'c1', avaliar: () => true });
+    const args = (personagens) => ({ defensor: { dados: { bio: {}, posicoes: { c1: { x: 1, y: 1 } }, poderes: [] }, nome: 'Def' }, personagens, cenario: null, cenaId: 'c1', avaliar: () => true });
     const total = (l) => l.reduce((s, e) => s + parseFloat(e.valor), 0);
     it('dois efeitos do MESMO Poder valem os dois', () => {
         const r = coletarEfeitosDeInimigos(args({ P: npc([poder('Presa', [ef('-3'), ef('-4')])]) }));

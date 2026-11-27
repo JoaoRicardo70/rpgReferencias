@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { danoExibidoParaBruto, FATOR_EXIBICAO_VITAIS } from './vitals';
 
 // danoExibidoParaBruto converte o dano (escala EXIBIDA, a do feed/tela) para a escala BRUTA da Vida
-// (hpAtual de dummy e vida.atual de jogador): x FATOR_EXIBICAO_VITAIS, piso 0, teto Number.MAX_VALUE.
+// (vida.atual de jogador/NPC): x FATOR_EXIBICAO_VITAIS, piso 0, teto Number.MAX_VALUE.
 
 describe('danoExibidoParaBruto - caminho feliz', () => {
     it('multiplica o dano exibido por FATOR_EXIBICAO_VITAIS (1000)', () => {

@@ -19,7 +19,7 @@ vi.mock('../../services/firebase-sync', () => ({
 }));
 
 describe('AcertoPanel', () => {
-    // A origem padrão é 'alvo'. Com alvo (dummie) dentro do alcance rola normalmente ("TENTAR ACERTAR O ALVO").
+    // A origem padrão é 'alvo'. Com alvo dentro do alcance rola normalmente ("TENTAR ACERTAR O ALVO").
     // Sem alvo selecionado é uma ROLAGEM LIVRE: o botão ("ROLAR ACERTO LIVRE") fica habilitado,
     // rolarAcerto não avisa "fora de alcance" e o feed recebe alvosArea vazio.
     // Com alvo selecionado mas fora do alcance, o botão fica desabilitado ("MUITO LONGE PARA LANÇAR").
@@ -28,8 +28,8 @@ describe('AcertoPanel', () => {
         meuNome: 'Herói',
         setAbaAtiva: vi.fn(),
         updateFicha: vi.fn(),
-        alvoSelecionado: 'd1',
-        dummies: { d1: { nome: 'Dummie', valorDefesa: 10, posicao: { x: 0, y: 0, z: 0 } } },
+        alvoSelecionado: 'pj:Alvo',
+        personagens: { Alvo: { isNPC: true, posicao: { x: 0, y: 0, z: 0 } } },
         cenario: {},
         ...extra
     });
@@ -63,7 +63,7 @@ describe('AcertoPanel', () => {
     });
 
     describe('sem alvo selecionado (rolagem livre)', () => {
-        beforeEach(() => { usarEstado({ alvoSelecionado: null, dummies: {} }); });
+        beforeEach(() => { usarEstado({ alvoSelecionado: null }); });
 
         it('o botão ROLAR ACERTO LIVRE está habilitado', () => {
             render(<AcertoPanel />);
@@ -94,8 +94,8 @@ describe('AcertoPanel', () => {
             expect(screen.queryByText(/FORA DE ALCANCE/i)).toBeNull();
         });
 
-        it('alvoSelecionado apontando para dummie inexistente também é rolagem livre', () => {
-            usarEstado({ alvoSelecionado: 'fantasma', dummies: {} });
+        it('alvoSelecionado apontando para alvo inexistente também é rolagem livre', () => {
+            usarEstado({ alvoSelecionado: 'fantasma' });
             render(<AcertoPanel />);
             expect(screen.getByRole('button', { name: /ROLAR ACERTO LIVRE/i }).disabled).toBe(false);
             expect(screen.queryByText(/FORA DE ALCANCE/i)).toBeNull();
@@ -104,7 +104,7 @@ describe('AcertoPanel', () => {
 
     describe('com alvo selecionado fora do alcance', () => {
         beforeEach(() => {
-            usarEstado({ dummies: { d1: { nome: 'Dummie', valorDefesa: 10, posicao: { x: 50, y: 50, z: 0 } } } });
+            usarEstado({ personagens: { Alvo: { isNPC: true, posicao: { x: 50, y: 50, z: 0 } } } });
         });
 
         it('o botão fica desabilitado com MUITO LONGE PARA LANÇAR', () => {

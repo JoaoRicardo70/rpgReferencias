@@ -3,7 +3,7 @@ import { render, cleanup, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AtaqueFormProvider, useAtaqueForm } from './AtaqueFormContext';
 import useStore from '../../stores/useStore';
-import { enviarParaFeed, salvarCamposPersonagem, aplicarDanoDireto, salvarDummie } from '../../services/firebase-sync';
+import { enviarParaFeed, salvarCamposPersonagem, aplicarDanoDireto } from '../../services/firebase-sync';
 import { calcularDano } from '../../core/engine';
 
 // QA - Poder/Tecnica com danoVerdadeiro:true: o golpe vira Dano Verdadeiro (ignora Reducao, Resistencia, Imunidade e Dominio)
@@ -18,7 +18,7 @@ vi.mock('../../core/disputaPoder', async (importOriginal) => ({
 }));
 vi.mock('../../core/danoProporcional', async (importOriginal) => ({ ...(await importOriginal()), escalarDanoPelaVida: vi.fn((dano) => dano) }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCenarioCompleto: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCenarioCompleto: vi.fn(),
     salvarCamposPersonagem: vi.fn(), aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
 }));
 
@@ -35,10 +35,10 @@ const fichaAna = (extra = {}) => ({
 });
 const esc = (id, nome, valor) => ({ id, nome, valor, tipo: 'escudo' });
 
-function montar({ alvoSelecionado = 'pj:Ana', personagens = { Ana: fichaAna() }, dummies = {}, poderes = [], magias = [] }) {
+function montar({ alvoSelecionado = 'pj:Ana', personagens = { Ana: fichaAna() }, poderes = [], magias = [] }) {
     const minhaFicha = { poderes, inventario: [], passivas: [], ataquesElementais: magias, hierarquia: {}, combate: {}, iniciativa: 10, vida: stat(500000) };
     const state = {
-        minhaFicha, meuNome: 'Heroi', personagens, dummies, alvoSelecionado,
+        minhaFicha, meuNome: 'Heroi', personagens, alvoSelecionado,
         updateFicha: vi.fn((cb) => cb(minhaFicha)), setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque', feedCombate: [],
         ignorarTravaAcerto: false, setIgnorarTravaAcerto: vi.fn(), cenario: { zonas: [] },
     };
@@ -127,13 +127,6 @@ describe('Poder com danoVerdadeiro no Ataque (QA)', () => {
         expect(ultimoFeed().danoAplicado).toBe(1000);
         act(() => { probe.rolarDano(); });
         expect(ultimoFeed().danoAplicado).toBe(500);
-    });
-    it('Dummie (sem ficha) como alvo: nada muda, nem aviso de poder inventado em dano que nao foi reduzido', () => {
-        const dummie = { nome: 'Saco', hpAtual: 5000000, hpMax: 5000000 };
-        montar({ alvoSelecionado: 'd1', personagens: {}, dummies: { d1: dummie }, poderes: [verd] });
-        act(() => { probe.rolarDano(); });
-        expect(salvarDummie).toHaveBeenCalled();
-        expect(ultimoFeed().danoAplicado).toBe(1000);
     });
     it('sem alvo selecionado: o golpe com poder marcado nao quebra', () => {
         montar({ alvoSelecionado: '', personagens: {}, poderes: [verd] });

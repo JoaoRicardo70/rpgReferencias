@@ -13,7 +13,7 @@
 //   • Falha fechada: atacante ausente/ambíguo, sem CA válida ou golpe sem bônus gravado = nada acontece e a Reação NÃO é gasta.
 //   • NÃO redireciona o ataque a terceiros (fora de escopo). A rolagem é um único ataque simples (sem vantagem/desvantagem/Poder).
 // ==========================================
-import { montarAlvoPersonagem, defesaEfetivaDoDummie } from './alvoCombate.js';
+import { montarAlvoPersonagem } from './alvoCombate.js';
 
 export const VALIDADE_DEFLEXAO_MS = 10 * 60 * 1000;
 export const MEMORIA_DEFLEXAO_MS = 60 * 60 * 1000;
@@ -44,8 +44,8 @@ export function rolarDeflexao({ bonus, qtd, faces, defesa }, rng = Math.random) 
 }
 
 // A CA e o alvo do ATACANTE a partir do snapshot da mesa: { id, alvo, defesa } ou null (ausente, ambíguo ou sem CA válida).
-// Personagem: a maior entre Evasiva e Resistência (core/alvoCombate.js); NPC/Dummie: CA fixa + modificador de inimigos, achado pelo nome (se houver 2 iguais, ambíguo = null).
-export function resolverAtacanteParaDeflexao(nome, { personagens, dummies, divisorPoderMesa } = {}) {
+// Personagem: a maior entre Evasiva e Resistência (core/alvoCombate.js); achado pelo nome.
+export function resolverAtacanteParaDeflexao(nome, { personagens, divisorPoderMesa } = {}) {
     const n = String(nome ?? '').trim();
     if (!n) return null;
     const ps = personagens || {};
@@ -55,12 +55,7 @@ export function resolverAtacanteParaDeflexao(nome, { personagens, dummies, divis
         const defesa = alvo ? Number(alvo.valorDefesa) : NaN;
         return alvo && Number.isFinite(defesa) && defesa > 0 ? { id: `pj:${chavePj}`, alvo, defesa } : null;
     }
-    const ds = dummies || {};
-    const achados = Object.keys(ds).filter(id => ds[id] && String(ds[id].nome ?? '').trim() === n);
-    if (achados.length !== 1) return null;
-    const d = ds[achados[0]];
-    const defesa = Number(defesaEfetivaDoDummie(d));
-    return Number.isFinite(defesa) && defesa > 0 ? { id: achados[0], alvo: d, defesa } : null;
+    return null;
 }
 
 // ---------- Registro na ficha do defensor (combate.deflexoes) ----------

@@ -9,7 +9,7 @@ import * as fb from '../../services/firebase-sync';
 
 vi.mock('../../stores/useStore');
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCamposPersonagem: vi.fn(),
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
 }));
 vi.mock('../../core/engine', async (importOriginal) => ({ ...(await importOriginal()), calcularCA: vi.fn(() => 10) }));
@@ -34,7 +34,7 @@ function fichaReal(extra = {}) {
 let probe;
 function montar(ficha, { feed = [], personagens = {} } = {}) {
     const Harness = () => { probe = useDefesaForm(); return null; };
-    const state = { minhaFicha: ficha, meuNome: 'Eu', personagens, dummies: {}, feedCombate: feed, divisorPoderMesa: 1, updateFicha: vi.fn((cb) => cb(ficha)), setAbaAtiva: vi.fn(), cenario: { ativa: 'cena1', zonas: [] } };
+    const state = { minhaFicha: ficha, meuNome: 'Eu', personagens, feedCombate: feed, divisorPoderMesa: 1, updateFicha: vi.fn((cb) => cb(ficha)), setAbaAtiva: vi.fn(), cenario: { ativa: 'cena1', zonas: [] } };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(state) : state));
     useStore.getState = () => state;
     render(<DefesaFormProvider><Harness /></DefesaFormProvider>);

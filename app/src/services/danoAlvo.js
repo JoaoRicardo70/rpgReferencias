@@ -4,7 +4,7 @@
 // elemental do alvo). Usado pelo Dano Rápido do Mestre e pelo Ataque contra um alvo-personagem.
 // ==========================================
 import useStore from '../stores/useStore';
-import { aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto, salvarDummie, salvarCamposPersonagem } from './firebase-sync';
+import { aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto, salvarCamposPersonagem } from './firebase-sync';
 import { absorverDano, descreverAbsorcao } from '../core/escudos';
 import { coletarGatilhos } from '../core/gatilhos';
 import { temImunidadeTotal, camposParaGravar } from '../core/gatilhosAplicar';
@@ -87,13 +87,11 @@ export function aplicarDanoEmPersonagem(nome, ficha, danoExibido, valorRaw, { el
     return { texto: abs.texto, textos: g.textos };
 }
 
-// Grava a Vida do alvo de um Ataque: Dummie (salvarDummie) ou personagem (gravarDanoEmPersonagem). Devolve { textos } dos gatilhos do alvo.
+// Grava a Vida do alvo de um Ataque (personagem: gravarDanoEmPersonagem). Devolve { textos } dos gatilhos do alvo.
 export function gravarVidaDoAlvo(idAlvo, alvo, novoHpBruto, { elemento = null, golpe } = {}) {
     if (!alvo) return { textos: [] };
     if (alvo.isPersonagem) {
         return gravarDanoEmPersonagem(alvo.personagemNome, alvo.ficha, novoHpBruto, { elemento, nomeNoFeed: alvo.nome, escudosNovos: alvo.escudosNovos, golpe, fichaFixa: alvo.fichaFixa === true });
     }
-    // Dummie: só os campos alterados; a Vida vira delta transacional (baseHp = a que este cliente via; teto hpMax).
-    salvarDummie(idAlvo, { ...alvo, hpAtual: novoHpBruto }, { baseHp: Number(alvo.hpAtual) || 0, hpMax: Number(alvo.hpMax) || 0 });
     return { textos: [], vidaFinalBruta: Math.max(0, novoHpBruto) };
 }

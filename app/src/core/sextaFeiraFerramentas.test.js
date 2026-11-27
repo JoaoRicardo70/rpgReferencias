@@ -33,9 +33,6 @@ function estadoBase(over = {}) {
             Bruno: fichaBase({ bio: { raca: 'Elfo', classe: 'Mago' }, vida: { base: 5000000, atual: 2500000 } }),
             Brenda: fichaBase({ bio: { raca: 'Anao', classe: 'Ladino' } }),
         },
-        dummies: {
-            d1: { nome: 'Goblin', hpAtual: 500, hpMax: 1000, iniciativa: 7 },
-        },
         resumoTurnoMapa: { ordem: [], turnoAtualIndex: 0 },
         cenario: { ativa: 'c1', lista: { c1: { nome: 'Floresta' } } },
         feedCombate: [],
@@ -86,36 +83,25 @@ describe('resolverPersonagem', () => {
 });
 
 describe('listar_personagens', () => {
-    it('jogador ve nomes e npcs so com nome e vida%', async () => {
+    it('jogador ve os nomes dos personagens', async () => {
         const r = await chamar('listar_personagens', {}, estadoBase());
         expect(r.voceE).toBe('Ana');
         expect(r.papel).toBe('Jogador');
         expect(r.jogadores).toEqual(['Ana', 'Bruno', 'Brenda']);
-        expect(r.npcs).toEqual([{ nome: 'Goblin', tipo: 'NPC', vidaPorcentagem: 50 }]);
     });
-    it('Mestre ve mais dados dos npcs', async () => {
+    it('Mestre ve a lista com o papel dele', async () => {
         const r = await chamar('listar_personagens', {}, estadoBase({ isMestre: true }));
         expect(r.papel).toBe('Mestre');
-        expect(r.npcs[0]).toMatchObject({ nome: 'Goblin', vidaPorcentagem: 50, vidaAtual: 0, vidaMaxima: 1, iniciativa: 7 });
+        expect(r.jogadores).toEqual(['Ana', 'Bruno', 'Brenda']);
     });
     it('nao duplica o proprio nome se tambem estiver em personagens', async () => {
         const st = estadoBase(); st.personagens.ana = fichaBase();
         const r = await chamar('listar_personagens', {}, st);
         expect(r.jogadores.filter(n => n.toLowerCase() === 'ana')).toHaveLength(1);
     });
-    it('sem dummies/personagens nao quebra', async () => {
-        const r = await chamar('listar_personagens', {}, estadoBase({ personagens: undefined, dummies: undefined }));
+    it('sem personagens nao quebra', async () => {
+        const r = await chamar('listar_personagens', {}, estadoBase({ personagens: undefined }));
         expect(r.jogadores).toEqual(['Ana']);
-        expect(r.npcs).toEqual([]);
-    });
-    it('vida do dummie fica em [0,100] e null sem hpMax', async () => {
-        const st = estadoBase({ dummies: { a: { nome: 'A', hpAtual: 5000, hpMax: 1000 }, b: { nome: 'B', hpAtual: -50, hpMax: 1000 }, c: { nome: 'C', hpAtual: 5 }, d: null } });
-        const r = await chamar('listar_personagens', {}, st);
-        expect(r.npcs.map(n => n.vidaPorcentagem)).toEqual([100, 0, null]);
-    });
-    it('dummie sem nome usa o id', async () => {
-        const r = await chamar('listar_personagens', {}, estadoBase({ dummies: { xyz: { hpAtual: 1, hpMax: 2 } } }));
-        expect(r.npcs[0].nome).toBe('xyz');
     });
 });
 
@@ -142,13 +128,6 @@ describe('consultar_ficha - permissoes', () => {
         expect(r).toHaveProperty('poderCalculado');
         expect(r).toHaveProperty('prestigio');
         expect(r).not.toHaveProperty('observacao');
-    });
-    it('dummie: jogador so nome+vida%, Mestre mais', async () => {
-        const j = await chamar('consultar_ficha', { nome: 'goblin' }, estadoBase());
-        expect(j).toEqual({ nome: 'Goblin', tipo: 'NPC', vidaPorcentagem: 50 });
-        const m = await chamar('consultar_ficha', { nome: 'Goblin' }, estadoBase({ isMestre: true }));
-        expect(m).toHaveProperty('iniciativa', 7);
-        expect(m).toHaveProperty('vidaMaxima');
     });
     it('nome inexistente ou ambiguo devolve erro', async () => {
         expect((await chamar('consultar_ficha', { nome: 'Fulano' }, estadoBase())).erro).toMatch(/Fulano/);
@@ -255,7 +234,7 @@ describe('consultar_ficha - numeros batem com o motor', () => {
 });
 
 describe('estado_combate', () => {
-    const ordem = [{ nome: 'A', iniciativa: 10 }, { nome: 'B', iniciativa: 5, isDummie: true }, { nome: 'C', iniciativa: 1 }];
+    const ordem = [{ nome: 'A', iniciativa: 10 }, { nome: 'B', iniciativa: 5 }, { nome: 'C', iniciativa: 1 }];
     it('sem ordem: emCombate false e nome da cena', async () => {
         const r = await chamar('estado_combate', {}, estadoBase());
         expect(r).toMatchObject({ emCombate: false, cena: 'Floresta' });
@@ -268,9 +247,9 @@ describe('estado_combate', () => {
         const r = await chamar('estado_combate', {}, estadoBase({ resumoTurnoMapa: { ordem, turnoAtualIndex: 1 } }));
         expect(r).toMatchObject({ emCombate: true, vezDe: 'B', proximo: 'C' });
         expect(r.ordemDeTurno).toEqual([
-            { posicao: 1, nome: 'A', iniciativa: 10, npc: false },
-            { posicao: 2, nome: 'B', iniciativa: 5, npc: true },
-            { posicao: 3, nome: 'C', iniciativa: 1, npc: false },
+            { posicao: 1, nome: 'A', iniciativa: 10 },
+            { posicao: 2, nome: 'B', iniciativa: 5 },
+            { posicao: 3, nome: 'C', iniciativa: 1 },
         ]);
     });
     it('index faz wrap (ultimo -> primeiro, maior que tamanho, negativo)', async () => {
@@ -592,7 +571,7 @@ describe('executarFerramenta - geral', () => {
     });
     it('excecao interna vira {erro}, sem lancar', async () => {
         const st = estadoBase();
-        Object.defineProperty(st, 'dummies', { get() { throw new Error('kaboom'); } });
+        Object.defineProperty(st, 'personagens', { get() { throw new Error('kaboom'); } });
         const r = await chamar('listar_personagens', {}, st);
         expect(r.erro).toMatch(/kaboom/);
     });

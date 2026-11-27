@@ -80,7 +80,7 @@ describe('Sexta-Feira cria Combos e Follow Ups', () => {
 
     it('a ferramenta propor_combo registra uma proposta para o jogador pedir para si', async () => {
         const registros = [];
-        const estado = { meuNome: 'Heroi', isMestre: false, minhaFicha: { bio: {} }, personagens: {}, dummies: {} };
+        const estado = { meuNome: 'Heroi', isMestre: false, minhaFicha: { bio: {} }, personagens: {} };
         const r = await executarFerramenta('propor_combo', comboTexto, estado, { registrarProposta: async (p) => { registros.push(p); return 'p1'; } });
         expect(r.ok).toBe(true);
         expect(registros[0]).toMatchObject({ tipo: 'combo', alvo: 'Heroi' });

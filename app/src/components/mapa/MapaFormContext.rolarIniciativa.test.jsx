@@ -9,7 +9,6 @@ vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
@@ -41,7 +40,7 @@ function montar(fichaInicial) {
     mockUseStore({
         minhaFicha: fichaAtual, meuNome: 'Heroi', personagens: {},
         updateFicha: vi.fn((cb) => cb(fichaAtual)),
-        feedCombate: [], isMestre: false, mesaCriador: '', dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa',
+        feedCombate: [], isMestre: false, mesaCriador: '', alvoSelecionado: null, abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
     });
     probe = undefined;

@@ -21,7 +21,7 @@ const montar = ({ salvos = [A, B], podeRolarDano = true, ignorarTravaAcerto = fa
     ctxMock = {
         minhaFicha: ficha !== undefined ? ficha : { ataqueConfig: { ataquesSalvos: salvos } },
         rolarAtaqueSalvo, deletarAtaqueSalvo, salvarAtaque, podeRolarDano, ignorarTravaAcerto,
-        setIgnorarTravaAcerto: vi.fn(), salvarConfigAtaque: vi.fn(), rolarDano: vi.fn(), dummieAlvo: null, disputaAlvo: null
+        setIgnorarTravaAcerto: vi.fn(), salvarConfigAtaque: vi.fn(), rolarDano: vi.fn(), alvoAtaque: null, disputaAlvo: null
     };
 };
 beforeEach(() => { rolarAtaqueSalvo.mockClear(); deletarAtaqueSalvo.mockClear(); salvarAtaque.mockClear(); });

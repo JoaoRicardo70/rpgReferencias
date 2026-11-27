@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import useStore from '../stores/useStore';
 import { salvarRacasDaMesa, definirRacaDoPersonagemDireto } from './racasMesa';
-import { salvarFichaSilencioso, salvarDummie, salvarCenarioCompleto, salvarCamposPersonagem } from './firebase-sync';
+import { salvarFichaSilencioso, salvarCenarioCompleto, salvarCamposPersonagem } from './firebase-sync';
 
 vi.mock('./firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), salvarDummie: vi.fn(), salvarCenarioCompleto: vi.fn(), salvarCamposPersonagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), salvarCenarioCompleto: vi.fn(), salvarCamposPersonagem: vi.fn(),
 }));
 
 const CEN = { outro: 1, racas: [{ id: 'saiyajin', nome: 'Saiyajin' }, { id: 'humano', nome: 'Humano' }] };
 function preparar(extra = {}) {
     useStore.setState({
         isMestre: true, meuNome: 'Heroi', cenario: CEN, minhaFicha: { bio: {} },
-        dummies: { d1: { nome: 'D', bio: { x: 1 } } }, ...extra,
+        ...extra,
     });
 }
 beforeEach(() => { vi.clearAllMocks(); preparar(); });
@@ -72,15 +72,6 @@ describe('definirRacaDoPersonagemDireto', () => {
     it('id inexistente no catálogo é rejeitado', () => {
         expect(definirRacaDoPersonagemDireto({ id: 'Heroi' }, 'naoexiste')).toBe(false);
         expect(salvarFichaSilencioso).not.toHaveBeenCalled();
-    });
-    it('dummie: só Mestre, preservando o bio', () => {
-        expect(definirRacaDoPersonagemDireto({ id: 'd1', isDummie: true }, 'humano')).toBe(true);
-        expect(salvarDummie).toHaveBeenCalledWith('d1', expect.objectContaining({ bio: { x: 1, racaId: 'humano', raca: 'Humano' } }));
-        preparar({ isMestre: false });
-        expect(definirRacaDoPersonagemDireto({ id: 'd1', isDummie: true }, 'humano')).toBe(false);
-    });
-    it('dummie inexistente: false', () => {
-        expect(definirRacaDoPersonagemDireto({ id: 'zz', isDummie: true }, 'humano')).toBe(false);
     });
     it('nome com caracteres inválidos casa pela sanitização', () => {
         preparar({ meuNome: 'He.roi' });

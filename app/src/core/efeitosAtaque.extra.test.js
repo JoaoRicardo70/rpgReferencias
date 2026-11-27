@@ -101,9 +101,9 @@ describe('resolverAcertoNoAlvo - acerto automatico', () => {
         expect(resolverAcertoNoAlvo({ ...args, acertoTotal: NaN, acertoAutomatico: true }).acertou).toBe(true);
         expect(resolverAcertoNoAlvo({ ...args, acertoTotal: NaN }).acertou).toBe(false);
     });
-    it('preserva extras (dummieId), natural e poderAcerto junto do automatico', () => {
-        const r = resolverAcertoNoAlvo({ ...args, naturalD20: 1, acertoAutomatico: true, extras: { dummieId: 'd1' } });
-        expect(r).toMatchObject({ acertou: true, automatico: true, natural: 1, dummieId: 'd1', poderAcerto: 'contra' });
+    it('preserva extras (alvoId), natural e poderAcerto junto do automatico', () => {
+        const r = resolverAcertoNoAlvo({ ...args, naturalD20: 1, acertoAutomatico: true, extras: { alvoId: 'd1' } });
+        expect(r).toMatchObject({ acertou: true, automatico: true, natural: 1, alvoId: 'd1', poderAcerto: 'contra' });
     });
     it('padrao (flag ausente) nao marca automatico', () => {
         expect(resolverAcertoNoAlvo({ ...args, acertoTotal: 1e13 }).automatico).toBeUndefined();

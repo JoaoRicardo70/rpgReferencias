@@ -54,7 +54,7 @@ describe('reduzirDanoNoAlvo com verdadeiro', () => {
         expect(reduzirDanoNoAlvo(alvoPersonagem(f), 1000, 'fogo', { verdadeiro: false })).toEqual(a);
         expect(reduzirDanoNoAlvo(alvoPersonagem(f), 1000, 'fogo', {})).toEqual(a);
     });
-    it('dummie sem ficha e alvo nulo devolvem o dano inteiro', () => {
+    it('alvo sem ficha e alvo nulo devolvem o dano inteiro', () => {
         expect(reduzirDanoNoAlvo({ isPersonagem: false }, 80, 'fogo').final).toBe(80);
         expect(reduzirDanoNoAlvo(null, 80, 'fogo', { verdadeiro: true }).final).toBe(80);
         expect(reduzirDanoNoAlvo(alvoPersonagem(null), 80, 'fogo', { verdadeiro: true }).final).toBe(80);
@@ -62,7 +62,7 @@ describe('reduzirDanoNoAlvo com verdadeiro', () => {
 });
 
 describe('calcularDanoRapido com verdadeiro', () => {
-    const alvo = { nome: 'Alvo', isDummie: false, ficha: fichaBlindada() };
+    const alvo = { nome: 'Alvo', ficha: fichaBlindada() };
     const base = { alvo, fichaDoAlvo: fichaBlindada(), dano: 1000, elemento: 'Fogo', nivelDominioOverride: 10, divisorMesa: 1, pontosVida: 100 };
     it('verdadeiro ignora tudo; sem flag reduz', () => {
         const normal = calcularDanoRapido(base);

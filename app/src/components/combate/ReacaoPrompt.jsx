@@ -86,7 +86,7 @@ export default function ReacaoPrompt() {
             // que consumam antes de o Firebase sincronizar podem aplicar duas vezes; se a aba cair entre gravar e aplicar, o dano daquela Deflexão se perde.
             Promise.resolve(salvarFirebaseImediato()).catch(() => {}).then(() => {
                 const st = useStore.getState();
-                const r = aplicarDanoDeflexao({ atacante: d.atacante, dano: golpeDano.dano, elemento: golpeDano.elemento, personagens: st.personagens, dummies: st.dummies, divisorPoderMesa: st.divisorPoderMesa });
+                const r = aplicarDanoDeflexao({ atacante: d.atacante, dano: golpeDano.dano, elemento: golpeDano.elemento, personagens: st.personagens, divisorPoderMesa: st.divisorPoderMesa });
                 const texto = r.ok
                     ? `🔁 Deflexão de ${meuNome}: o golpe voltou e ${d.atacante} recebeu ${Math.floor(r.final).toLocaleString('pt-BR')} de dano.`
                     : `🔁 Deflexão de ${meuNome} acertou, mas ${r.motivo} (dano do golpe: ${Math.floor(Number(golpeDano.dano) || 0).toLocaleString('pt-BR')}; peça ao Mestre para aplicar).`;
@@ -129,7 +129,7 @@ export default function ReacaoPrompt() {
         if (querDeflexao.length > 0) {
             const st = useStore.getState();
             const golpe = pedido.golpe;
-            const atac = golpe && golpe.dados && golpe.chave ? resolverAtacanteParaDeflexao(pedido.atacante, { personagens: st.personagens, dummies: st.dummies, divisorPoderMesa: st.divisorPoderMesa }) : null;
+            const atac = golpe && golpe.dados && golpe.chave ? resolverAtacanteParaDeflexao(pedido.atacante, { personagens: st.personagens, divisorPoderMesa: st.divisorPoderMesa }) : null;
             if (!atac) adicionarAviso(!golpe || !golpe.dados ? 'Este golpe não trouxe o bônus de acerto no Feed (versão antiga): a Deflexão não pode re-rolar.' : `Não consegui a CA de ${pedido.atacante} (ausente da mesa ou sem CA válida): a Deflexão não foi usada e a Reação não foi gasta.`, 'alerta');
             else rolagemDeflexao = { chave: golpe.chave, golpeTs: golpe.ts, atacante: pedido.atacante, roll: rolarDeflexao({ ...golpe.dados, defesa: atac.defesa }) };
             let jaTem = false;

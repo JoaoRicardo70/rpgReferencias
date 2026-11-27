@@ -61,7 +61,7 @@ export function dispararEventoEmPersonagem(nome, evento, ctx = {}) {
 }
 
 // Efeitos de gatilhos em OUTRA ficha (`externos` de aplicarDanoNaVida / dispararEvento...): hoje só 'danoNoAtacante' (dano pelo ponto único de dano do atacante:
-// God Mode dele zera, escudo dele absorve, gatilhos dele podem disparar). Atacante sem ficha (Dummie / desconhecido) é ignorado com aviso. Devolve textos do feed.
+// God Mode dele zera, escudo dele absorve, gatilhos dele podem disparar). Atacante sem ficha (desconhecido) é ignorado com aviso. Devolve textos do feed.
 export function aplicarExternosDeGatilhos(externos) {
     const textos = [];
     (Array.isArray(externos) ? externos : []).forEach((e) => {
@@ -93,7 +93,7 @@ export function aplicarExternosDeGatilhos(externos) {
 export const textoDosEventos = (r) => (r && r.textos && r.textos.length > 0 ? `🔔 ${r.textos.join(' · ')}` : '');
 
 // Depois de um teste de acerto: `errou` para quem atacou (se TODOS os alvos escaparam) e `inimigoErrou` para cada alvo-personagem
-// que escapou. `alvos` = itens de resolverAcertoNoAlvo ({ nome, acertou, dummieId? }). `atacanteSouEu`: false quando o Mestre age por um NPC.
+// que escapou. `alvos` = itens de resolverAcertoNoAlvo ({ nome, acertou, alvoId? }). `atacanteSouEu`: false quando o Mestre age por um NPC.
 // Devolve as frases (feed). Sem gatilhos nada é gravado.
 export function dispararResultadoDoAcerto(alvos, { atacanteSouEu = true, nomeAtacante = '' } = {}) {
     const textos = [];
@@ -105,8 +105,8 @@ export function dispararResultadoDoAcerto(alvos, { atacanteSouEu = true, nomeAta
     }
     lista.forEach((a) => {
         if (!a || a.acertou !== false) return;
-        const id = String(a.dummieId || '');
-        // Com dummieId, só 'pj:Nome' é personagem (um Dummie com o nome de um jogador NÃO conta); sem dummieId, pelo nome.
+        const id = String(a.alvoId || '');
+        // Com alvoId, só 'pj:Nome' é personagem; sem alvoId, pelo nome.
         const nome = id ? (id.startsWith('pj:') ? id.slice(3) : '') : (((st.personagens || {})[a.nome] || a.nome === st.meuNome) ? a.nome : '');
         if (!nome || nome === nomeAtacante) return;
         dispararEventoEmPersonagem(nome, { tipo: 'inimigoErrou' }, { alvo: usaCondicaoDeAlvo(nome === st.meuNome ? st.minhaFicha : (st.personagens || {})[nome]) ? alvoDoGatilhoPorNome(nomeAtacante) : null }).textos.forEach(t => textos.push(`${nome}: ${t}`));

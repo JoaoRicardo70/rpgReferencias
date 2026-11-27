@@ -161,13 +161,13 @@ describe('personagensCompativeis / entidadesDaMesa / jogador', () => {
         Lia: { bio: { racaId: 'humano', raca: 'Humano' }, poderes: [] },
         Gok: { bio: { composicaoRacial: [{ racaId: 'saiyajin', percentual: 30 }, { racaId: 'humano', percentual: 70 }] }, poderes: [{ nome: 'Zenkai' }] },
     };
-    const entidades = entidadesDaMesa({ personagens, dummies: { d1: { nome: 'Boss', bio: { racaId: 'saiyajin' } }, d2: { nome: 'Fora' } }, meuNome: 'Mestre', minhaFicha: { bio: {} }, resumo: { ordem: [{ id: 'd1', isDummie: true }], foraDaOrdem: [] } });
-    it('lista jogadores, eu e só os dummies da cena', () => {
-        expect(entidades.map(x => x.nome).sort()).toEqual(['Boss', 'Gok', 'Kai', 'Lia', 'Mestre']);
+    const entidades = entidadesDaMesa({ personagens, meuNome: 'Mestre', minhaFicha: { bio: {} } });
+    it('lista jogadores e eu', () => {
+        expect(entidades.map(x => x.nome).sort()).toEqual(['Gok', 'Kai', 'Lia', 'Mestre']);
     });
     it('só quem tem Raça com acesso; mostra Raça, Domínio e jaPossui', () => {
         const lista = personagensCompativeis(cenario, entidades, entradaDe());
-        expect(lista.map(x => x.nome).sort()).toEqual(['Boss', 'Gok', 'Kai']);
+        expect(lista.map(x => x.nome).sort()).toEqual(['Gok', 'Kai']);
         const gok = lista.find(x => x.nome === 'Gok');
         expect(gok.situacao.jaPossui).toBe(true);
         expect(gok.racaNome).toBe('Saiyajin');

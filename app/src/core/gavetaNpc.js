@@ -42,7 +42,7 @@ export function agruparNpcsPorFamilia(personagens, busca = '') {
 }
 
 // Vida máxima BRUTA do NPC (mesma conta do card do Mestre e da Ficha: teto com o Multiplicador de
-// Força da Vida) — é a unidade de hpMax/hpAtual dos dummies.
+// Força da Vida) — é a unidade de hpMax/hpAtual dos alvos do combate.
 export function getVidaMaxBrutaNpc(ficha) {
     if (!ficha) return 0;
     try {
@@ -68,8 +68,7 @@ export function posicoesLivres(ocupadas, quantidade, tamanho = 30) {
     return livres;
 }
 
-// Esconder tokens de entidade: o Mapa lê a invisibilidade de cenario.tokensOcultos (ids dos dummies,
-// ver MapaGrelha.jsx/MapaCombate.jsx) — um campo "oculto" no próprio dummy não esconde nada.
+// Esconder tokens de entidade: o Mapa lê a invisibilidade de cenario.tokensOcultos (ver MapaGrelha.jsx/MapaCombate.jsx).
 // Devolve um cenário NOVO (o original não é alterado), pronto pra salvarCenarioCompleto.
 export function cenarioComTokensOcultos(cenario, ids) {
     const novo = JSON.parse(JSON.stringify(cenario || {}));
@@ -79,7 +78,7 @@ export function cenarioComTokensOcultos(cenario, ids) {
     return novo;
 }
 
-// 🧍 FICHA VIVA NO MAPA — em vez de um token-cópia (dummie), a PRÓPRIA ficha do NPC entra na cena como um personagem
+// 🧍 FICHA VIVA NO MAPA — a PRÓPRIA ficha do NPC entra na cena como um personagem
 // qualquer: Vida, Poder, Combos, Reações e ataques salvos são os da ficha (o Mestre usa "Controlar" pra agir como ele).
 // Campos a gravar na ficha (caminhos de salvarCamposPersonagem) pra ela aparecer na casa `pos` da cena `cenaId`.
 export function camposPosicaoNaCena(cenaId, pos) {

@@ -52,7 +52,7 @@ function montarStore() {
     state = {
         minhaFicha: fichaReal(11),
         personagens: { Outro: fichaReal(77) },
-        meuNome: 'Heroi', dummies: {}, feedCombate: [], divisorPoderMesa: 1, cenario: { zonas: [] },
+        meuNome: 'Heroi', feedCombate: [], divisorPoderMesa: 1, cenario: { zonas: [] },
         setAbaAtiva: vi.fn(),
         updateFicha: vi.fn((cb) => cb(state.minhaFicha)),
         updateFichaAlvo: vi.fn((nome, cb) => cb(state.personagens[nome])),

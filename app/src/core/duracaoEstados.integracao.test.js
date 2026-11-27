@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('../services/firebase-sync', () => ({
     salvarCamposPersonagem: vi.fn(),
-    salvarDummie: vi.fn()
 }));
 
 import { salvarCamposPersonagem } from '../services/firebase-sync';
@@ -89,17 +88,15 @@ describe('posGolpe grava a duracao nos alvos', () => {
         gravarEstadosNoAlvo('x', personagem({ condicoes: [{ id: 'criogenia', stacks: 1 }], duracaoEstados: { criogenia: 3 } }), [{ id: 'criogenia', stacks: 1, duracao: 6 }]);
         expect(salvarCamposPersonagem.mock.calls[0][1].duracaoEstados).toEqual({ criogenia: 6 });
     });
-    it('dummie: devolve o alvo com condicoes e duracaoEstados para gravar com o Dano', () => {
-        const d = { isPersonagem: false, nome: 'Boneco', vida: 10 };
-        const novo = gravarEstadosNoAlvo('d1', d, [{ id: 'lento', stacks: 1, duracao: 2 }]);
-        expect(novo.condicoes).toEqual([{ id: 'lento', stacks: 1 }]);
-        expect(novo.duracaoEstados).toEqual({ lento: 2 });
+    it('condicoesComEstados soma sem gravar', () => {
+        const d = { isPersonagem: true, personagemNome: 'Rival', nome: 'Rival', ficha: {} };
         expect(condicoesComEstados(d, [{ id: 'lento', stacks: 1, duracao: 2 }])).toEqual([{ id: 'lento', stacks: 1 }]);
     });
     it('aplicarEstadosDoGolpe de ponta a ponta sorteia o dado', () => {
-        const d = { isPersonagem: false, nome: 'Boneco', vida: 10 };
-        const r = aplicarEstadosDoGolpe({ idAlvo: 'd1', alvo: d, estados: [{ id: 'imobilizado', stacks: 1, duracao: '1d1+4' }] });
-        expect(r.alvo.duracaoEstados).toEqual({ imobilizado: 5 });
+        salvarCamposPersonagem.mockClear();
+        const d = { isPersonagem: true, personagemNome: 'Rival', nome: 'Rival', ficha: {} };
+        const r = aplicarEstadosDoGolpe({ idAlvo: 'pj:Rival', alvo: d, estados: [{ id: 'imobilizado', stacks: 1, duracao: '1d1+4' }] });
+        expect(salvarCamposPersonagem.mock.calls[0][1].duracaoEstados).toEqual({ imobilizado: 5 });
         expect(r.texto).toContain('⏳ 5 turnos');
     });
 });

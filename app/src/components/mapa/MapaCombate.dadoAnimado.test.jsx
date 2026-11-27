@@ -21,7 +21,7 @@ vi.mock('./MapaFormContext', () => ({
     calcularCA: () => 10
 }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), salvarCenarioCompleto: vi.fn(), salvarDummie: vi.fn()
+    salvarFichaSilencioso: vi.fn(), salvarCenarioCompleto: vi.fn()
 }));
 
 const q = (sel) => document.body.querySelector(sel);

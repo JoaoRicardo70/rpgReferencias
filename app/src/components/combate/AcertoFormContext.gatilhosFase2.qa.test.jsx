@@ -26,10 +26,10 @@ const ct = (id, extra = {}) => ({ id, nome: id, valor: 0, min: 0, max: 100, ...e
 const semUndefined = (o) => !JSON.stringify(o, (k, v) => (v === undefined ? '__U__' : v)).includes('__U__');
 let probe; let state;
 
-function montar(Mod, { alvo = 'g1', dummies, personagens = {}, poderes = [], contadores = [ct('k')], meuNome = 'Heroi', ficha = {} } = {}) {
+function montar(Mod, { alvo = 'pj:G1', personagens = { G1: ana() }, poderes = [], contadores = [ct('k')], meuNome = 'Heroi', ficha = {} } = {}) {
     const minhaFicha = { iniciativa: 10, inventario: [{ tipo: 'arma', equipado: true, alcance: 100 }], poderes, ataquesElementais: [], contadores, posicao: { x: 0, y: 0, z: 0, cenaId: 'cena_x' }, ...ficha };
     state = {
-        minhaFicha, meuNome, personagens, dummies: dummies || { g1: { nome: 'Goblin', valorDefesa: 10, hpAtual: 100, posicao: { x: 1, y: 0, z: 0, cenaId: 'cena_x' }, cenaId: 'cena_x' } },
+        minhaFicha, meuNome, personagens,
         alvoSelecionado: alvo, setAbaAtiva: vi.fn(), updateFicha: vi.fn((cb) => cb(minhaFicha)), isMestre: false,
         cenario: { ativa: 'cena_x', lista: { cena_x: { escala: 1.5 } }, zonas: [] }, divisorPoderMesa: 1,
     };
@@ -55,9 +55,9 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 const nomesMock = ['salvarFichaSilencioso', 'enviarParaFeed', 'salvarCenarioCompleto', 'salvarCamposPersonagem'];
 const chamadas = () => JSON.stringify(nomesMock.map(n => [n, fb[n].mock.calls]));
 const CENARIOS = {
-    'Dummie acerta': (M) => montar(M, {}),
-    'Dummie erra': (M) => { acerto(ERRA); return montar(M, {}); },
-    'Dummie erra c/ poder Fase 1': (M) => { acerto(ERRA); return montar(M, { poderes: [{ id: 'p9', nome: 'NM', ativa: true, gatilhos: [{ id: 'nm', nome: 'NM', evento: { tipo: 'danoQueZeraria' }, acoes: [{ tipo: 'anularDano' }] }] }] }); },
+    'NPC acerta': (M) => montar(M, {}),
+    'NPC erra': (M) => { acerto(ERRA); return montar(M, {}); },
+    'NPC erra c/ poder Fase 1': (M) => { acerto(ERRA); return montar(M, { poderes: [{ id: 'p9', nome: 'NM', ativa: true, gatilhos: [{ id: 'nm', nome: 'NM', evento: { tipo: 'danoQueZeraria' }, acoes: [{ tipo: 'anularDano' }] }] }] }); },
     'pj:Ana acerta': (M) => montar(M, { alvo: 'pj:Ana', personagens: { Ana: ana() } }),
     'pj:Ana erra': (M) => { acerto(ERRA); return montar(M, { alvo: 'pj:Ana', personagens: { Ana: ana() } }); },
     'pj:Ana erra, com contadores': (M) => { acerto(ERRA); return montar(M, { alvo: 'pj:Ana', personagens: { Ana: ana({ contadores: [ct('z', { valor: 3, reset: 'cena' })] }) } }); },
@@ -67,7 +67,7 @@ const CENARIOS = {
 describe.skipIf(!Velho)('P1 NAO-REGRESSAO - Acerto identico ao HEAD sem gatilhos de Fase 2', () => {
     Object.entries(CENARIOS).forEach(([nome, run]) => {
         it(`${nome}: mesma ficha, mesmos feeds e gravacoes`, () => {
-            const rodar = (M) => { vi.clearAllMocks(); acerto(15); run(M); act(() => { probe.rolarAcerto(); }); const r = JSON.stringify([state.minhaFicha, state.personagens, state.dummies]); const c = chamadas(); cleanup(); return [r, c]; };
+            const rodar = (M) => { vi.clearAllMocks(); acerto(15); run(M); act(() => { probe.rolarAcerto(); }); const r = JSON.stringify([state.minhaFicha, state.personagens]); const c = chamadas(); cleanup(); return [r, c]; };
             const a = rodar(Velho); const b = rodar(Novo);
             expect(b[0]).toBe(a[0]); expect(b[1]).toBe(a[1]);
         });
@@ -90,7 +90,7 @@ describe('NAO-REGRESSAO (valores a mao) - sem gatilhos', () => {
 
 // ---------------------------------------------------------------------------------------------------------
 describe('Fase 2 - errou', () => {
-    it('errar no Dummie: dispara errou na MINHA ficha e salva (debounce)', () => {
+    it('errar num NPC: dispara errou na MINHA ficha e salva (debounce)', () => {
         acerto(ERRA); const f = montar(Novo, { poderes: [somaErrou({ tipo: 'errou' })] });
         act(() => { probe.rolarAcerto(); });
         expect(v(f, 'k')).toBe(1); expect(fb.salvarFichaSilencioso).toHaveBeenCalled();
@@ -160,7 +160,7 @@ describe('Fase 2 - inimigoErrou (contra-ataque simples)', () => {
         act(() => { probe.rolarAcerto(); });
         expect(fb.salvarCamposPersonagem).not.toHaveBeenCalled(); expect(sistema().join(' ')).toContain('Contra-ataque!');
     });
-    it('errar um Dummie com gatilho no meu proprio poder inimigoErrou: nao dispara em mim (nao sou o alvo)', () => {
+    it('errar um NPC com gatilho no meu proprio poder inimigoErrou: nao dispara em mim (nao sou o alvo)', () => {
         acerto(ERRA); const f = montar(Novo, { poderes: [contra()] });
         act(() => { probe.rolarAcerto(); });
         expect(v(f, 'k')).toBe(0);

@@ -5,7 +5,7 @@ import { aplicarInicioDeTurno, encerrarDuracaoDeEstados } from './MapaFormContex
 
 vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(), salvarCenarioCompleto: vi.fn(), zerarIniciativaGlobal: vi.fn()
 }));
 
@@ -40,13 +40,6 @@ describe('aplicarInicioDeTurno - estados novos', () => {
         expect(f.vida.atual).toBeLessThan(antes);
         expect(r.estados).toContain('Eletrizado');
         expect(r.estados).toContain('Sufocado');
-    });
-    it('Dummie tambem perde as Acoes e leva o dano', () => {
-        const d = { nome: 'Alvo', hpAtual: 1000000, condicoes: [{ id: 'banido', stacks: 1 }, { id: 'eletrizado', stacks: 1 }] };
-        const r = aplicarInicioDeTurno(d, true, 'Alvo');
-        expect(acoes(d)).toEqual([0, 0, 0]);
-        expect(d.hpAtual).toBeLessThan(1000000);
-        expect(r.estados).toContain('Eletrizado');
     });
     it('a duracao dos novos desce no FIM do turno do portador e o estado sai', () => {
         const f = ficha({ condicoes: [{ id: 'paralisado', stacks: 1 }], duracaoEstados: { paralisado: 1 } });

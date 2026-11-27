@@ -1,5 +1,5 @@
 import useStore, { sanitizarNome } from '../stores/useStore';
-import { salvarFichaSilencioso, salvarDummie, salvarCamposPersonagem, enviarParaFeed } from './firebase-sync';
+import { salvarFichaSilencioso, salvarCamposPersonagem, enviarParaFeed } from './firebase-sync';
 import {
     getRacas, getComposicaoRacial, resolverRaca, ehHabilidadeDeRaca, poderBloqueado, percentualMinimoDoPoder,
     PERCENTUAL_RACA_ADQUIRIDA_PADRAO, LIMITE_HISTORICO_COMPOSICAO, LIMITE_COMPOSICAO_RACIAL, LIMITE_PEDIDOS_RACA,
@@ -11,8 +11,8 @@ import { fichaTemRacaOculta, nivelValido, nivelDaRaca, nivelPermitidoAoJogador, 
 // Única cópia da regra (a interface chama estas funções). Não depende do Mapa: lê o store NO MOMENTO da chamada.
 // Gravação: na PRÓPRIA ficha = updateFicha + salvarFichaSilencioso (debounce); em outro jogador = salvarCamposPersonagem com caminhos pontuais
 // ('bio/composicaoRacial', 'bio/composicaoRacialHistorico', 'bio/pedidosRaca' e 'poderes/<índice>/<campo>', índice resolvido por ID na ficha MAIS FRESCA do store);
-// dummie = salvarDummie. Todas devolvem { ok, mensagem?, ...dados } (nunca lançam).
-// entidade = { id, nome, isDummie } (mesmo formato de definirRacaDoPersonagemDireto em racasMesa.js).
+// Todas devolvem { ok, mensagem?, ...dados } (nunca lançam).
+// entidade = { id, nome } (mesmo formato de definirRacaDoPersonagemDireto em racasMesa.js).
 
 const MSG_SO_MESTRE = 'Só o Mestre ou Co-Mestre pode fazer isso (e não no Modo Jogador).';
 const falha = (mensagem) => ({ ok: false, mensagem });
@@ -25,13 +25,9 @@ const texto = (v, max) => String(v == null ? '' : v).replace(/\s+/g, ' ').trim()
 const clonar = (o) => JSON.parse(JSON.stringify(o));
 const valorNoCaminho = (obj, caminho) => caminho.split('/').reduce((a, k) => (a == null ? undefined : a[k]), obj);
 
-// Resolve a entidade alvo: { tipo: 'eu'|'outro'|'dummie', nome, id, fresca } ou { erro }.
+// Resolve a entidade alvo: { tipo: 'eu'|'outro', nome, fresca } ou { erro }.
 export function resolverAlvo(entidade, st) {
     if (!entidade) return { erro: 'Personagem não informado.' };
-    if (entidade.isDummie) {
-        const d = (st.dummies || {})[entidade.id];
-        return d ? { tipo: 'dummie', id: entidade.id, nome: d.nome || entidade.nome || entidade.id, fresca: d } : { erro: 'Dummie não encontrado.' };
-    }
     const nome = entidade.id || entidade.nome;
     if (!nome) return { erro: 'Personagem não informado.' };
     if (sanitizarNome(nome) === sanitizarNome(st.meuNome || '')) return { tipo: 'eu', nome: st.meuNome, fresca: st.minhaFicha };
@@ -48,12 +44,6 @@ function aplicar(alvo, mutar) {
         let r = null;
         st.updateFicha((f) => { r = mutar(f); });
         if (r && (r.ok || r.descartado)) salvarFichaSilencioso();
-        return r || falha('Nada a fazer.');
-    }
-    if (alvo.tipo === 'dummie') {
-        const d = clonar(alvo.fresca);
-        const r = mutar(d);
-        if (r && (r.ok || r.descartado)) salvarDummie(alvo.id, d);
         return r || falha('Nada a fazer.');
     }
     const f = clonar(alvo.fresca);
@@ -93,7 +83,7 @@ function registrarHistorico(f, entrada) {
 function feedDNA(texto) { try { enviarParaFeed({ tipo: 'sistema', nome: 'SISTEMA', texto }); } catch (e) { /* sem feed */ } }
 
 // Desliga, no rascunho , as Habilidades de Raça LIGADAS que acabaram bloqueadas (percentual/composição/mínimo/raça mudou) e avisa no Feed.
-// Na própria ficha/dummie usa desligarPoderNoRascunho (mantém a % dos vitais e remove o escudo); em outro jogador (tipo 'outro') só vira ativa=false.
+// Na própria ficha usa desligarPoderNoRascunho (mantém a % dos vitais e remove o escudo); em outro jogador (tipo 'outro') só vira ativa=false.
 // Devolve os caminhos { poderId, campo:'ativa' } para gravar. LIMITAÇÃO: efeitos PASSIVOS (efeitosPassivos) continuam somados; as leituras diretas de p.ativa
 // (alcance, AcertoFormContext, MapaFormContext, ElementosFormContext) ficam cobertas por esta desligada, porque o poder deixa de estar ativo.
 export function desligarHabilidadesBloqueadas(f, cenario, { tipo = 'eu', nome = '' } = {}) {
@@ -298,7 +288,7 @@ export function definirBloqueioDoPoder(entidade, poderId, bloqueio) {
         if (!novo.ativo && !novo.requisito && !novo.motivo) delete poder.bloqueio; else poder.bloqueio = novo;
         caminhos.push({ poderId, campo: 'bloqueio' });
         if (novo.ativo && poder.ativa) {
-            // Ligada e agora bloqueada: desliga (na própria ficha/dummie com a rotina que mantém a % dos vitais e remove o escudo; em outro jogador só o interruptor).
+            // Ligada e agora bloqueada: desliga (na própria ficha com a rotina que mantém a % dos vitais e remove o escudo; em outro jogador só o interruptor).
             if (alvo.tipo === 'outro') poder.ativa = false; else desligarPoderNoRascunho(f, poder.id);
             caminhos.push({ poderId, campo: 'ativa' });
         }
@@ -358,9 +348,9 @@ export function definirManipulaDNA(entidade, poderId, valor) {
 }
 
 // ---------- 🙈 Visibilidade das Raças (core/racasVisibilidade.js) ----------
-// Mestre/Co-Mestre: qualquer nível, em qualquer personagem (inclusive Dummie). Jogador: só na PRÓPRIA ficha, só publica⇄privada e NUNCA mexe numa Raça
+// Mestre/Co-Mestre: qualquer nível, em qualquer personagem. Jogador: só na PRÓPRIA ficha, só publica⇄privada e NUNCA mexe numa Raça
 // 'secreta' (nem para tirar). Modo Jogador do Mestre vale como jogador (st.isMestre efetivo). `chave` = id da Raça no catálogo ou '_principal'.
-// Grava bio.racaVisibilidade: na própria ficha/dummie pelo rascunho; em outro jogador de forma granular ('bio/racaVisibilidade/<chave>', null apaga).
+// Grava bio.racaVisibilidade: na própria ficha pelo rascunho; em outro jogador de forma granular ('bio/racaVisibilidade/<chave>', null apaga).
 // Só quando o MESTRE revela (secreta/privada → pública) vai um aviso ao Feed; ocultar não avisa ninguém. Só EXIBIÇÃO: ver o limite honesto no core.
 export function definirVisibilidadeRaca(entidade, chave, nivel) {
     const st = useStore.getState();

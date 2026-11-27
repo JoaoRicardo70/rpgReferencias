@@ -10,7 +10,7 @@ import { calcularDano } from '../../core/engine';
 vi.mock('../../stores/useStore');
 vi.mock('../../core/engine', () => ({ calcularDano: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCenarioCompleto: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCenarioCompleto: vi.fn(),
 }));
 
 let mockState; let probe; let ficha;
@@ -19,7 +19,7 @@ function Harness() { probe = useAtaqueForm(); return null; }
 const acoes = (p, b, r) => ({ padrao: { max: 2, atual: p, extra: 0 }, bonus: { max: 2, atual: b, extra: 0 }, reacao: { max: 2, atual: r, extra: 0 } });
 const magia = (id, tipoAcao, over = {}) => ({ id, nome: 'Magia ' + id, equipado: true, elemento: 'Fogo', dadosExtraQtd: 1, dadosExtraFaces: 10, custoValor: 5, tipoAcao, ...over });
 
-function montar({ magias = [magia('m1', 'reacao')], acoesIniciais = acoes(2, 2, 2), extra = {}, dummieBloqueado } = {}) {
+function montar({ magias = [magia('m1', 'reacao')], acoesIniciais = acoes(2, 2, 2), extra = {}, alvoBloqueado } = {}) {
     ficha = {
         poderes: [], inventario: [], passivas: [], hierarquia: {}, combate: {},
         ataquesElementais: magias,
@@ -30,12 +30,13 @@ function montar({ magias = [magia('m1', 'reacao')], acoesIniciais = acoes(2, 2, 
     mockState = {
         minhaFicha: ficha, meuNome: 'Heroi', personagens: {},
         updateFicha: vi.fn((cb) => cb(ficha)),
-        setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque', feedCombate: [], alvoSelecionado: null, dummies: {},
+        setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque', feedCombate: [], alvoSelecionado: null,
         ignorarTravaAcerto: false, setIgnorarTravaAcerto: vi.fn(), cenario: { zonas: [] },
     };
-    if (dummieBloqueado) {
-        mockState.dummies = { d1: { nome: 'Boneco', bloqueado: dummieBloqueado } };
-        mockState.alvoSelecionado = 'd1';
+    if (alvoBloqueado) {
+        // jogador mirando outro jogador fora de combate (regra de PvP)
+        mockState.personagens = { Boneco: { vida: { base: 1000000, atual: 1000000 }, iniciativa: 0 } };
+        mockState.alvoSelecionado = 'pj:Boneco';
     }
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(mockState) : mockState));
     useStore.getState = () => mockState;
@@ -163,9 +164,9 @@ describe('executarRolarDano - valor de retorno em alertas', () => {
     });
 
     it('alvo bloqueado (PvP) mostra alerta e devolve false', () => {
-        montar({ dummieBloqueado: 'Fora de combate' });
+        montar({ alvoBloqueado: true });
         const r = rolar();
-        if (r === false) expect(window.alert).toHaveBeenCalledWith('Fora de combate');
+        expect(window.alert).toHaveBeenCalledWith(expect.stringContaining('durante um combate'));
         expect(r).toBe(false);
         expect(calcularDano).not.toHaveBeenCalled();
     });

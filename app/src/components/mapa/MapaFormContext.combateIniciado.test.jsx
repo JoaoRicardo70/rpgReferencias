@@ -13,7 +13,6 @@ vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(() => Promise.resolve(true)),
@@ -46,7 +45,7 @@ function baseState(overrides = {}) {
     return {
         minhaFicha, meuNome: 'Heroi', personagens: {},
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
-        feedCombate: [], isMestre: true, mesaCriador: '', dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
+        feedCombate: [], isMestre: true, mesaCriador: '', personagens: { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         alvoSelecionado: null, abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
         ...overrides,
@@ -77,7 +76,7 @@ describe('avancarTurno exige combate ativo', () => {
     it('Adaptação não registra turno sem combate ativo', () => {
         const state = baseState();
         state.minhaFicha.combate.adaptacaoLigada = true;
-        state.dummies.filler.poderCalculado = getPoderParaDisputa(ficha(), 1) * 1.5;
+        state.personagens.Filler.poderCalculado = getPoderParaDisputa(ficha(), 1) * 1.5;
         montar(state);
         act(() => { probe.avancarTurno(); });
         expect(state.minhaFicha.combate.adaptacaoTurnos).toBeUndefined();
@@ -104,7 +103,7 @@ describe('avancarTurno exige combate ativo', () => {
 });
 
 describe('iniciarCombate', () => {
-    it('Mestre: salva combates.default {ativo, rodada 1}, turno 0, avisa no Feed e dispara inicioDeLuta só em quem tem ficha', () => {
+    it('Mestre: salva combates.default {ativo, rodada 1}, turno 0, avisa no Feed e dispara inicioDeLuta em quem está na ordem', () => {
         const state = baseState({ cenario: { ativa: 'default', lista: { default: { nome: 'Cena' } }, turnoAtualIndex: 2 } });
         montar(state);
         let ok;
@@ -116,10 +115,10 @@ describe('iniciarCombate', () => {
         expect(c.turnoAtualIndex).toBe(0);
         expect(feeds()).toContain('⚔️ COMBATE INICIADO — Rodada 1');
         const chamadas = gatilhosEventos.dispararEventoEmPersonagem.mock.calls;
-        expect(chamadas).toEqual([['Heroi', { tipo: 'inicioDeLuta' }]]);
-        // o primeiro da ordem (Filler, dummie) começa o turno
+        expect(chamadas.map(c => c[0]).sort()).toEqual(['Filler', 'Heroi']);
+        chamadas.forEach(c => expect(c[1]).toEqual({ tipo: 'inicioDeLuta' }));
+        // o primeiro da ordem (Filler) começa o turno
         expect(feeds()).toContain('🔄 É a vez de Filler agir!');
-        expect(firebaseSync.salvarDummie).toHaveBeenCalledWith('filler', expect.any(Object));
     });
     it('duas chamadas seguidas iniciam UMA vez só (mutex)', () => {
         montar(baseState());
@@ -128,11 +127,11 @@ describe('iniciarCombate', () => {
         expect(r1).toBe(true);
         expect(r2).toBe(false);
         expect(feeds().filter(t => t.includes('COMBATE INICIADO'))).toHaveLength(1);
-        expect(gatilhosEventos.dispararEventoEmPersonagem.mock.calls.filter(([, ev]) => ev.tipo === 'inicioDeLuta')).toHaveLength(1);
+        expect(gatilhosEventos.dispararEventoEmPersonagem.mock.calls.filter(([, ev]) => ev.tipo === 'inicioDeLuta')).toHaveLength(2);
         expect(firebaseSync.salvarCenarioCompleto).toHaveBeenCalledTimes(1);
     });
     it('texto do gatilho inicioDeLuta vai ao Feed', () => {
-        gatilhosEventos.dispararEventoEmPersonagem.mockReturnValueOnce({ textos: ['Berserk ligado'], caminhos: [], chaves: [], disparou: true });
+        gatilhosEventos.dispararEventoEmPersonagem.mockImplementation((nome) => (nome === 'Heroi' ? { textos: ['Berserk ligado'], caminhos: [], chaves: [], disparou: true } : { textos: [], caminhos: [], chaves: [], disparou: false }));
         montar(baseState());
         act(() => { probe.iniciarCombate(); });
         expect(feeds()).toContain('🔔 Heroi: Berserk ligado');
@@ -145,7 +144,7 @@ describe('iniciarCombate', () => {
         expect(firebaseSync.salvarCenarioCompleto).not.toHaveBeenCalled();
     });
     it('sem ninguém na ordem: avisa e não inicia', () => {
-        montar(baseState({ dummies: {}, minhaFicha: ficha({ iniciativa: 0 }) }));
+        montar(baseState({ minhaFicha: ficha({ iniciativa: 0 }), personagens: {} }));
         let ok;
         act(() => { ok = probe.iniciarCombate(); });
         expect(ok).toBe(false);
@@ -160,7 +159,7 @@ describe('iniciarCombate', () => {
         expect(firebaseSync.salvarCenarioCompleto).not.toHaveBeenCalled();
     });
     it('Adaptação do primeiro da ordem é medida ao iniciar (o combate já vai ficar ativo)', () => {
-        const state = baseState({ dummies: {} });
+        const state = baseState({ });
         state.minhaFicha.combate.adaptacaoLigada = true;
         state.personagens = { Vilao: ficha({ iniciativa: 5, isNPC: true, posicao: { x: 1, y: 1, z: 0 } }) };
         montar(state);
@@ -214,22 +213,10 @@ describe('lados / equipes no contexto', () => {
         expect(probe.equipes.map(e => e.id)).toEqual(['aliados', 'inimigos', 'neutros']);
         expect(probe.relacoes).toEqual({});
     });
-    it('definirEquipeDe: eu = updateFicha + debounce; outro jogador = salvarCamposPersonagem; dummie = salvarDummie', () => {
-        const state = baseState({ personagens: { Aliado: ficha() } });
-        montar(state);
-        act(() => { probe.definirEquipeDe({ id: 'Heroi', nome: 'Heroi', isDummie: false }, 'neutros'); });
-        expect(state.minhaFicha.combate.equipe).toBe('neutros');
-        expect(firebaseSync.salvarFichaSilencioso).toHaveBeenCalled();
-        act(() => { probe.definirEquipeDe({ id: 'Aliado', nome: 'Aliado', isDummie: false }, 'inimigos'); });
-        expect(firebaseSync.salvarCamposPersonagem).toHaveBeenCalledWith('Aliado', { 'combate/equipe': 'inimigos' });
-        act(() => { probe.definirEquipeDe({ id: 'filler', nome: 'Filler', isDummie: true }, 'aliados'); });
-        expect(firebaseSync.salvarDummie).toHaveBeenCalledWith('filler', expect.objectContaining({ nome: 'Filler', equipe: 'aliados' }));
-        expect(feeds()).toContain('🔀 Aliado mudou de lado: Aliados → Inimigos');
-    });
     it('lado oculto: a mudança NÃO é anunciada no Feed', () => {
         const state = baseState({ personagens: { Misterioso: ficha({}, { ladoOculto: true }) } });
         montar(state);
-        act(() => { probe.definirEquipeDe({ id: 'Misterioso', nome: 'Misterioso', isDummie: false }, 'inimigos'); });
+        act(() => { probe.definirEquipeDe({ id: 'Misterioso', nome: 'Misterioso' }, 'inimigos'); });
         expect(firebaseSync.salvarCamposPersonagem).toHaveBeenCalledWith('Misterioso', { 'combate/equipe': 'inimigos' });
         expect(feeds().some(t => t.includes('mudou de lado'))).toBe(false);
     });
@@ -237,8 +224,8 @@ describe('lados / equipes no contexto', () => {
         const state = baseState({ personagens: { Aliado: ficha() } });
         montar(state);
         let r1; let r2;
-        act(() => { r1 = probe.definirEquipeDe({ id: 'Aliado', nome: 'Aliado', isDummie: false }, 'nao-existe'); });
-        act(() => { r2 = probe.definirEquipeDe({ id: 'Aliado', nome: 'Aliado', isDummie: false }, 'aliados'); });
+        act(() => { r1 = probe.definirEquipeDe({ id: 'Aliado', nome: 'Aliado' }, 'nao-existe'); });
+        act(() => { r2 = probe.definirEquipeDe({ id: 'Aliado', nome: 'Aliado' }, 'aliados'); });
         expect(r1).toBe(false); expect(r2).toBe(false);
         expect(firebaseSync.salvarCamposPersonagem).not.toHaveBeenCalled();
     });
@@ -246,27 +233,22 @@ describe('lados / equipes no contexto', () => {
         const state = baseState({ personagens: { Misterioso: ficha({}, { equipe: 'inimigos' }) } });
         montar(state);
         let r;
-        act(() => { r = probe.alternarLadoOculto({ id: 'Misterioso', nome: 'Misterioso', isDummie: false }); });
+        act(() => { r = probe.alternarLadoOculto({ id: 'Misterioso', nome: 'Misterioso' }); });
         expect(r).toBe(true);
         expect(firebaseSync.salvarCamposPersonagem).toHaveBeenLastCalledWith('Misterioso', { 'combate/ladoOculto': true });
         expect(feeds().some(t => t.includes('revelado'))).toBe(false);
         state.personagens.Misterioso.combate.ladoOculto = true;
-        act(() => { r = probe.alternarLadoOculto({ id: 'Misterioso', nome: 'Misterioso', isDummie: false }); });
+        act(() => { r = probe.alternarLadoOculto({ id: 'Misterioso', nome: 'Misterioso' }); });
         expect(r).toBe(false);
         expect(firebaseSync.salvarCamposPersonagem).toHaveBeenLastCalledWith('Misterioso', { 'combate/ladoOculto': false });
         expect(feeds()).toContain('👁️ O lado de Misterioso foi revelado: 👹 Inimigos');
-    });
-    it('alternarLadoOculto em dummie grava ladoOculto no dummie', () => {
-        montar(baseState());
-        act(() => { probe.alternarLadoOculto({ id: 'filler', nome: 'Filler', isDummie: true }); });
-        expect(firebaseSync.salvarDummie).toHaveBeenCalledWith('filler', expect.objectContaining({ ladoOculto: true }));
     });
     it('jogador (não Mestre) não altera lados, equipes nem relações', () => {
         const state = baseState({ isMestre: false, personagens: { Aliado: ficha() } });
         montar(state);
         act(() => {
-            expect(probe.definirEquipeDe({ id: 'Aliado', nome: 'Aliado', isDummie: false }, 'inimigos')).toBe(false);
-            expect(probe.alternarLadoOculto({ id: 'Aliado', nome: 'Aliado', isDummie: false })).toBeNull();
+            expect(probe.definirEquipeDe({ id: 'Aliado', nome: 'Aliado' }, 'inimigos')).toBe(false);
+            expect(probe.alternarLadoOculto({ id: 'Aliado', nome: 'Aliado' })).toBeNull();
             expect(probe.salvarEquipes([{ nome: 'X' }])).toBeNull();
             expect(probe.salvarRelacoes({ 'a|b': 'hostil' })).toBeNull();
         });

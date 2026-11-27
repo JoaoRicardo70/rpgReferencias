@@ -16,7 +16,7 @@ const fichaPj = (extra = {}) => ({
     forca: { base: 500 }, destreza: { base: 500 }, inteligencia: { base: 500 }, sabedoria: { base: 500 },
     energiaEsp: { base: 500 }, carisma: { base: 500 }, stamina: { base: 500 }, constituicao: { base: 500 }, divisores: {}, ...extra,
 });
-const mesa = (personagens, dummies = {}) => useStore.setState({ personagens, dummies, cenario: { ativa: 'c1' }, isMestre: false, meuNome: 'Logado', minhaFicha: null });
+const mesa = (personagens) => useStore.setState({ personagens, cenario: { ativa: 'c1' }, isMestre: false, meuNome: 'Logado', minhaFicha: null });
 
 beforeEach(() => { mesa({}); });
 
@@ -86,42 +86,24 @@ describe('rolarDeflexao', () => {
 });
 
 describe('resolverAtacanteParaDeflexao', () => {
-    const dm = (extra = {}) => ({ id: 'd1', nome: 'Alvo Treino', cenaId: 'c1', tipoDefesa: 'evasiva', valorDefesa: 60, ...extra });
     it('personagem: id pj:, alvo e CA > 0', () => {
         const r = resolverAtacanteParaDeflexao('Mago', { personagens: { Mago: fichaPj() } });
         expect(r.id).toBe('pj:Mago');
         expect(r.defesa).toBeGreaterThan(0);
         expect(r.alvo.isPersonagem).toBe(true);
     });
-    it('Dummie achado pelo nome; usa CA fixa', () => {
-        mesa({}, { d1: dm() });
-        const r = resolverAtacanteParaDeflexao('Alvo Treino', { personagens: {}, dummies: { d1: dm() } });
-        expect(r).toMatchObject({ id: 'd1', defesa: 60 });
-    });
-    it('PJ vence Dummie de mesmo nome', () => {
-        const r = resolverAtacanteParaDeflexao('Mago', { personagens: { Mago: fichaPj() }, dummies: { d1: dm({ nome: 'Mago' }) } });
-        expect(r.id).toBe('pj:Mago');
-    });
     it('falha fechada: ausente, vazio, nulo, sem mesa', () => {
-        expect(resolverAtacanteParaDeflexao('Fantasma', { personagens: { Mago: fichaPj() }, dummies: {} })).toBeNull();
+        expect(resolverAtacanteParaDeflexao('Fantasma', { personagens: { Mago: fichaPj() } })).toBeNull();
         [undefined, null, '', '   '].forEach(n => expect(resolverAtacanteParaDeflexao(n, { personagens: { Mago: fichaPj() } })).toBeNull());
         expect(resolverAtacanteParaDeflexao('Mago')).toBeNull();
         expect(resolverAtacanteParaDeflexao('Mago', {})).toBeNull();
-        expect(resolverAtacanteParaDeflexao('Mago', { personagens: null, dummies: null })).toBeNull();
+        expect(resolverAtacanteParaDeflexao('Mago', { personagens: null })).toBeNull();
     });
-    it('ambiguo: dois Dummies com o mesmo nome = null', () => {
-        const ds = { d1: dm(), d2: dm({ id: 'd2' }) };
-        expect(resolverAtacanteParaDeflexao('Alvo Treino', { personagens: {}, dummies: ds })).toBeNull();
-    });
-    it('Dummie sem CA valida (0, negativa, NaN, ausente) = null', () => {
-        [0, -5, NaN, undefined, 'x'].forEach(v => expect(resolverAtacanteParaDeflexao('Alvo Treino', { dummies: { d1: dm({ valorDefesa: v }) } })).toBeNull());
-    });
-    it('nome com espacos nas pontas e normalizado para o Dummie; PJ exige chave exata', () => {
-        expect(resolverAtacanteParaDeflexao('  Alvo Treino ', { dummies: { d1: dm() } })).not.toBeNull();
+    it('PJ exige chave exata', () => {
         expect(resolverAtacanteParaDeflexao('mago', { personagens: { Mago: fichaPj() } })).toBeNull();
     });
-    it('chave de personagem com valor nulo cai para busca em Dummie', () => {
-        expect(resolverAtacanteParaDeflexao('Mago', { personagens: { Mago: null }, dummies: {} })).toBeNull();
+    it('chave de personagem com valor nulo = null', () => {
+        expect(resolverAtacanteParaDeflexao('Mago', { personagens: { Mago: null } })).toBeNull();
     });
 });
 

@@ -217,7 +217,7 @@ describe('calcularAcerto: efeitos de acerto condicionais', () => {
         expect(alvoLimpo.acertoTotal).toBe(base.acertoTotal);
         expect(comAlvo.acertoTotal).toBeGreaterThan(base.acertoTotal);
     });
-    it('alvo Dummie com vida abaixo de 50%', () => {
+    it('alvo sem ficha com vida abaixo de 50%', () => {
         const efeitos = [ef('acerto', 5, { quando: 'alvo_vida_abaixo:50' })];
         rolar(10);
         const base = atacar(ficha());

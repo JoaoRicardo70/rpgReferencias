@@ -22,7 +22,7 @@ vi.mock('../../core/disputaPoder', async (importOriginal) => ({
 }));
 vi.mock('../../core/danoProporcional', async (importOriginal) => ({ ...(await importOriginal()), escalarDanoPelaVida: vi.fn((dano) => dano) }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), salvarCenarioCompleto: vi.fn(), salvarCamposPersonagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCenarioCompleto: vi.fn(), salvarCamposPersonagem: vi.fn(),
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')), zerarIniciativaGlobal: vi.fn(),
 }));
@@ -75,7 +75,7 @@ const ultimaGravacaoEscudos = (inicial) => {
 function viaAtaque(escudos, dano) {
     const ana = { ...fichaBase(escudos), iniciativa: 10 };
     state = {
-        minhaFicha: { ...fichaBase(), iniciativa: 10, vida: vital(5e11) }, meuNome: 'Heroi', personagens: { Ana: ana }, dummies: {}, alvoSelecionado: 'pj:Ana',
+        minhaFicha: { ...fichaBase(), iniciativa: 10, vida: vital(5e11) }, meuNome: 'Heroi', personagens: { Ana: ana }, alvoSelecionado: 'pj:Ana',
         updateFicha: vi.fn((cb) => cb(state.minhaFicha)), setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque', feedCombate: [],
         ignorarTravaAcerto: false, setIgnorarTravaAcerto: vi.fn(), cenario: { zonas: [] }, isMestre: false,
     };
@@ -91,7 +91,7 @@ function viaAtaque(escudos, dano) {
 function viaDefesa(escudos, dano) {
     const eu = fichaBase(escudos);
     state = {
-        minhaFicha: eu, meuNome: 'Eu', personagens: {}, dummies: {}, feedCombate: [], divisorPoderMesa: 1,
+        minhaFicha: eu, meuNome: 'Eu', personagens: {}, feedCombate: [], divisorPoderMesa: 1,
         updateFicha: vi.fn((cb) => cb(eu)), setAbaAtiva: vi.fn(), cenario: { zonas: [] },
     };
     instalarStore({});
@@ -105,7 +105,7 @@ function viaDefesa(escudos, dano) {
 function estadoMapa(minha, personagens = {}) {
     return {
         minhaFicha: minha, meuNome: 'Mestre', personagens, updateFicha: vi.fn((cb) => cb(minha)), feedCombate: [],
-        isMestre: true, mesaCriador: 'Mestre', dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa',
+        isMestre: true, mesaCriador: 'Mestre', alvoSelecionado: null, abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
     };
 }
@@ -114,7 +114,7 @@ function viaDanoRapidoOutro(escudos, dano) {
     state = estadoMapa(fichaBase(), { Vilao: vilao });
     instalarStore({});
     render(<MapaFormProvider><Pm /></MapaFormProvider>);
-    act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, dano, 'fisico'); });
+    act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao }, dano, 'fisico'); });
     const g = aplicarDanoDireto.mock.calls.filter(([n]) => n === 'Vilao');
     const vidaFinal = g.length ? g[g.length - 1][1] : VIDA;
     return { perda: VIDA - vidaFinal, escudos: ultimaGravacaoEscudos(escudos), absorveu: trecho(textoFeed()) };
@@ -124,7 +124,7 @@ function viaDanoRapidoMestre(escudos, dano) {
     state = estadoMapa(eu);
     instalarStore({});
     render(<MapaFormProvider><Pm /></MapaFormProvider>);
-    act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu, isDummie: false }, dano, 'fisico'); });
+    act(() => { probe.aplicarDanoRapido({ nome: 'Mestre', ficha: eu }, dano, 'fisico'); });
     return { perda: VIDA - eu.vida.atual, escudos: util(eu.escudos), absorveu: trecho(textoFeed()) };
 }
 
@@ -187,7 +187,7 @@ describe('aplicacoes seguidas (clique duplo) consomem em sequencia, sem gastar o
     it('Ataque: dois golpes de 1000 contra escudo 1600 (com eco do Firebase) -> 600 e depois 0, 400 para a Vida', () => {
         const ana = { ...fichaBase([E('a', 'Domo', 1600)]), iniciativa: 10 };
         state = {
-            minhaFicha: { ...fichaBase(), iniciativa: 10, vida: vital(5e11) }, meuNome: 'Heroi', personagens: { Ana: ana }, dummies: {}, alvoSelecionado: 'pj:Ana',
+            minhaFicha: { ...fichaBase(), iniciativa: 10, vida: vital(5e11) }, meuNome: 'Heroi', personagens: { Ana: ana }, alvoSelecionado: 'pj:Ana',
             updateFicha: vi.fn((cb) => cb(state.minhaFicha)), setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque', feedCombate: [],
             ignorarTravaAcerto: false, setIgnorarTravaAcerto: vi.fn(), cenario: { zonas: [] }, isMestre: false,
         };
@@ -205,7 +205,7 @@ describe('aplicacoes seguidas (clique duplo) consomem em sequencia, sem gastar o
     it('Defesa: dois danos de 1000 contra escudo 1600 -> 600 e 0, Vida perde 400', () => {
         const eu = fichaBase([E('a', 'Domo', 1600)]);
         state = {
-            minhaFicha: eu, meuNome: 'Eu', personagens: {}, dummies: {}, feedCombate: [], divisorPoderMesa: 1,
+            minhaFicha: eu, meuNome: 'Eu', personagens: {}, feedCombate: [], divisorPoderMesa: 1,
             updateFicha: vi.fn((cb) => cb(eu)), setAbaAtiva: vi.fn(), cenario: { zonas: [] },
         };
         instalarStore({});
@@ -225,8 +225,8 @@ describe('aplicacoes seguidas (clique duplo) consomem em sequencia, sem gastar o
         instalarStore({});
         ecoFirebase();
         render(<MapaFormProvider><Pm /></MapaFormProvider>);
-        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 1000, 'fisico'); });
-        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao, isDummie: false }, 1000, 'fisico'); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao }, 1000, 'fisico'); });
+        act(() => { probe.aplicarDanoRapido({ nome: 'Vilao', ficha: vilao }, 1000, 'fisico'); });
         expect(vilao.escudos.map(e => e.valor)).toEqual([3000]);
     });
 });

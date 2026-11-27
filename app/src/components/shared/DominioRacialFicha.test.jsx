@@ -16,7 +16,7 @@ import { resumoFichaDetalhado, executarFerramenta } from '../../core/sextaFeiraF
 import * as sync from '../../services/firebase-sync';
 
 vi.mock('../../services/firebase-sync', () => ({
-    salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)), salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(),
+    salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)), salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(),
     iniciarSincronizacaoFichaAlvo: vi.fn(), pararSincronizacaoFichaAlvo: vi.fn(), salvarFichaAlvoSilencioso: vi.fn(), salvarFichaAlvoImediato: vi.fn(), salvarFirebaseImediato: vi.fn(),
 }));
 
@@ -30,7 +30,7 @@ const fichaCom = (vis, percentualSaiyajin = 70) => ({
     poderes: [],
 });
 function preparar({ isMestre = false, ficha = fichaCom(), outros = {}, extra = {} } = {}) {
-    useStore.setState({ isMestre, souMestreReal: isMestre, meuNome: 'Kai', cenario: { racas: RACAS }, minhaFicha: ficha, personagens: outros, dummies: {}, ...extra });
+    useStore.setState({ isMestre, souMestreReal: isMestre, meuNome: 'Kai', cenario: { racas: RACAS }, minhaFicha: ficha, personagens: outros, ...extra });
 }
 beforeEach(() => { vi.clearAllMocks(); });
 afterEach(() => { cleanup(); useStore.setState({ isMestre: false, cenario: {}, personagens: {} }); });
@@ -118,7 +118,7 @@ describe('Campo Raça principal oculto', () => {
 
 describe('Cartões do Grimório: máscaras', () => {
     const fichaBaixa = () => fichaCom({ saiyajin: 'secreta' }, 20);
-    const dono = { id: 'Kai', nome: 'Kai', isDummie: false };
+    const dono = { id: 'Kai', nome: 'Kai' };
 
     it('jogador: resumo e Domínio sem a Raça secreta; selo genérico', () => {
         const ficha = fichaBaixa();

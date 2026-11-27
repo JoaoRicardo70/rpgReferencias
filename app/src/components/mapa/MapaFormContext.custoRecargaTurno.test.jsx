@@ -11,7 +11,6 @@ vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
@@ -43,10 +42,9 @@ function estado(minha, extra = {}) {
         minhaFicha: minha, meuNome: 'Heroi', personagens: {},
         updateFicha: vi.fn((cb) => cb(minha)),
         feedCombate: [], isMestre: false, mesaCriador: '',
-        dummies: { filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } },
         alvoSelecionado: null, abaAtiva: 'mapa',
         cenario: { ativa: 'default', combates: { default: { ativo: true, rodada: 1 } }, lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
-        ...extra
+        ...extra, personagens: { ...(extra && extra.semFiller ? {} : { Filler: { nome: 'Filler', iniciativa: 20, posicao: { x: 5, y: 5, z: 0 } } }), ...((extra && extra.personagens) || {}) }
     };
 }
 let probe;
@@ -105,11 +103,11 @@ describe('MapaFormContext: custo por turno e recarga no inicio do turno', () => 
         const montarOutro = (poderesDoVilao, frescos) => {
             const heroi = ficha({ iniciativa: 20 });
             const vilao = ficha({ iniciativa: 10, poderes: poderesDoVilao });
-            const st = estado(heroi, { dummies: {}, personagens: { Vilao: vilao } });
+            const st = estado(heroi, { semFiller: true, personagens: { Vilao: vilao } });
             montar(st);
             if (frescos) st.personagens.Vilao = { ...vilao, poderes: frescos };
             passarTurno();
-            return firebaseSync.salvarCamposPersonagem.mock.calls[0];
+            return firebaseSync.salvarCamposPersonagem.mock.calls.find(c => c[0] === 'Vilao');
         };
         it('recarga e desligamento viram caminhos poderes/i/campo (indice pelo id na ficha fresca), sem regravar o array', () => {
             const recarga = { id: 7, nome: 'Escudo', ativa: false, recargaTurnos: 1, recargaRestante: 1, efeitos: [], efeitosPassivos: [] };

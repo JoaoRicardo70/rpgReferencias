@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    PONTOS_VIDA_TOTAL_PADRAO, getPontosVidaTotal, getVidaMaxExibidaDummie, getVidaMaxExibidaFicha,
+    PONTOS_VIDA_TOTAL_PADRAO, getPontosVidaTotal, getVidaMaxExibidaAlvo, getVidaMaxExibidaFicha,
     getFatorVida, escalarDanoPelaVida,
 } from './danoProporcional';
 
@@ -38,18 +38,18 @@ describe('danoProporcional - constantes e pontos da mesa', () => {
 });
 
 describe('danoProporcional - Vida maxima exibida', () => {
-    it('dummie: hpMax bruto / 1000', () => {
-        expect(getVidaMaxExibidaDummie({ hpMax: 200000000 })).toBe(200000);
-        expect(getVidaMaxExibidaDummie({ hpMax: 1500 })).toBe(1.5);
+    it('alvo: hpMax bruto / 1000', () => {
+        expect(getVidaMaxExibidaAlvo({ hpMax: 200000000 })).toBe(200000);
+        expect(getVidaMaxExibidaAlvo({ hpMax: 1500 })).toBe(1.5);
     });
-    it('dummie sem hpMax, zero, negativo, NaN ou inexistente = null', () => {
-        expect(getVidaMaxExibidaDummie({})).toBeNull();
-        expect(getVidaMaxExibidaDummie({ hpMax: 0 })).toBeNull();
-        expect(getVidaMaxExibidaDummie({ hpMax: -1000 })).toBeNull();
-        expect(getVidaMaxExibidaDummie({ hpMax: 'x' })).toBeNull();
-        expect(getVidaMaxExibidaDummie({ hpMax: Infinity })).toBeNull();
-        expect(getVidaMaxExibidaDummie(null)).toBeNull();
-        expect(getVidaMaxExibidaDummie(undefined)).toBeNull();
+    it('alvo sem hpMax, zero, negativo, NaN ou inexistente = null', () => {
+        expect(getVidaMaxExibidaAlvo({})).toBeNull();
+        expect(getVidaMaxExibidaAlvo({ hpMax: 0 })).toBeNull();
+        expect(getVidaMaxExibidaAlvo({ hpMax: -1000 })).toBeNull();
+        expect(getVidaMaxExibidaAlvo({ hpMax: 'x' })).toBeNull();
+        expect(getVidaMaxExibidaAlvo({ hpMax: Infinity })).toBeNull();
+        expect(getVidaMaxExibidaAlvo(null)).toBeNull();
+        expect(getVidaMaxExibidaAlvo(undefined)).toBeNull();
     });
     it('ficha real: 200.000.000 bruto = 200.000 exibido', () => {
         expect(getVidaMaxExibidaFicha(fichaComVida(200000000))).toBe(200000);
@@ -146,7 +146,7 @@ describe('danoProporcional - escalarDanoPelaVida', () => {
         const vida = getVidaMaxExibidaFicha(fichaComVida(200000000));
         expect(escalarDanoPelaVida(35, vida, 200)).toBe(35000);
     });
-    it('integra com dummie: hpMax 200.000.000 bruto, 35 = 35.000', () => {
-        expect(escalarDanoPelaVida(35, getVidaMaxExibidaDummie({ hpMax: 200000000 }), 200)).toBe(35000);
+    it('integra com alvo: hpMax 200.000.000 bruto, 35 = 35.000', () => {
+        expect(escalarDanoPelaVida(35, getVidaMaxExibidaAlvo({ hpMax: 200000000 }), 200)).toBe(35000);
     });
 });

@@ -3,7 +3,6 @@ import useStore from '../stores/useStore';
 
 vi.mock('./firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(() => Promise.resolve(true)),
     enviarParaFeed: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
@@ -14,8 +13,8 @@ import { definirRacaDoPersonagemDireto } from './racasMesa';
 
 const cenario = { racas: [{ id: 'saiyajin', nome: 'Saiyajin' }, { id: 'humano', nome: 'Humano' }] };
 const fichaBase = (vis) => ({ bio: { raca: 'Saiyajin', racaId: 'saiyajin', composicaoRacial: [{ racaId: 'saiyajin', percentual: 100, origem: 'nativa' }, { racaId: 'humano', percentual: 10, origem: 'adquirida' }], ...(vis ? { racaVisibilidade: vis } : {}) }, poderes: [] });
-function montar({ isMestre = false, minha = fichaBase(), outros = {}, dummies = {}, modoJogador = false } = {}) {
-    useStore.setState({ meuNome: 'Goku', isMestre: isMestre && !modoJogador, souMestreReal: isMestre, modoJogador, cenario, minhaFicha: minha, personagens: outros, dummies });
+function montar({ isMestre = false, minha = fichaBase(), outros = {}, modoJogador = false } = {}) {
+    useStore.setState({ meuNome: 'Goku', isMestre: isMestre && !modoJogador, souMestreReal: isMestre, modoJogador, cenario, minhaFicha: minha, personagens: outros });
 }
 const eu = { id: 'Goku', nome: 'Goku' };
 const outro = { id: 'Vegeta', nome: 'Vegeta' };
@@ -64,11 +63,6 @@ describe('definirVisibilidadeRaca: Mestre', () => {
         montar({ isMestre: true, outros: { Vegeta: fichaBase({ saiyajin: 'secreta' }) } });
         definirVisibilidadeRaca(outro, 'saiyajin', 'publica');
         expect(sync.salvarCamposPersonagem).toHaveBeenLastCalledWith('Vegeta', { 'bio/racaVisibilidade/saiyajin': null });
-    });
-    it('em Dummie grava o dummie inteiro', () => {
-        montar({ isMestre: true, dummies: { d1: { nome: 'Boneco', ...fichaBase() } } });
-        expect(definirVisibilidadeRaca({ id: 'd1', nome: 'Boneco', isDummie: true }, 'humano', 'secreta').ok).toBe(true);
-        expect(sync.salvarDummie.mock.calls[0][1].bio.racaVisibilidade).toEqual({ humano: 'secreta' });
     });
     it('Feed só ao REVELAR, nada ao ocultar', () => {
         montar({ isMestre: true });

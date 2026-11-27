@@ -2,13 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./firebase-sync', () => ({
     salvarCamposPersonagem: vi.fn(),
-    salvarDummie: vi.fn()
 }));
 
 import { criarPosGolpe } from './posGolpe';
 
 const personagem = (ficha = {}, nome = 'Goku') => ({ isPersonagem: true, personagemNome: nome, nome, ficha });
-const dummie = (extra = {}) => ({ isPersonagem: false, nome: 'Boneco', vida: 100, ...extra });
+const semFicha = (extra = {}) => ({ isPersonagem: false, nome: 'Boneco', vida: 100, ...extra });
 const comReflexo = (reflexo) => ({
     mana: { base: 1000000, atual: 1000000 },
     poderes: [{ id: 'p1', nome: 'Espelho', ativa: true, reflexo }],
@@ -23,18 +22,18 @@ describe('posGolpe - criarPosGolpe aoAcertar', () => {
     });
     it('sem aoAcertar informado: [] mesmo com dano', () => {
         const p = criarPosGolpe();
-        p.aplicar('d', dummie(), 10);
+        p.aplicar('d', semFicha(), 10);
         expect(p.resultado().aoAcertar).toEqual([]);
     });
     it('alvo com dano > 0 devolve a lista', () => {
         const p = criarPosGolpe({ aoAcertar: lista });
-        p.aplicar('d', dummie(), 10);
+        p.aplicar('d', semFicha(), 10);
         expect(p.resultado().aoAcertar).toEqual(lista);
     });
     it('dano 0 e dano negativo nao liberam', () => {
         const p = criarPosGolpe({ aoAcertar: lista });
-        p.aplicar('d', dummie(), 0);
-        p.aplicar('e', dummie(), -5);
+        p.aplicar('d', semFicha(), 0);
+        p.aplicar('e', semFicha(), -5);
         expect(p.resultado().aoAcertar).toEqual([]);
     });
     it('reflexo devolveu tudo (dano 0) => []', () => {
@@ -51,15 +50,15 @@ describe('posGolpe - criarPosGolpe aoAcertar', () => {
     });
     it('varios alvos: a lista vem uma vez so (nao multiplicada)', () => {
         const p = criarPosGolpe({ aoAcertar: lista });
-        p.aplicar('a', dummie(), 10);
-        p.aplicar('b', dummie(), 10);
+        p.aplicar('a', semFicha(), 10);
+        p.aplicar('b', semFicha(), 10);
         p.aplicar('c', personagem(), 10);
         expect(p.resultado().aoAcertar).toHaveLength(1);
     });
     it('um alvo sem dano e outro com dano libera', () => {
         const p = criarPosGolpe({ aoAcertar: lista });
-        p.aplicar('a', dummie(), 0);
-        p.aplicar('b', dummie(), 3);
+        p.aplicar('a', semFicha(), 0);
+        p.aplicar('b', semFicha(), 3);
         expect(p.resultado().aoAcertar).toEqual(lista);
     });
     it('alvo nulo nao conta como acerto', () => {

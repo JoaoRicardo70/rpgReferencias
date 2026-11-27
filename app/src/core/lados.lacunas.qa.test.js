@@ -48,8 +48,7 @@ describe('relações (lacunas)', () => {
         const c = { equipes: [eq('a'), eq('b')] };
         expect(equipeDe(fp(1, { equipe: 'sumiu' }), c)).toBe('aliados');
         expect(equipeDe(fp(1, { equipe: 'sumiu' }, { isNPC: true }), c)).toBe('inimigos');
-        expect(equipeDe({ equipe: 'sumiu', isDummie: true }, c)).toBe('inimigos');
-        expect(relacaoEntre(c, fp(1, { equipe: 'sumiu' }), { equipe: 'sumiu', isDummie: true })).toBe('hostil');
+        expect(relacaoEntre(c, fp(1, { equipe: 'sumiu' }), fp(1, { equipe: 'sumiu' }, { isNPC: true }))).toBe('hostil');
     });
     it('removerRelacoesDaEquipe / sanitizarRelacoes após apagar equipe não deixam órfãs', () => {
         const rel = { 'a|b': 'hostil', 'b|c': 'aliada', 'a|c': 'neutra' };
@@ -121,29 +120,28 @@ describe('estado do combate (lacunas)', () => {
 });
 
 describe('alvoNoFiltro: regressão sem configuração (lacunas)', () => {
-    const jogador = comoCombatente(fp(1), false);
-    const outroJogador = comoCombatente(fp(1), false);
-    const dummie = comoCombatente({ nome: 'D' }, true);
-    const npc = comoCombatente(fp(1, {}, { isNPC: true }), false);
+    const jogador = comoCombatente(fp(1));
+    const outroJogador = comoCombatente(fp(1));
+    const inimigo = comoCombatente(fp(1, {}, { isNPC: true }));
+    const npc = comoCombatente(fp(1, {}, { isNPC: true }));
     for (const cen of [undefined, null, {}, { equipes: [], relacoes: {} }]) {
-        it(`cenário ${JSON.stringify(cen)}: inimigos = dummie/NPC; aliados = jogadores`, () => {
-            expect(alvoNoFiltro(cen, jogador, dummie, 'inimigos')).toBe(true);
+        it(`cenário ${JSON.stringify(cen)}: inimigos = NPC; aliados = jogadores`, () => {
+            expect(alvoNoFiltro(cen, jogador, inimigo, 'inimigos')).toBe(true);
             expect(alvoNoFiltro(cen, jogador, npc, 'inimigos')).toBe(true);
             expect(alvoNoFiltro(cen, jogador, outroJogador, 'inimigos')).toBe(false);
             expect(alvoNoFiltro(cen, jogador, jogador, 'inimigos')).toBe(false);
             expect(alvoNoFiltro(cen, jogador, outroJogador, 'aliados')).toBe(true);
             expect(alvoNoFiltro(cen, jogador, jogador, 'aliados')).toBe(true);
-            expect(alvoNoFiltro(cen, jogador, dummie, 'aliados')).toBe(false);
-            expect(alvoNoFiltro(cen, jogador, dummie, 'todos')).toBe(true);
-            expect(alvoNoFiltro(cen, jogador, dummie, undefined)).toBe(true);
+            expect(alvoNoFiltro(cen, jogador, inimigo, 'aliados')).toBe(false);
+            expect(alvoNoFiltro(cen, jogador, inimigo, 'todos')).toBe(true);
+            expect(alvoNoFiltro(cen, jogador, inimigo, undefined)).toBe(true);
         });
     }
-    it('dummie cru sem flag NÃO é dummie; com comoCombatente(true) é inimigo', () => {
-        expect(alvoNoFiltro({}, jogador, { nome: 'D' }, 'inimigos')).toBe(false);
-        expect(alvoNoFiltro({}, null, comoCombatente({ nome: 'D' }, true), 'inimigos')).toBe(true);
+    it('conjurador ausente: o NPC continua inimigo', () => {
+        expect(alvoNoFiltro({}, null, comoCombatente(fp(1, {}, { isNPC: true })), 'inimigos')).toBe(true);
     });
     it('neutros não entram em inimigos nem aliados, mas entram em todos', () => {
-        const neutro = comoCombatente(fp(1, { equipe: 'neutros' }), false);
+        const neutro = comoCombatente(fp(1, { equipe: 'neutros' }));
         expect(alvoNoFiltro({}, jogador, neutro, 'inimigos')).toBe(false);
         expect(alvoNoFiltro({}, jogador, neutro, 'aliados')).toBe(false);
         expect(alvoNoFiltro({}, jogador, neutro, 'todos')).toBe(true);
@@ -160,7 +158,7 @@ describe('Adaptação com 3+ equipes (lacunas)', () => {
     const B = fp(1e3, { equipe: 'b' });
     const C = fp(1e7, { equipe: 'c' });
     const D = fp(1e5, { equipe: 'd' });
-    const ordem = [P, B, C, D].map((f, i) => ({ id: 'ABCD'[i], nome: 'ABCD'[i], isDummie: false, ficha: f }));
+    const ordem = [P, B, C, D].map((f, i) => ({ id: 'ABCD'[i], nome: 'ABCD'[i], ficha: f }));
     const personagens = { A: P, B, C, D };
     const ctx = (c, extra = {}) => ({ personagens, cenario: c, meuNome: 'A', minhaFicha: P, ...extra });
     it('todos contra todos: escolhe o mais forte entre todos os hostis', () => {

@@ -13,7 +13,7 @@ vi.mock('../../stores/useStore', async () => {
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(), salvarFichaAlvoSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarCamposPersonagem: vi.fn(),
     iniciarSincronizacaoFichaAlvo: vi.fn(), pararSincronizacaoFichaAlvo: vi.fn(), salvarFichaAlvoImediato: vi.fn(), salvarFirebaseImediato: vi.fn(),
-    aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(), salvarDummie: vi.fn(),
+    aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(), 
 }));
 vi.mock('../../core/engine', async (importOriginal) => ({ ...(await importOriginal()), calcularCA: vi.fn(() => 10) }));
 vi.mock('../../core/disputaPoder', async (importOriginal) => ({ ...(await importOriginal()), getPoderParaDisputa: vi.fn(() => null) }));
@@ -33,7 +33,7 @@ function montar({ mestreAbrindoOutro }) {
     const dono = fichaReal(); const minha = fichaReal();
     const state = {
         minhaFicha: mestreAbrindoOutro ? minha : dono, meuNome: mestreAbrindoOutro ? 'Mestre' : 'Fulano',
-        personagens: { Fulano: dono }, dummies: {}, feedCombate: [], divisorPoderMesa: 1, cenario: { ativa: 'c1', zonas: [] },
+        personagens: { Fulano: dono }, feedCombate: [], divisorPoderMesa: 1, cenario: { ativa: 'c1', zonas: [] },
         updateFicha: vi.fn((cb) => cb(state.minhaFicha)), updateFichaAlvo: vi.fn((n, cb) => cb(state.personagens[n])), setAbaAtiva: vi.fn(),
     };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(state) : state));

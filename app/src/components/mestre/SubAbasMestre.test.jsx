@@ -12,7 +12,7 @@ import { SECOES_MESTRE, subAbaDaSecaoMestre } from './useSecaoMestre';
 import useStore from '../../stores/useStore';
 
 vi.mock('../../services/firebase-sync', () => ({
-    salvarDummie: vi.fn(), salvarCamposPersonagem: vi.fn(), salvarFichaSilencioso: vi.fn(),
+    salvarCamposPersonagem: vi.fn(), salvarFichaSilencioso: vi.fn(),
 }));
 vi.mock('../../services/racasMesa', () => ({ salvarRacasDaMesa: vi.fn(), definirRacaDoPersonagemDireto: vi.fn() }));
 
@@ -20,7 +20,7 @@ const esperar = (ms = 80) => act(async () => { await new Promise(r => setTimeout
 
 function preparar(extra = {}) {
     useStore.setState({
-        isMestre: true, meuNome: 'Mestre', minhaFicha: { poderes: [] }, cenario: {}, personagens: {}, dummies: {},
+        isMestre: true, meuNome: 'Mestre', minhaFicha: { poderes: [] }, cenario: {}, personagens: {},
         resumoTurnoMapa: { ordem: [], foraDaOrdem: [], turnoAtualIndex: 0 }, acoesOrdemTurnoMapa: null,
         abaAtiva: 'aba-Ficha Def', secaoMestrePedida: null, ...extra,
     });

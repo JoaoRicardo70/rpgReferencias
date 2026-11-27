@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import useStore from '../../stores/useStore';
-import { salvarDummie, salvarCamposPersonagem, salvarFichaSilencioso } from '../../services/firebase-sync';
+import { salvarCamposPersonagem, salvarFichaSilencioso } from '../../services/firebase-sync';
 import { salvarRacasDaMesa, definirRacaDoPersonagemDireto } from '../../services/racasMesa';
 import useSecaoMestre, { domDaSecaoMestre } from './useSecaoMestre';
 import ComposicaoRacialEditor from './ComposicaoRacialEditor';
@@ -31,9 +31,7 @@ const entradas = (v) => (Array.isArray(v) ? v.map((p, i) => [String(i), p]) : (v
 export default function RacasCatalogo() {
     const isMestre = useStore(s => s.isMestre);
     const cenario = useStore(s => s.cenario);
-    const resumo = useStore(s => s.resumoTurnoMapa);
     const personagens = useStore(s => s.personagens);
-    const dummies = useStore(s => s.dummies);
     const meuNome = useStore(s => s.meuNome);
     const minhaFicha = useStore(s => s.minhaFicha);
     const updateFicha = useStore(s => s.updateFicha);
@@ -88,7 +86,7 @@ export default function RacasCatalogo() {
         return ids.map(i => rascunho.find(x => x.id === i)).filter(Boolean);
     }, [rascunho]);
 
-    // Todas as fichas que o Mestre enxerga com seus poderes: [{ chave, nome, isDummie, ficha }].
+    // Todas as fichas que o Mestre enxerga com seus poderes: [{ chave, nome, ficha }].
     const entidades = useMemo(() => {
         const saida = [];
         const nomes = new Set(Object.keys(personagens || {}));
@@ -96,15 +94,10 @@ export default function RacasCatalogo() {
         nomes.forEach((id) => {
             const ficha = id === meuNome ? minhaFicha : (personagens || {})[id];
             if (!ficha || typeof ficha !== 'object') return;
-            saida.push({ chave: `p:${id}`, id, nome: (ficha.bio && ficha.bio.nome) || id, isDummie: false, ficha });
-        });
-        const naCena = new Set([...((resumo && resumo.ordem) || []), ...((resumo && resumo.foraDaOrdem) || [])].filter(it => it && it.isDummie).map(it => it.id));
-        Object.entries(dummies || {}).forEach(([id, d]) => {
-            if (!d || typeof d !== 'object' || !naCena.has(id)) return;
-            saida.push({ chave: `d:${id}`, id, nome: d.nome || id, isDummie: true, ficha: d });
+            saida.push({ chave: `p:${id}`, id, nome: (ficha.bio && ficha.bio.nome) || id, ficha });
         });
         return saida;
-    }, [personagens, dummies, meuNome, minhaFicha, resumo]);
+    }, [personagens, meuNome, minhaFicha]);
 
     // Quantas Habilidades de Raça (em qualquer ficha da mesa) e quantas raças filhas citam esta raça.
     const referenciasDe = useCallback((idRaca) => {
@@ -131,7 +124,7 @@ export default function RacasCatalogo() {
             .map(([chave, p]) => ({ chave, id: p.id }));
         const idsAfetados = entidades.map(e => ({ e, ids: idsComRaca(e.ficha).map(x => x.id) })).filter(x => x.ids.length > 0);
         idsAfetados.forEach(({ e, ids }) => {
-            const ficha = e.isDummie ? (fresco.dummies || {})[e.id] : (e.id === fresco.meuNome ? fresco.minhaFicha : (fresco.personagens || {})[e.id]);
+            const ficha = e.id === fresco.meuNome ? fresco.minhaFicha : (fresco.personagens || {})[e.id];
             if (!ficha) return;
             const campos = {};
             entradas(ficha.poderes).forEach(([chave, p]) => {
@@ -139,10 +132,7 @@ export default function RacasCatalogo() {
                 campos[`poderes/${chave}/racasAcesso`] = p.racasAcesso.filter(i => i !== idRaca);
             });
             if (Object.keys(campos).length === 0) return;
-            if (e.isDummie) {
-                const poderes = comoLista(ficha.poderes).map(p => (ehHabilidadeDeRaca(p) && ids.includes(p.id) && Array.isArray(p.racasAcesso) ? { ...p, racasAcesso: p.racasAcesso.filter(i => i !== idRaca) } : p));
-                salvarDummie(e.id, { ...ficha, poderes });
-            } else if (!e.isDummie && e.id === fresco.meuNome) {
+            if (e.id === fresco.meuNome) {
                 const upd = fresco.updateFicha || updateFicha;
                 if (typeof upd === 'function') upd((f) => { comoLista(f.poderes).forEach((p) => { if (ehHabilidadeDeRaca(p) && ids.includes(p.id) && Array.isArray(p.racasAcesso)) p.racasAcesso = p.racasAcesso.filter(i => i !== idRaca); }); });
                 salvarFichaSilencioso();
@@ -150,7 +140,7 @@ export default function RacasCatalogo() {
                 salvarCamposPersonagem(e.id, campos);
             }
         });
-    }, [entidades, salvas, gravar, meuNome, dummies, updateFicha]);
+    }, [entidades, salvas, gravar, meuNome, updateFicha]);
 
     if (!isMestre) return null;
 
@@ -260,18 +250,18 @@ export default function RacasCatalogo() {
                                 const raca = racaDe(e);
                                 return (
                                     <li key={e.chave} className="equipes-membro racas-membro">
-                                        <span className="equipes-membro-nome">{e.isDummie ? '👾 ' : ''}{e.nome}</span>
+                                        <span className="equipes-membro-nome">{e.nome}</span>
                                         {chavesNaoPublicas(e.ficha).some(k => nivelDaRaca(e.ficha, k) === 'secreta') && <span className="racas-marca-oculta" role="img" aria-label="Raça secreta: só o Mestre vê" title="Tem Raça secreta (só o Mestre vê)">🙈</span>}
                                         {chavesNaoPublicas(e.ficha).some(k => nivelDaRaca(e.ficha, k) === 'privada') && <span className="racas-marca-oculta" role="img" aria-label="Raça privada: só o dono e o Mestre veem" title="Tem Raça privada (dono e Mestre)">🔒</span>}
                                         <select className="input-neon equipes-select" value={raca.cadastrada ? raca.id : ''} disabled={salvas.length === 0}
                                             aria-label={`Raça de ${e.nome}`}
-                                            onChange={(ev) => definirRacaDoPersonagemDireto({ id: e.id, nome: e.nome, isDummie: e.isDummie }, ev.target.value)}>
+                                            onChange={(ev) => definirRacaDoPersonagemDireto({ id: e.id, nome: e.nome }, ev.target.value)}>
                                             <option value="">{raca.nome && !raca.cadastrada ? `Outra: ${raca.nome}` : 'Sem raça'}</option>
                                             {salvas.map(o => <option key={o.id} value={o.id}>{o.icone} {o.nome}</option>)}
                                         </select>
                                         {!raca.cadastrada && raca.nome && <span className="racas-nao-cadastrada" role="note">⚠️ Raça não cadastrada: &quot;{raca.nome}&quot; (sem acesso a Habilidades de Raça)</span>}
                                         <div className="composicao-no-membro">
-                                            <ComposicaoRacialEditor entidade={{ id: e.id, nome: e.nome, isDummie: e.isDummie }} ficha={e.ficha} />
+                                            <ComposicaoRacialEditor entidade={{ id: e.id, nome: e.nome }} ficha={e.ficha} />
                                         </div>
                                     </li>
                                 );

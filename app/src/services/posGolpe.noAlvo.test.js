@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./firebase-sync', () => ({
     salvarCamposPersonagem: vi.fn(),
-    salvarDummie: vi.fn()
 }));
 
 import { salvarCamposPersonagem } from './firebase-sync';
@@ -13,7 +12,7 @@ const F = 1000;
 const stat = (atual, base = 1000000) => ({ base, atual, mBase: 1, mGeral: 1, mFormas: 1, mUnico: '1.0', mAbsoluto: 1 });
 const ficha = (extra = {}) => ({ vida: stat(1000000), mana: stat(100000), aura: stat(100000), poderes: [], ...extra });
 const personagem = (f = ficha(), nome = 'Ana') => ({ isPersonagem: true, personagemNome: nome, nome, ficha: f });
-const dummie = () => ({ isPersonagem: false, nome: 'Boneco', vida: 100 });
+const semFicha = () => ({ isPersonagem: false, nome: 'Boneco', vida: 100 });
 const dreno = (extra) => ({ tipo: 'drenarEnergiaAlvo', modo: 'fixo', valor: 10, energia: 'mana', origem: 'Sifao', ...extra });
 const debuff = (extra) => ({ tipo: 'debuffAlvo', modo: 'fixo', valor: 3, atributo: 'evasiva', duracao: 3, origem: 'Sifao', ...extra });
 const cura = { tipo: 'curarAtacante', modo: 'fixo', valor: 5, origem: 'Vamp' };
@@ -52,7 +51,7 @@ describe('posGolpe - Ao acertar no alvo', () => {
     it('dano 0 nao grava nem avisa', () => {
         const p = criarPosGolpe({ aoAcertar: [dreno(), debuff()] });
         p.aplicar('pj:Ana', personagem(), 0);
-        p.aplicar('d', dummie(), 0);
+        p.aplicar('d', semFicha(), 0);
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(p.resultado().textos).toEqual([]);
     });
@@ -74,12 +73,12 @@ describe('posGolpe - Ao acertar no alvo', () => {
         expect(salvarCamposPersonagem).toHaveBeenCalledTimes(1);
         expect(salvarCamposPersonagem.mock.calls[0][0]).toBe('Bia');
     });
-    it('Dummie recebe UM aviso por golpe (varios Dummies e varias entradas)', () => {
+    it('alvo sem ficha recebe UM aviso por golpe (varios alvos e varias entradas)', () => {
         const p = criarPosGolpe({ aoAcertar: [dreno(), debuff()] });
-        p.aplicar('a', dummie(), 10);
-        p.aplicar('b', dummie(), 10);
-        p.aplicar('c', dummie(), 10);
-        const avisos = p.resultado().textos.filter(t => t.includes('Entidade do Mapa não tem ficha'));
+        p.aplicar('a', semFicha(), 10);
+        p.aplicar('b', semFicha(), 10);
+        p.aplicar('c', semFicha(), 10);
+        const avisos = p.resultado().textos.filter(t => t.includes('O alvo não tem ficha'));
         expect(avisos).toHaveLength(1);
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
     });
@@ -89,16 +88,16 @@ describe('posGolpe - Ao acertar no alvo', () => {
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(p.resultado().textos.some(t => t.includes('não tem ficha'))).toBe(true);
     });
-    it('Dummie + personagem: personagem e gravado e o aviso aparece uma vez', () => {
+    it('alvo sem ficha + personagem: personagem e gravado e o aviso aparece uma vez', () => {
         const p = criarPosGolpe({ aoAcertar: [dreno()] });
-        p.aplicar('d', dummie(), 10);
+        p.aplicar('d', semFicha(), 10);
         p.aplicar('pj:Ana', personagem(), 10);
         expect(salvarCamposPersonagem).toHaveBeenCalledTimes(1);
         expect(p.resultado().textos.filter(t => t.includes('não tem ficha'))).toHaveLength(1);
     });
     it('so cura do atacante: nao grava e nao avisa; cura segue no resultado', () => {
         const p = criarPosGolpe({ aoAcertar: [cura] });
-        p.aplicar('a', dummie(), 10);
+        p.aplicar('a', semFicha(), 10);
         p.aplicar('pj:Ana', personagem(), 10);
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
         expect(p.resultado().textos).toEqual([]);

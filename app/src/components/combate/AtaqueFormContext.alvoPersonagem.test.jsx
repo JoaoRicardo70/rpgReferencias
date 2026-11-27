@@ -3,11 +3,11 @@ import { render, cleanup, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AtaqueFormProvider, useAtaqueForm } from './AtaqueFormContext';
 import useStore from '../../stores/useStore';
-import { salvarDummie, enviarParaFeed, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto } from '../../services/firebase-sync';
+import { enviarParaFeed, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto, aplicarElementoNivelDireto } from '../../services/firebase-sync';
 import { calcularDano } from '../../core/engine';
 
 // Alvo-personagem ('pj:<nome>'): o golpe grava a Vida na ficha do alvo (aplicarDanoDireto), com as
-// Reducoes da ficha em sequencia; Dummie continua indo por salvarDummie.
+// Reducoes da ficha em sequencia.
 
 vi.mock('../../stores/useStore');
 vi.mock('../../core/engine', async (importOriginal) => ({ ...(await importOriginal()), calcularDano: vi.fn() }));
@@ -24,7 +24,6 @@ vi.mock('../../core/danoProporcional', async (importOriginal) => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
     aplicarDanoDireto: vi.fn(),
     aplicarFadigaDireta: vi.fn(),
@@ -44,10 +43,10 @@ function fichaAna(extra = {}) {
     return { vida: stat(1000000, 1000000), reducoesDano: [], iniciativa: 10, ...extra };
 }
 
-function montar({ alvoSelecionado, personagens = {}, dummies = {} }) {
+function montar({ alvoSelecionado, personagens = {} }) {
     const minhaFicha = { poderes: [], inventario: [], passivas: [], ataquesElementais: [], hierarquia: {}, combate: {}, iniciativa: 10 };
     mockState = {
-        minhaFicha, meuNome: 'Heroi', personagens, dummies, alvoSelecionado,
+        minhaFicha, meuNome: 'Heroi', personagens, alvoSelecionado,
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
         setAbaAtiva: vi.fn(), abaAtiva: 'aba-ataque',
         feedCombate: [],
@@ -74,12 +73,11 @@ describe('AtaqueFormContext - alvo-personagem (pj:<nome>)', () => {
         { id: 'r2', nome: 'Pele Yin', percentual: 30, elemento: 'pol:yin' },
     ];
 
-    it('golpe de Fogo grava a Vida reduzida em sequencia na ficha da Ana (aplicarDanoDireto), nao em salvarDummie', () => {
+    it('golpe de Fogo grava a Vida reduzida em sequencia na ficha da Ana (aplicarDanoDireto)', () => {
         montar({ alvoSelecionado: 'pj:Ana', personagens: { Ana: fichaAna({ reducoesDano: reducoes }) } });
         act(() => { probe.setElementoAtivo('Fogo'); });
         act(() => { probe.rolarDano(); });
 
-        expect(salvarDummie).not.toHaveBeenCalled();
         expect(aplicarDanoDireto).toHaveBeenCalledTimes(1);
         const [nome, vida] = aplicarDanoDireto.mock.calls[0];
         expect(nome).toBe('Ana');
@@ -104,7 +102,6 @@ describe('AtaqueFormContext - alvo-personagem (pj:<nome>)', () => {
         montar({ alvoSelecionado: 'pj:Ana', personagens: { Ana: fichaAna({ reducoesDano: reducoes }) } });
         act(() => { probe.setElementoAtivo('Fogo'); });
         act(() => { probe.rolarDanoCustomizado('1000'); });
-        expect(salvarDummie).not.toHaveBeenCalled();
         expect(aplicarDanoDireto).toHaveBeenCalledWith('Ana', 1000000 - 560 * FATOR, expect.anything());
         expect(ultimoFeed().danoAplicado).toBe(560);
     });
@@ -113,7 +110,6 @@ describe('AtaqueFormContext - alvo-personagem (pj:<nome>)', () => {
         montar({ alvoSelecionado: 'pj:Heroi', personagens: { Heroi: fichaAna() } });
         act(() => { probe.rolarDano(); });
         expect(aplicarDanoDireto).not.toHaveBeenCalled();
-        expect(salvarDummie).not.toHaveBeenCalled();
         cleanup();
         montar({ alvoSelecionado: 'pj:Fantasma', personagens: {} });
         act(() => { probe.rolarDano(); });
@@ -126,16 +122,7 @@ describe('AtaqueFormContext - alvo-personagem (pj:<nome>)', () => {
         act(() => { probe.rolarDanoCustomizado('1000'); });
         expect(window.alert).toHaveBeenCalledTimes(2);
         expect(aplicarDanoDireto).not.toHaveBeenCalled();
-        expect(salvarDummie).not.toHaveBeenCalled();
         expect(enviarParaFeed).not.toHaveBeenCalled();
     });
 
-    it('Dummie continua usando salvarDummie, nunca aplicarDanoDireto', () => {
-        montar({ alvoSelecionado: 'g1', dummies: { g1: { nome: 'Goblin', hpAtual: 100 * FATOR, hpMax: 100 * FATOR, valorDefesa: 10 } } });
-        act(() => { probe.rolarDano(); });
-        expect(salvarDummie).toHaveBeenCalledTimes(1);
-        expect(salvarDummie).toHaveBeenCalledWith('g1', expect.objectContaining({ hpAtual: 0 }), expect.anything());
-        expect(aplicarDanoDireto).not.toHaveBeenCalled();
-        expect(aplicarElementoNivelDireto).not.toHaveBeenCalled();
-    });
 });

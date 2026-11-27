@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import useStore from '../stores/useStore';
 import { publicarNaBiblioteca, atualizarEntradaDaBiblioteca, removerDaBiblioteca, concederHabilidade, entradaExistenteParaPoder, limparPendentesBiblioteca } from './bibliotecaRacial';
 import { salvarRacasDaMesa } from './racasMesa';
-import { salvarFichaSilencioso, salvarDummie, salvarCenarioCompleto, salvarCamposPersonagem, enviarParaFeed } from './firebase-sync';
+import { salvarFichaSilencioso, salvarCenarioCompleto, salvarCamposPersonagem, enviarParaFeed } from './firebase-sync';
 import { criarEntradaDePoder, getBiblioteca } from '../core/bibliotecaRacial';
 
 vi.mock('./firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), salvarDummie: vi.fn(), salvarCenarioCompleto: vi.fn(), salvarCamposPersonagem: vi.fn(), enviarParaFeed: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), salvarCenarioCompleto: vi.fn(), salvarCamposPersonagem: vi.fn(), enviarParaFeed: vi.fn(),
 }));
 
 const RACAS = [{ id: 'saiyajin', nome: 'Saiyajin', icone: '🐒' }, { id: 'humano', nome: 'Humano', icone: '🧍' }];
@@ -22,7 +22,7 @@ function preparar(extra = {}) {
             Lia: { bio: { racaId: 'humano', raca: 'Humano' }, poderes: [] },
             Gok: { bio: { composicaoRacial: [{ racaId: 'saiyajin', percentual: 20 }, { racaId: 'humano', percentual: 80 }] }, poderes: [] },
         },
-        dummies: { d1: { nome: 'Boss', bio: { racaId: 'saiyajin' }, poderes: [] } }, ...extra,
+        ...extra,
     });
 }
 const ID = 'bib_zenkai';
@@ -140,14 +140,6 @@ describe('concederHabilidade', () => {
         spy.mockRestore();
         expect(salvarCamposPersonagem.mock.calls[0][1]['poderes/3'].id).toBe(agora + 3);
     });
-    it('dummie: salvarDummie com o poder anexado', () => {
-        const r = concederHabilidade({ id: 'd1', nome: 'Boss', isDummie: true }, ID);
-        expect(r.ok).toBe(true);
-        const [id, d] = salvarDummie.mock.calls[0];
-        expect(id).toBe('d1');
-        expect(d.poderes).toHaveLength(1);
-        expect(d.poderes[0].origemBiblioteca).toBe(ID);
-    });
     it('já possui (origem ou nome): recusa sem gravar', () => {
         useStore.setState({ personagens: { ...useStore.getState().personagens, Kai: { bio: { racaId: 'saiyajin' }, poderes: [{ id: 9, nome: 'zenkai' }] } } });
         const r = concederHabilidade({ id: 'Kai', nome: 'Kai' }, ID);
@@ -179,10 +171,9 @@ describe('concederHabilidade', () => {
         concederHabilidade({ id: 'Kai', nome: 'Kai' }, ID, { bloqueada: true });
         expect(salvarCamposPersonagem.mock.calls[1][1]['poderes/2'].bloqueio.requisito).toBe('Padrão');
     });
-    it('entrada, personagem ou dummie inexistentes: falha sem gravar', () => {
+    it('entrada ou personagem inexistentes: falha sem gravar', () => {
         expect(concederHabilidade({ id: 'Kai', nome: 'Kai' }, 'nao').ok).toBe(false);
         expect(concederHabilidade({ id: 'Ninguem', nome: 'Ninguem' }, ID).ok).toBe(false);
-        expect(concederHabilidade({ id: 'zz', isDummie: true }, ID).ok).toBe(false);
         expect(concederHabilidade(null, ID).ok).toBe(false);
     });
 });
@@ -227,12 +218,6 @@ describe('operações seguidas antes do store refletir', () => {
         useStore.setState({ personagens: { ...useStore.getState().personagens, Kai: { bio: { racaId: 'saiyajin' }, poderes: { 0: { id: 1, nome: 'A' }, 5: { id: 2, nome: 'B' } } } } });
         concederHabilidade({ id: 'Kai', nome: 'Kai' }, ID);
         expect(Object.keys(salvarCamposPersonagem.mock.calls[0][1])).toEqual(['poderes/6']);
-    });
-    it('dummie: a segunda concessão regrava o objeto com a primeira ainda pendente', () => {
-        preparar({ cenario: { racas: RACAS, bibliotecaRacial: [entrada(), outra()] } });
-        concederHabilidade({ id: 'd1', nome: 'Boss', isDummie: true }, 'bib_zenkai');
-        concederHabilidade({ id: 'd1', nome: 'Boss', isDummie: true }, 'bib_tenacidade');
-        expect(salvarDummie.mock.calls[1][1].poderes.map(p => p.nome)).toEqual(['Zenkai', 'Tenacidade']);
     });
     it('biblioteca: publicar + editar e duas edições seguidas não perdem a primeira', () => {
         preparar({ cenario: { racas: RACAS, outro: 1 } });

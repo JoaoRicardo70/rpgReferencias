@@ -12,7 +12,6 @@ vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
@@ -48,7 +47,7 @@ function montar(ficha) {
     const state = {
         minhaFicha: ficha, meuNome: 'Mestre', personagens: {},
         updateFicha: vi.fn((cb) => cb(ficha)),
-        feedCombate: [], isMestre: true, mesaCriador: 'Mestre', dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa',
+        feedCombate: [], isMestre: true, mesaCriador: 'Mestre', alvoSelecionado: null, abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
     };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(state) : state));
@@ -57,7 +56,7 @@ function montar(ficha) {
     return ficha;
 }
 
-const alvoDe = (ficha) => ({ id: 'Mestre', nome: 'Mestre', ficha, isDummie: false });
+const alvoDe = (ficha) => ({ id: 'Mestre', nome: 'Mestre', ficha });
 const ultimoFeed = () => enviarParaFeed.mock.calls.at(-1)[0];
 
 const CASCA = { id: 'm', nome: 'Casca', percentual: 40, elementos: ['madeira'] };

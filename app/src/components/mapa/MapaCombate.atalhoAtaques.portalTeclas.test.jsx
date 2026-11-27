@@ -15,7 +15,7 @@ const salvos = (n) => Array.from({ length: n }, (_, i) => ({ id: i + 1, nome: 'A
 const montar = (ataqueConfig, extra = {}) => {
     ctx = {
         minhaFicha: { ataqueConfig },
-        podeRolarDano: true, ignorarTravaAcerto: false, dummieAlvo: null,
+        podeRolarDano: true, ignorarTravaAcerto: false, alvoAtaque: null,
         rolarAtaqueSalvo: vi.fn(), rolarDanoCustomizado: vi.fn(), ...extra
     };
     return render(<div data-testid="host"><MapaAtalhoAtaques /></div>);

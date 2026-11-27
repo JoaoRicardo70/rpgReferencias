@@ -5,7 +5,6 @@ import {
     getTetoVida,
     calcularBarrasVida,
     aplicarEdicaoBarraVida,
-    calcularBarrasVidaDummy,
 } from './vitals';
 
 // ---------------------------------------------------------------------------
@@ -209,69 +208,5 @@ describe('core/vitals - aplicarEdicaoBarraVida', () => {
         const barras = [{ atual: 100000000, max: 100000000 }];
         const novoTotal = aplicarEdicaoBarraVida(barras, 100000000, 0, -50);
         expect(novoTotal).toBe(0);
-    });
-});
-
-describe('core/vitals - calcularBarrasVidaDummy: happy path (hpMax digitado pelo Mestre)', () => {
-    it('hpMax abaixo do limiar: 1 barra só, com o valor exato', () => {
-        const info = calcularBarrasVidaDummy(75000000, 75000000);
-        expect(info.numBarras).toBe(1);
-        expect(info.totalMax).toBe(75000000);
-        expect(info.barras).toEqual([{ atual: 75000000, max: 75000000 }]);
-    });
-
-    it('hpMax=0 -> 1 barra só, de max=0', () => {
-        const info = calcularBarrasVidaDummy(0, 0);
-        expect(info.numBarras).toBe(1);
-        expect(info.barras).toEqual([{ atual: 0, max: 0 }]);
-    });
-
-    it('hpAtualTotal ausente cai no fallback de hpMax (barra cheia)', () => {
-        const info = calcularBarrasVidaDummy(75000000, undefined);
-        expect(info.atual).toBe(75000000);
-    });
-});
-
-describe('core/vitals - calcularBarrasVidaDummy: múltiplas barras -- soma bate EXATAMENTE com o hpMax digitado', () => {
-    it('hpMax=2.000.000.000 (múltiplo exato de 1 bilhão): exatamente 2 barras, SEM barra fantasma de max=0', () => {
-        const info = calcularBarrasVidaDummy(2000000000, 2000000000);
-        expect(info.numBarras).toBe(2);
-        expect(info.totalMax).toBe(2000000000);
-        expect(info.barras).toEqual([
-            { atual: 1000000000, max: 1000000000 },
-            { atual: 1000000000, max: 1000000000 },
-        ]);
-    });
-
-    it('hpMax=2.500.000.000: 3 barras (500M de resto na FRENTE, 1 bilhão, 1 bilhão cravadas atrás)', () => {
-        const info = calcularBarrasVidaDummy(2500000000, 2500000000);
-        expect(info.numBarras).toBe(3);
-        expect(info.totalMax).toBe(2500000000);
-        expect(info.barras).toEqual([
-            { atual: 500000000, max: 500000000 },
-            { atual: 1000000000, max: 1000000000 },
-            { atual: 1000000000, max: 1000000000 },
-        ]);
-    });
-
-    it('hpMax=1.000.000.001: 2 barras (1 de resto na FRENTE, 1 bilhão cravado atrás) -- nunca 2 barras de 1 bilhão cheias', () => {
-        const info = calcularBarrasVidaDummy(1000000001, 1000000001);
-        expect(info.numBarras).toBe(2);
-        expect(info.totalMax).toBe(1000000001);
-        expect(info.barras).toEqual([
-            { atual: 1, max: 1 },
-            { atual: 1000000000, max: 1000000000 },
-        ]);
-    });
-
-    it('dano em cascata: esvazia a barra da frente (o resto) antes de afetar a próxima', () => {
-        // hpMax=2,5 bilhões, dano de 1,2 bilhões -> barra 0 (a da frente, o resto de 500M) esvazia inteira,
-        // mais 700M transbordam pra barra 1 (1 bilhão cravado); barra 2 (1 bilhão cravado) fica intacta.
-        const info = calcularBarrasVidaDummy(2500000000, 2500000000 - 1200000000);
-        expect(info.barras).toEqual([
-            { atual: 0, max: 500000000 },
-            { atual: 300000000, max: 1000000000 },
-            { atual: 1000000000, max: 1000000000 },
-        ]);
     });
 });

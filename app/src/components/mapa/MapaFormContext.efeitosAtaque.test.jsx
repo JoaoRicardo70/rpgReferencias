@@ -11,7 +11,6 @@ vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
@@ -40,17 +39,16 @@ function fichaBase(overrides = {}) {
 }
 const comEfeitos = (...efeitos) => ({ passivas: [{ id: 1, efeitos }] });
 const armaArea = (area) => [{ tipo: 'arma', equipado: true, alcance: 10, area }];
-const dummie = (extra = {}) => ({ nome: 'Muralha', valorDefesa: 999999999, cenaId: 'default', posicao: { x: 1, y: 0, z: 0 }, ...extra });
 const surpreso = [{ id: 'surpreso', stacks: 1 }];
 const sequencia = (valores) => { let i = 0; vi.spyOn(Math, 'random').mockImplementation(() => valores[i++ % valores.length]); };
 
 let probe;
 function Harness() { probe = useMapaForm(); return null; }
-function montar({ ficha, personagens = {}, dummies = {}, alvoSelecionado = null }) {
+function montar({ ficha, personagens = {}, alvoSelecionado = null }) {
     const state = {
         minhaFicha: ficha, meuNome: 'Mestre', personagens, atorCombate: null, divisorPoderMesa: 1,
         updateFicha: vi.fn((cb) => cb(ficha)),
-        feedCombate: [], isMestre: true, mesaCriador: 'Mestre', dummies, alvoSelecionado, abaAtiva: 'mapa',
+        feedCombate: [], isMestre: true, mesaCriador: 'Mestre', alvoSelecionado, abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
     };
     useStore.mockImplementation((sel) => (typeof sel === 'function' ? sel(state) : state));
@@ -58,7 +56,7 @@ function montar({ ficha, personagens = {}, dummies = {}, alvoSelecionado = null 
     render(<MapaFormProvider><Harness /></MapaFormProvider>);
 }
 const feed = () => enviarParaFeed.mock.calls.map(c => c[0]).filter(f => f.tipo === 'acerto').at(-1);
-const porId = (f, id) => f.alvosArea.find(a => a.dummieId === id);
+const porId = (f, id) => f.alvosArea.find(a => a.alvoId === id);
 
 beforeEach(() => { vi.clearAllMocks(); window.alert = vi.fn(); vi.spyOn(Math, 'random').mockReturnValue(0.5); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
@@ -72,57 +70,9 @@ describe('MapaFormContext.rolarAcertoRapido - desvantagem_atacante', () => {
         expect(feed().dadoNatural).toBe(3);
         expect(feed().profBonusTexto).toContain('Ana impõe 2 dado(s) de desvantagem');
     });
-    it('Dummie e alvo-personagem sem o efeito: comportamento antigo', () => {
-        montar({ ficha: fichaBase(), personagens: { Ana: fichaBase() }, dummies: { d1: dummie() }, alvoSelecionado: 'pj:Ana' });
-        act(() => { probe.rolarAcertoRapido(); });
-        expect(feed().desvantagemDoAlvo).toBeUndefined();
-        cleanup(); vi.clearAllMocks();
-        montar({ ficha: fichaBase(), dummies: { d1: dummie() }, alvoSelecionado: 'd1' });
-        act(() => { probe.rolarAcertoRapido(); });
-        expect(feed().desvantagemDoAlvo).toBeUndefined();
-    });
 });
 
 describe('MapaFormContext.rolarAcertoRapido - acerto_automatico', () => {
-    it('alvo unico: acerta contra CA altissima e ate com 1 natural', () => {
-        montar({ ficha: fichaBase(comEfeitos(ef('acerto_automatico'))), dummies: { d1: dummie() }, alvoSelecionado: 'd1' });
-        sequencia([0]);
-        act(() => { probe.rolarAcertoRapido(); });
-        expect(feed().naturalD20).toBe(1);
-        expect(feed().alvosArea[0]).toMatchObject({ acertou: true, automatico: true, dummieId: 'd1' });
-    });
-    it('sem o efeito: CA altissima erra', () => {
-        montar({ ficha: fichaBase(), dummies: { d1: dummie() }, alvoSelecionado: 'd1' });
-        act(() => { probe.rolarAcertoRapido(); });
-        expect(feed().alvosArea[0]).toMatchObject({ acertou: false });
-        expect(feed().alvosArea[0].automatico).toBeUndefined();
-    });
-    it('area sem condicao: o alvo escolhido e os vizinhos acertam automaticamente', () => {
-        montar({ ficha: fichaBase({ inventario: armaArea(2), ...comEfeitos(ef('acerto_automatico')) }), dummies: { d1: dummie(), d2: dummie({ nome: 'Vizinho', posicao: { x: 1, y: 1, z: 0 } }) }, alvoSelecionado: 'd1' });
-        act(() => { probe.rolarAcertoRapido(); });
-        expect(porId(feed(), 'd1')).toMatchObject({ acertou: true, automatico: true });
-        expect(porId(feed(), 'd2')).toMatchObject({ acertou: true, automatico: true });
-    });
-    it('area com quando do alvo: vale so para o alvo escolhido; vizinho com o estado tambem nao conta', () => {
-        montar({
-            ficha: fichaBase({ inventario: armaArea(2), ...comEfeitos(ef('acerto_automatico', 1, { quando: 'alvo_com_estado:surpreso' })) }),
-            dummies: { d1: dummie({ condicoes: surpreso }), d2: dummie({ nome: 'Vizinho', posicao: { x: 1, y: 1, z: 0 }, condicoes: surpreso }) },
-            alvoSelecionado: 'd1',
-        });
-        act(() => { probe.rolarAcertoRapido(); });
-        expect(porId(feed(), 'd1')).toMatchObject({ acertou: true, automatico: true });
-        expect(porId(feed(), 'd2')).toMatchObject({ acertou: false });
-    });
-    it('area com quando do alvo e alvo escolhido SEM o estado: ninguem acerta automaticamente', () => {
-        montar({
-            ficha: fichaBase({ inventario: armaArea(2), ...comEfeitos(ef('acerto_automatico', 1, { quando: 'alvo_com_estado:surpreso' })) }),
-            dummies: { d1: dummie(), d2: dummie({ nome: 'Vizinho', posicao: { x: 1, y: 1, z: 0 }, condicoes: surpreso }) },
-            alvoSelecionado: 'd1',
-        });
-        act(() => { probe.rolarAcertoRapido(); });
-        expect(porId(feed(), 'd1').acertou).toBe(false);
-        expect(porId(feed(), 'd2').acertou).toBe(false);
-    });
     it('alvo-personagem em area entra no golpe com acerto automatico', () => {
         montar({ ficha: fichaBase({ inventario: armaArea(2), ...comEfeitos(ef('acerto_automatico')) }), personagens: { Ana: fichaBase({ destreza: { base: 1e12 } }) }, alvoSelecionado: 'pj:Ana' });
         act(() => { probe.rolarAcertoRapido(); });

@@ -131,17 +131,7 @@ describe('integração com o Poder Calculado', () => {
 });
 
 describe('poderDoOponenteMaisForte', () => {
-    it('ignora o próprio portador e dummies sem Poder, pega o mais forte', () => {
-        const ordem = [
-            { id: 'A', nome: 'A', isDummie: false, ficha: {} },
-            { id: 'd1', nome: 'Dummie1', isDummie: true, ficha: {} },
-            { id: 'd2', nome: 'Dummie2', isDummie: true, ficha: {} },
-        ];
-        const dummies = { d1: { poderCalculado: 500 }, d2: { poderCalculado: '' } };
-        const r = poderDoOponenteMaisForte(ordem, 'A', { personagens: {}, dummies, meuNome: 'X' });
-        expect(r).toEqual({ nome: 'Dummie1', poder: 500 });
-    });
     it('sem ninguém válido -> null', () => {
-        expect(poderDoOponenteMaisForte([{ id: 'A', nome: 'A', isDummie: false, ficha: {} }], 'A', { personagens: {}, dummies: {} })).toBeNull();
+        expect(poderDoOponenteMaisForte([{ id: 'A', nome: 'A', ficha: {} }], 'A', { personagens: {} })).toBeNull();
     });
 });

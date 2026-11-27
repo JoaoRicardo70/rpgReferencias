@@ -62,20 +62,19 @@ export function MapaPainelFichas() {
     const atorAtual = useStore(s => s.atorCombate);
     const [busca, setBusca] = useState('');
     const personagens = ctx ? ctx.personagens : null;
-    const dummies = ctx ? ctx.dummies : null;
     const cenaRenderId = ctx ? ctx.cenaRenderId : null;
 
     const { naCena, npcs, jogadores } = useMemo(
-        () => listarFichasParaAcesso({ personagens, dummies, cenaId: cenaRenderId, busca }),
-        [personagens, dummies, cenaRenderId, busca]
+        () => listarFichasParaAcesso({ personagens, cenaId: cenaRenderId, busca }),
+        [personagens, cenaRenderId, busca]
     );
-    const atuar = useCallback((valor) => setAtorCombate(atorDeValor(valor, dummies)), [setAtorCombate, dummies]);
+    const atuar = useCallback((valor) => setAtorCombate(atorDeValor(valor)), [setAtorCombate]);
 
     if (!ctx || !ctx.isMestre) return null;
 
     const ehAtor = (item) => {
         if (!atorAtual || !item.atorValor) return false;
-        return atorAtual.dummieId ? item.atorValor === `d:${atorAtual.dummieId}` : item.atorValor === `n:${atorAtual.nome}`;
+        return item.atorValor === `n:${atorAtual.nome}`;
     };
 
     const linha = (item) => (

@@ -78,7 +78,6 @@ vi.mock('../services/firebase-sync', () => ({
     salvarFirebaseImediato: vi.fn(() => Promise.resolve()),
     iniciarListenerPersonagens: vi.fn(() => () => {}),
     iniciarListenerFeed: vi.fn(() => () => {}),
-    iniciarListenerDummies: vi.fn(() => () => {}),
     iniciarListenerCenario: vi.fn(() => () => {}),
     iniciarListenerJukebox: vi.fn(() => () => {}),
     enviarParaFeed: vi.fn(),

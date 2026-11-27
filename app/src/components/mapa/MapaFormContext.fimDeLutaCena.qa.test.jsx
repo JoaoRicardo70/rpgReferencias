@@ -8,7 +8,7 @@ import * as fb from '../../services/firebase-sync';
 // QA - troca de cena ativa (ativarCena) encerra o "combate" da cena que saiu: fimDeLuta + Imunidade total; encerrarCombate inalterado.
 vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
-    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), salvarDummie: vi.fn(), uploadImagem: vi.fn(),
+    salvarFichaSilencioso: vi.fn(), enviarParaFeed: vi.fn(), uploadImagem: vi.fn(),
     salvarCenarioCompleto: vi.fn(() => Promise.resolve()), zerarIniciativaGlobal: vi.fn(),
     aplicarDanoDireto: vi.fn(), aplicarFadigaDireta: vi.fn(), aplicarElementoDireto: vi.fn(), aplicarElementoNivelDireto: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
@@ -42,7 +42,7 @@ function montar(state) {
 }
 const estado = (eu, extra = {}) => ({
     minhaFicha: eu, meuNome: 'Mestre', personagens: {}, updateFicha: vi.fn((cb) => cb(eu)), feedCombate: [],
-    isMestre: true, mesaCriador: 'Mestre', dummies: {}, alvoSelecionado: null, abaAtiva: 'mapa',
+    isMestre: true, mesaCriador: 'Mestre', alvoSelecionado: null, abaAtiva: 'mapa',
     cenario: { ativa: 'A', lista: { A: { nome: 'Alfa', escala: 1.5 }, B: { nome: 'Beta', escala: 1.5 } }, turnoAtualIndex: 0, zonas: [] },
     ...extra,
 });
@@ -73,7 +73,6 @@ describe('ativarCena: troca de cena encerra o combate da que saiu', () => {
         expect(feeds().some((t) => t.includes('Beta'))).toBe(true);
         expect(eu.iniciativa).toBe(10); expect(vilao.iniciativa).toBe(10);
         expect(fb.zerarIniciativaGlobal).not.toHaveBeenCalled();
-        expect(fb.salvarDummie).not.toHaveBeenCalled();
     });
     it('mesma cena ativa: nao dispara nada', () => {
         const eu = noA({ contadores: marca() }); const vilao = noA({ contadores: marca() });
@@ -113,13 +112,6 @@ describe('ativarCena: troca de cena encerra o combate da que saiu', () => {
         montar(estado(noA(), { personagens: { Leg: leg, LegB: legOutra } }));
         ativar('B');
         expect(campos('Leg')).not.toBeNull(); expect(campos('LegB')).toBeNull();
-    });
-    it('Dummies nao recebem gatilho nem quebram', () => {
-        const eu = noA({ contadores: marca() });
-        montar(estado(eu, { dummies: { d1: { nome: 'D', iniciativa: 5, cenaId: 'A', hpAtual: 10 } } }));
-        expect(() => ativar('B')).not.toThrow();
-        expect(eu.contadores[0].valor).toBe(0);
-        expect(fb.salvarDummie).not.toHaveBeenCalled();
     });
     it('Imunidade total acaba em mim e nos outros na cena; so quem tinha gera gravacao', () => {
         const imu = () => ({ fadigaTurnos: 0, fadigaPorTurno: 5, fadigaExtra: 0, imunidadeTotal: { turnosRestantes: 3, origem: 'x' } });

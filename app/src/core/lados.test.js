@@ -8,27 +8,27 @@ import {
 
 const jogador = (extra = {}) => ({ combate: { ...extra } });
 const npc = (extra = {}) => ({ isNPC: true, combate: { ...extra } });
-const dummie = (extra = {}) => ({ nome: 'Dummie', ...extra });
-const D = (d) => comoCombatente(d, true);
+const inimigo = (extra = {}) => npc(extra);
+const D = (d) => comoCombatente(d);
 
 describe('padrão virtual (sem equipes no cenário)', () => {
     it('getEquipes devolve aliados/inimigos/neutros', () => {
         expect(getEquipes(undefined).map(e => e.id)).toEqual(['aliados', 'inimigos', 'neutros']);
         expect(getEquipes({ equipes: [] })).toBe(EQUIPES_PADRAO);
     });
-    it('jogador = aliados; NPC e dummie = inimigos', () => {
+    it('jogador = aliados; NPC = inimigos', () => {
         expect(equipeDe(jogador())).toBe('aliados');
         expect(equipeDe(npc())).toBe('inimigos');
-        expect(equipeDe(D(dummie()))).toBe('inimigos');
-        expect(equipeDe({ nome: 'x', ficha: npc(), isDummie: false })).toBe('inimigos');
-        expect(equipeDe({ id: 'd1', ficha: dummie(), isDummie: true })).toBe('inimigos');
+        expect(equipeDe(D(inimigo()))).toBe('inimigos');
+        expect(equipeDe({ nome: 'x', ficha: npc() })).toBe('inimigos');
+        expect(equipeDe({ id: 'd1', ficha: inimigo() })).toBe('inimigos');
     });
     it('aliados x inimigos = hostil; mesma equipe = aliada; neutros = neutra', () => {
         const c = {};
-        expect(relacaoEntre(c, jogador(), D(dummie()))).toBe('hostil');
+        expect(relacaoEntre(c, jogador(), D(inimigo()))).toBe('hostil');
         expect(relacaoEntre(c, jogador(), jogador())).toBe('aliada');
-        expect(relacaoEntre(c, D(dummie()), D(dummie()))).toBe('aliada');
-        expect(relacaoEntre(c, jogador({ equipe: 'neutros' }), D(dummie()))).toBe('neutra');
+        expect(relacaoEntre(c, D(inimigo()), D(inimigo()))).toBe('aliada');
+        expect(relacaoEntre(c, jogador({ equipe: 'neutros' }), D(inimigo()))).toBe('neutra');
         expect(relacaoEntre(c, jogador({ equipe: 'neutros' }), jogador())).toBe('neutra');
         expect(relacaoEntre(undefined, jogador(), npc())).toBe('hostil');
     });
@@ -58,13 +58,13 @@ describe('equipes e relações customizadas', () => {
     });
     it('equipe apagada do cenário cai no padrão automático', () => {
         expect(equipeDe(jogador({ equipe: 'sumiu' }), cenario)).toBe('aliados');
-        expect(equipeDe(D(dummie({ equipe: 'sumiu' })), cenario)).toBe('inimigos');
+        expect(equipeDe(D(inimigo({ equipe: 'sumiu' })), cenario)).toBe('inimigos');
         expect(equipeDe(jogador({ equipe: 'sumiu' }))).toBe('sumiu');
     });
-    it('dummie lê equipe em dummie.equipe; ficha em combate.equipe', () => {
-        expect(equipeDe(D(dummie({ equipe: 'a' })), cenario)).toBe('a');
+    it('a equipe é lida de combate.equipe da ficha', () => {
+        expect(equipeDe(D(inimigo({ equipe: 'a' })), cenario)).toBe('a');
         expect(equipeDe(jogador({ equipe: 'c' }), cenario)).toBe('c');
-        expect(equipeDe({ equipe: 'a' })).toBe('aliados'); // ficha crua não lê o campo do dummie
+        expect(equipeDe({ equipe: 'a' })).toBe('aliados'); // o campo solto na raiz da ficha não vale
     });
     it('todos contra todos: três lados hostis entre si', () => {
         const c = { equipes: cenario.equipes, relacoes: { 'a|b': 'hostil', 'a|c': 'hostil', 'b|c': 'hostil' } };
@@ -73,9 +73,9 @@ describe('equipes e relações customizadas', () => {
         expect(aliadosDe(c, lista[0], lista)).toHaveLength(0);
     });
     it('inimigosDe/aliadosDe excluem o próprio portador', () => {
-        const eu = { id: 'Eu', nome: 'Eu', ficha: jogador(), isDummie: false };
-        const outro = { id: 'Ou', nome: 'Ou', ficha: jogador(), isDummie: false };
-        const d1 = { id: 'd1', nome: 'D', ficha: dummie(), isDummie: true };
+        const eu = { id: 'Eu', nome: 'Eu', ficha: jogador() };
+        const outro = { id: 'Ou', nome: 'Ou', ficha: jogador() };
+        const d1 = { id: 'd1', nome: 'D', ficha: inimigo() };
         expect(aliadosDe({}, eu, [eu, outro, d1]).map(x => x.id)).toEqual(['Ou']);
         expect(inimigosDe({}, eu, [eu, outro, d1]).map(x => x.id)).toEqual(['d1']);
     });
@@ -93,7 +93,7 @@ describe('lado oculto', () => {
         expect(ladoVisivelParaMim(f, { isMestre: true })).toBe(true);
         expect(ladoVisivelParaMim(f, { isMestre: false })).toBe(false);
         expect(ladoVisivelParaMim(jogador(), { isMestre: false })).toBe(true);
-        expect(ladoEstaOculto(D(dummie({ ladoOculto: true })))).toBe(true);
+        expect(ladoEstaOculto(D(inimigo({ ladoOculto: true })))).toBe(true);
     });
     it('a mecânica usa a equipe real mesmo oculto', () => {
         expect(relacaoEntre({}, jogador(), npc({ ladoOculto: true }))).toBe('hostil');
@@ -146,11 +146,10 @@ describe('validação e saneamento', () => {
 });
 
 describe('patches de mudança de lado', () => {
-    it('patchEquipe / patchLadoOculto por tipo', () => {
-        expect(patchEquipe(false, 'x')).toEqual({ 'combate/equipe': 'x' });
-        expect(patchEquipe(true, 'x')).toEqual({ equipe: 'x' });
-        expect(patchLadoOculto(false, true)).toEqual({ 'combate/ladoOculto': true });
-        expect(patchLadoOculto(true, false)).toEqual({ ladoOculto: false });
+    it('patchEquipe / patchLadoOculto', () => {
+        expect(patchEquipe('x')).toEqual({ 'combate/equipe': 'x' });
+        expect(patchLadoOculto(true)).toEqual({ 'combate/ladoOculto': true });
+        expect(patchLadoOculto(false)).toEqual({ 'combate/ladoOculto': false });
     });
     it('moverParaEquipe: equipe inexistente = null; anunciar depende do oculto', () => {
         expect(moverParaEquipe({}, jogador(), 'nao-existe')).toBeNull();
@@ -158,7 +157,7 @@ describe('patches de mudança de lado', () => {
         expect(m).toMatchObject({ patch: { 'combate/equipe': 'inimigos' }, de: 'aliados', para: 'inimigos', mudou: true, anunciar: true });
         expect(moverParaEquipe({}, jogador({ ladoOculto: true }), 'inimigos').anunciar).toBe(false);
         expect(moverParaEquipe({}, jogador(), 'aliados').mudou).toBe(false);
-        expect(moverParaEquipe({}, D(dummie()), 'neutros').patch).toEqual({ equipe: 'neutros' });
+        expect(moverParaEquipe({}, D(inimigo()), 'neutros').patch).toEqual({ 'combate/equipe': 'neutros' });
     });
     it('textoMudancaDeLado', () => {
         expect(textoMudancaDeLado({}, 'Zed', 'aliados', 'inimigos')).toBe('🔀 Zed mudou de lado: Aliados → Inimigos');
@@ -167,19 +166,19 @@ describe('patches de mudança de lado', () => {
 });
 
 describe('alvoNoFiltro (zonas / golpes em área)', () => {
-    it('padrão: inimigos = dummies/NPC, aliados = jogadores, todos = tudo', () => {
-        const eu = comoCombatente(jogador(), false);
-        expect(alvoNoFiltro({}, eu, D(dummie()), 'inimigos')).toBe(true);
-        expect(alvoNoFiltro({}, eu, comoCombatente(jogador(), false), 'inimigos')).toBe(false);
-        expect(alvoNoFiltro({}, eu, comoCombatente(jogador(), false), 'aliados')).toBe(true);
-        expect(alvoNoFiltro({}, eu, D(dummie()), 'aliados')).toBe(false);
-        expect(alvoNoFiltro({}, eu, D(dummie()), 'todos')).toBe(true);
+    it('padrão: inimigos = NPC, aliados = jogadores, todos = tudo', () => {
+        const eu = comoCombatente(jogador());
+        expect(alvoNoFiltro({}, eu, D(inimigo()), 'inimigos')).toBe(true);
+        expect(alvoNoFiltro({}, eu, comoCombatente(jogador()), 'inimigos')).toBe(false);
+        expect(alvoNoFiltro({}, eu, comoCombatente(jogador()), 'aliados')).toBe(true);
+        expect(alvoNoFiltro({}, eu, D(inimigo()), 'aliados')).toBe(false);
+        expect(alvoNoFiltro({}, eu, D(inimigo()), 'todos')).toBe(true);
     });
     it('conjurador não achado conta como jogador', () => {
-        expect(alvoNoFiltro({}, null, D(dummie()), 'inimigos')).toBe(true);
-        expect(alvoNoFiltro({}, null, comoCombatente(jogador(), false), 'aliados')).toBe(true);
+        expect(alvoNoFiltro({}, null, D(inimigo()), 'inimigos')).toBe(true);
+        expect(alvoNoFiltro({}, null, comoCombatente(jogador()), 'aliados')).toBe(true);
     });
-    it('é relativo ao conjurador: um dummie conjurando vê o jogador como inimigo', () => {
-        expect(alvoNoFiltro({}, D(dummie()), comoCombatente(jogador(), false), 'inimigos')).toBe(true);
+    it('é relativo ao conjurador: um NPC conjurando vê o jogador como inimigo', () => {
+        expect(alvoNoFiltro({}, D(inimigo()), comoCombatente(jogador()), 'inimigos')).toBe(true);
     });
 });

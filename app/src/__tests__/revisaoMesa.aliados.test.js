@@ -11,7 +11,7 @@ import { efeitosDeAliados } from '../core/efeitosDeAliados';
 
 const ef = (valor, atributo = 'acerto') => ({ atributo, propriedade: 'base', valor, valeParaAliados: true, quando: '' });
 const poder = (nome, efeitos, extra = {}) => ({ id: nome, nome, ativa: true, efeitos, efeitosPassivos: [], ...extra });
-const aliado = (nome, poderes) => ({ nome, ficha: { poderes, contadores: [] }, dummie: false });
+const aliado = (nome, poderes) => ({ nome, ficha: { poderes, contadores: [] } });
 const benef = { poderes: [] };
 
 beforeEach(() => { listaAliados = []; });
@@ -35,10 +35,10 @@ describe('efeitosDeAliados dedup', () => {
         listaAliados = [aliado('A', [poder('X', [ef('1')], { efeitosPassivos: [ef('2')] })]), aliado('B', [poder('Z', [ef('5')], { ativa: false, efeitosPassivos: [ef('6')] })])];
         expect(efeitosDeAliados(benef, 'Eu').map(e => e.valor).sort()).toEqual(['1', '2', '6']);
     });
-    it('sem aliados, dummies, efeitos sem a marca e ficha invalida', () => {
+    it('sem aliados, efeitos sem a marca e ficha invalida', () => {
         expect(efeitosDeAliados(benef, 'Eu')).toEqual([]);
         expect(efeitosDeAliados(null)).toEqual([]);
-        listaAliados = [{ nome: 'D', ficha: { poderes: [poder('X', [ef('1')])] }, dummie: true }, aliado('B', [null, poder('Y', [{ ...ef('1'), valeParaAliados: false }, ef('1', 'forca'), null])]), { nome: 'C', ficha: null }];
+        listaAliados = [aliado('B', [null, poder('Y', [{ ...ef('1'), valeParaAliados: false }, ef('1', 'forca'), null])]), { nome: 'C', ficha: null }];
         expect(efeitosDeAliados(benef, 'Eu')).toEqual([]);
     });
 });

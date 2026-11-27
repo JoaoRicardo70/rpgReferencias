@@ -242,13 +242,12 @@ export function aplicarMencao(texto, inicio, cursor, rotulo) {
 }
 
 // Alvos mencionáveis: personagens, NPCs, arcos (Presente, e Futuro só se puder ver) e a cena.
-export function listarAlvosMencao({ meuNome, personagens, dummies, capitulosPresente, capitulosFuturo, podeVerFuturo }) {
+export function listarAlvosMencao({ meuNome, personagens, capitulosPresente, capitulosFuturo, podeVerFuturo }) {
     const alvos = [{ rotulo: 'Cena atual', tipo: 'cena' }];
     const vistos = new Set();
     const addPersonagem = (nome) => { if (nome && !vistos.has(nome)) { vistos.add(nome); alvos.push({ rotulo: nome, tipo: 'personagem' }); } };
     addPersonagem(meuNome);
     Object.keys(personagens || {}).forEach(addPersonagem);
-    Object.entries(dummies || {}).forEach(([id, d]) => { const n = d?.nome || id; if (n && !vistos.has(n)) { vistos.add(n); alvos.push({ rotulo: n, tipo: 'npc' }); } });
     const addArcos = (caps) => (Array.isArray(caps) ? caps : []).forEach(c => (c?.arcos || []).forEach(a => { if (a?.titulo) alvos.push({ rotulo: a.titulo, tipo: 'arco', capitulo: c.titulo }); }));
     addArcos(capitulosPresente);
     if (podeVerFuturo) addArcos(capitulosFuturo);
@@ -279,8 +278,8 @@ export function descreverMencoes(texto, alvos, { comFerramentas = true } = {}) {
     });
     if (unicas.length === 0) return '';
     const descricao = comFerramentas
-        ? { cena: 'a cena atual do Mapa (use estado_combate)', personagem: 'personagem (use consultar_ficha)', npc: 'NPC/dummie do Mapa (use consultar_ficha ou listar_personagens)', arco: 'arco dos Registros (use buscar_lore)' }
-        : { cena: 'a cena atual do Mapa', personagem: 'personagem', npc: 'NPC/dummie do Mapa', arco: 'arco dos Registros' };
+        ? { cena: 'a cena atual do Mapa (use estado_combate)', personagem: 'personagem (use consultar_ficha)', npc: 'NPC do Mapa (use consultar_ficha ou listar_personagens)', arco: 'arco dos Registros (use buscar_lore)' }
+        : { cena: 'a cena atual do Mapa', personagem: 'personagem', npc: 'NPC do Mapa', arco: 'arco dos Registros' };
     return 'Menções nesta mensagem: ' + unicas.map(a => `@${a.rotulo} = ${descricao[a.tipo] || a.tipo}${a.capitulo ? ` do capítulo "${a.capitulo}"` : ''}`).join('; ') + '.';
 }
 

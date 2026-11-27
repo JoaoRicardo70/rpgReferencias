@@ -3,7 +3,7 @@ import { render, cleanup, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaFormProvider, useMapaForm } from './MapaFormContext';
 import useStore from '../../stores/useStore';
-import { salvarFichaSilencioso, enviarParaFeed, salvarDummie, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto } from '../../services/firebase-sync';
+import { salvarFichaSilencioso, enviarParaFeed, aplicarDanoDireto, aplicarFadigaDireta, aplicarElementoDireto } from '../../services/firebase-sync';
 
 // ---------------------------------------------------------------------------
 // QA — aplicarDanoRapido(): branch "AUTO" (Mestre aplicando Dano Rápido na PRÓPRIA
@@ -26,7 +26,6 @@ vi.mock('../../stores/useStore', () => ({
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
@@ -74,7 +73,6 @@ function baseState(overrides = {}) {
         feedCombate: [],
         isMestre: true,
         mesaCriador: 'Mestre',
-        dummies: {},
         alvoSelecionado: null,
         abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
@@ -108,7 +106,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch AUTO grava combate.ult
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 10, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 10, 'Fogo'); });
 
         expect(minhaFicha.combate.ultimoElementoRecebido).toBe('Fogo');
         // Branch AUTO nunca usa a escrita cross-player.
@@ -121,7 +119,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch AUTO grava combate.ult
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 10); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 10); });
 
         expect(minhaFicha.combate.ultimoElementoRecebido).toBe(null);
     });
@@ -131,10 +129,10 @@ describe('MapaFormContext — aplicarDanoRapido(): branch AUTO grava combate.ult
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 10, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 10, 'Fogo'); });
         expect(minhaFicha.combate.ultimoElementoRecebido).toBe('Fogo');
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 10 /* sem elemento */); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 10 /* sem elemento */); });
         expect(minhaFicha.combate.ultimoElementoRecebido).toBe(null);
     });
 
@@ -143,10 +141,10 @@ describe('MapaFormContext — aplicarDanoRapido(): branch AUTO grava combate.ult
         const state = baseState({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)) });
         montarComEstado(state);
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 10, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 10, 'Fogo'); });
         expect(minhaFicha.combate.ultimoElementoRecebido).toBe('Fogo');
 
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 10, 'Gelo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 10, 'Gelo'); });
         expect(minhaFicha.combate.ultimoElementoRecebido).toBe('Gelo');
     });
 
@@ -157,7 +155,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch AUTO grava combate.ult
         montarComEstado(state);
 
         expect(() => {
-            act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha, isDummie: false }, 10, 'Raio'); });
+            act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFicha }, 10, 'Raio'); });
         }).not.toThrow();
 
         expect(minhaFicha.combate.ultimoElementoRecebido).toBe('Raio');
@@ -167,7 +165,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch AUTO grava combate.ult
         const minhaFichaComDominio = fichaVidaLimpa({ dominios: { Fogo: { nivel: 10 } } });
         const stateComDominio = baseState({ minhaFicha: minhaFichaComDominio, updateFicha: vi.fn((callback) => callback(minhaFichaComDominio)) });
         montarComEstado(stateComDominio);
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFichaComDominio, isDummie: false }, 300000, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFichaComDominio }, 300000, 'Fogo'); });
         const fadigaComDominio = minhaFichaComDominio.combate.fadigaExtra;
 
         cleanup();
@@ -176,7 +174,7 @@ describe('MapaFormContext — aplicarDanoRapido(): branch AUTO grava combate.ult
         const minhaFichaSemDominio = fichaVidaLimpa();
         const stateSemDominio = baseState({ minhaFicha: minhaFichaSemDominio, updateFicha: vi.fn((callback) => callback(minhaFichaSemDominio)) });
         montarComEstado(stateSemDominio);
-        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFichaSemDominio, isDummie: false }, 300000, 'Fogo'); });
+        act(() => { probe.aplicarDanoRapido({ id: 'Mestre', nome: 'Mestre', ficha: minhaFichaSemDominio }, 300000, 'Fogo'); });
         const fadigaSemDominio = minhaFichaSemDominio.combate.fadigaExtra;
 
         expect(minhaFichaComDominio.combate.ultimoElementoRecebido).toBe('Fogo');

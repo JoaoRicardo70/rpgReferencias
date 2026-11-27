@@ -38,12 +38,12 @@ function CompativeisDaEntrada({ entrada, cenario, entidades, aoResultado }) {
                     <ul className="biblioteca-compativeis-lista">
                         {filtrada.map(p => (
                             <li key={p.chave} className="biblioteca-compativel">
-                                <span className="biblioteca-compativel-nome">{p.isDummie ? '👾 ' : ''}{p.nome}</span>
+                                <span className="biblioteca-compativel-nome">{p.nome}</span>
                                 <span className="biblioteca-compativel-raca">{p.racaIcone} {p.racaNome}</span>
                                 <span className="biblioteca-compativel-dominio">{textoDominio(p.situacao) || ''}</span>
                                 {p.situacao.jaPossui
                                     ? <span className="habilidade-raca-selo habilidade-raca-selo--excecao">Já possui</span>
-                                    : <BotaoConcederHabilidade entrada={entrada} entidade={{ id: p.id, nome: p.nome, isDummie: p.isDummie }} aoResultado={aoResultado} />}
+                                    : <BotaoConcederHabilidade entrada={entrada} entidade={{ id: p.id, nome: p.nome }} aoResultado={aoResultado} />}
                             </li>
                         ))}
                     </ul>
@@ -57,15 +57,13 @@ function CompativeisDaEntrada({ entrada, cenario, entidades, aoResultado }) {
 export default function BibliotecaRacialMestre() {
     const isMestre = useStore(s => s.isMestre);
     const cenario = useStore(s => s.cenario);
-    const resumo = useStore(s => s.resumoTurnoMapa);
     const personagens = useStore(s => s.personagens);
-    const dummies = useStore(s => s.dummies);
     const meuNome = useStore(s => s.meuNome);
     const minhaFicha = useStore(s => s.minhaFicha);
 
     const biblioteca = useMemo(() => getBiblioteca(cenario), [cenario]);
     const racas = useMemo(() => getRacas(cenario), [cenario]);
-    const entidades = useMemo(() => entidadesDaMesa({ personagens, dummies, meuNome, minhaFicha, resumo }), [personagens, dummies, meuNome, minhaFicha, resumo]);
+    const entidades = useMemo(() => entidadesDaMesa({ personagens, meuNome, minhaFicha }), [personagens, meuNome, minhaFicha]);
 
     const [abertoEscolha, setAbertoEscolha] = useState(null); // null = automático (aberta se vazia)
     useSecaoMestre('biblioteca', () => setAbertoEscolha(true));

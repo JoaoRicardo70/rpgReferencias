@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MapaFormProvider, useMapaForm } from './MapaFormContext';
 import { MapaVisao } from './MapaGrelha';
 import useStore from '../../stores/useStore';
-import { salvarDummie, salvarFichaSilencioso } from '../../services/firebase-sync';
+import { salvarFichaSilencioso } from '../../services/firebase-sync';
 
 // ---------------------------------------------------------------------------
 // QA - Confirmacao de movimento no Mapa: pedirMovimento / confirmarMovimento / cancelarMovimento
@@ -15,7 +15,6 @@ vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(() => Promise.resolve()),
@@ -34,7 +33,6 @@ vi.mock('./Tabuleiro3D', () => ({
 }));
 vi.mock('./MapaMundi', () => ({ default: ({ children }) => <div>{children}</div> }));
 vi.mock('./MapaVoz', () => ({ MapaSessaoRP: () => null }));
-vi.mock('../combat/DummieToken', () => ({ default: () => null }));
 
 let storeState;
 function mockUseStore(state) {
@@ -52,7 +50,7 @@ function baseState(overrides = {}) {
     return {
         minhaFicha, meuNome: 'Heroi', personagens: {}, divisorPoderMesa: 1,
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
-        feedCombate: [], isMestre: false, mesaCriador: 'Mestre', dummies: {},
+        feedCombate: [], isMestre: false, mesaCriador: 'Mestre',
         alvoSelecionado: null, abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
         ...overrides,
@@ -155,32 +153,6 @@ describe('pedirMovimento / confirmarMovimento / cancelarMovimento (contexto)', (
         expect(state.updateFicha).not.toHaveBeenCalled();
     });
 
-    it('Mestre COM dummie selecionado move direto, sem pendente', () => {
-        const orc = { nome: 'Orc', cenaId: 'default', hpAtual: 10, posicao: { x: 0, y: 0, z: 0 } };
-        const state = baseState({ isMestre: true, dummies: { orc }, alvoSelecionado: 'orc' });
-        montar(state);
-        act(() => { probe.pedirMovimento(4, 4); });
-        expect(probe.movimentoPendente).toBeNull();
-        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ posicao: { x: 4, y: 4, z: 0 } }));
-        expect(state.updateFicha).not.toHaveBeenCalled();
-    });
-
-    it('Mestre com alvoSelecionado que NAO e dummie (id inexistente) cai no fluxo de confirmacao', () => {
-        const state = baseState({ isMestre: true, dummies: {}, alvoSelecionado: 'fantasma' });
-        montar(state);
-        act(() => { probe.pedirMovimento(4, 4); });
-        expect(probe.movimentoPendente).toEqual({ x: 4, y: 4 });
-        expect(salvarDummie).not.toHaveBeenCalled();
-    });
-
-    it('jogador (nao Mestre) com alvoSelecionado de dummie ainda precisa confirmar e nao move o dummie', () => {
-        const orc = { nome: 'Orc', cenaId: 'default', hpAtual: 10, posicao: { x: 0, y: 0, z: 0 } };
-        montar(baseState({ isMestre: false, dummies: { orc }, alvoSelecionado: 'orc' }));
-        act(() => { probe.pedirMovimento(4, 4); });
-        expect(probe.movimentoPendente).toEqual({ x: 4, y: 4 });
-        expect(salvarDummie).not.toHaveBeenCalled();
-    });
-
     it('trocar de cena (cenaRenderId) invalida o destino pendente', () => {
         const state = baseState({
             cenario: { ativa: 'default', lista: { default: { nome: 'A', escala: 1.5 }, outra: { nome: 'B', escala: 1.5 } }, turnoAtualIndex: 0 },
@@ -190,18 +162,6 @@ describe('pedirMovimento / confirmarMovimento / cancelarMovimento (contexto)', (
         expect(probe.movimentoPendente).not.toBeNull();
 
         mockUseStore({ ...state, cenario: { ...state.cenario, ativa: 'outra' } });
-        rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
-        expect(probe.movimentoPendente).toBeNull();
-    });
-
-    it('trocar o alvoSelecionado invalida o destino pendente', () => {
-        const orc = { nome: 'Orc', cenaId: 'default', hpAtual: 10, posicao: { x: 0, y: 0, z: 0 } };
-        const state = baseState({ isMestre: true, dummies: { orc } });
-        const { rerender } = montar(state);
-        act(() => { probe.pedirMovimento(5, 6); });
-        expect(probe.movimentoPendente).not.toBeNull();
-
-        mockUseStore({ ...state, alvoSelecionado: 'orc' });
         rerender(<MapaFormProvider><Harness /></MapaFormProvider>);
         expect(probe.movimentoPendente).toBeNull();
     });
@@ -286,12 +246,4 @@ describe('MapaVisao - barra de confirmacao e celula pendente', () => {
         expect(queryByRole('alertdialog')).toBeNull();
     });
 
-    it('Mestre com dummie selecionado: clique na celula move direto, sem barra', () => {
-        const orc = { nome: 'Orc', cenaId: 'default', hpAtual: 10, posicao: { x: 0, y: 0, z: 0 } };
-        mockUseStore(baseState({ isMestre: true, dummies: { orc }, alvoSelecionado: 'orc' }));
-        const { container, queryByRole } = render(<MapaFormProvider><MapaVisao /></MapaFormProvider>);
-        fireEvent.click(celula(container, 5, 6));
-        expect(queryByRole('alertdialog')).toBeNull();
-        expect(salvarDummie).toHaveBeenCalledWith('orc', expect.objectContaining({ posicao: { x: 5, y: 6, z: 0 } }));
-    });
 });

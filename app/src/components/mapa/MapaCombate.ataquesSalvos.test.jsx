@@ -20,7 +20,6 @@ vi.mock('../../core/engine', () => ({ calcularDano: vi.fn(() => ({ dano: 0, leta
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
 }));
 
@@ -35,7 +34,6 @@ function montarStore(overrides = {}) {
         abaAtiva: 'aba-mapa',
         feedCombate: [],
         alvoSelecionado: null,
-        dummies: {},
         ...overrides,
     };
     useStore.mockImplementation((selector) => (typeof selector === 'function' ? selector(mockState) : mockState));
@@ -95,13 +93,6 @@ describe('MapaAtaquesSalvos — acesso rápido aos Ataques Salvos direto do Mapa
         expect(minhaFicha.mana.atual).toBe(900000);
     });
 
-    it('mostra o nome do alvo (dummieAlvo) quando um alvo já está selecionado no Mapa (alvoSelecionado global)', () => {
-        montarStore({ alvoSelecionado: 'goblin1', dummies: { goblin1: { nome: 'Goblin Feroz', hpAtual: 10 } } });
-        const { getByText } = render(<AtaqueFormProvider><MapaAtaquesSalvos /></AtaqueFormProvider>);
-
-        expect(getByText(/Goblin Feroz/)).toBeTruthy();
-    });
-
     it('mostra "Nenhum alvo selecionado" quando alvoSelecionado está vazio', () => {
         montarStore({ alvoSelecionado: null });
         const { getByText } = render(<AtaqueFormProvider><MapaAtaquesSalvos /></AtaqueFormProvider>);
@@ -132,7 +123,7 @@ describe('MapaAtaquesSalvos — acesso rápido aos Ataques Salvos direto do Mapa
 
     // -------------------------------------------------------------------------
     // QA (gap) — rolar um Ataque Salvo do Mapa sem NENHUM alvo selecionado (`alvoSelecionado`
-    // null e `dummies` vazio) precisa continuar funcionando normalmente (ataques sem área não
+    // null) precisa continuar funcionando normalmente (ataques sem área não
     // exigem alvo, mesmo comportamento já existente de rolarDanoCustomizado) — não deve lançar
     // nem silenciosamente deixar de rolar/debitar energia.
     // -------------------------------------------------------------------------
@@ -148,7 +139,7 @@ describe('MapaAtaquesSalvos — acesso rápido aos Ataques Salvos direto do Mapa
                 ],
             },
         };
-        montarStore({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)), alvoSelecionado: null, dummies: {} });
+        montarStore({ minhaFicha, updateFicha: vi.fn((callback) => callback(minhaFicha)), alvoSelecionado: null });
         const { getByText } = render(<AtaqueFormProvider><MapaAtaquesSalvos /></AtaqueFormProvider>);
 
         expect(() => { act(() => { getByText('▶ Rajada de Mana').click(); }); }).not.toThrow();

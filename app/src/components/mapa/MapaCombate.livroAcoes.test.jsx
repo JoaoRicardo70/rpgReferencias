@@ -47,7 +47,7 @@ function montar({ ficha = {}, ataque = {}, comArsenal = true, salvos = [] } = {}
     };
     fichaAtiva = JSON.parse(JSON.stringify(fichaAtiva)); // evita que um teste mute as fixtures do outro
     ataqueCtx = {
-        minhaFicha: fichaAtiva, podeRolarDano: true, ignorarTravaAcerto: false, dummieAlvo: null,
+        minhaFicha: fichaAtiva, podeRolarDano: true, ignorarTravaAcerto: false, alvoAtaque: null,
         poderesAtivos: [], magiasOfensivas: [], armaEquipada: ARMAS[0],
         rolarAtaqueSalvo: vi.fn(), rolarDanoCustomizado: vi.fn(), rolarDano, setIgnorarTravaAcerto, ...ataque
     };
@@ -131,12 +131,12 @@ describe('Livro - aba Arma', () => {
     });
 
     it('com alvo o botao vira ATACAR NOME', () => {
-        montar({ ataque: { dummieAlvo: { nome: 'Boneco' } } }); abrir();
+        montar({ ataque: { alvoAtaque: { nome: 'Boneco' } } }); abrir();
         expect(corpo().getByText('⚔️ ATACAR BONECO')).toBeTruthy();
     });
 
     it('sem Acerto (trava) o botao fica desabilitado, mostra o aviso e nao rola', () => {
-        montar({ ataque: { podeRolarDano: false, dummieAlvo: { nome: 'Boneco' } } }); abrir();
+        montar({ ataque: { podeRolarDano: false, alvoAtaque: { nome: 'Boneco' } } }); abrir();
         const btn = document.querySelector('.livro-arma-rolar');
         expect(btn.disabled).toBe(true);
         expect(btn.textContent).toContain('ACERTO NECESSÁRIO PRIMEIRO');

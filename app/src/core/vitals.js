@@ -227,8 +227,7 @@ export function getVitalMxDisplay(key, ficha) {
 // inclusive a ativa, valia o limiar CHEIO) e a 1ª (cada barra usava mxDisplay, a escala comprimida
 // de calcVitalScale, mudando junto quando a Vida bruta cruzasse uma ORDEM DE GRANDEZA inteira —
 // 1e9, 1e10... — não a cada 1 bilhão, o oposto do "cravar em 1 bilhão, sucessivamente"
-// pedido). Ver montarBarrasVida, a implementação compartilhada por calcularBarrasVida (personagens)
-// e calcularBarrasVidaDummy (dummies).
+// pedido). Ver montarBarrasVida, a implementação usada por calcularBarrasVida.
 //
 // A barra da FRENTE (índice 0) é a primeira a ser atingida por dano; o excesso da MESMA pancada já
 // transborda pra próxima barra.
@@ -268,7 +267,7 @@ export const LIMIAR_BARRA_VIDA = 1000000000;
 export const FATOR_EXIBICAO_VITAIS = 1000;
 
 // Dano de combate (feed, Modo Deus, Zonas, "Sofrer Dano", Dano Rápido) é sempre um número na escala
-// EXIBIDA — a mesma da Vida na tela. Vida de jogador (vida.atual) e de dummy (hpAtual) são gravadas na
+// EXIBIDA — a mesma da Vida na tela. A Vida de jogador/NPC (vida.atual) é gravada na
 // escala BRUTA: converter SEMPRE por aqui antes de subtrair, senão o golpe tira 1000x menos.
 export function danoExibidoParaBruto(dano) {
     const v = Math.max(0, Number(dano) || 0) * FATOR_EXIBICAO_VITAIS;
@@ -282,8 +281,7 @@ export function getVitalidadeVida(rawValorEstavel) {
     return Math.max(0, Math.floor((Number(rawValorEstavel) || 0) / LIMIAR_BARRA_VIDA));
 }
 
-// Núcleo compartilhado de "Break Bars" de Vida — usado tanto por calcularBarrasVida (personagens)
-// quanto por calcularBarrasVidaDummy (dummies/NPCs do Mapa). O TOTAL de Vida NUNCA é inflado nem
+// Núcleo de "Break Bars" de Vida — usado por calcularBarrasVida (personagens). O TOTAL de Vida NUNCA é inflado nem
 // encolhido por esta conta: ele é SEMPRE exatamente o "total" recebido — a mecânica só reparte
 // esse mesmo número em blocos visuais de até LIMIAR_BARRA_VIDA (1 bilhão) cada. Barras
 // COMPLETAS (totalmente "cravadas") valem exatamente 1 bilhão; a barra ATIVA (a mais recente,
@@ -342,8 +340,7 @@ export function getTetoVida(rawMx, key, rawMxParaEscala = rawMx) {
 }
 
 // Deriva as barras individuais (front-to-back) a partir do TOTAL guardado em "atual". Reutilizável
-// tanto pra uma ficha de personagem quanto pra um dummy/NPC do Mapa (que não tem sub-objeto
-// ficha.vida — só passe o hpMax bruto dele como rawMx e hpAtual como atualTotal).
+// pra uma ficha de personagem (ou qualquer alvo: passe o hpMax bruto como rawMx e hpAtual como atualTotal).
 export function calcularBarrasVida(rawMx, key, atualTotal, rawMxParaEscala = rawMx) {
     if (key === 'vida') {
         const baseEscala = (rawMxParaEscala && rawMxParaEscala > 0) ? rawMxParaEscala : rawMx;
@@ -374,23 +371,6 @@ export function getVidaTotalMaxDisplay(ficha) {
     const rawMx = getVitalMax('vida', ficha);
     const rawMxEstavel = getVitalMaxEstavel('vida', ficha);
     return getTetoVida(rawMx, 'vida', rawMxEstavel);
-}
-
-// Variante de calcularBarrasVida pros dummies/NPCs simplificados do Mapa (MapaFerramentasMestre.jsx
-// > MapaMestreGeradorDummies): eles não têm atributos (força/constituição/etc.) de onde extrair um
-// "máximo bruto" — o "hpMax" que o Mestre digita É o total de verdade, o número que ele espera ver
-// refletido no token, e NUNCA pode ser inflado/encolhido por esta conta. Usa a MESMA regra de
-// LIMIAR_BARRA_VIDA (1 bilhão) dos personagens: barras completas valem exatamente 1 bilhão
-// cada, e a PRIMEIRA (índice 0, a frente) fica com o RESTO (hpMax - vitalidade*1 bilhão) — assim a soma das barras bate
-// EXATAMENTE com o hpMax configurado, sem arredondar (diferente de repartir hpMax igualmente pelo
-// nº de barras, que só preservava o total por acaso quando ele já era múltiplo exato do nº de
-// barras).
-// Usa a mesma montarBarrasVida compartilhada com calcularBarrasVida — hpMax MÚLTIPLO EXATO de 1
-// bilhão (resto=0) não cria uma barra extra FANTASMA de max=0: as "vitalidade" barras já cheias
-// bastam. hpMax=0 continua sendo o caso especial de sempre: 1 barra só, de max=0.
-export function calcularBarrasVidaDummy(hpMaxBruto, hpAtualTotal) {
-    const { vitalidade, numBarras, totalMax, atual, barras } = montarBarrasVida(hpMaxBruto, hpAtualTotal);
-    return { p: vitalidade, numBarras, totalMax, atual, barras };
 }
 
 // 💖 Teto de Regeneração/Descanso de um vital — o MESMO teto que a Ficha Definitiva (Marcados.jsx >

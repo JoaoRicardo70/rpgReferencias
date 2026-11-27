@@ -24,15 +24,14 @@ describe('ids de alvo-personagem', () => {
 });
 
 describe('resolverAlvoCombate', () => {
-    const dummies = { d1: { nome: 'Boneco', hpMax: 1000, hpAtual: 1000, valorDefesa: 12 } };
     const personagens = { Ana: fichaComReducoes(), Bia: fichaComReducoes() };
 
-    it('devolve o Dummie pelo id', () => {
-        expect(resolverAlvoCombate('d1', { dummies, personagens, meuNome: 'Bia' })).toBe(dummies.d1);
+    it('id que não é de personagem não resolve', () => {
+        expect(resolverAlvoCombate('d1', { personagens, meuNome: 'Bia' })).toBeNull();
     });
 
     it('monta o alvo a partir da ficha do personagem', () => {
-        const alvo = resolverAlvoCombate('pj:Ana', { dummies, personagens, meuNome: 'Bia' });
+        const alvo = resolverAlvoCombate('pj:Ana', { personagens, meuNome: 'Bia' });
         expect(alvo.isPersonagem).toBe(true);
         expect(alvo.nome).toBe('Ana');
         expect(alvo.personagemNome).toBe('Ana');
@@ -43,17 +42,17 @@ describe('resolverAlvoCombate', () => {
     });
 
     it('não deixa mirar em si mesmo, em personagem inexistente ou sem id', () => {
-        expect(resolverAlvoCombate('pj:Bia', { dummies, personagens, meuNome: 'Bia' })).toBeNull();
-        expect(resolverAlvoCombate('pj:Zed', { dummies, personagens, meuNome: 'Bia' })).toBeNull();
-        expect(resolverAlvoCombate(null, { dummies, personagens })).toBeNull();
-        expect(resolverAlvoCombate('x', { dummies: {}, personagens })).toBeNull();
+        expect(resolverAlvoCombate('pj:Bia', { personagens, meuNome: 'Bia' })).toBeNull();
+        expect(resolverAlvoCombate('pj:Zed', { personagens, meuNome: 'Bia' })).toBeNull();
+        expect(resolverAlvoCombate(null, { personagens })).toBeNull();
+        expect(resolverAlvoCombate('x', { personagens })).toBeNull();
         expect(montarAlvoPersonagem('Ana', null)).toBeNull();
     });
 });
 
 describe('reduzirDanoNoAlvo', () => {
-    it('Dummie e alvo sem reduções passam direto', () => {
-        expect(reduzirDanoNoAlvo({ isDummie: true }, 1000, 'fogo').final).toBe(1000);
+    it('alvo sem reduções passa direto', () => {
+        expect(reduzirDanoNoAlvo({}, 1000, 'fogo').final).toBe(1000);
         expect(reduzirDanoNoAlvo({ isPersonagem: true, ficha: { vida: { base: 1 } } }, 1000, 'fogo')).toEqual({ final: 1000, detalhe: [], texto: '' });
         expect(reduzirDanoNoAlvo(null, 50, 'fogo').final).toBe(50);
     });
@@ -70,20 +69,9 @@ describe('reduzirDanoNoAlvo', () => {
 describe('calcularDanoRapido (prévia e aplicação)', () => {
     const base = { divisorMesa: undefined, pontosVida: 200 };
 
-    it('Dummie: sem reduções, mostra a Vida antes e depois na escala exibida', () => {
-        const alvo = { nome: 'Boneco', isDummie: true, ficha: { hpMax: 1000 * FATOR_EXIBICAO_VITAIS, hpAtual: 500 * FATOR_EXIBICAO_VITAIS } };
-        const p = calcularDanoRapido({ ...base, alvo, fichaDoAlvo: alvo.ficha, dano: 100 });
-        expect(p.valor).toBe(100);
-        expect(p.valorRaw).toBe(100 * FATOR_EXIBICAO_VITAIS);
-        expect(p.vidaAntes).toBe(500);
-        expect(p.vidaDepois).toBe(400);
-        expect(p.vidaMax).toBe(1000);
-        expect(p.anulado).toBe(false);
-    });
-
     it('personagem: aplica as reduções em sequência e mostra o texto', () => {
         const ficha = fichaComReducoes();
-        const alvo = { nome: 'Ana', isDummie: false, ficha };
+        const alvo = { nome: 'Ana', ficha };
         const p = calcularDanoRapido({ ...base, alvo, fichaDoAlvo: ficha, dano: 1000, elemento: 'Fogo' });
         expect(p.valor).toBe(560);
         expect(p.reduzido.detalhe).toHaveLength(2);
@@ -92,7 +80,7 @@ describe('calcularDanoRapido (prévia e aplicação)', () => {
 
     it('sem alvo devolve null; dano zero devolve valor 0', () => {
         expect(calcularDanoRapido({ ...base, alvo: null, dano: 10 })).toBeNull();
-        const alvo = { nome: 'Ana', isDummie: false, ficha: fichaComReducoes() };
+        const alvo = { nome: 'Ana', ficha: fichaComReducoes() };
         expect(calcularDanoRapido({ ...base, alvo, fichaDoAlvo: alvo.ficha, dano: 0 }).valor).toBe(0);
     });
 

@@ -202,7 +202,7 @@ export function tirarEstado(condicoes, id, stacks = MAX_STACKS) {
     return condicoesDaFicha({ condicoes }).map(c => (c.id === id ? { ...c, stacks: c.stacks - Math.max(0, Math.floor(Number(stacks) || 0)) } : c)).filter(c => c.stacks > 0);
 }
 
-// Muta uma ficha (rascunho Immer ou cópia solta) ou um Dummie: soma o estado. Devolve a lista nova.
+// Muta uma ficha (rascunho Immer ou cópia solta): soma o estado. Devolve a lista nova.
 export function aplicarEstadoNaFicha(ficha, id, stacks = 1, fonte = '') {
     ficha.condicoes = somarEstado(ficha.condicoes, id, stacks, fonte);
     return ficha.condicoes;

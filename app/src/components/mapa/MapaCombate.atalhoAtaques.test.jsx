@@ -20,7 +20,7 @@ const montar = (extra = {}) => {
             ataquesSalvos: [{ id: 1, nome: 'Combo', config: {} }, { id: 2, nome: 'Rajada', config: {} }],
             formulasSalvas: [{ id: 9, nome: 'Velha', formula: '5d10 x 61000', letalidade: 1, energiaTipo: 'mana', energiaCusto: 5 }]
         }),
-        podeRolarDano: true, ignorarTravaAcerto: false, dummieAlvo: { nome: 'Goblin' },
+        podeRolarDano: true, ignorarTravaAcerto: false, alvoAtaque: { nome: 'Goblin' },
         rolarAtaqueSalvo: vi.fn(), rolarDanoCustomizado: vi.fn(),
         ...extra
     };
@@ -96,7 +96,7 @@ describe('MapaAtalhoAtaques', () => {
     });
 
     it('ignorar a trava libera os slots; sem alvo mostra "Sem alvo"', () => {
-        montar({ podeRolarDano: false, ignorarTravaAcerto: true, dummieAlvo: null });
+        montar({ podeRolarDano: false, ignorarTravaAcerto: true, alvoAtaque: null });
         fireEvent.click(screen.getByTitle('Atalho dos Ataques Salvos'));
         expect(screen.getByText('Combo').closest('button').disabled).toBe(false);
         expect(screen.getByText('Sem alvo')).toBeTruthy();

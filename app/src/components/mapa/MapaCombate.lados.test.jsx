@@ -15,7 +15,6 @@ vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
-    salvarDummie: vi.fn(),
     enviarParaFeed: vi.fn(),
     uploadImagem: vi.fn(),
     aplicarDanoDireto: vi.fn(),
@@ -45,10 +44,7 @@ function criarFicha(extra = {}) {
     return { ...ficha, ...extra };
 }
 
-const dummieBase = (extra = {}) => ({
-    nome: 'Slime', hpAtual: 500000, hpMax: 1000000, poderCalculado: 4000, visibilidadeHp: 'todos',
-    tipoDefesa: 'evasiva', valorDefesa: 17, cenaId: 'default', ...extra,
-});
+const slimeBase = (extra = {}) => criarFicha({ isNPC: true, iniciativa: 5, ...extra });
 
 function montarMockState(overrides = {}) {
     const mock = {
@@ -60,7 +56,6 @@ function montarMockState(overrides = {}) {
         isMestre: false,
         modoJogador: false,
         mesaCriador: '',
-        dummies: {},
         alvoSelecionado: null,
         cenario: {},
         abaAtiva: 'aba-mapa',
@@ -81,17 +76,17 @@ function usarStore(mock) {
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe('Lados no Mapa — moldura e ordem de iniciativa', () => {
-    const insp = { tipo: 'dummie', id: 'd1' };
+    const insp = { tipo: 'jogador', id: 'Slime' };
 
-    it('moldura: Mestre vê Equipe e "Revelar lado" no Dummie oculto', () => {
-        usarStore(montarMockState({ isMestre: true, entidadeInspecionada: insp, dummies: { d1: dummieBase({ ladoOculto: true }) } }));
+    it('moldura: Mestre vê Equipe e "Revelar lado" no NPC oculto', () => {
+        usarStore(montarMockState({ isMestre: true, entidadeInspecionada: insp, personagens: { Slime: slimeBase({ combate: { ladoOculto: true } }) } }));
         render(<MapaFormProvider><MapaHologramaAcao /></MapaFormProvider>);
         expect(screen.getByRole('button', { name: /Revelar lado/ })).toBeDefined();
         expect(screen.getByLabelText('Equipe de Slime')).toBeDefined();
     });
 
     it('moldura: jogador vê "Lado desconhecido" e nenhum controle', () => {
-        usarStore(montarMockState({ entidadeInspecionada: insp, dummies: { d1: dummieBase({ ladoOculto: true }) } }));
+        usarStore(montarMockState({ entidadeInspecionada: insp, personagens: { Slime: slimeBase({ combate: { ladoOculto: true } }) } }));
         const { container } = render(<MapaFormProvider><MapaHologramaAcao /></MapaFormProvider>);
         expect(container.textContent).toContain('❓ Lado desconhecido');
         expect(screen.queryByRole('button', { name: /Revelar lado|Ocultar lado/ })).toBeNull();
@@ -99,33 +94,33 @@ describe('Lados no Mapa — moldura e ordem de iniciativa', () => {
     });
 
     it('ordem de iniciativa: selo da equipe oculta aparece como ❓ para jogador e com a equipe para o Mestre', () => {
-        const dummies = { d1: dummieBase({ iniciativa: 5, ladoOculto: true }) };
-        usarStore(montarMockState({ dummies }));
+        const personagens = { Slime: slimeBase({ combate: { ladoOculto: true } }) };
+        usarStore(montarMockState({ personagens }));
         const { unmount } = render(<MapaFormProvider><MapaIniciativaTracker /></MapaFormProvider>);
         const seloJogador = screen.getAllByTestId('lado-selo').find(s => s.getAttribute('aria-label') === '❓ Lado desconhecido');
         expect(seloJogador).toBeDefined();
         unmount();
-        usarStore(montarMockState({ dummies, isMestre: true }));
+        usarStore(montarMockState({ personagens, isMestre: true }));
         render(<MapaFormProvider><MapaIniciativaTracker /></MapaFormProvider>);
         expect(screen.getAllByTestId('lado-selo').some(s => s.textContent.includes('👹'))).toBe(true);
     });
 
     it('cabeçalho: Preparação sem combate ativo, com Iniciar combate só para o Mestre', () => {
-        const dummies = { d1: dummieBase({ iniciativa: 5 }) };
-        usarStore(montarMockState({ dummies }));
+        const personagens = { Slime: slimeBase() };
+        usarStore(montarMockState({ personagens }));
         const { unmount } = render(<MapaFormProvider><MapaIniciativaTracker /></MapaFormProvider>);
         expect(screen.getByRole('status').textContent).toBe('🕊️ Preparação');
         expect(screen.queryByRole('button', { name: /Iniciar combate/ })).toBeNull();
         unmount();
-        usarStore(montarMockState({ dummies, isMestre: true }));
+        usarStore(montarMockState({ personagens, isMestre: true }));
         render(<MapaFormProvider><MapaIniciativaTracker /></MapaFormProvider>);
         expect(screen.getByRole('button', { name: /Iniciar combate/ })).toBeDefined();
         expect(screen.getByText(/combate não foi iniciado/)).toBeDefined();
     });
 
     it('cabeçalho: Rodada N com combate ativo e botão Encerrar combate para o Mestre', () => {
-        const dummies = { d1: dummieBase({ iniciativa: 5 }) };
-        usarStore(montarMockState({ dummies, isMestre: true, cenario: { combates: { default: { ativo: true, rodada: 3 } } } }));
+        const personagens = { Slime: slimeBase() };
+        usarStore(montarMockState({ personagens, isMestre: true, cenario: { combates: { default: { ativo: true, rodada: 3 } } } }));
         render(<MapaFormProvider><MapaIniciativaTracker /></MapaFormProvider>);
         expect(screen.getByRole('status').textContent).toBe('⚔️ Combate · Rodada 3');
         expect(screen.getByRole('button', { name: /Encerrar combate/ })).toBeDefined();

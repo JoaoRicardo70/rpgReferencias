@@ -143,26 +143,12 @@ describe('poderDoOponenteMaisForte: selecao', () => {
     const fn = (vida) => ({ ...fp(vida), isNPC: true });
     it('exclui o proprio portador mesmo sendo o mais forte e pega o mais forte dos outros', () => {
         const personagens = { A: fp(1e9), B: fn(1e3), C: fn(1e5) };
-        const ordem = ['A', 'B', 'C'].map(n => ({ id: n, nome: n, isDummie: false, ficha: personagens[n] }));
-        const r = poderDoOponenteMaisForte(ordem, 'A', { personagens, dummies: {}, meuNome: 'Z' });
+        const ordem = ['A', 'B', 'C'].map(n => ({ id: n, nome: n, ficha: personagens[n] }));
+        const r = poderDoOponenteMaisForte(ordem, 'A', { personagens, meuNome: 'Z' });
         expect(r.nome).toBe('C');
     });
-    it('dummie com poder maior vence jogador; dummie sem poder (undefined/null/NaN/negativo) e ignorado', () => {
-        const personagens = { B: fn(1e3) };
-        const ordem = [
-            { id: 'B', nome: 'B', isDummie: false, ficha: personagens.B },
-            { id: 'd1', nome: 'D1', isDummie: true, ficha: {} },
-            { id: 'd2', nome: 'D2', isDummie: true, ficha: {} },
-            { id: 'd3', nome: 'D3', isDummie: true, ficha: {} },
-            { id: 'd4', nome: 'D4', isDummie: true, ficha: {} },
-        ];
-        const dummies = { d1: { poderCalculado: 1e30 }, d2: {}, d3: { poderCalculado: 'abc' }, d4: { poderCalculado: -1 } };
-        expect(poderDoOponenteMaisForte(ordem, 'A', { personagens, dummies }).nome).toBe('D1');
-        delete dummies.d1;
-        expect(poderDoOponenteMaisForte(ordem, 'A', { personagens, dummies }).nome).toBe('B');
-    });
     it('usa minhaFicha quando o item e meuNome', () => {
-        const ordem = [{ id: 'Eu', nome: 'Eu', isDummie: false, ficha: fn(1) }];
+        const ordem = [{ id: 'Eu', nome: 'Eu', ficha: fn(1) }];
         const r = poderDoOponenteMaisForte(ordem, 'Outro', { personagens: { Eu: fn(1) }, meuNome: 'Eu', minhaFicha: fn(1e9) });
         const r2 = poderDoOponenteMaisForte(ordem, 'Outro', { personagens: { Eu: fn(1e9) }, meuNome: 'Eu', minhaFicha: fn(1) });
         expect(r.poder).toBeGreaterThan(r2.poder);

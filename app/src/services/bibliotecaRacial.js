@@ -1,5 +1,5 @@
 import useStore, { sanitizarNome } from '../stores/useStore';
-import { salvarFichaSilencioso, salvarDummie, salvarCenarioCompleto, salvarCamposPersonagem, enviarParaFeed } from './firebase-sync';
+import { salvarFichaSilencioso, salvarCenarioCompleto, salvarCamposPersonagem, enviarParaFeed } from './firebase-sync';
 import { resolverAlvo } from './composicaoRacial';
 import {
     getBiblioteca, sanitizarBiblioteca, criarEntradaDePoder, disponivelParaFicha, jaPossuiHabilidade, montarPoderConcedido,
@@ -12,7 +12,7 @@ import { verificarAcessoHabilidadeRaca } from '../core/racasAcesso';
 // Não depende do Mapa: lê o store NO MOMENTO da chamada. Todas devolvem { ok, mensagem?, ... } e nunca lançam.
 // LIMITES ACEITOS: editar ou remover uma entrada NÃO altera as cópias já concedidas (cada ficha guarda a sua); o cenário sincroniza para
 // todos, então o `modelo` das entradas chega ao navegador dos jogadores (a interface não o mostra, mas não é secreto).
-// Conceder: na PRÓPRIA ficha = updateFicha + salvarFichaSilencioso (debounce); em dummie = salvarDummie; em outro jogador = salvarCamposPersonagem
+// Conceder: na PRÓPRIA ficha = updateFicha + salvarFichaSilencioso (debounce); em outro jogador = salvarCamposPersonagem
 // anexando em `poderes/<índice>`, com o índice = tamanho da lista na ficha MAIS FRESCA do store (nunca um índice de snapshot antigo).
 
 const MSG_SO_MESTRE = 'Só o Mestre ou Co-Mestre pode fazer isso (e não no Modo Jogador).';
@@ -160,8 +160,8 @@ export function concederHabilidade(entidade, entradaId, opcoes = {}) {
     if (!entrada) return falha('Entrada não encontrada na biblioteca.');
     const alvo = resolverAlvo(entidade, st);
     if (alvo.erro) return falha(alvo.erro);
-    // Para outro jogador e dummie a ficha do store pode estar atrasada: soma as concessões pendentes (ainda não refletidas) à vista dela.
-    const chaveAlvo = alvo.tipo === 'dummie' ? `d:${alvo.id}` : `p:${sanitizarNome(alvo.nome)}`;
+    // Para outro jogador a ficha do store pode estar atrasada: soma as concessões pendentes (ainda não refletidas) à vista dela.
+    const chaveAlvo = `p:${sanitizarNome(alvo.nome)}`;
     const pendentes = alvo.tipo === 'eu' ? [] : pendentesDe(chaveAlvo, alvo.fresca);
     if (alvo.tipo !== 'eu') alvo.fresca = { ...alvo.fresca, poderes: [...listaDe(alvo.fresca.poderes), ...pendentes.map(x => x.poder)] };
     if (jaPossuiHabilidade(alvo.fresca, entrada)) return falha(`${alvo.nome} já possui "${entrada.nome}".`, { jaPossui: true });
@@ -186,13 +186,6 @@ export function concederHabilidade(entidade, entradaId, opcoes = {}) {
         });
         if (!criou) return falha(`${alvo.nome} já possui "${entrada.nome}".`, { jaPossui: true });
         salvarFichaSilencioso();
-    } else if (alvo.tipo === 'dummie') {
-        // alvo.fresca já traz as concessões pendentes; salvarDummie regrava o objeto inteiro, então elas não podem se perder.
-        const d = clonar(alvo.fresca);
-        d.poderes = listaDe(d.poderes);
-        d.poderes.push(poder);
-        salvarDummie(alvo.id, d);
-        reservar(chaveAlvo, { poder, indice: d.poderes.length - 1 });
     } else {
         // Índice = maior chave numérica de poderes (o Firebase devolve objeto esparso se faltar um índice) + 1, e acima das reservas pendentes.
         const indice = proximoIndice(st.personagens && (st.personagens[alvo.nome] || {}).poderes, pendentes);

@@ -16,7 +16,6 @@ vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     uploadImagem: vi.fn(),
     salvarCenarioCompleto: vi.fn(),
     zerarIniciativaGlobal: vi.fn(),
@@ -32,7 +31,6 @@ vi.mock('../../App', async () => {
 vi.mock('./Tabuleiro3D', () => ({ default: () => null }));
 vi.mock('./MapaMundi', () => ({ default: ({ children }) => <div>{children}</div> }));
 vi.mock('./MapaVoz', () => ({ MapaSessaoRP: () => null }));
-vi.mock('../combat/DummieToken', () => ({ default: () => null }));
 
 let storeState;
 function mockUseStore(state) {
@@ -56,7 +54,7 @@ function baseState(overrides = {}) {
         // Imita o Immer: o callback muta uma copia (a ficha antiga da closure do componente continua intacta).
         resultado,
         updateFicha: vi.fn(function (cb) { const c = structuredClone(minhaFicha); cb(c); resultado.ficha = c; }),
-        feedCombate: [], isMestre: false, mesaCriador: 'Mestre', dummies: {},
+        feedCombate: [], isMestre: false, mesaCriador: 'Mestre',
         alvoSelecionado: null, abaAtiva: 'mapa', entidadeInspecionada: null,
         setEntidadeInspecionada: vi.fn(),
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 }, outra: { nome: 'B', escala: 1.5 } }, turnoAtualIndex: 0 },
@@ -236,12 +234,6 @@ describe('Moldura - botao Sair/Remover do Mapa', () => {
     });
     it('nao-Mestre inspecionando outro: sem botao', () => {
         const { container } = moldura(baseState({ personagens: { Ana: fichaBase() }, entidadeInspecionada: { tipo: 'jogador', id: 'Ana' } }));
-        expect(btn(container)).toBeNull();
-    });
-    it('dummie (mesmo para Mestre): sem botao', () => {
-        const dummies = { d1: { nome: 'Slime', hpAtual: 5, hpMax: 10, cenaId: 'default', visibilidadeHp: 'todos' } };
-        const { container } = moldura(baseState({ isMestre: true, mesaCriador: 'Heroi', dummies, entidadeInspecionada: { tipo: 'dummie', id: 'd1' } }));
-        expect(container.textContent).toContain('Slime');
         expect(btn(container)).toBeNull();
     });
     it('sem inspecao: sem botao', () => {

@@ -12,7 +12,6 @@ vi.mock('../../stores/useStore', () => ({ default: vi.fn() }));
 vi.mock('../../services/firebase-sync', () => ({
     salvarFichaSilencioso: vi.fn(),
     enviarParaFeed: vi.fn(),
-    salvarDummie: vi.fn(),
     salvarCamposPersonagem: vi.fn(),
     uploadImagem: vi.fn(() => Promise.resolve('https://exemplo.com/img.png')),
     salvarCenarioCompleto: vi.fn(() => Promise.resolve(true)),
@@ -44,7 +43,7 @@ function baseState(overrides = {}) {
     return {
         minhaFicha, meuNome: 'Heroi', personagens: {},
         updateFicha: vi.fn((cb) => cb(minhaFicha)),
-        feedCombate: [], isMestre: true, mesaCriador: '', dummies: {},
+        feedCombate: [], isMestre: true, mesaCriador: '',
         alvoSelecionado: null, abaAtiva: 'mapa', setAcoesOrdemTurnoMapa: vi.fn(),
         cenario: { ativa: 'default', combates: ativo(), lista: { default: { nome: 'Cena' }, outra: { nome: 'Outra' } }, turnoAtualIndex: 0 },
         ...overrides,
@@ -213,21 +212,6 @@ describe('ativarCena (combate que sai)', () => {
 });
 
 describe('foto do Poder ao iniciar o combate', () => {
-    it('grava ganhosAntesDoCombate em mim (updateFicha) e no outro (salvarCamposPersonagem); dummies não', () => {
-        const state = baseState({
-            cenario: { ativa: 'default', lista: { default: { nome: 'Cena' } }, turnoAtualIndex: 0 },
-            dummies: { d1: { nome: 'Boneco', iniciativa: 3, posicao: { x: 5, y: 5, z: 0 } } },
-            personagens: { Vilao: ficha({ iniciativa: 5, isNPC: true, posicao: { x: 1, y: 1, z: 0 }, ganhosPermanentes: { poderCalculado: 0.3, fatorPoder: 2 } }) },
-        });
-        delete state.minhaFicha.combate.ganhosAntesDoCombate;
-        state.minhaFicha.ganhosPermanentes = { poderCalculado: 0.6, fatorPoder: 1.5 };
-        montar(state);
-        act(() => { probe.iniciarCombate(); });
-        expect(state.minhaFicha.combate.ganhosAntesDoCombate).toEqual({ poderCalculado: 0.6, fatorPoder: 1.5 });
-        expect(state.minhaFicha.ganhosPermanentes).toEqual({ poderCalculado: 0.6, fatorPoder: 1.5 });
-        expect(camposSalvos('Vilao').some(c => JSON.stringify(c['combate/ganhosAntesDoCombate']) === JSON.stringify({ poderCalculado: 0.3, fatorPoder: 2 }))).toBe(true);
-        expect(firebaseSync.salvarCamposPersonagem.mock.calls.some(([n]) => n === 'Boneco' || n === 'd1')).toBe(false);
-    });
     it('sem ganhos: foto 0/1', () => {
         const state = baseState({ cenario: { ativa: 'default', lista: { default: { nome: 'Cena' } }, turnoAtualIndex: 0 } });
         delete state.minhaFicha.combate.ganhosAntesDoCombate;
