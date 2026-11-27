@@ -25,6 +25,7 @@ import { efeitosAtivosDoItem } from '../../core/efeitosItem';
 import { escalarDanoPelaVida, getVidaMaxExibidaFicha, getPontosVidaTotal } from '../../core/danoProporcional';
 import { golpeEquipado } from '../../core/classesMecanicas';
 import { alternarAcao, restaurarAcoes } from '../../core/acoes';
+import { ehNpc } from '../../core/tipoPersonagem';
 import { getPoderParaDisputa, getPoderDoAlvo, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, resolverAcertoNoAlvo } from '../../core/disputaPoder';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto, getTetoExibidoComFator } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
@@ -432,8 +433,15 @@ export function MapaFormProvider({ children }) {
                 alternarAcao(f, tipo, isAvailable);
             });
             salvarFichaSilencioso();
+        } else if (isMestre) {
+            // O Mestre mexe nas Ações de um NPC (ficha de outro personagem): grava só o campo `acoes` dele.
+            const fichaNpc = useStore.getState().personagens[entidadeNome];
+            if (!fichaNpc || !ehNpc(fichaNpc)) return;
+            const copia = JSON.parse(JSON.stringify(fichaNpc));
+            alternarAcao(copia, tipo, isAvailable);
+            salvarCamposPersonagem(entidadeNome, { acoes: copia.acoes });
         }
-    }, [meuNome, updateFicha]);
+    }, [meuNome, isMestre, updateFicha]);
 
     // 🎲 Botão "Testar" da tela de Configurações: rola um dado de mentira (nível: normal, critico, fatal ou falha) em qualquer aba.
     useEffect(() => {
@@ -1624,6 +1632,25 @@ export function MapaFormProvider({ children }) {
 
             // O alvo escolhido entra no golpe (em área ou não).
             alvosAtingidos.push(resolverAlvo(alvoMapa.nome, defesaEfetivaDoAlvo(alvoMapa), getPoderDoAlvo(alvoMapa), { alvoId: alvoSelecionado }));
+            // Em área, os NPCs vizinhos (mesma cena, dentro do raio do alvo escolhido) entram junto.
+            if (maxArea > 0) {
+                const escalaArea = cenario?.lista?.[cenaRenderId]?.escala || 1.5;
+                const posCentro = getPosicaoEntidade(alvoMapa.ficha, cenaRenderId);
+                if (posCentro) {
+                    Object.entries(estadoAtual.personagens || {}).forEach(([nomeNpc, fNpc]) => {
+                        const idNpc = idAlvoPersonagem(nomeNpc);
+                        if (idNpc === alvoSelecionado || !ehNpc(fNpc)) return;
+                        const p = getPosicaoEntidade(fNpc, cenaRenderId);
+                        if (!p || p.cenaId !== posCentro.cenaId) return;
+                        const dX = Math.abs(p.x - posCentro.x);
+                        const dY = Math.abs(p.y - posCentro.y);
+                        const dZ = Math.floor(Math.abs((p.z || 0) - (posCentro.z || 0)) / escalaArea);
+                        if (Math.max(dX, dY, dZ) > maxArea) return;
+                        const alvoNpc = resolverAlvoCombate(idNpc, { personagens: estadoAtual.personagens, meuNome, divisorPoderMesa: estadoAtual.divisorPoderMesa });
+                        if (alvoNpc) alvosAtingidos.push(resolverAlvo(alvoNpc.nome, defesaEfetivaDoAlvo(alvoNpc), getPoderDoAlvo(alvoNpc), { alvoId: idNpc }));
+                    });
+                }
+            }
         }
 
         const feedData = { tipo: 'acerto', ts: Date.now(), nome: nomeAcerto, ...result, alvosArea: alvosAtingidos, areaEf: maxArea };

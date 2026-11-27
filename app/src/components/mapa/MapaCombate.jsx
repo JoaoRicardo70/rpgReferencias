@@ -460,7 +460,7 @@ export function MapaEconomiaAcoes() {
 
     // Jogadores/NPCs de ficha: máximo calculado (core/acoes.js).
     const acoes = targetEntidade.data ? getAcoesExibicao(targetEntidade.data) : criarAcoesIniciais();
-    const canEdit = targetEntidade.nome === meuNome;
+    const canEdit = targetEntidade.nome === meuNome || (isMestre && ehNpc(targetEntidade.data));
 
     const renderDots = (tipo, label, color) => {
         const max = Math.min(ACOES_MAXIMO, acoes[tipo]?.max ?? 2);
@@ -489,6 +489,13 @@ export function MapaEconomiaAcoes() {
                 <span style={{ color: '#fff', fontSize: '0.85em', fontWeight: 'bold' }}>⚡ Ações de: <span style={{ color: '#00ffcc' }}>{targetEntidade.nome}</span>{!canEdit && <span style={{ fontSize: '0.7em', color: '#888', marginLeft: 8 }}>(Apenas Visão)</span>}</span>
                 {canEdit && (
                     <button onClick={() => {
+                        if (targetEntidade.nome !== meuNome) {
+                            // NPC controlado pelo Mestre: restaura as Ações na ficha dele (só o campo `acoes`).
+                            const copia = JSON.parse(JSON.stringify(targetEntidade.data));
+                            restaurarAcoes(copia);
+                            salvarCamposPersonagem(targetEntidade.nome, { acoes: copia.acoes });
+                            return;
+                        }
                         ctx.updateFicha(f => {
                             restaurarAcoes(f);
                         });
