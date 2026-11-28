@@ -45,9 +45,9 @@ function fichaBase(overrides = {}) {
 let probe;
 function Harness() { probe = useMapaForm(); return null; }
 
-function montar({ ficha, nome = 'Mestre', isMestre = true, personagens = {}, alvoSelecionado = null }) {
+function montar({ ficha, nome = 'Mestre', isMestre = true, personagens = {}, alvoSelecionado = null, atorCombate = null }) {
     const state = {
-        minhaFicha: ficha, meuNome: nome, personagens,
+        minhaFicha: ficha, meuNome: nome, personagens, atorCombate,
         updateFicha: vi.fn((cb) => cb(ficha)),
         feedCombate: [], isMestre, mesaCriador: 'Mestre', alvoSelecionado, abaAtiva: 'mapa',
         cenario: { ativa: 'default', lista: { default: { nome: 'Cena', escala: 1.5 } }, turnoAtualIndex: 0 },
@@ -121,5 +121,41 @@ describe('MapaFormContext.toggleActionDot - Mestre e NPC', () => {
         montar({ ficha: fichaBase(), personagens: { Ana: fichaBase() } });
         act(() => { probe.toggleActionDot('padrao', true, 'Ana'); });
         expect(salvarCamposPersonagem).not.toHaveBeenCalled();
+    });
+});
+
+describe('MapaFormContext - mover o NPC em que o Mestre atua', () => {
+    it('com ator NPC: o clique marca o destino do NPC e confirmar grava só a posição dele', () => {
+        const mestre = fichaBase({ posicao: undefined });
+        montar({ ficha: mestre, personagens: { Toga: npc(1, 1) }, atorCombate: { nome: 'Toga' } });
+        expect(probe.nomeMovimento).toBe('Toga');
+        expect(probe.estouNoMapa).toBe(true);
+        act(() => { probe.pedirMovimento(5, 6); });
+        expect(probe.movimentoPendente).toEqual({ x: 5, y: 6 });
+        act(() => { probe.confirmarMovimento(); });
+        expect(salvarCamposPersonagem).toHaveBeenCalledTimes(1);
+        const [nome, campos] = salvarCamposPersonagem.mock.calls[0];
+        expect(nome).toBe('Toga');
+        expect(campos['posicoes/default']).toEqual({ x: 5, y: 6, z: 0, cenaId: 'default' });
+        expect(campos.posicao).toMatchObject({ x: 5, y: 6 });
+    });
+
+    it('NPC ainda fora do Mapa: o Mapa pede para colocar o NPC (não o Mestre) e o clique o coloca', () => {
+        montar({ ficha: fichaBase(), personagens: { Toga: fichaBase({ isNPC: true, posicao: undefined }) }, atorCombate: { nome: 'Toga' } });
+        expect(probe.nomeMovimento).toBe('Toga');
+        expect(probe.estouNoMapa).toBe(false);
+        act(() => { probe.pedirMovimento(2, 2); });
+        act(() => { probe.confirmarMovimento(); });
+        expect(salvarCamposPersonagem.mock.calls[0][0]).toBe('Toga');
+    });
+
+    it('sem ator: o movimento continua sendo do próprio personagem (ficha própria, sem gravar em NPC)', () => {
+        const eu = fichaBase();
+        montar({ ficha: eu, personagens: { Toga: npc(1, 1) } });
+        expect(probe.nomeMovimento).toBe('Mestre');
+        act(() => { probe.pedirMovimento(3, 3); });
+        act(() => { probe.confirmarMovimento(); });
+        expect(salvarCamposPersonagem).not.toHaveBeenCalled();
+        expect(eu.posicao).toMatchObject({ x: 3, y: 3 });
     });
 });

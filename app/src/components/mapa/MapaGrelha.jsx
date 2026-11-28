@@ -40,7 +40,7 @@ export function MapaControlesSuperiores() {
     const {
         modo3D, setModo3D, alterarZoom, tamanhoCelula, isMestre, souCriador,
         cenaVisualizadaId, cenaAtivaIdGlobal, cenaAtual,
-        altitudeInput, setAltitudeInput, cenario, ativarCena, estouNoMapa, removerTokenDoMapa, meuNome, alvoSelecionado, minhaFicha
+        altitudeInput, setAltitudeInput, cenario, ativarCena, estouNoMapa, removerTokenDoMapa, meuNome, nomeMovimento, alvoSelecionado, minhaFicha
     } = ctx;
     // 👣 Movimento (informativo): bônus em quadrados, velocidade 0 e quadrados percorridos no turno (core/movimentoInfo.js). O Mapa não limita o deslocamento.
     const textoMovimento = textoDeMovimento(resumoDeMovimento(minhaFicha, meuNome));
@@ -90,9 +90,9 @@ export function MapaControlesSuperiores() {
             </div>
             {textoMovimento && <span className="mapa-movimento-info" title="Informativo: o Mapa não limita o seu deslocamento por isso.">{textoMovimento}</span>}
             {estouNoMapa ? (
-                <button type="button" className="btn-neon" onClick={() => removerTokenDoMapa(meuNome)} style={{ padding: '2px 10px', margin: 0 }} title="Tira o seu personagem do Mapa (para voltar, clique numa casa)">🚪 Sair do Mapa</button>
+                <button type="button" className="btn-neon" onClick={() => removerTokenDoMapa(nomeMovimento || meuNome)} style={{ padding: '2px 10px', margin: 0 }} title={nomeMovimento && nomeMovimento !== meuNome ? `Tira ${nomeMovimento} do Mapa (para voltar, clique numa casa)` : 'Tira o seu personagem do Mapa (para voltar, clique numa casa)'}>🚪 Sair do Mapa</button>
             ) : (
-                <span className="mapa-entrar-dica">📍 Clique numa casa para colocar o seu personagem</span>
+                <span className="mapa-entrar-dica">📍 Clique numa casa para colocar {nomeMovimento && nomeMovimento !== meuNome ? nomeMovimento : 'o seu personagem'}</span>
             )}
             <button className={`btn-neon ${modo3D ? 'btn-gold' : ''}`} onClick={() => setModo3D(!modo3D)} style={{ padding: '2px 10px', margin: 0, borderColor: modo3D ? '#ffcc00' : '#00ffcc' }}>
                 {modo3D ? '🌌 2D' : '🌌 3D'}
@@ -107,14 +107,14 @@ export function MapaVisao() {
     const {
         modo3D, tamanhoCelula, cenaAtual, cells, tokenMap,
         cenaRenderId, tokens3D, pedirMovimento, movimentoPendente, confirmarMovimento, cancelarMovimento, getAvatarInfo,
-        meuNome, corDoJogador, overridesCompendio, cenario, isMestre, inspecionar, inspecao, alvoSelecionado
+        meuNome, nomeMovimento, corDoJogador, overridesCompendio, cenario, isMestre, inspecionar, inspecao, alvoSelecionado
     } = ctx;
 
     const zonasCena = (cenario?.zonas || []).filter(z => (z.cenaId || 'default') === cenaRenderId);
 
     const barraConfirmacao = movimentoPendente ? (
         <div className="movimento-pendente" role="alertdialog" aria-label="Confirmar movimento">
-            <span>📍 Mover <strong>{meuNome}</strong> para <strong>({movimentoPendente.x}, {movimentoPendente.y})</strong>?</span>
+            <span>📍 Mover <strong>{nomeMovimento || meuNome}</strong> para <strong>({movimentoPendente.x}, {movimentoPendente.y})</strong>?</span>
             <button type="button" className="btn-neon btn-green movimento-pendente-btn" onClick={confirmarMovimento}>✅ Ir para lá</button>
             <button type="button" className="btn-neon btn-red movimento-pendente-btn" onClick={cancelarMovimento}>✖ Ficar</button>
         </div>

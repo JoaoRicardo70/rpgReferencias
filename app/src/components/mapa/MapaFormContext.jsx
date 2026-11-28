@@ -26,6 +26,7 @@ import { escalarDanoPelaVida, getVidaMaxExibidaFicha, getPontosVidaTotal } from 
 import { golpeEquipado } from '../../core/classesMecanicas';
 import { alternarAcao, restaurarAcoes } from '../../core/acoes';
 import { ehNpc } from '../../core/tipoPersonagem';
+import { camposPosicaoNaCena } from '../../core/gavetaNpc';
 import { getPoderParaDisputa, getPoderDoAlvo, getPoderDeEntidade, calcularDisputaPoder, aplicarDisputaAoDano, descreverDisputa, resolverAcertoNoAlvo } from '../../core/disputaPoder';
 import { aplicarRegeneracaoDeTurno, descansarCompleto, VITAIS_REGENERAVEIS, FATOR_EXIBICAO_VITAIS, danoExibidoParaBruto, getTetoExibidoComFator } from '../../core/vitals';
 import { calcularGanhoFadigaDinamico } from '../../core/fadiga';
@@ -867,6 +868,11 @@ export function MapaFormProvider({ children }) {
     const handleCellClick = useCallback((x, y) => {
         const z = parseInt(altitudeInput) || 0;
         
+        // 🎭 Atuando como um NPC: o clique move a ficha DELE (só os campos de posição), não a do Mestre.
+        if (atorAtivo) {
+            salvarCamposPersonagem(atorAtivo.nomeFicha, camposPosicaoNaCena(cenaRenderId, { x, y, z }));
+            return;
+        }
         const oldPos = minhaFicha?.posicoes ? minhaFicha.posicoes[cenaRenderId] : (minhaFicha?.posicao?.cenaId === cenaRenderId ? minhaFicha.posicao : null);
 
         {
@@ -888,18 +894,19 @@ export function MapaFormProvider({ children }) {
             salvarFichaSilencioso();
             processarEntradaNaZona(oldPos, x, y, z, meuNome);
         }
-    }, [cenaRenderId, altitudeInput, updateFicha, processarEntradaNaZona, meuNome, minhaFicha, cenario]);
+    }, [atorAtivo, cenaRenderId, altitudeInput, updateFicha, processarEntradaNaZona, meuNome, minhaFicha, cenario]);
 
     // 📍 Mover o PRÓPRIO personagem pede confirmação: um clique na casa só marca o destino e o jogador
     // escolhe "Ir para lá" ou "Ficar" — assim clicar perto de outro token (ou sem querer) não teleporta
     // ninguém.
     const [movimentoPendente, setMovimentoPendente] = useState(null);
     const pedirMovimento = useCallback((x, y) => {
-        const pos = minhaFicha?.posicoes?.[cenaRenderId] || ((minhaFicha?.posicao && (minhaFicha.posicao.cenaId || 'default') === cenaRenderId) ? minhaFicha.posicao : null);
+        const fichaMov = atorAtivo ? atorAtivo.ficha : minhaFicha;
+        const pos = fichaMov?.posicoes?.[cenaRenderId] || ((fichaMov?.posicao && (fichaMov.posicao.cenaId || 'default') === cenaRenderId) ? fichaMov.posicao : null);
         // Mesma casa e mesma altitude: nada a confirmar (mudar só a altitude Z continua valendo como movimento).
         if (pos && pos.x === x && pos.y === y && (pos.z || 0) === (parseInt(altitudeInput) || 0)) { setMovimentoPendente(null); return; }
         setMovimentoPendente({ x, y });
-    }, [minhaFicha, cenaRenderId, handleCellClick, altitudeInput]);
+    }, [atorAtivo, minhaFicha, cenaRenderId, handleCellClick, altitudeInput]);
     const confirmarMovimento = useCallback(() => {
         if (movimentoPendente) handleCellClick(movimentoPendente.x, movimentoPendente.y);
         setMovimentoPendente(null);
@@ -909,7 +916,10 @@ export function MapaFormProvider({ children }) {
     // 🚪 Tirar um token de JOGADOR do Mapa (só desta cena): o Mestre tira qualquer um; cada jogador
     // tira só o próprio (e volta clicando numa casa). 
     // Só conta se tem casa de verdade (a iniciativa pode criar posicoes[cena] só com cenaId, sem x/y).
-    const posNaCena = minhaFicha?.posicoes?.[cenaRenderId] || ((minhaFicha?.posicao && (minhaFicha.posicao.cenaId || 'default') === cenaRenderId) ? minhaFicha.posicao : null);
+    // Quem se move é o ator (NPC em que o Mestre atua) ou eu mesmo.
+    const nomeMovimento = atorAtivo ? atorAtivo.nomeFicha : meuNome;
+    const fichaMovimento = atorAtivo ? atorAtivo.ficha : minhaFicha;
+    const posNaCena = fichaMovimento?.posicoes?.[cenaRenderId] || ((fichaMovimento?.posicao && (fichaMovimento.posicao.cenaId || 'default') === cenaRenderId) ? fichaMovimento.posicao : null);
     const estouNoMapa = !!(posNaCena && posNaCena.x !== undefined);
     const removerTokenDoMapa = useCallback((nome) => {
         if (!nome) return;
@@ -924,13 +934,13 @@ export function MapaFormProvider({ children }) {
             });
             salvarFichaSilencioso();
         }
-        const ficha = ehMeu ? minhaFicha : jogadores[nome];
+        const ficha = ehMeu ? minhaFicha : (jogadores[nome] || personagens[nome]);
         if (ficha?.posicao && (ficha.posicao.cenaId || 'default') === cenaRenderId) campos.posicao = null;
         salvarCamposPersonagem(nome, campos);
         setMovimentoPendente(null);
         const atual = useStore.getState().entidadeInspecionada;
         if (atual && atual.tipo === 'jogador' && atual.id === nome) setEntidadeInspecionada(null);
-    }, [isMestre, meuNome, cenaRenderId, minhaFicha, jogadores, updateFicha, setEntidadeInspecionada]);
+    }, [isMestre, meuNome, cenaRenderId, minhaFicha, jogadores, personagens, updateFicha, setEntidadeInspecionada]);
     // Trocar de cena (ou de alvo do Mestre) invalida o destino marcado.
     useEffect(() => { setMovimentoPendente(null); }, [cenaRenderId, alvoSelecionado]);
 
@@ -1758,7 +1768,7 @@ export function MapaFormProvider({ children }) {
         combateAtivo, rodadaAtual, combateSemInicio, iniciarCombate, equipes, relacoes, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes, racas, salvarRacas, definirRacaDoPersonagem,
         rolarAcertoRapido, tokenMap, tokens3D, jogadorDaVez, infoDaVez, fmt, deletarZona, toggleActionDot,
         inspecao, inspecionar, limparInspecao, modoJogador,
-        movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento, removerTokenDoMapa, estouNoMapa
+        movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento, removerTokenDoMapa, estouNoMapa, nomeMovimento
     }), [
         minhaFicha, meuNome, personagens, feedCombate, isMestre, souCriador, alvoSelecionado, cenario, abaAtiva,
         fichaSegura, modo3D, tamanhoCelula, iniciativaInput, altitudeInput,
@@ -1774,7 +1784,7 @@ export function MapaFormProvider({ children }) {
         sairDoCombate, encerrarCombate, rolarAcertoRapido, deletarZona, toggleActionDot,
         combateAtivo, rodadaAtual, combateSemInicio, iniciarCombate, equipes, relacoes, definirEquipeDe, alternarLadoOculto, salvarEquipes, salvarRelacoes, racas, salvarRacas, definirRacaDoPersonagem,
         inspecao, inspecionar, limparInspecao, modoJogador,
-        movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento, removerTokenDoMapa, estouNoMapa
+        movimentoPendente, pedirMovimento, confirmarMovimento, cancelarMovimento, removerTokenDoMapa, estouNoMapa, nomeMovimento
     ]);
 
     return (
